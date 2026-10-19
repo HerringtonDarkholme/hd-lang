@@ -28,7 +28,7 @@ fn codes(main: &str) -> Vec<Code> {
 }
 
 const PRELUDE: &str = "\
-data File:
+struct File:
     fd: i32
 
 pub fn main() -> void:
@@ -50,7 +50,7 @@ fn a_caret_on_a_type_or_a_receiver_is_a_syntax_error() {
         "fn fill(f: ^mut File) -> void: pass\n",
         "fn make(f: File) -> void:\n    let v: ^File = f\n",
         "impl File:\n    fn peek(^self) -> i32: 0\n",
-        "impl File:\n    fn reset(^mut self) -> void: pass\n",
+        "impl File:\n    fn reset(^&mut self) -> void: pass\n",
     ];
     for form in forms {
         let program = format!("{PRELUDE}\n{form}");

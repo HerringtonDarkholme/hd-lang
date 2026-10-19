@@ -1,7 +1,7 @@
 # test: a default may call a dynamic trait method whose row is empty
 
 trait Counter:
-    fn next(mut self) -> i32
+    fn next(&mut self) -> i32
 
 struct Steps:
     count: i32
@@ -11,5 +11,5 @@ impl Counter for Steps:
         self.count = self.count + 1
         self.count
 
-fn advance(counter: mut dyn Counter, step: i32 = counter.next()) -> i32:
+fn advance(counter: &mut dyn Counter, step: i32 = counter.next()) -> i32:
     step

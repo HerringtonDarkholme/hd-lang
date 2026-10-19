@@ -38,10 +38,10 @@ const PRELUDE: &str = "\
 trait Repo[T]:
     fn number(self) -> i32
 
-data User: pass
-data Post: pass
+struct User: pass
+struct Post: pass
 
-data Job[A, B]:
+struct Job[A, B]:
     callback: fn() -> i32 $ Repo[A] + Repo[B]
 
 fn read_both() -> i32 $ Repo[User] + Repo[Post]:
@@ -58,7 +58,7 @@ fn two_key_matchings_are_ambiguous() {
 
 #[test]
 fn unique_key_matching_stays_clean() {
-    let main = "trait Repo[T]:\n    fn number(self) -> i32\n\ndata User: pass\n\ndata Box[A]:\n    callback: fn() -> i32 $ Repo[A]\n\nfn read_user() -> i32 $ Repo[User]:\n    0\n\nfn schedule() -> void:\n    _ := Box { callback: read_user }\n\npub fn main() -> void:\n    pass\n";
+    let main = "trait Repo[T]:\n    fn number(self) -> i32\n\nstruct User: pass\n\nstruct Box[A]:\n    callback: fn() -> i32 $ Repo[A]\n\nfn read_user() -> i32 $ Repo[User]:\n    0\n\nfn schedule() -> void:\n    _ := Box { callback: read_user }\n\npub fn main() -> void:\n    pass\n";
     assert_eq!(codes(main), Vec::<Code>::new());
 }
 

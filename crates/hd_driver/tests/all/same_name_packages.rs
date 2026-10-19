@@ -28,7 +28,7 @@ fn money(scale: i32, value: i32) -> MemorySources {
     s.insert(
         "src/lib.hd",
         &format!(
-            "pub data Coin:\n    pub cents: i32\n\n\
+            "pub struct Coin:\n    pub cents: i32\n\n\
              pub fn make(n: i32) -> Coin:\n    Coin {{ cents: n * {scale} }}\n\n\
              pub fn value() -> i32:\n    {value}\n"
         ),

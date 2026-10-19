@@ -43,7 +43,7 @@ fn errors(src: &str) -> Vec<Code> {
 
 const DECLS: &str = "use std.inspect.{Inspectable, TypeId}
 
-data Box[T]:
+struct Box[T]:
     value: T
 
 impl[T] Box[T]:
@@ -64,7 +64,7 @@ impl Maker for string:
     fn made[V](value: V) -> V:
         value
 
-data User:
+struct User:
     name: string
 ";
 
@@ -74,7 +74,7 @@ data User:
 fn qualified_calls_resolve_owner_then_member_then_type_arguments() {
     let cases = [
         "fn run() -> TypeId:\n    TypeId::of::[User]()\n",
-        "fn run() -> TypeId:\n    TypeId::of::[List[mut User]]()\n",
+        "fn run() -> TypeId:\n    TypeId::of::[List[User]]()\n",
         "fn run[T < Inspectable]() -> TypeId:\n    TypeId::of::[T]()\n",
         "fn run() -> i32:\n    Box::pick::[i32](3)\n",
         "fn run() -> i32:\n    Box::[string]::pick::[i32](3)\n",
@@ -183,10 +183,10 @@ fn type_id_of_follows_runtime_identity() {
     let main = "\
 use std.inspect.{Inspectable, TypeId}
 
-data User:
+struct User:
     name: string
 
-data Box[T]:
+struct Box[T]:
     value: T
 
 fn same[T < Inspectable, U < Inspectable]() -> bool:
@@ -213,27 +213,26 @@ pub fn main() -> void $ Console:
 const NAMES: &str = "\
 use std.inspect.TypeId
 
-data User:
+struct User:
     name: string
 
 pub fn main() -> void $ Console:
     println(\"${TypeId::of::[User]()}\")
     println(\"${TypeId::of::[User?]()}\")
-    println(\"${TypeId::of::[List[mut User]]()}\")
-    println(\"${TypeId::of::[mut User]()}\")
+    println(\"${TypeId::of::[List[User]]()}\")
     println(\"${TypeId::of::[(User, i32)]()}\")
     println(\"${TypeId::of::[Map[string, User?]]()}\")
 ";
 
 /// A package prints its manifest name with each `-` written `_`
 /// (trait.typeid.name.package), then the module and the name, with `T?`,
-/// inner `mut`, tuples and `, ` as the name table says.
+/// tuples and `, ` as the name table says.
 #[test]
 fn a_package_prints_its_name_with_underscores() {
     assert_eq!(
         output_in("package", "acme-shop", &Packages::default(), NAMES),
-        "acme_shop.main.User\nacme_shop.main.User?\nList[mut acme_shop.main.User]\n\
-         acme_shop.main.User\n(acme_shop.main.User, i32)\nMap[string, acme_shop.main.User?]\n"
+        "acme_shop.main.User\nacme_shop.main.User?\nList[acme_shop.main.User]\n\
+         (acme_shop.main.User, i32)\nMap[string, acme_shop.main.User?]\n"
     );
 }
 
@@ -247,7 +246,7 @@ fn a_single_file_program_prints_its_stem() {
     };
     assert_eq!(
         output_in("single-file", "app", &packages, NAMES),
-        "main.User\nmain.User?\nList[mut main.User]\nmain.User\n(main.User, i32)\n\
+        "main.User\nmain.User?\nList[main.User]\n(main.User, i32)\n\
          Map[string, main.User?]\n"
     );
 }

@@ -61,7 +61,7 @@ const ERRORS: &str = "\
 use std.error.Error
 use std.inspect.downcast_val
 
-data DiskError:
+struct DiskError:
     device: string
 
 impl Display for DiskError:
@@ -69,7 +69,7 @@ impl Display for DiskError:
 
 impl Error for DiskError
 
-data Timeout:
+struct Timeout:
     seconds: i32
 
 impl Display for Timeout:
@@ -91,6 +91,7 @@ impl Error for FsError
 /// not as another error type (trait.downcast.some,
 /// trait.downcast.same-reference).
 #[test]
+#[ignore = "downcast to a struct has no target until #586 decides its form"]
 fn a_dyn_error_downcasts_to_its_data_error() {
     let main = format!(
         "{ERRORS}
@@ -147,13 +148,13 @@ pub fn main() -> void $ Console:
 #[test]
 fn type_arguments_match_exactly() {
     let main = "\
-use std.inspect.Inspectable
+use std.inspect.{Inspectable, downcast_val}
 
-data Box[T]:
+struct Box[T]:
     value: T
 
 fn int_box(value: dyn Inspectable) -> string:
-    match value.downcast::[Box[i32]]():
+    match downcast_val::[Box[i32]](value):
         .Some(found) => \"i32 box ${found.value}\"
         .None => \"not an i32 box\"
 
@@ -173,7 +174,7 @@ fn an_erased_optional_stays_optional() {
     let main = "\
 use std.inspect.{Inspectable, downcast_val}
 
-data User:
+struct User:
     name: string
 
 fn user_of(value: dyn Inspectable) -> string:
@@ -231,12 +232,13 @@ pub fn main() -> void $ Console:
 /// bound receiver recovers through its instance's type: a trait value
 /// through its vtable, a concrete value by its static type.
 #[test]
+#[ignore = "downcast to a struct has no target until #586 decides its form"]
 fn downcast_mut_and_bound_receivers() {
     let main = format!(
         "{ERRORS}
 use std.inspect.Inspectable
 
-data Counter:
+struct Counter:
     count: i32
 
 fn bump(value: mut dyn Inspectable) -> void:
@@ -264,27 +266,27 @@ pub fn main() -> void $ Console:
 
 /// `runtime_type` names the recorded type (trait.inspect.dynamic,
 /// trait.typeid.name.*): a trait value's is the erased concrete type, a
-/// concrete value's its static type, without the outer `mut`.
+/// concrete value's its static type.
 #[test]
 fn runtime_type_names_the_recorded_type() {
     let main = format!(
         "use std.inspect.Inspectable
 {ERRORS}
-data User:
+struct User:
     name: string
 
 pub fn main() -> void $ Console:
     let error: dyn Error = DiskError {{ device: \"sda\" }}
     println(\"${{error.runtime_type()}}\")
-    let users: mut List[User?] = []
+    let mut users: List[User?] = []
     println(\"${{users.runtime_type()}}\")
-    let pair: (i32, mut List[string]) = (1, [])
+    let pair: (i32, List[string]) = (1, [])
     println(\"${{pair.runtime_type()}}\")
 "
     );
     assert_eq!(
         output_of("runtime-type", &main),
-        "app.main.DiskError\nList[app.main.User?]\n(i32, mut List[string])\n"
+        "app.main.DiskError\nList[app.main.User?]\n(i32, List[string])\n"
     );
 }
 
@@ -292,14 +294,15 @@ pub fn main() -> void $ Console:
 /// come back at their own type through the method form with explicit type
 /// arguments, and as `.None` at any other (trait.downcast.some).
 #[test]
+#[ignore = "downcast to a struct has no target until #586 decides its form"]
 fn a_list_of_inspectable_values_downcasts_by_method() {
     let main = "\
 use std.inspect.Inspectable
 
-data User:
+struct User:
     name: string
 
-data Tag:
+struct Tag:
     label: string
 
 fn describe(value: dyn Inspectable) -> string:

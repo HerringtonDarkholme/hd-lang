@@ -5,7 +5,7 @@ pub use pkg.geo.{Point}
 use dep.json.decode as parse
 
 @derive(Debug, Eq)
-pub data Point:
+pub struct Point:
     ## The horizontal position.
     pub x: i32
     y: i32 = 0

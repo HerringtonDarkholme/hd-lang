@@ -78,7 +78,7 @@ trait Describe:
         \"* \" + self.describe()
 
 trait Counter:
-    fn bump(mut self, by: i32) -> i32
+    fn bump(&mut self, by: i32) -> i32
     fn wrap[T](self, value: T) -> List[T]:
         [value]
 
@@ -86,7 +86,7 @@ trait Supplier:
     type Item
     fn get(self) -> Self::Item
 
-data Logger:
+struct Logger:
     name: string
     hits: i32
 
@@ -94,7 +94,7 @@ impl Describe for Logger:
     fn describe(self) -> string: self.name
 
 impl Counter for Logger:
-    fn bump(mut self, by: i32) -> i32:
+    fn bump(&mut self, by: i32) -> i32:
         self.hits = self.hits + by
         self.hits
 
@@ -102,7 +102,7 @@ impl Supplier for Logger:
     type Item = i32
     fn get(self) -> i32: self.hits
 
-data Service:
+struct Service:
     Logger
     port: i32
 
@@ -122,7 +122,7 @@ fn first[S < Supplier](s: S) -> S::Item:
     s.get()
 
 pub fn main() -> void:
-    service := Service {{ Logger: ...Logger {{ name: \"api\", hits: 1 }}, port: 80 }}
+    service := Service {{ Logger: Logger {{ name: \"api\", hits: 1 }}, port: 80 }}
     _ := service.get() + first(service)
     let erased: dyn Supplier[Item = i32] = service
     _ := erased.get() + 1
@@ -146,7 +146,7 @@ trait Named:
     fn name(self) -> string
     fn kind() -> string
 
-data Logger:
+struct Logger:
     label: string
 
 impl Named for Logger:
@@ -154,7 +154,7 @@ impl Named for Logger:
     fn name(self) -> string: self.label
     fn kind() -> string: \"logger\"
 
-data Service:
+struct Service:
     Logger
 ";
     assert_eq!(
@@ -181,7 +181,7 @@ fn show(value: dyn Describe) -> string:
     value.headline()
 
 pub fn main() -> void $ Console:
-    service := Service {{ Logger: ...Logger {{ name: \"api\", hits: 0 }}, port: 80 }}
+    service := Service {{ Logger: Logger {{ name: \"api\", hits: 0 }}, port: 80 }}
     println(service.describe())
     println(service.headline())
     println(show(service))
@@ -196,14 +196,14 @@ pub fn main() -> void $ Console:
 fn a_mut_method_forwards_through_the_part_in_place() {
     let main = format!(
         "{PARTS}
-fn twice[C < mut Counter](counter: C) -> i32:
+fn twice[C < Counter](counter: &mut C) -> i32:
     counter.bump(1)
     counter.bump(1)
 
 pub fn main() -> void $ Console:
-    let service: mut Service = Service {{ Logger: ...Logger {{ name: \"api\", hits: 0 }}, port: 80 }}
+    let mut service = Service {{ Logger: Logger {{ name: \"api\", hits: 0 }}, port: 80 }}
     println(service.bump(5))
-    println(twice(service))
+    println(twice(&mut service))
     println(service.Logger.hits)
     println(service.get())
 "
@@ -222,7 +222,7 @@ fn read(source: dyn Supplier[Item = i32]) -> i32:
     source.get() * 10
 
 pub fn main() -> void $ Console:
-    service := Service {{ Logger: ...Logger {{ name: \"api\", hits: 4 }}, port: 80 }}
+    service := Service {{ Logger: Logger {{ name: \"api\", hits: 4 }}, port: 80 }}
     println(service.get() + 1)
     println(first(service))
     println(read(service))
@@ -240,14 +240,14 @@ trait Supplier:
     fn twice(self) -> List[Self::Item]:
         [self.get(), self.get()]
 
-data Box[T]:
+struct Box[T]:
     value: T
 
 impl[T] Supplier for Box[T]:
     type Item = T
     fn get(self) -> T: self.value
 
-data Shelf[T]:
+struct Shelf[T]:
     Box[T]
     label: string
 
@@ -257,11 +257,11 @@ fn first[S < Supplier](s: S) -> S::Item:
     s.get()
 
 pub fn main() -> void $ Console:
-    shelf := Shelf { Box: ...Box { value: 7 }, label: \"a\" }
+    shelf := Shelf { Box: Box { value: 7 }, label: \"a\" }
     println(shelf.get() + 1)
     println(first(shelf))
     println(shelf.twice().len())
-    let s: dyn Supplier[Item = string] = Shelf { Box: ...Box { value: \"hi\" }, label: \"b\" }
+    let s: dyn Supplier[Item = string] = Shelf { Box: Box { value: \"hi\" }, label: \"b\" }
     println(s.get())
 ";
     assert_eq!(output_of("generic", main), "8\n7\n2\nhi\n");
@@ -274,20 +274,20 @@ trait Source:
     fn fetch!(self, n: i32) -> i32
     fn show(self) -> void $ Console
 
-data Disk:
+struct Disk:
     base: i32
 
 impl Source for Disk:
     fn fetch!(self, n: i32) -> i32: self.base + n
     fn show(self) -> void $ Console: println(self.base)
 
-data Cache:
+struct Cache:
     Disk
 
 impl Source for Cache by Disk
 
 pub fn main!() -> void $ Console:
-    c := Cache { Disk: ...Disk { base: 40 } }
+    c := Cache { Disk: Disk { base: 40 } }
     println(c.fetch!(2))
     c.show()
 ";

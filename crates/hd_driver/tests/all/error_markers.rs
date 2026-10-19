@@ -32,7 +32,7 @@ fn codes(main: &str) -> Vec<Code> {
         .collect()
 }
 
-const DISK: &str = "@error(\"disk full\")\ndata DiskError:\n    free: i64\n\n";
+const DISK: &str = "@error(\"disk full\")\nstruct DiskError:\n    free: i64\n\n";
 
 #[test]
 fn valid_forms_are_clean() {
@@ -44,7 +44,7 @@ fn valid_forms_are_clean() {
 
 #[test]
 fn transparent_data_type_is_clean() {
-    let src = format!("{DISK}@error(transparent)\ndata Wrap:\n    @from\n    inner: DiskError\n");
+    let src = format!("{DISK}@error(transparent)\nstruct Wrap:\n    @from\n    inner: DiskError\n");
     assert_eq!(codes(&src), vec![]);
 }
 
@@ -53,8 +53,8 @@ fn transparent_requires_exactly_one_member() {
     for src in [
         "@error\nenum E:\n    @error(transparent)\n    Empty\n",
         "@error\nenum E:\n    @error(transparent)\n    Pair(a: i32, b: i32)\n",
-        "@error(transparent)\ndata D: pass\n",
-        "@error(transparent)\ndata D:\n    a: i32\n    b: i32\n",
+        "@error(transparent)\nstruct D: pass\n",
+        "@error(transparent)\nstruct D:\n    a: i32\n    b: i32\n",
     ] {
         assert_eq!(codes(src), vec![Code::DecoratorTargetKind], "{src}");
     }
@@ -71,7 +71,7 @@ fn argument_forms_are_rejected_once() {
         let src = format!("@error\nenum E:\n    {line}\n    Full\n");
         assert_eq!(codes(&src), vec![Code::InvalidErrorMarker], "{line}");
     }
-    let src = "@error(42)\ndata D:\n    free: i64\n";
+    let src = "@error(42)\nstruct D:\n    free: i64\n";
     assert_eq!(codes(src), vec![Code::InvalidErrorMarker]);
 }
 
@@ -101,7 +101,7 @@ fn second_cause_is_rejected() {
 #[test]
 fn second_cause_in_data_type_is_rejected() {
     let src = format!(
-        "{DISK}@error(\"x\")\ndata D:\n    @source\n    a: DiskError\n    @source\n    b: DiskError\n"
+        "{DISK}@error(\"x\")\nstruct D:\n    @source\n    a: DiskError\n    @source\n    b: DiskError\n"
     );
     assert_eq!(codes(&src), vec![Code::InvalidErrorMarker]);
 }
@@ -125,7 +125,7 @@ fn from_type_parameter_is_by_resolution_not_spelling() {
 
 #[test]
 fn from_type_parameter_on_data_is_rejected() {
-    let src = "@error(\"x\")\ndata D[E]:\n    @from\n    inner: E\n";
+    let src = "@error(\"x\")\nstruct D[E]:\n    @from\n    inner: E\n";
     assert_eq!(codes(src), vec![Code::InvalidErrorMarker]);
 }
 

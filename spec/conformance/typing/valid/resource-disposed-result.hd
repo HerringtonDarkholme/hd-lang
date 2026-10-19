@@ -4,9 +4,9 @@ enum IoError:
     Closed
 
 trait FileHandle:
-    fn read!(mut self) -> Result[string, IoError]
-    fn close(mut self) -> Result[void, IoError]
+    fn read!(&mut self) -> Result[string, IoError]
+    fn close(&mut self) -> Result[void, IoError]
 
-fn read_after_close!(handle: mut dyn FileHandle) -> Result[string, IoError]:
+fn read_after_close!(handle: &mut dyn FileHandle) -> Result[string, IoError]:
     _ := handle.close()?
     handle.read!()

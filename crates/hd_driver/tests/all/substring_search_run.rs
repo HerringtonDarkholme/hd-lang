@@ -86,7 +86,7 @@ fn naive_count(text: string, needle: string) -> usize:
     found
 
 fn naive_split(text: string, separator: string) -> List[string]:
-    let pieces: mut List[string] = []
+    let mut pieces: List[string] = []
     let start: usize = 0
     while true:
         match naive_find(text, separator, start):
@@ -100,21 +100,21 @@ fn naive_split(text: string, separator: string) -> List[string]:
 fn naive_replace(text: string, old: string, new: string) -> string:
     naive_split(text, old).join(new)
 
-data Rng:
+struct Rng:
     state: u64
 
 impl Rng:
-    fn below(mut self, bound: usize) -> usize:
+    fn below(&mut self, bound: usize) -> usize:
         self.state = (self.state * 1103515245 + 12345) % 2147483648
         usize((self.state / 65536) % u64(bound))
 
-fn word(rng: mut Rng, alphabet: List[string], size: usize) -> string:
-    let parts: mut List[string] = []
+fn word(rng: &mut Rng, alphabet: List[string], size: usize) -> string:
+    let mut parts: List[string] = []
     for _ in 0..size:
         parts.push(alphabet[rng.below(alphabet.len())])
     parts.join("")
 
-fn agree(text: string, needle: string, failures: mut List[string]) -> void:
+fn agree(text: string, needle: string, failures: &mut List[string]) -> void:
     case := "${debug(text)} ${debug(needle)}"
     if text.find(needle) != naive_find(text, needle, 0):
         failures.push("find $case")
@@ -144,7 +144,7 @@ fn fibonacci(steps: usize) -> string:
     b
 
 pub fn main() -> void $ Console:
-    let failures: mut List[string] = []
+    let mut failures: List[string] = []
     let checked: usize = 0
     fixed := [
         ("a".repeat(50) + "b", "aab"),
@@ -175,13 +175,13 @@ pub fn main() -> void $ Console:
         (fibonacci(9), "baab"),
     ]
     for (text, needle) in fixed:
-        agree(text, needle, failures)
+        agree(text, needle, &mut failures)
         checked = checked + 1
     alphabets := [["a", "b"], ["a", "b", "c"], ["a", "é", "ü"], ["x", "日", "本", "ab"], ["a"]]
-    let rng: mut Rng = Rng { state: 7 }
+    let mut rng = Rng { state: 7 }
     for round in 0..3000:
         alphabet := alphabets[round % alphabets.len()]
-        text := word(rng, alphabet, rng.below(40))
+        text := word(&mut rng, alphabet, rng.below(40))
         needle := if rng.below(2) == 0 && text.len() > 0:
             # Cut at scalar boundaries.
             chars := text.chars().collect::[List[char]]()
@@ -189,8 +189,8 @@ pub fn main() -> void $ Console:
             to := from + rng.below(chars.len() - from + 1)
             [for c in chars[from..to] => "$c"].join("")
         else:
-            word(rng, alphabet, rng.below(8))
-        agree(text, needle, failures)
+            word(&mut rng, alphabet, rng.below(8))
+        agree(text, needle, &mut failures)
         checked = checked + 1
     for failure in failures:
         println("FAIL $failure")

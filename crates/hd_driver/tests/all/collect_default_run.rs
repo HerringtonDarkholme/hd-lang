@@ -88,7 +88,7 @@ fn an_expected_mut_list_wins_over_the_default() {
     let main = "\
 pub fn main() -> void $ Console:
     let xs: List[i32] = [4, 5]
-    let out: mut List[i32] = xs.iter().collect()
+    let mut out: List[i32] = xs.iter().collect()
     out.push(6)
     println(out.len())
 ";

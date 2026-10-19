@@ -205,7 +205,7 @@ fn blob_bytes_are_equal_across_shuffled_serial_orders() {
 
 #[test]
 fn a_type_reached_only_through_a_signature_changes_the_dependents_key() {
-    let types = |field: &str| format!("pub data User:\n    pub name: {field}\n");
+    let types = |field: &str| format!("pub struct User:\n    pub name: {field}\n");
     let service = "use pkg.user.types.{User}\n\npub fn load() -> User:\n    User { name: 1 }\n";
     let main = "use pkg.service.load.{load}\n\npub fn main() -> void $ Console:\n    println(load().name)\n";
     let program = |field: &str| {
@@ -235,7 +235,7 @@ fn a_type_reached_only_through_a_signature_changes_the_dependents_key() {
 const STATS: &str = "\
 use std.cmp.Ordering
 
-pub data Point:
+pub struct Point:
     pub x: i32
     pub y: i32
 
@@ -292,10 +292,13 @@ fn name_phase_errors() {
     let r = check(&[
         (
             "a/x.hd",
-            "pub use pkg.a.y.{B}\nuse pkg.a.y.{Hidden}\nuse pkg.b.z.{Nope}\npub data A:\n    pub v: i32\n",
+            "pub use pkg.a.y.{B}\nuse pkg.a.y.{Hidden}\nuse pkg.b.z.{Nope}\npub struct A:\n    pub v: i32\n",
         ),
-        ("a/y.hd", "pub use pkg.a.x.{B}\ndata Hidden:\n    v: i32\n"),
-        ("b/z.hd", "pub data Z:\n    pub v: i32\n"),
+        (
+            "a/y.hd",
+            "pub use pkg.a.x.{B}\nstruct Hidden:\n    v: i32\n",
+        ),
+        ("b/z.hd", "pub struct Z:\n    pub v: i32\n"),
     ]);
     assert!(r.contains("re-export-loop"), "{r}");
     assert!(r.contains("private-import"), "{r}");
@@ -315,7 +318,7 @@ fn ownership_errors() {
     assert!(r.contains("orphan-impl"), "{r}");
     let r = check(&[
         ("a/x.hd", "pub trait Shape:\n    fn area(self) -> i32\n"),
-        ("b/y.hd", "pub data P:\n    pub v: i32\n"),
+        ("b/y.hd", "pub struct P:\n    pub v: i32\n"),
         (
             "c/z.hd",
             "use pkg.a.x.{Shape}\nuse pkg.b.y.{P}\n\nimpl Shape for P:\n    fn area(self) -> i32:\n        1\n",
@@ -339,17 +342,17 @@ fn orphan_impl_overlapping_std_is_one_error() {
 fn stage_b_and_coherence_errors() {
     let r = check(&[(
         "a/x.hd",
-        "pub data Set[K < Hash]:\n    pub k: K\n\npub fn first[T](s: Set[T]) -> i32:\n    1\n",
+        "pub struct Set[K < Hash]:\n    pub k: K\n\npub fn first[T](s: Set[T]) -> i32:\n    1\n",
     )]);
     assert!(r.contains("unsatisfied-trait-bound"), "{r}");
     let r = check(&[(
         "a/x.hd",
-        "pub trait A:\n    fn a(self) -> i32\npub trait B < A:\n    fn b(self) -> i32\npub data P:\n    pub v: i32\nimpl B for P:\n    fn b(self) -> i32:\n        1\n",
+        "pub trait A:\n    fn a(self) -> i32\npub trait B < A:\n    fn b(self) -> i32\npub struct P:\n    pub v: i32\nimpl B for P:\n    fn b(self) -> i32:\n        1\n",
     )]);
     assert!(r.contains("missing-supertrait-implementation"), "{r}");
     let r = check(&[(
         "a/x.hd",
-        "pub trait Shape:\n    fn area(self) -> i32\npub data Box[T]:\n    pub v: T\nimpl[T] Shape for Box[T]:\n    fn area(self) -> i32:\n        1\nimpl Shape for Box[i32]:\n    fn area(self) -> i32:\n        2\n",
+        "pub trait Shape:\n    fn area(self) -> i32\npub struct Box[T]:\n    pub v: T\nimpl[T] Shape for Box[T]:\n    fn area(self) -> i32:\n        1\nimpl Shape for Box[i32]:\n    fn area(self) -> i32:\n        2\n",
     )]);
     assert!(
         r.contains("overlapping-impl") && r.contains("Box[i32]"),

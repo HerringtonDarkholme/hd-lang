@@ -31,10 +31,10 @@ fn errors(main: &str) -> Vec<Code> {
 fn with_derive(derive: &str, body: &str) -> String {
     format!(
         "@derive({derive})
-data Box[T]:
+struct Box[T]:
     value: T
 
-data Socket:
+struct Socket:
     port: i32
 
 {body}

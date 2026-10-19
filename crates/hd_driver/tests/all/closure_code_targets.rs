@@ -19,7 +19,7 @@ use hd_sched::SerialOrder;
 /// function reference, a stored field, a list of closures), and the
 /// `List.iter()` and `Map.iter()` cursors, which are closures too.
 const CLOSURES: &str = "\
-data Button:
+struct Button:
     on_click: fn(i32) -> i32
 
 fn double(x: i32) -> i32: x * 2
@@ -45,7 +45,7 @@ pub fn main() -> void $ Console:
     println(total)
     let listed = fs.iter().map(fn(f): f(+2)).fold(0, fn(acc, x): acc + x)
     println(listed)
-    let m: mut Map[string, i32] = {\"a\": 1, \"b\": 2}
+    let mut m: Map[string, i32] = {\"a\": 1, \"b\": 2}
     let it: &mut Iterator[(string, i32)] = m.iter()
     let sum = +0
     for (_, v) in it:

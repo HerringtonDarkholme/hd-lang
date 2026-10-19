@@ -54,7 +54,7 @@ fn a_missing_method_is_still_unknown() {
 
 #[test]
 fn a_user_impl_bound_is_an_unmet_bound() {
-    let src = "data Box[T]:
+    let src = "struct Box[T]:
     value: T
 
 impl[T < Display] Box[T]:

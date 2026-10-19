@@ -1207,7 +1207,7 @@ fn same_named_path_dependencies_are_two_packages() {
     let world = World::new("same-name");
     let lib = |scale: &str| {
         format!(
-            "pub data Coin:\n    pub cents: i32\n\n\
+            "pub struct Coin:\n    pub cents: i32\n\n\
              pub fn make(n: i32) -> Coin:\n    Coin {{ cents: n * {scale} }}\n"
         )
     };
@@ -1253,7 +1253,7 @@ fn a_package_reached_twice_is_one_package() {
         "money",
         &[
             ("hd.toml", "[package]\nname = \"money\"\n"),
-            ("src/lib.hd", "pub data Coin:\n    pub cents: i32\n"),
+            ("src/lib.hd", "pub struct Coin:\n    pub cents: i32\n"),
         ],
     );
     world.package(

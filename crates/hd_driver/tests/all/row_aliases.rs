@@ -96,12 +96,12 @@ trait Db:
 trait Clock:
     fn now(self) -> i32
 
-data MemoryDb: pass
+struct MemoryDb: pass
 
 impl Db for MemoryDb:
     fn name(self) -> string: \"db\"
 
-data FixedClock: pass
+struct FixedClock: pass
 
 impl Clock for FixedClock:
     fn now(self) -> i32: 3
@@ -260,7 +260,7 @@ pub fn load() -> i32 $ AppRow:
     let main = "\
 use pkg.geo.shapes.{Db, Cache, load}
 
-data Store: pass
+struct Store: pass
 
 impl Db for Store:
     fn id(self) -> i32: 7

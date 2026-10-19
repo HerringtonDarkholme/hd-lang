@@ -392,7 +392,7 @@ fn text(stream: &Shared) -> String {
 /// sees the push.
 #[test]
 fn a_panicking_input_keeps_its_changes_to_earlier_values() {
-    let in1 = "let log: mut List[string] = []\n";
+    let in1 = "let mut log: List[string] = []\n";
     let in2 = "log.push(\"started\")\nline := log[5]\n";
     let in3 = "println(\"${log.len()}: ${log.join(\", \")}\")\n";
     with_session(|session, io| {
@@ -491,7 +491,7 @@ fn later_inputs_read_and_assign_earlier_bindings() {
 #[test]
 fn a_function_sees_a_later_change_to_an_earlier_binding() {
     let inputs = [
-        "let prices: mut Map[string, u32] = {}\n",
+        "let mut prices: Map[string, u32] = {}\n",
         "fn price(item: string) -> u32:\n    prices.get(item).unwrap_or(+0)\n",
         "prices[\"tea\"] = +3\n",
         "println(price(\"tea\"))\n",
@@ -524,7 +524,7 @@ fn an_expression_input_shows_its_value_and_type() {
 #[test]
 fn a_value_without_debug_shows_too() {
     let inputs = [
-        "data Point:\n    pub x: i32\n    pub y: i32\n",
+        "struct Point:\n    pub x: i32\n    pub y: i32\n",
         "Point { x: +1, y: -2 }\n",
         "origin := Point { x: +0, y: +0 }\n",
         "origin\n",
@@ -689,7 +689,7 @@ nap!()
         let mut repl = repl(session);
         for input in [
             "use std.time.{sleep, Duration}\n",
-            "let log: mut List[string] = []\n",
+            "let mut log: List[string] = []\n",
         ] {
             assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
         }
@@ -1121,7 +1121,7 @@ fn a_rebuilt_session_repeats_no_host_call() {
 #[test]
 fn a_string_keyed_map_is_found_after_a_panic_and_a_rebuild() {
     let inputs = [
-        "let m: mut Map[string, i32] = {}\n",
+        "let mut m: Map[string, i32] = {}\n",
         "m[\"tea\"] = +1\n",
         "m[\"cake\"] = +2\nlost := [+1][3]\n",
         "println(m.get(\"tea\").unwrap_or(+0) * 10 + m.get(\"cake\").unwrap_or(+0))\n",
@@ -1302,7 +1302,7 @@ fn a_session_past_its_bound_rebuilds_into_one_instance() {
 #[test]
 fn a_rebuild_builds_a_panicked_input_alone() {
     let inputs = [
-        ("let log: mut List[string] = []\n", 0),
+        ("let mut log: List[string] = []\n", 0),
         ("log.push(\"a\")\nline := log[5]\n", 3),
         ("log.push(\"b\")\n", 0),
         ("log.len()\n", 0),

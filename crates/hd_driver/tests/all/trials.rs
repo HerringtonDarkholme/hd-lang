@@ -37,8 +37,7 @@ fn errors(out: &Output) -> Vec<(Code, String)> {
         .collect()
 }
 
-const ITEM: &str =
-    "trait Apply[T]:\n    fn apply(self, run: fn(T) -> T) -> i32\n\ndata Item:\n    value: i32\n\n";
+const ITEM: &str = "trait Apply[T]:\n    fn apply(self, run: fn(T) -> T) -> i32\n\nstruct Item:\n    value: i32\n\n";
 const BOOL_IMPL: &str = "impl Apply[bool] for Item:\n    fn apply(self, run: fn(bool) -> bool) -> i32:\n        if run(true): 1 else: 0\n\n";
 const I32_IMPL: &str = "impl Apply[i32] for Item:\n    fn apply(self, run: fn(i32) -> i32) -> i32:\n        run(self.value)\n\n";
 // The closure captures `offset`, holds a string constant and a local, and
@@ -49,7 +48,7 @@ const MAIN: &str = "pub fn main() -> i32:\n    item := Item { value: 40 }\n    o
 /// no error, and the call is checked for real against it.
 #[test]
 fn of_two_candidates_the_one_whose_trial_fits_is_chosen() {
-    let src = "trait Pick[T]:\n    fn pick(self, value: T) -> i32\n\ndata Item: pass\n\nimpl Pick[bool] for Item:\n    fn pick(self, value: bool) -> i32: 0\n\nimpl Pick[i32] for Item:\n    fn pick(self, value: i32) -> i32: value\n\npub fn run(n: i32) -> i32:\n    Item {}.pick(n)\n";
+    let src = "trait Pick[T]:\n    fn pick(self, value: T) -> i32\n\nstruct Item: pass\n\nimpl Pick[bool] for Item:\n    fn pick(self, value: bool) -> i32: 0\n\nimpl Pick[i32] for Item:\n    fn pick(self, value: i32) -> i32: value\n\npub fn run(n: i32) -> i32:\n    Item {}.pick(n)\n";
     let out = analyze(src, &["app/main/run"]);
     assert_eq!(errors(&out), vec![], "{}", out.render());
     let tir = out.tir_text.get("app/main/run").expect("run's TIR");
@@ -64,7 +63,7 @@ fn of_two_candidates_the_one_whose_trial_fits_is_chosen() {
 /// `ambiguous-method` naming both (`trait.resolve.many-apply`).
 #[test]
 fn two_fitting_candidates_are_ambiguous() {
-    let src = "trait Pick[T]:\n    fn pick(self) -> T\n\ndata Money:\n    cents: i32\n\nimpl Pick[i32] for Money:\n    fn pick(self) -> i32: self.cents\n\nimpl Pick[string] for Money:\n    fn pick(self) -> string: \"money\"\n\nfn invalid(price: Money) -> void:\n    _ := price.pick()\n";
+    let src = "trait Pick[T]:\n    fn pick(self) -> T\n\nstruct Money:\n    cents: i32\n\nimpl Pick[i32] for Money:\n    fn pick(self) -> i32: self.cents\n\nimpl Pick[string] for Money:\n    fn pick(self) -> string: \"money\"\n\nfn invalid(price: Money) -> void:\n    _ := price.pick()\n";
     let out = analyze(src, &[]);
     let errs = errors(&out);
     assert_eq!(errs.len(), 1, "{}", out.render());
@@ -76,7 +75,7 @@ fn two_fitting_candidates_are_ambiguous() {
 /// (`trait.resolve.no-apply`), not one error per trial.
 #[test]
 fn no_fitting_candidate_is_one_type_mismatch_listing_them() {
-    let src = "trait Combine[T]:\n    fn combine(self, other: T) -> i32\n\ndata Money:\n    cents: i32\n\nimpl Combine[i32] for Money:\n    fn combine(self, other: i32) -> i32: self.cents + other\n\nimpl Combine[Money] for Money:\n    fn combine(self, other: Money) -> i32: self.cents + other.cents\n\nfn invalid(price: Money) -> i32:\n    price.combine(\"five\")\n";
+    let src = "trait Combine[T]:\n    fn combine(self, other: T) -> i32\n\nstruct Money:\n    cents: i32\n\nimpl Combine[i32] for Money:\n    fn combine(self, other: i32) -> i32: self.cents + other\n\nimpl Combine[Money] for Money:\n    fn combine(self, other: Money) -> i32: self.cents + other.cents\n\nfn invalid(price: Money) -> i32:\n    price.combine(\"five\")\n";
     let out = analyze(src, &[]);
     let errs = errors(&out);
     assert_eq!(errs.len(), 1, "{}", out.render());

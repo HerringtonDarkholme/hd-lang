@@ -104,7 +104,7 @@ impl Parse for Path:
         .Ok(Path(text))
 
 fn components(text: string) -> List[string]:
-    let found: mut List[string] = []
+    let mut found: List[string] = []
     for piece in text.split("/"):
         if piece == "" || (piece == "." && (found.len() > 0 || text.starts_with("/"))):
             continue

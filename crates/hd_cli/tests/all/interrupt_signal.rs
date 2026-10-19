@@ -20,7 +20,7 @@ use nix::unistd::Pid;
 const PROGRAM: &str = "use std.ops.Disposable
 use std.time.{Clock, ms, sleep}
 
-data Conn:
+struct Conn:
     closing: mut Suspend[void]
 
 impl Disposable for Conn:

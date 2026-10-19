@@ -62,17 +62,17 @@ fn output_of(name: &str, main: &str) -> String {
 
 /// The design's first test (`f1c55020:future-work/compiler/build-order.md` §22, slice 6b), but for the
 /// closure built in the erased body: a packed `T = i32` and a reference
-/// `T`, a caller-owned `mut List[(T, T?)]`, a user `Buffer[T]` built and
+/// `T`, a caller-owned `&mut List[(T, T?)]`, a user `Buffer[T]` built and
 /// returned, a generic helper, a caller's `fn(T) -> T`, a bound call in a
 /// loop over an iterator, and a trait default, over two implementations.
 #[test]
 fn erased_bodies_run_at_packed_and_reference_type_arguments() {
     let main = "\
-data Buffer[T]:
+struct Buffer[T]:
     items: List[T]
     len: i32
 
-data User:
+struct User:
     name: string
 
 impl Display for User:
@@ -82,18 +82,18 @@ fn twice[T](x: T) -> List[T]:
     [x, x]
 
 trait Collector:
-    fn collect[T](self, x: T, out: mut List[(T, T?)]) -> Buffer[T]
+    fn collect[T](self, x: T, out: &mut List[(T, T?)]) -> Buffer[T]
     fn apply[T](self, x: T, f: fn(T) -> T) -> T
     fn show_all[T < Display](self, xs: List[T]) -> string
     fn pick[T](self, xs: List[T]) -> T?:
         if xs.len() > 0: xs[0]
         else: .None
 
-data Simple:
+struct Simple:
     tag: string
 
 impl Collector for Simple:
-    fn collect[T](self, x: T, out: mut List[(T, T?)]) -> Buffer[T]:
+    fn collect[T](self, x: T, out: &mut List[(T, T?)]) -> Buffer[T]:
         out.push((x, x))
         Buffer { items: twice(x), len: 2 }
 
@@ -106,11 +106,11 @@ impl Collector for Simple:
             s = s + x.to_string()
         s
 
-data Other:
+struct Other:
     n: i32
 
 impl Collector for Other:
-    fn collect[T](self, x: T, out: mut List[(T, T?)]) -> Buffer[T]:
+    fn collect[T](self, x: T, out: &mut List[(T, T?)]) -> Buffer[T]:
         out.push((x, .None))
         Buffer { items: [x], len: self.n }
 
@@ -121,12 +121,12 @@ impl Collector for Other:
         \"other ${xs.len()}\"
 
 fn run(c: dyn Collector) -> void $ Console:
-    let ints: mut List[(i32, i32?)] = []
-    b := c.collect(+5, ints)
+    let mut ints: List[(i32, i32?)] = []
+    b := c.collect(+5, &mut ints)
     println(\"${b.len} ${b.items.len()} ${ints.len()}\")
-    let users: mut List[(User, User?)] = []
+    let mut users: List[(User, User?)] = []
     u := User { name: \"ada\" }
-    ub := c.collect(u, users)
+    ub := c.collect(u, &mut users)
     println(\"${ub.items[0].name} ${users.len()}\")
     tenfold := fn(x: i32) -> i32: x * 10
     suffix := fn(x: string) -> string: x + \"b\"
@@ -162,26 +162,26 @@ pub fn main() -> void $ Console:
 fn a_dyn_generic_call_inside_an_erased_body_reaches_its_own_witness() {
     let main = "\
 trait Store[K]:
-    fn put[V](self, key: K, value: V, into: mut List[(K, V)]) -> V
+    fn put[V](self, key: K, value: V, into: List[(K, V)]) -> (V, List[(K, V)])
 
-data Plain:
+struct Plain:
     n: i32
 
 impl Store[string] for Plain:
-    fn put[V](self, key: string, value: V, into: mut List[(string, V)]) -> V:
-        into.push((key, value))
-        value
+    fn put[V](self, key: string, value: V, into: List[(string, V)]) -> (V, List[(string, V)]):
+        let mut pairs = into
+        pairs.push((key, value))
+        (value, pairs)
 
 trait Relay:
     fn relay[T](self, inner: dyn Store[string], value: T) -> T
 
-data Hop:
+struct Hop:
     tag: string
 
 impl Relay for Hop:
     fn relay[T](self, inner: dyn Store[string], value: T) -> T:
-        let pairs: mut List[(string, T)] = []
-        got := inner.put(self.tag, value, pairs)
+        let (got, pairs) = inner.put(self.tag, value, [])
         let (k, _) = pairs[0]
         if k != self.tag:
             panic(\"lost the key\")
@@ -223,26 +223,26 @@ pub fn main() -> void $ Console:
 #[test]
 fn values_keep_their_identity_through_an_erased_body() {
     let main = "\
-data User:
+struct User:
     name: string
 
 trait Keeper:
     fn keep[T](self, x: T) -> T
     fn size[T](self, xs: List[T]) -> usize
 
-data K:
+struct K:
     n: i32
 
 impl Keeper for K:
     fn keep[T](self, x: T) -> T: x
     fn size[T](self, xs: List[T]) -> usize: xs.len() + 100
 
-fn via[C < Keeper](c: C, u: User) -> bool:
+fn via[C < Keeper](c: C, u: &User) -> bool:
     c.keep(u) is u
 
 pub fn main() -> void $ Console:
     let k: dyn Keeper = K { n: 100 }
-    u := User { name: \"ada\" }
+    u := &User { name: \"ada\" }
     println(k.keep(u) is u)
     println(via(k, u))
     println(k.size([\"a\", \"b\"]))
@@ -259,7 +259,7 @@ fn a_trait_method_row_parameter_matches_its_implementation() {
 trait Runner:
     fn run[$R](self, f: fn() -> i32 $ R) -> i32 $ R
 
-data Plain:
+struct Plain:
     n: i32
 
 impl Runner for Plain:
@@ -281,7 +281,7 @@ trait Visitor:
     fn twice[T](self, x: T, f: fn(T) -> T) -> T
     fn gather[T](self, x: T) -> List[T]
 
-data Doubler:
+struct Doubler:
     n: i32
 
 impl Visitor for Doubler:
@@ -290,7 +290,7 @@ impl Visitor for Doubler:
         g(x)
 
     fn gather[T](self, x: T) -> List[T]:
-        let ys: mut List[T] = []
+        let mut ys: List[T] = []
         let add = fn() -> void:
             ys.push(x)
         add()
@@ -314,7 +314,7 @@ fn a_small_i32_crosses_an_erased_method_without_a_box() {
 trait Echo:
     fn echo[T](self, x: T) -> T
 
-data Same:
+struct Same:
     n: i32
 
 impl Echo for Same:

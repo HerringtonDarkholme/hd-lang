@@ -1,4 +1,4 @@
-data Counter:
+struct Counter:
     value: i32
 
 fn adjust(counter: Counter, enabled: bool) -> i32:

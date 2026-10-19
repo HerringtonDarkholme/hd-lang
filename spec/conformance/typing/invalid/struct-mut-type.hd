@@ -1,4 +1,4 @@
-# Spec 04 Value Types: types.value.no-mut, in a signature.
+# Spec 04 Value Types: types.value.no-mut.any, in a signature.
 struct Point:
     x: i32
     y: i32

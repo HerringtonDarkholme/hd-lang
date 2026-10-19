@@ -1091,7 +1091,7 @@ fn a_task_uses_a_shared_task_module() {
 /// and a declaration one task uses gets no unused warning.
 #[test]
 fn tasks_get_their_own_copy_of_a_shared_module() {
-    let shared = "let log: mut List[string] = []\nlog.push(\"init\")\n\npub fn size() -> usize:\n    log.len()\n\npub fn grow() -> usize:\n    log.push(\"more\")\n    log.len()\n";
+    let shared = "let mut log: List[string] = []\nlog.push(\"init\")\n\npub fn size() -> usize:\n    log.len()\n\npub fn grow() -> usize:\n    log.push(\"more\")\n    log.len()\n";
     let first =
         "use self.shared.count.{grow}\n\npub fn main() -> void $ Console:\n    println(grow())\n";
     let second =
@@ -1714,10 +1714,10 @@ fn nested_string_literals_in_interpolation_print_once() {
     let file = dir.join("nested.hd");
     std::fs::write(
         &file,
-        "data W:\n\
+        "struct W:\n\
          \x20   s: string\n\
          \n\
-         data Account:\n\
+         struct Account:\n\
          \x20   owner: string\n\
          \n\
          pub fn main() -> void $ Console:\n\

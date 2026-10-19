@@ -37,7 +37,7 @@ fn a_structure_bound_outside_a_template_is_reported_once() {
 
 #[test]
 fn a_structure_bound_on_a_type_is_reported() {
-    let src = "use std.structure.Structure\n\ndata Box[X < Structure]:\n    value: X\n";
+    let src = "use std.structure.Structure\n\nstruct Box[X < Structure]:\n    value: X\n";
     assert_eq!(check(src), [Code::StructureOutsideTemplate]);
 }
 

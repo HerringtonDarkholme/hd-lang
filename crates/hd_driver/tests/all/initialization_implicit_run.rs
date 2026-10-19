@@ -28,7 +28,7 @@ struct Case {
     printed: &'static str,
 }
 
-const TAG: &str = "data Tag:\n    n: i32\n";
+const TAG: &str = "struct Tag:\n    n: i32\n";
 
 fn build_main(main: &str) -> Output {
     let mut src = MemorySources::default();
@@ -118,7 +118,7 @@ fn an_interpolation_reaches_the_display_impl() {
 fn a_for_loop_reaches_iter() {
     check(&Case {
         name: "iterable",
-        pre: "data Src:\n    n: i32\n\nfn count() -> i32:\n    let t = +0\n    for x in Src { n: 1 }:\n        t = t + x\n        break\n    t\n",
+        pre: "struct Src:\n    n: i32\n\nfn count() -> i32:\n    let t = +0\n    for x in Src { n: 1 }:\n        t = t + x\n        break\n    t\n",
         post: "impl Iterable[i32] for Src:\n    fn iter(self) -> &mut Iterator[i32]:\n        Iterator::from_fn(fn() -> i32?: .Some(later))\n",
         value: "count()",
         printed: "5",
@@ -206,7 +206,7 @@ fn calling_a_value_reaches_apply() {
 fn a_question_mark_reaches_from() {
     check(&Case {
         name: "from",
-        pre: "use std.convert.From\n\ndata Wide:\n    m: i32\n\nfn risky() -> Result[i32, Tag]:\n    .Err(Tag { n: 1 })\n\nfn wrap() -> Result[i32, Wide]:\n    risky()?\n    .Ok(1)\n\nfn code() -> i32:\n    match wrap():\n        .Ok(v) => v\n        .Err(e) => e.m\n",
+        pre: "use std.convert.From\n\nstruct Wide:\n    m: i32\n\nfn risky() -> Result[i32, Tag]:\n    .Err(Tag { n: 1 })\n\nfn wrap() -> Result[i32, Wide]:\n    risky()?\n    .Ok(1)\n\nfn code() -> i32:\n    match wrap():\n        .Ok(v) => v\n        .Err(e) => e.m\n",
         post: "impl From[Tag] for Wide:\n    fn from(e: Tag) -> Wide: Wide { m: e.n + later }\n",
         value: "code()",
         printed: "6",
@@ -217,7 +217,7 @@ fn a_question_mark_reaches_from() {
 fn a_derived_impl_reaches_its_fields_impls() {
     check(&Case {
         name: "derived",
-        pre: "@derive(Eq)\ndata Wrap:\n    t: Tag\n",
+        pre: "@derive(Eq)\nstruct Wrap:\n    t: Tag\n",
         post: "impl Eq for Tag:\n    fn eq(self, other: Tag) -> bool: self.n + later == other.n\n",
         value: "Wrap { t: Tag { n: 1 } } == Wrap { t: Tag { n: 6 } }",
         printed: "true",
@@ -239,7 +239,7 @@ fn a_std_function_bound_reaches_the_impls_it_is_given() {
 fn a_trait_value_reaches_every_impl() {
     check(&Case {
         name: "trait-value",
-        pre: "trait Name:\n    fn name(self) -> string\n\ndata Other:\n    n: i32\n\nimpl Name for Tag:\n    fn name(self) -> string: \"a\"\n\nfn pick() -> dyn Name:\n    Tag { n: 1 }\n",
+        pre: "trait Name:\n    fn name(self) -> string\n\nstruct Other:\n    n: i32\n\nimpl Name for Tag:\n    fn name(self) -> string: \"a\"\n\nfn pick() -> dyn Name:\n    Tag { n: 1 }\n",
         post: "impl Name for Other:\n    fn name(self) -> string: \"b${later}\"\n",
         value: "pick().name()",
         printed: "a",

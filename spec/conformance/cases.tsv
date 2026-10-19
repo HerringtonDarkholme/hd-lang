@@ -12,6 +12,7 @@ parse/valid/data-embedding.hd	parse	accept	lang/08-data-and-enums.md#data-embedd
 parse/invalid/mutable-field-modifier.hd	parse	reject:mutable-field-modifier	lang/08-data-and-enums.md#data-declarations
 parse/invalid/mutable-embedded-field.hd	parse	reject:mutable-field-modifier	lang/08-data-and-enums.md#data-embedding
 parse/invalid/pub-embedded-field.hd	parse	reject:syntax-error	lang/02-grammar.md#data-types
+parse/invalid/data-declaration.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.data.struct-only
 typing/valid/generic-data-embedding.hd	type	accept	lang/08-data-and-enums.md#data-embedding
 runtime/valid/display-dispatch.hd	runtime	accept	lang/05-expressions.md#literals
 runtime/valid/float-display.hd	runtime	accept	lang/04-type-system.md#numeric-conversions
@@ -3466,7 +3467,7 @@ typing/invalid/struct-embedded-field.hd	type	reject:embedded-non-data	lang/08-da
 typing/invalid/struct-embedded-copy-marker.hd	type	reject:copy-into-ordinary-field	lang/08-data-and-enums.md#r-data.struct.embed.no-marker
 runtime/valid/struct-embedding-value.hd	runtime	accept	lang/08-data-and-enums.md#r-data.struct.embed.plain
 typing/invalid/struct-contains-itself.hd	type	reject:recursive-value-type	lang/08-data-and-enums.md#r-data.struct.no-recursion
-typing/invalid/struct-mut-type.hd	type	reject:mut-on-struct	lang/04-type-system.md#r-types.value.no-mut
+typing/invalid/struct-mut-type.hd	type	reject:mut-on-struct	lang/04-type-system.md#r-types.value.no-mut.any
 typing/invalid/struct-identity.hd	type	reject:identity-requires-references	lang/04-type-system.md#r-types.value.anyval
 typing/invalid/struct-field-write-parameter.hd	type	reject:non-reassignable-parameter-binding	lang/04-type-system.md#r-types.value.write.plain-param
 typing/invalid/struct-field-write-short-binding.hd	type	reject:non-reassignable-binding	lang/04-type-system.md#r-types.value.write.short
@@ -3480,7 +3481,8 @@ runtime/valid/struct-in-containers.hd	runtime	accept	lang/04-type-system.md#r-ty
 runtime/valid/struct-derive-eq-debug.hd	runtime	accept	lang/08-data-and-enums.md#r-data.struct.data-rules
 typing/invalid/struct-contains-itself-generic.hd	type	reject:recursive-value-type	lang/08-data-and-enums.md#r-data.struct.contains
 typing/invalid/struct-contains-itself-enum.hd	type	reject:recursive-value-type	lang/08-data-and-enums.md#r-data.struct.contains
-typing/invalid/struct-mut-type-local.hd	type	reject:mut-on-struct	lang/04-type-system.md#r-types.value.no-mut
+typing/invalid/struct-mut-type-local.hd	type	reject:mut-on-struct	lang/04-type-system.md#r-types.value.no-mut.any
+typing/invalid/mut-on-list-type.hd	type	reject:mut-on-struct	lang/04-type-system.md#r-types.value.no-mut.any
 typing/invalid/struct-field-write-self.hd	type	reject:non-reassignable-parameter-binding	lang/07-functions.md#r-fn.method.self-struct-write
 typing/invalid/struct-field-write-element.hd	type	reject:readonly-root	lang/04-type-system.md#r-types.value.write.other-value
 parse/valid/reference-types.hd	parse	accept	lang/13-values-and-references.md#r-ref.type.forms

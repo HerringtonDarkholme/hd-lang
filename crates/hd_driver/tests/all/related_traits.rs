@@ -54,7 +54,7 @@ impl Hash for Key:
 fn derived_hash_without_eq_is_one_error() {
     let src = "
 @derive(Hash)
-data Key:
+struct Key:
     name: string
 ";
     let out = analyze(src);
@@ -65,7 +65,7 @@ data Key:
 fn derived_eq_beside_hand_written_hash_is_one_error() {
     let src = "
 @derive(Eq)
-data Key:
+struct Key:
     name: string
 "
     .to_owned()
@@ -78,7 +78,7 @@ data Key:
 fn derived_hash_beside_hand_written_eq_is_one_error() {
     let src = "
 @derive(Hash)
-data Key:
+struct Key:
     name: string
 "
     .to_owned()
@@ -91,7 +91,7 @@ data Key:
 fn derived_ord_missing_partial_ord_is_one_error() {
     let src = "
 @derive(Eq, Ord)
-data Key:
+struct Key:
     name: string
 ";
     let out = analyze(src);
@@ -114,7 +114,7 @@ enum LoadError:
 fn derived_eq_and_hash_together_is_clean() {
     let src = "
 @derive(Eq, Hash)
-data Key:
+struct Key:
     name: string
 ";
     let out = analyze(src);
@@ -125,7 +125,7 @@ data Key:
 fn derived_eq_partial_ord_and_ord_together_is_clean() {
     let src = "
 @derive(Eq, PartialOrd, Ord)
-data Key:
+struct Key:
     name: string
 ";
     let out = analyze(src);
@@ -135,7 +135,7 @@ data Key:
 #[test]
 fn hand_written_eq_and_hash_with_no_derive_is_clean() {
     let src = "
-data Key:
+struct Key:
     name: string
 "
     .to_owned()
@@ -149,7 +149,7 @@ data Key:
 fn derived_eq_alone_is_clean() {
     let src = "
 @derive(Eq)
-data Key:
+struct Key:
     name: string
 ";
     let out = analyze(src);
@@ -160,7 +160,7 @@ data Key:
 fn derived_eq_beside_hand_written_display_is_clean() {
     let src = "
 @derive(Eq)
-data Key:
+struct Key:
     name: string
 
 impl Display for Key:

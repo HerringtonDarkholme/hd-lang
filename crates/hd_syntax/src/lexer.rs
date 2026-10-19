@@ -187,7 +187,7 @@ impl TokenBuf {
     }
 
     /// The token at `index` begins a column-0 line with a word that only a
-    /// top-level item can start: `fn name`, `data`, `enum`, `trait`,
+    /// top-level item can start: `fn name`, `struct`, `enum`, `trait`,
     /// `impl`, `type`, `pub` or `tests`. No bracketed construct holds such
     /// a line, because a suite nested in brackets is indented deeper than
     /// the statement holding it.
@@ -201,7 +201,7 @@ impl TokenBuf {
                 self.kind.get(index + 1),
                 Some(TokenKind::Ident | TokenKind::RawIdent)
             ),
-            TokenKind::KwData
+            TokenKind::KwStruct
             | TokenKind::KwEnum
             | TokenKind::KwTrait
             | TokenKind::KwImpl

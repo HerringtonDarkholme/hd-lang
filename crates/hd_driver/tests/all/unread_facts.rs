@@ -41,7 +41,7 @@ fn errors(main: &str) -> Vec<(Code, usize)> {
 /// type that derives it.
 const PRELUDE: &str = "use std.structure.{Structure, Field, Variant, Walker}
 
-data Tag:
+struct Tag:
     text: string
 
 fn tag(text: string) -> Tag:
@@ -107,20 +107,20 @@ pub fn main() -> void $ Console:
 
 /// A place a decorator may precede, with `{bad}` for the fact value.
 const DECORATED: [&str; 14] = [
-    "@{bad}  # here\ndata A:\n    x: i64\n",
-    "data A:\n    @{bad}  # here\n    x: i64\n",
-    "data A:\n    x: i64\n\n@{bad}  # here\nenum E:\n    One\n    Two\n",
-    "data A:\n    x: i64\n\nenum E:\n    @{bad}  # here\n    One\n    Two\n",
-    "data A:\n    x: i64\n\nenum E:\n    One(@{bad} n: i64)  # here\n    Two\n",
-    "data A:\n    x: i64\n\n@{bad}  # here\ntype Meters(i64)\n",
-    "data A:\n    x: i64\n\n@{bad}  # here\ntrait Handler:\n    fn handle(self) -> i64\n",
-    "data A:\n    x: i64\n\ntrait Handler:\n    @{bad}  # here\n    fn handle(self) -> i64\n",
-    "data A:\n    x: i64\n\n@{bad}  # here\nimpl A:\n    pub fn go(self) -> i64: 1\n",
-    "data A:\n    x: i64\n\nimpl A:\n    @{bad}  # here\n    pub fn go(self) -> i64: 1\n",
-    "data A:\n    x: i64\n\nimpl A:\n    pub fn go(self, @{bad} n: i64) -> i64: n  # here\n",
-    "data A:\n    x: i64\n\nfn f(@{bad} n: i64) -> i64:  # here\n    n\n",
-    "data A:\n    x: i64\n\n@{bad}  # here\nfn f() -> void:\n    pass\n",
-    "data A:\n    x: i64\n\n@{bad}  # here\nimpl A by Structure:\n    pass\n",
+    "@{bad}  # here\nstruct A:\n    x: i64\n",
+    "struct A:\n    @{bad}  # here\n    x: i64\n",
+    "struct A:\n    x: i64\n\n@{bad}  # here\nenum E:\n    One\n    Two\n",
+    "struct A:\n    x: i64\n\nenum E:\n    @{bad}  # here\n    One\n    Two\n",
+    "struct A:\n    x: i64\n\nenum E:\n    One(@{bad} n: i64)  # here\n    Two\n",
+    "struct A:\n    x: i64\n\n@{bad}  # here\ntype Meters(i64)\n",
+    "struct A:\n    x: i64\n\n@{bad}  # here\ntrait Handler:\n    fn handle(self) -> i64\n",
+    "struct A:\n    x: i64\n\ntrait Handler:\n    @{bad}  # here\n    fn handle(self) -> i64\n",
+    "struct A:\n    x: i64\n\n@{bad}  # here\nimpl A:\n    pub fn go(self) -> i64: 1\n",
+    "struct A:\n    x: i64\n\nimpl A:\n    @{bad}  # here\n    pub fn go(self) -> i64: 1\n",
+    "struct A:\n    x: i64\n\nimpl A:\n    pub fn go(self, @{bad} n: i64) -> i64: n  # here\n",
+    "struct A:\n    x: i64\n\nfn f(@{bad} n: i64) -> i64:  # here\n    n\n",
+    "struct A:\n    x: i64\n\n@{bad}  # here\nfn f() -> void:\n    pass\n",
+    "struct A:\n    x: i64\n\n@{bad}  # here\nimpl A by Structure:\n    pass\n",
 ];
 
 #[test]
@@ -135,16 +135,16 @@ fn decorators_on_every_target_are_checked_with_nothing_reading_them() {
 /// A block with no trait and a derivation block, writing `{bad}` into the
 /// literal list of a member line.
 const LINES: [&str; 10] = [
-    "data A:\n    x: i64\n\nimpl A by Structure:\n    x = [{bad}]  # here\n",
-    "data A:\n    x: i64\n\nimpl A by Structure:\n    x += [{bad}]  # here\n",
-    "data A:\n    x: i64\n\nimpl A by Structure:\n    Self = [{bad}]  # here\n",
-    "data A:\n    x: i64\n\nimpl A by Structure:\n    x = [tag(\"ok\"), {bad}]  # here\n",
-    "data A:\n    x: i64\n\nimpl Probe for A by Structure:\n    x = [{bad}]  # here\n",
-    "data A:\n    x: i64\n\nimpl Probe for A by Structure:\n    x += [{bad}]  # here\n",
-    "data A:\n    x: i64\n\nimpl Probe for A by Structure:\n    Self += [{bad}]  # here\n",
-    "data A:\n    x: i64\n\nimpl Probe for A by Structure:\n    x = [{bad}]  # here\n    x = [tag(\"ok\")]\n",
-    "data A:\n    x: i64\n\nenum E:\n    One\n    Two\n\nimpl Probe for E by Structure:\n    One = [{bad}]  # here\n",
-    "data B[T]:\n    v: T\n\ndata A:\n    x: i64\n\nimpl[T] Probe for B[T] by Structure:\n    v = [{bad}]  # here\n",
+    "struct A:\n    x: i64\n\nimpl A by Structure:\n    x = [{bad}]  # here\n",
+    "struct A:\n    x: i64\n\nimpl A by Structure:\n    x += [{bad}]  # here\n",
+    "struct A:\n    x: i64\n\nimpl A by Structure:\n    Self = [{bad}]  # here\n",
+    "struct A:\n    x: i64\n\nimpl A by Structure:\n    x = [tag(\"ok\"), {bad}]  # here\n",
+    "struct A:\n    x: i64\n\nimpl Probe for A by Structure:\n    x = [{bad}]  # here\n",
+    "struct A:\n    x: i64\n\nimpl Probe for A by Structure:\n    x += [{bad}]  # here\n",
+    "struct A:\n    x: i64\n\nimpl Probe for A by Structure:\n    Self += [{bad}]  # here\n",
+    "struct A:\n    x: i64\n\nimpl Probe for A by Structure:\n    x = [{bad}]  # here\n    x = [tag(\"ok\")]\n",
+    "struct A:\n    x: i64\n\nenum E:\n    One\n    Two\n\nimpl Probe for E by Structure:\n    One = [{bad}]  # here\n",
+    "struct B[T]:\n    v: T\n\nstruct A:\n    x: i64\n\nimpl[T] Probe for B[T] by Structure:\n    v = [{bad}]  # here\n",
 ];
 
 #[test]
@@ -159,10 +159,10 @@ fn member_line_elements_are_checked_with_nothing_reading_them() {
 #[test]
 fn a_derivation_that_reads_the_facts_adds_no_second_error() {
     let cases = [
-        "@{bad}  # here\ndata A:\n    x: i64\n\nimpl Probe for A by Structure:\n    pass\n",
-        "data A:\n    @{bad}  # here\n    x: i64\n\nimpl Probe for A by Structure:\n    pass\n",
-        "data A:\n    x: i64\n\nimpl A by Structure:\n    x = [{bad}]  # here\n\nimpl Probe for A by Structure:\n    pass\n",
-        "data A:\n    x: i64\n\nimpl Probe for A by Structure:\n    x = [{bad}]  # here\n",
+        "@{bad}  # here\nstruct A:\n    x: i64\n\nimpl Probe for A by Structure:\n    pass\n",
+        "struct A:\n    @{bad}  # here\n    x: i64\n\nimpl Probe for A by Structure:\n    pass\n",
+        "struct A:\n    x: i64\n\nimpl A by Structure:\n    x = [{bad}]  # here\n\nimpl Probe for A by Structure:\n    pass\n",
+        "struct A:\n    x: i64\n\nimpl Probe for A by Structure:\n    x = [{bad}]  # here\n",
     ];
     for case in cases {
         for bad in BAD {
@@ -185,7 +185,7 @@ impl[T] Other for T by Structure:
         _ := Structure::walk(self, &mut w)
         T::name()
 
-data A:
+struct A:
     @nope()  # here
     x: i64
 
@@ -220,7 +220,7 @@ fn f(@alsonope() n: i64) -> i64:
 
 #[test]
 fn every_bad_fact_of_one_place_is_reported() {
-    let tail = "data A:
+    let tail = "struct A:
     @nope()  # here
     @tag(1)
     x: i64
@@ -253,7 +253,7 @@ fn quiet[T](source: T) -> Tag:
     tag(\"p\")
 
 @quiet(block_on(ready()))  # here
-data A:
+struct A:
     x: i64
 
 impl A by Structure:
@@ -275,7 +275,7 @@ impl A by Structure:
 #[test]
 fn valid_facts_are_not_errors() {
     let tail = "@tag(\"type\")
-data A:
+struct A:
     @tag(\"member\")
     x: i64
 

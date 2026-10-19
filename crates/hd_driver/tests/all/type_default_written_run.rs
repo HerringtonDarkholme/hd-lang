@@ -73,7 +73,7 @@ pub(crate) fn codes_of(main: &str) -> Vec<Code> {
 #[test]
 fn an_alias_data_type_and_trait_fill_their_defaults() {
     let main = "\
-data AppError:
+struct AppError:
     message: string
 
 type Outcome[T, E = AppError] = Result[T, E]
@@ -92,12 +92,12 @@ fn failure(outcome: Outcome[string]) -> string:
 trait Evict:
     fn pick(self, sizes: List[i32]) -> i32
 
-data Lru: pass
+struct Lru: pass
 
 impl Evict for Lru:
     fn pick(self, sizes: List[i32]) -> i32: i32(sizes.len())
 
-data Cache[K < Eq & Hash, V, P < Evict = Lru]:
+struct Cache[K < Eq & Hash, V, P < Evict = Lru]:
     entries: Map[K, V]
     policy: P
 
@@ -107,7 +107,7 @@ fn size(cache: Cache[string, i32]) -> i32:
 trait Same[Other = Self]:
     fn same(self, other: Other) -> bool
 
-data Money:
+struct Money:
     cents: i64
 
 impl Same for Money:
@@ -137,7 +137,7 @@ fn a_default_names_an_earlier_parameter() {
     let main = "\
 type Twin[A, B = A] = (A, B)
 
-data Holder[T, U = List[T]]:
+struct Holder[T, U = List[T]]:
     first: T
     rest: U
 
@@ -168,10 +168,10 @@ fn a_default_names_self() {
 trait Same[Other = Self]:
     fn same(self, other: Other) -> bool
 
-data Money:
+struct Money:
     cents: i64
 
-data Meters:
+struct Meters:
     value: i32
 
 impl Same for Money:
@@ -207,24 +207,24 @@ fn load() -> Wrapped[i32]:
 
 type Wrapped[T, E = Failure] = Result[T, E]
 
-data Failure:
+struct Failure:
     code: i32
 
-data Outer[T, U = Inner]:
+struct Outer[T, U = Inner]:
     item: T
     inner: U
 
-data Inner[V = i32]:
+struct Inner[V = i32]:
     value: V
 
-data Cache[K, P < Evict = Lru]:
+struct Cache[K, P < Evict = Lru]:
     key: K
     policy: P
 
 trait Evict:
     fn pick(self) -> i32
 
-data Lru: pass
+struct Lru: pass
 
 impl Evict for Lru:
     fn pick(self) -> i32: 7
@@ -247,7 +247,7 @@ fn a_default_may_name_an_alias_and_an_alias_may_name_a_defaulted_type() {
     let main = "\
 type Count = i32
 
-data Counter[T, N = Count]:
+struct Counter[T, N = Count]:
     item: T
     count: N
 
@@ -265,9 +265,9 @@ pub fn main() -> void $ Console:
 #[test]
 fn a_bare_name_omits_every_defaulted_slot() {
     let main = "\
-data Lru: pass
+struct Lru: pass
 
-data Slot[T = i32, P = Lru]:
+struct Slot[T = i32, P = Lru]:
     item: T
     policy: P
 
@@ -286,7 +286,7 @@ fn a_method_call_through_a_bound_takes_the_method_default() {
 trait Blank:
     fn blank() -> Self
 
-data Tally:
+struct Tally:
     count: i32
 
 impl Blank for Tally:
@@ -296,7 +296,7 @@ impl Blank for Tally:
 trait Source:
     fn drain[C < Blank = Tally](self) -> C
 
-data Numbers: pass
+struct Numbers: pass
 
 impl Source for Numbers:
     fn drain[C < Blank = Tally](self) -> C:
@@ -315,11 +315,11 @@ pub fn main() -> void $ Console:
 #[test]
 fn too_few_arguments_without_a_default_are_partial_generic_arguments() {
     let main = "\
-data Pair[K, V]:
+struct Pair[K, V]:
     key: K
     value: V
 
-data Mixed[A, B, C = A]:
+struct Mixed[A, B, C = A]:
     a: A
     b: B
     c: C
@@ -337,10 +337,10 @@ fn two(mixed: Mixed[string]) -> i32: 0
 #[test]
 fn a_filled_default_meets_its_parameters_bounds() {
     let signature = "\
-data Plain:
+struct Plain:
     x: i32
 
-data Tagged[T < Hash, H < Hash = T]:
+struct Tagged[T < Hash, H < Hash = T]:
     tag: T
     hash: H
 
@@ -353,10 +353,10 @@ fn use_it(tagged: Tagged[Plain]) -> i32: 0
             && !codes_of(signature).is_empty()
     );
     let body = "\
-data Plain:
+struct Plain:
     x: i32
 
-data Tagged[T < Hash, H < Hash = T]:
+struct Tagged[T < Hash, H < Hash = T]:
     tag: T
     hash: H
 

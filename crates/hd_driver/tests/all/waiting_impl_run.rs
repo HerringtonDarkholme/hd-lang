@@ -94,7 +94,7 @@ fn a_projection_is_used_before_the_receiver_is_fixed() {
     let main = "\
 use std.ops.{Div, Neg}
 
-data Point:
+struct Point:
     x: i32
 
 trait Get:

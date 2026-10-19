@@ -113,7 +113,7 @@ fn a_dyn_type_satisfies_a_bound_on_a_trait_of_methods() {
 // trait.binding.super.mismatch
 
 const SUMMABLE: &str =
-    "use std.ops.Add\n\ntrait Summable < Add[Out = Self]\n\ndata Money:\n    cents: i64\n\n";
+    "use std.ops.Add\n\ntrait Summable < Add[Out = Self]\n\nstruct Money:\n    cents: i64\n\n";
 
 #[test]
 fn an_implementation_must_bind_its_supertrait_bindings() {
@@ -166,13 +166,13 @@ fn a_bound_binds_a_projection_once() {
 
 #[test]
 fn two_bounds_of_one_parameter_bind_a_projection_once() {
-    let feed = "trait Feed:\n    type Item\n    fn next(mut self) -> Self::Item?\n\ntrait NamedFeed < Feed:\n    fn name(self) -> string\n\n";
+    let feed = "trait Feed:\n    type Item\n    fn next(&mut self) -> Self::Item?\n\ntrait NamedFeed < Feed:\n    fn name(self) -> string\n\n";
     let twice = format!(
-        "{feed}fn drain[T, F < Feed[Item = T] & NamedFeed[Item = T]](feed: mut F) -> T?:\n    feed.next()\n"
+        "{feed}fn drain[T, F < Feed[Item = T] & NamedFeed[Item = T]](feed: &mut F) -> T?:\n    feed.next()\n"
     );
     assert_eq!(errors(&twice), vec![Code::DuplicateAssociatedBinding]);
     let once = format!(
-        "{feed}fn drain[T, F < Feed[Item = T] & NamedFeed](feed: mut F) -> T?:\n    feed.next()\n"
+        "{feed}fn drain[T, F < Feed[Item = T] & NamedFeed](feed: &mut F) -> T?:\n    feed.next()\n"
     );
     assert_eq!(errors(&once), vec![]);
 }
@@ -218,7 +218,7 @@ fn two_supertrait_paths_that_bind_the_same_type_merge() {
 
 // trait.impl.required, trait.impl.extra-methods
 
-const NAMES: &str = "data Names: pass\n\n";
+const NAMES: &str = "struct Names: pass\n\n";
 
 #[test]
 fn an_implementation_binds_every_associated_type() {

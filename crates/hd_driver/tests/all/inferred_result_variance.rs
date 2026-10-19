@@ -35,7 +35,7 @@ fn codes(main: &str) -> Vec<Code> {
 }
 
 const PRELUDE: &str = "\
-data Handler[-T]:
+struct Handler[-T]:
     handle: fn(T) -> void
 ";
 
@@ -50,7 +50,7 @@ fn inferred_result_against_marker_is_one_error() {
 #[test]
 fn inferred_result_wrapped_against_marker_is_one_error() {
     let main = format!(
-        "{PRELUDE}\ndata Slot[T]:\n    value: T\n\nimpl[T] Handler[T]:\n    fn boxed(self):\n        Slot {{ value: self.handle }}\n\npub fn main() -> void:\n    pass\n"
+        "{PRELUDE}\nstruct Slot[T]:\n    value: T\n\nimpl[T] Handler[T]:\n    fn boxed(self):\n        Slot {{ value: self.handle }}\n\npub fn main() -> void:\n    pass\n"
     );
     assert_eq!(codes(&main), vec![Code::InvalidVariance]);
 }
@@ -61,7 +61,7 @@ fn inferred_result_with_marker_stays_clean() {
         format!(
             "{PRELUDE}\nimpl[T] Handler[T]:\n    fn get_handle(self):\n        self.handle\n\npub fn main() -> void:\n    pass\n"
         ),
-        "data Box[+T]:\n    value: T\n\nimpl[T] Box[T]:\n    fn get(self):\n        self.value\n\npub fn main() -> void:\n    pass\n"
+        "struct Box[+T]:\n    value: T\n\nimpl[T] Box[T]:\n    fn get(self):\n        self.value\n\npub fn main() -> void:\n    pass\n"
             .to_owned(),
     ] {
         assert_eq!(codes(&main), Vec::<Code>::new(), "{main}");

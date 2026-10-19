@@ -87,7 +87,7 @@ fn each_trait_of_the_table_rejects_a_user_impl() {
         ),
     ];
     for (name, uses, imp) in cases {
-        let main = format!("{uses}\ndata Handle: pass\n\n{imp}");
+        let main = format!("{uses}\nstruct Handle: pass\n\n{imp}");
         let out = analyze(&main);
         assert_eq!(
             codes(&main),
@@ -124,7 +124,7 @@ fn a_rejected_impl_adds_no_second_error() {
         "use std.num.Num
 use std.ops.Add
 
-data Cents:
+struct Cents:
     value: i64
 
 impl Add for Cents:
@@ -209,7 +209,7 @@ trait Loud < Plugin:
 trait Plugin < Inspectable:
     fn name(self) -> string
 
-data Exporter:
+struct Exporter:
     format: string
 
 impl Plugin for Exporter:
@@ -253,7 +253,7 @@ fn inspected(value: i32) -> dyn Inspectable: value
 trait Named < Inspectable:
     fn type_name(self) -> string
 
-data User:
+struct User:
     name: string
 
 impl Named for User:
@@ -267,7 +267,7 @@ fn an_inherent_method_may_share_a_sealed_member_name() {
     clean(
         "use std.inspect.TypeId
 
-data User:
+struct User:
     name: string
 
 impl User:
@@ -297,7 +297,7 @@ fn a_bound_naming_no_trait_adds_no_second_error() {
 /// (`req.protocol.builtin`).
 #[test]
 fn an_impl_of_suspend_is_an_unknown_trait() {
-    let main = "data Handle: pass\n\nimpl Suspend[i32] for Handle:\n    fn poll(mut self, context: PollContext) -> Poll[i32]: Poll.Ready(1)\n    fn cancel(mut self) -> void: pass\n";
+    let main = "struct Handle: pass\n\nimpl Suspend[i32] for Handle:\n    fn poll(&mut self, context: PollContext) -> Poll[i32]: Poll.Ready(1)\n    fn cancel(&mut self) -> void: pass\n";
     let out = analyze(main);
     assert_eq!(codes(main), vec![Code::UnknownTrait], "{}", out.render());
     assert!(out.render().contains("built-in type"), "{}", out.render());

@@ -74,7 +74,7 @@ trait Factory:
     fn create() -> Self
     fn name(self) -> string
 
-data D:
+struct D:
     n: i32
 
 impl Factory for D:
@@ -117,7 +117,7 @@ fn a_key_trait_of_associated_functions_only_has_an_empty_vtable() {
 trait Maker:
     fn make() -> i32
 
-data D:
+struct D:
     n: i32
 
 impl Maker for D:
@@ -143,7 +143,7 @@ trait Named < Maker:
     type Label
     fn label(self) -> Self::Label
 
-data D:
+struct D:
     n: i32
 
 impl Maker for D:

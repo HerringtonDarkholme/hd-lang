@@ -151,7 +151,7 @@ fn a_long_function_fact_is_too_complex_on_the_function() {
 #[test]
 fn a_long_declaration_fact_is_too_complex_on_the_declaration() {
     let main = format!(
-        "fn tag(n: i32) -> i32:\n    n\n\n@tag({})\ndata Tagged:\n    n: i32\n\npub fn main() -> void:\n    _ := Tagged {{ n: 1 }}\n",
+        "fn tag(n: i32) -> i32:\n    n\n\n@tag({})\nstruct Tagged:\n    n: i32\n\npub fn main() -> void:\n    _ := Tagged {{ n: 1 }}\n",
         long_sum(100)
     );
     assert_eq!(diags(&main, Some(FUEL)), vec![(Code::ItemTooComplex, 4)]);
@@ -161,7 +161,7 @@ fn a_long_declaration_fact_is_too_complex_on_the_declaration() {
 /// A bound `Marker` proved through `n` nested `Box`es: about two steps
 /// each, so 40 exhaust `FUEL` while staying under the depth limit of 64.
 fn marker_prelude() -> &'static str {
-    "pub trait Marker\n\npub data Box[T]:\n    value: T\n\nimpl Marker for i32\n\nimpl[T < Marker] Marker for Box[T]\n\npub data Need[T < Marker]:\n    value: T\n\n"
+    "pub trait Marker\n\npub struct Box[T]:\n    value: T\n\nimpl Marker for i32\n\nimpl[T < Marker] Marker for Box[T]\n\npub struct Need[T < Marker]:\n    value: T\n\n"
 }
 
 /// `Box[Box[...i32]]` with `n` boxes.
@@ -193,7 +193,7 @@ fn a_long_signature_bound_is_too_complex_on_its_function() {
 fn a_long_field_bound_is_too_complex_on_its_data() {
     for vis in ["", "pub "] {
         let main = format!(
-            "{}{vis}data Deep:\n    first: Need[{}]\n    second: Need[{}]\n\npub fn main() -> void:\n    pass\n",
+            "{}{vis}struct Deep:\n    first: Need[{}]\n    second: Need[{}]\n\npub fn main() -> void:\n    pass\n",
             marker_prelude(),
             boxes(40),
             boxes(41)

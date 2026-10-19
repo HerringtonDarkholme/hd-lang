@@ -1120,7 +1120,12 @@ impl Ck<'_, '_> {
                 } else {
                     (n, at, ct)
                 };
-                if matches!(self.infer.resolve(pool, other_ty), Ty::POISON | Ty::NEVER) {
+                // An operand of type `never` diverged before the
+                // comparison, which is then unreachable.
+                if self.infer.resolve(pool, other_ty) == Ty::NEVER {
+                    return Ok(if self.ref_of(at).is_some() { c } else { a });
+                }
+                if self.infer.resolve(pool, other_ty) == Ty::POISON {
                     return Ok(self.b.emit(Tag::Poison, NONE, NONE, Ty::BOOL, syn));
                 }
                 // `expr.is.value-operand`: a value has no identity at all.

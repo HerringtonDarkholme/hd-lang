@@ -18,10 +18,10 @@ pub trait Clock:
 pub trait Tag:
     fn id(self) -> i32
 
-pub data FixedClock:
+pub struct FixedClock:
     pub value: i32
 
-pub data FixedTag:
+pub struct FixedTag:
     pub value: i32
 
 impl Clock for FixedClock:

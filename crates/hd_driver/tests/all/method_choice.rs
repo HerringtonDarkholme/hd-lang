@@ -21,7 +21,7 @@ trait Left:
 trait Right:
     fn label(self) -> i32
 
-data User:
+struct User:
     value: i32
 
 impl Left for User:
@@ -127,7 +127,7 @@ const SHELF: &str = "\
 pub trait Tagged:
     fn tag(self) -> i32
 
-pub data Item:
+pub struct Item:
     pub value: i32
 
 impl Tagged for Item:
@@ -198,7 +198,7 @@ pub trait Costed0:
     fn cost(self) -> i64
 ";
     let mine = "\
-pub data Item1:
+pub struct Item1:
     pub price: i64
 
 pub trait Costed1:
@@ -269,7 +269,7 @@ fn the_chosen_method_runs() {
 use pkg.shelf.{{Item}}
 
 {TRAITS}
-data Gauge:
+struct Gauge:
     reading: i32
 
 impl Gauge:

@@ -53,9 +53,9 @@ fn output_of(name: &str, main: &str) -> String {
     String::from_utf8(ran.stdout).expect("UTF-8")
 }
 
-/// Instances under sealed bounds collect and run: `AnyRef` and `AnyVal`
-/// (a newtype over a primitive), a user trait with `AnyRef` as its
-/// supertrait, `Tuple`, and `Inspectable`, whose coercion to a trait
+/// Instances under sealed bounds collect and run: `AnyRef` (a reference)
+/// and `AnyVal` (a newtype over a primitive), a user trait with `AnyRef`
+/// as its supertrait, `Tuple`, and `Inspectable`, whose coercion to a trait
 /// value selects the compiler-supplied impl.
 #[test]
 fn programs_under_sealed_bounds_run() {
@@ -65,13 +65,13 @@ use std.function.Tuple
 
 type Mile(i32)
 
-data User:
+struct User:
     name: string
 
 trait Named < AnyRef:
     fn name(self) -> string
 
-impl Named for User:
+impl Named for &User:
     fn name(self) -> string: self.name
 
 fn pick[T < AnyRef](a: T, b: T, left: bool) -> T:
@@ -92,39 +92,39 @@ fn first[A < Tuple](a: A) -> A: a
 fn erase[T < Inspectable](x: T) -> dyn Inspectable: x
 
 pub fn main() -> void $ Console:
-    u := User { name: \"ann\" }
-    v := User { name: \"bob\" }
+    u := &User { name: \"ann\" }
+    v := &User { name: \"bob\" }
     println(pick(u, v, false).name)
     _ := keep(Mile(3))
     println(keep(7))
     println(names([u, v]))
     let (n, s) = first((1, \"x\"))
     println(\"$n$s\")
-    _ := erase(u)
+    _ := erase(*u)
     _ := erase([(1, \"a\")])
     println(\"done\")
 ";
     assert_eq!(output_of("bounds", main), "bob\n7\nannbob\n1x\ndone\n");
 }
 
-/// The rows answer use sites: a data type is no `AnyVal`, a newtype over
-/// one is no `AnyVal` either, and a function type is not inspectable.
+/// The rows answer use sites: a reference type is no `AnyVal`, a newtype
+/// over one is no `AnyVal` either, and a function type is not inspectable.
 #[test]
 fn sealed_rows_reject_what_their_table_excludes() {
     let main = "\
 use std.inspect.Inspectable
 
-data User:
+struct User:
     name: string
 
-type Owner(User)
+type Owner(&User)
 
 fn keep[T < AnyVal](x: T) -> T: x
 
 fn erase[T < Inspectable](x: T) -> dyn Inspectable: x
 
 pub fn main() -> void:
-    u := User { name: \"ann\" }
+    u := &User { name: \"ann\" }
     _ := keep(u)
     _ := keep(Owner(u))
     _ := erase(fn() -> i32: 1)
@@ -133,7 +133,7 @@ pub fn main() -> void:
     assert_eq!(
         msgs,
         [
-            "User does not implement AnyVal",
+            "&User does not implement AnyVal",
             "Owner does not implement AnyVal",
             "fn() -> i32 does not implement Inspectable",
         ],
@@ -143,20 +143,20 @@ pub fn main() -> void:
 
 /// Header checks ask the same rows (`crates/hd_check/DESIGN.md` (trait solver) §3.7): a written
 /// `Box[i32]` misses `Box`'s `AnyRef` bound, and an impl of a trait whose
-/// supertrait is `AnyRef` misses it for `i32` but not for a data type.
+/// supertrait is `AnyRef` misses it for `i32` but not for a reference type.
 #[test]
 fn header_checks_ask_the_sealed_rows() {
     let defs = "\
-pub data Box[T < AnyRef]:
+pub struct Box[T < AnyRef]:
     pub v: T
 
-pub data User:
+pub struct User:
     pub name: string
 
 pub trait Keyed < AnyRef:
     fn key(self) -> i32
 
-impl Keyed for User:
+impl Keyed for &User:
     fn key(self) -> i32: 1
 
 impl Keyed for i32:
@@ -164,7 +164,7 @@ impl Keyed for i32:
 
 pub fn held(b: Box[i32]) -> i32: 0
 
-pub fn kept(b: Box[User]) -> i32: 0
+pub fn kept(b: Box[&User]) -> i32: 0
 ";
     let mut src = MemorySources::default();
     src.insert("a/defs.hd", defs);

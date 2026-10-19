@@ -1033,7 +1033,7 @@ fn moved(p: Point) -> Point:
 2. r[types.value.copy] Binding, assigning, passing, and returning a struct value copies it. A later change to the copy leaves the source unchanged, and the reverse.
 3. r[types.value.stored] A struct value stored in a data field, a list element, a map value, a tuple element, or an enum payload is a copy, and reading it out yields a copy.
 4. r[types.value.no-view] A struct type has no readonly or `mut` view, so a struct literal or copy-update has the plain struct type.
-5. r[types.value.no-mut] A struct type written with `mut`, as in `mut Point`, is an error. Error: `mut-on-struct`.
+5. r[types.value.no-mut.any] A type written with `mut`, as in `mut Point` or `mut List[i32]`, is an error unless it is a `Suspend[T]` or a type parameter. Error: `mut-on-struct`.
 6. r[types.value.field-type] A field read through a struct value has the field's declared type, whatever holds the struct. A `field: mut U` keeps its `mut`.
 7. r[types.value.anyval] A struct type implements `AnyVal`, so `is` with a struct operand is an error. Error: `identity-requires-references`.
 

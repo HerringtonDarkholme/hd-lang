@@ -20,7 +20,7 @@ pub fn late_fee(days: i32) -> i32:
 tests:
     use std.testing.assert_equal
 
-    data Invoice:
+    struct Invoice:
         days: i32
 
     fn overdue() -> Invoice:

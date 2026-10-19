@@ -592,7 +592,7 @@ fn stack_exhaustion_is_a_panic() {
 fn a_host_raised_panic_in_a_fact_is_wrapped() {
     let dir = program(
         "fact-stack",
-        "use std.annotation.facts_of\n\ndata Route:\n    path: string\n\nfn deep(n: i32) -> i32:\n    deep(n + 1) + 1\n\nfn route(path: string) -> Route:\n    Route { path: \"${deep(+0)}\" }\n\n@route(\"/users\")\nfn list_users() -> void:\n    pass\n\npub fn main() -> void:\n    _ := facts_of(list_users).find::[Route]()\n",
+        "use std.annotation.facts_of\n\nstruct Route:\n    path: string\n\nfn deep(n: i32) -> i32:\n    deep(n + 1) + 1\n\nfn route(path: string) -> Route:\n    Route { path: \"${deep(+0)}\" }\n\n@route(\"/users\")\nfn list_users() -> void:\n    pass\n\npub fn main() -> void:\n    _ := facts_of(list_users).find::[Route]()\n",
     );
     let out = run(hd(&dir), &["--engine", "wasmtime", "main.hd"], "");
     assert_eq!(out.status.code(), Some(3));
@@ -610,7 +610,7 @@ fn a_host_raised_panic_in_a_fact_is_wrapped() {
 fn a_time_limit_in_a_fact_is_wrapped() {
     let dir = program(
         "fact-spin",
-        "use std.annotation.facts_of\n\ndata Route:\n    path: string\n\nfn spin() -> string:\n    while true:\n        pass\n    \"x\"\n\nfn route(path: string) -> Route:\n    Route { path: spin() }\n\n@route(\"/users\")\nfn list_users() -> void:\n    pass\n\npub fn main() -> void:\n    _ := facts_of(list_users).find::[Route]()\n",
+        "use std.annotation.facts_of\n\nstruct Route:\n    path: string\n\nfn spin() -> string:\n    while true:\n        pass\n    \"x\"\n\nfn route(path: string) -> Route:\n    Route { path: spin() }\n\n@route(\"/users\")\nfn list_users() -> void:\n    pass\n\npub fn main() -> void:\n    _ := facts_of(list_users).find::[Route]()\n",
     );
     let out = run(
         hd(&dir),
@@ -670,7 +670,7 @@ fn hd_build_takes_the_wasmtime_engine() {
 fn a_suspending_generic_method_runs_through_dyn() {
     let dir = program(
         "dyn-suspending-generic",
-        "use std.time.{sleep, ms, Clock}\n\ntrait Fetch:\n    fn get![T](self, x: T) -> T $ Clock\n\ndata Slow:\n    n: i32\n\nimpl Fetch for Slow:\n    fn get![T](self, x: T) -> T $ Clock:\n        sleep!(1ms)\n        x\n\npub fn main!() -> void $ Console + Clock:\n    let v: dyn Fetch = Slow { n: 1 }\n    println(v.get!(+3))\n",
+        "use std.time.{sleep, ms, Clock}\n\ntrait Fetch:\n    fn get![T](self, x: T) -> T $ Clock\n\nstruct Slow:\n    n: i32\n\nimpl Fetch for Slow:\n    fn get![T](self, x: T) -> T $ Clock:\n        sleep!(1ms)\n        x\n\npub fn main!() -> void $ Console + Clock:\n    let v: dyn Fetch = Slow { n: 1 }\n    println(v.get!(+3))\n",
     );
     let out = both(&dir, &["main.hd"]);
     assert!(out.status.success(), "{}", text(&out.stderr));
@@ -704,7 +704,7 @@ fn code_packs(cache: &Path) -> Vec<(PathBuf, u64, std::time::SystemTime)> {
 fn a_warm_run_compiles_no_function() {
     let dir = program(
         "code-cache",
-        "data Item:\n    name: string\n    cents: i32\n\nfn total(items: List[Item]) -> i32:\n    let sum = +0\n    for item in items:\n        sum = sum + item.cents\n    sum\n\npub fn main() -> void $ Console:\n    items := [Item { name: \"tea\", cents: 250 }, Item { name: \"cake\", cents: 425 }]\n    for item in items:\n        println(\"${item.name}: ${item.cents}\")\n    println(\"total ${total(items)}\")\n\ntests:\n    use std.testing.assert_equal\n\n    it(\"totals two items\"):\n        assert_equal(total([Item { name: \"a\", cents: 1 }, Item { name: \"b\", cents: 2 }]), +3, reason=\"one and two\")\n",
+        "struct Item:\n    name: string\n    cents: i32\n\nfn total(items: List[Item]) -> i32:\n    let sum = +0\n    for item in items:\n        sum = sum + item.cents\n    sum\n\npub fn main() -> void $ Console:\n    items := [Item { name: \"tea\", cents: 250 }, Item { name: \"cake\", cents: 425 }]\n    for item in items:\n        println(\"${item.name}: ${item.cents}\")\n    println(\"total ${total(items)}\")\n\ntests:\n    use std.testing.assert_equal\n\n    it(\"totals two items\"):\n        assert_equal(total([Item { name: \"a\", cents: 1 }, Item { name: \"b\", cents: 2 }]), +3, reason=\"one and two\")\n",
     );
     // The cache `hd` gives this directory.
     let name = dir.file_name().expect("name").to_string_lossy();

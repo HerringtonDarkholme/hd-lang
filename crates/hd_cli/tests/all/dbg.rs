@@ -103,11 +103,11 @@ fn dbg_prints_structure_for_types_without_debug() {
     let ran = run_main(
         "hd-dbg-structure",
         "\
-data Node:
+struct Node:
     label: string
-    next: Node?
+    next: &Node?
 
-data Pair:
+struct Pair:
     left: List[Node]
     right: (i32, Node?)
 
@@ -117,7 +117,7 @@ enum Shape:
     Tagged(tag: bool)
 
 pub fn main() -> void $ Console:
-    list := Node { label: \"a\", next: .Some(Node { label: \"b\", next: .None }) }
+    list := Node { label: \"a\", next: .Some(&Node { label: \"b\", next: .None }) }
     dbg(list)
     dbg(Pair { left: [list], right: (1, .None) })
     dbg([Shape.Dot, Shape.Pair(1, \"x\"), Shape.Tagged(tag=true)])
@@ -184,7 +184,7 @@ fn dbg_limits_a_long_list_and_lays_a_wide_value_over_lines() {
         "hd-dbg-large",
         "\
 pub fn main() -> void $ Console:
-    let items: mut List[i32] = []
+    let mut items: List[i32] = []
     for n in 0..102:
         items.push(n)
     dbg(items)
@@ -206,13 +206,13 @@ fn dbg_marks_a_cycle() {
     let ran = run_main(
         "hd-dbg-cycle",
         "\
-data Ring:
+struct Ring:
     name: string
-    next: mut Ring?
+    next: &mut Ring?
 
 pub fn main() -> void $ Console:
-    let a: mut Ring = Ring { name: \"a\", next: .None }
-    let b: mut Ring = Ring { name: \"b\", next: .Some(a) }
+    a := &mut Ring { name: \"a\", next: .None }
+    b := &mut Ring { name: \"b\", next: .Some(a) }
     a.next = .Some(b)
     dbg(a)
 ",

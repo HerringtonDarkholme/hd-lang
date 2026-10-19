@@ -80,7 +80,7 @@ fn a_function_type_parameter_prints_as_written() {
 #[test]
 fn an_impl_and_method_parameter_print_as_written() {
     let src =
-        "data Box[T]:\n    v: T\n\nimpl[T] Box[T]:\n    fn get[U](self, u: U) -> T:\n        u\n";
+        "struct Box[T]:\n    v: T\n\nimpl[T] Box[T]:\n    fn get[U](self, u: U) -> T:\n        u\n";
     let msg = first_error(src);
     assert!(msg.ends_with("expected T, found U"), "{msg}");
 }

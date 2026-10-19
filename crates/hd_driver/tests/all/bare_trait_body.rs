@@ -65,49 +65,49 @@ fn assert_dyn_fix(main: &str, diags: &DiagBuf) {
 
 #[test]
 fn let_annotation_is_one_error() {
-    let src = "trait Factory:\n    fn create() -> Self\n\ndata Box[T]:\n    value: T\n\nfn id[T](x: T) -> T: x\n\npub fn main() -> void:\n    let a: Factory = panic(\"x\")\n    _ := a\n";
+    let src = "trait Factory:\n    fn create() -> Self\n\nstruct Box[T]:\n    value: T\n\nfn id[T](x: T) -> T: x\n\npub fn main() -> void:\n    let a: Factory = panic(\"x\")\n    _ := a\n";
     assert_eq!(codes(src), vec![Code::TraitUsedAsType]);
 }
 
 #[test]
 fn nested_in_list_is_one_error() {
-    let src = "trait Factory:\n    fn create() -> Self\n\ndata Box[T]:\n    value: T\n\nfn id[T](x: T) -> T: x\n\npub fn main() -> void:\n    let a: List[Factory] = []\n    _ := a\n";
+    let src = "trait Factory:\n    fn create() -> Self\n\nstruct Box[T]:\n    value: T\n\nfn id[T](x: T) -> T: x\n\npub fn main() -> void:\n    let a: List[Factory] = []\n    _ := a\n";
     assert_eq!(codes(src), vec![Code::TraitUsedAsType]);
 }
 
 #[test]
 fn nested_in_tuple_and_option_is_one_error() {
-    let src = "trait Factory:\n    fn create() -> Self\n\ndata Box[T]:\n    value: T\n\nfn id[T](x: T) -> T: x\n\npub fn main() -> void:\n    let a: (Factory, i32) = panic(\"x\")\n    _ := a\n";
+    let src = "trait Factory:\n    fn create() -> Self\n\nstruct Box[T]:\n    value: T\n\nfn id[T](x: T) -> T: x\n\npub fn main() -> void:\n    let a: (Factory, i32) = panic(\"x\")\n    _ := a\n";
     assert_eq!(codes(src), vec![Code::TraitUsedAsType]);
 }
 
 #[test]
 fn nested_in_data_argument_is_one_error() {
-    let src = "trait Factory:\n    fn create() -> Self\n\ndata Box[T]:\n    value: T\n\nfn id[T](x: T) -> T: x\n\npub fn main() -> void:\n    let a: Box[Factory] = panic(\"x\")\n    _ := a\n";
+    let src = "trait Factory:\n    fn create() -> Self\n\nstruct Box[T]:\n    value: T\n\nfn id[T](x: T) -> T: x\n\npub fn main() -> void:\n    let a: Box[Factory] = panic(\"x\")\n    _ := a\n";
     assert_eq!(codes(src), vec![Code::TraitUsedAsType]);
 }
 
 #[test]
 fn closure_parameter_is_one_error() {
-    let src = "trait Factory:\n    fn create() -> Self\n\ndata Box[T]:\n    value: T\n\nfn id[T](x: T) -> T: x\n\npub fn main() -> void:\n    f := fn(x: Factory) -> i32: 1\n    _ := f\n";
+    let src = "trait Factory:\n    fn create() -> Self\n\nstruct Box[T]:\n    value: T\n\nfn id[T](x: T) -> T: x\n\npub fn main() -> void:\n    f := fn(x: Factory) -> i32: 1\n    _ := f\n";
     assert_eq!(codes(src), vec![Code::TraitUsedAsType]);
 }
 
 #[test]
 fn closure_result_is_one_error() {
-    let src = "trait Factory:\n    fn create() -> Self\n\ndata Box[T]:\n    value: T\n\nfn id[T](x: T) -> T: x\n\npub fn main() -> void:\n    f := fn(x: i32) -> Factory: panic(\"x\")\n    _ := f\n";
+    let src = "trait Factory:\n    fn create() -> Self\n\nstruct Box[T]:\n    value: T\n\nfn id[T](x: T) -> T: x\n\npub fn main() -> void:\n    f := fn(x: i32) -> Factory: panic(\"x\")\n    _ := f\n";
     assert_eq!(codes(src), vec![Code::TraitUsedAsType]);
 }
 
 #[test]
 fn explicit_type_argument_is_one_error() {
-    let src = "trait Factory:\n    fn create() -> Self\n\ndata Box[T]:\n    value: T\n\nfn id[T](x: T) -> T: x\n\npub fn main() -> void:\n    a := id::[Factory](panic(\"x\"))\n    _ := a\n";
+    let src = "trait Factory:\n    fn create() -> Self\n\nstruct Box[T]:\n    value: T\n\nfn id[T](x: T) -> T: x\n\npub fn main() -> void:\n    a := id::[Factory](panic(\"x\"))\n    _ := a\n";
     assert_eq!(codes(src), vec![Code::TraitUsedAsType]);
 }
 
 #[test]
 fn local_function_parameter_is_one_error() {
-    let src = "trait Factory:\n    fn create() -> Self\n\ndata Box[T]:\n    value: T\n\nfn id[T](x: T) -> T: x\n\npub fn main() -> void:\n    fn local(p: Factory) -> void: pass\n    local(panic(\"x\"))\n";
+    let src = "trait Factory:\n    fn create() -> Self\n\nstruct Box[T]:\n    value: T\n\nfn id[T](x: T) -> T: x\n\npub fn main() -> void:\n    fn local(p: Factory) -> void: pass\n    local(panic(\"x\"))\n";
     assert_eq!(codes(src), vec![Code::TraitUsedAsType]);
 }
 
@@ -138,7 +138,7 @@ fn dyn_bounds_and_impls_stay_valid() {
     let src = "trait Greet:
     fn greet(self) -> string
 
-data P:
+struct P:
     n: i32
 
 impl Greet for P:

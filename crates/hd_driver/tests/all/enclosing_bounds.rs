@@ -47,13 +47,13 @@ fn a_bounded_key_in_a_function_bound_is_accepted() {
 
 #[test]
 fn an_unbounded_key_in_a_data_bound_fails() {
-    let src = format!("{HOLDS}data Box[K, V, H < Holds[Map[K, V]]]:\n    pub h: H\n");
+    let src = format!("{HOLDS}struct Box[K, V, H < Holds[Map[K, V]]]:\n    pub h: H\n");
     assert_eq!(errors(&src), BOUND);
 }
 
 #[test]
 fn a_bounded_key_in_a_data_bound_is_accepted() {
-    let src = format!("{HOLDS}data Box[K < Eq & Hash, V, H < Holds[Map[K, V]]]:\n    pub h: H\n");
+    let src = format!("{HOLDS}struct Box[K < Eq & Hash, V, H < Holds[Map[K, V]]]:\n    pub h: H\n");
     assert_eq!(errors(&src), Vec::<Code>::new());
 }
 
@@ -74,7 +74,7 @@ fn a_bounded_key_in_a_supertrait_argument_is_accepted() {
 #[test]
 fn an_unbounded_key_in_an_impl_bound_fails() {
     let src = format!(
-        "{HOLDS}data Wrap[K, V, H]:\n    pub h: H\n\nimpl[K, V, H < Holds[Map[K, V]]] Wrap[K, V, H]:\n    fn id(self) -> i32:\n        0\n"
+        "{HOLDS}struct Wrap[K, V, H]:\n    pub h: H\n\nimpl[K, V, H < Holds[Map[K, V]]] Wrap[K, V, H]:\n    fn id(self) -> i32:\n        0\n"
     );
     assert_eq!(errors(&src), BOUND);
 }
@@ -82,7 +82,7 @@ fn an_unbounded_key_in_an_impl_bound_fails() {
 #[test]
 fn a_bounded_key_in_an_impl_bound_is_accepted() {
     let src = format!(
-        "{HOLDS}data Wrap[K, V, H]:\n    pub h: H\n\nimpl[K < Eq & Hash, V, H < Holds[Map[K, V]]] Wrap[K, V, H]:\n    fn id(self) -> i32:\n        0\n"
+        "{HOLDS}struct Wrap[K, V, H]:\n    pub h: H\n\nimpl[K < Eq & Hash, V, H < Holds[Map[K, V]]] Wrap[K, V, H]:\n    fn id(self) -> i32:\n        0\n"
     );
     assert_eq!(errors(&src), Vec::<Code>::new());
 }
@@ -90,7 +90,7 @@ fn a_bounded_key_in_an_impl_bound_is_accepted() {
 #[test]
 fn an_unbounded_key_in_an_impl_trait_argument_fails() {
     let src = format!(
-        "{HOLDS}data Wrap[K, V]:\n    pub k: K\n    pub v: V\n\nimpl[K, V] Holds[Map[K, V]] for Wrap[K, V]:\n    fn get(self) -> Map[K, V]:\n        {{}}\n"
+        "{HOLDS}struct Wrap[K, V]:\n    pub k: K\n    pub v: V\n\nimpl[K, V] Holds[Map[K, V]] for Wrap[K, V]:\n    fn get(self) -> Map[K, V]:\n        {{}}\n"
     );
     assert!(errors(&src).contains(&Code::UnsatisfiedTraitBound));
 }

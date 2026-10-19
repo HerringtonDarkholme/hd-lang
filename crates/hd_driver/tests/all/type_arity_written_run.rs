@@ -20,7 +20,7 @@ type Both[A, B] = (A, B)
 trait Show:
     fn show(self) -> string
 
-data Pair[K, V]:
+struct Pair[K, V]:
     key: K
     value: V
 
@@ -29,7 +29,7 @@ data Pair[K, V]:
         "fn f(b: Both[i32]) -> i32: 0",
         "trait Make:\n    fn make() -> Both[i32]",
         "fn f(b: Both) -> i32: 0",
-        "data Holder:\n    both: Both[i32]",
+        "struct Holder:\n    both: Both[i32]",
         "enum Shape:\n    Dot(Both[i32])",
         "fn f() -> i32:\n    let b: Both[i32] = (1, 2)\n    b._0",
         "fn f(b: List[Both[i32]]) -> i32: 0",
@@ -66,7 +66,7 @@ pub fn main() -> void $ Console:
 #[test]
 fn an_associated_function_path_fills_defaults() {
     let main = "\
-data Cell[T, U = List[T]]:
+struct Cell[T, U = List[T]]:
     first: T
     rest: U
 
@@ -86,7 +86,7 @@ pub fn main() -> void $ Console:
 #[test]
 fn an_associated_function_path_takes_the_substituted_default() {
     let head = "\
-data Cell[T, U = List[T]]:
+struct Cell[T, U = List[T]]:
     first: T
     rest: U
 
@@ -110,10 +110,10 @@ impl[T, U] Cell[T, U]:
 #[test]
 fn an_argument_and_the_default_filled_from_it_report_one_bound_error() {
     let signature = "\
-data Plain:
+struct Plain:
     x: i32
 
-data Tagged[T < Hash, H < Hash = T]:
+struct Tagged[T < Hash, H < Hash = T]:
     tag: T
     hash: H
 
@@ -121,14 +121,14 @@ fn use_it(tagged: Tagged[Plain]) -> i32: 0
 ";
     assert_eq!(codes_of(signature), vec![Code::UnsatisfiedTraitBound]);
     let field = "\
-data Plain:
+struct Plain:
     x: i32
 
-data Tagged[T < Hash, H < Hash = T]:
+struct Tagged[T < Hash, H < Hash = T]:
     tag: T
     hash: H
 
-data Holder:
+struct Holder:
     inner: Tagged[Plain]
 ";
     assert_eq!(codes_of(field), vec![Code::UnsatisfiedTraitBound]);
@@ -137,10 +137,10 @@ data Holder:
 #[test]
 fn a_default_alone_missing_its_bound_reports_once() {
     let signature = "\
-data Plain:
+struct Plain:
     x: i32
 
-data Tagged[T, H < Hash = Plain]:
+struct Tagged[T, H < Hash = Plain]:
     tag: T
     hash: H
 
@@ -158,7 +158,7 @@ fn a_default_missing_its_bound_reports_at_the_declaration() {
 trait Blank:
     fn blank() -> Self
 
-data Plain: pass
+struct Plain: pass
 
 fn empty[C < Blank = Plain]() -> C:
     C::blank()

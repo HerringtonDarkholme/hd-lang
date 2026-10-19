@@ -35,10 +35,10 @@ fn message(out: &Output, code: Code) -> String {
 #[test]
 fn a_derive_message_names_the_trait_plainly() {
     let out = analyze(
-        "data Opaque: pass
+        "struct Opaque: pass
 
 @derive(Eq)
-data Key:
+struct Key:
     value: Opaque
 ",
     );
@@ -50,7 +50,7 @@ data Key:
 #[test]
 fn an_unsatisfied_bound_names_the_trait_plainly() {
     let out = analyze(
-        "data Opaque: pass
+        "struct Opaque: pass
 
 fn same[T < Eq](a: T, b: T) -> bool:
     a == b

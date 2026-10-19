@@ -75,8 +75,8 @@ const MATRIX: &str = "\
 use std.ops.Index
 use std.ops.IndexSet
 
-data Matrix[T]:
-    cells: mut List[T]
+struct Matrix[T]:
+    cells: List[T]
 
 impl[T] Index[(usize, usize)] for Matrix[T]:
     type Out = T
@@ -138,7 +138,7 @@ fn a_tie_falls_back_to_the_default_type() {
     let main = "\
 use std.ops.Index
 
-data Grid:
+struct Grid:
     size: i32
 
 impl Index[(usize, usize)] for Grid:
@@ -171,7 +171,7 @@ fn a_single_implementation_types_the_literals() {
     let main = "\
 use std.ops.Index
 
-data Board:
+struct Board:
     cells: List[f64]
 
 impl Index[(i32, i32)] for Board:
@@ -196,7 +196,7 @@ fn a_default_without_an_implementation_is_an_error() {
     let main = "\
 use std.ops.Index
 
-data Small:
+struct Small:
     size: i32
 
 impl Index[(u8, u8)] for Small:

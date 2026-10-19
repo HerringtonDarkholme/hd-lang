@@ -72,7 +72,7 @@ fn keep[T](value: T) -> T:
     value
 
 fn route() -> string:
-    data Stop:
+    struct Stop:
         name: string
         minutes: i32
     stop := keep(Stop { name: \"Utrecht\", minutes: 27 })
@@ -88,14 +88,14 @@ pub fn main() -> void $ Console:
 fn two_functions_declare_local_data_of_one_name() {
     let main = "\
 fn invoice_total() -> i32:
-    data Line:
+    struct Line:
         quantity: i32
         unit: i32
     line := Line { quantity: 3, unit: 20 }
     line.quantity * line.unit
 
 fn invoice_note() -> string:
-    data Line:
+    struct Line:
         text: string
     Line { text: \"paid\" }.text
 
@@ -109,7 +109,7 @@ pub fn main() -> void $ Console:
 fn a_local_type_implements_display_locally() {
     let main = "\
 fn receipt(cents: i32) -> string:
-    data Money:
+    struct Money:
         cents: i32
     impl Display for Money:
         fn to_string(self) -> string:

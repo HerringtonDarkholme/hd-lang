@@ -38,11 +38,11 @@ fn errors(src: &str) -> Vec<Code> {
         .collect()
 }
 
-const COUNTER: &str = "data Counter:
+const COUNTER: &str = "struct Counter:
     value: i32
 
 impl Counter:
-    fn bump(mut self, by: i32) -> void:
+    fn bump(&mut self, by: i32) -> void:
         self.value = self.value + by
 
     fn read(self) -> i32:
@@ -64,7 +64,7 @@ impl Factory for Counter:
     fn create() -> Counter:
         Counter { value: 1 }
 
-data Store:
+struct Store:
     name: string
 
 impl Store:
@@ -105,7 +105,7 @@ fn unbound_references_have_their_function_types() {
 fn reader() -> fn(Counter) -> i32:
     Counter::read
 
-fn stepper() -> fn(mut Counter, i32) -> void:
+fn stepper() -> fn(&mut Counter, i32) -> void:
     Counter::bump
 
 fn maker() -> fn() -> Counter:
@@ -149,7 +149,7 @@ fn made() -> void:
     assert!(!out.diags.has_errors(), "{}", out.render());
     let want = [
         ("app/main/reader", ": fn(Counter) -> i32"),
-        ("app/main/stepper", ": fn(mut Counter, i32) -> ()"),
+        ("app/main/stepper", ": fn(Ref[Counter], i32) -> ()"),
         ("app/main/maker", ": fn() -> Counter"),
         ("app/main/factory", ": fn() -> Counter"),
         ("app/main/labels", ": fn(T) -> string"),
@@ -171,7 +171,7 @@ fn made() -> void:
 fn a_bound_reference_is_a_closure_over_the_receiver() {
     let src = format!(
         "{COUNTER}
-fn bumper(counter: mut Counter) -> fn(i32) -> void:
+fn bumper(counter: &mut Counter) -> fn(i32) -> void:
     counter::bump
 "
     );
@@ -193,17 +193,17 @@ fn reference_errors_are_reported() {
     let cases = [
         // `fn.ref.no-fields`.
         (
-            "data User:\n    email: string\n\nfn emails() -> fn(User) -> string:\n    User::email\n",
+            "struct User:\n    email: string\n\nfn emails() -> fn(User) -> string:\n    User::email\n",
             Code::UnknownMethod,
         ),
         // `fn.ref.bound.associated`.
         (
-            "data Counter:\n    value: i32\n\nimpl Counter:\n    fn zero() -> Counter:\n        Counter { value: 0 }\n\nfn restart(counter: Counter) -> fn() -> Counter:\n    counter::zero\n",
+            "struct Counter:\n    value: i32\n\nimpl Counter:\n    fn zero() -> Counter:\n        Counter { value: 0 }\n\nfn restart(counter: Counter) -> fn() -> Counter:\n    counter::zero\n",
             Code::UnknownMethod,
         ),
         // `fn.ref.bound.mut`.
         (
-            "data Counter:\n    value: i32\n\nimpl Counter:\n    fn bump(mut self, by: i32) -> void:\n        self.value = self.value + by\n\nfn frozen(counter: Counter) -> fn(i32) -> void:\n    counter::bump\n",
+            "struct Counter:\n    value: i32\n\nimpl Counter:\n    fn bump(&mut self, by: i32) -> void:\n        self.value = self.value + by\n\nfn frozen(counter: Counter) -> fn(i32) -> void:\n    counter::bump\n",
             Code::MutableReceiverRequired,
         ),
         // `fn.ref.bound.mut`, for a built-in method.
@@ -234,12 +234,12 @@ fn reference_errors_are_reported() {
         ),
         // `fn.ref.lookup.ambiguous`.
         (
-            "trait Left:\n    fn name(self) -> string\n\ntrait Right:\n    fn name(self) -> string\n\ndata Both: pass\n\nimpl Left for Both:\n    fn name(self) -> string: \"l\"\n\nimpl Right for Both:\n    fn name(self) -> string: \"r\"\n\nfn named() -> fn(Both) -> string:\n    Both::name\n",
+            "trait Left:\n    fn name(self) -> string\n\ntrait Right:\n    fn name(self) -> string\n\nstruct Both: pass\n\nimpl Left for Both:\n    fn name(self) -> string: \"l\"\n\nimpl Right for Both:\n    fn name(self) -> string: \"r\"\n\nfn named() -> fn(Both) -> string:\n    Both::name\n",
             Code::AmbiguousMethod,
         ),
         // `fn.ref.unbound.mut-self` with `fn.type.declared-variance`.
         (
-            "data Counter:\n    value: i32\n\nimpl Counter:\n    fn reset(mut self) -> void:\n        self.value = 0\n\nfn readonly() -> fn(Counter) -> void:\n    Counter::reset\n",
+            "struct Counter:\n    value: i32\n\nimpl Counter:\n    fn reset(&mut self) -> void:\n        self.value = 0\n\nfn readonly() -> fn(Counter) -> void:\n    Counter::reset\n",
             Code::TypeMismatch,
         ),
     ];
@@ -322,7 +322,7 @@ pub fn main!() -> void $ Console:
     println(echo(\"generic\"))
     bump := Counter::bump
     let mut counter = Counter {{ value: 1 }}
-    bump(counter, 4)
+    bump(&mut counter, 4)
     println(counter.value)
     zero := Counter::zero
     println(zero().value)

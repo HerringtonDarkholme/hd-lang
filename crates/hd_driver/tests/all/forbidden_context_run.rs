@@ -98,7 +98,7 @@ fn wait_now() -> i32:
         .Completed(value) => value
         _ => 0
 
-data QuietConsole: pass
+struct QuietConsole: pass
 
 impl Console for QuietConsole:
     fn write_line!(&mut self, text: string) -> Result[void, ConsoleError]:
@@ -225,7 +225,7 @@ fn block_on_in_a_facts_body_panics() {
     let main = with_helpers(
         "use std.annotation.facts_of
 
-data Style:
+struct Style:
     prefix: string = \"\"
 
 fn style() -> Style:

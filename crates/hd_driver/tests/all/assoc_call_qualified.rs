@@ -57,7 +57,7 @@ const MAKE: &str = "\
 trait Make:
     fn make() -> i32
 
-data Widget: pass
+struct Widget: pass
 
 impl Make for Widget:
     fn make() -> i32: 1
@@ -71,12 +71,12 @@ fn undetermined_self_is_cannot_infer() {
 
 #[test]
 fn self_determined_by_arguments_resolves() {
-    let src = "trait Dup:\n    fn dup(x: Self) -> Self\n\ndata Widget: pass\n\nimpl Dup for Widget:\n    fn dup(x: Self) -> Self: x\n\nfn run(w: Widget) -> Widget:\n    Dup::dup(w)\n";
+    let src = "trait Dup:\n    fn dup(x: Self) -> Self\n\nstruct Widget: pass\n\nimpl Dup for Widget:\n    fn dup(x: Self) -> Self: x\n\nfn run(w: Widget) -> Widget:\n    Dup::dup(w)\n";
     assert_eq!(errors(src), vec![]);
 }
 
 #[test]
 fn self_determined_by_expected_type_resolves() {
-    let src = "trait Make:\n    fn make() -> Self\n\ndata Widget:\n    n: i32\n\nimpl Make for Widget:\n    fn make() -> Self: Widget { n: 1 }\n\nfn run() -> Widget:\n    Make::make()\n";
+    let src = "trait Make:\n    fn make() -> Self\n\nstruct Widget:\n    n: i32\n\nimpl Make for Widget:\n    fn make() -> Self: Widget { n: 1 }\n\nfn run() -> Widget:\n    Make::make()\n";
     assert_eq!(errors(src), vec![]);
 }

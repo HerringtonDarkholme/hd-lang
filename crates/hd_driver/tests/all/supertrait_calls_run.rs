@@ -64,10 +64,10 @@ fn to_string_on_a_dyn_error_reads_the_display_vtable() {
 use std.error.Error
 
 @error(\"disk full on $device\")
-data DiskError:
+struct DiskError:
     device: string
 
-data Timeout:
+struct Timeout:
     seconds: i32
 
 impl Display for Timeout:
@@ -100,7 +100,7 @@ trait Greeter < Named:
 trait Host < Greeter:
     fn room(self) -> string
 
-data Concierge:
+struct Concierge:
     who: string
 
 impl Named for Concierge:
@@ -136,7 +136,7 @@ trait Greeter < Named:
 trait Host < Greeter:
     fn room(self) -> string
 
-data Concierge:
+struct Concierge:
     who: string
 
 impl Named for Concierge:
@@ -174,7 +174,7 @@ trait Measure:
 trait Scored < Measure:
     fn marker(self) -> i32
 
-data Point:
+struct Point:
     value: i32
 
 impl Score for Point:
@@ -203,7 +203,7 @@ trait Source[Output]:
 trait Wrapped[Item] < Source[List[Item]]:
     fn count(self) -> i32
 
-data Crate[T]:
+struct Crate[T]:
     item: T
 
 impl[T] Source[List[T]] for Crate[T]:
@@ -238,7 +238,7 @@ trait Right < Base:
 trait Both < Left & Right:
     fn both(self) -> i32
 
-data Num:
+struct Num:
     n: i32
 
 impl Base for Num:

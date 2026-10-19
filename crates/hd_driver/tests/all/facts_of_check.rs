@@ -76,7 +76,7 @@ fn a_call_is_not_a_function_declaration() {
 #[test]
 fn a_field_access_is_not_a_function_declaration() {
     let src = with(
-        "data Holder:
+        "struct Holder:
     action: fn() -> void
 
 fn read(holder: Holder) -> void:

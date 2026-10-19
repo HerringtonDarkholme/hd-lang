@@ -105,17 +105,17 @@ pub fn main() -> void $ Console:
 #[test]
 fn operands_are_evaluated_once_in_element_order() {
     let main = "\
-fn note(label: string, value: i32, log: mut List[string]) -> i32:
+fn note(label: string, value: i32, log: &mut List[string]) -> i32:
     log.push(label)
     value
 
-fn many(label: string, log: mut List[string]) -> List[i32]:
+fn many(label: string, log: &mut List[string]) -> List[i32]:
     log.push(label)
     [+1, +2]
 
 pub fn main() -> void $ Console:
-    let log: mut List[string] = []
-    xs := [note(\"a\", +0, log), many(\"b\", log)..., note(\"c\", +3, log), many(\"d\", log)...]
+    let mut log: List[string] = []
+    xs := [note(\"a\", +0, &mut log), many(\"b\", &mut log)..., note(\"c\", +3, &mut log), many(\"d\", &mut log)...]
     println(xs.len())
     println(log.len())
     println(log[0] + log[1] + log[2] + log[3])

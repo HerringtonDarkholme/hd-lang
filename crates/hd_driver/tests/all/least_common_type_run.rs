@@ -112,15 +112,15 @@ pub fn main() -> void $ Console:
     );
 }
 
-/// Permission weakening, a `never` value, a nested literal joined by its own
-/// type, and a generic call's permission join all keep working.
+/// Reference weakening (`&mut T` to `&T`), a `never` value, a nested literal
+/// joined by its own type, and a generic call's join all keep working.
 #[test]
 fn weakening_never_and_nested_literals_join() {
     let main = "\
-data User:
+struct User:
     name: string
 
-fn weak(editable: mut User, shared: User) -> List[User]:
+fn weak(editable: &mut User, shared: &User) -> List[&User]:
     both := [editable, shared]
     both
 
@@ -138,7 +138,7 @@ fn same[T](left: T, right: T) -> bool:
 
 pub fn main() -> void $ Console:
     let u = User { name: \"a\" }
-    println(weak(User { name: \"b\" }, u)[1].name)
+    println(weak(&mut User { name: \"b\" }, &u)[1].name)
     println(never_first(false, 9))
     println(nested(7, true)[1][0])
     println(same(User { name: \"c\" }, u))
@@ -250,7 +250,7 @@ fn a_restarted_site_reports_no_common_type() {
 #[test]
 fn trait_values_have_no_common_type_without_an_expected_type() {
     let decls = "\
-data User:
+struct User:
     name: string
 
 impl Display for User:
@@ -288,7 +288,7 @@ trait Tagged < Named:
 #[test]
 fn generic_arguments_join_without_trait_value_conversions() {
     let decls = "\
-data User:
+struct User:
     name: string
 
 impl Display for User:
@@ -321,40 +321,15 @@ fn same[T](left: T, right: T) -> bool:
     assert_eq!(codes_of(&main), vec![Code::TypeMismatch]);
 }
 
-/// Values with common types that the least common type cannot reach,
-/// because one would need weakening and a variance step together
-/// (`types.lct.no-combine`, `types.lct.no-least`); and an invariant
-/// argument that differs in permission, which has no common type.
-#[test]
-fn weakening_with_variance_has_no_least_common_type() {
-    let decls = "\
-data User:
-    name: string
-
-data Box[T]:
-    value: T
-";
-    for body in [
-        "fn f(small: mut List[mut User], wide: List[User]) -> void:\n    _v := [small, wide]\n",
-        "fn f(a: mut List[mut User], b: List[mut User], c: List[User]) -> void:\n    _v := [a, b, c]\n",
-    ] {
-        let main = format!("{decls}\n{body}");
-        assert_eq!(codes_of(&main), vec![Code::NoLeastCommonType], "{body}");
-    }
-    let main =
-        format!("{decls}\nfn f(a: Box[mut User], b: Box[User]) -> void:\n    _v := [a, b]\n");
-    assert_eq!(codes_of(&main), vec![Code::NoCommonType]);
-}
-
-/// The value the least common type gives a mutable and a readonly value
-/// is the readonly view, so an element cannot be mutated through it.
+/// The least common type of a `&mut T` and a `&T` is `&T`, so an element
+/// cannot be mutated through it.
 #[test]
 fn a_weakened_join_is_readonly() {
     let main = "\
-data User:
+struct User:
     name: string
 
-fn f(editable: mut User, shared: User) -> void:
+fn f(editable: &mut User, shared: &User) -> void:
     both := [editable, shared]
     both[0].name = \"x\"
 ";

@@ -31,10 +31,10 @@ fn errors(main: &str) -> Vec<Code> {
 
 const DECLS: &str = "use std.inspect.{Inspectable, TypeId}
 
-data Plain:
+struct Plain:
     name: string
 
-data Boxed[T]:
+struct Boxed[T]:
     value: T
 
 enum Shade:
@@ -45,7 +45,7 @@ type Meters(i32)
 
 type Callback(fn() -> i32)
 
-data Holder:
+struct Holder:
     run: fn() -> i32
 
 trait Named < Inspectable:
@@ -178,7 +178,7 @@ fn an_unbounded_type_parameter_is_not_inspectable() {
 #[test]
 fn a_local_declaration_is_not_inspectable() {
     let src = format!(
-        "{DECLS}\nfn run() -> TypeId:\n    data Inner:\n        n: i32\n    TypeId::of::[Inner]()\n"
+        "{DECLS}\nfn run() -> TypeId:\n    struct Inner:\n        n: i32\n    TypeId::of::[Inner]()\n"
     );
     assert_eq!(errors(&src), vec![Code::UnsatisfiedTraitBound]);
 }
@@ -216,7 +216,7 @@ trait Cache < Storage:
 trait Clock:
     fn now(self) -> i64
 
-data MemoryStorage: pass
+struct MemoryStorage: pass
 
 impl Storage for MemoryStorage:
     fn get(self, key: string) -> string?:
@@ -245,14 +245,14 @@ fn an_inspectable_trait_is_no_requirement_key() {
             2,
             "fn make(job: fn() -> void $ Storage) -> (fn() -> void $ Storage):\n    job\n",
         ),
-        (1, "data Job:\n    run: fn() -> void $ Storage\n"),
+        (1, "struct Job:\n    run: fn() -> void $ Storage\n"),
         // An alias of a function type, and a row alias.
         (1, "type Job = fn() -> void $ Storage\n"),
         (1, "type Row = $ Clock + Storage\n"),
         // A method row in an impl, and in a trait.
         (
             1,
-            "data Worker: pass\n\nimpl Worker:\n    fn work(self) -> void $ Storage:\n        pass\n",
+            "struct Worker: pass\n\nimpl Worker:\n    fn work(self) -> void $ Storage:\n        pass\n",
         ),
         (1, "trait Job:\n    fn run(self) -> void $ Storage\n"),
         // A provider scope.

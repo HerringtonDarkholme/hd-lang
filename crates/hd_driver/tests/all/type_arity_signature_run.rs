@@ -8,7 +8,7 @@ use hd_diag::Code;
 use crate::type_default_written_run::codes_of;
 
 const HEAD: &str = "\
-data Pair[K, V]:
+struct Pair[K, V]:
     key: K
     value: V
 
@@ -33,13 +33,13 @@ fn own_module_types_written_too_long_report_once() {
         &[
             "fn h() -> Pair[i32, i32, i32]: 5",
             "fn h(p: Pair[i32, i32, i32]) -> i32: p",
-            "data Holder:\n    p: Pair[i32, i32, i32]\n\nfn h() -> Holder: Holder { p: 5 }",
+            "struct Holder:\n    p: Pair[i32, i32, i32]\n\nfn h() -> Holder: Holder { p: 5 }",
             "fn h() -> Choice[i32, i32]: 5",
             "fn h(c: Choice[i32, i32]) -> i32: c",
-            "data Holder:\n    c: Choice[i32, i32]\n\nfn h() -> Holder: Holder { c: 5 }",
+            "struct Holder:\n    c: Choice[i32, i32]\n\nfn h() -> Holder: Holder { c: 5 }",
             "fn h() -> Wrap[i32, i32]: 5",
             "fn h(w: Wrap[i32, i32]) -> i32: w",
-            "data Holder:\n    w: Wrap[i32, i32]\n\nfn h() -> Holder: Holder { w: 5 }",
+            "struct Holder:\n    w: Wrap[i32, i32]\n\nfn h() -> Holder: Holder { w: 5 }",
         ],
     );
 }
@@ -51,13 +51,13 @@ fn own_module_types_written_too_short_report_once() {
         &[
             "fn h() -> Pair[i32]: 5",
             "fn h(p: Pair[i32]) -> i32: p",
-            "data Holder:\n    p: Pair[i32]\n\nfn h() -> Holder: Holder { p: 5 }",
+            "struct Holder:\n    p: Pair[i32]\n\nfn h() -> Holder: Holder { p: 5 }",
             "fn h() -> Choice: 5",
             "fn h(c: Choice) -> i32: c",
-            "data Holder:\n    c: Choice\n\nfn h() -> Holder: Holder { c: 5 }",
+            "struct Holder:\n    c: Choice\n\nfn h() -> Holder: Holder { c: 5 }",
             "fn h() -> Wrap: 5",
             "fn h(w: Wrap) -> i32: w",
-            "data Holder:\n    w: Wrap\n\nfn h() -> Holder: Holder { w: 5 }",
+            "struct Holder:\n    w: Wrap\n\nfn h() -> Holder: Holder { w: 5 }",
         ],
     );
 }

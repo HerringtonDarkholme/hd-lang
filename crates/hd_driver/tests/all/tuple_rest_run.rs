@@ -313,7 +313,7 @@ fn f(t: (i32, List[i32]...)):
 enum Code(i32):
     Missing -> Code(404)
 
-fn f(c: mut Code):
+fn f(c: &mut Code):
     c._0 = 1
 ";
     assert_eq!(codes_of(shared), [Code::InvalidAssignmentTarget]);

@@ -13,7 +13,7 @@ Root
             NamedType Rhs
         ProjectionType :: Out
           NamedType Self
-  DataDecl data Table :
+  DataDecl struct Table :
     GenericParameterList [ , , ]
       GenericParameter + K
         BoundList <

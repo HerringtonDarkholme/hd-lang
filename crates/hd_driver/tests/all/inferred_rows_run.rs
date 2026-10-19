@@ -77,7 +77,7 @@ pub trait Tag:
 pub trait Log:
     fn tag(self) -> string
 
-data Named:
+struct Named:
     label: string
 
 impl Tag for Named:
@@ -128,7 +128,7 @@ fn logged() -> string:
     $.with(Tag=Named {{ label: \"t\" }}):
         tagged()
 
-data Box:
+struct Box:
     label: string
 
 impl Box:
@@ -152,7 +152,7 @@ fn logged() -> string:
     $.with(Tag=Named {{ label: \"t\" }}):
         tagged()
 
-data Box:
+struct Box:
     label: string
 
 impl Box:
@@ -277,9 +277,9 @@ pub trait Store:
     type Item
     fn load(self) -> Self::Item
 
-pub data User: pass
-pub data Post: pass
-data UserRepo: pass
+pub struct User: pass
+pub struct Post: pass
+struct UserRepo: pass
 
 impl Repo[User] for UserRepo:
     fn count(self) -> i32: 20

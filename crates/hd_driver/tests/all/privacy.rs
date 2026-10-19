@@ -13,7 +13,7 @@ use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
 const CART: &str = "\
-pub data Cart:
+pub struct Cart:
     pub owner: string
     total: i32
 
@@ -86,7 +86,7 @@ fn a_private_field_is_read_in_its_own_module_only() {
 #[test]
 fn a_private_field_is_not_assigned_or_matched_from_another_module() {
     rejects(
-        "use pkg.cart.{Cart}\n\nfn reset(cart: mut Cart) -> void:\n    cart.total = 0\n",
+        "use pkg.cart.{Cart}\n\nfn reset(cart: &mut Cart) -> void:\n    cart.total = 0\n",
         "private-member",
     );
     rejects(
@@ -143,7 +143,7 @@ fn a_module_path_to_a_private_function_is_private_import() {
 #[test]
 fn a_module_uses_its_own_private_members() {
     let out = analyze(
-        "data Entry:\n    label: string\n    cents: i32\n\nimpl Entry:\n    fn describe(self) -> string:\n        \"${self.label}: ${self.cents}\"\n\nfn demo() -> string:\n    entry := Entry { label: \"tea\", cents: 300 }\n    _ := Entry { ...entry, cents: entry.cents + 1 }\n    entry.describe()\n",
+        "struct Entry:\n    label: string\n    cents: i32\n\nimpl Entry:\n    fn describe(self) -> string:\n        \"${self.label}: ${self.cents}\"\n\nfn demo() -> string:\n    entry := Entry { label: \"tea\", cents: 300 }\n    _ := Entry { ...entry, cents: entry.cents + 1 }\n    entry.describe()\n",
     );
     assert!(errors(&out).is_empty(), "{}", out.render());
 }

@@ -99,39 +99,39 @@ use std.num.{Integer, Num}
 use std.structure.{Structure, Field}
 
 @annotate::[T](.Field)
-data Fact[T]:
+struct Fact[T]:
     value: T
 
 fn fact[T](value: T) -> Fact[T]:
     Fact::[T] { value: value }
 
 @annotate::[F](.Field)
-data Positive[F < Integer]: pass
+struct Positive[F < Integer]: pass
 
 fn positive[F < Integer]() -> Positive[F]:
     Positive::[F] {}
 
 @annotate::[i32](.Field)
-data Port:
+struct Port:
     number: i32
 
 fn port(number: i32) -> Port:
     Port { number: number }
 
 @annotate::[fn(T) -> R](.Fn, .Field)
-data FnFact[T < Num, R]: pass
+struct FnFact[T < Num, R]: pass
 
 fn fn_fact[T < Num, R]() -> FnFact[T, R]:
     FnFact::[T, R] {}
 
 @annotate::[F](.Fn)
-data Handler[F]: pass
+struct Handler[F]: pass
 
 fn handler[R]() -> Handler[fn(i64) -> R]:
     Handler::[fn(i64) -> R] {}
 
 @annotate::[F](.Field)
-data Fallback[F]:
+struct Fallback[F]:
     make: fn() -> F?
 
 fn fallback[F](make: fn() -> F?) -> Fallback[F]:
@@ -144,7 +144,7 @@ fn missing_list[T]() -> List[T]?:
     .None
 
 @annotate::[List[T]](.Field)
-data MaxLen[T]:
+struct MaxLen[T]:
     limit: i32
 
 fn max_len[T](limit: i32) -> MaxLen[T]:
@@ -158,7 +158,7 @@ fn with(tail: &str) -> String {
 #[test]
 fn values_that_fit_their_targets_check() {
     let src = with(
-        "data Account:
+        "struct Account:
     @fact(5)
     a: i32
     @positive
@@ -170,9 +170,9 @@ fn values_that_fit_their_targets_check() {
     @fallback(missing)
     name: string
     @max_len(3)
-    tags: mut List[string]
+    tags: List[string]
 
-data Tally[T < Integer]:
+struct Tally[T < Integer]:
     @positive
     hits: T
 
@@ -206,7 +206,7 @@ fn wrap[T](id: i64) -> List[T]:
 fn a_value_of_another_type_is_a_mismatch_at_its_decorator() {
     one_error(
         &with(
-            "data Account:
+            "struct Account:
     @fact(\"x\")  # here
     b: i32",
         ),
@@ -218,7 +218,7 @@ fn a_value_of_another_type_is_a_mismatch_at_its_decorator() {
 fn a_value_at_other_type_arguments_is_a_mismatch() {
     one_error(
         &with(
-            "data Account:
+            "struct Account:
     @positive::[i32]()  # here
     count: i64",
         ),
@@ -230,7 +230,7 @@ fn a_value_at_other_type_arguments_is_a_mismatch() {
 fn an_inferred_argument_that_breaks_its_bound_is_reported() {
     one_error(
         &with(
-            "data Account:
+            "struct Account:
     @positive  # here
     name: string",
         ),
@@ -242,7 +242,7 @@ fn an_inferred_argument_that_breaks_its_bound_is_reported() {
 fn a_concrete_pattern_takes_only_its_type() {
     one_error(
         &with(
-            "data Server:
+            "struct Server:
     @port(9090)  # here
     admin: i64",
         ),
@@ -266,7 +266,7 @@ fn span(low: i32, high: i32) -> i64:
 fn a_function_pattern_rejects_a_field_that_is_not_a_function() {
     one_error(
         &with(
-            "data Meter:
+            "struct Meter:
     @fn_fact  # here
     count: i32",
         ),
@@ -327,7 +327,7 @@ fn loud(n: i32) -> i64 $ Console:
 fn a_generic_reference_that_no_argument_fits_is_one_mismatch() {
     one_error(
         &with(
-            "data Profile:
+            "struct Profile:
     @fallback(missing_list)
     tags: List[string]
     @fallback(missing_list)  # here
@@ -341,7 +341,7 @@ fn a_generic_reference_that_no_argument_fits_is_one_mismatch() {
 fn a_member_line_element_is_checked_against_its_member() {
     one_error(
         &with(
-            "data Profile:
+            "struct Profile:
     name: string
 
 impl Profile by Structure:
@@ -404,7 +404,7 @@ const LABELS: &str = "use std.annotation.{annotate, facts_of}
 use std.structure.{Structure, Field, Variant, Describer}
 
 @annotate::[F](.Field, .Fn)
-data Tag[F]:
+struct Tag[F]:
     label: string
 
 fn tag[F](label: string) -> Tag[F]:
@@ -442,20 +442,20 @@ impl[T] Labels for T by Structure:
 fn a_typed_fact_on_a_derivation_target_is_read_through_its_handle() {
     let src = format!(
         "{LABELS}
-data Counter:
+struct Counter:
     count: i64
 
 @derive(Labels)
-data Job:
+struct Job:
     @tag(\"n\")
     n: i32
     @tag(\"run\")
     run: fn() -> i32
     @tag(\"hits\")
-    hits: mut Counter
+    hits: Counter
     plain: List[string]
 
-data Pair[A]:
+struct Pair[A]:
     @tag(\"first\")
     first: A
     second: List[A]
@@ -469,7 +469,7 @@ enum Event:
     Key(@tag(\"code\") code: string)
 
 @derive(Labels)
-data Lined:
+struct Lined:
     a: i64
     b: string
 
@@ -491,7 +491,7 @@ pub fn main() -> void $ Console:
     );
     assert_eq!(
         output_of("handle", &src),
-        "n:n;run:run;hits:-;plain:-;
+        "n:n;run:run;hits:hits;plain:-;
 first:first;second:second;
 first:first;second:second;
 x:x;y:-;code:code;

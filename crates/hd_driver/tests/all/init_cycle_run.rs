@@ -20,7 +20,7 @@ use hd_sched::SerialOrder;
 use hd_testkit::Scratch;
 
 /// Records lines in order; `main` prints them.
-const LOG: &str = "let lines: mut List[string] = []
+const LOG: &str = "let mut lines: List[string] = []
 
 pub fn record(line: string) -> void:
     lines.push(line)

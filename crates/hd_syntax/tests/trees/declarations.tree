@@ -7,7 +7,7 @@ Root
     UseGroup { }
       UseItem Point
   UseDecl use dep . json . decode as parse
-  DataDecl pub data Point :
+  DataDecl pub struct Point :
     Decorator @
       CallExpr
         NameExpr derive

@@ -48,7 +48,7 @@ lang/02-grammar.md	10	mixed	parse/invalid/nested-same-line-if.hd|parse/invalid/s
 lang/02-grammar.md	11	mixed	typing/warnings/same-line-let-list-unused.hd
 lang/02-grammar.md	12	mixed	parse/invalid/header-after-indented-suite.hd
 lang/02-grammar.md	13	mixed	typing/invalid/nonfinal-vararg-declaration.hd
-lang/02-grammar.md	14	mixed	parse/invalid/pub-embedded-field.hd
+lang/02-grammar.md	14	mixed	parse/invalid/pub-embedded-field.hd|parse/invalid/data-declaration.hd
 lang/02-grammar.md	15	mixed	parse/invalid/pub-trait-method.hd|parse/invalid/colon-supertrait.hd
 lang/02-grammar.md	16	mixed	parse/invalid/row-alias-and-operator.hd
 lang/02-grammar.md	17	mixed	parse/invalid/old-bound-operator-generic.hd|parse/invalid/old-bound-operator-supertrait.hd|parse/invalid/old-bound-operator-impl.hd

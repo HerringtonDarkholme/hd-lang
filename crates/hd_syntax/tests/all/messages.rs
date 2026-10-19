@@ -224,12 +224,12 @@ const ROWS: &[(&str, &str, &str)] = &[
         "':=' binds one name; a pattern before it needs 'let', as in 'let (a, b) = pair'",
     ),
     (
-        "data P:\n    mut x: i32\n",
+        "struct P:\n    mut x: i32\n",
         "mutable-field-modifier",
         "data fields express mutable access in their type rather than with a field modifier",
     ),
     (
-        "data P:\n    mut Base\n",
+        "struct P:\n    mut Base\n",
         "mutable-field-modifier",
         "an embedded field takes no 'mut': access to an embedded part follows its container",
     ),
@@ -475,7 +475,7 @@ const ROWS: &[(&str, &str, &str)] = &[
         "'pub' is not accepted before 'impl'",
     ),
     (
-        "data P:\n    pub Base\n",
+        "struct P:\n    pub Base\n",
         "syntax-error",
         "an embedded field takes no 'pub'",
     ),

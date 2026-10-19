@@ -80,7 +80,7 @@ fn panic_of(name: &str, main: &str) -> (String, String) {
 const PRELUDE: &str = "use std.annotation.facts_of
 use std.structure.{Structure, Field, Variant, Walker}
 
-data Style:
+struct Style:
     prefix: string = \"\"
 
 fn no_prefix() -> string:
@@ -129,7 +129,7 @@ fn style(prefix: string) -> Style:
 
 @derive(Label)
 @style(\"p_\")
-data Point:
+struct Point:
     x: i64
 
 pub fn main() -> void $ Console:
@@ -195,12 +195,12 @@ fn style_b(prefix: string) -> Style:
 
 @derive(Label)
 @style_a(\"a_\")
-data A:
+struct A:
     x: i64
 
 @derive(Label)
 @style_b(\"b_\")
-data B:
+struct B:
     x: i64
 
 pub fn main() -> void $ Console:
@@ -230,7 +230,7 @@ fn an_unread_fact_never_runs() {
     let main = with_prelude(
         "@derive(Label)
 @style(prefix=no_prefix())
-data Point:
+struct Point:
     x: i64
 
 fn style(prefix: string) -> Style:
@@ -254,12 +254,12 @@ fn a_fact_panic_is_reported_at_the_read_that_started_it() {
 
 @derive(Label)
 @style(\"good_\")
-data Good:
+struct Good:
     x: i64
 
 @derive(Label)
 @style(prefix=no_prefix())
-data Point:
+struct Point:
     x: i64
 
 pub fn main() -> void $ Console:
@@ -336,7 +336,7 @@ pub fn main() -> void $ Console:
 fn a_host_raised_panic_in_a_fact_is_wrapped() {
     let main = "use std.annotation.facts_of
 
-data Route:
+struct Route:
     path: string
 
 fn deep(n: i32) -> i32:
@@ -368,7 +368,7 @@ pub fn main() -> void $ Console:
 fn a_member_metadata_panic_names_the_member() {
     let main = "use std.structure.{Structure, Field, Variant, Walker}
 
-data Style:
+struct Style:
     prefix: string = \"\"
 
 fn style(prefix: string) -> Style:
@@ -402,7 +402,7 @@ impl[T] Label for T by Structure:
         w.out
 
 @derive(Label)
-data Point:
+struct Point:
     @style(\"x_\")
     x: i64
     @style(prefix=no_prefix())

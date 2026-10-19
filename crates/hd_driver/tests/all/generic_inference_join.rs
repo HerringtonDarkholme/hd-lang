@@ -31,7 +31,7 @@ const PICK: &str = "fn pick[T](left: T, right: T) -> T:\n    left\n";
 #[test]
 fn variance_conflict_is_single_mismatch() {
     let out = analyze(&format!(
-        "{PICK}\nfn first(owned: List[mut User], shared: List[User]) -> List[User]:\n    pick(owned, shared)\n\ndata User:\n    name: string\n"
+        "{PICK}\nfn first(owned: List[&mut User], shared: List[&User]) -> List[&User]:\n    pick(owned, shared)\n\nstruct User:\n    name: string\n"
     ));
     assert_eq!(codes(&out), vec![Code::TypeMismatch], "{}", out.render());
 }
@@ -39,12 +39,12 @@ fn variance_conflict_is_single_mismatch() {
 #[test]
 fn readonly_first_variance_points_at_use() {
     let out = analyze(&format!(
-        "{PICK}\nfn first(shared: List[User], owned: List[mut User]) -> List[User]:\n    pick(shared, owned)\n\ndata User:\n    name: string\n"
+        "{PICK}\nfn first(shared: List[&User], owned: List[&mut User]) -> List[&User]:\n    pick(shared, owned)\n\nstruct User:\n    name: string\n"
     ));
     assert_eq!(codes(&out), vec![Code::TypeMismatch], "{}", out.render());
     assert!(
         out.render()
-            .contains("expected List[User], found List[mut User]"),
+            .contains("expected List[&User], found List[&mut User]"),
         "{}",
         out.render()
     );

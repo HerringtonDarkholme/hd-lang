@@ -702,12 +702,22 @@ impl Ck<'_, '_> {
                     );
                     return Ok(t);
                 }
-                // `types.value.no-mut`: a struct is a value with no views.
-                if self.is_struct_ty(t) {
-                    let msg = format!(
-                        "{} is a struct, a value with no `mut` form; a `let mut` binding changes its fields",
-                        self.show(t)
-                    );
+                // `types.value.no-mut.any`: a value has no `mut` form; only
+                // `mut Suspend[T]` and a type parameter keep one.
+                let keeps = match pool.get(t) {
+                    TyData::Adt { def, .. } => def == self.cx.names.known.suspend,
+                    TyData::Param(_) | TyData::Infer(_) => true,
+                    _ => matches!(t, Ty::POISON | Ty::NEVER),
+                };
+                if !keeps {
+                    let msg = if self.is_struct_ty(t) {
+                        format!(
+                            "{} is a struct, a value with no `mut` form; a `let mut` binding changes its fields",
+                            self.show(t)
+                        )
+                    } else {
+                        format!("{} has no `mut` form", self.show(t))
+                    };
                     self.err(hd_diag::Code::MutOnStruct, n, &msg);
                     return Ok(t);
                 }

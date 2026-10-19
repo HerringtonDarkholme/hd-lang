@@ -29,7 +29,7 @@ test("#project= round-trips every file and the entry module", () => {
   const project = {
     files: {
       "src/app.hd": "use pkg.models.user.{User}\npub fn main() -> void: pass\n",
-      "src/models/user.hd": "pub data User: pass\n",
+      "src/models/user.hd": "pub struct User: pass\n",
     },
     main: "src/app.hd",
   };

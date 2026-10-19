@@ -15,14 +15,14 @@ const BASE: &str = "\
 pub trait Pick[T]:
     fn pick(self) -> T
 
-pub data Receiver:
+pub struct Receiver:
     pub n: i32
 ";
 
 const PROD: &str = "\
 use pkg.base.defs.{Pick, Receiver}
 
-pub data Product:
+pub struct Product:
     pub id: i32
 
 impl Pick[Product] for Receiver:

@@ -64,16 +64,16 @@ fn program(body: &str) -> String {
 use std.time.{{Clock, Duration, sleep}}
 use std.task.{{CleanupEnd, race}}
 
-data Log:
+struct Log:
     text: string
 
-fn work!(log: mut Log) -> i32:
+fn work!(log: &mut Log) -> i32:
     defer:
         log.text = log.text + \"cleanup;\"
     log.text = log.text + \"body;\"
     7
 
-fn slow!(log: mut Log) -> i32 $ Clock:
+fn slow!(log: &mut Log) -> i32 $ Clock:
     log.text = log.text + \"start;\"
     defer:
         log.text = log.text + \"cleanup;\"
@@ -81,7 +81,7 @@ fn slow!(log: mut Log) -> i32 $ Clock:
     log.text = log.text + \"done;\"
     7
 
-fn stopper!(target: mut Suspend[i32], log: mut Log) -> i32:
+fn stopper!(target: mut Suspend[i32], log: &mut Log) -> i32:
     ended := end(target.cancel!())
     log.text = log.text + ended
     log.text = log.text + \"stopped;\"
@@ -102,7 +102,7 @@ fn cancelling_a_cold_suspension_never_runs_its_body() {
     let main = program(
         "\
     let mut log = Log { text: \"\" }
-    let pending: mut Suspend[i32] = work(log)
+    let pending: mut Suspend[i32] = work(&mut log)
     log.text = log.text + end(pending.cancel!())
     println(\"log=[${log.text}]\")
 ",
@@ -115,7 +115,7 @@ fn cancelling_a_completed_suspension_changes_nothing() {
     let main = program(
         "\
     let mut log = Log { text: \"\" }
-    let pending: mut Suspend[i32] = work(log)
+    let pending: mut Suspend[i32] = work(&mut log)
     value := pending!()
     log.text = log.text + end(pending.cancel!())
     println(\"value=$value log=[${log.text}]\")
@@ -132,11 +132,11 @@ fn cancelling_twice_is_the_same_as_cancelling_once() {
     let main = program(
         "\
     let mut log = Log { text: \"\" }
-    let pending: mut Suspend[i32] = work(log)
+    let pending: mut Suspend[i32] = work(&mut log)
     log.text = log.text + end(pending.cancel!()) + end(pending.cancel!())
     println(\"cold=[${log.text}]\")
     let mut other = Log { text: \"\" }
-    let done: mut Suspend[i32] = work(other)
+    let done: mut Suspend[i32] = work(&mut other)
     _ := done!()
     other.text = other.text + end(done.cancel!()) + end(done.cancel!())
     println(\"completed=[${other.text}]\")
@@ -156,8 +156,8 @@ fn cancelling_a_started_suspension_runs_its_defer_once() {
     let main = program(
         "\
     let mut log = Log { text: \"\" }
-    let target: mut Suspend[i32] = slow(log)
-    winner := race!(target, stopper(target, log))
+    let target: mut Suspend[i32] = slow(&mut log)
+    winner := race!(target, stopper(target, &mut log))
     println(\"winner=$winner log=[${log.text}]\")
 ",
     );

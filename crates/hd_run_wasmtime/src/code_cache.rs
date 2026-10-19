@@ -467,7 +467,7 @@ mod tests {
     /// and the runtime, as `hd run` and `hd test` compile them.
     fn program() -> Vec<u8> {
         let source = "\
-data Item:
+struct Item:
     name: string
     cents: i32
 

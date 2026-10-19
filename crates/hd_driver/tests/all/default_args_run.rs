@@ -78,17 +78,17 @@ pub fn main() -> void $ Console:
 #[test]
 fn defaults_run_in_declaration_order_after_every_explicit_argument() {
     let main = "\
-fn note(log: mut List[string], text: string) -> string:
+fn note(log: &mut List[string], text: string) -> string:
     log.push(text)
     text
 
-fn join(log: mut List[string], first: string, second: string = note(log, \"second\"), third: string = note(log, \"third\")) -> string:
+fn join(log: &mut List[string], first: string, second: string = note(log, \"second\"), third: string = note(log, \"third\")) -> string:
     \"$first $second $third\"
 
 pub fn main() -> void $ Console:
-    let log: mut List[string] = []
-    println(join(log, note(log, \"first\")))
-    println(join(log, third=note(log, \"named\"), first=note(log, \"last\")))
+    let mut log: List[string] = []
+    println(join(&mut log, note(&mut log, \"first\")))
+    println(join(&mut log, third=note(&mut log, \"named\"), first=note(&mut log, \"last\")))
     for line in log:
         println(line)
 ";
@@ -102,16 +102,16 @@ pub fn main() -> void $ Console:
 #[test]
 fn a_list_default_is_fresh_on_every_call() {
     let main = "\
-fn collect(item: i32, into: mut List[i32] = []) -> usize:
+fn collect(item: i32, into: &mut List[i32] = &mut []) -> usize:
     into.push(item)
     into.len()
 
 pub fn main() -> void $ Console:
     println(collect(1))
     println(collect(2))
-    let shared: mut List[i32] = []
-    println(collect(3, shared))
-    println(collect(4, shared))
+    let mut shared: List[i32] = []
+    println(collect(3, &mut shared))
+    println(collect(4, &mut shared))
 ";
     assert_eq!(output_of("fresh-list", main), "1\n1\n1\n2\n");
 }
@@ -134,7 +134,7 @@ pub fn main() -> void $ Console:
 #[test]
 fn a_method_default_reads_the_receiver_and_earlier_parameters() {
     let main = "\
-data Counter:
+struct Counter:
     base: i32
 
 impl Counter:
@@ -153,9 +153,9 @@ pub fn main() -> void $ Console:
 #[test]
 fn a_data_field_default_runs_per_construction() {
     let main = "\
-data Order:
+struct Order:
     id: i32
-    tags: mut List[string] = []
+    tags: List[string] = []
     priority: i32 = 3
 
 pub fn main() -> void $ Console:
@@ -170,7 +170,7 @@ pub fn main() -> void $ Console:
 #[test]
 fn println_reached_from_a_default_panics() {
     let main = "\
-data QuietConsole: pass
+struct QuietConsole: pass
 
 impl Console for QuietConsole:
     fn write_line!(&mut self, text: string) -> Result[void, ConsoleError]:
@@ -206,7 +206,7 @@ pub fn main() -> void $ Console:
 #[test]
 fn generic_owners_give_their_arguments_to_method_and_field_defaults() {
     let main = "\
-data Shelf[T]:
+struct Shelf[T]:
     first: T
     rest: List[T] = []
 
@@ -235,7 +235,10 @@ fn current_time() -> i32 $ Clock:
 
 ";
     for (name, tail) in [
-        ("data", "data Event:\n    time: i32 = $.use(Clock).now()\n"),
+        (
+            "data",
+            "struct Event:\n    time: i32 = $.use(Clock).now()\n",
+        ),
         (
             "parameter",
             "fn stamp(time: i32 = current_time()) -> i32 $ Clock:\n    time\n",
@@ -266,7 +269,7 @@ fn a_requirement_free_default_is_clean() {
         "\
 fn base() -> i32: 7
 
-data Event:
+struct Event:
     time: i32 = base() + 1
     tag: i32 = 3
 

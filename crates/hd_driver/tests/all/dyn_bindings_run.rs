@@ -79,7 +79,7 @@ trait Lookup:
     fn find(self, key: Self::Key) -> Self::Value?
     fn keys(self) -> List[Self::Key]
 
-data PhoneBook:
+struct PhoneBook:
     names: List[string]
     numbers: List[i32]
 
@@ -93,7 +93,7 @@ impl Lookup for PhoneBook:
         .None
     fn keys(self) -> List[string]: self.names
 
-data Squares:
+struct Squares:
     size: i32
 
 impl Lookup for Squares:
@@ -104,7 +104,7 @@ impl Lookup for Squares:
             return .Some(\"${key * key}\")
         .None
     fn keys(self) -> List[i32]:
-        let out: mut List[i32] = []
+        let mut out: List[i32] = []
         for k in 0..self.size:
             out.push(k)
         out
@@ -114,7 +114,7 @@ impl Lookup for Squares:
 fn a_value_converts_only_when_its_implementation_binds_the_bound_types() {
     let main = format!(
         "{LOOKUP}
-data Pair[K]:
+struct Pair[K]:
     key: K
 
 impl[K] Lookup for Pair[K]:
@@ -225,22 +225,22 @@ fn a_mut_trait_value_with_a_binding_dispatches_its_mut_slot() {
     let main = "\
 trait Feed:
     type Item
-    fn next(mut self) -> Self::Item?
+    fn next(&mut self) -> Self::Item?
 
-data Ticker:
+struct Ticker:
     prices: List[i32]
     at: usize
 
 impl Feed for Ticker:
     type Item = i32
-    fn next(mut self) -> i32?:
+    fn next(&mut self) -> i32?:
         if self.at >= self.prices.len():
             return .None
         price := self.prices[self.at]
         self.at = self.at + 1
         .Some(price)
 
-fn total(feed: mut dyn Feed[Item = i32]) -> i32:
+fn total(feed: &mut dyn Feed[Item = i32]) -> i32:
     let sum = +0
     while true:
         match feed.next():
@@ -249,8 +249,8 @@ fn total(feed: mut dyn Feed[Item = i32]) -> i32:
     sum
 
 pub fn main() -> void $ Console:
-    let ticker: mut Ticker = Ticker { prices: [3, 9, 4], at: 0 }
-    println(total(ticker))
+    let mut ticker = Ticker { prices: [3, 9, 4], at: 0 }
+    println(total(&mut ticker))
     println(ticker.at)
 ";
     assert_eq!(output_of("mut-slot", main), "16\n3\n");

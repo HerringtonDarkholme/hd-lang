@@ -24,7 +24,7 @@ pub enum Color:
     Grey(i32)
     Rgb(i32, i32, i32)
 
-pub data Counter:
+pub struct Counter:
     pub count: i32
 
 impl Counter:
@@ -37,7 +37,7 @@ impl Counter:
     pub fn show(self) -> string:
         \"count ${self.count}\"
 
-pub data Marker:
+pub struct Marker:
     pass
 
 pub trait Describe:
@@ -48,7 +48,7 @@ pub type Tally = Counter
 enum Hidden:
     Only
 
-data Secret:
+struct Secret:
     pub count: i32
 
 impl Secret:

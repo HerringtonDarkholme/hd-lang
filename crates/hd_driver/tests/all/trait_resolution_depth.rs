@@ -33,7 +33,7 @@ fn program(nested: usize) -> String {
         ty = format!("Box[{ty}]");
     }
     format!(
-        "trait Marker\n\ndata Box[T]:\n    value: T\n\nimpl Marker for i32\n\nimpl[T < Marker] Marker for Box[T]\n\nfn need[T < Marker](value: T) -> void:\n    pass\n\nfn deep(value: {ty}) -> void:\n    need(value)\n"
+        "trait Marker\n\nstruct Box[T]:\n    value: T\n\nimpl Marker for i32\n\nimpl[T < Marker] Marker for Box[T]\n\nfn need[T < Marker](value: T) -> void:\n    pass\n\nfn deep(value: {ty}) -> void:\n    need(value)\n"
     )
 }
 

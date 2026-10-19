@@ -7,7 +7,7 @@ use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
 const GEO: &str = "\
-pub data Point:
+pub struct Point:
     pub x: i32
     pub y: i32
 
@@ -377,23 +377,23 @@ fn user_errors_are_coded_diagnostics() {
 const FINDINGS: &str = "\
 trait Marker
 
-data Box[T]:
+struct Box[T]:
     pub value: T
 
 impl[T] Marker for Box[T]
 impl Marker for Box[i32]
 
-data Score:
+struct Score:
     value: i32
 
 impl PartialOrd for Score:
     fn partial_cmp(self, other: Score) -> Ordering?:
         .Some(Ordering.Equal)
 
-pub data Needs[T < Hash]:
+pub struct Needs[T < Hash]:
     pub value: T
 
-pub data Holder[T]:
+pub struct Holder[T]:
     ok: i32
     pub bad: Needs[T]
 
@@ -472,11 +472,11 @@ fn header_findings_name_their_line_and_survive_a_cached_interface() {
 
     let shifted = FINDINGS
         .replace("trait Marker", "# the marker\n\ntrait Marker")
-        .replace("data Score:", "# scores\ndata Score:")
+        .replace("struct Score:", "# scores\nstruct Score:")
         .replace("impl Display", "# orphan\n\nimpl Display")
         .replace(
-            "pub data Holder[T]:",
-            "# holds a map\n\n\npub data Holder[T]:",
+            "pub struct Holder[T]:",
+            "# holds a map\n\n\npub struct Holder[T]:",
         );
     let warm = run(&store, &one_file(&shifted), executor);
     assert!(
@@ -495,7 +495,7 @@ fn interface_keys_ignore_a_comment_above_an_item() {
     let cold = ok(&store, &base, executor);
     let commented = GEO
         .replace("pub trait Shape:", "# a shape\n\n\npub trait Shape:")
-        .replace("pub data Point:", "# a point\npub data Point:");
+        .replace("pub struct Point:", "# a point\npub struct Point:");
     let r = ok(&store, &program(DATA_MAIN, &commented), executor);
     let c = &r.counters;
     assert!(c.ifaces_built.is_empty(), "{:?}", c.ifaces_built);
@@ -585,11 +585,11 @@ impl[T < Tuple] Show for T by Structure:
 const TUPLE_KEYED: &str = "\
 use pkg.tmpl.show.{Show}
 
-pub data Table[K < Show, V]:
+pub struct Table[K < Show, V]:
     pub key: K
     pub value: V
 
-pub data Holder:
+pub struct Holder:
     pub table: Table[(i64, string), i32]
 
 pub fn main() -> void $ Console:
@@ -715,7 +715,7 @@ const POINT: &str = "\
 use pkg.tmpl.named.{Named}
 
 @derive(Named)
-pub data Point:
+pub struct Point:
     pub x: i32
     pub y: i32
 
@@ -729,7 +729,7 @@ const PAIR: &str = "\
 use pkg.tmpl.named.{shout}
 
 @derive(Eq)
-pub data Pair:
+pub struct Pair:
     pub a: i32
     pub b: i32
 
@@ -1194,12 +1194,12 @@ fn a_goal_reads_only_the_check_entries_it_would_write() {
 /// universe lacks it and the block's `Dollars::from` needs the test one.
 #[test]
 fn a_tests_block_solves_over_the_impls_of_folders_it_uses() {
-    const DOLLARS: &str = "pub data Dollars:\n    pub amount: i32\n";
+    const DOLLARS: &str = "pub struct Dollars:\n    pub amount: i32\n";
     const CENTS: &str = "\
 use std.convert.{From}
 use pkg.money.dollars.{Dollars}
 
-pub data Cents:
+pub struct Cents:
     pub n: i32
 
 impl From[Cents] for Dollars:
@@ -1256,7 +1256,7 @@ fn a_type_that_turns_from_data_to_enum_re_emits_its_users() {
         );
     let store = MemoryStore::default();
     let ex = Executor::Serial(SerialOrder::Priority);
-    let as_data = geo("pub data Extra:\n    pub a: i32\n", "Extra { a: 1 }");
+    let as_data = geo("pub struct Extra:\n    pub a: i32\n", "Extra { a: 1 }");
     ok(&store, &program(&main, &as_data), ex);
     let as_enum = geo("pub enum Extra:\n    Only(a: i32)\n", "Extra.Only(1)");
     let r = ok(&store, &program(&main, &as_enum), ex);
@@ -1273,7 +1273,7 @@ fn a_type_that_turns_from_data_to_enum_re_emits_its_users() {
 #[test]
 fn a_new_field_re_emits_only_the_instances_that_lay_out_its_type() {
     let geo = format!(
-        "{GEO}\npub data Extra:\n    pub a: i32\n\npub fn extra_sum() -> i32:\n    e := Extra {{ a: 1 }}\n    e.a\n"
+        "{GEO}\npub struct Extra:\n    pub a: i32\n\npub fn extra_sum() -> i32:\n    e := Extra {{ a: 1 }}\n    e.a\n"
     );
     let main = DATA_MAIN
         .replace(
@@ -1290,8 +1290,8 @@ fn a_new_field_re_emits_only_the_instances_that_lay_out_its_type() {
     assert!(cold.counters.emitted > 2, "{}", cold.counters.emitted);
     let grown = geo
         .replace(
-            "pub data Extra:\n    pub a: i32\n",
-            "pub data Extra:\n    pub a: i32\n    pub b: i32\n",
+            "pub struct Extra:\n    pub a: i32\n",
+            "pub struct Extra:\n    pub a: i32\n    pub b: i32\n",
         )
         .replace("Extra { a: 1 }", "Extra { a: 1, b: 2 }");
     let r = ok(&store, &program(&main, &grown), ex);
@@ -1360,7 +1360,7 @@ fn an_impl_for_a_private_type_rechecks_no_dependent() {
             ("", "h.n")
         };
         format!(
-            "{GEO}\ndata Hidden:\n    n: i32\n\n{imp}pub fn hidden_area() -> i32:\n    h := Hidden {{ n: 2 }}\n    {read}\n"
+            "{GEO}\nstruct Hidden:\n    n: i32\n\n{imp}pub fn hidden_area() -> i32:\n    h := Hidden {{ n: 2 }}\n    {read}\n"
         )
     };
     let main = "\
@@ -1463,7 +1463,7 @@ pub fn other() -> i32:
 /// `p` imports `util` for a body and re-exports `Q` from `q`; `app`
 /// imports `Q` and `count` from `p`.
 fn reads_program(util: &str, p: &str) -> MemorySources {
-    const Q: &str = "pub data Q:\n    pub n: i32\n";
+    const Q: &str = "pub struct Q:\n    pub n: i32\n";
     const APP: &str = "\
 use pkg.p.api.{Q, count}
 
@@ -1527,7 +1527,7 @@ pub fn count() -> i32:
 /// Two traits with impls in two folders, and an overlap in `Area`
 /// (`crates/hd_cache/DESIGN.md`, "Coherence runs per changed trait").
 const SHAPES: &str = "\
-pub data Point:
+pub struct Point:
     pub x: i32
 
 pub trait Area:
@@ -1557,10 +1557,10 @@ impl Area for List[i32]:
 const BOXES: &str = "\
 use pkg.shapes.defs.{Area, Label}
 
-pub data Box:
+pub struct Box:
     pub w: i32
 
-pub data Wrap[T]:
+pub struct Wrap[T]:
     pub v: T
 
 impl Area for Box:

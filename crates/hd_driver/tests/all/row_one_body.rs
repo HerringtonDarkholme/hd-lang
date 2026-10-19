@@ -96,7 +96,7 @@ const THREE_ROWS: &str = "\
 trait Clock:
     fn now(self) -> i32
 
-data Fixed:
+struct Fixed:
     hour: i32
 
 impl Clock for Fixed:
@@ -147,7 +147,7 @@ const NEAREST: &str = "\
 trait Tag:
     fn name(self) -> string
 
-data Named:
+struct Named:
     label: string
 
 impl Tag for Named:

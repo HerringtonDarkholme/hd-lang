@@ -162,7 +162,7 @@ const UNCLOSED_SCOPE: &[(&str, &[&str])] = &[
         &["2: unclosed-delimiter", "6: syntax-error"],
     ),
     (
-        "fn first() -> i32:\n    values := [\n        +1\n    +2 +\n\ndata Point:\n    x i32\n",
+        "fn first() -> i32:\n    values := [\n        +1\n    +2 +\n\nstruct Point:\n    x i32\n",
         &["2: unclosed-delimiter", "7: syntax-error"],
     ),
     (

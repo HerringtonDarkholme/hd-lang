@@ -240,7 +240,7 @@ fn later_inputs_read_an_earlier_binding_through_its_global() {
     let inner = crate::warm_store();
     let store = OverlayStore::new(&inner);
     let mut repl = repl(&store);
-    let out = repl.input(1, "let prices: mut Map[string, u32] = {}\n");
+    let out = repl.input(1, "let mut prices: Map[string, u32] = {}\n");
     let wasm = out.wasm.as_deref().expect("a module");
     assert!(global_imports(wasm).iter().all(|g| !g.starts_with("bind.")));
     // A function is emitted by the first input that reaches it: input 4.
@@ -345,8 +345,8 @@ fn an_input_does_not_redeclare_a_function_or_binding() {
 #[test]
 fn an_input_does_not_redeclare_a_type() {
     for (first, text) in [
-        ("data Point:\n    x: i32\n", "data Point:\n    y: i32\n"),
-        ("enum Dir:\n    Up\n    Down\n", "data Dir:\n    y: i32\n"),
+        ("struct Point:\n    x: i32\n", "struct Point:\n    y: i32\n"),
+        ("enum Dir:\n    Up\n    Down\n", "struct Dir:\n    y: i32\n"),
         (
             "trait Shape:\n    fn area(self) -> i32\n",
             "trait Shape:\n    fn size(self) -> i32\n",
@@ -440,7 +440,7 @@ fn an_expression_input_writes_its_value_line() {
     let wasm = out.wasm.as_deref().expect("a module");
     assert!(holds(wasm, "<fn twice(i32) -> i32>"));
     assert!(holds(wasm, "fn(i32) -> i32"));
-    repl.input(4, "let names: mut List[string] = []\n");
+    repl.input(4, "let mut names: List[string] = []\n");
     let out = repl.input(5, "names\n");
     let wasm = out.wasm.as_deref().expect("a module");
     assert!(holds(wasm, "List[string]") && !holds(wasm, "mut List"));
@@ -642,7 +642,7 @@ fn an_input_sees_the_private_members_of_earlier_inputs() {
     let mut repl = repl(&store);
     repl.input(
         1,
-        "data Point:\n    x: i32\n    y: i32\n\nimpl Point:\n    fn sum(self) -> i32:\n        self.x + self.y\n",
+        "struct Point:\n    x: i32\n    y: i32\n\nimpl Point:\n    fn sum(self) -> i32:\n        self.x + self.y\n",
     );
     repl.input(2, "p := Point { x: +12, y: +23 }\n");
     repl.input(3, "println(p.sum() + p.x)\n");
@@ -653,7 +653,7 @@ fn an_input_sees_the_private_members_of_earlier_inputs() {
 /// an input reads, constructs and calls the private members of its types.
 #[test]
 fn an_input_sees_the_private_members_of_the_library() {
-    let lib = "data Secret:\n    code: i32\n\nimpl Secret:\n    fn twice(self) -> i32:\n        self.code * +2\n\nfn secret() -> Secret:\n    Secret { code: +7 }\n";
+    let lib = "struct Secret:\n    code: i32\n\nimpl Secret:\n    fn twice(self) -> i32:\n        self.code * +2\n\nfn secret() -> Secret:\n    Secret { code: +7 }\n";
     let inner = crate::warm_store();
     let store = OverlayStore::new(&inner);
     let mut repl = repl(&store);
@@ -667,11 +667,11 @@ fn an_input_sees_the_private_members_of_the_library() {
 /// private to an input, as they are to `src/lib.hd`.
 #[test]
 fn other_modules_and_dependencies_keep_their_private_members() {
-    let util = "pub data Boxed:\n    v: i32\n\nimpl Boxed:\n    fn peek(self) -> i32:\n        self.v\n\npub fn boxed() -> Boxed:\n    Boxed { v: +1 }\n";
+    let util = "pub struct Boxed:\n    v: i32\n\nimpl Boxed:\n    fn peek(self) -> i32:\n        self.v\n\npub fn boxed() -> Boxed:\n    Boxed { v: +1 }\n";
     let mut money = MemorySources::default();
     money.insert(
         "src/lib.hd",
-        "pub data Coin:\n    cents: i32\n\npub fn coin() -> Coin:\n    Coin { cents: +5 }\n",
+        "pub struct Coin:\n    cents: i32\n\npub fn coin() -> Coin:\n    Coin { cents: +5 }\n",
     );
     let inner = crate::warm_store();
     let store = OverlayStore::new(&inner);
@@ -781,12 +781,12 @@ fn a_redeclared_module_name_names_the_first_input() {
 /// input or `src/lib.hd` declares, and a later input calls them.
 #[test]
 fn an_input_implements_for_an_earlier_input_s_or_the_library_s_type() {
-    let lib = "trait Named:\n    fn name(self) -> string\n\ndata Tag:\n    pub x: i32\n";
+    let lib = "trait Named:\n    fn name(self) -> string\n\nstruct Tag:\n    pub x: i32\n";
     let inner = crate::warm_store();
     let store = OverlayStore::new(&inner);
     let mut repl = repl(&store);
     repl.src.insert("src/lib.hd", lib);
-    repl.input(1, "data Point:\n    pub x: i32\n    pub y: i32\n");
+    repl.input(1, "struct Point:\n    pub x: i32\n    pub y: i32\n");
     repl.input(
         2,
         "impl Display for Point:\n    fn to_string(self) -> string: \"(${self.x}, ${self.y})\"\n",
@@ -814,9 +814,9 @@ fn an_input_implements_for_an_earlier_input_s_or_the_library_s_type() {
 #[test]
 fn an_input_does_not_implement_for_another_module_s_type() {
     let util =
-        "pub trait Shown:\n    fn shown(self) -> string\n\npub data Boxed:\n    pub v: i32\n";
+        "pub trait Shown:\n    fn shown(self) -> string\n\npub struct Boxed:\n    pub v: i32\n";
     let mut money = MemorySources::default();
-    money.insert("src/lib.hd", "pub data Coin:\n    pub cents: i32\n");
+    money.insert("src/lib.hd", "pub struct Coin:\n    pub cents: i32\n");
     let inner = crate::warm_store();
     let store = OverlayStore::new(&inner);
     let mut repl = repl(&store);
@@ -824,7 +824,7 @@ fn an_input_does_not_implement_for_another_module_s_type() {
     repl.dep = Some(&money);
     repl.input(
         1,
-        "use self.util.{Shown, Boxed}\nuse dep.money.{Coin}\n\ndata Local:\n    pub n: i32\n",
+        "use self.util.{Shown, Boxed}\nuse dep.money.{Coin}\n\nstruct Local:\n    pub n: i32\n",
     );
     for (n, text, code) in [
         (
@@ -865,12 +865,12 @@ fn an_input_does_not_implement_for_another_module_s_type() {
 /// module, and the earlier one stays.
 #[test]
 fn an_input_does_not_overlap_an_earlier_implementation() {
-    let lib = "trait Named:\n    fn name(self) -> string\n\ndata Tag:\n    pub x: i32\n\nimpl Named for Tag:\n    fn name(self) -> string: \"lib\"\n";
+    let lib = "trait Named:\n    fn name(self) -> string\n\nstruct Tag:\n    pub x: i32\n\nimpl Named for Tag:\n    fn name(self) -> string: \"lib\"\n";
     let inner = crate::warm_store();
     let store = OverlayStore::new(&inner);
     let mut repl = repl(&store);
     repl.src.insert("src/lib.hd", lib);
-    repl.input(1, "data Point:\n    pub x: i32\n\nimpl Named for Point:\n    fn name(self) -> string: \"one\"\n");
+    repl.input(1, "struct Point:\n    pub x: i32\n\nimpl Named for Point:\n    fn name(self) -> string: \"one\"\n");
     for (n, text) in [
         (
             2,
@@ -906,7 +906,7 @@ fn the_newer_input_s_implementation_is_the_overlapping_one() {
     let mut repl = repl(&store);
     repl.input(
         1,
-        "trait Named:\n    fn name(self) -> string\n\ndata Point:\n    pub x: i32\n",
+        "trait Named:\n    fn name(self) -> string\n\nstruct Point:\n    pub x: i32\n",
     );
     for n in 2..9 {
         repl.input(n, &format!("v{n} := +{n}\n"));
@@ -969,7 +969,7 @@ fn a_later_input_waits_for_the_modules_an_earlier_input_uses() {
 /// later input uses what they derive.
 #[test]
 fn an_input_derives_for_an_earlier_input_s_or_the_library_s_type() {
-    let lib = "use std.structure.{Structure, Field, Variant, Describer}\n\ntrait Named:\n    fn title() -> string\n\nstruct MemberCount:\n    count: i32\n\nimpl[S] Describer[S] for MemberCount:\n    type Error = never\n\n    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:\n        .Ok(())\n\n    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:\n        self.count = self.count + 1\n        .Ok(())\n\ndata Tag:\n    pub x: i32\n";
+    let lib = "use std.structure.{Structure, Field, Variant, Describer}\n\ntrait Named:\n    fn title() -> string\n\nstruct MemberCount:\n    count: i32\n\nimpl[S] Describer[S] for MemberCount:\n    type Error = never\n\n    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:\n        .Ok(())\n\n    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:\n        self.count = self.count + 1\n        .Ok(())\n\nstruct Tag:\n    pub x: i32\n";
     let template = "use std.structure.Structure\n\nimpl[T] Named for T by Structure:\n    fn title() -> string:\n        let mut d = MemberCount { count: 0 }\n        _ := T::describe(&mut d)\n        \"${Structure::name()}/${d.count}\"\n";
     let inner = crate::warm_store();
     let store = OverlayStore::new(&inner);
@@ -977,7 +977,7 @@ fn an_input_derives_for_an_earlier_input_s_or_the_library_s_type() {
     repl.src.insert("src/lib.hd", lib);
     repl.input(
         1,
-        "@derive(Eq)\ndata Point:\n    pub x: i32\n    pub y: i32\n\n@derive(Eq)\ndata Pair:\n    pub a: i32\n",
+        "@derive(Eq)\nstruct Point:\n    pub x: i32\n    pub y: i32\n\n@derive(Eq)\nstruct Pair:\n    pub a: i32\n",
     );
     repl.input(2, template);
     repl.input(
@@ -994,15 +994,15 @@ fn an_input_derives_for_an_earlier_input_s_or_the_library_s_type() {
 #[test]
 fn an_input_does_not_derive_for_another_module_s_type() {
     let util =
-        "pub trait Shown:\n    fn shown(self) -> string\n\npub data Boxed:\n    pub v: i32\n";
+        "pub trait Shown:\n    fn shown(self) -> string\n\npub struct Boxed:\n    pub v: i32\n";
     let mut money = MemorySources::default();
-    money.insert("src/lib.hd", "pub data Coin:\n    pub cents: i32\n");
+    money.insert("src/lib.hd", "pub struct Coin:\n    pub cents: i32\n");
     let inner = crate::warm_store();
     let store = OverlayStore::new(&inner);
     let mut repl = repl(&store);
     repl.src.insert("src/util.hd", util);
     repl.dep = Some(&money);
-    let first = "use std.structure.{Structure, Field, Variant, Describer}\nuse self.util.{Shown, Boxed}\nuse dep.money.{Coin}\n\ndata Local:\n    pub n: i32\n\ntrait Enc:\n    fn enc() -> string\n\nstruct Count:\n    count: i32\n\nimpl[S] Describer[S] for Count:\n    type Error = never\n\n    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:\n        .Ok(())\n\n    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:\n        self.count = self.count + 1\n        .Ok(())\n\nimpl[T] Enc for T by Structure:\n    fn enc() -> string:\n        let mut d = Count { count: 0 }\n        _ := T::describe(&mut d)\n        \"${d.count}\"\n";
+    let first = "use std.structure.{Structure, Field, Variant, Describer}\nuse self.util.{Shown, Boxed}\nuse dep.money.{Coin}\n\nstruct Local:\n    pub n: i32\n\ntrait Enc:\n    fn enc() -> string\n\nstruct Count:\n    count: i32\n\nimpl[S] Describer[S] for Count:\n    type Error = never\n\n    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:\n        .Ok(())\n\n    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:\n        self.count = self.count + 1\n        .Ok(())\n\nimpl[T] Enc for T by Structure:\n    fn enc() -> string:\n        let mut d = Count { count: 0 }\n        _ := T::describe(&mut d)\n        \"${d.count}\"\n";
     repl.input(1, first);
     for (n, text, code) in [
         // The trait and the target both belong to other modules.
@@ -1043,7 +1043,7 @@ fn an_input_does_not_derive_for_another_module_s_type() {
 /// fact or else its own name.
 const COLUMNS: &str = "use std.structure.{Structure, Field, Variant, Walker}
 
-data Column:
+struct Column:
     name: string
 
 fn column(name: string) -> Column:
@@ -1074,7 +1074,7 @@ impl[T] Columns for T by Structure:
         _ := Structure::walk(self, &mut w)
         w.out
 
-data Tag:
+struct Tag:
     x: i32
 ";
 
@@ -1089,7 +1089,7 @@ fn an_input_s_member_lines_edit_an_earlier_type_s_facts() {
     repl.src.insert("src/lib.hd", COLUMNS);
     repl.input(
         1,
-        "data Row:\n    @column(\"row_id\")\n    id: i32\n    total: i32\n    cache: i32 = +0\n",
+        "struct Row:\n    @column(\"row_id\")\n    id: i32\n    total: i32\n    cache: i32 = +0\n",
     );
     repl.input(
         2,
@@ -1111,7 +1111,7 @@ fn a_later_derivation_sees_an_input_s_block_with_no_trait() {
     repl.src.insert("src/lib.hd", COLUMNS);
     repl.input(
         1,
-        "data Row:\n    @column(\"row_id\")\n    id: i32\n    total: i32\n",
+        "struct Row:\n    @column(\"row_id\")\n    id: i32\n    total: i32\n",
     );
     repl.input(
         2,
@@ -1151,7 +1151,7 @@ fn input_codes(repl: &mut Repl<'_>, n: u32, text: &str) -> Vec<String> {
 fn a_fact_type_repeated_across_inputs_is_a_duplicate() {
     let inner = crate::warm_store();
     let store = OverlayStore::new(&inner);
-    let decl = "data Row:\n    @\"cents\"\n    total: i32\n    id: i32\n";
+    let decl = "struct Row:\n    @\"cents\"\n    total: i32\n    id: i32\n";
     let block =
         "use std.structure.Structure\n\nimpl Row by Structure:\n    total += [\"checked\"]\n";
     // The declaration and a later input's block with no trait.
@@ -1191,7 +1191,7 @@ fn a_fact_type_repeated_across_inputs_is_a_duplicate() {
 fn a_fact_type_repeated_across_two_blocks_is_a_duplicate() {
     let inner = crate::warm_store();
     let store = OverlayStore::new(&inner);
-    let decl = "data Row:\n    total: i32\n";
+    let decl = "struct Row:\n    total: i32\n";
     let traitless =
         "use std.structure.Structure\n\nimpl Row by Structure:\n    total += [\"cents\"]\n";
     let derived = "impl Debug for Row by Structure:\n    total += [\"checked\"]\n";
@@ -1233,7 +1233,7 @@ fn warning_codes(out: &Output) -> Vec<String> {
 fn blocks_across_inputs_with_different_lines_drift() {
     let inner = crate::warm_store();
     let store = OverlayStore::new(&inner);
-    let decl = "data Row:\n    total: i32 = 0\n    id: i32 = 0\n";
+    let decl = "struct Row:\n    total: i32 = 0\n    id: i32 = 0\n";
     let eq = "use std.structure.Structure\n\nimpl Debug for Row by Structure:\n    total = pass\n";
     let hash = "use std.structure.Structure\n\nimpl Hash for Row by Structure:\n    id = pass\n";
     let same = "use std.structure.Structure\n\nimpl Hash for Row by Structure:\n    total = pass\n";

@@ -70,7 +70,7 @@ fn codes_of(main: &str) -> Vec<Code> {
 }
 
 const ITEMS: &str = "\
-data Identity: pass
+struct Identity: pass
 
 impl Identity:
     fn echo![Value](value: Value) -> Value:
@@ -82,7 +82,7 @@ impl Identity:
     fn say![Value](self, value: Value) -> Value:
         value
 
-data Box[T]:
+struct Box[T]:
     item: T
 
 impl[T] Box[T]:

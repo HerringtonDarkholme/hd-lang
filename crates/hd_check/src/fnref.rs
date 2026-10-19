@@ -773,12 +773,23 @@ impl Ck<'_, '_> {
     ) -> (Ref, Ty) {
         let pool = self.pool();
         let syn = n.index();
-        // `push` and `remove` change the receiver (`fn.ref.unbound.mut-self`).
+        // `push` and `remove` change the receiver, which a bound reference
+        // takes in place and an unbound one as `&mut List[T]` or
+        // `&mut Map[K, V]` (`fn.ref.unbound.mut-self`).
         let mutates = matches!(op, IntrinsicOp::ListPush | IntrinsicOp::MapRemove);
         let recv_ty = if mutates {
             pool.intern_ty(&TyData::Mut(self_ty))
         } else {
             self_ty
+        };
+        let unbound_ref = mutates && bound.is_none();
+        let first_ty = if unbound_ref {
+            pool.intern_ty(&TyData::Ref {
+                inner: self.strip_mut(self_ty),
+                mutable: true,
+            })
+        } else {
+            recv_ty
         };
         let mut ptys = Vec::new();
         let mut captured = None;
@@ -790,7 +801,7 @@ impl Ck<'_, '_> {
             self.set_local(rl, recv, syn);
             captured = Some((rl, rt));
         } else {
-            ptys.push(recv_ty);
+            ptys.push(first_ty);
             if let TyData::Adt { args, .. } = pool.get(self_ty) {
                 for a in pool.list_items(args) {
                     self.ref_params.push((*a, None, syn));
@@ -825,8 +836,15 @@ impl Ck<'_, '_> {
         if let Some((rl, rt)) = captured {
             refs.push(self.b.get(rl, rt, syn));
         }
-        for (l, t) in locals.iter().zip(&ptys) {
-            refs.push(self.b.get(*l, *t, syn));
+        for (i, (l, t)) in locals.iter().zip(&ptys).enumerate() {
+            let v = self.b.get(*l, *t, syn);
+            // The receiver reference is read through to the collection.
+            let v = if i == 0 && unbound_ref {
+                self.emit_deref(v, *t, syn).0
+            } else {
+                v
+            };
+            refs.push(v);
         }
         // The new object `emit_builtin` makes for `iter` belongs to this
         // closure's body, not to an enclosing one.

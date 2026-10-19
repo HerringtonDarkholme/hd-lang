@@ -69,7 +69,7 @@ fn fixed_source(main: &str) -> String {
     apply_fixes(main, &d)
 }
 
-const PRELUDE: &str = "data Box:\n    n: i64\n\nfn take(x: i64) -> i64: x\n\n";
+const PRELUDE: &str = "struct Box:\n    n: i64\n\nfn take(x: i64) -> i64: x\n\n";
 
 #[test]
 fn fix_in_each_position_checks_clean() {

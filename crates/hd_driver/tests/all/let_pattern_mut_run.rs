@@ -1,9 +1,8 @@
 //! A `mut` name in a `let` data pattern (spec/lang/02-grammar.md,
 //! grammar.stmt.let-pattern.mut; spec/lang/04-type-system.md,
 //! types.bind.let-pattern-mut.data-field): `mut` precedes the name of a field,
-//! and the field is bound with mutable access, in plain `let`, in
-//! `let ... else`, and under a variant pattern. A readonly subject never
-//! upgrades (types.bind.let-mut-upgrade.view), and `match` takes no `mut`
+//! and the field is bound as a writable copy, in plain `let`, in
+//! `let ... else`, and under a variant pattern. `match` takes no `mut`
 //! (grammar.stmt.let-mut.only-let). Programs build through the driver and
 //! run on V8 (`host/run.mjs`), as the conformance runner does.
 
@@ -71,8 +70,8 @@ fn codes_of(main: &str) -> Vec<Code> {
 }
 
 const TALLY: &str = "\
-data Tally:
-    tags: mut List[string]
+struct Tally:
+    tags: List[string]
     name: string
     count: i32
 ";
@@ -86,7 +85,7 @@ fn a_mut_field_binds_with_mutable_access() {
     let main = with_tally(
         "\
 pub fn main() -> void $ Console:
-    let t: mut Tally = Tally { tags: [\"a\"], name: \"box\", count: +2 }
+    t := Tally { tags: [\"a\"], name: \"box\", count: +2 }
     let Tally { mut tags, name } = t
     tags.push(name)
     tags = tags
@@ -104,7 +103,7 @@ fn a_pattern_mixes_mut_and_plain_fields() {
     let main = with_tally(
         "\
 pub fn main() -> void $ Console:
-    let t: mut Tally = Tally { tags: [\"a\"], name: \"box\", count: +2 }
+    t := Tally { tags: [\"a\"], name: \"box\", count: +2 }
     let Tally { name, mut tags, count: n } = t
     tags.push(name)
     println(\"${name} ${tags.len()} ${n}\")
@@ -117,7 +116,7 @@ pub fn main() -> void $ Console:
 fn a_plain_field_in_the_same_pattern_stays_readonly() {
     let main = with_tally(
         "\
-fn edit(t: mut Tally) -> void:
+fn edit(t: Tally) -> void:
     let Tally { tags, name } = t
     tags.push(name)
 ",
@@ -129,19 +128,19 @@ fn edit(t: mut Tally) -> void:
 fn let_else_binds_a_mut_field_under_a_variant() {
     let main = with_tally(
         "\
-fn pick(t: mut Tally, ok: bool) -> mut Tally?:
+fn pick(t: Tally, ok: bool) -> Tally?:
     if ok:
         .Some(t)
     else:
         .None
 
-fn total(t: mut Tally, ok: bool) -> usize:
+fn total(t: Tally, ok: bool) -> usize:
     let .Some(Tally { mut tags, name }) = pick(t, ok) else: return 0
     tags.push(name)
     tags.len()
 
 pub fn main() -> void $ Console:
-    let t: mut Tally = Tally { tags: [\"a\"], name: \"box\", count: +2 }
+    t := Tally { tags: [\"a\"], name: \"box\", count: +2 }
     println(total(t, false))
     println(total(t, true))
     println(t.tags.len())
@@ -171,7 +170,7 @@ pub fn main() -> void $ Console:
 fn a_match_arm_takes_no_mut_field() {
     let main = with_tally(
         "\
-fn size(t: mut Tally) -> usize:
+fn size(t: Tally) -> usize:
     match t:
         Tally { mut tags, name } => tags.len()
 ",
@@ -195,42 +194,10 @@ fn edit(t: Tally) -> void $ Console:
 }
 
 #[test]
-fn a_mut_data_field_of_a_readonly_subject_is_an_upgrade() {
-    let main = "\
-data Note:
-    text: string
-
-data Holder:
-    note: mut Note
-
-fn edit(h: Holder) -> void $ Console:
-    let Holder { mut note } = h
-    println(note.text)
-";
-    assert_eq!(codes_of(main), vec![Code::MutableUpgrade]);
-}
-
-#[test]
-fn a_mut_name_after_a_field_label_of_a_readonly_subject_is_an_upgrade() {
-    let main = "\
-data Note:
-    text: string
-
-data Holder:
-    note: mut Note
-
-fn edit(h: Holder) -> void $ Console:
-    let Holder { note: mut other } = h
-    println(other.text)
-";
-    assert_eq!(codes_of(main), vec![Code::MutableUpgrade]);
-}
-
-#[test]
 fn an_unknown_field_still_reports_after_mut() {
     let main = with_tally(
         "\
-fn edit(t: mut Tally) -> void:
+fn edit(t: Tally) -> void:
     let Tally { mut missing } = t
     pass
 ",
@@ -242,7 +209,7 @@ fn edit(t: mut Tally) -> void:
 fn a_field_listed_twice_reports_a_duplicate_through_mut() {
     let main = with_tally(
         "\
-fn edit(t: mut Tally) -> void:
+fn edit(t: Tally) -> void:
     let Tally { mut tags, tags: _ } = t
     println(tags.len())
 ",

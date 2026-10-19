@@ -34,7 +34,7 @@ fn text(b: &[u8]) -> String {
 /// Errors with a cause, which a `?` in a test body propagates.
 const ERRORS: &str = "\
 @error(\"disk full\")
-pub data DiskError:
+pub struct DiskError:
     free: i64
 
 @error

@@ -62,7 +62,7 @@ fn a_for_loop_and_keys_and_values_follow_entry_order() {
     // (expr.map.duplicate.last, types.map.replace.in-place).
     let main = "\
 pub fn main() -> void $ Console:
-    let m: mut Map[string, i32] = {\"b\": 1, \"a\": 2, \"b\": 3, \"c\": 4}
+    let mut m: Map[string, i32] = {\"b\": 1, \"a\": 2, \"b\": 3, \"c\": 4}
     m[\"a\"] = 20
     m[\"d\"] = 5
     for (k, v) in m:
@@ -87,14 +87,14 @@ pub fn main() -> void $ Console:
 fn removal_keeps_the_survivors_order_and_reinsertion_goes_last() {
     let main = "\
 pub fn main() -> void $ Console:
-    let m: mut Map[i32, string] = {1: \"one\", 2: \"two\", 3: \"three\"}
+    let mut m: Map[i32, string] = {1: \"one\", 2: \"two\", 3: \"three\"}
     println(m.remove(2) == .Some(\"two\"))
     println(m.remove(2).is_some())
     println(m.get(2).is_some())
     m[2] = \"again\"
     for (k, v) in m:
         println(\"${k}=${v}\")
-    let big: mut Map[i64, i64] = {}
+    let mut big: Map[i64, i64] = {}
     for i in 0..1000:
         big[i64(i)] = i64(i) * 3
     for i in 0..1000:
@@ -124,7 +124,7 @@ fn removing_during_a_loop_leaves_the_loop_on_its_snapshot() {
     // flow.for.snapshot.change: the loop visits the entries it began with.
     let main = "\
 pub fn main() -> void $ Console:
-    let m: mut Map[string, i32] = {\"a\": 1, \"b\": 2, \"c\": 3}
+    let mut m: Map[string, i32] = {\"a\": 1, \"b\": 2, \"c\": 3}
     for (k, _) in m:
         println(k)
         _ := m.remove(\"c\")
@@ -137,7 +137,7 @@ pub fn main() -> void $ Console:
 fn a_removal_and_an_insertion_in_one_step_leave_the_loop_on_its_snapshot() {
     let main = "\
 pub fn main() -> void $ Console:
-    let m: mut Map[string, i32] = {\"a\": 1, \"b\": 2, \"c\": 3}
+    let mut m: Map[string, i32] = {\"a\": 1, \"b\": 2, \"c\": 3}
     for (k, _) in m:
         if k == \"a\":
             _ := m.remove(\"c\")
@@ -154,7 +154,7 @@ fn a_growth_that_doubles_during_a_loop_leaves_it_on_its_snapshot() {
     // arrays; the loop goes on over the arrays it began with.
     let main = "\
 pub fn main() -> void $ Console:
-    let m: mut Map[string, i32] = {\"a\": 1, \"b\": 2, \"c\": 3, \"d\": 4}
+    let mut m: Map[string, i32] = {\"a\": 1, \"b\": 2, \"c\": 3, \"d\": 4}
     for (k, _) in m:
         println(k)
         _ := m.remove(\"c\")
@@ -172,7 +172,7 @@ fn a_growth_that_doubles_during_iteration_invalidates_the_cursor() {
     // of resuming from a moved slot.
     let main = "\
 pub fn main() -> void $ Console:
-    let m: mut Map[string, i32] = {\"a\": 1, \"b\": 2, \"c\": 3, \"d\": 4}
+    let mut m: Map[string, i32] = {\"a\": 1, \"b\": 2, \"c\": 3, \"d\": 4}
     let it: &mut Iterator[(string, i32)] = m.iter()
     match it.next():
         .Some((k, _)) => println(k)
@@ -195,7 +195,7 @@ fn a_compaction_in_place_during_iteration_invalidates_the_cursor() {
     // cursor's next call panics all the same.
     let main = "\
 pub fn main() -> void $ Console:
-    let m: mut Map[string, i32] = {\"a\": 1, \"b\": 2, \"c\": 3, \"d\": 4, \"e\": 5, \"f\": 6, \"g\": 7, \"h\": 8}
+    let mut m: Map[string, i32] = {\"a\": 1, \"b\": 2, \"c\": 3, \"d\": 4, \"e\": 5, \"f\": 6, \"g\": 7, \"h\": 8}
     for k in [\"a\", \"b\", \"c\", \"d\", \"e\"]:
         _ := m.remove(k)
     let it: &mut Iterator[(string, i32)] = m.iter()
@@ -218,12 +218,12 @@ pub fn main() -> void $ Console:
 fn a_data_key_hashes_and_compares_through_its_derived_impls() {
     let main = "\
 @derive(Eq, Hash)
-data Point:
+struct Point:
     x: i32
     label: string
 
 pub fn main() -> void $ Console:
-    let m: mut Map[Point, i32] = {}
+    let mut m: Map[Point, i32] = {}
     for i in 0..50:
         m[Point { x: i % 10, label: \"p\" }] = i
     println(m.len())
@@ -271,14 +271,14 @@ fn every_map_method_takes_its_declared_parameter_names() {
     // arguments; so do the list built-ins `push(value)`.
     let main = "\
 pub fn main() -> void $ Console:
-    let m: mut Map[string, i32] = {\"a\": 1, \"b\": 2}
+    let mut m: Map[string, i32] = {\"a\": 1, \"b\": 2}
     println(m.get(key=\"a\").is_some())
     println(m.contains_key(key=\"b\"))
     println(m.get_or(fallback=9, key=\"z\"))
     println(m.remove(key=\"a\").is_some())
     println(m.remove(key=\"a\").is_some())
     println(m.len())
-    let l: mut List[i32] = []
+    let mut l: List[i32] = []
     l.push(value=7)
     l.insert(value=8, index=0)
     println(l.remove_at(index=1))
@@ -294,7 +294,7 @@ pub fn main() -> void $ Console:
 fn a_misnamed_map_argument_is_rejected() {
     let main = "\
 pub fn main() -> void:
-    let m: mut Map[string, i32] = {}
+    let mut m: Map[string, i32] = {}
     _ := m.remove(value=\"a\")
 ";
     let mut src = MemorySources::default();
@@ -334,10 +334,10 @@ fn keys_chosen_to_collide_under_a_fixed_hash_stay_fast() {
 PAIRS := [(\"etyryl\", \"mjidmt\"), (\"ufefyz\", \"ibubif\"), (\"olixgb\", \"gryfkj\"), (\"gdcnyr\", \"shsbin\"), (\"wjuped\", \"arsrez\"), (\"encval\", \"qbsjqp\"), (\"slinwp\", \"wjsbuf\"), (\"ohapah\", \"slqlqt\"), (\"apynmn\", \"yjityv\"), (\"cncvaj\", \"wbsjqv\"), (\"krsraz\", \"choder\"), (\"ctchqd\", \"whstax\"), (\"cvifmj\", \"wryzuv\"), (\"wvyfyh\", \"cjibit\"), (\"yrylsh\", \"mvihct\"), (\"wvwbyv\", \"czgfij\")]
 
 pub fn main() -> void $ Console:
-    let m: mut Map[string, usize] = {}
+    let mut m: Map[string, usize] = {}
     let mask: usize = 0
     while mask < 65536:
-        let parts: mut List[string] = []
+        let mut parts: List[string] = []
         let b: usize = 0
         while b < 16:
             pair := PAIRS[b]
@@ -370,8 +370,8 @@ pub fn main() -> void $ Console:
 fn integer_keys_chosen_to_collide_under_a_fixed_mix_stay_fast() {
     let main = "\
 pub fn main() -> void $ Console:
-    let narrow: mut Map[u32, u64] = {}
-    let wide: mut Map[u64, u64] = {}
+    let mut narrow: Map[u32, u64] = {}
+    let mut wide: Map[u64, u64] = {}
     let a: u64 = 0
     while a < 65536:
         key := ((a << 16) | a) * 244002641 & 4294967295
@@ -412,12 +412,12 @@ fn composite_keys_chosen_to_collide_under_hash_of_stay_fast() {
 PAIRS := [(\"xLFsLJjiINP\", \"7Gg3RxEK0PE\"), (\"JdU9jHX4TqJ\", \"OM0YyM0u85J\"), (\"AugSUBgW75L\", \"cnjpGuWGzZD\"), (\"m5sdyq21BBG\", \"_giiglMbqlL\"), (\"4JKsnCMsoUG\", \"Gq8caPsJwuE\"), (\"ggLC_EYaqEH\", \"1OD6Nfm_0eN\"), (\"8m63a_auFPM\", \"wpZBVqlGciB\"), (\"U5oBHizR2DJ\", \"d7xyPoQOXFI\"), (\"NlD.hxb.YLB\", \"J.FHPO4huuF\"), (\"rdo2YOCChAO\", \"jnkEdU0xbkA\"), (\"SeahsXPklTG\", \".RY30hrErLK\"), (\"EXcYViwLM3N\", \"mk0qPgfDxJC\"), (\"fONkr.v1G5E\", \"0Wh3F4JFuQH\"), (\"qdyN48b8gHM\", \"UQManoGiTKL\"), (\"waw.LRB_iqI\", \"A34Z3EbN1.F\")]
 
 @derive(Eq, Hash)
-data Entry:
+struct Entry:
     name: string
     n: i32
 
 fn name_of(mask: usize) -> string:
-    let parts: mut List[string] = []
+    let mut parts: List[string] = []
     let b: usize = 0
     while b < 15:
         pair := PAIRS[b]
@@ -426,8 +426,8 @@ fn name_of(mask: usize) -> string:
     parts.join(\"\")
 
 pub fn main() -> void $ Console:
-    let pairs: mut Map[(string, i32), usize] = {}
-    let entries: mut Map[Entry, usize] = {}
+    let mut pairs: Map[(string, i32), usize] = {}
+    let mut entries: Map[Entry, usize] = {}
     let mask: usize = 0
     while mask < 32768:
         name := name_of(mask)

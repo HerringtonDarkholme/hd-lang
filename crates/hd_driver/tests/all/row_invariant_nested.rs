@@ -35,13 +35,13 @@ fn narrow() -> void $ Db:
 fn other() -> void $ Db:
     pass
 
-data Holder[T]:
+struct Holder[T]:
     item: T
 
-data View[+T]:
+struct View[+T]:
     item: T
 
-data Slot:
+struct Slot:
     handler: fn() -> void $ Db + Clock
 ";
 
@@ -192,7 +192,7 @@ fn wide(handlers: List[fn() -> void $ Db]) -> List[fn() -> void $ Db + Clock]:
 fn a_list_field_is_a_mismatch() {
     assert_mismatch(
         "\
-data Server:
+struct Server:
     handlers: List[fn() -> void $ Db + Clock]
 
 fn wire(handlers: List[fn() -> void $ Db]) -> Server:

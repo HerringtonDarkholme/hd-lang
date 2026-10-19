@@ -29,7 +29,7 @@ fn codes(out: &Output) -> Vec<Code> {
 #[test]
 fn a_traitless_line_naming_no_member_errors() {
     let out = analyze(
-        "use std.structure.Structure\n\ndata User:\n    name: string\n\nimpl User by Structure:\n    missing = []\n",
+        "use std.structure.Structure\n\nstruct User:\n    name: string\n\nimpl User by Structure:\n    missing = []\n",
     );
     assert_eq!(codes(&out), vec![Code::UnknownAnnotationMember]);
 }
@@ -45,7 +45,7 @@ fn an_enum_line_naming_a_payload_member_errors() {
 #[test]
 fn direct_members_self_and_variants_stay_silent() {
     let out = analyze(
-        "use std.structure.Structure\n\ndata User:\n    name: string\n\nimpl User by Structure:\n    Self += []\n    name = []\n\nenum Reply:\n    Sent(id: i64)\n    Busy\n\nimpl Reply by Structure:\n    Busy = []\n",
+        "use std.structure.Structure\n\nstruct User:\n    name: string\n\nimpl User by Structure:\n    Self += []\n    name = []\n\nenum Reply:\n    Sent(id: i64)\n    Busy\n\nimpl Reply by Structure:\n    Busy = []\n",
     );
     assert!(codes(&out).is_empty(), "{}", out.render());
 }

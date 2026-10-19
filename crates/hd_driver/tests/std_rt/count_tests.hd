@@ -5,9 +5,9 @@
 # as `std.rt.count_tests`, as it does alloc_tests.hd.
 use std.rt.memory.pages
 
-data Node:
+struct Node:
     name: string
-    next: Node?
+    next: List[Node]
 
 enum Shape:
     Named(string, i32)
@@ -17,23 +17,21 @@ enum Shape:
 fn label(n: i32) -> string:
     "n$n"
 
-fn chain(n: i32) -> Node?:
-    let head: Node? = .None
+fn chain(n: i32) -> List[Node]:
+    let head: List[Node] = []
     let i = +0
     while i < n:
-        head = .Some(Node { name: label(i), next: head })
+        head = [Node { name: label(i), next: head }]
         i = i + 1
     head
 
-fn length(node: Node?) -> i32:
+fn length(node: List[Node]) -> i32:
     let count = +0
     let at = node
-    while true:
-        match at:
-            .Some(n) =>
-                count = count + 1
-                at = n.next
-            .None => return count
+    while at.len() > 0:
+        count = count + 1
+        at = at[0].next
+    count
 
 fn pick(n: i32) -> Shape:
     if n % 3 == 0:

@@ -34,7 +34,7 @@ fn report(out: &mut String, label: &str, c: &Counters, total_ns: u64) {
 /// The bench's sources: `app/main.hd` and `geo/shapes.hd`.
 #[must_use]
 pub fn sources(n: usize) -> (String, String) {
-    let mut geo = String::from("pub data Point:\n    pub x: i32\n    pub y: i32\n\n");
+    let mut geo = String::from("pub struct Point:\n    pub x: i32\n    pub y: i32\n\n");
     for i in 0..n {
         let _ = write!(
             geo,

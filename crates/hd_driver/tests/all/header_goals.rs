@@ -40,7 +40,7 @@ pub trait Named:
 pub trait Tagged < Named:
     fn tag(self) -> i32
 
-pub data Box[T]:
+pub struct Box[T]:
     pub v: T
 
 impl Plain for i32:
@@ -85,10 +85,10 @@ pub trait Tag:
 pub trait Pick[T]:
     fn pick(self) -> T
 
-pub data Receiver:
+pub struct Receiver:
     pub n: i32
 
-pub data Tagged[T < Tag]:
+pub struct Tagged[T < Tag]:
     pub v: T
 ";
 
@@ -97,7 +97,7 @@ pub data Tagged[T < Tag]:
 const PROD: &str = "\
 use pkg.lib.defs.{Pick, Receiver, Tag}
 
-pub data Product:
+pub struct Product:
     pub id: i32
 
 impl Pick[Product] for Receiver:
@@ -114,7 +114,7 @@ const WITH: &str = "\
 use pkg.lib.defs.{Pick, Receiver, Tagged}
 use pkg.prod.defs.{Product}
 
-pub data Picks[T < Pick[Product]]:
+pub struct Picks[T < Pick[Product]]:
     pub v: T
 
 pub fn first(p: Picks[Receiver], t: Tagged[Product]) -> i32:

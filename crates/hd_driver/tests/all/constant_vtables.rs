@@ -22,7 +22,7 @@ trait Shape:
 trait Named < Shape:
     fn name(self) -> string
 
-data Square:
+struct Square:
     side: i32
 
 impl Shape for Square:

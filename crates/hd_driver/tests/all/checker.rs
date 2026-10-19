@@ -360,7 +360,7 @@ fn pipes_and_comprehensions_check() {
 #[test]
 fn an_unresolved_impl_trait_only_poisons_matching_target_arguments() {
     let input = r"
-data Envelope[T]:
+struct Envelope[T]:
     value: T
 
 impl From[string] for Envelope[i32]:
@@ -466,7 +466,7 @@ fn row_polymorphic_callbacks() {
 
 #[test]
 fn an_impl_must_write_every_required_trait_method() {
-    let missing = "trait Named:\n    fn name(self) -> string\n    fn id(self) -> i32\n\ndata User: pass\n\nimpl Named for User:\n    fn name(self) -> string:\n        \"u\"\n\npub fn main() -> void $ Console:\n    println(1)\n";
+    let missing = "trait Named:\n    fn name(self) -> string\n    fn id(self) -> i32\n\nstruct User: pass\n\nimpl Named for User:\n    fn name(self) -> string:\n        \"u\"\n\npub fn main() -> void $ Console:\n    println(1)\n";
     let out = program(missing);
     assert!(
         codes(&out).contains(&Code::MissingTraitMethod),
@@ -474,7 +474,7 @@ fn an_impl_must_write_every_required_trait_method() {
         out.render()
     );
     // A method with a default body need not be written.
-    let defaulted = "trait Named:\n    fn name(self) -> string:\n        \"named\"\n\ndata User: pass\n\nimpl Named for User\n\npub fn main() -> void $ Console:\n    println(1)\n";
+    let defaulted = "trait Named:\n    fn name(self) -> string:\n        \"named\"\n\nstruct User: pass\n\nimpl Named for User\n\npub fn main() -> void $ Console:\n    println(1)\n";
     let out = program(defaulted);
     assert!(
         !codes(&out).contains(&Code::MissingTraitMethod),
@@ -532,7 +532,7 @@ fn checker_errors_are_reported() {
             Code::InvalidResultPropagation,
         ),
         (
-            "data P:\n    x: i32\n\npub fn main() -> void $ Console:\n    p := P { x: 1 }\n    println(p.y)\n",
+            "struct P:\n    x: i32\n\npub fn main() -> void $ Console:\n    p := P { x: 1 }\n    println(p.y)\n",
             Code::UnknownField,
         ),
         (
@@ -600,7 +600,7 @@ fn checker_errors_are_reported() {
             Code::DeferControlFlow,
         ),
         (
-            "data P:\n    x: i32\n\npub fn main() -> void $ Console:\n    q := P\n    println(1)\n",
+            "struct P:\n    x: i32\n\npub fn main() -> void $ Console:\n    q := P\n    println(1)\n",
             Code::TypeUsedAsValue,
         ),
         (
@@ -655,7 +655,7 @@ fn mut_on_unconstrained_type_parameter() {
         bad.render()
     );
     let method = program(
-        "data Feed[T]:\n    latest: T\n\nimpl[T] Feed[T]:\n    pub fn swap(self, other: mut T) -> void:\n        pass\n\npub fn main() -> void:\n    pass\n",
+        "struct Feed[T]:\n    latest: T\n\nimpl[T] Feed[T]:\n    pub fn swap(self, other: mut T) -> void:\n        pass\n\npub fn main() -> void:\n    pass\n",
     );
     let found = codes(&method);
     assert!(
@@ -674,7 +674,7 @@ fn mut_on_unconstrained_type_parameter() {
 #[test]
 fn mut_self_is_not_a_type_parameter() {
     let out = program(
-        "trait Dup:\n    fn dup(mut self) -> mut Self\n\ndata Box:\n    n: i32\n\nimpl Dup for Box:\n    fn dup(mut self) -> mut Self:\n        self\n\nimpl[T < mut Any] Dup for T:\n    fn dup(mut self) -> mut Self:\n        self\n\npub fn main() -> void:\n    pass\n",
+        "trait Dup:\n    fn dup(&mut self) -> mut Self\n\nstruct Box:\n    n: i32\n\nimpl Dup for Box:\n    fn dup(&mut self) -> mut Self:\n        self\n\nimpl[T < mut Any] Dup for T:\n    fn dup(&mut self) -> mut Self:\n        self\n\npub fn main() -> void:\n    pass\n",
     );
     assert!(
         !codes(&out).contains(&Code::MutOnTypeParameter),
@@ -683,7 +683,7 @@ fn mut_self_is_not_a_type_parameter() {
     );
 }
 
-const LIMITED_FACT: &str = "use std.annotation.annotate\n\n@annotate(.Field)\ndata MaxLen:\n    value: i32\n\nfn max_len(value: i32) -> MaxLen:\n    MaxLen { value: value }\n\ndata Profile:\n    @max_len(80)\n    name: string\n\n";
+const LIMITED_FACT: &str = "use std.annotation.annotate\n\n@annotate(.Field)\nstruct MaxLen:\n    value: i32\n\nfn max_len(value: i32) -> MaxLen:\n    MaxLen { value: value }\n\nstruct Profile:\n    @max_len(80)\n    name: string\n\n";
 
 /// A fact type limited to `.Field` is accepted on a field and rejected
 /// before a function (`annot.target.limit.kind-error`).
@@ -725,7 +725,7 @@ fn integer_literals_take_their_default_types() {
     }
 }
 
-const MONEY_ADD: &str = "use std.ops.Add\n\ndata Money:\n    cents: i64\n\nimpl Add for Money:\n    type Out = Money\n    fn add(self, rhs: Money) -> Money:\n        Money { cents: self.cents + rhs.cents }\n\n";
+const MONEY_ADD: &str = "use std.ops.Add\n\nstruct Money:\n    cents: i64\n\nimpl Add for Money:\n    type Out = Money\n    fn add(self, rhs: Money) -> Money:\n        Money { cents: self.cents + rhs.cents }\n\n";
 
 /// A bound that omits a defaulted trait argument takes the default, as an
 /// impl head does: `T < Add` is `T < Add[T]`, which `impl Add for Money`
@@ -768,7 +768,7 @@ fn program_of(files: &[(&str, &str)]) -> Output {
 
 const SAME: &str = "trait Same[Other = Self]:\n    fn same(self, other: Other) -> bool\n";
 const CONVERT: &str = "trait Convert[A, B = A]:\n    fn convert(self, a: A) -> B\n";
-const SAME_USES: &str = "data Money:\n    cents: i64\n\nimpl Same for Money:\n    fn same(self, other: Money) -> bool:\n        self.cents == other.cents\n\nimpl Convert[i64] for Money:\n    fn convert(self, a: i64) -> i64:\n        self.cents + a\n\nfn check[T < Same](left: T, right: T) -> bool:\n    left.same(right)\n\nfn plus[T < Convert[i64]](x: T) -> i64:\n    x.convert(1)\n\npub fn main() -> void:\n    _a := check(Money { cents: 1 }, Money { cents: 1 })\n    _b := plus(Money { cents: 1 })\n    pass\n";
+const SAME_USES: &str = "struct Money:\n    cents: i64\n\nimpl Same for Money:\n    fn same(self, other: Money) -> bool:\n        self.cents == other.cents\n\nimpl Convert[i64] for Money:\n    fn convert(self, a: i64) -> i64:\n        self.cents + a\n\nfn check[T < Same](left: T, right: T) -> bool:\n    left.same(right)\n\nfn plus[T < Convert[i64]](x: T) -> i64:\n    x.convert(1)\n\npub fn main() -> void:\n    _a := check(Money { cents: 1 }, Money { cents: 1 })\n    _b := plus(Money { cents: 1 })\n    pass\n";
 
 /// A trait of the same folder fills its defaults in impl heads and bounds
 /// whatever the declaration order, in the trait's own module (private)
@@ -795,7 +795,7 @@ fn same_folder_trait_defaults_fill_in_any_order() {
 #[test]
 fn a_filled_default_and_the_written_argument_overlap() {
     let out = program(&format!(
-        "data Money:\n    cents: i64\n\nimpl Same for Money:\n    fn same(self, other: Money) -> bool:\n        true\n\nimpl Same[Money] for Money:\n    fn same(self, other: Money) -> bool:\n        false\n\n{SAME}\npub fn main() -> void:\n    pass\n"
+        "struct Money:\n    cents: i64\n\nimpl Same for Money:\n    fn same(self, other: Money) -> bool:\n        true\n\nimpl Same[Money] for Money:\n    fn same(self, other: Money) -> bool:\n        false\n\n{SAME}\npub fn main() -> void:\n    pass\n"
     ));
     assert!(
         codes(&out).contains(&Code::OverlappingImpl),
@@ -856,7 +856,7 @@ fn power_operand_errors_are_one_type_mismatch() {
         "fn f(b: f32, e: f64) -> f32: b ** e",
         "fn f(b: f64, e: f32) -> f64: b ** e",
         // `**` has no trait: any other base is an error.
-        "data Money:\n    cents: i64\n\nfn f(m: Money) -> Money: m ** 2",
+        "struct Money:\n    cents: i64\n\nfn f(m: Money) -> Money: m ** 2",
         "fn f(b: bool) -> bool: b ** 2",
         "fn f(c: char) -> char: c ** 2",
         "fn f(s: string) -> string: s ** 2",
@@ -878,7 +878,7 @@ fn a_rejected_power_is_an_error_value() {
     );
 }
 
-const WALKS: &str = "trait Show:\n    fn show(self) -> i32\n\nimpl Show for i32:\n    fn show(self) -> i32:\n        self\n\nimpl[T < Show] Show for List[T]:\n    fn show(self) -> i32:\n        0\n\ntrait Sink:\n    type Error\n    fn put(mut self, n: i32) -> Result[void, Self::Error]\n\ntrait Walk:\n    type Error\n    fn one(mut self) -> Result[void, Self::Error]\n    fn item[F < Show](mut self, value: F) -> Result[void, Self::Error]\n    fn two(mut self) -> Result[void, Self::Error]\n    fn three[T < Show](mut self, v: List[T]) -> Result[void, Self::Error]\n\ndata W[K < mut Sink]:\n    pub out: mut K\n\nimpl[K < Sink] Walk for W[K]:\n    type Error = K::Error\n\n    fn one(mut self) -> Result[void, K::Error]:\n        self.out.put(1)\n\n    fn item[F < Show](mut self, value: F) -> Result[void, K::Error]:\n        self.out.put(value.show())\n\n";
+const WALKS: &str = "trait Show:\n    fn show(self) -> i32\n\nimpl Show for i32:\n    fn show(self) -> i32:\n        self\n\nimpl[T < Show] Show for List[T]:\n    fn show(self) -> i32:\n        0\n\ntrait Sink:\n    type Error\n    fn put(&mut self, n: i32) -> Result[void, Self::Error]\n\ntrait Walk:\n    type Error\n    fn one(&mut self) -> Result[void, Self::Error]\n    fn item[F < Show](&mut self, value: F) -> Result[void, Self::Error]\n    fn two(&mut self) -> Result[void, Self::Error]\n    fn three[T < Show](&mut self, v: List[T]) -> Result[void, Self::Error]\n\nstruct W[K < mut Sink]:\n    pub out: mut K\n\nimpl[K < Sink] Walk for W[K]:\n    type Error = K::Error\n\n    fn one(&mut self) -> Result[void, K::Error]:\n        self.out.put(1)\n\n    fn item[F < Show](&mut self, value: F) -> Result[void, K::Error]:\n        self.out.put(value.show())\n\n";
 const MAIN: &str = "\npub fn main() -> void $ Console:\n    println(1)\n";
 
 /// Inside `impl[K < Sink] Walk for W[K]`, the goal `W[K]: Walk` names the
@@ -893,7 +893,7 @@ fn an_impl_body_calls_its_siblings_through_a_projection_binding() {
         ("self.one()", "self.item::[List[T]](v)"),
     ] {
         let src = format!(
-            "{WALKS}    fn two(mut self) -> Result[void, K::Error]:\n        {two}\n\n    fn three[T < Show](mut self, v: List[T]) -> Result[void, K::Error]:\n        {three}\n{MAIN}"
+            "{WALKS}    fn two(&mut self) -> Result[void, K::Error]:\n        {two}\n\n    fn three[T < Show](&mut self, v: List[T]) -> Result[void, K::Error]:\n        {three}\n{MAIN}"
         );
         let out = program(&src);
         assert!(codes(&out).is_empty(), "{src}\n{}", out.render());
@@ -954,7 +954,7 @@ fn a_try_error_that_does_not_convert_is_invalid_propagation() {
 use std.error.Error
 use std.convert.From
 
-data Parse:
+struct Parse:
     text: string
 
 impl Display for Parse:
@@ -962,7 +962,7 @@ impl Display for Parse:
 
 impl Error for Parse
 
-data Wrapped:
+struct Wrapped:
     parse: Parse
 
 impl From[Parse] for Wrapped:
@@ -1002,7 +1002,7 @@ fn word() -> Result[i32, i64]:
 fn block_on_and_println_are_forbidden_in_direct_contexts() {
     const HEAD: &str = "use std.task.block_on\n\n\
         fn ready!() -> i32: 42\n\
-        data Tag:\n    name: string\n\
+        struct Tag:\n    name: string\n\
         fn tag_of[T](source: T) -> Tag: Tag { name: \"t\" }\n\
         fn done[T](end: T) -> i32: 1\n\
         fn text!() -> string: \"t\"\n";
@@ -1011,7 +1011,7 @@ fn block_on_and_println_are_forbidden_in_direct_contexts() {
         "fn f() -> void:\n    let s: mut Suspend[i32] = ready()\n    _ := block_on(s)",
         "fn f() -> void $ Console:\n    defer:\n        let g = fn() -> void $ Console: println(\"x\")\n        g()\n    pass",
         "fn f(v: i32 = (fn() -> i32: 1)()) -> i32: v",
-        "@tag_of(\"a\")\ndata D:\n    id: i32",
+        "@tag_of(\"a\")\nstruct D:\n    id: i32",
         // A call that only reaches `block_on` is indirect: a panic, not an error.
         "fn wait() -> i32:\n    let s: mut Suspend[i32] = ready()\n    done(block_on(s))\nfn f(v: i32 = wait()) -> i32: v",
     ] {
@@ -1021,9 +1021,9 @@ fn block_on_and_println_are_forbidden_in_direct_contexts() {
         "fn f() -> void:\n    let s: mut Suspend[i32] = ready()\n    defer:\n        _ := block_on(s)\n    pass",
         "fn f() -> void $ Console:\n    defer:\n        println(\"x\")\n    pass",
         "fn f(v: i32 = done(block_on(ready()))) -> i32: v",
-        "@tag_of(block_on(text()))\ndata D:\n    id: i32",
-        "data D:\n    @tag_of(block_on(text()))\n    id: i32",
-        "data D:\n    id: i32 = done(block_on(ready()))",
+        "@tag_of(block_on(text()))\nstruct D:\n    id: i32",
+        "struct D:\n    @tag_of(block_on(text()))\n    id: i32",
+        "struct D:\n    id: i32 = done(block_on(ready()))",
     ] {
         assert_eq!(
             item_codes(&format!("{HEAD}\n{bad}\n")),
@@ -1093,7 +1093,7 @@ fn defaults_must_not_be_followed_by_a_required_parameter() {
 fn generic_defaults_see_earlier_parameters_of_their_own_kind() {
     for ok in [
         "fn f[A = i32, B = A](a: A, b: B) -> A: a",
-        "data Box[T = i32]:\n    value: T",
+        "struct Box[T = i32]:\n    value: T",
     ] {
         assert_eq!(item_codes(ok), [], "{ok}");
     }
@@ -1104,7 +1104,7 @@ fn generic_defaults_see_earlier_parameters_of_their_own_kind() {
         assert_eq!(item_codes(bad), [Code::BindingNotYetVisible], "{bad}");
     }
     assert_eq!(
-        item_codes("data Box[T = $()]:\n    value: T"),
+        item_codes("struct Box[T = $()]:\n    value: T"),
         [Code::GenericKindMismatch]
     );
 }
@@ -1114,7 +1114,7 @@ fn generic_defaults_see_earlier_parameters_of_their_own_kind() {
 /// key (`types.generic.default.written-missing`).
 #[test]
 fn written_types_may_omit_only_defaulted_slots() {
-    const HEAD: &str = "data Pair[A, B = A]:\n    first: A\n    second: B\n\
+    const HEAD: &str = "struct Pair[A, B = A]:\n    first: A\n    second: B\n\
         trait Same[Other = Self]:\n    fn same(self, other: Other) -> bool\n\
         trait Repo[T]:\n    fn find(self, id: string) -> T?\n";
     for ok in [
@@ -1145,7 +1145,7 @@ fn written_types_may_omit_only_defaulted_slots() {
 /// exists (`names.exec.not-before`, `module.init.definite.dispatch`).
 #[test]
 fn top_level_bindings_are_read_in_order() {
-    const READER: &str = "data Box:\n    value: i32\n\
+    const READER: &str = "struct Box:\n    value: i32\n\
         trait Reader:\n    fn read(self) -> i32\n\
         fn via_bound[T < Reader](value: T) -> i32:\n    value.read()\n";
     for ok in [
@@ -1183,7 +1183,7 @@ fn top_level_bindings_are_read_in_order() {
 /// `names.exec.not-before`, `names.init.required`).
 #[test]
 fn pattern_bindings_are_read_in_order() {
-    const DECLS: &str = "data Point:\n    x: i32\n    y: i32\n\
+    const DECLS: &str = "struct Point:\n    x: i32\n    y: i32\n\
         fn find() -> i32?:\n    .Some(+4)\n";
     const BINDS: &str = "let (a, (b, _)) = (+1, (+2, +3))\n\
         let Point { x, y: far } = Point { x: +5, y: +6 }\n\
@@ -1217,8 +1217,8 @@ fn pattern_bindings_are_read_in_order() {
 /// `names.init.transitive`, `names.init.references`, `names.exec.methods`).
 #[test]
 fn method_calls_do_not_bypass_initialization_order() {
-    const METER: &str = "use std.ops.{Add}\ndata Meter:\n    scale: i32\n\
-        data Holder[T]:\n    value: T\n";
+    const METER: &str = "use std.ops.{Add}\nstruct Meter:\n    scale: i32\n\
+        struct Holder[T]:\n    value: T\n";
     const LATE: &str = "offset := +1\n";
     // A body sees only the bindings above it (`names.exec.not-before`).
     const IMPLS: &str = "trait Reads:\n    fn reads(self) -> i32:\n        offset\n\
@@ -1254,7 +1254,7 @@ fn method_calls_do_not_bypass_initialization_order() {
 /// (`names.init.references`, `names.exec.methods`).
 #[test]
 fn function_values_do_not_bypass_initialization_order() {
-    const DECLS: &str = "data Meter:\n    scale: i32\n\
+    const DECLS: &str = "struct Meter:\n    scale: i32\n\
         fn run(f: fn() -> i32) -> i32:\n    f()\n\
         fn run_with(f: fn(Meter) -> i32, m: Meter) -> i32:\n    f(m)\n";
     const LATE: &str = "offset := +1\n";
@@ -1387,14 +1387,14 @@ fn omitted_derivation_members_need_defaults() {
         \x20       self.out = self.out + value.show() + \";\"\n        .Ok(())\n\n\
         impl[T] Show for T by Structure:\n    fn show(self) -> string:\n\
         \x20       let mut w = Shower { out: \"\" }\n        _ := Structure::walk(self, &mut w)\n        w.out\n\n\
-        data Token:\n    value: string\n\n\
-        data Audit:\n    at: i64\n\n";
-    let legal = "data Account:\n    id: i64\n    token: Token = Token { value: \"\" }\n\n\
+        struct Token:\n    value: string\n\n\
+        struct Audit:\n    at: i64\n\n";
+    let legal = "struct Account:\n    id: i64\n    token: Token = Token { value: \"\" }\n\n\
         impl Show for Account by Structure:\n    token = pass\n";
     assert_eq!(item_codes(&format!("{HEAD}{legal}")), []);
     for bad in [
-        "data Account:\n    id: i64\n    token: Token\n\nimpl Show for Account by Structure:\n    token = pass\n",
-        "data Account:\n    Audit\n    id: i64\n\nimpl Show for Account by Structure:\n    Audit = pass\n",
+        "struct Account:\n    id: i64\n    token: Token\n\nimpl Show for Account by Structure:\n    token = pass\n",
+        "struct Account:\n    Audit\n    id: i64\n\nimpl Show for Account by Structure:\n    Audit = pass\n",
     ] {
         assert_eq!(
             item_codes(&format!("{HEAD}{bad}")),
@@ -1446,8 +1446,8 @@ fn implementation_heads_are_well_formed() {
         trait Holder[T]:\n    fn get(self) -> T\n\
         trait Store:\n    type Item\n    fn first(self) -> Self::Item\n\
         trait Summary:\n    fn summary(self) -> string\n\
-        data User:\n    name: string\n\
-        data Feed[I]:\n    items: I\n\
+        struct User:\n    name: string\n\
+        struct Feed[I]:\n    items: I\n\
         type Person = User\n";
     for ok in [
         "impl User:\n    fn label(self) -> string: self.name",
@@ -1532,7 +1532,7 @@ fn prelude_names_cannot_be_shadowed() {
 #[test]
 fn public_callables_declare_their_result_type() {
     const HEAD: &str = "trait Sized:\n    fn size(self) -> i32\n\
-        data Box:\n    width: i32\n";
+        struct Box:\n    width: i32\n";
     for ok in [
         "fn private():\n    pass",
         "pub fn shown() -> i32: 1",
@@ -1561,14 +1561,14 @@ fn public_callables_declare_their_result_type() {
 #[test]
 fn generic_arguments_and_parameters_have_a_kind() {
     for ok in [
-        "data Box[T]:\n    value: T\nfn f(value: Box[i32]) -> void: pass",
+        "struct Box[T]:\n    value: T\nfn f(value: Box[i32]) -> void: pass",
         "fn run[$ R](callback: fn() -> void $ R) -> void $ R: callback()",
     ] {
         assert_eq!(item_codes(ok), [], "{ok}");
     }
     for bad in [
-        "data Box[T]:\n    value: T\nfn f(value: Box[$()]) -> void: pass",
-        "data Job[$R]:\n    name: string",
+        "struct Box[T]:\n    value: T\nfn f(value: Box[$()]) -> void: pass",
+        "struct Job[$R]:\n    name: string",
         "trait Handler[$R]",
         "type Job[$R](i32)",
         "enum Mode[$R]:\n    A",
@@ -1584,7 +1584,7 @@ fn generic_arguments_and_parameters_have_a_kind() {
 fn generic_parameter_used_in_the_other_kind_is_a_kind_mismatch() {
     assert_eq!(item_codes("fn f[$R]() -> void $ R: pass"), [], "marked");
     for bad in [
-        "data Job[R]:\n    run: fn() -> void $ R",
+        "struct Job[R]:\n    run: fn() -> void $ R",
         "trait Runner[R]:\n    fn run(self, job: fn() -> void $ R) -> void",
         "type Task[R](fn() -> void $ R)",
         "fn run[R](job: fn() -> void $ R) -> void: job()",
@@ -1648,7 +1648,7 @@ fn self_outside_a_trait_or_impl_is_unknown() {
     for src in [
         "fn f() -> Self:\n    \"text\"\n",
         "fn g(x: Self) -> i32:\n    1\n",
-        "data P:\n    s: Self\n",
+        "struct P:\n    s: Self\n",
     ] {
         let out = program(src);
         assert_eq!(codes(&out), [Code::UnknownType], "{src}\n{}", out.render());

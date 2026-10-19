@@ -36,7 +36,7 @@ impl Error for DecodeError
 ## The bytes as lowercase hex text, two digits per byte.
 ## See [std-encoding.hex.encode](../../spec/std/encoding.md#r-std-encoding.hex.encode).
 pub fn hex_encode(bytes: List[u8]) -> string:
-    let codes: mut List[u8] = []
+    let mut codes: List[u8] = []
     for byte in bytes:
         codes.push(hex_symbol(byte >> 4))
         codes.push(hex_symbol(byte & 15))
@@ -51,7 +51,7 @@ pub fn hex_decode(text: string) -> Result[List[u8], DecodeError]:
     size := codes.len()
     if size % 2 != 0:
         return .Err(DecodeError.InvalidLength(size))
-    let bytes: mut List[u8] = []
+    let mut bytes: List[u8] = []
     let index: usize = 0
     while index < size:
         high := hex_value(codes[index])
@@ -89,7 +89,7 @@ impl Base64:
         let length: usize = whole * 4
         if rest != 0:
             length = length + (if self.padded(): 4 else: rest + 1)
-        let codes: mut List[u8] = zeroes(length)
+        let mut codes: List[u8] = zeroes(length)
         let index: usize = 0
         let at: usize = 0
         while index + 3 <= size:
@@ -133,7 +133,7 @@ impl Base64:
                 end = if bytes_at(text, size - 2) == 61: size - 2 else: size - 1
         else if size % 4 == 1:
             return .Err(DecodeError.InvalidLength(size))
-        let bytes: mut List[u8] = zeroes(end * 6 / 8)
+        let mut bytes: List[u8] = zeroes(end * 6 / 8)
         let buffer: i32 = 0
         let bits: u32 = 0
         let index: usize = 0
@@ -223,7 +223,7 @@ fn hex_value(code: i32) -> i32:
 # One entry per byte: its code when it is ASCII, and -1 for each byte of
 # any other character, so a list index is a byte offset.
 fn ascii_codes(text: string) -> List[i32]:
-    let codes: mut List[i32] = []
+    let mut codes: List[i32] = []
     for byte in text.bytes():
         if byte < 128:
             codes.push(i32(byte))
@@ -232,8 +232,8 @@ fn ascii_codes(text: string) -> List[i32]:
     codes
 
 # A list of `count` zero bytes, written once by index.
-fn zeroes(count: usize) -> mut List[u8]:
-    let values: mut List[u8] = []
+fn zeroes(count: usize) -> List[u8]:
+    let mut values: List[u8] = []
     while values.len() < count:
         values.push(0)
     values

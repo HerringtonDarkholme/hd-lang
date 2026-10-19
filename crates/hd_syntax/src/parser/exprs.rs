@@ -1291,7 +1291,6 @@ impl Parser<'_> {
                                 self.toks.kind.get(next),
                                 Some(
                                     TokenKind::KwFn
-                                        | TokenKind::KwData
                                         | TokenKind::KwStruct
                                         | TokenKind::KwEnum
                                         | TokenKind::KwTrait

@@ -11,13 +11,13 @@ use hd_driver::{Executor, Goal, Host, NoClock, Packages, build_packages};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
-/// A program with `n` data types, each implementing one trait.
+/// A program with `n` struct types, each implementing one trait.
 fn program(n: usize) -> String {
     let mut s = String::from("pub trait Size:\n    fn size(self) -> i32\n\n");
     for i in 0..n {
         let _ = write!(
             s,
-            "data T{i}:\n    v: i32\n\nimpl Size for T{i}:\n    fn size(self) -> i32:\n        self.v\n\n"
+            "struct T{i}:\n    v: i32\n\nimpl Size for T{i}:\n    fn size(self) -> i32:\n        self.v\n\n"
         );
     }
     s.push_str("pub fn main() -> void $ Console:\n    println(T0 { v: 1 }.size())\n");

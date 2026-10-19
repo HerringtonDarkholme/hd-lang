@@ -55,12 +55,12 @@ fn rule_in(goal: &Goal, bad: &str, code: Code, good: &str) {
 #[test]
 fn data_field_names_are_unique() {
     rule(
-        "data Invoice:
+        "struct Invoice:
     number: string
     number: i64
 ",
         Code::DuplicateField,
-        "data Invoice:
+        "struct Invoice:
     number: string
     total: i64
 ",
@@ -70,21 +70,21 @@ fn data_field_names_are_unique() {
 #[test]
 fn an_embedded_field_name_is_unique() {
     rule(
-        "data Box[T]:
+        "struct Box[T]:
     value: T
 
-data Storage:
+struct Storage:
     Box[i32]
     Box[string]
 ",
         Code::DuplicateEmbeddedField,
-        "data Box[T]:
+        "struct Box[T]:
     value: T
 
-data Tag:
+struct Tag:
     label: string
 
-data Storage:
+struct Storage:
     Box[i32]
     Tag
 ",
@@ -94,7 +94,7 @@ data Storage:
 #[test]
 fn a_literal_gives_each_field_once() {
     rule(
-        "data User:
+        "struct User:
     name: string
 
 user := User {
@@ -103,7 +103,7 @@ user := User {
 }
 ",
         Code::DuplicateField,
-        "data User:
+        "struct User:
     name: string
 
 user := User {
@@ -116,13 +116,13 @@ user := User {
 #[test]
 fn an_unknown_field_suppresses_the_missing_field_error() {
     rule(
-        "data Point:
+        "struct Point:
     x: i32
 
 fn get() -> i32: Point { y: 1 }.x
 ",
         Code::UnknownField,
-        "data Point:
+        "struct Point:
     x: i32
 
 fn get() -> i32: Point { x: 1 }.x
@@ -133,7 +133,7 @@ fn get() -> i32: Point { x: 1 }.x
 #[test]
 fn an_unknown_shorthand_suppresses_the_missing_field_error() {
     rule(
-        "data Point:
+        "struct Point:
     x: i32
     y: i32
 
@@ -141,7 +141,7 @@ fn broken(x: i32) -> Point:
     Point { x, y }
 ",
         Code::UnknownName,
-        "data Point:
+        "struct Point:
     x: i32
     y: i32
 
@@ -154,7 +154,7 @@ fn fixed(x: i32, y: i32) -> Point:
 #[test]
 fn a_shorthand_field_counts_as_given() {
     rule(
-        "data Coordinate:
+        "struct Coordinate:
     lat: i32
     lon: i32
 
@@ -162,7 +162,7 @@ fn pin(lat: i32, lon: i32) -> Coordinate:
     Coordinate { lat, lon, lat: 0 }
 ",
         Code::DuplicateField,
-        "data Coordinate:
+        "struct Coordinate:
     lat: i32
     lon: i32
 
@@ -269,7 +269,7 @@ trait PriceFeed < Feed:
 #[test]
 fn inherent_members_with_unifying_targets_are_unique() {
     rule(
-        "data Box[T]:
+        "struct Box[T]:
     value: T
 
 impl[T] Box[T]:
@@ -280,7 +280,7 @@ impl Box[i32]:
 ",
         Code::DuplicateInherentMember,
         // Targets that cannot unify may repeat a name.
-        "data Box[T]:
+        "struct Box[T]:
     value: T
 
 impl Box[string]:
@@ -295,14 +295,14 @@ impl Box[i32]:
 #[test]
 fn an_implementation_declares_an_inherent_member_once() {
     rule(
-        "data User: pass
+        "struct User: pass
 
 impl User:
     fn name(self) -> string: \"first\"
     fn name(self) -> string: \"second\"
 ",
         Code::DuplicateInherentMember,
-        "data User: pass
+        "struct User: pass
 
 impl User:
     fn name(self) -> string: \"first\"
@@ -349,7 +349,7 @@ fn a_tests_block_declares_each_name_once() {
 #[test]
 fn a_method_type_parameter_does_not_reuse_the_implementation_s() {
     rule(
-        "data Box[+T]:
+        "struct Box[+T]:
     value: T
 
 impl[T] Box[T]:
@@ -357,7 +357,7 @@ impl[T] Box[T]:
         value
 ",
         Code::DuplicateBinding,
-        "data Box[+T]:
+        "struct Box[+T]:
     value: T
 
 impl[T] Box[T]:
@@ -388,7 +388,7 @@ fn other(T: i32) -> i32:
 #[test]
 fn a_method_parameter_does_not_reuse_the_implementation_s_type_parameter() {
     rule(
-        "data Box[+T]:
+        "struct Box[+T]:
     value: T
 
 impl[T] Box[T]:
@@ -396,7 +396,7 @@ impl[T] Box[T]:
         T
 ",
         Code::DuplicateBinding,
-        "data Box[+T]:
+        "struct Box[+T]:
     value: T
 
 impl[T] Box[T]:
@@ -472,7 +472,7 @@ fn two_function_parameters_do_not_share_a_name() {
 #[test]
 fn two_method_parameters_do_not_share_a_name() {
     rule(
-        "data Box:
+        "struct Box:
     value: i32
 
 impl Box:
@@ -480,7 +480,7 @@ impl Box:
         n
 ",
         Code::DuplicateBinding,
-        "data Box:
+        "struct Box:
     value: i32
 
 impl Box:
@@ -544,15 +544,15 @@ fn an_embedded_field_names_a_data_type() {
     Queued
     Running
 
-data Job:
+struct Job:
     JobStatus
     id: string
 ",
         Code::EmbeddedNonData,
-        "data JobStatus:
+        "struct JobStatus:
     label: string
 
-data Job:
+struct Job:
     JobStatus
     id: string
 ",
@@ -561,7 +561,7 @@ data Job:
 
 #[test]
 fn a_collection_or_parameter_is_not_embedded() {
-    let bad = "data Job:
+    let bad = "struct Job:
     List[i32]
     id: string
 ";
@@ -571,7 +571,7 @@ fn a_collection_or_parameter_is_not_embedded() {
         "{}",
         analyze(bad).render()
     );
-    let bad = "data Holder[T]:
+    let bad = "struct Holder[T]:
     T
     id: string
 ";
@@ -585,22 +585,22 @@ fn a_collection_or_parameter_is_not_embedded() {
 
 #[test]
 fn a_type_embeds_at_most_three_fields() {
-    let parts = "data Created:
+    let parts = "struct Created:
     created_at: i32
 
-data Updated:
+struct Updated:
     updated_at: i32
 
-data Owned:
+struct Owned:
     owner: string
 
-data Tagged:
+struct Tagged:
     tag: string
 
 ";
     rule(
         &format!(
-            "{parts}data Post:
+            "{parts}struct Post:
     Created
     Updated
     Owned
@@ -610,7 +610,7 @@ data Tagged:
         ),
         Code::TooManyEmbeddedFields,
         &format!(
-            "{parts}data Post:
+            "{parts}struct Post:
     Created
     Updated
     Owned
@@ -620,14 +620,14 @@ data Tagged:
     );
 }
 
-const CHAIN: &str = "data Stamp:
+const CHAIN: &str = "struct Stamp:
     at: i32
 
-data Audit:
+struct Audit:
     Stamp
     by: string
 
-data Record:
+struct Record:
     Audit
     id: string
 
@@ -637,18 +637,18 @@ data Record:
 fn an_embedding_chain_is_at_most_three_deep() {
     rule(
         &format!(
-            "{CHAIN}data Page:
+            "{CHAIN}struct Page:
     Record
     title: string
 
-data Site:
+struct Site:
     Page
     host: string
 "
         ),
         Code::EmbeddingTooDeep,
         &format!(
-            "{CHAIN}data Page:
+            "{CHAIN}struct Page:
     Record
     title: string
 "
@@ -659,38 +659,38 @@ data Site:
 #[test]
 fn the_depth_limit_counts_generic_embedding() {
     rule(
-        "data Stamp:
+        "struct Stamp:
     at: i32
 
-data Tag:
+struct Tag:
     Stamp
     label: string
 
-data Box[T]:
+struct Box[T]:
     Tag
     value: T
 
-data Shipment[T]:
+struct Shipment[T]:
     Box[T]
     id: string
 
-data Order:
+struct Order:
     note: string
     Shipment[i32]
 ",
         Code::EmbeddingTooDeep,
-        "data Stamp:
+        "struct Stamp:
     at: i32
 
-data Tag:
+struct Tag:
     Stamp
     label: string
 
-data Box[T]:
+struct Box[T]:
     Tag
     value: T
 
-data Order:
+struct Order:
     note: string
     Box[i32]
 ",
@@ -700,15 +700,15 @@ data Order:
 #[test]
 fn a_type_does_not_embed_itself() {
     rule(
-        "data Loop:
+        "struct Loop:
     Loop
     id: string
 ",
         Code::EmbeddingCycle,
-        "data Leaf:
+        "struct Leaf:
     id: string
 
-data Loop:
+struct Loop:
     Leaf
     id: string
 ",
@@ -719,19 +719,19 @@ data Loop:
 fn a_cycle_is_reported_once_in_its_first_declared_type() {
     // Both types are in the cycle; only `Node`, declared first, reports it.
     rule(
-        "data Node:
+        "struct Node:
     Edge
     id: string
 
-data Edge:
+struct Edge:
     Node
     weight: i32
 ",
         Code::EmbeddingCycle,
-        "data Node:
+        "struct Node:
     id: string
 
-data Edge:
+struct Edge:
     Node
     weight: i32
 ",
@@ -741,88 +741,29 @@ data Edge:
 #[test]
 fn a_cycle_through_a_generic_type_is_a_cycle() {
     rule(
-        "data Holder:
+        "struct Holder:
     Wrapper[i32]
     id: string
 
-data Wrapper[T]:
+struct Wrapper[T]:
     Holder
     value: T
 ",
         Code::EmbeddingCycle,
-        "data Holder:
+        "struct Holder:
     id: string
 
-data Wrapper[T]:
+struct Wrapper[T]:
     Holder
     value: T
 ",
     );
 }
 
-const STAMPS: &str = "data Timestamps:
-    created_at: i32
-    updated_at: i32
-
-data Post:
-    Timestamps
-    id: string
-
-";
-
-#[test]
-fn filling_an_embedded_field_needs_the_copy_marker() {
-    rule(
-        &format!(
-            "{STAMPS}fn build(stamps: Timestamps) -> Post:
-    Post {{ Timestamps: stamps, id: \"p\" }}
-"
-        ),
-        Code::EmbeddedCopyRequired,
-        &format!(
-            "{STAMPS}fn build(stamps: Timestamps) -> Post:
-    Post {{ Timestamps: ...stamps, id: \"p\" }}
-"
-        ),
-    );
-}
-
-#[test]
-fn the_copy_marker_is_required_for_a_fresh_literal() {
-    rule(
-        &format!(
-            "{STAMPS}post := Post {{ Timestamps: Timestamps {{ created_at: 1, updated_at: 1 }}, id: \"p\" }}
-"
-        ),
-        Code::EmbeddedCopyRequired,
-        &format!(
-            "{STAMPS}post := Post {{ Timestamps: ...Timestamps {{ created_at: 1, updated_at: 1 }}, id: \"p\" }}
-"
-        ),
-    );
-}
-
-#[test]
-fn storing_an_embedded_field_needs_the_copy_assignment() {
-    rule(
-        &format!(
-            "{STAMPS}fn restamp(post: mut Post, stamps: Timestamps) -> void:
-    post.Timestamps = stamps
-"
-        ),
-        Code::EmbeddedCopyRequired,
-        &format!(
-            "{STAMPS}fn restamp(post: mut Post, stamps: Timestamps) -> void:
-    post.Timestamps ...= stamps
-"
-        ),
-    );
-}
-
-const ACCOUNT: &str = "data User:
+const ACCOUNT: &str = "struct User:
     name: string
 
-data Account:
+struct Account:
     owner: User
 
 ";
@@ -848,13 +789,13 @@ fn the_copy_marker_fills_only_an_embedded_field() {
 fn the_copy_assignment_stores_only_an_embedded_field() {
     rule(
         &format!(
-            "{ACCOUNT}fn reown(account: mut Account, user: User) -> void:
+            "{ACCOUNT}fn reown(account: &mut Account, user: User) -> void:
     account.owner ...= user
 "
         ),
         Code::CopyIntoOrdinaryField,
         &format!(
-            "{ACCOUNT}fn reown(account: mut Account, user: User) -> void:
+            "{ACCOUNT}fn reown(account: &mut Account, user: User) -> void:
     account.owner = user
 "
         ),
@@ -915,10 +856,10 @@ fn a_whole_variant_cannot_be_omitted() {
 fn a_block_with_no_trait_cannot_omit_a_member() {
     let account = "use std.structure.Structure
 
-data Token:
+struct Token:
     text: string = \"\"
 
-data Account:
+struct Account:
     id: i64
     token: Token = Token {}
 
@@ -940,7 +881,7 @@ data Account:
 
 #[test]
 fn a_member_line_takes_a_list() {
-    let pair = "data Pair:
+    let pair = "struct Pair:
     left: i64
     right: i64
 

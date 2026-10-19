@@ -67,10 +67,10 @@ use std.time.{Clock, Duration, sleep}
 trait Repo[T]:
     fn count(self) -> i32
 
-data User: pass
-data Post: pass
-data UserRepo: pass
-data PostRepo: pass
+struct User: pass
+struct Post: pass
+struct UserRepo: pass
+struct PostRepo: pass
 
 impl Repo[User] for UserRepo:
     fn count(self) -> i32: 20
@@ -159,7 +159,7 @@ println(apply(count_of::[User]) * 10 + apply(count_of::[Post]))
 #[test]
 fn a_data_field_keeps_the_callable_and_its_keys() {
     let items = "\
-data Job:
+struct Job:
     callback: fn() -> i32 $ Repo[Post] + Repo[User]
 ";
     let body = "\
@@ -250,40 +250,40 @@ pub fn main() -> void $ Console:
     assert_eq!(output_of("use-order", &main), "120\n201120\n");
 }
 
-/// The providers of a multi-key `$.use` keep their access: a mutable
-/// requirement trait's element is `mut K`, and it is the one provider a
-/// later `$.use` sees (`req.mut.use-writable`).
+/// The providers of a multi-key `$.use` keep their access: a provider
+/// installed as `&mut` writes through its tuple element, and it is the one
+/// provider a later `$.use` sees (`req.mut.use-writable`).
 #[test]
 fn a_multi_key_use_keeps_each_provider_access() {
     let main = "\
 trait Counter:
-    fn bump(mut self) -> void
-    fn count(self) -> i32
+    fn bump(&mut self) -> void
+    fn count(&self) -> i32
 
 trait Base:
     fn value(self) -> i32
 
-data Cell:
+struct Cell:
     n: i32
 
 impl Counter for Cell:
-    fn bump(mut self) -> void:
+    fn bump(&mut self) -> void:
         self.n = self.n + 1
-    fn count(self) -> i32: self.n
+    fn count(&self) -> i32: self.n
 
-data Fixed: pass
+struct Fixed: pass
 
 impl Base for Fixed:
     fn value(self) -> i32: 40
 
 fn tick() -> i32 $ Base + Counter:
-    let (base, mut counter) = $.use(Base, Counter)
+    let (base, counter) = $.use(Base, Counter)
     counter.bump()
     counter.bump()
     base.value() + $.use(Counter).count()
 
 pub fn main() -> void $ Console:
-    $.with(Counter=Cell { n: 0 }, Base=Fixed {}):
+    $.with(Counter=&mut Cell { n: 0 }, Base=Fixed {}):
         println(tick())
 ";
     assert_eq!(output_of("use-access", main), "42\n");

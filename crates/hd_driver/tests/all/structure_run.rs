@@ -113,7 +113,7 @@ impl[T] Trace for T by Structure:
             .Err(e) => w.out + e
 
 @derive(Trace)
-data Run:
+struct Run:
     a: i32
     b: string
     stop: bool
@@ -172,7 +172,7 @@ enum Shape:
     Pair(i32, i32)
     Box(width: i32, height: i32)
 
-data Cached:
+struct Cached:
     id: i32
     cache: string = \"\"
 
@@ -200,10 +200,10 @@ use std.ops.Default
 use std.structure.{Structure, Field, Variant, Members, Key, Source}
 
 trait Make:
-    fn make(log: mut List[string]) -> Result[Self, string]
+    fn make(log: &mut List[string]) -> Result[Self, string]
 
 struct Partial[S]:
-    pub log: mut List[string]
+    pub log: &mut List[string]
     pub named: bool
 
 impl[S] Source[S] for Partial[S]:
@@ -231,22 +231,22 @@ impl[S] Source[S] for Partial[S]:
             .None => .Err(\"no ${h.info.name}\")
 
 impl[T] Make for T by Structure:
-    fn make(log: mut List[string]) -> Result[T, string]:
+    fn make(log: &mut List[string]) -> Result[T, string]:
         let mut s = Partial::[T] { log: log, named: false }
         T::build(&mut s)
 
 @derive(Make)
-data Conf:
+struct Conf:
     a: i32 = 7
     b: string
     c: i32 = 9
 
 @derive(Make)
-data Strict:
+struct Strict:
     a: i32
     b: string
 
-data Kept:
+struct Kept:
     a: i32 = 1
     b: string
     skip: i32 = 5
@@ -255,18 +255,18 @@ impl Make for Kept by Structure:
     skip = pass
 
 pub fn main() -> void $ Console:
-    let log: mut List[string] = []
-    match Conf::make(log):
+    let mut log: List[string] = []
+    match Conf::make(&mut log):
         .Ok(c) => println(\"${c.a} '${c.b}' ${c.c}\")
         .Err(e) => println(e)
     println(log.join(\", \"))
-    let more: mut List[string] = []
-    match Strict::make(more):
+    let mut more: List[string] = []
+    match Strict::make(&mut more):
         .Ok(_) => println(\"built\")
         .Err(e) => println(e)
     println(more.join(\", \"))
-    let kept: mut List[string] = []
-    match Kept::make(kept):
+    let mut kept: List[string] = []
+    match Kept::make(&mut kept):
         .Ok(k) => println(\"${k.a} '${k.b}' ${k.skip}\")
         .Err(e) => println(e)
     println(kept.join(\", \"))
@@ -290,16 +290,16 @@ fn facts_arrive_in_source_order_per_derivation() {
 use std.inspect.{Inspectable, downcast_val}
 use std.structure.{Structure, Facts, Field, Variant, Walker}
 
-data Tag:
+struct Tag:
     text: string
 
-data Note:
+struct Note:
     text: string
 
-data Mark:
+struct Mark:
     text: string
 
-data Flag:
+struct Flag:
     text: string
 
 fn tag(text: string) -> Tag:
@@ -316,7 +316,7 @@ fn flag(text: string) -> Flag:
 
 # Each fact as `kind:text`, in the order `Facts` holds them.
 fn show(facts: Facts) -> string:
-    let parts: mut List[string] = []
+    let mut parts: List[string] = []
     for item in facts.items:
         match downcast_val::[Tag](item):
             .Some(t) => parts.push(\"tag:\" + t.text)
@@ -367,7 +367,7 @@ impl[T] Plain for T by Structure:
 @derive(Plain)
 @tag(\"t\")
 @note(\"n\")
-data Point:
+struct Point:
     @flag(\"x1\")
     @tag(\"x2\")
     x: i32
@@ -510,7 +510,7 @@ fn two(name: &str, decl: &str, main: &str) -> (String, usize) {
 /// its own.
 #[test]
 fn two_derivations_of_one_target_share_their_bodies() {
-    let shared = "@derive(Left, Right)\ndata Point:\n    x: i32\n    y: i32\n";
+    let shared = "@derive(Left, Right)\nstruct Point:\n    x: i32\n    y: i32\n";
     let one = "    println(Point { x: 1, y: 2 }.left())\n";
     let both =
         "    println(Point { x: 1, y: 2 }.left())\n    println(Point { x: 1, y: 2 }.right())\n";
@@ -524,7 +524,7 @@ fn two_derivations_of_one_target_share_their_bodies() {
     assert_eq!(n2, n1 + 3, "shared walk and handles");
     // A block with a member line gets its own `Structure`: its own `walk`
     // and handles, so more instances.
-    let own = "@derive(Left)\ndata Point:\n    x: i32\n    y: i32\n\nimpl Right for Point by Structure:\n    x += [\"k\"]\n";
+    let own = "@derive(Left)\nstruct Point:\n    x: i32\n    y: i32\n\nimpl Right for Point by Structure:\n    x += [\"k\"]\n";
     let (out3, n3) = two("share-own", own, both);
     assert_eq!(out3, "L x=1;y=2;\nR x=1;y=2;\n");
     assert!(
@@ -551,7 +551,7 @@ pub fn main() -> void $ Console:
     println(debug(Point::default()))
 ";
     let shapes = |fields: &str| {
-        format!("use std.ops.Default\n\n@derive(Debug, Default)\npub data Point:\n{fields}")
+        format!("use std.ops.Default\n\n@derive(Debug, Default)\npub struct Point:\n{fields}")
     };
     let build_of = |fields: &str| {
         let text = shapes(fields);
@@ -593,8 +593,8 @@ const KEEPERS: &str = "\
 use std.structure.{Structure, Field, Variant, Walker, Describer, Member, VariantInfo}
 
 struct Keeper:
-    pub variants: mut List[VariantInfo]
-    pub members: mut List[Member]
+    pub variants: List[VariantInfo]
+    pub members: List[Member]
 
 impl[S] Walker[S] for Keeper:
     type Error = never
@@ -650,7 +650,7 @@ use std.json.encode
 use std.serde.Serialize
 
 @derive(Seen, Listed, Serialize)
-data Order:
+struct Order:
     id: i64
     customer: string
 
@@ -688,7 +688,7 @@ fn member_facts_run_once_when_the_handle_is_first_built() {
         "{KEEPERS}
 let evaluations = +0
 
-data Style:
+struct Style:
     prefix: string = \"\"
 
 fn style(prefix: string) -> Style:
@@ -696,7 +696,7 @@ fn style(prefix: string) -> Style:
     Style {{ prefix: prefix }}
 
 @derive(Seen, Listed)
-data Point:
+struct Point:
     @style(\"x_\")
     x: i64
     y: i64
@@ -733,7 +733,7 @@ pub fn main() -> void $ Console:
 fn a_generic_owner_has_one_handle_per_instantiation() {
     let main = format!(
         "{KEEPERS}
-data Box[T]:
+struct Box[T]:
     value: T
 
 impl[T] Seen for Box[T] by Structure

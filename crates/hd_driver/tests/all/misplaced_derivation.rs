@@ -99,7 +99,7 @@ impl[T] Show for T by Structure:
 fn a_template_in_its_traits_module_and_a_block_with_a_line_are_clean() {
     let main = format!(
         "{SHOW_TEMPLATE}
-data Point:
+struct Point:
     x: i64
     y: i64
 
@@ -114,7 +114,7 @@ impl Show for Point by Structure:
 fn a_trait_less_block_with_member_lines_is_clean() {
     let main = "use std.structure.Structure
 
-data Box[T]:
+struct Box[T]:
     item: T
 
 impl[T] Box[T] by Structure:
@@ -130,7 +130,7 @@ fn a_renamed_trait_less_header_is_clean() {
         "main.hd",
         "use std.structure.Structure
 
-data Box[T]:
+struct Box[T]:
     item: T
 
 impl[U] Box[U] by Structure:
@@ -156,7 +156,7 @@ impl[T] Show for T by Structure:
 
 #[test]
 fn a_block_outside_its_targets_module_is_misplaced() {
-    let lib = "pub data Point:
+    let lib = "pub struct Point:
     pub x: i64
 ";
     let main = format!(
@@ -172,7 +172,7 @@ impl Show for Point by Structure:
 
 #[test]
 fn a_trait_less_block_outside_its_targets_module_is_misplaced() {
-    let lib = "pub data Point:
+    let lib = "pub struct Point:
     pub x: i64
 ";
     let main = "use pkg.lib.shapes.Point
@@ -197,7 +197,7 @@ fn a_rejected_block_reports_nothing_else() {
     // cannot implement it.
     let main = format!(
         "{SHOW_TEMPLATE}
-data Opaque:
+struct Opaque:
     value: bool
 
 type Wrapped(Opaque)

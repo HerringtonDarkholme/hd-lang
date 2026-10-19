@@ -226,8 +226,6 @@ runtime/valid/collection-structs-snapshot-iteration.hd	#573: closures and trait 
 runtime/valid/colons-in-brackets-and-trailing-blocks.hd	#573: closures and trait values
 runtime/valid/comments-hide-code-from-the-parser.hd	#554: lists
 runtime/valid/comparisons-beside-brackets.hd	#554: lists
-runtime/valid/composite-identity-and-views.hd	#573: closures and trait values
-runtime/valid/composite-value-aliases.hd	#573: closures and trait values
 runtime/valid/compound-assign-index-once.hd	#573: closures and trait values
 runtime/valid/compound-assign-index.hd	#573: closures and trait values
 runtime/valid/compound-assign-map-run.hd	#573: closures and trait values
@@ -253,7 +251,6 @@ runtime/valid/copy-update-reads-source-at-spread.hd	#573: closures and trait val
 runtime/valid/copy-update-shallow.hd	#573: closures and trait values
 runtime/valid/copy-update-skips-defaults.hd	#573: closures and trait values
 runtime/valid/copy-update-source-order-observed.hd	#573: closures and trait values
-runtime/valid/covariant-readonly-weakening.hd	#573: closures and trait values
 runtime/valid/crlf-line-endings.hd	#540: integers, strings and enums in locals
 runtime/valid/data-and-enum-declaration-forms.hd	#554: lists
 runtime/valid/data-expression-forms.hd	#572: maps
@@ -356,11 +353,7 @@ runtime/valid/element-reference-sort-sees-new-occupant.hd	#574: references, clea
 runtime/valid/element-reference-swap-allowed.hd	#574: references, cleanup scopes and releases at last use
 runtime/valid/element-reference-write.hd	#574: references, cleanup scopes and releases at last use
 runtime/valid/else-if-chain.hd	#573: closures and trait values
-runtime/valid/embedded-construction-copies.hd	#573: closures and trait values
-runtime/valid/embedded-copy-at-field-position.hd	#573: closures and trait values
 runtime/valid/embedded-field-satisfies-trait.hd	#573: closures and trait values
-runtime/valid/embedded-part-follows-container.hd	#573: closures and trait values
-runtime/valid/embedded-part-mut-alias.hd	#573: closures and trait values
 runtime/valid/embedded-store-copies.hd	#573: closures and trait values
 runtime/valid/embedded-trait-method-via-part.hd	#573: closures and trait values
 runtime/valid/empty-string-operations.hd	#573: closures and trait values
@@ -373,7 +366,6 @@ runtime/valid/enum-shared-data-per-variant.hd	#573: closures and trait values
 runtime/valid/enum-value-fixed-at-construction.hd	#573: closures and trait values
 runtime/valid/enum-variant-by-type-name.hd	#573: closures and trait values
 runtime/valid/erased-error-result.hd	#573: closures and trait values
-runtime/valid/error-bound-downcast-evidence.hd	#573: closures and trait values
 runtime/valid/error-chain-derived-causes.hd	#573: closures and trait values
 runtime/valid/error-chain-method.hd	#573: closures and trait values
 runtime/valid/error-chain.hd	#573: closures and trait values
@@ -383,7 +375,6 @@ runtime/valid/error-downcast-through-inspectable.hd	#573: closures and trait val
 runtime/valid/error-exit-code.hd	#573: closures and trait values
 runtime/valid/error-find-erased.hd	#573: closures and trait values
 runtime/valid/error-find-trait-value.hd	#573: closures and trait values
-runtime/valid/error-find.hd	#573: closures and trait values
 runtime/valid/error-for-string.hd	#573: closures and trait values
 runtime/valid/error-message.hd	#573: closures and trait values
 runtime/valid/error-report-value-copy.hd	#573: closures and trait values
@@ -409,7 +400,6 @@ runtime/valid/field-and-method-share-name.hd	#573: closures and trait values
 runtime/valid/field-and-trait-method-share-name.hd	#573: closures and trait values
 runtime/valid/field-read-beside-trait-method.hd	#573: closures and trait values
 runtime/valid/fieldless-data-argument.hd	#573: closures and trait values
-runtime/valid/fieldless-data-canonical.hd	#551: structs, tuples, enums and data values
 runtime/valid/final-vararg.hd	#573: closures and trait values
 runtime/valid/float-cast-saturates-examples.hd	#573: closures and trait values
 runtime/valid/float-cast-saturates.hd	#573: closures and trait values
@@ -459,13 +449,11 @@ runtime/valid/generic-function-value-instantiation.hd	#573: closures and trait v
 runtime/valid/generic-inference-explicit-conversions.hd	#573: closures and trait values
 runtime/valid/generic-inference-from-requirement-key.hd	#573: closures and trait values
 runtime/valid/generic-inference-literal-any-position.hd	#573: closures and trait values
-runtime/valid/generic-inference-mut-weakening.hd	#573: closures and trait values
 runtime/valid/generic-inference-scalars-and-data.hd	#573: closures and trait values
 runtime/valid/generic-inherent-box.hd	#539: main is private, so no entry point runs
 runtime/valid/generic-list-element.hd	#573: closures and trait values
 runtime/valid/generic-method-candidate-local.hd	#573: closures and trait values
 runtime/valid/generic-methods.hd	#573: closures and trait values
-runtime/valid/generic-mut-argument-preserved.hd	#573: closures and trait values
 runtime/valid/generic-optional-and-result.hd	#573: closures and trait values
 runtime/valid/generic-parameter-forms.hd	#573: closures and trait values
 runtime/valid/generic-partial-eq-bound-primitives.hd	#552: strings
@@ -483,7 +471,6 @@ runtime/valid/generic-value-placeholder-from-expected.hd	#573: closures and trai
 runtime/valid/generic-value-solved-from-result.hd	#573: closures and trait values
 runtime/valid/generic-value-solved-with-call.hd	#573: closures and trait values
 runtime/valid/generic-variant-constructor-argument.hd	#573: closures and trait values
-runtime/valid/handle-fact-exact-type.hd	#573: closures and trait values
 runtime/valid/hash-bytes-derived.hd	#573: closures and trait values
 runtime/valid/hash-bytes-result.hd	#573: closures and trait values
 runtime/valid/hash-bytes-scalars.hd	#573: closures and trait values
@@ -532,16 +519,10 @@ runtime/valid/init-read-through-trait-dispatch.hd	#573: closures and trait value
 runtime/valid/init-reads-after-initialization.hd	#573: closures and trait values
 runtime/valid/init-ready-groups-by-identity.hd	#573: closures and trait values
 runtime/valid/inspectable-alias-and-newtype-identity.hd	#573: closures and trait values
-runtime/valid/inspectable-downcast-mut.hd	#573: closures and trait values
-runtime/valid/inspectable-downcast-success-and-failure.hd	#573: closures and trait values
 runtime/valid/inspectable-dynamic-vs-static-identity.hd	#573: closures and trait values
 runtime/valid/inspectable-erasure-example.hd	#573: closures and trait values
 runtime/valid/inspectable-function-fields-and-trait-arguments.hd	#573: closures and trait values
 runtime/valid/inspectable-generic-arguments-exact.hd	#573: closures and trait values
-runtime/valid/inspectable-generic-downcast-targets.hd	#573: closures and trait values
-runtime/valid/inspectable-generic-inner-mut-argument.hd	#573: closures and trait values
-runtime/valid/inspectable-generic-target-helper.hd	#573: closures and trait values
-runtime/valid/inspectable-inner-mut-identity.hd	#573: closures and trait values
 runtime/valid/inspectable-primitives-collections-options.hd	#573: closures and trait values
 runtime/valid/integer-cast-wraps-examples.hd	#573: closures and trait values
 runtime/valid/integer-literal-forms.hd	#540: integers, strings and enums in locals
@@ -589,14 +570,12 @@ runtime/valid/json-typed-primitives.hd	#573: closures and trait values
 runtime/valid/json-typed-round-trip.hd	#573: closures and trait values
 runtime/valid/lazy-result-candidate.hd	#573: closures and trait values
 runtime/valid/lct-optional-injection.hd	#573: closures and trait values
-runtime/valid/lct-tuple-permission-weakening.hd	#573: closures and trait values
 runtime/valid/lct-unsolved-parameter-joins-first.hd	#573: closures and trait values
 runtime/valid/leading-dot-chain.hd	#573: closures and trait values
 runtime/valid/leading-dot-deeper-continues.hd	#573: closures and trait values
 runtime/valid/leading-dot-lines-join-the-chain.hd	#573: closures and trait values
 runtime/valid/leading-dot-statement-indent-tail.hd	#573: closures and trait values
 runtime/valid/leading-pipe-lines-join-the-chain.hd	#554: lists
-runtime/valid/legacy-mut-list-parameter-shares.hd	#573: closures and trait values
 runtime/valid/let-after-same-line-if-keeps-else.hd	#551: structs, tuples, enums and data values
 runtime/valid/let-local-place.hd	#573: closures and trait values
 runtime/valid/let-patterns-and-let-else.hd	#554: lists
@@ -618,7 +597,6 @@ runtime/valid/list-min-max.hd	#573: closures and trait values
 runtime/valid/list-of-trait-values.hd	#573: closures and trait values
 runtime/valid/list-partition-search.hd	#573: closures and trait values
 runtime/valid/list-pop.hd	#573: closures and trait values
-runtime/valid/list-read-keeps-mut-element.hd	#573: closures and trait values
 runtime/valid/list-replace-not-seen-by-loop.hd	#573: closures and trait values
 runtime/valid/list-shared-reference-parameter.hd	#573: closures and trait values
 runtime/valid/list-slice-mutable.hd	#573: closures and trait values
@@ -666,14 +644,12 @@ runtime/valid/map-literal-and-comprehension-order.hd	#573: closures and trait va
 runtime/valid/map-lookup-and-duplicate-keys.hd	#573: closures and trait values
 runtime/valid/map-many-string-keys.hd	#573: closures and trait values
 runtime/valid/map-of-lists-nested-push.hd	#573: closures and trait values
-runtime/valid/map-read-keeps-mut-value.hd	#573: closures and trait values
 runtime/valid/map-remove-absent-key.hd	#573: closures and trait values
 runtime/valid/map-remove-is-a-method.hd	#573: closures and trait values
 runtime/valid/map-sys.hd	#573: closures and trait values
 runtime/valid/map-value-replace-during-iteration.hd	#573: closures and trait values
 runtime/valid/match-arm-binding-reuse.hd	#573: closures and trait values
 runtime/valid/match-bare-binding-catch-all.hd	#573: closures and trait values
-runtime/valid/match-generic-payload-mut.hd	#573: closures and trait values
 runtime/valid/match-guards.hd	#573: closures and trait values
 runtime/valid/match-keeps-subject.hd	#573: closures and trait values
 runtime/valid/match-literal-pattern.hd	#573: closures and trait values
@@ -719,14 +695,11 @@ runtime/valid/multiple-bounds-dispatch.hd	#573: closures and trait values
 runtime/valid/multiple-dedents-at-once.hd	#540: integers, strings and enums in locals
 runtime/valid/multiple-inline-closures.hd	#573: closures and trait values
 runtime/valid/multiply-by-zero-64.hd	#573: closures and trait values
-runtime/valid/mut-bound-value-passed-on.hd	#573: closures and trait values
 runtime/valid/mut-self-primitive-arithmetic.hd	#573: closures and trait values
 runtime/valid/mut-trait-value-from-mut.hd	#573: closures and trait values
-runtime/valid/mut-trait-value-satisfies-mut-bound.hd	#573: closures and trait values
 runtime/valid/mutable-data-paths-share-identity.hd	#573: closures and trait values
 runtime/valid/mutable-provider-state.hd	#573: closures and trait values
 runtime/valid/mutable-receivers.hd	#573: closures and trait values
-runtime/valid/mutable-trait-bound.hd	#573: closures and trait values
 runtime/valid/named-arguments-evaluate-in-source-order.hd	#573: closures and trait values
 runtime/valid/named-arguments-reordered.hd	#573: closures and trait values
 runtime/valid/named-enum-payload-patterns.hd	#573: closures and trait values
@@ -873,13 +846,10 @@ runtime/valid/range-pattern-run.hd	#573: closures and trait values
 runtime/valid/range-value-copy.hd	#568: concrete keys preserve inline generic arguments
 runtime/valid/raw-identifiers-as-names.hd	#551: structs, tuples, enums and data values
 runtime/valid/raw-identifiers.hd	#573: closures and trait values
-runtime/valid/readonly-root-generic-mut-field.hd	#573: closures and trait values
-runtime/valid/readonly-root-generic-mutable-path.hd	#573: closures and trait values
 runtime/valid/receiver-method-references.hd	#573: closures and trait values
 runtime/valid/receiver-ref-mut-changes-caller.hd	#573: closures and trait values
 runtime/valid/receiver-ref-self-reads.hd	#573: closures and trait values
 runtime/valid/receiver-struct-iterator.hd	#573: closures and trait values
-runtime/valid/receiver-trait-bridge.hd	#573: closures and trait values
 runtime/valid/receiver-trait-ref-methods.hd	#573: closures and trait values
 runtime/valid/recursive-data-types.hd	#573: closures and trait values
 runtime/valid/recursive-enum-through-reference.hd	#573: closures and trait values
@@ -1159,8 +1129,6 @@ runtime/valid/typed-derivation-build-defaults.hd	#573: closures and trait values
 runtime/valid/typed-derivation-embedded-generic-walk.hd	#573: closures and trait values
 runtime/valid/typed-derivation-walk.hd	#573: closures and trait values
 runtime/valid/typeid-empty-tuple-name.hd	#573: closures and trait values
-runtime/valid/typeid-mut-names.hd	#573: closures and trait values
-runtime/valid/typeid-nested-mut-trait-argument.hd	#573: closures and trait values
 runtime/valid/typeid-of-equality.hd	#573: closures and trait values
 runtime/valid/typeid-qualified-trait-name.hd	#573: closures and trait values
 runtime/valid/typeid-same-name-modules.hd	#573: closures and trait values

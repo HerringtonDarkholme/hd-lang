@@ -83,7 +83,7 @@ fn show(value: i32??) -> string:
 fn an_optional_injects_into_a_nested_optional_at_every_site() {
     let main = format!(
         "{SHOW}
-data Cell:
+struct Cell:
     value: i32??
 
 fn returned(n: i32?) -> i32??:
@@ -131,7 +131,7 @@ value 3\nouter none\ninner none\nvalue 1\n";
 #[test]
 fn none_and_some_none_differ_for_every_payload_layout() {
     let main = "\
-data Item:
+struct Item:
     name: string
 
 fn text(value: string??) -> string:

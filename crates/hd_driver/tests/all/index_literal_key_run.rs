@@ -72,7 +72,7 @@ const TABLE: &str = "\
 use std.ops.Index
 use std.ops.IndexSet
 
-data Table:
+struct Table:
     size: i32
 
 impl Index[usize] for Table:
@@ -161,7 +161,7 @@ fn a_default_type_without_an_implementation_is_an_error() {
     let main = "\
 use std.ops.Index
 
-data Table:
+struct Table:
     size: i32
 
 impl Index[u8] for Table:

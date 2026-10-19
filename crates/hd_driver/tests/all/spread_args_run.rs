@@ -164,24 +164,6 @@ pub fn main() -> void $ Console:
 }
 
 #[test]
-fn a_list_spread_is_passed_through_without_a_copy() {
-    // The callee pushes to the caller's own list (Q-R4.2); separate
-    // arguments still collect a fresh list.
-    let main = "\
-fn grow(values...: mut List[i32]) -> void:
-    values.push(9)
-
-pub fn main() -> void $ Console:
-    let mut mine = [+1]
-    grow(mine...)
-    println(mine.len())
-    grow(5)
-    println(mine.len())
-";
-    assert_eq!(output_of("pass-through", main), "2\n2\n");
-}
-
-#[test]
 fn spread_errors() {
     let fixed = "\
 fn plain(value: i32) -> i32: value

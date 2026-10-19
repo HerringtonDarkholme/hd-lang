@@ -1,4 +1,5 @@
-//! Identity comparison, `a is b` (expr.is.*): programs build through the
+//! Identity comparison, `a is b` on references (ref.identity.*,
+//! trait.dyn.ref.identity): programs build through the
 //! driver and run on V8 (`host/run.mjs`), as the conformance runner does.
 
 use std::path::Path;
@@ -55,14 +56,8 @@ fn output_of(name: &str, main: &str) -> String {
 }
 
 const PRELUDE: &str = "\
-data User:
+struct User:
     name: string
-
-data Unit: pass
-
-data Other: pass
-
-data Marker[T]: pass
 
 impl Display for User:
     fn to_string(self) -> string:
@@ -77,9 +72,9 @@ fn run(name: &str, main: &str) -> String {
 fn one_data_value_is_itself_and_equal_values_differ() {
     let main = "\
 pub fn main() -> void $ Console:
-    ada := User { name: \"Ada\" }
+    ada := &User { name: \"Ada\" }
     alias := ada
-    twin := User { name: \"Ada\" }
+    twin := &User { name: \"Ada\" }
     println(\"${ada is alias} ${ada is twin} ${ada is ada}\")
 ";
     assert_eq!(run("data", main), "true false true\n");
@@ -103,42 +98,24 @@ pub fn main() -> void $ Console:
 fn a_data_value_is_its_trait_value_conversion() {
     let main = "\
 pub fn main() -> void $ Console:
-    ada := User { name: \"Ada\" }
-    twin := User { name: \"Ada\" }
-    let shown: dyn Display = ada
-    let erased: dyn Any = ada
-    println(\"${ada is shown} ${shown is ada} ${ada is erased} ${twin is shown} ${shown is erased}\")
+    ada := &User { name: \"Ada\" }
+    twin := &User { name: \"Ada\" }
+    let shown: &dyn Display = ada
+    let again: &dyn Display = ada
+    let other: &dyn Display = twin
+    let erased: &dyn Any = ada
+    let erased_again: &dyn Any = ada
+    println(\"${shown is again} ${again is shown} ${erased is erased_again} ${other is shown} ${erased_again is erased}\")
 ";
     assert_eq!(run("trait-value", main), "true true true false true\n");
-}
-
-#[test]
-fn fieldless_data_values_are_canonical() {
-    let main = "\
-fn make() -> Unit:
-    Unit {}
-
-pub fn main() -> void $ Console:
-    first := Unit {}
-    second := Unit {}
-    other := Other {}
-    let a: dyn Any = first
-    let b: dyn Any = other
-    let ints: Marker[i32] = Marker {}
-    let strs: Marker[string] = Marker {}
-    let ints2: Marker[i32] = Marker {}\n    let c: dyn Any = ints
-    let d: dyn Any = strs
-    println(\"${first is second} ${make() is first} ${a is b} ${c is d} ${ints is ints2}\")
-";
-    assert_eq!(run("canonical", main), "true true false false true\n");
 }
 
 #[test]
 fn distinct_identity_is_a_negated_is() {
     let main = "\
 pub fn main() -> void $ Console:
-    ada := User { name: \"Ada\" }
-    twin := User { name: \"Ada\" }
+    ada := &User { name: \"Ada\" }
+    twin := &User { name: \"Ada\" }
     println(\"${!(ada is twin)} ${!(ada is ada)}\")
 ";
     assert_eq!(run("negated", main), "true false\n");

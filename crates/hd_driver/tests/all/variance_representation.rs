@@ -31,7 +31,7 @@ const REPR: Code = Code::VarianceRepresentationChange;
 
 #[test]
 fn covariant_argument_to_a_trait_value() {
-    let src = "data Producer[+T]:
+    let src = "struct Producer[+T]:
     value: T
 
 fn widen(value: Producer[i32]) -> Producer[dyn Display]:
@@ -42,7 +42,7 @@ fn widen(value: Producer[i32]) -> Producer[dyn Display]:
 
 #[test]
 fn contravariant_argument_from_a_trait_value() {
-    let src = "data Consumer[-T]:
+    let src = "struct Consumer[-T]:
     consume: fn(T) -> void
 
 fn narrow(value: Consumer[dyn Display]) -> Consumer[i32]:
@@ -82,21 +82,8 @@ fn erase() -> fn() -> i32?:
 }
 
 #[test]
-fn permission_only_conversion_is_clean() {
-    let src = "data User:
-    name: string
-
-fn fresh() -> mut User: User { name: \"Ada\" }
-
-fn readonly_maker() -> fn() -> User:
-    fresh
-";
-    assert_eq!(codes(src), vec![]);
-}
-
-#[test]
 fn unrelated_element_stays_a_type_mismatch() {
-    let src = "data Producer[+T]:
+    let src = "struct Producer[+T]:
     value: T
 
 fn widen(value: Producer[i32]) -> Producer[string]:

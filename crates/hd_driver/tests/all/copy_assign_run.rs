@@ -70,11 +70,11 @@ fn codes_of(main: &str) -> Vec<Code> {
 }
 
 const PARTS: &str = "\
-data Timestamps:
+struct Timestamps:
     pub created: i32
     pub updated: i32
 
-data Post:
+struct Post:
     Timestamps
     id: string
 ";
@@ -85,13 +85,13 @@ fn a_copy_assignment_stores_a_copy_of_the_part() {
     let main = format!(
         "{PARTS}
 pub fn main() -> void $ Console:
-    let mut post = Post {{ Timestamps: ...Timestamps {{ created: 1, updated: 1 }}, id: \"p\" }}
+    let mut post = Post {{ Timestamps: Timestamps {{ created: 1, updated: 1 }}, id: \"p\" }}
     let mut stamps = Timestamps {{ created: 2, updated: 3 }}
-    post.Timestamps ...= stamps
+    post.Timestamps = stamps
     println(\"${{post.created}} ${{post.updated}}\")
     stamps.updated = 9
     println(\"${{post.updated}} ${{stamps.updated}}\")
-    post.Timestamps ...= Timestamps {{ created: 7, updated: 8 }}
+    post.Timestamps = Timestamps {{ created: 7, updated: 8 }}
     println(\"${{post.created}} ${{post.updated}}\")
 "
     );
@@ -102,22 +102,22 @@ pub fn main() -> void $ Console:
 fn a_copy_assignment_copies_the_parts_of_the_part() {
     // data.part.copy-update
     let main = "\
-data Clock:
+struct Clock:
     pub at: i32
 
-data Stamps:
+struct Stamps:
     Clock
     pub who: string
 
-data Post:
+struct Post:
     Stamps
     id: string
 
 pub fn main() -> void $ Console:
-    let mut post = Post { Stamps: ...Stamps { Clock: ...Clock { at: 1 }, who: \"a\" }, id: \"p\" }
-    let mut other = Stamps { Clock: ...Clock { at: 5 }, who: \"b\" }
-    post.Stamps ...= other
-    other.Clock ...= Clock { at: 6 }
+    let mut post = Post { Stamps: Stamps { Clock: Clock { at: 1 }, who: \"a\" }, id: \"p\" }
+    let mut other = Stamps { Clock: Clock { at: 5 }, who: \"b\" }
+    post.Stamps = other
+    other.Clock = Clock { at: 6 }
     println(\"${post.at} ${post.who} ${other.at}\")
 ";
     assert_eq!(output_of("nested", main), "5 b 6\n");
@@ -127,20 +127,20 @@ pub fn main() -> void $ Console:
 fn a_copy_assignment_stores_through_a_promoted_part() {
     // names.promoted.path: the part of a part is promoted to the outer value.
     let main = "\
-data Clock:
+struct Clock:
     pub at: i32
 
-data Stamps:
+struct Stamps:
     Clock
     pub who: string
 
-data Post:
+struct Post:
     Stamps
     id: string
 
 pub fn main() -> void $ Console:
-    let mut post = Post { Stamps: ...Stamps { Clock: ...Clock { at: 1 }, who: \"a\" }, id: \"p\" }
-    post.Clock ...= Clock { at: 4 }
+    let mut post = Post { Stamps: Stamps { Clock: Clock { at: 1 }, who: \"a\" }, id: \"p\" }
+    post.Clock = Clock { at: 4 }
     println(\"${post.at} ${post.who}\")
 ";
     assert_eq!(output_of("promoted", main), "4 a\n");
@@ -151,41 +151,24 @@ fn a_copy_assignment_to_a_readonly_value_is_a_readonly_root() {
     // types.path.store.readonly-root
     let main = format!(
         "{PARTS}
-fn invalid(post: Post, stamps: Timestamps) -> void:
-    post.Timestamps ...= stamps
+fn invalid(post: &Post, stamps: Timestamps) -> void:
+    post.Timestamps = stamps
 "
     );
     assert_eq!(codes_of(&main), vec![Code::ReadonlyRoot]);
 }
 
 #[test]
-fn a_readonly_copy_cannot_fill_a_mut_part() {
-    // types.path.store-embedded
-    let main = "\
-data Inner:
-    items: mut List[i32]
-
-data Outer:
-    Inner
-    id: string
-
-fn invalid(outer: mut Outer, inner: Inner) -> void:
-    outer.Inner ...= inner
-";
-    assert_eq!(codes_of(main), vec![Code::MutableUpgrade]);
-}
-
-#[test]
 fn a_copy_assignment_to_an_ordinary_field_is_an_error() {
     // data.part.marker-required
     let main = "\
-data User:
+struct User:
     name: string
 
-data Account:
+struct Account:
     owner: User
 
-fn invalid(account: mut Account, user: User) -> void:
+fn invalid(account: &mut Account, user: User) -> void:
     account.owner ...= user
 ";
     assert_eq!(codes_of(main), vec![Code::CopyIntoOrdinaryField]);
@@ -195,7 +178,7 @@ fn invalid(account: mut Account, user: User) -> void:
 fn a_copy_assignment_to_a_local_or_an_index_is_an_error() {
     // grammar.stmt.copy-assign
     let local = "\
-data User:
+struct User:
     name: string
 
 fn invalid(user: User) -> string:
@@ -205,7 +188,7 @@ fn invalid(user: User) -> string:
 ";
     assert_eq!(codes_of(local), vec![Code::CopyIntoOrdinaryField]);
     let index = "\
-data User:
+struct User:
     name: string
 
 fn invalid(user: User) -> string:
@@ -214,18 +197,6 @@ fn invalid(user: User) -> string:
     all[0].name
 ";
     assert_eq!(codes_of(index), vec![Code::CopyIntoOrdinaryField]);
-}
-
-#[test]
-fn a_plain_assignment_to_an_embedded_field_asks_for_the_copy_marker() {
-    // data.part.marker-required
-    let main = format!(
-        "{PARTS}
-fn invalid(post: mut Post, stamps: Timestamps) -> void:
-    post.Timestamps = stamps
-"
-    );
-    assert_eq!(codes_of(&main), vec![Code::EmbeddedCopyRequired]);
 }
 
 #[test]

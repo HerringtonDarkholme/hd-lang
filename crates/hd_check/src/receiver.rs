@@ -130,7 +130,7 @@ impl Ck<'_, '_> {
             return false;
         };
         let msg = format!(
-            "{} implements {} with `&mut self` for `{}`, which the trait declares `mut self`; until the trait takes `&mut self`, that serves only calls on a {} itself, not this use through the trait",
+            "{} implements {} with `&mut self` for `{}`, which the trait declares `&mut self`; until the trait takes `&mut self`, that serves only calls on a {} itself, not this use through the trait",
             self.show(tref.self_ty),
             self.cx.names.display_name(tref.trait_),
             self.cx.names.text(m),

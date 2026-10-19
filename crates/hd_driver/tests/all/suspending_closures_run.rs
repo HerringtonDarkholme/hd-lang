@@ -161,7 +161,7 @@ fn retry_n![$R](times: i32, attempt: fn!() -> bool $ R) -> i32 $ R:
 fn a_defer_in_a_closure_runs_when_its_body_completes() {
     let main = program(
         "\
-    let log: mut List[string] = []
+    let mut log: List[string] = []
     guarded := fn!(n: i32) -> i32 $ Clock:
         log.push(\"start $n\")
         defer:
@@ -181,7 +181,7 @@ fn a_defer_in_a_closure_runs_when_its_body_completes() {
 fn race_cancels_a_losing_closure_and_runs_its_defer() {
     let main = program(
         "\
-    let log: mut List[string] = []
+    let mut log: List[string] = []
     guarded := fn!(n: i32, ms: i64) -> i32 $ Clock:
         log.push(\"start $n\")
         defer:

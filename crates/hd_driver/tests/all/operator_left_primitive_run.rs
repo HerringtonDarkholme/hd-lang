@@ -70,7 +70,7 @@ fn codes_of(main: &str) -> Vec<Code> {
 const MONEY_LEFT: &str = "\
 use std.ops.Mul
 
-data Money:
+struct Money:
     cents: i64
 
 impl Mul[Money] for i64:
@@ -82,7 +82,7 @@ impl Mul[Money] for i64:
 const MONEY_RIGHT: &str = "\
 use std.ops.Mul
 
-data Money:
+struct Money:
     cents: i64
 
 impl Mul[i64] for Money:
@@ -184,7 +184,7 @@ fn other_operators_and_floats_select_by_the_left_type() {
 use std.ops.Add
 use std.ops.Shl
 
-data Money:
+struct Money:
     cents: i64
 
 impl Add[Money] for f64:
@@ -215,7 +215,7 @@ fn a_literal_right_operand_selects_the_fitting_instantiation() {
     let main = "\
 use std.ops.Add
 
-data Money:
+struct Money:
     cents: i64
 
 impl Add[Money] for Money:

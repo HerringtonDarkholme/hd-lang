@@ -16,10 +16,10 @@ pub trait Supplier:
     type Item
     fn get(self) -> Self::Item
 
-pub data Ints:
+pub struct Ints:
     pub value: i32
 
-pub data Words:
+pub struct Words:
     pub value: string
 
 impl Supplier for Ints:

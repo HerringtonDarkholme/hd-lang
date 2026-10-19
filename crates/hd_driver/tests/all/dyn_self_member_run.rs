@@ -78,7 +78,7 @@ trait Shape:
     fn pick[T](self, x: T) -> T
     fn many[T](self, xs: List[T]) -> List[T]
 
-data Sq:
+struct Sq:
     n: i32
 
 impl Shape for Sq:
@@ -192,7 +192,7 @@ trait Base:
 trait Sub < Base:
     fn extra(self) -> i32
 
-data D:
+struct D:
     n: i32
 
 impl Base for D:
@@ -237,7 +237,7 @@ trait Bag:
     type Item
     fn first(self) -> Self::Item
 
-data D:
+struct D:
     n: i32
 
 impl Bag for D:

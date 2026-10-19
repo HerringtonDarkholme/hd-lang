@@ -77,7 +77,7 @@ trait Channel < Display:
     fn send(self, message: string) -> string
     fn urgent(self, message: string) -> string: self.send(message.upper())
 
-data Email:
+struct Email:
     address: string
 
 impl Display for Email:
@@ -86,7 +86,7 @@ impl Display for Email:
 impl Channel for Email:
     fn send(self, message: string) -> string: \"to ${self.address}: ${message}\"
 
-data Pager:
+struct Pager:
     number: i32
 
 impl Display for Pager:
@@ -211,41 +211,12 @@ pub fn main() -> void $ Console:
     assert_eq!(output_of("reference", &main), "page 7: ping\n");
 }
 
-#[test]
-fn a_mut_trait_value_satisfies_a_mut_bound() {
-    let main = "\
-trait Counter:
-    fn bump(mut self) -> void
-    fn count(self) -> i32
-
-data Visits:
-    total: i32
-
-impl Counter for Visits:
-    fn bump(mut self) -> void:
-        self.total = self.total + 1
-    fn count(self) -> i32: self.total
-
-fn bump_twice[C < mut Counter](counter: C) -> i32:
-    counter.bump()
-    counter.bump()
-    counter.count()
-
-pub fn main() -> void $ Console:
-    let visits: mut Visits = Visits { total: 1 }
-    let counter: mut dyn Counter = visits
-    println(bump_twice(counter))
-    println(visits.total)
-";
-    assert_eq!(output_of("mut-bound", main), "3\n3\n");
-}
-
 /// A generic erasure and an error type for the erasure cases below.
 const ERASURE: &str = "\
 use std.error.Error
 use std.inspect.{Inspectable, TypeId}
 
-data Missing:
+struct Missing:
     path: string
 
 impl Display for Missing:

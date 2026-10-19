@@ -68,7 +68,7 @@ fn output_of(name: &str, files: &[(&str, &str)]) -> String {
 fn std_eq_and_debug_derive_on_data_and_enums() {
     let main = "\
 @derive(Eq, Debug)
-data Point:
+struct Point:
     x: i32
     label: string
 
@@ -176,7 +176,7 @@ pub fn main() -> void $ Console:
 fn a_generic_type_derives_under_its_parameter_bound() {
     let main = "\
 @derive(Eq, Debug)
-data Box[T]:
+struct Box[T]:
     value: T
     count: i32
 
@@ -246,7 +246,7 @@ impl[T] Fill for T by Structure:
             .Err(message) => panic(message)
 
 @derive(Fill, Debug)
-data Order:
+struct Order:
     id: i64
     label: string
 
@@ -256,7 +256,7 @@ enum Event:
     Move(dx: i64, dy: i64)
 
 @derive(Debug)
-data Box[T]:
+struct Box[T]:
     value: T
 
 impl[T < FromNum] Fill for Box[T] by Structure
@@ -314,7 +314,7 @@ impl[T] Show for T by Structure:
 use pkg.show.Show
 
 @derive(Show)
-data Point:
+struct Point:
     x: i32
     y: i32
 

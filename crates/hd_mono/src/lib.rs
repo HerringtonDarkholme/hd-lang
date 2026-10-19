@@ -2076,7 +2076,7 @@ impl Cx<'_> {
             && self.bridged(impl_, m, method)
         {
             return err(
-                "a struct's `&mut self` method reached through a trait method declared `mut self`",
+                "a struct's `&mut self` method reached through a trait method declared `&mut self`",
             );
         }
         match found {

@@ -42,7 +42,7 @@ const MONEY: &[(&str, &str)] = &[
     ("money/hd.toml", "[package]\nname = \"money\"\n"),
     (
         "money/src/lib.hd",
-        "## Money helpers.\n\n## Turns euros into cents.\npub fn cents(euros: i32) -> i32:\n    euros * 100\n\n## A sum.\npub data Sum:\n    pub n: i32\n\nimpl Sum:\n    ## Doubles.\n    pub fn double(self) -> Sum: self\n",
+        "## Money helpers.\n\n## Turns euros into cents.\npub fn cents(euros: i32) -> i32:\n    euros * 100\n\n## A sum.\npub struct Sum:\n    pub n: i32\n\nimpl Sum:\n    ## Doubles.\n    pub fn double(self) -> Sum: self\n",
     ),
 ];
 
@@ -63,7 +63,7 @@ use pkg.{total}
 use dep.money.{Sum, cents}
 
 ## A cart that costs [`cents`], [`Sum.double`], [`Sum.n`] and [`sluggify`], not [`Sum.nope`].
-pub data Cart:
+pub struct Cart:
     pub n: i32
 
 impl Cart:

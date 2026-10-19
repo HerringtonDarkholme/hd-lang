@@ -35,7 +35,7 @@ const PRELUDE: &str = "\
 trait Show:
     fn show(self) -> string
 
-data Point:
+struct Point:
     x: i64
 ";
 

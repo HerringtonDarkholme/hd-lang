@@ -994,12 +994,17 @@ impl<'a> ItemCheck<'_, 'a> {
                 }
                 self.check_bound(t)?;
             }
-            TyData::Mut(i) if self.is_struct(i) => {
-                // `types.value.no-mut`: a struct is a value with no views.
-                let message = format!(
-                    "{} is a struct, a value with no `mut` form; a `let mut` binding changes its fields",
-                    self.show(i)
-                );
+            TyData::Mut(i) if !self.keeps_mut(i) => {
+                // `types.value.no-mut.any`: a value has no `mut` form; only
+                // `mut Suspend[T]` and a type parameter keep one.
+                let message = if self.is_struct(i) {
+                    format!(
+                        "{} is a struct, a value with no `mut` form; a `let mut` binding changes its fields",
+                        self.show(i)
+                    )
+                } else {
+                    format!("{} has no `mut` form", self.show(i))
+                };
                 self.report(slot, Code::MutOnStruct, message);
                 self.check_ty(i, slot)?;
             }
@@ -1027,6 +1032,16 @@ impl<'a> ItemCheck<'_, 'a> {
             _ => {}
         }
         Ok(())
+    }
+
+    /// Whether a written `mut t` is accepted: `t` is a `Suspend[T]`, or a
+    /// type parameter, whose `mut` bounds decide.
+    fn keeps_mut(&self, t: Ty) -> bool {
+        match self.pool().get(t) {
+            TyData::Adt { def, .. } => def == self.cx.names.known.suspend,
+            TyData::Param(_) | TyData::Infer(_) => true,
+            _ => matches!(t, Ty::POISON | Ty::NEVER),
+        }
     }
 
     /// Whether `t` is a struct type (`data.struct.decl`).

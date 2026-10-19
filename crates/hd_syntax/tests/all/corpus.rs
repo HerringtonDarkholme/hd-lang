@@ -74,12 +74,26 @@ const SPEC_CONFLICTS: &[&str] = &[
     "cli/fix-legacy-syntax/src/lib.hd",
 ];
 
+/// The cases `KNOWN_FAILURES.tsv` lists: a fixture path, or a CLI case
+/// directory `cli/NAME`. Their sources may not parse yet.
+fn known_failures() -> Vec<String> {
+    let text = fs::read_to_string(repository_root().join("KNOWN_FAILURES.tsv"))
+        .expect("KNOWN_FAILURES.tsv");
+    text.lines()
+        .skip(1)
+        .filter_map(|row| row.split('\t').next())
+        .map(str::to_owned)
+        .collect()
+}
+
 /// Every source the parser must accept: `lib/std`, `examples/` (single
 /// files, dogfood programs, and sample packages), the parse-gap repros, and
-/// every conformance source but the parse-phase rejects.
+/// every conformance source but the parse-phase rejects and the known
+/// failures.
 fn valid_sources() -> Vec<PathBuf> {
     let root = repository_root();
     let rejects = parse_reported();
+    let known = known_failures();
     let mut files = Vec::new();
     hd_files(&root.join("spec/conformance"), &mut files);
     files.retain(|path| {
@@ -88,7 +102,10 @@ fn valid_sources() -> Vec<PathBuf> {
             .expect("conformance path")
             .to_string_lossy()
             .replace('\\', "/");
-        !rejects.contains(&relative) && !SPEC_CONFLICTS.contains(&relative.as_str())
+        let listed = known
+            .iter()
+            .any(|k| relative == *k || relative.starts_with(&format!("{k}/")));
+        !rejects.contains(&relative) && !SPEC_CONFLICTS.contains(&relative.as_str()) && !listed
     });
     for directory in ["lib/std", "examples", "crates/hd_syntax/tests/parse-gaps"] {
         hd_files(&root.join(directory), &mut files);

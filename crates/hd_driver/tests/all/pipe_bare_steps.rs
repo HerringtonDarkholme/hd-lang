@@ -98,7 +98,7 @@ pub fn main() -> void $ Console:
 #[test]
 fn a_method_step_and_a_method_reference_step_call_the_method() {
     let main = "\
-data Scale:
+struct Scale:
     factor: i32
 
 impl Scale:

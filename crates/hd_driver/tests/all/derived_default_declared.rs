@@ -90,11 +90,11 @@ fn a_declared_default_needs_no_default_on_its_type() {
     let main = "\
 use std.ops.Default
 
-data Secret:
+struct Secret:
     value: i32
 
 @derive(Default)
-data Vault:
+struct Vault:
     secret: Secret = Secret { value: 7 }
     count: i32 = +5
     plain: i32
@@ -115,14 +115,14 @@ fn the_declared_default_runs_once_per_default() {
     let main = "\
 use std.ops.Default
 
-data Secret:
+struct Secret:
     value: i32
 
 fn seven() -> i32:
     7
 
 @derive(Default)
-data Vault:
+struct Vault:
     secret: Secret = Secret { value: seven() }
 
 pub fn main() -> void $ Console:
@@ -137,11 +137,11 @@ fn a_member_without_a_default_still_needs_one() {
     let main = "\
 use std.ops.Default
 
-data Secret:
+struct Secret:
     value: i32
 
 @derive(Default)
-data Vault:
+struct Vault:
     secret: Secret
     other: Secret = Secret { value: 7 }
 ";
@@ -156,7 +156,7 @@ fn an_enum_payload_member_still_needs_default() {
     let main = "\
 use std.ops.{Default, default}
 
-data Secret:
+struct Secret:
     value: i32
 
 @derive(Default)

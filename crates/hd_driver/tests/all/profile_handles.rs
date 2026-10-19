@@ -16,16 +16,16 @@ pub enum IoError:
     Closed
 
 pub trait FileHandle:
-    fn read!(mut self) -> Result[string, IoError]
-    fn close(mut self) -> Result[void, IoError]
+    fn read!(&mut self) -> Result[string, IoError]
+    fn close(&mut self) -> Result[void, IoError]
 ";
 
 const MAIN: &str = "
 pub trait Files:
-    fn open!(self) -> mut dyn FileHandle
+    fn open!(self) -> &mut dyn FileHandle
 
 pub fn main!() -> void $ Files:
-    let handle: mut dyn FileHandle = $.use(Files).open!()
+    let handle: &mut dyn FileHandle = $.use(Files).open!()
     let _ = handle.close()
     let _ = handle.read!()
 ";
@@ -101,7 +101,7 @@ fn a_returned_profile_trait_value_is_a_handle_whose_methods_take_its_number() {
 
 #[test]
 fn a_handle_trait_that_its_own_method_returns_stops_at_link() {
-    let text = format!("{FILES}    fn again(self) -> mut dyn FileHandle\n{MAIN}");
+    let text = format!("{FILES}    fn again(self) -> &mut dyn FileHandle\n{MAIN}");
     let out = build(&text, &["Files", "FileHandle"]);
     assert!(out.wasm.is_none());
     assert!(
@@ -119,7 +119,7 @@ fn a_self_returning_handle_method_stops_at_link_after_the_handle_free_build() {
     let traits = ["Files", "FileHandle"];
     let free = build_in(&store, &format!("{FILES}{MAIN}"), &traits);
     assert!(free.wasm.is_some(), "{}", free.render());
-    let text = format!("{FILES}    fn again(self) -> mut dyn FileHandle\n{MAIN}");
+    let text = format!("{FILES}    fn again(self) -> &mut dyn FileHandle\n{MAIN}");
     let out = build_in(&store, &text, &traits);
     assert!(out.wasm.is_none());
     assert!(

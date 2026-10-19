@@ -14,7 +14,7 @@ use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
 /// A private data type and a private trait.
-const PRELUDE: &str = "data Hidden:\n    n: i32\n\ntrait Tag:\n    fn tag(self) -> i32\n\n";
+const PRELUDE: &str = "struct Hidden:\n    n: i32\n\ntrait Tag:\n    fn tag(self) -> i32\n\n";
 /// The lines `PRELUDE` takes, so a position counts from the first line of
 /// the body under test.
 const PRELUDE_LINES: usize = 6;
@@ -81,7 +81,7 @@ fn each_position_reports_once() {
 #[test]
 fn a_public_field_is_a_position() {
     assert_eq!(
-        leaks("pub data Shown:\n    pub h: Hidden\n    n: i32\n"),
+        leaks("pub struct Shown:\n    pub h: Hidden\n    n: i32\n"),
         [(2, 12)]
     );
 }
@@ -89,14 +89,14 @@ fn a_public_field_is_a_position() {
 #[test]
 fn an_embedded_field_is_always_public() {
     assert_eq!(
-        leaks("pub data Shown:\n    Hidden\n    title: string\n"),
+        leaks("pub struct Shown:\n    Hidden\n    title: string\n"),
         [(2, 5)]
     );
 }
 
 #[test]
 fn a_private_field_of_a_public_type_is_no_leak() {
-    accepts("pub data Shown:\n    pub n: i32\n    h: Hidden\n");
+    accepts("pub struct Shown:\n    pub n: i32\n    h: Hidden\n");
 }
 
 #[test]
@@ -135,7 +135,10 @@ fn a_bound_is_a_position() {
 
 #[test]
 fn a_bound_of_a_public_type_is_a_position() {
-    assert_eq!(leaks("pub data Shown[T < Tag]:\n    pub x: T\n"), [(1, 1)]);
+    assert_eq!(
+        leaks("pub struct Shown[T < Tag]:\n    pub x: T\n"),
+        [(1, 1)]
+    );
 }
 
 #[test]
@@ -149,7 +152,7 @@ fn a_supertrait_is_a_position() {
 #[test]
 fn a_generic_default_is_a_position() {
     assert_eq!(
-        leaks("pub data Shown[T = Hidden]:\n    pub x: T\n"),
+        leaks("pub struct Shown[T = Hidden]:\n    pub x: T\n"),
         [(1, 1)]
     );
 }
@@ -171,7 +174,7 @@ fn nested_forms_report_at_their_position() {
         ("pub fn f() -> List[Hidden]:\n    []\n", 15),
         ("pub fn f(p: (i32, Hidden)) -> i32: 0\n", 13),
         ("pub fn f(m: Map[string, List[Hidden]]) -> i32: 0\n", 13),
-        ("pub fn f(xs: mut List[Hidden]) -> i32: 0\n", 14),
+        ("pub fn f(xs: &mut List[Hidden]) -> i32: 0\n", 14),
     ] {
         assert_eq!(leaks(sig), [(1, column)], "{sig}");
     }
@@ -202,7 +205,7 @@ fn a_public_trait_method_is_a_position() {
 fn a_public_inherent_method_is_a_position() {
     assert_eq!(
         leaks(
-            "pub data Shown:\n    pub n: i32\n\nimpl Shown:\n    pub fn take(self, h: Hidden) -> i32: h.n\n"
+            "pub struct Shown:\n    pub n: i32\n\nimpl Shown:\n    pub fn take(self, h: Hidden) -> i32: h.n\n"
         ),
         [(5, 26)]
     );
@@ -211,21 +214,21 @@ fn a_public_inherent_method_is_a_position() {
 #[test]
 fn a_private_inherent_method_is_no_leak() {
     accepts(
-        "pub data Shown:\n    pub n: i32\n\nimpl Shown:\n    fn take(self, h: Hidden) -> i32: h.n\n",
+        "pub struct Shown:\n    pub n: i32\n\nimpl Shown:\n    fn take(self, h: Hidden) -> i32: h.n\n",
     );
 }
 
 #[test]
 fn a_public_method_of_a_private_type_is_no_leak() {
     accepts(
-        "data Inner:\n    n: i32\n\nimpl Inner:\n    pub fn take(self, h: Hidden) -> i32: h.n\n",
+        "struct Inner:\n    n: i32\n\nimpl Inner:\n    pub fn take(self, h: Hidden) -> i32: h.n\n",
     );
 }
 
 #[test]
 fn a_private_declaration_may_name_private_ones() {
     accepts(
-        "data Wrap:\n    pub h: Hidden\n    Hidden\n\n\
+        "struct Wrap:\n    pub h: Hidden\n    Hidden\n\n\
          type Alias = Hidden\n\
          type Base(Hidden)\n\
          trait Sub < Tag:\n    fn sub(self) -> Hidden\n\n\
@@ -246,7 +249,7 @@ fn a_private_item_in_a_public_body_is_no_leak() {
 #[test]
 fn public_types_in_public_signatures_are_no_leak() {
     accepts(
-        "pub data Open:\n    pub n: i32\n\n\
+        "pub struct Open:\n    pub n: i32\n\n\
          pub trait Shape:\n    fn area(self) -> i32\n\n\
          pub type Names = List[string]\n\
          type Hidden2 = Open\n\
@@ -258,14 +261,14 @@ fn public_types_in_public_signatures_are_no_leak() {
 #[test]
 fn a_private_alias_of_a_public_type_is_no_leak() {
     accepts(
-        "pub data Open:\n    pub n: i32\n\ntype Alias = Open\n\npub fn take(o: Alias) -> Alias: o\n",
+        "pub struct Open:\n    pub n: i32\n\ntype Alias = Open\n\npub fn take(o: Alias) -> Alias: o\n",
     );
 }
 
 #[test]
 fn a_trait_implementation_is_no_leak() {
     accepts(
-        "pub data Open:\n    pub n: i32\n\nimpl Tag for Open:\n    fn tag(self) -> i32: self.n\n",
+        "pub struct Open:\n    pub n: i32\n\nimpl Tag for Open:\n    fn tag(self) -> i32: self.n\n",
     );
 }
 
@@ -278,7 +281,7 @@ fn a_leak_in_a_library_module_is_reported() {
         ),
         (
             "shop.hd",
-            "data Secret:\n    n: i32\n\npub data Open:\n    pub s: Secret\n",
+            "struct Secret:\n    n: i32\n\npub struct Open:\n    pub s: Secret\n",
         ),
     ]);
     let codes: Vec<Code> = out.diags.code.clone();
@@ -294,12 +297,12 @@ fn a_public_use_of_a_public_type_in_another_module_is_no_leak() {
             "main.hd",
             "use pkg.shop.{Open}\n\npub fn wrap(o: Open) -> Open: o\n\npub fn main() -> void:\n    pass\n",
         ),
-        ("shop.hd", "pub data Open:\n    pub n: i32\n"),
+        ("shop.hd", "pub struct Open:\n    pub n: i32\n"),
     ]);
     assert!(!out.diags.has_errors(), "{}", out.render());
 }
 
-const MAKE: &str = "pub trait Make:\n    type Out\n    fn make(self) -> Self::Out\n\npub data Maker:\n    k: i32\n\n";
+const MAKE: &str = "pub trait Make:\n    type Out\n    fn make(self) -> Self::Out\n\npub struct Maker:\n    k: i32\n\n";
 
 #[test]
 fn a_public_impls_associated_type_binding_is_a_position() {
@@ -312,6 +315,6 @@ fn a_public_impls_associated_type_binding_is_a_position() {
 #[test]
 fn an_impl_with_a_private_target_may_bind_a_private_type() {
     accepts(&format!(
-        "{MAKE}data Inner:\n    k: i32\n\nimpl Make for Inner:\n    type Out = Hidden\n    fn make(self) -> Hidden: Hidden {{ n: self.k }}\n"
+        "{MAKE}struct Inner:\n    k: i32\n\nimpl Make for Inner:\n    type Out = Hidden\n    fn make(self) -> Hidden: Hidden {{ n: self.k }}\n"
     ));
 }

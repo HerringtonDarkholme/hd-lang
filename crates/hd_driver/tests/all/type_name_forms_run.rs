@@ -1,11 +1,11 @@
 //! A type name written where a value is needed, and a name that reaches no
 //! type or trait in a body (spec/lang/03-names-and-scopes.md,
-//! names.type-as-value; spec/lang/04-type-system.md, types.newtype.construct,
-//! types.newtype.unwrap-permission; spec/lang/11-requirements-and-suspension.md,
-//! req.key.in-scope): the base type's constructor unwraps a newtype, any
-//! other call of a type name is `type-used-as-value`, an unknown type is
-//! `unknown-type`, an unknown key is `unknown-trait`, and a trait's own
-//! parameter is a type in its default methods. Programs build through the
+//! names.type-as-value; spec/lang/04-type-system.md, types.newtype.construct;
+//! spec/lang/11-requirements-and-suspension.md, req.key.in-scope): the base
+//! type's constructor unwraps a newtype, any other call of a type name is
+//! `type-used-as-value`, an unknown type is `unknown-type`, an unknown key
+//! is `unknown-trait`, and a trait's own parameter is a type in its default
+//! methods. Programs build through the
 //! driver and run on V8 (`host/run.mjs`), as the conformance runner does.
 
 use std::path::Path;
@@ -72,13 +72,13 @@ fn codes_of(main: &str) -> Vec<Code> {
 }
 
 const NEWTYPES: &str = "\
-data Draft:
+struct Draft:
     lines: List[string]
 
 type Order(Draft)
 type Sheet = Draft
 
-data Box[T]:
+struct Box[T]:
     item: T
 
 type Crate[T](Box[T])
@@ -90,14 +90,14 @@ type Mile(i32)
 fn the_base_type_constructor_unwraps_a_newtype() {
     let main = format!(
         "{NEWTYPES}
-fn reopen(order: mut Order) -> void:
-    let editable: mut Draft = Draft(order)
+fn reopen(order: Order) -> Order:
+    let mut editable = Draft(order)
     editable.lines = [\"reopened\"]
+    Order(editable)
 
 pub fn main() -> void $ Console:
-    let draft: mut Draft = Draft {{ lines: [\"first\"] }}
-    let order: mut Order = Order(draft)
-    reopen(order)
+    draft := Draft {{ lines: [\"first\"] }}
+    order := reopen(Order(draft))
     println(Draft(order).lines[0])
 "
     );
@@ -138,17 +138,6 @@ pub fn main() -> void $ Console:
 "
     );
     assert_eq!(output_of("primitive", &main), "10\n");
-}
-
-#[test]
-fn unwrapping_a_readonly_newtype_gives_a_readonly_base() {
-    let main = format!(
-        "{NEWTYPES}
-fn invalid(sent: Order) -> void:
-    let _frozen: mut Draft = Draft(sent)
-"
-    );
-    assert_eq!(codes_of(&main), vec![Code::MutableUpgrade]);
 }
 
 #[test]
@@ -231,21 +220,21 @@ fn a_key_that_reaches_no_trait_is_unknown() {
 fn a_default_method_names_its_traits_own_parameter() {
     let main = "\
 trait Source[T]:
-    fn next(mut self) -> T?
-    fn second(mut self) -> T?:
+    fn next(&mut self) -> T?
+    fn second(&mut self) -> T?:
         let _first: T? = self.next()
         self.next()
 
-data Counter:
+struct Counter:
     n: i32
 
 impl Source[i32] for Counter:
-    fn next(mut self) -> i32?:
+    fn next(&mut self) -> i32?:
         self.n = self.n + 1
         .Some(self.n)
 
 pub fn main() -> void $ Console:
-    let counter: mut Counter = Counter { n: 0 }
+    let mut counter = Counter { n: 0 }
     match counter.second():
         .Some(value) => println(value)
         .None => println(0)

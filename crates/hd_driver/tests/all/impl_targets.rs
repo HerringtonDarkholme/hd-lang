@@ -124,7 +124,7 @@ fn the_reflexive_from_is_a_bare_parameter_target() {
 #[test]
 fn a_bare_parameter_target_with_a_delegation_is_rejected() {
     rejects_main(
-        "trait Describe:\n    fn describe(self) -> string\n\ndata Inner:\n    n: i32\n\nimpl[T] Describe for T by inner\n",
+        "trait Describe:\n    fn describe(self) -> string\n\nstruct Inner:\n    n: i32\n\nimpl[T] Describe for T by inner\n",
         Code::BareParameterImplTarget,
     );
 }
@@ -132,7 +132,7 @@ fn a_bare_parameter_target_with_a_delegation_is_rejected() {
 #[test]
 fn a_constructor_target_over_a_parameter_is_valid() {
     accepts_main(&format!(
-        "{DESCRIBE}data Box[T]:\n    value: T\n\nimpl[T] Describe for Box[T]:\n    fn describe(self) -> string:\n        \"box\"\n\nimpl[T] Describe for T?:\n    fn describe(self) -> string:\n        \"maybe\"\n\nimpl[T] Describe for List[T]:\n    fn describe(self) -> string:\n        \"list\"\n"
+        "{DESCRIBE}struct Box[T]:\n    value: T\n\nimpl[T] Describe for Box[T]:\n    fn describe(self) -> string:\n        \"box\"\n\nimpl[T] Describe for T?:\n    fn describe(self) -> string:\n        \"maybe\"\n\nimpl[T] Describe for List[T]:\n    fn describe(self) -> string:\n        \"list\"\n"
     ));
 }
 
@@ -155,11 +155,11 @@ fn the_standard_numeric_families_stay_valid() {
 #[test]
 fn an_outer_mut_target_is_one_error_and_its_body_is_left_out() {
     rejects_main(
-        "data Counter:\n    value: i32\n\nimpl mut Counter:\n    fn reset(mut self) -> void:\n        self.value = 0\n        missing_name\n",
+        "struct Counter:\n    value: i32\n\nimpl mut Counter:\n    fn reset(&mut self) -> void:\n        self.value = 0\n        missing_name\n",
         Code::MutableImplTarget,
     );
     rejects_main(
-        "data Counter:\n    value: i32\n\ntrait Marker\n\nimpl Marker for mut Counter\n",
+        "struct Counter:\n    value: i32\n\ntrait Marker\n\nimpl Marker for mut Counter\n",
         Code::MutableImplTarget,
     );
 }
@@ -167,7 +167,7 @@ fn an_outer_mut_target_is_one_error_and_its_body_is_left_out() {
 #[test]
 fn a_mut_inside_the_head_is_valid() {
     accepts_main(
-        "data User:\n    name: string\n\ndata Shelf:\n    n: i32\n\ntrait Store[T]\n\nimpl Store[User] for Shelf\nimpl Store[mut User] for Shelf\n",
+        "struct User:\n    name: string\n\nstruct Shelf:\n    n: i32\n\ntrait Store[T]\n\nimpl Store[User] for Shelf\nimpl Store[mut Suspend[User]] for Shelf\n",
     );
 }
 
@@ -203,7 +203,7 @@ fn an_orphan_impl_is_left_out_of_the_overlap_check() {
 #[test]
 fn a_local_trait_argument_gives_ownership() {
     accepts_main(
-        "use std.ops.Add\n\ndata Money:\n    cents: i64\n\nimpl Add[Money] for i32:\n    type Out = Money\n    fn add(self, rhs: Money) -> Money:\n        rhs\n",
+        "use std.ops.Add\n\nstruct Money:\n    cents: i64\n\nimpl Add[Money] for i32:\n    type Out = Money\n    fn add(self, rhs: Money) -> Money:\n        rhs\n",
     );
 }
 
@@ -227,7 +227,7 @@ fn an_inherent_impl_of_a_foreign_type_is_an_orphan() {
 fn an_inherent_impl_of_a_dependency_type_is_an_orphan() {
     let out = analyze_with_dependency(
         "use dep.ext.Gadget\n\nimpl Gadget:\n    fn size(self) -> i32:\n        1\n",
-        "pub data Gadget:\n    pub n: i32\n",
+        "pub struct Gadget:\n    pub n: i32\n",
     );
     assert_eq!(codes(&out), vec![Code::OrphanImpl], "{}", out.render());
 }
@@ -236,7 +236,7 @@ fn an_inherent_impl_of_a_dependency_type_is_an_orphan() {
 fn a_dependency_trait_for_a_dependency_type_is_an_orphan() {
     let out = analyze_with_dependency(
         "use dep.ext.{Gadget, Sized}\n\nimpl Sized for Gadget:\n    fn size(self) -> i32:\n        1\n",
-        "pub trait Sized:\n    fn size(self) -> i32\n\npub data Gadget:\n    pub n: i32\n",
+        "pub trait Sized:\n    fn size(self) -> i32\n\npub struct Gadget:\n    pub n: i32\n",
     );
     assert_eq!(codes(&out), vec![Code::OrphanImpl], "{}", out.render());
 }
@@ -244,7 +244,7 @@ fn a_dependency_trait_for_a_dependency_type_is_an_orphan() {
 #[test]
 fn a_dependency_trait_for_a_local_type_is_valid() {
     let out = analyze_with_dependency(
-        "use dep.ext.Sized\n\ndata Local:\n    n: i32\n\nimpl Sized for Local:\n    fn size(self) -> i32:\n        self.n\n",
+        "use dep.ext.Sized\n\nstruct Local:\n    n: i32\n\nimpl Sized for Local:\n    fn size(self) -> i32:\n        self.n\n",
         "pub trait Sized:\n    fn size(self) -> i32\n",
     );
     assert_eq!(codes(&out), vec![], "{}", out.render());
@@ -257,12 +257,12 @@ fn an_inherent_impl_on_a_tuple_or_an_alias_is_invalid_not_an_orphan() {
         Code::InvalidImplTarget,
     );
     rejects_main(
-        "data User:\n    name: string\n\ntype Person = User\n\nimpl Person:\n    fn label(self) -> string:\n        self.name\n",
+        "struct User:\n    name: string\n\ntype Person = User\n\nimpl Person:\n    fn label(self) -> string:\n        self.name\n",
         Code::InvalidImplTarget,
     );
     let out = analyze_with_dependency(
         "use dep.ext.Gadget\n\ntype Alias = Gadget\n\nimpl Alias:\n    fn size(self) -> i32:\n        1\n",
-        "pub data Gadget:\n    pub n: i32\n",
+        "pub struct Gadget:\n    pub n: i32\n",
     );
     assert_eq!(
         codes(&out),
@@ -275,13 +275,13 @@ fn an_inherent_impl_on_a_tuple_or_an_alias_is_invalid_not_an_orphan() {
 #[test]
 fn an_inherent_impl_on_a_local_type_is_valid() {
     accepts_main(
-        "data Counter:\n    value: i32\n\nimpl Counter:\n    fn bump(self) -> i32:\n        self.value + 1\n\nimpl[T] Box[T]:\n    fn get(self) -> T:\n        self.value\n\ndata Box[T]:\n    value: T\n",
+        "struct Counter:\n    value: i32\n\nimpl Counter:\n    fn bump(self) -> i32:\n        self.value + 1\n\nimpl[T] Box[T]:\n    fn get(self) -> T:\n        self.value\n\nstruct Box[T]:\n    value: T\n",
     );
 }
 
 // trait.own.module.*, trait.own.dyn-inherent.*
 
-const ALPHA: &str = "pub trait Greeter:\n    fn greet(self) -> string\n\npub data Person:\n    pub name: string\n\npub data Money:\n    pub cents: i64\n";
+const ALPHA: &str = "pub trait Greeter:\n    fn greet(self) -> string\n\npub struct Person:\n    pub name: string\n\npub struct Money:\n    pub cents: i64\n";
 
 #[test]
 fn a_trait_impl_outside_the_module_of_the_trait_or_target_is_nonlocal() {
@@ -304,7 +304,7 @@ fn a_trait_impl_in_the_module_of_the_trait_or_target_is_valid() {
         ("alpha.hd", ALPHA),
         (
             "beta.hd",
-            "use pkg.alpha.Greeter\n\ndata Local:\n    n: i32\n\nimpl Greeter for Local:\n    fn greet(self) -> string:\n        \"hi\"\n",
+            "use pkg.alpha.Greeter\n\nstruct Local:\n    n: i32\n\nimpl Greeter for Local:\n    fn greet(self) -> string:\n        \"hi\"\n",
         ),
         (
             "gamma.hd",
@@ -312,7 +312,7 @@ fn a_trait_impl_in_the_module_of_the_trait_or_target_is_valid() {
         ),
         (
             "alpha2.hd",
-            "pub data Gadget:\n    pub n: i32\n\nimpl Gadget:\n    pub fn size(self) -> i32:\n        self.n\n",
+            "pub struct Gadget:\n    pub n: i32\n\nimpl Gadget:\n    pub fn size(self) -> i32:\n        self.n\n",
         ),
     ]);
     // The module of the target takes the trait of another module.
@@ -323,7 +323,7 @@ fn a_trait_impl_in_the_module_of_the_trait_or_target_is_valid() {
         ),
         (
             "delta.hd",
-            "use pkg.gamma.Named\n\npub data Part:\n    pub n: i32\n\nimpl Named for Part:\n    fn name(self) -> string:\n        \"p\"\n",
+            "use pkg.gamma.Named\n\npub struct Part:\n    pub n: i32\n\nimpl Named for Part:\n    fn name(self) -> string:\n        \"p\"\n",
         ),
     ]);
 }
@@ -334,12 +334,12 @@ fn a_trait_argument_gives_module_ownership_only_in_its_own_module() {
     accepts(&[(
         "alpha.hd",
         &format!(
-            "{adder}pub data Money:\n    pub cents: i64\n\nimpl Add[Money] for i32:\n    type Out = Money\n    fn add(self, rhs: Money) -> Money:\n        rhs\n"
+            "{adder}pub struct Money:\n    pub cents: i64\n\nimpl Add[Money] for i32:\n    type Out = Money\n    fn add(self, rhs: Money) -> Money:\n        rhs\n"
         ),
     )]);
     rejects(
         &[
-            ("alpha.hd", "pub data Money:\n    pub cents: i64\n"),
+            ("alpha.hd", "pub struct Money:\n    pub cents: i64\n"),
             (
                 "beta.hd",
                 &format!(
@@ -392,7 +392,7 @@ fn a_dyn_inherent_impl_in_another_package_is_an_orphan() {
 
 // trait.overlap, annot.no-trait.unique, annot.template.tuple.overlap
 
-const STRUCTURE: &str = "use std.structure.Structure\n\ndata Tag:\n    text: string\n\nfn tag(text: string) -> Tag:\n    Tag { text: text }\n\ndata User:\n    name: string\n    email: string\n\ndata Group:\n    title: string\n\n";
+const STRUCTURE: &str = "use std.structure.Structure\n\nstruct Tag:\n    text: string\n\nfn tag(text: string) -> Tag:\n    Tag { text: text }\n\nstruct User:\n    name: string\n    email: string\n\nstruct Group:\n    title: string\n\n";
 
 #[test]
 fn a_second_derivation_block_with_no_trait_overlaps_the_first() {
@@ -434,7 +434,9 @@ fn a_misplaced_block_does_not_count_as_the_first() {
     let out = analyze(&[
         (
             "alpha.hd",
-            &format!("{STRUCTURE}pub data Item:\n    pub name: string\n\nimpl Item by Structure\n"),
+            &format!(
+                "{STRUCTURE}pub struct Item:\n    pub name: string\n\nimpl Item by Structure\n"
+            ),
         ),
         (
             "beta.hd",
@@ -476,7 +478,7 @@ fn a_generic_tuple_impl_overlaps_the_tuple_template() {
 #[test]
 fn the_tuple_template_beside_non_tuple_impls_is_valid() {
     accepts_main(&format!(
-        "{TUPLE_TEMPLATE}data Pair:\n    a: i64\n\nimpl Encode for Pair:\n    fn encode(self) -> string:\n        \"pair\"\n\nimpl Encode for List[i64]:\n    fn encode(self) -> string:\n        \"list\"\n"
+        "{TUPLE_TEMPLATE}struct Pair:\n    a: i64\n\nimpl Encode for Pair:\n    fn encode(self) -> string:\n        \"pair\"\n\nimpl Encode for List[i64]:\n    fn encode(self) -> string:\n        \"list\"\n"
     ));
 }
 

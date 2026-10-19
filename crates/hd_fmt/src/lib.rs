@@ -102,7 +102,7 @@ mod tests {
     /// `grammar.fn.param-mut`: `mut` before a parameter name formats as written.
     #[test]
     fn mut_parameters_format_as_written() {
-        let src = "impl S:\n    fn put(mut self, mut n: i32, f: fn(i32) -> i32) -> S:\n        g := fn(mut a: i32): a\n        self\n";
+        let src = "impl S:\n    fn put(&mut self, mut n: i32, f: fn(i32) -> i32) -> S:\n        g := fn(mut a: i32): a\n        self\n";
         assert_eq!(round_trip(src), src);
         assert_eq!(format(src).expect("parses"), src);
     }

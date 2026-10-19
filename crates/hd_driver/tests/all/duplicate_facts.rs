@@ -36,20 +36,20 @@ fn errors(main: &str) -> Vec<(Code, usize)> {
 const HEAD: &str = "use std.annotation.annotate
 use std.structure.Structure
 
-data Rename:
+struct Rename:
     name: string
 
 fn rename(name: string) -> Rename:
     Rename { name: name }
 
-data Label:
+struct Label:
     text: string
 
 fn label(text: string) -> Label:
     Label { text: text }
 
 @annotate::[F](.Field)
-data Tag[F]:
+struct Tag[F]:
     value: F
 
 fn tag[F](value: F) -> Tag[F]:
@@ -96,17 +96,17 @@ fn a_repeated_type_is_reported_once_at_the_second_value() {
 fn two_values_before_a_trait_an_impl_a_newtype_and_a_method() {
     one_error("@rename(\"a\")\n@rename(\"b\")  # here\ntrait Named:\n    fn name(self) -> string");
     one_error(
-        "data Tool:\n    id: i32\n\n@rename(\"a\")\n@rename(\"b\")  # here\nimpl Tool:\n    fn id_of(self) -> i32:\n        self.id",
+        "struct Tool:\n    id: i32\n\n@rename(\"a\")\n@rename(\"b\")  # here\nimpl Tool:\n    fn id_of(self) -> i32:\n        self.id",
     );
     one_error("@rename(\"a\")\n@rename(\"b\")  # here\ntype Id(i64)");
     one_error(
-        "data Tool:\n    id: i32\n\nimpl Tool:\n    @rename(\"a\")\n    @rename(\"b\")  # here\n    fn id_of(self) -> i32:\n        self.id",
+        "struct Tool:\n    id: i32\n\nimpl Tool:\n    @rename(\"a\")\n    @rename(\"b\")  # here\n    fn id_of(self) -> i32:\n        self.id",
     );
 }
 
 #[test]
 fn two_values_before_a_member_a_variant_or_a_parameter() {
-    one_error("data User:\n    @rename(\"a\")\n    @rename(\"b\")  # here\n    email: string");
+    one_error("struct User:\n    @rename(\"a\")\n    @rename(\"b\")  # here\n    email: string");
     one_error(
         "enum Shape:\n    @rename(\"a\")\n    @rename(\"b\")  # here\n    Circle(radius: f64)",
     );
@@ -115,57 +115,57 @@ fn two_values_before_a_member_a_variant_or_a_parameter() {
 
 #[test]
 fn a_typed_fact_and_a_plain_fact_are_different_types() {
-    clean("data Account:\n    @tag(1)\n    @rename(\"one\")\n    id: i32");
+    clean("struct Account:\n    @tag(1)\n    @rename(\"one\")\n    id: i32");
 }
 
 #[test]
 fn typed_facts_of_one_type_repeat() {
-    one_error("data Account:\n    @tag(1)\n    @tag(2)  # here\n    id: i32");
+    one_error("struct Account:\n    @tag(1)\n    @tag(2)  # here\n    id: i32");
 }
 
 #[test]
 fn two_type_level_decorators_of_one_type() {
-    one_error("@rename(\"a\")\n@rename(\"b\")  # here\ndata Twice:\n    id: i64");
-    clean("@rename(\"a\")\n@label(\"b\")\ndata Twice:\n    id: i64");
+    one_error("@rename(\"a\")\n@rename(\"b\")  # here\nstruct Twice:\n    id: i64");
+    clean("@rename(\"a\")\n@label(\"b\")\nstruct Twice:\n    id: i64");
 }
 
 #[test]
 fn a_member_line_that_appends_a_present_type_repeats_it() {
     one_error(
-        "data Pair:\n    left: i64\n\nimpl Pair by Structure:\n    left += [rename(\"l\")]\n    left += [rename(\"r\")]  # here",
+        "struct Pair:\n    left: i64\n\nimpl Pair by Structure:\n    left += [rename(\"l\")]\n    left += [rename(\"r\")]  # here",
     );
     one_error(
-        "data User:\n    @rename(\"a\")\n    name: string\n\nimpl User by Structure:\n    name += [rename(\"b\")]  # here",
+        "struct User:\n    @rename(\"a\")\n    name: string\n\nimpl User by Structure:\n    name += [rename(\"b\")]  # here",
     );
 }
 
 #[test]
 fn a_member_line_that_appends_a_new_type_is_fine() {
     clean(
-        "data User:\n    @rename(\"a\")\n    name: string\n\nimpl User by Structure:\n    name += [label(\"b\")]",
+        "struct User:\n    @rename(\"a\")\n    name: string\n\nimpl User by Structure:\n    name += [label(\"b\")]",
     );
 }
 
 #[test]
 fn a_member_line_that_replaces_drops_the_present_type() {
     clean(
-        "data User:\n    @rename(\"a\")\n    name: string\n\nimpl User by Structure:\n    name = [rename(\"b\")]",
+        "struct User:\n    @rename(\"a\")\n    name: string\n\nimpl User by Structure:\n    name = [rename(\"b\")]",
     );
     clean(
-        "data User:\n    @rename(\"a\")\n    name: string\n\nimpl User by Structure:\n    name += [label(\"b\")]\n    name = [rename(\"c\")]",
+        "struct User:\n    @rename(\"a\")\n    name: string\n\nimpl User by Structure:\n    name += [label(\"b\")]\n    name = [rename(\"c\")]",
     );
 }
 
 #[test]
 fn the_block_with_no_trait_appends_after_the_decorators() {
     one_error(
-        "data User:\n    @rename(\"a\")\n    name: string\n\nimpl User by Structure:\n    name += [rename(\"b\")]  # here",
+        "struct User:\n    @rename(\"a\")\n    name: string\n\nimpl User by Structure:\n    name += [rename(\"b\")]  # here",
     );
 }
 
 #[test]
 fn a_trait_derivation_after_a_clean_traitless_block_is_fine() {
     clean(
-        "data User:\n    @rename(\"a\")\n    name: string\n\nimpl User by Structure:\n    name = [label(\"b\")]\n\ntrait Named:\n    fn named(self) -> string\n",
+        "struct User:\n    @rename(\"a\")\n    name: string\n\nimpl User by Structure:\n    name = [label(\"b\")]\n\ntrait Named:\n    fn named(self) -> string\n",
     );
 }

@@ -321,12 +321,12 @@ impl[N < Integer] N:
         base := N::from_i64(i64(radix))
         negative := self < zero
         let rest = self
-        let reversed: mut List[u8] = []
+        let mut reversed: List[u8] = []
         while rest != zero:
             rem := rest % base
             reversed.push(digit_byte(if negative: zero - rem else: rem))
             rest = rest / base
-        let out: mut List[u8] = []
+        let mut out: List[u8] = []
         if negative:
             out.push(45)
         let index = reversed.len()

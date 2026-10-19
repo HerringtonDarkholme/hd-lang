@@ -250,7 +250,7 @@ impl Ck<'_, '_> {
         // A mutable requirement trait needs a `mut` provider.
         if mutable && self.is_composite(t) && !self.has_mut_access(t) {
             let msg = format!(
-                "`{}` has `mut self` methods, so its provider needs `mut` access, but this is a readonly {}",
+                "`{}` has `&mut self` methods, so its provider needs `mut` access, but this is a readonly {}",
                 self.cx.names.display_name(def),
                 self.show(t)
             );

@@ -248,15 +248,15 @@ fn a_function_is_not_declared_again() {
 #[test]
 fn a_type_is_not_declared_again() {
     let t = session(&[
-        "data Point:",
+        "struct Point:",
         "    x: i32",
         "",
-        "data Point:",
+        "struct Point:",
         "    y: i32",
         "",
     ]);
     assert!(
-        t.out.starts_with("error: repl#2:1:6: duplicate-type: "),
+        t.out.starts_with("error: repl#2:1:8: duplicate-type: "),
         "{}",
         t.out
     );
@@ -290,7 +290,7 @@ fn an_earlier_input_s_warning_is_shown_once() {
 
 #[test]
 fn a_second_impl_is_an_error() {
-    let named = "trait Named:\n    fn name(self) -> string\n\ndata Tag:\n    pub x: i32\n\nimpl Named for Tag:\n    fn name(self) -> string: \"lib\"\n";
+    let named = "trait Named:\n    fn name(self) -> string\n\nstruct Tag:\n    pub x: i32\n\nimpl Named for Tag:\n    fn name(self) -> string: \"lib\"\n";
     let dir = package("repl-impl", &[("src/lib.hd", named)]);
     let script = Script::of(&[
         "impl Named for Tag:",
@@ -310,7 +310,7 @@ fn a_second_impl_is_an_error() {
     let t = session(&[
         "trait Named:",
         "    fn name(self) -> string",
-        "data Tag:",
+        "struct Tag:",
         "    pub x: i32",
         "impl Named for Tag:",
         "    fn name(self) -> string: \"first\"",
@@ -338,7 +338,7 @@ fn a_second_impl_is_an_error() {
 fn a_later_input_derives_for_an_earlier_type() {
     let t = session(&[
         "@derive(Eq)",
-        "data Point:",
+        "struct Point:",
         "    pub x: i32",
         "    pub y: i32",
         "",
@@ -362,7 +362,7 @@ fn a_later_input_derives_for_an_earlier_type() {
 /// `Column` fact or else its own name) and how many facts it has.
 const COLUMNS_LIB: &str = r#"use std.structure.{Structure, Field, Variant, Walker}
 
-data Column:
+struct Column:
     name: string
 
 fn column(name: string) -> Column:
@@ -397,7 +397,7 @@ impl[T] Columns for T by Structure:
 /// The member-line session: input 1 declares `Row`, input 3 is a block
 /// with no trait for it, input 4 a derivation block with member lines.
 const MEMBER_LINES: &[&str] = &[
-    "data Row:",
+    "struct Row:",
     "    @column(\"row_id\")",
     "    id: i32",
     "    @\"cents\"",
@@ -451,7 +451,7 @@ impl[T] Columns2 for T by Structure:
     let dir = package("repl-late-member-facts", &[("src/lib.hd", &lib)]);
     let script = Script::of(&[
         "use std.structure.Structure",
-        "data Row:",
+        "struct Row:",
         "    id: i32",
         "    total: i32",
         "",
@@ -484,7 +484,7 @@ fn member_lines_survive_a_rebuild() {
     lines.extend([
         ":reload",
         "Row { id: +1, total: +2 }.columns()",
-        "data Pair:",
+        "struct Pair:",
         "    a: i32",
         "    b: i32",
         "",
@@ -513,7 +513,7 @@ fn a_library_function_finds_an_input_s_implementation() {
     let lib = "trait Named:\n    fn name(self) -> string\n\nfn greet[T < Named](x: T) -> string:\n    \"hi ${x.name()}\"\n";
     let dir = package("repl-impl-lib", &[("src/lib.hd", lib)]);
     let script = Script::of(&[
-        "data Cat:",
+        "struct Cat:",
         "    pub age: i32",
         "",
         "impl Named for Cat:",
@@ -531,12 +531,12 @@ fn a_library_function_finds_an_input_s_implementation() {
 #[test]
 fn a_panicking_input_keeps_its_changes_and_binds_nothing() {
     let t = session(&[
-        "let log: mut List[string] = []",
-        "fn record_then_read(entries: mut List[string]) -> string:",
+        "let mut log: List[string] = []",
+        "fn record_then_read(entries: &mut List[string]) -> string:",
         "    entries.push(\"started\")",
         "    entries[5]",
         "",
-        "line := record_then_read(log)",
+        "line := record_then_read(&mut log)",
         "log",
         "line",
     ]);
@@ -623,7 +623,7 @@ fn a_waiting_input_is_cancelled_and_the_session_goes_on() {
     let phase = Arc::new(AtomicU8::new(0));
     let mut script = Script::of(&[
         "use std.time.{sleep, Duration}",
-        "let log: mut List[string] = []",
+        "let mut log: List[string] = []",
         "fn nap!() -> void:",
         "    defer:",
         "        log.push(\"cleanup\")",

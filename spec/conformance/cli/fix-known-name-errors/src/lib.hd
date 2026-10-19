@@ -6,7 +6,7 @@ fn first_square(limit: i32) -> i32:
         if n * n > limit:
             return n
 
-fn legacy(xs: mut List[string], word: string) -> void:
+fn legacy(xs: &mut List[string], word: string) -> void:
     xs.append(word)
 
 fn through_reference(xs: &mut List[string], word: string) -> void:

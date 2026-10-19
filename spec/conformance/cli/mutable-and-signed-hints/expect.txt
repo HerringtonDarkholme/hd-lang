@@ -1,19 +1,9 @@
-# Keep the existing list guidance; retain mutable initializer access only.
+# Keep the existing list guidance and the signedness hints.
 run: hd check --format json converted-operand.hd
 stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
 run: hd check --format json list.hd
 exit: 101
 stdout-json: [{"kind":"diagnostic","code":"mutable-receiver-required","message":"this call changes `xs` in place, but `xs` never changes; bind it with `let mut`","line":3,"column":5,"fixes":[{"message":"bind `xs` with `let mut`","edits":[{"file":"list.hd","start":22,"end":22,"text":"let mut "},{"file":"list.hd","start":25,"end":27,"text":"="}]}],"file":"list.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
-run: hd check --format json matrix-let-mut.hd
-stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
-run: hd check --format json matrix-typed.hd
-stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
-run: hd check --format json matrix.hd
-exit: 101
-stdout-json: [{"kind":"diagnostic","code":"mutable-receiver-required","message":"this method takes `mut self`, but the receiver is a readonly Matrix[i32]; bind with `let matrix: mut Matrix[i32] = ...` or `let mut matrix = ...` to keep the initializer's mutable access","line":12,"column":5,"fixes":[],"file":"matrix.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
-run: hd check --format json readonly-origin.hd
-exit: 101
-stdout-json: [{"kind":"diagnostic","code":"mutable-receiver-required","message":"this method takes `mut self`, but the receiver is a readonly Matrix[i32]","line":12,"column":5,"fixes":[],"file":"readonly-origin.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 run: hd check --format json signed.hd
 exit: 101
 stdout-json: [{"kind":"diagnostic","code":"mixed-signedness","message":"in operand: expected i32, found usize; use `0` for a `usize` counter, or write `i32(xs.len())` for this operand","line":3,"column":23,"fixes":[],"file":"signed.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]

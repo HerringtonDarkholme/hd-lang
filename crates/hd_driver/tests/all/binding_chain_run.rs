@@ -93,16 +93,16 @@ pub fn main() -> void $ Console:
 #[test]
 fn a_chain_runs_its_initializer_once() {
     let main = "\
-data Counter:
+struct Counter:
     n: i32
 
-fn next(c: mut Counter) -> i32:
+fn next(c: &mut Counter) -> i32:
     c.n = c.n + 1
     c.n
 
 pub fn main() -> void $ Console:
     let mut counter = Counter { n: 0 }
-    a := b := c := next(counter)
+    a := b := c := next(&mut counter)
     println(\"$a $b $c ${counter.n}\")
 ";
     assert_eq!(output_of("once", main), "1 1 1 1\n");

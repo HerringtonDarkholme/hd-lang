@@ -1526,12 +1526,12 @@ echo 'println(1 + 2)' | hd    # prints 3
 20. r[cli.repl.panic.declarations] An input that panics adds no declaration to the session either.
 
 ```sh
-hd> let log: mut List[string] = []
-hd> fn record_then_read(entries: mut List[string]) -> string:
+hd> let mut log: List[string] = []
+hd> fn record_then_read(entries: &mut List[string]) -> string:
 ...     entries.push("started")
 ...     entries[5]
-hd> line := record_then_read(log)   # panics with index-out-of-bounds; binds no line
-hd> log                             # the push remains
+hd> line := record_then_read(&mut log)   # panics with index-out-of-bounds; binds no line
+hd> log                                  # the push remains
 ["started"] : List[string]
 ```
 

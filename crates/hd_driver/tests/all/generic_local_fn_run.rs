@@ -130,13 +130,13 @@ fn a_bound_supplies_a_method() {
 trait Shape:
     fn area(self) -> i32
 
-data Square:
+struct Square:
     side: i32
 
 impl Shape for Square:
     fn area(self) -> i32: self.side * self.side
 
-data Rect:
+struct Rect:
     width: i32
     height: i32
 

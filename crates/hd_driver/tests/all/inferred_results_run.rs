@@ -123,12 +123,12 @@ trait Db:
 trait Clock:
     fn now(self) -> string
 
-data MemoryDb: pass
+struct MemoryDb: pass
 
 impl Db for MemoryDb:
     fn name(self) -> string: \"db\"
 
-data FixedClock: pass
+struct FixedClock: pass
 
 impl Clock for FixedClock:
     fn now(self) -> string: \"noon\"
@@ -160,7 +160,7 @@ pub fn main() -> void $ Console:
 #[test]
 fn a_private_method_infers_its_result() {
     let main = "\
-data Counter:
+struct Counter:
     start: i32
 
 impl Counter:

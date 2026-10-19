@@ -80,7 +80,7 @@ fn insert[T < Ord](tree: Tree[T], x: T) -> Tree[T]:
             if x < value: Tree.Node(left=&insert(*left, x), value=value, right=right)
             else: Tree.Node(left=left, value=value, right=&insert(*right, x))
 
-fn walk[T](tree: Tree[T], out: mut List[T]) -> void:
+fn walk[T](tree: Tree[T], out: &mut List[T]) -> void:
     match tree:
         .Leaf => pass
         .Node(left, value, right) =>
@@ -96,14 +96,14 @@ fn build(xs: List[i32]) -> Tree[i32]:
 
 pub fn main() -> void $ Console:
     t := build([5, 2, 8, 1, 9, 3])
-    let out: mut List[i32] = []
-    walk(t, out)
+    let mut out: List[i32] = []
+    walk(t, &mut out)
     println(debug(out))
     println(t == build([5, 2, 8, 1, 9, 3]))
     println(t == build([5, 2, 8, 1, 9]))
     println(debug(build([2, 1])))
-    let names: mut List[string] = []
-    walk(insert(insert(insert(Tree.Leaf, \"m\"), \"a\"), \"z\"), names)
+    let mut names: List[string] = []
+    walk(insert(insert(insert(Tree.Leaf, \"m\"), \"a\"), \"z\"), &mut names)
     println(debug(names))
 ";
     assert_eq!(
@@ -151,12 +151,12 @@ fn render(v: Value) -> string:
         .Num(n) => \"$n\"
         .Text(s) => \"'$s'\"
         .Items(items) =>
-            let parts: mut List[string] = []
+            let mut parts: List[string] = []
             for item in items:
                 parts.push(render(item))
             \"[\" + parts.join(\",\") + \"]\"
         .Fields(fields) =>
-            let parts: mut List[string] = []
+            let mut parts: List[string] = []
             for key in keys():
                 match fields.get(key):
                     .Some(inner) => parts.push(key + \":\" + render(inner))
@@ -164,9 +164,9 @@ fn render(v: Value) -> string:
             \"{\" + parts.join(\",\") + \"}\"
 
 pub fn main() -> void $ Console:
-    let inner: mut Map[string, Value] = {}
+    let mut inner: Map[string, Value] = {}
     inner[\"name\"] = Value.Null
-    let fields: mut Map[string, Value] = {}
+    let mut fields: Map[string, Value] = {}
     fields[\"name\"] = Value.Text(\"hd\")
     fields[\"tags\"] = Value.Items([Value.Flag(true), Value.Null, Value.Num(25)])
     fields[\"nested\"] = Value.Fields(inner)
@@ -184,35 +184,35 @@ pub fn main() -> void $ Console:
 #[test]
 fn a_linked_list_through_an_optional_field() {
     let main = "\
-data Node:
+struct Node:
     value: i32
-    next: Node?
+    next: &Node?
 
-fn push(list: Node?, value: i32) -> Node:
-    Node { value: value, next: list }
+fn push(list: &Node?, value: i32) -> &Node:
+    &Node { value: value, next: list }
 
-fn total(list: Node?) -> i32:
+fn total(list: &Node?) -> i32:
     match list:
         .Some(node) => node.value + total(node.next)
         .None => 0
 
-fn reverse(list: Node?) -> Node?:
-    let out: Node? = .None
+fn reverse(list: &Node?) -> &Node?:
+    let out: &Node? = .None
     let at = list
     while true:
         match at:
             .Some(node) =>
-                out = .Some(Node { value: node.value, next: out })
+                out = .Some(&Node { value: node.value, next: out })
                 at = node.next
             .None => return out
 
-fn first(list: Node?) -> i32:
+fn first(list: &Node?) -> i32:
     match list:
         .Some(node) => node.value
         .None => -1
 
 pub fn main() -> void $ Console:
-    let list: Node? = .None
+    let list: &Node? = .None
     list = push(list, 1)
     list = push(list, 2)
     list = push(list, 3)
@@ -245,16 +245,16 @@ fn lookup(env: List[(string, i64)], name: string) -> i64:
             found = entry._1
     found
 
-fn eval(e: Expr, env: mut List[(string, i64)]) -> i64:
+fn eval(e: Expr, env: &mut List[(string, i64)]) -> i64:
     match e:
         .Lit(value) => value
-        .Var(name) => lookup(env, name)
+        .Var(name) => lookup(*env, name)
         .Add(left, right) => eval(*left, env) + eval(*right, env)
         .Block(body, result) =>
             run(*body, env)
             eval(*result, env)
 
-fn run(s: Stmt, env: mut List[(string, i64)]) -> void:
+fn run(s: Stmt, env: &mut List[(string, i64)]) -> void:
     match s:
         .Let(name, value) =>
             v := eval(value, env)
@@ -268,8 +268,8 @@ pub fn main() -> void $ Console:
         body=&Stmt.Seq(first=&Stmt.Let(name=\"x\", value=Expr.Lit(40)), second=&Stmt.Let(name=\"y\", value=Expr.Lit(2))),
         result=&Expr.Add(left=&Expr.Var(\"x\"), right=&Expr.Var(\"y\")),
     )
-    let env: mut List[(string, i64)] = []
-    println(eval(program, env))
+    let mut env: List[(string, i64)] = []
+    println(eval(program, &mut env))
     println(Expr.Add(left=&Expr.Lit(1), right=&Expr.Var(\"z\")) == Expr.Add(left=&Expr.Lit(1), right=&Expr.Var(\"z\")))
     println(Stmt.Let(name=\"a\", value=Expr.Lit(1)) == Stmt.Let(name=\"a\", value=Expr.Lit(2)))
     println(debug(Expr.Block(body=&Stmt.Let(name=\"a\", value=Expr.Lit(1)), result=&Expr.Var(\"a\"))))
@@ -286,7 +286,7 @@ fn closures_trait_values_and_boxed_tuples_that_name_their_data() {
     // Each recursion runs through a type that is not data: a closure's
     // code type, a vtable's slot type, a tuple's box.
     let main = "\
-data Step:
+struct Step:
     name: string
     weight: i32
     then: fn(Step) -> i32
@@ -295,18 +295,18 @@ fn weigh(step: Step) -> i32:
     (step.then)(step)
 
 trait Link:
-    fn label(self) -> string
-    fn next(self) -> dyn Link?
+    fn label(&self) -> string
+    fn next(&self) -> &dyn Link?
 
-data Stop:
+struct Stop:
     name: string
-    after: dyn Link?
+    after: &dyn Link?
 
 impl Link for Stop:
-    fn label(self) -> string: self.name
-    fn next(self) -> dyn Link?: self.after
+    fn label(&self) -> string: self.name
+    fn next(&self) -> &dyn Link?: self.after
 
-fn walk(link: dyn Link) -> string:
+fn walk(link: &dyn Link) -> string:
     let out = link.label()
     let at = link.next()
     while true:
@@ -316,10 +316,10 @@ fn walk(link: dyn Link) -> string:
                 at = l.next()
             .None => return out
 
-data Pair:
-    left: (Pair?, Pair?, string, i32)
+struct Pair:
+    left: (&Pair?, &Pair?, string, i32)
 
-fn depth(p: Pair?) -> i32:
+fn depth(p: &Pair?) -> i32:
     match p:
         .Some(x) =>
             a := depth(x.left._0)
@@ -330,13 +330,13 @@ fn depth(p: Pair?) -> i32:
 pub fn main() -> void $ Console:
     s := Step { name: \"s\", weight: 7, then: fn(x: Step) -> i32: x.weight * 6 }
     println(weigh(s))
-    let c: dyn Link = Stop { name: \"c\", after: .None }
-    let b: dyn Link = Stop { name: \"b\", after: .Some(c) }
-    let a: dyn Link = Stop { name: \"a\", after: .Some(b) }
+    let c: &dyn Link = &Stop { name: \"c\", after: .None }
+    let b: &dyn Link = &Stop { name: \"b\", after: .Some(c) }
+    let a: &dyn Link = &Stop { name: \"a\", after: .Some(b) }
     println(walk(a))
-    leaf := Pair { left: (.None, .None, \"leaf\", 0) }
-    mid := Pair { left: (.Some(leaf), .None, \"mid\", 1) }
-    println(depth(.Some(Pair { left: (.Some(mid), .Some(leaf), \"top\", 2) })))
+    leaf := &Pair { left: (.None, .None, \"leaf\", 0) }
+    mid := &Pair { left: (.Some(leaf), .None, \"mid\", 1) }
+    println(depth(.Some(&Pair { left: (.Some(mid), .Some(leaf), \"top\", 2) })))
 ";
     assert_eq!(output_of("groups", main), "42\na>b>c\n3\n");
 }
@@ -365,9 +365,10 @@ pub fn main() -> void $ Console:
 
 #[test]
 fn a_large_recursion_group_and_long_chains_of_types() {
-    // One group of `N` data types (a ring), a chain of `N` data types and a
-    // chain of `N` enums each held by value: layout, encoding and link
-    // walk them with loops, so their depth is no native stack depth.
+    // One group of `N` struct types (a ring through `&`), a chain of `N`
+    // struct types and a chain of `N` enums each held by value: layout,
+    // encoding and link walk them with loops, so their depth is no native
+    // stack depth.
     const N: usize = 1500;
     let mut main = String::new();
     for i in 0..N {
@@ -378,8 +379,8 @@ fn a_large_recursion_group_and_long_chains_of_types() {
         } else {
             ("i32".to_owned(), "i32".to_owned())
         };
-        writeln!(main, "data R{i}:\n    v: i32\n    next: R{ring}?\n").expect("write");
-        writeln!(main, "data C{i}:\n    v: i32\n    next: {chain}?\n").expect("write");
+        writeln!(main, "struct R{i}:\n    v: i32\n    next: &R{ring}?\n").expect("write");
+        writeln!(main, "struct C{i}:\n    v: i32\n    next: {chain}?\n").expect("write");
         writeln!(main, "enum E{i}:\n    Stop\n    Go(next: {held})\n").expect("write");
     }
     main.push_str(
@@ -400,7 +401,7 @@ fn tag(e: E0) -> i32:
         .Go(_n) => 1
 
 pub fn main() -> void $ Console:
-    println(around(R0 { v: +1, next: .Some(R1 { v: +2, next: .None }) }))
+    println(around(R0 { v: +1, next: .Some(&R1 { v: +2, next: .None }) }))
     println(along(C0 { v: +3, next: .Some(C1 { v: +4, next: .None }) }))
     println(tag(E0.Go(E1.Stop)))
 ",

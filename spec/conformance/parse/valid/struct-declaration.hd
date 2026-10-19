@@ -1,4 +1,4 @@
-# Spec 01 Keywords And Reserved Words: lex.keyword.struct. Spec 02 Data Types: grammar.data.struct.
+# Spec 01 Keywords And Reserved Words: lex.keyword.struct. Spec 02 Data Types: grammar.data.struct-only.
 struct Empty: pass
 
 pub struct Point[T]:

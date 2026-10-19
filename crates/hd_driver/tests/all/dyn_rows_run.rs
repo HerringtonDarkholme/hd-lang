@@ -68,7 +68,7 @@ trait Sensor:
     fn sample!(self, tick: i32) -> i32 $ Console + Clock
     fn name(self) -> string
 
-data Thermometer:
+struct Thermometer:
     offset: i32
 
 impl Sensor for Thermometer:
@@ -79,7 +79,7 @@ impl Sensor for Thermometer:
 
     fn name(self) -> string: \"thermometer\"
 
-data Barometer:
+struct Barometer:
     scale: i32
 
 impl Sensor for Barometer:
@@ -140,7 +140,7 @@ fn a_plain_dyn_method_with_a_row_gets_its_provider() {
 trait Greeter:
     fn greet(self, who: string) -> void $ Console
 
-data Polite:
+struct Polite:
     title: string
 
 impl Greeter for Polite:

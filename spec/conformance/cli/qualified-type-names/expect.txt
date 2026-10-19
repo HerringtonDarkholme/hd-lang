@@ -6,7 +6,3 @@ stdout-json: [{"kind":"diagnostic","code":"type-mismatch","message":"in argument
 run: hd check --format json ordinary.hd
 exit: 101
 stdout-json: [{"kind":"diagnostic","code":"type-mismatch","message":"in argument: expected i32, found string","file":"ordinary.hd","line":4},{"kind":"summary","errors":1,"warnings":0,"status":101}]
-# Readonly and mutable views of the same item remain unqualified.
-run: hd check --format json views.hd
-exit: 101
-stdout-json: [{"kind":"diagnostic","code":"readonly-argument-to-mutable-parameter","message":"the parameter takes mut Shape, the argument is a readonly Shape","file":"views.hd","line":8},{"kind":"summary","errors":1,"warnings":0,"status":101}]

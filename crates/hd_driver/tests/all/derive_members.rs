@@ -91,11 +91,11 @@ impl[T] Show for T by Structure:
 fn derive_over_member_without_trait_reports_once_naming_it() {
     let src = "use std.ops.Default
 
-data Secret:
+struct Secret:
     value: i32
 
 @derive(Default)
-data Vault:
+struct Vault:
     secret: Secret
     count: i32
 
@@ -118,11 +118,11 @@ fn derive_over_valid_members_is_clean() {
     let src = "use std.ops.Default
 
 @derive(Default)
-data Inner:
+struct Inner:
     value: i32
 
 @derive(Default)
-data Vault:
+struct Vault:
     inner: Inner
     count: i32
     name: string
@@ -138,11 +138,11 @@ pub fn main() -> void:
 fn a_declared_default_exempts_its_member_from_default() {
     let src = "use std.ops.Default
 
-data Secret:
+struct Secret:
     value: i32
 
 @derive(Default)
-data Vault:
+struct Vault:
     secret: Secret = Secret { value: 7 }
     count: i32
 
@@ -158,7 +158,7 @@ fn walker_written_in_place() {
     let src = show_lib("Shower { out: \"\" }")
         + "
 @derive(Show)
-data Label:
+struct Label:
     text: string
     count: i64
 ";
@@ -180,12 +180,12 @@ fn walker_built_by_a_helper() {
         let src = show_lib(walker)
             + "
 @derive(Show)
-data Label:
+struct Label:
     text: string
     count: i64
 
 @derive(Show)
-data Count:
+struct Count:
     count: i64
 ";
         let out = analyze(&src);
@@ -212,16 +212,16 @@ enum Reply:
     Sent(id: i64)
     Raw(string)
 
-data Cache: pass
+struct Cache: pass
 
-data Order:
+struct Order:
     id: i64
     cache: Cache = Cache {}
 
 impl Show for Order by Structure:
     cache = pass
 
-data Bad:
+struct Bad:
     id: i64
     cache: Cache
 
@@ -240,7 +240,7 @@ fn generic_target_meets_the_bound_through_its_derived_bound() {
     let src = show_lib("shower()")
         + "
 @derive(Show)
-data Box[T]:
+struct Box[T]:
     value: T
     count: i64
 ";
@@ -271,7 +271,7 @@ impl[S] Walker[S] for Quiet:
     let main = "use pkg.lib.show.Show
 
 @derive(Show)
-data Label:
+struct Label:
     text: string
 
 pub fn main() -> void:
@@ -302,10 +302,10 @@ fn line_of(out: &Output, src: &str, code: Code) -> Option<usize> {
 
 #[test]
 fn derived_hash_field_without_hash_is_reported_at_the_field() {
-    let src = "data Opaque: pass
+    let src = "struct Opaque: pass
 
 @derive(Eq, Hash)
-data Key:
+struct Key:
     value: Opaque
 ";
     let out = analyze(src);
@@ -322,7 +322,7 @@ data Key:
 #[test]
 fn derived_total_order_over_a_float_is_reported_at_the_field() {
     let src = "@derive(Eq, PartialOrd, Ord)
-data Measurement:
+struct Measurement:
     value: f64
 ";
     let out = analyze(src);
@@ -337,7 +337,7 @@ data Measurement:
 
 #[test]
 fn derived_eq_enum_payload_without_eq_is_reported_at_the_payload() {
-    let src = "data Socket:
+    let src = "struct Socket:
     port: i32
 
 @derive(Eq)
@@ -357,7 +357,7 @@ enum Endpoint:
 
 #[test]
 fn derived_newtype_base_without_the_trait_is_reported_at_the_base() {
-    let src = "data Opaque: pass
+    let src = "struct Opaque: pass
 
 @derive(Eq)
 type Wrapped(Opaque)
@@ -375,10 +375,10 @@ type Wrapped(Opaque)
 #[test]
 fn derived_comparison_over_generic_and_hand_written_members_is_clean() {
     let src = "@derive(Eq)
-data Box[T]:
+struct Box[T]:
     value: T
 
-data Token:
+struct Token:
     id: i32
 
 impl Eq for Token:
@@ -386,7 +386,7 @@ impl Eq for Token:
         self.id == other.id
 
 @derive(Eq)
-data Holder:
+struct Holder:
     token: Token
 
 @derive(Eq, Hash)
@@ -400,11 +400,11 @@ type Mile(i32)
 fn derive_of_other_traits_still_reports_member_not_derivable() {
     let src = "use std.ops.Default
 
-data Secret:
+struct Secret:
     value: i32
 
 @derive(Default)
-data Vault:
+struct Vault:
     secret: Secret
 ";
     let out = analyze(src);

@@ -84,7 +84,7 @@ fn run_tests(name: &str, src: &str) {
 }
 
 const PARTS: &str = "\
-data Clock:
+struct Clock:
     pub ticks: i32
     pub label: i32
 
@@ -92,14 +92,14 @@ impl Clock:
     pub fn read(self) -> i32:
         self.ticks
 
-    pub fn advance(mut self, by: i32) -> void:
+    pub fn advance(&mut self, by: i32) -> void:
         self.ticks = self.ticks + by
 
-data Device:
+struct Device:
     Clock
     id: i32
 
-data Rack:
+struct Rack:
     Device
     slot: i32
 ";
@@ -112,24 +112,24 @@ fn promoted_fields_and_methods_run_through_the_part() {
         "use std.testing.assert_equal
 
 {PARTS}
-fn bump(rack: mut Rack) -> void:
+fn bump(rack: &mut Rack) -> void:
     rack.ticks = rack.ticks + 1
     rack.advance(10)
 
 tests:
     it(\"reads a promoted field and calls a promoted method\"):
-        device := Device {{ Clock: ...Clock {{ ticks: 5, label: 9 }}, id: 2 }}
+        device := Device {{ Clock: Clock {{ ticks: 5, label: 9 }}, id: 2 }}
         assert_equal(device.ticks, 5, reason=\"depth 1 field\")
         assert_equal(device.read(), 5, reason=\"depth 1 method\")
         assert_equal(device.label, 9, reason=\"second promoted field\")
     it(\"writes a promoted field and calls a promoted mut method\"):
-        let mut device = Device {{ Clock: ...Clock {{ ticks: 1, label: 0 }}, id: 2 }}
+        let mut device = Device {{ Clock: Clock {{ ticks: 1, label: 0 }}, id: 2 }}
         device.ticks = 4
         device.advance(3)
         assert_equal(device.Clock.ticks, 7, reason=\"the part holds both writes\")
     it(\"promotes through two parts\"):
-        let mut rack = Rack {{ Device: ...Device {{ Clock: ...Clock {{ ticks: 1, label: 0 }}, id: 2 }}, slot: 3 }}
-        bump(rack)
+        let mut rack = Rack {{ Device: Device {{ Clock: Clock {{ ticks: 1, label: 0 }}, id: 2 }}, slot: 3 }}
+        bump(&mut rack)
         assert_equal(rack.ticks, 12, reason=\"depth 2 field and mut method\")
         assert_equal(rack.read(), 12, reason=\"depth 2 method\")
         assert_equal(rack.Device.Clock.ticks, 12, reason=\"explicit path\")
@@ -145,14 +145,14 @@ fn a_shallower_own_member_hides_a_promoted_one() {
         &format!(
             "use std.testing.assert_equal
 
-data Gauge:
+struct Gauge:
     Clock
     pub ticks: i32
 
 {PARTS}
 tests:
     it(\"the own field wins\"):
-        gauge := Gauge {{ Clock: ...Clock {{ ticks: 1, label: 0 }}, ticks: 8 }}
+        gauge := Gauge {{ Clock: Clock {{ ticks: 1, label: 0 }}, ticks: 8 }}
         assert_equal(gauge.ticks, 8, reason=\"own pub field hides the part's\")
         assert_equal(gauge.Clock.ticks, 1, reason=\"the part through its path\")
 "
@@ -164,10 +164,10 @@ tests:
 fn a_promoted_mut_method_needs_a_mutable_root() {
     let src = format!(
         "{PARTS}
-fn invalid(device: Device) -> void:
+fn invalid(device: &Device) -> void:
     device.advance(1)
 
-fn also_invalid(device: Device) -> void:
+fn also_invalid(device: &Device) -> void:
     device.ticks = 1
 
 pub fn main() -> void:
@@ -182,13 +182,13 @@ pub fn main() -> void:
 #[test]
 fn two_parts_with_one_promoted_name_conflict_at_the_declaration() {
     let field = "\
-data Left:
+struct Left:
     pub id: i32
 
-data Right:
+struct Right:
     pub id: i32
 
-data Both:
+struct Both:
     Left
     Right
 
@@ -197,21 +197,21 @@ pub fn main() -> void:
 ";
     assert_eq!(errors(field), vec![Code::AmbiguousPromotedMember]);
     let method = "\
-data Left:
+struct Left:
     x: i32
 
 impl Left:
     pub fn name(self) -> i32:
         1
 
-data Right:
+struct Right:
     y: i32
 
 impl Right:
     pub fn name(self) -> i32:
         2
 
-data Both:
+struct Both:
     Left
     Right
 
@@ -224,10 +224,10 @@ pub fn main() -> void:
 #[test]
 fn a_private_own_member_beside_a_promoted_one_conflicts() {
     let src = "\
-data Base:
+struct Base:
     pub id: i32
 
-data Record:
+struct Record:
     Base
     id: i32
 
@@ -236,10 +236,10 @@ pub fn main() -> void:
 ";
     assert_eq!(errors(src), vec![Code::AmbiguousPromotedMember]);
     let hidden = "\
-data Base:
+struct Base:
     pub id: i32
 
-data Record:
+struct Record:
     Base
     pub id: i32
 
@@ -255,14 +255,14 @@ fn a_trait_method_beside_a_promoted_method_is_ambiguous() {
 trait Describe:
     fn describe(self) -> i32
 
-data Base:
+struct Base:
     n: i32
 
 impl Base:
     pub fn describe(self) -> i32:
         self.n
 
-data Page:
+struct Page:
     Base
 
 impl Describe for Page:

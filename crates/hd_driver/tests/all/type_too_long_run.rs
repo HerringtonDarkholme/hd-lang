@@ -16,7 +16,7 @@ trait Show:
 trait Conv[T]:
     fn conv(self) -> T
 
-data Pair[K, V]:
+struct Pair[K, V]:
     key: K
     value: V
 
@@ -42,7 +42,7 @@ fn assert_once(bads: &[&str]) {
 fn an_alias_written_too_long_reports_once_in_every_position() {
     assert_once(&[
         "fn f(b: Both[i32, string, bool]) -> i32: 0",
-        "data Holder:\n    both: Both[i32, string, bool]",
+        "struct Holder:\n    both: Both[i32, string, bool]",
         "enum Shape:\n    Dot(Both[i32, string, bool])",
         "impl Show for Both[i32, string, bool]:\n    fn show(self) -> string: \"\"",
         "fn f[T < Conv[Both[i32, string, bool]]](t: T) -> i32: 0",
@@ -78,7 +78,7 @@ fn valid_arities_and_defaults_stay_valid() {
     let main = "\
 type Twin[A, B = A] = (A, B)
 
-data Pair[K, V = K]:
+struct Pair[K, V = K]:
     key: K
     value: V
 

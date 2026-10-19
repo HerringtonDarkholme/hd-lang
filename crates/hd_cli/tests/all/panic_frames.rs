@@ -30,7 +30,7 @@ fn total(prices: List[i32]) -> i32:
 fn boom() -> void:
     panic(\"out of stock\")
 
-fn drop_far(xs: mut List[i32]) -> i32:
+fn drop_far(xs: &mut List[i32]) -> i32:
     xs.remove_at(5)
 
 tests:
@@ -44,8 +44,8 @@ tests:
         boom()
 
     it(\"drops past the end\"):
-        let xs: mut List[i32] = [1, 2]
-        drop_far(xs)
+        let mut xs: List[i32] = [1, 2]
+        drop_far(&mut xs)
 ";
 
 /// A fresh package `shop` whose `src/lib.hd` is `lib`.
@@ -171,7 +171,7 @@ fn a_method_frame_names_its_type_and_module() {
     std::fs::write(
         root.join("src/cart.hd"),
         "\
-pub data Cart:
+pub struct Cart:
     pub items: List[i32]
 
 impl Cart:
@@ -408,7 +408,7 @@ fn release_builds_name_functions_in_hd_names() {
 fn a_program_that_derives_builds_its_positions() {
     let root = package(
         "hd-frames-derive",
-        "use std.hash.hash_of\n\n@derive(Eq, Hash, Debug)\ndata Point:\n    x: i32\n    y: i32\n    name: string\n\npub fn main() -> void $ Console:\n    a := Point { x: 1, y: 2, name: \"a\" }\n    println(debug(a))\n    println(a == a)\n    println(hash_of(a) == hash_of(a))\n",
+        "use std.hash.hash_of\n\n@derive(Eq, Hash, Debug)\nstruct Point:\n    x: i32\n    y: i32\n    name: string\n\npub fn main() -> void $ Console:\n    a := Point { x: 1, y: 2, name: \"a\" }\n    println(debug(a))\n    println(a == a)\n    println(hash_of(a) == hash_of(a))\n",
     );
     std::fs::rename(root.join("src/lib.hd"), root.join("src/main.hd")).expect("main");
     for (args, file) in [

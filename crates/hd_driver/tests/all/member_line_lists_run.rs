@@ -83,10 +83,10 @@ fn errors(main: &str) -> Vec<(Code, usize)> {
 /// facts.
 const PRELUDE: &str = "use std.structure.{Structure, Field, Variant, Walker}
 
-data Tag:
+struct Tag:
     text: string
 
-data Note:
+struct Note:
     text: string
 
 fn tag(text: string) -> Tag:
@@ -149,7 +149,7 @@ pub fn main() -> void $ Console:
 fn block_with_no_trait_takes_a_name_a_call_and_a_concatenation() {
     let got = probed(
         "traitless",
-        "data Point:
+        "struct Point:
     a: i64
     b: i64
     c: i64
@@ -172,7 +172,7 @@ impl Probe for Point by Structure:
 fn derivation_block_takes_a_name_a_call_and_a_concatenation() {
     let got = probed(
         "derivation",
-        "data Point:
+        "struct Point:
     a: i64
     b: i64
     c: i64
@@ -194,7 +194,7 @@ impl Probe for Point by Structure:
 fn replace_and_extend_apply_to_a_list_expression() {
     let got = probed(
         "replace-extend",
-        "data Point:
+        "struct Point:
     @tag(\"decl\")
     a: i64
     @tag(\"decl\")
@@ -227,7 +227,7 @@ fn counted() -> List[dyn Any]:
     evaluations = evaluations + 1
     [note(\"counted\")]
 
-data Point:
+struct Point:
     a: i64
 
 impl Probe for Point by Structure:
@@ -263,7 +263,7 @@ impl[T] Label for T by Structure:
             .Some(found) => found.text
             .None => \"none\"
 
-data Point:
+struct Point:
     a: i64
 
 impl Point by Structure:
@@ -312,7 +312,7 @@ fn a_value_that_is_not_a_list_is_one_invalid_member_line() {
                 Code::InvalidMemberLine,
                 &format!(
                     "{COUNT}
-data Point:
+struct Point:
     a: i64
 
 {block}:
@@ -330,7 +330,7 @@ fn extending_with_a_value_that_is_not_a_list_is_one_invalid_member_line() {
         Code::InvalidMemberLine,
         &format!(
             "{COUNT}
-data Point:
+struct Point:
     a: i64
 
 impl Probe for Point by Structure:
@@ -346,7 +346,7 @@ fn a_list_of_another_element_type_is_a_representation_change() {
         Code::VarianceRepresentationChange,
         &format!(
             "{COUNT}
-data Point:
+struct Point:
     a: i64
 
 impl Point by Structure:
@@ -362,7 +362,7 @@ fn a_spread_of_a_value_that_is_not_a_list_is_a_type_mismatch() {
         Code::TypeMismatch,
         &format!(
             "{COUNT}
-data Point:
+struct Point:
     a: i64
 
 impl Point by Structure:
@@ -376,7 +376,7 @@ impl Point by Structure:
 fn a_name_that_does_not_exist_is_reported_once() {
     one_error(
         Code::UnknownName,
-        "data Point:
+        "struct Point:
     a: i64
 
 impl Point by Structure:
@@ -391,7 +391,7 @@ impl Point by Structure:
 fn literal_elements_still_report_a_repeated_type() {
     one_error(
         Code::DuplicateFact,
-        "data Point:
+        "struct Point:
     a: i64
 
 impl Point by Structure:
@@ -405,7 +405,7 @@ impl Point by Structure:
 #[test]
 fn a_list_expression_adds_no_repeat_at_check_time() {
     clean(
-        "data Point:
+        "struct Point:
     @tag(\"decl\")
     a: i64
     @tag(\"decl\")

@@ -85,7 +85,7 @@ fn every_row_runs_and_a_failing_row_hides_no_other() {
 
 const PROPERTIES: &str = "use std.testing.{Arbitrary, Choices}\n\n\
 @derive(Debug)\n\
-pub data Point:\n    x: i64\n    y: i64\n\n\
+pub struct Point:\n    x: i64\n    y: i64\n\n\
 impl Arbitrary for Point:\n    fn arbitrary(c: &mut Choices) -> Point:\n        \
 Point { x: c.int(0..=1000), y: c.int(0..=1000) }\n\n\
 fn even(c: &mut Choices) -> i64:\n    let value: i64 = c.int(0..=100)\n    \

@@ -67,7 +67,7 @@ trait Supplier:
     type Item
     fn get(self) -> Self::Item
 
-data Counter:
+struct Counter:
     start: i32
 
 impl Supplier for Counter:
@@ -75,7 +75,7 @@ impl Supplier for Counter:
     fn get(self) -> i32:
         self.start
 
-data Name:
+struct Name:
     text: string
 
 impl Supplier for Name:
@@ -83,10 +83,10 @@ impl Supplier for Name:
     fn get(self) -> string:
         self.text
 
-data Opaque:
+struct Opaque:
     id: i32
 
-data Vault:
+struct Vault:
     inside: Opaque
 
 impl Supplier for Vault:
@@ -111,7 +111,7 @@ fn shown[T < Display, S < Supplier[Item = T]](s: S) -> string:
 fn plus_one[S < Supplier[Item = i32]](s: S) -> i32:
     s.get() + 1
 
-data Feed[I]:
+struct Feed[I]:
     source: I
 
 impl[T < Display, I < Supplier[Item = T]] Display for Feed[I]:

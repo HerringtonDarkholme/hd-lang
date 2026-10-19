@@ -1,4 +1,4 @@
-# Spec 04 Value Types: types.value.no-mut, in a local annotation.
+# Spec 04 Value Types: types.value.no-mut.any, in a local annotation.
 struct Point:
     x: i32
     y: i32

@@ -38,7 +38,7 @@ use std.ops.Shr
 
 trait Db
 
-data Layer:
+struct Layer:
     depth: i32
 
 impl Shr[Layer] for fn(i32) -> i32 $ Db:

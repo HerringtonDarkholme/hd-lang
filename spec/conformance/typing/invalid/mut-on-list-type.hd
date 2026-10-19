@@ -1,0 +1,3 @@
+# Spec 04 Value Types: types.value.no-mut.any, on a list type.
+fn append(items: mut List[string], name: string) -> void:  # diagnostic: mut-on-struct
+    pass

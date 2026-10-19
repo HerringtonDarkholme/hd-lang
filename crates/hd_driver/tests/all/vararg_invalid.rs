@@ -55,7 +55,6 @@ fn valid_rest_and_vararg_forms_stay_clean() {
         "fn sum(values...: List[i32]) -> i32: 0\n\npub fn main() -> void:\n    pass\n",
         "fn first(values...: (i32, string)) -> i32: 0\n\npub fn main() -> void:\n    pass\n",
         "use std.function.Tuple\n\nfn count[Args < Tuple](values...: Args) -> i32: 0\n\npub fn main() -> void:\n    pass\n",
-        "fn grow(values...: mut List[i32]) -> void: pass\n\npub fn main() -> void:\n    pass\n",
     ];
     for main in cases {
         assert_eq!(codes(main), Vec::<Code>::new(), "{main}");

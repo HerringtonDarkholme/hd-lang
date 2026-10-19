@@ -546,7 +546,7 @@ fn double(x: i32) -> i32:
 fn doubled(f: fn(i32) -> i32) -> fn(i32) -> i32:
     fn(x: i32) -> i32: f(x) * 2
 
-data Holder:
+struct Holder:
     run: fn(i32) -> i32
 
 fn hold(f: fn(i32) -> i32) -> Holder:

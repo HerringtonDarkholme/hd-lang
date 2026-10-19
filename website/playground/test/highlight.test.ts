@@ -61,7 +61,7 @@ const TRICKY = [
   "use_count := as_text + super_value",
   "let big: i64 = 1_000_000 + 0xFF + 3.5e10 + -250ms + 1.5kb",
   "enum Shape: Circle(radius: f64)",
-  "data User:",
+  "struct User:",
   '    pub name: string = "anon"',
   "tests:",
   '    it("works"):',

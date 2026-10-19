@@ -100,7 +100,7 @@ pub fn main() -> void $ Console:
 fn a_data_error_interpolates_its_fields() {
     let main = "\
 @error(\"bad yaml at line $line, column $column\")
-data YamlError:
+struct YamlError:
     line: i64
     column: i64
 
@@ -114,7 +114,7 @@ pub fn main() -> void $ Console:
 fn question_mark_converts_through_the_generated_from() {
     let main = "\
 @error(\"bad yaml at line $line\")
-data YamlError:
+struct YamlError:
     line: i64
 
 @error
@@ -149,7 +149,7 @@ fn source_members_are_the_cause() {
 use std.error.{Error, chain}
 
 @error(\"disk full\")
-data DiskError:
+struct DiskError:
     free: i64
 
 @error
@@ -190,7 +190,7 @@ fn transparent_errors_forward_message_and_cause() {
 use std.error.{Error, chain}
 
 @error(\"disk full\")
-data DiskError:
+struct DiskError:
     free: i64
 
 @error
@@ -206,7 +206,7 @@ enum AppError:
     Save(@from error: SaveError)
 
 @error(transparent)
-data PublicError:
+struct PublicError:
     @from
     repr: AppError
 
@@ -242,10 +242,10 @@ fn a_generic_error_type_gets_derived_bounds() {
 use std.error.{Error, chain}
 
 @error(\"disk full\")
-data DiskError:
+struct DiskError:
     free: i64
 
-data Job:
+struct Job:
     id: i64
 
 @error

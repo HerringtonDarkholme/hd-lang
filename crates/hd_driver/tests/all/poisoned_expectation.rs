@@ -10,7 +10,7 @@ use crate::type_default_written_run::codes_of;
 const HEAD: &str = "\
 type Both[A, B] = (A, B)
 
-data Pair[K, V]:
+struct Pair[K, V]:
     key: K
     value: V
 

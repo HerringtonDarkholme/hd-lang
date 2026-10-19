@@ -12,7 +12,7 @@ const PRELUDE: &str = "\
 enum Pair:
     Value(first: i32, second: i32)
 
-data Size:
+struct Size:
     width: i32
 
 impl Size:

@@ -62,10 +62,10 @@ fn bump() -> i32:
     calls = calls + 1
     calls
 
-data Bag:
+struct Bag:
     values: List[i32]
 
-enum Box[T](count: i32, seen: i32 = bump(), items: Bag = Bag { values: [1] }):
+enum Box[T](count: i32, seen: i32 = bump(), items: &Bag = &Bag { values: [1] }):
     Full(value: T) -> Box(1)
     Empty -> Box(0)
 
@@ -91,10 +91,10 @@ fn bump() -> i32:
     calls = calls + 1
     calls
 
-data Bag:
+struct Bag:
     values: List[i32]
 
-enum Box[T](seen: i32 = bump(), items: Bag = Bag { values: [] }):
+enum Box[T](seen: i32 = bump(), items: &Bag = &Bag { values: [] }):
     Full(value: T) -> Box()
     Empty -> Box()
 
@@ -139,10 +139,10 @@ pub fn main() -> void $ Console:
 #[test]
 fn a_shared_data_value_keeps_one_identity_across_values() {
     let main = "\
-data Names:
+struct Names:
     items: List[string]
 
-enum Tagged[T](names: Names = Names { items: [\"x\", \"y\"] }):
+enum Tagged[T](names: &Names = &Names { items: [\"x\", \"y\"] }):
     One(value: T) -> Tagged()
     Two(value: T) -> Tagged()
 

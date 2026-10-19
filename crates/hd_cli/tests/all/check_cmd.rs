@@ -120,7 +120,7 @@ fn unsupported_program_fails_the_check_in_json() {
 
 #[test]
 fn an_error_in_a_header_adds_no_unsupported_for_its_methods() {
-    let source = "data Counter:\n    current: i32\n\nimpl Missing for Counter:\n    fn next(self) -> i32: self.current\n\npub fn main() -> void:\n    pass\n";
+    let source = "struct Counter:\n    current: i32\n\nimpl Missing for Counter:\n    fn next(self) -> i32: self.current\n\npub fn main() -> void:\n    pass\n";
     let dir = package("hd-check-header-error", source);
     let r = check(&dir, &[]);
     assert_eq!(r.code, Some(101), "{}", r.err);

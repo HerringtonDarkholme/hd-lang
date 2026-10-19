@@ -15,7 +15,7 @@ use hd_sched::SerialOrder;
 /// functions, and a trait implementation's methods.
 fn program(errors: bool) -> String {
     let mut s = String::from(
-        "pub data Cell:\n    pub value: i32\n\npub trait Get:\n    fn get(self) -> i32\n    fn twice(self) -> i32\n\nimpl Get for Cell:\n    fn get(self) -> i32: self.value\n    fn twice(self) -> i32: self.value * +2\n\npub fn step0(x: i32) -> i32:\n    x + +1\n\n",
+        "pub struct Cell:\n    pub value: i32\n\npub trait Get:\n    fn get(self) -> i32\n    fn twice(self) -> i32\n\nimpl Get for Cell:\n    fn get(self) -> i32: self.value\n    fn twice(self) -> i32: self.value * +2\n\npub fn step0(x: i32) -> i32:\n    x + +1\n\n",
     );
     for i in 1..80 {
         let _ = write!(

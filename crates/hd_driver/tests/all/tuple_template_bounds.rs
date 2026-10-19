@@ -84,22 +84,22 @@ const BOUND: &[Code] = &[Code::UnsatisfiedTraitBound];
 fn tuples_of_hashable_members_are_map_keys_and_display() {
     let src = "\
 @derive(Eq, Hash)
-data Id:
+struct Id:
     value: string
 
 fn count[K < Eq & Hash](k: K) -> usize:
-    let m: mut Map[(K, i32), string] = {}
+    let mut m: Map[(K, i32), string] = {}
     m[(k, +1)] = \"a\"
     m[(k, +1)] = \"b\"
     m.len()
 
 pub fn main() -> void $ Console:
-    let m: mut Map[(i32, (string, bool)), string] = {}
+    let mut m: Map[(i32, (string, bool)), string] = {}
     m[(+1, (\"a\", true))] = \"x\"
     m[(+1, (\"a\", true))] = \"y\"
     m[(+2, (\"a\", true))] = \"z\"
     println(m.len())
-    let ids: mut Map[(Id, char), i32] = {}
+    let mut ids: Map[(Id, char), i32] = {}
     ids[(Id { value: \"k\" }, 'c')] = +3
     println(ids[(Id { value: \"k\" }, 'c')])
     println(count(\"q\"))
@@ -128,7 +128,7 @@ fn a_function_member_is_no_map_key() {
 #[test]
 fn an_unhashable_data_member_is_no_map_key() {
     let src = "\
-data Secret:
+struct Secret:
     value: i32
 
 let m: Map[(Secret, i32), string] = {}
@@ -141,11 +141,11 @@ fn a_field_and_a_derived_member_ask_the_same_of_a_tuple() {
     // A field's type is checked with the headers; a derivation checks
     // its members' types against the walker.
     assert_eq!(
-        main_codes("data Holder:\n    pub m: Map[(i32, f64), i32]\n"),
+        main_codes("struct Holder:\n    pub m: Map[(i32, f64), i32]\n"),
         BOUND
     );
     assert_eq!(
-        main_codes("@derive(Eq, Hash)\ndata Keyed:\n    pair: (i32, f64)\n"),
+        main_codes("@derive(Eq, Hash)\nstruct Keyed:\n    pair: (i32, f64)\n"),
         [Code::DeriveFieldMissingTrait]
     );
 }
@@ -181,7 +181,7 @@ fn keyed[T](t: T) -> usize:
 #[test]
 fn display_and_default_need_every_member() {
     let display = "\
-data Secret:
+struct Secret:
     value: i32
 
 fn show(pair: (i32, Secret)) -> string:
@@ -191,7 +191,7 @@ fn show(pair: (i32, Secret)) -> string:
     let default = "\
 use std.ops.Default
 
-data Secret:
+struct Secret:
     value: i32
 
 fn fresh[T < Default]() -> T:
@@ -219,7 +219,7 @@ fn a_rest_element_meets_the_bound_by_its_items_or_its_list() {
     let default = "\
 use std.ops.Default
 
-data Secret:
+struct Secret:
     value: i32
 
 fn fresh[T < Default]() -> T:

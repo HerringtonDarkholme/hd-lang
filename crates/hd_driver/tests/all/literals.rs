@@ -89,7 +89,7 @@ const MAIN: &str = "\npub fn main() -> void:\n    pass\n";
 
 const MILLIS: &str = "use std.ops.num_suffix
 
-data Millis:
+struct Millis:
     count: i64
 
 @num_suffix
@@ -100,7 +100,7 @@ fn ms(count: i64) -> Millis:
 
 const QUERY: &str = "use std.ops.{Template, str_prefix}
 
-data Query:
+struct Query:
     text: List[string]
     params: List[i32]
 

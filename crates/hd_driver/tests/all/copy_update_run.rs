@@ -65,7 +65,7 @@ fn errors_of(main: &str) -> String {
 #[test]
 fn a_copy_replaces_one_field_and_leaves_the_source() {
     let main = "\
-data User:
+struct User:
     name: string
     age: i32
     admin: bool
@@ -85,7 +85,7 @@ pub fn main() -> void $ Console:
 #[test]
 fn a_copy_replacing_nothing_is_a_distinct_value() {
     let main = "\
-data Counter:
+struct Counter:
     value: i32
 
 pub fn main() -> void $ Console:
@@ -100,76 +100,13 @@ pub fn main() -> void $ Console:
 }
 
 #[test]
-fn a_readonly_source_fills_a_readonly_result() {
-    // expr.update.readonly-source, expr.update.readonly-fill
-    let main = "\
-data Child:
-    name: string
-
-data Parent:
-    child: mut Child
-    label: string
-
-fn copy(source: Parent) -> Parent:
-    Parent { ...source, label: \"copy\" }
-
-pub fn main() -> void $ Console:
-    let mut shared = Child { name: \"a\" }
-    original := Parent { child: shared, label: \"orig\" }
-    duplicate := copy(original)
-    shared.name = \"b\"
-    println(\"${duplicate.label} ${duplicate.child.name}\")
-";
-    assert_eq!(output_of("readonly-fill", main), "copy b\n");
-}
-
-#[test]
-fn a_mut_field_of_a_readonly_source_needs_a_mut_replacement() {
-    // expr.update.readonly-fill, data.update.mutable-result
-    let valid = "\
-data Child:
-    name: string
-
-data Parent:
-    child: mut Child
-    label: string
-
-fn fresh_child(source: Parent) -> mut Parent:
-    Parent { ...source, child: Child { name: \"new\" } }
-
-pub fn main() -> void $ Console:
-    original := Parent { child: Child { name: \"old\" }, label: \"l\" }
-    let mut made = fresh_child(original)
-    made.child.name = \"changed\"
-    println(\"${original.child.name} ${made.child.name} ${made.label}\")
-";
-    assert_eq!(output_of("mut-valid", valid), "old changed l\n");
-    let invalid = "\
-data Child:
-    name: string
-
-data Parent:
-    child: mut Child
-    label: string
-
-fn upgrade(source: Parent) -> mut Parent:
-    Parent { ...source, label: \"x\" }
-
-pub fn main() -> void:
-    pass
-";
-    let err = errors_of(invalid);
-    assert!(err.contains("mutable-upgrade"), "{err}");
-}
-
-#[test]
 fn a_mismatched_source_type_is_reported() {
     // expr.update.exact-type
     let main = "\
-data Other:
+struct Other:
     value: i32
 
-data Counter:
+struct Counter:
     value: i32
 
 fn bad(other: Other) -> Counter:
@@ -186,7 +123,7 @@ pub fn main() -> void:
 fn a_generic_data_type_copies_with_substituted_fields() {
     // expr.update.generic
     let main = "\
-data Pair[T]:
+struct Pair[T]:
     first: T
     second: T
 
@@ -206,15 +143,15 @@ pub fn main() -> void $ Console:
 fn a_copy_shares_composite_fields_with_its_source() {
     // expr.update.shallow
     let main = "\
-data Child:
+struct Child:
     name: string
 
-data Parent:
-    child: mut Child
+struct Parent:
+    child: &mut Child
     label: string
 
 pub fn main() -> void $ Console:
-    let mut original = Parent { child: Child { name: \"a\" }, label: \"x\" }
+    let mut original = Parent { child: &mut Child { name: \"a\" }, label: \"x\" }
     let mut copy = Parent { ...original, label: \"y\" }
     copy.child.name = \"b\"
     println(original.child.name)
@@ -227,24 +164,24 @@ pub fn main() -> void $ Console:
 fn a_copy_makes_its_own_embedded_parts_when_the_spread_runs() {
     // data.part.copy-update, data.part.copy-time
     let main = "\
-data Stamp:
+struct Stamp:
     pub at: i32
 
 impl Stamp:
-    pub fn touch(mut self, at: i32) -> void:
+    pub fn touch(&mut self, at: i32) -> void:
         self.at = at
 
-data Post:
+struct Post:
     Stamp
     id: string
 
-fn bump(stamp: mut Stamp) -> string:
+fn bump(stamp: &mut Stamp) -> string:
     stamp.at = stamp.at + 1
     \"bumped\"
 
 pub fn main() -> void $ Console:
-    let mut post = Post { Stamp: ...Stamp { at: 1 }, id: \"p\" }
-    let mut copy = Post { ...post, id: bump(post.Stamp) }
+    let mut post = Post { Stamp: Stamp { at: 1 }, id: \"p\" }
+    let mut copy = Post { ...post, id: bump(&mut post.Stamp) }
     println(\"${copy.at} ${post.at}\")
     copy.touch(9)
     println(\"${copy.at} ${post.at}\")

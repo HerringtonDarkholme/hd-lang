@@ -48,7 +48,7 @@ fn codes_of(items: &str) -> Vec<Code> {
 const CELL: &str = "\
 use std.ops.{Apply, Update}
 
-data Cell:
+struct Cell:
     value: i32
 
 impl Apply for Cell:
@@ -59,11 +59,11 @@ impl Update[i32] for Cell:
     fn update(&mut self, value: i32) -> void:
         self.value = value
 
-fn live(value: i32) -> mut Cell:
+fn live(value: i32) -> Cell:
     Cell { value: value }
 
-data Panel:
-    count: mut Cell
+struct Panel:
+    count: Cell
     frozen: Cell
 ";
 
@@ -75,7 +75,7 @@ fn with_cell(rest: &str) -> String {
 fn a_store_and_a_compound_store_check() {
     let ok = with_cell(
         "\
-fn run(panel: mut Panel) -> i32:
+fn run(panel: &mut Panel) -> i32:
     let mut count = live(+0)
     count() = 1
     count() += 2
@@ -119,14 +119,14 @@ fn a_call_without_update_is_not_a_place() {
     let apply_only = "\
 use std.ops.Apply
 
-data Counter:
+struct Counter:
     hits: i32
 
 impl Apply for Counter:
     type Out = i32
     fn apply(self) -> i32: self.hits
 
-fn run(counter: mut Counter) -> void:
+fn run(counter: &mut Counter) -> void:
     counter() = 2
 ";
     assert_eq!(codes_of(apply_only), vec![Code::InvalidAssignmentTarget]);
@@ -151,7 +151,7 @@ fn a_method_call_is_not_a_place() {
 impl Cell:
     fn get(self) -> i32: self.value
 
-fn run(cell: mut Cell) -> void:
+fn run(cell: &mut Cell) -> void:
     cell.get() = 2
 ",
     );
@@ -171,7 +171,7 @@ fn a_store_needs_a_mut_cell() {
     assert_eq!(codes_of(&view), vec![Code::MutableReceiverRequired]);
     let read_only = with_cell("fn run(cell: &Cell) -> void:\n    cell() = 2\n");
     assert_eq!(codes_of(&read_only), vec![Code::MutableReceiverRequired]);
-    let edge = with_cell("fn run(panel: mut Panel) -> void:\n    (panel.frozen)() = 2\n");
+    let edge = with_cell("fn run(panel: &Panel) -> void:\n    (panel.frozen)() = 2\n");
     assert_eq!(codes_of(&edge), vec![Code::MutableReceiverRequired]);
     let readonly_holder = with_cell("fn run(panel: Panel) -> void:\n    (panel.count)() = 2\n");
     assert_eq!(
@@ -184,7 +184,7 @@ fn a_store_needs_a_mut_cell() {
 fn a_callable_value_takes_no_arguments() {
     let read = with_cell("fn run(cell: Cell) -> i32:\n    cell(1)\n");
     assert_eq!(codes_of(&read), vec![Code::ArgumentCount]);
-    let store = with_cell("fn run(cell: mut Cell) -> void:\n    cell(1) = 2\n");
+    let store = with_cell("fn run(cell: &mut Cell) -> void:\n    cell(1) = 2\n");
     assert_eq!(codes_of(&store), vec![Code::ArgumentCount]);
 }
 
@@ -192,7 +192,7 @@ fn a_callable_value_takes_no_arguments() {
 fn only_apply_and_update_make_a_value_callable() {
     let list = "fn run(tags: List[string]) -> string:\n    tags(0)\n";
     assert_eq!(codes_of(list), vec![Code::NotCallable]);
-    let store = "fn run(tags: mut List[string]) -> void:\n    tags(0) = \"x\"\n";
+    let store = "fn run(tags: &mut List[string]) -> void:\n    tags(0) = \"x\"\n";
     assert_eq!(codes_of(store), vec![Code::InvalidAssignmentTarget]);
 }
 
@@ -202,7 +202,7 @@ fn a_compound_store_reads_through_apply() {
     let update_only = "\
 use std.ops.Update
 
-data Sink:
+struct Sink:
     last: i32
 
 impl Update[i32] for Sink:
@@ -219,7 +219,7 @@ fn run(sink: &mut Sink) -> void:
 
 #[test]
 fn the_stored_value_must_fit_the_update_impl() {
-    let src = with_cell("fn run(cell: mut Cell) -> void:\n    cell() = \"text\"\n");
+    let src = with_cell("fn run(cell: &mut Cell) -> void:\n    cell() = \"text\"\n");
     assert!(
         !codes_of(&src).is_empty(),
         "a string cannot be stored in an i32 cell"
@@ -285,9 +285,9 @@ println(count())
 fn the_callee_is_evaluated_once_and_before_the_value() {
     let items = with_cell(
         "\
-data Pair:
-    left: mut Cell
-    right: mut Cell
+struct Pair:
+    left: Cell
+    right: Cell
 
 fn pick(pair: &mut Pair, name: string) -> &mut Cell $ Console:
     println(\"pick ${name}\")
@@ -317,7 +317,7 @@ fn the_store_runs_the_update_method() {
     let items = "\
 use std.ops.{Apply, Update}
 
-data Meter:
+struct Meter:
     reading: i32
     writes: i32
 
@@ -330,7 +330,7 @@ impl Update[i32] for Meter:
         self.writes = self.writes + 1
         self.reading = value * 2
 
-fn fresh() -> mut Meter:
+fn fresh() -> Meter:
     Meter { reading: 0, writes: 0 }
 ";
     let body = "\

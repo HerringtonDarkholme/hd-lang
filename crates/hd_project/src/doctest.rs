@@ -245,7 +245,7 @@ mod tests {
 
     #[test]
     fn names_programs_and_lines() {
-        let text = "## Text helpers.\n##\n## ```hd\n## use pkg.text.{slugify}\n##\n## slugify(\"a\")\n## ```\n\n## Turns a title into a slug.\n##\n## ```hd\n## use pkg.text.{slugify}\n## use std.testing.assert_equal\n##\n## assert_equal(slugify(\"A B\"), \"A-B\", reason=\"r\")\n## ```\n##\n## ```text\n## not a test\n## ```\n## ```hd\n## use pkg.text.{slugify}\n##\n## x := slugify(1)  # error: type-mismatch\n## ```\npub fn slugify(title: string) -> string:\n    title\n\npub data Slug:\n    ## The text.\n    ##\n    ## ```hd\n    ## use pkg.text.{Slug}\n    ## ```\n    text: string\n";
+        let text = "## Text helpers.\n##\n## ```hd\n## use pkg.text.{slugify}\n##\n## slugify(\"a\")\n## ```\n\n## Turns a title into a slug.\n##\n## ```hd\n## use pkg.text.{slugify}\n## use std.testing.assert_equal\n##\n## assert_equal(slugify(\"A B\"), \"A-B\", reason=\"r\")\n## ```\n##\n## ```text\n## not a test\n## ```\n## ```hd\n## use pkg.text.{slugify}\n##\n## x := slugify(1)  # error: type-mismatch\n## ```\npub fn slugify(title: string) -> string:\n    title\n\npub struct Slug:\n    ## The text.\n    ##\n    ## ```hd\n    ## use pkg.text.{Slug}\n    ## ```\n    text: string\n";
         let tests = doc_tests("src/text.hd", text);
         let names: Vec<&str> = tests.iter().map(|t| t.name.as_str()).collect();
         assert_eq!(

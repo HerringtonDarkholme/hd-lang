@@ -161,7 +161,7 @@ mod tests {
         names.add_input(2, "rate := +3\nlet mut total = +0\n");
         names.add_input(
             3,
-            "@derive(Eq) data Point(x: f64, y: f64)\npub enum Color:\n    Red\n",
+            "@derive(Eq) struct Point(x: f64, y: f64)\npub enum Color:\n    Red\n",
         );
         names.add_input(4, "use std.collections.{Deque, Set as Bag}\nuse pkg.shapes\ntrait Named:\n    fn name(self) -> string\n");
         names

@@ -161,8 +161,7 @@ impl Parser<'_> {
                 Some(TokenKind::Ident | TokenKind::RawIdent)
             ),
             Some(
-                TokenKind::KwData
-                | TokenKind::KwStruct
+                TokenKind::KwStruct
                 | TokenKind::KwEnum
                 | TokenKind::KwTrait
                 | TokenKind::KwImpl
@@ -189,7 +188,7 @@ impl Parser<'_> {
         }
         match self.current() {
             Some(TokenKind::KwFn) => self.fn_decl(marker, Owner::Free),
-            Some(TokenKind::KwData | TokenKind::KwStruct) => self.data_decl(marker),
+            Some(TokenKind::KwStruct) => self.data_decl(marker),
             Some(TokenKind::KwEnum) => self.enum_decl(marker),
             Some(TokenKind::KwTrait) => self.trait_decl(marker),
             Some(TokenKind::KwImpl) => {

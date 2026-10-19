@@ -52,7 +52,7 @@ test("a code block splits into one input per top-level item", () => {
   const block = [
     "# Greets someone.",
     "@derive(Debug)",
-    "data Point:",
+    "struct Point:",
     "    x: i32",
     "",
     "fn greet(name: string) -> string:",
@@ -69,7 +69,7 @@ test("a code block splits into one input per top-level item", () => {
     "# trailing",
   ].join("\n");
   assert.deepEqual(splitInputs(block), [
-    "# Greets someone.\n@derive(Debug)\ndata Point:\n    x: i32\n",
+    "# Greets someone.\n@derive(Debug)\nstruct Point:\n    x: i32\n",
     'fn greet(name: string) -> string:\n    "hello, $name"\n',
     'greet("hd")\n',
     "if true:\n    1\nelse:\n    2\n",

@@ -220,7 +220,7 @@ fn a_slice_is_not_a_place() {
     let main = "\
 use std.ops.Range
 
-fn invalid(items: mut List[i32], text: string) -> void:
+fn invalid(items: &mut List[i32], text: string) -> void:
     items[0..2] = [7, 8]
     items[..] = [1]
     text[0..1] = \"a\"

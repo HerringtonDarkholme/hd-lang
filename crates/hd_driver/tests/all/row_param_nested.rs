@@ -35,7 +35,7 @@ fn db_handler() -> void $ Db:
 fn db_clock_handler() -> void $ Db + Clock:
     pass
 
-pub data Holder[T]:
+pub struct Holder[T]:
     item: T
 
 fn run_all[$R](xs: List[fn() -> void $ R]) -> void $ R:

@@ -71,7 +71,7 @@ pub trait Tag:
 pub trait Log:
     fn tag(self) -> string
 
-data Named:
+struct Named:
     label: string
 
 impl Tag for Named:
@@ -143,7 +143,7 @@ trait Clock:
 trait Backup < Clock:
     fn label(self) -> i32
 
-data Fixed: pass
+struct Fixed: pass
 
 impl Clock for Fixed:
     fn now(self) -> i32: 7
@@ -173,16 +173,16 @@ pub fn main() -> void $ Console:
 fn a_mutable_provider_through_a_context_keeps_its_state() {
     let main = "
 trait Counter:
-    fn count(self) -> i32
-    fn bump(mut self) -> void
+    fn count(&self) -> i32
+    fn bump(&mut self) -> void
 
-data Memory:
+struct Memory:
     value: i32
 
 impl Counter for Memory:
-    fn count(self) -> i32: self.value
+    fn count(&self) -> i32: self.value
 
-    fn bump(mut self) -> void:
+    fn bump(&mut self) -> void:
         self.value = self.value + 1
 
 fn tick() -> i32 $ Counter:
@@ -190,7 +190,7 @@ fn tick() -> i32 $ Counter:
     $.use(Counter).count()
 
 fn counters() -> $.Context[$ Counter]:
-    $.context(Counter=Memory { value: 0 })
+    $.context(Counter=&mut Memory { value: 0 })
 
 pub fn main() -> void $ Console:
     ctx := counters()
@@ -210,7 +210,7 @@ pub fn main() -> void $ Console:
 fn a_context_value_flows_like_any_value() {
     let main = format!(
         "{TAGS}
-data Holder:
+struct Holder:
     ctx: $.Context[$ Tag]
 
 fn run(job: fn() -> string $ Tag) -> string $ Tag:
@@ -258,12 +258,12 @@ fn a_context_argument_fixes_a_generic_key() {
 trait Repo[T]:
     fn get(self) -> T
 
-data Ints: pass
+struct Ints: pass
 
 impl Repo[i32] for Ints:
     fn get(self) -> i32: 5
 
-data Words: pass
+struct Words: pass
 
 impl Repo[string] for Words:
     fn get(self) -> string: \"five\"
@@ -282,7 +282,7 @@ trait Repo[T]
 
 trait Log
 
-data Ints: pass
+struct Ints: pass
 
 impl Repo[i32] for Ints
 
@@ -372,23 +372,23 @@ pub fn run(ctx: $.Context[$ Tag]) -> string:
     assert_eq!(codes(&main), vec![Code::MissingRequirement]);
 }
 
-/// A mutable requirement trait needs a `mut` value in `$.context` too
+/// A mutable requirement trait needs a `&mut` value in `$.context` too
 /// (`req.mut.install-writable-ref`).
 #[test]
 fn a_readonly_value_for_a_mutable_key_is_an_upgrade() {
     let main = "
 trait Counter:
-    fn bump(mut self) -> void
+    fn bump(&mut self) -> void
 
-data Memory:
+struct Memory:
     value: i32
 
 impl Counter for Memory:
-    fn bump(mut self) -> void:
+    fn bump(&mut self) -> void:
         self.value = self.value + 1
 
 fn counters() -> $.Context[$ Counter]:
-    counter := Memory { value: 0 }
+    counter := &Memory { value: 0 }
     $.context(Counter=counter)
 ";
     assert_eq!(codes(main), vec![Code::MutableUpgrade]);
@@ -446,8 +446,8 @@ pub fn main() -> void $ Console:
 const REPO: &str = "
 trait Repo[T]
 
-data User: pass
-data Post: pass
+struct User: pass
+struct Post: pass
 ";
 
 /// A spread's keys collide with a later entry whose key can become the

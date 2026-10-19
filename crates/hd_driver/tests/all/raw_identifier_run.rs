@@ -55,7 +55,7 @@ fn output_of(name: &str, main: &str) -> String {
 #[test]
 fn a_reserved_word_names_a_field() {
     let main = "\
-data Token:
+struct Token:
     `type`: string
     `data`: i32
 
@@ -70,7 +70,7 @@ pub fn main() -> void $ Console:
 #[test]
 fn a_reserved_word_names_a_method() {
     let main = "\
-data Token:
+struct Token:
     text: string
 
 impl Token:
@@ -131,7 +131,7 @@ pub fn main() -> void $ Console:
 #[test]
 fn a_raw_interpolation_reads_a_reserved_word() {
     let main = "\
-data Token:
+struct Token:
     `type`: string
 
 pub fn main() -> void $ Console:
@@ -145,7 +145,7 @@ pub fn main() -> void $ Console:
 #[test]
 fn backticks_around_an_ordinary_name_change_nothing() {
     let main = "\
-data Point:
+struct Point:
     x: i32
 
 fn twice(value: i32) -> i32: value * 2

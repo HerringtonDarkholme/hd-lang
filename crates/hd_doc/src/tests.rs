@@ -12,7 +12,7 @@ const LIB: &str = "\
 
 ## A cart's line.
 @derive(Eq)
-pub data Line:
+pub struct Line:
     ## The product.
     pub name: string
     price: i32
@@ -199,7 +199,7 @@ fn items_signatures_members_impls_and_examples() {
     let want = [
         "# Module `pkg`\n\nTools for the shop.\n\n",
         "- [`Line`](#Line): A cart's line.\n- [`Show`](#Show): Shows a line.\n- [`total`](#total): Adds the prices of a cart.\n- [`Price`](#Price)\n\n",
-        "<a id=\"Line\"></a>\n## `Line`\n\n```hd\npub data Line:\n    pub name: string\n    # private fields omitted\n```\n\nA cart's line.\n\n",
+        "<a id=\"Line\"></a>\n## `Line`\n\n```hd\npub struct Line:\n    pub name: string\n    # private fields omitted\n```\n\nA cart's line.\n\n",
         "- `impl Eq for Line` (derived)\n- `impl Show for Line`\n\n",
         "<a id=\"Line.name\"></a>\n### `Line.name`\n\n```hd\npub name: string\n```\n\nThe product.\n\n",
         "<a id=\"Line.new\"></a>\n### `Line.new`\n\n```hd\npub fn new(name: string) -> Line\n```\n\nMakes a line.\n\nExample `doc pkg.Line.new[0]`:\n```hd\nuse pkg.{Line}\n\nl := Line.new(\"tea\")\n```\n\n",
@@ -386,7 +386,7 @@ const LINK_CART: &str = "\
 use pkg.{total}
 
 ## A cart.
-pub data Cart:
+pub struct Cart:
     pub n: i32
 
 impl Cart:

@@ -11,13 +11,13 @@ use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
 const PRELUDE: &str = "\
-data User:
+struct User:
     name: string
 
-data Order:
+struct Order:
     total: i32
 
-data Box[T]:
+struct Box[T]:
     item: T
 
 enum Color:
@@ -71,13 +71,13 @@ fn rejected(body: &str, code: Code) {
 fn reference_operands_of_one_type_compare() {
     accepted(
         "\
-fn data_values(a: User, b: User) -> bool:
+fn struct_refs(a: &User, b: &User) -> bool:
     a is b
 
-fn generic_data(a: Box[i32], b: Box[i32]) -> bool:
+fn generic_struct(a: &Box[i32], b: &Box[i32]) -> bool:
     a is b
 
-fn negated(a: User, b: User) -> bool:
+fn negated(a: &User, b: &User) -> bool:
     !(a is b)
 ",
     );
@@ -87,35 +87,20 @@ fn negated(a: User, b: User) -> bool:
 fn permissions_do_not_change_compatibility() {
     accepted(
         "\
-fn data_views(a: User, b: mut User) -> bool:
+fn mixed_refs(a: &User, b: &mut User) -> bool:
     a is b
 
-fn inner(a: Box[mut User], b: Box[User]) -> bool:
-    b is a
+fn inner(a: &Box[&mut User], b: &Box[&User]) -> bool:
+    b.item is a.item
 ",
     );
 }
 
 #[test]
-fn a_trait_value_or_any_meets_a_type_that_converts_to_it() {
+fn trait_value_references_of_one_trait_compare() {
     accepted(
         "\
-fn trait_left(named: dyn Named, user: User) -> bool:
-    named is user
-
-fn trait_right(user: User, named: dyn Named) -> bool:
-    user is named
-
-fn any_data(any: dyn Any, user: User) -> bool:
-    any is user
-
-fn two_trait_values(a: dyn Named, b: dyn Any) -> bool:
-    a is b
-
-fn super_trait(a: dyn Entity, b: dyn Named) -> bool:
-    a is b
-
-fn same_trait(a: dyn Named, b: dyn Named) -> bool:
+fn same_trait(a: &dyn Named, b: &dyn Named) -> bool:
     a is b
 ",
     );
@@ -141,7 +126,7 @@ fn through_trait[T < Handle](a: T, b: T) -> bool:
 fn inference_and_never_do_not_add_errors() {
     accepted(
         "\
-fn diverges(a: User) -> bool:
+fn diverges(a: &User) -> bool:
     a is panic(\"stop\")
 ",
     );
@@ -231,7 +216,7 @@ fn a_function_has_no_identity() {
         Code::IdentityRequiresReferences,
     );
     rejected(
-        "data Handler:\n    run: fn() -> i32\n\nfn f(a: Handler, b: Handler) -> bool:\n    a.run is b.run\n",
+        "struct Handler:\n    run: fn() -> i32\n\nfn f(a: Handler, b: Handler) -> bool:\n    a.run is b.run\n",
         Code::IdentityRequiresReferences,
     );
     rejected(
@@ -261,7 +246,7 @@ fn unrelated_reference_types_are_incompatible() {
         ("User", "Box[User]"),
     ] {
         rejected(
-            &format!("fn f(a: {a}, b: {b}) -> bool:\n    a is b\n"),
+            &format!("fn f(a: &{a}, b: &{b}) -> bool:\n    a is b\n"),
             Code::IncompatibleIdentityOperands,
         );
     }
@@ -270,15 +255,15 @@ fn unrelated_reference_types_are_incompatible() {
 #[test]
 fn a_trait_value_needs_the_other_type_to_convert() {
     rejected(
-        "fn f(named: dyn Named, order: Order) -> bool:\n    named is order\n",
+        "fn f(named: &dyn Named, order: &Order) -> bool:\n    named is order\n",
         Code::IncompatibleIdentityOperands,
     );
     rejected(
-        "fn f(order: Order, named: dyn Named) -> bool:\n    order is named\n",
+        "fn f(order: &Order, named: &dyn Named) -> bool:\n    order is named\n",
         Code::IncompatibleIdentityOperands,
     );
     rejected(
-        "fn f[T < AnyRef](a: T, user: User) -> bool:\n    a is user\n",
+        "fn f[T < AnyRef](a: &T, user: &User) -> bool:\n    a is user\n",
         Code::IncompatibleIdentityOperands,
     );
 }

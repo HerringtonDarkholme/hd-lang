@@ -77,7 +77,7 @@ pub fn main() -> void:
 
 #[test]
 fn a_failed_scrutinee_binds_data_pattern_names() {
-    let src = "data Point:
+    let src = "struct Point:
     x: i32
     y: i32
 

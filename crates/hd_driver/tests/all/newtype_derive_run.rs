@@ -241,7 +241,7 @@ fn a_newtype_wraps_no_new_object() {
     // creates no new object, so the wrapper and the base are identical
     // through `dyn Any`.
     let main = "\
-data User:
+struct User:
     name: string
 
 type Owner(User)
@@ -261,7 +261,7 @@ fn handwritten_methods_on_newtypes_keep_their_bodies() {
     // Only `@derive` implementations forward; a written method on a
     // newtype still runs its own body.
     let main = "\
-data User:
+struct User:
     name: string
 
 type Owner(User)

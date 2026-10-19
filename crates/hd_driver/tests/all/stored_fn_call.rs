@@ -32,7 +32,7 @@ fn codes(out: &Output) -> Vec<Code> {
 }
 
 const BUTTON: &str = "\
-data Button:
+struct Button:
     on_click: fn(i32) -> i32
 
 fn double(x: i32) -> i32: x * 2
@@ -73,7 +73,7 @@ fn parenthesized_field_call_is_accepted() {
 fn method_sharing_a_field_name_wins_and_the_field_stays_callable() {
     let out = analyzed(
         "\
-data Button:
+struct Button:
     on_click: fn(i32) -> i32
 
 impl Button:
@@ -90,10 +90,10 @@ fn run(button: Button) -> i32:
 fn embedded_function_field_is_not_called_by_method_syntax() {
     let out = analyzed(
         "\
-data Base:
+struct Base:
     pub run: fn() -> i32
 
-data Job:
+struct Job:
     Base
 
 fn bad(job: Job) -> i32:

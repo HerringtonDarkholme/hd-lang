@@ -58,13 +58,13 @@ fn output_of(name: &str, main: &str) -> String {
 fn values_are_found_by_type_in_source_order() {
     let main = "use std.annotation.facts_of
 
-data Route:
+struct Route:
     path: string
 
 fn route(path: string) -> Route:
     Route { path: path }
 
-data Hidden: pass
+struct Hidden: pass
 
 fn hidden() -> Hidden:
     Hidden {}

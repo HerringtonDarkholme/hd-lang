@@ -14,7 +14,7 @@ const MAIN: &str = "\
 trait Show:
     fn show(self) -> string
 
-data Clock:
+struct Clock:
     hour: i32
 
 fn greet[T < Show](t: T) -> string:
@@ -26,7 +26,7 @@ pub fn main() -> void $ Console:
 tests:
     use std.testing.assert_equal
 
-    data Tag:
+    struct Tag:
         name: string
 
     impl Show for Tag:
@@ -98,7 +98,7 @@ const OVERLAP: &str = "\
 trait Show:
     fn show(self) -> string
 
-data Clock:
+struct Clock:
     hour: i32
 
 impl Show for Clock:

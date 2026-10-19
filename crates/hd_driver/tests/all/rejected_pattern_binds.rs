@@ -58,7 +58,7 @@ fn bare_variant_arm_hides_no_neighbour() {
 #[test]
 fn duplicate_field_binds_the_alias() {
     let got = codes(
-        "data User:\n    name: string\n\nfn f(user: User) -> string:\n    match user:\n        User { name, name: alias } => alias\n",
+        "struct User:\n    name: string\n\nfn f(user: User) -> string:\n    match user:\n        User { name, name: alias } => alias\n",
     );
     assert_eq!(got, vec![Code::DuplicateDataPatternField]);
 }

@@ -63,7 +63,7 @@ fn accepts(text: &str) {
 const HOST_USES: &str = "use std.console.ConsoleInput\nuse std.time.Clock\nuse std.fs.{FsRead, FsWrite}\nuse std.random.Random\nuse std.http.Http\nuse std.net.Net\nuse std.process.Process\nuse std.sys.Sys\nuse std.host.{Env, Args}\n\n";
 
 const DATABASE: &str = "pub trait Database:\n    fn query(self) -> i32\n\n";
-const HIDDEN: &str = "pub data HiddenError: pass\n\n";
+const HIDDEN: &str = "pub struct HiddenError: pass\n\n";
 
 // module.entry.parameters
 
@@ -258,7 +258,7 @@ fn a_result_of_a_result_is_an_entry_result() {
 #[test]
 fn a_user_error_with_error_is_an_entry_error() {
     accepts(
-        "use std.error.Error\n\npub data Oops:\n    code: i32\n\nimpl Display for Oops:\n    fn to_string(self) -> string:\n        \"oops\"\n\nimpl Error for Oops\n\npub fn main() -> Result[void, Oops]:\n    .Err(Oops { code: 1 })\n",
+        "use std.error.Error\n\npub struct Oops:\n    code: i32\n\nimpl Display for Oops:\n    fn to_string(self) -> string:\n        \"oops\"\n\nimpl Error for Oops\n\npub fn main() -> Result[void, Oops]:\n    .Err(Oops { code: 1 })\n",
     );
 }
 
@@ -266,7 +266,7 @@ fn a_user_error_with_error_is_an_entry_error() {
 fn a_user_error_with_only_display_is_not_an_entry_error() {
     assert_eq!(
         single(
-            "pub data Oops:\n    code: i32\n\nimpl Display for Oops:\n    fn to_string(self) -> string:\n        \"oops\"\n\npub fn main() -> Result[void, Oops]:\n    .Err(Oops { code: 1 })\n"
+            "pub struct Oops:\n    code: i32\n\nimpl Display for Oops:\n    fn to_string(self) -> string:\n        \"oops\"\n\npub fn main() -> Result[void, Oops]:\n    .Err(Oops { code: 1 })\n"
         ),
         [(Code::UnsatisfiedTraitBound, 8, 18)]
     );

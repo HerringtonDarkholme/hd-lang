@@ -73,10 +73,10 @@ pub fn main() -> void $ Console:
     println(length_of(List::len, xs))
     let groups: List[List[i32]] = [[1], [2, 3], []]
     println(groups.map(List::len)[1])
-    let acc: mut List[i32] = []
-    let push: fn(mut List[i32], i32) -> void = List::push
-    push(acc, 7)
-    push(acc, 8)
+    let mut acc: List[i32] = []
+    let push: fn(&mut List[i32], i32) -> void = List::push
+    push(&mut acc, 7)
+    push(&mut acc, 8)
     println(acc[1])
     let m: Map[string, i32] = {\"a\": 1}
     get := Map::[string, i32]::get
@@ -98,7 +98,7 @@ fn bound_references_to_builtin_methods_capture_the_receiver() {
     let xs: List[i32] = [1, 2, 3]
     len := xs::len
     println(len())
-    let acc: mut List[i32] = []
+    let mut acc: List[i32] = []
     add := acc::push
     add(5)
     add(6)

@@ -34,7 +34,7 @@ fn errors(main: &str) -> Vec<Code> {
 
 #[test]
 fn intrinsic_outside_std_is_unknown_name() {
-    let main = "use std.ops.Add\n\ndata Money:\n    cents: i64\n\nimpl Add for Money:\n    type Out = Money\n    @intrinsic\n    fn add(self, rhs: Money) -> Money\n";
+    let main = "use std.ops.Add\n\nstruct Money:\n    cents: i64\n\nimpl Add for Money:\n    type Out = Money\n    @intrinsic\n    fn add(self, rhs: Money) -> Money\n";
     assert_eq!(errors(main), vec![Code::UnknownName]);
 }
 

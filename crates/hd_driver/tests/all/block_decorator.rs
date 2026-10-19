@@ -50,7 +50,7 @@ fn offset_of(src: &str, needle: &str) -> u32 {
     u32::try_from(at).expect("offset fits")
 }
 
-const STYLE: &str = "data Style:
+const STYLE: &str = "struct Style:
     prefix: string = \"\"
 
 fn style(prefix: string = \"\") -> Style:
@@ -63,7 +63,7 @@ fn decorator_before_derivation_block_warns_once_on_the_decorator() {
         "use std.structure.Structure
 
 {STYLE}
-data Loud:
+struct Loud:
     id: i64
 
 @style(prefix=\"l_\")
@@ -93,7 +93,7 @@ fn cached_rebuild_keeps_the_warning() {
         "use std.structure.Structure
 
 {STYLE}
-data Loud:
+struct Loud:
     id: i64
 
 @style(prefix=\"l_\")
@@ -123,7 +123,7 @@ impl Loud by Structure:
 fn standard_value_before_derivation_block_warns_too() {
     let src = "use std.structure.Structure
 
-data Hidden:
+struct Hidden:
     id: i64
 
 @\"internal\"
@@ -146,7 +146,7 @@ fn decorator_before_trait_derivation_block_warns() {
         "use std.structure.Structure
 
 {STYLE}
-data Loud:
+struct Loud:
     id: i64
 
 @style(prefix=\"x\")
@@ -172,7 +172,7 @@ fn decorator_before_data_declaration_is_a_clean_type_fact() {
     let src = format!(
         "{STYLE}
 @style(prefix=\"p_\")
-data Plain:
+struct Plain:
     id: i64
 "
     );
@@ -185,7 +185,7 @@ data Plain:
 fn decorator_already_an_error_on_the_block_does_not_also_warn() {
     let src = "use std.structure.Structure
 
-data Hidden:
+struct Hidden:
     id: i64
 
 @derive(Structure)

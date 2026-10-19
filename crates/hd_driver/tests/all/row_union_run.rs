@@ -72,17 +72,17 @@ trait Clock:
 trait Log:
     fn tag(self) -> string
 
-data MemoryDb: pass
+struct MemoryDb: pass
 
 impl Db for MemoryDb:
     fn name(self) -> string: \"db\"
 
-data FixedClock: pass
+struct FixedClock: pass
 
 impl Clock for FixedClock:
     fn now(self) -> string: \"noon\"
 
-data Tagged: pass
+struct Tagged: pass
 
 impl Log for Tagged:
     fn tag(self) -> string: \"log\"

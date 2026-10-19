@@ -125,7 +125,6 @@ fn references_to_builtin_impls_call_through_their_adapters() {
 fn references_at_a_dyn_receiver_dispatch_through_the_vtable() {
     let main = "trait Named:
     fn label(self) -> string
-    fn rename(mut self, to: i32) -> void
     fn pick[V](self, value: V) -> V
     fn greet(self, other: string) -> string:
         \"hi \" + other + \" from \" + self.label()
@@ -133,15 +132,12 @@ fn references_at_a_dyn_receiver_dispatch_through_the_vtable() {
 trait Tagged < Named:
     fn tag(self) -> string
 
-data Item:
+struct Item:
     n: i32
 
 impl Named for Item:
     fn label(self) -> string:
         \"item\" + self.n.to_string()
-
-    fn rename(mut self, to: i32) -> void:
-        self.n = to
 
     fn pick[V](self, value: V) -> V:
         value
@@ -163,10 +159,7 @@ pub fn main() -> void $ Console:
     println(tag(Item { n: 3 }))
     let inherited: fn(dyn Tagged) -> string = Named::label
     println(inherited(Item { n: 3 }))
-    let rename: fn(mut dyn Named, i32) -> void = Named::rename
-    let shared: mut dyn Named = Item { n: 5 }
-    rename(shared, 9)
-    println(shared.label())
+    let shared: dyn Named = Item { n: 9 }
     let bound = shared::label
     println(bound())
     let pick: fn(dyn Named, i32) -> i32 = Named::pick
@@ -176,6 +169,6 @@ pub fn main() -> void $ Console:
 ";
     assert_eq!(
         run("dyn", main),
-        "item1\nitem1\nhi bob from item2\nt\nitem3\nitem9\nitem9\n5\nw\n"
+        "item1\nitem1\nhi bob from item2\nt\nitem3\nitem9\n5\nw\n"
     );
 }

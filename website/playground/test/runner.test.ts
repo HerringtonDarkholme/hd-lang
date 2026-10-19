@@ -333,7 +333,7 @@ test("a two-file project with a package use compiles and runs", async () => {
         '    println(describe(User { name: "Ada", age: 36 }))',
       ].join("\n"),
       "src/models/user.hd": [
-        "pub data User:",
+        "pub struct User:",
         "    pub name: string",
         "    pub age: i32",
         "",
@@ -434,7 +434,7 @@ test("without main, a multi-file project runs the entry module", async () => {
         "println(describe(ada))",
       ].join("\n"),
       "src/models/user.hd": [
-        "pub data User:",
+        "pub struct User:",
         "    pub name: string",
         "    pub age: i32",
         "",
