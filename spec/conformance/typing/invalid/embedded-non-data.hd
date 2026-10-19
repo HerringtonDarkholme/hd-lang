@@ -4,6 +4,6 @@ enum JobStatus:
     Queued
     Running
 
-data Job:
+struct Job:
     JobStatus  # diagnostic: embedded-non-data
     id: string

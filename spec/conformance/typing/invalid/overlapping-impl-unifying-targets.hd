@@ -1,7 +1,7 @@
 # test: a generic target overlaps an exact target that it unifies with
 # Spec 09 Traits: trait.overlap.definition, trait.overlap.unify, trait.overlap.error.
 
-data Box[T]:
+struct Box[T]:
     value: T
 
 trait Marker

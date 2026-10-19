@@ -3,7 +3,7 @@
 # annot.decorator.bare-call.only. `@hidden` calls the function, while a bare
 # `hidden` expression outside a decorator remains a function value.
 use std.annotation.facts_of
-data Hidden: pass
+struct Hidden: pass
 
 fn hidden() -> Hidden:
     Hidden {}

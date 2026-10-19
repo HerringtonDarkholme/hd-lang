@@ -3,10 +3,10 @@
 trait Repo[T]:
     fn number(self) -> i32
 
-data User: pass
-data Post: pass
+struct User: pass
+struct Post: pass
 
-data Job[A, B]:
+struct Job[A, B]:
     callback: fn() -> i32 $ Repo[A] + Repo[B]
 
 fn read_both() -> i32 $ Repo[User] + Repo[Post]:

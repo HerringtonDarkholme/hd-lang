@@ -1,10 +1,10 @@
 # test: f = pass leaves f out of walk
 # Spec 14 Member Lines: annot.line.omit.
 use std.structure.{Structure, Field, Variant, Walker}
-data Tag:
+struct Tag:
     text: string
 
-data Note:
+struct Note:
     text: string
 
 fn tag(text: string) -> Tag:
@@ -41,7 +41,7 @@ impl[T] Probe for T by Structure:
         _ := Structure::walk(self, &mut w)
         w.out
 
-data Point:
+struct Point:
     x: i64
     y: i64 = 0
 

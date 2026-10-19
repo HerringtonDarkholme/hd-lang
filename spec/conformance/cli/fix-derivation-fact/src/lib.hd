@@ -1,19 +1,19 @@
 use std.structure.Structure
 
-data Style:
+struct Style:
     prefix: string = ""
 
 fn style(prefix: string = "") -> Style:
     Style { prefix: prefix }
 
-data Loud:
+struct Loud:
     id: i64
 
 @style(prefix="db_")  # keep café
 impl Loud by Structure:
     id += ["key"]
 
-data Quiet:
+struct Quiet:
     id: i64
 
 @"internal"

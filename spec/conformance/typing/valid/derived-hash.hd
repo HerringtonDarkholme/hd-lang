@@ -1,11 +1,11 @@
 # Spec 09 Traits: trait.derive.related.hash, trait.hash.map-key.
 
 @derive(Eq, Hash)
-data Revision:
+struct Revision:
     number: i32
 
 @derive(Eq, Hash)
-data Key:
+struct Key:
     Revision
     name: string
 

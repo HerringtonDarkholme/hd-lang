@@ -1,9 +1,9 @@
 # test: iterator adapters are lazy, take stops pulling at its count, and collect, map, and fold work
 # std Iterators, Iterator Adapters: std-iter.adapter.lazy, std-iter.adapter.lazy.map, std-iter.adapter.lazy.next, std-iter.adapter.take.limit, std-iter.collect.drain, std-iter.adapter.enumerate-usize, std-iter.adapter.map, std-iter.adapter.fold (STDLIB question 14, Chaining Study CS7).
-data Tally:
+struct Tally:
     pulled: i32
 
-fn seen(tally: mut Tally, value: i32) -> i32:
+fn seen(tally: &mut Tally, value: i32) -> i32:
     tally.pulled = tally.pulled + 1
     value
 
@@ -17,7 +17,7 @@ tests:
         assert_equal(first_evens([1, 2, 3, 4, 5, 6]), [(0, 2), (1, 4)], reason="two evens with indices")
 
     it("does not advance until next"):
-        let mut tally = Tally { pulled: 0 }
+        let mut tally = &mut Tally { pulled: 0 }
         let mut source = [1, 2, 3, 4].iter().map(fn(value): seen(tally, value))
         let mut evens = source.filter(fn(value): value % 2 == 0)
         assert_equal(tally.pulled, 0, reason="map and filter are lazy")
@@ -25,7 +25,7 @@ tests:
         assert_equal(tally.pulled, 2, reason="two items pulled")
 
     it("take pulls at most count items"):
-        let mut tally = Tally { pulled: 0 }
+        let mut tally = &mut Tally { pulled: 0 }
         let mut source = [1, 2, 3, 4, 5].iter().map(fn(value): seen(tally, value))
         assert_equal(source.take(3).collect(), [1, 2, 3], reason="first three")
         assert_equal(tally.pulled, 3, reason="no fourth pull")

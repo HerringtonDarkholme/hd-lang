@@ -14,12 +14,12 @@ struct Node:
     value: i32
     children: List[Node]
 
-data Holder:
+struct Holder:
     node: Node
-    peers: mut List[Node]
+    peers: &mut List[Node]
 
 struct Log:
-    lines: mut List[string]
+    lines: &mut List[string]
 
 fn note(log: Log, line: string) -> void:
     log.lines.push(line)
@@ -34,6 +34,6 @@ fn tree() -> Node:
     leaf := Node { value: 1, children: [] }
     Node { value: 0, children: [leaf, leaf] }
 
-fn hold(h: mut Holder) -> void:
+fn hold(h: &mut Holder) -> void:
     h.node.value = 5
     h.peers.push(h.node)

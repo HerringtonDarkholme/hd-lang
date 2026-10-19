@@ -1,6 +1,6 @@
 # test: an unresolved From impl reports no conversion follow-on
 # trait.from.import, module.prelude.question-from.
-data CliError:
+struct CliError:
     message: string
 
 impl From[string] for CliError:  # diagnostic: unknown-trait

@@ -1,6 +1,6 @@
-# test: every type form parses to its own reading: optionals, grouped function types, tuples, trait value types, and mutable types
+# test: every type form parses to its own reading: optionals, grouped function types, tuples, trait value types, and reference types
 # Spec 01 Reserved Words: lex.keyword.dyn.
-# Spec 02 Modifiers, Optionality, And Grouping: grammar.type.mut, grammar.type.optional, grammar.type.optional.function, grammar.type.group, grammar.type.dyn, grammar.type.dyn.optional, grammar.type.dyn.mut, grammar.type.mut.semantic.
+# Spec 02 Modifiers, Optionality, And Grouping: grammar.type.optional, grammar.type.optional.function, grammar.type.group, grammar.type.dyn, grammar.type.dyn.optional. Spec 13 Reference Types: ref.type.forms, ref.type.dyn.
 # expect-stdout: 5 none
 # expect-stdout: some 2, some none, none
 # expect-stdout: 11
@@ -11,13 +11,13 @@
 # expect-stdout: 1 2
 # expect-stdout: 6
 trait Counter:
-    fn next(mut self) -> i32
+    fn next(&mut self) -> i32
 
-data Ticker:
+struct Ticker:
     n: i32
 
 impl Counter for Ticker:
-    fn next(mut self) -> i32:
+    fn next(&mut self) -> i32:
         self.n = self.n + 1
         self.n
 
@@ -68,7 +68,7 @@ fn show(value: dyn Display?) -> string:
         .Some(shown) => "shown: ${shown}"
         .None => "nothing"
 
-fn tick(counter: mut dyn Counter) -> i32: counter.next()
+fn tick(counter: &mut dyn Counter) -> i32: counter.next()
 
 fn first_of(pair: (i32, i32)) -> i32: pair._0
 
@@ -80,6 +80,6 @@ pub fn main() -> void $ Console:
     println("${halves((+4, "x"))._1} ${halves((+8, "y"))._1}")
     println(show(.Some("four")))
     println(show(.None))
-    let ticker: mut Ticker = Ticker { n: 0 }
-    println("${tick(ticker)} ${tick(ticker)}")
+    let mut ticker = Ticker { n: 0 }
+    println("${tick(&mut ticker)} ${tick(&mut ticker)}")
     println(first_of((+6, +7)))

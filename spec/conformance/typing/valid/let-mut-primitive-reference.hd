@@ -6,7 +6,7 @@ fn bump(count: &mut i32) -> void:
 fn build() -> i32:
     let mut count = +0
     bump(&mut count)
-    let mut ids: mut List[i32] = []
+    let mut ids: List[i32] = []
     edit := &mut ids
     edit.push(count)
     count

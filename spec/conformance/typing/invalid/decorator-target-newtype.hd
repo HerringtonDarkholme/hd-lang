@@ -3,14 +3,14 @@
 use std.annotation.annotate
 
 @annotate(.Data, .Enum)
-data Wire:
+struct Wire:
     tag: string
 
 fn wire(tag: string) -> Wire:
     Wire { tag: tag }
 
 @wire("user")
-data User:
+struct User:
     id: i64
 
 @wire("id")  # diagnostic: decorator-target-kind

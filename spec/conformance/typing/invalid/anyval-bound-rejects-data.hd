@@ -1,8 +1,8 @@
-# test: a data value does not satisfy an AnyVal bound
+# test: a reference does not satisfy an AnyVal bound
 
-data User:
+struct User:
     name: string
 
 fn keep[T < AnyVal](value: T) -> T: value
 
-fn check() -> User: keep(User { name: "Ada" })  # diagnostic: unsatisfied-trait-bound
+fn check() -> &User: keep(&User { name: "Ada" })  # diagnostic: unsatisfied-trait-bound

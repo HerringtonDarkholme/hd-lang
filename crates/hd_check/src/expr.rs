@@ -2443,7 +2443,7 @@ impl Ck<'_, '_> {
                 }
                 // `data.part.copy-time`: the parts are copied now, before
                 // any explicit field expression runs.
-                if !self.copy_parts((sr, st), &replaced, &mut vals, *a) {
+                if !value && !self.copy_parts((sr, st), &replaced, &mut vals, *a) {
                     fresh_mut = false;
                 }
                 // `expr.update.copy-time`: the copied fields are read now
@@ -2495,7 +2495,17 @@ impl Ck<'_, '_> {
                 == Some(TokenKind::Ellipsis);
             // `data.part.marker-required`: the marker fills an embedded
             // field and no other.
-            if fields[i].embedded && !marker {
+            // A struct's embedded field is filled as a named field is, so
+            // a marker there fills no part (`data.struct.embed.no-marker`).
+            if value {
+                if marker {
+                    let msg = format!(
+                        "`{}` of a struct is filled without `...`",
+                        self.cx.names.text(fname)
+                    );
+                    self.err(Code::CopyIntoOrdinaryField, *a, &msg);
+                }
+            } else if fields[i].embedded && !marker {
                 let msg = format!(
                     "the embedded field `{}` is filled with `...`",
                     self.cx.names.text(fname)
@@ -2508,7 +2518,7 @@ impl Ck<'_, '_> {
                 );
                 self.err(Code::CopyIntoOrdinaryField, *a, &msg);
             }
-            let copies = fields[i].embedded && marker;
+            let copies = !value && fields[i].embedded && marker;
             let (r, t) = if copies {
                 let (cr, ct) = self.copy_value((r, t), *a);
                 if !self.has_mut_access(ct) {

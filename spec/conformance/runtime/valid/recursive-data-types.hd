@@ -1,14 +1,14 @@
-# test: data types may be directly and mutually recursive, with an optional or list base case
+# test: struct types may be directly and mutually recursive, with an optional or list base case
 # Spec 08 Recursive Data Types: data.recursive.direct, data.recursive.mutual.
-data Comment:
+struct Comment:
     body: string
     replies: List[Comment]
 
-data Department:
+struct Department:
     name: string
-    head: Employee?
+    head: &Employee?
 
-data Employee:
+struct Employee:
     name: string
     department: Department
 
@@ -36,7 +36,7 @@ tests:
     it("mutually recursive department and employee"):
         support := Department { name: "support", head: .None }
         ada := Employee { name: "Ada", department: support }
-        lab := Department { name: "lab", head: .Some(ada) }
+        lab := Department { name: "lab", head: .Some(&ada) }
         grace := Employee { name: "Grace", department: lab }
         assert_equal(head_name(grace), "Ada", reason="lab's head")
         assert_equal(head_name(ada), "vacant", reason="support has no head")

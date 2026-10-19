@@ -1,9 +1,9 @@
 # Spec 08 Field Access: data.access.readonly-mut-field.
-data Child:
+struct Child:
     name: string
 
-data Parent:
-    child: mut Child
+struct Parent:
+    child: &mut Child
 
-fn invalid(parent: Parent) -> void:
+fn invalid(parent: &Parent) -> void:
     parent.child.name = "new"  # diagnostic: readonly-root

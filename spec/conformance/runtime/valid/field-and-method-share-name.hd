@@ -1,6 +1,6 @@
 # test: a field and a method of one name do not hide each other
 # Spec 03 Member Namespaces: names.member.no-hiding.
-data Gauge:
+struct Gauge:
     level: i32
 
 impl Gauge:

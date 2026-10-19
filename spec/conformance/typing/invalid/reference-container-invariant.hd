@@ -1,7 +1,7 @@
 # Spec 13: ref.convert.readonly-covariant
 struct User:
     name: string
-data Cell[T]:
+struct Cell[T]:
     value: T
 fn invalid(view: &Cell[&mut User]) -> &Cell[&User]:
     view  # diagnostic: type-mismatch

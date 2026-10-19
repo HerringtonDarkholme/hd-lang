@@ -3,7 +3,7 @@
 use std.time
 
 fn durations(counts: List[i64], make: fn(i64) -> time.Duration) -> List[time.Duration]:
-    let result: mut List[time.Duration] = []
+    let mut result: List[time.Duration] = []
     for count in counts:
         result.push(make(count))
     result

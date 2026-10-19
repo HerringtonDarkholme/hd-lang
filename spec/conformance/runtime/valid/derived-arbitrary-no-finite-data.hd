@@ -5,10 +5,10 @@
 use std.testing.{Arbitrary, it_prop}
 
 @derive(Arbitrary, Debug)
-data Ring:
-    next: Ring
+struct Ring:
+    next: &Ring
 
 tests:
-    it_prop("a data type that always needs itself panics", expect_panic="explicit-panic", prop=fn!(value: Ring):
+    it_prop("a data type that always needs itself panics", expect_panic="explicit-panic", prop=fn!(value: &Ring):
         pass
     )

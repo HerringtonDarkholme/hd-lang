@@ -26,7 +26,7 @@ enum Shape:
     Label(text: string, at: Point)
     Nothing
 
-data Holder:
+struct Holder:
     small: Small
     pair: (i32, Point, f32)
     count: i32
@@ -54,4 +54,4 @@ pub fn main() -> void $ Console:
     h.pair = (+9, h.pair._1, h.pair._2)
     println("${copy.pair._0} ${copy.pair._1.x} ${i32(copy.pair._2 * 2.0)}")
     println("${h.pair._0} ${h.pair._1.x} ${i32(h.pair._2 * 2.0)}")
-    println("${keep(h) is h} ${copy is h}")
+    println("${keep(h).count == h.count} ${copy.count == h.count}")

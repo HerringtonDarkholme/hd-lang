@@ -1,12 +1,12 @@
 # test: member access finds a field and a method that an embedded part promotes
 # Spec 05 Member Access: expr.member.lookup; Member Resolution in chapter 03 defines the lookup.
-data Stamp:
+struct Stamp:
     pub created: i32
 
 impl Stamp:
     pub fn age(self, now: i32) -> i32: now - self.created
 
-data Post:
+struct Post:
     Stamp
     title: string
 
@@ -14,7 +14,7 @@ tests:
     use std.testing.assert_equal
 
     it("reads a promoted field and calls a promoted method"):
-        post := Post { Stamp: ...Stamp { created: 10 }, title: "hello" }
+        post := Post { Stamp: Stamp { created: 10 }, title: "hello" }
         assert_equal(post.created, 10, reason="the part's field")
         assert_equal(post.age(15), 5, reason="the part's method")
         assert_equal(post.title, "hello", reason="the own field")

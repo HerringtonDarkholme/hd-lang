@@ -1,6 +1,6 @@
 
-data Opaque: pass
+struct Opaque: pass
 
 @derive(Eq, Hash)
-data Key:
+struct Key:
     value: Opaque  # diagnostic: derive-field-missing-trait

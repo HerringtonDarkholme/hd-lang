@@ -1,6 +1,6 @@
 # test: constrained data patterns require a fallback arm
 
-data User:
+struct User:
     age: i32
     active: bool
 

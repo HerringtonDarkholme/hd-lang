@@ -1,6 +1,6 @@
 # test: a public enum's payload must not have a private type
 # Spec 10 Public Signatures: module.vis.signature, module.vis.signature.coverage.
-data Address:
+struct Address:
     city: string
 
 pub enum Delivery:

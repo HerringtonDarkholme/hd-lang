@@ -61,7 +61,7 @@ fn start() -> (i32, string, bool):
 ```text
 use std.ops.Default
 
-data Secret:
+struct Secret:
     value: i32
 
 fn fresh[T < Default]() -> T:
@@ -91,7 +91,7 @@ enum marks its default variant with `@default`:
 use std.ops.{Default, default}
 
 @derive(Default)
-data Settings:
+struct Settings:
     name: string
     retries: i32 = 3
     tags: List[string]
@@ -148,22 +148,22 @@ enum Level:
 ```text
 use std.ops.Default
 
-data Secret:
+struct Secret:
     value: i32
 
 @derive(Default)  # error: member-not-derivable
-data Vault:
+struct Vault:
     secret: Secret
 ```
 
 ```text
 use std.ops.Default
 
-data Secret:
+struct Secret:
     value: i32
 
 @derive(Default)
-data Safe:
+struct Safe:
     secret: Secret = Secret { value: 7 }
     count: i32
 

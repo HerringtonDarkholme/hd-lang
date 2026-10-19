@@ -387,11 +387,15 @@ impl Folder<'_, '_> {
     ) {
         let pool = self.names.pool;
         let known = self.names.known;
-        let is_data = |ty| match pool.get(ty) {
+        // A data type embeds a data type, and a struct a struct
+        // (`data.struct.embed`).
+        let is_part = |ty, of_struct: bool| match pool.get(ty) {
             TyData::Adt { def, .. } => {
                 def != known.list
                     && def != known.map
-                    && item(def).is_none_or(|i| i.kind() == Some(HeadKind::Data) && !i.is_struct)
+                    && item(def).is_none_or(|i| {
+                        i.kind() == Some(HeadKind::Data) && i.is_struct == of_struct
+                    })
             }
             _ => false,
         };
@@ -410,18 +414,10 @@ impl Folder<'_, '_> {
                     .flat_map(NodeRef::children)
                     .filter(|c| c.kind() == SyntaxKind::EmbeddedField);
                 for (f, node) in fields.iter().filter(|f| f.embedded).zip(nodes) {
-                    // `data.struct.no-embedding`: a struct embeds nothing.
-                    if *is_struct {
+                    if !pool.has_poison(f.ty) && !is_part(f.ty, *is_struct) {
+                        let kind = if *is_struct { "struct" } else { "data type" };
                         let msg = format!(
-                            "a struct has no embedded fields; write `{}` as a named field",
-                            self.names.text(f.name)
-                        );
-                        diags.error(Code::EmbeddedNonData, m.src.span(node), &msg);
-                        continue;
-                    }
-                    if !pool.has_poison(f.ty) && !is_data(f.ty) {
-                        let msg = format!(
-                            "`{}` is not a data type, so it cannot be embedded",
+                            "`{}` is not a {kind}, so it cannot be embedded",
                             self.names.text(f.name)
                         );
                         diags.error(Code::EmbeddedNonData, m.src.span(node), &msg);

@@ -1,7 +1,7 @@
 @derive(Eq, Hash, Ord, Debug)
-data Record:
+struct Record:
     value: i32
 
 @derive(Hash)
-data Digest:
+struct Digest:
     value: i32

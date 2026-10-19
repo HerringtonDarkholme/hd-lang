@@ -1,7 +1,7 @@
 # test: += on a list element reads the element, then stores p + e back
 # Spec 05 Compound Assignment: expr.assign.compound.index-read-write (Operator Traits OP13, stress test decision 11).
 use std.ops.Add
-data Score:
+struct Score:
     points: i64
 
 impl Add[Score] for Score:
@@ -9,7 +9,7 @@ impl Add[Score] for Score:
     fn add(self, rhs: Score) -> Score:
         Score { points: self.points + rhs.points }
 
-fn bump(counts: mut List[i32], scores: mut List[Score]) -> (i32, i64):
+fn bump(counts: &mut List[i32], scores: &mut List[Score]) -> (i32, i64):
     first := scores[0]
     counts[1] += 5
     scores[0] += Score { points: 10 }
@@ -19,4 +19,4 @@ tests:
     use std.testing.assert_equal
 
     it("reads and stores each element"):
-        assert_equal(bump([1, 2], [Score { points: 1 }]), (7, 12), reason="2 + 5, and 11 + the old 1")
+        assert_equal(bump(&mut [1, 2], &mut [Score { points: 1 }]), (7, 12), reason="2 + 5, and 11 + the old 1")

@@ -2,18 +2,18 @@
 # Spec 09 Associated Types: trait.assoc.bound; Associated Type Bindings: trait.binding.scope; Binding Positions: trait.binding.positions-key; Supertrait Bindings: trait.binding.super.meaning.
 trait Feed:
     type Item
-    fn next(mut self) -> Self::Item?
+    fn next(&mut self) -> Self::Item?
 
 trait PriceFeed < Feed[Item = i32]:
     fn currency(self) -> string
 
-data Ticker:
+struct Ticker:
     prices: List[i32]
     at: usize
 
 impl Feed for Ticker:
     type Item = i32
-    fn next(mut self) -> i32?:
+    fn next(&mut self) -> i32?:
         if self.at >= self.prices.len():
             return .None
         price := self.prices[self.at]
@@ -24,10 +24,10 @@ impl PriceFeed for Ticker:
     fn currency(self) -> string:
         "USD"
 
-fn first[F < Feed[Item = T], T](feed: mut F) -> T?:
+fn first[F < Feed[Item = T], T](feed: &mut F) -> T?:
     feed.next()
 
-fn peak[F < PriceFeed](feed: mut F) -> i32:
+fn peak[F < PriceFeed](feed: &mut F) -> i32:
     let best = +0
     while true:
         match feed.next():
@@ -37,20 +37,20 @@ fn peak[F < PriceFeed](feed: mut F) -> i32:
             .None => break
     best
 
-fn read(feed: mut dyn Feed[Item = i32]) -> i32?:
+fn read(feed: &mut dyn Feed[Item = i32]) -> i32?:
     feed.next()
 
 tests:
     use std.testing.assert_equal
 
     it("a bound may name a later parameter of its list"):
-        let ticker: mut Ticker = Ticker { prices: [3, 9, 4], at: 0 }
-        assert_equal(first(ticker), .Some(3), reason="T is i32 through the binding")
+        let mut ticker: Ticker = Ticker { prices: [3, 9, 4], at: 0 }
+        assert_equal(first(&mut ticker), .Some(3), reason="T is i32 through the binding")
 
     it("a supertrait binding fixes the projection for every implementation"):
-        let ticker: mut Ticker = Ticker { prices: [3, 9, 4], at: 0 }
-        assert_equal(peak(ticker), 9, reason="F::Item is i32 inside peak")
+        let mut ticker: Ticker = Ticker { prices: [3, 9, 4], at: 0 }
+        assert_equal(peak(&mut ticker), 9, reason="F::Item is i32 inside peak")
 
     it("a trait value type binds the projection"):
-        let ticker: mut Ticker = Ticker { prices: [5], at: 0 }
-        assert_equal(read(ticker), .Some(5), reason="Feed[Item = i32] returns i32?")
+        let mut ticker: Ticker = Ticker { prices: [5], at: 0 }
+        assert_equal(read(&mut ticker), .Some(5), reason="Feed[Item = i32] returns i32?")

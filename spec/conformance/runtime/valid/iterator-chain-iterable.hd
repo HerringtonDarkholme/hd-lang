@@ -2,7 +2,7 @@
 # Spec std/iter More Adapters: std-iter.adapter.chain-iterable, .iterable-arg, and .chain-iterable.order.
 use std.collections.Set
 # An iterable whose `iter` and whose iterator's pulls run given closures.
-data Probe:
+struct Probe:
     start: fn() -> void
     pull: fn() -> i32?
 
@@ -23,7 +23,7 @@ tests:
         let empty: List[i32] = []
         assert_equal(empty.iter().chain(empty).collect(), [], reason="both empty")
     it("chain takes iter once, when called, and reads other only after self"):
-        let log: mut List[string] = []
+        let mut log: List[string] = []
         let at = +0
         probe := Probe {
             start: fn() -> void: log.push("iter"),

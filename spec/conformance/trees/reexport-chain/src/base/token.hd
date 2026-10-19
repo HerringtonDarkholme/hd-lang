@@ -1,2 +1,2 @@
-pub data Token:
+pub struct Token:
     pub text: string

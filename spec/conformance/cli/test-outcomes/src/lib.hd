@@ -4,7 +4,7 @@ use std.process.ExitCode
 pub fn first(items: List[i32]) -> i32:
     items[0]
 
-data CardError:
+struct CardError:
     reason: string
 
 impl Display for CardError:

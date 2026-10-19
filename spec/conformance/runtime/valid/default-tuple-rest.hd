@@ -2,7 +2,7 @@
 # expect: test
 # Spec std/ops Standard Implementations: std-ops.default.std.tuple.rest-empty (owner decision Q6-default, batch 35; tuple templates, batch 36).
 use std.ops.Default
-data Secret:
+struct Secret:
     value: i32
 
 fn fresh[T < Default]() -> T:

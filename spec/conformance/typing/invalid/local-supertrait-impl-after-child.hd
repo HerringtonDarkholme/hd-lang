@@ -1,7 +1,7 @@
 # test: a local child-trait implementation needs the supertrait implementation already visible
 # Spec 03 Members: names.member.known-impl; a later local impl of the supertrait is not yet a known implementation.
 fn shipping_cost() -> i32:
-    data Parcel: pass
+    struct Parcel: pass
 
     trait Weighed
 

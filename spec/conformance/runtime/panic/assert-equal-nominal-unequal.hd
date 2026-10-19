@@ -1,6 +1,6 @@
 # Spec 10 Standard Testing: module.testing.assert-panic.
 @derive(Debug)
-data User:
+struct User:
     id: string
     display_name: string
 

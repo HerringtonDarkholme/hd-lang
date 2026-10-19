@@ -1,6 +1,6 @@
 # test: an element reference stored in a field keeps its list pinned until the field's last use
 # Spec 13 Element References: ref.elem.release.copies.
-data Holder:
+struct Holder:
     slot: &mut i32
 
 tests:

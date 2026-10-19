@@ -2,7 +2,7 @@
 # Spec 05 Index Traits: expr.index.trait.read-other, the literal tuple key resolved before Out is read.
 use std.ops.Index
 
-data Grid[T]:
+struct Grid[T]:
     width: usize
     cells: List[T]
 

@@ -17,11 +17,11 @@ fn captured(enabled: bool = false) -> fn() -> i32:
     fn() -> i32:
         if enabled: +91 else: +7
 
-fn record(log: mut List[i32]) -> i32?:
+fn record(log: &mut List[i32]) -> i32?:
     log.push(+1)
     .None
 
-fn effectful(log: mut List[i32], value: i32? = record(log)) -> i32:
+fn effectful(log: &mut List[i32], value: i32? = record(log)) -> i32:
     match value:
         .None => +7
         .Some(found) => found
@@ -72,11 +72,11 @@ tests:
         assert_equal(explicit(), 91, reason="an explicit captured value")
 
     it("evaluates a constant-valued effectful default on every call"):
-        let log: mut List[i32] = []
-        assert_equal(effectful(log), 7, reason="first default result")
-        assert_equal(effectful(log), 7, reason="second default result")
+        let mut log: List[i32] = []
+        assert_equal(effectful(&mut log), 7, reason="first default result")
+        assert_equal(effectful(&mut log), 7, reason="second default result")
         assert_equal(log, [+1, +1], reason="each omitted argument evaluates its default")
-        assert_equal(effectful(log, value=.Some(+23)), 23, reason="an explicit argument bypasses the default")
+        assert_equal(effectful(&mut log, value=.Some(+23)), 23, reason="an explicit argument bypasses the default")
         assert_equal(log, [+1, +1], reason="the explicit call adds no effect")
 
     it("does not use a later parameter assignment for an earlier read"):

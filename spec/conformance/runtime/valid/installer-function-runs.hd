@@ -13,17 +13,17 @@ trait Log:
 trait Clock:
     fn now(self) -> i32
 
-data MemoryDb: pass
+struct MemoryDb: pass
 
 impl Db for MemoryDb:
     fn name(self) -> string: "db"
 
-data PlainLog: pass
+struct PlainLog: pass
 
 impl Log for PlainLog:
     fn tag(self) -> string: "log"
 
-data FixedClock: pass
+struct FixedClock: pass
 
 impl Clock for FixedClock:
     fn now(self) -> i32: 5

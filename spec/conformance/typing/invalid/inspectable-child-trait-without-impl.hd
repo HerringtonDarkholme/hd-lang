@@ -5,7 +5,7 @@ use std.inspect.Inspectable
 trait Plugin < Inspectable:
     fn run(self) -> string
 
-data Echo:
+struct Echo:
     text: string
 
 fn load(plugin: dyn Plugin) -> string:

@@ -1,5 +1,5 @@
 # test: embedding a type parameter is rejected
 
-data Holder[T]:
+struct Holder[T]:
     T  # diagnostic: embedded-non-data
     id: string

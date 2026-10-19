@@ -2,14 +2,14 @@
 trait Describe:
     fn describe(self) -> string
 
-data Base:
+struct Base:
     name: string
 
 impl Base:
     pub fn describe(self) -> string:
         "base " + self.name
 
-data Page:
+struct Page:
     Base
 
 impl Describe for Page:

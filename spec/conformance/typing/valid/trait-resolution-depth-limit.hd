@@ -2,7 +2,7 @@
 
 trait Marker
 
-data Box[T]:
+struct Box[T]:
     value: T
 
 impl Marker for i32

@@ -1,7 +1,7 @@
 # test: ownership comes from a trait argument's outer type constructor only
 # Spec 09 Traits: trait.own.argument, trait.own.orphan.
 
-data Word:
+struct Word:
     text: string
 
 impl Iterable[List[Word]] for string:  # diagnostic: orphan-impl

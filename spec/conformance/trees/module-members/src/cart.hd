@@ -1,7 +1,7 @@
 pub trait Priced:
     fn price(self) -> i32
 
-pub data Cart:
+pub struct Cart:
     pub owner: string
     total: i32
 

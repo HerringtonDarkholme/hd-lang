@@ -1,7 +1,7 @@
 # test: a local inherent implementation must target a local nominal type
 # Spec 09 Local Implementations: trait.impl.local.inherent (error-code proposal F4).
 
-data Entry:
+struct Entry:
     name: string
 
 fn describe(entry: Entry) -> string:

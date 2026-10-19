@@ -3,5 +3,5 @@
 use std.ops.num_suffix
 
 @num_suffix  # diagnostic: decorator-target-kind
-data Pixels:
+struct Pixels:
     count: i32

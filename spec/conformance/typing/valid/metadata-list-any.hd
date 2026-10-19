@@ -2,13 +2,13 @@
 # Spec 14 Member Metadata: annot.metadata.list-any.
 use std.structure.Structure
 
-data Label:
+struct Label:
     text: string
 
-data Weight:
+struct Weight:
     grams: i32
 
-data Item:
+struct Item:
     name: string
 
 impl Item by Structure:

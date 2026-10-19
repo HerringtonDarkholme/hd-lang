@@ -10,7 +10,7 @@
 # expect-stdout: map has 2
 # expect-stdout: doubled 8
 # expect-stdout: price $5, cost $
-data Cart:
+struct Cart:
     owner: string
     items: List[string]
 

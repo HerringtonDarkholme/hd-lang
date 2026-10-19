@@ -1,20 +1,20 @@
 # test: requirements / mutable providers / $.use of a trait without mut self methods is readonly
 
 fn label() -> string $ Tag:
-    let tag: mut dyn Tag = $.use(Tag)  # diagnostic: mutable-upgrade
+    let tag: &mut dyn Tag = $.use(Tag)  # diagnostic: mutable-upgrade
     tag.name()
 
 pub fn main() -> void:
-    let tag: mut NameTag = NameTag { value: "a" }
-    $.with(Tag=tag):
+    let mut tag = NameTag { value: "a" }
+    $.with(Tag=&mut tag):
         _ := label()
 
 trait Tag:
-    fn name(self) -> string
+    fn name(&self) -> string
 
-data NameTag:
+struct NameTag:
     value: string
 
 impl Tag for NameTag:
-    fn name(self) -> string:
+    fn name(&self) -> string:
         self.value

@@ -2,7 +2,7 @@
 # Spec 09 Derived Implementations: trait.derive.beside-written (owner decision TY-18, batch 51b, 2026-10-02).
 
 @derive(Eq)  # diagnostic: overlapping-impl
-data Badge:
+struct Badge:
     text: string
 
 impl Eq for Badge:

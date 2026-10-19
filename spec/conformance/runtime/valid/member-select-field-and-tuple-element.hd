@@ -1,10 +1,10 @@
 # test: value.member selects a field by its identifier, and tuple._0 selects a tuple element
 # Spec 05 Member Access: expr.member.select-identifier.
-data Point:
+struct Point:
     x: i32
     y: i32
 
-data Segment:
+struct Segment:
     start: Point
     end: Point
 

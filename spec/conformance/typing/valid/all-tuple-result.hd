@@ -2,7 +2,7 @@
 # expect: accept
 use std.task.all
 
-data User:
+struct User:
     name: string
 
 fn load_user!(id: i64) -> User:

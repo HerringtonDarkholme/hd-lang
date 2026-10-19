@@ -1,7 +1,7 @@
 # test: a message that interpolates a member whose type has no Display
 # Spec 14 Error Messages: annot.error.message.display, as for any interpolated string.
 
-data Span:
+struct Span:
     start: i64
 
 @error

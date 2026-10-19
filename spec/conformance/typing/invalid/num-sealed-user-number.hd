@@ -3,7 +3,7 @@
 use std.num.Num
 use std.ops.Add
 
-data Cents:
+struct Cents:
     value: i64
 
 impl Add for Cents:

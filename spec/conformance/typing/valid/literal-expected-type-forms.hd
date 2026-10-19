@@ -1,7 +1,7 @@
 # test: a default argument, a returned value, an assigned value and a typed field give a literal its type
 # Spec 04 Type System: types.literal.local.form.expected.
 
-data Account:
+struct Account:
     balance: i64
 
 fn pay(amount: i64 = -5000000000) -> i64:

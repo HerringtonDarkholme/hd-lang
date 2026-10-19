@@ -3,7 +3,7 @@
 use std.hash.Hash
 use std.format.{Display}
 
-data Label:
+struct Label:
     value: string
 
 impl Hash for Label:

@@ -4,7 +4,7 @@ use std.digest.{Digest, Sha256}
 use std.encoding.hex_decode
 
 fn repeated(byte: u8, count: usize) -> List[u8]:
-    let bytes: mut List[u8] = []
+    let mut bytes: List[u8] = []
     for _ in 0..count:
         bytes.push(byte)
     bytes
@@ -35,7 +35,7 @@ tests:
         assert_equal(mac_hex(repeated(0xaa, 20), repeated(0xdd, 50)), "773ea91e36800e46854db8ebd09181a72959098b3ef8c122d9635514ced565fe", reason="case 3")
 
     it("RFC 4231 test case 4"):
-        let key: mut List[u8] = []
+        let mut key: List[u8] = []
         for byte in 1..26:
             key.push(u8(byte))
         assert_equal(mac_hex(key, repeated(0xcd, 50)), "82558a389a443c0ea4cc819899f2083a85f0faa3e578f8077a2e3ff46729665b", reason="case 4")

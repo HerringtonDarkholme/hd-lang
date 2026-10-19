@@ -7,7 +7,7 @@
 # Member Metadata: annot.metadata.places, annot.metadata.params-at-only,
 # annot.metadata.value.
 @"tool"
-data Tool:
+struct Tool:
     @"name"
     name: string
 

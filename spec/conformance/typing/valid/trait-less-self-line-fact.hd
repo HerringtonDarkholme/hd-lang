@@ -28,13 +28,13 @@ impl[T] Show for T by Structure:
         _ := Structure::walk(self, &mut w)
         w.out
 
-data Style:
+struct Style:
     prefix: string = ""
 
 fn style(prefix: string = "") -> Style:
     Style { prefix: prefix }
 
-data Quiet:
+struct Quiet:
     id: i64
 
 impl Quiet by Structure:

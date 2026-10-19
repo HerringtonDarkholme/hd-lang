@@ -3,7 +3,7 @@
 trait Source[T]:
     fn take(self) -> T
 
-data Fixed:
+struct Fixed:
     text: string
 
 impl Source[string] for Fixed:

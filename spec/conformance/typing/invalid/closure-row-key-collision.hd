@@ -2,7 +2,7 @@
 # Spec 11 Generic Key Collisions: req.with.collision.closure (owner decision PS3a, batch 15, 2026-09-30).
 trait Repo[T]
 
-data User: pass
+struct User: pass
 
 fn declared[T](local: dyn Repo[User]) -> void:
     _ := fn() -> void $ Repo[T]:

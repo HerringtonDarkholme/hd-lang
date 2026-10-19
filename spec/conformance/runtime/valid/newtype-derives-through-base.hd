@@ -1,10 +1,10 @@
 # test: a newtype derives a templated trait with @derive, through its base type's implementation
 # Spec 14 Derivation Blocks: annot.block.newtype.
 use std.structure.{Structure, Field, Variant, Walker}
-data Tag:
+struct Tag:
     text: string
 
-data Note:
+struct Note:
     text: string
 
 fn tag(text: string) -> Tag:
@@ -41,7 +41,7 @@ impl[T] Probe for T by Structure:
         _ := Structure::walk(self, &mut w)
         w.out
 
-data Point:
+struct Point:
     x: i64
 
 impl Probe for Point by Structure

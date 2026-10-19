@@ -8,8 +8,8 @@ use std.ops.Disposable
 use std.task.all
 use std.time.{Clock, ms, s, sleep}
 
-data Runner:
-    log: mut List[string]
+struct Runner:
+    log: &mut List[string]
     job: mut Suspend[string]
 
 impl Disposable for Runner:
@@ -19,8 +19,8 @@ impl Disposable for Runner:
         value := job!()
         self.log.push("runner got ${value}")
 
-fn run!(log: mut List[string], job: mut Suspend[string]) -> void:
-    using runner = Runner { log: log, job: job }
+fn run!(log: &mut List[string], job: mut Suspend[string]) -> void:
+    using runner = &mut Runner { log: log, job: job }
     log.push("run body")
 
 fn ended!(job: mut Suspend[void]) -> string:
@@ -28,36 +28,36 @@ fn ended!(job: mut Suspend[void]) -> string:
         .Finished => "finished"
         .Abandoned => "abandoned"
 
-fn stop_later!(call: mut Suspend[void], log: mut List[string]) -> void $ Clock:
+fn stop_later!(call: mut Suspend[void], log: &mut List[string]) -> void $ Clock:
     sleep!(ms(1))
     match call.cancel!():
         .Finished => log.push("stopper finished")
         .Abandoned => log.push("stopper abandoned")
 
-fn waiter!(call: mut Suspend[void], log: mut List[string]) -> void:
+fn waiter!(call: mut Suspend[void], log: &mut List[string]) -> void:
     defer: log.push("waiter defer")
     call!()
     log.push("waiter never")
 
-fn supervise!(call: mut Suspend[void], log: mut List[string]) -> string $ Clock:
+fn supervise!(call: mut Suspend[void], log: &mut List[string]) -> string $ Clock:
     defer: log.push("supervise defer")
     _ := all!(call, stop_later(call, log))
     "supervise never"
 
-fn supervise_waiter!(call: mut Suspend[void], log: mut List[string]) -> string $ Clock:
+fn supervise_waiter!(call: mut Suspend[void], log: &mut List[string]) -> string $ Clock:
     defer: log.push("supervise defer")
     _ := all!(waiter(call, log), stop_later(call, log))
     "supervise never"
 
 pub fn main!() -> void $ Console + Clock:
     let mut clock = $.use(Clock)
-    let log: mut List[string] = []
-    let runner: mut Suspend[void] = run(log, supervise(clock.sleep(s(60)), log))
+    let mut log: List[string] = []
+    let runner: mut Suspend[void] = run(&mut log, supervise(clock.sleep(s(60)), &mut log))
     runner!()
     println(log.join(", "))
     println(ended!(runner))
-    let other: mut List[string] = []
-    let second: mut Suspend[void] = run(other, supervise_waiter(clock.sleep(s(60)), other))
+    let mut other: List[string] = []
+    let second: mut Suspend[void] = run(&mut other, supervise_waiter(clock.sleep(s(60)), &mut other))
     second!()
     println(other.join(", "))
     println(ended!(second))

@@ -1,6 +1,6 @@
 # test: then keeps a decided ordering, and takes the other for Equal
 # Spec std/cmp Ordering Values: std-cmp.ordering.then.result, std-cmp.ordering.then.chain (issue #484).
-data Entry:
+struct Entry:
     name: string
     score: i32
 

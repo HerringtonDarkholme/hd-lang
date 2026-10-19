@@ -2,7 +2,7 @@
 # Spec std/error Root Cause And Find: std-error.find.first; Spec 09 Dynamic Safety: trait.dyn.safe.method-type-param (ERR-HELPERS; task #223).
 use std.error.Error
 @error("disk full")
-data DiskError:
+struct DiskError:
     free: i64
 
 @error

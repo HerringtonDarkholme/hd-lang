@@ -1,6 +1,6 @@
 # test: a method is used as a value through Type::name or value::name
 # Spec 05 Method Calls: expr.member.method-references.
-data Counter:
+struct Counter:
     base: i32
 
 impl Counter:

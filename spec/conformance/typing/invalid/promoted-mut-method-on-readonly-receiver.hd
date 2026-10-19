@@ -1,14 +1,14 @@
-# test: through a readonly outer value the embedded part is readonly, so a promoted mut self call is rejected
+# test: through a readonly outer value the embedded part is readonly, so a promoted &mut self call is rejected
 # Spec 08 Access Through Parts: data.part.access.
-data Timestamps:
+struct Timestamps:
     created_at: i32
     updated_at: i32
 
 impl Timestamps:
-    pub fn touch(mut self, at: i32) -> void:
+    pub fn touch(&mut self, at: i32) -> void:
         self.updated_at = at
 
-data Post:
+struct Post:
     Timestamps
     id: string
     title: string

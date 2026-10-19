@@ -6,5 +6,5 @@ fn next() -> i32:
 
 let callback: fn() -> i32 = next
 
-data Counter:
+struct Counter:
     value: i32 = callback()

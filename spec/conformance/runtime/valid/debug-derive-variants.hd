@@ -6,7 +6,7 @@
 # test: derived Debug picks a builder per data shape and variant
 # Spec 07 Data: @derive(Debug) implements Debug for each shape.
 @derive(Debug)
-data Unit: pass
+struct Unit: pass
 
 @derive(Debug)
 enum Shape:

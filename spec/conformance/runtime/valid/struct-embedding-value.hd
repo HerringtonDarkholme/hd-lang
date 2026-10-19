@@ -1,0 +1,41 @@
+# test: a struct embeds a struct as an inline value field whose members are promoted
+# Spec 08 Struct Declarations: data.struct.embed, data.struct.embed.plain.
+# expect: test
+struct Timestamps:
+    pub created_at: i64
+    pub updated_at: i64
+
+impl Timestamps:
+    pub fn touch(&mut self, at: i64) -> void:
+        self.updated_at = at
+
+    pub fn age(&self) -> i64:
+        self.updated_at - self.created_at
+
+struct Post:
+    Timestamps
+    id: string
+
+tests:
+    use std.testing.assert_equal
+
+    it("promoted fields and methods reach the embedded value"):
+        ts := Timestamps { created_at: 1, updated_at: 1 }
+        let mut post = Post { Timestamps: ts, id: "p" }
+        post.touch(5)
+        post.created_at = 2
+        assert_equal(post.updated_at, 5, reason="a promoted &mut self method changes the part")
+        assert_equal(post.Timestamps.created_at, 2, reason="a promoted field is its explicit path")
+        assert_equal(post.age(), 3, reason="a promoted &self method reads the part")
+        assert_equal(ts.updated_at, 1, reason="filling the part copied ts")
+
+    it("every copy copies the embedded value"):
+        let mut post = Post { Timestamps: Timestamps { created_at: 1, updated_at: 1 }, id: "p" }
+        copy := Post { ...post, id: "q" }
+        post.touch(9)
+        assert_equal(copy.updated_at, 1, reason="the copy-update holds its own part")
+        r := &mut post
+        r.touch(20)
+        assert_equal(post.updated_at, 20, reason="a promoted method through &mut changes the referenced value")
+        post.Timestamps = copy.Timestamps
+        assert_equal(post.updated_at, 1, reason="assigning the embedded field replaces the part")

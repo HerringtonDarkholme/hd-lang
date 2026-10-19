@@ -171,11 +171,32 @@ impl Forwarder<'_> {
             };
             // The receiver `self.E`, with `self`'s access.
             let sv = ck.b.get(sl, st, at);
-            let Some((idx, ft)) = ck.field_of(st, part_name) else {
-                return crate::body::unsupported("a forwarding method whose part is not a field");
-            };
-            let ft = ck.field_access(st, part_name, ft);
-            refs.push(ck.b.emit(hd_tir::ir::Tag::Field, sv.0, idx, ft, at));
+            if let Some((inner, mutable)) = ck.ref_of(st) {
+                // A `&self` or `&mut self` receiver of a struct: a
+                // reference to its embedded part (`trait.by.form`).
+                let Some((idx, ft)) = ck.field_of(inner, part_name) else {
+                    return crate::body::unsupported(
+                        "a forwarding method whose part is not a field",
+                    );
+                };
+                let crate::refs::Operand::Place(place) =
+                    ck.part_place(crate::refs::Operand::Value(sv, st), vec![(idx, ft)], node)
+                else {
+                    return crate::body::unsupported(
+                        "a forwarding method whose part is not a place",
+                    );
+                };
+                let rt = pool.intern_ty(&TyData::Ref { inner: ft, mutable });
+                refs.push(ck.make_ref(&place, ft, mutable, rt, node));
+            } else {
+                let Some((idx, ft)) = ck.field_of(st, part_name) else {
+                    return crate::body::unsupported(
+                        "a forwarding method whose part is not a field",
+                    );
+                };
+                let ft = ck.field_access(st, part_name, ft);
+                refs.push(ck.b.emit(hd_tir::ir::Tag::Field, sv.0, idx, ft, at));
+            }
             for &(l, t) in &params[1..] {
                 refs.push(ck.b.get(l, t, at));
             }

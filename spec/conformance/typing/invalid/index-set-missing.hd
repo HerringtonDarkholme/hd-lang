@@ -2,7 +2,7 @@
 # Spec 05 Index Traits: expr.index.trait.place (Operator Traits OP7).
 use std.ops.Index
 
-data Row:
+struct Row:
     cells: List[i32]
 
 impl Index[usize] for Row:

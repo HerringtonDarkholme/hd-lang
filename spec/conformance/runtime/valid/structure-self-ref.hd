@@ -44,9 +44,9 @@ enum Expr:
     Empty
 
 @derive(Shape)
-data Node:
+struct Node:
     label: string
-    parent: Node?
+    parent: &Node?
 
 tests:
     use std.testing.assert_equal

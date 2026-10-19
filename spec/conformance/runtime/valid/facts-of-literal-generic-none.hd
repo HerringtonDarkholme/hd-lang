@@ -2,14 +2,14 @@
 # Spec 14 Function Facts: annot.facts-of.result, annot.decorator.facts-of, annot.decorator.bare-call, annot.target.limit.
 use std.annotation.{annotate, facts_of}
 @annotate(.Fn)
-data Route:
+struct Route:
     path: string
 
 fn route(path: string) -> Route:
     Route { path: path }
 
 @annotate(.Fn)
-data Hidden: pass
+struct Hidden: pass
 
 fn hidden() -> Hidden:
     Hidden {}

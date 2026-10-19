@@ -15,10 +15,10 @@ fn lookup_in_time!() -> Result[string, TimedOut] $ Clock:
     timeout!(1s):
         lookup!()
 
-data Trace:
-    lines: mut List[string]
+struct Trace:
+    lines: &mut List[string]
 
-fn guarded!(trace: mut Trace) -> string $ Clock:
+fn guarded!(trace: &mut Trace) -> string $ Clock:
     defer:
         trace.lines.push("cleanup")
     sleep!(5s)
@@ -31,7 +31,7 @@ pub fn main!() -> void $ Console + Clock:
     match result:
         .Ok(value) => println(value)
         .Err(error) => println(error.to_string())
-    let trace: mut Trace = Trace { lines: [] }
+    let trace: &mut Trace = &mut Trace { lines: &mut [] }
     late := timeout!(ms(20)):
         guarded!(trace)
     println(trace.lines.join(","))

@@ -1,4 +1,4 @@
-data SaveError:
+struct SaveError:
     message: string
 
 fn save() -> Result[i32, SaveError]:

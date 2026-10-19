@@ -1,21 +1,21 @@
 # test: filling or storing an embedded part stores the copy-update of the supplied value
-data Timestamps:
+struct Timestamps:
     pub created_at: i64
     pub updated_at: i64
 
-data Post:
+struct Post:
     Timestamps
     id: string
     title: string
 
 fn build(ts: Timestamps) -> Post:
-    let mut post = Post { Timestamps: ...ts, id: "p", title: "t" }
-    post.Timestamps ...= ts
+    let mut post = Post { Timestamps: ts, id: "p", title: "t" }
+    post.Timestamps = ts
     post
 
 fn build_written(ts: Timestamps) -> Post:
-    let mut post = Post { Timestamps: ...Timestamps { ...ts }, id: "p", title: "t" }
-    post.Timestamps ...= Timestamps { ...ts }
+    let mut post = Post { Timestamps: Timestamps { ...ts }, id: "p", title: "t" }
+    post.Timestamps = Timestamps { ...ts }
     post
 
 tests:

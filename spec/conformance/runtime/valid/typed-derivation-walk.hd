@@ -1,14 +1,14 @@
 # test: generated walk and describe visit members in declaration order with their facts
 
 use std.structure.{Structure, Facts, Member, Field, Variant, Walker, Describer}
-data Style:
+struct Style:
     prefix: string = ""
     tag: string = "type"
 
 fn style(prefix: string = "", tag: string = "type") -> Style:
     Style { prefix: prefix, tag: tag }
 
-data Rename:
+struct Rename:
     name: string
 
 fn rename(name: string) -> Rename:
@@ -82,7 +82,7 @@ impl[T] Keys for T by Structure:
 
 @derive(Encode, Keys)
 @style(prefix="user_")
-data User:
+struct User:
     id: i64
     @rename("mail")
     email: string
@@ -95,9 +95,9 @@ enum Reply:
     Raw(string)
     Busy
 
-data Cache: pass
+struct Cache: pass
 
-data Order:
+struct Order:
     id: i64
     total_cents: i64
     cache: Cache = Cache {}

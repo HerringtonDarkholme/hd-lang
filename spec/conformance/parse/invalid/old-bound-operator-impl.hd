@@ -6,7 +6,7 @@ trait Named:
 trait Tagged:
     fn tag(self) -> string
 
-data Box[T]:
+struct Box[T]:
     value: T
 
 impl[T < Named + Tagged] Named for Box[T]:  # diagnostic: old-bound-operator

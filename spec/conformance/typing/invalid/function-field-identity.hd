@@ -1,5 +1,5 @@
 # test: `is` on function-typed fields is rejected as for a value type
-data Handler:
+struct Handler:
     run: fn() -> i32
 
 fn same(left: Handler, right: Handler) -> bool:

@@ -1,16 +1,16 @@
 # test: eprintln writes through write_error_line! of the covering Console provider
 # Spec std/console Standard Error: std-console.eprintln.write (batch 64, STD-4).
 use std.console.eprintln
-data SplitConsole:
-    out: mut List[string]
-    err: mut List[string]
+struct SplitConsole:
+    out: List[string]
+    err: List[string]
 
 impl Console for SplitConsole:
-    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
+    fn write_line!(&mut self, text: string) -> Result[void, ConsoleError]:
         self.out.push(text)
         .Ok(())
 
-    fn write_error_line!(mut self, text: string) -> Result[void, ConsoleError]:
+    fn write_error_line!(&mut self, text: string) -> Result[void, ConsoleError]:
         self.err.push(text)
         .Ok(())
 
@@ -26,7 +26,7 @@ tests:
 
     it("eprintln and println reach different methods"):
         let mut console = SplitConsole { out: [], err: [] }
-        $.with(Console=console):
+        $.with(Console=&mut console):
             report(2)
         assert_equal(console.out, ["done"], reason="println uses write_line!")
         assert_equal(console.err, ["warning: 2 skipped"], reason="eprintln uses write_error_line!")

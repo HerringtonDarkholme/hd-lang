@@ -2,13 +2,13 @@
 # Spec 14 Facts: annot.fact.unused-block-decorator (stress test decision 5).
 use std.structure.Structure
 
-data Style:
+struct Style:
     prefix: string = ""
 
 fn style(prefix: string = "") -> Style:
     Style { prefix: prefix }
 
-data Loud:
+struct Loud:
     id: i64
 
 @style(prefix="l_")  # warning: unused-derivation-fact

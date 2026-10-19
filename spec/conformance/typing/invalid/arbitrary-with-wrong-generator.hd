@@ -8,6 +8,6 @@ fn label(c: &mut Choices) -> string:
     c.string(max_chars=4)
 
 @derive(Arbitrary, Debug)
-data Item:
+struct Item:
     @arbitrary.with(label)  # diagnostic: type-mismatch
     price: i32

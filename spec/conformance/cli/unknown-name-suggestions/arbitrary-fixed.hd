@@ -1,6 +1,6 @@
 use std.testing.arbitrary
 use std.testing.Choices
 
-data Sample:
+struct Sample:
     @arbitrary.with(fn(c: &mut Choices) -> i32: +1)
     value: i32

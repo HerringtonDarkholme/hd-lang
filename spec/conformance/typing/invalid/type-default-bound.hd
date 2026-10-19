@@ -4,7 +4,7 @@
 trait Blank:
     fn blank() -> Self
 
-data Plain: pass
+struct Plain: pass
 
 fn empty[C < Blank = Plain]() -> C:  # diagnostic: unsatisfied-trait-bound
     C::blank()

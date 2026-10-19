@@ -2,7 +2,7 @@
 # Spec 05 Prefixed Strings: n values, n + 1 pieces, and every backslash kept.
 # expect: test
 use std.ops.{Template, str_prefix}
-data Parts:
+struct Parts:
     pieces: List[string]
     values: List[i32]
 

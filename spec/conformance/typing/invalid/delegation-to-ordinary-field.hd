@@ -3,14 +3,14 @@
 trait Describe:
     fn describe(self) -> string
 
-data Logger:
+struct Logger:
     name: string
 
 impl Describe for Logger:
     fn describe(self) -> string:
         self.name
 
-data Service:
+struct Service:
     Logger
     port: i32
 

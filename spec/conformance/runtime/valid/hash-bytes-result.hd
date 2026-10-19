@@ -28,7 +28,7 @@ tests:
         assert_equal(bytes_of(err), [1, 1], reason=".Err is 1, then the bool")
 
     it("a result of hashable types is a map key"):
-        let counts: mut Map[Result[i32, string], i32] = {}
+        let mut counts: Map[Result[i32, string], i32] = {}
         counts[.Ok(1)] = 2
         counts[.Err("late")] = 3
         assert_equal(counts[.Ok(1)], 2, reason="the .Ok key")

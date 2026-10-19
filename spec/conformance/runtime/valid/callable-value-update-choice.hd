@@ -2,7 +2,7 @@
 # Spec 05 Callable Values: expr.call.apply.choice.
 use std.ops.Update
 
-data Slot:
+struct Slot:
     number: i32
     text: string
 

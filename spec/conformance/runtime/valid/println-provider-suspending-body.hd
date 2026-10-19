@@ -6,18 +6,21 @@
 # non-suspending, so a non-suspending caller keeps its signature, as the
 # non-suspending main shows.
 
-data NumberedConsole:
-    lines: mut List[string]
+struct NumberedConsole:
+    lines: List[string]
 
 impl NumberedConsole:
     fn next_number!(self) -> usize:
         self.lines.len() + 1
 
 impl Console for NumberedConsole:
-    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
+    fn write_line!(&mut self, text: string) -> Result[void, ConsoleError]:
         number := self.next_number!()
         self.lines.push("[${number}] ${text}")
         .Ok(())
+
+    fn write_error_line!(&mut self, text: string) -> Result[void, ConsoleError]:
+        self.write_line!(text)
 
 fn report(values: List[string]) -> void $ Console:
     for value in values:
@@ -25,7 +28,7 @@ fn report(values: List[string]) -> void $ Console:
 
 pub fn main() -> void $ Console:
     let mut numbered = NumberedConsole { lines: [] }
-    $.with(Console=numbered):
+    $.with(Console=&mut numbered):
         report(["a", "b", "c"])
     println("recorded ${numbered.lines.len()}")
     println(numbered.lines[0])

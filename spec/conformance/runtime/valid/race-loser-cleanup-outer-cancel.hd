@@ -6,8 +6,8 @@ use std.ops.Disposable
 use std.task.{all, race}
 use std.time.{Clock, ms, s, sleep}
 
-data Conn:
-    log: mut List[string]
+struct Conn:
+    log: &mut List[string]
     closing: mut Suspend[void]
 
 impl Disposable for Conn:
@@ -17,21 +17,21 @@ impl Disposable for Conn:
         wait!()
         self.log.push("loser closed")
 
-fn slow!(log: mut List[string]) -> string $ Clock:
-    using conn = Conn { log: log, closing: sleep(ms(5)) }
+fn slow!(log: &mut List[string]) -> string $ Clock:
+    using conn = &mut Conn { log: log, closing: sleep(ms(5)) }
     sleep!(s(60))
     "late"
 
 fn ready!() -> string:
     "won"
 
-fn racer!(log: mut List[string]) -> string $ Clock:
+fn racer!(log: &mut List[string]) -> string $ Clock:
     defer: log.push("racer defer")
     winner := race!(slow(log), ready())
     log.push("racer got ${winner}")
     winner
 
-fn stopper!(job: mut Suspend[string], log: mut List[string]) -> string $ Clock:
+fn stopper!(job: mut Suspend[string], log: &mut List[string]) -> string $ Clock:
     sleep!(ms(1))
     match job.cancel!():
         .Finished => log.push("cancel finished")
@@ -39,8 +39,8 @@ fn stopper!(job: mut Suspend[string], log: mut List[string]) -> string $ Clock:
     "stopped"
 
 pub fn main!() -> void $ Console + Clock:
-    let log: mut List[string] = []
-    let job: mut Suspend[string] = racer(log)
-    let (winner, stopped) = all!(race(job, ready()), stopper(job, log))
+    let mut log: List[string] = []
+    let job: mut Suspend[string] = racer(&mut log)
+    let (winner, stopped) = all!(race(job, ready()), stopper(job, &mut log))
     println("${winner} ${stopped}")
     println(log.join(", "))

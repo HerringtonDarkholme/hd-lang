@@ -2,7 +2,7 @@
 # test: a void return operand runs once before cleanup when the earlier host call was pending
 use std.testing.assert_equal
 
-data State:
+struct State:
     count: i32
 
 fn child!() -> i32 $ Console:
@@ -10,10 +10,10 @@ fn child!() -> i32 $ Console:
     _ := console.write_line!("child")
     1
 
-fn tick(state: mut State):
+fn tick(state: &mut State):
     state.count = state.count + 1
 
-fn run!(state: mut State) -> void $ Console:
+fn run!(state: &mut State) -> void $ Console:
     defer:
         state.count = state.count * 10
     _ := child!()
@@ -21,5 +21,5 @@ fn run!(state: mut State) -> void $ Console:
 
 pub fn main!() -> void $ Console:
     let mut state = State { count: 0 }
-    run!(state)
+    run!(&mut state)
     assert_equal(state.count, 10, reason="the operand ran once, then defer multiplied")

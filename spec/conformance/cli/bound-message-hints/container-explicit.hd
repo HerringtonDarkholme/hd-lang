@@ -1,7 +1,7 @@
 trait Container[T]:
     pass
 
-data Wrapper[T]:
+struct Wrapper[T]:
     items: List[T]
 
 impl[T] Container[T] for Wrapper[T]:

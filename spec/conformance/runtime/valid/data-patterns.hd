@@ -6,11 +6,11 @@
 # flow.match.data.bind-composite, flow.match.nested.
 # Spec 08 Data Patterns: data.pattern.form, data.pattern.subset, data.pattern.fields.
 
-data User:
+struct User:
     age: i32
     active: bool
 
-data Envelope:
+struct Envelope:
     user: User
 
 fn label(user: User) -> i32:

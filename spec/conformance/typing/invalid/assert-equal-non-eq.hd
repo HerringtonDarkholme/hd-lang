@@ -1,6 +1,6 @@
 # Spec 10 Standard Testing: module.testing.no-implicit-eq.
 @derive(Debug)
-data Error:
+struct Error:
     message: string
 
 tests:

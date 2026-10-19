@@ -1,13 +1,13 @@
 # test: an associated type bound to a public type is no leak
 # Spec 10 Public Signatures: module.vis.signature.coverage.
-pub data Shown:
+pub struct Shown:
     n: i32
 
 pub trait Make:
     type Out
     fn make(self) -> Self::Out
 
-pub data Maker:
+pub struct Maker:
     k: i32
 
 impl Make for Maker:

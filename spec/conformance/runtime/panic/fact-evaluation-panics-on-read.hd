@@ -2,7 +2,7 @@
 # Spec 14 Facts: annot.fact.eval.lazy, annot.fact.eval.panic-runtime.
 use std.structure.{Structure, Field, Variant, Walker}
 
-data Style:
+struct Style:
     prefix: string = ""
 
 fn style(prefix: string = "") -> Style:
@@ -37,7 +37,7 @@ impl[T] Label for T by Structure:
 
 @derive(Label)
 @style(prefix=no_prefix())
-data Point:
+struct Point:
     x: i64
 
 tests:

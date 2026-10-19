@@ -20,7 +20,7 @@ tests:
         assert_equal(items.view(2, 2).len(), 0, reason="an empty view")
 
     it("shows element writes"):
-        let items: mut List[i32] = [1, 2, 3]
+        let mut items: List[i32] = [1, 2, 3]
         view := items.view(0, 2)
         items[1] = 9
         assert_equal(view[1], 9, reason="the view reads the list's new element")

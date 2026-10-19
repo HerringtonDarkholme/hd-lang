@@ -3,14 +3,14 @@
 
 trait Source:
     type Item
-    fn next(mut self) -> Self::Item?
+    fn next(&mut self) -> Self::Item?
 
-data Ints:
+struct Ints:
     value: i32
 
 impl Source for Ints:
     type Item = i32
-    fn next(mut self) -> i32?: .Some(self.value)
+    fn next(&mut self) -> i32?: .Some(self.value)
 
 fn words(source: mut dyn Source[Item = string]) -> void:
     pass

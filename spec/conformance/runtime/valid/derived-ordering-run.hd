@@ -3,7 +3,7 @@
 # std-cmp.derive.ord.same-variant, std-cmp.derive.ord.partial, std-cmp.derive.ord.ord.
 # Spec 09 Traits: trait.derive.related.partial-ord, trait.derive.related.ord, trait.cmp.ordering.
 @derive(Eq, PartialOrd, Ord)
-data Key:
+struct Key:
     first: i32
     second: string
 
@@ -14,7 +14,7 @@ enum Priority:
     Urgent
 
 @derive(Eq, PartialOrd)
-data Measurement:
+struct Measurement:
     value: f64
 
 fn total[T < Ord](left: T, right: T) -> string:

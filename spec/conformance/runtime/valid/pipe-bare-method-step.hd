@@ -1,7 +1,7 @@
 # test: a dotted bare step whose prefix is a value calls the method on that value
 # Spec 05 Bare Steps: expr.pipe.bare.method (Pipe PL16).
 
-data User:
+struct User:
     name: string
 
 impl User:

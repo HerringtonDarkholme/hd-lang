@@ -45,7 +45,7 @@ tests:
 
     it("a copy stored in a list shares the cell"):
         step := counter()
-        let steps: mut List[fn() -> i32] = [step, step]
+        let mut steps: List[fn() -> i32] = [step, step]
         assert_equal(steps[0](), 1, reason="first element")
         assert_equal(steps[1](), 2, reason="second element")
         assert_equal(step(), 3, reason="the original")

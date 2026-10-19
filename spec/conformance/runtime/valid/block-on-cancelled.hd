@@ -7,8 +7,8 @@ use std.ops.Disposable
 use std.task.{all, block_on}
 use std.time.{Clock, ms, s, sleep}
 
-data Conn:
-    log: mut List[string]
+struct Conn:
+    log: &mut List[string]
     closing: mut Suspend[void]
 
 impl Disposable for Conn:
@@ -20,12 +20,12 @@ impl Disposable for Conn:
 
 fn ready!() -> i32: 42
 
-fn work!(log: mut List[string]) -> string $ Clock:
+fn work!(log: &mut List[string]) -> string $ Clock:
     defer: log.push("work defer")
     sleep!(s(60))
     "late"
 
-fn stop!(job: mut Suspend[string], log: mut List[string]) -> string:
+fn stop!(job: mut Suspend[string], log: &mut List[string]) -> string:
     match job.cancel!():
         .Finished => log.push("stop finished")
         .Abandoned => log.push("stop abandoned")
@@ -34,9 +34,9 @@ fn stop!(job: mut Suspend[string], log: mut List[string]) -> string:
 # `job` turns out cancelled when `all!` polls it again, so `all!` is
 # cancelled, and so is `both`, the suspension that block_on drives. Its
 # cleanup waits in the dispose of `conn`, and block_on drives it to its end.
-fn both!(job: mut Suspend[string], log: mut List[string]) -> string $ Clock:
+fn both!(job: mut Suspend[string], log: &mut List[string]) -> string $ Clock:
     defer: log.push("both defer")
-    using conn = Conn { log: log, closing: sleep(ms(2)) }
+    using conn = &mut Conn { log: log, closing: sleep(ms(2)) }
     let (worked, stopped) = all!(job, stop(job, log))
     "${worked} ${stopped}"
 
@@ -46,7 +46,7 @@ fn ended[T](pending: mut Suspend[T]) -> string:
         .Cancelled => "cancelled"
         .Abandoned => "abandoned"
 
-fn inside(log: mut List[string]) -> string $ Clock:
+fn inside(log: &mut List[string]) -> string $ Clock:
     let job: mut Suspend[string] = work(log)
     ended(both(job, log))
 
@@ -54,6 +54,6 @@ pub fn main!() -> void $ Console + Clock:
     let pending: mut Suspend[i32] = ready()
     _ := pending.cancel!()
     println("before: ${ended(pending)}")
-    let log: mut List[string] = []
-    println("inside: ${inside(log)}")
+    let mut log: List[string] = []
+    println("inside: ${inside(&mut log)}")
     println(log.join(", "))

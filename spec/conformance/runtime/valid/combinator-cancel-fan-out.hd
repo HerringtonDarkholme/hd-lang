@@ -6,12 +6,12 @@ use std.ops.Disposable
 use std.task.{all, race}
 use std.time.{Clock, ms, s, sleep}
 
-data Server:
+struct Server:
     accepting: bool
-    log: mut List[string]
+    log: &mut List[string]
 
-data Connections:
-    server: mut Server
+struct Connections:
+    server: &mut Server
     clock: &mut dyn Clock
 
 impl Disposable for Connections:
@@ -22,17 +22,17 @@ impl Disposable for Connections:
             tick!()
         self.server.log.push("connections drained")
 
-fn connections!(server: mut Server) -> void $ Clock:
-    using open = Connections { server: server, clock: $.use(Clock) }
+fn connections!(server: &mut Server) -> void $ Clock:
+    using open = &mut Connections { server: server, clock: $.use(Clock) }
     sleep!(s(60))
 
-fn acceptor!(server: mut Server) -> void $ Clock:
+fn acceptor!(server: &mut Server) -> void $ Clock:
     defer:
         server.accepting = false
         server.log.push("acceptor stops accepting")
     sleep!(s(60))
 
-fn serve!(server: mut Server) -> string $ Clock:
+fn serve!(server: &mut Server) -> string $ Clock:
     defer: server.log.push("serve defer")
     _ := all!(connections(server), acceptor(server))
     "served"
@@ -42,6 +42,6 @@ fn shutdown!() -> string $ Clock:
     "shutdown"
 
 pub fn main!() -> void $ Console + Clock:
-    let server: mut Server = Server { accepting: true, log: [] }
+    let server: &mut Server = &mut Server { accepting: true, log: &mut [] }
     println(race!(serve(server), shutdown()))
     println(server.log.join(", "))

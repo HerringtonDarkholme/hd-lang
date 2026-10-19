@@ -2,7 +2,7 @@
 # Spec 05 Index Traits: expr.index.trait.choice, chosen as trait.resolve.literal-arg chooses.
 use std.ops.Index
 
-data Table:
+struct Table:
     size: i32
 
 impl Index[usize] for Table:

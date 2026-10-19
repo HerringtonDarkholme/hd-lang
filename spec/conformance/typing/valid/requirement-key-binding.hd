@@ -8,10 +8,10 @@ trait Store:
 trait Log:
     fn write(self, line: string) -> void
 
-data User:
+struct User:
     name: string
 
-data UserStore: pass
+struct UserStore: pass
 
 impl Store for UserStore:
     type Item = User

@@ -18,20 +18,20 @@ trait Combine[Rhs = Self]:
     type Out
     fn combine(self, other: Rhs) -> Self::Out
 
-data Money:
+struct Money:
     cents: i32
 
-data Constant:
+struct Constant:
     value: i32
 
-data Pair[A, B = A]:
+struct Pair[A, B = A]:
     first: A
     second: B
 
-data Source[+T]:
+struct Source[+T]:
     value: T
 
-data Sink[-T]:
+struct Sink[-T]:
     take: fn(T) -> bool
 
 impl Supplier for Constant:

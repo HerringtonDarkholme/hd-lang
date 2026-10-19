@@ -2,8 +2,8 @@
 # Spec 09 Traits: trait.impl.signature.
 
 trait Add:
-    fn add(mut self) -> void
-data Counter:
+    fn add(&mut self) -> void
+struct Counter:
     value: i32
 impl Add for Counter:
     fn add(self) -> void: pass  # diagnostic: trait-method-signature

@@ -5,14 +5,14 @@
 # names.lookup.method-form, names.visible.field-method, names.part.definition,
 # names.part.depth, names.promote.member, names.field-lookup.select,
 # names.promoted.explicit.
-data Base:
+struct Base:
     pub label: string
 
 impl Base:
     pub fn describe(self) -> string:
         "base"
 
-data Wrapper:
+struct Wrapper:
     Base
     pub label: string
 
@@ -24,11 +24,11 @@ tests:
     use std.testing.assert_equal
 
     it("direct field hides promoted field"):
-        wrapper := Wrapper { Base: ...Base { label: "inner" }, label: "outer" }
+        wrapper := Wrapper { Base: Base { label: "inner" }, label: "outer" }
         assert_equal(wrapper.label, "outer", reason="direct field wins")
         assert_equal(wrapper.Base.label, "inner", reason="qualified access reaches the embedded field")
 
     it("direct method hides promoted method"):
-        wrapper := Wrapper { Base: ...Base { label: "inner" }, label: "outer" }
+        wrapper := Wrapper { Base: Base { label: "inner" }, label: "outer" }
         assert_equal(wrapper.describe(), "wrapper", reason="direct method wins")
         assert_equal(wrapper.Base.describe(), "base", reason="qualified call reaches the embedded method")

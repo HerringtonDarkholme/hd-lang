@@ -3,7 +3,7 @@
 
 trait Named:
     fn name(self) -> string
-data User:
+struct User:
     value: i32
 impl Named for User:
     fn name(self) -> i32: 0  # diagnostic: trait-method-signature

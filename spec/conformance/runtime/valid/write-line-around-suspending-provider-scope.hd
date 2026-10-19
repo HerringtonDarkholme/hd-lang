@@ -4,7 +4,7 @@
 
 trait Clock
 
-data FixedClock: pass
+struct FixedClock: pass
 
 impl Clock for FixedClock
 

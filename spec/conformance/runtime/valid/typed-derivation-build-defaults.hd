@@ -35,7 +35,7 @@ impl[T] Defaults for T by Structure:
             .Err(message) => panic(message)
 
 @derive(Defaults)
-data RetryPolicy:
+struct RetryPolicy:
     attempts: i32 = 7
     label: string = "standard"
 

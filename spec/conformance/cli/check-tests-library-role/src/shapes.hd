@@ -1,4 +1,4 @@
-pub data Square:
+pub struct Square:
     pub side: i32
 
 trait Shape:

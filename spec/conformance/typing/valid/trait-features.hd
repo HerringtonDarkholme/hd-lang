@@ -1,4 +1,4 @@
-# Spec 09 Traits: trait.decl.required, trait.decl.default, trait.decl.method-receiver, trait.decl.associated-fn, trait.decl.generic, trait.marker.decl, trait.marker.impl, trait.super.bound, trait.assoc.declare, trait.impl.explicit, trait.bound.compose-and, trait.bound.mut, trait.qualified.form, trait.assoc-call.type.traits.
+# Spec 09 Traits: trait.decl.required, trait.decl.default, trait.decl.method-receiver, trait.decl.associated-fn, trait.decl.generic, trait.marker.decl, trait.marker.impl, trait.super.bound, trait.assoc.declare, trait.impl.explicit, trait.bound.compose-and, trait.qualified.form, trait.assoc-call.type.traits.
 trait Describe:
     fn describe(self) -> string
 
@@ -17,9 +17,9 @@ trait Formattable < Describe:
 trait Serializable
 
 trait Clear:
-    fn clear(mut self) -> void
+    fn clear(&mut self) -> void
 
-data User:
+struct User:
     name: string
 
 impl Describe for User:
@@ -36,7 +36,7 @@ impl Serializable for User
 fn audit[T < Describe & Named](value: T) -> string:
     value.describe() + value.name()
 
-fn clear_value[T < mut Clear](value: T) -> void:
+fn clear_value[T < Clear](value: &mut T) -> void:
     value.clear()
 
 fn explicit_display(user: User) -> string:
@@ -47,18 +47,18 @@ trait Factory:
 
 trait Supplier:
     type Item
-    fn get(mut self) -> Self::Item?
+    fn get(&mut self) -> Self::Item?
 
-data NameSupplier:
+struct NameSupplier:
     next_name: string?
 
 impl Supplier for NameSupplier:
     type Item = string
 
-    fn get(mut self) -> string?:
+    fn get(&mut self) -> string?:
         self.next_name
 
-data UserFactory: pass
+struct UserFactory: pass
 
 impl Factory for UserFactory:
     fn create() -> string: "guest"
@@ -67,7 +67,7 @@ trait Source:
     type Item
     fn get(self) -> Self::Item
 
-data Box[T]:
+struct Box[T]:
     value: T
 
 impl[T < Any] Source for Box[T]:

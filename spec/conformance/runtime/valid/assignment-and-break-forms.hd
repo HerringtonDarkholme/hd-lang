@@ -1,20 +1,20 @@
-# test: assignment targets a local, a field, or an index, compound assignment takes the same targets, a copy assignment stores an embedded part, and break carries a value out of a loop with else
-# Spec 02 Semantic Statement Rules: grammar.stmt.semantic, grammar.stmt.break, grammar.stmt.assign-place, grammar.stmt.copy-assign, grammar.stmt.compound-assign.
+# test: assignment targets a local, a field, or an index, compound assignment takes the same targets, a field assignment stores an embedded part, and break carries a value out of a loop with else
+# Spec 02 Semantic Statement Rules: grammar.stmt.semantic, grammar.stmt.break, grammar.stmt.assign-place, grammar.stmt.compound-assign.
 # expect-stdout: 5 7
 # expect-stdout: 9 1
 # expect-stdout: 8 3
 # expect-stdout: 20 3
 # expect-stdout: 40
 # expect-stdout: 0
-data Timestamps:
+struct Timestamps:
     pub created: i32
     pub updated: i32
 
-data Post:
+struct Post:
     Timestamps
     id: string
 
-data Gauge:
+struct Gauge:
     level: i32
 
 fn first_over(nums: List[i32], limit: i32) -> i32:
@@ -25,14 +25,19 @@ fn first_over(nums: List[i32], limit: i32) -> i32:
         0
     found
 
-fn adjust(gauge: mut Gauge, items: mut List[i32]) -> void:
+fn adjust(start: Gauge, values: List[i32]) -> (Gauge, List[i32]):
+    let mut gauge = start
+    let mut items = values
     gauge.level = gauge.level + 4
     gauge.level *= 2
     items[0] = 9
     items[1] -= 1
+    (gauge, items)
 
-fn restamp(post: mut Post, stamps: Timestamps) -> void:
-    post.Timestamps ...= stamps
+fn restamp(start: Post, stamps: Timestamps) -> Post:
+    let mut post = start
+    post.Timestamps = stamps
+    post
 
 pub fn main() -> void $ Console:
     let count = +3
@@ -40,13 +45,10 @@ pub fn main() -> void $ Console:
     let other = +5
     other += 2
     println("$count $other")
-    let gauge: mut Gauge = Gauge { level: 0 }
-    let items: mut List[i32] = [+1, +2]
-    adjust(gauge, items)
+    let (gauge, items) = adjust(Gauge { level: 0 }, [+1, +2])
     println("${items[0]} ${items[1]}")
     println("${gauge.level} ${gauge.level / 2 - 1}")
-    let post: mut Post = Post { Timestamps: ...Timestamps { created: +1, updated: +1 }, id: "p" }
-    restamp(post, Timestamps { created: +20, updated: +3 })
+    post := restamp(Post { Timestamps: Timestamps { created: +1, updated: +1 }, id: "p" }, Timestamps { created: +20, updated: +3 })
     println("${post.created} ${post.updated}")
     println(first_over([+1, +2, +4, +5], +3))
     println(first_over([+1], +3))

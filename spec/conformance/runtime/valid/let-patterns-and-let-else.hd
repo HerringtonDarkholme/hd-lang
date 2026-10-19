@@ -8,12 +8,12 @@
 # expect-stdout: -1
 # expect-stdout: 20
 # expect-stdout: box 2
-data Point:
+struct Point:
     x: i32
     y: i32
 
-data Tally:
-    tags: mut List[string]
+struct Tally:
+    tags: List[string]
     name: string
 
 enum Slot:

@@ -1,6 +1,6 @@
 # test: the name before { in a data literal resolves as a type, even beside a local value of that name
 # Spec 03 Lookup Categories: names.category.syntax.type.
-data Point:
+struct Point:
     x: i32
 
 fn make() -> Point:

@@ -4,10 +4,10 @@
 trait Source[T]:
     fn first(self) -> T
 
-data User:
+struct User:
     name: string
 
-data Feed: pass
+struct Feed: pass
 
 impl Source[i32] for Feed:
     fn first(self) -> i32: 1

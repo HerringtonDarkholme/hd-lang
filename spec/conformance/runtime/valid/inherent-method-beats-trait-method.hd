@@ -4,7 +4,7 @@
 trait Named:
     fn label(self) -> string
 
-data User:
+struct User:
     name: string
 
 impl User:

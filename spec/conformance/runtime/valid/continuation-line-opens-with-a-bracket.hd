@@ -4,7 +4,7 @@
 # expect-stdout: 3 rows, 3 cells
 # expect-stdout: 2 maps
 # expect-stdout: true
-data Point:
+struct Point:
     x: i32
     y: i32
 

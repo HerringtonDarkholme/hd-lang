@@ -4,7 +4,7 @@
 trait Factory:
     fn create() -> string
 
-data UserFactory: pass
+struct UserFactory: pass
 
 impl Factory for UserFactory:
     fn create() -> string: "guest"
@@ -12,7 +12,7 @@ impl Factory for UserFactory:
 trait DefaultFactory:
     fn create() -> i32: 42
 
-data DefaultValue: pass
+struct DefaultValue: pass
 
 impl DefaultFactory for DefaultValue
 
@@ -25,7 +25,7 @@ fn default_value() -> i32:
 trait Convert[T]:
     fn convert(value: T) -> T
 
-data IntConverter: pass
+struct IntConverter: pass
 
 impl Convert[i32] for IntConverter:
     fn convert(value: i32) -> i32: value

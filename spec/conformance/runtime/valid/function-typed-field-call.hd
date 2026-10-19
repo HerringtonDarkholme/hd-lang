@@ -1,10 +1,10 @@
 # test: a function stored in a field, own or promoted, is called by parenthesizing the field read
 fn add_one(value: i32) -> i32: value + 1
 
-data Button:
+struct Button:
     pub on_click: fn(i32) -> i32
 
-data Panel:
+struct Panel:
     Button
 
 tests:
@@ -12,6 +12,6 @@ tests:
 
     it("own and promoted function-typed fields are called through a field read"):
         button := Button { on_click: add_one }
-        panel := Panel { Button: ...button }
+        panel := Panel { Button: button }
         assert_equal((button.on_click)(41), 42, reason="own field call")
         assert_equal((panel.on_click)(1), 2, reason="promoted field call")

@@ -7,13 +7,13 @@
 # expect-stdout: Bo ordered 2 items
 # expect-stdout: the dot sits at 9
 # expect-stdout: the shelf widens to 4
-data Point:
+struct Point:
     x: i32
     y: i32
 
-data Cart:
+struct Cart:
     owner: string
-    items: mut List[string]
+    items: List[string]
 
 enum Shape:
     Dot(Point)

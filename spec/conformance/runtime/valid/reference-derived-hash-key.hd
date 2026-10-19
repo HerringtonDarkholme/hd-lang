@@ -9,7 +9,7 @@ enum Expr:
     Add(left: &Expr, right: &Expr)
 
 pub fn main() -> void $ Console:
-    let names: mut Map[Expr, string] = {}
+    let mut names: Map[Expr, string] = {}
     names[Expr.Add(&Expr.Num(1), &Expr.Num(2))] = "three"
     println(names[Expr.Add(&Expr.Num(1), &Expr.Num(2))])
     println(names.get(Expr.Add(&Expr.Num(2), &Expr.Num(1))).is_some())

@@ -24,17 +24,17 @@ trait Metrics
 fn keep_waker(waker: Waker) -> Waker:
     waker
 
-data User:
+struct User:
     id: string
 
-data UserId:
+struct UserId:
     value: string
 
-data DbError:
+struct DbError:
     message: string
 
-data MockDatabase: pass
-data ConsoleLogger: pass
+struct MockDatabase: pass
+struct ConsoleLogger: pass
 
 impl Database for MockDatabase:
     fn get_user!(self, id: string) -> Result[User?, DbError]:

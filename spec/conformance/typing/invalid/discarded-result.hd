@@ -1,6 +1,6 @@
 # Spec 06 Must-Use Values: flow.must-use.statement,
 # flow.unused.must-use.
-data SaveError:
+struct SaveError:
     message: string
 
 fn save() -> Result[i32, SaveError]:

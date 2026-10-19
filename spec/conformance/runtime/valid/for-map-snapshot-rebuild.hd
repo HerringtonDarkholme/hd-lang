@@ -2,8 +2,8 @@
 # Spec 06 Snapshot Iteration: flow.for.snapshot.change.
 # Each pass removes, inserts, inserts and removes, so the length stays 4,
 # and the appended entries soon make the map rebuild its storage.
-fn churn(entries: mut Map[string, i32]) -> List[string]:
-    let seen: mut List[string] = []
+fn churn(entries: &mut Map[string, i32]) -> List[string]:
+    let mut seen: List[string] = []
     for (key, _) in entries:
         seen.push(key)
         for i in 0..64:
@@ -17,6 +17,6 @@ tests:
     use std.testing.assert_equal
 
     it("removals and insertions that keep the length"):
-        let entries: mut Map[string, i32] = {"a": +1, "b": +2, "c": +3, "d": +4}
-        assert_equal(churn(entries), ["a", "b", "c", "d"], reason="each entry the loop began with, once")
+        let mut entries: Map[string, i32] = {"a": +1, "b": +2, "c": +3, "d": +4}
+        assert_equal(churn(&mut entries), ["a", "b", "c", "d"], reason="each entry the loop began with, once")
         assert_equal(entries.len(), 4, reason="the length stayed 4")

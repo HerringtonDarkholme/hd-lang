@@ -423,7 +423,7 @@ use std.json.{decode, JsonError}
 use std.serde.{Serialize, Deserialize}
 
 @derive(Serialize, Deserialize)
-data User:
+struct User:
     name: string
     age: i32
 
@@ -517,7 +517,7 @@ use std.json.{encode, decode, JsonError}
 use std.serde.{Serialize, Deserialize}
 
 @derive(Serialize, Deserialize)
-data Session:
+struct Session:
     pub user: string
     token: string
     expires_at: i64
@@ -548,7 +548,7 @@ fn load(text: string) -> Result[Session, JsonError]:
 ```text
 use std.json.{encode, decode, JsonError}
 
-data Plain:
+struct Plain:
     id: i32
 
 fn show(value: Plain) -> string:
@@ -567,7 +567,7 @@ use std.json.encode_pretty
 use std.serde.Serialize
 
 @derive(Serialize)
-data Point:
+struct Point:
     x: i32
     y: i32
 
@@ -718,7 +718,7 @@ use std.json.{decode, JsonError}
 use std.serde.Deserialize
 
 @derive(Deserialize)
-data Server:
+struct Server:
     host: string
     port: u16 = 8080
     banner: string? = .Some("hi")

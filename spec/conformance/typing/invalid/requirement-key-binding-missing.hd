@@ -5,10 +5,10 @@ trait Store:
     type Item
     fn load(self, id: string) -> Self::Item
 
-data User:
+struct User:
     name: string
 
-data Post:
+struct Post:
     title: string
 
 fn find(id: string) -> User $ Store[Item = User]:

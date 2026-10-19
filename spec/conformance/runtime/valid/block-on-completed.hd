@@ -8,8 +8,8 @@ use std.ops.Disposable
 use std.task.block_on
 use std.time.{Clock, s, sleep}
 
-data Channel:
-    log: mut List[string]
+struct Channel:
+    log: &mut List[string]
     ack: mut Suspend[void]
 
 impl Disposable for Channel:
@@ -22,8 +22,8 @@ impl Disposable for Channel:
 
 fn ready!() -> i32: 42
 
-fn quick!(log: mut List[string], ack: mut Suspend[void]) -> string:
-    using channel = Channel { log: log, ack: ack }
+fn quick!(log: &mut List[string], ack: mut Suspend[void]) -> string:
+    using channel = &mut Channel { log: log, ack: ack }
     "value"
 
 fn ended!(job: mut Suspend[string]) -> string:
@@ -47,8 +47,8 @@ pub fn main!() -> void $ Console + Clock:
     println(drive_number())
     let ack: mut Suspend[void] = sleep(s(60))
     ack.abandon()
-    let log: mut List[string] = []
-    let job: mut Suspend[string] = quick(log, ack)
+    let mut log: List[string] = []
+    let job: mut Suspend[string] = quick(&mut log, ack)
     println(drive_text(job))
     println(log.join(", "))
     println("kept ${ended!(job)}")

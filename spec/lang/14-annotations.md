@@ -65,7 +65,7 @@ Items are functions, data types, enums, traits, implementations, and
 newtypes. Members are fields, variants, value parameters, and methods:
 
 ```text
-data Tool:
+struct Tool:
     name: string
 
 fn tool(name: string) -> Tool:
@@ -122,7 +122,7 @@ is written without parentheses:
 ```text
 use std.annotation.facts_of
 
-data Hidden: pass
+struct Hidden: pass
 
 fn hidden() -> Hidden:
     Hidden {}
@@ -192,7 +192,7 @@ value:
 ```text
 use std.annotation.facts_of
 
-data Route:
+struct Route:
     path: string
 
 fn route(path: string) -> Route:
@@ -238,7 +238,7 @@ from the declaration in a
 ```text
 use std.structure.Structure
 
-data User:
+struct User:
     display_name: string
 
 impl User by Structure:
@@ -263,7 +263,7 @@ Metadata objects are ordinary values. Constructors and helper functions are
 equivalent ways to make them:
 
 ```text
-data MaxLen:
+struct MaxLen:
     value: i32
 
 fn max_len(value: i32) -> MaxLen: MaxLen { value: value }
@@ -301,13 +301,13 @@ the standard `@annotate` decorator:
 use std.annotation.annotate
 
 @annotate(.Field)
-data MaxLen:
+struct MaxLen:
     value: i32
 
 fn max_len(value: i32) -> MaxLen:
     MaxLen { value: value }
 
-data Profile:
+struct Profile:
     @max_len(80)
     name: string
 
@@ -389,19 +389,19 @@ use std.annotation.annotate
 use std.num.Integer
 
 @annotate::[T](.Field)
-data Fact[T]:
+struct Fact[T]:
     value: T
 
 fn fact[T](value: T) -> Fact[T]:
     Fact::[T] { value: value }
 
 @annotate::[F](.Field)
-data Positive[F < Integer]: pass
+struct Positive[F < Integer]: pass
 
 fn positive[F < Integer]() -> Positive[F]:
     Positive::[F] {}
 
-data Account:
+struct Account:
     @fact(5)
     a: i32
     @fact("x")  # error: type-mismatch
@@ -411,7 +411,7 @@ data Account:
     @positive  # error: unsatisfied-trait-bound
     name: string
 
-data Tally[T < Integer]:
+struct Tally[T < Integer]:
     @positive
     hits: T
 ```
@@ -476,7 +476,7 @@ only to an `i32` target:
 use std.annotation.annotate
 
 @annotate::[F](.Field)
-data Range[F, G]:
+struct Range[F, G]:
     low: F
     high: F
     unit: G
@@ -484,18 +484,18 @@ data Range[F, G]:
 fn range[F, G](low: F, high: F, unit: G) -> Range[F, G]:
     Range::[F, G] { low: low, high: high, unit: unit }
 
-data Reading:
+struct Reading:
     @range(0, 100, "percent")
     level: i32
 
 @annotate::[i32](.Field)
-data Port:
+struct Port:
     number: i32
 
 fn port(number: i32) -> Port:
     Port { number: number }
 
-data Server:
+struct Server:
     @port(8080)
     listen: i32
     @port(9090)  # error: type-mismatch
@@ -510,7 +510,7 @@ example, `@handler` on `count` checks like
 use std.annotation.annotate
 
 @annotate::[F](.Fn)
-data Handler[F]: pass
+struct Handler[F]: pass
 
 fn handler[R]() -> Handler[fn(i64) -> R]:
     Handler::[fn(i64) -> R] {}
@@ -549,12 +549,12 @@ use std.annotation.annotate
 use std.num.Num
 
 @annotate::[fn(T) -> R](.Fn, .Field)
-data FnFact[T < Num, R]: pass
+struct FnFact[T < Num, R]: pass
 
 fn fn_fact[T < Num, R]() -> FnFact[T, R]:
     FnFact::[T, R] {}
 
-data Duration:
+struct Duration:
     millis: i32
 
 @fn_fact
@@ -573,7 +573,7 @@ fn named(label: string) -> Duration:
 fn later!(n: i32) -> Duration:
     Duration { millis: n }
 
-data Meter:
+struct Meter:
     @fn_fact  # error: type-mismatch
     count: i32
 ```
@@ -629,7 +629,7 @@ template over the compiler-generated `Structure` trait. A type opts in with
 ```text
 @derive(Encode, Keys)
 @style(prefix="user_")
-data User:
+struct User:
     id: i64
     @rename("mail")
     email: string
@@ -670,11 +670,11 @@ enum LoadError:
     Missing
 
 @derive(Sortable)  # error: unknown-trait
-data Coord:
+struct Coord:
     x: i64
 
 @derive(Show)
-data Point:
+struct Point:
     x: i64
 
 impl Show for Point by Structure:  # error: overlapping-impl
@@ -695,7 +695,7 @@ pub trait Structure:
     fn name() -> string
     fn walk[W < Walker[Self]](self, w: &mut W) -> Result[void, W::Error]
     fn describe[D < Describer[Self]](d: &mut D) -> Result[void, D::Error]
-    fn build[S < Source[Self]](s: &mut S) -> Result[mut Self, S::Error]
+    fn build[S < Source[Self]](s: &mut S) -> Result[Self, S::Error]
 
 pub struct Member:
     pub name: string
@@ -826,7 +826,7 @@ fn first_or[M](facts: Facts, fallback: M) -> M:
 ```text
 use std.structure.Structure
 
-data Point:
+struct Point:
     x: i64
 
 impl Structure for Point  # error: sealed-trait-implementation
@@ -956,7 +956,7 @@ A derivation block applies one template to one type and may configure it:
 ```text
 use std.structure.Structure
 
-data Order:
+struct Order:
     id: i64
     total_cents: i64
     cache: Cache = Cache {}
@@ -991,7 +991,7 @@ A module that writes `by Structure` without importing `Structure` gets the
 ordinary unknown-trait error:
 
 ```text
-data Point:
+struct Point:
     x: i64
 
 impl Show for Point by Structure  # error: unknown-trait
@@ -1028,7 +1028,7 @@ lines to write shared metadata, as
 ```text
 use std.structure.Structure
 
-data Pair:
+struct Pair:
     left: i64
     right: i64
 
@@ -1061,10 +1061,10 @@ impl Show for Reply by Structure:
 ```text
 use std.structure.Structure
 
-data Audit:
+struct Audit:
     at: i64
 
-data Account:
+struct Account:
     Audit
     id: i64
     token: Token
@@ -1088,7 +1088,7 @@ so omitting one, as `Audit = pass` above, is always this error.
 use std.serde.{Deserialize, Serialize}
 use std.structure.Structure
 
-data Session:
+struct Session:
     id: i64
     cache: i64 = 0
 
@@ -1111,7 +1111,7 @@ away from its declaration. It names no trait and derives nothing:
 ```text
 use std.structure.Structure
 
-data User:
+struct User:
     @max_len(80)
     name: string
     email: string
@@ -1149,16 +1149,16 @@ change the type of a member.
 ```text
 use std.structure.Structure
 
-data Token:
+struct Token:
     text: string = ""
 
-data Account:
+struct Account:
     id: i64
     token: Token = Token {}
 
 type Meters(i64)
 
-data Box[T]:
+struct Box[T]:
     item: T
 
 impl Account by Structure:
@@ -1214,27 +1214,27 @@ fn key_for(style: Style, m: Member) -> string:
 use std.structure.Structure
 
 @style(prefix="p_")
-data Plain:
+struct Plain:
     id: i64
 
 @"internal"
-data Note:
+struct Note:
     id: i64
 
-data Quiet:
+struct Quiet:
     id: i64
 
 impl Quiet by Structure:
     Self += [style(prefix="q_")]
 
-data Loud:
+struct Loud:
     id: i64
 
 @style(prefix="l_")  # warning: unused-derivation-fact
 impl Loud by Structure:
     id += ["key"]
 
-data Hidden:
+struct Hidden:
     id: i64
 
 @"internal"  # warning: unused-derivation-fact
@@ -1243,7 +1243,7 @@ impl Hidden by Structure:
 
 @style(prefix="a_")
 @style(prefix="b_")  # error: duplicate-fact
-data Twice:
+struct Twice:
     id: i64
 ```
 
@@ -1253,7 +1253,7 @@ data Twice:
 ```text
 use std.task.block_on
 
-data Style:
+struct Style:
     prefix: string
 
 fn ready!() -> string:
@@ -1263,7 +1263,7 @@ fn style_of[T](source: T) -> Style:
     Style { prefix: "p_" }
 
 @style_of(block_on(ready()))  # error: suspension-forbidden-context
-data User:
+struct User:
     id: i64
 ```
 
@@ -1304,7 +1304,7 @@ traversed as an enum with one variant.
 
 ```hd
 @derive(Debug)
-data Point:
+struct Point:
     x: i32
     y: i32
 
@@ -1366,7 +1366,7 @@ fn demo() -> List[string]:
 use std.ops.Default
 
 @derive(Default)
-data Config:
+struct Config:
     retries: i32
     name: string
 
@@ -1496,9 +1496,9 @@ enum Choice:
     Skip
     Take(expr: &Expr)
 
-data Node:
+struct Node:
     label: string
-    parent: Node?
+    parent: &Node?
 ```
 
 | Variant or member | `self_ref` |
@@ -1618,7 +1618,7 @@ impl[S] Walker[S] for Encoder:
 
 ```text
 @derive(Show)  # error: member-not-derivable
-data Label:
+struct Label:
     text: string
 
 fn forward[S, W < Walker[S]](w: &mut W, h: Field[S, i64], value: i64) -> void:
@@ -1648,7 +1648,7 @@ impl[S] Source[S] for Strict:  # variant, next, and member elided
 
 ```hd
 @derive(Eq, Debug)
-data Box[T]:
+struct Box[T]:
     value: T
 
 fn same(a: Box[i32], b: Box[i32]) -> bool:
@@ -1672,7 +1672,7 @@ See also: [`trait.derive.bounds`](09-traits.md#r-trait.derive.bounds),
 use std.ops.Default
 
 @derive(Default)
-data Cart:
+struct Cart:
     items: List[string]
 
 fn demo() -> Cart:
@@ -1712,7 +1712,7 @@ implementing two traits of `std.serde`:
 use std.serde.{Serialize, Deserialize}
 
 @derive(Serialize, Deserialize)
-data Session:
+struct Session:
     pub user: string
     token: string
     expires_at: i64
@@ -1729,11 +1729,11 @@ data Session:
 ```text
 use std.serde.Serialize
 
-data Secret:
+struct Secret:
     value: i32
 
 @derive(Serialize)  # error: member-not-derivable
-data Account:
+struct Account:
     id: i32
     secret: Secret
 ```
@@ -1832,7 +1832,7 @@ messages, `@from`, `@source`, and transparent errors.
 ```text
 use std.error.Error
 
-data YamlError:
+struct YamlError:
     line: i64
 
 impl Display for YamlError:
@@ -1859,7 +1859,7 @@ enum LoadError:
     Fs(@from error: FsError)
 
 @error("config $name is missing")
-data MissingConfig:
+struct MissingConfig:
     name: string
 
 fn parse(text: string) -> Result[i64, YamlError]:
@@ -1953,7 +1953,7 @@ enum WriteError:
 11. r[annot.error.message.absent] A variant without a message displays as its variant name, as `FsError.Busy` displays as `Busy`.
 
 ```text
-data Span:
+struct Span:
     start: i64
 
 @error
@@ -1990,7 +1990,7 @@ status code, so `Missing` has no `_0` in scope.
 
 ```text
 @error("disk full")
-data DiskError:
+struct DiskError:
     free: i64
 
 @error
@@ -2015,7 +2015,7 @@ enum SaveError:
 
 ```text
 @error("bad yaml")
-data YamlError:
+struct YamlError:
     line: i64
 
 @error
@@ -2048,7 +2048,7 @@ enum RepoError:
     Missing(string)
 
 @error(transparent)
-pub data PublicError:
+pub struct PublicError:
     @from
     repr: RepoError
 ```

@@ -7,12 +7,12 @@ trait Db:
 trait Log:
     fn tag(self) -> string
 
-data MemoryDb: pass
+struct MemoryDb: pass
 
 impl Db for MemoryDb:
     fn name(self) -> string: "db"
 
-data PlainLog: pass
+struct PlainLog: pass
 
 impl Log for PlainLog:
     fn tag(self) -> string: "log"

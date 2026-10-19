@@ -6,7 +6,7 @@ use std.json.{decode, JsonError}
 use std.serde.{Serialize, Deserialize}
 
 @derive(Serialize, Deserialize)
-data ServerConfig:
+struct ServerConfig:
     host: string
     port: u16 = 8080
     banner: string? = .Some("welcome")
@@ -14,7 +14,7 @@ data ServerConfig:
     tags: List[string] = ["main"]
 
 @derive(Serialize, Deserialize)
-data Pool:
+struct Pool:
     name: string
     size: u32 = 4
 

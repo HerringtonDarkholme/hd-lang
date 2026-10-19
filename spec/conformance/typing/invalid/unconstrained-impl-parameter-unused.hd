@@ -3,7 +3,7 @@
 trait Summary:
     fn summary(self) -> string
 
-data Report:
+struct Report:
     title: string
 
 impl[T < Display] Summary for Report:  # diagnostic: unconstrained-impl-parameter

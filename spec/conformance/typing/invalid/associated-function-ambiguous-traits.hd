@@ -6,7 +6,7 @@ trait Left:
 trait Right:
     fn label() -> string
 
-data User: pass
+struct User: pass
 
 impl Left for User:
     fn label() -> string: "left"

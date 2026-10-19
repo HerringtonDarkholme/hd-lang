@@ -28,7 +28,7 @@ impl[T] Counted for T by Structure:
         d.n
 
 @derive(Counted)
-data Pair:
+struct Pair:
     a: i32
     b: i32
 

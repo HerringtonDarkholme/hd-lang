@@ -1,6 +1,6 @@
 # test: compound assignment on primitive locals, list elements, and fields
 # Spec 05 Compound Assignment: expr.assign.compound.primitive, expr.assign.compound.once (Operator Traits OP5, OP13).
-data Box:
+struct Box:
     value: i32
 
 fn run() -> i32:
@@ -17,7 +17,7 @@ fn run() -> i32:
     x ^= 2
     x
 
-fn bump(items: mut List[i32], box: mut Box) -> i32:
+fn bump(items: &mut List[i32], box: &mut Box) -> i32:
     items[1] += 10
     box.value *= 3
     items[1] + box.value
@@ -27,4 +27,4 @@ tests:
 
     it("updates primitive places"):
         assert_equal(run(), 15, reason="10 + 5 - 3, * 4, / 6, % 5, << 3, >> 1, | 1, & 13, ^ 2")
-        assert_equal(bump([1, 2], Box { value: 4 }), 24, reason="12 + 12")
+        assert_equal(bump(&mut [1, 2], &mut Box { value: 4 }), 24, reason="12 + 12")

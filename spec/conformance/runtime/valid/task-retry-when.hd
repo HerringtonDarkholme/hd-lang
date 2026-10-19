@@ -6,12 +6,12 @@ use std.time.{Clock, Duration, Instant, Timestamp, ms}
 fn is_busy(error: string) -> bool:
     error == "busy"
 
-fn connect!(replies: mut List[Result[string, string]]) -> Result[string, string]:
+fn connect!(replies: &mut List[Result[string, string]]) -> Result[string, string]:
     retry!(5, when=is_busy):
         replies.remove_at(0)
 
-data RecordingClock:
-    slept: mut List[i64]
+struct RecordingClock:
+    slept: List[i64]
 
 impl Clock for RecordingClock:
     fn now(self) -> Timestamp:
@@ -23,19 +23,19 @@ impl Clock for RecordingClock:
     fn sleep!(&mut self, duration: Duration) -> void:
         self.slept.push(duration.as_milliseconds())
 
-data Server:
+struct Server:
     errors: List[string]
     calls: usize
-    asked: mut List[string]
+    asked: List[string]
 
-fn ask!(server: mut Server) -> Result[string, string]:
+fn ask!(server: &mut Server) -> Result[string, string]:
     index := server.calls
     server.calls = server.calls + 1
     if index < server.errors.len():
         return .Err(server.errors[index])
     .Ok("ready")
 
-fn judge(server: mut Server, error: string) -> bool:
+fn judge(server: &mut Server, error: string) -> bool:
     server.asked.push(error)
     error == "busy"
 
@@ -43,23 +43,23 @@ tests:
     use std.testing.assert_equal
 
     it("retries while when is true and returns the first .Ok"):
-        let replies: mut List[Result[string, string]] = [.Err("busy"), .Err("busy"), .Ok("ready")]
-        assert_equal(connect!(replies), .Ok("ready"), reason="two busy errors, then ready")
+        let mut replies: List[Result[string, string]] = [.Err("busy"), .Err("busy"), .Ok("ready")]
+        assert_equal(connect!(&mut replies), .Ok("ready"), reason="two busy errors, then ready")
 
     it("returns an error that when rejects without another call"):
-        let replies: mut List[Result[string, string]] = [.Err("busy"), .Err("refused"), .Ok("ready")]
-        assert_equal(connect!(replies), .Err("refused"), reason="the second error is rejected")
+        let mut replies: List[Result[string, string]] = [.Err("busy"), .Err("refused"), .Ok("ready")]
+        assert_equal(connect!(&mut replies), .Err("refused"), reason="the second error is rejected")
         assert_equal(replies.len(), 1, reason="no third call")
 
     it("asks when once for each error, and not for an .Ok"):
-        let server: mut Server = Server { errors: ["busy", "busy"], calls: 0, asked: [] }
+        server := &mut Server { errors: ["busy", "busy"], calls: 0, asked: [] }
         result := retry!(5, when=fn(error: string): judge(server, error)):
             ask!(server)
         assert_equal(result, .Ok("ready"), reason="the third call succeeds")
         assert_equal(server.asked, ["busy", "busy"], reason="one question for each .Err")
 
     it("retries every error when when is omitted"):
-        let server: mut Server = Server { errors: ["a", "b", "c"], calls: 0, asked: [] }
+        server := &mut Server { errors: ["a", "b", "c"], calls: 0, asked: [] }
         result := retry!(3):
             ask!(server)
         assert_equal(result, .Err("c"), reason="three calls, the last error")
@@ -67,7 +67,7 @@ tests:
 
     it("retry_with! does not sleep before a call that when rejects"):
         let mut clock = RecordingClock { slept: [] }
-        let server: mut Server = Server { errors: ["busy", "refused", "busy"], calls: 0, asked: [] }
+        server := &mut Server { errors: ["busy", "refused", "busy"], calls: 0, asked: [] }
         policy := Backoff { attempts: 5, initial: 100ms, factor: 2, max: 1000ms }
         $.with(Clock=&mut clock):
             result := retry_with!(policy, when=is_busy):

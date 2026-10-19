@@ -34,16 +34,16 @@ impl[T] Show for T by Structure:
         w.out + ")"
 
 @derive(Show)
-data Timestamp:
+struct Timestamp:
     seconds: i32
 
 @derive(Show)
-data Post:
+struct Post:
     Timestamp
     title: string
 
 @derive(Show)
-data Range[A]:
+struct Range[A]:
     low: A
     high: A
 
@@ -51,7 +51,7 @@ tests:
     use std.testing.assert_equal
 
     it("an embedded field is one member named by its type"):
-        post := Post { Timestamp: ...Timestamp { seconds: 3 }, title: "Launch" }
+        post := Post { Timestamp: Timestamp { seconds: 3 }, title: "Launch" }
         assert_equal(post.show(), "Post(Timestamp=Timestamp(seconds=3;);title=Launch;)", reason="the embedded part is walked as one value")
 
     it("a generic target walks its members"):

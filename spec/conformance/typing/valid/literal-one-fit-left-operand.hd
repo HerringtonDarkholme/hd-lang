@@ -2,7 +2,7 @@
 # Spec 05 Operator Traits: expr.op.left-literal.join (ONE-FIT).
 use std.ops.Mul
 
-data Money:
+struct Money:
     cents: i64
 
 impl Mul[Money] for i64:

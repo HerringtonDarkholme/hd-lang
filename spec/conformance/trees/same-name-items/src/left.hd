@@ -1,6 +1,6 @@
 use std.inspect.Inspectable
 
-pub data Item:
+pub struct Item:
     pub label: string
 
 pub fn erased(label: string) -> dyn Inspectable:

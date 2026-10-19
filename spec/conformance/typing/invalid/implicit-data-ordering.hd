@@ -1,5 +1,5 @@
 # Spec 09 Traits: trait.derive.no-automatic.
-data Score:
+struct Score:
     value: i32
 
 fn higher(left: Score, right: Score) -> bool:

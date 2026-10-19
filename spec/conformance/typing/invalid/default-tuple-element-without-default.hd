@@ -2,7 +2,7 @@
 # Spec std/ops Standard Implementations: std-ops.default.std.missing-element (owner decision Q6-default, batch 35, 2026-10-01).
 use std.ops.Default
 
-data Secret:
+struct Secret:
     value: i32
 
 fn fresh[T < Default]() -> T:

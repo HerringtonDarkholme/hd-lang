@@ -5,7 +5,7 @@ use std.inspect.{Inspectable, TypeId}
 trait Plugin < Inspectable:
     fn name(self) -> string
 
-data Exporter:
+struct Exporter:
     format: string
 
 impl Plugin for Exporter:

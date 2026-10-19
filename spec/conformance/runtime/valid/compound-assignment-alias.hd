@@ -1,7 +1,7 @@
 # test: += on a data place stores a new value, so another reference keeps the old one
 # Spec 05 Compound Assignment: expr.assign.compound.fresh-value (Operator Traits OP13).
 use std.ops.Add
-data Score:
+struct Score:
     points: i64
 
 impl Add for Score:

@@ -1,4 +1,4 @@
-let prices: mut List[i32] = []
+let mut prices: List[i32] = []
 prices.push(+250)
 
 pub fn known() -> List[i32]:

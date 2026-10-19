@@ -2,7 +2,7 @@
 # Spec 14 Error Types: annot.error.form.marker-argument (Error Conversion decision 31, owner decision 2026-09-30).
 
 @error("bad yaml")
-data YamlError:
+struct YamlError:
     line: i64
 
 @error

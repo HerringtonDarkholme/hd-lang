@@ -17,10 +17,10 @@ struct Wide:
     n: i64
     extra: i32
 
-data Heap:
+struct Heap:
     n: i32
 
-data OtherHeap:
+struct OtherHeap:
     n: i64
 
 fn relay[T](value: T) -> T:

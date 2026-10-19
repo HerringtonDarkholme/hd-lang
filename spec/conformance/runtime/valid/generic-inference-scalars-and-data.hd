@@ -1,6 +1,6 @@
 # test: generic inference scalars and data
 
-data Box:
+struct Box:
     value: i32
 
 fn identity[T](value: T) -> T: value

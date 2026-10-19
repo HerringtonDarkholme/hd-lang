@@ -2,10 +2,10 @@
 # Spec 14 Derivation Blocks With No Trait: annot.no-trait.not-inherent.
 use std.structure.Structure
 
-data Tag:
+struct Tag:
     text: string
 
-data Note:
+struct Note:
     text: string
 
 fn tag(text: string) -> Tag:
@@ -14,7 +14,7 @@ fn tag(text: string) -> Tag:
 fn note(text: string) -> Note:
     Note { text: text }
 
-data Point:
+struct Point:
     x: i64
 
 impl Point by Structure:

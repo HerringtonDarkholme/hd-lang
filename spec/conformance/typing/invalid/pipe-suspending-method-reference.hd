@@ -1,7 +1,7 @@
 # test: a suspending method reference is not a bare pipe step
 # Spec 05 Bare Steps: expr.pipe.bare.no-suspend (Method References MR4).
 
-data Store:
+struct Store:
     name: string
 
 impl Store:

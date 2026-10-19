@@ -1,7 +1,7 @@
 # test: literal payload patterns
 # Spec 08 Payload Patterns: data.match.payload.constrain.
 
-data Point:
+struct Point:
     x: i32
     y: i32
 

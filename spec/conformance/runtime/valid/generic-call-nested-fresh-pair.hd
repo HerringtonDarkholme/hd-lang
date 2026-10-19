@@ -1,9 +1,9 @@
 # test: a fresh Box literal inside a fresh Pair literal fills a generic Pair[Box[T], U] parameter
 # Spec 04 Bindings And Fresh Values: types.fresh.weaken; the Box literal weakens at the readonly Box[T] position.
-data Box[T]:
+struct Box[T]:
     item: T
 
-data Pair[A, B]:
+struct Pair[A, B]:
     first: A
     second: B
 

@@ -4,7 +4,7 @@ use std.annotation.annotate
 use std.num.Num
 
 @annotate::[fn(T) -> R](.Fn, .Field)
-data FnFact[T < Num, R]: pass
+struct FnFact[T < Num, R]: pass
 
 fn fn_fact[T < Num, R]() -> FnFact[T, R]:
     FnFact::[T, R] {}
@@ -12,7 +12,7 @@ fn fn_fact[T < Num, R]() -> FnFact[T, R]:
 fn to_ms[T < Num]() -> FnFact[T, Duration]:
     FnFact::[T, Duration] {}
 
-data Duration:
+struct Duration:
     millis: i32
 
 @fn_fact
@@ -27,6 +27,6 @@ fn seconds(n: i64) -> Duration:
 fn half[N < Num](n: N) -> f64:
     0.5
 
-data Timer:
+struct Timer:
     @fn_fact
     tick: fn(i32) -> Duration

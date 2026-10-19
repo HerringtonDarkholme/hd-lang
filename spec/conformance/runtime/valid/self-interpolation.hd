@@ -3,7 +3,7 @@
 # Spec 05 Interpolation: expr.interp.self, expr.interp.user.
 # expect: test
 
-data Money:
+struct Money:
     cents: i32
 
 impl Display for Money:

@@ -2,15 +2,15 @@
 # types.fresh.not-recursive, types.fresh.element-permission,
 # types.fresh.mut-literal, types.fresh.expected-mut,
 # types.fresh.expected-mut.sites, types.return.mut.
-data User:
+struct User:
     name: string
 
-fn rename(user: mut User) -> void:
+fn rename(user: &mut User) -> void:
     user.name = "Grace"
 
-fn new_mutable_user() -> mut User:
-    User { name: "Ada" }
+fn new_mutable_user() -> &mut User:
+    &mut User { name: "Ada" }
 
 fn valid() -> void:
-    rename(User { name: "Ada" })
+    rename(&mut User { name: "Ada" })
     rename(new_mutable_user())

@@ -1,7 +1,7 @@
 # test: backtick raw identifiers name fields, members, labels, parameters, and bindings
 # expect: accept
 
-data Token:
+struct Token:
     `type`: string
     text: string
 

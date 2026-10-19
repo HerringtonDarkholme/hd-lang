@@ -10,7 +10,7 @@
 ## slug := make_slug("Ship It")
 ## _ := slug.text  # error: private-member
 ## ```
-pub data Slug:
+pub struct Slug:
     text: string
 
 pub fn make_slug(title: string) -> Slug:

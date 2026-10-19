@@ -3,7 +3,7 @@ trait Supplier:
     type Item
     fn get(self) -> Self::Item
 
-data Counter:
+struct Counter:
     start: i32
 
 impl Supplier for Counter:

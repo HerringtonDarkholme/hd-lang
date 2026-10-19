@@ -1,18 +1,18 @@
 # test: a trait extending Inspectable is implemented with its own members only, and its values keep their recorded type when widened
 # Spec 09 Extending A Sealed Trait: trait.sealed.extend, trait.sealed.extend.members; Compiler-Supplied Implementations: trait.sealed.supplied, trait.sealed.behaves.
 # Spec 09 Supertrait Widening: trait.dyn.widen, trait.dyn.recover; Erasure To Inspectable: trait.erase.child-impl, trait.erase.widen, trait.erase.keeps.
-use std.inspect.{Inspectable, TypeId}
+use std.inspect.{Inspectable, TypeId, downcast_val}
 trait Plugin < Inspectable:
     fn name(self) -> string
 
-data Exporter:
+struct Exporter:
     format: string
 
 impl Plugin for Exporter:
     fn name(self) -> string:
         "export " + self.format
 
-data Importer:
+struct Importer:
     source: string
 
 impl Plugin for Importer:
@@ -23,7 +23,7 @@ fn as_inspectable(plugin: dyn Plugin) -> dyn Inspectable:
     plugin
 
 fn format_of(value: dyn Inspectable) -> string:
-    match value.downcast::[Exporter]():
+    match downcast_val::[Exporter](value):
         .Some(exporter) => exporter.format
         .None => "none"
 

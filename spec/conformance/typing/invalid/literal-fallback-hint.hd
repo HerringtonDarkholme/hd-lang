@@ -3,7 +3,7 @@
 # should suggest `+5` or an annotation; the fixture checks only the code.
 use std.ops.Add
 
-data Money:
+struct Money:
     cents: i64
 
 impl Add[i32] for Money:

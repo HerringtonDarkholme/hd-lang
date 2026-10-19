@@ -1,18 +1,18 @@
 # test: a fourth embedded field is an error at the declaration
 # Spec 08 Embedding Limits: data.embed.width.
-data Created:
+struct Created:
     created_at: i32
 
-data Updated:
+struct Updated:
     updated_at: i32
 
-data Owned:
+struct Owned:
     owner: string
 
-data Tagged:
+struct Tagged:
     tag: string
 
-data Post:
+struct Post:
     Created
     Updated
     Owned

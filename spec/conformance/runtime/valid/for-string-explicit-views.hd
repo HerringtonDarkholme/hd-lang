@@ -4,13 +4,13 @@ tests:
     use std.testing.assert_equal
 
     it("each view yields its own items"):
-        let chars: mut List[char] = []
+        let mut chars: List[char] = []
         for c in "hé".chars():
             chars.push(c)
-        let offsets: mut List[usize] = []
+        let mut offsets: List[usize] = []
         for (offset, _) in "hé".char_indices():
             offsets.push(offset)
-        let bytes: mut List[u8] = []
+        let mut bytes: List[u8] = []
         for b in "hé".bytes():
             bytes.push(b)
         assert_equal(chars, ['h', 'é'], reason="two scalars")

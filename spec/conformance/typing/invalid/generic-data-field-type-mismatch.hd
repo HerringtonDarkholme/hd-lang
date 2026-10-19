@@ -1,6 +1,6 @@
 # test: data / generic / mismatched field type
 
-data Box[T]:
+struct Box[T]:
     value: T
 
 fn main() -> void:

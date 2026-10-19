@@ -1,7 +1,7 @@
 # test: a suffixed literal calls its suffix function with the literal, and a minus negates the result
 # Spec 05 Literal Suffixes: `12px` calls px(12), and `-12px` is -(px(12)), not px(-12).
 use std.ops.{Neg, num_suffix}
-data Pixels:
+struct Pixels:
     count: i32
 
 impl Neg for Pixels:

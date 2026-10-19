@@ -6,7 +6,7 @@ trait Source[T]:
 
 trait Marker
 
-data Wrap[T]:
+struct Wrap[T]:
     value: T
 
 impl[T < Source[Factory]] Marker for Wrap[T]  # diagnostic: trait-used-as-type

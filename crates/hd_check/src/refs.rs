@@ -592,6 +592,43 @@ impl Ck<'_, '_> {
     /// The field `name` of the operand `b`: a struct field extends a
     /// place; a field of a referenced value or of a data value starts a
     /// place there; a field of any other value is a value.
+    /// The place of the embedded part that `part`, a path of embedded
+    /// fields, reaches from `op`, a struct place or a reference to one
+    /// (`names.promoted.path`). Any other operand is returned as it is.
+    pub(crate) fn part_place(
+        &mut self,
+        op: Operand,
+        part: Vec<(u32, Ty)>,
+        e: NodeRef<'_>,
+    ) -> Operand {
+        let Some(&(_, ty)) = part.last() else {
+            return op;
+        };
+        let op = match op {
+            Operand::Place(p) if self.ref_of(p.ty).is_some() => {
+                let (r, t) = self.read_place(&p, e);
+                Operand::Value(r, t)
+            }
+            op => op,
+        };
+        match op {
+            Operand::Place(mut p) if self.is_struct_ty(p.ty) => {
+                p.path.extend(part);
+                p.ty = ty;
+                Operand::Place(p)
+            }
+            Operand::Value(r, t) if self.ref_of(t).is_some() => {
+                let (l, d) = self.hold(r, t, e);
+                Operand::Place(Place {
+                    root: Root::Deref(l, d, t),
+                    path: part,
+                    ty,
+                })
+            }
+            op => op,
+        }
+    }
+
     fn field_step(
         &mut self,
         b: Operand,
@@ -607,6 +644,19 @@ impl Ck<'_, '_> {
         };
         match b {
             Operand::Place(mut p) => {
+                if self.field_of(p.ty, name).is_none()
+                    && let Some(path) = self.promoted_field_path(p.ty, name)
+                {
+                    // A promoted field is its explicit path
+                    // (`names.promoted.path`).
+                    for step in &path {
+                        let Some((idx, ft)) = self.field_of(p.ty, step) else {
+                            break;
+                        };
+                        p.path.push((idx, ft));
+                        p.ty = ft;
+                    }
+                }
                 let Some((idx, ft)) = self.field_of(p.ty, name) else {
                     self.no_field(p.ty, name, e);
                     return Ok(None);

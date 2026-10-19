@@ -3,7 +3,7 @@
 use std.annotation.annotate
 
 @annotate::[F](.Fn)
-data Handler[F]: pass
+struct Handler[F]: pass
 
 fn handler[R]() -> Handler[fn(i64) -> R]:
     Handler::[fn(i64) -> R] {}

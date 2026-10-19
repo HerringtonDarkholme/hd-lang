@@ -1,13 +1,13 @@
 # test: a public impl's associated type binding must not name a private type
 # Spec 10 Public Signatures: module.vis.signature.coverage.
-data Hidden:
+struct Hidden:
     n: i32
 
 pub trait Make:
     type Out
     fn make(self) -> Self::Out
 
-pub data Maker:
+pub struct Maker:
     k: i32
 
 impl Make for Maker:

@@ -2,21 +2,21 @@
 # Spec 09 Traits: default methods run with the impl's substitutions.
 # Spec 09 Traits: trait.decl.generic, trait.decl.default.
 trait Source[T]:
-    fn next(mut self) -> T?
-    fn second(mut self) -> T?:
+    fn next(&mut self) -> T?
+    fn second(&mut self) -> T?:
         let first: T? = self.next()
         self.next()
 
-data Counter:
+struct Counter:
     n: i32
 
 impl Source[i32] for Counter:
-    fn next(mut self) -> i32?:
+    fn next(&mut self) -> i32?:
         self.n = self.n + 1
         .Some(self.n)
 
 fn main() -> i32:
-    let counter: mut Counter = Counter { n: 0 }
+    let mut counter = Counter { n: 0 }
     match counter.second():
         .Some(value) => value
         .None => 0

@@ -6,12 +6,12 @@ trait Db:
 trait Clock:
     fn now(self) -> string
 
-data MemoryDb: pass
+struct MemoryDb: pass
 
 impl Db for MemoryDb:
     fn name(self) -> string: "db"
 
-data FixedClock: pass
+struct FixedClock: pass
 
 impl Clock for FixedClock:
     fn now(self) -> string: "noon"

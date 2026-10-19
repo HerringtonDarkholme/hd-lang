@@ -1,6 +1,6 @@
 # test: value.name(arguments) calls the method that member lookup selects, with value as its receiver
 # Spec 05 Method Calls: expr.member.method-call.
-data Account:
+struct Account:
     owner: string
     cents: i32
 

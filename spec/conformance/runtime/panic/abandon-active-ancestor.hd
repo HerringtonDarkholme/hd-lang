@@ -1,22 +1,22 @@
 # test: abandoning a suspension from inside its own active poll panics as reentrant
 # Spec lang/11 Abandoning: req.abandon.active.
-data Slot:
+struct Slot:
     task: (mut Suspend[i32])?
 
-fn halt(slot: mut Slot) -> void:
+fn halt(slot: &mut Slot) -> void:
     match slot.task:
         .Some(task) => task.abandon()
         .None => pass
 
-fn inner!(slot: mut Slot) -> i32:
+fn inner!(slot: &mut Slot) -> i32:
     halt(slot)
     1
 
-fn outer!(slot: mut Slot) -> i32:
+fn outer!(slot: &mut Slot) -> i32:
     inner!(slot)
 
 pub fn main!() -> void:
     let mut slot = Slot { task: .None }
-    let pending: mut Suspend[i32] = outer(slot)
+    let pending: mut Suspend[i32] = outer(&mut slot)
     slot.task = pending
     _ := pending!()  # panic: suspension-reentrant-poll

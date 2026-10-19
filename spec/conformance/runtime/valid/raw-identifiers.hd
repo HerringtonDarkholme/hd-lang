@@ -2,7 +2,7 @@
 # Spec 01 Raw Identifiers: lex.raw.form, lex.raw.token, lex.raw.name, lex.raw.reserved.
 # expect: test
 
-data Token:
+struct Token:
     `type`: string
     text: string
 

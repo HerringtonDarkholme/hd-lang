@@ -1,18 +1,18 @@
-data Timestamps:
+struct Timestamps:
     created_at: i64
     updated_at: i64
 
-data Post:
+struct Post:
     Timestamps
     id: string
     title: string
 
-data Owner:
+struct Owner:
     friend: mut Timestamps
     Timestamps
 
 post := Post {
-    Timestamps: ...Timestamps {
+    Timestamps: Timestamps {
         created_at: 1,
         updated_at: 1,
     },

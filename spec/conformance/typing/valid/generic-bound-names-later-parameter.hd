@@ -3,7 +3,7 @@
 trait Source[T]:
     fn take(self) -> T
 
-data Label:
+struct Label:
     text: string
 
 impl Source[string] for Label:
@@ -13,7 +13,7 @@ impl Source[string] for Label:
 fn read[S < Source[U], U](source: S) -> U:
     source.take()
 
-data Feed[S < Source[U], U]:
+struct Feed[S < Source[U], U]:
     source: S
     last: U
 
@@ -24,7 +24,7 @@ enum Slot[S < Source[U], U]:
 trait Pump[S < Source[U], U]:
     fn pump(self, source: S) -> U
 
-data Hand:
+struct Hand:
     count: i32
 
 impl Pump[Label, string] for Hand:

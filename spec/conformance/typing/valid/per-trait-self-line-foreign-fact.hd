@@ -26,7 +26,7 @@ impl[T] Show for T by Structure:
         _ := Structure::walk(self, &mut w)
         w.out
 
-data Quiet:
+struct Quiet:
     id: i64
 
 impl Show for Quiet by Structure:

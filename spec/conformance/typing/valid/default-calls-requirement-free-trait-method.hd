@@ -3,11 +3,11 @@
 trait Counter:
     fn next(mut self) -> i32
 
-data Steps:
+struct Steps:
     count: i32
 
 impl Counter for Steps:
-    fn next(mut self) -> i32:
+    fn next(&mut self) -> i32:
         self.count = self.count + 1
         self.count
 

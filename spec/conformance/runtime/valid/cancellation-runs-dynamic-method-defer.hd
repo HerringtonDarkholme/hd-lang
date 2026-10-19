@@ -7,7 +7,7 @@ let cleaned: bool = false
 trait Job:
     fn run!(self) -> void
 
-data Worker:
+struct Worker:
     value: i32
 
 fn wait!() -> void: pass

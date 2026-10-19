@@ -1,5 +1,5 @@
 # Spec 10 Public Signatures: module.vis.signature.
-data Secret:
+struct Secret:
     value: string
 pub fn reveal() -> Secret:  # diagnostic: private-type-leak
     Secret { value: "hidden" }

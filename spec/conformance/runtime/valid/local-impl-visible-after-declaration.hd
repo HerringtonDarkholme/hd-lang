@@ -1,7 +1,7 @@
 # test: after a local implementation, its methods are found in the suite, in closures written there, in its own methods, and in later local defaults
 # Spec 09 Local Implementations: trait.impl.local.lookup; lookup runs from the impl declaration point through its enclosing suite and child scopes.
 fn trait_label(number: string) -> string:
-    data Invoice:
+    struct Invoice:
         number: string
 
     trait Labeled:
@@ -13,7 +13,7 @@ fn trait_label(number: string) -> string:
     Invoice { number }.label()
 
 fn inherent_label(number: string) -> string:
-    data Invoice:
+    struct Invoice:
         number: string
 
     invoice := Invoice { number }
@@ -23,7 +23,7 @@ fn inherent_label(number: string) -> string:
     invoice.label()
 
 fn closure_label(number: string) -> string:
-    data Invoice:
+    struct Invoice:
         number: string
 
     trait Labeled:
@@ -37,7 +37,7 @@ fn closure_label(number: string) -> string:
     read()
 
 fn recursive_label(number: string) -> string:
-    data Invoice:
+    struct Invoice:
         number: string
 
     trait Labeled:
@@ -50,7 +50,7 @@ fn recursive_label(number: string) -> string:
     Invoice { number }.label()
 
 fn receipt_header() -> string:
-    data Invoice:
+    struct Invoice:
         number: string
 
     trait Labeled:
@@ -59,16 +59,16 @@ fn receipt_header() -> string:
     impl Labeled for Invoice:
         fn label(self) -> string: "INV-" + self.number
 
-    data Receipt:
+    struct Receipt:
         header: string = Invoice { number: "1001" }.label()
 
     Receipt {}.header
 
 fn render_page() -> string:
-    data Heading:
+    struct Heading:
         text: string
 
-    data Page: pass
+    struct Page: pass
 
     trait Render:
         fn render(self) -> string

@@ -1,9 +1,9 @@
 # test: a header without a trait must name Structure after by
 # Spec 14 Derivation Blocks With No Trait: annot.no-trait.by; Chapter 09 trait.by.no-trait.error gives the code.
-data Audit:
+struct Audit:
     at: i64
 
-data Account:
+struct Account:
     Audit
     id: i64
 

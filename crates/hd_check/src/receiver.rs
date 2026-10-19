@@ -291,10 +291,28 @@ impl Ck<'_, '_> {
             Some((inner, m)) => self.deref_ty(inner, m),
             None => bt,
         };
-        let Some(mutable) = self.ref_receiver_named(vt, name)? else {
+        // A method promoted from an embedded struct takes the address of
+        // that part of the place (`names.promoted.path`).
+        let mut part = Vec::new();
+        let mut mutable = self.ref_receiver_named(vt, name)?;
+        if mutable.is_none()
+            && self.is_struct_ty(vt)
+            && let Some(path) = self.promoted_method_path(vt, name)
+        {
+            let mut pt = vt;
+            for step in &path {
+                let Some((idx, ft)) = self.field_of(pt, step) else {
+                    return Ok(None);
+                };
+                part.push((idx, ft));
+                pt = ft;
+            }
+            mutable = self.ref_receiver_named(pt, name)?;
+        }
+        let Some(mutable) = mutable else {
             return Ok(None);
         };
-        if via_ref.is_some() {
+        if via_ref.is_some() && part.is_empty() {
             // A reference receiver: the method refers to what it refers to.
             let (r, t) = self.expr(base, None)?;
             return Ok(Some(
@@ -302,7 +320,7 @@ impl Ck<'_, '_> {
                     .unwrap_or_else(|| self.poisoned(base)),
             ));
         }
-        Ok(Some(self.address_of_place(base, name, mutable)?))
+        Ok(Some(self.address_of_place(base, name, mutable, part)?))
     }
 
     /// The reference that a call of `name`, a method taking `&self` or
@@ -314,6 +332,7 @@ impl Ck<'_, '_> {
         base: NodeRef<'_>,
         name: &str,
         mutable: bool,
+        part: Vec<(u32, Ty)>,
     ) -> StageResult<(Ref, Ty)> {
         // A list element pins its list for the call
         // (`fn.method.auto-address.element`).
@@ -322,6 +341,11 @@ impl Ck<'_, '_> {
         self.pin_for_call = false;
         let Some(op) = op? else {
             return Ok(self.poisoned(base));
+        };
+        let op = if part.is_empty() {
+            op
+        } else {
+            self.part_place(op, part, base)
         };
         let place = match op {
             Operand::Place(p) => {
@@ -380,7 +404,7 @@ impl Ck<'_, '_> {
             .peek_place_ty(base)
             .is_some_and(|t| self.ref_of(t).is_none())
         {
-            let (r, t) = self.address_of_place(base, name, true)?;
+            let (r, t) = self.address_of_place(base, name, true, Vec::new())?;
             return Ok((t != Ty::POISON).then_some((r, t)));
         }
         let (r, t) = self.expr(base, None)?;

@@ -1,8 +1,8 @@
 # test: an embedded field takes no pub marker; embedded fields are always public
 # Spec 02 Data Types: grammar.data.embedded.no-pub, grammar.data.embedded.
-pub data Base:
+pub struct Base:
     id: string
 
-pub data Post:
+pub struct Post:
     pub Base  # diagnostic: syntax-error
     pub title: string

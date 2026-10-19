@@ -38,16 +38,16 @@ pub fn retry![T, E, $R](times: usize, when: fn(E) -> bool = fn(error: E): true, 
 ```text
 use std.task.retry
 
-data Server:
+struct Server:
     busy_for: i32
 
-fn ask!(server: mut Server) -> Result[string, string]:
+fn ask!(server: &mut Server) -> Result[string, string]:
     if server.busy_for > 0:
         server.busy_for = server.busy_for - 1
         return .Err("busy")
     .Ok("ready")
 
-fn connect!(server: mut Server) -> Result[string, string]:
+fn connect!(server: &mut Server) -> Result[string, string]:
     retry!(3):
         ask!(server)
 ```
@@ -62,7 +62,7 @@ use std.task.retry
 fn is_busy(error: string) -> bool:
     error == "busy"
 
-fn connect!(replies: mut List[Result[string, string]]) -> Result[string, string]:
+fn connect!(replies: &mut List[Result[string, string]]) -> Result[string, string]:
     retry!(5, when=is_busy):
         replies.remove_at(0)
 ```
@@ -112,16 +112,16 @@ pub fn retry_with![T, E, $R](backoff: Backoff, when: fn(E) -> bool = fn(error: E
 use std.task.{Backoff, retry_with}
 use std.time.{Clock, ms, s}
 
-data Server:
+struct Server:
     busy_for: i32
 
-fn ask!(server: mut Server) -> Result[string, string]:
+fn ask!(server: &mut Server) -> Result[string, string]:
     if server.busy_for > 0:
         server.busy_for = server.busy_for - 1
         return .Err("busy")
     .Ok("ready")
 
-fn connect!(server: mut Server) -> Result[string, string] $ Clock:
+fn connect!(server: &mut Server) -> Result[string, string] $ Clock:
     policy := Backoff { attempts: 5, initial: 100ms, factor: 2, max: 5s }
     retry_with!(policy):
         ask!(server)
@@ -234,8 +234,8 @@ use std.ops.Disposable
 use std.task.{TimedOut, timeout}
 use std.time.{Clock, s}
 
-data Upload:
-    log: mut List[string]
+struct Upload:
+    log: &mut List[string]
     ack: mut Suspend[void]
 
 impl Disposable for Upload:
@@ -245,9 +245,9 @@ impl Disposable for Upload:
         ack!()                          # waits for the peer
         self.log.push("upload acknowledged")
 
-fn send!(log: mut List[string], reply: mut Suspend[string], ack: mut Suspend[void]) -> Result[string, TimedOut] $ Clock:
+fn send!(log: &mut List[string], reply: mut Suspend[string], ack: mut Suspend[void]) -> Result[string, TimedOut] $ Clock:
     timeout!(5s, cleanup=1s):
-        using upload = Upload { log: log, ack: ack }
+        using upload = &mut Upload { log: log, ack: ack }
         reply!()
 ```
 

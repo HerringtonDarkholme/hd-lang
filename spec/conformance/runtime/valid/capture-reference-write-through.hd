@@ -58,8 +58,8 @@ tests:
         assert_equal(point.x, 1, reason="and nothing else")
 
     it("a captured reference to a list element writes the slot"):
-        let points: mut List[Point] = [Point { x: 1, y: 1 }, Point { x: 2, y: 2 }]
-        let steps: mut List[fn() -> void] = []
+        let mut points: List[Point] = [Point { x: 1, y: 1 }, Point { x: 2, y: 2 }]
+        let mut steps: List[fn() -> void] = []
         for point in &mut points:
             steps.push(fn() -> void: point.x = point.x + 10)
         steps[0]()

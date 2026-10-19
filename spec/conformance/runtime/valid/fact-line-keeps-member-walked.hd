@@ -1,10 +1,10 @@
 # test: a member line other than = pass changes only facts, so x = [] still walks x
 # Spec 14 Omitted Members: annot.omit.only-code.
 use std.structure.{Structure, Field, Variant, Walker}
-data Tag:
+struct Tag:
     text: string
 
-data Note:
+struct Note:
     text: string
 
 fn tag(text: string) -> Tag:
@@ -41,7 +41,7 @@ impl[T] Probe for T by Structure:
         _ := Structure::walk(self, &mut w)
         w.out
 
-data Point:
+struct Point:
     @tag("a")
     x: i64
     y: i64

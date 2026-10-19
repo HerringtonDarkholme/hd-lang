@@ -1,7 +1,7 @@
 # test: a member metadata expression may not call block_on directly
 use std.task.block_on
 
-data Rename:
+struct Rename:
     name: string
 
 fn ready!() -> string:
@@ -10,6 +10,6 @@ fn ready!() -> string:
 fn rename_to[T](source: T) -> Rename:
     Rename { name: "mail" }
 
-data User:
+struct User:
     @rename_to(block_on(ready()))  # diagnostic: suspension-forbidden-context
     email: string

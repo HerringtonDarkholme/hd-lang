@@ -6,5 +6,5 @@ use std.ops.{Template, str_prefix}
 fn raw(t: Template[string]) -> string: t.raw_parts[0]
 
 @error(raw"bad")  # diagnostic: invalid-error-marker
-data DiskError:
+struct DiskError:
     free: i64

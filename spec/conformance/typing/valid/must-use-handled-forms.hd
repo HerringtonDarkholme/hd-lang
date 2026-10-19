@@ -15,7 +15,7 @@ fn matched() -> i32:
 fn returned() -> Result[i32, string]:
     save()
 
-fn stored(log: mut List[Result[i32, string]]) -> void:
+fn stored(log: &mut List[Result[i32, string]]) -> void:
     log.push(save())
 
 fn discarded() -> void:

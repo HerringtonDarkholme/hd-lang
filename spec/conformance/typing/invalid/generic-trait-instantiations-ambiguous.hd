@@ -2,7 +2,7 @@
 trait Pick[T]:
     fn pick(self) -> T
 
-data Money:
+struct Money:
     cents: i32
 
 impl Pick[i32] for Money:

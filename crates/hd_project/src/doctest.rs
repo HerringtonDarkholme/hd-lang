@@ -37,8 +37,8 @@ fn indent_of(line: &str) -> usize {
     line.len() - line.trim_start().len()
 }
 
-/// The name a declaration line declares, if it is one: `fn`, `data`,
-/// `enum`, `trait` and `type` items, and in a body a field, a variant or a
+/// The name a declaration line declares, if it is one: `fn`, `struct`,
+/// `data`, `enum`, `trait` and `type` items, and in a body a field, a variant or a
 /// method.
 fn declared_name(line: &str, member: bool) -> Option<String> {
     let t = line.trim();
@@ -50,7 +50,7 @@ fn declared_name(line: &str, member: bool) -> Option<String> {
             .collect();
         (!name.is_empty()).then_some(name)
     };
-    for kw in ["fn ", "data ", "enum ", "trait ", "type "] {
+    for kw in ["fn ", "struct ", "data ", "enum ", "trait ", "type "] {
         if let Some(rest) = t.strip_prefix(kw) {
             return ident(rest.trim_start());
         }
@@ -62,7 +62,7 @@ fn declared_name(line: &str, member: bool) -> Option<String> {
     None
 }
 
-/// The type an `impl`, `data`, `enum` or `trait` header line is about.
+/// The type an `impl`, `struct`, `data`, `enum` or `trait` header line is about.
 fn owner_name(line: &str) -> Option<String> {
     let t = line.trim();
     let t = t.strip_prefix("pub ").unwrap_or(t);
@@ -70,7 +70,7 @@ fn owner_name(line: &str) -> Option<String> {
         let rest = rest.split(':').next().unwrap_or(rest);
         rest.rsplit(" for ").next().unwrap_or(rest).trim()
     } else {
-        ["data ", "enum ", "trait "]
+        ["struct ", "data ", "enum ", "trait "]
             .iter()
             .find_map(|kw| t.strip_prefix(kw))?
     };

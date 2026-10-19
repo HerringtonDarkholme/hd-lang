@@ -5,7 +5,7 @@
 trait Tag:
     fn name(self) -> string
 
-data Named:
+struct Named:
     label: string
 
 impl Tag for Named:
@@ -27,7 +27,7 @@ trait Runner:
     fn fallback[$R](self, job: fn() -> string $ R) -> string $ R:
         "default " + job()
 
-data Plain:
+struct Plain:
     prefix: string
 
 impl Runner for Plain:

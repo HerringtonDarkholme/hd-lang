@@ -4,7 +4,7 @@ trait Supplier:
     type Item
     fn get(self) -> Self::Item
 
-data Constant:
+struct Constant:
     value: string
 
 impl Supplier for Constant:
@@ -12,7 +12,7 @@ impl Supplier for Constant:
 
     fn get(self) -> string: self.value
 
-data Counter:
+struct Counter:
     start: i32
 
 impl Supplier for Counter:
@@ -29,7 +29,7 @@ fn first[T, I < Supplier[Item = T]](source: I) -> T:
 fn projected[T, I < Supplier[Item = T]](source: I, fallback: T) -> I::Item:
     fallback
 
-data Feed[I]:
+struct Feed[I]:
     source: I
 
 impl[T < Display, I < Supplier[Item = T]] Display for Feed[I]:

@@ -4,7 +4,7 @@
 # fixture-package-tree: module-names/src/checkout.hd
 use pkg.cart.{Cart}
 
-data Basket:
+struct Basket:
     carts: List[Cart]
 
 impl Priced for Basket:  # diagnostic: unknown-trait

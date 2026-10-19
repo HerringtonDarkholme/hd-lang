@@ -6,7 +6,7 @@
 
 @derive(Eq, Hash,)
 @Validation
-pub data Key:
+pub struct Key:
     @max_len(8)
     @doc_fact("the code")
     pub code: string
@@ -47,7 +47,7 @@ impl Key:
     pub fn id(self) -> i32: 2
 
     @helper
-    fn tag(mut self, @label("value") value: i32) -> i32: value
+    fn tag(&mut self, @label("value") value: i32) -> i32: value
 
 @Sealed
 type Meters(i32)

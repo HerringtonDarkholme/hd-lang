@@ -1,6 +1,6 @@
 use std.error.Error
 
-data Notice:
+struct Notice:
     text: string
 
 impl Display for Notice:

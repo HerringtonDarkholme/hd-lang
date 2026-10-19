@@ -4,7 +4,7 @@ use std.json.{encode, encode_pretty, to_json, parse}
 use std.serde.Serialize
 
 @derive(Serialize)
-data Point:
+struct Point:
     x: i32
     y: i32
 
@@ -15,7 +15,7 @@ enum Mark:
     Box(corner: Point, size: Point)
 
 @derive(Serialize)
-data Shape:
+struct Shape:
     name: string
     points: List[Point]
     marks: List[Mark]
@@ -24,7 +24,7 @@ data Shape:
     note: string?
 
 fn shape() -> Shape:
-    let tags: mut Map[string, bool] = {}
+    let mut tags: Map[string, bool] = {}
     tags["solid"] = true
     Shape { name: "tri \"1\"\n", points: [Point { x: 0, y: 0 }, Point { x: 3, y: -4 }], marks: [Mark.Dot, Mark.Label("a"), Mark.Box(Point { x: 1, y: 2 }, Point { x: 3, y: 4 })], empty: [], tags: tags, note: .None }
 

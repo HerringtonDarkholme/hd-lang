@@ -2,7 +2,7 @@
 # Spec 05 Operator Traits: `-5off` is -(off(5)), which calls Neg for Offset.
 use std.ops.{Neg, num_suffix}
 
-data Offset:
+struct Offset:
     value: i32
 
 impl Neg for Offset:

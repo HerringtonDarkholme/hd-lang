@@ -10,7 +10,7 @@ trait Tag:
 trait Describe:
     fn describe[T < Show, U](self, first: T, second: U) -> string
 
-data Describer: pass
+struct Describer: pass
 
 impl Describe for Describer:
     fn describe[T, U < Show](self, first: T, second: U) -> string: "x"  # diagnostic: trait-method-signature

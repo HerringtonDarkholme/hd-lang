@@ -6,8 +6,8 @@ use std.ops.Disposable
 use std.task.race
 use std.time.{Clock, ms, s, sleep}
 
-data Release:
-    log: mut List[string]
+struct Release:
+    log: &mut List[string]
     closing: mut Suspend[void]
 
 impl Disposable for Release:
@@ -18,7 +18,7 @@ impl Disposable for Release:
         wait!()
         self.log.push("dispose end")
 
-fn ordered!(res: mut Release, log: mut List[string]) -> string $ Clock:
+fn ordered!(res: &mut Release, log: &mut List[string]) -> string $ Clock:
     defer: log.push("outer")
     using r = res
     defer: log.push("tail")
@@ -30,7 +30,7 @@ fn stop!(job: mut Suspend[string]) -> string:
     "stopped"
 
 pub fn main!() -> void $ Console + Clock:
-    let log: mut List[string] = []
-    let job: mut Suspend[string] = ordered(Release { log: log, closing: sleep(ms(5)) }, log)
+    let mut log: List[string] = []
+    let job: mut Suspend[string] = ordered(&mut Release { log: &mut log, closing: sleep(ms(5)) }, &mut log)
     println(race!(job, stop(job)))
     println(log.join(", "))

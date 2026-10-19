@@ -8,7 +8,7 @@ trait Loud < Greeter:
     fn shout(self) -> string:
         self.greet() + "!"
 
-data User:
+struct User:
     name: string
 
 impl Greeter for User:

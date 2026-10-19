@@ -3,7 +3,7 @@
 use std.annotation.annotate
 
 @annotate::[F](.Field, .Variant)
-data Example[F]:
+struct Example[F]:
     value: F
 
 fn example[F](value: F) -> Example[F]:

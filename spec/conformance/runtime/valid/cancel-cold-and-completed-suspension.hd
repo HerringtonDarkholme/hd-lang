@@ -1,9 +1,9 @@
 # test: cancelling a cold or completed suspension performs no cleanup
 # expect: test
-data Log:
+struct Log:
     text: string
 
-fn work!(log: mut Log) -> i32:
+fn work!(log: &mut Log) -> i32:
     defer:
         log.text = log.text + "cleanup;"
     log.text = log.text + "body;"
@@ -13,7 +13,7 @@ tests:
     use std.testing.{assert, assert_equal}
 
     it("cancelling a cold suspension runs neither body nor cleanup"):
-        let mut log = Log { text: "" }
+        let mut log = &mut Log { text: "" }
         let pending: mut Suspend[i32] = work(log)
         first := pending.cancel!()
         second := pending.cancel!()
@@ -21,7 +21,7 @@ tests:
         assert(first == .Finished && second == .Finished, reason="a cold suspension has no cleanup left")
 
     it("cancelling a completed suspension has no further effect"):
-        let mut log = Log { text: "" }
+        let mut log = &mut Log { text: "" }
         let pending: mut Suspend[i32] = work(log)
         result := pending!()
         first := pending.cancel!()

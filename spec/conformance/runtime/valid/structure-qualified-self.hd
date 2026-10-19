@@ -3,7 +3,7 @@
 # Structure::name() and Structure::facts() take no argument, so no inference gives their Self.
 # The derived trait declares its own receiverless `name`; Structure::name() is the generated one.
 use std.structure.{Structure, Field, Variant, Describer}
-data Style:
+struct Style:
     prefix: string = ""
 
 fn style(prefix: string = "") -> Style:
@@ -36,7 +36,7 @@ impl[T] Named for T by Structure:
 
 @derive(Named)
 @style(prefix="p_")
-data Point:
+struct Point:
     x: i32
 
 @derive(Named)

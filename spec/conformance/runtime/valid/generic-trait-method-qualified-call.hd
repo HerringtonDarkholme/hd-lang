@@ -5,7 +5,7 @@
 trait Identity:
     fn select[T](self, value: T) -> T
 
-data Picker: pass
+struct Picker: pass
 
 impl Identity for Picker:
     fn select[T](self, value: T) -> T: value

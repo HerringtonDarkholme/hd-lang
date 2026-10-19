@@ -1,8 +1,13 @@
-# Spec 08 Struct Declarations: data.struct.no-embedding.
+# Spec 08 Struct Declarations: data.struct.embed.struct-only.
 struct Vec2:
     x: f64
     y: f64
 
+enum Unit:
+    Metre
+    Foot
+
 struct Pair:
-    Vec2  # diagnostic: embedded-non-data
+    Vec2  # valid: an embedded struct
+    Unit  # diagnostic: embedded-non-data
     weight: f64

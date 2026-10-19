@@ -5,7 +5,7 @@ use std.testing.assert_equal
 trait Reader:
     fn read!(self, value: i32) -> i32 $ Console
 
-data FixedReader:
+struct FixedReader:
     offset: i32
 
 impl Reader for FixedReader:

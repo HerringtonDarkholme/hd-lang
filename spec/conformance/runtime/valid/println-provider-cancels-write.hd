@@ -4,23 +4,26 @@
 # Spec lang/10 Console: module.console.println-cancelled.
 use std.time.{Clock, s, sleep}
 
-data FlakyConsole:
-    lines: mut List[string]
+struct FlakyConsole:
+    lines: List[string]
     gate: mut Suspend[void]
 
 impl Console for FlakyConsole:
-    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
+    fn write_line!(&mut self, text: string) -> Result[void, ConsoleError]:
         if text == "lost":
             let mut gate = self.gate
             gate!()              # the gate was abandoned: this write is cancelled
         self.lines.push(text)
         .Ok(())
 
+    fn write_error_line!(&mut self, text: string) -> Result[void, ConsoleError]:
+        self.write_line!(text)
+
 pub fn main() -> void $ Console + Clock:
     let gate: mut Suspend[void] = sleep(s(60))
     gate.abandon()
     let mut flaky = FlakyConsole { lines: [], gate: gate }
-    $.with(Console=flaky):
+    $.with(Console=&mut flaky):
         println("lost")
         println("kept")
     println("before")

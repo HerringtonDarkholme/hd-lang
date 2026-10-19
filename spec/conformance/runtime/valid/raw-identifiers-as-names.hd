@@ -6,7 +6,7 @@
 # expect-stdout: same
 # expect-stdout: 42
 # expect-stdout: type
-data Token:
+struct Token:
     `type`: string
     `data`: i32
     text: string

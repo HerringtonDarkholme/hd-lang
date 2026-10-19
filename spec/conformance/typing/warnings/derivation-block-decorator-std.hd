@@ -2,7 +2,7 @@
 # Spec 14 Facts: annot.fact.unused-block-decorator.any-type (evening follow-up 8, 2026-09-29).
 use std.structure.Structure
 
-data Hidden:
+struct Hidden:
     id: i64
 
 @"internal"  # warning: unused-derivation-fact

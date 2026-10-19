@@ -4,5 +4,5 @@
 # fixture-package-tree: file-pair/src/shop/cart.hd
 use pkg.shop.item.{Item}
 
-pub data Cart:
+pub struct Cart:
     pub items: List[Item]

@@ -1,7 +1,7 @@
 # test: a receiverless impl member is an associated function called with Type::function(...)
 # Spec 07 Methods And Receivers: "Receiverless members are associated functions and are called with
 # qualified `Type::function(...)` or `Trait::function(...)` syntax."
-data Point:
+struct Point:
     x: i32
     y: i32
 

@@ -1,6 +1,6 @@
 # test: data copy-update evaluates its source before replacements
 
-data Pair[T]:
+struct Pair[T]:
     first: T
     second: T
 

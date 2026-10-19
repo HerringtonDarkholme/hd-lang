@@ -4,14 +4,14 @@
 trait Source[T]:
     fn take(self) -> T
 
-data Label:
+struct Label:
     text: string
 
 impl Source[string] for Label:
     fn take(self) -> string:
         self.text
 
-data Both:
+struct Both:
     count: i32
 
 impl Source[i32] for Both:

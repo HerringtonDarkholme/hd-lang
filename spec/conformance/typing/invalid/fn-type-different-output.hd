@@ -1,4 +1,4 @@
-# test: function types with different outputs are different types, so an invariant mut List does not convert
+# test: function types with different outputs are different types, so an invariant &mut List does not convert
 # Spec 04 Function Type Identity: types.fn.same.
-fn other(handlers: mut List[fn(i32) -> i32]) -> mut List[fn(i32) -> i64]:
+fn other(handlers: &mut List[fn(i32) -> i32]) -> &mut List[fn(i32) -> i64]:
     handlers  # diagnostic: type-mismatch

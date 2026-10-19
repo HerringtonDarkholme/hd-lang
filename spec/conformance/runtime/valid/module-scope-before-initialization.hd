@@ -1,7 +1,7 @@
 # test: a module's own declarations, its uses, and the prelude are in scope in the whole module, and a top-level statement may call a function declared below it
 # Spec 10 Top-Level Statements: module.init.declarations, module.init.uses, module.init.source-order-single;
 # Use Forms: module.use.whole-module; Prelude: module.prelude.fixed-uses.
-let receipts: mut List[string] = []
+let mut receipts: List[string] = []
 record("opened")
 total := sum_cents([125, 250])
 record("total ${total}")

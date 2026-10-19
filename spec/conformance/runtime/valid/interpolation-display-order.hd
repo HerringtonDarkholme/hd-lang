@@ -2,7 +2,7 @@
 # expect: test
 let order: string = ""
 
-data Tagged:
+struct Tagged:
     label: string
 
 impl Display for Tagged:

@@ -3,7 +3,7 @@
 use std.num.Integer
 use std.ops.num_suffix
 
-data Millis:
+struct Millis:
     count: i64
 
 @num_suffix

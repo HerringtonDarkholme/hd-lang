@@ -27,7 +27,7 @@ impl[T] Show for T by Structure:
         _ := Structure::walk(self, &mut w)
         w.out
 
-data Rename:
+struct Rename:
     name: string
 
 fn rename(name: string) -> Rename:

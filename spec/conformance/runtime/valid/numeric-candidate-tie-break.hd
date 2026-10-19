@@ -3,7 +3,7 @@
 trait Build[T]:
     fn build(value: T) -> Item
 
-data Item:
+struct Item:
     value: i32
 
 impl Build[i64] for Item:

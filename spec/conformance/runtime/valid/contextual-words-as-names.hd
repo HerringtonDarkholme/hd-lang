@@ -4,7 +4,7 @@
 fn use(value: i32) -> i32:
     value + 1
 
-data Resource:
+struct Resource:
     as: i32
 
 impl Resource:

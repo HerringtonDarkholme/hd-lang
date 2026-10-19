@@ -4,5 +4,5 @@
 trait Clock:
     fn now(self) -> i32
 
-data Event:
+struct Event:
     time: i32 = $.use(Clock).now()  # diagnostic: requirement-in-default

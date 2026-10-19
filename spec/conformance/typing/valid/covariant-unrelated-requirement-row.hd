@@ -4,6 +4,6 @@
 trait Cache[T]:
     fn get(self, key: string) -> T?
 
-data Loader[+T]:
+struct Loader[+T]:
     latest: T
     refresh: fn() -> void $ Cache[i32]

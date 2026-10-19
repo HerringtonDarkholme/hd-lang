@@ -4,7 +4,7 @@
 # fixture-package-tree: folder-pair/src/shipping/route.hd
 use pkg.billing.invoice.{Invoice}  # diagnostic: folder-cycle
 
-pub data Route:
+pub struct Route:
     pub stops: i32
 
 pub fn cost(invoice: Invoice) -> i32:

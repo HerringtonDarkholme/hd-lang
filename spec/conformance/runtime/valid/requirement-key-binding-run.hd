@@ -4,10 +4,10 @@ trait Store:
     type Item
     fn load(self, id: string) -> Self::Item
 
-data User:
+struct User:
     name: string
 
-data UserStore:
+struct UserStore:
     prefix: string
 
 impl Store for UserStore:

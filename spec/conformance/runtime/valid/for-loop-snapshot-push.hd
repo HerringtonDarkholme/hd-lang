@@ -2,7 +2,7 @@
 # Spec 06 Snapshot Iteration: flow.for.snapshot, flow.for.snapshot.change.
 # expect-stdout: 1 2 1 2
 pub fn main() -> void $ Console:
-    let values: mut List[i32] = [1, 2]
+    let mut values: List[i32] = [1, 2]
     for value in values:
         values.push(value)
     println("${values[0]} ${values[1]} ${values[2]} ${values[3]}")

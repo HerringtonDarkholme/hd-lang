@@ -1,10 +1,10 @@
 # test: a bound reference keeps the receiver it was made with; an unbound reference takes the receiver first
 # Spec 07 Method References: fn.ref.bound.capture, fn.ref.unbound.receiver, fn.ref.call (Method References MR1).
-data Counter:
+struct Counter:
     value: i32
 
 impl Counter:
-    fn bump(mut self, by: i32) -> void:
+    fn bump(&mut self, by: i32) -> void:
         self.value = self.value + by
 
     fn read(self) -> i32:
@@ -20,10 +20,10 @@ tests:
     use std.testing.assert_equal
 
     it("a bound reference keeps its receiver"):
-        let mut counter = Counter { value: 1 }
+        let counter = &mut Counter { value: 1 }
         first := counter
         bump := counter::bump
-        counter = Counter { value: 100 }
+        counter = &mut Counter { value: 100 }
         bump(5)
         assert_equal(first.value, 6, reason="the captured receiver changed")
         assert_equal(counter.value, 100, reason="the new value is untouched")

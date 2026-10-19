@@ -8,7 +8,7 @@ fn double(x: i32):
 fn describe(x: i32):
     "value ${double(x)}"
 
-data Counter:
+struct Counter:
     start: i32
 
 impl Counter:

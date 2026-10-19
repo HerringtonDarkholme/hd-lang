@@ -1,13 +1,13 @@
 # test: each name of a parenthesized multi-name let takes its own mut
-data User:
+struct User:
     name: string
 
-fn pair() -> (mut User, mut User):
+fn pair() -> (User, User):
     (User { name: "Ada" }, User { name: "Grace" })
 
 fn edit() -> string:
-    let (mut first, second) = pair()  # mut User, User
+    let (mut first, second) = pair()  # let mut User, User
     first.name = "Lin"
-    let (third, fourth): (User, mut User) = pair()  # the annotation sets the access
+    let (third, mut fourth): (User, User) = pair()
     fourth.name = third.name
     second.name

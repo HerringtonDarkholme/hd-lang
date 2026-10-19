@@ -2,7 +2,7 @@
 # Spec std/json Encode And Decode: std-json.decode.deserialize (task #241, #320).
 use std.json.{decode, JsonError}
 
-data Plain:
+struct Plain:
     id: i32
 
 fn load(text: string) -> Result[Plain, JsonError]:

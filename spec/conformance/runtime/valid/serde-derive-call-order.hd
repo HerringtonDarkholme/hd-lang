@@ -61,10 +61,10 @@ impl Serializer for Calls:
     fn end_variant(&mut self) -> Result[void, never]:
         self.add("end-variant")
 
-data Cache:
+struct Cache:
     hits: i64
 
-data Order:
+struct Order:
     id: u32
     lines: List[i8]
     note: string?

@@ -135,7 +135,7 @@ See also: [List Indexing](../lang/05-expressions.md#list-indexing),
 list without a hand-written loop:
 
 ```text
-data Task:
+struct Task:
     name: string
     owner: string
     hours: i32

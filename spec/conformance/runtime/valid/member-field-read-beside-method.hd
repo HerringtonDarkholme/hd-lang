@@ -1,6 +1,6 @@
 # test: value.name without an argument clause reads the field, even when a method of the same name exists
 # Spec 05 Member Access: expr.member.field-read.
-data Timer:
+struct Timer:
     count: i32
 
 impl Timer:

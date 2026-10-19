@@ -7,7 +7,7 @@ impl[N < Notifier] Notifier for List[N]:
         for notifier in self:
             notifier.notify(message)
 
-data Duration:
+struct Duration:
     day_count: i32
 
 impl Duration:

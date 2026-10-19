@@ -3,7 +3,7 @@
 trait Combine[T]:
     fn combine(self, other: T) -> string
 
-data Money:
+struct Money:
     cents: i32
 
 impl Combine[i64] for Money:

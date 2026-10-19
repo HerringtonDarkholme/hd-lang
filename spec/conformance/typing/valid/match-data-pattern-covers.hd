@@ -1,6 +1,6 @@
 # test: a data pattern whose listed field patterns are irrefutable covers its type, with unlisted fields unconstrained
 # Spec 06 Exhaustiveness: flow.match.cover.data.
-data Point:
+struct Point:
     x: i32
     y: i32
     z: i32

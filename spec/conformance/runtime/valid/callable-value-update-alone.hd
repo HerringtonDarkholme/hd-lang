@@ -2,7 +2,7 @@
 # Spec 05 Callable Values: expr.call.apply.independent.
 use std.ops.Update
 
-data Sink:
+struct Sink:
     last: string
 
 impl Update[string] for Sink:

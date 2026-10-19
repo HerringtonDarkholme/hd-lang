@@ -1,14 +1,14 @@
 # test: decorators before a data type and its field attach a type-level fact and member metadata
-data Checked: pass
+struct Checked: pass
 
 fn checked() -> Checked: Checked {}
 
-data MaxLen:
+struct MaxLen:
     value: i32
 
 fn max_len(value: i32) -> MaxLen: MaxLen { value: value }
 
 @checked()
-data User:
+struct User:
     @max_len(80)
     name: string

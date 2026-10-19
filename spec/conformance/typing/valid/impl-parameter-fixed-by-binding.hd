@@ -8,10 +8,10 @@ trait Store:
 trait Summary:
     fn summary(self) -> string
 
-data Feed[I]:
+struct Feed[I]:
     items: I
 
-data Names:
+struct Names:
     head: string
 
 impl Store for Names:

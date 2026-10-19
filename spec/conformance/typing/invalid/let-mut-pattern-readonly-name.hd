@@ -1,8 +1,8 @@
-# test: a name without mut in a multi-name let has the readonly view
-data User:
+# test: a name without mut in a multi-name let cannot be changed in place
+struct User:
     name: string
 
-fn pair() -> (mut User, mut User):
+fn pair() -> (User, User):
     (User { name: "Ada" }, User { name: "Grace" })
 
 fn invalid() -> void:

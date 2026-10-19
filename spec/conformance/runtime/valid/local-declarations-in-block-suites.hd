@@ -6,7 +6,7 @@
 use std.testing.assert
 
 pub fn main() -> void $ Console:
-    data Seat:
+    struct Seat:
         row: i32
         col: i32
     enum Mood:

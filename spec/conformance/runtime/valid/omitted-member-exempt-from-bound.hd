@@ -30,10 +30,10 @@ impl[T] Show for T by Structure:
         _ := Structure::walk(self, &mut w)
         w.out
 
-data Cache:
+struct Cache:
     hits: i32 = 0
 
-data Session:
+struct Session:
     id: i64
     cache: Cache = Cache {}
 

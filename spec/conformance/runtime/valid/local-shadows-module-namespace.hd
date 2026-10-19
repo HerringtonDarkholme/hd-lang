@@ -1,7 +1,7 @@
 # test: a local binding named cmp shadows the module namespace that use std.cmp binds
 # Spec 03 Shadowing: names.scope.shadow; inside the body, cmp.min reads the field of the local value.
 use std.cmp
-data PriceRange:
+struct PriceRange:
     min: i32
     max: i32
 

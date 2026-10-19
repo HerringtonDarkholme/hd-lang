@@ -3,8 +3,8 @@
 use std.task.{Backoff, retry_with}
 use std.time.{Clock, Duration, Instant, Timestamp, ms}
 
-data RecordingClock:
-    slept: mut List[i64]
+struct RecordingClock:
+    slept: &mut List[i64]
 
 impl Clock for RecordingClock:
     fn now(self) -> Timestamp:
@@ -16,18 +16,18 @@ impl Clock for RecordingClock:
     fn sleep!(&mut self, duration: Duration) -> void:
         self.slept.push(duration.as_milliseconds())
 
-data Server:
+struct Server:
     busy_for: i32
     calls: i32
 
-fn ask!(server: mut Server) -> Result[string, string]:
+fn ask!(server: &mut Server) -> Result[string, string]:
     server.calls = server.calls + 1
     if server.busy_for > 0:
         server.busy_for = server.busy_for - 1
         return .Err("busy ${server.calls}")
     .Ok("ready")
 
-fn connect!(server: mut Server) -> Result[string, string] $ Clock:
+fn connect!(server: &mut Server) -> Result[string, string] $ Clock:
     policy := Backoff { attempts: 5, initial: 100ms, factor: 2, max: 300ms }
     retry_with!(policy):
         ask!(server)
@@ -36,15 +36,15 @@ tests:
     use std.testing.assert_equal
 
     it("sleeps between calls and returns the first .Ok"):
-        let mut clock = RecordingClock { slept: [] }
-        let mut server = Server { busy_for: 2, calls: 0 }
-        $.with(Clock=&mut clock):
+        let mut clock = &mut RecordingClock { slept: &mut [] }
+        let mut server = &mut Server { busy_for: 2, calls: 0 }
+        $.with(Clock=clock):
             assert_equal(connect!(server), .Ok("ready"), reason="the third call succeeds")
-        assert_equal(clock.slept, [100, 200], reason="two delays, the second doubled")
+        assert_equal(clock.slept, &mut [100, 200], reason="two delays, the second doubled")
 
     it("caps each delay at max and does not sleep after the last call"):
-        let mut clock = RecordingClock { slept: [] }
-        let mut server = Server { busy_for: 9, calls: 0 }
-        $.with(Clock=&mut clock):
+        let mut clock = &mut RecordingClock { slept: &mut [] }
+        let mut server = &mut Server { busy_for: 9, calls: 0 }
+        $.with(Clock=clock):
             assert_equal(connect!(server), .Err("busy 5"), reason="the fifth error is returned")
-        assert_equal(clock.slept, [100, 200, 300, 300], reason="four delays, capped at max")
+        assert_equal(clock.slept, &mut [100, 200, 300, 300], reason="four delays, capped at max")

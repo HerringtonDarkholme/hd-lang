@@ -2,13 +2,13 @@
 # Spec 14 Derivation Blocks With No Trait: annot.no-trait.generic.error (M28).
 use std.structure.Structure
 
-data Tag:
+struct Tag:
     text: string
 
 fn tag(text: string) -> Tag:
     Tag { text: text }
 
-data Box[T]:
+struct Box[T]:
     item: T
 
 impl Box[i32] by Structure:  # diagnostic: misplaced-derivation

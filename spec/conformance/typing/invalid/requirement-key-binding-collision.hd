@@ -5,7 +5,7 @@ trait Store:
     type Item
     fn load(self, id: string) -> Self::Item
 
-data User:
+struct User:
     name: string
 
 fn mixed[T](local: dyn Store[Item = User]) -> void $ Store[Item = T]:

@@ -1,6 +1,6 @@
 # test: suspending generic methods preserve explicit type arguments through bang calls
 
-data Identity: pass
+struct Identity: pass
 
 impl Identity:
     fn echo![Value](self, value: Value) -> Value:

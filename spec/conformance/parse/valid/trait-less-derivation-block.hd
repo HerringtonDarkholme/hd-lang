@@ -2,7 +2,7 @@
 # expect: parse
 use std.structure.Structure
 
-data Point:
+struct Point:
     x: i32
     y: i32
 

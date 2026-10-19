@@ -16,7 +16,7 @@ trait Clock
 trait Backup < Clock:
     fn label(self) -> i32
 
-data FixedBackup: pass
+struct FixedBackup: pass
 
 impl Clock for FixedBackup
 

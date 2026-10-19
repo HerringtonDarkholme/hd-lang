@@ -2,7 +2,7 @@
 # Spec 05 Callable Values: expr.call.apply.std-ref, expr.call.apply.zero-keys.
 use std.ops.{Apply, Update}
 
-data Gauge:
+struct Gauge:
     level: u8
 
 impl Apply for Gauge:

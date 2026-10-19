@@ -3,7 +3,7 @@
 trait Score:
     fn score(self) -> i32
 
-data Value:
+struct Value:
     amount: i32
 
 impl Score for Value:

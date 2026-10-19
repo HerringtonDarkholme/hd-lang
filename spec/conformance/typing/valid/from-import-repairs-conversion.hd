@@ -1,7 +1,7 @@
 # test: importing From makes the impl and its Result propagation valid
 # trait.from.import, module.prelude.question-from.
 use std.convert.From
-data CliError:
+struct CliError:
     message: string
 
 impl From[string] for CliError:

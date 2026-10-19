@@ -2,7 +2,7 @@
 # all found with their values after the map grows; removal leaves the rest
 # found. However the map buckets a key, lookup follows key equality alone.
 fn key(n: usize) -> string:
-    let text: mut List[string] = []
+    let mut text: List[string] = []
     let rest = n % 41
     while rest > 0:
         text.push(if rest % 7 == 0: "é" else: "k")
@@ -10,7 +10,7 @@ fn key(n: usize) -> string:
     "${text.join("")}$n"
 
 fn keys_of(values: Map[string, usize]) -> List[string]:
-    let result: mut List[string] = []
+    let mut result: List[string] = []
     for (k, _) in values:
         result.push(k)
     result
@@ -19,7 +19,7 @@ tests:
     use std.testing.assert_equal
 
     it("every string key is found with its value"):
-        let values: mut Map[string, usize] = {}
+        let mut values: Map[string, usize] = {}
         let n: usize = 0
         while n < 3000:
             values[key(n)] = n
@@ -36,7 +36,7 @@ tests:
         assert_equal(values.get("k3000"), .None, reason="a key never inserted")
 
     it("removing keys leaves the others found"):
-        let values: mut Map[string, usize] = {}
+        let mut values: Map[string, usize] = {}
         let n: usize = 0
         while n < 2000:
             values[key(n)] = n

@@ -1,13 +1,13 @@
 # test: callbacks / readonly result
 
-data Child:
+struct Child:
     value: i32
-data Holder:
-    get: fn() -> mut Child
-fn make() -> mut Child: Child { value: 42 }
+struct Holder:
+    get: fn() -> &mut Child
+fn make() -> &mut Child: &mut Child { value: 42 }
 fn main() -> i32:
-    holder := Holder { get: make }
-    let child: mut Child = (holder.get)()
+    holder := &mut Holder { get: make }
+    let child: &mut Child = (holder.get)()
     child.value
 
 tests:

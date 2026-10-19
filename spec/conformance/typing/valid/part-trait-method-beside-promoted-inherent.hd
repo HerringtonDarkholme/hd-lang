@@ -2,21 +2,21 @@
 trait Describe:
     fn describe(self) -> string
 
-data Label:
+struct Label:
     text: string
 
 impl Describe for Label:
     fn describe(self) -> string:
         self.text
 
-data Badge:
+struct Badge:
     code: string
 
 impl Badge:
     pub fn describe(self) -> string:
         self.code
 
-data Page:
+struct Page:
     Label
     Badge
 

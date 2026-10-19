@@ -3,12 +3,12 @@
 use std.annotation.annotate
 
 @annotate::[F](.Field)
-data Floor[F]:
+struct Floor[F]:
     value: F
 
 fn floor[F](value: F) -> Floor[F]:
     Floor::[F] { value: value }
 
-data Ledger:
+struct Ledger:
     @floor(-5000000000)
     balance: i64

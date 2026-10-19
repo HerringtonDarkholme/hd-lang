@@ -7,7 +7,7 @@ fn bump() -> i32:
     calls = calls + 1
     calls
 
-data Bag:
+struct Bag:
     values: List[i32]
 
 enum Box[T](count: i32, seen: i32 = bump(), items: Bag = Bag { values: [1] }):
@@ -18,5 +18,5 @@ fn main() -> i32:
     let first: Box[string] = Box.Full("a")
     let second: Box[string] = Box.Full("b")
     let empty: Box[string] = Box.Empty
-    shared := if first.items is second.items: +10 else: 0
+    shared := if first.items.values == second.items.values && first.seen == second.seen: +10 else: 0
     shared + first.seen + second.seen + empty.seen + calls

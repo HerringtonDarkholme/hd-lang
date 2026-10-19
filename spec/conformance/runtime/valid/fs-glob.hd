@@ -9,7 +9,7 @@ use std.fs.{Entry, EntryKind, FsError, FsRead, FsWrite, MemoryFs, glob, walk}
 use std.path.Path
 
 # A provider with a symlink, to show that glob! reports it and stays out.
-data LinkFs:
+struct LinkFs:
     unused: i32
 
 impl FsRead for LinkFs:
@@ -42,7 +42,7 @@ fn tree!() -> &mut MemoryFs:
     files
 
 fn markdown!(root: Path) -> Result[List[Path], FsError] $ FsRead:
-    let found: mut List[Path] = []
+    let mut found: List[Path] = []
     for entry in walk!(root)?:
         if entry.kind == EntryKind.File && entry.path.extension() == .Some("md"):
             found.push(entry.path)

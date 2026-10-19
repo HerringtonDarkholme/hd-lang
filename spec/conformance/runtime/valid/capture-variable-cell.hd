@@ -49,7 +49,7 @@ tests:
         assert_equal(snapshot().x, 9, reason="a new read sees the change")
 
     it("a closure pushes to a captured list and the scope sees it"):
-        let items: mut List[i32] = []
+        let mut items: List[i32] = []
         add := fn(value: i32) -> void: items.push(value)
         add(1)
         add(2)
@@ -57,14 +57,14 @@ tests:
         assert_equal(items[1], 2, reason="in order")
 
     it("the scope pushes to a captured list and the closure sees it"):
-        let items: mut List[i32] = [1]
+        let mut items: List[i32] = [1]
         count := fn() -> usize: items.len()
         items.push(2)
         items.push(3)
         assert_equal(count(), 3, reason="the closure sees the scope's pushes")
 
     it("a closure inserts into a captured map and the scope sees it"):
-        let ages: mut Map[string, i32] = {}
+        let mut ages: Map[string, i32] = {}
         record := fn(name: string, age: i32) -> void: ages[name] = age
         record("ada", 36)
         assert_equal(ages.get("ada").unwrap_or(0), 36, reason="the scope sees the insert")

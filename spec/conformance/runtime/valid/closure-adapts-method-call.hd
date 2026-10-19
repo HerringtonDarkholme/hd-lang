@@ -1,6 +1,6 @@
 # test: an explicit closure adapts a method call where a function value is needed
 # Spec 05 Method Calls: expr.member.closure-adapt.
-data Scale:
+struct Scale:
     factor: i32
 
 impl Scale:

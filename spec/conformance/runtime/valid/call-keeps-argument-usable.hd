@@ -1,13 +1,13 @@
 # test: a call transfers no ownership, so the caller still uses a list it passed
 # Spec 07 Parameters: fn.param.no-transfer.
-fn add(items: mut List[i32]) -> void:
+fn add(items: &mut List[i32]) -> void:
     items.push(+2)
 
 tests:
     use std.testing.assert_equal
 
     it("the list is usable after each call"):
-        let items: mut List[i32] = [+1]
-        add(items)
-        add(items)
+        let mut items: List[i32] = [+1]
+        add(&mut items)
+        add(&mut items)
         assert_equal(items, [+1, +2, +2], reason="both calls reached the caller's list")

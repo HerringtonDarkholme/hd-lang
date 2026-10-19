@@ -1,4 +1,4 @@
-pub data Cart:
+pub struct Cart:
     pub items: i32
 
 pub fn empty() -> Cart:

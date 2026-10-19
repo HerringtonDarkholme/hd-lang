@@ -10,7 +10,7 @@ tests:
         for value in [+5, 1, 8, 3]:
             heap.push(Reverse { value: value })
         assert_equal(heap.peek(), .Some(Reverse { value: 1 }), reason="peek")
-        let popped: mut List[i32] = []
+        let mut popped: List[i32] = []
         while !heap.is_empty():
             match heap.pop():
                 .Some(top) => popped.push(top.value)

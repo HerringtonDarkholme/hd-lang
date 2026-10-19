@@ -27,10 +27,10 @@ impl[T] Show for T by Structure:
         _ := Structure::walk(self, &mut w)
         w.out
 
-data Token:
+struct Token:
     value: string
 
-data Account:
+struct Account:
     id: i64
     token: Token
 

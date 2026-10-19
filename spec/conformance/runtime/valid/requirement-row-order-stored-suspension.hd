@@ -3,10 +3,10 @@
 trait Repo[T]:
     fn count(self) -> i32
 
-data User: pass
-data Post: pass
-data UserRepo: pass
-data PostRepo: pass
+struct User: pass
+struct Post: pass
+struct UserRepo: pass
+struct PostRepo: pass
 
 impl Repo[User] for UserRepo:
     fn count(self) -> i32: 20

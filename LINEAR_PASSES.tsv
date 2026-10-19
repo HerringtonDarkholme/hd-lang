@@ -475,7 +475,6 @@ runtime/valid/i64-widening-checked.hd	#539: main is private, so no entry point r
 runtime/valid/id-keys-by-identity.hd	#573: closures and trait values
 runtime/valid/identifier-selects-lexical-binding.hd	#573: closures and trait values
 runtime/valid/identifier-spellings.hd	#551: structs, tuples, enums and data values
-runtime/valid/identity-ignores-permissions.hd	#551: structs, tuples, enums and data values
 runtime/valid/if-statement-without-else.hd	#573: closures and trait values
 runtime/valid/impl-distinct-target-arguments.hd	#573: closures and trait values
 runtime/valid/impl-method-generics-renamed.hd	#573: closures and trait values

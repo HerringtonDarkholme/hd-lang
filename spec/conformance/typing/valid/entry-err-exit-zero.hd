@@ -1,7 +1,7 @@
 # Spec 10 Exit Status: module.entry.termination.err-code, trait.error.exit-code.
 use std.error.Error
 
-pub data Help:
+pub struct Help:
     text: string
 
 impl Display for Help:

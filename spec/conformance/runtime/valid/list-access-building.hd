@@ -10,7 +10,7 @@ fn preview(lines: List[string]) -> List[string]:
     lines.take(3)
 
 fn merged(head: List[i32], tail: List[i32]) -> List[i32]:
-    let all: mut List[i32] = []
+    let mut all: List[i32] = []
     all.extend(head.filter(fn(n: i32) -> bool: n > 0))
     all.extend(tail)
     all.sorted_by(fn(a: i32, b: i32) -> Ordering: b.cmp(a))
@@ -38,7 +38,7 @@ tests:
 
     it("grows a list"):
         assert_equal(merged([3, -1, 1], [2]), [3, 2, 1], reason="filter, extend, sort descending")
-        let items: mut List[i32] = [1, 2]
+        let mut items: List[i32] = [1, 2]
         items.extend(items)
         assert_equal(items, [1, 2, 1, 2], reason="extend by itself doubles")
 

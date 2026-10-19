@@ -7,7 +7,7 @@ use std.time.{Clock, s, sleep}
 
 ## Closes its listener only after a long wait, unless `fallback` closes it
 ## from a `defer`, which abandon() still runs.
-data Conn:
+struct Conn:
     listener: &mut dyn TcpListener
     closing: mut Suspend[void]
     fallback: bool

@@ -31,7 +31,7 @@ pub fn main() -> void $ Console:
     made := &Point { x: +1, y: +2 }
     again := &Point { x: +1, y: +2 }
     println("${made is again} ${made is made}")
-    let refs: mut List[&i32] = []
+    let mut refs: List[&i32] = []
     for i in [+1, +1]:
         let mut v = i
         refs.push(&mut v)

@@ -4,10 +4,10 @@
 # types.generic.sharing, types.generic.interfaces,
 # types.generic.identity.primitive.
 
-data Box[T]:
+struct Box[T]:
     value: T
 
-data Pair[A, B]:
+struct Pair[A, B]:
     first: A
     second: B
 

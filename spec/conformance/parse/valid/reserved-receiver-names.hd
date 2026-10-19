@@ -2,7 +2,7 @@ trait Named:
     fn name(self) -> string
     fn clone_name(self) -> Self
 
-data User:
+struct User:
     name: string
 
 impl Named for User:

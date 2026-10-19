@@ -1,7 +1,7 @@
 # test: after a local implementation, its target converts to the trait value type and satisfies a later child-trait impl
 # Spec 03 Members: names.member.known-impl; a local implementation is known from where its methods are available.
 fn erased_label(number: string) -> string:
-    data Invoice:
+    struct Invoice:
         number: string
 
     trait Labeled:
@@ -15,7 +15,7 @@ fn erased_label(number: string) -> string:
     labeled.label()
 
 fn shipping_cost() -> i32:
-    data Parcel: pass
+    struct Parcel: pass
 
     trait Weighed
 

@@ -1,4 +1,4 @@
-# test: Self is a reserved word, so it cannot name a data type
+# test: Self is a reserved word, so it cannot name a struct type
 # Spec 03 The Self Name: names.self-type.reserved.
-data Self:  # diagnostic: syntax-error
+struct Self:  # diagnostic: syntax-error
     x: i32

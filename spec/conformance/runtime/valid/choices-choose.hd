@@ -6,7 +6,7 @@
 use std.testing.{Arbitrary, Choices, assert, it_prop}
 
 @derive(Debug)
-data Suit:
+struct Suit:
     name: string
 
 impl Arbitrary for Suit:
@@ -14,7 +14,7 @@ impl Arbitrary for Suit:
         Suit { name: c.choose(["hearts", "spades"]) }
 
 @derive(Debug)
-data Nothing:
+struct Nothing:
     name: string
 
 impl Arbitrary for Nothing:

@@ -1,7 +1,7 @@
 # test: FromIterator is not a prelude name
 # std Iterators, What Collect Builds: std-iter.prelude.from-iterator (Collect CO6).
 
-data Bag:
+struct Bag:
     items: List[i32]
 
 impl FromIterator[i32] for Bag:  # diagnostic: unknown-trait

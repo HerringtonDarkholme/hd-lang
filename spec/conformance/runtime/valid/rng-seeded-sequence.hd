@@ -21,14 +21,14 @@ tests:
 
     it("bool is the top bit of one draw"):
         dice := Rng::new(7)
-        let flips: mut List[bool] = []
+        let mut flips: List[bool] = []
         for _ in 0..8:
             flips.push(dice.bool())
         assert_equal(flips, [false, false, true, true, true, true, false, false], reason="eight flips")
 
     it("int on a seeded Rng repeats in every implementation"):
         dice := Rng::new(7)
-        let rolls: mut List[i64] = []
+        let mut rolls: List[i64] = []
         for _ in 0..10:
             rolls.push(dice.int(1..=6))
         assert_equal(rolls, [6, 5, 2, 5, 5, 5, 4, 4, 1, 6], reason="ten rolls of a die")

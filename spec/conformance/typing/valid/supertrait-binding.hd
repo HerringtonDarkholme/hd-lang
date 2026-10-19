@@ -4,7 +4,7 @@ use std.ops.Add
 
 trait Summable < Add[Out = Self]
 
-data Money:
+struct Money:
     cents: i64
 
 impl Add for Money:

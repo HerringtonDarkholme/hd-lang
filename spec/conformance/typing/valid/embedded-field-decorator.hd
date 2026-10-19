@@ -1,11 +1,11 @@
-data Timestamps:
+struct Timestamps:
     created_at: i64
 
-data Flatten: pass
+struct Flatten: pass
 
 fn flatten() -> Flatten:
     Flatten {}
 
-data Post:
+struct Post:
     @flatten()
     Timestamps

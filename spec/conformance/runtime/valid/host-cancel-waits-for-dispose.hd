@@ -11,7 +11,7 @@ let closed: bool = false
 fn wait!() -> void:
     pass
 
-data Conn:
+struct Conn:
     closing: mut Suspend[void]
 
 impl Disposable for Conn:

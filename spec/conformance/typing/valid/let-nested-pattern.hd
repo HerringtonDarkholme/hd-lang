@@ -1,10 +1,10 @@
 # test: a let pattern nests data and tuple patterns to any depth
 # Spec 02 Let Statements: grammar.stmt.let-pattern (owner decision LP1, batch 26, 2026-09-30).
-data Point:
+struct Point:
     x: i32
     y: i32
 
-data Line:
+struct Line:
     start: Point
     end: Point
 

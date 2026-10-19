@@ -1,19 +1,19 @@
 # test: an embedded type's trait method neither promotes nor hides, so the call reaches a deeper inherent method
-data Base:
+struct Base:
     name: string
 
 impl Base:
     pub fn to_string(self) -> string:
         "base " + self.name
 
-data Label:
+struct Label:
     Base
 
 impl Display for Label:
     fn to_string(self) -> string:
         "label"
 
-data Page:
+struct Page:
     Label
 
 fn valid(page: Page) -> string:

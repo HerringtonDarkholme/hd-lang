@@ -1,13 +1,13 @@
 # test: a derived Eq compares every member, and its bound on a type parameter holds when the argument implements Eq
 # Spec 09 Derived Implementations: trait.derive.arguments, trait.derive.generate, trait.derive.cmp-every-member, trait.derive.bounds, trait.derive.owner.
 @derive(Eq)
-data Address:
+struct Address:
     street: string
     city: string
     zip: i32
 
 @derive(Eq)
-data Labeled[T]:
+struct Labeled[T]:
     label: string
     value: T
 

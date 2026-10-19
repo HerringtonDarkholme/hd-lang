@@ -15,7 +15,7 @@ enum Note:
     Plain(text: string?)
 
 @derive(Serialize, Deserialize)
-data Drawing:
+struct Drawing:
     shapes: List[Shape]
 
 fn read(text: string) -> Shape:

@@ -4,7 +4,7 @@ trait Named:
     fn name(self) -> string
     fn kind() -> string
 
-data Logger:
+struct Logger:
     label: string
 
 impl Named for Logger:
@@ -14,7 +14,7 @@ impl Named for Logger:
     fn kind() -> string:
         "logger"
 
-data Service:
+struct Service:
     Logger
 
 impl Named for Service by Logger  # diagnostic: missing-trait-method

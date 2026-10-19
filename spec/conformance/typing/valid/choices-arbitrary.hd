@@ -2,7 +2,7 @@
 # std Testing, Property Tests: std-testing.choices.declare-ref and the Choices members (Testing T53).
 use std.testing.{Arbitrary, Choices}
 
-data Point:
+struct Point:
     x: i64
     y: i64
 

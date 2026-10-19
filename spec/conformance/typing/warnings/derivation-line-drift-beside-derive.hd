@@ -1,10 +1,10 @@
 # test: a derivation block with a member line beside a @derive of another trait of the same package gets a warning
 # Spec 14 Line Drift: annot.line.drift.derive.
 use std.structure.{Structure, Field, Variant, Walker}
-data Tag:
+struct Tag:
     text: string
 
-data Note:
+struct Note:
     text: string
 
 fn tag(text: string) -> Tag:
@@ -51,7 +51,7 @@ impl[T] Echo for T by Structure:
         w.out
 
 @derive(Echo)
-data Session:
+struct Session:
     id: i64
     cache: i64 = 0
 

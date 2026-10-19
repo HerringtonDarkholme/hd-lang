@@ -5,7 +5,7 @@
 use std.testing.{assert, Arbitrary, Choices, it_prop, it_prop_with}
 
 @derive(Debug)
-data Reading:
+struct Reading:
     level: i64
 
 impl Arbitrary for Reading:

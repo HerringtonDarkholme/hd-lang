@@ -3,7 +3,7 @@
 trait Twin:
     fn twin(self) -> Self
 
-data Coin:
+struct Coin:
     cents: i32
 
 impl Twin for Coin:

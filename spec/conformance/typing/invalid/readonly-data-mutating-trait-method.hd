@@ -2,9 +2,9 @@
 # Spec 09 Traits: trait.decl.mut-receiver, trait.target.mut-self.
 
 trait Add:
-    fn add(mut self) -> void
-data Counter:
+    fn add(&mut self) -> void
+struct Counter:
     value: i32
 impl Add for Counter:
-    fn add(mut self) -> void: pass
+    fn add(&mut self) -> void: pass
 fn invalid(value: Counter) -> void: value.add()  # diagnostic: mutable-receiver-required

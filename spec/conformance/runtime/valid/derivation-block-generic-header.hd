@@ -30,7 +30,7 @@ impl[T] Show for T by Structure:
         _ := Structure::walk(self, &mut w)
         w.out
 
-data Bag[T]:
+struct Bag[T]:
     item: T
 
 impl[T < Shown] Show for Bag[T] by Structure

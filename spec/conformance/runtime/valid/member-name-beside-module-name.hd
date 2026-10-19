@@ -1,6 +1,6 @@
 # test: a field and a method live in their type's member namespace, so they may share a top-level function's name
 # Spec 03 Lookup Categories: names.category.member.
-data Order:
+struct Order:
     total: i32
 
 impl Order:

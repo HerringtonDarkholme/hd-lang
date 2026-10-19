@@ -5,17 +5,17 @@
 # expr.try.convert.assignable, expr.try.convert.none,
 # expr.try.convert.assignable.covers, expr.try.convert.one-step,
 # expr.try.convert.single-rule, expr.try.convert.only-try.
-data Log:
+struct Log:
     text: string
 
-fn check(log: mut Log, value: i32) -> Result[i32, string]:
+fn check(log: &mut Log, value: i32) -> Result[i32, string]:
     log.text = log.text + "c"
     if value < 0:
         .Err("negative")
     else:
         .Ok(value)
 
-fn doubled(log: mut Log, value: i32) -> Result[i32, string]:
+fn doubled(log: &mut Log, value: i32) -> Result[i32, string]:
     checked := check(log, value)?
     log.text = log.text + "d"
     .Ok(checked * 2)
@@ -24,13 +24,13 @@ tests:
     use std.testing.assert_equal
 
     it("Ok continues with the payload"):
-        let mut log = Log { text: "" }
+        let mut log = &mut Log { text: "" }
         let expected: Result[i32, string] = .Ok(42)
         assert_equal(doubled(log, 21), expected, reason="payload continues")
         assert_equal(log.text, "cd", reason="operand evaluated once, then the continuation")
 
     it("Err returns early"):
-        let mut log = Log { text: "" }
+        let mut log = &mut Log { text: "" }
         let expected: Result[i32, string] = .Err("negative")
         assert_equal(doubled(log, -1), expected, reason="the error is returned")
         assert_equal(log.text, "c", reason="operand evaluated once, continuation skipped")

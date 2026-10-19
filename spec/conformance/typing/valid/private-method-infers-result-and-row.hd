@@ -3,7 +3,7 @@
 trait Logger:
     fn write(self, message: string) -> void
 
-data Cart:
+struct Cart:
     count: i32
 
 impl Cart:

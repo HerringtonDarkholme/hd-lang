@@ -30,16 +30,16 @@ impl[T] Show for T by Structure:
         _ := Structure::walk(self, &mut w)
         w.out
 
-data Style:
+struct Style:
     prefix: string = ""
 
 fn style(prefix: string = "") -> Style:
     Style { prefix: prefix }
 
 @style(prefix="p_")
-data Plain:
+struct Plain:
     id: i64
 
 @"internal"
-data Note:
+struct Note:
     id: i64

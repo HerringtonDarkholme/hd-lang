@@ -1,6 +1,6 @@
 use std.error.Error
 
-pub data Help:
+pub struct Help:
     text: string
 
 impl Display for Help:

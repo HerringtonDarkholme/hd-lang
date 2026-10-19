@@ -7,11 +7,11 @@ use std.json.JsonError
 use std.serde.{Deserialize, Serialize}
 
 @derive(Serialize)
-data NewUser:
+struct NewUser:
     name: string
 
 @derive(Deserialize)
-data Created:
+struct Created:
     id: i64
     name: string
 

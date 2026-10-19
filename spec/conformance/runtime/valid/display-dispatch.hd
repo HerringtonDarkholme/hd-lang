@@ -1,4 +1,4 @@
-data Label:
+struct Label:
     value: string
 
 impl Display for Label:

@@ -1,6 +1,6 @@
 # test: assert_equal requires Debug as well as Eq
 # Spec 10 Standard Testing: comparing a type without Debug is unsatisfied-trait-bound.
-data Token:
+struct Token:
     text: string
 
 impl Eq for Token:

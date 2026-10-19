@@ -5,20 +5,20 @@ trait Describe:
     fn headline(self) -> string:
         "* " + self.describe()
 
-data Logger:
+struct Logger:
     name: string
 
 impl Describe for Logger:
     fn describe(self) -> string:
         self.name
 
-data Service:
+struct Service:
     Logger
     port: i32
 
 impl Describe for Service by Logger
 
-data Worker:
+struct Worker:
     Logger
 
 impl Describe for Worker by Logger:
@@ -32,8 +32,8 @@ tests:
     use std.testing.assert_equal
 
     it("delegation forwards to the part"):
-        service := Service { Logger: ...Logger { name: "api" }, port: 80 }
-        worker := Worker { Logger: ...Logger { name: "job" } }
+        service := Service { Logger: Logger { name: "api" }, port: 80 }
+        worker := Worker { Logger: Logger { name: "job" } }
         assert_equal(service.describe(), "api", reason="generated required method")
         assert_equal(service.headline(), "* api", reason="generated method forwards to the part's default")
         assert_equal(worker.headline(), "worker * job", reason="the body replaces one method")

@@ -3,7 +3,7 @@
 use std.error.{ContextError, Error}
 use std.format.DebugWriter
 @error("not found: $path")
-data NotFound:
+struct NotFound:
     path: string
 
 fn read(path: string) -> Result[string, NotFound]:
@@ -14,7 +14,7 @@ fn load(path: string) -> Result[string, dyn Error]:
     .Ok(text)
 
 # The calls that std-error.context.debug names, made by hand.
-data Expected:
+struct Expected:
     message: string
     cause: string
 

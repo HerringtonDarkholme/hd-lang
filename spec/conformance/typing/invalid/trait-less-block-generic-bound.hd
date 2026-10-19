@@ -5,13 +5,13 @@ use std.structure.Structure
 trait Named:
     fn name(self) -> string
 
-data Tag:
+struct Tag:
     text: string
 
 fn tag(text: string) -> Tag:
     Tag { text: text }
 
-data Box[T]:
+struct Box[T]:
     item: T
 
 impl[T < Named] Box[T] by Structure:  # diagnostic: misplaced-derivation

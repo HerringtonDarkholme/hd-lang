@@ -1,2 +1,2 @@
-pub data Item:
+pub struct Item:
     pub price: i32

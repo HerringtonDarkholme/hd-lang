@@ -3,14 +3,14 @@
 trait Factory:
     fn create() -> Self
 
-data Invoice:
+struct Invoice:
     total: i32
 
 impl Factory for Invoice:
     fn create() -> Invoice:
         Invoice { total: 100 }
 
-data Receipt:
+struct Receipt:
     number: i32
 
 impl Factory for Receipt:

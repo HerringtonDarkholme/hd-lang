@@ -3,7 +3,7 @@
 trait Read[T]:
     fn read!(self) -> T
 
-data Box[T]:
+struct Box[T]:
     value: T
 
 impl[T] Read[T] for Box[T]:
@@ -18,7 +18,7 @@ trait Score:
 trait AsyncScore:
     fn score!(self) -> i32
 
-data Point:
+struct Point:
     value: i32
 
 impl Score for Point:

@@ -34,7 +34,7 @@ inherent method of `dyn Error`, and also a free function:
 use std.error.{Error, chain}
 
 @error("disk full")
-data DiskError:
+struct DiskError:
     free: i64
 
 @error
@@ -76,7 +76,7 @@ returns:
 use std.error.Error
 
 @error("disk full")
-data DiskError:
+struct DiskError:
     free: i64
 
 @error
@@ -124,7 +124,7 @@ messages of its causes:
 use std.error.{ErrorReport, report_of}
 
 @error("disk full")
-data DiskError:
+struct DiskError:
     free: i64
 
 @error
@@ -188,7 +188,7 @@ For `parse_port("")`, the error displays as `empty port`.
 use std.error.{Error, report_of}
 
 @error("not found: $path")
-data NotFound:
+struct NotFound:
     path: string
 
 fn read(path: string) -> Result[string, NotFound]:
@@ -236,7 +236,7 @@ it, as [Entry Results](../lang/10-modules.md#entry-results) describes:
 ```text
 use std.error.Error
 
-pub data Usage:
+pub struct Usage:
     text: string
 
 impl Display for Usage:

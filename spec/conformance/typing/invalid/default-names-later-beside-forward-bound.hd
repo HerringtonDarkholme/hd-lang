@@ -3,7 +3,7 @@
 trait Source[T]:
     fn take(self) -> T
 
-data Fixed[T]:
+struct Fixed[T]:
     value: T
 
 impl[T] Source[T] for Fixed[T]:

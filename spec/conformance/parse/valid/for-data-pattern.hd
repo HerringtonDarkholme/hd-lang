@@ -1,6 +1,6 @@
 # test: a for loop and a comprehension for clause take a pattern, as let does
 # Spec 02 Control-Flow Expressions: grammar.flow.for-pattern (owner decision LP-for, batch 30, 2026-09-30).
-data Point:
+struct Point:
     x: i32
     y: i32
 

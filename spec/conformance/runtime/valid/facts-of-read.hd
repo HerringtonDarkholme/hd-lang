@@ -3,7 +3,7 @@
 # annot.facts-of.result. The returned value follows annot.structure.facts-contents
 # and annot.structure.find-lookup.
 use std.annotation.facts_of
-data Route:
+struct Route:
     path: string
 
 fn route(path: string) -> Route:

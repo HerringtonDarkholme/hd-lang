@@ -10,7 +10,7 @@ impl[K < Eq & Hash, V] Catalog for Map[K, V]:
 fn stock_of[K < Eq & Hash, V](stock: Map[K, V], item: K) -> V?:
     stock.get(item)
 
-data Index[K < Eq & Hash, V]:
+struct Index[K < Eq & Hash, V]:
     name: string
     entries: Map[K, V]
 

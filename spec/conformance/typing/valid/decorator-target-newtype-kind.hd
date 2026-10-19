@@ -3,7 +3,7 @@
 use std.annotation.annotate
 
 @annotate(.Newtype)
-data Unit:
+struct Unit:
     symbol: string
 
 fn unit(symbol: string) -> Unit:

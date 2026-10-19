@@ -1,19 +1,19 @@
 # test: through a generic parameter instantiated with a trait value type, runtime_type is the erased concrete type, not T
 # Spec 09 Inspectable And TypeId: trait.inspect.dynamic; a dynamic value's recorded type is the concrete type, never the trait.
 use std.inspect.{Inspectable, TypeId}
-trait Named < Inspectable & AnyRef:
+trait Named < Inspectable:
     fn name(self) -> string
 
-data User:
+struct User:
     name: string
 
 impl Named for User:
     fn name(self) -> string: self.name
 
-fn recorded_is_static[T < AnyRef & Inspectable](value: T) -> bool:
+fn recorded_is_static[T < Inspectable](value: T) -> bool:
     value.runtime_type() == TypeId::of::[T]()
 
-fn recorded_is_user[T < AnyRef & Inspectable](value: T) -> bool:
+fn recorded_is_user[T < Inspectable](value: T) -> bool:
     value.runtime_type() == TypeId::of::[User]()
 
 fn display_name[T < Named](value: T) -> string:

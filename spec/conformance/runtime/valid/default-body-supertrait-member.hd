@@ -9,7 +9,7 @@ trait Greeter < Named:
     fn greet(self) -> string:
         self.greeting() + " " + self.name()
 
-data User:
+struct User:
     value: string
 
 impl Named for User:

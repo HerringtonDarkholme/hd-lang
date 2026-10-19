@@ -8,8 +8,8 @@ tests:
         assert_equal("hello"[..=1], "he", reason="..=b")
 
     it("copies the whole list"):
-        let items: mut List[i32] = [1, 2, 3]
-        let copy: mut List[i32] = items[..]
+        let mut items: List[i32] = [1, 2, 3]
+        let mut copy: List[i32] = items[..]
         assert_equal(copy, [1, 2, 3], reason="every element")
         assert_equal(items[..=1], [1, 2], reason="..=b")
         copy[0] = 7

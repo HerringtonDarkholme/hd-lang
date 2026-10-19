@@ -2,7 +2,7 @@
 # Spec 03 Local Implementations: names.local-impl.no-capture.
 fn run() -> i32:
     base := +1
-    data Box:
+    struct Box:
         value: i32
     impl Box:
         fn get(self) -> i32: self.value + base  # diagnostic: unknown-name

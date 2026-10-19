@@ -1,6 +1,6 @@
 # test: inherent members may repeat a name when their targets cannot unify
 
-data Box[T]:
+struct Box[T]:
     value: T
 
 impl Box[i32]:

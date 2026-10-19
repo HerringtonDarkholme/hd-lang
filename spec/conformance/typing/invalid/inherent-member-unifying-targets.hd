@@ -1,6 +1,6 @@
 # test: inherent members with one name clash when their targets unify
 
-data Box[T]:
+struct Box[T]:
     value: T
 
 impl[T] Box[T]:

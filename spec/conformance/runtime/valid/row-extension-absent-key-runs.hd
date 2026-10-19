@@ -6,12 +6,12 @@ trait Logger:
 trait Tag:
     fn name(self) -> string
 
-data FixedLogger: pass
+struct FixedLogger: pass
 
 impl Logger for FixedLogger:
     fn prefix(self) -> string: "log:"
 
-data FixedTag:
+struct FixedTag:
     value: string
 
 impl Tag for FixedTag:

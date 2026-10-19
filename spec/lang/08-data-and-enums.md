@@ -27,7 +27,7 @@ enum Shape:
 A `data` declaration defines a data type with named, typed fields.
 
 ```text
-data User:
+struct User:
     id: string
     email: string
     display_name: string? = .None
@@ -44,10 +44,10 @@ data User:
 5. r[data.field.embedded-no-mut] An embedded field is written without `mut`: `Base` embeds `Base`, and `mut Base` is an error. Error: `mutable-field-modifier`.
 
 ```text
-data User:
+struct User:
     mut name: string    # error: mutable-field-modifier
     mut Base            # error: mutable-field-modifier
-    friend: mut User    # valid: the type grants mutable access
+    friend: &mut User   # valid: the type grants mutable access
 ```
 
 > **Why.** Access to an embedded part already follows its container.
@@ -63,7 +63,7 @@ data User:
 7. r[data.default.embedded] Embedded fields have no default syntax.
 
 ```hd
-data Config:
+struct Config:
     retries: i32 = 3
     name: string
 
@@ -88,10 +88,10 @@ a public data type leaks it, as
 states:
 
 ```text
-data Timestamps:
+struct Timestamps:
     created_at: i32
 
-pub data Post:
+pub struct Post:
     Timestamps  # error: private-type-leak
     title: string
 ```
@@ -179,20 +179,28 @@ fn demo() -> f64:
 3. r[data.struct.data-rules] The rules of [Data Declarations](#data-declarations) and [Construction And Access](#construction-and-access) apply to a struct, except as this section states.
 4. r[data.struct.receiver-forms] A method of a struct takes `self` or `mut self`, its own read-only or changeable copy of the receiver, or `&self` or `&mut self`, a [reference](07-functions.md#reference-receivers) to the caller's value.
 5. r[data.struct.mut-self] A struct method's `mut self` changes its copy only. The caller's value is unchanged unless the method returns the copy and the caller keeps it.
-6. r[data.struct.no-embedding] A struct declares no embedded field, so a bare type-name member of a struct is an error. Error: `embedded-non-data`.
-7. r[data.struct.no-recursion] A struct that contains itself by value is an error. Error: `recursive-value-type`.
-8. r[data.struct.contains] A value contains the values of its struct fields, enum payloads, tuple elements, optional payload, and newtype base, and what those contain.
-9. r[data.struct.contains.ends] A data type, a collection, a trait value, or a function value holds a reference, so containment ends there.
-10. r[data.struct.contains.reference] A [reference](13-values-and-references.md#reference-types), `&T` or `&mut T`, also ends containment.
-11. r[data.struct.no-recursion.fix] The `recursive-value-type` error of a struct has a fix-it that writes `&` before the type of each field that contains the struct.
+6. r[data.struct.embed] A struct may embed a struct, by the rules of [Data Embedding](#data-embedding) for names, limits, and member promotion. An embedded field is a value field, held inline.
+7. r[data.struct.embed.struct-only] A struct's embedded field must name a struct, a generic struct, or a transparent alias that resolves to one. Embedding any other type is an error. Error: `embedded-non-data`.
+8. r[data.struct.embed.plain] A struct literal fills an embedded field as it fills a named field, as in `Post { Timestamps: ts }`, and `post.Timestamps = ts` assigns it. Both copy the value, as every struct copy does.
+9. r[data.struct.embed.no-marker] A copy marker on a struct's embedded field, as in `Timestamps: ...ts` or `post.Timestamps ...= ts`, is an error. Error: `copy-into-ordinary-field`.
+10. r[data.struct.no-recursion] A struct that contains itself by value is an error. Error: `recursive-value-type`.
+11. r[data.struct.contains] A value contains the values of its struct fields, enum payloads, tuple elements, optional payload, and newtype base, and what those contain.
+12. r[data.struct.contains.ends] A data type, a collection, a trait value, or a function value holds a reference, so containment ends there.
+13. r[data.struct.contains.reference] A [reference](13-values-and-references.md#reference-types), `&T` or `&mut T`, also ends containment.
+14. r[data.struct.no-recursion.fix] The `recursive-value-type` error of a struct has a fix-it that writes `&` before the type of each field that contains the struct.
 
 ```text
 struct Vec2:
     x: f64
     y: f64
 
+enum Unit:
+    Metre
+    Foot
+
 struct Pair:
-    Vec2          # error: embedded-non-data
+    Vec2          # valid: an embedded struct
+    Unit          # error: embedded-non-data
     weight: f64
 
 struct Chain:
@@ -254,7 +262,7 @@ twice := User { id: "u", id: "v", email: "e" }           # error: duplicate-fiel
 4. r[data.literal.shorthand.unknown] A shorthand name that resolves to no binding in scope is an error, as for any unknown value name. Error: `unknown-name`.
 
 ```text
-data Point:
+struct Point:
     x: i32
     y: i32
 
@@ -339,7 +347,7 @@ See also: [Mutable Paths](04-type-system.md#mutable-paths),
 3. r[data.pattern.fields] Within the braces, `field` binds the field value and `field: pattern` applies a nested pattern.
 
 ```hd
-data Point:
+struct Point:
     x: i32
     y: i32
 
@@ -358,7 +366,7 @@ A bare type-name member is an **embedded field**, which embeds another data
 type.
 
 ```text
-data Post:
+struct Post:
     Timestamps
     id: string
     title: string
@@ -368,7 +376,7 @@ A data literal fills the embedded field with a copy, written `...`:
 
 ```text
 post := Post {
-    Timestamps: ...Timestamps {
+    Timestamps: Timestamps {
         created_at: 1700000000,
         updated_at: 1700000000,
     },
@@ -384,13 +392,13 @@ post := Post {
 3. r[data.embed.unique] The name must be unique among the outer data type's fields. A duplicate name that involves an embedded field is an error. Error: `duplicate-embedded-field`.
 
 ```text
-data Storage:
+struct Storage:
     Box[i32]
     Box[string]  # error: duplicate-embedded-field
 ```
 
 ```text
-data Holder[T]:
+struct Holder[T]:
     JobStatus  # error: embedded-non-data
     List[i32]  # error: embedded-non-data
     T          # error: embedded-non-data
@@ -408,7 +416,7 @@ itself.
 | r[data.embed.depth.self] Cycle | A data type that embeds itself, directly or through other types, is an error, in place of `embedding-too-deep`. | `embedding-cycle` | the embedded field that begins the cycle, in the cycle's first declared type |
 
 ```text
-data Post:
+struct Post:
     Created
     Updated
     Owned
@@ -419,29 +427,29 @@ data Post:
 Here `Site` reaches `Stamp` at depth 4, one level too deep:
 
 ```text
-data Audit:
+struct Audit:
     Stamp
     by: string
 
-data Record:
+struct Record:
     Audit
     id: string
 
-data Page:
+struct Page:
     Record
     title: string
 
-data Site:
+struct Site:
     Page  # error: embedding-too-deep
     host: string
 ```
 
 ```text
-data Node:
+struct Node:
     Edge  # error: embedding-cycle
     id: string
 
-data Edge:
+struct Edge:
     Node
     weight: i32
 ```
@@ -645,26 +653,26 @@ Each fact about promotion is stated once, in chapter 03 or chapter 09:
 | A promoted method never fills a trait method. | [`trait.impl.fill.never`](09-traits.md#r-trait.impl.fill.never) |
 
 ```text
-data Left:
+struct Left:
     pub id: string
 
-data Right:
+struct Right:
     pub id: string
 
-data LeftBox:
+struct LeftBox:
     Left
 
-data RightBox:
+struct RightBox:
     Right
 
-data Record:
+struct Record:
     LeftBox
     RightBox  # error: ambiguous-promoted-member
 
-data Base:
+struct Base:
     pub id: string
 
-data Entry:
+struct Entry:
     Base
     id: string  # error: ambiguous-promoted-member
 ```
@@ -907,7 +915,7 @@ enum HttpStatus(code: i32, phrase: string):
     Ok -> HttpStatus(200, phrase="OK")
     Moved(target: string) -> HttpStatus(301, phrase=target)  # error: unknown-name
 
-fn rename(status: mut HttpStatus) -> void:
+fn rename(status: &mut HttpStatus) -> void:
     status.phrase = "Fine"  # error: invalid-assignment-target
 ```
 
@@ -1069,7 +1077,7 @@ block, as [Typed Derivation](14-annotations.md#typed-derivation) defines.
 
 ```hd
 @derive(Eq, Debug)
-data Point:
+struct Point:
     x: i32
     y: i32
 
@@ -1089,16 +1097,17 @@ See also: [Members And Variants](14-annotations.md#members-and-variants).
 > methods.
 
 ```hd
+@derive(Eq)
 enum Kind:
     Timeout
     Refused
 
-data ApiError:
+struct ApiError:
     kind: Kind
 
 impl ApiError:
     fn is_timeout(self) -> bool:
-        self.kind is Kind.Timeout
+        self.kind == Kind.Timeout
 ```
 
 See also: [Variant Payloads](#variant-payloads), where

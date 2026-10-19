@@ -1,6 +1,6 @@
 # test: a key type without Eq and Hash fails the ordinary bound on Map
 # Spec 04 Map Key Types: types.map-key.declared-bound (owner decision SSC Q7, batch 26, 2026-09-30).
-data UserId:
+struct UserId:
     value: string
 
 fn setup() -> void:

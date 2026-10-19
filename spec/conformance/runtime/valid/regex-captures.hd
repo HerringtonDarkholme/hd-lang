@@ -11,7 +11,7 @@ fn show(found: Match?) -> string:
 fn groups(pattern: string, text: string) -> List[string]:
     match Regex::new(pattern).expect("compiles").captures(text):
         .Some(found) =>
-            let shown: mut List[string] = []
+            let mut shown: List[string] = []
             let index: usize = 0
             while index < found.len():
                 shown.push(show(found.get(index)))
@@ -52,7 +52,7 @@ tests:
 
     it("captures_all gives the groups of each match find_all returns"):
         pairs := Regex::new(r"(\w+)=(\w*)").expect("compiles").captures_all("a=1, b=, c=33")
-        let shown: mut List[string] = []
+        let mut shown: List[string] = []
         for pair in pairs:
             shown.push("${show(pair.get(1))} ${show(pair.get(2))}")
         assert_equal(shown, ["0-1:a 2-3:1", "5-6:b 7-7:", "9-10:c 11-13:33"], reason="three pairs")

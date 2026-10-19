@@ -1,6 +1,6 @@
 # test: value.method without an argument clause is a field read, so it never yields the method as a value
 # Spec 05 Method Calls: expr.member.method-not-value.
-data Counter:
+struct Counter:
     start: i32
 
 impl Counter:

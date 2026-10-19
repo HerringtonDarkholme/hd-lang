@@ -2,7 +2,7 @@
 # Spec 05 Literal Suffixes: expr.literal-fn.ordinary-call (Literal Suffixes L20).
 use std.ops.num_suffix
 
-data Count[T]:
+struct Count[T]:
     count: i64
 
 @num_suffix

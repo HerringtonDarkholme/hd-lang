@@ -4,7 +4,7 @@
 use std.annotation.facts_of
 use std.ops.{Template, num_suffix, str_prefix}
 
-data Route:
+struct Route:
     path: string
 
 fn route(path: string) -> Route:

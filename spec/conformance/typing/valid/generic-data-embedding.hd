@@ -1,13 +1,13 @@
 # Spec 08 Embedded Field Names: data.embed.member.
-data Box[T]:
+struct Box[T]:
     pub value: T
 
-data Shipment[T]:
+struct Shipment[T]:
     Box[T]
     id: string
 
 shipment := Shipment::[i32] {
-    Box: ...Box::[i32] { value: 5 },
+    Box: Box::[i32] { value: 5 },
     id: "shipment_1",
 }
 value := shipment.value

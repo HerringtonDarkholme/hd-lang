@@ -1,25 +1,25 @@
 # test: reference identity
-# Spec 05 Identity: expr.is.no-user-code, expr.is.heap-data,
-# expr.is.conversion, expr.is.no-wrapper, expr.is.canonical-data,
-# expr.is.canonical.same, expr.is.compatible, expr.is.permissions.data.
+# Spec 05 Identity: expr.is.no-user-code, expr.is.references,
+# expr.is.conversion, expr.is.no-wrapper, expr.is.compatible;
+# Spec 09 Trait Value References: trait.dyn.ref.identity.
 
-data Box:
+struct Box:
     value: i32
 
 trait Value:
-    fn get(self) -> i32
+    fn get(&self) -> i32
 
 impl Value for Box:
-    fn get(self) -> i32: self.value
+    fn get(&self) -> i32: self.value
 
 fn same[T < AnyRef](left: T, right: T) -> bool: left is right
-fn as_value(value: dyn Value) -> dyn Value: value
+fn as_value(value: &dyn Value) -> &dyn Value: value
 fn pending!() -> i32: 1
 
 fn main() -> i32:
-    box := Box { value: 1 }
+    box := &Box { value: 1 }
     alias := box
-    other := Box { value: 1 }
+    other := &Box { value: 1 }
     first_trait := as_value(box)
     second_trait := as_value(box)
     suspension := pending()

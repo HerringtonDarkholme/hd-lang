@@ -1,5 +1,5 @@
 # test: a plain let infers the readonly view of a fresh value and may still be reassigned
-data User:
+struct User:
     name: string
 
 fn rename(other: User) -> string:

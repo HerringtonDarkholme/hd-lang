@@ -69,7 +69,7 @@ tests:
         assert_equal(payload(.UrlNoPad, "-_8"), .Ok([0xfb, 0xff]), reason="UrlNoPad two bytes")
 
     it("round-trips every length in every encoding"):
-        let bytes: mut List[u8] = []
+        let mut bytes: List[u8] = []
         let count: usize = 0
         while count < 12:
             for encoding in [Base64.Standard, Base64.StandardNoPad, Base64.Url, Base64.UrlNoPad]:

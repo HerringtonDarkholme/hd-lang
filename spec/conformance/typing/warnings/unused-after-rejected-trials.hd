@@ -3,7 +3,7 @@
 trait Parse[T]:
     fn parse(raw: T) -> i32
 
-data Item: pass
+struct Item: pass
 
 impl Parse[i32] for Item:
     fn parse(raw: i32) -> i32: raw

@@ -1,7 +1,7 @@
 # test: an inherent method may take a sealed trait member's name, and the supplied implementation still reports the type
 # Spec 09 Compiler-Supplied Implementations: trait.sealed.inherent-ok, trait.sealed.inherent-lookup, trait.sealed.no-replace.
 use std.inspect.{Inspectable, TypeId}
-data Shipment:
+struct Shipment:
     carrier: string
 
 impl Shipment:

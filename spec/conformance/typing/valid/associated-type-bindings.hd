@@ -6,14 +6,14 @@ trait Supplier:
 fn describe[T < Display, I < Supplier[Item = T]](source: I) -> string:
     source.get().to_string()
 
-data Feed[I]:
+struct Feed[I]:
     source: I
 
 impl[T < Display, I < Supplier[Item = T]] Display for Feed[I]:
     fn to_string(self) -> string:
         describe(self.source)
 
-data Constant:
+struct Constant:
     value: string
 
 impl Supplier for Constant:

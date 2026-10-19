@@ -3,7 +3,7 @@
 trait Make[T]:
     fn make() -> T
 
-data Item: pass
+struct Item: pass
 
 impl Make[bool] for Item:
     fn make() -> bool: false

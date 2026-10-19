@@ -1,6 +1,6 @@
 # test: min_by_key and max_by_key keep the first of equal keys, dedup cuts runs of equal neighbours, and unique keeps first occurrences
 # Spec std/collections List Helpers: std-collections.helper.by-key.first, .dedup, and .unique.
-data Order:
+struct Order:
     customer: string
     cents: i64
 

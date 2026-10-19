@@ -11,8 +11,8 @@ use std.task.{TimedOut, timeout}
 use std.time.{Clock, s}
 use std.time.{ManualClock, Timestamp, sleep}
 
-data Upload:
-    log: mut List[string]
+struct Upload:
+    log: &mut List[string]
     ack: mut Suspend[void]
 
 impl Disposable for Upload:
@@ -22,9 +22,9 @@ impl Disposable for Upload:
         ack!()                          # waits for the peer
         self.log.push("upload acknowledged")
 
-fn send!(log: mut List[string], reply: mut Suspend[string], ack: mut Suspend[void]) -> Result[string, TimedOut] $ Clock:
+fn send!(log: &mut List[string], reply: mut Suspend[string], ack: mut Suspend[void]) -> Result[string, TimedOut] $ Clock:
     timeout!(5s, cleanup=1s):
-        using upload = Upload { log: log, ack: ack }
+        using upload = &mut Upload { log: log, ack: ack }
         reply!()
 
 # The reply and the acknowledgement wait on the host's clock, so they are
@@ -37,11 +37,11 @@ fn acknowledged!() -> void:
     pass
 
 fn attempt!(ack: mut Suspend[void]) -> void $ Console + Clock:
-    let log: mut List[string] = []
+    let mut log: List[string] = []
     let reply: mut Suspend[string] = silent()
     clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
     $.with(Clock=clock):
-        result := send!(log, reply, ack)
+        result := send!(&mut log, reply, ack)
         match result:
             .Ok(value) => println(value)
             .Err(error) =>

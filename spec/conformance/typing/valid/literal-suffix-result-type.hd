@@ -2,7 +2,7 @@
 # Spec 04 Suffixed Literals: `250ms` is `ms(250)`, a Millis.
 use std.ops.num_suffix
 
-data Millis:
+struct Millis:
     count: i64
 
 @num_suffix

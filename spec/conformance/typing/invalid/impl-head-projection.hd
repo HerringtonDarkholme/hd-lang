@@ -6,7 +6,7 @@ trait Store:
 trait Summary:
     fn summary(self) -> string
 
-data Feed[I]:
+struct Feed[I]:
     items: I
 
 impl[I < Store] Summary for Feed[I::Item]:  # diagnostic: unconstrained-impl-parameter

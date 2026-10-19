@@ -7,7 +7,7 @@ fn log(message: string) -> void $ Logger:
     logger := $.use(Logger)
     logger.write(message)
 
-data Nightly: pass
+struct Nightly: pass
 
 impl Nightly:
     pub fn run(self) -> void:

@@ -2,7 +2,7 @@
 # Spec 14 Error Conversions: annot.error.from.same-type is reported on the later member.
 
 @error("bad yaml")
-data YamlError:
+struct YamlError:
     line: i64
 
 @error

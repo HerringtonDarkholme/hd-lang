@@ -4,7 +4,7 @@ use std.regex.Regex
 use std.text.r
 
 fn all(pattern: string, text: string) -> List[string]:
-    let shown: mut List[string] = []
+    let mut shown: List[string] = []
     for m in Regex::new(pattern).expect("compiles").find_all(text):
         shown.push("${m.start}-${m.end}:${m.text}")
     shown

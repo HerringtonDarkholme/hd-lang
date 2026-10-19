@@ -3,7 +3,7 @@
 
 use std.iter.FromIterator
 
-data Bag:
+struct Bag:
     items: List[i32]
 
 impl FromIterator[i32] for Bag:

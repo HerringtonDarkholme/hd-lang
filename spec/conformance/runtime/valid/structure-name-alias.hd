@@ -25,7 +25,7 @@ impl[T] Named for T by Structure:
         T::name()
 
 @derive(Named)
-data Point:
+struct Point:
     x: i32
 
 type Spot = Point

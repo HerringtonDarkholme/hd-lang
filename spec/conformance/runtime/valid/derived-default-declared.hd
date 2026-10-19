@@ -2,7 +2,7 @@
 # std Ops, Derived Default: std-ops.default.derive.data.declared (owner decision DEFAULT-FIELD, batch 54).
 use std.ops.Default
 @derive(Default)
-data Settings:
+struct Settings:
     name: string = "main"
     retries: i32 = 3
     tags: List[string]

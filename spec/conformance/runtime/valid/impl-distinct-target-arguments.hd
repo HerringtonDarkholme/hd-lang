@@ -1,6 +1,6 @@
 # test: implementations whose full targets do not unify do not overlap
 # Spec 09 Traits: trait.target.arguments, trait.overlap.definition, trait.overlap.unify.
-data Box[T]:
+struct Box[T]:
     value: T
 
 trait Describe:

@@ -7,30 +7,30 @@
 # fn.vararg.type, fn.vararg.collect, fn.vararg.collect.list, fn.vararg.final,
 # fn.type.values, fn.type.form, fn.type.positional,
 # fn.generic.parameters, fn.generic.call-list, fn.generic.call-marker.
-data User:
+struct User:
     name: string
 
-data UserId:
+struct UserId:
     value: string
 
-data DbError:
+struct DbError:
     message: string
 
 trait Database:
-    fn load_user!(self, id: UserId) -> Result[User, DbError]
+    fn load_user!(self, id: &UserId) -> Result[&User, &DbError]
 
 fn add(a: i32, b: i32) -> i32:
     a + b
 
-fn load_user!(id: UserId) -> Result[User, DbError] $ Database:
+fn load_user!(id: &UserId) -> Result[&User, &DbError] $ Database:
     $.use(Database).load_user!(id)
 
-fn new_user() -> User: User { name: "Ada" }
-fn new_mutable_user() -> mut User: User { name: "Ada" }
+fn new_user() -> &User: &mut User { name: "Ada" }
+fn new_mutable_user() -> &mut User: &mut User { name: "Ada" }
 
-fn inspect(user: User) -> string: user.name
+fn inspect(user: &User) -> string: user.name
 
-fn rename(user: mut User, name: string) -> void:
+fn rename(user: &mut User, name: string) -> void:
     user.name = name
 
 fn first[T](items: List[T]) -> T?:
@@ -53,17 +53,17 @@ fn sum(values...: List[i32]) -> i32:
         total = total + value
     total
 
-fn with_user(callback: fn() -> User) -> User:
+fn with_user(callback: fn() -> &User) -> &User:
     callback()
 
-fn example(users: List[User]) -> User? $ Console:
+fn example(users: List[&User]) -> &User? $ Console:
     _ := resize(640, height=480)
-    value := first::[User](users)
+    value := first::[&User](users)
     total := sum(1, 2, 3)
     println(connect("localhost", port=8080))
     println(total)
     with_user:
-        User { name: "Ada" }
+        &mut User { name: "Ada" }
     value
 
 names := ["Ada", "Grace"]

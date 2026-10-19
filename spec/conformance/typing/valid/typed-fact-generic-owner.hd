@@ -6,12 +6,12 @@ use std.annotation.annotate
 use std.num.Integer
 
 @annotate::[F](.Field)
-data Positive[F < Integer]: pass
+struct Positive[F < Integer]: pass
 
 fn positive[F < Integer]() -> Positive[F]:
     Positive::[F] {}
 
-data Tally[T < Integer]:
+struct Tally[T < Integer]:
     @positive
     hits: T
 

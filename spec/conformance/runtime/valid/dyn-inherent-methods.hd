@@ -8,7 +8,7 @@ impl dyn Shape:
     fn double(self) -> f64:
         self.area() * 2.0
 
-data Square:
+struct Square:
     side: f64
 
 impl Shape for Square:

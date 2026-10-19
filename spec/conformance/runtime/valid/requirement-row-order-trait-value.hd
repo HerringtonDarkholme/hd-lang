@@ -3,10 +3,10 @@
 trait Repo[T]:
     fn count(self) -> i32
 
-data User: pass
-data Post: pass
-data UserRepo: pass
-data PostRepo: pass
+struct User: pass
+struct Post: pass
+struct UserRepo: pass
+struct PostRepo: pass
 
 impl Repo[User] for UserRepo:
     fn count(self) -> i32: 20
@@ -18,8 +18,8 @@ trait Factory[A, B]:
     fn keep(self, callback: fn() -> i32 $ Repo[A] + Repo[B]) -> (fn() -> i32 $ Repo[A] + Repo[B])
     fn keep_later!(self, callback: fn() -> i32 $ Repo[A] + Repo[B]) -> (fn() -> i32 $ Repo[A] + Repo[B])
 
-data Forward: pass
-data Reverse: pass
+struct Forward: pass
+struct Reverse: pass
 
 impl Factory[User, Post] for Forward:
     fn keep(self, callback: fn() -> i32 $ Repo[User] + Repo[Post]) -> (fn() -> i32 $ Repo[User] + Repo[Post]):

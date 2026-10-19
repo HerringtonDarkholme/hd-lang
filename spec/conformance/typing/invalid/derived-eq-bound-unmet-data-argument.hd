@@ -1,11 +1,11 @@
 # test: a derived Eq on a generic type is unusable at a type argument that lacks Eq
 # Spec 09 Derived Implementations: trait.derive.bounds, trait.derive.bound-unmet.
 @derive(Eq)
-data Labeled[T]:
+struct Labeled[T]:
     label: string
     value: T
 
-data Socket:
+struct Socket:
     port: i32
 
 fn same(left: Labeled[Socket], right: Labeled[Socket]) -> bool:

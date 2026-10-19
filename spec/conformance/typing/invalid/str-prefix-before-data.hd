@@ -3,5 +3,5 @@
 use std.ops.str_prefix
 
 @str_prefix  # diagnostic: decorator-target-kind
-data Query:
+struct Query:
     text: string

@@ -4,7 +4,7 @@
 use std.error.{Error, message}
 use std.process.{ExitCode, Termination}
 
-pub data Usage:
+pub struct Usage:
     text: string
 
 impl Display for Usage:
@@ -13,7 +13,7 @@ impl Display for Usage:
 impl Error for Usage:
     fn exit_code(self) -> i32: 3
 
-pub data Plain:
+pub struct Plain:
     text: string
 
 impl Display for Plain:

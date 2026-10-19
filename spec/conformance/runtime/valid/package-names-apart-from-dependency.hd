@@ -4,7 +4,7 @@
 # Spec 10 Modules: module.kind.package.
 use dep.models.{User as ModelUser}
 
-data User:
+struct User:
     count: i32
 
 fn describe() -> string:

@@ -1,11 +1,11 @@
-# test: a mut self reference does not fit a callback that passes readonly values
+# test: a &mut self reference does not fit a callback that passes readonly values
 # Spec 07 Method References: fn.ref.unbound.mut-self (Method References MR1).
 
-data Counter:
+struct Counter:
     value: i32
 
 impl Counter:
-    fn reset(mut self) -> void:
+    fn reset(&mut self) -> void:
         self.value = 0
 
 fn apply_all[T, U](items: List[T], transform: fn(T) -> U) -> List[U]:

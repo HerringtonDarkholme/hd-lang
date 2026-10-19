@@ -1,6 +1,6 @@
 # test: a closure argument written before the argument that solves its parameter type is checked against that type
 # Spec 07 Closure Annotations: fn.closure.annotations-omitted; Spec 04 Generic Arguments: types.generic.infer.
-data Item:
+struct Item:
     name: string
     cents: i32
 

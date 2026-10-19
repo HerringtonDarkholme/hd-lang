@@ -2,7 +2,7 @@
 # Spec lang/06 Using Bindings: flow.using.bang; lang/11 req.bang.driver-forms.
 use std.ops.Disposable
 
-data Session:
+struct Session:
     id: i32
 
 impl Disposable for Session:

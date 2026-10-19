@@ -133,7 +133,7 @@ impl Deserializer for Plain:
         "invalid $expected"
 
 @derive(Deserialize)
-data Limits:
+struct Limits:
     count: u32
     retries: u32 = 3
 

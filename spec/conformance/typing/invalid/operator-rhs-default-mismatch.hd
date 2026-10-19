@@ -2,7 +2,7 @@
 # Spec 05 Operator Traits: expr.op.trait.rhs-self, expr.op.no-impl (Type-Argument Defaults TD10).
 use std.ops.Add
 
-data Money:
+struct Money:
     cents: i64
 
 impl Add for Money:

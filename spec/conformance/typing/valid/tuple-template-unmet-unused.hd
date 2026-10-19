@@ -33,7 +33,7 @@ impl[T < Tuple] Encode for T by Structure:
         _ := Structure::walk(self, &mut w)
         w.out
 
-data Opaque:
+struct Opaque:
     id: i64
 
 fn keep(pair: (i64, Opaque)) -> i64:

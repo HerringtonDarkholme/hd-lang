@@ -5,7 +5,7 @@ use std.function.Fn
 trait Tag:
     fn name(self) -> string
 
-data FixedTag:
+struct FixedTag:
     value: string
 
 impl Tag for FixedTag:
@@ -13,7 +13,7 @@ impl Tag for FixedTag:
 
 type WithTag[$R] = $ R + Tag
 
-data Runner: pass
+struct Runner: pass
 
 impl Runner:
     fn call[$R](self, job: fn() -> string $ R) -> string $ R:

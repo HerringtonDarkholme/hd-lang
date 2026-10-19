@@ -2,7 +2,7 @@
 # Spec 05 Literal Suffixes: there the call follows the rules for any call in that position.
 use std.ops.num_suffix
 
-data Millis:
+struct Millis:
     count: i64
 
 @num_suffix

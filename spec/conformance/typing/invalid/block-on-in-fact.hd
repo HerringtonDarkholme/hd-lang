@@ -1,7 +1,7 @@
 # test: a type-level fact expression may not call block_on directly
 use std.task.block_on
 
-data Style:
+struct Style:
     prefix: string
 
 fn ready!() -> string:
@@ -11,5 +11,5 @@ fn style_of[T](source: T) -> Style:
     Style { prefix: "p_" }
 
 @style_of(block_on(ready()))  # diagnostic: suspension-forbidden-context
-data User:
+struct User:
     id: i32

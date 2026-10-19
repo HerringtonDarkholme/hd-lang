@@ -1,8 +1,8 @@
 # test: a parameter decorator attaches parameter metadata
-data User: pass
+struct User: pass
 type UserId(i64)
 
-data Description:
+struct Description:
     text: string
 
 fn description(text: string) -> Description:

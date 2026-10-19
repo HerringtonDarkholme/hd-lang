@@ -4,7 +4,7 @@
 # fixture-package-tree: parent-file/src/shop.hd
 use pkg.shop.item.{Item}
 
-pub data Cart:
+pub struct Cart:
     pub count: i32
 
 pub fn wrap(item: Item) -> Cart:

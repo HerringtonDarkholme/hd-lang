@@ -5,7 +5,7 @@ trait Lookup:
     type Value
     fn find(self, key: Self::Key) -> Self::Value?
 
-data PhoneBook:
+struct PhoneBook:
     names: List[string]
     numbers: List[i32]
 

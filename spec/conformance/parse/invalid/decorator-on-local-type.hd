@@ -2,6 +2,6 @@
 # Spec 03 Local Declaration Limits: names.local.no-metadata.
 fn run() -> i32:
     @derive(Eq)  # diagnostic: decorator-not-top-level
-    data Point:
+    struct Point:
         x: i32
     +1

@@ -1,7 +1,7 @@
 # test: a local inherent implementation's method is not available before the impl
 # Spec 09 Local Implementations: trait.impl.local.lookup; an inherent local impl has the same lexical extent as a trait one.
 fn invoice_label(number: string) -> string:
-    data Invoice:
+    struct Invoice:
         number: string
 
     invoice := Invoice { number }

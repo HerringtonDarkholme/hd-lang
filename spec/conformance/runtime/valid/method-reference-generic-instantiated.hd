@@ -1,6 +1,6 @@
 # test: a reference to a generic associated function is instantiated from its expected type
 # Spec 07 Method References: fn.ref.generic.instantiate.
-data Maker:
+struct Maker:
     tag: i32
 
 impl Maker:

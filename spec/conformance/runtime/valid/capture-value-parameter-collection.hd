@@ -21,7 +21,7 @@ tests:
     use std.testing.assert_equal
 
     it("a closure over a list parameter is unaffected by a later push by the caller"):
-        let items: mut List[i32] = [1]
+        let mut items: List[i32] = [1]
         count := counter_of(items)
         items.push(2)
         assert_equal(count(), 1, reason="the closure holds the list as passed")

@@ -1,6 +1,6 @@
 # test: a data pattern field that the type does not declare is an error
 # Spec 06 Nested And Data Patterns: flow.match.data.fields.unknown.
-data User:
+struct User:
     name: string
     age: i32
 

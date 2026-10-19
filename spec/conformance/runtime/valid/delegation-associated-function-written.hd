@@ -6,7 +6,7 @@ trait Named:
     fn scope() -> string:
         "global"
 
-data Logger:
+struct Logger:
     label: string
 
 impl Named for Logger:
@@ -16,7 +16,7 @@ impl Named for Logger:
     fn kind() -> string:
         "logger"
 
-data Service:
+struct Service:
     Logger
     port: i32
 
@@ -33,5 +33,5 @@ tests:
         assert_equal(Logger::kind(), "logger", reason="the part keeps its own")
 
     it("methods forward to the part"):
-        service := Service { Logger: ...Logger { label: "api" }, port: 8080 }
+        service := Service { Logger: Logger { label: "api" }, port: 8080 }
         assert_equal(service.name(), "api", reason="generated forwarding method")

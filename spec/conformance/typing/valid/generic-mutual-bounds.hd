@@ -6,13 +6,13 @@ trait Source[T]:
 trait Sink[T]:
     fn give(self, value: T) -> void
 
-data Tank:
+struct Tank:
     level: i32
 
-data Pipe:
+struct Pipe:
     width: i32
 
-data Hose:
+struct Hose:
     length: i32
 
 impl Source[Pipe] for Tank:

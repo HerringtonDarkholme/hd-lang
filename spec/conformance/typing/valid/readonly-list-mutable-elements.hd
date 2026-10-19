@@ -1,10 +1,10 @@
-data Child:
+struct Child:
     name: string
 
-fn rename(child: mut Child, name: string) -> void:
+fn rename(child: &mut Child, name: string) -> void:
     child.name = name
 
-fn update_children(children: List[mut Child]) -> void:
+fn update_children(children: List[&mut Child]) -> void:
     rename(children[0], "indexed")
     for child in children:
         rename(child, "iterated")

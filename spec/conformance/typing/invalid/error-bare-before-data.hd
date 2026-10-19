@@ -4,5 +4,5 @@
 # @error(transparent).
 
 @error  # diagnostic: decorator-target-kind
-data DiskError:
+struct DiskError:
     free: i64

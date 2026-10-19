@@ -91,7 +91,7 @@ trait Arbitrary:
 ```text
 use std.testing.{Arbitrary, Choices}
 
-data Point:
+struct Point:
     x: i64
     y: i64
 
@@ -115,7 +115,7 @@ fn stock(c: &mut Choices) -> Map[string, i32]:
 ```text
 use std.testing.{Arbitrary, Choices, it_prop}
 
-data Reading:
+struct Reading:
     level: i64
 
 impl Arbitrary for Reading:
@@ -255,7 +255,7 @@ fn cents(c: &mut Choices) -> i32:
     c.int(0..=10_000)
 
 @derive(Arbitrary, Debug)
-data Item:
+struct Item:
     name: string
     @arbitrary.with(cents)
     price: i32
@@ -277,10 +277,10 @@ tests:
 use std.testing.{Arbitrary, Choices}
 
 @derive(Arbitrary)  # error: member-not-derivable
-data Task:
+struct Task:
     run: fn() -> i32
 
-data Job:
+struct Job:
     run: fn() -> i32
 
 impl Arbitrary for Job:
@@ -297,7 +297,7 @@ its own `impl Arbitrary` instead.
 use std.testing.Arbitrary
 
 @derive(Arbitrary, Debug)
-data Box[T]:
+struct Box[T]:
     value: T
 
 fn needs[T < Arbitrary](value: T) -> T: value
@@ -325,8 +325,8 @@ enum Loop:
     More(next: &Loop)
 
 @derive(Arbitrary, Debug)
-data Ring:
-    next: Ring
+struct Ring:
+    next: &Ring
 ```
 
 `Tree`'s one variant is not recursive: its `self_ref` is `.Optional`,

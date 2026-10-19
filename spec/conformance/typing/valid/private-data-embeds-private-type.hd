@@ -1,15 +1,15 @@
 # test: a module-private data type may embed a module-private data type, and a public one a public type
-data Timestamps:
+struct Timestamps:
     pub created_at: i32
 
-data Draft:
+struct Draft:
     Timestamps
     title: string
 
-pub data Stamp:
+pub struct Stamp:
     at: i32
 
-pub data Post:
+pub struct Post:
     Stamp
     title: string
 

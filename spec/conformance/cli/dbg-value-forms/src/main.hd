@@ -1,6 +1,6 @@
 type Meters(f64)
 
-data Parcel:
+struct Parcel:
     label: string
     weight: i32
 

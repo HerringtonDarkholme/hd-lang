@@ -2,7 +2,7 @@
 # Spec 14 Facts: annot.fact.eval.panic-runtime. Spec 06 Runtime Panics: flow.panic.stack-exhausted.
 use std.annotation.facts_of
 
-data Route:
+struct Route:
     path: string
 
 fn deep(n: i32) -> i32:

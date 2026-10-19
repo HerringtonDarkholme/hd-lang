@@ -3,7 +3,7 @@
 trait Versioned:
     fn newer_than(self, other: Self) -> bool
 
-data Release:
+struct Release:
     version: i32
 
 impl Versioned for Release:

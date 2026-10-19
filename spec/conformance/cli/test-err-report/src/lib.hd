@@ -1,5 +1,5 @@
 @error("disk full")
-pub data DiskError:
+pub struct DiskError:
     free: i64
 
 @error

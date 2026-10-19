@@ -1,20 +1,20 @@
 # test: a part at depth four is an error at the declaration of the type that reaches it
 # Spec 08 Embedding Limits: data.embed.depth.
-data Stamp:
+struct Stamp:
     at: i32
 
-data Audit:
+struct Audit:
     Stamp
     by: string
 
-data Record:
+struct Record:
     Audit
     id: string
 
-data Page:
+struct Page:
     Record
     title: string
 
-data Site:
+struct Site:
     Page  # diagnostic: embedding-too-deep
     host: string

@@ -12,7 +12,7 @@ struct Body:
     pos: Vec2
     vel: Vec2
 
-data Counter:
+struct Counter:
     n: i32
 
 fn nudge(v: &mut Vec2) -> void:

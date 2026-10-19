@@ -1,10 +1,10 @@
 type UserId(string)
 type UserName = string
 
-data PostId:
+struct PostId:
     value: string
 
-pub data User:
+pub struct User:
     pub id: UserId
     name: UserName
 

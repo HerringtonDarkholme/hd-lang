@@ -1,4 +1,4 @@
-data User:
+struct User:
     id: string
 
 fn same(left: User, right: User) -> bool:

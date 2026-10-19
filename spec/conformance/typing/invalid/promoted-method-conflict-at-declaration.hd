@@ -1,18 +1,18 @@
 # test: two embedded types with an inherent method of one name conflict at the outer declaration
-data Logger:
+struct Logger:
     name: string
 
 impl Logger:
     pub fn describe(self) -> string:
         self.name
 
-data Metrics:
+struct Metrics:
     count: i32
 
 impl Metrics:
     pub fn describe(self) -> string:
         "metrics"
 
-data Service:
+struct Service:
     Logger
     Metrics  # diagnostic: ambiguous-promoted-member

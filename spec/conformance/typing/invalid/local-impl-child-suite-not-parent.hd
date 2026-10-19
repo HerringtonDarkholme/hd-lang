@@ -1,7 +1,7 @@
 # test: a trait implementation declared in a child suite is not available in its parent suite
 # Spec 09 Local Implementations: trait.impl.local.lookup; lookup covers the enclosing suite and child scopes, not outside it.
 fn invoice_label(number: string, draft: bool) -> string:
-    data Invoice:
+    struct Invoice:
         number: string
 
     trait Labeled:

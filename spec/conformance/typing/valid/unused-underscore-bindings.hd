@@ -1,6 +1,6 @@
 # test: every underscore-prefixed local binding form suppresses the unused warning, while an ordinary unread binding still warns
 # Spec 06 Control Flow: flow.unused.underscore (a name beginning with _ suppresses unused-local-binding).
-data Point:
+struct Point:
     x: i32
     y: i32
 

@@ -2,10 +2,10 @@
 # Spec 03 Member Lookup: names.lookup.method-form,
 # names.lookup.stored-fn, names.method-lookup.unknown,
 # names.method-lookup.hint.field.
-data Base:
+struct Base:
     pub run: fn() -> i32
 
-data Job:
+struct Job:
     Base
 
 fn invalid(job: Job) -> i32:

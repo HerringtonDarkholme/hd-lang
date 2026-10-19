@@ -2,7 +2,7 @@ trait Source:
     type Item
     fn get(self) -> Self::Item
 
-data Box[T]:
+struct Box[T]:
     value: T
 
 impl[T] Source for Box[T] where T < Any:  # diagnostic: syntax-error

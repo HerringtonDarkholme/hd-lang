@@ -4,7 +4,7 @@
 # Spec 03 Loops: "Each iteration creates the body bindings for that iteration; a closure that escapes
 # an iteration captures that iteration's binding rather than one shared loop variable."
 fn make_readers(values: List[i32]) -> List[fn() -> i32]:
-    let readers: mut List[fn() -> i32] = []
+    let mut readers: List[fn() -> i32] = []
     for value in values:
         doubled := value * 2
         readers.push(fn() -> i32: value + doubled)

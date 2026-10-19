@@ -4,7 +4,7 @@ trait Mixer:
     fn blend(self, left: i32, right: i32) -> i32
     fn load!(self, left: i32, right: i32) -> i32
 
-data Calculator: pass
+struct Calculator: pass
 
 impl Mixer for Calculator:
     fn blend(self, left: i32, right: i32) -> i32: left * 10 + right

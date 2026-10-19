@@ -1,6 +1,6 @@
 # Spec 08 Field Access: data.access.readonly-root; Reference Semantics: data.ref.views.
-data User:
+struct User:
     name: string
 
-fn invalid(user: User) -> void:
+fn invalid(user: &User) -> void:
     user.name = "Grace"  # diagnostic: readonly-root

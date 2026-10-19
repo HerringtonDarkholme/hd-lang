@@ -2,7 +2,7 @@
 # Spec 05 Callable Values: expr.call.apply.mut-ref, expr.call.apply.write-ref.
 use std.ops.{Apply, Update}
 
-data Cell:
+struct Cell:
     value: i32
 
 impl Apply for Cell:

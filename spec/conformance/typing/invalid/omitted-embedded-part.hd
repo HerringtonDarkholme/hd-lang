@@ -28,10 +28,10 @@ impl[T] Show for T by Structure:
         _ := Structure::walk(self, &mut w)
         w.out
 
-data Audit:
+struct Audit:
     at: i64
 
-data Account:
+struct Account:
     Audit
     id: i64
 

@@ -6,22 +6,22 @@ use std.ops.Disposable
 use std.task.all
 use std.time.{Clock, ms, s, sleep}
 
-data Conn:
-    log: mut List[string]
+struct Conn:
+    log: &mut List[string]
 
 impl Disposable for Conn:
     fn dispose!(&mut self) -> void:
         self.log.push("conn closed")
 
-data Report:
-    log: mut List[string]
+struct Report:
+    log: &mut List[string]
 
 impl Disposable for Report:
     fn dispose!(&mut self) -> void:
         self.log.push("supervise cleanup")
 
-data Runner:
-    log: mut List[string]
+struct Runner:
+    log: &mut List[string]
     job: mut Suspend[string]
 
 impl Disposable for Runner:
@@ -31,28 +31,28 @@ impl Disposable for Runner:
         value := job!()
         self.log.push("runner got ${value}")
 
-fn work!(log: mut List[string]) -> void $ Clock:
-    using conn = Conn { log: log }
+fn work!(log: &mut List[string]) -> void $ Clock:
+    using conn = &mut Conn { log: log }
     sleep!(s(60))
     log.push("work never")
 
-fn stop_later!(job: mut Suspend[void], log: mut List[string]) -> void $ Clock:
+fn stop_later!(job: mut Suspend[void], log: &mut List[string]) -> void $ Clock:
     sleep!(ms(1))
     match job.cancel!():
         .Finished => log.push("stopper finished")
         .Abandoned => log.push("stopper abandoned")
 
-fn supervise!(job: mut Suspend[void], log: mut List[string]) -> string $ Clock:
-    using report = Report { log: log }
+fn supervise!(job: mut Suspend[void], log: &mut List[string]) -> string $ Clock:
+    using report = &mut Report { log: log }
     _ := all!(job, stop_later(job, log))
     "supervise never"
 
-fn outer!(job: mut Suspend[void], log: mut List[string]) -> string $ Clock:
+fn outer!(job: mut Suspend[void], log: &mut List[string]) -> string $ Clock:
     defer: log.push("outer defer")
     supervise!(job, log)
 
-fn run!(log: mut List[string], job: mut Suspend[string]) -> void:
-    using runner = Runner { log: log, job: job }
+fn run!(log: &mut List[string], job: mut Suspend[string]) -> void:
+    using runner = &mut Runner { log: log, job: job }
     log.push("run body")
 
 fn ended!(job: mut Suspend[void]) -> string:
@@ -61,9 +61,9 @@ fn ended!(job: mut Suspend[void]) -> string:
         .Abandoned => "abandoned"
 
 pub fn main!() -> void $ Console + Clock:
-    let log: mut List[string] = []
-    let job: mut Suspend[void] = work(log)
-    let runner: mut Suspend[void] = run(log, outer(job, log))
+    let mut log: List[string] = []
+    let job: mut Suspend[void] = work(&mut log)
+    let runner: mut Suspend[void] = run(&mut log, outer(job, &mut log))
     runner!()
     println(log.join(", "))
     println(ended!(runner))

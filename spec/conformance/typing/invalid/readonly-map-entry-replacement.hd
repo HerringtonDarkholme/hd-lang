@@ -1,5 +1,5 @@
-data Child:
+struct Child:
     name: string
 
-fn invalid(children: Map[string, mut Child], replacement: mut Child) -> void:
+fn invalid(children: &Map[string, Child], replacement: Child) -> void:
     children["id"] = replacement  # diagnostic: readonly-root

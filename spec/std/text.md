@@ -361,7 +361,7 @@ use std.text.{interpolate, process_escapes}
 
 @str_prefix
 fn cooked(t: Template[i32]) -> string:
-    let pieces: mut List[string] = []
+    let mut pieces: List[string] = []
     for piece in t.raw_parts:
         match process_escapes(piece):
             .Ok(text) => pieces.push(text)

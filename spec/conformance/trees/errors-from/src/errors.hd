@@ -1,9 +1,9 @@
 use std.convert.From
 
-pub data ParseError:
+pub struct ParseError:
     pub line: i32
 
-pub data ImportError:
+pub struct ImportError:
     pub message: string
 
 impl From[ParseError] for ImportError:

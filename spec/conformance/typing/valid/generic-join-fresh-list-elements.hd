@@ -1,6 +1,6 @@
 # test: a list of fresh literals meets a readonly key closure parameter at the readonly element view
 # Spec Type System, Inference From Several Arguments: types.generic.infer.join.outer-permission; T is solved from mut Pet and Pet.
-data Pet:
+struct Pet:
     name: string
 
 fn sorted_by_key[T, K < Ord](items: List[T], key: fn(T) -> K) -> List[T]:

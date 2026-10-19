@@ -28,7 +28,7 @@ impl[T] Show for T by Structure:
         w.out
 
 @derive(Show)
-data Point:
+struct Point:
     x: i64
 
 impl Show for Point by Structure:  # diagnostic: overlapping-impl

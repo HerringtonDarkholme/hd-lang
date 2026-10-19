@@ -7,8 +7,8 @@ use std.ops.Disposable
 use std.task.{all, race}
 use std.time.{Clock, ms, s, sleep}
 
-data Conn:
-    log: mut List[string]
+struct Conn:
+    log: &mut List[string]
     closing: mut Suspend[void]
 
 impl Disposable for Conn:
@@ -18,15 +18,15 @@ impl Disposable for Conn:
         wait!()
         self.log.push("closed")
 
-fn session!(log: mut List[string]) -> string $ Clock:
-    using conn = Conn { log: log, closing: sleep(ms(2)) }
+fn session!(log: &mut List[string]) -> string $ Clock:
+    using conn = &mut Conn { log: log, closing: sleep(ms(2)) }
     sleep!(s(60))
     "late"
 
 fn ready!() -> string:
     "won"
 
-fn stop_twice!(job: mut Suspend[string], log: mut List[string]) -> string:
+fn stop_twice!(job: mut Suspend[string], log: &mut List[string]) -> string:
     let (first, second) = all!(job.cancel(), job.cancel())
     log.push("waiters")
     for end in [first, second]:
@@ -36,9 +36,9 @@ fn stop_twice!(job: mut Suspend[string], log: mut List[string]) -> string:
     "stopped"
 
 pub fn main!() -> void $ Console + Clock:
-    let log: mut List[string] = []
-    let job: mut Suspend[string] = session(log)
-    let (winner, _) = all!(race(job, ready()), stop_twice(job, log))
+    let mut log: List[string] = []
+    let job: mut Suspend[string] = session(&mut log)
+    let (winner, _) = all!(race(job, ready()), stop_twice(job, &mut log))
     println(winner)
     println(log.join(", "))
     match job.cancel!():

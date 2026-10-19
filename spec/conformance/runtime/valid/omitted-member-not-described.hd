@@ -23,7 +23,7 @@ impl[T] Count for T by Structure:
         _ := T::describe(&mut d)
         d.total
 
-data Session:
+struct Session:
     id: i64
     cache: i64 = 0
 

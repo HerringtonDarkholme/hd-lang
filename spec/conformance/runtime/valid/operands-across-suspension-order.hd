@@ -1,17 +1,17 @@
 # test: operands and elements straddling bang calls evaluate left to right
 # expect: test
-data Log:
+struct Log:
     text: string
 
-fn note(log: mut Log, tag: string, value: i32) -> i32:
+fn note(log: &mut Log, tag: string, value: i32) -> i32:
     log.text = log.text + tag
     value
 
-fn child!(log: mut Log, tag: string, value: i32) -> i32:
+fn child!(log: &mut Log, tag: string, value: i32) -> i32:
     log.text = log.text + tag
     value
 
-fn outer!(log: mut Log) -> i32:
+fn outer!(log: &mut Log) -> i32:
     log.text = log.text + "<"
     first := child!(log, "a", 1)
     log.text = log.text + "|"
@@ -23,13 +23,13 @@ tests:
     use std.testing.assert_equal
 
     it("binary operands around a bang call"):
-        let mut log = Log { text: "" }
+        let mut log = &mut Log { text: "" }
         result := note(log, "L", 1) + child!(log, "C", 20) * note(log, "R", 3)
         assert_equal(log.text, "LCR", reason="left operand, child, right operand")
         assert_equal(result, 61, reason="multiplication binds tighter")
 
     it("list and tuple elements around bang calls"):
-        let mut log = Log { text: "" }
+        let mut log = &mut Log { text: "" }
         values := [child!(log, "1", 1), note(log, "2", 2), child!(log, "3", 3)]
         pair := (note(log, "4", 4), child!(log, "5", 5))
         assert_equal(log.text, "12345", reason="elements evaluate in order")
@@ -37,13 +37,13 @@ tests:
         assert_equal(pair._1, 5, reason="tuple element preserved")
 
     it("statements around child calls keep source order"):
-        let mut log = Log { text: "" }
+        let mut log = &mut Log { text: "" }
         result := outer!(log)
         assert_equal(log.text, "<a|b>", reason="each child completes before the next statement")
         assert_equal(result, 3, reason="locals survive suspension points")
 
     it("interpolation segments around a bang call"):
-        let mut log = Log { text: "" }
+        let mut log = &mut Log { text: "" }
         x := "x"
         y := "y"
         z := "z"

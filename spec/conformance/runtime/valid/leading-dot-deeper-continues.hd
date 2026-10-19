@@ -1,6 +1,6 @@
 # test: a leading-dot line indented deeper than its statement continues that statement
 # Spec Lexical Structure, Leading-Dot Continuation: lex.dot.deeper; the deeper line continues the tail expression.
-data Step:
+struct Step:
     size: i32
 
 impl Step:

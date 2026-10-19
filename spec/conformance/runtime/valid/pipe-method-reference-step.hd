@@ -1,6 +1,6 @@
 # test: a method reference is a bare pipe step
 # Spec 05 Bare Steps: expr.pipe.bare.method-reference (Method References MR4).
-data Config:
+struct Config:
     size: usize
 
 impl Config:

@@ -1,2 +1,2 @@
 @derive(Error)
-data Problem: pass
+struct Problem: pass

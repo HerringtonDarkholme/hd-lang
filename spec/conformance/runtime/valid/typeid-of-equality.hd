@@ -1,12 +1,12 @@
 # test: TypeId equality follows runtime identity and prints the canonical name
-# Spec 09 Inspectable And TypeId: the outer mut does not change identity, while an inner
-# mut and other type arguments do; Display spells prelude names with T? and tuple sugar.
-# Spec 09 Traits: trait.inspect.static, trait.inspect.runtime-type, trait.typeid.traits, trait.typeid.of, trait.typeid.equality, trait.identity.outer-mut, trait.identity.inner-permission, trait.identity.no-conversion, trait.typeid.name, trait.typeid.name.prelude, trait.typeid.name.option, trait.typeid.name.tuple, trait.typeid.name.separator.
+# Spec 09 Inspectable And TypeId: type arguments are part of identity; Display spells
+# prelude names with T? and tuple sugar.
+# Spec 09 Traits: trait.inspect.static, trait.inspect.runtime-type, trait.typeid.traits, trait.typeid.of, trait.typeid.equality, trait.identity.no-conversion, trait.typeid.name, trait.typeid.name.prelude, trait.typeid.name.option, trait.typeid.name.tuple, trait.typeid.name.separator.
 use std.inspect.{Inspectable, TypeId}
-data User:
+struct User:
     name: string
 
-data Box[T]:
+struct Box[T]:
     value: T
 
 fn of_value(value: dyn Inspectable) -> TypeId:
@@ -21,11 +21,6 @@ tests:
         let seven: i32 = 7
         assert(of_value(seven) == TypeId::of::[i32](), reason="an i32 records i32")
         assert(of_value(seven) != TypeId::of::[string](), reason="i32 is not string")
-
-    it("only the outer mut is ignored"):
-        assert(TypeId::of::[mut User]() == TypeId::of::[User](), reason="the outer mut is ignored")
-        assert(TypeId::of::[List[mut User]]() != TypeId::of::[List[User]](), reason="an inner mut is part of identity")
-        assert(TypeId::of::[List[mut User]]().to_string() != TypeId::of::[List[User]]().to_string(), reason="the printable name shows an inner mut")
 
     it("type arguments are part of identity"):
         assert(TypeId::of::[Box[i32]]() != TypeId::of::[Box[string]](), reason="Box[i32] and Box[string] differ")

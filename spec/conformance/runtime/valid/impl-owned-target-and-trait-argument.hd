@@ -1,7 +1,7 @@
 # test: the package of Money implements a std trait for Money, and Add[Money] for the std type i32
 # Spec 09 Implementation Ownership: trait.own.rule, trait.own.target, trait.own.argument, trait.own.argument.example.
 use std.ops.Add
-data Money:
+struct Money:
     cents: i32
 
 impl Display for Money:

@@ -1,7 +1,7 @@
 # test: min gives the first smallest element and max the first largest, and an empty list gives .None
 # Spec std/collections List Helpers: std-collections.helper.min-max.first.
 use std.cmp.Ordering
-data Entry:
+struct Entry:
     rank: i32
     label: string
 

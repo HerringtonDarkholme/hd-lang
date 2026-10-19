@@ -3,13 +3,13 @@
 use std.annotation.annotate
 
 @annotate::[i32](.Field)
-data Port:
+struct Port:
     number: i32
 
 fn port(number: i32) -> Port:
     Port { number: number }
 
-data Server:
+struct Server:
     @port(8080)
     listen: i32
     @port(9090)  # diagnostic: type-mismatch

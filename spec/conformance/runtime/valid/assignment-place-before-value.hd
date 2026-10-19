@@ -6,33 +6,33 @@
 # expr.place.receiver, expr.place.call-update, expr.assign.statement,
 # expr.assign.target, expr.assign.order, expr.assign.order.field,
 # expr.assign.order.index, expr.assign.order.call.
-data Log:
+struct Log:
     text: string
 
-data Counter:
+struct Counter:
     count: i32
 
-fn note(log: mut Log, tag: string, value: i32) -> i32:
+fn note(log: &mut Log, tag: string, value: i32) -> i32:
     log.text = log.text + tag
     value
 
-fn slot(log: mut Log, tag: string, value: usize) -> usize:
+fn slot(log: &mut Log, tag: string, value: usize) -> usize:
     log.text = log.text + tag
     value
 
-fn key(log: mut Log, tag: string, value: string) -> string:
+fn key(log: &mut Log, tag: string, value: string) -> string:
     log.text = log.text + tag
     value
 
-fn list_of(log: mut Log, target: mut List[i32]) -> mut List[i32]:
+fn list_of(log: &mut Log, target: &mut List[i32]) -> &mut List[i32]:
     log.text = log.text + "r"
     target
 
-fn map_of(log: mut Log, target: mut Map[string, i32]) -> mut Map[string, i32]:
+fn map_of(log: &mut Log, target: &mut Map[string, i32]) -> &mut Map[string, i32]:
     log.text = log.text + "r"
     target
 
-fn counter_of(log: mut Log, target: mut Counter) -> mut Counter:
+fn counter_of(log: &mut Log, target: &mut Counter) -> &mut Counter:
     log.text = log.text + "r"
     target
 
@@ -41,21 +41,21 @@ tests:
 
     it("indexed list assignment: receiver, index, value"):
         let mut log = Log { text: "" }
-        let values: mut List[i32] = [0, 0]
-        list_of(log, values)[slot(log, "i", 1)] = note(log, "v", 7)
+        let mut values: List[i32] = [0, 0]
+        list_of(&mut log, &mut values)[slot(&mut log, "i", 1)] = note(&mut log, "v", 7)
         assert_equal(log.text, "riv", reason="receiver, then index, then value")
         assert_equal(values, [0, 7], reason="one store to the selected slot")
 
     it("indexed map assignment: receiver, key, value"):
         let mut log = Log { text: "" }
-        let values: mut Map[string, i32] = {"a": 1}
-        map_of(log, values)[key(log, "k", "b")] = note(log, "v", 2)
+        let mut values: Map[string, i32] = {"a": 1}
+        map_of(&mut log, &mut values)[key(&mut log, "k", "b")] = note(&mut log, "v", 2)
         assert_equal(log.text, "rkv", reason="receiver, then key, then value")
         assert_equal(values.len(), 2, reason="new key inserted")
 
     it("field assignment: receiver, then value"):
         let mut log = Log { text: "" }
         let mut counter = Counter { count: 0 }
-        counter_of(log, counter).count = note(log, "v", 5)
+        counter_of(&mut log, &mut counter).count = note(&mut log, "v", 5)
         assert_equal(log.text, "rv", reason="receiver before value")
         assert_equal(counter.count, 5, reason="store reaches the aliased object")

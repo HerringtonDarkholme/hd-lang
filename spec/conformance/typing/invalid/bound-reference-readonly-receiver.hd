@@ -1,11 +1,11 @@
-# test: a bound reference to a mut self method needs a mutable receiver
+# test: a bound reference to a &mut self method needs a mutable receiver
 # Spec 07 Method References: fn.ref.bound.mut (Method References MR1).
 
-data Counter:
+struct Counter:
     value: i32
 
 impl Counter:
-    fn bump(mut self, by: i32) -> void:
+    fn bump(&mut self, by: i32) -> void:
         self.value = self.value + by
 
 fn frozen(counter: Counter) -> fn(i32) -> void:

@@ -6,7 +6,7 @@ trait Log
 type WithLog[$R] = $ R + Log
 
 fn map[T, U, $R](items: List[T], f: fn(T) -> U $ R) -> List[U] $ R:
-    let result: mut List[U] = []
+    let mut result: List[U] = []
     for item in items:
         result.push(f(item))
     result
@@ -17,7 +17,7 @@ fn run[$R = $()](job: fn() -> void $ R) -> void $ R:
 fn logged[$R](job: fn() -> void $ WithLog[$ R]) -> void $ WithLog[$ R]:
     job()
 
-data Runner: pass
+struct Runner: pass
 
 impl Runner:
     fn call[$R](self, job: fn() -> i32 $ R) -> i32 $ R:

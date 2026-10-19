@@ -18,7 +18,7 @@ tests:
     use std.testing.assert_equal
 
     @derive(Eq, Debug)
-    data OutboxMailer:
+    struct OutboxMailer:
         label: string
 
     impl Mailer for OutboxMailer:

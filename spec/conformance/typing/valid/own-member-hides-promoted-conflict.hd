@@ -1,19 +1,19 @@
 # test: a pub own member hides same-depth promoted members of its name, so they do not conflict
-data CreatedBySystem:
+struct CreatedBySystem:
     pub id: string
 
 impl CreatedBySystem:
     pub fn describe(self) -> string:
         "system"
 
-data CreatedByUser:
+struct CreatedByUser:
     pub id: string
 
 impl CreatedByUser:
     pub fn describe(self) -> string:
         "user"
 
-data AuditEntry:
+struct AuditEntry:
     CreatedBySystem
     CreatedByUser
     pub id: string

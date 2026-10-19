@@ -1,14 +1,14 @@
 # test: copy-update copies embedded parts, so the copy never shares a part with its original
 # Spec 08 Parts And Copies: data.part.copy-update.
-data Timestamps:
+struct Timestamps:
     created_at: i32
     pub updated_at: i32
 
 impl Timestamps:
-    pub fn touch(mut self, at: i32) -> void:
+    pub fn touch(&mut self, at: i32) -> void:
         self.updated_at = at
 
-data Post:
+struct Post:
     Timestamps
     id: string
     title: string
@@ -17,7 +17,7 @@ tests:
     use std.testing.assert_equal
 
     it("copy-update independence"):
-        let mut post = Post { Timestamps: ...Timestamps { created_at: 1, updated_at: 1 }, id: "p", title: "t" }
+        let mut post = Post { Timestamps: Timestamps { created_at: 1, updated_at: 1 }, id: "p", title: "t" }
         let mut copy = Post { ...post, id: "copy" }
         copy.touch(42)
         assert_equal(copy.updated_at, 42, reason="the copy's part changed")
@@ -26,7 +26,7 @@ tests:
         assert_equal(copy.updated_at, 42, reason="and the other way round")
 
     it("copy of a readonly original"):
-        original := Post { Timestamps: ...Timestamps { created_at: 1, updated_at: 1 }, id: "p", title: "t" }
+        original := Post { Timestamps: Timestamps { created_at: 1, updated_at: 1 }, id: "p", title: "t" }
         let mut copy = Post { ...original, id: "copy" }
         copy.touch(3)
         assert_equal(original.updated_at, 1, reason="the readonly original is untouched")

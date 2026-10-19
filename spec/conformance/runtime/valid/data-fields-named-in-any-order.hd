@@ -1,7 +1,7 @@
 # test: data fields named in any order
 # Spec 08 Data Literals: data.literal.any-order.
 
-data Point:
+struct Point:
     x: i32
     y: i32
 

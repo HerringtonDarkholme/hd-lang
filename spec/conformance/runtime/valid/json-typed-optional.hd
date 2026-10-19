@@ -4,7 +4,7 @@
 use std.json.{encode, decode, Json}
 use std.serde.{Serialize, Deserialize}
 @derive(Serialize, Deserialize)
-data Profile:
+struct Profile:
     name: string
     nickname: string?
     extra: Json

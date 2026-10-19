@@ -4,14 +4,14 @@
 # expr.pipe.value, expr.pipe.slot.one, expr.pipe.bare.form,
 # expr.pipe.single-line.inline, expr.pipe.placeholder-only,
 # and expr.pipe.no-partial.
-data Log:
+struct Log:
     text: string
 
-fn note(log: mut Log, label: string, value: i32) -> i32:
+fn note(log: &mut Log, label: string, value: i32) -> i32:
     log.text = log.text + label
     value
 
-fn pick(log: mut Log) -> fn(i32) -> i32:
+fn pick(log: &mut Log) -> fn(i32) -> i32:
     log.text = log.text + "f"
     fn(value: i32) -> i32: value + 1
 
@@ -22,13 +22,13 @@ tests:
     use std.testing.assert_equal
 
     it("the piped value comes before the callee"):
-        let mut log = Log { text: "" }
+        let mut log = &mut Log { text: "" }
         value := note(log, "v", 7) |> pick(log)(_)
         assert_equal(log.text, "vf", reason="value first")
         assert_equal(value, 8, reason="step result")
 
     it("the value is evaluated once"):
-        let mut log = Log { text: "" }
+        let mut log = &mut Log { text: "" }
         value := note(log, "v", 3) |> _ * 10
         assert_equal(log.text, "v", reason="evaluated once")
         assert_equal(value, 30, reason="substituted value")

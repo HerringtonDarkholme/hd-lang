@@ -30,9 +30,9 @@ impl[T] Shape for T by Structure:
         _ := T::describe(&mut d)
         d.out
 
-data Node:
+struct Node:
     label: string
-    parent: Node? = .None
+    parent: &Node? = .None
 
 impl Shape for Node by Structure:
     parent = pass

@@ -1,5 +1,5 @@
 # Spec 10 Exit Status: module.entry.termination.result.
-pub data Failure:
+pub struct Failure:
     text: string
 
 impl Display for Failure:

@@ -115,7 +115,7 @@ impl Deserializer for Feed:
             _ => .Ok(.None)
 
     fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, string]:
-        let names: mut List[string] = []
+        let mut names: List[string] = []
         for choice in choices:
             names.push(choice.name)
         self.add("variant:${names.join("|")}")
@@ -195,7 +195,7 @@ tests:
         match found._0:
             .Ok(gusts) =>
                 assert_equal(gusts.get("east"), .Some(9), reason="east")
-                let order: mut List[string] = []
+                let mut order: List[string] = []
                 for entry in gusts:
                     order.push(entry._0)
                 assert_equal(order, ["west", "east"], reason="order read")

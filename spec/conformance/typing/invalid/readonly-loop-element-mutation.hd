@@ -1,7 +1,7 @@
-# test: iterating mut List[User] yields readonly User elements; a mutable list root grants no element mutation
-data User:
+# test: iterating a List[User] yields readonly User elements; a mutable list root grants no element mutation
+struct User:
     name: string
 
-fn rename_all(users: mut List[User]) -> void:
+fn rename_all(users: &mut List[User]) -> void:
     for user in users:
         user.name = "Grace"  # diagnostic: readonly-root

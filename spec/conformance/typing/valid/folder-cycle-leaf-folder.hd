@@ -3,7 +3,7 @@
 # fixture-package-tree: facade-leaf/src/shop/mod.hd
 use pkg.error.{Error}
 
-pub data Cart:
+pub struct Cart:
     pub count: i32
 
 pub fn empty() -> Error:

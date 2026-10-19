@@ -1,6 +1,6 @@
 # test: a shorthand field counts as a field: value entry, so naming the field again is a duplicate
 # Spec 08 Field Shorthand: data.literal.shorthand.rules.
-data Coordinate:
+struct Coordinate:
     lat: i32
     lon: i32
 

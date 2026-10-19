@@ -5,7 +5,7 @@ let next: fn() -> i32 = fn() -> i32:
     count = count + 1
     count
 
-fn make_appender(items: mut List[i32]) -> fn(i32) -> void:
+fn make_appender(items: &mut List[i32]) -> fn(i32) -> void:
     fn(value: i32) -> void:
         items.push(value)
 

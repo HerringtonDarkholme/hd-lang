@@ -1,10 +1,10 @@
 # test: a block with no trait writes only metadata, so it cannot omit a member
 use std.structure.Structure
 
-data Token:
+struct Token:
     text: string = ""
 
-data Account:
+struct Account:
     id: i64
     token: Token = Token {}
 

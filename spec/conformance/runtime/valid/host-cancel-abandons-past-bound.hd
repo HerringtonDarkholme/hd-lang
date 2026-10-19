@@ -15,7 +15,7 @@ pub trait Gate:
 fn gate_wait!() -> void $ Gate:
     $.use(Gate).wait!()
 
-data Conn:
+struct Conn:
     closing: mut Suspend[void]
 
 impl Disposable for Conn:

@@ -9,7 +9,7 @@ fn read(text: string) -> Json:
 fn keys(value: Json) -> List[string]:
     match value:
         .Object(fields) =>
-            let names: mut List[string] = []
+            let mut names: List[string] = []
             for entry in fields:
                 names.push(entry._0)
             names

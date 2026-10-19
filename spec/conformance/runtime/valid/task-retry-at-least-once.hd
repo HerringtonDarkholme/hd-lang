@@ -2,18 +2,18 @@
 # Spec std/task Retry: std-task.combinator.retry.zero-once (owner decision RETRY-zero, batch 33, 2026-10-01;
 # times is a usize since spec pass 89).
 use std.task.retry
-data Server:
+struct Server:
     busy_for: i32
     calls: i32
 
-fn ask!(server: mut Server) -> Result[string, string]:
+fn ask!(server: &mut Server) -> Result[string, string]:
     server.calls = server.calls + 1
     if server.busy_for > 0:
         server.busy_for = server.busy_for - 1
         return .Err("busy ${server.calls}")
     .Ok("ready")
 
-fn connect!(server: mut Server, times: usize) -> Result[string, string]:
+fn connect!(server: &mut Server, times: usize) -> Result[string, string]:
     retry!(times):
         ask!(server)
 
@@ -21,11 +21,11 @@ tests:
     use std.testing.assert_equal
 
     it("zero tries makes one call"):
-        let mut server = Server { busy_for: 5, calls: 0 }
+        let mut server = &mut Server { busy_for: 5, calls: 0 }
         assert_equal(connect!(server, 0), .Err("busy 1"), reason="the one error is returned")
         assert_equal(server.calls, 1, reason="exactly one call")
 
     it("one try makes one call"):
-        let mut server = Server { busy_for: 0, calls: 0 }
+        let mut server = &mut Server { busy_for: 0, calls: 0 }
         assert_equal(connect!(server, 1), .Ok("ready"), reason="the one call succeeds")
         assert_equal(server.calls, 1, reason="exactly one call")

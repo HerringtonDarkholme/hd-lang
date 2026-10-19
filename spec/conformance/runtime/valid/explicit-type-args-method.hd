@@ -3,7 +3,7 @@
 trait Choose[T]:
     fn choose[U](self, run: fn(T) -> U) -> U
 
-data Item: pass
+struct Item: pass
 
 impl Choose[bool] for Item:
     fn choose[U](self, run: fn(bool) -> U) -> U: run(true)

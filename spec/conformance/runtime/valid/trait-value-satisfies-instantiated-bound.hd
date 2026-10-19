@@ -1,12 +1,12 @@
 # test: a trait value of a generic trait satisfies a bound that names the same instantiation, and calls dispatch through its table
 # Spec 09 Trait Values As Bounds: trait.dyn.bound, trait.dyn.bound.instantiation, trait.dyn.bound.dispatch.
-data User:
+struct User:
     name: string
 
 trait Repository[T]:
     fn count(self) -> i32
 
-data MemoryUsers:
+struct MemoryUsers:
     users: List[User]
 
 impl Repository[User] for MemoryUsers:

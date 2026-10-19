@@ -1,7 +1,7 @@
 # test: a list loop iterates the list as it was when it began, so an element replaced during the loop is not seen by a later visit
 # Spec 06 Snapshot Iteration: flow.for.snapshot.change.
-fn visit(items: mut List[i32]) -> List[i32]:
-    let seen: mut List[i32] = []
+fn visit(items: &mut List[i32]) -> List[i32]:
+    let mut seen: List[i32] = []
     for item in items:
         seen.push(item)
         if seen.len() == 1:
@@ -12,6 +12,6 @@ tests:
     use std.testing.assert_equal
 
     it("the second visit sees the element the loop began with"):
-        let items: mut List[i32] = [+1, +2]
-        assert_equal(visit(items), [+1, +2], reason="the loop visits the old element")
+        let mut items: List[i32] = [+1, +2]
+        assert_equal(visit(&mut items), [+1, +2], reason="the loop visits the old element")
         assert_equal(items[1], +9, reason="the replacement reached the list")

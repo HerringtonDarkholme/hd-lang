@@ -7,7 +7,7 @@
 # expect-stdout: done after 3
 # expect-stdout: 10
 fn map_all(items: List[i32], f: fn(i32) -> i32) -> List[i32]:
-    let out: mut List[i32] = []
+    let mut out: List[i32] = []
     for item in items: out.push(f(item))
     out
 

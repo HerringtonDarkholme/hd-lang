@@ -1,6 +1,6 @@
 # test: a parameter that the target places both covariantly and contravariantly is invariant
 # Spec 04 Variance On A Non-Bare Target: types.variance.target.both (VARIANCE-NONBARE).
-data Pair[+A, -B]:
+struct Pair[+A, -B]:
     value: A
     consume: fn(B) -> void
 

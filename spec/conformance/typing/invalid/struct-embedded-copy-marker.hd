@@ -1,0 +1,10 @@
+# Spec 08 Struct Declarations: data.struct.embed.no-marker.
+struct Timestamps:
+    created_at: i64
+
+struct Post:
+    Timestamps
+    id: string
+
+fn build(ts: Timestamps) -> Post:
+    Post { Timestamps: ...ts, id: "p" }  # diagnostic: copy-into-ordinary-field

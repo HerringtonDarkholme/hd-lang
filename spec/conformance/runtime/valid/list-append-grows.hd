@@ -1,7 +1,7 @@
 # test: list append grows
 
 fn main() -> i32:
-    let values: mut List[i32] = []
+    let mut values: List[i32] = []
     values.push(1)
     values.push(2)
     values.push(3)

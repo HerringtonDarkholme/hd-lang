@@ -1,6 +1,6 @@
 # test: mutable parameter field assignment
 
-data User:
+struct User:
     name: string
 fn rename(user: mut User) -> mut User:
     user.name = "Grace"

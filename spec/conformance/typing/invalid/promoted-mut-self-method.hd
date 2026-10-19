@@ -1,22 +1,22 @@
-# test: on a readonly receiver a promoted mut self method is found and rejected, never skipped for a deeper readonly method
-data Resetter:
+# test: on a readonly receiver a promoted &mut self method is found and rejected, never skipped for a deeper readonly method
+struct Resetter:
     count: i32
 
 impl Resetter:
     pub fn reset(self) -> i32:
         0
 
-data Wrapper:
+struct Wrapper:
     Resetter
 
-data Counter:
+struct Counter:
     value: i32
 
 impl Counter:
-    pub fn reset(mut self) -> void:
+    pub fn reset(&mut self) -> void:
         self.value = 0
 
-data Page:
+struct Page:
     Counter
     Wrapper
 

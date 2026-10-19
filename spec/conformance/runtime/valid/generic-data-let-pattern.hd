@@ -3,11 +3,11 @@
 # expect-stdout: nested
 # test: let data patterns bind the substituted field types of generic data
 # Spec 06 Control Flow: a generic field declared `field: P` binds as substituted `P`.
-data Pair[A, B]:
+struct Pair[A, B]:
     first: A
     second: B
 
-data Box[T]:
+struct Box[T]:
     item: T
 
 pub fn main() -> void $ Console:

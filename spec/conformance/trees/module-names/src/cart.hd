@@ -3,7 +3,7 @@ UNIT := +100
 pub trait Priced:
     fn price(self) -> i32
 
-pub data Cart:
+pub struct Cart:
     pub items: i32
 
 pub type Cents = i32

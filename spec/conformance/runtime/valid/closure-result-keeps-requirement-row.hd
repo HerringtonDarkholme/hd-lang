@@ -3,7 +3,7 @@
 trait Db:
     fn name(self) -> string
 
-data MemoryDb: pass
+struct MemoryDb: pass
 
 impl Db for MemoryDb:
     fn name(self) -> string: "db"

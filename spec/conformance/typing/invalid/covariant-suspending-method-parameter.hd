@@ -1,7 +1,7 @@
 # test: a suspending inherent method counts toward the declared variance
 # Spec 04 Variance: types.variance.surface, types.variance.covariant-check.
 
-data Feed[+T]:
+struct Feed[+T]:
     latest: T
 
 impl[T] Feed[T]:

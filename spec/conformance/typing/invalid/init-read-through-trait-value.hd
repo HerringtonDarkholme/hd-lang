@@ -1,5 +1,5 @@
 # Spec 10 Definite Initialization: module.init.definite.dispatch.
-data Box:
+struct Box:
     value: i32
 
 trait Reader:

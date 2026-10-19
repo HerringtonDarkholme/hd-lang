@@ -1,6 +1,6 @@
 use std.inspect.TypeId
 
-data User:
+struct User:
     name: string
 
 pub fn main() -> void $ Console:

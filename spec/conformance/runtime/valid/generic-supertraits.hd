@@ -10,7 +10,7 @@ trait Wrapped[Item] < Source[List[Item]]:
 trait Specialized[Item] < Source[List[Item]]:
     fn specialized(self) -> i32
 
-data Box[T]:
+struct Box[T]:
     item: T
 
 impl[T] Source[List[T]] for Box[T]:

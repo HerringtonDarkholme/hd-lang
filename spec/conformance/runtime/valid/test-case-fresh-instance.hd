@@ -1,7 +1,7 @@
 # test: each test case runs in a fresh program instance after module initialization, so no test sees another's changes
 # Spec 10 Test Outcomes: module.testing.instance, module.testing.no-reuse; Entry Behavior:
 # module.init.tests, module.init.test-cases; Program Instances: module.init.per-instance.
-let visits: mut List[string] = []
+let mut visits: List[string] = []
 visits.push("landing")
 
 fn visit(page: string) -> usize:

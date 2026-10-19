@@ -1,13 +1,13 @@
-data User:
+struct User:
     id: string
     name: string
     active: bool
 
-data Entry:
+struct Entry:
     name: string
     score: i32
 
-data Link:
+struct Link:
     id: string
     owner_id: string
 

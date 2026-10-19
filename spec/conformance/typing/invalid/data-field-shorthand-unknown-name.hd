@@ -1,7 +1,7 @@
 # test: a shorthand field with no binding of that name in scope is an unknown name
 # Spec 08 Field Shorthand: data.literal.shorthand.unknown.
 
-data Point:
+struct Point:
     x: i32
     y: i32
 

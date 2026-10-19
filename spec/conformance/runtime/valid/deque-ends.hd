@@ -2,7 +2,7 @@
 # Spec std/collections Deque: std-collections.deque.order, std-collections.deque.len, std-collections.deque.push, std-collections.deque.pop, std-collections.deque.ends, std-collections.deque.get, std-collections.deque.iter, std-collections.deque.eq (COLLECTIONS-DATES-SURFACE; task #225).
 use std.collections.Deque
 fn contents(queue: Deque[i32]) -> List[i32]:
-    let seen: mut List[i32] = []
+    let mut seen: List[i32] = []
     for item in queue:
         seen.push(item)
     seen

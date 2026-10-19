@@ -6,17 +6,17 @@
 # types.mut.permission, types.mut.no-field-reassign, types.mut.weaken,
 # types.bind.short, types.bind.let-mut, types.param.readonly,
 # types.param.mut, types.return.readonly.
-data User:
+struct User:
     name: string
 
-fn rename(user: mut User, name: string) -> void:
+fn rename(user: &mut User, name: string) -> void:
     user.name = name
 
 fn example() -> string:
-    let mut user = User { name: "Ada" }
+    let mut user = &mut User { name: "Ada" }
     readonly := user
     rename(user, "Grace")
-    short := User { name: "Lin" }
-    let names: mut List[string] = []
+    short := &mut User { name: "Lin" }
+    let mut names: List[string] = []
     names.push(short.name)
     readonly.name

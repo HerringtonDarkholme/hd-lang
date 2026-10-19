@@ -469,7 +469,7 @@ A compile-fail doc test shows a misuse that the compiler rejects:
 ## slug := make_slug("Ship It")
 ## _ := slug.text  # error: private-member
 ## ```
-pub data Slug:
+pub struct Slug:
     text: string
 
 pub fn make_slug(title: string) -> Slug:
@@ -792,7 +792,7 @@ fn helper() -> void:
 use std.cmp.Eq
 
 @derive(Eq)
-data Point:
+struct Point:
     x: i32
 
 fn same(a: Point, b: Point) -> bool:
@@ -923,7 +923,7 @@ fn demo(x: i32) -> i32:
 | r[module.dbg.value.reference] Reference | a `&T` or `&mut T` whose `T` does not implement `Debug` | the value it refers to, by these same rules, with no trace of the reference |
 
 ```text
-data Account:
+struct Account:
     owner: string
     balance: i32  # private, and dbg shows it
 
@@ -1036,20 +1036,23 @@ fn report() -> void $ Console:
 A recording provider receives each line that `println` writes:
 
 ```text
-data MemoryConsole:
-    lines: mut List[string]
+struct MemoryConsole:
+    lines: List[string]
 
 impl Console for MemoryConsole:
-    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
+    fn write_line!(&mut self, text: string) -> Result[void, ConsoleError]:
         self.lines.push(text)
         .Ok(())
+
+    fn write_error_line!(&mut self, text: string) -> Result[void, ConsoleError]:
+        self.write_line!(text)
 
 fn greet(name: string) -> void $ Console:
     println("hello, ${name}")
 
 pub fn main() -> void $ Console:
     let mut console = MemoryConsole { lines: [] }
-    $.with(Console=console):
+    $.with(Console=&mut console):
         greet("Ada")
     println("recorded: ${console.lines[0]}")  # recorded: hello, Ada
 ```
@@ -1289,7 +1292,7 @@ fn assert_equal[T < Eq & Debug](actual: T, expected: T, reason: string) -> void
 
 ```text
 @derive(Debug)
-data Error:
+struct Error:
     message: string
 
 tests:
@@ -1507,7 +1510,7 @@ tests:
 trait Clock:
     fn now(self) -> i32
 
-data FixedClock:
+struct FixedClock:
     time: i32
 
 impl Clock for FixedClock:
@@ -1825,7 +1828,7 @@ declaration available to other modules:
 ```text
 pub type UserId(string)
 
-pub data User:
+pub struct User:
     pub id: UserId
     pub email: string
 ```
@@ -1879,7 +1882,7 @@ use pkg.shop.a.{Token}  # error: re-export-loop
 5. r[module.vis.impl-target] A usable implementation additionally requires its target type to be visible.
 
 ```hd
-data User:
+struct User:
     pub name: string
     id: i32
 ```
@@ -1891,7 +1894,7 @@ data User:
 3. r[module.vis.body] A private implementation detail may occur in a public function body but not in its public typed interface.
 
 ```text
-data Secret:
+struct Secret:
     value: string
 
 pub fn reveal() -> Secret:  # error: private-type-leak
@@ -2024,7 +2027,7 @@ See also: [Mutable Providers](11-requirements-and-suspension.md#mutable-provider
 7. r[module.entry.panic] A panic exits with a distinct nonzero status selected by the runtime profile and poisons the program instance.
 
 ```text
-pub data HiddenError: pass
+pub struct HiddenError: pass
 
 pub fn main() -> Result[void, HiddenError]:  # error: unsatisfied-trait-bound
     .Err(HiddenError {})
@@ -2071,7 +2074,7 @@ pub fn main() -> Result[ExitCode, string]:
 ```text
 use std.error.Error
 
-pub data Help:
+pub struct Help:
     text: string
 
 impl Display for Help:
@@ -2218,11 +2221,11 @@ Registered boundaries initially allow recursively structural values:
 5. r[module.boundary.domain-error] A registered function returns a boundary-safe error type, such as a domain error enum, and code converts an erased error to such a type explicitly.
 
 ```hd
-data User:
+struct User:
     name: string
 
 fn demo(user: User) -> string:
-    user.name   # data crosses: recursively structural values are boundary-safe
+    user.name   # a struct crosses: recursively structural values are boundary-safe
 ```
 
 > **Note.** An error type with a member of type `Error` is therefore not
@@ -2244,11 +2247,11 @@ See also: [Error Trait](09-traits.md#error-trait).
 use std.hash.Hash
 
 @derive(Eq, Hash)
-data Tag:
+struct Tag:
     id: i32
 
 fn demo() -> void:
-    let table: mut Map[Tag, string] = {}
+    let mut table: Map[Tag, string] = {}
     table[Tag { id: +1 }] = "one"   # decoding a map invokes Eq and Hash
 ```
 5. r[module.boundary.decoder-panic] If either panics, the adapter reports a boundary failure and does not enter the registered function. Boundary failure: `boundary-decoder-panic`.
@@ -2279,11 +2282,11 @@ type's `Serialize` and `Deserialize` implementations
 use std.serde.{Serialize, Deserialize}
 
 @derive(Serialize, Deserialize)
-pub data Token:
+pub struct Token:
     pub owner: string
     secret: i64
 
-pub data Badge:
+pub struct Badge:
     pub owner: string
     code: i64
 
@@ -2380,8 +2383,8 @@ enum Choice:
     Yes
     No
 
-fn demo(choice: Choice) -> bool:
-    choice is Choice.Yes   # variants share the enum's visibility
+fn demo() -> Choice:
+    Choice.Yes   # variants share the enum's visibility
 ```
 
 See also: [Command Line](../cli/command-line.md), which defines package tooling: package

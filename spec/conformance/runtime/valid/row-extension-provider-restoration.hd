@@ -14,7 +14,7 @@ fn run() -> i32 $ Clock + Backup:
 
 trait Clock
 
-data FixedClock: pass
+struct FixedClock: pass
 
 impl Clock for FixedClock
 
@@ -23,7 +23,7 @@ trait Logger
 trait Backup < Logger:
     fn label(self) -> i32
 
-data FixedBackup: pass
+struct FixedBackup: pass
 
 impl Logger for FixedBackup
 

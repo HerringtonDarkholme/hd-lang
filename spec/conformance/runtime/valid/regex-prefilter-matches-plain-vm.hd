@@ -37,7 +37,7 @@ enum Inst:
     Save(slot: usize)
     Done
 
-fn compile(node: Node, program: mut List[Inst]) -> void:
+fn compile(node: Node, program: &mut List[Inst]) -> void:
     match node:
         .Empty => pass
         .Literal(value) => program.push(Inst.Char(value))
@@ -53,7 +53,7 @@ fn compile(node: Node, program: mut List[Inst]) -> void:
             for item in items:
                 compile(item, program)
         .Alternate(branches) =>
-            let jumps: mut List[usize] = []
+            let mut jumps: List[usize] = []
             let index: usize = 0
             while index < branches.len():
                 if index + 1 < branches.len():
@@ -89,7 +89,7 @@ fn compile(node: Node, program: mut List[Inst]) -> void:
                     while copies < min:
                         compile(*body, program)
                         copies = copies + 1
-                    let splits: mut List[usize] = []
+                    let mut splits: List[usize] = []
                     while copies < high:
                         splits.push(program.len())
                         program.push(Inst.Split(0, 0))
@@ -101,27 +101,27 @@ fn compile(node: Node, program: mut List[Inst]) -> void:
 fn choice(body: usize, out: usize, greedy: bool) -> Inst:
     if greedy: Inst.Split(body, out) else: Inst.Split(out, body)
 
-data Haystack:
+struct Haystack:
     text: string
-    chars: List[char]
-    offsets: List[usize]
+    chars: &List[char]
+    offsets: &List[usize]
 
-fn haystack(text: string) -> Haystack:
-    let chars: mut List[char] = []
-    let offsets: mut List[usize] = []
+fn haystack(text: string) -> &Haystack:
+    let mut chars: List[char] = []
+    let mut offsets: List[usize] = []
     for (offset, c) in text.char_indices():
         chars.push(c)
         offsets.push(offset)
     offsets.push(text.len())
-    Haystack { text: text, chars: chars, offsets: offsets }
+    &mut Haystack { text: text, chars: &chars, offsets: &offsets }
 
 fn matched(slots: List[usize?], index: usize) -> usize:
     match slots[index]:
         .Some(value) => value
         .None => panic("missing whole-match slot")
 
-fn all_slots(program: List[Inst], hay: Haystack, slot_count: usize) -> List[List[usize?]]:
-    let found: mut List[List[usize?]] = []
+fn all_slots(program: List[Inst], hay: &Haystack, slot_count: usize) -> List[List[usize?]]:
+    let mut found: List[List[usize?]] = []
     let from: usize = 0
     let last_end: usize? = .None
     while from <= hay.chars.len():
@@ -146,33 +146,33 @@ fn all_slots(program: List[Inst], hay: Haystack, slot_count: usize) -> List[List
                 last_end = .Some(end)
     found
 
-data Frame:
+struct Frame:
     pc: usize
     slot: usize?
     value: usize?
 
-fn run(program: List[Inst], hay: Haystack, from: usize, slot_count: usize) -> List[usize?]?:
+fn run(program: List[Inst], hay: &Haystack, from: usize, slot_count: usize) -> List[usize?]?:
     count := hay.chars.len()
     size := program.len()
-    let marks: mut List[usize?] = []
+    let mut marks: List[usize?] = []
     for _ in program:
         marks.push(.None)
-    let table: mut List[usize?] = []
+    let mut table: List[usize?] = []
     let filled: usize = 0
     while filled < 2 * size * slot_count:
         table.push(.None)
         filled = filled + 1
-    let scratch: mut List[usize?] = []
+    let mut scratch: List[usize?] = []
     while scratch.len() < slot_count:
         scratch.push(.None)
-    let stack: mut List[Frame] = []
-    let current: mut List[usize] = []
+    let mut stack: List[&Frame] = []
+    let current: &mut List[usize] = &mut []
     scratch[0] = .Some(from)
-    add_thread(program, marks, stack, from, current, table, half(from, size, slot_count), scratch, slot_count, 0, from, count)
-    let found: mut List[usize?] = []
+    add_thread(program, &mut marks, &mut stack, from, current, &mut table, half(from, size, slot_count), &mut scratch, slot_count, 0, from, count)
+    let mut found: List[usize?] = []
     let index = from
     while true:
-        let next: mut List[usize] = []
+        let mut next: List[usize] = []
         let next_index = index
         if index < count:
             next_index = index + 1
@@ -193,7 +193,7 @@ fn run(program: List[Inst], hay: Haystack, from: usize, slot_count: usize) -> Li
                 while slot < slot_count:
                     scratch[slot] = table[here + pc * slot_count + slot]
                     slot = slot + 1
-                add_thread(program, marks, stack, next_index, next, table, there, scratch, slot_count, pc + 1, next_index, count)
+                add_thread(program, &mut marks, &mut stack, next_index, &mut next, &mut table, there, &mut scratch, slot_count, pc + 1, next_index, count)
         if index >= count:
             break
         index = next_index
@@ -203,11 +203,11 @@ fn run(program: List[Inst], hay: Haystack, from: usize, slot_count: usize) -> Li
                 scratch[slot] = .None
                 slot = slot + 1
             scratch[0] = .Some(index)
-            add_thread(program, marks, stack, index, next, table, there, scratch, slot_count, 0, index, count)
+            add_thread(program, &mut marks, &mut stack, index, &mut next, &mut table, there, &mut scratch, slot_count, 0, index, count)
         else:
             if next.len() == 0:
                 break
-        current = next
+        current = &mut next
     if found.len() == 0:
         return .None
     .Some(found)
@@ -227,9 +227,9 @@ fn inst_accepts(inst: Inst, c: char) -> bool:
         .Class(items, negated) => class_matches(items, negated, c)
         _ => false
 
-fn add_thread(program: List[Inst], marks: mut List[usize?], stack: mut List[Frame], generation: usize, list: mut List[usize], table: mut List[usize?], base: usize, scratch: mut List[usize?], slot_count: usize, pc: usize, at: usize, count: usize) -> void:
+fn add_thread(program: List[Inst], marks: &mut List[usize?], stack: &mut List[&Frame], generation: usize, list: &mut List[usize], table: &mut List[usize?], base: usize, scratch: &mut List[usize?], slot_count: usize, pc: usize, at: usize, count: usize) -> void:
     let top: usize = 0
-    top = push_frame(stack, top, Frame { pc: pc, slot: .None, value: .None })
+    top = push_frame(stack, top, &mut Frame { pc: pc, slot: .None, value: .None })
     while top > 0:
         top = top - 1
         frame := stack[top]
@@ -247,21 +247,21 @@ fn add_thread(program: List[Inst], marks: mut List[usize?], stack: mut List[Fram
             continue
         marks[here] = .Some(generation)
         match program[here]:
-            .Jump(target) => top = push_frame(stack, top, Frame { pc: target, slot: .None, value: .None })
+            .Jump(target) => top = push_frame(stack, top, &mut Frame { pc: target, slot: .None, value: .None })
             .Split(first, second) =>
-                top = push_frame(stack, top, Frame { pc: second, slot: .None, value: .None })
-                top = push_frame(stack, top, Frame { pc: first, slot: .None, value: .None })
+                top = push_frame(stack, top, &mut Frame { pc: second, slot: .None, value: .None })
+                top = push_frame(stack, top, &mut Frame { pc: first, slot: .None, value: .None })
             .Save(slot) =>
                 if slot < slot_count:
-                    top = push_frame(stack, top, Frame { pc: 0, slot: .Some(slot), value: scratch[slot] })
+                    top = push_frame(stack, top, &mut Frame { pc: 0, slot: .Some(slot), value: scratch[slot] })
                     scratch[slot] = .Some(at)
-                top = push_frame(stack, top, Frame { pc: here + 1, slot: .None, value: .None })
+                top = push_frame(stack, top, &mut Frame { pc: here + 1, slot: .None, value: .None })
             .Begin =>
                 if at == 0:
-                    top = push_frame(stack, top, Frame { pc: here + 1, slot: .None, value: .None })
+                    top = push_frame(stack, top, &mut Frame { pc: here + 1, slot: .None, value: .None })
             .End =>
                 if at == count:
-                    top = push_frame(stack, top, Frame { pc: here + 1, slot: .None, value: .None })
+                    top = push_frame(stack, top, &mut Frame { pc: here + 1, slot: .None, value: .None })
             _ =>
                 list.push(here)
                 let slot: usize = 0
@@ -269,7 +269,7 @@ fn add_thread(program: List[Inst], marks: mut List[usize?], stack: mut List[Fram
                     table[base + here * slot_count + slot] = scratch[slot]
                     slot = slot + 1
 
-fn push_frame(stack: mut List[Frame], top: usize, frame: Frame) -> usize:
+fn push_frame(stack: &mut List[&Frame], top: usize, frame: &Frame) -> usize:
     if top < stack.len():
         stack[top] = frame
     else:
@@ -299,7 +299,7 @@ fn word_char(c: char) -> bool:
 # texts are made of a few short pieces, so the literals occur often and
 # most places where one occurs do not start a match.
 
-data Built:
+struct Built:
     node: Node
     text: string
 
@@ -311,33 +311,33 @@ fn literal_text(c: char) -> string:
         return "\\n"
     "$c"
 
-fn gen_alternation(c: &mut Choices, depth: usize, names: mut List[string]) -> Built:
+fn gen_alternation(c: &mut Choices, depth: usize, names: &mut List[string]) -> &Built:
     count := if depth >= 2: 1 else: c.int(1..=3)
-    let branches: mut List[Node] = []
-    let texts: mut List[string] = []
+    let mut branches: List[Node] = []
+    let mut texts: List[string] = []
     while branches.len() < count:
         branch := gen_concat(c, depth, names)
         branches.push(branch.node)
         texts.push(branch.text)
     if count == 1:
-        return Built { node: branches[0], text: texts[0] }
-    Built { node: Node.Alternate(branches), text: texts.join("|") }
+        return &mut Built { node: branches[0], text: texts[0] }
+    &mut Built { node: Node.Alternate(branches), text: texts.join("|") }
 
-fn gen_concat(c: &mut Choices, depth: usize, names: mut List[string]) -> Built:
+fn gen_concat(c: &mut Choices, depth: usize, names: &mut List[string]) -> &Built:
     count := c.int(0..=(if depth >= 2: 2 else: 4))
-    let items: mut List[Node] = []
+    let mut items: List[Node] = []
     let text = ""
     while items.len() < count:
         item := gen_repeat(c, depth, names)
         items.push(item.node)
         text = text + item.text
     if count == 0:
-        return Built { node: Node.Empty, text: "" }
+        return &mut Built { node: Node.Empty, text: "" }
     if count == 1:
-        return Built { node: items[0], text: text }
-    Built { node: Node.Concat(items), text: text }
+        return &mut Built { node: items[0], text: text }
+    &mut Built { node: Node.Concat(items), text: text }
 
-fn gen_repeat(c: &mut Choices, depth: usize, names: mut List[string]) -> Built:
+fn gen_repeat(c: &mut Choices, depth: usize, names: &mut List[string]) -> &Built:
     atom := gen_atom(c, depth, names)
     kind := c.int(0..=11)
     if kind < 6:
@@ -347,46 +347,46 @@ fn gen_repeat(c: &mut Choices, depth: usize, names: mut List[string]) -> Built:
     # A literal run is wrapped so the quantifier repeats all of it.
     text := "(?:" + atom.text + ")"
     if kind == 6:
-        return Built { node: Node.Repeat(&atom.node, 0, .None, greedy), text: text + "*" + lazy }
+        return &mut Built { node: Node.Repeat(&atom.node, 0, .None, greedy), text: text + "*" + lazy }
     if kind == 7:
-        return Built { node: Node.Repeat(&atom.node, 1, .None, greedy), text: text + "+" + lazy }
+        return &mut Built { node: Node.Repeat(&atom.node, 1, .None, greedy), text: text + "+" + lazy }
     if kind == 8:
-        return Built { node: Node.Repeat(&atom.node, 0, .Some(1), greedy), text: text + "?" + lazy }
+        return &mut Built { node: Node.Repeat(&atom.node, 0, .Some(1), greedy), text: text + "?" + lazy }
     low := c.int(0..=3)
     if kind == 9:
-        return Built { node: Node.Repeat(&atom.node, low, .Some(low), greedy), text: text + "{$low}" + lazy }
+        return &mut Built { node: Node.Repeat(&atom.node, low, .Some(low), greedy), text: text + "{$low}" + lazy }
     if kind == 10:
-        return Built { node: Node.Repeat(&atom.node, low, .None, greedy), text: text + "{$low,}" + lazy }
+        return &mut Built { node: Node.Repeat(&atom.node, low, .None, greedy), text: text + "{$low,}" + lazy }
     high := low + c.int(0..=2)
-    Built { node: Node.Repeat(&atom.node, low, .Some(high), greedy), text: text + "{$low,$high}" + lazy }
+    &mut Built { node: Node.Repeat(&atom.node, low, .Some(high), greedy), text: text + "{$low,$high}" + lazy }
 
-fn gen_atom(c: &mut Choices, depth: usize, names: mut List[string]) -> Built:
+fn gen_atom(c: &mut Choices, depth: usize, names: &mut List[string]) -> &Built:
     kind := c.int(0..=(if depth >= 2: 8 else: 11))
     if kind <= 4:
         count := c.int(1..=4)
-        let items: mut List[Node] = []
+        let mut items: List[Node] = []
         let text = ""
         while items.len() < count:
             value := c.choose(literal_chars())
             items.push(Node.Literal(value))
             text = text + literal_text(value)
         if count == 1:
-            return Built { node: items[0], text: text }
-        return Built { node: Node.Concat(items), text: text }
+            return &mut Built { node: items[0], text: text }
+        return &mut Built { node: Node.Concat(items), text: text }
     if kind == 5:
-        return Built { node: Node.AnyChar, text: "." }
+        return &mut Built { node: Node.AnyChar, text: "." }
     if kind == 6:
         return gen_class(c)
     if kind == 7:
         if c.bool():
-            return Built { node: Node.Begin, text: "^" }
-        return Built { node: Node.End, text: "\$" }
+            return &mut Built { node: Node.Begin, text: "^" }
+        return &mut Built { node: Node.End, text: "\$" }
     if kind == 8:
         item := gen_perl(c)
-        return Built { node: Node.Class([item._0], false), text: item._1 }
+        return &mut Built { node: Node.Class([item._0], false), text: item._1 }
     if kind == 9:
         inner := gen_alternation(c, depth + 1, names)
-        return Built { node: inner.node, text: "(?:" + inner.text + ")" }
+        return &mut Built { node: inner.node, text: "(?:" + inner.text + ")" }
     index := names.len()
     let open = "("
     if kind == 10:
@@ -396,7 +396,7 @@ fn gen_atom(c: &mut Choices, depth: usize, names: mut List[string]) -> Built:
         names.push(name)
         open = "(?P<$name>"
     inner := gen_alternation(c, depth + 1, names)
-    Built { node: Node.Group(&inner.node, index), text: open + inner.text + ")" }
+    &mut Built { node: Node.Group(&inner.node, index), text: open + inner.text + ")" }
 
 fn gen_perl(c: &mut Choices) -> (ClassItem, string):
     match c.int(0..=3):
@@ -405,10 +405,10 @@ fn gen_perl(c: &mut Choices) -> (ClassItem, string):
         2 => (ClassItem.Word(true), "\\W")
         _ => (ClassItem.Space(false), "\\s")
 
-fn gen_class(c: &mut Choices) -> Built:
+fn gen_class(c: &mut Choices) -> &Built:
     negated := c.bool()
     count := c.int(1..=2)
-    let items: mut List[ClassItem] = []
+    let mut items: List[ClassItem] = []
     let text = if negated: "[^" else: "["
     while items.len() < count:
         range := c.choose([('a', 'b'), ('b', 'b'), ('a', 'é'), ('é', '😀'), ('-', '-'), ('😀', '😀'), ('\n', '\n'), ('€', '€'), ('é', '€')])
@@ -417,7 +417,7 @@ fn gen_class(c: &mut Choices) -> Built:
         text = text + low
         if range._0 != range._1:
             text = text + "-${range._1}"
-    Built { node: Node.Class(items, negated), text: text + "]" }
+    &mut Built { node: Node.Class(items, negated), text: text + "]" }
 
 fn text_pieces() -> List[string]:
     ["a", "b", "ab", "ba", "aab", "é", "€", "😀", "é😀", "-", "\n", "x", " ", "1"]
@@ -436,7 +436,7 @@ fn gen_piece(c: &mut Choices, groups: usize) -> Piece:
         _ => Piece.Index(c.int(0..=groups + 1))
 
 fn template_text(pieces: List[Piece]) -> string:
-    let parts: mut List[string] = []
+    let mut parts: List[string] = []
     for piece in pieces:
         parts.push(piece_text(piece))
     parts.join("")
@@ -449,49 +449,49 @@ fn piece_text(piece: Piece) -> string:
         .Name(value) => "\${$value}"
 
 @derive(Debug)
-data Case:
+struct Case:
     pattern: string
     text: string
     template: string
     expected: string
 
-fn case_gen(c: &mut Choices) -> Case:
-    let names: mut List[string] = [""]
-    built := gen_alternation(c, 0, names)
+fn case_gen(c: &mut Choices) -> &Case:
+    let mut names: List[string] = [""]
+    built := gen_alternation(c, 0, &mut names)
     text := c.list(16, fn(inner: &mut Choices) -> string: inner.choose(text_pieces())).join("")
     pieces := c.list(3, fn(inner: &mut Choices) -> Piece: gen_piece(inner, names.len()))
-    Case { pattern: built.text, text: text, template: template_text(pieces), expected: old_summary(built.node, names, text, pieces) }
+    &mut Case { pattern: built.text, text: text, template: template_text(pieces), expected: old_summary(built.node, names, text, pieces) }
 
 # A long text of `count` pieces from a seeded generator, so its length does
 # not spend the draw limit.
 fn long_text(seed: u64, count: usize) -> string:
     pieces := text_pieces()
     let state = seed % 2147483646 + 1
-    let parts: mut List[string] = []
+    let mut parts: List[string] = []
     while parts.len() < count:
         state = state * 48271 % 2147483647
         parts.push(pieces[usize((state >> 8) % u64(pieces.len()))])
     parts.join("")
 
-fn long_case_gen(c: &mut Choices) -> Case:
-    let names: mut List[string] = [""]
-    built := gen_alternation(c, 0, names)
+fn long_case_gen(c: &mut Choices) -> &Case:
+    let mut names: List[string] = [""]
+    built := gen_alternation(c, 0, &mut names)
     text := long_text(c.int(u64(0)..=u64(1000000000)), c.int(100..=400))
     pieces := c.list(2, fn(inner: &mut Choices) -> Piece: gen_piece(inner, names.len()))
-    Case { pattern: built.text, text: text, template: template_text(pieces), expected: old_summary(built.node, names, text, pieces) }
+    &mut Case { pattern: built.text, text: text, template: template_text(pieces), expected: old_summary(built.node, names, text, pieces) }
 
 # What the old engine reports for one pattern and text, one line for each
 # method. Each search runs with every slot; the slots do not change which
 # thread wins.
 fn old_summary(node: Node, names: List[string], text: string, pieces: List[Piece]) -> string:
-    let program: mut List[Inst] = []
-    compile(node, program)
+    let mut program: List[Inst] = []
+    compile(node, &mut program)
     program.push(Inst.Done)
     hay := haystack(text)
     slot_count := 2 * names.len()
     first := run(program, hay, 0, slot_count)
     all := all_slots(program, hay, slot_count)
-    let lines: mut List[string] = []
+    let mut lines: List[string] = []
     lines.push("is_match ${first.is_some()}")
     match first:
         .Some(slots) =>
@@ -504,10 +504,10 @@ fn old_summary(node: Node, names: List[string], text: string, pieces: List[Piece
             lines.push("find none")
             lines.push("captures none")
             lines.push("replace " + debug(text))
-    let spans: mut List[string] = []
-    let groups: mut List[string] = []
-    let replaced: mut List[string] = []
-    let split: mut List[string] = []
+    let mut spans: List[string] = []
+    let mut groups: List[string] = []
+    let mut replaced: List[string] = []
+    let mut split: List[string] = []
     let last: usize = 0
     for slots in all:
         spans.push(old_span(hay, slots, 0))
@@ -525,7 +525,7 @@ fn old_summary(node: Node, names: List[string], text: string, pieces: List[Piece
     lines.push("split " + debug(split))
     lines.join("\n")
 
-fn old_group(hay: Haystack, slots: List[usize?], group: usize) -> (usize, usize)?:
+fn old_group(hay: &Haystack, slots: List[usize?], group: usize) -> (usize, usize)?:
     if 2 * group + 1 >= slots.len():
         return .None
     match slots[2 * group]:
@@ -535,31 +535,31 @@ fn old_group(hay: Haystack, slots: List[usize?], group: usize) -> (usize, usize)
                 .None => .None
                 .Some(end) => .Some((hay.offsets[start], hay.offsets[end]))
 
-fn old_span(hay: Haystack, slots: List[usize?], group: usize) -> string:
+fn old_span(hay: &Haystack, slots: List[usize?], group: usize) -> string:
     match old_group(hay, slots, group):
         .Some(span) => span_text(hay.text, span._0, span._1)
         .None => "_"
 
-fn old_groups(hay: Haystack, slots: List[usize?]) -> string:
-    let shown: mut List[string] = []
+fn old_groups(hay: &Haystack, slots: List[usize?]) -> string:
+    let mut shown: List[string] = []
     let group: usize = 0
     while 2 * group < slots.len():
         shown.push(old_span(hay, slots, group))
         group = group + 1
     shown.join(",")
 
-fn old_text(hay: Haystack, slots: List[usize?], group: usize) -> string:
+fn old_text(hay: &Haystack, slots: List[usize?], group: usize) -> string:
     match old_group(hay, slots, group):
         .Some(span) => hay.text.slice(span._0, span._1)
         .None => ""
 
-fn old_expand(hay: Haystack, slots: List[usize?], names: List[string], pieces: List[Piece]) -> string:
-    let parts: mut List[string] = []
+fn old_expand(hay: &Haystack, slots: List[usize?], names: List[string], pieces: List[Piece]) -> string:
+    let mut parts: List[string] = []
     for piece in pieces:
         parts.push(old_piece(hay, slots, names, piece))
     parts.join("")
 
-fn old_piece(hay: Haystack, slots: List[usize?], names: List[string], piece: Piece) -> string:
+fn old_piece(hay: &Haystack, slots: List[usize?], names: List[string], piece: Piece) -> string:
     match piece:
         .Literal(literal) => literal
         .Dollar => "\$"
@@ -576,10 +576,10 @@ fn span_text(text: string, start: usize, end: usize) -> string:
     "$start-$end=" + debug(text.slice(start, end))
 
 # The same lines from the std engine.
-fn new_summary(case: Case) -> string:
+fn new_summary(case: &Case) -> string:
     regex := Regex::new(case.pattern).expect("the generated pattern compiles")
     text := case.text
-    let lines: mut List[string] = []
+    let mut lines: List[string] = []
     lines.push("is_match ${regex.is_match(text)}")
     match regex.find(text):
         .Some(found) => lines.push("find " + new_span(found))
@@ -588,10 +588,10 @@ fn new_summary(case: Case) -> string:
         .Some(groups) => lines.push("captures " + new_groups(groups))
         .None => lines.push("captures none")
     lines.push("replace " + debug(regex.replace(text, case.template)))
-    let spans: mut List[string] = []
+    let mut spans: List[string] = []
     for found in regex.find_all(text):
         spans.push(new_span(found))
-    let groups: mut List[string] = []
+    let mut groups: List[string] = []
     for each in regex.captures_all(text):
         groups.push(new_groups(each))
     lines.push("find_all " + spans.join(" "))
@@ -604,7 +604,7 @@ fn new_span(found: Match) -> string:
     "${found.start}-${found.end}=" + debug(found.text)
 
 fn new_groups(groups: Captures) -> string:
-    let shown: mut List[string] = []
+    let mut shown: List[string] = []
     let group: usize = 0
     while group < groups.len():
         match groups.get(group):
@@ -614,12 +614,12 @@ fn new_groups(groups: Captures) -> string:
     shown.join(",")
 
 # A case from a pattern's tree, for the hand-picked shapes below.
-fn fixed(node: Node, pattern: string, names: List[string], text: string) -> Case:
+fn fixed(node: Node, pattern: string, names: List[string], text: string) -> &Case:
     pieces := [Piece.Literal("<"), Piece.Index(1), Piece.Literal(">")]
-    Case { pattern: pattern, text: text, template: "<\${1}>", expected: old_summary(node, names, text, pieces) }
+    &mut Case { pattern: pattern, text: text, template: "<\${1}>", expected: old_summary(node, names, text, pieces) }
 
 fn lit(text: string) -> Node:
-    let items: mut List[Node] = []
+    let mut items: List[Node] = []
     for c in text.chars():
         items.push(Node.Literal(c))
     if items.len() == 1:
@@ -708,10 +708,10 @@ tests:
         for case in cases:
             assert_equal(new_summary(case), case.expected, reason=case.pattern)
 
-    it_prop_with("random literal patterns on short texts agree with the plain VM", gen=case_gen, cases=400, prop=fn!(case: Case):
+    it_prop_with("random literal patterns on short texts agree with the plain VM", gen=case_gen, cases=400, prop=fn!(case: &Case):
         assert_equal(new_summary(case), case.expected, reason=case.pattern)
     )
 
-    it_prop_with("random literal patterns on long texts agree with the plain VM", gen=long_case_gen, cases=40, prop=fn!(case: Case):
+    it_prop_with("random literal patterns on long texts agree with the plain VM", gen=long_case_gen, cases=40, prop=fn!(case: &Case):
         assert_equal(new_summary(case), case.expected, reason=case.pattern)
     )

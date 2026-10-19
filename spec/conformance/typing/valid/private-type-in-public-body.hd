@@ -1,9 +1,9 @@
 # test: a private type may appear in a public function's body, and in a private field of a public type
 # Spec 10 Public Signatures: module.vis.body.
-data Address:
+struct Address:
     city: string
 
-pub data Customer:
+pub struct Customer:
     pub name: string
     address: Address
 

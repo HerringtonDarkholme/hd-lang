@@ -6,7 +6,7 @@ type Count(usize)
 trait Marker[T]:
     fn mark(self) -> T
 
-data Wrapper[T]:
+struct Wrapper[T]:
     value: T
 
 impl Marker[usize] for Wrapper[usize]:

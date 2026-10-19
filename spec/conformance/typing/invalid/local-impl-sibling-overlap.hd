@@ -1,7 +1,7 @@
 # test: two local implementations of one pair in sibling suites overlap, though neither is visible to the other
 # Spec 09 Local Implementations: trait.impl.local.checks; local implementations obey the module-level overlap check.
 fn invoice_label(number: string, draft: bool) -> string:
-    data Invoice:
+    struct Invoice:
         number: string
 
     trait Labeled:

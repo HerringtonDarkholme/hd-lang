@@ -1,4 +1,4 @@
-data Consumer[-T]:
+struct Consumer[-T]:
     consume: fn(T) -> void
 
 fn narrow(value: Consumer[dyn Display]) -> Consumer[i32]:

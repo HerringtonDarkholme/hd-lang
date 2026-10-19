@@ -3,14 +3,14 @@
 trait Source[T]:
     fn take(self) -> T
 
-data Label:
+struct Label:
     text: string
 
 impl Source[string] for Label:
     fn take(self) -> string:
         self.text
 
-data Note:
+struct Note:
     text: string
 
 impl Source[string] for Note:

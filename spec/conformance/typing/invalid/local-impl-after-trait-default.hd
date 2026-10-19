@@ -1,10 +1,10 @@
 # test: a local trait default method written before a local trait implementation cannot call its method
 # Spec 09 Local Implementations: trait.impl.local.lookup; a default method body is looked up where the trait is written.
 fn render_page() -> string:
-    data Heading:
+    struct Heading:
         text: string
 
-    data Page: pass
+    struct Page: pass
 
     trait Render:
         fn render(self) -> string

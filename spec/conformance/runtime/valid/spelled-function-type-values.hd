@@ -4,7 +4,7 @@ use std.function.Fn
 trait Scale:
     fn factor(self) -> i32
 
-data Triple:
+struct Triple:
     value: i32
 
 impl Scale for Triple:

@@ -2,7 +2,7 @@
 # Spec 09 Any: "`Any` is the universal empty trait. Every value type, including an optional
 # type, implements it automatically." runtime/valid/optional-erased-to-any.hd covers optionals.
 # Spec 09 Traits: trait.any.universal, trait.any.all.
-data User:
+struct User:
     name: string
 
 enum Status:

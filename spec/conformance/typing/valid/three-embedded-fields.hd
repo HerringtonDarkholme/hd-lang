@@ -1,15 +1,15 @@
 # test: a data type may declare three embedded fields
 # Spec 08 Embedding Limits: data.embed.width.
-data Created:
+struct Created:
     created_at: i32
 
-data Updated:
+struct Updated:
     updated_at: i32
 
-data Owned:
+struct Owned:
     pub owner: string
 
-data Post:
+struct Post:
     Created
     Updated
     Owned

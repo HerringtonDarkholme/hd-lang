@@ -1,7 +1,7 @@
 # test: substitution and bare pipe steps type-check
 # Spec 05 Pipe Expressions: expr.pipe.form, expr.pipe.slot.any, expr.pipe.slot.meaning, expr.pipe.bare.call (Pipe PL7, Chaining Study CS2).
 
-data Point:
+struct Point:
     x: usize
     y: usize
 

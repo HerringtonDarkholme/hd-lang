@@ -4,12 +4,12 @@
 use std.json.{encode, decode, to_json, JsonError}
 use std.serde.{Serialize, Deserialize}
 @derive(Serialize, Deserialize)
-data Address:
+struct Address:
     city: string
     zip: string?
 
 @derive(Serialize, Deserialize)
-data User:
+struct User:
     name: string
     age: u8
     admin: bool
@@ -18,7 +18,7 @@ data User:
     address: Address
 
 @derive(Serialize, Deserialize)
-data Team:
+struct Team:
     title: string
     members: List[User]
     lead: User?

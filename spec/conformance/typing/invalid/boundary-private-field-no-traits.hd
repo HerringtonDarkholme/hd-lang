@@ -4,7 +4,7 @@
 use std.serde.Deserialize
 
 @derive(Deserialize)
-pub data Token:
+pub struct Token:
     pub owner: string
     secret: i64
 

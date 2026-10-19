@@ -6,8 +6,8 @@ use std.ops.Disposable
 use std.task.{all, block_on}
 use std.time.{Clock, s, sleep}
 
-data Channel:
-    log: mut List[string]
+struct Channel:
+    log: &mut List[string]
     ack: mut Suspend[void]
 
 impl Disposable for Channel:
@@ -18,12 +18,12 @@ impl Disposable for Channel:
         wait!()                  # ack was abandoned: the dispose is cut short here
         self.log.push("acked")
 
-fn work!(log: mut List[string]) -> string $ Clock:
+fn work!(log: &mut List[string]) -> string $ Clock:
     defer: log.push("work defer")
     sleep!(s(60))
     "late"
 
-fn stop!(job: mut Suspend[string], log: mut List[string]) -> string:
+fn stop!(job: mut Suspend[string], log: &mut List[string]) -> string:
     match job.cancel!():
         .Finished => log.push("stop finished")
         .Abandoned => log.push("stop abandoned")
@@ -31,13 +31,13 @@ fn stop!(job: mut Suspend[string], log: mut List[string]) -> string:
 
 # `job` turns out cancelled when `all!` polls it again, so `all!` and
 # `both` are cancelled, and the dispose of `channel` cannot finish.
-fn both!(job: mut Suspend[string], ack: mut Suspend[void], log: mut List[string]) -> string $ Clock:
+fn both!(job: mut Suspend[string], ack: mut Suspend[void], log: &mut List[string]) -> string $ Clock:
     defer: log.push("both defer")
-    using channel = Channel { log: log, ack: ack }
+    using channel = &mut Channel { log: log, ack: ack }
     let (worked, stopped) = all!(job, stop(job, log))
     "${worked} ${stopped}"
 
-fn drive(log: mut List[string]) -> string $ Clock:
+fn drive(log: &mut List[string]) -> string $ Clock:
     let ack: mut Suspend[void] = sleep(s(60))
     ack.abandon()
     let job: mut Suspend[string] = work(log)
@@ -47,6 +47,6 @@ fn drive(log: mut List[string]) -> string $ Clock:
         .Abandoned => "abandoned"
 
 pub fn main() -> void $ Console + Clock:
-    let log: mut List[string] = []
-    println(drive(log))
+    let mut log: List[string] = []
+    println(drive(&mut log))
     println(log.join(", "))

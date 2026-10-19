@@ -4,13 +4,13 @@
 trait Describe:
     fn describe(self) -> i32
 
-data Label:
+struct Label:
     value: i32
 
 impl Label:
     fn describe(self) -> i32: self.value
 
-data Page:
+struct Page:
     Label
 
 impl Describe for Page:
@@ -19,7 +19,7 @@ impl Describe for Page:
 fn show(value: dyn Describe) -> i32: value.describe()
 
 fn main() -> i32:
-    page := Page { Label: ...Label { value: 21 } }
+    page := Page { Label: Label { value: 21 } }
     Describe::describe(page) + show(page)
 
 tests:

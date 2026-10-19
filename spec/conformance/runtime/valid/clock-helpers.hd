@@ -3,8 +3,8 @@
 # std-time.instant.api-milliseconds, and std-time.time.eq-ord (batch 64, STD-2 and STD-3).
 use std.time.{Clock, Duration, Instant, Timestamp, ms, now, s, sleep}
 
-data StepClock:
-    millis: mut List[i64]
+struct StepClock:
+    millis: &mut List[i64]
 
 impl Clock for StepClock:
     fn now(self) -> Timestamp:
@@ -24,8 +24,8 @@ tests:
     use std.testing.{assert, assert_equal}
 
     it("now and sleep! go through the covering provider"):
-        let mut clock = StepClock { millis: [1000] }
-        $.with(Clock=&mut clock):
+        let mut clock = &mut StepClock { millis: &mut [1000] }
+        $.with(Clock=clock):
             stamp := wait_and_stamp!(2s)
             assert_equal(stamp.since(Timestamp::from_unix_milliseconds(1000)).as_milliseconds(), 2000, reason="slept two seconds")
 

@@ -1,6 +1,6 @@
 # test: parser distinguishes inherent and trait implementation blocks
 
-data User:
+struct User:
     value: i32
 trait Read:
     fn read(self) -> i32

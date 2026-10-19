@@ -5,7 +5,7 @@ use std.inspect.Inspectable
 trait Storage < Inspectable:
     fn get(self, key: string) -> string?
 
-data MemoryStorage: pass
+struct MemoryStorage: pass
 
 impl Storage for MemoryStorage:
     fn get(self, key: string) -> string?:

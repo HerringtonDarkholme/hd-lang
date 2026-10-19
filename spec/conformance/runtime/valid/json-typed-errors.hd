@@ -4,7 +4,7 @@
 use std.json.{decode, JsonError}
 use std.serde.{Serialize, Deserialize}
 @derive(Serialize, Deserialize)
-data User:
+struct User:
     name: string
     age: u8
 
@@ -14,7 +14,7 @@ enum Role:
     Member(since: i32)
 
 @derive(Serialize, Deserialize)
-data Roster:
+struct Roster:
     users: List[User]
     roles: Map[string, Role]
 

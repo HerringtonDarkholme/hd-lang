@@ -5,13 +5,13 @@ trait Store:
     type Item
     fn load(self, id: string) -> Self::Item
 
-data User:
+struct User:
     name: string
 
-data Post:
+struct Post:
     title: string
 
-data PostStore: pass
+struct PostStore: pass
 
 impl Store for PostStore:
     type Item = Post

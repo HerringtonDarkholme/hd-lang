@@ -2,13 +2,13 @@
 # Spec 14 Derivation Blocks With No Trait: annot.no-trait.generic (M28).
 use std.structure.Structure
 
-data Tag:
+struct Tag:
     text: string
 
 fn tag(text: string) -> Tag:
     Tag { text: text }
 
-data Pair[K, V]:
+struct Pair[K, V]:
     key: K
     value: V
 

@@ -1,6 +1,6 @@
 # test: a typed field value fixes the other literal fields of a generic data literal before it is destructured
 # Spec 04 Open Literal Width: types.literal.local.form.element.
-data Pair[T]:
+struct Pair[T]:
     first: T
     second: T
 

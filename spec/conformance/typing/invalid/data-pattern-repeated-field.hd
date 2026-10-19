@@ -1,6 +1,6 @@
 # test: data patterns reject duplicate fields
 
-data User:
+struct User:
     age: i32
     active: bool
 

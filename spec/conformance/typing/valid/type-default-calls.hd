@@ -4,21 +4,21 @@
 trait Blank:
     fn blank() -> Self
 
-data Tally:
+struct Tally:
     count: i32
 
 impl Blank for Tally:
     fn blank() -> Tally:
         Tally { count: 0 }
 
-data Ledger:
+struct Ledger:
     total: i64
 
 impl Blank for Ledger:
     fn blank() -> Ledger:
         Ledger { total: 0 }
 
-data AppError:
+struct AppError:
     message: string
 
 type Outcome[T, E = AppError] = Result[T, E]
@@ -35,7 +35,7 @@ fn widen[T = i64](value: T) -> T:
 fn pair[Left, Right](left: Left, right: Right) -> (Left, Right):
     (left, right)
 
-data Identity:
+struct Identity:
     name: string
 
 impl Identity:

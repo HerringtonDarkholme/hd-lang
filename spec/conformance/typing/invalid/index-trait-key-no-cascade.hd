@@ -2,7 +2,7 @@
 # expr.index.trait.no-read.
 use std.ops.Index
 
-data Table:
+struct Table:
     value: i32
 
 impl Index[usize] for Table:

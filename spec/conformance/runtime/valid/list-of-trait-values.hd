@@ -4,7 +4,7 @@
 trait Value:
     fn get(self) -> i32
 
-data Number:
+struct Number:
     value: i32
 
 impl Value for Number:

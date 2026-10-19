@@ -7,7 +7,7 @@ trait Holder[T]:
 trait Summary:
     fn summary(self) -> string
 
-data Feed[I]:
+struct Feed[I]:
     items: I
 
 impl[T < Display, I < Holder[T]] Summary for Feed[I]:  # diagnostic: unconstrained-impl-parameter

@@ -3,7 +3,7 @@
 trait Source[T]:
     fn take(self) -> T
 
-data Number:
+struct Number:
     value: i32
 
 impl Source[i32] for Number:

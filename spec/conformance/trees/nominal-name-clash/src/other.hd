@@ -1,2 +1,2 @@
-pub data Shape:
+pub struct Shape:
     pub a: i32

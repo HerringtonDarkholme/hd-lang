@@ -12,7 +12,7 @@ struct Body:
     pos: Vec2
     vel: Vec2
 
-data Counter:
+struct Counter:
     hits: i32
 
 let mut origin = Vec2 { x: +0, y: +0 }
@@ -23,7 +23,7 @@ pub fn main() -> void $ Console:
     r := &mut b
     inner := &mut r.pos
     println("${&r.pos.y is &b.pos.y} ${&inner.y is &b.pos.y}")
-    let c: mut Counter = Counter { hits: +0 }
-    let d: mut Counter = Counter { hits: +0 }
+    let c: &mut Counter = &mut Counter { hits: +0 }
+    let d: &mut Counter = &mut Counter { hits: +0 }
     println("${&mut c.hits is &c.hits} ${&c.hits is &d.hits}")
     println("${&origin is &mut origin} ${&origin.x is &origin.y}")

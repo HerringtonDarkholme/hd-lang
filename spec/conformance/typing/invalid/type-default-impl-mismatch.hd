@@ -4,7 +4,7 @@
 trait Blank:
     fn blank() -> Self
 
-data Tally:
+struct Tally:
     count: i32
 
 impl Blank for Tally:
@@ -14,7 +14,7 @@ impl Blank for Tally:
 trait Source:
     fn drain[C < Blank = Tally](self) -> C
 
-data Numbers: pass
+struct Numbers: pass
 
 impl Source for Numbers:
     fn drain[C < Blank](self) -> C:  # diagnostic: trait-method-signature

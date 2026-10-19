@@ -6,7 +6,7 @@
 trait Named:
     fn name(self) -> string
 
-data User:
+struct User:
     name: fn() -> string
 
 impl Named for User:

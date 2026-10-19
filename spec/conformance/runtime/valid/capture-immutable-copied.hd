@@ -50,7 +50,7 @@ tests:
         assert_equal(point.x, 50, reason="the caller's value changed")
 
     it("a value parameter that is a list element is copied"):
-        let points: mut List[Point] = [Point { x: 1, y: 1 }]
+        let mut points: List[Point] = [Point { x: 1, y: 1 }]
         read := reader_of(points[0])
         points[0].x = 77
         assert_equal(read(), 1, reason="the closure holds the element as passed")
@@ -71,7 +71,7 @@ tests:
             .None => pass
 
     it("a closure over a := list is unaffected by pushes to the list it was copied from"):
-        let items: mut List[i32] = [1]
+        let mut items: List[i32] = [1]
         kept := items
         count := fn() -> usize: kept.len()
         items.push(2)

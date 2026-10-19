@@ -4,7 +4,7 @@
 trait Tag:
     fn name(self) -> string
 
-data FixedTag:
+struct FixedTag:
     value: string
 
 impl Tag for FixedTag:
@@ -13,7 +13,7 @@ impl Tag for FixedTag:
 trait Log:
     fn prefix(self) -> string
 
-data QuietLog: pass
+struct QuietLog: pass
 
 impl Log for QuietLog:
     fn prefix(self) -> string: ""

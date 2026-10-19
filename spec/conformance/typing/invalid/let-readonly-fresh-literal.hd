@@ -1,5 +1,5 @@
 # test: a plain let of a fresh literal is readonly, so mutation through it is rejected
-data User:
+struct User:
     name: string
 
 fn invalid() -> void:

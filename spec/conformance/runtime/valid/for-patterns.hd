@@ -1,6 +1,6 @@
 # test: a for pattern destructures each yielded value as a let pattern would, over lists, maps, and iterators
 # Spec 06 For Loops: flow.for.pattern (owner decision LP-for, batch 30, 2026-09-30).
-data Point:
+struct Point:
     x: i32
     y: i32
 

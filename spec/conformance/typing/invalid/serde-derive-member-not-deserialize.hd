@@ -2,10 +2,10 @@
 # Spec Annotations, Serialization: annot.serde.members, annot.serde.members.error.
 use std.serde.Deserialize
 
-data Signature:
+struct Signature:
     digest: string
 
 @derive(Deserialize)  # diagnostic: member-not-derivable
-data Release:
+struct Release:
     version: string
     signature: Signature

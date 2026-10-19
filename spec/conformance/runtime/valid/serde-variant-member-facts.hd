@@ -3,13 +3,13 @@
 # Spec 14 Structure: annot.structure.per-derivation.
 use std.serde.{Serialize, Serializer}
 use std.structure.{Structure, Facts, VariantInfo, Member}
-data Topic:
+struct Topic:
     name: string
 
 fn topic(name: string) -> Topic:
     Topic { name: name }
 
-data Rename:
+struct Rename:
     name: string
 
 fn rename(name: string) -> Rename:
@@ -85,7 +85,7 @@ fn send[T < Serialize](value: T) -> string:
 
 @derive(Serialize)
 @topic("billing")
-data Invoiced:
+struct Invoiced:
     @rename("invoice_id")
     id: u64
     total_cents: i64
@@ -96,7 +96,7 @@ enum Shipment:
     Packed
     Sent(carrier: string, tracking: string)
 
-data Refund:
+struct Refund:
     id: u64
     amount_cents: i64
 

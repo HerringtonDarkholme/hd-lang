@@ -1,4 +1,4 @@
-data Identity:
+struct Identity:
     name: string
 
 impl Identity:
@@ -12,7 +12,7 @@ inferred := identity.pair::[_, i32]("left", 1)
 fn convert[From, To](value: From) -> To:
     panic("fixture does not convert")
 
-data Parser: pass
+struct Parser: pass
 
 impl Parser:
     fn parse[T](self, text: string) -> T:
@@ -22,7 +22,7 @@ parser := Parser {}
 parsed := parser.parse::[Identity]("identity")
 converted := convert::[_, Identity](identity)
 
-data User:
+struct User:
     email: string
 
 impl User:

@@ -2,7 +2,7 @@
 # Spec 09 Traits: trait.sealed.structure, trait.sealed.user-impl.
 use std.structure.Structure
 
-data Point:
+struct Point:
     x: i64
 
 impl Structure for Point  # diagnostic: sealed-trait-implementation

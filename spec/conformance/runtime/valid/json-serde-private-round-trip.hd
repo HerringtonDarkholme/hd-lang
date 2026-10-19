@@ -4,7 +4,7 @@
 use std.json.{encode, decode, to_json, from_json, Json, JsonError}
 use std.serde.{Serialize, Deserialize}
 @derive(Serialize, Deserialize)
-data Session:
+struct Session:
     pub user: string
     token: string
     expires_at: i64

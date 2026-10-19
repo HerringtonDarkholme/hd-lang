@@ -3,14 +3,14 @@
 trait Describe:
     fn describe(self) -> string
 
-data Logger:
+struct Logger:
     name: string
 
 impl Logger:
     fn describe(self) -> string:
         self.name
 
-data Service:
+struct Service:
     Logger
 
 impl Describe for Service by Logger  # diagnostic: invalid-delegation

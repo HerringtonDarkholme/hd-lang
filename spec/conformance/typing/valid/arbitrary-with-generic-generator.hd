@@ -8,7 +8,7 @@ fn any_value[T < Arbitrary](c: &mut Choices) -> T:
     c.draw()
 
 @derive(Arbitrary, Debug)
-data Item:
+struct Item:
     @arbitrary.with(any_value)
     name: string
     price: i32

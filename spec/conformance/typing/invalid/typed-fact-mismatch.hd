@@ -4,13 +4,13 @@
 use std.annotation.annotate
 
 @annotate::[T](.Field)
-data Fact[T]:
+struct Fact[T]:
     value: T
 
 fn fact[T](value: T) -> Fact[T]:
     Fact::[T] { value: value }
 
-data Account:
+struct Account:
     @fact(5)
     a: i32
     @fact("x")  # diagnostic: type-mismatch

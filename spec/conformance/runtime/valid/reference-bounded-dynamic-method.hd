@@ -6,7 +6,7 @@
 # types.any.erase, types.any.one-way, types.sealed.decl,
 # types.sealed.markers, types.sealed.anyref-members,
 # types.sealed.type-parameter, types.sealed.bounds.
-data User:
+struct User:
     name: string
 
 impl Display for User:
@@ -19,7 +19,7 @@ trait Visitor:
 trait Labeler:
     fn label[T < AnyRef & Display](self, value: T) -> string
 
-data Tagger:
+struct Tagger:
     tag: string
 
 impl Visitor for Tagger:
@@ -30,10 +30,10 @@ impl Labeler for Tagger:
     fn label[T < AnyRef & Display](self, value: T) -> string:
         self.tag + value.to_string()
 
-fn through_visitor(visitor: dyn Visitor, user: User) -> string:
+fn through_visitor(visitor: dyn Visitor, user: &User) -> string:
     visitor.visit(user)
 
-fn through_labeler(labeler: dyn Labeler, user: User) -> string:
+fn through_labeler(labeler: dyn Labeler, user: &User) -> string:
     labeler.label(user)
 
 tests:
@@ -42,9 +42,9 @@ tests:
     it("an AnyRef-bounded method generic is callable through a trait value"):
         tagger := Tagger { tag: "tag:" }
         user := User { name: "Ada" }
-        assert_equal(through_visitor(tagger, user), "tag:", reason="the Visitor value dispatches to the Tagger method")
+        assert_equal(through_visitor(tagger, &user), "tag:", reason="the Visitor value dispatches to the Tagger method")
 
     it("further bounds on an AnyRef-bounded method generic are supplied per call"):
         tagger := Tagger { tag: "tag:" }
         user := User { name: "Ada" }
-        assert_equal(through_labeler(tagger, user), "tag:Ada", reason="the Display bound reaches the dynamic call")
+        assert_equal(through_labeler(tagger, &user), "tag:Ada", reason="the Display bound reaches the dynamic call")

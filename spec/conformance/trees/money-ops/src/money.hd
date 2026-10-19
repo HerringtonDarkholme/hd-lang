@@ -1,6 +1,6 @@
 use std.ops.Add
 
-pub data Money:
+pub struct Money:
     pub cents: i64
 
 impl Add[Money] for Money:

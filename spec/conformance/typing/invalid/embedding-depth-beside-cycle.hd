@@ -1,13 +1,13 @@
 # test: a type that reaches an embedding cycle without being part of it gets no embedding-cycle; its depth counts along chains that never repeat a type
 # Spec 08 Embedding Limits: data.embed.depth, data.embed.depth.self.
-data Site:
+struct Site:
     Page
 
-data Page:
+struct Page:
     Block
 
-data Block:
+struct Block:
     Inner  # diagnostic: embedding-cycle
 
-data Inner:
+struct Inner:
     Block

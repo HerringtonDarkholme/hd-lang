@@ -8,7 +8,7 @@ trait Tagged:
 
 trait Labeled < Named & Tagged
 
-data Box[T]:
+struct Box[T]:
     value: T
 
 impl[T < Named & Tagged] Named for Box[T]:

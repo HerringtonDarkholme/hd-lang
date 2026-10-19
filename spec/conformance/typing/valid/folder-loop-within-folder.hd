@@ -4,7 +4,7 @@
 # fixture-package-tree: folder-loop/src/shop/cart.hd
 use pkg.shop.{Item}
 
-pub data Cart:
+pub struct Cart:
     pub items: List[Item]
 
 pub fn total(cart: Cart) -> i32:

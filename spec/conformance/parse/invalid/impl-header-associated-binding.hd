@@ -3,11 +3,11 @@
 # Spec 09 Binding Positions: trait.binding.rejected-trait-type.
 trait Feed:
     type Item
-    fn next(mut self) -> Self::Item?
+    fn next(&mut self) -> Self::Item?
 
-data Ticker:
+struct Ticker:
     count: i32
 
 impl Feed[Item = i32] for Ticker:  # diagnostic: syntax-error
-    fn next(mut self) -> i32?:
+    fn next(&mut self) -> i32?:
         .None

@@ -6,7 +6,7 @@ trait Label:
 trait Title:
     fn name(self) -> string
 
-data Book:
+struct Book:
     pages: i32
 
 impl Label for Book:

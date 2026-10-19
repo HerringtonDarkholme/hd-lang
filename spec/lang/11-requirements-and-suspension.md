@@ -132,7 +132,7 @@ fn log(message: string) -> void $ Logger:
 trait Job:
     fn run(self) -> void
 
-data Nightly: pass
+struct Nightly: pass
 
 impl Job for Nightly:
     fn run(self) -> void:
@@ -353,7 +353,7 @@ A row parameter is marked with `$` where it is declared:
 
 ```text
 fn map[T, U, $R](items: List[T], f: fn(T) -> U $ R) -> List[U] $ R:
-    let result: mut List[U] = []
+    let mut result: List[U] = []
     for item in items:
         result.push(f(item))
     result
@@ -381,7 +381,7 @@ fn keep[$R](value: R) -> void:  # error: generic-kind-mismatch
 ```
 
 ```text
-data Job[R]:
+struct Job[R]:
     run: fn() -> void $ R  # error: generic-kind-mismatch
 
 type Task[R](fn() -> void $ R)  # error: generic-kind-mismatch
@@ -612,10 +612,10 @@ trait Store:
     type Item
     fn load(self, id: string) -> Self::Item
 
-data User:
+struct User:
     name: string
 
-data Post:
+struct Post:
     title: string
 
 fn find(id: string) -> User $ Store[Item = User]:
@@ -735,7 +735,7 @@ fn demo!() -> Result[User?, DbError] $ Cache:
 trait Tag:
     fn name(self) -> string
 
-data Named:
+struct Named:
     label: string
 
 impl Tag for Named:
@@ -775,7 +775,7 @@ the callee's `$.with` supplies it:
 trait Clock:
     fn now(self) -> i32
 
-data Fixed:
+struct Fixed:
     hour: i32
 
 impl Clock for Fixed:
@@ -830,7 +830,7 @@ combine a declared `Repo[T]` with a lexical `Repo[User]`, because `T` can be
 ```text
 trait Repo[T]
 
-data User: pass
+struct User: pass
 
 fn choose[T, U](first: dyn Repo[T], second: dyn Repo[U]) -> void:
     $.with(Repo[T]=first):
@@ -847,7 +847,7 @@ Inside a closure, only the closure's own row and blocks count:
 ```text
 trait Repo[T]
 
-data User: pass
+struct User: pass
 
 fn outer[T](generic: dyn Repo[T], local: dyn Repo[User]) -> void:
     $.with(Repo[T]=generic):
@@ -914,7 +914,7 @@ gives the productions `context_use`, `context_create`, `context_type`,
 trait Logger:
     fn log(self, text: string) -> void
 
-data Quiet:
+struct Quiet:
     silent: bool
 
 impl Logger for Quiet:
@@ -934,16 +934,16 @@ state:
 ```text
 trait Counter:
     fn count(self) -> i32
-    fn bump(mut self) -> void
+    fn bump(&mut self) -> void
 
-data MemoryCounter:
+struct MemoryCounter:
     value: i32
 
 impl Counter for MemoryCounter:
     fn count(self) -> i32:
         self.value
 
-    fn bump(mut self) -> void:
+    fn bump(&mut self) -> void:
         self.value = self.value + 1
 
 fn tick() -> i32 $ Counter:
@@ -952,7 +952,7 @@ fn tick() -> i32 $ Counter:
 
 fn demo() -> i32:
     let mut counter = MemoryCounter { value: 0 }
-    $.with(Counter=counter):
+    $.with(Counter=&mut counter):
         _ := tick()
         tick()   # 2
 ```
@@ -963,7 +963,7 @@ fn demo() -> i32:
 
 ```text
 trait Counter:
-    fn bump(mut self) -> void
+    fn bump(&mut self) -> void
 
 fn tick() -> void $ mut Counter:  # error: syntax-error
     $.use(Counter).bump()
@@ -994,7 +994,7 @@ fn tick() -> void $ mut Counter:  # error: syntax-error
 ```text
 pub fn main() -> void:
     counter := MemoryCounter { value: 0 }
-    $.with(Counter=counter):  # error: mutable-upgrade
+    $.with(Counter=&counter):  # error: mutable-upgrade
         _ := $.use(Counter).count()
 ```
 
@@ -1027,7 +1027,7 @@ fn tick() -> void $ Counter:
 
 ```hd
 trait Counter:
-    fn bump(mut self) -> void
+    fn bump(&mut self) -> void
 
 fn demo() -> void $ Counter:
     $.use(Counter).bump()
@@ -1319,7 +1319,7 @@ for the entry's cleanup, as `cancel!()` does, under a bound of its own:
 use std.ops.Disposable
 use std.time.{Clock, ms, s, sleep}
 
-data Conn:
+struct Conn:
     closing: mut Suspend[void]
 
 impl Disposable for Conn:
@@ -1328,7 +1328,7 @@ impl Disposable for Conn:
         wait!()   # the host waits here, up to its cleanup bound
 
 pub fn main!() -> void $ Clock:
-    using conn = Conn { closing: sleep(ms(50)) }
+    using conn = &mut Conn { closing: sleep(ms(50)) }
     sleep!(s(60))   # a cancel by the host stops the entry here
 ```
 
@@ -1410,7 +1410,7 @@ Standard-library suspension implementations access the waker of a
 `PollContext` through this sealed surface:
 
 ```text
-data PollContext: pass
+struct PollContext: pass
 
 impl PollContext:
     fn waker(self) -> dyn Waker
@@ -1574,8 +1574,8 @@ use std.ops.Disposable
 use std.task.{all, race}
 use std.time.{Clock, ms, s, sleep}
 
-data Conn:
-    log: mut List[string]
+struct Conn:
+    log: &mut List[string]
     closing: mut Suspend[void]
 
 impl Disposable for Conn:
@@ -1585,15 +1585,15 @@ impl Disposable for Conn:
         wait!()
         self.log.push("closed")
 
-fn session!(log: mut List[string]) -> string $ Clock:
-    using conn = Conn { log: log, closing: sleep(ms(2)) }
+fn session!(log: &mut List[string]) -> string $ Clock:
+    using conn = &mut Conn { log: log, closing: sleep(ms(2)) }
     sleep!(s(60))
     "late"
 
 fn ready!() -> string:
     "won"
 
-fn stopper!(job: mut Suspend[string], log: mut List[string]) -> string:
+fn stopper!(job: mut Suspend[string], log: &mut List[string]) -> string:
     end := job.cancel!()   # returns once the dispose! of conn has finished
     match end:
         .Finished => log.push("stopper finished")
@@ -1601,9 +1601,9 @@ fn stopper!(job: mut Suspend[string], log: mut List[string]) -> string:
     "stopped"
 
 pub fn main!() -> void $ Console + Clock:
-    let log: mut List[string] = []
-    let job: mut Suspend[string] = session(log)
-    let (winner, stopped) = all!(race(job, ready()), stopper(job, log))
+    let mut log: List[string] = []
+    let job: mut Suspend[string] = session(&mut log)
+    let (winner, stopped) = all!(race(job, ready()), stopper(job, &mut log))
     println("${winner} ${stopped}")   # won stopped
     println(log.join(", "))           # closing, closed, stopper finished
 ```
@@ -1661,8 +1661,8 @@ use std.ops.Disposable
 use std.task.race
 use std.time.{Clock, ms, s, sleep}
 
-data Release:
-    log: mut List[string]
+struct Release:
+    log: &mut List[string]
     closing: mut Suspend[void]
 
 impl Disposable for Release:
@@ -1673,7 +1673,7 @@ impl Disposable for Release:
         wait!()                        # abandon() stops the dispose here
         self.log.push("dispose end")
 
-fn ordered!(res: mut Release, log: mut List[string]) -> string $ Clock:
+fn ordered!(res: &mut Release, log: &mut List[string]) -> string $ Clock:
     defer: log.push("outer")
     using r = res
     defer: log.push("tail")
@@ -1685,8 +1685,8 @@ fn stop!(job: mut Suspend[string]) -> string:
     "stopped"
 
 pub fn main!() -> void $ Console + Clock:
-    let log: mut List[string] = []
-    let job: mut Suspend[string] = ordered(Release { log: log, closing: sleep(ms(5)) }, log)
+    let mut log: List[string] = []
+    let job: mut Suspend[string] = ordered(&mut Release { log: &mut log, closing: sleep(ms(5)) }, &mut log)
     println(race!(job, stop(job)))   # stopped
     println(log.join(", "))          # tail, dispose start, dispose defer, outer
 ```
@@ -1756,12 +1756,12 @@ use std.ops.Disposable
 use std.task.{all, race}
 use std.time.{Clock, ms, s, sleep}
 
-data Server:
+struct Server:
     accepting: bool
-    log: mut List[string]
+    log: &mut List[string]
 
-data Connections:
-    server: mut Server
+struct Connections:
+    server: &mut Server
     clock: &mut dyn Clock
 
 impl Disposable for Connections:
@@ -1772,17 +1772,17 @@ impl Disposable for Connections:
             tick!()
         self.server.log.push("connections drained")
 
-fn connections!(server: mut Server) -> void $ Clock:
-    using open = Connections { server: server, clock: $.use(Clock) }
+fn connections!(server: &mut Server) -> void $ Clock:
+    using open = &mut Connections { server: server, clock: $.use(Clock) }
     sleep!(s(60))
 
-fn acceptor!(server: mut Server) -> void $ Clock:
+fn acceptor!(server: &mut Server) -> void $ Clock:
     defer:
         server.accepting = false
         server.log.push("acceptor stops accepting")
     sleep!(s(60))
 
-fn serve!(server: mut Server) -> string $ Clock:
+fn serve!(server: &mut Server) -> string $ Clock:
     defer: server.log.push("serve defer")
     _ := all!(connections(server), acceptor(server))
     "served"
@@ -1792,7 +1792,7 @@ fn shutdown!() -> string $ Clock:
     "shutdown"
 
 pub fn main!() -> void $ Console + Clock:
-    let server: mut Server = Server { accepting: true, log: [] }
+    let server: &mut Server = &mut Server { accepting: true, log: &mut [] }
     println(race!(serve(server), shutdown()))
     println(server.log.join(", "))
 ```
@@ -1823,7 +1823,7 @@ as one tuple:
 ```text
 use std.task.all
 
-data User:
+struct User:
     name: string
 
 fn load_user!(id: i64) -> User:
@@ -1907,7 +1907,7 @@ trait Logger:
 
 trait Clock
 
-data SilentLogger: pass
+struct SilentLogger: pass
 
 impl Logger for SilentLogger:
     fn write(self, message: string) -> void: pass

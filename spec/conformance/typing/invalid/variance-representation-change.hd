@@ -1,4 +1,4 @@
-data Producer[+T]:
+struct Producer[+T]:
     value: T
 
 fn widen(value: Producer[i32]) -> Producer[dyn Display]:

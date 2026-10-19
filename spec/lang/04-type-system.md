@@ -357,7 +357,7 @@ The expression forms in which literals meet typed parts:
 ```text
 use std.ops.Add
 
-data Money:
+struct Money:
     cents: i64
 
 impl Add[i32] for Money:
@@ -417,7 +417,7 @@ A suffixed literal has the type that its suffix function returns:
 ```text
 use std.ops.num_suffix
 
-data Millis:
+struct Millis:
     count: i64
 
 @num_suffix
@@ -497,10 +497,10 @@ See also: [Optional Types](#optional-types).
 Each `data` and `enum` declaration introduces a distinct nominal type:
 
 ```text
-data UserId:
+struct UserId:
     value: string
 
-data PostId:
+struct PostId:
     value: string
 ```
 
@@ -737,16 +737,16 @@ fn demo(items: List[i32]) -> i32?:
 7. r[types.option.variance.mutable] As with every generic composite, a mutable outer view is invariant.
 
 ```text
-data User:
+struct User:
     name: string
 
-fn view(user: (mut User)?) -> User?:
+fn view(user: (&mut User)?) -> (&User)?:
     user  # error: type-mismatch
 
-fn settle(result: Result[mut User, string]) -> Result[User, string]:
+fn settle(result: Result[&mut User, string]) -> Result[&User, string]:
     result  # error: type-mismatch
 
-data Maybe[+T]:
+struct Maybe[+T]:
     value: T?  # error: invalid-variance
 ```
 
@@ -1622,13 +1622,13 @@ trait Source[T]:
 trait Sink[T]:
     fn give(self, value: T) -> void
 
-data Tank:
+struct Tank:
     level: i32
 
-data Pipe:
+struct Pipe:
     width: i32
 
-data Hose:
+struct Hose:
     length: i32
 
 impl Source[Pipe] for Tank:
@@ -1739,7 +1739,7 @@ argument's implementation of that bound's trait:
 trait Source[T]:
     fn take(self) -> T
 
-data Label:
+struct Label:
     text: string
 
 impl Source[string] for Label:
@@ -1772,7 +1772,7 @@ fn name(label: Label) -> string:
 16. r[types.generic.infer.bound.call-site] This step is call-site inference only. A declaration's generic parameters and signature are never inferred, as [`types.infer.explicit`](#r-types.infer.explicit) requires.
 
 ```text
-data Both:
+struct Both:
     count: i32
 
 impl Source[i32] for Both:
@@ -1783,7 +1783,7 @@ impl Source[string] for Both:
     fn take(self) -> string:
         "both"
 
-data Plain:
+struct Plain:
     count: i32
 
 fn several(both: Both) -> void:
@@ -1835,7 +1835,7 @@ fn label_of_both(both: Both) -> string:
 Two bounds that name one parameter must agree on it:
 
 ```text
-data Note:
+struct Note:
     text: string
 
 impl Source[string] for Note:
@@ -1875,7 +1875,7 @@ A generic parameter may declare a **type-argument default**, written with
 unsolved or a written type omits it:
 
 ```text
-data AppError:
+struct AppError:
     message: string
 
 type Outcome[T, E = AppError] = Result[T, E]
@@ -1997,13 +1997,13 @@ Generic type declarations mark covariance with `+T`, contravariance with `-T`,
 and invariance by leaving `T` unmarked:
 
 ```text
-data Producer[+T]:
+struct Producer[+T]:
     produce: fn() -> T
 
-data Consumer[-T]:
+struct Consumer[-T]:
     consume: fn(T) -> void
 
-data Cell[T]:
+struct Cell[T]:
     value: T
 ```
 
@@ -2014,7 +2014,7 @@ data Cell[T]:
 5. r[types.variance.trait-params] A trait's generic parameters are invariant. A variance marker on one is an error. Error: `invalid-variance`.
 
 ```text
-data Box[+T]:
+struct Box[+T]:
     value: T
 
 impl[T] Box[T]:
@@ -2045,7 +2045,7 @@ An associated function with no receiver is not on that surface:
 1. r[types.variance.surface.no-receiver] An inherent associated function with no `self` receiver does not count toward declared variance. Only instance methods do, whether `self` or `mut self`.
 
 ```text
-data Box[+T]:
+struct Box[+T]:
     value: T
 
 impl[U] Box[U]:
@@ -2072,7 +2072,7 @@ r[types.polarity] Polarity is computed as follows:
 3. r[types.variance.unmarked] An unmarked invariant parameter may occur in any position.
 
 ```hd
-data Box[+T]:
+struct Box[+T]:
     value: T
 ```
 
@@ -2085,10 +2085,10 @@ parameters checks its methods by the variance each `impl` parameter has
 in the target:
 
 ```text
-data Box[+T]:
+struct Box[+T]:
     value: T
 
-data Consumer[-T]:
+struct Consumer[-T]:
     consume: fn(T) -> void
 
 impl[U] Box[Consumer[U]]:
@@ -2173,7 +2173,7 @@ This section defines trait conformance, dynamic trait values, written
 3. r[types.trait.static] A generic bound such as `T < Display` uses static dispatch and preserves the concrete type.
 
 ```hd
-data User:
+struct User:
     name: string
 
 fn demo(user: User) -> dyn Any:
@@ -2255,7 +2255,7 @@ trait Animal:
 trait Dog < Animal:
     fn bark(self) -> string
 
-data Pup:
+struct Pup:
     name: string
 
 impl Animal for Pup:
@@ -2309,7 +2309,7 @@ See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
 9. r[types.sealed.bounds] `T < AnyVal` accepts only `AnyVal` types, and `T < AnyRef` accepts only `AnyRef` types.
 
 ```text
-data Handle: pass
+struct Handle: pass
 
 impl AnyRef for Handle  # error: sealed-trait-implementation
 impl AnyVal for Handle  # error: sealed-trait-implementation
@@ -2331,7 +2331,7 @@ This section defines which types may be map keys, and how keys behave.
 10. r[types.map-key.reference] A reference type implements `Eq` and `Hash` when the type it refers to does, so `&T` may be a key, compared and hashed by value. A map keyed by place uses [`Id[T]`](../std/cmp.md#identity-keys).
 
 ```text
-data UserId:
+struct UserId:
     value: string
 
 @derive(Eq, Hash)
@@ -2367,7 +2367,7 @@ fn setup() -> void:
 ```hd
 fn demo() -> List[string]:
     m := {"b": +1, "a": +2}
-    let keys: mut List[string] = []
+    let mut keys: List[string] = []
     for entry in m:
         keys.push(entry._0)
     keys   # ["b", "a"] or ["a", "b"]: the map's order, the same in every run
@@ -2389,11 +2389,11 @@ fn demo() -> List[string]:
 use std.hash.Hash
 
 @derive(Eq, Hash)
-data Tag:
+struct Tag:
     id: i32
 
 fn demo() -> void:
-    let table: mut Map[Tag, string] = {}
+    let mut table: Map[Tag, string] = {}
     key := Tag { id: +1 }
     table[key] = "one"   # keyed by id through Eq and Hash
 ```
@@ -2519,10 +2519,10 @@ r[types.infer.named-fn] For a named function, inference covers only its result t
 trait Repo[T]:
     fn number(self) -> i32
 
-data User: pass
-data Post: pass
+struct User: pass
+struct Post: pass
 
-data Job[A, B]:
+struct Job[A, B]:
     callback: fn() -> i32 $ Repo[A] + Repo[B]
 
 fn read_both() -> i32 $ Repo[User] + Repo[Post]:

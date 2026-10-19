@@ -2,7 +2,7 @@
 # Spec 14 Error Types: annot.error.form.misplaced; @from marks only a variant's only payload member.
 
 @error("disk full")
-data DiskError:
+struct DiskError:
     free: i64
 
 @error

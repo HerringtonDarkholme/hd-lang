@@ -9,14 +9,14 @@ trait Supplier:
 trait Evict:
     fn pick(self, sizes: List[i32]) -> i32
 
-data Lru: pass
+struct Lru: pass
 
-data Constant: pass
+struct Constant: pass
 
-data AppError:
+struct AppError:
     message: string
 
-data Cache[K < Eq & Hash, V, P < Evict = Lru]:
+struct Cache[K < Eq & Hash, V, P < Evict = Lru]:
     entries: Map[K, V]
     policy: P
 

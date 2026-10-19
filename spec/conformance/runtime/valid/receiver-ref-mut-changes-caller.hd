@@ -29,7 +29,7 @@ struct Body:
 fn push(r: &mut Vec2) -> void:
     r.nudge_x()
 
-data Counter:
+struct Counter:
     n: i32
 
 impl Counter:

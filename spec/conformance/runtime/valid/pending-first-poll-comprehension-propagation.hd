@@ -2,10 +2,10 @@
 # test: non-suspending comprehensions propagate through a frame resumed after a pending host call
 use std.testing.assert_equal
 
-data State:
+struct State:
     count: i32
 
-data Failure:
+struct Failure:
     code: i32
 
 fn child!() -> i32 $ Console:
@@ -16,19 +16,19 @@ fn child!() -> i32 $ Console:
 fn parse(ok: bool) -> Result[i32, Failure]:
     if ok: .Ok(40) else: .Err(Failure { code: 7 })
 
-fn list_run!(state: mut State, ok: bool) -> Result[List[i32], Failure] $ Console:
+fn list_run!(state: &mut State, ok: bool) -> Result[List[i32], Failure] $ Console:
     defer:
         state.count = state.count + 1
     _ := child!()
     .Ok([for item in [ok] => parse(item)?])
 
-fn map_value_run!(state: mut State, ok: bool) -> Result[Map[i32, i32], Failure] $ Console:
+fn map_value_run!(state: &mut State, ok: bool) -> Result[Map[i32, i32], Failure] $ Console:
     defer:
         state.count = state.count + 1
     _ := child!()
     .Ok({for item in [ok] => 0: parse(item)?})
 
-fn map_key_run!(state: mut State, ok: bool) -> Result[Map[i32, i32], Failure] $ Console:
+fn map_key_run!(state: &mut State, ok: bool) -> Result[Map[i32, i32], Failure] $ Console:
     defer:
         state.count = state.count + 1
     _ := child!()
@@ -46,10 +46,10 @@ fn inspect_map(value: Result[Map[i32, i32], Failure]) -> i32:
 
 pub fn main!() -> void $ Console:
     let mut state = State { count: 0 }
-    assert_equal(inspect_list(list_run!(state, true)), 40, reason="the list comprehension succeeds")
-    assert_equal(inspect_list(list_run!(state, false)), -7, reason="the list comprehension fails")
-    assert_equal(inspect_map(map_value_run!(state, true)), 40, reason="the map value comprehension succeeds")
-    assert_equal(inspect_map(map_value_run!(state, false)), -7, reason="the map value comprehension fails")
-    assert_equal(inspect_map(map_key_run!(state, true)), 40, reason="the map key comprehension succeeds")
-    assert_equal(inspect_map(map_key_run!(state, false)), -7, reason="the map key comprehension fails")
+    assert_equal(inspect_list(list_run!(&mut state, true)), 40, reason="the list comprehension succeeds")
+    assert_equal(inspect_list(list_run!(&mut state, false)), -7, reason="the list comprehension fails")
+    assert_equal(inspect_map(map_value_run!(&mut state, true)), 40, reason="the map value comprehension succeeds")
+    assert_equal(inspect_map(map_value_run!(&mut state, false)), -7, reason="the map value comprehension fails")
+    assert_equal(inspect_map(map_key_run!(&mut state, true)), 40, reason="the map key comprehension succeeds")
+    assert_equal(inspect_map(map_key_run!(&mut state, false)), -7, reason="the map key comprehension fails")
     assert_equal(state.count, 6, reason="defer ran once per call")

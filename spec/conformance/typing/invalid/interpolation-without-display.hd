@@ -1,6 +1,6 @@
 # test: interpolation requires a Display implementation
 
-data Secret:
+struct Secret:
     value: i32
 
 fn render(value: Secret) -> string:

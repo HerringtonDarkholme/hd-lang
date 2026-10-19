@@ -3,10 +3,10 @@
 # Spec 14 Derivation Blocks: annot.block.module; dep.models declares User.
 use dep.models.{User}
 use std.structure.{Structure, Field, Variant, Walker}
-data Tag:
+struct Tag:
     text: string
 
-data Note:
+struct Note:
     text: string
 
 fn tag(text: string) -> Tag:

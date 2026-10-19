@@ -1,6 +1,6 @@
 # test: := takes a name or a tuple of names, so a data pattern before it needs let
 # Spec 02 Short Binding Lists: grammar.stmt.bind-pattern.let-only (owner decision LP1, batch 26, 2026-09-30).
-data Point:
+struct Point:
     x: i32
     y: i32
 

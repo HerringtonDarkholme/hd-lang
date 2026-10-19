@@ -1,9 +1,9 @@
 # test: Ok and Err are not prelude names, so a module may declare them
 
-data Ok:
+struct Ok:
     code: i32
 
-data Err:
+struct Err:
     reason: string
 
 fn codes(ok: Ok, result: Result[Ok, Err]) -> i32:

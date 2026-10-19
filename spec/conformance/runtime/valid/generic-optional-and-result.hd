@@ -1,6 +1,6 @@
 # test: generics / option result
 
-data Failure:
+struct Failure:
     code: i32
 
 fn keep_optional[T](value: T?) -> T?: value

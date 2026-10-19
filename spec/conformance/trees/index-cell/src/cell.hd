@@ -1,7 +1,7 @@
 use std.ops.{Index, IndexSet}
 
-pub data Cell:
-    pub value: mut List[i32]
+pub struct Cell:
+    pub value: List[i32]
 
 impl Index[usize] for Cell:
     type Out = i32

@@ -24,7 +24,7 @@ impl Shape for Square:
     fn grow(&mut self, by: f64) -> void:
         self.side += by
 
-data Circle:
+struct Circle:
     r: f64
 
 impl Shape for Circle:

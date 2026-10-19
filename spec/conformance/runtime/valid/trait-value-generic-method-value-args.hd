@@ -14,7 +14,7 @@ trait Labeler:
     fn label[T < Display](self, value: T) -> string
     fn first[T](self, items: List[T], fallback: T) -> T
 
-data Brackets:
+struct Brackets:
     open: string
     close: string
 

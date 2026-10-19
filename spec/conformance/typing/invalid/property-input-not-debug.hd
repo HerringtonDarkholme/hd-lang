@@ -2,7 +2,7 @@
 # Spec Modules, Registration Calls: module.testing.reg.prop-debug.
 use std.testing.{Arbitrary, Choices, it_prop}
 
-data Reading:
+struct Reading:
     level: i64
 
 impl Arbitrary for Reading:

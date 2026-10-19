@@ -3,7 +3,7 @@
 use std.testing.Arbitrary
 
 @derive(Arbitrary, Debug)
-data Box[T]:
+struct Box[T]:
     value: T
 
 fn needs[T < Arbitrary](value: T) -> T: value

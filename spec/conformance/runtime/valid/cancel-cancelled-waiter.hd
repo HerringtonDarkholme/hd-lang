@@ -6,8 +6,8 @@ use std.ops.Disposable
 use std.task.{all, race}
 use std.time.{Clock, ms, s, sleep}
 
-data Conn:
-    log: mut List[string]
+struct Conn:
+    log: &mut List[string]
     closing: mut Suspend[void]
 
 impl Disposable for Conn:
@@ -17,23 +17,23 @@ impl Disposable for Conn:
         wait!()
         self.log.push("closed")
 
-fn session!(log: mut List[string]) -> string $ Clock:
-    using conn = Conn { log: log, closing: sleep(ms(2)) }
+fn session!(log: &mut List[string]) -> string $ Clock:
+    using conn = &mut Conn { log: log, closing: sleep(ms(2)) }
     sleep!(s(60))
     "late"
 
 fn ready!() -> string:
     "won"
 
-fn stopper!(job: mut Suspend[string], log: mut List[string]) -> string:
+fn stopper!(job: mut Suspend[string], log: &mut List[string]) -> string:
     defer: log.push("stopper defer")
     _ := job.cancel!()
     log.push("stopper resumed")
     "stopper"
 
 pub fn main!() -> void $ Console + Clock:
-    let log: mut List[string] = []
-    let job: mut Suspend[string] = session(log)
-    let (first, second) = all!(race(job, ready()), race(stopper(job, log), ready()))
+    let mut log: List[string] = []
+    let job: mut Suspend[string] = session(&mut log)
+    let (first, second) = all!(race(job, ready()), race(stopper(job, &mut log), ready()))
     println("${first} ${second}")
     println(log.join(", "))

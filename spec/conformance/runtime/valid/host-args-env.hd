@@ -1,7 +1,7 @@
 # test: args() and env(name) are plain calls on the covering Args and Env providers
 # Spec std/host: std-host.args.helper, std-host.env.helper, and std-host.plain-reads (batch 64, STD-2 and STD-3).
 use std.host.{Args, Env, args, env}
-data FixedArgs:
+struct FixedArgs:
     values: List[string]
 
 impl Args for FixedArgs:
@@ -11,7 +11,7 @@ impl Args for FixedArgs:
     fn list(self) -> List[string]:
         self.values
 
-data FixedEnv:
+struct FixedEnv:
     values: Map[string, string]
 
 impl Env for FixedEnv:
@@ -19,7 +19,7 @@ impl Env for FixedEnv:
         self.values.get(name)
 
     fn names(self) -> List[string]:
-        let found: mut List[string] = []
+        let mut found: List[string] = []
         for (name, _) in self.values:
             found.push(name)
         found

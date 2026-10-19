@@ -3,7 +3,7 @@
 trait Tag:
     fn name(self) -> string
 
-data FixedTag:
+struct FixedTag:
     value: string
 
 impl Tag for FixedTag:

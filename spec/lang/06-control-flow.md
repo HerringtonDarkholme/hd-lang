@@ -146,7 +146,7 @@ for value in values:
 6. r[flow.for.binding.fresh] Each iteration makes a new binding of every name in the pattern. A closure made in the body captures that iteration's binding, and the closure's writes to that name reach that iteration only.
 
 ```text
-data Point:
+struct Point:
     x: i32
     y: i32
 
@@ -430,8 +430,8 @@ loop over a list or a map iterates a snapshot instead
 
 ```hd
 fn demo() -> void:
-    let items: mut List[i32] = [+1, +2]
-    let cursor: mut Iterator[i32] = items.iter()
+    let mut items: List[i32] = [+1, +2]
+    let cursor: &mut Iterator[i32] = items.iter()
     _ := cursor.next()
     items.push(+3)
     _ := cursor.next()   # panics with iterator-invalidated
@@ -741,7 +741,7 @@ match value:
 16. r[flow.match.data.generic] A generic field declared `field: P` binds as substituted `P`, including `mut U` when `P = mut U`.
 
 ```text
-data User:
+struct User:
     name: string
     age: i32
 
@@ -907,7 +907,7 @@ A `let` pattern matches its initializer as a `match` arm's pattern would,
 and a let-else block handles the values it does not match:
 
 ```text
-data Point:
+struct Point:
     x: i32
     y: i32
 
@@ -988,7 +988,7 @@ return 1  # error: return-outside-function
 
 ```text
 fn read_first!(path: string) -> Result[string, FileError] $ Files:
-    let handle: mut FileHandle = $.use(Files).open!(path)?
+    let handle: &mut dyn FileHandle = $.use(Files).open!(path)?
     defer:
         _ := handle.close()
     handle.read!()

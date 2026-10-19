@@ -3,14 +3,14 @@
 # and no optional unwrapping takes place.
 # Spec 09 Traits: trait.identity.arguments, trait.downcast.exact, trait.downcast.no-conversion, trait.downcast.optional.
 use std.inspect.{Inspectable, downcast_val}
-data Box[T]:
+struct Box[T]:
     value: T
 
-data User:
+struct User:
     name: string
 
 fn is_int_box(value: dyn Inspectable) -> bool:
-    match value.downcast::[Box[i32]]():
+    match downcast_val::[Box[i32]](value):
         .Some(_) => true
         .None => false
 
@@ -20,7 +20,7 @@ fn is_string_list(value: dyn Inspectable) -> bool:
         .None => false
 
 fn is_user(value: dyn Inspectable) -> bool:
-    match value.downcast::[User]():
+    match downcast_val::[User](value):
         .Some(_) => true
         .None => false
 

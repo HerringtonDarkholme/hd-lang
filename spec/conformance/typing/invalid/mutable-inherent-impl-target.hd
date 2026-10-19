@@ -1,9 +1,9 @@
 # test: an inherent implementation target cannot carry an outer mut
 # Spec 09 Traits: trait.target.constructor, trait.target.no-mut.
 
-data Counter:
+struct Counter:
     value: i32
 
 impl mut Counter:  # diagnostic: mutable-impl-target
-    fn reset(mut self) -> void:
+    fn reset(&mut self) -> void:
         self.value = 0

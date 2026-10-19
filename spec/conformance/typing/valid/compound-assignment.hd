@@ -9,10 +9,10 @@ impl Add for Meters:
     fn add(self, rhs: Meters) -> Meters:
         Meters(i64(self) + i64(rhs))
 
-data Tally:
+struct Tally:
     count: i64
 
-fn record(tally: mut Tally, hits: List[i64]) -> Meters:
+fn record(tally: &mut Tally, hits: List[i64]) -> Meters:
     let log = ""
     let walked = Meters(0)
     for hit in hits:

@@ -3,13 +3,13 @@
 use std.annotation.annotate
 
 @annotate::[List[T]](.Field)
-data Sample[T, U]:
+struct Sample[T, U]:
     label: U
 
 fn sample[T, U](label: U) -> Sample[T, U]:
     Sample::[T, U] { label: label }
 
-data Batch:
+struct Batch:
     @sample("ids")
     ids: List[i64]
     @sample(3)

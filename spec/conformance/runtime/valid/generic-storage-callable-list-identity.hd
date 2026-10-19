@@ -1,9 +1,9 @@
-# test: a legacy mut list of callables passed through generic code is shared, so the callee's push reaches the caller's list
-# Spec 04 Generic Representation: types.generic.unobservable; Legacy Collection Views: types.coll.legacy.
+# test: a &mut list of callables passed through generic code is shared, so the callee's push reaches the caller's list
+# Spec 04 Generic Representation: types.generic.unobservable.
 fn load_orders() -> i32: 40
 fn load_refunds() -> i32: 2
 
-fn schedule[T](jobs: mut List[fn() -> T], job: fn() -> T) -> mut List[fn() -> T]:
+fn schedule[T](jobs: &mut List[fn() -> T], job: fn() -> T) -> &mut List[fn() -> T]:
     jobs.push(job)
     jobs
 
@@ -11,9 +11,9 @@ tests:
     use std.testing.{assert, assert_equal}
 
     it("the callee's push reaches the argument list"):
-        let jobs: mut List[fn() -> i32] = [load_orders]
-        returned := schedule(jobs, load_refunds)
-        assert(jobs.len() == 2 && returned.len() == 2, reason="the legacy parameter shares the caller's list")
+        let mut jobs: List[fn() -> i32] = [load_orders]
+        returned := schedule(&mut jobs, load_refunds)
+        assert(jobs.len() == 2 && returned.len() == 2, reason="the &mut parameter shares the caller's list")
         first := returned[0]
         second := jobs[1]
         assert_equal(first() + second(), 42, reason="both lists hold the two jobs")

@@ -3,7 +3,7 @@
 # Spec 05 String Interpolation: expr.interp.prefixed.
 use std.ops.{Template, str_prefix}
 
-data Secret:
+struct Secret:
     value: i32
 
 @str_prefix

@@ -4,12 +4,12 @@ use std.annotation.annotate
 use std.num.Num
 
 @annotate::[fn(T) -> R](.Fn, .Field)
-data FnFact[T < Num, R]: pass
+struct FnFact[T < Num, R]: pass
 
 fn fn_fact[T < Num, R]() -> FnFact[T, R]:
     FnFact::[T, R] {}
 
-data Meter:
+struct Meter:
     @fn_fact
     convert: fn(i32) -> i64
     @fn_fact  # diagnostic: type-mismatch

@@ -3,8 +3,8 @@ use std.structure.Structure
 type UserId(string)
 type PostId(string)
 
-data RetentionRule: pass
-data DeleteWhen: pass
+struct RetentionRule: pass
+struct DeleteWhen: pass
 
 fn retention_owner(owner: string) -> RetentionRule:
     RetentionRule {}
@@ -12,11 +12,11 @@ fn retention_owner(owner: string) -> RetentionRule:
 fn delete_when(deleted: fn(User) -> bool) -> DeleteWhen:
     DeleteWhen {}
 
-data User:
+struct User:
     id: UserId
     deleted: bool
 
-data Post:
+struct Post:
     id: PostId
     userId: UserId
 

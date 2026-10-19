@@ -8,11 +8,11 @@ fn by_reference[T < AnyRef](value: T) -> T:
 
 type Mile(i32)
 
-data User:
+struct User:
     name: string
 
-type Owner(User)
+type Owner(&User)
 
 fn use_both() -> void:
     _ := by_value(Mile(1))
-    _ := by_reference(Owner(User { name: "Ada" }))
+    _ := by_reference(Owner(&mut User { name: "Ada" }))

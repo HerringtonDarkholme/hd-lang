@@ -8,7 +8,7 @@ fn cents(c: &mut Choices) -> i32:
     c.int(7..=7)
 
 @derive(Arbitrary, Debug)
-data Item:
+struct Item:
     name: string
     @arbitrary.with(cents)
     price: i32

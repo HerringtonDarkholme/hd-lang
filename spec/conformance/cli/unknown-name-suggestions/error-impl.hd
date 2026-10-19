@@ -1,4 +1,4 @@
-data Problem: pass
+struct Problem: pass
 
 impl Error for Problem:
     pass

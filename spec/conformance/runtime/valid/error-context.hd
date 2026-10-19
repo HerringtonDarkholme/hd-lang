@@ -2,7 +2,7 @@
 # Spec std/error Error Context: std-error.context.ok, std-error.context.err, std-error.context.display, std-error.context.cause, std-error.context.chain (ERR-CONTEXT; task #223).
 use std.error.{ContextError, Error, chain, report_of}
 @error("not found: $path")
-data NotFound:
+struct NotFound:
     path: string
 
 fn read(path: string) -> Result[string, NotFound]:

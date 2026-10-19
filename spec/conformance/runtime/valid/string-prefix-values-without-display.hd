@@ -2,7 +2,7 @@
 # Spec 05 Prefixed Strings: expr.prefix.fn-call; the compiler never joins the pieces and never calls Display.
 use std.ops.{Template, str_prefix}
 
-data Cell:
+struct Cell:
     amount: i32
 
 @str_prefix

@@ -1,7 +1,7 @@
 # test: associated functions take method-level type arguments after the member name
 # expect: test
 
-data Duration:
+struct Duration:
     day_count: i32
 
 impl Duration:

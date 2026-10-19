@@ -1,4 +1,4 @@
-data User: pass
+struct User: pass
 
 impl User:
     fn name(self) -> string: "first"

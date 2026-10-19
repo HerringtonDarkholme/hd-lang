@@ -2,7 +2,7 @@
 # Spec 05 Operator Traits: `-12px` is -(px(12)), and Pixels implements no Neg.
 use std.ops.num_suffix
 
-data Pixels:
+struct Pixels:
     count: i32
 
 @num_suffix

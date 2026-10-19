@@ -3,7 +3,7 @@
 # The expected digest is Node's crypto.createHash("sha256") of the same bytes.
 use std.digest.sha256
 fn counting(size: i32) -> List[u8]:
-    let bytes: mut List[u8] = []
+    let mut bytes: List[u8] = []
     for index in 0..size:
         bytes.push(u8(index))
     bytes

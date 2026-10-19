@@ -10,7 +10,7 @@ fn counter() -> &mut i32:
     &mut n
 
 pub fn main() -> void $ Console:
-    let refs: mut List[&mut usize] = []
+    let mut refs: List[&mut usize] = []
     for i in 0..3:
         let mut v = i
         refs.push(&mut v)

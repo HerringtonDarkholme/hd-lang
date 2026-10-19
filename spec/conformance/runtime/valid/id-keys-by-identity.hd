@@ -8,7 +8,7 @@ use std.cmp.Id
 struct Node:
     label: string
 
-fn visit(seen: mut Map[Id[Node], bool], node: &Node) -> bool:
+fn visit(seen: &mut Map[Id[Node], bool], node: &Node) -> bool:
     key := Id { target: node }
     if seen.get(key).is_some():
         return false
@@ -18,10 +18,10 @@ fn visit(seen: mut Map[Id[Node], bool], node: &Node) -> bool:
 pub fn main() -> void $ Console:
     let mut a = Node { label: "a" }
     let mut b = Node { label: "a" }
-    let seen: mut Map[Id[Node], bool] = {}
-    first := visit(seen, &a)
-    other := visit(seen, &b)
-    again := visit(seen, &mut a)
+    let mut seen: Map[Id[Node], bool] = {}
+    first := visit(&mut seen, &a)
+    other := visit(&mut seen, &b)
+    again := visit(&mut seen, &mut a)
     println("$first $other $again")
     println(seen.len())
     made := &Node { label: "a" }

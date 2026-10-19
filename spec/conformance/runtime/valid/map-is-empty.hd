@@ -4,7 +4,7 @@ tests:
     use std.testing.assert
 
     it("tells an empty map"):
-        let stock: mut Map[string, i32] = {}
+        let mut stock: Map[string, i32] = {}
         assert(stock.is_empty(), reason="no entries")
         stock["tea"] = 3
         assert(!stock.is_empty(), reason="one entry")

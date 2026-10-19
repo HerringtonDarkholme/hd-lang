@@ -27,7 +27,7 @@ impl[T] Named for T by Structure:
         T::name()
 
 @derive(Named)
-data Point:
+struct Point:
     x: i32
     y: i32
 
@@ -37,7 +37,7 @@ enum Shape:
     Line(from: Point, to: Point)
 
 @derive(Named)
-data Box[T]:
+struct Box[T]:
     value: T
 
 tests:

@@ -5,7 +5,7 @@ trait Supplier:
     type Item
     fn get(self) -> Self::Item
 
-data Holder:
+struct Holder:
     source: dyn Supplier[Item = i32]
     backups: List[dyn Supplier[Item = i32]]
 

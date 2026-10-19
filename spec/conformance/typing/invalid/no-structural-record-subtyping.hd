@@ -1,9 +1,9 @@
 # test: a record with extra fields is not a subtype of a record with fewer
 # Spec 04 Assignment And Binding Types: types.assign.no-subtyping.
-data Point:
+struct Point:
     x: i32
 
-data Labeled:
+struct Labeled:
     x: i32
     label: string
 

@@ -1,5 +1,5 @@
 # test: a promoted method runs as the embedded type's method, so self calls inside it stay on the embedded type
-data Base:
+struct Base:
     name: string
 
 impl Base:
@@ -9,7 +9,7 @@ impl Base:
     pub fn describe(self) -> string:
         self.kind() + " " + self.name
 
-data Page:
+struct Page:
     Base
 
 impl Page:
@@ -20,6 +20,6 @@ tests:
     use std.testing.assert_equal
 
     it("no overriding through embedding"):
-        page := Page { Base: ...Base { name: "home" } }
+        page := Page { Base: Base { name: "home" } }
         assert_equal(page.kind(), "page", reason="own inherent method")
         assert_equal(page.describe(), "base home", reason="Base.describe calls Base.kind")

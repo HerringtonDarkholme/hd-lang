@@ -4,12 +4,12 @@
 trait Clock:
     fn now(self) -> i64
 
-data SystemClock: pass
+struct SystemClock: pass
 
 impl Clock for SystemClock:
     fn now(self) -> i64: 1700000000
 
-data FixedClock:
+struct FixedClock:
     at: i64
 
 impl Clock for FixedClock:

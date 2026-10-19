@@ -1,6 +1,6 @@
 # test: string length counts bytes
 
-data User:
+struct User:
     name: string
 
 fn name_length(user: User) -> i32: i32(user.name.len())

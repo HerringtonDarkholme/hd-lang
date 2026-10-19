@@ -5,7 +5,7 @@
 trait Fetch:
     fn get![T](self, x: T) -> T
 
-data Slow:
+struct Slow:
     n: i32
 
 impl Fetch for Slow:

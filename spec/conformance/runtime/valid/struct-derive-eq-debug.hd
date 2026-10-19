@@ -14,7 +14,7 @@ pub fn main() -> void $ Console:
     let mut other = k
     println("${k == other} ${k == Key { ...k, id: 2 }}")
     println(debug(k))
-    let counts: mut Map[Key, i32] = {}
+    let mut counts: Map[Key, i32] = {}
     counts[k] = 10
     other.tag = "a"
     println(counts[other])

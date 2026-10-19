@@ -1,7 +1,7 @@
 # test: Debug derives through its template and debug renders a value
 # Spec 09 Debug Trait: @derive(Debug) and the prelude function debug need no use.
 @derive(Eq, Debug)
-data Point:
+struct Point:
     x: i32
     y: i32
 

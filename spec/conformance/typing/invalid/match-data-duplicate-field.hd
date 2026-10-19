@@ -1,6 +1,6 @@
 # test: a data pattern that lists one field twice is an error
 # Spec 06 Nested And Data Patterns: flow.match.data.fields.duplicate.
-data User:
+struct User:
     name: string
     age: i32
 

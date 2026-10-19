@@ -1,12 +1,15 @@
 # test: a test body runs under a driver, and println called from it writes through the covering provider
 # Spec 10 Console: module.console.println-block-on.under-driver (batch 44).
-data MemoryConsole:
-    lines: mut List[string]
+struct MemoryConsole:
+    lines: List[string]
 
 impl Console for MemoryConsole:
-    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
+    fn write_line!(&mut self, text: string) -> Result[void, ConsoleError]:
         self.lines.push(text)
         .Ok(())
+
+    fn write_error_line!(&mut self, text: string) -> Result[void, ConsoleError]:
+        self.write_line!(text)
 
 fn greet(name: string) -> void $ Console:
     println("hello, ${name}")
@@ -16,7 +19,7 @@ tests:
 
     it("println writes under the test driver"):
         let mut console = MemoryConsole { lines: [] }
-        $.with(Console=console):
+        $.with(Console=&mut console):
             greet("Ada")
         assert_equal(console.lines.len(), 1, reason="one line written")
         assert_equal(console.lines[0], "hello, Ada", reason="the provider received it")

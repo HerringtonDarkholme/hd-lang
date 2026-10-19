@@ -7,9 +7,9 @@ use std.ops.Disposable
 use std.task.race
 use std.time.{Clock, ms, s, sleep}
 
-data Conn:
+struct Conn:
     name: string
-    log: mut List[string]
+    log: &mut List[string]
     closing: mut Suspend[void]
 
 impl Disposable for Conn:
@@ -19,11 +19,11 @@ impl Disposable for Conn:
         wait!()
         self.log.push("closed ${self.name}")
 
-fn connect(name: string, log: mut List[string]) -> mut Conn $ Clock:
+fn connect(name: string, log: &mut List[string]) -> &mut Conn $ Clock:
     log.push("open ${name}")
-    Conn { name: name, log: log, closing: sleep(ms(2)) }
+    &mut Conn { name: name, log: log, closing: sleep(ms(2)) }
 
-fn fetch!(log: mut List[string]) -> string $ Clock:
+fn fetch!(log: &mut List[string]) -> string $ Clock:
     defer: log.push("defer outer")
     using a = connect("a", log)
     defer: log.push("defer inner")
@@ -31,7 +31,7 @@ fn fetch!(log: mut List[string]) -> string $ Clock:
     log.push("fetched")
     "late"
 
-fn session!(log: mut List[string]) -> string $ Clock:
+fn session!(log: &mut List[string]) -> string $ Clock:
     using b = connect("b", log)
     fetch!(log)
 
@@ -39,8 +39,8 @@ fn ready!() -> string:
     "won"
 
 pub fn main!() -> void $ Console + Clock:
-    let log: mut List[string] = []
-    winner := race!(session(log), ready())
+    let mut log: List[string] = []
+    winner := race!(session(&mut log), ready())
     println(winner)
     println(log.join(", "))
     println("done")

@@ -29,7 +29,7 @@ impl[T] Named for T by Structure:
         titled(Structure::name(), d.count)
 
 @derive(Named)
-data Point:
+struct Point:
     x: i32
 
 pub fn main() -> void $ Console:

@@ -1,12 +1,12 @@
 # test: an enum value keeps its payload, but a mut payload still refers to a mutable object
 # Spec 08 Variant Payloads: data.enum.payload, data.enum.immutable.shallow.
-data Agent:
+struct Agent:
     name: string
     open_tickets: i32
 
 enum Ticket:
     Unassigned
-    Assigned(agent: mut Agent)
+    Assigned(agent: &mut Agent)
 
 fn workload(ticket: Ticket) -> i32:
     match ticket:
@@ -17,7 +17,7 @@ tests:
     use std.testing.assert_equal
 
     it("a change to the referenced agent is seen through the payload"):
-        let mut ada = Agent { name: "Ada", open_tickets: 1 }
+        let mut ada = &mut Agent { name: "Ada", open_tickets: 1 }
         ticket := Ticket.Assigned(ada)
         ada.open_tickets = 4
         assert_equal(workload(ticket), 4, reason="the payload refers to the same agent")

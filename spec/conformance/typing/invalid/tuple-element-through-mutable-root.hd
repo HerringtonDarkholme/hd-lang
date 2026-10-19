@@ -1,7 +1,7 @@
 # test: a tuple element is not a place, even inside a field of a mutable root
 # Spec 05 Places: expr.place.tuple-element.
-data Holder:
+struct Holder:
     pair: (i32, i32)
 
-fn reset(holder: mut Holder) -> void:
+fn reset(holder: &mut Holder) -> void:
     holder.pair._0 = 0  # diagnostic: invalid-assignment-target

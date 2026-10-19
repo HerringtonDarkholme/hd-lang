@@ -117,7 +117,7 @@ impl Deserializer for Feed:
             _ => .Ok(.None)
 
     fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, string]:
-        let names: mut List[string] = []
+        let mut names: List[string] = []
         for choice in choices:
             names.push(choice.name)
         self.add("variant:${names.join("|")}")
@@ -150,14 +150,14 @@ enum Payment:
     Voucher(code: string)
 
 @derive(Deserialize)
-data Order:
+struct Order:
     id: u32
     note: string?
 
-data Cache:
+struct Cache:
     hits: i64
 
-data Basket:
+struct Basket:
     owner: string
     cache: Cache = Cache { hits: 0 }
 

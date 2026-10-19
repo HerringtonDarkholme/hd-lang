@@ -13,13 +13,13 @@ fn run() -> i32 $ Clock + Logger:
 
 trait Clock
 
-data FixedClock: pass
+struct FixedClock: pass
 
 impl Clock for FixedClock
 
 trait Logger
 
-data FixedLogger: pass
+struct FixedLogger: pass
 
 impl Logger for FixedLogger
 

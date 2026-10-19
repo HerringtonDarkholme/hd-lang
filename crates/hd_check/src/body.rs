@@ -3798,6 +3798,9 @@ impl Ck<'_, '_> {
                 // A struct field changes in a writable place only
                 // (`types.value.writable-forms`).
                 if self.is_struct_ty(bt) {
+                    // A promoted field is its explicit path through the
+                    // embedded structs (`names.promoted.path`).
+                    let (br, bt) = self.promote_base(br, bt, &fname, *lhs);
                     return self.struct_field_assign(
                         (br, bt),
                         (base, *lhs, *rhs, s),

@@ -1,6 +1,6 @@
 # test: leading-dot lines continue a method chain; a same-indent '.Variant' arm starts a new arm
 
-data Counter:
+struct Counter:
     value: i32
 
 impl Counter:

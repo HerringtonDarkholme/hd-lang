@@ -31,7 +31,7 @@ enum HttpError(i32):
     Denied(string) -> HttpError(403)
 
 @error("bad yaml at line $line")
-data YamlError:
+struct YamlError:
     line: i64
 
 @error
@@ -46,7 +46,7 @@ enum LoadError:
     Fs(@from error: FsError)
 
 @error(transparent)
-data PublicError:
+struct PublicError:
     @from
     repr: LoadError
 

@@ -4,7 +4,7 @@
 # expect-stdout: false 1
 pub fn main() -> void $ Console:
     let mut level = +1
-    let seen: mut Map[&mut i32, string] = {}
+    let mut seen: Map[&mut i32, string] = {}
     seen[&mut level] = "one"
     println(seen.get(&mut level).is_some())
     level = 2

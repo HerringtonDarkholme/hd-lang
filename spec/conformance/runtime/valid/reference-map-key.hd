@@ -5,7 +5,7 @@ a := "tea"
 b := "tea"
 
 pub fn main() -> void $ Console:
-    let prices: mut Map[&string, i32] = {}
+    let mut prices: Map[&string, i32] = {}
     prices[&a] = +3
     prices[&b] = +4
     println("${prices.len()} ${prices[&a] == 4}")

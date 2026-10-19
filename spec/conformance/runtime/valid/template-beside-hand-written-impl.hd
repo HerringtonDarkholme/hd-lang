@@ -24,7 +24,7 @@ impl[T] Named for T by Structure:
         _ := T::describe(&mut d)
         T::name()
 
-data Manual:
+struct Manual:
     x: i32
 
 impl Named for Manual:
@@ -32,7 +32,7 @@ impl Named for Manual:
         "hand-written"
 
 @derive(Named)
-data Derived:
+struct Derived:
     x: i32
 
 tests:

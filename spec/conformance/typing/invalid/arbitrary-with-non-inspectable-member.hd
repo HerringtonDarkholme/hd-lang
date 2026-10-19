@@ -9,6 +9,6 @@ fn digit_task(c: &mut Choices) -> fn() -> i32:
     fn() -> i32: n
 
 @derive(Arbitrary)  # diagnostic: member-not-derivable
-data Task:
+struct Task:
     @arbitrary.with(digit_task)
     run: fn() -> i32

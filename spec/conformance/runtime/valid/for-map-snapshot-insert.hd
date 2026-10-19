@@ -5,8 +5,8 @@ tests:
     use std.testing.assert_equal
 
     it("insertion during map iteration is not visited"):
-        let values: mut Map[string, i32] = {"a": 1, "b": 2}
-        let seen: mut List[string] = []
+        let mut values: Map[string, i32] = {"a": 1, "b": 2}
+        let mut seen: List[string] = []
         for (key, value) in values:
             seen.push(key)
             if key == "a":

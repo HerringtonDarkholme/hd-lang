@@ -1,7 +1,7 @@
 # test: fieldless data argument
 # Spec 08 Fieldless Data Types: data.empty.pass.
 
-data Unit: pass
+struct Unit: pass
 
 fn consume(value: Unit) -> i32: 42
 fn main() -> i32: consume(Unit {})

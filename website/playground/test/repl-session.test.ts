@@ -163,7 +163,7 @@ test("later inputs edit an earlier input's type's facts, before and after a rebu
   // A walker that writes each member's `Column` fact, or else its name.
   const columns = `use std.structure.{Structure, Field, Variant, Walker}
 
-data Column:
+struct Column:
     name: string
 
 trait Columns:
@@ -193,7 +193,7 @@ impl[T] Columns for T by Structure:
 `;
   for (const source of [
     columns,
-    "data Row:\n    id: i32\n    total: i32\n    cache: i32 = +0\n",
+    "struct Row:\n    id: i32\n    total: i32\n    cache: i32 = +0\n",
     // A block with no trait, then a derivation block with member lines.
     'impl Row by Structure:\n    total += [Column { name: "sum_total" }]\n',
     'impl Columns for Row by Structure:\n    id = [Column { name: "key" }]\n    cache = pass\n',

@@ -1,10 +1,10 @@
 # test: a member line must name a direct member, and a member promoted through an embedded part is not one
 # Spec 14 Member Lines: annot.line.name.
 use std.structure.{Structure, Field, Variant, Walker}
-data Tag:
+struct Tag:
     text: string
 
-data Note:
+struct Note:
     text: string
 
 fn tag(text: string) -> Tag:
@@ -41,10 +41,10 @@ impl[T] Probe for T by Structure:
         _ := Structure::walk(self, &mut w)
         w.out
 
-data Audit:
+struct Audit:
     pub at: i64
 
-data Account:
+struct Account:
     Audit
     id: i64
 

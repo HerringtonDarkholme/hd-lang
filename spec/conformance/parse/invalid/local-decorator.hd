@@ -1,4 +1,4 @@
 fn run() -> void:
     @Validation  # diagnostic: decorator-not-top-level
-    data Request:
+    struct Request:
         query: string

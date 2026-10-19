@@ -4,7 +4,7 @@
 # generated bounds, and markers that bindings named error, from, or source do not change.
 use std.error.Error
 
-data Origin: pass
+struct Origin: pass
 
 fn origin() -> Origin:
     Origin {}
@@ -18,7 +18,7 @@ fn source() -> Origin:
 fn error(text: string) -> string:
     text
 
-data YamlError:
+struct YamlError:
     line: i64
 
 impl Display for YamlError:
@@ -45,7 +45,7 @@ enum LoadError:
     Fs(@from error: FsError)
 
 @error("config $name is missing")
-data MissingConfig:
+struct MissingConfig:
     name: string
 
 fn parse(text: string) -> Result[i64, YamlError]:
@@ -63,7 +63,7 @@ fn read_config(path: string) -> Result[string, LoadError]:
     .Ok(text)
 
 @error("disk full")
-data DiskError:
+struct DiskError:
     free: i64
 
 @error
@@ -79,7 +79,7 @@ enum RepoError:
     Missing(string)
 
 @error(transparent)
-pub data PublicError:
+pub struct PublicError:
     @from
     repr: RepoError
 

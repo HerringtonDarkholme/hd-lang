@@ -1,7 +1,7 @@
 # test: a suite whose final statement is an assignment, not a value expression, has type void
 # Spec 06 Suite Values: flow.block.void.
-data Counter:
+struct Counter:
     value: i32
 
-fn bump(counter: mut Counter) -> void:
+fn bump(counter: &mut Counter) -> void:
     counter.value = counter.value + 1

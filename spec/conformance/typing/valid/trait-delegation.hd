@@ -5,20 +5,20 @@ trait Describe:
     fn headline(self) -> string:
         "* " + self.describe()
 
-data Logger:
+struct Logger:
     name: string
 
 impl Describe for Logger:
     fn describe(self) -> string:
         self.name
 
-data Service:
+struct Service:
     Logger
     port: i32
 
 impl Describe for Service by Logger
 
-data Worker:
+struct Worker:
     Logger
 
 impl Describe for Worker by Logger:

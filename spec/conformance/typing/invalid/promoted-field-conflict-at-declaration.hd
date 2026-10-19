@@ -1,11 +1,11 @@
 # test: two embedded types with a field of one name conflict at the outer declaration, whether or not the field is used
-data CreatedBySystem:
+struct CreatedBySystem:
     pub id: string
 
-data CreatedByUser:
+struct CreatedByUser:
     pub id: string
 
-data AuditRecord:
+struct AuditRecord:
     CreatedBySystem
     CreatedByUser  # diagnostic: ambiguous-promoted-member
     note: string

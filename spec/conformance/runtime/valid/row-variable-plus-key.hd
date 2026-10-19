@@ -7,7 +7,7 @@ fn run() -> i32 $ Logger: invoke(logged)
 
 trait Logger
 
-data FixedLogger: pass
+struct FixedLogger: pass
 
 impl Logger for FixedLogger
 

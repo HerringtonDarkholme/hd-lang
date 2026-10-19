@@ -1,6 +1,6 @@
 # test: sorted_by_key and sorted sort stably and leave the list unchanged
 # Spec std/collections List Helpers: std-collections.helper.sorted-by-key, .sorted, .stable, and .unchanged.
-data Task:
+struct Task:
     name: string
     hours: i32
 

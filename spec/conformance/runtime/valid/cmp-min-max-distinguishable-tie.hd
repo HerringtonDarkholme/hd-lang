@@ -2,7 +2,7 @@
 # Spec std/cmp Min And Max: std-cmp.min-max.tie, std-cmp.min-max.result; lists order lexicographically (expr.ord.std.sequences).
 use std.cmp.{max, min}
 # Ordered by `rank` only, so two entries can be equal and still differ.
-data Entry:
+struct Entry:
     rank: i32
     label: string
 

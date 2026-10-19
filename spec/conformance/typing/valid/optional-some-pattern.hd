@@ -1,4 +1,4 @@
-data User:
+struct User:
     name: string
 
 fn display_name(user: User?) -> string:

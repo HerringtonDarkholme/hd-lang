@@ -1,5 +1,5 @@
 # Spec 02 Row Type Arguments: grammar.type.row-argument.kind.
-data Box[T]:
+struct Box[T]:
     value: T
 
 fn invalid(value: Box[$()]) -> void: pass  # diagnostic: generic-kind-mismatch

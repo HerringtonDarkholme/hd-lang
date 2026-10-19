@@ -1,6 +1,6 @@
 # test: mut may not precede a name in a for pattern
 # Spec 02 Patterns: grammar.pattern.mut-let-only (owner decision LP-for, batch 30, 2026-09-30).
-data Point:
+struct Point:
     x: i32
     y: i32
 

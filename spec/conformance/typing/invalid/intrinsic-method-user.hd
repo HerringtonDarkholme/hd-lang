@@ -2,7 +2,7 @@
 # Spec 09 Intrinsic Methods: trait.impl.intrinsic, trait.impl.intrinsic.std-only.
 use std.ops.Add
 
-data Money:
+struct Money:
     cents: i64
 
 impl Add for Money:

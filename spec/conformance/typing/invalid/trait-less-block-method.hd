@@ -1,7 +1,7 @@
 # test: a block with no trait holds only member lines, not methods
 use std.structure.Structure
 
-data Account:
+struct Account:
     id: i64
 
 impl Account by Structure:

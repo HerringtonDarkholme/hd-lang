@@ -4,7 +4,7 @@
 # types.map.no-reindex, types.map.stale, types.map.no-repair.
 
 fn main() -> i32:
-    let values: mut Map[string, i32] = {}
+    let mut values: Map[string, i32] = {}
     values["a"] = 1
     values["b"] = 2
     values["c"] = 3

@@ -2,7 +2,7 @@
 # Spec 05 Callable Values: expr.call.apply.read, expr.call.apply.write-ref, expr.call.apply.field, expr.assign.compound.call-read-write (Call Indexing D1, D2, D4).
 use std.ops.{Apply, Update}
 
-data Cell[T]:
+struct Cell[T]:
     value: T
 
 impl[T] Apply for Cell[T]:
@@ -13,11 +13,11 @@ impl[T] Update[T] for Cell[T]:
     fn update(&mut self, value: T) -> void:
         self.value = value
 
-fn live[T](value: T) -> mut Cell[T]:
+fn live[T](value: T) -> Cell[T]:
     Cell { value: value }
 
-data Panel:
-    count: mut Cell[i32]
+struct Panel:
+    count: Cell[i32]
 
 fn read[C < Apply](source: C) -> C::Out:
     source()

@@ -2,7 +2,7 @@
 # Spec 08 Field Shorthand: data.literal.shorthand, data.literal.shorthand.mixed, data.update.shorthand, data.update.replace.
 # Spec 05 Data Literals: expr.data.shorthand.
 
-data Point:
+struct Point:
     x: i32
     y: i32
 

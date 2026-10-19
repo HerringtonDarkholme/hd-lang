@@ -2,7 +2,7 @@
 # Spec 05 Literal Suffixes: expr.literal-fn.row; `12px` needs Console where the row is empty (owner decision SUFFIX-ROWS, batch 40, 2026-10-01).
 use std.ops.num_suffix
 
-pub data Pixels:
+pub struct Pixels:
     count: i32
 
 @num_suffix

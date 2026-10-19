@@ -4,7 +4,7 @@
 # expect-stdout: 42
 # expect-stdout: 11
 # expect-stdout: 6
-data User:
+struct User:
     id: string
     email: string
     roles: List[string]

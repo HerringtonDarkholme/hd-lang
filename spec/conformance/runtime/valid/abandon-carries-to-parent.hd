@@ -8,8 +8,8 @@ use std.ops.Disposable
 use std.task.{all, race}
 use std.time.{Clock, s, sleep}
 
-data Conn:
-    log: mut List[string]
+struct Conn:
+    log: &mut List[string]
     closing: mut Suspend[void]
 
 impl Disposable for Conn:
@@ -19,12 +19,12 @@ impl Disposable for Conn:
         wait!()
         self.log.push("closed")
 
-fn child!(log: mut List[string]) -> string $ Clock:
-    using conn = Conn { log: log, closing: sleep(s(60)) }
+fn child!(log: &mut List[string]) -> string $ Clock:
+    using conn = &mut Conn { log: log, closing: sleep(s(60)) }
     sleep!(s(60))
     "child"
 
-fn parent!(kid: mut Suspend[string], log: mut List[string]) -> string:
+fn parent!(kid: mut Suspend[string], log: &mut List[string]) -> string:
     defer: log.push("parent defer")
     kid!()
 
@@ -36,16 +36,16 @@ fn ended!(job: mut Suspend[string]) -> string:
         .Finished => "finished"
         .Abandoned => "abandoned"
 
-fn stop!(kid: mut Suspend[string], log: mut List[string]) -> string:
+fn stop!(kid: mut Suspend[string], log: &mut List[string]) -> string:
     log.push("abandon child")
     kid.abandon()
     "stopped"
 
 pub fn main!() -> void $ Console + Clock:
-    let log: mut List[string] = []
-    let kid: mut Suspend[string] = child(log)
-    let top: mut Suspend[string] = parent(kid, log)
-    let (winner, stopped) = all!(race(top, ready()), stop(kid, log))
+    let mut log: List[string] = []
+    let kid: mut Suspend[string] = child(&mut log)
+    let top: mut Suspend[string] = parent(kid, &mut log)
+    let (winner, stopped) = all!(race(top, ready()), stop(kid, &mut log))
     println("${winner} ${stopped}")
     println(log.join(", "))
     println("parent ${ended!(top)}")

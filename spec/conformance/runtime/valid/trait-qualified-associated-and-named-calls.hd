@@ -6,7 +6,7 @@ trait Factory:
 trait Scale:
     fn scale(self, factor: i32, offset: i32) -> i32
 
-data Invoice:
+struct Invoice:
     total: i32
 
 impl Factory for Invoice:

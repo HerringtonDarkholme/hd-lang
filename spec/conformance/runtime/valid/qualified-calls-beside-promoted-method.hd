@@ -2,14 +2,14 @@
 trait Describe:
     fn describe(self) -> string
 
-data Base:
+struct Base:
     name: string
 
 impl Base:
     pub fn describe(self) -> string:
         "base " + self.name
 
-data Page:
+struct Page:
     Base
 
 impl Describe for Page:
@@ -20,6 +20,6 @@ tests:
     use std.testing.assert_equal
 
     it("trait-qualified and path-qualified calls"):
-        page := Page { Base: ...Base { name: "home" } }
+        page := Page { Base: Base { name: "home" } }
         assert_equal(Describe::describe(page), "page home", reason="trait-qualified call")
         assert_equal(page.Base.describe(), "base home", reason="qualified call reaches Base")

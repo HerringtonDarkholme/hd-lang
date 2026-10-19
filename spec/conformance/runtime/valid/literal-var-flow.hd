@@ -1,6 +1,6 @@
 # test: literals take their width from the typed parts of their own expression: ranges, lists, enums, and generic data
 # Spec 04 Open Literal Width: types.literal.local.class.meet and its expression forms.
-data Pair[T]:
+struct Pair[T]:
     first: T
     second: T
 

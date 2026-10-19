@@ -3,7 +3,7 @@
 # module.dbg.body.site, module.dbg.body.value.
 # Account implements no Debug, and dbg shows its private field; what dbg
 # prints is not judged.
-data Account:
+struct Account:
     owner: string
     balance: i32
 

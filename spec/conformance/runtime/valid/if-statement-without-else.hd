@@ -1,6 +1,6 @@
 # test: in statement position an if may omit else, and it runs its suite or nothing
 # Spec 06 Conditional Values: flow.if.statement.
-fn record(log: mut List[i32], flag: bool) -> void:
+fn record(log: &mut List[i32], flag: bool) -> void:
     if flag:
         log.push(+1)
     log.push(+2)
@@ -9,7 +9,7 @@ tests:
     use std.testing.assert_equal
 
     it("the suite runs only when the condition holds"):
-        let log: mut List[i32] = []
-        record(log, true)
-        record(log, false)
+        let mut log: List[i32] = []
+        record(&mut log, true)
+        record(&mut log, false)
         assert_equal(log, [+1, +2, +2], reason="one push from the if")

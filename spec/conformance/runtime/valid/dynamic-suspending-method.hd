@@ -3,7 +3,7 @@
 trait Reader:
     fn read!(self, value: i32) -> i32
 
-data FixedReader:
+struct FixedReader:
     offset: i32
 
 impl Reader for FixedReader:

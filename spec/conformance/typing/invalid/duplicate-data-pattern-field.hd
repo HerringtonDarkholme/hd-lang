@@ -1,4 +1,4 @@
-data User:
+struct User:
     name: string
 
 fn invalid(user: User) -> string:

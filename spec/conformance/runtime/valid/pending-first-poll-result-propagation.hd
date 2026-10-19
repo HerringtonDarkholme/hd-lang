@@ -2,7 +2,7 @@
 # test: suspending result propagation resumes after a pending host call and returns the failure
 use std.testing.assert_equal
 
-data ParseError:
+struct ParseError:
     code: i32
 
 fn parse!(ok: bool) -> Result[i32, ParseError] $ Console:

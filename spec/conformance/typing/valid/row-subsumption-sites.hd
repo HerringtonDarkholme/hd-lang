@@ -4,7 +4,7 @@ trait Db
 
 trait Clock
 
-data Route:
+struct Route:
     handler: fn() -> i32 $ Db + Clock
 
 fn now() -> i32 $ Clock: 1

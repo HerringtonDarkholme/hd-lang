@@ -1,6 +1,6 @@
 # test: open variables flow through ranges, lists, maps, generic enums, generic data, tuples, and generic calls
 
-data Pair[T]:
+struct Pair[T]:
     first: T
     second: T
 

@@ -3458,7 +3458,9 @@ runtime/valid/await-abandoned-job-carries.hd	runtime	accept	lang/11-requirements
 runtime/valid/println-provider-cancels-write.hd	runtime	accept	lang/10-modules.md#r-module.console.println-cancelled
 runtime/valid/task-block-on.hd	runtime	accept	std/task.md#r-std-task.block-on.decl
 typing/valid/struct-declarations.hd	type	accept	lang/08-data-and-enums.md#r-data.struct.decl
-typing/invalid/struct-embedded-field.hd	type	reject:embedded-non-data	lang/08-data-and-enums.md#r-data.struct.no-embedding
+typing/invalid/struct-embedded-field.hd	type	reject:embedded-non-data	lang/08-data-and-enums.md#r-data.struct.embed.struct-only
+typing/invalid/struct-embedded-copy-marker.hd	type	reject:copy-into-ordinary-field	lang/08-data-and-enums.md#r-data.struct.embed.no-marker
+runtime/valid/struct-embedding-value.hd	runtime	accept	lang/08-data-and-enums.md#r-data.struct.embed.plain
 typing/invalid/struct-contains-itself.hd	type	reject:recursive-value-type	lang/08-data-and-enums.md#r-data.struct.no-recursion
 typing/invalid/struct-mut-type.hd	type	reject:mut-on-struct	lang/04-type-system.md#r-types.value.no-mut
 typing/invalid/struct-identity.hd	type	reject:identity-requires-references	lang/04-type-system.md#r-types.value.anyval

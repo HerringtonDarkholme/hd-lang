@@ -21,12 +21,12 @@
 # std-format.debug.source.tuple, std-format.debug.source.list,
 # std-format.debug.source.map, std-format.debug.source.string, std-format.debug.source.char.
 @derive(Debug)
-data Point:
+struct Point:
     x: i32
     y: i32
 
 @derive(Debug)
-data Empty: pass
+struct Empty: pass
 
 @derive(Debug)
 enum Shape:

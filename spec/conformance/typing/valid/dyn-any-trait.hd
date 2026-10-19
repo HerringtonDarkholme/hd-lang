@@ -6,7 +6,7 @@ trait Shape:
     fn same(self, other: Self) -> bool
     fn unit() -> Self
 
-data Square:
+struct Square:
     side: f64
 
 impl Shape for Square:

@@ -11,7 +11,7 @@ fn run() -> i32 $ Clock: invoke(read)
 
 trait Clock
 
-data FixedClock: pass
+struct FixedClock: pass
 
 impl Clock for FixedClock
 

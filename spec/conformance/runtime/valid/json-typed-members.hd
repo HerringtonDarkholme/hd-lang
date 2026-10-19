@@ -8,19 +8,19 @@ use std.serde.{Serialize, Deserialize}
 type OrderId(u64)
 
 @derive(Serialize, Deserialize)
-data Audit:
+struct Audit:
     created_by: string
     revision: u32
 
 @derive(Serialize, Deserialize)
-data Order:
+struct Order:
     Audit
     id: OrderId
     total_cents: i64
     currency: string
 
 @derive(Serialize, Deserialize)
-data Page[T]:
+struct Page[T]:
     items: List[T]
     next: string?
 
@@ -30,7 +30,7 @@ enum Status(code: i32):
     Shipped(carrier: string) -> Status(+2)
 
 fn order() -> Order:
-    Order { Audit: ...Audit { created_by: "ada", revision: 3 }, id: OrderId(42), total_cents: 1999, currency: "EUR" }
+    Order { Audit: Audit { created_by: "ada", revision: 3 }, id: OrderId(42), total_cents: 1999, currency: "EUR" }
 
 fn order_text() -> string:
     "{\"Audit\":{\"created_by\":\"ada\",\"revision\":3},\"id\":42,\"total_cents\":1999,\"currency\":\"EUR\"}"

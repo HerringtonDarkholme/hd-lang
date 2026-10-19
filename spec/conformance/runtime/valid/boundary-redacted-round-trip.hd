@@ -5,7 +5,7 @@
 use std.serde.{Serialize, Serializer, Deserialize, Deserializer}
 use std.testing.assert_equal
 
-pub data Token:
+pub struct Token:
     pub owner: string
     secret: i64
 

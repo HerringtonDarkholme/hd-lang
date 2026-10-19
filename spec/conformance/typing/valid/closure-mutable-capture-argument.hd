@@ -1,16 +1,16 @@
 # test: a closure may pass a captured mut binding to a mut parameter and return mutable access from a capture
-data User:
+struct User:
     name: string
 
-fn rename(user: mut User) -> void:
+fn rename(user: &mut User) -> void:
     user.name = "renamed"
 
-fn plain_closure(user: mut User) -> fn() -> void:
+fn plain_closure(user: &mut User) -> fn() -> void:
     fn() -> void:
         rename(user)
 
-fn keeper(user: mut User) -> fn() -> mut User:
-    fn() -> mut User: user
+fn keeper(user: &mut User) -> fn() -> &mut User:
+    fn() -> &mut User: user
 
-fn plain_reader(user: mut User) -> fn() -> string:
+fn plain_reader(user: &mut User) -> fn() -> string:
     fn() -> string: user.name

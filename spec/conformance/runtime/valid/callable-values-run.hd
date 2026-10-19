@@ -1,7 +1,7 @@
-# test: a live cell reads through apply and stores through update, and a child reads a readonly view
+# test: a live cell reads through apply and stores through update, and a child reads a copy
 # Spec 05 Callable Values: expr.call.apply.read, expr.call.apply.write-ref, expr.assign.compound.call-once (Call Indexing D1, D2, D4).
 use std.ops.{Apply, Update}
-data Cell[T]:
+struct Cell[T]:
     value: T
 
 impl[T] Apply for Cell[T]:
@@ -12,11 +12,11 @@ impl[T] Update[T] for Cell[T]:
     fn update(&mut self, value: T) -> void:
         self.value = value
 
-fn live[T](value: T) -> mut Cell[T]:
+fn live[T](value: T) -> Cell[T]:
     Cell { value: value }
 
-data Panel:
-    count: mut Cell[i32]
+struct Panel:
+    count: Cell[i32]
 
 fn badge(count: Cell[i32]) -> string:
     "clicked ${count()}"
@@ -27,7 +27,7 @@ fn parent() -> string:
     count() += 2
     badge(count)
 
-fn bump(panel: mut Panel) -> i32:
+fn bump(panel: &mut Panel) -> i32:
     (panel.count)() += 10
     (panel.count)()
 
@@ -38,4 +38,4 @@ tests:
         assert_equal(parent(), "clicked 3", reason="1 then += 2")
     it("reaches a cell in a field"):
         let mut panel = Panel { count: live(+5) }
-        assert_equal(bump(panel), 15, reason="5 then += 10")
+        assert_equal(bump(&mut panel), 15, reason="5 then += 10")

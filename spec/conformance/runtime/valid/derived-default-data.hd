@@ -2,7 +2,7 @@
 # std Ops, Derived Default: std-ops.default.derive.data.type-default (owner decision Q6-default-derive, batch 51, 2026-10-02).
 use std.ops.Default
 @derive(Default)
-data Settings:
+struct Settings:
     name: string
     retries: i32
     tags: List[string]

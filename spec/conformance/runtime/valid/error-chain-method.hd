@@ -2,7 +2,7 @@
 # Spec std/error Cause Chain: std-error.chain.method, std-error.chain.decl, std-error.chain.order.
 use std.error.{Error, chain}
 @error("disk full")
-data DiskError:
+struct DiskError:
     free: i64
 
 @error

@@ -1,6 +1,6 @@
 # test: a user type implements Iterable and drives a for loop
 
-data Bag:
+struct Bag:
     items: List[i32]
 
 impl Iterable[i32] for Bag:

@@ -1,6 +1,6 @@
 # test: a method reference keeps no defaults, so every parameter must be passed
 # Spec 07 Method References: fn.ref.value.
-data Greeter:
+struct Greeter:
     word: string
 
 impl Greeter:

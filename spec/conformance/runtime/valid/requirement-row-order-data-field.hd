@@ -3,10 +3,10 @@
 trait Repo[T]:
     fn count(self) -> i32
 
-data User: pass
-data Post: pass
-data UserRepo: pass
-data PostRepo: pass
+struct User: pass
+struct Post: pass
+struct UserRepo: pass
+struct PostRepo: pass
 
 impl Repo[User] for UserRepo:
     fn count(self) -> i32: 20
@@ -14,7 +14,7 @@ impl Repo[User] for UserRepo:
 impl Repo[Post] for PostRepo:
     fn count(self) -> i32: 1
 
-data Job[A, B]:
+struct Job[A, B]:
     callback: fn() -> i32 $ Repo[A] + Repo[B]
 
 fn activity() -> i32 $ Repo[User] + Repo[Post]:

@@ -5,23 +5,23 @@
 # names.method-lookup.inherent.by-name, names.method-lookup.candidates,
 # names.method-lookup.promoted-candidate, names.method-lookup.one,
 # names.promoted.path.
-data Core:
+struct Core:
     pub value: i32
 
 impl Core:
     pub fn doubled(self) -> i32:
         self.value * 2
 
-data Middle:
+struct Middle:
     Core
 
-data Outer:
+struct Outer:
     Middle
 
 tests:
     use std.testing.assert_equal
 
     it("depth-two field and method"):
-        outer := Outer { Middle: ...Middle { Core: ...Core { value: 21 } } }
+        outer := Outer { Middle: Middle { Core: Core { value: 21 } } }
         assert_equal(outer.value, 21, reason="depth-two field")
         assert_equal(outer.doubled(), 42, reason="depth-two method")

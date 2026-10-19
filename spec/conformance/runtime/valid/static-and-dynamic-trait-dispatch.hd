@@ -4,7 +4,7 @@
 trait Describe:
     fn describe(self) -> i32
 
-data User:
+struct User:
     value: i32
 
 impl Describe for User:

@@ -14,7 +14,7 @@ fn apply(f: fn(i32) -> i32, value: i32) -> i32: f(value)
 
 fn combine(f: fn(i32, i32) -> i32, a: i32, b: i32) -> i32: f(a, b)
 
-data Counter:
+struct Counter:
     start: i32
 
 impl Counter:

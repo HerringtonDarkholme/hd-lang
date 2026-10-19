@@ -2,7 +2,7 @@
 use std.function.Fn
 use std.inspect.Inspectable
 
-data Box[T]:
+struct Box[T]:
     value: T
 
 fn one() -> i32: 1

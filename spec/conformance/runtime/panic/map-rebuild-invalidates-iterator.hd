@@ -1,6 +1,6 @@
 # test: a map iterator panics when length-keeping changes rebuild the map's storage
 # Spec 06 Iterator Invalidation: flow.for.invalidate.map-rebuild.
-fn churn(entries: mut Map[string, i32]) -> void:
+fn churn(entries: &mut Map[string, i32]) -> void:
     for i in 0..64:
         _ := entries.remove("a")
         entries["new$i"] = i
@@ -9,8 +9,8 @@ fn churn(entries: mut Map[string, i32]) -> void:
 
 tests:
     it("next after removals and insertions that keep the length"):
-        let entries: mut Map[string, i32] = {"a": +1, "b": +2, "c": +3, "d": +4}
+        let mut entries: Map[string, i32] = {"a": +1, "b": +2, "c": +3, "d": +4}
         let cursor: &mut Iterator[(string, i32)] = entries.iter()
         _ := cursor.next()
-        churn(entries)
+        churn(&mut entries)
         _ := cursor.next()  # panic: iterator-invalidated

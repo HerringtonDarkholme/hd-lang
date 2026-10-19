@@ -53,7 +53,7 @@ fn same(a: State, b: State) -> bool:
 
 ```text
 @derive(Eq, PartialOrd, Ord)
-data Key:
+struct Key:
     first: i32
     second: i32
 
@@ -185,7 +185,7 @@ use std.cmp.Id
 struct Node:
     label: string
 
-fn visit(seen: mut Map[Id[Node], bool], node: &Node) -> bool:
+fn visit(seen: &mut Map[Id[Node], bool], node: &Node) -> bool:
     key := Id { target: node }
     if seen.get(key).is_some():
         return false

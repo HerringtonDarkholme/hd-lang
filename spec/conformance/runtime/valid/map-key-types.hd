@@ -2,7 +2,7 @@
 # Spec 04 Map Key Types: types.map-key.declared-bound, types.map-key.builtin-hash, types.map-key.user; Map Semantics: types.map.eq-hash.
 # Spec 09 Traits: trait.hash.map-key, trait.derive.explicit-impl.
 @derive(Eq, Hash)
-data Id:
+struct Id:
     value: string
 
 @derive(Eq, Hash)
@@ -11,7 +11,7 @@ enum Level:
     Urgent
 
 # A hand-written Eq and Hash: only `id` takes part, so entries with one id are one key.
-data Tag:
+struct Tag:
     id: i32
     note: string
 
@@ -37,7 +37,7 @@ tests:
         assert_equal(m['b'], 2, reason="char key")
 
     it("an i64 keys a map"):
-        let m: mut Map[i64, string] = {}
+        let mut m: Map[i64, string] = {}
         m[5000000000] = "big"
         m[5000000000] = "bigger"
         assert_equal(m.len(), 1, reason="one i64 key")

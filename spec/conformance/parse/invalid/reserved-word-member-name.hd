@@ -1,7 +1,7 @@
 # test: a reserved word after '.' needs backticks
 # Spec 01 Reserved Words: lex.ident.reserved, lex.raw.reserved.
 
-data Token:
+struct Token:
     `type`: string
 
 fn kind(token: Token) -> string:

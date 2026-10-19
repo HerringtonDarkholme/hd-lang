@@ -4,7 +4,7 @@
 trait Sink[T]:
     fn put(self, value: T) -> void
 
-data Feed[+T]:
+struct Feed[+T]:
     latest: T
 
 impl[T] Sink[T] for Feed[T]:

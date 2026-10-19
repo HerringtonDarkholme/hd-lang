@@ -9,7 +9,7 @@ enum Light:
     Green(level: u8)
 
 @derive(Eq, Hash)
-data Point:
+struct Point:
     x: i16
     y: i16
 

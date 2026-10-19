@@ -2,7 +2,7 @@
 trait Describe:
     fn describe(self) -> string
 
-data User:
+struct User:
     name: string
 
 impl Describe for User:

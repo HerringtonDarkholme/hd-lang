@@ -2,7 +2,7 @@
 # Spec std/error Error Reports: std-error.report.of, std-error.report.display (task #221).
 use std.error.{ErrorReport, report_of}
 @error("disk full")
-data DiskError:
+struct DiskError:
     free: i64
 
 @error

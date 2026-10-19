@@ -1,21 +1,21 @@
 # test: requirements / mutable providers / install a readonly value for a mutable trait
-# Spec 11 Installing: a binding for a mutable requirement trait needs a mut value.
+# Spec 11 Installing: a binding for a mutable requirement trait needs a writable reference.
 
 pub fn main() -> void:
     counter := MemoryCounter { value: 0 }
-    $.with(Counter=counter):  # diagnostic: mutable-upgrade
+    $.with(Counter=&counter):  # diagnostic: mutable-upgrade
         _ := $.use(Counter).count()
 
 trait Counter:
-    fn count(self) -> i32
-    fn bump(mut self) -> void
+    fn count(&self) -> i32
+    fn bump(&mut self) -> void
 
-data MemoryCounter:
+struct MemoryCounter:
     value: i32
 
 impl Counter for MemoryCounter:
-    fn count(self) -> i32:
+    fn count(&self) -> i32:
         self.value
 
-    fn bump(mut self) -> void:
+    fn bump(&mut self) -> void:
         self.value = self.value + 1

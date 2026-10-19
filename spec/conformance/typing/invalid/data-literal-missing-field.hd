@@ -1,7 +1,7 @@
 # test: data initialization rejects missing required fields
 # Spec 08 Data Literals: data.literal.required.
 
-data Point:
+struct Point:
     x: i32
 
 fn main() -> i32: Point { }.x  # diagnostic: missing-required-field

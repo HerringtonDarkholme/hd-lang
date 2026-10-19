@@ -1,7 +1,7 @@
 # test: a bound reference cannot name an associated function
 # Spec 07 Method References: fn.ref.bound.associated (Method References MR6).
 
-data Counter:
+struct Counter:
     value: i32
 
 impl Counter:

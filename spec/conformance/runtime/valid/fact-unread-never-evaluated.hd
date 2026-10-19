@@ -1,6 +1,6 @@
 # test: a fact that no code reads is never evaluated, so its panic never happens
 # Spec 14 Facts: annot.fact.eval.unread.
-data Style:
+struct Style:
     prefix: string = ""
 
 fn style(prefix: string = "") -> Style:
@@ -10,7 +10,7 @@ fn no_prefix() -> string:
     panic("no prefix configured")
 
 @style(prefix=no_prefix())
-data Point:
+struct Point:
     x: i64
 
 tests:

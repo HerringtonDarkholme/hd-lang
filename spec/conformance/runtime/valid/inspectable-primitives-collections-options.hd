@@ -2,7 +2,7 @@
 # Spec 09 Inspectable Types: trait.inspectable.primitive, trait.inspectable.collections, trait.inspectable.option, trait.inspectable.exact.
 # Spec 09 Recovering A Concrete Type: trait.downcast.val, trait.downcast.exact, trait.downcast.optional; Ordinary Rules: trait.downcast.val-ordinary.
 use std.inspect.{Inspectable, downcast_val}
-data Sku:
+struct Sku:
     code: string
 
 fn stock_of(value: dyn Inspectable) -> i32:

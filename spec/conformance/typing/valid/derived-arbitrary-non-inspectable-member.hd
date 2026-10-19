@@ -3,7 +3,7 @@
 # Holder[fn() -> i32] is not inspectable, since it applies Holder to a function type.
 use std.testing.{Arbitrary, Choices}
 
-data Holder[T]:
+struct Holder[T]:
     value: T
 
 impl Arbitrary for Holder[fn() -> i32]:
@@ -12,6 +12,6 @@ impl Arbitrary for Holder[fn() -> i32]:
         Holder { value: fn() -> i32: n }
 
 @derive(Arbitrary)
-data Job:
+struct Job:
     label: string
     task: Holder[fn() -> i32]

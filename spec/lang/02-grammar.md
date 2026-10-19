@@ -207,7 +207,7 @@ A `let` statement binds the names of a pattern to the parts of its
 initializer:
 
 ```text
-data Point:
+struct Point:
     x: i32
     y: i32
 
@@ -289,7 +289,7 @@ fn split() -> i32:
 4. r[grammar.stmt.typed-binding.let] A binding with a type annotation must begin with `let`. So `x: T = v` is an error whose fix-it writes `let x: T = v`, or `x := v` without the type. Error: `missing-let`.
 
 ```text
-data Point:
+struct Point:
     x: i32
     y: i32
 
@@ -520,10 +520,10 @@ embedded_field = named_type ;
 6. r[grammar.data.struct] A declaration written with `struct` in place of `data` has the same body grammar, and declares a struct ([Struct Declarations](08-data-and-enums.md#struct-declarations)).
 
 ```text
-pub data Base:
+pub struct Base:
     id: string
 
-pub data Post:
+pub struct Post:
     pub Base  # error: syntax-error
     pub title: string
 ```
@@ -736,7 +736,7 @@ trait Supplier:
     type Item
     fn get(self) -> Self::Item
 
-data Constant:
+struct Constant:
     value: string
 
 impl Supplier[Item = string] for Constant:  # error: syntax-error
@@ -755,7 +755,7 @@ trait Supplier:
     type Item
     fn get(self) -> Self::Item
 
-data Constant: pass
+struct Constant: pass
 
 impl Supplier for Constant:
     type Item = string
@@ -771,7 +771,7 @@ fn pick[T, I < Supplier[Item = T] = Constant](source: I) -> T:
 4. r[grammar.generic.default.semantic] Default order, the names a default may use, and when it applies are semantic rules of [Type-Argument Defaults](04-type-system.md#type-argument-defaults).
 
 ```text
-data Box[T]:
+struct Box[T]:
     value: T
 
 impl[T = i32] Box[T]:  # error: syntax-error
@@ -907,7 +907,7 @@ fn drop_logger[R](callback: fn() -> void $ R) -> void $ R - Logger: callback()  
 4. r[grammar.type.row-argument.kind] Using a row argument for a type-kinded parameter, or a type for a row-kinded one, is an error. Error: `generic-kind-mismatch`.
 
 ```text
-data Box[T]:
+struct Box[T]:
     value: T
 
 fn invalid(value: Box[$()]) -> void: pass  # error: generic-kind-mismatch
@@ -1227,7 +1227,7 @@ In an expression, an explicit type-argument list follows `::`, the
 **type-argument marker**. A type keeps its plain brackets:
 
 ```text
-data Box[T]:
+struct Box[T]:
     value: T
 
 fn first[T](items: List[T]) -> T: items[0]
@@ -1244,7 +1244,7 @@ fn demo(names: List[string]) -> Box[string]:
 5. r[grammar.expr.type-arguments.unmarked] A data expression or qualified call whose type name takes brackets without `::`, as in `Box[i32] { value: 1 }` or `Add[i32]::add(price, 5)`, is an error. Error: `syntax-error`.
 
 ```text
-data Box[T]:
+struct Box[T]:
     value: T
 
 fn boxed() -> Box[i32]:
@@ -1263,7 +1263,7 @@ fn boxed() -> Box[i32]:
 2. r[grammar.expr.method-type-arguments.bang] A bang call writes the `!` on the name and the list after it, as the declaration `fn fetch![T](...)` does. The calls are `fetch!::[User](key)`, `parser.load!::[User](text)`, and `Store::load!::[User](key)`.
 
 ```text
-data Identity: pass
+struct Identity: pass
 
 impl Identity:
     fn echo![Value](value: Value) -> Value:
@@ -1409,7 +1409,7 @@ fn demo(text: string) -> string:
 2. r[grammar.primary.prefix-copy-meaning] A prefix `...` in a data expression always means "copy the named members of this value". This holds whether it begins a copy-update spread or follows a field label.
 
 ```hd
-data Point:
+struct Point:
     x: i32
     y: i32
 
@@ -1425,7 +1425,7 @@ See also: [Data Embedding](08-data-and-enums.md#data-embedding).
 2. r[grammar.primary.field-shorthand.mixed] Shorthand and labeled items may be mixed in one data expression, as in `Point { x, y: 0 }`, and may follow a copy-update spread.
 
 ```text
-data Point:
+struct Point:
     x: i32
     y: i32
 
@@ -1444,7 +1444,7 @@ See also: [Data Literals](08-data-and-enums.md#data-literals).
 
 ```hd
 @derive(Debug)
-data Point:
+struct Point:
     x: i32
 
 fn label(p: Point) -> string:
@@ -1511,12 +1511,12 @@ See also: [Prefixed Strings](01-lexical-structure.md#prefixed-strings).
 6. r[grammar.primary.member-type-arguments.rules] That list is valid only when the selected member is generic, and it follows the explicit-list rules of [Generic Functions](07-functions.md#generic-functions).
 
 ```hd
-data Point:
+struct Point:
     x: i32
     y: i32
 
 fn demo() -> i32:
-    p := Point { x: 1, y: 2 }   # a data expression: Point names a data type
+    p := Point { x: 1, y: 2 }   # a data expression: Point names a struct type
     m := {"x": +1}              # a map expression
     p.x + m.get("x").unwrap_or(+0)
 ```
@@ -1547,7 +1547,7 @@ See also: [List And Map Expressions](05-expressions.md#list-and-map-expressions)
 3. r[grammar.primary.method-reference.no-bang] A reference with type arguments directly followed by `!(` is not a bang call of that reference. So `Identity::echo::[i32]!(42)` is an error, and the call is `Identity::echo!::[i32](42)`. Error: `syntax-error`.
 
 ```hd
-data User:
+struct User:
     domain: string
 
 impl User:
@@ -1875,7 +1875,7 @@ See also: [Match Expressions](06-control-flow.md#match-expressions).
 4. r[grammar.label.data-pattern-equals] A data pattern written with `field = pattern` is an error. Error: `syntax-error`.
 
 ```text
-data Point:
+struct Point:
     x: i32
     y: i32
 

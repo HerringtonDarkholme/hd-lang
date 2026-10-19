@@ -2,7 +2,7 @@
 
 trait Clock
 
-data MockClock:
+struct MockClock:
     value: i32
 
 impl Clock for MockClock

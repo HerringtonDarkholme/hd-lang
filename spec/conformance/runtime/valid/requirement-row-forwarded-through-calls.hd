@@ -6,7 +6,7 @@ fn run() -> i32 $ Clock: middle() + 1
 
 trait Clock
 
-data FixedClock: pass
+struct FixedClock: pass
 
 impl Clock for FixedClock
 

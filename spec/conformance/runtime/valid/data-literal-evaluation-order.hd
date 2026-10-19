@@ -8,7 +8,7 @@ fn step(n: i32) -> i32:
     trace = trace * 10 + n
     n
 
-data Invoice:
+struct Invoice:
     id: i32
     currency: i32 = step(3)
     customer: i32

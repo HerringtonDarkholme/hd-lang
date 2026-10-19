@@ -44,7 +44,7 @@ fn load_user!(id: UserId) -> Result[User, DbError] $ Database:
 ```text
 pub fn identity(x: i32): x  # error: missing-result-type
 
-data Cart:
+struct Cart:
     count: i32
 
 impl Cart:
@@ -139,7 +139,7 @@ This section defines how parameters are initialized and passed.
 ```text
 fn inspect(user: User) -> string: user.name
 
-fn rename(user: mut User, name: string) -> void:
+fn rename(user: &mut User, name: string) -> void:
     user.name = name
 ```
 
@@ -581,11 +581,11 @@ A **method reference** names a method or an associated function as a
 function value. It is the qualified call without its arguments:
 
 ```text
-data Counter:
+struct Counter:
     value: i32
 
 impl Counter:
-    fn bump(mut self, by: i32) -> void:
+    fn bump(&mut self, by: i32) -> void:
         self.value = self.value + by
 
     fn read(self) -> i32:
@@ -600,7 +600,7 @@ fn reader() -> fn(Counter) -> i32:
 fn maker() -> fn() -> Counter:
     Counter::zero
 
-fn bumper(counter: mut Counter) -> fn(i32) -> void:
+fn bumper(counter: &mut Counter) -> fn(i32) -> void:
     counter::bump
 ```
 
@@ -627,17 +627,17 @@ fn bumper(counter: mut Counter) -> fn(i32) -> void:
 21. r[fn.ref.bound.associated] A bound reference names a method, since an associated function has no receiver to bind. `counter::zero` for an associated function `zero` is an error. Error: `unknown-method`.
 
 ```text
-data Counter:
+struct Counter:
     value: i32
 
 impl Counter:
-    fn bump(mut self, by: i32) -> void:
+    fn bump(&mut self, by: i32) -> void:
         self.value = self.value + by
 
     fn zero() -> Counter:
         Counter { value: 0 }
 
-data User:
+struct User:
     email: string
 
 fn emails() -> fn(User) -> string:
@@ -794,17 +794,17 @@ Every closure is a plain `fn` closure, and it may mutate through its
 captures:
 
 ```text
-data User:
+struct User:
     name: string
 
-fn rename(user: mut User) -> void:
+fn rename(user: &mut User) -> void:
     user.name = "renamed"
 
-fn plain_closure(user: mut User) -> fn() -> void:
+fn plain_closure(user: &mut User) -> fn() -> void:
     fn() -> void:
         rename(user)
 
-fn make_appender(items: mut List[i32]) -> fn(i32) -> void:
+fn make_appender(items: &mut List[i32]) -> fn(i32) -> void:
     fn(value: i32) -> void:
         items.push(value)
 ```
@@ -816,10 +816,10 @@ fn make_appender(items: mut List[i32]) -> fn(i32) -> void:
 5. r[fn.capture.result-not-weakened] A callable's declared `mut T` result is not itself weakened when the callable is read through a readonly reference.
 
 ```text
-data User:
+struct User:
     name: string
 
-fn rename(user: User) -> void:
+fn rename(user: &User) -> void:
     change := fn() -> void:
         user.name = "Grace"  # error: readonly-root
     change()
@@ -1202,7 +1202,7 @@ The rules below still hold:
 4. r[fn.unsupported.variant-multi] A constructor with two or more payload fields stays an error. Error: `unsaturated-enum-constructor`.
 
 ```hd
-data Counter:
+struct Counter:
     value: i32
 
 impl Counter:

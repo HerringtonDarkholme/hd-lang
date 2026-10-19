@@ -2,7 +2,7 @@
 # Spec std/json Encode And Decode: std-json.encode.serialize (task #241, #320).
 use std.json.encode
 
-data Plain:
+struct Plain:
     id: i32
 
 fn show(value: Plain) -> string:

@@ -5,7 +5,7 @@
 use std.annotation.{annotate, Target}
 
 @annotate(.Fn, .Method, .Param)
-data Doc:
+struct Doc:
     text: string
 
 fn doc(text: string) -> Doc:
@@ -15,7 +15,7 @@ fn doc(text: string) -> Doc:
 fn add(@doc("left") left: i32, right: i32) -> i32:
     left + right
 
-data Counter:
+struct Counter:
     count: i32
 
 impl Counter:
@@ -24,7 +24,7 @@ impl Counter:
         self.count
 
 @"any"
-data Note:
+struct Note:
     text: string
 
 let kinds: List[Target] = [.Fn, .Data]

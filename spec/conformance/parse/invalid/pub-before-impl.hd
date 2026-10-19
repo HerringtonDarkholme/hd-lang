@@ -1,6 +1,6 @@
 # test: pub is not accepted before an impl declaration
 # Spec 02 Declarations: grammar.decl.impl-no-pub.
-data Dog:
+struct Dog:
     name: string
 
 pub impl Dog:  # diagnostic: syntax-error

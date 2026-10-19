@@ -1,6 +1,6 @@
 # test: PartialOrd has Eq as a supertrait
 
-data Score:
+struct Score:
     value: i32
 
 impl PartialOrd for Score:  # diagnostic: missing-supertrait-implementation

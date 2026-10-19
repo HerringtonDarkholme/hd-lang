@@ -582,7 +582,7 @@ use std.serde.{Serialize, Deserialize}
 use std.time.{Duration, Timestamp}
 
 @derive(Serialize, Deserialize)
-data Lease:
+struct Lease:
     holder: string
     granted_at: Timestamp
     term: Duration

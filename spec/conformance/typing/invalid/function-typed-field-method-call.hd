@@ -1,7 +1,7 @@
 # test: x.name(args) is a method call, so it never calls a function stored in a field
 fn add_one(value: i32) -> i32: value + 1
 
-data Button:
+struct Button:
     on_click: fn(i32) -> i32
 
 fn invalid(button: Button) -> i32:

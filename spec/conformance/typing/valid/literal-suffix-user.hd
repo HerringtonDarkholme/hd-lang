@@ -2,7 +2,7 @@
 # Spec 05 Literal Suffixes: `12px` calls px(12).
 use std.ops.num_suffix
 
-data Pixels:
+struct Pixels:
     count: i32
 
 @num_suffix

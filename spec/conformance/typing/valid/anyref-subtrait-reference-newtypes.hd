@@ -3,10 +3,10 @@
 
 trait Entity < AnyRef
 
-data User:
+struct User:
     name: string
 
-type Owner(User)
+type Owner(&User)
 
 impl Entity for Owner
 

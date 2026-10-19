@@ -1,8 +1,8 @@
-# test: requirements / mutable providers / state change through mut self
+# test: requirements / mutable providers / state change through &mut self
 # Spec 11 Mutable Providers: req.mut.trait-access,
 # req.mut.use-writable, req.mut.use.binding, req.mut.row.plain,
 # req.mut.row.no-access-rules.
-# Spec 11 Mutable Providers: a requirement trait with a mut self method is always provided
+# Spec 11 Mutable Providers: a requirement trait with a &mut self method is always provided
 # with mutable access, so $.use(Counter) yields mut Counter.
 
 fn tick() -> i32 $ Counter:
@@ -16,23 +16,23 @@ fn keep() -> i32 $ Counter:
 
 trait Counter:
     fn count(self) -> i32
-    fn bump(mut self) -> void
+    fn bump(&mut self) -> void
 
-data MemoryCounter:
+struct MemoryCounter:
     value: i32
 
 impl Counter for MemoryCounter:
     fn count(self) -> i32:
         self.value
 
-    fn bump(mut self) -> void:
+    fn bump(&mut self) -> void:
         self.value = self.value + 1
 
 tests:
     use std.testing.assert_equal
 
     it("a mutable provider changes its own state"):
-        let mut counter = MemoryCounter { value: 0 }
+        let mut counter = &mut MemoryCounter { value: 0 }
         $.with(Counter=counter):
             _ := tick()
             assert_equal(keep(), 2, reason="both calls bump the installed provider")

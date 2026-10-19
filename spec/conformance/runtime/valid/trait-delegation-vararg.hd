@@ -3,14 +3,14 @@
 trait Tally:
     fn tally(self, values...: List[i32]) -> usize
 
-data Counter:
+struct Counter:
     base: usize
 
 impl Tally for Counter:
     fn tally(self, values...: List[i32]) -> usize:
         self.base + values.len()
 
-data Service:
+struct Service:
     Counter
 
 impl Tally for Service by Counter
@@ -19,6 +19,6 @@ tests:
     use std.testing.assert_equal
 
     it("the forwarding method passes the vararg on"):
-        service := Service { Counter: ...Counter { base: 10 } }
+        service := Service { Counter: Counter { base: 10 } }
         assert_equal(Tally::tally(service, 1, 2, 3), 13, reason="three collected arguments")
         assert_equal(Tally::tally(service), 10, reason="an empty vararg")

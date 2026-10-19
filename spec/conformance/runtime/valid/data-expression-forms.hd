@@ -6,15 +6,15 @@
 # expect-stdout: 5 9 Ada
 # expect-stdout: 1
 # expect-stdout: 5 5
-data Point:
+struct Point:
     x: i32
     y: i32
 
-data Stamp:
+struct Stamp:
     pub created: i32
     pub updated: i32
 
-data Note:
+struct Note:
     Stamp
     title: string
 
@@ -35,7 +35,7 @@ pub fn main() -> void $ Console:
     y := +9
     spread_first := Point { ...mixed, x: +5, y }
     stamp := Stamp { created: +1, updated: +2 }
-    note := Note { Stamp: ...stamp, title: "Ada" }
+    note := Note { Stamp: stamp, title: "Ada" }
     println("${spread_first.x} ${spread_first.y} ${note.title}")
     println(note.created)
     table := {"x": +5}

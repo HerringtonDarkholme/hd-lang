@@ -5,7 +5,7 @@
 trait Named < Display:
     fn name(self) -> string
 
-data User:
+struct User:
     handle: string
 
 impl Display for User:

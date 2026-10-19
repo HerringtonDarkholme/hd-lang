@@ -1,7 +1,7 @@
 # test: suspending associated functions preserve generic results through qualified bang calls
 # expect: test
 
-data Identity: pass
+struct Identity: pass
 
 impl Identity:
     fn echo![Value](value: Value) -> Value:

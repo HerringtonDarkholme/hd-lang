@@ -4,7 +4,7 @@ trait Db
 
 trait Cache
 
-data Both: pass
+struct Both: pass
 
 impl Db for Both
 

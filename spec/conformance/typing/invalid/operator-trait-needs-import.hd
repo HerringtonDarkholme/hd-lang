@@ -1,6 +1,6 @@
 # test: an operator trait is not a prelude name, so implementing Add needs a use
 # Spec 10 Standard Names Outside The Prelude: module.prelude.ops-operator-traits.
-data Money:
+struct Money:
     cents: i64
 
 impl Add[Money] for Money:  # diagnostic: unknown-trait

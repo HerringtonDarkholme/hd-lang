@@ -5,7 +5,7 @@ use std.serde.{Serialize, Deserialize}
 use std.testing.assert_equal
 
 @derive(Serialize, Deserialize)
-pub data Token:
+pub struct Token:
     pub owner: string
     secret: i64
 

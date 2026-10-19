@@ -32,7 +32,7 @@ impl[T] Shape for T by Structure:
         d.out
 
 @derive(Shape)
-data Tag:
+struct Tag:
     label: string
 
 @derive(Shape)

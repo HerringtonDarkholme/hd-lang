@@ -2,14 +2,14 @@
 # expect-stdout: 3 ids
 # test: a data pattern reads a generic field whose type is itself generic data or a list
 # Spec 06 Control Flow: a generic field declared `field: P` binds as substituted `P`.
-data Pair[A, B]:
+struct Pair[A, B]:
     first: A
     second: B
 
-data Line[T]:
+struct Line[T]:
     start: Pair[T, string]
 
-data Batch[T]:
+struct Batch[T]:
     items: T
     label: string
 

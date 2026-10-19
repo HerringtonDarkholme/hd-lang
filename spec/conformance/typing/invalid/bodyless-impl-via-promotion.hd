@@ -3,13 +3,13 @@
 trait Describe:
     fn describe(self) -> string
 
-data Label:
+struct Label:
     text: string
 
 impl Label:
     pub fn describe(self) -> string: self.text
 
-data Page:
+struct Page:
     Label
 
 impl Describe for Page  # diagnostic: missing-trait-method

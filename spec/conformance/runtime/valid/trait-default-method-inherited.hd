@@ -6,7 +6,7 @@ trait Named:
     fn label(self) -> i32:
         self.name() + 2
 
-data Number:
+struct Number:
     value: i32
 
 impl Named for Number:

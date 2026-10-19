@@ -4,7 +4,7 @@
 trait Blank:
     fn blank() -> Self
 
-data Tally:
+struct Tally:
     count: i32
 
 impl Blank for Tally:

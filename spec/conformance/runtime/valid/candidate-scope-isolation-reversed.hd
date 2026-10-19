@@ -3,7 +3,7 @@
 trait Apply[T]:
     fn apply(self, run: fn(T) -> T) -> i32
 
-data Item:
+struct Item:
     value: i32
 
 impl Apply[bool] for Item:

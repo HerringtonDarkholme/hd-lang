@@ -5,8 +5,8 @@ use std.testing.assert_equal
 fn child!(value: i32) -> i32: value
 
 pub fn main!() -> void:
-    let readers: mut List[fn() -> i32] = []
-    let writers: mut List[fn!() -> i32] = []
+    let mut readers: List[fn() -> i32] = []
+    let mut writers: List[fn!() -> i32] = []
     for seed in [+10, 20]:
         let count: i32 = seed
         readers.push(fn() -> i32: count)

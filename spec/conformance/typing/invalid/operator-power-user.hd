@@ -1,6 +1,6 @@
 # test: ** has no operator trait, so it rejects a data operand
 # Spec 05 Operator Traits: expr.op.not-overloaded (Operator Traits OP3).
-data Money:
+struct Money:
     cents: i64
 
 fn squared(price: Money) -> Money:

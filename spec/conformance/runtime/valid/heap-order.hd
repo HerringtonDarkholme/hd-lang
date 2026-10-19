@@ -2,7 +2,7 @@
 # Spec std/collections Heap: std-collections.heap.len, std-collections.heap.push, std-collections.heap.pop, std-collections.heap.peek, std-collections.heap.sorted (COLLECTIONS-DATES-SURFACE; task #225).
 use std.collections.Heap
 fn drained(heap: &mut Heap[i32]) -> List[i32]:
-    let popped: mut List[i32] = []
+    let mut popped: List[i32] = []
     while true:
         match heap.pop():
             .Some(value) => popped.push(value)

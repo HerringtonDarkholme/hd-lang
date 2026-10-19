@@ -7,7 +7,7 @@ trait Parent:
 trait Child < Parent:
     fn label(self) -> string
 
-data Item: pass
+struct Item: pass
 
 impl Parent for Item:
     fn id(self) -> i32: 1

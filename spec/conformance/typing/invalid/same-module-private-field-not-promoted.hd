@@ -1,8 +1,8 @@
 # test: a private field of a part is not promoted, even when the part is declared in the same module
-data Base:
+struct Base:
     secret: string
 
-data Record:
+struct Record:
     Base
 
 fn invalid(record: Record) -> string:

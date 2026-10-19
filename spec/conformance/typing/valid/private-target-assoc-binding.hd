@@ -1,13 +1,13 @@
 # test: an impl for a private target may bind a private type
 # Spec 10 Public Signatures: module.vis.signature.coverage.
-data Hidden:
+struct Hidden:
     n: i32
 
 pub trait Make:
     type Out
     fn make(self) -> Self::Out
 
-data Inner:
+struct Inner:
     k: i32
 
 impl Make for Inner:

@@ -6,7 +6,7 @@
 trait Add[T]:
     fn add(self, other: T) -> T
 
-data Number:
+struct Number:
     value: i32
 
 impl Add[Number] for Number:
@@ -31,7 +31,7 @@ fn bounded_add[T < Add[Number]](value: T, other: Number) -> Number:
 fn add_bounded() -> i32:
     bounded_add(Number { value: 20 }, Number { value: 22 }).value
 
-data Keep[T]:
+struct Keep[T]:
     value: T
 
 impl[T] Add[T] for Keep[T]:

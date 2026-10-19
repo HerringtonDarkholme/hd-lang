@@ -1,5 +1,5 @@
 # test: a type name where a value is required is type-used-as-value
-data User:
+struct User:
     name: string
 
 fn make() -> void:

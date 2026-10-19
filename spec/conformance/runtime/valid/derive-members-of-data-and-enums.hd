@@ -65,11 +65,11 @@ fn send[T < Serialize](value: T) -> string:
     out.text
 
 @derive(Serialize)
-data Stamp:
+struct Stamp:
     at: i32
 
 @derive(Serialize)
-data Post:
+struct Post:
     Stamp
     id: string
     views: i32
@@ -87,7 +87,7 @@ tests:
     use std.testing.assert_equal
 
     it("a data type's members are its fields in declaration order, an embedded field first"):
-        post := Post { Stamp: ...Stamp { at: 7 }, id: "p1", views: 3 }
+        post := Post { Stamp: Stamp { at: 7 }, id: "p1", views: 3 }
         assert_equal(send(post), "<Post> Stamp@0: <Stamp> at@0: 7 </> id@1: p1 views@2: 3 </>", reason="embedded field is member 0")
 
     it("an unnamed payload parameter is _0, _1 by position, beside a named one"):

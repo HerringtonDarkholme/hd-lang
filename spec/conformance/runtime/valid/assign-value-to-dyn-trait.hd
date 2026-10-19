@@ -1,6 +1,6 @@
 # test: a value of a type that implements a trait is assignable to that dyn trait
 # Spec 04 Assignability And Coercion: types.assign.trait-value.
-data User:
+struct User:
     name: string
 
 impl Display for User:

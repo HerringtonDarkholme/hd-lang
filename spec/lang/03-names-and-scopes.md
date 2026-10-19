@@ -30,7 +30,7 @@ fn value(input: string) -> string: input  # error: duplicate-module-name
 ```
 
 ```text
-data User:
+struct User:
     name: string
 
 fn make() -> void:
@@ -49,7 +49,7 @@ fn make() -> void:
 3. r[names.prelude.one-namespace] There is no separate predeclared-name namespace or shadowing rule.
 
 ```text
-data i32:  # error: prelude-name-shadow
+struct i32:  # error: prelude-name-shadow
     value: string
 ```
 
@@ -66,7 +66,7 @@ shadowing a prelude name an error.
 6. r[names.type-param.no-redeclare.body] Inside `fn work[T]`, a local `data T`, a local value `T`, and a local `fn convert[T]` are each an error.
 
 ```text
-data Box[+T]:
+struct Box[+T]:
     value: T
 
 impl[T] Box[T]:
@@ -74,7 +74,7 @@ impl[T] Box[T]:
         value
 
 fn work[T < Display](value: T) -> string:
-    data T:  # error: duplicate-binding
+    struct T:  # error: duplicate-binding
         count: i32
     T := value  # error: duplicate-binding
     "${value}"
@@ -91,7 +91,7 @@ fn work[T < Display](value: T) -> string:
 4. r[names.self-type.outside] `Self` has no valid type meaning outside those bodies.
 
 ```hd
-data Counter:
+struct Counter:
     value: i32
 
 impl Counter:
@@ -159,7 +159,7 @@ name := normalize(name)  # the right-hand name, if valid, resolves outward
 
 ```text
 # src/cart.hd
-pub data Cart:
+pub struct Cart:
     pub items: i32
 
 pub fn total(cart: Cart) -> i32: cart.items * 100
@@ -219,7 +219,7 @@ demo := total()   # reads start through total, after both are initialized
 
 ```hd
 fn demo() -> i32:
-    data Pair:
+    struct Pair:
         a: i32
         b: i32
     p := Pair { a: +1, b: +2 }
@@ -565,7 +565,7 @@ fn demo() -> i32:
 ```text
 fn describe(name: string) -> string:
     type Label = string
-    data Entry:
+    struct Entry:
         label: Label
     enum Format:
         Plain
@@ -707,7 +707,7 @@ select.
 9. r[names.member.no-hiding] Neither hides the other, because no use looks in both namespaces.
 
 ```hd
-data Timer:
+struct Timer:
     count: i32
 
 impl Timer:
@@ -728,10 +728,10 @@ See also: [Implementation Declarations](09-traits.md#implementation-declarations
 5. r[names.lookup.stored-fn] A function stored in a field is called as `(x.name)(args)`.
 
 ```text
-data Base:
+struct Base:
     pub run: fn() -> i32
 
-data Job:
+struct Job:
     Base
 
 fn invalid(job: Job) -> i32:
@@ -746,7 +746,7 @@ See also: [Member Access](05-expressions.md#member-access).
 2. r[names.visible.trait] A trait method is **available** when its trait is available to dot-call lookup there.
 
 ```hd
-data User:
+struct User:
     pub name: string
     id: i32   # private: usable inside this module only
 ```
@@ -763,10 +763,10 @@ See also: [Data Declarations](08-data-and-enums.md#data-declarations),
 4. r[names.promote.embedded] A part's embedded field is also a promoted member of `S`, at its own depth. An embedded field takes no `pub` marker but is always public ([`data.vis.embedded-public`](08-data-and-enums.md#r-data.vis.embedded-public)).
 
 ```text
-data Base:
+struct Base:
     secret: string
 
-data Record:
+struct Record:
     Base
 
 fn invalid(record: Record) -> string:
@@ -774,13 +774,13 @@ fn invalid(record: Record) -> string:
 ```
 
 ```text
-data Base:
+struct Base:
     pub id: string
 
-data Middle:
+struct Middle:
     Base
 
-data Outer:
+struct Outer:
     Base
     Middle  # the embedded field Base is promoted twice; the shallower copy hides the deeper
 ```
@@ -791,7 +791,7 @@ data Outer:
 2. r[names.members.uniform] They are the same for every use, in every module. A type has a single view of its members, and each name resolves to the same member for every caller. Visibility decides only whether a caller may use the member that lookup finds.
 
 ```hd
-data Point:
+struct Point:
     x: i32
     y: i32
 
@@ -812,14 +812,14 @@ Only a `pub` own member hides a promoted one. A private own member with
 that name is an error, and its author picks another name:
 
 ```text
-data CreatedBySystem:
+struct CreatedBySystem:
     pub id: string
 
-data AuditDraft:
+struct AuditDraft:
     CreatedBySystem
     id: string  # error: ambiguous-promoted-member
 
-data ReviewDraft:
+struct ReviewDraft:
     CreatedBySystem
     pub id: string  # valid: hides CreatedBySystem's id
 ```
@@ -829,19 +829,19 @@ data ReviewDraft:
 1. r[names.conflict.error] Every conflict is an error at the declaration of `S`, never at a use, so lookup never meets one. Error: `ambiguous-promoted-member`.
 
 ```text
-data Left:
+struct Left:
     pub id: string
 
-data Right:
+struct Right:
     pub id: string
 
-data LeftBox:
+struct LeftBox:
     Left
 
-data RightBox:
+struct RightBox:
     Right
 
-data Record:
+struct Record:
     LeftBox
     RightBox  # error: ambiguous-promoted-member
 ```
@@ -874,7 +874,7 @@ data Record:
 3. r[names.field-lookup.unknown] **Not found.** If lookup considers no field named `name`, the use is an error. Error: `unknown-field`.
 
 ```hd
-data User:
+struct User:
     name: string
 
 fn demo(user: User) -> string:
@@ -892,7 +892,7 @@ method, then the candidates, and reports an error when neither applies.
 2. r[names.method-lookup.inherent.by-name] Selection is by name alone, whatever the method's arity or parameter types. A visible inherent method with the wrong signature is still selected, and the call is then checked against it.
 
 ```hd
-data Counter:
+struct Counter:
     value: i32
 
 impl Counter:
@@ -920,14 +920,14 @@ fn demo(c: Counter) -> i32:
 trait Describe:
     fn describe(self) -> string
 
-data Base:
+struct Base:
     name: string
 
 impl Base:
     pub fn describe(self) -> string:
         "base " + self.name
 
-data Page:
+struct Page:
     Base
 
 impl Describe for Page:
@@ -946,7 +946,7 @@ fn invalid(page: Page) -> string:
 4. r[names.method-lookup.hint.field] The message should suggest `(x.name)(args)` when the receiver has a field named `name`.
 
 ```text
-data Button:
+struct Button:
     on_click: fn(i32) -> i32
 
 fn invalid(button: Button) -> i32:
@@ -963,21 +963,21 @@ Here `Page` embeds `Label`, `Label` implements `Display` and embeds `Base`,
 and `Base` has a `pub` inherent `to_string`:
 
 ```text
-data Base:
+struct Base:
     pub name: string
 
 impl Base:
     pub fn to_string(self) -> string:
         "base " + self.name
 
-data Label:
+struct Label:
     Base
 
 impl Display for Label:
     fn to_string(self) -> string:
         "label"
 
-data Page:
+struct Page:
     Label
 
 fn show(page: Page) -> string:
@@ -999,24 +999,24 @@ If `Page` also implemented `Display`, `page.to_string()` would be
 3. r[names.promoted.explicit] Explicit qualification through an embedded field, as in `x.E1.name`, starts a new lookup with `E1`'s type as the receiver's type. There the member's own visibility applies. It reaches a private member of a part, as in `x.Part.secret`, where that member is visible.
 
 ```text
-data Resetter:
+struct Resetter:
     count: i32
 
 impl Resetter:
     pub fn reset(self) -> i32:
         0
 
-data Wrapper:
+struct Wrapper:
     Resetter
 
-data Counter:
+struct Counter:
     value: i32
 
 impl Counter:
-    pub fn reset(mut self) -> void:
+    pub fn reset(&mut self) -> void:
         self.value = 0
 
-data Page:
+struct Page:
     Counter
     Wrapper
 

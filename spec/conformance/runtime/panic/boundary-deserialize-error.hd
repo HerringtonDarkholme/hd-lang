@@ -3,7 +3,7 @@
 # fixture-runtime-profile: serde-vault
 use std.serde.{Serialize, Serializer, Deserialize, Deserializer}
 
-pub data Token:
+pub struct Token:
     pub owner: string
     secret: i64
 

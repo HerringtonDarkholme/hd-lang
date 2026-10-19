@@ -1,6 +1,6 @@
 # test: replacing a map value keeps the length, so the loop goes on without a panic
 # Spec 06 Iterator Invalidation: flow.for.replace.
-fn double(entries: mut Map[string, i32]) -> void:
+fn double(entries: &mut Map[string, i32]) -> void:
     for (key, value) in entries:
         entries[key] = value * 2
 
@@ -8,7 +8,7 @@ tests:
     use std.testing.assert_equal
 
     it("every value replaced in place"):
-        let entries: mut Map[string, i32] = {"a": +1, "b": +2}
-        double(entries)
+        let mut entries: Map[string, i32] = {"a": +1, "b": +2}
+        double(&mut entries)
         assert_equal(entries["a"], +2, reason="a doubled")
         assert_equal(entries["b"], +4, reason="b doubled")

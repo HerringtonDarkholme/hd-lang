@@ -34,5 +34,5 @@ impl[T < Tuple] Encode for T by Structure:
         w.out
 
 @derive(Encode)  # diagnostic: underivable-trait
-data Point:
+struct Point:
     x: i64

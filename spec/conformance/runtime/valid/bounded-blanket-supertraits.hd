@@ -10,7 +10,7 @@ trait Measure:
 trait Scored < Measure:
     fn marker(self) -> i32
 
-data Point:
+struct Point:
     value: i32
 
 impl Score for Point:

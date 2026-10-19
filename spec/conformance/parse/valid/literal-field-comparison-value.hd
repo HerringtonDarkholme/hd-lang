@@ -1,7 +1,7 @@
 # test: map and data literal items whose values are comparisons are not bindings
 # expect: parse
 
-data Flags:
+struct Flags:
     on: bool
 
 fn run(a: i32, b: i32) -> void:

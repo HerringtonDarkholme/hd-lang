@@ -3,19 +3,19 @@
 use std.digest.{Sha256, sha256}
 
 fn counting(size: usize) -> List[u8]:
-    let bytes: mut List[u8] = []
+    let mut bytes: List[u8] = []
     for index in 0..size:
         bytes.push(u8(index * 7 + 3))
     bytes
 
 fn slice(bytes: List[u8], from: usize, to: usize) -> List[u8]:
-    let part: mut List[u8] = []
+    let mut part: List[u8] = []
     for index in from..to:
         part.push(bytes[index])
     part
 
 fn repeated(byte: u8, count: usize) -> List[u8]:
-    let bytes: mut List[u8] = []
+    let mut bytes: List[u8] = []
     for _ in 0..count:
         bytes.push(byte)
     bytes

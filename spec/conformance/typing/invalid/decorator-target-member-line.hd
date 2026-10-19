@@ -4,13 +4,13 @@ use std.annotation.annotate
 use std.structure.Structure
 
 @annotate(.Fn)
-data Route:
+struct Route:
     path: string
 
 fn route(path: string) -> Route:
     Route { path: path }
 
-data Page:
+struct Page:
     title: string
 
 impl Page by Structure:

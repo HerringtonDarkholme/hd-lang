@@ -3,7 +3,7 @@
 # 14 Error Derivation: annot.error.cause.optional, annot.error.form.variant-transparent.
 use std.error.{Error, ErrorReport, chain, report_of}
 @error("disk full")
-data DiskError:
+struct DiskError:
     free: i64
 
 @error
@@ -14,7 +14,7 @@ enum RepoError:
     Disk(@from error: DiskError)
 
 @error("sync failed")
-data SyncError:
+struct SyncError:
     @source
     repo: RepoError
 

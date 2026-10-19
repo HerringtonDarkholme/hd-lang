@@ -4,7 +4,7 @@
 trait Cache[T]:
     fn get(self, key: string) -> T?
 
-data Handler[-T]:
+struct Handler[-T]:
     handle: fn(T) -> void
 
 impl[T] Handler[T]:

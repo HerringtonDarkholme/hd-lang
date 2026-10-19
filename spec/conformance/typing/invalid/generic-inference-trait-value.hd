@@ -2,7 +2,7 @@
 # Spec 04 Inference From Several Arguments: types.generic.infer.join.no-trait-value (INF-mut,
 # owner decision 2026-09-30). A User and a Display argument of one T have no common type.
 
-data User:
+struct User:
     name: string
 
 impl Display for User:

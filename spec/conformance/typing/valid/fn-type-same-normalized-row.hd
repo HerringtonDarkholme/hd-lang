@@ -1,8 +1,8 @@
-# test: function types with the same inputs, output, and normalized row are the same type, even inside an invariant mut List
+# test: function types with the same inputs, output, and normalized row are the same type, even inside an invariant &mut List
 # Spec 04 Function Type Identity: types.fn.same.
 trait Db
 
 trait Cache
 
-fn same(handlers: mut List[fn() -> void $ Db + Cache]) -> mut List[fn() -> void $ Cache + Db]:
+fn same(handlers: &mut List[fn() -> void $ Db + Cache]) -> &mut List[fn() -> void $ Cache + Db]:
     handlers

@@ -33,21 +33,21 @@ impl[T < mut Any] Duplicate for T by Structure:
             .Ok(value) => value
             .Err(_) => panic("a copy source never fails")
 
-data Counter:
+struct Counter:
     count: i64
 
 @derive(Duplicate)
-data Stats:
-    hits: mut Counter
+struct Stats:
+    hits: &mut Counter
     label: string
 
 @derive(Duplicate)
 enum Slot:
     Empty
-    Held(item: mut Counter)
+    Held(item: &mut Counter)
 
-fn copy_stats(stats: mut Stats) -> mut Stats:
-    stats.duplicate_mut()
+fn copy_stats(stats: &mut Stats) -> &mut Stats:
+    &mut stats.duplicate_mut()
 
 fn copy_slot(slot: mut Slot) -> mut Slot:
     slot.duplicate_mut()

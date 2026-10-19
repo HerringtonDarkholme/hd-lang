@@ -32,7 +32,7 @@ impl[T] Load for T by Structure:
             .Ok(value) => value
             .Err(message) => panic(message)
 
-data Config:
+struct Config:
     label: string = "standard"
     retries: i32 = 3
 

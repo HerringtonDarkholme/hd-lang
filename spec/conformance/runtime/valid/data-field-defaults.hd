@@ -3,7 +3,7 @@
 
 fn default_name() -> string: "anonymous"
 
-data User:
+struct User:
     id: i32
     name: string = default_name()
     active: bool = true

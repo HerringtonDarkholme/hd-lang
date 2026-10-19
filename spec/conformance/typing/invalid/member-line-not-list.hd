@@ -24,7 +24,7 @@ impl[T] Show for T by Structure:
         _ := Structure::walk(self, &mut w)
         w.out
 
-data Pair:
+struct Pair:
     left: i64
     right: i64
 

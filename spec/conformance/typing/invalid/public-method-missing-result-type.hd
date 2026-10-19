@@ -1,6 +1,6 @@
 # test: functions / declarations / public inherent method needs a result type
 
-data Cart:
+struct Cart:
     count: i32
 
 impl Cart:

@@ -3,11 +3,11 @@
 # Spec 09 Traits: trait.erase.mut.source.
 use std.inspect.Inspectable
 
-data Counter:
+struct Counter:
     count: i32
 
-fn keep(value: mut dyn Inspectable) -> void:
+fn keep(value: &mut dyn Inspectable) -> void:
     pass
 
-fn erase(counter: Counter) -> void:
+fn erase(counter: &Counter) -> void:
     keep(counter)  # diagnostic: mutable-upgrade

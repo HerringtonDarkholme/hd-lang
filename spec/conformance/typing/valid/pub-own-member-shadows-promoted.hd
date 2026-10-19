@@ -1,12 +1,12 @@
 # test: a pub own field and a pub own inherent method shadow the promoted pub members of their names
-data Base:
+struct Base:
     pub id: i32
 
 impl Base:
     pub fn label(self) -> string:
         "base"
 
-data Record:
+struct Record:
     Base
     pub id: string
 

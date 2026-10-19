@@ -1,12 +1,12 @@
-data Child:
+struct Child:
     name: string
 
 impl Child:
-    fn rename(mut self, name: string) -> void:
+    fn rename(&mut self, name: string) -> void:
         self.name = name
 
-data Parent:
-    child: mut Child
+struct Parent:
+    child: &mut Child
 
-fn invalid(parent: Parent) -> void:
+fn invalid(parent: &Parent) -> void:
     parent.child.rename("new")  # diagnostic: mutable-receiver-required

@@ -1,10 +1,10 @@
-# test: is rejects composite operands of unrelated types
+# test: is rejects reference operands of unrelated types
 
-data User:
+struct User:
     name: string
 
-data Order:
+struct Order:
     total: i32
 
-fn same(user: User, order: Order) -> bool:
+fn same(user: &User, order: &Order) -> bool:
     user is order  # diagnostic: incompatible-identity-operands

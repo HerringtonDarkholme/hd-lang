@@ -1,7 +1,7 @@
 trait Repo[T]
 
-data User: pass
-data Post: pass
+struct User: pass
+struct Post: pass
 
 fn choose(first: dyn Repo[User], second: dyn Repo[Post]) -> void:
     $.with(Repo[User]=first, Repo[Post]=second):

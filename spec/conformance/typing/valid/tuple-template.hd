@@ -15,7 +15,7 @@ impl Encode for string:
     fn encode(self) -> string:
         "'$self'"
 
-data Style:
+struct Style:
     prefix: string = ""
 
 fn style_of(facts: Facts) -> Style:

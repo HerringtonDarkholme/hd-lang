@@ -1,4 +1,4 @@
-pub data Meter:
+pub struct Meter:
     pub value: i32
 
 impl Meter:

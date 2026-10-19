@@ -11,7 +11,7 @@
 trait Tag:
     fn name(self) -> string
 
-data FixedTag:
+struct FixedTag:
     value: string
 
 impl Tag for FixedTag:
@@ -24,7 +24,7 @@ fn current() -> string $ Tag:
 trait Clock:
     fn now(self) -> i32
 
-data FixedClock:
+struct FixedClock:
     value: i32
 
 impl Clock for FixedClock:

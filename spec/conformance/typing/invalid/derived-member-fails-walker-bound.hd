@@ -32,9 +32,9 @@ impl[T] Encode for T by Structure:
         _ := Structure::walk(self, &mut w)
         w.out
 
-data Opaque:
+struct Opaque:
     id: i64
 
 @derive(Encode)  # diagnostic: member-not-derivable
-data Holder:
+struct Holder:
     inner: Opaque

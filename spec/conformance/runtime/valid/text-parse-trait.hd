@@ -15,7 +15,7 @@ fn flag(text: string) -> bool:
     text.parse::[bool]().unwrap_or(false)
 
 @derive(Eq, Debug)
-data Level:
+struct Level:
     value: i32
 
 impl Parse for Level:

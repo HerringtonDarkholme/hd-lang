@@ -33,7 +33,7 @@ impl[T] Named for T by Structure:
         "The " + Named::name()
 
 @derive(Named)
-data Point:
+struct Point:
     x: i32
     y: i32
 

@@ -2,8 +2,8 @@
 # Spec 05 Index Traits: expr.index.trait.independent.
 use std.ops.IndexSet
 
-data Sink:
-    seen: mut List[i32]
+struct Sink:
+    seen: &mut List[i32]
 
 impl IndexSet[usize, i32] for Sink:
     fn index_set(&mut self, key: usize, value: i32) -> void:
@@ -13,6 +13,6 @@ tests:
     use std.testing.assert_equal
 
     it("stores through IndexSet alone"):
-        let mut sink = Sink { seen: [] }
+        let mut sink = &mut Sink { seen: &mut [] }
         sink[0] = +7
-        assert_equal(sink.seen, [+7], reason="index_set ran")
+        assert_equal(sink.seen, &mut [+7], reason="index_set ran")

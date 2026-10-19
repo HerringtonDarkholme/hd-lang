@@ -3,7 +3,7 @@
 trait Inventory:
     fn stock(self) -> i32
 
-data Warehouse: pass
+struct Warehouse: pass
 
 impl Inventory for Warehouse:
     fn stock(self) -> i32: 42

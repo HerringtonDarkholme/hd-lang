@@ -4,7 +4,7 @@
 use std.annotation.annotate
 
 @annotate::[F](.Field)
-data Fallback[F]:
+struct Fallback[F]:
     make: fn() -> F?
 
 fn fallback[F](make: fn() -> F?) -> Fallback[F]:
@@ -13,7 +13,7 @@ fn fallback[F](make: fn() -> F?) -> Fallback[F]:
 fn missing_list[T]() -> List[T]?:
     .None
 
-data Profile:
+struct Profile:
     @fallback(missing_list)
     tags: List[string]
     @fallback(missing_list)  # diagnostic: type-mismatch

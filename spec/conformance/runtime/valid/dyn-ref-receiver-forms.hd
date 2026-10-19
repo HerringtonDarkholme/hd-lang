@@ -1,4 +1,4 @@
-# test: through `&dyn` the `self` and `&self` methods are callable, through `&mut dyn` also `&mut self` and `mut self`; struct and data implementations, a default method, and a `&mut dyn` weakened to `&dyn`
+# test: through `&dyn` the `self` and `&self` methods are callable, through `&mut dyn` also `&mut self` and `&mut self`; struct and data implementations, a default method, and a `&mut dyn` weakened to `&dyn`
 # Spec 09 Trait Value References: trait.dyn.ref.member, trait.dyn.ref.weaken, trait.dyn.ref.written.
 # expect-stdout: square 4.0
 # expect-stdout: square 9.0 3.0
@@ -9,7 +9,7 @@ trait Shape:
     fn name(self) -> string
     fn area(&self) -> f64
     fn grow(&mut self) -> void
-    fn rescale(mut self, by: f64) -> void
+    fn rescale(&mut self, by: f64) -> void
 
     fn grown_area(&mut self) -> f64:
         self.grow()
@@ -31,7 +31,7 @@ impl Shape for Square:
         self.grow()
         self.area()
 
-data Circle:
+struct Circle:
     r: f64
 
 impl Shape for Circle:
@@ -41,7 +41,7 @@ impl Shape for Circle:
         3.0 * self.r * self.r
     fn grow(&mut self) -> void:
         self.r += 1.0
-    fn rescale(mut self, by: f64) -> void:
+    fn rescale(&mut self, by: f64) -> void:
         self.r *= by
 
 fn describe(shape: &dyn Shape) -> string:

@@ -2,7 +2,7 @@
 # Spec lang/06 Using Bindings: flow.using.binding.
 use std.ops.Disposable
 
-data Lock:
+struct Lock:
     name: string
 
 impl Disposable for Lock:

@@ -5,5 +5,5 @@ trait Plain:
     fn plain(self) -> i32
 
 @derive(Plain)  # diagnostic: underivable-trait
-data Point:
+struct Point:
     x: i32

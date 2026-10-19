@@ -61,8 +61,10 @@ impl Ck<'_, '_> {
             return Ok(());
         };
         self.check_field_visible(bt, name, lhs);
+        // A struct's field, embedded or not, is assigned with `=`
+        // (`data.struct.embed.no-marker`).
         if copy {
-            let msg = format!("`{name}` is not an embedded field, so `...=` cannot store into it");
+            let msg = format!("`{name}` of a struct is assigned with `=`, not `...=`");
             self.err(Code::CopyIntoOrdinaryField, lhs, &msg);
             return Ok(());
         }

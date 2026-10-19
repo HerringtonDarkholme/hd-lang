@@ -57,7 +57,7 @@ fn shown() -> string:
 ```text
 use std.format.DebugWriter
 
-data Point:
+struct Point:
     x: i32
     y: i32
 

@@ -3,7 +3,7 @@
 # so $_0 names the unnamed payload member beside unnamed shared data.
 
 @error("disk full")
-data DiskError:
+struct DiskError:
     free: i64
 
 @error

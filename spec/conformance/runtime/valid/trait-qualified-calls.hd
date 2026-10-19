@@ -7,7 +7,7 @@ trait LeftValue:
 trait RightValue:
     fn value(self) -> i32
 
-data Number:
+struct Number:
     value: i32
 
 impl LeftValue for Number:

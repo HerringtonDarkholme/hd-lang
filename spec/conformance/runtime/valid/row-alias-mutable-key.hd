@@ -2,16 +2,16 @@
 # expect: test
 trait Counter:
     fn count(self) -> i32
-    fn bump(mut self) -> void
+    fn bump(&mut self) -> void
 
-data MemoryCounter:
+struct MemoryCounter:
     value: i32
 
 impl Counter for MemoryCounter:
     fn count(self) -> i32:
         self.value
 
-    fn bump(mut self) -> void:
+    fn bump(&mut self) -> void:
         self.value = self.value + 1
 
 type CounterRow = $ Counter
@@ -26,7 +26,7 @@ tests:
     use std.testing.assert_equal
 
     it("the key reached through the alias is the mutable Counter"):
-        let mut counter = MemoryCounter { value: 0 }
+        let mut counter = &mut MemoryCounter { value: 0 }
         $.with(Counter=counter):
             _ := tick()
             assert_equal(tick(), 2, reason="both bumps reach one provider")

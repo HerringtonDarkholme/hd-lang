@@ -1,15 +1,15 @@
 # expect-stdout: 7 body
 # test: job.cancel() without the bang only builds a cold suspension: the job keeps its state until that suspension is driven
 # Spec lang/11 Cancellation: req.cancel.cold.
-data Log:
+struct Log:
     text: string
 
-fn work!(log: mut Log) -> i32:
+fn work!(log: &mut Log) -> i32:
     log.text = log.text + "body"
     7
 
 pub fn main!() -> void $ Console:
-    let mut log = Log { text: "" }
+    let mut log = &mut Log { text: "" }
     let job: mut Suspend[i32] = work(log)
     _ := job.cancel()
     value := job!()

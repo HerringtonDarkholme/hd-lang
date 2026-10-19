@@ -7,7 +7,7 @@
 trait Runner:
     fn run[$R](self, job: fn() -> i32 $ R) -> i32 $ R
 
-data Plain: pass
+struct Plain: pass
 
 impl Runner for Plain:
     fn run[$R](self, job: fn() -> i32 $ R) -> i32 $ R:

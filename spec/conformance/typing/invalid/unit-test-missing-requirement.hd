@@ -4,7 +4,7 @@
 trait Clock:
     fn now(self) -> i32
 
-data FixedClock:
+struct FixedClock:
     time: i32
 
 impl Clock for FixedClock:

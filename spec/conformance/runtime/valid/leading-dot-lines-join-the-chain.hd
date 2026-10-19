@@ -6,7 +6,7 @@
 # expect-stdout: 6
 # expect-stdout: ok 1
 # expect-stdout: zero
-data Meter:
+struct Meter:
     value: i32
 
 impl Meter:
@@ -15,7 +15,7 @@ impl Meter:
     fn read(self) -> i32: self.value
 
 fn mapped(items: List[i32], f: fn(i32) -> i32) -> List[i32]:
-    let out: mut List[i32] = []
+    let mut out: List[i32] = []
     for item in items:
         out.push(f(item))
     out

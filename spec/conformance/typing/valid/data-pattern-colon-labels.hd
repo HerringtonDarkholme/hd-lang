@@ -1,7 +1,7 @@
 # test: data patterns label fields with ':'; payload patterns keep '='
 # expect: accept
 
-data Point:
+struct Point:
     x: i32
     y: i32
 

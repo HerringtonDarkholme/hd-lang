@@ -2,9 +2,9 @@
 # std Ops, Derived Default: std-ops.default.derive.member-bound.undeclared (owner decisions Q6-default-derive, batch 51, and DEFAULT-FIELD-bound, batch 59).
 use std.ops.Default
 
-data Secret:
+struct Secret:
     value: i32
 
 @derive(Default)  # diagnostic: member-not-derivable
-data Vault:
+struct Vault:
     secret: Secret

@@ -5,7 +5,7 @@ trait Log:
 
 trait Clock
 
-data SilentLog: pass
+struct SilentLog: pass
 
 impl Log for SilentLog:
     fn write(self, message: string) -> void: pass

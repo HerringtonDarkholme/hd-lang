@@ -1,6 +1,6 @@
 # test: let _ = expression discards a must-use value, as _ := expression does
 # Spec 06 Unused Bindings: flow.unused.discard-forms (owner decision LP-discard, batch 30, 2026-09-30).
-data SaveError:
+struct SaveError:
     message: string
 
 fn save() -> Result[i32, SaveError]:

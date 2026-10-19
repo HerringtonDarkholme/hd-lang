@@ -1,6 +1,6 @@
 use std.error.Error
 
-pub data Failure:
+pub struct Failure:
     text: string
 
 impl Display for Failure:

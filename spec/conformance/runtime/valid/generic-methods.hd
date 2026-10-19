@@ -4,9 +4,9 @@
 # fn.generic.qualified, fn.generic.qualified.member-list,
 # fn.generic.method-inference.
 
-data Identity: pass
+struct Identity: pass
 
-data Label:
+struct Label:
     value: string
 
 impl Display for Label:

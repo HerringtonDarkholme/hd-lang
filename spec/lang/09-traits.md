@@ -13,7 +13,7 @@ selected.
 trait Greet:
     fn greet(self) -> string
 
-data User:
+struct User:
     name: string
 
 impl Greet for User:
@@ -140,12 +140,12 @@ trait Parent
 trait Child < Parent:
     fn value(self) -> i32
 
-data Item: pass
+struct Item: pass
 
 impl Child for Item:  # error: missing-supertrait-implementation
     fn value(self) -> i32: 42
 
-data Box[T]:
+struct Box[T]:
     value: T
 
 impl[T < Eq] Parent for Box[T]
@@ -184,12 +184,12 @@ Traits may declare associated types, and implementations bind them:
 ```text
 trait Supplier:
     type Item
-    fn get(mut self) -> Self::Item?
+    fn get(&mut self) -> Self::Item?
 
 impl Supplier for NameSupplier:
     type Item = string
 
-    fn get(mut self) -> string?:
+    fn get(&mut self) -> string?:
         ...
 ```
 
@@ -241,7 +241,7 @@ The standard library defines `Eq`, `PartialOrd`, `Ord`, and `Ordering` in
 
 ```hd
 @derive(Eq, PartialOrd, Ord)
-data Level:
+struct Level:
     rank: i32
 
 fn demo(a: Level, b: Level) -> bool:
@@ -299,14 +299,14 @@ trait Hash:
 20. r[trait.derive.reference-debug] A reference field implements `Debug` when the type it refers to does, by [References](../std/format.md#references). So `@derive(Debug)` accepts it then, as `@derive(Eq)` does. `PartialOrd` and `Ord` have no implementation for references, so a derivation of either rejects a reference field. Error: `derive-field-missing-trait`.
 
 ```text
-data Opaque: pass
+struct Opaque: pass
 
 @derive(Eq, Hash)
-data Key:
+struct Key:
     value: Opaque  # error: derive-field-missing-trait
 
 @derive(Eq)
-data Box[T]:
+struct Box[T]:
     value: T
 
 fn same(left: Box[fn() -> void], right: Box[fn() -> void]) -> bool:
@@ -315,7 +315,7 @@ fn same(left: Box[fn() -> void], right: Box[fn() -> void]) -> bool:
 
 ```text
 @derive(Eq)  # error: overlapping-impl
-data Badge:
+struct Badge:
     text: string
 
 impl Eq for Badge:
@@ -353,7 +353,7 @@ The comparison and hash traits whose laws relate them are related traits:
 
 ```text
 @derive(Hash)  # error: mixed-derived-law
-data Session:
+struct Session:
     token: string
 
 impl Eq for Session:
@@ -389,7 +389,7 @@ trait Pairing:
 @derive(Pairing)  # error: newtype-derivation-self
 type Tag(string)
 
-data Opaque: pass
+struct Opaque: pass
 
 @derive(Eq)
 type Wrapped(Opaque)  # error: derive-field-missing-trait
@@ -467,7 +467,7 @@ See also: [Requirement Rows](11-requirements-and-suspension.md#requirement-rows)
 ```hd
 use std.convert.From
 
-data AppError:
+struct AppError:
     message: string
 
 impl From[i32] for AppError:
@@ -578,7 +578,7 @@ A type usually derives it:
 
 ```text
 @derive(Eq, Debug)
-data Point:
+struct Point:
     x: i32
     y: i32
 
@@ -635,10 +635,10 @@ impl Display for User:
 trait Named:
     fn name(self) -> string
 
-data User: pass
+struct User: pass
 impl Named for User  # error: missing-trait-method
 
-data Admin: pass
+struct Admin: pass
 impl Named for Admin:
     fn name(self) -> string: "admin"
     fn shout(self) -> string: "ADMIN"  # error: extra-trait-member
@@ -707,7 +707,7 @@ trait Show:
 trait Describe:
     fn describe[T](self, value: T) -> string
 
-data Describer: pass
+struct Describer: pass
 
 impl Describe for Describer:
     fn describe[T < Show](self, value: T) -> string: value.show()  # error: trait-method-signature
@@ -728,7 +728,7 @@ impl Describe for Describer:
 fn demo() -> string:
     trait Shout:
         fn shout(self) -> string
-    data Whisper:
+    struct Whisper:
         text: string
     impl Shout for Whisper:
         fn shout(self) -> string: self.text
@@ -757,7 +757,7 @@ impl[N < Num] Add for N:
 ```text
 use std.ops.Add
 
-data Money:
+struct Money:
     cents: i64
 
 impl Add for Money:
@@ -815,7 +815,7 @@ trait Describe:
 
 trait Marker
 
-data Counter:
+struct Counter:
     value: i32
 
 impl[T] Describe for T:  # error: bare-parameter-impl-target
@@ -917,7 +917,7 @@ impl (i32, i32):  # error: invalid-impl-target
     fn sum(self) -> i32:
         self._0 + self._1
 
-data User:
+struct User:
     name: string
 
 type Person = User
@@ -942,7 +942,7 @@ impl Person:  # error: invalid-impl-target
 trait Greet:
     fn greet(self) -> string
 
-data User:
+struct User:
     name: string
 
 impl Greet for User:   # same module as User: fine
@@ -965,7 +965,7 @@ impl dyn Shape:
     fn double(self) -> f64:
         self.area() * 2.0
 
-data Square:
+struct Square:
     side: f64
 
 impl Shape for Square:
@@ -1019,10 +1019,10 @@ impl[T < Display] Printable for Box[T]:
 | `impl Marker for fn(i32) -> i32` | `impl Marker for fn(string) -> i32` | no |
 
 ```text
-data Box[T]:
+struct Box[T]:
     value: T
 
-data Plain:
+struct Plain:
     value: i32
 
 trait Marker
@@ -1038,7 +1038,7 @@ trait Holder[T]:
 trait Summary:
     fn summary(self) -> string
 
-data Feed[I]:
+struct Feed[I]:
     items: I
 
 impl[T < Display, I < Holder[T]] Summary for Feed[I]:  # error: unconstrained-impl-parameter
@@ -1054,7 +1054,7 @@ trait Store:
 trait Summary:
     fn summary(self) -> string
 
-data Feed[I]:
+struct Feed[I]:
     items: I
 
 impl[T < Display, I < Store[Item = T]] Summary for Feed[I]:  # valid: the binding fixes T
@@ -1070,7 +1070,7 @@ trait Store:
 trait Summary:
     fn summary(self) -> string
 
-data Feed[I]:
+struct Feed[I]:
     items: I
 
 impl[I < Store] Summary for Feed[I::Item]:  # error: unconstrained-impl-parameter
@@ -1112,7 +1112,7 @@ impl User:
 | **inherent associated function** | none | through the type, as in `User::guest()` |
 
 ```hd
-data Counter:
+struct Counter:
     value: i32
 
 impl Counter:
@@ -1131,7 +1131,7 @@ See also: [Implementation Ownership](#implementation-ownership),
 4. r[trait.vis.uniform] A trait has one visibility level for all its methods; it cannot mix public and private methods.
 
 ```hd
-data Counter:
+struct Counter:
     value: i32
 
 impl Counter:
@@ -1148,13 +1148,13 @@ impl Counter:
 6. r[trait.inherent.no-overloading] hd-lang has no method or associated-function overloading.
 
 ```text
-data User: pass
+struct User: pass
 
 impl User:
     fn name(self) -> string: "first"
     fn name(self) -> string: "second"  # error: duplicate-inherent-member
 
-data Box[T]:
+struct Box[T]:
     value: T
 
 impl[T] Box[T]:
@@ -1190,7 +1190,7 @@ candidates are reported.
 3. r[trait.resolve.no-field] It never selects a field.
 
 ```hd
-data Counter:
+struct Counter:
     value: i32
 
 impl Counter:
@@ -1223,7 +1223,7 @@ name is one of these:
 use std.cmp.Eq
 
 @derive(Eq)
-data Point:
+struct Point:
     x: i32
 
 fn same(a: Point, b: Point) -> bool:
@@ -1238,7 +1238,7 @@ fn same(a: Point, b: Point) -> bool:
 trait Show:
     fn show(self) -> string
 
-data Wrapper:
+struct Wrapper:
     value: i32
 
 impl Wrapper:
@@ -1266,7 +1266,7 @@ trait Left:
     fn label(self) -> i32
 trait Right:
     fn label(self) -> i32
-data User:
+struct User:
     value: i32
 impl Left for User:
     fn label(self) -> i32: self.value
@@ -1304,7 +1304,7 @@ each supply the method, as with `impl Add[i32] for Money` and
 trait Pick[T]:
     fn pick(self) -> T
 
-data Money:
+struct Money:
     cents: i32
 
 impl Pick[i32] for Money:
@@ -1344,7 +1344,7 @@ trait Parent:
 trait Child < Parent:
     fn label(self) -> string
 
-data Item: pass
+struct Item: pass
 
 impl Parent for Item:
     fn id(self) -> i32: 1
@@ -1370,7 +1370,7 @@ trait:
 trait Factory:
     fn create() -> Self
 
-data User:
+struct User:
     name: string
 
 impl Factory for User:
@@ -1478,7 +1478,7 @@ that writes `Map[K, V]` bounds its own `K`:
 fn stock_of[K < Eq & Hash, V](stock: Map[K, V], item: K) -> V?:
     stock.get(item)
 
-data Index[K < Eq & Hash, V]:
+struct Index[K < Eq & Hash, V]:
     name: string
     entries: Map[K, V]
 
@@ -1506,7 +1506,7 @@ impl[K, V] Catalog for Map[K, V]:  # error: unsatisfied-trait-bound
 fn stock_report[K, V](stock: Map[K, V], title: string) -> string:  # error: unsatisfied-trait-bound
     "Stock report: " + title
 
-data Index[K, V]:
+struct Index[K, V]:
     name: string
     entries: Map[K, V]  # error: unsatisfied-trait-bound
 ```
@@ -1536,7 +1536,7 @@ trait Supplier:
 fn describe[T < Display, I < Supplier[Item = T]](source: I) -> string:
     source.get().to_string()
 
-data Feed[I]:
+struct Feed[I]:
     source: I
 
 impl[T < Display, I < Supplier[Item = T]] Display for Feed[I]:
@@ -1674,7 +1674,7 @@ use std.ops.Add
 
 trait Summable < Add[Out = Self]
 
-data Money:
+struct Money:
     cents: i64
 
 impl Add for Money:
@@ -1788,7 +1788,7 @@ trait Supplier:
     type Item
     fn get(self) -> Self::Item
 
-data Constant:
+struct Constant:
     value: i32
 
 impl Supplier for Constant:
@@ -1853,7 +1853,7 @@ trait Animal:
 trait Dog < Animal:
     fn bark(self) -> string
 
-data Pup:
+struct Pup:
     name: string
 
 impl Animal for Pup:
@@ -1911,7 +1911,7 @@ fn describe(named: dyn Named, shown: dyn Display) -> string:
 trait Greet:
     fn greet(self) -> string
 
-data User:
+struct User:
     name: string
 
 impl Greet for User:
@@ -2052,10 +2052,10 @@ compiler and the standard library supply.
 ```text
 use std.inspect.{Inspectable, TypeId}
 
-data User:
+struct User:
     name: string
 
-data Handle: pass
+struct Handle: pass
 
 impl Inspectable for User:  # error: sealed-trait-implementation
     fn runtime_type(self) -> TypeId: TypeId::of::[string]()
@@ -2077,7 +2077,7 @@ impl AnyRef for Handle  # error: sealed-trait-implementation
 ```hd
 use std.inspect.Inspectable
 
-data User:
+struct User:
     name: string
 
 fn id_of(value: User) -> string:
@@ -2096,7 +2096,7 @@ use std.inspect.Inspectable
 trait Named < Inspectable:
     fn type_name(self) -> string
 
-data User:
+struct User:
     name: string
 
 impl Named for User:
@@ -2168,7 +2168,7 @@ directly, never `Num`:
 use std.num.Num
 use std.ops.Add
 
-data Cents:
+struct Cents:
     value: i64
 
 impl Add for Cents:
@@ -2385,9 +2385,9 @@ dynamic trait value.
 12. r[trait.erase.mut.source] Erasing to `mut dyn Inspectable` requires mutable access to the source. Erasing a readonly value to `mut dyn Inspectable` is an error. Error: `mutable-upgrade`.
 
 ```text
-use std.inspect.{Inspectable, TypeId}
+use std.inspect.{Inspectable, TypeId, downcast_val}
 
-data Box[T]:
+struct Box[T]:
     value: T
 
 fn erase[T < Inspectable](value: T) -> dyn Inspectable:
@@ -2397,7 +2397,7 @@ fn is_int_box(value: dyn Inspectable) -> bool:
     value.runtime_type() == TypeId::of::[Box[i32]]()
 
 fn read_box(value: dyn Inspectable) -> i32:
-    match value.downcast::[Box[i32]]():
+    match downcast_val::[Box[i32]](value):
         .Some(found) => found.value
         .None => 0
 ```
@@ -2517,13 +2517,13 @@ type has a matching method:
 trait Describe:
     fn describe(self) -> string
 
-data Label:
+struct Label:
     text: string
 
 impl Label:
     pub fn describe(self) -> string: self.text
 
-data Page:
+struct Page:
     Label
 
 impl Describe for Page  # error: missing-trait-method
@@ -2551,14 +2551,14 @@ satisfies no `Describe` bound unless `Page` itself implements `Describe`:
 trait Describe:
     fn describe(self) -> string
 
-data Label:
+struct Label:
     text: string
 
 impl Describe for Label:
     fn describe(self) -> string:
         self.text
 
-data Page:
+struct Page:
     Label
 
 fn invalid(page: Page) -> string:
@@ -2583,20 +2583,20 @@ trait Describe:
     fn headline(self) -> string:
         "* " + self.describe()
 
-data Logger:
+struct Logger:
     name: string
 
 impl Describe for Logger:
     fn describe(self) -> string:
         self.name
 
-data Service:
+struct Service:
     Logger
     port: i32
 
 impl Describe for Service by Logger
 
-data Worker:
+struct Worker:
     Logger
 
 impl Describe for Worker by Logger:
@@ -2616,14 +2616,14 @@ impl Describe for Worker by Logger:
 trait Describe:
     fn describe(self) -> string
 
-data Logger:
+struct Logger:
     name: string
 
 impl Describe for Logger:
     fn describe(self) -> string:
         self.name
 
-data Service:
+struct Service:
     Logger
     port: i32
 
@@ -2667,7 +2667,7 @@ trait Named:
     fn name(self) -> string
     fn kind() -> string
 
-data Logger:
+struct Logger:
     label: string
 
 impl Named for Logger:
@@ -2677,7 +2677,7 @@ impl Named for Logger:
     fn kind() -> string:
         "logger"
 
-data Service:
+struct Service:
     Logger
 
 impl Named for Service by Logger  # error: missing-trait-method
@@ -2691,14 +2691,14 @@ impl Named for Service by Logger  # error: missing-trait-method
 trait Describe:
     fn describe(self) -> string
 
-data Logger:
+struct Logger:
     name: string
 
 impl Describe for Logger:
     fn describe(self) -> string:
         self.name
 
-data Service:
+struct Service:
     Logger
     port: i32
 
@@ -2723,7 +2723,7 @@ trait Tagged:
     fn label(self) -> string:
         "tagged"
 
-data User:
+struct User:
     name: string
 
 impl Named for User
@@ -2740,7 +2740,7 @@ fn invalid(user: User) -> string:
 
 ```text
 @derive(Eq)
-data Badge:
+struct Badge:
     text: string
 
 impl Eq for Badge:   # error: overlapping-impl

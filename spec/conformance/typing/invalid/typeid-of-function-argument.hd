@@ -2,7 +2,7 @@
 # Spec 09 Types That Are Not Inspectable: trait.inspectable.not.argument, trait.inspectable.not.function.
 use std.inspect.TypeId
 
-data Job[T]:
+struct Job[T]:
     run: T
 
 fn job_kind() -> TypeId:

@@ -1,6 +1,6 @@
 use std.error.Error
 
-pub data Usage:
+pub struct Usage:
     text: string
 
 impl Display for Usage:

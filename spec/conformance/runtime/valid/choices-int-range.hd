@@ -37,7 +37,7 @@ fn closed(c: &mut Choices) -> f32:
     c.float(-2.0..=2.0)
 
 @derive(Debug)
-data Ends:
+struct Ends:
     half_open: i64
     closed: i64
     reversed: i64

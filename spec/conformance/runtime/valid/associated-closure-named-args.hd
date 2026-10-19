@@ -3,7 +3,7 @@
 trait Build[T]:
     fn build(run: fn(T) -> T) -> Item
 
-data Item:
+struct Item:
     value: i32
 
 impl Build[bool] for Item:

@@ -3,14 +3,14 @@
 use std.encoding.hex_encode
 use std.random.{Random, SeededRandom, fill}
 
-data FixedBytes:
+struct FixedBytes:
     bytes: List[u8]
 
 impl Random for FixedBytes:
     fn next_u64(&mut self) -> u64:
         0
     fn fill(&mut self, count: usize) -> List[u8]:
-        let out: mut List[u8] = []
+        let mut out: List[u8] = []
         for index in 0..count:
             out.push(self.bytes[index])
         out

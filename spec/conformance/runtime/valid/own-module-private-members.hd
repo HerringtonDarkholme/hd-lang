@@ -6,7 +6,7 @@
 trait Priced:
     fn price(self) -> i32
 
-data Entry:
+struct Entry:
     label: string
     cents: i32
 

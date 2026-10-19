@@ -1,12 +1,12 @@
 # test: an outer field does not hide an embedded method, because a call looks up methods only
-data Base:
+struct Base:
     note: string
 
 impl Base:
     pub fn label(self) -> string:
         "base " + self.note
 
-data Page:
+struct Page:
     Base
     label: string
 
@@ -14,6 +14,6 @@ tests:
     use std.testing.assert_equal
 
     it("the outer field is read and the call reaches the promoted method"):
-        page := Page { Base: ...Base { note: "x" }, label: "outer" }
+        page := Page { Base: Base { note: "x" }, label: "outer" }
         assert_equal(page.label, "outer", reason="own field")
         assert_equal(page.label(), "base x", reason="promoted method")

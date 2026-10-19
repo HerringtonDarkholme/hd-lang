@@ -23,7 +23,7 @@ This section defines the default order in which subexpressions are evaluated.
 
 ```hd
 fn demo() -> string:
-    let log: mut List[string] = []
+    let mut log: List[string] = []
     fn mark(s: string) -> string:
         log.push(s)
         s
@@ -105,10 +105,10 @@ impl Add for Meters:
     fn add(self, rhs: Meters) -> Meters:
         Meters(i64(self) + i64(rhs))
 
-data Tally:
+struct Tally:
     count: i64
 
-fn record(tally: mut Tally, hits: List[i64]) -> Meters:
+fn record(tally: &mut Tally, hits: List[i64]) -> Meters:
     let log = ""
     let walked = Meters(0)
     for hit in hits:
@@ -133,15 +133,15 @@ fn record(tally: mut Tally, hits: List[i64]) -> Meters:
 13. r[expr.assign.compound.no-assign-traits] `std.ops` declares no assign trait, and no operator changes a value in place.
 
 ```text
-data Tally:
+struct Tally:
     count: i64
 
-data Score:
+struct Score:
     points: i64
 
 fn current() -> i64: 1
 
-fn invalid(tally: Tally, bonus: Score) -> void:
+fn invalid(tally: &Tally, bonus: Score) -> void:
     let score = Score { points: 0 }
     tally.count += 1  # error: readonly-root
     score += bonus    # error: type-mismatch
@@ -149,7 +149,7 @@ fn invalid(tally: Tally, bonus: Score) -> void:
 ```
 
 ```text
-fn tally(counts: mut Map[string, i32], word: string) -> void:
+fn tally(counts: &mut Map[string, i32], word: string) -> void:
     counts[word] += 1  # panics with index-out-of-bounds when `word` is absent
 ```
 
@@ -255,7 +255,7 @@ trait Display:
 > `"${log()}"` writes `()` too.
 
 ```text
-data Secret:
+struct Secret:
     value: i32
 
 fn render(value: Secret) -> string:
@@ -275,7 +275,7 @@ template.
 ```text
 use std.ops.num_suffix
 
-data Pixels:
+struct Pixels:
     count: i32
 
 @num_suffix
@@ -339,7 +339,7 @@ Rules for suffixes:
 ```text
 use std.ops.num_suffix
 
-pub data Pixels:
+pub struct Pixels:
     count: i32
 
 fn pt(count: i32) -> Pixels:
@@ -389,7 +389,7 @@ rules say:
 ```text
 use std.ops.num_suffix
 
-data Millis:
+struct Millis:
     count: i64
 
 @num_suffix
@@ -430,7 +430,7 @@ text and values:
 ```text
 use std.ops.{Template, str_prefix}
 
-data Query:
+struct Query:
     text: List[string]
     params: List[i64]
 
@@ -704,7 +704,7 @@ fn demo(items: List[i32]) -> usize:
 5. r[expr.member.variant-fn-value] A variant constructor with exactly one payload field is a function value.
 
 ```hd
-data Point:
+struct Point:
     x: i32
     y: i32
 
@@ -728,7 +728,7 @@ See also: [Enum Declarations](08-data-and-enums.md#enum-declarations).
 10. r[expr.member.closure-adapt] Explicit closures can adapt method calls where a function value is needed.
 
 ```text
-data Button:
+struct Button:
     on_click: fn(i32) -> i32
 
 fn invalid(button: Button) -> i32:
@@ -873,7 +873,7 @@ fn grow(items: List[i32]) -> List[i32]:
     part.push(9)
     part
 
-fn invalid(items: mut List[i32]) -> void:
+fn invalid(items: &mut List[i32]) -> void:
     items[0..2] = [7, 8]  # error: invalid-assignment-target
 ```
 
@@ -910,8 +910,8 @@ Other types get `[]` by implementing the `std.ops` traits `Index` and
 ```text
 use std.ops.{Index, IndexSet}
 
-data Ring:
-    items: mut List[i32]
+struct Ring:
+    items: &mut List[i32]
 
 impl Index[usize] for Ring:
     type Out = i32
@@ -952,7 +952,7 @@ pub trait IndexSet[K, V]:
 ```text
 use std.ops.Index
 
-data Row:
+struct Row:
     cells: List[i32]
 
 impl Index[usize] for Row:
@@ -960,7 +960,7 @@ impl Index[usize] for Row:
     fn index(self, key: usize) -> i32:
         self.cells[key]
 
-data Plain:
+struct Plain:
     value: i32
 
 fn invalid(row: &mut Row, plain: Plain) -> i32:
@@ -1147,7 +1147,7 @@ live cell:
 ```text
 use std.ops.{Apply, Update}
 
-data Cell[T]:
+struct Cell[T]:
     value: T
 
 impl[T] Apply for Cell[T]:
@@ -1158,11 +1158,11 @@ impl[T] Update[T] for Cell[T]:
     fn update(&mut self, value: T) -> void:
         self.value = value
 
-fn live[T](value: T) -> mut Cell[T]:
+fn live[T](value: T) -> Cell[T]:
     Cell { value: value }
 
-data Panel:
-    count: mut Cell[i32]
+struct Panel:
+    count: Cell[i32]
 
 fn parent(panel: &mut Panel) -> string:
     let mut count = live(0)
@@ -1207,7 +1207,7 @@ takes no keys:
 ```text
 use std.ops.Apply
 
-data Counter:
+struct Counter:
     hits: i32
 
 impl Apply for Counter:
@@ -1216,7 +1216,7 @@ impl Apply for Counter:
 
 fn current() -> i32: 1
 
-fn invalid(counter: mut Counter, tags: List[string]) -> void:
+fn invalid(counter: Counter, tags: List[string]) -> void:
     counter() = 2  # error: invalid-assignment-target
     current() = 2  # error: invalid-assignment-target
     counter(1)     # error: argument-count
@@ -1406,7 +1406,7 @@ tests:
 7. r[expr.try.test.closure] Inside a closure nested in a test body, that closure is the nearest function, and these rules do not apply to it.
 
 ```text
-data Hidden: pass
+struct Hidden: pass
 
 fn hidden() -> Result[void, Hidden]:
     .Err(Hidden {})
@@ -1681,10 +1681,10 @@ fn below(value: u32) -> bool:
 2. r[expr.is.references] For two references, `is` compares the places they refer to, as [Identity](13-values-and-references.md#identity) defines.
 
 ```hd
-data Account:
+struct Account:
     owner: string
 
-fn demo(a: Account, b: Account) -> bool:
+fn demo(a: &Account, b: &Account) -> bool:
     a is b   # identity, not contents
 ```
 
@@ -1721,13 +1721,13 @@ fn demo() -> bool:
 7. r[expr.is.function.bound] A function type does not implement `AnyRef`, so generic code over `T < AnyRef` never receives a function value. Error: `unsatisfied-trait-bound`.
 
 ```text
-data User:
+struct User:
     name: string
 
-data Order:
+struct Order:
     total: i32
 
-fn same(user: User, order: Order) -> bool:
+fn same(user: &User, order: &Order) -> bool:
     user is order  # error: incompatible-identity-operands
 
 fn tuples(left: (i32, i32), right: (i32, i32)) -> bool:
@@ -1767,7 +1767,7 @@ library type gets the operator by implementing the trait:
 ```text
 use std.ops.{Add, Mul, Neg}
 
-data Money:
+struct Money:
     cents: i64
 
 impl Add for Money:
@@ -1846,7 +1846,7 @@ pub trait Neg:
 ```text
 use std.ops.Mul
 
-data Money:
+struct Money:
     cents: i64
 
 impl Mul[i64] for Money:
@@ -1942,7 +1942,7 @@ fn label(raw: string) -> string:
 A substitution step marks the piped value's slot with `_`:
 
 ```text
-data Point:
+struct Point:
     x: usize
     y: usize
 

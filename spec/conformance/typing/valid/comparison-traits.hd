@@ -1,6 +1,6 @@
 # Spec 09 Traits: trait.cmp.equality, trait.cmp.operators-comparison.
 
-data Score:
+struct Score:
     value: i32
 
 impl Eq for Score:

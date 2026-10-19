@@ -6,7 +6,7 @@
 trait Increment:
     fn next!(self, value: i32) -> i32
 
-data FixedIncrement: pass
+struct FixedIncrement: pass
 
 impl Increment for FixedIncrement:
     fn next!(self, value: i32) -> i32:

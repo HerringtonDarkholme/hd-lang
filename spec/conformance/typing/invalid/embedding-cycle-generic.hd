@@ -1,8 +1,8 @@
 # test: an embedding cycle through a generic data type is still a cycle
-data Holder:
+struct Holder:
     Wrapper[i32]  # diagnostic: embedding-cycle
     id: string
 
-data Wrapper[T]:
+struct Wrapper[T]:
     Holder
     value: T

@@ -11,7 +11,7 @@
 # expect-stdout: unit
 # expect-stdout: yes
 # expect-stdout: pair 1 2|more 1|1 and 3 more
-data Point:
+struct Point:
     x: i32
     y: i32
 

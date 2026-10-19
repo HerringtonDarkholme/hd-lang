@@ -1,11 +1,11 @@
 # test: unbound, bound, generic, and pipe-step method references parse
 # Spec 02 Member References: grammar.primary.method-reference (Method References MR1, MR4).
 
-data Counter:
+struct Counter:
     value: i32
 
 impl Counter:
-    fn bump(mut self, by: i32) -> void:
+    fn bump(&mut self, by: i32) -> void:
         self.value = self.value + by
 
     fn read(self) -> i32:

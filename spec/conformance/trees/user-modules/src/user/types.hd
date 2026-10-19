@@ -1,2 +1,2 @@
-pub data User:
+pub struct User:
     pub name: string

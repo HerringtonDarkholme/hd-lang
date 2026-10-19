@@ -8,7 +8,7 @@ trait Supplier:
 trait NamedSupplier < Supplier:
     fn name(self) -> string
 
-data Constant:
+struct Constant:
     value: i32
 
 impl Supplier for Constant:

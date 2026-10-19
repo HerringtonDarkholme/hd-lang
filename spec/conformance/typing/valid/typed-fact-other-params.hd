@@ -3,7 +3,7 @@
 use std.annotation.annotate
 
 @annotate::[F](.Field)
-data Range[F, G]:
+struct Range[F, G]:
     low: F
     high: F
     unit: G
@@ -11,7 +11,7 @@ data Range[F, G]:
 fn range[F, G](low: F, high: F, unit: G) -> Range[F, G]:
     Range::[F, G] { low: low, high: high, unit: unit }
 
-data Reading:
+struct Reading:
     @range(0, 100, "percent")
     level: i32
     @range(0.5, 2.5, true)

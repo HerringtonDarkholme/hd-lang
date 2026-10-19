@@ -5,7 +5,7 @@ use std.testing.assert_equal
 trait Counter:
     fn value(self) -> i32
 
-data FixedCounter:
+struct FixedCounter:
     current: i32
 
 impl Counter for FixedCounter:

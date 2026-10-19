@@ -1,6 +1,6 @@
 # test: an embedded field is an invariant position, so a covariant parameter cannot appear in its type
-data Box[+T]:
+struct Box[+T]:
     value: T
 
-data Holder[+T]:
+struct Holder[+T]:
     Box[T]  # diagnostic: invalid-variance

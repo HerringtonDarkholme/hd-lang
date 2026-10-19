@@ -1,4 +1,4 @@
-let lines: mut List[string] = []
+let mut lines: List[string] = []
 
 pub fn record(line: string) -> void:
     lines.push(line)

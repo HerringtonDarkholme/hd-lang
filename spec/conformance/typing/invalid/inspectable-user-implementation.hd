@@ -3,7 +3,7 @@
 # Spec 09 Traits: trait.sealed.inspectable, trait.sealed.no-user-impl, trait.inspect.sealed.
 use std.inspect.{Inspectable, TypeId}
 
-data User:
+struct User:
     name: string
 
 impl Inspectable for User:  # diagnostic: sealed-trait-implementation

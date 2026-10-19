@@ -10,14 +10,14 @@ trait Supplier:
     type Item
     fn get(self) -> Self::Item
 
-data Constant:
+struct Constant:
     value: i32
 
 impl Supplier for Constant:
     type Item = i32
     fn get(self) -> i32: self.value
 
-data Pair[A, B,]:
+struct Pair[A, B,]:
     first: A
     second: B
 

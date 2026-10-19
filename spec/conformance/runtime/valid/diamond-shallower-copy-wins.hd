@@ -1,15 +1,15 @@
 # test: with one type embedded at depths 1 and 2, promoted members reach the depth-1 copy
-data Base:
+struct Base:
     pub id: string
 
 impl Base:
     pub fn label(self) -> string:
         "base " + self.id
 
-data Middle:
+struct Middle:
     Base
 
-data Outer:
+struct Outer:
     Base
     Middle
 
@@ -17,7 +17,7 @@ tests:
     use std.testing.assert_equal
 
     it("the shallower copy wins"):
-        outer := Outer { Base: ...Base { id: "near" }, Middle: ...Middle { Base: ...Base { id: "far" } } }
+        outer := Outer { Base: Base { id: "near" }, Middle: Middle { Base: Base { id: "far" } } }
         assert_equal(outer.id, "near", reason="depth-1 field")
         assert_equal(outer.label(), "base near", reason="depth-1 method")
         assert_equal(outer.Middle.id, "far", reason="the deeper copy through its path")

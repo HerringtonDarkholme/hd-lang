@@ -2,8 +2,8 @@
 # Spec 05 Index Traits: expr.index.trait.std-ref.
 use std.ops.{Index, IndexSet}
 
-data Names:
-    items: mut List[string]
+struct Names:
+    items: &mut List[string]
 
 impl Index[usize] for Names:
     type Out = string

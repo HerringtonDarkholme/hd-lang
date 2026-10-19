@@ -2,8 +2,8 @@
 # Spec 05 Index Traits: expr.index.trait.choice.
 use std.ops.{Index, IndexSet}
 
-data Table:
-    log: mut List[string]
+struct Table:
+    log: List[string]
 
 impl Index[usize] for Table:
     type Out = i32

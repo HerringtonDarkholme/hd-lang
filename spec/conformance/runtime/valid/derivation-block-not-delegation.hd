@@ -1,10 +1,10 @@
 # test: by Structure derives from the members and never forwards to an embedded part that implements the trait
 # Spec 14 Derivation Blocks: annot.block.not-delegation.
 use std.structure.{Structure, Field, Variant, Walker}
-data Tag:
+struct Tag:
     text: string
 
-data Note:
+struct Note:
     text: string
 
 fn tag(text: string) -> Tag:
@@ -41,14 +41,14 @@ impl[T] Probe for T by Structure:
         _ := Structure::walk(self, &mut w)
         w.out
 
-data Inner:
+struct Inner:
     code: i64
 
 impl Probe for Inner:
     fn probe(self) -> string:
         "inner"
 
-data Outer:
+struct Outer:
     Inner
     id: i64
 
@@ -58,5 +58,5 @@ tests:
     use std.testing.assert_equal
 
     it("walks the members rather than calling the part's probe"):
-        assert_equal(Outer { Inner: ...Inner { code: 1 }, id: 2 }.probe(), "Inner=-/-;id=-/-;", reason="the part is one walked member")
+        assert_equal(Outer { Inner: Inner { code: 1 }, id: 2 }.probe(), "Inner=-/-;id=-/-;", reason="the part is one walked member")
         assert_equal(Inner { code: 1 }.probe(), "inner", reason="the part keeps its own implementation")

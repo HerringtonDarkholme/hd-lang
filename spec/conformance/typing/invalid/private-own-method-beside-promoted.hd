@@ -1,12 +1,12 @@
 # test: a private own inherent method cannot shadow a promoted pub method of the same name, so its declaration conflicts
-data Base:
+struct Base:
     name: string
 
 impl Base:
     pub fn describe(self) -> string:
         self.name
 
-data Page:
+struct Page:
     Base
 
 impl Page:

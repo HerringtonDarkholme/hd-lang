@@ -4,7 +4,7 @@ use std.annotation.annotate
 use std.num.Num
 
 @annotate::[fn(T) -> R](.Fn)
-data FnFact[T < Num, R]: pass
+struct FnFact[T < Num, R]: pass
 
 fn fn_fact[T < Num, R]() -> FnFact[T, R]:
     FnFact::[T, R] {}
@@ -12,7 +12,7 @@ fn fn_fact[T < Num, R]() -> FnFact[T, R]:
 trait Log:
     fn line(self, text: string) -> void
 
-data Duration:
+struct Duration:
     millis: i32
 
 @fn_fact

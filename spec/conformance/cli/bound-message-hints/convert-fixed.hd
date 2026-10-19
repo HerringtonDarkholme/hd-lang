@@ -1,7 +1,7 @@
 trait Convert[T]:
     fn convert(self) -> T
 
-data Packet: pass
+struct Packet: pass
 
 impl Convert[i32] for Packet:
     fn convert(self) -> i32: +1

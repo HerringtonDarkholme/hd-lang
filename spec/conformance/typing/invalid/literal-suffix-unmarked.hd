@@ -1,6 +1,6 @@
 # test: a suffix must name a function marked @num_suffix
 # Spec 05 Literal Suffixes: expr.literal-fn.not-marked is reported at the literal.
-data Pixels:
+struct Pixels:
     count: i32
 
 fn pt(count: i32) -> Pixels:

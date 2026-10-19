@@ -3,7 +3,7 @@
 trait Apply[T]:
     fn apply(self, run: fn(T) -> T) -> i32
 
-data Item:
+struct Item:
     value: i32
 
 impl Apply[bool] for Item:
@@ -17,7 +17,7 @@ impl Apply[i32] for Item:
 trait Clock:
     fn now(self) -> i32
 
-data Fixed:
+struct Fixed:
     value: i32
 
 impl Clock for Fixed:

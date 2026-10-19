@@ -1,14 +1,14 @@
-data User:
+struct User:
     name: string
 
-fn same(view: User, owner: mut User) -> bool:
+fn same(view: &User, owner: &mut User) -> bool:
     view is owner
 
 tests:
     use std.testing.assert
 
-    it("is compares a readonly view and a mutable alias by identity"):
-        let users: mut User = User { name: "Ada" }
-        let others: mut User = User { name: "Ada" }
-        assert(same(users, users), reason="permissions do not affect identity")
-        assert(!same(others, users), reason="distinct values stay distinct")
+    it("is compares a read-only reference and a writable one by identity"):
+        users := &mut User { name: "Ada" }
+        others := &mut User { name: "Ada" }
+        assert(same(users, users), reason="mutability does not affect identity")
+        assert(!same(others, users), reason="distinct objects stay distinct")

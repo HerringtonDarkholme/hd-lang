@@ -1,12 +1,12 @@
 # test: an enum value never changes once built, so a copy taken earlier keeps its variant and payload
 # Spec 08 Variant Payloads: data.enum.immutable, data.enum.immutable.shallow.
-data Worker:
+struct Worker:
     name: string
     done: i32
 
 enum Job:
     Queued(attempts: i32)
-    Running(worker: mut Worker)
+    Running(worker: &mut Worker)
     Finished
 
 fn describe(job: Job) -> string:
@@ -28,7 +28,7 @@ tests:
         assert_equal(describe(before), "queued after 1", reason="the copy keeps its variant")
 
     it("a mut payload is the exception: the enum keeps its reference, not a frozen object"):
-        let mut ada = Worker { name: "Ada", done: 0 }
+        let mut ada = &mut Worker { name: "Ada", done: 0 }
         job := Job.Running(ada)
         copy := job
         ada.done = 3

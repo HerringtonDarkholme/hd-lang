@@ -2,7 +2,7 @@
 # Spec Expressions, Names: expr.name.qualified; a qualified name selects an enum variant through a module, then a type namespace.
 use std.cmp
 
-data Version:
+struct Version:
     major: i32
     minor: i32
 

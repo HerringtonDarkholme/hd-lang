@@ -3,13 +3,13 @@
 use std.annotation.annotate
 
 @annotate(.Field)
-data MaxLen:
+struct MaxLen:
     value: i32
 
 fn max_len(value: i32) -> MaxLen:
     MaxLen { value: value }
 
-data Profile:
+struct Profile:
     @max_len(80)
     name: string
 

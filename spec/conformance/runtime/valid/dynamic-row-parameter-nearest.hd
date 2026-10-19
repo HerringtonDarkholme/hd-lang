@@ -4,7 +4,7 @@
 trait Tag:
     fn name(self) -> string
 
-data Named:
+struct Named:
     label: string
 
 impl Tag for Named:
@@ -15,7 +15,7 @@ trait Runner:
     fn twice[$R](self, callback: fn() -> string $ R) -> string $ R
     fn twice_later![$R](self, callback: fn!() -> string $ R) -> string $ R
 
-data Plain: pass
+struct Plain: pass
 
 impl Runner for Plain:
     fn with_tag[$R](self, callback: fn() -> string $ R + Tag) -> string $ R:

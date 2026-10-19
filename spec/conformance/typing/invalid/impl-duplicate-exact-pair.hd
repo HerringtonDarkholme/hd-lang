@@ -3,7 +3,7 @@
 trait Billable:
     fn amount(self) -> i32
 
-data Invoice:
+struct Invoice:
     total: i32
 
 impl Billable for Invoice:

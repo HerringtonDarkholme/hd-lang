@@ -28,14 +28,14 @@ fn super() -> void: pass
 
 fn pkg() -> void: pass
 
-data Resource:
+struct Resource:
     as: i32
     std: i32
     dep: i32
 
-data Logger: pass
+struct Logger: pass
 
-data Service:
+struct Service:
     Logger
     port: i32
 
@@ -61,5 +61,5 @@ fn scoped() -> void $ Clock + Logger:
     pass
 
 @derive(Eq)
-data Plain:
+struct Plain:
     value: i32

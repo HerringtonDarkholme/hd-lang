@@ -1,7 +1,7 @@
 # test: an implementation target cannot carry an outer mut
 # Spec 09 Traits: trait.target.no-mut.
 
-data Counter:
+struct Counter:
     value: i32
 
 trait Marker

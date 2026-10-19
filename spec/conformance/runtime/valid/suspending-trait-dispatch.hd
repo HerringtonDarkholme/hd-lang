@@ -3,7 +3,7 @@
 trait Read:
     fn read!(self, delta: i32) -> i32
 
-data Counter:
+struct Counter:
     value: i32
 
 impl Read for Counter:

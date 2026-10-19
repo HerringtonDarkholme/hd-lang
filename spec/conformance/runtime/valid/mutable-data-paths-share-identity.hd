@@ -1,20 +1,20 @@
 # test: mutable data paths share identity
 # Spec 08 Reference Semantics: data.kind.data, data.ref.shared.
 
-data Child:
+struct Child:
     name: string
 
-data Parent:
-    child: mut Child
-    snapshot: Child
+struct Parent:
+    child: &mut Child
+    snapshot: &Child
 
-fn rename(parent: mut Parent) -> void:
+fn rename(parent: &mut Parent) -> void:
     parent.child.name = "Grace"
-    parent.snapshot = Child { name: "updated" }
+    parent.snapshot = &mut Child { name: "updated" }
 
 fn main() -> i32:
-    let mut child = Child { name: "Ada" }
-    let mut parent = Parent { child: child, snapshot: Child { name: "old" } }
+    let mut child = &mut Child { name: "Ada" }
+    let mut parent = &mut Parent { child: child, snapshot: &mut Child { name: "old" } }
     readonly := parent
     rename(parent)
     if readonly.child.name == "Grace" && readonly.snapshot.name == "updated":

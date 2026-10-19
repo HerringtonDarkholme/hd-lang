@@ -5,7 +5,7 @@
 trait Show:
     fn show(self) -> string
 
-data Clock:
+struct Clock:
     hour: i32
 
 impl Show for Clock:

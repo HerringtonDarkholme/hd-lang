@@ -70,7 +70,7 @@ fn write[T < Serialize](value: T, room: i32) -> (Result[void, string], string):
     (result, out.log)
 
 @derive(Serialize)
-data Line:
+struct Line:
     sku: string
     qty: u32
 

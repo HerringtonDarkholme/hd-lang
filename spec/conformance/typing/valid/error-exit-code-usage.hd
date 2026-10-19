@@ -1,7 +1,7 @@
 # Spec std/error Exit Status: std-error.exit-code.decl, std-error.exit-code.default.
 use std.error.Error
 
-pub data Usage:
+pub struct Usage:
     text: string
 
 impl Display for Usage:

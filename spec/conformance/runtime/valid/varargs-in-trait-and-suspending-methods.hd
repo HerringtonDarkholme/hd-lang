@@ -1,6 +1,6 @@
 # test: varargs work in suspending and trait method calls
 
-data Box:
+struct Box:
     base: i32
 
 trait Sum:

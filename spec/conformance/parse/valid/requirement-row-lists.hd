@@ -9,9 +9,9 @@ trait Logger
 
 trait Store:
     fn load(self) -> i32 $ Clock + Logger
-    fn save(mut self, value: i32) -> void $ Clock + Logger
+    fn save(&mut self, value: i32) -> void $ Clock + Logger
 
-data Hooks:
+struct Hooks:
     on_tick: fn() -> i32 $ Clock + Logger
     handlers: Map[string, fn() -> i32 $ Clock + Logger]
     pair: (fn() -> i32 $ Clock + Logger, fn() -> i32 $ Clock)

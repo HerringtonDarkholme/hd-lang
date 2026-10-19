@@ -2,5 +2,5 @@
 # Spec 14 Error Types: annot.error.form.argument.
 
 @error(42)  # diagnostic: invalid-error-marker
-data DiskError:
+struct DiskError:
     free: i64

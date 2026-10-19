@@ -11,7 +11,7 @@ trait NamedSupplier < Supplier:
 fn first[T, I < NamedSupplier[Item = T]](source: I) -> T:
     source.get()
 
-data Constant:
+struct Constant:
     value: string
 
 impl Supplier for Constant:

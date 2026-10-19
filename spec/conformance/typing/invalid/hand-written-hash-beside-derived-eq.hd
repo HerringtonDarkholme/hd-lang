@@ -2,7 +2,7 @@
 # Spec 09 Traits: trait.derive.related.error.
 
 @derive(Eq)  # diagnostic: mixed-derived-law
-data Key:
+struct Key:
     name: string
 
 impl Hash for Key:

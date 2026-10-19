@@ -7,7 +7,7 @@ trait Describe:
 trait Named:
     fn name(self) -> i32
 
-data Number:
+struct Number:
     value: i32
     extra: i32
 

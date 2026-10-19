@@ -6,7 +6,7 @@ trait Greeter:
     fn shout(self) -> string:
         self.loud_name()  # diagnostic: unknown-method
 
-data User:
+struct User:
     value: string
 
 impl User:

@@ -5,25 +5,25 @@ tests:
     use std.testing.assert_equal
 
     it("insert"):
-        let values: mut List[i32] = [1, 2, 3]
+        let mut values: List[i32] = [1, 2, 3]
         values.insert(1, 9)
         assert_equal(values, [1, 9, 2, 3], reason="later elements move up")
         values.insert(0, 0)
         assert_equal(values, [0, 1, 9, 2, 3], reason="at the front")
         values.insert(values.len(), 7)
         assert_equal(values, [0, 1, 9, 2, 3, 7], reason="at len() it appends")
-        let empty: mut List[string] = []
+        let mut empty: List[string] = []
         empty.insert(0, "a")
         assert_equal(empty, ["a"], reason="len() of an empty list is 0")
     it("remove_at"):
-        let values: mut List[i32] = [1, 2, 3]
+        let mut values: List[i32] = [1, 2, 3]
         assert_equal(values.remove_at(1), 2, reason="the removed element")
         assert_equal(values, [1, 3], reason="later elements move down")
         assert_equal(values.remove_at(1), 3, reason="the last element")
         assert_equal(values.remove_at(0), 1, reason="the only element")
         assert_equal(values.len(), 0, reason="now empty")
     it("clear"):
-        let values: mut List[i32] = [1, 2, 3]
+        let mut values: List[i32] = [1, 2, 3]
         values.clear()
         assert_equal(values.len(), 0, reason="every element removed")
         values.clear()

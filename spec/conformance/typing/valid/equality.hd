@@ -1,15 +1,15 @@
 
-data User:
+struct User:
     id: string
 
 impl Eq for User:
     fn eq(self, other: Self) -> bool:
         self.id == other.id
 
-fn same(left: User, right: User) -> bool:
-    left == right
+fn same(left: &User, right: &User) -> bool:
+    *left == *right
 
-fn same_object(left: User, right: User) -> bool:
+fn same_object(left: &User, right: &User) -> bool:
     left is right
 
 fn same_map(left: Map[string, i32], right: Map[string, i32]) -> bool:

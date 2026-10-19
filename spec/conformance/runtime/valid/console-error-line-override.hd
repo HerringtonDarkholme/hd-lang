@@ -1,15 +1,15 @@
 # test: a Console provider that overrides write_error_line! keeps error lines apart from ordinary lines
 # Spec 10 Console: module.console.write-error-line, module.console.write-line-mut.
-data SplitConsole:
-    lines: mut List[string]
-    errors: mut List[string]
+struct SplitConsole:
+    lines: List[string]
+    errors: List[string]
 
 impl Console for SplitConsole:
-    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
+    fn write_line!(&mut self, text: string) -> Result[void, ConsoleError]:
         self.lines.push(text)
         .Ok(())
 
-    fn write_error_line!(mut self, text: string) -> Result[void, ConsoleError]:
+    fn write_error_line!(&mut self, text: string) -> Result[void, ConsoleError]:
         self.errors.push(text)
         .Ok(())
 
@@ -24,7 +24,7 @@ tests:
 
     it("records error lines separately"):
         let mut console = SplitConsole { lines: [], errors: [] }
-        $.with(Console=console):
+        $.with(Console=&mut console):
             report!(1)
         assert_equal(console.lines, ["checked 3 orders"], reason="one ordinary line")
         assert_equal(console.errors, ["1 orders failed"], reason="one error line")

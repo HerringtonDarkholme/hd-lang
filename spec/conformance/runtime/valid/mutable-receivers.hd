@@ -2,27 +2,27 @@
 # Spec 09 Traits: trait.decl.mut-receiver, trait.dyn.mut.
 
 trait Add:
-    fn add(mut self, value: i32) -> void
-    fn twice(mut self, value: i32) -> void:
+    fn add(&mut self, value: i32) -> void
+    fn twice(&mut self, value: i32) -> void:
         self.add(value)
         self.add(value)
 
-data Counter:
+struct Counter:
     value: i32
 
 impl Add for Counter:
-    fn add(mut self, value: i32) -> void:
+    fn add(&mut self, value: i32) -> void:
         self.value = self.value + value
 
-fn bounded[T < Add](value: mut T, amount: i32) -> void:
+fn bounded[T < Add](value: &mut T, amount: i32) -> void:
     value.add(amount)
 
 fn main() -> i32:
     let mut counter = Counter { value: 0 }
     counter.add(10)
-    let dynamic: mut dyn Add = counter
+    let dynamic: &mut dyn Add = &mut counter
     dynamic.twice(5)
-    bounded(counter, 22)
+    bounded(&mut counter, 22)
     counter.value
 
 tests:

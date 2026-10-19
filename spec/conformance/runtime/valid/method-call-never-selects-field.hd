@@ -3,7 +3,7 @@
 trait Priced:
     fn total(self) -> i32
 
-data Ticket:
+struct Ticket:
     label: string
     total: i32
     discount: i32

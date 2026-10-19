@@ -1,8 +1,8 @@
 # test: user indexing reads through index and stores through index_set
 # Spec 05 Index Traits: expr.index.trait.read-other, expr.index.trait.write-ref, expr.assign.compound.index-read-write (Operator Traits OP7, OP13).
 use std.ops.{Index, IndexSet}
-data Ring:
-    items: mut List[i32]
+struct Ring:
+    items: &mut List[i32]
 
 impl Index[usize] for Ring:
     type Out = i32
@@ -14,7 +14,7 @@ impl IndexSet[usize, i32] for Ring:
         self.items[key % self.items.len()] = value
 
 fn exercise() -> i32:
-    let mut ring = Ring { items: [1, 2, 3] }
+    let mut ring = Ring { items: &mut [1, 2, 3] }
     ring[4] = ring[0] + 10
     ring[4] += 5
     ring[1]

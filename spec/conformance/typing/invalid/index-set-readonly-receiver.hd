@@ -2,8 +2,8 @@
 # Spec 05 Index Traits: expr.index.trait.mut-ref.
 use std.ops.IndexSet
 
-data Cell:
-    value: mut List[i32]
+struct Cell:
+    value: List[i32]
 
 impl IndexSet[usize, i32] for Cell:
     fn index_set(&mut self, key: usize, value: i32) -> void:

@@ -13,7 +13,7 @@
 ## ```
 pub fn greeting(name: string) -> string: "hello, " + name
 
-data Box:
+struct Box:
     ## ```hd
     ## use pkg.{greeting}
     ## use std.testing.snapshot

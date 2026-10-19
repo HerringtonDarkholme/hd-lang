@@ -3,7 +3,7 @@
 trait Scale[T]:
     fn scale(self, by: T) -> string
 
-data Money:
+struct Money:
     cents: i32
 
 impl Scale[i32] for Money:

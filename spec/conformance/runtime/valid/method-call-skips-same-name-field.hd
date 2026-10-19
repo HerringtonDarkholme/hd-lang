@@ -1,6 +1,6 @@
 # test: a method call selects the method even when a field of the same name holds a function
 # Spec 05 Method Calls: expr.member.no-field-call.
-data Button:
+struct Button:
     label: fn() -> string
 
 impl Button:

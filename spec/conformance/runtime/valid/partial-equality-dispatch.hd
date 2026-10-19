@@ -1,5 +1,5 @@
 @derive(Debug)
-data User:
+struct User:
     id: string
 
 impl Eq for User:

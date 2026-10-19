@@ -3,4 +3,4 @@ use pkg.model.{User}
 
 pub fn main() -> void $ Console:
     println("${TypeId::of::[User]()}")
-    println("${TypeId::of::[List[mut User]]()}")
+    println("${TypeId::of::[List[User]]()}")

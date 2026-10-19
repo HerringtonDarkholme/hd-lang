@@ -12,7 +12,7 @@ use std.annotation.annotate
 use std.structure.{Structure, Field, Variant, Walker}
 
 @annotate::[F](.Field)
-data Fallback[F]:
+struct Fallback[F]:
     value: F
 
 fn fallback[F](value: F) -> Fallback[F]:
@@ -46,7 +46,7 @@ impl[T] Summary for T by Structure:
         w.out
 
 @derive(Summary)
-data Profile:
+struct Profile:
     @fallback(30)
     age: i32
     @fallback("anonymous")

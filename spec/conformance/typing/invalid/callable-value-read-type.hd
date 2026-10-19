@@ -2,7 +2,7 @@
 # Spec 05 Callable Values: expr.call.apply.read-type.
 use std.ops.Apply
 
-data Counter:
+struct Counter:
     hits: i32
 
 impl Apply for Counter:

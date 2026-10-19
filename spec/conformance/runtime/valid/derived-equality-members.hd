@@ -6,7 +6,7 @@ enum Finish:
     Custom(code: string)
 
 @derive(Eq)
-data Paint:
+struct Paint:
     finish: Finish
     coats: i32
 

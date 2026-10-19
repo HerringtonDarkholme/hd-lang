@@ -1,5 +1,5 @@
 # Spec 08 Data Literals: data.literal.required.
-data User:
+struct User:
     id: i32
     active: bool = true
 

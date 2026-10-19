@@ -9,7 +9,7 @@ trait Titled < Named:
 trait Badged < Titled:
     fn badge(self) -> string
 
-data Chief: pass
+struct Chief: pass
 
 impl Named for Chief:
     fn name(self) -> string: "ada"

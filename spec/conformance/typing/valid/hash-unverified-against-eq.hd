@@ -2,7 +2,7 @@
 # Spec 09 Hashing: trait.hash.module, trait.hash.map-key, trait.hash.unverified; Comparison Traits: trait.cmp.laws.
 use std.hash.{Hash, Hasher}
 
-data Coupon:
+struct Coupon:
     code: string
     uses: i32
 

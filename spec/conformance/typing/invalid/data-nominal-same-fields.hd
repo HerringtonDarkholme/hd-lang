@@ -1,9 +1,9 @@
 # test: two data types with the same fields are different types
 # Spec 08 Data Declarations: data.decl.nominal.
-data CustomerId:
+struct CustomerId:
     value: i64
 
-data OrderId:
+struct OrderId:
     value: i64
 
 fn find_order(id: OrderId) -> i64:

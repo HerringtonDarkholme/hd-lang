@@ -2,7 +2,7 @@
 # Spec 06 Iterator Invalidation: flow.for.invalidate.map-rebuild, flow.for.invalidate.panic.
 tests:
     it("a rebuild invalidates an exhausted iterator"):
-        let entries: mut Map[string, i32] = {"a": +1}
+        let mut entries: Map[string, i32] = {"a": +1}
         let cursor: &mut Iterator[(string, i32)] = entries.iter()
         _ := cursor.next()
         _ := cursor.next()

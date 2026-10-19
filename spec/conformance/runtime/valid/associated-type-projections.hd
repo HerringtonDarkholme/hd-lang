@@ -5,7 +5,7 @@ trait Source:
     type Item
     fn get(self) -> Self::Item
 
-data Box[T]:
+struct Box[T]:
     value: T
 
 impl[T] Source for Box[T]:
@@ -16,7 +16,7 @@ impl[T] Source for Box[T]:
 fn projected_value() -> i32:
     Box::[i32] { value: 42 }.get()
 
-data FixedSource: pass
+struct FixedSource: pass
 
 impl Source for FixedSource:
     type Item = i32

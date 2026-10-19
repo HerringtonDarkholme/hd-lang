@@ -3,7 +3,7 @@
 trait Logger:
     fn adjust(self, value: i32) -> i32
 
-data OffsetLogger:
+struct OffsetLogger:
     offset: i32
 
 impl Logger for OffsetLogger:

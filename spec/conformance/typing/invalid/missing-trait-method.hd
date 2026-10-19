@@ -2,5 +2,5 @@
 trait Named:
     fn name(self) -> string
 
-data User: pass
+struct User: pass
 impl Named for User  # diagnostic: missing-trait-method

@@ -5,7 +5,7 @@
 # types.result.propagate.enclosing, types.result.propagate.one-step,
 # types.result.err-value, types.result.propagate.permission,
 # types.result.no-effects.
-data ParseError:
+struct ParseError:
     message: string
 
 fn label(value: string?) -> string?:

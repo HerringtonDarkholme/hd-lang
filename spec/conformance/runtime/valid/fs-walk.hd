@@ -7,7 +7,7 @@ use std.fs.{Entry, EntryKind, FsError, FsRead, FsWrite, MemoryFs, list_dir, stat
 use std.path.Path
 
 # A provider with a symlink, to show that walk! reports it and stays out.
-data LinkFs:
+struct LinkFs:
     unused: i32
 
 impl FsRead for LinkFs:

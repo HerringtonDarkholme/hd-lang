@@ -1,7 +1,7 @@
 # test: the member line of a block with no trait must name a direct member
 use std.structure.Structure
 
-data User:
+struct User:
     name: string
 
 impl User by Structure:

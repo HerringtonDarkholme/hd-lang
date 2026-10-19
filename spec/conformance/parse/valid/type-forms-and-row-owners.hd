@@ -24,14 +24,14 @@ trait Log
 
 trait Clock
 
-data User: pass
+struct User: pass
 
 fn total(pair: (i32, List[i32]...), callback: fn(i32, List[i32]...) -> i32) -> i32:
     callback(pair...)
 
 fn only(values: (List[i32]...,)) -> usize: values._0.len()
 
-fn feeds(feed: dyn Supplier[Item = i32], cache: mut dyn Supplier[Item = i32], maybe: dyn Display?) -> void: pass
+fn feeds(feed: dyn Supplier[Item = i32], cache: &mut dyn Supplier[Item = i32], maybe: dyn Display?) -> void: pass
 
 fn unit(none: (), single: (i32,), nested: ((i32, i32), (string,))) -> (): ()
 
@@ -48,4 +48,4 @@ fn contexts(ctx: $.Context[$ Store[Item = User]], both: $.Context[$ Log + Clock]
 fn make() -> (fn() -> i32 $ Log) $ Clock:
     fn() -> i32 $ Log: 1
 
-fn optionals(a: i32?, b: i32??, c: (fn() -> i32)?, d: List[i32?]?, e: mut List[string]) -> fn() -> i32?: fn() -> i32?: .None
+fn optionals(a: i32?, b: i32??, c: (fn() -> i32)?, d: List[i32?]?, e: &mut List[string]) -> fn() -> i32?: fn() -> i32?: .None

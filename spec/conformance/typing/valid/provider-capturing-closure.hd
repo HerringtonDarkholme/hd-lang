@@ -1,7 +1,7 @@
 trait Logger:
     fn write(self, message: string) -> void
 
-data SilentLogger: pass
+struct SilentLogger: pass
 
 impl Logger for SilentLogger:
     fn write(self, message: string) -> void: pass

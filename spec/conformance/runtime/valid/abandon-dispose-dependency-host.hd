@@ -10,8 +10,8 @@ use std.ops.Disposable
 use std.task.race
 use std.time.{Clock, s, sleep}
 
-data Channel:
-    log: mut List[string]
+struct Channel:
+    log: &mut List[string]
     ack: mut Suspend[void]
 
 impl Disposable for Channel:
@@ -22,8 +22,8 @@ impl Disposable for Channel:
         wait!()
         self.log.push("acked")
 
-data Gate:
-    log: mut List[string]
+struct Gate:
+    log: &mut List[string]
     ack: mut Suspend[void]
 
 impl Disposable for Gate:
@@ -35,13 +35,13 @@ impl Disposable for Gate:
 fn nothing!() -> void:
     pass
 
-fn talk!(log: mut List[string], ack: mut Suspend[void]) -> string $ Clock:
-    using channel = Channel { log: log, ack: ack }
+fn talk!(log: &mut List[string], ack: mut Suspend[void]) -> string $ Clock:
+    using channel = &mut Channel { log: log, ack: ack }
     sleep!(s(60))
     "late"
 
-fn guard!(log: mut List[string], ack: mut Suspend[void]) -> string $ Clock:
-    using gate = Gate { log: log, ack: ack }
+fn guard!(log: &mut List[string], ack: mut Suspend[void]) -> string $ Clock:
+    using gate = &mut Gate { log: log, ack: ack }
     sleep!(s(60))
     "late"
 
@@ -57,13 +57,13 @@ pub fn main!() -> void $ Console + Clock:
     let mut clock = $.use(Clock)
     let ack: mut Suspend[void] = clock.sleep(s(60))
     _ := ack.cancel!()
-    let log: mut List[string] = []
-    let job: mut Suspend[string] = talk(log, ack)
+    let mut log: List[string] = []
+    let job: mut Suspend[string] = talk(&mut log, ack)
     println(race!(job, ready()))
     println(log.join(", "))
     println(ended!(job))
-    let other: mut List[string] = []
-    let gated: mut Suspend[string] = guard(other, ack)
+    let mut other: List[string] = []
+    let gated: mut Suspend[string] = guard(&mut other, ack)
     println(race!(gated, ready()))
     println(other.join(", "))
     println(ended!(gated))

@@ -7,7 +7,7 @@ trait Feed:
 trait PriceFeed < Feed[Item = i32]:
     fn label(self) -> string
 
-data Quotes:
+struct Quotes:
     price: i32
 
 impl Feed for Quotes:

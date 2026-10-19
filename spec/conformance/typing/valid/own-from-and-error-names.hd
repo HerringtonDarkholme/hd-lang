@@ -4,10 +4,10 @@
 trait From[T]:
     fn convert(value: T) -> Self
 
-data Error:
+struct Error:
     code: i32
 
-data Invoice:
+struct Invoice:
     total: i32
 
 impl From[i32] for Invoice:

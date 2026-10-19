@@ -6,7 +6,7 @@ tests:
 
     it("a half-open range excludes its end"):
         dice := Rng::new(7)
-        let draws: mut List[i64] = []
+        let mut draws: List[i64] = []
         for _ in 0..10:
             draws.push(dice.int(0..10))
         assert_equal(draws, [7, 2, 1, 6, 8, 4, 9, 1, 2, 5], reason="ten draws below 10")
@@ -17,7 +17,7 @@ tests:
 
     it("an inclusive range includes its end"):
         dice := Rng::new(7)
-        let draws: mut List[i64] = []
+        let mut draws: List[i64] = []
         for _ in 0..6:
             draws.push(dice.int(-5..=5))
         assert_equal(draws, [-1, 2, 1, 5, -1, 4], reason="six draws from -5 through 5")

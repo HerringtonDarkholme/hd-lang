@@ -1,6 +1,6 @@
 # test: a callable stored in a generic list, tuple, map, or data field runs the same as a direct call
 # Spec 04 Generic Representation: types.generic.unobservable; how generic code stores a function value is not observable.
-data Queue[T]:
+struct Queue[T]:
     jobs: T
 
 fn first_job[T](jobs: List[fn() -> T]) -> T:

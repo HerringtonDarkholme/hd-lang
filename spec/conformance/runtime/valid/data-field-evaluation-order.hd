@@ -1,6 +1,6 @@
 # test: data field initializers preserve source evaluation order
 
-data Pair[T]:
+struct Pair[T]:
     first: T
     second: T
 

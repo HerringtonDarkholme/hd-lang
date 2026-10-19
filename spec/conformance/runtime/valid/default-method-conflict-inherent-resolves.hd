@@ -10,7 +10,7 @@ trait Quiet:
     fn describe(self) -> string:
         "quiet"
 
-data Speaker:
+struct Speaker:
     name: string
 
 impl Loud for Speaker

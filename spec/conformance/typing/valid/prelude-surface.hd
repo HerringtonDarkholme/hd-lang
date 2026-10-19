@@ -1,5 +1,5 @@
 # Spec 10 Prelude: module.prelude.in-scope, module.prelude.panic, module.prelude.println, module.prelude.collections.
-data Label:
+struct Label:
     value: string
 
 impl Display for Label:
@@ -9,7 +9,7 @@ impl Hash for Label:
     fn hash(self, state: &mut dyn Hasher) -> void:
         self.value.hash(state)
 
-fn normalize(values: mut List[string], entries: mut Map[string, i32]) -> i32:
+fn normalize(values: &mut List[string], entries: &mut Map[string, i32]) -> i32:
     values.push(" Added ")
     clean := [for value in values => "[$value]"]
     removed := entries.remove("old")
@@ -18,7 +18,7 @@ fn normalize(values: mut List[string], entries: mut Map[string, i32]) -> i32:
         .Some(value) => value + extra
         .None => 0
 
-fn report(label: Label) -> void $ Console:
+fn report(label: &Label) -> void $ Console:
     println(label)
 
 fn fail[T](message: string) -> T:

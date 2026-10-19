@@ -3,7 +3,7 @@ struct Point:
     x: f64
     y: f64
 
-data Node:
+struct Node:
     parent: &Node?
     body: &mut Point
     kids: List[&Node]

@@ -7,7 +7,7 @@ trait Describe:
 trait Formattable < Describe:
     fn format(self) -> string
 
-data User:
+struct User:
     name: string
 
 impl Describe for User:

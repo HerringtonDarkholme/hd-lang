@@ -8,12 +8,12 @@
 # expect-stdout: 10
 # expect-stdout: true false
 # expect-stdout: 9
-data Box[T]:
+struct Box[T]:
     value: T
 
-data Parser: pass
+struct Parser: pass
 
-data Price:
+struct Price:
     cents: i32
 
 trait Scale[T]:

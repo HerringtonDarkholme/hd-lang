@@ -12,8 +12,8 @@ pub fn join_words(words: List[string], separator: string) -> string:
 fn squash(word: string) -> string:
     word
 
-pub data Phrase:
+pub struct Phrase:
     pub text: string
 
-data Draft:
+struct Draft:
     text: string

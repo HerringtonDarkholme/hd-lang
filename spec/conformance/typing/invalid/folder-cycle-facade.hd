@@ -4,5 +4,5 @@
 # fixture-package-tree: facade-error/src/shop/mod.hd
 use pkg.error.{Error}  # diagnostic: folder-cycle
 
-pub data Cart:
+pub struct Cart:
     pub count: i32

@@ -2,18 +2,18 @@
 # Spec 05 Evaluation Order: "subexpressions are evaluated from left to right and exactly once. This rule
 # applies to tuple and collection elements, data fields, call arguments, operands, and indexing expressions."
 # Spec 05 Indexing: "`receiver[index]` evaluates the receiver, then the index".
-data Log:
+struct Log:
     text: string
 
-fn note(log: mut Log, label: string, value: i32) -> i32:
+fn note(log: &mut Log, label: string, value: i32) -> i32:
     log.text = log.text + label
     value
 
-fn slot(log: mut Log, label: string, value: usize) -> usize:
+fn slot(log: &mut Log, label: string, value: usize) -> usize:
     log.text = log.text + label
     value
 
-fn items(log: mut Log) -> List[i32]:
+fn items(log: &mut Log) -> List[i32]:
     log.text = log.text + "r"
     [10, 20, 30]
 
@@ -21,19 +21,19 @@ tests:
     use std.testing.assert_equal
 
     it("tuple elements evaluate left to right"):
-        let mut log = Log { text: "" }
+        let mut log = &mut Log { text: "" }
         triple := (note(log, "a", 1), note(log, "b", 2), note(log, "c", 3))
         assert_equal(log.text, "abc", reason="tuple element order")
         assert_equal(triple._2, 3, reason="tuple element value")
 
     it("list elements evaluate left to right"):
-        let mut log = Log { text: "" }
+        let mut log = &mut Log { text: "" }
         values := [note(log, "x", 1), note(log, "y", 2), note(log, "z", 3)]
         assert_equal(log.text, "xyz", reason="list element order")
         assert_equal(values, [1, 2, 3], reason="list element values")
 
     it("an index receiver evaluates before its index"):
-        let mut log = Log { text: "" }
+        let mut log = &mut Log { text: "" }
         value := items(log)[slot(log, "i", 1)]
         assert_equal(log.text, "ri", reason="receiver, then index, each once")
         assert_equal(value, 20, reason="indexed value")

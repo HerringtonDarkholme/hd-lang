@@ -25,7 +25,7 @@ tests:
         assert_equal(stock.keys(), names, reason="the same order every time")
 
     it("the returned lists do not follow later changes"):
-        let stock: mut Map[string, i32] = {"tea": 3}
+        let mut stock: Map[string, i32] = {"tea": 3}
         names := stock.keys()
         stock["milk"] = 1
         assert_equal(names, ["tea"], reason="a snapshot")

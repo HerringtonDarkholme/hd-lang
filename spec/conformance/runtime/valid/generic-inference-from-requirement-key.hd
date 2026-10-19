@@ -3,13 +3,13 @@
 trait Repo[T]:
     fn count(self) -> i32
 
-data User: pass
-data UserRepo: pass
+struct User: pass
+struct UserRepo: pass
 
 impl Repo[User] for UserRepo:
     fn count(self) -> i32: 20
 
-data Job[T]:
+struct Job[T]:
     callback: fn() -> i32 $ Repo[T]
 
 fn count_users() -> i32 $ Repo[User]:

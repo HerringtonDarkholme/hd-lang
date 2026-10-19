@@ -1,6 +1,6 @@
 # test: an irrefutable data or tuple pattern after let needs no else
 # Spec 02 Let Statements: grammar.stmt.let-pattern; Spec 06 Let Patterns: flow.let.irrefutable.no-else (owner decision LP1, batch 26, 2026-09-30).
-data Point:
+struct Point:
     x: i32
     y: i32
 

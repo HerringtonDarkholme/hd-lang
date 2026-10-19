@@ -1,10 +1,10 @@
 # test: let mut accepts an initializer of type mut T?, and the binding has that type
 # Spec 04 Binding Forms: types.bind.let-mut-optional (evening follow-up 3, 2026-09-29).
-data User:
+struct User:
     name: string
 
-fn find() -> mut User?:
-    .Some(User { name: "Lin" })
+fn find() -> &mut User?:
+    .Some(&mut User { name: "Lin" })
 
 fn rename() -> string:
     let mut found = find()

@@ -2,7 +2,7 @@
 # Spec 01 Operators And Delimiters: lex.punct.tokens, lex.op.token-list-assign, lex.op.range, lex.op.compound-assign, lex.op.pipe.
 
 @derive(Eq)
-data Cell:
+struct Cell:
     left: i32
     right: i32
 

@@ -4,7 +4,7 @@ trait Supplier:
     type Item
     fn get(self) -> Self::Item
 
-data Source:
+struct Source:
     value: i32
 
 impl Supplier for Source:
@@ -12,7 +12,7 @@ impl Supplier for Source:
     fn get(self) -> i32:
         self.value
 
-data Feed:
+struct Feed:
     Source
 
 impl Supplier for Feed by Source

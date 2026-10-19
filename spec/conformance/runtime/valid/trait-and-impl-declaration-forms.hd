@@ -22,7 +22,7 @@ trait Animal < Named & Tame:
 trait Show:
     fn show(self) -> string
 
-data Dog:
+struct Dog:
     name: string
 
 impl Tame for Dog
@@ -38,13 +38,13 @@ impl Animal for Dog:
     type Food = string
     fn eat(self, meal: string) -> string: "${self.name} eats $meal"
 
-data Kennel:
+struct Kennel:
     Dog
     capacity: i32
 
 impl Named for Kennel by Dog
 
-data Crate[T]:
+struct Crate[T]:
     item: T
 
 impl[T < Named] Show for Crate[T]:
@@ -55,7 +55,7 @@ pub fn main() -> void $ Console:
     println(rex.shout())
     println("${Dog::kind()} ${Kennel::kind()}")
     println(rex.eat("bone"))
-    kennel := Kennel { Dog: ...rex, capacity: +4 }
+    kennel := Kennel { Dog: rex, capacity: +4 }
     println(kennel.name())
     println(Crate { item: rex }.show())
     println(rex.renamed("Max").name)

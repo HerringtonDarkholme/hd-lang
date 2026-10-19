@@ -3,7 +3,7 @@
 # `.zip(names)` has no type arguments: `U` is solved through the bound (types.generic.infer.bound.one).
 use std.collections.Set
 # An iterable whose `iter` and whose iterator's pulls run given closures.
-data Probe:
+struct Probe:
     start: fn() -> void
     pull: fn() -> i32?
 
@@ -27,7 +27,7 @@ tests:
         _ := seen.insert("x")
         assert_equal([1, 2].iter().zip(seen).collect(), [(1, "x")], reason="a set")
     it("zip takes iter once, when called, and does not read other past the end of self"):
-        let log: mut List[string] = []
+        let mut log: List[string] = []
         let at = +0
         probe := Probe {
             start: fn() -> void: log.push("iter"),

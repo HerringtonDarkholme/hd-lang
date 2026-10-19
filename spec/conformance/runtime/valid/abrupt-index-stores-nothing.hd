@@ -10,7 +10,7 @@ fn note(value: i32) -> i32:
 fn slot(index: usize?) -> usize?:
     index
 
-fn store(target: mut List[i32], index: usize?) -> usize?:
+fn store(target: &mut List[i32], index: usize?) -> usize?:
     target[slot(index)?] = note(9)
     index
 
@@ -18,15 +18,15 @@ tests:
     use std.testing.assert_equal
 
     it("an abrupt index stops before the value and the store"):
-        let target: mut List[i32] = [7, 8]
+        let mut target: List[i32] = [7, 8]
         let absent: usize? = .None
-        assert_equal(store(target, .None), absent, reason=".None propagates from the index")
+        assert_equal(store(&mut target, .None), absent, reason=".None propagates from the index")
         assert_equal(log, "", reason="the right-hand side never ran")
         assert_equal(target, [7, 8], reason="no store occurred")
 
     it("a completed index stores once"):
-        let target: mut List[i32] = [7, 8]
+        let mut target: List[i32] = [7, 8]
         let found: usize? = 1
-        assert_equal(store(target, 1), found, reason="index completes")
+        assert_equal(store(&mut target, 1), found, reason="index completes")
         assert_equal(log, "v", reason="the right-hand side ran once")
         assert_equal(target, [7, 9], reason="one store")

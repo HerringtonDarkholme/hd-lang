@@ -1,7 +1,7 @@
 use std.error.Error
 use std.time.{ms, sleep}
 
-pub data Refused:
+pub struct Refused:
     reason: string
 
 impl Display for Refused:

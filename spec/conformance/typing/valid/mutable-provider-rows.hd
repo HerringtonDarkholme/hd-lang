@@ -19,10 +19,10 @@ fn label() -> string $ Name:
     $.use(Name).text()
 
 fn counters() -> $.Context[$ Counter]:
-    $.context(Counter=MemoryCounter { value: 0 })
+    $.context(Counter=&mut MemoryCounter { value: 0 })
 
 fn provide[$R](callback: fn() -> void $ R + Counter) -> void $ R:
-    let mut counter = MemoryCounter { value: 0 }
+    let mut counter = &mut MemoryCounter { value: 0 }
     $.with(Counter=counter):
         callback()
 
@@ -31,28 +31,28 @@ pub fn main() -> void:
         _ := both()
         inferred()
     provide(bump_it)
-    name := FixedName { value: "hd" }
+    name := &mut FixedName { value: "hd" }
     $.with(Name=name):
         _ := label()
 
 trait Counter:
     fn count(self) -> i32
-    fn bump(mut self) -> void
+    fn bump(&mut self) -> void
 
 trait Name:
     fn text(self) -> string
 
-data MemoryCounter:
+struct MemoryCounter:
     value: i32
 
-data FixedName:
+struct FixedName:
     value: string
 
 impl Counter for MemoryCounter:
     fn count(self) -> i32:
         self.value
 
-    fn bump(mut self) -> void:
+    fn bump(&mut self) -> void:
         self.value = self.value + 1
 
 impl Name for FixedName:

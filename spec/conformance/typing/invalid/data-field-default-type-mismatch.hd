@@ -1,5 +1,5 @@
 # test: data field default type mismatch
 # Spec 08 Field Defaults: data.default.type.
 
-data Bad:
+struct Bad:
     value: i32 = true  # diagnostic: type-mismatch

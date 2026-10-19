@@ -1,6 +1,6 @@
 # test: suspending result propagation
 
-data ParseError:
+struct ParseError:
     code: i32
 
 fn parse!(ok: bool) -> Result[i32, ParseError]:

@@ -4,11 +4,11 @@
 use std.testing.{Arbitrary, Choices}
 
 @derive(Arbitrary)  # diagnostic: member-not-derivable
-data Task:
+struct Task:
     label: string
     run: fn() -> i32
 
-data Job:
+struct Job:
     run: fn() -> i32
 
 impl Arbitrary for Job:

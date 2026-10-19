@@ -1,4 +1,4 @@
-data Square:
+struct Square:
     side: i32
 
 trait Shape:

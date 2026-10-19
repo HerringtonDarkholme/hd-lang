@@ -1,6 +1,6 @@
 use pkg.other
 
-data Shape:
+struct Shape:
     a: i32
 
 fn take(shape: Shape) -> i32: shape.a

@@ -7,7 +7,7 @@ trait Greeter:
     fn tag(self) -> string:
         self.email  # diagnostic: unknown-method
 
-data User:
+struct User:
     email: string
 
 impl Greeter for User:

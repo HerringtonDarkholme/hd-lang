@@ -1,10 +1,10 @@
 # test: a method written in a derivation block replaces the template's method, and the others still come from the template
 # Spec 14 Derivation Blocks: annot.block.methods.
 use std.structure.{Structure, Field, Variant, Walker}
-data Tag:
+struct Tag:
     text: string
 
-data Note:
+struct Note:
     text: string
 
 fn tag(text: string) -> Tag:
@@ -45,7 +45,7 @@ impl[T] Probe for T by Structure:
     fn kind(self) -> string:
         "template"
 
-data Point:
+struct Point:
     x: i64
 
 impl Probe for Point by Structure:

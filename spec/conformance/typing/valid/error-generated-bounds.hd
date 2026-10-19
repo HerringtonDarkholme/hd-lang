@@ -7,10 +7,10 @@ use std.error.Error
 use std.inspect.Inspectable
 
 @error("disk full")
-data DiskError:
+struct DiskError:
     free: i64
 
-data Job:
+struct Job:
     id: i64
 
 @error

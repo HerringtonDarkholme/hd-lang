@@ -3,6 +3,6 @@
 
 trait Named:
     fn name(self) -> string
-data User:
+struct User:
     value: i32
 impl Named for User  # diagnostic: missing-trait-method

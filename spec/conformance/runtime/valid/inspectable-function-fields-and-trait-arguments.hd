@@ -1,19 +1,19 @@
-# test: data with function fields and trait value type arguments are inspectable
+# test: structs with function fields and trait value type arguments are inspectable
 # Spec 09 Inspectable Types: identity is the declaration, whatever its fields hold, and a trait
 # value type counts as inspectable as a type argument, matched exactly.
 # Spec 09 Traits: trait.inspectable.declared, trait.inspectable.fields, trait.inspectable.argument-only, trait.inspectable.argument-examples.
 use std.inspect.{Inspectable, downcast_val}
-data Handler:
+struct Handler:
     run: fn() -> i32
 
-data Label:
+struct Label:
     text: string
 
 impl Display for Label:
     fn to_string(self) -> string: self.text
 
 fn run_handler(value: dyn Inspectable) -> i32:
-    match value.downcast::[Handler]():
+    match downcast_val::[Handler](value):
         .Some(handler) => (handler.run)()
         .None => 0
 

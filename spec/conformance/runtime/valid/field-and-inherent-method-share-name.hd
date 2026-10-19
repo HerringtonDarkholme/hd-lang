@@ -1,8 +1,8 @@
 # test: a field and an inherent method may share a name, including an embedded field's name
-data Base:
+struct Base:
     id: string
 
-data User:
+struct User:
     Base
     name: string
 
@@ -17,7 +17,7 @@ tests:
     use std.testing.assert_equal
 
     it("bare access reads the field and a call reaches the method"):
-        user := User { Base: ...Base { id: "7" }, name: "ada" }
+        user := User { Base: Base { id: "7" }, name: "ada" }
         assert_equal(user.name, "ada", reason="field lookup")
         assert_equal(user.name(), "user ada", reason="method lookup")
         assert_equal(user.Base.id, "7", reason="embedded field read")

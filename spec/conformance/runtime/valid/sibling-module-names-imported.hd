@@ -8,7 +8,7 @@
 # parameter fee here names only itself, since cart's fee is not in scope.
 # fixture-package-tree: module-names/src/checkout.hd
 use pkg.cart.{Cart, Cents, Priced, total}
-data Basket:
+struct Basket:
     carts: List[Cart]
 
 impl Priced for Basket:

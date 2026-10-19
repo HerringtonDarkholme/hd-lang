@@ -2,6 +2,6 @@
 # Spec 03 Local Type Declarations: names.local-type.static.
 fn make() -> i32:
     n := +1
-    data Box:
+    struct Box:
         value: i32 = n  # diagnostic: unknown-name
     Box {}.value

@@ -1,10 +1,10 @@
 # test: f += [facts] gives f its declaration facts followed by the line's facts
 # Spec 14 Member Lines: annot.line.extend.
 use std.structure.{Structure, Field, Variant, Walker}
-data Tag:
+struct Tag:
     text: string
 
-data Note:
+struct Note:
     text: string
 
 fn tag(text: string) -> Tag:
@@ -41,7 +41,7 @@ impl[T] Probe for T by Structure:
         _ := Structure::walk(self, &mut w)
         w.out
 
-data Point:
+struct Point:
     @tag("a")
     x: i64
 

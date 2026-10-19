@@ -11,7 +11,7 @@ tests:
         let empty: Map[string, i32] = {}
         assert_equal(empty.entries(), [], reason="empty")
     it("entries is a snapshot"):
-        let stock: mut Map[string, i32] = {"tea": 3}
+        let mut stock: Map[string, i32] = {"tea": 3}
         pairs := stock.entries()
         stock["milk"] = 1
         assert_equal(pairs, [("tea", 3)], reason="unchanged")

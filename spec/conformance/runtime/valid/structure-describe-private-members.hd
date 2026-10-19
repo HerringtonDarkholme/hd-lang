@@ -28,7 +28,7 @@ impl[T] Counted for T by Structure:
         d.n
 
 @derive(Counted)
-data Secret:
+struct Secret:
     pub shown: i32
     hidden: string
 

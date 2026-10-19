@@ -1,6 +1,6 @@
 # Spec 09 Traits: trait.derive.related.partial-ord, trait.derive.related.ord.
 @derive(Eq, PartialOrd, Ord)
-data Key:
+struct Key:
     first: i32
     second: i32
 
@@ -10,7 +10,7 @@ enum Priority:
     High(value: i32)
 
 @derive(Eq, PartialOrd)
-data Measurement:
+struct Measurement:
     value: f64
 
 tests:

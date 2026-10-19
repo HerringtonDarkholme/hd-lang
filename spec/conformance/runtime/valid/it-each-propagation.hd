@@ -2,7 +2,7 @@
 # Spec 10 Registration Calls: module.testing.reg.body-result.
 # Spec Modules, Registration Calls: module.testing.reg.body-closure-result; a row body without a written result follows the test body rule.
 use std.error.Error
-data DigitError:
+struct DigitError:
     text: string
 
 impl Display for DigitError:

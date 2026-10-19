@@ -5,5 +5,5 @@ let counter = +0
 fn current(value: i32 = limit, seen: i32 = counter) -> i32:
     value + seen
 
-data Config:
+struct Config:
     size: i32 = limit

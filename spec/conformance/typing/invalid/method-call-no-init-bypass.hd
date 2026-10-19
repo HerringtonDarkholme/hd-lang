@@ -1,6 +1,6 @@
 # test: calling a method from a top-level statement does not bypass initialization order
 # Spec 03 Initialization Order: names.init.no-bypass.
-data Meter:
+struct Meter:
     scale: i32
 
 made := Meter { scale: +2 }

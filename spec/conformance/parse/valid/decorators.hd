@@ -1,9 +1,9 @@
 @Validation
-data User:
+struct User:
     @max_len(80)
     name: string
 
-data Post:
+struct Post:
     @flatten()
     Timestamps
 
@@ -17,5 +17,5 @@ fn get_user(id: i32) -> User:
     User { name: "Ada" }
 
 @derive(Eq)
-data Key:
+struct Key:
     value: i32

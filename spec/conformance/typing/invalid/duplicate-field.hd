@@ -1,5 +1,5 @@
 # Spec 08 Data Literals: data.literal.duplicate.
-data User:
+struct User:
     name: string
 
 user := User {

@@ -1,7 +1,7 @@
 use std.serde.{Deserialize, Serialize}
 use std.structure.Structure
 
-pub data Session:
+pub struct Session:
     pub id: i64
     pub cache: i64 = 0
 

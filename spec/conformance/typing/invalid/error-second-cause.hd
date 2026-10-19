@@ -2,7 +2,7 @@
 # Spec 14 Error Causes: annot.error.cause.one is reported on the second cause member.
 
 @error("disk full")
-data DiskError:
+struct DiskError:
     free: i64
 
 @error

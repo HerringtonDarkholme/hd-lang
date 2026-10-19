@@ -1,8 +1,8 @@
 # test: a field that lacks several derived traits gets one error, naming the first in the @derive list
 # Spec 09 Derived Traits: trait.derive.field-missing-trait.
-data Coin:
+struct Coin:
     cents: i32
 
 @derive(Eq, Hash)
-data Purse:
+struct Purse:
     coin: Coin  # diagnostic: derive-field-missing-trait

@@ -1,4 +1,4 @@
 # Spec 09 Traits: trait.sealed.anyref-members, trait.sealed.no-user-impl, trait.sealed.user-impl.
-data Handle: pass
+struct Handle: pass
 
 impl AnyRef for Handle  # diagnostic: sealed-trait-implementation

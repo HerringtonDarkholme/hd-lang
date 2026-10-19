@@ -4,7 +4,7 @@ trait Factory:
     fn create() -> Self
     fn with_code(code: i32) -> Self
 
-data Invoice:
+struct Invoice:
     total: i32
 
 impl Factory for Invoice:
@@ -14,7 +14,7 @@ impl Factory for Invoice:
     fn with_code(code: i32) -> Invoice:
         Invoice { total: code }
 
-data Receipt:
+struct Receipt:
     number: i32
 
 impl Factory for Receipt:

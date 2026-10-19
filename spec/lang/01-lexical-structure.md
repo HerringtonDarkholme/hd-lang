@@ -135,7 +135,7 @@ Only a deeper line continues. Below, `.grow()` and `.size` continue
 `start`, and `.Ok(...)` at statement indentation is the tail value:
 
 ```text
-data Step:
+struct Step:
     size: i32
 
 impl Step:
@@ -509,7 +509,7 @@ lists the complete reserved-word set.
 A raw identifier writes a name between backticks:
 
 ```text
-data Token:
+struct Token:
     `type`: string
     text: string
 
@@ -537,7 +537,7 @@ fn main() -> i32:
     `` := 1  # error: invalid-token
     0
 
-data Token:
+struct Token:
     `type`: string
 
 fn kind(token: Token) -> string:
@@ -582,7 +582,7 @@ only in fixed positions:
 fn use(value: i32) -> i32:
     value + 1
 
-data Resource:
+struct Resource:
     as: i32
 ```
 

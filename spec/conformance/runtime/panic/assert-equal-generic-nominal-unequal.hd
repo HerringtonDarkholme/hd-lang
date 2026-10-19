@@ -2,7 +2,7 @@
 use std.testing.assert_equal
 
 @derive(Debug)
-data Point:
+struct Point:
     x: i32
     y: i32
 

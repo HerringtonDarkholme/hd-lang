@@ -2,8 +2,8 @@
 # Spec 05 Index Traits: expr.index.trait.read-other, expr.index.trait.write-ref (Operator Traits OP7).
 use std.ops.{Index, IndexSet}
 
-data Ring:
-    items: mut List[i32]
+struct Ring:
+    items: &mut List[i32]
 
 impl Index[usize] for Ring:
     type Out = i32

@@ -1,7 +1,7 @@
 # test: a local type's name is not visible outside its suite
 # Spec 03 Local Type Declarations: names.local-type.not-visible.
 fn make() -> i32:
-    data Box:
+    struct Box:
         value: i32
     Box { value: +1 }.value
 

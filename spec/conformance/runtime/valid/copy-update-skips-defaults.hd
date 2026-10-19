@@ -1,7 +1,7 @@
 # test: copy update skips defaults
 # Spec 08 Copy-Update Literals: data.update.supplies-all, data.update.no-defaults.
 
-data Counter:
+struct Counter:
     value: i32 = panic("copy-update evaluated a default")
 
 fn main() -> i32:

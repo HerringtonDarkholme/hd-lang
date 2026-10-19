@@ -1,7 +1,7 @@
 # test: the fix the fallback hint suggests: a signed literal or an annotation picks among several instantiations
 # Spec 04 One Fitting Candidate: types.literal.local.hint, types.literal.local.class.once (ONE-FIT).
 use std.ops.Add
-data Money:
+struct Money:
     cents: i64
 
 impl Add[i32] for Money:

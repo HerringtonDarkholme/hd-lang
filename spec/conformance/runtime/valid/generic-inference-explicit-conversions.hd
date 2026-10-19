@@ -2,7 +2,7 @@
 # Spec 04 Inference From Several Arguments: types.generic.infer.join.explicit and
 # .other-conflict (INF-mut, owner decision 2026-09-30). cmp[Display] converts the User argument
 # to a Display value; max(i64(small), large) casts before the call.
-data User:
+struct User:
     name: string
 
 impl Display for User:

@@ -7,10 +7,10 @@ price(+1)
 let count = +1
 count = count + 1
 count
-data Point:
+struct Point:
     x: i32
 
-data Point:
+struct Point:
     y: i32
 
 Point { x: +4 }

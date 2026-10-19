@@ -4,8 +4,8 @@ tests:
     use std.testing.{assert, assert_equal}
 
     it("replacing a later map value during for is not seen by the loop"):
-        let values: mut Map[string, i32] = {"a": 1, "b": 2, "c": 3}
-        let seen: mut List[i32] = []
+        let mut values: Map[string, i32] = {"a": 1, "b": 2, "c": 3}
+        let mut seen: List[i32] = []
         let first = true
         for (name, value) in values:
             if first:
@@ -18,8 +18,8 @@ tests:
         assert_equal(values["c"], 30, reason="the replacement reached the map")
 
     it("replacing a later list element during for is not seen by the loop"):
-        let values: mut List[i32] = [1, 2, 3]
-        let seen: mut List[i32] = []
+        let mut values: List[i32] = [1, 2, 3]
+        let mut seen: List[i32] = []
         for value in values:
             if value == 1:
                 values[2] = 30
@@ -28,10 +28,10 @@ tests:
         assert_equal(values[2], 30, reason="the replacement reached the list")
 
     it("an iterator created after removal and reinsertion sees both keys"):
-        let values: mut Map[string, i32] = {"a": 1, "b": 2}
+        let mut values: Map[string, i32] = {"a": 1, "b": 2}
         _ := values.remove("a")
         values["a"] = 3
-        let names: mut List[string] = []
+        let mut names: List[string] = []
         let total = +0
         for (name, value) in values:
             names.push(name)
@@ -40,14 +40,14 @@ tests:
         assert_equal(total, 5, reason="the reinserted value replaced the old one")
 
     it("an iterator created after removal is valid"):
-        let values: mut Map[string, i32] = {"a": 1, "b": 2}
+        let mut values: Map[string, i32] = {"a": 1, "b": 2}
         _ := values.remove("a")
         let iterator: &mut Iterator[(string, i32)] = values.iter()
         let expected: (string, i32)? = ("b", 2)
         assert(iterator.next() == expected, reason="fresh iterator sees the new shape")
 
     it("an iterator created after growth sees the new element"):
-        let values: mut List[i32] = [1]
+        let mut values: List[i32] = [1]
         values.push(2)
         let iterator: &mut Iterator[i32] = values.iter()
         _ := iterator.next()

@@ -2,7 +2,7 @@
 # Spec 05 Prefixed Strings: `sql"...$id"` calls sql with a Template[i64].
 use std.ops.{Template, str_prefix}
 
-data Query:
+struct Query:
     text: List[string]
     params: List[i64]
 

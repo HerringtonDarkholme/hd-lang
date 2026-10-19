@@ -109,10 +109,10 @@ writer or reader with a value's members. For the `Session` of
 use std.serde.{Serialize, Deserialize}
 use std.structure.Structure
 
-data Cache:
+struct Cache:
     hits: i64
 
-data Session:
+struct Session:
     pub user: string
     token: string
     cache: Cache = Cache { hits: 0 }

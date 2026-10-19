@@ -1070,7 +1070,7 @@ impl<'a> ItemCheck<'_, 'a> {
         let Some(&first) = holding.first() else {
             return;
         };
-        if self.cycle_reported_elsewhere(it.def, &fields) {
+        if self.cycle_reported_elsewhere(it.def, &fields) || self.embeds_itself(it.def) {
             return;
         }
         let message = format!(
@@ -1086,6 +1086,33 @@ impl<'a> ItemCheck<'_, 'a> {
             message,
             ref_fix: holding.into_iter().map(slot).collect(),
         });
+    }
+
+    /// Whether the struct `def` embeds itself through embedded fields
+    /// alone: that cycle is `embedding-cycle` (`data.embed.depth.self`),
+    /// reported in place of `recursive-value-type`.
+    fn embeds_itself(&self, def: DefId) -> bool {
+        let pool = self.pool();
+        let lookup = self.cx.lookup;
+        let mut seen = Vec::new();
+        let mut stack = vec![def];
+        while let Some(d) = stack.pop() {
+            let Some(ItemData::Data(fs)) = lookup.item(d).map(|i| &i.data) else {
+                continue;
+            };
+            for f in fs.iter().filter(|f| f.embedded) {
+                if let TyData::Adt { def: e, .. } = pool.get(f.ty) {
+                    if e == def {
+                        return true;
+                    }
+                    if !seen.contains(&e) {
+                        seen.push(e);
+                        stack.push(e);
+                    }
+                }
+            }
+        }
+        false
     }
 
     /// Whether a group of declarations that hold one another by value,

@@ -3,14 +3,14 @@
 
 trait Marker
 
-data Box[T]:
+struct Box[T]:
     value: T
 
 impl Marker for i32
 
 impl[T < Marker] Marker for Box[T]
 
-data Need[T < Marker]:
+struct Need[T < Marker]:
     value: T
 
 fn deep(value: Need[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[Box[i32]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]) -> void:  # diagnostic: trait-resolution-depth

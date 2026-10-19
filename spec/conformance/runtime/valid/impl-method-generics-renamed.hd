@@ -11,13 +11,13 @@ trait Tag:
 trait Describe:
     fn describe[T < Show, U](self, first: T, second: U) -> string
 
-data Word:
+struct Word:
     text: string
 
 impl Show for Word:
     fn show(self) -> string: self.text
 
-data Describer: pass
+struct Describer: pass
 
 impl Describe for Describer:
     fn describe[A < Show, B](self, first: A, second: B) -> string: first.show()

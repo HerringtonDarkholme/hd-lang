@@ -5,7 +5,7 @@ use std.collections.Set
 use std.serde.{Serialize, Deserialize}
 
 @derive(Serialize, Deserialize)
-data Order:
+struct Order:
     tags: Set[string]
     line: (i32, string)
 

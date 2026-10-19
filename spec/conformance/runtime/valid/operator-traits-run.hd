@@ -1,10 +1,10 @@
 # test: operators on a data type call its std.ops implementations
 # Spec 05 Operator Traits: expr.op.desugar, expr.op.order (Operator Traits OP1).
 use std.ops.{Add, Mul, Neg, Sub}
-data Stamp:
+struct Stamp:
     at: i64
 
-data Span:
+struct Span:
     length: i64
 
 impl Sub for Stamp:

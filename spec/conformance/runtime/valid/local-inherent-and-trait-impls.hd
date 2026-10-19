@@ -4,7 +4,7 @@ trait Priced:
     fn price(self) -> i32
 
 fn receipt(quantity: i32) -> string:
-    data Line:
+    struct Line:
         quantity: i32
         unit: i32
 

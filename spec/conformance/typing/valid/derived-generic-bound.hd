@@ -1,6 +1,6 @@
 # Spec 09 Traits: trait.derive.intrinsic-decl, trait.derive.bounds, trait.derive.bounds.example.
 @derive(Eq)
-data Box[T]:
+struct Box[T]:
     value: T
 
 fn same(left: Box[i32], right: Box[i32]) -> bool:

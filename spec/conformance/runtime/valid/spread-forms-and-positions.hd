@@ -8,7 +8,7 @@
 # expect-stdout: 3
 # expect-stdout: 2 5
 # expect-stdout: 1 0
-data Point:
+struct Point:
     x: i32
     y: i32
 

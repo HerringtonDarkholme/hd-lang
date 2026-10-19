@@ -2,8 +2,8 @@
 # Spec std/random Random Source: std-random.decl-ref, std-random.plain, and std-random.mut-ref (batch 64, STD-2).
 use std.random.Random
 
-data Counter:
-    state: mut List[u64]
+struct Counter:
+    state: &mut List[u64]
 
 impl Random for Counter:
     fn next_u64(&mut self) -> u64:
@@ -11,7 +11,7 @@ impl Random for Counter:
         self.state[0]
 
     fn fill(&mut self, count: usize) -> List[u8]:
-        let bytes: mut List[u8] = []
+        let mut bytes: List[u8] = []
         while bytes.len() < count:
             bytes.push(7)
         bytes

@@ -1,7 +1,7 @@
 # test: an implementation's generic parameters take no default
 # Spec 02 Type-Argument Default Syntax: grammar.generic.default.impl (Type-Argument Defaults TD7).
 
-data Box[T]:
+struct Box[T]:
     value: T
 
 impl[T = i32] Box[T]:  # diagnostic: syntax-error

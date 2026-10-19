@@ -3,14 +3,14 @@
 use std.collections.Set
 fn unique(words: List[string]) -> List[string]:
     let mut seen: Set[string] = Set::new()
-    let kept: mut List[string] = []
+    let mut kept: List[string] = []
     for word in words:
         if seen.insert(word):
             kept.push(word)
     kept
 
 fn listed(set: Set[string]) -> List[string]:
-    let items: mut List[string] = []
+    let mut items: List[string] = []
     for item in set:
         items.push(item)
     items

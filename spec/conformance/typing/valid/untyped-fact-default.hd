@@ -3,13 +3,13 @@
 use std.annotation.annotate
 
 @annotate(.Field)
-data Note[T]:
+struct Note[T]:
     value: T
 
 fn note[T](value: T) -> Note[T]:
     Note::[T] { value: value }
 
-data Counter:
+struct Counter:
     @note("x")
     count: i32
     @note(3)

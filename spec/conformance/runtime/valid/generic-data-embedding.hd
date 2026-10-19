@@ -1,7 +1,7 @@
-data Box[T]:
+struct Box[T]:
     pub value: T
 
-data Shipment[T]:
+struct Shipment[T]:
     Box[T]
     id: string
 
@@ -10,7 +10,7 @@ tests:
 
     it("explicit generic construction promotes embedded fields"):
         shipment := Shipment::[i32] {
-            Box: ...Box::[i32] { value: 40 },
+            Box: Box::[i32] { value: 40 },
             id: "hd",
         }
         assert_equal(shipment.value + 2, 42, reason="embedded fields preserve their instantiated types")
