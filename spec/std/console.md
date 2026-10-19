@@ -148,7 +148,7 @@ tests:
 ```
 
 1. r[std-console.buffer.decl] `std.console` declares `MemoryConsole`, which implements `Console` and `Debug`, with private fields. Code imports it, as in `use std.console.MemoryConsole`.
-2. r[std-console.buffer.new-ref] `MemoryConsole::new() -> &mut MemoryConsole` returns a new object holding a console that has recorded nothing. `MemoryConsole` is a struct used behind that reference. Its `&mut self` methods fill the `mut self` methods of `Console`, by [`trait.impl.receiver-bridge`](../lang/09-traits.md#r-trait.impl.receiver-bridge). So installing it as `Console=console` shares the object, by [`req.ref.share.bridge`](../lang/11-requirements-and-suspension.md#r-req.ref.share.bridge), and the code that installed it reads what was written.
+2. r[std-console.buffer.install-ref] `MemoryConsole::new() -> &mut MemoryConsole` returns a new object holding a console that has recorded nothing. `MemoryConsole` is a struct used behind that reference, and it implements `Console`'s `&mut self` methods. So installing it as `Console=console` shares the object, by [`req.ref.install-ref`](../lang/11-requirements-and-suspension.md#r-req.ref.install-ref), and the code that installed it reads what was written.
 3. r[std-console.buffer.output] `c.output() -> List[string]` returns the text of each `write_line!` call, in call order.
 4. r[std-console.buffer.error-output] `c.error_output() -> List[string]` returns the text of each `write_error_line!` call, in call order. `MemoryConsole` overrides `write_error_line!`, so error lines are not in `output()`.
 5. r[std-console.buffer.never-fails] Every write returns `.Ok(())`.

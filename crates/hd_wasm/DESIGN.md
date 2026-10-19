@@ -2453,6 +2453,16 @@ element references whose copies own their list's pin (OBJECT_MODEL_TIER1.md
   in a loop, checking that the heap does not grow after a warm-up.
 - **Size.** hello: 10,719 bytes in the dev profile (10,635 after job 11)
   and 7,529 in release, the releases at last use in the code it links.
+- **Host providers behind references.** A key whose trait has a `&self`
+  or `&mut self` method, as `Console` has since `write_line!` takes
+  `&mut self`, gets its host provider behind a reference (`req.ref.host`):
+  the entry's poll builds the host trait value, no data beside the
+  vtable of host stubs, and calls the driver's `std.rt.host_provider`
+  instance at `dyn K`, whose `Ref` it installs as the data beside the
+  vtable again, as on the Wasm GC backend. So `println` reaches the host
+  through a `&mut dyn Console`. It costs hello the reference's closures
+  and identity: 12,014 bytes in the dev profile and 8,824 in release
+  (4,151 on the Wasm GC backend, from 3,161).
 - **Not yet.** Issue #556's three escape cases pass here and stay known
   failures on the Wasm GC backend, whose references hold no count. The
   release points are statement-granular and per body: a reference passed

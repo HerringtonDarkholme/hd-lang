@@ -118,7 +118,7 @@ fn every_runtime_helper_validates() {
     m.export(
         "hd.poll",
         Sym::Helper(Helper::EntryPoll {
-            providers: vec![console],
+            providers: vec![(console, None)],
             main,
             results: 0,
             report: None,

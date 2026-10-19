@@ -101,12 +101,12 @@ fn wait_now() -> i32:
 data QuietConsole: pass
 
 impl Console for QuietConsole:
-    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
+    fn write_line!(&mut self, text: string) -> Result[void, ConsoleError]:
         .Ok(())
 
 fn print_now() -> i32:
-    let console: mut QuietConsole = QuietConsole {}
-    $.with(Console=console):
+    let mut console = QuietConsole {}
+    $.with(Console=&mut console):
         println(\"quiet\")
     1
 ";

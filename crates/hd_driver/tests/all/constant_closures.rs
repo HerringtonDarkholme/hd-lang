@@ -174,12 +174,20 @@ impl Module {
         self.bodies[(self.index(name) - self.func_imports) as usize]
     }
 
-    /// The functions that constant globals hold closures of.
+    /// The functions that constant globals hold closures of, but the
+    /// runtime's own (`rt:`), such as the `runtime_type` slot of the host
+    /// `Console` provider's reference (req.ref.host).
     fn constant_closures(&self) -> Vec<u32> {
         self.globals
             .iter()
             .filter(|(mutable, _)| !mutable)
             .filter_map(|(_, f)| *f)
+            .filter(|f| {
+                !self
+                    .names
+                    .iter()
+                    .any(|(i, n)| i == f && n.starts_with("rt:"))
+            })
             .collect()
     }
 }

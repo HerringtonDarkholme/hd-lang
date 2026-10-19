@@ -992,9 +992,9 @@ The standard console surface includes:
 
 ```text
 trait Console:
-    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]
+    fn write_line!(&mut self, text: string) -> Result[void, ConsoleError]
 
-    fn write_error_line!(mut self, text: string) -> Result[void, ConsoleError]:
+    fn write_error_line!(&mut self, text: string) -> Result[void, ConsoleError]:
         self.write_line!(text)
 
 pub enum ConsoleError:
@@ -1002,7 +1002,7 @@ pub enum ConsoleError:
 ```
 
 1. r[module.console.host-trait] `Console` is a host capability trait.
-2. r[module.console.write-line-mut] `write_line!` takes `mut self`, so `Console` is a mutable requirement trait and a provider may record what it writes.
+2. r[module.console.write-line-ref] `write_line!` takes `&mut self`, so `Console` is a [mutable requirement trait](11-requirements-and-suspension.md#r-req.mut.trait-changing), `$.use(Console)` is a `&mut dyn Console` by [`req.ref.use`](11-requirements-and-suspension.md#r-req.ref.use), and a provider may record what it writes.
 3. r[module.console.write-error-line] `write_error_line!` writes one line of error output, which a host keeps apart from the output of `write_line!`.
 4. r[module.console.write-error-line.default] Its default body calls `write_line!` with the same text, so a provider that does not override it records both kinds of line together.
 5. r[module.console.error] `ConsoleError` is its standard boundary-safe error type, and `ConsoleError` implements `Display`.

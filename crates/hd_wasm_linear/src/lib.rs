@@ -103,6 +103,9 @@ pub struct Input<'a> {
     /// The instances of std's runtime that counting calls. Without them a
     /// module counts nothing and allocates from a bump pointer.
     pub runtime: Option<Runtime>,
+    /// The `std.rt.host_provider` instance per entry row key whose host
+    /// provider is installed behind a reference (`req.ref.host`).
+    pub host_refs: &'a [(Ty, Hash128)],
 }
 
 /// The std module whose functions emitted code calls by key, and their

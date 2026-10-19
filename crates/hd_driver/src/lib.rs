@@ -8761,6 +8761,7 @@ impl Run<'_> {
             entry,
             release: self.build_profile == BuildProfile::Release,
             runtime: hd_wasm_linear::Runtime::from_keys(&runtime_keys),
+            host_refs: &c.host_refs,
         };
         let Some(wasm) = self.stage(Stage::Link, hd_wasm_linear::build(&input)) else {
             return;

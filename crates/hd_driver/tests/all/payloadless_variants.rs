@@ -182,8 +182,10 @@ fn a_payloadless_variant_is_a_constant_global_on_every_target_and_level() {
             assert_eq!(m.news("app/main/idle#0"), 0, "{what}");
             assert_eq!(m.news("app/main/quit#0"), 0, "{what}");
             assert_eq!(m.news("app/main/click#0"), 1, "{what}");
-            // One global per payloadless variant, however often it is made.
-            assert_eq!(m.constant_structs, 2, "{what}");
+            // One global per payloadless variant, however often it is made,
+            // and one that the host `Console` provider's reference brings
+            // (req.ref.host).
+            assert_eq!(m.constant_structs, 3, "{what}");
             assert_eq!(
                 run(&format!("{target:?}-{level:?}"), &wasm),
                 OUTPUT,

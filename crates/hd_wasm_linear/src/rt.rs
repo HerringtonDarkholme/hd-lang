@@ -53,7 +53,7 @@ pub enum Helper {
     /// status (0 without a report).
     EntryPoll {
         main: Hash128,
-        providers: Vec<usize>,
+        providers: Vec<(usize, Option<Hash128>)>,
         results: u32,
         report: Option<Hash128>,
         then: Vec<(Hash128, bool)>,
@@ -331,7 +331,8 @@ fn poll(
 ) -> StageResult<Sym> {
     let mut providers = Vec::new();
     for k in input.env.row_keys(main, TyList::EMPTY) {
-        providers.push(host_vtable(input, m, k)?);
+        let by_ref = input.host_refs.iter().find(|(t, _)| *t == k).map(|r| r.1);
+        providers.push((host_vtable(input, m, k)?, by_ref));
     }
     let ret = input.env.ret(main).unwrap_or(Ty::VOID);
     let results = crate::layout::vals(input.pool, input.env, ret)?.len();
@@ -582,9 +583,17 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             // Parameter 0 is the driver's `PollContext`; a plain entry
             // ignores it.
             let mut f = Func::new("rt:entry_poll", vec![Val::I32], vec![Val::I32]);
-            for v in providers {
+            // A host provider is no data beside its vtable of host stubs; a
+            // key whose trait has a `&self` or `&mut self` method takes it
+            // behind a new object (`req.ref.host`), the reference that
+            // `std.rt.host_provider` returns, beside the vtable again.
+            for (v, by_ref) in providers {
                 f.i32(0);
                 f.body.push(Ins::VTable(*v));
+                if let Some(k) = by_ref {
+                    f.call(Sym::Inst(*k));
+                    f.body.push(Ins::VTable(*v));
+                }
             }
             f.call(Sym::Inst(*main));
             if let Some(k) = report {

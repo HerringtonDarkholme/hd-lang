@@ -4,7 +4,7 @@ data MemoryConsole:
     lines: mut List[string]
 
 impl Console for MemoryConsole:
-    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
+    fn write_line!(&mut self, text: string) -> Result[void, ConsoleError]:
         self.lines.push(text)
         .Ok(())
 
@@ -18,7 +18,7 @@ tests:
 
     it("the default body calls write_line!"):
         let mut console = MemoryConsole { lines: [] }
-        $.with(Console=console):
+        $.with(Console=&mut console):
             match warn!():
                 .Ok(()) => pass
                 .Err(_) => assert(false, reason="both writes succeed")

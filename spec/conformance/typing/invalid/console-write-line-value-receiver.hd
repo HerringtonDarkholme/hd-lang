@@ -1,0 +1,8 @@
+# test: prelude / Console / a provider whose write_line! takes mut self does not match the &mut self method
+# Spec 10 Console: module.console.write-line-ref.
+struct Quiet:
+    count: i32
+
+impl Console for Quiet:
+    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:  # diagnostic: trait-method-signature
+        .Ok(())

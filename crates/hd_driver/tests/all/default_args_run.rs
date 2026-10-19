@@ -173,12 +173,12 @@ fn println_reached_from_a_default_panics() {
 data QuietConsole: pass
 
 impl Console for QuietConsole:
-    fn write_line!(mut self, text: string) -> Result[void, ConsoleError]:
+    fn write_line!(&mut self, text: string) -> Result[void, ConsoleError]:
         .Ok(())
 
 fn announce() -> i32:
-    let console: mut QuietConsole = QuietConsole {}
-    $.with(Console=console):
+    let mut console = QuietConsole {}
+    $.with(Console=&mut console):
         println(\"default\")
     1
 

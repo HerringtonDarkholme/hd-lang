@@ -1255,10 +1255,10 @@ runtime/valid/derivation-block-lines-local.hd	runtime	accept	lang/14-annotations
 runtime/valid/derivation-block-generic-header.hd	runtime	accept	lang/14-annotations.md#r-annot.block.header
 runtime/valid/newtype-derives-through-base.hd	runtime	accept	lang/14-annotations.md#r-annot.block.newtype
 typing/valid/generic-missing-call.hd	type	accept	lang/14-annotations.md#r-annot.walker.generic-missing
-typing/valid/console-recording-provider.hd	type	accept	lang/10-modules.md#r-module.console.write-line-mut
-typing/valid/console-host-provider-mutable.hd	type	accept	lang/10-modules.md#r-module.console.write-line-mut
-typing/invalid/console-readonly-binding-write-line.hd	type	reject:mutable-receiver-required	lang/10-modules.md#r-module.console.write-line-mut
-runtime/valid/console-struct-fake-ref.hd	runtime	accept	std/console.md#r-std-console.buffer.new-ref
+typing/valid/console-recording-provider.hd	type	accept	lang/10-modules.md#r-module.console.write-line-ref
+typing/valid/console-host-provider-mutable.hd	type	accept	lang/10-modules.md#r-module.console.write-line-ref
+typing/invalid/console-write-line-value-receiver.hd	type	reject:trait-method-signature	lang/10-modules.md#r-module.console.write-line-ref
+runtime/valid/console-struct-fake-ref.hd	runtime	accept	std/console.md#r-std-console.buffer.install-ref
 runtime/valid/println-recording-provider.hd	runtime	accept	lang/10-modules.md#r-module.console.println-write
 runtime/valid/println-provider-suspending-body.hd	runtime	accept	lang/10-modules.md#r-module.console.println-drive.block-on
 typing/invalid/root-orphan-impl.hd	type	reject:orphan-impl	lang/09-traits.md#r-trait.own.no-orphan-exception
