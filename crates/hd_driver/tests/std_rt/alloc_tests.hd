@@ -3,7 +3,7 @@
 # as `std.rt.alloc_tests` and runs its cases on the linear backend
 # (crates/hd_driver/tests/conformance.rs, `STD_RT_TESTS`). Each case runs
 # in an instance of its own, so each starts with a fresh heap.
-use std.rt.alloc.{alloc, block_of, block_size, free}
+use std.rt.alloc.{alloc, block_of, block_size, free, release, retain}
 use std.rt.memory.{grow, load_u32, store_u32, store_u8}
 
 PAGE := 65536
@@ -115,3 +115,14 @@ tests:
         assert(block_of(grown) == 0, "the grown page is in no block")
         run := alloc(PAGE)
         assert(run != grown, "the allocator does not hand it out")
+
+    it("a count goes up and down through any address in its block"):
+        a := alloc(32)
+        store_u32(a, 1)
+        retain(a + 12)
+        assert(load_u32(a) == 2, "an interior address counts its block")
+        assert(release(a + 8) == 0, "a count is left")
+        assert(load_u32(a) == 1, "one count is left")
+        assert(release(a + 20) == a, "the last count gives the block")
+        retain(16)
+        assert(release(16) == 0, "static data has no count")

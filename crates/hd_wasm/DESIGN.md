@@ -1656,13 +1656,14 @@ what the spec names as intrinsic or what only it can build.
 | the backend: layouts, emission from TIR, the module's link, the runtime pieces it generates | the crate `crates/hd_wasm_linear`, apart from `hd_wasm`, so it never edits the Wasm GC emission in `emit.rs`, `rt.rs` and `layout.rs` | 2, 3 and on |
 | `layout.rs` | a type's linear layout: its Wasm values, its size and alignment in memory, its field offsets (§23.3) | 3, 6 |
 | `emit.rs` | one instance's TIR body to one Wasm function | 3 and on |
-| `rt.rs` | generated runtime pieces: the entry wrapper, panic stubs, the exchange-buffer copies, the host provider stubs, and until jobs 7 and 8 a bump allocation; the wake table later | 3 and on |
+| `rt.rs` | generated runtime pieces: the entry wrapper, panic stubs, the exchange-buffer copies, the host provider stubs, object headers and release glue, and the bump allocation that host frames still use; the wake table later | 3 and on |
 | `lib.rs` | `build`: the whole program's module from collection's output, with no per-instance code cache yet | 2, 3 |
 | the switch | `hd_driver::Backend` in `Packages`, `--backend linear` on `hd build`, `hd run` and `hd FILE`, with its spec rules in spec/cli/command-line.md | 2 |
 | conformance on both backends | the driver tier runs each runtime case of the root `LINEAR_PASSES.tsv` (`path`, `note` citing an issue) once more on the linear backend, and each must pass; `HD_CONFORMANCE_BACKEND=linear` sweeps every runtime case and prints the passes not listed yet | 2 |
 | memory intrinsics: load, store, grow, copy, fill | the privileged std module `std.rt.memory`: plain hd declarations whose bodies are `@intrinsic` | 4 |
 | the allocator | hd in `std.rt.alloc`, over `std.rt.memory` | 5 |
-| counts, release glue, the collector | hd in further `std.rt` modules, called by emitted code | 8, 19, 21 |
+| counts | `retain` and `release` in `std.rt.alloc`, called by emitted code, with release glue that `rt.rs` generates per layout | 8 |
+| iterative release, the collector | hd in further `std.rt` modules, called by emitted code | 19, 21 |
 
 `std.rt` modules are privileged: only std modules may import them, so the
 runtime can change its representation without breaking a program.
@@ -2080,3 +2081,63 @@ Job 7 lowers strings (§23.7) in `emit/text.rs`, over runtime helpers in
   `debug`'s, over a `&mut DebugWriter` of lists and `dyn Any`: most string
   fixtures check with it, so the job's fixture prints instead.
 
+### 23.16 What Job 8 Adds
+
+Job 8 gives every object its header (§23.4) and counts naively: one more
+count at every copy into a place, one less at every place's end. Correct
+before fast; elision is jobs 17 and 18. The counting is in
+`emit/count.rs`, the glue in `rt.rs`.
+
+- **Std's allocator, linked.** For this backend the driver roots
+  `std.rt.alloc`'s `alloc`, `free`, `retain` and `release`, and runs that
+  module's inits first in every init group, so its top-level bindings are
+  set before any allocation. The link keeps only what the exports reach,
+  so a program that never allocates or counts links none of them.
+  `rt:new` takes a block for a header and a payload and sets the count to
+  1. Host call frames still come from the bump pointer (`rt:alloc`), so
+  they are never freed until frames are counted (job 13).
+- **The header.** The count, then the descriptor word: the table slot of
+  the payload's release glue plus one, or 0 when the payload holds no
+  counted reference. That is the release function of §23.4's descriptor
+  record without the record, since nothing reads its other fields yet;
+  it becomes the record's number when tracing (job 20) or the collector
+  needs one.
+- **Counts through any address.** `retain` and `release` find the block
+  through the page table (§23.5), so a string's view and a slice count
+  their buffer, and static data, which is in no block, is never counted:
+  literals, the empty string and fieldless data objects need no check.
+  `release` hands back the block at its last count; `rt:release_ref` then
+  calls the descriptor's glue on the payload and frees the block.
+- **Which values count.** A type's walk (`layout::walk`) lists the values
+  that are counted addresses: a string's address, a data value, a boxed
+  enum's cell and a shared instance's reference, through structs, tuples
+  and enum payloads, an enum's by its tag. Retain and release glue
+  (`rt:retain`, `rt:release`) follow the walk, one function per layout;
+  `rt:drop` loads an object's payload and releases its fields. A
+  suspension and a trait value are not counted yet (jobs 11 and 13).
+- **Places.** Each instruction's value owns one count: its store retains
+  a copy, while a call's result, a new object and a new string arrive
+  with theirs. A TIR local, a global and a data field retain what is
+  stored and release what it held. A new object retains the fields its
+  construction copied in. A parameter is borrowed from the caller, so the
+  callee retains it on entry. A store inside a loop releases the value
+  the place held from the last iteration, after counting the new one.
+- **One exit.** A function that holds a counted value runs its body in a
+  block: a return stores its result, with a count for the caller, and
+  branches out; after the block, every place it owns is released. A
+  place never stored holds zeros, which release as nothing.
+- **Bounded memory.** `crates/hd_driver/tests/std_rt/count_tests.hd`
+  builds a million short strings, 300 chains of 1,000 data nodes with a
+  string each, and 300,000 enum payloads, each in a loop, and checks the
+  heap's size: 4 pages each time, the static page, the page table and one
+  page for each of two size classes. Without the frees the first case
+  needs about 50 MB.
+- **Size.** hello (`println(42)`, whose text is a counted string) links
+  the allocator and the counts: 1,777 to 10,607 bytes in the dev profile
+  and 7,417 in release. The allocator's hd is about 8.5 KB of that in the
+  dev profile, far over §10.1's estimate of 0.8 to 1.2 KB: this backend
+  emits each TIR value into fresh locals and checks every integer
+  operation. That is where to cut first.
+- **Not yet.** Release is recursive, so a very long chain can exhaust the
+  stack until iterative release (job 19). Lists, maps, closures and
+  references count when they land (jobs 9 to 12).

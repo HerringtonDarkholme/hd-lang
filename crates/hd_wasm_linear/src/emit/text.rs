@@ -69,7 +69,8 @@ impl Em<'_, '_, '_> {
         }
         self.f.get(at);
         self.f.get(len);
-        self.store(i)
+        // A new buffer arrives with its count.
+        self.store_owned(i)
     }
 
     /// Sets local `at` to the address of a new buffer of the `len` bytes in
@@ -235,6 +236,6 @@ impl Em<'_, '_, '_> {
             args: kinds,
             result,
         });
-        self.store(i)
+        self.store_owned(i)
     }
 }

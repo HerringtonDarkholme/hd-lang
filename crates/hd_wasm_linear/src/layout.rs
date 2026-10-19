@@ -18,17 +18,41 @@ use hd_mono::layout::{StdKind, strip_newtype};
 use hd_mono::{ProgramEnv, subst};
 use hd_types::{InternPool, Prim, Ty, TyData};
 
-use crate::module::Val;
+use crate::module::{HEAP, Val, mem as memarg};
 use crate::unsupported;
+use wasm_encoder::Instruction as I;
 
 /// One Wasm value of a type, where it lies in memory: its offset in the
 /// value, its width in bytes and whether a narrow load sign-extends it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Leaf {
     pub offset: u32,
     pub val: Val,
     pub bytes: u8,
     pub signed: bool,
+}
+
+impl Leaf {
+    /// The load of this leaf from the heap at an address on the stack,
+    /// `base` bytes before the value.
+    #[must_use]
+    pub fn load(self, base: u32) -> I<'static> {
+        let m = memarg(
+            HEAP,
+            u64::from(base + self.offset),
+            u32::from(self.bytes).trailing_zeros(),
+        );
+        match (self.val, self.bytes, self.signed) {
+            (Val::I32, 1, true) => I::I32Load8S(m),
+            (Val::I32, 1, false) => I::I32Load8U(m),
+            (Val::I32, 2, true) => I::I32Load16S(m),
+            (Val::I32, 2, false) => I::I32Load16U(m),
+            (Val::I32, _, _) => I::I32Load(m),
+            (Val::I64, _, _) => I::I64Load(m),
+            (Val::F32, _, _) => I::F32Load(m),
+            (Val::F64, _, _) => I::F64Load(m),
+        }
+    }
 }
 
 /// A type's layout: its size and alignment in memory, and its values.
@@ -182,6 +206,121 @@ pub fn mem(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Mem> {
         TyData::Canon(_) if hd_mono::is_class_ref(pool, t) => Mem::address(),
         _ => return unsupported(format!("values of type `{}`", pool.display(t))),
     })
+}
+
+/// Where a value's counted references are among its values (§23.4): what
+/// counting walks to retain or release the value.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum Walk {
+    /// Value `k` is an address in a counted object, or in static data: a
+    /// data value, a boxed enum's cell, a string's bytes.
+    Ref(u32),
+    /// Each part in turn.
+    Seq(Vec<Walk>),
+    /// Value `k` is an enum's tag; arm `v`, when there is one, walks
+    /// variant `v`'s payload.
+    Switch(u32, Vec<Option<Walk>>),
+}
+
+impl Walk {
+    /// The walk with each value index `k` replaced by `to(k)`.
+    fn remap(&self, to: &dyn Fn(u32) -> u32) -> Walk {
+        match self {
+            Walk::Ref(k) => Walk::Ref(to(*k)),
+            Walk::Seq(ws) => Walk::Seq(ws.iter().map(|w| w.remap(to)).collect()),
+            Walk::Switch(k, arms) => Walk::Switch(
+                to(*k),
+                arms.iter()
+                    .map(|a| a.as_ref().map(|w| w.remap(to)))
+                    .collect(),
+            ),
+        }
+    }
+
+    fn seq(mut ws: Vec<Walk>) -> Option<Walk> {
+        match ws.len() {
+            0 => None,
+            1 => ws.pop(),
+            _ => Some(Walk::Seq(ws)),
+        }
+    }
+}
+
+/// The counted references of a concrete type's values, or `None` when it
+/// has none: scalars, suspensions and trait values (whose data is a
+/// provider's until job 11). A type this backend does not lay out has
+/// none here; its layout refuses it.
+pub fn walk(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Walk> {
+    let t = strip(pool, env, t);
+    match pool.get(t) {
+        TyData::Prim(Prim::String) => Some(Walk::Ref(0)),
+        TyData::Tuple { elems, rest: None } => fields_walk(pool, env, pool.list_items(elems)),
+        TyData::Option(inner) => switch_walk(pool, env, &[vec![], vec![inner]]),
+        TyData::Adt { def, args }
+            if env.std_kind(def) == StdKind::Other && def != env.ref_cell() =>
+        {
+            match kind(pool, env, t) {
+                Kind::Data(_) | Kind::Boxed => Some(Walk::Ref(0)),
+                Kind::Value => {
+                    if let Some(variants) = env.enum_variants(def, args) {
+                        return switch_walk(pool, env, &variants);
+                    }
+                    let fields: Vec<Ty> = env
+                        .data_fields(def)
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|f| subst(pool, env, def, args, f))
+                        .collect();
+                    fields_walk(pool, env, &fields)
+                }
+            }
+        }
+        TyData::Canon(_) if hd_mono::is_class_ref(pool, t) => Some(Walk::Ref(0)),
+        _ => None,
+    }
+}
+
+/// The walk of fields laid out in order, as a struct, a tuple or a data
+/// payload lays them out.
+pub fn fields_walk(pool: &InternPool, env: &dyn ProgramEnv, fields: &[Ty]) -> Option<Walk> {
+    let (_, parts) = payload_mem(pool, env, fields).ok()?;
+    let first = |p: &Part| u32::try_from(p.first).expect("values");
+    Walk::seq(
+        fields
+            .iter()
+            .zip(&parts)
+            .filter_map(|(f, p)| {
+                let at = first(p);
+                walk(pool, env, *f).map(|w| w.remap(&|k| at + k))
+            })
+            .collect(),
+    )
+}
+
+/// The walk of an enum of `variants`: by the tag, each variant's fields at
+/// the slots they share.
+pub fn switch_walk(pool: &InternPool, env: &dyn ProgramEnv, variants: &[Vec<Ty>]) -> Option<Walk> {
+    let (_, positions) = enum_mem(pool, env, variants).ok()?;
+    let arms: Vec<Option<Walk>> = variants
+        .iter()
+        .zip(&positions)
+        .map(|(fields, at)| {
+            Walk::seq(
+                fields
+                    .iter()
+                    .zip(at)
+                    .filter_map(|(f, ks)| {
+                        walk(pool, env, *f)
+                            .map(|w| w.remap(&|k| u32::try_from(ks[k as usize]).expect("values")))
+                    })
+                    .collect(),
+            )
+        })
+        .collect();
+    if arms.iter().all(Option::is_none) {
+        return None;
+    }
+    Some(Walk::Switch(0, arms))
 }
 
 /// The fields of a struct, a tuple or a data payload in order, each at its

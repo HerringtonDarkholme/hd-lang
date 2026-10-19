@@ -1,0 +1,73 @@
+# The hd tests of counting on the linear backend (crates/hd_wasm/DESIGN.md
+# §23.16): ordinary code that allocates in a loop runs in bounded memory,
+# since each value's last release frees its block for the next. Only std
+# may read the heap's size, so the conformance runner adds this file to std
+# as `std.rt.count_tests`, as it does alloc_tests.hd.
+use std.rt.memory.pages
+
+data Node:
+    name: string
+    next: Node?
+
+enum Shape:
+    Named(string, i32)
+    Pair(string, string)
+    Empty
+
+fn label(n: i32) -> string:
+    "n$n"
+
+fn chain(n: i32) -> Node?:
+    let head: Node? = .None
+    let i = +0
+    while i < n:
+        head = .Some(Node { name: label(i), next: head })
+        i = i + 1
+    head
+
+fn length(node: Node?) -> i32:
+    let count = +0
+    let at = node
+    while true:
+        match at:
+            .Some(n) =>
+                count = count + 1
+                at = n.next
+            .None => return count
+
+fn pick(n: i32) -> Shape:
+    if n % 3 == 0:
+        return .Named(label(n), n)
+    if n % 3 == 1:
+        return .Pair(label(n), label(n + 1))
+    .Empty
+
+tests:
+    use std.testing.{assert, it}
+
+    it("a million short strings run in bounded memory"):
+        let total: usize = 0
+        let i = +0
+        while i < 1000000:
+            total = total + label(i).len()
+            i = i + 1
+        assert(total == 6888890, "every string was built")
+        assert(pages() <= 4, "each string's block is reused")
+
+    it("the last release of a chain frees every node and its name"):
+        let round = +0
+        while round < 300:
+            assert(length(chain(1000)) == 1000, "the chain is whole while held")
+            round = round + 1
+        assert(pages() <= 4, "the nodes' and names' blocks are reused")
+
+    it("an enum's release frees the payload of the variant it holds"):
+        let named = +0
+        let i = +0
+        while i < 300000:
+            match pick(i):
+                .Named(_, _) => named = named + 1
+                _ => pass
+            i = i + 1
+        assert(named == 100000, "every third is named")
+        assert(pages() <= 4, "the payloads' blocks are reused")

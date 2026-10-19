@@ -138,6 +138,28 @@ pub fn block_of(address: usize) -> usize:
     else:
         0
 
+# A counted object (crates/hd_wasm/DESIGN.md §23.4) is a block whose
+# first 4 bytes are its count; emitted code calls these two with any
+# address in the object, as a string view's is. A block of static data has
+# no count, so neither changes it.
+
+## Adds one to the count of the block that holds `address`; an address in static data or in no block has no count.
+pub fn retain(address: usize) -> void:
+    block := block_of(address)
+    if block != 0:
+        store_u32(block, load_u32(block) + 1)
+
+## Takes one from the count of the block that holds `address` and gives the block when that was its last count, so the caller releases and frees it; else 0.
+pub fn release(address: usize) -> usize:
+    block := block_of(address)
+    if block == 0:
+        return 0
+    count := load_u32(block)
+    if count == 1:
+        return block
+    store_u32(block, count - 1)
+    0
+
 ## The bytes of the block that `alloc(size)` gives: its size class, or whole pages over 2 KiB.
 pub fn block_size(size: usize) -> usize:
     if size > 2048: (size + PAGE - 1) / PAGE * PAGE else: class_bytes(class_of(size))

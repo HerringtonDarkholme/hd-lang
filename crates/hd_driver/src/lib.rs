@@ -7508,6 +7508,20 @@ impl Run<'_> {
         // A joined build's one root is its last input, whose init order
         // every input's inits are split from.
         let mut order: Vec<(DefId, &str)> = Vec::new();
+        // The linear backend's runtime (crates/hd_wasm/DESIGN.md §23.16)
+        // runs its module's inits first, in every root's group.
+        let runtime_inits: Vec<DefId> = if self.backend == Backend::Linear {
+            match self.root_init_order(hd_wasm_linear::RUNTIME_MODULE, &init_of, &has_init) {
+                Ok(o) => o.into_iter().map(|(d, _)| d).collect(),
+                Err(e) => {
+                    self.stage::<()>(Stage::Collect, Err(e));
+                    return;
+                }
+            }
+        } else {
+            Vec::new()
+        };
+        all_inits.extend(&runtime_inits);
         for m in &root_modules {
             let defs = match self.root_init_order(m, &init_of, &has_init) {
                 Ok(o) => o,
@@ -7527,7 +7541,17 @@ impl Run<'_> {
                     }
                 }
             }
-            per_module.push(defs.into_iter().map(|(d, _)| d).collect());
+            per_module.push(
+                runtime_inits
+                    .iter()
+                    .copied()
+                    .chain(
+                        defs.into_iter()
+                            .map(|(d, _)| d)
+                            .filter(|d| !runtime_inits.contains(d)),
+                    )
+                    .collect(),
+            );
         }
         // A script's root is its first own body; the rest run after it.
         let root = match own.first() {
@@ -7599,6 +7623,20 @@ impl Run<'_> {
             PreludeRoots::default()
         };
         extra.extend(prelude.calls);
+        // The linear backend's code calls std's allocator and counts by
+        // key (crates/hd_wasm/DESIGN.md §23.16), whatever the program
+        // uses; its link drops the ones nothing calls.
+        if self.backend == Backend::Linear {
+            for name in hd_wasm_linear::RUNTIME_FNS {
+                let r = (
+                    names.item(hd_wasm_linear::RUNTIME_MODULE, name),
+                    TyList::EMPTY,
+                );
+                if self.body_of(p, r.0).is_some() && !extra.contains(&r) {
+                    extra.push(r);
+                }
+            }
+        }
         let known = |k: Hash128| {
             self.session
                 .is_some_and(|s| s.externs.funcs.contains_key(&hd_wasm::Sym::Inst(k)))
@@ -8687,6 +8725,16 @@ impl Run<'_> {
             },
             Roots::Scenario { .. } => hd_wasm_linear::Entry::Unsupported("runtime scenarios"),
         };
+        let runtime_keys: Vec<Option<Hash128>> = hd_wasm_linear::RUNTIME_FNS
+            .iter()
+            .map(|n| {
+                let def = names.item(hd_wasm_linear::RUNTIME_MODULE, n);
+                let table = &c.collected.table;
+                table
+                    .get(def, hd_mono::Sub::Body(0), TyList::EMPTY)
+                    .map(|id| table.key[id.idx()])
+            })
+            .collect();
         let input = hd_wasm_linear::Input {
             pool: &self.pool,
             env: &env,
@@ -8696,6 +8744,7 @@ impl Run<'_> {
             body: &body,
             entry,
             release: self.build_profile == BuildProfile::Release,
+            runtime: hd_wasm_linear::Runtime::from_keys(&runtime_keys),
         };
         let Some(wasm) = self.stage(Stage::Link, hd_wasm_linear::build(&input)) else {
             return;

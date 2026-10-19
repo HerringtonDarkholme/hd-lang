@@ -12,8 +12,10 @@ use hd_types::{Ty, TyData};
 use wasm_encoder::Instruction as I;
 
 use super::Em;
-use crate::layout::{Kind, Leaf, Mem, Part, enum_mem, kind, payload_mem, struct_mem, variants};
-use crate::module::{HEADER, HEAP, Val, mem};
+use crate::layout::{
+    Kind, Leaf, Mem, Part, Walk, enum_mem, fields_walk, kind, payload_mem, struct_mem, variants,
+};
+use crate::module::{HEADER, HEAP, Ins, Sym, Val, mem};
 use crate::rt::Helper;
 use crate::unsupported;
 
@@ -41,6 +43,14 @@ impl Em<'_, '_, '_> {
             return unsupported("a variant of a type that is not an enum");
         };
         enum_mem(self.pool(), self.env(), &vs)
+    }
+
+    /// The counted references of a boxed enum's cell: its value's, as the
+    /// enum lays it out unboxed.
+    fn cell_walk(&self, t: Ty) -> Option<Walk> {
+        self.input.runtime?;
+        let vs = variants(self.pool(), self.env(), t)?;
+        crate::layout::switch_walk(self.pool(), self.env(), &vs)
     }
 
     /// Pushes a zero of `v`.
@@ -72,21 +82,7 @@ impl Em<'_, '_, '_> {
         l: Leaf,
     ) -> StageResult<()> {
         address(self)?;
-        let m = mem(
-            HEAP,
-            u64::from(base + l.offset),
-            u32::from(l.bytes).trailing_zeros(),
-        );
-        self.f.op(match (l.val, l.bytes, l.signed) {
-            (Val::I32, 1, true) => I::I32Load8S(m),
-            (Val::I32, 1, false) => I::I32Load8U(m),
-            (Val::I32, 2, true) => I::I32Load16S(m),
-            (Val::I32, 2, false) => I::I32Load16U(m),
-            (Val::I32, _, _) => I::I32Load(m),
-            (Val::I64, _, _) => I::I64Load(m),
-            (Val::F32, _, _) => I::F32Load(m),
-            (Val::F64, _, _) => I::F64Load(m),
-        });
+        self.f.op(l.load(base));
         Ok(())
     }
 
@@ -117,16 +113,47 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// A new object of `size` payload bytes: a local holding its payload's
-    /// address. Its header is reserved; counting fills it (job 8).
-    fn object(&mut self, size: u32) -> u32 {
+    /// A new counted object whose payload is laid out as `m`, with the
+    /// counted references `walk` (§23.4): a local holding its payload's
+    /// address. Its descriptor names the release glue of its payload.
+    fn object(&mut self, m: &Mem, walk: Option<&Walk>) -> u32 {
         let at = self.f.local(Val::I32);
-        self.f.u32(HEADER + size);
-        self.f.helper(Helper::Alloc);
-        self.f.u32(HEADER);
-        self.f.op(I::I32Add);
+        self.f.u32(m.size);
+        match walk {
+            Some(w) => {
+                self.f
+                    .body
+                    .push(Ins::TableSlot(Sym::Helper(Helper::DropFields {
+                        leaves: m.leaves.clone(),
+                        walk: w.clone(),
+                    })));
+                self.f.i32(1);
+                self.f.op(I::I32Add);
+            }
+            None => self.f.i32(0),
+        }
+        self.f.helper(Helper::New);
         self.f.set(at);
         at
+    }
+
+    /// One more count on each counted reference that a new object's
+    /// construction copied into its payload.
+    fn retain_fields(&mut self, at: u32, m: &Mem, walk: Option<&Walk>) {
+        if let Some(w) = walk {
+            self.f.get(at);
+            self.f.helper(Helper::RetainFields {
+                leaves: m.leaves.clone(),
+                walk: w.clone(),
+            });
+        }
+    }
+
+    /// The counted references of a data payload of `fields`, when the
+    /// program counts.
+    fn payload_walk(&self, fields: &[Ty]) -> Option<Walk> {
+        self.input.runtime?;
+        fields_walk(self.pool(), self.env(), fields)
     }
 
     /// The address of the one static object of every data type without
@@ -159,12 +186,16 @@ impl Em<'_, '_, '_> {
                     self.f.u32(at);
                 } else {
                     let (m, parts) = payload_mem(self.pool(), self.env(), &tys)?;
-                    let at = self.object(m.size);
+                    let walk = self.payload_walk(&tys);
+                    let at = self.object(&m, walk.as_ref());
                     for (r, p) in fields.iter().zip(&parts) {
                         self.store_part(at, &m, *p, &Src::Ref(*r))?;
                     }
+                    self.retain_fields(at, &m, walk.as_ref());
                     self.f.get(at);
                 }
+                // A new object arrives with its count.
+                return self.store_owned(i);
             }
             Kind::Boxed => return unsupported("a data literal of an enum"),
         }
@@ -226,7 +257,8 @@ impl Em<'_, '_, '_> {
                     self.f.u32(at);
                 } else {
                     let (m, parts) = payload_mem(self.pool(), self.env(), &tys)?;
-                    let at = self.object(m.size);
+                    let walk = self.payload_walk(&tys);
+                    let at = self.object(&m, walk.as_ref());
                     for (f, p) in parts.iter().enumerate() {
                         match replaced(f) {
                             Some(v) => self.store_part(at, &m, *p, &Src::Ref(v))?,
@@ -247,8 +279,10 @@ impl Em<'_, '_, '_> {
                             }
                         }
                     }
+                    self.retain_fields(at, &m, walk.as_ref());
                     self.f.get(at);
                 }
+                return self.store_owned(i);
             }
             Kind::Boxed => return unsupported("a copy-update of an enum"),
         }
@@ -304,6 +338,21 @@ impl Em<'_, '_, '_> {
         let at = self.f.local(Val::I32);
         self.comp(a, 0)?;
         self.f.set(at);
+        // The field takes a count of the new value and drops the old one's.
+        let ft = tys[idx as usize];
+        if self.counted(ft).is_some() {
+            self.retain_ref(v)?;
+            let old: Vec<u32> = m.leaves[p.first..p.first + p.count]
+                .iter()
+                .map(|l| self.f.local(l.val))
+                .collect();
+            for (l, o) in m.leaves[p.first..p.first + p.count].iter().zip(&old) {
+                self.f.get(at);
+                self.f.op(l.load(0));
+                self.f.set(*o);
+            }
+            self.release_locals(&old, ft)?;
+        }
         self.store_part(at, &m, p, &Src::Ref(v))
     }
 
@@ -392,7 +441,8 @@ impl Em<'_, '_, '_> {
             }
         };
         if matches!(self.kind(t), Kind::Boxed) {
-            let cell = self.object(m.size);
+            let walk = self.cell_walk(t);
+            let cell = self.object(&m, walk.as_ref());
             for (p, l) in m.leaves.iter().enumerate() {
                 self.store_leaf(
                     &|em: &mut Self| {
@@ -404,11 +454,12 @@ impl Em<'_, '_, '_> {
                     &mut |em: &mut Self| push(em, p),
                 )?;
             }
+            self.retain_fields(cell, &m, walk.as_ref());
             self.f.get(cell);
-        } else {
-            for p in 0..m.leaves.len() {
-                push(self, p)?;
-            }
+            return self.store_owned(i);
+        }
+        for p in 0..m.leaves.len() {
+            push(self, p)?;
         }
         self.store(i)
     }

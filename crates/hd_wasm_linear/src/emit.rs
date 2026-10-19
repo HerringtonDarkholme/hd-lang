@@ -21,6 +21,7 @@ use crate::module::{Func, Global, HEAP, Ins, Module, Sym, Val, mem};
 use crate::rt::Helper;
 use crate::{Input, unsupported};
 
+mod count;
 mod text;
 mod value;
 
@@ -57,6 +58,9 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
         providers: Vec::new(),
         ctl: Vec::new(),
         deciding: Vec::new(),
+        loops: 0,
+        counting: false,
+        ret: Vec::new(),
     };
     let mut params = Vec::new();
     for l in param_locals(b) {
@@ -80,14 +84,41 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
         params,
         results.clone(),
     );
+    // A function that holds a counted reference ends at one exit, which
+    // releases what it owns (`count.rs`): a return stores its value in
+    // `ret` and branches there.
+    em.counting = em.counts_anything();
+    if em.counting {
+        em.ret = results.iter().map(|v| em.f.local(*v)).collect();
+        let mut params: Vec<(usize, Vec<u32>)> =
+            em.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
+        params.sort_unstable();
+        for (l, ls) in params {
+            em.retain_locals(&ls, em.sub(b.local_ty[l]))?;
+        }
+        em.open(Ctl::Exit);
+    }
     let root = b.sub_root[0];
     em.block_into(root, None)?;
     let tail = b.data[root as usize][1];
     if !results.is_empty() {
         if tail == NONE || em.diverges(tail) {
             em.f.op(Instruction::Unreachable);
+        } else if em.counting {
+            em.retain_ref(tail)?;
+            em.push(tail)?;
+            for l in em.ret.clone().iter().rev() {
+                em.f.set(*l);
+            }
         } else {
             em.push(tail)?;
+        }
+    }
+    if em.counting {
+        em.close();
+        em.release_all()?;
+        for l in em.ret.clone() {
+            em.f.get(l);
         }
     }
     Ok(em.f)
@@ -119,6 +150,8 @@ enum Ctl {
     Cont(u32),
     /// Arm `k` of `Match` `i`: its code follows this block's end.
     Arm(u32, u32),
+    /// The body of a function that counts: its end is the one exit.
+    Exit,
 }
 
 struct Em<'i, 'a, 'm> {
@@ -138,6 +171,13 @@ struct Em<'i, 'a, 'm> {
     ctl: Vec<Ctl>,
     /// The `Match` instructions whose decision trees are being emitted.
     deciding: Vec<u32>,
+    /// How many `Loop`s the instruction being emitted is inside.
+    loops: u32,
+    /// Whether the function counts, so that a return goes through its
+    /// exit ([`Ctl::Exit`]).
+    counting: bool,
+    /// The locals of the function's results, at its exit.
+    ret: Vec<u32>,
 }
 
 impl Em<'_, '_, '_> {
@@ -280,12 +320,10 @@ impl Em<'_, '_, '_> {
         Ok(ls)
     }
 
-    /// Stores the values on the stack as instruction `i`'s.
+    /// Stores the values on the stack as instruction `i`'s, a copy that
+    /// takes a count of its own ([`Em::store_as`]).
     fn store(&mut self, i: u32) -> StageResult<()> {
-        for l in self.slot(i)?.iter().rev() {
-            self.f.set(*l);
-        }
-        Ok(())
+        self.store_as(i, false)
     }
 
     /// TIR local `l`'s locals, made on first use.
@@ -388,6 +426,13 @@ impl Em<'_, '_, '_> {
                         self.f.op(Instruction::Unreachable);
                         return Ok(());
                     }
+                    // The local takes a count of the new value and drops
+                    // the old one's.
+                    let t = self.sub(self.b.local_ty[a as usize]);
+                    if self.counted(t).is_some() {
+                        self.retain_ref(bw)?;
+                        self.release_locals(&ls, t)?;
+                    }
                     self.push(bw)?;
                     for l in ls.iter().rev() {
                         self.f.set(*l);
@@ -409,6 +454,17 @@ impl Em<'_, '_, '_> {
                     return Ok(());
                 }
                 let vs = self.vals(self.ty_of(bw))?;
+                let t = self.ty_of(bw);
+                if self.counted(t).is_some() {
+                    self.retain_ref(bw)?;
+                    let old: Vec<u32> = vs.iter().map(|v| self.f.local(*v)).collect();
+                    for (k, (v, o)) in vs.iter().zip(&old).enumerate() {
+                        self.f
+                            .global_get(Global::Storage(h, u32::try_from(k).expect("k"), *v));
+                        self.f.set(*o);
+                    }
+                    self.release_locals(&old, t)?;
+                }
                 self.push(bw)?;
                 for (k, v) in vs.into_iter().enumerate().rev() {
                     self.f
@@ -490,7 +546,9 @@ impl Em<'_, '_, '_> {
                 self.open(Ctl::Brk(i));
                 self.f.op(Instruction::Loop(BlockType::Empty));
                 self.ctl.push(Ctl::Cont(i));
+                self.loops += 1;
                 self.block_into(a, None)?;
+                self.loops -= 1;
                 self.f.op(Instruction::Br(0));
                 self.close();
                 self.close();
@@ -511,14 +569,27 @@ impl Em<'_, '_, '_> {
                 }
             }
             Tag::Return => {
-                if a != NONE {
-                    if self.diverges(a) {
-                        self.f.op(Instruction::Unreachable);
-                        return Ok(());
-                    }
-                    self.push(a)?;
+                if a != NONE && self.diverges(a) {
+                    self.f.op(Instruction::Unreachable);
+                    return Ok(());
                 }
-                self.f.op(Instruction::Return);
+                if self.counting {
+                    // The caller's count of the result, then the exit.
+                    if a != NONE {
+                        self.retain_ref(a)?;
+                        self.push(a)?;
+                        for l in self.ret.clone().iter().rev() {
+                            self.f.set(*l);
+                        }
+                    }
+                    let d = self.depth(Ctl::Exit)?;
+                    self.f.op(Instruction::Br(d));
+                } else {
+                    if a != NONE {
+                        self.push(a)?;
+                    }
+                    self.f.op(Instruction::Return);
+                }
             }
             Tag::Unreachable => self.f.op(Instruction::Unreachable),
             Tag::Scope => {
@@ -688,7 +759,8 @@ impl Em<'_, '_, '_> {
             self.f.op(Instruction::Unreachable);
             return Ok(());
         }
-        self.store(i)
+        // A function returns its result with a count for the caller.
+        self.store_owned(i)
     }
 
     fn call(&mut self, i: u32, a: u32, bw: u32) -> StageResult<()> {
@@ -840,7 +912,7 @@ impl Em<'_, '_, '_> {
                     });
                 }
                 self.f.helper(Helper::FmtInt { signed });
-                self.store(i)
+                self.store_owned(i)
             }
             "block_on" => self.block_on(i, args[0]),
             "bytes_len" => {
@@ -958,8 +1030,10 @@ impl Em<'_, '_, '_> {
         self.f.op(Instruction::Br(0));
         self.f.op(Instruction::End);
         self.f.op(Instruction::End);
-        // `.Completed(value)`.
-        self.new_variant(i, 0, &[value::Src::Locals(tmp)])
+        // `.Completed(value)`, which counts its own copy of the poll's
+        // result.
+        self.new_variant(i, 0, &[value::Src::Locals(tmp.clone())])?;
+        self.release_locals(&tmp, inner)
     }
 
     /// A body-less method of a primitive's std impl at `self_ty`
@@ -1019,7 +1093,7 @@ impl Em<'_, '_, '_> {
                     });
                 }
                 self.f.helper(Helper::FmtInt { signed });
-                self.store(i)
+                self.store_owned(i)
             }
             // A float's text is the host primitive its `Display`
             // implementation calls.

@@ -220,6 +220,8 @@ pub struct Module {
     /// Static vtables: each one's slots, laid out after the data.
     vtables: Vec<Vec<Sym>>,
     exports: Vec<(String, Sym)>,
+    /// The std runtime that helpers call, when the program links it.
+    pub runtime: Option<crate::Runtime>,
 }
 
 impl Module {
@@ -262,45 +264,43 @@ impl Module {
         self.vtables.len() - 1
     }
 
-    /// The helpers that bodies and vtables name and nobody defined yet.
-    fn missing(&self) -> BTreeSet<Helper> {
-        let mut out = BTreeSet::new();
-        let mut note = |s: &Sym| {
-            if let Sym::Helper(h) = s
-                && !self.funcs.contains_key(s)
-            {
-                out.insert(h.clone());
+    /// Builds the helpers that the exports reach, to a fixed point, and
+    /// drops every function that nothing reaches: an instance collected
+    /// only for the runtime, such as the allocator of a program that never
+    /// allocates (§23.6, "Reachable code only").
+    fn reach(&mut self) {
+        let mut seen: BTreeSet<Sym> = BTreeSet::new();
+        let mut work: Vec<Sym> = self.exports.iter().map(|(_, s)| s.clone()).collect();
+        work.extend(self.vtables.iter().flatten().cloned());
+        while let Some(s) = work.pop() {
+            if matches!(s, Sym::Import(_)) || !seen.insert(s.clone()) {
+                continue;
             }
-        };
-        for f in self.funcs.values() {
+            if let Sym::Helper(h) = &s
+                && !self.funcs.contains_key(&s)
+            {
+                let f = crate::rt::helper(h, self);
+                self.funcs.insert(s.clone(), f);
+            }
+            let Some(f) = self.funcs.get(&s) else {
+                continue;
+            };
             for i in &f.body {
-                if let Ins::Call(s) | Ins::TableSlot(s) = i {
-                    note(s);
+                match i {
+                    Ins::Call(c) | Ins::TableSlot(c) => work.push(c.clone()),
+                    Ins::VTable(k) => work.extend(self.vtables[*k].iter().cloned()),
+                    _ => {}
                 }
             }
         }
-        for s in self.vtables.iter().flatten() {
-            note(s);
-        }
-        for (_, s) in &self.exports {
-            note(s);
-        }
-        out
+        self.funcs.retain(|s, _| seen.contains(s));
+        self.inst_order.retain(|s| seen.contains(s));
     }
 
-    /// Builds the named helpers to a fixed point, numbers every function
-    /// and encodes the module.
+    /// Builds the reachable helpers, numbers every function and encodes
+    /// the module.
     pub fn finish(mut self) -> StageResult<Vec<u8>> {
-        loop {
-            let missing = self.missing();
-            if missing.is_empty() {
-                break;
-            }
-            for h in missing {
-                let f = crate::rt::helper(&h, &mut self);
-                self.funcs.insert(Sym::Helper(h), f);
-            }
-        }
+        self.reach();
         // Every import and global a body names; imports come first.
         let mut imports: BTreeSet<Import> = BTreeSet::new();
         let mut globals: BTreeSet<Global> = BTreeSet::new();
@@ -434,7 +434,15 @@ impl Module {
         }
         let mut tables = TableSection::new();
         let mut elements = ElementSection::new();
-        if !slots.is_empty() {
+        // A `call_indirect` needs the table even when nothing fills it, as
+        // release glue's does in a program whose objects hold no counted
+        // reference.
+        let indirect = self
+            .funcs
+            .values()
+            .any(|f| f.body.iter().any(|i| matches!(i, Ins::CallIndirect(..))));
+        let table = indirect || !slots.is_empty();
+        if table {
             let n = u64::try_from(slots.len()).expect("table");
             tables.table(TableType {
                 element_type: RefType::FUNCREF,
@@ -443,6 +451,8 @@ impl Module {
                 maximum: Some(n),
                 shared: false,
             });
+        }
+        if !slots.is_empty() {
             elements.active(
                 None,
                 &ConstExpr::i32_const(0),
@@ -510,7 +520,7 @@ impl Module {
             module.section(&import_sec);
         }
         module.section(&funcs);
-        if !slots.is_empty() {
+        if table {
             module.section(&tables);
         }
         module.section(&memories);

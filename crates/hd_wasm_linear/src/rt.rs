@@ -8,6 +8,7 @@ use hd_base::{DefId, Hash128, StageResult};
 use hd_types::{Ty, TyData, TyList};
 use wasm_encoder::{BlockType, Instruction};
 
+use crate::layout::{Leaf, Walk};
 use crate::module::{BUF, EMPTY, Func, Global, HEADER, HEAP, Import, Ins, Module, Sym, Val, mem};
 use crate::{Entry, Input, unsupported};
 
@@ -44,10 +45,30 @@ pub enum Helper {
     /// bump pointer; the heap grows to fit, and a refused growth is
     /// `heap-exhausted`.
     Alloc,
-    /// `(len) -> address`: a new string buffer (§23.7) of `len` bytes, its
-    /// header reserved; the address is its payload's. Until blocks are
-    /// counted (job 8) no buffer is freed.
+    /// `(size, descriptor) -> address`: a new counted object (§23.4) of
+    /// `size` payload bytes, from std's allocator: its count 1 and its
+    /// descriptor word, the table slot of its [`Helper::DropFields`] plus
+    /// one, or 0 when its payload holds no counted reference. The address
+    /// is its payload's.
+    New,
+    /// `(len) -> address`: a new string buffer (§23.7) of `len` bytes, a
+    /// counted object with nothing to release in it.
     Str,
+    /// `(values)`: one more count on each counted reference in a value
+    /// laid out as `vals`, which `walk` finds.
+    Retain { vals: Vec<Val>, walk: Walk },
+    /// `(values)`: one count less on each, as [`Helper::ReleaseRef`] takes.
+    Release { vals: Vec<Val>, walk: Walk },
+    /// `(address)`: one count less on the object that holds `address`. At
+    /// its last count, the references in its payload are released through
+    /// its descriptor and its block is freed.
+    ReleaseRef,
+    /// `(payload)`: the release glue of an object whose payload is laid
+    /// out as `leaves`: one count less on each counted reference in it.
+    DropFields { leaves: Vec<Leaf>, walk: Walk },
+    /// `(payload)`: one more count on each counted reference in a new
+    /// object's payload, which its construction copied in.
+    RetainFields { leaves: Vec<Leaf>, walk: Walk },
     /// `(value: i64) -> string`: an integer's decimal text, read as
     /// signed when `signed`.
     FmtInt { signed: bool },
@@ -369,15 +390,33 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         Helper::Alloc => alloc(),
         Helper::StrEq => str_eq(),
+        Helper::New => new_object(m),
         Helper::Str => {
             let mut f = Func::new("rt:str", vec![Val::I32], vec![Val::I32]);
             f.get(0);
-            f.u32(HEADER);
-            f.op(Instruction::I32Add);
-            f.helper(Helper::Alloc);
-            f.u32(HEADER);
-            f.op(Instruction::I32Add);
+            f.i32(0);
+            f.helper(Helper::New);
             f
+        }
+        Helper::Retain { vals, walk } => {
+            let mut f = Func::new("rt:retain", vals.clone(), vec![]);
+            let on = retain_call(m);
+            walk_code(&mut f, walk, &|f, k| f.get(k), &on);
+            f
+        }
+        Helper::Release { vals, walk } => {
+            let mut f = Func::new("rt:release", vals.clone(), vec![]);
+            walk_code(&mut f, walk, &|f, k| f.get(k), &|f| {
+                f.helper(Helper::ReleaseRef);
+            });
+            f
+        }
+        Helper::ReleaseRef => release_ref(m),
+        Helper::DropFields { leaves, walk } => fields_glue("rt:drop", leaves, walk, &|f| {
+            f.helper(Helper::ReleaseRef);
+        }),
+        Helper::RetainFields { leaves, walk } => {
+            fields_glue("rt:retain_fields", leaves, walk, &retain_call(m))
         }
         Helper::StrCmp => str_cmp(),
         Helper::HostPrim { name, args, result } => host_prim(name, args, *result),
@@ -847,5 +886,116 @@ fn host_prim(name: &str, args: &[PrimArg], result: Option<Val>) -> Func {
     });
     f.get(out);
     f.get(len);
+    f
+}
+
+/// What retains the address on the stack: std's `retain`, or nothing when
+/// the program counts nothing.
+fn retain_call(m: &Module) -> impl Fn(&mut Func) {
+    let retain = m.runtime.map(|r| r.retain);
+    move |f: &mut Func| match retain {
+        Some(k) => f.call(Sym::Inst(k)),
+        None => f.op(Instruction::Drop),
+    }
+}
+
+/// Emits `walk` over the values that `get(k)` pushes, running `on` with
+/// each counted address on the stack: an enum's arms by its tag.
+fn walk_code(f: &mut Func, walk: &Walk, get: &dyn Fn(&mut Func, u32), on: &dyn Fn(&mut Func)) {
+    match walk {
+        Walk::Ref(k) => {
+            get(f, *k);
+            on(f);
+        }
+        Walk::Seq(ws) => {
+            for w in ws {
+                walk_code(f, w, get, on);
+            }
+        }
+        Walk::Switch(tag, arms) => {
+            for (v, arm) in arms.iter().enumerate() {
+                let Some(arm) = arm else {
+                    continue;
+                };
+                get(f, *tag);
+                f.u32(u32::try_from(v).expect("variants"));
+                f.op(Instruction::I32Eq);
+                f.op(Instruction::If(BlockType::Empty));
+                walk_code(f, arm, get, on);
+                f.op(Instruction::End);
+            }
+        }
+    }
+}
+
+/// A `(payload)` glue function: loads every leaf of the payload, then
+/// walks them.
+fn fields_glue(name: &str, leaves: &[Leaf], walk: &Walk, on: &dyn Fn(&mut Func)) -> Func {
+    let mut f = Func::new(name, vec![Val::I32], vec![]);
+    let ls: Vec<u32> = leaves.iter().map(|l| f.local(l.val)).collect();
+    for (l, at) in leaves.iter().zip(&ls) {
+        f.get(0);
+        f.op(l.load(0));
+        f.set(*at);
+    }
+    walk_code(&mut f, walk, &|f, k| f.get(ls[k as usize]), on);
+    f
+}
+
+/// [`Helper::New`]: a block of the header and the payload from std's
+/// `alloc`, or from the bump pointer when the program counts nothing.
+fn new_object(m: &Module) -> Func {
+    let mut f = Func::new("rt:new", vec![Val::I32, Val::I32], vec![Val::I32]);
+    let block = f.local(Val::I32);
+    f.get(0);
+    f.u32(HEADER);
+    f.op(Instruction::I32Add);
+    match m.runtime {
+        Some(r) => f.call(Sym::Inst(r.alloc)),
+        None => f.helper(Helper::Alloc),
+    }
+    f.set(block);
+    f.get(block);
+    f.i32(1);
+    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    f.get(block);
+    f.get(1);
+    f.op(Instruction::I32Store(mem(HEAP, 4, 2)));
+    f.get(block);
+    f.u32(HEADER);
+    f.op(Instruction::I32Add);
+    f
+}
+
+/// [`Helper::ReleaseRef`]: std's `release` gives the block at its last
+/// count; then the descriptor's glue releases the payload's references and
+/// std's `free` takes the block.
+fn release_ref(m: &Module) -> Func {
+    let mut f = Func::new("rt:release_ref", vec![Val::I32], vec![]);
+    let Some(r) = m.runtime else {
+        return f;
+    };
+    let (block, desc) = (f.local(Val::I32), f.local(Val::I32));
+    f.get(0);
+    f.call(Sym::Inst(r.release));
+    f.set(block);
+    f.get(block);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(block);
+    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+    f.set(desc);
+    f.get(desc);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(block);
+    f.u32(HEADER);
+    f.op(Instruction::I32Add);
+    f.get(desc);
+    f.i32(1);
+    f.op(Instruction::I32Sub);
+    f.body.push(Ins::CallIndirect(vec![Val::I32], vec![]));
+    f.op(Instruction::End);
+    f.get(block);
+    f.call(Sym::Inst(r.free));
+    f.op(Instruction::End);
     f
 }
