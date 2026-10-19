@@ -378,6 +378,29 @@ impl Ck<'_, '_> {
         false
     }
 
+    /// The type of the read-only reference a place `r` is reached through,
+    /// when it starts at a read through `&T`.
+    fn readonly_ref_root(&mut self, r: Ref) -> Option<Ty> {
+        let mut cur = r;
+        for _ in 0..64 {
+            let i = cur.as_inst()?;
+            let (tag, data) = {
+                let body = self.b.body_mut();
+                (body.tags[i.0 as usize], body.data[i.0 as usize])
+            };
+            match tag {
+                Tag::Coerce | Tag::Field => cur = Ref(data[0]),
+                Tag::Intrinsic => cur = Ref(*self.b.body_mut().record(data[1]).first()?),
+                Tag::CallValue => {
+                    let (src, m) = self.deref_source(Ref(data[0]))?;
+                    return (!m).then(|| self.b.ty_of(src));
+                }
+                _ => return None,
+            }
+        }
+        None
+    }
+
     /// The local a place `r` starts at, when it starts at one: the binding
     /// a fix-it makes writable.
     fn place_root_local(&mut self, r: Ref) -> Option<LocalId> {
@@ -418,8 +441,17 @@ impl Ck<'_, '_> {
             self.mark_write_path(recv);
             return true;
         }
-        let root = self.place_root_local(recv);
         let shown = self.show(rt);
+        // `ref.write.index`: through `&T` the referenced value is read-only.
+        if let Some(reft) = self.readonly_ref_root(recv) {
+            let msg = format!(
+                "{what} changes this {shown} through a read-only reference {}; take the reference with `&mut` to write through it",
+                self.show(reft)
+            );
+            self.err(code, at, &msg);
+            return false;
+        }
+        let root = self.place_root_local(recv);
         let Some(l) = root else {
             let msg = format!(
                 "{what} changes this {shown} in place, but it is not a variable or a field of one; bind it with `let mut` first"

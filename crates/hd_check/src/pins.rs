@@ -21,6 +21,10 @@
 //!   `Scope`, guarded by a flag that the release on the normal path
 //!   clears.
 //!
+//! A `&self` or `&mut self` call on a list element (`xs[i].m()`) takes an
+//! element reference as its receiver; that pin belongs to the call, not to
+//! a suite, and is released right after the call (`release_call_pins`).
+//!
 //! Where no suite of the current body or closure holds the reference (an
 //! expression-bodied closure, a top-level binding, a default), the pin is
 //! released at once. A reference copied out of its binding (stored in a
@@ -236,6 +240,11 @@ impl Ck<'_, '_> {
         let buf = self.b.local(lt, sym, local_flags::ASSIGNED, at);
         self.b.set(buf, pinned, at);
         let depth = self.scopes.len() - 1;
+        // A call's receiver: the call releases it (`release_call_pins`).
+        if std::mem::take(&mut self.pin_for_call) {
+            self.call_pins.push(buf);
+            return (buf, depth);
+        }
         let frame = self
             .pin_frames
             .len()
@@ -275,6 +284,28 @@ impl Ck<'_, '_> {
         (buf, depth)
     }
 
+    /// Releases the pins that the receivers of calls took since there were
+    /// `mark` of them, once the call is emitted
+    /// (`fn.method.auto-address.element`).
+    pub(crate) fn release_call_pins(&mut self, mark: usize, n: NodeRef<'_>) {
+        let at = n.index();
+        while self.call_pins.len() > mark {
+            let Some(buf) = self.call_pins.pop() else {
+                break;
+            };
+            let lt = self.b.local_ty(buf);
+            let l = self.b.get(buf, lt, at);
+            let rec = self.b.refs_record(&[l]);
+            self.b.emit(
+                Tag::Intrinsic,
+                IntrinsicOp::ListUnpin as u32,
+                rec,
+                Ty::VOID,
+                at,
+            );
+        }
+    }
+
     /// The place `&e[k]` names when `e` is a list (`ref.elem.place`): the
     /// slot `k` of the list's buffer, which is pinned. `None` after an
     /// error; a map value or any other index is no place to refer to.
@@ -287,10 +318,13 @@ impl Ck<'_, '_> {
         let [base, key] = kids.as_slice() else {
             return crate::body::unsupported("an index shape");
         };
+        // The base and the key may take pins of their own first.
+        let for_call = std::mem::take(&mut self.pin_for_call);
         let (br, bt) = self.expr(*base, None)?;
         if matches!(self.infer.resolve(self.pool(), bt), Ty::POISON | Ty::NEVER) {
             return Ok(None);
         }
+        let (br, bt) = self.deref_index_base(br, bt, base.index());
         let builtin = self.index_kind(bt);
         match builtin {
             // `types.coll.map-value.ref`: a map value moves when the map
@@ -312,6 +346,7 @@ impl Ck<'_, '_> {
                 }
                 let kr = self.index_key((kr, ktt), *key, kt);
                 let lt = self.strip_mut(self.infer.resolve(self.pool(), bt));
+                self.pin_for_call = for_call;
                 let (buf, d) = self.pin_list(br, lt, Some(kr), owner, e);
                 let (idx, id) = self.hold(kr, Ty::prim(Prim::Usize), e);
                 Ok(Some(crate::refs::Operand::Place(Place {
@@ -360,6 +395,8 @@ impl Ck<'_, '_> {
         // evaluated again by the ordinary loop, so this one is undone.
         let cp = self.checkpoint();
         let (lr, lt) = self.expr(operand, None)?;
+        // A reference to a list is read through (`flow.for.ref.through`).
+        let (lr, lt) = self.deref_index_base(lr, lt, operand.index());
         let builtin = self.index_kind(lt);
         let vt = match builtin {
             Some((IntrinsicOp::ListIndex, _, _, vt)) => vt,

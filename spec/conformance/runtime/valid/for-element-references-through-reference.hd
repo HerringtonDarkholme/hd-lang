@@ -1,0 +1,22 @@
+# test: for p in &mut r and for p in &r loop over the slots of the list a reference refers to
+# Spec 06 Element Reference Loops: flow.for.ref.through.
+fn raise(r: &mut List[i32]) -> void:
+    for p in &mut r:
+        *p += 100
+
+fn total(r: &List[i32]) -> i32:
+    let sum = +0
+    for p in &r:
+        sum += *p
+    sum
+
+tests:
+    use std.testing.assert_equal
+
+    it("each step writes a slot of the referenced list"):
+        let mut xs = [+1, 2, 3]
+        raise(&mut xs)
+        assert_equal(xs, [+101, 102, 103], reason="every element changed in place")
+        assert_equal(total(&xs), 306, reason="the read-only loop reads every slot")
+        xs.push(4)
+        assert_equal(xs.len(), 4, reason="the loop's pin ended with the loop")

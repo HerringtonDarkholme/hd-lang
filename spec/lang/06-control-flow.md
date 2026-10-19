@@ -342,6 +342,7 @@ fn raised(prices: List[i32]) -> List[i32]:
 3. r[flow.for.ref.pin] The loop pins `xs` from its start until it ends or is left, as an element reference does ([`ref.elem.pin`](13-values-and-references.md#r-ref.elem.pin)), so a change of the list's length in its body panics. Panic: `collection-pinned`.
 4. r[flow.for.ref.writable] `for p in &mut xs` needs `xs` in a writable place, as `&mut xs[i]` does. Error: `readonly-root`.
 5. r[flow.for.ref.map] A map value is no place, so a loop over `&m` or `&mut m` with a map `m` is an error. Error: `map-value-not-addressable`.
+6. r[flow.for.ref.through] `xs` may be a reference to a list: `for p in &mut r` and `for p in &r` loop over the slots of the list `r` refers to, as if `*r` were the place. Through `&T`, `for p in &mut r` is an error. Error: `readonly-root`.
 
 ```text
 fn invalid(prices: Map[string, i32]) -> void:

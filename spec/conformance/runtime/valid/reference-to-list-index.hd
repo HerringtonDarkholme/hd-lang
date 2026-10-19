@@ -1,0 +1,31 @@
+# test: indexing through a reference to a list reads, stores and refers to the referenced list's elements
+# Spec 13 Reading Through A Reference: ref.read.auto.index; Writing Through A Reference: ref.write.index; Element References: ref.elem.through.
+fn fill(r: &mut List[i32]) -> void:
+    r[0] = 7
+    r[2] += 10
+    slot := &mut r[1]
+    *slot = 8
+
+fn first(r: &List[i32]) -> i32:
+    r[0]
+
+tests:
+    use std.testing.assert_equal
+
+    it("a store through &mut List changes the caller's list"):
+        let mut xs = [+1, 2, 3]
+        fill(&mut xs)
+        assert_equal(xs, [+7, 8, 13], reason="each element changed in place")
+
+    it("a read through &List reads the referenced list"):
+        xs := [+4, 5]
+        assert_equal(first(&xs), 4, reason="r[0] reads xs[0]")
+
+    it("an element reference through a reference pins the referenced list"):
+        let mut xs = [+1, 2]
+        r := &mut xs
+        e := &mut r[1]
+        *e = 20
+        assert_equal(xs, [+1, 20], reason="the slot of xs changed")
+        xs.push(3)
+        assert_equal(xs.len(), 3, reason="the pin ended after the last use of e")

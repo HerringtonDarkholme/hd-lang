@@ -1871,6 +1871,7 @@ impl Ck<'_, '_> {
         if br.0 == NONE && matches!(bt, Ty::NEVER | Ty::POISON) {
             return Ok((br, bt));
         }
+        let (br, bt) = self.deref_index_base(br, bt, base.index());
         let builtin = self.index_kind(bt);
         let (kr, kt) = self.index_key_value(*key, builtin)?;
         // `expr.index.slice.call`: a list or string indexed by a range

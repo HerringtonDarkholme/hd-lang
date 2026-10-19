@@ -1,0 +1,48 @@
+# test: a &mut self or &self call on a list element takes the element's address, also through a reference to the list
+# Spec 07 Reference Receivers: fn.method.auto-address.element.
+struct Counter:
+    n: i32
+
+impl Counter:
+    fn bump(&mut self) -> i32:
+        self.n += 1
+        self.n
+
+    fn get(&self) -> i32:
+        self.n
+
+struct Panel:
+    counters: List[Counter]
+
+fn bump_first(r: &mut List[Counter]) -> i32:
+    r[0].bump()
+
+tests:
+    use std.testing.assert_equal
+
+    it("a &mut self call changes the element in its slot"):
+        let mut cs = [Counter { n: 0 }, Counter { n: 5 }]
+        assert_equal(cs[1].bump(), 6, reason="the call returns the new count")
+        assert_equal(cs[1].n, 6, reason="the element itself changed")
+        assert_equal(cs[0].get(), 0, reason="a &self call reads the element")
+        cs.push(Counter { n: 9 })
+        assert_equal(cs.len(), 3, reason="the call's pin ended with the call")
+
+    it("an element of an inner list or a field path is a place too"):
+        let mut grid = [[Counter { n: 0 }], [Counter { n: 10 }]]
+        grid[1][0].bump()
+        let mut panel = Panel { counters: [Counter { n: 4 }] }
+        panel.counters[0].bump()
+        assert_equal(grid[1][0].n, 11, reason="the inner list's element changed")
+        assert_equal(panel.counters[0].n, 5, reason="the field's element changed")
+
+    it("a call through a reference to the list changes the referenced list"):
+        let mut cs = [Counter { n: 1 }]
+        bump_first(&mut cs)
+        assert_equal(cs[0].n, 2, reason="r[0].bump() changed cs[0]")
+
+    it("a copy of the list is not changed by the call"):
+        let mut cs = [Counter { n: 1 }]
+        copy := cs
+        cs[0].bump()
+        assert_equal(copy[0].n, 1, reason="the copy keeps its own element")

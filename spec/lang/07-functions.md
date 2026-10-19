@@ -1071,7 +1071,8 @@ fn demo() -> f64:
 7. r[fn.method.auto-address.writable] A `&mut self` call needs a [writable place](04-type-system.md#writable-places). Any other receiver is an error, with a fix-it that makes the binding writable. Error: `mutable-receiver-required`.
 8. r[fn.method.auto-address.fix] The fix-it writes `let mut` for a `let` or `:=` binding, `mut` before a parameter name, and `&mut self` for a `self` receiver.
 9. r[fn.method.auto-address.read-only] A `&mut self` call through a `&T` reference, or on a value that is no place, is an error. Error: `mutable-receiver-required`.
-10. r[fn.method.self-struct-write] Writing a field of `self` in a struct's `self` method is an error, with a fix-it that takes `&mut self`. Error: `non-reassignable-parameter-binding`.
+10. r[fn.method.auto-address.element] A list element is a place for the call, as in `bodies[i].shift(d)`, also through a reference to the list, as in `r[i].shift(d)`. The call takes an element reference ([Element References](13-values-and-references.md#element-references)) that pins the list from before the arguments are evaluated until the call returns. A `&mut self` call needs the list in a writable place, as `&mut xs[i]` does.
+11. r[fn.method.self-struct-write] Writing a field of `self` in a struct's `self` method is an error, with a fix-it that takes `&mut self`. Error: `non-reassignable-parameter-binding`.
 
 ```text
 struct Point:

@@ -233,6 +233,22 @@ impl Ck<'_, '_> {
                 let (inner, m) = self.ref_of(self.peek_place_ty(*kids.first()?)?)?;
                 Some(self.deref_ty(inner, m))
             }
+            // A list element, of a list or of a reference to one; a slice
+            // is no place.
+            SyntaxKind::IndexExpr => {
+                let [base, key] = kids.as_slice() else {
+                    return None;
+                };
+                if key.kind() == SyntaxKind::RangeExpr {
+                    return None;
+                }
+                let base = self.peek_place_ty(*base)?;
+                let base = match self.ref_of(base) {
+                    Some((inner, m)) => self.deref_ty(inner, m),
+                    None => base,
+                };
+                self.list_item(self.infer.resolve(self.pool(), base))
+            }
             _ => None,
         }
     }
@@ -286,7 +302,12 @@ impl Ck<'_, '_> {
                     .unwrap_or_else(|| self.poisoned(base)),
             ));
         }
-        let Some(op) = self.operand(base, None)? else {
+        // A list element pins its list for the call
+        // (`fn.method.auto-address.element`).
+        self.pin_for_call = true;
+        let op = self.operand(base, None);
+        self.pin_for_call = false;
+        let Some(op) = op? else {
             return Ok(Some(self.poisoned(base)));
         };
         let place = match op {

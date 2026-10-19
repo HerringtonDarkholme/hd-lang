@@ -3620,5 +3620,10 @@ runtime/panic/for-element-references-push-panics.hd	runtime	panic:collection-pin
 typing/valid/element-reference-shared-any-list.hd	type	accept	lang/13-values-and-references.md#r-ref.elem.writable.shared
 typing/invalid/element-reference-mut-short-binding.hd	type	reject:readonly-root	lang/13-values-and-references.md#r-ref.elem.writable
 typing/invalid/for-element-references-mut-short-binding.hd	type	reject:readonly-root	lang/06-control-flow.md#r-flow.for.ref.writable
+runtime/valid/reference-to-list-index.hd	runtime	accept	lang/13-values-and-references.md#r-ref.read.auto.index
+runtime/valid/element-receiver-auto-address.hd	runtime	accept	lang/07-functions.md#r-fn.method.auto-address.element
+runtime/panic/element-receiver-pinned-during-call-panics.hd	runtime	panic:collection-pinned	lang/07-functions.md#r-fn.method.auto-address.element
+runtime/valid/for-element-references-through-reference.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.ref.through
+typing/invalid/reference-to-list-readonly-store.hd	type	reject:readonly-root	lang/13-values-and-references.md#r-ref.write.index
 typing/invalid/for-element-references-map.hd	type	reject:map-value-not-addressable	lang/06-control-flow.md#r-flow.for.ref.map
 typing/invalid/nominal-name-clash.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.nominal.distinct

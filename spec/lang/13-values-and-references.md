@@ -233,6 +233,7 @@ fn demo(r: &Vec2) -> f64:
 6. r[ref.read.function] The weakening does not enter a function type: a function value read through `&T` keeps its type, and a call of it may change what it captured.
 7. r[ref.read.copy-out] Copying a whole value out of a `&T` is an error when the value holds a `&mut` at any depth, inside struct, data, or enum fields included. Error: `mutable-upgrade`.
 8. r[ref.read.copy-out.projection] A field read that is itself the base of another field read copies nothing, so `t.inner.lead` reads through `t.inner` without copying it.
+9. r[ref.read.auto.index] An index on a reference to a list, a map, or a string applies to the value it refers to: `r[i]` reads the element `i` of that value. Through `&T`, the element's type is weakened as `ref.read.weaken` states.
 
 ```text
 struct User:
@@ -312,6 +313,7 @@ fn reset(r: &mut Point) -> void:
 3. r[ref.write.seen] The write is seen through every reference to the place, and through the place itself.
 4. r[ref.write.no-exclusivity] A `&mut T` is not exclusive: other references to the same place may exist and be used, and no check limits them.
 5. r[ref.write.copy-assign] `*r ...= v` is an error, since `...=` stores into an embedded field only. Error: `copy-into-ordinary-field`.
+6. r[ref.write.index] An element store through a reference to a list or a map, as in `r[i] = v` or `r[i] op= v`, stores into the referenced value. A change of that value through a method call, as in `r.push(x)`, changes it in place as well. The reference must be a `&mut`. Error: `readonly-root`, or `mutable-receiver-required` for a call.
 
 ```text
 struct Point:
@@ -416,17 +418,18 @@ fn reward(players: List[Player]) -> List[Player]:
 3. r[ref.elem.slot] An element reference names a slot, never the value in it. A read through it sees whatever value its slot holds, and a write replaces that value. After elements move between slots, as a sort or a swap moves them, it sees the element in its slot.
 4. r[ref.elem.writable] `&mut xs[i]` needs `xs` in a writable place, as an element store does ([`types.coll.writable.store`](04-type-system.md#r-types.coll.writable.store)). Its fix-it makes the binding writable. Error: `readonly-root`.
 5. r[ref.elem.writable.shared] `&xs[i]` needs no writable place, so it may refer into a `:=` list or a value parameter.
-6. r[ref.elem.pin] Taking an element reference makes the list's elements its own, shared with no copy, and **pins** the list until the reference is released.
-7. r[ref.elem.pinned] While a list is pinned, an operation that changes its length is a checked runtime panic: `push`, `insert`, `remove_at`, and a `pop` or a `clear` that removes an element. Panic: `collection-pinned`.
-8. r[ref.elem.pinned.allowed] Replacing an element keeps the length, so it is allowed while the list is pinned: an element store, a write through an element reference, and a sort or a swap written with element stores.
-9. r[ref.elem.copy] Copying a pinned list gives a list with elements of its own. A change to the copy never reaches a reference into the original, and a write through such a reference never reaches the copy.
-10. r[ref.elem.replace] Assigning a whole list to the pinned list's place, as in `xs = []`, is allowed. The old references keep the old elements and no longer refer into `xs`.
-11. r[ref.elem.release] A pin is released after the reference's last use, not at the end of its block. A list that several element references pin stays pinned until each is released.
-12. r[ref.elem.release.binding] An element reference that initializes a simple binding, as in `r := &mut xs[i]`, is last used by the last statement of the binding's suite that names the binding, inside a closure or an interpolation included.
-13. r[ref.elem.release.statement] Any other element reference, such as an argument, is last used by the statement that takes it.
-14. r[ref.elem.release.exit] Leaving a suite, through `return`, `break`, `continue`, or `?`, releases the pins of the element references taken in it.
-15. r[ref.elem.release.copies] A copy of an element reference that outlives those statements keeps the list pinned while the copy lives: one stored in a field or a list, returned, or captured by a closure that runs later.
-16. r[ref.elem.identity] Two element references refer to the same place when they refer to the same slot of the same list's elements and read the same struct fields from it.
+6. r[ref.elem.through] `xs` may be a reference to a list: `&r[i]` and `&mut r[i]` refer to the slot `i` of the list `r` refers to, and pin that list. Through `&T`, `&mut r[i]` is an error. Error: `readonly-root`.
+7. r[ref.elem.pin] Taking an element reference makes the list's elements its own, shared with no copy, and **pins** the list until the reference is released.
+8. r[ref.elem.pinned] While a list is pinned, an operation that changes its length is a checked runtime panic: `push`, `insert`, `remove_at`, and a `pop` or a `clear` that removes an element. Panic: `collection-pinned`.
+9. r[ref.elem.pinned.allowed] Replacing an element keeps the length, so it is allowed while the list is pinned: an element store, a write through an element reference, and a sort or a swap written with element stores.
+10. r[ref.elem.copy] Copying a pinned list gives a list with elements of its own. A change to the copy never reaches a reference into the original, and a write through such a reference never reaches the copy.
+11. r[ref.elem.replace] Assigning a whole list to the pinned list's place, as in `xs = []`, is allowed. The old references keep the old elements and no longer refer into `xs`.
+12. r[ref.elem.release] A pin is released after the reference's last use, not at the end of its block. A list that several element references pin stays pinned until each is released.
+13. r[ref.elem.release.binding] An element reference that initializes a simple binding, as in `r := &mut xs[i]`, is last used by the last statement of the binding's suite that names the binding, inside a closure or an interpolation included.
+14. r[ref.elem.release.statement] Any other element reference, such as an argument, is last used by the statement that takes it.
+15. r[ref.elem.release.exit] Leaving a suite, through `return`, `break`, `continue`, or `?`, releases the pins of the element references taken in it.
+16. r[ref.elem.release.copies] A copy of an element reference that outlives those statements keeps the list pinned while the copy lives: one stored in a field or a list, returned, or captured by a closure that runs later.
+17. r[ref.elem.identity] Two element references refer to the same place when they refer to the same slot of the same list's elements and read the same struct fields from it.
 
 ```text
 fn invalid() -> i32:

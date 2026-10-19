@@ -188,8 +188,11 @@ impl Ck<'_, '_> {
         }
         // `fn.ref.bound`: the base names a value. A `&self` or `&mut self`
         // method takes the address of a place now (`fn.ref.bound.address`).
+        let pins = self.call_pins.len();
         if let Some((recv, rt)) = self.auto_address(base, &name)? {
-            return self.bound_ref(recv, rt, &name, method_targs, want, n);
+            let bound = self.bound_ref(recv, rt, &name, method_targs, want, n);
+            self.release_call_pins(pins, n);
+            return bound;
         }
         let (recv, rt) = self.expr(base, None)?;
         if let Some((recv, rt)) = self.pass_reference_receiver(recv, rt, &name, base)? {

@@ -2607,9 +2607,12 @@ impl Ck<'_, '_> {
         }
         // A `&self` or `&mut self` method on a place takes its address
         // (`fn.method.auto-address`).
+        let pins = self.call_pins.len();
         if let Some((recv, rt)) = self.auto_address(base, &name)? {
             self.method_targs = method_targs;
-            return self.method_on(recv, rt, &name, args, (n, bang), want);
+            let result = self.method_on(recv, rt, &name, args, (n, bang), want);
+            self.release_call_pins(pins, n);
+            return result;
         }
         let (recv, rt) = self.expr(base, None)?;
         // A method call through a reference calls it on the referenced

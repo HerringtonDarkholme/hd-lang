@@ -487,6 +487,12 @@ pub(crate) struct Ck<'a, 'c> {
     /// That binding's name while its reference's operand is checked; the
     /// pin of the element it names takes it.
     pub pin_next_owner: Option<Symbol>,
+    /// Whether the element place being checked is a method call's
+    /// receiver, whose pin lasts for the call (`fn.method.auto-address.element`).
+    pub pin_for_call: bool,
+    /// The pins of the receivers of the calls being checked, each the
+    /// local holding its pinned list; each call releases its own.
+    pub call_pins: Vec<LocalId>,
 }
 
 /// A node index kept for a later diagnostic.
@@ -641,6 +647,8 @@ pub(crate) fn new_ck<'a, 'c>(
         pins: Vec::new(),
         pin_owner: None,
         pin_next_owner: None,
+        pin_for_call: false,
+        call_pins: Vec::new(),
     };
     // No local declaration holds byte 0: every local impl starts hidden.
     ck.move_to(0);
@@ -3366,6 +3374,7 @@ impl Ck<'_, '_> {
                     return unsupported("an index target shape");
                 };
                 let (br, bt) = self.expr(*base, None)?;
+                let (br, bt) = self.deref_index_base(br, bt, base.index());
                 // `expr.index.trait.place`: a string is not a place.
                 if self.strip_mut(bt) == Ty::STRING {
                     self.err(

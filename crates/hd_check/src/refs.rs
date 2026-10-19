@@ -276,6 +276,20 @@ impl Ck<'_, '_> {
         (self.b.emit(Tag::CallValue, f.0, rec, t, at), t)
     }
 
+    /// The value `r` of type `t` as an index base (`ref.read.auto.index`):
+    /// a reference to a list, map or string is read through, so the index
+    /// names an element of the referenced value; any other value is
+    /// returned unchanged.
+    pub(crate) fn deref_index_base(&mut self, r: Ref, t: Ty, at: NodeIdx) -> (Ref, Ty) {
+        let Some((inner, _)) = self.ref_of(t) else {
+            return (r, t);
+        };
+        if self.index_kind(inner).is_none() {
+            return (r, t);
+        }
+        self.emit_deref(r, t, at)
+    }
+
     /// Replaces the value the reference `r` of type `rt` refers to with
     /// `v` (`*r = v`): calls its `set` closure.
     pub(crate) fn emit_ref_store(&mut self, r: Ref, rt: Ty, v: Ref, at: NodeIdx) {
