@@ -143,10 +143,13 @@ cargo run -p hd_syntax --example parse_check -- --tree examples/hello/hello.hd
   `engine`, `reason`), and a listed case that passes fails too. Both
   tiers (`hd_driver/tests/conformance.rs`, `hd_cli/tests/cli_conformance.rs`)
   print their counts.
-  The driver tier also runs every runtime case through the linear backend
-  and judges that run by
-  [`KNOWN_FAILURES_LINEAR.tsv`](../KNOWN_FAILURES_LINEAR.tsv) in the same
-  form; its summary line is `driver (linear backend) conformance on ...`.
+  The driver tier also runs each runtime case listed in
+  [`LINEAR_PASSES.tsv`](../LINEAR_PASSES.tsv) (`path`, `note` citing the
+  issue that made it pass) through the linear backend, and each must
+  pass; its summary line is `driver (linear backend) conformance on ...`.
+  The list only grows. `HD_CONFORMANCE_BACKEND=linear cargo test -p
+  hd_driver --test conformance` runs every runtime case through the linear
+  backend and prints the passing cases the list does not name yet.
 
 From the repository root, `cargo test` runs the default members, which
 leave out `hd_run_wasmtime` and the tests that need it. `cargo test --workspace

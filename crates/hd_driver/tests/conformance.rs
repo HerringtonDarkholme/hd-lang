@@ -31,12 +31,14 @@
 //! `HD_CONFORMANCE_TIER=lang|std` selects that tier's runtime cases for
 //! timing, without applying the rule.
 //!
-//! Every runtime case also runs once more through the linear-memory
-//! backend (`hd_driver::Backend::Linear`, `crates/hd_wasm/DESIGN.md`
-//! §23), on the same engines, judged by its own root
-//! `KNOWN_FAILURES_LINEAR.tsv` under the same rule; its digests and
-//! runtime statistics are noted under the path `linear:PATH`. Parse and
-//! type cases build no module, so they run once.
+//! The runtime cases of the root `LINEAR_PASSES.tsv` (`path<TAB>note`)
+//! also run once more through the linear-memory backend
+//! (`hd_driver::Backend::Linear`, `crates/hd_wasm/DESIGN.md` §23), on
+//! the same engines, and each must pass: the list is a ratchet that grows
+//! as the backend's jobs land. `HD_CONFORMANCE_BACKEND=linear` runs every
+//! runtime case through the linear backend as well and prints the passing
+//! cases the list does not name yet, without failing on them. A linear
+//! run's digests and runtime statistics are noted under `linear:PATH`.
 
 use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
@@ -45,8 +47,8 @@ use std::io::{Read as _, Write as _};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use hd_base::Stage;
@@ -1749,13 +1751,87 @@ fn run_case(case: &Case, store: &MemoryStore, serial: usize) -> Verdict {
         Phase::Type => type_case(case, &fixture, store),
         Phase::Runtime => {
             let verdict = runtime_case(case, &fixture, store, serial);
-            linear_case(case, fixture, store, serial);
+            if linear_sweep() || linear_passes().contains_key(&case.path) {
+                linear_case(case, fixture, store, serial);
+            }
             verdict
         }
     }
 }
 
-/// Each runtime case's verdict through the linear backend, by path.
+/// The root list of runtime cases that pass on the linear backend.
+const LINEAR_PASSES: &str = "LINEAR_PASSES.tsv";
+
+/// [`LINEAR_PASSES`]' rows, path to note.
+fn linear_passes() -> &'static BTreeMap<String, String> {
+    static ROWS: OnceLock<BTreeMap<String, String>> = OnceLock::new();
+    ROWS.get_or_init(|| {
+        let text = std::fs::read_to_string(root().join(LINEAR_PASSES))
+            .unwrap_or_else(|e| panic!("{LINEAR_PASSES}: {e}"));
+        parse_linear_passes(&text).unwrap_or_else(|error| panic!("{error}"))
+    })
+}
+
+/// Parses [`LINEAR_PASSES`]: the header `path<TAB>note`, then one row per
+/// case, whose note cites the issue `#N` of the job that made it pass.
+fn parse_linear_passes(text: &str) -> Result<BTreeMap<String, String>, String> {
+    let mut lines = text.lines();
+    if lines.next() != Some("path\tnote") {
+        return Err(format!(
+            "{LINEAR_PASSES} must start with the header `path<TAB>note`"
+        ));
+    }
+    let mut rows = BTreeMap::new();
+    for line in lines.filter(|line| !line.is_empty()) {
+        let [path, note] = line.split('\t').collect::<Vec<_>>()[..] else {
+            return Err(format!("{LINEAR_PASSES} row needs two columns: {line}"));
+        };
+        let cites = note.split('#').skip(1).any(|after| {
+            after
+                .bytes()
+                .next()
+                .is_some_and(|byte| byte.is_ascii_digit())
+        });
+        if path.is_empty() || !cites {
+            return Err(format!(
+                "{LINEAR_PASSES} row needs a path and a note citing its issue #N: {line}"
+            ));
+        }
+        if rows.insert(path.to_owned(), note.to_owned()).is_some() {
+            return Err(format!("{LINEAR_PASSES} repeats a row: {line}"));
+        }
+    }
+    Ok(rows)
+}
+
+/// Whether `HD_CONFORMANCE_BACKEND=linear` runs every runtime case through
+/// the linear backend too.
+fn linear_sweep() -> bool {
+    match selection_env("HD_CONFORMANCE_BACKEND").as_deref() {
+        None | Some("") => false,
+        Some("linear") => true,
+        Some(other) => {
+            panic!("unknown HD_CONFORMANCE_BACKEND: {other}; the backend to sweep is linear")
+        }
+    }
+}
+
+#[test]
+fn linear_passes_rows_cite_an_issue() {
+    let rows = parse_linear_passes("path\tnote\nruntime/valid/a.hd\t#539: no entry point\n")
+        .expect("a valid list");
+    assert_eq!(rows["runtime/valid/a.hd"], "#539: no entry point");
+    for bad in [
+        "path\treason\n",
+        "path\tnote\nruntime/valid/a.hd\tno issue\n",
+        "path\tnote\nruntime/valid/a.hd\n",
+        "path\tnote\nruntime/valid/a.hd\t#539\nruntime/valid/a.hd\t#540\n",
+    ] {
+        assert!(parse_linear_passes(bad).is_err(), "{bad:?} parses");
+    }
+}
+
+/// The linear-run verdict of each runtime case that ran one, by path.
 static LINEAR_VERDICTS: Mutex<BTreeMap<String, Verdict>> = Mutex::new(BTreeMap::new());
 
 /// Runs a runtime case once more, built by the linear backend, and notes
@@ -2217,49 +2293,83 @@ fn specification_conformance_passes_except_known_failures() {
     );
     assert!(
         linear.is_empty(),
-        "linear-backend runs break the KNOWN_FAILURES_LINEAR.tsv rule:\n{}",
+        "linear-backend runs break the LINEAR_PASSES.tsv rule:\n{}",
         linear.join("\n")
     );
 }
 
-/// Applies the rule to the linear backend's run of every runtime case
-/// ([`LINEAR_VERDICTS`]) by `KNOWN_FAILURES_LINEAR.tsv`, prints its
-/// summary and returns its errors, a crash among them.
+/// Judges the linear backend's runs ([`LINEAR_VERDICTS`]) and prints their
+/// summary: every case [`LINEAR_PASSES`] lists must be a runtime case that
+/// passed, and no linear run may crash. A sweep also prints how its other
+/// cases fared and each passing one the list does not name yet.
 fn judge_linear(cases: &[Case], engine: &str) -> Vec<String> {
     let verdicts = LINEAR_VERDICTS.lock().expect("linear verdicts lock");
-    let mut crashes = Vec::new();
-    let outcomes: Vec<Outcome<'_>> = cases
+    let listed = linear_passes();
+    let mut errors = Vec::new();
+    let mut out = String::new();
+    let runtime: BTreeSet<&str> = cases
         .iter()
         .filter(|case| case.phase == Phase::Runtime)
-        .map(|case| Outcome {
-            path: &case.path,
-            bucket: match verdicts.get(&case.path) {
-                Some(Verdict::Pass) => None,
-                Some(Verdict::Fail(code)) => Some(format!("fail:{code}")),
-                Some(Verdict::Unsupported(stage)) => Some(format!("unsupported:{stage}")),
-                Some(Verdict::Crash(message)) => {
-                    crashes.push(format!("{}: linear-backend crash: {message}", case.path));
-                    Some(format!("crash:{message}"))
-                }
-                // A case whose fixture does not load has no linear run.
-                None => Some("unsupported:Discover".to_owned()),
-            },
-        })
+        .map(|case| case.path.as_str())
         .collect();
-    let known = known_failures::load_file(&root(), known_failures::LINEAR);
-    let (summary, mut errors) = known_failures::judge_file(
-        known_failures::LINEAR,
-        "driver (linear backend)",
-        engine,
-        Some(pipeline_name()),
-        &known,
-        |_| true,
-        &outcomes,
+    for path in listed.keys() {
+        if !runtime.contains(path.as_str()) {
+            errors.push(format!(
+                "{path}: no such runtime case: remove its row from {LINEAR_PASSES}"
+            ));
+        } else if !verdicts.contains_key(path) {
+            errors.push(format!(
+                "{path}: its fixture did not load, so it has no linear run"
+            ));
+        }
+    }
+    let (mut pass, mut fail, mut unlisted) = (0, 0, Vec::new());
+    let mut buckets: BTreeMap<String, usize> = BTreeMap::new();
+    for (path, verdict) in verdicts.iter() {
+        let bucket = match verdict {
+            Verdict::Pass => {
+                pass += 1;
+                if !listed.contains_key(path) {
+                    unlisted.push(path.as_str());
+                }
+                continue;
+            }
+            Verdict::Fail(code) => format!("fail:{code}"),
+            Verdict::Unsupported(stage) => format!("unsupported:{stage}"),
+            Verdict::Crash(message) => {
+                errors.push(format!("{path}: linear-backend crash: {message}"));
+                format!("crash:{message}")
+            }
+        };
+        fail += 1;
+        if listed.contains_key(path) {
+            errors.push(format!(
+                "{path}: {bucket} on the linear backend, but {LINEAR_PASSES} lists it as passing"
+            ));
+        }
+        *buckets.entry(bucket).or_default() += 1;
+    }
+    if linear_sweep() {
+        let mut sorted: Vec<_> = buckets.into_iter().collect();
+        sorted.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+        for (bucket, count) in sorted {
+            let _ = writeln!(out, "{count:>5} linear {bucket}");
+        }
+        for path in &unlisted {
+            let _ = writeln!(out, "linear pass, not in {LINEAR_PASSES}: {path}");
+        }
+    }
+    let _ = writeln!(
+        out,
+        "driver (linear backend) conformance on {engine}, {} pipeline: listed {}, pass {pass}, fail {fail}, unlisted passes {}, total {}",
+        pipeline_name(),
+        listed.len(),
+        unlisted.len(),
+        verdicts.len()
     );
     std::io::stdout()
-        .write_all(summary.as_bytes())
+        .write_all(out.as_bytes())
         .expect("print the summary");
-    errors.extend(crashes);
     errors
 }
 

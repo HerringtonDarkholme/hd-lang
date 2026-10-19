@@ -46,7 +46,7 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
         Entry::Unsupported(what) => return unsupported(*what),
     };
     if !input.env.row_keys(main, TyList::EMPTY).is_empty() {
-        return unsupported("an entry with providers (job 3)");
+        return unsupported("an entry with providers (job 3, #540)");
     }
     let ret = input.env.ret(main).unwrap_or(Ty::VOID);
     let results = crate::layout::vals(input.pool, ret)?.len();

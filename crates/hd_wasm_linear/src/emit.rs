@@ -27,7 +27,7 @@ pub fn instance(input: &Input<'_>, _m: &mut Module, _slot: usize, id: InstId) ->
         return unsupported("suspending functions (job 13)");
     }
     if !input.env.row_keys(item, args).is_empty() {
-        return unsupported("providers (job 3)");
+        return unsupported("providers (job 3, #540)");
     }
     let s = |ty: Ty| subst(input.pool, input.env, item, args, ty);
     let mut params = Vec::new();
@@ -44,7 +44,7 @@ pub fn instance(input: &Input<'_>, _m: &mut Module, _slot: usize, id: InstId) ->
     if tail == NONE && !results.is_empty() {
         f.op(wasm_encoder::Instruction::Unreachable);
     } else if tail != NONE && !results.is_empty() {
-        return unsupported("function bodies with a result (job 3)");
+        return unsupported("function bodies with a result (job 3, #540)");
     }
     Ok(f)
 }
@@ -74,7 +74,7 @@ fn block(b: &Body, blk: usize) -> StageResult<()> {
     for &i in b.record(b.data[blk][0]) {
         match b.tags[i as usize] {
             Tag::Block => {}
-            tag => return unsupported(format!("`{}` (job 3)", tag.name())),
+            tag => return unsupported(format!("`{}` (job 3, #540)", tag.name())),
         }
     }
     Ok(())

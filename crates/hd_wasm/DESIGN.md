@@ -1397,7 +1397,7 @@ what the spec names as intrinsic or what only it can build.
 | `rt.rs` | generated runtime pieces: the entry wrapper, panic stubs, the exchange-buffer copies, the wake table | 3 and on |
 | `lib.rs` | `build`: the whole program's module from collection's output, with no per-instance code cache yet | 2, 3 |
 | the switch | `hd_driver::Backend` in `Packages`, `--backend linear` on `hd build`, `hd run` and `hd FILE`, with its spec rules in spec/cli/command-line.md | 2 |
-| conformance on both backends | the driver tier runs every runtime case once more on the linear backend, judged by the root `KNOWN_FAILURES_LINEAR.tsv` (the columns of `KNOWN_FAILURES.tsv`, each row citing an issue) | 2 |
+| conformance on both backends | the driver tier runs each runtime case of the root `LINEAR_PASSES.tsv` (`path`, `note` citing an issue) once more on the linear backend, and each must pass; `HD_CONFORMANCE_BACKEND=linear` sweeps every runtime case and prints the passes not listed yet | 2 |
 | memory intrinsics: load, store, grow, copy, fill | the privileged std module `std.rt.memory`: plain hd declarations whose bodies are `@intrinsic` | 4 |
 | the allocator | hd in `std.rt.alloc`, over `std.rt.memory` | 5 |
 | counts, release glue, the collector | hd in further `std.rt` modules, called by emitted code | 8, 19, 21 |
@@ -1618,8 +1618,8 @@ every copy shares it; growth that moves the buffer is job 9's to place.
 
 | Job | Adds |
 | --- | --- |
-| 2 | the switch, an empty module that runs, the linear conformance mode and its known-failures list |
+| 2 | the switch, an empty module that runs, the linear conformance mode and its pass list |
 | 3 | both memories, the static data segment, globals, the entry wrapper, integer code and panics: hello and integer programs run |
 | 4 | `std.rt.memory`'s intrinsics, with spec rules and hd tests on the linear backend |
 | 5 | `std.rt.alloc`: size classes, pages, the page table, large runs, with hd tests |
-| 6 to 15 | values inline, strings, counts and release glue, lists, maps, closures and `dyn`, references, frames, the host codecs, each removing rows from `KNOWN_FAILURES_LINEAR.tsv` |
+| 6 to 15 | values inline, strings, counts and release glue, lists, maps, closures and `dyn`, references, frames, the host codecs, each adding rows to `LINEAR_PASSES.tsv` |

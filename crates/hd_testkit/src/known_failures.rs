@@ -10,10 +10,6 @@
 //! for a CLI case. `issue` is the GitHub issue `#N` that tracks the fix.
 //! `engine` is empty for every engine, or one engine name (`node`,
 //! `wasmtime`). `reason` says briefly why the case fails.
-//!
-//! `KNOWN_FAILURES_LINEAR.tsv` lists, in the same form, the runtime cases
-//! the linear-memory backend may fail ([`LINEAR`]); the driver tier
-//! judges that backend's run by it.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
@@ -21,12 +17,6 @@ use std::path::Path;
 
 /// The header line of `KNOWN_FAILURES.tsv`.
 pub const HEADER: &str = "path\tissue\tengine\treason";
-
-/// The default list's file name.
-pub const DEFAULT: &str = "KNOWN_FAILURES.tsv";
-
-/// The linear-memory backend's list (`crates/hd_wasm/DESIGN.md` §23).
-pub const LINEAR: &str = "KNOWN_FAILURES_LINEAR.tsv";
 
 /// The engines a row may name.
 pub const ENGINES: [&str; 2] = ["node", "wasmtime"];
@@ -56,39 +46,35 @@ impl KnownFailure {
 /// `#N`, an unknown engine, an empty path or reason, or a repeated path
 /// and engine.
 pub fn parse(text: &str) -> Result<Vec<KnownFailure>, String> {
-    parse_file(DEFAULT, text)
-}
-
-/// [`parse`], for the list in the root file `file`, which its errors name.
-///
-/// # Errors
-/// As [`parse`].
-pub fn parse_file(file: &str, text: &str) -> Result<Vec<KnownFailure>, String> {
     let mut lines = text.lines();
     if lines.next() != Some(HEADER) {
-        return Err(format!("{file} must start with the header `{HEADER}`"));
+        return Err(format!(
+            "KNOWN_FAILURES.tsv must start with the header `{HEADER}`"
+        ));
     }
     let mut rows = Vec::new();
     let mut seen = BTreeSet::new();
     for line in lines.filter(|line| !line.is_empty()) {
         let fields: Vec<&str> = line.split('\t').collect();
         let [path, issue, engine, reason] = fields[..] else {
-            return Err(format!("{file} row needs four columns: {line}"));
+            return Err(format!("KNOWN_FAILURES.tsv row needs four columns: {line}"));
         };
         let number = issue.strip_prefix('#').unwrap_or_default();
         if number.is_empty() || !number.bytes().all(|byte| byte.is_ascii_digit()) {
-            return Err(format!("{file} issue must be #N: {line}"));
+            return Err(format!("KNOWN_FAILURES.tsv issue must be #N: {line}"));
         }
         if !engine.is_empty() && !ENGINES.contains(&engine) {
             return Err(format!(
-                "{file} engine must be empty or one of {ENGINES:?}: {line}"
+                "KNOWN_FAILURES.tsv engine must be empty or one of {ENGINES:?}: {line}"
             ));
         }
         if path.is_empty() || reason.is_empty() {
-            return Err(format!("{file} row needs a path and a reason: {line}"));
+            return Err(format!(
+                "KNOWN_FAILURES.tsv row needs a path and a reason: {line}"
+            ));
         }
         if !seen.insert((path, engine)) {
-            return Err(format!("{file} repeats a row: {line}"));
+            return Err(format!("KNOWN_FAILURES.tsv repeats a row: {line}"));
         }
         rows.push(KnownFailure {
             path: path.to_owned(),
@@ -106,17 +92,9 @@ pub fn parse_file(file: &str, text: &str) -> Result<Vec<KnownFailure>, String> {
 /// If the file cannot be read or does not parse.
 #[must_use]
 pub fn load(root: &Path) -> Vec<KnownFailure> {
-    load_file(root, DEFAULT)
-}
-
-/// [`load`], for the list in the root file `file`.
-///
-/// # Panics
-/// If the file cannot be read or does not parse.
-#[must_use]
-pub fn load_file(root: &Path, file: &str) -> Vec<KnownFailure> {
-    let text = std::fs::read_to_string(root.join(file)).unwrap_or_else(|e| panic!("{file}: {e}"));
-    parse_file(file, &text).unwrap_or_else(|error| panic!("{error}"))
+    let text =
+        std::fs::read_to_string(root.join("KNOWN_FAILURES.tsv")).expect("KNOWN_FAILURES.tsv");
+    parse(&text).unwrap_or_else(|error| panic!("{error}"))
 }
 
 /// One case's result: its path and, unless it passed, its bucket (the
@@ -133,20 +111,6 @@ pub struct Outcome<'a> {
 /// passes, and a row that names no case of the tier.
 #[must_use]
 pub fn judge(
-    tier: &str,
-    engine: &str,
-    pipeline: Option<&str>,
-    known: &[KnownFailure],
-    in_tier: impl Fn(&str) -> bool,
-    outcomes: &[Outcome<'_>],
-) -> (String, Vec<String>) {
-    judge_file(DEFAULT, tier, engine, pipeline, known, in_tier, outcomes)
-}
-
-/// [`judge`], by the list in the root file `file`, which its errors name.
-#[must_use]
-pub fn judge_file(
-    file: &str,
     tier: &str,
     engine: &str,
     pipeline: Option<&str>,
@@ -173,7 +137,7 @@ pub fn judge_file(
             (None, Some(_)) => {
                 pass += 1;
                 errors.push(format!(
-                    "{} passes now: remove its row from {file}",
+                    "{} passes now: remove its row from KNOWN_FAILURES.tsv",
                     outcome.path
                 ));
             }
@@ -189,7 +153,7 @@ pub fn judge_file(
                         fail += 1;
                     }
                     errors.push(format!(
-                        "{}: {bucket}: fix it or list it in {file} with its issue",
+                        "{}: {bucket}: fix it or list it in KNOWN_FAILURES.tsv with its issue",
                         outcome.path
                     ));
                 }
@@ -200,7 +164,7 @@ pub fn judge_file(
     for path in listed.keys() {
         if !seen.contains(path) {
             errors.push(format!(
-                "{path}: no such {tier} case: remove its row from {file}"
+                "{path}: no such {tier} case: remove its row from KNOWN_FAILURES.tsv"
             ));
         }
     }

@@ -1,0 +1,13 @@
+path	note
+runtime/valid/closure-result-keeps-requirement-row.hd	#539: main is private, so no entry point runs
+runtime/valid/doc-test-compile-fail.hd	#539: no entry point runs
+runtime/valid/generic-inherent-box.hd	#539: main is private, so no entry point runs
+runtime/valid/i64-widening-checked.hd	#539: main is private, so no entry point runs
+runtime/valid/index-then-call-element.hd	#539: main is private, so no entry point runs
+runtime/valid/it-each-options.hd	#539: tests only, so no entry point runs
+runtime/valid/no-entry-point-no-tests.hd	#539: no entry point runs
+runtime/valid/ord-supertrait-dispatch.hd	#539: main is private, so no entry point runs
+runtime/valid/result-ok-unit.hd	#539: main is private, so no entry point runs
+runtime/valid/script-empty-run.hd	#539: an empty script runs
+runtime/valid/trait-default-method-instantiates-params.hd	#539: main is private, so no entry point runs
+runtime/valid/u8-checked-add.hd	#539: main is private, so no entry point runs
