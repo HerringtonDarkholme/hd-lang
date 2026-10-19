@@ -17,6 +17,7 @@ pub trait BodyRunner {
 struct Attempt {
     draws: BodyState,
     result: BodyResult,
+    reused: bool,
 }
 
 impl Attempt {
@@ -50,6 +51,7 @@ fn body(
     Ok(Attempt {
         draws,
         result: result?,
+        reused: reuse,
     })
 }
 
@@ -119,11 +121,47 @@ fn execute_property(
             break;
         }
         if current.failed() {
+            if current.reused
+                && let Some(mut plan) = current.draws.plan.clone()
+            {
+                let seed = plan.seed;
+                plan.replay.clone_from(&current.draws.draws);
+                state
+                    .lock()
+                    .property
+                    .as_mut()
+                    .expect("property")
+                    .retry(plan);
+                let replayed = body(state, runner, 0, ordinal, false)?;
+                ordinal += 1;
+                total = total.saturating_add(replayed.result.us);
+                if !replayed.result.ended && (!replayed.failed() || replayed.discarded()) {
+                    let ended = if replayed.discarded() {
+                        "was discarded"
+                    } else {
+                        "passed"
+                    };
+                    let input = current.draws.shown.clone().unwrap_or_default();
+                    let failure = format!(
+                        "input {input} (seed {seed}) failed only after earlier cases ran in the same instance and {ended} when replayed in a fresh instance; the property depends on state left by earlier cases"
+                    );
+                    let mut result = CaseRun::from_body(case.test, current.result);
+                    result.status = 1;
+                    result.trapped = false;
+                    result.panic = None;
+                    result.frames.clear();
+                    result.us = total;
+                    result.input = Some(input);
+                    result.failure = Some(failure);
+                    emit(result);
+                    return Ok(());
+                }
+                current = replayed;
+            }
             let plan = current.draws.plan.clone();
             let mut failing = current;
             if let Some(plan) = plan.filter(|plan| plan.kind != PlanKind::Example) {
                 let budget = state.lock().property.as_ref().expect("property").shrink;
-                let mut reuse = false;
                 failing = property::shrink(
                     failing,
                     budget,
@@ -135,10 +173,9 @@ fn execute_property(
                             .as_mut()
                             .expect("property")
                             .replay(stream.to_vec(), plan.size);
-                        let next = body(state, runner, 0, ordinal, reuse)?;
+                        let next = body(state, runner, 0, ordinal, false)?;
                         ordinal += 1;
                         total = total.saturating_add(next.result.us);
-                        reuse = next.reusable();
                         Ok(if next.draws.plan.is_none() {
                             property::Trial::Unavailable
                         } else if next.failed() {

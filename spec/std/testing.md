@@ -75,8 +75,8 @@ trait Arbitrary:
 11. r[std-testing.arbitrary.std] `std` implements `Arbitrary` for the primitives, `string`, `List[T]`, `Map[K, V]`, `T?`, `Result[T, E]`, and tuples, each when its type arguments implement it.
 12. r[std-testing.arbitrary.reference] `std` also implements `Arbitrary` for `&T` and `&mut T` when `T` implements it. Each draws a `T` and refers to a new object that holds it.
 13. r[std-testing.arbitrary.float] The `Arbitrary` implementations of `f32` and `f64` draw any value of the type, including NaN, both infinities, `-0.0`, and subnormal values, as Hypothesis's `floats()` does.
-14. r[std-testing.it-prop] The runner generates the inputs of each property test case that `it_prop` or `it_prop_with` registers, and shrinks a failing one.
-15. r[std-testing.prop.report] When a property test fails, the runner prints the shrunk input with `Debug`.
+14. r[std-testing.prop.generate-and-shrink] The runner generates inputs for `it_prop` and `it_prop_with`, shrinking a failure only after observing it in a fresh instance.
+15. r[std-testing.prop.failure-input] When a property test fails, the runner prints its failing input with `Debug`.
 16. r[std-testing.prop.examples] Each input in `examples` runs first on every run, before the saved regression streams and the generated cases.
 17. r[std-testing.prop.discard] A case that `assume` discards does not count toward `cases`. The runner generates another case in its place.
 18. r[std-testing.prop.body-no-discard] Only a generator discards a case, through `Choices.assume`. A property body has no `Choices`, so it cannot discard one.
@@ -84,6 +84,9 @@ trait Arbitrary:
 20. r[std-testing.prop.regression-file] The runner saves a failing property's shrunk choice stream in `<package root>/__regressions__/<module>/<test-slug>`. `<module>` and `<test-slug>` are as for a [snapshot file](#snapshot-files).
 21. r[std-testing.prop.regression-format] The file holds the stream's draws in order, one decimal number per line.
 22. r[std-testing.prop.regression-replay] On the next run, the runner replays a property's saved stream before it generates new cases.
+23. r[std-testing.prop.shared-instance] Within a property test, each case reuses the preceding case's instance when that case completed successfully.
+24. r[std-testing.prop.shrink-fresh] Each shrink attempt runs in a fresh program instance.
+25. r[std-testing.prop.state-dependent-failure] A failure absent from fresh-instance replay fails with its input, seed, and explanation of earlier cases' state, without shrinking or saving a regression.
 
 ```text
 use std.testing.{Arbitrary, Choices}

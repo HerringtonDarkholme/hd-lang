@@ -199,7 +199,8 @@ async function runTests(
           };
         }),
       },
-      createHost: (sink, env) => createWebHost(sink, { ...env, files }),
+      // The shared runner updates this per-instance environment between bodies.
+      createHost: (sink, env) => createWebHost(sink, Object.assign(env, { files })),
       files,
       // No supervisor: the playground's run limit stops a body that never
       // yields.
@@ -242,6 +243,7 @@ async function runTests(
           stderr: record.stderr ?? "",
           category: record.category,
           message: record.message,
+          failure: record.failure,
         },
         test.expectPanic,
       );

@@ -45,6 +45,46 @@ fn successful_property_bodies_reuse_one_instance_in_seed_order() {
     );
 }
 
+#[test]
+fn a_shared_instance_failure_that_passes_fresh_replay_is_not_shrunk_or_saved() {
+    let owner = State::new(TestCase::default());
+    let root = std::path::PathBuf::from(owner.temp_dir().unwrap());
+    let path = root.join("regression");
+    let (mut calls, mut count) = (Vec::new(), 0);
+    let mut seeds = Vec::new();
+    let mut fake = Fake(|state: State, reuse: bool| {
+        calls.push(reuse);
+        if !reuse {
+            count = 0;
+        }
+        count += 1;
+        let plan = state.start(5, 20, 0)?.expect("plan");
+        seeds.push(plan.seed);
+        state.record(1);
+        state.show("1");
+        Ok(BodyResult {
+            status: if count == 3 { 3 } else { 0 },
+            trapped: count == 3,
+            us: 1,
+            ..BodyResult::default()
+        })
+    });
+    let case = TestCase {
+        seed: Some(10),
+        regression: Some(path.clone()),
+        ..TestCase::default()
+    };
+    let mut results = Vec::new();
+    execute_case(&case, &mut fake, &mut |result| results.push(result)).unwrap();
+    assert_eq!(calls, [false, true, true, false]);
+    assert_eq!(seeds, [10, 11, 12, 12]);
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].input.as_deref(), Some("1"));
+    let message = results[0].failure.as_deref().expect("runner failure");
+    assert!(message.contains("seed 12") && message.contains("state left by earlier cases"));
+    assert!(!path.exists());
+}
+
 fn discarded() -> BodyResult {
     BodyResult {
         status: 3,
@@ -254,7 +294,7 @@ fn retained_adapter_is_finalized_on_both_success_and_error() {
 }
 
 #[test]
-fn shrinks_save_recorded_draws_and_only_passing_attempts_reuse_instances() {
+fn shrinks_save_recorded_draws_and_every_attempt_is_fresh() {
     let owner = State::new(TestCase::default());
     let root = std::path::PathBuf::from(owner.temp_dir().expect("regression root"));
     let path = root.join("regressions/one");
@@ -287,7 +327,7 @@ fn shrinks_save_recorded_draws_and_only_passing_attempts_reuse_instances() {
     };
     let mut results = Vec::new();
     execute_case(&case, &mut fake, &mut |result| results.push(result)).expect("shrink run");
-    assert_eq!(reuse_flags, [false, false, false, true, false, true, false]);
+    assert_eq!(reuse_flags, [false; 7]);
     assert_eq!(std::fs::read_to_string(&path).expect("saved"), "3\n");
     assert_eq!(results[0].input.as_deref(), Some("3"));
     assert_eq!(results[0].us, 7);

@@ -74,6 +74,8 @@ pub struct CaseRun {
     pub us: u64,
     pub row: Option<(u32, u32)>,
     pub input: Option<String>,
+    /// A runner-level failure, judged before an expected guest panic.
+    pub failure: Option<String>,
     pub panic: Option<PanicInfo>,
     /// A Wasm trap's frames, innermost first: function index and module
     /// byte offset (`crates/hd_wasm/DESIGN.md` §15.9).
@@ -108,6 +110,7 @@ impl CaseRun {
             us: body.us,
             row: None,
             input: None,
+            failure: None,
             panic: body.panic,
             frames: body.frames,
             snapshots: Vec::new(),

@@ -2,7 +2,8 @@
 // the playground (website/playground/src/rust-runner.ts). It uses
 // web-standard APIs only; the caller hands it what touches the platform.
 // The test program is compiled once; each case runs in its own fresh
-// instance (module.testing.instance), its module's init export first, then
+// instance (module.testing.instance); a property reuses it while bodies
+// succeed (std-testing.prop.shared-instance). Its module's init export runs first, then
 // its test export polled to completion (docs/compiler/engines-and-test-runner.md §19.3).
 //
 // This file is the test runner's side of `std.testing`
@@ -13,7 +14,7 @@
 //   ran in the first instance; each later row runs in an instance of its
 //   own, and every row is reported (std-testing.it-each, .it-each.name).
 // - `PropertyRunner.start(...)`: a property case. The runner runs it once
-//   per case, each in a fresh instance: the examples first, then a saved
+//   per case in one instance while bodies succeed: the examples first, then a saved
 //   regression stream, then `cases` generated cases from consecutive
 //   seeds (std-testing.prop.examples, .prop.regression-replay,
 //   .runner.case.seed-step). A discarded case does not count, and more
@@ -21,7 +22,7 @@
 //   (std-testing.prop.discard, .prop.discard-limit). A failing case's
 //   choice stream is shrunk, at most `shrink` attempts, its shrunk stream
 //   saved, and the shrunk input's `Debug` text reported
-//   (std-testing.it-prop, .prop.regression-file, .prop.report).
+//   (std-testing.prop.generate-and-shrink, .prop.regression-file, .prop.failure-input).
 //
 // Each run of a body gets a temporary directory of its own: the case's
 // `tempDir` for the first, a numbered directory inside it for each later
@@ -33,7 +34,8 @@
 // panic as the host recorded them, which a runner judges instead of the
 // report on standard error. A row's record also has `row` and `rows`;
 // an empty table is one record with `rows: 0` and no result. A property's
-// record adds the shrunk input's text as `input` when it fails. An update
+// record adds its failing input's text as `input` and an optional runner
+// `failure` when fresh replay cannot reproduce it. An update
 // run's record adds `updates`, its recorded snapshots (`encodeUpdates`).
 //
 // `judge` and `panicOf` are what a result comes to for a runner that
@@ -86,26 +88,20 @@ class Runner {
     this.notify({ type: "limit", at: this.deadline });
   }
 
-  // One run of a case's body in a fresh instance: its `k`th, with the
-  // runner hooks `runner` (null for none).
-  async runOnce(c, k, runner) {
-    let stdout = "";
-    let stderr = "";
+  release() {
+    this.live?.host.close();
+    this.live = null;
+  }
+
+  // Successful property bodies retain their instance and import object.
+  // Rows, failures and every shrink attempt get a fresh instance.
+  async runOnce(c, k, runner, reuse = false) {
     const dir = c.tempDir && k > 0 ? this.files.join(c.tempDir, String(k)) : c.tempDir;
-    // An update run of an `it` case records its snapshots instead of
-    // failing at them (cli.test.snapshot.update); `updates` is the list.
     const updates = c.snapshot?.update && c.kind === "it" ? [] : null;
-    const host = this.createHost(
-      {
-        out: (text) => {
-          stdout += text;
-        },
-        err: (text) => {
-          stderr += text;
-        },
-        fact: (label) => this.notify({ type: "fact", label }),
-      },
-      {
+    if (!reuse) this.release();
+    if (!this.live) {
+      const io = { stdout: "", stderr: "" };
+      const env = {
         args: this.config.args,
         program: this.config.program,
         programs: this.config.programs ?? null,
@@ -117,24 +113,75 @@ class Runner {
         updates,
         runner,
         deadline: this.deadline,
-      },
-    );
+      };
+      const host = this.createHost(
+        {
+          out: (text) => {
+            io.stdout += text;
+          },
+          err: (text) => {
+            io.stderr += text;
+          },
+          fact: (label) => this.notify({ type: "fact", label }),
+        },
+        env,
+      );
+      this.live = { host, env, io, instance: null, repeated: null };
+    }
+    const live = this.live;
+    const { host, env, io } = live;
+    io.stdout = "";
+    io.stderr = "";
+    Object.assign(env, { runner, tempDir: dir, updates });
+    // The providers read this per-body state through their existing cells.
+    const st = host.core.st;
+    Object.assign(st, {
+      reported: false,
+      panic: null,
+      timeoutMs: null,
+      deadline: st.baseDeadline,
+      snapshots: 0,
+      tempMade: false,
+      payload: null,
+    });
     const t0 = performance.now();
-    const instance = await WebAssembly.instantiate(this.module, host.imports);
-    const ran = await host.run(instance, `hd.init.${c.init}`, `hd.test.${c.test}`);
+    const fresh = live.instance === null;
+    if (fresh) {
+      live.instance = await WebAssembly.instantiate(this.module, host.imports);
+      // The entry driver always calls an init export. A retained instance
+      // has already initialized its modules, so give that driver a no-op.
+      live.repeated = { exports: { ...live.instance.exports, "case.init": () => {} } };
+    }
+    const ran = await host.run(
+      fresh ? live.instance : live.repeated,
+      fresh ? `hd.init.${c.init}` : "case.init",
+      `hd.test.${c.test}`,
+    );
     const { trapped, ended, frames, panic } = ran;
     this.notify({ type: "done" });
-    // A run that ends with a host handle still open fails, naming each
-    // kind and its count; closing the host closes the handles
-    // (cli.test.leak).
     const leaks = host.leaks?.() ?? [];
     const leaked = !trapped && ran.status === 0 && leaks.length > 0;
     const status = leaked ? 1 : ran.status;
-    if (leaked) stderr += leakReport(leaks);
-    host.close();
+    if (leaked) io.stderr += leakReport(leaks);
     if (dir) this.files.remove(dir);
+    // A platform-created temporary directory is per body too.
+    if (st.ownTemp) {
+      this.files.remove(st.ownTemp);
+      st.ownTemp = null;
+    }
     const us = Math.round((performance.now() - t0) * 1000);
-    return { status, trapped, ended, stdout, stderr, us, frames, panic: panic ?? null, updates };
+    if (trapped || status !== 0 || ended) this.release();
+    return {
+      status,
+      trapped,
+      ended,
+      stdout: io.stdout,
+      stderr: io.stderr,
+      us,
+      frames,
+      panic: panic ?? null,
+      updates,
+    };
   }
 }
 
@@ -155,6 +202,7 @@ const result = (c, r, extra = {}) => ({
   us: r.us,
   ...(r.trapped && r.panic ? { category: r.panic.category, message: r.panic.message } : {}),
   ...(r.trapped && r.frames?.length ? { frames: r.frames } : {}),
+  ...(r.failure === undefined ? {} : { failure: r.failure }),
   ...(r.updates?.length ? { updates: encodeUpdates(r.updates) } : {}),
 });
 
@@ -252,6 +300,11 @@ class Property {
 
   // The case the next `start` returns, or null when nothing is left.
   next() {
+    if (this.retry) {
+      const plan = this.retry;
+      this.retry = null;
+      return plan;
+    }
     const seed = this.seed;
     this.seed += 1n;
     if (this.pending !== null) {
@@ -300,7 +353,7 @@ const simpler = (a, b) => {
   return false;
 };
 
-// Shrinks a failing case's choice stream (std-testing.it-prop): deletes
+// Shrinks a failing case's choice stream (std-testing.prop.generate-and-shrink): deletes
 // blocks of draws, zeroes them, and moves each draw toward 0 by halving
 // the distance, keeping each attempt that still fails with a simpler
 // stream. Each attempt is a run of its own; there are at most `budget`.
@@ -357,20 +410,38 @@ async function runProperty(runner, c, ctl, first, firstResult) {
   const p = ctl.prop;
   let k = 1;
   let total = firstResult.us;
-  const again = async (pending) => {
+  const again = async (pending, reuse = false) => {
     p.pending = pending;
     const run = new Run();
-    const r = await runner.runOnce(c, k++, ctl.hooks(run));
+    const r = await runner.runOnce(c, k++, ctl.hooks(run), reuse);
     total += r.us;
-    return { run, r, outcome: outcome(run, r) };
+    return { run, r, outcome: outcome(run, r), reused: reuse };
   };
   let current = { run: first, r: firstResult, outcome: outcome(first, firstResult) };
   for (;;) {
-    const { run, outcome: o } = current;
+    let { run, outcome: o } = current;
     if (o === "ended") break;
     if (o === "fail") {
       // An example is reported as it is; a generated or saved case is
       // shrunk first.
+      if (current.reused && run.plan) {
+        p.retry = { ...run.plan, replay: [...run.draws] };
+        const replayed = await again(null);
+        if (replayed.outcome === "pass" || replayed.outcome === "discard") {
+          const ended = replayed.outcome === "pass" ? "passed" : "was discarded";
+          const failure = `input ${run.shown ?? ""} (seed ${run.plan.seed}) failed only after earlier cases ran in the same instance and ${ended} when replayed in a fresh instance; the property depends on state left by earlier cases`;
+          runner.emit(
+            result(
+              c,
+              { ...current.r, status: 1, trapped: false, us: total, failure },
+              { input: run.shown ?? "" },
+            ),
+          );
+          return;
+        }
+        current = replayed;
+        run = current.run;
+      }
       let failing = current;
       if (run.plan && run.plan.kind !== "example") {
         const size = run.plan.size;
@@ -406,7 +477,7 @@ async function runProperty(runner, c, ctl, first, firstResult) {
       p.size += 1;
     }
     if (!p.more()) break;
-    current = await again(null);
+    current = await again(null, o === "pass");
   }
   runner.emit(result(c, { ...firstResult, status: 0, trapped: false, us: total }));
 }
@@ -417,42 +488,47 @@ async function runProperty(runner, c, ctl, first, firstResult) {
 export async function runCases(options, start = { case: 0, row: 0, rows: 0 }) {
   const runner = new Runner(options);
   const { cases } = runner.config;
-  for (let ci = start.case; ci < cases.length; ci++) {
-    const c = cases[ci];
-    runner.notify({ type: "case", ci });
-    runner.begin();
-    const ctl = new Case(runner, c);
-    // Every row runs; one failing row hides no other.
-    const rowsFrom = async (from, rows) => {
-      for (let row = from; row < rows; row++) {
-        ctl.row = row;
-        runner.notify({ type: "row", row });
-        runner.begin();
-        runner.emit(result(c, await runner.runOnce(c, row, ctl.hooks(new Run())), { row, rows }));
-      }
-    };
-    // A table resumed after a row its supervisor stopped.
-    if (ci === start.case && start.row > 0) {
-      ctl.kind = "rows";
-      ctl.rows = start.rows;
-      await rowsFrom(start.row, start.rows);
-      continue;
-    }
-    const first = new Run();
-    const r = await runner.runOnce(c, 0, ctl.hooks(first));
-    if (ctl.kind === "rows") {
-      const rows = ctl.rows;
-      if (rows === 0) {
-        runner.emit({ test: c.test, row: 0, rows: 0 });
+  try {
+    for (let ci = start.case; ci < cases.length; ci++) {
+      const c = cases[ci];
+      runner.notify({ type: "case", ci });
+      runner.release();
+      runner.begin();
+      const ctl = new Case(runner, c);
+      // Every row runs; one failing row hides no other.
+      const rowsFrom = async (from, rows) => {
+        for (let row = from; row < rows; row++) {
+          ctl.row = row;
+          runner.notify({ type: "row", row });
+          runner.begin();
+          runner.emit(result(c, await runner.runOnce(c, row, ctl.hooks(new Run())), { row, rows }));
+        }
+      };
+      // A table resumed after a row its supervisor stopped.
+      if (ci === start.case && start.row > 0) {
+        ctl.kind = "rows";
+        ctl.rows = start.rows;
+        await rowsFrom(start.row, start.rows);
         continue;
       }
-      runner.emit(result(c, r, { row: 0, rows }));
-      await rowsFrom(1, rows);
-    } else if (ctl.kind === "prop") {
-      await runProperty(runner, c, ctl, first, r);
-    } else {
-      runner.emit(result(c, r));
+      const first = new Run();
+      const r = await runner.runOnce(c, 0, ctl.hooks(first));
+      if (ctl.kind === "rows") {
+        const rows = ctl.rows;
+        if (rows === 0) {
+          runner.emit({ test: c.test, row: 0, rows: 0 });
+          continue;
+        }
+        runner.emit(result(c, r, { row: 0, rows }));
+        await rowsFrom(1, rows);
+      } else if (ctl.kind === "prop") {
+        await runProperty(runner, c, ctl, first, r);
+      } else {
+        runner.emit(result(c, r));
+      }
     }
+  } finally {
+    runner.release();
   }
 }
 
@@ -484,6 +560,7 @@ export function panicOf(record) {
 // "failed", message }`, or `{ outcome: "panicked", category, message,
 // debug }`.
 export function judge(record, expectPanic) {
+  if (record.failure !== undefined) return { outcome: "failed", message: record.failure };
   if (record.trapped) {
     const panic = panicOf(record);
     if (panic.category === expectPanic) return { outcome: "passed" };

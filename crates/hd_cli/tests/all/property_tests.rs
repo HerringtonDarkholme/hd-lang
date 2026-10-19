@@ -101,7 +101,7 @@ assert(n % 2 == 0, reason=\"assume discards odd values\")\n    )\n\n    \
 it_prop_with(\"eight small values\", gen=small, cases=8, prop=fn!(n: i64):\n        \
 assert(n >= 0 && n <= 9, reason=\"from 0 to 9\")\n    )\n";
 
-/// `std-testing.it-prop`, `.prop.report`, `.prop.discard`,
+/// `std-testing.prop.generate-and-shrink`, `.prop.failure-input`, `.prop.discard`,
 /// `.prop.regression-file`, `.prop.regression-format`,
 /// `.prop.regression-replay`, `cli.test.seed.report`: a passing property, a
 /// failing one shrunk to its least input and printed with `Debug`, an

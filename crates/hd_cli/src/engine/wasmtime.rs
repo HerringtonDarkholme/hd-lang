@@ -168,6 +168,7 @@ fn case_run(case: hd_run_wasmtime::testing::CaseRun) -> CaseRun {
         us: case.us,
         row: case.row,
         input: case.input,
+        failure: case.failure,
         frames: case.frames,
         snapshots: case
             .snapshots

@@ -47,6 +47,7 @@ pub(crate) struct Property {
     pub(crate) discarded: u64,
     replays: VecDeque<Vec<i64>>,
     pending: Option<(Vec<i64>, i64)>,
+    retry: Option<Plan>,
 }
 
 impl Property {
@@ -68,10 +69,14 @@ impl Property {
             discarded: 0,
             replays: replays.into(),
             pending: None,
+            retry: None,
         }
     }
 
     pub(crate) fn next(&mut self) -> Result<Option<Plan>, String> {
+        if let Some(plan) = self.retry.take() {
+            return Ok(Some(plan));
+        }
         if self.pending.is_none() && !self.more() {
             return Ok(None);
         }
@@ -110,6 +115,10 @@ impl Property {
             self.passed += 1;
             self.size += 1;
         }
+    }
+
+    pub(crate) fn retry(&mut self, plan: Plan) {
+        self.retry = Some(plan);
     }
 
     pub(crate) fn replay(&mut self, replay: Vec<i64>, size: i64) {

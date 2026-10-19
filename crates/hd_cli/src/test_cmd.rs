@@ -1378,6 +1378,11 @@ fn run(
 /// A finished case's outcome (`module.testing.passes`, `module.testing.fails`,
 /// `module.testing.expect-panic-fail`).
 fn judge(case: &TestCase, run: &CaseRun, frames: Vec<String>) -> CaseResult {
+    if let Some(message) = &run.failure {
+        return CaseResult::Failed {
+            message: message.clone(),
+        };
+    }
     if run.trapped {
         // The host's recorded panic, never the standard error text, which
         // a program's own message could imitate. A trap without one is
@@ -1451,7 +1456,7 @@ fn category_of(category: &str, message: &str) -> (String, String) {
 /// object per case instead (`cli.json.test.result`), then the summary.
 struct Report {
     rep: Reporter,
-    /// A failed property case's shrunk input (`std-testing.prop.report`).
+    /// A failed property case's input, shrunk when applicable (`std-testing.prop.failure-input`).
     inputs: hd_base::HashMap<CaseKey, String>,
     text: String,
     passed: usize,
@@ -1639,6 +1644,24 @@ fn shell_quoted(word: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::{TempDirs, TestCase, collapse, parse_with_engine, repro, shell_quoted};
+
+    #[test]
+    fn runner_failure_cannot_pass_as_an_expected_panic() {
+        let mut case = case("stateful", "it_prop");
+        case.expect_panic = Some("explicit-panic".into());
+        let run = super::CaseRun {
+            status: 3,
+            trapped: true,
+            panic: Some(super::Panic {
+                category: "explicit-panic".into(),
+                message: "guest".into(),
+            }),
+            failure: Some("state from earlier cases".into()),
+            ..super::CaseRun::default()
+        };
+        assert!(matches!(super::judge(&case, &run, Vec::new()),
+            super::CaseResult::Failed { message } if message == "state from earlier cases"));
+    }
 
     #[test]
     fn repeated_frames_collapse_into_a_count() {

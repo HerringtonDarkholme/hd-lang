@@ -282,9 +282,10 @@ pub struct CaseRun {
     /// (`std-testing.it-each.name`). A table with no rows is one result
     /// with `rows` 0 and no outcome.
     pub row: Option<(u32, u32)>,
-    /// A failed property's shrunk input, as `Debug` shows it
-    /// (`std-testing.prop.report`).
+    /// A failed property's input, shrunk when applicable, as `Debug` shows it
+    /// (`std-testing.prop.failure-input`).
     pub input: Option<String>,
+    pub failure: Option<String>,
     /// A Wasm trap's frames, innermost first: function index and module
     /// byte offset (`crates/hd_wasm/DESIGN.md` §15.9).
     pub frames: Vec<(u32, u32)>,
@@ -612,6 +613,7 @@ fn parse_case(line: &str) -> Option<CaseRun> {
                 "stdout" => r.stdout = v,
                 "stderr" => r.stderr = v,
                 "input" => r.input = Some(v),
+                "failure" => r.failure = Some(v),
                 "updates" => r.snapshots = parse_updates(&v)?,
                 "category" => r.panic.get_or_insert_with(Panic::default).category = v,
                 "message" => r.panic.get_or_insert_with(Panic::default).message = v,

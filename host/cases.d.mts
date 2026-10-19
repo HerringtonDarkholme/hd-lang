@@ -43,8 +43,9 @@ export interface CaseRecord {
   stderr?: string;
   us?: number;
   frames?: [number, number][];
-  /** A failed property case's shrunk input. */
+  /** A failed property case's input, shrunk when applicable. */
   input?: string;
+  failure?: string;
   /** A trapped run's panic as the host recorded it. */
   category?: string;
   message?: string;
@@ -72,6 +73,7 @@ export interface Panic {
 
 /** The fields of a result record that judging it reads. */
 export interface JudgedRecord {
+  failure?: string;
   status: number;
   trapped: boolean;
   stderr: string;

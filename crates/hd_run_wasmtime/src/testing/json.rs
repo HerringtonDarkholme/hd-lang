@@ -125,6 +125,11 @@ impl CaseRun {
             stderr: string("stderr")?,
             us: integer("us")?,
             row,
+            failure: if object.contains_key("failure") {
+                Some(string("failure")?)
+            } else {
+                None
+            },
             input,
             panic,
             frames,
@@ -155,6 +160,14 @@ impl CaseRun {
                 serde_json::to_string(&panic.message).expect("serialize string")
             )
             .expect("write string");
+        }
+        if let Some(failure) = &self.failure {
+            write!(
+                line,
+                ",\"failure\":{}",
+                serde_json::to_string(failure).expect("serialize string")
+            )
+            .expect("write result");
         }
         if let Some(input) = &self.input {
             write!(
@@ -206,7 +219,8 @@ impl CaseRun {
                 .as_ref()
                 .map(|p| (p.category.clone(), p.message.clone()))
         };
-        panic(self) == panic(other)
+        self.failure == other.failure
+            && panic(self) == panic(other)
             && self.test == other.test
             && self.status == other.status
             && self.trapped == other.trapped
@@ -237,6 +251,7 @@ mod tests {
             us: 123,
             row: Some((1, 2)),
             input: Some("x".into()),
+            failure: Some("state left by an earlier case".into()),
             panic: Some(crate::testing::PanicInfo {
                 category: "explicit-panic".into(),
                 message: "a\npanic: integer-overflow: \"b\"".into(),
