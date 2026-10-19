@@ -1,0 +1,18 @@
+# test: a key rejected by every Index impl reports only the selection error
+# expr.index.trait.read-other; the primary code discrepancy is tracked by #555.
+use std.ops.Index
+
+data Table:
+    value: i32
+
+impl Index[usize] for Table:
+    type Out = i32
+    fn index(self, key: usize) -> i32: self.value
+
+impl Index[string] for Table:
+    type Out = i32
+    fn index(self, key: string) -> i32: self.value
+
+pub fn main() -> void $ Console:
+    table := Table { value: +1 }
+    println("${table[+0]}")  # diagnostic: unsatisfied-trait-bound

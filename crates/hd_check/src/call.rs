@@ -4267,6 +4267,12 @@ impl Ck<'_, '_> {
             self_ty: st,
             args: pool.list(&av),
         };
+        let answer = self.solve(tref)?;
+        // A rejected trait has no associated value. Its bound reports the
+        // error; consumers of this projection must not add follow-ons.
+        if matches!(answer, Answer::Fails(_)) {
+            return Ok(Ty::POISON);
+        }
         if let hd_types::solver::Answer::Holds {
             evidence:
                 Evidence::Impl {
@@ -4274,7 +4280,7 @@ impl Ck<'_, '_> {
                     args: impl_args,
                 },
             learned,
-        } = self.solve(tref)?
+        } = answer
             && (learned.is_empty() || !pool.has_infer(st))
             && let Some(table) = self.cx.impl_table(row.module)
         {
