@@ -23,6 +23,7 @@ use crate::{Input, unsupported};
 
 mod count;
 mod list;
+mod map;
 mod text;
 mod value;
 
@@ -701,7 +702,21 @@ impl Em<'_, '_, '_> {
                         self.f.helper(Helper::StrEq);
                         self.store(i)?;
                     }
-                    _ => return unsupported("map kernels (job 10)"),
+                    Some(IntrinsicOp::MapLen) => self.map_len(i, args[0])?,
+                    Some(
+                        op @ (IntrinsicOp::MapIndex
+                        | IntrinsicOp::MapIndexMut
+                        | IntrinsicOp::MapGet
+                        | IntrinsicOp::MapSet
+                        | IntrinsicOp::MapRemove),
+                    ) => self.map_op(i, op, &args)?,
+                    Some(IntrinsicOp::MapSlots) => self.map_slots(i, args[0])?,
+                    Some(IntrinsicOp::MapSlotNext) => self.map_slot_next(i, &args)?,
+                    Some(IntrinsicOp::MapSlotEntry) => self.map_slot_entry(i, args[0], args[1])?,
+                    Some(IntrinsicOp::MapIter) => {
+                        return unsupported("map iterators, which hold a closure (job 11)");
+                    }
+                    _ => return unsupported("an intrinsic operation without its kernel"),
                 }
             }
             Tag::Hook => {}
@@ -737,7 +752,8 @@ impl Em<'_, '_, '_> {
             Tag::Is => self.is(i, a, bw)?,
             Tag::NewList => self.new_list(i, a, bw)?,
             Tag::ForList => return unsupported("a `for` over a list that lowering kept"),
-            Tag::NewMap | Tag::ForMap => return unsupported("maps (job 10)"),
+            Tag::NewMap => self.new_map(i, bw)?,
+            Tag::ForMap => return unsupported("a `for` over a map that lowering kept"),
             Tag::Closure | Tag::ItemRef | Tag::CallValue | Tag::CallDyn => {
                 return unsupported("function and `dyn` values (job 11)");
             }
@@ -942,6 +958,7 @@ impl Em<'_, '_, '_> {
                 self.store_owned(i)
             }
             "block_on" => self.block_on(i, args[0]),
+            "map_hash_seed" => self.hash_seed(i),
             "bytes_len" => {
                 self.comp(args[0], 1)?;
                 self.store(i)

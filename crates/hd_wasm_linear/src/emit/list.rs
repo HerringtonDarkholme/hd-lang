@@ -44,7 +44,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// A local holding list value `r`'s header.
-    fn header(&mut self, r: u32) -> StageResult<u32> {
+    pub(super) fn header(&mut self, r: u32) -> StageResult<u32> {
         let h = self.f.local(Val::I32);
         self.comp(r, 0)?;
         self.f.set(h);
@@ -121,7 +121,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// One more count on each counted reference of `s`, a value of type `t`.
-    fn retain_src(&mut self, s: &Src, t: Ty) -> StageResult<()> {
+    pub(super) fn retain_src(&mut self, s: &Src, t: Ty) -> StageResult<()> {
         match s {
             Src::Ref(r) => self.retain_ref(*r),
             Src::Locals(ls) => self.retain_locals(ls, t),
@@ -421,7 +421,9 @@ impl Em<'_, '_, '_> {
     /// collection, so that a change during the loop copies its buffer
     /// first (`flow.for.snapshot`).
     pub(super) fn snap_begin(&mut self, i: u32, coll: u32) -> StageResult<()> {
-        self.elem(self.ty_of(coll))?;
+        if self.input.runtime.is_none() {
+            return unsupported("collections without std's allocator");
+        }
         self.comp(coll, 0)?;
         self.f.helper(Helper::ListCopy);
         self.store_owned(i)

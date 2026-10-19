@@ -9,6 +9,7 @@ use hd_types::{Ty, TyData, TyList};
 use wasm_encoder::{BlockType, Instruction};
 
 use crate::layout::{Leaf, Walk};
+use crate::map::{self, KeyOps};
 use crate::module::{BUF, EMPTY, Func, Global, HEADER, HEAP, Import, Ins, Module, Sym, Val, mem};
 use crate::{Entry, Input, unsupported};
 
@@ -89,6 +90,27 @@ pub enum Helper {
     /// buffer it shares is copied, and with `push` a full one is moved to
     /// a larger one.
     ListUnique { elem: Elem, push: bool },
+    /// `(capacity) -> table`: a new, empty map table (`map.rs`) with room
+    /// for `capacity` entries laid out as `entry`, its index cleared.
+    MapTable { entry: map::Entry },
+    /// `(payload)`: the release glue of a map table: one count less on
+    /// each counted reference of each live entry.
+    DropEntries { entry: map::Entry },
+    /// `(key) -> i32`: a key's bucket hash, made non-negative.
+    MapHash { key: Vec<Val>, ops: KeyOps },
+    /// `(table, hash, key) -> entry`: the number of the key's entry, or -1.
+    MapFind { entry: map::Entry, ops: KeyOps },
+    /// `(map, hash, key, value)`: puts the entry, taking over one count of
+    /// the key and of the value; the map's table is its own already.
+    MapPut { entry: map::Entry, ops: KeyOps },
+    /// `(map)`: moves the map's full table to one with room.
+    MapGrow { entry: map::Entry },
+    /// `(map)`: makes the map's table its own before a change: a table it
+    /// shares is copied, its entries taking their own counts.
+    MapUnique { entry: map::Entry },
+    /// `(map, pos, end) -> slot`: the first live entry in `pos..end`, or
+    /// `end`.
+    MapSlotNext,
     /// `(list: List[u8]) -> string`: a new string of the list's bytes,
     /// which std has checked are UTF-8.
     StrFromBytes,
@@ -157,11 +179,12 @@ pub const LIST_PINS: u64 = 4;
 pub const LIST_LEN: u64 = 4;
 pub const LIST_ELEMS: u32 = 8;
 
-/// The address of the one static empty list buffer, shared by every empty
-/// list literal. Its count word is 2, so a change always copies it first,
-/// and as static data it is never counted.
+/// The address of the one static empty buffer, shared by every empty list
+/// and map literal: its payload's 16 zero bytes are an empty list buffer
+/// and an empty map table. Its count word is 2, so a change always copies
+/// it first, and as static data it is never counted.
 pub fn empty_buffer(m: &mut Module) -> u32 {
-    let mut bytes = [0u8; 16];
+    let mut bytes = [0u8; 24];
     bytes[0] = 2;
     m.static_bytes(&bytes, 8) + HEADER
 }
@@ -499,6 +522,14 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         Helper::CopyElems { elem } => copy_elems(elem, m),
         Helper::ListUnique { elem, push } => list_unique(elem, *push, m),
+        Helper::MapTable { entry } => map::table(entry),
+        Helper::DropEntries { entry } => map::drop_entries(entry),
+        Helper::MapHash { key, ops } => map::hash(key, ops),
+        Helper::MapFind { entry, ops } => map::find(entry, ops),
+        Helper::MapPut { entry, ops } => map::put(entry, ops),
+        Helper::MapGrow { entry } => map::grow(entry, m),
+        Helper::MapUnique { entry } => map::unique(entry, m),
+        Helper::MapSlotNext => map::slot_next(),
         Helper::StrFromBytes => str_from_bytes(),
         Helper::ConcatAll => concat_all(),
         Helper::StrCmp => str_cmp(),
@@ -974,7 +1005,7 @@ fn host_prim(name: &str, args: &[PrimArg], result: Option<Val>) -> Func {
 
 /// What retains the address on the stack: std's `retain`, or nothing when
 /// the program counts nothing.
-fn retain_call(m: &Module) -> impl Fn(&mut Func) {
+pub(crate) fn retain_call(m: &Module) -> impl Fn(&mut Func) {
     let retain = m.runtime.map(|r| r.retain);
     move |f: &mut Func| match retain {
         Some(k) => f.call(Sym::Inst(k)),
@@ -984,7 +1015,12 @@ fn retain_call(m: &Module) -> impl Fn(&mut Func) {
 
 /// Emits `walk` over the values that `get(k)` pushes, running `on` with
 /// each counted address on the stack: an enum's arms by its tag.
-fn walk_code(f: &mut Func, walk: &Walk, get: &dyn Fn(&mut Func, u32), on: &dyn Fn(&mut Func)) {
+pub(crate) fn walk_code(
+    f: &mut Func,
+    walk: &Walk,
+    get: &dyn Fn(&mut Func, u32),
+    on: &dyn Fn(&mut Func),
+) {
     match walk {
         Walk::Ref(k) => {
             get(f, *k);

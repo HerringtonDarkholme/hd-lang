@@ -4,6 +4,7 @@ runtime/panic/char-to-digit-radix-high.hd	#552: strings
 runtime/panic/char-to-digit-radix-low.hd	#552: strings
 runtime/panic/cli-duplicate-option.hd	#554: lists
 runtime/panic/cmp-clamp-reversed.hd	#541: test programs, and roots that never suspend
+runtime/panic/compound-assign-map-missing-key.hd	#572: maps
 runtime/panic/duration-add-overflow.hd	#551: structs, tuples, enums and data values
 runtime/panic/duration-negative-count.hd	#551: structs, tuples, enums and data values
 runtime/panic/duration-sub-underflow.hd	#551: structs, tuples, enums and data values
@@ -12,6 +13,7 @@ runtime/panic/explicit-panic.hd	#540: an explicit panic
 runtime/panic/generic-i32-overflow.hd	#554: lists
 runtime/panic/i32-add-overflow-in-function.hd	#541: test programs, and roots that never suspend
 runtime/panic/i32-min-divided-by-minus-one.hd	#541: test programs, and roots that never suspend
+runtime/panic/index-trait-map-missing.hd	#572: maps
 runtime/panic/integer-add-overflow.hd	#540: checked integer arithmetic
 runtime/panic/integer-divide-by-zero.hd	#540: checked integer arithmetic
 runtime/panic/integer-negation-overflow.hd	#540: checked integer arithmetic
@@ -28,6 +30,7 @@ runtime/panic/list-slice-reversed.hd	#554: lists
 runtime/panic/list-sum-overflow.hd	#554: lists
 runtime/panic/list-windows-size.hd	#554: lists
 runtime/panic/literal-var-fallback-overflow.hd	#554: lists
+runtime/panic/map-index-missing-key.hd	#572: maps
 runtime/panic/num-abs-min-i16.hd	#541: test programs, and roots that never suspend
 runtime/panic/num-abs-min-i32.hd	#541: test programs, and roots that never suspend
 runtime/panic/num-abs-min-i64.hd	#541: test programs, and roots that never suspend
@@ -78,8 +81,11 @@ runtime/valid/char-unicode-letters.hd	#552: strings
 runtime/valid/closure-result-keeps-requirement-row.hd	#539: main is private, so no entry point runs
 runtime/valid/comments-hide-code-from-the-parser.hd	#554: lists
 runtime/valid/comparisons-beside-brackets.hd	#554: lists
+runtime/valid/comprehension-forms.hd	#572: maps
+runtime/valid/continuation-line-opens-with-a-bracket.hd	#572: maps
 runtime/valid/crlf-line-endings.hd	#540: integers, strings and enums in locals
 runtime/valid/data-and-enum-declaration-forms.hd	#554: lists
+runtime/valid/data-expression-forms.hd	#572: maps
 runtime/valid/doc-test-compile-fail.hd	#539: no entry point runs
 runtime/valid/doc-test-console-row.hd	#541: test programs, and roots that never suspend
 runtime/valid/duration-order.hd	#551: structs, tuples, enums and data values
@@ -99,15 +105,18 @@ runtime/valid/generic-partial-eq-bound-primitives.hd	#552: strings
 runtime/valid/i64-widening-checked.hd	#539: main is private, so no entry point runs
 runtime/valid/identifier-spellings.hd	#551: structs, tuples, enums and data values
 runtime/valid/identity-ignores-permissions.hd	#551: structs, tuples, enums and data values
+runtime/valid/implicit-continuation-in-delimiters.hd	#572: maps
 runtime/valid/indentation-levels.hd	#554: lists
 runtime/valid/index-then-call-element.hd	#539: main is private, so no entry point runs
 runtime/valid/integer-literal-forms.hd	#540: integers, strings and enums in locals
+runtime/valid/interpolation-expression-spacing.hd	#572: maps
 runtime/valid/it-each-options.hd	#539: tests only, so no entry point runs
 runtime/valid/leading-pipe-lines-join-the-chain.hd	#554: lists
 runtime/valid/let-after-same-line-if-keeps-else.hd	#551: structs, tuples, enums and data values
 runtime/valid/let-patterns-and-let-else.hd	#554: lists
 runtime/valid/literal-suffix-calls.hd	#540: integers, strings and enums in locals
 runtime/valid/literal-var-flow.hd	#554: lists
+runtime/valid/map-is-empty.hd	#572: maps
 runtime/valid/module-qualified-type.hd	#551: structs, tuples, enums and data values
 runtime/valid/module-qualified-variant.hd	#551: structs, tuples, enums and data values
 runtime/valid/multiline-string-literals.hd	#540: integers, strings and enums in locals
@@ -153,7 +162,10 @@ runtime/valid/string-from-bytes-checks-utf8.hd	#554: lists
 runtime/valid/string-host-bytes.hd	#540: string literals through the host Console
 runtime/valid/strings-and-comments-hide-keywords-and-operators.hd	#554: lists
 runtime/valid/struct-copy-update.hd	#551: structs, tuples, enums and data values
+runtime/valid/struct-in-containers.hd	#572: maps
+runtime/valid/structural-equality.hd	#572: maps
 runtime/valid/tab-only-as-content.hd	#540: integers, strings and enums in locals
+runtime/valid/task-records-value-copy.hd	#572: maps
 runtime/valid/test-body-return.hd	#541: test programs, and roots that never suspend
 runtime/valid/test-expect-panic.hd	#554: lists
 runtime/valid/top-level-pattern-binding.hd	#554: lists

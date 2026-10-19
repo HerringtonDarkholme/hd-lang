@@ -11,7 +11,7 @@
 //! stores need no branch on the tag. A data value, a self-recursive enum
 //! and a suspension are one address; a string is its address and byte
 //! length; a trait value its data address and its vtable's address; a
-//! list the address of its header (§23.7). Maps, function values and
+//! list or a map the address of its header (§23.7). Function values and
 //! references come with later jobs.
 
 use hd_base::StageResult;
@@ -224,8 +224,7 @@ pub fn mem(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Mem> {
         TyData::Option(inner) => enum_mem(pool, env, &[vec![], vec![inner]])?.0,
         TyData::Adt { def, args } => match env.std_kind(def) {
             StdKind::Suspend => Mem::address(),
-            StdKind::List => Mem::address(),
-            StdKind::Map => return unsupported("maps (job 10)"),
+            StdKind::List | StdKind::Map => Mem::address(),
             StdKind::Other if def == env.ref_cell() => return unsupported("references (job 12)"),
             StdKind::Other => match kind(pool, env, t) {
                 Kind::Data(_) | Kind::Boxed => Mem::address(),
@@ -262,7 +261,8 @@ pub enum Walk {
 
 impl Walk {
     /// The walk with each value index `k` replaced by `to(k)`.
-    fn remap(&self, to: &dyn Fn(u32) -> u32) -> Walk {
+    #[must_use]
+    pub fn remap(&self, to: &dyn Fn(u32) -> u32) -> Walk {
         match self {
             Walk::Ref(k) => Walk::Ref(to(*k)),
             Walk::Seq(ws) => Walk::Seq(ws.iter().map(|w| w.remap(to)).collect()),
@@ -309,7 +309,9 @@ pub fn walk(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Walk> {
     match pool.get(t) {
         TyData::Prim(Prim::String) => Some(Walk::Ref(0)),
         TyData::Tuple { .. } => fields_walk(pool, env, &tuple_members(pool, t)),
-        TyData::Adt { def, .. } if env.std_kind(def) == StdKind::List => Some(Walk::Ref(0)),
+        TyData::Adt { def, .. } if matches!(env.std_kind(def), StdKind::List | StdKind::Map) => {
+            Some(Walk::Ref(0))
+        }
         TyData::Option(inner) => switch_walk(pool, env, &[vec![], vec![inner]]),
         TyData::Adt { def, args }
             if env.std_kind(def) == StdKind::Other && def != env.ref_cell() =>

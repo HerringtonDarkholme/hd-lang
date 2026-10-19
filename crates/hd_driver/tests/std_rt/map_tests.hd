@@ -1,0 +1,112 @@
+# The hd tests of maps on the linear backend (crates/hd_wasm/DESIGN.md
+# §23.18): a map's table grows, copies only when shared, and frees its
+# keys and values at its last release, so building maps in a loop runs
+# in bounded memory. Only std may read the heap's size, so the
+# conformance runner adds this file to std as `std.rt.map_tests`.
+use std.rt.memory.pages
+
+fn label(n: i32) -> string:
+    "k$n"
+
+fn triples(n: i32) -> Map[string, i32]:
+    let mut out: Map[string, i32] = {}
+    let i = +0
+    while i < n:
+        out[label(i)] = i * 3
+        i = i + 1
+    out
+
+fn groups(n: i32) -> Map[i32, List[string]]:
+    let mut out: Map[i32, List[string]] = {}
+    let i = +0
+    while i < n:
+        match out.get(i % 10):
+            .Some(_) => out[i % 10].push(label(i))
+            .None => out[i % 10] = [label(i)]
+        i = i + 1
+    out
+
+tests:
+    use std.testing.{assert, it}
+
+    it("a growing map finds every key"):
+        let m = triples(100000)
+        assert(m.len() == 100000, "every entry landed")
+        let i = +0
+        let found = +0
+        while i < 100000:
+            if m[label(i)] == i * 3:
+                found = found + 1
+            i = i + 1
+        assert(found == 100000, "each key finds its value")
+        assert(m.get("k100000") == .None, "a missing key is none")
+
+    it("maps of strings built in a loop run in bounded memory"):
+        let total = +0
+        let round = +0
+        let start: usize = 0
+        while round < 330:
+            if round == 30:
+                start = pages()
+            let built = triples(500)
+            total = total + built["k499"] % 7
+            round = round + 1
+        assert(total == 330 * (499 * 3 % 7), "each map was whole while held")
+        assert(pages() == start, "each table and its keys are reused")
+
+    it("maps of lists free every list"):
+        let total: usize = 0
+        let round = +0
+        let start: usize = 0
+        while round < 330:
+            if round == 30:
+                start = pages()
+            let built = groups(500)
+            total = total + built[3].len()
+            round = round + 1
+        assert(total == 330 * 50, "each group kept its labels")
+        assert(pages() == start, "the groups' lists and labels are reused")
+
+    it("removal keeps the survivors' order and their values"):
+        let mut m: Map[string, i32] = {"a": +1, "b": 2, "c": 3, "a": 4}
+        assert(m.len() == 3 && m["a"] == 4, "a later equal key replaces the value")
+        assert(m.remove("b") == .Some(2), "the removed value")
+        assert(m.remove("b") == .None, "removed once")
+        m["d"] = 5
+        let order = ""
+        for (k, v) in m:
+            order = order + k + "$v"
+        assert(order == "a4c3d5", "the survivors in their order")
+
+    it("removals in a loop run in bounded memory"):
+        let mut m: Map[string, i32] = {}
+        let round = +0
+        let start: usize = 0
+        while round < 20000:
+            if round == 30:
+                start = pages()
+            m[label(round)] = round
+            _ := m.remove(label(round - 5))
+            round = round + 1
+        assert(m.len() == 5, "five live entries")
+        assert(pages() == start, "rebuilds reuse the tables")
+
+    it("a copy shares its table until either side changes"):
+        let mut a: Map[string, i32] = {"x": +1, "y": 2}
+        let mut b = a
+        b["x"] = 10
+        _ := a.remove("y")
+        assert(a.len() == 1 && b.len() == 2, "the removal changed a only")
+        assert(a["x"] == 1 && b["x"] == 10, "the store changed b only")
+        let mut g: Map[i32, List[i32]] = {+1: [+1]}
+        let mut h = g
+        h[1].push(2)
+        assert(g[1].len() == 1 && h[1].len() == 2, "the inner lists are apart")
+
+    it("a for loop iterates the map as it was"):
+        let mut m: Map[string, i32] = {"a": +1, "b": 2}
+        let seen = +0
+        for (k, v) in m:
+            m[k + "!"] = v
+            seen = seen + 1
+        assert(seen == 2 && m.len() == 4, "the inserts were not visited")

@@ -99,6 +99,9 @@ pub enum Global {
     /// The end of the pages that bump allocation owns: at first the heap's
     /// initial size, then the end of the pages it last grew.
     HeapEnd,
+    /// The run's map hash key (`map_hash_seed`): 0 until the first map
+    /// key is hashed, which asks the host's `hash_seed` import.
+    HashSeed,
     /// One value of a top-level binding: its item's path hash and the
     /// value's index in its layout.
     Storage(Hash128, u32, Val),
@@ -108,6 +111,7 @@ impl Global {
     const fn val(&self) -> Val {
         match self {
             Global::Forbid | Global::HeapTop | Global::HeapEnd => Val::I32,
+            Global::HashSeed => Val::I64,
             Global::Storage(_, _, v) => *v,
         }
     }

@@ -1664,6 +1664,7 @@ what the spec names as intrinsic or what only it can build.
 | the allocator | hd in `std.rt.alloc`, over `std.rt.memory` | 5 |
 | counts | `retain` and `release` in `std.rt.alloc`, called by emitted code, with release glue that `rt.rs` generates per layout | 8 |
 | lists | `emit/list.rs` for the list kernels, and `rt.rs` for the header, the buffer, its release glue and the change that makes a buffer a list's own (§23.17) | 9 |
+| maps | `emit/map.rs` for the map kernels, and `map.rs` for the table: its probe, put, growth, release glue and the change that makes a table a map's own (§23.18) | 10 |
 | iterative release, the collector | hd in further `std.rt` modules, called by emitted code | 19, 21 |
 
 `std.rt` modules are privileged: only std modules may import them, so the
@@ -1828,8 +1829,10 @@ The allocator is hd in `std.rt.alloc` (job 5), REFCOUNT_RUNTIME.md §6's
   §6.3). The buffer is a counted object holding the capacity, the length
   and then the elements inline at their layout's size. The buffer's count
   is its owner count, for copy-on-write: a change first checks it is 1
-  and copies the buffer otherwise (REFCOUNT_RUNTIME.md §9.1). A map will
-  be the same kind of header over its table (job 10).
+  and copies the buffer otherwise (REFCOUNT_RUNTIME.md §9.1).
+- **A map** is the same kind of header over its table, one counted block
+  that holds the entries in the order they were added and a probing
+  index over them (§23.18).
 
 | Header payload offset | Size | Field |
 | --- | --- | --- |
@@ -2214,3 +2217,60 @@ in place of the `cow` mark.
   and `clear`, takes `&mut List[T]`: they wait for closures (job 11) and
   references (job 12), as do `assert_equal` and `debug`, which write
   through `&mut DebugWriter`.
+
+### 23.18 What Job 10 Adds
+
+Job 10 lowers maps (§23.7), in `emit/map.rs` with their glue in
+`map.rs`. Each operation keeps the Wasm GC backend's semantics (§15.2,
+"Collection values"; `crates/hd_mono/DESIGN.md` §13.12), with the
+table's count in place of the `cow` mark.
+
+- **The table.** A map is a list's kind of header over one counted
+  block: the live and written entry counts, the rebuild count, the
+  capacity, then an index of entry numbers plus one (0 empty) twice the
+  capacity long, each entry's hash (-1 once removed), and the entries
+  in the order they were added, each a `(K, V)` record laid out as a
+  tuple. Probing is linear from the hash's low bits; the index is at
+  most half full, so a probe always meets an empty slot.
+- **Keys.** A key hashes and compares through the operations collection
+  chose: an integer, `bool` or `char` through `int_bucket_hash` over its
+  bits zero-extended and `i32.eq` or `i64.eq`, a string through
+  `string_bucket_hash` and a byte comparison, any other key through its
+  `key_bucket_hash` and `Eq.eq` instances. `map_hash_seed` is a runtime
+  global filled from the host's `hd:rt.hash_seed` on first use.
+- **Literals and puts.** A literal makes a table with room for its
+  entries and puts each in source order (`expr.map.order`). A put of an
+  equal key replaces the value in the entry's place
+  (`expr.map.duplicate.last`) and releases the key it was given; a new
+  key appends an entry. The table takes a count of each key and value it
+  keeps. Every empty literal shares the static empty buffer of §23.17,
+  now 16 zero bytes, which is an empty table too.
+- **Growth.** A put into a full table moves the live entries in order
+  into a new table, of twice the capacity (at least 4) when at least half
+  are live and of the same capacity otherwise, rebuilds the index from
+  the kept hashes, and frees the old block without release, since its
+  entries moved.
+- **Removal.** `remove` marks the entry's hash -1 and lowers the live
+  count: probes pass it, iteration skips it, and the survivors keep
+  their order. The result takes its own count of the value before the
+  table releases the entry's key and value.
+- **Copies and changes.** `ValueCopy`, `SnapBegin` and `SnapEnd` are the
+  list ones (§23.17), since the header is the same. `m[k] = v`,
+  `remove` and `MapIndexMut` first make the table the map's own
+  (`rt:map_unique`): a shared table is copied whole, each live entry
+  takes its own counts, and the collections among the values become
+  copies, so a write through `m[k].push(v)` reaches only this map.
+- **Iteration.** A counted `for` iterates the snapshot through
+  `MapSlots`, `MapSlotNext` and `MapSlotEntry`, which read the entries
+  in place.
+- **Release.** A table's glue (`rt:drop_entries`) releases each live
+  entry's key and value.
+- **Bounded memory.** `crates/hd_driver/tests/std_rt/map_tests.hd`
+  builds maps of strings and maps of lists, removes in a loop, and
+  copies and changes a map, and checks that the heap does not grow after
+  a warm-up.
+- **Why glue, not hd.** The table's code depends on the entry's layout,
+  which only the backend knows: std has no size or layout of a type
+  parameter over `std.rt.memory`, as for list buffers.
+- **Not yet.** `Map.iter()` and the methods built on it (`keys`,
+  `values`, `entries`, printing) hold a closure, and wait for job 11.

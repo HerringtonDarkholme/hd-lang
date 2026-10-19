@@ -12,6 +12,7 @@
 
 mod emit;
 mod layout;
+mod map;
 mod module;
 mod rt;
 
