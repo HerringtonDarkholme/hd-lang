@@ -169,6 +169,7 @@ fn once(
         HttpResolver {
             candidates,
             deadline,
+            cancel: cancel.clone(),
             #[cfg(test)]
             lookup: None,
         },

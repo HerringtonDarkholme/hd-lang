@@ -1,12 +1,12 @@
 use std::mem::MaybeUninit;
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
-use std::sync::{Arc, Mutex, mpsc};
+use std::sync::{Arc, Mutex};
 use std::task::Poll;
 use std::time::{Duration, Instant};
 
 use socket2::SockRef;
 use tokio::runtime::Handle;
-use tokio::sync::watch;
+use tokio::sync::{oneshot, watch};
 
 use ureq::unversioned::resolver::{DefaultResolver, ResolvedSocketAddrs, Resolver};
 use ureq::unversioned::transport::{
@@ -21,6 +21,7 @@ type Lookup = Arc<dyn Fn(String) -> std::io::Result<Vec<SocketAddr>> + Send + Sy
 pub(crate) struct HttpResolver {
     pub(crate) candidates: Candidates,
     pub(crate) deadline: Option<Instant>,
+    pub(crate) cancel: Cancel,
     #[cfg(test)]
     pub(crate) lookup: Option<Lookup>,
 }
@@ -45,7 +46,7 @@ impl Resolver for HttpResolver {
             .ok_or(ureq::Error::HostNotFound)?;
         #[cfg(test)]
         let lookup = self.lookup.clone();
-        let addresses = resolve_lookup(timeout, self.deadline, move || {
+        let addresses = resolve_lookup(timeout, self.deadline, &self.cancel, move || {
             #[cfg(test)]
             if let Some(lookup) = lookup {
                 return lookup(address);
@@ -75,6 +76,7 @@ impl Resolver for HttpResolver {
 fn resolve_lookup(
     timeout: NextTimeout,
     deadline: Option<Instant>,
+    cancel: &Cancel,
     lookup: impl FnOnce() -> std::io::Result<Vec<SocketAddr>> + Send + 'static,
 ) -> Result<Vec<SocketAddr>, ureq::Error> {
     let started = Instant::now();
@@ -92,28 +94,42 @@ fn resolve_lookup(
             (None, absolute) => absolute,
         }
     };
-    let Some(initial) = budget() else {
-        return lookup().map_err(|_| ureq::Error::HostNotFound);
-    };
-    if initial.is_zero() {
+    cancel.check()?;
+    if budget().is_some_and(|remaining| remaining.is_zero()) {
         return Err(ureq::Error::Timeout(timeout.reason));
     }
-    let (reply, receive) = mpsc::sync_channel(1);
+    // The OS lookup cannot be cancelled. Its detached helper owns only
+    // the lookup and reply; cancellation drops the receiver and ends the
+    // request without waiting for the helper to finish.
+    let (reply, receive) = oneshot::channel();
     std::thread::Builder::new()
         .name("hd-http-dns".into())
         .spawn(move || {
             let _ = reply.send(lookup());
         })
         .map_err(ureq::Error::Io)?;
-    // Spawning the helper must not restart either the relative resolver
-    // budget or the absolute whole-request deadline.
-    match receive.recv_timeout(budget().unwrap_or(initial)) {
-        Ok(result) => result.map_err(|_| ureq::Error::HostNotFound),
-        Err(mpsc::RecvTimeoutError::Timeout) => Err(ureq::Error::Timeout(timeout.reason)),
-        Err(mpsc::RecvTimeoutError::Disconnected) => Err(ureq::Error::Io(std::io::Error::other(
-            "the Http DNS helper stopped without a reply",
-        ))),
+    let runtime = crate::runtime::io::handle()
+        .map_err(|error| ureq::Error::Io(std::io::Error::other(error)))?;
+    // Neither spawning the helper nor starting the runtime restarts the
+    // relative resolver budget or the absolute whole-request deadline.
+    let remaining = budget();
+    if remaining.is_some_and(|remaining| remaining.is_zero()) {
+        return Err(ureq::Error::Timeout(timeout.reason));
     }
+    let waiting = NextTimeout {
+        after: remaining.map_or(
+            ureq::unversioned::transport::time::Duration::NotHappening,
+            Into::into,
+        ),
+        reason: timeout.reason,
+    };
+    cancel
+        .wait(runtime, waiting, async move {
+            receive
+                .await
+                .map_err(|_| std::io::Error::other("the Http DNS helper stopped without a reply"))
+        })?
+        .map_err(|_| ureq::Error::HostNotFound)
 }
 
 #[derive(Debug)]
@@ -556,6 +572,7 @@ mod tests {
         let resolver = HttpResolver {
             candidates: candidates.clone(),
             deadline,
+            cancel: super::Cancel::default(),
             lookup: Some(Arc::new(move |_| Ok(addresses.clone()))),
         };
         let connector = HttpTcpConnector {
@@ -591,6 +608,7 @@ mod tests {
             let resolver = HttpResolver {
                 candidates: candidates.clone(),
                 deadline: Some(Instant::now() + Duration::from_secs(1)),
+                cancel: super::Cancel::default(),
                 lookup: None,
             };
             let representative = resolver
@@ -613,6 +631,68 @@ mod tests {
     }
 
     #[test]
+    fn cancelling_dns_without_a_deadline_ends_the_request_before_lookup_finishes() {
+        let (ready, arrived) = std::sync::mpsc::channel();
+        let (release, released) = std::sync::mpsc::channel();
+        let released = Mutex::new(released);
+        let (finished, completion) = std::sync::mpsc::channel();
+        let cancel = super::Cancel::default();
+        let candidates = Arc::new(Mutex::new(None));
+        let resolver = HttpResolver {
+            candidates: candidates.clone(),
+            deadline: None,
+            cancel: cancel.clone(),
+            lookup: Some(Arc::new(move |_| {
+                ready.send(()).unwrap();
+                let _ = released
+                    .lock()
+                    .unwrap()
+                    .recv_timeout(Duration::from_secs(5));
+                finished.send(()).unwrap();
+                Ok(vec!["127.0.0.1:9".parse().unwrap()])
+            })),
+        };
+        let connector = HttpTcpConnector {
+            deadline: None,
+            candidates,
+            cancel: cancel.clone(),
+        }
+        .chain(RustlsConnector::default());
+        let config = ureq::Agent::config_builder()
+            .proxy(None)
+            .max_idle_connections(0)
+            .build();
+        let agent = ureq::Agent::with_parts(config, connector, resolver);
+        let (reply, receive) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            reply
+                .send(agent.get("http://blocked.test/").call().map(|_| ()))
+                .unwrap();
+        });
+        arrived.recv_timeout(Duration::from_secs(5)).unwrap();
+        let started = Instant::now();
+        cancel.cancel();
+        let result = receive.recv_timeout(Duration::from_millis(500));
+        let elapsed = started.elapsed();
+        let lookup_pending = completion.try_recv().is_err();
+        // Release and join even when the old resolver misses the cancel,
+        // so a failing regression leaves no five-second worker behind.
+        release.send(()).unwrap();
+        worker.join().unwrap();
+        completion.recv_timeout(Duration::from_secs(1)).unwrap();
+        assert!(
+            matches!(result, Ok(Err(ureq::Error::Io(ref error)))
+                if error.kind() == std::io::ErrorKind::ConnectionAborted),
+            "{result:?}"
+        );
+        assert!(elapsed < Duration::from_millis(500), "{elapsed:?}");
+        assert!(
+            lookup_pending,
+            "the request waited for the lookup to finish"
+        );
+    }
+
+    #[test]
     fn timed_dns_handoff_returns_promptly_without_waiting_for_the_blocked_lookup() {
         let (release, released) = std::sync::mpsc::channel();
         let (finished, completion) = std::sync::mpsc::channel();
@@ -623,6 +703,7 @@ mod tests {
                 reason: ureq::Timeout::Global,
             },
             Some(started + Duration::from_millis(20)),
+            &super::Cancel::default(),
             move || {
                 released.recv_timeout(Duration::from_secs(2)).unwrap();
                 finished.send(()).unwrap();
@@ -642,6 +723,7 @@ mod tests {
                 reason: ureq::Timeout::Global,
             },
             None,
+            &super::Cancel::default(),
             || Err(std::io::ErrorKind::NotFound.into()),
         );
         assert!(matches!(result, Err(ureq::Error::HostNotFound)));
