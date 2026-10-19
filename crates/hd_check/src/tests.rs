@@ -24,10 +24,11 @@ use crate::body::{BodyCx, Ck, ExpectPosition, RowFrame, is_out_of_fuel, new_ck, 
 use crate::call::Args;
 use crate::expr::literal_text;
 
-/// The stable panic categories (`flow.panic.stable-categories`), which an
+/// The stable panic categories (`flow.panic.known-categories`), which an
 /// `expect_panic` option must name.
-pub const PANIC_CATEGORIES: [&str; 18] = [
+pub const PANIC_CATEGORIES: [&str; 19] = [
     "assertion-failed",
+    "collection-pinned",
     "explicit-panic",
     "fact-evaluation-failed",
     "heap-exhausted",

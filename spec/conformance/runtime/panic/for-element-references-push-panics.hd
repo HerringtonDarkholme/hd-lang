@@ -1,0 +1,7 @@
+# test: a push in the body of a loop over element references panics with collection-pinned
+# Spec 06 Element Reference Loops: flow.for.ref.pin.
+tests:
+    it("the loop pins its list"):
+        let mut xs = [+1, 2]
+        for x in &mut xs:
+            xs.push(*x)  # panic: collection-pinned

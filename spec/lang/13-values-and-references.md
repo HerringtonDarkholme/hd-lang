@@ -394,16 +394,64 @@ fn same(a: &i32, b: &i32) -> bool:
 See also: [Derived Implementations](09-traits.md#derived-implementations),
 [Identity](05-expressions.md#identity).
 
+## Element References
+
+`&xs[i]` and `&mut xs[i]` refer to the slot `i` of the list `xs`, as Go's `&s[i]` does. Taking one pins the list: until the reference's last use, the list's length cannot change.
+
+```hd
+struct Player:
+    name: string
+    score: i32
+
+fn reward(players: List[Player]) -> List[Player]:
+    let mut out = players
+    best := &mut out[0]
+    best.score += 10  # changes out[0]
+    out.push(Player { name: "new", score: 0 })  # after best's last use: no pin
+    out
+```
+
+1. r[ref.elem.place] `&xs[i]` and `&mut xs[i]`, where `xs` is a list, are **element references**: they refer to the slot `i` of the list. A struct field read from the element extends the place, as in `&mut xs[i].pos`, and an element of an inner list is a slot of that list, as in `&mut grid[r][c]`.
+2. r[ref.elem.index] The index is evaluated and checked once, when the reference is taken. An index that is not less than the list's length is a checked runtime panic. Panic: `index-out-of-bounds`.
+3. r[ref.elem.slot] An element reference names a slot, never the value in it. A read through it sees whatever value its slot holds, and a write replaces that value. After elements move between slots, as a sort or a swap moves them, it sees the element in its slot.
+4. r[ref.elem.writable] `&mut xs[i]` needs `xs` in a writable place, as an element store does ([`types.coll.writable.store`](04-type-system.md#r-types.coll.writable.store)). Its fix-it makes the binding writable. Error: `readonly-root`.
+5. r[ref.elem.writable.shared] `&xs[i]` needs no writable place, so it may refer into a `:=` list or a value parameter.
+6. r[ref.elem.pin] Taking an element reference makes the list's elements its own, shared with no copy, and **pins** the list until the reference is released.
+7. r[ref.elem.pinned] While a list is pinned, an operation that changes its length is a checked runtime panic: `push`, `insert`, `remove_at`, and a `pop` or a `clear` that removes an element. Panic: `collection-pinned`.
+8. r[ref.elem.pinned.allowed] Replacing an element keeps the length, so it is allowed while the list is pinned: an element store, a write through an element reference, and a sort or a swap written with element stores.
+9. r[ref.elem.copy] Copying a pinned list gives a list with elements of its own. A change to the copy never reaches a reference into the original, and a write through such a reference never reaches the copy.
+10. r[ref.elem.replace] Assigning a whole list to the pinned list's place, as in `xs = []`, is allowed. The old references keep the old elements and no longer refer into `xs`.
+11. r[ref.elem.release] A pin is released after the reference's last use, not at the end of its block. A list that several element references pin stays pinned until each is released.
+12. r[ref.elem.release.binding] An element reference that initializes a simple binding, as in `r := &mut xs[i]`, is last used by the last statement of the binding's suite that names the binding, inside a closure or an interpolation included.
+13. r[ref.elem.release.statement] Any other element reference, such as an argument, is last used by the statement that takes it.
+14. r[ref.elem.release.exit] Leaving a suite, through `return`, `break`, `continue`, or `?`, releases the pins of the element references taken in it.
+15. r[ref.elem.release.copies] A copy of an element reference that outlives those statements keeps the list pinned while the copy lives: one stored in a field or a list, returned, or captured by a closure that runs later.
+16. r[ref.elem.identity] Two element references refer to the same place when they refer to the same slot of the same list's elements and read the same struct fields from it.
+
+```text
+fn invalid() -> i32:
+    xs := [+1, 2]
+    r := &mut xs[0]  # error: readonly-root
+    *r
+```
+
+> **Why.** A list grows by moving its elements. Go keeps the old array
+> alive, so a write through an old pointer silently stops reaching the
+> slice; the pin forbids the move instead, as Java's collections forbid
+> a change under a live iterator. A handle to one value that survives a
+> sort or a growth is a reference stored in the list, `List[&mut Player]`,
+> or an ID.
+
+See also: [Element Reference Loops](06-control-flow.md#element-reference-loops),
+[Collection Values](04-type-system.md#collection-values).
+
 ## Not Yet Checked
 
-1. r[ref.check.not-yet-list-elements] Two forms are errors until later jobs define them. They are a reference to a list element, as in `&xs[i]`, and a reference to a tuple element, as in `&pair._0`. Error: `references-not-yet-checked`.
+1. r[ref.check.not-yet-non-list-elements] Two forms are errors until later jobs define them. They are a reference to a tuple element, as in `&pair._0`, and a reference to an index result that is no list element, such as a slice `&xs[1..3]` or a user `Index` call. Error: `references-not-yet-checked`.
 2. r[ref.check.formatter] `hd fmt` formats a file that writes references. It keeps each reference token as written, `&mut` included, and a second run changes nothing.
 
 ```text
 fn element(items: List[i32], pair: (i32, i32)) -> void:
-    first := &items[0]  # error: references-not-yet-checked
+    part := &items[0..1]  # error: references-not-yet-checked
     left := &pair._0  # error: references-not-yet-checked
 ```
-
-> **Note.** An element reference pins its list, which needs rules of its
-> own.

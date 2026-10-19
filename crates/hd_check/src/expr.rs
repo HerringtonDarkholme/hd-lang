@@ -2785,7 +2785,7 @@ impl Ck<'_, '_> {
     }
 
     /// `flow.for.pattern.irrefutable`: a `for` pattern must always match.
-    fn irrefutable_loop_pattern(&mut self, pat: NodeRef<'_>, t: Ty) {
+    pub(crate) fn irrefutable_loop_pattern(&mut self, pat: NodeRef<'_>, t: Ty) {
         if self.refutable(pat, t) {
             self.err(
                 Code::RefutableLetPattern,
@@ -2853,6 +2853,14 @@ impl Ck<'_, '_> {
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         let els = self.loop_else.take();
+        // `for p in &xs` and `for p in &mut xs` over a list bind element
+        // references (`flow.for.ref`).
+        let refsrc = crate::pins::strip_parens(src);
+        if refsrc.kind() == SyntaxKind::RefExpr
+            && let Some(done) = self.ref_loop(pat, refsrc, els, e, body)?
+        {
+            return Ok(done);
+        }
         let (sr, st) = self.expr(src, None)?;
         let iterator = self.cx.names.known.iterator;
         let st_r = self.infer.resolve(pool, st);

@@ -1037,6 +1037,8 @@ impl Em<'_> {
                     }
                     self.a.array_new_fixed(&WTy::Array(st), u32_of(items.len()));
                 }
+                // `cow` and `pin`.
+                self.a.i32(0);
                 self.a.i32(0);
                 self.a.struct_new(&lt);
                 self.store(i)?;
@@ -2919,10 +2921,18 @@ impl Em<'_> {
             }
             // std's `list_truncate(list, len)`: the list keeps its first
             // `len` items. Its callers checked the bounds.
+            // A pinned list panics when the length changes
+            // (`ref.elem.pinned`).
             "list_truncate" => {
-                let (_, lt) = self.list_parts(self.ty_of(args[0]))?;
+                let (elem, lt) = self.list_parts(self.ty_of(args[0]))?;
+                let (l, n) = (self.a.local(VT::r(lt.clone())), self.a.local(VT::I32));
                 self.comp(args[0], 0, &VT::r(lt.clone()))?;
+                self.a.set(l);
                 self.comp(args[1], 0, &VT::I32)?;
+                self.a.set(n);
+                self.pin_check(l, &lt, elem.len(), Some(n));
+                self.a.get(l);
+                self.a.get(n);
                 self.a.struct_set(&lt, 0);
                 Ok(())
             }
@@ -3831,6 +3841,7 @@ impl Em<'_> {
                 let l = self.a.local(VT::r(lt.clone()));
                 self.comp(args[0], 0, &VT::r(lt.clone()))?;
                 self.a.set(l);
+                self.pin_check(l, &lt, elem.len(), None);
                 let n = self.a.local(VT::I32);
                 self.a.get(l);
                 self.a.struct_get(&lt, 0);
@@ -3879,6 +3890,8 @@ impl Em<'_> {
             }
             IntrinsicOp::SnapBegin => self.snap_begin(i, args[0]),
             IntrinsicOp::SnapEnd => self.snap_end(args[0], args[1]),
+            IntrinsicOp::ListPin => self.list_pin(i, &args),
+            IntrinsicOp::ListUnpin => self.list_unpin(args[0]),
             IntrinsicOp::MapIter => self.map_iter(i, args[0], ty),
             IntrinsicOp::Item => unsupported("the intrinsic operation Item"),
             IntrinsicOp::MapSlots => {
@@ -4229,6 +4242,8 @@ impl Em<'_> {
             }
             self.a.get(dst);
         }
+        // `cow` and `pin`.
+        self.a.i32(0);
         self.a.i32(0);
         self.a.struct_new(lt);
         self.store(i)

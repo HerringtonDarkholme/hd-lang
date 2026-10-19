@@ -324,6 +324,38 @@ fn doubled(values: List[i32]) -> List[i32]:
 > list it walks gets the result it wrote, and no rule asks the author to
 > know whether an iterator is live.
 
+### Element Reference Loops
+
+`for p in &mut xs` and `for p in &xs` bind a reference to each element of
+a list in turn.
+
+```hd
+fn raised(prices: List[i32]) -> List[i32]:
+    let mut out = prices
+    for price in &mut out:
+        *price += 1
+    out
+```
+
+1. r[flow.for.ref] `for p in &mut xs`, where `xs` is a list, binds the pattern to a `&mut T` [element reference](13-values-and-references.md#element-references) to each slot of `xs` in order, and `for p in &xs` to a `&T` one.
+2. r[flow.for.ref.slots] `xs` is evaluated once. The loop visits the slots from 0 up to the list's length when the loop began.
+3. r[flow.for.ref.pin] The loop pins `xs` from its start until it ends or is left, as an element reference does ([`ref.elem.pin`](13-values-and-references.md#r-ref.elem.pin)), so a change of the list's length in its body panics. Panic: `collection-pinned`.
+4. r[flow.for.ref.writable] `for p in &mut xs` needs `xs` in a writable place, as `&mut xs[i]` does. Error: `readonly-root`.
+5. r[flow.for.ref.map] A map value is no place, so a loop over `&m` or `&mut m` with a map `m` is an error. Error: `map-value-not-addressable`.
+
+```text
+fn invalid(prices: Map[string, i32]) -> void:
+    fixed := [+1, 2]
+    for x in &mut fixed:  # error: readonly-root
+        *x = 0
+    for price in &prices:  # error: map-value-not-addressable
+        pass
+```
+
+> **Why.** A loop that changes each element in place needs a place per
+> step. The pin keeps a body from growing the list under the loop, so the
+> loop never skips or repeats a slot.
+
 ### Range Iteration
 
 A `for` loop iterates the integers of a [range](05-expressions.md#range-expressions):
@@ -1208,7 +1240,7 @@ tests:
 
 ### Panic Categories
 
-1. r[flow.panic.stable-categories] Stable panic categories are exactly `assertion-failed`, `explicit-panic`, `fact-evaluation-failed`, `heap-exhausted`, `host-contract`, `integer-overflow`, `integer-division-by-zero`, `invalid-shift`, `index-out-of-bounds`, `iterator-invalidated`, `stack-exhausted`, `structure-variant-mismatch`, `suspension-competing-driver`, `suspension-deadlock`, `suspension-forbidden-context`, `suspension-invalid-state`, `suspension-reentrant-poll`, and `time-limit`.
+1. r[flow.panic.known-categories] Stable panic categories are exactly `assertion-failed`, `collection-pinned`, `explicit-panic`, `fact-evaluation-failed`, `heap-exhausted`, `host-contract`, `integer-overflow`, `integer-division-by-zero`, `invalid-shift`, `index-out-of-bounds`, `iterator-invalidated`, `stack-exhausted`, `structure-variant-mismatch`, `suspension-competing-driver`, `suspension-deadlock`, `suspension-forbidden-context`, `suspension-invalid-state`, `suspension-reentrant-poll`, and `time-limit`.
 2. r[flow.panic.explicit] The prelude function `panic(message: string) -> never` explicitly causes an `explicit-panic` failure.
 3. r[flow.panic.never] A panic or other abrupt expression is valid in any value-producing arm without affecting the compatible result type of reachable normal arms.
 

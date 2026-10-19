@@ -1,0 +1,8 @@
+# test: a std extend that adds elements while an element reference is live panics with collection-pinned
+# std Collections, List And Map Values: std-collections.value.pinned.
+tests:
+    it("extend grows a pinned list"):
+        let mut xs = [+1, 2]
+        r := &xs[0]
+        xs.extend([+3])  # panic: collection-pinned
+        _ := *r

@@ -1,0 +1,12 @@
+# test: two element references to one slot are the same place, and references to different slots are not
+# Spec 13 Element References: ref.elem.identity.
+tests:
+    use std.testing.assert
+
+    it("is compares slots"):
+        let mut xs = [+1, 2]
+        a := &xs[0]
+        b := &mut xs[0]
+        c := &xs[1]
+        assert(a is b, reason="one slot")
+        assert(!(a is c), reason="two slots")

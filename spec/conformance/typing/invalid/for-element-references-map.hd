@@ -1,0 +1,5 @@
+# test: a loop over references to a map's values is an error, since a map value is no place
+# Spec 06 Element Reference Loops: flow.for.ref.map.
+fn invalid(prices: Map[string, i32]) -> void:
+    for price in &prices:  # diagnostic: map-value-not-addressable
+        pass

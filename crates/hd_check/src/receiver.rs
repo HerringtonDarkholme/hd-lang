@@ -450,6 +450,7 @@ impl Ck<'_, '_> {
                     false
                 }
             }
+            Root::Elem(list, _, _, _, _, lt) => self.coll_change(list, lt, "this call", at),
             Root::DataField(_, _, _, _, dt) => {
                 if self.has_mut_access(dt) {
                     true

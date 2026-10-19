@@ -39,6 +39,7 @@ fn joined(first: List[i32], second: List[i32]) -> List[i32]:
 1. r[std-collections.value.receiver] A `std` method that changes a list or a map, as `extend` does, needs its receiver in a writable place, as a language-tier changing method does ([`types.coll.writable`](../lang/04-type-system.md#r-types.coll.writable)).
 2. r[std-collections.value.own-copy] Such a change reaches only the receiver's own value. Another copy of the list or the map is unchanged.
 3. r[std-collections.value.results] A method that returns a list or a map, as `keys`, `filter`, and `chunks` do, returns a new value, which the caller may bind with `let mut` and change.
+4. r[std-collections.value.pinned] A `std` method that changes the length of a pinned list, as `extend` with a non-empty list does, is a checked runtime panic, as a language-tier change is ([`ref.elem.pinned`](../lang/13-values-and-references.md#r-ref.elem.pinned)). Panic: `collection-pinned`.
 
 ## List Methods
 

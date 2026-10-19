@@ -78,7 +78,7 @@ raises with a category other than `explicit-panic`.
 
 | Primitive | Signature | Why it is a primitive |
 | --- | --- | --- |
-| `panic` | `(category: string, message: string) -> void` | the prelude `panic` always has the category `explicit-panic`; this one names a [stable category](../lang/06-control-flow.md#r-flow.panic.stable-categories), and an empty message shows none |
+| `panic` | `(category: string, message: string) -> void` | the prelude `panic` always has the category `explicit-panic`; this one names a [stable category](../lang/06-control-flow.md#r-flow.panic.known-categories), and an empty message shows none |
 
 **Compiler-level.** The compiler lowers these at each use.
 

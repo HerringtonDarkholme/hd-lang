@@ -1339,7 +1339,7 @@ pub fn it[T < Termination, $R](name: string, ignore: string? = .None, expect_pan
 | r[module.testing.option.ignore] Ignore | `ignore` | a reason | The runner does not run the test case and reports it as ignored, with the reason. |
 | r[module.testing.option.expect-panic] Expected panic | `expect_panic` | a [panic category](06-control-flow.md#panic-categories) | The test case passes only when its body panics with that category. |
 
-1. r[module.testing.option.expect-panic.known] An `expect_panic` value that names no [panic category](06-control-flow.md#r-flow.panic.stable-categories) is an error. Error: `unknown-panic-category`.
+1. r[module.testing.option.expect-panic.known] An `expect_panic` value that names no [panic category](06-control-flow.md#r-flow.panic.known-categories) is an error. Error: `unknown-panic-category`.
 
 ```text
 fn name_of() -> string: "computed"

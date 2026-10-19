@@ -1,0 +1,8 @@
+# test: a push while an element reference is live panics with collection-pinned
+# Spec 13 Element References: ref.elem.pinned.
+tests:
+    it("push changes the length of a pinned list"):
+        let mut xs = [+1, 2, 3]
+        r := &mut xs[0]
+        xs.push(4)  # panic: collection-pinned
+        *r = 5

@@ -35,6 +35,7 @@ mod join;
 mod literals;
 mod local;
 mod pat;
+mod pins;
 mod privacy;
 mod promote;
 mod receiver;

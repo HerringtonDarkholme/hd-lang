@@ -1,0 +1,8 @@
+# test: a remove_at while an element reference is live panics with collection-pinned
+# Spec 13 Element References: ref.elem.pinned.
+tests:
+    it("remove_at moves the elements of a pinned list"):
+        let mut xs = [+1, 2, 3]
+        r := &xs[2]
+        _ := xs.remove_at(0)  # panic: collection-pinned
+        _ := *r

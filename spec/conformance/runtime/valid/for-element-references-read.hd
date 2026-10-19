@@ -1,0 +1,16 @@
+# test: for p in &xs binds a read-only reference to each element, and each kept reference names its own slot
+# Spec 06 Element Reference Loops: flow.for.ref.
+tests:
+    use std.testing.assert_equal
+
+    it("the references read the elements in order"):
+        let mut values = [+4, 5, 6]
+        let total = +0
+        let mut kept: List[&i32] = []
+        for value in &values:
+            total = total + *value
+            kept.push(value)
+        values[2] = 60
+        assert_equal(total, 15, reason="each element was read")
+        assert_equal(*kept[0], 4, reason="the first reference names slot 0")
+        assert_equal(*kept[2], 60, reason="the last one names slot 2 and sees its store")

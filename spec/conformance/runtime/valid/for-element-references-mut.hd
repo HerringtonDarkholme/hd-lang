@@ -1,0 +1,12 @@
+# test: for p in &mut xs binds a writable reference to each element in turn
+# Spec 06 Element Reference Loops: flow.for.ref, flow.for.ref.pin.
+tests:
+    use std.testing.assert_equal
+
+    it("each step writes its own slot"):
+        let mut scores = [+1, 2, 3]
+        for score in &mut scores:
+            *score += 10
+        assert_equal(scores, [+11, 12, 13], reason="every element changed in place")
+        scores.push(14)
+        assert_equal(scores.len(), 4, reason="the loop's pin ended with the loop")

@@ -1,0 +1,5 @@
+# test: a reference to a slice of a list is references-not-yet-checked
+# Spec 13 Not Yet Checked: ref.check.not-yet-non-list-elements.
+fn slice(items: List[i32]) -> i32:
+    first := &items[0..1]  # diagnostic: references-not-yet-checked
+    0

@@ -9,12 +9,17 @@
 //! count of the headers sharing the arrays, the mark never clears on its
 //! own: a list copied once copies its arrays at its next change even when
 //! the other copy is gone.
+//!
+//! A list header also counts the element references into it, in its `pin`
+//! word (§15.2, "Element references"): `ListPin` makes the arrays the
+//! header's own and counts one more, `ListUnpin` one fewer, and a length
+//! change while it is not 0 panics `collection-pinned`.
 
 use hd_tir::ir::{IntrinsicOp, Tag};
 use hd_types::{Ty, TyData};
 
 use super::{Em, u32_of};
-use crate::layout::{M_HASHES, M_KEYS, M_USED, Shape, list_cow, map_cow, storage};
+use crate::layout::{M_HASHES, M_KEYS, M_USED, Shape, list_cow, list_pin, map_cow, storage};
 use crate::{VT, WTy, unsupported};
 use hd_base::StageResult;
 
@@ -131,9 +136,9 @@ impl Em<'_> {
             return Ok(());
         }
         match self.lay.shape(t)? {
-            Shape::List { elem, ty } => self.share_header(&ty, 1, list_cow(elem.len()), 1),
+            Shape::List { elem, ty } => self.share_header(&ty, 1, list_cow(elem.len()), 1, true),
             Shape::Map { key, val, ty } => {
-                self.share_header(&ty, 1, map_cow(key.len() + val.len()), 1);
+                self.share_header(&ty, 1, map_cow(key.len() + val.len()), 1, false);
             }
             Shape::Data { ty, fields } => {
                 let TyData::Adt { def, args } = self.pool().get(self.lay.erase(t)) else {
@@ -165,10 +170,10 @@ impl Em<'_> {
     }
 
     /// Replaces the collection header on the stack by a new header over
-    /// the same fields, its `cow` field set to `mark`, and adds `add` to
-    /// the old header's `cow` (bit 0 for a copy, 2 for a loop, which
-    /// `share_header` sets with `add` 2 and `mark` 1).
-    fn share_header(&mut self, ty: &WTy, add: i32, cow: u32, mark: i32) {
+    /// the same fields, its `cow` field set to `mark` (and a list's `pin`
+    /// to 0), and adds `add` to the old header's `cow` (bit 0 for a copy, 2
+    /// for a loop, which `share_header` sets with `add` 2 and `mark` 1).
+    fn share_header(&mut self, ty: &WTy, add: i32, cow: u32, mark: i32, pin: bool) {
         let h = self.a.local(VT::r(ty.clone()));
         self.a.set(h);
         self.a.get(h);
@@ -186,6 +191,9 @@ impl Em<'_> {
             self.a.struct_get(ty, f);
         }
         self.a.i32(mark);
+        if pin {
+            self.a.i32(0);
+        }
         self.a.struct_new(ty);
     }
 
@@ -439,14 +447,86 @@ impl Em<'_> {
     /// collection's arrays, whose `cow` gains 2 while the loop runs.
     pub(super) fn snap_begin(&mut self, i: u32, coll: u32) -> StageResult<()> {
         let t = self.ty_of(coll);
-        let (ty, cow) = match self.lay.shape(t)? {
-            Shape::List { elem, ty } => (ty, list_cow(elem.len())),
-            Shape::Map { key, val, ty } => (ty, map_cow(key.len() + val.len())),
+        match self.lay.shape(t)? {
+            Shape::List { elem, ty } => {
+                self.comp(coll, 0, &VT::r(ty.clone()))?;
+                self.share_header(&ty, 2, list_cow(elem.len()), 1, true);
+            }
+            Shape::Map { key, val, ty } => {
+                self.comp(coll, 0, &VT::r(ty.clone()))?;
+                self.share_header(&ty, 2, map_cow(key.len() + val.len()), 1, false);
+            }
             _ => return unsupported("a loop snapshot of a non-collection"),
-        };
-        self.comp(coll, 0, &VT::r(ty.clone()))?;
-        self.share_header(&ty, 2, cow, 1);
+        }
         self.store(i)
+    }
+
+    /// Panics `collection-pinned` when the list in local `l` is pinned
+    /// (`ref.elem.pinned`): before a `push`, or before a truncation to the
+    /// length in local `to` that changes the length.
+    pub(super) fn pin_check(&mut self, l: u32, lt: &WTy, arrays: usize, to: Option<u32>) {
+        self.a.get(l);
+        self.a.struct_get(lt, list_pin(arrays));
+        if let Some(to) = to {
+            self.a.get(l);
+            self.a.struct_get(lt, 0);
+            self.a.get(to);
+            self.a.s().i32_ne();
+            self.a.s().i32_and();
+        }
+        self.a.if_();
+        self.panic("collection-pinned: list length changed while pinned");
+        self.a.end();
+    }
+
+    /// `ListPin`: the list an element reference points into, its index
+    /// (when given) checked, its arrays made its own, and one more pin
+    /// counted (`ref.elem.pin`).
+    pub(super) fn list_pin(&mut self, i: u32, args: &[u32]) -> StageResult<()> {
+        let lty = self.ty_of(args[0]);
+        let Shape::List { elem, ty: lt } = self.lay.shape(lty)? else {
+            return unsupported("a pin of a non-list");
+        };
+        let (l, n) = (self.a.local(VT::r(lt.clone())), self.a.local(VT::I32));
+        self.comp(args[0], 0, &VT::r(lt.clone()))?;
+        self.a.set(l);
+        if let Some(&index) = args.get(1) {
+            let ix = self.a.local(VT::I32);
+            self.comp(index, 0, &VT::I32)?;
+            self.a.set(ix);
+            self.bounds(l, &lt, ix);
+        }
+        self.a.get(l);
+        self.a.struct_get(&lt, 0);
+        self.a.set(n);
+        self.list_reserve(l, lty, n, false)?;
+        let pin = list_pin(elem.len());
+        self.a.get(l);
+        self.a.get(l);
+        self.a.struct_get(&lt, pin);
+        self.a.i32(1);
+        self.a.s().i32_add();
+        self.a.struct_set(&lt, pin);
+        self.a.get(l);
+        self.store(i)
+    }
+
+    /// `ListUnpin`: one pin released (`ref.elem.release`).
+    pub(super) fn list_unpin(&mut self, list: u32) -> StageResult<()> {
+        let lty = self.ty_of(list);
+        let Shape::List { elem, ty: lt } = self.lay.shape(lty)? else {
+            return unsupported("an unpin of a non-list");
+        };
+        let (l, pin) = (self.a.local(VT::r(lt.clone())), list_pin(elem.len()));
+        self.comp(list, 0, &VT::r(lt.clone()))?;
+        self.a.set(l);
+        self.a.get(l);
+        self.a.get(l);
+        self.a.struct_get(&lt, pin);
+        self.a.i32(1);
+        self.a.s().i32_sub();
+        self.a.struct_set(&lt, pin);
+        Ok(())
     }
 
     /// `SnapEnd`: the loop over `snap` ended. Unless a change copied the

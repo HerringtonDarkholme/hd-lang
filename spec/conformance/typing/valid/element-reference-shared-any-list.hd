@@ -1,0 +1,10 @@
+# test: &xs[i] needs no writable place, so it may refer into a := list or a value parameter
+# Spec 13 Element References: ref.elem.writable.shared.
+fn first(items: List[i32]) -> i32:
+    r := &items[0]
+    *r
+
+fn demo() -> i32:
+    fixed := [+1, 2]
+    r := &fixed[1]
+    *r + first(fixed)

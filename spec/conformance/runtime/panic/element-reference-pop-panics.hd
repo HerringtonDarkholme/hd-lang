@@ -1,0 +1,8 @@
+# test: a pop that removes an element while an element reference is live panics with collection-pinned
+# Spec 13 Element References: ref.elem.pinned.
+tests:
+    it("pop shortens a pinned list"):
+        let mut xs = [+1, 2, 3]
+        r := &xs[0]
+        _ := xs.pop()  # panic: collection-pinned
+        _ := *r

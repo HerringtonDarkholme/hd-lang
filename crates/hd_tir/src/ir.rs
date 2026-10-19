@@ -271,10 +271,19 @@ pub enum IntrinsicOp {
     /// `(collection, snapshot)`: the loop over `snapshot` has ended; a
     /// collection the loop did not change stops copying for it.
     SnapEnd,
+    /// `(list) -> list` or `(list, index) -> list`: the list an element
+    /// reference points into (`ref.elem.pin`), its buffer made unique and
+    /// pinned; an index is bounds-checked first. A pinned list panics
+    /// `collection-pinned` on a length change (`crates/hd_wasm/DESIGN.md`
+    /// §15.2, "Element references").
+    ListPin,
+    /// `(list)`: releases one pin of `ListPin` after the reference's last
+    /// use (`ref.elem.release`).
+    ListUnpin,
 }
 
 impl IntrinsicOp {
-    pub const ALL: [IntrinsicOp; 23] = [
+    pub const ALL: [IntrinsicOp; 25] = [
         IntrinsicOp::ListLen,
         IntrinsicOp::ListPush,
         IntrinsicOp::ListIter,
@@ -298,6 +307,8 @@ impl IntrinsicOp {
         IntrinsicOp::MapIndexMut,
         IntrinsicOp::SnapBegin,
         IntrinsicOp::SnapEnd,
+        IntrinsicOp::ListPin,
+        IntrinsicOp::ListUnpin,
     ];
     #[must_use]
     pub fn from_u32(v: u32) -> Option<Self> {

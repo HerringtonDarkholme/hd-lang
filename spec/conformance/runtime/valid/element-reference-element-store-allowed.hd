@@ -1,0 +1,14 @@
+# test: storing into an element of a pinned list, directly or through another reference, is allowed and seen through the reference
+# Spec 13 Element References: ref.elem.pinned.allowed, ref.elem.release.count.
+tests:
+    use std.testing.assert_equal
+
+    it("element stores keep the length"):
+        let mut xs = [+1, 2, 3]
+        r := &mut xs[2]
+        xs[2] = 30
+        assert_equal(*r, 30, reason="a store into the slot is seen")
+        s := &mut xs[2]
+        *s = 300
+        assert_equal(*r, 300, reason="a write through another reference is seen")
+        assert_equal(xs.len(), 3, reason="the length never changed")

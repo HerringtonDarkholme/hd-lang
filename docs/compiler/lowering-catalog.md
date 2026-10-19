@@ -926,6 +926,13 @@ once and needs no check per round. A map loop scans the snapshot's slots,
 skipping removed entries (`MapSlotNext`).
 Each entry is a `(K, V)` tuple value, which allocates only when the
 tuple's layout is boxed.
+`for p in &mut xs` and `for p in &xs` over a list
+([`flow.for.ref`](../../spec/lang/06-control-flow.md#r-flow.for.ref)) are
+counted loops over the list itself, not a snapshot (`hd_check::pins`,
+`ref_loop`): `ListPin` pins the list once, the loop captures its length,
+and each round builds the element reference to its slot, which allocates
+the reference's object and closures (`crates/hd_wasm/DESIGN.md` §15.2,
+"Element references").
 Implementation differs: a numeric range is a counted loop only when it
 is bound to a plain name, and a `for` over any other iterable calls its
 iterator's `next`.

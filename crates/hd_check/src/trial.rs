@@ -64,6 +64,7 @@ pub(crate) struct Checkpoint {
     row_waits: usize,
     undo: usize,
     bound: usize,
+    pins: usize,
     depths: [usize; 6],
 }
 
@@ -225,6 +226,7 @@ impl Ck<'_, '_> {
             row_waits: self.row_waits.len(),
             undo: self.undo.len(),
             bound: self.bound.len(),
+            pins: self.pins.len(),
             depths: self.depths(),
         }
     }
@@ -258,6 +260,7 @@ impl Ck<'_, '_> {
         self.open_params.truncate(c.open_params);
         self.ref_params.truncate(c.ref_params);
         self.call_params.truncate(c.call_params);
+        self.pins.truncate(c.pins);
         self.joins.rollback(c.joins);
         self.row_waits.truncate(c.row_waits);
         self.bound.truncate(c.bound);

@@ -77,7 +77,7 @@ such a field or element. The spec allows either form
 | capture-free closure | a constant global of the base type, with no environment | same |
 | `string` | a view of two values, `(ref $bytes, i64 span)`: `$bytes = (array i8)`, immutable, valid UTF-8 in the viewed range; `span` packs `len << 32 \| start` ("Strings" below) | two fields, `(mut (ref $bytes))` and `(mut i64)`; in an array, a structure of two arrays |
 | `string?` | `(ref null $bytes, i64)`; a null `bytes` is `.None` | two fields |
-| `List[T]` | `(ref $List_T)` = struct `{len: mut i32, data: mut (ref $Arr_T), cow: mut i32}`; under A1 every reference `T` shares `$List_eq` over `(array (mut eqref))`. `cow` is the copy-on-write word ("Collection values" below) | same |
+| `List[T]` | `(ref $List_T)` = struct `{len: mut i32, data: mut (ref $Arr_T), cow: mut i32, pin: mut i32}`; under A1 every reference `T` shares `$List_eq` over `(array (mut eqref))`. `cow` is the copy-on-write word ("Collection values" below), `pin` the count of element references ("Element references" below) | same |
 | `Map[K, V]` | a compact insertion-ordered table of `index`, `hashes`, `keys` and `values` arrays and a `cow` word (`layout::map_ty`, [docs/compiler/lowering-catalog.md](../../docs/compiler/lowering-catalog.md#mapk-v)). Its operations are runtime helpers (`map.rs`); std hd over arrays is not built yet; see #180 | same |
 | `TypeId` | `(ref $TypeId)`, a constant global per type: `{id: i64, name: (ref $LitFn)}`, `id` the first 64 bits of `H(canon(T))`. Implementation differs: `TypeId` is std's `data TypeId {key, name}`, built with `struct.new` at each use and compared by its `key` bytes; that allocates per use and compares strings, not one `i64` (see #175) | same |
 | `mut Suspend[T]` | `(ref $Suspend_L)` (§14.1) | same |
@@ -336,6 +336,62 @@ ordinary generic data type, and the emitter is unchanged but for one line.
     `self` method's adapter calls the source's `get` again. Correct first:
     on the linear-memory backend a trait value reference is the address
     and the vtable, two words, as Go's interface value is.
+
+**Element references: a reference into the header, a pin count.**
+`&xs[i]` and `&mut xs[i]`
+([Element References](../../spec/lang/13-values-and-references.md#element-references))
+are references as above whose place is a slot of a list: the checker
+(`crates/hd_check/src/pins.rs`, `refs.rs` `Root::Elem`) emits `ListPin`
+on the list and keeps the header it returns and the index in two locals
+that the `get` and `set` closures capture; `get` is `ListIndex` of them
+and `set` `ListSet`, and a struct field path through the element is
+rebuilt as for any place. A list header gains a `pin` word after `cow`
+(`layout::list_ty`, `list_pin`; `crates/hd_wasm/src/emit/cow.rs`):
+
+- **Pinning.** `ListPin` checks the index (`index-out-of-bounds`), makes
+  the arrays the header's own as an element store does (`list_reserve`),
+  adds 1 to `pin`, and returns the header. `ListUnpin` takes the 1 off.
+- **The panic.** `ListPush` and std's `list_truncate`, the two length
+  primitives every list mutator in std is written over, test `pin` first
+  and panic `collection-pinned` when it is not 0 (a truncation only when
+  it changes the length, so `clear` of an empty list passes). `insert`
+  and `remove_at` move elements with element stores, which a pin allows,
+  so `remove_at` panics in its final truncation after moving them; a
+  panic ends the instance, so the moved elements are never seen.
+- **A copy marks; no eager copy.** A reference holds the header, not the
+  arrays, and the header never moves (a change copies arrays into it).
+  So a copy of a pinned list still shares its arrays under the `cow`
+  mark: the first change on either side copies that side's arrays, and
+  a reference reaches the header's current arrays. That is the
+  observable result of `ref.elem.copy`, with no copy at the copy site;
+  `xs = []` stores a new header in the place, and the references keep
+  the old one (`ref.elem.replace`). The reference-counting backend, where
+  a reference is an address into the buffer, copies a pinned buffer at
+  once instead.
+- **Release at last use.** The checker releases a pin at statement
+  granularity in the suite that took it (`ref.elem.release.binding`,
+  `.statement`): after the statement, or after the last statement of the
+  suite that names the reference's binding, it emits `ListUnpin` guarded
+  by a flag local that `ListPin`'s statement sets. A suite that takes a
+  pin is a cleanup `Scope`, and each pin registers a `defer` suite that
+  releases it when still held, so `return`, `break`, `continue` and `?`
+  release it too (`ref.elem.release.exit`). `for p in &mut xs` pins once
+  for the loop as a statement of its suite; each step's reference
+  captures the step's index.
+
+Not closed: a copy of the reference that outlives the binding's
+statements (stored in a field or a list, returned, captured by a closure
+called later; `ref.elem.release.copies`) holds no pin of its own here, so
+the list is unpinned at the binding's last use and a later push does not
+panic. A reference the checker finds no suite for (an expression-bodied
+closure, a top-level binding, a default) is released at once. Both write
+through the header, so the reference still reaches its list's slot; only
+the panic is missed. The reference-counting backend counts each copy.
+Cost: a list header is one `i32` larger; each `push` and truncation
+tests `pin` (about 15 bytes per site, and one panic stub of about 100
+bytes in a program that pushes); taking an element reference costs a
+reference's closures plus `ListPin`, and a suite that takes one runs its
+`defer` flags.
 
 **Strings: Go-style shared slices.** A string is a
 view of a byte array: `(array, start, len)`. `slice` and `s[a..b]` are

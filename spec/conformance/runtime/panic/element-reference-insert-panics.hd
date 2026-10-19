@@ -1,0 +1,8 @@
+# test: an insert while an element reference is live panics with collection-pinned
+# Spec 13 Element References: ref.elem.pinned.
+tests:
+    it("insert moves the elements of a pinned list"):
+        let mut xs = [+1, 2, 3]
+        r := &xs[2]
+        xs.insert(0, 0)  # panic: collection-pinned
+        _ := *r

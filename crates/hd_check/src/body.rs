@@ -476,6 +476,17 @@ pub(crate) struct Ck<'a, 'c> {
     /// Whether the body is a `by Structure` template's, which names no
     /// top-level binding (`module.package.template-private.no-binding`).
     pub in_template: Option<DefId>,
+    /// The open suites that may take pins for element references
+    /// (`crate::pins`), innermost last.
+    pub pin_frames: Vec<crate::pins::PinFrame>,
+    /// The pins taken in those suites and not yet released.
+    pub pins: Vec<crate::pins::PinSlot>,
+    /// The element reference a simple binding is initialized with: the
+    /// reference expression and the bound name (`ref.elem.release`).
+    pub pin_owner: Option<(hd_base::NodeIdx, Symbol)>,
+    /// That binding's name while its reference's operand is checked; the
+    /// pin of the element it names takes it.
+    pub pin_next_owner: Option<Symbol>,
 }
 
 /// A node index kept for a later diagnostic.
@@ -626,6 +637,10 @@ pub(crate) fn new_ck<'a, 'c>(
         next_gen: 0,
         generic_recheck: Vec::new(),
         in_template: None,
+        pin_frames: Vec::new(),
+        pins: Vec::new(),
+        pin_owner: None,
+        pin_next_owner: None,
     };
     // No local declaration holds byte 0: every local impl starts hidden.
     ck.move_to(0);
@@ -2357,10 +2372,17 @@ impl Ck<'_, '_> {
         // enclosing statement is back where it started.
         let at = self.at;
         // A suite with `defer` is a cleanup scope (`flow.defer.scopes`):
-        // a `Scope` over its statements, whose suites are its `Defer`s.
-        let r = if block
-            .children()
-            .any(|c| matches!(c.kind(), SyntaxKind::DeferStmt | SyntaxKind::UsingStmt))
+        // a `Scope` over its statements, whose suites are its `Defer`s. So
+        // is a suite that takes pins for element references, which every
+        // exit releases (`crate::pins`).
+        let pins = Self::suite_takes_pins(block);
+        if pins {
+            self.open_pin_frame(block);
+        }
+        let r = if pins
+            || block
+                .children()
+                .any(|c| matches!(c.kind(), SyntaxKind::DeferStmt | SyntaxKind::UsingStmt))
         {
             let sm = self.b.open_scope();
             let inner = self.b.open_block();
@@ -2375,6 +2397,9 @@ impl Ck<'_, '_> {
         } else {
             self.lines(block, want)
         };
+        if pins {
+            self.close_pin_frame();
+        }
         self.scopes.pop();
         self.move_to(at);
         r
@@ -2398,6 +2423,7 @@ impl Ck<'_, '_> {
         for (i, s) in stmts.iter().copied().enumerate() {
             let last = i + 1 == stmts.len();
             self.move_to(self.cx.src.span(s).lo);
+            self.pins_before(block, i);
             if dead {
                 self.diags.push(
                     Code::UnreachableCode,
@@ -2426,6 +2452,7 @@ impl Ck<'_, '_> {
                 // A last expression that cannot complete is a statement.
                 if self.infer.shallow(self.pool(), t) == Ty::NEVER {
                     diverged = true;
+                    self.pins_after(block, i, &stmts, true);
                     continue;
                 }
                 // `fn.body.value-less-fallthrough`: a body that ends in a
@@ -2442,6 +2469,7 @@ impl Ck<'_, '_> {
                     let msg = format!("this path ends without a {} value", self.show(w));
                     self.err(Code::MissingReturnValue, s, &msg);
                     diverged = true;
+                    self.pins_after(block, i, &stmts, true);
                     continue;
                 }
                 let r = match want {
@@ -2458,10 +2486,12 @@ impl Ck<'_, '_> {
                 };
                 tail = Some(r);
                 ty = want.unwrap_or(t);
+                self.pins_after(block, i, &stmts, false);
                 continue;
             }
             let t = self.stmt(s, last && !value && self.fn_body == Some(block.index()))?;
             diverged |= t == Ty::NEVER;
+            self.pins_after(block, i, &stmts, t == Ty::NEVER);
             if matches!(
                 s.kind(),
                 SyntaxKind::ReturnStmt | SyntaxKind::BreakStmt | SyntaxKind::ContinueStmt

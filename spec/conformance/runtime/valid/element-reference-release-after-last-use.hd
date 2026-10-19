@@ -1,0 +1,17 @@
+# test: a push after the element reference's last use does not panic, though the block that took it is still running
+# Spec 13 Element References: ref.elem.release, ref.elem.release.binding.
+tests:
+    use std.testing.assert_equal
+
+    it("the pin ends with the last statement that names the binding"):
+        let mut xs = [+1, 2, 3]
+        r := &mut xs[0]
+        *r = 10
+        xs.push(4)
+        assert_equal(xs, [+10, 2, 3, 4], reason="the push ran after the reference's last use")
+
+    it("a reference that no binding holds ends with its statement"):
+        let mut xs = [+1, 2]
+        *(&mut xs[1]) = 20
+        xs.push(3)
+        assert_equal(xs, [+1, 20, 3], reason="the temporary reference was released")

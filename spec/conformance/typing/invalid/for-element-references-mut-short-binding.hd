@@ -1,0 +1,6 @@
+# test: for p in &mut xs needs a writable list
+# Spec 06 Element Reference Loops: flow.for.ref.writable.
+fn invalid() -> void:
+    xs := [+1, 2]
+    for x in &mut xs:  # diagnostic: readonly-root
+        *x = 0

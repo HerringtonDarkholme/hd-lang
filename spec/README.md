@@ -23,7 +23,7 @@ versioned subsets.
 | [Modules](lang/10-modules.md) | packages, use declarations, visibility, entry points, Wasm boundary |
 | [Requirements and Suspension](lang/11-requirements-and-suspension.md) | requirement rows, providers, `fn!`, `Suspend[T]` |
 | [Variadic Generics](lang/12-variadic-generics.md) | none: hd has no packs; where arity-generic code lives instead |
-| [Values And References](lang/13-values-and-references.md) | reference types `&T` and `&mut T`, trait value references `&dyn Tr`, `&e`, `&mut e`, `*e`, places, writes through a reference, read-only references, identity (`is`) of references |
+| [Values And References](lang/13-values-and-references.md) | reference types `&T` and `&mut T`, trait value references `&dyn Tr`, `&e`, `&mut e`, `*e`, places, writes through a reference, read-only references, identity (`is`) of references, element references and pins |
 | [Annotations](lang/14-annotations.md) | decorators, function facts, member metadata, typed derivation, error derivation |
 
 These chapters are the language tier. The stdlib tier, std APIs that
@@ -202,6 +202,7 @@ The stdlib chapters' terms are in the
 | **doc test** | A fenced `hd` block in a documentation comment of a module under the source root, compiled as its own program with one test case. See [`module.test.doc.block`](lang/10-modules.md#r-module.test.doc.block). |
 | **driver context** | Where a bang call is valid: a suspending function or closure body, the host executor driving `main!`, or the top level of a script or REPL input. See [`req.bang.driver-forms`](lang/11-requirements-and-suspension.md#r-req.bang.driver-forms). |
 | **dynamic provider** | A provider a closure gets at each call, because its row keeps the key. See [Lexical And Dynamic Providers](lang/11-requirements-and-suspension.md#lexical-and-dynamic-providers). |
+| **element reference** | `&xs[i]` or `&mut xs[i]` with a list `xs`: a reference to the slot `i` of the list, which pins the list. See [`ref.elem.place`](lang/13-values-and-references.md#r-ref.elem.place). |
 | **embedded field** | A bare type-name member of a data declaration, which embeds another data type. See [Data Embedding](lang/08-data-and-enums.md#data-embedding). |
 | **engine** | The runtime that executes a program's compiled module; which engines exist is implementation-defined. See [`cli.engine.define`](cli/command-line.md#r-cli.engine.define). |
 | **entry module** | The module that a program starts from: a module that the toolchain selects in a package, or the file of a single-file program. See [`module.init.entry-module.selected`](lang/10-modules.md#r-module.init.entry-module.selected). |
@@ -261,6 +262,7 @@ The stdlib chapters' terms are in the
 | **part** | The value an embedded field holds: the outer value's own copy of a value of the embedded type. See [Parts And Copies](lang/08-data-and-enums.md#parts-and-copies). |
 | **partially denied** | A trait whose grant is a list of scope entries; a call outside them returns a `NotGranted` error. See [Partial Deny](cli/command-line.md#partial-deny). |
 | **path requirement** | A manifest value `{ path = "DIR" }` through which a package depends on the local package in `DIR`. See [`module.path-dep.form`](lang/10-modules.md#r-module.path-dep.form). |
+| **pin** | What an element reference holds on its list until its last use: while the list is pinned, a change of its length panics. See [`ref.elem.pin`](lang/13-values-and-references.md#r-ref.elem.pin). |
 | **pipe expression** | `value \|> step`, which passes a value to a step. See [Pipe Expressions](lang/05-expressions.md#pipe-expressions). |
 | **place expression** | An expression that identifies a storage location, which may be read or, when permissions allow, assigned. See [`expr.category.place`](lang/05-expressions.md#r-expr.category.place). |
 | **positional spread** | An argument `x...` that passes the value `x` in place of separate arguments: a tuple fills the callee's remaining inputs, and a vararg takes a value of its own type. See [Positional Spreads](lang/05-expressions.md#positional-spreads). |

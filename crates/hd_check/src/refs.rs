@@ -25,7 +25,9 @@
 use hd_base::{DefId, LocalId, NodeIdx, StageResult, Symbol};
 use hd_diag::{Code, FixSafety, Severity};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
-use hd_tir::ir::{Callee, Coercion, IntrinsicOp, NONE, Providers, Ref, Tag, TirSink, local_flags};
+use hd_tir::ir::{
+    Callee, Coercion, IntrinsicOp, NONE, PrimOp, Providers, Ref, Tag, TirSink, local_flags,
+};
 use hd_types::{ParamRef, Prim, RowId, Ty, TyData, TyList};
 
 use crate::body::{Ck, ExpectPosition, LetMutKind, OpenSub, unsupported};
@@ -44,6 +46,11 @@ pub(crate) enum Root {
     /// for it (with its depth): the field's index, the field's type, and
     /// the data value's type.
     DataField(LocalId, usize, u32, Ty, Ty),
+    /// A slot of a list's buffer (`ref.elem.place`): the list as the
+    /// source read it (for the writable check), the local holding the
+    /// pinned list and its depth, the local holding the index and its
+    /// depth, and the list's value type.
+    Elem(Ref, LocalId, usize, LocalId, usize, Ty),
 }
 
 /// A place a reference refers to (`ref.place.forms`): its root, the
@@ -309,7 +316,19 @@ impl Ck<'_, '_> {
             .filter(|w| self.dyn_ref_of(*w).is_none())
             .and_then(|w| self.ref_of(w))
             .map(|(i, _)| i);
-        let Some(op) = self.operand(e, want_inner)? else {
+        // An element reference that initializes a simple binding belongs
+        // to it, and lasts until its last use (`ref.elem.release`).
+        let owner = self
+            .pin_owner
+            .filter(|(node, _)| *node == n.index())
+            .map(|(_, s)| s);
+        if owner.is_some() {
+            self.pin_owner = None;
+        }
+        let saved = std::mem::replace(&mut self.pin_next_owner, owner);
+        let op = self.operand(e, want_inner);
+        self.pin_next_owner = saved;
+        let Some(op) = op? else {
             return Ok(self.ref_poison(n));
         };
         let place = match op {
@@ -463,32 +482,11 @@ impl Ck<'_, '_> {
                     ty: self.deref_ty(it, m),
                 })))
             }
+            // A list element names a slot of the list's buffer, which the
+            // reference pins (`ref.elem.place`).
             SyntaxKind::IndexExpr => {
-                // `types.coll.map-value`: a map value moves when the map
-                // rehashes, so it is no place to refer to.
-                if let Some(base) = kids.first().copied() {
-                    let (_, bt) = self.expr(base, None)?;
-                    if self
-                        .index_kind(bt)
-                        .is_some_and(|(get, ..)| get == IntrinsicOp::MapIndex)
-                    {
-                        self.err(
-                            Code::MapValueNotAddressable,
-                            e,
-                            "a map value is no place, so no reference refers to it; copy it into a `let mut` and refer to that, or keep `&mut` values in the map",
-                        );
-                        self.map_value_ref_fix(e);
-                        return Ok(None);
-                    }
-                }
-                // `ref.check.not-yet-list-elements`: element references pin their list,
-                // which comes with a later job.
-                self.err(
-                    Code::ReferencesNotYetChecked,
-                    e,
-                    "a reference to a list element is not checked yet",
-                );
-                Ok(None)
+                let owner = self.pin_next_owner.take();
+                self.elem_operand(e, owner)
             }
             _ => {
                 let (r, t) = self.expr(e, want)?;
@@ -540,7 +538,7 @@ impl Ck<'_, '_> {
                 let pool = self.pool();
                 if let TyData::Tuple { .. } = pool.get(self.strip_mut(self.infer.resolve(pool, t)))
                 {
-                    // `ref.check.not-yet-list-elements`
+                    // `ref.check.not-yet-non-list-elements`
                     self.err(
                         Code::ReferencesNotYetChecked,
                         e,
@@ -607,7 +605,7 @@ impl Ck<'_, '_> {
 
     /// Whether `&mut` may refer to the place `p` (`ref.place.writable`);
     /// reports why not otherwise.
-    fn place_writable(&mut self, p: &Place, at: NodeRef<'_>) -> bool {
+    pub(crate) fn place_writable(&mut self, p: &Place, at: NodeRef<'_>) -> bool {
         let ok = match p.root {
             Root::Local(l, _) => self.local_ref_writable(l, at),
             Root::Global(s, _, _) => {
@@ -632,6 +630,10 @@ impl Ck<'_, '_> {
                     self.err(Code::ReadonlyRoot, at, &msg);
                     false
                 }
+            }
+            // `ref.elem.writable`: as an element store needs.
+            Root::Elem(list, _, _, _, _, lt) => {
+                self.coll_change(list, lt, "a `&mut` element reference", at)
             }
             Root::DataField(_, _, _, _, dt) => {
                 if self.has_mut_access(dt) {
@@ -782,7 +784,20 @@ impl Ck<'_, '_> {
                 let (o, _) = self.read_local(l, d, n);
                 (self.b.emit(Tag::Field, o.0, idx, ft, n.index()), ft)
             }
+            Root::Elem(_, buf, bd, idx, id, lt) => {
+                let et = self.elem_ty(lt);
+                let (l, _) = self.read_local(buf, bd, n);
+                let (i, _) = self.read_local(idx, id, n);
+                let rec = self.b.refs_record(&[l, i]);
+                let op = IntrinsicOp::ListIndex as u32;
+                (self.b.emit(Tag::Intrinsic, op, rec, et, n.index()), et)
+            }
         }
+    }
+
+    /// The element type of the list type `lt`.
+    fn elem_ty(&mut self, lt: Ty) -> Ty {
+        self.index_kind(lt).map_or(Ty::POISON, |(.., vt)| vt)
     }
 
     /// Stores `v` of type `vt` into the place `p`: a root is replaced; a
@@ -836,6 +851,15 @@ impl Ck<'_, '_> {
                 let v = self.retype(v, ft, at);
                 let rec = self.b.refs_record(&[Ref(idx), v]);
                 self.b.emit(Tag::FieldSet, o.0, rec, Ty::VOID, at);
+            }
+            Root::Elem(_, buf, bd, idx, id, lt) => {
+                let et = self.elem_ty(lt);
+                let (l, _) = self.read_local(buf, bd, n);
+                let (i, _) = self.read_local(idx, id, n);
+                let v = self.retype(v, et, at);
+                let rec = self.b.refs_record(&[l, i, v]);
+                let op = IntrinsicOp::ListSet as u32;
+                self.b.emit(Tag::Intrinsic, op, rec, Ty::VOID, at);
             }
         }
     }
@@ -960,6 +984,16 @@ impl Ck<'_, '_> {
                 );
                 let serial = self.b.const_value(i64_ty, 0);
                 (base, serial, self.b.const_str(&format!("f{idx}{suffix}")))
+            }
+            // A slot: the pinned list's header, the index, and `[]` with
+            // the field path (`ref.elem.identity`).
+            Root::Elem(_, buf, bd, idx, id, lt) => {
+                let (l, _) = self.read_local(buf, bd, n);
+                let any = self.any_ty();
+                let base = self.coerce(l, lt, any, n, "reference", ExpectPosition::General);
+                let (i, _) = self.read_local(idx, id, n);
+                let serial = self.b.prim(PrimOp::Conv as u32, &[i], i64_ty, at);
+                (base, serial, self.b.const_str(&format!("[]{suffix}")))
             }
         }
     }

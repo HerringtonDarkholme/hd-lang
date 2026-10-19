@@ -153,7 +153,7 @@ test("a runtime panic is reported after the output before it", async () => {
   assert.equal(result.summary, "integer-division-by-zero: division by zero");
 });
 
-// spec/lang/06-control-flow.md#r-flow.panic.stable-categories
+// spec/lang/06-control-flow.md#r-flow.panic.known-categories
 test("unbounded recursion is a stack-exhausted panic", async () => {
   const source = [
     "fn deeper(depth: i32) -> i32: deeper(depth) + 1",

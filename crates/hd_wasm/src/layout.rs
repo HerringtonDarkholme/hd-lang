@@ -330,15 +330,18 @@ pub fn box_of(vts: &[VT]) -> WTy {
     }
 }
 
-/// A list: `{len, one array per element value, cow}` (structure of
+/// A list: `{len, one array per element value, cow, pin}` (structure of
 /// arrays). `cow` is the copy-on-write word of §15.2 "Collection values":
 /// bit 0 says the arrays may be shared with another list, and each `for`
 /// iterating them adds 2; a change while it is not 0 copies the arrays
-/// first.
+/// first. `pin` counts the element references into the arrays (§15.2,
+/// "Element references"): while it is not 0 a length change panics and a
+/// copy copies the arrays at once.
 #[must_use]
 pub fn list_ty(elem: &[VT]) -> WTy {
     let mut fields = vec![VT::I32];
     fields.extend(elem.iter().map(|v| VT::r(WTy::Array(storage(v).dflt()))));
+    fields.push(VT::I32);
     fields.push(VT::I32);
     WTy::Struct {
         fields,
@@ -383,6 +386,12 @@ pub fn map_ty(key: &[VT], val: &[VT]) -> WTy {
 #[must_use]
 pub fn list_cow(n: usize) -> u32 {
     1 + u32::try_from(n).expect("list arrays")
+}
+
+/// The field index of a list's pin count: after its copy-on-write word.
+#[must_use]
+pub fn list_pin(n: usize) -> u32 {
+    list_cow(n) + 1
 }
 
 /// The field index of a map's copy-on-write word: after its `n` key and

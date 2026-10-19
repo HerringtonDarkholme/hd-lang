@@ -906,7 +906,18 @@ impl Ck<'_, '_> {
                 (r, t, own)
             }
             _ => {
-                let (r, t) = self.expr(rhs, annot)?;
+                // An element reference that initializes the binding lasts
+                // until the binding's last use (`ref.elem.release`).
+                let refx = crate::pins::strip_parens(rhs);
+                let saved = self.pin_owner;
+                if let Some(name) = name
+                    && refx.kind() == SyntaxKind::RefExpr
+                {
+                    self.pin_owner = Some((refx.index(), name));
+                }
+                let checked = self.expr(rhs, annot);
+                self.pin_owner = saved;
+                let (r, t) = checked?;
                 (r, t, None)
             }
         };
