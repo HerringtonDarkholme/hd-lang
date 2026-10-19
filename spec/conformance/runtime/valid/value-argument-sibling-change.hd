@@ -1,0 +1,75 @@
+# test: a collection value argument is copied before a later argument can change its source
+# Spec 04 Collection Values: types.coll.value; Expressions: expr.call.order, expr.call.source-order.
+fn before(items: List[i32], removed: i32?) -> usize: items.len()
+
+fn keep[T](value: T, removed: i32?) -> T: value
+
+fn shared(items: mut List[i32], removed: i32?) -> usize: items.len()
+
+fn referred(items: &List[i32], removed: i32?) -> usize: items.len()
+
+fn map_before(items: Map[string, i32], removed: i32?) -> usize: items.len()
+
+struct Bag:
+    items: List[i32]
+
+impl Bag:
+    fn count(self, removed: i32?) -> usize: self.items.len()
+
+fn bag_before(bag: Bag, removed: i32?) -> usize: bag.items.len()
+
+data Holder:
+    items: mut List[i32]
+
+tests:
+    use std.testing.assert_equal
+
+    it("a positional value argument precedes a sibling pop"):
+        let mut xs = [+1, 2]
+        assert_equal(before(xs, xs.pop()), 2, reason="the first argument saw both elements")
+        assert_equal(xs, [+1], reason="the sibling pop ran exactly once")
+
+    it("named arguments keep their written evaluation order"):
+        let mut xs = [+1, 2]
+        assert_equal(before(items=xs, removed=xs.pop()), 2, reason="the copy precedes the named pop")
+        let mut ys = [+1, 2]
+        assert_equal(before(removed=ys.pop(), items=ys), 1, reason="the named pop precedes the copy")
+
+    it("a generic value parameter keeps the earlier list"):
+        let mut xs = [+1, 2]
+        assert_equal(keep::[List[i32]](xs, xs.pop()), [+1, 2], reason="generic inference must not defer the copy")
+        assert_equal(xs, [+1], reason="the source changed")
+
+    it("a function value copies before its next argument"):
+        let f: fn(List[i32], i32?) -> usize = before
+        let mut xs = [+1, 2]
+        assert_equal(f(xs, xs.pop()), 2, reason="function values use the same argument order")
+
+    it("a spread after an argument cannot change that argument"):
+        let f: fn(List[i32], i32?) -> usize = before
+        let mut xs = [+1, 2]
+        assert_equal(f(xs, (xs.pop(),)...), 2, reason="the positional value precedes the spread")
+
+    it("a map value argument precedes a sibling removal"):
+        let mut xs: Map[string, i32] = {"a": 1, "b": 2}
+        assert_equal(map_before(xs, xs.remove("a")), 2, reason="the first argument saw both entries")
+        assert_equal(xs.len(), 1, reason="the caller lost one entry")
+
+    it("a struct value argument preserves its collection field"):
+        let mut bag = Bag { items: [+1, 2] }
+        assert_equal(bag_before(bag, bag.items.pop()), 2, reason="the struct's field is copied before the pop")
+        assert_equal(bag.items, [+1], reason="the caller's field changed")
+
+    it("a value receiver precedes its explicit argument"):
+        let mut bag = Bag { items: [+1, 2] }
+        assert_equal(bag.count(bag.items.pop()), 2, reason="self is the first value argument")
+
+    it("a legacy field read is copied before its sibling changes it"):
+        let mut holder = Holder { items: [+1, 2] }
+        assert_equal(before(holder.items, holder.items.pop()), 2, reason="a shared field still needs the early copy")
+
+    it("legacy and reference parameters retain sharing"):
+        let mut xs = [+1, 2]
+        assert_equal(shared(xs, xs.pop()), 1, reason="a legacy view deliberately shares")
+        let mut ys = [+1, 2]
+        assert_equal(referred(&ys, ys.pop()), 1, reason="a reference deliberately reads the changed source")

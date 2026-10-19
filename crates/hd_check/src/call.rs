@@ -1014,11 +1014,16 @@ impl Ck<'_, '_> {
                 self.err(Code::ArgumentCount, n, &msg);
             }
             let mut refs = Vec::new();
+            let mut early = vec![None; ps.len()];
             for (i, e) in args.positional.iter().enumerate() {
                 let w = ps.get(i).copied();
                 let (r, t) = self.expr(*e, w)?;
-                refs.push(match w {
+                let r = match w {
                     Some(w) => self.coerce(r, t, w, *e, "argument", ExpectPosition::General),
+                    None => r,
+                };
+                refs.push(match early.get_mut(i) {
+                    Some(pending) => self.reserve_value_arg(r, e.index(), pending),
                     None => r,
                 });
             }
@@ -1033,6 +1038,11 @@ impl Ck<'_, '_> {
                 let (r, t) = self.trailing_closure(block, w)?;
                 if takes {
                     refs.push(self.coerce(r, t, w, block, "argument", ExpectPosition::General));
+                }
+            }
+            for (arg, param) in early.into_iter().zip(ps) {
+                if let Some(arg) = arg {
+                    self.finish_value_arg(arg, *param);
                 }
             }
             refs
@@ -1197,6 +1207,7 @@ impl Ck<'_, '_> {
         // A vararg is the final parameter; the fixed ones come before it.
         let nfixed = rest.len() - usize::from(variadic);
         let mut slots: Vec<Option<Ref>> = vec![None; rest.len()];
+        let mut early = vec![None; rest.len()];
         // The first argument type seen for each inferred generic: later
         // arguments for the same generic must meet it by the join.
         let mut join_first: HashMap<usize, Ty> = HashMap::default();
@@ -1310,7 +1321,7 @@ impl Ck<'_, '_> {
             if i < room
                 && let Some(s) = slots.get_mut(i)
             {
-                *s = Some(r);
+                *s = Some(self.reserve_value_arg(r, e.index(), &mut early[i]));
             }
         }
         // A list spread that ends a rest tuple vararg's arguments is its
@@ -1338,6 +1349,13 @@ impl Ck<'_, '_> {
                 items: if tail_pending { &items } else { &[] },
             };
             self.spread_arg(s, &tys, at, &mut slots, args)?;
+            for (i, r) in slots.iter_mut().enumerate() {
+                if early[i].is_none()
+                    && let Some(value) = r
+                {
+                    *value = self.reserve_value_arg(*value, s.index(), &mut early[i]);
+                }
+            }
         }
         // A bad named argument already put the call in error, so a slot
         // it was meant to fill is not also an arity error.
@@ -1375,7 +1393,7 @@ impl Ck<'_, '_> {
                 w = self.normalize_deep(rest[i].1)?;
             }
             if rejoin && self.infer_join_conflict(w, t, *e) {
-                slots[i] = Some(r);
+                slots[i] = Some(self.reserve_value_arg(r, e.index(), &mut early[i]));
                 continue;
             }
             let what2 = if matches!(pool.get(rest[i].1), TyData::Infer(_)) {
@@ -1392,10 +1410,11 @@ impl Ck<'_, '_> {
                 *e,
                 what2,
             ) {
-                slots[i] = Some(r);
+                slots[i] = Some(self.reserve_value_arg(r, e.index(), &mut early[i]));
                 continue;
             }
-            slots[i] = Some(self.coerce(r, t, w, *e, what2, ExpectPosition::General));
+            let r = self.coerce(r, t, w, *e, what2, ExpectPosition::General);
+            slots[i] = Some(self.reserve_value_arg(r, e.index(), &mut early[i]));
         }
         if let Some(block) = args.trailing {
             // A block the callee cannot take is still checked, against
@@ -1431,6 +1450,7 @@ impl Ck<'_, '_> {
         for (i, s) in slots.into_iter().enumerate() {
             match s {
                 // A value argument is the callee's own copy (`types.coll.value`).
+                Some(r) if early[i].is_some() => out.push(r),
                 Some(r) => out.push(self.value_arg(r, rest[i].1, n.index())),
                 None if formals.defaults.get(skip + i).copied().unwrap_or(false) => {
                     // A local function's default is a closure of the
@@ -1473,6 +1493,11 @@ impl Ck<'_, '_> {
                     }
                     break;
                 }
+            }
+        }
+        for (i, arg) in early.into_iter().enumerate() {
+            if let Some(arg) = arg {
+                self.finish_value_arg(arg, rest[i].1);
             }
         }
         Ok(out)
@@ -1717,6 +1742,7 @@ impl Ck<'_, '_> {
             return unsupported("a trailing block with a spread argument");
         }
         let mut slots: Vec<Option<Ref>> = vec![None; ps.len()];
+        let mut early = vec![None; ps.len()];
         if args.positional.len() > ps.len() {
             let msg = format!("the function takes {} arguments", ps.len());
             self.err(Code::ArgumentCount, n, &msg);
@@ -1729,7 +1755,7 @@ impl Ck<'_, '_> {
                 None => r,
             };
             if let Some(s) = slots.get_mut(i) {
-                *s = Some(r);
+                *s = Some(self.reserve_value_arg(r, e.index(), &mut early[i]));
             }
         }
         if let Some(s) = args.spread {
@@ -1740,10 +1766,22 @@ impl Ck<'_, '_> {
                 items: &[],
             };
             self.spread_arg(s, ps, at, &mut slots, args)?;
+            for (i, r) in slots.iter_mut().enumerate() {
+                if early[i].is_none()
+                    && let Some(value) = r
+                {
+                    *value = self.reserve_value_arg(*value, s.index(), &mut early[i]);
+                }
+            }
         }
         if slots.iter().any(Option::is_none) {
             let msg = format!("the function takes {} arguments", ps.len());
             self.err(Code::ArgumentCount, n, &msg);
+        }
+        for (arg, param) in early.into_iter().zip(ps) {
+            if let Some(arg) = arg {
+                self.finish_value_arg(arg, *param);
+            }
         }
         Ok(slots.into_iter().flatten().collect())
     }
@@ -3679,10 +3717,12 @@ impl Ck<'_, '_> {
                         recv
                     }
                 };
-                let mut refs = vec![recv];
+                let mut early_receiver = None;
+                let mut refs =
+                    vec![self.reserve_value_receiver(recv, n.index(), &mut early_receiver)];
                 let mut all = impl_args.clone();
                 all.extend(&vars);
-                self.default_owner = Some((method, pool.list(&all), vec![recv]));
+                self.default_owner = Some((method, pool.list(&all), vec![refs[0]]));
                 let inferred = inferred_formals(self, method, &sig, &explicit, &params);
                 let formals = Formals {
                     params: &params,
@@ -3691,7 +3731,7 @@ impl Ck<'_, '_> {
                     inferred: &inferred,
                 };
                 refs.extend(self.check_args(&formals, 1, args, n, name)?);
-                refs[0] = self.value_receiver(refs[0], params[0].1, n.index());
+                refs[0] = self.value_receiver(refs[0], params[0].1, n.index(), early_receiver);
                 self.fill_method_defaults(&sig, &vars, &inst, want)?;
                 self.open_call_params(&vars, &refs, n);
                 // `h.fact::[D]()` on a structure handle reads a typed fact
@@ -3975,9 +4015,13 @@ impl Ck<'_, '_> {
                     .map_or(Symbol::from_raw(0), |i| i.name),
             )
             .to_owned();
+        let mut early_receiver = None;
+        if skip == 1 {
+            refs[0] = self.reserve_value_receiver(refs[0], n.index(), &mut early_receiver);
+        }
         refs.extend(self.check_args(&formals, skip, args, n, &method_name)?);
         if skip == 1 {
-            refs[0] = self.value_receiver(refs[0], params[0].1, n.index());
+            refs[0] = self.value_receiver(refs[0], params[0].1, n.index(), early_receiver);
         }
         self.fill_method_defaults(&sig, &vars, &inst, want)?;
         self.open_call_params(&vars, &refs, n);

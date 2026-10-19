@@ -42,6 +42,15 @@ pub(crate) struct ArgCopy {
     at: NodeIdx,
 }
 
+/// A copy site immediately after an argument's evaluation, before its
+/// siblings. Parameter inference and sibling effects settle it later.
+#[derive(Clone, Copy)]
+pub(crate) struct ValueArg {
+    slot: Slot,
+    value: Ref,
+    at: NodeIdx,
+}
+
 /// The place a value argument reads, for whether the callee may see it
 /// change while it runs.
 enum ArgRoot {
@@ -301,29 +310,59 @@ impl Ck<'_, '_> {
     /// view, shares instead (`types.coll.legacy`), and a reference
     /// parameter refers.
     pub(crate) fn value_arg(&mut self, r: Ref, param: Ty, at: NodeIdx) -> Ref {
+        self.value_arg_at(r, param, at, None)
+    }
+
+    /// Reserves the argument's copy before checking its next sibling.
+    pub(crate) fn reserve_value_arg(
+        &mut self,
+        r: Ref,
+        at: NodeIdx,
+        pending: &mut Option<ValueArg>,
+    ) -> Ref {
+        if r.0 == NONE
+            || !self.may_hold_coll(self.strip_mut(self.b.ty_of(r)))
+            || self.is_fresh(r)
+            || matches!(self.arg_root(r), ArgRoot::Fixed)
+        {
+            return r;
+        }
+        let slot = self.b.reserve();
+        self.b.body_mut().ty[slot.as_ref().0 as usize] = self.b.ty_of(r);
+        *pending = Some(ValueArg { slot, value: r, at });
+        slot.as_ref()
+    }
+
+    /// All siblings and defaults are checked: fill the early copy site.
+    pub(crate) fn finish_value_arg(&mut self, arg: ValueArg, param: Ty) {
+        self.value_arg_at(arg.value, param, arg.at, Some(arg.slot));
+    }
+
+    fn value_arg_at(&mut self, r: Ref, param: Ty, at: NodeIdx, early: Option<Slot>) -> Ref {
         if r.0 == NONE {
             return r;
         }
         let pool = self.pool();
+        let t = self.strip_mut(self.b.ty_of(r));
         if matches!(pool.get(self.infer.resolve(pool, param)), TyData::Mut(_))
             || self.ref_of(param).is_some()
             || self.ref_of(self.b.ty_of(r)).is_some()
+            || !self.may_hold_coll(t)
+            || self.is_fresh(r)
         {
-            return r;
+            return self.fill_arg_copy(r, false, early, at);
         }
-        let t = self.strip_mut(self.b.ty_of(r));
-        if !self.may_hold_coll(t) || self.is_fresh(r) {
-            return r;
-        }
-        match self.arg_root(r) {
-            ArgRoot::Fixed => r,
-            ArgRoot::Shared => self.value_copy(r, t, at),
-            ArgRoot::Local(l) if self.local_aliased(l) => self.value_copy(r, t, at),
-            // Straight-line code: whatever lets something else change the
-            // local comes after the call, so it cannot run during it.
-            ArgRoot::Local(_) if self.loops.is_empty() && self.subs.is_empty() => r,
+        let copy = match self.arg_root(r) {
+            ArgRoot::Fixed => false,
+            ArgRoot::Shared => true,
+            ArgRoot::Local(l)
+                if self.local_aliased(l) || early.is_some_and(|s| self.later_arg_change(s, l)) =>
+            {
+                true
+            }
+            ArgRoot::Local(_) if self.loops.is_empty() && self.subs.is_empty() => false,
             ArgRoot::Local(local) => {
-                let slot = self.b.reserve();
+                let slot = early.unwrap_or_else(|| self.b.reserve());
                 let s = slot.as_ref();
                 self.b.body_mut().ty[s.0 as usize] = t;
                 self.arg_copies.push(ArgCopy {
@@ -333,9 +372,69 @@ impl Ck<'_, '_> {
                     local,
                     at,
                 });
-                s
+                return s;
             }
+        };
+        self.fill_arg_copy(r, copy, early, at)
+    }
+
+    fn fill_arg_copy(&mut self, r: Ref, copy: bool, early: Option<Slot>, at: NodeIdx) -> Ref {
+        if let Some(slot) = early {
+            if copy {
+                let rec = self.b.refs_record(&[r]);
+                let t = self.strip_mut(self.b.ty_of(r));
+                self.b.fill(
+                    slot,
+                    Tag::Intrinsic,
+                    IntrinsicOp::ValueCopy as u32,
+                    rec,
+                    t,
+                    at,
+                )
+            } else {
+                let rec = self.b.words_record(&[Coercion::Identity as u32, NONE]);
+                self.b
+                    .fill(slot, Tag::Coerce, r.0, rec, self.b.ty_of(r), at)
+            }
+        } else if copy {
+            self.value_copy(r, self.strip_mut(self.b.ty_of(r)), at)
+        } else {
+            r
         }
+    }
+
+    /// A later argument can mutate this local directly, or through a
+    /// call/alias. Pure reads and arithmetic need no snapshot. Calls are
+    /// conservative since their effects need not be visible in this body.
+    fn later_arg_change(&mut self, slot: Slot, local: LocalId) -> bool {
+        let body = self.b.body_mut();
+        (slot.as_ref().0 as usize + 1..body.len()).any(|i| match body.tags[i] {
+            Tag::Call
+            | Tag::CallValue
+            | Tag::CallDyn
+            | Tag::DefaultCall
+            | Tag::CallHost
+            | Tag::Await
+            | Tag::AwaitValue
+            | Tag::AwaitAll
+            | Tag::AwaitRace
+            | Tag::FieldSet
+            | Tag::GlobalSet => true,
+            Tag::LocalSet => body.data[i][0] == local.raw(),
+            Tag::Intrinsic => matches!(
+                IntrinsicOp::from_u32(body.data[i][0]),
+                Some(
+                    IntrinsicOp::ListPush
+                        | IntrinsicOp::ListSet
+                        | IntrinsicOp::MapRemove
+                        | IntrinsicOp::MapSet
+                        | IntrinsicOp::ListIndexMut
+                        | IntrinsicOp::MapIndexMut
+                        | IntrinsicOp::Item
+                )
+            ),
+            _ => false,
+        })
     }
 
     /// The value receiver `r` of a method whose `self` is `param`: the
@@ -343,11 +442,33 @@ impl Ck<'_, '_> {
     /// receiver is passed as is: std's views and cursors over it (`view`,
     /// `iter`) keep the receiver they are given as a legacy view
     /// (`types.coll.legacy.data-field`) until std migrates.
-    pub(crate) fn value_receiver(&mut self, r: Ref, param: Ty, at: NodeIdx) -> Ref {
+    pub(crate) fn value_receiver(
+        &mut self,
+        r: Ref,
+        param: Ty,
+        at: NodeIdx,
+        early: Option<ValueArg>,
+    ) -> Ref {
+        if let Some(arg) = early {
+            self.finish_value_arg(arg, param);
+            return r;
+        }
         if r.0 == NONE || self.is_coll_ty(self.b.ty_of(r)) {
             return r;
         }
         self.value_arg(r, param, at)
+    }
+
+    pub(crate) fn reserve_value_receiver(
+        &mut self,
+        r: Ref,
+        at: NodeIdx,
+        pending: &mut Option<ValueArg>,
+    ) -> Ref {
+        if r.0 == NONE || self.is_coll_ty(self.b.ty_of(r)) {
+            return r;
+        }
+        self.reserve_value_arg(r, at, pending)
     }
 
     fn value_copy(&mut self, v: Ref, t: Ty, at: NodeIdx) -> Ref {
