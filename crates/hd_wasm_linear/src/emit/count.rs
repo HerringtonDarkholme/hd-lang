@@ -24,7 +24,7 @@ impl Em<'_, '_, '_> {
 
     /// Calls `on` for the value in locals `ls` of type `t`: one count more
     /// (`retain`) or less on each of its counted references.
-    fn count_locals(&mut self, ls: &[u32], t: Ty, retain: bool) -> StageResult<()> {
+    pub(super) fn count_locals(&mut self, ls: &[u32], t: Ty, retain: bool) -> StageResult<()> {
         let Some(w) = self.counted(t) else {
             return Ok(());
         };
@@ -52,6 +52,18 @@ impl Em<'_, '_, '_> {
             (false, Some(_)) => self.f.helper(Helper::ReleaseRef),
             (_, None) => self.f.op(wasm_encoder::Instruction::Drop),
         }
+    }
+
+    /// One count more or less on TIR local `l`'s value in `ls`: its
+    /// cell's, when it lives in one.
+    pub(super) fn count_local(&mut self, l: usize, ls: &[u32], retain: bool) -> StageResult<()> {
+        if self.is_cell(l) {
+            self.f.get(ls[0]);
+            self.ref_count(retain);
+            return Ok(());
+        }
+        let t = self.sub(self.b.local_ty[l]);
+        self.count_locals(ls, t, retain)
     }
 
     pub(super) fn retain_locals(&mut self, ls: &[u32], t: Ty) -> StageResult<()> {
@@ -123,7 +135,8 @@ impl Em<'_, '_, '_> {
             return false;
         }
         let b = self.b;
-        (0..b.local_ty.len()).any(|l| self.counted(self.sub(b.local_ty[l])).is_some())
+        !self.cells.is_empty()
+            || (0..b.local_ty.len()).any(|l| self.counted(self.sub(b.local_ty[l])).is_some())
             || (0..b.ty.len()).any(|i| {
                 self.counted(self.ty(u32::try_from(i).expect("insts")))
                     .is_some()
@@ -143,8 +156,7 @@ impl Em<'_, '_, '_> {
             self.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
         locals.sort_unstable();
         for (l, ls) in locals {
-            let t = self.sub(self.b.local_ty[l]);
-            self.release_locals(&ls, t)?;
+            self.count_local(l, &ls, false)?;
         }
         for tmp in self.temps.clone() {
             self.f.get(tmp);

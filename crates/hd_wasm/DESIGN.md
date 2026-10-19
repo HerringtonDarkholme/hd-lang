@@ -1682,6 +1682,7 @@ what the spec names as intrinsic or what only it can build.
 | counts | `retain` and `release` in `std.rt.alloc`, called by emitted code, with release glue that `rt.rs` generates per layout | 8 |
 | lists | `emit/list.rs` for the list kernels, and `rt.rs` for the header, the buffer, its release glue and the change that makes a buffer a list's own (§23.17) | 9 |
 | maps | `emit/map.rs` for the map kernels, and `map.rs` for the table: its probe, put, growth, release glue and the change that makes a table a map's own (§23.18) | 10 |
+| closures and `dyn` | `emit/closure.rs` for environments, cells and calls of function values, `emit/dyn_value.rs` for trait values and their vtables, `emit/iter.rs` for collection iterators (§23.19) | 11 |
 | iterative release, the collector | hd in further `std.rt` modules, called by emitted code | 19, 21 |
 
 `std.rt` modules are privileged: only std modules may import them, so the
@@ -1886,12 +1887,13 @@ object per list.
   object holding the captures inline, absent (0) when nothing is captured;
   each closure literal's environment layout has its own descriptor, whose
   release and trace know the captures (OBJECT_MODEL_TIER1.md §9.3).
-- **A `dyn Trait` value** is `(data, vtable)`. A vtable is a static
-  record: its first two words are the concrete type's release and trace
-  table indices, so dropping a `dyn` releases its data with no knowledge
-  of the type, then the method slots in the trait's declared order, then
-  each direct supertrait's vtable address. `Any`'s vtable also holds the
-  type's identity (the first 64 bits of `H(canon(T))`, §15.2's `TypeId`).
+- **A `dyn Trait` value** is `(data, vtable)`. The data is always one
+  counted address (the value itself, or a box of it, §23.19), so dropping
+  a `dyn` releases its data with no knowledge of the type: the release
+  and, later, the trace are the data's own descriptor's (§23.4). A
+  vtable is a static record of the method slots in the trait's declared
+  order, then each direct supertrait's vtable address. `Inspectable`'s
+  `runtime_type` slot answers the type's identity (§15.2's `TypeId`).
 - **Providers** are trait values, passed as `(data, vtable)` pairs in key
   order as on Wasm GC (crates/hd_mono/DESIGN.md §13.18).
 
@@ -2233,7 +2235,7 @@ in place of the `cow` mark.
   shrinking primitive `list_truncate`, so `pop`, `insert`, `remove_at`
   and `clear`, takes `&mut List[T]`: they wait for closures (job 11) and
   references (job 12), as do `assert_equal` and `debug`, which write
-  through `&mut DebugWriter`.
+  through `&mut DebugWriter`. Job 11 lowers all of them (§23.19).
 
 ### 23.18 What Job 10 Adds
 
@@ -2291,3 +2293,96 @@ table's count in place of the `cow` mark.
   parameter over `std.rt.memory`, as for list buffers.
 - **Not yet.** `Map.iter()` and the methods built on it (`keys`,
   `values`, `entries`, printing) hold a closure, and wait for job 11.
+
+### 23.19 What Job 11 Adds
+
+Job 11 lowers closures, function values and trait values (§23.8): the
+environments in `emit/closure.rs`, trait values and their vtables in
+`emit/dyn_value.rs`, and the collection iterators that hold a closure in
+`emit/iter.rs`.
+
+- **Function values.** `(code, environment)`: the function-table slot of
+  the code instance and the address of a counted environment, 0 when
+  nothing is captured. A code instance takes the environment first, then
+  its parameters, then the providers of its type's row in key order, so a
+  call of a value pushes them and makes one `call_indirect`, or a direct
+  call when collection knows the closure (`KnownClosure`). A function
+  reference (`double` as a value) is an adapter instance that ignores its
+  environment and calls its target.
+- **Environments.** One counted object per closure value, holding each
+  capture inline (OBJECT_MODEL_TIER1.md §9.1): an immutable capture's
+  value, with a count of its own, or a shared local's cell address. Its
+  descriptor's glue releases the captures, so each closure literal's
+  layout has its own release, as §23.8 says. A closure copied counts its
+  environment once more; the environment goes at its last copy.
+- **Cells.** A local that a closure shares (`CaptureMode::Shared`, one
+  assigned after it is captured) lives in a cell: a counted object
+  holding its value, whose address is the local's one Wasm value. The
+  local's declaration makes the cell (a new one per loop iteration, so
+  closures made in a loop each see their own, `flow.for.binding.fresh`);
+  every later store writes the cell, counting the new value before it
+  releases the old; a read copies the value out with a count. A shared
+  `mut` parameter moves into a cell on entry. A capture reached before
+  its declaration (a recursive local function's own name) makes a cell of
+  zeros, which the declaration fills.
+- **Trait values.** `(data, vtable)`. The data is the value itself when
+  its layout is one counted address (a data value, a list, a map, a
+  reference), 0 when it has no Wasm values, and otherwise a new counted
+  box of the value's layout, whose descriptor releases its fields. So the
+  data is always one counted address, and copying or dropping a trait
+  value counts its data with no knowledge of the type; this is why a
+  vtable carries no release word. A vtable is static data: one
+  function-table slot per method of the trait, in declared order, each an
+  adapter that loads the payload from the box (or passes the data itself)
+  and calls the method's instance, then the addresses of the direct
+  supertraits' vtables. Widening to a supertrait loads those addresses
+  along the path; a supertrait's method dispatches the same way.
+- **Reference payloads.** A `&S` converted to a trait value
+  (`RefToTraitValue`) keeps the `Ref` object as its data. A slot whose
+  method takes the value reads it through the `Ref`'s `get` closure
+  (`SlotRecv::ReadThrough`); a `&self` or `&mut self` slot gets the `Ref`
+  itself. A trait value reference installed as a provider
+  (`RefAsProvider`) is the `Ref` with the vtable that its `get` returns,
+  and `$.use(K)` (`ProviderAsRef`) reads the `Ref` back, so two uses are
+  one reference (`req.ref.same-place`).
+- **Inspection.** `TypeId` is a struct of two static strings, the key and
+  the printable name, never counted. `TypeId::of`, a concrete value's
+  `runtime_type` and the vtable's `runtime_type` slot answer them with no
+  allocation; a downcast compares the key the payload's vtable reports
+  with the target's and unboxes on a match.
+- **Identity.** `is` compares the first counted address: a data value's,
+  a list's or a map's header, a trait value's data; two references
+  compare their identity fields (§15.2). A trait value that boxed a value
+  compares its boxes (`expr.is.box-unspecified`). `ref_serial` is a
+  global counter.
+- **Providers.** `$.with(K: v) body` makes `v` the provider of `K` in the
+  body, borrowing `v`'s locals, whose count lasts to the function's
+  exit. (`Guard`, a match guard's condition block and its two branches,
+  lowers here too.)
+- **Iterators.** `List.iter()` and `Map.iter()` build an `Iterator[T]`
+  whose step closure's environment holds the collection's header, with a
+  count of its own, the next position and what the collection looked
+  like at creation: `rt:list_step` and `rt:map_step` panic
+  `iterator-invalidated` when it changed (`flow.for.invalidate.panic`).
+  `list_truncate`, and so `pop`, `insert`, `remove_at` and `clear`, reads
+  the list through its reference and truncates it in place.
+- **Bounded memory.** `crates/hd_driver/tests/std_rt/closure_tests.hd`
+  calls function references and closures, shares a local between a scope
+  and its closures, dispatches through boxed and widened trait values,
+  and makes closures and trait values in a loop, checking that the heap
+  does not grow after a warm-up.
+- **Trace.** No glue traces yet: the collector (jobs 20 and 21) adds a
+  trace entry to the same descriptors that release, so neither an
+  environment nor a box needs a second word for it.
+- **Size.** hello holds no closure and no trait value beyond its host
+  provider: 10,635 bytes in the dev profile (10,607 after job 8) and
+  7,445 in release.
+- **Not yet.** A generic method called through a trait value needs the
+  erased method ABI (crates/hd_mono/DESIGN.md §13.5.1): its open values
+  and thunks are refused, as are their `^N` open types. A function with
+  row parameters, which takes its rows' providers as one context value
+  (crates/hd_mono/DESIGN.md §12.4), and so `$.Context` values and a
+  `$.with` of one, are refused, as is a coercion of a function value
+  whose row changes, which needs an adapter that passes the providers
+  its code takes. Suspending function values and closures wait for job
+  13.

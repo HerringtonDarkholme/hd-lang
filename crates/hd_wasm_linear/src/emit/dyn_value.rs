@@ -1,0 +1,480 @@
+//! Trait values (`crates/hd_wasm/DESIGN.md` §23.8, §23.19, job 11). A
+//! trait value is `(data, vtable)`. The data is the value itself when its
+//! layout is one counted address (a list, a map, a data value); any other
+//! value is boxed in a counted object of its layout, whose descriptor
+//! releases it. Either way the data is one counted address, so a trait
+//! value's release and trace are its data's, and the vtable is static: one
+//! function-table slot per method, then the addresses of its direct
+//! supertraits' vtables.
+
+use hd_base::StageResult;
+use hd_mono::{SlotRecv, Target, TargetKind, VTable, erased, subst};
+use hd_types::{Ty, TyData};
+use wasm_encoder::Instruction as I;
+
+use super::Em;
+use super::value::Src;
+use crate::layout::{Leaf, Part, Walk, mem as mem_of, payload_mem, walk};
+use crate::module::{HEAP, Ins, Sym, Val, mem};
+use crate::rt::{Helper, RefRead, TypeIdParts};
+use crate::unsupported;
+
+impl Em<'_, '_, '_> {
+    fn is_dyn(&self, t: Ty) -> bool {
+        matches!(
+            self.pool().get(self.strip_mut(t)),
+            TyData::TraitValue { .. }
+        )
+    }
+
+    /// `Coerce` of value `a` to the trait value `i` (`ToTraitValue`,
+    /// `Supertrait`): a trait value widens; any other value takes the
+    /// vtable collection recorded at its type.
+    pub(super) fn trait_value(&mut self, i: u32, a: u32) -> StageResult<()> {
+        let from = self.strip_mut(self.ty_of(a));
+        if self.is_dyn(from) {
+            return self.widen(i, a);
+        }
+        let Some(Target::VTable(table)) = self.calls.get(&i).cloned() else {
+            return unsupported("a trait-value coercion that collection did not record");
+        };
+        let vs = self.vals(from)?;
+        let direct = vs == [Val::I32] && walk(self.pool(), self.env(), from) == Some(Walk::Ref(0));
+        let src = self.slot_src(a, from, false)?;
+        if direct || vs.is_empty() {
+            // A value of no Wasm values needs no box: its slots load
+            // nothing.
+            let leaves: Option<&[Leaf]> = if direct {
+                self.src(&src, 0)?;
+                None
+            } else {
+                self.f.i32(0);
+                Some(&[])
+            };
+            let vt = self.vtable_of(&table, leaves, from)?;
+            self.f.body.push(Ins::VTable(vt));
+            return self.store(i);
+        }
+        let m = mem_of(self.pool(), self.env(), from)?;
+        let w = self.counted(from);
+        let at = self.object(&m, w.as_ref());
+        let part = Part {
+            first: 0,
+            count: m.leaves.len(),
+            offset: 0,
+        };
+        self.store_part(at, &m, part, &src)?;
+        self.retain_fields(at, &m, w.as_ref());
+        let vt = self.vtable_of(&table, Some(&m.leaves), from)?;
+        self.f.get(at);
+        self.f.body.push(Ins::VTable(vt));
+        // A new box arrives with its count.
+        self.store_owned(i)
+    }
+
+    /// The static vtable of `table` at payload type `from`, whose slots
+    /// load the payload from a box of `leaves`, or pass the data itself
+    /// when there is no box.
+    fn vtable_of(
+        &mut self,
+        table: &VTable,
+        leaves: Option<&[Leaf]>,
+        from: Ty,
+    ) -> StageResult<usize> {
+        let mut parents = Vec::new();
+        for p in &table.parents {
+            parents.push(self.vtable_of(p, leaves, from)?);
+        }
+        let read = if table.recv.contains(&SlotRecv::ReadThrough) {
+            Some(self.ref_read(from)?)
+        } else {
+            None
+        };
+        let methods = self.env().trait_methods(table.trait_);
+        let mut slots = Vec::new();
+        for ((m, t), recv) in methods.iter().zip(&table.slots).zip(&table.recv) {
+            let (pool, env) = (self.pool(), self.env());
+            let mut params = Vec::new();
+            for p in env.params(t.item).unwrap_or_default().into_iter().skip(1) {
+                params.extend(self.vals(subst(pool, env, t.item, t.args, p))?);
+            }
+            for _ in env.row_keys(t.item, t.args) {
+                params.extend([Val::I32, Val::I32]);
+            }
+            let results = self.vals(t.ret)?;
+            // A `&self` method on a payload that is no reference, which
+            // the checker never lets a call reach, a generic method (its
+            // erased body) and a compiler-supplied method trap; the
+            // dynamic call refuses the last two (`Em::call_dyn`).
+            let traps = *recv == SlotRecv::Unavailable
+                || erased::own_count(env, *m) > 0
+                || t.kind != TargetKind::Instance;
+            // The vtable's `runtime_type` answers the type the vtable is
+            // built at (trait.inspect.dynamic).
+            if let TargetKind::Builtin { self_ty, .. } = t.kind
+                && (self.input.path)(*m).rsplit(['.', '/']).next() == Some("runtime_type")
+            {
+                let parts = self.type_id_parts(self_ty, t.ret)?;
+                slots.push(Sym::Helper(Helper::RuntimeType(parts)));
+                continue;
+            }
+            slots.push(Sym::Helper(if traps {
+                let mut all = vec![Val::I32];
+                all.extend(params);
+                Helper::DynTrap {
+                    params: all,
+                    results,
+                }
+            } else if let (SlotRecv::ReadThrough, Some(read)) = (recv, &read) {
+                Helper::DynRead {
+                    target: t.key,
+                    read: read.clone(),
+                    params,
+                    results,
+                }
+            } else {
+                Helper::DynSlot {
+                    target: t.key,
+                    leaves: leaves.map(<[Leaf]>::to_vec),
+                    params,
+                    results,
+                }
+            }));
+        }
+        Ok(self.m.vtable_with(slots, parents))
+    }
+
+    /// How a slot reads the value behind the reference payload of type
+    /// `from` (`SlotRecv::ReadThrough`): where the `get` closure lies in
+    /// the `Ref` object, and the value's layout and counted references.
+    pub(super) fn ref_read(&self, from: Ty) -> StageResult<RefRead> {
+        let (pool, env) = (self.pool(), self.env());
+        let TyData::Adt { def, args } = pool.get(from) else {
+            return unsupported("a reference payload that is not a `Ref`");
+        };
+        let fields: Vec<Ty> = env
+            .data_fields(def)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|f| subst(pool, env, def, args, f))
+            .collect();
+        let (Some(&value), Some(&get)) = (pool.list_items(args).first(), fields.first()) else {
+            return unsupported("a `Ref` without its `get` field");
+        };
+        let (m, parts) = payload_mem(pool, env, &fields)?;
+        let p = parts[0];
+        if self.vals(get)? != [Val::I32, Val::I32] {
+            return unsupported("a `Ref` whose `get` is not a function value");
+        }
+        Ok(RefRead {
+            code: m.leaves[p.first].offset,
+            env: m.leaves[p.first + 1].offset,
+            value: self.vals(value)?,
+            walk: self.counted(value),
+        })
+    }
+
+    /// The value behind reference `r`, read through its `get` closure as
+    /// [`Self::ref_read`] describes: locals holding it, with a count of
+    /// its own.
+    pub(super) fn read_through(&mut self, r: u32, read: &RefRead) -> StageResult<Vec<u32>> {
+        self.comp(r, 0)?;
+        self.f.op(I::I32Load(mem(HEAP, u64::from(read.env), 2)));
+        self.comp(r, 0)?;
+        self.f.op(I::I32Load(mem(HEAP, u64::from(read.code), 2)));
+        self.f
+            .body
+            .push(Ins::CallIndirect(vec![Val::I32], read.value.clone()));
+        let ls: Vec<u32> = read.value.iter().map(|v| self.f.local(*v)).collect();
+        for l in ls.iter().rev() {
+            self.f.set(*l);
+        }
+        Ok(ls)
+    }
+
+    /// `RefAsProvider` (`crates/hd_wasm/DESIGN.md` §15.2, "Providers of
+    /// reference traits"): the trait value reference `a` installed as a
+    /// provider. Its data is the `Ref` itself, which `ProviderAsRef` reads
+    /// back; its vtable is the one `get` returns, there to fill the
+    /// provider's layout, and the trait value `get` built is let go.
+    pub(super) fn ref_as_provider(&mut self, i: u32, a: u32) -> StageResult<()> {
+        let read = self.ref_read(self.strip_mut(self.ty_of(a)))?;
+        if read.value != [Val::I32, Val::I32] {
+            return unsupported("a provider reference of an unexpected layout");
+        }
+        let ls = self.read_through(a, &read)?;
+        if self.input.runtime.is_some() {
+            self.f.get(ls[0]);
+            self.f.helper(Helper::ReleaseRef);
+        }
+        self.comp(a, 0)?;
+        self.f.get(ls[1]);
+        self.store(i)
+    }
+
+    /// The `TypeId` struct `id` (`runtime_type`'s result) of `t`: its key
+    /// and its printable name (trait.typeid.name), static strings.
+    fn type_id_parts(&self, t: Ty, id: Ty) -> StageResult<TypeIdParts> {
+        if self.vals(id)? != [Val::I32; 4] {
+            return unsupported("a `TypeId` that is not its key and name strings");
+        }
+        let (pool, env) = (self.pool(), self.env());
+        Ok(TypeIdParts {
+            name: hd_mono::type_name(pool, env, t),
+            shown: hd_mono::printed_type_name(pool, env, t),
+        })
+    }
+
+    /// The builtin `runtime_type` of a `self_ty` value `recv`: a concrete
+    /// value's recorded type is its static type (trait.inspect.static); a
+    /// trait value's is its vtable's `runtime_type` (trait.inspect.dynamic).
+    pub(super) fn runtime_type(&mut self, i: u32, self_ty: Ty, recv: u32) -> StageResult<()> {
+        if !self.is_dyn(self_ty) {
+            let parts = self.type_id_parts(self_ty, self.ty(i))?;
+            self.f.helper(Helper::TypeIdOf(parts));
+            return self.store(i);
+        }
+        let sealed = self.env().decls().sealed();
+        let mut path = Vec::new();
+        let mut found = None;
+        self.super_path(
+            self_ty,
+            (sealed.inspectable, hd_types::TyList::EMPTY),
+            &mut path,
+            &mut found,
+        );
+        let Some(steps) = found else {
+            return unsupported("a `runtime_type` of a trait value that is not `Inspectable`");
+        };
+        self.comp(recv, 0)?;
+        self.comp(recv, 1)?;
+        for at in steps {
+            self.f.op(I::I32Load(mem(HEAP, u64::from(at), 2)));
+        }
+        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+        self.f
+            .body
+            .push(Ins::CallIndirect(vec![Val::I32], vec![Val::I32; 4]));
+        self.store(i)
+    }
+
+    /// `TypeId::of::[T]()` (`type_id_of`): a new `TypeId` of `T`.
+    pub(super) fn type_id_of(&mut self, i: u32, targs: hd_types::TyList) -> StageResult<()> {
+        let Some(&t) = self.pool().list_items(targs).last() else {
+            return unsupported("a `TypeId::of` without its type argument");
+        };
+        let parts = self.type_id_parts(self.sub(t), self.ty(i))?;
+        self.f.helper(Helper::TypeIdOf(parts));
+        self.store(i)
+    }
+
+    /// The `Inspectable` trait of recovery intrinsic `item` and its one
+    /// method, `runtime_type`.
+    fn inspectable_of(
+        &self,
+        item: hd_base::DefId,
+    ) -> StageResult<(hd_base::DefId, hd_base::DefId)> {
+        let env = self.env();
+        let insp = match env.parent(item) {
+            Some((owner, _)) => owner,
+            None => match env
+                .params(item)
+                .and_then(|ps| ps.first().map(|p| self.pool().get(*p)))
+            {
+                Some(TyData::TraitValue { def, .. }) => def,
+                _ => return unsupported("a recovery intrinsic without `Inspectable`"),
+            },
+        };
+        let Some(&rt) = env.trait_methods(insp).first() else {
+            return unsupported("an `Inspectable` without `runtime_type`");
+        };
+        Ok((insp, rt))
+    }
+
+    /// `downcast_val::[T](value)`, `value.downcast::[T]()` and
+    /// `value.downcast_mut::[T]()` (trait.downcast.*): `.Some` of the
+    /// value exactly when its recorded type is `T`. A trait value's
+    /// recorded type is its vtable's `runtime_type`; a concrete value's is
+    /// its static type, so the test is decided here.
+    pub(super) fn downcast(&mut self, i: u32, item: hd_base::DefId, recv: u32) -> StageResult<()> {
+        let TyData::Option(target) = self.pool().get(self.strip_mut(self.ty(i))) else {
+            return unsupported("a downcast whose result is not optional");
+        };
+        let want = hd_mono::type_name(self.pool(), self.env(), target);
+        let recv_t = self.strip_mut(self.ty_of(recv));
+        if !self.is_dyn(recv_t) {
+            if hd_mono::type_name(self.pool(), self.env(), recv_t) == want {
+                return self.new_variant(i, 1, &[Src::Ref(recv)]);
+            }
+            return self.new_variant(i, 0, &[]);
+        }
+        let (insp, rt) = self.inspectable_of(item)?;
+        let mut path = Vec::new();
+        let mut found = None;
+        self.super_path(
+            recv_t,
+            (insp, hd_types::TyList::EMPTY),
+            &mut path,
+            &mut found,
+        );
+        let Some(steps) = found else {
+            return unsupported("a downcast of a trait value that is not `Inspectable`");
+        };
+        let Some(id_ty) = self.env().ret(rt) else {
+            return unsupported("a `runtime_type` without its result");
+        };
+        self.type_id_parts(target, id_ty)?;
+        // The payload's recorded type, then its key against `T`'s; the
+        // name is dropped, and neither is counted.
+        self.comp(recv, 0)?;
+        self.comp(recv, 1)?;
+        for at in steps {
+            self.f.op(I::I32Load(mem(HEAP, u64::from(at), 2)));
+        }
+        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+        self.f
+            .body
+            .push(Ins::CallIndirect(vec![Val::I32], vec![Val::I32; 4]));
+        self.f.op(I::Drop);
+        self.f.op(I::Drop);
+        let at = self.m.static_bytes(want.as_bytes(), 1);
+        self.f.u32(at);
+        self.f.u32(u32::try_from(want.len()).expect("type name"));
+        self.f.helper(Helper::StrEq);
+        let same = self.f.local(Val::I32);
+        self.f.set(same);
+        // The payload as `trait_value` stored it: the data itself, no
+        // values, or a box of the target's layout.
+        let vs = self.vals(target)?;
+        let direct =
+            vs == [Val::I32] && walk(self.pool(), self.env(), target) == Some(Walk::Ref(0));
+        let m = mem_of(self.pool(), self.env(), target)?;
+        self.f.get(same);
+        self.f.op(I::If(wasm_encoder::BlockType::Empty));
+        self.ctl.push(super::Ctl::Plain);
+        let data = self.f.local(Val::I32);
+        self.comp(recv, 0)?;
+        self.f.set(data);
+        let ls: Vec<u32> = if direct {
+            vec![data]
+        } else {
+            let ls: Vec<u32> = m.leaves.iter().map(|l| self.f.local(l.val)).collect();
+            for (l, x) in m.leaves.iter().zip(&ls) {
+                self.f.get(data);
+                self.f.op(l.load(0));
+                self.f.set(*x);
+            }
+            ls
+        };
+        self.new_variant(i, 1, &[Src::Locals(ls)])?;
+        self.f.op(I::Else);
+        self.new_variant(i, 0, &[])?;
+        self.close();
+        Ok(())
+    }
+
+    /// Widening a trait value to a supertrait's (trait.dyn.widen): the
+    /// data unchanged, and the supertrait's vtable read through the parent
+    /// addresses of the value's.
+    fn widen(&mut self, i: u32, a: u32) -> StageResult<()> {
+        let from = self.strip_mut(self.ty_of(a));
+        let to = self.strip_mut(self.ty(i));
+        let TyData::TraitValue { def, args, .. } = self.pool().get(to) else {
+            return unsupported("a supertrait coercion to a type that is not a trait value");
+        };
+        // A `dyn Any` is laid out as a `dyn Inspectable` (`hd_mono`'s
+        // vtable of a coercion to `Any`).
+        let sealed = self.env().decls().sealed();
+        let to = if def == sealed.any && sealed.inspectable != hd_base::DefId::NONE {
+            (sealed.inspectable, hd_types::TyList::EMPTY)
+        } else {
+            (def, args)
+        };
+        let mut path = Vec::new();
+        let mut found = None;
+        self.super_path(from, to, &mut path, &mut found);
+        let Some(path) = found else {
+            return unsupported("a supertrait coercion to a trait the value does not extend");
+        };
+        self.comp(a, 0)?;
+        self.comp(a, 1)?;
+        for at in path {
+            self.f.op(I::I32Load(mem(HEAP, u64::from(at), 2)));
+        }
+        self.store(i)
+    }
+
+    /// The loads from the vtable of a receiver of type `recv` to that of
+    /// its trait `trait_` (itself or a supertrait), whose arguments lead
+    /// `targs`: a call of a supertrait's method dispatches through the
+    /// supertrait's vtable.
+    pub(super) fn dyn_steps(
+        &self,
+        recv: Ty,
+        trait_: hd_base::DefId,
+        targs: hd_types::TyList,
+    ) -> StageResult<Vec<u32>> {
+        let pool = self.pool();
+        let targs: Vec<Ty> = pool
+            .list_items(targs)
+            .iter()
+            .map(|t| self.sub(*t))
+            .collect();
+        let n = self.env().trait_arity(trait_).min(targs.len());
+        let want = pool.list(&targs[..n]);
+        let mut path = Vec::new();
+        let mut found = None;
+        self.super_path(self.strip_mut(recv), (trait_, want), &mut path, &mut found);
+        match found {
+            Some(steps) => Ok(steps),
+            None => {
+                unsupported("a trait-value call of a method of a trait the value does not extend")
+            }
+        }
+    }
+
+    /// The offsets of the parent addresses from trait value type `at`'s
+    /// vtable to the vtable of `to`: the first path whose arguments are
+    /// `to`'s, else the first to its trait.
+    fn super_path(
+        &self,
+        at: Ty,
+        to: (hd_base::DefId, hd_types::TyList),
+        path: &mut Vec<u32>,
+        found: &mut Option<Vec<u32>>,
+    ) -> bool {
+        let (pool, env) = (self.pool(), self.env());
+        let TyData::TraitValue { def, args, .. } = pool.get(at) else {
+            return false;
+        };
+        if def == to.0 {
+            if args == to.1 {
+                *found = Some(path.clone());
+                return true;
+            }
+            if found.is_none() {
+                *found = Some(path.clone());
+            }
+        }
+        let own = u32::try_from(env.trait_methods(def).len()).expect("slots");
+        let mut full = vec![at];
+        full.extend(pool.list_items(args).iter().copied());
+        let full = pool.list(&full);
+        for (k, sup) in env
+            .decls()
+            .supertraits(def)
+            .to_vec()
+            .into_iter()
+            .enumerate()
+        {
+            let s = subst(pool, env, def, full, sup);
+            path.push(4 * (own + u32::try_from(k).expect("supertraits")));
+            let exact = self.super_path(s, to, path, found);
+            path.pop();
+            if exact {
+                return true;
+            }
+        }
+        false
+    }
+}

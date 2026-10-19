@@ -13,6 +13,33 @@ use crate::map::{self, KeyOps};
 use crate::module::{BUF, EMPTY, Func, Global, HEADER, HEAP, Import, Ins, Module, Sym, Val, mem};
 use crate::{Entry, Input, unsupported};
 
+/// A `TypeId` value (`emit/dyn_value.rs`): the key and the printable name
+/// it holds, two views of static data that are never counted.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct TypeIdParts {
+    pub name: String,
+    pub shown: String,
+}
+
+/// Where one value of an optional element comes from in
+/// [`Helper::ListStep`]: the tag, a value of the element, or a zero.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum OptVal {
+    Tag,
+    Elem(u32),
+    Zero,
+}
+
+/// Where a `Ref` object's `get` closure lies in its payload, and the
+/// layout and counted references of the value it reads.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct RefRead {
+    pub code: u32,
+    pub env: u32,
+    pub value: Vec<Val>,
+    pub walk: Option<Walk>,
+}
+
 /// A generated function, by what it does.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Helper {
@@ -111,6 +138,50 @@ pub enum Helper {
     /// `(map, pos, end) -> slot`: the first live entry in `pos..end`, or
     /// `end`.
     MapSlotNext,
+    /// `(data, params..) -> results`: a vtable slot (`emit/dyn_value.rs`):
+    /// calls `target` with the payload, loaded from the box at `data` as
+    /// `leaves`, or `data` itself without them, then the parameters.
+    DynSlot {
+        target: Hash128,
+        leaves: Option<Vec<Leaf>>,
+        params: Vec<Val>,
+        results: Vec<Val>,
+    },
+    /// `(ref, params..) -> results`: a vtable slot whose payload is a
+    /// reference and whose target takes the value: reads it through the
+    /// reference's `get`, calls `target`, then releases the value read.
+    DynRead {
+        target: Hash128,
+        read: RefRead,
+        params: Vec<Val>,
+        results: Vec<Val>,
+    },
+    /// `(env) -> T?`: the step closure code of `List.iter()`
+    /// (`emit/iter.rs`): `.Some` of the next element, with its own count,
+    /// laid out as `opt` says, or `.None` at the end.
+    ListStep {
+        elem: Elem,
+        opt: Vec<OptVal>,
+        results: Vec<Val>,
+    },
+    /// `(env) -> (K, V)?`: the step closure code of `Map.iter()`
+    /// (`map.rs`).
+    MapStep {
+        entry: map::Entry,
+        opt: Vec<OptVal>,
+        results: Vec<Val>,
+    },
+    /// `(list, n)`: std's `list_truncate`: a pinned list whose length
+    /// would change panics; otherwise the buffer is made the list's own,
+    /// the elements from `n` on are released and the length becomes `n`.
+    ListTruncate { elem: Elem },
+    /// `() -> TypeId`: a `TypeId` of static strings.
+    TypeIdOf(TypeIdParts),
+    /// `(data) -> TypeId`: a vtable's `runtime_type` slot, the `TypeId`
+    /// of the type the vtable is built at.
+    RuntimeType(TypeIdParts),
+    /// A vtable slot no call reaches: it traps.
+    DynTrap { params: Vec<Val>, results: Vec<Val> },
     /// `(list: List[u8]) -> string`: a new string of the list's bytes,
     /// which std has checked are UTF-8.
     StrFromBytes,
@@ -347,6 +418,126 @@ fn rt_import(name: &str, params: &[Val], results: &[Val]) -> Sym {
     Sym::Import(Import::new("hd:rt", name, params, results))
 }
 
+/// [`Helper::ListStep`]'s function. The environment holds the list's
+/// header at 0, the next index at 4 and the length at creation at 8.
+fn list_step(elem: &Elem, opt: &[OptVal], results: &[Val]) -> Func {
+    let mut f = Func::new("rt:list_step", vec![Val::I32], results.to_vec());
+    let b = f.local(Val::I32);
+    let i = f.local(Val::I32);
+    let at = f.local(Val::I32);
+    let out: Vec<u32> = results.iter().map(|v| f.local(*v)).collect();
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.set(b);
+    // A length other than the one at creation is the
+    // `iterator-invalidated` panic, checked on every call so an exhausted
+    // iterator panics too.
+    f.get(b);
+    f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, 8, 2)));
+    f.op(Instruction::I32Ne);
+    f.op(Instruction::If(BlockType::Empty));
+    f.helper(Helper::Panic(
+        "iterator-invalidated: list changed during iteration".into(),
+    ));
+    f.op(Instruction::End);
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+    f.set(i);
+    f.get(i);
+    f.get(b);
+    f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
+    f.op(Instruction::I32LtU);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(0);
+    f.get(i);
+    f.i32(1);
+    f.op(Instruction::I32Add);
+    f.op(Instruction::I32Store(mem(HEAP, 4, 2)));
+    f.get(b);
+    f.get(i);
+    f.u32(elem.size);
+    f.op(Instruction::I32Mul);
+    f.op(Instruction::I32Add);
+    f.set(at);
+    let mut vals = Vec::new();
+    for (p, o) in opt.iter().enumerate() {
+        match o {
+            OptVal::Tag => {
+                f.i32(1);
+                f.set(out[p]);
+            }
+            OptVal::Elem(k) => {
+                f.get(at);
+                f.op(elem.leaves[*k as usize].load(LIST_ELEMS));
+                f.set(out[p]);
+                vals.push((*k, out[p]));
+            }
+            OptVal::Zero => {}
+        }
+    }
+    // The element leaves with a count of its own.
+    if let Some(w) = &elem.walk {
+        vals.sort_unstable();
+        for (_, l) in &vals {
+            f.get(*l);
+        }
+        f.helper(Helper::Retain {
+            vals: elem.leaves.iter().map(|l| l.val).collect(),
+            walk: w.clone(),
+        });
+    }
+    f.op(Instruction::End);
+    for l in &out {
+        f.get(*l);
+    }
+    f
+}
+
+/// [`Helper::DynRead`]'s function.
+fn dyn_read(target: Hash128, read: &RefRead, params: &[Val], results: &[Val]) -> Func {
+    let mut all = vec![Val::I32];
+    all.extend(params.iter().copied());
+    let mut f = Func::new("rt:dyn_read", all, results.to_vec());
+    let value: Vec<u32> = read.value.iter().map(|v| f.local(*v)).collect();
+    let out: Vec<u32> = results.iter().map(|v| f.local(*v)).collect();
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, u64::from(read.env), 2)));
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, u64::from(read.code), 2)));
+    f.body
+        .push(Ins::CallIndirect(vec![Val::I32], read.value.clone()));
+    for l in value.iter().rev() {
+        f.set(*l);
+    }
+    for l in &value {
+        f.get(*l);
+    }
+    for k in 1..=params.len() {
+        f.get(u32::try_from(k).expect("params"));
+    }
+    f.call(Sym::Inst(target));
+    for l in out.iter().rev() {
+        f.set(*l);
+    }
+    // The read value arrived with its count, which the call borrowed.
+    if let Some(w) = &read.walk {
+        for l in &value {
+            f.get(*l);
+        }
+        f.helper(Helper::Release {
+            vals: read.value.clone(),
+            walk: w.clone(),
+        });
+    }
+    for l in &out {
+        f.get(*l);
+    }
+    f
+}
+
 /// Writes the literal `text` to standard error.
 fn write_lit(f: &mut Func, m: &mut Module, text: &str) {
     let at = m.static_bytes(text.as_bytes(), 1);
@@ -530,6 +721,50 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::MapGrow { entry } => map::grow(entry, m),
         Helper::MapUnique { entry } => map::unique(entry, m),
         Helper::MapSlotNext => map::slot_next(),
+        Helper::DynSlot {
+            target,
+            leaves,
+            params,
+            results,
+        } => {
+            let mut all = vec![Val::I32];
+            all.extend(params.iter().copied());
+            let mut f = Func::new("rt:dyn_slot", all, results.clone());
+            match leaves {
+                Some(ls) => {
+                    for l in ls {
+                        f.get(0);
+                        f.op(l.load(0));
+                    }
+                }
+                None => f.get(0),
+            }
+            for k in 1..=params.len() {
+                f.get(u32::try_from(k).expect("params"));
+            }
+            f.call(Sym::Inst(*target));
+            f
+        }
+        Helper::DynRead {
+            target,
+            read,
+            params,
+            results,
+        } => dyn_read(*target, read, params, results),
+        Helper::ListStep { elem, opt, results } => list_step(elem, opt, results),
+        Helper::ListTruncate { elem } => list_truncate(elem),
+        Helper::TypeIdOf(parts) => type_id(parts, vec![], m),
+        Helper::RuntimeType(parts) => type_id(parts, vec![Val::I32], m),
+        Helper::MapStep {
+            entry,
+            opt,
+            results,
+        } => map::step(entry, opt, results),
+        Helper::DynTrap { params, results } => {
+            let mut f = Func::new("rt:dyn_trap", params.clone(), results.clone());
+            f.op(Instruction::Unreachable);
+            f
+        }
         Helper::StrFromBytes => str_from_bytes(),
         Helper::ConcatAll => concat_all(),
         Helper::StrCmp => str_cmp(),
@@ -1212,6 +1447,70 @@ fn each_elem(f: &mut Func, at: u32, n: u32, size: u32, body: &dyn Fn(&mut Func))
     f.op(Instruction::Br(0));
     f.op(Instruction::End);
     f.op(Instruction::End);
+}
+
+/// A function of `params`, which it ignores, that returns a `TypeId`: its
+/// key and its name, two views of static data.
+fn type_id(parts: &TypeIdParts, params: Vec<Val>, m: &mut Module) -> Func {
+    let mut f = Func::new("rt:type_id", params, vec![Val::I32; 4]);
+    for text in [&parts.name, &parts.shown] {
+        f.u32(m.static_bytes(text.as_bytes(), 1));
+        f.u32(u32::try_from(text.len()).expect("type name"));
+    }
+    f
+}
+
+/// [`Helper::ListTruncate`].
+fn list_truncate(elem: &Elem) -> Func {
+    let mut f = Func::new("rt:list_truncate", vec![Val::I32, Val::I32], vec![]);
+    let (b, at, n) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, LIST_PINS, 2)));
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
+    f.get(1);
+    f.op(Instruction::I32Ne);
+    f.op(Instruction::I32And);
+    f.op(Instruction::If(BlockType::Empty));
+    f.helper(Helper::Panic(
+        "collection-pinned: list length changed while pinned".into(),
+    ));
+    f.op(Instruction::End);
+    f.get(0);
+    f.helper(Helper::ListUnique {
+        elem: elem.clone(),
+        push: false,
+    });
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.set(b);
+    if let Some(walk) = &elem.walk {
+        f.get(b);
+        f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
+        f.get(1);
+        f.op(Instruction::I32Sub);
+        f.set(n);
+        f.get(b);
+        f.u32(LIST_ELEMS);
+        f.op(Instruction::I32Add);
+        f.get(1);
+        f.u32(elem.size);
+        f.op(Instruction::I32Mul);
+        f.op(Instruction::I32Add);
+        f.set(at);
+        let ls = load_elem_locals(&mut f, &elem.leaves);
+        each_elem(&mut f, at, n, elem.size, &|f| {
+            fill_elem(f, at, &elem.leaves, &ls);
+            walk_code(f, walk, &|f, k| f.get(ls[k as usize]), &|f| {
+                f.helper(Helper::ReleaseRef);
+            });
+        });
+    }
+    f.get(b);
+    f.get(1);
+    f.op(Instruction::I32Store(mem(HEAP, LIST_LEN, 2)));
+    f
 }
 
 /// [`Helper::DropElems`].

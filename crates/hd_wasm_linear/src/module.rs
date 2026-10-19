@@ -102,6 +102,9 @@ pub enum Global {
     /// The run's map hash key (`map_hash_seed`): 0 until the first map
     /// key is hashed, which asks the host's `hash_seed` import.
     HashSeed,
+    /// The last serial number that reference identity drew
+    /// (`ref_serial`): 0 until the first.
+    RefSerial,
     /// One value of a top-level binding: its item's path hash and the
     /// value's index in its layout.
     Storage(Hash128, u32, Val),
@@ -111,7 +114,7 @@ impl Global {
     const fn val(&self) -> Val {
         match self {
             Global::Forbid | Global::HeapTop | Global::HeapEnd => Val::I32,
-            Global::HashSeed => Val::I64,
+            Global::HashSeed | Global::RefSerial => Val::I64,
             Global::Storage(_, _, v) => *v,
         }
     }
@@ -221,8 +224,9 @@ pub struct Module {
     /// Static data from [`STATIC_BASE`], deduplicated by content.
     data: Vec<u8>,
     data_at: BTreeMap<Vec<u8>, u32>,
-    /// Static vtables: each one's slots, laid out after the data.
-    vtables: Vec<Vec<Sym>>,
+    /// Static vtables: each one's slots, then the vtables of its direct
+    /// supertraits, laid out after the data.
+    vtables: Vec<(Vec<Sym>, Vec<usize>)>,
     exports: Vec<(String, Sym)>,
     /// The std runtime that helpers call, when the program links it.
     pub runtime: Option<crate::Runtime>,
@@ -261,10 +265,18 @@ impl Module {
     /// The number of a static vtable whose slots are `slots`' table
     /// indices, one `i32` each; [`Ins::VTable`] names its address.
     pub fn vtable(&mut self, slots: Vec<Sym>) -> usize {
-        if let Some(k) = self.vtables.iter().position(|v| *v == slots) {
+        self.vtable_with(slots, Vec::new())
+    }
+
+    /// The number of a static vtable whose slots are `slots`' table
+    /// indices, then the addresses of the vtables `parents`, one `i32`
+    /// each.
+    pub fn vtable_with(&mut self, slots: Vec<Sym>, parents: Vec<usize>) -> usize {
+        let v = (slots, parents);
+        if let Some(k) = self.vtables.iter().position(|x| *x == v) {
             return k;
         }
-        self.vtables.push(slots);
+        self.vtables.push(v);
         self.vtables.len() - 1
     }
 
@@ -275,7 +287,7 @@ impl Module {
     fn reach(&mut self) {
         let mut seen: BTreeSet<Sym> = BTreeSet::new();
         let mut work: Vec<Sym> = self.exports.iter().map(|(_, s)| s.clone()).collect();
-        work.extend(self.vtables.iter().flatten().cloned());
+        work.extend(self.vtables.iter().flat_map(|v| v.0.iter()).cloned());
         while let Some(s) = work.pop() {
             if matches!(s, Sym::Import(_)) || !seen.insert(s.clone()) {
                 continue;
@@ -292,7 +304,7 @@ impl Module {
             for i in &f.body {
                 match i {
                     Ins::Call(c) | Ins::TableSlot(c) => work.push(c.clone()),
-                    Ins::VTable(k) => work.extend(self.vtables[*k].iter().cloned()),
+                    Ins::VTable(k) => work.extend(self.vtables[*k].0.iter().cloned()),
                     _ => {}
                 }
             }
@@ -365,9 +377,13 @@ impl Module {
         let mut vtable_at = Vec::new();
         for v in &self.vtables {
             vtable_at.push(STATIC_BASE + u32::try_from(self.data.len()).expect("static data"));
-            for s in v {
+            for s in &v.0 {
                 let k = slot(s, &mut slots)?;
                 self.data.extend_from_slice(&k.to_le_bytes());
+            }
+            // A parent is always numbered before the vtables that name it.
+            for p in &v.1 {
+                self.data.extend_from_slice(&vtable_at[*p].to_le_bytes());
             }
         }
         let static_end = STATIC_BASE + u32::try_from(self.data.len()).expect("static data");

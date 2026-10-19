@@ -21,7 +21,10 @@ use crate::module::{Func, Global, HEAP, Ins, Module, Sym, Val, mem};
 use crate::rt::Helper;
 use crate::{Input, unsupported};
 
+mod closure;
 mod count;
+mod dyn_value;
+mod iter;
 mod list;
 mod map;
 mod text;
@@ -32,19 +35,19 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
     let t = &input.collected.table;
     let item = t.item[id.idx()];
     let args = t.args[id.idx()];
-    let Sub::Body(sub) = t.sub[id.idx()] else {
-        return unsupported("adapters, erased bodies and thunks");
+    let sub = match t.sub[id.idx()] {
+        Sub::Body(sub) => sub,
+        Sub::Adapter => return adapter(input, id),
+        _ => return unsupported("erased bodies and thunks (job 11)"),
     };
-    if sub != 0 {
-        return unsupported("closures (job 11)");
-    }
     let Some(b) = (input.body)(id) else {
         return unsupported("an instance without TIR");
     };
+
     // A suspending root that no code but the entry calls runs as a plain
     // function: until job 13 any suspension point in it is refused, and a
     // body that never suspends ends on its first poll.
-    if input.env.suspends(item) && !input.entry.root(item) {
+    if sub == 0 && input.env.suspends(item) && !input.entry.root(item) {
         return unsupported("suspending functions (job 13)");
     }
     let mut em = Em {
@@ -64,9 +67,39 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
         counting: false,
         ret: Vec::new(),
         temps: Vec::new(),
+        cells: closure::cell_locals(b),
     };
     let mut params = Vec::new();
-    for l in param_locals(b) {
+    // A closure's code takes its environment first, then its own
+    // parameters and its type's row (`closure.rs`).
+    let (plocals, ret, keys, closure) = if sub == 0 {
+        (
+            param_locals(b),
+            em.sub(input.env.ret(item).unwrap_or(Ty::VOID)),
+            input.env.row_keys(item, args),
+            None,
+        )
+    } else {
+        let ci = closure::closure_of(b, sub)?;
+        let ft = em.sub(b.ty[ci]);
+        let TyData::Fn {
+            result, suspends, ..
+        } = em.pool().get(crate::layout::strip(em.pool(), em.env(), ft))
+        else {
+            return unsupported("a closure without a function type");
+        };
+        if suspends {
+            return unsupported("suspending closures (job 13)");
+        }
+        params.push(Val::I32);
+        (
+            sub_param_locals(b, sub),
+            em.sub(result),
+            em.fn_row_keys(ft)?,
+            Some(ci),
+        )
+    };
+    for &l in &plocals {
         let vs = em.vals(em.sub(b.local_ty[l]))?;
         let at = u32::try_from(params.len()).expect("params");
         em.locals.insert(
@@ -75,12 +108,11 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
         );
         params.extend(vs);
     }
-    for key in input.env.row_keys(item, args) {
+    for key in keys {
         let at = u32::try_from(params.len()).expect("params");
         em.providers.push((key, [at, at + 1]));
         params.extend([Val::I32, Val::I32]);
     }
-    let ret = em.sub(input.env.ret(item).unwrap_or(Ty::VOID));
     let results = em.vals(ret)?;
     em.f = Func::new(
         format!("{}#{}", (input.path)(item), t.sub[id.idx()]),
@@ -90,18 +122,35 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
     // A function that holds a counted reference ends at one exit, which
     // releases what it owns (`count.rs`): a return stores its value in
     // `ret` and branches there.
+    if let Some(ci) = closure {
+        em.load_captures(ci)?;
+    }
     em.counting = em.counts_anything();
+    let mut held: Vec<(usize, Vec<u32>)> = em.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
+    held.sort_unstable();
     if em.counting {
         em.ret = results.iter().map(|v| em.f.local(*v)).collect();
-        let mut params: Vec<(usize, Vec<u32>)> =
-            em.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
-        params.sort_unstable();
-        for (l, ls) in params {
-            em.retain_locals(&ls, em.sub(b.local_ty[l]))?;
+        for (l, ls) in &held {
+            // A parameter still holds its value until it moves into its
+            // cell below.
+            if plocals.contains(l) {
+                em.count_locals(ls, em.sub(b.local_ty[*l]), true)?;
+            } else {
+                em.count_local(*l, ls, true)?;
+            }
         }
+    }
+    // A parameter a closure shares moves into its cell, which takes over
+    // its count.
+    for (l, ls) in &held {
+        if plocals.contains(l) && em.is_cell(*l) {
+            em.param_cell(*l, ls)?;
+        }
+    }
+    if em.counting {
         em.open(Ctl::Exit);
     }
-    let root = b.sub_root[0];
+    let root = b.sub_root[sub as usize];
     em.block_into(root, None)?;
     let tail = b.data[root as usize][1];
     if !results.is_empty() {
@@ -125,6 +174,47 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
         }
     }
     Ok(em.f)
+}
+
+/// The parameter locals of closure body `sub`, in order.
+fn sub_param_locals(b: &Body, sub: u16) -> Vec<usize> {
+    let r = b.sub_params[sub as usize];
+    b.extra[r.start as usize + 1..(r.start + 1 + r.len) as usize]
+        .iter()
+        .map(|&l| l as usize)
+        .collect()
+}
+
+/// The code of a function reference (`Sub::Adapter`), a closure's code
+/// whose environment it never reads: `(environment, parameters,
+/// providers) -> results`, one call of its target.
+fn adapter(input: &Input<'_>, id: InstId) -> StageResult<Func> {
+    let Some(Target::Call(ct)) = input.collected.calls[id.idx()].get(&0).cloned() else {
+        return unsupported("a reference to a trait-value method (job 11)");
+    };
+    if ct.kind != TargetKind::Instance {
+        return unsupported("a function value of an intrinsic or a builtin");
+    }
+    let (pool, env) = (input.pool, input.env);
+    let mut params = vec![Val::I32];
+    for p in env.params(ct.item).unwrap_or_default() {
+        params.extend(vals(pool, env, subst(pool, env, ct.item, ct.args, p))?);
+    }
+    for _ in env.row_keys(ct.item, ct.args) {
+        params.extend([Val::I32, Val::I32]);
+    }
+    let results = vals(pool, env, ct.ret)?;
+    let item = input.collected.table.item[id.idx()];
+    let mut f = Func::new(
+        format!("{}#adapter", (input.path)(item)),
+        params.clone(),
+        results,
+    );
+    for k in 1..params.len() {
+        f.get(u32::try_from(k).expect("params"));
+    }
+    f.call(Sym::Inst(ct.key));
+    Ok(f)
 }
 
 /// The parameter locals of the body's own function, in order: those
@@ -184,6 +274,9 @@ struct Em<'i, 'a, 'm> {
     /// The locals of the collection copies that operands were stored as
     /// (`list.rs`, `copy_src`), each owning one count until the exit.
     temps: Vec<u32>,
+    /// The locals that closures share, each in a cell, with the store
+    /// that declares it (`closure.rs`).
+    cells: HashMap<usize, u32>,
 }
 
 impl Em<'_, '_, '_> {
@@ -338,7 +431,12 @@ impl Em<'_, '_, '_> {
         if let Some(ls) = self.locals.get(&l) {
             return Ok(ls.clone());
         }
-        let vs = self.vals(self.sub(self.b.local_ty[l]))?;
+        // A shared local is its cell's address (`closure.rs`).
+        let vs = if self.is_cell(l) {
+            vec![Val::I32]
+        } else {
+            self.vals(self.sub(self.b.local_ty[l]))?
+        };
         let ls: Vec<u32> = vs.into_iter().map(|v| self.f.local(v)).collect();
         self.locals.insert(l, ls.clone());
         Ok(ls)
@@ -419,6 +517,14 @@ impl Em<'_, '_, '_> {
     fn inst(&mut self, i: u32) -> StageResult<()> {
         let [a, bw] = self.b.data[i as usize];
         match self.b.tags[i as usize] {
+            Tag::LocalGet if self.is_cell(a as usize) => self.cell_get(i, a as usize)?,
+            Tag::LocalSet if self.is_cell(a as usize) => {
+                if bw != NONE && self.diverges(bw) {
+                    self.f.op(Instruction::Unreachable);
+                    return Ok(());
+                }
+                self.cell_set(i, a as usize, bw)?;
+            }
             Tag::LocalGet => {
                 for l in self.local(a)? {
                     self.f.get(l);
@@ -518,13 +624,36 @@ impl Em<'_, '_, '_> {
                         if self.vals(self.ty_of(a))? != self.vals(self.ty(i))? {
                             return unsupported("a coercion that changes the layout");
                         }
+                        // A function value's code takes its row's providers,
+                        // so a row that changes needs an adapter.
+                        if self.is_fn(self.ty(i))
+                            && self.fn_row_keys(self.ty_of(a))? != self.fn_row_keys(self.ty(i))?
+                        {
+                            return unsupported("a function value whose row changes");
+                        }
                         self.push(a)?;
                         self.store(i)?;
                     }
                     k if k == Coercion::WrapSome as u32 => {
                         self.new_variant(i, 1, &[value::Src::Ref(a)])?;
                     }
-                    _ => return unsupported("trait-value and `Any` coercions (job 11)"),
+                    k if [
+                        Coercion::ToTraitValue,
+                        Coercion::Supertrait,
+                        Coercion::RefToTraitValue,
+                    ]
+                    .iter()
+                    .any(|c| *c as u32 == k) =>
+                    {
+                        self.trait_value(i, a)?;
+                    }
+                    k if k == Coercion::RefAsProvider as u32 => self.ref_as_provider(i, a)?,
+                    // The provider's data is the reference itself.
+                    k if k == Coercion::ProviderAsRef as u32 => {
+                        self.comp(a, 0)?;
+                        self.store(i)?;
+                    }
+                    _ => return unsupported("provider references and `Any` coercions"),
                 }
             }
             Tag::ProviderGet => {
@@ -691,9 +820,7 @@ impl Em<'_, '_, '_> {
                     Some(IntrinsicOp::SnapEnd) => self.snap_end(args[1])?,
                     Some(IntrinsicOp::ListPin) => self.list_pin(i, &args)?,
                     Some(IntrinsicOp::ListUnpin) => self.list_unpin(args[0])?,
-                    Some(IntrinsicOp::ListIter) => {
-                        return unsupported("list iterators, which hold a closure (job 11)");
-                    }
+                    Some(IntrinsicOp::ListIter) => self.list_iter(i, args[0])?,
                     Some(hd_tir::ir::IntrinsicOp::StrConcat) => self.concat(i, &args)?,
                     Some(hd_tir::ir::IntrinsicOp::StrIndex) => self.str_at(i, args[0], args[1])?,
                     Some(hd_tir::ir::IntrinsicOp::StrEq) => {
@@ -713,9 +840,7 @@ impl Em<'_, '_, '_> {
                     Some(IntrinsicOp::MapSlots) => self.map_slots(i, args[0])?,
                     Some(IntrinsicOp::MapSlotNext) => self.map_slot_next(i, &args)?,
                     Some(IntrinsicOp::MapSlotEntry) => self.map_slot_entry(i, args[0], args[1])?,
-                    Some(IntrinsicOp::MapIter) => {
-                        return unsupported("map iterators, which hold a closure (job 11)");
-                    }
+                    Some(IntrinsicOp::MapIter) => self.map_iter(i, args[0])?,
                     _ => return unsupported("an intrinsic operation without its kernel"),
                 }
             }
@@ -754,11 +879,40 @@ impl Em<'_, '_, '_> {
             Tag::ForList => return unsupported("a `for` over a list that lowering kept"),
             Tag::NewMap => self.new_map(i, bw)?,
             Tag::ForMap => return unsupported("a `for` over a map that lowering kept"),
-            Tag::Closure | Tag::ItemRef | Tag::CallValue | Tag::CallDyn => {
-                return unsupported("function and `dyn` values (job 11)");
+            Tag::Closure => self.closure(i)?,
+            Tag::ItemRef => {
+                let Some(Target::Closure(key)) = self.calls.get(&i).cloned() else {
+                    return unsupported("a function reference without its adapter");
+                };
+                self.f.body.push(Ins::TableSlot(Sym::Inst(key)));
+                self.f.i32(0);
+                self.store_owned(i)?;
             }
+            Tag::CallValue => {
+                let args = self.rec(bw);
+                self.call_value(i, a, &args)?;
+            }
+            Tag::CallDyn => return unsupported("a `CallDyn` instruction"),
             Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace | Tag::Defer => {
                 return unsupported("suspension and `defer` (job 13)");
+            }
+            Tag::With => self.with(i, a, bw)?,
+            // The condition block's instructions, then its `bool` tail.
+            Tag::Guard => {
+                let r = self.rec(bw);
+                let [list, tail] = self.b.data[a as usize];
+                for x in self.rec(list) {
+                    if self.b.tags[x as usize] != Tag::Block {
+                        self.inst(x)?;
+                    }
+                }
+                self.push(tail)?;
+                self.f.op(Instruction::If(BlockType::Empty));
+                self.ctl.push(Ctl::Plain);
+                self.block_into(r[0], None)?;
+                self.f.op(Instruction::Else);
+                self.block_into(r[1], None)?;
+                self.close();
             }
             tag => return unsupported(format!("`{}` (job 3, #540)", tag.name())),
         }
@@ -782,9 +936,44 @@ impl Em<'_, '_, '_> {
         }
     }
 
-    /// Pushes the providers of a callee's row keys, in key order.
+    /// `$.with(K: v, ...) body` (`req.with.*`): each pair's value is the
+    /// provider of its key inside the body. The provider borrows the
+    /// value's locals, whose count lasts to the function's exit.
+    fn with(&mut self, i: u32, rec: u32, body: u32) -> StageResult<()> {
+        let pairs = self.rec(rec);
+        let mut pushed = 0;
+        for c in pairs.chunks(2) {
+            let key = self.sub(Ty(c[0]));
+            if !matches!(self.pool().get(key), TyData::TraitValue { .. }) {
+                return unsupported("a `$.with` key that is not a trait");
+            }
+            let ls = [self.f.local(Val::I32), self.f.local(Val::I32)];
+            for (k, l) in ls.iter().enumerate() {
+                self.comp(c[1], k)?;
+                self.f.set(*l);
+            }
+            self.providers.push((key, ls));
+            pushed += 1;
+        }
+        self.slot(i)?;
+        self.open(Ctl::Plain);
+        let r = self.block_into(body, Some(i));
+        self.close();
+        self.providers.truncate(self.providers.len() - pushed);
+        r
+    }
+
+    /// Pushes the providers of a callee's row keys, in key order. A
+    /// function with row parameters is compiled once for every row and
+    /// takes its declared keys' providers, then one context value of its
+    /// rows' (`crates/hd_mono/DESIGN.md` §12.4), which this backend does
+    /// not build yet: a call whose row arguments hold a key is refused.
     fn push_providers(&mut self, item: DefId, args: TyList) -> StageResult<()> {
-        for key in self.env().row_keys(item, args) {
+        let keys = self.env().row_keys(item, args);
+        if keys != hd_mono::declared_row_keys(self.pool(), self.env(), item, args) {
+            return unsupported("functions with row parameters and context values");
+        }
+        for key in keys {
             let [d, v] = self.provider(key)?;
             self.f.get(d);
             self.f.get(v);
@@ -818,6 +1007,12 @@ impl Em<'_, '_, '_> {
                     self.push_providers(ct.item, ct.args)?;
                     self.f.call(Sym::Inst(ct.key));
                     self.call_results(i, ct.ret)
+                }
+                TargetKind::Intrinsic(key) if key == "type_id_of" => self.type_id_of(i, ct.args),
+                TargetKind::Intrinsic(key)
+                    if matches!(key.as_str(), "downcast_val" | "downcast" | "downcast_mut") =>
+                {
+                    self.downcast(i, ct.item, args[0])
                 }
                 TargetKind::Intrinsic(key) => self.intrinsic(i, key, &args),
                 TargetKind::Builtin { self_ty, .. } => {
@@ -853,7 +1048,10 @@ impl Em<'_, '_, '_> {
             return unsupported("a dynamic call of a method without a slot");
         };
         if !self.env().row_keys(method, targs).is_empty() {
-            return unsupported("a dynamic call with providers (job 11)");
+            return unsupported("a dynamic call with providers");
+        }
+        if hd_mono::erased::own_count(self.env(), method) > 0 {
+            return unsupported("a dynamic call of a generic method");
         }
         let Some((&recv, rest)) = args.split_first() else {
             return unsupported("a dynamic call without a receiver");
@@ -864,7 +1062,11 @@ impl Em<'_, '_, '_> {
             params.extend(self.vals(self.ty_of(*r))?);
             self.push(*r)?;
         }
+        let steps = self.dyn_steps(self.ty_of(recv), trait_, targs)?;
         self.comp(recv, 1)?;
+        for at in steps {
+            self.f.op(Instruction::I32Load(mem(HEAP, u64::from(at), 2)));
+        }
         self.f.op(Instruction::I32Load(mem(
             HEAP,
             4 * u64::try_from(slot).expect("slot"),
@@ -959,6 +1161,38 @@ impl Em<'_, '_, '_> {
             }
             "block_on" => self.block_on(i, args[0]),
             "map_hash_seed" => self.hash_seed(i),
+            // std's `list_truncate(list: &mut List[T], n)`: the list read
+            // through its reference, then truncated in place.
+            "list_truncate" => {
+                let rt = self.strip_mut(self.ty_of(args[0]));
+                let read = self.ref_read(rt)?;
+                let TyData::Adt { args: ra, .. } = self.pool().get(rt) else {
+                    return unsupported("`list_truncate` of a value that is no reference");
+                };
+                let Some(&lt) = self.pool().list_items(ra).first() else {
+                    return unsupported("`list_truncate` of a reference without its list");
+                };
+                let (_, e) = self.elem(lt)?;
+                let h = self.read_through(args[0], &read)?;
+                self.f.get(h[0]);
+                self.push(args[1])?;
+                self.f.helper(Helper::ListTruncate { elem: e });
+                // The header read arrived with its count.
+                self.f.get(h[0]);
+                self.f.helper(Helper::ReleaseRef);
+                Ok(())
+            }
+            // The next serial number of a local or new object that a
+            // reference refers to: a global counter, so serials are unique
+            // within a run, the first 1 (`crates/hd_wasm/DESIGN.md` §15.2).
+            "ref_serial" => {
+                self.f.global_get(Global::RefSerial);
+                self.f.op(I::I64Const(1));
+                self.f.op(I::I64Add);
+                self.f.global_set(Global::RefSerial);
+                self.f.global_get(Global::RefSerial);
+                self.store(i)
+            }
             "bytes_len" => {
                 self.comp(args[0], 1)?;
                 self.store(i)
@@ -1115,6 +1349,9 @@ impl Em<'_, '_, '_> {
         if prim && let Some(op) = op {
             self.prim_value(op, args, self.ty(i))?;
             return self.store(i);
+        }
+        if name == "runtime_type" {
+            return self.runtime_type(i, self.strip_mut(self_ty), args[0]);
         }
         let (_, signed, float) = self.num(t);
         match name {

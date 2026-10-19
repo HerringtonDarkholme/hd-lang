@@ -23,7 +23,7 @@ use crate::unsupported;
 impl Em<'_, '_, '_> {
     /// The key and value types of map type `t`, and its entry as the glue
     /// sees it.
-    fn entry(&self, t: Ty) -> StageResult<(Ty, Ty, Entry)> {
+    pub(super) fn entry(&self, t: Ty) -> StageResult<(Ty, Ty, Entry)> {
         if self.input.runtime.is_none() {
             return unsupported("maps without std's allocator");
         }

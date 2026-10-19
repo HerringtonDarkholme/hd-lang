@@ -23,7 +23,7 @@ use crate::unsupported;
 
 impl Em<'_, '_, '_> {
     /// The element type of list type `t` and its layout for the glue.
-    fn elem(&self, t: Ty) -> StageResult<(Ty, Elem)> {
+    pub(super) fn elem(&self, t: Ty) -> StageResult<(Ty, Elem)> {
         if self.input.runtime.is_none() {
             return unsupported("lists without std's allocator");
         }

@@ -10,7 +10,7 @@ use wasm_encoder::{BlockType, Instruction as I};
 
 use crate::layout::{Leaf, Walk};
 use crate::module::{Func, HEADER, HEAP, Ins, Module, Sym, Val, mem};
-use crate::rt::{Helper, retain_call, walk_code};
+use crate::rt::{Helper, OptVal, retain_call, walk_code};
 
 /// A table's payload: the live entry count, the written entry count
 /// (removed ones included), how many times growth rebuilt the entries,
@@ -67,7 +67,7 @@ impl Entry {
     }
 
     /// The walk of the whole entry.
-    fn walk(&self) -> Option<Walk> {
+    pub(crate) fn walk(&self) -> Option<Walk> {
         match (&self.key_walk, &self.val_walk) {
             (Some(k), Some(v)) => Some(Walk::Seq(vec![k.clone(), v.clone()])),
             (Some(w), None) | (None, Some(w)) => Some(w.clone()),
@@ -717,6 +717,98 @@ pub fn slot_next() -> Func {
     f.op(I::End);
     f.op(I::End);
     f.get(1);
+    f
+}
+
+/// [`Helper::MapStep`]: `(env) -> (K, V)?`, the step closure code of
+/// `Map.iter()` (`emit/iter.rs`). The environment holds the map's header
+/// at 0, the next entry at 4, and at creation the written entry count at
+/// 8, the live count at 12 and the rebuild count at 16. A changed live or
+/// rebuild count is the `iterator-invalidated` panic; with neither
+/// changed, the entries before the written count at creation are where
+/// they were. The entry leaves with its own counts.
+pub fn step(entry: &Entry, opt: &[OptVal], results: &[Val]) -> Func {
+    let mut f = Func::new("rt:map_step", vec![Val::I32], results.to_vec());
+    let (h, t, cap) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
+    let (i, end, at) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
+    let out: Vec<u32> = results.iter().map(|v| f.local(*v)).collect();
+    load_u32(&mut f, 0, 0);
+    f.set(h);
+    load_u32(&mut f, h, 0);
+    f.set(t);
+    load_u32(&mut f, t, LIVE);
+    load_u32(&mut f, 0, 12);
+    f.op(I::I32Ne);
+    load_u32(&mut f, t, GROWN);
+    load_u32(&mut f, 0, 16);
+    f.op(I::I32Ne);
+    f.op(I::I32Or);
+    f.op(I::If(BlockType::Empty));
+    f.helper(Helper::Panic(
+        "iterator-invalidated: map changed during iteration".into(),
+    ));
+    f.op(I::End);
+    load_u32(&mut f, t, CAP);
+    f.set(cap);
+    load_u32(&mut f, 0, 4);
+    f.set(i);
+    load_u32(&mut f, 0, 8);
+    f.set(end);
+    f.op(I::Block(BlockType::Empty));
+    f.op(I::Loop(BlockType::Empty));
+    f.get(i);
+    f.get(end);
+    f.op(I::I32GeU);
+    f.op(I::BrIf(1));
+    hash_of(&mut f, t, cap, i);
+    f.i32(0);
+    f.op(I::I32GeS);
+    f.op(I::If(BlockType::Empty));
+    store_u32(&mut f, 0, 4, &|f| {
+        f.get(i);
+        f.i32(1);
+        f.op(I::I32Add);
+    });
+    entry_at(&mut f, t, cap, i, entry.size);
+    f.set(at);
+    let mut vals = Vec::new();
+    for (p, o) in opt.iter().enumerate() {
+        match o {
+            OptVal::Tag => {
+                f.i32(1);
+                f.set(out[p]);
+            }
+            OptVal::Elem(k) => {
+                f.get(at);
+                f.op(entry.leaves[*k as usize].load(0));
+                f.set(out[p]);
+                vals.push((*k, out[p]));
+            }
+            OptVal::Zero => {}
+        }
+    }
+    if let Some(w) = entry.walk() {
+        vals.sort_unstable();
+        for (_, l) in &vals {
+            f.get(*l);
+        }
+        f.helper(Helper::Retain {
+            vals: entry.leaves.iter().map(|l| l.val).collect(),
+            walk: w,
+        });
+    }
+    f.op(I::Br(2));
+    f.op(I::End);
+    f.get(i);
+    f.i32(1);
+    f.op(I::I32Add);
+    f.set(i);
+    f.op(I::Br(0));
+    f.op(I::End);
+    f.op(I::End);
+    for l in &out {
+        f.get(*l);
+    }
     f
 }
 

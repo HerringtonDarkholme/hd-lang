@@ -11,8 +11,10 @@
 //! stores need no branch on the tag. A data value, a self-recursive enum
 //! and a suspension are one address; a string is its address and byte
 //! length; a trait value its data address and its vtable's address; a
-//! list or a map the address of its header (§23.7). Function values and
-//! references come with later jobs.
+//! list or a map the address of its header (§23.7); a function value its
+//! code's table slot and its environment's address (§23.8). A reference
+//! is the checker's `std.core.Ref[T]`, a data value of two closures and
+//! the place's identity (§23.19).
 
 use hd_base::StageResult;
 use hd_mono::layout::{StdKind, strip_newtype};
@@ -122,7 +124,7 @@ pub fn kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Kind {
     let TyData::Adt { def, args } = pool.get(t) else {
         return Kind::Value;
     };
-    if env.std_kind(def) != StdKind::Other || def == env.ref_cell() {
+    if env.std_kind(def) != StdKind::Other {
         return Kind::Value;
     }
     if env.enum_variants(def, args).is_some() {
@@ -225,7 +227,6 @@ pub fn mem(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Mem> {
         TyData::Adt { def, args } => match env.std_kind(def) {
             StdKind::Suspend => Mem::address(),
             StdKind::List | StdKind::Map => Mem::address(),
-            StdKind::Other if def == env.ref_cell() => return unsupported("references (job 12)"),
             StdKind::Other => match kind(pool, env, t) {
                 Kind::Data(_) | Kind::Boxed => Mem::address(),
                 Kind::Value => match env.enum_variants(def, args) {
@@ -234,7 +235,7 @@ pub fn mem(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Mem> {
                 },
             },
         },
-        TyData::Fn { .. } => return unsupported("function values (job 11)"),
+        TyData::Fn { .. } => record(&[Mem::address(), Mem::address()]).0,
         TyData::TraitValue { .. } => record(&[Mem::address(), Mem::address()]).0,
         TyData::Ref { .. } => return unsupported("references (job 12)"),
         // An instance that collection shares among reference arguments
@@ -308,14 +309,14 @@ pub fn walk(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Walk> {
     let t = strip(pool, env, t);
     match pool.get(t) {
         TyData::Prim(Prim::String) => Some(Walk::Ref(0)),
+        TyData::Fn { .. } => Some(Walk::Ref(1)),
+        TyData::TraitValue { .. } => Some(Walk::Ref(0)),
         TyData::Tuple { .. } => fields_walk(pool, env, &tuple_members(pool, t)),
         TyData::Adt { def, .. } if matches!(env.std_kind(def), StdKind::List | StdKind::Map) => {
             Some(Walk::Ref(0))
         }
         TyData::Option(inner) => switch_walk(pool, env, &[vec![], vec![inner]]),
-        TyData::Adt { def, args }
-            if env.std_kind(def) == StdKind::Other && def != env.ref_cell() =>
-        {
+        TyData::Adt { def, args } if env.std_kind(def) == StdKind::Other => {
             match kind(pool, env, t) {
                 Kind::Data(_) | Kind::Boxed => Some(Walk::Ref(0)),
                 Kind::Value => {
@@ -352,6 +353,40 @@ pub fn fields_walk(pool: &InternPool, env: &dyn ProgramEnv, fields: &[Ty]) -> Op
             })
             .collect(),
     )
+}
+
+/// A closure environment's layout from its captures, each its type's
+/// value or, when shared, a cell's address; with the places of the
+/// captures and their counted references.
+pub fn env_mem(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    fields: &[(Ty, bool)],
+) -> StageResult<(Mem, Vec<Part>, Option<Walk>)> {
+    let ms = fields
+        .iter()
+        .map(|(t, shared)| {
+            if *shared {
+                Ok(Mem::address())
+            } else {
+                mem(pool, env, *t)
+            }
+        })
+        .collect::<StageResult<Vec<_>>>()?;
+    let (m, parts) = record(&ms);
+    let walks = fields
+        .iter()
+        .zip(&parts)
+        .filter_map(|((t, shared), p)| {
+            let at = u32::try_from(p.first).expect("values");
+            if *shared {
+                Some(Walk::Ref(at))
+            } else {
+                walk(pool, env, *t).map(|w| w.remap(&|k| at + k))
+            }
+        })
+        .collect();
+    Ok((m, parts, Walk::seq(walks)))
 }
 
 /// The walk of an enum of `variants`: by the tag, each variant's fields at

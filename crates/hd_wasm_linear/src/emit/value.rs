@@ -14,6 +14,7 @@ use wasm_encoder::Instruction as I;
 use super::Em;
 use crate::layout::{
     Kind, Leaf, Mem, Part, Walk, enum_mem, fields_walk, kind, payload_mem, struct_mem, variants,
+    walk,
 };
 use crate::module::{HEADER, HEAP, Ins, Sym, Val, mem};
 use crate::rt::Helper;
@@ -38,7 +39,7 @@ impl Em<'_, '_, '_> {
 
     /// An enum's (or an optional's) layout as values, whether or not it is
     /// boxed, and where each payload field lies in it.
-    fn flat(&self, t: Ty) -> StageResult<(Mem, Vec<Vec<Vec<usize>>>)> {
+    pub(super) fn flat(&self, t: Ty) -> StageResult<(Mem, Vec<Vec<Vec<usize>>>)> {
         let Some(vs) = variants(self.pool(), self.env(), t) else {
             return unsupported("a variant of a type that is not an enum");
         };
@@ -116,7 +117,7 @@ impl Em<'_, '_, '_> {
     /// A new counted object whose payload is laid out as `m`, with the
     /// counted references `walk` (§23.4): a local holding its payload's
     /// address. Its descriptor names the release glue of its payload.
-    fn object(&mut self, m: &Mem, walk: Option<&Walk>) -> u32 {
+    pub(super) fn object(&mut self, m: &Mem, walk: Option<&Walk>) -> u32 {
         let at = self.f.local(Val::I32);
         self.f.u32(m.size);
         match walk {
@@ -139,7 +140,7 @@ impl Em<'_, '_, '_> {
 
     /// One more count on each counted reference that a new object's
     /// construction copied into its payload.
-    fn retain_fields(&mut self, at: u32, m: &Mem, walk: Option<&Walk>) {
+    pub(super) fn retain_fields(&mut self, at: u32, m: &Mem, walk: Option<&Walk>) {
         if let Some(w) = walk {
             self.f.get(at);
             self.f.helper(Helper::RetainFields {
@@ -215,7 +216,7 @@ impl Em<'_, '_, '_> {
 
     /// Stores the values of `s` as the part `p` of the object at local `at`
     /// whose payload is laid out as `m`.
-    fn store_part(&mut self, at: u32, m: &Mem, p: Part, s: &Src) -> StageResult<()> {
+    pub(super) fn store_part(&mut self, at: u32, m: &Mem, p: Part, s: &Src) -> StageResult<()> {
         for (k, l) in m.leaves[p.first..p.first + p.count]
             .iter()
             .copied()
@@ -415,9 +416,45 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
-    /// `a is b` (`expr.is.*`): two data values are the same object.
+    /// `a is b` (`expr.is.*`): two values refer to the same object.
     pub(super) fn is(&mut self, i: u32, a: u32, b: u32) -> StageResult<()> {
-        if !matches!(self.kind(self.ty_of(a)), Kind::Data(_) | Kind::Boxed) {
+        // `ref.identity.same-place`: two references compare the places
+        // they refer to, the identity fields of their `Ref` objects: the
+        // base's data address, the serial and the key.
+        let t = self.strip_mut(self.ty_of(a));
+        if matches!(self.pool().get(t), TyData::Adt { def, .. } if def == self.env().ref_cell()) {
+            let Kind::Data(fields) = self.kind(t) else {
+                return unsupported("a reference that is not a data value");
+            };
+            let (m, parts) = payload_mem(self.pool(), self.env(), &fields)?;
+            let (Some(base), Some(serial), Some(key)) = (parts.get(2), parts.get(3), parts.get(4))
+            else {
+                return unsupported("a reference without its identity fields");
+            };
+            let leaf = |p: &Part, k: usize| m.leaves[p.first + k];
+            for (p, eq) in [(base, I::I32Eq), (serial, I::I64Eq)] {
+                for r in [a, b] {
+                    self.load(&|em: &mut Self| em.comp(r, 0), 0, leaf(p, 0))?;
+                }
+                self.f.op(eq);
+            }
+            self.f.op(I::I32And);
+            for r in [a, b] {
+                for k in 0..2 {
+                    self.load(&|em: &mut Self| em.comp(r, 0), 0, leaf(key, k))?;
+                }
+            }
+            self.f.helper(Helper::StrEq);
+            self.f.op(I::I32And);
+            return self.store(i);
+        }
+        // A data value, a boxed enum, a list, a map and a trait value's
+        // data are each one counted address first; a trait value that
+        // boxed a value compares its boxes (`expr.is.box-unspecified`).
+        let t = self.ty_of(a);
+        if !matches!(self.kind(t), Kind::Data(_) | Kind::Boxed)
+            && walk(self.pool(), self.env(), t) != Some(Walk::Ref(0))
+        {
             return unsupported("identity of a value that is not a data value");
         }
         self.comp(a, 0)?;

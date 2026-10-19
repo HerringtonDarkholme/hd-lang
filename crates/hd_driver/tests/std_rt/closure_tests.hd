@@ -1,0 +1,118 @@
+# The hd tests of closures and trait values on the linear backend
+# (crates/hd_wasm/DESIGN.md §23.19): an environment holds its captures
+# and a shared local's cell, a boxed trait value holds its payload, and
+# each frees what it holds at its last release, so making them in a loop
+# runs in bounded memory. Only std may read the heap's size, so the
+# conformance runner adds this file to std as `std.rt.closure_tests`.
+use std.rt.memory.pages
+
+trait Shape:
+    fn area(self) -> i32
+    fn name(self) -> string
+
+trait Solid < Shape:
+    fn volume(self) -> i32
+
+struct Square:
+    side: i32
+
+struct Cube:
+    side: i32
+    tags: List[string]
+
+impl Shape for Square:
+    fn area(self) -> i32: self.side * self.side
+    fn name(self) -> string: "square"
+
+impl Shape for Cube:
+    fn area(self) -> i32: 6 * self.side * self.side
+    fn name(self) -> string: "cube ${self.tags.len()}"
+
+impl Solid for Cube:
+    fn volume(self) -> i32: self.side * self.side * self.side
+
+fn label(n: i32) -> string:
+    "k$n"
+
+fn double(x: i32) -> i32:
+    x * 2
+
+fn apply(f: fn(i32) -> i32, x: i32) -> i32:
+    f(x)
+
+fn adder(n: i32) -> fn(i32) -> i32:
+    fn(x: i32) -> i32: x + n
+
+fn suffixer(tail: string) -> fn(string) -> string:
+    fn(s: string) -> string: s + tail
+
+fn counter(mut start: i32) -> fn() -> i32:
+    fn() -> i32:
+        start = start + 1
+        start
+
+fn compose(f: fn(i32) -> i32, g: fn(i32) -> i32) -> fn(i32) -> i32:
+    fn(x: i32) -> i32: g(f(x))
+
+fn widen(s: dyn Solid) -> dyn Shape:
+    s
+
+tests:
+    use std.testing.{assert, it}
+
+    it("a function reference and a closure call alike"):
+        assert(apply(double, 5) == 10, "a function reference")
+        assert(apply(adder(3), 4) == 7, "a closure over a parameter")
+        assert(compose(adder(1), double)(4) == 10, "a closure over closures")
+
+    it("a shared local is one cell for the scope and its closures"):
+        let total = +0
+        add := fn(n: i32) -> void: total = total + n
+        read := fn() -> i32: total
+        add(5)
+        add(1)
+        assert(read() == 6, "the reader sees the writer")
+        total = 100
+        assert(read() == 100, "and the scope")
+        let next = counter(10)
+        assert(next() + next() == 23, "a mut parameter is a cell of its own")
+
+    it("closures made in a loop run in bounded memory"):
+        let round = +0
+        let chars: usize = 0
+        let total = +0
+        let start: usize = 0
+        while round < 2030:
+            if round == 30:
+                start = pages()
+            let tag = suffixer(label(round))
+            let made = tag("x")
+            chars = chars + made.len()
+            let fs: List[fn(i32) -> i32] = [adder(round), compose(adder(1), double)]
+            total = total + fs[0](1) + fs[1](1) - round
+            round = round + 1
+        assert(chars > 2030, "every closure ran")
+        assert(total == 2030 * 5, "each closure kept its captures")
+        assert(pages() == start, "each environment and its captures are freed")
+
+    it("a trait value dispatches to its payload's implementation"):
+        let shapes: List[dyn Shape] = [Square { side: 3 }, Cube { side: 2, tags: ["a", "b"] }]
+        assert(shapes[0].area() == 9, "a boxed struct")
+        assert(shapes[1].name() == "cube 2", "a boxed struct of a list")
+        let c: dyn Solid = Cube { side: 4, tags: [] }
+        assert(c.volume() == 64, "a supertrait's own method")
+        assert(widen(c).area() == 96, "a widened trait value")
+
+    it("trait values made in a loop run in bounded memory"):
+        let round = +0
+        let total = +0
+        let start: usize = 0
+        while round < 2030:
+            if round == 30:
+                start = pages()
+            let s: dyn Shape = Cube { side: 2, tags: [label(round)] }
+            let held: List[dyn Shape] = [s, Square { side: 1 }]
+            total = total + held[0].area() + held[1].area()
+            round = round + 1
+        assert(total == 2030 * 25, "each trait value was whole while held")
+        assert(pages() == start, "each box and its payload are freed")
