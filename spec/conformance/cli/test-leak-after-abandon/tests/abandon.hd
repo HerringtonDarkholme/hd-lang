@@ -21,8 +21,7 @@ impl Disposable for Conn:
         wait!()
         self.listener.close().expect("closed")
 
-fn session!(fallback: bool) -> string $ Clock + Net:
-    let mut listener = open_listener!().expect("a listener")
+fn session!(listener: mut dyn TcpListener, fallback: bool) -> string $ Clock:
     using conn = Conn { listener: listener, closing: sleep(s(60)), fallback: fallback }
     sleep!(s(60))
     "late"
@@ -34,10 +33,12 @@ fn stop!(job: mut Suspend[string]) -> string:
     job.abandon()
     "stopped"
 
-## Starts the session, lets it lose a race, and abandons its cleanup
-## while its dispose waits.
+## Opens a listener, starts a session that owns it, lets the session lose
+## a race, and abandons its cleanup while its dispose waits. The listener
+## is open before the race, as `listen!` may wait on the host.
 fn abandoned!(fallback: bool) -> string $ Clock + Net:
-    let job: mut Suspend[string] = session(fallback)
+    let mut listener = open_listener!().expect("a listener")
+    let job: mut Suspend[string] = session(listener, fallback)
     let (winner, stopped) = all!(race(job, ready()), stop(job))
     "${winner} ${stopped}"
 
