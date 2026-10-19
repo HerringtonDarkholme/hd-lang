@@ -97,6 +97,18 @@ export function resolvePath(path, cwd = process.cwd(), links = 0) {
   return out;
 }
 
+// The same refusal spelling as hd_run::refused_path. Resolving cwd first
+// avoids mistaking a link in the working directory itself for a change in
+// the requested relative path. Path hints use std.path's / separators.
+function refusedPath(path, cwd = process.cwd()) {
+  const base = resolvePath(cwd);
+  const target = resolvePath(path, cwd);
+  if (target === resolve(base, path)) return path;
+  if (target === base) return ".";
+  const prefix = base.endsWith(sep) ? base : base + sep;
+  return (target.startsWith(prefix) ? target.slice(prefix.length) : target).split(sep).join("/");
+}
+
 // How many symbolic links one resolution follows before it stops, as the
 // OS does with `ELOOP`; the access then fails on its own.
 const MAX_LINKS = 40;
@@ -520,7 +532,7 @@ function fsProviders({ grant, flush }) {
         const provider = (...args) => {
           const ps = args.filter((_, i) => m.resource === "path" && m.params[i] === Path);
           const refused = ps.find((p) => !grant.coversPath(module.slice("hd:".length), p));
-          if (refused !== undefined) return fsErr(refused, "NotGranted");
+          if (refused !== undefined) return fsErr(refusedPath(refused), "NotGranted");
           for (const p of create ? [] : ps) {
             const missing = beforeDotDot(p);
             if (missing !== undefined) return fsErr(p, missing);

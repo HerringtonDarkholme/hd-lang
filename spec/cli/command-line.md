@@ -514,6 +514,8 @@ pub fn main!() -> void $ Console + FsRead:
 
 1. r[cli.cap.partial.refuse] A call whose resource lies outside its trait's grant returns the value of the table above, and never panics.
 2. r[cli.cap.partial.not-os] `NotGranted` reports a refusal by the grant, and `PermissionDenied` stays the operating system's refusal.
+3. r[cli.cap.partial.path.resolved] When path resolution changes the target, a filesystem refusal names the resolved path in its message and grant hint.
+4. r[cli.cap.partial.path.written] A filesystem refusal keeps the written path when resolution does not change its target.
 
 > **Why.** The resource is known only at run time, and a program that
 > probes an optional file must be able to recover. `NotGranted` and

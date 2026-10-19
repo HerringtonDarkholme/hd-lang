@@ -358,20 +358,20 @@ fn filesystem_grants_resolve_symlinks_and_report_symlink_entries() {
         "hd:FsRead",
         "read_text",
         one(&escaped),
-        fs_error(&escaped, 2),
+        fs_error(&secret, 2),
     );
-    p.call("hd:FsRead", "stat", one(&bad), fs_error(&bad, 2));
+    p.call("hd:FsRead", "stat", one(&bad), fs_error(&outside, 2));
     p.call(
         "hd:FsWrite",
         "create_dir_all",
         one(&nonexistent),
-        fs_error(&nonexistent, 2),
+        fs_error(&outside.join("new/child"), 2),
     );
     p.call(
         "hd:FsWrite",
         "rename",
         Enc::default().str(path(&file)).str(path(&escaped)).0,
-        fs_error(&escaped, 2),
+        fs_error(&secret, 2),
     );
     assert_program(
         &scratch,
@@ -414,32 +414,49 @@ fn filesystem_grants_resolve_a_link_before_the_dot_dot_after_it() {
     let broken = granted.join("broken");
     let mut p = Program::new();
     for method in ["read_bytes", "read_text", "stat"] {
-        p.call("hd:FsRead", method, one(&escaped), fs_error(&escaped, 2));
+        p.call(
+            "hd:FsRead",
+            method,
+            one(&escaped),
+            fs_error(&outside.join("x"), 2),
+        );
     }
-    p.call("hd:FsRead", "list_dir", one(&up), fs_error(&up, 2));
+    p.call("hd:FsRead", "list_dir", one(&up), fs_error(&outside, 2));
     for method in ["write_bytes", "write_text", "append_text"] {
-        for target in [&escaped, &through, &broken] {
+        for (target, resolved) in [
+            (&escaped, outside.join("x")),
+            (&through, outside.join("deep/new.txt")),
+            (&broken, outside.join("made")),
+        ] {
             p.call(
                 "hd:FsWrite",
                 method,
                 Enc::default().str(path(target)).str("changed").0,
-                fs_error(target, 2),
+                fs_error(&resolved, 2),
             );
         }
     }
-    p.call("hd:FsWrite", "remove", one(&escaped), fs_error(&escaped, 2));
+    p.call(
+        "hd:FsWrite",
+        "remove",
+        one(&escaped),
+        fs_error(&outside.join("x"), 2),
+    );
     p.call(
         "hd:FsWrite",
         "create_dir_all",
         one(&created),
-        fs_error(&created, 2),
+        fs_error(&outside.join("deep/made"), 2),
     );
-    for to in [&escaped, &through] {
+    for (to, resolved) in [
+        (&escaped, outside.join("x")),
+        (&through, outside.join("deep/new.txt")),
+    ] {
         p.call(
             "hd:FsWrite",
             "rename",
             Enc::default().str(path(&file)).str(path(to)).0,
-            fs_error(to, 2),
+            fs_error(&resolved, 2),
         );
     }
     p.call(

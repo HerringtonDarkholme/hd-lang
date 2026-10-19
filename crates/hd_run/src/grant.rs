@@ -69,6 +69,33 @@ pub fn resolve_path(path: &Path) -> PathBuf {
     resolve_following(path, 0)
 }
 
+/// The path a filesystem refusal names and suggests granting. Preserve
+/// the written spelling unless resolution changes the target; show a
+/// changed target relative to the real working directory when inside it.
+/// `follow` is false when the refused operation acts on the final link
+/// itself rather than on its destination.
+#[must_use]
+pub fn refused_path(path: &Path, cwd: &Path, follow: bool) -> String {
+    let base = resolve_path(cwd);
+    let target = if !follow && let Some(name) = path.file_name() {
+        let parent = path.parent().unwrap_or(Path::new(""));
+        resolve_path(&cwd.join(parent)).join(name)
+    } else {
+        resolve_path(&cwd.join(path))
+    };
+    if target == lexical_path(&base.join(path)) {
+        return path.to_string_lossy().into_owned();
+    }
+    let shown = target.strip_prefix(&base).unwrap_or(&target);
+    if shown.as_os_str().is_empty() {
+        ".".to_owned()
+    } else {
+        shown
+            .to_string_lossy()
+            .replace(std::path::MAIN_SEPARATOR, "/")
+    }
+}
+
 /// How many symbolic links one resolution follows before it stops, as
 /// the OS does with `ELOOP`; the access then fails on its own.
 const MAX_LINKS: u32 = 40;
@@ -377,6 +404,21 @@ mod tests {
         assert!(!g.covers_path("FsWrite", Path::new("out-other/a.txt"), &dir));
     }
 
+    #[test]
+    fn plain_refusals_keep_the_written_path() {
+        let cwd = std::env::temp_dir();
+        for path in ["plain.txt", "new/../plain.txt", "new/./plain.txt"] {
+            for follow in [true, false] {
+                assert_eq!(super::refused_path(Path::new(path), &cwd, follow), path);
+            }
+        }
+        let absolute = super::resolve_path(&cwd).join("plain.txt");
+        assert_eq!(
+            super::refused_path(&absolute, &cwd, true),
+            absolute.to_string_lossy()
+        );
+    }
+
     /// A `..` after a symbolic link goes up from where the link leads, as
     /// the OS resolves it, and a link whose target does not exist yet is
     /// followed too, as a write through it would be (#399).
@@ -411,6 +453,22 @@ mod tests {
         let g = Grants::resolve(&[kv("FsRead", scopes(&["granted"]))], &dir, &[], &dir);
         assert!(!g.covers_path("FsRead", Path::new("granted/link/../x"), &dir));
         assert!(g.covers_path("FsRead", Path::new("granted/inlink/../y"), &dir));
+        for (written, shown) in [
+            ("granted/link/../x", "outside/x"),
+            ("granted/link/x", "outside/deep/x"),
+            ("granted/broken/z", "outside/made/z"),
+            ("granted/sub/../y", "granted/sub/../y"),
+        ] {
+            assert_eq!(super::refused_path(Path::new(written), &dir, true), shown);
+        }
+        assert_eq!(
+            super::refused_path(Path::new("link/../x"), &dir.join("granted"), true),
+            real.join("outside/x").to_string_lossy()
+        );
+        assert_eq!(
+            super::refused_path(Path::new("granted/link"), &dir, false),
+            "granted/link"
+        );
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

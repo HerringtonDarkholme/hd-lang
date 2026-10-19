@@ -1,0 +1,23 @@
+use std.fs.{FsRead, read_text}
+use std.host.{Args, args}
+use std.path.Path
+use std.process.{Command, Process}
+
+fn show!(path: string) -> void $ Console + FsRead:
+    match read_text!(Path(path)):
+        .Ok(text) => println(text)
+        .Err(error) => println(error)
+
+pub fn main!() -> void $ Console + FsRead + Process + Args:
+    if args().get(0).unwrap_or("") == "setup":
+        match Command::new("node").args(["setup.cjs"]).run!():
+            .Ok(output) =>
+                if output.status != 0:
+                    panic(output.stderr)
+            .Err(error) => panic("$error")
+    else:
+        request := match read_text!(Path("granted/request")):
+            .Ok(text) => text
+            .Err(error) => panic("$error")
+        show!(request)
+        show!("plain.txt")

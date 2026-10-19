@@ -1,0 +1,7 @@
+# The setup is portable between Unix symlinks and Windows junctions.
+run: hd run -- setup
+# The link leaves the grant, so both the message and hint name its target.
+# The plain refusal retains its original spelling and text.
+run: hd run --cap FsRead=granted
+stdout: access to outside/deep/x is not granted; run with --cap FsRead=outside/deep/x or --cap FsWrite=outside/deep/x
+stdout: access to plain.txt is not granted; run with --cap FsRead=plain.txt or --cap FsWrite=plain.txt

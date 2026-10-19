@@ -183,19 +183,34 @@ fn a_planted_link_to_outside_is_refused() {
     let call = |method: &str, path: &str, payload: Option<&[u8]>| {
         call(&sandbox, &g, &dir.0, method, path, payload)
     };
-    for (method, path, payload) in [
-        ("read_text", "granted/file", None),
-        ("write_text", "granted/file", Some(b"x".as_slice())),
-        ("append_text", "granted/file", Some(b"x".as_slice())),
-        ("read_text", "granted/dir/a.txt", None),
-        ("write_text", "granted/dir/new.txt", Some(b"x".as_slice())),
-        ("list_dir", "granted/dir", None),
-        ("create_dir_all", "granted/dir/new", None),
-        ("remove", "granted/dir/a.txt", None),
+    for (method, path, payload, resolved) in [
+        ("read_text", "granted/file", None, "outside/a.txt"),
+        (
+            "write_text",
+            "granted/file",
+            Some(b"x".as_slice()),
+            "outside/a.txt",
+        ),
+        (
+            "append_text",
+            "granted/file",
+            Some(b"x".as_slice()),
+            "outside/a.txt",
+        ),
+        ("read_text", "granted/dir/a.txt", None, "outside/a.txt"),
+        (
+            "write_text",
+            "granted/dir/new.txt",
+            Some(b"x".as_slice()),
+            "outside/new.txt",
+        ),
+        ("list_dir", "granted/dir", None, "outside"),
+        ("create_dir_all", "granted/dir/new", None, "outside/new"),
+        ("remove", "granted/dir/a.txt", None, "outside/a.txt"),
     ] {
         assert_eq!(
             call(method, path, payload).done(),
-            error(path, 2).done(),
+            error(resolved, 2).done(),
             "{method} {path}"
         );
     }
@@ -207,7 +222,7 @@ fn a_planted_link_to_outside_is_refused() {
     let through = "granted/dir/../outside/a.txt";
     assert_eq!(
         call("read_text", through, None).done(),
-        error(through, 2).done()
+        error("outside/a.txt", 2).done()
     );
     // A link inside that points inside is followed, and `stat` and
     // `remove` act on the link itself.

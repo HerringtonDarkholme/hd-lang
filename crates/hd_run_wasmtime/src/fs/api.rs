@@ -86,6 +86,11 @@ impl Job {
         match result {
             Ok(e) => Some(e),
             Err(Failure::Deadline) => None,
+            Err(Failure::NotGranted) => Some(not_granted_at(
+                self.to.as_deref().unwrap_or(&self.path),
+                &self.cwd,
+                !matches!(self.method.as_str(), "stat" | "remove" | "rename"),
+            )),
             Err(err) => Some(failure(
                 self.to.as_deref().unwrap_or(&self.path),
                 &self.method,
@@ -107,7 +112,8 @@ fn error_text(text: &str) -> Enc {
 
 /// Executes relative paths in the case's directory without changing the
 /// process-wide working directory. Encoded paths and errors retain the
-/// guest's original spelling. Under a grant with scope entries, the call
+/// guest's original spelling, except a grant refusal names a changed
+/// resolved target. Under a grant with scope entries, the call
 /// acts under the handle of the granted directory that covers it
 /// (`sandbox`). A regular file or a directory runs here;
 /// anything else (a FIFO, a device, a named pipe) comes back as a `Job`.
@@ -139,7 +145,7 @@ pub(crate) fn start(
     };
     for p in std::iter::once(&path).chain(to.iter()) {
         if !grants.covers_path(key, Path::new(p), cwd) {
-            return Ok(Start::Ready(not_granted(p)));
+            return Ok(Start::Ready(not_granted_at(p, cwd, true)));
         }
     }
     // Reject NUL before OS access, after checking the grant.
@@ -164,12 +170,12 @@ pub(crate) fn start(
     let create = method == "create_dir_all";
     let place_of = |p: &str| sandbox.place(grants, key, &at(cwd, p), follow, create);
     let Some(place) = place_of(&path) else {
-        return Ok(Start::Ready(not_granted(&path)));
+        return Ok(Start::Ready(not_granted_at(&path, cwd, follow)));
     };
     let to_place = match &to {
         Some(p) => match place_of(p) {
             Some(place) => Some(place),
-            None => return Ok(Start::Ready(not_granted(p))),
+            None => return Ok(Start::Ready(not_granted_at(p, cwd, follow))),
         },
         None => None,
     };
@@ -359,6 +365,10 @@ fn not_granted(path: &str) -> Enc {
     })
 }
 
+fn not_granted_at(path: &str, cwd: &Path, follow: bool) -> Enc {
+    not_granted(&hd_run::refused_path(Path::new(path), cwd, follow))
+}
+
 fn other(message: &str) -> FsError {
     FsError::Other {
         message: message.to_owned(),
@@ -528,7 +538,13 @@ mod tests {
             error("bad\0path", 2).done()
         );
         let dir = TempDir::new();
-        let allowed = dir.path("from");
+        // This is a plain absolute path, not an alias through the host's
+        // temporary-directory symlink (such as /var -> /private/var).
+        let allowed = hd_run::canonicalize(&dir.0)
+            .unwrap()
+            .join("from")
+            .to_string_lossy()
+            .into_owned();
         let refused = format!("{allowed}-outside");
         fs::write(&allowed, "keep").unwrap();
         let grants = Grants {
