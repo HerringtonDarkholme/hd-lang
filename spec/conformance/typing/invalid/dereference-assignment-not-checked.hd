@@ -1,3 +1,0 @@
-# Spec 13 Not Yet Checked: ref.check.not-yet. A dereference as an assignment target.
-fn demo(count: i32) -> void:
-    *count = 1  # diagnostic: references-not-yet-checked

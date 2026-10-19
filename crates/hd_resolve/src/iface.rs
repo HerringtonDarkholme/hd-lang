@@ -1571,7 +1571,7 @@ pub fn mentioned_defs<'a>(
                 stack.extend(pool.list_items(elems));
                 stack.extend(rest);
             }
-            TyData::Option(i) | TyData::Mut(i) => stack.push(i),
+            TyData::Option(i) | TyData::Mut(i) | TyData::Ref { inner: i, .. } => stack.push(i),
             TyData::Fn {
                 params,
                 result,
@@ -1819,6 +1819,14 @@ fn show_ty_opts(names: &Names<'_>, pool: hd_types::Types<'_>, t: Ty, rows: bool)
         ),
         TyData::Option(i) => format!("{}?", show_ty_opts(names, pool, i, rows)),
         TyData::Mut(i) => format!("mut {}", show_ty_opts(names, pool, i, rows)),
+        TyData::Ref {
+            inner,
+            mutable: false,
+        } => format!("&{}", show_ty_opts(names, pool, inner, rows)),
+        TyData::Ref {
+            inner,
+            mutable: true,
+        } => format!("&mut {}", show_ty_opts(names, pool, inner, rows)),
         // Inputs of an arity not known here have no sugar form.
         TyData::Fn {
             params,

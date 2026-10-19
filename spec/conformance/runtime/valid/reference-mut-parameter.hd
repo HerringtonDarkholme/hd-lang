@@ -1,0 +1,26 @@
+# test: `&mut` of a mut parameter or of a field of mut self refers to the callee's own copy, so writes through it reach that copy
+# Spec 13 Writable Places Of References: ref.place.writable. Spec 07 Parameters: fn.param.mut.
+# expect-stdout: 3
+# expect-stdout: 6
+# expect-stdout: 1
+struct Point:
+    x: i32
+
+impl Point:
+    fn bumped(mut self) -> Point:
+        bump(&mut self.x)
+        self
+
+fn bump(r: &mut i32) -> void:
+    *r += 1
+
+fn twice(mut p: Point) -> i32:
+    bump(&mut p.x)
+    bump(&mut p.x)
+    p.x
+
+pub fn main() -> void $ Console:
+    p := Point { x: 1 }
+    println(twice(p))
+    println(Point { x: 5 }.bumped().x)
+    println(p.x)

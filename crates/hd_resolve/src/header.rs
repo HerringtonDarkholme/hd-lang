@@ -301,6 +301,7 @@ impl<'a> Universe<'a> {
             TyData::TraitValue { def, .. } => Some(HeadKey::Trait(def)),
             TyData::Option(_) => Some(HeadKey::Ctor(0, 0)),
             TyData::Mut(_) => Some(HeadKey::Ctor(1, 0)),
+            TyData::Ref { mutable, .. } => Some(HeadKey::Ctor(4, u32::from(mutable))),
             TyData::Fn { .. } => Some(HeadKey::Ctor(2, 0)),
             TyData::Tuple { elems, rest: None } => Some(HeadKey::Ctor(
                 3,
@@ -379,6 +380,16 @@ impl<'a> Universe<'a> {
             (TyData::Option(x), TyData::Option(y)) | (TyData::Mut(x), TyData::Mut(y)) => {
                 self.unify(x, y, oa, ob, sub)
             }
+            (
+                TyData::Ref {
+                    inner: x,
+                    mutable: mx,
+                },
+                TyData::Ref {
+                    inner: y,
+                    mutable: my,
+                },
+            ) => mx == my && self.unify(x, y, oa, ob, sub),
             (
                 TyData::Tuple {
                     elems: x,

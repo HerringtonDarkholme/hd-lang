@@ -23,7 +23,7 @@ versioned subsets.
 | [Modules](lang/10-modules.md) | packages, use declarations, visibility, entry points, Wasm boundary |
 | [Requirements and Suspension](lang/11-requirements-and-suspension.md) | requirement rows, providers, `fn!`, `Suspend[T]` |
 | [Variadic Generics](lang/12-variadic-generics.md) | none: hd has no packs; where arity-generic code lives instead |
-| [Values And References](lang/13-values-and-references.md) | reference types `&T` and `&mut T`, `&e`, `&mut e`, `*e`: syntax only |
+| [Values And References](lang/13-values-and-references.md) | reference types `&T` and `&mut T`, `&e`, `&mut e`, `*e`, places, writes through a reference, read-only references |
 | [Annotations](lang/14-annotations.md) | decorators, function facts, member metadata, typed derivation, error derivation |
 
 These chapters are the language tier. The stdlib tier, std APIs that
@@ -330,6 +330,6 @@ The stdlib chapters' terms are in the
 | **value names** | The name category of top-level executable bindings, parameters, local bindings, local named functions, loop bindings, pattern bindings, and captured values. See [`names.category.value`](lang/03-names-and-scopes.md#r-names.category.value). |
 | **vararg** | A final parameter written `name...: T`, which collects the call's remaining positional arguments into `T`. See [`fn.vararg.form`](lang/07-functions.md#r-fn.vararg.form). |
 | **visible** | A field or inherent method is visible from a module that declares it, and from every module when it is `pub`. See [`names.visible.field-method`](lang/03-names-and-scopes.md#r-names.visible.field-method). |
-| **writable** | A place that a struct field write may change: a `let mut` binding, a `mut` parameter or `mut self`, a field of a data value with mutable access, or a struct field of a writable place. See [`types.value.writable-place`](lang/04-type-system.md#r-types.value.writable-place). |
+| **writable** | A place that a struct field write or a `&mut` may change: a `let mut` binding, a `mut` parameter or `mut self`, a field of a data value with mutable access, a value reached through a `&mut` reference, or a struct field of a writable place. See [`types.value.writable-path`](lang/04-type-system.md#r-types.value.writable-path) and [`ref.place.writable`](lang/13-values-and-references.md#r-ref.place.writable). |
 | **workspace** | A set of packages that one committed workspace manifest lists, selected as one graph. See [Workspaces](lang/10-modules.md#workspaces). |
 | **workspace mode** | How a command works at a workspace root, where the nearest `hd.toml` lists members and declares no package. See [Workspace Mode](cli/command-line.md#workspace-mode). |

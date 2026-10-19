@@ -1,5 +1,5 @@
 # test: let mut with a mutable optional payload annotation warns as redundant
-# Spec 04 Binding Forms: types.bind.let-mut-annotated.warning (a redundant mut gets a warning).
+# Spec 04 Binding Forms: types.bind.let-mut-annotated.unused (a redundant mut gets a warning).
 data User:
     name: i32
 

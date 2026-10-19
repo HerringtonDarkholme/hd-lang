@@ -1,5 +1,5 @@
 # test: a struct value is copied on binding, assignment, passing and return, so a field write changes only its own writable place
-# Spec 04 Value Types: types.value.copy, types.value.writable-place, types.value.field-write, types.value.write-once.
+# Spec 04 Value Types: types.value.copy, types.value.writable-path, types.value.field-write, types.value.write-once.
 # Spec 08 Struct Declarations: data.struct.decl, data.struct.receivers.
 # expect-stdout: 5 1
 # expect-stdout: 2 5

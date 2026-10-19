@@ -1,0 +1,4 @@
+# test: `*e` on a value that is not a reference is type-mismatch
+# Spec 13 Reading Through A Reference: ref.deref.not-reference.
+fn invalid(count: i32) -> i32:
+    *count  # diagnostic: type-mismatch

@@ -1,0 +1,21 @@
+# test: two references to one object, and copies of one reference, see each other's writes; there is no exclusivity check
+# Spec 13 Places And New Objects: ref.place.alias. Writing Through A Reference: ref.write.seen, ref.write.no-exclusivity.
+# expect-stdout: 7 7
+# expect-stdout: 8 8
+# expect-stdout: 8
+struct Point:
+    x: i32
+    y: i32
+
+fn set_x(a: &mut Point, b: &mut Point) -> void:
+    a.x = 8
+    println("${a.x} ${b.x}")
+
+pub fn main() -> void $ Console:
+    r := &mut Point { x: 1, y: 2 }
+    s := r
+    s.x = 7
+    println("${r.x} ${s.x}")
+    let mut p = Point { x: 0, y: 0 }
+    set_x(&mut p, &mut p)
+    println(p.x)

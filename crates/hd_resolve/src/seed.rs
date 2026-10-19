@@ -132,6 +132,32 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             if let Some(p) = out.last_mut() {
                 p.intrinsic = Some(sym(names, "panic_message"));
             }
+            // What `&T` and `&mut T` lower to on the Wasm GC backend
+            // (`crates/hd_wasm/DESIGN.md` §15.2, "References"): a closure
+            // that reads the referenced place and one that replaces it.
+            // Not visible to programs; `hd_types::Types::lower_refs` names it.
+            let cell = names.item(module, "Ref");
+            let t = param(names, cell, 0);
+            let fn_ty = |params: &[Ty], result: Ty| {
+                pool.intern_ty(&TyData::Fn {
+                    params: pool.list(params),
+                    result,
+                    row: RowId::EMPTY,
+                    suspends: false,
+                    inputs: hd_types::Inputs::Fixed,
+                })
+            };
+            let mut it = Item::new(
+                cell,
+                sym(names, "Ref"),
+                false,
+                ItemData::Data(vec![
+                    field(names, "get", fn_ty(&[], t)),
+                    field(names, "set", fn_ty(&[t], Ty::VOID)),
+                ]),
+            );
+            it.generics = gens(names, &["T"]);
+            out.push(it);
         }
         "std.task" => {
             item("Suspend", gens(names, &["T"]), ItemData::Data(vec![]));

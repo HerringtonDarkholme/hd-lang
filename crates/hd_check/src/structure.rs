@@ -789,7 +789,9 @@ impl<'a, 'c> SelfRefs<'a, 'c> {
         }
         seen.push(t);
         match pool.get(t) {
-            TyData::Mut(x) | TyData::Option(x) => self.refers(x, seen),
+            TyData::Mut(x) | TyData::Option(x) | TyData::Ref { inner: x, .. } => {
+                self.refers(x, seen)
+            }
             TyData::Tuple { elems, rest } => {
                 pool.list_items(elems).iter().any(|e| self.refers(*e, seen))
                     || rest.is_some_and(|r| self.refers(r, seen))

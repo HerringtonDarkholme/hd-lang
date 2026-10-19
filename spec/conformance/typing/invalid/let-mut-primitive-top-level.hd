@@ -1,0 +1,6 @@
+# test: `let mut` on a primitive top-level binding is mut-on-primitive
+# Spec 04 Binding Forms: types.bind.let-mut-primitive-top.
+let mut count = +0  # diagnostic: mut-on-primitive
+
+fn read() -> i32:
+    count

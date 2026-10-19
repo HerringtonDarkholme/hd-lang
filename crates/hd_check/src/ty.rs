@@ -824,13 +824,17 @@ impl Ck<'_, '_> {
                 }))?
             }
             SyntaxKind::RefType => {
-                // `ref.check.not-yet`
-                self.err(
-                    hd_diag::Code::ReferencesNotYetChecked,
-                    n,
-                    "reference types are parsed but not checked yet",
-                );
-                Ty::POISON
+                // `ref.type.forms`, `ref.type.view`: an outer `mut` view of
+                // the operand is no part of a reference type.
+                let mutable = n
+                    .direct_token(&self.cx.src.parse.tokens, hd_syntax::TokenKind::KwMut)
+                    .is_some();
+                let inner = first(self, n)?;
+                let inner = match pool.get(inner) {
+                    TyData::Mut(i) => i,
+                    _ => inner,
+                };
+                pool.intern_ty(&TyData::Ref { inner, mutable })
             }
             other => return unsupported(format!("the type form {other:?} in a body")),
         })

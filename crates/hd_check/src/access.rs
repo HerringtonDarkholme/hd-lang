@@ -398,30 +398,55 @@ impl Ck<'_, '_> {
     }
 
     /// A plain `let mut name` binding of type `t`, local or top-level: a
-    /// primitive or tuple is its own error, anything else follows
-    /// `let_mut_name` (types.bind.let-mut-primitive,
-    /// types.bind.let-mut-tuple).
-    pub(crate) fn let_mut_binding(&mut self, t: Ty, annotated: bool, at: NodeRef<'_>) {
+    /// tuple is its own error, anything else follows `let_mut_name`
+    /// (types.bind.let-mut-tuple). A local of a primitive type is valid,
+    /// since `&mut` of it needs `let mut`, and so is a local whose `mut T`
+    /// annotation already grants `mut`: the caller judges either at the
+    /// end of the body, by whether `&mut` of it is taken, and this returns
+    /// it (types.bind.let-mut-primitive-local, types.bind.let-mut-annotated-valid). A
+    /// top-level primitive one stays an error
+    /// (types.bind.let-mut-primitive-top).
+    pub(crate) fn let_mut_binding(
+        &mut self,
+        t: Ty,
+        annotated: bool,
+        local: bool,
+        at: NodeRef<'_>,
+    ) -> Option<crate::body::LetMutKind> {
         let pool = self.pool();
         let lit = matches!(
             self.infer.kind_of(pool, t),
             Some(VarKind::IntLit | VarKind::SignedIntLit | VarKind::FloatLit)
         );
         match pool.get(self.strip_mut(t)) {
-            _ if lit => self.err(Code::MutOnPrimitive, at, "`let mut` on a primitive value"),
+            _ if lit && local => return Some(crate::body::LetMutKind::Primitive),
+            TyData::Prim(_) if local => return Some(crate::body::LetMutKind::Primitive),
+            _ if local && annotated && self.composite_or_optional(t) && self.let_mut_ok(t) => {
+                return Some(crate::body::LetMutKind::Annotated);
+            }
+            _ if lit => self.err(
+                Code::MutOnPrimitive,
+                at,
+                "`let mut` on a primitive top-level binding; a plain `let` is already reassignable",
+            ),
             TyData::Prim(_) => {
-                self.err(Code::MutOnPrimitive, at, "`let mut` on a primitive value");
+                self.err(
+                    Code::MutOnPrimitive,
+                    at,
+                    "`let mut` on a primitive top-level binding; a plain `let` is already reassignable",
+                );
             }
             TyData::Tuple { .. } => {
                 self.err(Code::MutOnTuple, at, "`let mut` on a tuple");
             }
             _ => self.let_mut_name(t, annotated, at),
         }
+        None
     }
 
     /// A name written `let mut` (or `mut` in a `let` pattern) bound to a
     /// value of type `t` (types.bind.let-mut-upgrade,
-    /// types.bind.let-mut-annotated, types.bind.let-mut-annotation).
+    /// types.bind.let-mut-annotated-valid, types.bind.let-mut-annotation).
     pub(crate) fn let_mut_name(&mut self, t: Ty, annotated: bool, at: NodeRef<'_>) {
         if !self.composite_or_optional(t) {
             return;

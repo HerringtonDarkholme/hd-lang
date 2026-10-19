@@ -1,0 +1,25 @@
+# test: `*r = v` replaces the whole value r refers to, `*r op= v` updates it, and `*r` reads a copy
+# Spec 13 Writing Through A Reference: ref.deref.write, ref.write.seen. Reading Through A Reference: ref.deref.read.
+# expect-stdout: 5 6
+# expect-stdout: 5 6 7
+# expect-stdout: 1 2
+struct Point:
+    x: i32
+    y: i32
+
+fn reset(r: &mut Point, x: i32, y: i32) -> void:
+    *r = Point { x, y }
+
+pub fn main() -> void $ Console:
+    let mut p = Point { x: 1, y: 2 }
+    reset(&mut p, 5, 6)
+    println("${p.x} ${p.y}")
+    let mut n = +6
+    r := &mut n
+    *r += 1
+    println("${p.x} ${p.y} ${n}")
+    q := &mut p
+    let mut copy = *q
+    *q = Point { x: 1, y: 2 }
+    copy.x = 9
+    println("${p.x} ${p.y}")

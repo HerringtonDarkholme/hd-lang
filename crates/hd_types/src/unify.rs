@@ -253,6 +253,10 @@ impl InferTable {
             },
             TyData::Option(i) => TyData::Option(r(i)),
             TyData::Mut(i) => TyData::Mut(r(i)),
+            TyData::Ref { inner, mutable } => TyData::Ref {
+                inner: r(inner),
+                mutable,
+            },
             TyData::Fn {
                 params,
                 result,
@@ -319,7 +323,9 @@ impl InferTable {
                 .copied()
                 .chain(rest)
                 .any(|x| self.occurs(pool, v, x)),
-            TyData::Option(i) | TyData::Mut(i) => self.occurs(pool, v, i),
+            TyData::Option(i) | TyData::Mut(i) | TyData::Ref { inner: i, .. } => {
+                self.occurs(pool, v, i)
+            }
             TyData::Fn { params, result, .. } => {
                 self.occurs(pool, v, result)
                     || pool
@@ -373,6 +379,18 @@ impl InferTable {
             {
                 self.bind(pool, self.root(y.raw()), a)
             }
+            // `&T` and `&mut T` are distinct types; the conversion from
+            // `&mut T` to `&T` is a coercion (ref.convert.weaken).
+            (
+                TyData::Ref {
+                    inner: x,
+                    mutable: mx,
+                },
+                TyData::Ref {
+                    inner: y,
+                    mutable: my,
+                },
+            ) if mx == my => self.unify(pool, x, y),
             // A view marker does not change the value's type: `mut T`
             // checks against `T` (mutability is checked separately).
             (TyData::Mut(x), TyData::Mut(y)) => self.unify(pool, x, y),

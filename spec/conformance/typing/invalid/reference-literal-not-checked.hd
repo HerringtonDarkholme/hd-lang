@@ -1,7 +1,0 @@
-# Spec 13 Not Yet Checked: ref.check.not-yet. A literal behind a reference.
-struct Point:
-    x: i32
-
-fn demo() -> i32:
-    p := &mut Point { x: 1 }  # diagnostic: references-not-yet-checked
-    0

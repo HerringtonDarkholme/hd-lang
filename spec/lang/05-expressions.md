@@ -58,6 +58,7 @@ calls through a callable value that accepts a store:
 7. r[expr.place.tuple-element] A tuple element selection such as `pair._0` is not a place: tuples are immutable, and a changed tuple is built as a new tuple value.
 8. r[expr.place.enum-shared-field] A shared enum field such as `status.phrase` is not a place: enum values never change once built.
 9. r[expr.place.struct-field] A field of a struct value is a place when the struct is in a writable place, as [Writable Places](04-type-system.md#writable-places) defines.
+10. r[expr.place.deref] `*r` with a `&mut` reference `r` is a place, and so is a field read through one, such as `r.x`, as [Writing Through A Reference](13-values-and-references.md#writing-through-a-reference) defines.
 
 ```hd
 fn demo() -> void:

@@ -564,6 +564,10 @@ fn name_into(
             out.push_str("mut ");
             name_into(pool, env, printed, i, out, limit);
         }
+        TyData::Ref { inner, mutable } => {
+            out.push_str(if mutable { "&mut " } else { "&" });
+            name_into(pool, env, printed, inner, out, limit);
+        }
         // Not inspectable (trait.inspectable.not.*), but a diagnostic
         // spells them, and a typed fact's identity names its pattern's
         // arguments (`annot.handle.fact.exact`): the row is part of it.
@@ -1238,7 +1242,7 @@ impl Cx<'_> {
                 parts.extend(pool.list_items(elems));
                 parts.extend(rest);
             }
-            TyData::Option(i) | TyData::Mut(i) => parts.push(i),
+            TyData::Option(i) | TyData::Mut(i) | TyData::Ref { inner: i, .. } => parts.push(i),
             TyData::Fn {
                 params,
                 result,

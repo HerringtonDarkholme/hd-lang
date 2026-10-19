@@ -1,0 +1,36 @@
+# test: references to struct fields of a local, to fields reached through a reference, and to a data field refer to those places
+# Spec 13 Places And New Objects: ref.place.forms, ref.place.through, ref.expr.place.
+# expect-stdout: 1.5 0.0
+# expect-stdout: 2.5
+# expect-stdout: 4.0
+# expect-stdout: 9
+struct Vec2:
+    x: f64
+    y: f64
+
+struct Body:
+    pos: Vec2
+    vel: Vec2
+
+data Counter:
+    n: i32
+
+fn nudge(v: &mut Vec2) -> void:
+    v.x += 1.5
+
+fn scale(value: &mut f64) -> void:
+    *value *= 2.0
+
+pub fn main() -> void $ Console:
+    let mut body = Body { pos: Vec2 { x: 0.0, y: 0.0 }, vel: Vec2 { x: 1.0, y: 2.0 } }
+    nudge(&mut body.pos)
+    println("${body.pos.x} ${body.pos.y}")
+    r := &mut body
+    nudge(&mut r.vel)
+    println(body.vel.x)
+    scale(&mut r.vel.y)
+    println(body.vel.y)
+    let mut c = Counter { n: 1 }
+    n := &mut c.n
+    *n = 9
+    println(c.n)

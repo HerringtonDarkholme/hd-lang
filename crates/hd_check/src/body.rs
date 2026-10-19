@@ -183,6 +183,17 @@ pub(crate) enum RowFrame {
     Profile { row: RowId, used: hd_types::RowData },
 }
 
+/// A local `let mut` whose `mut` matters only if `&mut` of the local is
+/// taken (`refs.rs`, `redundant-let-mut`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum LetMutKind {
+    /// Its type is primitive (types.bind.let-mut-primitive-local).
+    Primitive,
+    /// Its `mut T` annotation already grants `mut`
+    /// (types.bind.let-mut-annotated-valid).
+    Annotated,
+}
+
 pub(crate) struct OpenSub {
     pub mark: SubMark,
     pub depth: usize,
@@ -222,13 +233,21 @@ pub(crate) struct Ck<'a, 'c> {
     /// (`flow.using.binding`).
     pub using_locals: Vec<LocalId>,
     /// The locals bound with `let mut`: a struct value in one changes in
-    /// place (`types.value.writable-place`).
+    /// place (`types.value.writable-path`).
     pub mut_locals: Vec<LocalId>,
     /// The `mut` parameters (and `mut self`) whose value is the callee's own
     /// copy, and the statements that wrote one of them in place, for
     /// `lost-write` (`fn.param.mut.lost-write`).
     pub mut_params: Vec<LocalId>,
     pub param_writes: Vec<(LocalId, hd_base::NodeIdx)>,
+    /// The locals some `&mut` refers to, and the `let mut` locals of a
+    /// primitive type with their patterns, for `redundant-let-mut`
+    /// (`types.bind.let-mut-primitive-unused`).
+    pub ref_taken: Vec<LocalId>,
+    pub prim_let_mut: Vec<(LocalId, hd_base::NodeIdx, LetMutKind)>,
+    /// The base of the field read being checked: a field read is no copy
+    /// of its base (`ref.read.copy-out`).
+    pub proj_base: Option<hd_base::NodeIdx>,
     pub self_ty: Option<Ty>,
     /// The available keys: the body's row, then closures and `$.with`
     /// blocks, innermost last.
@@ -497,6 +516,9 @@ pub(crate) fn new_ck<'a, 'c>(
         mut_locals: Vec::new(),
         mut_params: Vec::new(),
         param_writes: Vec::new(),
+        ref_taken: Vec::new(),
+        prim_let_mut: Vec::new(),
+        proj_base: None,
         self_ty: None,
         rows: vec![
             if kind == BodyKind::Init && !pool.row_data(row).params.is_empty() {
@@ -1489,6 +1511,37 @@ impl Ck<'_, '_> {
         // ordinary value goes into `never`.
         if g == Ty::NEVER || g == w {
             return r;
+        }
+        // `&mut T` converts to `&T` (`ref.convert.weaken`), also into an
+        // optional; `&T` never converts to `&mut T` (`ref.convert.no-upgrade`).
+        let shared_target = |t: Ty| match pool.get(t) {
+            TyData::Ref { mutable, .. } => Some(mutable),
+            TyData::Option(i) => match pool.get(self.infer.shallow(pool, i)) {
+                TyData::Ref { mutable, .. } => Some(mutable),
+                _ => None,
+            },
+            _ => None,
+        };
+        if let TyData::Ref { inner, mutable } = pool.get(g) {
+            match (mutable, shared_target(w)) {
+                (true, Some(false)) => {
+                    let shared = pool.intern_ty(&TyData::Ref {
+                        inner,
+                        mutable: false,
+                    });
+                    let r = self.b.coerce(Coercion::Weaken, NONE, r, shared, n.index());
+                    return self.coerce(r, shared, target, n, what, position);
+                }
+                (false, Some(true)) => {
+                    let (want_s, got_s) = self.show_pair(want, got);
+                    let msg = format!(
+                        "in {what}: expected {want_s}, found {got_s}; a read-only reference never becomes writable"
+                    );
+                    self.err(Code::MutableUpgrade, n, &msg);
+                    return r;
+                }
+                _ => {}
+            }
         }
         // A least-common-type site's variable is not a declared type: the
         // value joins the others instead (types.lct).
@@ -2954,7 +3007,10 @@ impl Ck<'_, '_> {
         if copy
             && matches!(
                 lhs.kind(),
-                SyntaxKind::NameExpr | SyntaxKind::IndexExpr | SyntaxKind::CallExpr
+                SyntaxKind::NameExpr
+                    | SyntaxKind::IndexExpr
+                    | SyntaxKind::CallExpr
+                    | SyntaxKind::DerefExpr
             )
         {
             self.err(
@@ -2965,13 +3021,7 @@ impl Ck<'_, '_> {
             return Ok(());
         }
         if lhs.kind() == SyntaxKind::DerefExpr {
-            // `ref.check.not-yet`
-            self.err(
-                Code::ReferencesNotYetChecked,
-                *lhs,
-                "reference expressions are parsed but not checked yet",
-            );
-            return Ok(());
+            return self.deref_assign(*lhs, *rhs, compound, s);
         }
         match lhs.kind() {
             SyntaxKind::NameExpr => {
@@ -3054,10 +3104,25 @@ impl Ck<'_, '_> {
                 let Some(base) = lhs.children().next() else {
                     return unsupported("a field without a base");
                 };
+                self.proj_base = Some(base.index());
                 let (br, bt) = self.expr(base, None)?;
                 let fname = self.cx.src.text(self.cx.src.last(*lhs)).to_owned();
+                // A field of a referenced value: through `&mut` only
+                // (`ref.write.field`).
+                let (br, bt) = match self.ref_of(bt) {
+                    Some((_, false)) => {
+                        let msg = format!(
+                            "this writes through a read-only reference {}; take the reference with `&mut` to write through it",
+                            self.show(bt)
+                        );
+                        self.err(Code::ReadonlyRoot, *lhs, &msg);
+                        return Ok(());
+                    }
+                    Some((_, true)) => self.emit_deref(br, bt, base.index()),
+                    None => (br, bt),
+                };
                 // A struct field changes in a writable place only
-                // (`types.value.writable-place`).
+                // (`types.value.writable-path`).
                 if self.is_struct_ty(bt) {
                     return self.struct_field_assign(
                         (br, bt),
@@ -3323,6 +3388,10 @@ impl Ck<'_, '_> {
             TyData::Mut(i) => {
                 let i = self.zonk(i);
                 pool.intern_ty(&TyData::Mut(i))
+            }
+            TyData::Ref { inner, mutable } => {
+                let inner = self.zonk(inner);
+                pool.intern_ty(&TyData::Ref { inner, mutable })
             }
             TyData::Fn {
                 params,
@@ -3610,6 +3679,7 @@ impl Ck<'_, '_> {
         fun: Option<NodeRef<'_>>,
     ) -> StageResult<(Body, Ty, crate::results::RowFacts)> {
         self.unused_locals();
+        self.redundant_primitive_let_mut();
         if self.module_init.is_none() {
             let item = self.b.body_mut().item;
             let facts = std::mem::take(&mut self.facts);
@@ -3831,6 +3901,9 @@ impl Ck<'_, '_> {
         // (`crates/hd_tir/DESIGN.md` §4.13.11, invariant 4).
         let errors = self.diags.has_errors();
         let tolerated: &[u8] = if errors { &[4] } else { &[] };
+        // The backend sees `&T` and `&mut T` as the one data type `Ref[T]`
+        // (`refs.rs`).
+        self.lower_body_refs();
         let known = VerifyFacts { cx: self.cx };
         let body = self
             .b

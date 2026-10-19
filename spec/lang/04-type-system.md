@@ -393,9 +393,9 @@ fn charge(price: Money) -> Money:
 > literal within its expression keeps every type visible where it is
 > written, and an error never blames a distant line.
 
-> **Note.** `let mut i = 0` is still an error, by
-> [`types.bind.let-mut-primitive`](#r-types.bind.let-mut-primitive): a
-> number is primitive at every width.
+> **Note.** `let mut i = 0` gets the warning of
+> [`types.bind.let-mut-primitive-unused`](#r-types.bind.let-mut-primitive-unused)
+> unless `&mut i` is taken: a number is primitive at every width.
 
 > **Note.** A type that only an implementation names is not one the
 > literals meet. So `10.halve()`, with only `impl Halve for i64`, is an
@@ -1049,7 +1049,7 @@ fn same(a: Point, b: Point) -> bool:
 
 A field of a struct value changes in place only through a writable place.
 
-1. r[types.value.writable-place] A place is **writable** when it is a `let mut` binding, local or top-level, a `mut` parameter or `mut self`, a field of a data value with mutable access, or a struct field of a writable place.
+1. r[types.value.writable-path] A place is **writable** when it is a `let mut` binding, local or top-level, a `mut` parameter, or `mut self`. A field of a data value with mutable access, a value reached through a `&mut` reference, and a struct field of a writable place are writable too.
 2. r[types.value.let-mut] `let mut name = value` with a struct value is valid, with or without a struct annotation, and makes `name` writable.
 3. r[types.value.field-write] Assigning a struct field, with `=` or a compound assignment, requires the struct to be in a writable place.
 4. r[types.value.write-once] The assignment changes that place alone, since no other place shares its value.
@@ -1065,6 +1065,7 @@ by what holds the struct:
 | r[types.value.write.let] Plain `let` | a `let` binding without `mut` | `readonly-root` |
 | r[types.value.write.other] Other value | a call result, a collection element, an unwrapped value, or a pattern binding | `readonly-root` |
 | r[types.value.write.data] Data field | a field of a data value without mutable access | as [Mutation Checks](#mutation-checks) states |
+| r[types.value.write.shared-ref] Read-only reference | a value reached through a `&T` reference | `readonly-root` |
 
 ```text
 struct Point:
@@ -1089,7 +1090,8 @@ fn shifted(mut p: Point) -> Point:
 ```
 
 See also: [Struct Declarations](08-data-and-enums.md#struct-declarations),
-[Places](05-expressions.md#places).
+[Places](05-expressions.md#places),
+[Writing Through A Reference](13-values-and-references.md#writing-through-a-reference).
 
 ## Composite Values And Access Permission
 
@@ -1237,13 +1239,15 @@ fn invalid() -> void:
 
 5. r[types.bind.let-mut-infer] `let mut name = value` infers mutable access: when `value` has type `mut T`, the binding has type `mut T`.
 6. r[types.bind.let-mut-upgrade] `let mut` never upgrades access: an initializer with a readonly type is an error. Error: `mutable-upgrade`.
-7. r[types.bind.let-mut-primitive] `let mut` on a name whose type is primitive, as in `let mut n = 0`, is an error, in place of `mutable-upgrade` or `let-mut-readonly-type`. Error: `mut-on-primitive`.
-8. r[types.bind.let-mut-primitive.hint] The diagnostic says that a plain `let` is already reassignable.
-9. r[types.bind.let-mut-tuple] `let mut` on a name whose type is a tuple, as in `let mut pair = (1, 2)`, is an error, in place of `mutable-upgrade` or `let-mut-readonly-type`. Error: `mut-on-tuple`.
-10. r[types.bind.let-mut-tuple.hint] The diagnostic says that a plain `let` is already reassignable, and that an element's permission comes from its own type.
-11. r[types.bind.let-mut-optional] For `let mut`, an optional written `mut T?` counts as mutable access. So `let mut u = find()` is valid when `find` returns `mut User?`, and `u` has that type.
-12. r[types.bind.let-mut-expected] The initializer of an unannotated `let mut` is used as `mut T`. So a fresh literal whose direct `mut` field or embedded copy is readonly is an error, as [`types.fresh.expected-mut`](#r-types.fresh.expected-mut) states. Error: `mutable-upgrade`.
-13. r[types.bind.let-mut-copy] A mutable copy of a readonly value is therefore written as a fresh literal, such as `User { ...user }`, whose `mut` fields are supplied mutable values.
+7. r[types.bind.let-mut-primitive-local] `let mut` on a local whose type is primitive, as in `let mut n = 0`, is valid, since `&mut n` needs a writable place.
+8. r[types.bind.let-mut-primitive-unused] When no `&mut` of such a local is taken, its `mut` changes nothing, and it gets a warning whose fix-it removes the `mut`. Warning: `redundant-let-mut`.
+9. r[types.bind.let-mut-primitive-top] `let mut` on a top-level binding whose type is primitive is an error, in place of `mutable-upgrade` or `let-mut-readonly-type`. Error: `mut-on-primitive`.
+10. r[types.bind.let-mut-primitive.hint] The diagnostic says that a plain `let` is already reassignable.
+11. r[types.bind.let-mut-tuple] `let mut` on a name whose type is a tuple, as in `let mut pair = (1, 2)`, is an error, in place of `mutable-upgrade` or `let-mut-readonly-type`. Error: `mut-on-tuple`.
+12. r[types.bind.let-mut-tuple.hint] The diagnostic says that a plain `let` is already reassignable, and that an element's permission comes from its own type.
+13. r[types.bind.let-mut-optional] For `let mut`, an optional written `mut T?` counts as mutable access. So `let mut u = find()` is valid when `find` returns `mut User?`, and `u` has that type.
+14. r[types.bind.let-mut-expected] The initializer of an unannotated `let mut` is used as `mut T`. So a fresh literal whose direct `mut` field or embedded copy is readonly is an error, as [`types.fresh.expected-mut`](#r-types.fresh.expected-mut) states. Error: `mutable-upgrade`.
+15. r[types.bind.let-mut-copy] A mutable copy of a readonly value is therefore written as a fresh literal, such as `User { ...user }`, whose `mut` fields are supplied mutable values.
 
 ```text
 fn find() -> mut User?:
@@ -1260,16 +1264,16 @@ fn edit(user: User) -> void:
 ```text
 fn invalid(user: User) -> void:
     let mut alias = user  # error: mutable-upgrade
-    let mut count = 0     # error: mut-on-primitive
-    let mut n: i32 = 0    # error: mut-on-primitive
+    let mut count = 0     # warning: redundant-let-mut
+    let mut n: i32 = 0    # warning: redundant-let-mut
     let mut pair = (1, 2) # error: mut-on-tuple
 ```
 
-14. r[types.bind.let-mut-annotated] `let mut` with an annotation whose type is `mut T`, as in `let mut user: mut User = ...`, is valid; the `mut` after `let` is redundant.
-15. r[types.bind.let-mut-annotated.warning] That redundant `mut` gets a warning. Warning: `redundant-let-mut`.
-16. r[types.bind.let-mut-annotated.fix] The warning's fix-it removes the `mut` before the name and keeps the annotation.
-17. r[types.bind.let-mut-annotation] `let mut` with a readonly annotation, as in `let mut user: User = ...`, is an error, because the annotation and `let mut` disagree. Error: `let-mut-readonly-type`.
-18. r[types.bind.let-mut-annotation.fix] The diagnostic suggests adding `mut` to the type or removing the `mut` after `let`.
+16. r[types.bind.let-mut-annotated-valid] `let mut` with an annotation whose type is `mut T`, as in `let mut user: mut User = ...`, is valid. The `mut` after `let` adds only that `&mut` of the binding may be taken.
+17. r[types.bind.let-mut-annotated.unused] When the binding is top-level, or a local that no `&mut` refers to, that redundant `mut` gets a warning. Warning: `redundant-let-mut`.
+18. r[types.bind.let-mut-annotated.fix] The warning's fix-it removes the `mut` before the name and keeps the annotation.
+19. r[types.bind.let-mut-annotation] `let mut` with a readonly annotation, as in `let mut user: User = ...`, is an error, because the annotation and `let mut` disagree. Error: `let-mut-readonly-type`.
+20. r[types.bind.let-mut-annotation.fix] The diagnostic suggests adding `mut` to the type or removing the `mut` after `let`.
 
 ```text
 fn invalid() -> void:
@@ -1277,10 +1281,10 @@ fn invalid() -> void:
     let mut ids: mut List[i64] = []   # warning: redundant-let-mut
 ```
 
-19. r[types.bind.let-pattern-mut] In a `let` pattern, each name follows these rules for the value it binds, as a `match` arm would bind it. In `let (mut log, db) = pair`, `log` has mutable access and `db` the readonly view.
-20. r[types.bind.let-pattern-mut.data] The same holds in a data or variant pattern. In `let User { mut tags, name } = user`, with `user: mut User` and a field `tags: mut List[string]`, `tags` has type `mut List[string]`.
-21. r[types.bind.let-mut-pattern.annotated] With a tuple annotation, the element type of each name written `mut` must be a `mut` type. Error: `let-mut-readonly-type`.
-22. r[types.bind.let-mut-pattern.redundant] That `mut` before the name is redundant and gets the same warning, with the same fix-it. Warning: `redundant-let-mut`.
+21. r[types.bind.let-pattern-mut] In a `let` pattern, each name follows these rules for the value it binds, as a `match` arm would bind it. In `let (mut log, db) = pair`, `log` has mutable access and `db` the readonly view.
+22. r[types.bind.let-pattern-mut.data] The same holds in a data or variant pattern. In `let User { mut tags, name } = user`, with `user: mut User` and a field `tags: mut List[string]`, `tags` has type `mut List[string]`.
+23. r[types.bind.let-mut-pattern.annotated] With a tuple annotation, the element type of each name written `mut` must be a `mut` type. Error: `let-mut-readonly-type`.
+24. r[types.bind.let-mut-pattern.redundant] That `mut` before the name is redundant and gets the same warning, with the same fix-it. Warning: `redundant-let-mut`.
 
 ```text
 fn pair() -> (mut User, mut User):
@@ -1326,9 +1330,9 @@ fn edit() -> void:
 > `let mut user = User { ... }`, while the declaration still says
 > which locals change. `mut` keeps one meaning, a permission in the type.
 
-23. r[types.bind.call-result] Passing through a function also follows the declared result type rather than recovering freshness.
-24. r[types.bind.call-result.argument] Consequently, a fresh literal may be passed directly to a `mut T` parameter. A call declared to return `T` cannot be passed to one, even when its implementation constructs a fresh value.
-25. r[types.bind.never] A binding without a type annotation whose initializer has type `never` is an error. Error: `uninhabited-binding`.
+25. r[types.bind.call-result] Passing through a function also follows the declared result type rather than recovering freshness.
+26. r[types.bind.call-result.argument] Consequently, a fresh literal may be passed directly to a `mut T` parameter. A call declared to return `T` cannot be passed to one, even when its implementation constructs a fresh value.
+27. r[types.bind.never] A binding without a type annotation whose initializer has type `never` is an error. Error: `uninhabited-binding`.
 
 ```text
 fn first_even(values: List[i32]) -> i32:

@@ -211,6 +211,11 @@ pub enum TyData {
         args: TyList,
     },
     Mut(Ty),
+    /// A reference type, `&T` or `&mut T` (spec/lang/13-values-and-references.md).
+    Ref {
+        inner: Ty,
+        mutable: bool,
+    },
     Infer(InferVar),
     /// A canonical placeholder of the solver (`crates/hd_check/DESIGN.md` (trait solver) §2.2).
     Canon(u8),
@@ -237,6 +242,8 @@ enum PoolTag {
     Param,
     Assoc,
     Mut,
+    Ref,
+    RefMut,
     Infer,
     Canon,
     List,
@@ -252,6 +259,7 @@ pub mod meta {
     pub const HAS_PARAM: u32 = 4;
     pub const HAS_ASSOC: u32 = 8;
     pub const HAS_CANON: u32 = 16;
+    pub const HAS_REF: u32 = 32;
 }
 
 impl PoolTag {
@@ -783,6 +791,16 @@ impl InternPool {
     pub fn display(&self, t: Ty) -> String {
         self.types().display(t)
     }
+    /// [`Types::lower_refs`].
+    #[must_use]
+    pub fn lower_refs(&self, cell: DefId, t: Ty) -> Ty {
+        self.types().lower_refs(cell, t)
+    }
+    /// [`Types::lower_refs_list`].
+    #[must_use]
+    pub fn lower_refs_list(&self, cell: DefId, l: TyList) -> TyList {
+        self.types().lower_refs_list(cell, l)
+    }
     #[must_use]
     pub fn len(&self) -> u32 {
         self.cols.tag.len()
@@ -936,6 +954,11 @@ impl<'a> Types<'a> {
                 meta::HAS_ASSOC | self.meta_of(*self_ty) | self.list_meta(*args),
             ),
             TyData::Mut(inner) => (T::Mut, inner.0, self.meta_of(*inner)),
+            TyData::Ref { inner, mutable } => (
+                if *mutable { T::RefMut } else { T::Ref },
+                inner.0,
+                meta::HAS_REF | self.meta_of(*inner),
+            ),
             TyData::Infer(v) => (T::Infer, v.raw(), meta::HAS_INFER),
             TyData::Canon(i) => (T::Canon, u32::from(*i), meta::HAS_CANON),
             TyData::Row(r) => (T::RowTy, r.0, self.row_meta(*r)),
@@ -1064,6 +1087,14 @@ impl<'a> Types<'a> {
                 args: TyList(x[3]),
             },
             PoolTag::Mut => TyData::Mut(Ty(d)),
+            PoolTag::Ref => TyData::Ref {
+                inner: Ty(d),
+                mutable: false,
+            },
+            PoolTag::RefMut => TyData::Ref {
+                inner: Ty(d),
+                mutable: true,
+            },
             PoolTag::Infer => TyData::Infer(InferVar::from_raw(d)),
             PoolTag::Canon => TyData::Canon(u8::try_from(d).expect("canon")),
             PoolTag::RowTy => TyData::Row(RowId(d)),
@@ -1103,7 +1134,9 @@ impl<'a> Types<'a> {
             TyData::Tuple { elems, rest } => {
                 list(elems) || rest.is_some_and(|r| self.names_trait_self(r, trait_))
             }
-            TyData::Option(i) | TyData::Mut(i) => self.names_trait_self(i, trait_),
+            TyData::Option(i) | TyData::Mut(i) | TyData::Ref { inner: i, .. } => {
+                self.names_trait_self(i, trait_)
+            }
             TyData::Fn {
                 params,
                 result,
@@ -1145,6 +1178,114 @@ impl<'a> Types<'a> {
     pub fn has_canon(self, t: Ty) -> bool {
         self.meta_of(t) & meta::HAS_CANON != 0
     }
+    /// Whether `t` holds a reference type, `&T` or `&mut T`.
+    #[must_use]
+    pub fn has_ref(self, t: Ty) -> bool {
+        self.meta_of(t) & meta::HAS_REF != 0
+    }
+
+    /// `t` with each reference type, `&T` or `&mut T`, replaced by the data
+    /// type `cell[T]` that represents both on the Wasm GC backend
+    /// (`crates/hd_wasm/DESIGN.md` §15.2, "References"). The checker applies
+    /// it to a finished body and the driver to the declarations the
+    /// backend reads, so the backend never sees a reference type and `&T`
+    /// and `&mut T` share one representation.
+    #[must_use]
+    pub fn lower_refs(self, cell: DefId, t: Ty) -> Ty {
+        if !self.has_ref(t) {
+            return t;
+        }
+        let l = |x: TyList| {
+            self.list(
+                &self
+                    .list_items(x)
+                    .iter()
+                    .map(|e| self.lower_refs(cell, *e))
+                    .collect::<Vec<_>>(),
+            )
+        };
+        let d = match self.get(t) {
+            TyData::Ref { inner, .. } => TyData::Adt {
+                def: cell,
+                args: self.list(&[self.lower_refs(cell, inner)]),
+            },
+            TyData::Adt { def, args } => TyData::Adt { def, args: l(args) },
+            TyData::Tuple { elems, rest } => TyData::Tuple {
+                elems: l(elems),
+                rest: rest.map(|r| self.lower_refs(cell, r)),
+            },
+            TyData::Option(i) => TyData::Option(self.lower_refs(cell, i)),
+            TyData::Mut(i) => TyData::Mut(self.lower_refs(cell, i)),
+            TyData::Fn {
+                params,
+                result,
+                row,
+                suspends,
+                inputs,
+            } => TyData::Fn {
+                params: l(params),
+                result: self.lower_refs(cell, result),
+                row: self.lower_refs_row(cell, row),
+                suspends,
+                inputs,
+            },
+            TyData::Row(r) => TyData::Row(self.lower_refs_row(cell, r)),
+            TyData::Context(r) => TyData::Context(self.lower_refs_row(cell, r)),
+            TyData::TraitValue {
+                def,
+                args,
+                bindings,
+            } => TyData::TraitValue {
+                def,
+                args: l(args),
+                bindings: bindings
+                    .into_iter()
+                    .map(|(d, b)| (d, self.lower_refs(cell, b)))
+                    .collect(),
+            },
+            TyData::Assoc {
+                assoc,
+                trait_,
+                self_ty,
+                args,
+            } => TyData::Assoc {
+                assoc,
+                trait_,
+                self_ty: self.lower_refs(cell, self_ty),
+                args: l(args),
+            },
+            _ => return t,
+        };
+        self.intern_ty(&d)
+    }
+
+    /// [`Self::lower_refs`] over a row's keys.
+    #[must_use]
+    pub fn lower_refs_row(self, cell: DefId, r: RowId) -> RowId {
+        if self.row_meta(r) & meta::HAS_REF == 0 {
+            return r;
+        }
+        let d = self.row_data(r);
+        self.row(&RowData {
+            keys: d.keys.iter().map(|k| self.lower_refs(cell, *k)).collect(),
+            params: d.params,
+        })
+    }
+
+    /// [`Self::lower_refs`] over a list.
+    #[must_use]
+    pub fn lower_refs_list(self, cell: DefId, l: TyList) -> TyList {
+        if self.list_meta(l) & meta::HAS_REF == 0 {
+            return l;
+        }
+        self.list(
+            &self
+                .list_items(l)
+                .iter()
+                .map(|e| self.lower_refs(cell, *e))
+                .collect::<Vec<_>>(),
+        )
+    }
     /// Replaces declared parameters: `f` maps a parameter to its argument,
     /// or `None` to keep it.
     pub fn subst(self, t: Ty, f: &dyn Fn(ParamRef) -> Option<Ty>) -> Ty {
@@ -1170,6 +1311,10 @@ impl<'a> Types<'a> {
             },
             TyData::Option(i) => TyData::Option(self.subst(i, f)),
             TyData::Mut(i) => TyData::Mut(self.subst(i, f)),
+            TyData::Ref { inner, mutable } => TyData::Ref {
+                inner: self.subst(inner, f),
+                mutable,
+            },
             TyData::Fn {
                 params,
                 result,
@@ -1295,6 +1440,14 @@ impl<'a> Types<'a> {
                 format!("<{}>::#{}", self.display(self_ty), assoc.raw())
             }
             TyData::Mut(i) => format!("mut {}", self.display(i)),
+            TyData::Ref {
+                inner,
+                mutable: false,
+            } => format!("&{}", self.display(inner)),
+            TyData::Ref {
+                inner,
+                mutable: true,
+            } => format!("&mut {}", self.display(inner)),
             TyData::Infer(v) => format!("?{}", v.raw()),
             TyData::Canon(i) => format!("^{i}"),
             TyData::Row(r) => self.display_row(r),
@@ -1354,6 +1507,10 @@ pub fn with_assoc_args(pool: Types<'_>, t: Ty, trait_: DefId, args: TyList) -> T
         },
         TyData::Option(i) => TyData::Option(with_assoc_args(pool, i, trait_, args)),
         TyData::Mut(i) => TyData::Mut(with_assoc_args(pool, i, trait_, args)),
+        TyData::Ref { inner, mutable } => TyData::Ref {
+            inner: with_assoc_args(pool, inner, trait_, args),
+            mutable,
+        },
         TyData::Fn {
             params,
             result,
@@ -1474,6 +1631,14 @@ mod tests {
                 args: list,
             },
             TyData::Mut(Ty::STRING),
+            TyData::Ref {
+                inner: Ty::STRING,
+                mutable: false,
+            },
+            TyData::Ref {
+                inner: Ty::I32,
+                mutable: true,
+            },
             TyData::Canon(2),
         ];
         for f in forms {

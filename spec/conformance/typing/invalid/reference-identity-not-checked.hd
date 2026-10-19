@@ -1,0 +1,4 @@
+# test: `is` with a reference operand is references-not-yet-checked
+# Spec 13 Not Yet Checked: ref.check.not-yet-forms.
+fn element(a: &i32, b: &i32) -> bool:
+    a is b  # diagnostic: references-not-yet-checked

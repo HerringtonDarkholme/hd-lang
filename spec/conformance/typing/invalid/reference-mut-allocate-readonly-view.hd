@@ -1,0 +1,8 @@
+# test: `&mut` of a value that is a readonly view is mutable-upgrade, though the new object is writable
+# Spec 13 Places And New Objects: ref.expr.allocate.view.
+fn names() -> List[string]:
+    ["a"]
+
+fn invalid() -> void:
+    edit := &mut names()  # diagnostic: mutable-upgrade
+    edit.push("x")

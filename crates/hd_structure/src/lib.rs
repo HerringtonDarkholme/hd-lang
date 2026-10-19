@@ -1006,10 +1006,16 @@ impl<'a, 'n> Gen<'a, 'n> {
     fn finish(self, root: Ref) -> StageResult<(Body, Vec<Handle>)> {
         let wanted = self.wanted;
         let stage = self.cx.stage;
-        let body = self
+        let mut body = self
             .b
             .finish(root, &[])
             .map_err(|e| VerifyError::bug(stage, "generated structure TIR verifier", &e))?;
+        // The backend sees each reference type as `std.core.Ref[T]`
+        // (`hd_types::Types::lower_refs`).
+        let (pool, cell) = (self.cx.names.pool, self.cx.names.known.ref_cell);
+        hd_tir::ir::map_body_types(&mut body, &|t| pool.lower_refs(cell, t), &|l| {
+            pool.lower_refs_list(cell, l)
+        });
         Ok((body, wanted))
     }
 

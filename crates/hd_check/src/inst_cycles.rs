@@ -340,7 +340,7 @@ pub(crate) fn params_in(pool: Types<'_>, t: Ty, out: &mut Vec<ParamRef>) {
                 params_in(pool, r, out);
             }
         }
-        TyData::Option(i) | TyData::Mut(i) => {
+        TyData::Option(i) | TyData::Mut(i) | TyData::Ref { inner: i, .. } => {
             params_in(pool, i, out);
         }
         TyData::Fn {

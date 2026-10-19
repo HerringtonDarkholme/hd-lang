@@ -1,0 +1,8 @@
+# test: `*r = v` through a read-only reference is readonly-root
+# Spec 13 Writing Through A Reference: ref.deref.write.
+struct Point:
+    x: i32
+    y: i32
+
+fn invalid(r: &Point) -> void:
+    *r = Point { x: 0, y: 0 }  # diagnostic: readonly-root

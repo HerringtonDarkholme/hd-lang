@@ -1,0 +1,11 @@
+# test: a `&T` argument where `&mut T` is expected is mutable-upgrade
+# Spec 13 Conversions: ref.convert.no-upgrade.
+fn edit(r: &mut i32) -> void:
+    *r += 1
+
+fn view(r: &i32) -> i32:
+    *r
+
+fn invalid(r: &i32) -> i32:
+    edit(r)  # diagnostic: mutable-upgrade
+    view(r)

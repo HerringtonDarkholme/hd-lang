@@ -1,0 +1,39 @@
+# test: field reads and method calls through a reference apply to the referenced value, through `&T` and `&mut T` alike
+# Spec 13 Reading Through A Reference: ref.read.auto, ref.read.type, ref.read.weaken. Conversions: ref.convert.weaken.
+# expect-stdout: 25.0
+# expect-stdout: ann 1
+# expect-stdout: bea
+struct Vec2:
+    x: f64
+    y: f64
+
+impl Vec2:
+    fn len2(self) -> f64:
+        self.x * self.x + self.y * self.y
+
+struct User:
+    name: string
+
+struct Team:
+    lead: &mut User
+    size: i32
+
+fn describe(t: &Team) -> string:
+    "${t.lead.name} ${t.size}"
+
+fn rename(t: &mut Team, name: string) -> void:
+    t.lead.name = name
+
+fn maybe(u: &User?) -> string:
+    match u:
+        .Some(found) => found.name
+        .None => "none"
+
+pub fn main() -> void $ Console:
+    v := &Vec2 { x: 3.0, y: 4.0 }
+    println(v.len2())
+    let mut ann = User { name: "ann" }
+    let mut team = Team { lead: &mut ann, size: 1 }
+    println(describe(&team))
+    rename(&mut team, "bea")
+    println(maybe(&mut ann))

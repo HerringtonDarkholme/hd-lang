@@ -51,6 +51,8 @@ mod tag {
     pub const CONTEXT: u8 = 16;
     // 17 was an owned type, `own T`, 18 a borrowed type, `^T`, and 19
     // and 20 a lifetime and a lifetime argument; they are not reused.
+    pub const REF: u8 = 21;
+    pub const REF_MUT: u8 = 22;
 }
 
 impl<'a> TableWriter<'a> {
@@ -180,6 +182,10 @@ impl<'a> TableWriter<'a> {
             TyData::Option(i) => (tag::OPTION, vec![self.ty(i)?]),
             TyData::Param(p) => (tag::PARAM, vec![self.def(p.owner), u32::from(p.index)]),
             TyData::Mut(i) => (tag::MUT, vec![self.ty(i)?]),
+            TyData::Ref { inner, mutable } => (
+                if mutable { tag::REF_MUT } else { tag::REF },
+                vec![self.ty(inner)?],
+            ),
             TyData::Fn {
                 params,
                 result,
@@ -335,6 +341,13 @@ impl Tables {
                     .0
                 }
                 tag::MUT => pool.intern_ty(&TyData::Mut(Ty(row(0)?))).0,
+                tag::REF | tag::REF_MUT => {
+                    pool.intern_ty(&TyData::Ref {
+                        inner: Ty(row(0)?),
+                        mutable: tg == tag::REF_MUT,
+                    })
+                    .0
+                }
                 tag::FN => {
                     pool.intern_ty(&TyData::Fn {
                         params: TyList(row(0)?),

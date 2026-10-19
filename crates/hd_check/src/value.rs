@@ -2,7 +2,7 @@
 //! A struct value has no identity, so a field write changes only the
 //! writable place it names: a `let mut` local or top-level binding, a
 //! field of a data value with mutable access, or a struct field of one of
-//! these (`types.value.writable-place`).
+//! these (`types.value.writable-path`).
 //!
 //! The Wasm GC backend holds a struct value as an object that is never
 //! written after it is built (`crates/hd_wasm/DESIGN.md` §15.2, "Struct
@@ -28,6 +28,9 @@ enum Root {
     Global(DefId, Ty),
     /// Field `idx` of the data value `base`, with the field's type.
     Field(Ref, u32, Ty),
+    /// The value the reference `r`, a `&mut`, refers to, with `r`'s type
+    /// (`ref.write.field`).
+    Deref(Ref, Ty),
 }
 
 /// A writable struct place: its root, then the struct fields read from it
@@ -40,7 +43,7 @@ struct Place {
 impl Ck<'_, '_> {
     /// `base.name = rhs`, `base.name op= rhs` or `base.name ...= rhs`
     /// where `base`, already checked as `(br, bt)`, has a struct type
-    /// (`types.value.writable-place`, `types.value.field-write`).
+    /// (`types.value.writable-path`, `types.value.field-write`).
     pub(crate) fn struct_field_assign(
         &mut self,
         (br, bt): (Ref, Ty),
@@ -112,6 +115,24 @@ impl Ck<'_, '_> {
                     path.reverse();
                     let root = Root::Field(inner, data[1], self.b.ty_of(cur));
                     return Some(Place { root, path });
+                }
+                // A read through a reference (`refs.rs`): the place is the
+                // referenced value, writable through `&mut` only.
+                Tag::CallValue if let Some((r, m)) = self.deref_source(Ref(data[0])) => {
+                    let rt = self.b.ty_of(r);
+                    if !m {
+                        let msg = format!(
+                            "this writes through a read-only reference {}; take the reference with `&mut` to write through it",
+                            self.show(rt)
+                        );
+                        self.err(Code::ReadonlyRoot, at, &msg);
+                        return None;
+                    }
+                    path.reverse();
+                    return Some(Place {
+                        root: Root::Deref(r, rt),
+                        path,
+                    });
                 }
                 Tag::LocalGet => {
                     let l = LocalId::from_raw(data[0]);
@@ -217,6 +238,7 @@ impl Ck<'_, '_> {
                 self.b.emit(Tag::GlobalGet, a, NONE, ty, at)
             }
             Root::Field(base, i, ty) => self.b.emit(Tag::Field, base.0, i, ty, at),
+            Root::Deref(r, rt) => self.emit_deref(r, rt, at).0,
         };
         let mut vals = vec![root];
         for &(i, ty) in &place.path {
@@ -249,6 +271,7 @@ impl Ck<'_, '_> {
                 let rec = self.b.refs_record(&[Ref(i), new]);
                 self.b.emit(Tag::FieldSet, base.0, rec, Ty::VOID, at);
             }
+            Root::Deref(r, rt) => self.emit_ref_store(r, rt, new, at),
         }
     }
 }

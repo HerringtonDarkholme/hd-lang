@@ -19,6 +19,9 @@ pub struct KnownItems {
     pub result: DefId,
     pub list: DefId,
     pub map: DefId,
+    /// The data type a reference type lowers to for the backend
+    /// (`hd_resolve::seed`, `crates/hd_wasm/DESIGN.md` §15.2 "References").
+    pub ref_cell: DefId,
     // std.function
     pub function_module: PathId,
     pub tuple: DefId,
@@ -167,6 +170,7 @@ impl KnownItems {
             result: item("std.core", "Result"),
             list: item("std.core", "List"),
             map: item("std.core", "Map"),
+            ref_cell: item("std.core", "Ref"),
             function_module: module("std.function"),
             tuple,
             structure,

@@ -1,10 +1,10 @@
 # Values And References
 
-Status: language specification draft, syntax only.
+Status: language specification draft.
 
-This chapter defines the syntax of reference types and reference expressions. A **reference type** is written `&T` or `&mut T`. Its values refer to a `T` that lives elsewhere.
+This chapter defines reference types and reference expressions: their syntax, their typing, and what they do at run time. A **reference type** is written `&T` or `&mut T`. Its values refer to a `T` that lives elsewhere.
 
-What a reference means is not specified yet: its typing, its conversions, and its run-time behavior come with the checking job that follows the syntax. Until then, a program that writes a reference is rejected after parsing ([Not Yet Checked](#not-yet-checked)).
+`&T` reads the `T` it refers to, and `&mut T` also writes it. A reference to a variable or a field shares that place. A reference to any other value refers to a new object that holds a copy of it.
 
 ```hd
 struct Body:
@@ -35,6 +35,9 @@ fn each(f: fn(&Point) -> &mut Point, pending: &Point?) -> void: pass
 4. r[ref.type.group] To refer to an optional or to another reference, group the operand: `&(T?)` and `&(&T)`.
 5. r[ref.type.no-nesting] `&&T` is a syntax error, because `&&` is one token. So are `&mut mut T` and `mut &T`. Error: `syntax-error`.
 6. r[ref.type.no-function] `&` never directly precedes `fn`: `&fn() -> i32` and `&mut fn() -> i32` are errors. Error: `syntax-error`.
+7. r[ref.type.distinct] `&T` and `&mut T` are distinct types. Each is invariant in `T`: `&A` is `&B` only when `A` is `B`.
+8. r[ref.type.view] A `mut` view written on the operand is no part of a reference type, so `&(mut Draft)` is `&Draft`. Whether a read through the reference may write is decided by the reference's own `mut` alone.
+9. r[ref.type.any-ref] A reference type implements `AnyRef`.
 
 ```text
 fn bad_and(p: &&Point) -> void: pass  # error: syntax-error
@@ -112,25 +115,183 @@ fn bad_expr(x: i32) -> void:
 
 See also: [Unary And Binary Operators](05-expressions.md#unary-and-binary-operators).
 
-## Not Yet Checked
+## Places And New Objects
 
-1. r[ref.check.not-yet] A reference type, `&e`, `&mut e`, or `*e` that reaches the checker is an error, once at each occurrence. Error: `references-not-yet-checked`.
-2. r[ref.check.formatter] `hd fmt` formats a file that writes references. It keeps each reference token as written, `&mut` included, and a second run changes nothing.
+`&e` and `&mut e` refer to `e` when `e` is a place, and to a new object holding a copy of `e` otherwise.
+
+```hd
+struct Point:
+    x: i32
+    y: i32
+
+fn make() -> Point:
+    Point { x: 1, y: 2 }
+
+fn demo() -> void:
+    let mut p = Point { x: 0, y: 0 }
+    r := &mut p        # refers to p
+    r.x = 5            # p.x is now 5
+    q := &mut p.y      # refers to the field y of p
+    *q = 7             # p.y is now 7
+    n := &make()       # a new object holding the result
+    m := &mut Point { x: 3, y: 4 }  # a new object
+```
+
+1. r[ref.place.forms] Locals and parameters of any binding form, and top-level bindings, are places for `&` and `&mut`. A struct field of a place, a field of a data value, and a value reached through a reference are places too.
+2. r[ref.place.through] `*r` with a reference `r` is a place, and so is a field read through `r`, such as `r.x`. The reference `r` is evaluated once, when the reference to the place is taken.
+3. r[ref.expr.place] `&e` and `&mut e` on a place refer to that place. A later write to the place, through any path, is seen through the reference.
+4. r[ref.expr.allocate] `&e` and `&mut e` on any other expression evaluate `e` and refer to a new object that holds the value. Each evaluation makes a new object.
+5. r[ref.expr.allocate.writable] A new object is writable, so `&mut T { ... }` and `&mut make()` are valid.
+6. r[ref.expr.allocate.view] `&mut e` on a value that is a readonly view is an error, since it would grant writes the view lacks. Error: `mutable-upgrade`.
+7. r[ref.expr.type] The type of `&e` is `&T`, and of `&mut e` is `&mut T`, where `T` is the type of `e` without an outer `mut` view.
+8. r[ref.place.alias] Two references to one place, or two copies of one reference, see each other's writes.
+9. r[ref.place.lifetime] A reference keeps the place it refers to alive. A reference to a local may outlive the block that declares the local, and may be returned.
+
+> **Why.** A reference to a value that is not a place still needs storage
+> to refer to, so it gets a new object, as Go's `&T{...}` does.
+
+## Writable Places Of References
+
+`&mut e` on a place needs the place to be writable.
+
+1. r[ref.place.writable] `&mut e` on a place requires a writable place. A `let mut` local, a `mut` parameter, `mut self`, and a value reached through a `&mut` reference are writable. A struct field of a writable place, and a field of a data value with mutable access, are writable too.
+2. r[ref.place.writable.top-level] A top-level binding is writable when it is bound with `let mut`.
+3. r[ref.place.writable.view] When the place holds a readonly view, such as a readonly `List[T]`, `&mut` of it is an error, since it would grant writes the view lacks. Error: `mutable-upgrade`.
+4. r[ref.place.shared-any] `&e` needs no writable place: it may refer to a `:=` binding, a plain `let` binding, or a value parameter.
+
+`&mut` of a place that is not writable is an error, by what holds the place:
+
+| Rule | The place is held by | Error |
+| --- | --- | --- |
+| r[ref.place.not-writable.short] Short binding | a `:=` or `using` binding | `non-reassignable-binding` |
+| r[ref.place.not-writable.param] Parameter | a value parameter or `self` that is not `mut` | `non-reassignable-parameter-binding` |
+| r[ref.place.not-writable.let] Plain `let` | a `let` binding without `mut` | `readonly-root` |
+| r[ref.place.not-writable.shared] Read-only reference | a value reached through a `&T` reference | `readonly-root` |
+| r[ref.place.not-writable.data] Data field | a field of a data value without mutable access | `readonly-root` |
+
+5. r[ref.place.not-writable.fix] For a plain `let` binding and a value parameter, the diagnostic's fix-it writes `mut` before the binding's name.
+
+```text
+fn invalid(count: i32) -> void:
+    let total = 0
+    r := &mut total  # error: readonly-root
+    fixed := 1
+    s := &mut fixed  # error: non-reassignable-binding
+    t := &mut count  # error: non-reassignable-parameter-binding
+```
+
+See also: [Writable Places](04-type-system.md#writable-places).
+
+## Conversions
+
+A `&mut T` converts to `&T` where a `&T` is expected.
+
+1. r[ref.convert.weaken] A `&mut T` converts implicitly to `&T`, and to `&T?` where an optional is expected. The conversion makes no new reference: both refer to the same place.
+2. r[ref.convert.no-upgrade] A `&T` never converts to `&mut T`. Using one where a `&mut T` is expected is an error. Error: `mutable-upgrade`.
+3. r[ref.convert.no-other] A reference converts to no other type, and no other type converts to a reference.
+
+```text
+fn edit(r: &mut i32) -> void:
+    *r += 1
+
+fn view(r: &i32) -> i32:
+    *r
+
+fn invalid(r: &i32) -> &mut i32:
+    edit(r)  # error: mutable-upgrade
+    r        # error: mutable-upgrade
+```
+
+## Reading Through A Reference
+
+Field access and method calls read through a reference automatically, and `*r` reads the whole value.
+
+```hd
+struct Vec2:
+    x: f64
+    y: f64
+
+impl Vec2:
+    fn len2(self) -> f64:
+        self.x * self.x + self.y * self.y
+
+fn demo(r: &Vec2) -> f64:
+    copy := *r     # a copy of the whole value
+    r.x + r.len2() + copy.y
+```
+
+1. r[ref.read.auto] A field read or a method call on a reference applies to the value it refers to: `r.x` reads the field `x` of that value, and `r.len2()` calls `len2` on it.
+2. r[ref.deref.read] `*r` reads the whole value `r` refers to. The result is a copy.
+3. r[ref.deref.not-reference] `*e` on a value that is not a reference is an error. Error: `type-mismatch`.
+4. r[ref.read.type] A read through `&mut T` has type `T`, with mutable access when `T` has views, as a data type or a list has.
+5. r[ref.read.weaken] Read-only is transitive: a read through `&T` has type `T` with every `&mut U` inside it weakened to `&U`, and every `mut U` view to `U`, at any depth. A field of a value read through `&T` is weakened the same way.
+6. r[ref.read.function] The weakening does not enter a function type: a function value read through `&T` keeps its type, and a call of it may change what it captured.
+7. r[ref.read.copy-out] Copying a whole value out of a `&T` is an error when the value holds a `&mut` at any depth, inside struct, data, or enum fields included. Error: `mutable-upgrade`.
+8. r[ref.read.copy-out.projection] A field read that is itself the base of another field read copies nothing, so `t.inner.lead` reads through `t.inner` without copying it.
+
+```text
+struct User:
+    name: string
+
+struct Team:
+    lead: &mut User
+
+fn lead_name(t: &Team) -> string:
+    t.lead.name  # valid: a field read, weakened to &User
+
+fn invalid(t: &Team) -> Team:
+    *t  # error: mutable-upgrade
+```
+
+> **Why.** Without the copy-out rule, `*t` would be an ordinary `Team`
+> whose `lead` is writable again, and read-only would not be transitive.
+
+## Writing Through A Reference
+
+`*r = v` replaces the value `r` refers to, and a field assignment through a `&mut` reference writes the referenced value's field.
+
+```hd
+struct Point:
+    x: i32
+    y: i32
+
+fn reset(r: &mut Point) -> void:
+    *r = Point { x: 0, y: 0 }
+    r.x += 1
+```
+
+1. r[ref.deref.write] `*r = v` and `*r op= v` replace the value `r` refers to. `r` must be a `&mut` reference. Error: `readonly-root`.
+2. r[ref.write.field] Assigning a field through a reference, as in `r.x = v`, writes the field of the referenced value. The reference must be a `&mut`. Error: `readonly-root`.
+3. r[ref.write.seen] The write is seen through every reference to the place, and through the place itself.
+4. r[ref.write.no-exclusivity] A `&mut T` is not exclusive: other references to the same place may exist and be used, and no check limits them.
+5. r[ref.write.copy-assign] `*r ...= v` is an error, since `...=` stores into an embedded field only. Error: `copy-into-ordinary-field`.
 
 ```text
 struct Point:
     x: i32
     y: i32
 
-fn show(p: &Point) -> i32:  # error: references-not-yet-checked
-    0
-
-fn make() -> i32:
-    p := Point { x: 1, y: 2 }
-    q := &p  # error: references-not-yet-checked
-    *q = Point { x: 3, y: 4 }  # error: references-not-yet-checked
-    0
+fn invalid(r: &Point) -> void:
+    *r = Point { x: 0, y: 0 }  # error: readonly-root
+    r.x = 1                    # error: readonly-root
 ```
 
-> **Note.** The checking job replaces this section with the rules for
-> reference typing, conversion, identity, and writes through a reference.
+> **Why.** A counted reference never dangles, so a write through another
+> path cannot free what a reference reads; exclusivity would forbid only
+> aliasing that is safe.
+
+## Not Yet Checked
+
+1. r[ref.check.not-yet-forms] Three forms are errors until later jobs define them. They are a reference to a list element or a map value, as in `&xs[i]`, a reference to a tuple element, as in `&pair._0`, and `is` with a reference operand. Error: `references-not-yet-checked`.
+2. r[ref.check.formatter] `hd fmt` formats a file that writes references. It keeps each reference token as written, `&mut` included, and a second run changes nothing.
+
+```text
+fn element(items: List[i32], pair: (i32, i32), a: &i32, b: &i32) -> bool:
+    first := &items[0]  # error: references-not-yet-checked
+    left := &pair._0  # error: references-not-yet-checked
+    a is b  # error: references-not-yet-checked
+```
+
+> **Note.** An element reference pins its list, which needs rules of its
+> own, and identity on references is defined together with equality on
+> them.

@@ -580,7 +580,7 @@ impl<'a> ItemCheck<'_, 'a> {
                 .then_some(trait_)
                 .or_else(|| self.private_in(self_ty))
                 .or_else(|| any(pool.list_items(args))),
-            TyData::Option(i) | TyData::Mut(i) => self.private_in(i),
+            TyData::Option(i) | TyData::Mut(i) | TyData::Ref { inner: i, .. } => self.private_in(i),
             TyData::Tuple { elems, rest } => {
                 any(pool.list_items(elems)).or_else(|| rest.and_then(|r| self.private_in(r)))
             }
@@ -996,7 +996,9 @@ impl<'a> ItemCheck<'_, 'a> {
                 self.report(slot, Code::MutOnStruct, message);
                 self.check_ty(i, slot)?;
             }
-            TyData::Option(i) | TyData::Mut(i) => self.check_ty(i, slot)?,
+            TyData::Option(i) | TyData::Mut(i) | TyData::Ref { inner: i, .. } => {
+                self.check_ty(i, slot)?;
+            }
             TyData::Tuple { elems, rest } => {
                 for e in pool.list_items(elems).iter().copied().chain(rest) {
                     self.check_ty(e, slot)?;

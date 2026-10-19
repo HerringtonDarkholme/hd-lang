@@ -37,7 +37,9 @@ fn mentions_param(pool: Types<'_>, subst: &[(ParamRef, Ty)], t: Ty, p: ParamRef)
         TyData::Tuple { elems, rest } => {
             any(elems) || rest.is_some_and(|r| mentions_param(pool, subst, r, p))
         }
-        TyData::Option(x) | TyData::Mut(x) => mentions_param(pool, subst, x, p),
+        TyData::Option(x) | TyData::Mut(x) | TyData::Ref { inner: x, .. } => {
+            mentions_param(pool, subst, x, p)
+        }
         _ => false,
     }
 }

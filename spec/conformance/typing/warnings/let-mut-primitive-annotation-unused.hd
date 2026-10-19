@@ -1,0 +1,6 @@
+# test: let mut with a primitive annotation that no &mut refers to warns redundant-let-mut
+# Spec 04 Binding Forms: types.bind.let-mut-primitive-local, types.bind.let-mut-primitive-unused.
+fn count_up() -> i32:
+    let mut n: i32 = 0  # warning: redundant-let-mut
+    n = n + 1
+    n

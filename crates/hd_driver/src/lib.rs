@@ -9246,7 +9246,9 @@ impl LayoutEnv for Env<'_> {
                     .map(|v| {
                         v.fields
                             .iter()
-                            .map(|f| hd_mono::subst(&self.run.pool, self, def, args, f.ty))
+                            .map(|f| {
+                                self.low(hd_mono::subst(&self.run.pool, self, def, args, f.ty))
+                            })
                             .collect()
                     })
                     .collect(),
@@ -9259,7 +9261,7 @@ impl LayoutEnv for Env<'_> {
             ItemData::Enum { variants, .. } => Some(
                 variants
                     .iter()
-                    .map(|v| v.fields.iter().map(|f| f.ty).collect())
+                    .map(|v| v.fields.iter().map(|f| self.low(f.ty)).collect())
                     .collect(),
             ),
             _ => None,
@@ -9283,7 +9285,7 @@ impl LayoutEnv for Env<'_> {
     }
     fn newtype_base(&self, def: DefId) -> Option<Ty> {
         match &self.p.items.get(&def)?.data {
-            ItemData::Newtype(inner) => Some(*inner),
+            ItemData::Newtype(inner) => Some(self.low(*inner)),
             _ => None,
         }
     }
@@ -9292,6 +9294,12 @@ impl LayoutEnv for Env<'_> {
 impl Env<'_> {
     fn sig(&self, def: DefId) -> Option<&hd_resolve::FnSig> {
         self.p.items.get(&def)?.sig()
+    }
+
+    /// A declared type as the backend reads it: each reference type
+    /// lowered to `std.core.Ref[T]` (`hd_types::Types::lower_refs`).
+    fn low(&self, t: Ty) -> Ty {
+        self.run.pool.lower_refs(self.run.known.ref_cell, t)
     }
 
     /// `std.result`'s checked unwrap after a boundary `decode`: `is_ok`
@@ -9447,7 +9455,7 @@ impl ProgramEnv for Env<'_> {
         {
             return b.sub_root.first().map(|&r| b.ty[r as usize]);
         }
-        self.sig(def).map(|s| s.ret)
+        self.sig(def).map(|s| self.low(s.ret))
     }
     fn params(&self, def: DefId) -> Option<Vec<Ty>> {
         if let Some(b) = self.default_body(def) {
@@ -9459,7 +9467,7 @@ impl ProgramEnv for Env<'_> {
             );
         }
         self.sig(def)
-            .map(|s| s.params.iter().map(|p| p.1).collect())
+            .map(|s| s.params.iter().map(|p| self.low(p.1)).collect())
     }
     fn suspends(&self, def: DefId) -> bool {
         match self.sig(def) {
@@ -9483,7 +9491,13 @@ impl ProgramEnv for Env<'_> {
             _ => s.row,
         };
         let names = self.run.names();
-        hd_mono::key_order(pool, &|d| names.path_hash(d), pool.row_data(row).keys)
+        let keys: Vec<Ty> = pool
+            .row_data(row)
+            .keys
+            .into_iter()
+            .map(|k| self.low(k))
+            .collect();
+        hd_mono::key_order(pool, &|d| names.path_hash(d), keys)
     }
     fn parent(&self, def: DefId) -> Option<(DefId, usize)> {
         let ItemData::Method { owner, .. } = &self.p.items.get(&def)?.data else {
@@ -9518,7 +9532,13 @@ impl ProgramEnv for Env<'_> {
                 self_ty,
                 trait_args,
                 ..
-            } => Some((*self_ty, *trait_args, it.generics.len())),
+            } => Some((
+                self.low(*self_ty),
+                self.run
+                    .pool
+                    .lower_refs_list(self.run.known.ref_cell, *trait_args),
+                it.generics.len(),
+            )),
             _ => None,
         }
     }
@@ -9593,9 +9613,9 @@ impl ProgramEnv for Env<'_> {
     }
     fn data_fields(&self, def: DefId) -> Option<Vec<Ty>> {
         match &self.p.items.get(&def)?.data {
-            ItemData::Data(fs) => Some(fs.iter().map(|f| f.ty).collect()),
+            ItemData::Data(fs) => Some(fs.iter().map(|f| self.low(f.ty)).collect()),
             // A newtype is a data value of its one inner value.
-            ItemData::Newtype(inner) => Some(vec![*inner]),
+            ItemData::Newtype(inner) => Some(vec![self.low(*inner)]),
             _ => None,
         }
     }

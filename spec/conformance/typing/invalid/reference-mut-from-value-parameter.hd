@@ -1,0 +1,5 @@
+# test: `&mut` of a value parameter is non-reassignable-parameter-binding
+# Spec 13 Writable Places Of References: ref.place.not-writable.param.
+fn invalid(count: i32) -> i32:
+    t := &mut count  # diagnostic: non-reassignable-parameter-binding
+    *t

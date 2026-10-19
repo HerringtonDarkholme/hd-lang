@@ -20,7 +20,7 @@ fn has_assoc(pool: Types<'_>, t: Ty, depth: u32) -> bool {
     let d = depth + 1;
     match pool.get(t) {
         TyData::Assoc { .. } => true,
-        TyData::Mut(i) | TyData::Option(i) => has_assoc(pool, i, d),
+        TyData::Mut(i) | TyData::Option(i) | TyData::Ref { inner: i, .. } => has_assoc(pool, i, d),
         TyData::Adt { args, .. } | TyData::TraitValue { args, .. } => pool
             .list_items(args)
             .iter()

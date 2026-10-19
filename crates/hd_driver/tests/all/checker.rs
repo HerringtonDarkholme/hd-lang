@@ -539,7 +539,7 @@ fn checker_errors_are_reported() {
             Code::CannotInferType,
         ),
         (
-            "pub fn main() -> void $ Console:\n    let mut n = 0\n    println(n)\n",
+            "let mut n = +0\n\npub fn main() -> void $ Console:\n    println(n)\n",
             Code::MutOnPrimitive,
         ),
         (

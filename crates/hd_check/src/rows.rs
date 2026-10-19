@@ -109,7 +109,9 @@ impl Ck<'_, '_> {
                     self.collect_infer(a, vars, depth + 1);
                 }
             }
-            TyData::Option(i) | TyData::Mut(i) => self.collect_infer(i, vars, depth + 1),
+            TyData::Option(i) | TyData::Mut(i) | TyData::Ref { inner: i, .. } => {
+                self.collect_infer(i, vars, depth + 1);
+            }
             TyData::Tuple { elems, rest } => {
                 for e in pool.list_items(elems).iter().copied().chain(rest) {
                     self.collect_infer(e, vars, depth + 1);

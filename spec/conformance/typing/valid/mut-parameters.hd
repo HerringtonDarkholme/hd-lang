@@ -1,5 +1,5 @@
 # Spec 07 Parameters: fn.param.mut, fn.param.mut.reassign, fn.param.mut.view, fn.param.mut.closure. Spec 02 Grammar: grammar.fn.param-mut, grammar.closure.param-mut.
-# Spec 04 Writable Places: types.value.writable-place, types.value.reassign-binding.
+# Spec 04 Writable Places: types.value.writable-path, types.value.reassign-binding.
 struct Point:
     x: i32
     y: i32

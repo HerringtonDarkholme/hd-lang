@@ -2351,13 +2351,18 @@ impl Lower<'_, '_, '_> {
             }
             SyntaxKind::ContextType => self.context_ty(n, gn),
             SyntaxKind::RefType => {
-                // `ref.check.not-yet`
-                self.diags.error(
-                    Code::ReferencesNotYetChecked,
-                    self.src.span(n),
-                    "reference types are parsed but not checked yet",
-                );
-                Ty::POISON
+                // `ref.type.forms`: an outer `mut` view of the operand is no
+                // part of a reference type; the reference's own `mut` says
+                // whether it writes (`ref.type.view`).
+                let mutable = n
+                    .direct_token(&self.src.parse.tokens, TokenKind::KwMut)
+                    .is_some();
+                let inner = first_ty(self, n);
+                let inner = match pool.get(inner) {
+                    TyData::Mut(i) => i,
+                    _ => inner,
+                };
+                pool.intern_ty(&TyData::Ref { inner, mutable })
             }
             _ => {
                 self.gap("this type form");
@@ -4411,7 +4416,7 @@ fn ty_any(pool: &InternPool, t: Ty, pred: &mut dyn FnMut(TyData) -> bool) -> boo
             kids.extend(pool.list_items(elems));
             kids.extend(rest);
         }
-        TyData::Option(i) | TyData::Mut(i) => kids.push(i),
+        TyData::Option(i) | TyData::Mut(i) | TyData::Ref { inner: i, .. } => kids.push(i),
         TyData::Fn {
             params,
             result,
@@ -4587,9 +4592,11 @@ pub fn impl_placement(
         };
         match pool.get(t) {
             TyData::Adt { def, .. } | TyData::TraitValue { def, .. } => Some(names.module_of(def)),
-            TyData::Prim(_) | TyData::Tuple { .. } | TyData::Option(_) | TyData::Fn { .. } => {
-                Some("std.core".to_owned())
-            }
+            TyData::Prim(_)
+            | TyData::Tuple { .. }
+            | TyData::Option(_)
+            | TyData::Fn { .. }
+            | TyData::Ref { .. } => Some("std.core".to_owned()),
             _ => None,
         }
     };

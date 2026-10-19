@@ -1,7 +1,9 @@
-//! `let mut` on a primitive or tuple is an error at module level as it is in
-//! a body (spec/lang/04-type-system.md, types.bind.let-mut-primitive,
-//! types.bind.let-mut-tuple). Annotated list bindings follow
-//! types.bind.let-mut-annotation.
+//! `let mut` on a primitive is an error at module level
+//! (spec/lang/04-type-system.md, types.bind.let-mut-primitive-top) and, in a
+//! body, valid with a warning unless `&mut` of it is taken
+//! (types.bind.let-mut-primitive-local, types.bind.let-mut-primitive-unused).
+//! On a tuple it is an error in both (types.bind.let-mut-tuple). Annotated
+//! list bindings follow types.bind.let-mut-annotation.
 
 use hd_diag::Code;
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
@@ -56,8 +58,14 @@ fn module_level_let_mut_of_primitives_is_rejected_once() {
         "let mut f = 1.5",
     ] {
         assert_eq!(module(decl), vec![Code::MutOnPrimitive], "{decl}");
-        assert_eq!(local(decl), vec![Code::MutOnPrimitive], "{decl} (local)");
+        assert_eq!(local(decl), vec![Code::RedundantLetMut], "{decl} (local)");
     }
+}
+
+#[test]
+fn local_let_mut_of_a_primitive_with_a_mut_reference_is_quiet() {
+    let decls = "let mut n = +0\n    r := &mut n\n    *r += 1";
+    assert_eq!(local(decls), Vec::<Code>::new());
 }
 
 #[test]
@@ -72,10 +80,13 @@ fn module_level_let_mut_of_a_list_stays_valid() {
     let decl = "let mut xs = [1, 2]";
     assert_eq!(module(decl), Vec::<Code>::new());
     assert_eq!(local(decl), Vec::<Code>::new());
-    // The annotation already grants `mut`: only the redundancy warning.
+    // The annotation already grants `mut`: only the redundancy warning,
+    // which a `&mut` of a local silences (types.bind.let-mut-annotated.unused).
     let decl = "let mut xs: mut List[i32] = []";
     assert_eq!(module(decl), vec![Code::RedundantLetMut]);
     assert_eq!(local(decl), vec![Code::RedundantLetMut]);
+    let decls = "let mut xs: mut List[i32] = []\n    r := &mut xs\n    r.push(1)";
+    assert_eq!(local(decls), Vec::<Code>::new());
 }
 
 #[test]

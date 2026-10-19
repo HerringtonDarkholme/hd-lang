@@ -1068,6 +1068,10 @@ fn fold_vars(
         },
         TyData::Option(i) => TyData::Option(fold_vars(pool, i, canon, f)?),
         TyData::Mut(i) => TyData::Mut(fold_vars(pool, i, canon, f)?),
+        TyData::Ref { inner, mutable } => TyData::Ref {
+            inner: fold_vars(pool, inner, canon, f)?,
+            mutable,
+        },
         TyData::Fn {
             params,
             result,
@@ -1329,6 +1333,16 @@ fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Optio
         (TyData::Adt { def: d1, args: a1 }, TyData::Adt { def: d2, args: a2 }) if d1 == d2 => {
             match_list(pool, owner, a1, a2, binds)
         }
+        (
+            TyData::Ref {
+                inner: p,
+                mutable: m1,
+            },
+            TyData::Ref {
+                inner: x,
+                mutable: m2,
+            },
+        ) if m1 == m2 => match_ty(pool, owner, p, x, binds),
         (
             TyData::Tuple {
                 elems: e1,
@@ -2207,7 +2221,9 @@ fn collect_vars(pool: Types<'_>, t: Ty, out: &mut Vec<InferVar>) {
                 collect_vars(pool, a, out);
             }
         }
-        TyData::Option(i) | TyData::Mut(i) => collect_vars(pool, i, out),
+        TyData::Option(i) | TyData::Mut(i) | TyData::Ref { inner: i, .. } => {
+            collect_vars(pool, i, out);
+        }
         TyData::Fn { params, result, .. } => {
             for a in pool.list_items(params).iter().copied() {
                 collect_vars(pool, a, out);
@@ -2717,6 +2733,10 @@ fn norm_concrete(pool: Types<'_>, impls: Impls<'_>, t: Ty, depth: u32, reads: &m
         },
         TyData::Option(i) => TyData::Option(norm_concrete(pool, impls, i, depth, reads)),
         TyData::Mut(i) => TyData::Mut(norm_concrete(pool, impls, i, depth, reads)),
+        TyData::Ref { inner, mutable } => TyData::Ref {
+            inner: norm_concrete(pool, impls, inner, depth, reads),
+            mutable,
+        },
         TyData::Fn {
             params,
             result,

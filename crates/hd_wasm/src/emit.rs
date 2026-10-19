@@ -133,7 +133,10 @@ struct Em<'a> {
 }
 
 /// The locals a closure captures by shared cell, each with its first
-/// `LocalSet` (the declaration, which makes a fresh cell).
+/// `LocalSet` (the declaration, which makes a fresh cell). A parameter
+/// moves into its cell on entry, so no store of it makes a fresh one: a
+/// closure that writes a `mut` parameter, such as the `set` closure of
+/// `&mut p` (`crates/hd_check/src/refs.rs`), writes that cell.
 fn cell_locals(b: &Body) -> HashMap<u32, u32> {
     let mut cells = HashMap::default();
     for (c, l) in b.cap_local.iter().enumerate() {
@@ -143,6 +146,12 @@ fn cell_locals(b: &Body) -> HashMap<u32, u32> {
     }
     for i in 0..b.len() {
         if b.tags[i] == Tag::LocalSet
+            && b.local_flags
+                .get(b.data[i][0] as usize)
+                .copied()
+                .unwrap_or(0)
+                & hd_tir::ir::local_flags::PARAM
+                == 0
             && let Some(first) = cells.get_mut(&b.data[i][0])
             && *first == u32::MAX
         {

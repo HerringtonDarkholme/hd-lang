@@ -1,0 +1,10 @@
+# test: a `&mut` field read through a `&T` is weakened to `&`, so returning it as `&mut` is mutable-upgrade
+# Spec 13 Reading Through A Reference: ref.read.weaken. Conversions: ref.convert.no-upgrade.
+struct User:
+    name: string
+
+struct Team:
+    lead: &mut User
+
+fn invalid(t: &Team) -> &mut User:
+    t.lead  # diagnostic: mutable-upgrade

@@ -1,6 +1,0 @@
-# Spec 13 Not Yet Checked: ref.check.not-yet. A reference type in a signature.
-struct Point:
-    x: i32
-
-fn show(p: &Point) -> i32:  # diagnostic: references-not-yet-checked
-    0

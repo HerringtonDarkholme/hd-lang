@@ -1,0 +1,8 @@
+# test: a field assignment through a read-only reference is readonly-root
+# Spec 13 Writing Through A Reference: ref.write.field.
+struct Point:
+    x: i32
+    y: i32
+
+fn invalid(r: &Point) -> void:
+    r.x = 1  # diagnostic: readonly-root

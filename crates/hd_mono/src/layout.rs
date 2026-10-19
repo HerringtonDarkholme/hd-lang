@@ -329,6 +329,14 @@ fn layout_in(
             packed_bits: None,
         },
         TyData::Mut(inner) => layout_in(pool, env, inner, memo)?,
+        // The checker lowers every reference type to `std.core.Ref[T]`
+        // (`hd_types::Types::lower_refs`).
+        TyData::Ref { .. } => {
+            return Err(NotImplemented::bug(
+                Stage::Emit,
+                "layout of a reference type the checker did not lower",
+            ));
+        }
         TyData::Row(_) => {
             return Err(NotImplemented::new(
                 Stage::Emit,
@@ -600,6 +608,12 @@ pub fn canon(
         TyData::Mut(i) => {
             h.u8(7);
             h.hash(canon(pool, path_hash, memo, i));
+        }
+        // Not in an instance key: the checker lowers reference types.
+        TyData::Ref { inner, mutable } => {
+            h.u8(17);
+            h.u8(u8::from(mutable));
+            h.hash(canon(pool, path_hash, memo, inner));
         }
         TyData::Row(r) => {
             h.u8(8);

@@ -2186,6 +2186,10 @@ impl Ck<'_, '_> {
             },
             TyData::Option(i) => TyData::Option(self.open_projections(i, n)),
             TyData::Mut(i) => TyData::Mut(self.open_projections(i, n)),
+            TyData::Ref { inner, mutable } => TyData::Ref {
+                inner: self.open_projections(inner, n),
+                mutable,
+            },
             TyData::Fn {
                 params,
                 result,
@@ -2589,6 +2593,19 @@ impl Ck<'_, '_> {
             }
         }
         let (recv, rt) = self.expr(base, None)?;
+        // A method call through a reference calls it on the referenced
+        // value (`ref.read.auto`), which a read-only one copies out
+        // (`ref.read.copy-out`).
+        let (recv, rt) = match self.ref_of(rt) {
+            Some((_, m)) => {
+                let (v, t) = self.emit_deref(recv, rt, base.index());
+                if !m {
+                    self.check_copy_out(t, base);
+                }
+                (v, t)
+            }
+            None => (recv, rt),
+        };
         self.method_targs = method_targs;
         self.method_on(recv, rt, &name, args, (n, bang), want)
     }
@@ -4222,6 +4239,10 @@ impl Ck<'_, '_> {
             },
             TyData::Option(i) => TyData::Option(self.normalize_deep(i)?),
             TyData::Mut(i) => TyData::Mut(self.normalize_deep(i)?),
+            TyData::Ref { inner, mutable } => TyData::Ref {
+                inner: self.normalize_deep(inner)?,
+                mutable,
+            },
             TyData::Fn {
                 params,
                 result,

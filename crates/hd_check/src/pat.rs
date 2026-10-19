@@ -876,15 +876,16 @@ impl Ck<'_, '_> {
             ),
             None => (r, t),
         };
-        // `let mut` on a primitive or a tuple (types.bind.let-mut-primitive,
+        // `let mut` on a primitive or a tuple (types.bind.let-mut-primitive-local,
         // types.bind.let-mut-tuple).
         let mut t = t;
         let let_mut = pat.kind() == SyntaxKind::BindingPattern
             && pat
                 .direct_tokens()
                 .any(|t| self.cx.src.tkind(t) == Some(TokenKind::KwMut));
+        let mut deferred = None;
         if let_mut {
-            self.let_mut_binding(t, annot.is_some(), pat);
+            deferred = self.let_mut_binding(t, annot.is_some(), true, pat);
         } else if pat.kind() == SyntaxKind::BindingPattern && annot.is_none() && !using {
             // `x := e` and `let x = e` bind the readonly view
             // (types.bind.short, types.bind.let-readonly).
@@ -916,6 +917,9 @@ impl Ck<'_, '_> {
             };
             if let_mut {
                 self.mut_locals.push(l);
+            }
+            if let Some(kind) = deferred {
+                self.prim_let_mut.push((l, pat.index(), kind));
             }
             self.set_local(l, r, at.index());
             return Ok(());

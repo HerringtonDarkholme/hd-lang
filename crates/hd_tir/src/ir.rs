@@ -1216,6 +1216,68 @@ pub fn verify_in(b: &Body, cx: &dyn VerifyCx) -> Vec<VerifyError> {
     errs
 }
 
+/// Maps every type a body records through `ty`, and every type list
+/// through `list`: the instruction and local columns, the constants, and
+/// the types and type lists kept in records (callees, `ItemRef`,
+/// `DefaultCall`, instantiated closures, `ProviderGet`, `With` and
+/// `ContextNew`). The checker lowers reference types this way
+/// (`hd_check/src/refs.rs`).
+pub fn map_body_types(b: &mut Body, ty: &dyn Fn(Ty) -> Ty, list: &dyn Fn(TyList) -> TyList) {
+    for t in &mut b.ty {
+        *t = ty(*t);
+    }
+    for t in &mut b.local_ty {
+        *t = ty(*t);
+    }
+    for c in &mut b.consts {
+        c.0 = ty(c.0);
+    }
+    for i in 0..b.tags.len() {
+        let [a, w] = b.data[i];
+        match b.tags[i] {
+            Tag::Call | Tag::Await => {
+                // `[0, def, targs]` or `[1, trait, method, self_ty, targs,
+                // kind, value]` (`Callee::words`).
+                let at = a as usize + 1;
+                match b.extra.get(at).copied() {
+                    Some(0) => {
+                        b.extra[at + 2] = list(TyList(b.extra[at + 2])).0;
+                    }
+                    Some(1) => {
+                        b.extra[at + 3] = ty(Ty(b.extra[at + 3])).0;
+                        b.extra[at + 4] = list(TyList(b.extra[at + 4])).0;
+                    }
+                    _ => {}
+                }
+            }
+            Tag::ProviderGet => {
+                let at = a as usize + 1;
+                b.extra[at] = ty(Ty(b.extra[at])).0;
+            }
+            Tag::With | Tag::ContextNew => {
+                let len = b.extra[a as usize] as usize;
+                for k in 0..len / 2 {
+                    let at = a as usize + 1 + 2 * k;
+                    b.extra[at] = ty(Ty(b.extra[at])).0;
+                }
+            }
+            Tag::ItemRef => {
+                let at = w as usize + 1;
+                b.extra[at] = list(TyList(b.extra[at])).0;
+            }
+            Tag::DefaultCall => {
+                let at = a as usize + 2;
+                b.extra[at] = list(TyList(b.extra[at])).0;
+            }
+            Tag::Closure if b.is_instantiation(i) => {
+                let at = w as usize + 4;
+                b.extra[at] = list(TyList(b.extra[at])).0;
+            }
+            _ => {}
+        }
+    }
+}
+
 /// The blocks instruction `i` owns through its operands: a block
 /// operand, a block list, a switch's two arms, or a `Defer`'s suite.
 fn owned_blocks(b: &Body, i: usize) -> Vec<u32> {

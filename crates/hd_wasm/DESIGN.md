@@ -60,6 +60,7 @@ such a field or element. The spec allows either form
 | integers, `bool`, `char`, floats | the scalar | packed: `i8` for `bool`, `u8`, `i8`; `i16` for 16-bit integers; else the scalar |
 | `data T` | `(ref $T)`: a struct with one mutable field per declared field, in declaration order | same |
 | `struct T` | `(ref $T)`: the same struct as a data type's, which nothing writes after `struct.new` ("Struct values" below) | same |
+| `&T`, `&mut T` | `(ref $Ref_T)`: the data type `std.core.Ref[T]`, two closures that read and replace the place ("References" below) | same |
 | embedded part | a separate struct, referenced by an immutable field of the outer struct ([`data.part.unobservable`](../../spec/lang/08-data-and-enums.md#r-data.part.unobservable)) | same |
 | payloadless enum | `i32` tag | `i8` or `i16` when the variant count fits |
 | enum with payloads, within the bound | `multi`: `(i32 tag, shared payload slots...)` (§15.1) | the same fields; a structure of arrays in an array |
@@ -106,6 +107,52 @@ path, then a `LocalSet`, `GlobalSet` or `FieldSet` of the place's root.
   iteration; a data type's field write allocates nothing. Reads cost what
   a data field read costs. Correct first: inline layout and in-place
   writes come with the linear-memory backend.
+
+**References: a pair of closures.** `&T` and `&mut T`
+([Values And References](../../spec/lang/13-values-and-references.md))
+are emulated, not laid out as addresses: a reference is an object of the
+compiler-supplied data type `std.core.Ref[T]` (`hd_resolve::seed`), whose
+two fields are closures, `get: fn() -> T` and `set: fn(T) -> void`, that
+read and replace the referenced place. The checker builds both when it
+checks `&e` (`crates/hd_check/src/refs.rs`) and lowers every `&T` and
+`&mut T` in a finished body to `Ref[T]` (`hd_types::Types::lower_refs`,
+`hd_tir::ir::map_body_types`); the driver lowers the declarations the
+backend reads (`params`, `ret`, `data_fields`, enum payloads, impl heads,
+row keys), and `hd_structure` its generated bodies. So the backend sees an
+ordinary generic data type, and the emitter is unchanged but for one line.
+
+- **Places.** `&x` on a local makes closures that capture `x`; since the
+  `set` closure assigns it, the capture is `Shared` and `x` lives in a
+  shared cell, the existing closure mechanism, one fresh cell per
+  execution of its declaration. A parameter moves into its cell on entry
+  and no store of it makes a fresh one (`cell_locals`), so `&mut p` of a
+  `mut` parameter writes the callee's copy. `&e` on any other value binds
+  it to a fresh local that only the closures capture: the new object.
+- **Interior places.** A struct field path, `&mut p.pos.x`, reads the
+  root and the path in `get`, and in `set` rebuilds each struct on the
+  path with `CopyData` and stores the root, as a struct field write does
+  ("Struct values" above). A place reached through a reference,
+  `&mut r.pos`, evaluates `r` once into a fresh local; its closures call
+  `r`'s own. A data field, `&mut d.n`, uses `struct.get` and `FieldSet`
+  on the data object, evaluated once.
+- **Reads and writes.** `*r` is `Field(r, get)` then `CallValue`, and
+  `*r = v` calls `set`; a field read or method call through `r` reads
+  through `get` first. A read-only reference's `set` is `unreachable`,
+  since the type system never calls it.
+- **Why not a cell per reference.** A reference to a field of a struct
+  value has nothing to point at: struct values are immutable objects
+  shared by every place that copied them. A pair of closures handles a
+  local, a field path, a value behind another reference and a data field
+  with one layout, so `&mut T` to `&T` is free (both lower to `Ref[T]`),
+  and generic code needs nothing new: `Ref[T]` takes `A1` erased storage
+  like any generic data type.
+- **Cost.** Taking a reference allocates the `Ref` object and two
+  closures (the read-only `set` is a constant); a local some reference
+  refers to lives in a heap cell for the whole function. A read or write
+  through a reference is an indirect call, and a write to a field path
+  rebuilds the path. Identity (`is`) cannot be answered, since two
+  references to one place are two objects. Correct first: the linear-memory
+  backend makes a reference an address (OBJECT_MODEL_TIER1.md job 11).
 
 **Strings: Go-style shared slices.** A string is a
 view of a byte array: `(array, start, len)`. `slice` and `s[a..b]` are

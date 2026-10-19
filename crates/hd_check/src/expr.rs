@@ -249,18 +249,8 @@ impl Ck<'_, '_> {
                 }
                 v
             }
-            SyntaxKind::RefExpr | SyntaxKind::DerefExpr => {
-                // `ref.check.not-yet`
-                self.err(
-                    Code::ReferencesNotYetChecked,
-                    n,
-                    "reference expressions are parsed but not checked yet",
-                );
-                return Ok((
-                    self.b.emit(Tag::Poison, NONE, NONE, Ty::POISON, n.index()),
-                    Ty::POISON,
-                ));
-            }
+            SyntaxKind::RefExpr => self.ref_expr(n, want)?,
+            SyntaxKind::DerefExpr => self.deref_expr(n)?,
             SyntaxKind::ParenExpr => match kids.as_slice() {
                 [e] => {
                     let v = self.expr(*e, want)?;
@@ -857,6 +847,18 @@ impl Ck<'_, '_> {
             _ => None,
         };
         if op == TokenKind::KwIs {
+            // `ref.check.not-yet-forms`: identity of references comes with the
+            // identity job; the emulation could not answer it.
+            for (t, at) in [(at, n), (ct, rn)] {
+                if self.ref_of(t).is_some() {
+                    self.err(
+                        Code::ReferencesNotYetChecked,
+                        at,
+                        "`is` on a reference is not checked yet",
+                    );
+                    return Ok(self.b.emit(Tag::Is, a.0, c.0, Ty::BOOL, n.index()));
+                }
+            }
             // `expr.is.value-operand`: both operands have identity. The
             // first that has none is the one error, so the second operand
             // adds no knock-on report.
@@ -1671,11 +1673,24 @@ impl Ck<'_, '_> {
         {
             return Ok(v);
         }
+        // A field read is no copy of its base (`ref.read.copy-out`).
+        let projected = self.proj_base == Some(n.index());
+        self.proj_base = Some(base.index());
         let (r, bt) = self.expr(*base, None)?;
         let mut bt = self.infer.resolve(pool, bt);
         if matches!(pool.get(bt), TyData::Infer(_)) && self.learn_waiting(bt)? {
             bt = self.infer.resolve(pool, bt);
         }
+        // Field access through a reference reads the referenced value
+        // (`ref.read.auto`); through `&T` it sees every `&mut` inside as
+        // `&` (`ref.read.weaken`).
+        let (r, bt, shared) = match self.ref_of(bt) {
+            Some((_, m)) => {
+                let (r, t) = self.emit_deref(r, bt, base.index());
+                (r, t, !m)
+            }
+            None => (r, bt, self.via_shared_ref(r)),
+        };
         let inner = match pool.get(bt) {
             TyData::Mut(i) => i,
             _ => bt,
@@ -1702,12 +1717,14 @@ impl Ck<'_, '_> {
                 return Ok((Ref(NONE), Ty::NEVER));
             };
             let idx = u32::try_from(i).unwrap_or(0);
+            let t = self.shared_read(t, shared, projected, n);
             return Ok((self.b.emit(Tag::TupleGet, r.0, idx, t, n.index()), t));
         }
         let (r, bt) = self.promote_base(r, bt, &name, n);
         if let Some((idx, ft)) = self.field_of(bt, &name) {
             self.check_field_visible(bt, &name, n);
             let ft = self.field_access(bt, &name, ft);
+            let ft = self.shared_read(ft, shared, projected, n);
             return Ok((self.b.emit(Tag::Field, r.0, idx, ft, n.index()), ft));
         }
         if let Some(v) = self.shared_field(r, inner, &name, n) {

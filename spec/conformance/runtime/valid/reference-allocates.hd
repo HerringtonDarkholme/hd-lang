@@ -1,0 +1,25 @@
+# test: `&e` on a value that is no place refers to a new object, one per evaluation, and writes through it leave the value's source unchanged
+# Spec 13 Places And New Objects: ref.expr.allocate, ref.expr.allocate.writable, ref.expr.type.
+# expect-stdout: 1 2
+# expect-stdout: 1 7
+# expect-stdout: 3
+# expect-stdout: 50 1
+struct Point:
+    x: i32
+    y: i32
+
+fn make_point() -> Point:
+    Point { x: 1, y: 2 }
+
+pub fn main() -> void $ Console:
+    r := &make_point()
+    println("${r.x} ${r.y}")
+    m := &mut make_point()
+    m.y = 7
+    println("${m.x} ${m.y}")
+    lit := &mut Point { x: 3, y: 4 }
+    println(lit.x)
+    first := &mut make_point()
+    second := &mut make_point()
+    first.x = 50
+    println("${first.x} ${second.x}")

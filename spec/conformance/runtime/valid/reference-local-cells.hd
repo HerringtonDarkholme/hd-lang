@@ -1,0 +1,30 @@
+# test: a local some reference refers to is one place per declaration, so a loop's local is new each iteration, and a closure and a reference to one local share it
+# Spec 13 Places And New Objects: ref.expr.place, ref.place.lifetime, ref.place.alias.
+# expect-stdout: 0
+# expect-stdout: 10
+# expect-stdout: 20
+# expect-stdout: 6
+# expect-stdout: 42
+fn counter() -> &mut i32:
+    let mut n = +41
+    &mut n
+
+pub fn main() -> void $ Console:
+    let refs: mut List[&mut usize] = []
+    for i in 0..3:
+        let mut v = i
+        refs.push(&mut v)
+    for r in refs:
+        *r *= 10
+    for r in refs:
+        println(*r)
+    let mut total = +0
+    add := fn(k: i32) -> void:
+        total += k
+    t := &mut total
+    add(5)
+    *t += 1
+    println(total)
+    c := counter()
+    *c += 1
+    println(*c)

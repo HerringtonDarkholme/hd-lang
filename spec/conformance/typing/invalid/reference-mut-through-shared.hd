@@ -1,0 +1,8 @@
+# test: `&mut` of a place reached through a read-only reference is readonly-root
+# Spec 13 Writable Places Of References: ref.place.not-writable.shared.
+struct Point:
+    x: i32
+
+fn invalid(r: &Point) -> i32:
+    x := &mut r.x  # diagnostic: readonly-root
+    *x

@@ -1,0 +1,26 @@
+# test: `&mut x` lets a callee change the caller's local x, a primitive or a struct, and each change is seen through x
+# Spec 13 Places And New Objects: ref.expr.place, ref.place.forms. Writing Through A Reference: ref.deref.write, ref.write.field.
+# expect-stdout: 2
+# expect-stdout: 11 20
+# expect-stdout: 3
+struct Point:
+    x: i32
+    y: i32
+
+fn bump(count: &mut i32) -> void:
+    *count += 1
+
+fn shift(p: &mut Point) -> void:
+    p.x += 10
+    p.y = p.y * 2
+
+pub fn main() -> void $ Console:
+    let mut n = +0
+    bump(&mut n)
+    bump(&mut n)
+    println(n)
+    let mut p = Point { x: 1, y: 10 }
+    shift(&mut p)
+    println("${p.x} ${p.y}")
+    n += 1
+    println(n)

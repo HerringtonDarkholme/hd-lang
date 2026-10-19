@@ -74,6 +74,8 @@ fn every_known_item_is_declared() {
         ("result", known.result),
         ("list", known.list),
         ("map", known.map),
+        // `ref_cell` is left out: `std.core.Ref` is a private seeded item
+        // (`hd_resolve::seed`), which no interface carries.
         ("tuple", known.tuple),
         ("structure", known.structure),
         ("field", known.field),

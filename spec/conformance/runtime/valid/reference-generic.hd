@@ -1,0 +1,23 @@
+# test: generic functions read and replace through `&T` and `&mut T`, and `&mut T` converts to `&T` at a generic call
+# Spec 13 Reading Through A Reference: ref.deref.read. Writing Through A Reference: ref.deref.write. Conversions: ref.convert.weaken.
+# expect-stdout: 2 1
+# expect-stdout: b a
+# expect-stdout: 2
+fn swap[T](a: &mut T, b: &mut T) -> void:
+    t := *a
+    *a = *b
+    *b = t
+
+fn read[T](r: &T) -> T:
+    *r
+
+pub fn main() -> void $ Console:
+    let mut a = +1
+    let mut b = +2
+    swap(&mut a, &mut b)
+    println("${a} ${b}")
+    let mut s = "a"
+    let mut t = "b"
+    swap(&mut s, &mut t)
+    println("${s} ${t}")
+    println(read(&mut a))

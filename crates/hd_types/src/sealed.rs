@@ -106,7 +106,8 @@ fn category(pool: Types<'_>, decls: &dyn Declarations, t: Ty) -> Category {
         TyData::Prim(_) | TyData::Tuple { .. } | TyData::Option(_) | TyData::Fn { .. } => {
             Category::Val
         }
-        TyData::TraitValue { .. } => Category::Ref,
+        // A reference has identity: what it refers to (ref.type.any-ref).
+        TyData::TraitValue { .. } | TyData::Ref { .. } => Category::Ref,
         TyData::Adt { def, args } => match decls.type_decl(def) {
             TypeDecl::Enum | TypeDecl::Struct => Category::Val,
             TypeDecl::Data => Category::Ref,
