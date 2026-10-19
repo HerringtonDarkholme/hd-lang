@@ -14,7 +14,7 @@ mod types;
 use hd_base::HashMap;
 
 use hd_base::{FileId, ItemIdx, NodeIdx, Span, Symbol, TokenIdx};
-use hd_diag::{Code, Diagnostic};
+use hd_diag::{Code, Diagnostic, DiagnosticFix, FixSafety};
 use hd_intern::Interner;
 
 use crate::green::{Event, build};
@@ -163,7 +163,7 @@ pub(crate) struct Parser<'t> {
     cur: LayoutCursor<'t>,
     events: Vec<Event>,
     layouts: Vec<(TokenIdx, Layout)>,
-    errors: Vec<(Code, u32, u32, String)>,
+    errors: Vec<Diagnostic>,
     /// Spans the lexer already reported: no second diagnostic there.
     lexed: Vec<(u32, u32)>,
     /// The scope of each delimiter the lexer found unclosed: from the
@@ -221,9 +221,7 @@ impl<'t> Parser<'t> {
                 out.push(diag(*code, lo, hi, message.clone()));
             }
         }
-        for (code, lo, hi, message) in &self.errors {
-            out.push(diag(*code, *lo, *hi, message.clone()));
-        }
+        out.extend(self.errors.iter().cloned());
         self.doc_comments(&mut out);
         out
     }
@@ -487,7 +485,7 @@ impl<'t> Parser<'t> {
         }
         self.cur.peek();
         let message = message(self);
-        self.errors.push((code, lo, hi, message));
+        self.errors.push(diag(code, lo, hi, message));
     }
 
     /// A diagnostic that does not end the statement's reporting (a rule
@@ -495,8 +493,34 @@ impl<'t> Parser<'t> {
     pub(crate) fn report(&mut self, code: Code, at: usize, message: &str) {
         let (lo, hi) = self.token_span(at);
         if !self.lexed_covers(lo) {
-            self.errors.push((code, lo, hi, message.to_owned()));
+            self.errors.push(diag(code, lo, hi, message));
         }
+    }
+
+    /// Attaches to the just-reported error only; suppressed errors have
+    /// no row at `index`, so never borrow another statement's fix.
+    pub(crate) fn fix_error(&mut self, index: usize, message: &str, edits: &[(u32, u32, &str)]) {
+        let Some(diagnostic) = self.errors.get_mut(index) else {
+            return;
+        };
+        let file = diagnostic.primary.file;
+        diagnostic.fix = Some(DiagnosticFix {
+            message: message.to_owned(),
+            safety: FixSafety::Exact,
+            edits: edits
+                .iter()
+                .map(|(lo, hi, text)| {
+                    (
+                        Span {
+                            file,
+                            lo: *lo,
+                            hi: *hi,
+                        },
+                        (*text).to_owned(),
+                    )
+                })
+                .collect(),
+        });
     }
 
     /// What stands at token `at`, for an "expected ..., found ..." message:
@@ -696,7 +720,7 @@ impl<'t> Parser<'t> {
     pub(crate) fn enter(&mut self) -> bool {
         if self.nesting >= MAX_NESTING {
             let at = self.pos();
-            if !self.errors.iter().any(|e| e.0 == Code::NestingTooDeep) {
+            if !self.errors.iter().any(|e| e.code == Code::NestingTooDeep) {
                 self.report(Code::NestingTooDeep, at, NESTING_TOO_DEEP);
             }
             self.stmt_errored = true;

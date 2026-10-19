@@ -2576,6 +2576,24 @@ impl Run<'_> {
                         ..x.primary
                     };
                     d.push(x.code, x.severity, span, &x.message, None);
+                    if let Some(fix) = &x.fix {
+                        // Parse spans are local to this module; the buffer
+                        // already has fix columns for their remapped edits.
+                        let edits: Vec<_> = fix
+                            .edits
+                            .iter()
+                            .map(|(edit, text)| {
+                                (
+                                    Span {
+                                        file: span.file,
+                                        ..*edit
+                                    },
+                                    text.as_str(),
+                                )
+                            })
+                            .collect();
+                        d.add_fix(&fix.message, fix.safety, &edits);
+                    }
                 }
             }
             p

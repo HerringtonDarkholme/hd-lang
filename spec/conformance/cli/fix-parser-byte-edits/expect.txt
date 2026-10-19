@@ -1,0 +1,14 @@
+# The second check is warm: parser fixes retain their byte offsets and edits.
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"old-row-separator","file":"src/lib.hd","line":11,"fixes":[{"message":"join requirement keys with `+`","edits":[{"file":"src/lib.hd","start":204,"end":205,"text":" +"},{"file":"src/lib.hd","start":212,"end":213,"text":" +"}]}]},{"kind":"diagnostic","code":"missing-let","file":"src/lib.hd","line":15,"fixes":[{"message":"insert `let` before the binding","edits":[{"file":"src/lib.hd","start":250,"end":250,"text":"let "}]}]},{"kind":"summary","errors":2,"warnings":0,"status":101}]
+run: hd check --format json
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"old-row-separator","file":"src/lib.hd","line":11,"fixes":[{"message":"join requirement keys with `+`","edits":[{"file":"src/lib.hd","start":204,"end":205,"text":" +"},{"file":"src/lib.hd","start":212,"end":213,"text":" +"}]}]},{"kind":"diagnostic","code":"missing-let","file":"src/lib.hd","line":15,"fixes":[{"message":"insert `let` before the binding","edits":[{"file":"src/lib.hd","start":250,"end":250,"text":"let "}]}]},{"kind":"summary","errors":2,"warnings":0,"status":101}]
+run: hd fix
+same-text: src/lib.hd want/lib.hd
+run: hd check --format json
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
+run: hd check --format json no-initializer.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"missing-let","file":"no-initializer.hd","line":2,"fixes":[]},{"kind":"summary","errors":1,"warnings":0,"status":101}]

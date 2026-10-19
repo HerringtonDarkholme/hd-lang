@@ -192,10 +192,30 @@ impl Parser<'_> {
         if !self.nth_line_first(1) && self.nth(1).is_some() {
             // grammar.call.trailing-block.next-line, grammar.stmt.typed-binding.let
             if ctx == Ctx::Stmt && callee.kind() == SyntaxKind::NameExpr {
+                let error = self.errors.len();
                 self.error(
                     Code::MissingLet,
                     "a binding with a type annotation must begin with 'let'; write `let x: T = ...`, or `x := ...` without the type",
                 );
+                let at = self.pos();
+                let line = self.toks.line_of(self.toks.start[at]);
+                let end = self
+                    .toks
+                    .line_start
+                    .get(line + 1)
+                    .copied()
+                    .unwrap_or(u32::MAX);
+                let initialized = (at + 1..self.toks.len())
+                    .take_while(|&i| self.toks.start[i] < end)
+                    .any(|i| self.toks.kind[i] == TokenKind::Eq);
+                if initialized {
+                    let (lo, _) = self.token_span(at.saturating_sub(1));
+                    self.fix_error(
+                        error,
+                        "insert `let` before the binding",
+                        &[(lo, lo, "let ")],
+                    );
+                }
             } else {
                 let found = self.toks.describe(self.pos() + 1, self.src);
                 let message = format!("expected a line ending after ':', found {found}");

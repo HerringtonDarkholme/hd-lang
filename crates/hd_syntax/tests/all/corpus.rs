@@ -65,6 +65,9 @@ fn parse_reported() -> BTreeSet<String> {
 const SPEC_CONFLICTS: &[&str] = &[
     // A CLI case whose source is deliberately unparsable (`cli.fmt.syntax-error`).
     "cli/fmt-syntax-error/src/lib.hd",
+    // CLI fix-it cases check the rejection before applying parser edits.
+    "cli/fix-parser-byte-edits/src/lib.hd",
+    "cli/fix-parser-byte-edits/no-initializer.hd",
 ];
 
 /// Every source the parser must accept: `lib/std`, `examples/` (single

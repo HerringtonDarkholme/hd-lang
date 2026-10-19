@@ -22,6 +22,14 @@ pub enum Severity {
     Warning,
 }
 
+/// An owned fix before diagnostics enter the pooled `DiagBuf` columns.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DiagnosticFix {
+    pub message: String,
+    pub safety: FixSafety,
+    pub edits: Vec<(Span, String)>,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Diagnostic {
     pub code: Code,
@@ -29,6 +37,7 @@ pub struct Diagnostic {
     pub primary: Span,
     /// What the user reads: the situation, not the code.
     pub message: String,
+    pub fix: Option<DiagnosticFix>,
 }
 
 impl Diagnostic {
@@ -39,6 +48,7 @@ impl Diagnostic {
             severity: Severity::Error,
             primary,
             message: message.into(),
+            fix: None,
         }
     }
 }

@@ -343,13 +343,22 @@ impl Parser<'_> {
             if self.at(TokenKind::Comma) {
                 // grammar.type.row.old-separator
                 let at = self.pos();
+                let error = self.errors.len();
                 self.error_at(
                     Code::OldRowSeparator,
                     at,
                     "requirement keys are joined with '+': write '$ A + B'",
                 );
-                while self.eat(TokenKind::Comma) {
+                let reported = self.errors.len() > error;
+                let mut edits = Vec::new();
+                while self.at(TokenKind::Comma) {
+                    let (lo, hi) = self.token_span(self.pos());
+                    edits.push((lo, hi, " +"));
+                    self.bump();
                     self.ty_bound_trait(true);
+                }
+                if reported {
+                    self.fix_error(error, "join requirement keys with `+`", &edits);
                 }
             }
         }

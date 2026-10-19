@@ -1112,6 +1112,7 @@ impl<'s> Lexer<'s> {
                 hi: to_u32(end),
             },
             message: message.into(),
+            fix: None,
         });
     }
 

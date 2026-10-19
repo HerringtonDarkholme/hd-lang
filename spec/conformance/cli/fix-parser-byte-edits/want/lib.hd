@@ -1,0 +1,16 @@
+## café keeps edits in UTF-8 byte coordinates.
+trait First:
+    fn value(self) -> usize
+
+trait Second:
+    fn value(self) -> usize
+
+trait Third:
+    fn value(self) -> usize
+
+fn measure() -> usize $ First + Second + Third:
+    0
+
+fn half() -> f64:
+    let zero: f64 = 0.5
+    zero
