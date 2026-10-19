@@ -1,0 +1,10 @@
+# test: a generic poisoned impl target survives the module interface
+# fixture-package-tree: unknown-from-impl/src/lib.hd
+# trait.from.import, module.prelude.question-from.
+use pkg.errors.CliError  # diagnostic: unknown-trait
+
+fn parse(text: string) -> Result[i32, string]: .Err(text)
+
+pub fn run(text: string) -> Result[i32, CliError[i32]]:
+    value := parse(text)?
+    .Ok(value)

@@ -2172,6 +2172,33 @@ impl Ck<'_, '_> {
         Ok(ev)
     }
 
+    fn has_poisoned_impl(&mut self, target: Ty) -> bool {
+        let pool = self.pool();
+        let target = self.strip_mut(target);
+        for item in self.cx.lookup.poisoned_impls() {
+            let ItemData::Impl { self_ty, .. } = item.data else {
+                continue;
+            };
+            let mark = self.infer.trial_mark();
+            let args: Vec<_> = item
+                .generics
+                .iter()
+                .map(|_| self.infer.fresh(pool, VarKind::General))
+                .collect();
+            let pattern = pool.subst(self_ty, &|p: ParamRef| {
+                (p.owner == item.def)
+                    .then(|| args.get(p.index as usize).copied())
+                    .flatten()
+            });
+            let found = self.infer.unify(pool, pattern, target).is_ok();
+            self.infer.rollback_trial(mark);
+            if found {
+                return true;
+            }
+        }
+        false
+    }
+
     /// [`Self::require_ref`], reporting a failure with `code`.
     pub(crate) fn require_ref_as(
         &mut self,
@@ -2216,6 +2243,9 @@ impl Ck<'_, '_> {
                 Ok(Some(evidence))
             }
             Answer::Fails(_) => {
+                if self.has_poisoned_impl(tref.self_ty) {
+                    return Ok(Some(Evidence::Poison));
+                }
                 let msg = format!(
                     "{} does not implement {}",
                     self.show(tref.self_ty),
@@ -2788,6 +2818,9 @@ impl Ck<'_, '_> {
                 Ok(true)
             }
             Answer::Fails(_) => {
+                if self.has_poisoned_impl(tref.self_ty) {
+                    return Ok(true);
+                }
                 if report && !matches!(g.kind, Waiting::Project { .. }) {
                     let msg = format!(
                         "{} does not implement {}",

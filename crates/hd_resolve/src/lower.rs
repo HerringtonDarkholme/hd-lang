@@ -3293,6 +3293,25 @@ impl Lower<'_, '_, '_> {
             .error(Code::SealedTraitImplementation, self.src.span(imp), &msg);
     }
 
+    fn poisoned_impl(h: &Head<'_>, self_ty: Ty, generics: Vec<Generic>, out: &mut Vec<Item>) {
+        let mut item = Item::new(
+            h.def,
+            h.name,
+            true,
+            ItemData::Impl {
+                trait_: DefId::NONE,
+                trait_args: TyList::EMPTY,
+                self_ty,
+                methods: vec![],
+                assoc: vec![],
+                by: None,
+                kind: ImplKind::Poison,
+            },
+        );
+        item.generics = generics;
+        out.push(item);
+    }
+
     fn impl_item(&mut self, h: &Head<'_>, out: &mut Vec<Item>) {
         let n = h.node;
         let pool = self.names.pool;
@@ -3368,6 +3387,7 @@ impl Lower<'_, '_, '_> {
             Some(tn) => {
                 let segs = self.segments(tn);
                 if segs.first().is_some_and(|s| self.is_poisoned(&s.0)) {
+                    Self::poisoned_impl(h, self_ty, generics, out);
                     return;
                 }
                 let found = self.resolve_path(&segs, self.src.span(tn));
@@ -3388,16 +3408,17 @@ impl Lower<'_, '_, '_> {
                     }
                     return;
                 }
-                match self.trait_value_from(tn, &gn, Some(self_ty), found) {
-                    Some(tv) => match pool.get(tv) {
-                        TyData::TraitValue {
-                            def,
-                            args,
-                            bindings,
-                        } => (def, args, bindings),
-                        _ => return,
-                    },
-                    None => return,
+                let Some(tv) = self.trait_value_from(tn, &gn, Some(self_ty), found) else {
+                    Self::poisoned_impl(h, self_ty, generics, out);
+                    return;
+                };
+                match pool.get(tv) {
+                    TyData::TraitValue {
+                        def,
+                        args,
+                        bindings,
+                    } => (def, args, bindings),
+                    _ => return,
                 }
             }
         };

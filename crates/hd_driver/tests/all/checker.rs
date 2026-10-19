@@ -357,6 +357,39 @@ fn pipes_and_comprehensions_check() {
     );
 }
 
+#[test]
+fn an_unresolved_impl_trait_only_poisons_matching_target_arguments() {
+    let input = r"
+data Envelope[T]:
+    value: T
+
+impl From[string] for Envelope[i32]:
+    fn from(text: string) -> Envelope[i32]: Envelope { value: +1 }
+
+fn parse(text: string) -> Result[i32, string]: .Err(text)
+
+fn matching(text: string) -> Result[i32, Envelope[i32]]:
+    value := parse(text)?
+    .Ok(value)
+
+fn unrelated(text: string) -> Result[i32, Envelope[string]]:
+    value := parse(text)?
+    .Ok(value)
+";
+    let out = program(input);
+    assert_eq!(
+        codes(&out),
+        [Code::UnknownTrait, Code::InvalidResultPropagation],
+        "{}",
+        out.render()
+    );
+    assert_eq!(
+        out.diags.primary[1].lo as usize,
+        input.rfind("parse(text)?").unwrap(),
+        "the unrelated target must still report its missing conversion"
+    );
+}
+
 fn codes(out: &Output) -> Vec<Code> {
     out.diags.code.clone()
 }

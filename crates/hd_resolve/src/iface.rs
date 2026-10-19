@@ -370,10 +370,12 @@ pub enum ImplKind {
     /// type (spec 14 `annot.error.generates`): an ordinary implementation
     /// whose method bodies the checker writes (`crates/hd_mono/DESIGN.md` §13.14).
     Error,
+    /// An unresolved trait impl: its target survives for error recovery only.
+    Poison,
 }
 
 impl ImplKind {
-    const ALL: [ImplKind; 7] = [
+    const ALL: [ImplKind; 8] = [
         ImplKind::Written,
         ImplKind::Delegated,
         ImplKind::Template,
@@ -381,11 +383,12 @@ impl ImplKind {
         ImplKind::Derivation,
         ImplKind::Derived,
         ImplKind::Error,
+        ImplKind::Poison,
     ];
     /// Whether the head takes a coherence slot and an impl-table row.
     #[must_use]
     pub fn is_impl(self) -> bool {
-        self != ImplKind::Template
+        !matches!(self, ImplKind::Template | ImplKind::Poison)
     }
 }
 
@@ -585,6 +588,25 @@ impl<'a> Lookup<'a> {
         }
         self.ifaces.iter().find_map(|f| f.item(d))
     }
+    /// Failed trait declarations whose target still needs error recovery.
+    #[must_use]
+    pub fn poisoned_impls(&self) -> Vec<&'a Item> {
+        let poisoned = |i: &&Item| {
+            matches!(
+                i.data,
+                ItemData::Impl {
+                    kind: ImplKind::Poison,
+                    ..
+                }
+            )
+        };
+        let mut out: Vec<&Item> = self.own.iter().filter(poisoned).collect();
+        for f in &self.ifaces {
+            out.extend(f.items.impls().filter(poisoned));
+        }
+        out
+    }
+
     /// Every trait impl visible here (templates excluded), own first, then
     /// by folder.
     #[must_use]
@@ -1785,7 +1807,9 @@ pub fn impl_table(names: &Names<'_>, impls: &[&Item]) -> ImplTable {
             ImplKind::TupleTemplate => ImplOrigin::TupleTemplate,
             ImplKind::Delegated => ImplOrigin::Delegated { field: 0 },
             ImplKind::Derived | ImplKind::Derivation => ImplOrigin::Derived { template: trait_ },
-            ImplKind::Written | ImplKind::Template | ImplKind::Error => ImplOrigin::Written,
+            ImplKind::Written | ImplKind::Template | ImplKind::Error | ImplKind::Poison => {
+                ImplOrigin::Written
+            }
         });
         t.rank
             .push(u64::try_from(rank.0 & u128::from(u64::MAX)).expect("rank"));

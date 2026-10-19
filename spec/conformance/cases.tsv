@@ -3596,3 +3596,6 @@ runtime/valid/dyn-suspending-generic-method.hd	runtime	accept	lang/09-traits.md#
 typing/invalid/binding-failed-propagation.hd	type	reject:invalid-result-propagation	lang/05-expressions.md#r-expr.try.target.nearest-function
 typing/invalid/binding-failed-call.hd	type	reject:unknown-name	lang/03-names-and-scopes.md#r-names.module.other-module.value
 typing/invalid/index-trait-key-no-cascade.hd	type	reject:unsatisfied-trait-bound	lang/05-expressions.md#r-expr.index.trait.read-other
+typing/invalid/impl-unknown-trait-no-cascade.hd	type	reject:unknown-trait	lang/09-traits.md#r-trait.from.import
+typing/invalid/impl-unknown-trait-cross-module.hd	type	reject:unknown-trait	lang/09-traits.md#r-trait.from.import
+typing/valid/from-import-repairs-conversion.hd	type	accept	lang/09-traits.md#r-trait.from.import

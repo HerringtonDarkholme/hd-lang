@@ -1,0 +1,5 @@
+pub data CliError[T]:
+    message: T
+
+impl[T] From[string] for CliError[T]:
+    fn from(message: string) -> CliError[T]: panic("unavailable")
