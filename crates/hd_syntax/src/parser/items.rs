@@ -106,6 +106,13 @@ impl Parser<'_> {
                 self.recover_line();
                 return;
             }
+            if self.at_word("newtype") {
+                self.error_at(
+                    Code::SyntaxError,
+                    self.pos() + 1,
+                    "a newtype is declared with 'type': write 'type Name(Base)'",
+                );
+            }
         }
         if self.at(TokenKind::KwTests) {
             if place == Place::Top {
@@ -126,7 +133,7 @@ impl Parser<'_> {
         self.statement();
     }
 
-    fn use_root_follows(&mut self) -> bool {
+    pub(super) fn use_root_follows(&mut self) -> bool {
         if self.nth_line_first(1) {
             return false;
         }

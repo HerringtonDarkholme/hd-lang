@@ -63,6 +63,13 @@ impl Parser<'_> {
     }
 
     pub(crate) fn simple_statement(&mut self, ctx: Ctx) {
+        if self.at_word("use") && self.use_root_follows() {
+            self.error_at(
+                Code::SyntaxError,
+                self.pos() + 1,
+                "'use' goes at the top of the file or a 'tests:' block, not inside a function",
+            );
+        }
         match self.current() {
             Some(TokenKind::KwLet) => self.let_statement(ctx),
             Some(TokenKind::Placeholder) if self.nth(1) == Some(TokenKind::ColonEq) => {

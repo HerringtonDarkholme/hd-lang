@@ -392,6 +392,12 @@ impl Parser<'_> {
             self.expr(Ctx::Closed);
             self.complete(guard, SyntaxKind::MatchGuard);
         }
+        if self.at(TokenKind::Pipe) {
+            self.error(
+                Code::SyntaxError,
+                "match patterns do not use '|'; write a separate arm for each pattern",
+            );
+        }
         if self.expect(TokenKind::FatArrow, "'=>'") {
             let body = self.start();
             match self.cur.open_arm() {
@@ -445,6 +451,7 @@ impl Parser<'_> {
             self.expected("a provider-context operation after '$.'");
             return self.complete(marker, SyntaxKind::ContextExpr);
         }
+        let operation = self.pos();
         self.bump();
         match word {
             "use" => {
@@ -475,7 +482,7 @@ impl Parser<'_> {
                     self.expect(TokenKind::RBracket, "']'");
                 }
             }
-            _ => self.error(Code::SyntaxError, &format!("unknown provider-context operation '$.{word}'; expected 'use', 'context', 'with', or 'Context'")),
+            _ => self.error_at(Code::SyntaxError, operation, &format!("unknown provider-context operation '$.{word}'; expected 'use', 'context', 'with', or 'Context'")),
         }
         self.complete(marker, SyntaxKind::ContextExpr)
     }
@@ -799,6 +806,15 @@ impl Parser<'_> {
                     self.bump();
                     lhs = self.complete(marker, SyntaxKind::SuspendExpr);
                 }
+                TokenKind::Bang
+                    if same_line && self.nth_glued(0) && lhs.kind() == SyntaxKind::CallExpr =>
+                {
+                    self.error(
+                        Code::SyntaxError,
+                        "a bang call puts '!' before the arguments: write 'f!()'",
+                    );
+                    break;
+                }
                 TokenKind::ColonColon if same_line => {
                     let qualifier = matches!(
                         lhs.kind(),
@@ -1034,7 +1050,20 @@ impl Parser<'_> {
             }
             _ => {
                 let marker = self.start();
-                self.expected("an expression");
+                if self.at(TokenKind::Slash)
+                    && self.nth_line_first(0)
+                    && self.nth(1) == Some(TokenKind::Slash)
+                    && self.nth(2) == Some(TokenKind::Slash)
+                    && self.nth_glued(1)
+                    && self.nth_glued(2)
+                {
+                    self.error(
+                        Code::SyntaxError,
+                        "documentation comments start with '##', not '///'",
+                    );
+                } else {
+                    self.expected("an expression");
+                }
                 if self.current().is_some_and(|kind| {
                     !kind.closes()
                         && !matches!(
@@ -1098,6 +1127,12 @@ impl Parser<'_> {
             count += 1;
             if !self.eat(TokenKind::Comma) {
                 if !self.at(TokenKind::RParen) {
+                    if self.at(TokenKind::Colon) && count == 1 && !comma {
+                        self.error(
+                            Code::TrailingBlockPosition,
+                            "casts are calls: write 'i64(1)' to convert 1 to i64",
+                        );
+                    }
                     self.list_error(')');
                     self.skip_to_list_end(TokenKind::RParen);
                     if self.eat(TokenKind::Comma) {

@@ -597,3 +597,84 @@ fn source_nested_too_deep_names_the_limit() {
             && d.message == "source nests deeper than the implementation limit"
     }));
 }
+
+fn foreign_syntax(source: &str, code: &str, message: &str, marked: &str) {
+    let parsed = parse(source.as_bytes());
+    assert_eq!(parsed.diagnostics.len(), 1, "{:?}", parsed.diagnostics);
+    let diagnostic = &parsed.diagnostics[0];
+    assert_eq!(diagnostic.code.as_str(), code);
+    assert_eq!(diagnostic.message, message);
+    let start = source.find(marked).unwrap();
+    assert_eq!(diagnostic.primary.lo as usize, start);
+    assert_eq!(diagnostic.primary.hi as usize, start + marked.len());
+}
+
+#[test]
+fn foreign_doc_comment_names_hd_spelling() {
+    foreign_syntax(
+        "/// doc\nfn f(): pass\n",
+        "syntax-error",
+        "documentation comments start with '##', not '///'",
+        "/",
+    );
+}
+
+#[test]
+fn foreign_local_use_names_module_position() {
+    foreign_syntax(
+        "fn f():\n    use std.text\n",
+        "syntax-error",
+        "'use' goes at the top of the file or a 'tests:' block, not inside a function",
+        "std",
+    );
+}
+
+#[test]
+fn foreign_newtype_names_hd_spelling() {
+    foreign_syntax(
+        "newtype Meters(f64)\n",
+        "syntax-error",
+        "a newtype is declared with 'type': write 'type Name(Base)'",
+        "Meters",
+    );
+}
+
+#[test]
+fn foreign_or_pattern_suggests_separate_arms() {
+    foreign_syntax(
+        "fn f():\n    match n:\n        1 | 2 | 3 => pass\n",
+        "syntax-error",
+        "match patterns do not use '|'; write a separate arm for each pattern",
+        "|",
+    );
+}
+
+#[test]
+fn foreign_postfix_bang_names_hd_spelling() {
+    foreign_syntax(
+        "fn g():\n    f()!\n",
+        "syntax-error",
+        "a bang call puts '!' before the arguments: write 'f!()'",
+        "!",
+    );
+}
+
+#[test]
+fn foreign_cast_names_conversion_call() {
+    foreign_syntax(
+        "(1: i64)\n",
+        "trailing-block-position",
+        "casts are calls: write 'i64(1)' to convert 1 to i64",
+        ":",
+    );
+}
+
+#[test]
+fn foreign_context_operation_points_to_its_name() {
+    foreign_syntax(
+        "fn f():\n    $.nosuch()\n",
+        "syntax-error",
+        "unknown provider-context operation '$.nosuch'; expected 'use', 'context', 'with', or 'Context'",
+        "nosuch",
+    );
+}
