@@ -680,9 +680,11 @@ function processProvider({ grant, env, left }) {
     }
     // std-process.stdin.unread: a child that exited without reading all of
     // its stdin breaks the pipe; the rest is dropped and the run is `.Ok`.
-    // A child that never started has neither a status nor a signal.
+    // The pipe reports it as EPIPE or ECONNRESET, ENOTCONN on macOS, and EOF
+    // on Windows (libuv maps ERROR_BROKEN_PIPE to EOF, as `fill` above meets
+    // on reads). A child that never started has neither a status nor a signal.
     const stdinClosed =
-      ["EPIPE", "ECONNRESET", "ENOTCONN"].includes(r.error?.code) &&
+      ["EPIPE", "ECONNRESET", "ENOTCONN", "EOF"].includes(r.error?.code) &&
       (r.status !== null || r.signal !== null);
     if (r.error && !stdinClosed) {
       const code = r.error.code;
