@@ -4,6 +4,68 @@
 
 use hd_syntax::parse;
 
+#[test]
+fn migration_fixes_preserve_surrounding_source_and_parse() {
+    for (source, corrected) in [
+        (
+            "# café\nfn f(pair: P): pair.12\n",
+            "# café\nfn f(pair: P): pair._12\n",
+        ),
+        ("fn f(): {:}\n", "fn f(): {}\n"),
+        (
+            "use std.fs.{read_text!, FsRead}\n",
+            "use std.fs.{read_text, FsRead}\n",
+        ),
+        (
+            "fn f():\n    defer save()\n",
+            "fn f():\n    defer: save()\n",
+        ),
+        (
+            "fn f(pair: P):\n    (low, (high, _)) := pair\n",
+            "fn f(pair: P):\n    let (low, (high, _)) = pair\n",
+        ),
+    ] {
+        let parsed = parse(source.as_bytes());
+        let fixes: Vec<_> = parsed
+            .diagnostics
+            .iter()
+            .filter_map(|d| d.fix.as_ref())
+            .collect();
+        assert_eq!(fixes.len(), 1, "{source}: {:?}", parsed.diagnostics);
+        let mut edits = fixes[0].edits.clone();
+        edits.sort_by_key(|(span, _)| std::cmp::Reverse(span.lo));
+        let mut edited = source.to_owned();
+        for (span, replacement) in edits {
+            edited.replace_range(span.lo as usize..span.hi as usize, &replacement);
+        }
+        assert_eq!(edited, corrected);
+        let checked = parse(edited.as_bytes());
+        assert!(checked.is_ok(), "{edited}: {:?}", checked.diagnostics);
+    }
+}
+
+#[test]
+fn migration_fixes_do_not_guess_from_other_invalid_forms() {
+    for source in [
+        "fn f(pair: P): pair.0xA\n",
+        "fn f(): { : value }\n",
+        "use std.fs.{read_text!()}\n",
+        "fn f():\n    defer\n    save()\n",
+        "fn f(pair: P):\n    (low, +1) := pair\n",
+        "fn f(pair: P):\n    (low, call()) := pair\n",
+        "fn f(pair: P):\n    (low, self) := pair\n",
+        "fn f(pair: P):\n    (low, (high)) := pair\n",
+    ] {
+        let parsed = parse(source.as_bytes());
+        assert!(!parsed.is_ok(), "{source}");
+        assert!(
+            parsed.diagnostics.iter().all(|d| d.fix.is_none()),
+            "{source}: {:?}",
+            parsed.diagnostics
+        );
+    }
+}
+
 /// (source, code, message)
 const ROWS: &[(&str, &str, &str)] = &[
     // ---- lexer

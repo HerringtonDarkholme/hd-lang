@@ -785,7 +785,18 @@ impl Parser<'_> {
                         _ => {
                             // grammar.expr.no-numeric-member, lex.raw.*
                             let at = self.pos() + 1;
+                            let error = self.errors.len();
                             self.expected_at("a member name after '.'", at);
+                            if self.nth(1) == Some(TokenKind::Number)
+                                && self.nth_text(1).bytes().all(|byte| byte.is_ascii_digit())
+                            {
+                                let (lo, _) = self.token_span(at);
+                                self.fix_error(
+                                    error,
+                                    "prefix the tuple index with `_`",
+                                    &[(lo, lo, "_")],
+                                );
+                            }
                             let marker = self.precede(lhs);
                             self.bump();
                             if self
@@ -1271,6 +1282,16 @@ impl Parser<'_> {
     fn map(&mut self) -> Done {
         let marker = self.start();
         self.bump(); // {
+        if self.at(TokenKind::Colon) && self.nth(1) == Some(TokenKind::RBrace) {
+            let error = self.errors.len();
+            let (lo, hi) = self.token_span(self.pos());
+            self.expected("an expression");
+            self.fix_error(
+                error,
+                "remove the colon from the empty map",
+                &[(lo, hi, "")],
+            );
+        }
         if self.at(TokenKind::KwFor) {
             self.comprehension_clauses();
             if self.expect(TokenKind::FatArrow, "'=>'") {

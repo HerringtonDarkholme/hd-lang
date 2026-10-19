@@ -294,6 +294,14 @@ impl Parser<'_> {
                 self.abandon(item);
                 break;
             }
+            if self.at(TokenKind::Bang)
+                && matches!(self.nth(1), Some(TokenKind::Comma | TokenKind::RBrace))
+            {
+                let error = self.errors.len();
+                let (lo, hi) = self.token_span(self.pos());
+                self.expected("',' or '}' after an imported declaration name");
+                self.fix_error(error, "import the function's plain name", &[(lo, hi, "")]);
+            }
             if self.at(TokenKind::Dot) {
                 let at = self.pos();
                 self.error_at(

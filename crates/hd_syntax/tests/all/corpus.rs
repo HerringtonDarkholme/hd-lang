@@ -68,6 +68,7 @@ const SPEC_CONFLICTS: &[&str] = &[
     // CLI fix-it cases check the rejection before applying parser edits.
     "cli/fix-parser-byte-edits/src/lib.hd",
     "cli/fix-parser-byte-edits/no-initializer.hd",
+    "cli/fix-parser-migrations/src/lib.hd",
 ];
 
 /// Every source the parser must accept: `lib/std`, `examples/` (single

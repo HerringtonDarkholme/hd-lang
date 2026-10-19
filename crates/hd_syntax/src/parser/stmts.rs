@@ -3,7 +3,7 @@
 use hd_diag::Code;
 
 use super::items::Place;
-use super::{Ctx, Parser};
+use super::{Ctx, Event, Parser};
 use crate::{SyntaxKind, TokenKind};
 
 impl Parser<'_> {
@@ -97,9 +97,14 @@ impl Parser<'_> {
             }
             Some(TokenKind::KwDefer) => {
                 let marker = self.start();
+                let (_, end) = self.token_span(self.pos());
                 self.bump();
+                let error = self.errors.len();
+                let same_line_expression = !self.nth_line_first(0) && self.can_begin_expr();
                 if self.expect(TokenKind::Colon, "':'") {
                     self.suite(false, Ctx::Inline);
+                } else if same_line_expression {
+                    self.fix_error(error, "insert `:` after `defer`", &[(end, end, ":")]);
                 }
                 self.complete(marker, SyntaxKind::DeferStmt);
             }
@@ -117,11 +122,13 @@ impl Parser<'_> {
                     self.junk();
                 }
                 let marker = self.start();
+                let first = self.pos();
                 let lhs = self.expr(ctx);
                 match self.current() {
                     Some(TokenKind::ColonEq) => {
                         // grammar.stmt.short-binding.let-only
                         let at = self.pos();
+                        let error = self.errors.len();
                         if matches!(ctx, Ctx::Stmt | Ctx::Inline)
                             && lhs.kind() != SyntaxKind::ParenExpr
                         {
@@ -135,6 +142,23 @@ impl Parser<'_> {
                                 Code::SyntaxError,
                                 at,
                                 "':=' binds one name; several names need 'let', as in 'let (a, b) = pair'",
+                            );
+                        }
+                        if lhs.kind() == SyntaxKind::TupleExpr
+                            && self.toks.kind[first..at].iter().all(|kind| {
+                                matches!(kind, TokenKind::Ident | TokenKind::RawIdent | TokenKind::Placeholder | TokenKind::LParen | TokenKind::RParen | TokenKind::Comma)
+                            })
+                            && self.events[marker.0 + 1..].iter().all(|event| {
+                                !matches!(event, Event::Start { kind, open: true, .. }
+                                    if !matches!(kind, SyntaxKind::TupleExpr | SyntaxKind::NameExpr | SyntaxKind::PlaceholderExpr))
+                            })
+                        {
+                            let (start, _) = self.token_span(first);
+                            let (lo, hi) = self.token_span(at);
+                            self.fix_error(
+                                error,
+                                "bind the tuple pattern with `let`",
+                                &[(start, start, "let "), (lo, hi, "=")],
                             );
                         }
                         self.bump();
