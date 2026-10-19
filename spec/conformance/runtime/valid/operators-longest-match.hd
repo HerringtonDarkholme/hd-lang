@@ -1,5 +1,5 @@
 # test: the lexer takes the longest operator at each position, so glued operators split the way the specification lists
-# Spec 01 Operators And Delimiters: lex.op.longest, lex.op.longest.examples, lex.op.pipe, lex.op.inequality, lex.op.compound-assign, lex.op.compound-assign.examples, lex.op.range, lex.op.range.integer.
+# Spec 01 Operators And Delimiters: lex.op.longest, lex.op.longest.examples-separate-equals, lex.op.pipe, lex.op.inequality, lex.op.compound-assign, lex.op.compound-assign.examples, lex.op.range, lex.op.range.integer.
 # expect-stdout: 512
 # expect-stdout: true
 # expect-stdout: true

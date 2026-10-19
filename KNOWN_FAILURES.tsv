@@ -48,7 +48,6 @@ runtime/valid/readonly-root-generic-mutable-path.hd	#583		tests a rule that T16 
 runtime/valid/receiver-trait-bridge.hd	#583		tests a rule that T16 step 3 removes with `data` and `mut` views; deleted with it
 runtime/valid/typeid-mut-names.hd	#583		tests a rule that T16 step 3 removes with `data` and `mut` views; deleted with it
 runtime/valid/typeid-nested-mut-trait-argument.hd	#583		tests a rule that T16 step 3 removes with `data` and `mut` views; deleted with it
-typing/invalid/copy-assignment-ordinary-field.hd	#583		tests a rule that T16 step 3 removes with `data` and `mut` views; deleted with it
 typing/invalid/copy-update-readonly-child.hd	#583		tests a rule that T16 step 3 removes with `data` and `mut` views; deleted with it
 typing/invalid/copy-update-readonly-embedded-mutable-edge.hd	#583		tests a rule that T16 step 3 removes with `data` and `mut` views; deleted with it
 typing/invalid/copy-update-readonly-source-mut-field.hd	#583		tests a rule that T16 step 3 removes with `data` and `mut` views; deleted with it
@@ -58,7 +57,6 @@ typing/invalid/embedded-assignment-copy-required.hd	#583		tests a rule that T16 
 typing/invalid/embedded-copy-required-fresh-literal.hd	#583		tests a rule that T16 step 3 removes with `data` and `mut` views; deleted with it
 typing/invalid/embedded-copy-required.hd	#583		tests a rule that T16 step 3 removes with `data` and `mut` views; deleted with it
 typing/invalid/embedded-part-readonly-alias.hd	#583		tests a rule that T16 step 3 removes with `data` and `mut` views; deleted with it
-typing/invalid/embedded-store-readonly-copy.hd	#583		tests a rule that T16 step 3 removes with `data` and `mut` views; deleted with it
 typing/invalid/fn-type-variance-direction.hd	#536		no &mut U to &U variance in function types
 typing/invalid/fresh-element-not-weakened.hd	#583		tests a rule that T16 step 3 removes with `data` and `mut` views; deleted with it
 typing/invalid/generic-call-built-nested-mut-not-weakened.hd	#583		tests a rule that T16 step 3 removes with `data` and `mut` views; deleted with it

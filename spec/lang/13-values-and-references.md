@@ -325,8 +325,7 @@ fn reset(r: &mut Point) -> void:
 2. r[ref.write.field] Assigning a field through a reference, as in `r.x = v`, writes the field of the referenced value. The reference must be a `&mut`. Error: `readonly-root`.
 3. r[ref.write.seen] The write is seen through every reference to the place, and through the place itself.
 4. r[ref.write.no-exclusivity] A `&mut T` is not exclusive: other references to the same place may exist and be used, and no check limits them.
-5. r[ref.write.copy-assign] `*r ...= v` is an error, since `...=` stores into an embedded field only. Error: `copy-into-ordinary-field`.
-6. r[ref.write.index] An element store through a reference to a list or a map, as in `r[i] = v` or `r[i] op= v`, stores into the referenced value. A change of that value through a method call, as in `r.push(x)`, changes it in place as well. The reference must be a `&mut`. Error: `readonly-root`, or `mutable-receiver-required` for a call.
+5. r[ref.write.index] An element store through a reference to a list or a map, as in `r[i] = v` or `r[i] op= v`, stores into the referenced value. A change of that value through a method call, as in `r.push(x)`, changes it in place as well. The reference must be a `&mut`. Error: `readonly-root`, or `mutable-receiver-required` for a call.
 
 ```text
 struct Point:

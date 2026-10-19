@@ -1,0 +1,5 @@
+# test: removed copy assignment fails to parse
+# Spec 02 Semantic Statement Rules: grammar.stmt.no-copy-assignment.
+fn invalid() -> void:
+    let value = 1
+    if true: value ...= 2  # diagnostic: syntax-error

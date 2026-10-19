@@ -211,7 +211,6 @@ impl Parser<'_> {
                     }
                     Some(
                         TokenKind::Eq
-                        | TokenKind::EllipsisEq
                         | TokenKind::PlusEq
                         | TokenKind::MinusEq
                         | TokenKind::StarEq
@@ -290,5 +289,43 @@ impl Parser<'_> {
             self.complete(clause, SyntaxKind::ElseClause);
         }
         self.complete(marker, SyntaxKind::LetStmt);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn copy_assignment_is_not_a_statement() {
+        for source in [
+            "fn f():\n    value ...= other\n",
+            "fn f():\n    object.Part ...= other\n",
+            "fn f():\n    *reference ...= other\n",
+            "fn f():\n    values[0] ...= other\n",
+            "fn f():\n    if true: value ...= other\n",
+            "fn f():\n    value ...= if true: other else: another\n",
+        ] {
+            let parsed = crate::parse(source.as_bytes());
+            assert!(!parsed.is_ok(), "{source}");
+            assert!(
+                parsed
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.code == hd_diag::Code::SyntaxError),
+                "{source}: {:?}",
+                parsed.diagnostics
+            );
+            assert!(
+                parsed.diagnostics.iter().all(|d| d.fix.is_none()),
+                "{source}: {:?}",
+                parsed.diagnostics
+            );
+            assert!(
+                parsed
+                    .tree
+                    .root()
+                    .descendants()
+                    .all(|node| node.kind() != crate::SyntaxKind::AssignmentStmt)
+            );
+        }
     }
 }

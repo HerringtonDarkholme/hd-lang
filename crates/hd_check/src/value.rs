@@ -44,7 +44,7 @@ struct Place {
 }
 
 impl Ck<'_, '_> {
-    /// `base.name = rhs`, `base.name op= rhs` or `base.name ...= rhs`
+    /// `base.name = rhs` or `base.name op= rhs`
     /// where `base`, already checked as `(br, bt)`, has a struct type
     /// (`types.value.writable-forms`, `types.value.field-write`).
     pub(crate) fn struct_field_assign(
@@ -53,7 +53,6 @@ impl Ck<'_, '_> {
         (base, lhs, rhs, s): (NodeRef<'_>, NodeRef<'_>, NodeRef<'_>, NodeRef<'_>),
         name: &str,
         compound: Option<TokenKind>,
-        copy: bool,
     ) -> StageResult<()> {
         let Some((idx, ft)) = self.field_of(bt, name) else {
             let msg = format!("no field `{name}` on {}", self.show(bt));
@@ -61,13 +60,6 @@ impl Ck<'_, '_> {
             return Ok(());
         };
         self.check_field_visible(bt, name, lhs);
-        // A struct's field, embedded or not, is assigned with `=`
-        // (`data.struct.embed.no-marker`).
-        if copy {
-            let msg = format!("`{name}` of a struct is assigned with `=`, not `...=`");
-            self.err(Code::CopyIntoOrdinaryField, lhs, &msg);
-            return Ok(());
-        }
         let Some(place) = self.value_place(br, base, (lhs, s)) else {
             return Ok(());
         };

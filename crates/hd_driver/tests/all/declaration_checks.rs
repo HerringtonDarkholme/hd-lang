@@ -785,23 +785,6 @@ fn the_copy_marker_fills_only_an_embedded_field() {
     );
 }
 
-#[test]
-fn the_copy_assignment_stores_only_an_embedded_field() {
-    rule(
-        &format!(
-            "{ACCOUNT}fn reown(account: &mut Account, user: User) -> void:
-    account.owner ...= user
-"
-        ),
-        Code::CopyIntoOrdinaryField,
-        &format!(
-            "{ACCOUNT}fn reown(account: &mut Account, user: User) -> void:
-    account.owner = user
-"
-        ),
-    );
-}
-
 // ---- Member lines (group 13) ----
 
 const WALKER: &str = "use std.structure.{Structure, Field, Variant, Walker}

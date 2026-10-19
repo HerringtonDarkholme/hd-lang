@@ -1,7 +1,0 @@
-# test: `*r ...= v` is copy-into-ordinary-field
-# Spec 13 Writing Through A Reference: ref.write.copy-assign.
-struct Point:
-    x: i32
-
-fn invalid(r: &mut Point) -> void:
-    *r ...= Point { x: 1 }  # diagnostic: copy-into-ordinary-field

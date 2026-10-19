@@ -1020,7 +1020,10 @@ typing/invalid/embedded-copy-required.hd	type	reject:embedded-copy-required	lang
 typing/invalid/embedded-copy-required-fresh-literal.hd	type	reject:embedded-copy-required	lang/08-data-and-enums.md#data-embedding
 typing/invalid/embedded-assignment-copy-required.hd	type	reject:embedded-copy-required	lang/08-data-and-enums.md#data-embedding
 typing/invalid/copy-into-ordinary-field.hd	type	reject:copy-into-ordinary-field	lang/08-data-and-enums.md#data-embedding
-typing/invalid/copy-assignment-ordinary-field.hd	type	reject:copy-into-ordinary-field	lang/08-data-and-enums.md#data-embedding
+parse/invalid/copy-assignment-embedded-field.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.stmt.no-copy-assignment
+parse/invalid/copy-assignment-inline.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.stmt.no-copy-assignment
+parse/invalid/copy-assignment-local.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.stmt.no-copy-assignment
+parse/invalid/copy-assignment-suite-rhs.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.stmt.no-copy-assignment
 parse/valid/embedded-copy-syntax.hd	parse	accept	lang/02-grammar.md#primary-expressions
 typing/invalid/promoted-field-conflict-at-declaration.hd	type	reject:ambiguous-promoted-member	lang/03-names-and-scopes.md#member-resolution
 typing/invalid/promoted-method-conflict-at-declaration.hd	type	reject:ambiguous-promoted-member	lang/03-names-and-scopes.md#member-resolution
@@ -3131,9 +3134,9 @@ parse/invalid/hex-literal-letter-suffix.hd	parse	reject:syntax-error	lang/01-lex
 runtime/valid/trailing-commas-everywhere.hd	runtime	accept	lang/02-grammar.md#r-grammar.generic.default
 runtime/valid/comparisons-beside-brackets.hd	runtime	accept	lang/02-grammar.md#r-grammar.expr.index-only
 runtime/valid/bang-call-and-prefix-not.hd	runtime	accept	lang/02-grammar.md#r-grammar.expr.bang-suffix
-parse/valid/every-operator-and-delimiter-token.hd	parse	accept	lang/01-lexical-structure.md#r-lex.op.token-list-assign
+parse/valid/every-operator-and-delimiter-token.hd	parse	accept	lang/01-lexical-structure.md#r-lex.op.token-list-basic-assign
 parse/valid/trailing-doc-comments-are-commentary.hd	parse	accept	lang/01-lexical-structure.md#r-lex.doc.trailing
-parse/invalid/range-glued-to-spread.hd	parse	reject:syntax-error	lang/01-lexical-structure.md#r-lex.op.range.longest
+parse/invalid/range-glued-to-spread.hd	parse	reject:syntax-error	lang/01-lexical-structure.md#r-lex.op.range.longest-spread
 parse/valid/next-line-else-after-same-line-if.hd	parse	accept	lang/01-lexical-structure.md#r-lex.suite-end.else-next-line
 parse/invalid/recovery-first-error-in-statement.hd	parse	reject:syntax-error	lang/02-grammar.md#r-grammar.recovery.statement
 parse/invalid/unclosed-delimiter-suppresses-fallout.hd	parse	reject:unclosed-delimiter	lang/02-grammar.md#r-grammar.recovery.unclosed
@@ -3410,7 +3413,6 @@ typing/invalid/dyn-conversion-without-impl.hd	type	reject:type-mismatch	lang/09-
 runtime/valid/float-display-shortest-tie.hd	runtime	accept	lang/04-type-system.md#r-types.display.float
 runtime/valid/typeid-empty-tuple-name.hd	runtime	accept	lang/09-traits.md#r-trait.typeid.name.tuple
 typing/invalid/derive-field-missing-several-traits.hd	type	reject:derive-field-missing-trait	lang/09-traits.md#r-trait.derive.field-missing-trait
-typing/invalid/embedded-store-readonly-copy.hd	type	reject:mutable-upgrade	lang/04-type-system.md#r-types.path.store-embedded
 typing/invalid/embedded-store-readonly-target.hd	type	reject:readonly-root	lang/04-type-system.md#r-types.path.store-embedded
 typing/invalid/embedding-depth-beside-cycle.hd	type	reject:embedding-cycle	lang/08-data-and-enums.md#r-data.embed.depth
 typing/valid/supertrait-same-trait-different-arguments.hd	type	accept	lang/09-traits.md#r-trait.super.unique
@@ -3537,7 +3539,6 @@ typing/invalid/reference-shared-to-mut-result.hd	type	reject:mutable-upgrade	lan
 typing/invalid/reference-write-through-shared-field.hd	type	reject:readonly-root	lang/13-values-and-references.md#r-ref.write.field
 typing/invalid/reference-deref-write-shared.hd	type	reject:readonly-root	lang/13-values-and-references.md#r-ref.deref.write
 typing/invalid/reference-deref-non-reference.hd	type	reject:type-mismatch	lang/13-values-and-references.md#r-ref.deref.not-reference
-typing/invalid/reference-deref-copy-assign.hd	type	reject:copy-into-ordinary-field	lang/13-values-and-references.md#r-ref.write.copy-assign
 typing/invalid/reference-slice-not-checked.hd	type	reject:references-not-yet-checked	lang/13-values-and-references.md#r-ref.check.not-yet-non-list-elements
 typing/invalid/reference-tuple-element-not-checked.hd	type	reject:references-not-yet-checked	lang/13-values-and-references.md#r-ref.check.not-yet-non-list-elements
 runtime/valid/reference-identity-same-place.hd	runtime	accept	lang/13-values-and-references.md#r-ref.identity.same-place

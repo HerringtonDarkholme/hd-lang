@@ -55,7 +55,6 @@ pub enum TokenKind {
     Dollar,
     At,
     Ellipsis,
-    EllipsisEq,
     ColonColon,
     PlusEq,
     MinusEq,
@@ -1010,7 +1009,6 @@ impl<'s> Lexer<'s> {
         let third = self.peek_byte(2);
         let fourth = self.peek_byte(3);
         let (kind, width) = match (first, second, third, fourth) {
-            (b'.', Some(b'.'), Some(b'.'), Some(b'=')) => (TokenKind::EllipsisEq, 4),
             (b'.', Some(b'.'), Some(b'.'), _) => (TokenKind::Ellipsis, 3),
             (b'.', Some(b'.'), Some(b'='), _) => (TokenKind::DotDotEq, 3),
             (b'<', Some(b'<'), Some(b'='), _) => (TokenKind::ShlEq, 3),
@@ -1405,7 +1403,8 @@ mod tests {
             [
                 TokenKind::KwDyn,
                 TokenKind::Ident,
-                TokenKind::EllipsisEq,
+                TokenKind::Ellipsis,
+                TokenKind::Eq,
                 TokenKind::DotDotEq,
                 TokenKind::ShrEq,
                 TokenKind::StarStar,

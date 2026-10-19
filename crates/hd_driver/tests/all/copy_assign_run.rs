@@ -1,10 +1,7 @@
-//! The copy assignment `place ...= value` (spec/lang/02-grammar.md,
-//! grammar.stmt.copy-assign, grammar.stmt.assign-place; spec/lang/
-//! 08-data-and-enums.md, data.part.construct, data.part.marker-required;
-//! spec/lang/04-type-system.md, types.path.store-embedded): it stores the
-//! copy-update `T { ...value }` into an embedded field of a `mut` value and
-//! into no other place. Programs build through the driver and run on V8
-//! (`host/run.mjs`), as the conformance runner does.
+//! Assigning an embedded part stores a copy of the part
+//! (spec/lang/08-data-and-enums.md, data.part.construct), and an
+//! assignment to an expression that is no place stays an error
+//! (spec/lang/02-grammar.md, grammar.stmt.assign-place).
 
 use std::path::Path;
 use std::process::Command;
@@ -159,50 +156,9 @@ fn invalid(post: &Post, stamps: Timestamps) -> void:
 }
 
 #[test]
-fn a_copy_assignment_to_an_ordinary_field_is_an_error() {
-    // data.part.marker-required
-    let main = "\
-struct User:
-    name: string
-
-struct Account:
-    owner: User
-
-fn invalid(account: &mut Account, user: User) -> void:
-    account.owner ...= user
-";
-    assert_eq!(codes_of(main), vec![Code::CopyIntoOrdinaryField]);
-}
-
-#[test]
-fn a_copy_assignment_to_a_local_or_an_index_is_an_error() {
-    // grammar.stmt.copy-assign
-    let local = "\
-struct User:
-    name: string
-
-fn invalid(user: User) -> string:
-    let mut mine = User { name: \"a\" }
-    mine ...= user
-    mine.name
-";
-    assert_eq!(codes_of(local), vec![Code::CopyIntoOrdinaryField]);
-    let index = "\
-struct User:
-    name: string
-
-fn invalid(user: User) -> string:
-    let mut all = [User { name: \"a\" }]
-    all[0] ...= user
-    all[0].name
-";
-    assert_eq!(codes_of(index), vec![Code::CopyIntoOrdinaryField]);
-}
-
-#[test]
 fn an_assignment_to_an_expression_that_is_no_place_is_an_error() {
     // grammar.stmt.assign-place
-    for target in ["(1 + 2) = 3", "(1 + 2) ...= 3", "(1 + 2) += 3"] {
+    for target in ["(1 + 2) = 3", "(1 + 2) += 3"] {
         let main = format!("fn invalid() -> void:\n    {target}\n");
         assert_eq!(
             codes_of(&main),

@@ -1,5 +1,5 @@
 # test: every operator and delimiter token of the lexical grammar appears once in a position where the parser accepts it
-# Spec 01 Operators And Delimiters: lex.punct.tokens, lex.op.token-list-assign, lex.op.range, lex.op.compound-assign, lex.op.pipe.
+# Spec 01 Operators And Delimiters: lex.punct.tokens, lex.op.token-list-basic-assign, lex.op.range, lex.op.compound-assign, lex.op.pipe.
 
 @derive(Eq)
 struct Cell:

@@ -1,0 +1,10 @@
+# test: removed copy assignment fails to parse
+# Spec 02 Semantic Statement Rules: grammar.stmt.no-copy-assignment.
+struct Inner:
+    value: i32
+
+struct Outer:
+    Inner
+
+fn invalid(outer: &mut Outer, inner: Inner) -> void:
+    outer.Inner ...= inner  # diagnostic: syntax-error

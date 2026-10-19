@@ -177,7 +177,7 @@ using_statement = "using", identifier, [ ":", type ], "=",
 
 discard_statement = "_", ":=", closed_expression ;
 
-assignment_statement = postfix_expression, ( "=" | "...=" | compound_assign_op ),
+assignment_statement = postfix_expression, ( "=" | compound_assign_op ),
                        closed_expression ;
 
 compound_assign_op = "+=" | "-=" | "*=" | "/=" | "%="
@@ -192,7 +192,7 @@ expression_statement = closed_expression ;
 inline_statement = "let", pattern, [ ":", type ], "=", inline_expression
                  | "using", identifier, [ ":", type ], "=", inline_expression
                  | "_", ":=", inline_expression
-                 | postfix_expression, ( "=" | "...=" | compound_assign_op ),
+                 | postfix_expression, ( "=" | compound_assign_op ),
                    inline_expression
                  | "return", [ inline_expression ]
                  | "break", [ inline_expression ]
@@ -422,13 +422,19 @@ See also: [Physical And Logical Lines](01-lexical-structure.md#physical-and-logi
 1. r[grammar.stmt.semantic] Whether a statement may appear in a particular value-producing block is a semantic rule.
 2. r[grammar.stmt.break] In particular, `break` is valid only inside a loop, and `break` with a value is valid only in a loop with an `else` suite.
 3. r[grammar.stmt.assign-place] The left side of an assignment must resolve to a reassignable local, a mutable field, a mutable indexed place, or a [call place](05-expressions.md#callable-values). Other postfix expressions are errors. Error: `invalid-assignment-target`.
-4. r[grammar.stmt.copy-assign] The copy assignment `place ...= value` is valid only when the place is an embedded field.
-5. r[grammar.stmt.compound-assign] A compound assignment `place op= value` takes the same left side as an assignment, and its right side follows the same forms as `=`. [Compound Assignment](05-expressions.md#compound-assignment) defines it.
+4. r[grammar.stmt.compound-assign] A compound assignment `place op= value` takes the same left side as an assignment, and its right side follows the same forms as `=`. [Compound Assignment](05-expressions.md#compound-assignment) defines it.
+5. r[grammar.stmt.no-copy-assignment] A statement `place ...= value` is a syntax error. Error: `syntax-error`.
 
 ```hd
 fn demo() -> void:
     let x = 1
     x = x + 1   # x is a reassignable local
+```
+
+```text
+fn invalid() -> void:
+    let value = 1
+    value ...= 2  # error: syntax-error
 ```
 
 See also: [Data Embedding](08-data-and-enums.md#data-embedding).

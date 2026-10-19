@@ -959,20 +959,20 @@ r[lex.punct.tokens] The lexer recognizes these punctuation tokens:
 name := "Ada";  # error: reserved-semicolon
 ```
 
-r[lex.op.token-list-assign] The lexer recognizes these operators and compound
+r[lex.op.token-list-basic-assign] The lexer recognizes these operators and compound
 punctuation tokens:
 
 ```text
 +  -  *  /  %  **
 &  |  ^  ~  <<  >>  &&  ||  |>
 =  ==  !=  <  <=  >  >=
-:=  ->  =>  ?  !  $  @  ...  ...=  ::  +=
+:=  ->  =>  ?  !  $  @  ...  ::  +=
 -=  *=  /=  %=  &=  |=  ^=  <<=  >>=
 ..  ..=
 ```
 
 1. r[lex.op.longest] When two tokens share a prefix, the lexer uses the longest valid token.
-2. r[lex.op.longest.examples] For example, `**` is one token rather than two `*` tokens, and `...` is one token rather than three `.` tokens. Likewise `...=` is one token rather than `...` and `=`, and `&&` and `||` are single tokens.
+2. r[lex.op.longest.examples-separate-equals] For example, `**` is one token rather than two `*` tokens, and `...` is one token rather than three `.` tokens. The sequence `...=` is two tokens, `...` followed by `=`; `&&` and `||` are single tokens.
 3. r[lex.op.pipe] `|>` is one token, the [pipe operator](05-expressions.md#pipe-expressions).
 4. r[lex.op.inequality] The sequence `!=` is always the inequality token, so `f!=g` lexes as `f`, `!=`, `g`.
 5. r[lex.op.bang-call] A suspension call needs `!` immediately followed by `(`.
@@ -980,7 +980,7 @@ punctuation tokens:
 7. r[lex.op.compound-assign.examples] By longest match, `a-=b` lexes as `a`, `-=`, `b`, and `x<<=1` as `x`, `<<=`, `1`.
 8. r[lex.op.no-power-assign] `**=` is not a token: it lexes as `**` and `=`, which no grammar rule accepts.
 9. r[lex.op.range] `..` and `..=` are single tokens, the [range operators](05-expressions.md#range-expressions).
-10. r[lex.op.range.longest] By longest match, `...` and `...=` win over `..` and `..=`, so `a...b` lexes as `a`, `...`, `b` and is never a range.
+10. r[lex.op.range.longest-spread] By longest match, `...` wins over `..` and `..=`, so `a...b` lexes as `a`, `...`, `b` and is never a range.
 11. r[lex.op.range.integer] A number directly before `..` ends at the first `.`, since a decimal point needs a digit after it, by [`lex.float.point`](#r-lex.float.point).
 12. r[lex.op.range.examples] So `0..3` lexes as `0`, `..`, `3`, and `1.5..2` as `1.5`, `..`, `2`.
 13. r[lex.op.range.not-dot] `..` is not the member-access `.`, so a line that starts with `..` is no [leading-dot continuation](#leading-dot-continuation).
@@ -1021,7 +1021,7 @@ operator = "+" | "-" | "*" | "/" | "%" | "**"
          | "&" | "|" | "^" | "~" | "<<" | ">>" | "&&" | "||" | "|>"
          | "=" | "==" | "!=" | "<" | "<=" | ">" | ">="
          | ":=" | "->" | "=>" | "?" | "!" | "$" | "@"
-         | "..." | "...=" | "::"
+         | "..." | "::"
          | ".." | "..="
          | "+=" | "-=" | "*=" | "/=" | "%="
          | "&=" | "|=" | "^=" | "<<=" | ">>="
