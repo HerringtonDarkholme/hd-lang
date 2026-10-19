@@ -159,6 +159,10 @@ impl Names<'_> {
             .param_name(PathId::from_raw(owner.raw()), index)
             .unwrap_or_else(|| format!("{}#{index}", self.display_name(owner)))
     }
+    fn qualified_name(&self, d: DefId) -> String {
+        format!("{}.{}", self.module_of(d), self.display_name(d))
+    }
+
     /// [`Self::display_name`] of each item of one message; items that would
     /// print the same name are qualified by their module (`std.cmp.Eq`).
     #[must_use]
@@ -168,7 +172,7 @@ impl Names<'_> {
                 let name = self.display_name(d);
                 let clash = ds.iter().any(|&o| o != d && self.display_name(o) == name);
                 if clash {
-                    format!("{}.{name}", self.module_of(d))
+                    self.qualified_name(d)
                 } else {
                     name.to_owned()
                 }
@@ -1827,7 +1831,7 @@ pub fn show_ty(names: &Names<'_>, t: Ty) -> String {
 /// [`show_ty`] for a type that may live in a body's local pool.
 #[must_use]
 pub fn show_ty_in(names: &Names<'_>, pool: hd_types::Types<'_>, t: Ty) -> String {
-    show_ty_opts(names, pool, t, false)
+    show_ty_opts(names, pool, t, false, false)
 }
 
 /// [`show_ty_in`] with the requirement row of every function type written
@@ -1835,15 +1839,38 @@ pub fn show_ty_in(names: &Names<'_>, pool: hd_types::Types<'_>, t: Ty) -> String
 /// that differ only in rows reads with these.
 #[must_use]
 pub fn show_ty_rows_in(names: &Names<'_>, pool: hd_types::Types<'_>, t: Ty) -> String {
-    show_ty_opts(names, pool, t, true)
+    show_ty_opts(names, pool, t, true, false)
 }
 
-fn show_ty_opts(names: &Names<'_>, pool: hd_types::Types<'_>, t: Ty, rows: bool) -> String {
-    let seg = |d: DefId| names.display_name(d).to_owned();
+/// Item paths for a diagnostic pair whose short rendered names clash.
+#[must_use]
+pub fn show_ty_qualified_in(
+    names: &Names<'_>,
+    pool: hd_types::Types<'_>,
+    t: Ty,
+    rows: bool,
+) -> String {
+    show_ty_opts(names, pool, t, rows, true)
+}
+
+fn show_ty_opts(
+    names: &Names<'_>,
+    pool: hd_types::Types<'_>,
+    t: Ty,
+    rows: bool,
+    qualified: bool,
+) -> String {
+    let seg = |d: DefId| {
+        if qualified {
+            names.qualified_name(d)
+        } else {
+            names.display_name(d).to_owned()
+        }
+    };
     let list = |l: TyList| {
         pool.list_items(l)
             .iter()
-            .map(|x| show_ty_opts(names, pool, *x, rows))
+            .map(|x| show_ty_opts(names, pool, *x, rows, qualified))
             .collect::<Vec<_>>()
             .join(", ")
     };
@@ -1864,19 +1891,19 @@ fn show_ty_opts(names: &Names<'_>, pool: hd_types::Types<'_>, t: Ty, rows: bool)
             list(elems),
             rest.map_or(String::new(), |r| format!(
                 ", {}...",
-                show_ty_opts(names, pool, r, rows)
+                show_ty_opts(names, pool, r, rows, qualified)
             ))
         ),
-        TyData::Option(i) => format!("{}?", show_ty_opts(names, pool, i, rows)),
-        TyData::Mut(i) => format!("mut {}", show_ty_opts(names, pool, i, rows)),
+        TyData::Option(i) => format!("{}?", show_ty_opts(names, pool, i, rows, qualified)),
+        TyData::Mut(i) => format!("mut {}", show_ty_opts(names, pool, i, rows, qualified)),
         TyData::Ref {
             inner,
             mutable: false,
-        } => format!("&{}", show_ty_opts(names, pool, inner, rows)),
+        } => format!("&{}", show_ty_opts(names, pool, inner, rows, qualified)),
         TyData::Ref {
             inner,
             mutable: true,
-        } => format!("&mut {}", show_ty_opts(names, pool, inner, rows)),
+        } => format!("&mut {}", show_ty_opts(names, pool, inner, rows, qualified)),
         // Inputs of an arity not known here have no sugar form.
         TyData::Fn {
             params,
@@ -1888,8 +1915,8 @@ fn show_ty_opts(names: &Names<'_>, pool: hd_types::Types<'_>, t: Ty, rows: bool)
             "{}[{}, {}, {}]",
             if suspends { "SuspendFn" } else { "Fn" },
             list(params),
-            show_ty_opts(names, pool, result, rows),
-            show_row_in(names, pool, row)
+            show_ty_opts(names, pool, result, rows, qualified),
+            show_row_in(names, pool, row, qualified)
         ),
         TyData::Fn {
             params,
@@ -1899,7 +1926,7 @@ fn show_ty_opts(names: &Names<'_>, pool: hd_types::Types<'_>, t: Ty, rows: bool)
             ..
         } => {
             let shown = if rows && row != hd_types::RowId::EMPTY {
-                format!(" {}", show_row_in(names, pool, row))
+                format!(" {}", show_row_in(names, pool, row, qualified))
             } else {
                 String::new()
             };
@@ -1907,31 +1934,40 @@ fn show_ty_opts(names: &Names<'_>, pool: hd_types::Types<'_>, t: Ty, rows: bool)
                 "fn{}({}) -> {}{shown}",
                 if suspends { "!" } else { "" },
                 list(params),
-                show_ty_opts(names, pool, result, rows)
+                show_ty_opts(names, pool, result, rows, qualified)
             )
         }
         TyData::Param(p) => names.param_name(p.owner, p.index),
         TyData::Assoc { assoc, self_ty, .. } => {
             format!(
                 "{}::{}",
-                show_ty_opts(names, pool, self_ty, rows),
+                show_ty_opts(names, pool, self_ty, rows, qualified),
                 seg(assoc)
             )
         }
         TyData::Infer(_) | TyData::Canon(_) => "?".into(),
-        TyData::Row(r) => show_row_in(names, pool, r),
-        TyData::Context(r) => format!("$.Context[{}]", show_row_in(names, pool, r)),
+        TyData::Row(r) => show_row_in(names, pool, r, qualified),
+        TyData::Context(r) => format!("$.Context[{}]", show_row_in(names, pool, r, qualified)),
     }
 }
 
 /// A row as a user reads it, after `$`: its keys in content order
 /// (`crates/hd_sched/DESIGN.md` §6.5), not interning order, then its row parameters.
-fn show_row_in(names: &Names<'_>, pool: hd_types::Types<'_>, r: hd_types::RowId) -> String {
+fn show_row_in(
+    names: &Names<'_>,
+    pool: hd_types::Types<'_>,
+    r: hd_types::RowId,
+    qualified: bool,
+) -> String {
     let d = pool.row_data(r);
     if d.keys.is_empty() && d.params.is_empty() {
         return "$()".into();
     }
-    let mut parts: Vec<String> = d.keys.iter().map(|k| show_ty_in(names, pool, *k)).collect();
+    let mut parts: Vec<String> = d
+        .keys
+        .iter()
+        .map(|k| show_ty_opts(names, pool, *k, false, qualified))
+        .collect();
     parts.sort();
     let mut ps: Vec<String> = d
         .params

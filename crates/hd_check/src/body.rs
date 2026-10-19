@@ -1165,13 +1165,31 @@ impl Ck<'_, '_> {
     /// they show their rows.
     pub(crate) fn show_pair(&self, want: Ty, got: Ty) -> (String, String) {
         let (w, g) = (self.show(want), self.show(got));
-        if w != g {
-            return (w, g);
-        }
         let pool = self.pool();
-        let rows =
-            |t: Ty| hd_resolve::show_ty_rows_in(&self.cx.names, pool, self.infer.resolve(pool, t));
-        (rows(want), rows(got))
+        let with_rows = w == g;
+        let (w, g) = if with_rows {
+            let rows =
+                |t| hd_resolve::show_ty_rows_in(&self.cx.names, pool, self.infer.resolve(pool, t));
+            (rows(want), rows(got))
+        } else {
+            (w, g)
+        };
+        if w.trim_start_matches("mut ") == g.trim_start_matches("mut ") {
+            let qualified = |t| {
+                hd_resolve::iface::show_ty_qualified_in(
+                    &self.cx.names,
+                    pool,
+                    self.infer.resolve(pool, t),
+                    with_rows,
+                )
+            };
+            let (qw, qg) = (qualified(want), qualified(got));
+            // A view of the same item still has the same qualified name.
+            if qw.trim_start_matches("mut ") != qg.trim_start_matches("mut ") {
+                return (qw, qg);
+            }
+        }
+        (w, g)
     }
 
     /// `unused-local-binding` (flow.unused.warning): a local the source

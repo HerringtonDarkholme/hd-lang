@@ -3621,3 +3621,4 @@ typing/valid/element-reference-shared-any-list.hd	type	accept	lang/13-values-and
 typing/invalid/element-reference-mut-short-binding.hd	type	reject:readonly-root	lang/13-values-and-references.md#r-ref.elem.writable
 typing/invalid/for-element-references-mut-short-binding.hd	type	reject:readonly-root	lang/06-control-flow.md#r-flow.for.ref.writable
 typing/invalid/for-element-references-map.hd	type	reject:map-value-not-addressable	lang/06-control-flow.md#r-flow.for.ref.map
+typing/invalid/nominal-name-clash.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.nominal.distinct

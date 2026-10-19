@@ -1,0 +1,12 @@
+# test: same-named declarations in different modules are distinct types
+# fixture-package-tree: nominal-name-clash/src/lib.hd
+# types.nominal.distinct, types.nominal.shape.
+use pkg.other
+
+data Shape:
+    a: i32
+
+fn take(shape: Shape) -> i32: shape.a
+
+fn mismatch() -> i32:
+    take(other.Shape { a: +1 })  # diagnostic: type-mismatch

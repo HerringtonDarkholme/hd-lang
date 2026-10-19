@@ -1,0 +1,8 @@
+data Shape:
+    a: i32
+
+fn take(shape: mut Shape) -> i32: shape.a
+
+pub fn main() -> void $ Console:
+    let shape: Shape = Shape { a: +1 }
+    println(take(shape))

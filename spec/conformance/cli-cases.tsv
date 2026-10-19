@@ -205,3 +205,4 @@ test-leak-after-abandon	cli.test.leak.abandoned,cli.test.leak,cli.test.env.integ
 dbg-fetched-dependency	cli.dbg.dependency
 cap-resolved-refusal	cli.cap.partial.path.resolved,cli.cap.partial.path.written
 property-stateful-replay	cli.test.runner,cli.test.report.heading,cli.test.report.failure,cli.test.seed.report,cli.exit.test-failure
+qualified-type-names	cli.json.lines.build,cli.json.kind,cli.json.diagnostic,cli.json.diagnostic.fields,cli.json.diagnostic.file,cli.json.summary.result,cli.json.summary.result.fields,cli.exit.hd-failure
