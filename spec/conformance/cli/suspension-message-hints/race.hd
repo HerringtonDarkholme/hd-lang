@@ -1,0 +1,7 @@
+use std.task.race
+
+fn fetch![T](value: T) -> T: value
+fn receive!() -> string: "ready"
+
+pub fn main!() -> void:
+    _picked := race!(fetch!::[string](receive!()), receive!())

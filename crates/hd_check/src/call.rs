@@ -9,7 +9,7 @@ use hd_base::{DefId, StageResult, Symbol};
 use hd_diag::Code;
 use hd_intern::PathKind;
 use hd_resolve::{BindingKind, FnSig, HeadKind, ItemData, Src};
-use hd_syntax::{NodeRef, SyntaxKind};
+use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{
     Callee, ChoiceKind, IntrinsicOp, NONE, PrimOp, Providers, Ref, Tag, TirSink, local_flags,
 };
@@ -2002,6 +2002,49 @@ impl Ck<'_, '_> {
         self.err(Code::SuspensionForbiddenContext, n, &msg);
     }
 
+    /// When a cold suspension is expected, show the actual call with
+    /// only its callee's bang removed, retaining bangs in its arguments.
+    pub(crate) fn cold_call_hint(&self, want: Ty, n: NodeRef<'_>) -> String {
+        if !matches!(self.pool().get(self.strip_mut(want)), TyData::Adt { def, .. } if def == self.cx.names.known.suspend)
+            || n.kind() != SyntaxKind::CallExpr
+        {
+            return String::new();
+        }
+        let Some(mut callee) = n.children().next() else {
+            return String::new();
+        };
+        if callee.kind() == SyntaxKind::TypeArgsExpr {
+            let Some(inner) = callee.children().next() else {
+                return String::new();
+            };
+            callee = inner;
+        }
+        if callee.kind() != SyntaxKind::SuspendExpr {
+            return String::new();
+        }
+        let Some(bang) = callee.direct_token(&self.cx.src.parse.tokens, TokenKind::Bang) else {
+            return String::new();
+        };
+        let span = self.cx.src.span(n);
+        if self
+            .diags
+            .code
+            .iter()
+            .zip(&self.diags.primary)
+            .any(|(code, at)| *code == Code::NotSuspending && *at == span)
+        {
+            return String::new();
+        }
+        let bang = self.cx.src.token_span(bang);
+        let text = self.cx.src.text;
+        let cold = format!(
+            "{}{}",
+            &text[span.lo as usize..bang.lo as usize],
+            &text[bang.hi as usize..span.hi as usize]
+        );
+        format!("; pass the cold call `{cold}` without awaiting it first")
+    }
+
     /// A bang call needs a suspending callee (`not-suspending`) and a
     /// driver context (`req.bang.driver-forms`).
     pub(crate) fn check_bang(&mut self, callee_suspends: bool, n: NodeRef<'_>) {
@@ -2017,7 +2060,7 @@ impl Ck<'_, '_> {
             self.err(
                 Code::SuspensionForbiddenContext,
                 n,
-                "a `defer` suite cannot suspend",
+                "a `defer` suite cannot suspend; collect the value in the scope and act on it after the scope ends",
             );
         } else if !self.suspends.last().copied().unwrap_or(false) {
             if self.forbidden == Some("a default or fact expression")

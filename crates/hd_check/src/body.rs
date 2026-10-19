@@ -1889,7 +1889,7 @@ impl Ck<'_, '_> {
                 self.err(Code::VarianceRepresentationChange, n, &msg);
                 return true;
             }
-            let msg = format!("in {what}: expected {want_s}, found {got_s}");
+            let mut msg = format!("in {what}: expected {want_s}, found {got_s}");
             // `types.num.binary.no-mix`, `expr.range.bound.signedness`: a
             // signed and an unsigned integer operand do not mix.
             let code = if position == ExpectPosition::Operand && self.mixes_signedness(got, want) {
@@ -1897,6 +1897,9 @@ impl Ck<'_, '_> {
             } else {
                 Code::TypeMismatch
             };
+            if code == Code::TypeMismatch {
+                msg.push_str(&self.cold_call_hint(want, n));
+            }
             self.err(code, n, &msg);
             // `types.num.no-implicit.fix`: write the conversion around the
             // value, as `i64(small)`.

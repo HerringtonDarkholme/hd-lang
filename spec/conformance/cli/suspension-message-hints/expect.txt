@@ -1,0 +1,12 @@
+# Messages use the written callees and preserve nested awaited arguments.
+run: hd check --format json race.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"type-mismatch","message":"in argument: expected mut Suspend[?], found string; pass the cold call `fetch::[string](receive!())` without awaiting it first","line":7,"column":22,"fixes":[],"file":"race.hd"},{"kind":"diagnostic","code":"type-mismatch","message":"in argument: expected mut Suspend[?], found string; pass the cold call `receive()` without awaiting it first","line":7,"column":52,"fixes":[],"file":"race.hd"},{"kind":"summary","errors":2,"warnings":0,"status":101}]
+run: hd check --format json defer.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"suspension-forbidden-context","message":"a `defer` suite cannot suspend; collect the value in the scope and act on it after the scope ends","line":5,"column":9,"fixes":[],"file":"defer.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+run: hd check --format json plain.hd
+exit: 101
+stdout-json: [{"kind":"diagnostic","code":"not-suspending","message":"a bang call of a function that does not suspend","line":6,"column":11,"fixes":[],"file":"plain.hd"},{"kind":"diagnostic","code":"type-mismatch","message":"in argument: expected mut Suspend[?], found string","line":6,"column":11,"fixes":[],"file":"plain.hd"},{"kind":"summary","errors":2,"warnings":0,"status":101}]
+run: hd check --format json cold.hd
+stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
