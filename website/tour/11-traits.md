@@ -14,12 +14,12 @@ in a plain `impl Type:` block.
 
 ```hd
 trait Email:
-    fn subject(self) -> string
-    fn body(self) -> string
+    fn subject(&self) -> string
+    fn body(&self) -> string
 
 impl Email for Shipped:
-    fn subject(self) -> string: "Order ${self.order} has shipped"
-    fn body(self) -> string: "It is on its way with ${self.carrier}."
+    fn subject(&self) -> string: "Order ${self.order} has shipped"
+    fn body(&self) -> string: "It is on its way with ${self.carrier}."
 
 fn send_all[E < Email](outbox: List[E]) -> void $ Console:
     for email in outbox:
@@ -29,7 +29,7 @@ fn send_all[E < Email](outbox: List[E]) -> void $ Console:
 #     missing-trait-method: the implementation does not write `subject`
 
 # ── plumbing ──
-data Shipped:
+struct Shipped:
     order: string
     carrier: string
 
@@ -38,7 +38,7 @@ pub fn main() -> void $ Console:
 ```
 
 ```edit
-replace:     fn subject(self) -> string: "Order ${self.order} has shipped"
+replace:     fn subject(&self) -> string: "Order ${self.order} has shipped"
 with:
 error: missing-trait-method: the implementation does not write `subject`
 ```

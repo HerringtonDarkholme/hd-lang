@@ -15,7 +15,7 @@ type, not per test.
 
 ```hd
 @derive(Arbitrary, Debug, Eq)  # ← random Prices, printed and compared for free
-data Price:
+struct Price:
     cents: i32
 
 tests:

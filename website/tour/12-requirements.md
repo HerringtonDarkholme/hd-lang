@@ -24,8 +24,8 @@ tests:
     use std.testing.assert_equal
 
     it("reminds only the unpaid invoices"):
-        let console: mut MemoryConsole = MemoryConsole::new()
-        $.with(Console=console):  # ← a recording console, for this block only
+        let mut console = MemoryConsole::new()
+        $.with(Console=&mut console):  # ← a recording console, for this block only
             remind_unpaid(sample())
         assert_equal(console.output(), ["Reminder: invoice INV-7 is due"], reason="one reminder")
 
@@ -35,7 +35,7 @@ tests:
 
 # ── plumbing ──
 use std.console.MemoryConsole
-pub data Invoice:
+pub struct Invoice:
     id: string
     paid: bool
 

@@ -15,7 +15,7 @@ tests:
 use std.ops.num_suffix
 use std.time.{Duration, ms, s}
 
-data Pixels:
+struct Pixels:
     count: i32
 
 @num_suffix

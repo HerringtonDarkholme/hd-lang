@@ -233,7 +233,7 @@ try {
     await page.waitForURL(`${origin}${PAGES_BASE}tour/2-values-and-mut/`);
     await page.locator("#tour-editor .cm-editor").waitFor();
     // Change the discount from 10 to 50 percent, one line, as a reader would.
-    await page.locator(".cm-line", { hasText: "apply_discount(order, 10)" }).click();
+    await page.locator(".cm-line", { hasText: "apply_discount(&mut order, 10)" }).click();
     await page.keyboard.press("End");
     await page.keyboard.press("Backspace");
     await page.keyboard.press("Backspace");
@@ -241,28 +241,34 @@ try {
     await page.keyboard.type("50)");
     await page.keyboard.press("Control+Enter");
     await output.locator(".outcome.passed").waitFor({ timeout: FIRST_REPLY_MS });
-    assert.equal(await output.locator(".stdout").textContent(), "A-1042: 2500 cents\n");
+    assert.equal(
+      await output.locator(".stdout").textContent(),
+      "A-1042: 5000 cents\nA-1042: 2500 cents\n",
+    );
 
     // The edit survives a reload; Reset brings back the original.
     await page.reload();
-    await page.locator(".cm-line", { hasText: "apply_discount(order, 50)" }).waitFor();
+    await page.locator(".cm-line", { hasText: "apply_discount(&mut order, 50)" }).waitFor();
     await page.click("#tour-reset");
-    await page.locator(".cm-line", { hasText: "apply_discount(order, 10)" }).waitFor();
+    await page.locator(".cm-line", { hasText: "apply_discount(&mut order, 10)" }).waitFor();
     await page.locator("#tour-status", { hasText: "Ready" }).waitFor({ timeout: FIRST_REPLY_MS });
     await page.click("#tour-run");
     await output.locator(".outcome.passed").waitFor({ timeout: FIRST_REPLY_MS });
-    assert.equal(await output.locator(".stdout").textContent(), "A-1042: 4500 cents\n");
+    assert.equal(
+      await output.locator(".stdout").textContent(),
+      "A-1042: 5000 cents\nA-1042: 4500 cents\n",
+    );
     await page.reload();
-    await page.locator(".cm-line", { hasText: "apply_discount(order, 10)" }).waitFor();
+    await page.locator(".cm-line", { hasText: "apply_discount(&mut order, 10)" }).waitFor();
 
-    // The page's edit, deleting `mut` from the parameter, lists its diagnostic.
+    // The page's edit, deleting `mut` from the `&mut` parameter, lists its diagnostic.
     await page
-      .locator(".cm-line", { hasText: "fn apply_discount(order: mut Order" })
+      .locator(".cm-line", { hasText: "fn apply_discount(order: &mut Order" })
       .locator(".hd-keyword", { hasText: /^mut$/ })
       .dblclick();
     await page.keyboard.press("Backspace");
     assert.ok(
-      await page.locator(".cm-line", { hasText: "fn apply_discount(order:  Order" }).isVisible(),
+      await page.locator(".cm-line", { hasText: "fn apply_discount(order: & Order" }).isVisible(),
     );
     await page.click("#tour-run");
     await output.locator(".outcome.failed").waitFor({ timeout: FIRST_REPLY_MS });
@@ -315,7 +321,7 @@ try {
   });
 
   await step("a tour page with tests has a Test button, and wrapped lines hang", async () => {
-    const { page } = await openPage("tour/14-requirements/", { ready: "#tour-editor .cm-editor" });
+    const { page } = await openPage("tour/17-requirements/", { ready: "#tour-editor .cm-editor" });
     const output = page.locator("#tour-output");
     await page.locator("#tour-status", { hasText: "Ready" }).waitFor({ timeout: FIRST_REPLY_MS });
     await page.click("#tour-test");
@@ -343,7 +349,7 @@ try {
     await page.context().close();
 
     // A page with only tests has no Run button, and Ctrl+Enter tests.
-    const tests = await openPage("tour/15-tests/", { ready: "#tour-editor .cm-editor" });
+    const tests = await openPage("tour/18-tests/", { ready: "#tour-editor .cm-editor" });
     assert.equal(await tests.page.locator("#tour-run").count(), 0, "no Run button");
     await tests.page.locator("#tour-status", { hasText: "Ready" }).waitFor({
       timeout: FIRST_REPLY_MS,
@@ -359,7 +365,7 @@ try {
   await step(
     "a tour page with several files shows a tab per file and runs them together",
     async () => {
-      const { page } = await openPage("tour/16-modules/", { ready: "#tour-editor .cm-editor" });
+      const { page } = await openPage("tour/19-modules/", { ready: "#tour-editor .cm-editor" });
       const output = page.locator("#tour-output");
       const tab = (name: string) => page.locator(".tour-tab", { hasText: name });
       assert.equal(await tab("main.hd").getAttribute("aria-selected"), "true");

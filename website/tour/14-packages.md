@@ -31,7 +31,7 @@ pub use self.cart.{Line, total}
 ```
 
 ```hd src/shop/cart.hd
-pub data Line:
+pub struct Line:
     pub item: string
     pub cents: i32
 

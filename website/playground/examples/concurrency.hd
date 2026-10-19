@@ -15,7 +15,7 @@ tests:
 use std.task.all
 use std.time.{Clock, ManualClock, Timestamp, ms}
 
-data Profile:
+struct Profile:
     name: string
 
 # Stand-ins for two services: each waits on the injected clock.

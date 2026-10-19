@@ -14,7 +14,7 @@ chain of steps such as `map` and `sum`.
 
 ```hd
 fn shortages(stock: Map[string, i32], orders: List[Order]) -> List[string]:
-    let wanted: mut Map[string, i32] = {}
+    let mut wanted: Map[string, i32] = {}
     for order in orders:
         wanted[order.item] = on_hand(wanted, order.item) + order.quantity
     [for (item, count) in wanted if count > on_hand(stock, item) => "$item: short ${count - on_hand(stock, item)}"]
@@ -35,7 +35,7 @@ pub fn main() -> void $ Console:
 #     type-mismatch: in result: expected i32, found i32?
 
 # ── plumbing ──
-data Order:
+struct Order:
     item: string
     quantity: i32
 ```

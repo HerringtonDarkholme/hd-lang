@@ -26,7 +26,7 @@ pub fn main() -> void $ Console:
 
 ```hd src/pricing.hd
 # Public: the interface other files may use.
-pub data Line:
+pub struct Line:
     pub item: string
     pub cents: i32
 

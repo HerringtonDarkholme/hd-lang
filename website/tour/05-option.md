@@ -28,7 +28,7 @@ pub fn main() -> void $ Console:
 #     unknown-method: no method `lower` on string?
 
 # ── plumbing ──
-data User:
+struct User:
     name: string
     email: string
 

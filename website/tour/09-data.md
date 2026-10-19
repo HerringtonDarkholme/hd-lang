@@ -4,14 +4,14 @@ title: Data and copy-with-changes
 
 # A record says which fields are required, and `...` copies one with changes
 
-A `data` type lists its fields. A field with a default may be left out, and a
-field without one must be given, so a config can't be built half-filled. To make
-a variant, `...` copies every field of an existing value and you name only what
-changes; the original stays as it was. No builder class, no setter that edits a
+A `struct` type lists its fields. A field with a default may be left out, and a
+field without one must be given, so a config can't be built half-filled. A
+struct is a value, so to make a variant, `...` copies every field of an existing
+value and you name only what changes; the original stays as it was. No builder class, no setter that edits a
 config other code is already using.
 
 ```hd
-data HttpConfig:
+struct HttpConfig:
     host: string  # ← no default: required
     timeout_ms: i32 = 5000
     retries: i32 = 3

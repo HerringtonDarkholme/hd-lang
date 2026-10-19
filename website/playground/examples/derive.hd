@@ -1,6 +1,6 @@
 # One line of `@derive` gives property tests. They find the bug examples miss.
 @derive(Arbitrary, Debug, Eq)
-data Money:
+struct Money:
     cents: i32
 
 tests:

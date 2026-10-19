@@ -1,6 +1,6 @@
 # Try an idea with no `main`: the file runs as a script, its statements in
 # order, and prints what they print.
-data Point:
+struct Point:
     x: i32
     y: i32
 

@@ -14,7 +14,7 @@ tests:
 
 # ── plumbing ──────────
 @derive(Debug, Eq)
-data Item:
+struct Item:
     sku: string
     on_hand: i32
 

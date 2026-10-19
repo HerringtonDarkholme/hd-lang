@@ -15,7 +15,7 @@ tests:
 use std.num.parse_i32
 
 pub fn main() -> void $ Console:
-    let names: mut List[string] = []
+    let mut names: List[string] = []
     for line in "ada 36\nbob x\ncy 41\n".lines():
         match score(line):
             .Some(_) => names.push(line.split(" ")[0].upper())

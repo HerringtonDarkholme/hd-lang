@@ -1,7 +1,7 @@
 # `main` limits what the whole program can reach.
 pub fn main!() -> void $ Console:  # ← the console, and nothing else
-    let outbox: mut Outbox = Outbox { sent: [] }
-    $.with(Mailer=outbox, Clock=epoch()):
+    let mut outbox = Outbox { sent: [] }
+    $.with(Mailer=&mut outbox, Clock=epoch()):
         welcome!("ada@example.com")
     println(outbox.sent[0])
 
@@ -12,17 +12,17 @@ pub fn main!() -> void $ Console:  # ← the console, and nothing else
 use std.time.{Clock, ManualClock, Timestamp}
 
 fn welcome!(email: string) -> void $ Mailer + Clock:
-    let mut mailer = $.use(Mailer)
+    mailer := $.use(Mailer)
     mailer.send!(email, "Welcome at ${$.use(Clock).now()}")
 
 trait Mailer:
-    fn send!(mut self, to: string, body: string) -> void
+    fn send!(&mut self, to: string, body: string) -> void
 
-data Outbox:
-    sent: mut List[string]
+struct Outbox:
+    sent: List[string]
 
 impl Mailer for Outbox:
-    fn send!(mut self, to: string, body: string) -> void:
+    fn send!(&mut self, to: string, body: string) -> void:
         self.sent.push("$to|$body")
 
 fn epoch() -> &mut ManualClock:

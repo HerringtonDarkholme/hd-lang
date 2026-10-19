@@ -29,7 +29,7 @@ pub fn main() -> void $ Console:
 #     unsatisfied-trait-bound: Order does not implement Ord
 
 # ── plumbing ──
-data Order:
+struct Order:
     id: string
     cents: i32
 ```
