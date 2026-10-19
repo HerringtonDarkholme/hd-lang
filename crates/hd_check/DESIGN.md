@@ -2042,7 +2042,7 @@ not special cases scattered through matching.
 | Trait | Holds for | Subgoals | Evidence |
 | --- | --- | --- | --- |
 | `Any` | every value type, `never`, optionals | none | `Builtin(Any)` |
-| `AnyVal` | `bool`, `char`, integers, floats, `string`, tuples, enums (optionals included), function types; a newtype over one of them ([`types.sealed.anyval-kinds`](../../spec/lang/04-type-system.md#r-types.sealed.anyval-kinds)) | the newtype's base | `Builtin(AnyVal)` |
+| `AnyVal` | `bool`, `char`, integers, floats, `string`, tuples, enums (optionals included), function types; a newtype over one of them ([`types.sealed.anyval-members`](../../spec/lang/04-type-system.md#r-types.sealed.anyval-members)) | the newtype's base | `Builtin(AnyVal)` |
 | `AnyRef` | data, `List`, `Map`, trait values, `Any`, suspensions, handles; a newtype over one | the newtype's base | `Builtin(AnyRef)` |
 | `Inspectable` | [inspectable types](../../spec/lang/09-traits.md#inspectable-types): primitives, `string`, module-level declarations with inspectable arguments, `List`, `Map`, tuples, `Inspectable` trait values; trait values and `Any` as arguments only | one per type argument, one level deeper | `Builtin(Inspectable)` |
 | `Tuple` | every tuple type | none | `Builtin(Tuple)` |

@@ -2,8 +2,9 @@
 //! (spec/lang/04-type-system.md, types.bind.let-mut-primitive-top) and, in a
 //! body, valid with a warning unless `&mut` of it is taken
 //! (types.bind.let-mut-primitive-local, types.bind.let-mut-primitive-unused).
-//! On a tuple it is an error in both (types.bind.let-mut-tuple). Annotated
-//! list bindings follow types.bind.let-mut-annotation.
+//! On a tuple it is an error in both (types.bind.let-mut-tuple). An annotated
+//! list binding is a writable value (types.coll.let-mut); a readonly data
+//! annotation follows types.bind.let-mut-annotation.view.
 
 use hd_diag::Code;
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
@@ -90,10 +91,17 @@ fn module_level_let_mut_of_a_list_stays_valid() {
 }
 
 #[test]
-fn module_level_let_mut_with_a_readonly_list_annotation_is_rejected() {
+fn let_mut_with_a_list_value_annotation_is_valid() {
     let decl = "let mut xs: List[i32] = []";
-    assert_eq!(module(decl), vec![Code::LetMutReadonlyType]);
-    assert_eq!(local(decl), vec![Code::LetMutReadonlyType]);
+    assert_eq!(module(decl), Vec::<Code>::new());
+    assert_eq!(local(decl), Vec::<Code>::new());
+}
+
+#[test]
+fn let_mut_with_a_readonly_data_annotation_is_rejected() {
+    let main = |decl: &str| format!("data Box:\n    n: i32\n\n{decl}\n{MAIN}");
+    let decl = "let mut b: Box = Box { n: 1 }";
+    assert_eq!(check(&main(decl)), vec![Code::LetMutReadonlyType]);
 }
 
 #[test]

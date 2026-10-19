@@ -1,0 +1,8 @@
+# test: a reference to a map value is an error, since a map value is no place
+# Spec 04 Collection Values: types.coll.map-value.ref; Spec 13 Places And New Objects: ref.place.map-value.
+struct Stock:
+    count: i32
+
+fn count(shelves: Map[string, Stock]) -> i32:
+    found := &shelves["apple"]  # diagnostic: map-value-not-addressable
+    found.count

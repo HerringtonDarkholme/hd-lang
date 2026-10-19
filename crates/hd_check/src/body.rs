@@ -239,13 +239,17 @@ pub(crate) struct Ck<'a, 'c> {
     /// (`flow.using.binding`).
     pub using_locals: Vec<LocalId>,
     /// The locals bound with `let mut`: a struct value in one changes in
-    /// place (`types.value.writable-path`).
+    /// place (`types.value.writable-forms`).
     pub mut_locals: Vec<LocalId>,
     /// The `mut` parameters (and `mut self`) whose value is the callee's own
     /// copy, and the statements that wrote one of them in place, for
     /// `lost-write` (`fn.param.mut.lost-write`).
     pub mut_params: Vec<LocalId>,
     pub param_writes: Vec<(LocalId, hd_base::NodeIdx)>,
+    /// The bindings whose stores copy a collection value
+    /// (`types.coll.value`): `let`, `let mut` and `:=` locals, and `mut`
+    /// pattern names, but not a legacy `mut List[T]` annotation.
+    pub copy_locals: Vec<LocalId>,
     /// The locals some `&mut` refers to, and the `let mut` locals of a
     /// primitive type with their patterns, for `redundant-let-mut`
     /// (`types.bind.let-mut-primitive-unused`).
@@ -329,6 +333,9 @@ pub(crate) struct Ck<'a, 'c> {
     /// child that may grant its closure a self-name
     /// (`fn.recursion.closure.binding`). A chain member is not it.
     pub stmt_binding: Option<hd_base::NodeIdx>,
+    /// The statement being checked, innermost: where a fix-it that needs
+    /// a statement of its own inserts it.
+    pub cur_stmt: Option<hd_base::NodeIdx>,
     /// What the condition just checked leaves on its true and false paths.
     pub cond_flow: Option<crate::init::CondFlow>,
     /// The node of each literal constant, for range diagnostics, and
@@ -538,6 +545,7 @@ pub(crate) fn new_ck<'a, 'c>(
         mut_locals: Vec::new(),
         mut_params: Vec::new(),
         param_writes: Vec::new(),
+        copy_locals: Vec::new(),
         ref_taken: Vec::new(),
         ref_serials: HashMap::default(),
         prim_let_mut: Vec::new(),
@@ -568,6 +576,7 @@ pub(crate) fn new_ck<'a, 'c>(
         uninit: hd_base::HashSet::default(),
         bound: Vec::new(),
         stmt_binding: None,
+        cur_stmt: None,
         cond_flow: None,
         forbidden: (kind == BodyKind::Default).then_some("a default or fact expression"),
         default_depth: 1,
@@ -991,6 +1000,8 @@ fn fn_body_steps(
         ck.draw_ref_serial(l, node.index());
     }
     ck.mark_mut_params(node);
+    let params: Vec<LocalId> = ck.mut_params.clone();
+    ck.mut_param_copies(&params, node.index());
     let Some(body) = Src::child(node, SyntaxKind::Block) else {
         return unsupported("a function without a body");
     };
@@ -1513,6 +1524,9 @@ impl Ck<'_, '_> {
     /// local of type `T` passes through `Weaken`, so the stored value has
     /// the local's type (`crates/hd_tir/DESIGN.md` §4.13.11, invariant 4).
     pub(crate) fn set_local(&mut self, l: LocalId, v: Ref, syn: hd_base::NodeIdx) {
+        // A binding that holds collection values takes its own copy
+        // (`types.coll.value`).
+        let v = self.copy_into_local(l, v, syn);
         let pool = self.pool();
         let lt = self.b.local_ty(l);
         let weakens = v.0 != NONE
@@ -1593,6 +1607,19 @@ impl Ck<'_, '_> {
         // value joins the others instead (types.lct).
         if self.joins.is_site(target) {
             return self.join_value(r, got, target, n, what);
+        }
+        // A collection value from a writable place, or a new one, goes to a
+        // legacy `mut List[T]` or `mut Map[K, V]` position by sharing
+        // (`types.coll.legacy`), as `&mut` to the place would.
+        if let TyData::Mut(wi) = pool.get(w)
+            && self.is_coll_value(wi)
+            && self.is_coll_value(g)
+            && self.can_unify(g, wi)
+            && (self.place_writable_quiet(r) || self.is_fresh(r))
+        {
+            self.mark_write_path(r);
+            self.expect(got, wi, n, what, position);
+            return self.retype(r, want, n.index());
         }
         // A variable a generic call solves is not a declared type either:
         // permissions inside it weaken (types.generic.infer.join).
@@ -2391,6 +2418,14 @@ impl Ck<'_, '_> {
                     Some(w) => self.coerce(r, t, w, e, "result", ExpectPosition::General),
                     None => r,
                 };
+                // A function's result is a store into its caller
+                // (`types.coll.value`).
+                let r = match want {
+                    Some(w) if self.fn_body == Some(block.index()) => {
+                        self.return_copy(r, w, e.index())
+                    }
+                    _ => r,
+                };
                 tail = Some(r);
                 ty = want.unwrap_or(t);
                 continue;
@@ -2516,7 +2551,9 @@ impl Ck<'_, '_> {
         let open = self.open_params.len();
         let refs = self.ref_params.len();
         let waiting = self.pending.len();
+        let outer = self.cur_stmt.replace(s.index());
         let r = self.stmt_node(s, void_tail).map_err(|e| e.at(span));
+        self.cur_stmt = outer;
         // A `break` value joins with the loop's other values, so its class
         // stays open until the join (`types.literal.local.form.join-open`).
         if s.kind() != SyntaxKind::BreakStmt {
@@ -2961,7 +2998,8 @@ impl Ck<'_, '_> {
                 let ret = *self.rets.last().expect("ret");
                 let r = if let Some(e) = kids.first() {
                     let (r, t) = self.expr(*e, Some(ret))?;
-                    self.coerce(r, t, ret, *e, "return", ExpectPosition::General)
+                    let r = self.coerce(r, t, ret, *e, "return", ExpectPosition::General);
+                    self.return_copy(r, ret, s.index())
                 } else {
                     Ref(NONE)
                 };
@@ -3177,7 +3215,7 @@ impl Ck<'_, '_> {
                     None => (br, bt),
                 };
                 // A struct field changes in a writable place only
-                // (`types.value.writable-path`).
+                // (`types.value.writable-forms`).
                 if self.is_struct_ty(bt) {
                     return self.struct_field_assign(
                         (br, bt),

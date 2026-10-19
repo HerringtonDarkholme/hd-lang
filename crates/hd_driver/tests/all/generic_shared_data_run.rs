@@ -62,7 +62,10 @@ fn bump() -> i32:
     calls = calls + 1
     calls
 
-enum Box[T](count: i32, seen: i32 = bump(), items: List[i32] = [1]):
+data Bag:
+    values: List[i32]
+
+enum Box[T](count: i32, seen: i32 = bump(), items: Bag = Bag { values: [1] }):
     Full(value: T) -> Box(1)
     Empty -> Box(0)
 
@@ -88,7 +91,10 @@ fn bump() -> i32:
     calls = calls + 1
     calls
 
-enum Box[T](seen: i32 = bump(), items: List[i32] = []):
+data Bag:
+    values: List[i32]
+
+enum Box[T](seen: i32 = bump(), items: Bag = Bag { values: [] }):
     Full(value: T) -> Box()
     Empty -> Box()
 
@@ -131,9 +137,12 @@ pub fn main() -> void $ Console:
 }
 
 #[test]
-fn a_shared_list_keeps_one_identity_across_values() {
+fn a_shared_data_value_keeps_one_identity_across_values() {
     let main = "\
-enum Tagged[T](names: List[string] = [\"x\", \"y\"]):
+data Names:
+    items: List[string]
+
+enum Tagged[T](names: Names = Names { items: [\"x\", \"y\"] }):
     One(value: T) -> Tagged()
     Two(value: T) -> Tagged()
 
@@ -145,7 +154,7 @@ pub fn main() -> void $ Console:
     println(a.names is b.names)
     println(a.names is c.names)
     println(a.names is d.names)
-    println(a.names.len())
+    println(a.names.items.len())
 ";
     assert_eq!(output_of("identity", main), "true\ntrue\nfalse\n2\n");
 }

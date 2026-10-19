@@ -3447,7 +3447,7 @@ impl Ck<'_, '_> {
                     && self.cx.names.text(s) == "self"
                     && !addressed
                 {
-                    self.check_receiver(st, rt, n);
+                    self.check_receiver(st, recv, rt, n);
                 }
                 let impls: Vec<DefId> = cands
                     .iter()
@@ -3482,7 +3482,7 @@ impl Ck<'_, '_> {
                     && self.cx.names.text(s) == "self"
                     && !addressed
                 {
-                    self.check_receiver(st, rt, n);
+                    self.check_receiver(st, recv, rt, n);
                 }
                 let recv = match self.ref_receiver_of(method, None)? {
                     Some(m) if !addressed => self.fit_receiver(recv, rt, m, name, n),
@@ -3532,7 +3532,7 @@ impl Ck<'_, '_> {
                     Some(m) if !addressed => self.fit_receiver(recv, rt, m, name, n),
                     Some(_) => recv,
                     None => {
-                        self.check_receiver(params[0].1, rt, n);
+                        self.check_receiver(params[0].1, recv, rt, n);
                         recv
                     }
                 };
@@ -3578,7 +3578,7 @@ impl Ck<'_, '_> {
             Some(Hit::Builtin { op, params, ret }) => {
                 if matches!(op, IntrinsicOp::ListPush | IntrinsicOp::MapRemove) {
                     let st = pool.intern_ty(&TyData::Mut(self.strip_mut(rt)));
-                    self.check_receiver(st, rt, n);
+                    self.check_receiver(st, recv, rt, n);
                 }
                 // The spec's declared parameter name, so a named argument
                 // matches (`module.method.normative`).
@@ -3663,7 +3663,7 @@ impl Ck<'_, '_> {
                     // reference receiver.
                     let passes_payload = by_ref && via_dyn.is_some();
                     if !(addressed || passes_payload) {
-                        self.check_receiver(st, rt, n);
+                        self.check_receiver(st, recv, rt, n);
                     }
                     if choice.0 == ChoiceKind::TraitValue && by_ref && via_dyn.is_none() {
                         // `trait.dyn.member.ref-receiver-bare`: a bare trait

@@ -1,0 +1,20 @@
+# test: a list shared through &mut List[T] changes the caller's place, and &mut of a list value makes a writable new object
+# Spec 04 Collection Values: types.coll.shared; Spec 13 Writable Places Of References: ref.place.writable.collection.
+fn fill(items: &mut List[i32], count: i32) -> void:
+    let i = +0
+    while i < count:
+        items.push(i)
+        i = i + 1
+
+tests:
+    use std.testing.assert_equal
+
+    it("pushes through the reference reach the caller"):
+        let mut items: List[i32] = []
+        fill(&mut items, 3)
+        assert_equal(items, [+0, 1, 2], reason="the callee changed the caller's list")
+
+    it("a new object holding a list value is writable"):
+        fresh := &mut [+7]
+        fill(fresh, 1)
+        assert_equal(fresh.len(), 2, reason="the push reached the new object")

@@ -1,5 +1,5 @@
 # test: a struct value stored in a list, a map, a data field or an enum payload is a copy, and reading it out yields a copy
-# Spec 04 Value Types: types.value.stored, types.value.writable-path.
+# Spec 04 Value Types: types.value.stored, types.value.writable-forms.
 # expect-stdout: 1 100
 # expect-stdout: 1 2
 # expect-stdout: 1 42

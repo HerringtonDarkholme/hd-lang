@@ -781,7 +781,7 @@ impl Ck<'_, '_> {
         let mut captured = None;
         if let Some((recv, rt)) = bound {
             // `fn.ref.bound.mut`.
-            self.check_receiver(recv_ty, rt, n);
+            self.check_receiver(recv_ty, recv, rt, n);
             let receiver = self.cx.names.syms.intern("$receiver");
             let rl = self.b.local(rt, receiver, local_flags::ASSIGNED, syn);
             self.set_local(rl, recv, syn);
@@ -872,7 +872,7 @@ impl Ck<'_, '_> {
             Some(mutable) if !addressed => self.fit_receiver(recv, rt, mutable, name, n),
             Some(_) => recv,
             None => {
-                self.check_receiver(self_param, rt, n);
+                self.check_receiver(self_param, recv, rt, n);
                 recv
             }
         };

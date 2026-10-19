@@ -2,7 +2,7 @@
 # Spec 09 Erasure To Inspectable: a value built from T records the declaration applied to the
 # type T is instantiated with, so List[T] with T = mut User records List[mut User].
 # Spec 09 Traits: trait.erase.parameter, trait.erase.built.
-use std.inspect.Inspectable
+use std.inspect.{Inspectable, downcast_val}
 data User:
     name: string
 
@@ -10,7 +10,7 @@ fn erase_list[T < Inspectable](values: List[T]) -> dyn Inspectable:
     values
 
 fn is_owner_list(value: dyn Inspectable) -> bool:
-    match value.downcast::[List[mut User]]():
+    match downcast_val::[List[mut User]](value):
         .Some(_) => true
         .None => false
 

@@ -1,9 +1,11 @@
 # test: `&mut` of a writable place that holds a readonly view would grant writes the view lacks: mutable-upgrade
-# Spec 13 Writable Places Of References: ref.place.writable.view.
-struct Team:
-    members: List[string]
+# Spec 13 Writable Places Of References: ref.place.writable.view-data.
+data User:
+    name: string
 
-fn invalid(names: List[string]) -> void:
-    let mut team = Team { members: names }
-    edit := &mut team.members  # diagnostic: mutable-upgrade
-    edit.push("x")
+struct Team:
+    lead: User
+
+fn invalid(user: User) -> void:
+    let mut team = Team { lead: user }
+    _ := &mut team.lead  # diagnostic: mutable-upgrade

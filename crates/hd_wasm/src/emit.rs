@@ -32,6 +32,8 @@ use crate::lowering::{ClosureCode, Lowering};
 use crate::rt::{Helper, KeyOps, OptForm, RefRead, block_import, unerase};
 use crate::{Code, GSym, Part, Sym, VT, WTy, unsupported};
 
+mod cow;
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Ctl {
     Plain,
@@ -875,8 +877,12 @@ impl Em<'_> {
                 if fields.is_empty() {
                     return self.canonical_data(i, ty, st);
                 }
-                for (r, (_, vs)) in self.rec(bw).into_iter().zip(fields) {
+                let (ftys, in_data) = self.field_tys(ty);
+                for (k, (r, (_, vs))) in self.rec(bw).into_iter().zip(fields).enumerate() {
                     self.load_as(r, &vs)?;
+                    if let (1, Some(&ft)) = (vs.len(), ftys.get(k)) {
+                        self.copy_slot(r, ft, in_data)?;
+                    }
                 }
                 self.a.struct_new(&st);
                 self.store(i)?;
@@ -907,9 +913,13 @@ impl Em<'_> {
                 // is read from the source (`crates/hd_mono/DESIGN.md` `CopyData`).
                 let words = self.rec(bw);
                 let repl: Vec<(u32, u32)> = words.chunks(2).map(|w| (w[0], w[1])).collect();
+                let (ftys, in_data) = self.field_tys(ty);
                 for (idx, (start, vs)) in fields.iter().enumerate() {
                     if let Some((_, v)) = repl.iter().find(|(f, _)| *f as usize == idx) {
                         self.load_as(*v, vs)?;
+                        if let (1, Some(&ft)) = (vs.len(), ftys.get(idx)) {
+                            self.copy_slot(*v, ft, in_data)?;
+                        }
                     } else {
                         for k in 0..vs.len() {
                             self.comp(a, 0, &VT::r(st.clone()))?;
@@ -955,9 +965,13 @@ impl Em<'_> {
                         self.store_from(i, &vs)?;
                     }
                     Some(v) => {
+                        let (ftys, in_data) = self.field_tys(base_t);
                         for (k, w) in vs.iter().enumerate() {
                             self.comp(a, 0, &VT::r(st.clone()))?;
                             self.comp(v, k, w)?;
+                            if let (1, Some(&ft)) = (vs.len(), ftys.get(idx as usize)) {
+                                self.copy_slot(v, ft, in_data)?;
+                            }
                             self.a.struct_set(&st, start + u32_of(k));
                         }
                     }
@@ -972,8 +986,12 @@ impl Em<'_> {
                 if a != NONE {
                     members.push(a);
                 }
-                for (r, vs) in members.into_iter().zip(elems) {
+                let mtys = self.member_tys(ty, None);
+                for (k, (r, vs)) in members.into_iter().zip(elems).enumerate() {
                     self.load_as(r, &vs)?;
+                    if let (1, Some(&mt)) = (vs.len(), mtys.get(k)) {
+                        self.copy_slot(r, mt, false)?;
+                    }
                 }
                 if let Some(b) = boxed {
                     self.a.struct_new(&b);
@@ -1008,13 +1026,18 @@ impl Em<'_> {
                     return self.spread_list(i, &items, &spreads, &elem, &lt);
                 }
                 self.a.i32(i32::try_from(items.len()).unwrap_or(0));
+                let ety = self.coll_arg(ty, 0);
                 for (k, v) in elem.iter().enumerate() {
                     let st = storage(v).dflt();
                     for r in &items {
                         self.comp(*r, k, v)?;
+                        if let (1, Some(et)) = (elem.len(), ety) {
+                            self.copy_slot(*r, et, false)?;
+                        }
                     }
                     self.a.array_new_fixed(&WTy::Array(st), u32_of(items.len()));
                 }
+                self.a.i32(0);
                 self.a.struct_new(&lt);
                 self.store(i)?;
             }
@@ -1403,8 +1426,19 @@ impl Em<'_> {
         let args = self.rec(vals);
         match self.lay.shape(ty)? {
             Shape::Enum(e) => {
+                let ptys = self.member_tys(ty, Some(variant));
+                let mut single = Vec::new();
+                for p in &ptys {
+                    single.push(self.vts(*p)?.len() == 1);
+                }
                 self.push_variant(ty, &e, variant, &mut |s, f, k, x| match args.get(f) {
-                    Some(r) => s.comp(*r, k, x),
+                    Some(r) => {
+                        s.comp(*r, k, x)?;
+                        match (single.get(f), ptys.get(f)) {
+                            (Some(true), Some(&pt)) => s.copy_slot(*r, pt, false),
+                            _ => Ok(()),
+                        }
+                    }
                     None => unsupported("a variant payload without its value"),
                 })?;
                 self.store(i)
@@ -1415,6 +1449,9 @@ impl Em<'_> {
                     OptShape::NullRef(r) => {
                         if some {
                             self.comp(args[0], 0, r)?;
+                            if let Some(&pt) = self.member_tys(ty, None).first() {
+                                self.copy_slot(args[0], pt, false)?;
+                            }
                         } else {
                             self.a.zero(&r.dflt());
                         }
@@ -3732,8 +3769,9 @@ impl Em<'_> {
                 self.a.struct_get(&lt, 0);
                 self.store(i)
             }
-            IntrinsicOp::ListIndex => {
-                let (elem, lt) = self.list_parts(self.ty_of(args[0]))?;
+            IntrinsicOp::ListIndex | IntrinsicOp::ListIndexMut => {
+                let lty = self.ty_of(args[0]);
+                let (elem, lt) = self.list_parts(lty)?;
                 let l = self.a.local(VT::r(lt.clone()));
                 let ix = self.a.local(VT::I32);
                 self.comp(args[0], 0, &VT::r(lt.clone()))?;
@@ -3741,6 +3779,13 @@ impl Em<'_> {
                 self.comp(args[1], 0, &VT::I32)?;
                 self.a.set(ix);
                 self.bounds(l, &lt, ix);
+                if op == IntrinsicOp::ListIndexMut {
+                    let n = self.a.local(VT::I32);
+                    self.a.get(l);
+                    self.a.struct_get(&lt, 0);
+                    self.a.set(n);
+                    self.list_reserve(l, lty, n, false)?;
+                }
                 for (k, v) in elem.iter().enumerate() {
                     let st = storage(v).dflt();
                     self.a.get(l);
@@ -3752,7 +3797,8 @@ impl Em<'_> {
                 self.store_from(i, &elem)
             }
             IntrinsicOp::ListSet => {
-                let (elem, lt) = self.list_parts(self.ty_of(args[0]))?;
+                let lty = self.ty_of(args[0]);
+                let (elem, lt) = self.list_parts(lty)?;
                 let l = self.a.local(VT::r(lt.clone()));
                 let ix = self.a.local(VT::I32);
                 self.comp(args[0], 0, &VT::r(lt.clone()))?;
@@ -3760,18 +3806,28 @@ impl Em<'_> {
                 self.comp(args[1], 0, &VT::I32)?;
                 self.a.set(ix);
                 self.bounds(l, &lt, ix);
+                let n = self.a.local(VT::I32);
+                self.a.get(l);
+                self.a.struct_get(&lt, 0);
+                self.a.set(n);
+                self.list_reserve(l, lty, n, false)?;
+                let ety = self.coll_arg(lty, 0);
                 for (k, v) in elem.iter().enumerate() {
                     let st = storage(v).dflt();
                     self.a.get(l);
                     self.a.struct_get(&lt, 1 + u32_of(k));
                     self.a.get(ix);
                     self.comp(args[2], k, v)?;
+                    if let (1, Some(et)) = (elem.len(), ety) {
+                        self.copy_slot(args[2], et, false)?;
+                    }
                     self.a.array_set(&WTy::Array(st));
                 }
                 Ok(())
             }
             IntrinsicOp::ListPush => {
-                let (elem, lt) = self.list_parts(self.ty_of(args[0]))?;
+                let lty = self.ty_of(args[0]);
+                let (elem, lt) = self.list_parts(lty)?;
                 let l = self.a.local(VT::r(lt.clone()));
                 self.comp(args[0], 0, &VT::r(lt.clone()))?;
                 self.a.set(l);
@@ -3779,13 +3835,17 @@ impl Em<'_> {
                 self.a.get(l);
                 self.a.struct_get(&lt, 0);
                 self.a.set(n);
-                self.grow(l, &lt, n, 1, &elem);
+                self.list_reserve(l, lty, n, true)?;
+                let ety = self.coll_arg(lty, 0);
                 for (k, v) in elem.iter().enumerate() {
                     let st = storage(v).dflt();
                     self.a.get(l);
                     self.a.struct_get(&lt, 1 + u32_of(k));
                     self.a.get(n);
                     self.comp(args[1], k, v)?;
+                    if let (1, Some(et)) = (elem.len(), ety) {
+                        self.copy_slot(args[1], et, false)?;
+                    }
                     self.a.array_set(&WTy::Array(st));
                 }
                 self.a.get(l);
@@ -3806,12 +3866,21 @@ impl Em<'_> {
                 self.store(i)
             }
             IntrinsicOp::MapIndex
+            | IntrinsicOp::MapIndexMut
             | IntrinsicOp::MapGet
             | IntrinsicOp::MapSet
             | IntrinsicOp::MapRemove => self.map_op(i, op, &args, ty),
+            IntrinsicOp::ValueCopy => {
+                // The copy's own type says what it copies: a legacy `mut`
+                // view of the operand is no copy's type (`types.coll.legacy`).
+                let vts = self.load(args[0])?;
+                self.copy_top(self.sub(ty))?;
+                self.store_from(i, &vts)
+            }
+            IntrinsicOp::SnapBegin => self.snap_begin(i, args[0]),
+            IntrinsicOp::SnapEnd => self.snap_end(args[0], args[1]),
             IntrinsicOp::MapIter => self.map_iter(i, args[0], ty),
             IntrinsicOp::Item => unsupported("the intrinsic operation Item"),
-            IntrinsicOp::IterCheck => self.iter_check(args[0], args[1], args.get(2).copied()),
             IntrinsicOp::MapSlots => {
                 let (_, _, mt, _) = self.map_parts(self.ty_of(args[0]))?;
                 self.comp(args[0], 0, &VT::r(mt.clone()))?;
@@ -3820,12 +3889,6 @@ impl Em<'_> {
             }
             IntrinsicOp::MapSlotNext => self.map_slot_next(i, &args),
             IntrinsicOp::MapSlotEntry => self.map_slot_entry(i, args[0], args[1], ty),
-            IntrinsicOp::MapGrowths => {
-                let (_, _, mt, _) = self.map_parts(self.ty_of(args[0]))?;
-                self.comp(args[0], 0, &VT::r(mt.clone()))?;
-                self.a.struct_get(&mt, M_GROWN);
-                self.store(i)
-            }
         }
     }
 
@@ -4078,44 +4141,6 @@ impl Em<'_> {
         self.a.end();
     }
 
-    /// Grows the arrays `first..` of collection `l` (length in `n`) when full.
-    fn grow(&mut self, l: u32, lt: &WTy, n: u32, first: u32, comps: &[VT]) {
-        if comps.is_empty() {
-            return;
-        }
-        let cap = self.a.local(VT::I32);
-        self.a.get(n);
-        self.a.get(l);
-        self.a.struct_get(lt, first);
-        self.a.array_len();
-        self.a.s().i32_eq();
-        self.a.if_();
-        self.a.get(n);
-        self.a.i32(2);
-        self.a.s().i32_mul();
-        self.a.i32(4);
-        self.a.s().i32_add();
-        self.a.set(cap);
-        for (k, v) in comps.iter().enumerate() {
-            let arr = WTy::Array(storage(v).dflt());
-            let fresh = self.a.local(VT::r(arr.clone()));
-            self.a.get(cap);
-            self.a.array_new_default(&arr);
-            self.a.set(fresh);
-            self.a.get(fresh);
-            self.a.i32(0);
-            self.a.get(l);
-            self.a.struct_get(lt, first + u32_of(k));
-            self.a.i32(0);
-            self.a.get(n);
-            self.a.array_copy(&arr, &arr);
-            self.a.get(l);
-            self.a.get(fresh);
-            self.a.struct_set(lt, first + u32_of(k));
-        }
-        self.a.end();
-    }
-
     /// A list literal with spreads (`expr.list.spread.insert`): the
     /// operands are already evaluated, once, in element order. The new list
     /// is sized exactly, then each component array is filled by `array.set`
@@ -4153,6 +4178,7 @@ impl Em<'_> {
             sources.push(l);
         }
         let off = self.a.local(VT::I32);
+        let ety = self.coll_arg(self.ty_of(i), 0);
         self.a.get(n);
         for (c, v) in elem.iter().enumerate() {
             let arr = WTy::Array(storage(v).dflt());
@@ -4176,15 +4202,24 @@ impl Em<'_> {
                     self.a.get(*l);
                     self.a.struct_get(lt, 0);
                     self.a.array_copy(&arr, &arr);
+                    let end = self.a.local(VT::I32);
                     self.a.get(off);
                     self.a.get(*l);
                     self.a.struct_get(lt, 0);
                     self.a.s().i32_add();
+                    self.a.set(end);
+                    if let (1, Some(et)) = (elem.len(), ety) {
+                        self.copy_range(dst, &arr, (off, end), v, et)?;
+                    }
+                    self.a.get(end);
                     self.a.set(off);
                 } else {
                     self.a.get(dst);
                     self.a.get(off);
                     self.comp(*r, c, v)?;
+                    if let (1, Some(et)) = (elem.len(), ety) {
+                        self.copy_slot(*r, et, false)?;
+                    }
                     self.a.array_set(&arr);
                     self.a.get(off);
                     self.a.i32(1);
@@ -4194,6 +4229,7 @@ impl Em<'_> {
             }
             self.a.get(dst);
         }
+        self.a.i32(0);
         self.a.struct_new(lt);
         self.store(i)
     }
@@ -4330,6 +4366,7 @@ impl Em<'_> {
             self.a.i32(cap);
             self.a.array_new_default(&WTy::Array(storage(v).dflt()));
         }
+        self.a.i32(0);
         self.a.struct_new(mt);
     }
 
@@ -4361,7 +4398,7 @@ impl Em<'_> {
         ops: &KeyOps,
         kl: &[u32],
         h: u32,
-        v: u32,
+        (v, vty): (u32, Option<Ty>),
     ) -> StageResult<()> {
         let (mt, key, val) = parts;
         self.a.get(m);
@@ -4371,6 +4408,9 @@ impl Em<'_> {
         }
         for (k, vt) in val.iter().enumerate() {
             self.comp(v, k, vt)?;
+        }
+        if let (1, Some(vty)) = (val.len(), vty) {
+            self.copy_slot(v, vty, false)?;
         }
         self.a.call(Sym::Helper(Helper::MapPut {
             map: mt.clone(),
@@ -4402,7 +4442,8 @@ impl Em<'_> {
             self.a.set(m);
             for e in 0..n {
                 let (kl, h) = self.map_key(items[2 * e], &key, &ops)?;
-                self.map_put(m, (&mt, &key, &val), &ops, &kl, h, items[2 * e + 1])?;
+                let vty = self.coll_arg(ty, 1);
+                self.map_put(m, (&mt, &key, &val), &ops, &kl, h, (items[2 * e + 1], vty))?;
             }
             self.a.get(m);
         }
@@ -4417,9 +4458,16 @@ impl Em<'_> {
         let m = self.a.local(VT::r(mt.clone()));
         self.comp(args[0], 0, &VT::r(mt.clone()))?;
         self.a.set(m);
+        if matches!(
+            op,
+            IntrinsicOp::MapSet | IntrinsicOp::MapRemove | IntrinsicOp::MapIndexMut
+        ) {
+            self.map_unique(m, self.ty_of(args[0]))?;
+        }
         let (kl, h) = self.map_key(args[1], &key, &ops)?;
         if op == IntrinsicOp::MapSet {
-            return self.map_put(m, (&mt, &key, &val), &ops, &kl, h, args[2]);
+            let vty = self.coll_arg(self.ty_of(args[0]), 1);
+            return self.map_put(m, (&mt, &key, &val), &ops, &kl, h, (args[2], vty));
         }
         let e = self.a.local(VT::I32);
         self.a.get(m);
@@ -4444,7 +4492,7 @@ impl Em<'_> {
                 em.a.conv(&st, v);
             }
         };
-        if op == IntrinsicOp::MapIndex {
+        if matches!(op, IntrinsicOp::MapIndex | IntrinsicOp::MapIndexMut) {
             // expr.index.map.read-value
             self.a.get(e);
             self.a.i32(0);
@@ -4504,35 +4552,6 @@ impl Em<'_> {
             self.a.zero(&v.dflt());
             self.a.set(*l);
         }
-        self.a.end();
-        Ok(())
-    }
-
-    /// A counted loop's check of its collection's captured length, and of
-    /// a map's captured rebuild count when `grown` is given: the
-    /// `iterator-invalidated` panic of the cursor it replaces.
-    fn iter_check(&mut self, coll: u32, captured: u32, grown: Option<u32>) -> StageResult<()> {
-        let t = self.ty_of(coll);
-        let (lt, what, len) = match self.lay.shape(t)? {
-            Shape::List { ty, .. } => (ty, "list", 0),
-            Shape::Map { ty, .. } => (ty, "map", M_LIVE),
-            _ => return unsupported("an iteration check of a non-collection"),
-        };
-        self.comp(coll, 0, &VT::r(lt.clone()))?;
-        self.a.struct_get(&lt, len);
-        self.comp(captured, 0, &VT::I32)?;
-        self.a.s().i32_ne();
-        if let Some(g) = grown {
-            self.comp(coll, 0, &VT::r(lt.clone()))?;
-            self.a.struct_get(&lt, M_GROWN);
-            self.comp(g, 0, &VT::I32)?;
-            self.a.s().i32_ne().i32_or();
-        }
-        self.a.if_();
-        self.a.call(Sym::Helper(Helper::Panic(format!(
-            "iterator-invalidated: {what} changed during iteration"
-        ))));
-        self.a.s().unreachable();
         self.a.end();
         Ok(())
     }

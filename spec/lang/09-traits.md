@@ -2013,8 +2013,8 @@ compiler and the standard library supply.
 | Rule | Trait | Implemented for |
 | --- | --- | --- |
 | r[trait.sealed.any] Any | `Any` | every value type ([`Any`](#any)) |
-| r[trait.sealed.anyval-kinds] AnyVal | `AnyVal` | the primitive types, `string`, tuples (`void` included), enums (optionals and `Result` included), structs, function types, and newtypes over them ([Trait Values And `Any`](04-type-system.md#trait-values-and-any)) |
-| r[trait.sealed.anyref-kinds] AnyRef | `AnyRef` | the reference types, trait value references included, and the types whose values are shared objects ([Trait Values And `Any`](04-type-system.md#trait-values-and-any)) |
+| r[trait.sealed.anyval-members] AnyVal | `AnyVal` | the primitive types, `string`, tuples (`void` included), enums (optionals and `Result` included), structs, `List`, `Map`, function types, and newtypes over them ([Trait Values And `Any`](04-type-system.md#trait-values-and-any)) |
+| r[trait.sealed.anyref-members] AnyRef | `AnyRef` | the reference types, trait value references included, and the types whose values are shared objects, which lists and maps are not ([Trait Values And `Any`](04-type-system.md#trait-values-and-any)) |
 | r[trait.sealed.inspectable] Inspectable | `Inspectable` | the inspectable types ([Inspectable Types](#inspectable-types)) |
 | r[trait.sealed.structure] Structure | `Structure` | each derivation's target, while its template is instantiated ([The Structure Trait](14-annotations.md#the-structure-trait)) |
 | r[trait.sealed.num] Num | `Num` | every integer and floating-point type ([Numeric Traits](#numeric-traits)) |

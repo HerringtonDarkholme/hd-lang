@@ -1,7 +1,8 @@
 //! The operand checks of `is` (spec 05 "Identity Operands"): a tuple, a
-//! value type or a function has no identity (`expr.is.tuple`,
-//! `expr.is.value-operand`, `expr.is.function.operand`), and two reference
-//! operands must be compatible (`expr.is.compatible`, `expr.is.incompatible`).
+//! value type, a list, a map or a function has no identity (`expr.is.tuple`,
+//! `expr.is.value-operand`, `types.coll.no-identity`,
+//! `expr.is.function.operand`), and two reference operands must be
+//! compatible (`expr.is.compatible`, `expr.is.incompatible.data`).
 //! Each rejection is one error, with no report for the second operand.
 
 use hd_diag::Code;
@@ -73,12 +74,6 @@ fn reference_operands_of_one_type_compare() {
 fn data_values(a: User, b: User) -> bool:
     a is b
 
-fn lists(a: List[User], b: List[User]) -> bool:
-    a is b
-
-fn maps(a: Map[string, User], b: Map[string, User]) -> bool:
-    a is b
-
 fn generic_data(a: Box[i32], b: Box[i32]) -> bool:
     a is b
 
@@ -92,17 +87,11 @@ fn negated(a: User, b: User) -> bool:
 fn permissions_do_not_change_compatibility() {
     accepted(
         "\
-fn views(view: List[User], owner: mut List[mut User]) -> bool:
-    view is owner
-
-fn inner(a: List[mut User], b: List[User]) -> bool:
-    b is a
-
 fn data_views(a: User, b: mut User) -> bool:
     a is b
 
-fn nested(a: Map[string, List[User]], b: mut Map[string, mut List[mut User]]) -> bool:
-    a is b
+fn inner(a: Box[mut User], b: Box[User]) -> bool:
+    b is a
 ",
     );
 }
@@ -119,9 +108,6 @@ fn trait_right(user: User, named: dyn Named) -> bool:
 
 fn any_data(any: dyn Any, user: User) -> bool:
     any is user
-
-fn any_list(list: List[Order], any: dyn Any) -> bool:
-    list is any
 
 fn two_trait_values(a: dyn Named, b: dyn Any) -> bool:
     a is b
@@ -147,9 +133,6 @@ fn against_any[T < AnyRef](a: T, b: dyn Any) -> bool:
 
 fn through_trait[T < Handle](a: T, b: T) -> bool:
     a is b
-
-fn lists[T < AnyRef](a: List[T], b: List[T]) -> bool:
-    a is b
 ",
     );
 }
@@ -158,9 +141,6 @@ fn lists[T < AnyRef](a: List[T], b: List[T]) -> bool:
 fn inference_and_never_do_not_add_errors() {
     accepted(
         "\
-fn empty(a: List[User]) -> bool:
-    a is []
-
 fn diverges(a: User) -> bool:
     a is panic(\"stop\")
 ",
@@ -186,7 +166,16 @@ fn a_tuple_has_no_identity() {
 #[test]
 fn a_value_type_has_no_identity() {
     for ty in [
-        "i32", "bool", "char", "f64", "string", "Color", "User?", "i32?",
+        "i32",
+        "bool",
+        "char",
+        "f64",
+        "string",
+        "Color",
+        "User?",
+        "i32?",
+        "List[User]",
+        "Map[string, User]",
     ] {
         rejected(
             &format!("fn f(a: {ty}, b: {ty}) -> bool:\n    a is b\n"),
@@ -267,11 +256,9 @@ fn an_unbounded_type_parameter_has_no_identity() {
 fn unrelated_reference_types_are_incompatible() {
     for (a, b) in [
         ("User", "Order"),
-        ("List[User]", "List[Order]"),
-        ("List[User]", "Map[string, User]"),
         ("Box[i32]", "Box[string]"),
-        ("List[List[User]]", "List[User]"),
-        ("User", "List[User]"),
+        ("Box[Box[User]]", "Box[User]"),
+        ("User", "Box[User]"),
     ] {
         rejected(
             &format!("fn f(a: {a}, b: {b}) -> bool:\n    a is b\n"),

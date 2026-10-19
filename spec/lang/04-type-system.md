@@ -512,7 +512,7 @@ data PostId:
 ### Tuple Types
 
 A tuple is an immutable value without identity, so it implements `AnyVal`,
-as [`types.sealed.anyval-kinds`](#r-types.sealed.anyval-kinds) states. No
+as [`types.sealed.anyval-members`](#r-types.sealed.anyval-members) states. No
 element of it is a place, as
 [`expr.place.tuple-element`](05-expressions.md#r-expr.place.tuple-element)
 states.
@@ -1050,7 +1050,7 @@ fn same(a: Point, b: Point) -> bool:
 
 A field of a struct value changes in place only through a writable place.
 
-1. r[types.value.writable-path] A place is **writable** when it is a `let mut` binding, local or top-level, a `mut` parameter, or `mut self`. A field of a data value with mutable access, a value reached through a `&mut` reference, and a struct field of a writable place are writable too.
+1. r[types.value.writable-forms] A place is **writable** when it is a `let mut` binding, local or top-level, a `mut` parameter, or `mut self`. A field of a data value with mutable access and a value reached through a `&mut` reference are writable too. So are a struct field of a writable place and an element of a list in a writable place.
 2. r[types.value.let-mut] `let mut name = value` with a struct value is valid, with or without a struct annotation, and makes `name` writable.
 3. r[types.value.field-write] Assigning a struct field, with `=` or a compound assignment, requires the struct to be in a writable place.
 4. r[types.value.write-once] The assignment changes that place alone, since no other place shares its value.
@@ -1064,7 +1064,8 @@ by what holds the struct:
 | r[types.value.write.short] Short binding | a `:=` or `using` binding | `non-reassignable-binding` |
 | r[types.value.write.plain-param] Parameter | a value parameter or `self` that is not `mut` | `non-reassignable-parameter-binding` |
 | r[types.value.write.let] Plain `let` | a `let` binding without `mut` | `readonly-root` |
-| r[types.value.write.other] Other value | a call result, a collection element, an unwrapped value, or a pattern binding | `readonly-root` |
+| r[types.value.write.other-value] Other value | a call result, an element of a list that is no writable place, an unwrapped value, or a pattern binding | `readonly-root` |
+| r[types.value.write.map-value] Map value | a value of a map, which is no place, as [`types.coll.map-value.field`](#r-types.coll.map-value.field) states | `map-value-not-addressable` |
 | r[types.value.write.data] Data field | a field of a data value without mutable access | as [Mutation Checks](#mutation-checks) states |
 | r[types.value.write.shared-ref] Read-only reference | a value reached through a `&T` reference | `readonly-root` |
 
@@ -1094,12 +1095,100 @@ See also: [Struct Declarations](08-data-and-enums.md#struct-declarations),
 [Places](05-expressions.md#places),
 [Writing Through A Reference](13-values-and-references.md#writing-through-a-reference).
 
+## Collection Values
+
+`List[T]` and `Map[K, V]` are values with copy-on-write: a copy shares the
+collection's elements until one side changes.
+
+```text
+fn tagged(names: List[string]) -> List[string]:
+    let mut copy = names  # a copy of names
+    copy.push("new")      # names is unchanged
+    copy
+```
+
+1. r[types.coll.value] `List[T]` and `Map[K, V]` are value types. Binding, assigning, passing, and returning a list or a map copies it, and so does storing one in a field, an element, or a payload. A later change to one copy leaves every other copy unchanged.
+2. r[types.coll.copy-on-write] A copy shares its source's elements until one of the two changes. That change first copies the changed side's elements, once.
+3. r[types.coll.no-identity] A list or a map has no identity. `List` and `Map` implement `AnyVal`, so `is` with one is an error. Error: `identity-requires-references`.
+4. r[types.coll.let-mut] `let mut name = value` with a list or map value is valid, with no annotation or a `List[T]` or `Map[K, V]` one, and makes `name` writable.
+5. r[types.coll.writable] Changing a list or a map needs a writable place, as a struct field write does ([`types.value.writable-forms`](#r-types.value.writable-forms)). A change is a call of a `mut self` method such as `push`, an element store, or passing it to a legacy `mut` parameter.
+6. r[types.coll.writable.call] A changing method called on a list or a map that is no writable place is an error. Its fix-it makes the binding writable. Error: `mutable-receiver-required`.
+7. r[types.coll.writable.store] An element store into such a list or map, or a field write through its element, is an error with the same fix-it. Error: `readonly-root`.
+8. r[types.coll.element-place] An element of a list in a writable place is a writable place. So `xs[i] = v`, `xs[i].x = v`, and `xs[i].push(v)` change `xs` in place.
+9. r[types.coll.nested] A change through a path, such as `m[k].push(x)`, `team.members.push(x)`, or `xs[i].name = n`, changes the inner value where it is stored. It never reads the inner value out and stores a changed copy back.
+10. r[types.coll.shared] A list or a map that two places share is written `&mut List[T]` or `&mut Map[K, V]`. A change through the reference changes the place it refers to.
+
+```text
+fn names() -> usize:
+    found := ["ada"]
+    found.push("grace")  # error: mutable-receiver-required
+    found.len()
+
+fn first() -> i32:
+    let scores = [+1, 2]
+    scores[0] = 5  # error: readonly-root
+    scores[0]
+
+fn same(left: List[i32], right: List[i32]) -> bool:
+    left is right  # error: identity-requires-references
+```
+
+> **Why.** A list that every binding shares lets a callee change its
+> caller's list with no mark at the call. A value changes only where its
+> place is written, and sharing is written `&mut`. Writing through the path
+> keeps building a map of lists linear: each push copies nothing.
+
+### Map Values
+
+A map value is no place, since a map moves its values when it grows.
+
+1. r[types.coll.map-value] `m[k] = v` and `m[k] op= v` replace a map value. A changing method called on one, such as `m[k].push(x)`, changes it in place.
+2. r[types.coll.map-value.field] A field write through a map value, as `m[k].x = v`, is an error. Its fix-it reads the value, changes it, and stores it back. Error: `map-value-not-addressable`.
+3. r[types.coll.map-value.ref] `&m[k]` and `&mut m[k]` are errors. Their fix-it copies the value into a `let mut` and refers to that. Error: `map-value-not-addressable`.
+
+```text
+struct Stock:
+    count: i32
+
+fn restock(shelves: Map[string, Stock]) -> Map[string, Stock]:
+    let mut copy = shelves
+    copy["apple"].count = 5  # error: map-value-not-addressable
+    copy
+
+fn count(shelves: Map[string, Stock]) -> i32:
+    found := &shelves["apple"]  # error: map-value-not-addressable
+    found.count
+```
+
+### Legacy Collection Views
+
+Until the standard library migrates, a collection type written with `mut`
+keeps the sharing it had before collections were values.
+
+1. r[types.coll.legacy] A parameter, field, result, or annotation written `mut List[T]` or `mut Map[K, V]` shares the collection it is given, as `&mut List[T]` would.
+2. r[types.coll.legacy.argument] A list in a writable place, or a new list, passes to such a parameter by sharing, so the callee's changes reach the caller's place.
+3. r[types.coll.legacy.data-field] A `data` field written `List[T]` or `Map[K, V]`, without `mut`, shares the collection it is given as a readonly view, and is no writable place.
+4. r[types.coll.legacy.binding] A binding copies the collection of a legacy `mut` view unless its own annotation is a `mut` view, so `copy := shared` is a copy.
+
+```text
+fn append(items: mut List[string], name: string) -> void:
+    items.push(name)  # the caller's list changes
+
+fn demo() -> usize:
+    let mut names = ["ada"]
+    append(names, "grace")
+    names.len()  # 2
+```
+
+See also: [Snapshot Iteration](06-control-flow.md#snapshot-iteration),
+[Writable Places](#writable-places).
+
 ## Composite Values And Access Permission
 
 Composite values are shared by reference, and `mut` grants mutable access to
 one.
 
-1. r[types.composite.kinds] Data types, enums with storage, tuples, lists, maps, trait values, and closures are composite values.
+1. r[types.composite.kinds-shared] Data types, enums with storage, tuples, trait values, and closures are composite values. A list or a map is a value ([Collection Values](#collection-values)), and a legacy `mut List[T]` view of one is composite.
 2. r[types.composite.shared] Composite parameters and results use shared references at the language level.
 3. r[types.composite.aliases] hd-lang does not require exclusive ownership and may have multiple aliases to one composite value.
 
@@ -1239,7 +1328,7 @@ fn invalid() -> void:
 ```
 
 5. r[types.bind.let-mut-infer] `let mut name = value` infers mutable access: when `value` has type `mut T`, the binding has type `mut T`.
-6. r[types.bind.let-mut-upgrade] `let mut` never upgrades access: an initializer with a readonly type is an error. Error: `mutable-upgrade`.
+6. r[types.bind.let-mut-upgrade.view] `let mut` never upgrades access: an initializer with a readonly composite type is an error. Error: `mutable-upgrade`. A list or map value is no view, so `let mut` copies it ([`types.coll.let-mut`](#r-types.coll.let-mut)).
 7. r[types.bind.let-mut-primitive-local] `let mut` on a local whose type is primitive, as in `let mut n = 0`, is valid, since `&mut n` needs a writable place.
 8. r[types.bind.let-mut-primitive-unused] When no `&mut` of such a local is taken, its `mut` changes nothing, and it gets a warning whose fix-it removes the `mut`. Warning: `redundant-let-mut`.
 9. r[types.bind.let-mut-primitive-top] `let mut` on a top-level binding whose type is primitive is an error, in place of `mutable-upgrade` or `let-mut-readonly-type`. Error: `mut-on-primitive`.
@@ -1273,17 +1362,17 @@ fn invalid(user: User) -> void:
 16. r[types.bind.let-mut-annotated-valid] `let mut` with an annotation whose type is `mut T`, as in `let mut user: mut User = ...`, is valid. The `mut` after `let` adds only that `&mut` of the binding may be taken.
 17. r[types.bind.let-mut-annotated.unused] When the binding is top-level, or a local that no `&mut` refers to, that redundant `mut` gets a warning. Warning: `redundant-let-mut`.
 18. r[types.bind.let-mut-annotated.fix] The warning's fix-it removes the `mut` before the name and keeps the annotation.
-19. r[types.bind.let-mut-annotation] `let mut` with a readonly annotation, as in `let mut user: User = ...`, is an error, because the annotation and `let mut` disagree. Error: `let-mut-readonly-type`.
+19. r[types.bind.let-mut-annotation.view] `let mut` with a readonly composite annotation, as in `let mut user: User = ...`, is an error, because the annotation and `let mut` disagree. Error: `let-mut-readonly-type`. A `List[T]` or `Map[K, V]` annotation is no view and is valid.
 20. r[types.bind.let-mut-annotation.fix] The diagnostic suggests adding `mut` to the type or removing the `mut` after `let`.
 
 ```text
 fn invalid() -> void:
-    let mut names: List[string] = []  # error: let-mut-readonly-type
+    let mut user: User = User { name: "Ada" }  # error: let-mut-readonly-type
     let mut ids: mut List[i64] = []   # warning: redundant-let-mut
 ```
 
 21. r[types.bind.let-pattern-mut] In a `let` pattern, each name follows these rules for the value it binds, as a `match` arm would bind it. In `let (mut log, db) = pair`, `log` has mutable access and `db` the readonly view.
-22. r[types.bind.let-pattern-mut.data] The same holds in a data or variant pattern. In `let User { mut tags, name } = user`, with `user: mut User` and a field `tags: mut List[string]`, `tags` has type `mut List[string]`.
+22. r[types.bind.let-pattern-mut.data-field] The same holds in a data or variant pattern. In `let Profile { mut owner, name } = profile`, with `profile: mut Profile` and a field `owner: mut User`, `owner` has type `mut User`.
 23. r[types.bind.let-mut-pattern.annotated] With a tuple annotation, the element type of each name written `mut` must be a `mut` type. Error: `let-mut-readonly-type`.
 24. r[types.bind.let-mut-pattern.redundant] That `mut` before the name is redundant and gets the same warning, with the same fix-it. Warning: `redundant-let-mut`.
 
@@ -1300,12 +1389,12 @@ fn edit() -> void:
 ```text
 data Profile:
     name: string
-    tags: mut List[string]
+    owner: mut User
 
-fn tag(profile: mut Profile, readonly: Profile) -> void:
-    let Profile { mut tags, name } = profile  # mut List[string], string
-    tags.push(name)
-    let Profile { tags: mut others } = readonly  # error: mutable-upgrade
+fn rename(profile: mut Profile, readonly: Profile) -> void:
+    let Profile { mut owner, name } = profile  # mut User, string
+    owner.name = name
+    let Profile { owner: mut other } = readonly  # error: mutable-upgrade
 ```
 
 ```text
@@ -2210,8 +2299,8 @@ See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
 
 | Trait | Types | Identity |
 | --- | --- | --- |
-| r[types.sealed.anyval-kinds] `AnyVal` | `bool`, `char`, the integer types, `f32`, `f64`, `string`, tuples (`void` included), enums (optionals and `Result` included), structs, and function types | These values have no identity. |
-| r[types.sealed.anyref-kinds] `AnyRef` | the reference types `&T` and `&mut T`, trait value references `&dyn Tr` and `&mut dyn Tr` included; and the types whose values are shared objects: data types, `List`, `Map`, bare trait value types, `Any`, suspensions, and runtime handles | These values have identity. |
+| r[types.sealed.anyval-members] `AnyVal` | `bool`, `char`, the integer types, `f32`, `f64`, `string`, tuples (`void` included), enums (optionals and `Result` included), structs, `List`, `Map`, and function types | These values have no identity. |
+| r[types.sealed.anyref-members] `AnyRef` | the reference types `&T` and `&mut T`, trait value references `&dyn Tr` and `&mut dyn Tr` included; and the types whose values are shared objects: data types, bare trait value types, `Any`, suspensions, and runtime handles | These values have identity. |
 
 5. r[types.sealed.newtype] A newtype has its base type's category: `type Mile(i32)` implements `AnyVal`, and `type Owner(User)` implements `AnyRef`.
 6. r[types.sealed.never] `never` implements neither, because it has no values.
@@ -2465,17 +2554,19 @@ Runtime values fall into three categories:
 | Category | Types | Identity |
 | --- | --- | --- |
 | Scalar values | `bool`, `char`, the integer types, `f32`, `f64` | none |
-| Identity-free composites | `string`, tuples, enum values (including `Result` and optionals), struct values, function values | none |
-| Reference values | references, trait value references included, data values, lists, maps, bare trait values, `Any`, suspensions, runtime handles | the place a reference refers to; allocation identity, or one canonical identity for a fieldless data value |
+| Identity-free composites | `string`, tuples, enum values (including `Result` and optionals), struct values, lists, maps, function values | none |
+| Reference values | references, trait value references included, data values, bare trait values, `Any`, suspensions, runtime handles | the place a reference refers to; allocation identity, or one canonical identity for a fieldless data value |
 
 The reference values are exactly the implementers of the sealed `AnyRef`
 trait. The scalar values and identity-free composites are exactly the
 implementers of the sealed `AnyVal` trait.
 
-Values without identity are immutable at their top level, so storing one by
-copy or by reference cannot be observed. An implementation may copy, share,
-or deduplicate such a value freely. A fieldless data value stores no data and
-has one canonical identity.
+Values without identity are immutable at their top level, or change only
+through their own place, so storing one by copy or by reference cannot be
+observed. An implementation may copy, share, or deduplicate such a value
+freely. A list or a map shares its elements with its copies and copies them
+before its first change while they are shared. A fieldless data value
+stores no data and has one canonical identity.
 
 Converting a value without identity to a trait value or `Any` may box it.
 The box has no identity of its own, as

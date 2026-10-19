@@ -1,6 +1,7 @@
 //! List, deque and list-view iterator invalidation (#192,
 //! `flow.for.length`, `flow.for.invalidate.panic`, `flow.for.replace`,
-//! `std-collections.deque.invalidate`, `std-collections.view.invalidate`).
+//! `std-collections.deque.invalidate`, `std-collections.view.invalidate`),
+//! and the snapshot a `for` over a list iterates (`flow.for.snapshot`).
 //! Programs build through the driver and run on V8 (`host/run.mjs`).
 
 use std::path::Path;
@@ -81,41 +82,44 @@ fn prints(name: &str, body: &str, expected: &str) {
 }
 
 #[test]
-fn pushing_during_a_list_loop_panics() {
-    panics(
+fn pushing_during_a_list_loop_leaves_the_loop_on_its_snapshot() {
+    prints(
         "list-push",
         "    let v: mut List[i32] = [1, 2]
     for x in v:
         println(x)
         v.push(x)
+    println(v.len())
 ",
-        "1\n",
+        "1\n2\n4\n",
     );
 }
 
 #[test]
-fn removing_during_a_list_loop_panics() {
-    panics(
+fn removing_during_a_list_loop_leaves_the_loop_on_its_snapshot() {
+    prints(
         "list-remove",
         "    let v: mut List[i32] = [1, 2, 3]
     for x in v:
         println(x)
-        _ := v.remove_at(2)
+        _ := v.remove_at(0)
+    println(v.len())
 ",
-        "1\n",
+        "1\n2\n3\n0\n",
     );
 }
 
 #[test]
-fn replacing_an_element_during_a_list_loop_is_seen_later() {
+fn replacing_an_element_during_a_list_loop_is_not_seen_by_it() {
     prints(
         "list-set",
         "    let v: mut List[i32] = [1, 2, 3]
     for x in v:
         println(x)
         v[2] = 30
+    println(v[2])
 ",
-        "1\n2\n30\n",
+        "1\n2\n3\n30\n",
     );
 }
 

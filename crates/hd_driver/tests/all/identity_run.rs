@@ -86,16 +86,17 @@ pub fn main() -> void $ Console:
 }
 
 #[test]
-fn a_list_and_its_mut_alias_share_identity() {
+fn a_list_is_a_value_whose_copies_never_alias() {
+    // A list has no identity (`types.coll.no-identity`): a copy changes
+    // apart from its source (`types.coll.value`).
     let main = "\
 pub fn main() -> void $ Console:
-    let items: mut List[i32] = [+1]
+    let mut items = [+1]
     same := items
-    let view: List[i32] = items
-    let other: List[i32] = [+1]
-    println(\"${items is same} ${items is view} ${view is other}\")
+    items.push(2)
+    println(\"${items.len()} ${same.len()}\")
 ";
-    assert_eq!(run("list", main), "true true false\n");
+    assert_eq!(run("list", main), "2 1\n");
 }
 
 #[test]

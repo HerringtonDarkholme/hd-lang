@@ -732,7 +732,7 @@ enum ToolError:
 5. r[data.enum.payload.no-field-blocks] Variant field blocks are not part of the language.
 6. r[data.enum.immutable] An enum value never changes once built: its variant and its payload values are fixed at construction.
 7. r[data.enum.immutable.shallow] The rule is shallow. A payload declared `mut U` still refers to a mutable object, which may change through that reference.
-8. r[data.enum.no-identity] An enum value has no identity, so every enum type implements `AnyVal`, as [`types.sealed.anyval-kinds`](04-type-system.md#r-types.sealed.anyval-kinds) states.
+8. r[data.enum.no-identity] An enum value has no identity, so every enum type implements `AnyVal`, as [`types.sealed.anyval-members`](04-type-system.md#r-types.sealed.anyval-members) states.
 9. r[data.enum.no-identity.is] `is` with an enum operand is an error. Error: `identity-requires-references`.
 
 ### Variant Construction

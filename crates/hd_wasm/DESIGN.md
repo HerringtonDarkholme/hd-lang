@@ -77,8 +77,8 @@ such a field or element. The spec allows either form
 | capture-free closure | a constant global of the base type, with no environment | same |
 | `string` | a view of two values, `(ref $bytes, i64 span)`: `$bytes = (array i8)`, immutable, valid UTF-8 in the viewed range; `span` packs `len << 32 \| start` ("Strings" below) | two fields, `(mut (ref $bytes))` and `(mut i64)`; in an array, a structure of two arrays |
 | `string?` | `(ref null $bytes, i64)`; a null `bytes` is `.None` | two fields |
-| `List[T]` | `(ref $List_T)` = struct `{len: mut i32, data: mut (ref $Arr_T)}`; under A1 every reference `T` shares `$List_eq` over `(array (mut eqref))` | same |
-| `Map[K, V]` | a compact insertion-ordered table of `index`, `hashes`, `keys` and `values` arrays (`layout::map_ty`, [docs/compiler/lowering-catalog.md](../../docs/compiler/lowering-catalog.md#mapk-v)). Its operations are runtime helpers (`map.rs`); std hd over arrays is not built yet; see #180 | same |
+| `List[T]` | `(ref $List_T)` = struct `{len: mut i32, data: mut (ref $Arr_T), cow: mut i32}`; under A1 every reference `T` shares `$List_eq` over `(array (mut eqref))`. `cow` is the copy-on-write word ("Collection values" below) | same |
+| `Map[K, V]` | a compact insertion-ordered table of `index`, `hashes`, `keys` and `values` arrays and a `cow` word (`layout::map_ty`, [docs/compiler/lowering-catalog.md](../../docs/compiler/lowering-catalog.md#mapk-v)). Its operations are runtime helpers (`map.rs`); std hd over arrays is not built yet; see #180 | same |
 | `TypeId` | `(ref $TypeId)`, a constant global per type: `{id: i64, name: (ref $LitFn)}`, `id` the first 64 bits of `H(canon(T))`. Implementation differs: `TypeId` is std's `data TypeId {key, name}`, built with `struct.new` at each use and compared by its `key` bytes; that allocates per use and compares strings, not one `i64` (see #175) | same |
 | `mut Suspend[T]` | `(ref $Suspend_L)` (§14.1) | same |
 
@@ -107,6 +107,64 @@ path, then a `LocalSet`, `GlobalSet` or `FieldSet` of the place's root.
   iteration; a data type's field write allocates nothing. Reads cost what
   a data field read costs. Correct first: inline layout and in-place
   writes come with the linear-memory backend.
+
+**Collection values: shared arrays, a mark, a copy before the change.**
+A `List` or `Map` value is a value with copy-on-write
+([Collection Values](../../spec/lang/04-type-system.md#collection-values)).
+On Wasm GC there is no count to tell whether an array is shared, so a
+header's `cow` word stands in for it (`crates/hd_wasm/src/emit/cow.rs`):
+
+- **A copy marks.** The TIR `ValueCopy` (placed by the checker,
+  `crates/hd_check/src/coll.rs`, at a binding, an assignment, a return
+  and a `mut` parameter's entry) makes a new header over the same arrays
+  and sets bit 0 of both headers' `cow`. The emitter does the same for
+  an operand stored into a slot that holds a collection: a list or map
+  literal's element, a struct literal's field, a payload, a tuple element,
+  `push`, an element store and a map store, unless the operand is a value
+  its own instruction made (a literal, a call). A struct holding a
+  collection copies by rebuilding its object with each such field
+  copied, since a field change writes the collection's header in place.
+- **A change copies.** `push`, an element store, `ListIndexMut`, a map
+  store, `remove` and `MapIndexMut` first test `cow`: when it is not 0
+  they copy every array of the header (a `push` with room to grow), copy
+  each element that holds a collection in turn, and clear `cow`. The
+  header itself never moves, so a legacy `mut List[T]` alias of it sees
+  the change, and a nested write needs no store back into its place.
+- **A path makes each collection on it its own.** `m[k].push(x)` reads
+  `m[k]` with `MapIndexMut`, and `xs[i].x = v` reads and stores `xs[i]`
+  with `ListIndexMut` and `ListSet`, so each list or map on the path is
+  made unique before its element is read; nothing is read out and stored
+  back.
+- **A loop adds 2.** `SnapBegin` makes the header the loop iterates over
+  the collection's arrays and adds 2 to the collection's `cow`; a change
+  during the loop therefore copies first, and the loop reads the old
+  arrays. `SnapEnd` takes the 2 off again when the collection still has
+  those arrays.
+
+What is eager, and why:
+
+- **The mark never clears.** With no count, a header copied once stays
+  marked, so its next change copies its arrays even when the other copy
+  is gone: `let mut a = xs.filter(f)` then `a.push(x)` copies once. A
+  legacy `mut List[T]` returned as a value (std's builders) is such a
+  copy. A function's own `let mut` local returned is moved, not copied.
+- **A loop left by `return` or `?`** keeps its 2, so the collection's
+  next change copies once; a `break` and the normal end take it off.
+- **A struct copy rebuilds** its object when the struct holds a
+  collection (one allocation per struct and per collection on the copy),
+  where a plain struct copy is a reference move.
+
+What is not marked: a value argument is passed without a copy, as the
+spec allows when nothing changes the source during the call
+([`types.coll.value`](../../spec/lang/04-type-system.md#r-types.coll.value)).
+The emulation does not prove that: a caller's list changed through a
+closure, a reference or a legacy `mut` alias while the callee runs shows
+in the callee's parameter. A closure that captures a parameter, or a
+loop variable bound to an element, shares the header in the same way.
+`xs.iter()` likewise shares the list, so a cursor still panics on a
+length change ([Iterator Invalidation](../../spec/lang/06-control-flow.md#iterator-invalidation)).
+The reference-counting backend (OBJECT_MODEL_TIER1.md job 11,
+REFCOUNT_RUNTIME.md) replaces the mark with the count and closes these.
 
 **References: a pair of closures.** `&T` and `&mut T`
 ([Values And References](../../spec/lang/13-values-and-references.md))
@@ -423,7 +481,7 @@ values; since S1c that covers every enum, optionals and `Result`
 included. On an `Any` or trait value that holds a value at run time,
 the result is unspecified. The spec has this as
 [`expr.is.value-operand`](../../spec/lang/05-expressions.md#r-expr.is.value-operand),
-[`expr.is.box-values`](../../spec/lang/05-expressions.md#r-expr.is.box-values)
+[`expr.is.box-value-kinds`](../../spec/lang/05-expressions.md#r-expr.is.box-value-kinds)
 and
 [`expr.is.box-unspecified`](../../spec/lang/05-expressions.md#r-expr.is.box-unspecified).
 Keeping identity would cost one 16 to 24 byte allocation per `.Some`
@@ -449,7 +507,7 @@ So the layouts follow these rules:
 **One predicate for identity-free enums.** Layout, `is` lowering
 and the checker's value-type test read one predicate, `identity_free(E)`.
 Since the S1c spec pass it holds for every enum
-([`types.sealed.anyval-kinds`](../../spec/lang/04-type-system.md#r-types.sealed.anyval-kinds)).
+([`types.sealed.anyval-members`](../../spec/lang/04-type-system.md#r-types.sealed.anyval-members)).
 An identity-free enum
 uses a value layout: a nullable reference when it has one reference
 payload and one payloadless variant (`T?`), else `(i32 tag, payload
@@ -1627,9 +1685,10 @@ The allocator is hd in `std.rt.alloc` (job 5), REFCOUNT_RUNTIME.md §6's
 | 12 | 4 | reserved: 8-aligns the elements |
 | 16 | capacity times the element size | the elements, inline |
 
-Today a list is a shared object (OBJECT_MODEL_TIER1.md §6.2), so until
-the tier 1 jobs make it a value, a list value is the buffer's address and
-every copy shares it; growth that moves the buffer is job 9's to place.
+A list is a value with copy-on-write (OBJECT_MODEL_TIER1.md §6.2, job 8),
+but the linear backend does not lower lists yet: a list value will be the
+buffer's address, and a copy increments the owners count of the buffer
+header above; growth that moves the buffer is job 9's to place.
 
 ### 23.8 Closures, `dyn` And Vtables
 

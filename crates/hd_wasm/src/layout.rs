@@ -330,11 +330,16 @@ pub fn box_of(vts: &[VT]) -> WTy {
     }
 }
 
-/// A list: `{len, one array per element value}` (structure of arrays).
+/// A list: `{len, one array per element value, cow}` (structure of
+/// arrays). `cow` is the copy-on-write word of §15.2 "Collection values":
+/// bit 0 says the arrays may be shared with another list, and each `for`
+/// iterating them adds 2; a change while it is not 0 copies the arrays
+/// first.
 #[must_use]
 pub fn list_ty(elem: &[VT]) -> WTy {
     let mut fields = vec![VT::I32];
     fields.extend(elem.iter().map(|v| VT::r(WTy::Array(storage(v).dflt()))));
+    fields.push(VT::I32);
     WTy::Struct {
         fields,
         sup: None,
@@ -356,8 +361,9 @@ pub const M_INDEX: u32 = 3;
 pub const M_HASHES: u32 = 4;
 pub const M_KEYS: u32 = 5;
 
-/// A map: `{live, used, grown, index, hashes, key arrays, value arrays}`,
-/// its entries in the order they were added.
+/// A map: `{live, used, grown, index, hashes, key arrays, value arrays,
+/// cow}`, its entries in the order they were added; `cow` is a list's
+/// copy-on-write word.
 #[must_use]
 pub fn map_ty(key: &[VT], val: &[VT]) -> WTy {
     let ints = VT::r(WTy::Array(VT::I32));
@@ -365,11 +371,25 @@ pub fn map_ty(key: &[VT], val: &[VT]) -> WTy {
     for v in key.iter().chain(val) {
         fields.push(VT::r(WTy::Array(storage(v).dflt())));
     }
+    fields.push(VT::I32);
     WTy::Struct {
         fields,
         sup: None,
         open: false,
     }
+}
+
+/// The field index of a list's copy-on-write word: after its `n` arrays.
+#[must_use]
+pub fn list_cow(n: usize) -> u32 {
+    1 + u32::try_from(n).expect("list arrays")
+}
+
+/// The field index of a map's copy-on-write word: after its `n` key and
+/// value arrays.
+#[must_use]
+pub fn map_cow(n: usize) -> u32 {
+    M_KEYS + u32::try_from(n).expect("map arrays")
 }
 
 /// The base of an enum's subtype box (§15.2): the tag, extended by one

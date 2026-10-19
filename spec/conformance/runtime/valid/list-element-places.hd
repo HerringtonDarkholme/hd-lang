@@ -1,0 +1,30 @@
+# test: elements of a writable list and fields of a writable struct change in place, and a copy taken before is unchanged
+# Spec 04 Collection Values: types.coll.element-place, types.coll.nested; Writable Places: types.value.writable-forms.
+struct Member:
+    name: string
+    tags: List[string]
+
+struct Team:
+    title: string
+    members: List[Member]
+
+tests:
+    use std.testing.assert_equal
+
+    it("a struct field of an element changes in place"):
+        let mut team = Team { title: "core", members: [Member { name: "ada", tags: [] }] }
+        before := team
+        team.members[0].name = "grace"
+        team.members[0].tags.push("lead")
+        team.members.push(Member { name: "lin", tags: [] })
+        assert_equal(team.members[0].name, "grace", reason="the element's field changed")
+        assert_equal(team.members[0].tags, ["lead"], reason="the element's list changed")
+        assert_equal(team.members.len(), 2, reason="the field's list changed")
+        assert_equal(before.members[0].name, "ada", reason="the earlier copy is unchanged")
+        assert_equal(before.members[0].tags.len(), 0, reason="its inner list too")
+
+    it("an element of a list of lists changes in place"):
+        let mut grid = [[+1, 2], [3]]
+        grid[1].push(4)
+        grid[0][1] = 20
+        assert_equal(grid, [[+1, 20], [3, 4]], reason="each element changed where it is stored")

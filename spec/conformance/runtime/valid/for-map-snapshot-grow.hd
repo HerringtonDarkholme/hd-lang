@@ -1,0 +1,14 @@
+# test: a for loop over a map that its body grows visits only the entries it began with
+# Spec 06 Snapshot Iteration: flow.for.snapshot.change.
+fn grow(entries: mut Map[string, i32]) -> void:
+    for (key, value) in entries:
+        entries[key + "!"] = value
+
+tests:
+    use std.testing.assert_equal
+
+    it("an insert during the loop"):
+        let entries: mut Map[string, i32] = {"a": +1}
+        grow(entries)
+        assert_equal(entries.len(), 2, reason="the loop ran once, for a")
+        assert_equal(entries["a!"], 1, reason="the insert reached the map")

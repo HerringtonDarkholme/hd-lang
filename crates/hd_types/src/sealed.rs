@@ -23,6 +23,10 @@ pub struct SealedTraits {
     pub inspectable: DefId,
     pub tuple: DefId,
     pub structure: DefId,
+    /// `List` and `Map`, values with copy-on-write (`types.coll.value`),
+    /// so `AnyVal` types.
+    pub list: DefId,
+    pub map: DefId,
 }
 
 impl Default for SealedTraits {
@@ -34,6 +38,8 @@ impl Default for SealedTraits {
             inspectable: DefId::NONE,
             tuple: DefId::NONE,
             structure: DefId::NONE,
+            list: DefId::NONE,
+            map: DefId::NONE,
         }
     }
 }
@@ -108,6 +114,12 @@ fn category(pool: Types<'_>, decls: &dyn Declarations, t: Ty) -> Category {
         }
         // A reference has identity: what it refers to (ref.type.any-ref).
         TyData::TraitValue { .. } | TyData::Ref { .. } => Category::Ref,
+        // A collection is a value (`types.coll.value`).
+        TyData::Adt { def, .. }
+            if def != DefId::NONE && (def == decls.sealed().list || def == decls.sealed().map) =>
+        {
+            Category::Val
+        }
         TyData::Adt { def, args } => match decls.type_decl(def) {
             TypeDecl::Enum | TypeDecl::Struct => Category::Val,
             TypeDecl::Data => Category::Ref,

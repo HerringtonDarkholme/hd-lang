@@ -140,14 +140,15 @@ fn demo() -> void:
 
 1. r[ref.place.forms] Locals and parameters of any binding form, and top-level bindings, are places for `&` and `&mut`. A struct field of a place, a field of a data value, and a value reached through a reference are places too.
 2. r[ref.place.through] `*r` with a reference `r` is a place, and so is a field read through `r`, such as `r.x`. The reference `r` is evaluated once, when the reference to the place is taken.
-3. r[ref.expr.place] `&e` and `&mut e` on a place refer to that place. A later write to the place, through any path, is seen through the reference.
-4. r[ref.expr.allocate] `&e` and `&mut e` on any other expression evaluate `e` and refer to a new object that holds the value. Each evaluation makes a new object.
-5. r[ref.expr.allocate.writable] A new object is writable, so `&mut T { ... }` and `&mut make()` are valid.
-6. r[ref.expr.allocate.view] `&mut e` on a value that is a readonly view is an error, since it would grant writes the view lacks. Error: `mutable-upgrade`.
-7. r[ref.expr.type] The type of `&e` is `&T`, and of `&mut e` is `&mut T`, where `T` is the type of `e` without an outer `mut` view.
-8. r[ref.place.alias] Two references to one place, or two copies of one reference, see each other's writes.
-9. r[ref.place.lifetime] A reference keeps the place it refers to alive. A reference to a local may outlive the block that declares the local, and may be returned.
-10. r[ref.place.receiver] A call of a `&self` or `&mut self` method takes a reference to its receiver as `&` and `&mut` would, with the place rules of this section. [Reference Receivers](07-functions.md#reference-receivers) states the call's rules.
+3. r[ref.place.map-value] A map value is no place, so `&m[k]` and `&mut m[k]` are errors, as [`types.coll.map-value.ref`](04-type-system.md#r-types.coll.map-value.ref) states. Error: `map-value-not-addressable`.
+4. r[ref.expr.place] `&e` and `&mut e` on a place refer to that place. A later write to the place, through any path, is seen through the reference.
+5. r[ref.expr.allocate] `&e` and `&mut e` on any other expression evaluate `e` and refer to a new object that holds the value. Each evaluation makes a new object.
+6. r[ref.expr.allocate.writable] A new object is writable, so `&mut T { ... }` and `&mut make()` are valid.
+7. r[ref.expr.allocate.view] `&mut e` on a value that is a readonly view is an error, since it would grant writes the view lacks. Error: `mutable-upgrade`.
+8. r[ref.expr.type] The type of `&e` is `&T`, and of `&mut e` is `&mut T`, where `T` is the type of `e` without an outer `mut` view.
+9. r[ref.place.alias] Two references to one place, or two copies of one reference, see each other's writes.
+10. r[ref.place.lifetime] A reference keeps the place it refers to alive. A reference to a local may outlive the block that declares the local, and may be returned.
+11. r[ref.place.receiver] A call of a `&self` or `&mut self` method takes a reference to its receiver as `&` and `&mut` would, with the place rules of this section. [Reference Receivers](07-functions.md#reference-receivers) states the call's rules.
 
 > **Why.** A reference to a value that is not a place still needs storage
 > to refer to, so it gets a new object, as Go's `&T{...}` does.
@@ -158,8 +159,9 @@ fn demo() -> void:
 
 1. r[ref.place.writable] `&mut e` on a place requires a writable place. A `let mut` local, a `mut` parameter, `mut self`, and a value reached through a `&mut` reference are writable. A struct field of a writable place, and a field of a data value with mutable access, are writable too.
 2. r[ref.place.writable.top-level] A top-level binding is writable when it is bound with `let mut`.
-3. r[ref.place.writable.view] When the place holds a readonly view, such as a readonly `List[T]`, `&mut` of it is an error, since it would grant writes the view lacks. Error: `mutable-upgrade`.
-4. r[ref.place.shared-any] `&e` needs no writable place: it may refer to a `:=` binding, a plain `let` binding, or a value parameter.
+3. r[ref.place.writable.view-data] When the place holds a readonly view, such as a readonly data value `User`, `&mut` of it is an error, since it would grant writes the view lacks. Error: `mutable-upgrade`.
+4. r[ref.place.writable.collection] A list or a map value is no view, so `&mut` of one in a writable place is valid. A change through the reference changes that place.
+5. r[ref.place.shared-any] `&e` needs no writable place: it may refer to a `:=` binding, a plain `let` binding, or a value parameter.
 
 `&mut` of a place that is not writable is an error, by what holds the place:
 
@@ -171,7 +173,7 @@ fn demo() -> void:
 | r[ref.place.not-writable.shared] Read-only reference | a value reached through a `&T` reference | `readonly-root` |
 | r[ref.place.not-writable.data] Data field | a field of a data value without mutable access | `readonly-root` |
 
-5. r[ref.place.not-writable.fix] For a plain `let` binding and a value parameter, the diagnostic's fix-it writes `mut` before the binding's name.
+6. r[ref.place.not-writable.fix] For a plain `let` binding and a value parameter, the diagnostic's fix-it writes `mut` before the binding's name.
 
 ```text
 fn invalid(count: i32) -> void:
@@ -393,7 +395,7 @@ See also: [Derived Implementations](09-traits.md#derived-implementations),
 
 ## Not Yet Checked
 
-1. r[ref.check.not-yet-elements] Two forms are errors until later jobs define them. They are a reference to a list element or a map value, as in `&xs[i]`, and a reference to a tuple element, as in `&pair._0`. Error: `references-not-yet-checked`.
+1. r[ref.check.not-yet-list-elements] Two forms are errors until later jobs define them. They are a reference to a list element, as in `&xs[i]`, and a reference to a tuple element, as in `&pair._0`. Error: `references-not-yet-checked`.
 2. r[ref.check.formatter] `hd fmt` formats a file that writes references. It keeps each reference token as written, `&mut` included, and a second run changes nothing.
 
 ```text

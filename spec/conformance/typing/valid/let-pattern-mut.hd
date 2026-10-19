@@ -1,5 +1,5 @@
 # test: mut may precede each name of a let data pattern, following the let mut rules
-# Spec 02 Let Statements: grammar.stmt.let-pattern.mut; Spec 04 Binding Forms: types.bind.let-pattern-mut.data (owner decision LP1, batch 26, 2026-09-30).
+# Spec 02 Let Statements: grammar.stmt.let-pattern.mut; Spec 04 Binding Forms: types.bind.let-pattern-mut.data-field (owner decision LP1, batch 26, 2026-09-30).
 data Profile:
     name: string
     tags: mut List[string]

@@ -1,0 +1,25 @@
+# test: a legacy mut List[T] parameter shares the caller's list, from a let mut value or a legacy binding
+# Spec 04 Legacy Collection Views: types.coll.legacy, types.coll.legacy.argument.
+fn append(items: mut List[string], name: string) -> void:
+    items.push(name)  # the caller's list changes
+
+fn demo() -> usize:
+    let mut names = ["ada"]
+    append(names, "grace")
+    names.len()  # 2
+
+tests:
+    use std.testing.assert_equal
+
+    it("demo counts two names"):
+        assert_equal(demo(), 2, reason="the push reached demo's list")
+
+    it("the callee's push reaches a let mut list"):
+        let mut names = ["a"]
+        append(names, "b")
+        assert_equal(names, ["a", "b"], reason="the legacy parameter shares the list")
+
+    it("the callee's push reaches a legacy binding"):
+        let names: mut List[string] = []
+        append(names, "c")
+        assert_equal(names.len(), 1, reason="the legacy binding is shared too")

@@ -6,7 +6,7 @@ data Sku:
     code: string
 
 fn stock_of(value: dyn Inspectable) -> i32:
-    match value.downcast::[Map[string, i32]]():
+    match downcast_val::[Map[string, i32]](value):
         .Some(stock) => stock["apple"]
         .None => -1
 

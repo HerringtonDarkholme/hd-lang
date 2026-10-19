@@ -28,7 +28,8 @@ use hd_types::{InternPool, ParamRef, Prim, RowId, Ty, TyData, TyList};
 
 pub use crate::layout::Sub;
 use crate::layout::{
-    A1Class, CanonMemo, KeyArg, LayoutEnv, MAX_CHAIN, MAX_DEPTH, a1_class, canon, instance_key,
+    A1Class, CanonMemo, KeyArg, LayoutEnv, MAX_CHAIN, MAX_DEPTH, StdKind, a1_class, canon,
+    instance_key,
 };
 use crate::plan::{BodyPlan, Planner, Source};
 
@@ -92,6 +93,13 @@ pub trait ProgramEnv: LayoutEnv {
     fn json_items(&self) -> Option<JsonItems>;
     /// Data fields, for the struct types a program needs.
     fn data_fields(&self, def: DefId) -> Option<Vec<Ty>>;
+    /// Whether `def` is a `struct` declaration: a value whose copies copy
+    /// the collections it holds (`crates/hd_wasm/DESIGN.md` §15.2,
+    /// "Collection values").
+    fn is_struct(&self, def: DefId) -> bool {
+        let _ = def;
+        false
+    }
     /// Whether a data type has a field that is not `pub`: its value crosses
     /// a boundary only through its `Serialize` and `Deserialize`
     /// (`module.boundary.out`, `module.boundary.in`). A newtype's inner
@@ -449,6 +457,39 @@ pub fn subst(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: TyList,
         hd_types::solver::normalize_concrete(pool.types(), env.impls(), s)
     } else {
         s
+    }
+}
+
+/// Whether copying a value of type `t` copies collections
+/// (`crates/hd_wasm/DESIGN.md` §15.2, "Collection values"): a `List` or a
+/// `Map` value, or a struct holding one in its fields, at any depth of
+/// struct fields. A legacy `mut List[T]` view shares its list and is no
+/// such value. Generic code over such a type is laid out exactly, never
+/// as the A1 class `REF`, so a copy in it knows what it copies.
+#[must_use]
+pub fn holds_coll(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
+    holds_coll_at(pool, env, t, 0)
+}
+
+fn holds_coll_at(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, depth: u32) -> bool {
+    if depth > 16 {
+        return false;
+    }
+    match pool.get(t) {
+        TyData::Adt { def, args } => match env.std_kind(def) {
+            StdKind::List | StdKind::Map => true,
+            StdKind::Other => {
+                if let Some(base) = env.newtype_base(def) {
+                    return holds_coll_at(pool, env, subst(pool, env, def, args, base), depth + 1);
+                }
+                env.is_struct(def)
+                    && env.data_fields(def).unwrap_or_default().iter().any(|f| {
+                        holds_coll_at(pool, env, subst(pool, env, def, args, *f), depth + 1)
+                    })
+            }
+            StdKind::Suspend => false,
+        },
+        _ => false,
     }
 }
 
@@ -1481,7 +1522,8 @@ impl Cx<'_> {
                 || pinned.get(k - own_from).copied().unwrap_or(false)
                 || is_class_ref(self.pool, t)
                 || matches!(self.pool.get(t), TyData::Row(_))
-                || self.env.body(def).is_none();
+                || self.env.body(def).is_none()
+                || holds_coll(self.pool, self.env, t);
             a.push(
                 if !exact && a1_class(self.pool, self.env, t)? == A1Class::Ref {
                     class_ref(self.pool)
@@ -2787,6 +2829,7 @@ impl Cx<'_> {
                                 | IntrinsicOp::MapSet
                                 | IntrinsicOp::MapIndex
                                 | IntrinsicOp::MapRemove
+                                | IntrinsicOp::MapIndexMut
                         )
                     ) =>
                 {
@@ -2958,6 +3001,7 @@ fn makes_call(body: &Body) -> bool {
                     | IntrinsicOp::MapSet
                     | IntrinsicOp::MapIndex
                     | IntrinsicOp::MapRemove
+                    | IntrinsicOp::MapIndexMut
             )
         ),
         _ => false,

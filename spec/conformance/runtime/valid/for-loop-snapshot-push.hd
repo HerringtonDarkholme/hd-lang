@@ -1,0 +1,8 @@
+# test: a for loop over a list iterates the list as it was when the loop began, so a push in its body neither panics nor is visited
+# Spec 06 Snapshot Iteration: flow.for.snapshot, flow.for.snapshot.change.
+# expect-stdout: 1 2 1 2
+pub fn main() -> void $ Console:
+    let values: mut List[i32] = [1, 2]
+    for value in values:
+        values.push(value)
+    println("${values[0]} ${values[1]} ${values[2]} ${values[3]}")

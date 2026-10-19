@@ -4,7 +4,7 @@
 # types.trait.safe.method-type-arg.any-use,
 # types.trait.safe.method-type-arg.box, types.any,
 # types.any.erase, types.any.one-way, types.sealed.decl,
-# types.sealed.markers, types.sealed.anyref-kinds,
+# types.sealed.markers, types.sealed.anyref-members,
 # types.sealed.type-parameter, types.sealed.bounds.
 data User:
     name: string

@@ -2,7 +2,7 @@
 # Spec 09 Inspectable Types: identity is the declaration, whatever its fields hold, and a trait
 # value type counts as inspectable as a type argument, matched exactly.
 # Spec 09 Traits: trait.inspectable.declared, trait.inspectable.fields, trait.inspectable.argument-only, trait.inspectable.argument-examples.
-use std.inspect.Inspectable
+use std.inspect.{Inspectable, downcast_val}
 data Handler:
     run: fn() -> i32
 
@@ -18,7 +18,7 @@ fn run_handler(value: dyn Inspectable) -> i32:
         .None => 0
 
 fn joined(value: dyn Inspectable) -> string:
-    match value.downcast::[List[dyn Display]]():
+    match downcast_val::[List[dyn Display]](value):
         .Some(parts) =>
             let text: string = ""
             for part in parts:

@@ -1,0 +1,22 @@
+# test: a list passed by value is the callee's own copy, so a change in the callee or of a returned copy leaves the caller's list unchanged
+# Spec 04 Collection Values: types.coll.value; Spec 07 Mutable Parameters: fn.param.mut.copy.
+fn grow(mut items: List[i32]) -> usize:
+    items.push(0)
+    items.len()
+
+fn same(items: List[i32]) -> List[i32]:
+    items
+
+tests:
+    use std.testing.assert_equal
+
+    it("a mut parameter changes the callee's copy"):
+        let mut items = [+1, 2]
+        assert_equal(grow(items), 3, reason="the callee pushed to its copy")
+        assert_equal(items.len(), 2, reason="the caller's list is unchanged")
+
+    it("a returned parameter is a copy"):
+        let mut items = [+1, 2]
+        let mut back = same(items)
+        back[0] = 9
+        assert_equal(items[0], 1, reason="the change to the returned copy stays there")

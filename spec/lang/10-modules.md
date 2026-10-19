@@ -1166,9 +1166,9 @@ fn version!() -> string $ Process:
 ### Value-Category Traits
 
 1. r[module.prelude.any-subtraits] `AnyVal` and `AnyRef` are the two sealed marker subtraits of `Any`.
-2. r[module.prelude.anyref-kinds] `AnyRef` is implemented by the reference types, trait value references included, and by data values, lists, maps, bare trait values, and `Any`. It is also implemented by suspensions and those runtime handles that have identity.
+2. r[module.prelude.anyref-members] `AnyRef` is implemented by the reference types, trait value references included, and by data values, bare trait values, and `Any`. It is also implemented by suspensions and those runtime handles that have identity.
 3. r[module.prelude.anyref-excludes] `AnyRef` is not implemented by primitives, tuples, enums (optionals included), or functions.
-4. r[module.prelude.anyval-kinds] `AnyVal` is implemented by exactly the primitives, `string`, tuples (`void` included), enums (optionals and `Result` included), structs, function types, and newtypes whose base type implements `AnyVal`.
+4. r[module.prelude.anyval-members] `AnyVal` is implemented by exactly the primitives, `string`, tuples (`void` included), enums (optionals and `Result` included), structs, `List`, `Map`, function types, and newtypes whose base type implements `AnyVal`.
 5. r[module.prelude.newtype-category] A newtype implements `AnyRef` exactly when its base type does.
 6. r[module.prelude.any-sealed] User code cannot implement either.
 
@@ -1195,16 +1195,17 @@ The following built-in methods are normative:
 | `Display` | `to_string(self) -> string` |
 
 1. r[module.method.normative] The built-in methods in the table are normative.
-2. r[module.method.usize-sizes] Lengths, indices, and byte offsets use [`usize`](04-type-system.md#the-usize-type).
-3. r[module.method.no-set] No `set` type is part of the core prelude.
-4. r[module.method.list-pop] `pop` removes the last element of the list and returns it as `.Some`.
-5. r[module.method.list-pop.empty] `pop` on an empty list returns `.None` and leaves the list unchanged.
-6. r[module.method.list-insert] `insert(index, value)` puts `value` at `index` and moves each element from `index` on one place up.
-7. r[module.method.list-insert.end] `insert` at `len()` appends `value`, as `push` does.
-8. r[module.method.list-insert.range] An `insert` index greater than `len()` is a checked runtime panic. Panic: `index-out-of-bounds`.
-9. r[module.method.list-remove-at] `remove_at(index)` removes the element at `index`, moves each later element one place down, and returns the removed element.
-10. r[module.method.list-remove-at.range] A `remove_at` index that is not less than `len()` is a checked runtime panic. Panic: `index-out-of-bounds`.
-11. r[module.method.list-clear] `clear` removes every element, so `len()` is 0 after it.
+2. r[module.method.changing] The methods of the `mut List[T]` and `mut Map[K, V]` rows change the collection. Calling one needs the list or map in a writable place, as [Collection Values](04-type-system.md#collection-values) states.
+3. r[module.method.usize-sizes] Lengths, indices, and byte offsets use [`usize`](04-type-system.md#the-usize-type).
+4. r[module.method.no-set] No `set` type is part of the core prelude.
+5. r[module.method.list-pop] `pop` removes the last element of the list and returns it as `.Some`.
+6. r[module.method.list-pop.empty] `pop` on an empty list returns `.None` and leaves the list unchanged.
+7. r[module.method.list-insert] `insert(index, value)` puts `value` at `index` and moves each element from `index` on one place up.
+8. r[module.method.list-insert.end] `insert` at `len()` appends `value`, as `push` does.
+9. r[module.method.list-insert.range] An `insert` index greater than `len()` is a checked runtime panic. Panic: `index-out-of-bounds`.
+10. r[module.method.list-remove-at] `remove_at(index)` removes the element at `index`, moves each later element one place down, and returns the removed element.
+11. r[module.method.list-remove-at.range] A `remove_at` index that is not less than `len()` is a checked runtime panic. Panic: `index-out-of-bounds`.
+12. r[module.method.list-clear] `clear` removes every element, so `len()` is 0 after it.
 
 | Call on `[1, 2, 3]` | List after |
 | --- | --- |

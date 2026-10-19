@@ -15,7 +15,7 @@ fn is_int_box(value: dyn Inspectable) -> bool:
         .None => false
 
 fn is_string_list(value: dyn Inspectable) -> bool:
-    match value.downcast::[List[string]]():
+    match downcast_val::[List[string]](value):
         .Some(_) => true
         .None => false
 

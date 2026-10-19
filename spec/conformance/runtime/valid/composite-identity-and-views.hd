@@ -29,12 +29,3 @@ tests:
         let erased_again: dyn Any = user
         assert(first is second, reason="direct conversion does not wrap")
         assert(erased is erased_again, reason="Any conversion does not wrap")
-
-    it("collections have allocation identity"):
-        values := [1, 2]
-        alias := values
-        other := [1, 2]
-        assert(values is alias, reason="alias")
-        assert(!(values is other), reason="equal lists are distinct")
-        entries := {"a": 1}
-        assert(!(entries is {"a": 1}), reason="equal maps are distinct")

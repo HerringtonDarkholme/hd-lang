@@ -1,4 +1,4 @@
-# test: readonly collections and covariant data weaken mut U to U without copying
+# test: readonly collections and covariant data weaken mut U to U, and a list copy shares its data elements
 # expect: test
 data User:
     name: string
@@ -22,16 +22,16 @@ fn as_readonly(users: List[User]) -> List[User]:
     users
 
 tests:
-    use std.testing.{assert, assert_equal}
+    use std.testing.assert_equal
 
-    it("readonly List[mut User] weakens to List[User] and aliases the same list"):
+    it("readonly List[mut User] weakens to List[User] and shares the same elements"):
         let users: mut List[mut User] = [User { name: "ab" }]
         let view: List[mut User] = users
         assert_equal(total_length(view), 2, reason="weakened view reads elements")
         let first: mut User = users[0]
         first.name = "abcd"
         assert_equal(total_length(view), 4, reason="the view observes later mutation")
-        assert(as_readonly(view) is users, reason="weakening preserves identity")
+        assert_equal(total_length(as_readonly(view)), 4, reason="weakening keeps the elements")
 
     it("readonly Map[string, mut User] weakens to Map[string, User]"):
         let users: mut Map[string, mut User] = {"k": User { name: "abc" }}

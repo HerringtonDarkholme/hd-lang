@@ -8,10 +8,13 @@
 data Child:
     name: string
 
+data Tags:
+    names: List[string]
+
 data Parent:
     child: mut Child
     label: string
-    tags: List[string] = []
+    tags: Tags = Tags { names: [] }
 
 tests:
     use std.testing.{assert, assert_equal}
@@ -32,7 +35,7 @@ tests:
     it("each ordinary construction evaluates the default afresh"):
         first := Parent { child: Child { name: "a" }, label: "1" }
         second := Parent { child: Child { name: "a" }, label: "2" }
-        assert(!(first.tags is second.tags), reason="one default list per construction")
+        assert(!(first.tags is second.tags), reason="one default value per construction")
 
     it("a readonly source with an explicit mut replacement"):
         let mut original = Parent { child: Child { name: "a" }, label: "x" }

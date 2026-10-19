@@ -305,7 +305,7 @@ impl[T, C < FromIterator[T]] FromIterator[T?] for C?:
 # A value that a `for` loop or a comprehension clause iterates
 # (spec/lang/06-control-flow.md#iteration-protocols).
 ## What `for` iterates: a type whose `iter` returns an iterator of its items.
-## See [flow.for.iterable](../../spec/lang/06-control-flow.md#r-flow.for.iterable).
+## See [flow.for.iterable.cursor](../../spec/lang/06-control-flow.md#r-flow.for.iterable.cursor).
 pub trait Iterable[T]:
     fn iter(self) -> mut Iterator[T]
 

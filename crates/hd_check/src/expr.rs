@@ -933,7 +933,7 @@ impl Ck<'_, '_> {
                     return Ok(self.b.emit(Tag::Is, a.0, c.0, Ty::BOOL, n.index()));
                 }
             }
-            // `expr.is.compatible`, `expr.is.incompatible`.
+            // `expr.is.compatible`, `expr.is.incompatible.data`.
             if !self.identity_compatible(at, ct)? {
                 let msg = format!(
                     "`is` compares {} with {}, which are not compatible reference types",
@@ -2535,6 +2535,9 @@ impl Ck<'_, '_> {
             };
             let rec = self.copy_record(&vals);
             let at = spread.map_or(n, |s| s);
+            // The fields the update keeps are copied out of the source
+            // struct (`types.coll.value`).
+            let sr = self.coll_copy(sr, self.strip_mut(st), at.index());
             return Ok((self.b.emit(Tag::CopyData, sr.0, rec, ty, at.index()), ty));
         }
         let ty = if fresh_mut {
@@ -3086,13 +3089,13 @@ impl Ck<'_, '_> {
     }
 
     /// A `for` over a built-in `List` or `Map` as a counted loop
-    /// (lowering-catalog "Loops"): no iterator value. The length, and a
-    /// map's rebuild count, are captured once (`flow.for.length`); each
-    /// round checks them (`flow.for.invalidate.panic`,
-    /// `flow.for.invalidate.map-rebuild`), then reads the next element, or
-    /// the next live entry of the slots written when the loop began,
-    /// advances, and binds it. The exhausted round checks too, as `next`
-    /// would.
+    /// (lowering-catalog "Loops"): no iterator value. The loop iterates a
+    /// snapshot of the collection as it was when the loop began
+    /// (`flow.for.snapshot`): `SnapBegin` shares its buffer, which a change
+    /// to the collection during the loop copies first, and `SnapEnd`
+    /// releases it when the loop ends. Each round reads the next element,
+    /// or the next live entry of the snapshot's slots, advances, and binds
+    /// it.
     fn collection_loop(
         &mut self,
         pat: NodeRef<'_>,
@@ -3116,8 +3119,12 @@ impl Ck<'_, '_> {
             sym(self, "$pos"),
             sym(self, "$end"),
         );
+        let orig_l = self.b.local(st, sym(self, "$orig"), ASSIGNED, at);
+        self.set_local(orig_l, sr, at);
         let src_l = self.b.local(st, src_s, ASSIGNED, at);
-        self.set_local(src_l, sr, at);
+        let o = self.b.get(orig_l, st, at);
+        let snap = intr(self, IntrinsicOp::SnapBegin, &[o], st);
+        self.set_local(src_l, snap, at);
         let len_l = self.b.local(us, len_s, ASSIGNED, at);
         let pos_l = self.b.local(us, pos_s, ASSIGNED, at);
         let end_l = self.b.local(us, end_s, ASSIGNED, at);
@@ -3138,29 +3145,10 @@ impl Ck<'_, '_> {
             self.b.get(len_l, us, at)
         };
         self.set_local(end_l, end, at);
-        // A map's loop also captures how often growth has rebuilt its
-        // entries: a rebuild moves them, so the slots mean nothing after.
-        let grown_l = if map {
-            let g = self.b.local(us, sym(self, "$grown"), ASSIGNED, at);
-            let c = self.b.get(src_l, st, at);
-            let n = intr(self, IntrinsicOp::MapGrowths, &[c], us);
-            self.set_local(g, n, at);
-            Some(g)
-        } else {
-            None
-        };
         let zero = self.b.const_value(us, 0);
         self.set_local(pos_l, zero, at);
         let lp = self.b.open_loop();
         let lb = self.b.open_block();
-        let (c, n) = (self.b.get(src_l, st, at), self.b.get(len_l, us, at));
-        match grown_l {
-            Some(g) => {
-                let g = self.b.get(g, us, at);
-                intr(self, IntrinsicOp::IterCheck, &[c, n, g], Ty::VOID)
-            }
-            None => intr(self, IntrinsicOp::IterCheck, &[c, n], Ty::VOID),
-        };
         if map {
             let (c, p, d) = (
                 self.b.get(src_l, st, at),
@@ -3213,7 +3201,10 @@ impl Ck<'_, '_> {
         self.b.emit(Tag::If, go.0, rec, Ty::VOID, at);
         let lbody = self.b.close_block(lb, None, Ty::VOID, at);
         let ty = result.unwrap_or(Ty::VOID);
-        Ok((self.b.close_loop(lp, lbody, ty, at), ty))
+        let lr = self.b.close_loop(lp, lbody, ty, at);
+        let (o, c) = (self.b.get(orig_l, st, at), self.b.get(src_l, st, at));
+        intr(self, IntrinsicOp::SnapEnd, &[o, c], Ty::VOID);
+        Ok((lr, ty))
     }
 
     /// `_` in a pipe step: the piped value.
@@ -3715,6 +3706,7 @@ impl Ck<'_, '_> {
         for &p in &params {
             self.draw_ref_serial(p, n.index());
         }
+        self.mut_param_copies(&params, n.index());
         let e = parts.body;
         let (tail, _) = if e.kind() == SyntaxKind::Block {
             self.block_value(e, Some(ret))?

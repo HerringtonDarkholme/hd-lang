@@ -120,27 +120,21 @@ pub fn main() -> void $ Console:
 }
 
 #[test]
-fn removing_during_iteration_invalidates_the_iterator() {
-    // flow.for.invalidate.panic: the live count changed.
+fn removing_during_a_loop_leaves_the_loop_on_its_snapshot() {
+    // flow.for.snapshot.change: the loop visits the entries it began with.
     let main = "\
 pub fn main() -> void $ Console:
     let m: mut Map[string, i32] = {\"a\": 1, \"b\": 2, \"c\": 3}
     for (k, _) in m:
         println(k)
         _ := m.remove(\"c\")
+    println(m.len())
 ";
-    let r = ran("remove-during", main);
-    assert!(!r.status.success(), "the loop must panic");
-    assert_eq!(String::from_utf8_lossy(&r.stdout), "a\n");
-    let err = String::from_utf8_lossy(&r.stderr);
-    assert!(err.contains("iterator-invalidated"), "{err}");
+    assert_eq!(output_of("remove-during", main), "a\nb\nc\n2\n");
 }
 
 #[test]
-fn a_removal_and_an_insertion_in_one_step_skip_and_hide_entries() {
-    // The live count is restored, so nothing panics (the length-only
-    // check of flow.for.invalidate); the removed entry is skipped and the
-    // appended one stays unseen (Q-R7: the written count is captured).
+fn a_removal_and_an_insertion_in_one_step_leave_the_loop_on_its_snapshot() {
     let main = "\
 pub fn main() -> void $ Console:
     let m: mut Map[string, i32] = {\"a\": 1, \"b\": 2, \"c\": 3}
@@ -151,15 +145,13 @@ pub fn main() -> void $ Console:
         println(k)
     println(m.keys().len())
 ";
-    assert_eq!(output_of("swap-during", main), "a\nb\n3\n");
+    assert_eq!(output_of("swap-during", main), "a\nb\nc\n3\n");
 }
 
 #[test]
-fn a_growth_that_doubles_during_iteration_invalidates_the_iterator() {
-    // flow.for.invalidate.map-rebuild: the four-entry literal is full, so
-    // the insertion doubles the entry arrays and moves the entries; the
-    // live count is restored, but the next round panics instead of
-    // resuming from a moved slot.
+fn a_growth_that_doubles_during_a_loop_leaves_it_on_its_snapshot() {
+    // The four-entry literal is full, so the insertion doubles the entry
+    // arrays; the loop goes on over the arrays it began with.
     let main = "\
 pub fn main() -> void $ Console:
     let m: mut Map[string, i32] = {\"a\": 1, \"b\": 2, \"c\": 3, \"d\": 4}
@@ -167,9 +159,30 @@ pub fn main() -> void $ Console:
         println(k)
         _ := m.remove(\"c\")
         m[\"e\"] = 5
+    println(m.len())
 ";
-    let r = ran("double-during", main);
-    assert!(!r.status.success(), "the loop must panic");
+    assert_eq!(output_of("double-during", main), "a\nb\nc\nd\n4\n");
+}
+
+#[test]
+fn a_growth_that_doubles_during_iteration_invalidates_the_cursor() {
+    // flow.for.invalidate.map-rebuild: the four-entry literal is full, so
+    // the insertion doubles the entry arrays and moves the entries; the
+    // live count is restored, but the cursor's next call panics instead
+    // of resuming from a moved slot.
+    let main = "\
+pub fn main() -> void $ Console:
+    let m: mut Map[string, i32] = {\"a\": 1, \"b\": 2, \"c\": 3, \"d\": 4}
+    let it: mut Iterator[(string, i32)] = m.iter()
+    match it.next():
+        .Some((k, _)) => println(k)
+        .None => println(\"none\")
+    _ := m.remove(\"c\")
+    m[\"e\"] = 5
+    _ := it.next()
+";
+    let r = ran("double-cursor", main);
+    assert!(!r.status.success(), "the cursor must panic");
     assert_eq!(String::from_utf8_lossy(&r.stdout), "a\n");
     let err = String::from_utf8_lossy(&r.stderr);
     assert!(err.contains("iterator-invalidated"), "{err}");

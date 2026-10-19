@@ -223,15 +223,17 @@ fn a_warm_rebuild_of_shared_types_emits_nothing() {
     assert_eq!(warm.wasm, cold.wasm);
 }
 
-/// Each round wraps `T` in one more list, through a generic call cycle
-/// that spans two files, which checking one module at a time does not
-/// see: the concrete types grow through reference layouts that classify
-/// alike, so no depth limit trips on its own, and collection stops the
-/// cycle (`types.generic.polymorphic-recursion`).
+/// Each round wraps `T` in one more legacy `mut List`, through a generic
+/// call cycle that spans two files, which checking one module at a time
+/// does not see: the concrete types grow through reference layouts that
+/// classify alike, so no depth limit trips on its own, and collection
+/// stops the cycle (`types.generic.polymorphic-recursion`). A list value
+/// type argument stays exact (`hd_mono::holds_coll`), so the legacy view
+/// keeps the argument erased.
 const ERASED_A: &str = "\
 use pkg.b.{eat}
 
-pub fn bite[T](xs: List[T], depth: i32) -> i32:
+pub fn bite[T](xs: mut List[T], depth: i32) -> i32:
     if depth == 0: 0
     else: eat([xs], depth - 1) + 1
 ";
@@ -239,7 +241,7 @@ pub fn bite[T](xs: List[T], depth: i32) -> i32:
 const ERASED_B: &str = "\
 use pkg.a.{bite}
 
-pub fn eat[T](xs: List[T], depth: i32) -> i32:
+pub fn eat[T](xs: mut List[T], depth: i32) -> i32:
     bite(xs, depth)
 ";
 

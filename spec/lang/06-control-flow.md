@@ -198,7 +198,7 @@ data Iterator[T]:
 11. r[flow.for.string-not-iterable] `string` does not implement `Iterable`, so a loop over a string is an error. Error: `unsatisfied-trait-bound`.
 12. r[flow.for.string-explicit] A loop over a string's contents iterates `chars()`, `char_indices()`, or `bytes()`, which [String Methods](10-modules.md#string-methods) defines.
 13. r[flow.for.accepts] `for` accepts a value whose type implements `Iterable[T]`, or an `Iterator[T]` expression with mutable access.
-14. r[flow.for.iterable] When the iterable expression's type implements `Iterable[T]`, the loop calls `iter` once and advances the resulting cursor.
+14. r[flow.for.iterable.cursor] When the iterable expression's type implements `Iterable[T]` and is not a `List` or a `Map`, the loop calls `iter` once and advances the resulting cursor. A list or a map is iterated as [Snapshot Iteration](#snapshot-iteration) states.
 15. r[flow.for.iterator-direct] When the iterable expression is an `Iterator[T]` with mutable access, the loop advances that iterator itself, without calling `iter`, cloning it, or resetting it.
 16. r[flow.for.iterator.position] Iteration therefore continues from the cursor's current position and leaves it exhausted.
 17. r[flow.for.iterator-mut] An iterator must be accessed mutably to advance. A loop over an `Iterator[T]` expression that has only readonly access is an error. Error: `mutable-receiver-required`.
@@ -303,6 +303,27 @@ fn total(items: List[i32]) -> i32:
     sum
 ```
 
+### Snapshot Iteration
+
+A `for` loop over a list or a map iterates the collection as it was when
+the loop began.
+
+```text
+fn doubled(values: List[i32]) -> List[i32]:
+    let mut out = values
+    for value in out:
+        out.push(value)  # the loop still ends after the old elements
+    out
+```
+
+1. r[flow.for.snapshot] A `for` loop over a `List` or `Map` value iterates the collection as it was when the loop began.
+2. r[flow.for.snapshot.change] A change to the collection while the loop runs, in its body or through a call, changes the collection but not the loop. The loop neither visits an added element nor panics.
+3. r[flow.for.snapshot.cost] Beginning the loop copies no element. A change during the loop copies the collection's elements once, as a change to any copy does ([`types.coll.copy-on-write`](04-type-system.md#r-types.coll.copy-on-write)).
+
+> **Why.** A loop over a value sees one value. A body that changes the
+> list it walks gets the result it wrote, and no rule asks the author to
+> know whether an iterator is live.
+
 ### Range Iteration
 
 A `for` loop iterates the integers of a [range](05-expressions.md#range-expressions):
@@ -351,6 +372,10 @@ fn invalid(n: i32) -> void:
 
 ### Iterator Invalidation
 
+An iterator that `iter()` returns follows the rules of this section; a `for`
+loop over a list or a map iterates a snapshot instead
+([Snapshot Iteration](#snapshot-iteration)).
+
 1. r[flow.for.length] Built-in list and map iterators capture the collection's length when they are created.
 2. r[flow.for.invalidate] An iterator is invalidated when the collection's length differs from the captured length.
 3. r[flow.for.invalidate.map-rebuild] A map iterator is also invalidated when an insertion rebuilds the map's entry storage, which moves the entries. Only an insertion of a new key can rebuild it. Which insertions do is unspecified.
@@ -362,8 +387,10 @@ fn invalid(n: i32) -> void:
 ```hd
 fn demo() -> void:
     let items: mut List[i32] = [+1, +2]
-    for item in items:
-        items.push(item)   # panics with iterator-invalidated
+    let cursor: mut Iterator[i32] = items.iter()
+    _ := cursor.next()
+    items.push(+3)
+    _ := cursor.next()   # panics with iterator-invalidated
 ```
 
 > **Note.** The length check alone misses a removal and an addition between

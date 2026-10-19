@@ -43,7 +43,7 @@ pub struct Global {
     /// Bound with `:=`: not reassignable (expr.bind.one-name).
     pub short: bool,
     /// Bound with `let mut`: a struct value in it changes in place
-    /// (`types.value.writable-path`).
+    /// (`types.value.writable-forms`).
     pub mutable: bool,
 }
 
@@ -882,7 +882,11 @@ impl Ck<'_, '_> {
             .any(|t| self.cx.src.tkind(t) == Some(TokenKind::KwMut));
         let t = if mutable {
             self.let_mut_binding(t, annot.is_some(), false, pat);
-            t
+            if annot.is_none() && self.is_coll_ty(t) {
+                self.readonly_view(t)
+            } else {
+                t
+            }
         } else if annot.is_none() {
             self.readonly_view(t)
         } else {

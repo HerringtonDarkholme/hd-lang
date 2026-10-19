@@ -1,0 +1,16 @@
+# test: a helper that grows the list through a legacy mut parameter during a for loop changes the list but not the loop
+# Spec 06 Snapshot Iteration: flow.for.snapshot.change; Spec 04 Legacy Collection Views: types.coll.legacy.argument.
+fn grow(values: mut List[i32]) -> void:
+    values.push(0)
+
+tests:
+    use std.testing.assert_equal
+
+    it("helper growth leaves the loop on the old elements"):
+        let values: mut List[i32] = [1, 2]
+        let visits = +0
+        for value in values:
+            grow(values)
+            visits = visits + value
+        assert_equal(visits, 3, reason="the loop visits the two elements it began with")
+        assert_equal(values.len(), 4, reason="each growth reached the list")

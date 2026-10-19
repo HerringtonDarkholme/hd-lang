@@ -242,12 +242,6 @@ pub enum IntrinsicOp {
     StrEq,
     /// A call of an `@intrinsic` std function whose body is the compiler's.
     Item,
-    /// `(collection, captured)`: the `iterator-invalidated` panic of a
-    /// counted `for` over a list or a map when the collection's length is
-    /// no longer the captured one (`flow.for.invalidate.panic`). A map's
-    /// check takes a third argument, the captured `MapGrowths`, and
-    /// panics when it changed too (`flow.for.invalidate.map-rebuild`).
-    IterCheck,
     /// `(map) -> usize`: how many entry slots the map has written, removed
     /// ones included.
     MapSlots,
@@ -256,13 +250,31 @@ pub enum IntrinsicOp {
     MapSlotNext,
     /// `(map, slot) -> (K, V)`: the entry in a live slot.
     MapSlotEntry,
-    /// `(map) -> usize`: how many times growth has rebuilt the map's
-    /// entry arrays, which moves every entry to a new slot.
-    MapGrowths,
+    /// `(value) -> value`: a copy of a value that holds a `List` or a
+    /// `Map` (spec/lang/04-type-system.md, "Collection Values"). Where
+    /// the type holds none, the copy is the value itself. On the Wasm GC
+    /// backend a collection's copy shares its buffer, and both marked as
+    /// shared copy it before their next change (`crates/hd_wasm/DESIGN.md`
+    /// §15.2, "Collection values").
+    ValueCopy,
+    /// `(list, index) -> element`: `ListIndex` for a write through the
+    /// element (`xs[i].push(v)`, `xs[i].x = v`): the list's buffer is made
+    /// unique first, so the write reaches only this list.
+    ListIndexMut,
+    /// `(map, key) -> value`: `MapIndex` for a write through the value
+    /// (`m[k].push(v)`), with the map's buffer made unique first.
+    MapIndexMut,
+    /// `(collection) -> collection`: the snapshot a counted `for` over a
+    /// list or a map iterates (`flow.for.snapshot`): it shares the
+    /// collection's buffer, which a change during the loop copies first.
+    SnapBegin,
+    /// `(collection, snapshot)`: the loop over `snapshot` has ended; a
+    /// collection the loop did not change stops copying for it.
+    SnapEnd,
 }
 
 impl IntrinsicOp {
-    pub const ALL: [IntrinsicOp; 20] = [
+    pub const ALL: [IntrinsicOp; 23] = [
         IntrinsicOp::ListLen,
         IntrinsicOp::ListPush,
         IntrinsicOp::ListIter,
@@ -278,11 +290,14 @@ impl IntrinsicOp {
         IntrinsicOp::StrConcat,
         IntrinsicOp::StrEq,
         IntrinsicOp::Item,
-        IntrinsicOp::IterCheck,
         IntrinsicOp::MapSlots,
         IntrinsicOp::MapSlotNext,
         IntrinsicOp::MapSlotEntry,
-        IntrinsicOp::MapGrowths,
+        IntrinsicOp::ValueCopy,
+        IntrinsicOp::ListIndexMut,
+        IntrinsicOp::MapIndexMut,
+        IntrinsicOp::SnapBegin,
+        IntrinsicOp::SnapEnd,
     ];
     #[must_use]
     pub fn from_u32(v: u32) -> Option<Self> {

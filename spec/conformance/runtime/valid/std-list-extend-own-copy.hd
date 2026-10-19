@@ -1,0 +1,28 @@
+# test: a std method that changes a list changes only its receiver, and a returned list is a new value
+# std Collections, List And Map Values: std-collections.value.receiver, std-collections.value.own-copy, std-collections.value.results.
+fn joined(first: List[i32], second: List[i32]) -> List[i32]:
+    let mut all = first
+    all.extend(second)  # first is unchanged
+    all
+
+tests:
+    use std.testing.assert_equal
+
+    it("joined leaves its arguments"):
+        first := [+1]
+        assert_equal(joined(first, [2]), [+1, 2], reason="the copy took both")
+        assert_equal(first, [+1], reason="the argument is unchanged")
+
+    it("extend changes only the receiver"):
+        first := [+1, 2]
+        let mut all = first
+        all.extend([3])
+        assert_equal(first, [+1, 2], reason="the source copy is unchanged")
+        assert_equal(all, [+1, 2, 3], reason="the receiver changed")
+
+    it("a returned list may change"):
+        source := [+3, 1, 2]
+        let mut kept = source.filter(fn(n: i32) -> bool: n > 1)
+        kept.push(9)
+        assert_equal(kept, [+3, 2, 9], reason="the result is the caller's own value")
+        assert_equal(source.len(), 3, reason="the receiver of filter is unchanged")

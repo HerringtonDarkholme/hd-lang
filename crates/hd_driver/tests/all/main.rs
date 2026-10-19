@@ -22,6 +22,7 @@ mod closure_code_targets;
 mod closure_parameter_annotation;
 mod coherence_scale;
 mod collect_default_run;
+mod collection_value_fix;
 mod combinator_call_forms;
 mod competing_drivers;
 mod constant_closures;

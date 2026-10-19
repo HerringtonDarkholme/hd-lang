@@ -1,0 +1,6 @@
+# test: a let mut copy of a list parameter may change, and the parameter stays as it was
+# Spec 04 Collection Values: types.coll.value, types.coll.let-mut.
+fn tagged(names: List[string]) -> List[string]:
+    let mut copy = names  # a copy of names
+    copy.push("new")      # names is unchanged
+    copy

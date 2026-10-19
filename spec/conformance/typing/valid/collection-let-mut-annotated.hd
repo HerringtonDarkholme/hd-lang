@@ -1,0 +1,8 @@
+# test: let mut with a List or Map value annotation is valid and makes the binding writable
+# Spec 04 Collection Values: types.coll.let-mut.
+fn build() -> (List[string], Map[string, i32]):
+    let mut names: List[string] = []
+    names.push("ada")
+    let mut ages: Map[string, i32] = {}
+    ages["ada"] = 36
+    (names, ages)

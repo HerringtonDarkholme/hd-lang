@@ -4547,6 +4547,8 @@ mod tests {
                 inspectable: id(4),
                 tuple: id(5),
                 structure: id(6),
+                list: DefId::NONE,
+                map: DefId::NONE,
             },
             kinds: vec![
                 (id(21), super::TypeDecl::Enum),

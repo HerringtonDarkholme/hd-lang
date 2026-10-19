@@ -1679,27 +1679,33 @@ fn below(value: u32) -> bool:
 2. r[expr.is.references] For two references, `is` compares the places they refer to, as [Identity](13-values-and-references.md#identity) defines.
 
 ```hd
-fn demo(a: List[i32], b: List[i32]) -> bool:
+data Account:
+    owner: string
+
+fn demo(a: Account, b: Account) -> bool:
     a is b   # identity, not contents
 ```
 
 #### Allocation Identity
 
-1. r[expr.is.heap-values] Data values, lists, maps, and other heap composites have allocation identity; access permission (`mut`) does not change it.
+1. r[expr.is.heap-data] Data values and other heap composites have allocation identity; access permission (`mut`) does not change it. A list or a map is a value with no identity ([`types.coll.no-identity`](04-type-system.md#r-types.coll.no-identity)).
 2. r[expr.is.conversion] Converting such a value to a trait value or `Any` preserves the underlying identity.
 3. r[expr.is.function-none] A function value has no identity. This covers named functions, generic instantiations, one-payload variant constructors, and closures.
 4. r[expr.is.function-sharing] An implementation may share one function value between evaluations or allocate a new one at each evaluation. No program can observe the choice.
-5. r[expr.is.box-values] A conversion of a primitive, string, tuple, enum, or function value to a dynamic trait value or `Any` may box the value. The box has no identity.
+5. r[expr.is.box-value-kinds] A conversion of a value whose type implements `AnyVal`, such as a primitive, a string, a tuple, an enum, a list, or a function, to a dynamic trait value or `Any` may box the value. The box has no identity.
 6. r[expr.is.box-unspecified] `is` between two trait or `Any` values has an unspecified result when either holds such a value at run time.
 7. r[expr.is.no-wrapper] A direct conversion of a heap composite continues to preserve the composite's underlying identity and does not allocate an identity wrapper.
 8. r[expr.is.canonical-data] A fieldless data value is canonical for its data type.
 9. r[expr.is.canonical.same] Two occurrences of the same such value have the same identity, and constructing one allocates nothing.
 
 ```hd
+data Account:
+    owner: string
+
 fn demo() -> bool:
-    let items: mut List[i32] = [+1]
-    same := items
-    items is same   # one allocation, one identity
+    let account: mut Account = Account { owner: "Ada" }
+    same := account
+    account is same   # one allocation, one identity
 ```
 
 #### Identity Operands
@@ -1707,8 +1713,8 @@ fn demo() -> bool:
 1. r[expr.is.tuple] Tuples have no identity, and using `is` with a tuple is an error even if it contains references. Error: `identity-requires-references`.
 2. r[expr.is.value-operand] Primitive values, strings, enum values, optionals included, and function values likewise cannot be compared with `is`: an operand type must implement `AnyRef`, not `AnyVal`. Error: `identity-requires-references`.
 3. r[expr.is.compatible] Both operands must otherwise have compatible composite reference types. Two such types are compatible when, after removing `mut` at every level, they are equal. They are also compatible when one is a trait value or `Any` type that the other converts to.
-4. r[expr.is.permissions] Permissions never affect identity, so `List[User]` and `mut List[mut User]` are compatible.
-5. r[expr.is.incompatible] Two composite reference operands that are not compatible, such as `List[User]` and `List[Order]`, are an error. Error: `incompatible-identity-operands`.
+4. r[expr.is.permissions.data] Permissions never affect identity, so `Box[User]` and `mut Box[mut User]` are compatible for a data type `Box[T]`.
+5. r[expr.is.incompatible.data] Two composite reference operands that are not compatible, such as `Box[User]` and `Box[Order]`, are an error. Error: `incompatible-identity-operands`.
 6. r[expr.is.function.operand] An `is` with an operand whose static type is a function type is an error, as for a value type. Error: `identity-requires-references`.
 7. r[expr.is.function.bound] A function type does not implement `AnyRef`, so generic code over `T < AnyRef` never receives a function value. Error: `unsatisfied-trait-bound`.
 

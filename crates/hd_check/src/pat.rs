@@ -596,7 +596,11 @@ impl Ck<'_, '_> {
                     .any(|t| self.cx.src.tkind(t) == Some(TokenKind::KwMut)) =>
             {
                 self.let_mut_name(t, annotated, p);
-                t
+                if self.is_coll_ty(t) {
+                    self.readonly_view(t)
+                } else {
+                    t
+                }
             }
             Some(false) => self.readonly_view(t),
             _ => t,
@@ -607,6 +611,9 @@ impl Ck<'_, '_> {
                 .any(|t| self.cx.src.tkind(t) == Some(TokenKind::KwMut))
         {
             self.mut_locals.push(l);
+        }
+        if self.let_view.is_some() {
+            self.note_copy_local(l, None);
         }
         binds.push((p.index(), l));
         Ok(())
@@ -919,6 +926,12 @@ impl Ck<'_, '_> {
         let mut deferred = None;
         if let_mut {
             deferred = self.let_mut_binding(t, annot.is_some(), true, pat);
+            // A collection in a `let mut` is a value that changes in place
+            // (`types.coll.writable`): its type is the value type, unless
+            // the annotation is a legacy `mut` view.
+            if annot.is_none() && self.is_coll_ty(t) {
+                t = self.readonly_view(t);
+            }
         } else if pat.kind() == SyntaxKind::BindingPattern && annot.is_none() && !using {
             // `x := e` and `let x = e` bind the readonly view
             // (types.bind.short, types.bind.let-readonly).
@@ -954,6 +967,7 @@ impl Ck<'_, '_> {
             if let Some(kind) = deferred {
                 self.prim_let_mut.push((l, pat.index(), kind));
             }
+            self.note_copy_local(l, annot);
             self.set_local(l, r, at.index());
             return Ok(());
         }

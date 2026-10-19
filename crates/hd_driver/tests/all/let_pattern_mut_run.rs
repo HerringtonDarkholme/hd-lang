@@ -1,9 +1,9 @@
 //! A `mut` name in a `let` data pattern (spec/lang/02-grammar.md,
 //! grammar.stmt.let-pattern.mut; spec/lang/04-type-system.md,
-//! types.bind.let-pattern-mut.data): `mut` precedes the name of a field,
+//! types.bind.let-pattern-mut.data-field): `mut` precedes the name of a field,
 //! and the field is bound with mutable access, in plain `let`, in
 //! `let ... else`, and under a variant pattern. A readonly subject never
-//! upgrades (types.bind.let-mut-upgrade), and `match` takes no `mut`
+//! upgrades (types.bind.let-mut-upgrade.view), and `match` takes no `mut`
 //! (grammar.stmt.let-mut.only-let). Programs build through the driver and
 //! run on V8 (`host/run.mjs`), as the conformance runner does.
 
@@ -94,7 +94,9 @@ pub fn main() -> void $ Console:
     println(t.tags.len())
 ",
     );
-    assert_eq!(output_of("mut-field", &main), "2\n2\n");
+    // The binding is a copy of the list (`types.coll.value`): the push
+    // changes `tags` and leaves `t.tags` as it was.
+    assert_eq!(output_of("mut-field", &main), "2\n1\n");
 }
 
 #[test]
@@ -145,7 +147,9 @@ pub fn main() -> void $ Console:
     println(t.tags.len())
 ",
     );
-    assert_eq!(output_of("let-else", &main), "0\n2\n2\n");
+    // `mut tags` binds a copy of the list (`types.coll.value`), so `t.tags`
+    // keeps its one element.
+    assert_eq!(output_of("let-else", &main), "0\n2\n1\n");
 }
 
 #[test]
@@ -176,27 +180,50 @@ fn size(t: mut Tally) -> usize:
 }
 
 #[test]
-fn a_mut_field_of_a_readonly_subject_is_an_upgrade() {
+fn a_mut_list_field_of_a_readonly_subject_binds_a_copy() {
+    // A list is a value: `mut tags` binds a writable copy, which grants no
+    // write to the subject (`types.coll.let-mut`).
     let main = with_tally(
         "\
-fn edit(t: Tally) -> void:
+fn edit(t: Tally) -> void $ Console:
     let Tally { mut tags } = t
+    tags.push(\"x\")
     println(tags.len())
 ",
     );
-    assert_eq!(codes_of(&main), vec![Code::MutableUpgrade]);
+    assert_eq!(codes_of(&main), Vec::<Code>::new());
+}
+
+#[test]
+fn a_mut_data_field_of_a_readonly_subject_is_an_upgrade() {
+    let main = "\
+data Note:
+    text: string
+
+data Holder:
+    note: mut Note
+
+fn edit(h: Holder) -> void $ Console:
+    let Holder { mut note } = h
+    println(note.text)
+";
+    assert_eq!(codes_of(main), vec![Code::MutableUpgrade]);
 }
 
 #[test]
 fn a_mut_name_after_a_field_label_of_a_readonly_subject_is_an_upgrade() {
-    let main = with_tally(
-        "\
-fn edit(t: Tally) -> void:
-    let Tally { tags: mut others } = t
-    println(others.len())
-",
-    );
-    assert_eq!(codes_of(&main), vec![Code::MutableUpgrade]);
+    let main = "\
+data Note:
+    text: string
+
+data Holder:
+    note: mut Note
+
+fn edit(h: Holder) -> void $ Console:
+    let Holder { note: mut other } = h
+    println(other.text)
+";
+    assert_eq!(codes_of(main), vec![Code::MutableUpgrade]);
 }
 
 #[test]

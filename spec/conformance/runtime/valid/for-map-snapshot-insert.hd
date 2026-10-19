@@ -1,0 +1,15 @@
+# test: inserting a new map key inside a for loop changes the map but not the loop, which visits the entries it began with
+# Spec 06 Snapshot Iteration: flow.for.snapshot, flow.for.snapshot.change.
+
+tests:
+    use std.testing.assert_equal
+
+    it("insertion during map iteration is not visited"):
+        let values: mut Map[string, i32] = {"a": 1, "b": 2}
+        let seen: mut List[string] = []
+        for (key, value) in values:
+            seen.push(key)
+            if key == "a":
+                values["c"] = value + 2
+        assert_equal(seen, ["a", "b"], reason="the loop visits the entries it began with")
+        assert_equal(values["c"], 3, reason="the insertion reached the map")

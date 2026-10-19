@@ -1,0 +1,15 @@
+# test: removing a map entry inside a for loop changes the map but not the loop, which still visits the removed entry
+# Spec 06 Snapshot Iteration: flow.for.snapshot, flow.for.snapshot.change.
+
+tests:
+    use std.testing.assert_equal
+
+    it("removal during map iteration leaves the loop's entries"):
+        let values: mut Map[string, i32] = {"a": 1, "b": 2}
+        let total = +0
+        for (key, value) in values:
+            if key == "a" && value == 1:
+                _ := values.remove("b")
+            total = total + value
+        assert_equal(total, 3, reason="the loop still visits b")
+        assert_equal(values.len(), 1, reason="the removal reached the map")

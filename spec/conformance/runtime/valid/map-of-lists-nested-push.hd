@@ -1,0 +1,27 @@
+# test: m[k].push(x) changes the map's list in place, so building a map of 10,000 lists takes linear time
+# Spec 04 Collection Values: types.coll.nested, types.coll.map-value.
+
+tests:
+    use std.testing.assert_equal
+
+    it("a nested push changes the stored list"):
+        let mut groups: Map[string, List[i32]] = {}
+        groups["even"] = []
+        groups["even"].push(2)
+        groups["even"].push(4)
+        snapshot := groups
+        groups["even"].push(6)
+        assert_equal(groups["even"], [+2, 4, 6], reason="each push reached the stored list")
+        assert_equal(snapshot["even"].len(), 2, reason="a copy of the map is unchanged")
+
+    it("10,000 keys, three pushes each"):
+        let mut groups: Map[i64, List[i64]] = {}
+        let i: i64 = 0
+        while i < 30000:
+            key := i % 10000
+            if i < 10000:
+                groups[key] = []
+            groups[key].push(i)
+            i = i + 1
+        assert_equal(groups.len(), 10000, reason="one list per key")
+        assert_equal(groups[7], [7, 10007, 20007], reason="three pushes in order")

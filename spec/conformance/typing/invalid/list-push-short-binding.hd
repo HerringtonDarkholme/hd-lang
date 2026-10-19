@@ -1,0 +1,6 @@
+# test: a push to a list bound with := is an error, since := never changes
+# Spec 04 Collection Values: types.coll.writable.call.
+fn names() -> usize:
+    found := ["ada"]
+    found.push("grace")  # diagnostic: mutable-receiver-required
+    found.len()

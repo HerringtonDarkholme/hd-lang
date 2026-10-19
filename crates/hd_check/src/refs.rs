@@ -329,7 +329,10 @@ impl Ck<'_, '_> {
                 // A new object holds a copy of the value; `&mut` on a
                 // readonly view would grant writes through it
                 // (`ref.expr.allocate.view`).
-                if mutable && self.is_composite(t) && !self.has_mut_access(t) {
+                // A list or map value is no view: the new object holds a
+                // copy of it (`ref.place.writable.collection`).
+                let coll = self.is_coll_value(t);
+                if mutable && !coll && self.is_composite(t) && !self.has_mut_access(t) {
                     let msg = format!(
                         "`&mut` needs mutable access, but the value is a readonly {}",
                         self.show(t)
@@ -337,6 +340,11 @@ impl Ck<'_, '_> {
                     self.err(Code::MutableUpgrade, e, &msg);
                     return Ok(self.ref_poison(n));
                 }
+                let v = if coll {
+                    self.coll_copy(v, t, e.index())
+                } else {
+                    v
+                };
                 let (l, d) = self.hold(v, t, e);
                 // The closures share the new local (a cell); the `set`
                 // closure assigns it.
@@ -456,12 +464,29 @@ impl Ck<'_, '_> {
                 })))
             }
             SyntaxKind::IndexExpr => {
-                // `ref.check.not-yet-elements`: element references pin their list,
+                // `types.coll.map-value`: a map value moves when the map
+                // rehashes, so it is no place to refer to.
+                if let Some(base) = kids.first().copied() {
+                    let (_, bt) = self.expr(base, None)?;
+                    if self
+                        .index_kind(bt)
+                        .is_some_and(|(get, ..)| get == IntrinsicOp::MapIndex)
+                    {
+                        self.err(
+                            Code::MapValueNotAddressable,
+                            e,
+                            "a map value is no place, so no reference refers to it; copy it into a `let mut` and refer to that, or keep `&mut` values in the map",
+                        );
+                        self.map_value_ref_fix(e);
+                        return Ok(None);
+                    }
+                }
+                // `ref.check.not-yet-list-elements`: element references pin their list,
                 // which comes with a later job.
                 self.err(
                     Code::ReferencesNotYetChecked,
                     e,
-                    "a reference to a list element or a map value is not checked yet",
+                    "a reference to a list element is not checked yet",
                 );
                 Ok(None)
             }
@@ -515,7 +540,7 @@ impl Ck<'_, '_> {
                 let pool = self.pool();
                 if let TyData::Tuple { .. } = pool.get(self.strip_mut(self.infer.resolve(pool, t)))
                 {
-                    // `ref.check.not-yet-elements`
+                    // `ref.check.not-yet-list-elements`
                     self.err(
                         Code::ReferencesNotYetChecked,
                         e,
@@ -624,9 +649,13 @@ impl Ck<'_, '_> {
         if !ok {
             return false;
         }
-        // `ref.place.writable.view`: a readonly view in the place grants no
-        // writes, so `&mut` to it would upgrade it.
-        if self.is_composite(p.ty) && !self.has_mut_access(p.ty) {
+        // `ref.place.writable.view-data`: a readonly view in the place grants no
+        // writes, so `&mut` to it would upgrade it. A collection value is
+        // no view: a writable place holding one is writable
+        // (`types.coll.writable`), except in a legacy data field.
+        let coll_value = self.is_coll_value(p.ty)
+            && (!matches!(p.root, Root::DataField(..)) || !p.path.is_empty());
+        if self.is_composite(p.ty) && !self.has_mut_access(p.ty) && !coll_value {
             let msg = format!(
                 "`&mut` needs mutable access, but this place holds a readonly {}",
                 self.show(p.ty)

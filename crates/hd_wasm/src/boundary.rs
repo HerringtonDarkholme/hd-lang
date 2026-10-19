@@ -1217,10 +1217,10 @@ fn copy_in(a: &mut Asm, off: u32, n: u32, k: u32, arr: u32, t: &WTy) {
 /// The element arrays of a list type.
 fn list_arrays(ty: &WTy, n: usize) -> StageResult<Vec<WTy>> {
     let fields = ty.fields();
-    if fields.len() != n + 1 {
+    if fields.len() != n + 2 {
         return unsupported("a list type without one array per element value");
     }
-    fields[1..]
+    fields[1..=n]
         .iter()
         .map(|f| match f {
             VT::Ref(t, _) => Ok((**t).clone()),
@@ -1388,6 +1388,7 @@ pub fn dec_code(b: &BTy) -> StageResult<Code> {
             copy_in(&mut a, 0, n, k, arr, &at);
             a.get(n);
             a.get(arr);
+            a.i32(0);
             a.struct_new(t);
         }
         BTy::List { ty, elem } => {
@@ -1428,6 +1429,7 @@ pub fn dec_code(b: &BTy) -> StageResult<Code> {
             for l in &arrs {
                 a.get(*l);
             }
+            a.i32(0);
             a.struct_new(ty);
         }
         BTy::Opt { form, inner } => {

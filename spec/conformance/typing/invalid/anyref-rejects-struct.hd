@@ -1,5 +1,5 @@
 # test: a struct is a value, so it does not implement AnyRef
-# Spec 04 AnyVal And AnyRef: types.sealed.anyref-kinds, types.sealed.bounds.
+# Spec 04 AnyVal And AnyRef: types.sealed.anyref-members, types.sealed.bounds.
 struct Point:
     x: i32
 

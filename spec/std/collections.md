@@ -24,6 +24,22 @@ The language tier keeps what the compiler knows about a list
 | `items[i]`, `len`, `iter`, `push`, `pop`, `insert`, `remove_at`, `clear` | built-in indexing and intrinsics over the list's representation |
 | the captured length | [`flow.for.length`](../lang/06-control-flow.md#r-flow.for.length), a language rule, defines when a change invalidates an iterator |
 
+## List And Map Values
+
+A list or a map is a value ([Collection Values](../lang/04-type-system.md#collection-values)),
+and the `std` methods treat it as one.
+
+```text
+fn joined(first: List[i32], second: List[i32]) -> List[i32]:
+    let mut all = first
+    all.extend(second)  # first is unchanged
+    all
+```
+
+1. r[std-collections.value.receiver] A `std` method that changes a list or a map, as `extend` does, needs its receiver in a writable place, as a language-tier changing method does ([`types.coll.writable`](../lang/04-type-system.md#r-types.coll.writable)).
+2. r[std-collections.value.own-copy] Such a change reaches only the receiver's own value. Another copy of the list or the map is unchanged.
+3. r[std-collections.value.results] A method that returns a list or a map, as `keys`, `filter`, and `chunks` do, returns a new value, which the caller may bind with `let mut` and change.
+
 ## List Methods
 
 `std` gives `List[T]` these methods, beside the language-tier ones:

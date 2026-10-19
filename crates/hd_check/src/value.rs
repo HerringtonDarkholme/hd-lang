@@ -2,7 +2,7 @@
 //! A struct value has no identity, so a field write changes only the
 //! writable place it names: a `let mut` local or top-level binding, a
 //! field of a data value with mutable access, or a struct field of one of
-//! these (`types.value.writable-path`).
+//! these (`types.value.writable-forms`).
 //!
 //! The Wasm GC backend holds a struct value as an object that is never
 //! written after it is built (`crates/hd_wasm/DESIGN.md` §15.2, "Struct
@@ -31,6 +31,9 @@ enum Root {
     /// The value the reference `r`, a `&mut`, refers to, with `r`'s type
     /// (`ref.write.field`).
     Deref(Ref, Ty),
+    /// Element `index` of the writable list `list`, with the element type
+    /// (`types.coll.element-place`).
+    Elem(Ref, Ref, Ty),
 }
 
 /// A writable struct place: its root, then the struct fields read from it
@@ -43,7 +46,7 @@ struct Place {
 impl Ck<'_, '_> {
     /// `base.name = rhs`, `base.name op= rhs` or `base.name ...= rhs`
     /// where `base`, already checked as `(br, bt)`, has a struct type
-    /// (`types.value.writable-path`, `types.value.field-write`).
+    /// (`types.value.writable-forms`, `types.value.field-write`).
     pub(crate) fn struct_field_assign(
         &mut self,
         (br, bt): (Ref, Ty),
@@ -63,7 +66,7 @@ impl Ck<'_, '_> {
             self.err(Code::CopyIntoOrdinaryField, lhs, &msg);
             return Ok(());
         }
-        let Some(place) = self.value_place(br, base, lhs) else {
+        let Some(place) = self.value_place(br, base, (lhs, s)) else {
             return Ok(());
         };
         let v = match compound {
@@ -82,7 +85,12 @@ impl Ck<'_, '_> {
 
     /// The writable place that `br`, a struct value read by `base`,
     /// reads; reports why it is not writable otherwise.
-    fn value_place(&mut self, br: Ref, base: NodeRef<'_>, at: NodeRef<'_>) -> Option<Place> {
+    fn value_place(
+        &mut self,
+        br: Ref,
+        base: NodeRef<'_>,
+        (at, stmt): (NodeRef<'_>, NodeRef<'_>),
+    ) -> Option<Place> {
         let mut path = Vec::new();
         let mut cur = br;
         let mut node = base;
@@ -115,6 +123,43 @@ impl Ck<'_, '_> {
                     path.reverse();
                     let root = Root::Field(inner, data[1], self.b.ty_of(cur));
                     return Some(Place { root, path });
+                }
+                // A list element is a place of a writable list; a map value
+                // is no place (`types.coll.element-place`,
+                // `types.coll.map-value`).
+                Tag::Intrinsic
+                    if matches!(
+                        hd_tir::ir::IntrinsicOp::from_u32(data[0]),
+                        Some(
+                            hd_tir::ir::IntrinsicOp::ListIndex
+                                | hd_tir::ir::IntrinsicOp::ListIndexMut
+                                | hd_tir::ir::IntrinsicOp::MapIndex
+                                | hd_tir::ir::IntrinsicOp::MapIndexMut
+                        )
+                    ) =>
+                {
+                    let args = self.b.body_mut().record(data[1]).to_vec();
+                    let (list, index) = (Ref(args[0]), Ref(args[1]));
+                    if matches!(
+                        hd_tir::ir::IntrinsicOp::from_u32(data[0]),
+                        Some(
+                            hd_tir::ir::IntrinsicOp::MapIndex
+                                | hd_tir::ir::IntrinsicOp::MapIndexMut
+                        )
+                    ) {
+                        self.map_value_write(at, stmt, node);
+                        return None;
+                    }
+                    let lt = self.b.ty_of(list);
+                    let list_node = node.children().next().unwrap_or(node);
+                    if !self.coll_change(list, lt, "this field write", list_node) {
+                        return None;
+                    }
+                    path.reverse();
+                    return Some(Place {
+                        root: Root::Elem(list, index, self.b.ty_of(cur)),
+                        path,
+                    });
                 }
                 // A read through a reference (`refs.rs`): the place is the
                 // referenced value, writable through `&mut` only.
@@ -174,7 +219,7 @@ impl Ck<'_, '_> {
                 _ => break,
             }
         }
-        // `types.value.write.other`
+        // `types.value.write.other-value`
         let msg = "this struct value is not a variable or a field of one, so its fields cannot change; copy it into a `let mut` first";
         self.err(Code::ReadonlyRoot, at, msg);
         None
@@ -245,6 +290,14 @@ impl Ck<'_, '_> {
             }
             Root::Field(base, i, ty) => self.b.emit(Tag::Field, base.0, i, ty, at),
             Root::Deref(r, rt) => self.emit_deref(r, rt, at).0,
+            // The element is read after its list's buffer is made unique,
+            // so the rebuilt element shares nothing with another list's
+            // (`types.coll.nested`).
+            Root::Elem(list, index, ty) => {
+                let rec = self.b.refs_record(&[list, index]);
+                let op = hd_tir::ir::IntrinsicOp::ListIndexMut as u32;
+                self.b.emit(Tag::Intrinsic, op, rec, ty, at)
+            }
         };
         let mut vals = vec![root];
         for &(i, ty) in &place.path {
@@ -278,7 +331,50 @@ impl Ck<'_, '_> {
                 self.b.emit(Tag::FieldSet, base.0, rec, Ty::VOID, at);
             }
             Root::Deref(r, rt) => self.emit_ref_store(r, rt, new, at),
+            Root::Elem(list, index, _) => {
+                let rec = self.b.refs_record(&[list, index, new]);
+                let op = hd_tir::ir::IntrinsicOp::ListSet as u32;
+                self.b.emit(Tag::Intrinsic, op, rec, Ty::VOID, at);
+            }
         }
+    }
+
+    /// `types.coll.map-value`: a write into a map value's field. A map
+    /// value moves when the map rehashes, so it is no place; the fix-it
+    /// reads the value, changes it and stores it back.
+    fn map_value_write(&mut self, at: NodeRef<'_>, stmt: NodeRef<'_>, value: NodeRef<'_>) {
+        self.err(
+            Code::MapValueNotAddressable,
+            at,
+            "a map value is no place, so its fields cannot change in the map; read it, change it and store it back, or keep `&mut` values in the map",
+        );
+        // `m[k].x = v` becomes `let mut entry = m[k]`, `entry.x = v`,
+        // `m[k] = entry`, each on its own line at the statement's indent.
+        let src = self.cx.src;
+        let (sp, vp) = (src.span(stmt), src.span(value));
+        let text: &str = src.text;
+        let (lo, hi, vlo, vhi) = (
+            sp.lo as usize,
+            sp.hi as usize,
+            vp.lo as usize,
+            vp.hi as usize,
+        );
+        if vlo != lo || vhi > hi || hi > text.len() {
+            return;
+        }
+        let line = text[..lo].rfind('\n').map_or(0, |p| p + 1);
+        let indent = &text[line..lo];
+        if !indent.chars().all(|c| c == ' ') {
+            return;
+        }
+        let place = &text[vlo..vhi];
+        let rest = &text[vhi..hi];
+        let new = format!("let mut entry = {place}\n{indent}entry{rest}\n{indent}{place} = entry");
+        self.diags.add_fix(
+            "read the value, change it and store it back",
+            hd_diag::FixSafety::Suggestion,
+            &[(sp, new.as_str())],
+        );
     }
 }
 

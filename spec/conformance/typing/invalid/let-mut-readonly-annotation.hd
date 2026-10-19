@@ -1,3 +1,6 @@
-# test: let mut with a readonly annotation disagrees with it
+# test: let mut with a readonly annotation of a data type disagrees with it
+data User:
+    name: string
+
 fn invalid() -> void:
-    let mut names: List[string] = []  # diagnostic: let-mut-readonly-type
+    let mut user: User = User { name: "Ada" }  # diagnostic: let-mut-readonly-type

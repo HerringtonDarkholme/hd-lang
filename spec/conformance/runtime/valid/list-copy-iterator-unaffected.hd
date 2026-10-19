@@ -1,0 +1,15 @@
+# test: an iterator taken from a copy of a list is not invalidated by growth of the source, since the copy is a value of its own
+# Spec 04 Collection Values: types.coll.value.
+
+tests:
+    use std.testing.assert_equal
+
+    it("growth of the source leaves the copy's iterator valid"):
+        let values: mut List[i32] = [1, 2]
+        let view: List[i32] = values
+        let iterator: mut Iterator[i32] = view.iter()
+        _ := iterator.next()
+        values.push(3)
+        let second: i32? = 2
+        assert_equal(iterator.next(), second, reason="the copy still has two elements")
+        assert_equal(iterator.next(), .None, reason="the copy ends after them")

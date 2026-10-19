@@ -916,13 +916,14 @@ A numeric range loop advances before the body runs, so `continue` needs
 no step of its own, and at an inclusive end it stops instead of adding,
 so `0..=255u8` cannot overflow (`hd_check::expr`, `range_loop`).
 A `for` over a `List` or a `Map` is a counted loop too
-(`hd_check::expr`, `collection_loop`). It captures the length once and
-checks it at the top of every round, the exhausted round included, so it
-panics with `iterator-invalidated` exactly where the cursor's `next`
-would. A map loop also captures the map's rebuild count (`MapGrowths`)
-and checks it in the same place, since a rebuild moves the entries. It
-scans the slots written when it began, skipping removed entries
-(`MapSlotNext`).
+(`hd_check::expr`, `collection_loop`). It iterates a snapshot
+([`flow.for.snapshot`](../../spec/lang/06-control-flow.md#r-flow.for.snapshot)):
+`SnapBegin` makes a header over the collection's arrays and marks the
+collection, so a change in the body copies its arrays first
+(`crates/hd_wasm/DESIGN.md` §15.2, "Collection values"), and `SnapEnd`
+removes the mark after the loop. The loop captures the snapshot's length
+once and needs no check per round. A map loop scans the snapshot's slots,
+skipping removed entries (`MapSlotNext`).
 Each entry is a `(K, V)` tuple value, which allocates only when the
 tuple's layout is boxed.
 Implementation differs: a numeric range is a counted loop only when it

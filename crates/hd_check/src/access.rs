@@ -150,6 +150,12 @@ impl Ck<'_, '_> {
         (br, bt): (Ref, Ty),
         at: NodeRef<'_>,
     ) {
+        // An element store changes a collection value through a writable
+        // place (`types.coll.writable`).
+        if self.is_coll_ty(bt) {
+            self.coll_change(br, bt, "this store", at);
+            return;
+        }
         if self.has_mut_access(bt) {
             return;
         }
@@ -181,13 +187,19 @@ impl Ck<'_, '_> {
     /// A `mut self` call needs mutable access to its receiver
     /// (types.path.mutation.receiver). `self_param` is the method's
     /// declared receiver type.
-    pub(crate) fn check_receiver(&mut self, self_param: Ty, rt: Ty, at: NodeRef<'_>) {
+    pub(crate) fn check_receiver(&mut self, self_param: Ty, recv: Ref, rt: Ty, at: NodeRef<'_>) {
         let pool = self.pool();
         let TyData::Mut(inner) = pool.get(self_param) else {
             return;
         };
         // A primitive `Self` has no `mut` form (types.prim.no-mut.self-call).
         if matches!(pool.get(self.strip_mut(inner)), TyData::Prim(_)) {
+            return;
+        }
+        // A collection value changes through a writable place
+        // (`types.coll.writable`).
+        if self.is_coll_ty(rt) {
+            self.coll_change(recv, rt, "this call", at);
             return;
         }
         if self.has_mut_access(rt) {
@@ -445,10 +457,20 @@ impl Ck<'_, '_> {
     }
 
     /// A name written `let mut` (or `mut` in a `let` pattern) bound to a
-    /// value of type `t` (types.bind.let-mut-upgrade,
-    /// types.bind.let-mut-annotated-valid, types.bind.let-mut-annotation).
+    /// value of type `t` (types.bind.let-mut-upgrade.view,
+    /// types.bind.let-mut-annotated-valid, types.bind.let-mut-annotation.view).
     pub(crate) fn let_mut_name(&mut self, t: Ty, annotated: bool, at: NodeRef<'_>) {
         if !self.composite_or_optional(t) {
+            return;
+        }
+        // A collection value, or an optional of one, binds as a writable
+        // value (`types.coll.let-mut`).
+        let pool = self.pool();
+        let inner = match pool.get(self.infer.resolve(pool, t)) {
+            TyData::Option(i) => i,
+            _ => t,
+        };
+        if self.is_coll_value(inner) {
             return;
         }
         if !annotated {

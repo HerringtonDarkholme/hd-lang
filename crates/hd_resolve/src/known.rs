@@ -142,6 +142,8 @@ impl KnownItems {
             inspectable: self.inspectable,
             tuple: self.tuple,
             structure: self.structure,
+            list: self.list,
+            map: self.map,
         }
     }
 

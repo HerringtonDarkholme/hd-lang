@@ -1,0 +1,35 @@
+# test: a list or map copied by a binding changes apart from its source, in both directions
+# Spec 04 Collection Values: types.coll.value, types.coll.let-mut.
+
+tests:
+    use std.testing.assert_equal
+
+    it("a let mut copy changes alone"):
+        let mut xs = [+1, 2, 3]
+        let mut ys = xs
+        ys.push(4)
+        assert_equal(xs, [+1, 2, 3], reason="the push changes ys only")
+        assert_equal(ys, [+1, 2, 3, 4], reason="ys has its own elements")
+        xs[0] = 10
+        assert_equal(ys[0], 1, reason="a later change of the source leaves the copy")
+
+    it("an immutable copy keeps the value it was given"):
+        let mut xs = [+1]
+        kept := xs
+        xs.push(2)
+        assert_equal(kept.len(), 1, reason="kept holds the list as it was")
+
+    it("a map copy changes alone"):
+        let mut stock: Map[string, i32] = {"apple": 3}
+        let mut copy = stock
+        copy["pear"] = 1
+        stock["apple"] = 0
+        assert_equal(stock.len(), 1, reason="the insert changes the copy only")
+        assert_equal(copy["apple"], 3, reason="the copy keeps the old value")
+
+    it("a list in a list is copied with it"):
+        let mut grid = [[+1], [2]]
+        let mut other = grid
+        other[0].push(5)
+        assert_equal(grid[0].len(), 1, reason="the inner list of the source is unchanged")
+        assert_equal(other[0].len(), 2, reason="the copy's inner list changed")

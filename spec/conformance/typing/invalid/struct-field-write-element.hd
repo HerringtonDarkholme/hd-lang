@@ -1,7 +1,7 @@
-# Spec 04 Writable Places: types.value.write.other, for a list element.
+# Spec 04 Writable Places: types.value.write.other-value, for an element of a list that is no writable place.
 struct Point:
     x: i32
     y: i32
 
-fn demo(points: mut List[Point]) -> void:
+fn demo(points: List[Point]) -> void:
     points[0].x = 1  # diagnostic: readonly-root
