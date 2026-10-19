@@ -1,0 +1,14 @@
+# test: replacing an enum through `&mut` builds; the entry point is private, so no entry point runs
+# Spec 13 Writable Places Of References: ref.place.writable.enum.
+enum Slot:
+    Empty
+    Full(i32)
+
+fn clear(r: &mut Slot) -> void:
+    *r = Slot.Empty
+
+fn main() -> void:
+    let mut s = Slot.Full(+1)
+    r := &mut s
+    *r = Slot.Empty
+    clear(&mut s)

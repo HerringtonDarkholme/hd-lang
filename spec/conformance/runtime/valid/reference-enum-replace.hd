@@ -1,0 +1,39 @@
+# test: an enum in a `let mut` local, a `mut` parameter or a struct field is a writable place; `*r = v` through `&mut` replaces the whole value
+# Spec 13 Writable Places Of References: ref.place.writable.enum. Writing Through A Reference: ref.deref.write.
+# expect-stdout: empty
+# expect-stdout: empty
+# expect-stdout: full 5
+# expect-stdout: full 6
+enum Slot:
+    Empty
+    Full(i32)
+
+struct Holder:
+    slot: Slot
+
+fn clear(r: &mut Slot) -> void:
+    *r = Slot.Empty
+
+fn fill_param(mut s: Slot) -> Slot:
+    r := &mut s
+    *r = Slot.Full(+5)
+    s
+
+fn show(s: Slot) -> void $ Console:
+    match s:
+        .Empty => println("empty")
+        .Full(n) => println("full ${n}")
+
+pub fn main() -> void $ Console:
+    let mut s = Slot.Full(+1)
+    r := &mut s
+    *r = Slot.Empty
+    show(s)
+    let mut t = Slot.Full(+2)
+    clear(&mut t)
+    show(t)
+    show(fill_param(Slot.Empty))
+    let mut h = Holder { slot: Slot.Empty }
+    p := &mut h.slot
+    *p = Slot.Full(+6)
+    show(h.slot)

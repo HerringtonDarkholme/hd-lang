@@ -36,7 +36,9 @@ impl Ck<'_, '_> {
         match pool.get(t) {
             TyData::Mut(i) => self.is_composite(i),
             // A struct is a value with no views (`types.value.no-view`).
-            TyData::Adt { def, .. } => !self.is_struct_def(def),
+            // An enum is a value too: it changes by replacing the whole
+            // value (`ref.place.writable.enum`).
+            TyData::Adt { def, .. } => !self.is_struct_def(def) && !self.is_enum_def(def),
             TyData::TraitValue { .. } => true,
             _ => false,
         }
@@ -53,10 +55,21 @@ impl Ck<'_, '_> {
             TyData::Mut(_) => true,
             TyData::Param(_) => (0..self.env.clause_self.len())
                 .any(|i| self.env.clause_self[i] == t && self.env.clause_mut[i]),
-            TyData::Adt { def, .. } => self.is_struct_def(def),
+            // A struct and an enum are values with no readonly view: an
+            // enum changes by replacing the whole value, so a writable
+            // place holding one is writable (`ref.place.writable.enum`).
+            TyData::Adt { def, .. } => self.is_struct_def(def) || self.is_enum_def(def),
             TyData::TraitValue { .. } => false,
             _ => true,
         }
+    }
+
+    /// Whether `def` is an `enum` declaration.
+    pub(crate) fn is_enum_def(&self, def: hd_base::DefId) -> bool {
+        self.cx
+            .lookup
+            .item(def)
+            .is_some_and(|i| matches!(i.data, hd_resolve::ItemData::Enum { .. }))
     }
 
     /// Whether `def` is a `struct` declaration (`data.struct.decl`).

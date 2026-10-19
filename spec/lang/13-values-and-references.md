@@ -161,7 +161,8 @@ fn demo() -> void:
 2. r[ref.place.writable.top-level] A top-level binding is writable when it is bound with `let mut`.
 3. r[ref.place.writable.view-data] When the place holds a readonly view, such as a readonly data value `User`, `&mut` of it is an error, since it would grant writes the view lacks. Error: `mutable-upgrade`.
 4. r[ref.place.writable.collection] A list or a map value is no view, so `&mut` of one in a writable place is valid. A change through the reference changes that place.
-5. r[ref.place.shared-any] `&e` needs no writable place: it may refer to a `:=` binding, a plain `let` binding, or a value parameter.
+5. r[ref.place.writable.enum] An enum value is no view, so `&mut` of one in a writable place is valid: a `let mut` local, a `mut` parameter, or a struct field of one. `*r = v` through `&mut E` replaces the whole value. A payload is no place (`ref.match.copy`), so `&mut` of a payload binding is an error by the rows below.
+6. r[ref.place.shared-any] `&e` needs no writable place: it may refer to a `:=` binding, a plain `let` binding, or a value parameter.
 
 `&mut` of a place that is not writable is an error, by what holds the place:
 
@@ -173,7 +174,7 @@ fn demo() -> void:
 | r[ref.place.not-writable.shared] Read-only reference | a value reached through a `&T` reference | `readonly-root` |
 | r[ref.place.not-writable.data] Data field | a field of a data value without mutable access | `readonly-root` |
 
-6. r[ref.place.not-writable.fix] For a plain `let` binding and a value parameter, the diagnostic's fix-it writes `mut` before the binding's name.
+7. r[ref.place.not-writable.fix] For a plain `let` binding and a value parameter, the diagnostic's fix-it writes `mut` before the binding's name.
 
 ```text
 fn invalid(count: i32) -> void:

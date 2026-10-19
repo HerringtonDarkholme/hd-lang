@@ -3463,6 +3463,8 @@ runtime/valid/reference-aliases-see-writes.hd	runtime	accept	lang/13-values-and-
 runtime/valid/reference-field-places.hd	runtime	accept	lang/13-values-and-references.md#r-ref.place.forms
 runtime/valid/reference-local-cells.hd	runtime	accept	lang/13-values-and-references.md#r-ref.place.lifetime
 runtime/valid/reference-mut-parameter.hd	runtime	accept	lang/13-values-and-references.md#r-ref.place.writable
+runtime/valid/reference-enum-replace.hd	runtime	accept	lang/13-values-and-references.md#r-ref.place.writable.enum
+runtime/valid/reference-enum-replace-build.hd	runtime	accept	lang/13-values-and-references.md#r-ref.place.writable.enum
 runtime/valid/reference-generic.hd	runtime	accept	lang/13-values-and-references.md#r-ref.deref.read
 runtime/valid/reference-read-through.hd	runtime	accept	lang/13-values-and-references.md#r-ref.read.auto
 typing/valid/reference-forms.hd	type	accept	lang/13-values-and-references.md#r-ref.place.shared-any
@@ -3472,6 +3474,7 @@ typing/invalid/reference-mut-from-value-parameter.hd	type	reject:non-reassignabl
 typing/invalid/reference-mut-through-shared.hd	type	reject:readonly-root	lang/13-values-and-references.md#r-ref.place.not-writable.shared
 typing/invalid/reference-mut-data-field-readonly.hd	type	reject:readonly-root	lang/13-values-and-references.md#r-ref.place.not-writable.data
 typing/invalid/reference-mut-readonly-view.hd	type	reject:mutable-upgrade	lang/13-values-and-references.md#r-ref.place.writable.view-data
+typing/invalid/reference-mut-enum-payload.hd	type	reject:readonly-root	lang/13-values-and-references.md#r-ref.place.writable.enum
 typing/invalid/reference-mut-allocate-readonly-view.hd	type	reject:mutable-upgrade	lang/13-values-and-references.md#r-ref.expr.allocate.view
 typing/invalid/reference-shared-to-mut-argument.hd	type	reject:mutable-upgrade	lang/13-values-and-references.md#r-ref.convert.no-upgrade
 typing/invalid/reference-shared-to-mut-result.hd	type	reject:mutable-upgrade	lang/13-values-and-references.md#r-ref.convert.no-upgrade

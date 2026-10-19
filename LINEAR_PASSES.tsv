@@ -62,6 +62,7 @@ runtime/valid/primitive-float-cmp-method-direct.hd	#540: the primitives' built-i
 runtime/valid/primitive-integer-cmp-method-direct.hd	#540: the primitives' built-in methods
 runtime/valid/println-console-stdout.hd	#540: println through the host Console
 runtime/valid/println-under-main-driver.hd	#541: test programs, and roots that never suspend
+runtime/valid/reference-enum-replace-build.hd	#545: main is private, so no entry point runs
 runtime/valid/result-ok-unit.hd	#539: main is private, so no entry point runs
 runtime/valid/script-empty-run.hd	#539: an empty script runs
 runtime/valid/string-encodings-distinct.hd	#541: test programs, and roots that never suspend
