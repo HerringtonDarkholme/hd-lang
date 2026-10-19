@@ -115,8 +115,8 @@ On Wasm GC there is no count to tell whether an array is shared, so a
 header's `cow` word stands in for it (`crates/hd_wasm/src/emit/cow.rs`):
 
 - **A copy marks.** The TIR `ValueCopy` (placed by the checker,
-  `crates/hd_check/src/coll.rs`, at a binding, an assignment, a return
-  and a `mut` parameter's entry) makes a new header over the same arrays
+  `crates/hd_check/src/coll.rs`, at a binding, an assignment, a return,
+  a `mut` parameter's entry and the value arguments below) makes a new header over the same arrays
   and sets bit 0 of both headers' `cow`. The emitter does the same for
   an operand stored into a slot that holds a collection: a list or map
   literal's element, a struct literal's field, a payload, a tuple element,
@@ -154,17 +154,52 @@ What is eager, and why:
   collection (one allocation per struct and per collection on the copy),
   where a plain struct copy is a reference move.
 
-What is not marked: a value argument is passed without a copy, as the
-spec allows when nothing changes the source during the call
+**Value arguments: copied only where an alias can change the source.**
+A value argument or receiver is the callee's own copy
 ([`types.coll.value`](../../spec/lang/04-type-system.md#r-types.coll.value)).
-The emulation does not prove that: a caller's list changed through a
-closure, a reference or a legacy `mut` alias while the callee runs shows
-in the callee's parameter. A closure that captures a parameter, or a
-loop variable bound to an element, shares the header in the same way.
-`xs.iter()` likewise shares the list, so a cursor still panics on a
-length change ([Iterator Invalidation](../../spec/lang/06-control-flow.md#iterator-invalidation)).
-The reference-counting backend (OBJECT_MODEL_TIER1.md job 11,
-REFCOUNT_RUNTIME.md) replaces the mark with the count and closes these.
+Passing the header as is is that copy as long as nothing changes the
+caller's collection in place while the callee holds it, so the checker
+(`crates/hd_check/src/coll.rs`, `value_arg`, `value_receiver`,
+`capture_copies`, `loop_binding_copy`) places a `ValueCopy` only where something can:
+
+- **During the call.** An argument read from a place that something
+  besides the caller may change is copied at the call: a writable local
+  that a closure changes in place, that a closure or `&mut` assigns
+  (`CAPTURED_ASSIGNED`), or that a legacy `mut List[T]` view shares; a
+  legacy view itself; a mutable global; a value read through a
+  reference; a `data` field. An argument read from a `:=` or plain `let`
+  binding, a value parameter, a tuple element or a payload is passed as
+  is: nothing changes those in place, and a parameter's caller already
+  copied an aliased source. A legacy `mut List[T]` parameter, or a type
+  parameter the call solves to one, shares as before. The test runs
+  after all of the call's arguments, so a callback passed in the same
+  call counts.
+- **Later in a loop or a closure.** A closure or `&mut` made after the
+  call can still run during it when the call sits in a loop or a
+  closure. There the argument takes a reserved instruction, filled when
+  the body is checked with the copy, or with an `Identity` coercion when
+  the local stayed unaliased (a few bytes and no allocation). In
+  straight-line code the call passes the header as is.
+- **After the call.** A closure that captures a value parameter, or a
+  binding that took one as is, makes the local its own copy just before
+  the closure is made (a `LocalSet` of its `ValueCopy`), so the caller's
+  later change copies first. A `for` binding that a closure in the body
+  captures is bound to a copy of the element (a map entry is rebuilt
+  with its key and value copied).
+
+Each copy marks the caller's collection, and the mark never clears, so
+its next change copies its arrays once. An unaliased local passed in a
+loop that also changes it copies nothing.
+
+Not closed: a list or map receiver is passed as is, since std's views
+and cursors (`xs.view(a, b)`, `xs.iter()`) keep the receiver they are
+given as a legacy view until std migrates; a struct receiver is copied
+as an argument is. So a cursor still panics on a length change
+([Iterator Invalidation](../../spec/lang/06-control-flow.md#iterator-invalidation)).
+An argument whose later sibling changes the same list in place
+(`f(xs, xs.pop())`) is passed as the sibling left it. The reference-counting
+backend (OBJECT_MODEL_TIER1.md job 11, REFCOUNT_RUNTIME.md) replaces
+the mark with the count.
 
 **Closure captures: copies and cells.** A closure's environment is a
 struct subtype with one field per captured local

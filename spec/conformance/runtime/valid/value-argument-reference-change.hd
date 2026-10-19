@@ -1,0 +1,24 @@
+# test: a list passed by value is the callee's own copy, so a change the caller makes through a &mut reference while the callee runs is not seen by the callee
+# Spec 04 Collection Values: types.coll.value, types.coll.shared.
+# expect: test
+fn len_after(items: List[i32], change: fn() -> void) -> usize:
+    change()
+    items.len()
+
+fn read_through(shared: &mut List[i32], change: fn() -> void) -> usize:
+    len_after(*shared, change)
+
+tests:
+    use std.testing.assert_equal
+
+    it("a push through a reference to the argument's place is not seen by the callee"):
+        let mut items = [+1]
+        shared := &mut items
+        assert_equal(len_after(items, fn(): shared.push(2)), 1, reason="the parameter is the list as passed")
+        assert_equal(items.len(), 2, reason="the caller's list grew through the reference")
+
+    it("a value read through a reference is copied before the call"):
+        let mut items = [+1]
+        shared := &mut items
+        assert_equal(read_through(shared, fn(): items.push(2)), 1, reason="the parameter is the list as read")
+        assert_equal(shared.len(), 2, reason="the referenced list grew")

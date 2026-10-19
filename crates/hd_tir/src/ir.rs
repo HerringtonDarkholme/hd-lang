@@ -802,6 +802,18 @@ impl TirBuilder {
         &mut self.body
     }
 
+    /// The locals the open sub-body `m` captures so far.
+    #[must_use]
+    pub fn open_captures(&self, m: SubMark) -> Vec<LocalId> {
+        self.open_caps
+            .get(m.1 as usize..)
+            .unwrap_or(&[])
+            .iter()
+            .filter(|c| c.0 == m.0)
+            .map(|c| c.1)
+            .collect()
+    }
+
     /// A constant of the body's own column.
     pub fn const_value(&mut self, ty: Ty, bits: u64) -> Ref {
         let i = u32::try_from(self.body.consts.len()).expect("consts");

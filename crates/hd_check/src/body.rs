@@ -250,6 +250,19 @@ pub(crate) struct Ck<'a, 'c> {
     /// (`types.coll.value`): `let`, `let mut` and `:=` locals, and `mut`
     /// pattern names, but not a legacy `mut List[T]` annotation.
     pub copy_locals: Vec<LocalId>,
+    /// The writable locals whose collection something besides the local
+    /// may change while a call runs: a closure that changes it, a `&mut`
+    /// to it, a legacy `mut List[T]` view sharing it (`types.coll.value`).
+    /// A value argument read from one is copied (`crate::coll`).
+    pub alias_locals: Vec<LocalId>,
+    /// The value arguments read from a writable local not yet in
+    /// `alias_locals`, in a loop or a closure, where a later change can
+    /// still put it there: each is a copy or the value as is once the
+    /// body is checked.
+    pub arg_copies: Vec<crate::coll::ArgCopy>,
+    /// The bindings that took a parameter's value, or another such
+    /// binding's, without a copy: their collection may be the caller's.
+    pub unowned: Vec<LocalId>,
     /// The locals some `&mut` refers to, and the `let mut` locals of a
     /// primitive type with their patterns, for `redundant-let-mut`
     /// (`types.bind.let-mut-primitive-unused`).
@@ -563,6 +576,9 @@ pub(crate) fn new_ck<'a, 'c>(
         mut_params: Vec::new(),
         param_writes: Vec::new(),
         copy_locals: Vec::new(),
+        alias_locals: Vec::new(),
+        arg_copies: Vec::new(),
+        unowned: Vec::new(),
         ref_taken: Vec::new(),
         ref_serials: HashMap::default(),
         prim_let_mut: Vec::new(),
@@ -1659,6 +1675,7 @@ impl Ck<'_, '_> {
             && (self.place_writable_quiet(r) || self.is_fresh(r))
         {
             self.mark_write_path(r);
+            self.note_legacy_share(r);
             self.expect(got, wi, n, what, position);
             return self.retype(r, want, n.index());
         }
@@ -3883,6 +3900,7 @@ impl Ck<'_, '_> {
         ret: Ty,
         fun: Option<NodeRef<'_>>,
     ) -> StageResult<(Body, Ty, crate::results::RowFacts)> {
+        self.settle_arg_copies();
         self.unused_locals();
         self.redundant_primitive_let_mut();
         if self.module_init.is_none() {

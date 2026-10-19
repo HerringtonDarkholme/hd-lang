@@ -1393,7 +1393,8 @@ impl Ck<'_, '_> {
         let mut out = Vec::new();
         for (i, s) in slots.into_iter().enumerate() {
             match s {
-                Some(r) => out.push(r),
+                // A value argument is the callee's own copy (`types.coll.value`).
+                Some(r) => out.push(self.value_arg(r, rest[i].1, n.index())),
                 None if formals.defaults.get(skip + i).copied().unwrap_or(false) => {
                     // A local function's default is a closure of the
                     // earlier values, called after every argument.
@@ -3596,6 +3597,7 @@ impl Ck<'_, '_> {
                     inferred: &inferred,
                 };
                 refs.extend(self.check_args(&formals, 1, args, n, name)?);
+                refs[0] = self.value_receiver(refs[0], params[0].1, n.index());
                 self.fill_method_defaults(&sig, &vars, &inst, want)?;
                 self.open_call_params(&vars, &refs, n);
                 // `h.fact::[D]()` on a structure handle reads a typed fact
@@ -3880,6 +3882,9 @@ impl Ck<'_, '_> {
             )
             .to_owned();
         refs.extend(self.check_args(&formals, skip, args, n, &method_name)?);
+        if skip == 1 {
+            refs[0] = self.value_receiver(refs[0], params[0].1, n.index());
+        }
         self.fill_method_defaults(&sig, &vars, &inst, want)?;
         self.open_call_params(&vars, &refs, n);
         self.bounds_of(&sig, &vars, &inst, n)?;

@@ -3637,3 +3637,7 @@ runtime/valid/capture-closure-called-through-reference.hd	runtime	accept	lang/13
 runtime/valid/capture-value-parameter-collection.hd	runtime	accept	lang/07-functions.md#r-fn.capture.copy.value
 typing/invalid/capture-assign-short-binding.hd	type	reject:non-reassignable-binding	lang/07-functions.md#r-fn.capture.copy
 typing/invalid/capture-assign-value-parameter.hd	type	reject:non-reassignable-parameter-binding	lang/07-functions.md#r-fn.capture.copy
+runtime/valid/value-argument-closure-change.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
+runtime/valid/value-argument-reference-change.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
+runtime/valid/value-argument-legacy-alias.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
+runtime/valid/capture-loop-binding-element.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value

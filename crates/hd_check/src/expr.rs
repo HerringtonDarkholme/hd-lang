@@ -3196,7 +3196,8 @@ impl Ck<'_, '_> {
             arm: 0,
         }];
         let db = self.b.open_block();
-        self.decide(&rows, item, item_ty)?;
+        let bound = self.loop_binding_copy(&rows[0].binds, item, item_ty, at);
+        self.decide(&rows, bound, item_ty)?;
         let dec = self.b.close_block(db, None, Ty::NEVER, at);
         let rec = self.b.refs_record(&[dec, arm]);
         self.b.emit(Tag::Match, item.0, rec, Ty::VOID, at);
@@ -3760,6 +3761,7 @@ impl Ck<'_, '_> {
             self.set_local(l, Ref(NONE), n.index());
             self.add_flags(l, local_flags::CAPTURED_ASSIGNED);
         }
+        self.capture_copies(mark, n.index());
         Ok((self.b.close_sub(mark, root, ft, n.index()), ft, own))
     }
 

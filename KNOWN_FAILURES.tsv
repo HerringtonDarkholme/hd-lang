@@ -12,4 +12,3 @@ cli/repl-quit	#518	node	the REPL runs on wasmtime only; the Node engine has no s
 cli/repl-value	#518	node	the REPL runs on wasmtime only; the Node engine has no session
 cli/repl-value-stream	#518	node	the REPL runs on wasmtime only; the Node engine has no session
 cli/repl-workspace	#518	node	the REPL runs on wasmtime only; the Node engine has no session
-runtime/valid/capture-value-parameter-collection.hd	#549		a value list argument carries no copy-on-write mark, so a closure over the parameter sees the caller's later push

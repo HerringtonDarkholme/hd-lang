@@ -1,0 +1,27 @@
+# test: a list passed by value is the callee's own copy, so a change through a legacy mut List view sharing the caller's list is not seen by the callee
+# Spec 04 Collection Values: types.coll.value. Spec 04 Legacy Collection Views: types.coll.legacy, types.coll.legacy.argument.
+# expect: test
+fn len_after(items: List[i32], change: fn() -> void) -> usize:
+    change()
+    items.len()
+
+fn view_len_after(view: mut List[i32], change: fn() -> void) -> usize:
+    len_after(view, change)
+
+tests:
+    use std.testing.assert_equal
+
+    it("a push through a legacy view of the argument's list is not seen by the callee"):
+        let mut items = [+1]
+        let alias: mut List[i32] = items
+        assert_equal(len_after(items, fn(): alias.push(2)), 1, reason="the parameter is the list as passed")
+        assert_equal(items.len(), 2, reason="the view shares the caller's list")
+
+    it("a legacy view passed by value is copied"):
+        let view: mut List[i32] = [+1]
+        assert_equal(len_after(view, fn(): view.push(2)), 1, reason="the parameter is the list as passed")
+        assert_equal(view.len(), 2, reason="the view grew")
+
+    it("a legacy parameter passed on by value is copied"):
+        let mut items = [+1]
+        assert_equal(view_len_after(items, fn(): items.push(2)), 1, reason="the parameter is the list as passed")

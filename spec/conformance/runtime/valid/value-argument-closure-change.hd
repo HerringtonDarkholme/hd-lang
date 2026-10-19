@@ -1,0 +1,83 @@
+# test: a list, map or struct passed by value is the callee's own copy, so a closure the callee calls that changes the caller's list leaves the callee's value as passed
+# Spec 04 Collection Values: types.coll.value, types.coll.copy-on-write.
+# expect: test
+struct Bag:
+    items: List[i32]
+
+impl Bag:
+    fn count_after(self, change: fn() -> void) -> usize:
+        change()
+        self.items.len()
+
+fn len_after(items: List[i32], change: fn() -> void) -> usize:
+    change()
+    items.len()
+
+fn first_after(items: List[i32], change: fn() -> void) -> i32:
+    change()
+    items[0]
+
+fn bag_after(bag: Bag, change: fn() -> void) -> usize:
+    change()
+    bag.items.len()
+
+fn size_after(stock: Map[string, i32], change: fn() -> void) -> usize:
+    change()
+    stock.len()
+
+fn value_after[T](value: T, change: fn() -> void) -> T:
+    change()
+    value
+
+fn idle() -> void:
+    return
+
+let mut LOG: List[i32] = []
+
+fn log_len_after(change: fn() -> void) -> usize:
+    len_after(LOG, change)
+
+tests:
+    use std.testing.assert_equal
+
+    it("a push by the callee's callback leaves the parameter as passed"):
+        let mut items = [+1]
+        assert_equal(len_after(items, fn(): items.push(2)), 1, reason="the parameter is the list as passed")
+        assert_equal(items.len(), 2, reason="the caller's list grew")
+
+    it("an element store by the callback leaves the parameter as passed"):
+        let mut items = [+1]
+        assert_equal(first_after(items, fn(): items[0] = 5), 1, reason="the parameter keeps its element")
+        assert_equal(items[0], 5, reason="the caller's element changed")
+
+    it("a map parameter is unaffected by the callback's insert"):
+        let mut stock: Map[string, i32] = {"apple": 3}
+        assert_equal(size_after(stock, fn(): stock["pear"] = 1), 1, reason="the map as passed")
+        assert_equal(stock.len(), 2, reason="the caller's map grew")
+
+    it("a struct parameter holding a list is unaffected by the callback's push"):
+        let mut bag = Bag { items: [+1] }
+        assert_equal(bag_after(bag, fn(): bag.items.push(2)), 1, reason="the struct as passed")
+        assert_equal(bag.items.len(), 2, reason="the caller's struct changed")
+
+    it("a value receiver is unaffected by the callback's push"):
+        let mut bag = Bag { items: [+1] }
+        assert_equal(bag.count_after(fn(): bag.items.push(2)), 1, reason="the receiver as passed")
+
+    it("a generic parameter holding a list is unaffected by the callback's push"):
+        let mut items = [+1]
+        assert_equal(value_after(items, fn(): items.push(2)).len(), 1, reason="the value as passed")
+
+    it("a callback made later in a loop does not reach an earlier round's parameter"):
+        let mut items = [+1]
+        let mut change: fn() -> void = idle
+        let mut seen: List[usize] = []
+        for _ in 0..3:
+            seen.push(len_after(items, change))
+            change = fn(): items.push(9)
+        assert_equal(seen, [1, 1, 2], reason="each call sees the list as passed in its round")
+
+    it("a mutable global passed by value is unaffected by the callback's push"):
+        LOG = [+1]
+        assert_equal(log_len_after(fn(): LOG.push(2)), 1, reason="the parameter is the global as read")
+        assert_equal(LOG.len(), 2, reason="the global grew")

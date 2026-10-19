@@ -1,7 +1,5 @@
 # test: a closure over a value parameter holds the collection as passed
 # Spec 07 Copied And Shared Captures: fn.capture.copy, fn.capture.copy.value.
-# Known failure: a value argument carries no copy-on-write mark (#549), so the callee's closure
-# sees later changes to the caller's list.
 # expect: test
 struct Bag:
     items: List[i32]
@@ -14,6 +12,10 @@ fn bag_counter_of(bag: Bag) -> fn() -> usize:
 
 fn kept[T](value: T) -> fn() -> T:
     fn() -> T: value
+
+fn binding_counter_of(items: List[i32]) -> fn() -> usize:
+    held := items
+    fn() -> usize: held.len()
 
 tests:
     use std.testing.assert_equal
@@ -31,7 +33,13 @@ tests:
         assert_equal(count(), 1, reason="the closure holds the struct as passed")
 
     it("a closure over a generic parameter holding a list is unaffected by a later push"):
-        let items: mut List[i32] = [1]
+        let mut items = [+1]
         read := kept(items)
         items.push(2)
         assert_equal(read().len(), 1, reason="the closure holds the value as passed")
+
+    it("a closure over a binding of a list parameter is unaffected by a later push"):
+        let mut items = [+1]
+        count := binding_counter_of(items)
+        items.push(2)
+        assert_equal(count(), 1, reason="the binding holds the list as passed")
