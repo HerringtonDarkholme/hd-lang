@@ -1,0 +1,12 @@
+# test: Digest is a struct value: a copy keeps its bytes when the original's field is replaced
+# Spec std/digest Digest: std-digest.digest-value, std-digest.digest.eq.
+# expect-stdout: true 0
+# expect-stdout: false
+use std.digest.{Digest, sha256}
+
+pub fn main() -> void $ Console:
+    let mut digest = sha256([97, 98, 99])
+    copy := digest
+    digest.bytes = []
+    println("${copy == sha256([97, 98, 99])} ${digest.bytes.len()}")
+    println(copy == digest)

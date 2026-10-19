@@ -211,15 +211,15 @@ impl Error for ProcessError
 # `@derive` on a std declaration has no effect.
 
 impl Debug for ExitCode:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_tuple("ExitCode").field(u8(self)).finish()
 
 impl Debug for ProcessOutput:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("ProcessOutput").field("stdout", self.stdout).field("stderr", self.stderr).field("status", self.status).finish()
 
 impl Debug for ProcessError:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         match self:
             .NotFound(program) => out.debug_tuple("ProcessError.NotFound").named_field("program", program).finish()
             .PermissionDenied(program) => out.debug_tuple("ProcessError.PermissionDenied").named_field("program", program).finish()
@@ -228,9 +228,9 @@ impl Debug for ProcessError:
             .Exited(status, stderr) => out.debug_tuple("ProcessError.Exited").named_field("status", status).named_field("stderr", stderr).finish()
 
 impl Debug for Command:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("Command").field("program", self.program).field("args", self.args).field("env", self.env).field("current_dir", self.current_dir).field("stdin", self.stdin).finish()
 
 impl Debug for ScriptedProcess:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("ScriptedProcess").field("seen", self.seen).finish()

@@ -18,7 +18,7 @@ pub trait Display:
 ## The debug-text trait: `debug(value)` and `dbg` write a value through it, field by field.
 ## See [trait.debug.module](../../spec/lang/09-traits.md#r-trait.debug.module).
 pub trait Debug:
-    fn debug(self, out: mut DebugWriter) -> void
+    fn debug(self, out: &mut DebugWriter) -> void
 
 # The structured writer that `Debug.debug` writes through. An implementation
 # describes the value with builder calls, like Rust's `Formatter`; the
@@ -27,61 +27,65 @@ pub trait Debug:
 # `dbg` (spec/lang/10-modules.md#large-values) also applies its limits, and
 # its pretty layout puts each field or entry on its own line, as Rust's
 # `{:#?}` does.
+# A struct used behind `&mut`: every `debug` of one value writes to the
+# one writer (r-std-format.debug.writer-ref).
 ## What a `Debug` implementation writes to: one of the builders, or custom text.
-## See [trait.debug.module](../../spec/lang/09-traits.md#r-trait.debug.module).
-pub data DebugWriter:
+## See [std-format.debug.writer-ref](../../spec/std/format.md#r-std-format.debug.writer-ref).
+pub struct DebugWriter:
     # The pieces written so far, joined once by `text`: appending each to
     # one string would copy the text so far on every write.
-    parts: mut List[string]
+    parts: List[string]
     # `dbg`'s limits apply.
     limited: bool
     pretty: bool
     # How many parts the value being written is inside.
     depth: usize
     # The data values, lists and maps being written, to find a cycle.
-    active: mut List[dyn Any]
+    active: List[dyn Any]
 
 impl DebugWriter:
     # Writes custom text, for a value that no builder fits.
     ## Writes custom text, for a value that no builder fits.
     ## See [std-format.debug.builder.write](../../spec/std/format.md#r-std-format.debug.builder.write).
-    pub fn write(mut self, text: string) -> void:
+    pub fn write(&mut self, text: string) -> void:
         self.parts.push(text)
 
     # The text written so far.
-    fn text(self) -> string:
+    fn text(&self) -> string:
         self.parts.join("")
 
     # A named value with named fields: `.field(name, value)`, then `.finish()`.
     ## Starts a named value with named fields.
     ## See [std-format.debug.builder.struct](../../spec/std/format.md#r-std-format.debug.builder.struct).
-    pub fn debug_struct(mut self, name: string) -> mut DebugStruct:
+    pub fn debug_struct(&mut self, name: string) -> &mut DebugStruct:
         shown := self.open()
         if shown:
             self.write(name)
-        DebugStruct { out: self, count: 0, shown: shown }
+        &mut DebugStruct { out: self, count: 0, shown: shown }
 
     # A named value with positional fields: `.field(value)`, then `.finish()`.
     # An empty name describes a tuple, so one field ends with a comma: `(1,)`.
     ## Starts a named value with positional fields.
     ## See [std-format.debug.builder.tuple](../../spec/std/format.md#r-std-format.debug.builder.tuple).
-    pub fn debug_tuple(mut self, name: string) -> mut DebugTuple:
+    pub fn debug_tuple(&mut self, name: string) -> &mut DebugTuple:
         shown := self.open()
         if shown:
             self.write(name)
-        DebugTuple { out: self, count: 0, unnamed: name == "", shown: shown }
+        &mut DebugTuple { out: self, count: 0, unnamed: name == "", shown: shown }
 
     # A sequence: `.entry(value)` per item, then `.finish()`.
     ## Starts a sequence.
     ## See [std-format.debug.builder.list](../../spec/std/format.md#r-std-format.debug.builder.list).
-    pub fn debug_list(mut self) -> mut DebugList:
-        DebugList { out: self, count: 0, shown: self.open() }
+    pub fn debug_list(&mut self) -> &mut DebugList:
+        shown := self.open()
+        &mut DebugList { out: self, count: 0, shown: shown }
 
     # Key-value pairs: `.entry(key, value)` per pair, then `.finish()`.
     ## Starts key-value pairs.
     ## See [std-format.debug.builder.map](../../spec/std/format.md#r-std-format.debug.builder.map).
-    pub fn debug_map(mut self) -> mut DebugMap:
-        DebugMap { out: self, count: 0, shown: self.open() }
+    pub fn debug_map(&mut self) -> &mut DebugMap:
+        shown := self.open()
+        &mut DebugMap { out: self, count: 0, shown: shown }
 
     # The layout below is the builders', and the printers that the checker
     # generates for `dbg` call it directly (checker/debug-print.ts).
@@ -89,7 +93,7 @@ impl DebugWriter:
     # Opens a part one level deeper. Under `dbg`'s limits a part deeper than
     # 10 levels writes `…` instead and stays closed, so this returns false
     # (spec/lang/10-modules.md#r-module.dbg.limit.depth).
-    fn open(mut self) -> bool:
+    fn open(&mut self) -> bool:
         if self.limited && self.depth >= 10:
             self.write("…")
             return false
@@ -97,7 +101,7 @@ impl DebugWriter:
         true
 
     # The indentation of the current depth, in the pretty layout.
-    fn margin(self) -> string:
+    fn margin(&self) -> string:
         let text = ""
         let level: usize = 0
         while level < self.depth:
@@ -106,7 +110,7 @@ impl DebugWriter:
         text
 
     # Starts field `name` of a struct part, the `index`-th.
-    fn struct_item(mut self, name: string, index: usize) -> void:
+    fn struct_item(&mut self, name: string, index: usize) -> void:
         if self.pretty:
             if index == 0:
                 self.write(" {\n")
@@ -116,7 +120,7 @@ impl DebugWriter:
             self.write(name + ": ")
 
     # Starts the `index`-th field of a tuple part.
-    fn tuple_item(mut self, index: usize) -> void:
+    fn tuple_item(&mut self, index: usize) -> void:
         if self.pretty:
             if index == 0:
                 self.write("(\n")
@@ -126,14 +130,14 @@ impl DebugWriter:
 
     # Starts the `index`-th field of a tuple part as the named argument
     # `name=`, as a call writes it.
-    fn named_item(mut self, name: string, index: usize) -> void:
+    fn named_item(&mut self, name: string, index: usize) -> void:
         self.tuple_item(index)
         self.write(name + "=")
 
     # Starts the `index`-th entry of a list part (`opening` "[") or a map
     # part ("{"). Under `dbg`'s limits an entry past the 100th is left out,
     # so this returns false (spec/lang/10-modules.md#r-module.dbg.limit.entries).
-    fn entry_item(mut self, index: usize, opening: string) -> bool:
+    fn entry_item(&mut self, index: usize, opening: string) -> bool:
         if self.limited && index >= 100:
             return false
         if self.pretty:
@@ -145,13 +149,13 @@ impl DebugWriter:
         true
 
     # Ends a field or an entry.
-    fn end_item(mut self) -> void:
+    fn end_item(&mut self) -> void:
         if self.pretty:
             self.write(",\n")
 
     # Closes a struct part that has `count` fields; one without fields is
     # the literal `Name {}`.
-    fn struct_close(mut self, count: usize) -> void:
+    fn struct_close(&mut self, count: usize) -> void:
         self.depth = self.depth - 1
         if count == 0:
             self.write(" {}")
@@ -159,7 +163,7 @@ impl DebugWriter:
         self.write(if self.pretty: self.margin() + "}" else: " }")
 
     # Closes a tuple part that has `count` fields; an unnamed one is a tuple.
-    fn tuple_close(mut self, count: usize, unnamed: bool) -> void:
+    fn tuple_close(&mut self, count: usize, unnamed: bool) -> void:
         self.depth = self.depth - 1
         if count == 0:
             if unnamed:
@@ -174,7 +178,7 @@ impl DebugWriter:
 
     # Closes a list part ("[", "]") or a map part ("{", "}") of `count`
     # entries, naming the ones past the limit (r-module.dbg.limit.entries).
-    fn entry_close(mut self, count: usize, opening: string, closing: string) -> void:
+    fn entry_close(&mut self, count: usize, opening: string, closing: string) -> void:
         if count == 0:
             self.depth = self.depth - 1
             self.write(opening + closing)
@@ -195,7 +199,7 @@ impl DebugWriter:
     # A value that is already being written is part of a cycle: this writes
     # `<cycle>` and returns false (spec/lang/10-modules.md#r-module.dbg.cycle.tracked).
     # Enum values are never passed here: they have no identity.
-    fn enter(mut self, value: dyn Any) -> bool:
+    fn enter(&mut self, value: dyn Any) -> bool:
         for seen in self.active:
             if seen is value:
                 self.write("<cycle>")
@@ -204,12 +208,12 @@ impl DebugWriter:
         true
 
     # Ends writing the value that the last `enter` started.
-    fn leave(mut self) -> void:
+    fn leave(&mut self) -> void:
         _ := self.active.pop()
 
     # A string's text, cut after 1000 characters under `dbg`'s limits
     # (spec/lang/10-modules.md#r-module.dbg.limit.string).
-    fn cut(self, text: string) -> string:
+    fn cut(&self, text: string) -> string:
         if !self.limited || text.len() <= 1000:
             return text
         let count: usize = 0
@@ -220,16 +224,16 @@ impl DebugWriter:
         text
 
 ## The builder `debug_struct` returns: `field` per field, then `finish`.
-## See [std-format.debug.builder.types](../../spec/std/format.md#r-std-format.debug.builder.types).
-pub data DebugStruct:
-    out: mut DebugWriter
+## See [std-format.debug.builder.types-ref](../../spec/std/format.md#r-std-format.debug.builder.types-ref).
+pub struct DebugStruct:
+    out: &mut DebugWriter
     count: usize
     shown: bool
 
 impl DebugStruct:
     ## Adds one named field.
     ## See [std-format.debug.builder.struct](../../spec/std/format.md#r-std-format.debug.builder.struct).
-    pub fn field[T < Debug](mut self, name: string, value: T) -> mut DebugStruct:
+    pub fn field[T < Debug](&mut self, name: string, value: T) -> &mut DebugStruct:
         if self.shown:
             self.out.struct_item(name, self.count)
             value.debug(self.out)
@@ -239,14 +243,14 @@ impl DebugStruct:
 
     ## Ends the value the builder writes.
     ## See [std-format.debug.builder.chain](../../spec/std/format.md#r-std-format.debug.builder.chain).
-    pub fn finish(mut self) -> void:
+    pub fn finish(&mut self) -> void:
         if self.shown:
             self.out.struct_close(self.count)
 
 ## The builder `debug_tuple` returns: `field` per field, then `finish`.
-## See [std-format.debug.builder.types](../../spec/std/format.md#r-std-format.debug.builder.types).
-pub data DebugTuple:
-    out: mut DebugWriter
+## See [std-format.debug.builder.types-ref](../../spec/std/format.md#r-std-format.debug.builder.types-ref).
+pub struct DebugTuple:
+    out: &mut DebugWriter
     count: usize
     unnamed: bool
     shown: bool
@@ -254,7 +258,7 @@ pub data DebugTuple:
 impl DebugTuple:
     ## Adds one positional field.
     ## See [std-format.debug.builder.tuple](../../spec/std/format.md#r-std-format.debug.builder.tuple).
-    pub fn field[T < Debug](mut self, value: T) -> mut DebugTuple:
+    pub fn field[T < Debug](&mut self, value: T) -> &mut DebugTuple:
         if self.shown:
             self.out.tuple_item(self.count)
             value.debug(self.out)
@@ -266,7 +270,7 @@ impl DebugTuple:
     # the positional fields of a call, as in `Shape.Mixed(1, label="a")`.
     ## Adds a named argument `name=value` after the positional fields.
     ## See [std-format.debug.builder.named-field](../../spec/std/format.md#r-std-format.debug.builder.named-field).
-    pub fn named_field[T < Debug](mut self, name: string, value: T) -> mut DebugTuple:
+    pub fn named_field[T < Debug](&mut self, name: string, value: T) -> &mut DebugTuple:
         if self.shown:
             self.out.named_item(name, self.count)
             value.debug(self.out)
@@ -277,21 +281,21 @@ impl DebugTuple:
     # An unnamed one with no fields is the empty tuple, `()`.
     ## Ends the value the builder writes.
     ## See [std-format.debug.builder.chain](../../spec/std/format.md#r-std-format.debug.builder.chain).
-    pub fn finish(mut self) -> void:
+    pub fn finish(&mut self) -> void:
         if self.shown:
             self.out.tuple_close(self.count, self.unnamed)
 
 ## The builder `debug_list` returns: `entry` per item, then `finish`.
-## See [std-format.debug.builder.types](../../spec/std/format.md#r-std-format.debug.builder.types).
-pub data DebugList:
-    out: mut DebugWriter
+## See [std-format.debug.builder.types-ref](../../spec/std/format.md#r-std-format.debug.builder.types-ref).
+pub struct DebugList:
+    out: &mut DebugWriter
     count: usize
     shown: bool
 
 impl DebugList:
     ## Adds one item.
     ## See [std-format.debug.builder.list](../../spec/std/format.md#r-std-format.debug.builder.list).
-    pub fn entry[T < Debug](mut self, value: T) -> mut DebugList:
+    pub fn entry[T < Debug](&mut self, value: T) -> &mut DebugList:
         if self.shown && self.out.entry_item(self.count, "["):
             value.debug(self.out)
             self.out.end_item()
@@ -300,21 +304,21 @@ impl DebugList:
 
     ## Ends the value the builder writes.
     ## See [std-format.debug.builder.chain](../../spec/std/format.md#r-std-format.debug.builder.chain).
-    pub fn finish(mut self) -> void:
+    pub fn finish(&mut self) -> void:
         if self.shown:
             self.out.entry_close(self.count, "[", "]")
 
 ## The builder `debug_map` returns: `entry` per pair, then `finish`.
-## See [std-format.debug.builder.types](../../spec/std/format.md#r-std-format.debug.builder.types).
-pub data DebugMap:
-    out: mut DebugWriter
+## See [std-format.debug.builder.types-ref](../../spec/std/format.md#r-std-format.debug.builder.types-ref).
+pub struct DebugMap:
+    out: &mut DebugWriter
     count: usize
     shown: bool
 
 impl DebugMap:
     ## Adds one key-value pair.
     ## See [std-format.debug.builder.map](../../spec/std/format.md#r-std-format.debug.builder.map).
-    pub fn entry[K < Debug, V < Debug](mut self, key: K, value: V) -> mut DebugMap:
+    pub fn entry[K < Debug, V < Debug](&mut self, key: K, value: V) -> &mut DebugMap:
         if self.shown && self.out.entry_item(self.count, "{"):
             key.debug(self.out)
             self.out.write(": ")
@@ -325,7 +329,7 @@ impl DebugMap:
 
     ## Ends the value the builder writes.
     ## See [std-format.debug.builder.chain](../../spec/std/format.md#r-std-format.debug.builder.chain).
-    pub fn finish(mut self) -> void:
+    pub fn finish(&mut self) -> void:
         if self.shown:
             self.out.entry_close(self.count, "{", "}")
 
@@ -333,23 +337,23 @@ impl DebugMap:
 # run inside lib/std (r-std-format.debug.std-types). The writer shows its
 # text only.
 impl Debug for DebugWriter:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("DebugWriter").field("text", self.text()).finish()
 
 impl Debug for DebugStruct:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("DebugStruct").field("out", self.out).field("count", self.count).field("shown", self.shown).finish()
 
 impl Debug for DebugTuple:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("DebugTuple").field("out", self.out).field("count", self.count).field("unnamed", self.unnamed).field("shown", self.shown).finish()
 
 impl Debug for DebugList:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("DebugList").field("out", self.out).field("count", self.count).field("shown", self.shown).finish()
 
 impl Debug for DebugMap:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("DebugMap").field("out", self.out).field("count", self.count).field("shown", self.shown).finish()
 
 # The standard `Display` implementations for `string` and the printable
@@ -426,7 +430,7 @@ impl Display for f64:
 # The one-scalar string of the Unicode scalar value `point`: its UTF-8
 # encoding in one to four bytes.
 fn scalar_text(point: i32) -> string:
-    let encoded: mut List[u8] = []
+    let mut encoded: List[u8] = []
     if point < 128:
         encoded.push(u8(point))
     else if point < 2048:
@@ -472,59 +476,59 @@ fn f32_text(value: f32) -> string:
 
 # The standard `Debug` implementations (spec/lang/09-traits.md#r-trait.debug.std-impls).
 impl Debug for i32:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.write("$self")
 
 impl Debug for i64:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.write("$self")
 
 impl Debug for u8:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.write("$self")
 
 impl Debug for i8:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.write("$self")
 
 impl Debug for i16:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.write("$self")
 
 impl Debug for u16:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.write("$self")
 
 impl Debug for u32:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.write("$self")
 
 impl Debug for usize:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.write("$self")
 
 impl Debug for u64:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.write("$self")
 
 impl Debug for f32:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.write("$self")
 
 impl Debug for f64:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.write("$self")
 
 impl Debug for bool:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.write("$self")
 
 impl Debug for char:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.write("'" + escape_char(self, '\'') + "'")
 
 impl Debug for string:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.write("\"" + escape_text(out.cut(self), '"') + "\"")
 
 # A string's or char's text as it is written between the quotes of an hd
@@ -533,7 +537,7 @@ impl Debug for string:
 # delimiter; a `$` is escaped only in a string, where it could start an
 # interpolation.
 fn escape_text(text: string, quote: char) -> string:
-    let pieces: mut List[string] = []
+    let mut pieces: List[string] = []
     for each in text.chars():
         pieces.push(escape_char(each, quote))
     pieces.join("")
@@ -564,8 +568,8 @@ fn hex_digit(digit: u32) -> string:
     scalar_text(i32(87 + digit))
 
 impl[T < Debug] Debug for List[T]:
-    fn debug(self, out: mut DebugWriter) -> void:
-        let list: mut DebugList = out.debug_list()
+    fn debug(self, out: &mut DebugWriter) -> void:
+        list := out.debug_list()
         for item in self:
             _ := list.entry(item)
         list.finish()
@@ -574,30 +578,30 @@ impl[T < Debug] Debug for List[T]:
 # reference (r-std-format.debug.reference), so a derived `Debug` prints a
 # tree through its `&` links. A cycle runs until the stack is exhausted.
 impl[T < Debug] Debug for &T:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         value := *self
         value.debug(out)
 
 impl[T < Debug] Debug for &mut T:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         value := *self
         value.debug(out)
 
 impl[T < Debug] Debug for T?:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         match self:
             .Some(value) => out.debug_tuple("Option.Some").field(value).finish()
             .None => out.write("Option.None")
 
 impl[T < Debug, E < Debug] Debug for Result[T, E]:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         match self:
             .Ok(value) => out.debug_tuple("Result.Ok").field(value).finish()
             .Err(error) => out.debug_tuple("Result.Err").field(error).finish()
 
 impl[K < Debug & Eq & Hash, V < Debug] Debug for Map[K, V]:
-    fn debug(self, out: mut DebugWriter) -> void:
-        let map: mut DebugMap = out.debug_map()
+    fn debug(self, out: &mut DebugWriter) -> void:
+        map := out.debug_map()
         for (key, value) in self:
             _ := map.entry(key, value)
         map.finish()
@@ -608,7 +612,7 @@ impl[K < Debug & Eq & Hash, V < Debug] Debug for Map[K, V]:
 ## See [std-format.debug.render](../../spec/std/format.md#r-std-format.debug.render).
 pub fn debug[T < Debug](value: T) -> string:
     let mut out = DebugWriter { parts: [], limited: false, pretty: false, depth: 0, active: [] }
-    value.debug(out)
+    value.debug(&mut out)
     out.text()
 
 # `dbg` (spec/lang/10-modules.md#debug-printing) is an ordinary declaration:
@@ -636,31 +640,31 @@ fn dbg_text[T](value: T, width: usize) -> string:
 fn dbg_write(line: string) -> void:
     panic("intrinsic")
 
-fn dbg_writer(pretty: bool) -> mut DebugWriter:
+fn dbg_writer(pretty: bool) -> DebugWriter:
     DebugWriter { parts: [], limited: true, pretty: pretty, depth: 0, active: [] }
 
 # The text of `value`, written by `show`, after `width` columns of its line:
 # compact when the line fits in 80 columns, else pretty
 # (spec/lang/10-modules.md#r-module.dbg.layout).
-fn dbg_layout[T](width: usize, value: T, show: fn(T, mut DebugWriter) -> void) -> string:
-    let compact: mut DebugWriter = dbg_writer(false)
-    show(value, compact)
+fn dbg_layout[T](width: usize, value: T, show: fn(T, &mut DebugWriter) -> void) -> string:
+    let mut compact = dbg_writer(false)
+    show(value, &mut compact)
     compact_text := compact.text()
     if width + compact_text.len() <= 80 && !compact_text.contains("\n"):
         return compact_text
-    let pretty: mut DebugWriter = dbg_writer(true)
-    show(value, pretty)
+    let mut pretty = dbg_writer(true)
+    show(value, &mut pretty)
     pretty.text()
 
 # `dbg(x)` where `head` is the line's location and `x`'s source text, and
 # `show` the printer the checker generated for `x`'s type.
-fn dbg_one[T](head: string, value: T, show: fn(T, mut DebugWriter) -> void) -> T:
+fn dbg_one[T](head: string, value: T, show: fn(T, &mut DebugWriter) -> void) -> T:
     dbg_write("$head = ${dbg_layout(head.len() + 3, value, show)}")
     value
 
 # `dbg(x)` for a type that implements `Debug` (r-module.dbg.value.debug).
 fn dbg_shown[T < Debug](head: string, value: T) -> T:
-    dbg_one(head, value, fn(shown: T, out: mut DebugWriter) -> void: shown.debug(out))
+    dbg_one(head, value, fn(shown: T, out: &mut DebugWriter) -> void: shown.debug(out))
 
 # `dbg(x)` whose value prints as `text`, such as `<T>` for a type parameter.
 fn dbg_opaque[T](head: string, value: T, text: string) -> T:
@@ -669,11 +673,11 @@ fn dbg_opaque[T](head: string, value: T, text: string) -> T:
 
 # One line of a `dbg` call that has no per-argument source text, or no call
 # site at all: `prefix` is the location and `: `, or empty, then the value.
-fn dbg_bare_one[T](prefix: string, value: T, show: fn(T, mut DebugWriter) -> void) -> void:
+fn dbg_bare_one[T](prefix: string, value: T, show: fn(T, &mut DebugWriter) -> void) -> void:
     dbg_write("$prefix${dbg_layout(prefix.len(), value, show)}")
 
 fn dbg_bare_shown[T < Debug](prefix: string, value: T) -> void:
-    dbg_bare_one(prefix, value, fn(shown: T, out: mut DebugWriter) -> void: shown.debug(out))
+    dbg_bare_one(prefix, value, fn(shown: T, out: &mut DebugWriter) -> void: shown.debug(out))
 
 fn dbg_bare_opaque[T](prefix: string, value: T, text: string) -> void:
     dbg_write("$prefix$text")
@@ -705,7 +709,7 @@ fn repl_value(text: string, ty: string) -> void:
     repl_write("$text : $ty")
 
 # A part whose type implements `Debug`, inside a generated printer.
-fn dbg_nested[T < Debug](value: T, out: mut DebugWriter) -> void:
+fn dbg_nested[T < Debug](value: T, out: &mut DebugWriter) -> void:
     value.debug(out)
 
 # Writes `value` into `out` the way `dbg` prints a part (r-module.dbg.value.debug,
@@ -714,12 +718,12 @@ fn dbg_nested[T < Debug](value: T, out: mut DebugWriter) -> void:
 # part by these same rules. The compiler supplies the body at each concrete
 # type, since it needs the type's declaration.
 @intrinsic("dbg_show")
-fn dbg_show[T](value: T, out: mut DebugWriter) -> void:
+fn dbg_show[T](value: T, out: &mut DebugWriter) -> void:
     panic("intrinsic")
 
 # The structural forms of the built-in composites, over `dbg_show`'s printer
 # for their parts. Each opens a part the way a builder does.
-fn dbg_option[E](value: E?, out: mut DebugWriter, show: fn(E, mut DebugWriter) -> void) -> void:
+fn dbg_option[E](value: E?, out: &mut DebugWriter, show: fn(E, &mut DebugWriter) -> void) -> void:
     match value:
         .Some(inner) =>
             if out.open():
@@ -730,7 +734,7 @@ fn dbg_option[E](value: E?, out: mut DebugWriter, show: fn(E, mut DebugWriter) -
                 out.tuple_close(1, false)
         .None => out.write("Option.None")
 
-fn dbg_result[A, B](value: Result[A, B], out: mut DebugWriter, show_ok: fn(A, mut DebugWriter) -> void, show_err: fn(B, mut DebugWriter) -> void) -> void:
+fn dbg_result[A, B](value: Result[A, B], out: &mut DebugWriter, show_ok: fn(A, &mut DebugWriter) -> void, show_err: fn(B, &mut DebugWriter) -> void) -> void:
     match value:
         .Ok(inner) =>
             if out.open():
@@ -749,7 +753,7 @@ fn dbg_result[A, B](value: Result[A, B], out: mut DebugWriter, show_ok: fn(A, mu
 
 # A list can change after it is built, so a cycle may pass through it
 # (r-module.dbg.cycle.tracked).
-fn dbg_list[E](value: List[E], out: mut DebugWriter, show: fn(E, mut DebugWriter) -> void) -> void:
+fn dbg_list[E](value: List[E], out: &mut DebugWriter, show: fn(E, &mut DebugWriter) -> void) -> void:
     if out.enter(value):
         if out.open():
             let count: usize = 0
@@ -761,7 +765,7 @@ fn dbg_list[E](value: List[E], out: mut DebugWriter, show: fn(E, mut DebugWriter
             out.entry_close(count, "[", "]")
         out.leave()
 
-fn dbg_map[K < Eq & Hash, V](value: Map[K, V], out: mut DebugWriter, show_key: fn(K, mut DebugWriter) -> void, show_value: fn(V, mut DebugWriter) -> void) -> void:
+fn dbg_map[K < Eq & Hash, V](value: Map[K, V], out: &mut DebugWriter, show_key: fn(K, &mut DebugWriter) -> void, show_value: fn(V, &mut DebugWriter) -> void) -> void:
     if out.enter(value):
         if out.open():
             let count: usize = 0
@@ -776,11 +780,11 @@ fn dbg_map[K < Eq & Hash, V](value: Map[K, V], out: mut DebugWriter, show_key: f
         out.leave()
 
 # The REPL's forms of `dbg_one` and `dbg_shown`.
-fn dbg_render[T](width: usize, value: T, show: fn(T, mut DebugWriter) -> void) -> string:
+fn dbg_render[T](width: usize, value: T, show: fn(T, &mut DebugWriter) -> void) -> string:
     dbg_layout(width, value, show)
 
 fn dbg_render_shown[T < Debug](width: usize, value: T) -> string:
-    dbg_layout(width, value, fn(shown: T, out: mut DebugWriter) -> void: shown.debug(out))
+    dbg_layout(width, value, fn(shown: T, out: &mut DebugWriter) -> void: shown.debug(out))
 
 # Derived `Debug` (spec/std/format.md#r-std-format.debug.derive-builders.source):
 # the value as hd source writes it. `debug_struct` for a data type, even a
@@ -790,7 +794,7 @@ fn dbg_render_shown[T < Debug](width: usize, value: T) -> string:
 # walk reads the variant and counts its members, so the builder is chosen
 # before any field is written.
 impl[T] Debug for T by Structure:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         let shape: mut DebugShape[T] = DebugShape::[T] { name: "", of_data: false, members: 0, positional: 0 }
         _ := Structure::walk(self, shape)
         if shape.of_data:
@@ -835,7 +839,7 @@ impl[S] Walker[S] for DebugShape[S]:
 
 # Writes each member as a named field.
 data DebugNamed[S]:
-    pub fields: mut DebugStruct
+    pub fields: &mut DebugStruct
 
 impl[S] Walker[S] for DebugNamed[S]:
     type Error = never
@@ -857,7 +861,7 @@ impl[S] Walker[S] for DebugNamed[S]:
 # walker implements `rest`, so a rest element's items are fields too
 # (spec/lang/09-traits.md#r-trait.debug.tuples.rest).
 impl[T < Tuple] Debug for T by Structure:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         let w: mut DebugFields[T] = DebugFields::[T] { tuple: out.debug_tuple("") }
         _ := Structure::walk(self, w)
         w.tuple.finish()
@@ -867,7 +871,7 @@ impl[T < Tuple] Debug for T by Structure:
 # The field is public because the prototype checks the instantiated walker
 # in the program that uses it.
 data DebugFields[S]:
-    pub tuple: mut DebugTuple
+    pub tuple: &mut DebugTuple
 
 impl[S] Walker[S] for DebugFields[S]:
     type Error = never
@@ -930,6 +934,6 @@ impl Display for never:
             _ => panic("never has no value")
 
 impl Debug for never:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         match self:
             _ => panic("never has no value")

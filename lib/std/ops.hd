@@ -57,15 +57,15 @@ pub data Template[T]:
 # The derived builder calls, written by hand because `@derive` does not
 # run inside lib/std (r-std-format.debug.std-types).
 impl[F] Debug for NumSuffix[F]:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("NumSuffix").finish()
 
 impl[F] Debug for StrPrefix[F]:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("StrPrefix").finish()
 
 impl[T < Debug] Debug for Template[T]:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("Template").field("raw_parts", self.raw_parts).field("values", self.values).finish()
 
 # The operator traits (spec/lang/05-expressions.md#operator-traits). An operator
@@ -244,19 +244,19 @@ pub data RangeFull: pass
 # The derived builder calls, written by hand because `@derive` does not
 # run inside lib/std (r-std-format.debug.std-types).
 impl[T < Debug] Debug for Range[T]:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("Range").field("start", self.start).field("end", self.end).field("inclusive", self.inclusive).finish()
 
 impl[T < Debug] Debug for RangeFrom[T]:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("RangeFrom").field("start", self.start).finish()
 
 impl[T < Debug] Debug for RangeTo[T]:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("RangeTo").field("end", self.end).field("inclusive", self.inclusive).finish()
 
 impl Debug for RangeFull:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("RangeFull").finish()
 
 # The range types compare field by field (r-std-ops.range.eq.range).
@@ -948,7 +948,7 @@ pub fn default() -> DefaultVariant:
 # The derived builder calls, written by hand because `@derive` does not
 # run inside lib/std (r-std-format.debug.std-types).
 impl Debug for DefaultVariant:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("DefaultVariant").finish()
 
 # Names each member in order and gives it its declared default, or its

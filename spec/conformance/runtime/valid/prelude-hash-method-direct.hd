@@ -5,7 +5,7 @@ data Bytes:
     items: mut List[u8]
 
 impl Hasher for Bytes:
-    fn write(mut self, bytes: List[u8]) -> void:
+    fn write(&mut self, bytes: List[u8]) -> void:
         for b in bytes:
             self.items.push(b)
 

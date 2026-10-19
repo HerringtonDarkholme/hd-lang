@@ -1,16 +1,16 @@
 # test: a result writes a tag byte, 0 for .Ok and 1 for .Err, then its payload, and may be a map key
 # Spec std Hash, Bytes Written: std-hash.bytes.result; Result Hashing: std-hash.result.impl.
-data Recorder:
-    bytes: mut List[u8]
+struct Recorder:
+    bytes: List[u8]
 
 impl Hasher for Recorder:
-    fn write(mut self, bytes: List[u8]) -> void:
+    fn write(&mut self, bytes: List[u8]) -> void:
         for byte in bytes:
             self.bytes.push(byte)
 
 fn bytes_of[T < Hash](value: T) -> List[u8]:
     let mut recorder = Recorder { bytes: [] }
-    value.hash(recorder)
+    value.hash(&mut recorder)
     recorder.bytes
 
 fn failures(counts: Map[Result[i32, string], i32], key: Result[i32, string]) -> i32:

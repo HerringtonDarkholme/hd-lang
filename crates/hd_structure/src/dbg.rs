@@ -13,6 +13,8 @@
 //!
 //! The writer calls are the layout `std.format.DebugWriter` offers its
 //! builders, so a structural part is laid out as a builder lays it out.
+//! The writer is a struct used behind `&mut`, so `out` is a
+//! `&mut DebugWriter` and each call passes that reference on.
 
 use hd_base::{DefId, LocalId, StageResult};
 use hd_intern::PathKind;
@@ -49,7 +51,10 @@ pub fn show_body(cx: &Cx<'_, '_>, item: DefId, ty: Ty, debug: bool) -> StageResu
     let pool = names.pool;
     let mut g = Gen::new(cx, ty, item, Handles::Inline);
     g.b = TirBuilder::new(item, BodyKind::Fn);
-    let out_ty = pool.intern_ty(&TyData::Mut(g.format_ty("DebugWriter", &[])));
+    let out_ty = pool.intern_ty(&TyData::Ref {
+        inner: g.format_ty("DebugWriter", &[]),
+        mutable: true,
+    });
     let value = g.b.local(
         ty,
         names.syms.intern("value"),
@@ -172,7 +177,10 @@ impl Gen<'_, '_> {
     fn show_ref(&mut self, ty: Ty) -> Ref {
         let pool = self.names.pool;
         let show = self.names.item(FORMAT, "dbg_show");
-        let writer = pool.intern_ty(&TyData::Mut(self.format_ty("DebugWriter", &[])));
+        let writer = pool.intern_ty(&TyData::Ref {
+            inner: self.format_ty("DebugWriter", &[]),
+            mutable: true,
+        });
         let ft = self.fn_ty(&[ty, writer], Ty::VOID);
         let a = self.b.refs_record(&[Ref(show.raw())]);
         let l = pool.list(&[ty]);

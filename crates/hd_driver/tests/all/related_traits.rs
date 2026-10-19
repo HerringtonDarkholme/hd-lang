@@ -46,7 +46,7 @@ impl Eq for Key:
 
 const HAND_HASH: &str = "
 impl Hash for Key:
-    fn hash(self, state: mut dyn Hasher) -> void:
+    fn hash(self, state: &mut dyn Hasher) -> void:
         pass
 ";
 

@@ -1,0 +1,44 @@
+# test: Debug writes through &mut DebugWriter; each builder is a new object behind &mut that a binding or a helper keeps writing to
+# Spec std/format Debug Builders: std-format.debug.writer-ref, std-format.debug.builder.types-ref, std-format.debug.builder.chain.
+# expect-stdout: Span { start: 1, end: 4 }
+# expect-stdout: [Span { start: 1, end: 2 }, Span { start: 3, end: 4 }]
+# expect-stdout: Labels({"a": 1}, note="two")
+use std.format.{DebugWriter, DebugStruct}
+
+struct Span:
+    start: i32
+    end: i32
+
+impl Debug for Span:
+    fn debug(self, out: &mut DebugWriter) -> void:
+        fields := out.debug_struct("Span")
+        _ := fields.field("start", self.start)
+        add_end(fields, self.end)
+        fields.finish()
+
+# The builder is a reference, so the helper's field lands in the caller's value.
+fn add_end(fields: &mut DebugStruct, end: i32) -> void:
+    _ := fields.field("end", end)
+
+struct Spans:
+    items: List[Span]
+
+impl Debug for Spans:
+    fn debug(self, out: &mut DebugWriter) -> void:
+        list := out.debug_list()
+        for span in self.items:
+            _ := list.entry(span)
+        list.finish()
+
+struct Labels:
+    counts: Map[string, i32]
+    note: string
+
+impl Debug for Labels:
+    fn debug(self, out: &mut DebugWriter) -> void:
+        out.debug_tuple("Labels").field(self.counts).named_field("note", self.note).finish()
+
+pub fn main() -> void $ Console:
+    println(debug(Span { start: +1, end: +4 }))
+    println(debug(Spans { items: [Span { start: +1, end: +2 }, Span { start: +3, end: +4 }] }))
+    println(debug(Labels { counts: {"a": +1}, note: "two" }))

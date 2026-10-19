@@ -56,7 +56,7 @@ fn cleanup_end_rank(end: CleanupEnd) -> i32:
         .Abandoned => 1
 
 impl Debug for CleanupEnd:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         match self:
             .Finished => out.write("CleanupEnd.Finished")
             .Abandoned => out.write("CleanupEnd.Abandoned")
@@ -210,7 +210,7 @@ impl Eq for TimedOut:
         self.limit == other.limit && self.cleanup == other.cleanup
 
 impl Debug for TimedOut:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("TimedOut").field("limit", self.limit).field("cleanup", self.cleanup).finish()
 
 impl Error for TimedOut

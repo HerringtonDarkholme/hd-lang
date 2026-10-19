@@ -261,23 +261,23 @@ impl Error for CliError
 # `@derive` on a std declaration has no effect.
 
 impl Debug for Cli:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("Cli").field("program", self.program).field("options", self.options).field("positionals", self.positionals).finish()
 
 impl Debug for CliOption:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("CliOption").field("name", self.name).field("short", self.short).field("takes_value", self.takes_value).field("help", self.help).finish()
 
 impl Debug for CliPositional:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("CliPositional").field("name", self.name).field("help", self.help).finish()
 
 impl Debug for Parsed:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("Parsed").field("flags", self.flags).field("values", self.values).field("positionals", self.positionals).finish()
 
 impl Debug for CliError:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         match self:
             .UnknownOption(text) => out.debug_tuple("CliError.UnknownOption").named_field("text", text).finish()
             .MissingValue(name) => out.debug_tuple("CliError.MissingValue").named_field("name", name).finish()

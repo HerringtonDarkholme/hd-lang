@@ -38,7 +38,7 @@ pub enum Target:
 @annotate(.Data, .Enum)
 ## The fact that limits a fact type's values to targets of the listed kinds.
 ## See [annot.target.declarations](../../spec/lang/14-annotations.md#r-annot.target.declarations).
-pub data Annotate:
+pub struct Annotate:
     ## The target kinds the fact type allows.
     ## See [annot.target.declarations](../../spec/lang/14-annotations.md#r-annot.target.declarations).
     pub kinds: List[Target]
@@ -58,7 +58,7 @@ pub fn annotate[T = dyn Any](kinds...: List[Target]) -> Annotate:
 # The derived builder calls, written by hand because `@derive` does not
 # run inside lib/std (r-std-format.debug.std-types).
 impl Debug for Target:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         name := match self:
             .Fn => "Target.Fn"
             .Data => "Target.Data"
@@ -73,5 +73,5 @@ impl Debug for Target:
         out.write(name)
 
 impl Debug for Annotate:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("Annotate").field("kinds", self.kinds).finish()

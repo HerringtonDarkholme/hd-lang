@@ -92,7 +92,10 @@ impl Ck<'_, '_> {
             def: self.format_fn("DebugWriter"),
             args: hd_types::TyList::EMPTY,
         });
-        let writer = pool.intern_ty(&TyData::Mut(writer));
+        let writer = pool.intern_ty(&TyData::Ref {
+            inner: writer,
+            mutable: true,
+        });
         let ft = pool.intern_ty(&TyData::Fn {
             params: pool.list(&[ty, writer]),
             result: Ty::VOID,

@@ -39,5 +39,5 @@ impl Display for TypeId:
 # (r-std-format.debug.derive-builders.source): a `@derive` on a std
 # declaration has no effect in the prototype.
 impl Debug for TypeId:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("TypeId").field("key", self.key).field("name", self.name).finish()

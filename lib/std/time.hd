@@ -133,7 +133,7 @@ fn fraction_digits(fraction: i64) -> string:
 # A `Duration` debugs as its `Display` text, as `250ms`
 # (r-std-format.debug.std-types.time).
 impl Debug for Duration:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.write(self.to_string())
 
 # Durations compare by their milliseconds (r-std-time.duration.eq-ord).
@@ -327,7 +327,7 @@ impl Display for Timestamp:
 # A `Timestamp` debugs as its RFC 3339 text
 # (r-std-format.debug.std-types.time).
 impl Debug for Timestamp:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.write(self.to_rfc3339())
 
 impl Eq for Timestamp:
@@ -369,7 +369,7 @@ impl Eq for Date:
         self.year == other.year && self.month == other.month && self.day == other.day
 
 impl Debug for Date:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("Date").field("year", self.year).field("month", self.month).field("day", self.day).finish()
 
 # Why time text did not parse (spec/std/time.md#time-parse-errors): one error
@@ -415,7 +415,7 @@ impl Display for ParseTimeError:
 impl Error for ParseTimeError
 
 impl Debug for ParseTimeError:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         match self:
             .InvalidCharacter(position) => out.debug_tuple("ParseTimeError.InvalidCharacter").named_field("position", position).finish()
             .OutOfRange(position) => out.debug_tuple("ParseTimeError.OutOfRange").named_field("position", position).finish()
@@ -626,7 +626,7 @@ fn millis_since(later: i64, earlier: i64) -> Duration:
 # An `Instant` debugs as its milliseconds, as `Instant(5ms)`
 # (r-std-format.debug.std-types.time).
 impl Debug for Instant:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.write("Instant(${self.millis}ms)")
 
 impl Eq for Instant:
@@ -661,7 +661,7 @@ impl ManualClock:
         ManualClock { current: start }
 
 impl Debug for ManualClock:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("ManualClock").field("current", self.current).finish()
 
 impl Clock for ManualClock:

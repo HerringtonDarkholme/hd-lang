@@ -137,7 +137,7 @@ fn later_first(a: i32, b: i32) -> Ordering:
     Reverse { value: a }.cmp(Reverse { value: b })  # .Less when a > b
 ```
 
-1. r[std-cmp.reverse.decl] `std.cmp` declares `pub data Reverse[T]` with one public field, `value: T`. Code imports it, as in `use std.cmp.Reverse`.
+1. r[std-cmp.reverse.decl-struct] `std.cmp` declares `pub struct Reverse[T]` with one public field, `value: T`. It is a value: a copy of a `Reverse` holds a copy of the wrapped value, and a change to one is not seen through the other. Code imports it, as in `use std.cmp.Reverse`.
 2. r[std-cmp.reverse.order] When `T < Ord`, `Reverse[T]` implements `Eq`, `PartialOrd`, and `Ord`, and `Reverse { value: a }.cmp(Reverse { value: b })` is `b.cmp(a)`.
 3. r[std-cmp.reverse.eq] Two `Reverse` values are equal exactly when `cmp` of their values gives `.Equal`.
 
@@ -215,8 +215,8 @@ fn same_ring(a: &mut Node, b: &mut Node) -> bool:
 ```
 
 1. r[std-cmp.deep-equal.decl] `std.cmp` declares `pub fn deep_equal[T < DeepEq](left: T, right: T) -> bool`. Code imports it, as in `use std.cmp.{DeepEq, deep_equal}`.
-2. r[std-cmp.deep-equal.trait] `std.cmp` declares `pub trait DeepEq` with the one method `fn deep_eq(self, other: Self, visits: mut DeepVisits) -> bool`.
-3. r[std-cmp.deep-equal.visits] `std.cmp` declares `pub data DeepVisits` with private fields. It holds the pairs of references that one `deep_equal` call is comparing, and `deep_equal` starts with none.
+2. r[std-cmp.deep-equal.trait-ref] `std.cmp` declares `pub trait DeepEq` with the one method `fn deep_eq(self, other: Self, visits: &mut DeepVisits) -> bool`.
+3. r[std-cmp.deep-equal.visits-ref] `std.cmp` declares `pub struct DeepVisits` with private fields. It holds the pairs of references that one `deep_equal` call is comparing. `deep_equal` starts with none and passes the one record to every `deep_eq` of the call as `&mut DeepVisits`, so a pair remembered at any depth is seen at every other.
 4. r[std-cmp.deep-equal.template] `std.cmp` declares the template of `DeepEq`, which `@derive(DeepEq)` instantiates, and a tuple template.
 5. r[std-cmp.deep-equal.derive] A derived `DeepEq` compares the variant, then every member in declaration order by its `DeepEq`, as a derived `Eq` does.
 6. r[std-cmp.deep-equal.leaves] The number types, `char`, `bool`, and `string` implement `DeepEq` by `==`.

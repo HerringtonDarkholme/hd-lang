@@ -110,14 +110,14 @@ impl Env for ScriptedEnv:
 # `@derive` on a std declaration has no effect.
 
 impl Debug for ScriptedArgs:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("ScriptedArgs").field("program", self.program).field("values", self.values).finish()
 
 impl Debug for ScriptedEnv:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("ScriptedEnv").field("values", self.values).finish()
 
 impl Debug for EnvError:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         match self:
             .InvalidValue(name, reason) => out.debug_tuple("EnvError.InvalidValue").named_field("name", name).named_field("reason", reason).finish()

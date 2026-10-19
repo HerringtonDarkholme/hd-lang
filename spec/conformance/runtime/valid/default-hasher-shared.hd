@@ -1,0 +1,20 @@
+# test: DefaultHasher::new returns a new object, so hash calls through a copy of the reference reach the hasher that finish reads
+# Spec std Hash, Default Hasher: std-hash.default.new-ref, std-hash.default.decl-struct, std-hash.hash-of.
+# expect-stdout: true
+# expect-stdout: false true
+# expect-stdout: true
+use std.hash.{DefaultHasher, hash_of}
+
+fn hash_twice[T < Hash](value: T, hasher: &mut DefaultHasher) -> void:
+    value.hash(hasher)
+    value.hash(hasher)
+
+pub fn main() -> void $ Console:
+    hasher := DefaultHasher::new()
+    alias := hasher
+    "hd".hash(alias)
+    println(hasher.finish() == hash_of("hd"))
+    other := DefaultHasher::new()
+    println("${other is hasher} ${alias is hasher}")
+    hash_twice(+7, other)
+    println(other.finish() == hash_of((+7, +7)))

@@ -1,5 +1,5 @@
 # test: Sha256::hmac gives HMAC-SHA256 (RFC 2104) with the RFC 4231 vectors, streams like sha256, and a received signature checks with ==
-# Spec std/digest HMAC: std-digest.hmac, std-digest.hmac.key, std-digest.hmac.finish, std-digest.hmac.verify (task #497).
+# Spec std/digest HMAC: std-digest.hmac-ref, std-digest.hmac.key, std-digest.hmac.finish, std-digest.hmac.verify (task #497).
 use std.digest.{Digest, Sha256}
 use std.encoding.hex_decode
 
@@ -60,12 +60,12 @@ tests:
     it("a split message gives the one-shot MAC, and finish leaves the hasher usable"):
         key := "Jefe".bytes().collect()
         whole := "what do ya want for nothing?".bytes().collect()
-        let hasher: mut Sha256 = Sha256::hmac(key)
+        hasher := Sha256::hmac(key)
         hasher.update("what do ya ".bytes().collect())
         hasher.update("want for nothing?".bytes().collect())
         assert(hasher.finish() == Sha256::hmac(key).update(whole).finish(), reason="split")
         assert(hasher.finish() == hasher.finish(), reason="a second finish")
-        let longer: mut Sha256 = Sha256::hmac(key)
+        longer := Sha256::hmac(key)
         longer.update(whole)
         first := longer.finish()
         longer.update([33])

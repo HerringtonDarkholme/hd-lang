@@ -1,5 +1,5 @@
 # test: a streaming Sha256 gives the one-shot digest however the message is split, including at block boundaries
-# Spec std/digest SHA-256: std-digest.sha256.decl, std-digest.sha256.new, std-digest.sha256.update, std-digest.sha256.finish, std-digest.sha256.oneshot (task #481).
+# Spec std/digest SHA-256: std-digest.sha256.decl-struct, std-digest.sha256.new-ref, std-digest.sha256.update-ref, std-digest.sha256.finish, std-digest.sha256.oneshot (task #481).
 use std.digest.{Sha256, sha256}
 
 fn counting(size: usize) -> List[u8]:
@@ -25,7 +25,7 @@ fn split_at(bytes: List[u8], cut: usize) -> bool:
     streamed == sha256(bytes)
 
 fn one_at_a_time(bytes: List[u8]) -> bool:
-    let hasher: mut Sha256 = Sha256::new()
+    hasher := Sha256::new()
     for byte in bytes:
         hasher.update([byte])
     hasher.finish() == sha256(bytes)
@@ -61,7 +61,7 @@ tests:
 
     it("many updates of mixed sizes"):
         bytes := counting(1000)
-        let hasher: mut Sha256 = Sha256::new()
+        hasher := Sha256::new()
         let at: usize = 0
         let step: usize = 1
         while at < bytes.len():
@@ -72,7 +72,7 @@ tests:
         assert(hasher.finish() == sha256(bytes), reason="updates of growing size")
 
     it("finish leaves the hasher unchanged"):
-        let hasher: mut Sha256 = Sha256::new()
+        hasher := Sha256::new()
         hasher.update([97])
         first := hasher.finish()
         assert(hasher.finish() == first, reason="finishing twice")
@@ -84,7 +84,7 @@ tests:
         assert(sha256(bytes) == Sha256::new().update(bytes).finish(), reason="same digest")
 
     it("the NIST million-a vector"):
-        let hasher: mut Sha256 = Sha256::new()
+        hasher := Sha256::new()
         thousand := repeated(97, 1000)
         for _ in 0..1000:
             hasher.update(thousand)

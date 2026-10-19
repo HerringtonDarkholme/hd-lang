@@ -2235,7 +2235,9 @@ runtime/valid/encoding-decode-errors.hd	runtime	accept	std/encoding.md#r-std-enc
 runtime/valid/digest-sha256-vectors.hd	runtime	accept	std/digest.md#r-std-digest.sha256.fips
 runtime/valid/digest-sha256-long.hd	runtime	accept	std/digest.md#r-std-digest.sha256.fips
 runtime/valid/digest-eq.hd	runtime	accept	std/digest.md#r-std-digest.digest.eq.constant-time
-runtime/valid/digest-sha256-stream.hd	runtime	accept	std/digest.md#r-std-digest.sha256.update
+runtime/valid/digest-value-copy.hd	runtime	accept	std/digest.md#r-std-digest.digest-value
+runtime/valid/digest-sha256-stream.hd	runtime	accept	std/digest.md#r-std-digest.sha256.update-ref
+runtime/valid/sha256-handle-shared.hd	runtime	accept	std/digest.md#r-std-digest.sha256.new-ref
 runtime/valid/digest-hmac.hd	runtime	accept	std/digest.md#r-std-digest.hmac.vectors
 runtime/valid/json-round-trip.hd	runtime	accept	std/json.md#r-std-json.value.accessors
 runtime/valid/json-escapes.hd	runtime	accept	std/json.md#r-std-json.parse.string.surrogates
@@ -2270,6 +2272,7 @@ runtime/valid/deque-ends.hd	runtime	accept	std/collections.md#r-std-collections.
 runtime/valid/heap-order.hd	runtime	accept	std/collections.md#r-std-collections.heap.pop
 runtime/valid/heap-reverse.hd	runtime	accept	std/collections.md#r-std-collections.heap.min
 runtime/valid/cmp-reverse.hd	runtime	accept	std/cmp.md#r-std-cmp.reverse.order
+runtime/valid/reverse-value-copy.hd	runtime	accept	std/cmp.md#r-std-cmp.reverse.decl-struct
 runtime/valid/list-pop.hd	runtime	accept	lang/10-modules.md#r-module.method.list-pop
 runtime/valid/list-insert-remove-clear.hd	runtime	accept	lang/10-modules.md#r-module.method.list-insert
 runtime/panic/list-insert-out-of-range.hd	runtime	panic:index-out-of-bounds	lang/10-modules.md#r-module.method.list-insert.range
@@ -2294,6 +2297,7 @@ runtime/valid/utf8-overlong.hd	runtime	accept	std/text.md#r-std-text.utf8.well-f
 runtime/valid/utf8-error-traits.hd	runtime	accept	std/text.md#r-std-text.utf8.error.traits
 runtime/valid/time-unix-milliseconds.hd	runtime	accept	std/time.md#r-std-time.timestamp.unix-milliseconds
 runtime/valid/context-error-debug.hd	runtime	accept	std/error.md#r-std-error.context.debug
+runtime/valid/debug-builders-behind-ref.hd	runtime	accept	std/format.md#r-std-format.debug.builder.types-ref
 runtime/valid/string-split-once.hd	runtime	accept	std/text.md#r-std-text.split-once
 runtime/valid/string-split-whitespace.hd	runtime	accept	std/text.md#r-std-text.split-whitespace
 runtime/valid/string-pad.hd	runtime	accept	std/text.md#r-std-text.pad.start
@@ -3402,6 +3406,8 @@ runtime/valid/option-or.hd	runtime	accept	std/option.md#r-std-option.or
 runtime/valid/ordering-then.hd	runtime	accept	std/cmp.md#r-std-cmp.ordering.then.result
 runtime/valid/choices-int-range.hd	runtime	accept	std/testing.md#r-std-testing.choices.int-range
 runtime/valid/hasher-write-methods.hd	runtime	accept	std/hash.md#r-std-hash.default.write-methods
+runtime/valid/hasher-struct-ref-receivers.hd	runtime	accept	lang/09-traits.md#r-trait.hash.ref-receiver
+runtime/valid/default-hasher-shared.hd	runtime	accept	std/hash.md#r-std-hash.default.new-ref
 runtime/valid/integer-display-every-width.hd	runtime	accept	lang/04-type-system.md#r-types.display.int
 typing/invalid/shared-enum-type-parameter.hd	type	reject:shared-data-type-parameter	lang/08-data-and-enums.md#r-data.shared.type-parameter
 runtime/valid/shared-enum-generic-one-copy.hd	runtime	accept	lang/08-data-and-enums.md#r-data.shared.generic-copy
@@ -3503,6 +3509,7 @@ runtime/panic/reference-derived-eq-cycle.hd	runtime	panic:stack-exhausted	std/cm
 runtime/valid/reference-eq-generic.hd	runtime	accept	std/cmp.md#r-std-cmp.ref.eq
 runtime/valid/deep-equal-rings.hd	runtime	accept	std/cmp.md#r-std-cmp.deep-equal.references
 runtime/valid/deep-equal-values.hd	runtime	accept	std/cmp.md#r-std-cmp.deep-equal.containers
+runtime/valid/deep-equal-visits-shared.hd	runtime	accept	std/cmp.md#r-std-cmp.deep-equal.visits-ref
 runtime/valid/id-keys-by-identity.hd	runtime	accept	std/cmp.md#r-std-cmp.id.eq
 runtime/valid/reference-derived-debug.hd	runtime	accept	std/format.md#r-std-format.debug.reference-derived
 runtime/valid/reference-display.hd	runtime	accept	std/format.md#r-std-format.display.reference

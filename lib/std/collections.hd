@@ -8,7 +8,7 @@
 use std.num.Num
 use std.iter.FromIterator
 use std.ops.Index
-use std.format.{DebugList, DebugWriter}
+use std.format.DebugWriter
 
 impl[T] List[T]:
     # `push` is a language-tier intrinsic method of the checker
@@ -501,7 +501,7 @@ pub struct ListView[T]:
 # The derived builder calls, written by hand because `@derive` does not
 # run inside lib/std (r-std-format.debug.std-types).
 impl[T < Debug] Debug for ListView[T]:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("ListView").field("items", *self.items).field("start", self.start).field("end", self.end).field("len", self.len).finish()
 
 impl[T] ListView[T]:
@@ -681,8 +681,8 @@ impl[T < Eq] Eq for Deque[T]:
 # The elements front to back, as `List`'s `Debug` writes them
 # (r-std-format.debug.std-types.sequences).
 impl[T < Debug] Debug for Deque[T]:
-    fn debug(self, out: mut DebugWriter) -> void:
-        let list: mut DebugList = out.debug_list()
+    fn debug(self, out: &mut DebugWriter) -> void:
+        list := out.debug_list()
         for item in self:
             _ := list.entry(item)
         list.finish()
@@ -763,8 +763,8 @@ impl[T < Eq & Hash] Eq for Set[T]:
 # One `debug_list` entry per element, in iteration order
 # (r-std-format.debug.std-types.set).
 impl[T < Eq & Hash & Debug] Debug for Set[T]:
-    fn debug(self, out: mut DebugWriter) -> void:
-        let list: mut DebugList = out.debug_list()
+    fn debug(self, out: &mut DebugWriter) -> void:
+        list := out.debug_list()
         for (item, _) in self.entries:
             _ := list.entry(item)
         list.finish()
@@ -872,8 +872,8 @@ impl[T < Ord] Heap[T]:
 # The elements in heap order, which the spec leaves unspecified
 # (r-std-format.debug.std-types.sequences).
 impl[T < Ord & Debug] Debug for Heap[T]:
-    fn debug(self, out: mut DebugWriter) -> void:
-        let list: mut DebugList = out.debug_list()
+    fn debug(self, out: &mut DebugWriter) -> void:
+        list := out.debug_list()
         let index: usize = 0
         while index < self.count:
             _ := list.entry(self.element(index))

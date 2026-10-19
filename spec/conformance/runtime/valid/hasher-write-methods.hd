@@ -3,11 +3,11 @@
 # std-hash.default.write-methods, std-hash.bytes.sequence.
 use std.hash.{DefaultHasher, hash_of}
 
-data Recorder:
-    bytes: mut List[u8]
+struct Recorder:
+    bytes: List[u8]
 
 impl Hasher for Recorder:
-    fn write(mut self, bytes: List[u8]) -> void:
+    fn write(&mut self, bytes: List[u8]) -> void:
         for byte in bytes:
             self.bytes.push(byte)
 

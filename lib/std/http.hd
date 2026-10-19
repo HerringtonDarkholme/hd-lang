@@ -321,7 +321,7 @@ impl Error for HttpError
 # `@derive` on a std declaration has no effect.
 
 impl Debug for Method:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         match self:
             .Get => out.write("Method.Get")
             .Head => out.write("Method.Head")
@@ -333,15 +333,15 @@ impl Debug for Method:
             .Other(name) => out.debug_tuple("Method.Other").named_field("name", name).finish()
 
 impl Debug for Request:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("Request").field("method", self.method).field("url", self.url).field("headers", self.headers).field("body", self.body).field("timeout", self.timeout).finish()
 
 impl Debug for Response:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("Response").field("status", self.status).field("headers", self.headers).field("body", self.body).field("url", self.url).finish()
 
 impl Debug for HttpError:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         match self:
             .NotGranted(host) => out.debug_tuple("HttpError.NotGranted").named_field("host", host).finish()
             .InvalidUrl(url) => out.debug_tuple("HttpError.InvalidUrl").named_field("url", url).finish()
@@ -355,5 +355,5 @@ impl Debug for HttpError:
             .Json(error) => out.debug_tuple("HttpError.Json").named_field("error", error).finish()
 
 impl Debug for ScriptedHttp:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("ScriptedHttp").field("responses", self.responses).field("requests", self.requests).finish()

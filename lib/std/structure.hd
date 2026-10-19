@@ -98,7 +98,7 @@ pub enum SelfRef:
 # (r-std-format.debug.derive-builders.source): a `@derive` on a std
 # declaration has no effect in the prototype.
 impl Debug for SelfRef:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         match self:
             .Absent => out.write("SelfRef.Absent")
             .Optional => out.write("SelfRef.Optional")

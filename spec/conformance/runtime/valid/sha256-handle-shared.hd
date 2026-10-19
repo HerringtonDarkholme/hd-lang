@@ -1,0 +1,18 @@
+# test: Sha256::new and Sha256::hmac return new objects, so update through any copy of the reference feeds the one hasher
+# Spec std/digest Streaming: std-digest.sha256.new-ref, std-digest.sha256.update-ref, std-digest.sha256.decl-struct, std-digest.hmac-ref.
+# expect-stdout: true true false
+# expect-stdout: true
+use std.digest.{Sha256, sha256}
+
+fn feed(hasher: &mut Sha256, bytes: List[u8]) -> void:
+    _ := hasher.update(bytes)
+
+pub fn main() -> void $ Console:
+    hasher := Sha256::new()
+    alias := hasher
+    _ := alias.update([97])
+    feed(hasher, [98, 99])
+    println("${hasher.finish() == sha256([97, 98, 99])} ${alias is hasher} ${Sha256::new() is hasher}")
+    keyed := Sha256::hmac([107])
+    feed(keyed, [97])
+    println(keyed.finish() == Sha256::hmac([107]).update([97]).finish())

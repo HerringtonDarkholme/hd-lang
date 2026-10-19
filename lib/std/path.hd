@@ -118,5 +118,5 @@ fn components(text: string) -> List[string]:
 # `@derive` on a std declaration has no effect.
 
 impl Debug for Path:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_tuple("Path").field(string(self)).finish()

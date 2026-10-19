@@ -1,6 +1,6 @@
 # test: a hand-written Debug describes a value with DebugWriter builders, like Rust's Formatter
 # Spec std/format Debug Builders: std-format.debug.builder.struct and the other builders (Testing T53).
-use std.format.{DebugWriter, DebugList, DebugMap}
+use std.format.DebugWriter
 
 data Point:
     x: i32
@@ -15,22 +15,22 @@ data Bag:
     names: List[string]
 
 impl Debug for Point:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("Point").field("x", self.x).field("y", self.y).finish()
 
 impl Debug for Tag:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         match self:
             Tag.Plain => out.write("Plain")
             Tag.Pair(a, b) => out.debug_tuple("Pair").field(a).field(b).finish()
 
 impl Debug for Bag:
-    fn debug(self, out: mut DebugWriter) -> void:
-        let list: mut DebugList = out.debug_list()
+    fn debug(self, out: &mut DebugWriter) -> void:
+        list := out.debug_list()
         for item in self.items:
             _ := list.entry(item)
         list.finish()
-        let map: mut DebugMap = out.debug_map()
+        map := out.debug_map()
         for name in self.names:
             _ := map.entry(name, name.len())
         map.finish()

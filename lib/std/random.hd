@@ -211,9 +211,9 @@ fn mix32(z: u64) -> u64:
 # `@derive` on a std declaration has no effect.
 
 impl Debug for SeededRandom:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("SeededRandom").field("s0", self.s0).field("s1", self.s1).field("s2", self.s2).field("s3", self.s3).finish()
 
 impl Debug for Rng:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("Rng").field("source", self.source).finish()

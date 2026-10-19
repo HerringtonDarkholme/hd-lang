@@ -19,7 +19,7 @@ data Expected:
     cause: string
 
 impl Debug for Expected:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("ContextError").field("message", self.message).field("cause", self.cause).finish()
 
 fn shown[T < Debug](value: T) -> string:

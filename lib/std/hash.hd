@@ -10,38 +10,38 @@ use std.function.Tuple
 use std.structure.{Structure, Walker, Variant, Field}
 use std.format.DebugWriter
 
-## A sink that hashes the bytes written to it.
-## See [trait.hash.module](../../spec/lang/09-traits.md#r-trait.hash.module).
+## A sink that hashes the bytes written to it; its methods change it, so a hasher is passed as `&mut dyn Hasher`.
+## See [trait.hash.ref-receiver](../../spec/lang/09-traits.md#r-trait.hash.ref-receiver).
 pub trait Hasher:
-    fn write(mut self, bytes: List[u8]) -> void
+    fn write(&mut self, bytes: List[u8]) -> void
 
     ## Writes `value` as its eight little-endian bytes, as `write` would.
     ## See [trait.hash.hasher-methods](../../spec/lang/09-traits.md#r-trait.hash.hasher-methods).
-    fn write_u64(mut self, value: u64) -> void:
+    fn write_u64(&mut self, value: u64) -> void:
         self.write(unsigned_bytes(value, 8))
 
     ## Writes the UTF-8 bytes of `text`, with no length, as `write` would.
     ## See [trait.hash.hasher-methods](../../spec/lang/09-traits.md#r-trait.hash.hasher-methods).
-    fn write_str(mut self, text: string) -> void:
+    fn write_str(&mut self, text: string) -> void:
         self.write(text.to_utf8())
 
 ## A type whose values write their hash bytes to a `Hasher`; a map key needs it with `Eq`.
 ## See [trait.hash.module](../../spec/lang/09-traits.md#r-trait.hash.module).
 pub trait Hash:
-    fn hash(self, state: mut dyn Hasher) -> void
+    fn hash(self, state: &mut dyn Hasher) -> void
 
 impl Hash for string:
-    fn hash(self, state: mut dyn Hasher) -> void:
+    fn hash(self, state: &mut dyn Hasher) -> void:
         state.write_u64(u64(bytes_len(self)))
         state.write_str(self)
 
 impl Hash for char:
-    fn hash(self, state: mut dyn Hasher) -> void:
+    fn hash(self, state: &mut dyn Hasher) -> void:
         char_scalar(self).hash(state)
 
 # An optional writes the tag byte 0 for `.None`, or 1 and then its payload.
 impl[T < Hash] Hash for T?:
-    fn hash(self, state: mut dyn Hasher) -> void:
+    fn hash(self, state: &mut dyn Hasher) -> void:
         match self:
             .None => state.write([0])
             .Some(value) =>
@@ -49,17 +49,17 @@ impl[T < Hash] Hash for T?:
                 value.hash(state)
 
 impl[T < Hash] Hash for &T:
-    fn hash(self, state: mut dyn Hasher) -> void:
+    fn hash(self, state: &mut dyn Hasher) -> void:
         (*self).hash(state)
 
 impl[T < Hash] Hash for &mut T:
-    fn hash(self, state: mut dyn Hasher) -> void:
+    fn hash(self, state: &mut dyn Hasher) -> void:
         (*self).hash(state)
 
 # A result writes the tag byte 0 and then its `.Ok` payload, or 1 and then
 # its `.Err` payload (spec/std/hash.md#r-std-hash.bytes.result).
 impl[T < Hash, E < Hash] Hash for Result[T, E]:
-    fn hash(self, state: mut dyn Hasher) -> void:
+    fn hash(self, state: &mut dyn Hasher) -> void:
         match self:
             .Ok(value) =>
                 state.write([0])
@@ -69,59 +69,59 @@ impl[T < Hash, E < Hash] Hash for Result[T, E]:
                 error.hash(state)
 
 impl Hash for bool:
-    fn hash(self, state: mut dyn Hasher) -> void:
+    fn hash(self, state: &mut dyn Hasher) -> void:
         let byte: u8 = 0
         if self:
             byte = 1
         state.write([byte])
 
 impl Hash for i8:
-    fn hash(self, state: mut dyn Hasher) -> void:
+    fn hash(self, state: &mut dyn Hasher) -> void:
         state.write(signed_bytes(i64(self), 1))
 
 impl Hash for i16:
-    fn hash(self, state: mut dyn Hasher) -> void:
+    fn hash(self, state: &mut dyn Hasher) -> void:
         state.write(signed_bytes(i64(self), 2))
 
 impl Hash for i32:
-    fn hash(self, state: mut dyn Hasher) -> void:
+    fn hash(self, state: &mut dyn Hasher) -> void:
         state.write(signed_bytes(i64(self), 4))
 
 impl Hash for i64:
-    fn hash(self, state: mut dyn Hasher) -> void:
+    fn hash(self, state: &mut dyn Hasher) -> void:
         state.write_u64(u64(self))
 
 impl Hash for u8:
-    fn hash(self, state: mut dyn Hasher) -> void:
+    fn hash(self, state: &mut dyn Hasher) -> void:
         state.write([self])
 
 impl Hash for u16:
-    fn hash(self, state: mut dyn Hasher) -> void:
+    fn hash(self, state: &mut dyn Hasher) -> void:
         state.write(unsigned_bytes(u64(self), 2))
 
 impl Hash for u32:
-    fn hash(self, state: mut dyn Hasher) -> void:
+    fn hash(self, state: &mut dyn Hasher) -> void:
         state.write(unsigned_bytes(u64(self), 4))
 
 impl Hash for usize:
-    fn hash(self, state: mut dyn Hasher) -> void:
+    fn hash(self, state: &mut dyn Hasher) -> void:
         state.write(unsigned_bytes(u64(self), 4))
 
 impl Hash for u64:
-    fn hash(self, state: mut dyn Hasher) -> void:
+    fn hash(self, state: &mut dyn Hasher) -> void:
         state.write_u64(self)
 
 # A list hashes its length as a `u64`, then each item in order
 # (spec/std/hash.md#list-hashing), so equal lists hash the same.
 impl[T < Hash] Hash for List[T]:
-    fn hash(self, state: mut dyn Hasher) -> void:
+    fn hash(self, state: &mut dyn Hasher) -> void:
         state.write_u64(u64(self.len()))
         for item in self:
             item.hash(state)
 
 # The low `count` bytes of a two's-complement value, least significant first.
 fn signed_bytes(value: i64, count: usize) -> List[u8]:
-    let bytes: mut List[u8] = []
+    let mut bytes: List[u8] = []
     let rest = value
     let index: usize = 0
     while index < count:
@@ -131,7 +131,7 @@ fn signed_bytes(value: i64, count: usize) -> List[u8]:
     bytes
 
 fn unsigned_bytes(value: u64, count: usize) -> List[u8]:
-    let bytes: mut List[u8] = []
+    let mut bytes: List[u8] = []
     let rest = value
     let index: usize = 0
     while index < count:
@@ -144,21 +144,23 @@ fn unsigned_bytes(value: u64, count: usize) -> List[u8]:
 # (r-std-hash.default.algorithm, r-std-hash.default.fixed). The state
 # starts at the FNV offset basis `0xcbf29ce484222325`.
 ## The standard hasher: 64-bit FNV-1a over the bytes written to it.
-## See [std-hash.default.decl](../../spec/std/hash.md#r-std-hash.default.decl).
-pub data DefaultHasher:
+## See [std-hash.default.decl-struct](../../spec/std/hash.md#r-std-hash.default.decl-struct).
+pub struct DefaultHasher:
     state: u64
 
 # The derived builder calls, written by hand because `@derive` does not
 # run inside lib/std (r-std-format.debug.std-types).
 impl Debug for DefaultHasher:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("DefaultHasher").field("state", self.state).finish()
 
 impl DefaultHasher:
-    ## Returns a fresh hasher.
-    ## See [std-hash.default.decl](../../spec/std/hash.md#r-std-hash.default.decl).
-    pub fn new() -> mut DefaultHasher:
-        DefaultHasher { state: 14695981039346656037 }
+    # A new object, so `value.hash(hasher)` changes the one hasher that
+    # `finish` then reads (r-std-hash.default.new-ref).
+    ## Returns a fresh hasher, a new object that `value.hash` and `finish` share.
+    ## See [std-hash.default.new-ref](../../spec/std/hash.md#r-std-hash.default.new-ref).
+    pub fn new() -> &mut DefaultHasher:
+        &mut DefaultHasher { state: 14695981039346656037 }
 
     # The state, unchanged (r-std-hash.default.finish).
     ## The hash of the bytes written so far.
@@ -171,57 +173,64 @@ impl DefaultHasher:
 # (r-std-hash.default.write). The prime is 256 * 2^32 + 435, and the
 # state is split into 32-bit halves, so no intermediate product overflows
 # the checked `u64` arithmetic.
-impl DefaultHasher:
-    # One FNV-1a step on the state.
-    fn mix(mut self, byte: u8) -> void:
-        let mask: u64 = 4294967295
-        mixed := self.state ^ u64(byte)
-        low := mixed & mask
-        low_product := low * 435
-        middle := (low * 256 + (mixed >> 32) * 435 + (low_product >> 32)) & mask
-        self.state = (middle << 32) | (low_product & mask)
+# One FNV-1a step on the state.
+fn fnv_mix(state: u64, byte: u8) -> u64:
+    let mask: u64 = 4294967295
+    mixed := state ^ u64(byte)
+    low := mixed & mask
+    low_product := low * 435
+    middle := (low * 256 + (mixed >> 32) * 435 + (low_product >> 32)) & mask
+    (middle << 32) | (low_product & mask)
 
+# Each method mixes into a local and stores the state once, so a write
+# through the reference happens once per call, not once per byte.
 impl Hasher for DefaultHasher:
-    fn write(mut self, bytes: List[u8]) -> void:
+    fn write(&mut self, bytes: List[u8]) -> void:
+        let state = self.state
         for byte in bytes:
-            self.mix(byte)
+            state = fnv_mix(state, byte)
+        self.state = state
 
     # The eight bytes, least significant first, without a list.
-    fn write_u64(mut self, value: u64) -> void:
+    fn write_u64(&mut self, value: u64) -> void:
+        let state = self.state
         let rest = value
         let index: usize = 0
         while index < 8:
-            self.mix(u8(rest & 255))
+            state = fnv_mix(state, u8(rest & 255))
             rest = rest >> 8
             index = index + 1
+        self.state = state
 
     # The string's bytes, read in place.
-    fn write_str(mut self, text: string) -> void:
+    fn write_str(&mut self, text: string) -> void:
+        let state = self.state
         n := bytes_len(text)
         let index: usize = 0
         while index < n:
-            self.mix(bytes_at(text, index))
+            state = fnv_mix(state, bytes_at(text, index))
             index = index + 1
+        self.state = state
 
 # Hashes `value` into a new `DefaultHasher` (r-std-hash.hash-of).
 ## `value`'s hash under a fresh `DefaultHasher`.
 ## See [std-hash.hash-of](../../spec/std/hash.md#r-std-hash.hash-of).
 pub fn hash_of[T < Hash](value: T) -> u64:
-    let mut hasher = DefaultHasher::new()
+    hasher := DefaultHasher::new()
     value.hash(hasher)
     hasher.finish()
 
 # Derived `Hash` (spec/std/hash.md#derived-hashing): an enum's variant index
 # as a `u32`, then each member in declaration order.
 impl[T] Hash for T by Structure:
-    fn hash(self, state: mut dyn Hasher) -> void:
+    fn hash(self, state: &mut dyn Hasher) -> void:
         let w: mut HashWalker[T] = HashWalker::[T] { state: state }
         _ := Structure::walk(self, w)
 
 # The field is public because the prototype checks the instantiated walker
 # in the deriving module.
 data HashWalker[S]:
-    pub state: mut dyn Hasher
+    pub state: &mut dyn Hasher
 
 impl[S] Walker[S] for HashWalker[S]:
     type Error = never
@@ -244,7 +253,7 @@ impl[S] Walker[S] for HashWalker[S]:
 # every size. A rest element hashes as its `List`, so a rest tuple is
 # hashable when its rest's items are (r-std-hash.tuple.rest-list).
 impl[T < Tuple] Hash for T by Structure:
-    fn hash(self, state: mut dyn Hasher) -> void:
+    fn hash(self, state: &mut dyn Hasher) -> void:
         let w: mut HashWalker[T] = HashWalker::[T] { state: state }
         _ := Structure::walk(self, w)
 
@@ -263,7 +272,7 @@ impl[T < Tuple] Hash for T by Structure:
 # times slower on short keys. A message word is four bytes,
 # little-endian; the last word holds the leftover bytes, with the
 # length's low byte on top. One round per word, then three.
-data BucketHasher:
+struct BucketHasher:
     v0: u64
     v1: u64
     v2: u64
@@ -273,59 +282,70 @@ data BucketHasher:
     # The bytes written so far.
     count: usize
 
+# The hasher is a value: each step computes in locals and builds the next
+# value once, since a struct value is rebuilt on every field write.
 impl BucketHasher:
-    fn new() -> mut BucketHasher:
+    fn new() -> BucketHasher:
         seed := map_hash_seed()
         v0 := seed & 4294967295
         v1 := seed >> 32
         BucketHasher { v0: v0, v1: v1, v2: v0 ^ 1819895653, v3: v1 ^ 1952801890, word: 0, count: 0 }
 
-    # One full message word.
-    fn absorb(mut self, m: u64) -> void:
-        self.v3 = self.v3 ^ m
-        self.round()
-        self.v0 = self.v0 ^ m
-
-    fn round(mut self) -> void:
-        mask := u64(4294967295)
-        self.v0 = (self.v0 + self.v1) & mask
-        self.v1 = ((self.v1 << 5) | (self.v1 >> 27)) & mask
-        self.v1 = self.v1 ^ self.v0
-        self.v0 = ((self.v0 << 16) | (self.v0 >> 16)) & mask
-        self.v2 = (self.v2 + self.v3) & mask
-        self.v3 = ((self.v3 << 8) | (self.v3 >> 24)) & mask
-        self.v3 = self.v3 ^ self.v2
-        self.v0 = (self.v0 + self.v3) & mask
-        self.v3 = ((self.v3 << 7) | (self.v3 >> 25)) & mask
-        self.v3 = self.v3 ^ self.v0
-        self.v2 = (self.v2 + self.v1) & mask
-        self.v1 = ((self.v1 << 13) | (self.v1 >> 19)) & mask
-        self.v1 = self.v1 ^ self.v2
-        self.v2 = ((self.v2 << 16) | (self.v2 >> 16)) & mask
+    # The lanes after one full message word, with the word emptied.
+    fn absorb(self, m: u64) -> BucketHasher:
+        lanes := sip_round(self.v0, self.v1, self.v2, self.v3 ^ m)
+        BucketHasher { v0: lanes._0 ^ m, v1: lanes._1, v2: lanes._2, v3: lanes._3, word: 0, count: self.count }
 
     # The last word, then the three finishing rounds.
-    fn finish(mut self) -> u32:
-        self.absorb(self.word | (u64(self.count & 255) << 24))
-        self.v2 = self.v2 ^ 255
-        self.round()
-        self.round()
-        self.round()
-        u32(self.v1 ^ self.v3)
+    fn finish(self) -> u32:
+        last := self.absorb(self.word | (u64(self.count & 255) << 24))
+        let lanes = sip_round(last.v0, last.v1, last.v2 ^ 255, last.v3)
+        lanes = sip_round(lanes._0, lanes._1, lanes._2, lanes._3)
+        lanes = sip_round(lanes._0, lanes._1, lanes._2, lanes._3)
+        u32(lanes._1 ^ lanes._3)
 
+# The four lanes after one SipRound.
+fn sip_round(a: u64, b: u64, c: u64, d: u64) -> (u64, u64, u64, u64):
+    mask := u64(4294967295)
+    let v0 = a
+    let v1 = b
+    let v2 = c
+    let v3 = d
+    v0 = (v0 + v1) & mask
+    v1 = ((v1 << 5) | (v1 >> 27)) & mask
+    v1 = v1 ^ v0
+    v0 = ((v0 << 16) | (v0 >> 16)) & mask
+    v2 = (v2 + v3) & mask
+    v3 = ((v3 << 8) | (v3 >> 24)) & mask
+    v3 = v3 ^ v2
+    v0 = (v0 + v3) & mask
+    v3 = ((v3 << 7) | (v3 >> 25)) & mask
+    v3 = v3 ^ v0
+    v2 = (v2 + v1) & mask
+    v1 = ((v1 << 13) | (v1 >> 19)) & mask
+    v1 = v1 ^ v2
+    v2 = ((v2 << 16) | (v2 >> 16)) & mask
+    (v0, v1, v2, v3)
+
+# The word and the count stay in locals; the lanes change once a word fills.
 impl Hasher for BucketHasher:
-    fn write(mut self, bytes: List[u8]) -> void:
+    fn write(&mut self, bytes: List[u8]) -> void:
+        let h = *self
+        let word = h.word
+        let count = h.count
         for byte in bytes:
-            self.word = self.word | (u64(byte) << ((self.count & 3) * 8))
-            self.count = self.count + 1
-            if self.count & 3 == 0:
-                self.absorb(self.word)
-                self.word = 0
+            word = word | (u64(byte) << ((count & 3) * 8))
+            count = count + 1
+            if count & 3 == 0:
+                h = h.absorb(word)
+                word = 0
+        *self = BucketHasher { v0: h.v0, v1: h.v1, v2: h.v2, v3: h.v3, word: word, count: count }
 
 # The bucket hash of a key that is not an integer or a string: its `Hash`
 # bytes under a fresh `BucketHasher`.
 fn key_bucket_hash[T < Hash](value: T) -> u32:
     let mut hasher = BucketHasher::new()
-    value.hash(hasher)
+    value.hash(&mut hasher)
     hasher.finish()
 
 # The bucket hash of an integer, `bool` or `char` key, given its bits:

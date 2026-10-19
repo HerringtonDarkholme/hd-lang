@@ -1219,25 +1219,25 @@ fn panic_with(category: string, message: string) -> void:
 # `@derive` on a std declaration has no effect.
 
 impl Debug for EscapeError:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("EscapeError").field("position", self.position).finish()
 
 impl Debug for Utf8Error:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         match self:
             .InvalidSequence(position) => out.debug_tuple("Utf8Error.InvalidSequence").named_field("position", position).finish()
             .Truncated(position) => out.debug_tuple("Utf8Error.Truncated").named_field("position", position).finish()
 
 impl Debug for ParseBoolError:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.write("ParseBoolError.Invalid")
 
 impl Debug for ParseCharError:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         match self:
             .Empty => out.write("ParseCharError.Empty")
             .TooMany => out.write("ParseCharError.TooMany")
 
 impl Debug for StringBuilder:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("StringBuilder").field("parts", self.pieces()).finish()

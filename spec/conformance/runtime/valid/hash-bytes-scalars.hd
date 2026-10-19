@@ -1,17 +1,17 @@
 # test: integers, bool, and char write their fixed-width little-endian bytes to the Hasher
 # Spec std Hash, Bytes Written: std-hash.bytes.integer, std-hash.bytes.bool,
 # std-hash.bytes.char (batch 65, HASH-BYTES).
-data Recorder:
-    bytes: mut List[u8]
+struct Recorder:
+    bytes: List[u8]
 
 impl Hasher for Recorder:
-    fn write(mut self, bytes: List[u8]) -> void:
+    fn write(&mut self, bytes: List[u8]) -> void:
         for byte in bytes:
             self.bytes.push(byte)
 
 fn bytes_of[T < Hash](value: T) -> List[u8]:
     let mut recorder = Recorder { bytes: [] }
-    value.hash(recorder)
+    value.hash(&mut recorder)
     recorder.bytes
 
 tests:

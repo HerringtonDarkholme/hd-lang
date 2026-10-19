@@ -1,0 +1,23 @@
+# test: a hand-written DeepEq passes its &mut DeepVisits on, so the record of pairs reaches every depth and a ring compares to an end
+# Spec std/cmp Deep Equality: std-cmp.deep-equal.visits-ref, std-cmp.deep-equal.trait-ref, std-cmp.deep-equal.references.
+# expect-stdout: true
+# expect-stdout: false
+use std.cmp.{DeepEq, DeepVisits, deep_equal}
+
+struct Link:
+    label: string
+    next: &mut Link?
+
+impl DeepEq for Link:
+    fn deep_eq(self, other: Link, visits: &mut DeepVisits) -> bool:
+        self.label == other.label && self.next.deep_eq(other.next, visits)
+
+fn ring(a: string, b: string) -> &mut Link:
+    first := &mut Link { label: a, next: .None }
+    second := &mut Link { label: b, next: .Some(first) }
+    first.next = .Some(second)
+    first
+
+pub fn main() -> void $ Console:
+    println(deep_equal(ring("a", "b"), ring("a", "b")))
+    println(deep_equal(ring("a", "b"), ring("a", "c")))

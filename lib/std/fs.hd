@@ -563,7 +563,7 @@ impl FsWrite for MemoryFs:
 # `@derive` on a std declaration has no effect.
 
 impl Debug for FsError:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         match self:
             .NotFound(path) => out.debug_tuple("FsError.NotFound").named_field("path", path).finish()
             .PermissionDenied(path) => out.debug_tuple("FsError.PermissionDenied").named_field("path", path).finish()
@@ -575,16 +575,16 @@ impl Debug for FsError:
             .Other(message) => out.debug_tuple("FsError.Other").named_field("message", message).finish()
 
 impl Debug for EntryKind:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         match self:
             .File => out.write("EntryKind.File")
             .Directory => out.write("EntryKind.Directory")
             .Symlink => out.write("EntryKind.Symlink")
 
 impl Debug for Entry:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("Entry").field("path", self.path).field("kind", self.kind).field("size", self.size).finish()
 
 impl Debug for MemoryFs:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("MemoryFs").field("files", self.files).field("dirs", self.dirs).finish()

@@ -108,7 +108,7 @@ Planned, not built:
 | `inline-bounded` | a call; the callee's TIR; the caller's size so far; budgets | the callee's body in place | a call, and the chance for the passes below | up to the caller cap (default 2x or 2 KB) |
 | `escape` (analysis) | the instance's TIR after inlining | an escape bit per allocation | none by itself | none |
 | `scalar-replace` | escape bits | non-escaping closures, cells, boxes, `Iterator`s and other data values as locals | an allocation each | usually negative |
-| `devirt-vtable` | a `CallDyn` whose vtable operand is a known constant global | a direct `call` | one `call_ref`; on wasmtime, enables inlining (`mut dyn Hasher` above all) | none |
+| `devirt-vtable` | a `CallDyn` whose vtable operand is a known constant global | a direct `call` | one `call_ref`; on wasmtime, enables inlining (`&mut dyn Hasher` above all) | none |
 | `hoist-constants` | a box, enum or tuple construction whose payloads are constants | an immutable constant global | an allocation per evaluation (`.Err(ParseError.Empty)`) | a global per constant |
 | `cse-getters` | getter calls (literals, facts) in a body | one call per dominating path; literal getters hoisted out of loops | a call per repeated read | negative |
 | `leb-shrink` (link) | padded 5-byte LEB immediates | minimal LEBs, with offset maps for lines | none | negative, several percent |
@@ -431,7 +431,7 @@ and `eqref` with a cast after the tag test otherwise.
   scalar or value payload is erased as above). A call is one load and
   one `call_ref`. The planned `devirt-vtable` pass would make a call
   through a known constant vtable direct, which matters most for
-  `mut dyn Hasher`.
+  `&mut dyn Hasher`.
 - **Size:** a 3-slot vtable is about 27 bytes beyond its functions; a call
   site about 8 bytes.
 - **Engines:** V8 inlines a monomorphic `call_ref` (0.31 ns, the same as

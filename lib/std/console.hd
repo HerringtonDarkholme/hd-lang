@@ -93,7 +93,7 @@ impl MemoryConsole:
 # The derived builder calls, written by hand because `@derive` does not
 # run inside lib/std (r-std-format.debug.std-types).
 impl Debug for MemoryConsole:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("MemoryConsole").field("lines", self.lines).field("error_lines", self.error_lines).finish()
 
 impl Console for MemoryConsole:
@@ -170,7 +170,7 @@ impl ConsoleInput for ScriptedInput:
         .Ok(out.build())
 
 impl Debug for ScriptedInput:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("ScriptedInput").field("lines", self.lines).field("next", self.next).finish()
 
 # The error of a console write or read (spec/lang/10-modules.md#r-module.console.error.closed).
@@ -190,5 +190,5 @@ impl Eq for ConsoleError:
         true
 
 impl Debug for ConsoleError:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.write("ConsoleError.Closed")

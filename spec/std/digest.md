@@ -30,7 +30,7 @@ as Go's `hmac.Equal` does, so checking a received signature does not
 reveal how many leading bytes were right.
 
 ```text
-pub data Digest:
+pub struct Digest:
     pub bytes: List[u8]
 
 impl Digest:
@@ -39,7 +39,7 @@ impl Digest:
 impl Eq for Digest
 ```
 
-1. r[std-digest.digest] `Digest` is a data type with one public field, `bytes: List[u8]`. Code may build one from bytes it received, as `Digest { bytes: hex_decode(text)? }`.
+1. r[std-digest.digest-value] `Digest` is a struct, a value, with one public field, `bytes: List[u8]`. A copy of a digest is independent of the original. Code may build one from bytes it received, as `Digest { bytes: hex_decode(text)? }`.
 2. r[std-digest.digest.to-hex] `to_hex` returns the bytes as lowercase hex text, as [`hex_encode`](encoding.md#r-std-encoding.hex.encode) does.
 3. r[std-digest.digest.eq] Two digests are equal when their byte lists have the same length and the same bytes.
 4. r[std-digest.digest.eq.constant-time] When the lengths are equal, `==` reads every byte pair, and neither its control flow nor its memory accesses depend on the byte values.
@@ -107,11 +107,11 @@ A reader of a large file or a socket feeds each chunk to `update` and
 never holds the whole message.
 
 ```text
-pub data Sha256: ...
+pub struct Sha256: ...
 
 impl Sha256:
-    pub fn new() -> mut Sha256
-    pub fn update(mut self, bytes: List[u8]) -> mut Sha256
+    pub fn new() -> &mut Sha256
+    pub fn update(&mut self, bytes: List[u8]) -> &mut Sha256
     pub fn finish(self) -> Digest
 ```
 
@@ -119,15 +119,15 @@ impl Sha256:
 use std.digest.{Digest, Sha256}
 
 fn digest_of_chunks(chunks: List[List[u8]]) -> Digest:
-    let hasher: mut Sha256 = Sha256::new()
+    hasher := Sha256::new()
     for chunk in chunks:
         hasher.update(chunk)
     hasher.finish()
 ```
 
-1. r[std-digest.sha256.decl] `Sha256` is a data type with private fields. Code cannot build one except with `Sha256::new`.
-2. r[std-digest.sha256.new] `Sha256::new() -> mut Sha256` returns a hasher that has seen no bytes.
-3. r[std-digest.sha256.update] `h.update(bytes: List[u8]) -> mut Sha256` adds `bytes` to the end of the message and returns `h`, so calls chain; it takes `mut self`. The message is the bytes of all calls in call order, so how it is split across calls does not change the digest.
+1. r[std-digest.sha256.decl-struct] `Sha256` is a struct with private fields, used behind `&mut`. Code cannot build one except with `Sha256::new`.
+2. r[std-digest.sha256.new-ref] `Sha256::new() -> &mut Sha256` returns a new object, a hasher that has seen no bytes. Copies of the reference share it.
+3. r[std-digest.sha256.update-ref] `h.update(bytes: List[u8]) -> &mut Sha256` adds `bytes` to the end of the message and returns `h`, so calls chain; it takes `&mut self`. The message is the bytes of all calls in call order, so how it is split across calls does not change the digest.
 4. r[std-digest.sha256.finish] `h.finish() -> Digest` returns the digest of the message added so far, as [`sha256`](#r-std-digest.sha256) defines it. It takes `self`, so it leaves `h` as it was: `h` takes more `update` calls, and a second `finish` returns the same digest.
 5. r[std-digest.sha256.memory] `Sha256` keeps at most one partial block of the message, fewer than 64 bytes. `update` hashes each full block as it arrives, and `finish` pads only the last block.
 
@@ -143,7 +143,7 @@ computes the same MAC under the shared secret and compares.
 
 ```text
 impl Sha256:
-    pub fn hmac(key: List[u8]) -> mut Sha256
+    pub fn hmac(key: List[u8]) -> &mut Sha256
 ```
 
 ```text
@@ -158,9 +158,9 @@ fn signature_ok(secret: string, body: string, sent_hex: string) -> bool:
         .Err(_) => false
 ```
 
-1. r[std-digest.hmac] `Sha256::hmac(key: List[u8]) -> mut Sha256` returns a hasher that has seen no message bytes. Its `finish` returns HMAC-SHA256 of the message under `key`, as RFC 2104 defines it with SHA-256 as the hash.
+1. r[std-digest.hmac-ref] `Sha256::hmac(key: List[u8]) -> &mut Sha256` returns a new object, a hasher that has seen no message bytes. Its `finish` returns HMAC-SHA256 of the message under `key`, as RFC 2104 defines it with SHA-256 as the hash.
 2. r[std-digest.hmac.key] A key longer than 64 bytes is replaced by its SHA-256 digest first; a key of up to 64 bytes is used as given. The result is padded with zero bytes to 64 bytes. An empty key is allowed.
-3. r[std-digest.hmac.finish] `update`, and `finish` leaving the hasher unchanged, behave as for a plain hasher ([`update`](#r-std-digest.sha256.update), [`finish`](#r-std-digest.sha256.finish)): the split of the message across calls does not change the MAC.
+3. r[std-digest.hmac.finish] `update`, and `finish` leaving the hasher unchanged, behave as for a plain hasher ([`update`](#r-std-digest.sha256.update-ref), [`finish`](#r-std-digest.sha256.finish)): the split of the message across calls does not change the MAC.
 4. r[std-digest.hmac.result] The result is a `Digest` of 32 bytes. Checking a received MAC is `expected == sent`, constant time by [`==`](#r-std-digest.digest.eq.constant-time).
 5. r[std-digest.hmac.vectors] The MACs of RFC 4231 test cases 1 to 7 are the values that RFC lists for HMAC-SHA-256 (case 5 in full, not truncated).
 

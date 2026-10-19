@@ -32,7 +32,7 @@ impl Eq for NetError:
             _ => false
 
 impl Debug for NetError:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         match self:
             .NotGranted(address) => out.debug_tuple("NetError.NotGranted").named_field("address", address).finish()
             .InvalidAddress(address) => out.debug_tuple("NetError.InvalidAddress").named_field("address", address).finish()
@@ -99,7 +99,7 @@ impl Eq for Datagram:
         self.bytes == other.bytes && self.host == other.host && self.port == other.port
 
 impl Debug for Datagram:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("Datagram").field("bytes", self.bytes).field("host", self.host).field("port", self.port).finish()
 
 ## A UDP socket: a closable handle that a `using` binding disposes.
@@ -503,23 +503,23 @@ impl Net for ScriptedNet:
             _ => .Err(.Refused(address))
 
 impl Debug for ScriptedStream:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("ScriptedStream").field("reads", self.reads).field("written", self.bytes).field("closed", self.closed).finish()
 
 impl Debug for ScriptedListener:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("ScriptedListener").field("connections", self.connections).field("closed", self.closed).finish()
 
 impl Debug for ScriptedUdp:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("ScriptedUdp").field("incoming", self.incoming).field("sent", self.outgoing).field("closed", self.closed).finish()
 
 impl Debug for ScriptedConnection:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         match self:
             .Stream(stream) => out.debug_tuple("ScriptedConnection.Stream").field(stream).finish()
             .Failure(error) => out.debug_tuple("ScriptedConnection.Failure").field(error).finish()
 
 impl Debug for ScriptedNet:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("ScriptedNet").field("hosts", self.hosts).field("connections", self.connections).field("listeners", self.listeners).field("sockets", self.sockets).field("requested", self.calls).finish()

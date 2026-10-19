@@ -250,14 +250,14 @@ fn ascii_text(codes: List[u8]) -> string:
 # `@derive` on a std declaration has no effect.
 
 impl Debug for DecodeError:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         match self:
             .InvalidCharacter(position) => out.debug_tuple("DecodeError.InvalidCharacter").named_field("position", position).finish()
             .InvalidLength(position) => out.debug_tuple("DecodeError.InvalidLength").named_field("position", position).finish()
             .InvalidPadding(position) => out.debug_tuple("DecodeError.InvalidPadding").named_field("position", position).finish()
 
 impl Debug for Base64:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         match self:
             .Standard => out.write("Base64.Standard")
             .StandardNoPad => out.write("Base64.StandardNoPad")

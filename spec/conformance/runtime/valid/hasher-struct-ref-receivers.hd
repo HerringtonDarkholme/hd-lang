@@ -1,0 +1,46 @@
+# test: a struct hasher with &mut self methods changes in place through a bound, through &mut dyn Hasher, and under Hash.hash
+# Spec 09 Hashing: trait.hash.ref-receiver, trait.hash.hasher-methods.
+# expect-stdout: 11 7
+# expect-stdout: 2 195
+# expect-stdout: 13 103
+# expect-stdout: 24 14
+struct Tally:
+    count: usize
+    sum: u64
+
+impl Hasher for Tally:
+    fn write(&mut self, bytes: List[u8]) -> void:
+        for byte in bytes:
+            self.count = self.count + 1
+            self.sum = self.sum + u64(byte)
+
+# Through a bound: `H` is the struct itself.
+fn feed[H < Hasher](h: &mut H, bytes: List[u8]) -> void:
+    h.write(bytes)
+    h.write_u64(1)
+
+# Through a trait value reference.
+fn feed_dyn(h: &mut dyn Hasher, text: string) -> void:
+    h.write_str(text)
+
+# A bound on the hashed value, with the hasher passed on as `&mut dyn Hasher`.
+fn hash_into[T < Hash](value: T, h: &mut dyn Hasher) -> void:
+    value.hash(h)
+
+fn shown(tally: Tally) -> string:
+    "${tally.count} ${tally.sum}"
+
+pub fn main() -> void $ Console:
+    let mut bound = Tally { count: 0, sum: 0 }
+    feed(&mut bound, [1, 2, 3])
+    println(shown(bound))
+    let mut erased = Tally { count: 0, sum: 0 }
+    feed_dyn(&mut erased, "ab")
+    println(shown(erased))
+    let mut hashed = Tally { count: 0, sum: 0 }
+    (+5).hash(&mut hashed)
+    "a".hash(&mut hashed)
+    println(shown(hashed))
+    shared := &mut Tally { count: 0, sum: 0 }
+    hash_into([+1, +2, +3, +4], shared)
+    println(shown(*shared))

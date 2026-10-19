@@ -257,12 +257,12 @@ The standard library also defines `Hash` and `Hasher` in `std.hash`:
 
 ```text
 trait Hasher:
-    fn write(mut self, bytes: List[u8]) -> void
-    fn write_u64(mut self, value: u64) -> void
-    fn write_str(mut self, text: string) -> void
+    fn write(&mut self, bytes: List[u8]) -> void
+    fn write_u64(&mut self, value: u64) -> void
+    fn write_str(&mut self, text: string) -> void
 
 trait Hash:
-    fn hash(self, state: mut dyn Hasher) -> void
+    fn hash(self, state: &mut dyn Hasher) -> void
 ```
 
 1. r[trait.hash.module] The standard library defines `Hash` and `Hasher` in `std.hash`.
@@ -270,6 +270,7 @@ trait Hash:
 3. r[trait.hash.not-inferred] Neither trait is inferred for user-defined data or enums, including payload-free enums.
 4. r[trait.hash.unverified] The compiler does not verify any relationship between their implementations.
 5. r[trait.hash.hasher-methods] `write` is the only required method of `Hasher`. `write_u64` and `write_str` have default bodies over `write`: `write_u64(value)` calls `write` with the eight bytes of `value`, least significant first, and `write_str(text)` calls `write` with the UTF-8 bytes of `text` and no length. An implementation may override either to hash the same bytes without building a list, and it must give the same result as the default.
+6. r[trait.hash.ref-receiver] `Hasher`'s methods take `&mut self`, and `Hash.hash` receives its hasher as `&mut dyn Hasher`. So a struct that implements `Hasher` changes in place through a bound and through a trait value reference, and its caller reads the changed state afterwards.
 
 > **Note.** A readonly key can still change through another mutable alias,
 > potentially leaving its map entry unreachable.
@@ -570,7 +571,7 @@ show a value's structure:
 
 ```text
 trait Debug:
-    fn debug(self, out: mut DebugWriter) -> void
+    fn debug(self, out: &mut DebugWriter) -> void
 ```
 
 A type usually derives it:
@@ -586,7 +587,7 @@ fn describe(point: Point) -> string:
 ```
 
 1. r[trait.debug.module] `std.format` declares `Debug` and `DebugWriter`. `Debug` is a prelude name.
-2. r[trait.debug.method] `Debug` declares `fn debug(self, out: mut DebugWriter) -> void`, which writes the value's structure through `out`.
+2. r[trait.debug.method-ref] `Debug` declares `fn debug(self, out: &mut DebugWriter) -> void`, which writes the value's structure through `out`, a reference to the one writer of the whole value.
 3. r[trait.debug.writer] `DebugWriter` is the standard structured writer. An implementation describes the value through its builder calls, such as one call per field, rather than raw text.
 4. r[trait.debug.std-impls] `std` implements `Debug` for the primitives, collections, `T?`, and `Result`, each when its type arguments implement `Debug`.
 5. r[trait.debug.tuples] `std.format` declares a tuple template for `Debug`, so every tuple whose elements implement `Debug` implements it, at every size.

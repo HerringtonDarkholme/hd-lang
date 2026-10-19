@@ -20,7 +20,7 @@ impl Eq for SysError:
             _ => false
 
 impl Debug for SysError:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         match self:
             .NotGranted(name) => out.debug_tuple("SysError.NotGranted").named_field("name", name).finish()
             .Unsupported(name) => out.debug_tuple("SysError.Unsupported").named_field("name", name).finish()

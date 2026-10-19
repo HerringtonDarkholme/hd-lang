@@ -332,7 +332,7 @@ pub enum Target:
     Method
 
 @annotate(.Data, .Enum)
-pub data Annotate:
+pub struct Annotate:
     pub kinds: List[Target]
 
 pub fn annotate[T = dyn Any](kinds...: List[Target]) -> Annotate:

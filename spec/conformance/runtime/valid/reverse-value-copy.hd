@@ -1,0 +1,16 @@
+# test: Reverse is a struct value: a copy keeps its own value, and an element of a list of them is a place of its own
+# Spec std/cmp Reverse: std-cmp.reverse.decl-struct, std-cmp.reverse.order.
+# expect-stdout: 5 1
+# expect-stdout: 5 9 1
+# expect-stdout: true
+use std.cmp.Reverse
+
+pub fn main() -> void $ Console:
+    let mut a = Reverse { value: +1 }
+    b := a
+    a.value = +5
+    println("${a.value} ${b.value}")
+    let mut items = [a, b]
+    items[0].value = +9
+    println("${a.value} ${items[0].value} ${items[1].value}")
+    println(a.cmp(b) == Ordering.Less)

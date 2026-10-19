@@ -717,9 +717,9 @@ pub fn temp_dir() -> Path $ TestRunner:
 # `@derive` on a std declaration has no effect.
 
 impl Debug for PropertyCase:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("PropertyCase").field("example", self.example).field("seed", self.seed).field("size", self.size).field("replay", self.replay).finish()
 
 impl Debug for RunOutput:
-    fn debug(self, out: mut DebugWriter) -> void:
+    fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("RunOutput").field("stdout", self.stdout).field("stderr", self.stderr).field("status", self.status).finish()
