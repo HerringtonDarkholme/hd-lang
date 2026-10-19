@@ -1,5 +1,5 @@
 use std::mem::MaybeUninit;
-use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
+use std::net::{SocketAddr, TcpStream};
 use std::sync::{Arc, Mutex};
 use std::task::Poll;
 use std::time::{Duration, Instant};
@@ -51,7 +51,10 @@ impl Resolver for HttpResolver {
             if let Some(lookup) = lookup {
                 return lookup(address);
             }
-            address.to_socket_addrs().map(Iterator::collect)
+            if let Ok(numeric) = address.parse::<SocketAddr>() {
+                return Ok(vec![numeric]);
+            }
+            crate::net::socket::lookup_addresses(address.as_str())
         })?;
         let addresses: Vec<_> = config
             .ip_family()
@@ -451,6 +454,45 @@ mod tests {
     use std::time::{Duration, Instant};
     use ureq::unversioned::resolver::Resolver;
     use ureq::unversioned::transport::{Connector, NextTimeout, RustlsConnector};
+
+    #[cfg(not(windows))]
+    #[test]
+    fn ipv4_only_http_lookup_tries_ipv4_before_a_resolved_ipv6_candidate() {
+        let v6 = "[2001:db8::8]:80".parse().unwrap();
+        let v4 = "192.0.2.8:80".parse().unwrap();
+        let candidates = Arc::new(Mutex::new(None));
+        let resolver = HttpResolver {
+            candidates: candidates.clone(),
+            deadline: None,
+            cancel: super::Cancel::default(),
+            lookup: Some(Arc::new(move |_| {
+                crate::net::socket::configured_lookup(|| Ok(vec![v6, v4]), || (true, false))
+            })),
+        };
+        resolver
+            .resolve(
+                &"http://ipv4-only.test/".parse().unwrap(),
+                &ureq::config::Config::default(),
+                NextTimeout {
+                    after: Duration::from_secs(1).into(),
+                    reason: ureq::Timeout::Global,
+                },
+            )
+            .unwrap();
+        let addresses = candidates.lock().unwrap().take().unwrap();
+        let mut attempted = Vec::new();
+        connect_candidates(
+            addresses,
+            None,
+            || Duration::ZERO,
+            |address, _| {
+                attempted.push(address);
+                Ok(())
+            },
+        )
+        .unwrap();
+        assert_eq!(attempted, [v4]);
+    }
 
     #[test]
     fn tcp_candidates_use_node_family_order_and_250ms_whole_deadline_budgets() {

@@ -59,12 +59,7 @@ pub(crate) async fn resolve(host: &str, port: u16) -> Result<Vec<SocketAddr>, Ne
         return Ok(vec![SocketAddr::new(ip, port)]);
     }
     let owned = host.to_owned();
-    resolve_with(host, move || {
-        (owned.as_str(), port)
-            .to_socket_addrs()
-            .map(Iterator::collect)
-    })
-    .await
+    resolve_with(host, move || lookup_addresses((owned.as_str(), port))).await
 }
 
 /// `resolve` with the blocking lookup `lookup`. The OS lookup cannot be
@@ -78,6 +73,62 @@ pub(crate) async fn resolve_with(
         Ok(Ok(addresses)) => Ok(addresses),
         Ok(Err(_)) | Err(_) => Err(NetError::Dns { host: host.into() }),
     }
+}
+
+/// Resolves names with the configured-family policy shared by Net and Http.
+pub(crate) fn lookup_addresses(address: impl ToSocketAddrs) -> io::Result<Vec<SocketAddr>> {
+    configured_lookup(
+        || address.to_socket_addrs().map(Iterator::collect),
+        configured_families,
+    )
+}
+
+/// Injectable lookup and configured-family probe; the pair is (IPv4, IPv6).
+pub(crate) fn configured_lookup(
+    lookup: impl FnOnce() -> io::Result<Vec<SocketAddr>>,
+    configured: impl FnOnce() -> (bool, bool),
+) -> io::Result<Vec<SocketAddr>> {
+    let addresses = lookup()?;
+    #[cfg(windows)]
+    {
+        let _ = configured;
+        Ok(addresses)
+    }
+    #[cfg(not(windows))]
+    {
+        let (ipv4, ipv6) = configured();
+        let keep = |address: &SocketAddr| if address.is_ipv4() { ipv4 } else { ipv6 };
+        // A route probe may miss an otherwise usable family. Preserve the
+        // original candidates when filtering would leave no way to connect.
+        if addresses.iter().any(keep) {
+            Ok(addresses.into_iter().filter(keep).collect())
+        } else {
+            Ok(addresses)
+        }
+    }
+}
+
+/// Approximate `AI_ADDRCONFIG` using safe route selection, once per lookup.
+/// Connecting a UDP socket chooses a local address without sending a packet.
+#[cfg(not(windows))]
+fn configured_families() -> (bool, bool) {
+    fn configured(bind: &str, destination: &str) -> bool {
+        std::net::UdpSocket::bind(bind)
+            .and_then(|socket| {
+                socket.connect(destination)?;
+                socket.local_addr()
+            })
+            .is_ok_and(|address| !address.ip().is_unspecified() && !address.ip().is_loopback())
+    }
+    (
+        configured("0.0.0.0:0", "192.0.2.1:9"),
+        configured("[::]:0", "[2001:db8::1]:9"),
+    )
+}
+
+#[cfg(windows)]
+fn configured_families() -> (bool, bool) {
+    (true, true)
 }
 
 /// A TCP stream and what its operations share.
@@ -248,6 +299,74 @@ mod tests {
     use super::{CONNECT_ATTEMPT_TIMEOUT, NetError, connect_attempts, resolve_with};
     use std::sync::mpsc;
     use std::time::{Duration, Instant};
+
+    #[cfg(not(windows))]
+    #[test]
+    fn ipv4_only_configuration_tries_ipv4_before_a_resolved_ipv6_candidate() {
+        let v6 = "[2001:db8::8]:80".parse().unwrap();
+        let v4 = "192.0.2.8:80".parse().unwrap();
+        let probed = std::cell::Cell::new(0);
+        let addresses = super::configured_lookup(
+            || Ok(vec![v6, v4]),
+            || {
+                probed.set(probed.get() + 1);
+                (true, false)
+            },
+        )
+        .unwrap();
+        let attempts = connect_attempts(addresses);
+        assert_eq!(attempts[0].address, v4);
+        assert_eq!(attempts.len(), 1);
+        assert_eq!(probed.get(), 1);
+    }
+
+    #[test]
+    fn configured_lookup_preserves_order_and_falls_back_when_filtering_is_empty() {
+        let v6a = "[2001:db8::1]:80".parse().unwrap();
+        let v4a = "192.0.2.1:80".parse().unwrap();
+        let v6b = "[2001:db8::2]:80".parse().unwrap();
+        let v4b = "192.0.2.2:80".parse().unwrap();
+        let original = vec![v6a, v4a, v6b, v4b];
+        for (families, expected) in [
+            ((true, true), original.clone()),
+            ((true, false), vec![v4a, v4b]),
+            ((false, true), vec![v6a, v6b]),
+            ((false, false), original.clone()),
+        ] {
+            let found = super::configured_lookup(|| Ok(original.clone()), || families).unwrap();
+            assert_eq!(
+                found,
+                if cfg!(windows) {
+                    original.clone()
+                } else {
+                    expected
+                }
+            );
+        }
+        assert_eq!(
+            super::configured_lookup(|| Ok(vec![v6a, v6b]), || (true, false)).unwrap(),
+            vec![v6a, v6b],
+        );
+        let empty = super::configured_lookup(|| Ok(Vec::new()), || (true, false)).unwrap();
+        assert!(empty.is_empty());
+        let failed = super::configured_lookup(
+            || Err(std::io::ErrorKind::NotFound.into()),
+            || panic!("a failed lookup needs no family probe"),
+        );
+        assert_eq!(failed.unwrap_err().kind(), std::io::ErrorKind::NotFound);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn windows_lookup_keeps_every_family_without_probing() {
+        let addresses = vec!["[::1]:80".parse().unwrap(), "127.0.0.1:80".parse().unwrap()];
+        let found = super::configured_lookup(
+            || Ok(addresses.clone()),
+            || panic!("Windows does not apply AI_ADDRCONFIG"),
+        )
+        .unwrap();
+        assert_eq!(found, addresses);
+    }
 
     #[test]
     fn socket_errors_keep_spec_categories_and_native_context() {
