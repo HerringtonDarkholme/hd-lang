@@ -18,10 +18,20 @@ mod rt;
 use hd_base::{DefId, Hash128, InstId, NotImplemented, Stage, StageResult};
 use hd_mono::{Collected, ProgramEnv};
 use hd_tir::ir::Body;
-use hd_types::InternPool;
+use hd_types::{InternPool, Ty};
 
 pub use module::Sym;
 pub use rt::Helper;
+
+/// A1's shared reference-storage class on this backend: data and boxed
+/// enums are object addresses; inline values retain concrete type keys.
+#[must_use]
+pub fn shared_reference_layout(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
+    matches!(
+        layout::kind(pool, env, ty),
+        layout::Kind::Data(_) | layout::Kind::Boxed
+    )
+}
 
 /// The entry behavior of the program a module runs
 /// (`crates/hd_wasm/DESIGN.md` §15.4, "Init order").

@@ -1,0 +1,28 @@
+# Spec 04 Generics: types.generic.unobservable.
+# expect-stdout: text
+# expect-stdout: 15
+# expect-stdout: 26
+# expect-stdout: default
+# expect-stdout: 23
+
+enum Wide:
+    Huge(i64, i64, i64, i64)
+    Empty
+
+fn relay[T](value: T) -> T:
+    value
+
+fn fallback[T](value: T, other: T = value) -> T:
+    other
+
+pub fn main() -> void $ Console:
+    println(relay("text"))
+    tuple := relay((1, 2, 3, 4, 5))
+    println(tuple._0 + tuple._1 + tuple._2 + tuple._3 + tuple._4)
+    wide := relay(Wide.Huge(5, 6, 7, 8))
+    match wide:
+        .Huge(a, b, c, d) => println(a + b + c + d)
+        .Empty => panic("lost payload")
+    println(fallback("default"))
+    pair := fallback((11, 12))
+    println(pair._0 + pair._1)

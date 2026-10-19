@@ -3690,3 +3690,5 @@ typing/invalid/deque-push-not-writable.hd	type	reject:mutable-receiver-required	
 runtime/valid/iterator-handle-reference.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.iterator-handle
 typing/invalid/for-over-read-only-iterator-reference.hd	type	reject:mutable-receiver-required	lang/06-control-flow.md#r-flow.for.iterator-ref
 runtime/valid/std-iter-traits-struct-impls.hd	runtime	accept	std/iter.md#r-std-iter.collect.trait-ref
+runtime/valid/generic-sharing-distinct-value-layouts.hd	runtime	accept	lang/04-type-system.md#r-types.generic.unobservable
+runtime/valid/generic-sharing-inline-values.hd	runtime	accept	lang/04-type-system.md#r-types.generic.unobservable

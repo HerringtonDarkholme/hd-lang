@@ -117,3 +117,7 @@ runtime/valid/trait-and-impl-declaration-forms.hd	#551: structs, tuples, enums a
 runtime/valid/trait-default-method-instantiates-params.hd	#539: main is private, so no entry point runs
 runtime/valid/u8-checked-add.hd	#539: main is private, so no entry point runs
 runtime/valid/unicode-function-names.hd	#540: integers, strings and enums in locals
+runtime/valid/generic-sharing-distinct-value-layouts.hd	#568: generic keys follow the backend layout
+runtime/valid/generic-sharing-inline-values.hd	#568: generic keys follow the backend layout
+runtime/valid/range-value-copy.hd	#568: concrete keys preserve inline generic arguments
+runtime/valid/time-values-copy.hd	#568: concrete keys preserve inline generic arguments

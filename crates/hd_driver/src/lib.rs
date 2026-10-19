@@ -9700,6 +9700,16 @@ impl Env<'_> {
 }
 
 impl ProgramEnv for Env<'_> {
+    fn shared_reference_layout(&self, ty: Ty) -> Option<bool> {
+        match self.run.backend {
+            Backend::WasmGc => None,
+            Backend::Linear => Some(hd_wasm_linear::shared_reference_layout(
+                &self.run.pool,
+                self,
+                ty,
+            )),
+        }
+    }
     fn body(&self, def: DefId) -> Option<&Body> {
         self.run.body_of(self.p, def).map(|b| &b.0)
     }

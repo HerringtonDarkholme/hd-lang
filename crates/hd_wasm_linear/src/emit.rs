@@ -697,7 +697,6 @@ impl Em<'_, '_, '_> {
         match self.calls.get(&i).cloned() {
             Some(Target::Call(ct)) => match &ct.kind {
                 TargetKind::Instance => {
-                    self.shared(&args, &ct, i)?;
                     for r in &args {
                         self.push(*r)?;
                     }
@@ -714,26 +713,6 @@ impl Em<'_, '_, '_> {
             },
             Some(Target::Dyn) => self.call_dyn(i, a, &args),
             _ => unsupported("a call without a direct target (job 11)"),
-        }
-    }
-
-    /// Refuses a call of an instance that collection shares among
-    /// reference arguments (A1) when an argument or the result is not one
-    /// address here ([`crate::layout::shares_as_address`]).
-    fn shared(&self, args: &[u32], ct: &hd_mono::CallTarget, i: u32) -> StageResult<()> {
-        let (pool, env) = (self.pool(), self.env());
-        let params = env.params(ct.item).unwrap_or_default();
-        let formal = |t: Ty| subst(pool, env, ct.item, ct.args, t);
-        let ok =
-            args.iter().zip(&params).all(|(r, p)| {
-                crate::layout::shares_as_address(pool, env, self.ty_of(*r), formal(*p))
-            }) && crate::layout::shares_as_address(pool, env, self.ty(i), ct.ret);
-        if ok {
-            Ok(())
-        } else {
-            unsupported(
-                "a generic instance shared among reference arguments, at a struct (collection shares it by Wasm GC layouts)",
-            )
         }
     }
 
@@ -804,7 +783,6 @@ impl Em<'_, '_, '_> {
                 self.store(i)
             }
             Some(Target::Default { call, bracket }) => {
-                self.shared(&self.rec(bw), &call, i)?;
                 for r in self.rec(bw) {
                     self.push(r)?;
                 }

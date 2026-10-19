@@ -36,6 +36,11 @@ use crate::plan::{BodyPlan, Planner, Source};
 /// What collection reads about the program (the driver implements it over
 /// TIR and interfaces).
 pub trait ProgramEnv: LayoutEnv {
+    /// The selected backend's A1 reference-storage class. `None` keeps
+    /// the Wasm GC classification; other layouts retain concrete keys.
+    fn shared_reference_layout(&self, _ty: Ty) -> Option<bool> {
+        None
+    }
     fn body(&self, def: DefId) -> Option<&Body>;
     /// Per type parameter of the item itself: has a bound (A1, `crates/hd_mono/DESIGN.md`
     /// §13.2: exact).
@@ -1524,13 +1529,15 @@ impl Cx<'_> {
                 || matches!(self.pool.get(t), TyData::Row(_))
                 || self.env.body(def).is_none()
                 || holds_coll(self.pool, self.env, t);
-            a.push(
-                if !exact && a1_class(self.pool, self.env, t)? == A1Class::Ref {
-                    class_ref(self.pool)
-                } else {
-                    t
-                },
-            );
+            let shared = if exact {
+                false
+            } else {
+                match self.env.shared_reference_layout(t) {
+                    Some(shared) => shared,
+                    None => a1_class(self.pool, self.env, t)? == A1Class::Ref,
+                }
+            };
+            a.push(if shared { class_ref(self.pool) } else { t });
         }
         Ok(self.pool.list(&a))
     }

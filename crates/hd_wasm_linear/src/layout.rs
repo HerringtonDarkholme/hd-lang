@@ -178,54 +178,10 @@ pub fn mem(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Mem> {
         TyData::Ref { .. } => return unsupported("references (job 12)"),
         // An instance that collection shares among reference arguments
         // (A1, `crates/hd_mono/DESIGN.md` §13.2) holds one as an address:
-        // [`shares_as_address`] lets only addresses reach it.
+        // Collection selects it with [`crate::shared_reference_layout`].
         TyData::Canon(_) if hd_mono::is_class_ref(pool, t) => Mem::address(),
         _ => return unsupported(format!("values of type `{}`", pool.display(t))),
     })
-}
-
-/// Whether a value of type `actual` may pass where an instance's type
-/// `formal` is: equal but where `formal` has the class `REF`, which
-/// collection gives an argument whose Wasm GC layout is one reference
-/// (A1). Here only a data value and a boxed enum are one address; a struct
-/// and a wide enum or tuple, which Wasm GC also lays out as one reference,
-/// are inline values, so such an instance cannot take them.
-pub fn shares_as_address(pool: &InternPool, env: &dyn ProgramEnv, actual: Ty, formal: Ty) -> bool {
-    let (a, f) = (strip(pool, env, actual), strip(pool, env, formal));
-    if hd_mono::is_class_ref(pool, f) {
-        return matches!(kind(pool, env, a), Kind::Data(_) | Kind::Boxed);
-    }
-    let all = |xs: &[Ty], ys: &[Ty]| {
-        xs.len() == ys.len()
-            && xs
-                .iter()
-                .zip(ys)
-                .all(|(x, y)| shares_as_address(pool, env, *x, *y))
-    };
-    match (pool.get(a), pool.get(f)) {
-        (TyData::Adt { args: x, .. }, TyData::Adt { args: y, .. })
-        | (TyData::TraitValue { args: x, .. }, TyData::TraitValue { args: y, .. })
-        | (TyData::Tuple { elems: x, .. }, TyData::Tuple { elems: y, .. }) => {
-            all(pool.list_items(x), pool.list_items(y))
-        }
-        (TyData::Option(x), TyData::Option(y))
-        | (TyData::Ref { inner: x, .. }, TyData::Ref { inner: y, .. }) => {
-            shares_as_address(pool, env, x, y)
-        }
-        (
-            TyData::Fn {
-                params: x,
-                result: rx,
-                ..
-            },
-            TyData::Fn {
-                params: y,
-                result: ry,
-                ..
-            },
-        ) => all(pool.list_items(x), pool.list_items(y)) && shares_as_address(pool, env, rx, ry),
-        _ => true,
-    }
 }
 
 /// The fields of a struct, a tuple or a data payload in order, each at its

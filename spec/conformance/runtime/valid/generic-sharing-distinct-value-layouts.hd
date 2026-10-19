@@ -1,0 +1,45 @@
+# Spec 04 Generics: types.generic.unobservable.
+# expect-stdout: 3
+# expect-stdout: 5
+# expect-stdout: 7
+# expect-stdout: 11
+# expect-stdout: 13
+# expect-stdout: 17
+# expect-stdout: 19
+
+struct Small:
+    n: i32
+
+struct Other:
+    n: i32
+
+struct Wide:
+    n: i64
+    extra: i32
+
+data Heap:
+    n: i32
+
+data OtherHeap:
+    n: i64
+
+fn relay[T](value: T) -> T:
+    value
+
+fn fallback[T](value: T, other: T = value) -> T:
+    other
+
+pub fn main() -> void $ Console:
+    first := relay(Small { n: 3 })
+    second := relay(Other { n: 5 })
+    wide := relay(Wide { n: 7, extra: 11 })
+    heap := relay(Heap { n: 13 })
+    other := relay(OtherHeap { n: 17 })
+    defaulted := fallback(Small { n: 19 })
+    println(first.n)
+    println(second.n)
+    println(wide.n)
+    println(wide.extra)
+    println(heap.n)
+    println(other.n)
+    println(defaulted.n)
