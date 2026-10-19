@@ -1,3 +1,8 @@
 # Git fast-import streams are fed to git byte-exact: CRLF would corrupt
 # their ref names and data lengths.
 *.fi -text
+# These fixtures judge byte offsets of fix-it edits, which depend on the
+# line ending; check them out with LF everywhere so Windows sees the same
+# bytes as the expectations.
+spec/conformance/cli/fix-derivation-fact/** text eol=lf
+spec/conformance/cli/mutable-and-signed-hints/** text eol=lf
