@@ -30,6 +30,10 @@ const TIME_LIMIT: (&str, &str) = (
     "--time-limit DURATION",
     "limit how long the program runs, as 30s; past it the program panics",
 );
+const CLEANUP_LIMIT: (&str, &str) = (
+    "--cleanup-limit DURATION",
+    "how long a Ctrl-C waits for the program's cleanup before it abandons it; the default is 10s",
+);
 const ENGINE: (&str, &str) = (
     "--engine NAME",
     "run on the engine NAME; the default is HD_ENGINE, else the implementation's own",
@@ -48,19 +52,27 @@ const COMMANDS: &[Command] = &[
     Command {
         name: "FILE",
         summary: "run FILE as a single-file program, which may use only std",
-        usage: "hd [--release] [--engine NAME] [--cap NAME=VALUE] [--time-limit DURATION] FILE [-- ARGS]",
+        usage: "hd [--release] [--engine NAME] [--cap NAME=VALUE] [--time-limit DURATION] [--cleanup-limit DURATION] FILE [-- ARGS]",
         about: &[
             "Run FILE as a single-file program. Outside a package it may use only std;",
             "words after -- are the program's arguments.",
         ],
-        flags: &[RELEASE, ENGINE, CAP, TIME_LIMIT, FORMAT, JOBS],
+        flags: &[
+            RELEASE,
+            ENGINE,
+            CAP,
+            TIME_LIMIT,
+            CLEANUP_LIMIT,
+            FORMAT,
+            JOBS,
+        ],
     },
     Command {
         name: "FILE.wasm",
         summary: "run a module that hd build wrote",
-        usage: "hd [--engine NAME] [--cap NAME=VALUE] [--time-limit DURATION] FILE.wasm [-- ARGS]",
+        usage: "hd [--engine NAME] [--cap NAME=VALUE] [--time-limit DURATION] [--cleanup-limit DURATION] FILE.wasm [-- ARGS]",
         about: &["Run a module that hd build wrote. Its grant comes from --cap flags alone."],
-        flags: &[ENGINE, CAP, TIME_LIMIT],
+        flags: &[ENGINE, CAP, TIME_LIMIT, CLEANUP_LIMIT],
     },
     Command {
         name: "--repl",
@@ -95,7 +107,16 @@ const COMMANDS: &[Command] = &[
             "Without NAME, the package must have exactly one executable: src/main.hd, or",
             "one [[executable]] table of hd.toml. Words after -- are the program's arguments.",
         ],
-        flags: &[RELEASE, ENGINE, PACKAGE, CAP, TIME_LIMIT, FORMAT, JOBS],
+        flags: &[
+            RELEASE,
+            ENGINE,
+            PACKAGE,
+            CAP,
+            TIME_LIMIT,
+            CLEANUP_LIMIT,
+            FORMAT,
+            JOBS,
+        ],
     },
     Command {
         name: "test",

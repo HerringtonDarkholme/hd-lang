@@ -1,7 +1,10 @@
 //! `Goal::Scenario` (issue #56, step 1): a scenario build links the
-//! scenario exports, `hd.init`/`hd.poll`/`hd.cancel` for the entry root,
-//! while a program build of the same source carries no `hd.cancel`. The
-//! scenario build still runs to completion under the plain driver.
+//! scenario exports, `hd.init`/`hd.poll`/`hd.cancel` for the entry root.
+//! A program build of the same source carries `hd.cancel` and
+//! `hd.abandon` too, since its host may cancel a suspending entry
+//! (`req.entry.cancel`), while a program whose entry does not suspend
+//! carries neither. The scenario build still runs to completion under the
+//! plain driver.
 
 use std::path::Path;
 use std::process::Command;
@@ -72,13 +75,27 @@ fn a_scenario_build_exports_hd_cancel() {
 }
 
 #[test]
-fn a_program_build_carries_no_hd_cancel() {
+fn a_program_build_of_a_suspending_entry_carries_hd_cancel_and_hd_abandon() {
     let out = built(&main(), &program());
     assert!(out.diags.is_empty(), "{}", out.render());
     let wasm = out.wasm.expect("wasm");
     let exports = exports(&wasm);
+    for name in ["hd.poll", "hd.cancel", "hd.abandon"] {
+        assert!(exports.contains(&name.to_owned()), "{exports:?}");
+    }
+}
+
+#[test]
+fn a_program_build_of_a_plain_entry_carries_no_hd_cancel() {
+    let plain = "pub fn main() -> void $ Console:\n    println(\"hi\")\n";
+    let out = built(plain, &program());
+    assert!(out.diags.is_empty(), "{}", out.render());
+    let wasm = out.wasm.expect("wasm");
+    let exports = exports(&wasm);
     assert!(exports.contains(&"hd.poll".to_owned()), "{exports:?}");
-    assert!(!exports.contains(&"hd.cancel".to_owned()), "{exports:?}");
+    for name in ["hd.cancel", "hd.abandon"] {
+        assert!(!exports.contains(&name.to_owned()), "{exports:?}");
+    }
 }
 
 /// The scenario build runs to completion under the plain driver: the

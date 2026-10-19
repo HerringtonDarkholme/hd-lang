@@ -1704,7 +1704,13 @@ mod tests {
             .unwrap();
             assert_eq!(native.engine, EngineKind::Wasmtime);
             assert!(native.release);
-            assert_eq!(native.limits, ProgramLimits { wall_ms: Some(0) });
+            assert_eq!(
+                native.limits,
+                ProgramLimits {
+                    wall_ms: Some(0),
+                    cleanup_ms: None,
+                }
+            );
             let explicit = parse_with_engine(
                 &words(&["--engine=wasmtime", "--engine=node"]),
                 EngineKind::Wasmtime,

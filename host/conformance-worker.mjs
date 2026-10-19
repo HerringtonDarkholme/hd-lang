@@ -36,6 +36,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { entryCancel } from "./core.mjs";
 import { createHost } from "./node.mjs";
 import { providers } from "./profiles.mjs";
 
@@ -96,20 +97,30 @@ function writeFrame(id, status, stdout, stderr) {
   writeAll(OUT, stderr);
 }
 
+// The fixture runtime's cleanup bound, in milliseconds, for a host's
+// cancellation of the entry (spec/conformance/README.md, Runtime
+// Scenarios); `hd_run_wasmtime::scenario` uses the same.
+const SCENARIO_CLEANUP_MS = 500;
+
 // Drives one scenario case with a fresh host: the scenario's own steps
 // over the scenario exports, not `run` to completion. Returns the status
 // the verdict reads: 0 for a cleanup that ran, 3 for a competing or
 // reentrant poll's trap (as a trapped run reports), 1 for any other
 // failure.
-function runScenario(header, host, instance) {
-  host.prime(instance);
+async function runScenario(header, host, instance) {
   const ex = instance.exports;
-  ex["hd.init"]();
   if (header.scenario === "cancellation-cleanup") {
-    if (ex["hd.poll"](0) !== -1) return 1;
-    ex["hd.cancel"]();
+    // The host cancels the entry as a Ctrl-C does once its first poll is
+    // pending, and drives its cleanup under the bound; the run must end
+    // cancelled.
+    const cancel = entryCancel(SCENARIO_CLEANUP_MS);
+    cancel.request();
+    const { cancelled } = await host.run(instance, "hd.init", "hd.poll", null, cancel);
+    if (!cancelled) return 1;
     return ex["hd.scenario.cleanup"]() === 1 ? 0 : 1;
   }
+  host.prime(instance);
+  ex["hd.init"]();
   if (header.scenario === "competing-drivers") {
     if (ex["hd.poll"](0) !== -1) return 1;
     try {
@@ -167,7 +178,7 @@ async function runEntry(header, wasm, stdinText) {
     );
     const { instance } = await WebAssembly.instantiate(wasm, host.imports);
     if (header.scenario) {
-      const status = runScenario(header, host, instance);
+      const status = await runScenario(header, host, instance);
       return { status, stdoutStr, stderrStr };
     }
     const { status } = await host.run(instance, "hd.init", "hd.poll");

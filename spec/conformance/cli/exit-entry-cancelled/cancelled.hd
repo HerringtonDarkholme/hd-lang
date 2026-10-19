@@ -1,0 +1,8 @@
+fn ready!() -> i32: 42
+
+pub fn main!() -> void $ Console:
+    let pending: mut Suspend[i32] = ready()
+    _ := pending.cancel!()
+    println("awaiting")
+    _ := pending!()   # awaiting a cancelled suspension cancels main! too
+    println("never")

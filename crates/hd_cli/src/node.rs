@@ -65,6 +65,9 @@ struct NodeInstance {
     /// Its `--time-limit` in milliseconds (`cli.limit.time`), which the
     /// host enforces.
     wall_ms: Option<u64>,
+    /// The cleanup bound of a Ctrl-C in milliseconds (`cli.cancel.bound`),
+    /// for a run that a Ctrl-C may cancel.
+    cleanup_ms: Option<u64>,
     done: Option<Outcome>,
     trace: Arc<Mutex<Vec<(u32, u32)>>>,
 }
@@ -90,6 +93,7 @@ impl Engine for NodeEngine {
             program: host.program.clone(),
             grants: host.grants.clone(),
             wall_ms: host.limits.wall_ms,
+            cleanup_ms: host.limits.cleanup_ms,
             done: None,
             trace: Arc::clone(&self.trace),
         }))
@@ -152,7 +156,7 @@ impl NodeInstance {
         let text = run_config(
             &self.program,
             &self.grants,
-            self.wall_ms,
+            (self.wall_ms, self.cleanup_ms),
             Some((&frames, &killed)),
         );
         if let Err(e) = std::fs::write(&config, text) {
@@ -178,9 +182,37 @@ impl NodeInstance {
         }
         match status {
             Ok(s) if s.success() => Outcome::Exit(0),
+            // A Ctrl-C while Wasm ran ended Node with SIGINT's default
+            // action, since its host listens only while it waits
+            // (`run.mjs`): the program was stopped (`cli.cancel.computing`).
+            Ok(s) if interrupted(s) => {
+                eprintln!("stopped");
+                Outcome::Exit(crate::engine::CANCEL_STATUS)
+            }
             Ok(s) => Outcome::Exit(u8::try_from(s.code().unwrap_or(1).clamp(1, 255)).unwrap_or(1)),
             Err(e) => Outcome::Internal(format!("node: {e}")),
         }
+    }
+}
+
+/// Whether a Ctrl-C ended a process: SIGINT on Unix, and on Windows the
+/// status `STATUS_CONTROL_C_EXIT` of a console process that has no handler.
+fn interrupted(status: std::process::ExitStatus) -> bool {
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::ExitStatusExt as _;
+        status.signal() == Some(2)
+    }
+    #[cfg(windows)]
+    {
+        status
+            .code()
+            .is_some_and(|c| c.cast_unsigned() == 0xC000_013A)
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = status;
+        false
     }
 }
 
@@ -372,7 +404,7 @@ impl Programs {
             let module = dir.0.join(format!("program-{i}.wasm"));
             let config = dir.0.join(format!("program-{i}.json"));
             std::fs::write(&module, wasm).map_err(|e| format!("{}: {e}", module.display()))?;
-            std::fs::write(&config, run_config(name, grants, None, None))
+            std::fs::write(&config, run_config(name, grants, (None, None), None))
                 .map_err(|e| format!("{}: {e}", config.display()))?;
             if i > 0 {
                 json.push(',');
@@ -393,16 +425,19 @@ impl Programs {
 }
 
 /// The run host's configuration (`run.mjs`): the program's `Args.program`,
-/// its grant, its time limit in milliseconds, and, for `hd run`, the files
-/// where it writes the frames of a trap and the status of a run whose
-/// process it kills.
+/// its grant, its time limit and its Ctrl-C's cleanup bound in
+/// milliseconds, and, for `hd run`, the files where it writes the frames
+/// of a trap and the status of a run whose process it kills.
 fn run_config(
     program: &str,
     grants: &Grants,
-    wall_ms: Option<u64>,
+    (wall_ms, cleanup_ms): (Option<u64>, Option<u64>),
     files: Option<(&Path, &Path)>,
 ) -> String {
-    let limit = wall_ms.map_or(String::new(), |ms| format!(",\"timeLimitMs\":{ms}"));
+    let mut limit = wall_ms.map_or(String::new(), |ms| format!(",\"timeLimitMs\":{ms}"));
+    if let Some(ms) = cleanup_ms {
+        let _ = write!(limit, ",\"cleanupMs\":{ms}");
+    }
     let files = files.map_or(String::new(), |(frames, status)| {
         format!(
             ",\"framesFile\":{},\"statusFile\":{}",

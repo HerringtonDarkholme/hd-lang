@@ -1,4 +1,7 @@
+use std::time::Duration;
+
 use super::engine::{EngineConfig, WasmtimeEngine, thread_stack};
+use crate::cancel::HostInterrupt;
 use crate::host::HostIo;
 use crate::profiles::RuntimeProfile;
 use hd_run::{Engine, HostSetup, Instance, LoadError, Outcome, StartError};
@@ -153,6 +156,30 @@ pub fn run_traced(
         .map(|(o, frames, _)| (o, frames))
 }
 
+/// [`run_traced`] for a run that `interrupt` may cancel, as a Ctrl-C does
+/// (`cli.cancel.ctrl-c`): a request while the program waits on the host
+/// cancels its entry, and the next one, or `bound` after that cancel,
+/// abandons it; a request while Wasm runs stops it (`cancel.rs`).
+pub fn run_cancellable(
+    config: EngineConfig,
+    wasm: &[u8],
+    setup: &HostSetup,
+    io: HostIo,
+    interrupt: &HostInterrupt,
+    bound: Duration,
+) -> Result<(Outcome, Vec<(u32, u32)>), String> {
+    run_profile_with(
+        config,
+        RuntimeProfile::Default,
+        wasm,
+        setup,
+        io,
+        None,
+        Some((interrupt, bound)),
+    )
+    .map(|(o, frames, _)| (o, frames))
+}
+
 /// How a run ended, the trap's frames, and the global it was asked to read.
 type Ran = (Outcome, Vec<(u32, u32)>, Option<i32>);
 
@@ -163,6 +190,18 @@ fn run_profile(
     setup: &HostSetup,
     io: HostIo,
     read: Option<&str>,
+) -> Result<Ran, String> {
+    run_profile_with(config, profile, wasm, setup, io, read, None)
+}
+
+fn run_profile_with(
+    config: EngineConfig,
+    profile: RuntimeProfile,
+    wasm: &[u8],
+    setup: &HostSetup,
+    io: HostIo,
+    read: Option<&str>,
+    cancel: Option<(&HostInterrupt, Duration)>,
 ) -> Result<Ran, String> {
     std::thread::scope(|scope| {
         std::thread::Builder::new()
@@ -175,12 +214,15 @@ fn run_profile(
                     .map_err(|e| match e {
                         LoadError::NotHd(m) | LoadError::Engine(m) => m,
                     })?;
-                let mut inst =
-                    engine
-                        .instantiate_with(&module, setup, io)
-                        .map_err(|e| match e {
-                            StartError::Refused(m) | StartError::Engine(m) => m,
-                        })?;
+                let started = match cancel {
+                    Some((interrupt, bound)) => {
+                        engine.instantiate_cancellable(&module, setup, io, interrupt, bound)
+                    }
+                    None => engine.instantiate_with(&module, setup, io),
+                };
+                let mut inst = started.map_err(|e| match e {
+                    StartError::Refused(m) | StartError::Engine(m) => m,
+                })?;
                 let outcome = match inst.init() {
                     Outcome::Exit(0) => hd_run::drive(&mut inst, usize::MAX),
                     other => other,

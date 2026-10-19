@@ -7558,11 +7558,11 @@ pub fn test_entry(
     Ok(out)
 }
 
-/// The exports of a scenario program: like [`entry`], plus `hd.cancel`,
-/// which cancels the entry's pending root suspension, and, when the
-/// entry module declares it, `hd.scenario.cleanup`, which calls the
-/// top-level cleanup function `cleanup` names. Only a `Goal::Scenario`
-/// build emits them, so normal builds never carry them.
+/// The exports of a scenario program: like [`entry`], whose suspending
+/// root `link` gives `hd.cancel` and `hd.abandon`, plus, when the entry
+/// module declares it, `hd.scenario.cleanup`, which calls the top-level
+/// cleanup function `cleanup` names. Only a `Goal::Scenario` build emits
+/// it, so normal builds never carry it.
 pub fn scenario_entry(
     pool: &InternPool,
     env: &dyn ProgramEnv,
@@ -7588,7 +7588,6 @@ pub fn scenario_entry(
         report,
         boundary,
     )?;
-    out.push(("hd.cancel".into(), Helper::EntryCancel));
     if let Some(func) = cleanup {
         out.push(("hd.scenario.cleanup".into(), Helper::EntryCall { func }));
     }

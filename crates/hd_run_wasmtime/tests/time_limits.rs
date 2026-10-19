@@ -128,8 +128,8 @@ fn setup(wall_ms: Option<u64>) -> HostSetup {
         providers: vec![],
         grants: Grants::default(),
         limits: Limits {
-            fuel: None,
             wall_ms,
+            ..Limits::default()
         },
         args: vec![],
         program: String::new(),

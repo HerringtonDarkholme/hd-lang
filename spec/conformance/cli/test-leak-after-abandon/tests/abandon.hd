@@ -1,0 +1,48 @@
+use pkg.open_listener
+use std.net.{Net, TcpListener}
+use std.ops.Disposable
+use std.task.{all, race}
+use std.testing.assert
+use std.time.{Clock, s, sleep}
+
+## Closes its listener only after a long wait, unless `fallback` closes it
+## from a `defer`, which abandon() still runs.
+data Conn:
+    listener: mut dyn TcpListener
+    closing: mut Suspend[void]
+    fallback: bool
+
+impl Disposable for Conn:
+    fn dispose!(mut self) -> void:
+        defer:
+            if self.fallback:
+                self.listener.close().expect("closed")
+        let mut wait = self.closing
+        wait!()
+        self.listener.close().expect("closed")
+
+fn session!(fallback: bool) -> string $ Clock + Net:
+    let mut listener = open_listener!().expect("a listener")
+    using conn = Conn { listener: listener, closing: sleep(s(60)), fallback: fallback }
+    sleep!(s(60))
+    "late"
+
+fn ready!() -> string:
+    "won"
+
+fn stop!(job: mut Suspend[string]) -> string:
+    job.abandon()
+    "stopped"
+
+## Starts the session, lets it lose a race, and abandons its cleanup
+## while its dispose waits.
+fn abandoned!(fallback: bool) -> string $ Clock + Net:
+    let job: mut Suspend[string] = session(fallback)
+    let (winner, stopped) = all!(race(job, ready()), stop(job))
+    "${winner} ${stopped}"
+
+it("abandons a dispose whose defer closes the listener"):
+    assert(abandoned!(true) == "won stopped", reason="the race was won and the job abandoned")
+
+it("abandons a dispose before it closes the listener"):
+    assert(abandoned!(false) == "won stopped", reason="the race was won and the job abandoned")

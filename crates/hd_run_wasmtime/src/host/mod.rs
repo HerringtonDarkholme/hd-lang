@@ -91,8 +91,17 @@ impl std::error::Error for Stop {}
 #[derive(Clone, Copy)]
 pub(crate) enum Control {
     Abort(i32),
-    Exit { status: i32, close: bool },
-    Trap { close: bool },
+    Exit {
+        status: i32,
+        close: bool,
+    },
+    Trap {
+        close: bool,
+    },
+    /// A run the host may cancel that a stop request ended while Wasm ran.
+    Stop {
+        close: bool,
+    },
 }
 
 /// Starts the monotonic clock, so it counts from the process's start.

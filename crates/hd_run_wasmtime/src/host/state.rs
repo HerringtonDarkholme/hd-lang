@@ -272,6 +272,12 @@ impl Host {
                 self.drop_pending();
                 (3, close)
             }
+            // A stopped run's are ended the same way; its status is a
+            // cancelled run's (`cli.cancel.computing`).
+            Control::Stop { close } => {
+                self.drop_pending();
+                (crate::instance::CANCEL_STATUS, close)
+            }
         };
         self.flush();
         if close {
@@ -337,11 +343,27 @@ impl Host {
     /// Held output reaches its stream first (`std-console.host.visible`),
     /// so every park of the host, here, shows what the program printed.
     pub fn wait(&mut self) -> wasmtime::Result<bool> {
+        self.wait_bounded(None)
+    }
+
+    /// [`Host::wait`], and no later than `cleanup`, the deadline of a
+    /// cleanup the host bounds (`cancel.rs`). That deadline is a timer of
+    /// the host's own: with nothing else pending, the host sleeps until it
+    /// or a stop request, and reports that something is pending.
+    pub fn wait_bounded(&mut self, cleanup: Option<Instant>) -> wasmtime::Result<bool> {
         self.check_deadline()?;
         self.flush();
-        let waiting = self
-            .reactor
-            .wait_until(self.deadline, self.interrupt.as_deref());
+        let limit = match (self.deadline, cleanup) {
+            (Some(deadline), Some(cleanup)) => Some(deadline.min(cleanup)),
+            (deadline, cleanup) => deadline.or(cleanup),
+        };
+        let interrupt = self.interrupt.as_deref();
+        let waiting = if cleanup.is_some() && !self.reactor.waiting() {
+            self.reactor.park_until(limit, interrupt);
+            true
+        } else {
+            self.reactor.wait_until(limit, interrupt)
+        };
         self.check_deadline()?;
         Ok(waiting)
     }

@@ -1,0 +1,28 @@
+# fixture-runtime-scenario: cancellation-cleanup
+# fixture-runtime-pending-function: wait
+# Spec lang/11 Cancelling The Entry: req.entry.cancel, req.entry.cancel.wait, req.entry.cancelled.
+# The host cancels the entry at its held wait, then drives the dispose
+# through its own timer wait, well inside the bound, to its end.
+use std.ops.Disposable
+use std.time.{Clock, ms, sleep}
+
+let closed: bool = false
+
+fn wait!() -> void:
+    pass
+
+data Conn:
+    closing: mut Suspend[void]
+
+impl Disposable for Conn:
+    fn dispose!(mut self) -> void:
+        let mut closing = self.closing
+        closing!()
+        closed = true
+
+pub fn main!() -> void $ Clock:
+    using conn = Conn { closing: sleep(ms(10)) }
+    wait!()
+
+pub fn cleanup_ran() -> bool:
+    closed

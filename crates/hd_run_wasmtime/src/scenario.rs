@@ -10,8 +10,9 @@ use crate::{EngineConfig, RuntimeProfile};
 /// A runtime scenario the host drives instead of running to completion.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Scenario {
-    /// Poll pending, cancel the root, and read the cleanup: passes when
-    /// the cleanup reports true.
+    /// Poll pending, cancel the root as the host cancels the entry, drive
+    /// its cleanup under the fixture bound until the run ends cancelled,
+    /// and read the cleanup: passes when the cleanup reports true.
     CancellationCleanup,
     /// Poll pending as one driver, then poll as another: passes when the
     /// second poll raises `suspension-competing-driver`.
@@ -30,6 +31,11 @@ pub struct ScenarioRan {
     pub stderr: Vec<u8>,
     pub status: i32,
 }
+
+/// The fixture runtime's cleanup bound for a host's cancellation of the
+/// entry (`spec/conformance/README.md`, Runtime Scenarios), as
+/// `host/conformance-worker.mjs` has it.
+const SCENARIO_CLEANUP: std::time::Duration = std::time::Duration::from_millis(500);
 
 /// Drives `scenario` over `wasm`'s scenario exports, with the fixture's
 /// runtime profile, and returns what the run captured.
@@ -82,11 +88,15 @@ fn drive(
         err: Box::new(err.clone()),
         input: None,
     };
-    let mut inst = engine
-        .instantiate_with(&module, setup, io)
-        .map_err(|e| match e {
-            StartError::Refused(m) | StartError::Engine(m) => m,
-        })?;
+    let interrupt = crate::HostInterrupt::new();
+    let started = if scenario == Scenario::CancellationCleanup {
+        engine.instantiate_cancellable(&module, setup, io, &interrupt, SCENARIO_CLEANUP)
+    } else {
+        engine.instantiate_with(&module, setup, io)
+    };
+    let mut inst = started.map_err(|e| match e {
+        StartError::Refused(m) | StartError::Engine(m) => m,
+    })?;
     if !matches!(inst.init(), Outcome::Exit(0)) {
         return Ok(1);
     }
@@ -97,8 +107,13 @@ fn drive(
                 Ok(_) => return Ok(1),
                 Err(e) => return Ok(trapped(&mut inst, &e)),
             }
-            if let Err(e) = inst.cancel_root() {
-                return Ok(trapped(&mut inst, &e));
+            // The host's cancel, as a Ctrl-C makes it, and its drive of
+            // the cleanup: the run must end cancelled.
+            interrupt.request();
+            if hd_run::drive(&mut inst, usize::MAX) != Outcome::Exit(130)
+                || inst.cancelled.is_none()
+            {
+                return Ok(1);
             }
             match inst.cleanup_call() {
                 Ok(1) => Ok(0),

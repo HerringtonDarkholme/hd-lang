@@ -484,6 +484,7 @@ cancelled and holds the worker until it ends.
 | Limit | Mechanism | Failure |
 | --- | --- | --- |
 | time (`--time-limit`, a test's `timeout`) | epoch interruption: one `hd-epochs` thread per process, started only when a store has a deadline, increments every registered engine's epoch every 10 ms; the store's epoch callback checks the wall clock, which stays authoritative | `time-limit`; a pending host wait is cut at the same deadline |
+| cleanup (`--cleanup-limit`, a Ctrl-C) | `HostInterrupt` (`cancel.rs`): the Ctrl-C handler sets a flag and wakes the reactor. A request found in a host wait becomes a repoll that calls `hd.cancel`, then `hd.abandon` at the next request or at the cleanup deadline, which the wait honors as a timer; a request found in Wasm stops it through the epoch callback | the run ends cancelled or stopped, status 130 |
 | initial GC heap size | 64 MiB for `hd run`; 0 for `hd test`'s heaps, which start empty and grow on demand, so a pooled store reserves nothing before its case allocates. wasmtime's copying collector otherwise re-copies a moderate long-lived set on every collection without growing the heap | none; it only sets where growth starts |
 | GC heap and the exchange buffer | no limit of the host's own: the engine's memory reservations and the machine. A failed linear-memory growth makes `memory.grow` return `-1`, which the writer turns into `heap-exhausted` (§17.3); a GC allocation that fails after a collection traps | `heap-exhausted` |
 | stack | `Config::max_wasm_stack`, 4 MiB by default | `stack-exhausted` |

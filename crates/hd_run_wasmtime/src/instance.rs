@@ -1,12 +1,21 @@
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::task::Poll;
+use std::time::Instant;
 
 use hd_run::journal::End;
 use hd_run::{Instance, Outcome, StartError};
+use hd_wasm::rt::CANCELLED_END;
 use wasmtime::{Store, Trap, TypedFunc, WasmBacktrace};
 
+use crate::cancel::{CancelStep, HostCancel};
 use crate::host::{Control, Host, Stop, complete, deadlock, deliver_batch};
 use crate::limits;
+
+/// The status of a run whose root ended cancelled, or that a request
+/// stopped while Wasm ran (`cli.cancel.status`), as the Node host's
+/// `CANCEL_STATUS`.
+pub(crate) const CANCEL_STATUS: i32 = 130;
 
 /// A running program.
 pub struct WasmtimeInstance {
@@ -24,6 +33,22 @@ pub struct WasmtimeInstance {
     /// through it (`cli.repl.cancel`); scenario builds link it to cancel
     /// the entry instead.
     cancel: Option<TypedFunc<(), ()>>,
+    /// `hd.abandon`, when the module links it: the host abandons the root
+    /// through it (`req.entry.cancel.abandon`).
+    abandon: Option<TypedFunc<(), ()>>,
+    /// A run the host may cancel (`cancel.rs`): its cleanup bound and how
+    /// far the cancel went. A stop request then cancels a waiting root
+    /// instead of ending the run as a REPL input's does.
+    pub(crate) host_cancel: Option<HostCancel>,
+    /// Whether the root's last poll was pending, so a request has a root
+    /// to cancel.
+    root_pending: bool,
+    /// Set when the next wake carries no completion, only the poll that a
+    /// cancel request or a passed bound asks for.
+    repoll: bool,
+    /// How the root ended cancelled, when it did: whether a part of its
+    /// cleanup was cut short.
+    pub(crate) cancelled: Option<bool>,
     /// A scenario's `hd.scenario.cleanup`, when the module links it.
     cleanup: Option<TypedFunc<(), i32>>,
     /// How the run ended, once it has.
@@ -55,6 +80,11 @@ impl WasmtimeInstance {
             poll: None,
             wake: None,
             cancel: None,
+            abandon: None,
+            host_cancel: None,
+            root_pending: false,
+            repoll: false,
+            cancelled: None,
             cleanup: None,
             done: None,
             close_on_end: true,
@@ -115,7 +145,11 @@ impl WasmtimeInstance {
         // A scenario's further exports, when the module links them: only
         // scenario builds carry them, so their absence is not an error.
         self.cancel = optional_typed(store, instance, "hd.cancel")?;
+        self.abandon = optional_typed(store, instance, "hd.abandon")?;
         self.cleanup = optional_typed(store, instance, "hd.scenario.cleanup")?;
+        self.root_pending = false;
+        self.repoll = false;
+        self.cancelled = None;
         self.done = None;
         self.last_trapped = false;
         self.last_frames.clear();
@@ -124,9 +158,9 @@ impl WasmtimeInstance {
     }
 }
 
-/// A scenario export, when the module links it: only scenario builds
-/// carry `hd.cancel` and `hd.scenario.cleanup`, so absence is not an
-/// error here, only a missing driver step later.
+/// An optional export, when the module links it: only a suspending entry
+/// carries `hd.cancel` and `hd.abandon`, and only a scenario build
+/// `hd.scenario.cleanup`, so absence is not an error here.
 fn optional_typed<Params, Results>(
     store: &mut Store<Host>,
     instance: wasmtime::Instance,
@@ -156,18 +190,13 @@ impl WasmtimeInstance {
     }
 
     pub(crate) fn poll_with(&mut self, ctx: i32) -> Result<i32, wasmtime::Error> {
-        self.poll
+        let status = self
+            .poll
             .as_ref()
             .expect("a scenario module has hd.poll")
-            .call(&mut self.store, ctx)
-    }
-
-    /// One `hd.cancel`: the end of a trap, if cancelling trapped.
-    pub(crate) fn cancel_root(&mut self) -> Result<(), wasmtime::Error> {
-        self.cancel
-            .as_ref()
-            .expect("a scenario module has hd.cancel")
-            .call(&mut self.store, ())
+            .call(&mut self.store, ctx);
+        self.root_pending = matches!(status, Ok(-1));
+        status
     }
 
     /// One `hd.scenario.cleanup`: the cleanup result, or the end of a trap.
@@ -215,7 +244,9 @@ impl WasmtimeInstance {
         o
     }
 
-    /// Reports a trap as the Node host does and ends the run with status 3.
+    /// Reports a trap as the Node host does and ends the run with status 3,
+    /// or with 130 for a run the host may cancel that a request stopped
+    /// while Wasm ran (`cli.cancel.computing`).
     pub(crate) fn trapped(&mut self, e: &wasmtime::Error) -> Outcome {
         if matches!(e.downcast_ref::<Stop>(), Some(Stop::EndCase)) {
             return self.end(0);
@@ -231,6 +262,8 @@ impl WasmtimeInstance {
                 .collect(),
             _ => Vec::new(),
         };
+        let stopped = self.host_cancel.is_some()
+            && matches!(e.downcast_ref::<Stop>(), Some(Stop::Interrupted));
         let host = self.store.data_mut();
         host.flush();
         if limits::is_heap_exhausted(e) {
@@ -265,8 +298,11 @@ impl WasmtimeInstance {
             };
             host.err(&format!("internal error: {text}\n"));
         }
-        self.finish(Control::Trap {
-            close: self.close_on_end,
+        let close = self.close_on_end;
+        self.finish(if stopped {
+            Control::Stop { close }
+        } else {
+            Control::Trap { close }
         })
     }
 
@@ -324,9 +360,62 @@ impl WasmtimeInstance {
         }
     }
 
+    /// Acts on a cancel request that finds the root pending, or on a
+    /// cleanup bound that has passed (`cancel.rs`): the request is taken
+    /// from the stop flag, and `hd.cancel` or `hd.abandon` runs. Its error
+    /// is the trap of that call.
+    fn host_cancel_step(&mut self) -> wasmtime::Result<()> {
+        if !self.root_pending {
+            return Ok(());
+        }
+        let Some(cancel) = self.host_cancel.as_mut() else {
+            return Ok(());
+        };
+        let asked = self
+            .store
+            .data()
+            .interrupt
+            .as_ref()
+            .is_some_and(|flag| flag.swap(false, Ordering::Relaxed));
+        let func = match cancel.next(asked, Instant::now()) {
+            Some(CancelStep::Cancel) => self.cancel.clone(),
+            Some(CancelStep::Abandon) => self.abandon.clone(),
+            None => return Ok(()),
+        };
+        match func {
+            Some(func) => func.call(&mut self.store, ()),
+            None => Ok(()),
+        }
+    }
+
+    /// Whether `error`, from a host wait, is a cancel request this run
+    /// acts on rather than the end of the run.
+    fn cancel_request(&self, error: &wasmtime::Error) -> bool {
+        self.host_cancel.is_some()
+            && self.root_pending
+            && matches!(error.downcast_ref::<Stop>(), Some(Stop::Interrupted))
+    }
+
+    /// The deadline the host waits for while it bounds a cleanup.
+    fn cleanup_deadline(&self) -> Option<Instant> {
+        self.host_cancel.as_ref().and_then(HostCancel::deadline)
+    }
+
+    /// The batch that asks the driver for a poll with no completion:
+    /// `wake` delivers nothing for it, and the poll takes the request.
+    fn repoll_now(&mut self) -> Vec<u32> {
+        self.repoll = true;
+        vec![0]
+    }
+
     /// One `hd.poll` as the run's driver, context 0: the status,
-    /// pending, or the end of a trap.
+    /// pending, or the end of a trap. A root that ended cancelled ends the
+    /// run with `cancelled` on standard error and status 130
+    /// (`cli.cancel.end`).
     fn step(&mut self) -> Poll<Outcome> {
+        if let Err(error) = self.host_cancel_step() {
+            return Poll::Ready(self.trapped(&error));
+        }
         if let Err(error) = self.store.data().check_deadline() {
             return Poll::Ready(self.trapped(&error));
         }
@@ -344,12 +433,15 @@ impl WasmtimeInstance {
             .call(&mut self.store, 0_i32)
         {
             Ok(-1) => {
-                // A replayed input waits when its record wakes it next.
+                self.root_pending = true;
+                // A replayed input waits when its record wakes it next. A
+                // bounded cleanup waits for its deadline at least.
                 let host = self.store.data();
                 let waiting = host
                     .replay
                     .as_ref()
-                    .map_or_else(|| host.waiting(), hd_run::replay::Replay::wake_next);
+                    .map_or_else(|| host.waiting(), hd_run::replay::Replay::wake_next)
+                    || self.cleanup_deadline().is_some();
                 if waiting {
                     Poll::Pending
                 } else {
@@ -357,10 +449,23 @@ impl WasmtimeInstance {
                     Poll::Ready(self.trapped(&e))
                 }
             }
-            Ok(status) => match self.store.data().check_deadline() {
-                Ok(()) => Poll::Ready(self.end(status)),
-                Err(error) => Poll::Ready(self.trapped(&error)),
-            },
+            Ok(status) => {
+                self.root_pending = false;
+                if let Err(error) = self.store.data().check_deadline() {
+                    return Poll::Ready(self.trapped(&error));
+                }
+                if status == CANCELLED_END || status == CANCELLED_END - 1 {
+                    let abandoned = status != CANCELLED_END;
+                    self.cancelled = Some(abandoned);
+                    self.store.data_mut().err(if abandoned {
+                        "cancelled, cleanup abandoned\n"
+                    } else {
+                        "cancelled\n"
+                    });
+                    return Poll::Ready(self.end(CANCEL_STATUS));
+                }
+                Poll::Ready(self.end(status))
+            }
             Err(e) => Poll::Ready(self.trapped(&e)),
         }
     }
@@ -394,6 +499,9 @@ impl Instance for WasmtimeInstance {
         self.step()
     }
     fn wake(&mut self, handles: &[u32]) {
+        if std::mem::take(&mut self.repoll) {
+            return;
+        }
         let Some(wake) = self.wake.clone().filter(|_| self.done.is_none()) else {
             return;
         };
@@ -436,15 +544,21 @@ impl Instance for WasmtimeInstance {
             match complete(&mut self.store) {
                 Ok(handles) if handles.is_empty() => {}
                 Ok(handles) => return handles,
+                Err(e) if self.cancel_request(&e) => return self.repoll_now(),
                 // The run is over; the next poll returns how.
                 Err(e) => {
                     self.interrupted(&e);
                     return vec![0];
                 }
             }
-            match self.store.data_mut().wait() {
+            let bound = self.cleanup_deadline();
+            if bound.is_some_and(|d| Instant::now() >= d) {
+                return self.repoll_now();
+            }
+            match self.store.data_mut().wait_bounded(bound) {
                 Ok(true) => {}
                 Ok(false) => return Vec::new(),
+                Err(error) if self.cancel_request(&error) => return self.repoll_now(),
                 Err(error) => {
                     self.interrupted(&error);
                     return vec![0];

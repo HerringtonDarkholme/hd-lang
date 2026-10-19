@@ -103,6 +103,38 @@ impl WasmtimeEngine {
         self.instantiate_host(m, host)
     }
 
+    /// [`WasmtimeEngine::instantiate_with`], for a run the host may cancel
+    /// through `interrupt` (`cancel.rs`), with the cleanup bound `bound`.
+    pub(crate) fn instantiate_cancellable(
+        &self,
+        m: &Module,
+        setup: &HostSetup,
+        io: HostIo,
+        interrupt: &crate::HostInterrupt,
+        bound: std::time::Duration,
+    ) -> Result<WasmtimeInstance, StartError> {
+        let mut host = Host::new(
+            io,
+            setup.args.clone(),
+            setup.program.clone(),
+            setup.grants.clone(),
+            setup.limits.wall_ms,
+        );
+        host.interrupt = Some(Arc::clone(&interrupt.flag));
+        let mut inst = self.instantiate_host(m, host)?;
+        *interrupt
+            .waker
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) =
+            Some(inst.store.data().reactor.waker());
+        // A request made before the reactor had a waker set the flag only.
+        if interrupt.flag.load(std::sync::atomic::Ordering::Relaxed) {
+            interrupt.request();
+        }
+        inst.host_cancel = Some(crate::cancel::HostCancel::new(bound));
+        Ok(inst)
+    }
+
     pub(crate) fn instantiate_host(
         &self,
         m: &Module,

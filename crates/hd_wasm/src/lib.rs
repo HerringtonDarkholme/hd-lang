@@ -1727,11 +1727,27 @@ pub fn link(
     let mut lit_set: BTreeSet<Vec<u8>> = BTreeSet::new();
     // A session module also exports `hd.cancel`, which cancels its entry's
     // root suspension when the host interrupts a wait (`cli.repl.cancel`).
-    // A program never exports it.
-    let cancel = [("hd.cancel".to_owned(), Helper::EntryCancel)];
+    // A program whose entry is a suspension exports it with `hd.abandon`,
+    // through which the host cancels and abandons the entry
+    // (`req.entry.cancel`); a plain `main` has no root to cancel.
+    let suspends = exports
+        .iter()
+        .any(|(name, h)| name == "hd.poll" && matches!(h, Helper::EntryPoll { bang: Some(_), .. }));
+    let host = [
+        ("hd.cancel".to_owned(), Helper::EntryCancel),
+        ("hd.abandon".to_owned(), Helper::EntryAbandon),
+    ];
+    let host = match ext {
+        Some(_) => &host[..1],
+        None if suspends => &host[..],
+        None => &[],
+    };
     let exports: Vec<&(String, Helper)> = exports
         .iter()
-        .chain(cancel.iter().filter(|_| ext.is_some()))
+        .chain(
+            host.iter()
+                .filter(|(name, _)| exports.iter().all(|(have, _)| have != name)),
+        )
         .collect();
     // `hd.wake` joins the exports only when the program can wait on a host
     // handle, that is, when `WakeTake` is reachable from its code; a program

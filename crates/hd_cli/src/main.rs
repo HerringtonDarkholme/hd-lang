@@ -57,6 +57,7 @@ const USAGE: &str = "usage:
   hd test [FILE.hd] [--filter PATTERN] [--jobs N] [--update] [--format json]
 
   FILE.hd, FILE.wasm, hd run and hd test accept --time-limit DURATION
+  FILE.hd, FILE.wasm and hd run accept --cleanup-limit DURATION
   DURATION: whole ms/s/min/h";
 
 /// `cli.exit.hd-failure`: `hd` itself failed, or rejected its command line.
@@ -605,7 +606,13 @@ fn execute(
     let host = HostSetup {
         providers: Vec::new(),
         grants: caps::grants(table, table_dir.unwrap_or(&cwd), flags),
-        limits: limits.into(),
+        // A run that Ctrl-C may cancel always has a cleanup bound
+        // (`cli.cancel.default`).
+        limits: engine::ProgramLimits {
+            cleanup_ms: Some(limits.cleanup_ms.unwrap_or(engine::DEFAULT_CLEANUP_MS)),
+            ..limits
+        }
+        .into(),
         args: args
             .iter()
             .map(|a| a.to_string_lossy().into_owned())
@@ -692,6 +699,12 @@ fn file_words(args: &[OsString]) -> Result<FileWords, String> {
         if let Some(limit) = engine::time_limit_flag(args, i) {
             let (ms, used) = limit?;
             w.limits.wall_ms = Some(ms);
+            i += used;
+            continue;
+        }
+        if let Some(limit) = engine::cleanup_limit_flag(args, i) {
+            let (ms, used) = limit?;
+            w.limits.cleanup_ms = Some(ms);
             i += used;
             continue;
         }
@@ -915,6 +928,14 @@ fn words(command: &str, args: &[OsString]) -> Result<Words, String> {
         {
             let (ms, used) = limit?;
             w.limits.wall_ms = Some(ms);
+            i += used;
+            continue;
+        }
+        if command == "run"
+            && let Some(limit) = engine::cleanup_limit_flag(args, i)
+        {
+            let (ms, used) = limit?;
+            w.limits.cleanup_ms = Some(ms);
             i += used;
             continue;
         }

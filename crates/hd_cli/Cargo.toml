@@ -14,7 +14,7 @@ path = "src/main.rs"
 # wasmtime is most of a cold build, and Node is the default engine. The
 # REPL runs on wasmtime only, so its parser check, line editor and Ctrl-C
 # handler come with it.
-wasmtime = ["dep:hd_run_wasmtime", "dep:hd_resolve", "dep:rustyline", "dep:ctrlc"]
+wasmtime = ["dep:hd_run_wasmtime", "dep:hd_resolve", "dep:rustyline"]
 
 [dependencies]
 hd_base = { path = "../hd_base" }
@@ -33,7 +33,7 @@ hd_resolve = { path = "../hd_resolve", optional = true }
 hd_syntax = { path = "../hd_syntax" }
 # The REPL (`cli.repl.*`): the prompt's line editor with in-memory history,
 # and SIGINT while an input runs, which stops it (`cli.repl.stop`).
-ctrlc = { version = "=3.5.2", optional = true }
+ctrlc = "=3.5.2"
 rustyline = { version = "=18.0.1", default-features = false, optional = true }
 
 [lints]

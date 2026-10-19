@@ -123,10 +123,13 @@ impl TestSession {
     }
 }
 
-/// The explicit program limit, which has no default (`cli.limit.none`).
+/// The explicit program limit, which has no default (`cli.limit.none`),
+/// and the `--cleanup-limit` of a run that a Ctrl-C may cancel
+/// (`cli.cancel.flag`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct ProgramLimits {
     pub wall_ms: Option<u64>,
+    pub cleanup_ms: Option<u64>,
 }
 
 impl From<ProgramLimits> for Limits {
@@ -134,9 +137,21 @@ impl From<ProgramLimits> for Limits {
         Self {
             fuel: None,
             wall_ms: limits.wall_ms,
+            cleanup_ms: limits.cleanup_ms,
         }
     }
 }
+
+/// The cleanup bound of a Ctrl-C without `--cleanup-limit`, in
+/// milliseconds (`cli.cancel.default`): ten seconds, as `docker stop` waits
+/// before it kills.
+pub(crate) const DEFAULT_CLEANUP_MS: u64 = 10_000;
+
+/// The exit status of a run whose entry ended cancelled, or that a Ctrl-C
+/// stopped while it computed (`cli.cancel.status`): 128 plus SIGINT's
+/// number, the status a POSIX shell reports for a process that SIGINT
+/// ended, on every platform alike.
+pub(crate) const CANCEL_STATUS: u8 = 130;
 
 fn scaled(value: &str, suffixes: &[(&str, u64)]) -> Option<u64> {
     let end = value
@@ -178,20 +193,35 @@ pub(crate) fn parse_duration(value: &str) -> Result<u64, String> {
 /// `--time-limit DURATION` at `args[i]` (`cli.limit.time`): the limit in
 /// milliseconds, and the number of words it used.
 pub(crate) fn time_limit_flag(args: &[OsString], i: usize) -> Option<Result<(u64, usize), String>> {
-    const FLAG: &str = "--time-limit";
+    duration_flag(args, i, "--time-limit")
+}
+
+/// `--cleanup-limit DURATION` at `args[i]` (`cli.cancel.flag`): the
+/// cleanup bound of a Ctrl-C in milliseconds, and the number of words it
+/// used.
+pub(crate) fn cleanup_limit_flag(
+    args: &[OsString],
+    i: usize,
+) -> Option<Result<(u64, usize), String>> {
+    duration_flag(args, i, "--cleanup-limit")
+}
+
+/// The flag `flag DURATION`, or `flag=DURATION`, at `args[i]`: the
+/// duration in milliseconds, and the number of words it used.
+fn duration_flag(args: &[OsString], i: usize, flag: &str) -> Option<Result<(u64, usize), String>> {
     let text = args.get(i)?.to_string_lossy();
-    let (value, used) = if text == FLAG {
+    let (value, used) = if text == flag {
         let Some(value) = args.get(i + 1) else {
-            return Some(Err(format!("`{FLAG}` needs a value")));
+            return Some(Err(format!("`{flag}` needs a value")));
         };
         (value.to_string_lossy().into_owned(), 2)
     } else {
-        (text.strip_prefix("--time-limit=")?.to_owned(), 1)
+        (text.strip_prefix(flag)?.strip_prefix('=')?.to_owned(), 1)
     };
     Some(
         parse_duration(&value)
             .map(|ms| (ms, used))
-            .map_err(|e| format!("{FLAG}: {e}")),
+            .map_err(|e| format!("{flag}: {e}")),
     )
 }
 
@@ -263,6 +293,11 @@ pub(crate) fn from_env() -> Result<EngineKind, String> {
 /// streams, with the Wasm frames of the trap it ended in, innermost first
 /// (empty when it ended any other way). `level` selects wasmtime's engine
 /// options.
+///
+/// A run with a cleanup bound (`Limits::cleanup_ms`) hears Ctrl-C
+/// (`cli.cancel.ctrl-c`): on wasmtime the handler asks the run to cancel
+/// its entry; on Node the program's own process hears the same Ctrl-C from
+/// the terminal, so `hd` only keeps itself alive until that process ends.
 pub(crate) fn run(
     kind: EngineKind,
     level: OptLevel,
@@ -271,6 +306,9 @@ pub(crate) fn run(
 ) -> Result<(Outcome, Vec<(u32, u32)>), String> {
     match kind {
         EngineKind::Node => {
+            if host.limits.cleanup_ms.is_some() {
+                on_ctrl_c(|| {});
+            }
             let store = crate::disk_store();
             let node = crate::node::NodeEngine::default();
             let outcome = run_program(&node, wasm, &store, host).map_err(|e| e.to_string())?;
@@ -278,6 +316,15 @@ pub(crate) fn run(
             Ok((outcome, frames))
         }
         EngineKind::Wasmtime => wasmtime::run_program(level, wasm, host),
+    }
+}
+
+/// Calls `handler` on each Ctrl-C from now on, in place of ending `hd`.
+/// One that cannot be installed leaves Ctrl-C's default action, and says
+/// so.
+pub(crate) fn on_ctrl_c(handler: impl FnMut() + Send + 'static) {
+    if let Err(e) = ctrlc::set_handler(handler) {
+        eprintln!("warning: Ctrl-C cannot cancel the program: {e}");
     }
 }
 
@@ -466,10 +513,14 @@ mod tests {
     fn program_limits_preserve_omission_zero_and_explicit_values() {
         for wall_ms in [None, Some(0), Some(500)] {
             assert_eq!(
-                Limits::from(ProgramLimits { wall_ms }),
+                Limits::from(ProgramLimits {
+                    wall_ms,
+                    cleanup_ms: wall_ms,
+                }),
                 Limits {
                     fuel: None,
                     wall_ms,
+                    cleanup_ms: wall_ms,
                 }
             );
         }

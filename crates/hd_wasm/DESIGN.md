@@ -871,8 +871,10 @@ by host handle. The host only ever names handles.
 
 | Export | Does |
 | --- | --- |
-| `hd.poll() -> i32` | polls the root (the entry or the running test case); returns `-1` for Pending, or the exit status after `report()` |
+| `hd.poll() -> i32` | polls the root (the entry or the running test case); returns `-1` for Pending, `-2` or `-3` for a cancelled root whose cleanup ran to its end or was abandoned, or the exit status after `report()` |
 | `hd.wake(n: i32)` | reads `n` completed handles from the exchange buffer and invokes their wakers |
+| `hd.cancel()` | cancels the pending root, as `cancel!()` does with the host as the waiter; the next `hd.poll` steps its cleanup |
+| `hd.abandon()` | abandons a cancelled root (`rt::Helper::EntryAbandon`); its unwinding has ended when it returns |
 
 ```text
 host loop:
@@ -898,6 +900,24 @@ whenever the root is Pending
 
 Implementation differs: there is no "woken" global, and the root is
 re-polled after every wake.
+
+**Cancelling the entry**
+([`req.entry.cancel`](../../spec/lang/11-requirements-and-suspension.md#r-req.entry.cancel)).
+`link` exports `hd.cancel` and `hd.abandon` from every program whose
+`main!` suspends, and `hd.cancel` alone from a REPL session. The host
+owns the protocol, the same on both hosts (`host/core.mjs` `run`, and
+`crates/hd_run_wasmtime/src/cancel.rs`): the first request, a Ctrl-C,
+that finds the root Pending calls `hd.cancel` and sets a deadline one
+cleanup bound away. The next request, or the deadline, calls
+`hd.abandon` once. While the deadline stands the host waits for it as
+for a timer, so a cleanup waiting on nothing else is abandoned there
+instead of deadlocking. A request while Wasm runs stops the run, as a
+time limit does. `hd.poll` then answers `-2` (`rt::CANCELLED_END`) or
+`-3`, the host writes `cancelled` or `cancelled, cleanup abandoned`, and
+the run exits with 130 (spec/cli/command-line.md, Cancelling A Run).
+`hd.abandon` raises the `aband` global around the root's `f$cancel`, so
+the cancel is an abandon, and closes no handle: one still open is a leak
+`hd test` reports.
 - **Wakers.** An `all!` has a waker node (`rt::wake_node`): a mask, its
   parent node and its slot there. While it polls child `j`, the runtime
   globals `wnode` and `wslot` name the node and `j`.
@@ -1121,7 +1141,9 @@ awaiter reads its child's `CANCELLED` bit:
   `block_on` keeps polling a CANCELLED argument, which continues its
   cleanup, and returns once the argument no longer unwinds (§14.9).
   `hd.poll` steps a CANCELLED root through its `f$cancel` instead of its
-  poll, and panics once the root no longer unwinds.
+  poll, and ends the run cancelled once the root no longer unwinds
+  ([`req.entry.cancelled`](../../spec/lang/11-requirements-and-suspension.md#r-req.entry.cancelled)):
+  it answers `-3` when the root's flags hold ABANDONED, else `-2`.
 
 **A frame that never completes.** std's `timeout!` bounds its work's
 cleanup from a `dispose!` of a `race!` child that must stay pending until

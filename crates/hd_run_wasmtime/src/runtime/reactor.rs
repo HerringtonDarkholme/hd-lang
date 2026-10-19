@@ -483,6 +483,39 @@ impl Reactor {
         Waker(Arc::clone(&self.inbox))
     }
 
+    /// Sleeps until `limit`, or at once when `interrupt` is set, before or
+    /// during the sleep, by a thread that then uses `waker`: the wait for
+    /// a deadline of the host's own while no operation is pending. A
+    /// spurious wakeup only makes the caller look again.
+    pub fn park_until(&self, limit: Option<Instant>, interrupt: Option<&AtomicBool>) {
+        let queue = self
+            .inbox
+            .queue
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if interrupt.is_some_and(|flag| flag.load(Ordering::Relaxed)) {
+            return;
+        }
+        self.inbox.parked.store(true, Ordering::SeqCst);
+        let queue = match limit {
+            Some(limit) => {
+                let timeout = limit.saturating_duration_since(Instant::now());
+                self.inbox
+                    .ready
+                    .wait_timeout(queue, timeout)
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .0
+            }
+            None => self
+                .inbox
+                .ready
+                .wait(queue)
+                .unwrap_or_else(PoisonError::into_inner),
+        };
+        self.inbox.parked.store(false, Ordering::SeqCst);
+        drop(queue);
+    }
+
     /// Like `wait`, but wakes no later than the program's wall deadline,
     /// and at once when `interrupt` is set, before or during the wait, by
     /// a thread that then uses `waker`.

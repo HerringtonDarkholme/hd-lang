@@ -181,17 +181,29 @@ fn case_run(case: hd_run_wasmtime::testing::CaseRun) -> CaseRun {
 }
 
 /// Runs a built program to its end with the process's standard streams.
+/// With a cleanup bound, each Ctrl-C is a request to cancel its entry
+/// (`cli.cancel.ctrl-c`).
 pub(crate) fn run_program(
     level: hd_driver::OptLevel,
     wasm: &[u8],
     host: &HostSetup,
 ) -> Result<(Outcome, Vec<(u32, u32)>), String> {
     let _code = code_cache();
-    hd_run_wasmtime::run_traced(
-        hd_run_wasmtime::EngineConfig::pipeline(level),
+    let config = hd_run_wasmtime::EngineConfig::pipeline(level);
+    let io = hd_run_wasmtime::HostIo::process();
+    let Some(ms) = host.limits.cleanup_ms else {
+        return hd_run_wasmtime::run_traced(config, wasm, host, io);
+    };
+    let interrupt = hd_run_wasmtime::HostInterrupt::new();
+    let handler = interrupt.clone();
+    super::on_ctrl_c(move || handler.request());
+    hd_run_wasmtime::run_cancellable(
+        config,
         wasm,
         host,
-        hd_run_wasmtime::HostIo::process(),
+        io,
+        &interrupt,
+        std::time::Duration::from_millis(ms),
     )
 }
 

@@ -1,0 +1,6 @@
+# abandon() closes no handle: a listener that an abandoned dispose had not
+# closed yet is still open when the test case ends, so the case fails as a
+# leak. A dispose that closes it from a defer, which abandon() runs, passes.
+run: hd test --format json
+exit: 1
+stdout-json: [{"kind":"test","name":"abandons a dispose whose defer closes the listener","outcome":"passed"},{"kind":"test","name":"abandons a dispose before it closes the listener","outcome":"failed","message":null},{"kind":"summary","passed":1,"failed":1,"status":1}]

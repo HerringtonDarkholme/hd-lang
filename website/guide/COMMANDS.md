@@ -139,9 +139,21 @@ $ hd run --time-limit 30s
 panic: time-limit: the program exceeded its time limit
 ```
 
+A Ctrl-C asks a waiting program to stop and lets its cleanup finish:
+`using` disposes and `defer` suites run, for up to ten seconds, then
+whatever is left is abandoned. A second Ctrl-C abandons it at once.
+`--cleanup-limit` changes the wait, and the run exits with status 130:
+
+```sh
+$ hd run --cleanup-limit 2s
+^C
+cancelled
+```
+
 Read next: [Test Runs](../../spec/cli/command-line.md#test-runs),
-[Affected Tests](../../spec/cli/command-line.md#affected-tests), and
-[Program Limits](../../spec/cli/command-line.md#program-limits).
+[Affected Tests](../../spec/cli/command-line.md#affected-tests),
+[Program Limits](../../spec/cli/command-line.md#program-limits), and
+[Cancelling A Run](../../spec/cli/command-line.md#cancelling-a-run).
 
 ## Dependencies And Workspaces
 

@@ -650,6 +650,8 @@ hd test --seed 42                 # every property test starts from seed 42
 35. r[cli.test.leak.message] Its failure message names each kind of handle left open, such as `TcpListener`, with its count.
 36. r[cli.test.leak.closed] `hd test` closes those handles once the run ends, so a later test case never sees them.
 37. r[cli.test.leak.runs] Each run of a test case counts alone: a row of an `it_each` test case, and each case of a property test case.
+38. r[cli.test.leak.abandoned] Abandoning a suspension closes no handle, by [`req.abandon.host`](../lang/11-requirements-and-suspension.md#r-req.abandon.host). A handle that an abandoned cleanup left open is still open at the run's end, and fails the test case by [`cli.test.leak`](#r-cli.test.leak).
+39. r[cli.test.cancelled] A test case whose body turns out cancelled, by [`module.testing.cancelled`](../lang/10-modules.md#r-module.testing.cancelled), fails with the message `cancelled`.
 
 | Part | Value |
 | --- | --- |
@@ -1105,12 +1107,14 @@ hd check --format json
 | 1 | `hd test`: a test case failed; `hd fmt --check`: a file is not formatted |
 | 101 | `hd` itself failed, and ran no program |
 | the program's | `hd FILE`, `hd run`: the status of the program |
+| 130 | `hd FILE`, `hd run`: the program was cancelled or stopped, as a Ctrl-C does |
 
 1. r[cli.exit.success] A command that completes with no error exits with status 0. Warnings do not change its status.
 2. r[cli.exit.hd-failure] When `hd` itself fails, it exits with status 101. It fails when it reports an error, rejects its command line or a manifest, or cannot finish for an internal reason.
 3. r[cli.exit.program] Once its program is built, `hd FILE` or `hd run` exits with the program's own status, by [Exit Status](../lang/10-modules.md#exit-status) and [`module.entry.panic`](../lang/10-modules.md#r-module.entry.panic).
 4. r[cli.exit.test-failure] `hd test` exits with status 1 when a test case fails and `hd` reports no error.
 5. r[cli.exit.fmt-check] `hd fmt --check` exits with status 1 when a file is not formatted and `hd` reports no error.
+6. r[cli.exit.cancelled] `hd FILE` or `hd run` exits with status 130 when its program is cancelled or stopped, by [Cancelling A Run](#cancelling-a-run).
 
 ```sh
 hd check; echo $?     # 0: warnings do not change it
@@ -1125,6 +1129,40 @@ hd run; echo $?       # the program's own status
 > **Note.** A command-line usage error, such as an unknown flag, has no
 > diagnostic code. Cargo's and Go's usage errors have none either. It
 > still exits with status 101.
+
+### Cancelling A Run
+
+```sh
+hd run                          # Ctrl-C: cleanup runs, up to ten seconds
+hd run --cleanup-limit 30s      # Ctrl-C: cleanup runs, up to 30 seconds
+hd run --cleanup-limit 0s       # Ctrl-C: cleanup is abandoned at once
+```
+
+1. r[cli.cancel.ctrl-c] A Ctrl-C while the program of `hd FILE`, `hd FILE.wasm`, or `hd run` waits on the host cancels its entry suspension, by [`req.entry.cancel`](../lang/11-requirements-and-suspension.md#r-req.entry.cancel).
+2. r[cli.cancel.bound] The [cleanup bound](../lang/11-requirements-and-suspension.md#r-req.entry.cancel.bound) of that cancel is the `--cleanup-limit` value.
+3. r[cli.cancel.flag] `--cleanup-limit DURATION` takes a DURATION of the forms in [Program Limits](#program-limits). Those three commands take the flag, before the `--` of the program arguments.
+4. r[cli.cancel.default] Without the flag, the cleanup bound is ten seconds.
+5. r[cli.cancel.zero] A cleanup bound of zero abandons the entry at the first moment it waits on the host after the cancel, by [`req.entry.cancel.bound.cooperative`](../lang/11-requirements-and-suspension.md#r-req.entry.cancel.bound.cooperative).
+6. r[cli.cancel.second] A second Ctrl-C after the cancel abandons the entry at once, by [`req.entry.cancel.abandon`](../lang/11-requirements-and-suspension.md#r-req.entry.cancel.abandon). A later one does nothing more.
+7. r[cli.cancel.computing] A Ctrl-C while the program computes stops it, as [`cli.repl.stop`](#r-cli.repl.stop) stops an input. It then writes `stopped` to standard error.
+8. r[cli.cancel.end] A cancelled entry, by [`req.entry.cancelled`](../lang/11-requirements-and-suspension.md#r-req.entry.cancelled), writes `cancelled` to standard error when its cleanup ran to its end, and `cancelled, cleanup abandoned` when it was abandoned.
+9. r[cli.cancel.status] A run that is cancelled or stopped exits with status 130, its [cancellation status](../lang/11-requirements-and-suspension.md#r-req.entry.cancelled.status), on every platform.
+
+```sh
+hd run; echo $?   # Ctrl-C while main waits, and its dispose closes in time
+# stderr: cancelled
+# 130
+```
+
+> **Why.** 130 is 128 plus SIGINT's number 2, the status a POSIX shell
+> reports for a process that SIGINT ended. Scripts and CI already read it
+> as "interrupted", not as "failed", and one status on every platform
+> keeps them portable. Ten seconds is what `docker stop` waits by
+> default before it kills: long enough for a network close, and short
+> enough that a person does not reach for a second Ctrl-C.
+
+> **Note.** A stop ends the program with no cleanup, as a time limit
+> does. Text the program wrote and the host still held may be lost.
 
 ## Rewriting Source
 

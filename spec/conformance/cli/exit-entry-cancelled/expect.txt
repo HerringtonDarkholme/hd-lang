@@ -1,0 +1,17 @@
+# An entry that turns out cancelled, here by awaiting a suspension that was
+# cancelled, ends the run once its cleanup has ended: no panic, status 130,
+# and `cancelled` on standard error. A test case whose body turns out
+# cancelled fails with the message `cancelled`.
+run: hd cancelled.hd
+exit: 130
+stdout: awaiting
+stderr: cancelled
+run: hd test awaits.hd --format json
+exit: 1
+stdout-json: [{"kind":"test","name":"awaits a cancelled suspension","outcome":"failed","message":"cancelled"},{"kind":"test","name":"awaits a ready suspension","outcome":"passed"},{"kind":"summary","passed":1,"failed":1,"status":1}]
+run: hd cancelled.hd --cleanup-limit 0s
+exit: 130
+stdout: awaiting
+stderr: cancelled
+run: hd cancelled.hd --cleanup-limit soon
+exit: 101

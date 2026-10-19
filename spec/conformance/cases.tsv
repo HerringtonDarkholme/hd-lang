@@ -658,7 +658,6 @@ typing/invalid/unused-cold-suspension.hd	type	reject:discarded-must-use-value	la
 runtime/panic/second-drive-of-completed-suspension.hd	runtime	panic:suspension-invalid-state	lang/11-requirements-and-suspension.md#suspendt-protocol
 runtime/valid/stored-suspension-single-drive.hd	runtime	accept	lang/11-requirements-and-suspension.md#suspendt-protocol
 runtime/valid/cold-suspension-cancel-idempotent.hd	runtime	accept	lang/11-requirements-and-suspension.md#cancellation
-runtime/panic/drive-cancelled-suspension.hd	runtime	panic:suspension-invalid-state	lang/11-requirements-and-suspension.md#r-req.check.driver-cancelled.entry
 typing/invalid/cancel-readonly-suspension.hd	type	reject:mutable-receiver-required	lang/11-requirements-and-suspension.md#cancellation
 typing/invalid/bang-call-in-defer.hd	type	reject:suspension-forbidden-context	lang/06-control-flow.md#deferred-cleanup
 runtime/valid/suspending-call-preserves-locals.hd	runtime	accept	lang/11-requirements-and-suspension.md#suspending-functions
@@ -740,6 +739,8 @@ runtime/valid/cancel-cold-is-lazy.hd	runtime	accept	lang/11-requirements-and-sus
 typing/invalid/cancel-cold-discarded.hd	type	reject:discarded-must-use-value	lang/11-requirements-and-suspension.md#r-req.cancel.cold.discard
 runtime/valid/abandon-unwind-order.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.abandon.order
 runtime/valid/abandon-kills-waiting-dispose.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.abandon.dispose
+runtime/valid/host-cancel-waits-for-dispose.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.entry.cancel.wait
+runtime/valid/host-cancel-abandons-past-bound.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.entry.cancel.bound.abandon
 runtime/valid/abandon-keeps-handle-open.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.abandon.host
 runtime/valid/abandon-folded-cleanups.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.abandon.folded
 runtime/valid/abandon-carries-to-parent.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.abandon.carry

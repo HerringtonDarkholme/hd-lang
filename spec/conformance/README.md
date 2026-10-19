@@ -383,7 +383,7 @@ A scenario is a fixed host procedure for protocol states that
 single-threaded source cannot create by itself. Each scenario but
 `pending-first-poll` starts from a fresh instance, with the entry `main!` and
 its row supplied by the selected profile. Its steps use only host operations on the `main!` suspension: poll
-it with a `PollContext`, and cancel it
+it with a `PollContext`, cancel it, and abandon it
 ([`Suspend[T]` Protocol](../lang/11-requirements-and-suspension.md#suspendt-protocol)).
 It also uses two actions of the deterministic fixture runtime:
 
@@ -403,7 +403,12 @@ its own `PollContext`.
   2. Poll it once. The poll must return pending: it stays pending at the
      first `pending-gate` `wait!`, or at the function named by
      `# fixture-runtime-pending-function:`.
-  3. Cancel the suspension.
+  3. Cancel the suspension as the host cancels the entry, by
+     [`req.entry.cancel`](../lang/11-requirements-and-suspension.md#r-req.entry.cancel),
+     and drive it on until its cleanup has ended, under a
+     [cleanup bound](../lang/11-requirements-and-suspension.md#r-req.entry.cancel.bound)
+     of 500 ms. The run must end cancelled, by
+     [`req.entry.cancelled`](../lang/11-requirements-and-suspension.md#r-req.entry.cancelled).
   4. Call the fixture's top-level `cleanup_ran() -> bool` in the same
      instance. The case passes when it returns `true`.
 - `competing-drivers`:

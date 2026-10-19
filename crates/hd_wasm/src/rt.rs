@@ -206,6 +206,12 @@ pub fn abandon_seen_global() -> GSym {
     GSym::Rt("abseen".into(), VT::I32)
 }
 
+/// What `hd.poll` returns for a root that ended cancelled once its
+/// cleanup ran to its end (`req.entry.cancelled`); one less, -3, when a
+/// part of the cleanup was cut short. -1 is Pending, and an exit status
+/// is never negative.
+pub const CANCELLED_END: i32 = -2;
+
 /// Set by an `abandon()` that ended a cleanup: pending parties that
 /// waited on it registered no wake, so the entry polls its root again
 /// (`crates/hd_wasm/DESIGN.md` §14.6, "Abandoning").
@@ -604,8 +610,14 @@ pub enum Helper {
     EntryWake,
     /// `hd.cancel`: cancels the entry's pending root suspension through
     /// its `$Task` prefix, as a cleanup frame's first poll does; a no-op when no root
-    /// is pending. Only scenario builds and REPL inputs export it.
+    /// is pending. A program whose entry is a suspension, and a REPL
+    /// input, export it (`req.entry.cancel`).
     EntryCancel,
+    /// `hd.abandon`: abandons the entry's root suspension, as
+    /// `Suspend.abandon` does (`req.entry.cancel.abandon`); a no-op when no
+    /// root is pending. Exported with `hd.cancel` by a program whose entry
+    /// is a suspension.
+    EntryAbandon,
     /// `hd.scenario.cleanup`: calls the scenario's top-level cleanup
     /// function in the same instance; its `bool` comes back as an `i32`.
     /// A scenario-only export, emitted only when the entry module
@@ -1009,6 +1021,7 @@ impl Helper {
             }
             Helper::EntryWake => w.u8(19),
             Helper::EntryCancel => w.u8(37),
+            Helper::EntryAbandon => w.u8(56),
             Helper::EntryCall { func } => {
                 w.u8(38);
                 w.hash(*func);
@@ -1172,6 +1185,7 @@ impl Helper {
             },
             19 => Helper::EntryWake,
             37 => Helper::EntryCancel,
+            56 => Helper::EntryAbandon,
             38 => Helper::EntryCall { func: r.hash() },
             9 => Helper::Adapter {
                 sig: dec_wty(r)?,
@@ -2222,8 +2236,10 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
                     a.s().i32_and();
                     a.br_if(0);
                     a.end();
-                    // Its cleanup ended: the host cannot be cancelled, so
-                    // the entry panics (`req.check.driver-cancelled.entry`).
+                    // Its cleanup ended: the run ends cancelled
+                    // (`req.entry.cancelled`), -2 when the cleanup ran to
+                    // its end and -3 when a part was cut short. The root
+                    // is released, as a completed one is.
                     cancelled(&mut a);
                     a.if_();
                     a.get(root);
@@ -2231,10 +2247,15 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
                     a.i32(UNWINDING);
                     a.s().i32_and().i32_eqz();
                     a.if_();
-                    a.call(Sym::Helper(Helper::Panic(
-                        "suspension-invalid-state: the root suspension was cancelled".into(),
-                    )));
-                    a.s().unreachable();
+                    a.i32(CANCELLED_END);
+                    a.get(root);
+                    a.struct_get(base, F_FLAGS);
+                    a.i32(ABANDONED);
+                    a.s().i32_and();
+                    a.i32(0);
+                    a.s().i32_ne().i32_sub();
+                    release(&mut a, base);
+                    a.s().return_();
                     a.end();
                     a.end();
                     for l in &got {
@@ -2294,10 +2315,13 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
             a.call(Sym::Inst(*func));
             a.finish(vec![VT::I32])
         }
-        Helper::EntryCancel => {
+        Helper::EntryCancel | Helper::EntryAbandon => {
             // The root global holds a `$Suspend_L` frame, whose `$Task`
             // prefix carries the cancel function first; a null root (no
-            // poll yet, or a completed root) cancels nothing.
+            // poll yet, or an ended root) cancels nothing. An abandon runs
+            // the same cancel with the `abandon()` depth raised, as
+            // `task_abandon` does (`crates/hd_wasm/DESIGN.md` §14.6).
+            let abandon = matches!(h, Helper::EntryAbandon);
             let mut a = Asm::new(vec![]);
             let base = task_base();
             let root = a.local(VT::rn(base.clone()));
@@ -2308,10 +2332,22 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
             a.if_();
             a.s().return_();
             a.end();
+            let depth = |a: &mut Asm, by: i32| {
+                a.global_get(abandoning_global());
+                a.i32(by);
+                a.s().i32_add();
+                a.global_set(abandoning_global());
+            };
+            if abandon {
+                depth(&mut a, 1);
+            }
             a.get(root);
             a.get(root);
             a.struct_get(&base, F_CANCEL);
             a.call_ref(&cancel_fn());
+            if abandon {
+                depth(&mut a, -1);
+            }
             a.finish(vec![])
         }
     })
@@ -3511,6 +3547,7 @@ impl Helper {
             Helper::EntryPoll { .. } => "entry_poll".into(),
             Helper::EntryWake => "entry_wake".into(),
             Helper::EntryCancel => "entry_cancel".into(),
+            Helper::EntryAbandon => "entry_abandon".into(),
             Helper::EntryCall { .. } => "entry_call".into(),
         }
     }
@@ -3519,8 +3556,8 @@ impl Helper {
 #[cfg(test)]
 mod tests {
     use super::{
-        CANCELLED, F_FLAGS, Helper, UNWINDING, helper_code, owner_global, rewake_global,
-        root_global, str_eq_same_view,
+        ABANDONED, CANCELLED, CANCELLED_END, F_FLAGS, Helper, UNWINDING, helper_code, owner_global,
+        rewake_global, root_global, str_eq_same_view,
     };
     use crate::asm::Asm;
     use crate::{Reloc, Sym, VT};
@@ -3570,8 +3607,8 @@ mod tests {
         expected.s().i32_and();
         expected.br_if(0);
         expected.end();
-        // A cancelled root whose cleanup ended panics
-        // (`req.check.driver-cancelled.entry`).
+        // A cancelled root whose cleanup ended is released and ends the
+        // run cancelled, -2 or -3 (`req.entry.cancelled`).
         expected.get(root);
         expected.struct_get(&base, F_FLAGS);
         expected.i32(CANCELLED);
@@ -3582,10 +3619,18 @@ mod tests {
         expected.i32(UNWINDING);
         expected.s().i32_and().i32_eqz();
         expected.if_();
-        expected.call(Sym::Helper(Helper::Panic(
-            "suspension-invalid-state: the root suspension was cancelled".into(),
-        )));
-        expected.s().unreachable();
+        expected.i32(CANCELLED_END);
+        expected.get(root);
+        expected.struct_get(&base, F_FLAGS);
+        expected.i32(ABANDONED);
+        expected.s().i32_and();
+        expected.i32(0);
+        expected.s().i32_ne().i32_sub();
+        expected.ref_null(&base);
+        expected.global_set(root_global());
+        expected.i32(0);
+        expected.global_set(owner_global());
+        expected.s().return_();
         expected.end();
         expected.end();
         for l in &got {
@@ -3709,15 +3754,53 @@ mod tests {
         assert_eq!(code.results, expected.results);
     }
 
-    /// The scenario-only cancel helper round-trips through the code cache.
+    /// `hd.abandon` calls the same cancel function with the `abandon()`
+    /// depth raised around it, and returns at once when no root is pending.
+    #[test]
+    fn entry_abandon_raises_the_abandon_depth_around_the_cancel() {
+        use super::{F_CANCEL, abandoning_global};
+        use crate::layout::{cancel_fn, task_base};
+
+        let code = helper_code(&Helper::EntryAbandon).unwrap();
+        let base = task_base();
+        let mut expected = Asm::new(vec![]);
+        let root = expected.local(VT::rn(base.clone()));
+        expected.global_get(root_global());
+        expected.set(root);
+        expected.get(root);
+        expected.s().ref_is_null();
+        expected.if_();
+        expected.s().return_();
+        expected.end();
+        for by in [1, -1] {
+            if by < 0 {
+                expected.get(root);
+                expected.get(root);
+                expected.struct_get(&base, F_CANCEL);
+                expected.call_ref(&cancel_fn());
+            }
+            expected.global_get(abandoning_global());
+            expected.i32(by);
+            expected.s().i32_add();
+            expected.global_set(abandoning_global());
+        }
+        let expected = expected.finish(vec![]);
+        assert_eq!(code.body, expected.body);
+        assert_eq!(code.relocs, expected.relocs);
+    }
+
+    /// The entry's cancel and abandon helpers round-trip through the code
+    /// cache.
     #[test]
     fn entry_cancel_encodes_and_decodes() {
         use super::{Reader, Writer};
 
-        let mut w = Writer::default();
-        Helper::EntryCancel.encode(&mut w);
-        let mut r = Reader::new(&w.bytes);
-        assert_eq!(Helper::decode(&mut r), Some(Helper::EntryCancel));
+        for helper in [Helper::EntryCancel, Helper::EntryAbandon] {
+            let mut w = Writer::default();
+            helper.encode(&mut w);
+            let mut r = Reader::new(&w.bytes);
+            assert_eq!(Helper::decode(&mut r), Some(helper));
+        }
     }
 
     /// The scenario cleanup call round-trips through the code cache.

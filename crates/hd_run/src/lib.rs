@@ -55,6 +55,11 @@ pub enum StartError {
 pub struct Limits {
     pub fuel: Option<u64>,
     pub wall_ms: Option<u64>,
+    /// The cleanup bound of a host's cancellation of the entry, in
+    /// milliseconds, for a run that a Ctrl-C may cancel
+    /// (`req.entry.cancel.bound`, `cli.cancel.bound`); `None` for a run
+    /// the host never cancels, such as a test case.
+    pub cleanup_ms: Option<u64>,
 }
 
 /// A host method call's result: ready now, or pending on an operation.

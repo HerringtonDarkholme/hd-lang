@@ -1,0 +1,34 @@
+# fixture-runtime-profile: pending-gate
+# fixture-runtime-scenario: cancellation-cleanup
+# Spec lang/11 Cancelling The Entry: req.entry.cancel.bound, req.entry.cancel.bound.abandon, req.entry.cancel.bound.timer; Abandoning: req.abandon.dispose.
+# The dispose waits on a Gate that never opens, so only the host's
+# cleanup bound ends it: abandon() runs the dispose's defer and stops it
+# at its wait.
+use std.ops.Disposable
+
+let deferred: bool = false
+let closed: bool = false
+
+pub trait Gate:
+    fn wait!(self) -> void
+
+fn gate_wait!() -> void $ Gate:
+    $.use(Gate).wait!()
+
+data Conn:
+    closing: mut Suspend[void]
+
+impl Disposable for Conn:
+    fn dispose!(mut self) -> void:
+        defer:
+            deferred = true
+        let mut wait = self.closing
+        wait!()
+        closed = true
+
+pub fn main!() -> void $ Gate:
+    using conn = Conn { closing: gate_wait() }
+    $.use(Gate).wait!()
+
+pub fn cleanup_ran() -> bool:
+    deferred && !closed

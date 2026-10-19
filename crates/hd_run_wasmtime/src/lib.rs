@@ -30,6 +30,7 @@
 
 pub mod abi;
 mod cache;
+mod cancel;
 mod code_cache;
 mod codec;
 mod console;
@@ -62,6 +63,7 @@ pub mod testing;
 #[cfg(test)]
 mod tests;
 
+pub use cancel::HostInterrupt;
 pub use code_cache::{CodeCache, CodeCacheStats, code_cache_stats, install_code_cache};
 pub use engine::{EngineConfig, Module, OptLevel, WasmtimeEngine, thread_stack};
 pub(crate) use engine::{new_store, wasmtime_config};
@@ -70,8 +72,8 @@ pub use instance::WasmtimeInstance;
 pub use profiles::RuntimeProfile;
 pub(crate) use run::Shared;
 pub use run::{
-    Captured, run, run_captured, run_captured_reading, run_captured_with_profile, run_traced,
-    run_with_profile,
+    Captured, run, run_cancellable, run_captured, run_captured_reading, run_captured_with_profile,
+    run_traced, run_with_profile,
 };
 pub use runtime::io::io_started;
 pub use session::{REBUILD_AFTER, Rebuilder, Rebuilt, Stopper, WasmtimeSession};

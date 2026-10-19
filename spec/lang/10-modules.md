@@ -1495,8 +1495,9 @@ tests:
 12. r[module.testing.integration-row.unbound.error] Otherwise checking reports `missing-requirement` with the hint `bind it with $.with(Trait=...)`.
 13. r[module.testing.passes] A test case passes when its body completes, its result holds no `.Err`, and `report()` on its result returns `ExitCode(0)`.
 14. r[module.testing.fails] It fails when its result holds an `.Err`, whatever the error's `exit_code`, when `report()` returns another code, or when its body panics, including by a failed assertion. A case of `it_each` or `it_prop` follows the same rules.
-15. r[module.testing.err-print] When the result holds an `.Err`, the runner reports the error and its cause chain, rendered as [Entry Results](#entry-results) describes. The report is the runner's own text or JSON report on standard output, and [`module.entry.err-stream`](#r-module.entry.err-stream) does not apply.
-16. r[module.testing.expect-panic-fail] With `expect_panic`, the test case instead fails when its body completes or panics with another category.
+15. r[module.testing.cancelled] It also fails when its body turns out cancelled, once the body's cleanup has ended, as a cancelled entry ends by [`req.entry.cancelled`](11-requirements-and-suspension.md#r-req.entry.cancelled).
+16. r[module.testing.err-print] When the result holds an `.Err`, the runner reports the error and its cause chain, rendered as [Entry Results](#entry-results) describes. The report is the runner's own text or JSON report on standard output, and [`module.entry.err-stream`](#r-module.entry.err-stream) does not apply.
+17. r[module.testing.expect-panic-fail] With `expect_panic`, the test case instead fails when its body completes or panics with another category.
 
 ```text
 trait Clock:

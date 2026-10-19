@@ -36,10 +36,11 @@ stdout: Without NAME, the package must have exactly one executable: src/main.hd,
 stdout: one [[executable]] table of hd.toml. Words after -- are the program's arguments.
 stdout:
 stdout: flags:
-stdout:   --release              build for release: integer overflow wraps instead of panicking
-stdout:   --engine NAME          run on the engine NAME; the default is HD_ENGINE, else the implementation's own
-stdout:   -p, --package NAME     act on the workspace member NAME only; may be repeated
-stdout:   --cap NAME=VALUE       grant the capability NAME: true, false, or a comma-separated list, as in Http=api.example.com
-stdout:   --time-limit DURATION  limit how long the program runs, as 30s; past it the program panics
-stdout:   --format FORMAT        print diagnostics as text (the default) or as JSON lines
-stdout:   --jobs N               use N threads; the default is HD_JOBS, else the cores, at most 8
+stdout:   --release                 build for release: integer overflow wraps instead of panicking
+stdout:   --engine NAME             run on the engine NAME; the default is HD_ENGINE, else the implementation's own
+stdout:   -p, --package NAME        act on the workspace member NAME only; may be repeated
+stdout:   --cap NAME=VALUE          grant the capability NAME: true, false, or a comma-separated list, as in Http=api.example.com
+stdout:   --time-limit DURATION     limit how long the program runs, as 30s; past it the program panics
+stdout:   --cleanup-limit DURATION  how long a Ctrl-C waits for the program's cleanup before it abandons it; the default is 10s
+stdout:   --format FORMAT           print diagnostics as text (the default) or as JSON lines
+stdout:   --jobs N                  use N threads; the default is HD_JOBS, else the cores, at most 8

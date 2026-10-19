@@ -1204,6 +1204,47 @@ pub fn main!() -> void:
     pass   # the host executor drives this entry point
 ```
 
+#### Cancelling The Entry
+
+The host may cancel the entry suspension, as a Ctrl-C does. It then waits
+for the entry's cleanup, as `cancel!()` does, under a bound of its own:
+
+```hd
+use std.ops.Disposable
+use std.time.{Clock, ms, s, sleep}
+
+data Conn:
+    closing: mut Suspend[void]
+
+impl Disposable for Conn:
+    fn dispose!(mut self) -> void:
+        let mut wait = self.closing
+        wait!()   # the host waits here, up to its cleanup bound
+
+pub fn main!() -> void $ Clock:
+    using conn = Conn { closing: sleep(ms(50)) }
+    sleep!(s(60))   # a cancel by the host stops the entry here
+```
+
+1. r[req.entry.cancel] The host may cancel the entry suspension while it waits on the host. It cancels it as `cancel!()` does, by [`req.cancel.steps`](#r-req.cancel.steps), with the host as the waiter.
+2. r[req.entry.cancel.wait] The host then goes on driving the entry until its cleanup has ended, by [`req.cancel.wait`](#r-req.cancel.wait).
+3. r[req.entry.cancel.bound] The host waits under a **cleanup bound**, a host setting. The bound's deadline is set once, at the first cancel, and no later cancel moves it.
+4. r[req.entry.cancel.bound.abandon] When the deadline passes before the cleanup has ended, the host abandons the entry, by [`req.abandon.unwind`](#r-req.abandon.unwind).
+5. r[req.entry.cancel.bound.cooperative] The host abandons it at the first moment at or after the deadline when the entry waits on the host. Code that computes is never interrupted for the bound.
+6. r[req.entry.cancel.bound.timer] While the host bounds a cleanup, the deadline counts as a pending timer for [`req.entry.deadlock`](#r-req.entry.deadlock).
+7. r[req.entry.cancel.abandon] The host may also abandon a cancelled entry at once, before the deadline.
+8. r[req.entry.cancelled] An entry suspension that turns out cancelled ends the run once its cleanup has ended. That holds whoever cancelled it: the host, or the entry's own code, as an await of a suspension cancelled elsewhere does by [`req.cancel.await`](#r-req.cancel.await).
+9. r[req.entry.cancelled.status] A run that ends this way does not panic. It exits with the cancellation status that the runtime profile selects, and reports how the cleanup ended.
+
+> **Why.** A Ctrl-C asks a program to stop, not to drop its cleanup, so
+> the host waits as Kotlin's `cancelAndJoin` does. A bound keeps a close
+> that never ends from holding the program, as Trio's shielded deadline
+> does, and only the host's own `abandon()` cuts the cleanup short.
+
+> **Note.** The default profile's host is `hd`. Its bound, its handling of
+> a second Ctrl-C, and its cancellation status are in
+> [Cancelling A Run](../cli/command-line.md#cancelling-a-run).
+
 ### Host Waits
 
 1. r[req.host-wait.wait] The runtime-provided leaf `std.task.host_wait![T](operation: std.task.HostWait[T]) -> T` suspends until an opaque host wait operation completes, then returns its result.
@@ -1297,11 +1338,11 @@ fn demo!() -> void:
 3. r[req.check.cancel-active.no-effect] That cancellation performs no cleanup or state transition.
 4. r[req.check.cancel-idempotent] Cancellation is otherwise idempotent: cancelling an already cancelled or completed suspension has no further effect.
 5. r[req.check.driver-cancelled.await] A task that awaits a cancelled suspension is cancelled, by [`req.cancel.await`](#r-req.cancel.await), but a driver cannot be cancelled. `block_on` returns how the cleanup ended instead, by [`req.drive.block-on.cancelled`](#r-req.drive.block-on.cancelled).
-6. r[req.check.driver-cancelled.entry] The entry driver panics once the cleanup of its cancelled suspension has ended. Panic: `suspension-invalid-state`.
+6. r[req.check.driver-cancelled.entry-ends] The entry driver is a driver too. Its suspension, once cancelled, ends the run instead of a panic, by [`req.entry.cancelled`](#r-req.entry.cancelled).
 7. r[req.check.runtime-only] These are runtime checks rather than ownership rules in the type system.
 8. r[req.check.code.competing] Competing drivers report `suspension-competing-driver`.
 9. r[req.check.code.reentrant] Recursive polling and active-stack cancellation report `suspension-reentrant-poll`.
-10. r[req.check.code.invalid-drive] Polling after completion, attempting a second execution, and the entry driver of a cancelled suspension report `suspension-invalid-state`.
+10. r[req.check.code.after-end] Polling after completion and attempting a second execution report `suspension-invalid-state`.
 
 ```hd
 fn fetch!(key: string) -> string: "value of $key"

@@ -1,0 +1,13 @@
+use std.testing.assert
+
+fn ready!() -> i32: 42
+
+tests:
+    it("awaits a cancelled suspension"):
+        let pending: mut Suspend[i32] = ready()
+        _ := pending.cancel!()
+        _ := pending!()
+
+    it("awaits a ready suspension"):
+        let pending: mut Suspend[i32] = ready()
+        assert(pending!() == 42, reason="ready")

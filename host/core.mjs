@@ -90,6 +90,49 @@ export const timeLimitReport = (ms) =>
 // The panic report of a program that ran past its `--time-limit`.
 export const PROGRAM_TIME_LIMIT = "panic: time-limit: the program exceeded its time limit\n";
 
+// What `hd.poll` returns for a root that ended cancelled, its cleanup run
+// to its end, and one less when a part of it was cut short (rt.rs
+// `CANCELLED_END`, req.entry.cancelled).
+const CANCELLED_END = -2;
+
+// The status of a run whose entry ended cancelled, and of one a Ctrl-C
+// stopped while it computed: 128 plus SIGINT's number, as a shell reports a
+// process that SIGINT ended (cli.cancel.status).
+export const CANCEL_STATUS = 130;
+
+// A host's cancellation of the entry (req.entry.cancel, cli.cancel.ctrl-c):
+// `request()` asks for it, as a Ctrl-C does. `run` cancels the entry at the
+// first request that finds it waiting on the host, and abandons it at the
+// next one, or once `boundMs` milliseconds have passed since that cancel,
+// its cleanup bound (cli.cancel.bound). `wait(ms)` is a host wait that a
+// request ends at once; `onWait(true)` and `onWait(false)` hear each such
+// wait start and end, so a platform can listen for its interrupt only
+// while the program waits. `run` reads `requests()`, the count so far.
+export function entryCancel(boundMs, onWait = null) {
+  let requests = 0;
+  let wake = null;
+  return {
+    boundMs,
+    request: () => {
+      requests += 1;
+      wake?.();
+    },
+    requests: () => requests,
+    wait: (ms) =>
+      new Promise((resolve) => {
+        const done = () => {
+          clearTimeout(timer);
+          wake = null;
+          onWait?.(false);
+          resolve();
+        };
+        const timer = setTimeout(done, ms);
+        wake = done;
+        onWait?.(true);
+      }),
+  };
+}
+
 // The start of every panic report after its `panic: `, the instance's
 // and the host's own, while the facts labeled `fact` are evaluated, or ""
 // when none are (`fact` null): a panic while a facts body runs is
@@ -651,15 +694,30 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // request ends at once; and `stopping()`, which answers how a stop
   // request ends a waiting input: null for none, else `cancelled` (it calls
   // `hd.cancel`) or `stopped`.
-  const run = async (instance, init, poll, driver = null) => {
+  //
+  // A run the host may cancel passes `cancel`, an `entryCancel`: a request
+  // found while the root waits calls `hd.cancel` and sets the cleanup
+  // deadline, and the next request or that deadline calls `hd.abandon`.
+  // The deadline is a timer of its own, so a cleanup that waits on nothing
+  // else waits for it instead of deadlocking. A root that ends cancelled,
+  // whoever cancelled it, ends the run with `cancelled` on standard error
+  // and status 130 (cli.cancel.end).
+  const run = async (instance, init, poll, driver = null, cancel = null) => {
     prime(instance);
     const ex = instance.exports;
     let status = 0;
     let trapped = false;
     let ended = false;
     let limited = false;
+    let cancelled = false;
     let frames = [];
-    const wait = (ms) => driver?.wait(ms) ?? new Promise((r) => setTimeout(r, ms));
+    const wait = (ms) =>
+      driver?.wait(ms) ?? cancel?.wait(ms) ?? new Promise((r) => setTimeout(r, ms));
+    // The requests acted on, the cleanup deadline once the entry is
+    // cancelled, and whether it was abandoned.
+    let handled = 0;
+    let cleanupBy = null;
+    let abandoned = false;
     try {
       ex[init]();
       driver?.poll();
@@ -670,7 +728,24 @@ export function createCoreHost(sink, env = {}, layer = null) {
         else {
           n = complete();
           if (n === 0) {
-            const d = nextDeadline();
+            if (cancel) {
+              const asked = cancel.requests() > handled;
+              if (asked) handled += 1;
+              if (asked && cleanupBy === null) {
+                cleanupBy = performance.now() + cancel.boundMs;
+                ex["hd.cancel"]();
+                status = ex[poll](0);
+                continue;
+              }
+              if (cleanupBy !== null && !abandoned && (asked || performance.now() >= cleanupBy)) {
+                abandoned = true;
+                ex["hd.abandon"]();
+                status = ex[poll](0);
+                continue;
+              }
+            }
+            let d = nextDeadline();
+            if (cleanupBy !== null && !abandoned && (d === null || cleanupBy < d)) d = cleanupBy;
             if (d === null) deadlock();
             flush();
             await wait(Math.max(0, until(d) - performance.now()));
@@ -692,6 +767,12 @@ export function createCoreHost(sink, env = {}, layer = null) {
         ex["hd.wake"](n);
         driver?.poll();
         status = ex[poll](0);
+      }
+      if (status === CANCELLED_END || status === CANCELLED_END - 1) {
+        flush();
+        sink.err(status === CANCELLED_END ? "cancelled\n" : "cancelled, cleanup abandoned\n");
+        status = CANCEL_STATUS;
+        cancelled = true;
       }
     } catch (e) {
       flush();
@@ -734,7 +815,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
     }
     // A trap's panic as the host recorded it, or null.
     const panic = trapped && st.panic !== null ? panicOfReport(st.panic) : null;
-    return { status, trapped, ended, frames, panic };
+    return { status, trapped, ended, frames, panic, cancelled: cancelled && !trapped };
   };
 
   // Releases what the platform layer holds (its client threads, its
