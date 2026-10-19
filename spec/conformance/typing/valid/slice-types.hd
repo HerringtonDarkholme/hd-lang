@@ -1,5 +1,5 @@
 # test: a range index slices a string to a string and a list to a list, through std.ops.Index
-# Spec 05 Slicing: expr.index.slice.call, expr.index.slice.list.type, expr.index.std.string.range.unsigned, expr.index.std.list.range.unsigned (batch 48).
+# Spec 05 Slicing: expr.index.slice.call, expr.index.slice.list.type-value, expr.index.std.string.range.unsigned, expr.index.std.list.range.unsigned-value (batch 48).
 use std.ops.{Index, Range}
 
 fn parts(text: string, items: List[i32]) -> (string, string, List[i32], List[i32]):

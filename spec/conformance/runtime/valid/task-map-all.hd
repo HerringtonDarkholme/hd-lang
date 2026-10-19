@@ -34,12 +34,12 @@ tests:
     use std.testing.assert_equal
 
     it("returns the results in item order"):
-        let clock: mut ManualClock = ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=clock):
             assert_equal(fetch_all!(), ["item 1", "item 2", "item 3", "item 4", "item 5"], reason="one result for each item, in order")
 
     it("calls work once for each item, in item order"):
-        let clock: mut ManualClock = ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         let gauge: mut Gauge = Gauge { live: 0, peak: 0, started: [] }
         $.with(Clock=clock):
             values := map_all!([4, 3, 2, 1], 3, fn!(id: i32) -> i32 $ Clock: measured!(gauge, id))
@@ -48,14 +48,14 @@ tests:
         assert_equal(gauge.live, 0, reason="every call completed")
 
     it("keeps at most limit calls in flight"):
-        let clock: mut ManualClock = ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         let gauge: mut Gauge = Gauge { live: 0, peak: 0, started: [] }
         $.with(Clock=clock):
             _ := map_all!([1, 2, 3, 4, 5], 2, fn!(id: i32) -> i32 $ Clock: measured!(gauge, id))
         assert_equal(gauge.peak <= 2, true, reason="never above the limit")
 
     it("counts a limit of 0 as 1"):
-        let clock: mut ManualClock = ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         let gauge: mut Gauge = Gauge { live: 0, peak: 0, started: [] }
         $.with(Clock=clock):
             values := map_all!([1, 2, 3], 0, fn!(id: i32) -> i32 $ Clock: measured!(gauge, id))
@@ -63,7 +63,7 @@ tests:
         assert_equal(gauge.peak, 1, reason="one at a time")
 
     it("gives an empty list for no items and never calls work"):
-        let clock: mut ManualClock = ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         let gauge: mut Gauge = Gauge { live: 0, peak: 0, started: [] }
         let items: List[i32] = []
         $.with(Clock=clock):

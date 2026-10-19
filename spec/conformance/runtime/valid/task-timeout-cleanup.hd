@@ -39,7 +39,7 @@ fn acknowledged!() -> void:
 fn attempt!(ack: mut Suspend[void]) -> void $ Console + Clock:
     let log: mut List[string] = []
     let reply: mut Suspend[string] = silent()
-    let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(0))
+    clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
     $.with(Clock=clock):
         result := send!(log, reply, ack)
         match result:

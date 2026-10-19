@@ -6,24 +6,24 @@ use std.error.Error
 use std.host.Args
 use std.text.Parse
 
-# A command line's declared arguments (r-std-cli.cli.decl). Each builder
+# A command line's declared arguments (r-std-cli.cli.decl-struct). Each builder
 # method returns a new `Cli` with one more declaration, in order.
 ## The declaration of a command line: its program name, flags, options, and positionals.
-## See [std-cli.cli.decl](../../spec/std/cli.md#r-std-cli.cli.decl).
-pub data Cli:
+## See [std-cli.cli.decl-struct](../../spec/std/cli.md#r-std-cli.cli.decl-struct).
+pub struct Cli:
     program: string
     options: List[CliOption]
     positionals: List[CliPositional]
 
 # One flag or option: a long name, an optional short name, and whether it
 # takes a value.
-data CliOption:
+struct CliOption:
     name: string
     short: char?
     takes_value: bool
     help: string
 
-data CliPositional:
+struct CliPositional:
     name: string
     help: string
 
@@ -49,7 +49,7 @@ impl Cli:
         for declared in self.positionals:
             if declared.name == name:
                 panic("std.cli: positional <${name}> declared twice")
-        let positionals: mut List[CliPositional] = []
+        let mut positionals: List[CliPositional] = []
         for declared in self.positionals:
             positionals.push(declared)
         positionals.push(CliPositional { name: name, help: help })
@@ -57,7 +57,7 @@ impl Cli:
 
     # A name or short name declared twice panics (r-std-cli.cli.duplicate).
     fn with_option(self, added: CliOption) -> Cli:
-        let options: mut List[CliOption] = []
+        let mut options: List[CliOption] = []
         for declared in self.options:
             if declared.name == added.name:
                 panic("std.cli: option --${added.name} declared twice")
@@ -75,9 +75,9 @@ impl Cli:
     ## Parses `arguments` against the declaration, or returns the first error.
     ## See [std-cli.parse.decl](../../spec/std/cli.md#r-std-cli.parse.decl).
     pub fn parse(self, arguments: List[string]) -> Result[Parsed, CliError]:
-        let flags: mut List[string] = []
-        let values: mut Map[string, string] = {}
-        let positionals: mut List[string] = []
+        let mut flags: List[string] = []
+        let mut values: Map[string, string] = {}
+        let mut positionals: List[string] = []
         let only_positionals = false
         let index: usize = 0
         while index < arguments.len():
@@ -181,10 +181,10 @@ fn entry(term: string, help: string, width: usize) -> string:
         return "  ${term}"
     "  ${term.pad_end(width, ' ')}  ${help}"
 
-# What `parse` read (r-std-cli.parsed.decl).
+# What `parse` read (r-std-cli.parsed.decl-struct).
 ## What a successful parse returns: the flags present, the option values, and the positional arguments.
-## See [std-cli.parsed.decl](../../spec/std/cli.md#r-std-cli.parsed.decl).
-pub data Parsed:
+## See [std-cli.parsed.decl-struct](../../spec/std/cli.md#r-std-cli.parsed.decl-struct).
+pub struct Parsed:
     ## The names of the flags present, in argument order.
     ## See [std-cli.parsed.flags](../../spec/std/cli.md#r-std-cli.parsed.flags).
     pub flags: List[string]

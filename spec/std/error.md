@@ -137,7 +137,7 @@ fn summary() -> string:
     report.to_string()  # "sync failed\ncaused by: disk full"
 ```
 
-1. r[std-error.report.decl] `std.error` declares the data type `ErrorReport` with the public fields `message: string` and `causes: List[string]`, and no other fields.
+1. r[std-error.report.decl-struct] `std.error` declares the struct `ErrorReport`, a value with the public fields `message: string` and `causes: List[string]`, and no other fields. Copying a report copies both fields.
 2. r[std-error.report.import] Code imports both names, as in `use std.error.{ErrorReport, report_of}`.
 3. r[std-error.report.boundary-safe] Both fields are boundary-safe, so `ErrorReport` is boundary-safe by [`module.boundary.allowed`](../lang/10-modules.md#r-module.boundary.allowed).
 4. r[std-error.report.of] `std.error` declares `pub fn report_of(error: dyn Error) -> ErrorReport`.
@@ -171,7 +171,7 @@ fn parse_port(text: string) -> Result[i32, dyn Error]:
 For `parse_port("")`, the error displays as `empty port`.
 
 1. r[std-error.message.decl] `std.error` declares `pub fn message(text: string) -> dyn Error`. Code imports it, as in `use std.error.message`.
-2. r[std-error.message.type] The returned error is a value of a private data type, so code cannot name that type or match on it.
+2. r[std-error.message.type-struct] The returned error is a value of a private struct, so code cannot name that type or match on it.
 3. r[std-error.message.display] The error displays as `text`, unchanged.
 4. r[std-error.message.cause] Its `cause` returns `.None`, so `chain` lists only that error.
 5. r[std-error.message.propagate] The result converts as any `dyn Error` does, so `.Err(message(text))` is a valid result of a function that returns `Result[T, dyn Error]`.
@@ -208,7 +208,7 @@ fn summary() -> string:
 2. r[std-error.context.no-use] Calling `context` needs no `use`, by [`trait.own.inherent.std.no-use`](../lang/09-traits.md#r-trait.own.inherent.std.no-use).
 3. r[std-error.context.ok] `.Ok(value).context(message)` returns `.Ok(value)`.
 4. r[std-error.context.err] `.Err(error).context(message)` returns `.Err` of a `ContextError` whose message is `message` and whose cause is `error`.
-5. r[std-error.context.type] `std.error` declares the data type `ContextError`, with private fields, which implements `Display` and `Error`. Code imports it, as in `use std.error.ContextError`.
+5. r[std-error.context.type-struct] `std.error` declares the struct `ContextError`, a value with private fields, which implements `Display` and `Error`. Code imports it, as in `use std.error.ContextError`.
 6. r[std-error.context.display] A `ContextError` displays as its message.
 7. r[std-error.context.cause] Its `cause` returns `.Some` of the wrapped error.
 8. r[std-error.context.chain] So `chain` lists the `ContextError` first, then the wrapped error and its causes, and `report_of` gives the message, then one `caused by:` line per cause.

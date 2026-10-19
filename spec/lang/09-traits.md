@@ -2220,7 +2220,7 @@ See also: [Trait Values And `Any`](04-type-system.md#trait-values-and-any).
 
 #### `TypeId` Values
 
-1. r[trait.typeid.opaque] `TypeId` is an opaque data type. User code cannot construct one or read its fields.
+1. r[trait.typeid.opaque-struct] `TypeId` is an opaque struct, a value that copies as any struct does. User code cannot construct one or read its fields.
 2. r[trait.typeid.traits] `TypeId` implements `Eq`, `Hash`, and `Display`.
 3. r[trait.typeid.of] `TypeId` has the associated function `TypeId::of::[T]()`, which returns the `TypeId` of `T`.
 4. r[trait.typeid.equality] Equality holds exactly when two `TypeId` values denote the same runtime identity, as defined below.

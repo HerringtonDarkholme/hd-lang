@@ -21,7 +21,7 @@ use std.serde.{Serialize, Deserialize, Serializer, Deserializer}
 
 ## A distance in time, as a count of whole milliseconds, never negative.
 ## See [std-time.suffix.std.duration](../../spec/std/time.md#r-std-time.suffix.std.duration).
-pub data Duration:
+pub struct Duration:
     millis: i64
 
 impl Duration:
@@ -215,7 +215,7 @@ pub fn sleep!(duration: Duration) -> void $ Clock:
 # Whole milliseconds since the Unix epoch, in UTC (r-std-time.timestamp.decl).
 ## A point in UTC time, held as whole milliseconds since the Unix epoch.
 ## See [std-time.timestamp.decl](../../spec/std/time.md#r-std-time.timestamp.decl).
-pub data Timestamp:
+pub struct Timestamp:
     millis: i64
 
 impl Timestamp:
@@ -345,16 +345,16 @@ impl Ord for Timestamp:
 # A calendar date in the proleptic Gregorian calendar, with astronomical
 # year numbering: year 0 is 1 BC (spec/std/time.md#dates).
 ## A calendar day in UTC, in the proleptic Gregorian calendar.
-## See [std-time.date.decl](../../spec/std/time.md#r-std-time.date.decl).
-pub data Date:
+## See [std-time.date.decl-struct](../../spec/std/time.md#r-std-time.date.decl-struct).
+pub struct Date:
     ## The year, with a year 0.
-    ## See [std-time.date.decl](../../spec/std/time.md#r-std-time.date.decl).
+    ## See [std-time.date.decl-struct](../../spec/std/time.md#r-std-time.date.decl-struct).
     pub year: i32
     ## The month, from 1 to 12.
-    ## See [std-time.date.decl](../../spec/std/time.md#r-std-time.date.decl).
+    ## See [std-time.date.decl-struct](../../spec/std/time.md#r-std-time.date.decl-struct).
     pub month: i32
     ## The day of the month.
-    ## See [std-time.date.decl](../../spec/std/time.md#r-std-time.date.decl).
+    ## See [std-time.date.decl-struct](../../spec/std/time.md#r-std-time.date.decl-struct).
     pub day: i32
 
 impl Date:
@@ -473,7 +473,7 @@ fn year_digits(year: i32) -> string:
 # One code per byte: the ASCII code, or -1 for a byte of any other
 # character, so an index is a byte offset (r-std-time.parse-error.position-bytes).
 fn byte_codes(text: string) -> List[i32]:
-    let codes: mut List[i32] = []
+    let mut codes: List[i32] = []
     for byte in text.bytes():
         if byte < 128:
             codes.push(i32(byte))
@@ -517,7 +517,7 @@ fn rfc3339_value(codes: List[i32], start: usize, width: usize) -> i64:
 fn parse_byte_codes(codes: List[i32]) -> Result[Timestamp, ParseTimeError]:
     reach := rfc3339_reach(codes, 0, "dddd-dd-ddTdd:dd:dd")
     # year, month, day, hour, minute, second
-    let parts: mut List[i64] = []
+    let mut parts: List[i64] = []
     let starts: List[usize] = [0, 5, 8, 11, 14, 17]
     for start in starts:
         let width: usize = if start == 0: 4 else: 2
@@ -584,7 +584,7 @@ fn parse_byte_codes(codes: List[i32]) -> Result[Timestamp, ParseTimeError]:
 # (r-std-time.instant.decl).
 ## A reading of the monotonic clock, for measuring intervals.
 ## See [std-time.instant.decl](../../spec/std/time.md#r-std-time.instant.decl).
-pub data Instant:
+pub struct Instant:
     millis: i64
 
 impl Instant:
@@ -650,15 +650,15 @@ impl Ord for Instant:
 # time is its whole state. Virtual time advances only by `sleep!`, which
 # returns at once (r-std-time.manual.sleep).
 ## The deterministic `Clock` provider: virtual time that a test advances.
-## See [std-time.manual.decl](../../spec/std/time.md#r-std-time.manual.decl).
-pub data ManualClock:
+## See [std-time.manual.decl-struct](../../spec/std/time.md#r-std-time.manual.decl-struct).
+pub struct ManualClock:
     current: Timestamp
 
 impl ManualClock:
     ## Returns a `ManualClock` whose current time starts at `start`.
-    ## See [std-time.manual.decl](../../spec/std/time.md#r-std-time.manual.decl).
-    pub fn new(start: Timestamp) -> mut ManualClock:
-        ManualClock { current: start }
+    ## See [std-time.manual.decl-struct](../../spec/std/time.md#r-std-time.manual.decl-struct).
+    pub fn new(start: Timestamp) -> &mut ManualClock:
+        &mut ManualClock { current: start }
 
 impl Debug for ManualClock:
     fn debug(self, out: &mut DebugWriter) -> void:
@@ -673,7 +673,7 @@ impl Clock for ManualClock:
         Instant::from_milliseconds(self.current.millis)
 
     # A zero duration leaves the time as it is (r-std-time.manual.sleep.zero).
-    fn sleep!(mut self, duration: Duration) -> void:
+    fn sleep!(&mut self, duration: Duration) -> void:
         self.current = Timestamp::from_unix_milliseconds(self.current.millis + duration.as_milliseconds())
 
 # `Duration` and `Instant` serialize to every format, and so to the host

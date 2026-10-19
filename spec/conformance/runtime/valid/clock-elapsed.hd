@@ -19,18 +19,18 @@ tests:
     use std.testing.{assert, assert_equal}
 
     it("a block that does not sleep takes no virtual time"):
-        let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(5000))
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(5000))
         $.with(Clock=clock):
             assert_equal(timed_sum(), Duration::milliseconds(0), reason="no sleep, no time")
 
     it("elapsed is the total slept since the start"):
-        let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(5000))
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(5000))
         $.with(Clock=clock):
             assert_equal(timed_nap!(), 3500ms, reason="1.5s plus 2s")
         assert_equal(clock.now(), Timestamp::from_unix_milliseconds(8500), reason="the provider kept the time")
 
     it("monotonic reads the provider and never changes it"):
-        let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(1000))
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(1000))
         $.with(Clock=clock):
             first := monotonic()
             second := monotonic()
@@ -39,6 +39,6 @@ tests:
             assert_equal(elapsed(first), 0s, reason="nothing passed")
 
     it("elapsed is zero for a start in the future"):
-        let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(1000))
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(1000))
         $.with(Clock=clock):
             assert_equal(elapsed(Instant::from_milliseconds(1250)), 0ms, reason="behind the start")

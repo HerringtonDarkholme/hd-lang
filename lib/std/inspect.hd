@@ -19,7 +19,7 @@ pub trait Inspectable:
 # different identity can print alike, as two packages that share a name do.
 ## The runtime identity of an inspectable type.
 ## See [module.prelude.inspect](../../spec/lang/10-modules.md#r-module.prelude.inspect).
-pub data TypeId:
+pub struct TypeId:
     key: string
     name: string
 

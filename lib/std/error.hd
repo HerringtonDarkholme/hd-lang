@@ -23,7 +23,7 @@ impl dyn Error:
     ## Returns this error first, then its `cause`, then that error's cause, and so on.
     ## See [std-error.chain.method](../../spec/std/error.md#r-std-error.chain.method).
     pub fn chain(self) -> List[dyn Error]:
-        let errors: mut List[dyn Error] = [self]
+        let mut errors: List[dyn Error] = [self]
         let next = self.cause()
         while true:
             cause := match next:
@@ -54,10 +54,10 @@ impl dyn Error:
         .None
 
 # A snapshot of an error's message and the messages of its causes
-# (r-std-error.report.decl). Its fields are boundary-safe.
+# (r-std-error.report.decl-struct). Its fields are boundary-safe.
 ## A boundary-safe report of an error: its message and the messages of its causes.
-## See [std-error.report.decl](../../spec/std/error.md#r-std-error.report.decl).
-pub data ErrorReport:
+## See [std-error.report.decl-struct](../../spec/std/error.md#r-std-error.report.decl-struct).
+pub struct ErrorReport:
     ## The error's own message.
     ## See [std-error.report.message](../../spec/std/error.md#r-std-error.report.message).
     pub message: string
@@ -69,7 +69,7 @@ pub data ErrorReport:
 # the message, then one `caused by: ` line per cause.
 impl Display for ErrorReport:
     fn to_string(self) -> string:
-        let lines: mut List[string] = [self.message]
+        let mut lines: List[string] = [self.message]
         for cause in self.causes:
             lines.push(cause)
         lines.join("\ncaused by: ")
@@ -87,7 +87,7 @@ pub fn chain(error: dyn Error) -> List[dyn Error]:
 ## See [std-error.report.of](../../spec/std/error.md#r-std-error.report.of).
 pub fn report_of(error: dyn Error) -> ErrorReport:
     errors := chain(error)
-    let causes: mut List[string] = []
+    let mut causes: List[string] = []
     let index: usize = 1
     while index < errors.len():
         causes.push(errors[index].to_string())
@@ -102,10 +102,10 @@ fn entry_report(error: dyn Error) -> string:
     report_of(error).to_string()
 
 # The error that `context` wraps around an `.Err`: its text is the message,
-# and its cause is the wrapped error (r-std-error.context.type).
+# and its cause is the wrapped error (r-std-error.context.type-struct).
 ## An error that adds a context message over its cause.
-## See [std-error.context.type](../../spec/std/error.md#r-std-error.context.type).
-pub data ContextError:
+## See [std-error.context.type-struct](../../spec/std/error.md#r-std-error.context.type-struct).
+pub struct ContextError:
     message: string
     error: dyn Error
 
@@ -117,8 +117,8 @@ impl Error for ContextError:
     fn cause(self) -> dyn Error?:
         .Some(self.error)
 
-# The error that `message` returns: only a text (r-std-error.message.type).
-data MessageError:
+# The error that `message` returns: only a text (r-std-error.message.type-struct).
+struct MessageError:
     text: string
 
 impl Display for MessageError:

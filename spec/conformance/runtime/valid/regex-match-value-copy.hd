@@ -1,0 +1,21 @@
+# test: Match and Regex are values: changing a copy of a Match leaves the match found as it was, and a copied Regex searches as the original
+# Spec std/regex Matches: std-regex.match.value, std-regex.match.decl-struct, std-regex.regex.decl-struct, std-regex.regex.immutable.
+# expect-stdout: 1 3 bb
+# expect-stdout: 0 x false
+# expect-stdout: b+ true 2
+use std.regex.Regex
+
+pub fn main() -> void $ Console:
+    match Regex::new("b+"):
+        .Err(_) => println("bad pattern")
+        .Ok(re) =>
+            match re.find("abbc"):
+                .None => println("no match")
+                .Some(found) =>
+                    let mut moved = found
+                    moved.start = 0
+                    moved.text = "x"
+                    println("${found.start} ${found.end} ${found.text}")
+                    println("${moved.start} ${moved.text} ${moved == found}")
+            copy := re
+            println("${copy.pattern()} ${copy.is_match("cbb")} ${re.find_all("b ab").len()}")

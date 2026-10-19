@@ -1,5 +1,5 @@
-# test: a list slice is a new list with mutable access, through the Out type of its Index implementation
-# Spec 05 Slicing: expr.index.slice.list.type, expr.index.std.list.range.unsigned, expr.index.std.list.full (owner decision SLICE-MUT, batch 54).
+# test: a list slice is a new list value, the Out type of its Index implementation, which a let mut binding changes
+# Spec 05 Slicing: expr.index.slice.list.type-value, expr.index.std.list.range.unsigned-value, expr.index.std.list.full-value (owner decision SLICE-MUT, batch 54).
 fn grow(items: List[i32]) -> List[i32]:
     let mut part = items[0..2]
     part.push(9)

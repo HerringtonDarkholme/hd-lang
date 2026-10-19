@@ -92,7 +92,7 @@ pub trait PropertyRunner:
 ## See [std-testing.choices.declare](../../spec/std/testing.md#r-std-testing.choices.declare).
 pub data Choices:
     runner: mut dyn PropertyRunner
-    random: mut dyn Random
+    random: &mut dyn Random
     size: i32
     replay: List[i64]
     draws: usize

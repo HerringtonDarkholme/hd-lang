@@ -1984,6 +1984,7 @@ typing/valid/slice-types.hd	type	accept	lang/05-expressions.md#slicing
 typing/invalid/slice-assignment.hd	type	reject:invalid-assignment-target	lang/05-expressions.md#r-expr.index.slice.no-store
 typing/invalid/range-to-not-iterable.hd	type	reject:unsatisfied-trait-bound	lang/06-control-flow.md#r-flow.for.range.to
 runtime/valid/range-iteration.hd	runtime	accept	lang/06-control-flow.md#range-iteration
+runtime/valid/range-value-copy.hd	runtime	accept	lang/05-expressions.md#r-expr.range.declared.struct
 runtime/valid/slicing-run.hd	runtime	accept	lang/05-expressions.md#slicing
 runtime/panic/string-slice-range-boundary.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#r-expr.index.slice.string.boundary
 runtime/panic/string-slice-range-reversed.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#r-expr.index.slice.string.reversed
@@ -2056,7 +2057,7 @@ runtime/valid/result-ok-unit.hd	runtime	accept	lang/04-type-system.md#r-types.re
 runtime/valid/derived-default-declared.hd	runtime	accept	std/ops.md#r-std-ops.default.derive.data.declared
 typing/valid/impl-parameter-fixed-by-binding.hd	type	accept	lang/09-traits.md#r-trait.overlap.constrained-binding
 typing/valid/typed-fact-pattern-mut-field.hd	type	accept	lang/14-annotations.md#r-annot.typed-fact.infer.weaken
-runtime/valid/list-slice-mutable.hd	runtime	accept	lang/05-expressions.md#r-expr.index.slice.list.type
+runtime/valid/list-slice-mutable.hd	runtime	accept	lang/05-expressions.md#r-expr.index.slice.list.type-value
 typing/valid/row-parameter-marked.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.row.param.marked
 typing/invalid/row-parameter-unmarked.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.param.unmarked
 typing/invalid/row-parameter-as-type.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.row.param.as-type
@@ -2210,6 +2211,8 @@ runtime/valid/block-on-pending-write.hd	runtime	accept	lang/11-requirements-and-
 typing/invalid/num-bit-count-u32.hd	type	reject:mixed-signedness	std/num.md#r-std-num.bits.count-ones-u32
 runtime/valid/seeded-random.hd	runtime	accept	std/random.md#seeded-random
 runtime/valid/manual-clock.hd	runtime	accept	std/time.md#manual-clock
+runtime/valid/manual-clock-handle-shared.hd	runtime	accept	std/time.md#r-std-time.manual.new-ref
+runtime/valid/time-values-copy.hd	runtime	accept	std/time.md#r-std-time.date.decl-struct
 runtime/valid/map-args-env.hd	runtime	accept	std/host.md#map-providers
 runtime/valid/memory-fs.hd	runtime	accept	std/fs.md#memory-file-system
 runtime/valid/memory-fs-directories.hd	runtime	accept	std/fs.md#r-std-fs.memory.dirs
@@ -2357,6 +2360,7 @@ runtime/panic/rng-int-empty-range.hd	runtime	panic:explicit-panic	std/random.md#
 runtime/valid/rng-shuffle-choose-sample.hd	runtime	accept	std/random.md#lists
 runtime/panic/rng-sample-too-many.hd	runtime	panic:explicit-panic	std/random.md#r-std-random.rng.sample.count
 runtime/valid/rng-from-random.hd	runtime	accept	std/random.md#rng
+runtime/valid/rng-handle-shared.hd	runtime	accept	std/random.md#r-std-random.rng.new-ref
 runtime/valid/random-fill.hd	runtime	accept	std/random.md#random-source
 runtime/valid/cli-flag-forms.hd	runtime	accept	std/cli.md#argument-forms
 runtime/valid/cli-errors.hd	runtime	accept	std/cli.md#parse-errors
@@ -2378,6 +2382,7 @@ runtime/valid/regex-split.hd	runtime	accept	std/regex.md#replacing-and-splitting
 runtime/valid/regex-captures-linear-time.hd	runtime	accept	std/regex.md#time-bound
 runtime/valid/regex-pike-vm-matches-old-engine.hd	runtime	accept	std/regex.md#r-std-regex.find.leftmost-first
 runtime/valid/regex-prefilter-matches-plain-vm.hd	runtime	accept	std/regex.md#r-std-regex.find.leftmost
+runtime/valid/regex-match-value-copy.hd	runtime	accept	std/regex.md#r-std-regex.match.value
 runtime/valid/test-registration-renamed-import.hd	runtime	accept	lang/10-modules.md#r-module.testing.reg.identity.spellings
 runtime/valid/test-registration-qualified-call.hd	runtime	accept	lang/10-modules.md#r-module.testing.reg.identity.all
 runtime/valid/test-registration-qualified-prop.hd	runtime	accept	lang/10-modules.md#r-module.testing.reg.identity.all
@@ -3355,6 +3360,7 @@ runtime/valid/time-iso8601-format.hd	runtime	accept	std/time.md#r-std-time.forma
 runtime/valid/text-parse-trait.hd	runtime	accept	std/text.md#r-std-text.parse.trait
 runtime/valid/num-parse-trait.hd	runtime	accept	std/num.md#r-std-num.parse.trait-impls
 runtime/valid/cli-value-as.hd	runtime	accept	std/cli.md#r-std-cli.parsed.value-as
+runtime/valid/cli-parsed-value-copy.hd	runtime	accept	std/cli.md#r-std-cli.parsed.decl-struct
 runtime/valid/host-env-as.hd	runtime	accept	std/host.md#r-std-host.env-as.decl
 runtime/valid/num-abs.hd	runtime	accept	std/num.md#r-std-num.abs.value
 runtime/panic/num-abs-min-i8.hd	runtime	panic:integer-overflow	std/num.md#r-std-num.abs.min
@@ -3406,6 +3412,7 @@ runtime/valid/error-exit-code.hd	runtime	accept	std/error.md#r-std-error.exit-co
 typing/invalid/display-only-entry-error.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.entry.termination.result
 typing/valid/entry-err-exit-zero.hd	type	accept	lang/10-modules.md#r-module.entry.termination.err-code
 typing/valid/error-exit-code-usage.hd	type	accept	std/error.md#r-std-error.exit-code.decl
+runtime/valid/error-report-value-copy.hd	runtime	accept	std/error.md#r-std-error.report.decl-struct
 runtime/valid/time-parse-error-one-type.hd	runtime	accept	std/time.md#r-std-time.parse-error.declared
 runtime/valid/duration-serde-text.hd	runtime	accept	std/time.md#r-std-time.serde.duration-text-read
 runtime/valid/time-parse-trait.hd	runtime	accept	std/time.md#r-std-time.rfc3339.parse

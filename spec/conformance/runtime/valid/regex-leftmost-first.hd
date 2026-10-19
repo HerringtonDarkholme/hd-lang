@@ -1,5 +1,5 @@
 # test: find returns the leftmost match and, among those, the one the pattern prefers; is_match agrees with find; Match has Eq
-# Spec std/regex Searching: std-regex.find, std-regex.find.leftmost, std-regex.find.leftmost-first, std-regex.find.empty, std-regex.is-match, std-regex.is-match.find, std-regex.match.decl, std-regex.match.offsets, std-regex.match.text, std-regex.match.traits (task #243).
+# Spec std/regex Searching: std-regex.find, std-regex.find.leftmost, std-regex.find.leftmost-first, std-regex.find.empty, std-regex.is-match, std-regex.is-match.find, std-regex.match.decl-struct, std-regex.match.offsets, std-regex.match.text, std-regex.match.traits (task #243).
 use std.regex.{Regex, Match}
 fn compiled(pattern: string) -> Regex:
     Regex::new(pattern).expect("the pattern compiles")

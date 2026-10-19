@@ -7,7 +7,7 @@ tests:
     use std.testing.assert_equal
 
     it("both results arrive together, on a fake clock"):
-        let clock: mut ManualClock = ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=clock):
             assert_equal(page!(7), "user-7 has 2 orders", reason="joined page")
 
@@ -30,6 +30,6 @@ fn fetch_orders!(id: i32) -> List[string] $ Clock:
     ["book", "lamp"]
 
 pub fn main!() -> void $ Console:
-    let clock: mut ManualClock = ManualClock::new(Timestamp::from_unix_milliseconds(0))
+    clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
     $.with(Clock=clock):
         println(page!(7))

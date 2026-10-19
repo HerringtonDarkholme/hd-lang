@@ -40,6 +40,7 @@ nothing in the language tier names `ms`, `s`, `min`, or `h`. What the
 5. r[std-time.duration.no-neg] `Duration` does not implement `std.ops.Neg`, so `-5s`, which is `-(5s)`, is rejected by the type check: `type-mismatch`.
 6. r[std-time.prelude.time-suffixes] `std.time` declares `Duration` and the duration suffixes `ms`, `s`, `min`, and `h`, which code imports, as in `use std.time.{Duration, s}`.
 7. r[std-time.duration.eq-ord] `Duration` implements `Eq` and `Ord`, which compare its milliseconds.
+8. r[std-time.duration.value] `Duration` is a struct, a value with private fields, so copying one copies its milliseconds.
 
 ```text
 use std.time.{Duration, s}
@@ -259,6 +260,7 @@ pub trait Clock:
 11. r[std-time.time.eq-ord] `Timestamp` and `Instant` implement `Eq` and `Ord`, which order them by time.
 12. r[std-time.timestamp.display] `Timestamp` implements `Display`, and its text is `t.to_rfc3339()`. `Instant` does not implement `Display`.
 13. r[std-time.time.import] Code imports both, as in `use std.time.{Instant, Timestamp}`.
+14. r[std-time.time.value] `Timestamp` and `Instant` are structs, values with private fields, so copying one copies its milliseconds.
 
 ```text
 use std.time.{Instant, Timestamp}
@@ -320,14 +322,14 @@ tests:
     use std.testing.assert
 
     it("sleeps in virtual time"):
-        let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=clock):
             assert(wait_twice!() == Timestamp::from_unix_milliseconds(5000), reason="five virtual seconds")
 ```
 
-1. r[std-time.manual.decl] `std.time` declares `ManualClock`, which implements `Clock`, with private fields. Code imports it, as in `use std.time.ManualClock`.
+1. r[std-time.manual.decl-struct] `std.time` declares the struct `ManualClock`, which implements `Clock`, with private fields. Code imports it, as in `use std.time.ManualClock`. Its `sleep!` takes `&mut self`, which fills the trait's `mut self` by [`trait.impl.receiver-bridge`](../lang/09-traits.md#r-trait.impl.receiver-bridge), so a `ManualClock` serves as a provider through a reference to it.
 2. r[std-time.manual.state] A `ManualClock`'s only state is its current time, a `Timestamp`.
-3. r[std-time.manual.new] `ManualClock::new(start: Timestamp) -> mut ManualClock` returns a clock whose current time is `start`.
+3. r[std-time.manual.new-ref] `ManualClock::new(start: Timestamp) -> &mut ManualClock` returns a clock whose current time is `start`, a new object. A provider installed from that reference, and every copy of it, share the one clock, so a sleep through the provider moves the clock the caller holds.
 4. r[std-time.manual.now] `now` returns the current time.
 5. r[std-time.manual.monotonic] `monotonic` returns `Instant::from_milliseconds(m)`, where `m` is the current time in milliseconds since the Unix epoch.
 6. r[std-time.manual.sleep] `sleep!(duration)` completes without waiting. The `duration` is added to the current time.
@@ -357,13 +359,13 @@ fn day_of(millis: i64) -> Date:
 `std.time` declares it with three public fields:
 
 ```text
-pub data Date:
+pub struct Date:
     pub year: i32
     pub month: i32
     pub day: i32
 ```
 
-1. r[std-time.date.decl] `std.time` declares the data type `Date` with the public fields `year`, `month`, and `day`, each an `i32`. Code imports it, as in `use std.time.Date`.
+1. r[std-time.date.decl-struct] `std.time` declares the struct `Date`, a value with the public fields `year`, `month`, and `day`, each an `i32`. Copying a `Date` copies its fields. Code imports it, as in `use std.time.Date`.
 2. r[std-time.date.calendar] A `Date` names a day of the proleptic Gregorian calendar: the Gregorian leap-year rule holds for every year, including years before 1582.
 3. r[std-time.date.year] `year` uses astronomical numbering: year 0 is 1 BC, and year -1 is 2 BC.
 4. r[std-time.date.fields] `month` counts from 1, January, to 12, and `day` counts from 1.

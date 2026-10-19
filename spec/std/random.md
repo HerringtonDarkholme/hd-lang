@@ -63,8 +63,8 @@ tests:
     use std.testing.assert_equal
 
     it("one seed, one sequence"):
-        let mut first = SeededRandom::new(7)
-        let mut again = SeededRandom::new(7)
+        first := SeededRandom::new(7)
+        again := SeededRandom::new(7)
         let rolled: u64 = 0
         $.with(Random=first):
             rolled = roll()
@@ -72,8 +72,8 @@ tests:
             assert_equal(roll(), rolled, reason="the same seed rolls the same")
 ```
 
-1. r[std-random.seeded.decl] `std.random` declares `SeededRandom`, which implements `Random`, with private fields. Code imports it, as in `use std.random.SeededRandom`.
-2. r[std-random.seeded.new] `SeededRandom::new(seed: u64) -> mut SeededRandom` returns a provider that `seed` starts.
+1. r[std-random.seeded.decl-struct] `std.random` declares the struct `SeededRandom`, which implements `Random`, with private fields. Code imports it, as in `use std.random.SeededRandom`. Its methods take `&mut self`, which fill the trait's `mut self` methods by [`trait.impl.receiver-bridge`](../lang/09-traits.md#r-trait.impl.receiver-bridge), so a `SeededRandom` serves as a provider through a reference to it.
+2. r[std-random.seeded.new-ref] `SeededRandom::new(seed: u64) -> &mut SeededRandom` returns a provider that `seed` starts, a new object. A provider installed from that reference, and every copy of it, draw from the one state, so a draw through the provider advances the generator the caller holds.
 3. r[std-random.seeded.same-seed] Two providers that one seed starts return the same values for the same sequence of `next_u64` and `fill` calls.
 4. r[std-random.seeded.no-host] A `SeededRandom` draws from its own state only. It reads nothing from the host.
 
@@ -93,31 +93,31 @@ it, or `rng` seeds it from the `Random` provider:
 use std.random.{Random, Rng, rng}
 
 fn roll() -> i64 $ Random:
-    let mut dice = rng()
+    dice := rng()
     dice.int(1..=6)
 
 fn deal(seed: u64) -> List[string]:
-    let mut deck = Rng::new(seed)
-    let cards: mut List[string] = ["A", "K", "Q", "J"]
-    deck.shuffle(cards)
+    deck := Rng::new(seed)
+    let mut cards: List[string] = ["A", "K", "Q", "J"]
+    deck.shuffle(&mut cards)
     cards
 ```
 
 | Rule | Method | Returns |
 | --- | --- | --- |
-| r[std-random.rng.next] `next_u64` | `pub fn next_u64(mut self) -> u64` | the next 64-bit draw |
-| r[std-random.rng.int.generic] `int` | `pub fn int[N < Integer](mut self, range: Range[N]) -> N` | an integer of `range`, each with equal probability |
-| r[std-random.rng.float] `float` | `pub fn float(mut self) -> f64` | an `f64` from 0.0 up to, not including, 1.0 |
-| r[std-random.rng.bool] `bool` | `pub fn bool(mut self) -> bool` | `true` or `false`, each with equal probability |
-| r[std-random.rng.choose] `choose` | `pub fn choose[T](mut self, items: List[T]) -> T?` | one item, each position with equal probability |
-| r[std-random.rng.shuffle] `shuffle` | `pub fn shuffle[T](mut self, items: mut List[T]) -> void` | nothing: it reorders `items`, each order with equal probability |
-| r[std-random.rng.sample] `sample` | `pub fn sample[T](mut self, items: List[T], count: usize) -> List[T]` | `count` items from distinct positions, in random order |
+| r[std-random.rng.next-ref] `next_u64` | `pub fn next_u64(&mut self) -> u64` | the next 64-bit draw |
+| r[std-random.rng.int.generic-ref] `int` | `pub fn int[N < Integer](&mut self, range: Range[N]) -> N` | an integer of `range`, each with equal probability |
+| r[std-random.rng.float-ref] `float` | `pub fn float(&mut self) -> f64` | an `f64` from 0.0 up to, not including, 1.0 |
+| r[std-random.rng.bool-ref] `bool` | `pub fn bool(&mut self) -> bool` | `true` or `false`, each with equal probability |
+| r[std-random.rng.choose-ref] `choose` | `pub fn choose[T](&mut self, items: List[T]) -> T?` | one item, each position with equal probability |
+| r[std-random.rng.shuffle-ref] `shuffle` | `pub fn shuffle[T](&mut self, items: &mut List[T]) -> void` | nothing: it reorders `items`, each order with equal probability |
+| r[std-random.rng.sample-ref] `sample` | `pub fn sample[T](&mut self, items: List[T], count: usize) -> List[T]` | `count` items from distinct positions, in random order |
 
-1. r[std-random.rng.decl] `std.random` declares the data type `Rng`, with private fields, and the methods above. Code imports it, as in `use std.random.Rng`.
-2. r[std-random.rng.new] `Rng::new(seed: u64) -> mut Rng` returns a generator that `seed` starts, as `SeededRandom::new` returns a provider.
-3. r[std-random.rng.from-random] `std.random` declares `pub fn rng() -> mut Rng $ Random`. It draws one `next_u64` from the `Random` provider that covers the call, and returns `Rng::new` of that draw.
+1. r[std-random.rng.decl-struct] `std.random` declares the struct `Rng`, with private fields, and the methods above. Code imports it, as in `use std.random.Rng`.
+2. r[std-random.rng.new-ref] `Rng::new(seed: u64) -> &mut Rng` returns a generator that `seed` starts, a new object, as `SeededRandom::new` returns a provider. Every copy of the reference, and every callee given it, draws from that one generator.
+3. r[std-random.rng.from-random-ref] `std.random` declares `pub fn rng() -> &mut Rng $ Random`. It draws one `next_u64` from the `Random` provider that covers the call, and returns `Rng::new` of that draw.
 4. r[std-random.rng.plain] Every `Rng` method is a plain call with the empty requirement row. An `Rng` reads nothing from the host.
-5. r[std-random.rng.mut] Every method takes `mut self`, since each draw advances the generator.
+5. r[std-random.rng.ref-receivers] Every method takes `&mut self`, since each draw advances the generator.
 
 > **Why.** A script that draws many values pays for one host draw, and a
 > seeded `Rng` needs no provider at all. Go's `math/rand/v2` pairs a
@@ -183,7 +183,7 @@ uint32_t next32(uint32_t s[4]) {
 use std.random.Rng
 
 fn two_rolls(seed: u64) -> List[i64]:
-    let mut dice = Rng::new(seed)
+    dice := Rng::new(seed)
     [dice.int(0..10), dice.int(1..=6)]
     # two_rolls(7) is [7, 5]
 ```
@@ -205,7 +205,7 @@ fn two_rolls(seed: u64) -> List[i64]:
 use std.random.Rng
 
 fn coin_and_fraction(seed: u64) -> (f64, bool):
-    let mut gen = Rng::new(seed)
+    gen := Rng::new(seed)
     (gen.float(), gen.bool())
     # coin_and_fraction(7) is (0.23382771772151634, false)
 ```
@@ -232,12 +232,12 @@ fn coin_and_fraction(seed: u64) -> (f64, bool):
 use std.random.Rng
 
 fn pick_three(seed: u64) -> List[i64]:
-    let mut gen = Rng::new(seed)
+    gen := Rng::new(seed)
     gen.sample([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 3)
     # pick_three(7) is [8, 3, 4]
 
 fn one_letter(seed: u64) -> string?:
-    let mut gen = Rng::new(seed)
+    gen := Rng::new(seed)
     gen.choose(["a", "b", "c"])
     # one_letter(7) is .Some("c")
 ```

@@ -32,7 +32,7 @@ pub fn main!() -> void $ Console + Clock:
     let log: mut List[string] = []
     let reply: mut Suspend[void] = silent()
     let ack: mut Suspend[void] = silent()
-    let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(0))
+    clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
     $.with(Clock=clock):
         match close!(log, reply, ack):
             .Ok(_) => println("closed in time")

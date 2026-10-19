@@ -1,0 +1,17 @@
+# test: ManualClock::new returns a new object, so a sleep through the provider installed from it moves the clock the caller holds
+# Spec std/time Manual Clock: std-time.manual.new-ref, std-time.manual.decl-struct, std-time.manual.sleep.
+# expect-stdout: 5000 5000 true
+use std.time.{Clock, ManualClock, Timestamp, now, s, sleep}
+
+fn wait!() -> Timestamp $ Clock:
+    sleep!(2s)
+    sleep!(3s)
+    now()
+
+pub fn main!() -> void $ Console:
+    clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+    alias := clock
+    let seen = Timestamp::from_unix_milliseconds(0)
+    $.with(Clock=clock):
+        seen = wait!()
+    println("${seen.unix_milliseconds()} ${alias.now().unix_milliseconds()} ${alias is clock}")

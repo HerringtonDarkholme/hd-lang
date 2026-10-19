@@ -1,0 +1,21 @@
+# test: a range is a value: a copy keeps its bounds when the source changes, and a loop runs the bounds of the range it is given
+# Spec 05 Range Expressions: expr.range.declared.struct, expr.range.value.fields, expr.range.inclusive-field.
+# expect-stdout: 4 6 2 6
+# expect-stdout: 4 5 | 2 3 4 5
+# expect-stdout: false true true
+pub fn main() -> void $ Console:
+    let mut first = 2..6
+    second := first
+    first.start = 4
+    println("${first.start} ${first.end} ${second.start} ${second.end}")
+    let changed = ""
+    for i in first:
+        changed = if changed == "": "$i" else: "$changed $i"
+    let kept = ""
+    for i in second:
+        kept = if kept == "": "$i" else: "$kept $i"
+    println("$changed | $kept")
+    let mut closed = 1..=3
+    open := closed
+    closed.inclusive = false
+    println("${closed == open} ${open.inclusive} ${second == (2..6)}")

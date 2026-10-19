@@ -1,0 +1,28 @@
+# test: Rng::new and SeededRandom::new return new objects, so every copy of the reference, a callee, and a provider installed from it advance one generator
+# Spec std/random Rng: std-random.rng.new-ref, std-random.rng.ref-receivers, std-random.seeded.new-ref, std-random.seeded.decl-struct.
+# expect-stdout: true true
+# expect-stdout: true true
+# expect-stdout: true true
+use std.random.{Random, Rng, SeededRandom}
+
+fn draw_twice(r: &mut Rng) -> u64:
+    _ := r.next_u64()
+    r.next_u64()
+
+fn roll() -> u64 $ Random:
+    $.use(Random).next_u64()
+
+pub fn main() -> void $ Console:
+    gen := Rng::new(9)
+    alias := gen
+    fresh := Rng::new(9)
+    println("${alias.next_u64() == fresh.next_u64()} ${alias is gen}")
+    third := draw_twice(gen)
+    _ := fresh.next_u64()
+    println("${third == fresh.next_u64()} ${gen.next_u64() == fresh.next_u64()}")
+    source := SeededRandom::new(4)
+    twin := SeededRandom::new(4)
+    let rolled: u64 = 0
+    $.with(Random=source):
+        rolled = roll()
+    println("${rolled == twin.next_u64()} ${source.next_u64() == twin.next_u64()}")

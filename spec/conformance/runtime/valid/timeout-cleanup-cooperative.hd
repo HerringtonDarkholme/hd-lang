@@ -32,7 +32,7 @@ fn quick!() -> void:
 
 fn flush!(log: mut List[string], ack: mut Suspend[void], bound: Duration) -> Result[void, TimedOut] $ Clock:
     let reply: mut Suspend[void] = silent()
-    let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(0))
+    clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
     $.with(Clock=clock):
         timeout!(5s, cleanup=bound):
             using flush = Flush { log: log, clock: $.use(Clock), ack: ack }

@@ -1,5 +1,5 @@
 # test: captures numbers groups by their (, reports group 0 as the whole match, and gives .None to a group that took no part
-# Spec std/regex Captures: std-regex.captures, std-regex.captures.decl, std-regex.captures.len, std-regex.captures.get, std-regex.captures.whole, std-regex.captures.absent, std-regex.captures.path, std-regex.captures.last, std-regex.captures.empty-loop, std-regex.syntax.group.number, std-regex.captures-all (task #244).
+# Spec std/regex Captures: std-regex.captures, std-regex.captures.decl-struct, std-regex.captures.len, std-regex.captures.get, std-regex.captures.whole, std-regex.captures.absent, std-regex.captures.path, std-regex.captures.last, std-regex.captures.empty-loop, std-regex.syntax.group.number, std-regex.captures-all (task #244).
 use std.regex.{Regex, Match}
 use std.text.r
 

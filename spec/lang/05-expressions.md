@@ -291,7 +291,7 @@ use std.annotation.annotate
 use std.num.Num
 
 @annotate::[F](.Fn)
-pub data NumSuffix[F]: pass
+pub struct NumSuffix[F]: pass
 
 pub fn num_suffix[N < Num, R, $Q]() -> NumSuffix[fn(N) -> R $ Q]:
     NumSuffix::[fn(N) -> R $ Q] {}
@@ -445,12 +445,12 @@ fn by_id(id: i64) -> Query:
 use std.annotation.annotate
 
 @annotate::[F](.Fn)
-pub data StrPrefix[F]: pass
+pub struct StrPrefix[F]: pass
 
 pub fn str_prefix[T, R, $Q]() -> StrPrefix[fn(Template[T]) -> R $ Q]:
     StrPrefix::[fn(Template[T]) -> R $ Q] {}
 
-pub data Template[T]:
+pub struct Template[T]:
     pub raw_parts: List[string]
     pub values: List[T]
 ```
@@ -856,7 +856,7 @@ fn whole(text: string, items: List[i32]) -> (string, List[i32], string):
 5. r[expr.index.slice.string.reversed] A string slice whose start is greater than its end is a checked runtime panic. Panic: `index-out-of-bounds`.
 6. r[expr.index.slice.string.boundary] A string slice whose start or end offset is not a [scalar boundary](04-type-system.md#r-types.string.boundary) is a checked runtime panic. Panic: `index-out-of-bounds`.
 7. r[expr.index.slice.list] A list slice is a new list that holds the selected elements in order. It is not a view: later changes to either list do not change the other.
-8. r[expr.index.slice.list.type] A list slice of a `List[T]` has type `mut List[T]`, the `Out` of its implementation, so the new list has mutable access. Its elements keep the type `T`, including `mut U` when `T = mut U`.
+8. r[expr.index.slice.list.type-value] A list slice of a `List[T]` has type `List[T]`, the `Out` of its implementation. It is a new list value, so a `let mut` binding of it may change it. Its elements keep the type `T`.
 9. r[expr.index.slice.list.range] A list slice whose start or end offset is greater than the length is a checked runtime panic. Panic: `index-out-of-bounds`.
 10. r[expr.index.slice.list.reversed] A list slice whose start is greater than its end is a checked runtime panic. Panic: `index-out-of-bounds`.
 11. r[expr.index.slice.no-store] No range type has an `IndexSet` implementation for `List` or `string`, so assigning to a slice is an error. Error: `invalid-assignment-target`.
@@ -865,7 +865,7 @@ fn whole(text: string, items: List[i32]) -> (string, List[i32], string):
 
 ```text
 fn grow(items: List[i32]) -> List[i32]:
-    let mut part = items[0..2]  # valid: the slice is a mut List[i32]
+    let mut part = items[0..2]  # valid: the slice is a new List[i32]
     part.push(9)
     part
 
@@ -994,9 +994,9 @@ fn lead(counts: mut List[i32], text: string) -> u8:
 | r[expr.index.std.map] Map | `Map[K, V]` | `Index[K]` with `Out = V`, and `IndexSet[K, V]` |
 | r[expr.index.std.string.usize] String | `string` | `Index[usize]` with `Out = u8`, and no `IndexSet` |
 | r[expr.index.std.string.range.unsigned] String slice | `string` | `Index[R[I]]` with `Out = string`, for each range type `R` and each unsigned integer type `I` |
-| r[expr.index.std.list.range.unsigned] List slice | `List[T]` | `Index[R[I]]` with `Out = mut List[T]`, for each range type `R` and each unsigned integer type `I` |
+| r[expr.index.std.list.range.unsigned-value] List slice | `List[T]` | `Index[R[I]]` with `Out = List[T]`, for each range type `R` and each unsigned integer type `I` |
 | r[expr.index.std.string.full] Whole string | `string` | `Index[RangeFull]` with `Out = string` |
-| r[expr.index.std.list.full] Whole list | `List[T]` | `Index[RangeFull]` with `Out = mut List[T]` |
+| r[expr.index.std.list.full-value] Whole list | `List[T]` | `Index[RangeFull]` with `Out = List[T]` |
 
 1. r[expr.index.std.intrinsic] The body of each implementation in the table is a compiler intrinsic. It behaves as the built-in indexing of its type, including the checks and their panics, so `Map`'s `index` panics when no equal key exists.
 2. r[expr.index.std.map-store] `Map`'s `index_set` inserts or replaces the entry, as `entries[key] = value` does.
@@ -2088,22 +2088,22 @@ fn unit() -> Range[f64]:
 `std.ops` declares the range types in this shape:
 
 ```text
-pub data Range[T]:
+pub struct Range[T]:
     pub start: T
     pub end: T
     pub inclusive: bool
 
-pub data RangeFrom[T]:
+pub struct RangeFrom[T]:
     pub start: T
 
-pub data RangeTo[T]:
+pub struct RangeTo[T]:
     pub end: T
     pub inclusive: bool
 
-pub data RangeFull: pass
+pub struct RangeFull: pass
 ```
 
-1. r[expr.range.declared.four] `std.ops` declares the four range types as data types whose fields are public, as shown above.
+1. r[expr.range.declared.struct] `std.ops` declares the four range types as structs whose fields are public, as shown above. A range is a value, so copying one copies its fields, and a change to one copy leaves the other as it was.
 2. r[expr.range.value.fields] A range expression builds the range type of its form, with its bounds as the fields: `a..b` is `Range { start: a, end: b, inclusive: false }`.
 3. r[expr.range.inclusive-field] The `inclusive` field of a `Range` or `RangeTo` is `true` for a `..=` form and `false` for a `..` form, so `..=b` is `RangeTo { end: b, inclusive: true }`.
 4. r[expr.range.not-prelude] The range types are not prelude names. Code that names one in a type imports it, as in `use std.ops.Range`, but a range expression needs no use.

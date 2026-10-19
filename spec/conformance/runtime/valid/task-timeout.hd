@@ -42,13 +42,13 @@ tests:
     use std.testing.{assert, assert_equal}
 
     it("returns .Ok when the work finishes first"):
-        let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=clock):
             assert_equal(lookup_in_time!(), .Ok("value"), reason="a manual clock never waits")
         assert_equal(clock.now().unix_milliseconds(), 5000, reason="the work's sleep ran")
 
     it("a zero limit still lets work that never suspends win"):
-        let mut clock = ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
         $.with(Clock=clock):
             result := timeout!(0ms):
                 7

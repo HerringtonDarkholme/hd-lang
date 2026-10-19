@@ -28,7 +28,6 @@ runtime/panic/num-u64-from-overflow.hd	#541: test programs, and roots that never
 runtime/panic/num-u64-to-negative.hd	#541: test programs, and roots that never suspend
 runtime/panic/operator-generic-overflow.hd	#541: test programs, and roots that never suspend
 runtime/panic/option-expect-none.hd	#541: test programs, and roots that never suspend
-runtime/panic/rng-int-empty-range.hd	#551: structs, tuples, enums and data values
 runtime/panic/shift-count-at-bit-width.hd	#541: test programs, and roots that never suspend
 runtime/panic/sign-fallback-balance-underflow.hd	#540: checked integer arithmetic
 runtime/panic/signed-min-division-overflow.hd	#540: checked integer arithmetic

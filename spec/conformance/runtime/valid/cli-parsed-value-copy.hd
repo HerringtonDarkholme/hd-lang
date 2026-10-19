@@ -1,0 +1,17 @@
+# test: Parsed and Cli are values: changing a copy of a Parsed leaves the original, and a Cli builder call leaves its receiver unchanged
+# Spec std/cli Parsed Arguments: std-cli.parsed.decl-struct, std-cli.cli.decl-struct, std-cli.cli.builder.
+# expect-stdout: true 1 false 2 false
+# expect-stdout: 4 7
+use std.cli.Cli
+
+pub fn main() -> void $ Console:
+    base := Cli::new("tool").flag("verbose", .Some('v'), "talk")
+    match base.parse(["-v", "a"]):
+        .Err(_) => println("error")
+        .Ok(parsed) =>
+            let mut changed = parsed
+            changed.flags = []
+            changed.positionals.push("b")
+            println("${parsed.flag("verbose")} ${parsed.positionals.len()} ${changed.flag("verbose")} ${changed.positionals.len()} ${parsed == changed}")
+    more := base.positional("file", "input")
+    println("${base.usage().lines().len()} ${more.usage().lines().len()}")

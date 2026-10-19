@@ -1,0 +1,22 @@
+# test: Date, Duration and Timestamp are values: a copy keeps its fields when the source changes
+# Spec std/time Dates: std-time.date.decl-struct, std-time.duration.value, std-time.time.value.
+# expect-stdout: 2000-02-29 2000-03-01 true
+# expect-stdout: 2000 3000
+# expect-stdout: 951782400000 951782401000
+use std.time.{Duration, Timestamp}
+
+pub fn main() -> void $ Console:
+    stamp := Timestamp::from_unix_milliseconds(951782400000)
+    let mut day = stamp.date()
+    kept := day
+    day.month = 3
+    day.day = 1
+    println("${kept.to_iso8601()} ${day.to_iso8601()} ${kept == stamp.date()}")
+    let wait = Duration::seconds(2)
+    held := wait
+    wait = wait + Duration::seconds(1)
+    println("${held.as_milliseconds()} ${wait.as_milliseconds()}")
+    let moment = stamp
+    first := moment
+    moment = moment + Duration::seconds(1)
+    println("${first.unix_milliseconds()} ${moment.unix_milliseconds()}")

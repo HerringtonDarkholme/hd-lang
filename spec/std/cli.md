@@ -34,7 +34,7 @@ fn tool() -> Cli:
 | r[std-cli.cli.option] `option` | `pub fn option(self, name: string, short: char?, help: string) -> Cli` | an **option**, an argument that takes one value |
 | r[std-cli.cli.positional] `positional` | `pub fn positional(self, name: string, help: string) -> Cli` | a required **positional**, an argument that is not a flag or an option |
 
-1. r[std-cli.cli.decl] `std.cli` declares the data type `Cli`, with private fields, and the methods in this chapter. Code imports it, as in `use std.cli.Cli`.
+1. r[std-cli.cli.decl-struct] `std.cli` declares the struct `Cli`, a value with private fields, and the methods in this chapter. Code imports it, as in `use std.cli.Cli`.
 2. r[std-cli.cli.builder] Each builder method returns a new `Cli` with every declaration of `self`, then the new one. `self` is unchanged.
 3. r[std-cli.cli.names] A flag or an option has a long name, `name`, and may have a short name, `short`. `help` is its text in the usage.
 4. r[std-cli.cli.duplicate] Declaring a long or short name of a flag or option a second time panics, and so does declaring a positional's name a second time. Panic: `explicit-panic`.
@@ -152,13 +152,13 @@ pub enum CliError:
 `Parsed` holds what `parse` read:
 
 ```text
-pub data Parsed:
+pub struct Parsed:
     pub flags: List[string]
     pub values: Map[string, string]
     pub positionals: List[string]
 ```
 
-1. r[std-cli.parsed.decl] `std.cli` declares the data type `Parsed` with the public fields above. It implements `Eq` and `Debug`.
+1. r[std-cli.parsed.decl-struct] `std.cli` declares the struct `Parsed`, a value with the public fields above, so copying one copies its lists and map. It implements `Eq` and `Debug`.
 2. r[std-cli.parsed.flags] `flags` holds the long name of every flag that was set, each once, in the order of first appearance.
 3. r[std-cli.parsed.values] `values` maps the long name of every option that was given to its value.
 4. r[std-cli.parsed.positionals] `positionals` holds every positional in argument order, including those past the declared ones.

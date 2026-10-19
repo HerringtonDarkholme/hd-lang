@@ -9,21 +9,21 @@
 use std.format.DebugWriter
 use std.error.Error
 
-# A compiled pattern (r-std-regex.regex.decl). `names[i]` is the name of
+# A compiled pattern (r-std-regex.regex.decl-struct). `names[i]` is the name of
 # group i, or "" for an unnamed group and for group 0.
 ## A compiled regular expression: immutable, and every match runs in time linear in the text.
-## See [std-regex.regex.decl](../../spec/std/regex.md#r-std-regex.regex.decl).
-pub data Regex:
+## See [std-regex.regex.decl-struct](../../spec/std/regex.md#r-std-regex.regex.decl-struct).
+pub struct Regex:
     text: string
     program: Program
     filter: Prefilter
     names: List[string]
 
 # Where a match is: byte offsets into the searched text, and its text
-# (r-std-regex.match.decl).
+# (r-std-regex.match.decl-struct).
 ## One match of a regex in a text.
-## See [std-regex.match.decl](../../spec/std/regex.md#r-std-regex.match.decl).
-pub data Match:
+## See [std-regex.match.decl-struct](../../spec/std/regex.md#r-std-regex.match.decl-struct).
+pub struct Match:
     ## The byte offset where the match starts.
     ## See [std-regex.match.offsets](../../spec/std/regex.md#r-std-regex.match.offsets).
     pub start: usize
@@ -34,11 +34,11 @@ pub data Match:
     ## See [std-regex.match.text](../../spec/std/regex.md#r-std-regex.match.text).
     pub text: string
 
-# The groups of one match (r-std-regex.captures.decl): two optional byte
+# The groups of one match (r-std-regex.captures.decl-struct): two optional byte
 # offsets per group; `.None` means that the group took no part.
 ## The capture groups of one match: group 0 is the whole match.
-## See [std-regex.captures.decl](../../spec/std/regex.md#r-std-regex.captures.decl).
-pub data Captures:
+## See [std-regex.captures.decl-struct](../../spec/std/regex.md#r-std-regex.captures.decl-struct).
+pub struct Captures:
     text: string
     slots: List[usize?]
     names: List[string]
@@ -66,14 +66,14 @@ impl Regex:
     ## See [std-regex.regex.new](../../spec/std/regex.md#r-std-regex.regex.new).
     pub fn new(pattern: string) -> Result[Regex, RegexError]:
         source := Pattern::of(pattern)
-        let names: mut List[string] = [""]
-        parsed := parse_alternation(source, 0, names)?
+        let mut names: List[string] = [""]
+        parsed := parse_alternation(source, 0, &mut names)?
         if parsed.next < source.chars.len():
             return .Err(RegexError.UnmatchedParen(source.offsets[parsed.next]))
         if program_size(parsed.node) > max_program():
             return .Err(RegexError.TooLarge(0))
-        let program: mut List[Inst] = []
-        compile(parsed.node, program)
+        let mut program: List[Inst] = []
+        compile(parsed.node, &mut program)
         program.push(Inst.Done)
         .Ok(Regex { text: pattern, program: lower(program), filter: prefilter(parsed.node), names: names })
 
@@ -88,7 +88,7 @@ impl Regex:
     ## True when the regex matches anywhere in `text`.
     ## See [std-regex.is-match](../../spec/std/regex.md#r-std-regex.is-match).
     pub fn is_match(self, text: string) -> bool:
-        let vm: mut Vm = new_vm(self, text, 0)
+        vm := new_vm(self, text, 0)
         run(vm, 0, true)
 
     # The leftmost match, and among those that start there, the one the
@@ -96,15 +96,15 @@ impl Regex:
     ## The leftmost match in `text`; of several starting there, the first the pattern's alternation order prefers.
     ## See [std-regex.find](../../spec/std/regex.md#r-std-regex.find).
     pub fn find(self, text: string) -> Match?:
-        let vm: mut Vm = new_vm(self, text, 2)
+        vm := new_vm(self, text, 2)
         if run(vm, 0, false): .Some(vm.whole()) else: .None
 
     # Every match, left to right, none overlapping (r-std-regex.find-all).
     ## Every non-overlapping match in `text`, from left to right.
     ## See [std-regex.find-all](../../spec/std/regex.md#r-std-regex.find-all).
     pub fn find_all(self, text: string) -> List[Match]:
-        let vm: mut Vm = new_vm(self, text, 2)
-        let found: mut List[Match] = []
+        vm := new_vm(self, text, 2)
+        let mut found: List[Match] = []
         while advance(vm):
             found.push(vm.whole())
         found
@@ -113,7 +113,7 @@ impl Regex:
     ## The capture groups of the leftmost match, or `.None`.
     ## See [std-regex.captures](../../spec/std/regex.md#r-std-regex.captures).
     pub fn captures(self, text: string) -> Captures?:
-        let vm: mut Vm = new_vm(self, text, self.slot_count())
+        vm := new_vm(self, text, self.slot_count())
         if run(vm, 0, false): .Some(vm.groups(self.names)) else: .None
 
     # The groups of each match that `find_all` returns
@@ -121,8 +121,8 @@ impl Regex:
     ## The capture groups of every non-overlapping match, from left to right.
     ## See [std-regex.captures-all](../../spec/std/regex.md#r-std-regex.captures-all).
     pub fn captures_all(self, text: string) -> List[Captures]:
-        let vm: mut Vm = new_vm(self, text, self.slot_count())
-        let found: mut List[Captures] = []
+        vm := new_vm(self, text, self.slot_count())
+        let mut found: List[Captures] = []
         while advance(vm):
             found.push(vm.groups(self.names))
         found
@@ -131,7 +131,7 @@ impl Regex:
     ## The text with its leftmost match replaced by `replacement`, whose `$` forms expand groups.
     ## See [std-regex.replace](../../spec/std/regex.md#r-std-regex.replace).
     pub fn replace(self, text: string, replacement: string) -> string:
-        let vm: mut Vm = new_vm(self, text, self.slot_count())
+        vm := new_vm(self, text, self.slot_count())
         if !run(vm, 0, false):
             return text
         template := Pattern::of(replacement)
@@ -143,11 +143,11 @@ impl Regex:
     ## The text with every non-overlapping match replaced by `replacement`, whose `$` forms expand groups.
     ## See [std-regex.replace-all](../../spec/std/regex.md#r-std-regex.replace-all).
     pub fn replace_all(self, text: string, replacement: string) -> string:
-        let vm: mut Vm = new_vm(self, text, self.slot_count())
+        vm := new_vm(self, text, self.slot_count())
         template := Pattern::of(replacement)
         # The pieces are joined once at the end, since appending each to
         # the text so far would copy that text again for every match.
-        let pieces: mut List[string] = []
+        let mut pieces: List[string] = []
         let last: usize = 0
         while advance(vm):
             pieces.push(text.slice(last, vm.start()))
@@ -161,8 +161,8 @@ impl Regex:
     ## The text's pieces between the matches, in order.
     ## See [std-regex.split](../../spec/std/regex.md#r-std-regex.split).
     pub fn split(self, text: string) -> List[string]:
-        let vm: mut Vm = new_vm(self, text, 2)
-        let pieces: mut List[string] = []
+        vm := new_vm(self, text, 2)
+        let mut pieces: List[string] = []
         let last: usize = 0
         while advance(vm):
             pieces.push(text.slice(last, vm.start()))
@@ -221,15 +221,15 @@ fn max_repeat() -> usize:
 
 # A pattern split into its characters, with the byte offset of each and
 # the pattern's length last.
-data Pattern:
+struct Pattern:
     text: string
     chars: List[char]
     offsets: List[usize]
 
 impl Pattern:
     fn of(text: string) -> Pattern:
-        let chars: mut List[char] = []
-        let offsets: mut List[usize] = []
+        let mut chars: List[char] = []
+        let mut offsets: List[usize] = []
         for (offset, c) in text.char_indices():
             chars.push(c)
             offsets.push(offset)
@@ -270,13 +270,13 @@ enum ClassItem:
     Space(negated: bool)
 
 # A parsed piece and the index of the character after it.
-data Step:
+struct Step:
     node: Node
     next: usize
 
 # `a|b|c`: one or more concatenations.
-fn parse_alternation(source: Pattern, start: usize, names: mut List[string]) -> Result[Step, RegexError]:
-    let branches: mut List[Node] = []
+fn parse_alternation(source: Pattern, start: usize, names: &mut List[string]) -> Result[Step, RegexError]:
+    let mut branches: List[Node] = []
     let at = start
     while true:
         branch := parse_concat(source, at, names)?
@@ -292,8 +292,8 @@ fn parse_alternation(source: Pattern, start: usize, names: mut List[string]) -> 
 
 # A run of atoms, each with at most one quantifier, up to `|`, `)`, or the
 # end.
-fn parse_concat(source: Pattern, start: usize, names: mut List[string]) -> Result[Step, RegexError]:
-    let items: mut List[Node] = []
+fn parse_concat(source: Pattern, start: usize, names: &mut List[string]) -> Result[Step, RegexError]:
+    let mut items: List[Node] = []
     let at = start
     while at < source.chars.len():
         c := source.chars[at]
@@ -323,7 +323,7 @@ fn quantifier_at(source: Pattern, at: usize) -> bool:
 
 # The counts of a well-formed `{m}`, `{m,}`, or `{m,n}` at `at`. Any other
 # `{` is a literal (r-std-regex.syntax.brace-literal).
-data Counts:
+struct Counts:
     min: usize
     max: usize?
     next: usize
@@ -345,7 +345,7 @@ fn counts_at(source: Pattern, start: usize) -> Counts?:
             .Some(Counts { min: low.value, max: .Some(high.value), next: high.next + 1 })
         _ => .None
 
-data Number:
+struct Number:
     value: usize
     next: usize
 
@@ -404,7 +404,7 @@ fn parse_repeat(source: Pattern, atom: Step) -> Result[Step, RegexError]:
         next = next + 1
     .Ok(Step { node: Node.Repeat(&atom.node, min, max, greedy), next: next })
 
-fn parse_atom(source: Pattern, at: usize, names: mut List[string]) -> Result[Step, RegexError]:
+fn parse_atom(source: Pattern, at: usize, names: &mut List[string]) -> Result[Step, RegexError]:
     c := source.chars[at]
     if c == '(':
         return parse_group(source, at, names)
@@ -428,7 +428,7 @@ fn parse_atom(source: Pattern, at: usize, names: mut List[string]) -> Result[Ste
 # unsupported group (r-std-regex.syntax.group.unsupported). A capture group
 # takes the next number when its `(` is read
 # (r-std-regex.syntax.group.number).
-fn parse_group(source: Pattern, open: usize, names: mut List[string]) -> Result[Step, RegexError]:
+fn parse_group(source: Pattern, open: usize, names: &mut List[string]) -> Result[Step, RegexError]:
     let start = open + 1
     let capturing = true
     let name = ""
@@ -482,7 +482,7 @@ fn group_name(source: Pattern, start: usize, end: usize) -> bool:
     true
 
 # An escape: a Perl class item, or one character.
-data Escape:
+struct Escape:
     item: ClassItem?
     value: char
 
@@ -516,7 +516,7 @@ fn parse_class(source: Pattern, open: usize) -> Result[Step, RegexError]:
     if source.has(at, '^'):
         negated = true
         at = at + 1
-    let items: mut List[ClassItem] = []
+    let mut items: List[ClassItem] = []
     let first = true
     while true:
         match source.at(at):
@@ -544,7 +544,7 @@ fn parse_class(source: Pattern, open: usize) -> Result[Step, RegexError]:
                     at = low.next
     .Ok(Step { node: Node.Class(items, negated), next: at + 1 })
 
-data ClassChar:
+struct ClassChar:
     item: ClassItem?
     value: char
     next: usize
@@ -608,7 +608,7 @@ fn scaled(size: usize, count: usize) -> usize:
         return max_program() + 1
     size * count
 
-fn compile(node: Node, program: mut List[Inst]) -> void:
+fn compile(node: Node, program: &mut List[Inst]) -> void:
     match node:
         .Empty => pass
         .Literal(value) => program.push(Inst.Char(i32(char_scalar(value))))
@@ -625,7 +625,7 @@ fn compile(node: Node, program: mut List[Inst]) -> void:
                 compile(item, program)
         .Alternate(branches) =>
             # split L1, next; L1: a; jump end; next: split L2, ... ; last
-            let jumps: mut List[usize] = []
+            let mut jumps: List[usize] = []
             let index: usize = 0
             while index < branches.len():
                 if index + 1 < branches.len():
@@ -664,7 +664,7 @@ fn compile(node: Node, program: mut List[Inst]) -> void:
                         compile(*body, program)
                         copies = copies + 1
                     # each optional copy: split body, out
-                    let splits: mut List[usize] = []
+                    let mut splits: List[usize] = []
                     while copies < high:
                         splits.push(program.len())
                         program.push(Inst.Split(0, 0))
@@ -690,7 +690,7 @@ fn compile(node: Node, program: mut List[Inst]) -> void:
 # | 9 | `End` | - | - |
 #
 # Ops 0 to 4 are the ones a thread waits at for the next character.
-data Program:
+struct Program:
     ops: List[i32]
     left: List[usize]
     right: List[usize]
@@ -698,11 +698,11 @@ data Program:
     ranges: List[i32]
 
 fn lower(program: List[Inst]) -> Program:
-    let ops: mut List[i32] = []
-    let left: mut List[usize] = []
-    let right: mut List[usize] = []
-    let points: mut List[i32] = []
-    let ranges: mut List[i32] = []
+    let mut ops: List[i32] = []
+    let mut left: List[usize] = []
+    let mut right: List[usize] = []
+    let mut points: List[i32] = []
+    let mut ranges: List[i32] = []
     for inst in program:
         let op = +0
         let first: usize = 0
@@ -748,7 +748,7 @@ fn choice(body: usize, out: usize, greedy: bool) -> Inst:
 # only where both allow a match to start. That leaves the matches as they
 # were: a thread that starts elsewhere never reaches `Done`, and a thread
 # that never reaches `Done` changes no other thread's result.
-data Prefilter:
+struct Prefilter:
     literal: string
     lo: usize
     hi: i64
@@ -761,7 +761,7 @@ data Prefilter:
 # bound), or ""; and `firsts`, the first bytes of its nonempty matches.
 # Each claim holds of every match, so a piece that never matches may
 # claim anything.
-data Summary:
+struct Summary:
     min: i64
     max: i64
     exact: string?
@@ -790,15 +790,15 @@ fn summarize(node: Node) -> Summary:
         .Literal(value) =>
             text := "$value"
             lead := i32(bytes_at(text, 0))
-            let firsts: mut List[u64] = no_bytes()
-            add_bytes(firsts, lead, lead)
+            let mut firsts: List[u64] = no_bytes()
+            add_bytes(&mut firsts, lead, lead)
             exact_summary(text, firsts)
         .AnyChar =>
             # Any scalar but a newline.
-            let firsts: mut List[u64] = no_bytes()
-            add_bytes(firsts, 0, 9)
-            add_bytes(firsts, 11, 127)
-            add_bytes(firsts, 192, 255)
+            let mut firsts: List[u64] = no_bytes()
+            add_bytes(&mut firsts, 0, 9)
+            add_bytes(&mut firsts, 11, 127)
+            add_bytes(&mut firsts, 192, 255)
             open_summary(1, 4, firsts)
         .Class(items, negated) => class_summary(class_ranges(items), negated)
         .Group(body, _) => summarize(*body)
@@ -818,14 +818,14 @@ fn open_summary(min: i64, max: i64, firsts: List[u64]) -> Summary:
 # ones the ranges name, which is all its non-ASCII first bytes and some
 # more.
 fn class_summary(ranges: List[i32], negated: bool) -> Summary:
-    let firsts: mut List[u64] = no_bytes()
+    let mut firsts: List[u64] = no_bytes()
     if negated:
         let byte = +0
         while byte < 128:
             if !in_class(ranges, byte):
-                add_bytes(firsts, byte, byte)
+                add_bytes(&mut firsts, byte, byte)
             byte = byte + 1
-        add_bytes(firsts, 192, 255)
+        add_bytes(&mut firsts, 192, 255)
         return open_summary(1, 4, firsts)
     let min: i64 = 4
     let max: i64 = 1
@@ -838,10 +838,10 @@ fn class_summary(ranges: List[i32], negated: bool) -> Summary:
         if scalar_bytes(high) > max:
             max = scalar_bytes(high)
         if low < 128:
-            add_bytes(firsts, low, if high < 127: high else: +127)
-        add_leads(firsts, low, high, 128, 2047, 64, 192)
-        add_leads(firsts, low, high, 2048, 65535, 4096, 224)
-        add_leads(firsts, low, high, 65536, 1114111, 262144, 240)
+            add_bytes(&mut firsts, low, if high < 127: high else: +127)
+        add_leads(&mut firsts, low, high, 128, 2047, 64, 192)
+        add_leads(&mut firsts, low, high, 2048, 65535, 4096, 224)
+        add_leads(&mut firsts, low, high, 65536, 1114111, 262144, 240)
         index = index + 2
     open_summary(min, max, firsts)
 
@@ -856,7 +856,7 @@ fn in_class(ranges: List[i32], point: i32) -> bool:
 # The first bytes of the scalars from `low` to `high` that UTF-8 writes
 # with the same length, those from `first` to `last`: `base` plus the
 # scalar divided by `unit`.
-fn add_leads(set: mut List[u64], low: i32, high: i32, first: i32, last: i32, unit: i32, base: i32) -> void:
+fn add_leads(set: &mut List[u64], low: i32, high: i32, first: i32, last: i32, unit: i32, base: i32) -> void:
     from := if low > first: low else: first
     to := if high < last: high else: last
     if from <= to:
@@ -879,10 +879,10 @@ fn concat_summary(items: List[Node]) -> Summary:
     let literal = ""
     let lo: i64 = 0
     let hi: i64 = 0
-    let run: mut List[string] = []
+    let mut run: List[string] = []
     let run_lo: i64 = 0
     let run_hi: i64 = 0
-    let head: mut List[string] = []
+    let mut head: List[string] = []
     let open = true
     let exact = true
     let firsts: List[u64] = no_bytes()
@@ -1019,17 +1019,17 @@ fn prefer(literal: string, hi: i64, best: string, best_hi: i64) -> bool:
 fn plus(left: i64, right: i64) -> i64:
     if left < 0 || right < 0: -1 else: left + right
 
-fn no_bytes() -> mut List[u64]:
+fn no_bytes() -> List[u64]:
     [u64(0), u64(0), u64(0), u64(0)]
 
-fn add_bytes(set: mut List[u64], low: i32, high: i32) -> void:
+fn add_bytes(set: &mut List[u64], low: i32, high: i32) -> void:
     let byte = low
     while byte <= high:
         word := usize(byte / 64)
         set[word] = set[word] | (u64(1) << u64(byte % 64))
         byte = byte + 1
 
-fn union(left: List[u64], right: List[u64]) -> mut List[u64]:
+fn union(left: List[u64], right: List[u64]) -> List[u64]:
     [left[0] | right[0], left[1] | right[1], left[2] | right[2], left[3] | right[3]]
 
 fn count_bits(set: List[u64]) -> u32:
@@ -1041,54 +1041,53 @@ fn count_bits(set: List[u64]) -> u32:
 fn continuation(byte: u8) -> bool:
     byte >= 128 && byte < 192
 
-# One thread list: the instructions reached at one text position, as a
-# sparse set (Briggs and Torczon, as RE2 uses it) that keeps them in the
-# order they were added, so clearing it and testing or adding a member each
-# take constant time. `slots` holds `slot_count` slots for each
-# instruction, as byte offsets with -1 for an unset slot.
-data Threads:
-    dense: mut List[usize]
-    sparse: mut List[usize]
-    count: usize
-    slots: mut List[i64]
+# The two thread lists of a search: the instructions reached at one text
+# position, as sparse sets (Briggs and Torczon, as RE2 uses them) that keep
+# them in the order they were added, so clearing one and testing or adding
+# a member each take constant time. Both lists share `dense`, `sparse`, and
+# `slots`: the list at `side` 0 uses the first `width` entries and the one
+# at `side` `width` the rest, so trading the two lists at each step trades
+# two numbers. A list's length is a local of the search. `slots` holds
+# `slot_count` slots for each instruction, as byte offsets with -1 for an
+# unset slot.
+fn has(dense: &List[usize], sparse: &List[usize], side: usize, count: usize, pc: usize) -> bool:
+    place := sparse[side + pc]
+    place < count && dense[side + place] == pc
 
-fn new_threads(size: usize, slot_count: usize) -> mut Threads:
-    let dense: mut List[usize] = []
-    let sparse: mut List[usize] = []
-    while dense.len() < size:
-        dense.push(0)
-        sparse.push(0)
-    Threads { dense: dense, sparse: sparse, count: 0, slots: filled(size * slot_count) }
-
-impl Threads:
-    fn has(self, pc: usize) -> bool:
-        place := self.sparse[pc]
-        place < self.count && self.dense[place] == pc
-
-fn filled(count: usize) -> mut List[i64]:
-    let values: mut List[i64] = []
+fn filled(count: usize) -> List[i64]:
+    let mut values: List[i64] = []
     while values.len() < count:
         values.push(-1)
     values
 
-# The state of the searches of one call: two thread lists, the stack of the
-# epsilon walk, and the slots, allocated once and reused by every search
-# that call makes. The text is read in place, one UTF-8 scalar at a time,
-# and every position is a byte offset (r-std-regex.find.chars).
-data Vm:
+fn zeros(count: usize) -> List[usize]:
+    let mut values: List[usize] = []
+    while values.len() < count:
+        values.push(0)
+    values
+
+# The state of the searches of one call: the thread lists, the stack of
+# the epsilon walk, and the slots, allocated once and reused by every
+# search that call makes. The lists a search writes are new objects that
+# the VM holds by reference, so a search reads them into locals once and
+# writes their elements in place. The text is read in place, one UTF-8
+# scalar at a time, and every position is a byte offset
+# (r-std-regex.find.chars).
+struct Vm:
     program: Program
     text: string
     size: usize
     slot_count: usize
-    first: mut Threads
-    second: mut Threads
+    dense: &mut List[usize]
+    sparse: &mut List[usize]
+    slots: &mut List[i64]
     # The epsilon walk's stack: an entry of at least 0 is an instruction to
     # visit; an entry -1 - s puts `values` at the same place back into slot s.
-    stack: mut List[i64]
-    values: mut List[i64]
-    scratch: mut List[i64]
+    stack: &mut List[i64]
+    values: &mut List[i64]
+    scratch: &mut List[i64]
     # The slots of the match the last search found.
-    found: mut List[i64]
+    found: &mut List[i64]
     # Where the next search of `advance` starts, where the last match
     # ended (-1 before the first), and whether the series is over.
     from: usize
@@ -1106,22 +1105,23 @@ data Vm:
     near_until: i64
 
 # A walk visits each instruction at most once and pushes at most one
-# entry for it, so the stack never holds more than size + 1.
-fn new_vm(regex: Regex, text: string, slot_count: usize) -> mut Vm:
+# entry for it, so the stack never holds more than width + 1.
+fn new_vm(regex: Regex, text: string, slot_count: usize) -> &mut Vm:
     program := regex.program
     filter := regex.filter
-    size := program.ops.len()
-    Vm {
+    width := program.ops.len()
+    &mut Vm {
         program: program,
         text: text,
         size: bytes_len(text),
         slot_count: slot_count,
-        first: new_threads(size, slot_count),
-        second: new_threads(size, slot_count),
-        stack: filled(size + 1),
-        values: filled(size + 1),
-        scratch: filled(slot_count),
-        found: filled(slot_count),
+        dense: &mut zeros(2 * width),
+        sparse: &mut zeros(2 * width),
+        slots: &mut filled(2 * width * slot_count),
+        stack: &mut filled(width + 1),
+        values: &mut filled(width + 1),
+        scratch: &mut filled(slot_count),
+        found: &mut filled(slot_count),
         from: 0,
         last_end: -1,
         finished: false,
@@ -1135,20 +1135,20 @@ fn new_vm(regex: Regex, text: string, slot_count: usize) -> mut Vm:
 
 impl Vm:
     # Where the match found starts and ends; it always has both.
-    fn start(self) -> usize:
+    fn start(&self) -> usize:
         usize(self.found[0])
 
-    fn end(self) -> usize:
+    fn end(&self) -> usize:
         usize(self.found[1])
 
-    fn whole(self) -> Match:
+    fn whole(&self) -> Match:
         from := self.start()
         to := self.end()
         Match { start: from, end: to, text: bytes_slice(self.text, from, to) }
 
     # The groups of the match found.
-    fn groups(self, names: List[string]) -> Captures:
-        let slots: mut List[usize?] = []
+    fn groups(&self, names: List[string]) -> Captures:
+        let mut slots: List[usize?] = []
         for value in self.found:
             if value < 0:
                 slots.push(.None)
@@ -1160,7 +1160,7 @@ impl Vm:
 # and leaves the match to report in `found`: after a match the next search
 # starts at its end, or one character later when it is empty, and an empty
 # match where the last one ended is dropped. False when no match is left.
-fn advance(vm: mut Vm) -> bool:
+fn advance(vm: &mut Vm) -> bool:
     while !vm.finished:
         if !run(vm, vm.from, false):
             vm.finished = true
@@ -1188,21 +1188,28 @@ fn advance(vm: mut Vm) -> bool:
 # `is_match` asks, it returns true as soon as any thread reaches `Done`.
 # A new thread starts only where the prefilter lets a match start, and
 # when no thread is alive the search jumps to the next such byte.
-fn run(vm: mut Vm, from: usize, earliest: bool) -> bool:
-    ops := vm.program.ops
-    points := vm.program.points
-    ranges := vm.program.ranges
-    left := vm.program.left
-    right := vm.program.right
+fn run(vm: &mut Vm, from: usize, earliest: bool) -> bool:
+    program := &vm.program
+    ops := program.ops
+    points := program.points
+    ranges := program.ranges
+    left := program.left
+    right := program.right
     text := vm.text
     size := vm.size
     slot_count := vm.slot_count
     done := ops.len() - 1
-    let scratch: mut List[i64] = vm.scratch
-    let current: mut Threads = vm.first
-    let next: mut Threads = vm.second
+    dense := vm.dense
+    sparse := vm.sparse
+    slots := vm.slots
+    scratch := vm.scratch
+    found := vm.found
     filtered := vm.filtered
-    current.count = 0
+    # The sides of the current and the next thread list, and the length of
+    # the current one.
+    let current: usize = 0
+    let next: usize = ops.len()
+    let count: usize = 0
     let at = from
     if filtered:
         start := next_start(vm, from)
@@ -1210,12 +1217,12 @@ fn run(vm: mut Vm, from: usize, earliest: bool) -> bool:
             return false
         at = usize(start)
     restart(scratch, slot_count, at)
-    add_thread(vm, current, 0, at)
-    if earliest && current.has(done):
+    count = add_thread(vm, program, current, 0, 0, at)
+    if earliest && has(dense, sparse, current, count, done):
         return true
     let matched = false
     while true:
-        next.count = 0
+        let next_count: usize = 0
         let point: i32 = -1
         let after = at
         if at < size:
@@ -1226,12 +1233,9 @@ fn run(vm: mut Vm, from: usize, earliest: bool) -> bool:
             else:
                 after = at + scalar_width(lead)
                 point = scalar_point(text, at, after, lead)
-        dense := current.dense
-        slots := current.slots
-        count := current.count
         let index: usize = 0
         while index < count:
-            pc := dense[index]
+            pc := dense[current + index]
             index = index + 1
             op := ops[pc]
             let step = false
@@ -1242,12 +1246,12 @@ fn run(vm: mut Vm, from: usize, earliest: bool) -> bool:
             else if op == 4:
                 # A finished thread cuts off every thread it outranks.
                 let slot: usize = 0
-                base := pc * slot_count
+                base := (current + pc) * slot_count
                 while slot < slot_count:
-                    vm.found[slot] = slots[base + slot]
+                    found[slot] = slots[base + slot]
                     slot = slot + 1
                 if slot_count > 1:
-                    vm.found[1] = i64(at)
+                    found[1] = i64(at)
                 matched = true
                 break
             else if op <= 3 && point >= 0:
@@ -1262,12 +1266,12 @@ fn run(vm: mut Vm, from: usize, earliest: bool) -> bool:
                 step = hit != (op == 3)
             if step:
                 let slot: usize = 0
-                base := pc * slot_count
+                base := (current + pc) * slot_count
                 while slot < slot_count:
                     scratch[slot] = slots[base + slot]
                     slot = slot + 1
-                add_thread(vm, next, pc + 1, after)
-                if earliest && next.has(done):
+                next_count = add_thread(vm, program, next, next_count, pc + 1, after)
+                if earliest && has(dense, sparse, next, next_count, done):
                     return true
         if at >= size:
             break
@@ -1275,27 +1279,28 @@ fn run(vm: mut Vm, from: usize, earliest: bool) -> bool:
         if !matched:
             let seed = i64(at)
             if filtered:
-                seed = start_from(vm, at, next.count > 0)
+                seed = start_from(vm, at, next_count > 0)
             if seed >= 0:
                 at = usize(seed)
                 restart(scratch, slot_count, at)
-                add_thread(vm, next, 0, at)
-                if earliest && next.has(done):
+                next_count = add_thread(vm, program, next, next_count, 0, at)
+                if earliest && has(dense, sparse, next, next_count, done):
                     return true
-            else if next.count == 0:
+            else if next_count == 0:
                 break
-        else if next.count == 0:
+        else if next_count == 0:
             break
-        let held: mut Threads = current
+        held := current
         current = next
         next = held
+        count = next_count
     matched
 
 # The first byte at or after `at` where the prefilter lets a match start,
 # or -1 when none can start there or later. `firsts` holds no UTF-8
 # continuation byte, and a literal starts at a scalar boundary, so every
 # byte this returns starts a scalar.
-fn next_start(vm: mut Vm, at: usize) -> i64:
+fn next_start(vm: &mut Vm, at: usize) -> i64:
     filter := vm.filter
     text := vm.text
     size := vm.size
@@ -1331,7 +1336,7 @@ fn next_start(vm: mut Vm, at: usize) -> i64:
 # Where the search starts its next thread, at byte `at` or later, or -1
 # for nowhere. While threads are `alive` it cannot jump over them, so that
 # is `at` itself when the prefilter lets a match start there.
-fn start_from(vm: mut Vm, at: usize, alive: bool) -> i64:
+fn start_from(vm: &mut Vm, at: usize, alive: bool) -> i64:
     if !alive:
         return next_start(vm, at)
     firsts := vm.filter.firsts
@@ -1354,7 +1359,7 @@ fn start_from(vm: mut Vm, at: usize, alive: bool) -> i64:
 # bound on its place only rejects a text with none ahead: once one is
 # found, every byte may start a match, since searching again past each
 # one would cost a search per match and could never make the search jump.
-fn literal_near(vm: mut Vm, at: usize) -> bool:
+fn literal_near(vm: &mut Vm, at: usize) -> bool:
     if i64(at) >= vm.near_from && i64(at) <= vm.near_until:
         return true
     want := at + vm.filter.lo
@@ -1398,7 +1403,7 @@ fn find_literal(text: string, literal: string, from: usize) -> i64:
         .None => -1
 
 # Sets the scratch slots for a thread that starts at byte `at`.
-fn restart(scratch: mut List[i64], slot_count: usize, at: usize) -> void:
+fn restart(scratch: &mut List[i64], slot_count: usize, at: usize) -> void:
     if slot_count == 0:
         return
     scratch[0] = i64(at)
@@ -1431,37 +1436,38 @@ fn scalar_point(text: string, at: usize, after: usize, lead: u8) -> i32:
         index = index + 1
     point
 
-# Adds the thread at `start`, with the slots in `vm.scratch`, to `list`,
-# following jumps, splits, saves, and assertions in priority order at byte
-# `at`. An instruction already in `list` is not visited again. A save sets
-# its slot for the instructions after it and puts the old value back after
-# them, so `vm.scratch` is unchanged on return.
-fn add_thread(vm: mut Vm, list: mut Threads, start: usize, at: usize) -> void:
-    ops := vm.program.ops
+# Adds the thread at `start`, with the slots in `vm.scratch`, to the list
+# at `side`, which holds `count` threads, following jumps, splits, saves,
+# and assertions in priority order at byte `at`, and returns the list's new
+# length. An instruction already in the list is not visited again. A save
+# sets its slot for the instructions after it and puts the old value back
+# after them, so `vm.scratch` is unchanged on return.
+fn add_thread(vm: &mut Vm, program: &Program, side: usize, count: usize, start: usize, at: usize) -> usize:
+    ops := program.ops
     slot_count := vm.slot_count
+    dense := vm.dense
+    sparse := vm.sparse
+    slots := vm.slots
+    scratch := vm.scratch
     if ops[start] <= 4:
         # A thread that waits for a character, the common case, needs no
         # walk.
-        if !list.has(start):
-            list.sparse[start] = list.count
-            list.dense[list.count] = start
-            list.count = list.count + 1
-            base := start * slot_count
-            let slot: usize = 0
-            while slot < slot_count:
-                list.slots[base + slot] = vm.scratch[slot]
-                slot = slot + 1
-        return
-    left := vm.program.left
-    right := vm.program.right
+        if has(dense, sparse, side, count, start):
+            return count
+        sparse[side + start] = count
+        dense[side + count] = start
+        base := (side + start) * slot_count
+        let slot: usize = 0
+        while slot < slot_count:
+            slots[base + slot] = scratch[slot]
+            slot = slot + 1
+        return count + 1
+    left := program.left
+    right := program.right
     size := vm.size
-    let stack: mut List[i64] = vm.stack
-    let values: mut List[i64] = vm.values
-    let scratch: mut List[i64] = vm.scratch
-    let dense: mut List[usize] = list.dense
-    let sparse: mut List[usize] = list.sparse
-    let slots: mut List[i64] = list.slots
-    let count = list.count
+    stack := vm.stack
+    values := vm.values
+    let length = count
     stack[0] = i64(start)
     let top: usize = 1
     while top > 0:
@@ -1474,15 +1480,15 @@ fn add_thread(vm: mut Vm, list: mut Threads, start: usize, at: usize) -> void:
         # only the second choices and the slots to put back.
         let pc = usize(entry)
         while true:
-            place := sparse[pc]
-            if place < count && dense[place] == pc:
+            place := sparse[side + pc]
+            if place < length && dense[side + place] == pc:
                 break
-            sparse[pc] = count
-            dense[count] = pc
-            count = count + 1
+            sparse[side + pc] = length
+            dense[side + length] = pc
+            length = length + 1
             op := ops[pc]
             if op <= 4:
-                base := pc * slot_count
+                base := (side + pc) * slot_count
                 let slot: usize = 0
                 while slot < slot_count:
                     slots[base + slot] = scratch[slot]
@@ -1510,7 +1516,7 @@ fn add_thread(vm: mut Vm, list: mut Threads, start: usize, at: usize) -> void:
                 if at != size:
                     break
                 pc = pc + 1
-    list.count = count
+    length
 
 # A reference in a replacement (r-std-regex.replace.expand).
 enum Reference:
@@ -1518,7 +1524,7 @@ enum Reference:
     Index(value: usize)
     Name(value: string)
 
-data Found:
+struct Found:
     reference: Reference
     next: usize
 
@@ -1578,20 +1584,20 @@ fn group_text(group: Match?) -> string:
 # ASCII; `\s` is Unicode White_Space (r-std-regex.syntax.escape.digit,
 # r-std-regex.syntax.escape.space).
 fn class_ranges(items: List[ClassItem]) -> List[i32]:
-    let ranges: mut List[i32] = []
+    let mut ranges: List[i32] = []
     for item in items:
         match item:
             .Range(low, high) =>
                 ranges.push(i32(char_scalar(low)))
                 ranges.push(i32(char_scalar(high)))
-            .Digit(negated) => push_ranges(ranges, [+48, +57], negated)
-            .Word(negated) => push_ranges(ranges, [+48, +57, +65, +90, +95, +95, +97, +122], negated)
-            .Space(negated) => push_ranges(ranges, [+9, +13, +32, +32, +133, +133, +160, +160, +5760, +5760, +8192, +8202, +8232, +8233, +8239, +8239, +8287, +8287, +12288, +12288], negated)
+            .Digit(negated) => push_ranges(&mut ranges, [+48, +57], negated)
+            .Word(negated) => push_ranges(&mut ranges, [+48, +57, +65, +90, +95, +95, +97, +122], negated)
+            .Space(negated) => push_ranges(&mut ranges, [+9, +13, +32, +32, +133, +133, +160, +160, +5760, +5760, +8192, +8202, +8232, +8233, +8239, +8239, +8287, +8287, +12288, +12288], negated)
     ranges
 
 # Pushes the sorted ranges `set`, or, when `negated`, the ranges between
 # them up to the largest scalar value.
-fn push_ranges(ranges: mut List[i32], set: List[i32], negated: bool) -> void:
+fn push_ranges(ranges: &mut List[i32], set: List[i32], negated: bool) -> void:
     if !negated:
         for bound in set:
             ranges.push(bound)

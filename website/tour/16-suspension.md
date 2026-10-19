@@ -21,7 +21,7 @@ fn dashboard!(user: string) -> string $ Clock:
     "$user: $orders orders, $unpaid unpaid invoices"
 
 pub fn main!() -> void $ Console:
-    let clock: mut ManualClock = ManualClock::new(Timestamp::from_unix_milliseconds(0))
+    clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
     $.with(Clock=clock):
         println(dashboard!("ada"))
 

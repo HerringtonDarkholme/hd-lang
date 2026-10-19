@@ -25,7 +25,7 @@ use std.format.DebugWriter
 @annotate::[F](.Fn)
 ## The marker a suffix function carries, written `@num_suffix`.
 ## See [expr.literal-fn.marker](../../spec/lang/05-expressions.md#r-expr.literal-fn.marker).
-pub data NumSuffix[F]: pass
+pub struct NumSuffix[F]: pass
 
 ## Returns the `@num_suffix` marker for a suffix function of that signature.
 ## See [expr.literal-fn.fn-only](../../spec/lang/05-expressions.md#r-expr.literal-fn.fn-only).
@@ -35,7 +35,7 @@ pub fn num_suffix[N < Num, R, $Q]() -> NumSuffix[fn(N) -> R $ Q]:
 @annotate::[F](.Fn)
 ## The marker a prefix function carries, written `@str_prefix`.
 ## See [expr.literal-fn.marker](../../spec/lang/05-expressions.md#r-expr.literal-fn.marker).
-pub data StrPrefix[F]: pass
+pub struct StrPrefix[F]: pass
 
 ## Returns the `@str_prefix` marker for a prefix function of that signature.
 ## See [expr.literal-fn.fn-only](../../spec/lang/05-expressions.md#r-expr.literal-fn.fn-only).
@@ -46,7 +46,7 @@ pub fn str_prefix[T, R, $Q]() -> StrPrefix[fn(Template[T]) -> R $ Q]:
 # `n` interpolated values (r-expr.prefix.template).
 ## The pieces of a string prefix's literal: the raw parts and the values between them, which the compiler recognizes by its qualified name.
 ## See [expr.literal-fn.marker](../../spec/lang/05-expressions.md#r-expr.literal-fn.marker).
-pub data Template[T]:
+pub struct Template[T]:
     ## The literal's raw text pieces, in order.
     ## See [expr.literal-fn.fn-only](../../spec/lang/05-expressions.md#r-expr.literal-fn.fn-only).
     pub raw_parts: List[string]
@@ -208,8 +208,8 @@ impl Index[usize] for string:
 # and `..b` and `..=b` both a `RangeTo`; `inclusive` tells them apart
 # (r-expr.range.inclusive-field).
 ## The range `a..b` or `a..=b`: a lower and an upper bound.
-## See [expr.range.declared.four](../../spec/lang/05-expressions.md#r-expr.range.declared.four).
-pub data Range[T]:
+## See [expr.range.declared.struct](../../spec/lang/05-expressions.md#r-expr.range.declared.struct).
+pub struct Range[T]:
     ## The range's lower bound.
     ## See [expr.range.value.fields](../../spec/lang/05-expressions.md#r-expr.range.value.fields).
     pub start: T
@@ -221,15 +221,15 @@ pub data Range[T]:
     pub inclusive: bool
 
 ## The range `a..`: a lower bound and no end.
-## See [expr.range.declared.four](../../spec/lang/05-expressions.md#r-expr.range.declared.four).
-pub data RangeFrom[T]:
+## See [expr.range.declared.struct](../../spec/lang/05-expressions.md#r-expr.range.declared.struct).
+pub struct RangeFrom[T]:
     ## The range's lower bound.
     ## See [expr.range.value.fields](../../spec/lang/05-expressions.md#r-expr.range.value.fields).
     pub start: T
 
 ## The range `..b` or `..=b`: an upper bound and no start.
-## See [expr.range.declared.four](../../spec/lang/05-expressions.md#r-expr.range.declared.four).
-pub data RangeTo[T]:
+## See [expr.range.declared.struct](../../spec/lang/05-expressions.md#r-expr.range.declared.struct).
+pub struct RangeTo[T]:
     ## The range's upper bound.
     ## See [expr.range.value.fields](../../spec/lang/05-expressions.md#r-expr.range.value.fields).
     pub end: T
@@ -238,8 +238,8 @@ pub data RangeTo[T]:
     pub inclusive: bool
 
 ## The range `..`: the whole extent.
-## See [expr.range.declared.four](../../spec/lang/05-expressions.md#r-expr.range.declared.four).
-pub data RangeFull: pass
+## See [expr.range.declared.struct](../../spec/lang/05-expressions.md#r-expr.range.declared.struct).
+pub struct RangeFull: pass
 
 # The derived builder calls, written by hand because `@derive` does not
 # run inside lib/std (r-std-format.debug.std-types).
@@ -293,9 +293,9 @@ fn slice_string(text: string, start: u64, end: u64, inclusive: bool) -> string:
     text.slice(usize(start), stop)
 
 # A list slice copies the selected elements.
-fn slice_list[T](items: List[T], start: u64, end: u64, inclusive: bool) -> mut List[T]:
+fn slice_list[T](items: List[T], start: u64, end: u64, inclusive: bool) -> List[T]:
     stop := slice_stop(items.len(), start, end, inclusive)
-    let copy: mut List[T] = []
+    let mut copy: List[T] = []
     let index = usize(start)
     while index < stop:
         copy.push(items[index])
@@ -316,128 +316,128 @@ impl Index[RangeFull] for string:
     fn index(self, key: RangeFull) -> string: self
 
 impl[T] Index[RangeFull] for List[T]:
-    type Out = mut List[T]
-    fn index(self, key: RangeFull) -> mut List[T]: slice_list(self, 0, u64(self.len()), false)
+    type Out = List[T]
+    fn index(self, key: RangeFull) -> List[T]: slice_list(self, 0, u64(self.len()), false)
 
 impl Index[Range[u8]] for string:
     type Out = string
     fn index(self, key: Range[u8]) -> string: slice_string(self, u64(key.start), u64(key.end), key.inclusive)
 
 impl[T] Index[Range[u8]] for List[T]:
-    type Out = mut List[T]
-    fn index(self, key: Range[u8]) -> mut List[T]: slice_list(self, u64(key.start), u64(key.end), key.inclusive)
+    type Out = List[T]
+    fn index(self, key: Range[u8]) -> List[T]: slice_list(self, u64(key.start), u64(key.end), key.inclusive)
 
 impl Index[RangeFrom[u8]] for string:
     type Out = string
     fn index(self, key: RangeFrom[u8]) -> string: slice_string(self, u64(key.start), u64(self.len()), false)
 
 impl[T] Index[RangeFrom[u8]] for List[T]:
-    type Out = mut List[T]
-    fn index(self, key: RangeFrom[u8]) -> mut List[T]: slice_list(self, u64(key.start), u64(self.len()), false)
+    type Out = List[T]
+    fn index(self, key: RangeFrom[u8]) -> List[T]: slice_list(self, u64(key.start), u64(self.len()), false)
 
 impl Index[RangeTo[u8]] for string:
     type Out = string
     fn index(self, key: RangeTo[u8]) -> string: slice_string(self, 0, u64(key.end), key.inclusive)
 
 impl[T] Index[RangeTo[u8]] for List[T]:
-    type Out = mut List[T]
-    fn index(self, key: RangeTo[u8]) -> mut List[T]: slice_list(self, 0, u64(key.end), key.inclusive)
+    type Out = List[T]
+    fn index(self, key: RangeTo[u8]) -> List[T]: slice_list(self, 0, u64(key.end), key.inclusive)
 
 impl Index[Range[u16]] for string:
     type Out = string
     fn index(self, key: Range[u16]) -> string: slice_string(self, u64(key.start), u64(key.end), key.inclusive)
 
 impl[T] Index[Range[u16]] for List[T]:
-    type Out = mut List[T]
-    fn index(self, key: Range[u16]) -> mut List[T]: slice_list(self, u64(key.start), u64(key.end), key.inclusive)
+    type Out = List[T]
+    fn index(self, key: Range[u16]) -> List[T]: slice_list(self, u64(key.start), u64(key.end), key.inclusive)
 
 impl Index[RangeFrom[u16]] for string:
     type Out = string
     fn index(self, key: RangeFrom[u16]) -> string: slice_string(self, u64(key.start), u64(self.len()), false)
 
 impl[T] Index[RangeFrom[u16]] for List[T]:
-    type Out = mut List[T]
-    fn index(self, key: RangeFrom[u16]) -> mut List[T]: slice_list(self, u64(key.start), u64(self.len()), false)
+    type Out = List[T]
+    fn index(self, key: RangeFrom[u16]) -> List[T]: slice_list(self, u64(key.start), u64(self.len()), false)
 
 impl Index[RangeTo[u16]] for string:
     type Out = string
     fn index(self, key: RangeTo[u16]) -> string: slice_string(self, 0, u64(key.end), key.inclusive)
 
 impl[T] Index[RangeTo[u16]] for List[T]:
-    type Out = mut List[T]
-    fn index(self, key: RangeTo[u16]) -> mut List[T]: slice_list(self, 0, u64(key.end), key.inclusive)
+    type Out = List[T]
+    fn index(self, key: RangeTo[u16]) -> List[T]: slice_list(self, 0, u64(key.end), key.inclusive)
 
 impl Index[Range[usize]] for string:
     type Out = string
     fn index(self, key: Range[usize]) -> string: slice_string(self, u64(key.start), u64(key.end), key.inclusive)
 
 impl[T] Index[Range[usize]] for List[T]:
-    type Out = mut List[T]
-    fn index(self, key: Range[usize]) -> mut List[T]: slice_list(self, u64(key.start), u64(key.end), key.inclusive)
+    type Out = List[T]
+    fn index(self, key: Range[usize]) -> List[T]: slice_list(self, u64(key.start), u64(key.end), key.inclusive)
 
 impl Index[RangeFrom[usize]] for string:
     type Out = string
     fn index(self, key: RangeFrom[usize]) -> string: slice_string(self, u64(key.start), u64(self.len()), false)
 
 impl[T] Index[RangeFrom[usize]] for List[T]:
-    type Out = mut List[T]
-    fn index(self, key: RangeFrom[usize]) -> mut List[T]: slice_list(self, u64(key.start), u64(self.len()), false)
+    type Out = List[T]
+    fn index(self, key: RangeFrom[usize]) -> List[T]: slice_list(self, u64(key.start), u64(self.len()), false)
 
 impl Index[RangeTo[usize]] for string:
     type Out = string
     fn index(self, key: RangeTo[usize]) -> string: slice_string(self, 0, u64(key.end), key.inclusive)
 
 impl[T] Index[RangeTo[usize]] for List[T]:
-    type Out = mut List[T]
-    fn index(self, key: RangeTo[usize]) -> mut List[T]: slice_list(self, 0, u64(key.end), key.inclusive)
+    type Out = List[T]
+    fn index(self, key: RangeTo[usize]) -> List[T]: slice_list(self, 0, u64(key.end), key.inclusive)
 
 impl Index[Range[u32]] for string:
     type Out = string
     fn index(self, key: Range[u32]) -> string: slice_string(self, u64(key.start), u64(key.end), key.inclusive)
 
 impl[T] Index[Range[u32]] for List[T]:
-    type Out = mut List[T]
-    fn index(self, key: Range[u32]) -> mut List[T]: slice_list(self, u64(key.start), u64(key.end), key.inclusive)
+    type Out = List[T]
+    fn index(self, key: Range[u32]) -> List[T]: slice_list(self, u64(key.start), u64(key.end), key.inclusive)
 
 impl Index[RangeFrom[u32]] for string:
     type Out = string
     fn index(self, key: RangeFrom[u32]) -> string: slice_string(self, u64(key.start), u64(self.len()), false)
 
 impl[T] Index[RangeFrom[u32]] for List[T]:
-    type Out = mut List[T]
-    fn index(self, key: RangeFrom[u32]) -> mut List[T]: slice_list(self, u64(key.start), u64(self.len()), false)
+    type Out = List[T]
+    fn index(self, key: RangeFrom[u32]) -> List[T]: slice_list(self, u64(key.start), u64(self.len()), false)
 
 impl Index[RangeTo[u32]] for string:
     type Out = string
     fn index(self, key: RangeTo[u32]) -> string: slice_string(self, 0, u64(key.end), key.inclusive)
 
 impl[T] Index[RangeTo[u32]] for List[T]:
-    type Out = mut List[T]
-    fn index(self, key: RangeTo[u32]) -> mut List[T]: slice_list(self, 0, u64(key.end), key.inclusive)
+    type Out = List[T]
+    fn index(self, key: RangeTo[u32]) -> List[T]: slice_list(self, 0, u64(key.end), key.inclusive)
 
 impl Index[Range[u64]] for string:
     type Out = string
     fn index(self, key: Range[u64]) -> string: slice_string(self, u64(key.start), u64(key.end), key.inclusive)
 
 impl[T] Index[Range[u64]] for List[T]:
-    type Out = mut List[T]
-    fn index(self, key: Range[u64]) -> mut List[T]: slice_list(self, u64(key.start), u64(key.end), key.inclusive)
+    type Out = List[T]
+    fn index(self, key: Range[u64]) -> List[T]: slice_list(self, u64(key.start), u64(key.end), key.inclusive)
 
 impl Index[RangeFrom[u64]] for string:
     type Out = string
     fn index(self, key: RangeFrom[u64]) -> string: slice_string(self, u64(key.start), u64(self.len()), false)
 
 impl[T] Index[RangeFrom[u64]] for List[T]:
-    type Out = mut List[T]
-    fn index(self, key: RangeFrom[u64]) -> mut List[T]: slice_list(self, u64(key.start), u64(self.len()), false)
+    type Out = List[T]
+    fn index(self, key: RangeFrom[u64]) -> List[T]: slice_list(self, u64(key.start), u64(self.len()), false)
 
 impl Index[RangeTo[u64]] for string:
     type Out = string
     fn index(self, key: RangeTo[u64]) -> string: slice_string(self, 0, u64(key.end), key.inclusive)
 
 impl[T] Index[RangeTo[u64]] for List[T]:
-    type Out = mut List[T]
-    fn index(self, key: RangeTo[u64]) -> mut List[T]: slice_list(self, 0, u64(key.end), key.inclusive)
+    type Out = List[T]
+    fn index(self, key: RangeTo[u64]) -> List[T]: slice_list(self, 0, u64(key.end), key.inclusive)
 
 # Range iteration (spec/lang/06-control-flow.md#range-iteration): one
 # implementation per integer type. Each `iter()` starts from the start
@@ -938,7 +938,7 @@ impl[T] Default for T by Structure:
 @annotate(.Variant)
 ## The `@default` variant marker's fact type: `@default` on a variant attaches `default()`.
 ## See [std-ops.default.derive.marker](../../spec/std/ops.md#r-std-ops.default.derive.marker).
-pub data DefaultVariant: pass
+pub struct DefaultVariant: pass
 
 ## The marker function of `@default`: it attaches a `DefaultVariant` fact to the variant.
 ## See [std-ops.default.derive.marker](../../spec/std/ops.md#r-std-ops.default.derive.marker).

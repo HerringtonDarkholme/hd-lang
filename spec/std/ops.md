@@ -113,7 +113,7 @@ and `Shape::default()` is `.Square(0.0, "")`.
 
 ```text
 @annotate(.Variant)
-pub data DefaultVariant: pass
+pub struct DefaultVariant: pass
 
 pub fn default() -> DefaultVariant
 ```

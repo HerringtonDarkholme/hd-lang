@@ -34,7 +34,7 @@ fn digits() -> Result[Regex, RegexError]:
 | r[std-regex.regex.new] `new` | `pub fn new(pattern: string) -> Result[Regex, RegexError]` | the compiled `pattern`, or the first error in it |
 | r[std-regex.regex.pattern] `pattern` | `pub fn pattern(self) -> string` | the pattern as written |
 
-1. r[std-regex.regex.decl] `std.regex` declares the data type `Regex`, with private fields, and the methods in this chapter. Code imports it, as in `use std.regex.Regex`.
+1. r[std-regex.regex.decl-struct] `std.regex` declares the struct `Regex`, a value with private fields, and the methods in this chapter. Code imports it, as in `use std.regex.Regex`.
 2. r[std-regex.regex.plain] Every function and method in this chapter is a plain call with the empty requirement row.
 3. r[std-regex.regex.immutable] A `Regex` never changes after `new`, and searching with it leaves it unchanged.
 4. r[std-regex.regex.debug] `Regex` implements `Debug`, which shows the pattern.
@@ -219,16 +219,17 @@ fn first() -> string?:
 ### Matches
 
 ```text
-pub data Match:
+pub struct Match:
     pub start: usize
     pub end: usize
     pub text: string
 ```
 
-1. r[std-regex.match.decl] `std.regex` declares the data type `Match` with the public fields above.
+1. r[std-regex.match.decl-struct] `std.regex` declares the struct `Match` with the public fields above.
 2. r[std-regex.match.offsets] `start` and `end` are byte offsets into the searched text, with `start <= end`, as `string.slice` takes them.
 3. r[std-regex.match.text] `text` is `text.slice(start, end)` of the searched text.
 4. r[std-regex.match.traits] `Match` implements `Eq` and `Debug`.
+5. r[std-regex.match.value] A `Match` is a value: copying it copies its fields, so a change to one copy leaves the other as it was.
 
 ### All Matches
 
@@ -245,7 +246,7 @@ pub data Match:
 use std.regex.Regex
 
 fn spots() -> List[usize]:
-    let starts: mut List[usize] = []
+    let mut starts: List[usize] = []
     for found in Regex::new("a*").expect("compiles").find_all("baaac"):
         starts.push(found.start)
     starts  # [0, 1, 5]
@@ -315,7 +316,7 @@ fn quick(text: string) -> bool:
 | r[std-regex.captures.get] `get` | `pub fn get(self, index: usize) -> Match?` | group `index`, where 0 is the whole match |
 | r[std-regex.captures.name] `name` | `pub fn name(self, name: string) -> Match?` | the group named `name` |
 
-1. r[std-regex.captures.decl] `std.regex` declares the data type `Captures`, with private fields.
+1. r[std-regex.captures.decl-struct] `std.regex` declares the struct `Captures`, a value with private fields.
 2. r[std-regex.captures.whole] `get(0)` is the whole match, the one `find` or `find_all` returns.
 3. r[std-regex.captures.absent] `get(index)` is `.None` when group `index` took no part in the match, or when `index` is not below `len()`.
 4. r[std-regex.captures.name.absent] `name(name)` is `get` of the group with that name, or `.None` when no group has it.
