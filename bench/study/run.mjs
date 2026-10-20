@@ -6,11 +6,12 @@
 // through host/run.mjs and on wasmtime as `hd FILE.wasm --engine wasmtime`
 // (Cranelift compile included, as `hd run` pays it), and checked against
 // its reference's output. JavaScript (Node) and Go references run the same
-// way. Every time is process wall time, the median of the measured runs;
+// way; Python references use python3. Every time is process wall time,
+// the median of the measured runs;
 // peak RSS is the largest `/usr/bin/time -l` saw.
 //
 // Usage: node bench/study/run.mjs [--runs N] [--only a,b] [--engines node,wasmtime]
-//                                 [--hd PATH] [--work DIR] [--no-refs]
+//                                 [--hd PATH] [--work DIR] [--no-refs] [--python-only]
 //        node bench/study/run.mjs --checked PATH [--only a,b] [--work DIR]
 //
 // `--checked PATH` names an `hd` whose disk build sets `Packages::checked`
@@ -42,6 +43,25 @@ const STUDY = [
   "string_build",
   "json",
 ];
+// Fixed stdout for the study inputs, also allowing hd-only or Python-only
+// measurements without launching another reference to obtain expected output.
+const EXPECTED = {
+  spectral_norm: "1274224152\n",
+  fannkuch_redux: "73196 38\n",
+  mandelbrot: "1017200\n",
+  nbody: "-169075163 -169083133\n",
+  sieve: "1857859\n",
+  binary_trees:
+    "stretch 21 4194303\n1048576 4 32505856\n262144 6 33292288\n65536 8 33488896\n16384 10 33538048\n4096 12 33550336\n1024 14 33553408\n256 16 33554176\n64 18 33554368\n16 20 33554416\nlong 20 2097151\n",
+  points: "500501985024\n",
+  closures: "809058\n",
+  map_count: "50021 79967240\n",
+  string_build: "37888890\n",
+  json: "31600447 200733334\n",
+  dyn_iter:
+    "dyn 66666653333334\nin-place 66666653333334\nloop 66666653333334\nrange 66666653333334\ndyn-short 653400000\nin-place-short 653400000\n",
+};
+
 const PROGS = [
   "closures",
   "int-loop",
@@ -64,13 +84,20 @@ function cases() {
       hd: join(HERE, `${n}.hd`),
       js: join(HERE, `${n}.js`),
       go: join(HERE, "go", `${n}.go`),
+      py: join(HERE, "py", `${n}.py`),
     });
-  list.push({ name: "dyn_iter", hd: join(HERE, "dyn_iter.hd"), go: join(HERE, "go", "dyn_iter.go") });
+  list.push({
+    name: "dyn_iter",
+    hd: join(HERE, "dyn_iter.hd"),
+    go: join(HERE, "go", "dyn_iter.go"),
+    py: join(HERE, "py", "dyn_iter.py"),
+  });
   for (const n of PROGS) {
     const base = join(REPO, "bench", "runtime", "progs", n);
     list.push({ name: `progs/${n}`, hd: `${base}.hd`, js: `${base}.js` });
   }
-  for (const n of MICRO) list.push({ name: `micro/${n}`, hd: join(REPO, "bench", "micro", `${n}.hd`) });
+  for (const n of MICRO)
+    list.push({ name: `micro/${n}`, hd: join(REPO, "bench", "micro", `${n}.hd`) });
   list.push({ name: "empty", src: EMPTY, emptyExpected: true });
   for (const n of ["tokenizer", "math"]) {
     const dir = join(REPO, "bench", n);
@@ -109,6 +136,7 @@ function parseArgs(argv) {
     else if (a === "--work") opts.work = resolve(argv[++i]);
     else if (a === "--checked") opts.checked = resolve(argv[++i]);
     else if (a === "--no-refs") opts.refs = false;
+    else if (a === "--python-only") opts.pythonOnly = true;
     else throw new Error(`unknown flag ${a}`);
   }
   opts.hd ??= join(REPO, "target", "release", "hd");
@@ -143,13 +171,14 @@ const median = (xs) => {
 /**
  * Median wall ms and peak RSS over `runs` runs after a warm-up. A first run
  * over 20 s counts as measured, and one over 60 s is the only run.
+ * Python-only mode disables the warm-up and requests exactly one run.
  */
-function measure(argv, runs, expect) {
+function measure(argv, runs, expect, warmup = true) {
   const first = timed(argv);
   if (first.status !== 0) return { error: `exit ${first.status}: ${first.err.slice(-400)}` };
   if (expect !== undefined && first.out !== expect)
     return { error: `output ${JSON.stringify(first.out.slice(0, 200))}` };
-  const samples = first.ms > 20_000 ? [first] : [];
+  const samples = !warmup || first.ms > 20_000 ? [first] : [];
   const want = first.ms > 60_000 ? 1 : runs;
   while (samples.length < want) samples.push(timed(argv));
   return {
@@ -235,50 +264,73 @@ function main() {
   if (opts.only) list = list.filter((c) => opts.only.includes(c.name));
   mkdirSync(join(opts.work, "go"), { recursive: true });
   if (opts.checked) return checkedRun(opts, list);
+  if (opts.pythonOnly) list = list.filter((c) => c.py);
+  let python = false;
+  if ((opts.refs || opts.pythonOnly) && list.some((c) => c.py)) {
+    const probe = spawnSync("python3", ["--version"], { encoding: "utf8" });
+    python = probe.status === 0;
+    if (!python) console.error("Note: python3 unavailable; skipping Python references.");
+  }
   const rows = [];
   for (const c of list) {
     const row = { name: c.name };
     rows.push(row);
-    // The reference output: the JavaScript program's, else expected.out.
-    let expect;
-    if (c.js) expect = execFileSync("node", [c.js], { encoding: "utf8" });
+    // Known study outputs need no reference process, including --no-refs.
+    let expect = EXPECTED[c.name];
+    if (expect === undefined && c.js && !opts.pythonOnly)
+      expect = execFileSync("node", [c.js], { encoding: "utf8" });
     else if (c.expected) expect = readFileSync(c.expected, "utf8");
     else if (c.emptyExpected) expect = "";
-    if (opts.refs && c.js) row.js = measure(["node", c.js], opts.runs, expect);
-    if (opts.refs && c.go) {
+    if (opts.refs && !opts.pythonOnly && c.js) row.js = measure(["node", c.js], opts.runs, expect);
+    if (opts.refs && !opts.pythonOnly && c.go) {
       const bin = join(opts.work, "go", c.name);
       execFileSync("go", ["build", "-o", bin, c.go]);
-      row.go = measure([bin], opts.runs, c.name === "dyn_iter" ? undefined : expect);
+      row.go = measure([bin], opts.runs, expect);
     }
-    for (const engine of opts.engines) {
+    if (python && c.py)
+      row.py = measure(
+        ["python3", c.py],
+        opts.pythonOnly ? 1 : opts.runs,
+        expect,
+        !opts.pythonOnly,
+      );
+    for (const engine of opts.pythonOnly ? [] : opts.engines) {
       const wasm = build(opts.hd, opts.work, c.name, c.src ?? readFileSync(c.hd, "utf8"), engine);
       row[`${engine}Bytes`] = statSync(wasm).size;
       const argv =
-        engine === "node"
-          ? ["node", RUNNER, wasm]
-          : [opts.hd, wasm, "--engine", "wasmtime"];
-      row[engine] = measure(argv, opts.runs, c.name === "dyn_iter" ? row.go?.out : expect);
+        engine === "node" ? ["node", RUNNER, wasm] : [opts.hd, wasm, "--engine", "wasmtime"];
+      row[engine] = measure(argv, opts.runs, expect);
     }
     console.error(JSON.stringify(row, (k, v) => (k === "out" || k === "err" ? undefined : v)));
   }
   writeFileSync(join(opts.work, "results.json"), JSON.stringify(rows, null, 1));
   const cell = (m) => (m ? (m.error ? "fail" : Math.round(m.ms).toString()) : "");
   const rss = (m) => (m && !m.error ? Math.round(m.rssMb).toString() : "");
-  console.log("| Program | hd, V8 | hd, wasmtime | Node | Go | hd/Node | hd/Go | RSS MB: hd V8, wasmtime, Node, Go |");
-  console.log("| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |");
+  console.log(
+    "| Program | hd, V8 | hd, wasmtime | Node | Go | py | hd/Node | hd/Go | RSS MB: hd V8, wasmtime, Node, Go, py |",
+  );
+  console.log("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |");
   for (const r of rows) {
     const ratio = (a, b) => (a && b && !a.error && !b.error ? (a.ms / b.ms).toFixed(1) : "");
     console.log(
-      `| ${r.name} | ${cell(r.node)} | ${cell(r.wasmtime)} | ${cell(r.js)} | ${cell(r.go)} | ${ratio(r.node, r.js)} | ${ratio(r.node, r.go)} | ${[r.node, r.wasmtime, r.js, r.go].map(rss).join(", ")} |`,
+      `| ${r.name} | ${cell(r.node)} | ${cell(r.wasmtime)} | ${cell(r.js)} | ${cell(r.go)} | ${cell(r.py)} | ${ratio(r.node, r.js)} | ${ratio(r.node, r.go)} | ${[r.node, r.wasmtime, r.js, r.go, r.py].map(rss).join(", ")} |`,
     );
   }
   for (const r of rows)
-    for (const k of ["node", "wasmtime", "js", "go"])
+    for (const k of ["node", "wasmtime", "js", "go", "py"])
       if (r[k]?.error) console.log(`- ${r.name} ${k}: ${r[k].error}`);
   const dyn = rows.find((r) => r.name === "dyn_iter");
   if (dyn)
-    for (const k of ["node", "wasmtime", "go"])
-      if (dyn[k] && !dyn[k].error) console.log(`- dyn_iter ${k}: ${dyn[k].err.split("\n").filter((l) => /^\S+ \d+ms$/.test(l)).join("; ")}`);
+    for (const k of ["node", "wasmtime", "go", "py"])
+      if (dyn[k] && !dyn[k].error)
+        console.log(
+          `- dyn_iter ${k}: ${dyn[k].err
+            .split("\n")
+            .filter((l) => /^\S+ \d+ms$/.test(l))
+            .join("; ")}`,
+        );
+  if (rows.some((r) => ["node", "wasmtime", "js", "go", "py"].some((k) => r[k]?.error)))
+    process.exitCode = 1;
 }
 
 if (existsSync(RUNNER)) main();

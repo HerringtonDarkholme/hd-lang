@@ -56,21 +56,27 @@ Two Node tools drive the Rust `hd` as a child process:
 `study/` holds the eleven programs of the Rust model study
 (docs/future-work/RUST_MODEL_STUDY.md §8 and its appendix), rewritten
 from its descriptions since its sources were scratch files, each with a
-JavaScript and a Go version that print the same output, and
-`dyn_iter.hd` with `go/dyn_iter.go` for issue #634. The runner also
-times `runtime/progs`, `micro`, `tokenizer`, `math` and an empty program:
+JavaScript, Go and Python version that print the same output, and
+`dyn_iter.hd` with Go and Python iterator references for issue #634.
+The runner also times `runtime/progs`, `micro`, `tokenizer`, `math` and an empty program:
 
 ```sh
 cargo build --release -p hd_cli --features wasmtime
 node bench/study/run.mjs                      # every case, median of 3
 node bench/study/run.mjs --only nbody,json    # some cases
+node bench/study/run.mjs --python-only        # Python only, once each
 ```
 
 Each hd program is built with `hd build --release --engine E` and run on
 Node through `host/run.mjs` and on wasmtime as `hd FILE.wasm --engine
 wasmtime`, which includes Cranelift's compile. Every output is checked
 against its reference first. Times are process wall time, so start-up is
-in them: see the empty program's row.
+in them: see the empty program's row. Python references use plain CPython
+(`python3`), with no NumPy; a missing interpreter prints a skip note.
+`--python-only` checks the study's fixed expected stdout and measures each
+Python program once, without a warm-up or any hd, Node or Go execution.
+`--no-refs` also uses fixed expected stdout for the study cases, so hd-only
+measurements do not launch a reference to obtain its output.
 
 `--checked PATH` builds each program at a reduced input in checked mode
 (crates/hd_wasm_linear/DESIGN.md §23.24) and prints the retains, releases,
@@ -90,30 +96,36 @@ was run once. "GC era" is hd on Wasm GC and Rust on Wasm from the Rust
 study (2026-10-18, load 5.6 to 15.4); a dagger marks a program whose
 input this rewrite chose itself, so that row compares loosely.
 
-| Program | hd, V8 | hd, wasmtime | Node | Go | hd/Node | hd/Go | GC era hd, V8 | GC era hd, wasmtime | Rust, V8 | Peak RSS MB: hd V8, hd wasmtime, Go |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| spectral-norm (n 2500) | 20,935 | 23,958 | 900 | 487 | 23 | 43 | 317 | 822 | 227 | 55, 16, 4 |
-| fannkuch-redux (n 10) | 9,107 | 17,246 | 220 | 163 | 41 | 56 | 753 | 414 | 279 | 57, 16, 4 |
-| mandelbrot (1600², 50) | 388 | 408 | 170 | 138 | 2.3 | 2.8 | 430 | 224 | 243 | 55, 15, 4 |
-| nbody (5M steps) | 63,121 | 118,099 | 293 | 196 | 216 | 322 | 262 | 339 | 408 | 59, 30, 4 |
-| sieve (30M) | 2,990 | 5,978 | 140 | 84 | 21 | 36 | 624 | 314 | 273 | 117, 77, 33 |
-| binary-trees (depth 20) | 68,816 | 174,179 | 3,015 | 4,674 | 23 | 15 | 1,934 | 2,913 | 3,958 | 209, 177, 148 |
-| points† (1M, 10 rounds) | 557 | 1,434 | 324 | 26 | 1.7 | 21 | 399 | 251 | 81 | 103, 62, 67 |
-| closures† (1M, 50 rounds) | 16,264 | 37,221 | 264 | 167 | 62 | 97 | 272 | 1,632 | 160 | 64, 35, 8 |
-| map-count† (2M words) | 2,864 | 6,550 | 464 | 124 | 6.2 | 23 | 497 | 450 | 144 | 183, 142, 78 |
-| string-build† (3M pieces) | 1,443 | 3,130 | 315 | 174 | 4.6 | 8.3 | 366 | 351 | 104 | 263, 222, 128 |
-| json† (400k records) | 92,216 | 178,923 | 271 | 460 | 341 | 201 | 1,007 | 2,427 | 234 | 385, 344, 245 |
-| dyn_iter (#634, 6 variants) | 50,911 | 117,429 | | 642 | | 79 | | | | 56, 24, 9 |
-| progs/closures | 6,977 | 16,063 | 547 | | 13 | | | | | 261, 221 |
-| progs/int-loop | 1,519 | 1,096 | 965 | | 1.6 | | | | | 55, 15 |
-| progs/list-sort | 41,951 | 68,106 | 202 | | 208 | | | | | 56, 25 |
-| progs/map-count | 59 | 208 | 41 | | 1.4 | | | | | 57, 16 |
-| progs/string-build | 152 | 272 | 34 | | 4.5 | | | | | 56, 17 |
-| progs/string-builder | 57 | 191 | 34 | | 1.6 | | | | | 58, 18 |
-| progs/trait-dispatch | 812 | 763 | 586 | | 1.4 | | | | | 55, 15 |
-| micro/sort | 493 | 1,154 | | | | | | | | 58, 17 |
-| tokenizer, math, micro/fib, sum, map, string_build | 40 to 87 | 117 to 202 | | | | | | | | 53 to 63, 14 to 22 |
-| empty program | 44 | 181 | | | | | 36 | 18 | 32 | 51, 14 |
+The Python column was added separately with CPython 3.14.7 on 2026-10-20:
+one process run per program, including startup, with matching stdout.
+The other columns retain the measurements above. `dyn_iter` includes its
+six variants, each with the program's own best-of-three timings; Python's
+returned and local generator chains have no static-vs-erased distinction.
+
+| Program | hd, V8 | hd, wasmtime | Node | Go | py | hd/Node | hd/Go | GC era hd, V8 | GC era hd, wasmtime | Rust, V8 | Peak RSS MB: hd V8, hd wasmtime, Go |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| spectral-norm (n 2500) | 20,935 | 23,958 | 900 | 487 | 24,751 | 23 | 43 | 317 | 822 | 227 | 55, 16, 4 |
+| fannkuch-redux (n 10) | 9,107 | 17,246 | 220 | 163 | 4,218 | 41 | 56 | 753 | 414 | 279 | 57, 16, 4 |
+| mandelbrot (1600², 50) | 388 | 408 | 170 | 138 | 5,547 | 2.3 | 2.8 | 430 | 224 | 243 | 55, 15, 4 |
+| nbody (5M steps) | 63,121 | 118,099 | 293 | 196 | 20,297 | 216 | 322 | 262 | 339 | 408 | 59, 30, 4 |
+| sieve (30M) | 2,990 | 5,978 | 140 | 84 | 1,534 | 21 | 36 | 624 | 314 | 273 | 117, 77, 33 |
+| binary-trees (depth 20) | 68,816 | 174,179 | 3,015 | 4,674 | 104,449 | 23 | 15 | 1,934 | 2,913 | 3,958 | 209, 177, 148 |
+| points† (1M, 10 rounds) | 557 | 1,434 | 324 | 26 | 3,322 | 1.7 | 21 | 399 | 251 | 81 | 103, 62, 67 |
+| closures† (1M, 50 rounds) | 16,264 | 37,221 | 264 | 167 | 1,810 | 62 | 97 | 272 | 1,632 | 160 | 64, 35, 8 |
+| map-count† (2M words) | 2,864 | 6,550 | 464 | 124 | 386 | 6.2 | 23 | 497 | 450 | 144 | 183, 142, 78 |
+| string-build† (3M pieces) | 1,443 | 3,130 | 315 | 174 | 295 | 4.6 | 8.3 | 366 | 351 | 104 | 263, 222, 128 |
+| json† (400k records) | 92,216 | 178,923 | 271 | 460 | 854 | 341 | 201 | 1,007 | 2,427 | 234 | 385, 344, 245 |
+| dyn_iter (#634, 6 variants) | 50,911 | 117,429 |  | 642 | 12,063 |  | 79 |  |  |  | 56, 24, 9 |
+| progs/closures | 6,977 | 16,063 | 547 |  |  | 13 |  |  |  |  | 261, 221 |
+| progs/int-loop | 1,519 | 1,096 | 965 |  |  | 1.6 |  |  |  |  | 55, 15 |
+| progs/list-sort | 41,951 | 68,106 | 202 |  |  | 208 |  |  |  |  | 56, 25 |
+| progs/map-count | 59 | 208 | 41 |  |  | 1.4 |  |  |  |  | 57, 16 |
+| progs/string-build | 152 | 272 | 34 |  |  | 4.5 |  |  |  |  | 56, 17 |
+| progs/string-builder | 57 | 191 | 34 |  |  | 1.6 |  |  |  |  | 58, 18 |
+| progs/trait-dispatch | 812 | 763 | 586 |  |  | 1.4 |  |  |  |  | 55, 15 |
+| micro/sort | 493 | 1,154 |  |  |  |  |  |  |  |  | 58, 17 |
+| tokenizer, math, micro/fib, sum, map, string_build | 40 to 87 | 117 to 202 |  |  |  |  |  |  |  |  | 53 to 63, 14 to 22 |
+| empty program | 44 | 181 |  |  |  |  |  | 36 | 18 | 32 | 51, 14 |
 
 `bench/micro/run.ts` (entry point only, compile excluded, best of 7) at
 the same commit: fib 2.6 ms (Wasm GC baseline of 2026-10-06: 3.9), sum
