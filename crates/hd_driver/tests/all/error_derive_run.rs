@@ -175,8 +175,8 @@ pub fn main() -> void $ Console:
     println(has_cause(SaveError.Open(\"a\", DiskError { free: 0 })))
     println(has_cause(SaveError.ReadOnly))
     println(has_cause(DiskError { free: 0 }))
-    println(chain(SyncError.Save(SaveError.Write(\"a\", DiskError { free: 0 }))).len())
-    println(chain(SyncError.Save(SaveError.ReadOnly)).len())
+    println(chain(&SyncError.Save(SaveError.Write(\"a\", DiskError { free: 0 }))).len())
+    println(chain(&SyncError.Save(SaveError.ReadOnly)).len())
 ";
     assert_eq!(
         output_of("source", main),
@@ -222,13 +222,13 @@ fn publish(error: SaveError) -> Result[void, PublicError]:
 pub fn main() -> void $ Console:
     let app = AppError.Save(SaveError.Missing(\"d.txt\"))
     println(app.to_string())
-    println(chain(app).len())
-    println(chain(AppError.Save(SaveError.Write(\"e\", DiskError { free: 0 }))).len())
+    println(chain(&app).len())
+    println(chain(&AppError.Save(SaveError.Write(\"e\", DiskError { free: 0 }))).len())
     match publish(SaveError.Write(\"f.txt\", DiskError { free: 0 })):
         .Ok(_) => println(\"ok\")
         .Err(public) =>
             println(public.to_string())
-            println(chain(public).len())
+            println(chain(&public).len())
 ";
     assert_eq!(
         output_of("transparent", main),
@@ -264,7 +264,7 @@ enum Named[T]:
     Got(value: T)
 
 fn depth[E < Error](error: E) -> usize:
-    chain(error).len()
+    chain(&error).len()
 
 fn show[T < Display](value: Named[T]) -> string:
     value.to_string()

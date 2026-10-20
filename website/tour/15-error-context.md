@@ -13,7 +13,7 @@ on the variants, because the error is a typed value, not a string. Delete the
 `.context(...)` call and Run: each report loses the line that says what failed.
 
 ```hd
-fn start(config: string) -> Result[i32, dyn Error]:
+fn start(config: string) -> Result[i32, &dyn Error]:
     port := read_port(config).context("starting the server")?  # ← what we were doing
     .Ok(port)
 
@@ -21,7 +21,7 @@ pub fn main() -> void $ Console:
     for config in ["port = 8080", "host = local", "port = eighty"]:
         match start(config):
             .Ok(port) => println("listening on $port")
-            .Err(error) => println(report_of(error))  # ← the whole chain
+            .Err(error) => println(report_of(*error))  # ← the whole chain
 
 # ── plumbing ──
 use std.error.{Error, report_of}

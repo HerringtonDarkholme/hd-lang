@@ -149,7 +149,7 @@ fn made() -> void:
     assert!(!out.diags.has_errors(), "{}", out.render());
     let want = [
         ("app/main/reader", ": fn(Counter) -> i32"),
-        ("app/main/stepper", ": fn(Ref[Counter], i32) -> ()"),
+        ("app/main/stepper", ": fn(Ref[mut Counter], i32) -> ()"),
         ("app/main/maker", ": fn() -> Counter"),
         ("app/main/factory", ": fn() -> Counter"),
         ("app/main/labels", ": fn(T) -> string"),
