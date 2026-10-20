@@ -104,13 +104,13 @@ what the spec names as intrinsic or what only it can build.
 | Piece | Where | Job (REFCOUNT_RUNTIME.md §10.2) |
 | --- | --- | --- |
 | this record | `crates/hd_wasm_linear/DESIGN.md` §23 | 1 |
-| the backend: layouts, emission from TIR, the module's link, the runtime pieces it generates | the crate `crates/hd_wasm_linear`, apart from `hd_wasm`, so it never edits the Wasm GC emission in `emit.rs`, `rt.rs` and `layout.rs` | 2, 3 and on |
+| the backend: layouts, emission from TIR, the module's link, the runtime pieces it generates | the crate `crates/hd_wasm_linear` | 2, 3 and on |
 | `layout.rs` | a type's linear layout: its Wasm values, its size and alignment in memory, its field offsets (§23.3) | 3, 6 |
 | `emit.rs` | one instance's TIR body to one Wasm function | 3 and on |
 | `rt.rs` | generated runtime pieces: the entry wrapper, panic stubs, the exchange-buffer copies, the host provider stubs, object headers and release glue, and the bump allocation that host frames still use; the wake table later | 3 and on |
 | `lib.rs` | `build`: the whole program's module from collection's output, with no per-instance code cache yet | 2, 3 |
-| the switch | `hd_driver::Backend` in `Packages`, `--backend NAME` on `hd build`, `hd run` and `hd FILE`, with its spec rules in spec/cli/command-line.md; linear is the default (#626) | 2 |
-| conformance | both tiers build every case with the linear backend; `HD_CONFORMANCE_BACKEND=linear-checked` builds them in checked mode | 2 |
+| code generation | `hd_wasm_linear` is the sole code generator; commands have no backend-selection flag | 2 |
+| conformance | both tiers build every case with the linear backend; `HD_CONFORMANCE_CHECKED=1` builds them in checked mode | 2 |
 | memory intrinsics: load, store, grow, copy, fill | the privileged std module `std.rt.memory`: plain hd declarations whose bodies are `@intrinsic` | 4 |
 | the allocator | hd in `std.rt.alloc`, over `std.rt.memory` | 5 |
 | counts | `retain` and `release` in `std.rt.alloc`, called by emitted code, with release glue that `rt.rs` generates per layout | 8 |
@@ -119,7 +119,7 @@ what the spec names as intrinsic or what only it can build.
 | closures and `dyn` | `emit/closure.rs` for environments, cells and calls of function values, `emit/dyn_value.rs` for trait values and their vtables, `emit/iter.rs` for collection iterators (§23.19) | 11 |
 | references, cleanup scopes, releases at last use | `emit/refs.rs` for references as addresses, `emit/live.rs` for each value's and local's last use, `emit/scope.rs` for the `defer` exit ladder, `emit/list.rs` for element references' pins (§23.20) | 12 |
 | host codecs | `boundary.rs`: each boundary type's encoder and decoder over the exchange buffer, and the host method slots that call them (§23.23) | 14 |
-| checked mode | `std.rt.checked`, the counts and the allocator with their checks, and `rt.rs`'s audit at an entry's end, under `--backend linear-checked` (§23.24) | 16 |
+| checked mode | `std.rt.checked`, the counts and the allocator with their checks, and `rt.rs`'s audit at an entry's end, with checked allocation/count auditing enabled (§23.24) | 16 |
 | iterative release | hd in a further `std.rt` module, called by emitted code | 19 |
 | the cycle collector | hd in `std.rt.cycle`, called by emitted code, which runs each object's release glue as its trace (§23.28) | 21 |
 
@@ -130,14 +130,14 @@ runtime can change its representation without breaking a program.
 
 | Memory | Holds | Exported as |
 | --- | --- | --- |
-| 0 | the exchange buffer, exactly as on Wasm GC (crates/hd_run_wasmtime/DESIGN.md §17.3) | `hd.x` |
+| 0 | the exchange buffer (crates/hd_run_wasmtime/DESIGN.md §17.3) | `hd.x` |
 | 1 | the heap: static data, the page table, every counted object | not exported: the host reads and writes only memory 0 (§23.23) |
 
 - **Why two memories.** The exchange buffer grows from address 0 as the
   host's results need, so it cannot share a memory with a heap that must
   never move. A second memory (Wasm multi-memory, on by default in V8
-  and wasmtime) keeps the host contract unchanged, so both hosts run both
-  backends' modules: the module's own codecs move values between its
+  and wasmtime) keeps the host contract unchanged, so both hosts run the same
+  compiled module: the module's own codecs move values between its
   layouts and the buffer's bytes (§23.23). A string crosses with one
   `memory.copy` from memory 1 to memory 0.
 - **Addresses** are `i32`, unsigned (`usize` on wasm32). Address 0 is
@@ -155,8 +155,7 @@ runtime can change its representation without breaking a program.
 
 A layout is a list of Wasm values in locals, parameters and results, and
 a size, an alignment and field offsets in memory. One representation per
-type in every position, as on Wasm GC (§15.1), except that a value is
-inline in memory where Wasm GC stored a reference.
+type in every position; aggregate values are inline in memory.
 
 | hd value | In locals and results | In memory |
 | --- | --- | --- |
@@ -175,11 +174,10 @@ inline in memory where Wasm GC stored a reference.
 | suspension | the address of a counted frame owned by its task | 4 bytes |
 | `void`, `()`, `never` | none | 0 bytes |
 
-- **Struct values inline.** A struct value, which Wasm GC rebuilds on
-  every field write (§15.2, "Struct values"), is inline here, so a field
+- **Struct values inline.** A struct value is inline, so a field
   write is one store. A program declares no `data` type; only a
   compiler-supplied data type is still a counted object with identity.
-- **No bound.** Wasm GC boxed a value layout over 4 values (§15.1); in
+- **No bound.** In
   linear memory a wide value costs only its moves, as in Go and C#. A
   large struct passed by value is the price OBJECT_MODEL_TIER1.md §3
   accepts.
@@ -310,7 +308,7 @@ a list through its value, not through the place that holds it (`push`,
 an element store and `ListIndexMut` take the list as an operand), and
 the checker lets places share one list value where nothing can change it
 in place (`ValueCopy`, §15.2, "Collection values"). So the change must
-reach every holder of that value, as the Wasm GC backend's header does,
+reach every holder of that value,
 while the buffer underneath may move when it grows or is copied, except
 while pinned: an element reference is an address in the buffer, so a
 pinned buffer never moves, and a copy of a pinned list copies it at
@@ -335,26 +333,24 @@ be the buffer's address and save one object per list.
   order, then each direct supertrait's vtable address. `Inspectable`'s
   `runtime_type` slot answers the type's identity (§15.2's `TypeId`).
 - **Providers** are trait values, passed as `(data, vtable)` pairs in key
-  order as on Wasm GC (crates/hd_mono/DESIGN.md §13.18).
+  order (crates/hd_mono/DESIGN.md §13.18).
 
 ### 23.9 Globals, The Entry Wrapper And The Host
 
 - **Module storage** (top-level bindings) is one Wasm global per Wasm
-  value of the binding's layout, set by its group's init function, as on
-  Wasm GC (§15.4).
+  value of the binding's layout, set by its group's init function (§15.4).
 - **Runtime state** (the panic flag, the woken flag, the
   forbidden-context counter) are `i32` globals; the wake table and the
   candidate buffer are counted buffers in memory 1.
-- **Exports and imports** are Wasm GC's: `hd.init`, `hd.poll`, `hd.wake`,
+- **Exports and imports** are `hd.init`, `hd.poll`, `hd.wake`,
   `hd.x` (memory 0), `hd.cancel` for a scenario, and the `hd:rt`,
   `hd:prim` and capability imports of crates/hd_run_wasmtime/DESIGN.md
-  §17.2, with the same signatures. A host therefore cannot tell the
-  backends apart.
+  §17.2.
 - **Panics** call a stub that writes the report through `hd:rt` and
   traps (§15.5); a message literal is copied straight from static data to
   the exchange buffer.
-- **Sections.** `hd.lines`, `hd.positions` and `name` as on Wasm GC
-  (§15.5, §15.9), so panic frames print the same way.
+- **Sections.** `hd.lines`, `hd.positions` and `name`
+  (§15.5, §15.9) map panic frames to source locations.
 
 ### 23.10 What The Jobs Build On This
 
@@ -382,7 +378,7 @@ stops short of the layout above:
   declaration order: no slot sharing yet, which job 6 adds with the
   layouts in memory. Data, tuples, lists, maps and function values are
   refused, naming their job.
-- **Integer code** is the Wasm GC lowering of §13.15 of
+- **Integer code** follows §13.15 of
   crates/hd_mono/DESIGN.md: the same checks, the same wrapping in a
   release build, the same panic messages.
 - **Bump allocation.** A string that interpolation or integer text
@@ -413,9 +409,7 @@ that run their hd tests.
   linear backend lowers each to one instruction on memory 1: a
   little-endian load or store at any address, `memory.size`,
   `memory.grow` with its `-1` read as `.None`, `memory.copy`, which
-  allows overlap, and `memory.fill`. The Wasm GC backend has no heap and
-  lowers none of them: a build that reaches one fails as `unsupported`,
-  and only std can reach one.
+  allows overlap, and `memory.fill`. Only std can reach one.
 - **Runtime modules are std's.** `hd_project::UseRoots` refuses a use of
   `std.rt` or a module under it from any package but std, as
   `std-only-use` (`module.rt.std-only.error`).
@@ -508,11 +502,11 @@ Job 6 lays out structs, tuples, enums and data values (§23.3), in
   (`recursive-value-type`), so only an enum with a projection in a value
   position reaches it (`hd_mono::layout::recursive_enums`).
 - **Shared generic instances.** Collection gives one instance to every
-  unbounded argument whose Wasm GC layout is one reference, under the
-  class `REF` (A1, crates/hd_mono/DESIGN.md §13.2). Here that class is
-  one address, which is right for data values and boxed enums. But Wasm
-  GC also lays out a struct, and an enum or tuple over 4 values, as one
-  reference, and here they are inline, so a call that would pass one to
+  unbounded argument in the
+  class `REF` (A1, crates/hd_mono/DESIGN.md §13.2). That class is
+  one address, which is right for data values and boxed enums. Structs,
+  enums and tuples with inline layouts cannot use that address-only
+  representation, so a call that would pass one to
   such an instance, or get one back, is refused
   (`layout::shares_as_address`). Collection keyed by this backend's
   layouts lifts that; it is a change to `hd_mono`, not made here.
@@ -541,8 +535,7 @@ Job 7 lowers strings (§23.7) in `emit/text.rs`, over runtime helpers in
   text is written backward into a 20-byte string buffer and is its tail.
   `char_scalar`, `char_from_scalar` and the float bit casts are inline.
 - **Host primitives.** Float text, `to_fixed`, `lower`, `upper`, float
-  parsing and the snapshot hook are `hd:prim` imports, as on the Wasm GC
-  backend. A string argument goes into the exchange buffer at 0, its
+  parsing and the snapshot hook are `hd:prim` imports. A string argument goes into the exchange buffer at 0, its
   length the parameter; a string result comes back there in the host
   codec, its LEB128 length then its bytes, and the import answers the
   encoding's length, so the bytes are what follows the prefix. One
@@ -619,9 +612,8 @@ before fast; elision is jobs 17 and 18. The counting is in
 ### 23.17 What Job 9 Adds
 
 Job 9 lowers lists (§23.7), in `emit/list.rs` with their glue in
-`rt.rs`. Each change keeps the Wasm GC backend's semantics (§15.2,
-"Collection values" and "Element references"), with the buffer's count
-in place of the `cow` mark.
+`rt.rs`. Each change implements collection value and element-reference
+semantics (§15.2), using the buffer's count for copy-on-write.
 
 - **Literals.** A literal sizes its buffer exactly for its items and its
   spreads (`expr.list.spread.insert`), stores each item, copies each
@@ -634,7 +626,7 @@ in place of the `cow` mark.
   copies each list among its fields at any depth (`layout::coll_leaves`,
   after `hd_mono::holds_coll`). An operand stored into an element, a
   field, a payload or a tuple is copied the same way, unless its own
-  instruction made it, as the Wasm GC backend decides. Such a copy's own
+  instruction made it. Such a copy's own
   count belongs to a temporary that the function's exit releases.
 - **Changes.** `push`, an element store, `ListIndexMut` and `ListPin`
   first make the buffer the list's own (`rt:list_unique`). A shared
@@ -669,8 +661,8 @@ in place of the `cow` mark.
 - **Size.** hello holds no list: 10,607 bytes in the dev profile, as
   after job 8. A program that uses lists links the list glue, one
   function per element layout for its buffer, release, copy and change.
-  The web compiler leaves this backend out (hd_driver's default feature
-  `linear`), since the playground links with the Wasm GC backend only.
+  The web compiler uses this same code generator.
+
 - **Not yet.** List iterators (`iter()`) hold a closure, and std's
   shrinking primitive `list_truncate`, so `pop`, `insert`, `remove_at`
   and `clear`, takes `&mut List[T]`: they wait for closures (job 11) and
@@ -680,9 +672,8 @@ in place of the `cow` mark.
 ### 23.18 What Job 10 Adds
 
 Job 10 lowers maps (§23.7), in `emit/map.rs` with their glue in
-`map.rs`. Each operation keeps the Wasm GC backend's semantics (§15.2,
-"Collection values"; `crates/hd_mono/DESIGN.md` §13.12), with the
-table's count in place of the `cow` mark.
+`map.rs`. Each operation implements collection value semantics (§15.2;
+`crates/hd_mono/DESIGN.md` §13.12), using the table's count for copy-on-write.
 
 - **The table.** A map is a list's kind of header over one counted
   block: the live and written entry counts, the rebuild count, the
@@ -838,7 +829,7 @@ element references whose copies own their list's pin (OBJECT_MODEL_TIER1.md
   binding, a place through another reference, a data object's field or a
   list element, then a struct field path) and each read, write and
   identity through one (`RefRead`, `RefWrite`, `RefIdentity`), each
-  owning the block of its closure form for the Wasm GC backend (§15.2,
+  owning the block of its checker-generated closure form (§15.2,
   "References"). The driver strips those blocks from the bodies of a
   linear build before collection (`hd_tir::ir::strip_closure_forms`), so
   their closures, cells and `ref_serial` calls never reach this backend.
@@ -872,10 +863,9 @@ element references whose copies own their list's pin (OBJECT_MODEL_TIER1.md
   hello (`println(42)`) went from 6,007 to 5,040 bytes in the dev
   profile and in release; 16 of them are the count of blocks
   `std.rt.alloc.allocated` reports, which `ref_tests.hd` reads to see
-  that a loop writing through `&mut` to a local allocates nothing. The
-  Wasm GC backend's hello stays 4,164 bytes.
-- **Cleanup scopes.** A `Scope` with `defer` suites is the Wasm GC
-  backend's exit ladder (`emit/scope.rs`, crates/hd_mono/DESIGN.md
+  that a loop writing through `&mut` to a local allocates nothing.
+- **Cleanup scopes.** A `Scope` with `defer` suites uses an
+  exit ladder (`emit/scope.rs`, crates/hd_mono/DESIGN.md
   §12.2): each suite has a flag that its `Defer` sets; a `break`,
   `continue` or `return` that leaves the body stores its exit's code and
   branches to the scope's end, which runs the registered suites last in,
@@ -916,8 +906,7 @@ element references whose copies own their list's pin (OBJECT_MODEL_TIER1.md
   a field, returned, or captured by a closure called later keeps the
   list pinned until that copy's last use. Two references to one slot
   share its address (`ref.elem.identity`). A trait value of a value
-  that is one counted address is that address, never a copy, as the
-  Wasm GC backend erases it.
+  that is one counted address is that address, never a copy.
 - **Bounded memory.** `crates/hd_driver/tests/std_rt/ref_tests.hd` writes
   through references to locals and elements, checks that a pin ends with
   its reference's last use, and takes references to locals and elements
@@ -933,12 +922,10 @@ element references whose copies own their list's pin (OBJECT_MODEL_TIER1.md
   instance at `dyn K`, whose result it installs as the provider. So
   `println` reaches the host through a `&mut dyn Console`. With the
   reference's closures and identity this cost hello 12,014 bytes in the
-  dev profile and 8,824 in release (4,151 on the Wasm GC backend, from
-  3,161). Since references are addresses, the result is the host trait
+  dev profile and 8,824 in release. Since references are addresses, the result is the host trait
   value itself (a reference to a trait value is that trait value), and
   `host_provider` allocates nothing.
-- **Not yet.** Issue #556's three escape cases pass here and stay known
-  failures on the Wasm GC backend, whose references hold no count. The
+- **Not yet.** Issue #556's three escape cases pass here. The
   release points are statement-granular and per body: a reference passed
   to a call is held by the caller's place until the statement ends.
 
@@ -958,7 +945,7 @@ counted frames in memory 1 (`emit/susp.rs`, `task.rs`).
   loads them all (`Ins::SaveAll` and `Ins::LoadAll`, expanded once the
   body's locals are known). That is simpler than §14.3's live set, and
   costs frame bytes, not code.
-- **The parts.** As on the Wasm GC backend, the instance's own function
+- **The parts.** The instance's own function
   is the cold constructor and the body, poll and cancel are its parts
   (`Part`). The frame's release glue is a fourth part. Until the body has
   left, the glue releases each place the body owns that the save area
@@ -1075,8 +1062,7 @@ REFCOUNT_RUNTIME.md (`opt.rs`, `lib/std/rt/alloc.hd`).
   literal is 656 bytes.
 - **Size.** `std.rt.alloc` linked: 7,861 bytes of code before, 1,587
   after. hello (`println(42)`): 12,758 bytes in the dev profile before
-  and 9,568 in release; 6,010 in both after. The Wasm GC backend's hello
-  is 4,151. `println("hello")` is 5,988 bytes here and 3,969 there.
+  and 9,568 in release; 6,010 in both after. `println("hello")` is 5,988 bytes.
 - **Not yet.** hello still links the allocator. Its literal is no
   longer the reason, nor, since references are addresses (§23.20), the
   `&mut dyn Console` that `println` reaches the Console through, which
@@ -1096,9 +1082,9 @@ so programs that use `fs`, `process`, `host`, `sys`, `net`, `http`,
 - **One wire format, generated in the module.** The host contract stays
   crates/hd_run_wasmtime/DESIGN.md §17: the exchange buffer is memory 0,
   `hd.x`, and every structured argument and result crosses in it in the
-  §17.4 encoding. This backend generates the encoders and decoders the
-  Wasm GC backend's `hd_wasm::boundary` generates, over its own layouts,
-  so `host/*.mjs` and the wasmtime host need no backend switch, and the
+  §17.4 encoding. This backend generates the encoders and decoders over
+  its own layouts, so `host/*.mjs` and the wasmtime host share one
+  exchange-buffer contract, and the
   heap (memory 1) stays private to the module. The alternative, host
   codecs that read the heap's layouts, would need the host to know each
   type's offsets and slot sharing (§23.3) and to allocate counted
@@ -1157,7 +1143,7 @@ so programs that use `fs`, `process`, `host`, `sys`, `net`, `http`,
   `host-contract` panic (`module.profile.host-result.contract-panic`)
   and a NaN, an infinity or `-0.0` keeps its bits.
 - **Size.** hello (`println(42)`, dev): 5,046 bytes here before and
-  after, 4,175 on the Wasm GC backend. A program links only the codecs
+  after. A program links only the codecs
   of the types its host methods cross.
 - **Checked by** `tests::every_runtime_helper_validates`, which builds
   a host call and a handle's leaf over a record of every kind of boundary
@@ -1174,8 +1160,9 @@ so programs that use `fs`, `process`, `host`, `sys`, `net`, `http`,
 ### 23.24 What Job 16 Adds
 
 Job 16 (issue #594) is checked mode: the linear backend built to find
-its own counting bugs. `--backend linear-checked` selects it
-(`hd_driver::Backend::LinearChecked`), and a normal build is unchanged.
+its own counting bugs. `Packages::checked` selects it internally;
+`HD_CONFORMANCE_CHECKED=1` selects it in conformance runs. A normal build
+is unchanged.
 
 - **The checked runtime.** The driver roots `std.rt.checked`
   (`lib/std/rt/checked.hd`) in place of `std.rt.alloc`'s counts, so
@@ -1209,7 +1196,7 @@ its own counting bugs. `--backend linear-checked` selects it
   runtime can reach it.
 - **The collector** (§23.28) runs after the teardown and before the
   audit, so a cycle the bindings held is freed first.
-- **The sweep.** `HD_CONFORMANCE_BACKEND=linear-checked` builds every
+- **The sweep.** `HD_CONFORMANCE_CHECKED=1` builds every
   case of the conformance runner in checked mode, so each must pass with
   its counts audited.
   `crates/hd_driver/tests/std_rt/checked_tests.hd` tests the runtime's
@@ -1283,8 +1270,8 @@ where its counts are taken does (`emit/count.rs`, `emit/live.rs`).
   lends, or that two operands of one call read, has more than one use and
   keeps its count. A borrowed argument is an instruction value that keeps
   its own count until its statement has ended, so the referent outlives
-  the call. `HD_CONFORMANCE_BACKEND=linear-checked` passes every
-  `LINEAR_PASSES.tsv` case but the eight cycles that wait for the
+  the call. `HD_CONFORMANCE_CHECKED=1` passes every
+  case in the job's recorded linear suite but the eight cycles that wait for the
   collector (§23.24), with every count audited and no freed block
   touched.
 - **Counts.** `std.rt.checked` now totals the counts it adds and takes,
@@ -1317,7 +1304,7 @@ whose row changes and `$.Context` values on the linear backend
 
 - **A context** is a counted list buffer (§23.7) whose elements are
   16-byte entries: a key id (`i64`, the first 64 bits of the key's
-  content hash, as on Wasm GC) and a provider, the trait value's data and
+  content hash) and a provider, the trait value's data and
   vtable. Each entry holds a count of its provider's data, so the
   buffer's release glue is the list glue's (`rt::ctx_elem`). The empty
   context is 0. `rt:ctx_find` looks a key id up and takes the first
@@ -1367,10 +1354,10 @@ whose row changes and `$.Context` values on the linear backend
 ### 23.27 Erased Generic Methods
 
 Issue #615 lowers generic methods called through a trait value on the
-linear backend (`emit/erased.rs`), with the Wasm GC backend's ABI
+linear backend (`emit/erased.rs`), with the erased ABI
 (crates/hd_mono/DESIGN.md §13.5.1): one erased body per implementation,
 a witness per call's type arguments, and one thunk per open instruction
-at the caller's types. Collection is shared, so both backends build the
+at the caller's types. Collection builds the
 same erased bodies, thunks and witness fields.
 
 - **Open values.** In an erased body, a value of an open type (one that
@@ -1406,8 +1393,8 @@ same erased bodies, thunks and witness fields.
   the fields and releasing the boxes, emits the instruction, boxes an
   open result with its own count and releases what it holds at its exit.
 - **Cells.** A local that closures share in a generic method of a trait
-  or an implementation keeps its erased view in every instance, as on
-  Wasm GC: the erased body's thunks build the closures, and they are the
+  or an implementation keeps its erased view in every instance:
+  the erased body's thunks build the closures, and they are the
   concrete instances' own. So a concrete instance's cell holds an open
   value: a read unboxes it, a write boxes the new value.
 - **References.** A reference whose target is open is the address of an
@@ -1445,19 +1432,17 @@ same erased bodies, thunks and witness fields.
   with counts of its own and releases the box; a reference result
   becomes a view of the open word instead. Its cancel cancels the
   child and unwinds while the child does, as the cleanup frame's does,
-  and its glue releases the child. The Wasm GC backend wraps every such
-  frame the same way (`Helper::OpenCold`, `OpenPoll`), since a frame's
-  struct type there carries its result layout.
+  and its glue releases the child.
 - **Rows.** A method's own row parameters are open too, so a method with
   only row parameters is erased the same way, and a call at its open row
   is a thunk at the caller's row. A dynamic call reads the keys of its
   rows from its arguments as the instance has them, so a thunk's row,
   which is the caller's own, lists its keys.
-- **Checked by** the five conformance cases of the issue, on `linear` and
-  `linear-checked`, whose count audit covers every box and cell, and by
+- **Checked by** the five conformance cases of the issue, in normal and
+  checked mode, whose count audit covers every box and cell, and by
   `erased-method-boxed-reference-argument` and
   `dyn-generic-suspension-kept` (issue #617), and the seven
-  `erased-reference-*` cases (issue #619), which run on Wasm GC too.
+  `erased-reference-*` cases (issue #619).
 
 ### 23.28 The Cycle Collector
 
