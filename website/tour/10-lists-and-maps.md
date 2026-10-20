@@ -27,7 +27,7 @@ pub fn main() -> void $ Console:
     orders := [Order { item: "lamp", quantity: 3 }, Order { item: "bulb", quantity: 6 }, Order { item: "lamp", quantity: 2 }]
     for line in shortages(stock, orders):
         println(line)
-    units := orders.iter().map(fn(order): order.quantity).sum()  # ← an iterator chain
+    let units: i32 = orders.iter().map(fn(order): order.quantity).sum()  # ← an iterator chain
     println("$units units ordered")
 
 # Change the body of `on_hand` to `stock.get(item)` and Run. A
