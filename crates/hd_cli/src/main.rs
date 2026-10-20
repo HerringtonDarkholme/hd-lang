@@ -474,8 +474,9 @@ impl Pipeline {
 }
 
 /// `--backend NAME` or `--backend=NAME` at `args[i]` (`cli.backend.flag`):
-/// the backend and the words used. NAME is `wasm-gc`, the default, or
-/// `linear` (`cli.backend.unknown`).
+/// the backend and the words used. NAME is `wasm-gc`, the default,
+/// `linear`, or `linear-checked`, the linear backend in checked mode
+/// (`cli.backend.unknown`).
 pub(crate) fn backend_flag(
     args: &[OsString],
     i: usize,
@@ -492,8 +493,9 @@ pub(crate) fn backend_flag(
     Some(match name.as_str() {
         "wasm-gc" => Ok((Backend::WasmGc, used)),
         "linear" => Ok((Backend::Linear, used)),
+        "linear-checked" => Ok((Backend::LinearChecked, used)),
         _ => Err(format!(
-            "unknown backend `{name}`; the backends are wasm-gc and linear"
+            "unknown backend `{name}`; the backends are wasm-gc, linear and linear-checked"
         )),
     })
 }

@@ -1,0 +1,49 @@
+# The hd tests of std.rt.checked (crates/hd_wasm/DESIGN.md §23.24), the
+# checked runtime. Only std may use a runtime module, so the conformance
+# runner adds this file to std as `std.rt.checked_tests` and runs its
+# cases on the linear backend (crates/hd_driver/tests/conformance.rs,
+# `STD_RT_TESTS`). Each case reads only the blocks it allocates itself.
+use std.rt.alloc.{block_of}
+use std.rt.checked.{allocate, free, live, release, retain}
+use std.rt.memory.{load_u32, load_u8, store_u32}
+
+POISON := 0xdededede
+FRESH := 0xa5a5a5a5
+
+tests:
+    use std.testing.{assert, it}
+
+    it("a new block holds fresh bytes and counts as live"):
+        before := live()
+        a := allocate(40)
+        assert(live() == before + 1, "one more live block")
+        assert(usize(load_u32(a)) == FRESH, "its first word is fresh")
+        assert(load_u8(a + 47) == 0xa5, "and so is its last byte")
+        free(a)
+        assert(live() == before, "a free takes it back")
+
+    it("a freed block is poisoned and never given again"):
+        a := allocate(24)
+        free(a)
+        assert(usize(load_u32(a)) == POISON, "its first word is poison")
+        assert(load_u8(a + 31) == 0xde, "and so is its last byte")
+        b := allocate(24)
+        assert(b != a, "a new block is another slot")
+        free(b)
+
+    it("a large block is poisoned whole"):
+        run := allocate(70000)
+        assert(block_of(run + 69999) == run, "the run's last byte")
+        free(run)
+        assert(usize(load_u32(run + 69996)) == POISON, "its last word is poison")
+
+    it("counts change only on live blocks"):
+        a := allocate(16)
+        store_u32(a, 1)
+        retain(a + 12)
+        assert(load_u32(a) == 2, "an interior address counts its block")
+        assert(release(a) == 0, "a count is left")
+        assert(release(a + 4) == a, "the last count gives the block")
+        free(a)
+        retain(16)
+        assert(release(16) == 0, "static data has no count")

@@ -45,6 +45,29 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
+    /// In checked mode, notes top-level binding `h` of type `t`, in static
+    /// slot `slot` when some reference refers to it, as one whose counted
+    /// references the audit at exit releases (`crates/hd_wasm/DESIGN.md`
+    /// §23.24).
+    pub(super) fn note_stored(
+        &mut self,
+        h: hd_base::Hash128,
+        t: Ty,
+        slot: Option<(u32, Vec<crate::layout::Leaf>)>,
+    ) -> StageResult<()> {
+        if self.input.runtime.and_then(|r| r.checked).is_none() {
+            return Ok(());
+        }
+        let Some(walk) = self.counted(t) else {
+            return Ok(());
+        };
+        let vals = self.vals(t)?;
+        self.m
+            .stored
+            .insert(h, crate::module::Stored { vals, walk, slot });
+        Ok(())
+    }
+
     /// One count more or less on the address on the stack.
     fn ref_count(&mut self, retain: bool) {
         match (retain, self.input.runtime) {

@@ -161,6 +161,11 @@ pub fn release(address: usize) -> usize:
     store_u32(block, count - 1)
     0
 
+## The bytes of the block at `block`, which `alloc` gave: its size class's, or its run's whole pages.
+pub fn block_bytes(block: usize) -> usize:
+    entry := usize(get(block / PAGE))
+    if entry / SMALL == 2: (entry & LOW) * PAGE else: class_bytes(entry & LOW)
+
 ## The bytes of the block that `alloc(size)` gives: its size class, or whole pages over 2 KiB.
 pub fn block_size(size: usize) -> usize:
     if size > 2048: (size + PAGE - 1) / PAGE * PAGE else: class_bytes(class_of(size))

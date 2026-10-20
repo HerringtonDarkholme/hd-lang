@@ -67,6 +67,9 @@ pub enum Entry {
     Tests {
         cases: Vec<(DefId, Hash128, Option<Hash128>)>,
         inits: Vec<Vec<Hash128>>,
+        /// The inits among `inits` of std's runtime modules, which
+        /// checked mode's reset after a case never runs again (§23.24).
+        runtime_inits: Vec<Hash128>,
     },
     /// A runtime scenario's program (`spec/conformance/README.md`,
     /// Runtime Scenarios): `main`'s entry as [`Entry::Main`] has it, with
@@ -142,27 +145,71 @@ pub struct Input<'a> {
 pub const RUNTIME_MODULE: &str = "std.rt.alloc";
 pub const RUNTIME_FNS: [&str; 4] = ["alloc", "free", "retain", "release"];
 
-/// The instance keys of `std.rt.alloc`'s functions that emitted code calls
-/// (`crates/hd_wasm/DESIGN.md` §23.16): the allocator and the counts.
+/// The checked runtime (`crates/hd_wasm/DESIGN.md` §23.24): the same four
+/// functions over the allocator, then the two the exit audit calls.
+pub const CHECKED_MODULE: &str = "std.rt.checked";
+pub const CHECKED_FNS: [&str; 6] = ["allocate", "free", "retain", "release", "live", "audit"];
+
+/// The runtime module a build links: the checked one in checked mode.
+#[must_use]
+pub const fn runtime_module(checked: bool) -> &'static str {
+    if checked {
+        CHECKED_MODULE
+    } else {
+        RUNTIME_MODULE
+    }
+}
+
+/// The names of [`runtime_module`]'s functions that emitted code calls.
+#[must_use]
+pub const fn runtime_fns(checked: bool) -> &'static [&'static str] {
+    if checked { &CHECKED_FNS } else { &RUNTIME_FNS }
+}
+
+/// The instance keys of the runtime functions that emitted code calls
+/// (`crates/hd_wasm/DESIGN.md` §23.16): the allocator and the counts, and
+/// in checked mode the audit's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Runtime {
     pub alloc: Hash128,
     pub free: Hash128,
     pub retain: Hash128,
     pub release: Hash128,
+    pub checked: Option<Checked>,
+}
+
+/// The checked runtime's audit functions (`crates/hd_wasm/DESIGN.md`
+/// §23.24): `live()`, the blocks allocated and not yet freed, and
+/// `audit(expected)`, which panics unless that is `expected`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Checked {
+    pub live: Hash128,
+    pub audit: Hash128,
 }
 
 impl Runtime {
-    /// The runtime from each of [`RUNTIME_FNS`]' instance keys, in order,
+    /// The runtime from each of [`runtime_fns`]' instance keys, in order,
     /// when collection reached them all.
     #[must_use]
     pub fn from_keys(keys: &[Option<Hash128>]) -> Option<Runtime> {
-        match keys {
+        let (counts, checked) = match keys {
+            [a, b, c, d] => ([*a, *b, *c, *d], None),
+            [a, b, c, d, Some(live), Some(audit)] => (
+                [*a, *b, *c, *d],
+                Some(Checked {
+                    live: *live,
+                    audit: *audit,
+                }),
+            ),
+            _ => return None,
+        };
+        match counts {
             [Some(alloc), Some(free), Some(retain), Some(release)] => Some(Runtime {
-                alloc: *alloc,
-                free: *free,
-                retain: *retain,
-                release: *release,
+                alloc,
+                free,
+                retain,
+                release,
+                checked,
             }),
             _ => None,
         }

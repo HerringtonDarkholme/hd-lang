@@ -38,7 +38,7 @@ stdout:
 stdout: flags:
 stdout:   --release                 build for release: integer overflow wraps instead of panicking
 stdout:   --engine NAME             run on the engine NAME; the default is HD_ENGINE, else the implementation's own
-stdout:   --backend NAME            build with the backend NAME: wasm-gc (the default) or linear
+stdout:   --backend NAME            build with the backend NAME: wasm-gc (the default), linear or linear-checked
 stdout:   -p, --package NAME        act on the workspace member NAME only; may be repeated
 stdout:   --cap NAME=VALUE          grant the capability NAME: true, false, or a comma-separated list, as in Http=api.example.com
 stdout:   --time-limit DURATION     limit how long the program runs, as 30s; past it the program panics

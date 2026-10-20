@@ -888,6 +888,14 @@ hd build --backend no-such-name  # a usage error: exits 101 and writes nothing
 > values are Wasm GC references, and `linear`, whose values live in
 > linear memory and are freed by reference counting.
 
+> **Note.** This implementation also offers `linear-checked`, the
+> `linear` backend in checked mode, which tests the implementation
+> rather than the program. It poisons freed memory and never reuses it.
+> It checks every count change, and at the end of a program or a test
+> case it checks that every object was freed. A failed check is a bug in
+> the implementation. It panics `count-audit`, which is not a stable
+> panic category.
+
 > **Why.** A second backend can grow beside the default one: each build
 > names its backend, so the new one is tested on real programs while
 > every other build keeps the default.

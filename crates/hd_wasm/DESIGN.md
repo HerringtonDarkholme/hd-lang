@@ -1670,6 +1670,7 @@ what the spec names as intrinsic or what only it can build.
 | closures and `dyn` | `emit/closure.rs` for environments, cells and calls of function values, `emit/dyn_value.rs` for trait values and their vtables, `emit/iter.rs` for collection iterators (§23.19) | 11 |
 | references, cleanup scopes, releases at last use | `emit/refs.rs` for references as addresses, `emit/live.rs` for each value's and local's last use, `emit/scope.rs` for the `defer` exit ladder, `emit/list.rs` for element references' pins (§23.20) | 12 |
 | host codecs | `boundary.rs`: each boundary type's encoder and decoder over the exchange buffer, and the host method slots that call them (§23.23) | 14 |
+| checked mode | `std.rt.checked`, the counts and the allocator with their checks, and `rt.rs`'s audit at an entry's end, under `--backend linear-checked` (§23.24) | 16 |
 | iterative release, the collector | hd in further `std.rt` modules, called by emitted code | 19, 21 |
 
 `std.rt` modules are privileged: only std modules may import them, so the
@@ -2719,3 +2720,57 @@ so programs that use `fs`, `process`, `host`, `sys`, `net`, `http`,
 - **Not yet.** These modules are untested on the wasmtime host while it
   is parked (job 15). It reads and writes the same wire format, so job
   15 should need no codecs of its own.
+
+### 23.24 What Job 16 Adds
+
+Job 16 (issue #594) is checked mode: the linear backend built to find
+its own counting bugs. `--backend linear-checked` selects it
+(`hd_driver::Backend::LinearChecked`), and a normal build is unchanged.
+
+- **The checked runtime.** The driver roots `std.rt.checked`
+  (`lib/std/rt/checked.hd`) in place of `std.rt.alloc`'s counts, so
+  emitted code calls its `allocate`, `free`, `retain` and `release` by
+  key, as it calls the plain ones (§23.16). Nothing else in the module
+  changes.
+- **Poison, and no reuse.** A new block is filled with `0xa5` bytes, so
+  a read before its constructor's store finds no zeros. A freed block is
+  filled with `0xde` bytes and never goes back to the allocator, so a
+  stale reference reads poison, never a newer object. A free of an
+  address that is not a block's start, or of a poisoned block, fails.
+- **Counts audited.** `retain` and `release` fail on a block whose count
+  word is poison, a freed object, or 0 or fresh, a block with no count.
+- **Leaks at the end.** `std.rt.checked` counts the blocks given and not
+  freed. The entry's poll (`Helper::CheckedPoll`) audits once it answers
+  anything but Pending. It frees the wake table, which is the runtime's
+  own, and releases and zeroes every top-level binding's counted
+  references (`Helper::Teardown`, from `Module::stored`, which emission
+  fills). Then no block may be live. A test case's instance serves the
+  next case, so the poll then runs every module's init again, but
+  `std.rt`'s: the next case starts from the bindings a fresh instance
+  has, as `flow.panic.isolation` describes. A scenario's host reads its
+  bindings through `hd.scenario.cleanup` after the root ends, so a
+  scenario has no audit.
+- **The leak report** names the lowest live block: its address, count,
+  descriptor word and size, found by scanning the heap, since a freed
+  block holds poison and an unwritten one fresh bytes or zeros.
+- **Failures** panic `count-audit` with what failed, the block's address
+  or the number of blocks leaked. It is not a stable panic category
+  (`flow.panic.known-categories`): only a bug of this backend or its
+  runtime can reach it.
+- **No collector yet.** Checked mode also collects at every allocation;
+  `allocate` is where that call goes once the collector exists (job 21).
+- **The sweep.** `HD_CONFORMANCE_BACKEND=linear-checked` builds every
+  linear run of the conformance runner in checked mode, so each case
+  `LINEAR_PASSES.tsv` lists must pass with its counts audited.
+  `crates/hd_driver/tests/std_rt/checked_tests.hd` tests the runtime's
+  poison, its reuse rule and its counts.
+- **Size.** hello (`println(42)`, dev): 5,463 bytes on `linear` before
+  and after, 4,738 on `wasm-gc`, and 7,297 on `linear-checked`.
+- **What the first sweep found.** A point's cancellation branch kept
+  its cancelled child in the frame's child slot, and a `using` binding's
+  `dispose!` that waited overwrote that slot, so the child frame leaked
+  (15 cases, most with `race!` or `timeout`). The branch now lets the
+  child go before the exit ladders. Eight listed cases still leak, all
+  reference cycles, which wait for the collector (job 21): rings of
+  `&mut` nodes, and a recursive local function, whose environment holds
+  the cell that holds the function.

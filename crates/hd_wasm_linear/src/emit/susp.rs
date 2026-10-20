@@ -478,6 +478,9 @@ impl Em<'_, '_, '_> {
         if let Some(all) = all {
             self.release_done(&all)?;
         }
+        // The cancelled child is done with: a ladder that waits keeps
+        // its own child in the frame's child slot.
+        self.release_child(c);
         // The ladders run as fresh code.
         self.f.i32(0);
         self.f.set(pc);

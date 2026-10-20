@@ -1280,6 +1280,19 @@ pub enum Backend {
     /// `crates/hd_wasm/DESIGN.md` §23), which links the whole program at
     /// once from collection's output and caches no code per instance.
     Linear,
+    /// The linear-memory backend in checked mode
+    /// (`crates/hd_wasm/DESIGN.md` §23.24): freed memory is poisoned and
+    /// never reused, every count change is audited, and a leak at exit
+    /// panics.
+    LinearChecked,
+}
+
+impl Backend {
+    /// Whether this is the linear-memory backend, checked or not.
+    #[must_use]
+    pub const fn linear(self) -> bool {
+        matches!(self, Backend::Linear | Backend::LinearChecked)
+    }
 }
 
 /// The packages around a build's root package.
@@ -2319,6 +2332,13 @@ struct OptInFinding {
 }
 
 impl Run<'_> {
+    /// Whether the build links the linear backend's checked runtime
+    /// ([`Backend::LinearChecked`]).
+    #[cfg(feature = "linear")]
+    fn checked(&self) -> bool {
+        self.backend == Backend::LinearChecked
+    }
+
     fn names(&self) -> Names<'_> {
         Names {
             pool: &self.pool,
@@ -7284,7 +7304,7 @@ impl Run<'_> {
                 // The linear backend lowers references as addresses, so
                 // their closure forms never reach it
                 // (`crates/hd_wasm/DESIGN.md` §23.20).
-                if self.backend == Backend::Linear && hd_tir::ir::strip_closure_forms(&mut body) {
+                if self.backend.linear() && hd_tir::ir::strip_closure_forms(&mut body) {
                     let mut key = hd_base::StableHasher::new("ref-addresses");
                     key.hash(hash);
                     hash = key.finish();
@@ -7430,6 +7450,7 @@ impl Run<'_> {
         let keyed_entry = match self.backend {
             Backend::WasmGc => keyed_entry,
             Backend::Linear => format!("linear:{keyed_entry}"),
+            Backend::LinearChecked => format!("linear-checked:{keyed_entry}"),
         };
         let pkey = prog_key(
             self.toolchain,
@@ -7528,8 +7549,10 @@ impl Run<'_> {
         // The linear backend's runtime (crates/hd_wasm/DESIGN.md §23.16)
         // runs its module's inits first, in every root's group.
         #[cfg(feature = "linear")]
-        let linear_runtime =
-            (self.backend == Backend::Linear).then_some(hd_wasm_linear::RUNTIME_MODULE);
+        let linear_runtime = self
+            .backend
+            .linear()
+            .then_some(hd_wasm_linear::runtime_module(self.checked()));
         #[cfg(not(feature = "linear"))]
         let linear_runtime: Option<&str> = None;
         let runtime_inits: Vec<DefId> = if let Some(runtime) = linear_runtime {
@@ -7647,12 +7670,10 @@ impl Run<'_> {
         // key (crates/hd_wasm/DESIGN.md §23.16), whatever the program
         // uses; its link drops the ones nothing calls.
         #[cfg(feature = "linear")]
-        if self.backend == Backend::Linear {
-            for name in hd_wasm_linear::RUNTIME_FNS {
-                let r = (
-                    names.item(hd_wasm_linear::RUNTIME_MODULE, name),
-                    TyList::EMPTY,
-                );
+        if self.backend.linear() {
+            let module = hd_wasm_linear::runtime_module(self.checked());
+            for name in hd_wasm_linear::runtime_fns(self.checked()) {
+                let r = (names.item(module, name), TyList::EMPTY);
                 if self.body_of(p, r.0).is_some() && !extra.contains(&r) {
                     extra.push(r);
                 }
@@ -7825,7 +7846,7 @@ impl Run<'_> {
         let mut written = Vec::new();
         // The linear backend emits no per-instance code: link builds the
         // whole module.
-        if self.backend == Backend::Linear {
+        if self.backend.linear() {
             by_folder.clear();
         }
         for (folder, slots) in by_folder {
@@ -8520,7 +8541,7 @@ impl Run<'_> {
         let (Some(c), Some(p)) = (self.collect.get(), self.program.get()) else {
             return;
         };
-        if self.backend == Backend::Linear {
+        if self.backend.linear() {
             #[cfg(feature = "linear")]
             self.link_linear(c, p);
             #[cfg(not(feature = "linear"))]
@@ -8752,6 +8773,20 @@ impl Run<'_> {
             Roots::Tests { cases, inits } => hd_wasm_linear::Entry::Tests {
                 cases: cases.clone(),
                 inits: inits.clone(),
+                runtime_inits: {
+                    let table = &c.collected.table;
+                    inits
+                        .iter()
+                        .flatten()
+                        .copied()
+                        .filter(|k| {
+                            table.key.iter().position(|x| x == k).is_some_and(|i| {
+                                let module = names.module_of(table.item[i]);
+                                module == "std.rt" || module.starts_with("std.rt.")
+                            })
+                        })
+                        .collect()
+                },
             },
             Roots::Scenario {
                 def,
@@ -8771,16 +8806,29 @@ impl Run<'_> {
                 hold: self.scenario_hold(p),
             },
         };
-        let runtime_keys: Vec<Option<Hash128>> = hd_wasm_linear::RUNTIME_FNS
+        let module = hd_wasm_linear::runtime_module(self.checked());
+        let runtime_keys: Vec<Option<Hash128>> = hd_wasm_linear::runtime_fns(self.checked())
             .iter()
             .map(|n| {
-                let def = names.item(hd_wasm_linear::RUNTIME_MODULE, n);
+                let def = names.item(module, n);
                 let table = &c.collected.table;
                 table
                     .get(def, hd_mono::Sub::Body(0), TyList::EMPTY)
                     .map(|id| table.key[id.idx()])
             })
             .collect();
+        let runtime = hd_wasm_linear::Runtime::from_keys(&runtime_keys);
+        // A checked build never falls back to unchecked counts.
+        if self.checked() && runtime.is_none_or(|r| r.checked.is_none()) {
+            self.stage::<()>(
+                Stage::Link,
+                Err(NotImplemented::new(
+                    Stage::Link,
+                    "checked mode without std's checked runtime",
+                )),
+            );
+            return;
+        }
         let input = hd_wasm_linear::Input {
             pool: &self.pool,
             env: &env,
@@ -8790,7 +8838,7 @@ impl Run<'_> {
             body: &body,
             entry,
             release: self.build_profile == BuildProfile::Release,
-            runtime: hd_wasm_linear::Runtime::from_keys(&runtime_keys),
+            runtime,
             host_refs: &c.host_refs,
         };
         let Some(wasm) = self.stage(Stage::Link, hd_wasm_linear::build(&input)) else {
@@ -9916,14 +9964,12 @@ impl ProgramEnv for Env<'_> {
         match self.run.backend {
             Backend::WasmGc => None,
             #[cfg(feature = "linear")]
-            Backend::Linear => Some(hd_wasm_linear::shared_reference_layout(
-                &self.run.pool,
-                self,
-                ty,
-            )),
+            Backend::Linear | Backend::LinearChecked => Some(
+                hd_wasm_linear::shared_reference_layout(&self.run.pool, self, ty),
+            ),
             // Without the backend, a linear build stops at link.
             #[cfg(not(feature = "linear"))]
-            Backend::Linear => {
+            Backend::Linear | Backend::LinearChecked => {
                 let _ = ty;
                 None
             }

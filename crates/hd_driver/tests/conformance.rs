@@ -37,8 +37,12 @@
 //! the same engines, and each must pass: the list is a ratchet that grows
 //! as the backend's jobs land. `HD_CONFORMANCE_BACKEND=linear` runs every
 //! runtime case through the linear backend as well and prints the passing
-//! cases the list does not name yet, without failing on them. A linear
-//! run's digests and runtime statistics are noted under `linear:PATH`.
+//! cases the list does not name yet, without failing on them.
+//! `HD_CONFORMANCE_BACKEND=linear-checked` builds the listed cases' linear
+//! runs in checked mode instead (`Backend::LinearChecked`, §23.24), under
+//! the same rule: a leak, a double free or a count change on a freed block
+//! panics `count-audit`, so the case fails. A linear run's digests and
+//! runtime statistics are noted under `linear:PATH`.
 
 //! `HD_TEST_TIMINGS=1` logs per-case or per-command wall times for profiling.
 
@@ -1818,15 +1822,32 @@ fn parse_linear_passes(text: &str) -> Result<BTreeMap<String, String>, String> {
     Ok(rows)
 }
 
+/// The linear backend that `HD_CONFORMANCE_BACKEND` names, when it names
+/// one: `linear` or `linear-checked`.
+fn linear_selection() -> Option<Backend> {
+    match selection_env("HD_CONFORMANCE_BACKEND").as_deref() {
+        None | Some("") => None,
+        Some("linear") => Some(Backend::Linear),
+        Some("linear-checked") => Some(Backend::LinearChecked),
+        Some(other) => panic!(
+            "unknown HD_CONFORMANCE_BACKEND: {other}; the backends to sweep are linear and linear-checked"
+        ),
+    }
+}
+
 /// Whether `HD_CONFORMANCE_BACKEND=linear` runs every runtime case through
 /// the linear backend too.
 fn linear_sweep() -> bool {
-    match selection_env("HD_CONFORMANCE_BACKEND").as_deref() {
-        None | Some("") => false,
-        Some("linear") => true,
-        Some(other) => {
-            panic!("unknown HD_CONFORMANCE_BACKEND: {other}; the backend to sweep is linear")
-        }
+    linear_selection() == Some(Backend::Linear)
+}
+
+/// The backend of the linear runs: `HD_CONFORMANCE_BACKEND=linear-checked`
+/// builds them in checked mode (`crates/hd_wasm/DESIGN.md` §23.24), so
+/// each case [`LINEAR_PASSES`] lists must pass with its counts audited.
+fn linear_backend() -> Backend {
+    match linear_selection() {
+        Some(Backend::LinearChecked) => Backend::LinearChecked,
+        _ => Backend::Linear,
     }
 }
 
@@ -1857,7 +1878,7 @@ fn linear_case(case: &Case, fixture: Fixture, store: &MemoryStore, serial: usize
         ..case.clone()
     };
     let fixture = Fixture {
-        backend: Backend::Linear,
+        backend: linear_backend(),
         ..fixture
     };
     let verdict = catch_unwind(AssertUnwindSafe(|| {
@@ -1890,6 +1911,10 @@ const STD_RT_TESTS: &[(&str, &str)] = &[
     ),
     ("rt/ref_tests.hd", include_str!("std_rt/ref_tests.hd")),
     ("rt/task_tests.hd", include_str!("std_rt/task_tests.hd")),
+    (
+        "rt/checked_tests.hd",
+        include_str!("std_rt/checked_tests.hd"),
+    ),
 ];
 
 /// Every case of each [`STD_RT_TESTS`] file passes on the linear backend,
@@ -2442,7 +2467,12 @@ fn judge_linear(cases: &[Case], engine: &str) -> Vec<String> {
     }
     let _ = writeln!(
         out,
-        "driver (linear backend) conformance on {engine}, {} pipeline: listed {}, pass {pass}, fail {fail}, unlisted passes {}, total {}",
+        "driver ({} backend) conformance on {engine}, {} pipeline: listed {}, pass {pass}, fail {fail}, unlisted passes {}, total {}",
+        if linear_backend() == Backend::LinearChecked {
+            "linear-checked"
+        } else {
+            "linear"
+        },
         pipeline_name(),
         listed.len(),
         unlisted.len(),

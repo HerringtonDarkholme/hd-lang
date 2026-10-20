@@ -313,8 +313,8 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
-    /// `GlobalSet` of `v` into a binding in static slot `at`.
-    pub(super) fn slot_set(&mut self, at: u32, v: u32) -> StageResult<()> {
+    /// `GlobalSet` `g` of `v` into a binding in static slot `at`.
+    pub(super) fn slot_set(&mut self, g: u32, at: u32, v: u32) -> StageResult<()> {
         if v != NONE && self.diverges(v) {
             self.f.op(I::Unreachable);
             return Ok(());
@@ -322,6 +322,10 @@ impl Em<'_, '_, '_> {
         let t = self.ty_of(v);
         let m = mem_of(self.pool(), self.env(), t)?;
         let counted = self.counted(t).is_some();
+        if counted {
+            let h = self.global_hash(g);
+            self.note_stored(h, t, Some((at, m.leaves.clone())))?;
+        }
         let a = self.f.local(Val::I32);
         self.f.u32(at);
         self.f.set(a);

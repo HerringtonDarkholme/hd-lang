@@ -725,7 +725,7 @@ impl Em<'_, '_, '_> {
                 }
             }
             Tag::GlobalGet if let Some(at) = self.global_slot(a) => self.slot_get(i, at)?,
-            Tag::GlobalSet if let Some(at) = self.global_slot(a) => self.slot_set(at, bw)?,
+            Tag::GlobalSet if let Some(at) = self.global_slot(a) => self.slot_set(a, at, bw)?,
             Tag::RefPlace => self.ref_place(i)?,
             Tag::RefRead => self.deref_read(i, a)?,
             Tag::RefWrite => {
@@ -755,6 +755,7 @@ impl Em<'_, '_, '_> {
                 let vs = self.vals(self.ty_of(bw))?;
                 let t = self.ty_of(bw);
                 if self.counted(t).is_some() {
+                    self.note_stored(h, t, None)?;
                     self.retain_ref(bw)?;
                     let old: Vec<u32> = vs.iter().map(|v| self.f.local(*v)).collect();
                     for (k, (v, o)) in vs.iter().zip(&old).enumerate() {

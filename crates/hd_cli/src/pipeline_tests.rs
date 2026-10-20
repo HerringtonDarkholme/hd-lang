@@ -171,6 +171,10 @@ fn a_test_run_and_its_executables_build_for_its_engine() {
 fn check_backend(command: &dyn Fn(&[&str])) {
     for (flags, backend) in [
         (&["--backend", "linear"][..], hd_driver::Backend::Linear),
+        (
+            &["--backend", "linear-checked"][..],
+            hd_driver::Backend::LinearChecked,
+        ),
         (&["--backend=wasm-gc"][..], hd_driver::Backend::WasmGc),
         (&[][..], hd_driver::Backend::WasmGc),
     ] {

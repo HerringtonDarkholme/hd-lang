@@ -58,6 +58,20 @@ pub enum Helper {
         /// once and polls it (§23.21), answering -1 while it is Pending.
         bang: Option<Vec<Val>>,
     },
+    /// `(ctx) -> status`: checked mode's entry poll (§23.24), `poll`'s
+    /// answer. Once that is not Pending, it frees the wake table, releases
+    /// every top-level binding ([`Helper::Teardown`]) and audits that no
+    /// block is left. A test case's instance serves the next case, so its
+    /// end then runs `reinit`, every module's init again, which gives the
+    /// next case the bindings a fresh instance has.
+    CheckedPoll {
+        poll: Box<Helper>,
+        reinit: Vec<Hash128>,
+    },
+    /// `()`: checked mode releases the counted references that each
+    /// top-level binding holds, and zeroes them, before the audit at an
+    /// entry's end.
+    Teardown,
     /// `()`: the panic report `MESSAGE` (`CATEGORY: TEXT`), then a trap.
     Panic(String),
     /// `(text)`: the `explicit-panic` report of `panic(text)`.
@@ -400,7 +414,11 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
             after,
             report,
         } => (*init, *key, before.clone(), after.clone(), *report),
-        Entry::Tests { cases, inits } => {
+        Entry::Tests {
+            cases,
+            inits,
+            runtime_inits,
+        } => {
             // The module under test is not an entry module
             // (`module.init.tests.no-entry`), so every init is forbidden.
             for (j, ks) in inits.iter().enumerate() {
@@ -411,8 +429,15 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
                 );
             }
             let mut bang = false;
+            let mut reinit: Vec<Hash128> = Vec::new();
+            for k in inits.iter().flatten() {
+                if !reinit.contains(k) && !runtime_inits.contains(k) {
+                    reinit.push(*k);
+                }
+            }
             for (i, (def, key, report)) in cases.iter().enumerate() {
                 let poll = poll(input, m, *def, *key, *report, Vec::new())?;
+                let poll = checked(m, poll, reinit.clone());
                 bang |= m.frames.contains_key(key);
                 m.export(format!("hd.test.{i}"), poll);
             }
@@ -425,6 +450,14 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
     };
     m.export("hd.init", Sym::Helper(Helper::EntryInit { inits: before }));
     let poll = poll(input, m, main, key, report, after)?;
+    // A scenario's host reads its bindings through
+    // `hd.scenario.cleanup` after the root has ended, so it keeps them
+    // and has no audit.
+    let poll = if matches!(input.entry, Entry::Scenario { .. }) {
+        poll
+    } else {
+        checked(m, poll, Vec::new())
+    };
     m.export("hd.poll", poll);
     if m.frames.contains_key(&key) {
         m.export("hd.wake", Sym::Helper(Helper::WakeMark));
@@ -466,6 +499,101 @@ fn poll(
         then,
         bang,
     }))
+}
+
+/// In checked mode, `poll` behind the audit at its end
+/// ([`Helper::CheckedPoll`]), then the inits `reinit`; else `poll` itself.
+fn checked(m: &Module, poll: Sym, reinit: Vec<Hash128>) -> Sym {
+    match poll {
+        Sym::Helper(h) if m.runtime.is_some_and(|r| r.checked.is_some()) => {
+            Sym::Helper(Helper::CheckedPoll {
+                poll: Box::new(h),
+                reinit,
+            })
+        }
+        other => other,
+    }
+}
+
+/// [`Helper::CheckedPoll`].
+fn checked_poll(poll: &Helper, reinit: &[Hash128], m: &Module) -> Func {
+    let mut f = Func::new("rt:checked_poll", vec![Val::I32], vec![Val::I32]);
+    let Some((r, c)) = m.runtime.and_then(|r| Some((r, r.checked?))) else {
+        return f;
+    };
+    let status = f.local(Val::I32);
+    f.get(0);
+    f.helper(poll.clone());
+    f.set(status);
+    f.get(status);
+    f.i32(-1);
+    f.op(Instruction::I32Ne);
+    f.op(Instruction::If(BlockType::Empty));
+    // The wake table is the runtime's own, grown on demand: no handle
+    // waits once the root has ended.
+    f.global_get(Global::WakeTab);
+    f.op(Instruction::If(BlockType::Empty));
+    f.global_get(Global::WakeTab);
+    f.call(Sym::Inst(r.free));
+    f.i32(0);
+    f.global_set(Global::WakeTab);
+    f.i32(0);
+    f.global_set(Global::WakeCap);
+    f.op(Instruction::End);
+    f.helper(Helper::Teardown);
+    f.i32(0);
+    f.call(Sym::Inst(c.audit));
+    for k in reinit {
+        call_init(&mut f, *k, true);
+    }
+    f.op(Instruction::End);
+    f.get(status);
+    f
+}
+
+/// [`Helper::Teardown`]: each binding [`Module::stored`] names releases
+/// its values, from its globals or its static slot, and is zeroed.
+fn teardown(m: &Module) -> Func {
+    let mut f = Func::new("rt:teardown", vec![], vec![]);
+    for (h, s) in &m.stored {
+        let ls: Vec<u32> = s.vals.iter().map(|v| f.local(*v)).collect();
+        for (k, (v, l)) in s.vals.iter().zip(&ls).enumerate() {
+            let g = Global::Storage(*h, u32::try_from(k).expect("k"), *v);
+            if let Some((at, leaves)) = &s.slot {
+                f.u32(*at);
+                f.op(leaves[k].load(0));
+            } else {
+                f.global_get(g);
+            }
+            f.set(*l);
+        }
+        if let Walk::Ref(k) = s.walk {
+            f.get(ls[k as usize]);
+            f.helper(Helper::ReleaseRef);
+        } else {
+            for l in &ls {
+                f.get(*l);
+            }
+            f.helper(Helper::Release {
+                vals: s.vals.clone(),
+                walk: s.walk.clone(),
+            });
+        }
+        // Zeros release as nothing, so a later init's store of the
+        // binding releases nothing twice.
+        for (k, v) in s.vals.iter().enumerate() {
+            let g = Global::Storage(*h, u32::try_from(k).expect("k"), *v);
+            if let Some((at, leaves)) = &s.slot {
+                f.u32(*at);
+                crate::task::zero(&mut f, *v);
+                f.op(leaves[k].store(0));
+            } else {
+                crate::task::zero(&mut f, *v);
+                f.global_set(g);
+            }
+        }
+    }
+    f
 }
 
 /// Pushes each host provider: no data beside its vtable of host stubs; for
@@ -789,6 +917,8 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             }
             f
         }
+        Helper::CheckedPoll { poll, reinit } => checked_poll(poll, reinit, m),
+        Helper::Teardown => teardown(m),
         Helper::Panic(msg) => {
             let mut f = Func::new("rt:panic", vec![], vec![]);
             f.call(rt_import("panic", &[], &[]));

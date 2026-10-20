@@ -1,0 +1,102 @@
+# std.rt.checked: the checked runtime of the linear-memory backend
+# (crates/hd_wasm/DESIGN.md §23.24), which a `linear-checked` build links
+# in place of std.rt.alloc's counts. A runtime module, so only std may use
+# it (spec/lang/10-modules.md#r-module.rt.std-only).
+#
+# Each block it frees is filled with POISON and never reused, so a later
+# count change through it is caught here, and a read of it finds a value
+# no live object holds. A new block is filled with FRESH, so a read
+# before its constructor's store finds no zeros to hide behind. Every
+# retain and release checks that its block holds a live count, and the
+# entry's audit at exit checks that every block was freed.
+#
+# Checked mode's failures are bugs of the backend or the runtime, never of
+# the program, so they panic `count-audit`, outside the stable panic
+# categories (spec/lang/06-control-flow.md#r-flow.panic.known-categories).
+use std.rt.alloc.{alloc, block_bytes, block_of}
+use std.rt.memory.{fill, load_u32, pages, store_u32}
+
+POISON := 0xdededede
+FRESH := 0xa5a5a5a5
+
+# How many blocks `allocate` has given and `free` has not taken back.
+let held: usize = 0
+
+## Allocates a block of at least `size` bytes, as `std.rt.alloc.alloc` does, and fills it with FRESH bytes.
+pub fn allocate(size: usize) -> usize:
+    # The cycle collector, once it lands (REFCOUNT_RUNTIME.md §10.2, job
+    # 21), runs here before every allocation.
+    held = held + 1
+    block := alloc(size)
+    fill(block, 0xa5, block_bytes(block))
+    block
+
+## Frees the block at `block`: fills it with POISON bytes and keeps it from reuse; a second free of it panics.
+pub fn free(block: usize) -> void:
+    if block == 0 || block_of(block) != block:
+        fail("free of ${block}, which is not the start of a block")
+    if usize(load_u32(block)) == POISON:
+        fail("double free of the block at ${block}")
+    fill(block, 0xde, block_bytes(block))
+    held = held - 1
+
+## Adds one to the count of the block that holds `address`, as `std.rt.alloc.retain` does, after checking the block holds a live count.
+pub fn retain(address: usize) -> void:
+    block := block_of(address)
+    if block != 0:
+        count := counted(block, "retain")
+        store_u32(block, u32(count + 1))
+
+## Takes one from the count of the block that holds `address`, as `std.rt.alloc.release` does, after checking the block holds a live count.
+pub fn release(address: usize) -> usize:
+    block := block_of(address)
+    if block == 0:
+        return 0
+    count := counted(block, "release")
+    if count == 1:
+        return block
+    store_u32(block, u32(count - 1))
+    0
+
+## How many blocks are allocated and not yet freed.
+pub fn live() -> usize:
+    held
+
+## Panics unless exactly `expected` blocks are allocated and not yet freed: the audit at a program's or a test case's end.
+pub fn audit(expected: usize) -> void:
+    if held > expected:
+        first := first_live()
+        fail("${held - expected} blocks leaked: allocated and never freed; the lowest at ${first} holds count ${load_u32(first)} and descriptor word ${load_u32(first + 4)} in ${block_bytes(first)} bytes")
+    if held < expected:
+        fail("${expected - held} more blocks freed than the audit expected")
+
+# The lowest block that holds a count, which is a live object: a freed
+# block holds POISON, and an unwritten one FRESH or the zeros of a new
+# page.
+fn first_live() -> usize:
+    end := pages() * 65536
+    let at: usize = 16
+    while at < end:
+        if block_of(at) == at:
+            count := usize(load_u32(at))
+            if count != 0 && count != POISON && count != FRESH:
+                return at
+        at = at + 16
+    0
+
+# The count of the block at `block`, which a `what` is about to change:
+# a freed block's or a block with no count panics.
+fn counted(block: usize, what: string) -> usize:
+    count := usize(load_u32(block))
+    if count == POISON:
+        fail("${what} of the freed block at ${block}")
+    if count == 0 || count == FRESH:
+        fail("${what} of the block at ${block}, which holds no count")
+    count
+
+fn fail(message: string) -> never:
+    panic_with("count-audit", message)
+
+@intrinsic("panic")
+fn panic_with(category: string, message: string) -> never:
+    panic("intrinsic")
