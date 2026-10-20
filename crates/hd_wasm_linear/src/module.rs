@@ -145,6 +145,11 @@ pub enum Global {
     /// The wake table: its address and its capacity in handles.
     WakeTab,
     WakeCap,
+    /// The enclosing all! node and child bit while a child is polled.
+    Waker,
+    WakeBit,
+    /// Child polls executed by all!, in dev builds only.
+    AllPolls,
     /// Dead blocks awaiting their payload release, linked through their
     /// no-longer-counted header word (#625).
     ReleaseHead,
@@ -171,6 +176,9 @@ impl Global {
             | Global::Owner
             | Global::WakeTab
             | Global::WakeCap
+            | Global::Waker
+            | Global::WakeBit
+            | Global::AllPolls
             | Global::ReleaseHead
             | Global::Releasing
             | Global::Stack => Val::I32,
@@ -742,6 +750,11 @@ impl Module {
                 ExportKind::Func,
                 *index.get(s).ok_or_else(|| undefined(s))?,
             );
+        }
+        if !self.release
+            && let Some(index) = gindex.get(&Global::AllPolls)
+        {
+            exports.export("hd.all_polls", ExportKind::Global, *index);
         }
         exports.export("hd.x", ExportKind::Memory, BUF);
         let mut data = DataSection::new();

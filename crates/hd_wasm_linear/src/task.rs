@@ -207,8 +207,16 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f
         }
         Helper::CancelLeave => cancel_leave(),
-        Helper::WakeMark => wake_mark(m),
+        Helper::WakeMark => wake_mark(),
         Helper::WakeTake => wake_take(),
+        Helper::WakeSlot => wake_slot(m),
+        Helper::WakeRegister => wake_register(),
+        Helper::WakeRemove => wake_remove(),
+        Helper::WakeSignal => wake_signal(),
+        Helper::WakerNew => waker_new(),
+        Helper::WakerParent => waker_parent(),
+        Helper::WakeLink => wake_link(),
+        Helper::WakeNotify => wake_notify(),
         Helper::HostCold {
             module,
             method,
@@ -471,41 +479,29 @@ fn slot(f: &mut Func, h: u32) {
     f.op(Instruction::I32And);
 }
 
-/// [`Helper::WakeMark`] (`hd.wake(n)`): records each of the `n` handles
-/// the host wrote to the exchange buffer in the wake table, by slot,
-/// growing it to fit.
-fn wake_mark(m: &Module) -> Func {
-    let mut f = Func::new("rt:wake_mark", vec![Val::I32], vec![]);
-    let (i, h, cap, fresh) = (
-        f.local(Val::I32),
-        f.local(Val::I32),
-        f.local(Val::I32),
-        f.local(Val::I32),
-    );
-    f.op(Instruction::Block(BlockType::Empty));
-    f.op(Instruction::Loop(BlockType::Empty));
-    f.get(i);
-    f.get(0);
-    f.op(Instruction::I32GeU);
-    f.op(Instruction::BrIf(1));
-    f.get(i);
-    f.i32(4);
-    f.op(Instruction::I32Mul);
-    f.op(Instruction::I32Load(mem(BUF, 0, 2)));
-    f.set(h);
-    // Grow when the slot is past the end: twice it, plus 16, all zero.
-    slot(&mut f, h);
+/// A wake registration holds the completed handle, registered handle,
+/// counted waiter list and one reserved word. Generations are compared in full.
+const WAKE_STRIDE: i32 = 16;
+/// A waker node holds its counted enclosing-waiter list and ready bits.
+pub const W_READY: u64 = 8;
+
+/// [`Helper::WakeSlot`]: grows the registration table before either a
+/// registration or a wake. Allocating once per capacity keeps lookup O(1).
+fn wake_slot(m: &Module) -> Func {
+    let mut f = Func::new("rt:wake_slot", vec![Val::I32], vec![Val::I32]);
+    let (cap, fresh) = (f.local(Val::I32), f.local(Val::I32));
+    slot(&mut f, 0);
     f.global_get(Global::WakeCap);
     f.op(Instruction::I32GeU);
     f.op(Instruction::If(BlockType::Empty));
-    slot(&mut f, h);
+    slot(&mut f, 0);
     f.i32(2);
     f.op(Instruction::I32Mul);
     f.i32(16);
     f.op(Instruction::I32Add);
     f.set(cap);
     f.get(cap);
-    f.i32(4);
+    f.i32(WAKE_STRIDE);
     f.op(Instruction::I32Mul);
     match m.runtime {
         Some(r) => f.call(Sym::Inst(r.alloc)),
@@ -515,7 +511,7 @@ fn wake_mark(m: &Module) -> Func {
     f.get(fresh);
     f.i32(0);
     f.get(cap);
-    f.i32(4);
+    f.i32(WAKE_STRIDE);
     f.op(Instruction::I32Mul);
     f.op(Instruction::MemoryFill(HEAP));
     f.global_get(Global::WakeTab);
@@ -523,7 +519,7 @@ fn wake_mark(m: &Module) -> Func {
     f.get(fresh);
     f.global_get(Global::WakeTab);
     f.global_get(Global::WakeCap);
-    f.i32(4);
+    f.i32(WAKE_STRIDE);
     f.op(Instruction::I32Mul);
     f.op(Instruction::MemoryCopy {
         src_mem: HEAP,
@@ -539,13 +535,269 @@ fn wake_mark(m: &Module) -> Func {
     f.get(cap);
     f.global_set(Global::WakeCap);
     f.op(Instruction::End);
+    wake_address(&mut f, 0);
+    f
+}
+
+fn wake_address(f: &mut Func, h: u32) {
     f.global_get(Global::WakeTab);
-    slot(&mut f, h);
-    f.i32(4);
+    slot(f, h);
+    f.i32(WAKE_STRIDE);
     f.op(Instruction::I32Mul);
     f.op(Instruction::I32Add);
+}
+
+/// [`Helper::WakeSignal`]: a wake follows only its enclosing waiters,
+/// marking their child bits, never polling a sibling.
+fn wake_signal() -> Func {
+    let mut f = Func::new("rt:wake_signal", vec![Val::I32, Val::I32], vec![]);
+    f.get(0);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::If(BlockType::Empty));
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
+    f.get(0);
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, W_READY, 2)));
+    f.get(1);
+    f.op(Instruction::I32Or);
+    f.op(Instruction::I32Store(mem(HEAP, W_READY, 2)));
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.helper(Helper::WakeNotify);
+    f
+}
+
+/// A shared cancellation cleanup can have several awaiters. Edges keep
+/// every distinct enclosing node, merging child bits for the same node.
+/// Their layout is parent, next edge, bits; all links own counts.
+fn wake_link() -> Func {
+    let mut f = Func::new("rt:wake_link", vec![Val::I32; 3], vec![]);
+    let edge = f.local(Val::I32);
+    f.get(1);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::If(BlockType::Empty));
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.set(edge);
+    f.op(Instruction::Block(BlockType::Empty));
+    f.op(Instruction::Loop(BlockType::Empty));
+    f.get(edge);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::BrIf(1));
+    f.get(edge);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.get(1);
+    f.op(Instruction::I32Eq);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(edge);
+    f.get(edge);
+    f.op(Instruction::I32Load(mem(HEAP, 8, 2)));
+    f.get(2);
+    f.op(Instruction::I32Or);
+    f.op(Instruction::I32Store(mem(HEAP, 8, 2)));
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
+    f.get(edge);
+    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+    f.set(edge);
+    f.op(Instruction::Br(0));
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+    f.i32(12);
+    f.body.push(Ins::TableSlot(Sym::Helper(Helper::DropFields {
+        leaves: vec![
+            Leaf {
+                offset: 0,
+                val: Val::I32,
+                bytes: 4,
+                signed: false,
+            },
+            Leaf {
+                offset: 4,
+                val: Val::I32,
+                bytes: 4,
+                signed: false,
+            },
+        ],
+        walk: Walk::Seq(vec![Walk::Ref(0), Walk::Ref(1)]),
+    })));
+    f.i32(1);
+    f.op(Instruction::I32Add);
+    f.helper(Helper::New);
+    f.set(edge);
+    f.get(1);
+    f.helper(Helper::RetainAny);
+    // The previous head's count moves into the new edge.
+    for (off, local) in [(0, 1), (8, 2)] {
+        f.get(edge);
+        f.get(local);
+        f.op(Instruction::I32Store(mem(HEAP, off, 2)));
+    }
+    f.get(edge);
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.op(Instruction::I32Store(mem(HEAP, 4, 2)));
+    f.get(0);
+    f.get(edge);
+    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    f
+}
+
+fn wake_notify() -> Func {
+    let mut f = Func::new("rt:wake_notify", vec![Val::I32], vec![]);
+    f.op(Instruction::Block(BlockType::Empty));
+    f.op(Instruction::Loop(BlockType::Empty));
+    f.get(0);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::BrIf(1));
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, 8, 2)));
+    f.helper(Helper::WakeSignal);
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+    f.set(0);
+    f.op(Instruction::Br(0));
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+    f
+}
+
+fn waker_parent() -> Func {
+    let mut f = Func::new("rt:waker_parent", vec![Val::I32], vec![]);
+    f.get(0);
+    f.global_get(Global::Waker);
+    f.global_get(Global::WakeBit);
+    f.helper(Helper::WakeLink);
+    f
+}
+
+fn waker_new() -> Func {
+    let mut f = Func::new("rt:waker_new", vec![Val::I32], vec![Val::I32]);
+    let node = f.local(Val::I32);
+    f.i32(12);
+    f.body.push(Ins::TableSlot(Sym::Helper(Helper::DropFields {
+        leaves: vec![Leaf {
+            offset: 0,
+            val: Val::I32,
+            bytes: 4,
+            signed: false,
+        }],
+        walk: Walk::Ref(0),
+    })));
+    f.i32(1);
+    f.op(Instruction::I32Add);
+    f.helper(Helper::New);
+    f.set(node);
+    f.get(node);
+    f.i32(0);
+    f.i32(12);
+    f.op(Instruction::MemoryFill(HEAP));
+    f.get(node);
+    f.helper(Helper::WakerParent);
+    f.get(node);
+    f.get(0);
+    f.op(Instruction::I32Store(mem(HEAP, W_READY, 2)));
+    f.get(node);
+    f
+}
+
+fn wake_register() -> Func {
+    let mut f = Func::new("rt:wake_register", vec![Val::I32], vec![]);
+    let at = f.local(Val::I32);
+    f.get(0);
+    f.helper(Helper::WakeSlot);
+    f.set(at);
+    f.get(at);
+    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+    f.get(0);
+    f.op(Instruction::I32Ne);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(at);
+    f.op(Instruction::I32Load(mem(HEAP, 8, 2)));
+    f.helper(Helper::ReleaseRef);
+    f.get(at);
+    f.i32(0);
+    f.op(Instruction::I32Store(mem(HEAP, 8, 2)));
+    f.get(at);
+    f.get(0);
+    f.op(Instruction::I32Store(mem(HEAP, 4, 2)));
+    f.op(Instruction::End);
+    f.get(at);
+    f.i32(8);
+    f.op(Instruction::I32Add);
+    f.global_get(Global::Waker);
+    f.global_get(Global::WakeBit);
+    f.helper(Helper::WakeLink);
+    f
+}
+
+/// Remove only the registered generation. A late wake cannot touch a
+/// released node or an unrelated new occupant of the same host slot.
+fn wake_remove() -> Func {
+    let mut f = Func::new("rt:wake_remove", vec![Val::I32], vec![]);
+    let at = f.local(Val::I32);
+    slot(&mut f, 0);
+    f.global_get(Global::WakeCap);
+    f.op(Instruction::I32GeU);
+    f.op(Instruction::If(BlockType::Empty));
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
+    wake_address(&mut f, 0);
+    f.set(at);
+    f.get(at);
+    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+    f.get(0);
+    f.op(Instruction::I32Eq);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(at);
+    f.op(Instruction::I32Load(mem(HEAP, 8, 2)));
+    f.helper(Helper::ReleaseRef);
+    for off in [4, 8, 12] {
+        f.get(at);
+        f.i32(0);
+        f.op(Instruction::I32Store(mem(HEAP, off, 2)));
+    }
+    f.op(Instruction::End);
+    f
+}
+
+/// [`Helper::WakeMark`] (`hd.wake(n)`): record completions, and mark the
+/// child named by each live registration plus its enclosing parents.
+fn wake_mark() -> Func {
+    let mut f = Func::new("rt:wake_mark", vec![Val::I32], vec![]);
+    let (i, h, at) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
+    f.op(Instruction::Block(BlockType::Empty));
+    f.op(Instruction::Loop(BlockType::Empty));
+    f.get(i);
+    f.get(0);
+    f.op(Instruction::I32GeU);
+    f.op(Instruction::BrIf(1));
+    f.get(i);
+    f.i32(4);
+    f.op(Instruction::I32Mul);
+    f.op(Instruction::I32Load(mem(BUF, 0, 2)));
+    f.set(h);
+    f.get(h);
+    f.helper(Helper::WakeSlot);
+    f.set(at);
+    f.get(at);
+    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+    f.get(h);
+    f.op(Instruction::I32Eq);
+    f.op(Instruction::If(BlockType::Empty));
+    // An old generation must not overwrite a newer completion's mark.
+    f.get(at);
     f.get(h);
     f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    f.get(at);
+    f.op(Instruction::I32Load(mem(HEAP, 8, 2)));
+    f.helper(Helper::WakeNotify);
+    f.op(Instruction::End);
     f.get(i);
     f.i32(1);
     f.op(Instruction::I32Add);
@@ -556,8 +808,8 @@ fn wake_mark(m: &Module) -> Func {
     f
 }
 
-/// [`Helper::WakeTake`]: `(h) -> i32`, whether the wake table holds
-/// handle `h`, generation and all; a taken entry is cleared.
+/// [`Helper::WakeTake`]: consume the matching completion and release its
+/// registration's ownership. Stale generations leave the current one alone.
 fn wake_take() -> Func {
     let mut f = Func::new("rt:wake_take", vec![Val::I32], vec![Val::I32]);
     let at = f.local(Val::I32);
@@ -568,11 +820,7 @@ fn wake_take() -> Func {
     f.i32(0);
     f.op(Instruction::Return);
     f.op(Instruction::End);
-    f.global_get(Global::WakeTab);
-    slot(&mut f, 0);
-    f.i32(4);
-    f.op(Instruction::I32Mul);
-    f.op(Instruction::I32Add);
+    wake_address(&mut f, 0);
     f.set(at);
     f.get(at);
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
@@ -585,6 +833,8 @@ fn wake_take() -> Func {
     f.get(at);
     f.i32(0);
     f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    f.get(0);
+    f.helper(Helper::WakeRemove);
     f.i32(1);
     f
 }
@@ -724,9 +974,13 @@ fn host_poll(module: &str, method: &str, args: &[HostArg], area: &Elem, res: &Ho
     f.get(0);
     f.get(n);
     f.op(Instruction::I32Store(mem(HEAP, u64::from(F_SAVED), 2)));
+    f.get(n);
+    f.helper(Helper::WakeRegister);
     pending(&mut f);
     f.op(Instruction::End);
     f.op(Instruction::Else);
+    f.get(h);
+    f.helper(Helper::WakeRegister);
     f.get(h);
     f.helper(Helper::WakeTake);
     f.op(Instruction::I32Eqz);
@@ -791,6 +1045,17 @@ fn host_cancel() -> Func {
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, u64::from(F_SAVED), 2)));
     f.call(Sym::Import(Import::new("hd:rt", "abort", &[Val::I32], &[])));
+    let at = f.local(Val::I32);
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, u64::from(F_SAVED), 2)));
+    f.helper(Helper::WakeSlot);
+    f.set(at);
+    f.get(at);
+    f.op(Instruction::I32Load(mem(HEAP, 8, 2)));
+    f.helper(Helper::WakeNotify);
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, u64::from(F_SAVED), 2)));
+    f.helper(Helper::WakeRemove);
     f.i32(1);
     f.global_set(Global::Rewake);
     f.op(Instruction::End);

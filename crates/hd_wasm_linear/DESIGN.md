@@ -990,13 +990,21 @@ counted frames in memory 1 (`emit/susp.rs`, `task.rs`).
   cancelled elsewhere, they kill the child instead of waiting. A frame
   cancelled while such a suite waited leaves by `Cancel` once the ladder
   has run.
-- **`all!` and `race!`.** `all!` keeps a done mask and each child's
-  result in the save area. Each poll polls every unfinished child.
-  There is no waker node: a host leaf answers from the wake table, so
-  skipping a child whose wake bit is clear would save only a poll.
-  `race!` is §14.5's frame over the list (`task::race_*`). The results of
-  done children are released by the cancellation branch and by the
-  release glue.
+- **`all!` and `race!`.** `all!` keeps a done mask, each child's result
+  and a counted waker node in the save area. Its first poll visits every
+  child; later polls visit only unfinished children whose ready bit is
+  set (#630). While a child is polled, host leaves register its node and
+  bit. A host completion sets that bit and follows the node's enclosing
+  links, so nested `all!` points wake the appropriate outer child.
+  Shared cancellation cleanups retain every distinct waiter, merging
+  bits for a shared node. Registrations compare full handle generations
+  and release their counted links on completion or abort; stale wakes
+  cannot follow a freed link. Completing or cancelling an `all!` releases
+  its node, and frame drop/trace glue handles a node saved while pending.
+  Dev builds export the `i32` global `hd.all_polls`: 30 separately woken
+  children take exactly 60 child polls. `race!` is §14.5's frame over the
+  list (`task::race_*`). The results of done children are released by the
+  cancellation branch and by the release glue.
 - **The waker and the entry driver.** `hd.wake(n)` marks completed host
   handles in a growable wake table (`WakeTab`). A host leaf frame (the
   handle at `F_SAVED`, then its arguments) takes its handle's mark. The

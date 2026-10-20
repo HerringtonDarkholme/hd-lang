@@ -470,6 +470,19 @@ pub enum Helper {
     WakeMark,
     /// `(h) -> i32`: whether handle `h` completed, which it takes.
     WakeTake,
+    /// `(handle) -> address`: grows the 16-byte wake registrations.
+    WakeSlot,
+    /// `(handle)`: registers the current waker, or removes it.
+    WakeRegister,
+    WakeRemove,
+    /// `(node, bit)`: marks the child and each enclosing all!.
+    WakeSignal,
+    /// `(mask) -> node`; `(node)` updates its enclosing waker.
+    WakerNew,
+    WakerParent,
+    /// `(head slot, parent, bit)`: adds a distinct waiter; `(head)` notifies it.
+    WakeLink,
+    WakeNotify,
     /// `hd.cancel` and `hd.abandon`: cancels the pending root, under
     /// `abandon()` for the second.
     EntryCancel {
@@ -1172,6 +1185,14 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         | Helper::CancelLeave
         | Helper::WakeMark
         | Helper::WakeTake
+        | Helper::WakeSlot
+        | Helper::WakeRegister
+        | Helper::WakeRemove
+        | Helper::WakeSignal
+        | Helper::WakerNew
+        | Helper::WakerParent
+        | Helper::WakeLink
+        | Helper::WakeNotify
         | Helper::HostCold { .. }
         | Helper::HostPoll { .. }
         | Helper::HostCancel
@@ -1213,6 +1234,8 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
                 Global::Owner,
                 Global::WakeTab,
                 Global::WakeCap,
+                Global::Waker,
+                Global::WakeBit,
                 Global::Releasing,
             ] {
                 f.i32(0);

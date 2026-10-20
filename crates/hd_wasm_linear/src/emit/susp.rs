@@ -15,7 +15,7 @@ use wasm_encoder::{BlockType, Instruction as I};
 
 use super::scope::Exit;
 use super::{Ctl, Em};
-use crate::module::{HEAP, Ins, Part, Sym, Val, mem};
+use crate::module::{Global, HEAP, Ins, Part, Sym, Val, mem};
 use crate::rt::Helper;
 use crate::unsupported;
 
@@ -128,6 +128,7 @@ pub(super) struct Susp {
 #[derive(Clone)]
 pub(super) struct AllPoint {
     pub done: u32,
+    pub node: u32,
     pub parts: Vec<(u32, Vec<u32>, hd_types::Ty)>,
 }
 
@@ -711,12 +712,10 @@ impl Em<'_, '_, '_> {
         self.store_owned(i)
     }
 
-    /// `all!(a, b, ...)` (§14.5): each poll polls the unfinished children
-    /// in argument order and keeps each result, and the point completes
-    /// once every child has. A child that answers Pending while
-    /// cancelled cancels this task (`req.cancel.await`). There is no
-    /// waker node: a later poll polls every unfinished child, whose host
-    /// leaves answer from the wake table.
+    /// `all!(a, b, ...)` (§14.5): the first poll polls every child;
+    /// later polls visit only unfinished children whose waker bit is set.
+    /// The counted node lives in the save area, and registrations keep
+    /// it and its enclosing nodes alive until completion or cancellation.
     fn await_all(&mut self, i: u32, k: u32, bw: u32) -> StageResult<()> {
         let children = self.rec(bw);
         if children.len() > 31 {
@@ -742,15 +741,29 @@ impl Em<'_, '_, '_> {
             let ls: Vec<u32> = vs.iter().map(|v| self.f.local(*v)).collect();
             parts.push((ch, ls, t));
         }
-        let point = AllPoint { done, parts };
+        let node = self.f.local(Val::I32);
+        self.temps.push(node);
+        let all = (1i32 << children.len()) - 1;
+        let point = AllPoint { done, node, parts };
         if let Some(x) = self.susp.as_mut() {
             x.alls.insert(i, point.clone());
         }
         self.fresh_only(|em| {
             em.f.i32(0);
             em.f.set(done);
+            em.f.i32(all);
+            em.f.helper(Helper::WakerNew);
+            em.f.set(node);
             Ok(())
         })?;
+        self.f.get(node);
+        self.f.helper(Helper::WakerParent);
+        let parent = self.f.local(Val::I32);
+        let parent_bit = self.f.local(Val::I32);
+        self.f.global_get(Global::Waker);
+        self.f.set(parent);
+        self.f.global_get(Global::WakeBit);
+        self.f.set(parent_bit);
         self.f.i32(0);
         self.f.set(gone);
         for (j, (ch, ls, t)) in point.parts.iter().enumerate() {
@@ -759,8 +772,31 @@ impl Em<'_, '_, '_> {
             self.f.i32(bit);
             self.f.op(I::I32And);
             self.f.op(I::I32Eqz);
+            self.f.get(node);
+            self.f.op(I::I32Load(mem(HEAP, crate::task::W_READY, 2)));
+            self.f.i32(bit);
+            self.f.op(I::I32And);
+            self.f.i32(0);
+            self.f.op(I::I32Ne);
+            self.f.op(I::I32And);
             self.f.op(I::If(BlockType::Empty));
             self.ctl.push(Ctl::Plain);
+            self.f.get(node);
+            self.f.get(node);
+            self.f.op(I::I32Load(mem(HEAP, crate::task::W_READY, 2)));
+            self.f.i32(!bit);
+            self.f.op(I::I32And);
+            self.f.op(I::I32Store(mem(HEAP, crate::task::W_READY, 2)));
+            self.f.get(node);
+            self.f.global_set(Global::Waker);
+            self.f.i32(bit);
+            self.f.global_set(Global::WakeBit);
+            if !self.input.release {
+                self.f.global_get(Global::AllPolls);
+                self.f.i32(1);
+                self.f.op(I::I32Add);
+                self.f.global_set(Global::AllPolls);
+            }
             self.comp(*ch, 0)?;
             self.f.set(s);
             self.f.get(s);
@@ -773,6 +809,10 @@ impl Em<'_, '_, '_> {
                 self.f.set(*l);
             }
             self.f.set(ready);
+            self.f.get(parent);
+            self.f.global_set(Global::Waker);
+            self.f.get(parent_bit);
+            self.f.global_set(Global::WakeBit);
             self.f.get(ready);
             self.f.op(I::If(BlockType::Empty));
             self.f.get(done);
@@ -787,7 +827,6 @@ impl Em<'_, '_, '_> {
             self.f.op(I::End);
             self.close();
         }
-        let all = (1i32 << children.len()) - 1;
         self.f.get(done);
         self.f.i32(all);
         self.f.op(I::I32Ne);
@@ -800,9 +839,13 @@ impl Em<'_, '_, '_> {
             self.cancel_here(None)?;
             self.close();
         }
-        let none = self.f.local(Val::I32);
-        self.suspend(k, none)?;
+        let no_child = self.f.local(Val::I32);
+        self.suspend(k, no_child)?;
         self.close();
+        self.f.get(node);
+        self.f.helper(Helper::ReleaseRef);
+        self.f.i32(0);
+        self.f.set(node);
         // The results move into the tuple; a stale mask must not name
         // them to the release glue.
         self.f.i32(0);
@@ -833,6 +876,10 @@ impl Em<'_, '_, '_> {
         }
         self.f.i32(0);
         self.f.set(all.done);
+        self.f.get(all.node);
+        self.f.helper(Helper::ReleaseRef);
+        self.f.i32(0);
+        self.f.set(all.node);
         Ok(())
     }
 
