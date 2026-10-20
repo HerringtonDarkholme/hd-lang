@@ -54,7 +54,7 @@ fn counter(mut start: i32) -> fn() -> i32:
 fn compose(f: fn(i32) -> i32, g: fn(i32) -> i32) -> fn(i32) -> i32:
     fn(x: i32) -> i32: g(f(x))
 
-fn widen(s: dyn Solid) -> dyn Shape:
+fn widen(s: &dyn Solid) -> &dyn Shape:
     s
 
 tests:
@@ -96,10 +96,10 @@ tests:
         assert(pages() == start, "each environment and its captures are freed")
 
     it("a trait value dispatches to its payload's implementation"):
-        let shapes: List[dyn Shape] = [Square { side: 3 }, Cube { side: 2, tags: ["a", "b"] }]
+        let shapes: List[&dyn Shape] = [&Square { side: 3 }, &Cube { side: 2, tags: ["a", "b"] }]
         assert(shapes[0].area() == 9, "a boxed struct")
         assert(shapes[1].name() == "cube 2", "a boxed struct of a list")
-        let c: dyn Solid = Cube { side: 4, tags: [] }
+        let c: &dyn Solid = &Cube { side: 4, tags: [] }
         assert(c.volume() == 64, "a supertrait's own method")
         assert(widen(c).area() == 96, "a widened trait value")
 
@@ -110,8 +110,8 @@ tests:
         while round < 2030:
             if round == 30:
                 start = pages()
-            let s: dyn Shape = Cube { side: 2, tags: [label(round)] }
-            let held: List[dyn Shape] = [s, Square { side: 1 }]
+            let s: &dyn Shape = &Cube { side: 2, tags: [label(round)] }
+            let held: List[&dyn Shape] = [s, &Square { side: 1 }]
             total = total + held[0].area() + held[1].area()
             round = round + 1
         assert(total == 2030 * 25, "each trait value was whole while held")
