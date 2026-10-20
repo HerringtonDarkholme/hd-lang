@@ -2313,12 +2313,13 @@ runtime/valid/random-host-mut-ref.hd	runtime	accept	std/random.md#r-std-random.m
 runtime/valid/cli-repeated-choices.hd	runtime	accept	std/cli.md#r-std-cli.parsed.all-values
 runtime/panic/cli-command-after-positional.hd	runtime	panic:explicit-panic	std/cli.md#r-std-cli.command.no-positionals
 runtime/panic/cli-positional-after-command.hd	runtime	panic:explicit-panic	std/cli.md#r-std-cli.command.no-positionals
+runtime/valid/cli-automatic-help.hd	runtime	accept	std/cli.md#r-std-cli.error.help-stop
 runtime/valid/cli-subcommands.hd	runtime	accept	std/cli.md#r-std-cli.parsed.command
 runtime/valid/cli-flag-forms.hd	runtime	accept	std/cli.md#argument-forms
 runtime/valid/cli-errors.hd	runtime	accept	std/cli.md#parse-errors
 runtime/valid/cli-usage.hd	runtime	accept	std/cli.md#usage-text
 runtime/valid/cli-parse-args.hd	runtime	accept	std/cli.md#parsing
-runtime/valid/cli-error-exit.hd	runtime	accept	std/cli.md#r-std-cli.error.exit
+runtime/valid/cli-error-exit.hd	runtime	accept	std/cli.md#r-std-cli.error.exit-help
 runtime/panic/cli-duplicate-option.hd	runtime	panic:explicit-panic	std/cli.md#r-std-cli.parser.duplicate
 runtime/valid/regex-literals-escapes.hd	runtime	accept	std/regex.md#literals-and-escapes
 runtime/valid/regex-classes.hd	runtime	accept	std/regex.md#classes

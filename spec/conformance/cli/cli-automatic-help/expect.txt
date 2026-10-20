@@ -1,0 +1,40 @@
+run: hd tool.hd -- --help
+exit: 0
+stdout: usage: notes [options] <command>
+stdout:
+stdout: Build a static site from Markdown notes.
+stdout:
+stdout: commands:
+stdout:   build  Convert the notes to HTML.
+stdout:   clean  Remove the output directory.
+stdout:
+stdout: options:
+stdout:   -v, --verbose  Print each file as it is converted.
+stdout:   -h, --help     Print this help.
+run: hd tool.hd -- -h
+exit: 0
+stdout: usage: notes [options] <command>
+stdout:
+stdout: Build a static site from Markdown notes.
+stdout:
+stdout: commands:
+stdout:   build  Convert the notes to HTML.
+stdout:   clean  Remove the output directory.
+stdout:
+stdout: options:
+stdout:   -v, --verbose  Print each file as it is converted.
+stdout:   -h, --help     Print this help.
+run: hd tool.hd -- build --help
+exit: 0
+stdout: usage: notes build [options] <file>
+stdout:
+stdout: Convert the notes to HTML.
+stdout:
+stdout: arguments:
+stdout:   file        input
+stdout:
+stdout: options:
+stdout:   -h, --help  Print this help.
+run: hd tool.hd -- --levl 3
+exit: 2
+stderr: unknown option --levl

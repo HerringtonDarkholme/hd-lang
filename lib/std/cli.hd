@@ -36,7 +36,8 @@ pub struct ArgParser:
 
 impl ArgParser:
     pub fn new(program: string, about: string = "") -> &mut ArgParser:
-        &mut ArgParser { program: program, about: about, declarations: [], options: {}, names: {}, positional_slots: [], commands: {} }
+        parser := &mut ArgParser { program: program, about: about, declarations: [], options: {}, names: {}, positional_slots: [], commands: {} }
+        parser.arg(Arg { name: "help", kind: .Flag, short: 'h', help: "Print this help." })
 
     pub fn arg(&mut self, arg: Arg) -> &mut ArgParser:
         if self.names.get(arg.name).is_some():
@@ -83,6 +84,8 @@ impl ArgParser:
         while index < arguments.len():
             argument := arguments[index]
             index = index + 1
+            if !only_positionals && (argument == "-h" || argument == "--help"):
+                return .Err(CliError.Help(self.usage()))
             if only_positionals || argument == "-" || !argument.starts_with("-"):
                 if self.commands.len() > 0:
                     parser := match self.commands.get(argument):
@@ -123,13 +126,11 @@ impl ArgParser:
                         store_value(option, arguments[index], &mut values, &mut histories)?
                         index = index + 1
         if self.commands.len() > 0 && selected.is_empty(): return .Err(CliError.MissingCommand)
-        # Preserve the declared help flag's old behavior until #501 supplies automatic help.
-        if !flags.get("help").unwrap_or(false):
-            for arg in self.declarations:
-                if arg.required:
-                    present := if arg.kind == .Flag: flags.get(arg.name).unwrap_or(false) else: values.get(arg.name).is_some()
-                    if !present:
-                        return .Err(CliError.MissingArgument(argument_name(arg)))
+        for arg in self.declarations:
+            if arg.required:
+                present := if arg.kind == .Flag: flags.get(arg.name).unwrap_or(false) else: values.get(arg.name).is_some()
+                if !present:
+                    return .Err(CliError.MissingArgument(argument_name(arg)))
         .Ok(Parsed { present_flags: flags, option_values: values, value_histories: histories, position_values: positionals, selected_command: selected })
 
     pub fn parse_args(&self) -> Result[Parsed, CliError] $ Args:
@@ -169,8 +170,10 @@ impl ArgParser:
         if self.options.len() > 0:
             text.push("\n\noptions:")
             for (slot, arg) in self.declarations.iter().enumerate():
-                if arg.kind != .Positional:
+                if arg.kind != .Positional && arg.name != "help":
                     write_entry(text, terms[slot], arg, width)
+            help_slot := self.options.get("--help").expect("automatic help declaration")
+            write_entry(text, terms[help_slot], self.declarations[help_slot], width)
         text.build()
 
 fn argument_name(arg: Arg) -> string:
@@ -253,7 +256,7 @@ impl Parsed:
 
 # Why `parse` failed (r-std-cli.error.required-argument).
 ## Why parsing failed: an unknown option, a missing value or positional, an unexpected value, or a value that does not read as its type.
-## There is no help-request variant: a program that declares a `help` flag reads it from `Parsed` (std-cli.error.help-required).
+## Help holds the command's usage text and stops parsing immediately.
 ## See [std-cli.error.required-argument](../../spec/std/cli.md#r-std-cli.error.required-argument).
 @error
 @derive(Debug, Eq)
@@ -272,19 +275,25 @@ pub enum CliError:
     UnknownCommand(text: string)
     @error("missing command")
     MissingCommand
+    @error("$usage")
+    Help(usage: string)
 
 # The exit status of a command-line failure belongs to `CliError`, not to
-# `Error` (r-std-cli.error.exit-code); `main` calls `exit` itself.
+# `Error` (r-std-cli.error.exit-code-help); `main` calls `exit` itself.
 impl CliError:
-    ## The status a command line exits with for this error: 2, a usage error.
-    ## See [std-cli.error.exit-code](../../spec/std/cli.md#r-std-cli.error.exit-code).
+    ## Help exits successfully; a usage error exits with status 2.
+    ## See [std-cli.error.exit-code-help](../../spec/std/cli.md#r-std-cli.error.exit-code-help).
     pub fn exit_code(self) -> ExitCode:
-        ExitCode(2)
+        match self:
+            .Help(_) => ExitCode(0)
+            _ => ExitCode(2)
 
-    ## Writes this error's text as a line of error output, then returns `exit_code()`.
-    ## See [std-cli.error.exit](../../spec/std/cli.md#r-std-cli.error.exit).
+    ## Writes help to stdout or a usage error to stderr, then returns its status.
+    ## See [std-cli.error.exit-help](../../spec/std/cli.md#r-std-cli.error.exit-help).
     pub fn exit(self) -> ExitCode $ Console:
-        eprintln(self)
+        match self:
+            .Help(usage) => println(usage)
+            _ => eprintln(self)
         self.exit_code()
 
 # Keep handwritten Debug: show declarations as arguments and omit lookup indexes.

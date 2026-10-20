@@ -1,5 +1,5 @@
 # test: main returns error.exit() for a parse error, which writes the error as error output and exits 2
-# Spec std/cli Exit Status: std-cli.error.exit-code, std-cli.error.exit.
+# Spec std/cli Exit Status: std-cli.error.exit-code-help, std-cli.error.exit-help.
 # expect-stdout: quiet
 use std.cli.{Arg, ArgParser, CliError}
 use std.console.MemoryConsole

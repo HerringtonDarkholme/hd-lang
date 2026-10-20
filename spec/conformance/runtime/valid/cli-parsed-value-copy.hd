@@ -1,6 +1,6 @@
 # test: parsed accessors copy values while ArgParser mutates through one shared builder
 # expect-stdout: true 1 2 true
-# expect-stdout: 7 7 true
+# expect-stdout: 8 8 true
 use std.cli.{Arg, ArgParser}
 
 pub fn main() -> void $ Console:

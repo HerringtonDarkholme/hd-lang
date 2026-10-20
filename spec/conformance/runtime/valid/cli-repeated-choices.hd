@@ -39,9 +39,9 @@ tests:
 
     it("choices are included in usage through the existing writer"):
         parser := ArgParser::new("tool").arg(Arg { name: "format", choices: ["json", "markdown"], help: "output" })
-        assert_equal(parser.usage(), "usage: tool [options]\n\noptions:\n      --format <value>  output [choices: json, markdown]", reason="exact choice listing")
+        assert_equal(parser.usage(), "usage: tool [options]\n\noptions:\n      --format <value>  output [choices: json, markdown]\n  -h, --help            Print this help.", reason="exact choice listing")
         bare := ArgParser::new("tool").arg(Arg { name: "format", choices: ["json"] })
-        assert(bare.usage().ends_with("  [choices: json]"), reason="choices are shown without a help description")
+        assert(bare.usage().contains("  [choices: json]\n"), reason="choices are shown without a help description")
 
     it("repeated appends retain every value on a large option"):
         let mut args: List[string] = []

@@ -50,8 +50,8 @@ tests:
         assert_equal(parsed, copy, reason="parsed results are values")
 
     it("usage lists commands in declaration order using their descriptions"):
-        expected := "usage: notes [options] <command>\n\nBuild a static site from Markdown notes.\n\ncommands:\n  build  Convert the notes to HTML.\n  clean  Remove the output directory.\n\noptions:\n  -v, --verbose  Print each file as it is converted."
-        assert_equal(tool().usage(), expected, reason="exact command text before automatic help is added")
+        expected := "usage: notes [options] <command>\n\nBuild a static site from Markdown notes.\n\ncommands:\n  build  Convert the notes to HTML.\n  clean  Remove the output directory.\n\noptions:\n  -v, --verbose  Print each file as it is converted.\n  -h, --help     Print this help."
+        assert_equal(tool().usage(), expected, reason="exact command text with automatic help")
 
     it("stored commands are snapshots of the supplied parser values"):
         child := ArgParser::new("root child")

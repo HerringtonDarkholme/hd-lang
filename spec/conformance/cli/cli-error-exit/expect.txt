@@ -1,6 +1,6 @@
 # `main` returns `error.exit()` for a parse error, so a misspelled option
 # writes the error's text to standard error and exits with status 2; a good
-# command line exits 0 (std-cli.error.exit-code, std-cli.error.exit,
+# command line exits 0 (std-cli.error.exit-code-help, std-cli.error.exit-help,
 # module.console.write-error-line).
 run: hd tool.hd -- --levl 3
 exit: 2

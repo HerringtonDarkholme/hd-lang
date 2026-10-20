@@ -1,5 +1,5 @@
 # test: parse_args reads the arguments of the Args provider, and builder methods update their receiver in place
-# Spec std/cli Declaring Arguments and Parsing: std-cli.parser.decl-choices, std-cli.parser.new, std-cli.parser.arg, std-cli.parser.arg, std-cli.parser.arg, std-cli.parser.arg, std-cli.parse.parser, std-cli.parse-args.parser, std-cli.parsed.private (task #242).
+# Spec std/cli Declaring Arguments and Parsing: std-cli.parser.decl-choices, std-cli.parser.new-help, std-cli.parser.arg, std-cli.parser.arg, std-cli.parser.arg, std-cli.parser.arg, std-cli.parse.parser, std-cli.parse-args.parser, std-cli.parsed.private (task #242).
 use std.cli.{Arg, ArgParser, CliError, Parsed}
 use std.host.{Args, ScriptedArgs}
 fn tool() -> &mut ArgParser:
