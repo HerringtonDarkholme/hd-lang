@@ -30,14 +30,11 @@ pub enum OptVal {
     Zero,
 }
 
-/// Where a `Ref` object's `get` closure lies in its payload, and the
-/// layout and counted references of the value it reads.
+/// The layout of the value at a reference's address, which a vtable
+/// slot reads to pass by value (`SlotRecv::ReadThrough`).
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct RefRead {
-    pub code: u32,
-    pub env: u32,
-    pub value: Vec<Val>,
-    pub walk: Option<Walk>,
+    pub leaves: Vec<Leaf>,
 }
 
 /// A generated function, by what it does.
@@ -100,15 +97,15 @@ pub enum Helper {
     /// `(payload)`: one more count on each counted reference in a new
     /// object's payload, which its construction copied in.
     RetainFields { leaves: Vec<Leaf>, walk: Walk },
-    /// `(list) -> pin`: an element reference's pin (§23.20): a counted
-    /// object holding the list's header, whose count it takes, and one
-    /// more pin on the header, which its release takes off.
-    Pin,
-    /// `(payload)`: a pin's release glue: one pin less on its header, and
-    /// one count less.
-    DropPin,
+    /// `(list) -> bool`: whether an element reference pins the list: its
+    /// header has an owner word and its buffer a count over 1 (§23.20).
+    ListPinned,
+    /// `(list) -> list`: a new list over a copy of the list's buffer,
+    /// whose elements take their own counts: how [`Helper::ListCopy`]
+    /// copies a pinned list, through the owner word's slot.
+    ListClone { elem: Elem },
     /// `(buffer) -> list`: a new list header (§23.7) over `buffer`, whose
-    /// count it takes over, with no pins.
+    /// count it takes over, with no owner word.
     ListHeader,
     /// `(capacity) -> buffer`: a new, empty list buffer with room for
     /// `capacity` elements laid out as `elem`.
@@ -318,9 +315,14 @@ impl Elem {
     }
 }
 
-/// A list header's payload (§23.7): the buffer's address, then the pin
-/// count of the element references into the list.
-pub const LIST_PINS: u64 = 4;
+/// A list header's payload (§23.7): the buffer's address, then the
+/// owner word: 0 while the buffer may be shared, or, once an element
+/// reference pinned the list, the function-table slot of the list's
+/// [`Helper::ListClone`] plus one. A buffer whose header has an owner word
+/// has that header as its one owner, so each count past the first is an
+/// element reference's: the list is pinned while its buffer's count is
+/// over 1 (§23.20).
+pub const LIST_OWN: u64 = 4;
 
 /// A list buffer's payload: the capacity in elements, the length, then
 /// the elements inline from [`LIST_ELEMS`].
@@ -455,7 +457,6 @@ pub fn host_providers(f: &mut Func, providers: &[(usize, Option<Hash128>)]) {
         f.body.push(Ins::VTable(*v));
         if let Some(k) = by_ref {
             f.call(Sym::Inst(*k));
-            f.body.push(Ins::VTable(*v));
         }
     }
 }
@@ -713,45 +714,20 @@ fn list_step(elem: &Elem, opt: &[OptVal], results: &[Val]) -> Func {
     f
 }
 
-/// [`Helper::DynRead`]'s function.
+/// [`Helper::DynRead`]'s function: the value at the data's address, lent
+/// to the call as the receiver.
 fn dyn_read(target: Hash128, read: &RefRead, params: &[Val], results: &[Val]) -> Func {
     let mut all = vec![Val::I32];
     all.extend(params.iter().copied());
     let mut f = Func::new("rt:dyn_read", all, results.to_vec());
-    let value: Vec<u32> = read.value.iter().map(|v| f.local(*v)).collect();
-    let out: Vec<u32> = results.iter().map(|v| f.local(*v)).collect();
-    f.get(0);
-    f.op(Instruction::I32Load(mem(HEAP, u64::from(read.env), 2)));
-    f.get(0);
-    f.op(Instruction::I32Load(mem(HEAP, u64::from(read.code), 2)));
-    f.body
-        .push(Ins::CallIndirect(vec![Val::I32], read.value.clone()));
-    for l in value.iter().rev() {
-        f.set(*l);
-    }
-    for l in &value {
-        f.get(*l);
+    for l in &read.leaves {
+        f.get(0);
+        f.op(l.load(0));
     }
     for k in 1..=params.len() {
         f.get(u32::try_from(k).expect("params"));
     }
     f.call(Sym::Inst(target));
-    for l in out.iter().rev() {
-        f.set(*l);
-    }
-    // The read value arrived with its count, which the call borrowed.
-    if let Some(w) = &read.walk {
-        for l in &value {
-            f.get(*l);
-        }
-        f.helper(Helper::Release {
-            vals: read.value.clone(),
-            walk: w.clone(),
-        });
-    }
-    for l in &out {
-        f.get(*l);
-    }
     f
 }
 
@@ -946,22 +922,11 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             fields_glue("rt:retain_fields", leaves, walk, &retain_call(m))
         }
         Helper::ListHeader => list_header(),
-        Helper::Pin => pin(),
-        Helper::DropPin => drop_pin(),
+        Helper::ListPinned => list_pinned(),
+        Helper::ListClone { elem } => list_clone(elem),
         Helper::ListBuf { elem } => list_buf(elem),
         Helper::DropElems { elem } => drop_elems(elem),
-        Helper::ListCopy => {
-            let mut f = Func::new("rt:list_copy", vec![Val::I32], vec![Val::I32]);
-            let b = f.local(Val::I32);
-            f.get(0);
-            f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-            f.set(b);
-            f.get(b);
-            retain_call(m)(&mut f);
-            f.get(b);
-            f.helper(Helper::ListHeader);
-            f
-        }
+        Helper::ListCopy => list_copy(m),
         Helper::CopyElems { elem } => copy_elems(elem, m),
         Helper::ListUnique { elem, push } => list_unique(elem, *push, m),
         Helper::MapTable { entry } => map::table(entry),
@@ -1507,45 +1472,104 @@ const LIST_BUF_LEAF: Leaf = Leaf {
 };
 
 /// [`Helper::ListHeader`].
-/// [`Helper::Pin`].
-fn pin() -> Func {
-    let mut f = Func::new("rt:pin", vec![Val::I32], vec![Val::I32]);
-    let p = f.local(Val::I32);
-    f.i32(4);
-    f.body.push(Ins::TableSlot(Sym::Helper(Helper::DropPin)));
-    f.i32(1);
-    f.op(Instruction::I32Add);
-    f.helper(Helper::New);
-    f.set(p);
-    f.get(p);
-    f.get(0);
-    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
-    pins_by(&mut f, 0, Instruction::I32Add);
-    f.get(p);
-    f
-}
-
-/// [`Helper::DropPin`].
-fn drop_pin() -> Func {
-    let mut f = Func::new("rt:drop_pin", vec![Val::I32], vec![]);
-    let h = f.local(Val::I32);
+/// [`Helper::ListCopy`]: a new header over the same buffer, which counts
+/// one more owner. A pinned list's buffer has one owner, so its copy is a
+/// copy of the buffer (`ref.elem.pin`); an unpinned list whose header
+/// still has an owner word gives the word up, as its buffer is shared now.
+fn list_copy(m: &Module) -> Func {
+    let mut f = Func::new("rt:list_copy", vec![Val::I32], vec![Val::I32]);
+    let (b, own) = (f.local(Val::I32), f.local(Val::I32));
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-    f.set(h);
-    pins_by(&mut f, h, Instruction::I32Sub);
-    f.get(h);
-    f.helper(Helper::ReleaseRef);
+    f.set(b);
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, LIST_OWN, 2)));
+    f.set(own);
+    f.get(own);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(b);
+    f.u32(HEADER);
+    f.op(Instruction::I32Sub);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.i32(1);
+    f.op(Instruction::I32GtU);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(0);
+    f.get(own);
+    f.i32(1);
+    f.op(Instruction::I32Sub);
+    f.body
+        .push(Ins::CallIndirect(vec![Val::I32], vec![Val::I32]));
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
+    f.get(0);
+    f.i32(0);
+    f.op(Instruction::I32Store(mem(HEAP, LIST_OWN, 2)));
+    f.op(Instruction::End);
+    f.get(b);
+    retain_call(m)(&mut f);
+    f.get(b);
+    f.helper(Helper::ListHeader);
     f
 }
 
-/// One pin more or less on the list header in local `h`.
-fn pins_by(f: &mut Func, h: u32, op: Instruction<'static>) {
-    f.get(h);
-    f.get(h);
-    f.op(Instruction::I32Load(mem(HEAP, LIST_PINS, 2)));
+/// [`Helper::ListPinned`].
+fn list_pinned() -> Func {
+    let mut f = Func::new("rt:list_pinned", vec![Val::I32], vec![Val::I32]);
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, LIST_OWN, 2)));
+    f.i32(0);
+    f.op(Instruction::I32Ne);
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.u32(HEADER);
+    f.op(Instruction::I32Sub);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
     f.i32(1);
-    f.op(op);
-    f.op(Instruction::I32Store(mem(HEAP, LIST_PINS, 2)));
+    f.op(Instruction::I32GtU);
+    f.op(Instruction::I32And);
+    f
+}
+
+/// [`Helper::ListClone`].
+fn list_clone(elem: &Elem) -> Func {
+    let mut f = Func::new("rt:list_clone", vec![Val::I32], vec![Val::I32]);
+    let (b, n, nb) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.set(b);
+    f.get(b);
+    f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
+    f.set(n);
+    f.get(n);
+    f.helper(Helper::ListBuf { elem: elem.clone() });
+    f.set(nb);
+    f.get(nb);
+    f.get(n);
+    f.op(Instruction::I32Store(mem(HEAP, LIST_LEN, 2)));
+    f.get(nb);
+    f.u32(LIST_ELEMS);
+    f.op(Instruction::I32Add);
+    f.get(b);
+    f.u32(LIST_ELEMS);
+    f.op(Instruction::I32Add);
+    f.get(n);
+    f.u32(elem.size);
+    f.op(Instruction::I32Mul);
+    f.op(Instruction::MemoryCopy {
+        src_mem: HEAP,
+        dst_mem: HEAP,
+    });
+    if elem.counts() {
+        f.get(nb);
+        f.u32(LIST_ELEMS);
+        f.op(Instruction::I32Add);
+        f.get(n);
+        f.helper(Helper::CopyElems { elem: elem.clone() });
+    }
+    f.get(nb);
+    f.helper(Helper::ListHeader);
+    f
 }
 
 fn list_header() -> Func {
@@ -1565,7 +1589,7 @@ fn list_header() -> Func {
     f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
     f.get(h);
     f.i32(0);
-    f.op(Instruction::I32Store(mem(HEAP, LIST_PINS, 2)));
+    f.op(Instruction::I32Store(mem(HEAP, LIST_OWN, 2)));
     f.get(h);
     f
 }
@@ -1649,7 +1673,7 @@ fn list_truncate(elem: &Elem) -> Func {
     let mut f = Func::new("rt:list_truncate", vec![Val::I32, Val::I32], vec![]);
     let (b, at, n) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
     f.get(0);
-    f.op(Instruction::I32Load(mem(HEAP, LIST_PINS, 2)));
+    f.helper(Helper::ListPinned);
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
     f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
@@ -1782,6 +1806,12 @@ fn list_unique(elem: &Elem, push: bool, m: &Module) -> Func {
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
     f.i32(1);
     f.op(Instruction::I32Ne);
+    // A header with an owner word is its buffer's one owner; the other
+    // counts are element references, which see the change in place.
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, LIST_OWN, 2)));
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::I32And);
     f.set(shared);
     f.get(shared);
     if push {

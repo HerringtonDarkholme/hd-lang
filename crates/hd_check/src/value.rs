@@ -158,7 +158,7 @@ impl Ck<'_, '_> {
                 }
                 // A read through a reference (`refs.rs`): the place is the
                 // referenced value, writable through `&mut` only.
-                Tag::CallValue if let Some((r, m)) = self.deref_source(Ref(data[0])) => {
+                Tag::RefRead if let Some((r, m)) = self.deref_base(Ref(data[0])) => {
                     let rt = self.b.ty_of(r);
                     if !m {
                         let msg = format!(

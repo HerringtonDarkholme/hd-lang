@@ -7312,6 +7312,14 @@ impl Run<'_> {
                 {
                     hash = dbg::key(hash);
                 }
+                // The linear backend lowers references as addresses, so
+                // their closure forms never reach it
+                // (`crates/hd_wasm/DESIGN.md` §23.20).
+                if self.backend == Backend::Linear && hd_tir::ir::strip_closure_forms(&mut body) {
+                    let mut key = hd_base::StableHasher::new("ref-addresses");
+                    key.hash(hash);
+                    hash = key.finish();
+                }
                 let mut c = lock(&self.counters);
                 c.bodies_decoded += 1;
                 c.tir_decoded.push(self.table.modules[*m].path.clone());

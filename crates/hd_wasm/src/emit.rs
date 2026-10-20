@@ -749,6 +749,24 @@ impl Em<'_> {
                 self.ctrl.pop();
                 self.a.end();
             }
+            // A reference is its closure form, which its block builds or
+            // uses (§15.2, "References"): Wasm GC has no interior address.
+            Tag::RefPlace | Tag::RefRead | Tag::RefWrite | Tag::RefDyn | Tag::RefIdentity => {
+                let tail = self.b.data[bw as usize][1];
+                self.block_into(bw, None)?;
+                // The value is the closure form's, in the locals it is in.
+                match self.vals.get(&tail).cloned() {
+                    Some(v) if v.1 == self.vts(ty)? => {
+                        self.vals.insert(i, v);
+                    }
+                    _ if tail != NONE && !self.vts(ty)?.is_empty() => {
+                        let want = self.vts(ty)?;
+                        self.load_as(tail, &want)?;
+                        self.store(i)?;
+                    }
+                    _ => {}
+                }
+            }
             Tag::LocalGet => {
                 let ls = self.local(a)?;
                 if self.cells.contains_key(&a) {
@@ -5024,7 +5042,14 @@ fn operand_blocks(b: &Body, i: u32) -> Vec<u32> {
         Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
             rec(bw).into_iter().skip(1).take(2).collect()
         }
-        Tag::And | Tag::Or | Tag::With => vec![bw],
+        Tag::And
+        | Tag::Or
+        | Tag::With
+        | Tag::RefPlace
+        | Tag::RefRead
+        | Tag::RefWrite
+        | Tag::RefDyn
+        | Tag::RefIdentity => vec![bw],
         _ => vec![],
     };
     out.retain(|x| *x != NONE && b.tags.get(*x as usize) == Some(&Tag::Block));

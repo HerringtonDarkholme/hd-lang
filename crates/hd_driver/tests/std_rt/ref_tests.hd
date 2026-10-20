@@ -2,8 +2,10 @@
 # §23.20): a reference to a local shares the local's cell, an element
 # reference owns its list's pin until its last copy dies, and each is
 # released after its last use, so taking references in a loop runs in
-# bounded memory. Only std may read the heap's size, so the conformance
-# runner adds this file to std as `std.rt.ref_tests`.
+# bounded memory. A reference is an address, so writing through one to a
+# local allocates nothing. Only std may read the heap's size, so the
+# conformance runner adds this file to std as `std.rt.ref_tests`.
+use std.rt.alloc.allocated
 use std.rt.memory.pages
 
 struct Holder:
@@ -27,6 +29,18 @@ tests:
         r := &mut n
         *r = *r + 10
         assert(n == 12, "the writes reached the local")
+
+    it("writing through `&mut` to a local in a loop allocates nothing"):
+        let mut total = +0
+        let round = +0
+        before := allocated()
+        while round < 100:
+            bump(&mut total)
+            r := &mut total
+            *r = *r + 1
+            round = round + 1
+        assert(allocated() == before, "no round allocated a block")
+        assert(total == 200, "every round wrote the local twice")
 
     it("an element reference pins its list until its last use"):
         let mut xs = [+1, 2, 3]

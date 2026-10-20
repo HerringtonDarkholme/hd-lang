@@ -14,7 +14,7 @@ use wasm_encoder::Instruction as I;
 
 use super::Em;
 use super::value::Src;
-use crate::layout::{Leaf, Part, Walk, mem as mem_of, payload_mem, walk};
+use crate::layout::{Leaf, Part, Walk, mem as mem_of, walk};
 use crate::module::{HEAP, Ins, Sym, Val, mem};
 use crate::rt::{Helper, RefRead, TypeIdParts};
 use crate::unsupported;
@@ -39,36 +39,37 @@ impl Em<'_, '_, '_> {
         }
     }
 
-    /// Reads reference getters, releasing each owned intermediate reference.
-    pub(super) fn read_dyn_value(&mut self, value: u32) -> StageResult<(Ty, Vec<u32>)> {
+    /// The trait value that `value`, a reference to one, perhaps through
+    /// more references, refers to: its type, locals holding it, and
+    /// whether they own a count of it. A reference to a trait value is
+    /// that trait value (`refs.rs`), lent; one read through an address is
+    /// a copy with its own count.
+    pub(super) fn read_dyn_value(&mut self, value: u32) -> StageResult<(Ty, Vec<u32>, bool)> {
         let mut ty = self.strip_mut(self.ty_of(value));
-        let read = self.ref_read(ty)?;
-        let mut locals = self.read_through(value, &read)?;
+        let Some(mut ls) = self.vals.get(&value).cloned() else {
+            return unsupported("a value its instruction did not compute");
+        };
+        let mut loaded = false;
         loop {
-            let TyData::Adt { args, .. } = self.pool().get(ty) else {
-                return unsupported("a trait reference without a Ref layout");
+            let Some((target, fat)) = self.ref_target(ty) else {
+                return unsupported("a trait reference that is no reference");
             };
-            ty = self.pool().list_items(args)[0];
-            if let TyData::Mut(inner) = self.pool().get(ty) {
-                ty = inner;
+            if fat {
+                if loaded {
+                    self.retain_locals(&ls, target)?;
+                }
+                return Ok((target, ls, loaded));
             }
-            if self.is_dyn(ty) {
-                return Ok((ty, locals));
+            let m = mem_of(self.pool(), self.env(), target)?;
+            let next: Vec<u32> = m.leaves.iter().map(|l| self.f.local(l.val)).collect();
+            for (l, x) in m.leaves.iter().zip(&next) {
+                self.f.get(ls[0]);
+                self.f.op(l.load(0));
+                self.f.set(*x);
             }
-            let read = self.ref_read(ty)?;
-            self.f.get(locals[0]);
-            self.f.op(I::I32Load(mem(HEAP, u64::from(read.env), 2)));
-            self.f.get(locals[0]);
-            self.f.op(I::I32Load(mem(HEAP, u64::from(read.code), 2)));
-            self.f
-                .body
-                .push(Ins::CallIndirect(vec![Val::I32], read.value.clone()));
-            let next: Vec<u32> = read.value.iter().map(|v| self.f.local(*v)).collect();
-            for l in next.iter().rev() {
-                self.f.set(*l);
-            }
-            self.release_locals(&locals, ty)?;
-            locals = next;
+            ls = next;
+            ty = target;
+            loaded = true;
         }
     }
 
@@ -102,11 +103,7 @@ impl Em<'_, '_, '_> {
             // itself, never a copy, as the Wasm GC backend erases it, so
             // an element reference's identity base is its list's header.
             let leaves: Option<&[Leaf]> = if direct {
-                if self.is_pin(a) {
-                    self.list_addr(a)?;
-                } else {
-                    self.comp(a, 0)?;
-                }
+                self.comp(a, 0)?;
                 None
             } else {
                 self.f.i32(0);
@@ -214,70 +211,25 @@ impl Em<'_, '_, '_> {
     }
 
     /// How a slot reads the value behind the reference payload of type
-    /// `from` (`SlotRecv::ReadThrough`): where the `get` closure lies in
-    /// the `Ref` object, and the value's layout and counted references.
+    /// `from` (`SlotRecv::ReadThrough`): the value's layout at the address.
     pub(super) fn ref_read(&self, from: Ty) -> StageResult<RefRead> {
-        let (pool, env) = (self.pool(), self.env());
-        let TyData::Adt { def, args } = pool.get(from) else {
-            return unsupported("a reference payload that is not a `Ref`");
+        let Some((target, false)) = self.ref_target(from) else {
+            return unsupported("a reference payload that is no address");
         };
-        let fields: Vec<Ty> = env
-            .data_fields(def)
-            .unwrap_or_default()
-            .into_iter()
-            .map(|f| subst(pool, env, def, args, f))
-            .collect();
-        let (Some(&value), Some(&get)) = (pool.list_items(args).first(), fields.first()) else {
-            return unsupported("a `Ref` without its `get` field");
-        };
-        let (m, parts) = payload_mem(pool, env, &fields)?;
-        let p = parts[0];
-        if self.vals(get)? != [Val::I32, Val::I32] {
-            return unsupported("a `Ref` whose `get` is not a function value");
-        }
-        Ok(RefRead {
-            code: m.leaves[p.first].offset,
-            env: m.leaves[p.first + 1].offset,
-            value: self.vals(value)?,
-            walk: self.counted(value),
-        })
-    }
-
-    /// The value behind reference `r`, read through its `get` closure as
-    /// [`Self::ref_read`] describes: locals holding it, with a count of
-    /// its own.
-    pub(super) fn read_through(&mut self, r: u32, read: &RefRead) -> StageResult<Vec<u32>> {
-        self.comp(r, 0)?;
-        self.f.op(I::I32Load(mem(HEAP, u64::from(read.env), 2)));
-        self.comp(r, 0)?;
-        self.f.op(I::I32Load(mem(HEAP, u64::from(read.code), 2)));
-        self.f
-            .body
-            .push(Ins::CallIndirect(vec![Val::I32], read.value.clone()));
-        let ls: Vec<u32> = read.value.iter().map(|v| self.f.local(*v)).collect();
-        for l in ls.iter().rev() {
-            self.f.set(*l);
-        }
-        Ok(ls)
+        let m = mem_of(self.pool(), self.env(), target)?;
+        Ok(RefRead { leaves: m.leaves })
     }
 
     /// `RefAsProvider` (`crates/hd_wasm/DESIGN.md` §15.2, "Providers of
     /// reference traits"): the trait value reference `a` installed as a
-    /// provider. Its data is the `Ref` itself, which `ProviderAsRef` reads
-    /// back; its vtable is the one `get` returns, there to fill the
-    /// provider's layout, and the trait value `get` built is let go.
+    /// provider. A reference to a trait value is that trait value
+    /// (`refs.rs`), so the provider is `a` itself, which `ProviderAsRef`
+    /// reads back.
     pub(super) fn ref_as_provider(&mut self, i: u32, a: u32) -> StageResult<()> {
-        let read = self.ref_read(self.strip_mut(self.ty_of(a)))?;
-        if read.value != [Val::I32, Val::I32] {
+        if self.vals(self.ty_of(a))? != [Val::I32, Val::I32] {
             return unsupported("a provider reference of an unexpected layout");
         }
-        let ls = self.read_through(a, &read)?;
-        if self.input.runtime.is_some() {
-            self.f.get(ls[0]);
-            self.f.helper(Helper::ReleaseRef);
-        }
-        self.comp(a, 0)?;
-        self.f.get(ls[1]);
+        self.push(a)?;
         self.store(i)
     }
 
@@ -402,21 +354,12 @@ impl Em<'_, '_, '_> {
             }
             return self.new_variant(i, 0, &[]);
         }
-        let (data, table) = if value_t == recv_t {
-            let (data, table) = (self.f.local(Val::I32), self.f.local(Val::I32));
-            self.comp(recv, 0)?;
-            self.f.set(data);
-            self.comp(recv, 1)?;
-            self.f.set(table);
-            (data, table)
-        } else {
-            let read = self.ref_read(recv_t)?;
-            let payload = self.read_through(recv, &read)?;
-            let [data, table] = payload.as_slice() else {
-                return unsupported("a trait reference getter without payload and vtable");
-            };
-            (*data, *table)
-        };
+        // A reference to a trait value is that trait value (`refs.rs`).
+        let (data, table) = (self.f.local(Val::I32), self.f.local(Val::I32));
+        self.comp(recv, 0)?;
+        self.f.set(data);
+        self.comp(recv, 1)?;
+        self.f.set(table);
         let (insp, rt) = self.inspectable_of(item)?;
         let mut path = Vec::new();
         let mut found = None;
@@ -476,12 +419,6 @@ impl Em<'_, '_, '_> {
         self.f.op(I::Else);
         self.new_variant(i, 0, &[])?;
         self.close();
-        // The getter returned an owned trait payload; the optional result
-        // retained its reference on success, so release this temporary in both arms.
-        if value_t != recv_t && self.input.runtime.is_some() {
-            self.f.get(data);
-            self.f.helper(Helper::ReleaseRef);
-        }
         Ok(())
     }
 
@@ -490,12 +427,12 @@ impl Em<'_, '_, '_> {
     /// addresses of the value's.
     fn widen(&mut self, i: u32, a: u32) -> StageResult<()> {
         let source = self.strip_mut(self.ty_of(a));
-        let owned = if self.is_dyn(source) {
+        let read = if self.is_dyn(source) {
             None
         } else {
             Some(self.read_dyn_value(a)?)
         };
-        let from = owned.as_ref().map_or(source, |v| v.0);
+        let from = read.as_ref().map_or(source, |v| v.0);
         let to = self.strip_mut(self.ty(i));
         let TyData::TraitValue { def, args, .. } = self.pool().get(to) else {
             return unsupported("a supertrait coercion to a type that is not a trait value");
@@ -514,7 +451,7 @@ impl Em<'_, '_, '_> {
         let Some(path) = found else {
             return unsupported("a supertrait coercion to a trait the value does not extend");
         };
-        if let Some((_, value)) = &owned {
+        if let Some((_, value, _)) = &read {
             self.f.get(value[0]);
             self.f.get(value[1]);
         } else {
@@ -524,7 +461,7 @@ impl Em<'_, '_, '_> {
         for at in path {
             self.f.op(I::I32Load(mem(HEAP, u64::from(at), 2)));
         }
-        if owned.is_some() {
+        if read.as_ref().is_some_and(|r| r.2) {
             self.store_owned(i)
         } else {
             self.store(i)

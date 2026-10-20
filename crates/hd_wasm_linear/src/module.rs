@@ -120,9 +120,6 @@ pub enum Global {
     /// The run's map hash key (`map_hash_seed`): 0 until the first map
     /// key is hashed, which asks the host's `hash_seed` import.
     HashSeed,
-    /// The last serial number that reference identity drew
-    /// (`ref_serial`): 0 until the first.
-    RefSerial,
     /// The `abandon()` depth: cancels under it abandon (§23.21).
     Aband,
     /// The `ABANDONED` bits that a frame's cancels saw.
@@ -155,7 +152,7 @@ impl Global {
             | Global::Owner
             | Global::WakeTab
             | Global::WakeCap => Val::I32,
-            Global::HashSeed | Global::RefSerial => Val::I64,
+            Global::HashSeed => Val::I64,
             Global::Storage(_, _, v) => *v,
         }
     }
@@ -294,6 +291,10 @@ pub struct Module {
     pub runtime: Option<crate::Runtime>,
     /// Each suspending instance's frame payload size.
     pub frames: BTreeMap<Hash128, u32>,
+    /// The top-level bindings some reference refers to, by path hash:
+    /// each lives in a static slot at this address, not in Wasm globals
+    /// (`crates/hd_wasm/DESIGN.md` §23.20).
+    pub addressed: BTreeMap<Hash128, u32>,
 }
 
 impl Module {
@@ -323,6 +324,18 @@ impl Module {
         let at = STATIC_BASE + u32::try_from(self.data.len()).expect("static data");
         self.data.extend_from_slice(bytes);
         self.data_at.insert(bytes.to_vec(), at);
+        at
+    }
+
+    /// The heap address of `size` new zero bytes of static data, aligned
+    /// to `align`, which no other use shares: a slot the program writes.
+    pub fn static_slot(&mut self, size: u32, align: u32) -> u32 {
+        let align = align.max(1) as usize;
+        while !self.data.len().is_multiple_of(align) {
+            self.data.push(0);
+        }
+        let at = STATIC_BASE + u32::try_from(self.data.len()).expect("static data");
+        self.data.resize(self.data.len() + size.max(1) as usize, 0);
         at
     }
 

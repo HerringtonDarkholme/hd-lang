@@ -41,9 +41,12 @@ let capacity: usize = 0
 let known: usize = 0
 # No page below this one is free.
 let hint: usize = 0
+# How many blocks `alloc` has given.
+let given: usize = 0
 
 ## Allocates a block of at least `size` bytes and gives its address, which is a multiple of 16; its bytes are not zeroed.
 pub fn alloc(size: usize) -> usize:
+    given = given + 1
     if table == 0:
         start()
     if size > 2048:
@@ -80,6 +83,10 @@ pub fn alloc(size: usize) -> usize:
             store_u32(next + 8, 0)
         store_u32(page + 4, 0)
     slot
+
+## How many blocks `alloc` has given since the program began, so a test can see that some code allocates nothing.
+pub fn allocated() -> usize:
+    given
 
 ## Frees the block at `address`, which `alloc` gave and which is not yet freed.
 pub fn free(address: usize) -> void:

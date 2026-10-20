@@ -253,6 +253,12 @@ marker) and `&T` to `Ref[T]` (`hd_types::Types::lower_refs`,
 backend reads (`params`, `ret`, `data_fields`, enum payloads, impl heads,
 row keys), and `hd_structure` its generated bodies. So the backend sees an
 ordinary generic data type, and the emitter is unchanged but for one line.
+The TIR names the place itself (`RefPlace`, `RefRead`, `RefWrite`,
+`RefDyn`, `RefIdentity`, `crates/hd_tir/DESIGN.md` §4.13.11,
+"References"), and each such instruction owns the block that builds or
+calls the closures below; this backend emits that block as the
+instruction's value, while the linear backend lowers the place to its
+address (§23.20).
 
 - **Places.** `&x` on a local makes closures that capture `x`; since the
   `set` closure assigns it, the capture is `Shared` and `x` lives in a
@@ -1654,7 +1660,7 @@ what the spec names as intrinsic or what only it can build.
 | lists | `emit/list.rs` for the list kernels, and `rt.rs` for the header, the buffer, its release glue and the change that makes a buffer a list's own (§23.17) | 9 |
 | maps | `emit/map.rs` for the map kernels, and `map.rs` for the table: its probe, put, growth, release glue and the change that makes a table a map's own (§23.18) | 10 |
 | closures and `dyn` | `emit/closure.rs` for environments, cells and calls of function values, `emit/dyn_value.rs` for trait values and their vtables, `emit/iter.rs` for collection iterators (§23.19) | 11 |
-| references, cleanup scopes, releases at last use | `emit/live.rs` for each value's and local's last use, `emit/scope.rs` for the `defer` exit ladder, `emit/list.rs` for element references' pins (§23.20) | 12 |
+| references, cleanup scopes, releases at last use | `emit/refs.rs` for references as addresses, `emit/live.rs` for each value's and local's last use, `emit/scope.rs` for the `defer` exit ladder, `emit/list.rs` for element references' pins (§23.20) | 12 |
 | iterative release, the collector | hd in further `std.rt` modules, called by emitted code | 19, 21 |
 
 `std.rt` modules are privileged: only std modules may import them, so the
@@ -1700,7 +1706,7 @@ inline in memory where Wasm GC stored a reference.
 | `T?` of a reference `T` | the address; 0 is `.None` | 4 bytes |
 | `T?` of another `T` | as an enum with one payload | as an enum |
 | `string` | `(address, length)`: two `i32` | 8 bytes |
-| `&T`, `&mut T` | the address of the `T`, possibly inside an object (§23.5) | 4 bytes |
+| `&T`, `&mut T` | the address of the `T`, possibly inside an object (§23.5); of a trait value, that trait value (§23.20) | 4 bytes; 8 for a trait value |
 | a compiler-supplied data type | the address of a counted object holding the fields | 4 bytes |
 | `List[T]`, `Map[K, V]` | the address of a counted header over a counted buffer (§23.7) | 4 bytes |
 | closure | `(code, environment)`: a function-table index and the address of a counted environment, 0 when nothing is captured | 8 bytes |
@@ -1815,11 +1821,14 @@ The allocator is hd in `std.rt.alloc` (job 5), REFCOUNT_RUNTIME.md §6's
   length 0, never counted, so a view one past a buffer's end can never
   reach the next object's count. Slicing to length zero yields it.
 - **A list** is the address of a counted header, which holds its buffer's
-  address and its pin count (the second count of OBJECT_MODEL_TIER1.md
-  §6.3). The buffer is a counted object holding the capacity, the length
-  and then the elements inline at their layout's size. The buffer's count
-  is its owner count, for copy-on-write: a change first checks it is 1
-  and copies the buffer otherwise (REFCOUNT_RUNTIME.md §9.1).
+  address and its owner word. The buffer is a counted object holding the
+  capacity, the length and then the elements inline at their layout's
+  size. While the owner word is 0, the buffer's count is its owner count,
+  for copy-on-write: a change first checks it is 1 and copies the buffer
+  otherwise (REFCOUNT_RUNTIME.md §9.1). Once an element reference pins
+  the list, the owner word is set and the header is the buffer's one
+  owner, so its other counts are pins, the second count of
+  OBJECT_MODEL_TIER1.md §6.3 (§23.20).
 - **A map** is the same kind of header over its table, one counted block
   that holds the entries in the order they were added and a probing
   index over them (§23.18).
@@ -1827,7 +1836,7 @@ The allocator is hd in `std.rt.alloc` (job 5), REFCOUNT_RUNTIME.md §6's
 | Header payload offset | Size | Field |
 | --- | --- | --- |
 | 0 | 4 | the buffer's address |
-| 4 | 4 | pins |
+| 4 | 4 | the owner word: 0, or the function-table slot of the list's clone glue plus one once pinned |
 
 | Buffer payload offset | Size | Field |
 | --- | --- | --- |
@@ -1841,13 +1850,11 @@ an element store and `ListIndexMut` take the list as an operand), and
 the checker lets places share one list value where nothing can change it
 in place (`ValueCopy`, §15.2, "Collection values"). So the change must
 reach every holder of that value, as the Wasm GC backend's header does,
-while the buffer underneath may move when it grows or is copied. The
-pins live in the header for the same reason: an element reference
-reaches its slot through the list it pins, and a copy of a pinned list
-is a new header with no pins over the shared buffer, which the next
-change through either header copies first. A TIR that wrote changes back
-to their place would let the value be the buffer's address and save one
-object per list.
+while the buffer underneath may move when it grows or is copied, except
+while pinned: an element reference is an address in the buffer, so a
+pinned buffer never moves, and a copy of a pinned list copies it at
+once. A TIR that wrote changes back to their place would let the value
+be the buffer's address and save one object per list.
 
 ### 23.8 Closures, `dyn` And Vtables
 
@@ -2365,18 +2372,47 @@ Job 12 lowers references in today's language, cleanup scopes, and
 element references whose copies own their list's pin (OBJECT_MODEL_TIER1.md
 §6.3; issue #556).
 
-- **References as today's TIR gives them.** The checker lowers `&place`
-  and `&mut place` to a `std.core.Ref[T]` data value: a `get` and a `set`
-  closure over the place, then its identity fields (§15.2,
-  "References"). On this backend that is a counted object holding two
-  closures, so a reference to a local is a reference to the local's cell
-  (§23.19), counted by the closures' environments; a reference stored, returned
-  or captured keeps the cell alive, and `is` compares the identity fields.
-  The thin form of §23.5, an address into the object with the page table
-  finding its header, needs the TIR to hand the backend a place's
-  address instead of closures over it; that is a checker change
-  (`hd_check`'s `refs.rs`), not made here. The page-table lookup serves
-  the counts of string views, which are interior addresses already.
+- **References as addresses** (issue #587). The checker names each
+  reference's place in the TIR (`RefPlace`: a local, a top-level
+  binding, a place through another reference, a data object's field or a
+  list element, then a struct field path) and each read, write and
+  identity through one (`RefRead`, `RefWrite`, `RefIdentity`), each
+  owning the block of its closure form for the Wasm GC backend (§15.2,
+  "References"). The driver strips those blocks from the bodies of a
+  linear build before collection (`hd_tir::ir::strip_closure_forms`), so
+  their closures, cells and `ref_serial` calls never reach this backend.
+  Here `std.core.Ref[T]` is one address (`layout::Kind::Ref`,
+  `emit/refs.rs`), the thin form of §23.5:
+  - a local some reference refers to lives in a cell
+    (`closure::cell_locals`), one per execution of its declaration, and
+    the reference is the cell's payload address plus the field path's
+    offset, so `&mut x` in a loop over a local declared outside it
+    allocates nothing;
+  - a top-level binding some reference refers to lives in a static slot
+    of its layout instead of Wasm globals (`Module::addressed`), whose
+    address no count changes;
+  - a place through a reference is that address plus the path's offset;
+  - a field of a compiler-supplied data object is its payload address
+    plus the field's offset;
+  - a list element is its address in the buffer (below).
+  A read loads the target's values from the address and a write stores
+  them, counting the new value before it releases the old. A reference
+  is counted through the page table at any address in its object, so a
+  reference to a field keeps the whole object alive. `is` compares
+  addresses, and `identity_of` is no base, the address as the serial and
+  no key. A reference to a trait value is that trait value, the data
+  address and the vtable, as Rust's `&dyn Tr` is: `RefDyn`'s other block
+  makes it, `&mut held` of a trait value is the trait value in `held`,
+  and a provider installed behind a reference is that trait value
+  (`RefAsProvider`). A local copy that a closure captured and a
+  suspending body's parameter, whose cell the frame cannot hold yet, are
+  no places in memory: a read-only reference to one is to a new object
+  holding a copy, and `&mut` to one stays refused.
+  hello (`println(42)`) went from 6,007 to 5,040 bytes in the dev
+  profile and in release; 16 of them are the count of blocks
+  `std.rt.alloc.allocated` reports, which `ref_tests.hd` reads to see
+  that a loop writing through `&mut` to a local allocates nothing. The
+  Wasm GC backend's hello stays 4,164 bytes.
 - **Cleanup scopes.** A `Scope` with `defer` suites is the Wasm GC
   backend's exit ladder (`emit/scope.rs`, crates/hd_mono/DESIGN.md
   §12.2): each suite has a flag that its `Defer` sets; a `break`,
@@ -2401,39 +2437,45 @@ element references whose copies own their list's pin (OBJECT_MODEL_TIER1.md
   exit. Uses are TIR's `value_operands`, with a call's provider pairs;
   any other instruction's value words are over-approximated, which only
   delays a release.
-- **Element references own their pin.** `ListPin` makes the buffer the
-  list's own as before, and returns a pin: a counted object holding the
-  list's header, with one pin on it that the pin's release glue
-  (`rt:drop_pin`) takes off. The checker keeps the pin in a local that the
-  reference's `get` and `set` closures capture, so the pin lives exactly
-  as long as some copy of the reference: a reference stored in a field,
-  returned, or captured by a closure called later keeps the list pinned
-  until that copy's last use, and a `push` meanwhile panics
-  `collection-pinned` (`ref.elem.release.copies`). The checker's
-  `ListUnpin`, which ends a binding's pin after its last statement on the
-  Wasm GC backend, does nothing here, and a read that only it takes keeps
-  nothing alive. List kernels reached through a pin's local read the
-  header from it; an element reference's identity base is the header
-  itself, so two references to one slot are the same place
-  (`ref.elem.identity`). A trait value of a value that is one counted
-  address is now that address, never a copy, as the Wasm GC backend
-  erases it.
+- **Element references own their pin.** An element reference is the
+  element's address in its list's buffer, and its count is a count of
+  the buffer. `ListPin` makes the buffer the list's own, as before, and
+  gives the header its owner word (§23.7): the function-table slot of
+  the list's clone glue plus one. A buffer whose header has an owner
+  word has that header as its one owner, so every count past the first
+  is a reference's or a `ListPin`'s: the list is pinned while the
+  buffer's count is over 1 (`rt:list_pinned`), and a `push` or a
+  truncation then panics `collection-pinned` (`ref.elem.release.copies`).
+  A change through the list writes the buffer in place, which every
+  element reference sees. A copy of a pinned list copies its buffer at
+  once through the owner word's clone glue (`rt:list_copy`), and a copy
+  of an unpinned one clears the word, since the buffer is shared again.
+  `ListPin`'s own count lasts until the checker's `ListUnpin`; each
+  copy of an element reference holds its own, so a reference stored in
+  a field, returned, or captured by a closure called later keeps the
+  list pinned until that copy's last use. Two references to one slot
+  share its address (`ref.elem.identity`). A trait value of a value
+  that is one counted address is that address, never a copy, as the
+  Wasm GC backend erases it.
 - **Bounded memory.** `crates/hd_driver/tests/std_rt/ref_tests.hd` writes
   through references to locals and elements, checks that a pin ends with
   its reference's last use, and takes references to locals and elements
   in a loop, checking that the heap does not grow after a warm-up.
 - **Size.** hello: 10,719 bytes in the dev profile (10,635 after job 11)
-  and 7,529 in release, the releases at last use in the code it links.
+  and 7,529 in release, the releases at last use in the code it links,
+  before references became addresses.
 - **Host providers behind references.** A key whose trait has a `&self`
   or `&mut self` method, as `Console` has since `write_line!` takes
   `&mut self`, gets its host provider behind a reference (`req.ref.host.reference-values`):
   the entry's poll builds the host trait value, no data beside the
   vtable of host stubs, and calls the driver's `std.rt.host_provider`
-  instance at `dyn K`, whose `Ref` it installs as the data beside the
-  vtable again, as on the Wasm GC backend. So `println` reaches the host
-  through a `&mut dyn Console`. It costs hello the reference's closures
-  and identity: 12,014 bytes in the dev profile and 8,824 in release
-  (4,151 on the Wasm GC backend, from 3,161).
+  instance at `dyn K`, whose result it installs as the provider. So
+  `println` reaches the host through a `&mut dyn Console`. With the
+  reference's closures and identity this cost hello 12,014 bytes in the
+  dev profile and 8,824 in release (4,151 on the Wasm GC backend, from
+  3,161). Since references are addresses, the result is the host trait
+  value itself (a reference to a trait value is that trait value), and
+  `host_provider` allocates nothing.
 - **Not yet.** Issue #556's three escape cases pass here and stay known
   failures on the Wasm GC backend, whose references hold no count. The
   release points are statement-granular and per body: a reference passed
@@ -2576,10 +2618,10 @@ REFCOUNT_RUNTIME.md (`opt.rs`, `lib/std/rt/alloc.hd`).
   and 9,568 in release; 6,010 in both after. The Wasm GC backend's hello
   is 4,151. `println("hello")` is 5,988 bytes here and 3,969 there.
 - **Not yet.** hello still links the allocator. Its literal is no
-  longer the reason. `println` reaches the Console through a
-  `&mut dyn Console`, whose `Ref` the entry builds (§23.20). The host
-  call's frame is a counted object (§23.21). `"$value"` builds a
-  counted string. The counting code all three need links `retain`,
-  `release` and `free`. Making hello link nothing would take static
-  host-provider references and formatting into the exchange buffer.
-  That is a design question for the owner.
+  longer the reason, nor, since references are addresses (§23.20), the
+  `&mut dyn Console` that `println` reaches the Console through, which
+  is now the host trait value itself. The host call's frame is a counted
+  object (§23.21), and `"$value"` builds a counted string. The counting
+  code both need links `retain`, `release` and `free`. Making hello link
+  nothing would take formatting into the exchange buffer. That is a
+  design question for the owner.

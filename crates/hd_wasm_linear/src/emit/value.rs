@@ -27,12 +27,12 @@ pub enum Src {
 }
 
 impl Em<'_, '_, '_> {
-    fn kind(&self, t: Ty) -> Kind {
+    pub(super) fn kind(&self, t: Ty) -> Kind {
         kind(self.pool(), self.env(), t)
     }
 
     /// Whether `t` is a nominal newtype, which erases to its base.
-    fn newtype(&self, t: Ty) -> bool {
+    pub(super) fn newtype(&self, t: Ty) -> bool {
         matches!(self.pool().get(self.strip_mut(t)), TyData::Adt { def, .. }
             if self.env().newtype_base(def).is_some())
     }
@@ -210,6 +210,7 @@ impl Em<'_, '_, '_> {
                 return self.store_owned(i);
             }
             Kind::Boxed => return unsupported("a data literal of an enum"),
+            Kind::Ref { .. } => return unsupported("a reference's closure form"),
         }
         self.store(i)
     }
@@ -316,6 +317,7 @@ impl Em<'_, '_, '_> {
                 return self.store_owned(i);
             }
             Kind::Boxed => return unsupported("a copy-update of an enum"),
+            Kind::Ref { .. } => return unsupported("a reference's closure form"),
         }
         self.store(i)
     }
@@ -348,6 +350,7 @@ impl Em<'_, '_, '_> {
                 }
             }
             Kind::Boxed => return unsupported("a field of an enum"),
+            Kind::Ref { .. } => return unsupported("a reference's closure form"),
         }
         self.store(i)
     }
@@ -419,33 +422,13 @@ impl Em<'_, '_, '_> {
     /// `a is b` (`expr.is.*`): two values refer to the same object.
     pub(super) fn is(&mut self, i: u32, a: u32, b: u32) -> StageResult<()> {
         // `ref.identity.same-place`: two references compare the places
-        // they refer to, the identity fields of their `Ref` objects: the
-        // base's data address, the serial and the key.
-        let t = self.strip_mut(self.ty_of(a));
-        if matches!(self.pool().get(t), TyData::Adt { def, .. } if def == self.env().ref_cell()) {
-            let Kind::Data(fields) = self.kind(t) else {
-                return unsupported("a reference that is not a data value");
-            };
-            let (m, parts) = payload_mem(self.pool(), self.env(), &fields)?;
-            let (Some(base), Some(serial), Some(key)) = (parts.get(2), parts.get(3), parts.get(4))
-            else {
-                return unsupported("a reference without its identity fields");
-            };
-            let leaf = |p: &Part, k: usize| m.leaves[p.first + k];
-            for (p, eq) in [(base, I::I32Eq), (serial, I::I64Eq)] {
-                for r in [a, b] {
-                    self.load(&|em: &mut Self| em.comp(r, 0), 0, leaf(p, 0))?;
-                }
-                self.f.op(eq);
-            }
-            self.f.op(I::I32And);
-            for r in [a, b] {
-                for k in 0..2 {
-                    self.load(&|em: &mut Self| em.comp(r, 0), 0, leaf(key, k))?;
-                }
-            }
-            self.f.helper(Helper::StrEq);
-            self.f.op(I::I32And);
+        // they refer to, which are their addresses; two references to
+        // trait values compare their data.
+        let t = self.ty_of(a);
+        if matches!(self.kind(t), Kind::Ref { .. }) {
+            self.comp(a, 0)?;
+            self.comp(b, 0)?;
+            self.f.op(I::I32Eq);
             return self.store(i);
         }
         // A data value, a boxed enum, a list, a map and a trait value's

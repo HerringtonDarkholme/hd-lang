@@ -4,9 +4,14 @@
 //! method calls, and the read-only rules (`&mut T` converts to `&T`;
 //! reads keep declared field types, and `&T` protects its immediate referent).
 //!
-//! The Wasm GC emulation (`crates/hd_wasm/DESIGN.md` §15.2,
-//! "References"): a reference is a `std.core.Ref[T]` object holding two
-//! closures, `get` and `set`, that read and replace the referenced place.
+//! The TIR names the place (`RefPlace`) and each read, write and identity
+//! through a reference (`RefRead`, `RefWrite`, `RefIdentity`), so a
+//! backend with interior addresses lowers a reference to the place's
+//! address (`crates/hd_wasm/DESIGN.md` §23.20). Each of those instructions
+//! owns the block of its closure form, the Wasm GC emulation
+//! (`crates/hd_wasm/DESIGN.md` §15.2, "References"): a reference is a
+//! `std.core.Ref[T]` object holding two closures, `get` and `set`, that
+//! read and replace the referenced place.
 //! `&x` on a local makes closures that capture `x`, so the backend keeps
 //! `x` in a shared cell; `&e` on any other value binds it to a fresh local
 //! that only the closures hold, which is the new object. A place reached
@@ -27,6 +32,7 @@ use hd_diag::{Code, FixSafety, Severity};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{
     Callee, Coercion, IntrinsicOp, NONE, PrimOp, Providers, Ref, Tag, TirSink, local_flags,
+    place_root,
 };
 use hd_types::{Prim, RowId, Ty, TyData, TyList};
 
@@ -149,35 +155,29 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// When `callee`, the function value of a `CallValue`, is the `get`
-    /// closure of a reference (as [`Self::emit_deref`] reads it): the
-    /// reference value and whether it is `&mut`.
-    pub(crate) fn deref_source(&mut self, callee: Ref) -> Option<(Ref, bool)> {
-        let i = callee.as_inst()?;
-        let (tag, data) = {
-            let body = self.b.body_mut();
-            (body.tags[i.0 as usize], body.data[i.0 as usize])
-        };
-        if tag != Tag::Field || data[1] != 0 {
-            return None;
-        }
-        let base = Ref(data[0]);
+    /// The reference `base` a `RefRead` reads through, and whether it is
+    /// `&mut`.
+    pub(crate) fn deref_base(&mut self, base: Ref) -> Option<(Ref, bool)> {
         let (_, m) = self.ref_of(self.b.ty_of(base))?;
         Some((base, m))
     }
 
     /// Reads through the reference `r` of type `rt` (`*r`, or an automatic
-    /// dereference): calls its `get` closure.
+    /// dereference): a `RefRead`, whose closure form calls its `get`
+    /// closure.
     pub(crate) fn emit_deref(&mut self, r: Ref, rt: Ty, at: NodeIdx) -> (Ref, Ty) {
         let pool = self.pool();
         let Some((inner, mutable)) = self.ref_of(rt) else {
             return (r, rt);
         };
         let get = pool.intern_ty(&fn_ty(pool, &[], inner));
+        let t = self.deref_ty(inner, mutable);
+        let blk = self.b.open_block();
         let f = self.b.emit(Tag::Field, r.0, 0, get, at);
         let rec = self.b.refs_record(&[]);
-        let t = self.deref_ty(inner, mutable);
-        (self.b.emit(Tag::CallValue, f.0, rec, t, at), t)
+        let v = self.b.emit(Tag::CallValue, f.0, rec, t, at);
+        let form = self.b.close_block(blk, Some(v), t, at);
+        (self.b.emit(Tag::RefRead, r.0, form.0, t, at), t)
     }
 
     /// The value `r` of type `t` as an index base (`ref.read.index.declared`):
@@ -195,17 +195,22 @@ impl Ck<'_, '_> {
     }
 
     /// Replaces the value the reference `r` of type `rt` refers to with
-    /// `v` (`*r = v`): calls its `set` closure.
+    /// `v` (`*r = v`): a `RefWrite`, whose closure form calls its `set`
+    /// closure.
     pub(crate) fn emit_ref_store(&mut self, r: Ref, rt: Ty, v: Ref, at: NodeIdx) {
         let pool = self.pool();
         let Some((inner, _)) = self.ref_of(rt) else {
             return;
         };
         let set = pool.intern_ty(&fn_ty(pool, &[inner], Ty::VOID));
-        let f = self.b.emit(Tag::Field, r.0, 1, set, at);
         let v = self.retype(v, inner, at);
+        let blk = self.b.open_block();
+        let f = self.b.emit(Tag::Field, r.0, 1, set, at);
         let rec = self.b.refs_record(&[v]);
         self.b.emit(Tag::CallValue, f.0, rec, Ty::VOID, at);
+        let form = self.b.close_block(blk, None, Ty::VOID, at);
+        let rec = self.b.refs_record(&[r, v]);
+        self.b.emit(Tag::RefWrite, rec, form.0, Ty::VOID, at);
     }
 
     /// `v` with the type `to`, which differs from `v`'s at most in views
@@ -850,9 +855,10 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// The reference to the place `p`: a `Ref[T]` object whose `get`
-    /// closure reads the place and whose `set` closure replaces it. A
-    /// read-only reference's `set` is never called.
+    /// The reference to the place `p`: a `RefPlace` naming the place,
+    /// whose closure form is a `Ref[T]` object whose `get` closure reads
+    /// the place and whose `set` closure replaces it. A read-only
+    /// reference's `set` is never called.
     pub(crate) fn make_ref(
         &mut self,
         p: &Place,
@@ -865,6 +871,8 @@ impl Ck<'_, '_> {
         let syn = n.index();
         let get_ty = pool.intern_ty(&fn_ty(pool, &[], inner));
         let set_ty = pool.intern_ty(&fn_ty(pool, &[inner], Ty::VOID));
+        let place = self.place_record(p);
+        let form = self.b.open_block();
         // `get`: reads the place.
         let mark = self.b.open_sub(&[]);
         self.subs.push(OpenSub {
@@ -897,7 +905,23 @@ impl Ck<'_, '_> {
         let set = self.b.close_sub(mark, root, set_ty, syn);
         let (base, serial, key) = self.place_identity(p, n);
         let rec = self.b.refs_record(&[get, set, base, serial, key]);
-        self.b.emit(Tag::NewData, NONE, rec, rt, syn)
+        let r = self.b.emit(Tag::NewData, NONE, rec, rt, syn);
+        let form = self.b.close_block(form, Some(r), rt, syn);
+        self.b.emit(Tag::RefPlace, place, form.0, rt, syn)
+    }
+
+    /// The `RefPlace` record of the place `p` (`place_root`).
+    fn place_record(&mut self, p: &Place) -> u32 {
+        let (kind, x, y) = match p.root {
+            Root::Local(l, _) => (place_root::LOCAL, l.raw(), NONE),
+            Root::Global(_, def, ty) => (place_root::GLOBAL, def.raw(), ty.0),
+            Root::Deref(l, _, _) => (place_root::DEREF, l.raw(), NONE),
+            Root::DataField(l, _, idx, _, _) => (place_root::DATA_FIELD, l.raw(), idx),
+            Root::Elem(_, buf, _, idx, _, _) => (place_root::ELEM, buf.raw(), idx.raw()),
+        };
+        let mut words = vec![kind, x, y];
+        words.extend(p.path.iter().map(|(idx, _)| *idx));
+        self.b.words_record(&words)
     }
 
     /// The type of a reference's identity base, `dyn Any`.
@@ -989,6 +1013,7 @@ impl Ck<'_, '_> {
     /// fields in order: what std's `identity_of` returns.
     pub(crate) fn ref_identity_value(&mut self, r: Ref, ty: Ty, n: NodeRef<'_>) -> Ref {
         let at = n.index();
+        let blk = self.b.open_block();
         let any = self.any_ty();
         // Keep the whole place identity in the erased reference. This avoids
         // exposing the backend's internal bare identity descriptor to std.
@@ -997,7 +1022,9 @@ impl Ck<'_, '_> {
         let serial = self.b.emit(Tag::Field, r.0, 3, Ty::prim(Prim::I64), at);
         let key = self.b.emit(Tag::Field, r.0, 4, Ty::STRING, at);
         let rec = self.b.refs_record(&[base, serial, key]);
-        self.b.emit(Tag::NewData, NONE, rec, ty, at)
+        let v = self.b.emit(Tag::NewData, NONE, rec, ty, at);
+        let form = self.b.close_block(blk, Some(v), ty, at);
+        self.b.emit(Tag::RefIdentity, r.0, form.0, ty, at)
     }
 
     /// `RefRoot`'s one value as `dyn Any`: the identity base of a place no

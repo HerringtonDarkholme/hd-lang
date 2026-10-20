@@ -5,11 +5,13 @@
 //! result changes the caller's place. A value is no reference, and the
 //! program writes `&s`, `&mut s` or `&S { ... }` for it.
 //!
-//! On the Wasm GC emulation a trait value reference is an ordinary
+//! A conversion is a `RefDyn`. With interior addresses, a trait value
+//! reference is the trait value whose payload is the source reference
+//! (`Coercion::RefToTraitValue`), as Rust's `&dyn Tr` is a pointer and a
+//! vtable. On the Wasm GC emulation, its closure form, it is an ordinary
 //! `std.core.Ref[dyn Tr]` (`crates/hd_wasm/DESIGN.md` §15.2, "Trait value
-//! references"): its `get` returns a trait value whose payload is the
-//! source reference (`Coercion::RefToTraitValue`), and its identity fields
-//! are the source reference's, so `is` compares the places.
+//! references"): its `get` returns that trait value, and its identity
+//! fields are the source reference's, so `is` compares the places.
 
 use hd_base::{DefId, NodeIdx, TokenIdx};
 use hd_diag::{Code, FixSafety};
@@ -262,10 +264,12 @@ impl Ck<'_, '_> {
         self.check_value_bindings(s, tv, n);
     }
 
-    /// A new `std.core.Ref[tv]` for the source reference `src` of type
-    /// `src_ty`: its `get` converts `src` with `kind`
-    /// (`RefToTraitValue`, or `Supertrait` on the trait value `src` refers
-    /// to), its `set` is never called, and its identity is `src`'s.
+    /// The trait value reference for the source reference `src` of type
+    /// `src_ty`: a `RefDyn` whose address form is the trait value that
+    /// converts `src` with `kind` (`RefToTraitValue`, or `Supertrait` on
+    /// the trait value `src` refers to), and whose closure form is a new
+    /// `std.core.Ref[tv]` whose `get` makes that trait value, whose `set`
+    /// is never called, and whose identity is `src`'s.
     pub(crate) fn build_dyn_ref(
         &mut self,
         src: Ref,
@@ -278,6 +282,13 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let syn = n.index();
         let (l, d) = self.hold(src, src_ty, n);
+        // As an address, the reference is the trait value itself, whose
+        // payload is the source reference.
+        let addr = self.b.open_block();
+        let (s, _) = self.read_local(l, d, n);
+        let v = self.dyn_ref_value(s, src_ty, tv, kind, syn);
+        let addr = self.b.close_block(addr, Some(v), tv, syn);
+        let form = self.b.open_block();
         let get_ty = pool.intern_ty(&TyData::Fn {
             params: pool.list(&[]),
             result: tv,
@@ -299,13 +310,7 @@ impl Ck<'_, '_> {
         });
         let blk = self.b.open_block();
         let (s, _) = self.read_local(l, d, n);
-        let v = if kind == Coercion::Supertrait {
-            let (dv, dt) = self.emit_deref(s, src_ty, syn);
-            let dv = self.retype(dv, self.strip_mut(dt), syn);
-            self.b.coerce(Coercion::Supertrait, NONE, dv, tv, syn)
-        } else {
-            self.b.coerce(Coercion::RefToTraitValue, NONE, s, tv, syn)
-        };
+        let v = self.dyn_ref_value(s, src_ty, tv, kind, syn);
         let root = self.b.close_block(blk, Some(v), tv, syn);
         self.subs.pop();
         let get = self.b.close_sub(mark, root, get_ty, syn);
@@ -330,7 +335,22 @@ impl Ck<'_, '_> {
         let key = self.b.emit(Tag::Field, s.0, 4, Ty::STRING, syn);
         let rt = pool.intern_ty(&TyData::Ref { inner: tv, mutable });
         let rec = self.b.refs_record(&[get, set, base, serial, key]);
-        self.b.emit(Tag::NewData, NONE, rec, rt, syn)
+        let r = self.b.emit(Tag::NewData, NONE, rec, rt, syn);
+        let form = self.b.close_block(form, Some(r), rt, syn);
+        self.b.emit(Tag::RefDyn, addr.0, form.0, rt, syn)
+    }
+
+    /// The trait value `tv` that the trait value reference made from the
+    /// source reference `s` of type `src_ty` refers to: `s` converted with
+    /// `kind`.
+    fn dyn_ref_value(&mut self, s: Ref, src_ty: Ty, tv: Ty, kind: Coercion, syn: NodeIdx) -> Ref {
+        if kind == Coercion::Supertrait {
+            let (dv, dt) = self.emit_deref(s, src_ty, syn);
+            let dv = self.retype(dv, self.strip_mut(dt), syn);
+            self.b.coerce(Coercion::Supertrait, NONE, dv, tv, syn)
+        } else {
+            self.b.coerce(Coercion::RefToTraitValue, NONE, s, tv, syn)
+        }
     }
 
     /// Whether the trait or a supertrait requires an explicit reference

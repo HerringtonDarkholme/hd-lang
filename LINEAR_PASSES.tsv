@@ -396,6 +396,7 @@ runtime/valid/doc-test-console-row.hd	#541: test programs, and roots that never 
 runtime/valid/doc-test-passes.hd	#573: closures and trait values
 runtime/valid/doc-test-private-item.hd	#573: closures and trait values
 runtime/valid/doc-test-text-fence.hd	#573: closures and trait values
+runtime/valid/downcast-reference-permission-identity.hd	#586: reference recovery methods
 runtime/valid/duration-api.hd	#573: closures and trait values
 runtime/valid/duration-arithmetic.hd	#573: closures and trait values
 runtime/valid/duration-display.hd	#573: closures and trait values
@@ -439,9 +440,11 @@ runtime/valid/enum-value-fixed-at-construction.hd	#573: closures and trait value
 runtime/valid/enum-variant-by-type-name.hd	#573: closures and trait values
 runtime/valid/eprintln-error-line.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/erased-error-result.hd	#573: closures and trait values
+runtime/valid/error-bound-downcast-evidence.hd	#586: reference recovery methods
 runtime/valid/error-chain-derived-causes.hd	#573: closures and trait values
 runtime/valid/error-chain-method.hd	#573: closures and trait values
 runtime/valid/error-chain.hd	#573: closures and trait values
+runtime/valid/error-context-legacy-bare-generic.hd	#587: references to places as addresses
 runtime/valid/error-context.hd	#573: closures and trait values
 runtime/valid/error-derivation-run.hd	#573: closures and trait values
 runtime/valid/error-downcast-through-inspectable.hd	#573: closures and trait values
@@ -451,6 +454,7 @@ runtime/valid/error-find-trait-value.hd	#573: closures and trait values
 runtime/valid/error-find.hd	#592: reference error recovery and generic bounds
 runtime/valid/error-for-string.hd	#573: closures and trait values
 runtime/valid/error-message.hd	#573: closures and trait values
+runtime/valid/error-reference-entry-report.hd	#586: reference recovery methods
 runtime/valid/error-report-value-copy.hd	#573: closures and trait values
 runtime/valid/error-report.hd	#573: closures and trait values
 runtime/valid/error-root-cause.hd	#573: closures and trait values
@@ -613,10 +617,14 @@ runtime/valid/init-read-through-trait-dispatch.hd	#573: closures and trait value
 runtime/valid/init-reads-after-initialization.hd	#573: closures and trait values
 runtime/valid/init-ready-groups-by-identity.hd	#573: closures and trait values
 runtime/valid/inspectable-alias-and-newtype-identity.hd	#573: closures and trait values
+runtime/valid/inspectable-downcast-mut.hd	#586: reference recovery methods
+runtime/valid/inspectable-downcast-success-and-failure.hd	#586: reference recovery methods
 runtime/valid/inspectable-dynamic-vs-static-identity.hd	#573: closures and trait values
 runtime/valid/inspectable-erasure-example.hd	#573: closures and trait values
 runtime/valid/inspectable-function-fields-and-trait-arguments.hd	#573: closures and trait values
 runtime/valid/inspectable-generic-arguments-exact.hd	#573: closures and trait values
+runtime/valid/inspectable-generic-downcast-targets.hd	#586: reference recovery methods
+runtime/valid/inspectable-generic-target-helper.hd	#586: reference recovery methods
 runtime/valid/inspectable-primitives-collections-options.hd	#573: closures and trait values
 runtime/valid/integer-cast-wraps-examples.hd	#573: closures and trait values
 runtime/valid/integer-literal-forms.hd	#540: integers, strings and enums in locals
@@ -1293,6 +1301,8 @@ runtime/valid/trait-less-block-facts.hd	#573: closures and trait values
 runtime/valid/trait-less-block-then-derivation-block.hd	#573: closures and trait values
 runtime/valid/trait-qualified-associated-and-named-calls.hd	#573: closures and trait values
 runtime/valid/trait-qualified-calls.hd	#573: closures and trait values
+runtime/valid/trait-reference-bounds.hd	#586: reference recovery methods
+runtime/valid/trait-reference-method-values.hd	#590: method references through trait reference receivers
 runtime/valid/trait-value-as-provider.hd	#573: closures and trait values
 runtime/valid/trait-value-binding-identity.hd	#573: closures and trait values
 runtime/valid/trait-value-satisfies-instantiated-bound.hd	#573: closures and trait values

@@ -1,13 +1,13 @@
 //! Lists (`crates/hd_wasm/DESIGN.md` §23.7, §23.17, job 9). A list value
 //! is the address of a counted header that holds its buffer's address and
-//! its pin count; the buffer is a counted object holding the capacity, the
-//! length and the elements inline. A header never moves, so a change
-//! through it reaches every place that holds the same list, as the Wasm
-//! GC backend's header does; a copy (`ValueCopy`) is a new header over the
-//! same buffer, whose count is its number of owners. A change makes the
-//! buffer the list's own first (`rt:list_unique`): a shared one is copied,
-//! and the copied elements' collections are copied in turn, so a nested
-//! write never reaches another list.
+//! its owner word (§23.20); the buffer is a counted object holding the
+//! capacity, the length and the elements inline. A header never moves, so
+//! a change through it reaches every place that holds the same list, as
+//! the Wasm GC backend's header does; a copy (`ValueCopy`) is a new header
+//! over the same buffer, whose count is its number of owners. A change
+//! makes the buffer the list's own first (`rt:list_unique`): a shared one
+//! is copied, and the copied elements' collections are copied in turn, so
+//! a nested write never reaches another list.
 
 use hd_base::StageResult;
 use hd_tir::ir::{IntrinsicOp, Ref, Tag};
@@ -17,8 +17,8 @@ use wasm_encoder::{BlockType, Instruction as I};
 use super::Em;
 use super::value::Src;
 use crate::layout::{coll_leaves, mem as mem_of, strip};
-use crate::module::{HEAP, Val, mem};
-use crate::rt::{Elem, Helper, LIST_ELEMS, LIST_LEN, LIST_PINS, empty_buffer};
+use crate::module::{HEAP, Ins, Sym, Val, mem};
+use crate::rt::{Elem, Helper, LIST_ELEMS, LIST_LEN, LIST_OWN, empty_buffer};
 use crate::unsupported;
 
 impl Em<'_, '_, '_> {
@@ -51,30 +51,9 @@ impl Em<'_, '_, '_> {
         Ok(h)
     }
 
-    /// Pushes the header address of list value `r`, read from its pin
-    /// when `r` is one (§23.20).
+    /// Pushes the header address of list value `r`.
     pub(super) fn list_addr(&mut self, r: u32) -> StageResult<()> {
-        self.comp(r, 0)?;
-        if self.is_pin(r) {
-            self.f.op(I::I32Load(mem(HEAP, 0, 2)));
-        }
-        Ok(())
-    }
-
-    /// Whether list value `r` is an element reference's pin: a `ListPin`,
-    /// or a read of a local that holds one.
-    pub(super) fn is_pin(&self, r: u32) -> bool {
-        let Some(i) = Ref(r).as_inst() else {
-            return false;
-        };
-        let i = i.0 as usize;
-        match self.b.tags.get(i) {
-            Some(Tag::LocalGet) => self.pin_locals.contains(&(self.b.data[i][0] as usize)),
-            Some(Tag::Intrinsic) => {
-                IntrinsicOp::from_u32(self.b.data[i][0]) == Some(IntrinsicOp::ListPin)
-            }
-            _ => false,
-        }
+        self.comp(r, 0)
     }
 
     /// A local holding the buffer of the list header in local `h`.
@@ -393,7 +372,7 @@ impl Em<'_, '_, '_> {
         let (et, e) = self.elem(self.ty_of(args[0]))?;
         let h = self.header(args[0])?;
         self.f.get(h);
-        self.f.op(I::I32Load(mem(HEAP, LIST_PINS, 2)));
+        self.f.helper(Helper::ListPinned);
         self.f.op(I::If(BlockType::Empty));
         self.f.helper(Helper::Panic(
             "collection-pinned: list length changed while pinned".into(),
@@ -470,10 +449,13 @@ impl Em<'_, '_, '_> {
     }
 
     /// `ListPin`: the list an element reference points into, its index
-    /// (when given) checked and its buffer made its own, and a new pin
-    /// over its header (`ref.elem.pin`, §23.20). The pin is a counted
-    /// object that the reference's closures hold, so the list stays pinned
-    /// until the last copy of the reference dies (`ref.elem.release.copies`).
+    /// (when given) checked and its buffer made its own (`ref.elem.pin`,
+    /// §23.20). The header takes its owner word, so the buffer stays its
+    /// own: a copy of the list copies the buffer while it is pinned. The
+    /// pin is one count of the buffer, which `ListUnpin` gives back; each
+    /// element reference into the buffer holds a count of its own, so the
+    /// list stays pinned until the last copy of the last reference dies
+    /// (`ref.elem.release.copies`). The value is the list.
     pub(super) fn list_pin(&mut self, i: u32, args: &[u32]) -> StageResult<()> {
         if self.input.runtime.is_none() {
             return unsupported("element references without std's allocator");
@@ -485,13 +467,30 @@ impl Em<'_, '_, '_> {
             self.index(b, ix)?;
         }
         self.unique(h, &e, false);
-        // The pin's count of the header.
         self.f.get(h);
-        self.f.call(crate::module::Sym::Inst(
-            self.input.runtime.expect("checked above").retain,
-        ));
+        self.f
+            .body
+            .push(Ins::TableSlot(Sym::Helper(Helper::ListClone { elem: e })));
+        self.f.i32(1);
+        self.f.op(I::I32Add);
+        self.f.op(I::I32Store(mem(HEAP, LIST_OWN, 2)));
+        let b = self.buffer(h);
+        self.f.get(b);
+        self.f
+            .call(Sym::Inst(self.input.runtime.expect("checked above").retain));
         self.f.get(h);
-        self.f.helper(Helper::Pin);
-        self.store_owned(i)
+        self.store(i)
+    }
+
+    /// `ListUnpin`: gives back the count of the buffer that `ListPin` took.
+    pub(super) fn list_unpin(&mut self, list: u32) -> StageResult<()> {
+        if self.input.runtime.is_none() {
+            return Ok(());
+        }
+        let h = self.header(list)?;
+        let b = self.buffer(h);
+        self.f.get(b);
+        self.f.helper(Helper::ReleaseRef);
+        Ok(())
     }
 }

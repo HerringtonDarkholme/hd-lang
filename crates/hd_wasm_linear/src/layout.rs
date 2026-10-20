@@ -12,9 +12,10 @@
 //! and a suspension are one address; a string is its address and byte
 //! length; a trait value its data address and its vtable's address; a
 //! list or a map the address of its header (§23.7); a function value its
-//! code's table slot and its environment's address (§23.8). A reference
-//! is the checker's `std.core.Ref[T]`, a data value of two closures and
-//! the place's identity (§23.19).
+//! code's table slot and its environment's address (§23.8). A reference,
+//! the checker's `std.core.Ref[T]`, is the address of its place (§23.5,
+//! §23.20); a reference to a trait value is that trait value, whose data
+//! is already one address, as Rust's `&dyn Tr` is a fat pointer.
 
 use hd_base::StageResult;
 use hd_mono::layout::{StdKind, strip_newtype};
@@ -116,6 +117,10 @@ pub enum Kind {
     /// A self-recursive enum: the address of a cell holding the enum's
     /// value as a non-recursive enum lays it out.
     Boxed,
+    /// A reference to a place of type `T` (`std.core.Ref[T]`): the
+    /// place's address, or, when `T` is a trait value (`fat`), that trait
+    /// value.
+    Ref { target: Ty, fat: bool },
 }
 
 /// Which kind `t` is.
@@ -124,6 +129,14 @@ pub fn kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Kind {
     let TyData::Adt { def, args } = pool.get(t) else {
         return Kind::Value;
     };
+    if def == env.ref_cell() {
+        let target = pool
+            .list_items(args)
+            .first()
+            .map_or(Ty::VOID, |a| strip(pool, env, *a));
+        let fat = matches!(pool.get(target), TyData::TraitValue { .. });
+        return Kind::Ref { target, fat };
+    }
     if env.std_kind(def) != StdKind::Other {
         return Kind::Value;
     }
@@ -141,6 +154,18 @@ pub fn kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Kind {
                 .collect(),
         ),
         _ => Kind::Value,
+    }
+}
+
+/// Whether reference type `t` (`std.core.Ref[T]`) is `&mut`: its target
+/// is `Mut[T]` (`hd_types::Types::lower_refs`).
+pub fn ref_mutable(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
+    match pool.get(strip(pool, env, t)) {
+        TyData::Adt { def, args } if def == env.ref_cell() => pool
+            .list_items(args)
+            .first()
+            .is_some_and(|a| matches!(pool.get(*a), TyData::Mut(_))),
+        _ => false,
     }
 }
 
@@ -228,7 +253,8 @@ pub fn mem(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Mem> {
             StdKind::Suspend => Mem::address(),
             StdKind::List | StdKind::Map => Mem::address(),
             StdKind::Other => match kind(pool, env, t) {
-                Kind::Data(_) | Kind::Boxed => Mem::address(),
+                Kind::Data(_) | Kind::Boxed | Kind::Ref { fat: false, .. } => Mem::address(),
+                Kind::Ref { fat: true, .. } => record(&[Mem::address(), Mem::address()]).0,
                 Kind::Value => match env.enum_variants(def, args) {
                     Some(variants) => enum_mem(pool, env, &variants)?.0,
                     None => struct_mem(pool, env, t)?.0,
@@ -322,7 +348,7 @@ pub fn walk(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Walk> {
         TyData::Option(inner) => switch_walk(pool, env, &[vec![], vec![inner]]),
         TyData::Adt { def, args } if env.std_kind(def) == StdKind::Other => {
             match kind(pool, env, t) {
-                Kind::Data(_) | Kind::Boxed => Some(Walk::Ref(0)),
+                Kind::Data(_) | Kind::Boxed | Kind::Ref { .. } => Some(Walk::Ref(0)),
                 Kind::Value => {
                     if let Some(variants) = env.enum_variants(def, args) {
                         return switch_walk(pool, env, &variants);

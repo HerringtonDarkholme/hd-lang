@@ -51,6 +51,7 @@ impl Em<'_> {
             | Tag::Interp
             | Tag::Prim => true,
             Tag::Call | Tag::CallDyn | Tag::DefaultCall => true,
+            Tag::RefPlace | Tag::RefDyn | Tag::RefIdentity => true,
             Tag::CallValue => {
                 let f = self.b.data[i][0];
                 let deref = hd_tir::ir::Ref(f).as_inst().is_some()

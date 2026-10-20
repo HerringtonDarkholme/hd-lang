@@ -718,6 +718,26 @@ body with suspension rows (`src/wire.rs`), so no body writes them today.
 | `TupleGet` | a: base, b: index | the element's type |
 | `Closure` | a: sub-body, b: captures as a `CaptureId` range | the closure's function type. Each capture's mode, in the `cap_mode` column, is `Copy` (no side writes it after the capture), `Move` (only the closure uses it afterward) or `Shared` (both may) |
 
+**References**
+
+A reference names its place, so a backend with interior addresses lowers
+it to the place's address (`crates/hd_wasm/DESIGN.md` §23.20). Each
+instruction also owns, as its last operand, the `Block` of its closure
+form: the `std.core.Ref[T]` object of a `get` and a `set` closure over
+the place and the place's identity, or a call of one of them. Only the
+Wasm GC backend, which has no interior addresses, runs that block
+(§15.2 there, "References"). The linear backend's bodies arrive without
+it (`strip_closure_forms`), so its closures, the locals they capture and
+the instances they call are not there.
+
+| Tag | Operands | Type rule |
+| --- | --- | --- |
+| `RefPlace` | a: `[root kind, x, y, field...]` (`place_root`: a local; a top-level binding and its type; a local holding a reference; a local holding a data value and the field; a local holding a pinned list and a local holding the index), b: closure-form `Block` | the reference type. `&place` and `&mut place`, and a new object, whose place is the local the checker holds it in |
+| `RefRead` | a: reference, b: closure-form `Block` | the referenced value's read type (`*r`, an automatic dereference) |
+| `RefWrite` | a: `[reference, value]`, b: closure-form `Block` | `void` (`*r = v`) |
+| `RefDyn` | a: address-form `Block`, the trait value the source reference converts to, b: closure-form `Block` | the trait value reference (`trait.dyn.ref.share`, `trait.dyn.ref.widen`) |
+| `RefIdentity` | a: reference, b: closure-form `Block` | std's `RefIdentity` (`identity_of`) |
+
 **Providers**
 
 | Tag | Operands | Type rule |

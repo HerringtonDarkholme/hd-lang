@@ -61,6 +61,11 @@ pub(crate) fn id_words(b: &Body, i: usize) -> StageResult<Vec<IdWord>> {
             IdWord::Def(a as usize + 1),
             IdWord::List(b.data[i][1] as usize + 1),
         ],
+        // A top-level binding's place: `[GLOBAL, item, type, field...]`.
+        Tag::RefPlace if b.extra.get(a as usize + 1) == Some(&crate::ir::place_root::GLOBAL) => {
+            vec![IdWord::Def(a as usize + 2), IdWord::Ty(a as usize + 3)]
+        }
+        Tag::RefPlace | Tag::RefRead | Tag::RefWrite | Tag::RefDyn | Tag::RefIdentity => vec![],
         Tag::LocalGet
         | Tag::LocalSet
         | Tag::Prim

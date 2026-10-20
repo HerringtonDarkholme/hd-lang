@@ -66,3 +66,8 @@ const 4 0
 %56 = Unwrap 2147483648 - : 4 @-
 %57 = Guard 0 0 : 4 @-
 %58 = ToArm 0 - : 4 @-
+%59 = RefPlace 0 0 : 4 @-
+%60 = RefRead 2147483648 0 : 4 @-
+%61 = RefWrite 0 0 : 4 @-
+%62 = RefDyn 0 0 : 4 @-
+%63 = RefIdentity 2147483648 0 : 4 @-

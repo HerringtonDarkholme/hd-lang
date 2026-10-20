@@ -125,6 +125,15 @@ tags! {
     FieldSet: Value, Record;
     TupleGet: Value, Meta;
     Closure: Meta, Record;
+    // references (`crates/hd_tir/DESIGN.md` §4.13.11, "References"): each
+    // owns, as its last operand, the block that builds or uses the
+    // `std.core.Ref` closure form, which only a backend without interior
+    // addresses lowers
+    RefPlace: Record, Block;
+    RefRead: Value, Block;
+    RefWrite: Values, Block;
+    RefDyn: Block, Block;
+    RefIdentity: Value, Block;
     // providers
     With: Record, Block;
     ContextNew: Record, None;
@@ -464,6 +473,34 @@ pub enum CaptureMode {
     Shared,
 }
 
+/// The root kinds of a `RefPlace` record, its first word. The record is
+/// `[kind, x, y, field...]`: where the place starts, then the struct
+/// field indices read from there in order. A root that is a value names
+/// the local the checker holds it in, so the reference reads nothing
+/// that its closure form does not.
+pub mod place_root {
+    /// `x` the local; `y` unused.
+    pub const LOCAL: u32 = 0;
+    /// `x` a top-level binding's item, `y` its type.
+    pub const GLOBAL: u32 = 1;
+    /// `x` a local holding a reference: the place it refers to.
+    pub const DEREF: u32 = 2;
+    /// `x` a local holding a data value, `y` the field's index.
+    pub const DATA_FIELD: u32 = 3;
+    /// `x` a local holding the list `ListPin` pinned, `y` a local holding
+    /// the element's index, which `ListPin` checked.
+    pub const ELEM: u32 = 4;
+}
+
+/// A `RefPlace` record decoded (`place_root`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PlaceRec<'a> {
+    pub kind: u32,
+    pub x: u32,
+    pub y: u32,
+    pub path: &'a [u32],
+}
+
 /// Local flags (u8): READ | ASSIGNED | MUTATED | CAPTURED | `CAPTURED_ASSIGNED` | PARAM.
 pub mod local_flags {
     pub const READ: u8 = 1;
@@ -660,6 +697,59 @@ impl Body {
             Tag::NewTuple => [self.record(w).to_vec(), one(a)].concat(),
             Tag::NewList if a == NONE => self.record(w).to_vec(),
             Tag::GlobalGet | Tag::ProviderGet | Tag::ItemRef => vec![],
+            _ => return None,
+        })
+    }
+
+    /// The place of `RefPlace` instruction `i`.
+    #[must_use]
+    pub fn place(&self, i: usize) -> Option<PlaceRec<'_>> {
+        if self.tags[i] != Tag::RefPlace {
+            return None;
+        }
+        match self.record(self.data[i][0]) {
+            [kind, x, y, path @ ..] => Some(PlaceRec {
+                kind: *kind,
+                x: *x,
+                y: *y,
+                path,
+            }),
+            _ => None,
+        }
+    }
+
+    /// The locals the place of `RefPlace` instruction `i` reads.
+    #[must_use]
+    pub fn place_locals(&self, i: usize) -> Vec<u32> {
+        match self.place(i) {
+            Some(PlaceRec {
+                kind: place_root::LOCAL | place_root::DEREF | place_root::DATA_FIELD,
+                x,
+                ..
+            }) => vec![x],
+            Some(PlaceRec {
+                kind: place_root::ELEM,
+                x,
+                y,
+                ..
+            }) => vec![x, y],
+            _ => vec![],
+        }
+    }
+
+    /// The value operands of reference instruction `i` outside its
+    /// closure-form block, which a backend that lowers the reference
+    /// itself reads: none for a `RefPlace` (its locals are
+    /// [`Self::place_locals`]) or a `RefDyn` (its block). `None` for any
+    /// other instruction.
+    #[must_use]
+    pub fn ref_operands(&self, i: usize) -> Option<Vec<u32>> {
+        let a = self.data[i][0];
+        Some(match self.tags[i] {
+            Tag::RefPlace | Tag::RefDyn => vec![],
+            Tag::RefRead | Tag::RefIdentity if a != NONE => vec![a],
+            Tag::RefRead | Tag::RefIdentity => vec![],
+            Tag::RefWrite => self.record(a).to_vec(),
             _ => return None,
         })
     }
@@ -1324,9 +1414,82 @@ pub fn map_body_types(b: &mut Body, ty: &dyn Fn(Ty) -> Ty, list: &dyn Fn(TyList)
                 let at = w as usize + 4;
                 b.extra[at] = list(TyList(b.extra[at])).0;
             }
+            Tag::RefPlace if b.extra.get(a as usize + 1) == Some(&place_root::GLOBAL) => {
+                let at = a as usize + 3;
+                b.extra[at] = ty(Ty(b.extra[at])).0;
+            }
             _ => {}
         }
     }
+}
+
+/// Removes the closure form of every reference instruction (`RefPlace`,
+/// `RefRead`, `RefWrite`, `RefDyn`, `RefIdentity`) for a backend that
+/// lowers references as addresses: each instruction of the form's block,
+/// of the blocks they own and of the closures they make becomes an
+/// `Unreachable` of type `never` that nothing reads, each such block a
+/// block of no statements, and the reference instruction owns no block
+/// any more. Whether anything was removed.
+pub fn strip_closure_forms(b: &mut Body) -> bool {
+    let is_ref = |t: Tag| {
+        matches!(
+            t,
+            Tag::RefPlace | Tag::RefRead | Tag::RefWrite | Tag::RefDyn | Tag::RefIdentity
+        )
+    };
+    let mut dead = vec![false; b.len()];
+    let mut seen = vec![false; b.len()];
+    let mut work: Vec<u32> = Vec::new();
+    for i in 0..b.len() {
+        if is_ref(b.tags[i]) && b.data[i][1] != NONE {
+            work.push(b.data[i][1]);
+        }
+    }
+    if work.is_empty() {
+        return false;
+    }
+    while let Some(blk) = work.pop() {
+        let Some(s) = seen.get_mut(blk as usize) else {
+            continue;
+        };
+        if *s || b.tags[blk as usize] != Tag::Block {
+            continue;
+        }
+        *s = true;
+        dead[blk as usize] = true;
+        for &c in b.record(b.data[blk as usize][0]) {
+            let c = c as usize;
+            if c >= b.len() {
+                continue;
+            }
+            dead[c] = true;
+            work.extend(owned_blocks(b, c));
+            if b.tags[c] == Tag::Closure
+                && !b.is_instantiation(c)
+                && let Some(&root) = b.sub_root.get(b.data[c][0] as usize)
+            {
+                work.push(root);
+            }
+        }
+    }
+    // A dead block stays a block, of no statements, so the live block
+    // that lists it still skips it as a block it does not run.
+    let empty = u32::try_from(b.extra.len()).expect("extra");
+    b.extra.push(0);
+    for (i, &d) in dead.iter().enumerate() {
+        if d {
+            b.data[i] = if b.tags[i] == Tag::Block {
+                [empty, NONE]
+            } else {
+                b.tags[i] = Tag::Unreachable;
+                [NONE, NONE]
+            };
+            b.ty[i] = Ty::NEVER;
+        } else if is_ref(b.tags[i]) {
+            b.data[i][1] = NONE;
+        }
+    }
+    true
 }
 
 /// The blocks instruction `i` owns through its operands: a block
@@ -2336,7 +2499,7 @@ mod tests {
         let root = b.close_block(blk, Some(one), Ty::I32, NodeIdx::NONE);
         let body = b.finish(root, &[]).expect("ok");
         assert_eq!(body.len(), 1);
-        assert_eq!(Tag::ALL.len(), 59);
+        assert_eq!(Tag::ALL.len(), 64);
         assert!(
             Tag::ALL
                 .iter()

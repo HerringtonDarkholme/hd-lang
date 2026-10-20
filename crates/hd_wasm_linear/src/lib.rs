@@ -32,7 +32,7 @@ pub use rt::Helper;
 pub fn shared_reference_layout(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
     matches!(
         layout::kind(pool, env, ty),
-        layout::Kind::Data(_) | layout::Kind::Boxed
+        layout::Kind::Data(_) | layout::Kind::Boxed | layout::Kind::Ref { fat: false, .. }
     )
 }
 
@@ -173,12 +173,40 @@ impl Runtime {
 pub fn build(input: &Input<'_>) -> StageResult<Vec<u8>> {
     let mut m = module::Module::default();
     m.runtime = input.runtime;
+    address_globals(input, &mut m)?;
     for (slot, id) in input.order.iter().enumerate() {
         let f = emit::instance(input, &mut m, slot, *id)?;
         m.define(Sym::Inst(input.collected.table.key[id.idx()]), f);
     }
     rt::entry(input, &mut m)?;
     m.finish()
+}
+
+/// Gives each top-level binding that some reference refers to a static
+/// slot of its layout, which its reads and writes use from then on
+/// (`crates/hd_wasm/DESIGN.md` §23.20): a reference is its address.
+fn address_globals(input: &Input<'_>, m: &mut module::Module) -> StageResult<()> {
+    for id in input.order {
+        let Some(b) = (input.body)(*id) else {
+            continue;
+        };
+        for i in 0..b.len() {
+            let Some(p) = b.place(i) else {
+                continue;
+            };
+            if p.kind != hd_tir::ir::place_root::GLOBAL {
+                continue;
+            }
+            let h = input.env.path_hash(DefId::from_raw(p.x));
+            if m.addressed.contains_key(&h) {
+                continue;
+            }
+            let lay = layout::mem(input.pool, input.env, Ty(p.y))?;
+            let at = m.static_slot(lay.size, lay.align.max(4));
+            m.addressed.insert(h, at);
+        }
+    }
+    Ok(())
 }
 
 pub(crate) fn unsupported<T>(what: impl Into<String>) -> StageResult<T> {

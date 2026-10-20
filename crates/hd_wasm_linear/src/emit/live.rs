@@ -11,8 +11,8 @@
 //! no statement of its block holds the use (a block's result, a match
 //! decision's value read in an arm) keeps its count to the exit.
 
-use hd_base::{HashMap, HashSet};
-use hd_tir::ir::{Body, IntrinsicOp, NONE, Op, Ref, Tag};
+use hd_base::HashMap;
+use hd_tir::ir::{Body, NONE, Op, Ref, Tag};
 
 /// What to release after a statement.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -163,45 +163,6 @@ fn uses(b: &Body, i: usize) -> Vec<u32> {
     out
 }
 
-/// Whether instruction `i` is an `Intrinsic` of `op`.
-fn is_op(b: &Body, i: usize, op: IntrinsicOp) -> bool {
-    b.tags[i] == Tag::Intrinsic && IntrinsicOp::from_u32(b.data[i][0]) == Some(op)
-}
-
-/// The locals that hold an element reference's pin: those a `ListPin`'s
-/// value is stored in.
-pub(super) fn pin_locals(b: &Body) -> HashSet<usize> {
-    (0..b.len())
-        .filter(|&i| {
-            b.tags[i] == Tag::LocalSet
-                && Ref(b.data[i][1])
-                    .as_inst()
-                    .is_some_and(|v| is_op(b, v.0 as usize, IntrinsicOp::ListPin))
-        })
-        .map(|i| b.data[i][0] as usize)
-        .collect()
-}
-
-/// Whether every user of instruction `i` is a `ListUnpin`; the users are
-/// in the same block, after it.
-fn unpin_only(b: &Body, tree: &Tree, i: usize) -> bool {
-    let x = u32::try_from(i).expect("insts");
-    let (blk, p) = tree.parent[i];
-    if blk == NONE {
-        return false;
-    }
-    let mut any = false;
-    for &u in &b.record(b.data[blk as usize][0])[p + 1..] {
-        if uses(b, u as usize).contains(&x) {
-            if !is_op(b, u as usize, IntrinsicOp::ListUnpin) {
-                return false;
-            }
-            any = true;
-        }
-    }
-    any
-}
-
 /// The releases of sub-body `sub`'s values and locals at their last uses.
 /// `entry` are the locals that hold a value from the prologue: the
 /// parameters, and a closure's captures.
@@ -220,11 +181,14 @@ pub(super) fn plan(b: &Body, sub: u32, entry: &[usize]) -> Drops {
             users.entry(r).or_default().push(x);
         }
         match b.tags[i] {
-            // A read that only a `ListUnpin` takes keeps nothing alive:
-            // the pin is the reference's own (`list.rs`).
-            Tag::LocalGet if unpin_only(b, &tree, i) => {}
             Tag::LocalGet | Tag::LocalSet => {
                 access.entry(b.data[i][0] as usize).or_default().push(x);
+            }
+            // A reference reads the locals its place starts from.
+            Tag::RefPlace => {
+                for l in b.place_locals(i) {
+                    access.entry(l as usize).or_default().push(x);
+                }
             }
             Tag::Closure => {
                 let rec = b.record(b.data[i][1]);

@@ -19,16 +19,25 @@ use crate::layout::{Mem, Part, Walk, env_mem, mem as mem_of, strip};
 use crate::module::{Ins, Sym, Val};
 use crate::unsupported;
 
-/// Each local a closure shares, mapped to the instruction of its first
-/// store outside any closure that captures it: that store declares it and
-/// makes its cell (the Wasm GC backend's `cell_locals`). A parameter moves
-/// into its cell on entry, so it has none (`u32::MAX`).
-pub(super) fn cell_locals(b: &Body) -> HashMap<usize, u32> {
+/// Each local a closure shares, or that a reference refers to (`roots`,
+/// `refs.rs`), mapped to the instruction of its first store outside any
+/// closure that captures it: that store declares it and makes its cell
+/// (the Wasm GC backend's `cell_locals`). A parameter moves into its cell
+/// on entry, so it has none (`u32::MAX`). Only the closures the body still
+/// makes count: a reference's closure form is gone.
+pub(super) fn cell_locals(b: &Body, roots: &[usize]) -> HashMap<usize, u32> {
     let mut cells: HashMap<usize, u32> = HashMap::default();
-    for (c, l) in b.cap_local.iter().enumerate() {
-        if b.cap_mode.get(c) == Some(&CaptureMode::Shared) {
-            cells.insert(l.raw() as usize, u32::MAX);
+    for ci in 0..b.len() {
+        if b.tags[ci] == Tag::Closure {
+            for (l, shared) in captures(b, ci) {
+                if shared {
+                    cells.insert(l, u32::MAX);
+                }
+            }
         }
+    }
+    for l in roots {
+        cells.insert(*l, u32::MAX);
     }
     if cells.is_empty() {
         return cells;
@@ -157,7 +166,7 @@ impl Em<'_, '_, '_> {
 
     /// The local holding local `l`'s cell, made now when no store has made
     /// it yet.
-    fn cell_of(&mut self, l: usize) -> StageResult<u32> {
+    pub(super) fn cell_of(&mut self, l: usize) -> StageResult<u32> {
         let c = self.local(u32::try_from(l).expect("locals"))?[0];
         self.f.get(c);
         self.f.op(I::I32Eqz);
@@ -273,10 +282,15 @@ impl Em<'_, '_, '_> {
         let (m, parts, walk) = self.env_layout(&caps)?;
         let mut srcs = Vec::new();
         for (l, shared) in &caps {
+            let l32 = u32::try_from(*l).expect("locals");
             srcs.push(Src::Locals(if *shared {
                 vec![self.cell_of(*l)?]
+            } else if self.is_cell(*l) {
+                // A copy of a local that lives in a cell only because a
+                // reference refers to it.
+                self.local_value(l32)?
             } else {
-                self.local(u32::try_from(*l).expect("locals"))?
+                self.local(l32)?
             }));
         }
         let at = self.object(&m, walk.as_ref());

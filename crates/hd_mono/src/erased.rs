@@ -300,6 +300,12 @@ pub fn open_insts(
             | Tag::ToArm
             | Tag::Hole
             | Tag::Poison => continue,
+            // A reference instruction stays too: its closure form's
+            // instructions are outlined one by one, as they were before
+            // the instruction wrapped them.
+            Tag::RefPlace | Tag::RefRead | Tag::RefWrite | Tag::RefDyn | Tag::RefIdentity => {
+                continue;
+            }
             // A tag switch reads its scrutinee's tag; over an open value,
             // that read is outlined and the switch stays (§13.5.1 step 3).
             Tag::SwitchTag => {

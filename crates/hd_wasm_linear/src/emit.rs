@@ -28,6 +28,7 @@ mod iter;
 mod list;
 mod live;
 mod map;
+mod refs;
 mod scope;
 mod susp;
 mod text;
@@ -76,12 +77,11 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
         scopes: HashMap::default(),
         defer_flags: HashMap::default(),
         drops: live::Drops::default(),
-        pin_locals: live::pin_locals(b),
         blocks: Vec::new(),
         susp: None,
         shield: 0,
         temps: Vec::new(),
-        cells: closure::cell_locals(b),
+        cells: closure::cell_locals(b, &ref_roots(input, b, item, args, suspending)),
     };
     let mut params = Vec::new();
     // A suspending body takes its frame first (`susp::FRAME`).
@@ -113,6 +113,15 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
             Some(ci),
         )
     };
+    // A closure's copy of a capture is a value of its own, never the
+    // cell a reference to the captured local made.
+    if let Some(ci) = closure {
+        for (l, shared) in closure::captures(b, ci) {
+            if !shared {
+                em.cells.remove(&l);
+            }
+        }
+    }
     let mut entry = plocals.clone();
     if let Some(ci) = closure {
         entry.extend(closure::captures(b, ci).into_iter().map(|(l, _)| l));
@@ -251,6 +260,40 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
     susp::finish(em, key, &plocals, &params, ret, closure, held)
 }
 
+/// The locals that some `RefPlace` of body `b` refers to as its root and
+/// that must live in memory: those of a reference that is an address, not
+/// a trait value (`refs.rs`), but a suspending body's parameters.
+fn ref_roots(
+    input: &Input<'_>,
+    b: &Body,
+    item: DefId,
+    args: TyList,
+    suspending: bool,
+) -> Vec<usize> {
+    let (pool, env) = (input.pool, input.env);
+    (0..b.len())
+        .filter_map(|i| {
+            let p = b.place(i)?;
+            let t = subst(pool, env, item, args, b.ty[i]);
+            let addr = matches!(
+                crate::layout::kind(pool, env, t),
+                crate::layout::Kind::Ref { fat: false, .. }
+            );
+            if p.kind != hd_tir::ir::place_root::LOCAL || !addr {
+                return None;
+            }
+            // A suspending body's parameter has no cell yet
+            // (`susp::finish`), so a read-only reference to it is to a
+            // copy; a `&mut` one keeps the cell, which `finish` refuses.
+            let param = b.local_flags[p.x as usize] & local_flags::PARAM != 0;
+            if suspending && param && !crate::layout::ref_mutable(pool, env, t) {
+                return None;
+            }
+            Some(p.x as usize)
+        })
+        .collect()
+}
+
 /// The parameter locals of closure body `sub`, in order.
 fn sub_param_locals(b: &Body, sub: u16) -> Vec<usize> {
     let r = b.sub_params[sub as usize];
@@ -366,8 +409,6 @@ struct Em<'i, 'a, 'm> {
     /// The blocks being emitted, outermost first, each with the length of
     /// `ctl` when it was entered (`live.rs`, [`Em::drop_exited`]).
     blocks: Vec<(u32, usize)>,
-    /// The locals that hold an element reference's pin (`list.rs`).
-    pin_locals: hd_base::HashSet<usize>,
     /// The state machine of a suspending body (`susp.rs`).
     susp: Option<susp::Susp>,
     /// How many `using` dispose suites that wait the instruction being
@@ -683,6 +724,20 @@ impl Em<'_, '_, '_> {
                     }
                 }
             }
+            Tag::GlobalGet if let Some(at) = self.global_slot(a) => self.slot_get(i, at)?,
+            Tag::GlobalSet if let Some(at) = self.global_slot(a) => self.slot_set(at, bw)?,
+            Tag::RefPlace => self.ref_place(i)?,
+            Tag::RefRead => self.deref_read(i, a)?,
+            Tag::RefWrite => {
+                let r = self.rec(a);
+                let [rf, v] = r[..] else {
+                    return unsupported("a write through a reference without its operands");
+                };
+                self.deref_write(rf, v)?;
+            }
+            // The address form is the trait value its block makes.
+            Tag::RefDyn => self.block_into(a, Some(i))?,
+            Tag::RefIdentity => self.ref_identity(i, a)?,
             Tag::GlobalGet => {
                 let h = self.global_hash(a);
                 for (k, v) in self.vals(self.ty(i))?.into_iter().enumerate() {
@@ -781,9 +836,9 @@ impl Em<'_, '_, '_> {
                         self.trait_value(i, a)?;
                     }
                     k if k == Coercion::RefAsProvider as u32 => self.ref_as_provider(i, a)?,
-                    // The provider's data is the reference itself.
+                    // The provider is the reference itself.
                     k if k == Coercion::ProviderAsRef as u32 => {
-                        self.comp(a, 0)?;
+                        self.push(a)?;
                         self.store(i)?;
                     }
                     _ => return unsupported("provider references and `Any` coercions"),
@@ -936,10 +991,10 @@ impl Em<'_, '_, '_> {
                     Some(IntrinsicOp::SnapBegin) => self.snap_begin(i, args[0])?,
                     Some(IntrinsicOp::SnapEnd) => self.snap_end(args[1])?,
                     Some(IntrinsicOp::ListPin) => self.list_pin(i, &args)?,
-                    // Nothing: the checker ends a binding's pin after its
-                    // last statement, but here the pin is the reference's
-                    // own and ends with its last copy (`list.rs`, §23.20).
-                    Some(IntrinsicOp::ListUnpin) => {}
+                    // The checker ends a binding's pin after its last
+                    // statement; each copy of the reference holds a pin of
+                    // its own until its last use (`list.rs`, §23.20).
+                    Some(IntrinsicOp::ListUnpin) => self.list_unpin(args[0])?,
                     Some(IntrinsicOp::ListIter) => self.list_iter(i, args[0])?,
                     Some(hd_tir::ir::IntrinsicOp::StrConcat) => self.concat(i, &args)?,
                     Some(hd_tir::ir::IntrinsicOp::StrIndex) => self.str_at(i, args[0], args[1])?,
@@ -1200,10 +1255,11 @@ impl Em<'_, '_, '_> {
         };
         let receiver_ty = self.strip_mut(self.ty_of(recv));
         let value_ty = self.dyn_value_ty(receiver_ty);
-        let payload = if value_ty == receiver_ty {
-            None
+        let (payload, owned) = if value_ty == receiver_ty {
+            (None, false)
         } else {
-            Some(self.read_dyn_value(recv)?.1)
+            let (_, ls, owned) = self.read_dyn_value(recv)?;
+            (Some(ls), owned)
         };
         let mut params = vec![Val::I32];
         if let Some(value) = &payload {
@@ -1231,6 +1287,7 @@ impl Em<'_, '_, '_> {
         )));
         self.f.body.push(Ins::CallIndirect(params, results));
         if let Some(value) = payload
+            && owned
             && self.input.runtime.is_some()
         {
             self.f.get(value[0]);
@@ -1409,33 +1466,22 @@ impl Em<'_, '_, '_> {
             // std's `list_truncate(list: &mut List[T], n)`: the list read
             // through its reference, then truncated in place.
             "list_truncate" => {
-                let rt = self.strip_mut(self.ty_of(args[0]));
-                let read = self.ref_read(rt)?;
-                let TyData::Adt { args: ra, .. } = self.pool().get(rt) else {
+                let Some((lt, false)) = self.ref_target(self.ty_of(args[0])) else {
                     return unsupported("`list_truncate` of a value that is no reference");
                 };
-                let Some(&lt) = self.pool().list_items(ra).first() else {
-                    return unsupported("`list_truncate` of a reference without its list");
-                };
                 let (_, e) = self.elem(lt)?;
-                let h = self.read_through(args[0], &read)?;
-                self.f.get(h[0]);
+                // The header at the reference's address, lent to the call.
+                self.comp(args[0], 0)?;
+                self.f.op(I::I32Load(mem(HEAP, 0, 2)));
                 self.push(args[1])?;
                 self.f.helper(Helper::ListTruncate { elem: e });
-                // The header read arrived with its count.
-                self.f.get(h[0]);
-                self.f.helper(Helper::ReleaseRef);
                 Ok(())
             }
-            // The next serial number of a local or new object that a
-            // reference refers to: a global counter, so serials are unique
-            // within a run, the first 1 (`crates/hd_wasm/DESIGN.md` §15.2).
+            // The serial number of a local some reference refers to, which
+            // only a reference's closure form reads (`crates/hd_wasm/DESIGN.md`
+            // §15.2): here a reference is its address, so it is 0.
             "ref_serial" => {
-                self.f.global_get(Global::RefSerial);
-                self.f.op(I::I64Const(1));
-                self.f.op(I::I64Add);
-                self.f.global_set(Global::RefSerial);
-                self.f.global_get(Global::RefSerial);
+                self.f.op(I::I64Const(0));
                 self.store(i)
             }
             "bytes_len" => {

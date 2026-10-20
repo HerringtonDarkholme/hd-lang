@@ -134,7 +134,7 @@ impl Ck<'_, '_> {
             Tag::NewList | Tag::NewMap | Tag::NewData | Tag::CopyData | Tag::NewVariant => true,
             Tag::NewTuple | Tag::Closure | Tag::Interp | Tag::Prim => true,
             Tag::Call | Tag::CallDyn | Tag::DefaultCall => true,
-            Tag::CallValue => self.deref_source(Ref(data[0])).is_none(),
+            Tag::CallValue | Tag::RefPlace | Tag::RefDyn | Tag::RefIdentity => true,
             Tag::Intrinsic => matches!(
                 IntrinsicOp::from_u32(data[0]),
                 Some(IntrinsicOp::ValueCopy | IntrinsicOp::Item)
@@ -506,7 +506,7 @@ impl Ck<'_, '_> {
                         ArgRoot::Fixed
                     };
                 }
-                Tag::CallValue if self.deref_source(Ref(data[0])).is_some() => {
+                Tag::RefRead => {
                     return ArgRoot::Shared;
                 }
                 Tag::TupleGet | Tag::Payload | Tag::Unwrap => return ArgRoot::Fixed,
@@ -699,8 +699,8 @@ impl Ck<'_, '_> {
                     }
                     cur = inner;
                 }
-                Tag::CallValue => {
-                    return self.deref_source(Ref(data[0])).is_some_and(|(_, m)| m);
+                Tag::RefRead => {
+                    return self.deref_base(Ref(data[0])).is_some_and(|(_, m)| m);
                 }
                 Tag::Intrinsic => {
                     if !matches!(
@@ -757,8 +757,8 @@ impl Ck<'_, '_> {
             match tag {
                 Tag::Coerce | Tag::Field => cur = Ref(data[0]),
                 Tag::Intrinsic => cur = Ref(*self.b.body_mut().record(data[1]).first()?),
-                Tag::CallValue => {
-                    let (src, m) = self.deref_source(Ref(data[0]))?;
+                Tag::RefRead => {
+                    let (src, m) = self.deref_base(Ref(data[0]))?;
                     return (!m).then(|| self.b.ty_of(src));
                 }
                 _ => return None,

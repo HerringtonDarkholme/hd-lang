@@ -2370,14 +2370,11 @@ fn specification_conformance_passes_except_known_failures() {
         .write_all(summary.as_bytes())
         .expect("print the summary");
     let linear = judge_linear(&cases, engine);
+    // Both lists, so a break of one rule does not hide the other's.
     assert!(
-        errors.is_empty(),
-        "conformance cases break the KNOWN_FAILURES.tsv rule:\n{}",
-        errors.join("\n")
-    );
-    assert!(
-        linear.is_empty(),
-        "linear-backend runs break the LINEAR_PASSES.tsv rule:\n{}",
+        errors.is_empty() && linear.is_empty(),
+        "conformance cases break the KNOWN_FAILURES.tsv rule:\n{}\nlinear-backend runs break the LINEAR_PASSES.tsv rule:\n{}",
+        errors.join("\n"),
         linear.join("\n")
     );
 }
