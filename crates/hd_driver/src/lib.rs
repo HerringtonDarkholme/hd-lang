@@ -1109,6 +1109,9 @@ struct Run<'a> {
     pipeline: Hash128,
     /// The pipeline's body-unit passes, which collection applies.
     planner: hd_opt::planner::PipelinePlanner,
+    /// Whether the pipeline's link inlines the count fast paths
+    /// (`inline_counts`, the wasmtime target's).
+    inline_counts: bool,
     /// The build profile emitted code follows ([`Packages::build_profile`]).
     build_profile: BuildProfile,
     /// Whether allocation/count auditing is enabled.
@@ -1488,6 +1491,9 @@ pub fn build_packages(
         profile,
         pipeline,
         planner,
+        inline_counts: hd_opt::passes::pipeline(packages.target, packages.level)
+            .link
+            .contains(&"inline_counts"),
         build_profile: match goal {
             Goal::Program { .. } | Goal::ReplInput { .. } => packages.build_profile,
             Goal::Tests { .. } | Goal::Scenario { .. } | Goal::Analyze | Goal::CheckTests => {
@@ -8082,6 +8088,7 @@ impl Run<'_> {
             entry,
             release: self.build_profile == BuildProfile::Release,
             runtime,
+            inline_counts: self.inline_counts,
             host_refs: &c.host_refs,
         };
         let Some(wasm) = self.stage(Stage::Link, hd_wasm_linear::build(&input)) else {

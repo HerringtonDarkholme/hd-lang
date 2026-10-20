@@ -483,20 +483,43 @@ pub static OPTIMIZED: Pipeline = Pipeline {
     ],
 };
 
+/// [`DEV`] for wasmtime: the link also inlines the count fast paths
+/// (`inline_counts`, `crates/hd_wasm_linear/DESIGN.md` §23.30), which
+/// Cranelift does not inline on its own; V8 does, and runs the inline form
+/// slower (#644).
+pub static DEV_WASMTIME: Pipeline = Pipeline {
+    name: "dev",
+    tir: DEV.tir,
+    link: &["fold", "inline_counts"],
+    knobs: DEV.knobs,
+};
+/// [`OPTIMIZED`] for wasmtime, with `inline_counts` as [`DEV_WASMTIME`].
+pub static OPTIMIZED_WASMTIME: Pipeline = Pipeline {
+    name: "optimized",
+    tir: OPTIMIZED.tir,
+    link: &[
+        "drop_dead",
+        "fold",
+        "leb_compact",
+        "compact_names",
+        "inline_counts",
+    ],
+    knobs: OPTIMIZED.knobs,
+};
+
 /// The pipeline of each (target, level) (`crates/hd_opt/DESIGN.md` (optimization pipelines) §3.1). The match
 /// is total with no wildcard, so a new target or level does not compile
-/// until it has a row (validator check 1). Every target has the same rows
-/// today: job (e) of #162 measured `closure_spec`'s knobs on V8 and
-/// wasmtime and found one best value for both. A target whose best values
-/// differ gets its own `Pipeline` static here.
+/// until it has a row (validator check 1). Every target has the same TIR
+/// passes and knobs: job (e) of #162 measured `closure_spec`'s knobs on V8
+/// and wasmtime and found one best value for both. Wasmtime's link also
+/// inlines the count fast paths (#644).
 #[must_use]
 pub const fn pipeline(target: EngineTarget, level: OptLevel) -> &'static Pipeline {
     match (target, level) {
-        (EngineTarget::V8 | EngineTarget::Wasmtime | EngineTarget::Browser, OptLevel::Dev) => &DEV,
-        (
-            EngineTarget::V8 | EngineTarget::Wasmtime | EngineTarget::Browser,
-            OptLevel::Optimized,
-        ) => &OPTIMIZED,
+        (EngineTarget::V8 | EngineTarget::Browser, OptLevel::Dev) => &DEV,
+        (EngineTarget::V8 | EngineTarget::Browser, OptLevel::Optimized) => &OPTIMIZED,
+        (EngineTarget::Wasmtime, OptLevel::Dev) => &DEV_WASMTIME,
+        (EngineTarget::Wasmtime, OptLevel::Optimized) => &OPTIMIZED_WASMTIME,
     }
 }
 

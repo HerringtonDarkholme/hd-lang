@@ -1009,3 +1009,95 @@ pub fn fold_constant_branches(f: &mut Func) -> bool {
         changed = true;
     }
 }
+
+/// Inlines the fast paths of the counts on known block starts
+/// ([`Helper::RetainKnown`], [`Helper::ReleaseKnown`]; §23.30): a retain
+/// adds one to the header's count unless the address is null or a static
+/// object of count 0, and a release that leaves a count above zero takes
+/// one off. A last count, an object that takes part in cycle collection
+/// (so its decrement reaches `suspect`), or a release while the collector
+/// traces (`Tracing`) still calls the helper, which does all the rest.
+/// `acyclic` drops the two collector tests, as no object takes part.
+/// Gives whether anything changed.
+pub fn inline_counts(f: &mut Func, acyclic: bool) -> bool {
+    use crate::module::{HEAP, Val, mem};
+    use wasm_encoder::BlockType;
+    if !f.body.iter().any(|i| {
+        matches!(
+            i,
+            Ins::Call(Sym::Helper(Helper::RetainKnown | Helper::ReleaseKnown))
+        )
+    }) {
+        return false;
+    }
+    let (t, b, c) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
+    let body = std::mem::take(&mut f.body);
+    // Leaves the header's address in `b` and its count in `c`, branching
+    // out of the enclosing block for null.
+    let header = |f: &mut Func| {
+        f.set(t);
+        f.op(I::Block(BlockType::Empty));
+        f.get(t);
+        f.op(I::I32Eqz);
+        f.op(I::BrIf(0));
+        f.get(t);
+        f.i32(8);
+        f.op(I::I32Sub);
+        f.op(I::LocalTee(b));
+        f.op(I::I32Load(mem(HEAP, 0, 2)));
+        f.op(I::LocalTee(c));
+    };
+    for ins in body {
+        match ins {
+            Ins::Call(Sym::Helper(Helper::RetainKnown)) => {
+                header(f);
+                f.op(I::I32Eqz);
+                f.op(I::BrIf(0));
+                f.get(b);
+                f.get(c);
+                f.i32(1);
+                f.op(I::I32Add);
+                f.op(I::I32Store(mem(HEAP, 0, 2)));
+                f.op(I::End);
+            }
+            Ins::Call(Sym::Helper(Helper::ReleaseKnown)) => {
+                header(f);
+                f.i32(1);
+                f.op(I::I32GtU);
+                if !acyclic {
+                    f.body.push(Ins::GlobalGet(Global::Tracing));
+                    f.op(I::I32Eqz);
+                    f.op(I::I32And);
+                    f.get(b);
+                    f.op(I::I32Load(mem(HEAP, 4, 2)));
+                    f.i32(0);
+                    f.op(I::I32GeS);
+                    f.op(I::I32And);
+                }
+                f.op(I::If(BlockType::Empty));
+                f.get(b);
+                f.get(c);
+                f.i32(1);
+                f.op(I::I32Sub);
+                f.op(I::I32Store(mem(HEAP, 0, 2)));
+                f.op(I::Else);
+                // A count of 0 is a static object's, except while the
+                // collector traces: a gray object's count may have reached
+                // 0, and `visit` must still see the reference.
+                f.get(c);
+                if !acyclic {
+                    f.body.push(Ins::GlobalGet(Global::Tracing));
+                    f.op(I::I32Or);
+                }
+                f.op(I::If(BlockType::Empty));
+                f.get(t);
+                f.body.push(Ins::Call(Sym::Helper(Helper::ReleaseKnown)));
+                f.op(I::End);
+                f.op(I::End);
+                f.op(I::End);
+            }
+            other => f.body.push(other),
+        }
+    }
+    true
+}

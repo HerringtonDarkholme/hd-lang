@@ -697,6 +697,7 @@ fn call_func(
         entry: input.entry.clone(),
         release: input.release,
         runtime: input.runtime,
+        inline_counts: input.inline_counts,
         host_refs: input.host_refs,
     };
     let f = body_func(&here, m, &own, 0, &calls, &b)?;

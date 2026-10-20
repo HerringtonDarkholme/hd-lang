@@ -388,6 +388,9 @@ pub struct Module {
     /// The instances of `std.rt.cycle`, whose module init an acyclic
     /// program does not run.
     pub cycle_insts: BTreeSet<Hash128>,
+    /// Whether [`Module::finish`] inlines the count fast paths
+    /// ([`crate::Input::inline_counts`]).
+    pub inline_counts: bool,
 }
 
 /// Stored values and their counted-reference walk (§23.24), with a static
@@ -581,6 +584,19 @@ impl Module {
                 .is_some_and(|r| crate::opt::count_pairs(f, r.retain))
             {
                 crate::opt::locals(f, &arity);
+            }
+        }
+        // Checked mode keeps every count a call, so its runtime audits them.
+        if self.inline_counts && self.runtime.is_some_and(|r| r.checked.is_none()) {
+            let mut inlined = false;
+            for f in self.funcs.values_mut() {
+                if crate::opt::inline_counts(f, self.acyclic) {
+                    crate::opt::locals(f, &arity);
+                    inlined = true;
+                }
+            }
+            if inlined {
+                self.reach();
             }
         }
         let stack = crate::wide::lower(&mut self.funcs, &self.exports)?;

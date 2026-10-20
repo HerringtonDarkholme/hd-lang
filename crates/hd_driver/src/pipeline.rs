@@ -145,8 +145,10 @@ mod tests {
         );
     }
 
-    /// `V8` and `Browser` share keys while their content is equal; `V8`
-    /// and `Wasmtime` share lowering too. A knob splits a key.
+    /// `V8` and `Browser` share keys while their content is equal.
+    /// `Wasmtime` shares their TIR passes and knobs, but its link inlines
+    /// the count fast paths (#644), which splits its key. A knob splits a
+    /// key too.
     #[test]
     fn equal_content_shares_a_key_and_a_knob_splits_it() {
         for level in OptLevel::ALL {
@@ -155,16 +157,18 @@ mod tests {
                 key(EngineTarget::Browser, level),
                 "{level:?}"
             );
-            assert_eq!(
+            assert_ne!(
                 key(EngineTarget::V8, level),
                 key(EngineTarget::Wasmtime, level),
                 "{level:?}"
             );
-            // All engines share scalar code generation.
-            assert!(
-                pipeline(EngineTarget::V8, level)
-                    .same_content(pipeline(EngineTarget::Wasmtime, level))
+            let (v8, wasmtime) = (
+                pipeline(EngineTarget::V8, level),
+                pipeline(EngineTarget::Wasmtime, level),
             );
+            assert_eq!(v8.tir, wasmtime.tir);
+            assert!(!v8.link.contains(&"inline_counts"));
+            assert!(wasmtime.link.contains(&"inline_counts"));
         }
         let tuned = content_key(&TUNED).expect("valid");
         assert_ne!(tuned, key(EngineTarget::V8, OptLevel::Optimized));

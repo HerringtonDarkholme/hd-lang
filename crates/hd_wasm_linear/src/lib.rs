@@ -159,6 +159,9 @@ pub struct Input<'a> {
     pub runtime: Option<Runtime>,
     /// The `std.rt.host_provider` instance per entry row key whose host
     /// provider is installed behind a reference (`req.ref.host.reference-values`).
+    /// Whether the count fast paths on known block starts are emitted
+    /// inline (`opt::inline_counts`): the wasmtime pipeline's choice.
+    pub inline_counts: bool,
     pub host_refs: &'a [(Ty, Hash128)],
 }
 
@@ -363,6 +366,7 @@ fn link(input: &Input<'_>) -> StageResult<Vec<u8>> {
     let mut m = module::Module::default();
     m.runtime = input.runtime;
     m.release = input.release;
+    m.inline_counts = input.inline_counts;
     for id in input.order {
         let key = input.collected.table.key[id.idx()];
         m.inst_of.insert(key, *id);

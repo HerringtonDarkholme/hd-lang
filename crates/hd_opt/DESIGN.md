@@ -151,15 +151,21 @@ decision.
 
 ### 3.1 The table
 
-`hd_opt::passes::pipeline(target, level)` is a total `match`. Every target
-has the same two rows; each column is data in the crate that reads it.
+`hd_opt::passes::pipeline(target, level)` is a total `match`. V8 and the
+browser use the two rows below; wasmtime uses `DEV_WASMTIME` and
+`OPTIMIZED_WASMTIME`, the same rows with the link pass `inline_counts`
+added, which emits the count fast paths inline
+(`crates/hd_wasm_linear/DESIGN.md` §23.30, #644). Each column is data in
+the crate that reads it.
 
 | Level | Passes (`tir`) | Link passes (hashed only) | Knobs | Engine |
 | --- | --- | --- | --- | --- |
 | `DEV` | `liveness` | `fold` | none | V8 tiers by itself; Cranelift `None` |
 | `OPTIMIZED` | `value_flow`, `use_counts`, `inline_plan`, `devirt_known`, `closure_spec`, `escape`, `scalar_replace`, `liveness` | `drop_dead`, `fold`, `leb_compact`, `compact_names` | `closure_spec`: `max_insts` 64, `max_depth` 2 (§8) | Cranelift `Speed` |
 
-Code generation is shared by every target (§4). Dev runs no A1 or A2 on any
+Code generation is shared by every target (§4), except that inlining:
+Cranelift does not inline the small count helpers, while V8 does and ran
+the inline form 4 to 6 per cent slower. Dev runs no A1 or A2 on any
 target: specialization and devirtualization run in the optimized pipeline
 only (docs/compiler/tiering.md §3.1 and §7.1). A target whose measured best
 values differ would get its own `Pipeline` static.

@@ -1739,6 +1739,28 @@ physical or erased references without a block-start proof.
   Field projection cannot originate a view without a parent view. A
   module that can construct erased representation views keeps the full
   discriminator; the #619 erased-reference fixtures audit that path.
+- **Inline fast paths** (issue #644, `opt::inline_counts`), for the
+  wasmtime target only: its pipelines carry the link pass
+  `inline_counts` (`crates/hd_opt/DESIGN.md` §3.1), which sets
+  `Input::inline_counts`. V8 inlines the helpers itself and ran the inline
+  form slower, so Node and browser builds keep the calls. After
+  `Module::finish` has cancelled balanced pairs, every `RetainKnown` and
+  `ReleaseKnown` call becomes inline code over `address - 8`. A retain
+  adds one unless the address is null or the count is 0 (static data). A
+  release takes one off when the count is above 1, the object is not
+  `CYCLIC` and `Tracing` is clear. Otherwise it calls `ReleaseKnown`,
+  which handles the last count, a cycle-capable object's `suspect`, and
+  `visit` while the collector traces. That call is also made for a count
+  of 0 while tracing, since a gray object's count can reach 0 in a mark.
+  An acyclic module (§23.28) drops both collector tests. Interior and
+  erased addresses keep their calls, and checked mode keeps every count a
+  call so that its runtime audits them. With inlining, hello (release)
+  grows by 212 bytes, from 7,183 to 7,395 for `println(42)`. On wasmtime, at
+  fce872a45: nbody 4,861 ms to 4,411; closures 6,159 to 4,512; json
+  35,299 to 33,888; binary-trees 83,770 to 78,729. On V8: binary-trees
+  29,215 to 24,206 and json 18,514 to 18,063, but nbody (about 2,920 to
+  3,030) and closures (about 1,590 to 1,690) were 4 to 6 per cent slower
+  in repeated runs, hence the wasmtime-only rule.
 
 ### 23.31 Parameter And Projection Loans
 
