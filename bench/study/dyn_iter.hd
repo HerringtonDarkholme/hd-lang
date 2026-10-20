@@ -1,0 +1,81 @@
+# #634: what returning `&mut dyn Iterator[i64]` costs against the same
+# filter/map chain consumed in place, and a plain loop. Each variant sums
+# x * 2 over the x in 0..N with x % 3 != 0. Prints each sum on stdout and
+# each variant's best of three times on stderr, in milliseconds.
+use std.console.eprintln
+use std.time.{Clock, elapsed, monotonic}
+
+N := 10_000_000i64
+CALLS := 100_000
+SHORT := 100i64
+
+struct Counter:
+    next: i64
+    end: i64
+
+impl Iterator[i64] for Counter:
+    fn next(&mut self) -> i64?:
+        if self.next >= self.end:
+            return .None
+        value := self.next
+        self.next = value + 1
+        .Some(value)
+
+# (a) The chain behind a trait value, as a function returning it.
+fn erased(n: i64) -> &mut dyn Iterator[i64]:
+    &mut (Counter { next: 0, end: n }.filter(fn(x): x % 3 != 0).map(fn(x): x * 2))
+
+fn via_dyn(n: i64) -> i64:
+    erased(n).sum::[i64]()
+
+# (b) The same chain consumed where it is built: no trait value.
+fn in_place(n: i64) -> i64:
+    Counter { next: 0, end: n }.filter(fn(x): x % 3 != 0).map(fn(x): x * 2).sum::[i64]()
+
+# (c) A plain loop.
+fn plain(n: i64) -> i64:
+    let total: i64 = 0
+    let x: i64 = 0
+    while x < n:
+        if x % 3 != 0:
+            total = total + x * 2
+        x = x + 1
+    total
+
+# (d) The chain over a range, whose `iter` is itself a trait value.
+fn over_range(n: i64) -> i64:
+    (0..n).iter().filter(fn(x): x % 3 != 0).map(fn(x): x * 2).sum::[i64]()
+
+# (e) Many short chains through (a): the per-call cost.
+fn many_dyn(calls: usize, n: i64) -> i64:
+    let total: i64 = 0
+    for _ in 0..calls:
+        total = total + via_dyn(n)
+    total
+
+# (f) Many short chains through (b).
+fn many_in_place(calls: usize, n: i64) -> i64:
+    let total: i64 = 0
+    for _ in 0..calls:
+        total = total + in_place(n)
+    total
+
+fn best(name: string, run: fn() -> i64) -> void $ Console + Clock:
+    let fastest: i64 = 0
+    let result: i64 = 0
+    for i in 0..3:
+        start := monotonic()
+        result = run()
+        took := elapsed(start).as_milliseconds()
+        if i == 0 || took < fastest:
+            fastest = took
+    println("$name $result")
+    eprintln("$name ${fastest}ms")
+
+pub fn main() -> void $ Console + Clock:
+    best("dyn", fn(): via_dyn(N))
+    best("in-place", fn(): in_place(N))
+    best("loop", fn(): plain(N))
+    best("range", fn(): over_range(N))
+    best("dyn-short", fn(): many_dyn(CALLS, SHORT))
+    best("in-place-short", fn(): many_in_place(CALLS, SHORT))

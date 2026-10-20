@@ -49,3 +49,107 @@ Two Node tools drive the Rust `hd` as a child process:
   [docs/compiler/goals.md](../docs/compiler/goals.md);
 - [`micro/`](micro/README.md): runtime microbenchmarks of the same programs
   in hd, Python and Node.
+- [`study/`](study/run.mjs): the runtime suite on the RC backend, below.
+
+## Runtime Suite On The RC Backend
+
+`study/` holds the eleven programs of the Rust model study
+(docs/future-work/RUST_MODEL_STUDY.md §8 and its appendix), rewritten
+from its descriptions since its sources were scratch files, each with a
+JavaScript and a Go version that print the same output, and
+`dyn_iter.hd` with `go/dyn_iter.go` for issue #634. The runner also
+times `runtime/progs`, `micro`, `tokenizer`, `math` and an empty program:
+
+```sh
+cargo build --release -p hd_cli --features wasmtime
+node bench/study/run.mjs                      # every case, median of 3
+node bench/study/run.mjs --only nbody,json    # some cases
+```
+
+Each hd program is built with `hd build --release --engine E` and run on
+Node through `host/run.mjs` and on wasmtime as `hd FILE.wasm --engine
+wasmtime`, which includes Cranelift's compile. Every output is checked
+against its reference first. Times are process wall time, so start-up is
+in them: see the empty program's row.
+
+`--checked PATH` builds each program at a reduced input in checked mode
+(crates/hd_wasm_linear/DESIGN.md §23.24) and prints the retains, releases,
+allocations and heap pages it ran. The CLI has no flag for checked mode,
+so PATH is an `hd` built with two local edits: `Program::packages` in
+`crates/hd_cli/src/disk.rs` sets `checked` when `HD_BENCH_CHECKED` is set,
+and `retained()` and `released()` in `lib/std/rt/checked.hd` put
+`allocated()` and `pages()` in the high 32 bits of their results.
+
+### Results, 2026-10-20
+
+Commit `e8636d4b3`, Apple M3 Max (14 cores), macOS 26.6.2, Node v24.19.0,
+Go 1.24.1, wasmtime 49 in `hd`. The machine was busy: the one-minute
+load was 15 to 42 during the run, so a cell can be off by 2x; the gaps
+below are 10x to 300x. Milliseconds, median of 3 runs; a run over 60 s
+was run once. "GC era" is hd on Wasm GC and Rust on Wasm from the Rust
+study (2026-10-18, load 5.6 to 15.4); a dagger marks a program whose
+input this rewrite chose itself, so that row compares loosely.
+
+| Program | hd, V8 | hd, wasmtime | Node | Go | hd/Node | hd/Go | GC era hd, V8 | GC era hd, wasmtime | Rust, V8 | Peak RSS MB: hd V8, hd wasmtime, Go |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| spectral-norm (n 2500) | 20,935 | 23,958 | 900 | 487 | 23 | 43 | 317 | 822 | 227 | 55, 16, 4 |
+| fannkuch-redux (n 10) | 9,107 | 17,246 | 220 | 163 | 41 | 56 | 753 | 414 | 279 | 57, 16, 4 |
+| mandelbrot (1600², 50) | 388 | 408 | 170 | 138 | 2.3 | 2.8 | 430 | 224 | 243 | 55, 15, 4 |
+| nbody (5M steps) | 63,121 | 118,099 | 293 | 196 | 216 | 322 | 262 | 339 | 408 | 59, 30, 4 |
+| sieve (30M) | 2,990 | 5,978 | 140 | 84 | 21 | 36 | 624 | 314 | 273 | 117, 77, 33 |
+| binary-trees (depth 20) | 68,816 | 174,179 | 3,015 | 4,674 | 23 | 15 | 1,934 | 2,913 | 3,958 | 209, 177, 148 |
+| points† (1M, 10 rounds) | 557 | 1,434 | 324 | 26 | 1.7 | 21 | 399 | 251 | 81 | 103, 62, 67 |
+| closures† (1M, 50 rounds) | 16,264 | 37,221 | 264 | 167 | 62 | 97 | 272 | 1,632 | 160 | 64, 35, 8 |
+| map-count† (2M words) | 2,864 | 6,550 | 464 | 124 | 6.2 | 23 | 497 | 450 | 144 | 183, 142, 78 |
+| string-build† (3M pieces) | 1,443 | 3,130 | 315 | 174 | 4.6 | 8.3 | 366 | 351 | 104 | 263, 222, 128 |
+| json† (400k records) | 92,216 | 178,923 | 271 | 460 | 341 | 201 | 1,007 | 2,427 | 234 | 385, 344, 245 |
+| dyn_iter (#634, 6 variants) | 50,911 | 117,429 | | 642 | | 79 | | | | 56, 24, 9 |
+| progs/closures | 6,977 | 16,063 | 547 | | 13 | | | | | 261, 221 |
+| progs/int-loop | 1,519 | 1,096 | 965 | | 1.6 | | | | | 55, 15 |
+| progs/list-sort | 41,951 | 68,106 | 202 | | 208 | | | | | 56, 25 |
+| progs/map-count | 59 | 208 | 41 | | 1.4 | | | | | 57, 16 |
+| progs/string-build | 152 | 272 | 34 | | 4.5 | | | | | 56, 17 |
+| progs/string-builder | 57 | 191 | 34 | | 1.6 | | | | | 58, 18 |
+| progs/trait-dispatch | 812 | 763 | 586 | | 1.4 | | | | | 55, 15 |
+| micro/sort | 493 | 1,154 | | | | | | | | 58, 17 |
+| tokenizer, math, micro/fib, sum, map, string_build | 40 to 87 | 117 to 202 | | | | | | | | 53 to 63, 14 to 22 |
+| empty program | 44 | 181 | | | | | 36 | 18 | 32 | 51, 14 |
+
+`bench/micro/run.ts` (entry point only, compile excluded, best of 7) at
+the same commit: fib 2.6 ms (Wasm GC baseline of 2026-10-06: 3.9), sum
+6.3 (77.7), string-build 53.5 (19.0), map 6.9 (28.6), sort 456.0 (42.3);
+Python 60.4, 185.1, 12.3, 13.5, 10.2; Node 6.1, 12.0, 6.3, 12.4, 18.0.
+
+Counts in checked mode, at a reduced input (`run.mjs --checked`), per
+unit of work. No program allocates per element in its hot loop except
+where noted; every one counts there.
+
+| Program | reduced input | retains per unit | allocations per unit |
+| --- | --- | ---: | ---: |
+| spectral-norm | n 250 | 2.0 per inner product step | 0 |
+| fannkuch-redux | n 8 | 75 per permutation | 0 |
+| nbody | 50k steps | 49 per body pair per step | 0 |
+| sieve | 300k | 4.0 per flag | 0 |
+| binary-trees | depth 10 | 7.4 per node | 1 per node |
+| points | 10k | 2.9 per point per round | 0 (one list per round) |
+| closures | 10k | 14.5 per item per round | 0 |
+| map-count | 20k words | 67 per word | 2 per word |
+| string-build | 30k pieces | 16 per piece | 2 per piece |
+| json | 4k records | 8,300 per record (105 per byte of text) | 85 per record |
+| dyn_iter `dyn` / `in-place` / `range` / loop | 100k | 12.3 / 9.7 / 16.3 / 0 per element | 2 / 1 / 6 / 0 per chain, 0 per element |
+
+Releases run 0% to 13% above retains, since a new object's first count is
+not a retain. Under V8's sampling profiler
+(`--cpu-prof`) the three programs furthest behind Node spend this share
+of their time:
+
+| Cost | json | nbody | closures |
+| --- | ---: | ---: | ---: |
+| count updates (retain, release, drop glue) | 25% | 35% | 39% |
+| cycle-collector hooks run on every release (`visit`, `suspect`, `takes_part`, `word`, `block_bytes`) | 29% | 29% | 27% |
+| `block_of` page-table lookups and `ref_is_view` | 33% | 17% | 16% |
+| size-class division in `class_bytes`, under the two rows above | 5% | 9% | 4% |
+| the program's and std's own code | 7% | 7% | 12% |
+| allocation and free | 0.3% | 0% | 0% |
+| copy-on-write checks | 0.1% | 2% | 0% |
+| polling | 0% | 0% | 0% |

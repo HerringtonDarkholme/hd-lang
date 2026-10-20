@@ -1,14 +1,14 @@
 trait Step:
     fn step(self, x: i32) -> i32
 
-data Double:
+struct Double:
     k: i32
 
 impl Step for Double:
     fn step(self, x: i32) -> i32:
         x * 2 + self.k
 
-data Add:
+struct Add:
     k: i32
 
 impl Step for Add:

@@ -1,0 +1,19 @@
+# map-count: build a text of 2M words, split it, count each word.
+use std.text.StringBuilder
+
+N := 2_000_000
+
+pub fn main() -> void $ Console:
+    out := StringBuilder::new()
+    for i in 0..N:
+        if i > 0:
+            out.push(" ")
+        out.push("w${u64(i) * 7919 % 50_021}")
+    text := out.build()
+    let mut counts: Map[string, i64] = {}
+    for word in text.split(" "):
+        counts[word] = counts.get(word).unwrap_or(0) + 1
+    let squares: i64 = 0
+    for (_, c) in counts:
+        squares = squares + c * c
+    println("${counts.len()} $squares")

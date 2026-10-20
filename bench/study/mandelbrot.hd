@@ -1,0 +1,22 @@
+# mandelbrot: a 1600 x 1600 grid, 50 iterations. Prints the points inside.
+SIZE := 1600
+ITER := 50
+
+pub fn main() -> void $ Console:
+    size := SIZE
+    let inside: usize = 0
+    for y in 0..size:
+        ci := 2.0 * f64(y) / f64(size) - 1.0
+        for x in 0..size:
+            cr := 2.0 * f64(x) / f64(size) - 1.5
+            let zr = 0.0
+            let zi = 0.0
+            let i: usize = 0
+            while i < ITER && zr * zr + zi * zi <= 4.0:
+                t := zr * zr - zi * zi + cr
+                zi = 2.0 * zr * zi + ci
+                zr = t
+                i = i + 1
+            if i == ITER:
+                inside = inside + 1
+    println(inside)

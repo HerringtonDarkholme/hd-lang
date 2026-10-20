@@ -1,0 +1,26 @@
+# json: encode 400k records to JSON text, decode it back, check the sums.
+use std.json.{decode, encode}
+use std.serde.{Deserialize, Serialize}
+
+N := 400_000
+
+@derive(Serialize, Deserialize)
+struct Record:
+    id: i64
+    name: string
+    active: bool
+    score: i64
+    tags: List[string]
+
+pub fn main() -> void $ Console:
+    let mut records: List[Record] = []
+    for i in 0..N:
+        records.push(Record { id: i64(i), name: "user$i", active: i % 3 == 0, score: i64(i * 37 % 1000), tags: ["t${i % 10}", "g${i % 7}"] })
+    text := encode(records)
+    back := match decode::[List[Record]](text):
+        .Ok(list) => list
+        .Err(e) => panic("decode: $e")
+    let sum: i64 = 0
+    for r in back:
+        sum = sum + r.score + i64(r.tags[1].len()) + (if r.active: 1 else: 0)
+    println("${text.len()} $sum")

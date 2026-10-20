@@ -1,5 +1,5 @@
 pub fn main() -> void:
-    let table: mut Map[usize, u64] = {}
+    let mut table: Map[usize, u64] = {}
     for i in 0..100_000:
         table[i] = u64(i * 2)
     let total: u64 = 0

@@ -1,0 +1,23 @@
+# sieve of Eratosthenes below 30M. Prints the prime count.
+N := 30_000_000
+
+pub fn main() -> void $ Console:
+    n := N
+    let mut flags: List[bool] = []
+    for _ in 0..n:
+        flags.push(true)
+    flags[0] = false
+    flags[1] = false
+    let i: usize = 2
+    while i * i < n:
+        if flags[i]:
+            let j = i * i
+            while j < n:
+                flags[j] = false
+                j = j + i
+        i = i + 1
+    let count: usize = 0
+    for flag in flags:
+        if flag:
+            count = count + 1
+    println(count)

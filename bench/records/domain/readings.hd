@@ -1,4 +1,4 @@
-pub data Reading:
+pub struct Reading:
     pub value: i32
     pub offset: i32
     pub weight: i32

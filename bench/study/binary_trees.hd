@@ -1,0 +1,36 @@
+# binary-trees, depth 20 (benchmarks game). Prints one line per depth.
+MAX := +20
+MIN := +4
+
+struct Node:
+    left: (&Node)?
+    right: (&Node)?
+
+fn make(depth: i32) -> &Node:
+    if depth == 0:
+        &Node { left: .None, right: .None }
+    else:
+        &Node { left: .Some(make(depth - 1)), right: .Some(make(depth - 1)) }
+
+fn check(node: &Node) -> i64:
+    match node.left:
+        .None => 1
+        .Some(left) =>
+            match node.right:
+                .None => 1 + check(left)
+                .Some(right) => 1 + check(left) + check(right)
+
+pub fn main() -> void $ Console:
+    println("stretch ${MAX + 1} ${check(make(MAX + 1))}")
+    long := make(MAX)
+    let d = MIN
+    while d <= MAX:
+        iters := +1 << u32(MAX - d + MIN)
+        let sum: i64 = 0
+        let i = +0
+        while i < iters:
+            sum = sum + check(make(d))
+            i = i + 1
+        println("$iters $d $sum")
+        d = d + 2
+    println("long $MAX ${check(long)}")

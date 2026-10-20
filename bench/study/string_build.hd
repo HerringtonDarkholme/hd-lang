@@ -1,0 +1,11 @@
+# string-build: append 3M pieces to one string. Prints its length.
+use std.text.StringBuilder
+
+N := 3_000_000
+
+pub fn main() -> void $ Console:
+    out := StringBuilder::new()
+    for i in 0..N:
+        out.push("item-$i;")
+    text := out.build()
+    println(text.len())

@@ -1,0 +1,17 @@
+# closures: 1M items, 50 rounds of map/filter/fold.
+N := +1_000_000
+
+pub fn main() -> void $ Console:
+    let mut items: List[i32] = []
+    let i = +0
+    while i < N:
+        items.push((i * 31 + 7) % 100_003)
+        i = i + 1
+    let total = +0
+    let round = +0
+    while round < 50:
+        r := round
+        acc := items.iter().map(fn(x): x * 3 + r).filter(fn(y): y % 2 == 0).fold(+0, fn(a, y): (a + y) % 1_000_003)
+        total = (total + acc) % 1_000_003
+        round = round + 1
+    println(total)

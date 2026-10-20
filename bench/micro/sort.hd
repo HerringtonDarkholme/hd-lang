@@ -1,5 +1,5 @@
 pub fn main() -> void:
-    let items: mut List[usize] = []
+    let mut items: List[usize] = []
     for i in 0..100_000:
         items.push(usize((u64(i) * 48271) % 1_000_003))
     ordered := items.sorted()

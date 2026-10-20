@@ -1,0 +1,50 @@
+# spectral-norm, n = 2500 (benchmarks game). Prints trunc(norm * 1e9).
+N := 2500
+
+fn a(i: usize, j: usize) -> f64:
+    1.0 / f64((i + j) * (i + j + 1) / 2 + i + 1)
+
+fn mul_av(n: usize, v: &List[f64], out: &mut List[f64]) -> void:
+    let i: usize = 0
+    while i < n:
+        let s = 0.0
+        let j: usize = 0
+        while j < n:
+            s = s + a(i, j) * v[j]
+            j = j + 1
+        out[i] = s
+        i = i + 1
+
+fn mul_atv(n: usize, v: &List[f64], out: &mut List[f64]) -> void:
+    let i: usize = 0
+    while i < n:
+        let s = 0.0
+        let j: usize = 0
+        while j < n:
+            s = s + a(j, i) * v[j]
+            j = j + 1
+        out[i] = s
+        i = i + 1
+
+fn mul_atav(n: usize, v: &List[f64], out: &mut List[f64], tmp: &mut List[f64]) -> void:
+    mul_av(n, v, tmp)
+    mul_atv(n, tmp, out)
+
+pub fn main() -> void $ Console:
+    n := N
+    let mut u: List[f64] = []
+    let mut v: List[f64] = []
+    let mut tmp: List[f64] = []
+    for _ in 0..n:
+        u.push(1.0)
+        v.push(0.0)
+        tmp.push(0.0)
+    for _ in 0..10:
+        mul_atav(n, &u, &mut v, &mut tmp)
+        mul_atav(n, &v, &mut u, &mut tmp)
+    let vbv = 0.0
+    let vv = 0.0
+    for i in 0..n:
+        vbv = vbv + u[i] * v[i]
+        vv = vv + v[i] * v[i]
+    println(i64((vbv / vv).sqrt() * 1000000000.0))

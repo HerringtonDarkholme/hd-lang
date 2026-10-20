@@ -1,5 +1,5 @@
 fn tally(n: i32, buckets: i32) -> i32:
-    let counts: mut Map[i32, i32] = {}
+    let mut counts: Map[i32, i32] = {}
     let i = +0
     while i < n:
         key := (i * 31 + 7) % buckets
