@@ -137,6 +137,11 @@ pub enum Global {
     /// The wake table: its address and its capacity in handles.
     WakeTab,
     WakeCap,
+    /// Dead blocks awaiting their payload release, linked through their
+    /// no-longer-counted header word (#625).
+    ReleaseHead,
+    /// One outer release drains `ReleaseHead`; nested releases only enqueue.
+    Releasing,
     /// One value of a top-level binding: its item's path hash and the
     /// value's index in its layout.
     Storage(Hash128, u32, Val),
@@ -154,7 +159,9 @@ impl Global {
             | Global::Root
             | Global::Owner
             | Global::WakeTab
-            | Global::WakeCap => Val::I32,
+            | Global::WakeCap
+            | Global::ReleaseHead
+            | Global::Releasing => Val::I32,
             Global::HashSeed => Val::I64,
             Global::Storage(_, _, v) => *v,
         }

@@ -360,6 +360,7 @@ runtime/valid/debug-tuple-rest.hd	#573: closures and trait values
 runtime/valid/deep-equal-rings.hd	#573: closures and trait values
 runtime/valid/deep-equal-values.hd	#573: closures and trait values
 runtime/valid/deep-equal-visits-shared.hd	#573: closures and trait values
+runtime/valid/deep-recursive-release.hd	#625: iterative release of deep reference chains
 runtime/valid/default-body-supertrait-member.hd	#573: closures and trait values
 runtime/valid/default-constant-specialization.hd	#573: closures and trait values
 runtime/valid/default-hasher-shared.hd	#573: closures and trait values

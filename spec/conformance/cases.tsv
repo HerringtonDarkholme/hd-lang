@@ -3473,6 +3473,7 @@ runtime/valid/reference-eq-generic.hd	runtime	accept	std/cmp.md#r-std-cmp.ref.eq
 runtime/valid/deep-equal-rings.hd	runtime	accept	std/cmp.md#r-std-cmp.deep-equal.references
 runtime/valid/deep-equal-values.hd	runtime	accept	std/cmp.md#r-std-cmp.deep-equal.containers
 runtime/valid/deep-equal-visits-shared.hd	runtime	accept	std/cmp.md#r-std-cmp.deep-equal.visits-ref
+runtime/valid/deep-recursive-release.hd	runtime	accept	lang/13-values-and-references.md#r-ref.expr.allocate
 runtime/valid/id-keys-by-identity.hd	runtime	accept	std/cmp.md#r-std-cmp.id.eq
 runtime/valid/reference-derived-debug.hd	runtime	accept	std/format.md#r-std-format.debug.reference-derived
 runtime/valid/reference-display.hd	runtime	accept	std/format.md#r-std-format.display.reference

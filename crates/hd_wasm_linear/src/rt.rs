@@ -1849,9 +1849,11 @@ fn collect(m: &Module) -> Func {
     f
 }
 
-/// [`Helper::ReleaseRef`]: std's `release` gives the block at its last
-/// count; then the descriptor's glue releases the payload's references and
-/// std's `free` takes the block.
+/// [`Helper::ReleaseRef`]: std identifies a block's final count before it
+/// enters this allocation-free worklist. Its count word then links pending
+/// blocks; its payload and descriptor stay intact until its turn. A nested
+/// descriptor release enqueues and returns, so recursive types use a bounded
+/// native stack. Cycle tracing still goes through std's `release` first.
 fn release_ref(m: &Module) -> Func {
     let mut f = Func::new("rt:release_ref", vec![Val::I32], vec![]);
     let Some(r) = m.runtime else {
@@ -1862,7 +1864,34 @@ fn release_ref(m: &Module) -> Func {
     f.call(Sym::Inst(r.release));
     f.set(block);
     f.get(block);
+    f.op(Instruction::I32Eqz);
     f.op(Instruction::If(BlockType::Empty));
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
+
+    // The final release already removed the block from cycle candidates.
+    f.get(block);
+    f.global_get(Global::ReleaseHead);
+    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    f.get(block);
+    f.global_set(Global::ReleaseHead);
+    f.global_get(Global::Releasing);
+    f.op(Instruction::If(BlockType::Empty));
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
+    f.i32(1);
+    f.global_set(Global::Releasing);
+
+    f.op(Instruction::Block(BlockType::Empty));
+    f.op(Instruction::Loop(BlockType::Empty));
+    f.global_get(Global::ReleaseHead);
+    f.set(block);
+    f.get(block);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::BrIf(1));
+    f.get(block);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.global_set(Global::ReleaseHead);
     f.get(block);
     f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
     f.set(desc);
@@ -1878,7 +1907,11 @@ fn release_ref(m: &Module) -> Func {
     f.op(Instruction::End);
     f.get(block);
     f.call(Sym::Inst(r.free));
+    f.op(Instruction::Br(0));
     f.op(Instruction::End);
+    f.op(Instruction::End);
+    f.i32(0);
+    f.global_set(Global::Releasing);
     f
 }
 

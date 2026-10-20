@@ -1,0 +1,36 @@
+# test: releasing a million-node reference chain finishes before execution continues
+# Spec 13 References: ref.expr.allocate. REFCOUNT_RUNTIME job 19: iterative release.
+# expect: test
+struct Node:
+    next: (&mut Node)?
+
+struct Branch:
+    left: (&mut Node)?
+    right: (&mut Node)?
+
+fn chain(count: usize) -> (&mut Node)?:
+    let head: (&mut Node)? = .None
+    let index = 0
+    while index < count:
+        head = .Some(&mut Node { next: head })
+        index += 1
+    head
+
+tests:
+    use std.testing.assert_equal
+
+    it("drops a million-node chain without consuming the native stack"):
+        let head = chain(1000000)
+        head = .None
+        assert_equal(head.is_none(), true, reason="execution continues after the entire chain is released")
+
+    it("keeps a shared suffix alive and drains branching payloads"):
+        let first = chain(4096)
+        suffix := match first:
+            .Some(node) => node.next
+            .None => panic("expected a nonempty chain")
+        first = .None
+        assert_equal(suffix.is_some(), true, reason="a second owner keeps the suffix alive")
+        let branch: (&mut Branch)? = .Some(&mut Branch { left: suffix, right: suffix })
+        branch = .None
+        assert_equal(branch.is_none(), true, reason="both owned fields release through the same worklist")
