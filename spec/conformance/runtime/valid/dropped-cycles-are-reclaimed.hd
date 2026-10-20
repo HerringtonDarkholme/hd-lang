@@ -1,0 +1,40 @@
+# test: a program that builds and drops many reference cycles keeps running: rings of nodes, and recursive local closures whose environment holds the closure
+# Spec 08 Representation: data.repr.gc. Spec 07 Recursive Closures: fn.recursion.closure.binding.
+struct Stop:
+    name: string
+    next: &mut Stop?
+
+# A ring of two stops, dropped at the return: only the cycle holds it.
+fn ring(round: i32) -> i32:
+    first := &mut Stop { name: "first $round", next: .None }
+    second := &mut Stop { name: "second", next: .Some(first) }
+    first.next = .Some(second)
+    match first.next:
+        .Some(stop) => if stop.name == "second": 1 else: 0
+        .None => 0
+
+# A recursive local closure: its environment holds the cell that holds it.
+fn sum_to(limit: i32) -> i32:
+    sum := fn(n: i32) -> i32:
+        if n == 0: 0
+        else: n + sum(n - 1)
+    sum(limit)
+
+tests:
+    use std.testing.assert_equal
+
+    it("fifty thousand dropped rings"):
+        let total = +0
+        let round = +0
+        while round < 50000:
+            total = total + ring(round)
+            round = round + 1
+        assert_equal(total, 50000, reason="each ring reaches its second stop")
+
+    it("twenty thousand dropped recursive closures"):
+        let total = +0
+        let round = +0
+        while round < 20000:
+            total = total + sum_to(round % 10)
+            round = round + 1
+        assert_equal(total, 330000, reason="each closure sums its range")

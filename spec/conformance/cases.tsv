@@ -2964,6 +2964,7 @@ typing/invalid/shared-enum-readonly-collection.hd	type	reject:not-writable	lang/
 runtime/valid/enum-value-fixed-at-construction.hd	runtime	accept	lang/08-data-and-enums.md#r-data.enum.immutable
 runtime/valid/derive-members-of-data-and-enums.hd	runtime	accept	lang/08-data-and-enums.md#typed-derivation-of-data-and-enums
 runtime/valid/reference-cycles-are-ordinary-data.hd	runtime	accept	lang/08-data-and-enums.md#r-data.repr.gc
+runtime/valid/dropped-cycles-are-reclaimed.hd	runtime	accept	lang/08-data-and-enums.md#r-data.repr.gc
 runtime/valid/comments-hide-code-from-the-parser.hd	runtime	accept	lang/01-lexical-structure.md#r-lex.comment.line
 runtime/valid/indentation-levels.hd	runtime	accept	lang/01-lexical-structure.md#r-lex.indent.compare
 runtime/valid/multiple-dedents-at-once.hd	runtime	accept	lang/01-lexical-structure.md#r-lex.indent.lesser

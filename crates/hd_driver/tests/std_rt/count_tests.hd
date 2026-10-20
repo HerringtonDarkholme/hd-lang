@@ -5,6 +5,13 @@
 # as `std.rt.count_tests`, as it does alloc_tests.hd.
 use std.rt.memory.pages
 
+# The heap's pages in a bounded run: the static page, the page table, a
+# page for each size class the objects use, and the cycle collector's
+# candidate buffer (crates/hd_wasm/DESIGN.md §23.28), which grows with the
+# live candidates, not with the loop. Without the frees the chains alone
+# need about 50 MB.
+BOUND := 12
+
 struct Node:
     name: string
     next: List[Node]
@@ -67,14 +74,14 @@ tests:
             total = total + label(i).len()
             i = i + 1
         assert(total == 6888890, "every string was built")
-        assert(pages() <= 4, "each string's block is reused")
+        assert(pages() <= BOUND, "each string's block is reused")
 
     it("the last release of a chain frees every node and its name"):
         let round = +0
         while round < 300:
             assert(length(chain(1000)) == 1000, "the chain is whole while held")
             round = round + 1
-        assert(pages() <= 4, "the nodes' and names' blocks are reused")
+        assert(pages() <= BOUND, "the nodes' and names' blocks are reused")
 
     it("an enum's release frees the payload of the variant it holds"):
         let named = +0
@@ -85,7 +92,7 @@ tests:
                 _ => pass
             i = i + 1
         assert(named == 100000, "every third is named")
-        assert(pages() <= 4, "the payloads' blocks are reused")
+        assert(pages() <= BOUND, "the payloads' blocks are reused")
 
     it("moved and borrowed arguments keep their values and run in bounded memory"):
         let total: usize = 0
@@ -95,7 +102,7 @@ tests:
             total = total + left_of(&p).len() + p.right.len()
             i = i + 1
         assert(total == 2577780, "every pair holds both strings")
-        assert(pages() <= 4, "the strings' and pairs' blocks are reused")
+        assert(pages() <= BOUND, "the strings' and pairs' blocks are reused")
 
     it("an argument used again after the call is not moved"):
         s := label(7)

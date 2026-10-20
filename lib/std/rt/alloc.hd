@@ -23,6 +23,7 @@
 # class's list (u32 each), its live count (u16) and its bump offset in
 # units of 16 bytes (u16). Its slots follow from offset 16. A freed slot
 # holds the next free slot's address in its first 4 bytes.
+use std.rt.cycle.{forget, suspect, visit}
 use std.rt.memory.{copy, fill, grow, load_u16, load_u32, store_u16, store_u32}
 
 PAGE := 65536
@@ -88,8 +89,13 @@ pub fn alloc(size: usize) -> usize:
 pub fn allocated() -> usize:
     given
 
-## Frees the block at `address`, which `alloc` gave and which is not yet freed.
+## Frees the block at `address`, which `alloc` gave and which is not yet freed, after taking it out of the cycle collector's candidates.
 pub fn free(address: usize) -> void:
+    forget(address)
+    free_block(address)
+
+## Frees the block at `address`, which `alloc` gave and which is not yet freed, as `free` does, for a block the cycle collector never sees.
+pub fn free_block(address: usize) -> void:
     page_number := address / PAGE
     entry := usize(get(page_number))
     kind := entry / SMALL
@@ -150,15 +156,19 @@ pub fn retain(address: usize) -> void:
     if block != 0:
         store_u32(block, load_u32(block) + 1)
 
-## Takes one from the count of the block that holds `address` and gives the block when that was its last count, so the caller releases and frees it; else 0.
+## Takes one from the count of the block that holds `address` and gives the block when that was its last count, so the caller releases and frees it; else 0. A count left above zero makes the block a candidate of the cycle collector, and while the collector traces an object, the reference goes to it instead (std.rt.cycle).
 pub fn release(address: usize) -> usize:
+    if visit(address):
+        return 0
     block := block_of(address)
     if block == 0:
         return 0
     count := load_u32(block)
     if count == 1:
+        forget(block)
         return block
     store_u32(block, count - 1)
+    suspect(block)
     0
 
 ## The bytes of the block at `block`, which `alloc` gave: its size class's, or its run's whole pages.

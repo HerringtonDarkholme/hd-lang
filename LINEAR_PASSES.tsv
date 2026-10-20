@@ -422,6 +422,7 @@ runtime/valid/doc-test-passes.hd	#573: closures and trait values
 runtime/valid/doc-test-private-item.hd	#573: closures and trait values
 runtime/valid/doc-test-text-fence.hd	#573: closures and trait values
 runtime/valid/downcast-reference-permission-identity.hd	#586: reference recovery methods
+runtime/valid/dropped-cycles-are-reclaimed.hd	#618: the cycle collector
 runtime/valid/duration-api.hd	#573: closures and trait values
 runtime/valid/duration-arithmetic.hd	#573: closures and trait values
 runtime/valid/duration-display.hd	#573: closures and trait values

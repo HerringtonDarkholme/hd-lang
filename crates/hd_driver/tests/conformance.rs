@@ -1915,6 +1915,7 @@ const STD_RT_TESTS: &[(&str, &str)] = &[
         "rt/checked_tests.hd",
         include_str!("std_rt/checked_tests.hd"),
     ),
+    ("rt/cycle_tests.hd", include_str!("std_rt/cycle_tests.hd")),
 ];
 
 /// Every case of each [`STD_RT_TESTS`] file passes on the linear backend,

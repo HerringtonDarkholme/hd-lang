@@ -153,10 +153,12 @@ fn flags_any(f: &mut Func, t: u32, bits: i32) {
 }
 
 /// A new counted object of `size` payload bytes, zeroed, with release
-/// glue `drop` (none for `None`), in a fresh local of `f`.
+/// glue `drop` (none for `None`), in a fresh local of `f`. A frame is
+/// opaque to the cycle collector ([`Helper::Opaque`]).
 fn new_zeroed(f: &mut Func, size: u32, drop: Option<Sym>) -> u32 {
     let at = f.local(Val::I32);
     f.u32(size);
+    let glue = drop.is_some();
     match drop {
         Some(d) => {
             f.body.push(Ins::TableSlot(d));
@@ -167,6 +169,10 @@ fn new_zeroed(f: &mut Func, size: u32, drop: Option<Sym>) -> u32 {
     }
     f.helper(Helper::New);
     f.set(at);
+    if glue {
+        f.get(at);
+        f.helper(Helper::Opaque);
+    }
     f.get(at);
     f.i32(0);
     f.u32(size);

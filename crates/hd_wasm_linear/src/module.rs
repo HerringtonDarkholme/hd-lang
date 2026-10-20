@@ -34,6 +34,9 @@ pub const EMPTY: u32 = STATIC_BASE;
 
 /// The size of a counted object's header, before its payload (§23.4).
 pub const HEADER: u32 = 8;
+/// The bytes of the collector word at the end of a block whose header
+/// names release glue (`crates/hd_wasm/DESIGN.md` §23.28).
+pub const CYCLE_WORD: u32 = 4;
 
 /// A function: an instance by key, a runtime helper, or a host import.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]

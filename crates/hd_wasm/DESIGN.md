@@ -1677,7 +1677,8 @@ what the spec names as intrinsic or what only it can build.
 | references, cleanup scopes, releases at last use | `emit/refs.rs` for references as addresses, `emit/live.rs` for each value's and local's last use, `emit/scope.rs` for the `defer` exit ladder, `emit/list.rs` for element references' pins (§23.20) | 12 |
 | host codecs | `boundary.rs`: each boundary type's encoder and decoder over the exchange buffer, and the host method slots that call them (§23.23) | 14 |
 | checked mode | `std.rt.checked`, the counts and the allocator with their checks, and `rt.rs`'s audit at an entry's end, under `--backend linear-checked` (§23.24) | 16 |
-| iterative release, the collector | hd in further `std.rt` modules, called by emitted code | 19, 21 |
+| iterative release | hd in a further `std.rt` module, called by emitted code | 19 |
+| the cycle collector | hd in `std.rt.cycle`, called by emitted code, which runs each object's release glue as its trace (§23.28) | 21 |
 
 `std.rt` modules are privileged: only std modules may import them, so the
 runtime can change its representation without breaking a program.
@@ -1753,7 +1754,7 @@ the slot's start:
 | 0 | 4 | the count: 32-bit, non-atomic, with no overflow check on wasm32 (REFCOUNT_RUNTIME.md §4.4) |
 | 4 | 4 | the descriptor word: bits 0 to 23 the type descriptor's number, bits 24 to 31 tier 2's borrow flag (a writer bit and a 7-bit reader count, OBJECT_MODEL_TIER2.md §6.4; zero in tier 1) |
 | 8 | the payload's size | the payload: the fields, or a buffer's header and elements |
-| after the payload, 4-aligned | 4 | the collector word, for a cycle-capable type only: the candidate flag, the color and the candidate-buffer index (REFCOUNT_RUNTIME.md §7.2) |
+| the block's last 4 bytes | 4 | the collector word, for a cycle-capable type only: the color, the opaque flag and the candidate-buffer index (REFCOUNT_RUNTIME.md §7.2, §23.28) |
 
 - A reference to a whole object is the payload's address, slot + 8, so
   its fields read at constant offsets with no lookup; the header is at
@@ -2763,8 +2764,8 @@ its own counting bugs. `--backend linear-checked` selects it
   or the number of blocks leaked. It is not a stable panic category
   (`flow.panic.known-categories`): only a bug of this backend or its
   runtime can reach it.
-- **No collector yet.** Checked mode also collects at every allocation;
-  `allocate` is where that call goes once the collector exists (job 21).
+- **The collector** (§23.28) runs after the teardown and before the
+  audit, so a cycle the bindings held is freed first.
 - **The sweep.** `HD_CONFORMANCE_BACKEND=linear-checked` builds every
   linear run of the conformance runner in checked mode, so each case
   `LINEAR_PASSES.tsv` lists must pass with its counts audited.
@@ -2779,7 +2780,7 @@ its own counting bugs. `--backend linear-checked` selects it
   child go before the exit ladders. Eight listed cases still leak, all
   reference cycles, which wait for the collector (job 21): rings of
   `&mut` nodes, and a recursive local function, whose environment holds
-  the cell that holds the function.
+  the cell that holds the function. §23.28 collects them now.
 
 ### 23.25 What Job 17 Adds
 
@@ -3001,3 +3002,84 @@ same erased bodies, thunks and witness fields.
   `linear-checked`, whose count audit covers every box and cell, and by
   `erased-method-boxed-reference-argument` and
   `dyn-generic-suspension-kept` (issue #617), which run on Wasm GC too.
+
+### 23.28 The Cycle Collector
+
+Issue #618 (job 21) reclaims reference cycles on the linear backend by
+synchronous trial deletion (Bacon and Rajan, ECOOP 2001), as
+docs/future-work/REFCOUNT_RUNTIME.md §7 plans. The collector is hd in
+`std.rt.cycle` (`lib/std/rt/cycle.hd`); the backend adds what only it can
+build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
+`CycleFree` and `Opaque`).
+
+- **What takes part.** Every object whose descriptor word names release
+  glue, so every type that can hold a counted reference: job 20's per-type
+  analysis comes later. Strings and other objects without glue hold
+  nothing and never take part. A frame is opaque (`Helper::Opaque`, from
+  `task.rs`'s `new_zeroed`): a collection may start while a frame runs,
+  when the slots it saved are stale, so it is never entered and never a
+  candidate, and what it holds counts as held from outside.
+- **The collector word** sits in the last 4 bytes of the block, not right
+  after the payload as §23.4 first planned: nothing records a payload's
+  size, while the allocator knows each block's. `rt:new` asks for 4 more
+  bytes when the descriptor names glue and has std's `track` zero the
+  word. Its low 2 bits are the color (black, gray, white, purple), bit 2
+  marks an opaque object, and the rest is the object's place in the
+  candidate buffer plus one, 0 for none.
+- **Candidates.** Std's `release` (`std.rt.alloc`'s and
+  `std.rt.checked`'s) makes an object purple and buffers it when it
+  leaves a count above zero (`suspect`), and takes it out of the buffer at
+  its last count (`forget`), before its glue runs, so a collection never
+  sees an object half released. `free` forgets too, for the blocks the
+  backend frees directly, such as a list's old buffer. `forget` checks
+  that the buffer's entry names the block, so a block without a collector
+  word, whose last bytes are data, is left alone. A retain does not
+  blacken a purple object: a needless candidate costs a walk, not
+  correctness.
+- **Tracing is the release glue.** `CycleTrace` runs the descriptor's
+  glue on the payload while std's `release` hands each reference to the
+  collector's `visit` instead of counting it, so no type needs trace glue
+  of its own: every glue releases its references through std's `release`
+  and does nothing else.
+- **A collection** (`collect(trace, release, free)`, called with three
+  function values whose code is `CycleTrace`, `CycleRelease` and
+  `CycleFree`) marks gray from each purple candidate, taking one count off
+  each object a gray one references; scans, so a gray object with a count
+  left, which something outside holds, and all it reaches turn black and
+  get their counts back, while the rest turn white; then walks the white
+  objects from the candidates. Each walk keeps an explicit work list, so
+  a long ring needs no deep stack. The white objects are freed only once
+  the walk is done, and then a white object's references to objects that
+  do not take part are released as usual, which may free more and make
+  new candidates for the next collection.
+- **When.** `rt:new` collects first when std's `due` says the buffer holds
+  at least the threshold's candidates: 10,000 at first, halved back
+  toward 10,000 after a collection that frees at least half of what it
+  marked gray, doubled after one that frees less (REFCOUNT_RUNTIME.md
+  §7.4). An allocation is never reached from release glue, so a
+  collection never interrupts one. The entry's poll collects whenever it
+  answers (`Helper::CollectPoll`): at idle when the answer is Pending, and
+  at the end. Checked mode's poll collects after the teardown releases the
+  bindings and before the leak audit, so a handle leaked inside a cycle
+  is still reported.
+- **Memory.** A full buffer first closes the gaps that forgotten
+  candidates left, so it grows with the live candidates only. The
+  buffer, the work list and the lists of white and released objects are
+  blocks of `std.rt.alloc`, which checked mode does not count as live.
+  `count_tests.hd`'s heap bound goes from 4 pages to 12: the buffer's
+  size classes and runs.
+- **Checked by** both sweeps: `linear-checked` passes all 1,480
+  `LINEAR_PASSES.tsv` cases with counts audited, including the eight
+  cycles of §23.24 (`deep-equal-rings`, `deep-equal-visits-shared`,
+  `local-closure-calls-own-name`, `local-function-recurses`,
+  `named-local-functions`, `named-local-suspending-function`,
+  `recursive-local-closure`, `reference-cycles-are-ordinary-data`). With
+  the threshold fixed at one, so that every allocation after a release
+  collects, the `linear-checked` sweep passes too. The conformance case
+  `dropped-cycles-are-reclaimed` drops 50,000 rings and 20,000 recursive
+  local closures; `crates/hd_driver/tests/std_rt/cycle_tests.hd` drops
+  200,000 of each and checks the heap: the rings take 23 pages with the
+  collector and 430 without.
+- **Not yet.** Per-type cycle analysis (job 20), so that an acyclic type
+  records no candidate and carries no collector word; a cycle through a
+  frame is never collected while frames are opaque.

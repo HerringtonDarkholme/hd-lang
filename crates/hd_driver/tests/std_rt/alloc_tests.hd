@@ -119,6 +119,8 @@ tests:
     it("a count goes up and down through any address in its block"):
         a := alloc(32)
         store_u32(a, 1)
+        # No release glue, so the cycle collector leaves it alone.
+        store_u32(a + 4, 0)
         retain(a + 12)
         assert(load_u32(a) == 2, "an interior address counts its block")
         assert(release(a + 8) == 0, "a count is left")

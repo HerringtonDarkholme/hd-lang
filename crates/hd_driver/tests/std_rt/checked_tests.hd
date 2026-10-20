@@ -40,6 +40,8 @@ tests:
     it("counts change only on live blocks"):
         a := allocate(16)
         store_u32(a, 1)
+        # No release glue, so the cycle collector leaves it alone.
+        store_u32(a + 4, 0)
         retain(a + 12)
         assert(load_u32(a) == 2, "an interior address counts its block")
         assert(release(a) == 0, "a count is left")

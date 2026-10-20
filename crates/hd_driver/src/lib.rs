@@ -7671,8 +7671,7 @@ impl Run<'_> {
         // uses; its link drops the ones nothing calls.
         #[cfg(feature = "linear")]
         if self.backend.linear() {
-            let module = hd_wasm_linear::runtime_module(self.checked());
-            for name in hd_wasm_linear::runtime_fns(self.checked()) {
+            for (module, name) in hd_wasm_linear::runtime_items(self.checked()) {
                 let r = (names.item(module, name), TyList::EMPTY);
                 if self.body_of(p, r.0).is_some() && !extra.contains(&r) {
                     extra.push(r);
@@ -8806,10 +8805,9 @@ impl Run<'_> {
                 hold: self.scenario_hold(p),
             },
         };
-        let module = hd_wasm_linear::runtime_module(self.checked());
-        let runtime_keys: Vec<Option<Hash128>> = hd_wasm_linear::runtime_fns(self.checked())
-            .iter()
-            .map(|n| {
+        let runtime_keys: Vec<Option<Hash128>> = hd_wasm_linear::runtime_items(self.checked())
+            .into_iter()
+            .map(|(module, n)| {
                 let def = names.item(module, n);
                 let table = &c.collected.table;
                 table

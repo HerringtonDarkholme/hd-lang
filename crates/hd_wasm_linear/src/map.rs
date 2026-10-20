@@ -221,7 +221,9 @@ fn load_entry(f: &mut Func, entry: &Entry, from: usize, to: usize) -> Vec<u32> {
 pub fn table(entry: &Entry) -> Func {
     let mut f = Func::new("rt:map_table", vec![Val::I32], vec![Val::I32]);
     let t = f.local(Val::I32);
-    if let Some(most) = (u32::MAX - INDEX - HEADER).checked_div(12 + entry.size) {
+    if let Some(most) =
+        (u32::MAX - INDEX - HEADER - crate::module::CYCLE_WORD).checked_div(12 + entry.size)
+    {
         f.get(0);
         f.u32(most);
         f.op(I::I32GtU);

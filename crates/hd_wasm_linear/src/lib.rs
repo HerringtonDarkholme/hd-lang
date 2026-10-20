@@ -153,6 +153,11 @@ pub const CHECKED_FNS: [&str; 8] = [
     "allocate", "free", "retain", "release", "live", "audit", "retained", "released",
 ];
 
+/// The cycle collector (`crates/hd_wasm/DESIGN.md` §23.28), which both
+/// runtimes link: `collect`, `due`, `track` and `opaque`.
+pub const CYCLE_MODULE: &str = "std.rt.cycle";
+pub const CYCLE_FNS: [&str; 4] = ["collect", "due", "track", "opaque"];
+
 /// The runtime module a build links: the checked one in checked mode.
 #[must_use]
 pub const fn runtime_module(checked: bool) -> &'static str {
@@ -169,16 +174,42 @@ pub const fn runtime_fns(checked: bool) -> &'static [&'static str] {
     if checked { &CHECKED_FNS } else { &RUNTIME_FNS }
 }
 
+/// Every runtime function that emitted code calls, as `(module, name)`:
+/// [`runtime_fns`] of [`runtime_module`], then the collector's
+/// [`CYCLE_FNS`]. [`Runtime::from_keys`] reads their keys in this order.
+#[must_use]
+pub fn runtime_items(checked: bool) -> Vec<(&'static str, &'static str)> {
+    let module = runtime_module(checked);
+    runtime_fns(checked)
+        .iter()
+        .map(|n| (module, *n))
+        .chain(CYCLE_FNS.iter().map(|n| (CYCLE_MODULE, *n)))
+        .collect()
+}
+
 /// The instance keys of the runtime functions that emitted code calls
-/// (`crates/hd_wasm/DESIGN.md` §23.16): the allocator and the counts, and
-/// in checked mode the audit's.
+/// (`crates/hd_wasm/DESIGN.md` §23.16): the allocator and the counts, the
+/// collector's, and in checked mode the audit's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Runtime {
     pub alloc: Hash128,
     pub free: Hash128,
     pub retain: Hash128,
     pub release: Hash128,
+    pub cycle: Cycle,
     pub checked: Option<Checked>,
+}
+
+/// The cycle collector's functions (`crates/hd_wasm/DESIGN.md` §23.28):
+/// `collect(trace, release, free)`, `due()`, whether the candidate buffer
+/// is full, `track(block)`, which zeroes a new object's collector word, and
+/// `opaque(address)`, which marks a new frame as never entered.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Cycle {
+    pub collect: Hash128,
+    pub due: Hash128,
+    pub track: Hash128,
+    pub opaque: Hash128,
 }
 
 /// The checked runtime's audit functions (`crates/hd_wasm/DESIGN.md`
@@ -195,42 +226,45 @@ pub struct Checked {
 }
 
 impl Runtime {
-    /// The runtime from each of [`runtime_fns`]' instance keys, in order,
-    /// when collection reached them all.
+    /// The runtime from each of [`runtime_items`]' instance keys, in
+    /// order, when collection reached them all.
     #[must_use]
     pub fn from_keys(keys: &[Option<Hash128>]) -> Option<Runtime> {
-        let (counts, checked) = match keys {
-            [a, b, c, d] => ([*a, *b, *c, *d], None),
-            [
-                a,
-                b,
-                c,
-                d,
-                Some(live),
-                Some(audit),
-                Some(retained),
-                Some(released),
-            ] => (
-                [*a, *b, *c, *d],
-                Some(Checked {
-                    live: *live,
-                    audit: *audit,
-                    retained: *retained,
-                    released: *released,
-                }),
-            ),
+        let keys: Vec<Hash128> = keys.iter().copied().collect::<Option<_>>()?;
+        let (counts, rest) = keys.split_first_chunk::<4>()?;
+        let (checked, rest) = match rest.len() {
+            4 => (None, rest),
+            8 => {
+                let (c, rest) = rest.split_first_chunk::<4>()?;
+                (
+                    Some(Checked {
+                        live: c[0],
+                        audit: c[1],
+                        retained: c[2],
+                        released: c[3],
+                    }),
+                    rest,
+                )
+            }
             _ => return None,
         };
-        match counts {
-            [Some(alloc), Some(free), Some(retain), Some(release)] => Some(Runtime {
-                alloc,
-                free,
-                retain,
-                release,
-                checked,
-            }),
-            _ => None,
-        }
+        let [collect, due, track, opaque] = *rest else {
+            return None;
+        };
+        let [alloc, free, retain, release] = *counts;
+        Some(Runtime {
+            alloc,
+            free,
+            retain,
+            release,
+            cycle: Cycle {
+                collect,
+                due,
+                track,
+                opaque,
+            },
+            checked,
+        })
     }
 }
 

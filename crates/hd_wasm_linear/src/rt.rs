@@ -101,10 +101,32 @@ pub enum Helper {
         poll: Box<Helper>,
         reinit: Vec<Hash128>,
     },
+    /// `(ctx) -> status`: `poll`'s answer, after a cycle collection
+    /// (§23.28): the entry is idle when the answer is Pending, and done
+    /// otherwise. Checked mode collects in [`Helper::CheckedPoll`] instead.
+    CollectPoll { poll: Box<Helper> },
     /// `()`: checked mode releases the counted references that each
     /// top-level binding holds, and zeroes them, before the audit at an
     /// entry's end.
     Teardown,
+    /// `()`: a cycle collection (§23.28): std's `collect` with the three
+    /// function values below, whose environments are empty.
+    Collect,
+    /// `(env, block, ctx)`: the collector's `trace`, the release glue that
+    /// the descriptor of the object at `block` names, run on its payload
+    /// while std's `release` hands each reference to the collector.
+    CycleTrace,
+    /// `(env, address, ctx)`: the collector's `release`, one count less on
+    /// what `address` is in ([`Helper::ReleaseRef`]).
+    CycleRelease,
+    /// `(env, block, ctx)`: the collector's `free`, std's `free` of the
+    /// block.
+    CycleFree,
+    /// `(address)`: marks the new frame at `address` opaque to the
+    /// collector (std's `opaque`): a frame may be running when a
+    /// collection starts, so its saved slots may be stale, and it is never
+    /// entered.
+    Opaque,
     /// `()`: the panic report `MESSAGE` (`CATEGORY: TEXT`), then a trap.
     Panic(String),
     /// `(text)`: the `explicit-panic` report of `panic(text)`.
@@ -552,7 +574,7 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
     // `hd.scenario.cleanup` after the root has ended, so it keeps them
     // and has no audit.
     let poll = if matches!(input.entry, Entry::Scenario { .. }) {
-        poll
+        collecting(m, poll)
     } else {
         checked(m, poll, Vec::new())
     };
@@ -605,7 +627,9 @@ fn poll(
 }
 
 /// In checked mode, `poll` behind the audit at its end
-/// ([`Helper::CheckedPoll`]), then the inits `reinit`; else `poll` itself.
+/// ([`Helper::CheckedPoll`]), then the inits `reinit`; with the runtime,
+/// `poll` behind a cycle collection ([`Helper::CollectPoll`]); else `poll`
+/// itself.
 fn checked(m: &Module, poll: Sym, reinit: Vec<Hash128>) -> Sym {
     match poll {
         Sym::Helper(h) if m.runtime.is_some_and(|r| r.checked.is_some()) => {
@@ -613,6 +637,17 @@ fn checked(m: &Module, poll: Sym, reinit: Vec<Hash128>) -> Sym {
                 poll: Box::new(h),
                 reinit,
             })
+        }
+        other => collecting(m, other),
+    }
+}
+
+/// `poll` behind a cycle collection ([`Helper::CollectPoll`]) when the
+/// program links the runtime.
+fn collecting(m: &Module, poll: Sym) -> Sym {
+    match poll {
+        Sym::Helper(h) if m.runtime.is_some() => {
+            Sym::Helper(Helper::CollectPoll { poll: Box::new(h) })
         }
         other => other,
     }
@@ -644,11 +679,16 @@ fn checked_poll(poll: &Helper, reinit: &[Hash128], m: &Module) -> Func {
     f.global_set(Global::WakeCap);
     f.op(Instruction::End);
     f.helper(Helper::Teardown);
+    // The bindings are gone, so a cycle they held is garbage now, and a
+    // handle leaked inside one is still reported (§23.28).
+    f.helper(Helper::Collect);
     f.i32(0);
     f.call(Sym::Inst(c.audit));
     for k in reinit {
         call_init(&mut f, *k, true);
     }
+    f.op(Instruction::Else);
+    f.helper(Helper::Collect);
     f.op(Instruction::End);
     f.get(status);
     f
@@ -1055,7 +1095,55 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f
         }
         Helper::CheckedPoll { poll, reinit } => checked_poll(poll, reinit, m),
+        Helper::CollectPoll { poll } => {
+            let mut f = Func::new("rt:collect_poll", vec![Val::I32], vec![Val::I32]);
+            f.get(0);
+            f.helper((**poll).clone());
+            f.helper(Helper::Collect);
+            f
+        }
         Helper::Teardown => teardown(m),
+        Helper::Collect => collect(m),
+        Helper::CycleTrace => {
+            let mut f = Func::new("rt:cycle_trace", vec![Val::I32; 3], vec![]);
+            let desc = f.local(Val::I32);
+            f.get(1);
+            f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+            f.set(desc);
+            f.get(desc);
+            f.op(Instruction::If(BlockType::Empty));
+            f.get(1);
+            f.u32(HEADER);
+            f.op(Instruction::I32Add);
+            f.get(desc);
+            f.i32(1);
+            f.op(Instruction::I32Sub);
+            f.body.push(Ins::CallIndirect(vec![Val::I32], vec![]));
+            f.op(Instruction::End);
+            f
+        }
+        Helper::CycleRelease => {
+            let mut f = Func::new("rt:cycle_release", vec![Val::I32; 3], vec![]);
+            f.get(1);
+            f.helper(Helper::ReleaseRef);
+            f
+        }
+        Helper::Opaque => {
+            let mut f = Func::new("rt:opaque", vec![Val::I32], vec![]);
+            if let Some(r) = m.runtime {
+                f.get(0);
+                f.call(Sym::Inst(r.cycle.opaque));
+            }
+            f
+        }
+        Helper::CycleFree => {
+            let mut f = Func::new("rt:cycle_free", vec![Val::I32; 3], vec![]);
+            if let Some(r) = m.runtime {
+                f.get(1);
+                f.call(Sym::Inst(r.free));
+            }
+            f
+        }
         Helper::Panic(msg) => {
             let mut f = Func::new("rt:panic", vec![], vec![]);
             f.call(rt_import("panic", &[], &[]));
@@ -1698,14 +1786,33 @@ fn fields_glue(name: &str, leaves: &[Leaf], walk: &Walk, on: &dyn Fn(&mut Func))
 
 /// [`Helper::New`]: a block of the header and the payload from std's
 /// `alloc`, or from the bump pointer when the program counts nothing.
+///
+/// With the runtime, a collection runs first when the collector's buffer
+/// is full, and an object whose descriptor names glue takes part in
+/// collections: its block has room for the collector word at its end,
+/// which std's `track` zeroes (§23.28).
 fn new_object(m: &Module) -> Func {
     let mut f = Func::new("rt:new", vec![Val::I32, Val::I32], vec![Val::I32]);
     let block = f.local(Val::I32);
+    if let Some(r) = m.runtime {
+        f.call(Sym::Inst(r.cycle.due));
+        f.op(Instruction::If(BlockType::Empty));
+        f.helper(Helper::Collect);
+        f.op(Instruction::End);
+    }
     f.get(0);
     f.u32(HEADER);
     f.op(Instruction::I32Add);
     match m.runtime {
-        Some(r) => f.call(Sym::Inst(r.alloc)),
+        Some(r) => {
+            f.get(1);
+            f.i32(0);
+            f.op(Instruction::I32Ne);
+            f.u32(crate::module::CYCLE_WORD);
+            f.op(Instruction::I32Mul);
+            f.op(Instruction::I32Add);
+            f.call(Sym::Inst(r.alloc));
+        }
         None => f.helper(Helper::Alloc),
     }
     f.set(block);
@@ -1715,9 +1822,30 @@ fn new_object(m: &Module) -> Func {
     f.get(block);
     f.get(1);
     f.op(Instruction::I32Store(mem(HEAP, 4, 2)));
+    if let Some(r) = m.runtime {
+        f.get(1);
+        f.op(Instruction::If(BlockType::Empty));
+        f.get(block);
+        f.call(Sym::Inst(r.cycle.track));
+        f.op(Instruction::End);
+    }
     f.get(block);
     f.u32(HEADER);
     f.op(Instruction::I32Add);
+    f
+}
+
+/// [`Helper::Collect`].
+fn collect(m: &Module) -> Func {
+    let mut f = Func::new("rt:collect", vec![], vec![]);
+    let Some(r) = m.runtime else {
+        return f;
+    };
+    for h in [Helper::CycleTrace, Helper::CycleRelease, Helper::CycleFree] {
+        f.body.push(Ins::TableSlot(Sym::Helper(h)));
+        f.i32(0);
+    }
+    f.call(Sym::Inst(r.cycle.collect));
     f
 }
 
@@ -1891,7 +2019,9 @@ fn list_header() -> Func {
 fn list_buf(elem: &Elem) -> Func {
     let mut f = Func::new("rt:list_buf", vec![Val::I32], vec![Val::I32]);
     let b = f.local(Val::I32);
-    if let Some(most) = (u32::MAX - LIST_ELEMS - HEADER).checked_div(elem.size) {
+    if let Some(most) =
+        (u32::MAX - LIST_ELEMS - HEADER - crate::module::CYCLE_WORD).checked_div(elem.size)
+    {
         f.get(0);
         f.u32(most);
         f.op(Instruction::I32GtU);

@@ -1,0 +1,323 @@
+# std.rt.cycle: the cycle collector of the linear-memory runtime
+# (crates/hd_wasm/DESIGN.md §23.28), hd over std.rt.memory and
+# std.rt.alloc. A runtime module, so only std may use it
+# (spec/lang/10-modules.md#r-module.rt.std-only).
+#
+# Counting frees an object at its last release, but not a ring of objects
+# that hold each other. This is synchronous trial deletion (Bacon and
+# Rajan, "Concurrent Cycle Collection in Reference Counted Systems",
+# ECOOP 2001; docs/future-work/REFCOUNT_RUNTIME.md §7):
+#
+# 1. A release that leaves a count above zero makes the object a
+#    candidate: purple, and in the candidate buffer. Its last release takes
+#    it out again.
+# 2. A collection marks gray from each purple candidate, taking one count
+#    off each object the gray ones reference; scans, so that an object
+#    with a count left, which something outside holds, and all it reaches
+#    turn black and get their counts back; and frees what stays white.
+#
+# An object takes part when its header names release glue (a descriptor
+# word other than 0): its block then ends with a collector word, which
+# `track` zeroes. The word's low 2 bits are the color, bit 2 marks an
+# opaque object, and the rest is the object's place in the candidate
+# buffer plus one, 0 when it is in none. An opaque object (a suspension's
+# frame, which may be running, so its saved slots may be stale) and an
+# object without glue are never entered: what they hold counts as held
+# from outside, and a white object's reference to one is released as
+# usual once the white objects are freed.
+#
+# The backend supplies what only it can: `trace` runs an object's release
+# glue while `visit` catches each reference the glue releases, `release`
+# is the backend's release of one reference, and `free` the runtime's
+# free. It calls `collect` when `due` says the buffer is full, before an
+# allocation, and when the entry's poll answers, so at idle and before
+# checked mode's leak report.
+use std.rt.alloc.{alloc, block_bytes, block_of, free_block}
+use std.rt.memory.{copy, load_u32, store_u32}
+
+BLACK := 0
+GRAY := 1
+WHITE := 2
+PURPLE := 3
+COLORS := 4
+OPAQUE := 4
+SLOT := 8
+
+# What `visit` does with the references that `trace` finds.
+IDLE := 0
+MARK := 1
+SCAN := 2
+RESTORE := 3
+COLLECT := 4
+
+# The candidate buffer's first threshold, PHP's fixed buffer size.
+FIRST := 10000
+
+# The candidate buffer, an array of block addresses (see `push`), where 0
+# is a candidate taken out, and how many candidates it holds.
+let roots: usize = 0
+let candidates: usize = 0
+# The work list of a collection's walks: block addresses, a scan's tagged
+# with SCAN or RESTORE in their low bits.
+let stack: usize = 0
+# The white objects of a collection, freed once it has walked them all.
+let garbage: usize = 0
+# The references from white objects to objects that do not take part,
+# released once the white objects are freed.
+let later: usize = 0
+# What `visit` does now.
+let mode: usize = IDLE
+# Whether a collection is running.
+let collecting = false
+# How many candidates make a collection due.
+let threshold: usize = FIRST
+# The objects the running collection marked gray.
+let visited: usize = 0
+
+## Zeroes the collector word of the new object at `block`, whose header names release glue: black, and in no buffer.
+pub fn track(block: usize) -> void:
+    set_word(block, 0)
+
+## Marks the new object holding `address` opaque, a suspension's frame: a collection never enters it, and it is never a candidate.
+pub fn opaque(address: usize) -> void:
+    set_word(block_of(address), OPAQUE)
+
+## Whether the candidate buffer has passed its threshold, so a collection is due.
+pub fn due() -> bool:
+    !collecting && candidates >= threshold
+
+## Makes the object at `block`, whose count a release just left above zero, a candidate, unless it does not take part.
+pub fn suspect(block: usize) -> void:
+    if !takes_part(block):
+        return
+    slot := word(block) / SLOT
+    if slot == 0:
+        # A full buffer first closes the gaps of the candidates taken out.
+        if roots != 0 && length(roots) == usize(load_u32(roots + 4)) && candidates < length(roots):
+            compact()
+        roots = push(roots, block)
+        candidates = candidates + 1
+        set_word(block, length(roots) * SLOT + PURPLE)
+    else:
+        set_word(block, slot * SLOT + PURPLE)
+
+## Takes the block at `block` out of the candidate buffer before it is freed; a block in none is left alone.
+pub fn forget(block: usize) -> void:
+    if load_u32(block + 4) == 0:
+        return
+    w := word(block)
+    slot := w / SLOT
+    # Only a candidate's own entry names it, so a block without a
+    # collector word, whose last bytes are data, changes nothing.
+    if slot != 0 && slot <= length(roots) && item(roots, slot - 1) == block:
+        set_item(roots, slot - 1, 0)
+        candidates = candidates - 1
+        set_word(block, w % SLOT)
+
+## While a collection traces an object, takes the reference at `address` that its release glue releases and gives true; else false, so the release goes on as usual.
+pub fn visit(address: usize) -> bool:
+    if mode == IDLE:
+        return false
+    block := block_of(address)
+    if block == 0:
+        return true
+    part := takes_part(block)
+    if mode == COLLECT:
+        if !part:
+            later = push(later, address)
+        else if color(block) == WHITE:
+            paint(block, BLACK)
+            garbage = push(garbage, block)
+            stack = push(stack, block)
+        return true
+    if !part:
+        return true
+    if mode == MARK:
+        store_u32(block, load_u32(block) - 1)
+        if color(block) != GRAY:
+            paint(block, GRAY)
+            stack = push(stack, block)
+    else if mode == SCAN:
+        stack = push(stack, block + SCAN)
+    else:
+        store_u32(block, load_u32(block) + 1)
+        if color(block) != BLACK:
+            paint(block, BLACK)
+            stack = push(stack, block + RESTORE)
+    true
+
+## Collects the candidates' garbage cycles: `trace` runs a block's release glue, `release` releases one reference, and `free` frees a block.
+pub fn collect(trace: fn(usize) -> void, release: fn(usize) -> void, free: fn(usize) -> void) -> void:
+    if collecting:
+        return
+    collecting = true
+    visited = 0
+    n := length(roots)
+    let i: usize = 0
+    while i < n:
+        s := item(roots, i)
+        if s != 0:
+            if color(s) == PURPLE:
+                mark(s, trace)
+            else:
+                drop_root(i, s)
+        i = i + 1
+    i = 0
+    while i < n:
+        s := item(roots, i)
+        if s != 0:
+            scan(s, trace)
+        i = i + 1
+    i = 0
+    while i < n:
+        s := item(roots, i)
+        if s != 0:
+            drop_root(i, s)
+            if color(s) == WHITE:
+                paint(s, BLACK)
+                garbage = push(garbage, s)
+                stack = push(stack, s)
+                drain(COLLECT, trace)
+        i = i + 1
+    freed := length(garbage)
+    i = 0
+    while i < freed:
+        free(item(garbage, i))
+        i = i + 1
+    clear(garbage)
+    # A release here may free more and make candidates of others, which
+    # stay in the buffer for the next collection.
+    i = 0
+    while i < length(later):
+        release(item(later, i))
+        i = i + 1
+    clear(later)
+    compact()
+    # REFCOUNT_RUNTIME.md §7.4: a collection that frees most of what it
+    # visited halves the threshold back toward the first; one that frees
+    # little doubles it.
+    if freed * 2 >= visited:
+        threshold = if threshold / 2 > FIRST: threshold / 2 else: FIRST
+    else:
+        threshold = threshold * 2
+    collecting = false
+
+# Marks gray all that candidate `s` reaches, taking one count off each
+# object a gray one references.
+fn mark(s: usize, trace: fn(usize) -> void) -> void:
+    paint(s, GRAY)
+    stack = push(stack, s)
+    while length(stack) > 0:
+        b := pop(stack)
+        visited = visited + 1
+        mode = MARK
+        trace(b)
+        mode = IDLE
+
+# Scans what candidate `s` reached: a gray object with a count left is
+# held from outside, so it and all it reaches turn black and get their
+# counts back; the other gray objects turn white.
+fn scan(s: usize, trace: fn(usize) -> void) -> void:
+    stack = push(stack, s + SCAN)
+    while length(stack) > 0:
+        e := pop(stack)
+        b := e - e % 16
+        if e % 16 == RESTORE:
+            mode = RESTORE
+            trace(b)
+            mode = IDLE
+        else if color(b) == GRAY:
+            if load_u32(b) > 0:
+                paint(b, BLACK)
+                stack = push(stack, b + RESTORE)
+            else:
+                paint(b, WHITE)
+                mode = SCAN
+                trace(b)
+                mode = IDLE
+
+# Traces each block on the stack with `visit` doing `how`.
+fn drain(how: usize, trace: fn(usize) -> void) -> void:
+    while length(stack) > 0:
+        b := pop(stack)
+        mode = how
+        trace(b)
+        mode = IDLE
+
+# Takes candidate `s`, at `i` in the buffer, out of it.
+fn drop_root(i: usize, s: usize) -> void:
+    set_item(roots, i, 0)
+    candidates = candidates - 1
+    set_word(s, word(s) % SLOT)
+
+# Moves the candidates left to the buffer's front, each told its new place.
+fn compact() -> void:
+    let j: usize = 0
+    let i: usize = 0
+    while i < length(roots):
+        s := item(roots, i)
+        if s != 0:
+            set_item(roots, j, s)
+            j = j + 1
+            set_word(s, j * SLOT + word(s) % SLOT)
+        i = i + 1
+    if roots != 0:
+        store_u32(roots, u32(j))
+    candidates = j
+
+# Whether the object at `block` takes part: its header names release glue
+# and it is not opaque.
+fn takes_part(block: usize) -> bool:
+    load_u32(block + 4) != 0 && (word(block) & OPAQUE) == 0
+
+fn word(block: usize) -> usize:
+    usize(load_u32(block + block_bytes(block) - 4))
+
+fn set_word(block: usize, w: usize) -> void:
+    store_u32(block + block_bytes(block) - 4, u32(w))
+
+fn color(block: usize) -> usize:
+    word(block) % COLORS
+
+fn paint(block: usize, c: usize) -> void:
+    w := word(block)
+    set_word(block, w - w % COLORS + c)
+
+# An array is a block of the allocator: its length, its capacity, then its
+# items, 4 bytes each; 0 is the empty array before its first push. A push
+# may move it, so it gives the array's new address.
+fn push(array: usize, value: usize) -> usize:
+    let at = array
+    if at == 0:
+        at = alloc(8 + 4 * 64)
+        store_u32(at, 0)
+        store_u32(at + 4, 64)
+    n := usize(load_u32(at))
+    cap := usize(load_u32(at + 4))
+    if n == cap:
+        bigger := alloc(8 + 8 * cap)
+        copy(bigger, at, 8 + 4 * cap)
+        store_u32(bigger + 4, u32(2 * cap))
+        free_block(at)
+        at = bigger
+    store_u32(at + 8 + 4 * n, u32(value))
+    store_u32(at, u32(n + 1))
+    at
+
+fn pop(array: usize) -> usize:
+    n := usize(load_u32(array)) - 1
+    store_u32(array, u32(n))
+    item(array, n)
+
+fn length(array: usize) -> usize:
+    if array == 0: 0 else: usize(load_u32(array))
+
+fn item(array: usize, i: usize) -> usize:
+    usize(load_u32(array + 8 + 4 * i))
+
+fn set_item(array: usize, i: usize, value: usize) -> void:
+    store_u32(array + 8 + 4 * i, u32(value))
+
+fn clear(array: usize) -> void:
+    if array != 0:
+        store_u32(array, 0)

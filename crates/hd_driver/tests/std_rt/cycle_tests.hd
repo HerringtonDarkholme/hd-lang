@@ -1,0 +1,51 @@
+# The hd tests of std.rt.cycle (crates/hd_wasm/DESIGN.md §23.28), the cycle
+# collector: a loop that drops reference cycles runs in bounded memory,
+# since a collection frees each cycle once the candidate buffer is full.
+# Only std may read the heap's size, so the conformance runner adds this
+# file to std as `std.rt.cycle_tests`, as it does count_tests.hd.
+use std.rt.memory.pages
+
+# The heap's pages in a bounded run: the static page, the page table, a
+# page for each size class the objects use, the garbage dropped before a
+# collection (the candidate buffer's threshold of 10,000), and the buffer.
+# The rings take 23 pages; without the collector they take 430.
+BOUND := 32
+
+struct Stop:
+    name: string
+    next: &mut Stop?
+
+fn ring(round: i32) -> i32:
+    first := &mut Stop { name: "first $round", next: .None }
+    second := &mut Stop { name: "second $round", next: .Some(first) }
+    first.next = .Some(second)
+    match first.next:
+        .Some(stop) => if stop.name == "second $round": 1 else: 0
+        .None => 0
+
+fn sum_to(limit: i32) -> i32:
+    sum := fn(n: i32) -> i32:
+        if n == 0: 0
+        else: n + sum(n - 1)
+    sum(limit)
+
+tests:
+    use std.testing.{assert, it}
+
+    it("two hundred thousand dropped rings run in bounded memory"):
+        let total = +0
+        let round = +0
+        while round < 200000:
+            total = total + ring(round)
+            round = round + 1
+        assert(total == 200000, "each ring reaches its second stop")
+        assert(pages() <= BOUND, "the rings' blocks are reused")
+
+    it("two hundred thousand dropped recursive closures run in bounded memory"):
+        let total = +0
+        let round = +0
+        while round < 200000:
+            total = total + sum_to(round % 10)
+            round = round + 1
+        assert(total == 3300000, "each closure sums its range")
+        assert(pages() <= BOUND, "the closures' blocks are reused")
