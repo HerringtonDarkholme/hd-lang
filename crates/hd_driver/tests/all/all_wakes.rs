@@ -2,7 +2,9 @@
 //! (`crates/hd_wasm/DESIGN.md` §14.4 and §14.5): each child's host leaf
 //! registers under the `all!`'s waker node, a wake sets that child's bit,
 //! and later polls skip the children whose bit is clear. The count of
-//! child polls is the module's exported `hd.all_polls` global.
+//! child polls is the module's exported `hd.all_polls` global. The RC
+//! backend polls every unfinished child for now (#630), so these tests
+//! build with Wasm GC until it has targeted wakes.
 
 #![cfg(feature = "wasmtime")]
 
@@ -50,6 +52,7 @@ fn polls(main: &str) -> (usize, String) {
         executor: Executor::Serial(SerialOrder::Priority),
     };
     let packages = Packages {
+        backend: hd_driver::Backend::WasmGc,
         target: EngineTarget::Wasmtime,
         level: OptLevel::Dev,
         ..Packages::default()
