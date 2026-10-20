@@ -620,6 +620,10 @@ fn bumper(counter: &mut Counter) -> fn(i32) -> void:
 23. r[fn.ref.dynamic.bound-reference] A bound method reference on a trait value reference captures that reference once and calls the method on its place.
 24. r[fn.ref.dynamic.permission] A method reference retains the receiver permission a direct call requires. A mutating method needs `&mut dyn`, and a reference to it through `&dyn` is an error. Error: `not-writable`.
 
+> **Note.** The writable-place comparison concerns calls on existing places.
+> [Temporary receiver calls](#r-fn.method.auto-address.temporary) are separate
+> from bound references, which follow `fn.ref.bound.address.writable`.
+
 ```text
 struct Counter:
     value: i32
@@ -1084,12 +1088,13 @@ fn demo() -> f64:
 3. r[fn.method.auto-address] Calling a `&self` or `&mut self` method on a place takes the place's address. `p.shift(d)` means `(&mut p).shift(d)`, and no mark appears at the call.
 4. r[fn.method.auto-address.place] A place is what `&` refers to ([Places And New Objects](13-values-and-references.md#places-and-new-objects)): a binding, a struct field of a place, or a value reached through a reference.
 5. r[fn.method.auto-address.reference] A receiver that is itself a reference is passed on, so through `r: &mut Vec2`, `r.shift(d)` changes what `r` refers to.
-6. r[fn.method.auto-address.value] On a value that is no place, such as a call result, a `&self` method refers to a new object holding the value.
-7. r[fn.method.auto-address.writable] A `&mut self` call needs a [writable place](04-type-system.md#writable-places). Any other receiver is an error, with a fix-it that makes the binding writable. Error: `not-writable`.
-8. r[fn.method.auto-address.fix] The fix-it writes `let mut` for a `let` or `:=` binding, `mut` before a parameter name, and `&mut self` for a `self` receiver.
-9. r[fn.method.auto-address.read-only] A `&mut self` call through a `&T` reference, or on a value that is no place, is an error. Error: `not-writable`.
-10. r[fn.method.auto-address.element] A list element is a place for the call, as in `bodies[i].shift(d)`, also through a reference to the list, as in `r[i].shift(d)`. The call takes an element reference ([Element References](13-values-and-references.md#element-references)) that pins the list from before the arguments are evaluated until the call returns. A `&mut self` call needs the list in a writable place, as `&mut xs[i]` does.
-11. r[fn.method.self-struct-write] Writing a field of `self` in a struct's `self` method is an error, with a fix-it that takes `&mut self`. Error: `non-reassignable-parameter-binding`.
+6. r[fn.method.auto-address.temporary] On a non-place temporary, a `&self` or `&mut self` call refers to a new object holding its value.
+7. r[fn.method.auto-address.temporary.call] The receiver temporary is kept alive until the call returns.
+8. r[fn.method.auto-address.place-writable] When a `&mut self` call addresses a place, that place must be [writable](04-type-system.md#writable-places). Error: `not-writable`.
+9. r[fn.method.auto-address.fix] The fix-it writes `let mut` for a `let` or `:=` binding, `mut` before a parameter name, and `&mut self` for a `self` receiver.
+10. r[fn.method.auto-address.shared-reference] A `&mut self` call through a `&T` reference is an error. Error: `not-writable`.
+11. r[fn.method.auto-address.element] A list element is a place for the call, as in `bodies[i].shift(d)`, also through a reference to the list, as in `r[i].shift(d)`. The call takes an element reference ([Element References](13-values-and-references.md#element-references)) that pins the list from before the arguments are evaluated until the call returns. A `&mut self` call needs the list in a writable place, as `&mut xs[i]` does.
+12. r[fn.method.self-struct-write] Writing a field of `self` in a struct's `self` method is an error, with a fix-it that takes `&mut self`. Error: `non-reassignable-parameter-binding`.
 
 ```text
 struct Point:
@@ -1111,12 +1116,13 @@ fn demo() -> void:
     origin.shift(1)  # error: not-writable
     let fixed = Point { x: 1, y: 1 }
     fixed.shift(1)  # error: not-writable
-    make().shift(1)  # error: not-writable
+    make().shift(1)  # a writable temporary, discarded after this call
 ```
 
 > **Why.** A method says whether it changes its receiver, and the `let mut`
 > binding says that the value may change, so the call needs no mark, as in
-> Go. A `self` method that writes a field would change a copy nobody sees,
+> Go. A temporary is a fresh writable value, so a chain needs no intermediate
+> binding. A `self` method that writes a field would change a copy nobody sees,
 > Go's lost write through a value receiver, so it does not compile.
 
 See also: [Member Resolution](03-names-and-scopes.md#member-resolution), which

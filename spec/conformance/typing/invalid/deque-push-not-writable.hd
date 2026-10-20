@@ -1,5 +1,5 @@
 # test: a deque's changing methods take `&mut self`, so a `:=` deque cannot change
-# Spec std/collections Value Types: std-collections.struct.receiver.
+# Spec std/collections Value Types: std-collections.struct.receiver-mut.
 use std.collections.Deque
 
 fn ready() -> usize:

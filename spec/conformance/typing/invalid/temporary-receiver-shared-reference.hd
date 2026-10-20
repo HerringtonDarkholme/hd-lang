@@ -1,0 +1,14 @@
+# Spec 07 Reference Receivers: fn.method.auto-address.shared-reference.
+struct Point:
+    x: i32
+
+impl Point:
+    fn shift(&mut self) -> void:
+        self.x += 1
+
+fn shared(point: &Point) -> &Point:
+    point
+
+fn demo() -> void:
+    point := Point { x: 1 }
+    shared(&point).shift()  # diagnostic: not-writable

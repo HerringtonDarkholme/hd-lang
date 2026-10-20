@@ -1,4 +1,4 @@
-# Spec 07 Reference Receivers: fn.method.auto-address.writable, fn.method.auto-address.fix. A `:=` binding never changes.
+# Spec 07 Reference Receivers: fn.method.auto-address.place-writable, fn.method.auto-address.fix. A `:=` binding never changes.
 struct Point:
     x: i32
     y: i32

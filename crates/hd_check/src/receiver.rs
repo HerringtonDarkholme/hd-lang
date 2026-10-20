@@ -2,8 +2,8 @@
 //! `&self` takes `&Self`, one declared `&mut self` takes `&mut Self`, and a
 //! call of one on a place takes the place's address, as Go does:
 //! `p.translate(d)` means `(&mut p).translate(d)` (`fn.method.auto-address`).
-//! `&mut self` needs a writable place (`fn.method.auto-address.writable`);
-//! `&self` on a value that is no place refers to a new object holding it.
+//! A call on a place needs it writable for `&mut self`; either reference
+//! receiver on a temporary refers to a new object holding its value.
 //!
 //! In the checker's intermediate closure form the address is a `std.core.Ref[T]`
 //! (`crates/hd_wasm_linear/DESIGN.md` §15.2, "References"), built by `refs.rs`.
@@ -216,7 +216,7 @@ impl Ck<'_, '_> {
     /// The receiver of a store through an operator trait's `&mut self`
     /// method `name` (`IndexSet::index_set` for `r[k] = v`, `Update::update`
     /// for `v() = x`): a reference to the place `base` names, which must be
-    /// writable (`fn.method.auto-address.writable`), or the `&mut`
+    /// writable (`fn.method.auto-address.place-writable`), or the `&mut`
     /// reference `base` evaluates to. Returns the reference and the type
     /// of the value it refers to, or `None` once an error is reported.
     pub(crate) fn store_receiver(
@@ -341,6 +341,27 @@ impl Ck<'_, '_> {
         self.make_ref(&place, inner, false, rty, n)
     }
 
+    /// Calls may mutably address a temporary. Bound method references keep
+    /// their separate writable-place requirement through `fit_receiver`.
+    pub(crate) fn fit_call_receiver(
+        &mut self,
+        recv: Ref,
+        rt: Ty,
+        mutable: bool,
+        name: &str,
+        n: NodeRef<'_>,
+    ) -> Ref {
+        if recv.0 != NONE
+            && !matches!(self.strip_mut(rt), Ty::POISON | Ty::NEVER)
+            && mutable
+            && self.ref_of(self.b.ty_of(recv)).is_none()
+            && !self.is_coll_ty(rt)
+        {
+            return self.new_object_ref(recv, rt, true, n).0;
+        }
+        self.fit_receiver(recv, rt, mutable, name, n)
+    }
+
     /// Whether `recv`, the receiver value of a method call, is a reference
     /// the call took (`auto_address`) for a receiver of type `rt`.
     pub(crate) fn addressed(&mut self, recv: Ref, rt: Ty) -> bool {
@@ -384,7 +405,7 @@ impl Ck<'_, '_> {
     }
 
     /// Whether a `&mut self` method may take the address of the place `p`
-    /// (`fn.method.auto-address.writable`); reports why not otherwise, with
+    /// (`fn.method.auto-address.place-writable`); reports why not otherwise, with
     /// a fix-it that makes the binding writable.
     fn receiver_writable(&mut self, p: &Place, at: NodeRef<'_>, name: &str) -> bool {
         let ok = match p.root {

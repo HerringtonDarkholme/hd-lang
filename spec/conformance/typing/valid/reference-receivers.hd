@@ -1,5 +1,5 @@
 # Spec 07 Methods And Receivers: fn.method.receiver-forms, fn.method.receiver.self, fn.method.receiver.mut-self, fn.method.receiver.ref-self, fn.method.receiver.ref-mut-self.
-# Spec 07 Reference Receivers: fn.method.ref-self, fn.method.auto-address, fn.method.auto-address.writable. Spec 08 Struct Declarations: data.struct.receiver-forms.
+# Spec 07 Reference Receivers: fn.method.ref-self, fn.method.auto-address, fn.method.auto-address.place-writable. Spec 08 Struct Declarations: data.struct.receiver-forms.
 struct Vec2:
     x: f64
     y: f64

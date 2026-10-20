@@ -3503,13 +3503,13 @@ runtime/valid/receiver-struct-iterator.hd	runtime	accept	std/iter.md#iterator-ad
 runtime/valid/receiver-trait-ref-methods.hd	runtime	accept	lang/07-functions.md#r-fn.method.ref-self.kinds
 runtime/valid/receiver-method-references.hd	runtime	accept	lang/07-functions.md#r-fn.ref.bound.address
 typing/valid/reference-receivers.hd	type	accept	lang/07-functions.md#r-fn.method.receiver-forms
-typing/invalid/receiver-ref-mut-on-short-binding.hd	type	reject:not-writable	lang/07-functions.md#r-fn.method.auto-address.writable
-typing/invalid/receiver-ref-mut-on-plain-let.hd	type	reject:not-writable	lang/07-functions.md#r-fn.method.auto-address.writable
-typing/invalid/receiver-ref-mut-on-value-parameter.hd	type	reject:not-writable	lang/07-functions.md#r-fn.method.auto-address.writable
+typing/invalid/receiver-ref-mut-on-short-binding.hd	type	reject:not-writable	lang/07-functions.md#r-fn.method.auto-address.place-writable
+typing/invalid/receiver-ref-mut-on-plain-let.hd	type	reject:not-writable	lang/07-functions.md#r-fn.method.auto-address.place-writable
+typing/invalid/receiver-ref-mut-on-value-parameter.hd	type	reject:not-writable	lang/07-functions.md#r-fn.method.auto-address.place-writable
 typing/invalid/receiver-ref-mut-from-self-method.hd	type	reject:not-writable	lang/07-functions.md#r-fn.method.auto-address.fix
-typing/invalid/receiver-ref-mut-through-shared-reference.hd	type	reject:not-writable	lang/07-functions.md#r-fn.method.auto-address.read-only
-typing/invalid/receiver-ref-mut-in-ref-self-method.hd	type	reject:not-writable	lang/07-functions.md#r-fn.method.auto-address.read-only
-typing/invalid/receiver-ref-mut-on-call-result.hd	type	reject:not-writable	lang/07-functions.md#r-fn.method.auto-address.read-only
+typing/invalid/receiver-ref-mut-through-shared-reference.hd	type	reject:not-writable	lang/07-functions.md#r-fn.method.auto-address.shared-reference
+typing/invalid/receiver-ref-mut-in-ref-self-method.hd	type	reject:not-writable	lang/07-functions.md#r-fn.method.auto-address.shared-reference
+typing/valid/receiver-ref-mut-on-call-result.hd	type	accept	lang/07-functions.md#r-fn.method.auto-address.temporary
 parse/valid/reference-receivers.hd	parse	accept	lang/02-grammar.md#r-grammar.fn.receiver-ref
 parse/invalid/receiver-long-form.hd	parse	reject:syntax-error	lang/07-functions.md#r-fn.method.no-long-form
 runtime/valid/dyn-ref-list-written.hd	runtime	accept	lang/09-traits.md#r-trait.dyn.ref.written
@@ -3628,7 +3628,7 @@ runtime/valid/reference-permission-list-join.hd	runtime	accept	lang/04-type-syst
 runtime/valid/for-map-through-reference.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.collection.reference
 runtime/valid/collection-structs-copy-and-share.hd	runtime	accept	std/collections.md#r-std-collections.struct.value
 runtime/valid/collection-structs-snapshot-iteration.hd	runtime	accept	std/collections.md#r-std-collections.deque.snapshot
-typing/invalid/deque-push-not-writable.hd	type	reject:not-writable	std/collections.md#r-std-collections.struct.receiver
+typing/invalid/deque-push-not-writable.hd	type	reject:not-writable	std/collections.md#r-std-collections.struct.receiver-mut
 runtime/valid/iterator-handle-reference.hd	runtime	accept	std/iter.md#iterator-adapters
 typing/invalid/for-over-read-only-iterator-reference.hd	type	reject:not-writable	lang/06-control-flow.md#r-flow.for.iterator.shared-reference
 runtime/valid/std-iter-traits-struct-impls.hd	runtime	accept	std/iter.md#r-std-iter.collect.generic-owned-cursor
@@ -3672,3 +3672,6 @@ runtime/valid/collection-cursor-types.hd	runtime	accept	std/collections.md#r-std
 runtime/valid/parameter-reference-loan-barriers.hd	runtime	accept	lang/13-values-and-references.md#r-ref.place.lifetime
 runtime/valid/parameter-reference-loan-erased-views.hd	runtime	accept	lang/13-values-and-references.md#r-ref.place.lifetime
 runtime/valid/parameter-list-unique-loops.hd	runtime	accept	lang/04-type-system.md#r-types.value.copy
+runtime/valid/temporary-method-receivers.hd	runtime	accept	lang/07-functions.md#r-fn.method.auto-address.temporary
+runtime/valid/collection-temporary-receivers.hd	runtime	accept	std/collections.md#r-std-collections.struct.receiver-mut
+typing/invalid/temporary-receiver-shared-reference.hd	type	reject:not-writable	lang/07-functions.md#r-fn.method.auto-address.shared-reference

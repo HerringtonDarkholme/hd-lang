@@ -1,0 +1,12 @@
+# test: a collection struct's mutable methods accept temporary values
+# Spec std/collections Value Types: std-collections.struct.receiver-mut.
+use std.collections.Deque
+use std.testing.assert_equal
+
+fn empty() -> Deque[i32]:
+    Deque::new()
+
+tests:
+    it("void and value-returning mutable methods accept temporary deques"):
+        empty().push_back(3)
+        assert_equal(empty().pop_back(), .None, reason="a value-returning method can mutate a temporary")

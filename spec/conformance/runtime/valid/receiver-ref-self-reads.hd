@@ -1,5 +1,5 @@
 # test: a `&self` method reads the caller's value without copying it: the reference refers to the receiver's own place, and a `:=` binding, a value parameter or a call result may be the receiver
-# Spec 07 Reference Receivers: fn.method.ref-self, fn.method.auto-address, fn.method.auto-address.value, fn.method.auto-address.reference.
+# Spec 07 Reference Receivers: fn.method.ref-self, fn.method.auto-address, fn.method.auto-address.temporary, fn.method.auto-address.reference.
 # Spec 07 Methods And Receivers: fn.method.receiver.ref-self. Spec 13 Identity: ref.identity.same-place.
 # expect-stdout: 25
 # expect-stdout: true

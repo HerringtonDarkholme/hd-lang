@@ -1,4 +1,4 @@
-# Spec 07 Reference Receivers: fn.method.auto-address.writable, fn.method.auto-address.fix. A plain `let` is no writable place.
+# Spec 07 Reference Receivers: fn.method.auto-address.place-writable, fn.method.auto-address.fix. A plain `let` is no writable place.
 struct Point:
     x: i32
     y: i32

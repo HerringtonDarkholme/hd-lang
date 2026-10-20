@@ -1,4 +1,4 @@
-# Spec 07 Reference Receivers: fn.method.auto-address.read-only. In a `&self` method, `self` is a `&Self`, so a `&mut self` call through it is an error.
+# Spec 07 Reference Receivers: fn.method.auto-address.shared-reference. In a `&self` method, `self` is a `&Self`, so a `&mut self` call through it is an error.
 struct Point:
     x: i32
     y: i32

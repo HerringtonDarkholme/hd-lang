@@ -309,12 +309,15 @@ fn enqueue(queue: &mut Deque[string], name: string) -> void:
 
 1. r[std-collections.struct.value] `Set[T]`, `Deque[T]`, and `Heap[T]` are structs, so each is a value. Binding, assigning, passing, returning, and storing one copies it, and a change to one copy leaves every other copy unchanged.
 2. r[std-collections.struct.cost] A copy shares its source's elements until one of the two changes, as a list does ([`types.coll.copy-on-write`](../lang/04-type-system.md#r-types.coll.copy-on-write)).
-3. r[std-collections.struct.receiver] The methods that change one, such as `push_back`, `insert`, and `pop`, take `&mut self`. Calling one needs a writable place, as [`fn.method.auto-address.writable`](../lang/07-functions.md#r-fn.method.auto-address.writable) states. Error: `not-writable`.
+3. r[std-collections.struct.receiver-mut] Methods that change a collection, such as `push_back`, `insert`, and `pop`, take `&mut self`.
 4. r[std-collections.struct.shared] A set, deque, or heap that two holders share is written `&mut Set[T]`, `&mut Deque[T]`, or `&mut Heap[T]`. A change through the reference changes the place it refers to.
 
 > **Why.** These types were shared objects. As values they follow the
 > list they wrap: a copy is cheap until it changes, and sharing is
 > written where it happens.
+
+See also: [Reference Receivers](../lang/07-functions.md#reference-receivers)
+for temporary calls and `not-writable` on read-only places.
 
 ## Set
 

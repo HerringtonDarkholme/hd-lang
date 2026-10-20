@@ -1,4 +1,4 @@
-# Spec 07 Reference Receivers: fn.method.auto-address.read-only, fn.method.auto-address.value. A call result is no place.
+# Spec 07 Reference Receivers: fn.method.auto-address.temporary. A call result is no place.
 struct Point:
     x: i32
     y: i32
@@ -11,4 +11,4 @@ fn make() -> Point:
     Point { x: 0, y: 0 }
 
 fn demo() -> void:
-    make().shift(1)  # diagnostic: not-writable
+    make().shift(1)  # a writable receiver temporary

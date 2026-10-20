@@ -3707,7 +3707,7 @@ impl Ck<'_, '_> {
                     self.check_receiver(st, recv, rt, n);
                 }
                 let recv = match self.ref_receiver_of(method)? {
-                    Some(m) if !addressed => self.fit_receiver(recv, rt, m, name, n),
+                    Some(m) if !addressed => self.fit_call_receiver(recv, rt, m, name, n),
                     _ => recv,
                 };
                 self.choose_method(
@@ -3728,7 +3728,7 @@ impl Ck<'_, '_> {
                     self.check_receiver(st, recv, rt, n);
                 }
                 let recv = match self.ref_receiver_of(method)? {
-                    Some(m) if !addressed => self.fit_receiver(recv, rt, m, name, n),
+                    Some(m) if !addressed => self.fit_call_receiver(recv, rt, m, name, n),
                     _ => recv,
                 };
                 self.trait_method_call(
@@ -3772,7 +3772,7 @@ impl Ck<'_, '_> {
                     return Ok((Ref(NONE), Ty::POISON));
                 }
                 let recv = match self.ref_receiver_of(method)? {
-                    Some(m) if !addressed => self.fit_receiver(recv, rt, m, name, n),
+                    Some(m) if !addressed => self.fit_call_receiver(recv, rt, m, name, n),
                     Some(_) => recv,
                     None => {
                         self.check_receiver(params[0].1, recv, rt, n);
@@ -3937,7 +3937,7 @@ impl Ck<'_, '_> {
                 // itself (`hd_mono::SlotRecv`).
                 let recv = match self.ref_receiver_of(method)? {
                     Some(m) if !addressed && choice.0 != ChoiceKind::TraitValue => {
-                        self.fit_receiver(recv, rt, m, name, n)
+                        self.fit_call_receiver(recv, rt, m, name, n)
                     }
                     _ => recv,
                 };

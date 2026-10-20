@@ -1,5 +1,5 @@
 # test: a Deque, a Set, and a Heap are values: a copy changes on its own, a value parameter is the callee's own copy, and a `&mut` reference shares one
-# Spec std/collections Value Types: std-collections.struct.value, std-collections.struct.receiver, std-collections.struct.shared.
+# Spec std/collections Value Types: std-collections.struct.value, std-collections.struct.receiver-mut, std-collections.struct.shared.
 use std.collections.{Deque, Heap, Set}
 
 fn with_last(queue: Deque[string]) -> Deque[string]:

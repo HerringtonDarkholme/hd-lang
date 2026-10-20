@@ -1,0 +1,74 @@
+# test: mutable method calls accept constructor results, literals and temporary fields
+# Spec 07 Reference Receivers: fn.method.auto-address.temporary, fn.method.auto-address.temporary.call.
+use std.testing.assert_equal
+
+struct Point:
+    x: i32
+    y: i32
+
+impl Point:
+    fn translate(&mut self, dx: i32, dy: i32) -> void:
+        self.x += dx
+        self.y += dy
+
+    fn moved(&mut self, dx: i32) -> i32:
+        self.x += dx
+        self.x
+
+trait Step:
+    fn step(&mut self, dx: i32) -> i32
+
+impl Step for Point:
+    fn step(&mut self, dx: i32) -> i32:
+        self.moved(dx)
+
+fn generic_step[T < Step](make: fn() -> T) -> i32:
+    make().step(3)
+
+struct Wrapped:
+    point: Point
+
+struct Builder:
+    args: List[string]
+
+impl Builder:
+    fn new(name: string) -> Builder:
+        Builder { args: [name] }
+
+    fn arg(&mut self, value: string) -> &mut Self:
+        self.args.push(value)
+        self
+
+    fn finish(&self) -> List[string]:
+        self.args
+
+struct Appender:
+    into: &mut List[i32]
+
+impl Appender:
+    fn add(&mut self, value: i32) -> void:
+        self.into.push(value)
+
+fn make_point() -> Point:
+    Point { x: 1, y: 2 }
+
+tests:
+    it("mutable methods run on temporary values and their fields"):
+        make_point().translate(1, 1)
+        Point { x: 3, y: 4 }.translate(1, 1)
+        Wrapped { point: make_point() }.point.translate(1, 1)
+        assert_equal(make_point().moved(4), 5, reason="the method reads its temporary after changing it")
+        let mut into: List[i32] = []
+        Appender { into: &mut into }.add(3)
+        assert_equal(into, [3], reason="a temporary method may also change a referenced place")
+
+    it("a chain keeps the constructor result alive through returned references"):
+        args := Builder::new("tool").arg("one").arg("two").finish()
+        assert_equal(args, ["tool", "one", "two"], reason="each returned reference reaches the same temporary")
+
+    it("next can mutate the cursor returned by chars"):
+        s := "abc"
+        assert_equal(s.chars().next(), .Some('a'), reason="the returned cursor is a writable temporary")
+
+    it("a bound trait method can mutate a temporary produced by a callback"):
+        assert_equal(generic_step(make_point), 4, reason="the generic receiver follows the same temporary rule")

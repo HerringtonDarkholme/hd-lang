@@ -1,4 +1,4 @@
-# Spec 07 Reference Receivers: fn.method.auto-address.read-only, fn.method.auto-address.reference. A `&mut self` call through a `&T` reference.
+# Spec 07 Reference Receivers: fn.method.auto-address.shared-reference, fn.method.auto-address.reference. A `&mut self` call through a `&T` reference.
 struct Point:
     x: i32
     y: i32

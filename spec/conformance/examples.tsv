@@ -382,7 +382,7 @@ lang/07-functions.md	50	accept	typing/valid/explicit-generic-method.hd
 lang/07-functions.md	51	mixed	typing/invalid/cannot-infer-type.hd
 lang/07-functions.md	52	accept	typing/valid/explicit-generic-method.hd
 lang/07-functions.md	53	accept	typing/valid/explicit-generic-method.hd
-lang/07-functions.md	54	mixed	typing/invalid/struct-field-write-self.hd|typing/invalid/receiver-ref-mut-on-short-binding.hd|typing/invalid/receiver-ref-mut-on-plain-let.hd|typing/invalid/receiver-ref-mut-on-call-result.hd
+lang/07-functions.md	54	mixed	typing/invalid/struct-field-write-self.hd|typing/invalid/receiver-ref-mut-on-short-binding.hd|typing/invalid/receiver-ref-mut-on-plain-let.hd|typing/valid/receiver-ref-mut-on-call-result.hd
 lang/07-functions.md	55	mixed	typing/invalid/recursive-closure-inferred-result.hd
 lang/08-data-and-enums.md	1	mixed	typing/invalid/struct-embedded-field.hd|typing/invalid/struct-contains-itself.hd
 lang/08-data-and-enums.md	2	accept	typing/valid/data-types.hd
