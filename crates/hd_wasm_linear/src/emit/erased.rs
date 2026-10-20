@@ -23,6 +23,13 @@
 //!   erased view in every instance, since the closures that the erased
 //!   body's thunks build are the concrete instances' own: a concrete read
 //!   unboxes, a concrete write boxes.
+//! - **References** to an open value are the address of a word holding
+//!   it, which no concrete place is when the value crosses boxed. Such a
+//!   reference crosses only as an argument of a call that returns, copied
+//!   into a place of the other side's own and written back after it.
+//! - **Kept suspensions.** An erased frame kept as a `Suspend[T]` whose
+//!   `T` crosses boxed is wrapped in a frame whose poll unboxes the
+//!   result (`Helper::OpenFrame`).
 
 use hd_base::{DefId, Hash128, InstId, StageResult};
 use hd_mono::layout::CanonMemo;
@@ -36,10 +43,17 @@ use wasm_encoder::Instruction as I;
 
 use super::value::Src;
 use super::{Ctl, Em};
-use crate::layout::{Kind, Mem, Part, Walk, kind, mem as mem_of, walk};
+use crate::layout::{Kind, Mem, Part, Walk, kind, mem as mem_of, ref_mutable, walk};
 use crate::module::{Func, HEAP, Ins, Module, Val, mem};
 use crate::rt::Helper;
 use crate::{Input, unsupported};
+
+/// A reference to a boxed open value anywhere but an argument of a call
+/// that returns its result: a result, a capture, a field or a
+/// suspension's argument has no return to write it back after.
+fn refbox_elsewhere<T>() -> StageResult<T> {
+    unsupported("a reference to an open value of a boxed type that outlives its call")
+}
 
 /// The generic parts of a trait method's vtable slot: each parameter
 /// after the receiver's erased type when it is open, the erased result
@@ -60,6 +74,29 @@ enum Cross {
     Empty,
     /// A counted box of this layout holds the value.
     Box(Mem),
+    /// A thin reference to a concrete `target` laid out as `m` that
+    /// crosses boxed or empty: the open side is the address of a word that
+    /// holds the open value, which no concrete place does. It crosses only
+    /// as a call's argument, copied into a place of the other side's own
+    /// for the call and written back after it when `mutable`.
+    RefBox { target: Ty, m: Mem, mutable: bool },
+}
+
+/// A reference argument copied for one call ([`Cross::RefBox`]), written
+/// back once the call has returned.
+pub(super) struct Back {
+    /// The place the caller's reference names: on the open side the
+    /// address of the word holding the open value, whose count the thunk
+    /// owns; on the concrete side the caller's own reference.
+    place: u32,
+    /// What the callee's reference names: the open side's copy, a box
+    /// with a count for the place it goes back to; or the concrete side's
+    /// word holding the open value, owned until the write-back.
+    held: u32,
+    target: Ty,
+    m: Mem,
+    open: bool,
+    mutable: bool,
 }
 
 /// The witness family of erased body `id`.
@@ -68,6 +105,12 @@ pub(super) fn family(input: &Input<'_>, id: InstId) -> StageResult<Hash128> {
         Some(&Target::Erased { family }) => Ok(family),
         _ => unsupported("an erased body that collection did not record"),
     }
+}
+
+/// Whether `t` is a suspension, a cold call's frame.
+fn is_suspension(input: &Input<'_>, t: Ty) -> bool {
+    matches!(input.pool.get(t), hd_types::TyData::Adt { def, .. }
+        if input.env.std_kind(def) == hd_mono::layout::StdKind::Suspend)
 }
 
 /// The type of instruction value `r` of `b`, unsubstituted.
@@ -111,6 +154,7 @@ pub(super) fn thunk(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResul
         params.extend(em.vals(et)?);
     }
     let mut held = Vec::new();
+    let mut backs = Vec::new();
     for (l, shared) in &caps {
         let et = se(b.local_ty[*l as usize]);
         let vs = if *shared {
@@ -154,10 +198,16 @@ pub(super) fn thunk(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResul
             .map(|x| u32::try_from(x).expect("params"))
             .collect()
     };
+    // Only a call that returns its result can take a copied reference.
+    let returns = matches!(
+        b.tags[at as usize],
+        Tag::Call | Tag::CallValue | Tag::CallDyn | Tag::DefaultCall
+    ) && !is_suspension(input, em.strip_mut(em.ty(at)));
     for (r, p, n, et) in ops {
         let ct = em.ty_of(r);
         let ls = if is_open(pool, et) {
-            em.unerase(u32::try_from(p).expect("params"), et, ct, true)?
+            let o = u32::try_from(p).expect("params");
+            em.unerase_arg(o, et, ct, returns.then_some(&mut backs))?
         } else {
             range(p, n)
         };
@@ -176,9 +226,11 @@ pub(super) fn thunk(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResul
         em.tag(b.data[at as usize][0])?;
         let x = em.f.local(Val::I32);
         em.f.set(x);
+        em.write_back(backs)?;
         vec![x]
     } else {
         em.inst(at)?;
+        em.write_back(backs)?;
         match em.vals.get(&at).cloned() {
             None => Vec::new(),
             Some(_) if em.diverges(at) => Vec::new(),
@@ -330,8 +382,9 @@ impl Em<'_, '_, '_> {
 
     /// How a concrete `ct` value crosses as the open type `et`. A
     /// reference whose target is open is the address of an open value, so
-    /// only a reference to a value that is one counted address crosses
-    /// (its place holds the same word); any other is refused.
+    /// a reference to a value that is one counted address crosses as it
+    /// is (its place holds the same word), and any other thin one is
+    /// copied around the call it is an argument of.
     fn crossing(&self, et: Ty, ct: Ty) -> StageResult<Cross> {
         let (pool, env) = (self.pool(), self.env());
         if is_open(pool, ct) {
@@ -343,7 +396,12 @@ impl Em<'_, '_, '_> {
         if let Kind::Ref { .. } = kind(pool, env, et) {
             return match kind(pool, env, ct) {
                 Kind::Ref { target, fat: false } if one(target)? => Ok(Cross::Same),
-                _ => unsupported("a reference to an open value of a boxed type"),
+                Kind::Ref { target, fat: false } => Ok(Cross::RefBox {
+                    target,
+                    m: mem_of(pool, env, target)?,
+                    mutable: ref_mutable(pool, env, ct),
+                }),
+                _ => unsupported("a reference to a trait value as an open value"),
             };
         }
         if self.vals(ct)?.is_empty() {
@@ -387,6 +445,7 @@ impl Em<'_, '_, '_> {
                 self.f.get(at);
                 self.f.set(out);
             }
+            Cross::RefBox { .. } => return refbox_elsewhere(),
         }
         Ok(out)
     }
@@ -417,7 +476,191 @@ impl Em<'_, '_, '_> {
                 }
                 Ok(ls)
             }
+            Cross::RefBox { .. } => refbox_elsewhere(),
         }
+    }
+
+    /// The open value of type `et` in local `o`, a thunk's argument whose
+    /// count it owns, as the concrete `ct` value its instruction takes,
+    /// with counts of its own. A `&mut` to a boxed open value names a copy
+    /// of the box, which `backs` puts in the place once the instruction
+    /// has run, since other open values may share the box; a `&` names
+    /// the box itself.
+    fn unerase_arg(
+        &mut self,
+        o: u32,
+        et: Ty,
+        ct: Ty,
+        backs: Option<&mut Vec<Back>>,
+    ) -> StageResult<Vec<u32>> {
+        let Cross::RefBox { target, m, mutable } = self.crossing(et, ct)? else {
+            return self.unerase(o, et, ct, true);
+        };
+        let Some(backs) = backs else {
+            return refbox_elsewhere();
+        };
+        if m.leaves.is_empty() {
+            return Ok(vec![o]);
+        }
+        let b = self.f.local(Val::I32);
+        self.f.get(o);
+        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+        self.f.set(b);
+        if !mutable {
+            self.retain_addr(b);
+            self.release_open(o);
+            return Ok(vec![b]);
+        }
+        let copy = self.box_of(b, target, &m)?;
+        self.retain_addr(copy);
+        backs.push(Back {
+            place: o,
+            held: copy,
+            target,
+            m,
+            open: true,
+            mutable,
+        });
+        Ok(vec![copy])
+    }
+
+    /// Turns the erased frame on the stack, a dynamic call's suspension
+    /// whose open result is of type `et`, into the frame of the
+    /// `Suspend[T]` value `t` that keeps it: the same frame when a `T`
+    /// value is its open value, else a frame over it whose poll unboxes
+    /// the result ([`Helper::OpenFrame`]).
+    pub(super) fn keep_open(&mut self, et: Ty, t: Ty) -> StageResult<()> {
+        let ct = self.susp_inner(t)?;
+        let leaves = match self.crossing(et, ct)? {
+            Cross::Same => return Ok(()),
+            Cross::Empty => Vec::new(),
+            Cross::Box(m) => m.leaves,
+            Cross::RefBox { .. } => return refbox_elsewhere(),
+        };
+        self.f.helper(Helper::OpenFrame {
+            part: 0,
+            leaves,
+            walk: self.counted(ct),
+            counts: self.input.runtime.is_some(),
+        });
+        Ok(())
+    }
+
+    /// The concrete reference in local `r`, a dynamic call's argument, as
+    /// the open reference `et` its slot takes, owned by the caller until
+    /// [`Em::write_back`]: a reference to a value that does not cross as
+    /// it is names a new word holding a box of a copy of the value. `None`
+    /// for any other argument. `backs` is `None` when the call does not
+    /// return its result, as a suspending method's cold call.
+    pub(super) fn erase_arg(
+        &mut self,
+        r: u32,
+        et: Ty,
+        ct: Ty,
+        backs: Option<&mut Vec<Back>>,
+    ) -> StageResult<Option<u32>> {
+        let Cross::RefBox { target, m, mutable } = self.crossing(et, ct)? else {
+            return Ok(None);
+        };
+        let Some(backs) = backs else {
+            return refbox_elsewhere();
+        };
+        let b = if m.leaves.is_empty() {
+            let z = self.f.local(Val::I32);
+            self.f.i32(0);
+            self.f.set(z);
+            z
+        } else {
+            self.box_of(r, target, &m)?
+        };
+        let (pool, env) = (self.pool(), self.env());
+        let Kind::Ref { target: open, .. } = kind(pool, env, et) else {
+            return unsupported("an open reference that is no reference");
+        };
+        let wm = mem_of(pool, env, open)?;
+        let ww = self.counted(open);
+        let word = self.object(&wm, ww.as_ref());
+        self.f.get(word);
+        self.f.get(b);
+        self.f.op(I::I32Store(mem(HEAP, 0, 2)));
+        backs.push(Back {
+            place: r,
+            held: word,
+            target,
+            m,
+            open: false,
+            mutable,
+        });
+        Ok(Some(word))
+    }
+
+    /// A new box laid out as `m` holding a copy of the `target` value at
+    /// the address in local `at`, with counts of its own.
+    fn box_of(&mut self, at: u32, target: Ty, m: &Mem) -> StageResult<u32> {
+        let ls: Vec<u32> = m.leaves.iter().map(|l| self.f.local(l.val)).collect();
+        for (leaf, x) in m.leaves.iter().zip(&ls) {
+            self.f.get(at);
+            self.f.op(leaf.load(0));
+            self.f.set(*x);
+        }
+        let w = self.counted(target);
+        let copy = self.object(m, w.as_ref());
+        let all = Part {
+            first: 0,
+            count: m.leaves.len(),
+            offset: 0,
+        };
+        self.store_part(copy, m, all, &Src::Locals(ls))?;
+        self.retain_fields(copy, m, w.as_ref());
+        Ok(copy)
+    }
+
+    /// Writes each copied reference argument back once its call has
+    /// returned: on the open side the copy's box replaces the box in the
+    /// open value's place; on the concrete side, for a `&mut`, the value
+    /// in the box the word now holds replaces the caller's. Then the
+    /// count of what the copy needed is released.
+    pub(super) fn write_back(&mut self, backs: Vec<Back>) -> StageResult<()> {
+        for bk in backs {
+            if bk.open {
+                let old = self.f.local(Val::I32);
+                self.f.get(bk.place);
+                self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+                self.f.set(old);
+                self.f.get(bk.place);
+                self.f.get(bk.held);
+                self.f.op(I::I32Store(mem(HEAP, 0, 2)));
+                self.release_open(old);
+                self.release_open(bk.place);
+                continue;
+            }
+            if bk.mutable && !bk.m.leaves.is_empty() {
+                let b = self.f.local(Val::I32);
+                self.f.get(bk.held);
+                self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+                self.f.set(b);
+                let new: Vec<u32> = bk.m.leaves.iter().map(|l| self.f.local(l.val)).collect();
+                let old: Vec<u32> = bk.m.leaves.iter().map(|l| self.f.local(l.val)).collect();
+                for ((leaf, n), o) in bk.m.leaves.iter().zip(&new).zip(&old) {
+                    self.f.get(b);
+                    self.f.op(leaf.load(0));
+                    self.f.set(*n);
+                    self.f.get(bk.place);
+                    self.f.op(leaf.load(0));
+                    self.f.set(*o);
+                }
+                self.retain_locals(&new, bk.target)?;
+                let all = Part {
+                    first: 0,
+                    count: bk.m.leaves.len(),
+                    offset: 0,
+                };
+                self.store_part(bk.place, &bk.m, all, &Src::Locals(new))?;
+                self.release_locals(&old, bk.target)?;
+            }
+            self.release_open(bk.held);
+        }
+        Ok(())
     }
 
     /// Locals holding value `r`: its instruction's, or a constant's,

@@ -1,0 +1,53 @@
+# test: a suspension of a generic method called through a trait value, kept as a value, completes, cancels and races as an awaited call does
+# Spec 11 Suspension Values: req.suspend.cold, req.suspend.type.plain-call, req.value.cold, req.drive.bang; Spec 09 Dynamic Safety: trait.dyn.safe.method-type-param, trait.dyn.safe.suspending.
+# expect-stdout: 3 s t 4 2
+# expect-stdout: body;cleanup;body;cleanup;body;cleanup;body;cleanup;
+# expect-stdout: cold: []
+# expect-stdout: fast: body;body;cleanup;cleanup;
+use std.task.race
+use std.time.{Clock, Duration, ms, s, sleep}
+
+trait Source:
+    fn fetch![T](self, x: T, log: &mut List[string]) -> T $ Clock
+
+struct Slow:
+    wait: Duration
+
+impl Source for Slow:
+    fn fetch![T](self, x: T, log: &mut List[string]) -> T $ Clock:
+        defer: log.push("cleanup;")
+        log.push("body;")
+        sleep!(self.wait)
+        x
+
+fn drive![T](job: mut Suspend[T]) -> T:
+    job!()
+
+fn joined(log: List[string]) -> string:
+    let out = ""
+    for part in log:
+        out = out + part
+    out
+
+pub fn main!() -> void $ Console + Clock:
+    let quick: &dyn Source = &Slow { wait: ms(1) }
+    let mut log: List[string] = []
+    let a: mut Suspend[i32] = quick.fetch(+3, &mut log)
+    let b: mut Suspend[string] = quick.fetch("s", &mut log)
+    let c: mut Suspend[(string, i32)] = quick.fetch(("t", +4), &mut log)
+    let d: mut Suspend[List[i32]] = quick.fetch([+1, 2], &mut log)
+    n := drive!(a)
+    text := b!()
+    let (t0, t1) = c!()
+    xs := d!()
+    println("$n $text $t0 $t1 ${xs.len()}")
+    println(joined(log))
+    let mut quiet: List[string] = []
+    let cold: mut Suspend[i32] = quick.fetch(+9, &mut quiet)
+    _ := cold.cancel!()
+    println("cold: [${joined(quiet)}]")
+    let slow: &dyn Source = &Slow { wait: s(60) }
+    let loser: mut Suspend[string] = slow.fetch("never", &mut quiet)
+    let winner: mut Suspend[string] = quick.fetch("fast", &mut quiet)
+    won := race!(loser, winner)
+    println("$won: ${joined(quiet)}")

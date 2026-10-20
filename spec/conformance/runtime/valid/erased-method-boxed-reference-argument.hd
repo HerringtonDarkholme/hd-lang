@@ -1,0 +1,53 @@
+# test: a generic method called through a trait value passes `&` and `&mut` of an open value to a generic helper, and takes them from its caller, at boxed types
+# Spec 13 Reference Expressions: ref.expr.place, ref.deref.read, ref.deref.write; Spec 09 Dynamic Safety: trait.dyn.safe.method-type-param.
+# expect-stdout: 1 2
+# expect-stdout: a b
+# expect-stdout: 5 y
+# expect-stdout: 7 z 8
+# expect-stdout: 4 6
+fn bump[T](x: &mut T, v: T) -> void:
+    *x = v
+
+fn peek[T](x: &T) -> T:
+    *x
+
+trait Relay:
+    fn keep[T](self, a: T, b: T) -> (T, T):
+        let mut x = a
+        bump(&mut x, b)
+        (a, x)
+
+    fn put[T](self, x: &mut T, v: T) -> void:
+        bump(x, v)
+
+    fn look[T](self, a: T) -> T:
+        let mut x = a
+        peek(&x)
+
+    fn get[T](self, x: &T) -> T:
+        peek(x)
+
+struct Hop:
+    tag: string
+
+impl Relay for Hop
+
+pub fn main() -> void $ Console:
+    let r: &dyn Relay = &Hop { tag: "hop" }
+    let (a, b) = r.keep(+1, +2)
+    println("$a $b")
+    let (s, t) = r.keep("a", "b")
+    println("$s $t")
+    let mut n = +1
+    r.put(&mut n, +5)
+    let mut w = "x"
+    r.put(&mut w, "y")
+    println("$n $w")
+    let mut pair = (+0, "-")
+    r.put(&mut pair, (+7, "z"))
+    let mut items = [+1, 2]
+    r.put(&mut items[1], +8)
+    let (p0, p1) = pair
+    println("$p0 $p1 ${items[1]}")
+    let six = +6
+    println("${r.look(+4)} ${r.get(&six)}")

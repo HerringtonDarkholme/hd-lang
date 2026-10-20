@@ -1718,12 +1718,8 @@ impl Em<'_, '_, '_> {
         }
         let open = self.dyn_open(trait_, method, targs)?;
         // A suspension kept as a value is polled where its result type is
-        // concrete, so an open one has no reader there.
-        if result.is_some() && self.env().suspends(method) && open.as_ref().is_some_and(|o| o.ret) {
-            return unsupported(
-                "a kept suspension of a generic method called through a trait value",
-            );
-        }
+        // concrete: a frame over the erased one unboxes its open result.
+        let kept = result.is_some() && self.env().suspends(method);
         let results = match (result, &open) {
             (Some(_), Some(o)) if o.ret => vec![Val::I32],
             (Some(t), _) => self.vals(t)?,
@@ -1747,14 +1743,22 @@ impl Em<'_, '_, '_> {
             self.comp(recv, 0)?;
         }
         // Open arguments cross as open values the call owns until it
-        // has returned.
+        // has returned; a copied reference is written back then.
         let mut boxed = Vec::new();
+        let mut backs = Vec::new();
         for (j, r) in rest.iter().enumerate() {
             if let Some(et) = open
                 .as_ref()
                 .and_then(|o| o.params.get(j).copied().flatten())
             {
                 let ls = self.local_value_of(*r)?;
+                let returns = !self.env().suspends(method);
+                let bk = returns.then_some(&mut backs);
+                if let Some(w) = self.erase_arg(ls[0], et, self.ty_of(*r), bk)? {
+                    self.f.get(w);
+                    params.push(Val::I32);
+                    continue;
+                }
                 let o = self.erase(&ls, et, self.ty_of(*r), false)?;
                 self.f.get(o);
                 params.push(Val::I32);
@@ -1791,6 +1795,11 @@ impl Em<'_, '_, '_> {
         self.f.body.push(Ins::CallIndirect(params, results.clone()));
         if let (Some(t), Some(o)) = (result, &open)
             && o.ret
+            && kept
+        {
+            self.keep_open(o.ret_ty, t)?;
+        } else if let (Some(t), Some(o)) = (result, &open)
+            && o.ret
         {
             let x = self.f.local(Val::I32);
             self.f.set(x);
@@ -1805,6 +1814,7 @@ impl Em<'_, '_, '_> {
             self.f.get(value[0]);
             self.f.helper(Helper::ReleaseRef);
         }
+        self.write_back(backs)?;
         for o in boxed {
             self.release_open(o);
         }
@@ -2082,7 +2092,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// The result type `T` of a `Suspend[T]`.
-    fn susp_inner(&self, t: Ty) -> StageResult<Ty> {
+    pub(super) fn susp_inner(&self, t: Ty) -> StageResult<Ty> {
         let TyData::Adt { args, .. } = self.pool().get(self.strip_mut(t)) else {
             return unsupported("a suspension of a type that is not `Suspend`");
         };

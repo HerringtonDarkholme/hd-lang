@@ -634,6 +634,15 @@ pub enum Helper {
     /// Its cancel: continues the task's cleanup, and unwinds while the
     /// task does, so a cancelled waiter keeps the cleanup going.
     CleanupCancel { base: WTy },
+    /// A kept suspension of a generic method called through a trait value
+    /// (`crates/hd_wasm/DESIGN.md` §23.27): `(child) -> frame`, a frame
+    /// over `base`, laid out as a cleanup frame, that holds the erased
+    /// frame whose poll answers an `eqref`. Its cancel is
+    /// [`Helper::CleanupCancel`]'s.
+    OpenCold { base: WTy, result: Vec<VT> },
+    /// Its poll: polls the child, and unerases its result to `result`
+    /// once the child is Ready.
+    OpenPoll { base: WTy, result: Vec<VT> },
     /// A frame that never completes (std's `task_pending_frame`
     /// intrinsic): `() -> frame`, a suspension over `base` with the result
     /// layout `result` (`crates/hd_wasm/DESIGN.md` §14.6, "A frame that
@@ -1021,6 +1030,15 @@ impl Helper {
                 w.u8(47);
                 enc_wty(base, w);
             }
+            Helper::OpenCold { base, result } | Helper::OpenPoll { base, result } => {
+                w.u8(if matches!(self, Helper::OpenCold { .. }) {
+                    59
+                } else {
+                    60
+                });
+                enc_wty(base, w);
+                encode_vts(result, w);
+            }
             Helper::PendingCold { base, result } => {
                 w.u8(53);
                 enc_wty(base, w);
@@ -1267,6 +1285,14 @@ impl Helper {
             45 => Helper::CleanupCold { base: dec_wty(r)? },
             46 => Helper::CleanupPoll { base: dec_wty(r)? },
             47 => Helper::CleanupCancel { base: dec_wty(r)? },
+            59 => Helper::OpenCold {
+                base: dec_wty(r)?,
+                result: decode_vts(r)?,
+            },
+            60 => Helper::OpenPoll {
+                base: dec_wty(r)?,
+                result: decode_vts(r)?,
+            },
             53 => Helper::PendingCold {
                 base: dec_wty(r)?,
                 result: decode_vts(r)?,
@@ -2069,6 +2095,28 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
             a.finish(vec![VT::r(base.clone())])
         }
         Helper::CleanupPoll { base } => cleanup_poll(base),
+        Helper::OpenCold { base, result } => {
+            let fr = cleanup_frame(base);
+            let mut a = Asm::new(vec![VT::r(task_base())]);
+            let f = a.local(VT::r(fr.clone()));
+            a.struct_new_default(&fr);
+            a.set(f);
+            a.get(f);
+            a.ref_func(Sym::Helper(Helper::CleanupCancel { base: base.clone() }));
+            a.struct_set(&fr, F_CANCEL);
+            a.get(f);
+            a.ref_func(Sym::Helper(Helper::OpenPoll {
+                base: base.clone(),
+                result: result.clone(),
+            }));
+            a.struct_set(&fr, F_POLL);
+            a.get(f);
+            a.get(0);
+            a.struct_set(&fr, F_CHILD);
+            a.get(f);
+            a.finish(vec![VT::r(base.clone())])
+        }
+        Helper::OpenPoll { base, result } => open_poll(base, result),
         Helper::CleanupCancel { base } => {
             let fr = cleanup_frame(base);
             let mut a = Asm::new(vec![VT::Eq]);
@@ -2845,6 +2893,61 @@ fn cleanup_poll(base: &WTy) -> Code {
     a.i32(ABANDONED);
     a.s().i32_and().i32_eqz().i32_eqz();
     a.finish(vec![VT::I32, VT::I32])
+}
+
+/// [`Helper::OpenPoll`]: the runtime checks, then the child's poll; once
+/// the child is Ready, the frame is done and answers the child's open
+/// result unerased to `result`.
+fn open_poll(base: &WTy, result: &[VT]) -> Code {
+    let fr = cleanup_frame(base);
+    let (cbase, cpoll) = crate::layout::suspend_base(&[VT::Eq]);
+    let mut res = vec![VT::I32];
+    res.extend(result.iter().map(VT::dflt));
+    let mut a = Asm::new(vec![VT::Eq]);
+    let (f, c, ready, o) = (
+        a.local(VT::r(fr.clone())),
+        a.local(VT::r(cbase.clone())),
+        a.local(VT::I32),
+        a.local(VT::Eq.dflt()),
+    );
+    a.get(0);
+    a.ref_cast(&fr, false);
+    a.set(f);
+    a.get(f);
+    a.call(Sym::Helper(Helper::PollCheck));
+    a.if_();
+    for v in &res {
+        a.zero(v);
+    }
+    a.s().return_();
+    a.end();
+    a.get(f);
+    a.struct_get(&fr, F_CHILD);
+    a.ref_cast(&cbase, false);
+    a.set(c);
+    a.get(c);
+    a.get(c);
+    a.struct_get(&cbase, F_POLL);
+    a.call_ref(&cpoll);
+    a.set(o);
+    a.set(ready);
+    a.get(ready);
+    a.s().i32_eqz();
+    a.if_();
+    for v in &res {
+        a.zero(v);
+    }
+    a.s().return_();
+    a.end();
+    a.get(f);
+    a.get(f);
+    a.struct_get(&fr, F_FLAGS);
+    a.i32(DONE);
+    a.s().i32_or();
+    a.struct_set(&fr, F_FLAGS);
+    a.i32(1);
+    unerase(&mut a, o, result);
+    a.finish(res)
 }
 
 /// Cancels every child of a race frame in list order, but `skip`, and
@@ -3679,6 +3782,8 @@ impl Helper {
             Helper::CleanupCold { .. } => "cleanup_cold".into(),
             Helper::CleanupPoll { .. } => "cleanup_poll".into(),
             Helper::CleanupCancel { .. } => "cleanup_cancel".into(),
+            Helper::OpenCold { .. } => "open_cold".into(),
+            Helper::OpenPoll { .. } => "open_poll".into(),
             Helper::PendingCold { .. } => "pending_cold".into(),
             Helper::PendingPoll { .. } => "pending_poll".into(),
             Helper::PendingCancel => "pending_cancel".into(),

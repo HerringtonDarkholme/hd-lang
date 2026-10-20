@@ -380,6 +380,20 @@ pub enum Helper {
         results: Vec<Val>,
         walk: Option<Walk>,
     },
+    /// A kept suspension of a generic method called through a trait
+    /// value, over the erased frame whose poll answers an open value
+    /// (`emit/erased.rs`): part 0 `(child) -> frame`, 1 its poll, which
+    /// answers the value laid out as `leaves` that the open value holds, a
+    /// box of it or 0 when it has no leaves. `walk` finds its counted
+    /// references, and `counts` says whether the program counts. Its
+    /// cancel is [`Helper::CleanupCancel`] and its glue
+    /// [`Helper::ChildDrop`].
+    OpenFrame {
+        part: u8,
+        leaves: Vec<Leaf>,
+        walk: Option<Walk>,
+        counts: bool,
+    },
 }
 
 /// A list's element as the list glue sees it: its stride, its values in
@@ -975,7 +989,8 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         | Helper::PendingPoll { .. }
         | Helper::PendingCancel
         | Helper::Race { .. }
-        | Helper::RaceDrop { .. } => crate::task::helper(h, m),
+        | Helper::RaceDrop { .. }
+        | Helper::OpenFrame { .. } => crate::task::helper(h, m),
         Helper::HandleSlot {
             inner,
             params,

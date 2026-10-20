@@ -432,6 +432,7 @@ runtime/valid/duration-parse-errors.hd	#573: closures and trait values
 runtime/valid/duration-parse.hd	#573: closures and trait values
 runtime/valid/duration-serde-text.hd	#573: closures and trait values
 runtime/valid/duration-sub.hd	#573: closures and trait values
+runtime/valid/dyn-generic-suspension-kept.hd	#617: kept erased suspensions and copied boxed references
 runtime/valid/dyn-inherent-methods.hd	#573: closures and trait values
 runtime/valid/dyn-ref-bridge.hd	#573: closures and trait values
 runtime/valid/dyn-ref-identity.hd	#573: closures and trait values
@@ -472,6 +473,7 @@ runtime/valid/enum-value-fixed-at-construction.hd	#573: closures and trait value
 runtime/valid/enum-variant-by-type-name.hd	#573: closures and trait values
 runtime/valid/eprintln-error-line.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/erased-error-result.hd	#573: closures and trait values
+runtime/valid/erased-method-boxed-reference-argument.hd	#617: kept erased suspensions and copied boxed references
 runtime/valid/erased-method-local-reference.hd	#615: erased generic method bodies, witnesses and thunks
 runtime/valid/error-bound-downcast-evidence.hd	#586: reference recovery methods
 runtime/valid/error-chain-derived-causes.hd	#573: closures and trait values

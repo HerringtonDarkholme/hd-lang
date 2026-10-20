@@ -2967,14 +2967,37 @@ same erased bodies, thunks and witness fields.
   concrete instances' own. So a concrete instance's cell holds an open
   value: a read unboxes it, a write boxes the new value.
 - **References.** A reference whose target is open is the address of an
-  open value. It crosses a thunk or a call only when the concrete target
-  is one counted address, whose place holds the same word; any other
-  (`&mut x` of an open `x` passed to a helper at `T = i32`) is refused at
-  link. Such a reference would need a copy in and out around the thunk.
+  open value. When the concrete target is one counted address, its place
+  holds the same word, so the reference crosses as it is. Any other
+  target is copied around the call it is an argument of (issue #617).
+  In a thunk, `&mut x` of an open `x` passed to a helper at `T = i32`
+  becomes a reference to a new box holding a copy of `x`'s box, which
+  replaces it in `x`'s place once the call returns: other open values may
+  share the old box, so the helper must not write into it. A `&` names
+  the box itself. A dynamic call passing a `&mut i32` to a `&mut T`
+  parameter passes a new word holding a box of a copy of the value, and
+  after the call stores the value of the box the word then holds back
+  into the caller's place. A reference that outlives its call (a result,
+  a capture, a field, or an argument of a cold call) has no point to
+  write back at and is refused at link.
+- **Kept suspensions.** A plain call of a suspending generic method
+  through a trait value keeps the erased frame, whose poll answers an
+  open value, as a `Suspend[T]` that is polled where only `T` is known:
+  by `!`, `race!`, `block_on` or a callee. So unless a `T` value is its
+  open value, the caller wraps it in a frame of its own
+  (`Helper::OpenFrame`, issue #617): `cancel!`'s cleanup frame with a
+  poll that polls the child and, once it is Ready, unboxes its result
+  with counts of its own and releases the box. Its cancel cancels the
+  child and unwinds while the child does, as the cleanup frame's does,
+  and its glue releases the child. The Wasm GC backend wraps every such
+  frame the same way (`Helper::OpenCold`, `OpenPoll`), since a frame's
+  struct type there carries its result layout.
 - **Rows.** A method's own row parameters are open too, so a method with
   only row parameters is erased the same way, and a call at its open row
   is a thunk at the caller's row. A dynamic call reads the keys of its
   rows from its arguments as the instance has them, so a thunk's row,
   which is the caller's own, lists its keys.
 - **Checked by** the five conformance cases of the issue, on `linear` and
-  `linear-checked`, whose count audit covers every box and cell.
+  `linear-checked`, whose count audit covers every box and cell, and by
+  `erased-method-boxed-reference-argument` and
+  `dyn-generic-suspension-kept` (issue #617), which run on Wasm GC too.

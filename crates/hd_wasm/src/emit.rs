@@ -2668,7 +2668,8 @@ impl Em<'_> {
             },
         ) = (&target, c)
         {
-            let rs = self.push_dyn(trait_, method, targs, args, ty)?;
+            let kept = self.env().suspends(method);
+            let rs = self.push_dyn(trait_, method, targs, args, ty, kept)?;
             return self.store_from(i, &rs);
         }
         let Some(Target::Call(t)) = target else {
@@ -3576,6 +3577,11 @@ impl Em<'_> {
         }
     }
 
+    /// A dynamic call of `method` with `args`, the receiver first: its
+    /// results of type `ret`, or a suspending method's frame. A `kept`
+    /// suspension, a plain call's `Suspend[T]` of a generic method whose
+    /// result is open, is a frame over the erased one that unerases the
+    /// result when it is Ready (§23.27).
     fn push_dyn(
         &mut self,
         trait_: DefId,
@@ -3583,6 +3589,7 @@ impl Em<'_> {
         targs: TyList,
         args: &[u32],
         ret: Ty,
+        kept: bool,
     ) -> StageResult<Vec<VT>> {
         let targs: Vec<Ty> = self
             .pool()
@@ -3655,12 +3662,23 @@ impl Em<'_> {
         self.a.get(vl);
         self.a.struct_get(&vt, slot);
         self.a.call_ref(&sig);
-        if open.is_some_and(|o| o.ret) && !self.env().suspends(method) {
+        let open_ret = open.is_some_and(|o| o.ret);
+        if open_ret && !self.env().suspends(method) {
             let want = self.vts(ret)?;
             let tmp = self.a.local(VT::Eq);
             self.a.set(tmp);
             unerase(&mut self.a, tmp, &want);
             return Ok(want);
+        }
+        if kept && open_ret {
+            let Shape::Suspend { base, result, .. } = self.lay.shape(ret)? else {
+                return unsupported("a kept suspension of a type that is not a suspension");
+            };
+            self.a.call(Sym::Helper(Helper::OpenCold {
+                base: base.clone(),
+                result,
+            }));
+            return Ok(vec![VT::r(base)]);
         }
         Ok(rs.clone())
     }
@@ -6291,7 +6309,8 @@ impl<'a> Em<'a> {
                         res.clone()
                     };
                     return self.await_stored(i, k, &stored, &res, |em, _| {
-                        em.push_dyn(trait_, method, targs, &args, ty).map(|_| ())
+                        em.push_dyn(trait_, method, targs, &args, ty, false)
+                            .map(|_| ())
                     });
                 }
                 let Some(Target::Call(t)) = self.calls.get(&i).cloned() else {
