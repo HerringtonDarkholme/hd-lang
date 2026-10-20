@@ -1,0 +1,65 @@
+# test: command lookup delegates only the remaining arguments to the selected parser
+# Spec std/cli: std-cli.command.decl, std-cli.command.scope, std-cli.parsed.command.
+use std.cli.{Arg, ArgParser, CliError, Parsed}
+
+fn tool() -> &mut ArgParser:
+    build := ArgParser::new("notes build", "Convert the notes to HTML.").arg(Arg { name: "exclude", short: 'x', repeated: true }).arg(Arg { name: "pattern", kind: .Positional, required: true })
+    clean := ArgParser::new("notes clean", "Remove the output directory.")
+    ArgParser::new("notes", "Build a static site from Markdown notes.").arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "Print each file as it is converted." }).command("build", *build).command("clean", *clean)
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("global options precede the command; child options and positionals follow it"):
+        parsed := tool().parse(["-v", "build", "-x", "drafts", "docs/**/*.md"]).expect("known command")
+        assert(parsed.flag("verbose"), reason="outer flag")
+        assert_equal(parsed.positionals(), [], reason="parent has no positionals")
+        let (name, child) = parsed.command().expect("selected command")
+        assert_equal(name, "build", reason="selected name")
+        assert_equal(child.values("exclude"), ["drafts"], reason="child option")
+        assert_equal(child.value("pattern"), .Some("docs/**/*.md"), reason="child positional")
+        assert(!child.flag("verbose"), reason="global flags are not inherited")
+        assert(parsed.value("exclude").is_none(), reason="child options are not promoted")
+
+    it("unknown and missing commands are explicit errors"):
+        assert_equal(tool().parse(["publish"]), .Err(CliError.UnknownCommand("publish")), reason="actual unknown name")
+        assert_equal(tool().parse([]), .Err(CliError.MissingCommand), reason="a command is required")
+        assert_equal(tool().parse(["-v"]), .Err(CliError.MissingCommand), reason="global options do not select a command")
+        assert_equal(CliError.UnknownCommand("ship").to_string(), "unknown command ship", reason="input-specific message")
+
+    it("command options exist only within their own parser"):
+        assert_equal(tool().parse(["clean", "-x", "tmp"]), .Err(CliError.UnknownOption("-x")), reason="build-only option")
+        assert_equal(tool().parse(["build", "-v"]), .Err(CliError.UnknownOption("-v")), reason="global option after command")
+        assert_equal(tool().parse(["-x", "tmp", "build"]), .Err(CliError.UnknownOption("-x")), reason="child option before command")
+
+    it("end of outer options still permits selecting a command"):
+        parsed := tool().parse(["--", "build", "-x", "tmp", "a.md"]).expect("child reads its own options")
+        let (_, child) = parsed.command().expect("build")
+        assert_equal(child.value("exclude"), .Some("tmp"), reason="fresh option scope")
+
+    it("nested commands and parsed copies keep their own scope"):
+        leaf := ArgParser::new("root remote add").arg(Arg { name: "target", kind: .Positional, required: true })
+        remote := ArgParser::new("root remote").command("add", *leaf)
+        root := ArgParser::new("root").command("remote", *remote)
+        parsed := root.parse(["remote", "add", "origin"]).expect("nested command")
+        copy := parsed
+        let (_, child) = copy.command().expect("remote")
+        let (name, leaf_result) = child.command().expect("add")
+        assert_equal(name, "add", reason="nested name")
+        assert_equal(leaf_result.value("target"), .Some("origin"), reason="nested positional")
+        assert_equal(parsed, copy, reason="parsed results are values")
+
+    it("usage lists commands in declaration order using their descriptions"):
+        expected := "usage: notes [options] <command>\n\nBuild a static site from Markdown notes.\n\ncommands:\n  build  Convert the notes to HTML.\n  clean  Remove the output directory.\n\noptions:\n  -v, --verbose  Print each file as it is converted."
+        assert_equal(tool().usage(), expected, reason="exact command text before automatic help is added")
+
+    it("stored commands are snapshots of the supplied parser values"):
+        child := ArgParser::new("root child")
+        root := ArgParser::new("root").command("child", *child)
+        child.arg(Arg { name: "later", kind: .Flag })
+        assert_equal(root.parse(["child", "--later"]), .Err(CliError.UnknownOption("--later")), reason="later changes do not affect the stored value")
+        assert(ArgParser::new("plain").parse([]).expect("plain parser").command().is_none(), reason="a parser without commands has no child")
+
+    it("duplicate command names are rejected", expect_panic="explicit-panic"):
+        parser := tool()
+        _ := parser.command("build", *ArgParser::new("another"))

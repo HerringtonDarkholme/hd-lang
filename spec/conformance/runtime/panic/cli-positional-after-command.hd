@@ -1,0 +1,8 @@
+# test: a parser with commands cannot declare a positional
+# Spec std/cli: std-cli.command.no-positionals.
+use std.cli.{Arg, ArgParser}
+
+pub fn main() -> void:
+    parser := ArgParser::new("tool").command("run", *ArgParser::new("tool run"))
+    parser.arg(Arg { name: "file", kind: .Positional })  # panic: explicit-panic
+    pass

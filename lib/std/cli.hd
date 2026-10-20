@@ -32,16 +32,18 @@ pub struct ArgParser:
     options: Map[string, usize]
     names: Map[string, bool]
     positional_slots: List[usize]
+    commands: Map[string, ArgParser]
 
 impl ArgParser:
     pub fn new(program: string, about: string = "") -> &mut ArgParser:
-        &mut ArgParser { program: program, about: about, declarations: [], options: {}, names: {}, positional_slots: [] }
+        &mut ArgParser { program: program, about: about, declarations: [], options: {}, names: {}, positional_slots: [], commands: {} }
 
     pub fn arg(&mut self, arg: Arg) -> &mut ArgParser:
         if self.names.get(arg.name).is_some():
             panic("std.cli: argument ${arg.name} declared twice")
         index := self.declarations.len()
         if arg.kind == .Positional:
+            if self.commands.len() > 0: panic("std.cli: a parser with commands takes no positionals")
             if arg.short.is_some():
                 panic("std.cli: a positional has no short option")
             self.positional_slots.push(index)
@@ -59,17 +61,35 @@ impl ArgParser:
         self.declarations.push(arg)
         self
 
+    ## Adds a command's parser by value; its options belong only to that command.
+    pub fn command(&mut self, name: string, parser: ArgParser) -> &mut ArgParser:
+        if self.positional_slots.len() > 0: panic("std.cli: a parser with positionals takes no commands")
+        if self.commands.get(name).is_some(): panic("std.cli: command $name declared twice")
+        self.commands[name] = parser
+        self
+
     pub fn parse(&self, arguments: List[string]) -> Result[Parsed, CliError]:
+        self.parse_from(arguments, 0)
+
+    # Pass the input and its offset without copying the tail at every level.
+    fn parse_from(&self, arguments: List[string], start: usize) -> Result[Parsed, CliError]:
         let mut flags: Map[string, bool] = {}
         let mut values: Map[string, string] = {}
         let mut histories: Map[string, &mut List[string]] = {}
         let mut positionals: List[string] = []
         let only_positionals = false
-        let index: usize = 0
+        let mut selected: List[(string, Parsed)] = []
+        let index = start
         while index < arguments.len():
             argument := arguments[index]
             index = index + 1
             if only_positionals || argument == "-" || !argument.starts_with("-"):
+                if self.commands.len() > 0:
+                    parser := match self.commands.get(argument):
+                        .Some(parser) => parser
+                        .None => return .Err(CliError.UnknownCommand(argument))
+                    selected.push((argument, parser.parse_from(arguments, index)?))
+                    break
                 if positionals.len() < self.positional_slots.len():
                     slot := self.positional_slots[positionals.len()]
                     store_value(self.declarations[slot], argument, &mut values, &mut histories)?
@@ -102,6 +122,7 @@ impl ArgParser:
                             return .Err(CliError.MissingValue(option.name))
                         store_value(option, arguments[index], &mut values, &mut histories)?
                         index = index + 1
+        if self.commands.len() > 0 && selected.is_empty(): return .Err(CliError.MissingCommand)
         # Preserve the declared help flag's old behavior until #501 supplies automatic help.
         if !flags.get("help").unwrap_or(false):
             for arg in self.declarations:
@@ -109,7 +130,7 @@ impl ArgParser:
                     present := if arg.kind == .Flag: flags.get(arg.name).unwrap_or(false) else: values.get(arg.name).is_some()
                     if !present:
                         return .Err(CliError.MissingArgument(argument_name(arg)))
-        .Ok(Parsed { present_flags: flags, option_values: values, value_histories: histories, position_values: positionals })
+        .Ok(Parsed { present_flags: flags, option_values: values, value_histories: histories, position_values: positionals, selected_command: selected })
 
     pub fn parse_args(&self) -> Result[Parsed, CliError] $ Args:
         self.parse($.use(Args).list())
@@ -118,6 +139,7 @@ impl ArgParser:
         text := StringBuilder::new().push("usage: ").push(self.program)
         if self.options.len() > 0:
             text.push(" [options]")
+        if self.commands.len() > 0: text.push(" <command>")
         for slot in self.positional_slots:
             arg := self.declarations[slot]
             text.push(" ")
@@ -126,6 +148,14 @@ impl ArgParser:
             if !arg.required: text.push("]")
         if self.about != "":
             text.push("\n\n").push(self.about)
+        if self.commands.len() > 0:
+            text.push("\n\ncommands:")
+            let command_width: usize = 0
+            for (name, _) in self.commands: command_width = max(command_width, name.chars().count())
+            for (name, parser) in self.commands:
+                text.push("\n  ").push(name)
+                if parser.about != "":
+                    text.push("".pad_end(command_width - name.chars().count(), ' ')).push("  ").push(parser.about)
         let mut terms: List[string] = []
         let width: usize = 0
         for arg in self.declarations:
@@ -182,8 +212,12 @@ pub struct Parsed:
     option_values: Map[string, string]
     value_histories: Map[string, &mut List[string]]
     position_values: List[string]
+    selected_command: List[(string, Parsed)]
 
 impl Parsed:
+    ## The selected command and a copy of its parsed arguments, when present.
+    pub fn command(self) -> (string, Parsed)?: self.selected_command.get(0)
+
     ## A copy of every positional in input order, including extra positionals.
     pub fn positionals(self) -> List[string]: self.position_values
 
@@ -234,6 +268,10 @@ pub enum CliError:
     MissingArgument(name: string)
     @error("invalid value for --${name}: ${reason}")
     InvalidValue(name: string, reason: string)
+    @error("unknown command $text")
+    UnknownCommand(text: string)
+    @error("missing command")
+    MissingCommand
 
 # The exit status of a command-line failure belongs to `CliError`, not to
 # `Error` (r-std-cli.error.exit-code); `main` calls `exit` itself.
@@ -252,12 +290,16 @@ impl CliError:
 # Keep handwritten Debug: show declarations as arguments and omit lookup indexes.
 impl Debug for ArgParser:
     fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("ArgParser").field("program", self.program).field("about", self.about).field("arguments", self.declarations).finish()
+        fields := out.debug_struct("ArgParser").field("program", self.program).field("about", self.about).field("arguments", self.declarations)
+        if self.commands.len() > 0: fields.field("commands", self.commands)
+        fields.finish()
 
 # Keep handwritten Debug: keep public-facing field labels instead of private storage names.
 impl Debug for Parsed:
     fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("Parsed").field("flags", self.present_flags).field("values", self.option_values).field("positionals", self.position_values).finish()
+        fields := out.debug_struct("Parsed").field("flags", self.present_flags).field("values", self.option_values).field("positionals", self.position_values)
+        if !self.selected_command.is_empty(): fields.field("command", self.command())
+        fields.finish()
 
 # Keep handwritten Debug: empty tuple builders apply dbg depth limits to these variants.
 impl Debug for ArgKind:

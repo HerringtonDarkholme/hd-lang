@@ -5,7 +5,7 @@ Status: standard library specification draft.
 This chapter defines `std.cli`, which `lib/std` writes in ordinary hd
 over the language tier:
 
-- `ArgParser`, which declares a program's flags, options, and positionals;
+- `ArgParser`, which declares flags, options, positionals, and subcommands;
 - `parse` and `parse_args`, which read arguments into `Parsed`;
 - `CliError`, the parse errors, and the exit status they give;
 - `usage`, the generated help text.
@@ -58,6 +58,21 @@ pub struct Arg:
 > derives a parser from a struct as `Deserialize` does, can follow over the
 > same parser.
 
+## Subcommands
+
+A subcommand has its own argument declarations, as in `ArgParser::new("notes").command("clean", *ArgParser::new("notes clean"))`.
+
+1. r[std-cli.command.decl] `command(&mut self, name: string, parser: ArgParser) -> &mut ArgParser` adds a command and returns the parent parser reference.
+2. r[std-cli.command.snapshot] `command` stores the supplied parser by value; later changes to the original builder do not change the stored command.
+3. r[std-cli.command.no-positionals] Declaring a command beside a positional, in either order, panics. Panic: `explicit-panic`.
+4. r[std-cli.command.duplicate] Declaring a command name twice panics. Panic: `explicit-panic`.
+5. r[std-cli.command.lookup] The first plain argument names a command through one indexed lookup.
+6. r[std-cli.command.scope] The child parses only arguments after its name, with its own declarations; global options are read before the command.
+7. r[std-cli.command.unknown] An undeclared command name returns `CliError.UnknownCommand(text)` with the supplied name as `text`.
+8. r[std-cli.command.missing] A parser with commands returns `CliError.MissingCommand` when no command was selected.
+9. r[std-cli.command.end-scope] An outer `--` makes its following command name plain, but does not disable option parsing within the selected child.
+10. r[std-cli.command.cost] Delegation should pass the original input and its offset without copying the remaining arguments at each nesting level.
+
 ## Parsing
 
 `parse` reads a list of arguments, and `parse_args` reads the program's
@@ -94,9 +109,9 @@ Each argument is read by its form:
 | r[std-cli.form.long-option] Long option | `--name VALUE` | the next argument is the value of the option `name` |
 | r[std-cli.form.attached] Attached value | `--name=VALUE` | the text after the first `=` is the value of the option `name` |
 | r[std-cli.form.short-option] Short option | `-c VALUE` | the next argument is the value of the option whose short name is `c` |
-| r[std-cli.form.end] End of options | `--` | dropped; every later argument is a positional |
-| r[std-cli.form.dash] Lone dash | `-` | a positional |
-| r[std-cli.form.positional] Positional | an argument that does not start with `-` | a positional |
+| r[std-cli.form.end-scope] End of options | `--` | dropped; later arguments in this parser are plain arguments |
+| r[std-cli.form.dash-scope] Lone dash | `-` | a plain argument |
+| r[std-cli.form.plain-argument] Positional | an argument that does not start with `-` | a plain argument |
 
 1. r[std-cli.form.interleaved] Flags, options, and positionals may come in any order before `--`.
 2. r[std-cli.form.no-clusters] Only the forms in the table name a flag or an option. So `-vq`, `-ofile`, and `-o=file` are each one unknown option.
@@ -105,6 +120,7 @@ Each argument is read by its form:
 5. r[std-cli.form.repeat-flag] A flag given more than once is set once.
 6. r[std-cli.form.repeat-declared] An option with `repeated: true` retains every supplied value in argument order, and `value` returns the last.
 7. r[std-cli.form.repeat-refused] A second occurrence of a value-taking option with `repeated: false` returns `InvalidValue`.
+8. r[std-cli.form.plain-command] In a parser with commands, the first plain argument selects a command; otherwise, plain arguments are positionals.
 
 ```text
 use std.cli.{Arg, ArgParser}
@@ -139,6 +155,8 @@ pub enum CliError:
     UnexpectedValue(name: string)
     MissingArgument(name: string)
     InvalidValue(name: string, reason: string)
+    UnknownCommand(text: string)
+    MissingCommand
 ```
 
 | Rule | Variant | When | `Display` text |
@@ -148,7 +166,7 @@ pub enum CliError:
 | r[std-cli.error.unexpected-value] Unexpected value | `UnexpectedValue` | a flag is written `--name=VALUE` | `flag --NAME takes no value` |
 | r[std-cli.error.missing-argument] Missing argument | `MissingArgument` | a required flag, option or positional is absent | `missing argument NAME` |
 
-1. r[std-cli.error.enum-values] `CliError` declares the five variants above, all of which `parse` may return.
+1. r[std-cli.error.enum-commands] `CliError` declares the seven variants above, all of which `parse` may return.
 2. r[std-cli.error.required-argument] `MissingArgument` names a missing required argument as `--name` for a flag or option, or `<name>` for a positional.
 3. r[std-cli.error.traits] `CliError` implements `Eq`, `Debug`, and `Display`.
 4. r[std-cli.error.text] `UnknownOption`'s `text` is the argument as written, up to its first `=` when it starts with `--`.
@@ -159,6 +177,8 @@ pub enum CliError:
 9. r[std-cli.parse.choices] A value outside a nonempty `choices` list returns `InvalidValue(name, reason)`, with `reason` equal to `expected CHOICES, got VALUE`.
 10. r[std-cli.parse.choices-text] `CHOICES` joins the declared choices with ` or `, and `VALUE` is the supplied value.
 11. r[std-cli.parse.repetition-text] A refused repetition returns `InvalidValue(name, "argument cannot be repeated")`.
+12. r[std-cli.command.error-unknown-text] `UnknownCommand(text)` displays `unknown command TEXT`, with the supplied command name for `TEXT`.
+13. r[std-cli.command.error-missing-text] `MissingCommand` displays `missing command`.
 
 > **Why.** `tool --help` must reach the program even when `tool` requires
 > a positional, as `argparse` and `clap` let it. `ArgParser` declares no
@@ -211,6 +231,7 @@ fn first(arguments: List[string]) -> string?:
 5. r[std-cli.parsed.unknown] For an undeclared name, `flag` returns false and `value` returns `.None`.
 6. r[std-cli.parsed.all-values] `values(self, name: string) -> List[string]` returns copied option or declared positional values for `name`, in argument order.
 7. r[std-cli.parsed.values-empty] For flags, absent arguments, and undeclared names, `values` returns an empty list.
+8. r[std-cli.parsed.command] `command(self) -> (string, Parsed)?` returns the selected command name and copied child result, or `.None` without a command.
 
 ### Typed Values
 
@@ -260,19 +281,24 @@ options:
 ```
 
 1. r[std-cli.usage.parser] `pub fn usage(&self) -> string` returns the lines below, joined by `\n`, with no final line break.
-2. r[std-cli.usage.parser-line] The usage line names the program, optional options, and each positional as `<name>` when required or `[<name>]` otherwise.
-3. r[std-cli.usage.arguments] When a positional is declared, an empty line and the line `arguments:` follow, then one entry per positional, in declaration order. A positional's term is its name.
-4. r[std-cli.usage.options] When a flag or an option is declared, an empty line and the line `options:` follow. Then one entry per flag or option follows, in declaration order.
-5. r[std-cli.usage.term] A flag's or option's term is `-c, --name`, or four spaces and `--name` when it has no short name. An option's term ends with ` <value>`.
-6. r[std-cli.usage.entry-choices] An entry starts with two spaces and its term, padded to the longest term only when help or choices follow.
-7. r[std-cli.usage.width] A width counts characters, as `pad_end` does.
-8. r[std-cli.usage.no-description] An entry with empty help and choices is two spaces and its term, without padding.
-9. r[std-cli.usage.parser-no-help] Neither `usage` nor `parse` adds a flag that the `ArgParser` does not declare, `--help` included.
+2. r[std-cli.usage.command-line] The usage line names the program, optional options, and either `<command>` or the declared positional terms.
+3. r[std-cli.usage.positional-term] A positional is `<name>` when required, and `[<name>]` otherwise.
+4. r[std-cli.usage.arguments] When a positional is declared, an empty line and the line `arguments:` follow, then one entry per positional, in declaration order. A positional's term is its name.
+5. r[std-cli.usage.options] When a flag or an option is declared, an empty line and the line `options:` follow. Then one entry per flag or option follows, in declaration order.
+6. r[std-cli.usage.term] A flag's or option's term is `-c, --name`, or four spaces and `--name` when it has no short name. An option's term ends with ` <value>`.
+7. r[std-cli.usage.entry-choices] An entry starts with two spaces and its term, padded to the longest term only when help or choices follow.
+8. r[std-cli.usage.width] A width counts characters, as `pad_end` does.
+9. r[std-cli.usage.no-description] An entry with empty help and choices is two spaces and its term, without padding.
+10. r[std-cli.usage.parser-no-help] Neither `usage` nor `parse` adds a flag that the `ArgParser` does not declare, `--help` included.
 
-10. r[std-cli.usage.about] When `about` is nonempty, one empty line and its text follow the usage line.
-11. r[std-cli.usage.builder] `usage` should write its result with one `StringBuilder`, without repeated concatenation of the accumulated text.
-12. r[std-cli.usage.choices] Choices append `[choices: A, B]` after help, separated by one space when help is nonempty.
-13. r[std-cli.usage.description] After a padded term, two spaces precede its help or choices.
+11. r[std-cli.usage.about] When `about` is nonempty, one empty line and its text follow the usage line.
+12. r[std-cli.usage.builder] `usage` should write its result with one `StringBuilder`, without repeated concatenation of the accumulated text.
+13. r[std-cli.usage.choices] Choices append `[choices: A, B]` after help, separated by one space when help is nonempty.
+14. r[std-cli.usage.description] After a padded term, two spaces precede its help or choices.
+15. r[std-cli.usage.commands] Declared commands appear after the program description and before argument or option sections, following an empty line and `commands:`.
+16. r[std-cli.usage.command-order] Each command entry is two spaces and its name, in declaration order.
+17. r[std-cli.usage.command-about] A nonempty command description follows its name, padded to the longest command name, and two spaces.
+
 
 > **Why.** One column of help text is the layout of Go's `flag` output and
 > of `hd help`. The four spaces keep the long names of every term aligned.
