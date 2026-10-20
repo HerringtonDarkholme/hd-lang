@@ -15,7 +15,8 @@
 //   `.start`, which returns `[status, value]`, then `.finish(h)`. Status 0:
 //   done at once, the result is in the buffer and `value` is its length.
 //   Status 1: pending, `value` is its handle. `hd:Console` `write_line`
-//   completes at once (the line is written at completion); `hd:Clock`
+//   and `write_error_line` complete at once (the line is written at
+//   completion); `hd:Clock`
 //   `sleep` completes when its duration has passed. Every other method
 //   runs synchronously and finishes at once.
 // - `hd:rt` `block()` waits synchronously for at least one completion,
@@ -398,12 +399,19 @@ function traitImports(module, provider, { view, text, put, pending, finished }) 
 }
 
 // `hd:Console`: one line per `write_line`, written when it completes, at
-// once.
-function consoleProvider({ st }) {
+// once; `write_error_line` writes its line to standard error then, after
+// the held output (module.console.write-error-line).
+function consoleProvider({ st, sink, flush }) {
   return {
     write_line: (line) =>
       later(performance.now(), () => {
         st.out.push(line + "\n");
+        return Ok(undefined);
+      }),
+    write_error_line: (line) =>
+      later(performance.now(), () => {
+        flush();
+        sink.err(line + "\n");
         return Ok(undefined);
       }),
   };
@@ -646,7 +654,7 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // inside its `.start` throws `TimeLimit` when none are left.
   const left = () => (st.deadline === null ? Infinity : st.deadline - performance.now());
   const providers = {
-    "hd:Console": consoleProvider({ st }),
+    "hd:Console": consoleProvider({ st, sink, flush }),
     "hd:Clock": clockProvider(),
     "hd:Random": randomProvider(),
     "hd:Args": argsProvider({ program, args }),

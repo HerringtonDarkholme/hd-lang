@@ -1,7 +1,7 @@
 //! The host's pending operations (`crates/hd_run_wasmtime/DESIGN.md` §17.2): each
 //! `.start` that cannot finish at once
 //! gets a handle and completes later, when its time comes (`Clock.sleep`,
-//! `Console.write_line`) or when another thread delivers its result into
+//! `Console.write_line` and `write_error_line`) or when another thread delivers its result into
 //! the inbox: a chunk of standard input (`ConsoleInput.read_line` and
 //! `read_all`, read by a thread of its own), or the `Done` of an operation offloaded to the
 //! `hd-io` runtime (`io.rs`). So the program never blocks inside a
@@ -52,10 +52,20 @@ pub enum Done {
     Test(u32),
 }
 
+/// The standard stream a `Console` line goes to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Stream {
+    /// `write_line`'s standard output.
+    Out,
+    /// `write_error_line`'s standard error (`module.console.write-error-line`).
+    Err,
+}
+
 /// What an operation does when it completes.
 pub enum Work {
-    /// `Console.write_line`: the line, written to standard output then.
-    Write(Vec<u8>),
+    /// `Console.write_line` or `write_error_line`: the line, written to
+    /// its stream then.
+    Write(Stream, Vec<u8>),
     /// `Clock.sleep`.
     Timer,
     /// `ConsoleInput.read_line` or `read_all`: the line, or all the rest
@@ -236,9 +246,10 @@ impl Reactor {
         h
     }
 
-    /// A `write_line` of `line`, which completes at once.
-    pub fn write_line(&mut self, line: Vec<u8>) -> i32 {
-        self.start(Some(now_ns()), Work::Write(line))
+    /// A `write_line` or `write_error_line` of `line` to `to`, which
+    /// completes at once.
+    pub fn write_line(&mut self, to: Stream, line: Vec<u8>) -> i32 {
+        self.start(Some(now_ns()), Work::Write(to, line))
     }
 
     /// A sleep of `ms` milliseconds.
@@ -437,9 +448,10 @@ impl Reactor {
         self.ops.get(&h).is_some_and(|op| op.completed)
     }
 
-    /// Completes every due operation, oldest first, writing each
-    /// `write_line`'s line to `out`, and returns their handles.
-    pub fn due(&mut self, out: &mut Vec<u8>) -> Vec<i32> {
+    /// Completes every due operation, oldest first, pushing each
+    /// `Console` line, with its newline, to `lines` in that order, and
+    /// returns their handles.
+    pub fn due(&mut self, lines: &mut Vec<(Stream, Vec<u8>)>) -> Vec<i32> {
         self.take_delivered();
         let now = now_ns();
         let mut due = std::mem::take(&mut self.ready);
@@ -456,9 +468,10 @@ impl Reactor {
             {
                 op.completed = true;
                 self.open -= 1;
-                if let Work::Write(line) = &mut op.work {
-                    out.append(line);
-                    out.push(b'\n');
+                if let Work::Write(to, line) = &mut op.work {
+                    let mut line = std::mem::take(line);
+                    line.push(b'\n');
+                    lines.push((*to, line));
                 }
             }
         }

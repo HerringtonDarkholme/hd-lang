@@ -385,10 +385,10 @@ the variant index and the path.
   offloaded operation (`runtime/io.rs`). A `.start` that cannot finish at
   once spawns a task there and returns its handle; the task delivers its
   result into its instance's reactor inbox (`runtime/reactor.rs`). Timers,
-  `Console.write_line` and standard-input lines complete through the same
-  inbox. One runtime per process, not one per worker thread, is better:
-  a program that never offloads starts no thread, and workers share one
-  I/O driver.
+  `Console.write_line`, `Console.write_error_line` and standard-input
+  lines complete through the same inbox. One runtime per process, not one
+  per worker thread, is better: a program that never offloads starts no
+  thread, and workers share one I/O driver.
 - **The driver loop** (§14.4) runs in `hd_run_wasmtime`: poll, then wait
   on the reactor's condvar for the next completion (a timer's deadline or
   a delivery), then wake and poll again. **`hd:rt/block`** waits the

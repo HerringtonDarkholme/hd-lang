@@ -769,6 +769,7 @@ pub type UdpSocket = Handle;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Id {
     ConsoleWriteLine,
+    ConsoleWriteErrorLine,
     ConsoleInputReadLine,
     ConsoleInputReadAll,
     ClockNow,
@@ -850,6 +851,15 @@ pub static METHODS: &[HostMethod] = &[
         id: Id::ConsoleWriteLine,
         module: "hd:Console",
         name: "write_line",
+        wait: Wait::May,
+        resource: None,
+        params: &[Codec::Buffer("string")],
+        result: Codec::Buffer("Result[void, ConsoleError]"),
+    },
+    HostMethod {
+        id: Id::ConsoleWriteErrorLine,
+        module: "hd:Console",
+        name: "write_error_line",
         wait: Wait::May,
         resource: None,
         params: &[Codec::Buffer("string")],

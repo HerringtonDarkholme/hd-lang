@@ -155,6 +155,12 @@ export const METHODS = {
       params: [str],
       result: result(unit, ConsoleError),
     },
+    write_error_line: {
+      wait: "may",
+      resource: null,
+      params: [str],
+      result: result(unit, ConsoleError),
+    },
   },
   "hd:ConsoleInput": {
     read_line: {

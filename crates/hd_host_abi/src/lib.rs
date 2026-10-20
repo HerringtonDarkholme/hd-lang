@@ -85,13 +85,22 @@ pub static TABLE: &[HostTrait] = &[
     HostTrait {
         key: "Console",
         std_path: "std.console.Console",
-        methods: &[m(
-            "write_line",
-            &[B("string")],
-            B("Result[void, ConsoleError]"),
-            Wait::May,
-            None,
-        )],
+        methods: &[
+            m(
+                "write_line",
+                &[B("string")],
+                B("Result[void, ConsoleError]"),
+                Wait::May,
+                None,
+            ),
+            m(
+                "write_error_line",
+                &[B("string")],
+                B("Result[void, ConsoleError]"),
+                Wait::May,
+                None,
+            ),
+        ],
     },
     HostTrait {
         key: "ConsoleInput",

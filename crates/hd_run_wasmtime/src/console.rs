@@ -1,5 +1,7 @@
 //! `Console` and `ConsoleInput`. `write_line` is pending at once and
 //! writes its line into the held standard output when it completes;
+//! `write_error_line` likewise writes its line to standard error, after
+//! the held output (`module.console.write-error-line`);
 //! `read_line` and `read_all` are pending until the reactor's reader thread
 //! has read the next line, or the rest, of standard input, so a program's
 //! other operations go on while it waits for input.
@@ -8,9 +10,10 @@ use wasmtime::{Caller, Val};
 
 use crate::abi::{ConsoleError, HostMethod, Id};
 use crate::host::{Host, Ret, Stop, bytes, handle, int_arg};
-use crate::runtime::reactor::Work;
+use crate::runtime::reactor::{Stream, Work};
 
-/// A `Console.write_line` or `ConsoleInput.read_line` `.start`, or its
+/// A `Console.write_line`, `Console.write_error_line` or
+/// `ConsoleInput.read_line` `.start`, or its
 /// `.finish` when `finish`.
 pub(crate) fn call(
     method: &'static HostMethod,
@@ -19,16 +22,21 @@ pub(crate) fn call(
     params: &[Val],
 ) -> wasmtime::Result<Ret> {
     Ok(match method.id {
-        Id::ConsoleWriteLine if finish => {
+        Id::ConsoleWriteLine | Id::ConsoleWriteErrorLine if finish => {
             let h = int_arg(params, 0)?;
             caller.data_mut().reactor.remove(handle(h));
             Ret::value(&Ok::<(), ConsoleError>(()))
         }
-        Id::ConsoleWriteLine => {
+        Id::ConsoleWriteLine | Id::ConsoleWriteErrorLine => {
             let line = bytes(caller, int_arg(params, 0)?)?;
             // Normalize invalid UTF-8 through the text boundary.
             let line = String::from_utf8_lossy(&line).into_owned().into_bytes();
-            Ret::pair(1, caller.data_mut().reactor.write_line(line))
+            let to = if method.id == Id::ConsoleWriteLine {
+                Stream::Out
+            } else {
+                Stream::Err
+            };
+            Ret::pair(1, caller.data_mut().reactor.write_line(to, line))
         }
         // `Result[string?, ConsoleError]`: the line, `.None` at the end of
         // input, `.Err(.Closed)` when it cannot be read.

@@ -8091,14 +8091,7 @@ fn root_poll(
                 slots.push(profile_slot(&lay, key, name, m, sig, false, at)?);
                 continue;
             };
-            // A method the table does not list runs its default body,
-            // which for `write_error_line!` is the first method's call.
-            let Some(hm) = host
-                .methods
-                .iter()
-                .find(|x| x.name == name)
-                .or_else(|| host.methods.first())
-            else {
+            let Some(hm) = host.methods.iter().find(|x| x.name == name) else {
                 return unsupported(format!("the host method `{name}`"));
             };
             slots.push(host_slot(

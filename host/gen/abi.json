@@ -1,7 +1,8 @@
 {
   "traits": [
     { "key": "Console", "std": "std.console.Console", "methods": [
-      { "name": "write_line", "wait": "may", "resource": null, "params": ["string"], "result": "Result[void, ConsoleError]" }
+      { "name": "write_line", "wait": "may", "resource": null, "params": ["string"], "result": "Result[void, ConsoleError]" },
+      { "name": "write_error_line", "wait": "may", "resource": null, "params": ["string"], "result": "Result[void, ConsoleError]" }
     ]},
     { "key": "ConsoleInput", "std": "std.console.ConsoleInput", "methods": [
       { "name": "read_line", "wait": "may", "resource": null, "params": [], "result": "Result[string?, ConsoleError]" },

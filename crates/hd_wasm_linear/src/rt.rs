@@ -484,9 +484,7 @@ pub fn host_providers(f: &mut Func, providers: &[(usize, Option<Hash128>)]) {
 
 /// The vtable of the host's provider of capability `key`, in the trait's
 /// method order (`ProgramEnv::trait_methods`): each slot a host call or a
-/// host leaf over the exchange buffer's codecs (`boundary.rs`). A method
-/// the ABI table does not list is answered by its first method, as the
-/// Wasm GC backend's default profile does for `write_error_line!`.
+/// host leaf over the exchange buffer's codecs (`boundary.rs`).
 fn host_vtable(input: &Input<'_>, m: &mut Module, key: Ty) -> StageResult<usize> {
     let TyData::TraitValue { def, args, .. } = input.pool.get(key) else {
         return unsupported("a provider key that is not a trait");
@@ -502,12 +500,7 @@ fn host_vtable(input: &Input<'_>, m: &mut Module, key: Ty) -> StageResult<usize>
     for method in input.env.trait_methods(def) {
         let mp = (input.path)(method);
         let name = mp.rsplit(['.', '/']).next().unwrap_or("");
-        let Some(hm) = host
-            .methods
-            .iter()
-            .find(|x| x.name == name)
-            .or_else(|| host.methods.first())
-        else {
+        let Some(hm) = host.methods.iter().find(|x| x.name == name) else {
             return unsupported(format!("the host method `{name}`"));
         };
         let row = crate::boundary::Row::of(hm);

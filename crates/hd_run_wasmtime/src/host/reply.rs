@@ -5,15 +5,20 @@ use super::Stop;
 use crate::codec::{Enc, Wire, encode};
 
 /// Collects due handles without writing the guest's exchange buffer.
-/// Reactor completion still advances operation state and holds completed
-/// Console output; recording/replay of those effects is a separate change.
+/// Reactor completion still advances operation state, holds completed
+/// Console output and writes completed error lines; recording/replay of
+/// those effects is a separate change.
 pub fn complete(
     caller: &mut impl wasmtime::AsContextMut<Data = Host>,
 ) -> wasmtime::Result<Vec<u32>> {
     let mut cx = caller.as_context_mut();
     let host = cx.data_mut();
     host.check_deadline()?;
-    let due = host.reactor.due(&mut host.out);
+    let mut lines = Vec::new();
+    let due = host.reactor.due(&mut lines);
+    for (to, line) in &lines {
+        host.console_line(*to, line);
+    }
     host.flush_over_bound();
     Ok(due
         .into_iter()

@@ -7,7 +7,7 @@ use wasmtime::Memory;
 
 use super::{Control, Stop};
 use crate::net;
-use crate::runtime::reactor::{Done, Reactor, Work};
+use crate::runtime::reactor::{Done, Reactor, Stream, Work};
 
 /// Where a run's standard streams go: the process's own, or buffers a
 /// caller reads afterwards.
@@ -323,12 +323,25 @@ impl Host {
 
     /// Writes `text` to standard error, after the held output.
     pub fn err(&mut self, text: &str) {
+        self.err_bytes(text.as_bytes());
+    }
+
+    fn err_bytes(&mut self, bytes: &[u8]) {
         self.flush();
         if self.muted {
             return;
         }
-        let _ = self.err_stream.write_all(text.as_bytes());
+        let _ = self.err_stream.write_all(bytes);
         let _ = self.err_stream.flush();
+    }
+
+    /// A completed `Console` line: held with the standard output, or
+    /// written to standard error after it.
+    pub(crate) fn console_line(&mut self, to: Stream, line: &[u8]) {
+        match to {
+            Stream::Out => self.out.extend_from_slice(line),
+            Stream::Err => self.err_bytes(line),
+        }
     }
 
     /// Whether an operation is pending and not completed: something can

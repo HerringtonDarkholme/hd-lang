@@ -1,8 +1,10 @@
 # `main` returns `error.exit()` for a parse error, so a misspelled option
-# exits with status 2; a good command line exits 0
-# (std-cli.error.exit-code, std-cli.error.exit).
+# writes the error's text to standard error and exits with status 2; a good
+# command line exits 0 (std-cli.error.exit-code, std-cli.error.exit,
+# module.console.write-error-line).
 run: hd tool.hd -- --levl 3
 exit: 2
+stderr: unknown option --levl
 run: hd tool.hd -- --level 3
 exit: 0
 stdout: 3
