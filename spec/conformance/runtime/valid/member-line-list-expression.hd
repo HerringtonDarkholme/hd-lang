@@ -1,5 +1,6 @@
 # test: a member line's right side may be any list-typed expression, in a block with no trait and a derivation block
 # Spec 14 Member Lines: annot.line.right-typed (M28).
+use std.inspect.Inspectable
 use std.structure.{Structure, Field, Variant, Walker}
 struct Tag:
     text: string
@@ -13,9 +14,9 @@ fn tag(text: string) -> Tag:
 fn note(text: string) -> Note:
     Note { text: text }
 
-let noted_n: List[dyn Any] = [note("n")]
-let noted_m: List[dyn Any] = [note("m")]
-let tagged_c: List[dyn Any] = [tag("c")]
+let noted_n: List[&dyn Inspectable] = [&note("n")]
+let noted_m: List[&dyn Inspectable] = [&note("m")]
+let tagged_c: List[&dyn Inspectable] = [&tag("c")]
 
 trait Probe:
     fn probe(self) -> string

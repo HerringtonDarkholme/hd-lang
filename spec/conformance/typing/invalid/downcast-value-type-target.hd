@@ -1,9 +1,9 @@
-# test: downcast needs an AnyRef target, so a scalar target is rejected
-# Spec 09 Recovering A Concrete Type: i32 fails the AnyRef bound; downcast_val recovers value types.
-# Spec 09 Traits: trait.downcast.bound, trait.downcast.bound.examples.
+# test: a function target fails the Inspectable bound
+# Spec 09 Recovering A Concrete Type: the target is the concrete type rather than a reference.
+# Spec 09 Traits: trait.downcast.bound, trait.downcast.concrete-target.
 use std.inspect.Inspectable
 
-fn number(value: dyn Inspectable) -> i32:
-    match value.downcast::[i32]():  # diagnostic: unsatisfied-trait-bound
-        .Some(found) => found
+fn number(value: &dyn Inspectable) -> i32:
+    match value.downcast_ref::[fn() -> i32]():  # diagnostic: unsatisfied-trait-bound
+        .Some(_) => 0
         .None => 0

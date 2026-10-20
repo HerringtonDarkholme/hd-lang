@@ -1,0 +1,8 @@
+# test: an explicit trait implementation cannot target a trait value reference
+# Spec 09 Trait Values As Bounds: trait.dyn.bound.reference-no-impl.
+trait Read:
+    fn get(&self) -> i32
+trait Other:
+    fn other(self) -> i32
+impl Other for &dyn Read:  # diagnostic: trait-value-impl-target
+    fn other(self) -> i32: 0

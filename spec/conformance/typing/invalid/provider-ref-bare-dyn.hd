@@ -1,4 +1,4 @@
-# Spec 11 Providers Behind References: req.ref.install-ref; Spec 09 Trait Value References: trait.dyn.ref.bare-operand. A bare trait value holds no reference, so `&` on it is no provider for a trait with a `&self` method.
+# Spec 11 Providers Behind References: req.ref.install-ref; Spec 09 Trait Value References: trait.dyn.ref.bare-reference-method. A bare trait value holds no reference, so `&` on it is no provider for a trait with a `&self` method.
 trait Shown:
     fn shown(&self) -> string
 

@@ -956,7 +956,7 @@ list of supported operations. In particular:
 | `Buffer[T] { items: ..., len: 0 }` for a user `struct Buffer[T]` | `struct.new $Buffer_i32` of the unboxed fields; returns the reference |
 | `out.push(x)` through a caller's `&mut List[T]` | unbox `x`, `call List[i32].push` on the place the reference names; in place |
 | `x.show()` with `T < Display` | the impl that `select` picks at `i32` (§13.2), called directly |
-| `T::type_id()`, `downcast_val::[T](a)` | the concrete type id, the concrete cast |
+| `TypeId::of::[T]()`, `a.downcast_ref::[T]()` | the concrete type id, the concrete cast |
 | a closure `fn(T) -> T` built in the body | a concrete `$Fn_i32_i32` closure whose code unboxes, calls the erased closure body, and boxes |
 | `f(x)` where `f: fn(T) -> T` came from the caller | `ref.cast` to the caller's closure type, unbox, `call_ref`, box |
 | a call of a generic item, `helper[T](x)` or `helper[List[T]](xs)` | a direct call of the monomorphized `helper[i32]` or `helper[List[i32]]` |

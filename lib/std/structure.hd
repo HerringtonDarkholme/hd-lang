@@ -13,25 +13,25 @@
 # The handle declarations name their parameters `HdS` and `HdF`: the
 # prototype cannot infer an inherent method's parameters from a receiver
 # whose type arguments are the caller's parameters of the same names.
-use std.inspect.{Inspectable, downcast_val}
+use std.inspect.Inspectable
 use std.format.DebugWriter
 
 # A member's or variant's facts. The prototype holds `Inspectable` values
 # rather than `Any`.
 ## The facts attached to one type, member, variant, or module-level function, in source order.
-## See [annot.structure.facts-contents](../../spec/lang/14-annotations.md#r-annot.structure.facts-contents).
+## See [annot.structure.reference-facts](../../spec/lang/14-annotations.md#r-annot.structure.reference-facts).
 pub struct Facts:
     ## The fact values.
-    ## See [annot.structure.facts-contents](../../spec/lang/14-annotations.md#r-annot.structure.facts-contents).
-    pub items: List[dyn Inspectable]
+    ## See [annot.structure.reference-facts](../../spec/lang/14-annotations.md#r-annot.structure.reference-facts).
+    pub items: List[&dyn Inspectable]
 
 impl Facts:
     ## Returns the fact whose concrete type is `F`, or `.None`.
-    ## See [annot.structure.find-lookup](../../spec/lang/14-annotations.md#r-annot.structure.find-lookup).
+    ## See [annot.structure.find-exact](../../spec/lang/14-annotations.md#r-annot.structure.find-exact).
     pub fn find[F < Inspectable](self) -> F?:
         for item in self.items:
-            match downcast_val::[F](item):
-                .Some(found) => return .Some(found)
+            match item.downcast_ref::[F]():
+                .Some(found) => return .Some(*found)
                 .None => pass
         .None
 
@@ -45,7 +45,7 @@ pub struct Member:
     ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
     pub position: i32
     ## The member's facts.
-    ## See [annot.structure.facts-contents](../../spec/lang/14-annotations.md#r-annot.structure.facts-contents).
+    ## See [annot.structure.reference-facts](../../spec/lang/14-annotations.md#r-annot.structure.reference-facts).
     pub facts: Facts
     ## The member's doc comment, in `.Some`, or `.None`.
     ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
@@ -71,7 +71,7 @@ pub struct VariantInfo:
     ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
     pub index: i32
     ## The variant's facts.
-    ## See [annot.structure.facts-contents](../../spec/lang/14-annotations.md#r-annot.structure.facts-contents).
+    ## See [annot.structure.reference-facts](../../spec/lang/14-annotations.md#r-annot.structure.reference-facts).
     pub facts: Facts
     ## The variant's doc comment, in `.Some`, or `.None`.
     ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
@@ -134,7 +134,7 @@ impl[HdS, HdF] Field[HdS, HdF]:
         (self.hd_default)()
 
     ## The member's fact whose concrete type is `HdM`, or `.None`.
-    ## See [annot.structure.find-lookup](../../spec/lang/14-annotations.md#r-annot.structure.find-lookup).
+    ## See [annot.structure.find-exact](../../spec/lang/14-annotations.md#r-annot.structure.find-exact).
     pub fn fact[HdM < Inspectable](self) -> HdM?:
         self.info.facts.find::[HdM]()
 

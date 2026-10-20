@@ -1,19 +1,19 @@
-# test: generic erasure records the instantiated type, which TypeId and downcast_val observe
+# test: generic erasure records the instantiated type, which TypeId and downcast_ref observe
 # Spec 09 Erasure To Inspectable: a value of T < Inspectable records the type T is
 # instantiated with; a Box[T] built from it records Box applied to that type.
-# Spec 09 Traits: trait.erase.expected, trait.erase.parameter, trait.erase.built, trait.inspect.runtime-type, trait.typeid.of, trait.downcast.some, trait.downcast.val.
-use std.inspect.{Inspectable, TypeId, downcast_val}
+# Spec 09 Traits: trait.erase.expected, trait.erase.parameter, trait.erase.built, trait.inspect.runtime-type, trait.typeid.of, trait.downcast.reference, trait.downcast.copy-through-reference.
+use std.inspect.{Inspectable, TypeId}
 struct Box[T]:
     value: T
 
-fn erase[T < Inspectable](value: T) -> dyn Inspectable:
-    Box { value: value }
+fn erase[T < Inspectable](value: T) -> &dyn Inspectable:
+    &Box { value: value }
 
-fn is_int_box(value: dyn Inspectable) -> bool:
+fn is_int_box(value: &dyn Inspectable) -> bool:
     value.runtime_type() == TypeId::of::[Box[i32]]()
 
-fn read_box(value: dyn Inspectable) -> i32:
-    match downcast_val::[Box[i32]](value):
+fn read_box(value: &dyn Inspectable) -> i32:
+    match value.downcast_ref::[Box[i32]]().map(fn(found): *found):
         .Some(found) => found.value
         .None => 0
 
@@ -24,9 +24,9 @@ tests:
         let one: i32 = 1
         boxed := erase(one)
         assert(is_int_box(boxed), reason="the recorded type is Box[i32]")
-        assert_equal(read_box(boxed), 1, reason="downcast_val recovers the Box[i32]")
+        assert_equal(read_box(boxed), 1, reason="downcast_ref recovers the Box[i32]")
 
     it("an erased Box[string] is not"):
         boxed := erase("one")
         assert(!is_int_box(boxed), reason="Box[string] and Box[i32] differ")
-        assert_equal(read_box(boxed), 0, reason="downcast_val to Box[i32] fails")
+        assert_equal(read_box(boxed), 0, reason="downcast_ref to Box[i32] fails")

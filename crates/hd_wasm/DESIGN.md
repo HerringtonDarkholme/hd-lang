@@ -241,7 +241,8 @@ first two fields are closures, `get: fn() -> T` and `set: fn(T) -> void`,
 that read and replace the referenced place, and whose last three are the
 place's identity, `base: dyn Any`, `serial: i64` and `key: string`. The checker builds both when it
 checks `&e` (`crates/hd_check/src/refs.rs`) and lowers every `&T` and
-`&mut T` in a finished body to `Ref[T]` (`hd_types::Types::lower_refs`,
+`&mut T` in a finished body to `Ref[Mut[T]]` (an internal permission
+marker) and `&T` to `Ref[T]` (`hd_types::Types::lower_refs`,
 `hd_tir::ir::map_body_types`); the driver lowers the declarations the
 backend reads (`params`, `ret`, `data_fields`, enum payloads, impl heads,
 row keys), and `hd_structure` its generated bodies. So the backend sees an
@@ -315,7 +316,7 @@ ordinary generic data type, and the emitter is unchanged but for one line.
   value has nothing to point at: struct values are immutable objects
   shared by every place that copied them. A pair of closures handles a
   local, a field path, a value behind another reference and a data field
-  with one layout, so `&mut T` to `&T` is free (both lower to `Ref[T]`),
+  with one layout, so `&mut T` to `&T` is free (both have the same physical layout),
   and generic code needs nothing new: `Ref[T]` takes `A1` erased storage
   like any generic data type.
 - **Cost.** Taking a reference allocates the `Ref` object and two
@@ -329,12 +330,13 @@ ordinary generic data type, and the emitter is unchanged but for one line.
   Correct first: the linear-memory backend makes a reference an address,
   and `is` one compare (OBJECT_MODEL_TIER1.md job 11).
 - **Trait selection.** std writes `Eq`, `Hash`, `DeepEq`, `Debug` and
-  `Display` for `&T` and `&mut T`; both heads lower to `Ref[T]`. The backend's selection
-  (`hd_mono` `select`) raises a lowered self type back to `&T`
-  (`hd_types::Types::raise_refs`) to match those heads, then unifies the
-  lowered head with the lowered self type for the impl's arguments. So
-  the `&T` impl serves `&mut T` too once lowered, and the two heads never
-  meet as one.
+  `Display` for reference types. The backend's selection (`hd_mono` `select`)
+  raises a lowered self type back to `&T` or `&mut T`
+  (`hd_types::Types::raise_refs`), preserving permission when it matches impl
+  heads. Type identity also retains that permission. Monomorphization shares
+  permission-insensitive bodies: generic calls, erasure, trait selection and
+  identity operations conservatively retain the distinction where observable.
+  Their physical `Ref` layout remains the same.
 - **Reference receivers.** A `&self` or `&mut self` method takes `Ref[Self]`
   as its first parameter
   ([Reference Receivers](../../spec/lang/07-functions.md#reference-receivers)).
@@ -380,7 +382,7 @@ ordinary generic data type, and the emitter is unchanged but for one line.
     built from a value the slot is `Unavailable`, a trap the checker never
     lets a call reach (`trait.dyn.member.ref-receiver-bare`); `&e` on a bare
     trait value of such a trait is an error for the same reason
-    (`trait.dyn.ref.bare-operand`). Generic code can still form `&T` with `T` a
+    (`trait.dyn.ref.bare-reference-method`). Generic code can still form `&T` with `T` a
     bare trait value and return it as `&dyn Tr`; a `&self` call through
     that value reaches the trap. Likewise a generic `*r = v` through
     `&mut T`, given a converted trait value reference with `T` its bare

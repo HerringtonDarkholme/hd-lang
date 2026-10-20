@@ -1,4 +1,4 @@
-# Spec 09 Trait Value References: trait.dyn.ref.written, trait.dyn.ref.written.fix. A struct value where `&dyn Shape` is expected; the fix-it writes `&square`.
+# Spec 09 Trait Value References: trait.dyn.ref.written, trait.dyn.ref.written.reference-fix. A struct value where `&dyn Shape` is expected; the fix-it writes `&square`.
 trait Shape:
     fn area(&self) -> f64
 

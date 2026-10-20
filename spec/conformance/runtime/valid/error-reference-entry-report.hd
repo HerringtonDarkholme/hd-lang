@@ -1,0 +1,12 @@
+# test: an entry returning a shared erased error uses its report and real exit code
+# Spec 10 Entry Results: module.entry.err-stream, module.entry.err-render-chain; Spec 09 Trait Values As Bounds: trait.dyn.bound.reference.
+# expect-stdout: usage
+use std.error.Error
+struct Hint:
+    code: i32
+impl Display for Hint:
+    fn to_string(self) -> string: "usage"
+impl Error for Hint:
+    fn exit_code(self) -> i32: self.code
+pub fn main() -> Result[void, &dyn Error]:
+    .Err(&Hint { code: 0 })

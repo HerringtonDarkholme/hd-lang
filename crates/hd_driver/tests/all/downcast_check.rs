@@ -1,8 +1,4 @@
-//! A method with explicit type arguments on a trait value
-//! (`value.downcast::[T]()`, trait.downcast.some) resolves like the free
-//! `downcast_val::[T](value)`, on `dyn Inspectable` and on a trait that
-//! extends it, `dyn Error` (trait.downcast.ordinary). The match over the
-//! result is exhaustive over `.Some` and `.None` (#178).
+//! Reference recovery resolves through Inspectable and Error evidence.
 
 use hd_diag::Code;
 use hd_driver::{Executor, Goal, Host, NoClock, build};
@@ -36,15 +32,14 @@ fn codes(main: &str) -> Vec<Code> {
 }
 
 #[test]
-#[ignore = "downcast to a struct has no target until #586 decides its form"]
 fn downcast_with_type_arguments_on_dyn_inspectable() {
     let src = "use std.inspect.Inspectable
 
 struct User:
     name: string
 
-fn name_of(value: dyn Inspectable) -> string:
-    match value.downcast::[User]():
+fn name_of(value: &dyn Inspectable) -> string:
+    match value.downcast_ref::[User]():
         .Some(user) => user.name
         .None => \"x\"
 
@@ -55,12 +50,12 @@ pub fn main() -> void:
 }
 
 #[test]
-fn a_value_type_target_is_one_error_not_a_cascade() {
+fn a_function_target_is_one_error_not_a_cascade() {
     let src = "use std.inspect.Inspectable
 
-fn name_of(value: dyn Inspectable) -> string:
-    match value.downcast::[string]():
-        .Some(user) => user
+fn name_of(value: &dyn Inspectable) -> string:
+    match value.downcast_ref::[fn() -> string]():
+        .Some(_) => \"x\"
         .None => \"x\"
 
 pub fn main() -> void:
@@ -70,7 +65,6 @@ pub fn main() -> void:
 }
 
 #[test]
-#[ignore = "downcast to a struct has no target until #586 decides its form"]
 fn downcast_with_type_arguments_on_dyn_error() {
     let src = "use std.error.Error
 
@@ -82,8 +76,8 @@ impl Display for DiskError:
 
 impl Error for DiskError
 
-fn device_of(error: dyn Error) -> string:
-    match error.downcast::[DiskError]():
+fn device_of(error: &dyn Error) -> string:
+    match error.downcast_ref::[DiskError]():
         .Some(found) => found.device
         .None => \"none\"
 
@@ -94,20 +88,20 @@ pub fn main() -> void:
 }
 
 #[test]
-#[ignore = "downcast to a struct has no target until #586 decides its form"]
 fn downcast_mut_with_type_arguments_on_a_bounded_parameter() {
     let src = "use std.inspect.Inspectable
 
 struct Counter:
     count: i32
 
-fn bump(value: mut dyn Inspectable) -> void:
+fn bump(value: &mut dyn Inspectable) -> void:
     match value.downcast_mut::[Counter]():
         .Some(counter) => counter.count = counter.count + 1
         .None => pass
 
-fn same[T < Inspectable](value: T) -> bool:
-    match value.downcast::[Counter]():
+fn same[T < Inspectable](value: &T) -> bool:
+    let erased: &dyn Inspectable = value
+    match erased.downcast_ref::[Counter]():
         .Some(_) => true
         .None => false
 
@@ -121,9 +115,9 @@ pub fn main() -> void:
 fn an_unknown_method_with_type_arguments_on_a_trait_value_is_one_error() {
     let src = "use std.inspect.Inspectable
 
-fn name_of(value: dyn Inspectable) -> string:
-    match value.nothing::[string]():
-        .Some(user) => user
+fn name_of(value: &dyn Inspectable) -> string:
+    match value.nothing::[fn() -> string]():
+        .Some(_) => \"x\"
         .None => \"x\"
 
 pub fn main() -> void:

@@ -287,7 +287,7 @@ pub fn main() -> void $ Console:
 #[test]
 fn facts_arrive_in_source_order_per_derivation() {
     let main = "\
-use std.inspect.{Inspectable, downcast_val}
+use std.inspect.{Inspectable}
 use std.structure.{Structure, Facts, Field, Variant, Walker}
 
 struct Tag:
@@ -318,16 +318,16 @@ fn flag(text: string) -> Flag:
 fn show(facts: Facts) -> string:
     let mut parts: List[string] = []
     for item in facts.items:
-        match downcast_val::[Tag](item):
+        match item.downcast_ref::[Tag]():
             .Some(t) => parts.push(\"tag:\" + t.text)
             .None => pass
-        match downcast_val::[Note](item):
+        match item.downcast_ref::[Note]():
             .Some(t) => parts.push(\"note:\" + t.text)
             .None => pass
-        match downcast_val::[Mark](item):
+        match item.downcast_ref::[Mark]():
             .Some(t) => parts.push(\"mark:\" + t.text)
             .None => pass
-        match downcast_val::[Flag](item):
+        match item.downcast_ref::[Flag]():
             .Some(t) => parts.push(\"flag:\" + t.text)
             .None => pass
     \"[\" + parts.join(\" \") + \"]\"

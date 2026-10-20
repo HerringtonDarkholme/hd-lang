@@ -26,4 +26,4 @@ tests:
         match failed.context("saving"):
             .Ok(_) => assert_equal(true, false, reason="expected an error")
             .Err(error) =>
-                assert_equal(report_of(error).to_string(), "saving\ncaused by: disk full", reason="the string is the cause")
+                assert_equal(report_of(*error).to_string(), "saving\ncaused by: disk full", reason="the string is the cause")

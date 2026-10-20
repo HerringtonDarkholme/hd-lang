@@ -1,30 +1,15 @@
-# test: a generic downcast helper recovers the same reference for a concrete target and never matches a trait value target
-# Spec 09 Ordinary Rules For Recovery: trait.downcast.pass-on; the helper's bound passes T on, and the ordinary downcast rules apply.
+# test: generic recovery matches concrete type arguments exactly
 use std.inspect.Inspectable
-trait Named < Inspectable & AnyRef:
-    fn name(self) -> string
-
-data User:
-    name: string
-
-impl Named for User:
-    fn name(self) -> string: self.name
-
-fn recover[T < AnyRef & Inspectable](value: dyn Inspectable) -> T?:
-    value.downcast::[T]()
-
+struct Box[T]:
+    value: T
+fn recover[T < Inspectable](value: &dyn Inspectable) -> (&T)?:
+    value.downcast_ref::[T]()
 tests:
-    use std.testing.assert
-
-    it("a concrete target recovers the same reference"):
-        author := User { name: "Ada" }
-        let erased: dyn Inspectable = author
-        match recover::[User](erased):
-            .Some(found) => assert(found is author, reason="the erased reference comes back")
-            .None => assert(false, reason="User must match User")
-
-    it("a trait value target never matches"):
-        let author: dyn Named = User { name: "Ada" }
-        match recover::[dyn Named](author):
-            .Some(_) => assert(false, reason="a recorded type is never a trait value type")
-            .None => pass
+    use std.testing.{assert, assert_equal}
+    it("a concrete generic target preserves identity"):
+        narrow := &Box { value: 1i32 }
+        let erased: &dyn Inspectable = narrow
+        match recover::[Box[i32]](erased):
+            .Some(found) => assert(found is narrow, reason="same reference")
+            .None => assert(false, reason="matching arguments")
+        assert_equal(recover::[Box[i64]](erased).is_none(), true, reason="different arguments")

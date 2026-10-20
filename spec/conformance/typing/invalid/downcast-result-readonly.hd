@@ -1,11 +1,8 @@
-# test: downcast yields a readonly value, so its fields cannot be assigned
-# Spec 09 Ordinary Rules For Recovery: trait.downcast.readonly.
+# test: shared recovery returns a shared reference
 use std.inspect.Inspectable
-
-data Counter:
+struct Counter:
     count: i32
-
-fn reset(value: dyn Inspectable) -> void:
-    match value.downcast::[Counter]():
+fn invalid(value: &dyn Inspectable) -> void:
+    match value.downcast_ref::[Counter]():
         .Some(counter) => counter.count = 0  # diagnostic: not-writable
         .None => pass

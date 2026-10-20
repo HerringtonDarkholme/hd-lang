@@ -15,17 +15,17 @@ enum SyncError:
     @error("sync failed")
     Save(@from error: SaveError)
 
-fn messages(errors: List[dyn Error]) -> List[string]:
-    errors.map(fn(error: dyn Error) -> string: error.to_string())
+fn messages(errors: List[&dyn Error]) -> List[string]:
+    errors.map(fn(error: &dyn Error) -> string: error.to_string())
 
 tests:
     use std.testing.assert_equal
 
     it("a two-level cause chain"):
         failure := SyncError.Save(SaveError.Write("notes.txt", DiskError { free: 0 }))
-        errors := chain(failure)
+        errors := chain(&failure)
         assert_equal(errors.len(), 3, reason="the error and its two causes")
         assert_equal(messages(errors), ["sync failed", "cannot save notes.txt", "disk full"], reason="outermost first")
 
     it("an error without a cause"):
-        assert_equal(messages(chain(DiskError { free: 0 })), ["disk full"], reason="only the error itself")
+        assert_equal(messages(chain(&DiskError { free: 0 })), ["disk full"], reason="only the error itself")

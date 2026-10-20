@@ -1185,7 +1185,8 @@ impl<'a> Types<'a> {
     }
 
     /// `t` with each reference type, `&T` or `&mut T`, replaced by the data
-    /// type `cell[T]` that represents both on the Wasm GC backend
+    /// type `cell[T]` or `cell[Mut[T]]` (mutable permission metadata), both
+    /// with the same physical layout on the Wasm GC backend
     /// (`crates/hd_wasm/DESIGN.md` §15.2, "References"). The checker applies
     /// it to a finished body and the driver to the declarations the
     /// backend reads, so the backend never sees a reference type and `&T`
@@ -1205,10 +1206,18 @@ impl<'a> Types<'a> {
             )
         };
         let d = match self.get(t) {
-            TyData::Ref { inner, .. } => TyData::Adt {
-                def: cell,
-                args: self.list(&[self.lower_refs(cell, inner)]),
-            },
+            TyData::Ref { inner, mutable } => {
+                let inner = self.lower_refs(cell, inner);
+                let identity = if mutable {
+                    self.intern_ty(&TyData::Mut(inner))
+                } else {
+                    inner
+                };
+                TyData::Adt {
+                    def: cell,
+                    args: self.list(&[identity]),
+                }
+            }
             TyData::Adt { def, args } => TyData::Adt { def, args: l(args) },
             TyData::Tuple { elems, rest } => TyData::Tuple {
                 elems: l(elems),
@@ -1288,10 +1297,9 @@ impl<'a> Types<'a> {
     }
 
     /// The inverse of [`Self::lower_refs`] on a concrete type, for trait
-    /// selection after lowering: each `cell[T]` becomes `&T`. The impls
-    /// std writes for references name `&T` in their heads, so the backend's
-    /// selection matches a lowered self type in this form. `&mut T` lowers
-    /// to the same `cell[T]`, so the result is always `&T`, never `&mut T`.
+    /// selection after lowering: `cell[T]` becomes `&T`, and a permission
+    /// marker in `cell[Mut[T]]` restores `&mut T`. Compound types, including
+    /// projections and function signatures, retain this distinction.
     #[must_use]
     pub fn raise_refs(self, cell: DefId, t: Ty) -> Ty {
         self.raise_refs_in(cell, t, &mut hd_base::HashMap::default())
@@ -1314,10 +1322,16 @@ impl<'a> Types<'a> {
         };
         let d = match self.get(t) {
             TyData::Adt { def, args } if def == cell => match self.list_items(args) {
-                [inner] => TyData::Ref {
-                    inner: self.raise_refs_in(cell, *inner, memo),
-                    mutable: false,
-                },
+                [inner] => {
+                    let (inner, mutable) = match self.get(*inner) {
+                        TyData::Mut(inner) => (inner, true),
+                        _ => (*inner, false),
+                    };
+                    TyData::Ref {
+                        inner: self.raise_refs_in(cell, inner, memo),
+                        mutable,
+                    }
+                }
                 _ => TyData::Adt { def, args },
             },
             TyData::Adt { def, args } => TyData::Adt {
@@ -1330,6 +1344,36 @@ impl<'a> Types<'a> {
             },
             TyData::Option(i) => TyData::Option(self.raise_refs_in(cell, i, memo)),
             TyData::Mut(i) => TyData::Mut(self.raise_refs_in(cell, i, memo)),
+            TyData::Assoc {
+                assoc,
+                trait_,
+                self_ty,
+                args,
+            } => TyData::Assoc {
+                assoc,
+                trait_,
+                self_ty: self.raise_refs_in(cell, self_ty, memo),
+                args: l(args, memo),
+            },
+            TyData::Ref { inner, mutable } => TyData::Ref {
+                inner: self.raise_refs_in(cell, inner, memo),
+                mutable,
+            },
+            TyData::Fn {
+                params,
+                result,
+                row,
+                suspends,
+                inputs,
+            } => TyData::Fn {
+                params: l(params, memo),
+                result: self.raise_refs_in(cell, result, memo),
+                row: self.raise_refs_row_in(cell, row, memo),
+                suspends,
+                inputs,
+            },
+            TyData::Row(row) => TyData::Row(self.raise_refs_row_in(cell, row, memo)),
+            TyData::Context(row) => TyData::Context(self.raise_refs_row_in(cell, row, memo)),
             TyData::TraitValue {
                 def,
                 args,
@@ -1351,6 +1395,23 @@ impl<'a> Types<'a> {
         memo.insert(t, r);
         r
     }
+    fn raise_refs_row_in(
+        self,
+        cell: DefId,
+        row: RowId,
+        memo: &mut hd_base::HashMap<Ty, Ty>,
+    ) -> RowId {
+        let data = self.row_data(row);
+        self.row(&RowData {
+            keys: data
+                .keys
+                .iter()
+                .map(|ty| self.raise_refs_in(cell, *ty, memo))
+                .collect(),
+            params: data.params,
+        })
+    }
+
     /// Replaces declared parameters: `f` maps a parameter to its argument,
     /// or `None` to keep it.
     pub fn subst(self, t: Ty, f: &dyn Fn(ParamRef) -> Option<Ty>) -> Ty {
@@ -1835,5 +1896,42 @@ mod tests {
         assert!(!plain.is_local());
         assert_eq!(g.len(), before + 1, "only the variable-free type is global");
         assert_eq!(local.len(), 3);
+    }
+    #[test]
+    fn reference_lowering_preserves_permission_identity() {
+        let pool = InternPool::new();
+        let cell = hd_base::DefId::from_raw(777);
+        let shared = pool.intern_ty(&TyData::Ref {
+            inner: Ty::I32,
+            mutable: false,
+        });
+        let writable = pool.intern_ty(&TyData::Ref {
+            inner: Ty::I32,
+            mutable: true,
+        });
+        assert_ne!(
+            pool.lower_refs(cell, shared),
+            pool.lower_refs(cell, writable)
+        );
+        let projection = pool.intern_ty(&TyData::Assoc {
+            assoc: hd_base::DefId::from_raw(778),
+            trait_: hd_base::DefId::from_raw(779),
+            self_ty: writable,
+            args: pool.list(&[shared]),
+        });
+        let function = pool.intern_ty(&TyData::Fn {
+            params: pool.list(&[shared]),
+            result: projection,
+            row: RowId::EMPTY,
+            suspends: false,
+            inputs: Inputs::Fixed,
+        });
+        for reference in [shared, writable, projection, function] {
+            assert_eq!(
+                pool.types()
+                    .raise_refs(cell, pool.lower_refs(cell, reference)),
+                reference
+            );
+        }
     }
 }

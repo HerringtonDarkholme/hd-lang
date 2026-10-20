@@ -746,6 +746,19 @@ impl Declarations for LookupDecls<'_> {
         declares_assoc_function(self.syms, |d| self.lookup.item(d), trait_)
             || declares_ref_receiver(self.syms, |d| self.lookup.item(d), self.pool, trait_)
     }
+    fn has_unavailable_reference_member(&self, trait_: DefId, mutable: bool) -> bool {
+        let Some(ItemData::Trait(t)) = self.lookup.item(trait_).map(|i| &i.data) else {
+            return false;
+        };
+        t.methods.iter().any(|(_, method)| {
+            self.lookup.item(*method).and_then(Item::sig).is_some_and(|sig| {
+                sig.params.first().is_none_or(|&(name, ty)| {
+                    self.syms.resolve(name) != "self"
+                        || matches!(self.pool.get(ty), TyData::Ref { mutable: true, .. } if !mutable)
+                })
+            })
+        })
+    }
     fn is_local(&self, def: DefId) -> bool {
         is_local_path(self.paths, def)
     }

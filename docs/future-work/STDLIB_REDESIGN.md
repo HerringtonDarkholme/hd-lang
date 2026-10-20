@@ -2091,7 +2091,7 @@ impl[HdS] Members[HdS]:
 scans every member per key, O(m²) for a value with m members; serde's
 derive matches the name in generated code. A per-type name index from the
 compiler, behind a lookup by name, would remove it. `TypeId` equality
-compares two strings on every `downcast_val`, where one integer per type
+compares two strings on every `downcast_ref`, where one integer per type
 would do.
 
 ## std.ops, std.convert, std.function and std.resource

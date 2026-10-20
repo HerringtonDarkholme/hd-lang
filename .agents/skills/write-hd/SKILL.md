@@ -509,3 +509,26 @@ the code `hd check` reports today.
 | `Item(name: "a")` | `trailing-block-position` | `Item { name: "a" }` |
 | a second `tests:` block | `duplicate-tests-block` | one `tests:` block per file |
 | a trait in a public row | `private-type-leak` | `pub trait` |
+
+## Recovering An Erased Concrete Type
+
+Import `std.inspect.Inspectable`. Store an erased shared reference as
+`&dyn Inspectable`, or a mutable one as `&mut dyn Inspectable`.
+`value.downcast_ref::[User]()` returns `Option[&User]`;
+`value.downcast_mut::[User]()` returns `Option[&mut User]`.
+The target names the referent: use `User` for an erased `&User`.
+If the referent itself is a reference value, its reference type is the
+target instead. The recovered reference keeps identity with the original reference. Copy its value with `*found`, or with
+`.map(fn(found): *found)`. A bare trait value cannot call either method.
+
+```hd
+use std.inspect.Inspectable
+
+struct User:
+    name: string
+
+fn user_name(value: &dyn Inspectable) -> string:
+    match value.downcast_ref::[User]():
+        .Some(found) => found.name
+        .None => "unknown"
+```

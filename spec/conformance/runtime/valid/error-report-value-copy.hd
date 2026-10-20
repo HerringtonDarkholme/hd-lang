@@ -4,7 +4,7 @@
 use std.error.{message, report_of}
 
 pub fn main() -> void $ Console:
-    let mut report = report_of(message("disk full"))
+    let mut report = report_of(*message("disk full"))
     kept := report
     report.message = "changed"
     report.causes.push("more")

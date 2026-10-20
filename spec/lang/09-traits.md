@@ -493,13 +493,14 @@ The standard library declares the standard error trait `Error` in
 4. r[trait.error.complete] `impl Error for FsError` is complete when the enum `FsError` implements `Display`, because the compiler supplies `Inspectable` for it.
 5. r[trait.error.not-inspectable] An `impl Error` whose target is not inspectable, such as a type declared in a block suite, is an error. Error: `missing-supertrait-implementation`.
 6. r[trait.error.value-types] A value type may implement `Error`, as an enum or a newtype over `string` does.
-7. r[trait.error.cause] `Error` declares `fn cause(self) -> dyn Error?`, which returns the error that caused this one. Its default returns `.None`.
+7. r[trait.error.reference-cause] `Error` declares `fn cause(self) -> (&dyn Error)?`, which returns the error that caused this one. Its default returns `.None`.
 8. r[trait.error.exit-code] `Error` declares `fn exit_code(self) -> i32`, the process exit status of an entry point that returns this error. Its default returns 1.
 9. r[trait.error.dyn-methods] `std.error` gives `dyn Error` the inherent methods `chain`, `root_cause`, and `find[T < Error]`, in an `impl dyn Error:` block beside the trait.
 10. r[trait.error.dyn-methods.not-members] They are not members of `Error`, so an implementation of `Error` cannot declare or override them.
-11. r[trait.error.dyn-methods.receiver] They are called on a `dyn Error` value, as in `err.find::[FsError]()`. A concrete error converts to `dyn Error` first, as in `let erased: dyn Error = failure`.
-12. r[trait.error.std-api] What `chain`, `root_cause`, and `find` return is standard-library API.
-13. r[trait.error.derive] A struct or enum may implement `Display` and `Error` through the `@error` intrinsic, as [Error Derivation](14-annotations.md#error-derivation) defines.
+11. r[trait.error.dyn-methods.reference-receiver] They take shared reference receivers, as in `let erased: &dyn Error = &failure; erased.find::[FsError]()`.
+12. r[trait.error.inherent-recovery] `dyn Error` also declares the inherent recovery methods of `dyn Inspectable`, with identical reference signatures.
+13. r[trait.error.std-api] What `chain`, `root_cause`, and `find` return is standard-library API.
+14. r[trait.error.derive] A struct or enum may implement `Display` and `Error` through the `@error` intrinsic, as [Error Derivation](14-annotations.md#error-derivation) defines.
 14. r[trait.error.import] `Error` is not a prelude name; code imports it with `use std.error.Error`.
 15. r[trait.error.no-inspect-import] Implementing `Error` needs no import of `std.inspect`.
 
@@ -536,7 +537,7 @@ See also: [Sealed Traits](#sealed-traits),
 4. r[trait.error.entry-point] A dynamic trait value satisfies bounds on its own trait and its supertraits. `dyn Error` therefore satisfies an entry point's `E < Display` requirement, so `pub fn main() -> Result[void, dyn Error]` is a valid entry point.
 5. r[trait.error.boundary] Like every dynamic trait value, an erased `dyn Error` is not boundary-safe and never crosses a registered boundary.
 6. r[trait.error.convert-first] Code converts an erased `dyn Error` explicitly to a boundary-safe error type first.
-7. r[trait.error.downcast] Because `Error` extends `Inspectable`, an erased `dyn Error` can recover its concrete error: `downcast_val::[FsError](error)` recovers an enum error, and the inherited `downcast` method recovers an `AnyRef` error.
+7. r[trait.error.reference-recovery] Because `Error` extends `Inspectable`, a reference to an erased error recovers its concrete struct or enum through its inherent recovery methods.
 
 ```text
 use std.error.Error
@@ -1813,6 +1814,13 @@ fn describe(named: dyn Named, shown: dyn Display) -> string:
     tag(named) + show(named) + show(shown)
 ```
 
+1. r[trait.dyn.bound.reference] A trait value reference satisfies bounds on its trait and supertraits when every required member is available through that reference.
+2. r[trait.dyn.bound.reference-shared] A shared reference provides `self` and `&self` members; a `&mut self` member requires a mutable trait value reference.
+3. r[trait.dyn.bound.reference-projection] Projections through such a bound use the associated types bound by the referenced trait value.
+4. r[trait.dyn.bound.reference-binding] A bound's associated-type bindings and trait arguments must match the referenced trait value's bindings and arguments. Error: `unsatisfied-trait-bound`.
+5. r[trait.dyn.bound.reference-dispatch] Calls through such a bound dispatch through the referenced trait value's table.
+6. r[trait.dyn.bound.reference-no-impl] This adds no implementation and permits no trait value reference as an implementation target.
+
 1. r[trait.dyn.bound] A dynamic trait value type satisfies a generic bound on its own trait and on each direct or transitive supertrait of that trait.
 2. r[trait.dyn.bound.projection] When it satisfies a bound `T < Tr`, each projection such as `T::Item` is the type the value type binds. So `first(source)` in [Bound Associated Types](#bound-associated-types) has type `i32`.
 3. r[trait.dyn.bound.binding] It satisfies a bound's binding only when it binds the same type, so `dyn Supplier[Item = i32]` does not satisfy `T < Supplier[Item = string]`. Error: `unsatisfied-trait-bound`.
@@ -1883,7 +1891,7 @@ fn demo() -> i32:
 1. r[trait.dyn.ref.form] `&dyn Tr` and `&mut dyn Tr` are trait value references. They are reference types, as [Reference Types](13-values-and-references.md#reference-types) defines.
 2. r[trait.dyn.ref.share] `&S` converts implicitly to `&dyn Tr`, and `&mut S` to `&mut dyn Tr`, when `S` implements `Tr`. The result refers to the place the source refers to.
 3. r[trait.dyn.ref.written] A value that is no reference never converts to `&dyn Tr` or `&mut dyn Tr`. Using one where a trait value reference is expected is an error, so a new object is written `&e` or `&mut e`, as in `&S { ... }`. Error: `type-mismatch`.
-4. r[trait.dyn.ref.written.fix] The error's fix-it writes `&` before the value, or `&mut` where `&mut dyn Tr` is expected, when the value is a place or a struct literal whose type implements `Tr`. A place is a binding, a field, an element, or a value reached through a reference. No fix-it is offered when the written reference is itself an error: `&e` on a bare trait value, by [`trait.dyn.ref.bare-operand`](#r-trait.dyn.ref.bare-operand), or `&mut e` on a place that is not writable.
+4. r[trait.dyn.ref.written.reference-fix] The error's fix-it writes `&` before the value, or `&mut` where `&mut dyn Tr` is expected, when the value is a place or a struct literal whose type implements `Tr`. A place is a binding, a field, an element, or a value reached through a reference. No fix-it is offered when the written reference is itself an error: `&e` on a bare trait value, by [`trait.dyn.ref.bare-reference-method`](#r-trait.dyn.ref.bare-reference-method), or `&mut e` on a readonly view.
 5. r[trait.dyn.ref.convert.impl] Either conversion is an error when `S` does not implement `Tr` explicitly. Error: `type-mismatch`.
 6. r[trait.dyn.ref.weaken] `&mut dyn Tr` converts implicitly to `&dyn Tr`, and both refer to the same object.
 7. r[trait.dyn.ref.no-upgrade] `&dyn Tr` and `&S` never convert to `&mut dyn Tr`. Error: `mutable-upgrade`.
@@ -1894,7 +1902,7 @@ fn demo() -> i32:
 12. r[trait.dyn.ref.write-through] A method that changes its receiver, called through a trait value reference, changes the object the reference refers to. Through a reference converted from `&mut s`, that object is `s` itself.
 13. r[trait.dyn.ref.identity] `is` on two trait value references compares the places they refer to, by [`ref.identity.same-place`](13-values-and-references.md#r-ref.identity.same-place). Two conversions of one `&s` refer to one place, and two conversions of `&e` on a value refer to two new objects.
 14. r[trait.dyn.ref.no-store] `*r = v` and `*r op= v` with a trait value reference `r` are errors, since `r` does not know the type of what it refers to. Error: `type-mismatch`.
-15. r[trait.dyn.ref.bare-operand] `&e` and `&mut e` with a bare `dyn Tr` operand are errors when `Tr` or a supertrait declares a `&self` or `&mut self` method. Error: `dyn-member-unavailable`.
+15. r[trait.dyn.ref.bare-reference-method] A bare `dyn Tr` operand cannot be addressed when its trait, a supertrait, or either's inherent block declares a reference-receiver method. Error: `dyn-member-unavailable`.
 16. r[trait.dyn.ref.bound] A trait value reference satisfies a bound on its trait only through an implementation for reference types, as std's `Display` for `&T` is. [Trait Values As Bounds](#trait-values-as-bounds) covers bare `dyn` types only.
 
 ```text
@@ -2128,29 +2136,32 @@ concrete type can be recovered later:
 ```text
 trait Inspectable:
     fn runtime_type(self) -> TypeId
-    fn downcast[T < AnyRef & Inspectable](self) -> T?
-    fn downcast_mut[T < AnyRef & Inspectable](mut self) -> mut T?
+
+impl dyn Inspectable:
+    pub fn downcast_ref[T < Inspectable](&self) -> (&T)?
+    pub fn downcast_mut[T < Inspectable](&mut self) -> (&mut T)?
 
 impl TypeId:
     pub fn of[T < Inspectable]() -> TypeId
 
-pub fn downcast_val[T < Inspectable](value: dyn Inspectable) -> T?
 ```
 
 1. r[trait.rtti.module] The standard module `std.inspect` lets a program erase a value so that its concrete type can be recovered later.
-2. r[trait.rtti.import] Its names are not prelude names; code imports them, as in `use std.inspect.{Inspectable, TypeId, downcast_val}`.
-3. r[trait.rtti.surface] The block above lists the public surface.
-4. r[trait.rtti.defaults] `downcast` and `downcast_mut` are default methods whose bodies, like the other bodies, are standard-library code.
+2. r[trait.rtti.reference-imports] Its names are not prelude names; code imports them, as in `use std.inspect.{Inspectable, TypeId}`.
+3. r[trait.rtti.reference-surface] The block above lists the public surface.
+4. r[trait.rtti.reference-bodies] The compiler supplies the bodies of `downcast_ref` and `downcast_mut`.
 
 ### `Inspectable` And `TypeId`
 
 1. r[trait.inspect.sealed] `Inspectable` is a sealed trait.
-2. r[trait.inspect.safe] `Inspectable` is dynamically safe, as the dynamic-safety rule permits a method-level parameter such as that of `downcast` and `downcast_mut`.
+2. r[trait.inspect.reference-safe] `Inspectable` is dynamically safe; its only trait member is `runtime_type`.
 3. r[trait.inspect.supplied] The compiler supplies its implementation for every [inspectable type](#inspectable-types).
-4. r[trait.inspect.supplied.members] The implementation provides `runtime_type` and keeps the two default methods.
+4. r[trait.inspect.supplied.reference-methods] The implementation provides `runtime_type`; inherent recovery methods add no vtable requirement.
 5. r[trait.inspect.runtime-type] `value.runtime_type()` returns the `TypeId` of the value's recorded type.
 6. r[trait.inspect.static] For a value whose static type is concrete, the recorded type is its static type.
 7. r[trait.inspect.dynamic] For a dynamic value of `Inspectable`, it is the concrete type recorded when the value was erased, never the trait. The same holds for a dynamic value of a trait that has `Inspectable` as a supertrait.
+8. r[trait.inspectable.reference] A reference type is inspectable when its referent is inspectable or is a trait value type.
+9. r[trait.inspect.reference-recorded] For a trait value reference, `runtime_type()` returns the runtime identity of the concrete referent whose reference was erased.
 
 ```hd
 use std.inspect.Inspectable
@@ -2190,6 +2201,7 @@ The rules have these consequences:
 | --- | --- | --- |
 | r[trait.identity.alias] Alias | a transparent alias and its target | the same |
 | r[trait.identity.newtype] Newtype | a newtype and its base type | different |
+| r[trait.identity.reference-permission] Reference permission | `&User` and `&mut User` | different |
 | r[trait.identity.arguments] Arguments | `Box[User]` and `Box[Post]` | different |
 | r[trait.identity.no-conversion] No conversion | `i32` and `i64`; `User` and `User?`; `List[FsError]` and `List[dyn Error]` | different: no numeric conversion, optional injection, or variance applies |
 | r[trait.identity.modules] Modules | two declarations named `User` in different modules | different |
@@ -2218,6 +2230,7 @@ fn demo() -> bool:
 | r[trait.typeid.name.qualified] Other declaration | every other nominal declaration, including the trait of a trait value type | its absolute qualified name, as in `std.error.Error` |
 | r[trait.typeid.name.package] Package declaration | a declaration in a package | the package name from `hd.toml` with each `-` written `_`, then the module path and the name, as in `acme_shop.model.User` |
 | r[trait.typeid.name.single-file] Single-file declaration | a declaration in a [single-file program](10-modules.md#single-file-programs) | the file's stem, then the name, as in `shop.User` in `shop.hd` |
+| r[trait.typeid.name.reference] Reference | `&T` or `&mut T` | `&` or `&mut ` followed by the canonical name of `T` |
 | r[trait.typeid.name.option] Option | `Option[T]` | `T?` |
 | r[trait.typeid.name.tuple] Tuple | a tuple | `(A, B)`; the empty tuple, `void` included, is `()` |
 | r[trait.typeid.name.separator] Separator | elements and type arguments | separated by `, ` |
@@ -2300,19 +2313,19 @@ dynamic trait value.
 9. r[trait.erase.keeps] The widened value keeps its recorded concrete type. Nothing is wrapped twice, including when a type parameter is instantiated with such a trait value type.
 
 ```text
-use std.inspect.{Inspectable, TypeId, downcast_val}
+use std.inspect.{Inspectable, TypeId}
 
 struct Box[T]:
     value: T
 
-fn erase[T < Inspectable](value: T) -> dyn Inspectable:
-    Box { value: value }
+fn erase[T < Inspectable](value: T) -> &dyn Inspectable:
+    &Box { value: value }
 
-fn is_int_box(value: dyn Inspectable) -> bool:
+fn is_int_box(value: &dyn Inspectable) -> bool:
     value.runtime_type() == TypeId::of::[Box[i32]]()
 
-fn read_box(value: dyn Inspectable) -> i32:
-    match downcast_val::[Box[i32]](value):
+fn read_box(value: &dyn Inspectable) -> i32:
+    match value.downcast_ref::[Box[i32]]().map(fn(found): *found):
         .Some(found) => found.value
         .None => 0
 ```
@@ -2335,62 +2348,56 @@ See also: [Assignability And Coercion](04-type-system.md#assignability-and-coerc
 
 ### Recovering A Concrete Type
 
-1. r[trait.downcast.some] `value.downcast::[T]()` returns `.Some` of the value exactly when the value's recorded type has the same runtime identity as `T`, and `.None` otherwise.
-2. r[trait.downcast.mut] `value.downcast_mut::[T]()` does the same through a mutable receiver and returns `mut T?`.
-3. r[trait.downcast.val] `downcast_val::[T](value)` does the same for any inspectable `T`, including the value types that `AnyRef` excludes, such as scalars, `string`, tuples, and enums.
+1. r[trait.downcast.reference] `value.downcast_ref::[T]()` on `&dyn Inspectable` returns `.Some` of an `&T` exactly when its recorded concrete type has `T`'s runtime identity, and `.None` otherwise.
+2. r[trait.downcast.mutable-reference] `value.downcast_mut::[T]()` on `&mut dyn Inspectable` performs the same test and returns `Option[&mut T]`.
+3. r[trait.downcast.reference-identity] The recovered reference refers to the original place, so `is` holds between it and the reference erased to the trait value.
 4. r[trait.downcast.exact] Type arguments must match exactly: an erased `Box[i32]` is not a `Box[i64]`, and an erased `List[FsError]` is not a `List[dyn Error]`.
 5. r[trait.downcast.no-conversion] No variance, numeric conversion, optional unwrapping, newtype unwrapping, or supertrait search takes place.
-6. r[trait.downcast.optional] An erased `User?` is therefore recovered as `User?` with `downcast_val`, giving a `User??`, and never as `User`.
-7. r[trait.downcast.same-reference] A recovered reference value is the same reference that was erased, so `is` holds between them.
-8. r[trait.downcast.unboxed] A value without identity is unboxed.
-
-```hd
-use std.inspect.{Inspectable, downcast_val}
-
-struct User:
-    name: string
-
-fn user_name(value: dyn Inspectable) -> string:
-    match downcast_val::[User](value):
-        .Some(user) => user.name
-        .None => "not a user"
-
-fn number(value: dyn Inspectable) -> i32:
-    match downcast_val::[i32](value):
-        .Some(found) => found
-        .None => -1
-```
-
-> **Note.** `downcast_val` is bounded by `Inspectable` alone on purpose:
-> generic code over a type of either category needs only one downcast.
-
-#### Ordinary Rules For Recovery
-
-1. r[trait.downcast.ordinary] `downcast` and `downcast_mut` are ordinary default methods, inherited by every trait that extends `Inspectable`, such as `std.error.Error`.
-2. r[trait.downcast.val-ordinary] `downcast_val` is an ordinary generic function.
-3. r[trait.downcast.no-special] No rule is specific to these three; the ordinary rules give the results below.
-4. r[trait.downcast.evidence] The `Inspectable` evidence for `T`, passed with each call like the evidence for any bound, carries the runtime identity of `T`.
-5. r[trait.downcast.pass-on] A generic function passes a target on through its own bound, as in `fn get[T < AnyRef & Inspectable](value: dyn Inspectable) -> T?`.
-6. r[trait.downcast.readonly] `downcast` yields a readonly `T`.
-7. r[trait.downcast.mut-receiver] `downcast_mut` has a `mut self` receiver, so calling it through a receiver that is not writable is an error. Error: `not-writable`.
-8. r[trait.downcast.target] The target `T` is written, or inferred from the expected type, at the call.
-9. r[trait.downcast.visibility] The target must be nameable there under ordinary visibility, so a private type of another module cannot be recovered outside it.
-10. r[trait.downcast.bound] A target that fails a bound is an error. Error: `unsatisfied-trait-bound`.
-11. r[trait.downcast.bound.examples] `Any`, `Display`, and function types fail `Inspectable` everywhere. `i32`, `string`, tuples, and enums fail `AnyRef`, so they are recovered with `downcast_val`.
+6. r[trait.downcast.optional-reference] An erased reference to `User?` is recovered with target `User?`, giving `Option[&User?]`, and never with target `User`.
+7. r[trait.downcast.copy-through-reference] Dereferencing the recovered reference with `*found` copies its value under the ordinary value-copy rules.
 
 ```hd
 use std.inspect.Inspectable
 
-fn get[T < AnyRef & Inspectable](value: dyn Inspectable) -> T?:
-    value.downcast()
+struct User:
+    name: string
+
+fn user_name(value: &dyn Inspectable) -> string:
+    match value.downcast_ref::[User]():
+        .Some(user) => user.name
+        .None => "not a user"
+
+fn number(value: &dyn Inspectable) -> i32:
+    match value.downcast_ref::[i32]():
+        .Some(found) => *found
+        .None => -1
 ```
 
-> **Note.** A concrete receiver uses its own compiler-supplied
-> implementation, so `user.downcast::[User]()` with `user: User` is valid and
-> always returns `.Some`. A trait value target such as
-> `error.downcast::[dyn Error]()` satisfies the bounds and always returns `.None`,
-> because a recorded type is never a trait value type. Tools may warn about
-> both.
+> **Why.** Recovery preserves the erased reference; copying remains the
+> ordinary `*found` operation for structs, enums and other values.
+
+#### Ordinary Rules For Recovery
+
+1. r[trait.downcast.reference-methods] `downcast_ref` and `downcast_mut` are inherent methods on `dyn Inspectable` and `dyn Error`.
+2. r[trait.downcast.reference-receivers] The ordinary reference-receiver rules govern both methods; neither is available on a bare trait value.
+3. r[trait.downcast.evidence] The `Inspectable` evidence for `T`, passed with each call like the evidence for any bound, carries the runtime identity of `T`.
+4. r[trait.downcast.pass-reference-target] A generic function passes its target through an `Inspectable` bound, as in `fn get[T < Inspectable](value: &dyn Inspectable) -> (&T)?`.
+5. r[trait.downcast.shared-result] `downcast_ref` returns a shared reference, whose immediate referent cannot be written. Error: `not-writable`.
+6. r[trait.downcast.mutable-receiver] `downcast_mut` takes `&mut self`, so calling it through a shared reference is an error. Error: `not-writable`.
+7. r[trait.downcast.target] The target `T` is written, or inferred from the expected type, at the call.
+8. r[trait.downcast.visibility] The target must be nameable there under ordinary visibility, so a private type of another module cannot be recovered outside it.
+9. r[trait.downcast.bound] A target that fails a bound is an error. Error: `unsatisfied-trait-bound`.
+10. r[trait.downcast.concrete-target] The target is the referent's type; a reference-valued referent requires its reference type as the target.
+
+```hd
+use std.inspect.Inspectable
+
+fn get[T < Inspectable](value: &dyn Inspectable) -> (&T)?:
+    value.downcast_ref()
+```
+
+> **Note.** Code first converts a concrete reference to `&dyn Inspectable`
+> or `&dyn Error`, then calls the inherent recovery method.
 
 ### Limits Of Runtime Identity
 
@@ -2398,16 +2405,16 @@ fn get[T < AnyRef & Inspectable](value: dyn Inspectable) -> T?:
 2. r[trait.limit.no-requirement-keys] **No inspectable requirement keys.** A trait that is `Inspectable` or has it as a supertrait is never a requirement key. A provider value therefore cannot be tested to recover a concrete provider.
 3. r[trait.limit.signatures] **Visible in signatures.** Only a value of an inspectable type can be erased to `dyn Inspectable`. A value of an unbounded type parameter, of `Any`, or of a trait value type whose trait does not extend `Inspectable` cannot.
 4. r[trait.limit.signatures.branch] A function can therefore branch on a value's type only when a parameter type names `Inspectable` or a trait extending it. A parameter bounded by one of them also qualifies.
-5. r[trait.limit.deterministic] **Deterministic.** `runtime_type`, the `TypeId` operations, and `downcast` are pure functions of the build and the value, and call no provider.
+5. r[trait.limit.reference-deterministic] **Deterministic.** `runtime_type`, the `TypeId` operations, and `downcast_ref` are pure functions of the build and the value, and call no provider.
 
 ```hd
-use std.inspect.{Inspectable, downcast_val}
+use std.inspect.Inspectable
 
 struct User:
     name: string
 
-fn demo(value: dyn Inspectable) -> string:
-    match downcast_val::[User](value):
+fn demo(value: &dyn Inspectable) -> string:
+    match value.downcast_ref::[User]():
         .Some(user) => user.name   # branches only because the parameter names Inspectable
         .None => "not a user"
 ```

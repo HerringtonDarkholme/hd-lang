@@ -1,23 +1,17 @@
-# test: a type parameter bounded by Error can be a downcast target, because Error extends Inspectable
-# Spec 09 Inspectable Types: trait.inspectable.parameter; a bound by a trait with Inspectable as a supertrait makes T inspectable.
+# test: Error evidence recovers a concrete reference
 use std.error.Error
-data Timeout:
+struct Timeout:
     seconds: i32
-
 impl Display for Timeout:
-    fn to_string(self) -> string: "timed out after ${self.seconds}s"
-
+    fn to_string(self) -> string: "timeout"
 impl Error for Timeout
-
-fn recover[T < AnyRef & Error](error: dyn Error) -> T?:
-    error.downcast::[T]()
-
+fn recover[T < Error](error: &dyn Error) -> (&T)?:
+    error.downcast_ref::[T]()
 tests:
     use std.testing.assert
-
-    it("T = Timeout recovers the erased Timeout"):
-        timeout := Timeout { seconds: 30 }
-        let error: dyn Error = timeout
-        match recover::[Timeout](error):
-            .Some(found) => assert(found is timeout, reason="the same reference comes back")
-            .None => assert(false, reason="Timeout must match Timeout")
+    it("an Error bound carries the concrete target"):
+        timeout := &Timeout { seconds: 30 }
+        let erased: &dyn Error = timeout
+        match recover::[Timeout](erased):
+            .Some(found) => assert(found is timeout, reason="the original reference")
+            .None => assert(false, reason="Timeout matches")

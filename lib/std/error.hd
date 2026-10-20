@@ -4,7 +4,7 @@
 # `Error` is not a prelude name (module.prelude.from-error). It extends
 # `Inspectable`, so its users need not import it
 # (module.prelude.error-inspectable).
-use std.inspect.{Inspectable, downcast_val}
+use std.inspect.Inspectable
 use std.format.DebugWriter
 use std.num.ParseNumberError
 use std.text.{Utf8Error, ParseBoolError, ParseCharError}
@@ -13,17 +13,25 @@ use std.console.ConsoleError
 ## The standard error trait: a displayable, inspectable failure that may name its cause.
 ## See [trait.error.module](../../spec/lang/09-traits.md#r-trait.error.module).
 pub trait Error < Display & Inspectable:
-    fn cause(self) -> dyn Error?: .None
+    fn cause(self) -> (&dyn Error)?: .None
     fn exit_code(self) -> i32: 1
 
 # The cause-chain helpers are inherent methods of `dyn Error`
 # (spec/lang/09-traits.md#r-trait.own.dyn-inherent.form): every error value
 # reaches them, and no implementation can override them (spec/lang/09-traits.md#r-trait.error.dyn-methods).
 impl dyn Error:
+    ## Recovers the original shared error reference when its concrete type is `T`.
+    @intrinsic("downcast_ref")
+    pub fn downcast_ref[T < Inspectable](&self) -> (&T)?: panic("intrinsic")
+
+    ## Recovers the original mutable error reference when its concrete type is `T`.
+    @intrinsic("downcast_mut")
+    pub fn downcast_mut[T < Inspectable](&mut self) -> (&mut T)?: panic("intrinsic")
+
     ## Returns this error first, then its `cause`, then that error's cause, and so on.
-    ## See [std-error.chain.method](../../spec/std/error.md#r-std-error.chain.method).
-    pub fn chain(self) -> List[dyn Error]:
-        let mut errors: List[dyn Error] = [self]
+    ## See [std-error.chain.reference-method](../../spec/std/error.md#r-std-error.chain.reference-method).
+    pub fn chain(&self) -> List[&dyn Error]:
+        let mut errors: List[&dyn Error] = [self]
         let next = self.cause()
         while true:
             cause := match next:
@@ -32,24 +40,20 @@ impl dyn Error:
             errors.push(cause)
             next = cause.cause()
 
-    # The last error of `self.chain()` (r-std-error.root-cause).
+    # The last error of `self.chain()` (r-std-error.root-cause.reference).
     ## Returns the last error of the cause chain.
-    ## See [std-error.root-cause](../../spec/std/error.md#r-std-error.root-cause).
-    pub fn root_cause(self) -> dyn Error:
+    ## See [std-error.root-cause.reference](../../spec/std/error.md#r-std-error.root-cause.reference).
+    pub fn root_cause(&self) -> &dyn Error:
         errors := self.chain()
         errors[errors.len() - 1]
 
-    # The first error of `self.chain()` whose recorded type is `T`, recovered
-    # through `downcast_val`: an enum error comes back as an equal value, and
-    # a data error as the same reference (r-std-error.find.value). `T` may be
-    # any error type, a value type included, by
-    # spec/lang/09-traits.md#r-trait.dyn.safe.method-type-param.
+    # Recover a reference to the first matching error, then copy its value.
     ## Returns the first error of the cause chain whose type is `T`.
     ## See [std-error.find.first](../../spec/std/error.md#r-std-error.find.first).
-    pub fn find[T < Error](self) -> T?:
+    pub fn find[T < Error](&self) -> T?:
         for error in self.chain():
-            match downcast_val::[T](error):
-                .Some(found) => return .Some(found)
+            match error.downcast_ref::[T]():
+                .Some(found) => return .Some(*found)
                 .None => pass
         .None
 
@@ -62,7 +66,7 @@ pub struct ErrorReport:
     ## See [std-error.report.message](../../spec/std/error.md#r-std-error.report.message).
     pub message: string
     ## The messages of the error's causes, in chain order.
-    ## See [std-error.report.causes](../../spec/std/error.md#r-std-error.report.causes).
+    ## See [std-error.report.cause-texts](../../spec/std/error.md#r-std-error.report.cause-texts).
     pub causes: List[string]
 
 # The text an entry point prints for an `.Err` (r-std-error.report.display):
@@ -77,8 +81,8 @@ impl Display for ErrorReport:
 # The error itself, then each `cause` in turn until one is `.None`
 # (r-std-error.chain.order).
 ## Returns `error` first, then the error its `cause` returns, then that error's cause, and so on.
-## See [std-error.chain.decl](../../spec/std/error.md#r-std-error.chain.decl).
-pub fn chain(error: dyn Error) -> List[dyn Error]:
+## See [std-error.chain.reference-function](../../spec/std/error.md#r-std-error.chain.reference-function).
+pub fn chain(error: &dyn Error) -> List[&dyn Error]:
     error.chain()
 
 # The `Display` text of the error and of each cause that `chain` yields
@@ -86,12 +90,14 @@ pub fn chain(error: dyn Error) -> List[dyn Error]:
 ## Builds the boundary-safe report of `error`: its message, and its causes' messages.
 ## See [std-error.report.of](../../spec/std/error.md#r-std-error.report.of).
 pub fn report_of(error: dyn Error) -> ErrorReport:
-    errors := chain(error)
     let mut causes: List[string] = []
-    let index: usize = 1
-    while index < errors.len():
-        causes.push(errors[index].to_string())
-        index = index + 1
+    let next = error.cause()
+    while true:
+        cause := match next:
+            .Some(cause) => cause
+            .None => break
+        causes.push(cause.to_string())
+        next = cause.cause()
     ErrorReport { message: error.to_string(), causes: causes }
 
 # The report the host writes to standard error when an entry point returns
@@ -107,17 +113,17 @@ fn entry_report(error: dyn Error) -> string:
 ## See [std-error.context.type-struct](../../spec/std/error.md#r-std-error.context.type-struct).
 pub struct ContextError:
     message: string
-    error: dyn Error
+    error: &dyn Error
 
 impl Display for ContextError:
     fn to_string(self) -> string:
         self.message
 
 impl Error for ContextError:
-    fn cause(self) -> dyn Error?:
+    fn cause(self) -> (&dyn Error)?:
         .Some(self.error)
 
-# The error that `message` returns: only a text (r-std-error.message.type-struct).
+# The error that `message` returns: only a text (r-std-error.message.reference-struct).
 struct MessageError:
     text: string
 
@@ -128,9 +134,9 @@ impl Display for MessageError:
 impl Error for MessageError
 
 ## Makes an error whose `Display` text is `text` and that has no cause.
-## See [std-error.message.decl](../../spec/std/error.md#r-std-error.message.decl).
-pub fn message(text: string) -> dyn Error:
-    MessageError { text: text }
+## See [std-error.message.reference](../../spec/std/error.md#r-std-error.message.reference).
+pub fn message(text: string) -> &dyn Error:
+    &MessageError { text: text }
 
 # The std error types of the prelude-joined modules implement `Error` here,
 # so a program that never names `Error` does not join this module
@@ -145,21 +151,21 @@ impl Error for never
 impl Error for string
 
 # Wraps an `.Err(e)` in a `ContextError`; `.Ok` passes through
-# (r-std-error.context.ok, r-std-error.context.err).
+# (r-std-error.context.ok, r-std-error.context.reference-wrapper).
 impl[T, E < Error] Result[T, E]:
     ## For an `.Err`, wraps the error with `message` as its context; an `.Ok` is unchanged.
-    ## See [std-error.context.decl](../../spec/std/error.md#r-std-error.context.decl).
-    pub fn context(self, message: string) -> Result[T, dyn Error]:
+    ## See [std-error.context.reference-result](../../spec/std/error.md#r-std-error.context.reference-result).
+    pub fn context(self, message: string) -> Result[T, &dyn Error]:
         match self:
             .Ok(value) => .Ok(value)
-            .Err(error) => .Err(ContextError { message: message, error: error })
+            .Err(error) => .Err(&ContextError { message: message, error: &error })
 
 # `Option.context` lives here, beside `Result.context`, so a program that never
-# names `Error` does not join this module (r-std-option.context.decl).
+# names `Error` does not join this module (r-std-option.context.reference-result).
 impl[T] T?:
     ## `.Ok` of the value for a `.Some`, and `.Err` of `message(text)` for a `.None`.
-    ## See [std-option.context.decl](../../spec/std/option.md#r-std-option.context.decl).
-    pub fn context(self, text: string) -> Result[T, dyn Error]:
+    ## See [std-option.context.reference-result](../../spec/std/option.md#r-std-option.context.reference-result).
+    pub fn context(self, text: string) -> Result[T, &dyn Error]:
         match self:
             .Some(value) => .Ok(value)
             .None => .Err(message(text))

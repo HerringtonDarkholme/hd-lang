@@ -1953,7 +1953,11 @@ impl<'s, 'a> Search<'s, 'a> {
             }
         }
         // A trait value as self (§9.3): its trait and supertraits.
-        if let TyData::TraitValue { def, args, .. } = pool.get(self_ty)
+        let value_ty = match pool.get(self_ty) {
+            TyData::Ref { inner, .. } => inner,
+            _ => self_ty,
+        };
+        if let TyData::TraitValue { def, args, .. } = pool.get(value_ty)
             && let Some(learned) =
                 trait_value_holds(pool, self.cx.decls, (def, args), self_ty, tref)
         {
@@ -2273,7 +2277,15 @@ fn trait_value_holds(
             if m != M::No {
                 // The bound holds only when every member of its trait and
                 // supertraits works through the value (trait.dyn.bound.available).
-                if !all_members_available(pool, decls, goal.trait_) {
+                if !all_members_available(
+                    pool,
+                    decls,
+                    goal.trait_,
+                    match pool.get(self_ty) {
+                        TyData::Ref { mutable, .. } => Some(mutable),
+                        _ => None,
+                    },
+                ) {
                     return None;
                 }
                 return Some(learned_from(pool, args, goal.args));
@@ -2304,11 +2316,19 @@ fn trait_value_holds(
 
 /// Whether no member of `trait_` or of its supertraits is unavailable on a
 /// `dyn` value (trait.dyn.bound.available).
-fn all_members_available(pool: Types<'_>, decls: &dyn Declarations, trait_: DefId) -> bool {
+fn all_members_available(
+    pool: Types<'_>,
+    decls: &dyn Declarations,
+    trait_: DefId,
+    reference: Option<bool>,
+) -> bool {
     let mut seen = vec![trait_];
     let mut todo = vec![trait_];
     while let Some(t) = todo.pop() {
-        if decls.has_unavailable_member(t) {
+        if reference.map_or_else(
+            || decls.has_unavailable_member(t),
+            |mutable| decls.has_unavailable_reference_member(t, mutable),
+        ) {
             return false;
         }
         for s in decls.supertraits(t) {
@@ -2786,7 +2806,11 @@ fn project_concrete(
     if pool.has_param(base) || pool.has_infer(base) || pool.has_assoc(base) {
         return None;
     }
-    if let TyData::TraitValue { bindings, .. } = pool.get(base) {
+    let value_ty = match pool.get(base) {
+        TyData::Ref { inner, .. } => inner,
+        _ => base,
+    };
+    if let TyData::TraitValue { bindings, .. } = pool.get(value_ty) {
         return bindings.iter().find(|(k, _)| *k == assoc).map(|(_, b)| *b);
     }
     let goal_args = pool.list_items(args);

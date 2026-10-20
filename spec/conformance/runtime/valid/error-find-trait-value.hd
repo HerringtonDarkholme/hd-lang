@@ -1,5 +1,5 @@
-# test: find matches recorded types exactly, so a trait value target such as Error is never found
-# Spec std/error Root Cause And Find: std-error.find.exact (ERR-HELPERS; task #223).
+# test: find matches recorded concrete types exactly, without choosing a different error type
+# Spec std/error Root Cause And Find: std-error.find.concrete-exact (ERR-HELPERS; task #223).
 use std.error.Error
 @error("disk full")
 struct DiskError:
@@ -10,9 +10,13 @@ enum SaveError:
     @error("cannot save $path")
     Write(path: string, @source error: DiskError)
 
+@error("other")
+struct OtherError:
+    code: i64
+
 tests:
     use std.testing.assert
 
     it("no supertrait search"):
-        let failure: dyn Error = SaveError.Write("notes.txt", DiskError { free: 0 })
-        assert(failure.find::[dyn Error]().is_none(), reason="a recorded type is never a trait value type")
+        let failure: &dyn Error = & SaveError.Write("notes.txt", DiskError { free: 0 })
+        assert(failure.find::[OtherError]().is_none(), reason="a different concrete error is not in the chain")

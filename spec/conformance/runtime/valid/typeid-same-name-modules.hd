@@ -4,16 +4,16 @@
 # fixture-package-tree: same-name-items/src/check.hd
 use pkg.left
 use pkg.right
-use std.inspect.{TypeId, downcast_val}
+use std.inspect.{TypeId}
 tests:
     use std.testing.{assert, assert_equal}
 
     it("a left Item does not downcast to a right Item"):
         value := left.erased("pen")
-        match downcast_val::[right.Item](value):
+        match value.downcast_ref::[right.Item]().map(fn(found): *found):
             .Some(found) => assert(false, reason="a left Item came back with count {found.count}")
             .None => assert(true, reason="different declarations")
-        match downcast_val::[left.Item](value):
+        match value.downcast_ref::[left.Item]().map(fn(found): *found):
             .Some(found) => assert_equal(found.label, "pen", reason="the same declaration")
             .None => assert(false, reason="the downcast must succeed")
 

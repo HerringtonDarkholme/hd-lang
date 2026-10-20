@@ -99,22 +99,22 @@ fn greeting(name: string?) -> string:
 ```text
 use std.error.Error
 
-fn first_word(words: List[string]) -> Result[string, dyn Error]:
+fn first_word(words: List[string]) -> Result[string, &dyn Error]:
     word := words.first().context("no words")?
     .Ok(word)
 ```
 
 For an empty list, `first_word` returns an error that displays as `no words`.
 
-1. r[std-option.context.decl] `std` declares the inherent method `pub fn context(self, text: string) -> Result[T, dyn Error]` on `T?`, so every optional has it without a `use`, by [`trait.own.inherent.std.no-use`](../lang/09-traits.md#r-trait.own.inherent.std.no-use).
+1. r[std-option.context.reference-result] `std` declares the inherent method `pub fn context(self, text: string) -> Result[T, &dyn Error]` on `T?`, so every optional has it without a `use`, by [`trait.own.inherent.std.no-use`](../lang/09-traits.md#r-trait.own.inherent.std.no-use).
 2. r[std-option.context.some] `.Some(value).context(text)` returns `.Ok(value)`.
-3. r[std-option.context.none] `.None.context(text)` returns `.Err(message(text))`, where `message` is [`std-error.message.decl`](error.md#r-std-error.message.decl).
+3. r[std-option.context.none-reference] `.None.context(text)` returns `.Err(message(text))`, where `message` is [`std-error.message.reference`](error.md#r-std-error.message.reference).
 4. r[std-option.context.non-suspending] `context` does not suspend.
 
 > **Note.** `text` is an ordinary argument, evaluated before the call,
 > whichever variant the optional holds.
 
 > **Why.** An optional step in a function that returns
-> `Result[T, dyn Error]` otherwise needs `ok_or` and an error type.
+> `Result[T, &dyn Error]` otherwise needs `ok_or` and an error type.
 
 See also: [Result](result.md), [Runtime Panics](../lang/06-control-flow.md#runtime-panics), [Variance](../lang/04-type-system.md#variance).

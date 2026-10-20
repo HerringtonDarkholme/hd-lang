@@ -1,5 +1,5 @@
 # test: find walks the cause chain in order and returns the first error of the target type, an equal enum or struct value, or .None
-# Spec std/error Root Cause And Find: std-error.find.first, std-error.find.value.
+# Spec std/error Root Cause And Find: std-error.find.first, std-error.find.copied-value, std-error.find.struct-copy.
 use std.error.Error
 @error
 enum FsError:

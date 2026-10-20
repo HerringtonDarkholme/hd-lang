@@ -2883,7 +2883,7 @@ impl Em<'_> {
                 self.push_type_id(t, ty)?;
                 self.store(i)
             }
-            "downcast_val" | "downcast" | "downcast_mut" => self.downcast(i, item, args[0], ty),
+            "downcast_ref" | "downcast_mut" => self.downcast(i, item, args[0], ty),
             "panic_message" => {
                 self.load(args[0])?;
                 self.a.call(Sym::Helper(Helper::PanicStr));
@@ -3289,26 +3289,33 @@ impl Em<'_> {
         self.store_from(i, &result)
     }
 
-    /// The `Inspectable` trait and its `runtime_type` method, from the
-    /// item of a recovery intrinsic: `downcast_val`'s parameter is a
-    /// `dyn Inspectable`, and `downcast` and `downcast_mut` are its members.
+    /// The declaring `Inspectable` trait and its `runtime_type` method.
     fn inspectable_of(&self, item: DefId) -> StageResult<(DefId, DefId)> {
         let env = self.env();
-        let insp = match env.parent(item) {
-            Some((owner, _)) => owner,
-            None => match env
-                .params(item)
-                .and_then(|ps| ps.first().map(|p| self.pool().get(*p)))
-            {
-                Some(TyData::TraitValue { def, .. }) => def,
-                _ => return unsupported("a recovery intrinsic without `Inspectable`"),
-            },
+        let Some((owner, _)) = env.parent(item) else {
+            return unsupported("a recovery intrinsic without an inherent impl");
         };
-        // The trait's dictionary holds `runtime_type` alone.
-        let Some(&rt) = env.trait_methods(insp).first() else {
-            return unsupported("an `Inspectable` without `runtime_type`");
+        let Some((target, _, _)) = env.impl_head(owner) else {
+            return unsupported("a recovery intrinsic outside an inherent impl");
         };
-        Ok((insp, rt))
+        let mut todo = vec![target];
+        let mut seen = Vec::new();
+        while let Some(t) = todo.pop() {
+            let TyData::TraitValue { def, .. } = self.pool().get(t) else {
+                continue;
+            };
+            if seen.contains(&def) {
+                continue;
+            }
+            seen.push(def);
+            for method in env.trait_methods(def) {
+                if (self.lay.path)(method).rsplit(['.', '/']).next() == Some("runtime_type") {
+                    return Ok((def, method));
+                }
+            }
+            todo.extend_from_slice(env.decls().supertraits(def));
+        }
+        unsupported("a recovery intrinsic without the Inspectable dictionary")
     }
 
     /// Pushes the `TypeId` of `t` (trait.typeid.*): the std data type
@@ -3346,13 +3353,9 @@ impl Em<'_> {
         ))
     }
 
-    /// `downcast_val::[T](value)`, `value.downcast::[T]()` and
-    /// `value.downcast_mut::[T]()` (trait.downcast.*): `.Some` of the
-    /// value exactly when its recorded type has `T`'s runtime identity,
-    /// `T` matched exactly; a reference comes back as itself and a boxed
-    /// value unboxed. A trait value's recorded type is read through its
-    /// `Inspectable` dictionary's `runtime_type`; a concrete receiver's is
-    /// its static type, so the test is decided here.
+    /// Recover the original reference payload after an exact type test.
+    /// A trait value reference's getter supplies its payload and vtable;
+    /// a concrete reference is known statically.
     fn downcast(&mut self, i: u32, item: DefId, recv: u32, ty: Ty) -> StageResult<()> {
         let pool = self.pool();
         let strip = |t: Ty| match pool.get(t) {
@@ -3363,12 +3366,33 @@ impl Em<'_> {
             return unsupported("a downcast whose result is not optional");
         };
         let recv_t = strip(self.ty_of(recv));
+        // A trait method call already read the outer reference and passes
+        // its erased payload/vtable. Qualified calls can still pass Ref[dyn].
+        let value_t = match pool.get(recv_t) {
+            TyData::TraitValue { .. } => recv_t,
+            TyData::Adt { def, args } if def == self.env().ref_cell() => {
+                let Some(&inner) = pool.list_items(args).first() else {
+                    return unsupported("a reference without its target type");
+                };
+                strip(inner)
+            }
+            _ => return unsupported("a downcast receiver that is not a reference"),
+        };
         let Shape::Opt(o, inner) = self.lay.shape(strip(ty))? else {
             return unsupported("a downcast whose result is not optional");
         };
-        let want = hd_mono::type_name(pool, self.env(), target);
-        let TyData::TraitValue { .. } = pool.get(recv_t) else {
-            if hd_mono::type_name(pool, self.env(), recv_t) == want {
+        let TyData::Adt { def, args } = pool.get(target) else {
+            return unsupported("a recovered target that is not a reference");
+        };
+        if def != self.env().ref_cell() {
+            return unsupported("a recovered target that is not a reference");
+        }
+        let concrete = pool.list_items(args)[0];
+        let want = hd_mono::type_name(pool, self.env(), concrete);
+        let TyData::TraitValue { .. } = pool.get(value_t) else {
+            if hd_mono::type_name(pool, self.env(), recv_t)
+                == hd_mono::type_name(pool, self.env(), target)
+            {
                 if matches!(o, OptShape::Tagged(_)) {
                     self.a.i32(1);
                 }
@@ -3380,7 +3404,7 @@ impl Em<'_> {
             }
             return self.none_into(i);
         };
-        let Shape::Dyn { vt, key: from, .. } = self.lay.shape(recv_t)? else {
+        let Shape::Dyn { vt, key: from, .. } = self.lay.shape(value_t)? else {
             return unsupported("a downcast of a trait value without a vtable");
         };
         let (insp, rt) = self.inspectable_of(item)?;
@@ -3392,13 +3416,29 @@ impl Em<'_> {
         let Some(id_ty) = self.env().ret(rt) else {
             return unsupported("a `runtime_type` without its result");
         };
-        let (st, _, _) = self.type_id_parts(target, id_ty)?;
-        // The payload, then its recorded type's key against `T`'s.
-        let p = self.a.local(VT::Eq);
-        self.comp(recv, 0, &VT::Eq)?;
-        self.a.set(p);
+        let (st, _, _) = self.type_id_parts(concrete, id_ty)?;
+        let (p, table) = (self.a.local(VT::Eq), self.a.local(VT::r(vt.clone())));
+        if value_t == recv_t {
+            self.comp(recv, 0, &VT::Eq)?;
+            self.a.set(p);
+            self.comp(recv, 1, &VT::r(vt))?;
+            self.a.set(table);
+        } else {
+            let read = self.ref_read(recv_t)?;
+            let [payload_ty, table_ty] = read.results.as_slice() else {
+                return unsupported("a trait reference getter without payload and vtable");
+            };
+            let (payload_ty, table_ty) = (payload_ty.clone(), table_ty.clone());
+            self.comp(recv, 0, &VT::r(read.data.clone()))?;
+            read.emit(&mut self.a);
+            self.a.conv(&table_ty, &VT::r(vt));
+            self.a.set(table);
+            self.a.conv(&payload_ty, &VT::Eq);
+            self.a.set(p);
+        }
+        // The payload, then its recorded type's key against the target reference's.
         self.a.get(p);
-        self.comp(recv, 1, &VT::r(vt))?;
+        self.a.get(table);
         for (svt, field) in &steps {
             self.a.struct_get(svt, *field);
         }
@@ -3447,6 +3487,61 @@ impl Em<'_> {
     /// method's slot takes its open arguments as `eqref` and the witness
     /// of the call's method type arguments, and its open result, unboxed
     /// here, has the type `ret` (`crates/hd_mono/DESIGN.md` §13.5.1).
+    /// The dynamic value behind a possibly nested trait value reference.
+    fn dyn_value_ty(&self, mut ty: Ty) -> Ty {
+        loop {
+            match self.pool().get(ty) {
+                TyData::Mut(inner) => ty = inner,
+                TyData::Adt { def, args } if def == self.env().ref_cell() => {
+                    ty = self.pool().list_items(args)[0];
+                }
+                _ => return ty,
+            }
+        }
+    }
+
+    fn read_dyn_value(&mut self, value: u32) -> StageResult<(Ty, u32, u32)> {
+        let mut ty = match self.pool().get(self.ty_of(value)) {
+            TyData::Mut(inner) => inner,
+            _ => self.ty_of(value),
+        };
+        let dynamic = self.dyn_value_ty(ty);
+        let Shape::Dyn { vt, .. } = self.lay.shape(dynamic)? else {
+            return unsupported("a reference without a trait value");
+        };
+        if ty == dynamic {
+            self.comp(value, 0, &VT::Eq)?;
+            let payload = self.a.local_init(VT::Eq);
+            self.comp(value, 1, &VT::r(vt.clone()))?;
+            let table = self.a.local_init(VT::r(vt));
+            return Ok((dynamic, payload, table));
+        }
+        let read = self.ref_read(ty)?;
+        self.comp(value, 0, &VT::r(read.data.clone()))?;
+        loop {
+            let read = self.ref_read(ty)?;
+            let TyData::Adt { args, .. } = self.pool().get(ty) else {
+                unreachable!()
+            };
+            ty = self.pool().list_items(args)[0];
+            if let TyData::Mut(inner) = self.pool().get(ty) {
+                ty = inner;
+            }
+            read.emit(&mut self.a);
+            if ty == dynamic {
+                let table = self.a.local_init(VT::r(vt.clone()));
+                let payload = self.a.local_init(VT::Eq);
+                return Ok((dynamic, payload, table));
+            }
+            let next = self.ref_read(ty)?;
+            // A Ref is one GC object; its getter is the next read's input.
+            let have = read.results.first().ok_or_else(|| {
+                NotImplemented::bug(Stage::Emit, "a reference getter without its result")
+            })?;
+            self.a.conv(have, &VT::r(next.data));
+        }
+    }
+
     fn push_dyn(
         &mut self,
         trait_: DefId,
@@ -3461,6 +3556,7 @@ impl Em<'_> {
             .iter()
             .map(|t| self.sub(*t))
             .collect();
+        let (value_ty, payload, table) = self.read_dyn_value(args[0])?;
         let DynSlot {
             value_vt,
             steps,
@@ -3469,17 +3565,19 @@ impl Em<'_> {
             sig,
             keys,
             open,
-        } = self
-            .lay
-            .dyn_slot(self.ty_of(args[0]), trait_, &targs, method)?;
+        } = self.lay.dyn_slot(value_ty, trait_, &targs, method)?;
         let WTy::Func(ps, rs) = &sig else {
             return unsupported("a vtable slot type");
         };
         let rl = self.a.local(VT::Eq);
         let vl = self.a.local(VT::r(vt.clone()));
-        self.comp(args[0], 0, &VT::Eq)?;
+        self.a.get(payload);
         self.a.set(rl);
-        self.comp(args[0], 1, &VT::r(value_vt))?;
+        self.a.get(table);
+        let Shape::Dyn { vt: table_vt, .. } = self.lay.shape(value_ty)? else {
+            unreachable!()
+        };
+        self.a.conv(&VT::r(table_vt), &VT::r(value_vt));
         for (svt, field) in &steps {
             self.a.struct_get(svt, *field);
         }
@@ -3715,6 +3813,16 @@ impl Em<'_> {
         {
             return self.widen(i, v, ty);
         }
+        let sealed_identity = matches!(self.pool().get(ty), TyData::TraitValue { def, .. } if def == self.env().decls().sealed().inspectable || def == self.env().decls().sealed().any);
+        if kind == Coercion::RefToTraitValue as u32
+            && !sealed_identity
+            && matches!(
+                self.pool().get(self.dyn_value_ty(self.ty_of(v))),
+                TyData::TraitValue { .. }
+            )
+        {
+            return self.widen(i, v, ty);
+        }
         // A reference payload boxes as any value does; only the vtable's
         // adapters differ (`hd_mono::SlotRecv`).
         if kind == Coercion::ToTraitValue as u32 || kind == Coercion::RefToTraitValue as u32 {
@@ -3781,20 +3889,21 @@ impl Em<'_> {
     /// §13.16): the payload unchanged, and the supertrait's vtable read
     /// through the parent fields of the child's.
     fn widen(&mut self, i: u32, v: u32, ty: Ty) -> StageResult<()> {
+        let (dynamic, payload, table) = self.read_dyn_value(v)?;
         let (
-            Shape::Dyn { vt, key: from, .. },
+            Shape::Dyn { key: from, .. },
             Shape::Dyn {
                 trait_: def, args, ..
             },
-        ) = (self.lay.shape(self.ty_of(v))?, self.lay.shape(ty)?)
+        ) = (self.lay.shape(dynamic)?, self.lay.shape(ty)?)
         else {
             return unsupported("a supertrait coercion between non-trait types");
         };
         let Some((steps, _)) = self.lay.super_path(from, def, args)? else {
             return unsupported("a supertrait coercion to a trait the value does not extend");
         };
-        self.comp(v, 0, &VT::Eq)?;
-        self.comp(v, 1, &VT::r(vt))?;
+        self.a.get(payload);
+        self.a.get(table);
         for (svt, field) in &steps {
             self.a.struct_get(svt, *field);
         }
@@ -5668,7 +5777,13 @@ impl<'a> Em<'a> {
             if let TargetKind::Builtin { self_ty, .. } = t.kind {
                 let path = (self.lay.path)(*m);
                 if path.rsplit(['.', '/']).next() == Some("runtime_type") {
-                    let (ty, name, shown) = self.type_id_parts(self_ty, t.ret)?;
+                    let recorded = match self.pool().get(self_ty) {
+                        TyData::Adt { def, args } if def == self.env().ref_cell() => {
+                            self.pool().list_items(args)[0]
+                        }
+                        _ => self_ty,
+                    };
+                    let (ty, name, shown) = self.type_id_parts(recorded, t.ret)?;
                     self.a.ref_func(Sym::Helper(Helper::RuntimeType {
                         sig,
                         ty,

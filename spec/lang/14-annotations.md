@@ -186,7 +186,7 @@ checks and generates each requested implementation.
 ### Function Facts
 
 `facts_of(f)` returns the values that decorators attach to the
-module-level function `f`, as a [`Facts`](#r-annot.structure.facts-contents)
+module-level function `f`, as a [`Facts`](#r-annot.structure.reference-facts)
 value:
 
 ```text
@@ -251,7 +251,7 @@ written only with `@value` on the parameter.
 
 1. r[annot.metadata.places] A field's or variant's metadata is written with `@value` lines on it and with member lines of a derivation block with no trait for its type.
 2. r[annot.metadata.params-at-only] Parameter metadata, including a payload parameter's, is written only with `@value` lines on the parameter.
-3. r[annot.metadata.list-any] Member metadata and parameter metadata are contextually typed as `List[dyn Any]`.
+3. r[annot.metadata.reference-storage] Member metadata and parameter metadata are stored as shared references in `List[&dyn Inspectable]`.
 4. r[annot.metadata.value] Any value that a global may hold may be attached to any item or member; no marker trait is required. Only a fact type's [target kinds](#target-kinds) limit where it goes.
 5. r[annot.metadata.eval-as-fact] Each metadata expression is evaluated as a [fact expression](#r-annot.fact.eval.lazy) is, and under the same [`block_on` ban](#r-annot.fact.block-on.direct).
 6. r[annot.metadata.duplicate] Two metadata values of one concrete type on one member, variant, or parameter are an error, reported on the later value. Error: `duplicate-fact`.
@@ -281,14 +281,16 @@ Otherwise the code that reads the value checks it.
 Reusable compositions are ordinary values or lists, not new language syntax:
 
 ```text
-let email_metadata: List[dyn Any] = [
-    min_len(3),
-    max_len(320),
-    contains("@"),
+use std.inspect.Inspectable
+
+let email_metadata: List[&dyn Inspectable] = [
+    &min_len(3),
+    &max_len(320),
+    &contains("@"),
 ]
 ```
 
-Different concrete metadata types coexist in one `List[dyn Any]`. A member
+Different concrete metadata types coexist in one `List[&dyn Inspectable]`. A member
 line may name such a list directly, as `email = email_metadata`, since its
 right side is [any list-typed expression](#r-annot.line.right-typed).
 
@@ -767,13 +769,14 @@ pub trait Source[S]:
 
 1. r[annot.structure.decl] The standard module `std.structure` declares `Structure`, `Facts`, `Member`, `VariantInfo`, `Field`, `Variant`, `Members`, `Key`, `Walker`, `Describer`, and `Source`. `Facts`, `Member`, `VariantInfo`, `Field`, `Variant`, `Members`, and `Key` are struct values: a copy is independent of the value it was copied from.
 2. r[annot.structure.bodies] The compiler supplies every body written `pass` in the declarations above, and the `Facts` type.
-3. r[annot.structure.facts-contents] `Facts` holds the facts attached to one type, member, variant, or module-level function, in source order. `facts.find::[F]()` returns the fact whose concrete type is `F`, or `.None`.
-4. r[annot.structure.find-lookup] `find` performs one narrow runtime type lookup and nothing more: it compares each fact's concrete type with `F`, and keeps the found fact's declared permission. It is not a general `Any` downcast.
-5. r[annot.structure.find-key] Each type parameter that `F` mentions must be bounded by `Inspectable`, whose evidence supplies its runtime identity to the lookup. Without that bound, the call is an error. Error: `unsatisfied-trait-bound`.
-6. r[annot.structure.members-api] `members.end()` is the end key. `members.at(position)` is the key of the member at that position, and `members.find(matches)` is the key of the first member that `matches` accepts. Each returns the end key when no member fits.
-7. r[annot.structure.no-names] The names of `Members`, `Key`, and the handle methods are fixed by these declarations. Further helpers over them are standard-library design, outside this specification.
-8. r[annot.structure.self-ref-enum] `std.structure` also declares the enum `SelfRef`, whose three values [Self References](#self-references) defines.
-8. r[annot.structure.self-ref-field] The compiler computes the `self_ref` field of every `Member` and `VariantInfo` value it supplies.
+3. r[annot.structure.reference-facts] `Facts` holds shared references to the facts attached to one type, member, variant, or module-level function, in source order.
+4. r[annot.structure.find-copy] `facts.find::[F]()` copies the first fact of concrete type `F` through `downcast_ref`, or returns `.None`.
+5. r[annot.structure.find-exact] `find` compares exact concrete runtime identities, without conversions.
+6. r[annot.structure.find-key] Each type parameter that `F` mentions must be bounded by `Inspectable`, whose evidence supplies its runtime identity to the lookup. Without that bound, the call is an error. Error: `unsatisfied-trait-bound`.
+7. r[annot.structure.members-api] `members.end()` is the end key. `members.at(position)` is the key of the member at that position, and `members.find(matches)` is the key of the first member that `matches` accepts. Each returns the end key when no member fits.
+8. r[annot.structure.no-names] The names of `Members`, `Key`, and the handle methods are fixed by these declarations. Further helpers over them are standard-library design, outside this specification.
+9. r[annot.structure.self-ref-enum] `std.structure` also declares the enum `SelfRef`, whose three values [Self References](#self-references) defines.
+10. r[annot.structure.self-ref-field] The compiler computes the `self_ref` field of every `Member` and `VariantInfo` value it supplies.
 
 ```text
 use std.inspect.Inspectable
@@ -796,7 +799,7 @@ fn first_or[M](facts: Facts, fallback: M) -> M:
 
 > **Why.** A shared generic body cannot find a fact of type `M` without
 > knowing `M` at run time. The `Inspectable` bound already supplies that
-> identity to `downcast_val`, so the lookup reuses it.
+> identity to `downcast_ref`, so the lookup reuses it.
 
 > **Note.** Standard walkers, describers, and sources, such as the ones a
 > `std.json` would use, are library design.
@@ -1018,7 +1021,7 @@ lines to write shared metadata, as
 3. r[annot.line.right-typed] The right side must be an expression of a list type, or `pass` after a member name and `=`. A named list, as in `name = shared_list`, needs no spread.
 4. r[annot.line.right.error] Any other line is an error. That includes `f += pass`, `Self = pass`, and `pass` for a whole variant, such as `Busy = pass`. Error: `invalid-member-line`.
 5. r[annot.line.right.not-list] A right side whose type is not a list type, such as `name = 5`, is this error rather than a type mismatch. Error: `invalid-member-line`.
-6. r[annot.line.typed] A member line's list is contextually typed as that member's metadata list, as in [Member Metadata](#member-metadata). An element of a typed fact type gets its expected type by [`annot.typed-fact.check`](#r-annot.typed-fact.check). A `Self` line's list is contextually typed as `List[dyn Any]`.
+6. r[annot.line.reference-elements] A member line builds `List[&dyn Inspectable]`, checking typed fact elements by [`annot.typed-fact.check`](#r-annot.typed-fact.check).
 7. r[annot.line.duplicate] After a line applies, one member, variant, or type must not hold two facts of the same concrete type. `+=` with a type already present is an error; `=` changes it instead. Only a list literal's own elements are checked; a named list that `+=` brings is not. Error: `duplicate-fact`.
 8. r[annot.line.unchanged] A member without a line keeps its declaration facts.
 9. r[annot.line.placement-blocks] A member line anywhere other than a derivation block, with or without a trait, including in a template or an ordinary implementation, is an error. Error: `misplaced-derivation`.
@@ -1970,7 +1973,7 @@ status code, so `Missing` has no `_0` in scope.
 
 ### Error Causes
 
-1. r[annot.error.cause.method] The generated `Error` implementation defines [`cause`](09-traits.md#r-trait.error.cause), which returns the value's cause member, or `.None` when it has none.
+1. r[annot.error.cause.reference-result] The generated `Error.cause` returns a shared reference to the cause member, or `.None` when it has none.
 2. r[annot.error.cause.member] A variant's or struct's cause member is its `@from` or `@source` member.
 3. r[annot.error.cause.explicit] A variant or struct without `@from` or `@source` has no cause. There is no automatic cause and no field-name convention.
 4. r[annot.error.cause.one] A variant or struct has at most one `@from` or `@source` member. A second one is an error, reported on that member. Error: `invalid-error-marker`.

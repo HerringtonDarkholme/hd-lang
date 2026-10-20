@@ -84,6 +84,10 @@ pub trait Declarations {
     /// a `dyn` value, so a `dyn` type does not satisfy a bound on it
     /// (`trait.dyn.member.unavailable`, `trait.dyn.bound.available`).
     fn has_unavailable_member(&self, trait_: DefId) -> bool;
+    /// Member availability through a trait value reference.
+    fn has_unavailable_reference_member(&self, trait_: DefId, _mutable: bool) -> bool {
+        self.has_unavailable_member(trait_)
+    }
     /// Whether a declaration is local to a block suite, which is never
     /// inspectable (`trait.inspectable.not.local`).
     fn is_local(&self, def: DefId) -> bool;
@@ -199,6 +203,10 @@ pub(crate) fn row(
         let mut subs = Vec::new();
         let ok = match t {
             TyData::Prim(_) => true,
+            TyData::Ref { inner, .. } => {
+                argument(pool, inner, &mut subs);
+                true
+            }
             // Elements are values, not arguments (`trait.inspectable.collections`);
             // a rest element is its list's argument (`annot.tuple.rest`).
             TyData::Tuple { elems, rest } => {

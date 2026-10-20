@@ -9,7 +9,7 @@
 # annot.error.message.unnamed, annot.error.message.shared,
 # annot.error.message.data, annot.error.message.eval,
 # annot.error.message.absent.
-# Error Causes: annot.error.cause.method, annot.error.cause.member,
+# Error Causes: annot.error.cause.reference-result, annot.error.cause.member,
 # annot.error.cause.explicit. Error Conversions: annot.error.from.generate,
 # annot.error.from.data, annot.error.from.unmarked. Transparent Errors:
 # annot.error.transparent.display, annot.error.transparent.cause.

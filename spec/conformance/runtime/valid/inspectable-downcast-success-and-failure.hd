@@ -1,52 +1,50 @@
-# test: downcast and downcast_val return the erased value for its exact type and .None otherwise
-# Spec 09 Recovering A Concrete Type: a recovered reference value is the same reference,
-# a value without identity is unboxed, and a different type yields .None.
-# Spec 09 Traits: trait.erase.expected, trait.inspect.supplied, trait.downcast.some, trait.downcast.val, trait.downcast.same-reference, trait.downcast.unboxed.
-use std.inspect.{Inspectable, downcast_val}
-data User:
+# test: shared recovery preserves identity and copying is explicit
+use std.inspect.Inspectable
+struct User:
     name: string
-
-data Post:
+struct Post:
     title: string
-
-fn user_name(value: dyn Inspectable) -> string:
-    match value.downcast::[User]():
+fn user_name(value: &dyn Inspectable) -> string:
+    match value.downcast_ref::[User]():
         .Some(user) => user.name
         .None => "not a user"
-
-fn post_title(value: dyn Inspectable) -> string:
-    match value.downcast::[Post]():
-        .Some(post) => post.title
-        .None => "not a post"
-
-fn number(value: dyn Inspectable) -> i32:
-    match downcast_val::[i32](value):
-        .Some(found) => found
+fn number(value: &dyn Inspectable) -> i32:
+    match value.downcast_ref::[i32]():
+        .Some(found) => *found
         .None => -1
-
 tests:
     use std.testing.{assert, assert_equal}
-
-    it("a data value comes back as itself"):
-        user := User { name: "Ada" }
-        let erased: dyn Inspectable = user
-        assert_equal(user_name(erased), "Ada", reason="the exact type matches")
-        assert_equal(post_title(erased), "not a post", reason="another type does not")
-        match erased.downcast::[User]():
-            .Some(found) => assert(found is user, reason="the same reference is recovered")
-            .None => assert(false, reason="the downcast must succeed")
-
-    it("a scalar is boxed on erasure and unboxed by downcast_val"):
-        let answer: i32 = 42
-        let erased: dyn Inspectable = answer
-        assert_equal(number(erased), 42, reason="i32 recovers its value")
-        assert_equal(user_name(erased), "not a user", reason="i32 is not a User")
-        let text: dyn Inspectable = "42"
-        assert_equal(number(text), -1, reason="string is not i32")
-
-    it("a concrete value is erased at the call or uses its own implementation"):
-        user := User { name: "Grace" }
-        assert_equal(user_name(user), "Grace", reason="User converts to Inspectable by assignability")
-        match user.downcast::[User]():
-            .Some(found) => assert(found is user, reason="a concrete receiver recovers itself")
-            .None => assert(false, reason="the downcast must succeed")
+    it("a struct reference is recovered unchanged"):
+        user := &User { name: "Ada" }
+        let erased: &dyn Inspectable = user
+        assert_equal(user_name(erased), "Ada", reason="the exact type")
+        assert_equal(erased.downcast_ref::[Post]().is_none(), true, reason="another type")
+        match erased.downcast_ref::[User]():
+            .Some(found) => assert(found is user, reason="same reference")
+            .None => assert(false, reason="User matches")
+    it("a primitive can be copied through the recovered reference"):
+        answer := &42i32
+        assert_equal(number(answer), 42, reason="the copied i32")
+        assert_equal(number(&"42"), -1, reason="no numeric or string conversion")
+    it("erasing a concrete reference preserves its identity"):
+        user := &User { name: "Grace" }
+        let erased: &dyn Inspectable = user
+        match erased.downcast_ref::[User]():
+            .Some(found) => assert(found is user, reason="concrete identity")
+            .None => assert(false, reason="User matches")
+    it("the target names the actual referent"):
+        user := &User { name: "Lin" }
+        let erased: &dyn Inspectable = user
+        assert(erased.downcast_ref::[&User]().is_none(), reason="the referent is User")
+        nested := &user
+        let reference_value: &dyn Inspectable = nested
+        match reference_value.downcast_ref::[&User]():
+            .Some(found) =>
+                assert(found is nested, reason="the original reference to the reference")
+                assert(*found is user, reason="the reference-valued referent")
+            .None => assert(false, reason="the referent is &User")
+        let dynamic: &dyn Inspectable = user
+        let dynamic_reference: &dyn Inspectable = &dynamic
+        match dynamic_reference.downcast_ref::[&dyn Inspectable]():
+            .Some(found) => assert(*found is dynamic, reason="a trait-reference-valued referent")
+            .None => assert(false, reason="the referent is &dyn Inspectable")

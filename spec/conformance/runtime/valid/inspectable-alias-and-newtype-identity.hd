@@ -1,26 +1,26 @@
 # test: a transparent alias shares its target's identity and a newtype has its own
 # Spec 09 Inspectable And TypeId: aliases are expanded before comparison; a newtype, including
 # one over a function type, is its own inspectable declaration.
-# Spec 09 Traits: trait.identity.normalize, trait.identity.alias, trait.identity.newtype, trait.inspectable.fields, trait.downcast.val.
-use std.inspect.{Inspectable, TypeId, downcast_val}
+# Spec 09 Traits: trait.identity.normalize, trait.identity.alias, trait.identity.newtype, trait.inspectable.fields, trait.downcast.copy-through-reference.
+use std.inspect.{Inspectable, TypeId}
 type Name = string
 
 type Mile(i32)
 
 type Action(fn() -> i32)
 
-fn is_name(value: dyn Inspectable) -> bool:
-    match downcast_val::[Name](value):
+fn is_name(value: &dyn Inspectable) -> bool:
+    match value.downcast_ref::[Name]().map(fn(found): *found):
         .Some(_) => true
         .None => false
 
-fn is_i32(value: dyn Inspectable) -> bool:
-    match downcast_val::[i32](value):
+fn is_i32(value: &dyn Inspectable) -> bool:
+    match value.downcast_ref::[i32]().map(fn(found): *found):
         .Some(_) => true
         .None => false
 
-fn is_action(value: dyn Inspectable) -> bool:
-    match downcast_val::[Action](value):
+fn is_action(value: &dyn Inspectable) -> bool:
+    match value.downcast_ref::[Action]().map(fn(found): *found):
         .Some(_) => true
         .None => false
 
@@ -29,14 +29,14 @@ tests:
 
     it("an alias has its target's identity"):
         let text: string = "ada"
-        assert(is_name(text), reason="Name is an alias of string")
+        assert(is_name(&text), reason="Name is an alias of string")
         assert(TypeId::of::[Name]() == TypeId::of::[string](), reason="TypeId agrees")
 
     it("a newtype is distinct from its base"):
         let distance: Mile = Mile(5)
-        assert(!is_i32(distance), reason="Mile is not i32")
+        assert(!is_i32(&distance), reason="Mile is not i32")
         assert(TypeId::of::[Mile]() != TypeId::of::[i32](), reason="TypeId agrees")
 
     it("a newtype over a function type is inspectable"):
         action := Action(fn() -> i32: 1)
-        assert(is_action(action), reason="Action matches Action")
+        assert(is_action(&action), reason="Action matches Action")

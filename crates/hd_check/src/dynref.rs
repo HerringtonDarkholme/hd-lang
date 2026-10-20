@@ -51,6 +51,20 @@ impl Ck<'_, '_> {
         let g = self.infer.resolve(pool, got);
         if let Some((inner, _)) = self.ref_of(g) {
             let inner = self.strip_mut(self.infer.resolve(pool, inner));
+            let inner = if let TyData::Infer(_) = pool.get(inner) {
+                if let Some(default) = self
+                    .infer
+                    .kind_of(pool, inner)
+                    .and_then(VarKind::literal_default)
+                {
+                    let _ = self.infer.unify(pool, inner, default);
+                    default
+                } else {
+                    inner
+                }
+            } else {
+                inner
+            };
             return match pool.get(inner) {
                 TyData::Infer(_) | TyData::Poison | TyData::Never => None,
                 TyData::TraitValue {
@@ -98,7 +112,7 @@ impl Ck<'_, '_> {
         };
         // A written reference that would itself be an error gets no
         // fix-it: `&e` on a bare trait value of a trait with a `&self` or
-        // `&mut self` method (`trait.dyn.ref.bare-operand`), or `&mut e` on
+        // `&mut self` method (`trait.dyn.ref.bare-reference-method`), or `&mut e` on
         // a readonly view.
         let mark = if mutable { "&mut" } else { "&" };
         let hint = match pool.get(gs) {
@@ -128,7 +142,7 @@ impl Ck<'_, '_> {
         Some(r)
     }
 
-    /// The fix-it of `trait.dyn.ref.written.fix`: `&` or `&mut` before a
+    /// The fix-it of `trait.dyn.ref.written.reference-fix`: `&` or `&mut` before a
     /// place or a struct literal whose type `s`, without a `mut` view,
     /// implements the trait of `tv`.
     fn dyn_ref_value_fix(&mut self, s: Ty, tv: Ty, mutable: bool, n: NodeRef<'_>) {
@@ -299,7 +313,7 @@ impl Ck<'_, '_> {
     /// `src_ty`: its `get` converts `src` with `kind`
     /// (`RefToTraitValue`, or `Supertrait` on the trait value `src` refers
     /// to), its `set` is never called, and its identity is `src`'s.
-    fn build_dyn_ref(
+    pub(crate) fn build_dyn_ref(
         &mut self,
         src: Ref,
         src_ty: Ty,
@@ -404,7 +418,7 @@ impl Ck<'_, '_> {
         false
     }
 
-    /// `trait.dyn.ref.bare-operand`: a reference to a bare trait value of
+    /// `trait.dyn.ref.bare-reference-method`: a reference to a bare trait value of
     /// a trait with a `&self` or `&mut self` method.
     pub(crate) fn bare_dyn_ref_error(&mut self, trait_: DefId, n: NodeRef<'_>) {
         let name = self.cx.names.display_name(trait_);

@@ -15,11 +15,5 @@ cli/repl-workspace	#518	node	the REPL runs on wasmtime only; the Node engine has
 runtime/panic/element-reference-capture-escape-panics.hd	#556		escaped element-reference copies do not retain a pin on the Wasm GC backend, whose references hold no count; they pass on the linear backend (#574)
 runtime/panic/element-reference-field-escape-panics.hd	#556		escaped element-reference copies do not retain a pin on the Wasm GC backend, whose references hold no count; they pass on the linear backend (#574)
 runtime/panic/element-reference-return-escape-panics.hd	#556		escaped element-reference copies do not retain a pin on the Wasm GC backend, whose references hold no count; they pass on the linear backend (#574)
-runtime/valid/error-bound-downcast-evidence.hd	#586		downcast and downcast_mut have no struct target once data is gone
-runtime/valid/inspectable-downcast-mut.hd	#586		downcast and downcast_mut have no struct target once data is gone
-runtime/valid/inspectable-downcast-success-and-failure.hd	#586		downcast and downcast_mut have no struct target once data is gone
-runtime/valid/inspectable-generic-downcast-targets.hd	#586		downcast and downcast_mut have no struct target once data is gone
-runtime/valid/inspectable-generic-target-helper.hd	#586		downcast and downcast_mut have no struct target once data is gone
-typing/invalid/downcast-mut-readonly-value.hd	#586		downcast and downcast_mut have no struct target once data is gone
-typing/invalid/downcast-result-readonly.hd	#586		downcast and downcast_mut have no struct target once data is gone
+runtime/valid/error-context-legacy-bare-generic.hd	#592		legacy bare dyn Error through E < Error yields a value payload during reference recovery; removed with bare erasure
 typing/invalid/fn-type-variance-direction.hd	#536		no &mut U to &U variance in function types

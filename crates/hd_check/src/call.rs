@@ -3050,7 +3050,39 @@ impl Ck<'_, '_> {
     }
 
     /// An inherent method of a type that is visible here
-    /// (`names.method-lookup.inherent`): (method, impl, impl arguments).
+    /// A bare erased payload cannot supply references for either trait or
+    /// inherent reference-receiver methods of its trait and supertraits.
+    pub(crate) fn bare_dyn_needs_reference_payload(&self, trait_: DefId) -> bool {
+        if self.has_ref_receiver_member(trait_) {
+            return true;
+        }
+        let mut lineage = vec![trait_];
+        let mut at = 0;
+        while at < lineage.len() {
+            let current = lineage[at];
+            at += 1;
+            if let Some(ItemData::Trait(declaration)) =
+                self.cx.lookup.item(current).map(|i| &i.data)
+            {
+                for supertype in &declaration.supers {
+                    if let TyData::TraitValue { def, .. } = self.pool().get(*supertype)
+                        && !lineage.contains(&def)
+                    {
+                        lineage.push(def);
+                    }
+                }
+            }
+        }
+        self.method_index().inherent.values().flatten().any(|(owner, method)| {
+            let Some(ItemData::Impl { self_ty, .. }) = self.cx.lookup.item(*owner).map(|i| &i.data) else { return false; };
+            if !matches!(self.pool().get(*self_ty), TyData::TraitValue { def, .. } if lineage.contains(&def)) { return false; }
+            self.cx.lookup.item(*method).and_then(|item| item.sig()).and_then(|sig| sig.params.first()).is_some_and(|&(name, ty)| {
+                self.cx.names.text(name) == "self" && matches!(self.pool().get(ty), TyData::Ref { .. })
+            })
+        })
+    }
+
+    /// An inherent method (`names.method-lookup.inherent`): method, impl and arguments.
     pub(crate) fn find_inherent(&mut self, t: Ty, name: &str) -> Option<(DefId, DefId, Vec<Ty>)> {
         self.inherent_where(t, name, true)
     }
@@ -4506,6 +4538,15 @@ impl Ck<'_, '_> {
                 .map(|(_, b)| *b)
         };
         match pool.get(st) {
+            TyData::Ref { inner, .. } if matches!(pool.get(inner), TyData::TraitValue { .. }) => {
+                let TyData::TraitValue { bindings, .. } = pool.get(inner) else {
+                    unreachable!()
+                };
+                return match bound(&bindings, self) {
+                    Some(binding) => self.normalized(binding),
+                    None => Ok(t),
+                };
+            }
             TyData::Param(_) => {
                 // A binding on the parameter's bound or on a supertrait
                 // clause it reaches (`trait.binding.inside`).

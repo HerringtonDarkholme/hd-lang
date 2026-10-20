@@ -1,4 +1,4 @@
-# Spec 09 Trait Value References: trait.dyn.ref.written, trait.dyn.ref.written.fix. A struct literal in a `List[&dyn Shape]`; the fix-it writes `&Square { ... }`, a new object.
+# Spec 09 Trait Value References: trait.dyn.ref.written, trait.dyn.ref.written.reference-fix. A struct literal in a `List[&dyn Shape]`; the fix-it writes `&Square { ... }`, a new object.
 trait Shape:
     fn area(&self) -> f64
 

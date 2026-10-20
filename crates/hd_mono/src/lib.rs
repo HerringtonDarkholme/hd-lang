@@ -82,8 +82,7 @@ pub trait ProgramEnv: LayoutEnv {
     /// The method of `impl_` that implements the trait method `method`.
     fn impl_method(&self, impl_: DefId, method: DefId) -> Option<DefId>;
     /// A trait's own methods, in declaration order (the vtable shape),
-    /// without those the compiler lowers at each call (an intrinsic
-    /// member, `Inspectable.downcast`) and the associated functions,
+    /// without compiler-intrinsic members and the associated functions,
     /// which a trait value cannot dispatch (trait.dyn.member.assoc-function).
     fn trait_methods(&self, trait_: DefId) -> Vec<DefId>;
     /// A trait's own parameter count, `Self` excluded.
@@ -500,7 +499,13 @@ pub fn subst(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: TyList,
         }
     });
     if pool.has_assoc(s) {
-        hd_types::solver::normalize_concrete(pool.types(), env.impls(), s)
+        // Impl heads and trait-value bindings use source reference types;
+        // restore their permission before projecting, then lower the result.
+        let types = pool.types();
+        let cell = env.ref_cell();
+        let source = types.raise_refs(cell, s);
+        let normalized = hd_types::solver::normalize_concrete(types, env.impls(), source);
+        types.lower_refs(cell, normalized)
     } else {
         s
     }
@@ -627,6 +632,17 @@ fn name_into(
     match pool.get(t) {
         TyData::Prim(p) => out.push_str(p.name()),
         TyData::Never => out.push_str("never"),
+        TyData::Adt { def, args } if def == env.ref_cell() => {
+            let inner = pool.list_items(args)[0];
+            let inner = if let TyData::Mut(inner) = pool.get(inner) {
+                out.push_str("&mut ");
+                inner
+            } else {
+                out.push('&');
+                inner
+            };
+            name_into(pool, env, printed, inner, out, limit);
+        }
         TyData::Adt { def, args } => {
             out.push_str(&def_name(env, printed, def));
             if !pool.list_items(args).is_empty() {
@@ -1082,6 +1098,8 @@ struct Cx<'a> {
     /// Per item: which of its own type parameters need their exact
     /// representation (A1's representation summary, §13.2).
     exact: HashMap<DefId, Vec<bool>>,
+    permission_sensitive: HashMap<DefId, bool>,
+    permission_shared: HashMap<Ty, Ty>,
     /// `canon` per type, for the build: instance keys, layout hashes and
     /// call targets read each type's digest once.
     canons: CanonMemo,
@@ -1553,13 +1571,108 @@ impl Cx<'_> {
         out
     }
 
+    /// A reference's permission affects identity and implementation selection,
+    /// not its physical layout. Keep it when this body or a generic callee
+    /// can observe it; otherwise share the same instance for both permissions.
+    fn observes_permission(&mut self, def: DefId, visiting: &mut Vec<DefId>) -> bool {
+        if let Some(&sensitive) = self.permission_sensitive.get(&def) {
+            return sensitive;
+        }
+        if visiting.contains(&def) {
+            return true;
+        }
+        let (pool, env) = (self.pool, self.env);
+        let Some(body) = env.body(def) else {
+            return true;
+        };
+        visiting.push(def);
+        let sensitive = (0..body.len()).any(|i| match body.tags[i] {
+            Tag::CallValue | Tag::AwaitValue | Tag::DefaultCall => true,
+            Tag::Coerce => {
+                let kind = body.record(body.data[i][1]).first().copied();
+                matches!(kind, Some(k) if k == Coercion::ToTraitValue as u32 || k == Coercion::RefToTraitValue as u32)
+                    && pool.has_param(value_ty(body, body.data[i][0]))
+            }
+            Tag::Call | Tag::Await => match Callee::from_words(body.record(body.data[i][0])) {
+                Some(Callee::TraitMethod { self_ty, targs, .. }) => pool.has_param(self_ty) || pool.list_items(targs).iter().any(|t| pool.has_param(*t)),
+                Some(Callee::Item { def: callee, targs }) if pool.list_items(targs).iter().any(|t| pool.has_param(*t)) => {
+                    if let Some(key) = env.intrinsic(callee) {
+                        matches!(key.as_str(), "type_id_of" | "downcast_ref" | "downcast_mut")
+                    } else { self.observes_permission(callee, visiting) }
+                }
+                _ => false,
+            },
+            _ => false,
+        });
+        visiting.pop();
+        self.permission_sensitive.insert(def, sensitive);
+        sensitive
+    }
+
+    fn shared_permission_type(&mut self, ty: Ty) -> Ty {
+        if let Some(&shared) = self.permission_shared.get(&ty) {
+            return shared;
+        }
+        let pool = self.pool;
+        let cell = self.env.ref_cell();
+        let mut list = |args: TyList| {
+            let args: Vec<Ty> = pool
+                .list_items(args)
+                .iter()
+                .map(|t| self.shared_permission_type(*t))
+                .collect();
+            pool.list(&args)
+        };
+        let data = match pool.get(ty) {
+            TyData::Adt { def, args } if def == cell => {
+                let inner = pool.list_items(args)[0];
+                let inner = match pool.get(inner) {
+                    TyData::Mut(inner) => inner,
+                    _ => inner,
+                };
+                let inner = self.shared_permission_type(inner);
+                TyData::Adt {
+                    def,
+                    args: pool.list(&[inner]),
+                }
+            }
+            TyData::Adt { def, args } => TyData::Adt {
+                def,
+                args: list(args),
+            },
+            TyData::Option(inner) => TyData::Option(self.shared_permission_type(inner)),
+            TyData::Mut(inner) => TyData::Mut(self.shared_permission_type(inner)),
+            TyData::Tuple { elems, rest } => TyData::Tuple {
+                elems: list(elems),
+                rest: rest.map(|t| self.shared_permission_type(t)),
+            },
+            // A function, trait value or projection carries a signature or
+            // dictionary whose selection can distinguish the permissions.
+            _ => return ty,
+        };
+        let shared = pool.intern_ty(&data);
+        self.permission_shared.insert(ty, shared);
+        shared
+    }
+
     /// A1 (`crates/hd_mono/DESIGN.md` §13.2): an unbounded, move-only argument of a
     /// reference layout is keyed and laid out as the class `REF`.
     fn classify(&mut self, def: DefId, args: &[Ty], own_from: usize) -> StageResult<TyList> {
         let bounded = self.env.bounded(def).unwrap_or_default();
         let pinned = self.exact_params(def);
+        let shared_args: Vec<Ty> = args
+            .iter()
+            .map(|t| self.shared_permission_type(*t))
+            .collect();
+        let permission_sensitive =
+            shared_args != args && self.observes_permission(def, &mut Vec::new());
         let mut a = Vec::new();
-        for (k, &t) in args.iter().enumerate() {
+        for (k, &raw) in args.iter().enumerate() {
+            let t = if permission_sensitive {
+                raw
+            } else {
+                shared_args[k]
+            };
             // A row argument is part of the instance (`crates/hd_mono/DESIGN.md` §12.4:
             // its keys are the instance's provider parameters).
             let exact = k < own_from
@@ -2605,7 +2718,7 @@ impl Cx<'_> {
                                 pool.list_items(targs).iter().copied().map(s).collect();
                             // A member the compiler lowers at each call, at
                             // any receiver, a trait value included
-                            // (`Inspectable.downcast`): its arguments are
+                            // (an intrinsic member): its arguments are
                             // `[Self, method arguments...]`.
                             if let Some(key) = env.intrinsic(method) {
                                 let t = CallTarget {
@@ -2623,7 +2736,13 @@ impl Cx<'_> {
                             // through the value's table, whatever the
                             // checker chose: a bound at `T = dyn Tr`
                             // included (trait.dyn.bound.dispatch).
-                            if is_trait_value(pool, self_ty) {
+                            let value_ty = match pool.get(self_ty) {
+                                TyData::Adt { def, args } if def == env.ref_cell() => {
+                                    pool.list_items(args)[0]
+                                }
+                                _ => self_ty,
+                            };
+                            if is_trait_value(pool, value_ty) {
                                 reps.hash(env.path_hash(method));
                                 self.record_pair(trait_, method, &targs)?;
                                 calls.insert(ix, Target::Dyn);
@@ -2787,7 +2906,23 @@ impl Cx<'_> {
                     // `T = dyn Error` erased to `dyn Inspectable`, is a
                     // widening: no implementation, no vtable
                     // (trait.erase.keeps, trait.dyn.widen).
-                    if is_trait_value(pool, from) {
+                    let mut value_ty = from;
+                    if through {
+                        loop {
+                            match pool.get(value_ty) {
+                                TyData::Mut(inner) => value_ty = inner,
+                                TyData::Adt { def, args } if def == env.ref_cell() => {
+                                    value_ty = pool.list_items(args)[0];
+                                }
+                                _ => break,
+                            }
+                        }
+                    }
+                    let sealed = env.decls().sealed();
+                    let sealed_identity = matches!(pool.get(ty), TyData::TraitValue { def, .. } if def == sealed.inspectable || def == sealed.any);
+                    if is_trait_value(pool, from)
+                        || (!sealed_identity && is_trait_value(pool, value_ty))
+                    {
                         continue;
                     }
                     let from = match pool.get(from) {
@@ -3129,6 +3264,8 @@ pub fn collect(
         memo: BodyMemo::default(),
         selected: HashMap::default(),
         exact: HashMap::default(),
+        permission_sensitive: HashMap::default(),
+        permission_shared: HashMap::default(),
         canons: CanonMemo::default(),
         layouts: HashMap::default(),
         depths: HashMap::default(),

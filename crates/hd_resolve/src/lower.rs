@@ -3615,7 +3615,11 @@ impl Lower<'_, '_, '_> {
         let span = self.src.span(h.node);
         let args: Vec<Ty> = pool.list_items(head.trait_args).to_vec();
         let roots: Vec<Ty> = args.iter().copied().chain([head.self_ty]).collect();
-        if has_trait && matches!(pool.get(head.self_ty), TyData::TraitValue { .. }) {
+        let mut impl_target = head.self_ty;
+        while let TyData::Ref { inner, .. } = pool.get(impl_target) {
+            impl_target = inner;
+        }
+        if has_trait && matches!(pool.get(impl_target), TyData::TraitValue { .. }) {
             self.diags.error(
                 Code::TraitValueImplTarget,
                 self.src.span(head.target),
@@ -3863,7 +3867,11 @@ impl Lower<'_, '_, '_> {
             args: TyList::EMPTY,
             bindings: vec![],
         });
-        let cause_ty = pool.intern_ty(&TyData::Option(error_ty));
+        let cause_ref = pool.intern_ty(&TyData::Ref {
+            inner: error_ty,
+            mutable: false,
+        });
+        let cause_ty = pool.intern_ty(&TyData::Option(cause_ref));
         let mut heads = Vec::new();
         for g in shape.generated() {
             heads.push(match g {

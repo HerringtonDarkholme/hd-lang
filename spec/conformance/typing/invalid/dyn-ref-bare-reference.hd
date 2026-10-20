@@ -1,4 +1,4 @@
-# Spec 09 Trait Value References: trait.dyn.ref.bare-operand. `&e` on a bare trait value whose trait declares a `&self` method.
+# Spec 09 Trait Value References: trait.dyn.ref.bare-reference-method. `&e` on a bare trait value whose trait declares a `&self` method.
 trait Shape:
     fn area(&self) -> f64
 

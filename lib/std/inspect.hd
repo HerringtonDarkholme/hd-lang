@@ -3,22 +3,31 @@
 # name, or `std.error.Error`, declares these under their standard names
 # (checker/standard-traits.ts); aliases are not supported. The compiler
 # implements the sealed `Inspectable` for every type, and supplies the
-# `downcast` methods and `downcast_val`, so the trait's dictionary holds
+# inherent `downcast_ref` and `downcast_mut` methods, so its dictionary holds
 # `runtime_type` alone. `TypeId::of` is declared below; only its body is the
 # compiler's.
 
 use std.format.DebugWriter
 
 ## The sealed trait of types with a runtime identity, which the compiler supplies.
-## See [module.prelude.inspect](../../spec/lang/10-modules.md#r-module.prelude.inspect).
+## See [module.prelude.inspect-reference-api](../../spec/lang/10-modules.md#r-module.prelude.inspect-reference-api).
 pub trait Inspectable:
     fn runtime_type(self) -> TypeId
+
+impl dyn Inspectable:
+    ## Recovers the original shared reference when its concrete type is `T`.
+    @intrinsic("downcast_ref")
+    pub fn downcast_ref[T < Inspectable](&self) -> (&T)?: panic("intrinsic")
+
+    ## Recovers the original mutable reference when its concrete type is `T`.
+    @intrinsic("downcast_mut")
+    pub fn downcast_mut[T < Inspectable](&mut self) -> (&mut T)?: panic("intrinsic")
 
 # `key` is the type's identity, which `Eq` compares; `name` is its canonical
 # printable name (trait.typeid.name), which `Display` prints. Two types of
 # different identity can print alike, as two packages that share a name do.
 ## The runtime identity of an inspectable type.
-## See [module.prelude.inspect](../../spec/lang/10-modules.md#r-module.prelude.inspect).
+## See [module.prelude.inspect-reference-api](../../spec/lang/10-modules.md#r-module.prelude.inspect-reference-api).
 pub struct TypeId:
     key: string
     name: string

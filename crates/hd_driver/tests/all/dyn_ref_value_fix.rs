@@ -1,7 +1,7 @@
 //! A value where a trait value reference is expected is `type-mismatch`,
 //! with a fix-it that writes `&` or `&mut` before a place or a struct
 //! literal (spec/lang/09-traits.md trait.dyn.ref.written,
-//! trait.dyn.ref.written.fix). Each fix-it checks clean, and a value whose
+//! trait.dyn.ref.written.reference-fix). Each fix-it checks clean, and a value whose
 //! written reference would be an error, or that is no place or struct
 //! literal, gets none.
 
@@ -108,7 +108,7 @@ fn each_fix_writes_the_reference_and_checks_clean() {
 fn a_written_reference_that_is_an_error_gets_no_fix() {
     let cases = [
         // `&counter` on a bare trait value whose trait has a `&mut self`
-        // method is itself an error (trait.dyn.ref.bare-operand).
+        // method is itself an error (trait.dyn.ref.bare-reference-method).
         "fn demo(counter: dyn Counter) -> void:\n    let r: &dyn Counter = counter\n    _ := r\n",
         // A call result is no place and no struct literal.
         "fn make() -> Square:\n    Square { side: 1.0 }\n\nfn demo() -> f64:\n    show(make())\n",

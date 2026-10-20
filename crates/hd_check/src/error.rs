@@ -382,6 +382,7 @@ impl Target<'_, '_> {
         if let TyData::Option(inner) = pool.get(t) {
             let tb = ck.b.open_block();
             let u = ck.b.emit(Tag::Unwrap, r.0, NONE, inner, node.index());
+            let (u, inner) = ck.new_object_ref(u, inner, false, node);
             let d = ck.coerce(u, inner, erased, node, "a cause", ExpectPosition::General);
             let s = ck.coerce(d, erased, ret, node, "a cause", ExpectPosition::General);
             let then = ck.b.close_block(tb, Some(s), ret, node.index());
@@ -391,6 +392,7 @@ impl Target<'_, '_> {
             let rec = ck.b.refs_record(&[Ref(1), then, other]);
             return Ok(ck.b.emit(Tag::SwitchTag, r.0, rec, ret, node.index()));
         }
+        let (r, t) = ck.new_object_ref(r, t, false, node);
         let d = ck.coerce(r, t, erased, node, "a cause", ExpectPosition::General);
         Ok(ck.coerce(d, erased, ret, node, "a cause", ExpectPosition::General))
     }

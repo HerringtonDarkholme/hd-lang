@@ -548,7 +548,8 @@ pub enum Lowering {
 /// `test_case` belong to the compiler-supplied `std.core.panic`,
 /// `std.task.all` and `std.testing.it`, `assert_equal` to
 /// `std.testing.assert_equal`, `entry_write` to `std.rt`,
-/// `downcast_val`, `downcast`, `downcast_mut` and `type_id_of` to `std.inspect`,
+/// `type_id_of` to `std.inspect`, the two reference recovery keys to
+/// inherent methods in `std.inspect` and `std.error`,
 /// `ref_serial` to the compiler-supplied `std.core.ref_serial`,
 /// `ref_identity` to `std.cmp.identity_of`, which the checker lowers, and
 /// the `mem_` keys to the runtime module `std.rt.memory`, which only the
@@ -570,9 +571,8 @@ pub static INTRINSICS: &[(&str, Lowering)] = &[
     ("panic", Lowering::Compiler),
     ("panic_message", Lowering::Compiler),
     ("facts_of", Lowering::Compiler),
-    ("downcast_val", Lowering::Compiler),
     ("type_id_of", Lowering::Compiler),
-    ("downcast", Lowering::Compiler),
+    ("downcast_ref", Lowering::Compiler),
     ("downcast_mut", Lowering::Compiler),
     ("block_on", Lowering::Compiler),
     ("task_race_frame", Lowering::Compiler),

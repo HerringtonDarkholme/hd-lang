@@ -1,7 +1,7 @@
 # test: user code reads a function's decorator value through facts_of
 # Spec 14 Function Facts: annot.decorator.facts-of, annot.facts-of.target,
-# annot.facts-of.result. The returned value follows annot.structure.facts-contents
-# and annot.structure.find-lookup.
+# annot.facts-of.result. The returned value follows annot.structure.reference-facts
+# and annot.structure.find-exact.
 use std.annotation.facts_of
 struct Route:
     path: string

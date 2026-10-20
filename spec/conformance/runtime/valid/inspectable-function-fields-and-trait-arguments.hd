@@ -2,7 +2,7 @@
 # Spec 09 Inspectable Types: identity is the declaration, whatever its fields hold, and a trait
 # value type counts as inspectable as a type argument, matched exactly.
 # Spec 09 Traits: trait.inspectable.declared, trait.inspectable.fields, trait.inspectable.argument-only, trait.inspectable.argument-examples.
-use std.inspect.{Inspectable, downcast_val}
+use std.inspect.{Inspectable}
 struct Handler:
     run: fn() -> i32
 
@@ -12,13 +12,13 @@ struct Label:
 impl Display for Label:
     fn to_string(self) -> string: self.text
 
-fn run_handler(value: dyn Inspectable) -> i32:
-    match downcast_val::[Handler](value):
+fn run_handler(value: &dyn Inspectable) -> i32:
+    match value.downcast_ref::[Handler]().map(fn(found): *found):
         .Some(handler) => (handler.run)()
         .None => 0
 
-fn joined(value: dyn Inspectable) -> string:
-    match downcast_val::[List[dyn Display]](value):
+fn joined(value: &dyn Inspectable) -> string:
+    match value.downcast_ref::[List[dyn Display]]().map(fn(found): *found):
         .Some(parts) =>
             let text: string = ""
             for part in parts:
@@ -32,10 +32,10 @@ tests:
     it("a recovered handler is callable"):
         run := fn() -> i32: 7
         handler := Handler { run: run }
-        assert_equal(run_handler(handler), 7, reason="the function field is called after recovery")
+        assert_equal(run_handler(&handler), 7, reason="the function field is called after recovery")
 
     it("a trait value type argument matches exactly"):
         let shown: List[dyn Display] = [Label { text: "a" }, Label { text: "b" }]
-        assert_equal(joined(shown), "ab", reason="List[Display] matches List[Display]")
+        assert_equal(joined(&shown), "ab", reason="List[Display] matches List[Display]")
         let labels: List[Label] = [Label { text: "c" }]
-        assert_equal(joined(labels), "no match", reason="List[Label] is not List[Display]")
+        assert_equal(joined(&labels), "no match", reason="List[Label] is not List[Display]")

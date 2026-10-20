@@ -1,5 +1,5 @@
-# test: Error satisfies the entry point's Display requirement, so main may return Result[void, Error]
-# Spec 09 Erased Errors: trait.error.entry-point.
+# test: a shared erased error satisfies Error, so main may return Result[void, &dyn Error]
+# Spec 09 Erased Errors: trait.dyn.bound.reference.
 use std.error.Error
 
 enum StartError:
@@ -11,11 +11,11 @@ impl Display for StartError:
 
 impl Error for StartError
 
-fn start(ready: bool) -> Result[void, StartError]:
+fn start(ready: bool) -> Result[void, &dyn Error]:
     if ready:
         return .Ok(())
-    .Err(StartError.MissingConfig)
+    .Err(&StartError.MissingConfig)
 
-pub fn main() -> Result[void, dyn Error]:
+pub fn main() -> Result[void, &dyn Error]:
     start(true)?
     .Ok(())

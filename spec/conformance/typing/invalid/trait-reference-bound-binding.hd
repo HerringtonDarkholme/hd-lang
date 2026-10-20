@@ -1,0 +1,8 @@
+# test: a trait reference does not satisfy a different associated-type binding
+# Spec 09 Trait Values As Bounds: trait.dyn.bound.reference-binding.
+trait Source:
+    type Item
+    fn get(&self) -> Self::Item
+fn needs_text[T < Source[Item = string]](_value: T) -> void: pass
+fn rejected(value: &dyn Source[Item = i32]) -> void:
+    needs_text(value)  # diagnostic: unsatisfied-trait-bound

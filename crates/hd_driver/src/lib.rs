@@ -145,6 +145,14 @@ fn entry_status_dyn[T < Termination](result: Result[T, dyn Error]) -> u8:
             entry_report(report_of(error).to_string(), code)
             u8(code)
 
+fn entry_status_dyn_ref[T < Termination](result: Result[T, &dyn Error]) -> u8:
+    match result:
+        .Ok(value) => u8(value.report())
+        .Err(error) =>
+            code := error.exit_code()
+            entry_report(report_of(*error).to_string(), code)
+            u8(code)
+
 fn test_status_error[T < Termination, E < Error](result: Result[T, E]) -> u8:
     match result:
         .Ok(value) => u8(value.report())
@@ -157,6 +165,13 @@ fn test_status_dyn[T < Termination](result: Result[T, dyn Error]) -> u8:
         .Ok(value) => u8(value.report())
         .Err(error) =>
             entry_write(report_of(error).to_string())
+            test_failed(error.exit_code())
+
+fn test_status_dyn_ref[T < Termination](result: Result[T, &dyn Error]) -> u8:
+    match result:
+        .Ok(value) => u8(value.report())
+        .Err(error) =>
+            entry_write(report_of(*error).to_string())
             test_failed(error.exit_code())
 
 fn test_failed(code: i32) -> u8:
@@ -8053,6 +8068,17 @@ impl Run<'_> {
         let a = pool.list_items(args);
         let (ok, err) = (a[0], a[1]);
         let error = known.error;
+        let reference = match pool.get(err) {
+            TyData::Ref { inner, .. } => Some(inner),
+            TyData::Adt { def, args } if def == names.item("std.core", "Ref") => {
+                pool.list_items(args).first().copied()
+            }
+            _ => None,
+        }
+        .map(|inner| match pool.get(inner) {
+            TyData::Mut(inner) => inner,
+            _ => inner,
+        });
         let tests = matches!(self.goal, Goal::Tests { .. });
         match pool.get(err) {
             TyData::TraitValue { def, .. } if def == error => Some((
@@ -8063,6 +8089,19 @@ impl Run<'_> {
                 }),
                 pool.list(&[ok]),
             )),
+            _ if reference.is_some_and(
+                |inner| matches!(pool.get(inner), TyData::TraitValue { def, .. } if def == error),
+            ) =>
+            {
+                Some((
+                    rt(if tests {
+                        "test_status_dyn_ref"
+                    } else {
+                        "entry_status_dyn_ref"
+                    }),
+                    pool.list(&[ok]),
+                ))
+            }
             _ => Some((
                 rt(if tests {
                     "test_status_error"

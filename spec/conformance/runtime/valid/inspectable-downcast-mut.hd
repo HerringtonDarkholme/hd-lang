@@ -1,26 +1,24 @@
-# test: downcast_mut recovers mutable access from a mutable erased view
-# Spec 09 Recovering A Concrete Type: downcast_mut has a mut self receiver, which only a
-# mutable view provides, and returns mut T?; the recovered value is the same object.
-# Spec 09 Traits: trait.downcast.mut.
+# test: mutable recovery writes the original place
 use std.inspect.Inspectable
-data Counter:
+struct Counter:
     count: i32
-
-fn bump(value: mut dyn Inspectable) -> bool:
+fn bump(value: &mut dyn Inspectable) -> bool:
     match value.downcast_mut::[Counter]():
         .Some(counter) =>
-            counter.count = counter.count + 1
+            counter.count += 1
             true
         .None => false
-
 tests:
-    use std.testing.assert_equal
-
-    it("a mutable erased counter is bumped in place"):
+    use std.testing.{assert, assert_equal}
+    it("writes reach the original and identity survives"):
         let mut counter = Counter { count: 1 }
-        assert_equal(bump(counter), true, reason="the exact type matches")
-        assert_equal(counter.count, 2, reason="the write reaches the original object")
-
-    it("another type is left alone"):
-        let other: mut List[i32] = [1]
-        assert_equal(bump(other), false, reason="List[i32] is not a Counter")
+        origin := &mut counter
+        let erased: &mut dyn Inspectable = origin
+        assert_equal(bump(erased), true, reason="Counter matches")
+        assert_equal(counter.count, 2, reason="the original place changed")
+        match erased.downcast_mut::[Counter]():
+            .Some(found) => assert(found is origin, reason="the same reference")
+            .None => assert(false, reason="Counter matches")
+    it("another concrete type does not match"):
+        let mut other = [+1]
+        assert_equal(bump(&mut other), false, reason="List is not Counter")

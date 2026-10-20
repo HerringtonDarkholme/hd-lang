@@ -142,7 +142,7 @@ pub enum FactTarget {
 
 /// Checks the body `def` that builds one `Facts` value from `sources`, in
 /// order, as ordinary code of `owner`'s module (`annot.fact.read`,
-/// `annot.structure.facts-contents`); `at` is the node its value is
+/// `annot.structure.reference-facts`); `at` is the node its value is
 /// reported at. The body is a `Fact` body: the program evaluates it once,
 /// on the first read (`annot.fact.eval.lazy`), and a panic in it names
 /// `label`, what the facts are attached to (`annot.fact.eval.panic-runtime`).
@@ -177,7 +177,7 @@ fn fact_list_steps(
     let names = &cx.names;
     let pool = names.pool;
     let (facts_ty, items_ty) = facts_types(cx)?;
-    let elem = pool.intern_ty(&TyData::TraitValue {
+    let trait_value = pool.intern_ty(&TyData::TraitValue {
         def: names.item("std.inspect", "Inspectable"),
         args: TyList::EMPTY,
         bindings: vec![],
@@ -249,9 +249,17 @@ fn fact_list_steps(
                 // The value is `D[A]`, which need not be inspectable (a
                 // function type in `A`): it is erased to the item type
                 // without the conversion's bound, as `Facts` holds any
-                // value (`annot.metadata.list-any`).
-                if let Some((r, _)) = ck.typed_fact(fact, e, target, single)? {
-                    refs.push(ck.b.coerce(Coercion::ToTraitValue, NONE, r, elem, e.index()));
+                // value (`annot.metadata.reference-storage`).
+                if let Some((r, t)) = ck.typed_fact(fact, e, target, single)? {
+                    let (r, t) = ck.new_object_ref(r, t, false, e);
+                    refs.push(ck.build_dyn_ref(
+                        r,
+                        t,
+                        trait_value,
+                        false,
+                        Coercion::RefToTraitValue,
+                        e,
+                    ));
                 }
                 continue;
             }
@@ -260,7 +268,8 @@ fn fact_list_steps(
             } else {
                 ck.expr(e, None)?
             };
-            refs.push(ck.coerce(r, t, elem, e, "fact", ExpectPosition::General));
+            let (r, t) = ck.new_object_ref(r, t, false, e);
+            refs.push(ck.build_dyn_ref(r, t, trait_value, false, Coercion::RefToTraitValue, e));
         }
     }
     let rec = ck.b.refs_record(&refs);
@@ -349,9 +358,8 @@ pub fn check_decl_facts(cx: &BodyCx<'_>, owner: DefId, node: NodeRef<'_>, diags:
 impl Ck<'_, '_> {
     /// A list of facts that is an expression, not a list literal, or a
     /// spread's operand in a literal (`annot.line.right-typed`,
-    /// `annot.line.typed`): `e` checked as `List[dyn Any]`, and its
-    /// elements as the `items_ty` of a `Facts`, which they are laid out as
-    /// (`hd_wasm::layout::dyn_key`). A value that is not a list is
+    /// `annot.line.reference-elements`): `e` keeps its list element type,
+    /// and each concrete value is referenced before it is stored in `Facts`. A value that is not a list is
     /// `not_list` (`annot.line.right.not-list`); one of a different element
     /// type is a type mismatch. `None` when it does not check.
     fn fact_list(
@@ -361,16 +369,7 @@ impl Ck<'_, '_> {
         items_ty: Ty,
     ) -> StageResult<Option<Ref>> {
         let pool = self.pool();
-        let any = pool.intern_ty(&TyData::TraitValue {
-            def: self.cx.names.known.any,
-            args: TyList::EMPTY,
-            bindings: vec![],
-        });
-        let want = pool.intern_ty(&TyData::Adt {
-            def: self.cx.names.known.list,
-            args: pool.list(&[any]),
-        });
-        let (r, t) = self.expr(e, Some(want))?;
+        let (r, t) = self.expr(e, Some(items_ty))?;
         let t = self.infer.resolve(pool, t);
         if self.list_item(t).is_none() {
             if !matches!(self.strip_mut(t), Ty::NEVER | Ty::POISON) {
@@ -380,17 +379,15 @@ impl Ck<'_, '_> {
             return Ok(None);
         }
         let mark = self.diags.mark();
-        let r = self.coerce(r, t, want, e, "member line list", ExpectPosition::General);
-        if self.diags.errors_since(mark) > 0 {
-            return Ok(None);
-        }
-        Ok(Some(self.b.coerce(
-            Coercion::Variance,
-            NONE,
+        let r = self.coerce(
             r,
+            t,
             items_ty,
-            e.index(),
-        )))
+            e,
+            "member line list",
+            ExpectPosition::General,
+        );
+        Ok((self.diags.errors_since(mark) == 0).then_some(r))
     }
 
     /// The typed fact type of the value that the decorator line or

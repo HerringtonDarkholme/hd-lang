@@ -1,5 +1,5 @@
 # test: Result[T, Error] holds any Error, ? reaches it by assignability, and the default cause is .None
-# Spec 09 Error Trait: trait.error.module, trait.error.import, trait.error.cause; Erased Errors: trait.error.erased, trait.error.result.
+# Spec 09 Error Trait: trait.error.module, trait.error.import, trait.error.reference-cause; Erased Errors: trait.error.erased, trait.error.result.
 use std.error.Error
 enum FsError:
     NotFound(path: string)

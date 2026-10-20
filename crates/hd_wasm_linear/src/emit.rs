@@ -1143,7 +1143,7 @@ impl Em<'_, '_, '_> {
                 }
                 TargetKind::Intrinsic(key) if key == "type_id_of" => self.type_id_of(i, ct.args),
                 TargetKind::Intrinsic(key)
-                    if matches!(key.as_str(), "downcast_val" | "downcast" | "downcast_mut") =>
+                    if matches!(key.as_str(), "downcast_ref" | "downcast_mut") =>
                 {
                     self.downcast(i, ct.item, args[0])
                 }
@@ -1198,14 +1198,29 @@ impl Em<'_, '_, '_> {
         let Some((&recv, rest)) = args.split_first() else {
             return unsupported("a dynamic call without a receiver");
         };
+        let receiver_ty = self.strip_mut(self.ty_of(recv));
+        let value_ty = self.dyn_value_ty(receiver_ty);
+        let payload = if value_ty == receiver_ty {
+            None
+        } else {
+            Some(self.read_dyn_value(recv)?.1)
+        };
         let mut params = vec![Val::I32];
-        self.comp(recv, 0)?;
+        if let Some(value) = &payload {
+            self.f.get(value[0]);
+        } else {
+            self.comp(recv, 0)?;
+        }
         for r in rest {
             params.extend(self.vals(self.ty_of(*r))?);
             self.push(*r)?;
         }
-        let steps = self.dyn_steps(self.ty_of(recv), trait_, targs)?;
-        self.comp(recv, 1)?;
+        let steps = self.dyn_steps(value_ty, trait_, targs)?;
+        if let Some(value) = &payload {
+            self.f.get(value[1]);
+        } else {
+            self.comp(recv, 1)?;
+        }
         for at in steps {
             self.f.op(Instruction::I32Load(mem(HEAP, u64::from(at), 2)));
         }
@@ -1215,6 +1230,13 @@ impl Em<'_, '_, '_> {
             2,
         )));
         self.f.body.push(Ins::CallIndirect(params, results));
+        if let Some(value) = payload
+            && self.input.runtime.is_some()
+        {
+            self.f.get(value[0]);
+            self.f.helper(Helper::ReleaseRef);
+        }
+
         Ok(())
     }
 

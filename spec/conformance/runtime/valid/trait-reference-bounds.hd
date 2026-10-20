@@ -1,0 +1,32 @@
+# test: shared and mutable trait references satisfy available bounds, preserving dispatch and associated bindings
+# Spec 09 Trait Values As Bounds: trait.dyn.bound.reference, trait.dyn.bound.reference-projection, trait.dyn.bound.reference-binding, trait.dyn.bound.reference-dispatch.
+trait Read:
+    type Item
+    fn get(&self) -> Self::Item
+trait Write < Read[Item = i32]:
+    fn bump(&mut self) -> void
+struct Counter:
+    value: i32
+impl Read for Counter:
+    type Item = i32
+    fn get(&self) -> i32: self.value
+impl Write for Counter:
+    fn bump(&mut self) -> void: self.value += 1
+fn read[T < Read[Item = i32]](value: T) -> i32:
+    value.get()
+fn associated[T < Read](value: T) -> T::Item:
+    value.get()
+fn change[T < Write](value: T) -> void:
+    let mut target = value
+    target.bump()
+tests:
+    use std.testing.assert_equal
+    it("shared dispatch and associated binding"):
+        let value: &dyn Read[Item = i32] = &Counter { value: 17 }
+        assert_equal(read(value), 17, reason="the reference supplies Read and Item")
+        assert_equal(associated(value), 17, reason="the associated return type projects through a reference")
+    it("mutable dispatch and a supertrait bound"):
+        let mut counter = Counter { value: 4 }
+        let value: &mut dyn Write = &mut counter
+        change(value)
+        assert_equal(read(value), 5, reason="the same original place changed")

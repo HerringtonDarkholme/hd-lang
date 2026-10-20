@@ -1,5 +1,5 @@
 //! A member line's right side is any list-typed expression
-//! (`annot.line.right-typed`, `annot.line.typed`,
+//! (`annot.line.right-typed`, `annot.line.reference-elements`,
 //! `annot.line.right.not-list`): a name, a call, or a concatenation of
 //! lists, in a block with no trait and in a derivation block, where `=`
 //! replaces the facts before it and `+=` appends. The facts of a list
@@ -81,7 +81,8 @@ fn errors(main: &str) -> Vec<(Code, usize)> {
 /// Two fact types, lists of them in module-level lets and a function, and
 /// a `Probe` derivation whose walker prints each member's `Tag` and `Note`
 /// facts.
-const PRELUDE: &str = "use std.structure.{Structure, Field, Variant, Walker}
+const PRELUDE: &str = "use std.inspect.Inspectable
+use std.structure.{Structure, Field, Variant, Walker}
 
 struct Tag:
     text: string
@@ -95,11 +96,11 @@ fn tag(text: string) -> Tag:
 fn note(text: string) -> Note:
     Note { text: text }
 
-let tagged: List[dyn Any] = [tag(\"t\")]
-let noted: List[dyn Any] = [note(\"n\")]
+let tagged: List[&dyn Inspectable] = [&tag(\"t\")]
+let noted: List[&dyn Inspectable] = [&note(\"n\")]
 
-fn made() -> List[dyn Any]:
-    [note(\"made\")]
+fn made() -> List[&dyn Inspectable]:
+    [&note(\"made\")]
 
 trait Probe:
     fn probe(self) -> string
@@ -223,9 +224,9 @@ fn list_expression_runs_once_when_first_read() {
     let main = with_prelude(
         "let evaluations = +0
 
-fn counted() -> List[dyn Any]:
+fn counted() -> List[&dyn Inspectable]:
     evaluations = evaluations + 1
-    [note(\"counted\")]
+    [&note(\"counted\")]
 
 struct Point:
     a: i64
@@ -341,9 +342,9 @@ impl Probe for Point by Structure:
 }
 
 #[test]
-fn a_list_of_another_element_type_is_a_representation_change() {
+fn a_list_of_another_element_type_is_a_type_mismatch() {
     one_error(
-        Code::VarianceRepresentationChange,
+        Code::TypeMismatch,
         &format!(
             "{COUNT}
 struct Point:

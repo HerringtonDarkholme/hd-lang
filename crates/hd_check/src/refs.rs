@@ -296,7 +296,7 @@ impl Ck<'_, '_> {
         };
         let inner = self.strip_mut(self.infer.resolve(pool, place.ty));
         if let TyData::TraitValue { def, .. } = pool.get(inner)
-            && self.has_ref_receiver_member(def)
+            && self.bare_dyn_needs_reference_payload(def)
         {
             self.bare_dyn_ref_error(def, n);
             return Ok(self.ref_poison(n));
