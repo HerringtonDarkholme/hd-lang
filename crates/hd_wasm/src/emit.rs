@@ -291,8 +291,7 @@ impl Em<'_> {
 
     /// The field types of [`Self::cell_ty`].
     fn cell_fields(&self, l: u32) -> StageResult<Vec<VT>> {
-        Ok(self
-            .vts(self.sub(self.b.local_ty[l as usize]))?
+        Ok(cell_value_vts(&self.lay, self.b, self.args, l)?
             .into_iter()
             .map(|v| match v {
                 VT::Ref(t, _) => VT::Ref(t, true),
@@ -756,10 +755,18 @@ impl Em<'_> {
                     let cell = self.cell_ty(a)?;
                     let fields = self.cell_fields(a)?;
                     let want = self.vts(self.sub(self.b.local_ty[a as usize]))?;
-                    for (k, (f, w)) in fields.iter().zip(&want).enumerate() {
+                    if fields == [VT::Eq] && want != [VT::Eq] {
                         self.a.get(ls[0]);
-                        self.a.struct_get(&cell, u32_of(k));
-                        self.a.conv(f, w);
+                        self.a.struct_get(&cell, 0);
+                        let value = self.a.local(VT::Eq);
+                        self.a.set(value);
+                        unerase(&mut self.a, value, &want);
+                    } else {
+                        for (k, (f, w)) in fields.iter().zip(&want).enumerate() {
+                            self.a.get(ls[0]);
+                            self.a.struct_get(&cell, u32_of(k));
+                            self.a.conv(f, w);
+                        }
                     }
                 } else {
                     for l in &ls {
@@ -792,17 +799,26 @@ impl Em<'_> {
                         self.a.demote(*l);
                     }
                 }
-                self.load_as(bw, &want)?;
                 if let Some(first) = self.cells.get(&a).copied() {
                     // The cell's own field types: a declaration with no
                     // value yet (`NONE`) stores null references.
                     let fields = self.cell_fields(a)?;
+                    if bw == NONE {
+                        for field in &fields {
+                            self.a.zero(field);
+                        }
+                    } else if fields == [VT::Eq] && want != [VT::Eq] {
+                        self.erase(bw, &want)?;
+                    } else {
+                        self.load_as(bw, &want)?;
+                    }
                     let tmp: Vec<u32> = fields.into_iter().map(|v| self.a.local(v)).collect();
                     for l in tmp.iter().rev() {
                         self.a.set(*l);
                     }
                     self.cell_store(a, &tmp, first == i)?;
                 } else {
+                    self.load_as(bw, &want)?;
                     for l in ls.iter().rev() {
                         self.a.set(*l);
                     }
@@ -3684,9 +3700,14 @@ impl Em<'_> {
         for r in thunk_operands(self.b, i) {
             self.load(r)?;
         }
-        for (l, _) in thunk_capture_locals(self.b, i) {
-            for l in self.local(l)? {
+        for (local, shared) in thunk_capture_locals(self.b, i) {
+            let have = self.local_vts(local)?;
+            let want = captured_local_vts(&self.lay, self.b, self.args, local, shared)?;
+            for ((l, have), want) in self.local(local)?.into_iter().zip(have).zip(want) {
                 self.a.get(l);
+                // Shared cells are nullable body locals, but an initialized
+                // cell crosses into its closure thunk as a non-null reference.
+                self.a.conv(&have, &want);
             }
         }
         let keys = self.env().row_keys(self.item, self.args);
@@ -3920,16 +3941,19 @@ impl Em<'_> {
     /// Pushes a value as `eqref` (§13.5.1, "As an open value"): an `i32`
     /// as an `i31ref` when it fits (`Helper::EraseI32`).
     fn erase(&mut self, v: u32, vts: &[VT]) -> StageResult<()> {
-        if let [x @ (VT::Eq | VT::Ref(..))] = vts {
-            self.comp(v, 0, x)
+        self.load_as(v, vts)?;
+        self.erase_loaded(vts);
+        Ok(())
+    }
+
+    /// Boxes loaded components for storage in an erased shared cell.
+    fn erase_loaded(&mut self, vts: &[VT]) {
+        if matches!(vts, [VT::Eq | VT::Ref(..)]) {
+            // A single reference already is an eqref.
         } else if vts == [VT::I32] {
-            self.load_as(v, vts)?;
             self.a.call(Sym::Helper(Helper::EraseI32));
-            Ok(())
         } else {
-            self.load_as(v, vts)?;
             self.a.struct_new(&box_of(vts));
-            Ok(())
         }
     }
 
@@ -6678,6 +6702,28 @@ pub fn emit_erased(
     )
 }
 
+/// Shared cells of generic trait methods use the erased layout in both
+/// the root and its concrete closures. Their mutable fields cannot be cast
+/// between erased and concrete struct types: reads and writes convert the
+/// value instead, preserving one cell and every alias of it.
+fn cell_value_vts(lay: &Lay, b: &Body, args: TyList, local: u32) -> StageResult<Vec<VT>> {
+    let owner = lay.env.generics_owner(b.item);
+    let args = if lay.env.parent(owner).is_some_and(|(parent, _)| {
+        lay.env.impl_row(parent).is_some() || lay.env.trait_methods(parent).contains(&owner)
+    }) {
+        erased_args(lay.pool, lay.env, b.item, args)
+    } else {
+        args
+    };
+    lay.vts(subst(
+        lay.pool,
+        lay.env,
+        b.item,
+        args,
+        b.local_ty[local as usize],
+    ))
+}
+
 /// The values a captured local crosses with, at `args`: its components,
 /// or one shared cell of them, matching closure emission.
 fn captured_local_vts(
@@ -6692,7 +6738,7 @@ fn captured_local_vts(
     if !shared {
         return Ok(fields);
     }
-    let fields = fields
+    let fields = cell_value_vts(lay, b, args, local)?
         .into_iter()
         .map(|v| match v {
             VT::Ref(t, _) => VT::Ref(t, true),
@@ -6878,8 +6924,13 @@ fn emit_body(
             // A captured, assigned parameter moves into its cell.
             let cell = em.cell_ty(l)?;
             let cl = em.local(l)?[0];
+            let have = em.vts(s(b.local_ty[l as usize]))?;
+            let fields = em.cell_fields(l)?;
             for x in &ls {
                 em.a.get(*x);
+            }
+            if fields == [VT::Eq] && have != [VT::Eq] {
+                em.erase_loaded(&have);
             }
             em.a.struct_new(&cell);
             em.a.set(cl);

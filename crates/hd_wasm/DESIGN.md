@@ -219,6 +219,12 @@ otherwise. A `Copy` capture stores the value in the environment. A
 `Shared` one lives in a cell, a struct holding the local's components,
 and the environment holds the cell.
 
+- **Erased methods.** A generic trait method's shared cells use its
+  erased layout in the root, construction thunks and concrete closures.
+  An open value occupies one `eqref` field; concrete reads unbox it and
+  writes box it. A mutable cell cannot be cast to a different concrete
+  struct type. Captures pass the initialized cell as a non-null reference,
+  narrowing the nullable local at the thunk call.
 - **Fresh per declaration.** The cell is made by the local's declaring
   `LocalSet`, which `cell_locals` picks as the lowest-numbered `LocalSet`
   of the local outside every closure that captures it. Any other store

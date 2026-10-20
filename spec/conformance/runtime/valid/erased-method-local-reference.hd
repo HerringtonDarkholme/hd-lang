@@ -1,0 +1,50 @@
+# test: an erased generic method passes a mutable local reference to another method
+# Spec 13 Reference Expressions: ref.place.forms, ref.expr.place.
+# expect-stdout: 7
+
+trait Store[K]:
+    fn put[V](self, key: K, value: V, into: &mut List[(K, V)]) -> V
+
+struct Plain:
+    n: i32
+
+impl Store[string] for Plain:
+    fn put[V](self, key: string, value: V, into: &mut List[(string, V)]) -> V:
+        into.push((key, value))
+        value
+
+trait Relay:
+    fn relay[T](self, inner: &dyn Store[string], value: T) -> T
+
+    fn copy[T](self, value: T) -> T:
+        let mut saved = value
+        replace := fn(next: T) -> void:
+            saved = next
+        replace(value)
+        saved
+
+struct Hop:
+    tag: string
+
+impl Relay for Hop:
+    fn relay[T](self, inner: &dyn Store[string], value: T) -> T:
+        let mut pairs: List[(string, T)] = []
+        got := inner.put(self.tag, value, &mut pairs)
+        got
+
+pub fn main() -> void $ Console:
+    let store: &dyn Store[string] = &Plain { n: 1 }
+    let r: &dyn Relay = &Hop { tag: "hop" }
+    println(r.relay(store, +7))
+
+tests:
+    use std.testing.assert_equal
+
+    it("shared cells retain scalar and multi-component values"):
+        let r: &dyn Relay = &Hop { tag: "hop" }
+        let store: &dyn Store[string] = &Plain { n: 1 }
+        assert_equal(r.copy(+7), 7, reason="shared cell value")
+        assert_equal(r.copy("text"), "text", reason="shared cell value")
+        assert_equal(r.copy(("tuple", +9)), ("tuple", +9), reason="shared cell value")
+        assert_equal(r.relay(store, "text"), "text", reason="shared cell value")
+        assert_equal(r.relay(store, ("tuple", +9)), ("tuple", +9), reason="shared cell value")

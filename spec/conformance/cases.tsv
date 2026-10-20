@@ -2797,6 +2797,7 @@ typing/invalid/from-trait-value-target.hd	type	reject:trait-value-impl-target	la
 typing/invalid/from-no-fitting-instantiation.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.from.no-apply
 runtime/valid/from-propagation-and-panic.hd	runtime	accept	lang/09-traits.md#r-trait.from.propagation
 runtime/valid/erased-error-result.hd	runtime	accept	lang/09-traits.md#r-trait.error.result
+runtime/valid/erased-method-local-reference.hd	runtime	accept	lang/13-values-and-references.md#r-ref.expr.place
 typing/valid/erased-error-entry-point.hd	type	accept	lang/09-traits.md#r-trait.dyn.bound.reference
 runtime/valid/local-inherent-and-trait-impls.hd	runtime	accept	lang/09-traits.md#r-trait.impl.local.inherent
 typing/invalid/local-impl-second-pair.hd	type	reject:overlapping-impl	lang/09-traits.md#r-trait.impl.local.no-second
