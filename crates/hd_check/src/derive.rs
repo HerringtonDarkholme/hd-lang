@@ -409,10 +409,19 @@ pub fn instance(
             targs: pool.list(&all),
         }
         .words();
-        let mut record = vec![u32::try_from(words.len()).unwrap_or(u32::MAX)];
-        record.extend(words);
-        body.data[i][0] = u32::try_from(body.extra.len()).unwrap_or(u32::MAX);
-        body.extra.extend(record);
+        // Rewrite the record in place: an appended one would leave the
+        // trait call's record behind, unreachable, and its raw pool IDs
+        // would reach the wire unmapped, so the cache entry would depend
+        // on the build's interning order (#610). An item callee's record
+        // is the shorter one; the words it frees are zeroed.
+        let start = at as usize + 1;
+        let old = body.record(at).len();
+        if words.len() > old {
+            return crate::body::unsupported("an item callee longer than its trait call");
+        }
+        body.extra[at as usize] = u32::try_from(words.len()).unwrap_or(u32::MAX);
+        body.extra[start..start + words.len()].copy_from_slice(&words);
+        body.extra[start + words.len()..start + old].fill(0);
     }
     body.kind = hd_tir::BodyKind::DeriveInstance;
     hd_tir::wire::map_ids(

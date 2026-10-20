@@ -129,21 +129,22 @@ fn base() -> MemorySources {
     sources(&[("app/main.hd", MAIN), ("geo/shapes.hd", SHAPES)])
 }
 
-#[test]
-fn generic_programs_build_identically_in_every_order() {
-    let (base_out, base_entries) = build_in(&base(), Executor::Serial(SerialOrder::Priority));
+/// Builds `src` in every task order, on the pool and under other hash
+/// seeds; each build matches the priority-order one. Returns that base.
+fn in_every_order(src: fn() -> MemorySources) -> (Output, Entries) {
+    let (base_out, base_entries) = build_in(&src(), Executor::Serial(SerialOrder::Priority));
     for order in [
         SerialOrder::Fifo,
         SerialOrder::Shuffled(1),
         SerialOrder::Shuffled(7),
         SerialOrder::Shuffled(0x5eed),
     ] {
-        let (out, e) = build_in(&base(), Executor::Serial(order));
+        let (out, e) = build_in(&src(), Executor::Serial(order));
         assert_eq!(out.wasm, base_out.wasm, "{order:?}");
         same_entries(&e, &base_entries, &format!("{order:?}"));
     }
     for n in [2, 4] {
-        let (out, e) = build_in(&base(), Executor::Pool(n));
+        let (out, e) = build_in(&src(), Executor::Pool(n));
         assert_eq!(out.wasm, base_out.wasm, "pool {n}");
         same_entries(&e, &base_entries, &format!("pool {n}"));
     }
@@ -151,11 +152,17 @@ fn generic_programs_build_identically_in_every_order() {
     // (docs/compiler/data-structures.md §3.2).
     for seed in [1, 0x5eed] {
         hd_base::set_hash_seed(seed);
-        let (out, e) = build_in(&base(), Executor::Pool(2));
+        let (out, e) = build_in(&src(), Executor::Pool(2));
         hd_base::set_hash_seed(0);
         assert_eq!(out.wasm, base_out.wasm, "seed {seed}");
         same_entries(&e, &base_entries, &format!("seed {seed}"));
     }
+    (base_out, base_entries)
+}
+
+#[test]
+fn generic_programs_build_identically_in_every_order() {
+    let (base_out, base_entries) = in_every_order(base);
     let flipped = sources(&[("geo/shapes.hd", SHAPES), ("app/main.hd", MAIN)]);
     let (out, e) = build_in(&flipped, Executor::Serial(SerialOrder::Shuffled(3)));
     assert_eq!(out.wasm, base_out.wasm, "flipped files");
@@ -184,4 +191,37 @@ fn an_unrelated_edit_keeps_generic_instances() {
     assert!(warm.diags.is_empty(), "{}", warm.render());
     assert_eq!(warm.counters.emitted, 0);
     assert_eq!(warm.wasm, cold.wasm);
+}
+
+// Derived `Eq` and `Debug` instances: their bodies rewrite the template's
+// `Structure` calls, and no word of the template's call may stay behind
+// with a run's pool ID in it (#610).
+const RECORDS: &str = "\
+@derive(Eq, Debug)
+pub struct Pair[T]:
+    pub left: T
+    pub right: T
+
+@derive(Eq, Debug)
+pub enum Shape:
+    Circle(i32)
+    Square(Pair[i32])
+";
+
+const RECORDS_MAIN: &str = "\
+use pkg.geo.records.{Pair, Shape}
+
+pub fn main() -> void $ Console:
+    a := Shape.Square(Pair { left: +1, right: +2 })
+    b := Shape.Circle(+3)
+    println(\"${a == b} ${Pair { left: \"x\", right: \"y\" } == Pair { left: \"x\", right: \"y\" }}\")
+";
+
+fn records() -> MemorySources {
+    sources(&[("app/main.hd", RECORDS_MAIN), ("geo/records.hd", RECORDS)])
+}
+
+#[test]
+fn derived_instances_build_identically_in_every_order() {
+    in_every_order(records);
 }
