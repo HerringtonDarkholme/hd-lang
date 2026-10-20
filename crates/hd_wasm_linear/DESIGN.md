@@ -1290,10 +1290,36 @@ where its counts are taken does (`emit/count.rs`, `emit/live.rs`).
   5,418 after; 7,350 with the checked runtime,
   whose count totals cost 132 bytes. Programs shrink by about 1 to 10 per
   cent, as most entry retains and many copies go.
-- **Not yet.** Reads of immutable fields, loop elements, and a local read
-  that is not its last still take a count and give it back (job 18).
-  A dynamic call lends its arguments, so its slot counts what the target
-  owns.
+- **Round two** (job 18, issue #641). An immutable field or local read
+  borrows its representation when its unaliased, unchanged source's
+  existing lifetime strictly contains every use. List and map loop
+  elements borrow from the checker's private snapshot, including when
+  user code changes the original collection. A store, capture, return or
+  owned argument still takes a count. Neither analysis extends a source's
+  last use, which could otherwise keep an element reference pinned.
+  Borrowed instruction and local slots take no count and are omitted
+  from function/frame release and trace glue; the source owns them.
+- **Balanced pairs.** After local cleanup, a short straight-line span can
+  lose a retain and its matching release on unchanged locals. A freeing
+  call, memory operation, operand-local write or control-flow edge ends
+  that proof. Retains alone cannot free the original owner.
+- **Round-two counts.** The checked builds of all 25 current tour
+  programs execute 522 retains and 776 releases before this round,
+  365 and 619 after (30.1% and 20.2% fewer). Four benchmark programs
+  execute 521,033 retains and 522,061 releases before, 441,031 and
+  442,059 after. These are `bench/math`, `bench/tokenizer`, the runtime
+  StringBuilder benchmark at its original 40,000 iterations, and the
+  runtime string-concatenation benchmark scaled from 40,000 to 1,000
+  iterations to bound checked quarantine memory. StringBuilder alone
+  falls from 520,016/520,026 to 440,014/440,024; the other three are
+  unchanged. Legacy benchmark sources that no longer type-check are
+  excluded. Every measured program has identical output and status.
+- **Conservative cases.** General alias bindings, mutable data/reference
+  projections, copied collection headers and erased reads that can make
+  a fresh box keep their counts. A sub-body with deferred cleanup keeps
+  its counts because registration order is not execution order. A
+  dynamic call still lends its arguments, so its slot counts what the
+  target owns.
 - **Checked by** `crates/hd_driver/tests/std_rt/count_tests.hd`, whose
   new cases pass strings through owned and borrowed parameters into a
   struct in a loop, check that the heap does not grow, and check that an

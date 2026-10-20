@@ -1,0 +1,82 @@
+# fixture-runtime-profile: pending-write
+# test: count elision preserves field, loop, escape, mutation and saved-frame ownership
+# Spec 04 Value Types: types.value.copy; Spec 06 For Loops: flow.for.snapshot.
+use std.testing.assert_equal
+
+struct Pair:
+    left: string
+    right: string
+
+fn pair(n: i32) -> Pair:
+    Pair { left: "left $n", right: "right $n" }
+
+fn field_reads(n: i32) -> void:
+    p := pair(n)
+    first := p.left
+    both := first + p.right
+    assert_equal(both, "left $n" + "right $n", reason="both fields remain live")
+    assert_equal(p.left, "left $n", reason="the source still owns its fields")
+
+fn alias_write(n: i32) -> void:
+    let mut p = pair(n)
+    shared := &mut p
+    old := p.left
+    shared.left = "replacement $n"
+    assert_equal(old, "left $n", reason="a mutable alias cannot invalidate a field read")
+    assert_equal(p.left, "replacement $n", reason="the alias updates the source")
+
+fn escaped_elements(n: i32) -> void:
+    let mut result: List[string] = []
+    let mut closures: List[fn() -> string] = []
+    words := ["first $n", "second $n"]
+    for word in words:
+        result.push(word)
+        closures.push(fn() -> string: word)
+    assert_equal(result, words, reason="stored elements own their counts")
+    assert_equal(closures[0](), "first $n", reason="captured elements outlive the loop")
+    assert_equal(closures[1](), "second $n", reason="each iteration captures its value")
+
+fn snapshot_elements(n: i32) -> void:
+    let mut words = ["first $n", "second $n"]
+    let mut result: List[string] = []
+    for word in words:
+        result.push(word)
+        words[0] = "changed $n"
+    assert_equal(result, ["first $n", "second $n"], reason="the loop owns an unchanged snapshot")
+
+fn map_elements(n: i32) -> void:
+    words := {"a$n": "first $n", "b$n": "second $n"}
+    let matches: usize = 0
+    for (key, value) in words:
+        if (key == "a$n" && value == "first $n") || (key == "b$n" && value == "second $n"):
+            matches += 1
+    assert_equal(matches, 2, reason="borrowed map keys and values remain live")
+
+fn deferred_fields(n: i32, log: &mut List[string]) -> void:
+    p := pair(n)
+    before := p.left
+    defer:
+        log.push(before)
+    assert_equal(p.right, "right $n", reason="the source may end before deferred use")
+
+
+fn saved_fields!(p: Pair) -> void $ Console:
+    before := p.left
+    console := $.use(Console)
+    _ := console.write_line!("pause")
+    assert_equal(before, "left 9", reason="a saved borrowed field remains owned by the frame's source")
+    assert_equal(p.right, "right 9", reason="the source survives the suspension")
+
+pub fn main!() -> void $ Console:
+    let n = +0
+    while n < 1000:
+        field_reads(n)
+        alias_write(n)
+        escaped_elements(n)
+        snapshot_elements(n)
+        map_elements(n)
+        n += 1
+    let mut log: List[string] = []
+    deferred_fields(9, &mut log)
+    assert_equal(log, ["left 9"], reason="deferred field use owns its lifetime")
+    saved_fields!(pair(9))

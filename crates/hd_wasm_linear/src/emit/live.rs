@@ -11,8 +11,8 @@
 //! no statement of its block holds the use (a block's result, a match
 //! decision's value read in an arm) keeps its count to the exit.
 
-use hd_base::HashMap;
-use hd_tir::ir::{Body, NONE, Op, Ref, Tag};
+use hd_base::{HashMap, HashSet};
+use hd_tir::ir::{Body, IntrinsicOp, NONE, Op, Ref, Tag, local_flags};
 
 /// What to release after a statement.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -44,6 +44,11 @@ pub(super) struct Moves {
     pub last_get: HashMap<u32, (usize, (u32, usize))>,
     /// Each block tail whose only use is as its block's value.
     pub tails: hd_base::HashSet<u32>,
+    /// Reads whose source remains owned past every use. Emission filters
+    /// these candidates by physical representation before borrowing them.
+    pub loans: HashSet<u32>,
+    /// Single-assignment bindings of such reads, with their source value.
+    pub loan_locals: HashMap<usize, u32>,
 }
 
 /// The block structure of a body: each instruction's block and position,
@@ -297,5 +302,188 @@ pub(super) fn plan(b: &Body, sub: u32, entry: &[usize]) -> (Drops, Moves) {
         }
         drops.entry((blk, last)).or_default().push(Drop::Local(l));
     }
+    (moves.loans, moves.loan_locals) = loans(b, sub, &tree, &drops, &users);
     (drops, moves)
+}
+
+/// Borrow only from an unaliased, unchanged local whose existing lifetime
+/// strictly contains every use. Never extend its release: doing so could
+/// keep another field's element reference pinned beyond its last use.
+fn loans(
+    b: &Body,
+    sub: u32,
+    tree: &Tree,
+    drops: &Drops,
+    users: &HashMap<u32, Vec<u32>>,
+) -> (HashSet<u32>, HashMap<usize, u32>) {
+    fn source(
+        b: &Body,
+        x: u32,
+        stable: &HashSet<usize>,
+        bound: &HashMap<usize, usize>,
+        sets: &HashMap<usize, Vec<u32>>,
+        depth: usize,
+    ) -> Option<usize> {
+        if depth > 32 || x == NONE || Ref(x).as_inst().is_none() {
+            return None;
+        }
+        let [a, w] = b.data[x as usize];
+        let next = match b.tags[x as usize] {
+            Tag::LocalGet => {
+                let l = a as usize;
+                return bound
+                    .get(&l)
+                    .copied()
+                    .or_else(|| stable.contains(&l).then_some(l));
+            }
+            Tag::Field | Tag::TupleGet | Tag::Payload | Tag::Unwrap => a,
+            Tag::Intrinsic => match IntrinsicOp::from_u32(a) {
+                Some(IntrinsicOp::ValueCopy) => *b.record(w).first()?,
+                Some(IntrinsicOp::ListIndex | IntrinsicOp::MapSlotEntry) => {
+                    let root = source(b, *b.record(w).first()?, stable, bound, sets, depth + 1)?;
+                    let [init] = sets.get(&root)?.as_slice() else {
+                        return None;
+                    };
+                    // The checker's private loop snapshot owns its buffer
+                    // until SnapEnd; user code cannot mutate that header.
+                    if b.tags[*init as usize] == Tag::Intrinsic
+                        && IntrinsicOp::from_u32(b.data[*init as usize][0])
+                            == Some(IntrinsicOp::SnapBegin)
+                    {
+                        return Some(root);
+                    }
+                    return None;
+                }
+                _ => return None,
+            },
+            _ => return None,
+        };
+        source(b, next, stable, bound, sets, depth + 1)
+    }
+    fn loop_read(b: &Body, x: u32, depth: usize) -> bool {
+        if depth > 32 || x == NONE || Ref(x).as_inst().is_none() {
+            return false;
+        }
+        let [a, w] = b.data[x as usize];
+        match b.tags[x as usize] {
+            Tag::Field | Tag::TupleGet | Tag::Payload | Tag::Unwrap => loop_read(b, a, depth + 1),
+            Tag::Intrinsic => match IntrinsicOp::from_u32(a) {
+                Some(IntrinsicOp::ListIndex | IntrinsicOp::MapSlotEntry) => true,
+                Some(IntrinsicOp::ValueCopy) => b
+                    .record(w)
+                    .first()
+                    .is_some_and(|r| loop_read(b, *r, depth + 1)),
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+    let subs = b.inst_subs();
+    // Deferred uses run later than their structural registration point.
+    // Leave their counts alone until the lifetime plan models that edge.
+    if subs.iter().enumerate().any(|(i, of)| {
+        *of == sub
+            && (b.tags[i] == Tag::Defer
+                || (b.tags[i] == Tag::Scope
+                    && b.data[i][1] != NONE
+                    && !b.record(b.data[i][1]).is_empty()))
+    }) {
+        return (HashSet::default(), HashMap::default());
+    }
+    let mut sets: HashMap<usize, Vec<u32>> = HashMap::default();
+    let mut escapes = HashSet::default();
+    let mut accesses: HashMap<usize, Vec<u32>> = HashMap::default();
+    for (i, &of) in subs.iter().enumerate() {
+        if of != sub {
+            continue;
+        }
+        let x = u32::try_from(i).expect("insts");
+        match b.tags[i] {
+            Tag::LocalGet | Tag::LocalSet => {
+                let l = b.data[i][0] as usize;
+                accesses.entry(l).or_default().push(x);
+                if b.tags[i] == Tag::LocalSet {
+                    sets.entry(l).or_default().push(b.data[i][1]);
+                }
+            }
+            Tag::RefPlace => escapes.extend(b.place_locals(i).into_iter().map(|l| l as usize)),
+            Tag::Closure => {
+                let r = b.record(b.data[i][1]);
+                escapes.extend(
+                    b.cap_local[r[0] as usize..(r[0] + r[1]) as usize]
+                        .iter()
+                        .map(|l| l.raw() as usize),
+                );
+            }
+            _ => {}
+        }
+    }
+    let stable: HashSet<usize> = (0..b.local_ty.len())
+        .filter(|l| {
+            !escapes.contains(l)
+                && b.local_flags[*l]
+                    & (local_flags::MUTATED
+                        | local_flags::CAPTURED
+                        | local_flags::CAPTURED_ASSIGNED)
+                    == 0
+                && sets.get(l).is_none_or(|v| v.len() == 1)
+        })
+        .collect();
+    let ends: HashMap<usize, (u32, usize)> = drops
+        .iter()
+        .flat_map(|(at, ds)| {
+            ds.iter().filter_map(move |d| match d {
+                Drop::Local(l) => Some((*l, *at)),
+                Drop::Val(_) => None,
+            })
+        })
+        .collect();
+    let held = |root: usize, reads: &[u32]| {
+        let Some(&(blk, end)) = ends.get(&root) else {
+            return false;
+        };
+        reads.iter().all(|&u| {
+            tree.path(b, u)
+                .and_then(|path| path.into_iter().find(|(of, _)| *of == blk))
+                .is_some_and(|(_, at)| at < end)
+        })
+    };
+    // Borrow bindings only directly from the private loop snapshot.
+    // General aliases keep counts: re-borrowing through a binding that
+    // later loses ownership would otherwise require a transitive proof.
+    let empty = HashMap::default();
+    let mut bound = HashMap::default();
+    for (&l, values) in &sets {
+        let [v] = values.as_slice() else {
+            continue;
+        };
+        if !stable.contains(&l) || !loop_read(b, *v, 0) {
+            continue;
+        }
+        if let Some(root) = source(b, *v, &stable, &empty, &sets, 0)
+            && root != l
+            && held(root, &accesses[&l])
+        {
+            bound.insert(l, root);
+        }
+    }
+    let locals = bound
+        .keys()
+        .filter_map(|l| sets.get(l).map(|v| (*l, v[0])))
+        .collect();
+    let mut reads = HashSet::default();
+    for (i, &of) in subs.iter().enumerate() {
+        if of != sub {
+            continue;
+        }
+        let x = u32::try_from(i).expect("insts");
+        if let Some(root) = source(b, x, &stable, &bound, &sets, 0)
+            && users
+                .get(&x)
+                .is_some_and(|us| !us.is_empty() && held(root, us))
+        {
+            reads.insert(x);
+        }
+    }
+    (reads, locals)
 }

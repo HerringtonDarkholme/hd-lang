@@ -1100,13 +1100,17 @@ pub(super) fn finish(
         let mut vals: Vec<(u32, Vec<u32>)> = em.vals.iter().map(|(k, v)| (*k, v.clone())).collect();
         vals.sort_unstable();
         for (i, ls) in vals {
-            places.push((Some(i), None, ls));
+            if !em.moves.loans.contains(&i) {
+                places.push((Some(i), None, ls));
+            }
         }
         let mut locals: Vec<(usize, Vec<u32>)> =
             em.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
         locals.sort_unstable();
         for (l, ls) in locals {
-            places.push((None, Some(l), ls));
+            if !em.moves.loan_locals.contains_key(&l) {
+                places.push((None, Some(l), ls));
+            }
         }
         for t in em.temps.clone() {
             places.push((None, None, vec![t]));

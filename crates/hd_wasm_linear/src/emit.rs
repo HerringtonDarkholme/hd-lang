@@ -151,6 +151,7 @@ fn body_func<'a>(
         entry.extend(closure::captures(b, ci).into_iter().map(|(l, _)| l));
     }
     (em.drops, em.moves) = live::plan(b, u32::from(sub), &entry);
+    em.prepare_loans();
     // A plain function takes its parameters by the conventions of
     // `layout::Pass` (§23.25); a suspending one's cold constructor counts
     // each argument into its frame, so the callee takes a count of each.
@@ -1274,6 +1275,13 @@ impl Em<'_, '_, '_> {
                     }
                 } else {
                     self.store(i)?;
+                }
+            }
+            Tag::LocalSet if self.moves.loan_locals.contains_key(&(a as usize)) => {
+                let ls = self.local(a)?;
+                self.push(bw)?;
+                for l in ls.iter().rev() {
+                    self.f.set(*l);
                 }
             }
             Tag::LocalSet => {

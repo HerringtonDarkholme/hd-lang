@@ -4,7 +4,7 @@
 # may read the heap's size, so the conformance runner adds this file to std
 # as `std.rt.count_tests`, as it does alloc_tests.hd.
 use std.rt.memory.pages
-use std.rt.checked.released
+use std.rt.checked.{released, retained}
 use std.testing.assert
 
 # The heap's pages in a bounded run: the static page, the page table, a
@@ -121,3 +121,19 @@ tests:
         p := wrap(s, t)
         assert(s == "n7" && t == "n7", "both still hold the string")
         assert(left_of(&p) == "n7" && p.right == s, "and so does the pair")
+
+    it("immutable loop elements add no per-element counts"):
+        words := [label(+1), label(+2), label(+3), label(+4)]
+        before := retained()
+        let found: usize = 0
+        let round: usize = 0
+        while round < 1000:
+            for word in words:
+                match word:
+                    "n1" => found += 1
+                    _ => pass
+            round += 1
+        added := retained() - before
+        assert(found == 1000, "every snapshot is read without changing its source")
+        if released() != 0:
+            assert(added <= 2000, "at most two snapshot ownership counts per round: $added")

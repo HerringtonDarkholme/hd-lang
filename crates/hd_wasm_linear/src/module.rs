@@ -472,6 +472,12 @@ impl Module {
             .collect();
         for f in self.funcs.values_mut() {
             crate::opt::locals(f, &arity);
+            if self
+                .runtime
+                .is_some_and(|r| crate::opt::count_pairs(f, r.retain))
+            {
+                crate::opt::locals(f, &arity);
+            }
         }
         let stack = crate::wide::lower(&mut self.funcs, &self.exports)?;
         // Every import and global a body names; imports come first.

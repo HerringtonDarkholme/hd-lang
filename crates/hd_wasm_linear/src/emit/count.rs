@@ -14,14 +14,80 @@
 //! nothing.
 
 use hd_base::StageResult;
-use hd_tir::ir::{NONE, Ref};
+use hd_tir::ir::{IntrinsicOp, NONE, Ref, Tag};
 use hd_types::Ty;
 
 use super::Em;
-use crate::layout::{Walk, walk};
+use crate::layout::{Kind, Walk, coll_leaves, walk};
 use crate::rt::Helper;
 
 impl Em<'_, '_, '_> {
+    /// Keep a liveness loan only when every step reads the same immutable
+    /// representation. A copied collection header or a mutable data/ref
+    /// projection needs its own ownership instead.
+    pub(super) fn prepare_loans(&mut self) {
+        fn valid(em: &Em<'_, '_, '_>, i: u32, depth: usize) -> bool {
+            if depth > 32 || i == NONE || Ref(i).as_inst().is_none() {
+                return false;
+            }
+            // An erased instruction's thunk may construct an owned box
+            // even for a logical read. Its representation is not a loan.
+            if hd_mono::is_open(em.pool(), em.ty(i))
+                || matches!(em.calls.get(&i), Some(hd_mono::Target::Open(_)))
+            {
+                return false;
+            }
+            let [a, w] = em.b.data[i as usize];
+            match em.b.tags[i as usize] {
+                Tag::LocalGet => {
+                    let l = a as usize;
+                    if em.is_cell(l) || !matches!(em.kind(em.sub(em.b.local_ty[l])), Kind::Value) {
+                        return false;
+                    }
+                    em.moves
+                        .loan_locals
+                        .get(&l)
+                        .is_none_or(|v| valid(em, *v, depth + 1))
+                }
+                Tag::Field | Tag::TupleGet | Tag::Payload | Tag::Unwrap => {
+                    matches!(em.kind(em.ty_of(a)), Kind::Value) && valid(em, a, depth + 1)
+                }
+                Tag::Intrinsic => {
+                    let Some(&base) = em.b.record(w).first() else {
+                        return false;
+                    };
+                    match IntrinsicOp::from_u32(a) {
+                        Some(IntrinsicOp::ValueCopy) => {
+                            coll_leaves(em.pool(), em.env(), em.ty(i)).is_empty()
+                                && valid(em, base, depth + 1)
+                        }
+                        Some(IntrinsicOp::ListIndex | IntrinsicOp::MapSlotEntry) => {
+                            em.moves.loans.contains(&i) && valid(em, base, depth + 1)
+                        }
+                        _ => false,
+                    }
+                }
+                _ => false,
+            }
+        }
+        let reads: Vec<u32> = self
+            .moves
+            .loans
+            .iter()
+            .copied()
+            .filter(|i| valid(self, *i, 0))
+            .collect();
+        let locals: Vec<(usize, u32)> = self
+            .moves
+            .loan_locals
+            .iter()
+            .filter(|(_, v)| valid(self, **v, 0))
+            .map(|(l, v)| (*l, *v))
+            .collect();
+        self.moves.loans = reads.into_iter().collect();
+        self.moves.loan_locals = locals.into_iter().collect();
+    }
+
     /// The counted references of a `t` value, when the program counts.
     pub(super) fn counted(&self, t: Ty) -> Option<Walk> {
         self.input.runtime?;
@@ -122,7 +188,7 @@ impl Em<'_, '_, '_> {
     pub(super) fn store_as(&mut self, i: u32, owned: bool) -> StageResult<()> {
         let ls = self.slot(i)?;
         let t = self.ty(i);
-        if self.counted(t).is_none() {
+        if self.counted(t).is_none() || self.moves.loans.contains(&i) {
             for l in ls.iter().rev() {
                 self.f.set(*l);
             }
@@ -162,7 +228,11 @@ impl Em<'_, '_, '_> {
     /// release planned after that statement goes, and `r`'s locals are
     /// zeroed once the instruction has read them ([`Em::settle`]).
     pub(super) fn take(&mut self, r: u32) -> bool {
-        if !self.counting || r == NONE || Ref(r).as_inst().is_none() {
+        if !self.counting
+            || r == NONE
+            || Ref(r).as_inst().is_none()
+            || self.moves.loans.contains(&r)
+        {
             return false;
         }
         let Some(&(u, at)) = self.moves.sole.get(&r) else {
@@ -185,7 +255,12 @@ impl Em<'_, '_, '_> {
     /// after that statement goes, and the caller zeroes its locals. A
     /// borrowed parameter has no count to give, and a cell is shared.
     pub(super) fn take_local(&mut self, i: u32, l: usize) -> bool {
-        if !self.counting || self.borrowed.contains(&l) || self.is_cell(l) {
+        if !self.counting
+            || self.borrowed.contains(&l)
+            || self.is_cell(l)
+            || self.moves.loans.contains(&i)
+            || self.moves.loan_locals.contains_key(&l)
+        {
             return false;
         }
         let Some(&(of, at)) = self.moves.last_get.get(&i) else {
@@ -203,6 +278,7 @@ impl Em<'_, '_, '_> {
     /// caller zeroes it once read ([`Em::settle_value`]).
     pub(super) fn take_tail(&self, r: u32) -> bool {
         self.counting
+            && !self.moves.loans.contains(&r)
             && self.moves.tails.contains(&r)
             && self.vals.contains_key(&r)
             && self.counted(self.ty_of(r)).is_some()
@@ -258,7 +334,9 @@ impl Em<'_, '_, '_> {
                     if self.counted(t).is_none() {
                         continue;
                     }
-                    self.release_locals(&ls, t)?;
+                    if !self.moves.loans.contains(&x) {
+                        self.release_locals(&ls, t)?;
+                    }
                     ls
                 }
                 super::live::Drop::Local(l) => {
@@ -271,7 +349,9 @@ impl Em<'_, '_, '_> {
                     if !self.is_cell(l) && self.counted(self.sub(self.b.local_ty[l])).is_none() {
                         continue;
                     }
-                    self.count_local(l, &ls, false)?;
+                    if !self.moves.loan_locals.contains_key(&l) {
+                        self.count_local(l, &ls, false)?;
+                    }
                     ls
                 }
             };
@@ -343,13 +423,15 @@ impl Em<'_, '_, '_> {
             self.vals.iter().map(|(k, v)| (*k, v.clone())).collect();
         vals.sort_unstable();
         for (i, ls) in vals {
-            self.release_locals(&ls, self.ty(i))?;
+            if !self.moves.loans.contains(&i) {
+                self.release_locals(&ls, self.ty(i))?;
+            }
         }
         let mut locals: Vec<(usize, Vec<u32>)> =
             self.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
         locals.sort_unstable();
         for (l, ls) in locals {
-            if !self.borrowed.contains(&l) {
+            if !self.borrowed.contains(&l) && !self.moves.loan_locals.contains_key(&l) {
                 self.count_local(l, &ls, false)?;
             }
         }

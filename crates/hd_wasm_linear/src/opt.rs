@@ -813,3 +813,104 @@ fn renumber(f: &mut Func) {
     }
     f.locals = kept;
 }
+
+/// Cancels balanced count changes on unchanged locals in a short straight
+/// line. Calls other than retains, stores to an operand local, and control
+/// flow end the proof: any of them may invalidate the original owner.
+pub fn count_pairs(f: &mut Func, retain: Hash128) -> bool {
+    #[derive(PartialEq, Eq)]
+    enum Count {
+        Ref,
+        Value(Vec<crate::module::Val>, crate::layout::Walk),
+    }
+    fn count(ins: &Ins, retain: Hash128) -> Option<(bool, Count, usize)> {
+        match ins {
+            Ins::Call(Sym::Inst(k)) if *k == retain => Some((true, Count::Ref, 1)),
+            Ins::Call(Sym::Helper(Helper::ReleaseRef)) => Some((false, Count::Ref, 1)),
+            Ins::Call(Sym::Helper(Helper::Retain { vals, walk })) => {
+                Some((true, Count::Value(vals.clone(), walk.clone()), vals.len()))
+            }
+            Ins::Call(Sym::Helper(Helper::Release { vals, walk })) => {
+                Some((false, Count::Value(vals.clone(), walk.clone()), vals.len()))
+            }
+            _ => None,
+        }
+    }
+    fn arguments(body: &[Ins], at: usize, n: usize) -> Option<Vec<(usize, u32)>> {
+        let mut args = Vec::new();
+        for (i, ins) in body[..at].iter().enumerate().rev() {
+            match ins {
+                Ins::Anchor(_) => continue,
+                Ins::Op(I::LocalGet(l)) => args.push((i, *l)),
+                _ => return None,
+            }
+            if args.len() == n {
+                args.reverse();
+                return Some(args);
+            }
+        }
+        None
+    }
+    let mut gone = std::collections::BTreeSet::new();
+    for (i, ins) in f.body.iter().enumerate() {
+        if gone.contains(&i) {
+            continue;
+        }
+        let Some((true, key, n)) = count(ins, retain) else {
+            continue;
+        };
+        let Some(args) = arguments(&f.body, i, n) else {
+            continue;
+        };
+        for (j, next) in f.body.iter().enumerate().skip(i + 1).take(128) {
+            if gone.contains(&j) {
+                continue;
+            }
+            if let Some((adding, other, width)) = count(next, retain) {
+                if adding {
+                    continue;
+                }
+                if other == key
+                    && width == n
+                    && let Some(end) = arguments(&f.body, j, n)
+                    && args.iter().map(|(_, l)| l).eq(end.iter().map(|(_, l)| l))
+                {
+                    gone.extend([i, j]);
+                    gone.extend(args.iter().chain(&end).map(|(at, _)| *at));
+                }
+                break;
+            }
+            match next {
+                Ins::Anchor(_)
+                | Ins::Op(
+                    I::LocalGet(_)
+                    | I::I32Const(_)
+                    | I::I64Const(_)
+                    | I::F32Const(_)
+                    | I::F64Const(_)
+                    | I::Drop
+                    | I::I32Add
+                    | I::I32Sub
+                    | I::I32Mul
+                    | I::I32Eq
+                    | I::I32Ne
+                    | I::I32Eqz
+                    | I::I32And
+                    | I::I32Or
+                    | I::I32Xor,
+                ) => {}
+                Ins::Op(I::LocalSet(l) | I::LocalTee(l)) if !args.iter().any(|(_, a)| a == l) => {}
+                _ => break,
+            }
+        }
+    }
+    if gone.is_empty() {
+        return false;
+    }
+    f.body = std::mem::take(&mut f.body)
+        .into_iter()
+        .enumerate()
+        .filter_map(|(i, ins)| (!gone.contains(&i)).then_some(ins))
+        .collect();
+    true
+}
