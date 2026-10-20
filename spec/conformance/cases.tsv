@@ -3551,6 +3551,7 @@ runtime/valid/list-copy-independent.hd	runtime	accept	lang/04-type-system.md#r-t
 runtime/valid/list-value-parameter-copy.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/list-shared-reference-parameter.hd	runtime	accept	lang/04-type-system.md#r-types.coll.shared
 runtime/valid/list-element-places.hd	runtime	accept	lang/04-type-system.md#r-types.coll.element-place
+runtime/valid/list-reads-see-every-change.hd	runtime	accept	lang/04-type-system.md#r-types.coll.element-place
 runtime/valid/map-of-lists-nested-push.hd	runtime	accept	lang/04-type-system.md#r-types.coll.nested
 typing/valid/collection-let-mut-annotated.hd	type	accept	lang/04-type-system.md#r-types.coll.let-mut
 typing/invalid/map-value-field-write.hd	type	reject:map-value-not-addressable	lang/04-type-system.md#r-types.coll.map-value.field

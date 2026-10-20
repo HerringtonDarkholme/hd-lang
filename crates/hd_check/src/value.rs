@@ -276,6 +276,18 @@ impl Ck<'_, '_> {
         (node, s): (NodeRef<'_>, NodeRef<'_>),
     ) {
         let at = s.index();
+        // A list element's field is stored in place: the element is not
+        // read, rebuilt and written back (#655).
+        if let Root::Elem(list, index, _) = place.root {
+            let mut rec = vec![list, index, v];
+            for i in place.path.iter().map(|&(i, _)| i).chain([idx]) {
+                rec.push(self.b.const_value(Ty::I32, u64::from(i)));
+            }
+            let rec = self.b.refs_record(&rec);
+            let op = hd_tir::ir::IntrinsicOp::ListFieldSet as u32;
+            self.b.emit(Tag::Intrinsic, op, rec, Ty::VOID, at);
+            return;
+        }
         let root = match place.root {
             Root::Local(l, d) => self.read_local(l, d, node).0,
             Root::Global(def, ty) => {

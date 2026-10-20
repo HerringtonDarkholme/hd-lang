@@ -385,6 +385,7 @@ impl Ck<'_, '_> {
                 Some(
                     IntrinsicOp::ListPush
                         | IntrinsicOp::ListSet
+                        | IntrinsicOp::ListFieldSet
                         | IntrinsicOp::MapRemove
                         | IntrinsicOp::MapSet
                         | IntrinsicOp::ListIndexMut

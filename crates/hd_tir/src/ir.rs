@@ -287,10 +287,17 @@ pub enum IntrinsicOp {
     /// `(list)`: releases one pin of `ListPin` after the reference's last
     /// use (`ref.elem.release`).
     ListUnpin,
+    /// `(list, index, value, f1, ..., fk)`: stores `value` into field
+    /// `fk` of field `fk-1` ... of field `f1` of the list's element at
+    /// `index`, a value struct's field path (`xs[i].p.x = v`), after
+    /// `ListIndexMut`'s bounds check and uniqueness: the one field changes
+    /// in place, and the rest of the element is neither read nor written.
+    /// Each `f` is a field index as an `i32` constant.
+    ListFieldSet,
 }
 
 impl IntrinsicOp {
-    pub const ALL: [IntrinsicOp; 23] = [
+    pub const ALL: [IntrinsicOp; 24] = [
         IntrinsicOp::ListLen,
         IntrinsicOp::ListPush,
         IntrinsicOp::ListIndex,
@@ -314,6 +321,7 @@ impl IntrinsicOp {
         IntrinsicOp::SnapEnd,
         IntrinsicOp::ListPin,
         IntrinsicOp::ListUnpin,
+        IntrinsicOp::ListFieldSet,
     ];
     #[must_use]
     pub fn from_u32(v: u32) -> Option<Self> {

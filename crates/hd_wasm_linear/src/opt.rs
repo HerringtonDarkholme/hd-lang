@@ -917,3 +917,95 @@ pub fn count_pairs(f: &mut Func, retain: Hash128) -> bool {
         .collect();
     true
 }
+
+/// Folds code that a constant decides (#655): an `if` whose condition is
+/// an `i32` constant becomes a `block` of the arm that runs (or goes,
+/// with no `else` and no result), and an `i32` local whose every write
+/// stores 0 is read as 0, so the flag of a branch folded away goes with
+/// it. A `block` keeps the label depth of the `if` it replaces, so no
+/// branch inside the arm changes. Gives whether anything changed.
+pub fn fold_constant_branches(f: &mut Func) -> bool {
+    use crate::module::Val;
+    use wasm_encoder::BlockType;
+    let mut changed = false;
+    loop {
+        let mut again = false;
+        // Constant conditions.
+        let mut i = 0;
+        while i + 1 < f.body.len() {
+            let (Ins::Op(I::I32Const(c)), Ins::Op(I::If(bt))) = (&f.body[i], &f.body[i + 1]) else {
+                i += 1;
+                continue;
+            };
+            let (c, bt) = (*c, *bt);
+            // The `if`'s `else` (if any) and `end`.
+            let (mut depth, mut els, mut end) = (0usize, None, None);
+            for (k, ins) in f.body.iter().enumerate().skip(i + 2) {
+                match ins {
+                    Ins::Op(I::Block(_) | I::Loop(_) | I::If(_)) => depth += 1,
+                    Ins::Op(I::Else) if depth == 0 => els = Some(k),
+                    Ins::Op(I::End) if depth == 0 => {
+                        end = Some(k);
+                        break;
+                    }
+                    Ins::Op(I::End) => depth -= 1,
+                    _ => {}
+                }
+            }
+            let Some(end) = end else {
+                i += 1;
+                continue;
+            };
+            let then = i + 2..els.unwrap_or(end);
+            let other = els.map_or(end..end, |e| e + 1..end);
+            let arm: Vec<Ins> = f.body[if c != 0 { then } else { other }].to_vec();
+            let mut out: Vec<Ins> = Vec::new();
+            if !(arm.is_empty() && matches!(bt, BlockType::Empty)) {
+                out.push(Ins::Op(I::Block(bt)));
+                out.extend(arm);
+                out.push(Ins::Op(I::End));
+            }
+            f.body.splice(i..=end, out);
+            again = true;
+        }
+        // Locals that only ever hold 0.
+        let np = f.params.len();
+        let mut zero: Vec<bool> = f.locals.iter().map(|v| *v == Val::I32).collect();
+        for (k, ins) in f.body.iter().enumerate() {
+            if let Ins::Op(I::LocalSet(l) | I::LocalTee(l)) = ins
+                && let Some(at) = (*l as usize).checked_sub(np)
+                && !(k > 0 && matches!(f.body[k - 1], Ins::Op(I::I32Const(0))))
+            {
+                zero[at] = false;
+            }
+        }
+        let np32 = u32::try_from(np).expect("params");
+        if zero.iter().any(|z| *z)
+            && f.body.iter().any(|ins| {
+                matches!(ins, Ins::Op(I::LocalGet(l) | I::LocalSet(l) | I::LocalTee(l))
+                    if *l >= np32 && zero[(*l - np32) as usize])
+            })
+        {
+            let body = std::mem::take(&mut f.body);
+            for ins in body {
+                match ins {
+                    Ins::Op(I::LocalGet(l)) if l >= np32 && zero[(l - np32) as usize] => {
+                        f.op(I::I32Const(0));
+                    }
+                    // Every write stores a constant 0 just pushed: a set
+                    // takes it back, and a tee leaves it.
+                    Ins::Op(I::LocalSet(l)) if l >= np32 && zero[(l - np32) as usize] => {
+                        f.body.pop();
+                    }
+                    Ins::Op(I::LocalTee(l)) if l >= np32 && zero[(l - np32) as usize] => {}
+                    other => f.body.push(other),
+                }
+            }
+            again = true;
+        }
+        if !again {
+            return changed;
+        }
+        changed = true;
+    }
+}

@@ -563,6 +563,9 @@ impl Module {
         }
         self.reach();
         crate::opt::constants(&mut self.funcs);
+        for f in self.funcs.values_mut() {
+            crate::opt::fold_constant_branches(f);
+        }
         let arity: BTreeMap<Sym, (usize, usize)> = self
             .funcs
             .iter()

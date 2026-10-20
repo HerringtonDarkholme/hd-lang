@@ -1583,6 +1583,7 @@ impl Em<'_, '_, '_> {
                     Some(IntrinsicOp::ListIndex) => self.list_index(i, &args, false)?,
                     Some(IntrinsicOp::ListIndexMut) => self.list_index(i, &args, true)?,
                     Some(IntrinsicOp::ListSet) => self.list_set(&args)?,
+                    Some(IntrinsicOp::ListFieldSet) => self.list_field_set(&args)?,
                     Some(IntrinsicOp::ListPush) => self.list_push(&args)?,
                     Some(IntrinsicOp::ValueCopy) => self.value_copy(i, args[0])?,
                     Some(IntrinsicOp::SnapBegin) => self.snap_begin(i, args[0])?,

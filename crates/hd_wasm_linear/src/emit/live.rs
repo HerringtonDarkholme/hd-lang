@@ -588,7 +588,11 @@ pub(super) fn parameter_loans(
                         if headers.contains(&x)
                             && matches!(
                                 IntrinsicOp::from_u32(b.data[j][0]),
-                                Some(IntrinsicOp::ListSet | IntrinsicOp::ListIndexMut)
+                                Some(
+                                    IntrinsicOp::ListSet
+                                        | IntrinsicOp::ListFieldSet
+                                        | IntrinsicOp::ListIndexMut
+                                )
                             ) =>
                     {
                         true

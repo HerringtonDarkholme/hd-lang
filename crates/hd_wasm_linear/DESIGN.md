@@ -1761,3 +1761,45 @@ header, so they do not invalidate a borrowed header read.
   that escape a loan still take their own counts. The fixtures cover
   invalidating alias calls, erased getter temporaries, early returns,
   initial COW sharing and snapshots created by callbacks between writes.
+
+### 23.32 Element Field Stores And Constant Branches
+
+Issue #655 makes `bodies[i].vx = e`, on a list of value structs, one
+store, and removes the scaffolding that a folded view test left.
+
+- **One field store.** The checker lowers a write into a field path of
+  a list element (`xs[i].p.x = v`) as the TIR intrinsic `ListFieldSet`
+  `(list, index, value, f1, ..., fk)`, with the field indices as `i32`
+  constants. It used to read the element (`ListIndexMut`), rebuild each
+  struct on the path (`CopyData`) and store the whole element back
+  (`ListSet`). The emitter (`list_field_set`) checks the index, makes
+  the buffer unique as `ListIndexMut` does, and stores only the field's
+  values at their offsets. A field with counted references releases its
+  old value after the new one is counted. Reads already load only the
+  projected field (§23.31). Other place roots (locals, globals, data
+  fields, references) keep the functional update.
+- **Constant branches** (`opt::fold_constant_branches`, after `opt::constants`).
+  An `if` whose condition is an `i32` constant becomes a `block` of the
+  arm that runs, which keeps every branch depth inside it. An `if` with
+  no `else` and no result that never runs goes. An `i32` local whose every
+  write stores 0 is read as 0. In a module with no reference views,
+  `ref_is_view` is already `i32.const 0`, so the view's `call_indirect`
+  arm and its release flag fold away at every read through a reference.
+- **Cost.** nbody's `advance` (release, V8 target) goes from 63
+  `f64.store`s and 146 `f64.load`s to 9 and 83, from 154 calls to 47, and
+  from 3,211 to 1,508 lines of text. The module shrinks from 20,446 bytes
+  to 14,955. hd on V8 (ms, two alternating runs of three): nbody 2,904 and
+  2,900 to 1,303 and 1,318; spectral-norm 409 and 414 to 321 and 336;
+  fannkuch-redux 3,412 and 3,492 to 3,431 and 3,475; sieve 558 and 573 to
+  549 and 549.
+- **Not done.** Each access still loads the list's header, buffer and
+  length, and checks the index. A cache of the buffer and length in
+  locals, with a flag that any possibly-changing instruction clears, ran
+  slower on V8 (nbody 1,300 to 1,410, sieve 540 to 650), so it was
+  dropped. Removing the bounds check for `0..n` over the length needs a
+  proof that `n` is the list's length and the list cannot shrink.
+- **Checked by** `runtime/valid/list-element-places.hd`, which writes a
+  string field and a nested struct field of an element, and
+  `runtime/valid/list-reads-see-every-change.hd`. The second reads lists
+  after pushes, element writes, calls that change the list through a
+  reference, and copies.

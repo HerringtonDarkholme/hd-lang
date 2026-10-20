@@ -1,0 +1,68 @@
+# test: a list read after a push, an element write, a call that changes the list through a reference, or a copy sees the list as it is then
+# Spec 04 Collection Values: types.coll.element-place, types.coll.nested; Spec 05 Index Expressions: expr.index.list.range.
+struct P:
+    x: i32
+    y: i32
+
+fn grow(xs: &mut List[i32]) -> void:
+    xs.push(xs[0] + 100)
+
+fn bump(ps: &mut List[P], k: usize) -> void:
+    ps[k].x = ps[k].x + 1
+
+fn reads(xs: &mut List[i32]) -> i32:
+    let total = +0
+    let i: usize = 0
+    while i < 3:
+        total = total + xs[0] + i32(xs.len())
+        grow(xs)
+        total = total + xs[xs.len() - 1]
+        i = i + 1
+    total
+
+fn writes(ps: &mut List[P]) -> i32:
+    before := ps[0]
+    ps[0].x = 7
+    bump(ps, 0)
+    ps[1].y = ps[0].x * 10
+    before.x + ps[0].x + ps[1].y
+
+fn pushes(n: i32) -> i32:
+    let mut xs: List[i32] = []
+    let i = +0
+    while i < n:
+        xs.push(i)
+        xs[0] = xs[0] + xs[xs.len() - 1]
+        i = i + 1
+    xs[0] + i32(xs.len())
+
+fn copies(n: i32) -> i32:
+    let mut xs = [+1, 2, 3]
+    let i = +0
+    let seen = +0
+    while i < n:
+        before := xs
+        xs[0] = xs[0] + 1
+        seen = seen + before[0] + xs[0]
+        i = i + 1
+    seen
+
+tests:
+    use std.testing.assert_equal
+
+    it("a read after a call that pushes through a reference sees the new element"):
+        let mut xs = [+1, 2]
+        assert_equal(reads(&mut xs), 315, reason="each round reads the grown list")
+        assert_equal(xs, [+1, 2, 101, 101, 101], reason="the caller's list grew")
+
+    it("a read after an element write sees the write"):
+        let mut ps = [P { x: +1, y: 2 }, P { x: 3, y: 4 }]
+        assert_equal(writes(&mut ps), 89, reason="each read sees the writes before it")
+        assert_equal(ps[0].x, 8, reason="the call's write stays")
+        assert_equal(ps[1].y, 80, reason="the second element changed")
+
+    it("a read after a push sees the new length and element"):
+        assert_equal(pushes(+50), 1275, reason="the first element sums every pushed value")
+
+    it("a copy keeps the value from before a write"):
+        assert_equal(copies(+3), 15, reason="each copy keeps its own first element")

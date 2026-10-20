@@ -8,6 +8,14 @@ struct Team:
     title: string
     members: List[Member]
 
+struct Point:
+    x: i32
+    y: i32
+
+struct Line:
+    from: Point
+    label: string
+
 tests:
     use std.testing.assert_equal
 
@@ -22,6 +30,18 @@ tests:
         assert_equal(team.members.len(), 2, reason="the field's list changed")
         assert_equal(before.members[0].name, "ada", reason="the earlier copy is unchanged")
         assert_equal(before.members[0].tags.len(), 0, reason="its inner list too")
+
+    it("a field of an element's struct field changes in place"):
+        let mut lines = [Line { from: Point { x: +1, y: 2 }, label: "a" }, Line { from: Point { x: 3, y: 4 }, label: "b" }]
+        before := lines
+        lines[1].from.y = 40
+        lines[1].label = "c"
+        assert_equal(lines[1].from.y, 40, reason="the nested field changed")
+        assert_equal(lines[1].from.x, 3, reason="its sibling field is unchanged")
+        assert_equal(lines[1].label, "c", reason="the string field changed")
+        assert_equal(lines[0].from.y, 2, reason="the other element is unchanged")
+        assert_equal(before[1].from.y, 4, reason="the earlier copy is unchanged")
+        assert_equal(before[1].label, "b", reason="its string too")
 
     it("an element of a list of lists changes in place"):
         let mut grid = [[+1, 2], [3]]
