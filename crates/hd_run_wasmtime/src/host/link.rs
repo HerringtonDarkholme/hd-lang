@@ -41,18 +41,14 @@ pub fn define(
 }
 
 /// Defines the host imports of a session input (`f1c55020:future-work/compiler/repl-plan.md` §2.3) in the
-/// session's one linker: every import of `module` but its session imports
-/// (`hd_wasm::SESSION_MODULE`), which earlier inputs' exports satisfy, and
-/// those an earlier input already defined (`defined`).
+/// linker: every host import not already defined (`defined`).
 pub(crate) fn define_session(
     linker: &mut Linker<Host>,
     module: &wasmtime::Module,
     profile: RuntimeProfile,
     defined: &mut HashSet<(String, String)>,
 ) -> Result<(), String> {
-    let host = module
-        .imports()
-        .filter(|i| i.module() != hd_wasm::SESSION_MODULE);
+    let host = module.imports();
     define_with(linker, host, defined, |module, name| {
         Kind::with_profile(module, name, profile)
     })

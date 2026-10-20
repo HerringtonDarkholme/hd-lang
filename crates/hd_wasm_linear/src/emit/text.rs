@@ -1,4 +1,4 @@
-//! Strings (`crates/hd_wasm/DESIGN.md` §23.7, job 7). A string is a view,
+//! Strings (`crates/hd_wasm_linear/DESIGN.md` §23.7, job 7). A string is a view,
 //! its bytes' address and length: a literal's bytes are static data, a
 //! built string's are a counted byte buffer ([`Helper::Str`]), and every
 //! empty string is the one static empty value ([`EMPTY`]). A slice is a

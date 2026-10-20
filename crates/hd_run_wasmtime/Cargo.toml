@@ -13,7 +13,6 @@ hd_cache = { path = "../hd_cache", features = ["disk"] }
 hd_host_abi = { path = "../hd_host_abi" }
 hd_run = { path = "../hd_run" }
 # Session inputs (`f1c55020:future-work/compiler/repl-plan.md` §2.3): the session module name and keys.
-hd_wasm = { path = "../hd_wasm" }
 # The path sandbox (`fs/sandbox.rs`): a granted directory is opened once
 # and every file operation resolves under its handle (`cli.cap.scope.path`).
 # `cap-fs-ext` adds the opens that do not follow a final symbolic link.
@@ -35,14 +34,11 @@ tokio = { version = "=1.53.2", default-features = false, features = [
     "sync",
     "time",
 ] }
-# The engine of docs/compiler/engines-and-test-runner.md §18.1: Cranelift, Wasm GC with
-# the copying collector, and nothing the CLI does not use (no component
+# The engine of docs/compiler/engines-and-test-runner.md §18.1: Cranelift and linear memory, with nothing the CLI does not use (no component
 # model, no async, no WASI). Pooling is selected only by the test engine.
 # `incremental-cache` keeps compiled functions across runs (`code_cache.rs`).
 wasmtime = { version = "=49.0.2", default-features = false, features = [
     "cranelift",
-    "gc",
-    "gc-copying",
     "incremental-cache",
     "pooling-allocator",
     "runtime",
@@ -63,7 +59,7 @@ harness = false
 socket2 = { version = "0.6", features = ["all"] }
 # Errno constants in tests.
 wasm-encoder = "=0.258.3"
-# Session-link tests (`f1c55020:future-work/compiler/repl-plan.md` C1) link modules with hd_wasm and run them here;
+# Whole-history REPL session tests build with hd_driver and run here;
 # session-collection tests (C2) build them with hd_driver.
 hd_driver = { path = "../hd_driver", default-features = false }
 hd_mono = { path = "../hd_mono" }

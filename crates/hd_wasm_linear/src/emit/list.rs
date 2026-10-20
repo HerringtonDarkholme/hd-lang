@@ -1,4 +1,4 @@
-//! Lists (`crates/hd_wasm/DESIGN.md` §23.7, §23.17, job 9). A list value
+//! Lists (`crates/hd_wasm_linear/DESIGN.md` §23.7, §23.17, job 9). A list value
 //! is the address of a counted header that holds its buffer's address and
 //! its owner word (§23.20); the buffer is a counted object holding the
 //! capacity, the length and the elements inline. A header never moves, so

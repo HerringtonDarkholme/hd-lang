@@ -1,4 +1,4 @@
-//! Requirement rows and context values (`crates/hd_wasm/DESIGN.md`
+//! Requirement rows and context values (`crates/hd_wasm_linear/DESIGN.md`
 //! §23.26, `crates/hd_mono/DESIGN.md` §12.4). A provider is a trait value,
 //! `(data, vtable)`. A function with row parameters takes one provider per
 //! key its row lists itself, then one context of its row parameters' keys;
@@ -22,7 +22,7 @@ use crate::unsupported;
 
 /// The id a context gives key `k`: the low bits of its content hash, so
 /// `Repo[User]` and `Repo[Post]` have two ids, as on Wasm GC
-/// (`hd_wasm::layout::key_id`).
+/// (the canonical requirement-key hash).
 pub(crate) fn key_id(input: &crate::Input<'_>, k: Ty) -> i64 {
     let env = input.env;
     let ph = |d: hd_base::DefId| env.path_hash(d);

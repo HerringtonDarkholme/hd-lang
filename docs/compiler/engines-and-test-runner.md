@@ -305,7 +305,7 @@ both, the earlier wins.
 - **Quiet passes.** Passing cases print nothing; a summary line ends the
   run. `--format json` writes one record per case.
 - **Each failure** prints its name, the panic category and message, the
-  frames from `hd.lines` (crates/hd_wasm/DESIGN.md §15.9), and a **repro
+  frames from `hd.lines` (crates/hd_wasm_linear/DESIGN.md §15.9), and a **repro
   command**: `hd test src/billing.hd --filter "sums prices"`. A property
   failure adds its seed; rerunning the repro replays the saved stream.
 - **Order.** Results are printed in content order by the release cursor,

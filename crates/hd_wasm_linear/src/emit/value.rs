@@ -1,4 +1,4 @@
-//! Structs, tuples, enums and data values (`crates/hd_wasm/DESIGN.md`
+//! Structs, tuples, enums and data values (`crates/hd_wasm_linear/DESIGN.md`
 //! §23.3, job 6). A struct, a tuple and a non-recursive enum are their
 //! values in locals ([`crate::layout::mem`]): construction pushes them, a
 //! field read picks some. A data value and a self-recursive enum are the

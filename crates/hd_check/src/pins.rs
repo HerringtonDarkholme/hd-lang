@@ -30,7 +30,7 @@
 //! released at once. A reference copied out of its binding (stored in a
 //! field or a list, returned, captured by a closure that outlives the
 //! statement) is released with the binding's last use on this backend
-//! (`crates/hd_wasm/DESIGN.md` §15.2, "Element references").
+//! (`crates/hd_wasm_linear/DESIGN.md` §15.2, "Element references").
 
 use hd_base::{LocalId, NodeIdx, StageResult, Symbol};
 use hd_diag::Code;

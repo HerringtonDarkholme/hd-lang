@@ -17,7 +17,7 @@
 //! is exact.
 
 use crate::asm::Asm;
-use crate::{Code, VT};
+use crate::module::Val as VT;
 
 /// The low 52 bits of a double: its stored fraction.
 const FRAC: i64 = (1 << 52) - 1;
@@ -75,7 +75,7 @@ fn ret_zero(a: &mut Asm, sign: u32) {
 
 /// The code of `RemF64`: `(x: f64, y: f64) -> f64`.
 #[must_use]
-pub fn rem_f64_code() -> Code {
+pub fn rem_f64_code() -> Vec<u8> {
     let mut a = Asm::new(vec![VT::F64, VT::F64]);
     let (x, y) = (0, 1);
     let (ux, uy) = (a.local(VT::I64), a.local(VT::I64));
@@ -211,5 +211,5 @@ pub fn rem_f64_code() -> Code {
     a.get(mx);
     a.get(sign);
     a.s().i64_or().f64_reinterpret_i64();
-    a.finish(vec![VT::F64])
+    a.finish()
 }

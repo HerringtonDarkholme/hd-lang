@@ -9,7 +9,6 @@ rust-version.workspace = true
 hd_base = { path = "../hd_base" }
 hd_cache = { path = "../hd_cache" }
 hd_host_abi = { path = "../hd_host_abi" }
-hd_wasm = { path = "../hd_wasm" }
 
 [lints]
 workspace = true

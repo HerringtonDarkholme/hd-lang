@@ -1,4 +1,4 @@
-# The hd tests of suspensions on the linear backend (crates/hd_wasm/DESIGN.md
+# The hd tests of suspensions on the linear backend (crates/hd_wasm_linear/DESIGN.md
 # §23.21): a suspension's frame is a counted object, so the cold frames of
 # plain calls, the frames of `all!`, `race!` and `cancel!`, and the frames
 # a `block_on` drives are freed once their last holder lets go, and making

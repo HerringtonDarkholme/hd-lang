@@ -1,4 +1,4 @@
-# The hd tests of lists on the linear backend (crates/hd_wasm/DESIGN.md
+# The hd tests of lists on the linear backend (crates/hd_wasm_linear/DESIGN.md
 # §23.17): a list's buffer grows, copies only when shared, and frees its
 # elements at its last release, so building lists in a loop runs in
 # bounded memory. Only std may read the heap's size, so the conformance

@@ -1,4 +1,4 @@
-//! The map glue (`crates/hd_wasm/DESIGN.md` §23.7, §23.18, job 10): a map
+//! The map glue (`crates/hd_wasm_linear/DESIGN.md` §23.7, §23.18, job 10): a map
 //! is a list's kind of header over a counted table that holds its entries
 //! in the order they were added, a removed entry marked by hash -1, and a
 //! linear-probing index of entry numbers plus one (0 empty), twice the

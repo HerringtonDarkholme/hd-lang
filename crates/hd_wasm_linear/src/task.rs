@@ -1,4 +1,4 @@
-//! The task runtime of suspending code (`crates/hd_wasm/DESIGN.md`
+//! The task runtime of suspending code (`crates/hd_wasm_linear/DESIGN.md`
 //! §23.21, job 13): the frame's task prefix and flags, the runtime checks
 //! of a poll and a cancel, the wake table, the host's leaf frames, and the
 //! entry's driver of a suspending root. These are the Wasm GC backend's
@@ -310,7 +310,7 @@ fn frame(key: Hash128, m: &Module) -> Func {
     f
 }
 
-/// [`Helper::PollCheck`] (`crates/hd_wasm/DESIGN.md` §14.3, §14.6):
+/// [`Helper::PollCheck`] (`crates/hd_wasm_linear/DESIGN.md` §14.3, §14.6):
 /// whether the poll answers Pending at once. An active frame is a
 /// re-entrant poll and a completed one an invalid state, both panics; a
 /// cancelled one answers Pending, and a poll of one that still unwinds
@@ -342,7 +342,7 @@ fn poll_check() -> Func {
     f
 }
 
-/// [`Helper::CancelCheck`] (`crates/hd_wasm/DESIGN.md` §14.6): whether
+/// [`Helper::CancelCheck`] (`crates/hd_wasm_linear/DESIGN.md` §14.6): whether
 /// the cancel goes on. An active frame panics; a done one, or a cancelled
 /// one that no longer unwinds, is left as it is; any other is marked
 /// cancelled, and abandoned under `abandon()`.
@@ -740,7 +740,7 @@ fn host_cancel() -> Func {
     f
 }
 
-/// `hd.poll(ctx)` of a suspending root (`crates/hd_wasm/DESIGN.md` §14.4):
+/// `hd.poll(ctx)` of a suspending root (`crates/hd_wasm_linear/DESIGN.md` §14.4):
 /// the first poll builds the root's frame with the host providers (no
 /// data beside each vtable of host stubs) and claims it for its driver;
 /// each poll then polls it, again while an abandon or an aborted host
@@ -1139,7 +1139,7 @@ fn cancel_tasks(f: &mut Func, skip: Option<u32>, wait: u32) {
     f.op(Instruction::End);
 }
 
-/// [`Helper::Race`] part 1, the poll (`crates/hd_wasm/DESIGN.md` §14.5):
+/// [`Helper::Race`] part 1, the poll (`crates/hd_wasm_linear/DESIGN.md` §14.5):
 /// polls the tasks in list order; the first Ready wins, and every other
 /// task is cancelled in list order before it returns, the winner's value
 /// waiting in the frame while a loser unwinds. A task that another task

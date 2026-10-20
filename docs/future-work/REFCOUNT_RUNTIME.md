@@ -46,7 +46,7 @@ immutability). This study measures each of those on proxies written in
 Rust and compiled to Wasm, then proposes the runtime.
 
 Today's layout is the starting point of the migration, not a constraint:
-[crates/hd_wasm/DESIGN.md](../../crates/hd_wasm/DESIGN.md) §15 maps
+[crates/hd_wasm_linear/DESIGN.md](../../crates/hd_wasm_linear/DESIGN.md) §15 maps
 every value to Wasm GC structs and arrays; the earlier value-structs
 study's layout plan, which assumed Wasm GC, is obsolete and deleted.
 
@@ -732,7 +732,7 @@ conformance suite runs on both, and the linear backend's failures are
 listed as known failures until they reach zero. Jobs marked (2) are
 likely two jobs.
 
-1. Layout record: `crates/hd_wasm/DESIGN.md` gains a linear-memory
+1. Layout record: `crates/hd_wasm_linear/DESIGN.md` gains a linear-memory
    layout section from this study (docs only).
 2. Backend switch: `--backend linear` for `hd build` and `hd run`, the
    conformance runner on both backends, a known-failures list for the
@@ -818,4 +818,4 @@ likely two jobs.
   and its appendix (hd's Wasm GC numbers),
   [PARALLELISM_AND_LOCALITY.md](PARALLELISM_AND_LOCALITY.md),
   [NATIVE_BACKEND.md](NATIVE_BACKEND.md),
-  [crates/hd_wasm/DESIGN.md](../../crates/hd_wasm/DESIGN.md) §14 and §15.
+  [crates/hd_wasm_linear/DESIGN.md](../../crates/hd_wasm_linear/DESIGN.md) §14 and §15.

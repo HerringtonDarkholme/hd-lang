@@ -97,7 +97,7 @@ rewritten once.
 ## 3. What Blocks SIMD Today
 
 A string is a view `(ref $bytes, i64 span)` over `$bytes = (array i8)`, a
-Wasm GC array (crates/hd_wasm/DESIGN.md §15.2). A `List[u8]` stores its
+Wasm GC array (crates/hd_wasm_linear/DESIGN.md §15.2). A `List[u8]` stores its
 bytes in a packed `(array (mut i8))` the same way.
 
 SIMD128 loads a `v128` only from linear memory (`v128.load` and its

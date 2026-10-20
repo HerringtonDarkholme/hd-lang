@@ -1,4 +1,4 @@
-# The hd tests of std.rt.alloc (crates/hd_wasm/DESIGN.md §23.6). Only std
+# The hd tests of std.rt.alloc (crates/hd_wasm_linear/DESIGN.md §23.6). Only std
 # may use a runtime module, so the conformance runner adds this file to std
 # as `std.rt.alloc_tests` and runs its cases on the linear backend
 # (crates/hd_driver/tests/conformance.rs, `STD_RT_TESTS`). Each case runs

@@ -32,7 +32,7 @@ owns what each task does.
   package's `graph` entry and, on a miss, adds one `Coherence` and one
   `InitOrder` per folder, then `Collect` after them. `Collect` performs the `codepack` lookups and adds a held
   `Link`; for each folder group with at least one miss it creates one
-  `ExtTask::Emit(GroupId)`, which emits the missed instances as a batch.
+  `ExtTask::Link`, which emits and links the whole linear-memory module.
   The folder group is the folder of the instance's item, the `codepack`
   cache unit
   (crates/hd_cache/DESIGN.md §5.2). An edge from a task that is already

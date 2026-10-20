@@ -1,4 +1,4 @@
-# The hd tests of counting on the linear backend (crates/hd_wasm/DESIGN.md
+# The hd tests of counting on the linear backend (crates/hd_wasm_linear/DESIGN.md
 # §23.16): ordinary code that allocates in a loop runs in bounded memory,
 # since each value's last release frees its block for the next. Only std
 # may read the heap's size, so the conformance runner adds this file to std
@@ -7,7 +7,7 @@ use std.rt.memory.pages
 
 # The heap's pages in a bounded run: the static page, the page table, a
 # page for each size class the objects use, and the cycle collector's
-# candidate buffer (crates/hd_wasm/DESIGN.md §23.28), which grows with the
+# candidate buffer (crates/hd_wasm_linear/DESIGN.md §23.28), which grows with the
 # live candidates, not with the loop. Without the frees the chains alone
 # need about 50 MB.
 BOUND := 12
@@ -44,7 +44,7 @@ struct Pair:
     left: string
     right: string
 
-# An owned parameter, consumed by a construction (crates/hd_wasm/DESIGN.md
+# An owned parameter, consumed by a construction (crates/hd_wasm_linear/DESIGN.md
 # §23.25).
 fn wrap(s: string, t: string) -> Pair:
     Pair { left: s, right: t }

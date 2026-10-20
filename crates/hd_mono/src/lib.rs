@@ -100,7 +100,7 @@ pub trait ProgramEnv: LayoutEnv {
     /// Data fields, for the struct types a program needs.
     fn data_fields(&self, def: DefId) -> Option<Vec<Ty>>;
     /// Whether `def` is a `struct` declaration: a value whose copies copy
-    /// the collections it holds (`crates/hd_wasm/DESIGN.md` §15.2,
+    /// the collections it holds (`crates/hd_wasm_linear/DESIGN.md` §15.2,
     /// "Collection values").
     fn is_struct(&self, def: DefId) -> bool {
         let _ = def;
@@ -308,7 +308,7 @@ impl VTable {
 }
 
 /// How a vtable slot's adapter passes the trait value's payload to the
-/// slot's target (`crates/hd_wasm/DESIGN.md` §15.2, "Trait value
+/// slot's target (`crates/hd_wasm_linear/DESIGN.md` §15.2, "Trait value
 /// references").
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SlotRecv {
@@ -399,7 +399,7 @@ pub struct BoundaryCodecs {
     /// For a trait value reference `&mut dyn H` to a host handle entering
     /// hd, as `Net.connect!` returns (`std-net.handles.ref`): the
     /// `std.rt.host_provider` instance at `dyn H`, which puts the handle's
-    /// trait value behind a new object (`crates/hd_wasm/DESIGN.md` §15.2).
+    /// trait value behind a new object (`crates/hd_wasm_linear/DESIGN.md` §15.2).
     pub handle_ref: Option<Hash128>,
 }
 
@@ -470,7 +470,7 @@ impl Collected {
 
     /// Whether the program may call trait method `method` through a trait
     /// value, so a host provider's slot for it needs its host call
-    /// (`crates/hd_wasm/DESIGN.md`, host providers). An instance an earlier
+    /// (`crates/hd_wasm_linear/DESIGN.md`, host providers). An instance an earlier
     /// session module defines was not scanned, so once one is reached
     /// every method may be called.
     #[must_use]
@@ -529,7 +529,7 @@ pub fn subst(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: TyList,
 }
 
 /// Whether copying a value of type `t` copies collections
-/// (`crates/hd_wasm/DESIGN.md` §15.2, "Collection values"): a `List` or a
+/// (`crates/hd_wasm_linear/DESIGN.md` §15.2, "Collection values"): a `List` or a
 /// `Map` value, or a struct holding one in its fields, at any depth of
 /// struct fields. Generic code over such a type is laid out exactly, never
 /// as the A1 class `REF`, so a copy in it knows what it copies.
@@ -2970,7 +2970,7 @@ impl Cx<'_> {
                         return err("a trait-value coercion to a non-trait type");
                     };
                     // A `dyn Any` is laid out as a `dyn Inspectable`, so its
-                    // vtable is `Inspectable`'s (`hd_wasm::layout::dyn_key`).
+                    // vtable is `Inspectable`'s canonical dynamic key.
                     let sealed = env.decls().sealed();
                     let (trait_, trait_args) =
                         if trait_ == sealed.any && sealed.inspectable != DefId::NONE {

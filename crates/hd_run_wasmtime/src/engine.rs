@@ -15,8 +15,6 @@ pub struct EngineConfig {
     pub cranelift_opt: OptLevel,
     /// `Config::max_wasm_stack`: the profile's stack limit.
     pub max_wasm_stack: usize,
-    /// The initial GC heap of a store (§17.8; E9 decides the default).
-    pub gc_heap_initial: u64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -40,7 +38,6 @@ impl EngineConfig {
                 hd_base::OptLevel::Optimized => OptLevel::Speed,
             },
             max_wasm_stack: 4 << 20,
-            gc_heap_initial: 64 << 20,
         }
     }
 }
@@ -167,17 +164,11 @@ impl WasmtimeEngine {
 
 pub(crate) fn wasmtime_config(config: EngineConfig) -> wasmtime::Config {
     let mut c = wasmtime::Config::new();
-    c.wasm_gc(true)
-        .wasm_function_references(true)
-        .wasm_reference_types(true)
+    c.wasm_gc(false)
         .wasm_multi_value(true)
         .wasm_bulk_memory(true)
         .wasm_extended_const(true)
         .wasm_tail_call(false)
-        .wasm_exceptions(false)
-        .wasm_stack_switching(false)
-        .collector(wasmtime::Collector::Copying)
-        .gc_heap_initial_size(config.gc_heap_initial)
         .epoch_interruption(true)
         // Guest faults use signal handlers on macOS too, as on Linux. The
         // Mach-port handler thread aborts the process when any handled

@@ -122,7 +122,7 @@ mod tests {
             log.lock().expect("log").push(kind);
             if let TaskKind::FolderIface(f) = kind {
                 let link = sp.add_held(TaskKind::Ext(ExtTask::Link), &[]);
-                let e = sp.add(TaskKind::Ext(ExtTask::Emit(f)), &[]);
+                let e = sp.add(TaskKind::Body(f), &[]);
                 sp.edge(e, link);
                 sp.release(link);
             }

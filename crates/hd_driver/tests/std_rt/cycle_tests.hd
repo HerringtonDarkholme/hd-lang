@@ -1,4 +1,4 @@
-# The hd tests of std.rt.cycle (crates/hd_wasm/DESIGN.md §23.28), the cycle
+# The hd tests of std.rt.cycle (crates/hd_wasm_linear/DESIGN.md §23.28), the cycle
 # collector: a loop that drops reference cycles runs in bounded memory,
 # since a collection frees each cycle once the candidate buffer is full.
 # Only std may read the heap's size, so the conformance runner adds this

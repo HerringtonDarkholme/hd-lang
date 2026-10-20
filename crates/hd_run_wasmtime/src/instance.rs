@@ -5,7 +5,7 @@ use std::time::Instant;
 
 use hd_run::journal::End;
 use hd_run::{Instance, Outcome, StartError};
-use hd_wasm::rt::CANCELLED_END;
+const CANCELLED_END: i32 = -2;
 use wasmtime::{Store, Trap, TypedFunc, WasmBacktrace};
 
 use crate::cancel::{CancelStep, HostCancel};
@@ -58,7 +58,7 @@ pub struct WasmtimeInstance {
     pub(crate) last_trapped: bool,
     /// The last Wasm trap's frames, innermost first: function index and
     /// module byte offset, which a test report symbolizes
-    /// (`crates/hd_wasm/DESIGN.md` §15.9).
+    /// (`crates/hd_wasm_linear/DESIGN.md` §15.9).
     pub(crate) last_frames: Vec<(u32, u32)>,
     /// Whether a session's stop ended the run: `Stopped` while Wasm ran,
     /// `Cancelled` while it waited. For the input's `End` row.

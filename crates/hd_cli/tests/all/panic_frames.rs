@@ -1,5 +1,5 @@
 //! Symbolized panic frames in `hd test` text reports
-//! (`cli.test.report.panic`, `cli.test.report.frame`, `crates/hd_wasm/DESIGN.md`
+//! (`cli.test.report.panic`, `cli.test.report.frame`, `crates/hd_wasm_linear/DESIGN.md`
 //! §15.9): a `PANIC` block lists `FILE:LINE FUNCTION` lines after its
 //! `panic:` line, panic site first. An explicit panic starts at the call of
 //! `panic`, never inside the runtime's stub; a panic in std code starts in
@@ -375,7 +375,7 @@ fn custom_sections(wasm: &[u8]) -> Vec<String> {
 
 /// A debug build keeps the standard `name` section beside `hd.lines`; a
 /// release build drops it for the compact `hd.names`, so its panics still
-/// name their functions (`crates/hd_wasm/DESIGN.md` §15.5). Both carry
+/// name their functions (`crates/hd_wasm_linear/DESIGN.md` §15.5). Both carry
 /// `hd.positions`, the anchors `hd build` resolved.
 #[test]
 fn release_builds_name_functions_in_hd_names() {

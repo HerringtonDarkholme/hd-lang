@@ -2,7 +2,7 @@
 //! `hd_driver`: the one driver (`docs/compiler/design-overview.md` §1, `crates/hd_sched/DESIGN.md` §6.1).
 //! A run is the task graph of §6.1 over a package: skim, folder graph,
 //! folder interfaces, header checks, module prep, bodies, module finish,
-//! coherence, init order, package result, then `Collect`, `Emit` and
+//! coherence, init order, package result, then `Collect` and
 //! `Link` for a program. Every task writes its result into a per-kind slot
 //! (`OnceLock`), so the serial, stepping and pool executors run the same
 //! task code. Every stage boundary goes through the caller's `CacheStore`.
@@ -24,7 +24,7 @@ use hd_base::wire::{Reader, Writer};
 pub use hd_base::{BuildProfile, EngineTarget, OptLevel};
 use hd_base::{DefId, FileId, FolderId, Hash128, ModuleId, NotImplemented, Span, StageResult};
 use hd_cache::{
-    CacheStore, EntryKind, FileApi, MemoryStore, check_key, code_key, hdr_key, iface_key, init_key,
+    CacheStore, EntryKind, FileApi, MemoryStore, check_key, hdr_key, iface_key, init_key,
     parse_key, prog_key, reads_key, toolchain_key,
 };
 use hd_check::BodyCx;
@@ -45,7 +45,6 @@ use hd_types::solver::{
     UniverseImpls, folder_table,
 };
 use hd_types::{InternPool, Ty, TyData, TyList};
-use hd_wasm::Code as WasmCode;
 
 pub mod bench;
 mod dbg;
@@ -292,8 +291,7 @@ pub enum Goal {
     /// the library's names on. The run reads and builds only what the
     /// input reaches. With [`Packages::session`], it links as
     /// one more module of that session, so only it is checked, emitted
-    /// and linked. Input 0 is the session's prelude, which
-    /// [`build_repl_prelude`] builds.
+    /// and linked as one whole-history module.
     ReplInput { input: u32 },
 }
 
@@ -459,8 +457,8 @@ pub struct Output {
     /// The optimization level whose pipeline built this output
     /// ([`Packages::level`]).
     pub level: OptLevel,
-    /// The backend that built this output ([`Packages::backend`]).
-    pub backend: Backend,
+    /// Whether allocation/count auditing was enabled.
+    pub checked: bool,
     /// The run's toolchain key (`crates/hd_cache/DESIGN.md` §5.3): the compiler build and the
     /// std sources it built with.
     pub toolchain: Hash128,
@@ -518,7 +516,7 @@ impl Output {
     }
 
     /// What resolves the anchors of the built program's line table to
-    /// files and lines (`crates/hd_wasm/DESIGN.md` §15.9), its modules kept in `pool`
+    /// files and lines (`crates/hd_wasm_linear/DESIGN.md` §15.9), its modules kept in `pool`
     /// with those of the command's other programs.
     #[must_use]
     pub fn positions(&self, pool: &mut PositionPool) -> Positions {
@@ -731,70 +729,11 @@ struct InitRun {
 struct CollectOut {
     collected: Collected,
     order: Vec<hd_base::InstId>,
-    codes: Vec<OnceLock<WasmCode>>,
-    code_keys: Vec<Hash128>,
-    /// The missed slots by folder group, the folder of each instance's
-    /// item (`crates/hd_sched/DESIGN.md` §6.1): one `Emit` task each.
-    groups: Vec<Vec<usize>>,
-    /// Each emitted group's `codepack`, written once the group's code is
-    /// all in.
-    packs: Vec<CodePack>,
-    /// The package's `packhint` as this run read it, and the packs this
-    /// run wrote, which `Link` puts first in it.
-    hint: PackHint,
-    written: Mutex<Vec<(String, Hash128)>>,
     prog_key: Hash128,
     roots: Roots,
     /// The `std.rt.host_provider` instance per entry row key whose host
     /// provider is installed behind a reference (req.ref.host.reference-values).
     host_refs: Vec<(Ty, Hash128)>,
-    /// Nominal types' layouts, shared by the program's emissions so each
-    /// recursion group is laid out once.
-    layouts: hd_wasm::layout::Layouts,
-}
-
-/// A folder group's `codepack` (`docs/compiler/data-structures.md`
-/// §3.22): its cached slots in content order, the pack's key, and the
-/// folder's path, its name in the package's `packhint`.
-struct CodePack {
-    slots: Vec<usize>,
-    key: Hash128,
-    folder: String,
-}
-
-/// How many of a folder's recent packs the package's `packhint` keeps.
-const HINTED_PACKS: usize = 4;
-
-/// A package's `packhint`: each folder's recent packs, newest first.
-type PackHint = BTreeMap<String, Vec<Hash128>>;
-
-/// Fills `codes` from a `codepack` entry's `sections`, its code keys and
-/// their code: each of `slots` without code whose code key it holds.
-fn fill_from(
-    sections: &[Vec<u8>],
-    slots: &[usize],
-    code_keys: &[Hash128],
-    codes: &[OnceLock<WasmCode>],
-) {
-    let [head, body] = sections else {
-        return;
-    };
-    let mut r = hd_base::wire::Reader::new(head);
-    let keys: Vec<Hash128> = (0..r.count()).map(|_| r.hash()).collect();
-    let Some(stored) = r.ok().then(|| hd_wasm::decode_codes(body)).flatten() else {
-        return;
-    };
-    if stored.len() != keys.len() {
-        return;
-    }
-    let mut at: hd_base::HashMap<Hash128, WasmCode> = keys.into_iter().zip(stored).collect();
-    for &s in slots {
-        if codes[s].get().is_none()
-            && let Some(c) = at.remove(&code_keys[s])
-        {
-            let _ = codes[s].set(c);
-        }
-    }
 }
 
 /// Module `m`'s skim: its text's skim `file`, with the module paths it
@@ -940,7 +879,7 @@ struct ReplInputs {
     /// Each module's number, if it is an input.
     numbers: Vec<Option<u32>>,
     /// The input this run builds, by module; `None` for the prelude, which
-    /// is no input of a package ([`build_repl_prelude`]), and every other
+    /// is no user input of a package, and every other
     /// goal.
     input: Option<usize>,
     /// The numbers of the inputs this run builds, from the first to the
@@ -1170,13 +1109,10 @@ struct Run<'a> {
     pipeline: Hash128,
     /// The pipeline's body-unit passes, which collection applies.
     planner: hd_opt::planner::PipelinePlanner,
-    /// The target's lowering profile, which emission reads
-    /// (`crates/hd_opt/DESIGN.md` (optimization pipelines) §4); its hash is part of `pipeline`.
-    lowering: hd_wasm::Lowering,
     /// The build profile emitted code follows ([`Packages::build_profile`]).
     build_profile: BuildProfile,
-    /// The code generator ([`Packages::backend`]).
-    backend: Backend,
+    /// Whether allocation/count auditing is enabled.
+    checked: bool,
     /// The root package's per-body fuel, when a test sets it
     /// ([`Packages::body_fuel`]).
     body_fuel: Option<u64>,
@@ -1280,32 +1216,6 @@ pub struct Dependency<'a> {
     pub fetched: bool,
 }
 
-/// The code generator a `Goal::Program` links with (`cli.backend.select`).
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum Backend {
-    /// The Wasm GC backend (`hd_wasm`).
-    WasmGc,
-    /// The linear-memory backend (`hd_wasm_linear`,
-    /// `crates/hd_wasm/DESIGN.md` §23), the default, which links the whole
-    /// program at once from collection's output and caches no code per
-    /// instance.
-    #[default]
-    Linear,
-    /// The linear-memory backend in checked mode
-    /// (`crates/hd_wasm/DESIGN.md` §23.24): freed memory is poisoned and
-    /// never reused, every count change is audited, and a leak at exit
-    /// panics.
-    LinearChecked,
-}
-
-impl Backend {
-    /// Whether this is the linear-memory backend, checked or not.
-    #[must_use]
-    pub const fn linear(self) -> bool {
-        matches!(self, Backend::Linear | Backend::LinearChecked)
-    }
-}
-
 /// The packages around a build's root package.
 #[derive(Default)]
 pub struct Packages<'a> {
@@ -1335,7 +1245,7 @@ pub struct Packages<'a> {
     pub build_profile: BuildProfile,
     /// The engine the build is tuned for (`crates/hd_opt/DESIGN.md` (optimization pipelines) §5). With
     /// `level` it selects the pipeline (`hd_opt::passes::pipeline`) and the
-    /// lowering (`hd_wasm::Lowering::of`), whose content, not the target's
+    /// code generation, whose content, not the target's
     /// name, is part of every code key. The default is the default engine's
     /// target, `V8` (Node).
     pub target: EngineTarget,
@@ -1352,12 +1262,8 @@ pub struct Packages<'a> {
     /// those modules' closures (`hd check FILE`, `crates/hd_cli/DESIGN.md`
     /// §7.2). `None` checks the whole package.
     pub check_roots: Option<Vec<String>>,
-    /// For a `Goal::Program`: build one more module of this session
-    /// instead of a closed program (`f1c55020:future-work/compiler/repl-plan.md` §2.2). Collection stops at
-    /// the instances earlier modules export and leaves out the inits they
-    /// ran; the module links in `hd_wasm::LinkMode::Session`. Its link is
-    /// not cached, since it depends on the session, except the prelude's
-    /// ([`build_repl_prelude`]), which every session starts with.
+    /// Cached source/check entries from earlier REPL inputs. Runtime state
+    /// is rebuilt from the whole input history in one module.
     pub session: Option<&'a Session>,
     /// For a `Goal::ReplInput { input }` with a session: build every input
     /// from this number to `input` as one module, for a rebuild that holds
@@ -1380,20 +1286,14 @@ pub struct Packages<'a> {
     /// check keys and of their folders' header-check keys. `None` keeps
     /// the default; every other package always does.
     pub body_fuel: Option<u64>,
-    /// The code generator ([`Backend`]). Its name is part of the link's
-    /// key, so the two backends' modules never share a cache entry.
-    pub backend: Backend,
+    /// Enable allocation/count auditing for compiler conformance checks.
+    pub checked: bool,
 }
 
 /// What the modules a session built so far hold, for the build of its next
 /// module ([`Packages::session`]), such as the inputs before a REPL input.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Session {
-    /// What those modules export: their instances, parts and globals, and
-    /// whether the next module is the session's first.
-    pub externs: hd_wasm::Externs,
-    /// The keys of the init bodies' instances those modules ran.
-    pub inits_run: BTreeSet<Hash128>,
     /// Each REPL input's entries, by number. The build of a later input
     /// reads an earlier input here instead of computing its keys over the
     /// inputs before it and reading the store, so it does not redo the
@@ -1416,130 +1316,16 @@ struct InputEntries {
 }
 
 impl Session {
-    /// A session with no module yet: the next module is its first.
+    /// Empty source/check metadata for a whole-history REPL build.
     #[must_use]
     pub fn start() -> Session {
-        Session {
-            externs: hd_wasm::Externs {
-                first: true,
-                ..hd_wasm::Externs::default()
-            },
-            inits_run: BTreeSet::new(),
-            inputs: BTreeMap::new(),
-        }
+        Session::default()
     }
 
-    /// Adds what a module that ran adds ([`Output::session_added`]); the
-    /// next module is not the first.
+    /// Adds cached source/check entries from an input.
     pub fn add(&mut self, added: Session) {
-        self.externs.first = false;
-        self.externs.funcs.extend(added.externs.funcs);
-        self.externs.globals.extend(added.externs.globals);
-        self.inits_run.extend(added.inits_run);
         self.inputs.extend(added.inputs);
     }
-
-    /// A cache section: the externs' bytes, then the inits run.
-    fn encode(&self) -> Vec<u8> {
-        let mut w = Writer::default();
-        w.blob(&self.externs.encode());
-        w.u32(u32_of(self.inits_run.len()));
-        for k in &self.inits_run {
-            w.hash(*k);
-        }
-        w.bytes
-    }
-
-    fn decode(bytes: &[u8]) -> Option<Session> {
-        let mut r = Reader::new(bytes);
-        let externs = hd_wasm::Externs::decode(r.blob())?;
-        let inits_run = (0..r.count()).map(|_| r.hash()).collect();
-        (r.ok() && r.at_end()).then_some(Session {
-            externs,
-            inits_run,
-            inputs: BTreeMap::new(),
-        })
-    }
-}
-
-/// The REPL session's prelude (`f1c55020:future-work/compiler/repl-plan.md` §2.3, job C8): input 0, the
-/// session's first module. It owns the memory and the runtime globals and
-/// holds what a value-showing input needs (`cli.repl.value`), so a later
-/// input imports those instances instead of linking its own copies: the
-/// value line, and `dbg`'s layout and printer, a function reference
-/// included, for each primitive type and the lists in `PRELUDE_LISTS`.
-/// Its one statement does nothing when it runs.
-const REPL_PRELUDE: &str = "\
-# The REPL session's prelude (hd_driver::REPL_PRELUDE).
-pass
-";
-
-/// The package the prelude is the one file of: it reads only std, so it
-/// is the same for every session of one toolchain and build profile.
-const PRELUDE_PACKAGE: &str = "repl";
-
-/// The element types of the lists the prelude shows: those of number
-/// literals written bare or with `+`, and `string`. Each list costs the
-/// prelude about 1.5 KB; a list of another type is shown by the input's
-/// own copy of its instances.
-const PRELUDE_LISTS: [hd_types::Prim; 4] = [
-    hd_types::Prim::Usize,
-    hd_types::Prim::I32,
-    hd_types::Prim::F64,
-    hd_types::Prim::String,
-];
-
-/// The instances the prelude holds besides its init's
-/// ([`build_repl_prelude`]), by item and type arguments.
-#[derive(Default)]
-struct PreludeRoots {
-    /// The calls: `repl_value`, and `dbg_layout` at each type.
-    calls: Vec<(DefId, TyList)>,
-    /// The function references, as adapters: `dbg_show` at each type.
-    refs: Vec<(DefId, TyList)>,
-}
-
-/// The prelude's cache key: per toolchain and build profile, since its
-/// source is the compiler's.
-fn prelude_key(toolchain: Hash128, pipeline: Hash128, profile: BuildProfile) -> Hash128 {
-    prog_key(toolchain, pipeline, profile, "repl:prelude", &[])
-}
-
-/// Builds the REPL session's prelude, input 0, for a session in
-/// `profile` whose modules are tuned for `target` (a session builds in
-/// the dev pipeline), or reads it from `host.store`, where it is cached
-/// per toolchain and pipeline. It owns the session's memory and runtime globals and holds
-/// the instances that showing a value needs (`cli.repl.value`), so small
-/// inputs stay small. A session that starts runs it first, then adds its
-/// [`Output::session_added`] to [`Session::start`], and builds its inputs,
-/// numbered from 1, over that session. `host.sources` is not read.
-#[must_use]
-pub fn build_repl_prelude(host: &Host<'_>, profile: BuildProfile, target: EngineTarget) -> Output {
-    let mut sources = MemorySources::default();
-    sources.insert(&hd_project::repl_file(0), REPL_PRELUDE);
-    let host = Host {
-        render_tir: host.render_tir,
-        sources: &sources,
-        store: host.store,
-        clock: host.clock,
-        executor: host.executor,
-    };
-    let start = Session::start();
-    let packages = Packages {
-        build_profile: profile,
-        target,
-        session: Some(&start),
-        // A session links one module per input, which only the Wasm GC
-        // backend does so far; the linear backend refuses REPL sessions.
-        backend: Backend::WasmGc,
-        ..Packages::default()
-    };
-    build_packages(
-        &host,
-        PRELUDE_PACKAGE,
-        &packages,
-        &Goal::ReplInput { input: 0 },
-    )
 }
 
 /// The root package's key: its name, and the traits of a runtime profile
@@ -1702,7 +1488,6 @@ pub fn build_packages(
         profile,
         pipeline,
         planner,
-        lowering: hd_wasm::Lowering::of(packages.target),
         build_profile: match goal {
             Goal::Program { .. } | Goal::ReplInput { .. } => packages.build_profile,
             Goal::Tests { .. } | Goal::Scenario { .. } | Goal::Analyze | Goal::CheckTests => {
@@ -1710,7 +1495,7 @@ pub fn build_packages(
             }
         },
         body_fuel: packages.body_fuel,
-        backend: packages.backend,
+        checked: packages.checked,
         fetched: std::iter::once(false)
             .chain(packages.deps.iter().map(|d| d.fetched))
             .chain(std::iter::once(false))
@@ -1795,8 +1580,7 @@ pub fn build_packages(
         };
         lock(&run.diags).error(*code, span, message);
     }
-    // A cached prelude needs none of the stages.
-    if !run.cached_prelude() {
+    {
         let mut g = TaskGraph::default();
         let mut skims = Vec::new();
         for i in 0..n {
@@ -1918,7 +1702,7 @@ pub fn build_packages(
         session_added,
         target: packages.target,
         level: packages.level,
-        backend: packages.backend,
+        checked: packages.checked,
         toolchain: run.toolchain,
         pipeline: run.pipeline,
     }
@@ -2360,9 +2144,9 @@ struct OptInFinding {
 
 impl Run<'_> {
     /// Whether the build links the linear backend's checked runtime
-    /// ([`Backend::LinearChecked`]).
+    /// (the internal allocation/count audit setting).
     fn checked(&self) -> bool {
-        self.backend == Backend::LinearChecked
+        self.checked
     }
 
     fn names(&self) -> Names<'_> {
@@ -2427,7 +2211,6 @@ impl Run<'_> {
             TaskKind::ModuleFinish(m) => self.module_finish(m as usize),
             TaskKind::PackageResult => self.package_result(sp),
             TaskKind::Ext(ExtTask::Collect) => self.collect(sp),
-            TaskKind::Ext(ExtTask::Emit(i)) => self.emit(i as usize),
             TaskKind::Ext(ExtTask::Link) => self.link(),
             TaskKind::Parse(f) => {
                 self.parse_of(f as usize);
@@ -2487,60 +2270,6 @@ impl Run<'_> {
 
     fn blocked(&self, s: Stage) {
         lock(&self.report).blocked(s);
-    }
-
-    /// Whether this run builds a REPL session's prelude
-    /// ([`build_repl_prelude`]): input 0, the first module of a session.
-    fn prelude(&self) -> bool {
-        matches!(self.goal, Goal::ReplInput { input: 0 })
-            && self.session.is_some_and(|s| *s == Session::start())
-    }
-
-    /// For the prelude: reads it from the store, its module and what it
-    /// adds to the session; whether it was there.
-    fn cached_prelude(&self) -> bool {
-        if !self.prelude() {
-            return false;
-        }
-        let key = prelude_key(self.toolchain, self.pipeline, self.build_profile);
-        let Some(sections) = self.lookup(EntryKind::Link, key) else {
-            return false;
-        };
-        let (Some(wasm), Some(added)) = (
-            sections.first(),
-            sections.get(1).and_then(|b| Session::decode(b)),
-        ) else {
-            return false;
-        };
-        let _ = self.wasm.set(wasm.clone());
-        let _ = self.session_added.set(added);
-        lock(&self.report).ok(Stage::Collect);
-        true
-    }
-
-    /// The prelude's roots besides its init: what an input that is one
-    /// expression reaches (`hd_check`'s `repl_value` and `dbg_text`).
-    fn prelude_roots(&self) -> PreludeRoots {
-        let names = self.names();
-        let format = |n: &str| names.item("std.format", n);
-        let pool = &self.pool;
-        let lists = PRELUDE_LISTS.iter().map(|p| {
-            pool.intern_ty(&TyData::Adt {
-                def: self.known.list,
-                args: pool.list(&[Ty::prim(*p)]),
-            })
-        });
-        let types: Vec<Ty> = hd_types::Prim::ALL
-            .iter()
-            .map(|p| Ty::prim(*p))
-            .chain(lists)
-            .collect();
-        let mut calls = vec![(format("repl_value"), TyList::EMPTY)];
-        let layout = format("dbg_layout");
-        calls.extend(types.iter().map(|t| (layout, pool.list(&[*t]))));
-        let show = format("dbg_show");
-        let refs = types.iter().map(|t| (show, pool.list(&[*t]))).collect();
-        PreludeRoots { calls, refs }
     }
 
     fn lookup(&self, kind: EntryKind, key: Hash128) -> Option<Vec<Vec<u8>>> {
@@ -7338,8 +7067,8 @@ impl Run<'_> {
                 }
                 // The linear backend lowers references as addresses, so
                 // their closure forms never reach it
-                // (`crates/hd_wasm/DESIGN.md` §23.20).
-                if self.backend.linear() && hd_tir::ir::strip_closure_forms(&mut body) {
+                // (`crates/hd_wasm_linear/DESIGN.md` §23.20).
+                if hd_tir::ir::strip_closure_forms(&mut body) {
                     let mut key = hd_base::StableHasher::new("ref-addresses");
                     key.hash(hash);
                     hash = key.finish();
@@ -7482,11 +7211,7 @@ impl Run<'_> {
             Goal::Scenario { .. } => format!("scenario:{entry_key}"),
             _ => entry_key.clone(),
         };
-        let keyed_entry = match self.backend {
-            Backend::WasmGc => keyed_entry,
-            Backend::Linear => format!("linear:{keyed_entry}"),
-            Backend::LinearChecked => format!("linear-checked:{keyed_entry}"),
-        };
+        let keyed_entry = format!("linear:checked={}:{}", self.checked(), keyed_entry);
         let pkey = prog_key(
             self.toolchain,
             self.pipeline,
@@ -7581,22 +7306,15 @@ impl Run<'_> {
         // A joined build's one root is its last input, whose init order
         // every input's inits are split from.
         let mut order: Vec<(DefId, &str)> = Vec::new();
-        // The linear backend's runtime (crates/hd_wasm/DESIGN.md §23.16)
+        // The linear backend's runtime (crates/hd_wasm_linear/DESIGN.md §23.16)
         // runs its module's inits first, in every root's group.
-        let linear_runtime = self
-            .backend
-            .linear()
-            .then_some(hd_wasm_linear::runtime_module(self.checked()));
-        let runtime_inits: Vec<DefId> = if let Some(runtime) = linear_runtime {
-            match self.root_init_order(runtime, &init_of, &has_init) {
-                Ok(o) => o.into_iter().map(|(d, _)| d).collect(),
-                Err(e) => {
-                    self.stage::<()>(Stage::Collect, Err(e));
-                    return;
-                }
+        let runtime = hd_wasm_linear::runtime_module(self.checked());
+        let runtime_inits: Vec<DefId> = match self.root_init_order(runtime, &init_of, &has_init) {
+            Ok(o) => o.into_iter().map(|(d, _)| d).collect(),
+            Err(e) => {
+                self.stage::<()>(Stage::Collect, Err(e));
+                return;
             }
-        } else {
-            Vec::new()
         };
         all_inits.extend(&runtime_inits);
         for m in &root_modules {
@@ -7692,32 +7410,12 @@ impl Run<'_> {
                 }
             }
         }
-        let prelude = if self.prelude() {
-            self.prelude_roots()
-        } else {
-            PreludeRoots::default()
-        };
-        extra.extend(prelude.calls);
-        // The linear backend's code calls std's allocator and counts by
-        // key (crates/hd_wasm/DESIGN.md §23.16), whatever the program
-        // uses; its link drops the ones nothing calls.
-        if self.backend.linear() {
-            for (module, name) in hd_wasm_linear::runtime_items(self.checked()) {
-                let r = (names.item(module, name), TyList::EMPTY);
-                if self.body_of(p, r.0).is_some() && !extra.contains(&r) {
-                    extra.push(r);
-                }
+        for (module, name) in hd_wasm_linear::runtime_items(self.checked()) {
+            let r = (names.item(module, name), TyList::EMPTY);
+            if self.body_of(p, r.0).is_some() && !extra.contains(&r) {
+                extra.push(r);
             }
         }
-        let known = |k: Hash128| {
-            self.session
-                .is_some_and(|s| s.externs.funcs.contains_key(&hd_wasm::Sym::Inst(k)))
-        };
-        let inits_run = |k: Hash128| self.session.is_some_and(|s| s.inits_run.contains(&k));
-        let session = self.session.map(|_| hd_mono::Session {
-            known: &known,
-            inits_run: &inits_run,
-        });
         let collected = hd_mono::collect(
             &self.pool,
             &env,
@@ -7725,8 +7423,8 @@ impl Run<'_> {
             root,
             &all_inits,
             &extra,
-            &prelude.refs,
-            session,
+            &[],
+            None,
             &self.planner,
         );
         // Bodies decode as collection reaches them: a body whose bytes did
@@ -7827,104 +7525,14 @@ impl Run<'_> {
             },
         };
         let order = collected.table.content_order();
-        let mut code_keys = Vec::new();
-        let codes: Vec<OnceLock<WasmCode>> = order.iter().map(|_| OnceLock::new()).collect();
-        let held = self.scenario_hold(p);
-        for id in &order {
-            let item = collected.table.item[id.idx()];
-            let tir = self
-                .body_of(p, item)
-                .map_or(Hash128(0), |(original, hash)| {
-                    collected.instance_bodies.get(id).map_or(*hash, |body| {
-                        hd_mono::defaults::body_key(original, body, *hash)
-                    })
-                });
-            // Emitted code embeds the layouts of the types it touches, and
-            // instance keys name types by path only. Collection hashes the
-            // `layout_hash` of every type an instance lays out into its
-            // callee representation hash (`crates/hd_mono/DESIGN.md` §13.8),
-            // so a field added to one data type re-emits only the instances
-            // that lay it out, and two programs that declare one path with
-            // different fields never share code.
-            let mut reps = hd_base::StableHasher::new("code-deps");
-            reps.hash(self.toolchain);
-            reps.hash(collected.callee_reps[id.idx()]);
-            let ck = code_key(
-                self.pipeline,
-                self.build_profile,
-                collected.table.key[id.idx()],
-                tir,
-                reps.finish(),
-            );
-            code_keys.push(ck);
-        }
-        // A folder group is the folder of an instance's item; an item in no
-        // folder of the table makes a group of its own.
-        let mut by_folder: BTreeMap<Option<u32>, Vec<usize>> = BTreeMap::new();
-        for (slot, id) in order.iter().enumerate() {
-            let item = collected.table.item[id.idx()];
-            let folder = self.table.folder_of_module(&names.module_of(item));
-            by_folder
-                .entry(folder.map(FolderId::raw))
-                .or_default()
-                .push(slot);
-        }
-        let mut groups = Vec::new();
-        let mut packs = Vec::new();
-        // Read only when a group misses its exact pack.
-        let recent = OnceLock::new();
-        let mut written = Vec::new();
-        // The linear backend emits no per-instance code: link builds the
-        // whole module.
-        if self.backend.linear() {
-            by_folder.clear();
-        }
-        for (folder, slots) in by_folder {
-            // A held call's stub is per build, never cached: it always
-            // emits, and no other build may read it.
-            let (held_slots, cached): (Vec<usize>, Vec<usize>) = slots.into_iter().partition(|s| {
-                held.is_some_and(|(d, _)| d == collected.table.item[order[*s].idx()])
-            });
-            let (pack, exact) = self.code_pack(folder, cached, &recent, &code_keys, &codes);
-            let mut misses: Vec<usize> = pack
-                .slots
-                .iter()
-                .copied()
-                .filter(|s| codes[*s].get().is_none())
-                .chain(held_slots)
-                .collect();
-            misses.sort_unstable();
-            if !misses.is_empty() {
-                groups.push(misses);
-                packs.push(pack);
-            } else if !exact {
-                // Filled from older packs: this set gets its own.
-                if self.write_pack(&pack, &codes, &code_keys) {
-                    written.push((pack.folder, pack.key));
-                }
-            }
-        }
-        let emits = groups.len();
         let _ = self.collect.set(CollectOut {
             collected,
             order,
-            codes,
-            code_keys,
-            groups,
-            packs,
-            hint: recent.into_inner().unwrap_or_default(),
-            written: Mutex::new(written),
             prog_key: pkey,
             roots: plan,
             host_refs,
-            layouts: hd_wasm::layout::Layouts::new(self.lowering),
         });
-        let link = sp.add_held(TaskKind::Ext(ExtTask::Link), &[]);
-        for g in 0..emits {
-            let e = sp.add(TaskKind::Ext(ExtTask::Emit(u32_of(g))), &[]);
-            sp.edge(e, link);
-        }
-        sp.release(link);
+        sp.add(TaskKind::Ext(ExtTask::Link), &[]);
     }
 
     /// The `check` role of module `m`: a test run, and `hd check --tests`,
@@ -8151,43 +7759,6 @@ impl Run<'_> {
         Ok(out)
     }
 
-    /// The entry exports of a joined build: each input's script exports,
-    /// `hd.init.N` and `hd.poll.N`, then one `hd.wake`.
-    fn joined_exports(
-        &self,
-        inputs: &[JoinedInput],
-        env: &Env<'_>,
-        path: &dyn Fn(DefId) -> String,
-        c: &CollectOut,
-    ) -> hd_base::StageResult<Vec<(String, hd_wasm::Helper)>> {
-        let mut out = Vec::new();
-        let mut wake = None;
-        for i in inputs {
-            let entry = hd_wasm::script_entry(
-                &self.pool,
-                env,
-                path,
-                self.lowering,
-                i.def,
-                i.key,
-                &i.inits,
-                &i.own,
-                None,
-                &c.collected,
-                &c.host_refs,
-            )?;
-            for (name, helper) in entry {
-                if name == "hd.wake" {
-                    wake = Some((name, helper));
-                } else {
-                    out.push((format!("{name}.{}", i.number), helper));
-                }
-            }
-        }
-        out.extend(wake);
-        Ok(out)
-    }
-
     /// The init bodies a program root module `entry` reaches
     /// ([`Self::group_init_order`]). A test run also initializes the
     /// modules its `tests:` block uses (`module.init.tests`), each after
@@ -8331,398 +7902,12 @@ impl Run<'_> {
         )
     }
 
-    /// `Emit(g)`: the missed instances of folder group `g`, as one batch
-    /// over one program view.
-    /// The `codepack` of a folder group (`folder`, its cached `slots`):
-    /// the pack of exactly these code keys, else the folder's recent packs
-    /// in the package's `hint`, whose matching instances it fills in
-    /// `codes`. Whether the exact pack was found.
-    fn code_pack(
-        &self,
-        folder: Option<u32>,
-        slots: Vec<usize>,
-        hint: &OnceLock<PackHint>,
-        code_keys: &[Hash128],
-        codes: &[OnceLock<WasmCode>],
-    ) -> (CodePack, bool) {
-        let keys: Vec<Hash128> = slots.iter().map(|s| code_keys[*s]).collect();
-        let key = hd_cache::codepack_key(&keys);
-        let folder =
-            folder.map_or_else(String::new, |f| self.table.folders[f as usize].path.clone());
-        let pack = CodePack { slots, key, folder };
-        if pack.slots.is_empty() {
-            return (pack, true);
-        }
-        if let Some(sections) = self.lookup(EntryKind::Codepack, key) {
-            fill_from(&sections, &pack.slots, code_keys, codes);
-            return (pack, true);
-        }
-        let hint = hint.get_or_init(|| self.pack_hint());
-        for old in hint.get(&pack.folder).into_iter().flatten() {
-            if pack.slots.iter().all(|s| codes[*s].get().is_some()) {
-                break;
-            }
-            if let Some(sections) = self.lookup(EntryKind::Codepack, *old) {
-                fill_from(&sections, &pack.slots, code_keys, codes);
-            }
-        }
-        (pack, false)
-    }
-
-    /// Writes `pack` once every slot of it has code; whether it did.
-    fn write_pack(
-        &self,
-        pack: &CodePack,
-        codes: &[OnceLock<WasmCode>],
-        code_keys: &[Hash128],
-    ) -> bool {
-        if pack.slots.is_empty() {
-            return false;
-        }
-        let Some(all) = pack
-            .slots
-            .iter()
-            .map(|s| codes[*s].get())
-            .collect::<Option<Vec<&WasmCode>>>()
-        else {
-            return false;
-        };
-        let mut head = hd_base::wire::Writer::default();
-        head.len_of(&pack.slots);
-        for s in &pack.slots {
-            head.hash(code_keys[*s]);
-        }
-        let body = hd_wasm::encode_codes(&all);
-        self.put(EntryKind::Codepack, pack.key, &[&head.bytes, &body]);
-        true
-    }
-
-    fn pack_hint_key(&self) -> Hash128 {
-        hd_cache::packhint_key(self.pipeline, self.build_profile, self.package_key)
-    }
-
-    /// The package's `packhint`; empty when there is none.
-    fn pack_hint(&self) -> PackHint {
-        let Some(s) = self.lookup(EntryKind::Packhint, self.pack_hint_key()) else {
-            return PackHint::new();
-        };
-        let mut r = hd_base::wire::Reader::new(s.first().map_or(&[][..], Vec::as_slice));
-        let mut hint = PackHint::new();
-        for _ in 0..r.count() {
-            let folder = r.str().to_owned();
-            let keys = (0..r.count()).map(|_| r.hash()).collect();
-            hint.insert(folder, keys);
-        }
-        if r.ok() { hint } else { PackHint::new() }
-    }
-
-    /// Puts the packs this run wrote first in the package's `packhint`,
-    /// which keeps each folder's last [`HINTED_PACKS`]: an edit undone and
-    /// then made again still finds the code of the undone state.
-    fn put_pack_hint(&self, c: &CollectOut) {
-        let written = std::mem::take(&mut *lock(&c.written));
-        if written.is_empty() {
-            return;
-        }
-        let mut hint = c.hint.clone();
-        for (folder, key) in written {
-            let keys = hint.entry(folder).or_default();
-            keys.retain(|k| *k != key);
-            keys.insert(0, key);
-            keys.truncate(HINTED_PACKS);
-        }
-        let mut w = hd_base::wire::Writer::default();
-        w.u32(u32_of(hint.len()));
-        for (folder, keys) in &hint {
-            w.str(folder);
-            w.len_of(keys);
-            for k in keys {
-                w.hash(*k);
-            }
-        }
-        self.put(EntryKind::Packhint, self.pack_hint_key(), &[&w.bytes]);
-    }
-
-    fn emit(&self, group: usize) {
-        let (Some(c), Some(p)) = (self.collect.get(), self.program.get()) else {
-            return;
-        };
-        let folders = self.program_folders();
-        let arity = p.arity();
-        let view = self.program_view(p, &folders, &arity);
-        let env = Env {
-            run: self,
-            p,
-            impls: Impls::Owned(&view),
-            sealed: self.known.sealed(),
-        };
-        let names = self.names();
-        let scenario = self.scenario_hold(p);
-        for &slot in &c.groups[group] {
-            self.emit_slot(c, p, &env, &names, scenario, slot);
-        }
-        let pack = &c.packs[group];
-        if self.write_pack(pack, &c.codes, &c.code_keys) {
-            lock(&c.written).push((pack.folder.clone(), pack.key));
-        }
-    }
-
-    fn emit_slot(
-        &self,
-        c: &CollectOut,
-        p: &ProgramTables,
-        env: &Env<'_>,
-        names: &Names<'_>,
-        scenario: Option<(DefId, bool)>,
-        slot: usize,
-    ) {
-        let id = c.order[slot];
-        let item = c.collected.table.item[id.idx()];
-        let sub = c.collected.table.sub[id.idx()];
-        let args = c.collected.table.args[id.idx()];
-        let ret = env.ret(item).unwrap_or(Ty::VOID);
-        let path = |d: DefId| names.path(d);
-        let calls = &c.collected.calls[id.idx()];
-        // A held call emits its stub here, and the stub never reaches
-        // the code cache (collect misses it on purpose).
-        let held = scenario.and_then(|(d, active)| {
-            (d == item).then_some(if active {
-                hd_wasm::HoldStub::Active
-            } else {
-                hd_wasm::HoldStub::Pending
-            })
-        });
-        let r = match sub {
-            hd_mono::Sub::Body(k) => {
-                let body = self.body_of(p, item).map(|b| &b.0);
-                match c
-                    .collected
-                    .instance_bodies
-                    .get(&id)
-                    .map(AsRef::as_ref)
-                    .or_else(|| c.collected.supplied_body(&self.pool, item, args))
-                    .or(body)
-                {
-                    Some(body) => hd_wasm::emit(
-                        &self.pool,
-                        env,
-                        &path,
-                        &c.layouts,
-                        body,
-                        k,
-                        args,
-                        ret,
-                        calls,
-                        c.collected.table.key[id.idx()],
-                        held,
-                    ),
-                    None => Err(NotImplemented::new(Stage::Emit, "an instance without TIR")),
-                }
-            }
-            // A function reference's adapter has no TIR (`crates/hd_mono/DESIGN.md` §13.11).
-            hd_mono::Sub::Adapter => {
-                hd_wasm::emit_adapter(&self.pool, env, &path, &c.layouts, item, args, calls)
-            }
-            // A generic method's erased body and its thunks (§13.5.1).
-            hd_mono::Sub::Erased | hd_mono::Sub::Thunk(_) => match self.body_of(p, item) {
-                Some((body, _)) if sub == hd_mono::Sub::Erased => hd_wasm::emit_erased(
-                    &self.pool,
-                    env,
-                    &path,
-                    &c.layouts,
-                    body,
-                    args,
-                    ret,
-                    calls,
-                    c.collected.table.key[id.idx()],
-                ),
-                Some((body, _)) => hd_wasm::emit_thunk(
-                    &self.pool,
-                    env,
-                    &path,
-                    &c.layouts,
-                    body,
-                    args,
-                    calls,
-                    c.collected.table.key[id.idx()],
-                ),
-                None => Err(NotImplemented::new(
-                    Stage::Emit,
-                    "an erased body without TIR",
-                )),
-            },
-        };
-        // The instance's item names where emission stopped.
-        let r = r.map_err(|mut e| {
-            e.what = format!("{} (in `{}`)", e.what, names.path(item));
-            e
-        });
-        let Some(code) = self.stage(Stage::Emit, r) else {
-            return;
-        };
-        lock(&self.counters).emitted += 1;
-        let _ = c.codes[slot].set(code);
-    }
-
+    /// `link`: one linear-memory module
+    /// from collection's output and every instance's TIR body.
     fn link(&self) {
         let (Some(c), Some(p)) = (self.collect.get(), self.program.get()) else {
             return;
         };
-        if self.backend.linear() {
-            self.link_linear(c, p);
-            return;
-        }
-        self.put_pack_hint(c);
-        let mut codes = Vec::new();
-        let mut fnames = Vec::new();
-        for (slot, id) in c.order.iter().enumerate() {
-            let Some(code) = c.codes[slot].get() else {
-                return;
-            };
-            let key = c.collected.table.key[id.idx()];
-            codes.push((key, code.clone()));
-            let fname = format!(
-                "{}#{}",
-                self.names().path(c.collected.table.item[id.idx()]),
-                c.collected.table.sub[id.idx()]
-            );
-            // A copy specialized on known closures (`crates/hd_opt/DESIGN.md` (known closure calls), A2)
-            // is told from its plain instance by its key.
-            fnames.push(if c.collected.table.known[id.idx()].is_empty() {
-                fname
-            } else {
-                format!("{fname}+{:08x}", key.0 >> 96)
-            });
-        }
-        let folders = self.program_folders();
-        let arity = p.arity();
-        let view = self.program_view(p, &folders, &arity);
-        let env = Env {
-            run: self,
-            p,
-            impls: Impls::Owned(&view),
-            sealed: self.known.sealed(),
-        };
-        let names = self.names();
-        let path = |d: DefId| names.path(d);
-        let exports = match &c.roots {
-            Roots::Main {
-                def,
-                key,
-                entry_inits,
-                report,
-            } => hd_wasm::entry(
-                &self.pool,
-                &env,
-                &path,
-                self.lowering,
-                *def,
-                *key,
-                &c.collected.inits,
-                entry_inits,
-                *report,
-                &c.collected,
-                &c.host_refs,
-            ),
-            Roots::Script {
-                def,
-                key,
-                own,
-                report,
-            } => hd_wasm::script_entry(
-                &self.pool,
-                &env,
-                &path,
-                self.lowering,
-                *def,
-                *key,
-                &c.collected.inits,
-                own,
-                *report,
-                &c.collected,
-                &c.host_refs,
-            ),
-            Roots::Inputs(inputs) => self.joined_exports(inputs, &env, &path, c),
-            Roots::Tests { cases, inits } => hd_wasm::test_entry(
-                &self.pool,
-                &env,
-                &path,
-                self.lowering,
-                cases,
-                inits,
-                &c.collected,
-                &c.host_refs,
-            ),
-            Roots::Scenario {
-                def,
-                key,
-                entry_inits,
-                report,
-                cleanup,
-            } => hd_wasm::scenario_entry(
-                &self.pool,
-                &env,
-                &path,
-                self.lowering,
-                *def,
-                *key,
-                &c.collected.inits,
-                entry_inits,
-                *report,
-                *cleanup,
-                &c.collected,
-                &c.host_refs,
-            ),
-        };
-        let Some(entry) = self.stage(Stage::Link, exports) else {
-            return;
-        };
-        let mode = match self.session {
-            Some(s) => hd_wasm::LinkMode::Session(&s.externs),
-            None => hd_wasm::LinkMode::Program,
-        };
-        let Some(wasm) = self.stage(
-            Stage::Link,
-            hd_wasm::link(
-                &codes,
-                &fnames,
-                &entry,
-                &c.collected.witnesses,
-                self.build_profile == BuildProfile::Release,
-                mode,
-            ),
-        ) else {
-            return;
-        };
-        match self.session {
-            Some(_) => {
-                let mut added = Session::default();
-                added.externs.add_module(&codes);
-                added.inits_run.extend(c.collected.inits.iter().copied());
-                let entries = std::mem::take(&mut *lock(&self.input_entries));
-                for (input, entries) in entries {
-                    if input != 0
-                        && entries.iface.is_some()
-                        && entries.header.is_some()
-                        && entries.check.is_some()
-                    {
-                        added.inputs.insert(input, entries);
-                    }
-                }
-                if self.prelude() {
-                    let key = prelude_key(self.toolchain, self.pipeline, self.build_profile);
-                    self.put(EntryKind::Link, key, &[&wasm, &added.encode()]);
-                }
-                let _ = self.session_added.set(added);
-            }
-            None => self.put(EntryKind::Link, c.prog_key, &[&wasm]),
-        }
-        let _ = self.wasm.set(wasm);
-    }
-
-    /// `link` for the linear backend ([`Backend::Linear`]): one module
-    /// from collection's output and every instance's TIR body.
-    fn link_linear(&self, c: &CollectOut, p: &ProgramTables) {
         let folders = self.program_folders();
         let arity = p.arity();
         let view = self.program_view(p, &folders, &arity);
@@ -8766,7 +7951,7 @@ impl Run<'_> {
                     .collect(),
                 report: *report,
             },
-            // The split of `hd_wasm::script_entry`; this build runs every
+            // This whole-history build runs every
             // init, so the first own body is among them.
             Roots::Script {
                 def,
@@ -10019,13 +9204,13 @@ impl Env<'_> {
 
 impl ProgramEnv for Env<'_> {
     fn shared_reference_layout(&self, ty: Ty) -> Option<bool> {
-        match self.run.backend {
-            Backend::WasmGc => None,
-            Backend::Linear | Backend::LinearChecked => Some(
-                hd_wasm_linear::shared_reference_layout(&self.run.pool, self, ty),
-            ),
-        }
+        Some(hd_wasm_linear::shared_reference_layout(
+            &self.run.pool,
+            self,
+            ty,
+        ))
     }
+
     fn body(&self, def: DefId) -> Option<&Body> {
         self.run.body_of(self.p, def).map(|b| &b.0)
     }

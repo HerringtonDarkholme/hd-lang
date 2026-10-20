@@ -7,7 +7,7 @@ Part of the [compiler design](../../docs/compiler/ARCHITECTURE.md).
 ## Part D2: The Back Half
 
 The back half monomorphizes, emits Wasm GC and links. Suspension
-lowering and the Wasm layouts are in crates/hd_wasm/DESIGN.md, the
+lowering and the Wasm layouts are in crates/hd_wasm_linear/DESIGN.md, the
 optimization passes in crates/hd_opt/DESIGN.md. It consumes these
 interfaces and does not reach around them:
 
@@ -172,7 +172,7 @@ point. Deciding those during emission alone could be wrong.
   candidate, or a suspension point. A trivial instance skips them.
   Implementation differs: no instance pass runs in any pipeline,
   suspension liveness included (crates/hd_opt/DESIGN.md §1.3); see
-  crates/hd_wasm/DESIGN.md §14.2.
+  crates/hd_wasm_linear/DESIGN.md §14.2.
 - **What this is not.** The fixed decision forbids a monomorphized copy
   of the IR. Side tables and repeated reads of TIR are allowed.
 
@@ -212,13 +212,13 @@ instance.
 | `ItemRef` | a function reference value, built as §13.11's adapter: a `Closure` struct whose code is the adapter instance |
 | `CallHost` | an import call with the exchange-buffer codecs (§17.2) |
 | `Closure` | a struct of the closure's environment: `Copy` and `Move` captures as fields, `Shared` ones as their cells; a closure with no capture is a constant global |
-| `CopyData` | evaluate the source once, then the replacements in source order (spec: the spread is first); allocate a new value of the source's exact type; read every non-replaced field from the source, an embedded field included (a struct value is an immutable object, so sharing it is its copy, crates/hd_wasm/DESIGN.md §15.2); store the replacements. A field the checker read at the spread (`expr.update.copy-time`) arrives as a replacement |
+| `CopyData` | evaluate the source once, then the replacements in source order (spec: the spread is first); allocate a new value of the source's exact type; read every non-replaced field from the source, an embedded field included (a struct value is an immutable object, so sharing it is its copy, crates/hd_wasm_linear/DESIGN.md §15.2); store the replacements. A field the checker read at the spread (`expr.update.copy-time`) arrives as a replacement |
 | `NewList` with spreads | a builder seeded with the fixed-element count: evaluate each element and spread operand once, in order, appending values and `array.copy`ing spread lists; one exact-size array at the end, then the `{len, data}` struct |
 | `NewTuple` with a rest operand | the fixed elements as usual, plus the rest-list operand as the tuple's rest field |
 | `Coerce` | option wrap: a tag set or nothing (§15.2); to a trait value: a pair with a constant vtable; `Supertrait`: the payload unchanged and `struct.get` of the parent's vtable field from the child's vtable (§13.5); readonly view, variance and row subsumption: nothing (§12.4) |
 | `Interp` | one builder sized by the literal parts' bytes; literal parts copied from their pooled literal; each `Display` part writes into the builder through its resolved callee; a string part copies its viewed bytes; one exact-size array at the end, viewed from start 0 |
-| a string literal | a view over its pooled array (crates/hd_wasm/DESIGN.md §15.2): `i32.const` of its module-local number and a `call` of its module's literal getter, or `global.get` of an `array.new_fixed` constant at 4 bytes or less, then `i64.const` of its span; a literal passed straight to a host call takes the host fast path (crates/hd_wasm/DESIGN.md §15.4). Implementation differs: a `call` of the literal's own getter, and no fast path or short-literal globals (crates/hd_wasm/DESIGN.md §15.4) |
-| an explicit panic, a failed check | a `call` of the category's stub with no site immediate; the call's code offset is the site (crates/hd_wasm/DESIGN.md §15.5) |
+| a string literal | a view over its pooled array (crates/hd_wasm_linear/DESIGN.md §15.2): `i32.const` of its module-local number and a `call` of its module's literal getter, or `global.get` of an `array.new_fixed` constant at 4 bytes or less, then `i64.const` of its span; a literal passed straight to a host call takes the host fast path (crates/hd_wasm_linear/DESIGN.md §15.4). Implementation differs: a `call` of the literal's own getter, and no fast path or short-literal globals (crates/hd_wasm_linear/DESIGN.md §15.4) |
+| an explicit panic, a failed check | a `call` of the category's stub with no site immediate; the call's code offset is the site (crates/hd_wasm_linear/DESIGN.md §15.5) |
 | `DefaultCall` | a direct `call` of the default body's instance with the earlier argument values, inside the forbidden-context bracket (§12.3) |
 | `ForRange`, `ForList`, `ForMap` | counted loops (§12.4) |
 | `Await*` | the state machine (§14) |
@@ -249,7 +249,7 @@ cancel function (§14.6).
   ([`fn.default.eval`](../../spec/lang/07-functions.md#r-fn.default.eval)),
   so no mutable default is shared between calls. Emission increments the forbidden-context counter around a
   `DefaultCall` whose body makes a call, so an indirect `block_on` or
-  `println` there panics (crates/hd_wasm/DESIGN.md §14.9).
+  `println` there panics (crates/hd_wasm_linear/DESIGN.md §14.9).
 - **Facts are lazily initialized globals.** A fact
   and a metadata expression are ordinary bodies, run once on first read
   ([`annot.fact.eval.lazy`](../../spec/lang/14-annotations.md#r-annot.fact.eval.lazy),
@@ -260,7 +260,7 @@ cancel function (§14.6).
   the getter and never name the storage global, so a new fact elsewhere
   changes no reader's bytes (§13.10); a body calls each getter once on a
   dominating path and reuses the result. The getter runs
-  the body inside the forbidden-context counter (crates/hd_wasm/DESIGN.md §14.9), and
+  the body inside the forbidden-context counter (crates/hd_wasm_linear/DESIGN.md §14.9), and
   a panic in it is reported as `fact-evaluation-failed` with the original
   category. The flag is three-valued (0, 1 done, 2 running), so a read
   during the fact's own evaluation panics at once, naming it
@@ -554,7 +554,7 @@ starts. The walk asserts in compiler debug builds and CI:
 
 A failure is an internal error naming the instance, with exit status 101.
 The linked module is then validated by `wasmparser`
-(crates/hd_wasm/DESIGN.md §15.7).
+(crates/hd_wasm_linear/DESIGN.md §15.7).
 
 Implementation differs: the emitter trusts verified TIR and runs none of
 these assertions; an unexpected shape stops with a structured
@@ -759,7 +759,7 @@ So `List[Point].push` and `List[User].push` are one instance, emitted,
 cached and compiled once. A type argument whose copy copies a collection
 (a `List` or `Map` value, or a struct holding one, `hd_mono::holds_coll`)
 stays exact: a `ValueCopy` of `T` in the body must know what it copies
-(`crates/hd_wasm/DESIGN.md` §15.2, "Collection values"), so
+(`crates/hd_wasm_linear/DESIGN.md` §15.2, "Collection values"), so
 `List[List[i32]].push` is its own instance. The callees of a class instance see the class
 as their argument too. The rule reads only the item's signature, its own
 body and the argument's layout, so it is type-only. With bounds decided
@@ -1068,7 +1068,7 @@ slow every monomorphized use of that type.
   per-family struct and keeps the same independence.
 - A non-reference value crosses in a `box_of` struct of its values, as a
   trait value's payload does, except an `i32` that fits in 31 signed
-  bits, which crosses as an `i31ref` (crates/hd_wasm/DESIGN.md §15.2).
+  bits, which crosses as an `i31ref` (crates/hd_wasm_linear/DESIGN.md §15.2).
 - A tag switch over an open value outlines its tag read; `Match` does
   not read its scrutinee and stays.
 - A method's own row parameter (`fn run[$R]`) is open too: the erased
@@ -1249,12 +1249,12 @@ pub enum Reloc {
 
 An anchor is the item, known from the function's name, and a TIR
 instruction index: no byte offset, no line. There is no site record: a
-panic's site is its stub caller's `lines` row (crates/hd_wasm/DESIGN.md
+panic's site is its stub caller's `lines` row (crates/hd_wasm_linear/DESIGN.md
 §15.9). A witness field index is an `i32` constant global
 (`GSym::WitnessField`), not a `Field` relocation (§13.5.1).
 
 **Recursive descriptors.** A type naming a recursion group
-([crates/hd_wasm/DESIGN.md §15.3](../hd_wasm/DESIGN.md#153-the-type-section)) is
+([crates/hd_wasm_linear/DESIGN.md §15.3](../hd_wasm_linear/DESIGN.md#153-the-type-section)) is
 the group and a member index. The entry's bytes start with its type
 table: each distinct descriptor and group the entry names, directly or inside another, once
 and after the ones it names. A row names the descriptors it holds, and a
@@ -1271,10 +1271,10 @@ per-function cache abstracts, and the measured exceptions of
 [docs/compiler/lowering-catalog.md](../../docs/compiler/lowering-catalog.md#numbering) (type immediates,
 direct constant globals, `ref.func`, witness fields). So there is no
 `Site` relocation: a site is the code offset of its stub call
-(crates/hd_wasm/DESIGN.md §15.5). There is no `Data` relocation in a
+(crates/hd_wasm_linear/DESIGN.md §15.5). There is no `Data` relocation in a
 body: only the literal getters name the data segment, and a literal use
 is a call of its getter, keyed by the literal's bytes
-(crates/hd_wasm/DESIGN.md §15.4). So the relocation kinds are `Func`,
+(crates/hd_wasm_linear/DESIGN.md §15.4). So the relocation kinds are `Func`,
 `Type` and `Global`. Context key ids are content hashes written as
 constants. An index space that leaves fewer than 95 percent of functions
 hitting wasmtime's cache after one addition moves behind a getter.
@@ -1302,7 +1302,7 @@ printed:
   Implementation differs: the written rows stay anchored, and an
   added `hd.positions` section holds each row's line and each
   function's file and printed name, with no column
-  (crates/hd_wasm/DESIGN.md §15.9).
+  (crates/hd_wasm_linear/DESIGN.md §15.9).
 
 So a comment edit above a panic changes the line it reports and nothing
 that is compiled or cached.
@@ -1437,7 +1437,7 @@ numbering, packs and filtered test programs are the largest for latency.
    smaller key renumbers every later one. That is
    harmless for `call`, which wasmtime's per-function cache abstracts. No
    persistent index allocation is kept, since it would make bytes depend
-   on build history (crates/hd_wasm/DESIGN.md §15.8). If the `ref.func`
+   on build history (crates/hd_wasm_linear/DESIGN.md §15.8). If the `ref.func`
    case misses wasmtime's cache too often, closure construction reads one
    immutable `funcref` global per closure code instead.
 3. **Types.** The canonical types the functions, globals and exports name
@@ -1472,7 +1472,7 @@ numbering, packs and filtered test programs are the largest for latency.
    pipeline and checks the reported site against the dev pipeline.
 9. **Custom sections**: `hd.lines`, then the compact `hd.names` in a
    release build, so release omits the standard `name` section, or
-   `name` otherwise (crates/hd_wasm/DESIGN.md §15.9). Planned, not
+   `name` otherwise (crates/hd_wasm_linear/DESIGN.md §15.9). Planned, not
    built: `hd.runtime` and `hd.folds`.
 
 ```text
@@ -1531,7 +1531,7 @@ as values exist.
 ### 13.12 Map Iteration And Removal
 
 A map is the `$Map_K_V` layout (`live`, `used`, `grown`, `index`,
-`hashes`, `keys`, `values`; crates/hd_wasm/DESIGN.md §15.2), with runtime helpers in
+`hashes`, `keys`, `values`; crates/hd_wasm_linear/DESIGN.md §15.2), with runtime helpers in
 `hd_wasm/src/map.rs`: entries in insertion order, a removed entry marked
 by hash -1, and a linear-probing index.
 
@@ -1678,7 +1678,7 @@ by hand.
 
 Values of sub-word integers live as `i32` scalars in
 locals, packed `i8`/`i16` only in fields and array elements
-(crates/hd_wasm/DESIGN.md). Field and array loads sign- or zero-extend, so
+(crates/hd_wasm_linear/DESIGN.md). Field and array loads sign- or zero-extend, so
 every sequence below starts from a full-width exact value.
 
 Per operation and width, with `w` the bit width and `m` the mask:

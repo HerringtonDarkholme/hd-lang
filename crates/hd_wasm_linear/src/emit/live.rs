@@ -1,4 +1,4 @@
-//! Releases at last use (`crates/hd_wasm/DESIGN.md` §23.20, job 12). A
+//! Releases at last use (`crates/hd_wasm_linear/DESIGN.md` §23.20, job 12). A
 //! reference is released after its last use, not at the end of its block
 //! (`OBJECT_MODEL_TIER1.md` §6.3 rule 5), so a counted value whose last use
 //! has passed must give up its count there, or an element reference would
@@ -28,7 +28,7 @@ pub(super) enum Drop {
 pub(super) type Drops = HashMap<(u32, usize), Vec<Drop>>;
 
 /// Where a body's counts can move instead of being copied
-/// (`crates/hd_wasm/DESIGN.md` §23.25, job 17).
+/// (`crates/hd_wasm_linear/DESIGN.md` §23.25, job 17).
 #[derive(Default)]
 pub(super) struct Moves {
     /// Each instruction value whose only use is one later statement of its

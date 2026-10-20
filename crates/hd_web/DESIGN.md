@@ -85,7 +85,7 @@ interface CompileResult {
   build.
 - `wat` compiles as `run`, then prints the program with `wasmprinter`
   (no default features: no validation, no component model). Names come
-  from the name section `hd_wasm` writes.
+  from the name section `hd_wasm_linear` writes.
 - `hd_project::Root::of` maps `src/`, `tests/` and `tasks/` paths, so
   playground paths pass through unchanged.
 - Diagnostics use `hd_driver::diagnostics::from_output`, the shape the
@@ -113,32 +113,21 @@ modules.
 
 | Goal byte | Request after the goal byte | Response JSON | Output kind 1 |
 | --- | --- | --- | --- |
-| 4 repl start | nothing; the files are the session's package, entry empty | `{"diagnostics","input":0,"sessionKeys"}` | the prelude |
-| 5 repl input | the input's text, then optionally its number N; no files, entry empty | `{"diagnostics","input":N,"sessionKeys"}` | input N's module, when it built |
+| 4 repl start | nothing; the files are the session's package, entry empty | `{"diagnostics","input":0}` | empty |
+| 5 repl input | the input's text, then optionally its number N; no files, entry empty | `{"diagnostics","input":N}` | the whole-history module, when it built |
 | 6 repl outcome | module number, then outcome byte (0 joined, 1 dropped); no files, entry empty | `{"diagnostics":[],"input":N,"joined"}` | empty |
 
-- Repl start drops any earlier session and builds the prelude
-  (`build_repl_prelude`). The files act as the package: the session
-  sees `src/lib.hd` (`cli.repl.package.lib`). A broken package file
-  fails every input, as on the CLI.
-- Repl input builds `repl#N` with `Goal::ReplInput` over the inputs
-  that joined; diagnostics name `repl#N`. An input that does not build
-  is dropped at once (status 1, no bytes); its number stays used. N is
-  the request's number when it gives one, which must be greater than
-  every earlier module's, else one more than the last. So a session
-  rebuilt in a fresh worker builds its kept inputs again under their old
-  numbers, and the diagnostics, `dbg` lines and journal keep the numbers
-  the page shows.
-- `sessionKeys` are the module's exports that
-  `hd_wasm::is_session_key` accepts. JS registers them under `hd.s` for
-  later modules. The entry exports are not among them.
+- Repl start drops the previous session and records the package sources.
+- Repl input builds the whole kept history plus the new `repl#N` input as
+  one module. The host replays earlier inputs from recorded host results
+  with output muted, then executes input N live.
+- There are no cross-module session imports or exported session keys.
 - **Outcomes travel as their own request.** A module that built waits
   until JS reports how it ended. Outcome byte 0 means status 0: the
   module joins (`hd_driver::Session::add`), and later inputs see its
   names. Byte 1 covers a failed instantiation, a panic, a stop or
   cancel, and a nonzero status. The input then adds nothing and its
-  file leaves the source set (`cli.repl.panic.binding`). A prelude
-  that does not join ends the session.
+  file leaves the source set (`cli.repl.panic.binding`). A failed input does not join the visible bindings.
 - While a module waits, another repl input is refused. So is an
   outcome for another module, or any REPL request before a start.
   These answer status 2 with `{"error"}`, as a malformed request does.
@@ -182,10 +171,8 @@ Before it instantiates a program, the runner reads
 playground does not bind is refused: "main needs FsRead, which the
 playground does not provide". This mirrors `hd_run::check_grants`.
 
-The output targets Wasm GC, so the browser floor is Chrome 119,
-Firefox 120 and Safari 18.2. The compiler wasm needs only the features
-Rust enables by default for wasm32, such as bulk memory and sign
-extension. All of them predate Wasm GC.
+The output uses scalar Wasm, linear memories and a function table. The
+browser must support the emitted multi-memory and multi-value features.
 
 ## 4. Cost Model
 

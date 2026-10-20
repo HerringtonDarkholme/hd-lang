@@ -1,4 +1,4 @@
-//! Closures and function values (`crates/hd_wasm/DESIGN.md` §23.8, §23.19,
+//! Closures and function values (`crates/hd_wasm_linear/DESIGN.md` §23.8, §23.19,
 //! job 11). A function value is `(code, environment)`: the function-table
 //! slot of its code instance and the address of a counted environment
 //! that holds the captures, 0 when there are none. A code instance takes

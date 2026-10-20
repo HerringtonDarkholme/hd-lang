@@ -1,4 +1,4 @@
-//! Runtime pieces the compiler generates (`crates/hd_wasm/DESIGN.md`
+//! Runtime pieces the compiler generates (`crates/hd_wasm_linear/DESIGN.md`
 //! §23.9): the entry exports, panics, the exchange-buffer copy, the bump
 //! allocation that serves until the std allocator (job 5), integer text
 //! and the host provider stubs. Each is a [`Helper`], built once on its
@@ -1158,13 +1158,12 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         | Helper::RefSet { .. } => ref_helper(h, m),
         Helper::PowF64 | Helper::RemF64 => {
             let (name, code) = if matches!(h, Helper::PowF64) {
-                ("rt:pow_f64", hd_wasm::pow::pow_f64_code())
+                ("rt:pow_f64", crate::pow::pow_f64_code())
             } else {
-                ("rt:rem_f64", hd_wasm::rem::rem_f64_code())
+                ("rt:rem_f64", crate::rem::rem_f64_code())
             };
-            assert!(code.relocs.is_empty() && code.parts.is_empty());
             let mut f = Func::new(name, vec![Val::F64, Val::F64], vec![Val::F64]);
-            f.raw = Some(code.body);
+            f.raw = Some(code);
             f
         }
         Helper::Frame(_)
@@ -1858,7 +1857,7 @@ fn host_prim(name: &str, args: &[PrimArg], result: Option<Val>) -> Func {
     f
 }
 
-/// A vtable slot's counts for its target (`crates/hd_wasm/DESIGN.md`
+/// A vtable slot's counts for its target (`crates/hd_wasm_linear/DESIGN.md`
 /// §23.25): a dynamic call lends the receiver, pushed by `recv` with
 /// layout `rvals`, and the arguments, in the slot's parameters from 1 on,
 /// laid out as `params`. `own` has, for each of the target's parameters,
@@ -1893,7 +1892,7 @@ fn own_lent(
 }
 
 /// One more count on a value that a helper lends to a plain function that
-/// owns its parameter (`layout::Pass::Owned`, `crates/hd_wasm/DESIGN.md`
+/// owns its parameter (`layout::Pass::Owned`, `crates/hd_wasm_linear/DESIGN.md`
 /// §23.25): `get` pushes the value, of layout `vals`; `walk` is the
 /// parameter's when the callee owns it.
 pub(crate) fn own_arg(f: &mut Func, vals: &[Val], walk: Option<&Walk>, get: &dyn Fn(&mut Func)) {

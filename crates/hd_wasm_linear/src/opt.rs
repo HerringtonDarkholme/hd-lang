@@ -1,4 +1,4 @@
-//! A function's local cleanup before encoding (`crates/hd_wasm/DESIGN.md`
+//! A function's local cleanup before encoding (`crates/hd_wasm_linear/DESIGN.md`
 //! §23.22): emission gives every TIR value a fresh local, so most values
 //! pass through a `local.set` and a `local.get` that follow each other.
 //! Each rule below keeps what every path through the function computes:

@@ -1,4 +1,4 @@
-//! `List.iter()` and `Map.iter()` (`crates/hd_wasm/DESIGN.md` §23.19, job
+//! `List.iter()` and `Map.iter()` (`crates/hd_wasm_linear/DESIGN.md` §23.19, job
 //! 11): an `Iterator[T]`, whose one field is a step closure. A list's
 //! environment holds its header, with a count of its own, the next index
 //! and the length at creation; its code is `rt:list_step`, which panics

@@ -287,7 +287,7 @@ pub struct CaseRun {
     pub input: Option<String>,
     pub failure: Option<String>,
     /// A Wasm trap's frames, innermost first: function index and module
-    /// byte offset (`crates/hd_wasm/DESIGN.md` §15.9).
+    /// byte offset (`crates/hd_wasm_linear/DESIGN.md` §15.9).
     pub frames: Vec<(u32, u32)>,
     /// A trapped run's panic as the host recorded it, which the runner
     /// judges instead of the report on standard error.

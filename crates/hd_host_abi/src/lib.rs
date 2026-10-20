@@ -562,7 +562,7 @@ pub enum Lowering {
 /// `ref_serial` to the compiler-supplied `std.core.ref_serial`,
 /// `ref_identity` to `std.cmp.identity_of`, which the checker lowers, and
 /// the `mem_` keys to the runtime module `std.rt.memory`, which only the
-/// linear backend lowers (`crates/hd_wasm/DESIGN.md` §23.12).
+/// linear backend lowers (`crates/hd_wasm_linear/DESIGN.md` §23.12).
 pub static INTRINSICS: &[(&str, Lowering)] = &[
     ("bytes_len", Lowering::Compiler),
     ("bytes_at", Lowering::Compiler),

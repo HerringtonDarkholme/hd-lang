@@ -1,4 +1,4 @@
-//! References as addresses (`crates/hd_wasm/DESIGN.md` §23.5, §23.20). A
+//! References as addresses (`crates/hd_wasm_linear/DESIGN.md` §23.5, §23.20). A
 //! reference is the address of its place: a local's cell, a top-level
 //! binding's static slot, a field inside either or inside what another
 //! reference refers to, a data object's field, or a list element in its

@@ -1,5 +1,5 @@
 //! The erased method ABI on the linear backend (`crates/hd_mono/DESIGN.md`
-//! §13.5.1, `crates/hd_wasm/DESIGN.md` §23.27). A generic method called
+//! §13.5.1, `crates/hd_wasm_linear/DESIGN.md` §23.27). A generic method called
 //! through a trait value has one erased body per implementation, whose own
 //! type parameters stay open, and a witness per call's type arguments.
 //!

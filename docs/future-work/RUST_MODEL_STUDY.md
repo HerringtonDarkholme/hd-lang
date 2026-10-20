@@ -133,7 +133,7 @@ borrows its own local across an `.await` points into itself, so it must
 not move after its first poll, which `Pin` enforces. hd never nests
 frames by value: a frame is a heap object, allocated on the first real
 wait, and `Suspend[T]` is a reference to it
-([crates/hd_wasm/DESIGN.md](../../crates/hd_wasm/DESIGN.md) §14.3). A
+([crates/hd_wasm_linear/DESIGN.md](../../crates/hd_wasm_linear/DESIGN.md) §14.3). A
 frame never moves, so hd needs no `Pin` in its surface. The price is
 in where locals live. On the ready path they are Wasm locals, copied
 into the frame on the first wait, and a borrow taken before the wait
@@ -919,7 +919,7 @@ programs fast by itself. Owned values in linear memory, allocated one
 by one, measured slower than Wasm GC objects here. Rust's advantage
 comes from storing small values inline and borrowing slices, which a
 collected language can also do: flat records in lists (the structure
-of arrays that [`hd_wasm`'s design](../../crates/hd_wasm/DESIGN.md)
+of arrays that [`hd_wasm`'s design](../../crates/hd_wasm_linear/DESIGN.md)
 §15.2 plans for `Array[T]`), substrings and map keys that need no
 object of their own, and scalar replacement after inlining. hd's
 hand-flattened points measure that route at 1.7x. The
@@ -1017,7 +1017,7 @@ tracing collector, which needs root registration and `GcCell` flags.
   [Rust 2023 survey results](https://blog.rust-lang.org/2024/02/19/2023-Rust-Annual-Survey-2023-results/);
   [Rust fact vs. fiction](https://opensource.googleblog.com/2023/06/rust-fact-vs-fiction-5-insights-from-googles-rust-journey-2022.html) (Google, 2023);
   Deligiannis et al., [Fixing Rust Compilation Errors using LLMs](https://arxiv.org/abs/2308.05177) (2023).
-- This repository: the studies linked above, [crates/hd_wasm/DESIGN.md](../../crates/hd_wasm/DESIGN.md)
+- This repository: the studies linked above, [crates/hd_wasm_linear/DESIGN.md](../../crates/hd_wasm_linear/DESIGN.md)
   §14 and §15, and the deleted ownership design (`git show 73c0e0478^:docs/future-work/OWNERSHIP_DESIGN.md`).
 
 ## Appendix: Benchmark Data

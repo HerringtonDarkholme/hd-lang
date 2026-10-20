@@ -847,38 +847,16 @@ export function importTypes(bytes) {
     r.num();
     if (flags & 1) r.num();
   };
-  const comptype = () => {
-    const form = b[r.at++];
-    if (form === 0x60) return { params: vec(valtype), results: vec(valtype) };
-    const field = () => {
-      const t = b[r.at];
-      if (t === 0x78 || t === 0x77) r.at++;
-      else valtype();
-      r.at++;
-    };
-    if (form === 0x5f) vec(field);
-    else field();
-    return null;
-  };
-  const subtype = () => {
-    const t = b[r.at];
-    if (t === 0x50 || t === 0x4f) {
-      r.at++;
-      vec(() => r.num());
-    }
-    types.push(comptype());
+  const functionType = () => {
+    if (b[r.at++] !== 0x60) throw new Error("a module type is not a function");
+    types.push({ params: vec(valtype), results: vec(valtype) });
   };
   while (r.at < b.length) {
     const id = b[r.at++];
     const size = r.num();
     const end = r.at + size;
     if (id === 1) {
-      vec(() => {
-        if (b[r.at] === 0x4e) {
-          r.at++;
-          vec(subtype);
-        } else subtype();
-      });
+      vec(functionType);
     } else if (id === 2) {
       vec(() => {
         const module = r.text();

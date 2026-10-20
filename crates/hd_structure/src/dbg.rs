@@ -190,7 +190,7 @@ impl Gen<'_, '_> {
 
     /// Writes the value the reference `r` refers to, of type `inner`: a
     /// `RefRead`, as the checker writes `*r`, whose closure form calls its
-    /// `get` closure (`crates/hd_wasm/DESIGN.md` §15.2, "References"),
+    /// `get` closure (`crates/hd_wasm_linear/DESIGN.md` §15.2, "References"),
     /// printed by its own `dbg_show`.
     fn referent(&mut self, out: (LocalId, Ty), inner: Ty, r: Ref) -> StageResult<()> {
         let pool = self.names.pool;

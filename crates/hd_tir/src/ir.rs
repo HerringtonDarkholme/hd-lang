@@ -263,7 +263,7 @@ pub enum IntrinsicOp {
     /// `Map` (spec/lang/04-type-system.md, "Collection Values"). Where
     /// the type holds none, the copy is the value itself. On the Wasm GC
     /// backend a collection's copy shares its buffer, and both marked as
-    /// shared copy it before their next change (`crates/hd_wasm/DESIGN.md`
+    /// shared copy it before their next change (`crates/hd_wasm_linear/DESIGN.md`
     /// §15.2, "Collection values").
     ValueCopy,
     /// `(list, index) -> element`: `ListIndex` for a write through the
@@ -283,7 +283,7 @@ pub enum IntrinsicOp {
     /// `(list) -> list` or `(list, index) -> list`: the list an element
     /// reference points into (`ref.elem.pin`), its buffer made unique and
     /// pinned; an index is bounds-checked first. A pinned list panics
-    /// `collection-pinned` on a length change (`crates/hd_wasm/DESIGN.md`
+    /// `collection-pinned` on a length change (`crates/hd_wasm_linear/DESIGN.md`
     /// §15.2, "Element references").
     ListPin,
     /// `(list)`: releases one pin of `ListPin` after the reference's last
@@ -343,12 +343,12 @@ pub enum Coercion {
     Identity,
     /// `&S` or `&mut S` to a trait value `Tr` where `S: Tr`: the payload is
     /// the reference itself, and the dispatch table reads or passes it per
-    /// method (`crates/hd_wasm/DESIGN.md` §15.2, "Trait value references").
+    /// method (`crates/hd_wasm_linear/DESIGN.md` §15.2, "Trait value references").
     RefToTraitValue,
     /// A trait value reference `&dyn K` or `&mut dyn K` installed as the
     /// provider of a key `K` whose trait has a `&self` or `&mut self`
     /// method: the provider is the trait value `K` whose payload is the
-    /// reference itself (`crates/hd_wasm/DESIGN.md` §15.2, "Providers of
+    /// reference itself (`crates/hd_wasm_linear/DESIGN.md` §15.2, "Providers of
     /// reference traits").
     RefAsProvider,
     /// The inverse of `RefAsProvider` at `$.use(K)`: the provider's payload

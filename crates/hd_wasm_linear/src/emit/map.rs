@@ -1,4 +1,4 @@
-//! Maps (`crates/hd_wasm/DESIGN.md` §23.7, §23.18, job 10). A map value
+//! Maps (`crates/hd_wasm_linear/DESIGN.md` §23.7, §23.18, job 10). A map value
 //! is a list's kind of header (`list.rs`) over a counted table
 //! (`crate::map`), so a copy is a new header over the same table and a
 //! change makes the table the map's own first (`rt:map_unique`). Keys

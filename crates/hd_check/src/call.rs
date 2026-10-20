@@ -2166,7 +2166,7 @@ impl Ck<'_, '_> {
     }
 
     /// `all!(a(), b())`: cold suspensions, then one `AwaitAll` whose
-    /// value is the tuple of their results (`crates/hd_wasm/DESIGN.md` §14.5).
+    /// value is the tuple of their results (`crates/hd_wasm_linear/DESIGN.md` §14.5).
     fn await_all(&mut self, args: &Args<'_>, n: NodeRef<'_>, bang: bool) -> StageResult<(Ref, Ty)> {
         if let Some(s) = args.spread {
             self.err(

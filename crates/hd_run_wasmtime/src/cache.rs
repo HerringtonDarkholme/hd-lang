@@ -36,7 +36,6 @@ use crate::{EngineConfig, OptLevel};
 struct OnDemandKey {
     opt: OptLevel,
     max_stack: usize,
-    gc_init: u64,
 }
 
 /// Compiled modules for one engine, bound to a small LRU so a process
@@ -142,7 +141,6 @@ pub(crate) fn ondemand(config: &EngineConfig) -> Result<Arc<Shared>, String> {
     let key = OnDemandKey {
         opt: config.cranelift_opt,
         max_stack: config.max_wasm_stack,
-        gc_init: config.gc_heap_initial,
     };
     if let Some(shared) = on_demand_engines()
         .lock()

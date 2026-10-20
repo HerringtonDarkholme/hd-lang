@@ -840,7 +840,7 @@ it(\"a missing directory is an error\"):
 }
 
 /// Host sockets behind trait value references (`std-net.handles.decl-ref`,
-/// `crates/hd_wasm/DESIGN.md` §15.2): the handles `Net` returns are
+/// `crates/hd_wasm_linear/DESIGN.md` §15.2): the handles `Net` returns are
 /// `&mut dyn` references on both engines, so a helper writes through one,
 /// a second binding of a handle reaches the same socket, and a `using`
 /// binding of a reference disposes the socket it refers to.

@@ -110,7 +110,7 @@ for the same row or its closest micro-benchmark.
 | runtime `string-build` | 3.18x | 3x | not re-measured | the program interpolates an integer per piece, which takes std's per-digit path unless the integer is a `usize` (review fix 3) |
 | property cases | 28k/s | 100k/s | not re-measured | per case: host JavaScript rebuilding the import object 27.5%, `instantiate` 20%, GC 9%, the Wasm itself 24.5% |
 | `read_text!`, `list_dir!` | 30 µs, 40 µs | 10 µs, 5 µs | not re-measured | `realpath` 27%, `readdir` 26%, `open` and `close` 21%; encoding the reply about 3%. Serde is not the cost; the floor with one `realpath` is about 20 µs |
-| tiny program size | 2399 B | 2048 B | hello.wasm 4257 B (dev, the job gate) | literals go through the pool and its getter; the host fast path for a literal (`memory.init`) is not built (crates/hd_wasm/DESIGN.md §15.4); no per-section breakdown is on record |
+| tiny program size | 2399 B | 2048 B | hello.wasm 4257 B (dev, the job gate) | literals go through the pool and its getter; the host fast path for a literal (`memory.init`) is not built (crates/hd_wasm_linear/DESIGN.md §15.4); no per-section breakdown is on record |
 | Wasm per 1,000 lines | 17413 B | 10240 B | not re-measured | not broken down; `hd build --size-report` is planned, not built |
 | start to first output | 40 ms | 5 ms | not re-measured | not profiled; §15.6 expects process start to dominate |
 | `check-cost` | 1.77x (988 against 559 ms) | 1.3x | not re-measured | not profiled; the known costly check is `i64` multiply, which divides back (crates/hd_mono/DESIGN.md §12.5) |
@@ -178,7 +178,7 @@ and calls per element are.
 
 - **Peak heap.** The map program peaks at +10.4 MB against Node's
   +12.2 MB (0.85x), string building at +17.7 MB against +18.9 MB (0.93x).
-- **Per-value shapes** (crates/hd_wasm/DESIGN.md §15.2). A string is a
+- **Per-value shapes** (crates/hd_wasm_linear/DESIGN.md §15.2). A string is a
   12-byte view in a field or a list element, and allocates nothing when
   sliced. An `Option` or `Result` within the layout bound allocates
   nothing. A `data` value is one struct. An erased `i32` is an `i31ref`

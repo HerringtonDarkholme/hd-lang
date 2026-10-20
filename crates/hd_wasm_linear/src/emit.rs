@@ -1,5 +1,5 @@
 //! One instance's TIR body to one Wasm function
-//! (`crates/hd_wasm/DESIGN.md` §23).
+//! (`crates/hd_wasm_linear/DESIGN.md` §23).
 //!
 //! Every value lives in Wasm locals: an instruction's value is stored in
 //! fresh locals of its layout as it is computed, a constant is pushed as an
@@ -1222,7 +1222,7 @@ impl Em<'_, '_, '_> {
     /// once it has read them ([`Em::take`]).
     fn inst(&mut self, i: u32) -> StageResult<()> {
         // An instruction with a source position anchors the calls it
-        // writes, for a panic's frames (`crates/hd_wasm/DESIGN.md` §15.9);
+        // writes, for a panic's frames (`crates/hd_wasm_linear/DESIGN.md` §15.9);
         // the enclosing anchor holds again after it.
         let outer = self.f.at;
         if self.anchored(i) {
@@ -2076,7 +2076,7 @@ impl Em<'_, '_, '_> {
             "block_on" => self.block_on(i, args[0]),
             // `cancel!`'s cleanup frame over the task, a `Suspend[bool]`
             // that starts or continues the task's one cleanup and waits it
-            // out (`crates/hd_wasm/DESIGN.md` §14.6).
+            // out (`crates/hd_wasm_linear/DESIGN.md` §14.6).
             "task_cleanup_frame" => {
                 self.comp(args[0], 0)?;
                 self.f.helper(Helper::CleanupCold);
@@ -2180,7 +2180,7 @@ impl Em<'_, '_, '_> {
                 Ok(())
             }
             // The serial number of a local some reference refers to, which
-            // only a reference's closure form reads (`crates/hd_wasm/DESIGN.md`
+            // only a reference's closure form reads (`crates/hd_wasm_linear/DESIGN.md`
             // §15.2): here a reference is its address, so it is 0.
             "ref_serial" => {
                 self.f.op(I::I64Const(0));

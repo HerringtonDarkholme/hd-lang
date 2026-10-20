@@ -191,7 +191,6 @@ fn a_session_builds_for_wasmtime_in_the_dev_pipeline() {
     let pipeline = crate::Pipeline {
         target: hd_driver::EngineTarget::Wasmtime,
         level: hd_driver::OptLevel::Dev,
-        backend: hd_driver::Backend::Linear,
     };
     assert_eq!(super::PIPELINE, pipeline);
     let dir = Scratch::new(SCRATCH, &format!("repl-pipeline-{}", unique()));

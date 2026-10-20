@@ -9,7 +9,7 @@
 //! reference is the trait value whose payload is the source reference
 //! (`Coercion::RefToTraitValue`), as Rust's `&dyn Tr` is a pointer and a
 //! vtable. On the Wasm GC emulation, its closure form, it is an ordinary
-//! `std.core.Ref[dyn Tr]` (`crates/hd_wasm/DESIGN.md` §15.2, "Trait value
+//! `std.core.Ref[dyn Tr]` (`crates/hd_wasm_linear/DESIGN.md` §15.2, "Trait value
 //! references"): its `get` returns that trait value, and its identity
 //! fields are the source reference's, so `is` compares the places.
 

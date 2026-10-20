@@ -19,7 +19,7 @@ use std::ops::{Add, Div, Mul, Neg, Sub};
 use std::rc::Rc;
 
 use crate::asm::Asm;
-use crate::{Code, VT};
+use crate::module::Val as VT;
 
 const SPLIT: f64 = 134_217_729.0;
 const TWO53: f64 = 9_007_199_254_740_992.0;
@@ -530,7 +530,7 @@ fn log(g: &mut G, x: u32) -> Dd {
 
 /// The code of `PowF64`: `(x: f64, y: f64) -> f64`.
 #[must_use]
-pub fn pow_f64_code() -> Code {
+pub fn pow_f64_code() -> Vec<u8> {
     let mut g = G {
         a: Asm::new(vec![VT::F64, VT::F64]),
     };
@@ -607,7 +607,7 @@ pub fn pow_f64_code() -> Code {
     let s1 = pow2(&mut g, n1);
     let s2 = pow2(&mut g, n2);
     g.ret((l(rounded) * l(s1) * l(s2)).copysign(l(sign)));
-    g.a.finish(vec![VT::F64])
+    g.a.finish()
 }
 
 /// The correct rounding of `f.h + f.l` to a double (`f.h` is the nearest

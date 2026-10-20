@@ -1,4 +1,4 @@
-# The hd tests of std.rt.checked (crates/hd_wasm/DESIGN.md §23.24), the
+# The hd tests of std.rt.checked (crates/hd_wasm_linear/DESIGN.md §23.24), the
 # checked runtime. Only std may use a runtime module, so the conformance
 # runner adds this file to std as `std.rt.checked_tests` and runs its
 # cases on the linear backend (crates/hd_driver/tests/conformance.rs,

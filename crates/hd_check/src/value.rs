@@ -5,7 +5,7 @@
 //! these (`types.value.writable-forms`).
 //!
 //! The Wasm GC backend holds a struct value as an object that is never
-//! written after it is built (`crates/hd_wasm/DESIGN.md` §15.2, "Struct
+//! written after it is built (`crates/hd_wasm_linear/DESIGN.md` §15.2, "Struct
 //! values"). So `a.b.x = v` is lowered as `a = A { ...a, b: B { ...a.b,
 //! x: v } }`: each struct on the path is rebuilt with `CopyData`, and the
 //! place's root is stored. Since no struct object changes, two places may

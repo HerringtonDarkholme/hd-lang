@@ -189,7 +189,7 @@ crates/hd_cli/DESIGN.md §20.5 already sketches. This design fills in the linker
    under its instance key. The session records them in `symbols`.
 5. **Run.** Instantiate (imports pre-resolved by name), then drive the
    input's root through `hd.poll` and `hd.wake` as an entry (§14.4 of
-   crates/hd_wasm/DESIGN.md). `RuntimeMeta.entry` is `ReplInput`.
+   crates/hd_wasm_linear/DESIGN.md). `RuntimeMeta.entry` is `ReplInput`.
 
 ```text
 prelude.wasm      cached per toolchain: runtime globals, panic globals, wake table,
@@ -202,12 +202,12 @@ repl#4.wasm       imports price, dbg_text[u32]
 
 - **Wasm GC types canonicalize across modules** (iso-recursive rec
   groups), so a value built in input 1 flows into input 4 unchanged.
-  The emitter's canonical type order (crates/hd_wasm/DESIGN.md §15.3) makes the
+  The emitter's canonical type order (crates/hd_wasm_linear/DESIGN.md §15.3) makes the
   same hd layout give the same rec group in every module. Implementation
   differs: neither the canonical type order nor module-local literal
   numbers is built as written (one getter per literal, #258).
 - ~~**Runtime type ids** (for `dyn Any` and type witnesses,
-  crates/hd_wasm/DESIGN.md §15.2) are assigned session-wide and append-only, so a
+  crates/hd_wasm_linear/DESIGN.md §15.2) are assigned session-wide and append-only, so a
   shadowed type and its replacement get different ids.~~ **[Decided
   2026-10-12: no runtime type-id table, and no redefinition at all.]** A
   type is declared once per session, so no id needs to tell two
@@ -353,7 +353,7 @@ so engine NaN differences cannot reach the host.
 the embedding API (crates/hd_run_wasmtime/DESIGN.md §17.9), the recorder is a host
 wrapper **[Decided 2026-10-12: it sits at the host call sites]**. It needs **no `hd:hook` imports and no special build**. A
 release binary recorded in production replays bit for bit with the same
-bytes. The reserved hook points (crates/hd_wasm/DESIGN.md §14.7) stay for tracing
+bytes. The reserved hook points (crates/hd_wasm_linear/DESIGN.md §14.7) stay for tracing
 and for exploring interleavings below the wake level.
 
 ```rust
@@ -368,7 +368,7 @@ impl<P: Provider> Provider for Recorder<P> {
 struct Replayer { journal: JournalReader, live: Option<ProviderSet> }   // live = None: pure replay
 ```
 
-The driver loop (crates/hd_wasm/DESIGN.md §14.4) writes one `Wake` row per
+The driver loop (crates/hd_wasm_linear/DESIGN.md §14.4) writes one `Wake` row per
 `hd.wake` call, and `hd:rt/block` one `Block` row.
 
 ### 4.2 What Is Recorded
@@ -887,8 +887,8 @@ are not applied.
 | crates/hd_run_wasmtime/DESIGN.md §17.1 | per-method flags in the ABI table: `output` (echoed on replay) and, for resume Later, `opens_handle` |
 | crates/hd_run_wasmtime/DESIGN.md §17.9 | `Recorder` and `Replayer` as `Provider` wrappers; the driver writes `Wake`, `Block` and `Cancel` rows |
 | crates/hd_run_wasmtime/DESIGN.md §17.10 | the JS glue gets the same recorder, replayer and row format |
-| [crates/hd_wasm/DESIGN.md](../../crates/hd_wasm/DESIGN.md#new-compiler-design-suspension-lowering) §14.4 | a third export, `hd.cancel()`, which cancels the root |
-| crates/hd_wasm/DESIGN.md §14.7 | record and replay need no hooks; the hooks remain for tracing and interleaving exploration |
+| [crates/hd_wasm_linear/DESIGN.md](../../crates/hd_wasm_linear/DESIGN.md#14-suspension-lowering) §14.4 | a third export, `hd.cancel()`, which cancels the root |
+| crates/hd_wasm_linear/DESIGN.md §14.7 | record and replay need no hooks; the hooks remain for tracing and interleaving exploration |
 | [crates/hd_mono/DESIGN.md](../../crates/hd_mono/DESIGN.md) §13.1 | a REPL input's roots are its statements; collection consults the session's `symbols` and emits only misses |
 | [crates/hd_cache/DESIGN.md](../../crates/hd_cache/DESIGN.md) | input module keys: TIR hash plus the hashes of imported symbols |
 | [docs/compiler/goals.md](../compiler/goals.md) | the REPL row of `long-session`, after open question 2 |

@@ -5,7 +5,7 @@ Status: design record; may lag the code. The code and the spec win.
 Part of the [compiler design](ARCHITECTURE.md). One entry per data type
 and per syntax form: its Wasm GC representation and emitted code, with
 its cost in speed and size. The layout rules themselves live in
-[crates/hd_wasm/DESIGN.md](../../crates/hd_wasm/DESIGN.md) (§15.1,
+[crates/hd_wasm_linear/DESIGN.md](../../crates/hd_wasm_linear/DESIGN.md) (§15.1,
 §15.2; `hd_wasm::layout`), the emission rules in
 [crates/hd_mono/DESIGN.md](../../crates/hd_mono/DESIGN.md).
 
@@ -23,7 +23,7 @@ Each entry gives:
 
 - **Wasm:** the Wasm GC types and the shape of the emitted code, as a
   small WAT-like snippet. `$X` names a canonical type; `dflt(L)` is the
-  defaultable form of layout `L` (crates/hd_wasm/DESIGN.md §15.2).
+  defaultable form of layout `L` (crates/hd_wasm_linear/DESIGN.md §15.2).
 - **Speed:** allocations, indirect calls and casts on the hot path of the
   baseline emission. A figure that needs a pass names it.
 - **Size:** bytes per use or per instance, an estimate where no pilot
@@ -52,7 +52,7 @@ Every index space of the module, and what a code body holds for it:
 | --- | --- | --- |
 | defined functions | a `call` index, as a relocation in a 5-byte padded slot | imports, runtime helpers, then instances |
 | `ref.func` targets | the function index, as a relocation | as above |
-| Wasm types | type immediates in `struct.new`, `ref.cast`, `array.new`, block types | canonical and deterministic (crates/hd_wasm/DESIGN.md §15.3) |
+| Wasm types | type immediates in `struct.new`, `ref.cast`, `array.new`, block types | canonical and deterministic (crates/hd_wasm_linear/DESIGN.md §15.3) |
 | immutable constants: vtables, capture-free closures | `global.get`, as a relocation | by content key |
 | module storage | `global.get`, `global.set` | by module path, then binding index |
 | literals | a `call` of the literal's getter ([Literals](#literals)) | one deduplicated passive segment |
@@ -62,7 +62,7 @@ Every index space of the module, and what a code body holds for it:
 The rule: a code body holds no program-wide dense number except through a
 relocation, so its bytes before link depend only on its code key.
 "Append-friendly order" would need a numbering kept from earlier builds,
-which makes the bytes depend on build history; crates/hd_wasm/DESIGN.md
+which makes the bytes depend on build history; crates/hd_wasm_linear/DESIGN.md
 §15.8 forbids it.
 
 ## Baseline Emission
@@ -189,7 +189,7 @@ break the caller-local rule; and `wasm-opt` in release.
 A string is a Go-style shared view `(array, start, len)`, and `slice` and
 `s[a..b]` are O(1) and share bytes
 ([`module.string.slice.shared`](../../spec/lang/10-modules.md#r-module.string.slice.shared)).
-The layout and its table by position are in crates/hd_wasm/DESIGN.md §15.2.
+The layout and its table by position are in crates/hd_wasm_linear/DESIGN.md §15.2.
 
 ```wat
 (type $bytes (array i8))                      ;; immutable, valid UTF-8 in every viewed range
@@ -661,7 +661,7 @@ built yet; see #175.
 (type $Suspend_L (sub (struct (field $state (mut i32)) (field $flags (mut i32))
                               (field $driver (mut anyref)) (field $vt (ref $SuspendVT_L)))))
 (type $F_f (sub final $Suspend_L (struct ... saved dflt locals ... (field $child (mut (ref null $F_g))))))
-;; f$body, f$cold, f$poll, f$cancel per suspending instance (crates/hd_wasm/DESIGN.md §14.1)
+;; f$body, f$cold, f$poll, f$cancel per suspending instance (crates/hd_wasm_linear/DESIGN.md §14.1)
 ```
 
 - **Speed:** the ready path is a call and a null test; the pending path
@@ -728,7 +728,7 @@ and no body holds a program-wide number.
 - **Implementation differs:** one table per linked module, numbered at
   link through a `Reloc::Lit` immediate, so no cached body holds a
   number either; and no host fast path
-  ([crates/hd_wasm/DESIGN.md §15.4](../../crates/hd_wasm/DESIGN.md)).
+  ([crates/hd_wasm_linear/DESIGN.md §15.4](../../crates/hd_wasm_linear/DESIGN.md)).
 - **List and map literals** build fresh values each evaluation, since
   lists and maps are mutable.
 - **Engines:** `array.new_data` is not a constant instruction, which is
@@ -923,7 +923,7 @@ A `for` over a `List` or a `Map` is a counted loop too
 ([`flow.for.snapshot`](../../spec/lang/06-control-flow.md#r-flow.for.snapshot)):
 `SnapBegin` makes a header over the collection's arrays and marks the
 collection, so a change in the body copies its arrays first
-(`crates/hd_wasm/DESIGN.md` §15.2, "Collection values"), and `SnapEnd`
+(`crates/hd_wasm_linear/DESIGN.md` §15.2, "Collection values"), and `SnapEnd`
 removes the mark after the loop. The loop captures the snapshot's length
 once and needs no check per round. A map loop scans the snapshot's slots,
 skipping removed entries (`MapSlotNext`).
@@ -934,7 +934,7 @@ tuple's layout is boxed.
 counted loops over the list itself, not a snapshot (`hd_check::pins`,
 `ref_loop`): `ListPin` pins the list once, the loop captures its length,
 and each round builds the element reference to its slot, which allocates
-the reference's object and closures (`crates/hd_wasm/DESIGN.md` §15.2,
+the reference's object and closures (`crates/hd_wasm_linear/DESIGN.md` §15.2,
 "Element references").
 Implementation differs: a numeric range is a counted loop only when it
 is bound to a plain name, and a `for` over any other iterable calls its
@@ -1043,7 +1043,7 @@ with `else` produces a value.
   pending path allocates one frame per level once. `all!` polls each
   child; `race!` cancels the losers synchronously.
 - **Size:** the save and reload sequences per suspension point; four
-  functions per suspending instance (crates/hd_wasm/DESIGN.md §14.1).
+  functions per suspending instance (crates/hd_wasm_linear/DESIGN.md §14.1).
 - **Engines:** `block_on` uses JSPI in the browser, else a synchronous
   same-origin XHR, else a `host-contract` panic (§17.6). Implementation
   differs: the browser host always uses the synchronous XHR from its

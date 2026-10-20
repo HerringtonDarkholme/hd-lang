@@ -1,4 +1,4 @@
-//! Host codecs over linear memory (`crates/hd_wasm/DESIGN.md` §23.23):
+//! Host codecs over linear memory (`crates/hd_wasm_linear/DESIGN.md` §23.23):
 //! the encoders and decoders of the values that cross the exchange buffer
 //! (`crates/hd_run_wasmtime/DESIGN.md` §17.4), generated per boundary type
 //! from its linear layout, and the host method slots that call them.

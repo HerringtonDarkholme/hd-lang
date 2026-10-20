@@ -170,7 +170,8 @@ export function createReplHost(compiler: Promise<CompilerExports>, post: ReplPos
   const outcome = (exports: CompilerExports, input: number, value: number): void => {
     compileRequest(exports, encodeReplOutcome(input, value));
   };
-  const message = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+  const message = (error: unknown): string =>
+    error instanceof Error ? error.message : String(error);
 
   async function start(id: number, files: ReplFiles): Promise<ReplStarted> {
     const failed = (diagnostics: readonly string[], error: string | null): ReplStarted => {
@@ -226,6 +227,11 @@ export function createReplHost(compiler: Promise<CompilerExports>, post: ReplPos
     const live = result.live;
     const value = outcomeOf(live);
     outcome(exports, number, value);
+    if (live?.end.kind === "cancelled" || live?.end.kind === "stopped") {
+      sink.err(
+        `note: repl#${number} was ${live.end.kind}, so the next rebuild skips it; its changes are not restored\n`,
+      );
+    }
     if (value !== OUTCOME.dropped) texts.set(number, source);
     return ran({
       diagnostics,
@@ -276,7 +282,12 @@ export function createReplHost(compiler: Promise<CompilerExports>, post: ReplPos
         const source = given.get(i.number);
         const compiled =
           source === undefined ? null : compileRequest(exports, encodeReplInput(source, i.number));
-        if (source === undefined || compiled === null || compiled.status !== STATUS.ok || compiled.wasm.length === 0) {
+        if (
+          source === undefined ||
+          compiled === null ||
+          compiled.status !== STATUS.ok ||
+          compiled.wasm.length === 0
+        ) {
           return { wasm, built, cut: i.number, diagnostics: compiled ? lines(compiled) : [] };
         }
         wasm = compiled.wasm;

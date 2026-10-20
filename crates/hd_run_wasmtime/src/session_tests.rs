@@ -106,7 +106,7 @@ fn build_session(
         session: Some(&start),
         inputs_from: Some(1),
         failed_inputs: failed,
-        backend: hd_driver::Backend::Linear,
+
         ..hd_driver::Packages::default()
     };
     let goal = hd_driver::Goal::ReplInput { input: number };

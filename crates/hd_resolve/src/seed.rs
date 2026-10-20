@@ -133,7 +133,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
                 p.intrinsic = Some(sym(names, "panic_message"));
             }
             // What `&T` and `&mut T` lower to on the Wasm GC backend
-            // (`crates/hd_wasm/DESIGN.md` §15.2, "References"): a closure
+            // (`crates/hd_wasm_linear/DESIGN.md` §15.2, "References"): a closure
             // that reads the referenced place and one that replaces it,
             // then the place's identity, which `is` compares: the data
             // object that holds the place (`RefRoot`'s one value for every
@@ -213,7 +213,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             private.has_default = true;
             item("PollContext", vec![], ItemData::Data(vec![private]));
             item("Waker", vec![], ItemData::Data(vec![]));
-            // `all!` has no written signature (`crates/hd_wasm/DESIGN.md` §14.5): its
+            // `all!` has no written signature (`crates/hd_wasm_linear/DESIGN.md` §14.5): its
             // checker rule is the compiler's.
             let mut all = FnSig::simple(vec![], vec![], Ty::VOID);
             all.suspends = true;

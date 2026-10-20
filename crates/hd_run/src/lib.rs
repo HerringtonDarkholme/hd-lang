@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 //! `hd_run`: the embedding API (`crates/hd_run_wasmtime/DESIGN.md` §17.9), the poll/wake
-//! driver (`crates/hd_wasm/DESIGN.md` §14.4), the test runner core
+//! driver (`crates/hd_wasm_linear/DESIGN.md` §14.4), the test runner core
 //! (`docs/compiler/engines-and-test-runner.md` §19) and the live-execution journal
 //! (`docs/future-work/live-execution.md` §4). No engine lives here: wasmtime is in
 //! `hd_run_wasmtime`, the browser's in `hd_web`.

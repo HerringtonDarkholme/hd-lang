@@ -1187,7 +1187,7 @@ impl<'a> Types<'a> {
     /// `t` with each reference type, `&T` or `&mut T`, replaced by the data
     /// type `cell[T]` or `cell[Mut[T]]` (mutable permission metadata), both
     /// with the same physical layout on the Wasm GC backend
-    /// (`crates/hd_wasm/DESIGN.md` §15.2, "References"). The checker applies
+    /// (`crates/hd_wasm_linear/DESIGN.md` §15.2, "References"). The checker applies
     /// it to a finished body and the driver to the declarations the
     /// backend reads, so the backend never sees a reference type and `&T`
     /// and `&mut T` share one representation.

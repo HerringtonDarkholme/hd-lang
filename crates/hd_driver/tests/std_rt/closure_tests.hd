@@ -1,5 +1,5 @@
 # The hd tests of closures and trait values on the linear backend
-# (crates/hd_wasm/DESIGN.md §23.19): an environment holds its captures
+# (crates/hd_wasm_linear/DESIGN.md §23.19): an environment holds its captures
 # and a shared local's cell, a boxed trait value holds its payload, and
 # each frees what it holds at its last release, so making them in a loop
 # runs in bounded memory. Only std may read the heap's size, so the

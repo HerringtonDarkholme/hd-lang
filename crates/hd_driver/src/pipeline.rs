@@ -1,7 +1,7 @@
 //! The pipeline key of each (target, level) (`crates/hd_opt/DESIGN.md` (optimization pipelines) §3.3): the
-//! hash of `hd_opt`'s pass hash and `hd_wasm`'s lowering hash. It hashes
+//! hash of `hd_opt`'s passes and knobs. It hashes
 //! content, never the target's name, so targets whose passes, knobs and
-//! lowering are equal share every cache entry. The table is validated once
+//! code-generation settings are equal share every cache entry. The table is validated once
 //! per process (§3.2): `hd_opt::passes::validate` runs checks 2 and 3 on
 //! each row, the total `match` in `hd_opt::passes::pipeline` is check 1,
 //! and [`check_distinct`] is check 4.
@@ -10,22 +10,19 @@ use std::sync::OnceLock;
 
 use hd_base::{EngineTarget, Hash128, OptLevel, StableHasher};
 use hd_opt::passes::{Pipeline, pipeline, validate};
-use hd_wasm::Lowering;
 
-/// The key of a pipeline with `lowering`: what every code, program and
+/// The key of a pipeline: what every program and
 /// prelude key holds as its pipeline part.
-pub(crate) fn content_key(passes: &Pipeline, lowering: Lowering) -> Result<Hash128, String> {
+pub(crate) fn content_key(passes: &Pipeline) -> Result<Hash128, String> {
     let mut h = StableHasher::new("pipeline-key");
     h.hash(validate(passes)?);
-    h.hash(lowering.hash());
     Ok(h.finish())
 }
 
-/// One row of the table: its passes, lowering and key.
+/// One row of the table: its passes and key.
 struct Row {
     at: (EngineTarget, OptLevel),
     passes: &'static Pipeline,
-    lowering: Lowering,
     key: Hash128,
 }
 
@@ -34,7 +31,7 @@ struct Row {
 fn check_distinct(rows: &[Row]) -> Result<(), String> {
     for (i, a) in rows.iter().enumerate() {
         for b in &rows[i + 1..] {
-            let same = a.passes.same_content(b.passes) && a.lowering == b.lowering;
+            let same = a.passes.same_content(b.passes);
             if same != (a.key == b.key) {
                 return Err(format!(
                     "{:?} and {:?}: content {} but keys {}",
@@ -63,13 +60,10 @@ fn validate_table_of(
     for target in EngineTarget::ALL {
         for level in OptLevel::ALL {
             let passes = table(target, level);
-            let lowering = Lowering::of(target);
-            let key =
-                content_key(passes, lowering).map_err(|e| format!("{target:?} {level:?}: {e}"))?;
+            let key = content_key(passes).map_err(|e| format!("{target:?} {level:?}: {e}"))?;
             rows.push(Row {
                 at: (target, level),
                 passes,
-                lowering,
                 key,
             });
         }
@@ -98,7 +92,6 @@ mod tests {
     use super::{Row, check_distinct, content_key, key, validate_table, validate_table_of};
     use hd_base::{EngineTarget, OptLevel};
     use hd_opt::passes::{Knob, OPTIMIZED, Pipeline, pipeline};
-    use hd_wasm::Lowering;
 
     /// `OPTIMIZED` with another `max_insts`.
     static TUNED: Pipeline = Pipeline {
@@ -153,8 +146,7 @@ mod tests {
     }
 
     /// `V8` and `Browser` share keys while their content is equal; `V8`
-    /// and `Wasmtime` differ in lowering (closure code), so their keys
-    /// differ; a knob splits a key too.
+    /// and `Wasmtime` share lowering too. A knob splits a key.
     #[test]
     fn equal_content_shares_a_key_and_a_knob_splits_it() {
         for level in OptLevel::ALL {
@@ -163,32 +155,26 @@ mod tests {
                 key(EngineTarget::Browser, level),
                 "{level:?}"
             );
-            assert_ne!(
+            assert_eq!(
                 key(EngineTarget::V8, level),
                 key(EngineTarget::Wasmtime, level),
                 "{level:?}"
             );
-            // Equal passes, so the lowering alone splits the key.
+            // All engines share scalar code generation.
             assert!(
                 pipeline(EngineTarget::V8, level)
                     .same_content(pipeline(EngineTarget::Wasmtime, level))
             );
         }
-        let lowering = Lowering::of(EngineTarget::Wasmtime);
-        let tuned = content_key(&TUNED, lowering).expect("valid");
+        let tuned = content_key(&TUNED).expect("valid");
         assert_ne!(tuned, key(EngineTarget::V8, OptLevel::Optimized));
         assert_ne!(tuned, key(EngineTarget::Wasmtime, OptLevel::Optimized));
-        let row = |at, passes: &'static Pipeline, key| Row {
-            at,
-            passes,
-            lowering,
-            key,
-        };
+        let row = |at, passes: &'static Pipeline, key| Row { at, passes, key };
         let v8 = (EngineTarget::V8, OptLevel::Optimized);
         let wasmtime = (EngineTarget::Wasmtime, OptLevel::Optimized);
         let optimized = pipeline(v8.0, v8.1);
-        // Both rows carry one lowering, so only the passes tell them apart.
-        let v8_key = content_key(optimized, lowering).expect("valid");
+        // The passes tell the rows apart.
+        let v8_key = content_key(optimized).expect("valid");
         assert!(
             check_distinct(&[row(v8, optimized, v8_key), row(wasmtime, &TUNED, tuned)]).is_ok()
         );

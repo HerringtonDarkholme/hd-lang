@@ -1,4 +1,4 @@
-# The hd tests of maps on the linear backend (crates/hd_wasm/DESIGN.md
+# The hd tests of maps on the linear backend (crates/hd_wasm_linear/DESIGN.md
 # §23.18): a map's table grows, copies only when shared, and frees its
 # keys and values at its last release, so building maps in a loop runs
 # in bounded memory. Only std may read the heap's size, so the

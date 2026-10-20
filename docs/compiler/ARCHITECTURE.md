@@ -62,7 +62,7 @@ Back half:
   level). [DESIGN.md](../../crates/hd_opt/DESIGN.md)
 - `hd_wasm`: Wasm GC layout, emission, linking, the runtime pieces it
   generates, and each target's lowering profile.
-  [DESIGN.md](../../crates/hd_wasm/DESIGN.md)
+  [DESIGN.md](../../crates/hd_wasm_linear/DESIGN.md)
 
 Services, driver and runtime:
 

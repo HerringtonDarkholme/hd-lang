@@ -4,7 +4,7 @@
 // ABI model (gen/abi.mjs, over wire.mjs's encoding of §17.4); the providers
 // that need nothing from the platform (`Console`, `Clock`, `Random`,
 // `Args`, `rt`, `prim`, and the test and property runners' hooks); and the
-// entry driver of crates/hd_wasm/DESIGN.md §14.4. It uses web-standard APIs
+// entry driver of crates/hd_wasm_linear/DESIGN.md §14.4. It uses web-standard APIs
 // only. A platform layer (node.mjs, web.mjs) adds the providers that touch
 // the machine by passing `layer` to `createCoreHost`.
 //
@@ -76,7 +76,7 @@ Error.stackTraceLimit = Infinity;
 
 // The Wasm frames of a trap's stack, innermost first, as [function index,
 // module byte offset] pairs from V8's `wasm-function[i]:0xOFF`; the test
-// command maps them through the module's line table (crates/hd_wasm/DESIGN.md §15.9).
+// command maps them through the module's line table (crates/hd_wasm_linear/DESIGN.md §15.9).
 const wasmFrames = (e) =>
   Array.from(String(e.stack ?? "").matchAll(/wasm-function\[(\d+)\]:0x([0-9a-f]+)/g), (m) => [
     Number(m[1]),
@@ -1179,9 +1179,7 @@ export function createSession(sink, env = {}, layer = null, options = {}) {
 
   const run = async (wasm, sources, live = null, journal = recorder.journal()) => {
     if (journal === null) {
-      throw new Error(
-        "the session's record of host calls is full, so it cannot run another input",
-      );
+      throw new Error("the session's record of host calls is full, so it cannot run another input");
     }
     const record = recorded(journal);
     const texts = new Map(sources);
@@ -1191,8 +1189,12 @@ export function createSession(sink, env = {}, layer = null, options = {}) {
     const cap = recorder.cap;
     const module = await WebAssembly.compile(wasm);
     const start = async () => {
+      // Refusing an import or failing instantiation must not replace the
+      // last good journal. HD modules have no Wasm start function; their
+      // effects begin only when runInput invokes the numbered entry.
+      const instance = await WebAssembly.instantiate(module, link(module, wasm));
       restart(new Recorder(cap, record.execution));
-      return WebAssembly.instantiate(module, link(module, wasm));
+      return instance;
     };
     let instance = await start();
     const ran = { kept: [], skipped: [], dropped: [], reason: null, live: null };

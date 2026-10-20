@@ -589,7 +589,7 @@ Notation: `a` and `b` are the two data words; `[...]` is a record in
 | `Call` | a: `[callee]`, b: `[arguments, providers]` | the callee's result, substituted; `mut Suspend[T]` when the callee suspends and the call is plain (a cold call) |
 | `CallValue` | a: function value, b: `[arguments, context]` | the function type's result |
 | `CallDyn` | a: trait value, b: `[method, type arguments, evidence, arguments, providers]` | the method's result, substituted. The type arguments are the method's own. `evidence` holds one `Evidence` value per method-level bound, in the method's bound order, chosen by the checker at the call. Codegen does not read it: a generic method gets a type witness built from the type arguments (crates/hd_mono/DESIGN.md §13.5.1), so dropping the operand is a frontend cleanup |
-| `Is` | a: left, b: right | `bool`. Only on two operands whose types implement `AnyRef` (`&T`, `&mut T`, an `AnyRef` type parameter), or on trait values and `Any`. `is` on a struct, list, map, enum, optional, `Result`, tuple, primitive, string or function value is `identity-requires-references` before TIR ([`expr.is.value-operand`](../../spec/lang/05-expressions.md#r-expr.is.value-operand)); codegen lowers it by layout (crates/hd_wasm/DESIGN.md §15.2) |
+| `Is` | a: left, b: right | `bool`. Only on two operands whose types implement `AnyRef` (`&T`, `&mut T`, an `AnyRef` type parameter), or on trait values and `Any`. `is` on a struct, list, map, enum, optional, `Result`, tuple, primitive, string or function value is `identity-requires-references` before TIR ([`expr.is.value-operand`](../../spec/lang/05-expressions.md#r-expr.is.value-operand)); codegen lowers it by layout (crates/hd_wasm_linear/DESIGN.md §15.2) |
 | `CallHost` | a: host method, b: `[arguments]` | the method's result; only in std's provider bodies |
 | `Intrinsic` | a: intrinsic, b: `[type arguments, arguments]` | the intrinsic's declared result |
 | `DefaultCall` | a: `[default body DefId, type arguments]`, b: `[earlier argument values]` | the parameter's or field's type, substituted. One per omitted argument, per call |
@@ -612,8 +612,8 @@ holds.
 | `Supertrait` | child trait value → parent trait value | none: the target type names the parent | re-table: load the parent's vtable from the child's |
 | `SuspendFnToCtor` | `fn!` type → constructor type | none | none, or a thin adapter |
 | `Identity` | `T` → `T` | none | none: a least-common-type slot whose value needed no conversion |
-| `RefToTraitValue` | `&S` or `&mut S` → `Tr`, inside a trait value reference's `get`, or as the provider of a key whose trait has no `&self` or `&mut self` method | none | box the reference itself, with a dispatch table at `S`'s impl that reads through it or passes it per slot (crates/hd_wasm/DESIGN.md §15.2, "Trait value references") |
-| `RefAsProvider` | `&dyn K` or `&mut dyn K` → `K`, the provider of a key whose trait has a `&self` or `&mut self` method | none | the reference is the payload; the vtable is the one its `get` returns, which no call reads (crates/hd_wasm/DESIGN.md §15.2, "Providers of reference traits") |
+| `RefToTraitValue` | `&S` or `&mut S` → `Tr`, inside a trait value reference's `get`, or as the provider of a key whose trait has no `&self` or `&mut self` method | none | box the reference itself, with a dispatch table at `S`'s impl that reads through it or passes it per slot (crates/hd_wasm_linear/DESIGN.md §15.2, "Trait value references") |
+| `RefAsProvider` | `&dyn K` or `&mut dyn K` → `K`, the provider of a key whose trait has a `&self` or `&mut self` method | none | the reference is the payload; the vtable is the one its `get` returns, which no call reads (crates/hd_wasm_linear/DESIGN.md §15.2, "Providers of reference traits") |
 | `ProviderAsRef` | `K` → `&dyn K` or `&mut dyn K`, at `$.use(K)` of such a key | none | cast the payload back to the reference |
 
 Today every `Coerce` writes `NONE` as its evidence word; the wire writer
@@ -638,7 +638,7 @@ and a data field default at each construction that omits it
 - It is a separate tag, not a `Call`, for two reasons. The verifier can
   check that its operands are exactly the call's earlier argument `Ref`s.
   And emission brackets it with the forbidden-context counter that makes
-  an indirect `block_on` or `println` panic (crates/hd_wasm/DESIGN.md
+  an indirect `block_on` or `println` panic (crates/hd_wasm_linear/DESIGN.md
   §14.9), unless the default body calls nothing.
 - Lowering is a direct call of the default body's instance. A default
   that is a constant, such as `= 10`, passes the trivial-inlining test
@@ -721,7 +721,7 @@ body with suspension rows (`src/wire.rs`), so no body writes them today.
 **References**
 
 A reference names its place, so a backend with interior addresses lowers
-it to the place's address (`crates/hd_wasm/DESIGN.md` §23.20). Each
+it to the place's address (`crates/hd_wasm_linear/DESIGN.md` §23.20). Each
 instruction also owns, as its last operand, the `Block` of its closure
 form: the `std.core.Ref[T]` object of a `get` and a `set` closure over
 the place and the place's identity, or a call of one of them. Only the

@@ -60,7 +60,6 @@ pub enum TaskKind {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ExtTask {
     Collect,
-    Emit(u32),
     Link,
     Precompile,
     RunCase(u32),
@@ -82,7 +81,6 @@ impl TaskKind {
             TaskKind::InitOrder(_) => "InitOrder",
             TaskKind::PackageResult => "PackageResult",
             TaskKind::Ext(ExtTask::Collect) => "Collect",
-            TaskKind::Ext(ExtTask::Emit(_)) => "Emit",
             TaskKind::Ext(ExtTask::Link) => "Link",
             TaskKind::Ext(ExtTask::Precompile) => "Precompile",
             TaskKind::Ext(ExtTask::RunCase(_)) => "RunCase",
@@ -390,15 +388,15 @@ mod tests {
             order.lock().expect("log").push(kind.name());
             if kind == TaskKind::PackageResult {
                 let link = sp.add_held(TaskKind::Ext(ExtTask::Link), &[]);
-                let emit = sp.add(TaskKind::Ext(ExtTask::Emit(0)), &[]);
-                sp.edge(emit, link);
+                let body = sp.add(TaskKind::Body(0), &[]);
+                sp.edge(body, link);
                 sp.release(link);
             }
         });
         assert_eq!(left, 0);
         assert_eq!(
             order.into_inner().expect("log"),
-            ["FolderGraph", "PackageResult", "Emit", "Link"]
+            ["FolderGraph", "PackageResult", "Body", "Link"]
         );
     }
 

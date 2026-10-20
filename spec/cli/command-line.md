@@ -863,42 +863,13 @@ hd run --engine no-such-name  # a usage error: exits 101 and runs no program
 > program means. So a user, CI, or an agent picks one by name, and a
 > program's results do not depend on the choice.
 
-### Backends
+### Code Generation
 
-A **backend** is what turns a checked program into its compiled module.
-An implementation may offer several, and a command picks one by name:
+1. r[cli.codegen.single] Every command that builds a program uses the implementation's one code generator.
+2. r[cli.codegen.no-selection] Commands take no `--backend` flag; a written `--backend` is a usage error by [`cli.exit.hd-failure`](#r-cli.exit.hd-failure).
 
-```sh
-hd run --backend NAME            # NAME is a backend the implementation offers
-hd build --backend no-such-name  # a usage error: exits 101 and writes nothing
-```
-
-1. r[cli.backend.define] A **backend** is the code generator that builds a program's compiled module.
-2. r[cli.backend.offered] An implementation offers one or more backends. Which backends exist, and what they are called, is implementation-defined.
-3. r[cli.backend.flag] `hd FILE`, `hd run`, and `hd build` take `--backend NAME`, where NAME names a backend.
-4. r[cli.backend.select] A command that takes `--backend` builds with the backend that the flag names. Without the flag, it uses the default backend.
-5. r[cli.backend.default] Which backend is the default is implementation-defined.
-6. r[cli.backend.unknown] A NAME that the implementation does not offer is a usage error, by [`cli.exit.hd-failure`](#r-cli.exit.hd-failure). The command builds and runs no program.
-7. r[cli.backend.prebuilt] `hd FILE.wasm` does not take `--backend`, since its module is already built. The flag is a usage error there, by [`cli.exit.hd-failure`](#r-cli.exit.hd-failure).
-8. r[cli.backend.engines] A module that a backend builds runs on every engine, as [`cli.engine.build`](#r-cli.engine.build) says of the engine a module is built for.
-9. r[cli.backend.same-behavior] A program's output, exit status, panic categories, and panic sites are the same with every backend that builds it. Only what [`cli.profile.pipeline.limits`](#r-cli.profile.pipeline.limits) lists may differ.
-10. r[cli.backend.incomplete] A backend other than the default may not build every program yet. A build that it cannot finish is an error, by [`cli.exit.hd-failure`](#r-cli.exit.hd-failure). The command then writes and runs no module, and never falls back to another backend.
-
-> **Note.** This implementation offers `linear`, the default, whose
-> values live in linear memory and are freed by reference counting, and
-> `wasm-gc`, whose values are Wasm GC references.
-
-> **Note.** This implementation also offers `linear-checked`, the
-> `linear` backend in checked mode, which tests the implementation
-> rather than the program. It poisons freed memory and never reuses it.
-> It checks every count change, and at the end of a program or a test
-> case it checks that every object was freed. A failed check is a bug in
-> the implementation. It panics `count-audit`, which is not a stable
-> panic category.
-
-> **Why.** A second backend can grow beside the default one: each build
-> names its backend, so the new one is tested on real programs while
-> every other build keeps the default.
+> **Note.** This implementation stores values in linear memory and frees
+> counted objects through reference counting and cycle collection.
 
 ### Debug Output
 

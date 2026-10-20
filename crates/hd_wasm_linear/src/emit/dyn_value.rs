@@ -1,4 +1,4 @@
-//! Trait values (`crates/hd_wasm/DESIGN.md` §23.8, §23.19, job 11). A
+//! Trait values (`crates/hd_wasm_linear/DESIGN.md` §23.8, §23.19, job 11). A
 //! trait value is `(data, vtable)`. The data is the value itself when its
 //! layout is one counted address (a list, a map, a data value); any other
 //! value is boxed in a counted object of its layout, whose descriptor
@@ -270,7 +270,7 @@ impl Em<'_, '_, '_> {
         })
     }
 
-    /// `RefAsProvider` (`crates/hd_wasm/DESIGN.md` §15.2, "Providers of
+    /// `RefAsProvider` (`crates/hd_wasm_linear/DESIGN.md` §15.2, "Providers of
     /// reference traits"): the trait value reference `a` installed as a
     /// provider. A reference to a trait value is that trait value
     /// (`refs.rs`), so the provider is `a` itself, which `ProviderAsRef`

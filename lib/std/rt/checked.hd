@@ -1,5 +1,5 @@
 # std.rt.checked: the checked runtime of the linear-memory backend
-# (crates/hd_wasm/DESIGN.md §23.24), which a `linear-checked` build links
+# (crates/hd_wasm_linear/DESIGN.md §23.24), which a `linear-checked` build links
 # in place of std.rt.alloc's counts. A runtime module, so only std may use
 # it (spec/lang/10-modules.md#r-module.rt.std-only).
 #

@@ -1,4 +1,4 @@
-//! Suspending bodies (`crates/hd_wasm/DESIGN.md` §23.21, job 13): the
+//! Suspending bodies (`crates/hd_wasm_linear/DESIGN.md` §23.21, job 13): the
 //! state machine of §14.2 over a frame in linear memory. A frame is a
 //! counted object: the task prefix ([`F_POLL`] to [`F_CHILD`]), then a
 //! save area that holds every Wasm local of the body. A suspension point
@@ -835,7 +835,7 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// Opens a shielded point's block (`crates/hd_wasm/DESIGN.md` §14.6,
+    /// Opens a shielded point's block (`crates/hd_wasm_linear/DESIGN.md` §14.6,
     /// "Abandoning"). Resumed into under `abandon()`, the point kills its
     /// waiting child, the `dispose!`, with no step: it leaves the block
     /// with `out` 0 and the results zero, so the suite goes on as if the

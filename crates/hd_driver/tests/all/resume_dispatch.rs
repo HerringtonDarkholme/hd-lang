@@ -1,5 +1,5 @@
 //! A suspending body resumes into a block list through one `br_table` on
-//! its state (`crates/hd_wasm/DESIGN.md` §14.2), not a guard per item.
+//! its state (`crates/hd_wasm_linear/DESIGN.md` §14.2), not a guard per item.
 
 use hd_cache::MemoryStore;
 use hd_driver::{Executor, Goal, Host, NoClock, build};

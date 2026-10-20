@@ -2,7 +2,6 @@
 //! compiler from relinking and from starting a process for each file.
 //! `conformance.rs` stays a separate target (CI runs it on its own).
 
-mod all_wakes;
 mod ambiguous_row_fit;
 mod annotation_member_names;
 mod arity_generic_run;
@@ -18,16 +17,13 @@ mod cancel_suspension_run;
 mod caret_is_xor;
 mod char_escapes_run;
 mod checker;
-mod closure_code_targets;
 mod closure_parameter_annotation;
 mod coherence_scale;
 mod collect_default_run;
 mod collection_value_fix;
 mod combinator_call_forms;
 mod competing_drivers;
-mod constant_closures;
 mod constant_defaults;
-mod constant_vtables;
 mod context_values;
 mod copy_assign_run;
 mod copy_update_run;
@@ -81,7 +77,6 @@ mod identity_operands;
 mod identity_run;
 mod impl_targets;
 mod impl_universe;
-mod incremental;
 mod index_literal_key_run;
 mod index_tuple_key_run;
 mod inferred_result_variance;
@@ -97,7 +92,6 @@ mod item_names;
 mod item_too_complex;
 mod join_once;
 mod key_assoc_function_run;
-mod known_closure_calls;
 mod lazy_ifaces;
 mod least_common_type_run;
 mod let_mut_module_level;
@@ -130,7 +124,6 @@ mod operator_fn_left_exact;
 mod operator_left_primitive_run;
 mod optional_join_run;
 mod parallel_bodies;
-mod payloadless_variants;
 mod pipe_bare_steps;
 mod pipe_placeholder;
 mod poisoned_expectation;
@@ -156,7 +149,6 @@ mod reference_equality_fix;
 mod rejected_pattern_binds;
 mod related_traits;
 mod release_profile_run;
-mod repl_input;
 mod resume_dispatch;
 mod row_aliases;
 mod row_invariant_nested;
@@ -170,7 +162,6 @@ mod scenario_cancel;
 mod scenario_cleanup;
 mod sealed_rows;
 mod sealed_user_impls;
-mod session_collect;
 mod session_store;
 mod slicing_run;
 mod spread_args_run;
@@ -182,7 +173,6 @@ mod substring_search_run;
 mod supertrait_calls_run;
 mod suspending_closures_run;
 mod suspending_fn_weaken_run;
-mod suspension_frames;
 mod template_shape;
 mod test_placement;
 mod test_plan;
@@ -200,7 +190,6 @@ mod tuple_template_bounds;
 mod type_arity_signature_run;
 mod type_arity_written_run;
 mod type_default_written_run;
-mod type_id_global;
 mod type_name_forms_run;
 mod type_too_long_run;
 mod typed_facts;
@@ -220,23 +209,6 @@ mod variant_value_run;
 mod void_final;
 mod void_unit_run;
 mod waiting_impl_run;
-mod wake_nodes_link;
-
-/// `hd_driver::build` with the Wasm GC backend, for the tests of what
-/// that backend emits: its per-instance code and its cache, its constant
-/// globals and its function names. They go with the backend (#627).
-#[must_use]
-pub fn build_wasm_gc(
-    host: &hd_driver::Host<'_>,
-    package: &str,
-    goal: &hd_driver::Goal,
-) -> hd_driver::Output {
-    let packages = hd_driver::Packages {
-        backend: hd_driver::Backend::WasmGc,
-        ..hd_driver::Packages::default()
-    };
-    hd_driver::build_packages(host, package, &packages, goal)
-}
 
 /// One content-addressed store shared by every test that only checks what
 /// a build produces: std compiles once for the process.
@@ -269,3 +241,5 @@ impl hd_cache::CacheStore for Shared {
         self.0.touch(kind, key);
     }
 }
+
+mod owned_adapter_calls;

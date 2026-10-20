@@ -60,7 +60,7 @@ pub struct BodyResult {
     pub us: u64,
     pub panic: Option<PanicInfo>,
     /// A Wasm trap's frames, innermost first: function index and module
-    /// byte offset (`crates/hd_wasm/DESIGN.md` §15.9).
+    /// byte offset (`crates/hd_wasm_linear/DESIGN.md` §15.9).
     pub frames: Vec<(u32, u32)>,
 }
 
@@ -78,7 +78,7 @@ pub struct CaseRun {
     pub failure: Option<String>,
     pub panic: Option<PanicInfo>,
     /// A Wasm trap's frames, innermost first: function index and module
-    /// byte offset (`crates/hd_wasm/DESIGN.md` §15.9).
+    /// byte offset (`crates/hd_wasm_linear/DESIGN.md` §15.9).
     pub frames: Vec<(u32, u32)>,
     /// The snapshots an update run recorded, in call order
     /// (`cli.test.snapshot.update`).

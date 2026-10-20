@@ -57,7 +57,7 @@ pub struct PreparedTest {
 }
 
 impl TestEngine {
-    pub fn new(mut config: EngineConfig, pool: TestPoolConfig) -> Result<Self, String> {
+    pub fn new(config: EngineConfig, pool: TestPoolConfig) -> Result<Self, String> {
         if pool.workers == 0 {
             return Err("the test pool needs at least one worker".into());
         }
@@ -68,9 +68,6 @@ impl TestEngine {
         let memories = slots
             .checked_mul(2)
             .ok_or_else(|| "the test memory slot count overflows".to_owned())?;
-        // Test heaps grow lazily, so a pooled store reserves no fixed
-        // initial heap before a case allocates anything.
-        config.gc_heap_initial = 0;
         // The engine stays per `TestEngine`: pool slots bound simultaneous
         // stores, so sharing the pool would merge independent capacity
         // contracts. Only compiled modules are shared, per engine below.
@@ -78,20 +75,14 @@ impl TestEngine {
         let mut allocator = PoolingAllocationConfig::default();
         allocator
             .total_core_instances(slots)
-            // One exchange linear memory and one GC backing memory per store.
-            // Wasmtime 49 allocates both from the same memory-slot pool.
+            // Each module owns one exchange memory and one heap memory.
             .total_memories(memories)
-            // A linear-backend module defines its exchange buffer and its
-            // heap, and no GC heap (`crates/hd_wasm/DESIGN.md` §23.2).
+            // See `crates/hd_wasm_linear/DESIGN.md` §23.2.
             .max_memories_per_module(2)
-            .total_tables(slots)
-            .total_gc_heaps(slots);
-        // Pool GC and linear reservations must agree in pinned Wasmtime 49.
+            .total_tables(slots);
         // These are virtual reservations, not eagerly committed 4 GiB heaps.
         base.memory_reservation(1 << 32)
-            .gc_heap_reservation(1 << 32)
             .memory_reservation_for_growth(0)
-            .gc_heap_reservation_for_growth(0)
             .allocation_strategy(InstanceAllocationStrategy::Pooling(allocator));
         let code = crate::code_cache::configure(&mut base);
         let engine = Arc::new(wasmtime::Engine::new(&base).map_err(|error| error.to_string())?);
@@ -160,12 +151,11 @@ pub struct NamedProgram {
 
 impl NamedProgram {
     pub fn compile(
-        mut config: EngineConfig,
+        config: EngineConfig,
         name: String,
         wasm: &[u8],
         grants: Grants,
     ) -> Result<Self, String> {
-        config.gc_heap_initial = 0;
         let engine = Arc::new(WasmtimeEngine::new(config)?);
         let module = Arc::new(
             engine

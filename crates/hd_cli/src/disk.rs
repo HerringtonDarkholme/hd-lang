@@ -273,6 +273,7 @@ impl Program {
     /// The packages around the root, as the driver takes them.
     pub fn packages(&self) -> Packages<'_> {
         Packages {
+            checked: false,
             requires: self.requires.clone(),
             deps: self
                 .deps
@@ -298,7 +299,6 @@ impl Program {
             inputs_from: None,
             failed_inputs: &[],
             body_fuel: None,
-            backend: hd_driver::Backend::Linear,
         }
     }
 }

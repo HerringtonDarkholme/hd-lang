@@ -107,7 +107,7 @@ pub fn run_with_profile(
 
 /// [`run_captured_with_profile`] on the default profile, and the value of
 /// the module's exported `i32` global `global` when the run ends, such as
-/// the `all!` child poll count `hd.all_polls` (`crates/hd_wasm/DESIGN.md`
+/// the `all!` child poll count `hd.all_polls` (`crates/hd_wasm_linear/DESIGN.md`
 /// §14.5).
 pub fn run_captured_reading(
     config: EngineConfig,

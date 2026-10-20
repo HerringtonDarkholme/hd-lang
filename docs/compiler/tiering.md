@@ -153,7 +153,7 @@ If it is ever run, these rules hold:
 | Binaryen feature | Rule |
 | --- | --- |
 | `--traps-never-happen`, `--ignore-implicit-traps` | never: an hd panic is a trap, and panics are observable |
-| code motion | `hd.lines` maps panics and backtraces by code offset (crates/hd_wasm/DESIGN.md §15.9), so lines must travel through a source map, or the pass is dropped |
+| code motion | `hd.lines` maps panics and backtraces by code offset (crates/hd_wasm_linear/DESIGN.md §15.9), so lines must travel through a source map, or the pass is dropped |
 | `--closed-world` | holds: the host ABI passes scalars and an exchange buffer in linear memory |
 | type merging | holds only while `is` and type ids never depend on Wasm type identity |
 | whole-module passes | release only; no per-function caching |

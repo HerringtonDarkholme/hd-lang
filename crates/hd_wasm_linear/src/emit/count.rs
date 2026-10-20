@@ -1,4 +1,4 @@
-//! Counting (`crates/hd_wasm/DESIGN.md` §23.16, job 8): every place that
+//! Counting (`crates/hd_wasm_linear/DESIGN.md` §23.16, job 8): every place that
 //! holds a counted reference owns one count. An instruction's value owns
 //! one from its store, a TIR local from its set, a field from its object's
 //! construction or its write; a call's result arrives with its own. A
@@ -53,7 +53,7 @@ impl Em<'_, '_, '_> {
 
     /// In checked mode, notes top-level binding `h` of type `t`, in static
     /// slot `slot` when some reference refers to it, as one whose counted
-    /// references the audit at exit releases (`crates/hd_wasm/DESIGN.md`
+    /// references the audit at exit releases (`crates/hd_wasm_linear/DESIGN.md`
     /// §23.24).
     pub(super) fn note_stored(
         &mut self,

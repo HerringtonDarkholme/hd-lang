@@ -60,7 +60,7 @@ checking.
   call.
 - No serializable closures in the first release; see #166.
 - Suspension lowering reserves no-op observability and replay hook points
-  (crates/hd_wasm/DESIGN.md §14.7).
+  (crates/hd_wasm_linear/DESIGN.md §14.7).
 
 ## How It Is Judged: The Agentic Programming Language Arena
 

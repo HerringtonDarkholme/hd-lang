@@ -7,9 +7,9 @@
 //! The TIR names the place (`RefPlace`) and each read, write and identity
 //! through a reference (`RefRead`, `RefWrite`, `RefIdentity`), so a
 //! backend with interior addresses lowers a reference to the place's
-//! address (`crates/hd_wasm/DESIGN.md` §23.20). Each of those instructions
+//! address (`crates/hd_wasm_linear/DESIGN.md` §23.20). Each of those instructions
 //! owns the block of its closure form, the Wasm GC emulation
-//! (`crates/hd_wasm/DESIGN.md` §15.2, "References"): a reference is a
+//! (`crates/hd_wasm_linear/DESIGN.md` §15.2, "References"): a reference is a
 //! `std.core.Ref[T]` object holding two closures, `get` and `set`, that
 //! read and replace the referenced place.
 //! `&x` on a local makes closures that capture `x`, so the backend keeps
@@ -1260,7 +1260,7 @@ impl Ck<'_, '_> {
             (None, None) => return unsupported("`is` without a reference operand"),
         }
         // The backend compares the identity fields of the two `Ref`s
-        // (`crates/hd_wasm/DESIGN.md` §15.2, "References"), so a generic
+        // (`crates/hd_wasm_linear/DESIGN.md` §15.2, "References"), so a generic
         // `is` over `T < AnyRef` compares places too.
         Ok(self.b.emit(Tag::Is, a.0, c.0, Ty::BOOL, syn))
     }

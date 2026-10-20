@@ -6,7 +6,7 @@
 //! `&self` on a value that is no place refers to a new object holding it.
 //!
 //! On the Wasm GC emulation the address is a `std.core.Ref[T]`
-//! (`crates/hd_wasm/DESIGN.md` §15.2, "References"), built by `refs.rs`.
+//! (`crates/hd_wasm_linear/DESIGN.md` §15.2, "References"), built by `refs.rs`.
 
 use hd_base::{DefId, LocalId, NodeIdx, StageResult};
 use hd_diag::{Code, FixSafety};

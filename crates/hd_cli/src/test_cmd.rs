@@ -288,7 +288,7 @@ struct Built {
 
 /// What names one program's panic frames (`cli.test.report.frame`): its
 /// sources' positions, and its line table, read on the program's first
-/// trap and shared by every case after it (`crates/hd_wasm/DESIGN.md` §15.9, Q2).
+/// trap and shared by every case after it (`crates/hd_wasm_linear/DESIGN.md` §15.9, Q2).
 pub(crate) struct Frames {
     positions: hd_driver::Positions,
     table: std::sync::OnceLock<Option<hd_run::frames::LineTable>>,

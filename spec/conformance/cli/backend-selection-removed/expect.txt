@@ -1,0 +1,9 @@
+run: hd --backend linear src/main.hd
+exit: 101
+stdout-json: []
+run: hd run --backend=wasm-gc
+exit: 101
+stdout-json: []
+run: hd build --backend linear-checked
+exit: 101
+no-file: build/debug/shop.wasm

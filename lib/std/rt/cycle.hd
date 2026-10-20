@@ -1,5 +1,5 @@
 # std.rt.cycle: the cycle collector of the linear-memory runtime
-# (crates/hd_wasm/DESIGN.md §23.28), hd over std.rt.memory and
+# (crates/hd_wasm_linear/DESIGN.md §23.28), hd over std.rt.memory and
 # std.rt.alloc. A runtime module, so only std may use it
 # (spec/lang/10-modules.md#r-module.rt.std-only).
 #

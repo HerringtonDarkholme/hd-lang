@@ -483,7 +483,7 @@ impl[T] Hash for Id[T]:
 # The place a reference refers to, as `is` compares it: the data object
 # that holds the place (one shared value for any other place), the serial
 # number of its local or new object, and the path of fields from there
-# (crates/hd_wasm/DESIGN.md §15.2, "References").
+# (crates/hd_wasm_linear/DESIGN.md §15.2, "References").
 struct RefIdentity:
     base: &dyn Any
     serial: i64

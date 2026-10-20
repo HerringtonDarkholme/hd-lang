@@ -1,8 +1,7 @@
 #![forbid(unsafe_code)]
-//! `hd_wasm_linear`: the linear-memory backend (`crates/hd_wasm/DESIGN.md`
+//! `hd_wasm_linear`: the linear-memory backend (`crates/hd_wasm_linear/DESIGN.md`
 //! §23). Values live inline in Wasm linear memory and counted objects are
-//! freed by reference counting; the Wasm GC backend (`hd_wasm`) stays the
-//! default until this one passes conformance.
+//! freed by reference counting. This is the sole code generator.
 //!
 //! [`build`] makes one whole program's module from collection's output:
 //! every instance's TIR body becomes one function (`emit`), the runtime
@@ -10,12 +9,15 @@
 //! and encodes them. There is no per-instance code cache yet: the driver
 //! calls [`build`] once per program, at link.
 
+mod asm;
 mod boundary;
 mod emit;
 mod layout;
 mod map;
 mod module;
 mod opt;
+mod pow;
+mod rem;
 mod rt;
 mod task;
 
@@ -38,7 +40,7 @@ pub fn shared_reference_layout(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) 
 }
 
 /// The entry behavior of the program a module runs
-/// (`crates/hd_wasm/DESIGN.md` §15.4, "Init order").
+/// (`crates/hd_wasm_linear/DESIGN.md` §15.4, "Init order").
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Entry {
     /// A program with `main`: `hd.init` runs `inits` in order, each
@@ -60,7 +62,7 @@ pub enum Entry {
         after: Vec<(Hash128, bool)>,
         report: Option<Hash128>,
     },
-    /// A test program (`crates/hd_wasm/DESIGN.md` §15.4): `hd.init.N`
+    /// A test program (`crates/hd_wasm_linear/DESIGN.md` §15.4): `hd.init.N`
     /// runs module `N`'s `inits[N]`, each a forbidden context, and
     /// `hd.test.N` runs `cases[N]`, an item, its instance key and the
     /// report of its result, as `hd.poll` runs `main`.
@@ -163,7 +165,7 @@ pub struct Input<'a> {
 pub const RUNTIME_MODULE: &str = "std.rt.alloc";
 pub const RUNTIME_FNS: [&str; 4] = ["alloc", "free", "retain", "release"];
 
-/// The checked runtime (`crates/hd_wasm/DESIGN.md` §23.24): the same four
+/// The checked runtime (`crates/hd_wasm_linear/DESIGN.md` §23.24): the same four
 /// functions over the allocator, then the two the exit audit calls and the
 /// two count totals the entry exports.
 pub const CHECKED_MODULE: &str = "std.rt.checked";
@@ -171,7 +173,7 @@ pub const CHECKED_FNS: [&str; 8] = [
     "allocate", "free", "retain", "release", "live", "audit", "retained", "released",
 ];
 
-/// The cycle collector (`crates/hd_wasm/DESIGN.md` §23.28), which both
+/// The cycle collector (`crates/hd_wasm_linear/DESIGN.md` §23.28), which both
 /// runtimes link: `collect`, `due`, `track` and `opaque`.
 pub const CYCLE_MODULE: &str = "std.rt.cycle";
 pub const CYCLE_FNS: [&str; 4] = ["collect", "due", "track", "opaque"];
@@ -208,7 +210,7 @@ pub fn runtime_items(checked: bool) -> Vec<(&'static str, &'static str)> {
 }
 
 /// The instance keys of the runtime functions that emitted code calls
-/// (`crates/hd_wasm/DESIGN.md` §23.16): the allocator and the counts, the
+/// (`crates/hd_wasm_linear/DESIGN.md` §23.16): the allocator and the counts, the
 /// collector's, and in checked mode the audit's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Runtime {
@@ -221,7 +223,7 @@ pub struct Runtime {
     pub checked: Option<Checked>,
 }
 
-/// The cycle collector's functions (`crates/hd_wasm/DESIGN.md` §23.28):
+/// The cycle collector's functions (`crates/hd_wasm_linear/DESIGN.md` §23.28):
 /// `collect(trace, release, free)`, `due()`, whether the candidate buffer
 /// is full, `track(block)`, which zeroes a new object's collector word, and
 /// `opaque(address)`, which marks a new frame as never entered.
@@ -233,7 +235,7 @@ pub struct Cycle {
     pub opaque: Hash128,
 }
 
-/// The checked runtime's audit functions (`crates/hd_wasm/DESIGN.md`
+/// The checked runtime's audit functions (`crates/hd_wasm_linear/DESIGN.md`
 /// §23.24): `live()`, the blocks allocated and not yet freed, and
 /// `audit(expected)`, which panics unless that is `expected`; `retained()`
 /// and `released()`, the counts added and taken so far, which the entry
@@ -317,7 +319,7 @@ fn link(input: &Input<'_>) -> StageResult<Vec<u8>> {
 
 /// Gives each top-level binding that some reference refers to a static
 /// slot of its layout, which its reads and writes use from then on
-/// (`crates/hd_wasm/DESIGN.md` §23.20): a reference is its address.
+/// (`crates/hd_wasm_linear/DESIGN.md` §23.20): a reference is its address.
 fn address_globals(input: &Input<'_>, m: &mut module::Module) -> StageResult<()> {
     for id in input.order {
         let Some(b) = (input.body)(*id) else {

@@ -1,6 +1,6 @@
 //! The module under construction: functions with symbolic call targets,
 //! the imports they name, globals, the function table, static vtables
-//! and static data (`crates/hd_wasm/DESIGN.md` §23.2, §23.8, §23.9).
+//! and static data (`crates/hd_wasm_linear/DESIGN.md` §23.2, §23.8, §23.9).
 //! [`Module::finish`] builds every helper a body names, numbers imports
 //! first, then instances in content order, then helpers in their order,
 //! and encodes the module.
@@ -21,7 +21,7 @@ use crate::rt::Helper;
 /// (`crates/hd_run_wasmtime/DESIGN.md` §17.3).
 pub const BUF: u32 = 0;
 
-/// The heap memory (`crates/hd_wasm/DESIGN.md` §23.2).
+/// The heap memory (`crates/hd_wasm_linear/DESIGN.md` §23.2).
 pub const HEAP: u32 = 1;
 
 /// The first address of static data: addresses below it are never used,
@@ -35,7 +35,7 @@ pub const EMPTY: u32 = STATIC_BASE;
 /// The size of a counted object's header, before its payload (§23.4).
 pub const HEADER: u32 = 8;
 /// The bytes of the collector word at the end of a block whose header
-/// names release glue (`crates/hd_wasm/DESIGN.md` §23.28).
+/// names release glue (`crates/hd_wasm_linear/DESIGN.md` §23.28).
 pub const CYCLE_WORD: u32 = 4;
 
 /// A function: an instance by key, a runtime helper, or a host import.
@@ -48,7 +48,7 @@ pub enum Sym {
     Import(Import),
 }
 
-/// A suspending instance's part (`crates/hd_wasm/DESIGN.md` §23.21),
+/// A suspending instance's part (`crates/hd_wasm_linear/DESIGN.md` §23.21),
 /// defined beside its cold constructor, the instance's own function.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Part {
@@ -108,7 +108,7 @@ impl Val {
     }
 }
 
-/// A runtime global (`crates/hd_wasm/DESIGN.md` §23.9), or one Wasm
+/// A runtime global (`crates/hd_wasm_linear/DESIGN.md` §23.9), or one Wasm
 /// value of a module storage binding.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Global {
@@ -189,7 +189,7 @@ pub enum Ins {
     LoadAll,
     /// The TIR instruction that anchors the calls after it: a row of the
     /// `hd.lines` table at each call that starts a new anchor
-    /// (`crates/hd_wasm/DESIGN.md` §15.9). [`Func::call`] writes it just
+    /// (`crates/hd_wasm_linear/DESIGN.md` §15.9). [`Func::call`] writes it just
     /// before a call whose anchor is new; it writes no code.
     Anchor(u32),
 }
@@ -329,19 +329,19 @@ pub struct Module {
     /// The std runtime that helpers call, when the program links it.
     pub runtime: Option<crate::Runtime>,
     /// Each instance by its key, for a caller to read how its callee takes
-    /// its parameters (`crates/hd_wasm/DESIGN.md` §23.25).
+    /// its parameters (`crates/hd_wasm_linear/DESIGN.md` §23.25).
     pub inst_of: hd_base::HashMap<Hash128, hd_base::InstId>,
     /// Each suspending instance's frame payload size.
     pub frames: BTreeMap<Hash128, u32>,
     /// The top-level bindings some reference refers to, by path hash:
     /// each lives in a static slot at this address, not in Wasm globals
-    /// (`crates/hd_wasm/DESIGN.md` §23.20).
+    /// (`crates/hd_wasm_linear/DESIGN.md` §23.20).
     pub addressed: BTreeMap<Hash128, u32>,
     /// In checked mode, each stored binding or once-cell, which the audit
     /// at exit releases and zeros first (§23.24).
     pub stored: BTreeMap<Hash128, Stored>,
     /// A release build: its function names go in `hd.names`, not `name`
-    /// (`crates/hd_wasm/DESIGN.md` §15.9).
+    /// (`crates/hd_wasm_linear/DESIGN.md` §15.9).
     pub release: bool,
 }
 
@@ -760,7 +760,7 @@ impl Module {
     }
 }
 
-/// The `hd.lines` section (`crates/hd_wasm/DESIGN.md` §15.9), as the Wasm
+/// The `hd.lines` section (`crates/hd_wasm_linear/DESIGN.md` §15.9), as the Wasm
 /// GC backend writes it: per function with anchored calls, by function
 /// index, its rows as (offset from the previous row's, anchor).
 fn line_table(functions: &[(u32, Vec<(u32, u32)>)]) -> wasm_encoder::CustomSection<'static> {
@@ -785,7 +785,7 @@ fn line_table(functions: &[(u32, Vec<(u32, u32)>)]) -> wasm_encoder::CustomSecti
     }
 }
 
-/// The `hd.names` section of a release build (`crates/hd_wasm/DESIGN.md`
+/// The `hd.names` section of a release build (`crates/hd_wasm_linear/DESIGN.md`
 /// §15.5), which writes no `name` section: each defined function's index
 /// and the name `name` would give it.
 fn compact_names(own: &[(u32, String)]) -> wasm_encoder::CustomSection<'static> {

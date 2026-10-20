@@ -1,4 +1,4 @@
-//! Linear layouts (`crates/hd_wasm/DESIGN.md` §23.3): a type's Wasm
+//! Linear layouts (`crates/hd_wasm_linear/DESIGN.md` §23.3): a type's Wasm
 //! values in locals, parameters and results, and the same values in
 //! memory, each at an offset.
 //!
@@ -531,7 +531,7 @@ fn walk_one(
 }
 
 /// How a plain function's parameter takes its argument
-/// (`crates/hd_wasm/DESIGN.md` §23.25; `REFCOUNT_RUNTIME.md` §4.3), fixed
+/// (`crates/hd_wasm_linear/DESIGN.md` §23.25; `REFCOUNT_RUNTIME.md` §4.3), fixed
 /// by the parameter's type alone so that every caller and the callee
 /// agree without reading each other's bodies.
 #[derive(Clone, Debug, PartialEq, Eq)]

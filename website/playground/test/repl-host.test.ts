@@ -74,7 +74,6 @@ class Worker {
   }
 
   async start(files: ReplFiles = {}): Promise<ReplStarted> {
-    this.sources.set(0, "");
     return (await this.send({ kind: "repl-start", files })) as ReplStarted;
   }
 
@@ -168,18 +167,21 @@ test("a stop cancels an input that waits; its defer suite runs", async () => {
   const nap = await w.input(4, "nap!()\n", () => setTimeout(() => w.stop(), 50));
   assert.ok(performance.now() - begun < 10_000, "the stop did not cancel the sleep");
   assert.deepEqual([nap.joined, nap.end], [false, { kind: "cancelled" }]);
-  assert.deepEqual(w.printed(), ["", 'repl#3:4:9: "woke" = "woke"\ncancelled\n']);
+  assert.deepEqual(w.printed(), [
+    "",
+    'repl#3:4:9: "woke" = "woke"\ncancelled\nnote: repl#4 was cancelled, so the next rebuild skips it; its changes are not restored\n',
+  ]);
   await w.input(5, "woke\n");
-  assert.deepEqual(w.printed(), ["1 : usize\n", ""]);
-  // The rebuild after a later stop skips the cancelled input, so its
-  // change is not restored.
+  assert.deepEqual(w.printed(), ["0 : usize\n", ""]);
+  // The next input already rebuilt without the cancelled input. A fresh
+  // worker replays that same kept prefix without losing more inputs.
   const fresh = new Worker();
   const rebuilt = await w.rebuildIn(fresh);
   assert.deepEqual(
     [rebuilt.ok, rebuilt.kept, rebuilt.skipped, rebuilt.dropped],
-    [true, [0, 1, 2, 3], [4], [5]],
+    [true, [1, 2, 3, 5], [], []],
   );
-  assert.match(rebuilt.reason ?? "", /input 5/);
+  assert.equal(rebuilt.reason, null);
   assert.deepEqual(fresh.printed(), ["", ""], "a rebuild prints nothing");
   await fresh.input(6, "woke\n");
   assert.deepEqual(fresh.printed(), ["0 : usize\n", ""]);
@@ -222,7 +224,7 @@ test("a terminated worker's session comes back in a fresh one under the same num
   const rebuilt = await w.rebuildIn(fresh);
   assert.deepEqual(
     [rebuilt.ok, rebuilt.kept, rebuilt.skipped, rebuilt.dropped, rebuilt.error],
-    [true, [0, 1, 2, 3, 4, 6, 7], [], [], null],
+    [true, [1, 2, 3, 4, 6, 7], [], [], null],
   );
   assert.ok(rebuilt.journal, "the rebuild answers its journal");
   assert.deepEqual(fresh.printed(), ["", ""]);
@@ -242,7 +244,7 @@ test("a rebuild over edited files drops the first input that no longer builds", 
   await w.input(3, "base + 1\n");
   assert.deepEqual(w.printed(), ["30 : usize\n11 : usize\n", ""]);
   const rebuilt = await w.rebuildIn(w, { "src/lib.hd": "fn ratio() -> usize: 3\n" });
-  assert.deepEqual([rebuilt.ok, rebuilt.kept, rebuilt.dropped], [true, [0, 1], [2, 3]]);
+  assert.deepEqual([rebuilt.ok, rebuilt.kept, rebuilt.dropped], [true, [1], [2, 3]]);
   assert.equal(rebuilt.reason, "repl#2 no longer builds");
   assert.match(rebuilt.diagnostics[0]!, /^error: repl#2:1:8: unknown-name: /);
   await w.input(4, "base * ratio()\n");
@@ -250,7 +252,7 @@ test("a rebuild over edited files drops the first input that no longer builds", 
   // A library that does not parse fails only the inputs that name it
   // (lib.hd loads lazily, #159): input 1 stays, input 4 is dropped.
   const broken = await w.rebuildIn(w, { "src/lib.hd": "fn ratio( -> usize: 3\n" });
-  assert.deepEqual([broken.ok, broken.kept, broken.dropped], [true, [0, 1], [4]]);
+  assert.deepEqual([broken.ok, broken.kept, broken.dropped], [true, [1], [4]]);
   assert.match(broken.diagnostics[0]!, /^error: src\/lib\.hd:1:/);
   // Quit ends a session; a start begins a new one.
   assert.deepEqual(await w.send({ kind: "repl-quit" }), { type: "ended" });

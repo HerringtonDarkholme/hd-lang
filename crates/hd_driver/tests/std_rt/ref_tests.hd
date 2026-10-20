@@ -1,4 +1,4 @@
-# The hd tests of references on the linear backend (crates/hd_wasm/DESIGN.md
+# The hd tests of references on the linear backend (crates/hd_wasm_linear/DESIGN.md
 # §23.20): a reference to a local shares the local's cell, an element
 # reference owns its list's pin until its last copy dies, and each is
 # released after its last use, so taking references in a loop runs in

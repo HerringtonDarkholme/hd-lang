@@ -32,9 +32,9 @@
 //! timing, without applying the rule.
 //!
 //! Every case builds with the linear-memory backend, the default
-//! (`hd_driver::Backend::Linear`, `crates/hd_wasm/DESIGN.md` §23).
-//! `HD_CONFORMANCE_BACKEND=linear-checked` builds them in checked mode
-//! instead (`Backend::LinearChecked`, §23.24), under the same rule: a
+//! (`crates/hd_wasm_linear/DESIGN.md` §23).
+//! `HD_CONFORMANCE_CHECKED=1` builds them in checked mode
+//! instead (§23.24), under the same rule: a
 //! leak, a double free or a count change on a freed block panics
 //! `count-audit`, so the case fails.
 
@@ -55,7 +55,7 @@ use hd_base::Stage;
 use hd_cache::MemoryStore;
 use hd_diag::Severity;
 use hd_driver::{
-    Backend, Dependency, EngineTarget, Executor, Goal, Host, NoClock, OptLevel, Output, Packages,
+    Dependency, EngineTarget, Executor, Goal, Host, NoClock, OptLevel, Output, Packages,
     PipelineReport, ScenarioHold, build_packages,
 };
 use hd_project::MemorySources;
@@ -102,8 +102,8 @@ struct Fixture {
     /// The dependencies of a package-role fixture: each package under
     /// `packages/`, by name (README "Package Roles").
     deps: Vec<(String, MemorySources)>,
-    /// The backend its builds link with.
-    backend: Backend,
+    /// Enable allocation/count auditing for its builds.
+    checked: bool,
     /// The package its sources are: `fixture`, or `std` for the hd tests
     /// of std's runtime modules ([`STD_RT_TESTS`]).
     package: &'static str,
@@ -242,7 +242,7 @@ fn fixture(case: &Case) -> Result<Fixture, String> {
         text,
         tree,
         deps,
-        backend: suite_backend(),
+        checked: checked_runtime(),
         package: "fixture",
     })
 }
@@ -389,7 +389,7 @@ fn build_for(
         profile: profile(fixture),
         target,
         level: level(),
-        backend: fixture.backend,
+        checked: fixture.checked,
         ..Packages::default()
     };
     build_packages(&host, fixture.package, &packages, goal)
@@ -1766,15 +1766,9 @@ fn run_case(case: &Case, store: &MemoryStore, serial: usize) -> Verdict {
 }
 
 /// The backend every case builds with: the linear one, in checked mode
-/// when `HD_CONFORMANCE_BACKEND=linear-checked`.
-fn suite_backend() -> Backend {
-    match selection_env("HD_CONFORMANCE_BACKEND").as_deref() {
-        None | Some("" | "linear") => Backend::Linear,
-        Some("linear-checked") => Backend::LinearChecked,
-        Some(other) => panic!(
-            "unknown HD_CONFORMANCE_BACKEND: {other}; the backends are linear and linear-checked"
-        ),
-    }
+/// when `HD_CONFORMANCE_CHECKED=1`.
+fn checked_runtime() -> bool {
+    selection_env("HD_CONFORMANCE_CHECKED").is_some_and(|value| value == "1")
 }
 
 /// The std package's own hd tests of its runtime modules: only std may use
@@ -1813,7 +1807,7 @@ fn std_runtime_modules_pass_their_hd_tests_on_the_linear_backend() {
             text: (*text).to_owned(),
             tree: false,
             deps: Vec::new(),
-            backend: suite_backend(),
+            checked: checked_runtime(),
             package: "std",
         };
         let case = Case {
@@ -1855,7 +1849,7 @@ fn unit_fixture(text: &str) -> Fixture {
         text: text.to_owned(),
         tree: false,
         deps: Vec::new(),
-        backend: suite_backend(),
+        checked: checked_runtime(),
         package: "fixture",
     }
 }

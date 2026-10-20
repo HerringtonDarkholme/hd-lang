@@ -20,13 +20,13 @@ pub struct KnownItems {
     pub list: DefId,
     pub map: DefId,
     /// The data type a reference type lowers to for the backend
-    /// (`hd_resolve::seed`, `crates/hd_wasm/DESIGN.md` §15.2 "References").
+    /// (`hd_resolve::seed`, `crates/hd_wasm_linear/DESIGN.md` §15.2 "References").
     pub ref_cell: DefId,
     /// The fieldless data type whose one value is the identity base of a
     /// reference to a local, a new object or a top-level binding.
     pub ref_root: DefId,
     /// The intrinsic that numbers locals and new objects for reference
-    /// identity (`crates/hd_wasm/DESIGN.md` §15.2 "References").
+    /// identity (`crates/hd_wasm_linear/DESIGN.md` §15.2 "References").
     pub ref_serial: DefId,
     // std.function
     pub function_module: PathId,
