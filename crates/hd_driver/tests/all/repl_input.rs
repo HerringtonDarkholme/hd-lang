@@ -69,6 +69,8 @@ impl Repl<'_> {
             .collect();
         let packages = Packages {
             session: Some(&self.session),
+            // Sessions link on the Wasm GC backend only so far.
+            backend: hd_driver::Backend::WasmGc,
             requires: deps.iter().map(|_| ("money".to_owned(), 1)).collect(),
             deps,
             ..Packages::default()
@@ -955,6 +957,8 @@ fn a_later_input_waits_for_the_modules_an_earlier_input_uses() {
     };
     let packages = Packages {
         session: Some(&repl.session),
+        // Sessions link on the Wasm GC backend only so far.
+        backend: hd_driver::Backend::WasmGc,
         ..Packages::default()
     };
     let out = build_packages(&host, "app", &packages, &Goal::ReplInput { input: 2 });
@@ -1334,6 +1338,8 @@ fn a_broken_module_no_input_reaches_is_never_read() {
     };
     let packages = Packages {
         session: Some(&repl.session),
+        // Sessions link on the Wasm GC backend only so far.
+        backend: hd_driver::Backend::WasmGc,
         ..Packages::default()
     };
     let out = build_packages(&host, "app", &packages, &Goal::ReplInput { input: 4 });

@@ -68,6 +68,7 @@ fn wasm_for(target: EngineTarget, level: OptLevel) -> Vec<u8> {
         executor: Executor::Serial(SerialOrder::Priority),
     };
     let packages = Packages {
+        backend: hd_driver::Backend::WasmGc,
         target,
         level,
         ..Packages::default()

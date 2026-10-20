@@ -60,12 +60,15 @@ fn names_in(wasm: &[u8]) -> Vec<String> {
 
 /// How many instances of the item whose path is `item` the module
 /// defines: functions named for it, then `#` and the sub-body, without a
-/// suspending instance's parts (`$Body`, `$Poll`, `$Cancel`).
+/// suspending instance's parts (`.poll`, `.cancel`, `.drop`).
 fn instances_of(wasm: &[u8], item: &str) -> usize {
     let prefix = format!("{item}#");
     names_in(wasm)
         .iter()
-        .filter(|n| n.starts_with(&prefix) && !n.contains('$'))
+        .filter(|n| {
+            n.strip_prefix(&prefix)
+                .is_some_and(|sub| sub.chars().all(|c| c.is_ascii_digit()))
+        })
         .count()
 }
 

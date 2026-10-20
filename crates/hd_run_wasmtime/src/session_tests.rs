@@ -113,6 +113,8 @@ fn build_inputs(
     };
     let packages = hd_driver::Packages {
         session: Some(built),
+        // Sessions link on the Wasm GC backend only so far.
+        backend: hd_driver::Backend::WasmGc,
         inputs_from: from,
         ..hd_driver::Packages::default()
     };

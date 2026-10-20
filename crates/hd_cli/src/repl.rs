@@ -559,10 +559,11 @@ struct Repl {
 }
 
 /// The pipeline of every module a session builds (`crates/hd_opt/DESIGN.md` (optimization pipelines) §5): the
-/// REPL runs on wasmtime only, unoptimized.
+/// REPL runs on wasmtime only, unoptimized, on the Wasm GC backend.
 #[cfg(all(test, feature = "wasmtime"))]
 pub(crate) const PIPELINE: crate::Pipeline =
-    crate::Pipeline::of(crate::engine::EngineKind::Wasmtime, false);
+    crate::Pipeline::of(crate::engine::EngineKind::Wasmtime, false)
+        .with(Some(hd_driver::Backend::WasmGc));
 
 /// Builds the session's prelude, or reads it from the cache.
 fn build_prelude(
@@ -611,6 +612,10 @@ fn build_input(
         level: OptLevel::Dev,
         session: Some(built),
         inputs_from: from,
+        // A session links one module per input, which only the Wasm GC
+        // backend does so far, as for the prelude
+        // (`hd_driver::build_repl_prelude`).
+        backend: hd_driver::Backend::WasmGc,
         ..program.packages()
     };
     let goal = Goal::ReplInput { input: number };

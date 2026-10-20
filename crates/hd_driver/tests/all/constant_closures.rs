@@ -63,6 +63,7 @@ fn build(
         executor: Executor::Serial(SerialOrder::Priority),
     };
     let packages = Packages {
+        backend: hd_driver::Backend::WasmGc,
         target,
         level,
         session,

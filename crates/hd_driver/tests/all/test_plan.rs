@@ -1,7 +1,6 @@
 //! `Goal::Tests` (`docs/compiler/engines-and-test-runner.md` §19.1, §19.2): the test plan
 //! lists the cases in content order with their exports, `--filter`
-//! selects by name, a second run is warm (no module checked, no instance
-//! emitted), and the serial and pool executors build the same program.
+//! selects by name, a second run is warm (no module checked), and the serial and pool executors build the same program.
 
 use hd_cache::MemoryStore;
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
@@ -137,9 +136,7 @@ fn filter_selects_by_name() {
 fn a_second_run_is_warm_and_executors_agree() {
     let store = MemoryStore::default();
     let cold = run(&store, SERIAL, None);
-    assert!(cold.counters.emitted > 0);
     let warm = run(&store, SERIAL, None);
-    assert_eq!(warm.counters.emitted, 0);
     assert!(
         !warm
             .counters

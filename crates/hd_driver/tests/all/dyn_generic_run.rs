@@ -301,11 +301,10 @@ pub fn main() -> void $ Console:
     assert_eq!(output_of("erased-closure", main), "5\n2\n");
 }
 
-/// An `i32` that fits in 31 signed bits crosses an erased generic method
-/// as an `i31ref` (`crates/hd_wasm/DESIGN.md` §15.2): the caller's loop
-/// allocates no box. A wider one is still boxed, and both come back whole.
+/// An `i32` crosses an erased generic method and comes back whole, small
+/// or wide.
 #[test]
-fn a_small_i32_crosses_an_erased_method_without_a_box() {
+fn an_i32_crosses_an_erased_method_whole() {
     let main = "trait Echo:
     fn echo[T](self, x: T) -> T
 
@@ -329,45 +328,4 @@ pub fn main() -> void $ Console:
     run(&Same { n: 1 })
 ";
     assert_eq!(output_of("echo", main), "-500\n2000000000\n-2000000000\n");
-    let out = built(main);
-    let wasm = out.wasm.expect("wasm");
-    let mut names = std::collections::BTreeMap::new();
-    let mut news = Vec::new();
-    for p in wasmparser::Parser::new(0).parse_all(&wasm) {
-        match p.expect("valid module") {
-            wasmparser::Payload::CodeSectionEntry(body) => {
-                let mut ops = body.get_operators_reader().expect("operators");
-                let mut n = 0;
-                while !ops.eof() {
-                    if let wasmparser::Operator::StructNew { .. } = ops.read().expect("op") {
-                        n += 1;
-                    }
-                }
-                news.push(n);
-            }
-            wasmparser::Payload::CustomSection(c) if c.name() == "name" => {
-                let r = wasmparser::NameSectionReader::new(wasmparser::BinaryReader::new(
-                    c.data(),
-                    c.data_offset(),
-                ));
-                for n in r {
-                    if let Ok(wasmparser::Name::Function(m)) = n {
-                        for x in m {
-                            let x = x.expect("name");
-                            names.insert(x.index as usize, x.name.to_owned());
-                        }
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-    // The dev `name` section names every function, imports first.
-    let imports = names.len() - news.len();
-    let (i, _) = names
-        .iter()
-        .find(|(_, n)| n.starts_with("app/main/run"))
-        .unwrap_or_else(|| panic!("no `run` in {names:?}"));
-    assert_eq!(news[i - imports], 0, "the caller boxes nothing itself");
-    assert!(names.values().any(|n| n == "rt:erase_i32"), "{names:?}");
 }

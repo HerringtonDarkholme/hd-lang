@@ -1633,10 +1633,10 @@ emitter lowers by name (`Em`, `"block_on"`), not std hd; not judged.
 
 # New Compiler Design: Linear-Memory Layout
 
-Status: design record for the linear-memory backend, which is being
-built behind `--backend linear`; may lag the code. The code and the spec
-win. The Wasm GC backend (§14, §15) stays the default until the linear
-backend passes conformance, then it is deleted (owner decision).
+Status: design record for the linear-memory backend, the default of
+every build but a REPL session's (#626); may lag the code. The code and
+the spec win. The Wasm GC backend (§14, §15) is deleted next (#627,
+owner decision).
 
 Part of the [compiler design](../../docs/compiler/ARCHITECTURE.md). The
 design it records is the owner-approved runtime study
@@ -1666,8 +1666,8 @@ what the spec names as intrinsic or what only it can build.
 | `emit.rs` | one instance's TIR body to one Wasm function | 3 and on |
 | `rt.rs` | generated runtime pieces: the entry wrapper, panic stubs, the exchange-buffer copies, the host provider stubs, object headers and release glue, and the bump allocation that host frames still use; the wake table later | 3 and on |
 | `lib.rs` | `build`: the whole program's module from collection's output, with no per-instance code cache yet | 2, 3 |
-| the switch | `hd_driver::Backend` in `Packages`, `--backend linear` on `hd build`, `hd run` and `hd FILE`, with its spec rules in spec/cli/command-line.md | 2 |
-| conformance on both backends | the driver tier runs each runtime case of the root `LINEAR_PASSES.tsv` (`path`, `note` citing an issue) once more on the linear backend, and each must pass; `HD_CONFORMANCE_BACKEND=linear` sweeps every runtime case and prints the passes not listed yet | 2 |
+| the switch | `hd_driver::Backend` in `Packages`, `--backend NAME` on `hd build`, `hd run` and `hd FILE`, with its spec rules in spec/cli/command-line.md; linear is the default (#626) | 2 |
+| conformance | both tiers build every case with the linear backend; `HD_CONFORMANCE_BACKEND=linear-checked` builds them in checked mode | 2 |
 | memory intrinsics: load, store, grow, copy, fill | the privileged std module `std.rt.memory`: plain hd declarations whose bodies are `@intrinsic` | 4 |
 | the allocator | hd in `std.rt.alloc`, over `std.rt.memory` | 5 |
 | counts | `retain` and `release` in `std.rt.alloc`, called by emitted code, with release glue that `rt.rs` generates per layout | 8 |
@@ -2767,8 +2767,8 @@ its own counting bugs. `--backend linear-checked` selects it
 - **The collector** (§23.28) runs after the teardown and before the
   audit, so a cycle the bindings held is freed first.
 - **The sweep.** `HD_CONFORMANCE_BACKEND=linear-checked` builds every
-  linear run of the conformance runner in checked mode, so each case
-  `LINEAR_PASSES.tsv` lists must pass with its counts audited.
+  case of the conformance runner in checked mode, so each must pass with
+  its counts audited.
   `crates/hd_driver/tests/std_rt/checked_tests.hd` tests the runtime's
   poison, its reuse rule and its counts.
 - **Size.** hello (`println(42)`, dev): 5,463 bytes on `linear` before

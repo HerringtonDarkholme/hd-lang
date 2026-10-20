@@ -363,6 +363,10 @@ impl Session {
             target: PIPELINE.0,
             level: PIPELINE.1,
             session: Some(&repl.built),
+            // A session links one module per input, which only the Wasm
+            // GC backend does so far, as for the prelude
+            // (`hd_driver::build_repl_prelude`).
+            backend: hd_driver::Backend::WasmGc,
             ..Packages::default()
         };
         let goal = hd_driver::Goal::ReplInput { input: number };

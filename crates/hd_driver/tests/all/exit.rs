@@ -51,7 +51,6 @@ fn exit_program_collects_std_and_runs_warm() {
         "std's println body is decoded for collection: {:?}",
         cold.counters.tir_decoded
     );
-    assert!(cold.counters.emitted > 10);
 
     let again = run(&store, &src, Executor::Serial(SerialOrder::Priority));
     let c = &again.counters;
@@ -61,7 +60,6 @@ fn exit_program_collects_std_and_runs_warm() {
         c.modules_checked
     );
     assert_eq!(c.hit("link"), 1);
-    assert_eq!(c.emitted, 0);
     assert!(c.tir_decoded.is_empty());
     assert_eq!(again.wasm.as_deref(), Some(wasm.as_slice()));
 }

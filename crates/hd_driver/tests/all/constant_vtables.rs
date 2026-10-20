@@ -165,6 +165,7 @@ fn a_trait_value_coercion_reads_a_constant_vtable() {
                 executor: Executor::Serial(SerialOrder::Priority),
             };
             let packages = Packages {
+                backend: hd_driver::Backend::WasmGc,
                 target,
                 level,
                 ..Packages::default()

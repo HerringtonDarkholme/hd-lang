@@ -884,9 +884,9 @@ hd build --backend no-such-name  # a usage error: exits 101 and writes nothing
 9. r[cli.backend.same-behavior] A program's output, exit status, panic categories, and panic sites are the same with every backend that builds it. Only what [`cli.profile.pipeline.limits`](#r-cli.profile.pipeline.limits) lists may differ.
 10. r[cli.backend.incomplete] A backend other than the default may not build every program yet. A build that it cannot finish is an error, by [`cli.exit.hd-failure`](#r-cli.exit.hd-failure). The command then writes and runs no module, and never falls back to another backend.
 
-> **Note.** This implementation offers `wasm-gc`, the default, whose
-> values are Wasm GC references, and `linear`, whose values live in
-> linear memory and are freed by reference counting.
+> **Note.** This implementation offers `linear`, the default, whose
+> values live in linear memory and are freed by reference counting, and
+> `wasm-gc`, whose values are Wasm GC references.
 
 > **Note.** This implementation also offers `linear-checked`, the
 > `linear` backend in checked mode, which tests the implementation

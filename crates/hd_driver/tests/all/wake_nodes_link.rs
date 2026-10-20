@@ -2,8 +2,9 @@
 //! `all!` (`crates/hd_wasm/DESIGN.md` §14.4): elsewhere a host leaf
 //! records no node and a completion walks no records.
 
+use crate::build_wasm_gc as build;
 use hd_cache::MemoryStore;
-use hd_driver::{Executor, Goal, Host, NoClock, build};
+use hd_driver::{Executor, Goal, Host, NoClock};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 

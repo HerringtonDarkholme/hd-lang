@@ -2,8 +2,9 @@
 //! (`crates/hd_wasm/DESIGN.md` §15.4): the code that asks for one calls a
 //! helper and allocates nothing itself.
 
+use crate::build_wasm_gc as build;
 use hd_cache::MemoryStore;
-use hd_driver::{Executor, Goal, Host, NoClock, build};
+use hd_driver::{Executor, Goal, Host, NoClock};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 

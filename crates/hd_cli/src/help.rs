@@ -40,7 +40,7 @@ const ENGINE: (&str, &str) = (
 );
 const BACKEND: (&str, &str) = (
     "--backend NAME",
-    "build with the backend NAME: wasm-gc (the default), linear or linear-checked",
+    "build with the backend NAME: linear (the default), linear-checked or wasm-gc",
 );
 const FORMAT: (&str, &str) = (
     "--format FORMAT",

@@ -108,7 +108,6 @@ fn debug_and_release_builds_never_share_code() {
         1,
         "release has its own program key"
     );
-    assert!(release.counters.emitted >= 1, "release emits its own code");
     let release_wasm = release.wasm.expect("wasm");
     assert_ne!(release_wasm, debug_wasm);
     assert_eq!(
@@ -118,7 +117,6 @@ fn debug_and_release_builds_never_share_code() {
 
     let again = program(&store, &src, BuildProfile::Checked);
     assert_eq!(again.counters.hit("link"), 1);
-    assert_eq!(again.counters.emitted, 0);
     let again_wasm = again.wasm.expect("wasm");
     assert_eq!(again_wasm, debug_wasm);
     panics(

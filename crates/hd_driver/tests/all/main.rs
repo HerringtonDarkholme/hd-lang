@@ -222,6 +222,22 @@ mod void_unit_run;
 mod waiting_impl_run;
 mod wake_nodes_link;
 
+/// `hd_driver::build` with the Wasm GC backend, for the tests of what
+/// that backend emits: its per-instance code and its cache, its constant
+/// globals and its function names. They go with the backend (#627).
+#[must_use]
+pub fn build_wasm_gc(
+    host: &hd_driver::Host<'_>,
+    package: &str,
+    goal: &hd_driver::Goal,
+) -> hd_driver::Output {
+    let packages = hd_driver::Packages {
+        backend: hd_driver::Backend::WasmGc,
+        ..hd_driver::Packages::default()
+    };
+    hd_driver::build_packages(host, package, &packages, goal)
+}
+
 /// One content-addressed store shared by every test that only checks what
 /// a build produces: std compiles once for the process.
 pub struct Shared(&'static hd_cache::MemoryStore);

@@ -110,6 +110,8 @@ pub(crate) fn session_module(
     };
     let packages = hd_driver::Packages {
         session: Some(session),
+        // Sessions link on the Wasm GC backend only so far.
+        backend: hd_driver::Backend::WasmGc,
         ..hd_driver::Packages::default()
     };
     let out = hd_driver::build_packages(

@@ -163,6 +163,7 @@ fn a_payloadless_variant_is_a_constant_global_on_every_target_and_level() {
                 executor: Executor::Serial(SerialOrder::Priority),
             };
             let packages = Packages {
+                backend: hd_driver::Backend::WasmGc,
                 target,
                 level,
                 ..Packages::default()

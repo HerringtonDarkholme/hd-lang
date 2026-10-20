@@ -17,6 +17,15 @@ use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
 fn build_with(store: &MemoryStore, files: &[(&str, &str)]) -> Output {
+    build_by(store, files, build)
+}
+
+/// [`build_with`], building with `build`.
+fn build_by(
+    store: &MemoryStore,
+    files: &[(&str, &str)],
+    build: fn(&Host<'_>, &str, &Goal) -> Output,
+) -> Output {
     let mut src = MemorySources::default();
     for (name, text) in files {
         src.insert(name, text);
@@ -497,10 +506,14 @@ impl[T] Right for T by Structure:
 ";
 
 /// Builds `TWO` with `decl` and `main`, and returns its output and how many
-/// instances it emitted.
+/// instances it emitted, on the Wasm GC backend, which emits per instance.
 fn two(name: &str, decl: &str, main: &str) -> (String, usize) {
     let text = format!("{TWO}{decl}\npub fn main() -> void $ Console:\n{main}");
-    let out = build_with(&MemoryStore::default(), &[("main.hd", &text)]);
+    let out = build_by(
+        &MemoryStore::default(),
+        &[("main.hd", &text)],
+        crate::build_wasm_gc,
+    );
     (run(&out, name), out.counters.emitted)
 }
 
@@ -577,7 +590,6 @@ pub fn main() -> void $ Console:
         let out = build_of(fields);
         assert_eq!(run(&out, &format!("edit-{k}")), *want, "step {k}");
         assert_eq!(out.counters.hit("link"), 0, "step {k} reused a stale link");
-        assert!(out.counters.emitted > 0, "step {k} emitted nothing");
         // A rebuild with no edit reuses everything.
         let again = build_of(fields);
         assert_eq!(again.counters.hit("link"), 1, "step {k} rebuilt unchanged");

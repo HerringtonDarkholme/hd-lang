@@ -43,6 +43,7 @@ fn built(files: &[(&str, &str)], entry: &str, session: Option<&Session>) -> Outp
         executor: Executor::Serial(SerialOrder::Priority),
     };
     let packages = Packages {
+        backend: hd_driver::Backend::WasmGc,
         session,
         ..Packages::default()
     };

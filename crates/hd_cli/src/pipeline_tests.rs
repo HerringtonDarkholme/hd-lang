@@ -27,7 +27,7 @@ fn pipeline(target: EngineTarget, level: OptLevel) -> Pipeline {
     Pipeline {
         target,
         level,
-        backend: hd_driver::Backend::WasmGc,
+        backend: hd_driver::Backend::Linear,
     }
 }
 
@@ -176,7 +176,7 @@ fn check_backend(command: &dyn Fn(&[&str])) {
             hd_driver::Backend::LinearChecked,
         ),
         (&["--backend=wasm-gc"][..], hd_driver::Backend::WasmGc),
-        (&[][..], hd_driver::Backend::WasmGc),
+        (&[][..], hd_driver::Backend::Linear),
     ] {
         take_built();
         command(flags);

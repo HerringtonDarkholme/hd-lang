@@ -1,8 +1,9 @@
 //! Incremental behavior of the one driver through task and cache counters,
 //! on the serial and the pool executor; and the build-stopping rule.
 
+use crate::build_wasm_gc as build;
 use hd_cache::MemoryStore;
-use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
+use hd_driver::{Executor, Goal, Host, NoClock, Output};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
 
@@ -824,6 +825,7 @@ fn fan_run(store: &MemoryStore, src: &MemorySources, level: hd_driver::OptLevel)
         executor: Executor::Serial(SerialOrder::Priority),
     };
     let packages = hd_driver::Packages {
+        backend: hd_driver::Backend::WasmGc,
         level,
         ..hd_driver::Packages::default()
     };

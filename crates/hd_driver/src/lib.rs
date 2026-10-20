@@ -1273,12 +1273,13 @@ pub struct Dependency<'a> {
 /// The code generator a `Goal::Program` links with (`cli.backend.select`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Backend {
-    /// The Wasm GC backend (`hd_wasm`), the default.
-    #[default]
+    /// The Wasm GC backend (`hd_wasm`).
     WasmGc,
     /// The linear-memory backend (`hd_wasm_linear`,
-    /// `crates/hd_wasm/DESIGN.md` §23), which links the whole program at
-    /// once from collection's output and caches no code per instance.
+    /// `crates/hd_wasm/DESIGN.md` §23), the default, which links the whole
+    /// program at once from collection's output and caches no code per
+    /// instance.
+    #[default]
     Linear,
     /// The linear-memory backend in checked mode
     /// (`crates/hd_wasm/DESIGN.md` §23.24): freed memory is poisoned and
@@ -1511,6 +1512,9 @@ pub fn build_repl_prelude(host: &Host<'_>, profile: BuildProfile, target: Engine
         build_profile: profile,
         target,
         session: Some(&start),
+        // A session links one module per input, which only the Wasm GC
+        // backend does so far; the linear backend refuses REPL sessions.
+        backend: Backend::WasmGc,
         ..Packages::default()
     };
     build_packages(
@@ -2334,7 +2338,6 @@ struct OptInFinding {
 impl Run<'_> {
     /// Whether the build links the linear backend's checked runtime
     /// ([`Backend::LinearChecked`]).
-    #[cfg(feature = "linear")]
     fn checked(&self) -> bool {
         self.backend == Backend::LinearChecked
     }
@@ -7548,13 +7551,10 @@ impl Run<'_> {
         let mut order: Vec<(DefId, &str)> = Vec::new();
         // The linear backend's runtime (crates/hd_wasm/DESIGN.md §23.16)
         // runs its module's inits first, in every root's group.
-        #[cfg(feature = "linear")]
         let linear_runtime = self
             .backend
             .linear()
             .then_some(hd_wasm_linear::runtime_module(self.checked()));
-        #[cfg(not(feature = "linear"))]
-        let linear_runtime: Option<&str> = None;
         let runtime_inits: Vec<DefId> = if let Some(runtime) = linear_runtime {
             match self.root_init_order(runtime, &init_of, &has_init) {
                 Ok(o) => o.into_iter().map(|(d, _)| d).collect(),
@@ -7669,7 +7669,6 @@ impl Run<'_> {
         // The linear backend's code calls std's allocator and counts by
         // key (crates/hd_wasm/DESIGN.md §23.16), whatever the program
         // uses; its link drops the ones nothing calls.
-        #[cfg(feature = "linear")]
         if self.backend.linear() {
             for (module, name) in hd_wasm_linear::runtime_items(self.checked()) {
                 let r = (names.item(module, name), TyList::EMPTY);
@@ -8541,16 +8540,7 @@ impl Run<'_> {
             return;
         };
         if self.backend.linear() {
-            #[cfg(feature = "linear")]
             self.link_linear(c, p);
-            #[cfg(not(feature = "linear"))]
-            self.stage::<()>(
-                Stage::Link,
-                Err(NotImplemented::new(
-                    Stage::Link,
-                    "the linear backend, which this build leaves out",
-                )),
-            );
             return;
         }
         self.put_pack_hint(c);
@@ -8703,7 +8693,6 @@ impl Run<'_> {
 
     /// `link` for the linear backend ([`Backend::Linear`]): one module
     /// from collection's output and every instance's TIR body.
-    #[cfg(feature = "linear")]
     fn link_linear(&self, c: &CollectOut, p: &ProgramTables) {
         let folders = self.program_folders();
         let arity = p.arity();
@@ -9961,16 +9950,9 @@ impl ProgramEnv for Env<'_> {
     fn shared_reference_layout(&self, ty: Ty) -> Option<bool> {
         match self.run.backend {
             Backend::WasmGc => None,
-            #[cfg(feature = "linear")]
             Backend::Linear | Backend::LinearChecked => Some(
                 hd_wasm_linear::shared_reference_layout(&self.run.pool, self, ty),
             ),
-            // Without the backend, a linear build stops at link.
-            #[cfg(not(feature = "linear"))]
-            Backend::Linear | Backend::LinearChecked => {
-                let _ = ty;
-                None
-            }
         }
     }
     fn body(&self, def: DefId) -> Option<&Body> {
