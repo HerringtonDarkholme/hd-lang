@@ -1,0 +1,90 @@
+# test: direct typed decoding preserves the tree reader's values and errors
+# Spec std/json: std-json.decode.direct, std-json.decode.no-tree, std-json.decode.parse-error.
+use std.json.{decode, parse, from_json, JsonError, Json}
+use std.serde.{Deserialize, Deserializer}
+use std.testing.assert_equal
+
+@derive(Deserialize, Eq, Debug)
+struct User:
+    name: string
+    count: usize = 7
+
+@derive(Deserialize, Eq, Debug)
+struct Group:
+    users: List[User]
+    extra: string?
+
+@derive(Deserialize, Eq, Debug)
+enum Choice:
+    Empty
+    User(name: string)
+    Pair(i64, string)
+
+fn same[T < Deserialize & Eq & Debug](text: string) -> void:
+    expected := match parse(text):
+        .Ok(value) => from_json::[T](value)
+        .Err(error) => .Err(error)
+    assert_equal(decode::[T](text), expected, reason=text)
+
+struct Unread: pass
+
+impl Deserialize for Unread:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[Unread, R::Error]:
+        panic("malformed input must not call Deserialize")
+
+struct Skip: pass
+
+impl Deserialize for Skip:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[Skip, R::Error]:
+        _ := input.peek()?
+        .Ok(Skip {})
+
+tests:
+    it("records retain duplicate-last keys, defaults, and declaration order"):
+        same::[User]("{\"count\":2,\"name\":\"first\",\"name\":\"last\"}")
+        same::[User]("{\"ignored\":{\"deep\":[false,null,{\"x\":1}]},\"name\":\"Ada\"}")
+        same::[User]("{\"name\":\"a\\u0062\\n\"}")
+        same::[User]("{\"count\":null,\"name\":\"Ada\"}")
+        same::[User]("{}")
+        same::[Group]("{\"users\":[{\"name\":\"Ada\"},{\"name\":false}],\"extra\":null}")
+        same::[Group]("{\"users\":[{\"name\":\"Ada\"}],\"extra\":null}")
+
+    it("enums preserve tag lookup and payload error paths"):
+        same::[Choice]("\"Empty\"")
+        same::[Choice]("\"User\"")
+        same::[Choice]("{\"User\":{\"name\":\"Ada\"}}")
+        same::[Choice]("{\"Pair\":{\"_1\":\"x\",\"_0\":-3}}")
+        same::[Choice]("{\"User\":{\"name\":0}}")
+        same::[Choice]("{\"User\":false}")
+        same::[Choice]("{\"Unknown\":false}")
+        same::[Choice]("{\"Empty\":{},\"Empty\":{}}")
+        same::[Choice]("{\"Empty\":{},\"User\":{}}")
+
+    it("maps retain first key order with last values"):
+        same::[Map[string, usize]]("{\"b\":1,\"a\":2,\"b\":3}")
+        same::[Json]("{\"b\":1,\"a\":2,\"b\":3}")
+        same::[List[Map[string, User]]]("[{\"x\":{\"name\":\"Ada\"}},{\"y\":{\"name\":4}}]")
+
+    it("numbers keep exact integer widths and float categories"):
+        same::[List[u64]]("[0,9223372036854775808,18446744073709551615]")
+        same::[List[i64]]("[-9223372036854775808,9223372036854775807]")
+        same::[List[i64]]("[1,-0]")
+        same::[List[i64]]("[1,1.0]")
+        same::[List[usize]]("[1,-1]")
+        same::[List[u8]]("[1,256]")
+        same::[Json]("[1.5,1e20,18446744073709551616]")
+
+    it("syntax errors still precede typed errors, including ignored values"):
+        same::[User]("{\"name\":false,\"unknown\":[1,]}")
+        same::[User]("{\"name\":false,\"unknown\":1e999}")
+        same::[User]("{\"name\":false} trailing")
+        same::[User]("{\"name\":\"\\uD800\"}")
+        same::[User]("{\"name\":\"\\q\"}")
+        same::[User]("{\"name\":\"x\",}")
+        match decode::[Unread]("{bad"):
+            .Err(error) => assert_equal(error, JsonError.UnexpectedCharacter(1), reason="Deserialize is never invoked")
+            .Ok(_) => panic("invalid JSON accepted")
+
+    it("list iteration advances even when a custom reader does not consume a value"):
+        values := decode::[List[Skip]]("[true,{\"x\":[1,2]},[false,null]]").expect("valid values")
+        assert_equal(values.len(), 3, reason="advance from raw offsets instead of reader side effects")

@@ -2747,6 +2747,7 @@ runtime/valid/json-number-accessors.hd	runtime	accept	std/json.md#r-std-json.val
 runtime/valid/json-encode-pretty.hd	runtime	accept	std/json.md#r-std-json.encode-pretty
 runtime/valid/serde-derive-read-default.hd	runtime	accept	std/serde.md#r-std-serde.derive.deserialize.default
 runtime/valid/json-encode-text-writer-matches-tree.hd	runtime	accept	std/json.md#r-std-json.encode
+runtime/valid/json-decode-streaming.hd	runtime	accept	std/json.md#r-std-json.decode.no-tree
 runtime/valid/json-decode-bytes-matches-old.hd	runtime	accept	std/json.md#r-std-json.parse
 typing/invalid/serde-derive-member-not-deserialize.hd	type	reject:member-not-derivable	lang/14-annotations.md#r-annot.serde.members.error
 typing/invalid/boundary-result-needs-deserialize.hd	type	reject:boundary-private-field	lang/10-modules.md#r-module.boundary.in

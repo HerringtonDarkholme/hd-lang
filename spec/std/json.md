@@ -537,13 +537,14 @@ fn load(text: string) -> Result[Session, JsonError]:
 | r[std-json.from-json] `from_json` | `pub fn from_json[T < Deserialize](value: Json) -> Result[T, JsonError]` | the `T` that `T::deserialize` reads from `value`, or the first error it finds |
 | r[std-json.encode] `encode` | `pub fn encode[T < Serialize](value: T) -> string` | the [compact text](#compact-text) of `to_json(value)` |
 | r[std-json.encode-pretty] `encode_pretty` | `pub fn encode_pretty[T < Serialize](value: T) -> string` | the [pretty text](#pretty-text) of `to_json(value)`, as `to_json(value).pretty()` gives |
-| r[std-json.decode] `decode` | `pub fn decode[T < Deserialize](text: string) -> Result[T, JsonError]` | `parse(text)`, then `from_json` of the parsed value |
+| r[std-json.decode.direct] `decode` | `pub fn decode[T < Deserialize](text: string) -> Result[T, JsonError]` | the `T` that `T::deserialize` reads directly from validated JSON text |
 
 1. r[std-json.decode.parse-error] When `parse` fails, `decode` returns its parse error and reads no value.
 2. r[std-json.from-json.errors] `from_json` returns only the decode errors: `WrongType`, `MissingField`, and `UnknownVariant`.
 3. r[std-json.from-json.root] Each path that `from_json` reports starts at the value it reads, whose path is `$`.
 4. r[std-json.encode.serialize] `encode` or `to_json` of a type that does not implement `Serialize` is an error. Error: `unsatisfied-trait-bound`.
 5. r[std-json.decode.deserialize] `decode` or `from_json` into a type that does not implement `Deserialize` is an error. Error: `unsatisfied-trait-bound`.
+6. r[std-json.decode.no-tree] `decode` reads typed values without constructing an intermediate `Json` tree.
 
 ```text
 use std.json.{encode, decode, JsonError}
