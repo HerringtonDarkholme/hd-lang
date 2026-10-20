@@ -188,6 +188,8 @@ pub struct Func {
     /// The locals after the parameters.
     pub locals: Vec<Val>,
     pub body: Vec<Ins>,
+    /// A complete relocation-free body, including locals and the final end.
+    pub raw: Option<Vec<u8>>,
 }
 
 impl Func {
@@ -529,6 +531,12 @@ impl Module {
         for s in &defined {
             let f = &self.funcs[s];
             funcs.function(ty(&f.params, &f.results, &mut types));
+            if let Some(raw) = &f.raw {
+                assert!(f.locals.is_empty() && f.body.is_empty());
+                code.raw(raw);
+                names.append(index[s], &f.name);
+                continue;
+            }
             let mut body = Function::new_with_locals_types(f.locals.iter().map(|v| v.wasm()));
             for i in &f.body {
                 match i {

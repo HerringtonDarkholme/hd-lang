@@ -530,7 +530,7 @@ fn log(g: &mut G, x: u32) -> Dd {
 
 /// The code of `PowF64`: `(x: f64, y: f64) -> f64`.
 #[must_use]
-pub(crate) fn pow_f64_code() -> Code {
+pub fn pow_f64_code() -> Code {
     let mut g = G {
         a: Asm::new(vec![VT::F64, VT::F64]),
     };

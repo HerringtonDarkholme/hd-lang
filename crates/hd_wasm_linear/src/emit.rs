@@ -2078,7 +2078,7 @@ impl Em<'_, '_, '_> {
             PrimOp::Add | PrimOp::Sub | PrimOp::Mul | PrimOp::Div | PrimOp::Rem | PrimOp::Neg => {
                 self.checked(op, ops, bits, signed)?;
             }
-            PrimOp::Pow => return unsupported("integer `**` (job 3, #540)"),
+            PrimOp::Pow => self.int_pow(ops, bits, signed)?,
             PrimOp::Eq | PrimOp::Ne | PrimOp::Lt | PrimOp::Le | PrimOp::Gt | PrimOp::Ge => {
                 for r in ops {
                     self.comp(*r, 0)?;
@@ -2317,10 +2317,27 @@ impl Em<'_, '_, '_> {
         }
     }
 
-    /// The basic float operations and comparisons, at the operand's width
-    /// (`expr.float.basic`); `%` and `**` come with their helpers later.
+    /// Float operations and comparisons (`expr.float.basic`): power and
+    /// remainder use the same portable helpers as the GC backend.
     fn float_value(&mut self, op: PrimOp, ops: &[u32], v: Val) -> StageResult<()> {
         let single = v == Val::F32;
+        if matches!(op, PrimOp::Pow | PrimOp::Rem) {
+            for r in ops {
+                self.comp(*r, 0)?;
+                if single {
+                    self.f.op(I::F64PromoteF32);
+                }
+            }
+            self.f.helper(if op == PrimOp::Pow {
+                Helper::PowF64
+            } else {
+                Helper::RemF64
+            });
+            if single {
+                self.f.op(I::F32DemoteF64);
+            }
+            return Ok(());
+        }
         for r in ops {
             self.comp(*r, 0)?;
         }
@@ -2503,6 +2520,21 @@ impl Em<'_, '_, '_> {
             (_, _, false) => I::I32RemU,
         });
         self.f.set(r);
+        self.int_overflow(op, bits, signed, (x, y, r));
+        self.f.op(I::If(BlockType::Empty));
+        self.panic("integer-overflow: integer overflow");
+        self.f.op(I::End);
+        self.f.get(r);
+        if bits == 32 {
+            self.f.op(I::I32WrapI64);
+        }
+        Ok(())
+    }
+
+    /// Whether a computed integer result exceeds its declared width.
+    fn int_overflow(&mut self, op: PrimOp, bits: u8, signed: bool, (x, y, r): (u32, u32, u32)) {
+        let wide = bits == 64;
+        let in64 = bits >= 32;
         if wide {
             self.wide_overflow(op, signed, (x, y, r));
         } else {
@@ -2535,14 +2567,84 @@ impl Em<'_, '_, '_> {
                 self.f.op(I::I32Or);
             }
         }
+    }
+
+    /// Integer power by repeated squaring, checking only products needed
+    /// for the result. Exponents use their full unsigned width.
+    fn int_pow(&mut self, ops: &[u32], bits: u8, signed: bool) -> StageResult<()> {
+        let exact = if bits >= 32 { Val::I64 } else { Val::I32 };
+        let (base, acc, product) = (
+            self.f.local(exact),
+            self.f.local(exact),
+            self.f.local(exact),
+        );
+        let exponent = self.f.local(Val::I64);
+        self.comp(ops[0], 0)?;
+        if bits == 32 {
+            self.f.op(if signed {
+                I::I64ExtendI32S
+            } else {
+                I::I64ExtendI32U
+            });
+        }
+        self.f.set(base);
+        self.comp(ops[1], 0)?;
+        if self.vals(self.ty_of(ops[1]))? == [Val::I32] {
+            self.f.op(I::I64ExtendI32U);
+        }
+        self.f.set(exponent);
+        self.f.op(if exact == Val::I64 {
+            I::I64Const(1)
+        } else {
+            I::I32Const(1)
+        });
+        self.f.set(acc);
+        self.f.op(I::Block(BlockType::Empty));
+        self.f.op(I::Loop(BlockType::Empty));
+        self.f.get(exponent);
+        self.f.op(I::I64Const(1));
+        self.f.op(I::I64And);
+        self.f.op(I::I64Eqz);
+        self.f.op(I::I32Eqz);
         self.f.op(I::If(BlockType::Empty));
-        self.panic("integer-overflow: integer overflow");
+        self.pow_mul(bits, signed, (acc, base, product));
+        self.f.get(product);
+        self.f.set(acc);
         self.f.op(I::End);
-        self.f.get(r);
+        self.f.get(exponent);
+        self.f.op(I::I64Const(1));
+        self.f.op(I::I64ShrU);
+        self.f.set(exponent);
+        self.f.get(exponent);
+        self.f.op(I::I64Eqz);
+        self.f.op(I::BrIf(1));
+        self.pow_mul(bits, signed, (base, base, product));
+        self.f.get(product);
+        self.f.set(base);
+        self.f.op(I::Br(0));
+        self.f.op(I::End);
+        self.f.op(I::End);
+        self.f.get(acc);
         if bits == 32 {
             self.f.op(I::I32WrapI64);
         }
+        if self.wraps() {
+            self.wrap_to(bits, signed);
+        }
         Ok(())
+    }
+
+    fn pow_mul(&mut self, bits: u8, signed: bool, (x, y, r): (u32, u32, u32)) {
+        self.f.get(x);
+        self.f.get(y);
+        self.f.op(if bits >= 32 { I::I64Mul } else { I::I32Mul });
+        self.f.set(r);
+        if !self.wraps() {
+            self.int_overflow(PrimOp::Mul, bits, signed, (x, y, r));
+            self.f.op(I::If(BlockType::Empty));
+            self.panic("integer-overflow: integer overflow");
+            self.f.op(I::End);
+        }
     }
 
     /// Whether the 64-bit `r = x op y` overflowed, as an `i32` on the

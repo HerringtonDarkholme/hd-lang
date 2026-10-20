@@ -12,6 +12,7 @@ hd_types = { path = "../hd_types" }
 hd_tir = { path = "../hd_tir" }
 hd_mono = { path = "../hd_mono" }
 hd_host_abi = { path = "../hd_host_abi" }
+hd_wasm = { path = "../hd_wasm" }
 wasm-encoder = { version = "0.261.0", default-features = false, features = ["std"] }
 
 [dev-dependencies]

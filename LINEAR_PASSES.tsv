@@ -1456,3 +1456,13 @@ runtime/valid/while-else-break-value.hd	#574: references, cleanup scopes and rel
 runtime/valid/while-else-exhaustion-value.hd	#573: closures and trait values
 runtime/valid/write-line-around-suspending-provider-scope.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/write-line-suspending-call-argument.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/integer-power-associativity.hd	#614: integer and floating power, floating remainder
+runtime/valid/operators-longest-match.hd	#614: integer and floating power, floating remainder
+runtime/valid/precedence-and-associativity.hd	#614: integer and floating power, floating remainder
+runtime/valid/power-type-parameter-bound.hd	#614: integer and floating power, floating remainder
+runtime/valid/unsigned-exponent.hd	#614: integer and floating power, floating remainder
+runtime/valid/floating-power.hd	#614: integer and floating power, floating remainder
+runtime/valid/float-remainder-run.hd	#614: integer and floating power, floating remainder
+runtime/valid/numeric-explicit-widening.hd	#614: integer and floating power, floating remainder
+runtime/valid/power-and-remainder-edges.hd	#614: integer and floating power, floating remainder
+runtime/panic/integer-power-overflow.hd	#614: checked integer power overflow

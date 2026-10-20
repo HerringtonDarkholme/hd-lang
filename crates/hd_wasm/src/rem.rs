@@ -75,7 +75,7 @@ fn ret_zero(a: &mut Asm, sign: u32) {
 
 /// The code of `RemF64`: `(x: f64, y: f64) -> f64`.
 #[must_use]
-pub(crate) fn rem_f64_code() -> Code {
+pub fn rem_f64_code() -> Code {
     let mut a = Asm::new(vec![VT::F64, VT::F64]);
     let (x, y) = (0, 1);
     let (ux, uy) = (a.local(VT::I64), a.local(VT::I64));

@@ -468,6 +468,7 @@ runtime/panic/integer-power-overflow.hd	runtime	panic:integer-overflow	lang/05-e
 runtime/valid/integer-power-associativity.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
 typing/invalid/power-mixed-numeric-types.hd	type	reject:type-mismatch	lang/05-expressions.md#unary-and-binary-operators
 runtime/valid/floating-power.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
+runtime/valid/power-and-remainder-edges.hd	runtime	accept	lang/05-expressions.md#exponentiation
 typing/invalid/reassign-short-binding-in-function.hd	type	reject:non-reassignable-binding	lang/03-names-and-scopes.md#local-bindings
 typing/invalid/function-result-type-mismatch.hd	type	reject:type-mismatch	lang/04-type-system.md#assignability-and-coercion
 typing/invalid/nonfinal-vararg-then-parameter.hd	type	reject:nonfinal-vararg	lang/07-functions.md#varargs

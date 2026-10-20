@@ -920,6 +920,7 @@ dependencies = [
  "hd_mono",
  "hd_tir",
  "hd_types",
+ "hd_wasm",
  "wasm-encoder 0.261.0",
  "wasmparser 0.261.0",
 ]

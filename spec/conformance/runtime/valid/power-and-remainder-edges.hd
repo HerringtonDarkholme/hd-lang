@@ -1,0 +1,46 @@
+# test: power preserves integer boundary results and IEEE floating special cases at both widths
+# Spec 05 Exponentiation and Floating-Point Arithmetic: expr.power.int.exponent, expr.power.checked, expr.power.float.pow, expr.float.remainder-truncated, expr.float.remainder-special.
+# expect: test
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("integer power avoids squaring after the exponent is exhausted"):
+        assert_equal((-2i8) ** 7u8, -128i8, reason="minimum i8 remains in range")
+        assert_equal(255u8 ** 1u16, 255u8, reason="maximum u8 needs no square")
+        assert_equal((-2i16) ** 15u32, -32768i16, reason="minimum i16")
+        assert_equal(65535u16 ** 1u64, 65535u16, reason="maximum u16")
+        assert_equal((-2i32) ** 31u32, -2147483648i32, reason="minimum i32")
+        assert_equal(4294967295u32 ** 1u64, 4294967295u32, reason="maximum u32")
+        assert_equal((-2i64) ** 63u32, -9223372036854775808i64, reason="minimum i64")
+        assert_equal(18446744073709551615u64 ** 1u64, 18446744073709551615u64, reason="maximum u64")
+        assert_equal(0u32 ** 0u64, 1u32, reason="zero exponent")
+        assert_equal((-1i32) ** 4294967296u64, +1, reason="even exponent beyond u32")
+        assert_equal((-1i32) ** 4294967297u64, -1, reason="full-width odd exponent")
+
+    it("floating power uses IEEE special cases"):
+        infinity := 1.0 / 0.0
+        nan := 0.0 / 0.0
+        assert_equal(9.0 ** 0.5, 3.0, reason="fractional exponent")
+        assert_equal(2.0 ** -3.0, 0.125, reason="negative exponent")
+        assert_equal((-2.0) ** 3.0, -8.0, reason="negative base, integral exponent")
+        invalid := (-2.0) ** 0.5
+        assert(invalid != invalid, reason="negative base with fractional exponent")
+        assert_equal(nan ** 0.0, 1.0, reason="NaN to zero")
+        assert_equal(1.0 ** nan, 1.0, reason="one to NaN")
+        assert_equal(0.0 ** -1.0, infinity, reason="zero with negative exponent")
+        assert_equal(1.0 / ((-0.0) ** 3.0), -infinity, reason="odd power preserves negative zero")
+        assert_equal(1.0 / ((-0.0) ** 2.0), infinity, reason="even power gives positive zero")
+        assert_equal(9.0f32 ** 0.5f32, 3.0f32, reason="f32 power")
+
+    it("floating remainder keeps signed zero and handles special values"):
+        infinity := 1.0 / 0.0
+        assert_equal(-5.5 % 2.0, -1.5, reason="dividend sign")
+        assert_equal(5.5 % -2.0, 1.5, reason="negative divisor")
+        assert_equal(5.5 % infinity, 5.5, reason="finite dividend, infinite divisor")
+        invalid := infinity % 2.0
+        assert(invalid != invalid, reason="infinite dividend is NaN")
+        zero_divisor := 1.0 % 0.0
+        assert(zero_divisor != zero_divisor, reason="zero divisor is NaN")
+        assert_equal(1.0 / (-4.0 % 2.0), -infinity, reason="negative signed zero")
+        assert_equal(-5.5f32 % 2.0f32, -1.5f32, reason="f32 remainder")
