@@ -1,11 +1,11 @@
-# test: Response.ok and get_text! make a status outside 200 to 299 an error that names the status and the URL
-# Spec std/http Status And JSON: std-http.response.ok, std-http.helper.get-text, std-http.error.status, std-http.error.status.text, std-http.response.url.
+# test: Response.ok makes a status outside 200 to 299 an error that names the status and the URL
+# Spec std/http Status And JSON: std-http.response.ok, std-http.error.status, std-http.error.status.text, std-http.response.url.
 # Also covers std-http.error.decl, std-http.error.traits, std-http.scripted.send, std-http.send.status.
 # expect: test
-use std.http.{Http, HttpError, Response, ScriptedHttp, get, get_text}
+use std.http.{Http, HttpError, Response, ScriptedHttp, get}
 
 fn notes!() -> Result[string, HttpError] $ Http:
-    get_text!("https://example.com/notes.txt")
+    .Ok(get!("https://example.com/notes.txt")?.ok()?.text())
 
 tests:
     use std.testing.assert_equal

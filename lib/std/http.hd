@@ -1,11 +1,11 @@
-# std.http: the host capability trait `Http`, its helpers `send!`, `get!`,
-# `get_text!` and `post_json!`, the struct values `Request` and `Response`, `Method`,
+# std.http: the host capability trait `Http`, its helpers `send!` and `get!`,
+# the struct values `Request` and `Response`, `Method`,
 # `HttpError`, and the deterministic provider `ScriptedHttp` (spec/std/http.md). The default
 # profile binds a host `Http` that checks the command's `--cap Http=` grant
 # (src/commands/http-host.ts).
 use std.time.Duration
-use std.json.{JsonError, decode, encode}
-use std.serde.{Deserialize, Serialize}
+use std.json.{JsonError, decode}
+use std.serde.Deserialize
 
 ## An HTTP method: a standard one, or `Other(name)`.
 ## See [std-http.types.decl-struct](../../spec/std/http.md#r-std-http.types.decl-struct).
@@ -142,25 +142,6 @@ pub fn send!(request: Request) -> Result[Response, HttpError] $ Http:
 ## See [std-http.helper.get](../../spec/std/http.md#r-std-http.helper.get).
 pub fn get!(url: string) -> Result[Response, HttpError] $ Http:
     send!(Request { url: url })
-
-# Sends a `Get` of `url` and returns the text of a 2xx response
-# (r-std-http.helper.get-text).
-## Sends a `Get` of `url`; the text of a status from 200 to 299, else the error.
-## See [std-http.helper.get-text](../../spec/std/http.md#r-std-http.helper.get-text).
-pub fn get_text!(url: string) -> Result[string, HttpError] $ Http:
-    response := get!(url)?.ok()?
-    .Ok(response.text())
-
-# Sends a `Post` of `value` as JSON (r-std-http.helper.post-json).
-## Sends a `Post` of `value` encoded as JSON, with `Content-Type: application/json`.
-## See [std-http.helper.post-json](../../spec/std/http.md#r-std-http.helper.post-json).
-pub fn post_json![T < Serialize](url: string, value: T) -> Result[Response, HttpError] $ Http:
-    send!(Request {
-        method: Method.Post,
-        url: url,
-        headers: [("Content-Type", "application/json")],
-        body: encode(value).to_utf8(),
-    })
 
 # The deterministic `Http` (spec/std/http.md#scripted-http): it answers a
 # URL by its exact text, and records every request it receives.

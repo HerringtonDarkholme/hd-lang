@@ -719,9 +719,8 @@ its own issue.
 
 - **HTTP status as an error.** `Response.ok() -> Result[Response, HttpError]`
   returns `HttpError.Status(status, url)` for a status outside 200-299.
-  `get_text!(url)`, `Response.json::[T]()` and `post_json!(url, value)`
-  call it, so the one-line fetch fails on a 404 instead of printing the
-  error page.
+  Code calls it before `Response.json::[T]()` or `text()`, so a fetch
+  fails on a 404 instead of printing the error page.
   `Response` gains `url: string = ""`, the final URL after redirects (the
   owner's call, 2026-10-17), so `ok()` can name it; `ScriptedHttp` and
   both hosts fill it. `HttpError.Json(error: JsonError)` carries the

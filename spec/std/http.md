@@ -5,8 +5,7 @@ Status: standard library specification draft.
 This chapter defines `std.http`, which `lib/std` writes in ordinary hd
 over the language tier:
 
-- the host capability trait `Http`, and the helpers `send!`, `get!`,
-  `get_text!`, and `post_json!`;
+- the host capability trait `Http`, and the helpers `send!` and `get!`;
 - the struct values `Request` and `Response`, and the enums `Method` and
   `HttpError`;
 - a status outside 200 to 299 as an error, and the JSON calls;
@@ -153,12 +152,12 @@ fn latest_release!(repo: string) -> Result[string, HttpError] $ Http:
 
 ## Status And JSON
 
-A status outside 200 to 299 is an error only when the code asks for it.
-`ok` asks, and `get_text!` asks for the common one-line fetch:
+A status outside 200 to 299 is an error only when the code asks for it,
+with `ok`:
 
 ```text
-use std.http.{Http, HttpError, get_text, post_json}
-use std.json.JsonError
+use std.http.{Http, HttpError, Method, Request, get, send}
+use std.json.encode
 use std.serde.{Deserialize, Serialize}
 
 @derive(Serialize)
@@ -170,22 +169,20 @@ struct Created:
     id: i64
 
 fn notes!() -> Result[string, HttpError] $ Http:
-    get_text!("https://example.com/notes.txt")    # a 404 is .Err(HttpError.Status(404, url))
+    .Ok(get!("https://example.com/notes.txt")?.ok()?.text())   # a 404 is .Err(HttpError.Status(404, url))
 
 fn create!(name: string) -> Result[Created, HttpError] $ Http:
-    response := post_json!("https://example.com/users", NewUser { name: name })?
-    response.ok()?.json::[Created]()              # a bad body is .Err(HttpError.Json(error))
+    body := encode(NewUser { name: name }).to_utf8()
+    request := Request { method: Method.Post, url: "https://example.com/users", headers: [("Content-Type", "application/json")], body: body }
+    send!(request)?.ok()?.json::[Created]()                    # a bad body is .Err(HttpError.Json(error))
 ```
 
 1. r[std-http.response.ok] `Response` has the method `ok(self) -> Result[Response, HttpError]`. It returns `.Ok(self)` for a `status` from 200 to 299, and `.Err(HttpError.Status(status, url))` for any other, with the response's `status` and `url`.
 2. r[std-http.response.json] `Response` has the method `json::[T < Deserialize](self) -> Result[T, HttpError]`. It decodes `self.text()` with `std.json.decode::[T]`, and returns `.Err(HttpError.Json(error))` for the `JsonError` it fails with. It does not look at `status`.
-3. r[std-http.helper.get-text] `std.http` declares `pub fn get_text!(url: string) -> Result[string, HttpError] $ Http`. It sends `get!(url)`, applies `ok`, and returns `.Ok` of the response's `text()`, or the error of either step.
-4. r[std-http.helper.post-json] `std.http` declares `pub fn post_json![T < Serialize](url: string, value: T) -> Result[Response, HttpError] $ Http`. It sends a `Post` of `url` with the header `("Content-Type", "application/json")` and the body `std.json.encode(value)` as UTF-8 bytes, and returns the response whatever its status.
 
-> **Why.** Reading a page's text must be one call, and it must not return
-> a 404 page as the text. `send!` stays status-neutral
-> ([`std-http.send.status`](#r-std-http.send.status)); `ok` is the opt-in,
-> as reqwest's `error_for_status` is.
+> **Why.** Code must not read a 404 page as the text. `send!` stays
+> status-neutral ([`std-http.send.status`](#r-std-http.send.status)); `ok`
+> is the opt-in, as reqwest's `error_for_status` is.
 
 ## Scripted Http
 
