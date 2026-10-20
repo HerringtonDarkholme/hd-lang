@@ -1,0 +1,20 @@
+# test: an erased generic method returns a reference to a local beyond the call
+# Spec 13 Reference lifetime: ref.place.lifetime; Spec 09 Dynamic Safety: trait.dyn.safe.method-type-param.
+# expect-stdout: 2 updated 4 changed
+trait Factory:
+    fn make[T](self, value: T) -> &mut T:
+        let mut local = value
+        &mut local
+
+struct Maker: pass
+impl Factory for Maker
+
+pub fn main() -> void $ Console:
+    let factory: &dyn Factory = &Maker {}
+    number := factory.make(+1)
+    text := factory.make("initial")
+    pair := factory.make((+3, "initial"))
+    *number = +2
+    *text = "updated"
+    *pair = (+4, "changed")
+    println("${*number} ${*text} ${pair._0} ${pair._1}")

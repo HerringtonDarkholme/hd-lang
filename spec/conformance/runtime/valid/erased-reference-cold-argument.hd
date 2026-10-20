@@ -1,0 +1,25 @@
+# test: an erased generic cold call keeps its boxed open reference argument across suspension
+# Spec 13 References: ref.expr.place, ref.deref.write; Spec 11 Suspension Values: req.suspend.cold.
+# expect-stdout: 20 delayed 21 resumed
+use std.time.{Clock, ms, sleep}
+
+trait Writer:
+    fn write![T](self, destination: &mut T, value: T) -> void $ Clock:
+        sleep!(ms(1))
+        *destination = value
+
+struct Delayed: pass
+impl Writer for Delayed
+
+pub fn main!() -> void $ Console + Clock:
+    let writer: &dyn Writer = &Delayed {}
+    let mut number = +1
+    let mut text = "initial"
+    let mut pair = (+2, "initial")
+    let mut first = writer.write(&mut number, +20)
+    let mut second = writer.write(&mut text, "delayed")
+    let mut third = writer.write(&mut pair, (+21, "resumed"))
+    first!()
+    second!()
+    third!()
+    println("$number $text ${pair._0} ${pair._1}")

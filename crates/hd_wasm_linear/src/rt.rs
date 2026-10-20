@@ -34,7 +34,7 @@ pub enum OptVal {
 /// slot reads to pass by value (`SlotRecv::ReadThrough`).
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct RefRead {
-    pub leaves: Vec<Leaf>,
+    pub value: RefLayout,
 }
 
 /// How a vtable slot whose method has a row passes its providers on: its
@@ -70,13 +70,70 @@ fn push_slot_params(f: &mut Func, n: usize, ctx: Option<&SlotCtx>) {
     }
 }
 
+/// A reference's value representation and its counted fields. A view's
+/// getter/setter exchange erased values; concrete layouts box those that
+/// are not already one counted address.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct RefLayout {
+    pub size: u32,
+    pub leaves: Vec<Leaf>,
+    pub walk: Option<Walk>,
+    pub boxed: bool,
+}
+
 /// A generated function, by what it does.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Helper {
+    /// A field reference forwards reads and writes through its parent view.
+    RefProject {
+        parent: RefLayout,
+        field: RefLayout,
+        first: u32,
+        offset: u32,
+    },
+    RefFieldGet {
+        parent: RefLayout,
+        field: RefLayout,
+        first: u32,
+        offset: u32,
+    },
+    RefFieldSet {
+        parent: RefLayout,
+        field: RefLayout,
+        first: u32,
+        offset: u32,
+    },
+    /// Whether an address names a counted representation view.
+    RefIsView,
+    /// A view's descriptor releases its original reference.
+    RefViewDrop,
+    /// The canonical identity serial, following views and field projections.
+    RefAddress,
+    /// A counted view of a reference with this source representation.
+    RefView {
+        source: RefLayout,
+    },
+    /// Owned value read through an ordinary reference or a view.
+    RefLoad {
+        value: RefLayout,
+    },
+    /// Store a borrowed value through an ordinary reference or a view.
+    RefStore {
+        value: RefLayout,
+    },
+    /// A view's getter/setter: source-native values cross as erased ones.
+    RefGet {
+        source: RefLayout,
+    },
+    RefSet {
+        source: RefLayout,
+    },
     /// `hd.init`: the inits in order; a flagged one belongs to a module
     /// other than the entry's and runs as a forbidden context
     /// (`req.drive.block-on.forbidden-contexts`).
-    EntryInit { inits: Vec<(Hash128, bool)> },
+    EntryInit {
+        inits: Vec<(Hash128, bool)>,
+    },
     /// `hd.poll(ctx)`: runs `main` with one host provider per vtable in
     /// `providers` (data 0), passes its results to `report` when there is
     /// one, then runs `then` as the script's later inits; returns the exit
@@ -104,7 +161,9 @@ pub enum Helper {
     /// `(ctx) -> status`: `poll`'s answer, after a cycle collection
     /// (§23.28): the entry is idle when the answer is Pending, and done
     /// otherwise. Checked mode collects in [`Helper::CheckedPoll`] instead.
-    CollectPoll { poll: Box<Helper> },
+    CollectPoll {
+        poll: Box<Helper>,
+    },
     /// `hd.reset()`: after a REPL input that trapped
     /// ([`crate::Entry::Inputs`]), clears what the trap left set: the
     /// forbidden-context and abandon counters, the root and its owner, the
@@ -163,35 +222,53 @@ pub enum Helper {
     Str,
     /// `(values)`: one more count on each counted reference in a value
     /// laid out as `vals`, which `walk` finds.
-    Retain { vals: Vec<Val>, walk: Walk },
+    Retain {
+        vals: Vec<Val>,
+        walk: Walk,
+    },
     /// `(values)`: one count less on each, as [`Helper::ReleaseRef`] takes.
-    Release { vals: Vec<Val>, walk: Walk },
+    Release {
+        vals: Vec<Val>,
+        walk: Walk,
+    },
     /// `(address)`: one count less on the object that holds `address`. At
     /// its last count, the references in its payload are released through
     /// its descriptor and its block is freed.
     ReleaseRef,
     /// `(payload)`: the release glue of an object whose payload is laid
     /// out as `leaves`: one count less on each counted reference in it.
-    DropFields { leaves: Vec<Leaf>, walk: Walk },
+    DropFields {
+        leaves: Vec<Leaf>,
+        walk: Walk,
+    },
     /// `(payload)`: one more count on each counted reference in a new
     /// object's payload, which its construction copied in.
-    RetainFields { leaves: Vec<Leaf>, walk: Walk },
+    RetainFields {
+        leaves: Vec<Leaf>,
+        walk: Walk,
+    },
     /// `(list) -> bool`: whether an element reference pins the list: its
     /// header has an owner word and its buffer a count over 1 (§23.20).
     ListPinned,
     /// `(list) -> list`: a new list over a copy of the list's buffer,
     /// whose elements take their own counts: how [`Helper::ListCopy`]
     /// copies a pinned list, through the owner word's slot.
-    ListClone { elem: Elem },
+    ListClone {
+        elem: Elem,
+    },
     /// `(buffer) -> list`: a new list header (§23.7) over `buffer`, whose
     /// count it takes over, with no owner word.
     ListHeader,
     /// `(capacity) -> buffer`: a new, empty list buffer with room for
     /// `capacity` elements laid out as `elem`.
-    ListBuf { elem: Elem },
+    ListBuf {
+        elem: Elem,
+    },
     /// `(payload)`: the release glue of a list buffer: one count less on
     /// each counted reference of each element.
-    DropElems { elem: Elem },
+    DropElems {
+        elem: Elem,
+    },
     /// `(list) -> list`: a copy of a list (`types.coll.value`): a new
     /// header over the same buffer, which counts one more owner.
     ListCopy,
@@ -206,29 +283,51 @@ pub enum Helper {
     /// `(at, n)`: the `n` elements at `at`, just copied from a buffer that
     /// keeps them too, take their own counts; each collection among an
     /// element's values becomes its copy ([`Helper::ListCopy`]).
-    CopyElems { elem: Elem },
+    CopyElems {
+        elem: Elem,
+    },
     /// `(list)`: makes the list's buffer its own before a change: a
     /// buffer it shares is copied, and with `push` a full one is moved to
     /// a larger one.
-    ListUnique { elem: Elem, push: bool },
+    ListUnique {
+        elem: Elem,
+        push: bool,
+    },
     /// `(capacity) -> table`: a new, empty map table (`map.rs`) with room
     /// for `capacity` entries laid out as `entry`, its index cleared.
-    MapTable { entry: map::Entry },
+    MapTable {
+        entry: map::Entry,
+    },
     /// `(payload)`: the release glue of a map table: one count less on
     /// each counted reference of each live entry.
-    DropEntries { entry: map::Entry },
+    DropEntries {
+        entry: map::Entry,
+    },
     /// `(key) -> i32`: a key's bucket hash, made non-negative.
-    MapHash { key: Vec<Val>, ops: KeyOps },
+    MapHash {
+        key: Vec<Val>,
+        ops: KeyOps,
+    },
     /// `(table, hash, key) -> entry`: the number of the key's entry, or -1.
-    MapFind { entry: map::Entry, ops: KeyOps },
+    MapFind {
+        entry: map::Entry,
+        ops: KeyOps,
+    },
     /// `(map, hash, key, value)`: puts the entry, taking over one count of
     /// the key and of the value; the map's table is its own already.
-    MapPut { entry: map::Entry, ops: KeyOps },
+    MapPut {
+        entry: map::Entry,
+        ops: KeyOps,
+    },
     /// `(map)`: moves the map's full table to one with room.
-    MapGrow { entry: map::Entry },
+    MapGrow {
+        entry: map::Entry,
+    },
     /// `(map)`: makes the map's table its own before a change: a table it
     /// shares is copied, its entries taking their own counts.
-    MapUnique { entry: map::Entry },
+    MapUnique {
+        entry: map::Entry,
+    },
     /// `(map, pos, end) -> slot`: the first live entry in `pos..end`, or
     /// `end`.
     MapSlotNext,
@@ -275,14 +374,19 @@ pub enum Helper {
     /// `(list, n)`: std's `list_truncate`: a pinned list whose length
     /// would change panics; otherwise the buffer is made the list's own,
     /// the elements from `n` on are released and the length becomes `n`.
-    ListTruncate { elem: Elem },
+    ListTruncate {
+        elem: Elem,
+    },
     /// `() -> TypeId`: a `TypeId` of static strings.
     TypeIdOf(TypeIdParts),
     /// `(data) -> TypeId`: a vtable's `runtime_type` slot, the `TypeId`
     /// of the type the vtable is built at.
     RuntimeType(TypeIdParts),
     /// A vtable slot no call reaches: it traps.
-    DynTrap { params: Vec<Val>, results: Vec<Val> },
+    DynTrap {
+        params: Vec<Val>,
+        results: Vec<Val>,
+    },
     /// `(list: List[u8]) -> string`: a new string of the list's bytes,
     /// which std has checked are UTF-8.
     StrFromBytes,
@@ -291,7 +395,9 @@ pub enum Helper {
     ConcatAll,
     /// `(value: i64) -> string`: an integer's decimal text, read as
     /// signed when `signed`.
-    FmtInt { signed: bool },
+    FmtInt {
+        signed: bool,
+    },
     /// `(a, b) -> bool`: two strings' bytes are equal.
     StrEq,
     /// `(a, b) -> i32`: -1, 0 or 1 as `a` sorts before, with or after `b`,
@@ -375,10 +481,14 @@ pub enum Helper {
     WakeTake,
     /// `hd.cancel` and `hd.abandon`: cancels the pending root, under
     /// `abandon()` for the second.
-    EntryCancel { abandon: bool },
+    EntryCancel {
+        abandon: bool,
+    },
     /// `hd.scenario.cleanup`: `() -> i32`, a call of the scenario's
     /// top-level `cleanup_ran`.
-    EntryCall { func: Hash128 },
+    EntryCall {
+        func: Hash128,
+    },
     /// `(address)`: one more count on what the address is in, when the
     /// program counts.
     RetainAny,
@@ -391,9 +501,13 @@ pub enum Helper {
     /// `(frame)`.
     CleanupCancel,
     /// `() -> frame`: a frame that never completes, of results `results`.
-    PendingCold { results: Vec<Val> },
+    PendingCold {
+        results: Vec<Val>,
+    },
     /// `(frame) -> (ready, results)`: always Pending.
-    PendingPoll { results: Vec<Val> },
+    PendingPoll {
+        results: Vec<Val>,
+    },
     /// `(frame)`.
     PendingCancel,
     /// `race!`'s frame over a list of tasks of results `results`: part 0
@@ -418,6 +532,7 @@ pub enum Helper {
     /// [`Helper::ChildDrop`].
     OpenFrame {
         part: u8,
+        reference: Option<RefLayout>,
         leaves: Vec<Leaf>,
         walk: Option<Walk>,
         counts: bool,
@@ -998,14 +1113,27 @@ fn dyn_read(
     let mut all = vec![Val::I32];
     all.extend(params.iter().copied());
     let mut f = Func::new("rt:dyn_read", all, results.to_vec());
+    f.get(0);
+    f.helper(Helper::RefLoad {
+        value: read.value.clone(),
+    });
+    let rvals: Vec<Val> = ref_vals(&read.value);
+    let held: Vec<u32> = rvals.iter().map(|v| f.local(*v)).collect();
+    for l in held.iter().rev() {
+        f.set(*l);
+    }
     let recv = |f: &mut Func| {
-        for l in &read.leaves {
-            f.get(0);
-            f.op(l.load(0));
+        for l in &held {
+            f.get(*l);
         }
     };
-    let rvals: Vec<Val> = read.leaves.iter().map(|l| l.val).collect();
-    own_lent(&mut f, &rvals, &recv, params, own, m);
+    // RefLoad already gives the receiver its owned count. The target
+    // consumes that copy; only its other owned arguments need counting.
+    let mut owned = own.to_vec();
+    if let Some(receiver) = owned.first_mut() {
+        receiver.1 = None;
+    }
+    own_lent(&mut f, &rvals, &recv, params, &owned, m);
     recv(&mut f);
     push_slot_params(&mut f, params.len() - usize::from(ctx.is_some()), ctx);
     f.call(Sym::Inst(target));
@@ -1032,6 +1160,17 @@ fn write_str(f: &mut Func, s: u32) {
 /// Builds helper `h`; it may ask `m` for more helpers and static data.
 pub fn helper(h: &Helper, m: &mut Module) -> Func {
     match h {
+        Helper::RefProject { .. } | Helper::RefFieldGet { .. } | Helper::RefFieldSet { .. } => {
+            ref_field_helper(h, m)
+        }
+        Helper::RefIsView
+        | Helper::RefViewDrop
+        | Helper::RefAddress
+        | Helper::RefView { .. }
+        | Helper::RefLoad { .. }
+        | Helper::RefStore { .. }
+        | Helper::RefGet { .. }
+        | Helper::RefSet { .. } => ref_helper(h, m),
         Helper::PowF64 | Helper::RemF64 => {
             let (name, code) = if matches!(h, Helper::PowF64) {
                 ("rt:pow_f64", hd_wasm::pow::pow_f64_code())
@@ -2565,4 +2704,444 @@ fn concat_all() -> Func {
     f.get(s);
     f.get(total);
     f
+}
+
+// Representation views retain a source reference, not a snapshot. Their
+// getter and setter exchange one owned erased value at a fixed ABI.
+fn ref_vals(value: &RefLayout) -> Vec<Val> {
+    value.leaves.iter().map(|l| l.val).collect()
+}
+
+fn ref_count(f: &mut Func, ls: &[u32], value: &RefLayout, retain: bool) {
+    if let Some(walk) = &value.walk {
+        for l in ls {
+            f.get(*l);
+        }
+        let vals = ref_vals(value);
+        f.helper(if retain {
+            Helper::Retain {
+                vals,
+                walk: walk.clone(),
+            }
+        } else {
+            Helper::Release {
+                vals,
+                walk: walk.clone(),
+            }
+        });
+    }
+}
+
+fn ref_box(f: &mut Func, ls: &[u32], value: &RefLayout) {
+    if value.leaves.is_empty() {
+        f.i32(0);
+        return;
+    }
+    if !value.boxed {
+        f.get(ls[0]);
+        return;
+    }
+    let at = f.local(Val::I32);
+    f.u32(value.size);
+    if let Some(walk) = &value.walk {
+        f.body.push(Ins::TableSlot(Sym::Helper(Helper::DropFields {
+            leaves: value.leaves.clone(),
+            walk: walk.clone(),
+        })));
+        f.i32(1);
+        f.op(Instruction::I32Add);
+    } else {
+        f.i32(0);
+    }
+    f.helper(Helper::New);
+    f.set(at);
+    for (leaf, l) in value.leaves.iter().zip(ls) {
+        f.get(at);
+        f.get(*l);
+        f.op(leaf.store(0));
+    }
+    f.get(at);
+}
+
+fn ref_unbox(f: &mut Func, at: u32, value: &RefLayout) -> Vec<u32> {
+    if !value.boxed {
+        return vec![at];
+    }
+    let ls: Vec<u32> = value.leaves.iter().map(|l| f.local(l.val)).collect();
+    for (leaf, l) in value.leaves.iter().zip(&ls) {
+        f.get(at);
+        f.op(leaf.load(0));
+        f.set(*l);
+    }
+    ref_count(f, &ls, value, true);
+    f.get(at);
+    f.helper(Helper::ReleaseRef);
+    ls
+}
+
+fn ref_helper(h: &Helper, m: &Module) -> Func {
+    match h {
+        Helper::RefIsView => {
+            let mut f = Func::new("rt:ref_is_view", vec![Val::I32], vec![Val::I32]);
+            let Some(r) = m.runtime else {
+                f.i32(0);
+                return f;
+            };
+            let block = f.local(Val::I32);
+            f.get(0);
+            f.call(Sym::Inst(r.block_of));
+            f.set(block);
+            f.get(block);
+            f.op(Instruction::I32Eqz);
+            f.op(Instruction::If(BlockType::Empty));
+            f.i32(0);
+            f.op(Instruction::Return);
+            f.op(Instruction::End);
+            f.get(block);
+            f.u32(HEADER);
+            f.op(Instruction::I32Add);
+            f.get(0);
+            f.op(Instruction::I32Ne);
+            f.op(Instruction::If(BlockType::Empty));
+            f.i32(0);
+            f.op(Instruction::Return);
+            f.op(Instruction::End);
+            f.get(block);
+            f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+            f.body
+                .push(Ins::TableSlot(Sym::Helper(Helper::RefViewDrop)));
+            f.i32(1);
+            f.op(Instruction::I32Add);
+            f.op(Instruction::I32Eq);
+            f
+        }
+        Helper::RefViewDrop => {
+            let mut f = Func::new("rt:ref_view_drop", vec![Val::I32], vec![]);
+            f.get(0);
+            f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+            f.helper(Helper::ReleaseRef);
+            f
+        }
+        Helper::RefAddress => {
+            // Physical places use their address. Fields of an erased
+            // word use (word, field offset), since adding the concrete
+            // offset to that one word could alias an unrelated object.
+            let mut f = Func::new("rt:ref_serial", vec![Val::I32], vec![Val::I64]);
+            let offset = f.local(Val::I32);
+            f.op(Instruction::Block(BlockType::Empty));
+            f.op(Instruction::Loop(BlockType::Empty));
+            f.get(0);
+            f.helper(Helper::RefIsView);
+            f.op(Instruction::I32Eqz);
+            f.op(Instruction::BrIf(1));
+            f.get(offset);
+            f.get(0);
+            f.op(Instruction::I32Load(mem(HEAP, 12, 2)));
+            f.op(Instruction::I32Add);
+            f.set(offset);
+            f.get(0);
+            f.op(Instruction::I32Load(mem(HEAP, 16, 2)));
+            f.op(Instruction::If(BlockType::Empty));
+            f.get(0);
+            f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+            f.op(Instruction::I64ExtendI32U);
+            f.op(Instruction::I64Const(32));
+            f.op(Instruction::I64Shl);
+            f.get(offset);
+            f.op(Instruction::I64ExtendI32U);
+            f.op(Instruction::I64Or);
+            f.op(Instruction::Return);
+            f.op(Instruction::End);
+            f.get(0);
+            f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+            f.set(0);
+            f.op(Instruction::Br(0));
+            f.op(Instruction::End);
+            f.op(Instruction::End);
+            f.get(0);
+            f.get(offset);
+            f.op(Instruction::I32Add);
+            f.op(Instruction::I64ExtendI32U);
+            f
+        }
+        Helper::RefView { source } => {
+            let mut f = Func::new("rt:ref_view", vec![Val::I32], vec![Val::I32]);
+            // A view already carries both representations and can cross back.
+            f.get(0);
+            f.helper(Helper::RefIsView);
+            f.op(Instruction::If(BlockType::Empty));
+            if let Some(r) = m.runtime {
+                f.get(0);
+                f.call(Sym::Inst(r.retain));
+            }
+            f.get(0);
+            f.op(Instruction::Return);
+            f.op(Instruction::End);
+            let at = f.local(Val::I32);
+            f.i32(20);
+            f.body
+                .push(Ins::TableSlot(Sym::Helper(Helper::RefViewDrop)));
+            f.i32(1);
+            f.op(Instruction::I32Add);
+            f.helper(Helper::New);
+            f.set(at);
+            if let Some(r) = m.runtime {
+                f.get(0);
+                f.call(Sym::Inst(r.retain));
+            }
+            f.get(at);
+            f.get(0);
+            f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+            f.get(at);
+            f.body.push(Ins::TableSlot(Sym::Helper(Helper::RefGet {
+                source: source.clone(),
+            })));
+            f.op(Instruction::I32Store(mem(HEAP, 4, 2)));
+            f.get(at);
+            f.body.push(Ins::TableSlot(Sym::Helper(Helper::RefSet {
+                source: source.clone(),
+            })));
+            f.op(Instruction::I32Store(mem(HEAP, 8, 2)));
+            f.get(at);
+            f.i32(0);
+            f.op(Instruction::I32Store(mem(HEAP, 12, 2)));
+            f.get(at);
+            f.i32(i32::from(!source.boxed));
+            f.op(Instruction::I32Store(mem(HEAP, 16, 2)));
+            f.get(at);
+            f
+        }
+        Helper::RefLoad { value } => {
+            let vals = ref_vals(value);
+            let mut f = Func::new("rt:ref_load", vec![Val::I32], vals);
+            f.get(0);
+            f.helper(Helper::RefIsView);
+            f.op(Instruction::If(BlockType::Empty));
+            let boxed = f.local(Val::I32);
+            f.get(0);
+            f.get(0);
+            f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+            f.body
+                .push(Ins::CallIndirect(vec![Val::I32], vec![Val::I32]));
+            f.set(boxed);
+            for l in ref_unbox(&mut f, boxed, value) {
+                f.get(l);
+            }
+            f.op(Instruction::Return);
+            f.op(Instruction::End);
+            let ls: Vec<u32> = value.leaves.iter().map(|l| f.local(l.val)).collect();
+            for (leaf, l) in value.leaves.iter().zip(&ls) {
+                f.get(0);
+                f.op(leaf.load(0));
+                f.set(*l);
+            }
+            ref_count(&mut f, &ls, value, true);
+            for l in ls {
+                f.get(l);
+            }
+            f
+        }
+        Helper::RefStore { value } => {
+            let vals = ref_vals(value);
+            let mut params = vec![Val::I32];
+            params.extend(&vals);
+            let mut f = Func::new("rt:ref_store", params, vec![]);
+            let ls: Vec<u32> = (1..=u32::try_from(vals.len()).expect("values")).collect();
+            f.get(0);
+            f.helper(Helper::RefIsView);
+            f.op(Instruction::If(BlockType::Empty));
+            ref_count(&mut f, &ls, value, true);
+            let boxed = f.local(Val::I32);
+            ref_box(&mut f, &ls, value);
+            f.set(boxed);
+            f.get(0);
+            f.get(boxed);
+            f.get(0);
+            f.op(Instruction::I32Load(mem(HEAP, 8, 2)));
+            f.body.push(Ins::CallIndirect(vec![Val::I32; 2], vec![]));
+            f.op(Instruction::Return);
+            f.op(Instruction::End);
+            ref_count(&mut f, &ls, value, true);
+            let old: Vec<u32> = value.leaves.iter().map(|l| f.local(l.val)).collect();
+            for (leaf, l) in value.leaves.iter().zip(&old) {
+                f.get(0);
+                f.op(leaf.load(0));
+                f.set(*l);
+            }
+            for (leaf, l) in value.leaves.iter().zip(&ls) {
+                f.get(0);
+                f.get(*l);
+                f.op(leaf.store(0));
+            }
+            ref_count(&mut f, &old, value, false);
+            f
+        }
+        Helper::RefGet { source } => {
+            let mut f = Func::new("rt:ref_get", vec![Val::I32], vec![Val::I32]);
+            f.get(0);
+            f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+            f.helper(Helper::RefLoad {
+                value: source.clone(),
+            });
+            let ls: Vec<u32> = source.leaves.iter().map(|l| f.local(l.val)).collect();
+            for l in ls.iter().rev() {
+                f.set(*l);
+            }
+            ref_box(&mut f, &ls, source);
+            f
+        }
+        Helper::RefSet { source } => {
+            let mut f = Func::new("rt:ref_set", vec![Val::I32; 2], vec![]);
+            let ls = ref_unbox(&mut f, 1, source);
+            f.get(0);
+            f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+            for l in &ls {
+                f.get(*l);
+            }
+            f.helper(Helper::RefStore {
+                value: source.clone(),
+            });
+            ref_count(&mut f, &ls, source, false);
+            f
+        }
+        _ => unreachable!("a reference helper"),
+    }
+}
+
+fn ref_field_helper(h: &Helper, m: &Module) -> Func {
+    let (parent, field, first, offset) = match h {
+        Helper::RefProject {
+            parent,
+            field,
+            first,
+            offset,
+        }
+        | Helper::RefFieldGet {
+            parent,
+            field,
+            first,
+            offset,
+        }
+        | Helper::RefFieldSet {
+            parent,
+            field,
+            first,
+            offset,
+        } => (parent, field, *first, *offset),
+        _ => unreachable!("a field reference helper"),
+    };
+    match h {
+        Helper::RefProject { .. } => {
+            let mut f = Func::new("rt:ref_project", vec![Val::I32], vec![Val::I32]);
+            f.get(0);
+            f.helper(Helper::RefIsView);
+            f.op(Instruction::I32Eqz);
+            f.op(Instruction::If(BlockType::Empty));
+            f.get(0);
+            f.u32(offset);
+            f.op(Instruction::I32Add);
+            f.set(0);
+            if let Some(r) = m.runtime {
+                f.get(0);
+                f.call(Sym::Inst(r.retain));
+            }
+            f.get(0);
+            f.op(Instruction::Return);
+            f.op(Instruction::End);
+            let at = f.local(Val::I32);
+            f.i32(20);
+            f.body
+                .push(Ins::TableSlot(Sym::Helper(Helper::RefViewDrop)));
+            f.i32(1);
+            f.op(Instruction::I32Add);
+            f.helper(Helper::New);
+            f.set(at);
+            if let Some(r) = m.runtime {
+                f.get(0);
+                f.call(Sym::Inst(r.retain));
+            }
+            f.get(at);
+            f.get(0);
+            f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+            for (slot, helper) in [
+                (
+                    4,
+                    Helper::RefFieldGet {
+                        parent: parent.clone(),
+                        field: field.clone(),
+                        first,
+                        offset,
+                    },
+                ),
+                (
+                    8,
+                    Helper::RefFieldSet {
+                        parent: parent.clone(),
+                        field: field.clone(),
+                        first,
+                        offset,
+                    },
+                ),
+            ] {
+                f.get(at);
+                f.body.push(Ins::TableSlot(Sym::Helper(helper)));
+                f.op(Instruction::I32Store(mem(HEAP, slot, 2)));
+            }
+            f.get(at);
+            f.u32(offset);
+            f.op(Instruction::I32Store(mem(HEAP, 12, 2)));
+            f.get(at);
+            f.i32(0);
+            f.op(Instruction::I32Store(mem(HEAP, 16, 2)));
+            f.get(at);
+            f
+        }
+        Helper::RefFieldGet { .. } => {
+            let mut f = Func::new("rt:ref_field_get", vec![Val::I32], vec![Val::I32]);
+            f.get(0);
+            f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+            f.helper(Helper::RefLoad {
+                value: parent.clone(),
+            });
+            let ls: Vec<u32> = parent.leaves.iter().map(|l| f.local(l.val)).collect();
+            for l in ls.iter().rev() {
+                f.set(*l);
+            }
+            let child = &ls[first as usize..first as usize + field.leaves.len()];
+            ref_count(&mut f, child, field, true);
+            ref_count(&mut f, &ls, parent, false);
+            ref_box(&mut f, child, field);
+            f
+        }
+        Helper::RefFieldSet { .. } => {
+            let mut f = Func::new("rt:ref_field_set", vec![Val::I32; 2], vec![]);
+            let child = ref_unbox(&mut f, 1, field);
+            f.get(0);
+            f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+            f.helper(Helper::RefLoad {
+                value: parent.clone(),
+            });
+            let ls: Vec<u32> = parent.leaves.iter().map(|l| f.local(l.val)).collect();
+            for l in ls.iter().rev() {
+                f.set(*l);
+            }
+            let into = &ls[first as usize..first as usize + field.leaves.len()];
+            ref_count(&mut f, into, field, false);
+            for (target, source) in into.iter().zip(child) {
+                f.get(source);
+                f.set(*target);
+            }
+            f.get(0);
+            f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+            for l in &ls {
+                f.get(*l);
+            }
+            f.helper(Helper::RefStore {
+                value: parent.clone(),
+            });
+            ref_count(&mut f, &ls, parent, false);
+            f
+        }
+        _ => unreachable!("a field reference helper"),
+    }
 }

@@ -194,7 +194,8 @@ pub const fn runtime_fns(checked: bool) -> &'static [&'static str] {
 
 /// Every runtime function that emitted code calls, as `(module, name)`:
 /// [`runtime_fns`] of [`runtime_module`], then the collector's
-/// [`CYCLE_FNS`]. [`Runtime::from_keys`] reads their keys in this order.
+/// [`CYCLE_FNS`], then the allocator's `block_of` for reference views.
+/// [`Runtime::from_keys`] reads their keys in this order.
 #[must_use]
 pub fn runtime_items(checked: bool) -> Vec<(&'static str, &'static str)> {
     let module = runtime_module(checked);
@@ -202,6 +203,7 @@ pub fn runtime_items(checked: bool) -> Vec<(&'static str, &'static str)> {
         .iter()
         .map(|n| (module, *n))
         .chain(CYCLE_FNS.iter().map(|n| (CYCLE_MODULE, *n)))
+        .chain([(RUNTIME_MODULE, "block_of")])
         .collect()
 }
 
@@ -214,6 +216,7 @@ pub struct Runtime {
     pub free: Hash128,
     pub retain: Hash128,
     pub release: Hash128,
+    pub block_of: Hash128,
     pub cycle: Cycle,
     pub checked: Option<Checked>,
 }
@@ -249,6 +252,7 @@ impl Runtime {
     #[must_use]
     pub fn from_keys(keys: &[Option<Hash128>]) -> Option<Runtime> {
         let keys: Vec<Hash128> = keys.iter().copied().collect::<Option<_>>()?;
+        let (block_of, keys) = keys.split_last()?;
         let (counts, rest) = keys.split_first_chunk::<4>()?;
         let (checked, rest) = match rest.len() {
             4 => (None, rest),
@@ -275,6 +279,7 @@ impl Runtime {
             free,
             retain,
             release,
+            block_of: *block_of,
             cycle: Cycle {
                 collect,
                 due,

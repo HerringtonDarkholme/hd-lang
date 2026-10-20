@@ -1,0 +1,92 @@
+# test: erased reference views preserve live aliases, projected fields and identity
+# Spec 13 References: ref.deref.write, ref.place.lifetime, ref.identity.same-place.
+# expect: test
+@derive(Eq, Debug)
+struct Pair:
+    number: i32
+    text: string
+
+trait Reader:
+    fn text(self) -> string
+
+impl Reader for Pair:
+    fn text(self) -> string: self.text
+
+trait Factory:
+    fn make[T](self, value: T) -> &mut T:
+        let mut local = value
+        &mut local
+
+    fn identity[T](self, value: &mut T) -> &mut T:
+        value
+
+    fn setter[T](self, destination: &mut T) -> fn(T) -> void:
+        fn(value: T) -> void: *destination = value
+
+struct Maker: pass
+impl Factory for Maker
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("keeps a caller's aliases and identity across both crossings"):
+        let factory: &dyn Factory = &Maker {}
+        let mut pair = Pair { number: +1, text: "initial" }
+        alias := factory.identity(&mut pair)
+        assert(alias is &mut pair, reason="a view has its original place's identity")
+        pair = Pair { number: +2, text: "outside" }
+        assert_equal(*alias, Pair { number: +2, text: "outside" }, reason="a view reads later caller writes")
+        *alias = Pair { number: +3, text: "inside" }
+        assert_equal(pair, Pair { number: +3, text: "inside" }, reason="a view writes the caller's current storage")
+        field := &mut alias.text
+        assert(field is &mut pair.text, reason="projected identity forwards to the original field")
+        *field = "projected"
+        assert_equal(pair.text, "projected", reason="a projected alias writes through the parent")
+
+    it("keeps a projected alias when an open local's box is replaced"):
+        let factory: &dyn Factory = &Maker {}
+        pair := factory.make(Pair { number: +4, text: "first" })
+        field := &mut pair.text
+        another := &mut pair.text
+        assert(field is another, reason="independently created projections share identity")
+        other := factory.make(Pair { number: +4, text: "first" })
+        assert(!(field is &mut other.text), reason="equal values in different roots have distinct field identities")
+        *pair = Pair { number: +5, text: "replacement" }
+        assert_equal(*field, "replacement", reason="the field follows replacement of the whole value")
+        *field = "field write"
+        assert_equal(pair.number, +5, reason="writing one field preserves its sibling")
+        assert_equal(pair.text, "field write", reason="a field write updates the open parent")
+
+    it("retains a caller reference captured by an escaping closure"):
+        let factory: &dyn Factory = &Maker {}
+        let mut value = "first"
+        set := factory.setter(&mut value)
+        value = "outside"
+        set("later")
+        assert_equal(value, "later", reason="the returned closure keeps a live reference")
+
+    it("reads a live reference view through a value-taking dynamic receiver"):
+        let factory: &dyn Factory = &Maker {}
+        source := factory.make(Pair { number: +6, text: "first" })
+        let reader: &dyn Reader = source
+        assert_equal(reader.text(), "first", reason="a dynamic receiver reads through the view")
+        *source = Pair { number: +7, text: "next" }
+        assert_equal(reader.text(), "next", reason="dynamic reads follow replacement of the original value")
+
+    it("keeps references to values with an empty layout"):
+        let factory: &dyn Factory = &Maker {}
+        let mut value = ()
+        source := factory.identity(&mut value)
+        *source = ()
+        assert_equal(*source, (), reason="empty values cross without a payload box")
+        created := factory.make(())
+        *created = ()
+        assert_equal(*created, (), reason="an empty generic argument can produce an escaping reference")
+
+    it("preserves the direct representation of a one-address target"):
+        let factory: &dyn Factory = &Maker {}
+        let mut items = [+1, 2]
+        alias := factory.identity(&mut items)
+        assert(alias is &mut items, reason="a one-address value needs no representation view")
+        *alias = [+3, 4]
+        assert_equal(items, [+3, 4], reason="direct reference forwarding still shares its storage")

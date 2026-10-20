@@ -265,8 +265,9 @@ impl Em<'_, '_, '_> {
         let Some((target, false)) = self.ref_target(from) else {
             return unsupported("a reference payload that is no address");
         };
-        let m = mem_of(self.pool(), self.env(), target)?;
-        Ok(RefRead { leaves: m.leaves })
+        Ok(RefRead {
+            value: self.ref_layout(target)?,
+        })
     }
 
     /// `RefAsProvider` (`crates/hd_wasm/DESIGN.md` §15.2, "Providers of

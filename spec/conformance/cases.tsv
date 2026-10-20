@@ -3652,4 +3652,11 @@ runtime/valid/user-defined-iterator-trait.hd	runtime	accept	lang/06-control-flow
 runtime/valid/iterator-trait-adapter-structs.hd	runtime	accept	std/iter.md#iterator-adapters
 runtime/valid/facts-and-handles-build-once.hd	runtime	accept	lang/14-annotations.md#r-annot.handle.constants
 runtime/valid/erased-method-boxed-reference-argument.hd	runtime	accept	lang/13-values-and-references.md#r-ref.expr.place
+runtime/valid/erased-reference-aliases.hd	runtime	accept	lang/13-values-and-references.md#r-ref.identity.same-place
+runtime/valid/erased-reference-capture-escape.hd	runtime	accept	lang/13-values-and-references.md#r-ref.place.lifetime
+runtime/valid/erased-reference-cold-argument.hd	runtime	accept	std/time.md#r-std-time.helper.sleep
+runtime/valid/erased-reference-field-escape.hd	runtime	accept	lang/13-values-and-references.md#r-ref.place.lifetime
+runtime/valid/erased-reference-kept-result.hd	runtime	accept	std/time.md#duration
+runtime/valid/erased-reference-list-field.hd	runtime	accept	std/collections.md
+runtime/valid/erased-reference-result-escape.hd	runtime	accept	lang/13-values-and-references.md#r-ref.place.lifetime
 runtime/valid/dyn-generic-suspension-kept.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.suspend.type.plain-call

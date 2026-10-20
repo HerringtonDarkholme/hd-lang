@@ -1922,7 +1922,7 @@ impl Em<'_, '_, '_> {
                 let ls = self.local_value_of(*r)?;
                 let returns = !self.env().suspends(method);
                 let bk = returns.then_some(&mut backs);
-                if let Some(w) = self.erase_arg(ls[0], et, self.ty_of(*r), bk)? {
+                if let Some(w) = self.erase_arg(&ls, et, self.ty_of(*r), bk)? {
                     self.f.get(w);
                     params.push(Val::I32);
                     continue;
@@ -2164,11 +2164,17 @@ impl Em<'_, '_, '_> {
                     return unsupported("`list_truncate` of a value that is no reference");
                 };
                 let (_, e) = self.elem(lt)?;
-                // The header at the reference's address, lent to the call.
+                // A field reference may be a representation view rather
+                // than an address holding the header directly.
+                let header = self.f.local(Val::I32);
+                let value = self.ref_layout(lt)?;
                 self.comp(args[0], 0)?;
-                self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+                self.f.helper(Helper::RefLoad { value });
+                self.f.set(header);
+                self.f.get(header);
                 self.push(args[1])?;
                 self.f.helper(Helper::ListTruncate { elem: e });
+                self.release_open(header);
                 Ok(())
             }
             // The serial number of a local some reference refers to, which

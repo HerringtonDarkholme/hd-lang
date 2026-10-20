@@ -270,16 +270,18 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::RaceDrop { results, walk } => race_drop(results, walk.as_ref()),
         Helper::OpenFrame {
             part: 0,
+            reference,
             leaves,
             walk,
             counts,
-        } => open_cold(leaves, walk.as_ref(), *counts),
+        } => open_cold(leaves, walk.as_ref(), *counts, reference.as_ref()),
         Helper::OpenFrame {
+            reference,
             leaves,
             walk,
             counts,
             ..
-        } => open_poll(leaves, walk.as_ref(), *counts),
+        } => open_poll(leaves, walk.as_ref(), *counts, reference.as_ref()),
         other => unreachable!("not a task helper: {other:?}"),
     }
 }
@@ -1283,12 +1285,18 @@ fn race_drop(results: &[Val], walk: Option<&Walk>) -> Func {
 /// erased frame `child`, whose count it takes. It is `cancel!`'s cleanup
 /// frame but for its poll: its cancel cancels the child and unwinds while
 /// the child does, and its glue releases the child.
-fn open_cold(leaves: &[Leaf], walk: Option<&Walk>, counts: bool) -> Func {
+fn open_cold(
+    leaves: &[Leaf],
+    walk: Option<&Walk>,
+    counts: bool,
+    reference: Option<&crate::rt::RefLayout>,
+) -> Func {
     let mut f = Func::new("rt:open_cold", vec![Val::I32], vec![Val::I32]);
     let fr = new_zeroed(&mut f, F_SAVED, Some(Sym::Helper(Helper::ChildDrop)));
     f.get(fr);
     f.body.push(Ins::TableSlot(Sym::Helper(Helper::OpenFrame {
         part: 1,
+        reference: reference.cloned(),
         leaves: leaves.to_vec(),
         walk: walk.cloned(),
         counts,
@@ -1308,7 +1316,12 @@ fn open_cold(leaves: &[Leaf], walk: Option<&Walk>, counts: bool) -> Func {
 /// [`Helper::OpenFrame`] part 1, the poll: polls the child, and once it
 /// is Ready answers the value its open result holds, with counts of its
 /// own, and releases the open result.
-fn open_poll(leaves: &[Leaf], walk: Option<&Walk>, counts: bool) -> Func {
+fn open_poll(
+    leaves: &[Leaf],
+    walk: Option<&Walk>,
+    counts: bool,
+    reference: Option<&crate::rt::RefLayout>,
+) -> Func {
     let vals: Vec<Val> = leaves.iter().map(|l| l.val).collect();
     let mut res = vec![Val::I32];
     res.extend(vals.iter().copied());
@@ -1342,19 +1355,27 @@ fn open_poll(leaves: &[Leaf], walk: Option<&Walk>, counts: bool) -> Func {
     pending(&mut f);
     f.op(Instruction::End);
     flags_or(&mut f, 0, DONE);
-    for (leaf, x) in leaves.iter().zip(&xs) {
+    if let Some(source) = reference {
         f.get(o);
-        f.op(leaf.load(0));
-        f.set(*x);
-    }
-    if let Some(w) = walk {
-        for x in &xs {
-            f.get(*x);
-        }
-        f.helper(Helper::Retain {
-            vals: vals.clone(),
-            walk: w.clone(),
+        f.helper(Helper::RefView {
+            source: source.clone(),
         });
+        f.set(xs[0]);
+    } else {
+        for (leaf, x) in leaves.iter().zip(&xs) {
+            f.get(o);
+            f.op(leaf.load(0));
+            f.set(*x);
+        }
+        if let Some(w) = walk {
+            for x in &xs {
+                f.get(*x);
+            }
+            f.helper(Helper::Retain {
+                vals: vals.clone(),
+                walk: w.clone(),
+            });
+        }
     }
     if counts && !leaves.is_empty() {
         f.get(o);

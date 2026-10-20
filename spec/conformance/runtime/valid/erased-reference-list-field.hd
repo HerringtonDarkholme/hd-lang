@@ -1,0 +1,28 @@
+# test: shrinking a list through a field view reaches the actual list header
+# Spec 13 References: ref.write.field; Spec std/collections List Mutators.
+# expect: test
+struct Holder:
+    count: i32
+    items: List[i32]
+
+trait Factory:
+    fn make[T](self, value: T) -> &mut T:
+        let mut local = value
+        &mut local
+
+struct Maker: pass
+impl Factory for Maker
+
+tests:
+    use std.testing.assert_equal
+
+    it("mutates a list reached through an erased field reference"):
+        let factory: &dyn Factory = &Maker {}
+        holder := factory.make(Holder { count: +7, items: [+1, 2, 3] })
+        snapshot := holder.items
+        assert_equal(holder.items.pop(), .Some(+3), reason="pop shrinks the current field value")
+        assert_equal(holder.items, [+1, 2], reason="the field retains the shortened list")
+        holder.items.clear()
+        assert_equal(holder.items.len(), 0, reason="clear uses the same live list field")
+        assert_equal(snapshot, [+1, 2, 3], reason="shrinking a referenced field preserves a value snapshot")
+        assert_equal(holder.count, +7, reason="shrinking preserves neighboring fields")

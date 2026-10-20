@@ -19,7 +19,7 @@ use super::Em;
 use super::value::Src;
 use crate::layout::{Kind, Part, mem as mem_of, payload_mem, struct_mem};
 use crate::module::{EMPTY, HEAP, Val, mem};
-use crate::rt::{LIST_ELEMS, LIST_LEN};
+use crate::rt::{Helper, LIST_ELEMS, LIST_LEN, RefLayout};
 use crate::unsupported;
 
 /// Where a place starts: an address in a local, or a value's locals.
@@ -29,6 +29,30 @@ enum Base {
 }
 
 impl Em<'_, '_, '_> {
+    pub(super) fn ref_layout(&self, ty: Ty) -> StageResult<RefLayout> {
+        let m = mem_of(self.pool(), self.env(), ty)?;
+        let walk = self.counted(ty);
+        let boxed = self.vals(ty)? != [Val::I32]
+            || crate::layout::walk(self.pool(), self.env(), ty)
+                != Some(crate::layout::Walk::Ref(0));
+        Ok(RefLayout {
+            size: m.size,
+            leaves: m.leaves,
+            walk,
+            boxed,
+        })
+    }
+
+    /// An owned representation view over a borrowed source address.
+    pub(super) fn ref_view(&mut self, at: u32, source: Ty) -> StageResult<u32> {
+        let layout = self.ref_layout(source)?;
+        let view = self.f.local(Val::I32);
+        self.f.get(at);
+        self.f.helper(Helper::RefView { source: layout });
+        self.f.set(view);
+        Ok(view)
+    }
+
     /// The type reference type `t` refers to, and whether the reference
     /// is fat: a trait value.
     pub(super) fn ref_target(&self, t: Ty) -> Option<(Ty, bool)> {
@@ -103,17 +127,19 @@ impl Em<'_, '_, '_> {
         };
         let path = p.path.to_vec();
         let local_ty = |em: &Self, l: u32| em.sub(em.b.local_ty[l as usize]);
+        let mut owned_base = None;
         let (base, mut ty) = match p.kind {
             place_root::LOCAL => {
                 let t = local_ty(self, p.x);
-                // A cell that boxes its value for an erased body holds no
-                // value of the reference's type (`erased.rs`).
-                if self.is_cell(p.x as usize) && self.cell_converts(p.x as usize) {
-                    return unsupported(
-                        "a reference to a local that closures share in a generic method",
-                    );
-                }
-                if self.is_cell(p.x as usize) {
+                if self.is_cell(p.x as usize)
+                    && self.cell_converts(p.x as usize)
+                    && self.ref_layout(t)?.boxed
+                {
+                    let at = self.cell_of(p.x as usize)?;
+                    let view = self.ref_view(at, self.cell_ty(p.x as usize))?;
+                    owned_base = Some(view);
+                    (Base::At(view), t)
+                } else if self.is_cell(p.x as usize) {
                     (Base::At(self.cell_of(p.x as usize)?), t)
                 } else {
                     (Base::Vals(self.local(p.x)?), t)
@@ -173,6 +199,8 @@ impl Em<'_, '_, '_> {
             }
             _ => return unsupported("a place of an unknown kind"),
         };
+        let parent_ty = ty;
+        let has_path = !path.is_empty();
         let (mut off, mut first) = (0, 0);
         for f in path {
             let (ft, part) = self.path_step(ty, f)?;
@@ -181,12 +209,41 @@ impl Em<'_, '_, '_> {
             ty = ft;
         }
         let m = mem_of(self.pool(), self.env(), ty)?;
+        if let Base::At(at) = &base
+            && has_path
+        {
+            let parent = self.ref_layout(parent_ty)?;
+            let field = self.ref_layout(ty)?;
+            self.f.get(*at);
+            self.f.helper(Helper::RefProject {
+                parent,
+                field: field.clone(),
+                first: u32::try_from(first).expect("field"),
+                offset: off,
+            });
+            if fat {
+                let projected = self.f.local(Val::I32);
+                self.f.set(projected);
+                self.f.get(projected);
+                self.f.helper(Helper::RefLoad { value: field });
+                self.release_open(projected);
+            }
+            self.store_owned(i)?;
+            if let Some(view) = owned_base {
+                self.release_open(view);
+            }
+            return Ok(());
+        }
         match base {
             Base::At(at) if fat => {
-                for leaf in &m.leaves {
-                    self.f.get(at);
-                    self.f.op(leaf.load(off));
+                let value = self.ref_layout(ty)?;
+                self.f.get(at);
+                self.f.helper(Helper::RefLoad { value });
+                self.store_owned(i)?;
+                if let Some(view) = owned_base {
+                    self.release_open(view);
                 }
+                return Ok(());
             }
             Base::At(at) => {
                 self.f.get(at);
@@ -221,7 +278,11 @@ impl Em<'_, '_, '_> {
                 return self.store_owned(i);
             }
         }
-        self.store(i)
+        if owned_base.is_some() {
+            self.store_owned(i)
+        } else {
+            self.store(i)
+        }
     }
 
     /// `RefRead` `i` of reference `r`: the value at its address, a copy
@@ -234,12 +295,10 @@ impl Em<'_, '_, '_> {
             self.push(r)?;
             return self.store(i);
         }
-        let m = mem_of(self.pool(), self.env(), target)?;
-        for leaf in &m.leaves {
-            self.comp(r, 0)?;
-            self.f.op(leaf.load(0));
-        }
-        self.store(i)
+        let value = self.ref_layout(target)?;
+        self.comp(r, 0)?;
+        self.f.helper(Helper::RefLoad { value });
+        self.store_owned(i)
     }
 
     /// `RefWrite` of `v` through reference `r`: the place takes a count
@@ -252,31 +311,10 @@ impl Em<'_, '_, '_> {
         let Some((target, false)) = self.ref_target(self.ty_of(r)) else {
             return unsupported("a write of a whole value through a trait value reference");
         };
-        let m = mem_of(self.pool(), self.env(), target)?;
-        let counted = self.counted(target).is_some();
-        let at = self.f.local(Val::I32);
+        let value = self.ref_layout(target)?;
         self.comp(r, 0)?;
-        self.f.set(at);
-        let old: Vec<u32> = m.leaves.iter().map(|l| self.f.local(l.val)).collect();
-        if counted && !self.take(v) {
-            self.retain_ref(v)?;
-        }
-        if counted {
-            for (l, o) in m.leaves.iter().zip(&old) {
-                self.f.get(at);
-                self.f.op(l.load(0));
-                self.f.set(*o);
-            }
-        }
-        let all = Part {
-            first: 0,
-            count: m.leaves.len(),
-            offset: 0,
-        };
-        self.store_part(at, &m, all, &Src::Ref(v))?;
-        if counted {
-            self.release_locals(&old, target)?;
-        }
+        self.push(v)?;
+        self.f.helper(Helper::RefStore { value });
         Ok(())
     }
 
@@ -290,7 +328,7 @@ impl Em<'_, '_, '_> {
         self.f.i32(0);
         self.f.i32(0);
         self.comp(r, 0)?;
-        self.f.op(I::I64ExtendI32U);
+        self.f.helper(Helper::RefAddress);
         self.f.u32(EMPTY);
         self.f.i32(0);
         self.store(i)

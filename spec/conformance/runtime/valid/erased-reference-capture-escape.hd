@@ -1,0 +1,19 @@
+# test: an erased generic method captures an open reference in a returned closure
+# Spec 13 Reference lifetime: ref.place.lifetime; Spec 09 Dynamic Safety: trait.dyn.safe.method-type-param.
+# expect-stdout: 7 kept 8 captured
+trait Factory:
+    fn capture[T](self, value: T) -> fn() -> T:
+        let mut local = value
+        shared := &mut local
+        fn() -> T: *shared
+
+struct Maker: pass
+impl Factory for Maker
+
+pub fn main() -> void $ Console:
+    let factory: &dyn Factory = &Maker {}
+    number := factory.capture(+7)
+    text := factory.capture("kept")
+    pair := factory.capture((+8, "captured"))
+    let (left, right) = pair()
+    println("${number()} ${text()} $left $right")

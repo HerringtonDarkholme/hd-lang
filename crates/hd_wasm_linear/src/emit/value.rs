@@ -454,8 +454,10 @@ impl Em<'_, '_, '_> {
         let t = self.ty_of(a);
         if matches!(self.kind(t), Kind::Ref { .. }) {
             self.comp(a, 0)?;
+            self.f.helper(Helper::RefAddress);
             self.comp(b, 0)?;
-            self.f.op(I::I32Eq);
+            self.f.helper(Helper::RefAddress);
+            self.f.op(I::I64Eq);
             return self.store(i);
         }
         // A data value, a boxed enum, a list, a map and a trait value's
