@@ -21,7 +21,7 @@ use crate::unsupported;
 
 use crate::task::{
     ABANDONED, ACTIVE, CANCELLED, DONE, EXITED, F_CANCEL, F_CHILD, F_FLAGS, F_POLL, F_SAVED,
-    F_STATE, UNWINDING,
+    F_STATE, RUNNING, UNWINDING,
 };
 
 /// Whether instruction tag `t` is a suspension point.
@@ -296,6 +296,7 @@ impl Em<'_, '_, '_> {
         self.f.op(I::If(BlockType::Empty));
         self.f.helper(Helper::Frame(key));
         self.f.set(FRAME);
+        self.flags_or(FRAME, RUNNING);
         for d in self
             .susp
             .as_ref()
@@ -1081,6 +1082,7 @@ pub(super) fn finish(
     let at_of = |l: u32| area.iter().find(|x| x.0 == l).map(|x| (x.1, x.2));
     let results = em.results.clone();
     let name = em.f.name.clone();
+    crate::task::guard_frame(&mut em.f);
     let body = std::mem::take(&mut em.f);
 
     // The release glue: the places the body owns while it waits, unless

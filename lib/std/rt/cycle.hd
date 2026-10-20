@@ -18,13 +18,13 @@
 #
 # An object takes part when its header names release glue (a descriptor
 # word other than 0): its block then ends with a collector word, which
-# `track` zeroes. The word's low 2 bits are the color, bit 2 marks an
-# opaque object, and the rest is the object's place in the candidate
-# buffer plus one, 0 when it is in none. An opaque object (a suspension's
-# frame, which may be running, so its saved slots may be stale) and an
-# object without glue are never entered: what they hold counts as held
-# from outside, and a white object's reference to one is released as
-# usual once the white objects are freed.
+# `track` zeroes. The word's low 2 bits are the color, bit 2 marks a
+# suspension frame, and the rest is the object's place in the candidate
+# buffer plus one, 0 when it is in none. A running frame has stale saved
+# slots and is not entered: what it holds counts as held from outside.
+# Its candidate stays buffered until a later collection while it is idle.
+# Objects without glue are never entered; a white object's reference to
+# one is released as usual once the white objects are freed.
 #
 # The backend supplies what only it can: `trace` runs an object's release
 # glue while `visit` catches each reference the glue releases, `release`
@@ -40,7 +40,10 @@ GRAY := 1
 WHITE := 2
 PURPLE := 3
 COLORS := 4
-OPAQUE := 4
+FRAME := 4
+# Counted header (8 bytes) plus task::F_FLAGS (12); ACTIVE | RUNNING.
+FRAME_FLAGS := 20
+FRAME_RUNNING := 129
 SLOT := 8
 
 # What `visit` does with the references that `trace` finds.
@@ -78,9 +81,9 @@ let visited: usize = 0
 pub fn track(block: usize) -> void:
     set_word(block, 0)
 
-## Marks the new object holding `address` opaque, a suspension's frame: a collection never enters it, and it is never a candidate.
+## Marks the new object holding `address` as a frame; a collection enters its saved slots only while it is not running.
 pub fn opaque(address: usize) -> void:
-    set_word(block_of(address), OPAQUE)
+    set_word(block_of(address), FRAME)
 
 ## Whether the candidate buffer has passed its threshold, so a collection is due.
 pub fn due() -> bool:
@@ -88,8 +91,9 @@ pub fn due() -> bool:
 
 ## Makes the object at `block`, whose count a release just left above zero, a candidate, unless it does not take part.
 pub fn suspect(block: usize) -> void:
-    if !takes_part(block):
+    if load_u32(block + 4) == 0:
         return
+    frame := word(block) & FRAME
     slot := word(block) / SLOT
     if slot == 0:
         # A full buffer first closes the gaps of the candidates taken out.
@@ -97,9 +101,9 @@ pub fn suspect(block: usize) -> void:
             compact()
         roots = push(roots, block)
         candidates = candidates + 1
-        set_word(block, length(roots) * SLOT + PURPLE)
+        set_word(block, length(roots) * SLOT + frame + PURPLE)
     else:
-        set_word(block, slot * SLOT + PURPLE)
+        set_word(block, slot * SLOT + frame + PURPLE)
 
 ## Takes the block at `block` out of the candidate buffer before it is freed; a block in none is left alone.
 pub fn forget(block: usize) -> void:
@@ -156,7 +160,7 @@ pub fn collect(trace: fn(usize) -> void, release: fn(usize) -> void, free: fn(us
     let i: usize = 0
     while i < n:
         s := item(roots, i)
-        if s != 0:
+        if s != 0 && takes_part(s):
             if color(s) == PURPLE:
                 mark(s, trace)
             else:
@@ -165,13 +169,13 @@ pub fn collect(trace: fn(usize) -> void, release: fn(usize) -> void, free: fn(us
     i = 0
     while i < n:
         s := item(roots, i)
-        if s != 0:
+        if s != 0 && takes_part(s):
             scan(s, trace)
         i = i + 1
     i = 0
     while i < n:
         s := item(roots, i)
-        if s != 0:
+        if s != 0 && takes_part(s):
             drop_root(i, s)
             if color(s) == WHITE:
                 paint(s, BLACK)
@@ -266,9 +270,12 @@ fn compact() -> void:
     candidates = j
 
 # Whether the object at `block` takes part: its header names release glue
-# and it is not opaque.
+# and, for a frame, its saved slots are stable.
 fn takes_part(block: usize) -> bool:
-    load_u32(block + 4) != 0 && (word(block) & OPAQUE) == 0
+    load_u32(block + 4) != 0 && (
+        (word(block) & FRAME) == 0 ||
+        (usize(load_u32(block + FRAME_FLAGS)) & FRAME_RUNNING) == 0
+    )
 
 fn word(block: usize) -> usize:
     usize(load_u32(block + block_bytes(block) - 4))

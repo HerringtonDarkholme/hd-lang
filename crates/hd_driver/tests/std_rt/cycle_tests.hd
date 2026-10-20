@@ -3,7 +3,9 @@
 # since a collection frees each cycle once the candidate buffer is full.
 # Only std may read the heap's size, so the conformance runner adds this
 # file to std as `std.rt.cycle_tests`, as it does count_tests.hd.
-use std.rt.memory.pages
+use std.rt.alloc.{alloc, free_block}
+use std.rt.cycle.{collect, opaque, suspect}
+use std.rt.memory.{pages, store_u32}
 use std.rt.checked.released
 
 # The heap's pages in a bounded run: the static page, the page table, a
@@ -30,7 +32,57 @@ fn sum_to(limit: i32) -> i32:
         else: n + sum(n - 1)
     sum(limit)
 
+struct FrameRing:
+    value: i32
+    task: mut Suspend[i32]?
+
+fn frame_value!(ring: &mut FrameRing) -> i32:
+    ring.value
+
+fn frame_ring(n: i32) -> i32:
+    ring := &mut FrameRing { value: n, task: .None }
+    ring.task = .Some(frame_value(ring))
+    ring.value
+
+fn captured_frame_ring(n: i32) -> i32:
+    ring := &mut FrameRing { value: n, task: .None }
+    run := fn!() -> i32: ring.value
+    ring.task = .Some(run())
+    ring.value
+
+
+let traced: usize = 0
+let probe: usize = 0
+
+fn trace_probe(block: usize) -> void:
+    if block == probe:
+        traced = traced + 1
+
+fn unexpected_release(address: usize) -> void:
+    panic("a live probe frame must not be released")
+
+fn unexpected_free(block: usize) -> void:
+    panic("a live probe frame must not be freed")
+
+
 tests:
+    it("a running frame remains a candidate until its saved slots are stable"):
+        block := alloc(64)
+        probe = block
+        store_u32(block, 1)
+        store_u32(block + 4, 1)
+        # task::F_FLAGS follows the counted header; RUNNING is 128.
+        store_u32(block + 20, 128)
+        opaque(block + 8)
+        suspect(block)
+        traced = 0
+        collect(trace_probe, unexpected_release, unexpected_free)
+        assert(traced == 0, "a running frame's saved slots are not read")
+        store_u32(block + 20, 0)
+        collect(trace_probe, unexpected_release, unexpected_free)
+        assert(traced > 0, "the deferred candidate is traced once it is idle")
+        free_block(block)
+
     use std.testing.{assert, it}
 
     it("two hundred thousand dropped rings run in bounded memory"):
@@ -54,3 +106,14 @@ tests:
         # Checked frees quarantine blocks; only the normal allocator reuses them.
         if released() == 0:
             assert(pages() <= BOUND, "the closures' blocks are reused")
+
+    it("dropped argument and capture frame cycles reuse their heap"):
+        let total = +0
+        let round = +0
+        while round < 200000:
+            total += frame_ring(round % 10)
+            total += captured_frame_ring(round % 10)
+            round += 1
+        assert(total == 1800000, "each frame retains its argument or capture")
+        if released() == 0:
+            assert(pages() <= 256, "cycle collection reuses suspension frames")

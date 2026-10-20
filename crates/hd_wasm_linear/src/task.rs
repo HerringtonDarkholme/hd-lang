@@ -40,6 +40,10 @@ pub const ABANDONED: i32 = 32;
 /// Its body left, by completing or by its cancellation: the save area
 /// holds nothing of its own.
 pub const EXITED: i32 = 64;
+/// Frame slots may differ from the running body's locals. Kept separate
+/// from ACTIVE so direct body calls and helper polls do not change the
+/// suspension protocol's reentrancy checks. std.rt.cycle reads this bit.
+pub const RUNNING: i32 = 128;
 
 /// What `hd.poll` returns for a root that ended cancelled once its
 /// cleanup ran to its end; one less when a part of it was cut short.
@@ -154,7 +158,8 @@ fn flags_any(f: &mut Func, t: u32, bits: i32) {
 
 /// A new counted object of `size` payload bytes, zeroed, with release
 /// glue `drop` (none for `None`), in a fresh local of `f`. A frame is
-/// opaque to the cycle collector ([`Helper::Opaque`]).
+/// tagged for the cycle collector ([`Helper::Opaque`]), which enters it
+/// only while its saved slots are stable.
 fn new_zeroed(f: &mut Func, size: u32, drop: Option<Sym>) -> u32 {
     let at = f.local(Val::I32);
     f.u32(size);
@@ -190,7 +195,7 @@ const INVALID: &str = "suspension-invalid-state: a completed suspension was poll
 
 /// The helpers of this module, which [`crate::rt::helper`] sends here.
 pub fn helper(h: &Helper, m: &mut Module) -> Func {
-    match h {
+    let mut f = match h {
         Helper::Frame(key) => frame(*key, m),
         Helper::PollCheck => poll_check(),
         Helper::CancelCheck => cancel_check(),
@@ -283,7 +288,59 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             ..
         } => open_poll(leaves, walk.as_ref(), *counts, reference.as_ref()),
         other => unreachable!("not a task helper: {other:?}"),
+    };
+    if matches!(
+        h,
+        Helper::HostPoll { .. }
+            | Helper::HostCancel
+            | Helper::CleanupPoll
+            | Helper::CleanupCancel
+            | Helper::PendingPoll { .. }
+            | Helper::PendingCancel
+            | Helper::Race { part: 1 | 2, .. }
+            | Helper::OpenFrame { part: 1, .. }
+    ) {
+        guard_frame(&mut f);
     }
+    f
+}
+
+/// Defers collector tracing while local 0's frame is executing. A body
+/// may materialize a frame from 0, and a nested helper may already have
+/// set RUNNING: restore only the previous running bit on every exit.
+/// Results already on the Wasm stack are left in place by the stores.
+pub(crate) fn guard_frame(f: &mut Func) {
+    let body = std::mem::take(&mut f.body);
+    let previous = f.local(Val::I32);
+    f.get(0);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, F_FLAGS, 2)));
+    f.i32(RUNNING);
+    f.op(Instruction::I32And);
+    f.set(previous);
+    flags_or(f, 0, RUNNING);
+    f.op(Instruction::End);
+    let restore = |f: &mut Func| {
+        f.get(0);
+        f.op(Instruction::If(BlockType::Empty));
+        f.get(0);
+        f.get(0);
+        f.op(Instruction::I32Load(mem(HEAP, F_FLAGS, 2)));
+        f.i32(!RUNNING);
+        f.op(Instruction::I32And);
+        f.get(previous);
+        f.op(Instruction::I32Or);
+        f.op(Instruction::I32Store(mem(HEAP, F_FLAGS, 2)));
+        f.op(Instruction::End);
+    };
+    for ins in body {
+        if matches!(ins, Ins::Op(Instruction::Return)) {
+            restore(f);
+        }
+        f.body.push(ins);
+    }
+    restore(f);
 }
 
 /// Adds `by` to the `abandon()` depth.

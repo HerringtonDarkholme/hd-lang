@@ -198,7 +198,7 @@ the slot's start:
 | 0 | 4 | the count: 32-bit, non-atomic, with no overflow check on wasm32 (REFCOUNT_RUNTIME.md §4.4) |
 | 4 | 4 | the descriptor word: bits 0 to 23 the type descriptor's number, bits 24 to 31 tier 2's borrow flag (a writer bit and a 7-bit reader count, OBJECT_MODEL_TIER2.md §6.4; zero in tier 1) |
 | 8 | the payload's size | the payload: the fields, or a buffer's header and elements |
-| the block's last 4 bytes | 4 | the collector word, for a cycle-capable type only: the color, the opaque flag and the candidate-buffer index (REFCOUNT_RUNTIME.md §7.2, §23.28) |
+| the block's last 4 bytes | 4 | the collector word, for a cycle-capable type only: the color, the frame flag and the candidate-buffer index (REFCOUNT_RUNTIME.md §7.2, §23.28) |
 
 - A reference to a whole object is the payload's address, slot + 8, so
   its fields read at constant offsets with no lookup; the header is at
@@ -1459,16 +1459,17 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
 - **What takes part.** Every object whose descriptor word names release
   glue, so every type that can hold a counted reference: job 20's per-type
   analysis comes later. Strings and other objects without glue hold
-  nothing and never take part. A frame is opaque (`Helper::Opaque`, from
-  `task.rs`'s `new_zeroed`): a collection may start while a frame runs,
-  when the slots it saved are stale, so it is never entered and never a
-  candidate, and what it holds counts as held from outside.
+  nothing and never take part. A frame is tagged (`Helper::Opaque`, from
+  `task.rs`'s `new_zeroed`) so the collector checks its task flags. While
+  `ACTIVE` or `RUNNING` is set, its saved slots may be stale: what it
+  holds counts as held from outside, and its candidate stays buffered
+  until an idle collection. An idle frame participates like any other object.
 - **The collector word** sits in the last 4 bytes of the block, not right
   after the payload as §23.4 first planned: nothing records a payload's
   size, while the allocator knows each block's. `rt:new` asks for 4 more
   bytes when the descriptor names glue and has std's `track` zero the
   word. Its low 2 bits are the color (black, gray, white, purple), bit 2
-  marks an opaque object, and the rest is the object's place in the
+  marks a frame, and the rest is the object's place in the
   candidate buffer plus one, 0 for none.
 - **Candidates.** Std's `release` (`std.rt.alloc`'s and
   `std.rt.checked`'s) makes an object purple and buffers it when it
@@ -1484,7 +1485,19 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   glue on the payload while std's `release` hands each reference to the
   collector's `visit` instead of counting it, so no type needs trace glue
   of its own: every glue releases its references through std's `release`
-  and does nothing else.
+  and does nothing else. Frame glue walks the saved ownership slots:
+  moved and dead places are zeroed before `SaveAll`, and each `all!`
+  result is guarded by its done bit. `EXITED` skips released body slots;
+  providers and the child retain their separate ownership. The suspension
+  plan selects the resume state; these saved zeros encode that state's
+  live ownership, so tracing and final release cannot disagree.
+- **Running frames.** `task::guard_frame` sets `RUNNING` around body,
+  helper poll and helper cancel execution, restoring its previous bit on
+  every return. Direct resumed calls go straight to `Part::Body`, so the
+  body itself is guarded, including a fresh body's materialized frame.
+  This bit is separate from `ACTIVE`, preserving the suspension protocol's
+  reentrancy checks. A collection never runs user code and therefore cannot
+  change a frame's running state during its three walks.
 - **A collection** (`collect(trace, release, free)`, called with three
   function values whose code is `CycleTrace`, `CycleRelease` and
   `CycleFree`) marks gray from each purple candidate, taking one count off
@@ -1524,9 +1537,15 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   local closures; `crates/hd_driver/tests/std_rt/cycle_tests.hd` drops
   200,000 of each and checks the heap: the rings take 23 pages with the
   collector and 430 without.
+- **Frame cycles (#637).** `dropped-suspension-cycles` drops cold frames
+  retaining arguments and closure captures, then resumes a nested direct
+  call through a pending host write and collects while saved strings are
+  stale. Checked mode audits the final heap on both engines.
+  `std_rt/cycle_tests.hd` drops 400,000 argument/capture frame cycles and
+  checks reuse in the normal allocator; checked mode quarantines freed
+  blocks and checks their counts instead.
 - **Not yet.** Per-type cycle analysis (job 20), so that an acyclic type
-  records no candidate and carries no collector word; a cycle through a
-  frame is never collected while frames are opaque.
+  records no candidate and carries no collector word.
 
 ### 23.29 Wide Signatures And The Shadow Stack
 

@@ -179,10 +179,9 @@ pub enum Helper {
     /// `(env, block, ctx)`: the collector's `free`, std's `free` of the
     /// block.
     CycleFree,
-    /// `(address)`: marks the new frame at `address` opaque to the
-    /// collector (std's `opaque`): a frame may be running when a
-    /// collection starts, so its saved slots may be stale, and it is never
-    /// entered.
+    /// `(address)`: tags the new frame at `address` for the collector
+    /// (std's `opaque` entry). Idle frames use their release glue for
+    /// tracing; a running frame's saved slots are stale and not entered.
     Opaque,
     /// `()`: the panic report `MESSAGE` (`CATEGORY: TEXT`), then a trap.
     Panic(String),
