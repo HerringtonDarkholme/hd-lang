@@ -20,9 +20,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Rust commands build the workspace without the wasmtime engine, which is
-  # parked in CI (owner 2026-10-19: too slow); its crate is excluded and its
-  # `wasmtime` features stay off (crates/README.md).
+  # Every Rust command builds the whole workspace with all features, so CI
+  # covers the wasmtime engine that a plain `cargo build` leaves out (the
+  # `wasmtime` feature is off by default; crates/README.md).
   #
   # The Rust jobs run side by side, so the check takes as long as the
   # slowest one. Each restores third-party build output only (the
@@ -59,7 +59,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Lint
-        run: cargo clippy --workspace --exclude hd_run_wasmtime --all-targets --features hd_cache/disk -- -D warnings
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
 
       - name: Build browser-safe crates
         run: cargo build -p hd_syntax -p hd_web --target wasm32-unknown-unknown
@@ -90,18 +90,16 @@ jobs:
         uses: Swatinem/rust-cache@v2.9.2
 
       - name: Build release compiler
-        run: cargo build --release --workspace --exclude hd_run_wasmtime --features hd_cache/disk --bin hd
+        run: cargo build --release --workspace --all-features --bin hd
 
       - name: Test
-        run: cargo test --release --workspace --exclude hd_run_wasmtime --features hd_cache/disk -- --skip specification_conformance_passes_except_known_failures
+        run: cargo test --release --workspace --all-features -- --skip specification_conformance_passes_except_known_failures
 
   # The wasmtime host has code per operating system (process groups, Job
   # objects, pipes), so its crates are also checked and tested on Windows
   # and macOS. Linux is covered by the jobs above.
   hosts:
     name: Host crates on ${{ matrix.os }}
-    # Owner 2026-10-19: wasmtime parked in CI (too slow).
-    if: false
     strategy:
       fail-fast: false
       matrix:
@@ -149,11 +147,24 @@ jobs:
         uses: Swatinem/rust-cache@v2.9.2
 
       - name: New compiler conformance gate
-        run: cargo test --release --workspace --exclude hd_run_wasmtime --features hd_cache/disk --test conformance
+        run: cargo test --release --workspace --all-features --test conformance
 
-  # Owner 2026-10-19: wasmtime is parked in CI (too slow); conformance
-  # runs on Node only. Re-enable the wasmtime and optimized-pipeline
-  # steps from git history when it returns.
+      # Every engine: each runs a build tuned for its own target and the
+      # outputs are compared (crates/hd_opt/DESIGN.md (optimization pipelines) §5, Q3). Local runs test the
+      # V8 target on Node only.
+      - name: Conformance on Node and wasmtime
+        env:
+          HD_CONFORMANCE_ENGINE: wasmtime
+        run: cargo test --release --workspace --all-features --test conformance
+
+      # Every runtime fixture also runs through the optimized pipeline on
+      # both engines, so a miscompile in an optimization pass fails CI
+      # (docs/compiler/tiering.md §4.3).
+      - name: Conformance on the optimized pipeline
+        env:
+          HD_CONFORMANCE_ENGINE: wasmtime
+          HD_CONFORMANCE_PIPELINE: optimized
+        run: cargo test --release --workspace --all-features --test conformance
 
   # The specification's own check. It drives the Rust hd through
   # scripts/hd-conformance.sh, which builds it in the dev profile.
