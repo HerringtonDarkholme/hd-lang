@@ -7424,7 +7424,7 @@ impl Run<'_> {
             &all_inits,
             &extra,
             &[],
-            None,
+            self.session.is_some(),
             &self.planner,
         );
         // Bodies decode as collection reaches them: a body whose bytes did

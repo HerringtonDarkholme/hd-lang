@@ -436,27 +436,9 @@ pub struct Collected {
     /// provider signatures, by stripped type, which the host boundary
     /// calls instead of reading private fields directly.
     pub boundary: BoundaryMap,
-    /// With a [`Session`], the instances the collection reaches that an
-    /// earlier module of the session already defines: they are not in
-    /// `table`, and the module imports them. Empty without a session.
-    pub externs: BTreeSet<Hash128>,
     /// The trait methods that scanned code calls through a trait value
     /// ([`Target::Dyn`], a function reference's adapter included).
     pub dyn_methods: HashSet<DefId>,
-}
-
-/// What the earlier modules of a session already hold, such as the inputs
-/// before a REPL input (`f1c55020:future-work/compiler/repl-plan.md` §2.2): collection stops at their
-/// instances and leaves out the inits they ran.
-#[derive(Clone, Copy)]
-pub struct Session<'a> {
-    /// Whether an earlier module defines and exports the instance with this
-    /// key. A reached one is recorded in `Collected::externs` and neither
-    /// joins the table nor is scanned: its callees are that module's.
-    pub known: &'a dyn Fn(Hash128) -> bool,
-    /// Whether an earlier module ran the init body whose instance has this
-    /// key. Such an init is left out of `Collected::inits`.
-    pub inits_run: &'a dyn Fn(Hash128) -> bool,
 }
 
 impl Collected {
@@ -470,12 +452,10 @@ impl Collected {
 
     /// Whether the program may call trait method `method` through a trait
     /// value, so a host provider's slot for it needs its host call
-    /// (`crates/hd_wasm_linear/DESIGN.md`, host providers). An instance an earlier
-    /// session module defines was not scanned, so once one is reached
-    /// every method may be called.
+    /// (`crates/hd_wasm_linear/DESIGN.md`, host providers).
     #[must_use]
     pub fn calls_dyn(&self, method: DefId) -> bool {
-        !self.externs.is_empty() || self.dyn_methods.contains(&method)
+        self.dyn_methods.contains(&method)
     }
 }
 
@@ -1134,10 +1114,8 @@ struct Cx<'a> {
     work: Vec<InstId>,
     /// Erased bodies, `dyn` call pairs and their thunks (§13.5.1).
     witness: erased::WitnessCx,
-    session: Option<Session<'a>>,
-    /// The instances `session` already holds, by request and the digest of
-    /// its known closures (`layout::known_digest`), with their keys.
-    externs: HashMap<(DefId, Sub, TyList, Hash128), Hash128>,
+    /// Whether the program joins REPL inputs ([`collect`]).
+    joined_inputs: bool,
     /// The pipeline's body-unit passes (`plan`).
     planner: &'a dyn Planner,
     /// Each body's plan, once per build: by item, and by self type for a
@@ -1270,22 +1248,6 @@ impl Cx<'_> {
             }
             return Ok(key);
         }
-        // An instance an earlier session module holds is that module's,
-        // callees included: it is an extern, never pushed or scanned.
-        let mut computed = None;
-        let digest = defaults::digest(known, defaults);
-        if let Some(session) = self.session {
-            if let Some(&key) = self.externs.get(&(item, sub, args, digest)) {
-                return Ok(key);
-            }
-            let key = defaults::key(self.key(item, sub, args), known, defaults);
-            if (session.known)(key) {
-                self.externs.insert((item, sub, args, digest), key);
-                self.out.externs.insert(key);
-                return Ok(key);
-            }
-            computed = Some(key);
-        }
         let table = &self.out.table;
         let chain = if parent == InstId::NONE {
             0
@@ -1302,10 +1264,7 @@ impl Cx<'_> {
         if depth > u32::from(MAX_DEPTH) || chain > MAX_CHAIN {
             return Err(self.stop_too_deep(item, args, parent, depth, chain));
         }
-        let key = match computed {
-            Some(key) => key,
-            None => defaults::key(self.key(item, sub, args), known, defaults),
-        };
+        let key = defaults::key(self.key(item, sub, args), known, defaults);
         let depth = u8::try_from(depth).expect("within MAX_DEPTH");
         let (id, _) = self
             .out
@@ -3265,9 +3224,10 @@ fn note_data(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut BTreeSet<
 /// Collection from `root` (`crates/hd_mono/DESIGN.md` §13.1) and the init bodies `inits`
 /// of the groups it reaches, in initialization order: every reachable
 /// instance, each call's target, the imports and data types; or the stop
-/// at an instantiation limit. With a `session`, collection stops at the
-/// instances earlier modules hold (`Collected::externs`) and leaves out
-/// the inits they ran; without one, it collects the whole program. `refs`
+/// at an instantiation limit. With `joined_inputs` (a REPL session's
+/// program, every kept input joined), each init body is also a root of the
+/// host boundary, since each input's init runs with the entry's providers.
+/// `refs`
 /// are function references the module holds though its code takes none:
 /// each item's adapter instance at its type arguments, as a REPL
 /// session's prelude holds them for later inputs (`f1c55020:future-work/compiler/repl-plan.md` job C8).
@@ -3281,7 +3241,7 @@ pub fn collect(
     inits: &[DefId],
     extra: &[(DefId, TyList)],
     refs: &[(DefId, TyList)],
-    session: Option<Session<'_>>,
+    joined_inputs: bool,
     planner: &dyn Planner,
 ) -> StageResult<Result<Collected, TooDeep>> {
     let mut cx = Cx {
@@ -3302,8 +3262,7 @@ pub fn collect(
         out: Collected::default(),
         work: Vec::new(),
         witness: erased::WitnessCx::default(),
-        session,
-        externs: HashMap::default(),
+        joined_inputs,
         planner,
         plans: HashMap::default(),
     };
@@ -3336,11 +3295,6 @@ impl Cx<'_> {
             InstId::NONE,
         )?;
         for i in inits {
-            if let Some(session) = self.session
-                && (session.inits_run)(self.key(*i, Sub::Body(0), TyList::EMPTY))
-            {
-                continue;
-            }
             let k = self.push(*i, Sub::Body(0), TyList::EMPTY, TyList::EMPTY, InstId::NONE)?;
             self.out.inits.push(k);
         }
@@ -3359,7 +3313,7 @@ impl Cx<'_> {
         // A session's joined REPL inputs each run their init with the
         // entry's providers, so each init body is a root of the boundary
         // too.
-        if self.session.is_some() {
+        if self.joined_inputs {
             boundary_roots.extend(inits.iter().map(|d| (*d, TyList::EMPTY)));
         }
         self.note_boundary_codecs(&boundary_roots)?;

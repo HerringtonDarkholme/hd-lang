@@ -545,12 +545,7 @@ impl Cx<'_> {
             Picked::Builtin => return err("a compiler-supplied generic method in a vtable"),
         };
         let args = pool.list(&args);
-        // An erased body an earlier session module holds is registered
-        // once too: this module may still write the witness that names it.
-        let fresh = self.out.table.get(item, Sub::Erased, args).is_none()
-            && !self
-                .externs
-                .contains_key(&(item, Sub::Erased, args, Hash128(0)));
+        let fresh = self.out.table.get(item, Sub::Erased, args).is_none();
         let key = self.push(item, Sub::Erased, args, args, parent)?;
         if fresh {
             let ph = |d: DefId| env.path_hash(d);
