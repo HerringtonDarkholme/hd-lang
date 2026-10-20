@@ -14,11 +14,15 @@
 # the program, so they panic `count-audit`, outside the stable panic
 # categories (spec/lang/06-control-flow.md#r-flow.panic.known-categories).
 use std.rt.alloc.{alloc, block_bytes, block_of}
-use std.rt.cycle.{forget, suspect, visit}
+use std.rt.cycle.{forget, suspect}
 use std.rt.memory.{fill, load_u32, pages, store_u32}
 
 POISON := 0xdededede
 FRESH := 0xa5a5a5a5
+# A counted object's descriptor-word bits (std.rt.cycle): it takes part in
+# cycle collection, and it is in the collector's candidate buffer.
+CYCLIC := 0x80000000
+BUFFERED := 0x40000000
 
 # How many blocks `allocate` has given and `free` has not taken back.
 let held: usize = 0
@@ -55,18 +59,18 @@ pub fn retain(address: usize) -> void:
 
 ## Takes one from the count of the block that holds `address`, as `std.rt.alloc.release` does, after checking the block holds a live count.
 pub fn release(address: usize) -> usize:
-    if visit(address):
-        return 0
     block := block_of(address)
     if block == 0:
         return 0
     count := counted(block, "release")
     releases = releases + 1
     if count == 1:
-        forget(block)
+        if (usize(load_u32(block + 4)) & BUFFERED) != 0:
+            forget(block)
         return block
     store_u32(block, u32(count - 1))
-    suspect(block)
+    if (usize(load_u32(block + 4)) & CYCLIC) != 0:
+        suspect(block)
     0
 
 ## How many blocks are allocated and not yet freed.

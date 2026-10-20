@@ -172,7 +172,8 @@ impl Em<'_, '_, '_> {
     /// layout.
     fn raw_cell(&mut self, l: usize, src: &Src) -> StageResult<u32> {
         let (m, walk) = self.cell_mem(l)?;
-        let at = self.object(&m, walk.as_ref());
+        let cyclic = self.cyclic_holding(&[self.cell_ty(l)]);
+        let at = self.object(&m, walk.as_ref(), cyclic);
         let part = Part {
             first: 0,
             count: m.leaves.len(),
@@ -314,7 +315,12 @@ impl Em<'_, '_, '_> {
                 self.local(l32)?
             }));
         }
-        let at = self.object(&m, walk.as_ref());
+        let tys: Vec<Ty> = caps
+            .iter()
+            .map(|(l, _)| self.sub(self.b.local_ty[*l]))
+            .collect();
+        let cyclic = self.cyclic_holding(&tys);
+        let at = self.object(&m, walk.as_ref(), cyclic);
         for (s, p) in srcs.iter().zip(&parts) {
             self.store_part(at, &m, *p, s)?;
         }

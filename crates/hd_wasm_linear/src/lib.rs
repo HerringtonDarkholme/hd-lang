@@ -11,6 +11,7 @@
 
 mod asm;
 mod boundary;
+mod cycle;
 mod emit;
 mod layout;
 mod map;
@@ -177,7 +178,7 @@ pub const CHECKED_FNS: [&str; 8] = [
 /// The cycle collector (`crates/hd_wasm_linear/DESIGN.md` §23.28), which both
 /// runtimes link: `collect`, `due`, `track` and `opaque`.
 pub const CYCLE_MODULE: &str = "std.rt.cycle";
-pub const CYCLE_FNS: [&str; 4] = ["collect", "due", "track", "opaque"];
+pub const CYCLE_FNS: [&str; 5] = ["collect", "due", "track", "opaque", "visit"];
 
 /// The runtime module a build links: the checked one in checked mode.
 #[must_use]
@@ -226,14 +227,16 @@ pub struct Runtime {
 
 /// The cycle collector's functions (`crates/hd_wasm_linear/DESIGN.md` §23.28):
 /// `collect(trace, release, free)`, `due()`, whether the candidate buffer
-/// is full, `track(block)`, which zeroes a new object's collector word, and
-/// `opaque(address)`, which marks a new frame as never entered.
+/// is full, `track(block)`, which zeroes a new object's collector word,
+/// `opaque(address)`, which marks a new frame as never entered, and
+/// `visit(address)`, which takes a reference that traced glue releases.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Cycle {
     pub collect: Hash128,
     pub due: Hash128,
     pub track: Hash128,
     pub opaque: Hash128,
+    pub visit: Hash128,
 }
 
 /// The checked runtime's audit functions (`crates/hd_wasm_linear/DESIGN.md`
@@ -258,8 +261,8 @@ impl Runtime {
         let (block_of, keys) = keys.split_last()?;
         let (counts, rest) = keys.split_first_chunk::<4>()?;
         let (checked, rest) = match rest.len() {
-            4 => (None, rest),
-            8 => {
+            n if n == CYCLE_FNS.len() => (None, rest),
+            n if n == CYCLE_FNS.len() + 4 => {
                 let (c, rest) = rest.split_first_chunk::<4>()?;
                 (
                     Some(Checked {
@@ -273,7 +276,7 @@ impl Runtime {
             }
             _ => return None,
         };
-        let [collect, due, track, opaque] = *rest else {
+        let [collect, due, track, opaque, visit] = *rest else {
             return None;
         };
         let [alloc, free, retain, release] = *counts;
@@ -288,6 +291,7 @@ impl Runtime {
                 due,
                 track,
                 opaque,
+                visit,
             },
             checked,
         })

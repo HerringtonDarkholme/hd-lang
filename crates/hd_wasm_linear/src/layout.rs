@@ -259,7 +259,7 @@ pub fn vals(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Vec<V
 /// The types whose layouts `t`'s layout is made of, held by value: a
 /// tuple's members, an optional's inner type, a value enum's payload
 /// fields, a struct's fields. Every other type is one leaf or address.
-fn value_parts(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<Ty> {
+pub fn value_parts(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<Ty> {
     if hd_mono::is_open(pool, t) {
         return Vec::new();
     }

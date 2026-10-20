@@ -4,7 +4,7 @@
 # Only std may read the heap's size, so the conformance runner adds this
 # file to std as `std.rt.cycle_tests`, as it does count_tests.hd.
 use std.rt.alloc.{alloc, free_block}
-use std.rt.cycle.{collect, opaque, suspect}
+use std.rt.cycle.{collect, opaque, pending, suspect}
 use std.rt.memory.{pages, store_u32}
 use std.rt.checked.released
 
@@ -50,6 +50,21 @@ fn captured_frame_ring(n: i32) -> i32:
     ring.task = .Some(run())
     ring.value
 
+struct Body:
+    x: f64
+    tags: List[string]
+
+# Each takes its argument as its own copy, so a caller that keeps the
+# value gives a count that the callee's release leaves above zero.
+fn floats(xs: List[f64]) -> i32:
+    i32(xs.len())
+
+fn bodies(xs: List[Body]) -> i32:
+    i32(xs.len())
+
+fn apply(f: fn(i32) -> i32) -> i32:
+    f(1)
+
 
 let traced: usize = 0
 let probe: usize = 0
@@ -70,7 +85,8 @@ tests:
         block := alloc(64)
         probe = block
         store_u32(block, 1)
-        store_u32(block + 4, 1)
+        # A descriptor naming glue, with the bit that makes it take part.
+        store_u32(block + 4, 0x80000001)
         # task::F_FLAGS follows the counted header; RUNNING is 128.
         store_u32(block + 20, 128)
         opaque(block + 8)
@@ -84,6 +100,22 @@ tests:
         free_block(block)
 
     use std.testing.{assert, it}
+
+    it("values of acyclic types never become candidates"):
+        before := pending()
+        let xs: List[f64] = [1.0, 2.0]
+        let bs: List[Body] = [Body { x: 1.0, tags: ["a"] }]
+        n := +3
+        add := fn(k: i32) -> i32: k + n
+        let total = +0
+        let round = +0
+        while round < 1000:
+            total = total + floats(xs) + bodies(bs) + apply(add)
+            round = round + 1
+        assert(pending() == before, "no list, struct or closure of acyclic types became a candidate")
+        assert(total == 7000 && xs.len() == 2 && bs.len() == 1 && add(0) == 3, "the values stay alive")
+        _ := ring(+1)
+        assert(pending() > before, "a dropped ring of references is a candidate")
 
     it("two hundred thousand dropped rings run in bounded memory"):
         let total = +0

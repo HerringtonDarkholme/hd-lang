@@ -8,30 +8,35 @@
 # Rajan, "Concurrent Cycle Collection in Reference Counted Systems",
 # ECOOP 2001; docs/future-work/REFCOUNT_RUNTIME.md §7):
 #
-# 1. A release that leaves a count above zero makes the object a
-#    candidate: purple, and in the candidate buffer. Its last release takes
-#    it out again.
+# 1. A release that leaves a count above zero on an object that takes part
+#    makes it a candidate: purple, and in the candidate buffer. Its last
+#    release takes it out again.
 # 2. A collection marks gray from each purple candidate, taking one count
 #    off each object the gray ones reference; scans, so that an object
 #    with a count left, which something outside holds, and all it reaches
 #    turn black and get their counts back; and frees what stays white.
 #
-# An object takes part when its header names release glue (a descriptor
-# word other than 0): its block then ends with a collector word, which
-# `track` zeroes. The word's low 2 bits are the color, bit 2 marks a
-# suspension frame, and the rest is the object's place in the candidate
-# buffer plus one, 0 when it is in none. A running frame has stale saved
+# An object takes part when the backend decided at its allocation that its
+# type can be on a cycle (crates/hd_wasm_linear/DESIGN.md §23.28): its
+# descriptor word (the header's second word) has the CYCLIC bit, and its
+# block ends with a collector word, which `track` zeroes. The word's low
+# 2 bits are the color, bit 2 marks a suspension frame, and the rest is
+# the object's place in the candidate buffer plus one, 0 when it is in
+# none. The descriptor's BUFFERED bit says whether it is in the buffer, so
+# a release that finds it there already, or an object's last release that
+# finds it in none, never reads the collector word. A buffered object is
+# purple except while a collection runs. A running frame has stale saved
 # slots and is not entered: what it holds counts as held from outside.
 # Its candidate stays buffered until a later collection while it is idle.
-# Objects without glue are never entered; a white object's reference to
-# one is released as usual once the white objects are freed.
+# Objects that do not take part are never entered; a white object's
+# reference to one is released as usual once the white objects are freed.
 #
 # The backend supplies what only it can: `trace` runs an object's release
-# glue while `visit` catches each reference the glue releases, `release`
-# is the backend's release of one reference, and `free` the runtime's
-# free. It calls `collect` when `due` says the buffer is full, before an
-# allocation, and when the entry's poll answers, so at idle and before
-# checked mode's leak report.
+# glue while the backend's release hands each reference the glue releases
+# to `visit`, `release` is the backend's release of one reference, and
+# `free` the runtime's free. It calls `collect` when `due` says the buffer
+# is full, before an allocation, and when the entry's poll answers, so at
+# idle and before checked mode's leak report.
 use std.rt.alloc.{alloc, block_bytes, block_of, free_block}
 use std.rt.memory.{copy, load_u32, store_u32}
 
@@ -45,6 +50,10 @@ FRAME := 4
 FRAME_FLAGS := 20
 FRAME_RUNNING := 129
 SLOT := 8
+# The descriptor word's bits: the object takes part, and it is in the
+# candidate buffer.
+CYCLIC := 0x80000000
+BUFFERED := 0x40000000
 
 # What `visit` does with the references that `trace` finds.
 IDLE := 0
@@ -77,7 +86,7 @@ let threshold: usize = FIRST
 # The objects the running collection marked gray.
 let visited: usize = 0
 
-## Zeroes the collector word of the new object at `block`, whose header names release glue: black, and in no buffer.
+## Zeroes the collector word of the new object at `block`, which takes part: black, and in no buffer.
 pub fn track(block: usize) -> void:
     set_word(block, 0)
 
@@ -85,38 +94,41 @@ pub fn track(block: usize) -> void:
 pub fn opaque(address: usize) -> void:
     set_word(block_of(address), FRAME)
 
+## How many candidates the buffer holds.
+pub fn pending() -> usize:
+    candidates
+
 ## Whether the candidate buffer has passed its threshold, so a collection is due.
 pub fn due() -> bool:
     !collecting && candidates >= threshold
 
-## Makes the object at `block`, whose count a release just left above zero, a candidate, unless it does not take part.
+## Makes the object at `block`, which takes part and whose count a release just left above zero, a candidate; one already in the buffer is purple already.
 pub fn suspect(block: usize) -> void:
-    if load_u32(block + 4) == 0:
+    desc := usize(load_u32(block + 4))
+    if (desc & BUFFERED) != 0:
         return
-    frame := word(block) & FRAME
-    slot := word(block) / SLOT
-    if slot == 0:
-        # A full buffer first closes the gaps of the candidates taken out.
-        if roots != 0 && length(roots) == usize(load_u32(roots + 4)) && candidates < length(roots):
-            compact()
-        roots = push(roots, block)
-        candidates = candidates + 1
-        set_word(block, length(roots) * SLOT + frame + PURPLE)
-    else:
-        set_word(block, slot * SLOT + frame + PURPLE)
+    # A full buffer first closes the gaps of the candidates taken out.
+    if roots != 0 && length(roots) == usize(load_u32(roots + 4)) && candidates < length(roots):
+        compact()
+    roots = push(roots, block)
+    candidates = candidates + 1
+    store_u32(block + 4, u32(desc | BUFFERED))
+    set_word(block, length(roots) * SLOT + (word(block) & FRAME) + PURPLE)
 
 ## Takes the block at `block` out of the candidate buffer before it is freed; a block in none is left alone.
 pub fn forget(block: usize) -> void:
-    if load_u32(block + 4) == 0:
+    desc := usize(load_u32(block + 4))
+    if (desc & BUFFERED) == 0:
         return
     w := word(block)
     slot := w / SLOT
-    # Only a candidate's own entry names it, so a block without a
-    # collector word, whose last bytes are data, changes nothing.
+    # Only a candidate's own entry names it, so a block that is no counted
+    # object, whose second word and last bytes are data, changes nothing.
     if slot != 0 && slot <= length(roots) && item(roots, slot - 1) == block:
         set_item(roots, slot - 1, 0)
         candidates = candidates - 1
         set_word(block, w % SLOT)
+        store_u32(block + 4, u32(desc - BUFFERED))
 
 ## While a collection traces an object, takes the reference at `address` that its release glue releases and gives true; else false, so the release goes on as usual.
 pub fn visit(address: usize) -> bool:
@@ -253,6 +265,7 @@ fn drop_root(i: usize, s: usize) -> void:
     set_item(roots, i, 0)
     candidates = candidates - 1
     set_word(s, word(s) % SLOT)
+    store_u32(s + 4, u32(usize(load_u32(s + 4)) & ~BUFFERED))
 
 # Moves the candidates left to the buffer's front, each told its new place.
 fn compact() -> void:
@@ -269,10 +282,10 @@ fn compact() -> void:
         store_u32(roots, u32(j))
     candidates = j
 
-# Whether the object at `block` takes part: its header names release glue
-# and, for a frame, its saved slots are stable.
+# Whether the object at `block` takes part: its descriptor has the CYCLIC
+# bit and, for a frame, its saved slots are stable.
 fn takes_part(block: usize) -> bool:
-    load_u32(block + 4) != 0 && (
+    (usize(load_u32(block + 4)) & CYCLIC) != 0 && (
         (word(block) & FRAME) == 0 ||
         (usize(load_u32(block + FRAME_FLAGS)) & FRAME_RUNNING) == 0
     )

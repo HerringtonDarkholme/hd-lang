@@ -46,6 +46,7 @@ impl Em<'_, '_, '_> {
                 .into_iter()
                 .map(|k| k + shift)
                 .collect(),
+            cyclic: self.cyclic_object(t),
         };
         Ok((kt, vt, entry))
     }
@@ -187,7 +188,7 @@ impl Em<'_, '_, '_> {
         if items.is_empty() {
             let at = empty_buffer(self.m);
             self.f.u32(at);
-            self.f.helper(Helper::ListHeader);
+            self.f.helper(Helper::ListHeader { cyclic: e.cyclic });
             return self.store_owned(i);
         }
         let ops = self.key_ops(i, kt, &e.key_vals())?;
@@ -197,7 +198,7 @@ impl Em<'_, '_, '_> {
         let m = self.f.local(Val::I32);
         self.f.u32(cap);
         self.f.helper(Helper::MapTable { entry: e.clone() });
-        self.f.helper(Helper::ListHeader);
+        self.f.helper(Helper::ListHeader { cyclic: e.cyclic });
         self.f.set(m);
         for pair in items.chunks(2) {
             let (kl, h) = self.map_key(pair[0], &e, &ops)?;

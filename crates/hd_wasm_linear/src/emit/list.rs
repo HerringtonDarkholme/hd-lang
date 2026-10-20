@@ -38,6 +38,7 @@ impl Em<'_, '_, '_> {
             leaves: m.leaves,
             walk: self.counted(et),
             colls: coll_leaves(self.pool(), self.env(), et),
+            cyclic: self.cyclic_object(t),
         };
         Ok((et, elem))
     }
@@ -301,7 +302,7 @@ impl Em<'_, '_, '_> {
             }
             self.f.get(b);
         }
-        self.f.helper(Helper::ListHeader);
+        self.f.helper(Helper::ListHeader { cyclic: e.cyclic });
         self.store_owned(i)
     }
 

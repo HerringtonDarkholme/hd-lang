@@ -260,6 +260,7 @@ fn of_at(
                         leaves: mem.leaves,
                         walk: input.runtime.and_then(|_| layout::walk(pool, env, e)),
                         colls: layout::coll_leaves(pool, env, e),
+                        cyclic: input.runtime.is_some() && crate::cycle::object(pool, env, t),
                     };
                     let ty = of_at(input, m, e, depth + 1, at)?;
                     LTy::List(Box::new(LList { elem, ty }))
@@ -587,6 +588,8 @@ fn args_area(input: &Input<'_>, types: &[Ty]) -> StageResult<Elem> {
             None
         },
         colls: if counts { colls } else { Vec::new() },
+        // A host call's arguments are kept as a frame keeps them.
+        cyclic: counts,
     })
 }
 
@@ -1334,7 +1337,7 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
                 f.op(I::I32Add);
             });
             f.get(buf);
-            f.helper(Helper::ListHeader);
+            f.helper(Helper::ListHeader { cyclic: false });
         }
         LTy::List(l) => {
             let (n, buf, at, i) = (
@@ -1385,7 +1388,9 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
             f.op(I::End);
             f.op(I::End);
             f.get(buf);
-            f.helper(Helper::ListHeader);
+            f.helper(Helper::ListHeader {
+                cyclic: l.elem.cyclic,
+            });
         }
         LTy::Record(fields) => {
             let mut all = Vec::new();
@@ -1539,5 +1544,6 @@ fn byte_elem() -> Elem {
         }],
         walk: None,
         colls: Vec::new(),
+        cyclic: false,
     }
 }

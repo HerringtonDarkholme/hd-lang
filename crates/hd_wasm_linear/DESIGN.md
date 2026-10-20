@@ -196,7 +196,7 @@ the slot's start:
 | Offset | Size | Field |
 | --- | --- | --- |
 | 0 | 4 | the count: 32-bit, non-atomic, with no overflow check on wasm32 (REFCOUNT_RUNTIME.md §4.4) |
-| 4 | 4 | the descriptor word: bits 0 to 23 the type descriptor's number, bits 24 to 31 tier 2's borrow flag (a writer bit and a 7-bit reader count, OBJECT_MODEL_TIER2.md §6.4; zero in tier 1) |
+| 4 | 4 | the descriptor word: bits 0 to 29 the release glue's function-table slot plus one (0 for none); bit 30 set while the object is a cycle candidate, bit 31 when its type is cycle-capable (§23.28) |
 | 8 | the payload's size | the payload: the fields, or a buffer's header and elements |
 | the block's last 4 bytes | 4 | the collector word, for a cycle-capable type only: the color, the frame flag and the candidate-buffer index (REFCOUNT_RUNTIME.md §7.2, §23.28) |
 
@@ -1488,12 +1488,13 @@ synchronous trial deletion (Bacon and Rajan, ECOOP 2001), as
 docs/future-work/REFCOUNT_RUNTIME.md §7 plans. The collector is hd in
 `std.rt.cycle` (`lib/std/rt/cycle.hd`); the backend adds what only it can
 build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
-`CycleFree` and `Opaque`).
+`CycleFree` and `Opaque`, and `cycle.rs`'s per-type analysis).
 
-- **What takes part.** Every object whose descriptor word names release
-  glue, so every type that can hold a counted reference: job 20's per-type
-  analysis comes later. Strings and other objects without glue hold
-  nothing and never take part. A frame is tagged (`Helper::Opaque`, from
+- **What takes part.** An object whose type can be on a cycle, which
+  the backend decides when it emits the allocation (`cycle.rs`, job 20,
+  issue #642) and records as bit 31 (`CYCLIC`) of the descriptor word
+  (§23.4). Strings and other objects without glue hold nothing and never
+  take part. A frame is tagged (`Helper::Opaque`, from
   `task.rs`'s `new_zeroed`) so the collector checks its task flags. While
   `ACTIVE` or `RUNNING` is set, its saved slots may be stale: what it
   holds counts as held from outside, and its candidate stays buffered
@@ -1501,25 +1502,32 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
 - **The collector word** sits in the last 4 bytes of the block, not right
   after the payload as §23.4 first planned: nothing records a payload's
   size, while the allocator knows each block's. `rt:new` asks for 4 more
-  bytes when the descriptor names glue and has std's `track` zero the
-  word. Its low 2 bits are the color (black, gray, white, purple), bit 2
+  bytes when the descriptor has `CYCLIC` and has std's `track` zero the
+  word; any other object has no collector word. Its low 2 bits are the color (black, gray, white, purple), bit 2
   marks a frame, and the rest is the object's place in the
   candidate buffer plus one, 0 for none.
 - **Candidates.** Std's `release` (`std.rt.alloc`'s and
-  `std.rt.checked`'s) makes an object purple and buffers it when it
-  leaves a count above zero (`suspect`), and takes it out of the buffer at
-  its last count (`forget`), before its glue runs, so a collection never
-  sees an object half released. `free` forgets too, for the blocks the
-  backend frees directly, such as a list's old buffer. `forget` checks
-  that the buffer's entry names the block, so a block without a collector
-  word, whose last bytes are data, is left alone. A retain does not
-  blacken a purple object: a needless candidate costs a walk, not
-  correctness.
+  `std.rt.checked`'s) makes a `CYCLIC` object purple and buffers it when
+  it leaves a count above zero (`suspect`), and takes it out of the
+  buffer at its last count (`forget`), before its glue runs, so a
+  collection never sees an object half released. Bit 30 of the
+  descriptor word (`BUFFERED`) says whether the object is in the buffer:
+  a buffered object is purple outside a collection, so `suspect` returns
+  at once for one, and `forget` returns at once for one that is not, and
+  neither reads the collector word, whose place needs the block's size.
+  The release of any other object is the decrement alone. `free` forgets
+  too, for the blocks the backend frees directly, such as a list's old
+  buffer. `forget` checks that the buffer's entry names the block, so a
+  block that is no counted object, whose words are data, is left alone. A
+  retain does not blacken a purple object: a needless candidate costs a
+  walk, not correctness.
 - **Tracing is the release glue.** `CycleTrace` runs the descriptor's
-  glue on the payload while std's `release` hands each reference to the
-  collector's `visit` instead of counting it, so no type needs trace glue
-  of its own: every glue releases its references through std's `release`
-  and does nothing else. Frame glue walks the saved ownership slots:
+  glue on the payload with the `Tracing` global set, and `rt:release_ref`
+  hands each reference to the collector's `visit` instead of counting it
+  while it is set. So no type needs trace glue of its own: every glue
+  releases its references through `rt:release_ref` and does nothing else.
+  Outside a collection a release reads the global and never calls
+  `visit`. Frame glue walks the saved ownership slots:
   moved and dead places are zeroed before `SaveAll`, and each `all!`
   result is guarded by its done bit. `EXITED` skips released body slots;
   providers and the child retain their separate ownership. The suspension
@@ -1578,8 +1586,38 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   `std_rt/cycle_tests.hd` drops 400,000 argument/capture frame cycles and
   checks reuse in the normal allocator; checked mode quarantines freed
   blocks and checks their counts instead.
-- **Not yet.** Per-type cycle analysis (job 20), so that an acyclic type
-  records no candidate and carries no collector word.
+- **Cycle capability** (job 20, issue #642; REFCOUNT_RUNTIME.md §7.1).
+  An object can be on a cycle only if what it holds reaches, through
+  counted references, a value that can hold the object again.
+  `cycle::object` (a list's header and buffers, a map's table, a data
+  object, a self-recursive enum's cell) and `cycle::holding` (a closure's
+  environment, a local's cell, a `dyn` or open value's box, an iterator's
+  environment, which only open values hold) walk the types that the
+  object's contents hold, through tuples, options, structs, value enums,
+  list and map elements, data fields and boxed variants. The object takes
+  part when the walk meets a reference (`&T` or `&mut T`: it may be a view
+  into any object with a place of its target's type, so the type graph
+  cannot say what it reaches), an open value (a function value, a trait
+  value, a context, a suspension, an erased body's open type, or a type
+  the walk does not know), or, for `object`, the object's own type. The
+  walk does not ask whether a slot can be written after construction
+  (§7.1's mutable edge): a recursive immutable enum takes part, which is
+  conservative. A frame with glue (#637), a reference view and a boxed
+  reference value (`rt:ref_view_drop`, `ref_box`, whose types `rt.rs`
+  does not know) and a host call's argument area always take part. A
+  list copy (`rt:list_copy`) takes part as its original does.
+- **What it saves** (`bench/study/run.mjs`, hd on V8 only, same machine,
+  load 9 to 13 before and 5 to 9 after, so the ratios are approximate):
+  nbody 60,803 ms to 33,322; binary-trees 65,452 to 44,953; closures
+  16,673 to 11,713; json 89,904 to 56,779. `List[f64]`, `List[Body]`,
+  iterator environments and closures that capture values no longer touch
+  the collector; binary-trees' `&Node` cells still take part, as a
+  reference may close a cycle, but a release of one already in the
+  buffer returns without reading its collector word. hello (`println(42)`,
+  release) grows from 9,882 bytes to 9,985: `visit` is now called from
+  `rt:release_ref`, behind the `Tracing` check. `std_rt/cycle_tests.hd`
+  checks that sharing and dropping lists of `f64` and of a struct and a
+  closure leaves no candidate, while a dropped ring does.
 
 ### 23.29 Wide Signatures And The Shadow Stack
 

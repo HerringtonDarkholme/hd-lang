@@ -10,7 +10,9 @@ use wasm_encoder::{BlockType, Instruction};
 
 use crate::layout::{Leaf, Walk};
 use crate::map::{self, KeyOps};
-use crate::module::{BUF, EMPTY, Func, Global, HEADER, HEAP, Import, Ins, Module, Sym, Val, mem};
+use crate::module::{
+    BUF, CYCLIC, EMPTY, Func, GLUE, Global, HEADER, HEAP, Import, Ins, Module, Sym, Val, mem,
+};
 use crate::{Entry, Input, unsupported};
 
 /// A `TypeId` value (`emit/dyn_value.rs`): the key and the printable name
@@ -248,8 +250,11 @@ pub enum Helper {
         elem: Elem,
     },
     /// `(buffer) -> list`: a new list header (§23.7) over `buffer`, whose
-    /// count it takes over, with no owner word.
-    ListHeader,
+    /// count it takes over, with no owner word; it takes part in cycle
+    /// collection when `cyclic` (its element's `Elem::cyclic`).
+    ListHeader {
+        cyclic: bool,
+    },
     /// `(capacity) -> buffer`: a new, empty list buffer with room for
     /// `capacity` elements laid out as `elem`.
     ListBuf {
@@ -544,14 +549,17 @@ pub enum Helper {
 }
 
 /// A list's element as the list glue sees it: its stride, its values in
-/// memory, which of them are counted, and which are collections that a
-/// copy of the element copies (`layout::coll_leaves`).
+/// memory, which of them are counted, which are collections that a
+/// copy of the element copies (`layout::coll_leaves`), and whether the
+/// list's header and buffers take part in cycle collection
+/// (`crate::cycle`).
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Elem {
     pub size: u32,
     pub leaves: Vec<Leaf>,
     pub walk: Option<Walk>,
     pub colls: Vec<u32>,
+    pub cyclic: bool,
 }
 
 impl Elem {
@@ -600,6 +608,7 @@ pub fn ctx_elem() -> Elem {
         ],
         walk: Some(Walk::Ref(1)),
         colls: Vec::new(),
+        cyclic: true,
     }
 }
 
@@ -1237,6 +1246,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
                 Global::Waker,
                 Global::WakeBit,
                 Global::Releasing,
+                Global::Tracing,
             ] {
                 f.i32(0);
                 f.global_set(g);
@@ -1306,13 +1316,18 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::Teardown => teardown(m),
         Helper::Collect => collect(m),
         Helper::CycleTrace => {
+            // The glue's releases go to the collector's `visit` while
+            // `Tracing` is set (`release_ref`).
             let mut f = Func::new("rt:cycle_trace", vec![Val::I32; 3], vec![]);
             let desc = f.local(Val::I32);
             f.get(1);
             f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+            glue_of(&mut f);
             f.set(desc);
             f.get(desc);
             f.op(Instruction::If(BlockType::Empty));
+            f.i32(1);
+            f.global_set(Global::Tracing);
             f.get(1);
             f.u32(HEADER);
             f.op(Instruction::I32Add);
@@ -1320,6 +1335,8 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f.i32(1);
             f.op(Instruction::I32Sub);
             f.call_indirect(vec![Val::I32], vec![]);
+            f.i32(0);
+            f.global_set(Global::Tracing);
             f.op(Instruction::End);
             f
         }
@@ -1441,7 +1458,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::RetainFields { leaves, walk } => {
             fields_glue("rt:retain_fields", leaves, walk, &retain_call(m))
         }
-        Helper::ListHeader => list_header(),
+        Helper::ListHeader { cyclic } => list_header(*cyclic),
         Helper::ListPinned => list_pinned(),
         Helper::ListClone { elem } => list_clone(elem),
         Helper::ListBuf { elem } => list_buf(elem),
@@ -1985,11 +2002,32 @@ fn fields_glue(name: &str, leaves: &[Leaf], walk: &Walk, on: &dyn Fn(&mut Func))
     f
 }
 
+/// Pushes a new object's descriptor word: its release glue's table slot
+/// plus one, or 0 for none; with [`CYCLIC`] when its type is cycle-capable
+/// (`crate::cycle`), which only an object with glue can be.
+pub(crate) fn push_desc(f: &mut Func, glue: Option<Sym>, cyclic: bool) {
+    match glue {
+        Some(g) => {
+            f.body.push(Ins::TableSlot(g));
+            f.u32(if cyclic { CYCLIC + 1 } else { 1 });
+            f.op(Instruction::I32Add);
+        }
+        None => f.i32(0),
+    }
+}
+
+/// Pushes the release glue's table slot plus one from the descriptor word
+/// on the stack, without the collector's bits.
+pub(crate) fn glue_of(f: &mut Func) {
+    f.u32(GLUE);
+    f.op(Instruction::I32And);
+}
+
 /// [`Helper::New`]: a block of the header and the payload from std's
 /// `alloc`, or from the bump pointer when the program counts nothing.
 ///
 /// With the runtime, a collection runs first when the collector's buffer
-/// is full, and an object whose descriptor names glue takes part in
+/// is full, and an object whose descriptor has [`CYCLIC`] takes part in
 /// collections: its block has room for the collector word at its end,
 /// which std's `track` zeroes (§23.28).
 fn new_object(m: &Module) -> Func {
@@ -2007,8 +2045,8 @@ fn new_object(m: &Module) -> Func {
     match m.runtime {
         Some(r) => {
             f.get(1);
-            f.i32(0);
-            f.op(Instruction::I32Ne);
+            f.i32(31);
+            f.op(Instruction::I32ShrU);
             f.u32(crate::module::CYCLE_WORD);
             f.op(Instruction::I32Mul);
             f.op(Instruction::I32Add);
@@ -2025,6 +2063,8 @@ fn new_object(m: &Module) -> Func {
     f.op(Instruction::I32Store(mem(HEAP, 4, 2)));
     if let Some(r) = m.runtime {
         f.get(1);
+        f.i32(0);
+        f.op(Instruction::I32LtS);
         f.op(Instruction::If(BlockType::Empty));
         f.get(block);
         f.call(Sym::Inst(r.cycle.track));
@@ -2054,13 +2094,23 @@ fn collect(m: &Module) -> Func {
 /// enters this allocation-free worklist. Its count word then links pending
 /// blocks; its payload and descriptor stay intact until its turn. A nested
 /// descriptor release enqueues and returns, so recursive types use a bounded
-/// native stack. Cycle tracing still goes through std's `release` first.
+/// native stack. While the collector traces an object (`Tracing`), the
+/// reference goes to its `visit` instead, checked here so that `visit` is
+/// called only during a collection (§23.28).
 fn release_ref(m: &Module) -> Func {
     let mut f = Func::new("rt:release_ref", vec![Val::I32], vec![]);
     let Some(r) = m.runtime else {
         return f;
     };
     let (block, desc) = (f.local(Val::I32), f.local(Val::I32));
+    f.global_get(Global::Tracing);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(0);
+    f.call(Sym::Inst(r.cycle.visit));
+    f.op(Instruction::If(BlockType::Empty));
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
+    f.op(Instruction::End);
     f.get(0);
     f.call(Sym::Inst(r.release));
     f.set(block);
@@ -2095,6 +2145,7 @@ fn release_ref(m: &Module) -> Func {
     f.global_set(Global::ReleaseHead);
     f.get(block);
     f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+    glue_of(&mut f);
     f.set(desc);
     f.get(desc);
     f.op(Instruction::If(BlockType::Empty));
@@ -2161,8 +2212,22 @@ fn list_copy(m: &Module) -> Func {
     f.op(Instruction::End);
     f.get(b);
     retain_call(m)(&mut f);
+    // The copy takes part in cycle collection as its original does.
+    f.get(0);
+    f.u32(HEADER);
+    f.op(Instruction::I32Sub);
+    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+    f.i32(0);
+    f.op(Instruction::I32LtS);
+    f.op(Instruction::If(BlockType::Result(
+        wasm_encoder::ValType::I32,
+    )));
     f.get(b);
-    f.helper(Helper::ListHeader);
+    f.helper(Helper::ListHeader { cyclic: true });
+    f.op(Instruction::Else);
+    f.get(b);
+    f.helper(Helper::ListHeader { cyclic: false });
+    f.op(Instruction::End);
     f
 }
 
@@ -2221,20 +2286,21 @@ fn list_clone(elem: &Elem) -> Func {
         f.helper(Helper::CopyElems { elem: elem.clone() });
     }
     f.get(nb);
-    f.helper(Helper::ListHeader);
+    f.helper(Helper::ListHeader {
+        cyclic: elem.cyclic,
+    });
     f
 }
 
-fn list_header() -> Func {
+fn list_header(cyclic: bool) -> Func {
     let mut f = Func::new("rt:list_header", vec![Val::I32], vec![Val::I32]);
     let h = f.local(Val::I32);
     f.i32(8);
-    f.body.push(Ins::TableSlot(Sym::Helper(Helper::DropFields {
+    let glue = Sym::Helper(Helper::DropFields {
         leaves: vec![LIST_BUF_LEAF],
         walk: Walk::Ref(0),
-    })));
-    f.i32(1);
-    f.op(Instruction::I32Add);
+    });
+    push_desc(&mut f, Some(glue), cyclic);
     f.helper(Helper::New);
     f.set(h);
     f.get(h);
@@ -2269,15 +2335,11 @@ fn list_buf(elem: &Elem) -> Func {
     f.op(Instruction::I32Mul);
     f.u32(LIST_ELEMS);
     f.op(Instruction::I32Add);
-    if elem.walk.is_some() {
-        f.body.push(Ins::TableSlot(Sym::Helper(Helper::DropElems {
-            elem: elem.clone(),
-        })));
-        f.i32(1);
-        f.op(Instruction::I32Add);
-    } else {
-        f.i32(0);
-    }
+    let glue = elem
+        .walk
+        .as_ref()
+        .map(|_| Sym::Helper(Helper::DropElems { elem: elem.clone() }));
+    push_desc(&mut f, glue, elem.cyclic);
     f.helper(Helper::New);
     f.set(b);
     f.get(b);
@@ -2749,16 +2811,15 @@ fn ref_box(f: &mut Func, ls: &[u32], value: &RefLayout) {
     }
     let at = f.local(Val::I32);
     f.u32(value.size);
-    if let Some(walk) = &value.walk {
-        f.body.push(Ins::TableSlot(Sym::Helper(Helper::DropFields {
+    // The value's type is not known here, so a box that holds a counted
+    // reference takes part in cycle collection.
+    let glue = value.walk.as_ref().map(|walk| {
+        Sym::Helper(Helper::DropFields {
             leaves: value.leaves.clone(),
             walk: walk.clone(),
-        })));
-        f.i32(1);
-        f.op(Instruction::I32Add);
-    } else {
-        f.i32(0);
-    }
+        })
+    });
+    push_desc(f, glue, true);
     f.helper(Helper::New);
     f.set(at);
     for (leaf, l) in value.leaves.iter().zip(ls) {
@@ -2902,6 +2963,7 @@ fn ref_helper(h: &Helper, m: &Module) -> Func {
             f.op(Instruction::End);
             f.get(block);
             f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+            glue_of(&mut f);
             f.body
                 .push(Ins::TableSlot(Sym::Helper(Helper::RefViewDrop)));
             f.i32(1);
@@ -2973,10 +3035,9 @@ fn ref_helper(h: &Helper, m: &Module) -> Func {
             f.op(Instruction::End);
             let at = f.local(Val::I32);
             f.i32(20);
-            f.body
-                .push(Ins::TableSlot(Sym::Helper(Helper::RefViewDrop)));
-            f.i32(1);
-            f.op(Instruction::I32Add);
+            // A view holds its source, whose type is not known here, so
+            // it takes part in cycle collection.
+            push_desc(&mut f, Some(Sym::Helper(Helper::RefViewDrop)), true);
             f.helper(Helper::New);
             f.set(at);
             if let Some(r) = m.runtime {
@@ -3066,10 +3127,9 @@ fn ref_field_helper(h: &Helper, m: &Module) -> Func {
             f.op(Instruction::End);
             let at = f.local(Val::I32);
             f.i32(20);
-            f.body
-                .push(Ins::TableSlot(Sym::Helper(Helper::RefViewDrop)));
-            f.i32(1);
-            f.op(Instruction::I32Add);
+            // A view holds its source, whose type is not known here, so
+            // it takes part in cycle collection.
+            push_desc(&mut f, Some(Sym::Helper(Helper::RefViewDrop)), true);
             f.helper(Helper::New);
             f.set(at);
             if let Some(r) = m.runtime {

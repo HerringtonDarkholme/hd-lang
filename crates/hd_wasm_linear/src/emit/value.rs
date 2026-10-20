@@ -16,7 +16,7 @@ use crate::layout::{
     Kind, Leaf, Mem, Part, Walk, enum_mem, fields_walk, kind, payload_mem, struct_mem, variants,
     walk,
 };
-use crate::module::{HEADER, HEAP, Ins, Sym, Val, mem};
+use crate::module::{HEADER, HEAP, Sym, Val, mem};
 use crate::rt::Helper;
 use crate::unsupported;
 
@@ -116,23 +116,19 @@ impl Em<'_, '_, '_> {
 
     /// A new counted object whose payload is laid out as `m`, with the
     /// counted references `walk` (§23.4): a local holding its payload's
-    /// address. Its descriptor names the release glue of its payload.
-    pub(super) fn object(&mut self, m: &Mem, walk: Option<&Walk>) -> u32 {
+    /// address. Its descriptor names the release glue of its payload, and
+    /// says whether it takes part in cycle collection (`cyclic`, from
+    /// `crate::cycle`).
+    pub(super) fn object(&mut self, m: &Mem, walk: Option<&Walk>, cyclic: bool) -> u32 {
         let at = self.f.local(Val::I32);
         self.f.u32(m.size);
-        match walk {
-            Some(w) => {
-                self.f
-                    .body
-                    .push(Ins::TableSlot(Sym::Helper(Helper::DropFields {
-                        leaves: m.leaves.clone(),
-                        walk: w.clone(),
-                    })));
-                self.f.i32(1);
-                self.f.op(I::I32Add);
-            }
-            None => self.f.i32(0),
-        }
+        let glue = walk.map(|w| {
+            Sym::Helper(Helper::DropFields {
+                leaves: m.leaves.clone(),
+                walk: w.clone(),
+            })
+        });
+        crate::rt::push_desc(&mut self.f, glue, cyclic);
         self.f.helper(Helper::New);
         self.f.set(at);
         at
@@ -202,7 +198,8 @@ impl Em<'_, '_, '_> {
                     for (r, ft) in fields.iter().zip(&tys) {
                         srcs.push(self.slot_src(*r, *ft, true)?);
                     }
-                    let at = self.object(&m, walk.as_ref());
+                    let cyclic = self.cyclic_object(t);
+                    let at = self.object(&m, walk.as_ref(), cyclic);
                     for (s, p) in srcs.iter().zip(&parts) {
                         self.store_part(at, &m, *p, s)?;
                     }
@@ -320,7 +317,8 @@ impl Em<'_, '_, '_> {
                             None => None,
                         });
                     }
-                    let at = self.object(&m, walk.as_ref());
+                    let cyclic = self.cyclic_object(t);
+                    let at = self.object(&m, walk.as_ref(), cyclic);
                     for (f, p) in parts.iter().enumerate() {
                         match &srcs[f] {
                             Some(s) => self.store_part(at, &m, *p, s)?,
@@ -544,7 +542,8 @@ impl Em<'_, '_, '_> {
         };
         if matches!(self.kind(t), Kind::Boxed) {
             let walk = self.cell_walk(t);
-            let cell = self.object(&m, walk.as_ref());
+            let cyclic = self.cyclic_object(t);
+            let cell = self.object(&m, walk.as_ref(), cyclic);
             for (p, l) in m.leaves.iter().enumerate() {
                 self.store_leaf(
                     &|em: &mut Self| {

@@ -116,7 +116,8 @@ impl Em<'_, '_, '_> {
         let src = self.slot_src(a, from, false)?;
         let m = mem_of(self.pool(), self.env(), from)?;
         let w = self.counted(from);
-        let at = self.object(&m, w.as_ref());
+        let cyclic = self.cyclic_holding(&[from]);
+        let at = self.object(&m, w.as_ref(), cyclic);
         let part = Part {
             first: 0,
             count: m.leaves.len(),

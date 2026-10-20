@@ -9,7 +9,7 @@ use hd_base::Hash128;
 use wasm_encoder::{BlockType, Instruction as I};
 
 use crate::layout::{Leaf, Walk};
-use crate::module::{Func, HEADER, HEAP, Ins, Module, Sym, Val, mem};
+use crate::module::{Func, HEADER, HEAP, Module, Sym, Val, mem};
 use crate::rt::{Helper, OptVal, own_arg, retain_call, walk_code};
 
 /// A table's payload: the live entry count, the written entry count
@@ -58,6 +58,9 @@ pub struct Entry {
     pub key_walk: Option<Walk>,
     pub val_walk: Option<Walk>,
     pub colls: Vec<u32>,
+    /// Whether the map's header and tables take part in cycle collection
+    /// (`crate::cycle`).
+    pub cyclic: bool,
 }
 
 impl Entry {
@@ -161,17 +164,15 @@ fn table_bytes(f: &mut Func, cap: u32, size: u32) {
 }
 
 /// Pushes a table's descriptor: its release glue's table slot plus one,
-/// or 0 when an entry holds nothing counted.
+/// or 0 when an entry holds nothing counted, with the collector's bit when
+/// the map takes part in cycle collection.
 fn descriptor(f: &mut Func, entry: &Entry) {
-    if entry.walk().is_some() {
-        f.body.push(Ins::TableSlot(Sym::Helper(Helper::DropEntries {
+    let glue = entry.walk().map(|_| {
+        Sym::Helper(Helper::DropEntries {
             entry: entry.clone(),
-        })));
-        f.i32(1);
-        f.op(I::I32Add);
-    } else {
-        f.i32(0);
-    }
+        })
+    });
+    crate::rt::push_desc(f, glue, entry.cyclic);
 }
 
 /// Emits a loop over the written entries `0..used` of the table in local

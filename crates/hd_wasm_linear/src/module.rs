@@ -42,9 +42,19 @@ pub const EMPTY: u32 = STATIC_BASE;
 
 /// The size of a counted object's header, before its payload (§23.4).
 pub const HEADER: u32 = 8;
-/// The bytes of the collector word at the end of a block whose header
-/// names release glue (`crates/hd_wasm_linear/DESIGN.md` §23.28).
+/// The bytes of the collector word at the end of a block that takes part
+/// in cycle collection (`crates/hd_wasm_linear/DESIGN.md` §23.28).
 pub const CYCLE_WORD: u32 = 4;
+/// The descriptor word's bit that marks an object of a cycle-capable type,
+/// set at its allocation: only such objects take part in cycle collection
+/// and carry a collector word (§23.28).
+pub const CYCLIC: u32 = 1 << 31;
+/// The descriptor word's bit that marks an object in the collector's
+/// candidate buffer, which `std.rt.cycle` sets and clears.
+pub const BUFFERED: u32 = 1 << 30;
+/// The descriptor word's bits that name the release glue: its table slot
+/// plus one, 0 for none.
+pub const GLUE: u32 = BUFFERED - 1;
 
 /// A function: an instance by key, a runtime helper, or a host import.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -155,6 +165,9 @@ pub enum Global {
     ReleaseHead,
     /// One outer release drains `ReleaseHead`; nested releases only enqueue.
     Releasing,
+    /// Set while the cycle collector traces an object, so that a release
+    /// goes to the collector's `visit` instead of counting (§23.28).
+    Tracing,
     /// The shadow stack pointer: the lowest address of the newest frame
     /// (§23.29).
     Stack,
@@ -181,6 +194,7 @@ impl Global {
             | Global::AllPolls
             | Global::ReleaseHead
             | Global::Releasing
+            | Global::Tracing
             | Global::Stack => Val::I32,
             Global::HashSeed => Val::I64,
             Global::Storage(_, _, v) => *v,

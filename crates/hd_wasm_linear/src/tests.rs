@@ -210,6 +210,7 @@ fn every_runtime_helper_validates() {
             leaves: vec![word(0), word(4), word(8)],
             walk: None,
             colls: vec![],
+            cyclic: false,
         },
         res: crate::task::HostRes::Buf(every.clone()),
     };
@@ -253,6 +254,7 @@ fn string_area() -> Elem {
         leaves: vec![word(0), word(4)],
         walk: Some(crate::layout::Walk::Ref(0)),
         colls: vec![],
+        cyclic: false,
     }
 }
 
@@ -296,6 +298,7 @@ fn every_boundary_type() -> LTy {
                 leaves: vec![word(0), word(4)],
                 walk: None,
                 colls: vec![],
+                cyclic: false,
             },
             ty: LTy::Str,
         })),

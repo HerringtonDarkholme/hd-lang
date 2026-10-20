@@ -263,7 +263,8 @@ impl Em<'_, '_, '_> {
                 // captured, which never changes: the reference is to a new
                 // object holding a copy (`ref.expr.allocate`).
                 let w = self.counted(ty);
-                let obj = self.object(&m, w.as_ref());
+                let cyclic = self.cyclic_holding(&[ty]);
+                let obj = self.object(&m, w.as_ref(), cyclic);
                 let src = Src::Locals(ls[first..first + m.leaves.len()].to_vec());
                 let all = Part {
                     first: 0,

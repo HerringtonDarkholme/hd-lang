@@ -64,7 +64,8 @@ impl Em<'_, '_, '_> {
             return unsupported("an iterator environment of another layout");
         }
         let walk = fields_walk(self.pool(), self.env(), &tys);
-        let env = self.object(&m, walk.as_ref());
+        let cyclic = self.cyclic_holding(&tys);
+        let env = self.object(&m, walk.as_ref(), cyclic);
         let h = self.header(coll)?;
         let store = |em: &mut Self, m: &Mem, p: Part, v: &dyn Fn(&mut Self) -> StageResult<()>| {
             em.store_leaf(

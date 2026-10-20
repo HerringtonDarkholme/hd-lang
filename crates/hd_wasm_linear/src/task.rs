@@ -164,14 +164,9 @@ fn new_zeroed(f: &mut Func, size: u32, drop: Option<Sym>) -> u32 {
     let at = f.local(Val::I32);
     f.u32(size);
     let glue = drop.is_some();
-    match drop {
-        Some(d) => {
-            f.body.push(Ins::TableSlot(d));
-            f.i32(1);
-            f.op(Instruction::I32Add);
-        }
-        None => f.i32(0),
-    }
+    // A frame with glue takes part in cycle collection: what its saved
+    // slots hold is not known here (§23.28).
+    crate::rt::push_desc(f, drop, true);
     f.helper(Helper::New);
     f.set(at);
     if glue {

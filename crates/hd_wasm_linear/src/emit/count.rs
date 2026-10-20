@@ -94,6 +94,19 @@ impl Em<'_, '_, '_> {
         walk(self.pool(), self.env(), t)
     }
 
+    /// Whether a new object of type `t` (a data value, a self-recursive
+    /// enum's cell, a list's or a map's) takes part in cycle collection
+    /// (`crate::cycle`).
+    pub(super) fn cyclic_object(&self, t: Ty) -> bool {
+        self.input.runtime.is_some() && crate::cycle::object(self.pool(), self.env(), t)
+    }
+
+    /// Whether a new object holding values of `parts`, which only an open
+    /// value can hold, takes part in cycle collection (`crate::cycle`).
+    pub(super) fn cyclic_holding(&self, parts: &[Ty]) -> bool {
+        self.input.runtime.is_some() && crate::cycle::holding(self.pool(), self.env(), parts)
+    }
+
     /// Calls `on` for the value in locals `ls` of type `t`: one count more
     /// (`retain`) or less on each of its counted references.
     pub(super) fn count_locals(&mut self, ls: &[u32], t: Ty, retain: bool) -> StageResult<()> {
