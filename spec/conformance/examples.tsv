@@ -692,7 +692,7 @@ lang/14-annotations.md	44	mixed	typing/invalid/error-message-unknown-name.hd|typ
 lang/14-annotations.md	45	mixed	typing/valid/error-derivation.hd|typing/invalid/error-second-cause.hd|typing/invalid/error-cause-not-error.hd
 lang/14-annotations.md	46	mixed	typing/invalid/error-from-same-type.hd|typing/invalid/error-from-type-parameter.hd
 lang/14-annotations.md	47	accept	typing/valid/error-derivation.hd
-lang/14-annotations.md	49	accept	typing/valid/error-generated-bounds.hd|typing/valid/error-interpolated-bound.hd
+lang/14-annotations.md	48	accept	typing/valid/error-generated-bounds.hd|typing/valid/error-interpolated-bound.hd
 std/format.md	1	accept	runtime/valid/debug-source-text.hd
 std/format.md	2	accept	typing/valid/debug-writer-builders.hd
 std/format.md	3	accept	typing/valid/std-types-debug.hd
@@ -969,4 +969,3 @@ std/regex.md	14	type-fragment	-
 std/regex.md	15	accept	runtime/valid/regex-errors.hd
 lang/01-lexical-structure.md	28	accept	parse/valid/duration-literals.hd
 lang/04-type-system.md	14	accept	typing/valid/duration-literals.hd
-lang/14-annotations.md	48	accept	runtime/valid/error-exit-code-derived.hd

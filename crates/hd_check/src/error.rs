@@ -91,12 +91,13 @@ pub fn error_bodies(
         let Some(ItemData::Impl { methods, .. }) = cx.lookup.item(def).map(|i| &i.data) else {
             continue;
         };
-        for &(_, method) in methods {
-            let Some(sig) = cx.lookup.item(method).and_then(|i| i.sig()).cloned() else {
-                continue;
-            };
-            out.push(target.body(cx, g, def, method, &sig, diags)?);
-        }
+        let Some(&(_, method)) = methods.first() else {
+            continue;
+        };
+        let Some(sig) = cx.lookup.item(method).and_then(|i| i.sig()).cloned() else {
+            continue;
+        };
+        out.push(target.body(cx, g, def, method, &sig, diags)?);
     }
     Ok(out)
 }
@@ -140,21 +141,11 @@ impl Target<'_, '_> {
             })
         };
         let ret = sig.ret;
-        let exit_code = cx
-            .lookup
-            .item(method)
-            .is_some_and(|i| cx.names.text(i.name) == "exit_code");
         let tail = match g {
             Generated::Display => {
                 let arms: Vec<usize> = (0..self.shape.variants.len()).collect();
                 self.dispatch(&mut ck, (p, pty), ret, &arms, &mut |me, ck, vi| {
                     me.display_arm(ck, (p, pty), vi, &own)
-                })?
-            }
-            Generated::Error if exit_code => {
-                let arms: Vec<usize> = (0..self.shape.variants.len()).collect();
-                self.dispatch(&mut ck, (p, pty), ret, &arms, &mut |me, ck, vi| {
-                    me.exit_code_arm(ck, (p, pty), vi, &own)
                 })?
             }
             Generated::Error => {
@@ -331,45 +322,6 @@ impl Target<'_, '_> {
                 Ok(ck.b.const_str(&name))
             }
         }
-    }
-
-    /// Explicit code, enum default, or transparent member forwarding.
-    fn exit_code_arm(
-        &self,
-        ck: &mut Ck<'_, '_>,
-        p: (LocalId, Ty),
-        vi: usize,
-        own: &dyn Fn(Ty) -> Ty,
-    ) -> StageResult<Ref> {
-        let v = &self.shape.variants[vi];
-        if let (Message::Transparent, Some([f])) = (v.message, self.members(vi)) {
-            let node = v.members[0].node;
-            let t = own(f.ty);
-            let r = self.read(ck, p, vi, 0, t);
-            let error = ck.cx.names.known.error;
-            // The generated cause body already diagnoses this same Error
-            // bound. Do not report it again for the forwarded exit code.
-            let bound = TraitRef {
-                trait_: error,
-                self_ty: t,
-                args: TyList::EMPTY,
-            };
-            if matches!(ck.solve(bound)?, hd_types::solver::Answer::Fails(_)) {
-                return Ok(ck.b.emit(
-                    Tag::Poison,
-                    NONE,
-                    NONE,
-                    Ty::prim(hd_types::Prim::I32),
-                    node.index(),
-                ));
-            }
-            return Ok(ck.trait_call(error, "exit_code", r, t, &[], node)?.0);
-        }
-        let code = v.exit_code.unwrap_or(1);
-        Ok(ck.b.const_value(
-            hd_types::Ty::prim(hd_types::Prim::I32),
-            u64::from(code.cast_unsigned()),
-        ))
     }
 
     /// The cause of variant `vi`, of type `ret` (`dyn Error?`)

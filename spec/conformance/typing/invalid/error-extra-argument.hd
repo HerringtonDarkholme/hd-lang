@@ -1,5 +1,5 @@
 # test: an @error line with a message and an extra argument
-# Spec 14 Error Types: annot.error.form.options and
+# Spec 14 Error Types: annot.error.form.argument and
 # annot.error.form.argument.examples; a message line takes exactly one message.
 
 @error

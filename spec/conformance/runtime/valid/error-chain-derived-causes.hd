@@ -1,6 +1,6 @@
 # test: chain and report_of follow the causes of derived errors: an absent optional source ends the chain, and a transparent variant is not listed twice
 # Spec std/error Cause Chain: std-error.chain.order, std-error.chain.end, std-error.report.cause-texts, std-error.report.display;
-# 14 Error Derivation: annot.error.cause.optional, annot.error.form.variant-transparent-code.
+# 14 Error Derivation: annot.error.cause.optional, annot.error.form.variant-transparent.
 use std.error.{Error, ErrorReport, chain, report_of}
 @error("disk full")
 struct DiskError:

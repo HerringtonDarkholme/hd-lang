@@ -1,5 +1,5 @@
 # test: an @error argument that is a number, neither a message nor transparent
-# Spec 14 Error Types: annot.error.form.options.
+# Spec 14 Error Types: annot.error.form.argument.
 
 @error(42)  # diagnostic: invalid-error-marker
 struct DiskError:

@@ -1689,10 +1689,10 @@ runtime/valid/never-break-continue.hd	runtime	accept	lang/04-type-system.md#r-ty
 typing/invalid/foreign-inherent-impl.hd	type	reject:orphan-impl	lang/09-traits.md#r-trait.own.inherent
 parse/invalid/tab-in-string-literal.hd	parse	reject:tab-whitespace	lang/01-lexical-structure.md#r-lex.tab.content
 parse/invalid/tab-between-tokens.hd	parse	reject:tab-whitespace	lang/01-lexical-structure.md#r-lex.tab.invalid
-typing/invalid/error-argument-identifier.hd	type	reject:invalid-error-marker	lang/14-annotations.md#r-annot.error.form.options
+typing/invalid/error-argument-identifier.hd	type	reject:invalid-error-marker	lang/14-annotations.md#r-annot.error.form.argument
 typing/invalid/error-message-prefixed.hd	type	reject:invalid-error-marker	lang/14-annotations.md#r-annot.error.message.string
-typing/invalid/error-argument-number.hd	type	reject:invalid-error-marker	lang/14-annotations.md#r-annot.error.form.options
-typing/invalid/error-extra-argument.hd	type	reject:invalid-error-marker	lang/14-annotations.md#r-annot.error.form.options
+typing/invalid/error-argument-number.hd	type	reject:invalid-error-marker	lang/14-annotations.md#r-annot.error.form.argument
+typing/invalid/error-extra-argument.hd	type	reject:invalid-error-marker	lang/14-annotations.md#r-annot.error.form.argument
 typing/valid/error-interpolated-bound.hd	type	accept	lang/14-annotations.md#r-annot.error.bound.interpolated
 typing/valid/choices-generic-draws.hd	type	accept	std/testing.md#r-std-testing.choices.int-range
 runtime/valid/property-draw-budget.hd	runtime	accept	std/testing.md#r-std-testing.limit
@@ -3623,12 +3623,4 @@ typing/invalid/duration-range.hd	type	reject:integer-literal-range	lang/04-type-
 typing/invalid/duration-unknown-unit.hd	type	reject:unknown-name	lang/03-names-and-scopes.md#r-names.literal-fn.unknown-user
 runtime/valid/duration-literals.hd	runtime	accept	std/time.md#duration
 runtime/valid/duration-literal-timeout.hd	runtime	accept	std/time.md#duration
-runtime/valid/error-exit-code-derived.hd	runtime	accept	lang/14-annotations.md#r-annot.error.exit-code.override
-runtime/valid/error-exit-code-transparent-dynamic.hd	runtime	accept	lang/14-annotations.md#r-annot.error.exit-code.override
-typing/invalid/error-exit-code-bad-type.hd	type	reject:invalid-error-marker	lang/14-annotations.md#r-annot.error.exit-code.literal
-typing/invalid/error-exit-code-out-of-range.hd	type	reject:invalid-error-marker	lang/14-annotations.md#r-annot.error.exit-code.literal
-typing/invalid/error-exit-code-duplicate.hd	type	reject:invalid-error-marker	lang/14-annotations.md#r-annot.error.exit-code.literal
-typing/invalid/error-exit-code-transparent-override.hd	type	reject:invalid-error-marker	lang/14-annotations.md#r-annot.error.exit-code.literal
-typing/invalid/error-exit-code-expression.hd	type	reject:invalid-error-marker	lang/14-annotations.md#r-annot.error.exit-code.literal
-typing/valid/error-exit-code-boundaries.hd	type	accept	lang/14-annotations.md#r-annot.error.exit-code.literal
 runtime/valid/provider-value-reference-identity.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.ref.share.reference-values

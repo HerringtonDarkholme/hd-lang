@@ -1869,7 +1869,7 @@ fn load(text: string) -> Result[i64, LoadError]:
 
 1. r[annot.error.intrinsic] `@error` is a compiler intrinsic, as `@derive` is. It is not an ordinary decorator and attaches no value.
 2. r[annot.error.name] `@error` always means the intrinsic. A binding named `error` in scope, such as an import, does not change it.
-3. r[annot.error.type.exit-code] An **error type** is an enum carrying `@error` or `@error(exit_code=N)`, or a struct carrying a message or transparent `@error` form.
+3. r[annot.error.type] An **error type** is an enum with a bare `@error` line, or a struct with an `@error("...")` or `@error(transparent)` line.
 4. r[annot.error.generates] For an error type `E`, the compiler generates `impl Display for E`, `impl Error for E`, and one `impl From[P] for E` for each `@from` member.
 5. r[annot.error.ordinary] The generated implementations are ordinary implementations, under the ordinary rules for coherence and overlap.
 6. r[annot.error.hand-written] A hand-written implementation of `Display`, `Error`, or a generated `From[P]` for an error type is an error, reported on that implementation. Error: `overlapping-impl`.
@@ -1878,18 +1878,18 @@ The forms are:
 
 | Rule | Form | Written before | Meaning |
 | --- | --- | --- | --- |
-| r[annot.error.form.enum-code] Error enum | `@error` or `@error(exit_code=N)` | an enum | makes the enum an error type, optionally choosing its default code |
-| r[annot.error.form.variant-message-code] Variant message | `@error("...", exit_code=N)` with either argument optional | a variant of an error enum | the variant's message and exit code |
-| r[annot.error.form.variant-transparent-code] Transparent variant | `@error(transparent)` | a variant of an error enum with one payload member | forwards the message, cause and exit code to that member |
-| r[annot.error.form.data-message-code] Error struct | `@error("...", exit_code=N)` with the code optional | a struct | makes it an error type with that message and code |
-| r[annot.error.form.data-transparent-code] Transparent struct | `@error(transparent)` | a struct with one field | makes it an error type forwarding message, cause and exit code to that field |
+| r[annot.error.form.enum] Error enum | `@error` | an enum | makes the enum an error type |
+| r[annot.error.form.variant-message] Variant message | `@error("...")` | a variant of an error enum | the variant's message |
+| r[annot.error.form.variant-transparent] Transparent variant | `@error(transparent)` | a variant of an error enum with one payload member | forwards the message and the cause to that member |
+| r[annot.error.form.data-message] Error struct | `@error("...")` | a struct | makes it an error type with that message |
+| r[annot.error.form.data-transparent] Transparent struct | `@error(transparent)` | a struct with one field | makes it an error type that forwards to that field |
 | r[annot.error.form.from] Conversion marker | `@from` | the only payload parameter of a variant of an error enum, or the only field of an error struct | generates `From` and marks the cause |
 | r[annot.error.form.source] Cause marker | `@source` | one payload parameter of a variant of an error enum, or one field of an error struct | marks the cause |
 
 7. r[annot.error.form.other] Any other `@error` line is an error, and so is any other `@from` or `@source` line inside an error type. A form on the wrong target is `decorator-target-kind`; an invalid argument or marker argument is `invalid-error-marker`, as the rules below specify.
 8. r[annot.error.form.misplaced] A form written before a target that the table does not list for it is an error, reported on the form. Error: `decorator-target-kind`.
 9. r[annot.error.form.misplaced.examples] So `@error` before a function or a newtype, and a bare `@error` before a struct, are each `decorator-target-kind`. So are `@error("...")` before an enum, and `@from` beside a second payload member.
-10. r[annot.error.form.options] Invalid `@error` arguments, including invalid `exit_code` options, are errors reported on the decorator. Error: `invalid-error-marker`.
+10. r[annot.error.form.argument] An `@error` line whose arguments are neither one message nor `transparent` is an error, reported on the line. Error: `invalid-error-marker`.
 11. r[annot.error.form.argument.examples] So `@error(opaque)`, `@error(42)`, and `@error("closed", "shut")` are each `invalid-error-marker`.
 12. r[annot.error.form.marker-argument] An `@from` or `@source` line with arguments inside an error type, such as `@from(yaml)`, is an error, reported on the line. A marker takes no value. Error: `invalid-error-marker`.
 13. r[annot.error.marker] Inside an error type, `from`, `source`, and `transparent` in these forms are markers, not names. A binding with the same name does not change them.
@@ -2050,30 +2050,6 @@ converts a `RepoError` into it.
 
 > **Note.** Because a transparent value's `cause` skips the inner error,
 > `find::[Inner]()` does not see that inner error itself, as in Rust.
-
-### Derived Error Exit Codes
-
-A derived error chooses its code through an optional named `exit_code` argument on `@error`.
-
-```text
-@error(exit_code=2)
-enum CommandError:
-    @error("$usage", exit_code=0)
-    Help(usage: string)
-    @error("unknown option: $name")
-    Unknown(name: string)
-```
-
-1. r[annot.error.exit-code.override] A variant's `exit_code=N` overrides the enclosing enum's default for that nontransparent variant.
-2. r[annot.error.exit-code.enum] `@error(exit_code=N)` on an enum sets its default exit code.
-3. r[annot.error.exit-code.struct] `@error("message", exit_code=N)` on a struct sets its exit code.
-4. r[annot.error.exit-code.default] An ordinary derived error without a variant or type code keeps `Error.exit_code`'s default of 1.
-5. r[annot.error.exit-code.literal] An `exit_code` argument must occur at most once and be a decimal integer literal fitting `i32`. Error: `invalid-error-marker`.
-6. r[annot.error.exit-code.transparent] A transparent variant or struct forwards its member's `Error.exit_code()`, regardless of an enclosing enum default.
-7. r[annot.error.exit-code.no-transparent-override] An explicit `exit_code` on a transparent form is an error. Error: `invalid-error-marker`.
-8. r[annot.error.exit-code.only] A variant's `@error(exit_code=N)` keeps its ordinary variant-name message.
-
-A handwritten `Error` implementation still overlaps the generated implementation; the option changes no coherence rules.
 
 ### Generated Error Bounds
 
