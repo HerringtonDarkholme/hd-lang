@@ -10,5 +10,5 @@ impl Disposable for Lock:
         self.held = false
 
 fn peek!(lock: &Lock) -> void:
-    using held = lock  # diagnostic: mutable-receiver-required
+    using held = lock  # diagnostic: not-writable
     pass

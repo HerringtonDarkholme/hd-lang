@@ -1,8 +1,8 @@
-# test: a mutable list root does not make its readonly elements mutable during iteration
+# test: a list behind a &mut reference does not make its loop binding writable
 # Spec 06 Built-In Collection Iteration: flow.for.no-root-grant.
 struct Child:
     name: string
 
 fn rename(children: &mut List[Child]) -> void:
     for child in children:
-        child.name = "renamed"  # diagnostic: readonly-root
+        child.name = "renamed"  # diagnostic: not-writable

@@ -2,4 +2,4 @@ struct Child:
     name: string
 
 fn invalid(children: &List[Child], replacement: Child) -> void:
-    children[0] = replacement  # diagnostic: readonly-root
+    children[0] = replacement  # diagnostic: not-writable

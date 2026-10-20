@@ -71,15 +71,6 @@ grammar of `requirement_clause`, `requirement_row`, and `requirement_key`.
 4. r[req.row.syntax.same-form] A header and a type write a row the same way, as in `fn(UserId) -> User $ Database + Cache`.
 5. r[req.row.syntax.empty] The clause `$()` writes the empty row explicitly.
 6. r[req.row.syntax.no-mut] A key has no `mut` prefix; a trait's methods decide the provider's access, as [Mutable Providers](#mutable-providers) describes.
-7. r[req.row.syntax.old-separator] A comma between keys, as in the former `$ Clock, Logger` or `$(Clock, Logger)`, is an error whose fix-it writes `Clock + Logger`. Error: `old-row-separator`.
-
-```text
-trait Clock
-
-trait Logger
-
-fn both() -> void $ Clock, Logger: pass  # error: old-row-separator
-```
 
 See also: [Mutable Providers](#mutable-providers),
 [Types](02-grammar.md#types).
@@ -265,7 +256,7 @@ fn run() -> void $ Db + Metrics:
 
 > **Note.** Row subsumption converts a function value, not a container of
 > function values. Variance still keeps a function type's row invariant
-> ([Readonly Outer Views](04-type-system.md#readonly-outer-views)), so a
+> ([Variance](04-type-system.md#variance)), so a
 > `List[fn() -> void $ Db]` value does not convert to
 > `List[fn() -> void $ Db + Clock]`. A wider list is built by an explicit
 > copy, such as a spread into a list with the wider element type:
@@ -366,10 +357,10 @@ fn map[T, U, $R](items: List[T], f: fn(T) -> U $ R) -> List[U] $ R:
 5. r[req.row.param.unmarked] A parameter written without `$` and used in a row is an error whose fix-it adds `$` to its declaration. Error: `generic-kind-mismatch`.
 6. r[req.row.param.as-type] A row parameter used as a type, as in `value: R` after `$R`, is an error. Error: `generic-kind-mismatch`.
 7. r[req.row.param.one-kind] One parameter cannot be used as both an ordinary type and a requirement row.
-8. r[req.row.param.no-data] A data type, an enum, or a trait declares no row parameter: each of its own generic parameters is type-kinded.
-9. r[req.row.param.no-data.marked] A `$` on a generic parameter of a data type, an enum, a trait, or a newtype, as in `data Job[$R]`, is an error. Error: `generic-kind-mismatch`.
+8. r[req.row.param.no-data] A struct, an enum, or a trait declares no row parameter: each of its own generic parameters is type-kinded.
+9. r[req.row.param.no-data.marked] A `$` on a generic parameter of a struct, an enum, a trait, or a newtype, as in `struct Job[$R]`, is an error. Error: `generic-kind-mismatch`.
 10. r[req.row.param.no-data.error] Using such a parameter in requirement position, as in a field of type `fn() -> void $ R`, is an error. Error: `generic-kind-mismatch`.
-11. r[req.row.param.no-newtype] A newtype declares no row parameter either, as a data type does not. So `type Job[R](fn() -> void $ R)` is an error. Error: `generic-kind-mismatch`.
+11. r[req.row.param.no-newtype] A newtype declares no row parameter either, as a struct does not. So `type Job[R](fn() -> void $ R)` is an error. Error: `generic-kind-mismatch`.
 12. r[req.row.param.context] `$.Context[...]` takes only a concrete row, so a row parameter in its row is an error. Error: `row-parameter-in-context`.
 
 ```text
@@ -598,7 +589,7 @@ fn build() -> string $ Factory:  # valid: create is only unavailable on the prov
     $.use(Factory).name()
 ```
 
-> **Why.** The rule keeps provider views attenuated: a provider reached
+> **Why.** The rule keeps provider values attenuated: a provider reached
 > through a key can never be tested for its concrete type.
 
 See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
@@ -683,7 +674,7 @@ trait Clock
 ### Provider Values
 
 1. r[req.use.value.ordinary-type] A provider value returned by `$.use(K)` is an ordinary value of type `dyn K`, or a trait value reference to `dyn K` by [`req.ref.use`](#r-req.ref.use).
-2. r[req.use.value.access-by-trait] Its access follows from its trait, as [Mutable Providers](#mutable-providers) describes: writable for a mutable requirement trait, readonly otherwise.
+2. r[req.use.value.access-by-trait] Its access follows from its trait, as [Mutable Providers](#mutable-providers) describes: writable for a mutable requirement trait, not writable otherwise.
 3. r[req.use.value.flow] A provider value may flow anywhere an ordinary value of that type may flow, including fields, collections, closure captures, return values, and suspension frames.
 4. r[req.use.value.outlives-scope] A provider value remains usable after its provider scope ends.
 5. r[req.use.value.row-meaning] A requirement row therefore records unresolved provider lookup, not every authority a callable can exercise through values it holds.
@@ -958,7 +949,7 @@ fn demo() -> i32:
 ```
 
 1. r[req.mut.trait-changing] A **mutable requirement trait** is a trait that declares or inherits at least one `mut self` or `&mut self` method.
-2. r[req.mut.trait-access] A provider's access follows from its trait alone: mutable for a mutable requirement trait, readonly for any other trait.
+2. r[req.mut.trait-access] A provider's access follows from its trait alone: writable for a mutable requirement trait, not writable for any other trait.
 3. r[req.mut.no-spelling] Requirement syntax never writes `mut`: a row key `mut K`, `$.use(mut K)`, and a binding `mut K=expression` are errors. Error: `syntax-error`.
 
 ```text
@@ -975,8 +966,8 @@ fn tick() -> void $ mut Counter:  # error: syntax-error
 
 > **Note.** Adding a `mut self` or `&mut self` method, even one with a
 > default, to a published requirement trait that had none is a breaking
-> change. `$.use` then yields `mut K` or `&mut dyn K`, and installing a
-> readonly value becomes `mutable-upgrade`. Adding a first `&self` or
+> change. `$.use` then yields a writable provider, and installing a `&T`
+> reference becomes `mutable-upgrade`. Adding a first `&self` or
 > `&mut self` method changes the type of `$.use` too
 > ([`req.ref.use`](#r-req.ref.use)).
 
@@ -988,8 +979,8 @@ fn tick() -> void $ mut Counter:  # error: syntax-error
 
 ### Installing
 
-1. r[req.mut.install-writable-ref] For a mutable requirement trait `K`, the expression of a binding `K=expression` in `$.with` or `$.context` must be writable. Its type must be `mut T` or `&mut T` for a type `T` implementing `K`. A readonly view or a `&T` reference is an error. Error: `mutable-upgrade`.
-2. r[req.mut.install-readonly-trait] For any other trait, the expression may have either access, and the provider is installed with readonly access.
+1. r[req.mut.install-writable-ref] For a mutable requirement trait `K`, a reference in a binding `K=expression` in `$.with` or `$.context` must be `&mut T` for a type `T` implementing `K`. A `&T` reference is an error. Error: `mutable-upgrade`.
+2. r[req.mut.install-readonly-trait] For any other trait, the reference may be `&T` or `&mut T`, and the provider is installed without write access.
 
 ```text
 pub fn main() -> void:
@@ -998,20 +989,24 @@ pub fn main() -> void:
         _ := $.use(Counter).count()
 ```
 
-> **Note.** A fresh value such as `MemoryCounter { value: 0 }` has mutable
-> access, so it may be installed directly
-> ([Bindings And Fresh Values](04-type-system.md#bindings-and-fresh-values)).
+> **Note.** A new object is installed as a reference to it, as in
+> `$.with(Counter=&mut MemoryCounter { value: 0 })`, by
+> [`req.ref.install-ref`](#r-req.ref.install-ref).
 
 ### Retrieving
 
-1. r[req.mut.use-writable] For a mutable requirement trait `K`, `$.use(K)` yields `mut K`, or `&mut dyn K` by [`req.ref.use`](#r-req.ref.use). The methods of `K` that change their receiver may be called on it.
-2. r[req.mut.use-readonly] For any other trait, `$.use(K)` yields readonly `K`, or `&dyn K` by [`req.ref.use`](#r-req.ref.use).
-3. r[req.mut.use.binding] The ordinary binding rules still apply to the result: a `:=` binding exposes a readonly view.
+1. r[req.mut.use-writable] For a mutable requirement trait `K`, `$.use(K)` yields a writable provider, `&mut dyn K` by [`req.ref.use`](#r-req.ref.use). The methods of `K` that change their receiver may be called on it.
+2. r[req.mut.use-readonly] For any other trait, `$.use(K)` yields `dyn K`, or `&dyn K` by [`req.ref.use`](#r-req.ref.use).
+3. r[req.mut.use.binding] The ordinary binding rules still apply to the result: a `:=` binding is not writable, so a method declared `mut self` cannot be called through it. Error: `not-writable`.
 
 ```text
+trait Counter:
+    fn count(self) -> i32
+    fn bump(mut self) -> void
+
 fn tick() -> void $ Counter:
     counter := $.use(Counter)
-    counter.bump()  # error: mutable-receiver-required
+    counter.bump()  # error: not-writable
 ```
 
 > **Note.** Code that keeps a mutable provider in a local writes
@@ -1035,7 +1030,7 @@ fn demo() -> void $ Counter:
 
 ### Entry-Point Access
 
-1. r[req.mut.entry.trait-access] A runtime profile binds the host provider for a mutable requirement trait with mutable access, and every other host provider with readonly access.
+1. r[req.mut.entry.trait-access] A runtime profile binds the host provider for a mutable requirement trait with write access, and every other host provider without it.
 2. r[req.mut.entry.registered-access] A registration contract binds each trait it lists the same way.
 3. r[req.mut.entry.no-marking] Neither a runtime profile nor a registration contract marks a trait mutable.
 
@@ -1124,14 +1119,11 @@ fn shared(tally: &Tally) -> void:
 1. r[req.ref.share] For a key whose trait has no `&self` or `&mut self` method, the expression of a binding may be a reference `&S` or `&mut S` when `S` implements `K`. Its provider is the trait value `dyn K` that refers to the place the reference refers to.
 2. r[req.ref.share.impl] A reference to a type that does not implement `K` explicitly is an error. Error: `type-mismatch`.
 3. r[req.ref.share.write-through] A method that changes its receiver, called on that provider through `$.use(K)`, changes that place.
-4. r[req.ref.share.bridge] A struct's `&mut self` method that fills a trait method declared `mut self`, by [`trait.impl.receiver-bridge`](09-traits.md#r-trait.impl.receiver-bridge), serves calls through such a provider.
-5. r[req.ref.share.bridge.default] Installing a reference to such a struct is an error when its implementation does not write a default method of the trait. Error: `unsatisfied-trait-bound`.
-6. r[req.ref.share.no-trait-value-ref] A trait value reference is no provider for such a key. Error: `type-mismatch`.
+4. r[req.ref.share.no-trait-value-ref] A trait value reference is no provider for such a key. Error: `type-mismatch`.
 
 ```hd
 trait Inventory:
     fn stock(self, sku: string) -> i32
-    fn reserve(mut self, sku: string, qty: i32) -> void
 
 struct Shelf:
     apples: i32
@@ -1139,26 +1131,22 @@ struct Shelf:
 impl Inventory for Shelf:
     fn stock(self, sku: string) -> i32:
         self.apples
-    fn reserve(&mut self, sku: string, qty: i32) -> void:
-        self.apples -= qty
 
-fn order() -> void $ Inventory:
-    $.use(Inventory).reserve("apple", 3)  # a `mut Inventory` that changes `shelf`
+fn count() -> i32 $ Inventory:
+    $.use(Inventory).stock("apple")  # a `dyn Inventory` that refers to `shelf`
 
 fn demo() -> i32:
-    let mut shelf = Shelf { apples: 10 }
-    $.with(Inventory=&mut shelf):
-        order()
-    shelf.apples  # 7
+    let shelf = Shelf { apples: 10 }
+    $.with(Inventory=&shelf):
+        count()  # 10
 ```
 
-> **Why.** The trait's methods take `self` and `mut self`, so its provider
+> **Why.** The trait has no `&self` or `&mut self` method, so its provider
 > stays the trait value `dyn K`, and code that names that type keeps
 > checking. The trait value shares the place, as a trait value reference
 > made from the same reference would.
 
-See also: [Mutable Providers](#mutable-providers),
-[Receivers Of Struct Implementations](09-traits.md#receivers-of-struct-implementations).
+See also: [Mutable Providers](#mutable-providers).
 
 ## Suspending Functions
 
@@ -1200,7 +1188,7 @@ fn(A, B) -> mut Suspend[T] $ R
 4. r[req.suspend.type.plain-call] Calling either form without `!` constructs the cold mutable `Suspend[T]`.
 5. r[req.suspend.type.bang] Only the first form supports `callee!(...)` directly.
 6. r[req.suspend.type.not-suspending] A bang call whose callee is neither a suspending function or function value nor a `Suspend[T]` value is an error. Error: `not-suspending`.
-7. r[req.suspend.type.readonly-binding] A `:=` binding weakens that fresh result to readonly `Suspend[T]`, which cannot call `poll` or `cancel`.
+7. r[req.suspend.type.readonly-binding] A `:=` binding weakens that result to readonly `Suspend[T]`, which cannot call `poll` or `cancel`.
 
 ```text
 fn plain() -> i32: 42
@@ -1373,8 +1361,6 @@ result:
 enum Poll[T]:
     Pending
     Ready(T)
-
-data Suspend[T]: pass
 
 impl[T] Suspend[T]:
     fn poll(mut self, context: PollContext) -> Poll[T]

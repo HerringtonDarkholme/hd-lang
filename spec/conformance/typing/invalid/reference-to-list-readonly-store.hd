@@ -1,4 +1,4 @@
 # test: an element store through a read-only reference to a list is an error
 # Spec 13 Writing Through A Reference: ref.write.index.
 fn invalid(r: &List[i32]) -> void:
-    r[0] = 1  # diagnostic: readonly-root
+    r[0] = 1  # diagnostic: not-writable

@@ -6,25 +6,11 @@
 
 use hd_diag::Code;
 use hd_resolve::ItemData;
-use hd_syntax::{NodeRef, SyntaxKind};
+use hd_syntax::NodeRef;
 use hd_tir::ir::{Coercion, Ref, Tag};
-use hd_types::{ParamRef, Ty, TyData, VarKind};
+use hd_types::{Ty, TyData, VarKind};
 
 use crate::body::Ck;
-
-/// How a field's declared type relates to its container's access
-/// (types.path.field).
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum FieldKind {
-    /// `field: mut U`.
-    MutableEdge,
-    /// `field: U` with a composite `U`.
-    ReadonlyEdge,
-    /// An embedded field.
-    Embedded,
-    /// `field: P` for a generic parameter `P`, or a non-composite field.
-    Other,
-}
 
 impl Ck<'_, '_> {
     /// Whether a type is a composite reference type that has a readonly
@@ -38,27 +24,30 @@ impl Ck<'_, '_> {
             // A struct is a value with no views (`types.value.no-view`).
             // An enum is a value too: it changes by replacing the whole
             // value (`ref.place.writable.enum`).
-            TyData::Adt { def, .. } => !self.is_struct_def(def) && !self.is_enum_def(def),
+            TyData::Adt { def, .. } => {
+                !self.is_struct_def(def) && !self.is_enum_def(def) && !self.is_coll_def(def)
+            }
             TyData::TraitValue { .. } => true,
             _ => false,
         }
     }
 
     /// Whether an expression of type `t` has mutable access
-    /// (types.path.access): a `mut U` type, or a parameter bounded by a
-    /// `mut` trait. A type with no readonly view, or one not known yet,
-    /// counts as mutable so that no error is reported on it.
+    /// (types.path.access): a `mut U` type. A type with no readonly view,
+    /// or one not known yet, counts as mutable so that no error is reported
+    /// on it.
     pub(crate) fn has_mut_access(&self, t: Ty) -> bool {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
         match pool.get(t) {
             TyData::Mut(_) => true,
-            TyData::Param(_) => (0..self.env.clause_self.len())
-                .any(|i| self.env.clause_self[i] == t && self.env.clause_mut[i]),
+            TyData::Param(_) => false,
             // A struct and an enum are values with no readonly view: an
             // enum changes by replacing the whole value, so a writable
             // place holding one is writable (`ref.place.writable.enum`).
-            TyData::Adt { def, .. } => self.is_struct_def(def) || self.is_enum_def(def),
+            TyData::Adt { def, .. } => {
+                self.is_struct_def(def) || self.is_enum_def(def) || self.is_coll_def(def)
+            }
             TyData::TraitValue { .. } => false,
             _ => true,
         }
@@ -70,6 +59,13 @@ impl Ck<'_, '_> {
             .lookup
             .item(def)
             .is_some_and(|i| matches!(i.data, hd_resolve::ItemData::Enum { .. }))
+    }
+
+    /// Whether `def` is `List` or `Map`, a copy-on-write value
+    /// (`types.coll.value`).
+    pub(crate) fn is_coll_def(&self, def: hd_base::DefId) -> bool {
+        let known = self.cx.names.known;
+        def == known.list || def == known.map
     }
 
     /// Whether `def` is a `struct` declaration (`data.struct.decl`).
@@ -87,7 +83,8 @@ impl Ck<'_, '_> {
     }
 
     /// Whether `let mut` may bind a value of type `t`: mutable access, or
-    /// an optional of a `mut` payload (types.bind.let-mut-optional).
+    /// an optional of a `mut Suspend[T]` payload or of a type that is not
+    /// composite.
     pub(crate) fn let_mut_ok(&self, t: Ty) -> bool {
         let pool = self.pool();
         let r = self.infer.resolve(pool, t);
@@ -100,8 +97,8 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// The readonly view of `t`: its outer `mut` removed
-    /// (types.bind.short, types.bind.let-readonly).
+    /// The readonly form of `t`: its outer `mut` removed, which only a
+    /// `mut Suspend[T]` has (types.mut.weaken).
     pub(crate) fn readonly_view(&self, t: Ty) -> Ty {
         let pool = self.pool();
         let r = self.infer.resolve(pool, t);
@@ -111,58 +108,31 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// The declared kind of a data field of `t`'s type.
-    pub(crate) fn field_kind(&self, t: Ty, name: &str) -> Option<FieldKind> {
-        let pool = self.pool();
-        let t = self.strip_mut(t);
-        let TyData::Adt { def, .. } = pool.get(t) else {
-            return None;
-        };
-        let ItemData::Data(fields) = &self.cx.lookup.item(def)?.data else {
-            return None;
-        };
-        let sym = self.cx.names.syms.intern(name);
-        let f = fields.iter().find(|f| f.name == sym)?;
-        Some(if f.embedded {
-            FieldKind::Embedded
-        } else {
-            match pool.get(f.ty) {
-                TyData::Mut(_) => FieldKind::MutableEdge,
-                TyData::Param(ParamRef { .. }) => FieldKind::Other,
-                TyData::Adt { .. } | TyData::TraitValue { .. } => FieldKind::ReadonlyEdge,
-                _ => FieldKind::Other,
-            }
-        })
-    }
-
-    /// The access type of the field read `e.name` whose substituted type
-    /// is `ft` (types.path.field): a mutable edge loses its `mut` through
-    /// a readonly `e`; an embedded field takes `e`'s access.
+    /// The type of the field read `e.name` whose substituted type is `ft`:
+    /// a field declared `mut Suspend[T]` loses its `mut` through an `e`
+    /// that is not writable.
     pub(crate) fn field_access(&self, base: Ty, name: &str, ft: Ty) -> Ty {
         let pool = self.pool();
-        let mutable = self.has_mut_access(base);
-        match self.field_kind(base, name) {
-            Some(FieldKind::MutableEdge) if !mutable => self.readonly_view(ft),
-            Some(FieldKind::Embedded) if mutable => {
-                if matches!(pool.get(self.infer.resolve(pool, ft)), TyData::Mut(_)) {
-                    ft
-                } else {
-                    pool.intern_ty(&TyData::Mut(ft))
-                }
-            }
-            Some(FieldKind::Embedded) => self.readonly_view(ft),
-            _ => ft,
+        let TyData::Adt { def, .. } = pool.get(self.strip_mut(base)) else {
+            return ft;
+        };
+        let Some(ItemData::Data(fields)) = self.cx.lookup.item(def).map(|i| &i.data) else {
+            return ft;
+        };
+        let sym = self.cx.names.syms.intern(name);
+        let mut_field = fields
+            .iter()
+            .any(|f| f.name == sym && matches!(pool.get(f.ty), TyData::Mut(_)));
+        if mut_field && !self.has_mut_access(base) {
+            self.readonly_view(ft)
+        } else {
+            ft
         }
     }
 
     /// A store `e.f = v` or `e[i] = v` needs mutable access to `e`
-    /// (types.path.store.readonly-edge, types.path.store.readonly-root).
-    pub(crate) fn check_store_target(
-        &mut self,
-        base: NodeRef<'_>,
-        (br, bt): (Ref, Ty),
-        at: NodeRef<'_>,
-    ) {
+    /// (types.path.store.not-writable).
+    pub(crate) fn check_store_target(&mut self, (br, bt): (Ref, Ty), at: NodeRef<'_>) {
         // An element store changes a collection value through a writable
         // place (`types.coll.writable`).
         if self.is_coll_ty(bt) {
@@ -172,33 +142,15 @@ impl Ck<'_, '_> {
         if self.has_mut_access(bt) {
             return;
         }
-        let mut edge = false;
-        if base.kind() == SyntaxKind::FieldExpr
-            && let Some(i) = br.as_inst()
-            && self.b.body_mut().tags.get(i.0 as usize) == Some(&Tag::Field)
-        {
-            let inner = Ref(self.b.body_mut().data[i.0 as usize][0]);
-            let it = self.b.ty_of(inner);
-            let name = self.cx.src.text(self.cx.src.last(base)).to_owned();
-            edge = self.field_kind(it, &name) == Some(FieldKind::ReadonlyEdge);
-        }
-        if edge {
-            self.err(
-                Code::ReadonlyEdge,
-                at,
-                "the field is declared without `mut`, so its value is readonly",
-            );
-        } else {
-            let msg = format!(
-                "{} is a readonly view; mutation needs `mut` access",
-                self.show(bt)
-            );
-            self.err(Code::ReadonlyRoot, at, &msg);
-        }
+        let msg = format!(
+            "{} is a readonly view; mutation needs `mut` access",
+            self.show(bt)
+        );
+        self.err(Code::NotWritable, at, &msg);
     }
 
     /// A `mut self` call needs mutable access to its receiver
-    /// (types.path.mutation.receiver). `self_param` is the method's
+    /// (types.path.store.not-writable). `self_param` is the method's
     /// declared receiver type.
     pub(crate) fn check_receiver(&mut self, self_param: Ty, recv: Ref, rt: Ty, at: NodeRef<'_>) {
         let pool = self.pool();
@@ -249,14 +201,14 @@ impl Ck<'_, '_> {
             {
                 let name = self.cx.names.text(name);
                 format!(
-                    "; bind with `let {name}: mut {shown} = ...` or `let mut {name} = ...` to keep the initializer's mutable access"
+                    "; bind with `let mut {name} = ...` to keep the initializer's mutable access"
                 )
             }
             _ => String::new(),
         };
         let msg =
             format!("this method takes `mut self`, but the receiver is a readonly {shown}{hint}");
-        self.err(Code::MutableReceiverRequired, at, &msg);
+        self.err(Code::NotWritable, at, &msg);
     }
 
     /// A readonly value where `mut` is wanted (types.mut.no-upgrade,
@@ -272,7 +224,7 @@ impl Ck<'_, '_> {
         }
         // A declared `mut` parameter, not one generic inference made `mut`.
         // Building a `mut` trait value from a readonly value is an upgrade
-        // by the conversion (trait.erase.mut.source).
+        // by the conversion (types.mut.no-upgrade).
         let erases = matches!(
             pool.get(self.infer.resolve(pool, wi)),
             TyData::TraitValue { .. }
@@ -294,24 +246,6 @@ impl Ck<'_, '_> {
             self.err(Code::MutableUpgrade, n, &msg);
         }
         true
-    }
-
-    /// A `mut` bound needs a type argument with mutable access
-    /// (trait.bound.mut, trait.bound.unsatisfied.cases).
-    pub(crate) fn check_mut_bound(&mut self, t: Ty, at: NodeRef<'_>) {
-        let pool = self.pool();
-        let r = self.infer.resolve(pool, t);
-        let readonly = match pool.get(r) {
-            TyData::Param(_) => !self.has_mut_access(r),
-            _ => self.is_composite(r) && !self.has_mut_access(r),
-        };
-        if readonly {
-            let msg = format!(
-                "a `mut` bound needs mutable access, but {} is readonly",
-                self.show(t)
-            );
-            self.err(Code::UnsatisfiedTraitBound, at, &msg);
-        }
     }
 
     /// Whether a trait, or one of its supertraits, has a `mut self` or
@@ -392,8 +326,7 @@ impl Ck<'_, '_> {
             }
             (TyData::Option(a), TyData::Option(b)) => self.perm_fits(a, b, false, d),
             // `ref.type.distinct`: a reference type is invariant in its
-            // operand, whose own outer view is no part of it
-            // (`ref.type.view`).
+            // operand, whose own outer `mut` is no part of it.
             (TyData::Ref { inner: a, .. }, TyData::Ref { inner: b, .. }) => {
                 self.perm_fits(self.strip_mut(a), self.strip_mut(b), false, d)
             }
@@ -444,7 +377,7 @@ impl Ck<'_, '_> {
 
     /// The permission join: a variable an earlier argument solved as
     /// `mut X` is lowered to `X` when this argument is a readonly `X`
-    /// (types.generic.infer.join.outer-permission).
+    /// (types.generic.infer.join).
     pub(crate) fn join_down(&mut self, var: Ty, got: Ty) -> bool {
         let pool = self.pool();
         let TyData::Mut(x) = pool.get(self.infer.shallow(pool, var)) else {
@@ -467,13 +400,11 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// A plain `let mut name` binding of type `t`, local or top-level: a
-    /// tuple is its own error, anything else follows `let_mut_name`
-    /// (types.bind.let-mut-tuple). A local of a primitive type is valid,
-    /// since `&mut` of it needs `let mut`, and so is a local whose `mut T`
-    /// annotation already grants `mut`: the caller judges either at the
-    /// end of the body, by whether `&mut` of it is taken, and this returns
-    /// it (types.bind.let-mut-primitive-local, types.bind.let-mut-annotated-valid). A
+    /// A plain `let mut name` binding of type `t`, local or top-level. A local of a primitive type is valid,
+    /// since `&mut` of it needs `let mut`, and so is a local whose
+    /// `mut Suspend[T]` annotation already grants `mut`: the caller judges
+    /// either at the end of the body, by whether `&mut` of it is taken, and
+    /// this returns it (types.bind.let-mut-primitive-local). A
     /// top-level primitive one stays an error
     /// (types.bind.let-mut-primitive-top).
     pub(crate) fn let_mut_binding(
@@ -506,56 +437,8 @@ impl Ck<'_, '_> {
                     "`let mut` on a primitive top-level binding; a plain `let` is already reassignable",
                 );
             }
-            TyData::Tuple { .. } => {
-                self.err(Code::MutOnTuple, at, "`let mut` on a tuple");
-            }
-            _ => self.let_mut_name(t, annotated, at),
+            _ => {}
         }
         None
-    }
-
-    /// A name written `let mut` (or `mut` in a `let` pattern) bound to a
-    /// value of type `t` (types.bind.let-mut-upgrade.view,
-    /// types.bind.let-mut-annotated-valid, types.bind.let-mut-annotation.view).
-    pub(crate) fn let_mut_name(&mut self, t: Ty, annotated: bool, at: NodeRef<'_>) {
-        if !self.composite_or_optional(t) {
-            return;
-        }
-        // A collection value, or an optional of one, binds as a writable
-        // value (`types.coll.let-mut`).
-        let pool = self.pool();
-        let inner = match pool.get(self.infer.resolve(pool, t)) {
-            TyData::Option(i) => i,
-            _ => t,
-        };
-        if self.is_coll_value(inner) {
-            return;
-        }
-        if !annotated {
-            if !self.let_mut_ok(t) {
-                let msg = format!(
-                    "`let mut` needs mutable access, but the value is a readonly {}",
-                    self.show(t)
-                );
-                self.err(Code::MutableUpgrade, at, &msg);
-            }
-            return;
-        }
-        if self.let_mut_ok(t) {
-            let span = self.cx.src.span(at);
-            self.diags.push(
-                Code::RedundantLetMut,
-                hd_diag::Severity::Warning,
-                span,
-                "the annotation already grants `mut`; remove the `mut` before the name",
-                None,
-            );
-        } else {
-            let msg = format!(
-                "`let mut` with the readonly annotation {}; write `mut` in the type or drop it after `let`",
-                self.show(t)
-            );
-            self.err(Code::LetMutReadonlyType, at, &msg);
-        }
     }
 }

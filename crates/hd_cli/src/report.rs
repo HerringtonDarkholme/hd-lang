@@ -4,9 +4,7 @@
 
 use std::fmt::Write as _;
 
-pub(crate) use hd_driver::diagnostics::{
-    Diag, Edit, Fix, from_output, from_output_migration, quote,
-};
+pub(crate) use hd_driver::diagnostics::{Diag, Edit, Fix, from_output, quote};
 
 /// Renames the files of diagnostics and their fix-its, as a package with
 /// another source root names them on disk (`DiskSources::display`).

@@ -17,5 +17,5 @@ fn live[T](value: T) -> &mut Cell[T]:
     &mut Cell { value: value }
 
 fn badge(count: Cell[i32]) -> i32:
-    count() = 2  # diagnostic: mutable-receiver-required
+    count() = 2  # diagnostic: not-writable
     count()

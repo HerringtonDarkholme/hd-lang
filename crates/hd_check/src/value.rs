@@ -108,10 +108,11 @@ impl Ck<'_, '_> {
                         node = inner_node;
                         continue;
                     }
-                    // A field of a data value: the store needs mutable
-                    // access to the data value (`types.path.mutation`).
+                    // A field of a value that is not a struct: the store
+                    // needs mutable access to that value
+                    // (`types.path.store.not-writable`).
                     if !self.has_mut_access(it) {
-                        self.check_store_target(inner_node, (inner, it), at);
+                        self.check_store_target((inner, it), at);
                         return None;
                     }
                     path.reverse();
@@ -164,7 +165,7 @@ impl Ck<'_, '_> {
                             "this writes through a read-only reference {}; take the reference with `&mut` to write through it",
                             self.show(rt)
                         );
-                        self.err(Code::ReadonlyRoot, at, &msg);
+                        self.err(Code::NotWritable, at, &msg);
                         return None;
                     }
                     path.reverse();
@@ -215,7 +216,7 @@ impl Ck<'_, '_> {
         }
         // `types.value.write.other-value`
         let msg = "this struct value is not a variable or a field of one, so its fields cannot change; copy it into a `let mut` first";
-        self.err(Code::ReadonlyRoot, at, msg);
+        self.err(Code::NotWritable, at, msg);
         None
     }
 
@@ -262,7 +263,7 @@ impl Ck<'_, '_> {
             let msg = format!(
                 "`{name}` is not `let mut`, so it may only be reassigned as a whole; bind it with `let mut` to change a field"
             );
-            self.err(Code::ReadonlyRoot, at, &msg);
+            self.err(Code::NotWritable, at, &msg);
         }
     }
 

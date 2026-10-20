@@ -1,5 +1,5 @@
-# test: a &mut self reference does not fit a callback that passes readonly values
-# Spec 07 Method References: fn.ref.unbound.mut-self (Method References MR1).
+# test: a &mut self reference does not fit a callback that passes values
+# Spec 07 Method References: fn.ref.unbound.ref-self (Method References MR1).
 
 struct Counter:
     value: i32

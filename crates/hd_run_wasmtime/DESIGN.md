@@ -119,7 +119,7 @@ Implementation differs: items 1 and 4 come from the table (`hd_wasm`
 generates the hd-side stubs; `is_known_import` reads it), and the codecs
 and method descriptors of items 2 and 3 from the ABI model (#251). The
 model, `host/gen/abi.json`, lists every method of the three tables with
-the std types its values cross as, and each data type, enum and newtype
+the std types its values cross as, and each struct, enum and newtype
 those types reach, read from `lib/std`'s declarations. From it:
 
 - `host/gen/abi.mjs` holds the JS codec of each of those std types and
@@ -285,12 +285,12 @@ the codecs generated from the ABI model (`host/gen/abi.mjs`), built on
 | `char` | its scalar value |
 | `string`, `List[u8]` | length, then bytes (for a string, the viewed range only) |
 | list | count, then elements |
-| data, newtype | fields in declaration order; a newtype is data of one field, so `Path` is its string's bytes |
+| struct, newtype | fields in declaration order; a newtype is a struct of one field, so `Path` is its string's bytes |
 | enum | variant index, then payload fields |
 | `Option` | 0, or 1 and the value |
 | tuple | elements |
 | host handle | its handle number, unsigned LEB128 |
-| data with a field that is not `pub` | its JSON text, written by its `Serialize` and read by its `Deserialize` ([`module.boundary.serialize.exact`](../../spec/lang/10-modules.md#r-module.boundary.serialize.exact)) |
+| a struct with a field that is not `pub` | its JSON text, written by its `Serialize` and read by its `Deserialize` ([`module.boundary.serialize.exact`](../../spec/lang/10-modules.md#r-module.boundary.serialize.exact)) |
 
 - Only boundary-safe types cross, as the spec defines them.
 - **Arguments.** A method's structured arguments are encoded one after
@@ -300,7 +300,7 @@ the codecs generated from the ABI model (`host/gen/abi.mjs`), built on
   alone, with no length prefix: the parameter is the length
   (`Console.write_line`, `Env.get`, `TestRunner.snapshot_check`).
 - **Results.** A waiting method's result is always in the buffer. A
-  method that never waits returns a scalar as its Wasm result, a data
+  method that never waits returns a scalar as its Wasm result, a struct
   value of one `i64` field (`Timestamp`, `Instant`) as that `i64`, and a
   structured value in the buffer, with its length as the result.
 - **An enum of tags** (each payload at most one payload-free enum, as

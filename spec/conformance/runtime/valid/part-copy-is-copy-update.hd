@@ -1,4 +1,4 @@
-# test: filling or storing an embedded part stores the copy-update of the supplied value
+# test: filling or assigning an embedded field stores a copy of the value, the same as a written copy-update
 struct Timestamps:
     pub created_at: i64
     pub updated_at: i64

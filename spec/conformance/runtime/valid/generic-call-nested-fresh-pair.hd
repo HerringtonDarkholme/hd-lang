@@ -1,5 +1,5 @@
-# test: a fresh Box literal inside a fresh Pair literal fills a generic Pair[Box[T], U] parameter
-# Spec 04 Bindings And Fresh Values: types.fresh.weaken; the Box literal weakens at the readonly Box[T] position.
+# test: a Box literal inside a Pair literal fills a generic Pair[Box[T], U] parameter
+# Spec 04 Generic Arguments: types.generic.infer; T and U are solved from the nested literal.
 struct Box[T]:
     item: T
 

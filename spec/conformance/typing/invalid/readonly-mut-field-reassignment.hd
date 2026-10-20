@@ -1,4 +1,4 @@
-# Spec 08 Field Access: data.access.readonly-root.
+# Spec 13 Writing Through A Reference: ref.write.field.
 struct Child:
     name: string
 
@@ -6,4 +6,4 @@ struct Parent:
     child: &mut Child
 
 fn invalid(parent: &Parent) -> void:
-    parent.child = &mut Child { name: "new" }  # diagnostic: readonly-root
+    parent.child = &mut Child { name: "new" }  # diagnostic: not-writable

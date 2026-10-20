@@ -1,6 +1,6 @@
 # test: map grow and remove
 # Spec 04 Map Semantics: types.map.order.deterministic,
-# types.map.replace.in-place, types.map.semantics, types.map.key-view,
+# types.map.replace.in-place, types.map.semantics,
 # types.map.no-reindex, types.map.stale, types.map.no-repair.
 
 fn main() -> i32:

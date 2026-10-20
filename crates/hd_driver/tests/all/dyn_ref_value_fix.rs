@@ -5,7 +5,7 @@
 //! written reference would be an error, or that is no place or struct
 //! literal, gets none.
 
-use hd_diag::{Code, DiagBuf, FixSafety};
+use hd_diag::{Code, DiagBuf};
 use hd_driver::{Executor, Goal, Host, NoClock, build};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
@@ -117,13 +117,6 @@ fn a_written_reference_that_is_an_error_gets_no_fix() {
         let src = format!("{TRAITS}{body}\npub fn main() -> void:\n    ()\n");
         let d = diags(&src);
         assert!(d.code.contains(&Code::TypeMismatch), "{body}: {:?}", d.code);
-        // Only `hd fix --object-model` takes a migration edit; no fix-it
-        // a person sees is offered.
-        let shown = d.fixes.iter().any(|f| {
-            d.fix_safety[f.start as usize..(f.start + f.len) as usize]
-                .iter()
-                .any(|s| *s != FixSafety::Migration)
-        });
-        assert!(!shown, "{body}: a fix-it");
+        assert!(d.fixes.iter().all(|f| f.len == 0), "{body}: a fix-it");
     }
 }

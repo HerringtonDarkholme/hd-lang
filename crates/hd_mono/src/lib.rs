@@ -509,8 +509,7 @@ pub fn subst(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: TyList,
 /// Whether copying a value of type `t` copies collections
 /// (`crates/hd_wasm/DESIGN.md` §15.2, "Collection values"): a `List` or a
 /// `Map` value, or a struct holding one in its fields, at any depth of
-/// struct fields. A legacy `mut List[T]` view shares its list and is no
-/// such value. Generic code over such a type is laid out exactly, never
+/// struct fields. Generic code over such a type is laid out exactly, never
 /// as the A1 class `REF`, so a copy in it knows what it copies.
 #[must_use]
 pub fn holds_coll(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
@@ -2065,20 +2064,6 @@ impl Cx<'_> {
             return self.method_target(trait_, method, base, targs, None, parent);
         }
         let found = self.env.impl_method(impl_, method);
-        // `trait.impl.receiver-bridge.serves`: a struct's `&mut self`
-        // method that fills a trait method declared `mut self` takes a
-        // reference, which only a direct call on the struct and a trait
-        // value reference's slot (`ref_method_target`) pass; the checker
-        // rejects the other uses, and this keeps a missed one from reaching
-        // the emitter.
-        if choice.is_none()
-            && let Some(m) = found
-            && self.bridged(impl_, m, method)
-        {
-            return err(
-                "a struct's `&mut self` method reached through a trait method declared `&mut self`",
-            );
-        }
         match found {
             Some(m) if self.env.body(m).is_some() => {
                 let mut all = impl_args;
@@ -2095,20 +2080,6 @@ impl Cx<'_> {
                 self.target(method, self.pool.list(&all), parent)
             }
         }
-    }
-
-    /// Whether the method `m` of `impl_` fills the trait method `method`
-    /// through the receiver bridge: `m` takes a reference to the impl's
-    /// self type (`&mut self`, lowered to `std.core.Ref[T]`) where the
-    /// trait method takes no reference.
-    fn bridged(&self, impl_: DefId, m: DefId, method: DefId) -> bool {
-        let cell = self.env.ref_cell();
-        let first = |d: DefId| self.env.params(d).and_then(|ps| ps.first().copied());
-        let is_ref = |t: Ty| matches!(self.pool.get(t), TyData::Adt { def, .. } if def == cell);
-        let Some(head) = self.env.impl_head(impl_).map(|h| h.0) else {
-            return false;
-        };
-        first(m).is_some_and(|p| is_ref(p) && p != head) && !first(method).is_some_and(is_ref)
     }
 
     /// The vtable of `trait_[trait_args]` at the concrete type `from`
@@ -2155,7 +2126,7 @@ impl Cx<'_> {
                     let t = if erased::own_count(env, m) > 0 {
                         self.erased_target(trait_, m, s, targs, parent)?
                     } else {
-                        self.ref_method_target(trait_, m, s, targs, parent)?
+                        self.method_target(trait_, m, s, targs, None, parent)?
                     };
                     let r = if takes_ref(t.item) {
                         SlotRecv::Payload
@@ -2203,35 +2174,6 @@ impl Cx<'_> {
             recv,
             parents,
         })
-    }
-
-    /// The target of the trait method `method` at the concrete type `s`
-    /// for a trait value whose payload is a reference to `s`: as
-    /// [`Self::method_target`], except that a struct's `&mut self` method
-    /// that fills a `mut self` trait method (the receiver bridge) is
-    /// allowed, since the payload is the reference that method takes
-    /// (`trait.dyn.ref.bridge`).
-    fn ref_method_target(
-        &mut self,
-        trait_: DefId,
-        method: DefId,
-        s: Ty,
-        targs: &[Ty],
-        parent: InstId,
-    ) -> StageResult<CallTarget> {
-        let n_trait = self.env.trait_arity(trait_);
-        let trait_args = self.pool.list(&targs[..n_trait.min(targs.len())]);
-        let method_args = &targs[n_trait.min(targs.len())..];
-        if let Picked::Impl(impl_, impl_args) = self.select(trait_, s, trait_args, None)?
-            && let Some(m) = self.env.impl_method(impl_, method)
-            && self.bridged(impl_, m, method)
-            && self.env.body(m).is_some()
-        {
-            let mut all = impl_args;
-            all.extend_from_slice(method_args);
-            return self.target(m, self.pool.list(&all), parent);
-        }
-        self.method_target(trait_, method, s, targs, None, parent)
     }
 
     /// The parameters of `def` a known value is worth specializing on, by

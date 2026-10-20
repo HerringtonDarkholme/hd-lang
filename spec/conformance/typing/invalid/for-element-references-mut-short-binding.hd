@@ -2,5 +2,5 @@
 # Spec 06 Element Reference Loops: flow.for.ref.writable.
 fn invalid() -> void:
     xs := [+1, 2]
-    for x in &mut xs:  # diagnostic: readonly-root
+    for x in &mut xs:  # diagnostic: not-writable
         *x = 0

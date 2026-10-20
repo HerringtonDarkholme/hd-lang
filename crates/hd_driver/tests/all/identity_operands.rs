@@ -2,7 +2,7 @@
 //! value type, a list, a map or a function has no identity (`expr.is.tuple`,
 //! `expr.is.value-operand`, `types.coll.no-identity`,
 //! `expr.is.function.operand`), and two reference operands must be
-//! compatible (`expr.is.compatible`, `expr.is.incompatible.data`).
+//! compatible (`expr.is.compatible.referent`, `expr.is.incompatible.data`).
 //! Each rejection is one error, with no report for the second operand.
 
 use hd_diag::Code;

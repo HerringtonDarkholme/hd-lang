@@ -292,7 +292,7 @@ See also: [Statements](02-grammar.md#statements).
 
 1. r[lex.colon.cooperate] Layout recognition and parsing therefore cooperate at a suite-introducing colon.
 2. r[lex.colon.implementation] A lexer may implement this with parser feedback or with equivalent parser-state tracking.
-3. r[lex.colon.ordinary] Ordinary colons in maps, data fields, named types, and arguments do not open a suite.
+3. r[lex.colon.ordinary] Ordinary colons in maps, struct fields, named types, and arguments do not open a suite.
 4. r[lex.colon.trailing-block] Trailing-block call colons occur only at delimiter depth zero. Even there, the call must be the complete statement or the complete right-hand side of `:=`, `let ... =`, `=`, `_ :=`, `return`, or `break`.
 5. r[lex.colon.trailing-block.not-headers] They are not recognized in `if`, `while`, `for`, or `match` headers or inside brackets.
 
@@ -411,7 +411,7 @@ name := "Ada"  # A comment after code.
 
 1. r[lex.doc.form] `##` at the start of a comment is a documentation comment.
 2. r[lex.doc.attach] One or more consecutive documentation-comment lines attach to the next declaration or member at the same indentation, when no blank line or non-documentation token intervenes.
-3. r[lex.doc.members] Members include data fields, embedded fields, enum variants and payload fields, trait and implementation methods, and function parameters.
+3. r[lex.doc.members] Members include struct fields, embedded fields, enum variants and payload fields, trait and implementation methods, and function parameters.
 4. r[lex.doc.text] The lexer removes `##` and one following space when present, then joins lines with `\n`.
 5. r[lex.doc.field] For a field or variant, the resulting string is the `doc` field of its `Member` or `VariantInfo`; for any other target it is for tools. Without an attached documentation comment, `doc` is `.None`.
 6. r[lex.doc.trailing] A trailing `##` comment after source code is ordinary commentary and does not attach.

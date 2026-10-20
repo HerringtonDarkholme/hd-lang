@@ -7,4 +7,4 @@ struct Team:
     lead: &mut User
 
 fn name(t: &Team) -> void:
-    t.name = "changed"  # diagnostic: readonly-root
+    t.name = "changed"  # diagnostic: not-writable

@@ -1,4 +1,4 @@
-# test: let mut infers mut T from a fresh literal or a mutable value; a spread copy is fresh
+# test: let mut binds a `&mut` reference to a new object, a copy-update, or a call result
 struct User:
     name: string
 

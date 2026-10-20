@@ -1,9 +1,9 @@
 # test: requirements / mutable providers / a readonly binding of a provider cannot call mut self
-# Spec 11 Retrieving: $.use(Counter) yields mut Counter, but a := binding exposes a readonly view.
+# Spec 11 Retrieving: req.mut.use.binding; a := binding of $.use(Counter) is not writable, so a mut self method cannot be called through it.
 
 fn tick() -> void $ Counter:
     counter := $.use(Counter)
-    counter.bump()  # diagnostic: mutable-receiver-required
+    counter.bump()  # diagnostic: not-writable
 
 trait Counter:
     fn count(self) -> i32

@@ -8,4 +8,4 @@ fn pair() -> (User, User):
 fn invalid() -> void:
     let (mut first, second) = pair()
     first.name = "Lin"
-    second.name = "Kay"  # diagnostic: readonly-root
+    second.name = "Kay"  # diagnostic: not-writable

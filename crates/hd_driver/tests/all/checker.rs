@@ -623,10 +623,6 @@ fn checker_errors_are_reported() {
             "pub fn main() -> void $ Console:\n    let n: mut i32 = 0\n    println(n)\n",
             Code::MutOnPrimitive,
         ),
-        (
-            "pub fn main() -> void $ Console:\n    let mut pair = (1, 2)\n    println(pair._0)\n",
-            Code::MutOnTuple,
-        ),
     ];
     for (src, code) in cases {
         let out = program(src);
@@ -634,52 +630,23 @@ fn checker_errors_are_reported() {
     }
 }
 
-/// `mut T` over an unconstrained parameter reports `mut-on-type-parameter`
-/// alone, also in a method of a covariant impl (`types.generic.no-mut-t`).
+/// A written `mut T` over a type parameter is `mut-on-struct`, also in a
+/// method of a covariant impl (`types.value.no-mut.written`).
 #[test]
-fn mut_on_unconstrained_type_parameter() {
-    let ok = program(
-        "fn keep[T < mut Any](value: mut T) -> void:\n    pass\n\npub fn main() -> void:\n    pass\n",
-    );
-    assert!(
-        !codes(&ok).contains(&Code::MutOnTypeParameter),
-        "{}",
-        ok.render()
-    );
+fn mut_on_a_type_parameter() {
     let bad = program(
         "fn reset[T](value: mut T) -> void:\n    pass\n\npub fn main() -> void:\n    pass\n",
     );
-    assert!(
-        codes(&bad).contains(&Code::MutOnTypeParameter),
-        "{}",
-        bad.render()
-    );
+    assert!(codes(&bad).contains(&Code::MutOnStruct), "{}", bad.render());
     let method = program(
         "struct Feed[T]:\n    latest: T\n\nimpl[T] Feed[T]:\n    pub fn swap(self, other: mut T) -> void:\n        pass\n\npub fn main() -> void:\n    pass\n",
     );
     let found = codes(&method);
-    assert!(
-        found.contains(&Code::MutOnTypeParameter),
-        "{}",
-        method.render()
-    );
+    assert!(found.contains(&Code::MutOnStruct), "{}", method.render());
     assert!(
         !found.contains(&Code::InvalidVariance),
         "{}",
         method.render()
-    );
-}
-
-/// `mut Self` in a trait and in an impl names no declared type parameter.
-#[test]
-fn mut_self_is_not_a_type_parameter() {
-    let out = program(
-        "trait Dup:\n    fn dup(&mut self) -> mut Self\n\nstruct Box:\n    n: i32\n\nimpl Dup for Box:\n    fn dup(&mut self) -> mut Self:\n        self\n\nimpl[T < mut Any] Dup for T:\n    fn dup(&mut self) -> mut Self:\n        self\n\npub fn main() -> void:\n    pass\n",
-    );
-    assert!(
-        !codes(&out).contains(&Code::MutOnTypeParameter),
-        "{}",
-        out.render()
     );
 }
 
@@ -878,7 +845,7 @@ fn a_rejected_power_is_an_error_value() {
     );
 }
 
-const WALKS: &str = "trait Show:\n    fn show(self) -> i32\n\nimpl Show for i32:\n    fn show(self) -> i32:\n        self\n\nimpl[T < Show] Show for List[T]:\n    fn show(self) -> i32:\n        0\n\ntrait Sink:\n    type Error\n    fn put(&mut self, n: i32) -> Result[void, Self::Error]\n\ntrait Walk:\n    type Error\n    fn one(&mut self) -> Result[void, Self::Error]\n    fn item[F < Show](&mut self, value: F) -> Result[void, Self::Error]\n    fn two(&mut self) -> Result[void, Self::Error]\n    fn three[T < Show](&mut self, v: List[T]) -> Result[void, Self::Error]\n\nstruct W[K < mut Sink]:\n    pub out: mut K\n\nimpl[K < Sink] Walk for W[K]:\n    type Error = K::Error\n\n    fn one(&mut self) -> Result[void, K::Error]:\n        self.out.put(1)\n\n    fn item[F < Show](&mut self, value: F) -> Result[void, K::Error]:\n        self.out.put(value.show())\n\n";
+const WALKS: &str = "trait Show:\n    fn show(self) -> i32\n\nimpl Show for i32:\n    fn show(self) -> i32:\n        self\n\nimpl[T < Show] Show for List[T]:\n    fn show(self) -> i32:\n        0\n\ntrait Sink:\n    type Error\n    fn put(&mut self, n: i32) -> Result[void, Self::Error]\n\ntrait Walk:\n    type Error\n    fn one(&mut self) -> Result[void, Self::Error]\n    fn item[F < Show](&mut self, value: F) -> Result[void, Self::Error]\n    fn two(&mut self) -> Result[void, Self::Error]\n    fn three[T < Show](&mut self, v: List[T]) -> Result[void, Self::Error]\n\nstruct W[K < Sink]:\n    pub out: K\n\nimpl[K < Sink] Walk for W[K]:\n    type Error = K::Error\n\n    fn one(&mut self) -> Result[void, K::Error]:\n        self.out.put(1)\n\n    fn item[F < Show](&mut self, value: F) -> Result[void, K::Error]:\n        self.out.put(value.show())\n\n";
 const MAIN: &str = "\npub fn main() -> void $ Console:\n    println(1)\n";
 
 /// Inside `impl[K < Sink] Walk for W[K]`, the goal `W[K]: Walk` names the

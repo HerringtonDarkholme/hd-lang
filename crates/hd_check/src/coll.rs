@@ -7,9 +7,7 @@
 //! and stores as is.
 //!
 //! Changing a collection needs a writable place, as changing a struct's
-//! field does: its type is then `mut List[T]`. A legacy parameter, field
-//! or annotation written `mut List[T]` keeps sharing the list it is given
-//! until std migrates (`types.coll.legacy`).
+//! field does.
 //!
 //! A change written through a path (`m[k].push(x)`, `xs[i].x = v`) makes
 //! each list or map on the path its own first: its element read becomes
@@ -57,15 +55,15 @@ enum ArgRoot {
     /// No place, or one nothing changes in place: a `:=` or plain `let`
     /// binding, a parameter, a tuple element or a payload.
     Fixed,
-    /// A place others may change: a legacy `mut` view, a mutable global,
-    /// a value read through a reference, a `data` field.
+    /// A place others may change: a mutable global, a value read through a
+    /// reference.
     Shared,
     /// A `let mut` local or a `mut` parameter.
     Local(LocalId),
 }
 
 impl Ck<'_, '_> {
-    /// Whether `t` is a `List` or `Map` value type: no `mut` view.
+    /// Whether `t` is a `List` or `Map` type.
     pub(crate) fn is_coll_value(&self, t: Ty) -> bool {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
@@ -123,8 +121,7 @@ impl Ck<'_, '_> {
     }
 
     /// Whether `r` is a value the expression made itself, which no place
-    /// holds: a literal, a constructor, a call's result whose type is no
-    /// legacy `mut` view, a copy.
+    /// holds: a literal, a constructor, a call's result, a copy.
     pub(crate) fn is_fresh(&mut self, r: Ref) -> bool {
         let Some(i) = r.as_inst() else {
             return true;
@@ -133,30 +130,23 @@ impl Ck<'_, '_> {
             let body = self.b.body_mut();
             (body.tags[i.0 as usize], body.data[i.0 as usize])
         };
-        let t = self.b.ty_of(r);
-        let legacy = matches!(
-            self.pool().get(self.infer.resolve(self.pool(), t)),
-            TyData::Mut(_)
-        );
         match tag {
             Tag::NewList | Tag::NewMap | Tag::NewData | Tag::CopyData | Tag::NewVariant => true,
             Tag::NewTuple | Tag::Closure | Tag::Interp | Tag::Prim => true,
-            Tag::Call | Tag::CallDyn | Tag::DefaultCall => !legacy,
-            Tag::CallValue => self.deref_source(Ref(data[0])).is_none() && !legacy,
-            Tag::Intrinsic => {
-                matches!(
-                    IntrinsicOp::from_u32(data[0]),
-                    Some(IntrinsicOp::ValueCopy | IntrinsicOp::Item)
-                ) && !legacy
-            }
+            Tag::Call | Tag::CallDyn | Tag::DefaultCall => true,
+            Tag::CallValue => self.deref_source(Ref(data[0])).is_none(),
+            Tag::Intrinsic => matches!(
+                IntrinsicOp::from_u32(data[0]),
+                Some(IntrinsicOp::ValueCopy | IntrinsicOp::Item)
+            ),
             Tag::Coerce => self.is_fresh(Ref(data[0])),
             _ => false,
         }
     }
 
     /// Whether `r` reads a local that never changes in place: a `:=`, a
-    /// plain `let` or a parameter, not a `let mut` and not a legacy `mut`
-    /// view. A copy into another such binding may share it.
+    /// plain `let` or a parameter, not a `let mut`. A copy into another
+    /// such binding may share it.
     fn reads_fixed_local(&mut self, r: Ref) -> bool {
         let Some(i) = r.as_inst() else {
             return false;
@@ -172,12 +162,7 @@ impl Ck<'_, '_> {
             Tag::TupleGet | Tag::Payload | Tag::Unwrap => true,
             Tag::LocalGet => {
                 let l = LocalId::from_raw(data[0]);
-                let lt = self.b.local_ty(l);
                 !self.mut_locals.contains(&l)
-                    && !matches!(
-                        self.pool().get(self.infer.resolve(self.pool(), lt)),
-                        TyData::Mut(_)
-                    )
             }
             _ => false,
         }
@@ -211,13 +196,8 @@ impl Ck<'_, '_> {
                 Tag::LocalGet => {
                     let l = LocalId::from_raw(data[0]);
                     let flags = self.b.body_mut().local_flags[l.idx()];
-                    let lt = self.b.local_ty(l);
-                    let legacy = matches!(
-                        self.pool().get(self.infer.resolve(self.pool(), lt)),
-                        TyData::Mut(_)
-                    );
                     let own = flags & (local_flags::PARAM | local_flags::CAPTURED) == 0
-                        && (self.mut_locals.contains(&l) || legacy);
+                        && self.mut_locals.contains(&l);
                     if own {
                         return v;
                     }
@@ -225,13 +205,6 @@ impl Ck<'_, '_> {
                 }
                 _ => break,
             }
-        }
-        // A legacy `mut List[T]` result shares (`types.coll.legacy`).
-        if matches!(
-            self.pool().get(self.infer.resolve(self.pool(), ret)),
-            TyData::Mut(_)
-        ) {
-            return v;
         }
         self.coll_copy(v, ret, at)
     }
@@ -281,17 +254,8 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// Marks a store target `l` for copies (`types.coll.value`) unless its
-    /// annotation is a legacy `mut List[T]` or `mut Map[K, V]` view.
-    pub(crate) fn note_copy_local(&mut self, l: LocalId, annot: Option<Ty>) {
-        if let Some(a) = annot {
-            let pool = self.pool();
-            if let TyData::Mut(i) = pool.get(self.infer.resolve(pool, a))
-                && self.is_coll_value(i)
-            {
-                return;
-            }
-        }
+    /// Marks a store target `l` for copies (`types.coll.value`).
+    pub(crate) fn note_copy_local(&mut self, l: LocalId) {
         let flags = self.b.body_mut().local_flags[l.idx()];
         if flags & local_flags::PARAM != 0 {
             return;
@@ -303,12 +267,9 @@ impl Ck<'_, '_> {
     /// (`types.coll.value`): the callee's own copy. It is passed as is
     /// unless something besides the caller may change the place it reads
     /// while the callee runs: a closure or a `&mut` that changes a writable
-    /// local, a legacy `mut` view, a mutable global, a read through a
-    /// reference, a `data` field. Then it is its `ValueCopy`, which marks
-    /// the caller's collection, so such a change copies first. A legacy
-    /// `mut` parameter, or a type parameter the call solved to a legacy
-    /// view, shares instead (`types.coll.legacy`), and a reference
-    /// parameter refers.
+    /// local, a mutable global, a read through a reference. Then it is its
+    /// `ValueCopy`, which marks the caller's collection, so such a change
+    /// copies first. A reference parameter refers.
     pub(crate) fn value_arg(&mut self, r: Ref, param: Ty, at: NodeIdx) -> Ref {
         self.value_arg_at(r, param, at, None)
     }
@@ -342,10 +303,8 @@ impl Ck<'_, '_> {
         if r.0 == NONE {
             return r;
         }
-        let pool = self.pool();
         let t = self.strip_mut(self.b.ty_of(r));
-        if matches!(pool.get(self.infer.resolve(pool, param)), TyData::Mut(_))
-            || self.ref_of(param).is_some()
+        if self.ref_of(param).is_some()
             || self.ref_of(self.b.ty_of(r)).is_some()
             || !self.may_hold_coll(t)
             || self.is_fresh(r)
@@ -439,9 +398,8 @@ impl Ck<'_, '_> {
 
     /// The value receiver `r` of a method whose `self` is `param`: the
     /// callee's own copy, as an argument is (`value_arg`). A list or map
-    /// receiver is passed as is: std's views and cursors over it (`view`,
-    /// `iter`) keep the receiver they are given as a legacy view
-    /// (`types.coll.legacy.data-field`) until std migrates.
+    /// receiver is passed as is: a method that changes it takes `&mut self`,
+    /// and one that keeps it, such as `iter`, copies it on write.
     pub(crate) fn value_receiver(
         &mut self,
         r: Ref,
@@ -479,7 +437,7 @@ impl Ck<'_, '_> {
 
     /// Whether something besides the writable local `l` may change its
     /// collection: a closure or reference that assigns it, a closure that
-    /// changes it in place, a legacy view sharing it.
+    /// changes it in place.
     fn local_aliased(&mut self, l: LocalId) -> bool {
         self.alias_locals.contains(&l)
             || self.b.body_mut().local_flags[l.idx()] & local_flags::CAPTURED_ASSIGNED != 0
@@ -496,11 +454,6 @@ impl Ck<'_, '_> {
                 let body = self.b.body_mut();
                 (body.tags[i.0 as usize], body.data[i.0 as usize])
             };
-            let ct = self.b.ty_of(cur);
-            let legacy = matches!(
-                self.pool().get(self.infer.resolve(self.pool(), ct)),
-                TyData::Mut(_)
-            );
             match tag {
                 Tag::Coerce => cur = Ref(data[0]),
                 Tag::Field => {
@@ -520,11 +473,7 @@ impl Ck<'_, '_> {
                                 | IntrinsicOp::MapIndexMut
                         )
                     ) {
-                        return if legacy {
-                            ArgRoot::Shared
-                        } else {
-                            ArgRoot::Fixed
-                        };
+                        return ArgRoot::Fixed;
                     }
                     let Some(&base) = self.b.body_mut().record(data[1]).first() else {
                         return ArgRoot::Fixed;
@@ -536,16 +485,7 @@ impl Ck<'_, '_> {
                     if self.mut_locals.contains(&l) {
                         return ArgRoot::Local(l);
                     }
-                    let lt = self.b.local_ty(l);
-                    let view = matches!(
-                        self.pool().get(self.infer.resolve(self.pool(), lt)),
-                        TyData::Mut(_)
-                    );
-                    return if view {
-                        ArgRoot::Shared
-                    } else {
-                        ArgRoot::Fixed
-                    };
+                    return ArgRoot::Fixed;
                 }
                 Tag::GlobalGet => {
                     let Some(&def) = self.b.body_mut().record(data[0]).first() else {
@@ -560,7 +500,7 @@ impl Ck<'_, '_> {
                             .earlier
                             .values()
                             .any(|g| g.def.raw() == def && g.mutable);
-                    return if mutable || legacy {
+                    return if mutable {
                         ArgRoot::Shared
                     } else {
                         ArgRoot::Fixed
@@ -570,20 +510,14 @@ impl Ck<'_, '_> {
                     return ArgRoot::Shared;
                 }
                 Tag::TupleGet | Tag::Payload | Tag::Unwrap => return ArgRoot::Fixed,
-                _ => {
-                    return if legacy {
-                        ArgRoot::Shared
-                    } else {
-                        ArgRoot::Fixed
-                    };
-                }
+                _ => return ArgRoot::Fixed,
             }
         }
         ArgRoot::Shared
     }
 
     /// Records that a change is written through the place `r` (a receiver,
-    /// an index base, a legacy `mut` argument): when it starts at a
+    /// an index base): when it starts at a
     /// writable local that a closure open here captures, something besides
     /// the local changes it (`local_aliased`).
     pub(crate) fn note_change_in_closure(&mut self, r: Ref) {
@@ -595,17 +529,6 @@ impl Ck<'_, '_> {
             .iter()
             .any(|s| self.b.open_captures(s.mark).contains(&l));
         if captured && !self.alias_locals.contains(&l) {
-            self.alias_locals.push(l);
-        }
-    }
-
-    /// The writable local `r` starts at, shared with a legacy `mut` view
-    /// (`types.coll.legacy.argument`): the view may change it later.
-    pub(crate) fn note_legacy_share(&mut self, r: Ref) {
-        if let Some(l) = self.place_root_local(r)
-            && self.mut_locals.contains(&l)
-            && !self.alias_locals.contains(&l)
-        {
             self.alias_locals.push(l);
         }
     }
@@ -651,11 +574,7 @@ impl Ck<'_, '_> {
                 continue;
             }
             let lt = self.b.local_ty(l);
-            let view = matches!(
-                self.pool().get(self.infer.resolve(self.pool(), lt)),
-                TyData::Mut(_)
-            );
-            if view || !self.may_hold_coll(lt) {
+            if !self.may_hold_coll(lt) {
                 continue;
             }
             let v = self.b.get(l, lt, at);
@@ -751,7 +670,7 @@ impl Ck<'_, '_> {
     /// local or `mut` parameter, a writable top-level binding, a value
     /// read through `&mut`, an element of a writable list or a value of a
     /// writable map, a struct field of any of these, or a value whose type
-    /// already grants `mut` (a legacy view, a data field declared `mut`).
+    /// already grants `mut` (a trait value read through `&mut`).
     pub(crate) fn place_writable_quiet(&mut self, br: Ref) -> bool {
         let mut cur = br;
         for _ in 0..64 {
@@ -774,10 +693,7 @@ impl Ck<'_, '_> {
                 Tag::Field => {
                     let inner = Ref(data[0]);
                     let it = self.b.ty_of(inner);
-                    // A struct field is part of its struct's place. A
-                    // struct in a field of a data value with mutable access
-                    // is writable; a collection in a data field not declared
-                    // `mut` is a legacy read-only edge.
+                    // A struct field is part of its struct's place.
                     if !self.is_struct_ty(it) {
                         return self.is_struct_ty(ct) && self.has_mut_access(it);
                     }
@@ -875,15 +791,10 @@ impl Ck<'_, '_> {
     /// method such as `push`, an element store, a field write through an
     /// element): whether it may write, marking the path it writes through
     /// (`types.coll.writable`, `types.coll.nested`). Reports when it may
-    /// not, with the fix-it that makes the binding writable: a call is
-    /// `mutable-receiver-required`, a store `readonly-root`. `what` names
-    /// the change.
+    /// not, `not-writable`, with the fix-it that makes the binding
+    /// writable. `what` names the change.
     pub(crate) fn coll_change(&mut self, recv: Ref, rt: Ty, what: &str, at: NodeRef<'_>) -> bool {
-        let code = if what == "this call" {
-            hd_diag::Code::MutableReceiverRequired
-        } else {
-            hd_diag::Code::ReadonlyRoot
-        };
+        let code = hd_diag::Code::NotWritable;
         if recv.0 == NONE || matches!(self.strip_mut(rt), Ty::NEVER | Ty::POISON) {
             return true;
         }

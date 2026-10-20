@@ -2,5 +2,5 @@
 # Spec 13 Element References: ref.elem.writable.
 fn invalid() -> i32:
     xs := [+1, 2]
-    r := &mut xs[0]  # diagnostic: readonly-root
+    r := &mut xs[0]  # diagnostic: not-writable
     *r

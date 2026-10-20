@@ -499,9 +499,11 @@ impl Gen<'_, '_> {
                 return Ok(());
             }
         };
-        // A local data type is not inspectable, so it converts to no `Any`
-        // and takes no part in finding a cycle; an enum has no identity
-        // (r-module.dbg.cycle.tracked).
+        // A struct value is tracked through `enter`
+        // (module.dbg.cycle.reference). A local struct type is not
+        // inspectable, so it converts to no `Any` and takes no part in
+        // finding a cycle; an enum is not tracked
+        // (module.dbg.cycle.untracked).
         let tracked = kind == Kind::Data && !names.is_local(def);
         let guard = if tracked {
             let any = pool.intern_ty(&TyData::TraitValue {

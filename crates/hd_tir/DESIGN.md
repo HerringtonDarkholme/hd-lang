@@ -164,12 +164,12 @@ provider patch is needed.
 The checker follows the spec chapters in order. Points that matter for the
 design:
 
-- **Coercions** (implicit `Option` wrapping, readonly views, function row
+- **Coercions** (implicit `Option` wrapping, permission weakening, function row
   subsumption) become explicit TIR instructions, so D2 never re-derives
   them.
 - **Mutability and access** checks run during checking, on the
   checker's own access types and local flags, never over TIR
-  ([Mutable Paths](../../spec/lang/04-type-system.md#mutable-paths);
+  ([Writable Places](../../spec/lang/04-type-system.md#writable-places);
   [crates/hd_check/DESIGN.md (type checking) §8](../hd_check/DESIGN.md#8-mutability-access-and-initialization)).
 - **Typed holes.** `_` and `todo()` record the expected type and the
   in-scope names whose types fit, for the hole diagnostic.
@@ -571,7 +571,7 @@ Notation: `a` and `b` are the two data words; `[...]` is a record in
 
 | Tag | Operands | Type rule |
 | --- | --- | --- |
-| `LocalGet` | a: local | the local's type, as a readonly view when the binding is readonly |
+| `LocalGet` | a: local | the local's type, without its outer `mut` when the binding is readonly |
 | `LocalSet` | a: local, b: value | `void`; the value's type equals the local's |
 | `GlobalGet` | a: `[binding DefId]` | the binding's type |
 | `GlobalSet` | a: `[binding DefId]`, b: value | `void`; only in init bodies and for mutable top-level bindings |
@@ -589,7 +589,7 @@ Notation: `a` and `b` are the two data words; `[...]` is a record in
 | `Call` | a: `[callee]`, b: `[arguments, providers]` | the callee's result, substituted; `mut Suspend[T]` when the callee suspends and the call is plain (a cold call) |
 | `CallValue` | a: function value, b: `[arguments, context]` | the function type's result |
 | `CallDyn` | a: trait value, b: `[method, type arguments, evidence, arguments, providers]` | the method's result, substituted. The type arguments are the method's own. `evidence` holds one `Evidence` value per method-level bound, in the method's bound order, chosen by the checker at the call. Codegen does not read it: a generic method gets a type witness built from the type arguments (crates/hd_mono/DESIGN.md §13.5.1), so dropping the operand is a frontend cleanup |
-| `Is` | a: left, b: right | `bool`. Only on two operands whose types implement `AnyRef` (data, `List`, `Map`, an `AnyRef` type parameter), or on trait values and `Any`. `is` on an enum, optional, `Result`, tuple, primitive, string or function value is `identity-requires-references` before TIR ([`expr.is.value-operand`](../../spec/lang/05-expressions.md#r-expr.is.value-operand)); codegen lowers it by layout (crates/hd_wasm/DESIGN.md §15.2) |
+| `Is` | a: left, b: right | `bool`. Only on two operands whose types implement `AnyRef` (`&T`, `&mut T`, an `AnyRef` type parameter), or on trait values and `Any`. `is` on a struct, list, map, enum, optional, `Result`, tuple, primitive, string or function value is `identity-requires-references` before TIR ([`expr.is.value-operand`](../../spec/lang/05-expressions.md#r-expr.is.value-operand)); codegen lowers it by layout (crates/hd_wasm/DESIGN.md §15.2) |
 | `CallHost` | a: host method, b: `[arguments]` | the method's result; only in std's provider bodies |
 | `Intrinsic` | a: intrinsic, b: `[type arguments, arguments]` | the intrinsic's declared result |
 | `DefaultCall` | a: `[default body DefId, type arguments]`, b: `[earlier argument values]` | the parameter's or field's type, substituted. One per omitted argument, per call |
@@ -607,7 +607,7 @@ holds.
 | `Variance` | `C[A]` → `C[B]` by declared variance, readonly outer type | none | none ([Representation-Preserving Variance](../../spec/lang/04-type-system.md#representation-preserving-variance)) |
 | `WrapSome` | `T` → `T?`, one layer | none | build `.Some` |
 | `RowSubsume` | `fn ... $ R1` → `fn ... $ R2` | none | none: every function value takes a context and looks its keys up by id, so a context holding `R2`'s keys serves `R1` (crates/hd_mono/DESIGN.md §12.4) |
-| `ToTraitValue` | `S` → `Tr`, `mut S` → `mut Tr` | the impl choice | box with its dispatch table |
+| `ToTraitValue` | `S` → `Tr` | the impl choice | box with its dispatch table |
 | `ToAny` | `S` → `Any` | none | box with its type id |
 | `Supertrait` | child trait value → parent trait value | none: the target type names the parent | re-table: load the parent's vtable from the child's |
 | `SuspendFnToCtor` | `fn!` type → constructor type | none | none, or a thin adapter |
@@ -707,13 +707,13 @@ body with suspension rows (`src/wire.rs`), so no body writes them today.
 
 | Tag | Operands | Type rule |
 | --- | --- | --- |
-| `NewData` | b: `[field values]` in declaration order | the data type in `ty` |
-| `CopyData` | a: source, b: `[(field, value)]` replacements | the source's type. Copy-update literals and part copies; every part not replaced is copied too ([`data.part.copy-update`](../../spec/lang/08-data-and-enums.md#r-data.part.copy-update)) |
+| `NewData` | b: `[field values]` in declaration order | the struct type in `ty` |
+| `CopyData` | a: source, b: `[(field, value)]` replacements | the source's type. Copy-update literals, and a field write through a struct value, which rebuilds each struct on the path; every field not replaced is read from the source ([`expr.update.copy-fields`](../../spec/lang/05-expressions.md#r-expr.update.copy-fields)) |
 | `NewVariant` | a: variant declaration index, b: `[payload values]` | the enum type in `ty` |
 | `NewTuple` | a: rest-list operand or `NONE` (tuple spread), b: `[elements]` | the tuple type; with a rest operand, its rest element |
 | `NewList` | a: `[spread positions]` or `NONE`, b: `[elements]` | `List[T]` |
 | `NewMap` | b: `[key, value pairs]` | `Map[K, V]` |
-| `Field` | a: base, b: field index (parts included) | the field's type, with the base's access |
+| `Field` | a: base, b: field index (embedded fields included) | the field's type, with the base's access |
 | `FieldSet` | a: base, b: `[field, value]` | `void`; the base is mutable |
 | `TupleGet` | a: base, b: index | the element's type |
 | `Closure` | a: sub-body, b: captures as a `CaptureId` range | the closure's function type. Each capture's mode, in the `cap_mode` column, is `Copy` (no side writes it after the capture), `Move` (only the closure uses it afterward) or `Shared` (both may) |
@@ -805,7 +805,7 @@ is a run ID.
 | any other `for` | a `Block`: the `iter` `Call`, then a `Loop` around the `next` `Call` and a `Match` on its `Option` |
 | `let p = e else: ...`, `x is p` | `Match` with two arms |
 | `x := e`, `let p = e` | a new local and `LocalSet`, or a `Match` for a pattern |
-| `Order(x)` newtype call | nothing: the newtype is erased, so construction and unwrapping are permission-carrying views (`types.newtype.construct`, `types.newtype.construct-ref`, `types.newtype.construct-permission`, `types.newtype.unwrap-permission`); a permission upgrade is `mutable-upgrade`, not a conversion |
+| `Order(x)` newtype call | nothing: the newtype is erased, so construction and unwrapping change no value (`types.newtype.construct`, `types.newtype.construct-ref`, `types.newtype.construct-value`) |
 | a type parameter in a type (`T?`) | nothing: the name resolves to the in-scope parameter (`names.type-param.local`) and types erase |
 | `$.with`, `$.use`, `$.context` | `With`, `ProviderGet`, `ContextNew` |
 | `all!(a(x), b(y))` | two cold `Call`s, then `AwaitAll` |
@@ -839,7 +839,7 @@ are `unknown-type` (`names.module.other-module.type`), and `Mailer` or
 `Priced` out of scope are `unknown-trait`
 (`names.module.other-module.trait`). Only resolvable names reach value
 checking: a type parameter in a type erases, and a newtype-name call
-converts with permissions.
+unwraps the newtype.
 
 ##### The Builder API
 

@@ -412,7 +412,7 @@ The `expected` of a `WrongType` depends on the type that reads the value:
 | --- | --- | --- |
 | r[std-json.error.expected.scalar] Scalars | `bool`, `char`, `string`, and each integer and float type | the type's name, as `"u8"` |
 | r[std-json.error.expected.array] Lists | `List[T]` | `"array"` |
-| r[std-json.error.expected.object] Objects | `Map[string, V]`, a derived data type, and a derived variant's payload | `"object"` |
+| r[std-json.error.expected.object] Objects | `Map[string, V]`, a derived struct, and a derived variant's payload | `"object"` |
 | r[std-json.error.expected.variant] Enums | a derived enum | `"variant"` |
 
 > **Note.** A path is for people to read. A key that holds `.` or `[`
@@ -618,7 +618,7 @@ fn round_trip(names: List[string]) -> Result[List[string], JsonError]:
 
 ### Derived Serialize
 
-JSON writes a data type whose `Serialize` is derived as an object with one
+JSON writes a struct whose `Serialize` is derived as an object with one
 key per member. It writes an enum in the externally tagged form, the
 variant's name with its members:
 
@@ -641,8 +641,8 @@ enum Shape:
 | `Shape.Point(4, 5)` | `{"Point":{"_0":4,"_1":5}}` |
 | `Shape.Empty` | `"Empty"` |
 
-1. r[std-json.derive.to-json.data] A data type gives an `Object` with one key per member that the derivation walks, in declaration order. The key is the member's name, and its value is the member's `Json`.
-2. r[std-json.derive.to-json.enum] A variant with members gives an `Object` with one key, the variant's name. Its value is the `Object` of the variant's members, as for a data type.
+1. r[std-json.derive.to-json.data] A struct gives an `Object` with one key per member that the derivation walks, in declaration order. The key is the member's name, and its value is the member's `Json`.
+2. r[std-json.derive.to-json.enum] A variant with members gives an `Object` with one key, the variant's name. Its value is the `Object` of the variant's members, as for a struct.
 3. r[std-json.derive.to-json.unit] A variant with no member in this derivation gives the `Text` of its name.
 4. r[std-json.derive.to-json.positional] A positional member's key is its member name: `_0`, `_1`, and so on.
 5. r[std-json.derive.to-json.embedded] An embedded member is one key, named by its type's final name, whose value is the part's `Json`. It is not flattened.
@@ -671,7 +671,7 @@ JSON reads the form that it writes for a derived `Serialize`:
 | `{"Rect":{},"Empty":{}}` | `.Err(WrongType("$", "variant"))` |
 
 1. r[std-json.derive.from-json.inverse] A derived `Deserialize` reads the form that a derived `Serialize` writes for the same type.
-2. r[std-json.derive.from-json.data] A data type reads an `Object`. Any other value is a `WrongType`.
+2. r[std-json.derive.from-json.data] A struct reads an `Object`. Any other value is a `WrongType`.
 3. r[std-json.derive.from-json.member] It reads each member that the derivation builds, in declaration order, from the value of the member's key. The first error ends the read, with the segment `.name` of the member.
 4. r[std-json.derive.from-json.unknown] A key that names no member is ignored.
 5. r[std-json.derive.from-json.missing] A missing key reads as `null`: the member's type reads `Json.Null`. When that read fails, the error is a `MissingField` at the path of the missing key.
@@ -680,7 +680,7 @@ JSON reads the form that it writes for a derived `Serialize`:
 8. r[std-json.derive.from-json.enum] An enum reads a `Text`, or an `Object` with exactly one key. The text or the key is the variant's name. Any other value is a `WrongType`.
 9. r[std-json.derive.from-json.name-only] A `Text` reads as an `Object` whose one key is that text and whose value is an empty `Object`.
 10. r[std-json.derive.from-json.unknown-variant] A name that is not a variant of the enum is an `UnknownVariant` at the enum value's path.
-11. r[std-json.derive.from-json.payload] The variant's payload must be an `Object`, or it is a `WrongType` with the segment `.name` of the variant. Its members then read as a data type's do, under that segment.
+11. r[std-json.derive.from-json.payload] The variant's payload must be an `Object`, or it is a `WrongType` with the segment `.name` of the variant. Its members then read as a struct's do, under that segment.
 
 ```text
 use std.json.{decode, JsonError}

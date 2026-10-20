@@ -3,7 +3,7 @@
 # Spec 06 Spread Patterns: flow.match.spread.bind (owner decision Q6, batch 34, 2026-10-01).
 # Also exercises flow.match.spread.rest, flow.match.spread.cover,
 # flow.match.literal-payload.rest, flow.match.bind.primitive,
-# flow.match.bind.composite, flow.match.bind.tuple, and flow.match.nested.
+# flow.match.bind.tuple, and flow.match.nested.
 fn total(t: (usize, usize, List[i32]...)) -> usize:
     let (a, b, xs...) = t
     a + b + xs.len()

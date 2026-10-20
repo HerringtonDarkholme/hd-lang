@@ -1,5 +1,5 @@
-# test: copy-update copies embedded parts, so the copy never shares a part with its original
-# Spec 08 Parts And Copies: data.part.copy-update.
+# test: copy-update copies embedded fields, so the copy never shares an embedded field with its original
+# Spec 08 Copy-Update Literals: data.update.new-value; Struct Declarations: data.struct.embed.
 struct Timestamps:
     created_at: i32
     pub updated_at: i32

@@ -1,5 +1,5 @@
-# test: a tuple element keeps its own mut permission
-# Spec 04 Tuple Types: types.tuple.element-permission and types.fresh.tuple (owner decision TU2, batch 27, 2026-09-30).
+# test: a field write through a `&mut` tuple element changes the value it refers to
+# Spec 13 Writing Through A Reference: ref.write.field, ref.write.seen.
 struct User:
     name: string
 

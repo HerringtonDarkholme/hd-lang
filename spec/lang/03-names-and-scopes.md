@@ -3,7 +3,7 @@
 Status: language specification draft.
 
 This chapter defines the scopes introduced by hd-lang programs and how names
-resolve. It does not define type compatibility or access permission.
+resolve. It does not define type compatibility or which places are writable.
 
 ## Name Categories
 
@@ -13,8 +13,8 @@ resolve. It does not define type compatibility or access permission.
 | --- | --- | --- |
 | r[names.category.module] Module | **Module names** | top-level types, traits, functions, and names introduced by use declarations |
 | r[names.category.value] Value | **Value names** | top-level executable bindings, parameters, local bindings, local named functions, loop bindings, pattern bindings, and captured values |
-| r[names.category.local-type] Local type | **Local type names** | data types, enums, traits, aliases, and newtypes declared inside an executable suite |
-| r[names.category.member] Member | **Member names** | data fields, embedded fields, methods, enum variants, and tuple fields within the namespace of their owning type |
+| r[names.category.local-type] Local type | **Local type names** | structs, enums, traits, aliases, and newtypes declared inside an executable suite |
+| r[names.category.member] Member | **Member names** | struct fields, embedded fields, methods, enum variants, and tuple fields within the namespace of their owning type |
 
 1. r[names.category.syntax] A use is resolved in the category required by its syntax.
 2. r[names.category.syntax.type] For example, the name before `{` in `User { ... }` is resolved as a type.
@@ -63,7 +63,7 @@ shadowing a prelude name an error.
 3. r[names.type-param.unique] A type parameter must not duplicate another type parameter in the same parameter list.
 4. r[names.type-param.no-redeclare] No declaration within a type parameter's scope may reuse its name: no nested type parameter, local declaration, local value, or parameter. Error: `duplicate-binding`.
 5. r[names.type-param.no-redeclare.method] So a method's own type parameter must not reuse a type parameter of its `impl` or trait, as `fn echo[T]` inside `impl[T] Box[T]` would.
-6. r[names.type-param.no-redeclare.body] Inside `fn work[T]`, a local `data T`, a local value `T`, and a local `fn convert[T]` are each an error.
+6. r[names.type-param.no-redeclare.body] Inside `fn work[T]`, a local `struct T`, a local value `T`, and a local `fn convert[T]` are each an error.
 
 ```text
 struct Box[+T]:
@@ -214,7 +214,7 @@ demo := total()   # reads start through total, after both are initialized
 
 ### Declarations In Blocks
 
-1. r[names.block-decl.allowed] Named `fn`, `data`, `enum`, `trait`, and `type` declarations may also occur inside executable block suites.
+1. r[names.block-decl.allowed] Named `fn`, `struct`, `enum`, `trait`, and `type` declarations may also occur inside executable block suites.
 2. r[names.block-decl.impl] `impl` declarations may occur at module scope or inside an executable block suite; they do not introduce an independently referencable name.
 
 ```hd
@@ -399,7 +399,7 @@ count = count + 1
 1. r[names.local.short] `:=` introduces inferred, non-reassignable local names. Reassigning one is an error. Error: `non-reassignable-binding`.
 2. r[names.local.let] `let` introduces local names that may be reassigned.
 3. r[names.local.same-scope] The two forms differ in rebinding permission, not in lexical scope.
-4. r[names.local.mutation] Reference mutation permission comes from `mut T` in the binding's type and is independent of whether the local name can be reassigned.
+4. r[names.local.in-place] Whether a value may change in place is decided by [Writable Places](04-type-system.md#writable-places), apart from whether the local name can be reassigned.
 
 ```text
 fn invalid() -> void:
@@ -497,7 +497,7 @@ fn greeting(args: List[string]) -> string:
 ## Function And Closure Scopes
 
 1. r[names.fn.value-params.visible] A function's value parameters are visible throughout its signature after their declaration point and throughout its body.
-2. r[names.generic.params.visible] The generic parameters of a function, method, data type, enum, trait, or `type` declaration are visible throughout that declaration, including its body.
+2. r[names.generic.params.visible] The generic parameters of a function, method, struct, enum, trait, or `type` declaration are visible throughout that declaration, including its body.
 3. r[names.generic.bounds.whole-list] A bound sees the whole list: it may name any parameter of its own list, earlier or later, as in `fn read[S < Source[U], U = string](s: S) -> U`.
 4. r[names.generic.defaults.earlier] A type-argument default sees only the earlier parameters of its list, as [`types.generic.default.later`](04-type-system.md#r-types.generic.default.later) states. Error: `binding-not-yet-visible`.
 5. r[names.fn.params.scope] All value parameters belong to the function body's outermost local scope and must have distinct names.
@@ -524,7 +524,7 @@ fn demo() -> i32:
 
 ### Local Type Declarations
 
-1. r[names.local-type.name] A local `data`, `enum`, `trait`, or `type` declaration introduces a type name at its declaration point. The name is visible in its own definition and in the rest of its enclosing suite.
+1. r[names.local-type.name] A local `struct`, `enum`, `trait`, or `type` declaration introduces a type name at its declaration point. The name is visible in its own definition and in the rest of its enclosing suite.
 2. r[names.local-type.not-visible] The name is not visible before that point or outside the suite.
 3. r[names.local-type.static] Local type declarations do not execute, capture runtime values, or become module members nameable by a `use` declaration.
 4. r[names.local-type.refs] Local type declarations may refer to type names and type parameters visible at their declaration point.
@@ -586,10 +586,10 @@ fn describe(name: string) -> string:
 ### Receivers And Captures
 
 1. r[names.self.reserved] Within a method, `self` is a reserved word that names the receiver parameter supplied by the receiver syntax.
-2. r[names.self.mut] `mut self` is shorthand for `self: mut Self`; it does not create a different lookup category.
+2. r[names.self.receiver-forms] `mut self`, `&self`, and `&mut self` also name the receiver `self`; they do not create a different lookup category.
 3. r[names.capture.resolve] A closure or local named function resolves otherwise-unbound local names in lexically enclosing scopes.
 4. r[names.capture.definition] Those resolved names are its captures.
-5. r[names.capture.mutation-access] Whether a capture permits mutation is determined by the captured binding and its access type alone, as specified in [Functions](07-functions.md#captures).
+5. r[names.capture.mutation-access] Whether a capture permits mutation is determined by the captured binding and its type alone, as specified in [Functions](07-functions.md#captures).
 6. r[names.return.closure] `return` in a closure or trailing block targets that closure, not the enclosing named function.
 
 ```hd
@@ -721,7 +721,7 @@ See also: [Implementation Declarations](09-traits.md#implementation-declarations
 
 ### Lookup Forms
 
-1. r[names.lookup.forms] Member lookup resolves `x.name` and `x.name(args)` where the receiver `x` has nominal type `S` or `mut S`.
+1. r[names.lookup.forms] Member lookup resolves `x.name` and `x.name(args)` where the receiver `x` has nominal type `S`, or is a reference `&S` or `&mut S` by [`ref.read.auto`](13-values-and-references.md#r-ref.read.auto).
 2. r[names.lookup.only] Member lookup is the only lookup algorithm for these forms; the rest of the specification refers to it.
 3. r[names.lookup.field-form] `x.name` without an argument clause uses field lookup only. It never selects a method, because a bare method is not a value.
 4. r[names.lookup.method-form] `x.name(args)` uses method lookup only. It never selects a field.
@@ -751,7 +751,7 @@ struct User:
     id: i32   # private: usable inside this module only
 ```
 
-See also: [Data Declarations](08-data-and-enums.md#data-declarations),
+See also: [Struct Declarations](08-data-and-enums.md#struct-declarations),
 [Inherent Implementations](09-traits.md#inherent-implementations),
 [Method Resolution](09-traits.md#method-resolution).
 
@@ -860,7 +860,7 @@ struct Record:
 > their own packages, and a use never breaks.
 
 > **Note.** An implementation may compute one table of resolved members for
-> each data type. It holds the type's own members at depth 0 and the `pub`
+> each struct. It holds the type's own members at depth 0 and the `pub`
 > members of every part at the part's depth. A shallower member
 > replaces a deeper one. A part's private member is not in the table, so it hides
 > nothing there. The rules above define only the result.
@@ -994,8 +994,8 @@ If `Page` also implemented `Display`, `page.to_string()` would be
 
 ### Promoted Member Access
 
-1. r[names.promoted.path] When the selected member is promoted, `x.name` means the explicit path `x.E1.E2...Ek.name` through the embedded fields `E1` to `Ek`. It has the same type, permission, and evaluation. Each embedded step follows its container's access, so through a `mut S` receiver a promoted field may be assigned and a promoted `mut self` method called. A promoted method runs as the embedded type's own method with the part as its receiver, so there is no overriding.
-2. r[names.promoted.readonly] Through a readonly `S`, a promoted field is readonly, and a promoted `mut self` method is selected and then rejected. Lookup never skips it to try another member. Error: `mutable-receiver-required`.
+1. r[names.promoted.path] When the selected member is promoted, `x.name` means the explicit path `x.E1.E2...Ek.name` through the embedded fields `E1` to `Ek`. It has the same type, writability, and evaluation. Each embedded step follows its container's access, so through a writable receiver a promoted field may be assigned and a promoted `&mut self` method called. A promoted method runs as the embedded type's own method with the part as its receiver, so there is no overriding.
+2. r[names.promoted.readonly] Through a receiver that is not writable, a promoted field cannot be assigned, and a promoted `&mut self` method is selected and then rejected. Lookup never skips it to try another member. Error: `not-writable`.
 3. r[names.promoted.explicit] Explicit qualification through an embedded field, as in `x.E1.name`, starts a new lookup with `E1`'s type as the receiver's type. There the member's own visibility applies. It reaches a private member of a part, as in `x.Part.secret`, where that member is visible.
 
 ```text
@@ -1021,10 +1021,10 @@ struct Page:
     Wrapper
 
 fn invalid(page: Page) -> void:
-    page.reset()  # error: mutable-receiver-required
+    page.reset()  # error: not-writable
 ```
 
-See also: [Mutable Paths](04-type-system.md#mutable-paths).
+See also: [Writable Places](04-type-system.md#writable-places).
 
 ### Dependency Changes
 

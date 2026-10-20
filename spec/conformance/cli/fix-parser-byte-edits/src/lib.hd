@@ -8,7 +8,7 @@ trait Second:
 trait Third:
     fn value(self) -> usize
 
-fn measure() -> usize $ First, Second, Third:
+fn measure() -> usize $ First + Second + Third:
     0
 
 fn half() -> f64:

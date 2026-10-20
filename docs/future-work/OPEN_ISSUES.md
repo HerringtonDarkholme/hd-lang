@@ -275,8 +275,7 @@ requirement (it propagates through every caller's written signature).
 Not in the spec; nothing depends on it.
 
 **Parked idea: deep immutability (owner, 2026-10-07; related to thread
-safety).** A readonly view `T` does not imply deep immutability
-(`types.view.term`), and freshness freezes only the outer object: a
+safety).** A readonly view does not imply deep immutability, and freshness freezes only the outer object: a
 field typed `mut Address` still hands out a mutable view through a
 readonly `Customer`, and a readonly field may alias an object someone
 else holds as `mut`. A value is truly immutable only when its whole

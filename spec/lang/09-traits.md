@@ -90,7 +90,7 @@ trait Add[T]:
 ```
 
 1. r[trait.decl.generic] Traits may be generic.
-2. r[trait.decl.generic.invariant] A trait's generic parameters are invariant, so `Source[mut User]` and `Source[User]` are unrelated trait instantiations. Using one where the other is required is an error. Error: `type-mismatch`.
+2. r[trait.decl.generic.invariant] A trait's generic parameters are invariant, so `Source[&mut User]` and `Source[&User]` are unrelated trait instantiations. Using one where the other is required is an error. Error: `type-mismatch`.
 3. r[trait.decl.generic.no-variance] A variance marker on a trait's generic parameter is an error. Error: `invalid-variance`.
 4. r[trait.decl.generic.default] A trait's generic parameter may declare a [default](04-type-system.md#type-argument-defaults), which may name `Self`, as in `trait Same[Other = Self]`. `Self` there is the implementing type or the bounded type.
 
@@ -267,24 +267,24 @@ trait Hash:
 
 1. r[trait.hash.module] The standard library defines `Hash` and `Hasher` in `std.hash`.
 2. r[trait.hash.map-key] A map key must implement both `Eq` and `Hash`.
-3. r[trait.hash.not-inferred] Neither trait is inferred for user-defined data or enums, including payload-free enums.
+3. r[trait.hash.not-inferred] Neither trait is inferred for user-defined structs or enums, including payload-free enums.
 4. r[trait.hash.unverified] The compiler does not verify any relationship between their implementations.
 5. r[trait.hash.hasher-methods] `write` is the only required method of `Hasher`. `write_u64` and `write_str` have default bodies over `write`: `write_u64(value)` calls `write` with the eight bytes of `value`, least significant first, and `write_str(text)` calls `write` with the UTF-8 bytes of `text` and no length. An implementation may override either to hash the same bytes without building a list, and it must give the same result as the default.
 6. r[trait.hash.ref-receiver] `Hasher`'s methods take `&mut self`, and `Hash.hash` receives its hasher as `&mut dyn Hasher`. So a struct that implements `Hasher` changes in place through a bound and through a trait value reference, and its caller reads the changed state afterwards.
 
-> **Note.** A readonly key can still change through another mutable alias,
-> potentially leaving its map entry unreachable.
+> **Note.** A key that holds a reference can still change through another
+> reference to the same place, potentially leaving its map entry unreachable.
 
 #### Derived Implementations
 
-1. r[trait.derive.no-automatic] There is no automatic conformance for user-defined data or enum types.
+1. r[trait.derive.no-automatic] There is no automatic conformance for user-defined struct or enum types.
 2. r[trait.derive.explicit-impl] An explicit implementation may choose domain-specific equality or ordering.
-3. r[trait.derive.intrinsic-decl] `@derive(...)`, as in `@derive(Eq, Hash)`, is an explicit compiler intrinsic on a data, enum, or newtype declaration.
+3. r[trait.derive.intrinsic-decl] `@derive(...)`, as in `@derive(Eq, Hash)`, is an explicit compiler intrinsic on a struct, enum, or newtype declaration.
 4. r[trait.derive.arguments] Its arguments name traits, not metadata values.
 5. r[trait.derive.generate] The compiler generates ordinary implementations of the named traits from the declaration's shape.
 6. r[trait.derive.check] The compiler checks trait requirements and coherence, and rejects traits for which it has no derivation rule.
 7. r[trait.derive.bounds] For each derived trait, the generated implementation adds a `T < Trait` bound for some declaration type parameters. That is every `T` that occurs in a field compared, ordered, or hashed by that derivation.
-8. r[trait.derive.bounds.example] Thus `@derive(Eq) data Box[T]` produces conformance only when `T < Eq`.
+8. r[trait.derive.bounds.example] Thus `@derive(Eq) struct Box[T]` produces conformance only when `T < Eq`.
 9. r[trait.derive.supertraits] The target must also satisfy each derived trait's supertraits, whether through an existing implementation or another derivation.
 10. r[trait.derive.cmp-templates] `Eq`, `PartialOrd`, `Ord`, and `Hash` derive through their templates, as every derivable trait does. The compiler writes none of their bodies.
 11. r[trait.derive.cmp-every-member] A derivation of `Eq`, `PartialOrd`, `Ord`, or `Hash` covers every member, and no member line or derivation block configures it.
@@ -499,7 +499,7 @@ The standard library declares the standard error trait `Error` in
 10. r[trait.error.dyn-methods.not-members] They are not members of `Error`, so an implementation of `Error` cannot declare or override them.
 11. r[trait.error.dyn-methods.receiver] They are called on a `dyn Error` value, as in `err.find::[FsError]()`. A concrete error converts to `dyn Error` first, as in `let erased: dyn Error = failure`.
 12. r[trait.error.std-api] What `chain`, `root_cause`, and `find` return is standard-library API.
-13. r[trait.error.derive] A data type or enum may implement `Display` and `Error` through the `@error` intrinsic, as [Error Derivation](14-annotations.md#error-derivation) defines.
+13. r[trait.error.derive] A struct or enum may implement `Display` and `Error` through the `@error` intrinsic, as [Error Derivation](14-annotations.md#error-derivation) defines.
 14. r[trait.error.import] `Error` is not a prelude name; code imports it with `use std.error.Error`.
 15. r[trait.error.no-inspect-import] Implementing `Error` needs no import of `std.inspect`.
 
@@ -536,7 +536,7 @@ See also: [Sealed Traits](#sealed-traits),
 4. r[trait.error.entry-point] A dynamic trait value satisfies bounds on its own trait and its supertraits. `dyn Error` therefore satisfies an entry point's `E < Display` requirement, so `pub fn main() -> Result[void, dyn Error]` is a valid entry point.
 5. r[trait.error.boundary] Like every dynamic trait value, an erased `dyn Error` is not boundary-safe and never crosses a registered boundary.
 6. r[trait.error.convert-first] Code converts an erased `dyn Error` explicitly to a boundary-safe error type first.
-7. r[trait.error.downcast] Because `Error` extends `Inspectable`, an erased `dyn Error` can recover its concrete error: `downcast_val::[FsError](error)` recovers an enum error, and the inherited `downcast` method recovers a data error.
+7. r[trait.error.downcast] Because `Error` extends `Inspectable`, an erased `dyn Error` can recover its concrete error: `downcast_val::[FsError](error)` recovers an enum error, and the inherited `downcast` method recovers an `AnyRef` error.
 
 ```text
 use std.error.Error
@@ -644,58 +644,12 @@ impl Named for Admin:
     fn shout(self) -> string: "ADMIN"  # error: extra-trait-member
 ```
 
-#### Receivers Of Struct Implementations
-
-Until the standard library's traits take `&mut self`, a struct implements a
-trait method declared with `data`'s `mut self` by writing `&mut self`:
-
-```text
-trait Counter:
-    fn bump(mut self) -> void
-    fn total(self) -> i32
-
-struct Tally:
-    n: i32
-
-impl Counter for Tally:
-    fn bump(&mut self) -> void:
-        self.n += 1
-    fn total(self) -> i32:
-        self.n
-
-fn twice[C < Counter](c: mut C) -> void:
-    c.bump()
-    c.bump()
-
-fn demo() -> void:
-    let mut tally = Tally { n: 0 }
-    tally.bump()  # valid: a call on the struct takes its address
-    twice(tally)  # error: unsatisfied-trait-bound
-```
-
-1. r[trait.impl.receiver-bridge] A struct's `&mut self` method fills a trait method declared `mut self`. A data type's implementation keeps `mut self`, and any other mismatch is still an error. Error: `trait-method-signature`.
-2. r[trait.impl.receiver-bridge.serves] Such a method serves calls on the struct itself, and calls through a trait value reference made from the struct, as [`trait.dyn.ref.bridge`](#r-trait.dyn.ref.bridge) states. It also serves calls through a requirement provider installed as a reference to the struct, by [`req.ref.share.bridge`](11-requirements-and-suspension.md#r-req.ref.share.bridge). Each other use that reaches the method through the trait's declaration is an error. Error: `unsatisfied-trait-bound`.
-3. r[trait.impl.receiver-bridge.other-uses] Those other uses are listed in the table below.
-
-| Use of the struct `S` | Example |
-| --- | --- |
-| the type argument of a bound on the trait | `twice(tally)` for `fn twice[C < Counter](c: mut C)` |
-| a bare trait value | `let erased: mut dyn Counter = tally` |
-| a trait-qualified call | `Counter::bump(tally)` |
-| a method reference | `tally::bump`, `Tally::bump` |
-| a default method its implementation does not write | `tally.bump_twice()` |
-
-> **Why.** The trait's declaration passes `self` by value, and a struct value
-> passed that way is a copy, so the method would change a copy nobody sees.
-> A trait value reference passes the reference itself instead. The other
-> uses become valid when the trait itself takes `&mut self`.
-
 #### Method Generic Parameters
 
 1. r[trait.impl.generics] The exact signature includes the method-level generic parameters.
 2. r[trait.impl.generics.count] An implementation method declares as many generic parameters as the trait method, and they correspond by position; names may differ.
 3. r[trait.impl.generics.markers] Each parameter keeps the trait method's bounds.
-4. r[trait.impl.generics.bounds] The same bounds are the same traits, with `mut` and the same instantiated arguments and associated type bindings, written in the same order.
+4. r[trait.impl.generics.bounds] The same bounds are the same traits, with the same instantiated arguments and associated type bindings, written in the same order.
 5. r[trait.impl.generics.default] Each parameter also repeats the trait method's [default](04-type-system.md#type-argument-defaults), instantiated as the bounds are, or has none when the trait method's has none. A missing, extra, or different default is a mismatch.
 6. r[trait.impl.generics.fixed-bounds] An implementation method therefore cannot add, drop, reorder, weaken, or strengthen a bound. The one exception is the strengthened member bound of a walker, describer, or source, which [`annot.walker.strengthen-member`](14-annotations.md#r-annot.walker.strengthen-member) allows.
 7. r[trait.impl.generics.error] Any mismatch is an error reported at the implementation method. Error: `trait-method-signature`.
@@ -780,7 +734,7 @@ constructor.
 
 | Rule | Type constructor | Examples |
 | --- | --- | --- |
-| r[trait.target.declaration] Declared | a data, enum, or newtype declaration | `User`, `Box` |
+| r[trait.target.declaration] Declared | a struct, enum, or newtype declaration | `User`, `Box` |
 | r[trait.target.builtin] Built-in | a built-in type constructor | `i32`, `string`, `List`, `Map` |
 | r[trait.target.tuple] Tuple | a tuple constructor, one per arity | `(A, B)`, the two-element tuple constructor applied to `A` and `B` |
 | r[trait.target.function-type] Function | a function type constructor, `Fn` or `SuspendFn` | `fn(i32) -> i32`, which is `Fn[(i32,), i32, $()]`, and `SuspendFn[Args, O, $ R]` |
@@ -802,12 +756,7 @@ constructor.
 15. r[trait.target.trait-value.error] `impl Marker for Display` and `impl Marker for Any` are errors. Error: `trait-value-impl-target`.
 16. r[trait.target.trait-value.argument] A trait value type may still be a constructor's argument, as in `impl Marker for List[dyn Display]`.
 17. r[trait.target.no-mut] A target must not be written with an outer `mut`: `impl Marker for mut Counter` is an error. Error: `mutable-impl-target`.
-18. r[trait.target.permission] Permission belongs to method receivers (`self` and `mut self`) and to bounds (`T < mut Trait`), not to implementations.
-19. r[trait.target.both-views] One implementation for `X` serves both the readonly view `X` and the mutable view `mut X`. Lookup through either view considers the same implementations.
-20. r[trait.target.mut-self] A `mut self` method still requires mutable access at each call.
-21. r[trait.target.inner-mut] Only the outer `mut` of a target is banned. A `mut` inside the target's type arguments or the trait's arguments is part of the implementation's head.
-22. r[trait.target.inner-mut.distinct] `impl Store[User] for Shelf` and `impl Store[mut User] for Shelf` therefore implement distinct trait instantiations and do not overlap.
-23. r[trait.target.template] A derivation template, written `impl[T] Trait for T by Structure`, is not an implementation, so these target rules do not apply to it. Each derivation it produces is an ordinary implementation for a declared target, as [Templates](14-annotations.md#templates) defines.
+18. r[trait.target.template] A derivation template, written `impl[T] Trait for T by Structure`, is not an implementation, so these target rules do not apply to it. Each derivation it produces is an ordinary implementation for a declared target, as [Templates](14-annotations.md#templates) defines.
 
 ```text
 trait Describe:
@@ -978,7 +927,7 @@ fn report(shape: dyn Shape, square: Square) -> f64:
 1. r[trait.own.dyn-inherent.form] An inherent implementation may target a `dyn` type, as in `impl dyn Shape:`. Its methods are inherent methods of that `dyn` type.
 2. r[trait.own.dyn-inherent.module] It must be declared in the module that declares the trait. Elsewhere in the trait's package it is an error. Error: `nonlocal-impl`.
 3. r[trait.own.dyn-inherent.package] In another package it is an error. Error: `orphan-impl`.
-4. r[trait.own.dyn-inherent.receiver] Its methods may be called only on a value whose type is that `dyn` type, readonly or `mut`. A concrete type that implements the trait does not have them, and neither does a type parameter bounded by the trait. Error: `unknown-method`.
+4. r[trait.own.dyn-inherent.receiver] Its methods may be called only on a value whose type is that `dyn` type. A concrete type that implements the trait does not have them, and neither does a type parameter bounded by the trait. Error: `unknown-method`.
 5. r[trait.own.dyn-inherent.no-override] They are not members of the trait, so an implementation of the trait cannot declare or override them.
 6. r[trait.own.dyn-inherent.no-trait-impl] A trait implementation for a `dyn` type stays an error, as [`trait.target.trait-value.error`](#r-trait.target.trait-value.error) states.
 
@@ -1108,7 +1057,7 @@ impl User:
 
 | Member | Receiver | Called |
 | --- | --- | --- |
-| **inherent method** | `self` or `mut self` as its first parameter | with dot syntax, as in `user.domain()` |
+| **inherent method** | a [receiver](07-functions.md#methods-and-receivers) as its first parameter | with dot syntax, as in `user.domain()` |
 | **inherent associated function** | none | through the type, as in `User::guest()` |
 
 ```hd
@@ -1185,7 +1134,7 @@ guest := User::guest()
 This section defines which trait methods are usable at a use and how trait
 candidates are reported.
 
-1. r[trait.resolve.lookup] For a receiver of nominal type `S` or `mut S`, `value.method(args)` selects a method with the method lookup in [Member Resolution](03-names-and-scopes.md#member-resolution).
+1. r[trait.resolve.lookup] For a receiver of nominal type `S`, `value.method(args)` selects a method with the method lookup in [Member Resolution](03-names-and-scopes.md#member-resolution).
 2. r[trait.resolve.lookup.kinds] That lookup covers inherent methods, trait methods, and promoted methods together.
 3. r[trait.resolve.no-field] It never selects a field.
 
@@ -1418,35 +1367,14 @@ fn audit[T < Display & Named](value: T) -> string:
 1. r[trait.bound.static] A generic bound requires explicit conformance and uses static dispatch.
 2. r[trait.bound.compose-and] Bounds compose with `&`: the type must implement every trait joined by it.
 3. r[trait.bound.repeat] A bound may list the same trait more than once, as in `T < Display & Display`. The repetition adds no requirement and is not diagnosed.
-4. r[trait.bound.mut] `T < mut Trait` additionally requires `T` to be a mutable-root type.
-5. r[trait.bound.mut-any] `T < mut Any` requires mutable-root access without a type-specific behavior requirement.
-6. r[trait.bound.supertraits] A bound implies a bound on each of its trait's transitive supertraits. Inside `fn has_child[T < Child]`, a `T` value may be passed where `T < Parent` is required.
-7. r[trait.bound.unsatisfied] A type argument, explicit or inferred, that does not implement a trait its parameter's bound requires is an error. Error: `unsatisfied-trait-bound`.
-8. r[trait.bound.unsatisfied.cases] This includes a non-reference type for `T < AnyRef`, a reference type for `T < AnyVal`, and a readonly argument for `T < mut Trait`.
-9. r[trait.bound.depth] A bound required directly by a use has depth 1. A bound of the implementation that proves a bound of depth `n` has depth `n + 1`.
-10. r[trait.bound.depth.limit] A proof that needs a bound of depth greater than 64 is an error, whether or not a deeper proof would succeed. Error: `trait-resolution-depth`.
-11. r[trait.bound.depth.fixed] The limit is fixed by this specification; no package, module, or compiler option changes it.
-12. r[trait.bound.representation] The compiler may monomorphize static calls, share one body among instantiations, or use another representation.
-13. r[trait.bound.representation.semantics] The chosen representation must preserve the observable semantics.
-
-```text
-trait Clear:
-    fn clear(mut self) -> void
-
-data Counter:
-    value: i32
-
-impl Clear for Counter:
-    fn clear(mut self) -> void:
-        self.value = 0
-
-fn clear_value[T < mut Clear](value: T) -> void:
-    value.clear()
-
-fn reject_readonly() -> void:
-    counter := Counter { value: 42 }
-    clear_value(counter)  # error: unsatisfied-trait-bound
-```
+4. r[trait.bound.supertraits] A bound implies a bound on each of its trait's transitive supertraits. Inside `fn has_child[T < Child]`, a `T` value may be passed where `T < Parent` is required.
+5. r[trait.bound.unsatisfied] A type argument, explicit or inferred, that does not implement a trait its parameter's bound requires is an error. Error: `unsatisfied-trait-bound`.
+6. r[trait.bound.unsatisfied.cases] This includes a non-reference type for `T < AnyRef` and a reference type for `T < AnyVal`.
+7. r[trait.bound.depth] A bound required directly by a use has depth 1. A bound of the implementation that proves a bound of depth `n` has depth `n + 1`.
+8. r[trait.bound.depth.limit] A proof that needs a bound of depth greater than 64 is an error, whether or not a deeper proof would succeed. Error: `trait-resolution-depth`.
+9. r[trait.bound.depth.fixed] The limit is fixed by this specification; no package, module, or compiler option changes it.
+10. r[trait.bound.representation] The compiler may monomorphize static calls, share one body among instantiations, or use another representation.
+11. r[trait.bound.representation.semantics] The chosen representation must preserve the observable semantics.
 
 ```text
 trait Parent:
@@ -1890,9 +1818,8 @@ fn describe(named: dyn Named, shown: dyn Display) -> string:
 3. r[trait.dyn.bound.binding] It satisfies a bound's binding only when it binds the same type, so `dyn Supplier[Item = i32]` does not satisfy `T < Supplier[Item = string]`. Error: `unsatisfied-trait-bound`.
 4. r[trait.dyn.bound.instantiation] For a generic trait, the bound must name the same instantiation, so `dyn Repository[User]` satisfies `T < Repository[User]`.
 5. r[trait.dyn.bound.dispatch] A statically dispatched call through such a bound dispatches each method through the value's table.
-6. r[trait.dyn.bound.mut] A readonly trait value never satisfies a `mut` bound; `mut dyn Tr` satisfies `T < mut Tr`.
-7. r[trait.dyn.bound.no-impl] The rule adds no implementation: the trait value type satisfies no other bound through it, and it still cannot be an implementation target.
-8. r[trait.dyn.bound.available] A `dyn` type satisfies a bound on a trait only when every member of that trait and of its supertraits is available on the `dyn` value. Otherwise the bound is not satisfied. Error: `unsatisfied-trait-bound`.
+6. r[trait.dyn.bound.no-impl] The rule adds no implementation: the trait value type satisfies no other bound through it, and it still cannot be an implementation target.
+7. r[trait.dyn.bound.available] A `dyn` type satisfies a bound on a trait only when every member of that trait and of its supertraits is available on the `dyn` value. Otherwise the bound is not satisfied. Error: `unsatisfied-trait-bound`.
 
 > **Why.** Generic code under `T < Tr` may call any member of `Tr`,
 > including an associated function such as `T::create()`. The availability
@@ -1903,9 +1830,8 @@ fn describe(named: dyn Named, shown: dyn Display) -> string:
 
 1. r[trait.dyn.convert] Converting a concrete value to a trait value requires an explicit implementation. A conversion without one is an error. Error: `type-mismatch`.
 2. r[trait.dyn.convert.any-type] The concrete type can be composite or primitive.
-3. r[trait.dyn.mut] Mutable dynamic access uses `mut dyn Trait` and cannot be recovered from a readonly `dyn Trait` value.
-4. r[trait.dyn.type-test] A dynamic trait value supports a type test only when its trait is `Inspectable` or extends it. The test recovers an exact concrete type.
-5. r[trait.dyn.no-trait-test] No test asks whether a value implements another trait.
+3. r[trait.dyn.type-test] A dynamic trait value supports a type test only when its trait is `Inspectable` or extends it. The test recovers an exact concrete type.
+4. r[trait.dyn.no-trait-test] No test asks whether a value implements another trait.
 
 ```hd
 trait Greet:
@@ -1957,28 +1883,26 @@ fn demo() -> i32:
 1. r[trait.dyn.ref.form] `&dyn Tr` and `&mut dyn Tr` are trait value references. They are reference types, as [Reference Types](13-values-and-references.md#reference-types) defines.
 2. r[trait.dyn.ref.share] `&S` converts implicitly to `&dyn Tr`, and `&mut S` to `&mut dyn Tr`, when `S` implements `Tr`. The result refers to the place the source refers to.
 3. r[trait.dyn.ref.written] A value that is no reference never converts to `&dyn Tr` or `&mut dyn Tr`. Using one where a trait value reference is expected is an error, so a new object is written `&e` or `&mut e`, as in `&S { ... }`. Error: `type-mismatch`.
-4. r[trait.dyn.ref.written.fix] The error's fix-it writes `&` before the value, or `&mut` where `&mut dyn Tr` is expected, when the value is a place or a struct literal whose type implements `Tr`. A place is a binding, a field, an element, or a value reached through a reference. No fix-it is offered when the written reference is itself an error: `&e` on a bare trait value, by [`trait.dyn.ref.bare-operand`](#r-trait.dyn.ref.bare-operand), or `&mut e` on a readonly view.
+4. r[trait.dyn.ref.written.fix] The error's fix-it writes `&` before the value, or `&mut` where `&mut dyn Tr` is expected, when the value is a place or a struct literal whose type implements `Tr`. A place is a binding, a field, an element, or a value reached through a reference. No fix-it is offered when the written reference is itself an error: `&e` on a bare trait value, by [`trait.dyn.ref.bare-operand`](#r-trait.dyn.ref.bare-operand), or `&mut e` on a place that is not writable.
 5. r[trait.dyn.ref.convert.impl] Either conversion is an error when `S` does not implement `Tr` explicitly. Error: `type-mismatch`.
 6. r[trait.dyn.ref.weaken] `&mut dyn Tr` converts implicitly to `&dyn Tr`, and both refer to the same object.
 7. r[trait.dyn.ref.no-upgrade] `&dyn Tr` and `&S` never convert to `&mut dyn Tr`. Error: `mutable-upgrade`.
 8. r[trait.dyn.ref.widen] A child trait value reference converts implicitly to a supertrait value reference of the same mutability, which refers to the same object.
 9. r[trait.dyn.ref.member] Through `&dyn Tr`, the methods declared `self` and `&self` are available. Through `&mut dyn Tr`, the methods declared `mut self` and `&mut self` are available too.
-10. r[trait.dyn.ref.member.mut] Calling a `mut self` or `&mut self` method through `&dyn Tr` is an error. Its fix-it writes `&mut dyn` in the declared type of the receiver binding. Error: `mutable-receiver-required`.
+10. r[trait.dyn.ref.member.mut] Calling a `mut self` or `&mut self` method through `&dyn Tr` is an error. Its fix-it writes `&mut dyn` in the declared type of the receiver binding. Error: `not-writable`.
 11. r[trait.dyn.ref.member.other] Every other member is available or unavailable as on a bare `dyn Tr` value, by [Dynamic Safety](#dynamic-safety).
 12. r[trait.dyn.ref.write-through] A method that changes its receiver, called through a trait value reference, changes the object the reference refers to. Through a reference converted from `&mut s`, that object is `s` itself.
-13. r[trait.dyn.ref.bridge] A struct's `&mut self` method that fills a trait method declared `mut self`, by [`trait.impl.receiver-bridge`](#r-trait.impl.receiver-bridge), serves calls through a trait value reference made from the struct.
-14. r[trait.dyn.ref.bridge.default] Converting such a struct to a trait value reference is an error when its implementation does not write a default method of the trait. Error: `unsatisfied-trait-bound`.
-15. r[trait.dyn.ref.identity] `is` on two trait value references compares the places they refer to, by [`ref.identity.same-place`](13-values-and-references.md#r-ref.identity.same-place). Two conversions of one `&s` refer to one place, and two conversions of `&e` on a value refer to two new objects.
-16. r[trait.dyn.ref.no-store] `*r = v` and `*r op= v` with a trait value reference `r` are errors, since `r` does not know the type of what it refers to. Error: `type-mismatch`.
-17. r[trait.dyn.ref.bare-operand] `&e` and `&mut e` with a bare `dyn Tr` operand are errors when `Tr` or a supertrait declares a `&self` or `&mut self` method. Error: `dyn-member-unavailable`.
-18. r[trait.dyn.ref.bound] A trait value reference satisfies a bound on its trait only through an implementation for reference types, as std's `Display` for `&T` is. [Trait Values As Bounds](#trait-values-as-bounds) covers bare `dyn` types only.
+13. r[trait.dyn.ref.identity] `is` on two trait value references compares the places they refer to, by [`ref.identity.same-place`](13-values-and-references.md#r-ref.identity.same-place). Two conversions of one `&s` refer to one place, and two conversions of `&e` on a value refer to two new objects.
+14. r[trait.dyn.ref.no-store] `*r = v` and `*r op= v` with a trait value reference `r` are errors, since `r` does not know the type of what it refers to. Error: `type-mismatch`.
+15. r[trait.dyn.ref.bare-operand] `&e` and `&mut e` with a bare `dyn Tr` operand are errors when `Tr` or a supertrait declares a `&self` or `&mut self` method. Error: `dyn-member-unavailable`.
+16. r[trait.dyn.ref.bound] A trait value reference satisfies a bound on its trait only through an implementation for reference types, as std's `Display` for `&T` is. [Trait Values As Bounds](#trait-values-as-bounds) covers bare `dyn` types only.
 
 ```text
 trait Counter:
     fn bump(&mut self) -> void
 
 fn poke(counter: &dyn Counter) -> void:
-    counter.bump()  # error: mutable-receiver-required
+    counter.bump()  # error: not-writable
 
 fn upgrade(counter: &dyn Counter) -> &mut dyn Counter:
     counter  # error: mutable-upgrade
@@ -2020,7 +1944,6 @@ See also: [Values And References](13-values-and-references.md),
 4. r[trait.any.erases] As a value type, `Any` erases the concrete type and exposes no type-specific methods.
 5. r[trait.any.optional] An optional value erases to `dyn Any` like any other enum value.
 6. r[trait.any.none] A bare `.None` still needs an expected optional type. `let value: dyn Any = .None` is an error, while `let value: dyn Any? = .None` is valid. Error: `missing-contextual-enum-type`.
-7. r[trait.any.mut] `mut dyn Any` preserves mutable access to an erased composite value.
 
 ```text
 let invalid: dyn Any = .None  # error: missing-contextual-enum-type
@@ -2257,10 +2180,9 @@ fn same_type() -> bool:
 #### Runtime Identity
 
 1. r[trait.identity.definition] Two types have the same **runtime identity** when they are the same declaration applied to type arguments that have the same runtime identity.
-2. r[trait.identity.normalize] Runtime identity is compared after transparent aliases are expanded and the outer `mut` is removed.
-3. r[trait.identity.inner-mut] A `mut` inside a type argument stays, so the type arguments `mut U` and `U` differ.
-4. r[trait.identity.declarations] For this rule the primitive types, `string`, `List`, `Map`, each tuple arity, and `Any` count as declarations, and `void` is the tuple of arity zero.
-5. r[trait.identity.trait-value] A trait value type is its trait declaration applied to its arguments.
+2. r[trait.identity.normalize] Runtime identity is compared after transparent aliases are expanded.
+3. r[trait.identity.declarations] For this rule the primitive types, `string`, `List`, `Map`, each tuple arity, and `Any` count as declarations, and `void` is the tuple of arity zero.
+4. r[trait.identity.trait-value] A trait value type is its trait declaration applied to its arguments.
 
 The rules have these consequences:
 
@@ -2269,8 +2191,6 @@ The rules have these consequences:
 | r[trait.identity.alias] Alias | a transparent alias and its target | the same |
 | r[trait.identity.newtype] Newtype | a newtype and its base type | different |
 | r[trait.identity.arguments] Arguments | `Box[User]` and `Box[Post]` | different |
-| r[trait.identity.outer-mut] Outer `mut` | `User` and `mut User` | the same: the outer permission belongs to the view, not the type, and is carried by the signatures of `downcast` and `downcast_mut` |
-| r[trait.identity.inner-permission] Inner `mut` | `List[User]` and `List[mut User]`; `(User, i32)` and `(mut User, i32)` | different: an inner permission is part of the type, so an erased `List[User]` never downcasts to `List[mut User]`, whose elements would be mutable |
 | r[trait.identity.no-conversion] No conversion | `i32` and `i64`; `User` and `User?`; `List[FsError]` and `List[dyn Error]` | different: no numeric conversion, optional injection, or variance applies |
 | r[trait.identity.modules] Modules | two declarations named `User` in different modules | different |
 
@@ -2301,8 +2221,6 @@ fn demo() -> bool:
 | r[trait.typeid.name.option] Option | `Option[T]` | `T?` |
 | r[trait.typeid.name.tuple] Tuple | a tuple | `(A, B)`; the empty tuple, `void` included, is `()` |
 | r[trait.typeid.name.separator] Separator | elements and type arguments | separated by `, ` |
-| r[trait.typeid.name.inner-mut] Inner `mut` | a `mut` inside a type argument | written before that argument, as in `List[mut acme.model.User]` |
-| r[trait.typeid.name.outer-mut] Outer `mut` | the outer `mut` | never appears |
 
 > **Note.** A tag that must persist is an explicit value with its own
 > versioning.
@@ -2324,14 +2242,14 @@ The compiler supplies `Inspectable` for exactly the **inspectable types**:
 | Rule | Inspectable type |
 | --- | --- |
 | r[trait.inspectable.primitive] Primitive | the primitive types and `string` |
-| r[trait.inspectable.declared] Declared | a data, enum, or newtype declared at module level, public or private, applied to inspectable type arguments |
+| r[trait.inspectable.declared] Declared | a struct, enum, or newtype declared at module level, public or private, applied to inspectable type arguments |
 | r[trait.inspectable.collections] Collection | `List[T]` and `Map[K, V]` with inspectable type arguments, and tuples of inspectable elements |
 | r[trait.inspectable.dynamic] Dynamic value | a dynamic value of `Inspectable` or of a trait with `Inspectable` as a supertrait, which satisfies the trait by [Dynamic Trait Values](#dynamic-trait-values) |
 | r[trait.inspectable.parameter] Type parameter | a type parameter bounded by `Inspectable` or by a trait that has it as a supertrait |
 
 1. r[trait.inspectable.exact] The compiler supplies `Inspectable` for exactly the types in the table above.
 2. r[trait.inspectable.option] The declared case includes `Option` and `Result`, so `T?` is inspectable when `T` is.
-3. r[trait.inspectable.fields] What the fields hold does not matter. A data type with a function-typed field, and a newtype over a function type, are inspectable, because identity is the declaration.
+3. r[trait.inspectable.fields] What the fields hold does not matter. A struct with a function-typed field, and a newtype over a function type, are inspectable, because identity is the declaration.
 4. r[trait.inspectable.argument-only] As a type argument only, any trait value type and `Any` also count as inspectable, and they match exactly.
 5. r[trait.inspectable.argument-examples] `List[dyn Display]`, `Result[void, FsError]`, and `Map[string, dyn Any]` are inspectable.
 
@@ -2350,7 +2268,7 @@ These types are not inspectable, as values or as type arguments:
 | --- | --- |
 | r[trait.inspectable.not.function] Function | function types, spelled or as the constructors `Fn` and `SuspendFn` from `std.function`, closures, and function values |
 | r[trait.inspectable.not.suspend] Suspension | `Suspend[T]` and suspension frames |
-| r[trait.inspectable.not.local] Local declaration | data, enum, newtype, and trait declarations local to a block suite |
+| r[trait.inspectable.not.local] Local declaration | struct, enum, newtype, and trait declarations local to a block suite |
 | r[trait.inspectable.not.never] Never | `never` |
 | r[trait.inspectable.not.argument] Argument | a type applied to a non-inspectable argument, such as `Box[fn() -> i32]` |
 | r[trait.inspectable.not.parameter] Unbounded parameter | a type parameter without an `Inspectable` bound |
@@ -2374,15 +2292,12 @@ dynamic trait value.
 1. r[trait.erase.expected] A value is erased to `dyn Inspectable` by an expected type, like any other dynamic trait value: [`types.assign.trait-value`](04-type-system.md#r-types.assign.trait-value) constructs an `Inspectable` value from an inspectable type.
 2. r[trait.erase.no-cast] There is no cast operator.
 3. r[trait.erase.child-impl] A trait that extends `Inspectable` still needs its own explicit implementation; only its `Inspectable` part is supplied. Converting a value without one is an error. Error: `type-mismatch`.
-4. r[trait.erase.recorded] The recorded type is the static type of the value at the erasure site, without its outer `mut`.
+4. r[trait.erase.recorded] The recorded type is the static type of the value at the erasure site.
 5. r[trait.erase.parameter] For a value of a type parameter `T < Inspectable`, the recorded type is the type `T` is instantiated with, which the bound supplies at run time.
-6. r[trait.erase.built] A value built from `T`, such as a `Box[T]`, records `Box` applied to that type. `T` instantiated with `mut User` therefore records `Box[mut User]`.
-7. r[trait.erase.weakened] A `mut List[mut User]` weakened to `List[User]` before erasure records `List[User]`.
-8. r[trait.erase.bound-required] Erasing a value of a type parameter requires an `Inspectable` bound on it. A value of a type parameter without the bound is not assignable to `dyn Inspectable`, which is an error. Error: `type-mismatch`.
-9. r[trait.erase.widen] Widening a dynamic value of a trait that extends `Inspectable` to `Inspectable` is ordinary supertrait widening, by [`types.assign.supertrait`](04-type-system.md#r-types.assign.supertrait).
-10. r[trait.erase.keeps] The widened value keeps its recorded concrete type. Nothing is wrapped twice, including when a type parameter is instantiated with such a trait value type.
-11. r[trait.erase.mut] `mut dyn Inspectable` keeps mutable access to an erased composite root.
-12. r[trait.erase.mut.source] Erasing to `mut dyn Inspectable` requires mutable access to the source. Erasing a readonly value to `mut dyn Inspectable` is an error. Error: `mutable-upgrade`.
+6. r[trait.erase.built] A value built from `T`, such as a `Box[T]`, records `Box` applied to that type.
+7. r[trait.erase.bound-required] Erasing a value of a type parameter requires an `Inspectable` bound on it. A value of a type parameter without the bound is not assignable to `dyn Inspectable`, which is an error. Error: `type-mismatch`.
+8. r[trait.erase.widen] Widening a dynamic value of a trait that extends `Inspectable` to `Inspectable` is ordinary supertrait widening, by [`types.assign.supertrait`](04-type-system.md#r-types.assign.supertrait).
+9. r[trait.erase.keeps] The widened value keeps its recorded concrete type. Nothing is wrapped twice, including when a type parameter is instantiated with such a trait value type.
 
 ```text
 use std.inspect.{Inspectable, TypeId, downcast_val}
@@ -2423,21 +2338,20 @@ See also: [Assignability And Coercion](04-type-system.md#assignability-and-coerc
 1. r[trait.downcast.some] `value.downcast::[T]()` returns `.Some` of the value exactly when the value's recorded type has the same runtime identity as `T`, and `.None` otherwise.
 2. r[trait.downcast.mut] `value.downcast_mut::[T]()` does the same through a mutable receiver and returns `mut T?`.
 3. r[trait.downcast.val] `downcast_val::[T](value)` does the same for any inspectable `T`, including the value types that `AnyRef` excludes, such as scalars, `string`, tuples, and enums.
-4. r[trait.downcast.val.readonly] The result of `downcast_val` is readonly.
-5. r[trait.downcast.exact] Type arguments must match exactly: an erased `Box[i32]` is not a `Box[i64]`, and an erased `List[FsError]` is not a `List[dyn Error]`.
-6. r[trait.downcast.no-conversion] No variance, numeric conversion, optional unwrapping, newtype unwrapping, or supertrait search takes place.
-7. r[trait.downcast.optional] An erased `User?` is therefore recovered as `User?` with `downcast_val`, giving a `User??`, and never as `User`.
-8. r[trait.downcast.same-reference] A recovered reference value is the same reference that was erased, so `is` holds between them.
-9. r[trait.downcast.unboxed] A value without identity is unboxed.
+4. r[trait.downcast.exact] Type arguments must match exactly: an erased `Box[i32]` is not a `Box[i64]`, and an erased `List[FsError]` is not a `List[dyn Error]`.
+5. r[trait.downcast.no-conversion] No variance, numeric conversion, optional unwrapping, newtype unwrapping, or supertrait search takes place.
+6. r[trait.downcast.optional] An erased `User?` is therefore recovered as `User?` with `downcast_val`, giving a `User??`, and never as `User`.
+7. r[trait.downcast.same-reference] A recovered reference value is the same reference that was erased, so `is` holds between them.
+8. r[trait.downcast.unboxed] A value without identity is unboxed.
 
 ```hd
 use std.inspect.{Inspectable, downcast_val}
 
-data User:
+struct User:
     name: string
 
 fn user_name(value: dyn Inspectable) -> string:
-    match value.downcast::[User]():
+    match downcast_val::[User](value):
         .Some(user) => user.name
         .None => "not a user"
 
@@ -2458,7 +2372,7 @@ fn number(value: dyn Inspectable) -> i32:
 4. r[trait.downcast.evidence] The `Inspectable` evidence for `T`, passed with each call like the evidence for any bound, carries the runtime identity of `T`.
 5. r[trait.downcast.pass-on] A generic function passes a target on through its own bound, as in `fn get[T < AnyRef & Inspectable](value: dyn Inspectable) -> T?`.
 6. r[trait.downcast.readonly] `downcast` yields a readonly `T`.
-7. r[trait.downcast.mut-receiver] `downcast_mut` has a `mut self` receiver, so calling it through a readonly view is an error. Error: `mutable-receiver-required`.
+7. r[trait.downcast.mut-receiver] `downcast_mut` has a `mut self` receiver, so calling it through a receiver that is not writable is an error. Error: `not-writable`.
 8. r[trait.downcast.target] The target `T` is written, or inferred from the expected type, at the call.
 9. r[trait.downcast.visibility] The target must be nameable there under ordinary visibility, so a private type of another module cannot be recovered outside it.
 10. r[trait.downcast.bound] A target that fails a bound is an error. Error: `unsatisfied-trait-bound`.
@@ -2481,19 +2395,19 @@ fn get[T < AnyRef & Inspectable](value: dyn Inspectable) -> T?:
 ### Limits Of Runtime Identity
 
 1. r[trait.limit.no-trait-tests] **No trait tests.** A test compares two runtime identities. Nothing asks whether a value implements a trait, and a dynamic value of one trait is never converted to an unrelated trait.
-2. r[trait.limit.no-requirement-keys] **No inspectable requirement keys.** A trait that is `Inspectable` or has it as a supertrait is never a requirement key. A provider view therefore cannot be tested to recover a concrete provider.
+2. r[trait.limit.no-requirement-keys] **No inspectable requirement keys.** A trait that is `Inspectable` or has it as a supertrait is never a requirement key. A provider value therefore cannot be tested to recover a concrete provider.
 3. r[trait.limit.signatures] **Visible in signatures.** Only a value of an inspectable type can be erased to `dyn Inspectable`. A value of an unbounded type parameter, of `Any`, or of a trait value type whose trait does not extend `Inspectable` cannot.
 4. r[trait.limit.signatures.branch] A function can therefore branch on a value's type only when a parameter type names `Inspectable` or a trait extending it. A parameter bounded by one of them also qualifies.
 5. r[trait.limit.deterministic] **Deterministic.** `runtime_type`, the `TypeId` operations, and `downcast` are pure functions of the build and the value, and call no provider.
 
 ```hd
-use std.inspect.Inspectable
+use std.inspect.{Inspectable, downcast_val}
 
-data User:
+struct User:
     name: string
 
 fn demo(value: dyn Inspectable) -> string:
-    match value.downcast::[User]():
+    match downcast_val::[User](value):
         .Some(user) => user.name   # branches only because the parameter names Inspectable
         .None => "not a user"
 ```
@@ -2605,7 +2519,7 @@ impl Describe for Worker by Logger:
 ```
 
 1. r[trait.by.form] A trait implementation may delegate the whole trait to an embedded field of its target by naming the field after `by`, as in `impl Trait for C by E`.
-2. r[trait.by.valid-part] In `impl Trait for C by E`, where `E` is not `Structure`, `C` must be a data type, and `E` must name one of its embedded fields.
+2. r[trait.by.valid-part] In `impl Trait for C by E`, where `E` is not `Structure`, `C` must be a struct, and `E` must name one of its embedded fields.
 3. r[trait.by.part-impl] The type of that field, with `C`'s type arguments substituted, must implement the same instantiation of `Trait`.
 4. r[trait.by.invalid] Otherwise the implementation is an error, reported on the line of `by`. Error: `invalid-delegation`.
 5. r[trait.by.structure] `impl Trait for C by Structure` is never a delegation. It declares a derivation template or a derivation block, as [Typed Derivation](14-annotations.md#typed-derivation) defines.
@@ -2647,18 +2561,18 @@ impl Describe for Service:
         Describe::headline(self.Logger)
 ```
 
-> **Note.** The forwarding call runs the part's implementation with the
-> part as its receiver. So a default body there calls the part's methods,
-> never the delegating implementation's: there is no overriding. A
-> `mut self` method forwards through `self.E`, which has `mut` access
-> through `mut self`.
+> **Note.** The forwarding call runs the embedded field's implementation
+> with the field as its receiver. So a default body there calls the field's
+> methods, never the delegating implementation's: there is no overriding. A
+> `&mut self` method forwards through `self.E`, which is writable through
+> `&mut self`.
 
 See also: [Data Embedding](08-data-and-enums.md#data-embedding),
 [Member Resolution](03-names-and-scopes.md#member-resolution).
 
 ### Delegated Associated Items
 
-1. r[trait.by.assoc-types] Associated types take the part's bindings: each associated type of the delegating implementation is bound to the type that the part's implementation binds.
+1. r[trait.by.assoc-types] Associated types take the embedded field's bindings: each associated type of the delegating implementation is bound to the type that the field's implementation binds.
 2. r[trait.by.assoc-binding] An associated type binding in the body is an error. Error: `invalid-delegation`.
 3. r[trait.by.assoc-fn] Associated functions have no receiver to forward through and are never generated. The body writes each one, as in any implementation, unless the trait gives it a default. A missing one is an error. Error: `missing-trait-method`.
 

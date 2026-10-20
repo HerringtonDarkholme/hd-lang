@@ -211,16 +211,6 @@ suspension-message-hints	cli.json.diagnostic.fields,cli.json.diagnostic.fixes,cl
 mutable-and-signed-hints	cli.json.diagnostic.fields,cli.json.diagnostic.fixes,cli.json.summary.result.fields,cli.exit.hd-failure,cli.exit.success
 bound-message-hints	cli.json.diagnostic.fields,cli.json.diagnostic.fixes,cli.json.summary.result.fields,cli.exit.hd-failure,cli.exit.success
 unknown-name-suggestions	cli.json.diagnostic.fields,cli.json.diagnostic.fixes,cli.json.summary.result.fields,cli.exit.hd-failure,cli.exit.success
-fix-object-model-data	cli.fix.object-model.command,cli.fix.object-model.check,cli.fix.object-model.meaning,cli.fix.object-model.data,cli.fix.object-model.types,cli.fix.object-model.literals,cli.fix.object-model.report,cli.fix.object-model.report.unit,cli.fix.object-model.status,cli.exit.success
-fix-object-model-types	cli.fix.object-model.types,cli.fix.object-model.lists,cli.fix.object-model.lists.values,cli.fix.object-model.local-list,cli.fix.object-model.coerce,cli.fix.object-model.meaning,cli.fix.object-model.units,cli.fix.object-model.report
-fix-object-model-literals	cli.fix.object-model.literals,cli.fix.object-model.coerce,cli.fix.object-model.coerce.closure,cli.fix.object-model.lists,cli.fix.object-model.meaning
-fix-object-model-receivers	cli.fix.object-model.receivers,cli.fix.object-model.local-list,cli.fix.object-model.meaning
-fix-object-model-equality	cli.fix.object-model.equality,cli.fix.object-model.coerce.cancel,cli.fix.object-model.types.trait,cli.fix.object-model.meaning
-fix-object-model-left	cli.fix.object-model.safe,cli.fix.object-model.left,cli.fix.object-model.units,cli.fix.object-model.report,cli.fix.object-model.report.reason,cli.fix.object-model.status,cli.exit.success
-fix-object-model-idempotent	cli.fix.object-model.idempotent,cli.fix.object-model.left,cli.fix.object-model.report.reason,cli.fix.object-model.safe
-fix-object-model-unchecked	cli.fix.object-model.check,cli.fix.object-model.status,cli.exit.hd-failure
-fix-object-model-dyn-ref	cli.fix.object-model.coerce.dyn,cli.fix.object-model.literals,cli.fix.object-model.meaning
-fix-existing-mut-receiver	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix.edit,cli.json.fix.offsets,cli.json.fix.disjoint
 fix-parser-byte-edits	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix.edit,cli.json.fix.offsets,cli.json.fix.disjoint,cli.fix.command,cli.fix.safe,cli.fix.status
 fix-parser-migrations	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix.edit,cli.json.fix.offsets,cli.json.fix.disjoint,cli.fix.command,cli.fix.safe,cli.fix.status
 fix-parser-punctuation	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix.edit,cli.json.fix.offsets,cli.json.fix.disjoint,cli.fix.command,cli.fix.safe,cli.fix.status

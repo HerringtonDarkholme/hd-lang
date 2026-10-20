@@ -85,7 +85,7 @@ A rule ID marker is `r[`, the ID, and `]`, followed by a space. It opens a
 numbered list item, a paragraph, or a table cell:
 
 ```markdown
-1. r[data.field.unique] Field names must be unique within the data type.
+1. r[data.field.unique] Field names must be unique within the struct.
 ```
 
 A marker anywhere else in prose is an error, so a marker can never hide in
@@ -228,7 +228,7 @@ each marked line.
 A callout is a block quote that opens with a bold label:
 
 ```markdown
-> **Why.** Access to an embedded part already follows its container.
+> **Why.** Access through an embedded field already follows its container.
 ```
 
 1. `> **Why.**` gives the rationale for the rules before it.
@@ -246,7 +246,7 @@ marker, and the website renders the table as a rule table:
 ```markdown
 | Rule | Limit | Error | Reported on |
 | --- | --- | --- | --- |
-| r[data.embed.width] Width | A data type may declare at most three embedded fields. | `too-many-embedded-fields` | the fourth embedded field |
+| r[data.embed.width] Width | A struct may declare at most three embedded fields. | `too-many-embedded-fields` | the fourth embedded field |
 ```
 
 ## Restyling A Chapter
@@ -275,17 +275,17 @@ normative sentences, examples, rule IDs, and prose statistics.
 
 ## Before And After
 
-This excerpt from [Data Declarations](lang/08-data-and-enums.md#data-declarations)
+This excerpt from [Struct Declarations](lang/08-data-and-enums.md#struct-declarations)
 shows the change. Before, one paragraph mixed five topics and put a code in
 the middle of a sentence:
 
 ```markdown
-Field names must be unique within the data type. Every field has an explicit type.
+Field names must be unique within the struct. Every field has an explicit type.
 Fields have no standalone `mut` modifier. `friend: &mut User` declares a field
 whose type grants mutable access through that reference; `mut friend: User`
 is invalid. An embedded field is written without `mut`: `Base` embeds `Base`,
 and `mut Base` is a `mutable-field-modifier` error, because access to an
-embedded part already follows its container
+embedded field already follows its container
 ([Data Embedding](#data-embedding)).
 An ordinary named field may have a default expression. ...
 ```
@@ -296,7 +296,7 @@ a Why callout:
 ~~~markdown
 ### Fields
 
-1. r[data.field.unique] Field names must be unique within the data type. Error: `duplicate-field`.
+1. r[data.field.unique] Field names must be unique within the struct. Error: `duplicate-field`.
 2. r[data.field.typed] Every field has an explicit type.
 3. r[data.field.no-mut-modifier] Fields have no standalone `mut` modifier: `mut friend: User` is an error. Error: `mutable-field-modifier`.
 4. r[data.field.mut-type] `friend: &mut User` declares a field whose type grants mutable access through that reference.
@@ -309,5 +309,5 @@ struct User:
     friend: &mut User   # valid: the type grants mutable access
 ```
 
-> **Why.** Access to an embedded part already follows its container.
+> **Why.** Access through an embedded field already follows its container.
 ~~~

@@ -40,11 +40,11 @@ fn write_pair[W < Serializer](out: &mut W, name: string, count: i64) -> Result[v
 | r[std-serde.model.text] Text | a `string` | `text(value)` |
 | r[std-serde.model.list] List | items in order | `begin_list(len)`, one value per item, `end_list()` |
 | r[std-serde.model.map] Map | entries in order, each with a `string` key | `begin_map(len)`, then per entry `key(k)` and one value, then `end_map()` |
-| r[std-serde.model.variant] Variant | a data value, or an enum value | `begin_variant(facts, v)`, then per member `member(m)` and one value, then `end_variant()` |
+| r[std-serde.model.variant] Variant | a struct value, or an enum value | `begin_variant(facts, v)`, then per member `member(m)` and one value, then `end_variant()` |
 
 1. r[std-serde.model.one-value] A `serialize` call writes exactly one value of the table: one scalar call, or one begin call, its contents, and the matching end call.
 2. r[std-serde.model.len] The `len` of `begin_list` or `begin_map` is the number of items or entries that follow.
-3. r[std-serde.model.variant-args] `facts` is the type-level facts of the value's type, and `v` the `VariantInfo` of its variant. A data value is its type's one variant, with `v.of_data` true.
+3. r[std-serde.model.variant-args] `facts` is the type-level facts of the value's type, and `v` the `VariantInfo` of its variant. A struct value is its type's one variant, with `v.of_data` true.
 4. r[std-serde.model.member-args] `m` is the `Member` of the member whose value follows. Its facts are the ones its derivation sees, as [`annot.structure.per-derivation`](../lang/14-annotations.md#r-annot.structure.per-derivation) states.
 5. r[std-serde.model.errors] A writer's first `.Err` ends the write. Every standard implementation returns it unchanged, and calls nothing after it.
 6. r[std-serde.model.ref-receivers] Every method of `Serializer` and `Deserializer` takes `&mut self`, and `serialize` and `deserialize` take the writer or reader as `&mut W` or `&mut R`. So a format's writer or reader is a struct that changes in place, and its caller reads the struct's fields after the call.
@@ -72,7 +72,7 @@ A `Deserializer` reads the same tree, one call per value:
 1. r[std-serde.read.one-value] A `deserialize` call reads exactly one value.
 2. r[std-serde.read.expected] Each scalar call's `expected` names the type being read, as `"u8"`. A format's error for a value of another kind may report it.
 3. r[std-serde.read.member] `member(m)` makes the value of member `m` the next value. The format decides which value that is, and it may be absent.
-4. r[std-serde.read.choices] `choices` holds the `VariantInfo` of every variant of the type, in declaration order. A data type offers its one variant.
+4. r[std-serde.read.choices] `choices` holds the `VariantInfo` of every variant of the type, in declaration order. A struct offers its one variant.
 
 ```text
 use std.serde.Deserializer

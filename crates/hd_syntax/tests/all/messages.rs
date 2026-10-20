@@ -234,31 +234,6 @@ const ROWS: &[(&str, &str, &str)] = &[
         "an embedded field takes no 'mut': access to an embedded part follows its container",
     ),
     (
-        "fn f[T < Named + Tagged](x: T):\n    pass\n",
-        "old-bound-operator",
-        "several bounds are joined with '&': write 'A & B'",
-    ),
-    (
-        "export foo\n",
-        "old-export-declaration",
-        "'export' was replaced by 'pub use'",
-    ),
-    (
-        "import foo\n",
-        "old-import-declaration",
-        "'import' was replaced by 'use'",
-    ),
-    (
-        "fn f() $ Clock, Logger:\n    pass\n",
-        "old-row-separator",
-        "requirement keys are joined with '+': write '$ A + B'",
-    ),
-    (
-        "fn f() $(A, B):\n    pass\n",
-        "old-row-separator",
-        "requirement keys are joined with '+': write '$ A + B'",
-    ),
-    (
         "fn f():\n    Pair.Values(left=l, r)\n",
         "argument-order",
         "positional arguments must precede named arguments",

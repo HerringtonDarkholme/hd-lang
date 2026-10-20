@@ -263,9 +263,10 @@ impl Ck<'_, '_> {
                 if matches!(self.infer.resolve(pool, t), Ty::POISON | Ty::NEVER) || v.0 == NONE {
                     return Ok(self.ref_poison(n));
                 }
-                // A new object holds a copy of the value; `&mut` on a
-                // readonly view would grant writes through it
-                // (`ref.expr.allocate.view`).
+                // A new object holds a copy of the value (`ref.expr.allocate`);
+                // `&mut` on a composite value without mutable access, such as
+                // a readonly `Suspend[T]`, would upgrade it
+                // (`types.mut.no-upgrade`).
                 // A list or map value is no view: the new object holds a
                 // copy of it (`ref.place.writable.collection`).
                 let coll = self.is_coll_value(t);
@@ -617,7 +618,7 @@ impl Ck<'_, '_> {
                         "`&mut` refers through a read-only reference {}; take the reference with `&mut` to write through it",
                         self.show(rt)
                     );
-                    self.err(Code::ReadonlyRoot, at, &msg);
+                    self.err(Code::NotWritable, at, &msg);
                     false
                 }
             }
@@ -633,7 +634,7 @@ impl Ck<'_, '_> {
                         "`&mut` refers to a field of a readonly {}, which grants no writes",
                         self.show(dt)
                     );
-                    self.err(Code::ReadonlyRoot, at, &msg);
+                    self.err(Code::NotWritable, at, &msg);
                     false
                 }
             }
@@ -641,10 +642,11 @@ impl Ck<'_, '_> {
         if !ok {
             return false;
         }
-        // `ref.place.writable.view-data`: a readonly view in the place grants no
-        // writes, so `&mut` to it would upgrade it. A collection value is
+        // A composite value without mutable access in the place, such as a
+        // readonly `Suspend[T]`, grants no writes, so `&mut` to it would
+        // upgrade it (`types.mut.no-upgrade`). A collection value is
         // no view: a writable place holding one is writable
-        // (`types.coll.writable`), except in a legacy data field.
+        // (`types.coll.writable`).
         let coll_value = self.is_coll_value(p.ty)
             && (!matches!(p.root, Root::DataField(..)) || !p.path.is_empty());
         if self.is_composite(p.ty) && !self.has_mut_access(p.ty) && !coll_value {
@@ -707,7 +709,7 @@ impl Ck<'_, '_> {
             )
         } else {
             (
-                Code::ReadonlyRoot,
+                Code::NotWritable,
                 format!(
                     "`&mut` needs a writable place, but `{name}` is not `let mut`; bind it with `let mut`"
                 ),
@@ -1190,7 +1192,7 @@ impl Ck<'_, '_> {
                 "this writes through a read-only reference {}; take the reference with `&mut` to write through it",
                 self.show(t)
             );
-            self.err(Code::ReadonlyRoot, lhs, &msg);
+            self.err(Code::NotWritable, lhs, &msg);
             return Ok(());
         }
         // `trait.dyn.ref.no-store`: what a trait value reference refers to
@@ -1210,7 +1212,9 @@ impl Ck<'_, '_> {
         let v = match compound {
             None => {
                 let (vr, vt) = self.expr(rhs, Some(want))?;
-                self.coerce(vr, vt, want, rhs, "assignment", ExpectPosition::General)
+                let v = self.coerce(vr, vt, want, rhs, "assignment", ExpectPosition::General);
+                // The referenced place takes its own copy (`types.coll.value`).
+                self.coll_copy(v, inner, rhs.index())
             }
             Some(k) => {
                 let (cur, _) = self.emit_deref(r, t, lhs.index());
@@ -1222,9 +1226,9 @@ impl Ck<'_, '_> {
         Ok(())
     }
 
-    /// `redundant-let-mut` (`types.bind.let-mut-primitive-unused`,
-    /// `types.bind.let-mut-annotated.unused`): a `let mut` local of a
-    /// primitive type, or with a `mut T` annotation, whose address no
+    /// `redundant-let-mut` (`types.bind.let-mut-primitive-unused`): a
+    /// `let mut` local of a primitive type, or with a `mut Suspend[T]`
+    /// annotation, whose address no
     /// `&mut` takes changes nothing that the binding would not without it.
     pub(crate) fn redundant_primitive_let_mut(&mut self) {
         for (l, pat, kind) in std::mem::take(&mut self.prim_let_mut) {
@@ -1256,169 +1260,6 @@ impl Ck<'_, '_> {
             };
             self.diags
                 .add_fix("remove `mut`", FixSafety::Exact, &[(span, "")]);
-        }
-    }
-
-    /// The migration edit of a mismatch between a value and a reference to
-    /// it, which only `hd fix --object-model` applies
-    /// (`cli.fix.object-model.coerce`): `&` or `&mut` before a value where a
-    /// reference is expected, and `*` before a reference where its value
-    /// is expected. A `mut` view expected is a legacy position that shares,
-    /// so a copy read with `*` gets no edit. A value that is itself `*r` or
-    /// `&e` loses that operator instead, and a shorthand field has no value
-    /// to mark. Where a trait value reference is expected, a value whose
-    /// type implements its trait gains `&` or `&mut`, and `&e` on what
-    /// already is such a value's reference loses its `&`
-    /// (`trait.dyn.ref.written`).
-    pub(crate) fn migration_ref_fix(&mut self, got: Ty, want: Ty, n: NodeRef<'_>) {
-        let pool = self.pool();
-        let value = match n.kind() {
-            SyntaxKind::DataFieldInit | SyntaxKind::NamedArgument | SyntaxKind::Argument => {
-                n.children().last()
-            }
-            _ => Some(n),
-        };
-        let Some(value) = value else {
-            return;
-        };
-        let (got, want) = (
-            self.infer.resolve(pool, got),
-            self.infer.resolve(pool, want),
-        );
-        if value.kind() == SyntaxKind::ClosureExpr {
-            self.migration_closure_fix(got, want, value);
-            return;
-        }
-        let to_dyn = self.dyn_ref_of(want).map(|(tv, _)| tv);
-        let (mark, undo) = match (self.ref_of(got), self.ref_of(want)) {
-            (None, Some((inner, mutable))) => {
-                let value_ty = self.strip_mut(got);
-                let fits = match to_dyn {
-                    Some(tv) => self.dyn_fits(value_ty, tv),
-                    None => self.can_unify(value_ty, inner),
-                };
-                if !fits {
-                    return;
-                }
-                (if mutable { "&mut " } else { "&" }, SyntaxKind::DerefExpr)
-            }
-            // `&e` where `e` already is a reference that converts.
-            (Some((outer, _)), Some(_)) if value.kind() == SyntaxKind::RefExpr => {
-                let Some(tv) = to_dyn else {
-                    return;
-                };
-                let Some((inner, _)) = self.ref_of(self.infer.resolve(pool, outer)) else {
-                    return;
-                };
-                let inner = self.strip_mut(self.infer.resolve(pool, inner));
-                if !self.dyn_fits(inner, tv) {
-                    return;
-                }
-                ("", SyntaxKind::RefExpr)
-            }
-            (Some((inner, _)), None) => {
-                if matches!(pool.get(want), TyData::Mut(_)) || !self.can_unify(inner, want) {
-                    return;
-                }
-                ("*", SyntaxKind::RefExpr)
-            }
-            _ => return,
-        };
-        let span = self.cx.src.span(value);
-        let at = |lo: u32, hi: u32| hd_base::Span { lo, hi, ..span };
-        if value.kind() == undo {
-            let Some(operand) = value.children().next() else {
-                return;
-            };
-            let inner = self.cx.src.span(operand);
-            self.diags.add_fix(
-                "drop the reference operator",
-                FixSafety::Migration,
-                &[(at(span.lo, inner.lo), "")],
-            );
-            return;
-        }
-        let bare = matches!(
-            value.kind(),
-            SyntaxKind::NameExpr
-                | SyntaxKind::FieldExpr
-                | SyntaxKind::CallExpr
-                | SyntaxKind::ParenExpr
-                | SyntaxKind::IndexExpr
-                | SyntaxKind::TryExpr
-                | SyntaxKind::PathExpr
-                | SyntaxKind::TypeArgsExpr
-                | SyntaxKind::ListExpr
-                | SyntaxKind::MapExpr
-                | SyntaxKind::TupleExpr
-                | SyntaxKind::DataExpr
-                | SyntaxKind::ComprehensionExpr
-                | SyntaxKind::StringExpr
-                | SyntaxKind::LiteralExpr
-        );
-        let edits: Vec<(hd_base::Span, String)> = if bare {
-            vec![(at(span.lo, span.lo), mark.to_owned())]
-        } else {
-            vec![
-                (at(span.lo, span.lo), format!("{mark}(")),
-                (at(span.hi, span.hi), ")".to_owned()),
-            ]
-        };
-        let edits: Vec<(hd_base::Span, &str)> =
-            edits.iter().map(|(s, t)| (*s, t.as_str())).collect();
-        self.diags.add_fix(
-            &format!("write `{}`", mark.trim_end()),
-            FixSafety::Migration,
-            &edits,
-        );
-    }
-
-    /// The migration edit of a closure literal whose parameter reads a
-    /// `&T` where a `&mut T` is passed: the parameter takes `&mut T`, which
-    /// the body, written for `&T`, never writes through
-    /// (`cli.fix.object-model.coerce`).
-    fn migration_closure_fix(&mut self, got: Ty, want: Ty, closure: NodeRef<'_>) {
-        let pool = self.pool();
-        let (TyData::Fn { params: gp, .. }, TyData::Fn { params: wp, .. }) = (
-            pool.get(self.strip_mut(got)),
-            pool.get(self.strip_mut(want)),
-        ) else {
-            return;
-        };
-        let (gp, wp) = (pool.list_items(gp).to_vec(), pool.list_items(wp).to_vec());
-        let Some(list) = closure
-            .children()
-            .find(|c| c.kind() == SyntaxKind::ParameterList)
-        else {
-            return;
-        };
-        let params: Vec<NodeRef<'_>> = list.children().collect();
-        if gp.len() != wp.len() || params.len() != gp.len() {
-            return;
-        }
-        let mut edits = Vec::new();
-        for ((g, w), p) in gp.iter().zip(&wp).zip(&params) {
-            let (Some((gi, false)), Some((wi, true))) = (self.ref_of(*g), self.ref_of(*w)) else {
-                continue;
-            };
-            if !self.can_unify(gi, wi) {
-                continue;
-            }
-            let Some(ty) = p.children().find(|c| c.kind() == SyntaxKind::RefType) else {
-                continue;
-            };
-            let Some(amp) = ty
-                .direct_tokens()
-                .find(|&t| self.cx.src.parse.tokens.kind(t) == TokenKind::Amp)
-            else {
-                continue;
-            };
-            let at = self.cx.src.token_span(amp);
-            edits.push((hd_base::Span { lo: at.hi, ..at }, "mut "));
-        }
-        if !edits.is_empty() {
-            self.diags
-                .add_fix("take `&mut` parameters", FixSafety::Migration, &edits);
         }
     }
 

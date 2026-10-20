@@ -333,7 +333,7 @@ fn f(editable: &mut User, shared: &User) -> void:
     both := [editable, shared]
     both[0].name = \"x\"
 ";
-    assert_eq!(codes_of(main), vec![Code::ReadonlyRoot]);
+    assert_eq!(codes_of(main), vec![Code::NotWritable]);
 }
 
 /// A site reports once, at the first value that does not join; function

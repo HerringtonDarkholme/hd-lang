@@ -2,15 +2,14 @@
 
 Status: language specification draft.
 
-This chapter defines data types, structs, and enums.
+This chapter defines structs and enums.
 
-1. r[data.kind.data] A **data type** is a nominal product type with reference semantics.
+1. r[data.kind.struct] A **struct** is a nominal product type with value semantics.
 2. r[data.kind.enum] An **enum** is a nominal sum type.
 3. r[data.kind.no-class] Neither is a class, and neither creates an inheritance hierarchy.
-4. r[data.kind.struct] A **struct** is a nominal product type with value semantics, and is not a class either.
 
 ```hd
-data Point:
+struct Point:
     x: i32
     y: i32
 
@@ -19,148 +18,10 @@ enum Shape:
     Circle(radius: f64)
 ```
 
-> **Why.** The keyword `data` names the declaration form without suggesting
-> value-type copying.
-
-## Data Declarations
-
-A `data` declaration defines a data type with named, typed fields.
-
-```text
-struct User:
-    id: string
-    email: string
-    display_name: string? = .None
-```
-
-1. r[data.decl.nominal] Data identity is nominal: two declarations with the same fields introduce different types.
-
-### Fields
-
-1. r[data.field.unique] Field names must be unique within the data type. Error: `duplicate-field`. The named parameters of an enum header, and the named payload parameters of one variant, are unique in the same way.
-2. r[data.field.typed] Every field has an explicit type.
-3. r[data.field.no-mut-modifier] Fields have no standalone `mut` modifier: `mut friend: User` is an error. Error: `mutable-field-modifier`.
-4. r[data.field.mut-type] `friend: mut User` declares a field whose type grants mutable access through that reference.
-5. r[data.field.embedded-no-mut] An embedded field is written without `mut`: `Base` embeds `Base`, and `mut Base` is an error. Error: `mutable-field-modifier`.
-
-```text
-struct User:
-    mut name: string    # error: mutable-field-modifier
-    mut Base            # error: mutable-field-modifier
-    friend: &mut User   # valid: the type grants mutable access
-```
-
-> **Why.** Access to an embedded part already follows its container.
-
-### Field Defaults
-
-1. r[data.default.allowed] An ordinary named field may have a default expression.
-2. r[data.default.type] The default must be assignable to the declared field type.
-3. r[data.default.requirement-free] The default must obey the same requirement-free rule as a function-parameter default.
-4. r[data.default.eval] A default is evaluated separately for each construction, not when the data type is declared.
-5. r[data.default.scope] A default sees the declaration's lexical scope.
-6. r[data.default.no-field-binding] A default does not implicitly bind other fields of the new value.
-7. r[data.default.embedded] Embedded fields have no default syntax.
-
-```hd
-struct Config:
-    retries: i32 = 3
-    name: string
-
-fn demo() -> i32:
-    Config { name: "shop" }.retries   # 3: the default fills the missing field
-```
-
-See also: [Default Values](07-functions.md#default-values).
-
-### Field Visibility
-
-1. r[data.vis.private] Named fields are module-private unless individually marked `pub`.
-2. r[data.vis.type-not-fields] A public data type does not make its unmarked fields public.
-3. r[data.vis.embedded-public] An embedded field takes no marker and is always public: it is visible wherever its outer type is.
-4. r[data.vis.literal] In another module, a data literal may construct the type only when all its fields are public. Any other such literal is an error. Error: `private-member`.
-5. r[data.vis.private-fields] In another module, private fields cannot be named, initialized, or carried through a copy-update literal. Doing so is an error. Error: `private-member`.
-6. r[data.vis.factory] A public factory function can construct a value with private fields inside the defining module.
-
-Because an embedded field is public, embedding a module-private data type in
-a public data type leaks it, as
-[`module.vis.signature.coverage`](10-modules.md#r-module.vis.signature.coverage)
-states:
-
-```text
-struct Timestamps:
-    created_at: i32
-
-pub struct Post:
-    Timestamps  # error: private-type-leak
-    title: string
-```
-
-> **Why.** An embedded field is always public: it is visible wherever its
-> outer type is.
-
-See also: [Member Resolution](03-names-and-scopes.md#member-resolution),
-[Public Uses And Visibility](10-modules.md#public-uses-and-visibility).
-
-### Fieldless Data Types
-
-A data type with no fields is written with `pass`:
-
-```text
-data Unit: pass
-
-unit := Unit {}
-```
-
-1. r[data.empty.pass] An empty nominal data type uses `pass` as its body.
-2. r[data.empty.canonical] A value of a fieldless data type is canonical: every `Unit {}` is the same value with the same identity.
-3. r[data.empty.no-allocation] Constructing a value of a fieldless data type allocates nothing.
-
-See also: [Unary And Binary Operators](05-expressions.md#unary-and-binary-operators).
-
-### Recursive Data Types
-
-1. r[data.recursive.direct] Data declarations may be directly recursive.
-2. r[data.recursive.mutual] Module-level data types may also be mutually recursive.
-3. r[data.recursive.local] Local data types follow declaration-point visibility and cannot refer to a later local declaration.
-4. r[data.recursive.required-fields] Recursion does not imply optionality: a program must still provide a value for every required field during construction.
-
-```hd
-data Chain:
-    value: i32
-    next: Chain?
-```
-
-> **Note.** A recursive graph therefore normally includes an optional, enum,
-> list, or another finite base case.
-
-> **Why.** Data declarations may be directly recursive because composite
-> fields use managed references.
-
-### Reference Semantics
-
-1. r[data.ref.shared] Passing a data value to a function passes a shared reference, not a copy of its fields.
-2. r[data.ref.views] The `T` and `mut T` views control mutation through that reference.
-
-```hd
-data Log:
-    entries: mut List[string]
-
-fn add(log: mut Log, entry: string) -> void:
-    log.entries.push(entry)
-
-fn demo() -> usize:
-    let mut log = Log { entries: [] }
-    add(log, "a")
-    log.entries.len()   # 1: add saw the same Log
-```
-
-See also: [Composite Values And Access Permission](04-type-system.md#composite-values-and-access-permission).
-
 ## Struct Declarations
 
-A `struct` declaration defines a struct with named, typed fields, as a
-`data` declaration does. A struct value is copied, never shared.
+A `struct` declaration defines a struct with named, typed fields. A struct
+value is copied, never shared.
 
 ```hd
 struct Vec2:
@@ -174,20 +35,18 @@ fn demo() -> f64:
     b.x         # 1.0
 ```
 
-1. r[data.struct.decl] `struct Name:` declares a struct. Its body has the grammar of a data body: named fields, defaults, visibility, decorators, and generic parameters.
-2. r[data.struct.value] A struct is a value type, as [Value Types](04-type-system.md#value-types) defines.
-3. r[data.struct.data-rules] The rules of [Data Declarations](#data-declarations) and [Construction And Access](#construction-and-access) apply to a struct, except as this section states.
+1. r[data.struct.decl] `struct Name:` declares a struct. Its body holds named fields, defaults, visibility, decorators, and generic parameters.
+2. r[data.decl.nominal] Struct identity is nominal: two declarations with the same fields introduce different types.
+3. r[data.struct.value] A struct is a value type, as [Value Types](04-type-system.md#value-types) defines.
 4. r[data.struct.receiver-forms] A method of a struct takes `self` or `mut self`, its own read-only or changeable copy of the receiver, or `&self` or `&mut self`, a [reference](07-functions.md#reference-receivers) to the caller's value.
 5. r[data.struct.mut-self] A struct method's `mut self` changes its copy only. The caller's value is unchanged unless the method returns the copy and the caller keeps it.
 6. r[data.struct.embed] A struct may embed a struct, by the rules of [Data Embedding](#data-embedding) for names, limits, and member promotion. An embedded field is a value field, held inline.
-7. r[data.struct.embed.struct-only] A struct's embedded field must name a struct, a generic struct, or a transparent alias that resolves to one. Embedding any other type is an error. Error: `embedded-non-data`.
-8. r[data.struct.embed.plain] A struct literal fills an embedded field as it fills a named field, as in `Post { Timestamps: ts }`, and `post.Timestamps = ts` assigns it. Both copy the value, as every struct copy does.
-9. r[data.struct.embed.no-marker] A copy marker on a struct's embedded field, as in `Timestamps: ...ts` or `post.Timestamps ...= ts`, is an error. Error: `copy-into-ordinary-field`.
-10. r[data.struct.no-recursion] A struct that contains itself by value is an error. Error: `recursive-value-type`.
-11. r[data.struct.contains] A value contains the values of its struct fields, enum payloads, tuple elements, optional payload, and newtype base, and what those contain.
-12. r[data.struct.contains.ends] A data type, a collection, a trait value, or a function value holds a reference, so containment ends there.
-13. r[data.struct.contains.reference] A [reference](13-values-and-references.md#reference-types), `&T` or `&mut T`, also ends containment.
-14. r[data.struct.no-recursion.fix] The `recursive-value-type` error of a struct has a fix-it that writes `&` before the type of each field that contains the struct.
+7. r[data.struct.embed.plain] A struct literal fills an embedded field as it fills a named field, as in `Post { Timestamps: ts }`, and `post.Timestamps = ts` assigns it. Both copy the value, as every struct copy does.
+8. r[data.struct.no-recursion] A struct that contains itself by value is an error. Error: `recursive-value-type`.
+9. r[data.struct.contains] A value contains the values of its struct fields, enum payloads, tuple elements, optional payload, and newtype base, and what those contain.
+10. r[data.struct.contains.ends] A collection, a trait value, or a function value holds a reference, so containment ends there.
+11. r[data.struct.contains.reference] A [reference](13-values-and-references.md#reference-types), `&T` or `&mut T`, also ends containment.
+12. r[data.struct.no-recursion.fix] The `recursive-value-type` error of a struct has a fix-it that writes `&` before the type of each field that contains the struct.
 
 ```text
 struct Vec2:
@@ -218,16 +77,121 @@ impl Vec2:
 > would have no finite size. Recursion goes through a reference or a
 > collection, as `next: &Chain?` and `next: List[Chain]` do.
 
-> **Note.** A struct is not a data type, so a data declaration cannot embed
-> one, as [`data.embed.data-only`](#r-data.embed.data-only) states.
-
 See also: [Value Types](04-type-system.md#value-types),
 [Writable Places](04-type-system.md#writable-places).
 
+### Fields
+
+A struct declares named, typed fields:
+
+```text
+struct User:
+    id: string
+    email: string
+    display_name: string? = .None
+```
+
+1. r[data.field.unique] Field names must be unique within the struct. Error: `duplicate-field`. The named parameters of an enum header, and the named payload parameters of one variant, are unique in the same way.
+2. r[data.field.typed] Every field has an explicit type.
+3. r[data.field.no-mut-modifier] Fields have no standalone `mut` modifier: `mut friend: User` is an error. Error: `mutable-field-modifier`.
+4. r[data.field.mut-type] `friend: &mut User` declares a field whose type grants mutable access through that reference.
+5. r[data.field.embedded-no-mut] An embedded field is written without `mut`: `Base` embeds `Base`, and `mut Base` is an error. Error: `mutable-field-modifier`.
+
+```text
+struct User:
+    mut name: string    # error: mutable-field-modifier
+    mut Base            # error: mutable-field-modifier
+    friend: &mut User   # valid: the type grants mutable access
+```
+
+> **Why.** Access to an embedded field already follows its container.
+
+### Field Defaults
+
+1. r[data.default.allowed] An ordinary named field may have a default expression.
+2. r[data.default.type] The default must be assignable to the declared field type.
+3. r[data.default.requirement-free] The default must obey the same requirement-free rule as a function-parameter default.
+4. r[data.default.eval] A default is evaluated separately for each construction, not when the struct is declared.
+5. r[data.default.scope] A default sees the declaration's lexical scope.
+6. r[data.default.no-field-binding] A default does not implicitly bind other fields of the new value.
+7. r[data.default.embedded] Embedded fields have no default syntax.
+
+```hd
+struct Config:
+    retries: i32 = 3
+    name: string
+
+fn demo() -> i32:
+    Config { name: "shop" }.retries   # 3: the default fills the missing field
+```
+
+See also: [Default Values](07-functions.md#default-values).
+
+### Field Visibility
+
+1. r[data.vis.private] Named fields are module-private unless individually marked `pub`.
+2. r[data.vis.type-not-fields] A public struct does not make its unmarked fields public.
+3. r[data.vis.embedded-public] An embedded field takes no marker and is always public: it is visible wherever its outer type is.
+4. r[data.vis.literal] In another module, a struct literal may construct the type only when all its fields are public. Any other such literal is an error. Error: `private-member`.
+5. r[data.vis.private-fields] In another module, private fields cannot be named, initialized, or carried through a copy-update literal. Doing so is an error. Error: `private-member`.
+6. r[data.vis.factory] A public factory function can construct a value with private fields inside the defining module.
+
+Because an embedded field is public, embedding a module-private struct in a
+public struct leaks it, as
+[`module.vis.signature.coverage`](10-modules.md#r-module.vis.signature.coverage)
+states:
+
+```text
+struct Timestamps:
+    created_at: i32
+
+pub struct Post:
+    Timestamps  # error: private-type-leak
+    title: string
+```
+
+> **Why.** An embedded field is always public: it is visible wherever its
+> outer type is.
+
+See also: [Member Resolution](03-names-and-scopes.md#member-resolution),
+[Public Uses And Visibility](10-modules.md#public-uses-and-visibility).
+
+### Fieldless Data Types
+
+A struct with no fields is written with `pass`:
+
+```text
+struct Unit: pass
+
+unit := Unit {}
+```
+
+1. r[data.empty.pass] An empty struct uses `pass` as its body.
+2. r[data.empty.no-allocation] Constructing a value of a fieldless struct allocates nothing.
+
+### Recursive Data Types
+
+1. r[data.recursive.through-reference] A struct may refer to itself through a reference, an optional reference, or a collection, as `next: &Chain?` and `replies: List[Comment]` do.
+2. r[data.recursive.mutual] Module-level structs may also be mutually recursive through such links.
+3. r[data.recursive.local] Local structs follow declaration-point visibility and cannot refer to a later local declaration.
+4. r[data.recursive.required-fields] Recursion does not imply optionality: a program must still provide a value for every required field during construction.
+
+```hd
+struct Chain:
+    value: i32
+    next: &Chain?
+```
+
+> **Note.** A recursive graph therefore normally includes an optional, enum,
+> list, or another finite base case.
+
+See also: [`data.struct.no-recursion`](#r-data.struct.no-recursion),
+[Generic And Recursive Enums](#generic-and-recursive-enums).
+
 ## Construction And Access
 
-A typed brace literal constructs a data value, and `value.field` accesses a
-field.
+A typed brace literal constructs a struct value, and `value.field` accesses
+a field.
 
 ```text
 user := User {
@@ -239,7 +203,7 @@ user := User {
 
 ### Data Literals
 
-1. r[data.literal.form] Data values use typed brace literals.
+1. r[data.literal.form] Struct values use typed brace literals.
 2. r[data.literal.required] Each field without a default must be initialized exactly once. Omitting one is an error. Error: `missing-required-field`.
 3. r[data.literal.defaulted] A field with a default may be omitted or supplied explicitly.
 4. r[data.literal.unknown] An unknown field is a compile-time error. Error: `unknown-field`.
@@ -290,22 +254,12 @@ renamed := User {
 ```
 
 1. r[data.update.spread] Copy-update construction uses one leading spread.
-2. r[data.update.same-type] The spread has the same data type.
+2. r[data.update.same-type] The spread has the same struct type.
 3. r[data.update.supplies-all] The spread supplies every field.
 4. r[data.update.replace] Explicit fields replace copied values.
-5. r[data.update.new-value] A copy-update literal creates a data value; it does not mutate the spread source.
+5. r[data.update.new-value] A copy-update literal creates a new struct value; it does not mutate the spread source.
 6. r[data.update.no-defaults] Because the spread supplies every field, copy-update does not evaluate defaults for unlisted fields.
-7. r[data.update.access-view] Each copied field is checked through the spread source's access view.
-8. r[data.update.readonly-source] A readonly source can supply its effective `U` value for a direct `mut U` field when the result is also readonly `T`.
-9. r[data.update.mutable-result] From such a readonly source, producing `mut T` requires a `mut U` replacement.
-10. r[data.update.generic] Generic fields retain their substituted type in both views.
-11. r[data.update.shorthand] An explicit replacement may use field shorthand, as in `Point { ...origin, x }`, which means `Point { ...origin, x: x }`.
-
-> **Why.** A copy of a readonly value has mutable access only when nothing
-> mutable is read through a readonly view to make it.
-
-> **Note.** Embedded parts are copied, not shared, as
-> [`data.part.copy-update`](#r-data.part.copy-update) states.
+7. r[data.update.shorthand] An explicit replacement may use field shorthand, as in `Point { ...origin, x }`, which means `Point { ...origin, x: x }`.
 
 See also: [Data Embedding](#data-embedding),
 [Data Expressions](05-expressions.md#data-expressions).
@@ -313,36 +267,31 @@ See also: [Data Embedding](#data-embedding),
 ### Field Access
 
 1. r[data.access.syntax] Field access uses `value.field`.
-2. r[data.access.mut-root] A `mut T` root may reassign any of its fields, regardless of the field's declared mutability.
-3. r[data.access.readonly-root] A readonly `T` value cannot reassign any field.
-4. r[data.access.nested] Nested mutation or a `mut self` call through a field requires the field read to have a `mut` access type.
-5. r[data.access.readonly-mut-field] Reading a `field: mut U` through a readonly value yields only `U`.
-6. r[data.access.construct-mut-field] A readonly data value may be constructed with `U` in that direct field, while a mutable data value requires `mut U`.
-7. r[data.access.generic] A generic field declared `field: P` retains its substituted type: `P = mut U` requires and exposes `mut U` even in a readonly outer value.
-8. r[data.access.assignment] Direct assignment to a visible field enforces its declared type, not arbitrary validation or cross-field invariants.
-9. r[data.access.graph] The language permits shared mutable children and does not guarantee invariants over the entire reachable object graph.
-10. r[data.access.other-module] In another module, field access reaches only public fields; member lookup skips the others.
+2. r[data.access.writable-place] Assigning a field, or changing its value in place, requires a writable place, as [Writable Places](04-type-system.md#writable-places) states.
+3. r[data.access.assignment] Direct assignment to a visible field enforces its declared type, not arbitrary validation or cross-field invariants.
+4. r[data.access.graph] The language permits shared mutable children through `&mut` references, and does not guarantee invariants over the entire reachable object graph.
+5. r[data.access.other-module] In another module, field access reaches only public fields; member lookup skips the others.
 
 ```hd
-data User:
+struct User:
     pub name: string
     email: string
 
-fn rename(user: mut User, name: string) -> void:
-    user.name = name   # a mut root may reassign a field
+fn rename(user: &mut User, name: string) -> void:
+    user.name = name   # a write through a &mut reference
 ```
 
 > **Note.** Keep fields private and expose controlled methods when writes to
 > those fields must preserve such invariants. This does not control other
-> mutable aliases to an object stored in a private field.
+> mutable references to a value that a private field refers to.
 
-See also: [Mutable Paths](04-type-system.md#mutable-paths),
+See also: [Writable Places](04-type-system.md#writable-places),
 [Data Embedding](#data-embedding),
 [Member Resolution](03-names-and-scopes.md#member-resolution).
 
 ### Data Patterns
 
-1. r[data.pattern.form] Data values may be destructured in `match` patterns using the same `DataName { ... }` form.
+1. r[data.pattern.form] Struct values may be destructured in `match` patterns using the same `StructName { ... }` form.
 2. r[data.pattern.subset] The pattern may mention any subset of visible fields; omitted fields are not tested.
 3. r[data.pattern.fields] Within the braces, `field` binds the field value and `field: pattern` applies a nested pattern.
 
@@ -362,8 +311,8 @@ See also: [Match Expressions](06-control-flow.md#match-expressions).
 
 ## Data Embedding
 
-A bare type-name member is an **embedded field**, which embeds another data
-type.
+A bare type-name member is an **embedded field**, which embeds another
+struct inline.
 
 ```text
 struct Post:
@@ -372,7 +321,7 @@ struct Post:
     title: string
 ```
 
-A data literal fills the embedded field with a copy, written `...`:
+A struct literal fills the embedded field as it fills a named field:
 
 ```text
 post := Post {
@@ -387,9 +336,9 @@ post := Post {
 
 ### Embedded Field Names
 
-1. r[data.embed.member] A bare type-name member embeds another data type, possibly with type arguments. The embedded field's name, and its key in a data literal, is the type's final name without type arguments: `Box[T]` is the field `Box`.
-2. r[data.embed.data-only] An embedded field must name a data type, a generic data type such as `Box[T]`, or a transparent alias that resolves to one. Embedding any other type is an error. That covers an enum, a newtype, a trait value type, `Any`, a builtin or collection type, a function type, and a type parameter. Error: `embedded-non-data`.
-3. r[data.embed.unique] The name must be unique among the outer data type's fields. A duplicate name that involves an embedded field is an error. Error: `duplicate-embedded-field`.
+1. r[data.embed.member] A bare type-name member embeds another struct, possibly with type arguments. The embedded field's name, and its key in a struct literal, is the type's final name without type arguments: `Box[T]` is the field `Box`.
+2. r[data.struct.embed.struct-only] A struct's embedded field must name a struct, a generic struct such as `Box[T]`, or a transparent alias that resolves to one. Embedding any other type is an error. That covers an enum, a newtype, a trait value type, `Any`, a builtin or collection type, a function type, and a type parameter. Error: `embedded-non-data`.
+3. r[data.embed.unique] The name must be unique among the outer struct's fields. A duplicate name that involves an embedded field is an error. Error: `duplicate-embedded-field`.
 
 ```text
 struct Storage:
@@ -406,14 +355,14 @@ struct Holder[T]:
 
 ### Embedding Limits
 
-Embedding is limited in width and depth, and a data type never embeds
+Embedding is limited in width and depth, and a struct never embeds
 itself.
 
 | Rule | Limit | Error | Reported on |
 | --- | --- | --- | --- |
-| r[data.embed.width] Width | A data type may declare at most three embedded fields. | `too-many-embedded-fields` | the fourth embedded field |
+| r[data.embed.width] Width | A struct may declare at most three embedded fields. | `too-many-embedded-fields` | the fourth embedded field |
 | r[data.embed.depth] Depth | Embedding chains may be at most three levels deep: `C` may embed `P1`, which embeds `P2`, which embeds `P3`. A type that reaches a cycle without being part of it gets no `embedding-cycle`; its depth counts along chains that never repeat a type. | `embedding-too-deep` | the embedded field that begins the first chain that reaches depth 4 |
-| r[data.embed.depth.self] Cycle | A data type that embeds itself, directly or through other types, is an error, in place of `embedding-too-deep`. | `embedding-cycle` | the embedded field that begins the cycle, in the cycle's first declared type |
+| r[data.embed.depth.self] Cycle | A struct that embeds itself, directly or through other types, is an error, in place of `embedding-too-deep`. | `embedding-cycle` | the embedded field that begins the cycle, in the cycle's first declared type |
 
 ```text
 struct Post:
@@ -455,184 +404,29 @@ struct Edge:
 ```
 
 > **Note.** For the error revamp: `embedding-too-deep` is reported at the
-> declaration of every data type that reaches a part at depth 4. Its
+> declaration of every struct that reaches an embedded struct at depth 4. Its
 > message shows the chain, as in `C > P1 > P2 > P3 > P4`. The
 > `embedding-cycle` message shows the cycle path, as in `Node > Edge > Node`.
 
-> **Note.** Together the two limits bound a data type's embedding tree to at
-> most 3 + 9 + 27 = 39 parts.[^miku]
+> **Note.** Together the two limits bound a struct's embedding tree to at
+> most 3 + 9 + 27 = 39 embedded structs.[^miku]
 
 [^miku]: 39 reads as "mi-ku" in Japanese (san-kyuu, 3-9), a nod to Hatsune Miku. The bound was not chosen for this reason, but it is a happy coincidence.
 
-### Parts And Copies
-
-An embedded field holds a **part** of the outer value: a value of the
-embedded type that the outer value receives as its own copy.
-
-1. r[data.part.construct] A part copy is a copy-update. `E: ...e` in a data literal, and `x.E ...= e` on a `mut` value, store the copy-update `T { ...e }`. Here `E` is the embedded field's name and `T` its type. The `...` applies to the whole field expression.
-2. r[data.part.copy-update] A copy-update literal, as in `Post { ...post, title: "t" }`, copies each embedded part `p` of its spread source that it does not replace, as `T { ...p }`. This is the one exception to a shallow copy-update: a copy never shares a part with its original.
-
-```text
-fn build(ts: Timestamps) -> Post:
-    let mut post = Post { Timestamps: ...ts, id: "p", title: "t" }  # stores Timestamps { ...ts }
-    post.Timestamps ...= ts                                          # stores Timestamps { ...ts }
-    post
-```
-
-> **Note.** A part copy is therefore a new value: a later change to `post`'s
-> part is not seen through `ts`. Composite values that the part's ordinary
-> fields reference are still shared, as in any copy-update.
-
-See also: [Copy-Update Literals](#copy-update-literals).
-
-#### Copy Markers
-
-1. r[data.part.marker-required] The copy marker is required exactly where a part is filled or stored, even from a fresh literal, as in `Timestamps: ...Timestamps { created_at: 1, updated_at: 1 }`. An embedded field filled as `Post { Timestamps: ts }` or assigned as `post.Timestamps = ts` is an error. Error: `embedded-copy-required`. A `...` after any other field's label, or `...=` on any other place, is an error. Error: `copy-into-ordinary-field`.
-
-```text
-fn invalid(post: mut Post, ts: Timestamps, account: mut Account, user: User) -> void:
-    fresh := Post { Timestamps: ts, id: "p" }  # error: embedded-copy-required
-    post.Timestamps = ts                       # error: embedded-copy-required
-    other := Account { owner: ...user }        # error: copy-into-ordinary-field
-    account.owner ...= user                    # error: copy-into-ordinary-field
-```
-
-> **Note.** For the error revamp: the `embedded-copy-required` message
-> suggests the `...` form.
-
-A prefix `...` always copies, and a suffix `...` always spreads, as
-[`grammar.primary.prefix-copies`](02-grammar.md#r-grammar.primary.prefix-copies)
-states:
-
-| Form | Example | Meaning |
-| --- | --- | --- |
-| Leading spread | `User { ...user }` | copies the source's fields into the new value |
-| Embedded field label | `Label: ...value` | copies `value`'s fields into the part |
-| Suffix `...` | `f(xs...)`, `[0, xs...]`, `$.with(ctx...)` | spreads elements or entries |
-
-See also: [Primary Expressions](02-grammar.md#primary-expressions).
-
-#### When Copies Are Made
-
-1. r[data.part.copy-time] A part is copied as soon as the value that fills it is evaluated. In a literal, that is at its field expression, before any later field expression runs. For parts that a spread supplies, it is when the spread is evaluated, before every explicit field expression.
-
-```hd
-data Base:
-    id: i32
-
-data Outer:
-    Base
-    tag: string
-
-fn demo(b: Base) -> Outer:
-    Outer { Base: ...b, tag: "t" }   # b is copied into the part now
-```
-
-> **Note.** Only a `...` copies: passing, returning, binding, or matching
-> the outer value, or reading its part, never copies.
-
-### Access Through Parts
-
-1. r[data.part.access] A read of an embedded field, including a derivation's member value for it, yields the part itself, not a copy. It has its container's access: if `post` has type `mut Post`, `post.Timestamps` has type `mut Timestamps`; if `post` has type `Post`, it has type `Timestamps`. This is the embedded-field step of [Mutable Paths](04-type-system.md#mutable-paths).
-
-> **Note.** A promoted member is its explicit path, as
-> [`names.promoted.path`](03-names-and-scopes.md#r-names.promoted.path)
-> states, so it has the access the receiver grants. A binding of the part
-> is an alias whose view follows the binding rules. `let mut stamps =
-> post.Timestamps` on a `mut Post` binds a `mut Timestamps`, and a mutation
-> through either name is observed through the other.
-
-The following example assumes the `Post` and `Timestamps` declarations
-above:
-
-```text
-impl Timestamps:
-    pub fn touch(mut self, at: i64) -> void:
-        self.updated_at = at
-
-fn edit(post: mut Post, stamps: Timestamps) -> void:
-    post.touch(1700000100)            # promoted mut self method
-    post.updated_at = 1700000200      # promoted field through a mut root
-    let mut alias = post.Timestamps   # mut Timestamps, the same part
-    alias.created_at = 1700000000     # observed as post.created_at
-    let mut copy = Post { Timestamps: ...stamps, id: "p", title: "t" }
-    copy.touch(1700000300)            # changes copy's part, never stamps
-    post.Timestamps ...= stamps       # copy assignment
-```
-
-```text
-fn invalid(post: Post) -> void:
-    post.touch(5)  # error: mutable-receiver-required
-```
-
-#### Part Ownership
-
-1. r[data.part.aliases-untracked] A part is owned by its outer value only in one sense: a part is copied whenever it is filled. So no two outer values receive the same part. The language does not track or prevent later aliases. A read of the part, or a `mut self` method of the embedded type that stores `self` elsewhere, keeps a reference. Changes through it are observed in the outer value.
-2. r[data.part.unobservable] An implementation may lay a part out inline or as a separate object referenced only by its outer value. It may also omit the copy of a value that nothing else can reference, such as a fresh literal. Neither choice is observable.
-
-```hd
-data Inner:
-    value: i32
-
-data Outer:
-    Inner
-
-fn read(o: Outer) -> i32:
-    o.Inner.value   # the part itself
-```
-
-### Mutable Edges
-
-A part copy from a readonly value is readonly when a mutable edge lies
-anywhere beneath it, because it is a copy-update.
-
-```text
-data Stamp:
-    at: i32
-    owner: mut Owner  # a mutable edge
-
-data Post:
-    Stamp
-    id: string
-
-fn invalid(stamp: Stamp) -> void:
-    let mut post = Post { Stamp: ...stamp, id: "p" }  # error: mutable-upgrade
-    kept := Post { Stamp: ...stamp, id: "q" }         # valid: the binding is readonly
-```
-
-Here `Stamp { ...stamp }` is readonly by
-[`data.update.mutable-result`](#r-data.update.mutable-result), so the
-literal is readonly by
-[`types.fresh.mut-literal`](04-type-system.md#r-types.fresh.mut-literal),
-and `let mut` rejects it by
-[`types.fresh.expected-mut`](04-type-system.md#r-types.fresh.expected-mut).
-
-> **Note.** A data type has **mutable edges** when it, or a type it embeds,
-> declares a direct `field: mut U`: a mutable edge counts at any depth. A
-> part copy of a readonly value of such a type is readonly. Adding a direct
-> `mut U` field to a data type is therefore a breaking change for every type
-> that embeds it, at any depth. A literal elsewhere that fills the part from
-> a readonly value and is used as `mut` becomes a `mutable-upgrade` error.
-
-See also: [Bindings And Fresh Values](04-type-system.md#bindings-and-fresh-values).
-
 ### Embedded Field Variance
 
-For variance, an embedded field's type counts as beneath `mut`, so it is an
-invariant position, as [`types.polarity.mut`](04-type-system.md#r-types.polarity.mut)
-states.
+For variance, an embedded field's type is an invariant position, as
+[Variance](04-type-system.md#variance) states.
 
 ```text
-data Box[+T]:
+struct Box[+T]:
     value: T
 
-data Holder[+T]:
+struct Holder[+T]:
     Box[T]  # error: invalid-variance
 ```
 
 > **Why.** Access through an embedded field follows the container.
-
-See also: [Variance](04-type-system.md#variance).
 
 ### Member Promotion
 
@@ -642,12 +436,12 @@ Each fact about promotion is stated once, in chapter 03 or chapter 09:
 
 | Fact | Rule |
 | --- | --- |
-| Only the `pub` fields and `pub` inherent methods of a part, at any depth, are promoted; trait methods never are. | [`names.promote.member`](03-names-and-scopes.md#r-names.promote.member) |
-| A part's embedded field is also promoted; it takes no `pub` marker but is always public. | [`names.promote.embedded`](03-names-and-scopes.md#r-names.promote.embedded) |
+| Only the `pub` fields and `pub` inherent methods of an embedded struct, at any depth, are promoted; trait methods never are. | [`names.promote.member`](03-names-and-scopes.md#r-names.promote.member) |
+| An embedded struct's own embedded field is also promoted; it takes no `pub` marker but is always public. | [`names.promote.embedded`](03-names-and-scopes.md#r-names.promote.embedded) |
 | For each name, the shallowest member hides deeper ones, so a `pub` own member hides a promoted one. | [`names.hide.depth`](03-names-and-scopes.md#r-names.hide.depth) |
 | A private own member with a promoted member's name is `ambiguous-promoted-member`. | [`names.conflict.private-shadow`](03-names-and-scopes.md#r-names.conflict.private-shadow) |
 | Two members with one name at the smallest depth are `ambiguous-promoted-member` at the declaration. | [`names.conflict.error`](03-names-and-scopes.md#r-names.conflict.error) |
-| A promoted member means its explicit path, with the part as receiver: there is no overriding. | [`names.promoted.path`](03-names-and-scopes.md#r-names.promoted.path) |
+| A promoted member means its explicit path, with the embedded field as receiver: there is no overriding. | [`names.promoted.path`](03-names-and-scopes.md#r-names.promoted.path) |
 | A trait method of the receiver beside a promoted method is `ambiguous-method`. | [`names.method-lookup.ambiguous`](03-names-and-scopes.md#r-names.method-lookup.ambiguous) |
 | Embedding grants no trait conformance. | [`trait.embed.no-conformance`](09-traits.md#r-trait.embed.no-conformance) |
 | A promoted method never fills a trait method. | [`trait.impl.fill.never`](09-traits.md#r-trait.impl.fill.never) |
@@ -682,12 +476,12 @@ which defines which field `x.name` or method `x.name(args)` selects.
 
 ### Composition, Not Subtyping
 
-Embedding is composition, not subtyping. The outer data type is a different
+Embedding is composition, not subtyping. The outer struct is a different
 nominal type, so it is not assignable to the embedded type. A promoted
 method runs as the embedded type's own method, and embedding grants no
 trait conformance.
 
-> **Note.** Conformance through a part is written explicitly, with
+> **Note.** Conformance through an embedded field is written explicitly, with
 > [`by`](09-traits.md#trait-delegation), as in
 > `impl Describe for Service by Logger`.
 
@@ -736,10 +530,10 @@ enum ToolError:
 1. r[data.enum.payload] A variant may carry payload parameters.
 2. r[data.enum.payload.order] In a variant constructor call and in a variant pattern, positional arguments and sub-patterns come before `name=` ones. Function calls follow the same rule, [`fn.arg.positional-first`](07-functions.md#r-fn.arg.positional-first).
 3. r[data.enum.payload.typed] Each payload type is explicit.
-4. r[data.enum.payload.large] Large payloads should use a separate data type rather than a nested field block.
+4. r[data.enum.payload.large] Large payloads should use a separate struct rather than a nested field block.
 5. r[data.enum.payload.no-field-blocks] Variant field blocks are not part of the language.
 6. r[data.enum.immutable] An enum value never changes once built: its variant and its payload values are fixed at construction.
-7. r[data.enum.immutable.shallow] The rule is shallow. A payload declared `mut U` still refers to a mutable object, which may change through that reference.
+7. r[data.enum.immutable.shallow] The rule is shallow. A payload of type `&mut U` still refers to a place, which may change through that reference.
 8. r[data.enum.no-identity] An enum value has no identity, so every enum type implements `AnyVal`, as [`types.sealed.anyval-members`](04-type-system.md#r-types.sealed.anyval-members) states.
 9. r[data.enum.no-identity.is] `is` with an enum operand is an error. Error: `identity-requires-references`.
 
@@ -875,13 +669,13 @@ enum HttpStatus(code: i32, phrase: string, retryable: bool = false):
 
 > **Why.** Shared data describes a variant, like a Java or Kotlin enum
 > constant's constructor arguments. Data that differs from value to value
-> belongs in each variant's payload or in a wrapper data type.
+> belongs in each variant's payload or in a wrapper struct.
 
 ### Shared Parameter Defaults
 
 1. r[data.shared.default] A shared parameter may declare a default expression.
 2. r[data.shared.default.order] After the first defaulted parameter, every following shared parameter must also have a default, as with function parameters. A later parameter without one is an error. Error: `default-order`.
-3. r[data.shared.default.requirement-free] The default must satisfy [`data.shared.module-init.requirement-free`](#r-data.shared.module-init.requirement-free), as a function-parameter or data-field default does.
+3. r[data.shared.default.requirement-free] The default must satisfy [`data.shared.module-init.requirement-free`](#r-data.shared.module-init.requirement-free), as a function-parameter or struct-field default does.
 4. r[data.shared.default.eval-once] When omitted, the default is evaluated once for the variant during the variant's constructor call at module initialization.
 5. r[data.shared.default.eval-order] Within one variant's constructor call, explicit argument expressions are evaluated first, then omitted defaults in parameter declaration order.
 6. r[data.shared.default.scope] A default may refer to earlier named shared parameters but not later ones.
@@ -903,12 +697,11 @@ phrase := HttpStatus.NotFound.phrase
 1. r[data.shared.value-read] Every enum value exposes its variant's shared data as fields.
 2. r[data.shared.named-field] A named constructor parameter is available as a field on the enum value.
 3. r[data.shared.underscore-field] An unnamed parameter uses zero-based tuple-style access, spelled `_0`, `_1`, and so on, as in `StatusCode.NotFound._0`.
-4. r[data.shared.permissions] Shared fields follow ordinary composite access permissions.
-5. r[data.shared.readonly] Reading through a readonly enum yields a readonly viewpoint.
-6. r[data.shared.read-only] A shared field is read-only: assigning one is an error, even through a mutable enum root. Error: `invalid-assignment-target`.
-7. r[data.shared.payload-fields] Variant payload fields remain available through pattern matching rather than direct field access, because they do not exist on every variant. A direct access is an error. Error: `unknown-field`.
-8. r[data.shared.payload-names] Within one variant, a named payload parameter must not duplicate a named shared constructor parameter, nor another named payload parameter of that variant. Error: `duplicate-field`.
-9. r[data.shared.payload-defaults] Variant payload parameters do not have defaults; writing one is an error. Error: `syntax-error`.
+4. r[data.shared.read-only] A shared field is read-only: assigning one is an error, even through a `&mut` reference or a `let mut` binding. Error: `invalid-assignment-target`.
+5. r[data.shared.no-place] A shared field is no place, so a change to its value in place, through a method call or an element store, is an error. Error: `not-writable`.
+6. r[data.shared.payload-fields] Variant payload fields remain available through pattern matching rather than direct field access, because they do not exist on every variant. A direct access is an error. Error: `unknown-field`.
+7. r[data.shared.payload-names] Within one variant, a named payload parameter must not duplicate a named shared constructor parameter, nor another named payload parameter of that variant. Error: `duplicate-field`.
+8. r[data.shared.payload-defaults] Variant payload parameters do not have defaults; writing one is an error. Error: `syntax-error`.
 
 ```text
 enum HttpStatus(code: i32, phrase: string):
@@ -1043,7 +836,7 @@ See also: [Optional Types](04-type-system.md#optional-types),
 
 ## Representation And Garbage Collection
 
-1. r[data.repr.backend] Data and enum representation is chosen by the Wasm GC backend subject to observable language semantics.
+1. r[data.repr.backend] Struct and enum representation is chosen by the Wasm GC backend subject to observable language semantics.
 2. r[data.repr.no-dependence] Programs must not depend on field offsets, variant tags, object addresses, or representation identity unless a future interop facility exposes them explicitly.
 3. r[data.repr.gc] Reachable composite values are garbage collected, and unreachable reference cycles are reclaimable.
 4. r[data.repr.no-manual] The language does not expose manual deallocation, user-visible finalizers, or weak references.
@@ -1067,10 +860,10 @@ or fallible cleanup policy remain deferred in
 
 ## Typed Derivation Of Data And Enums
 
-Data types and enums derive library traits with `@derive` or a derivation
+Structs and enums derive library traits with `@derive` or a derivation
 block, as [Typed Derivation](14-annotations.md#typed-derivation) defines.
 
-1. r[data.derive.members] For typed derivation, a data type's members are its fields in declaration order, embedded fields included. An enum's members are each variant's payload parameters.
+1. r[data.derive.members] For typed derivation, a struct's members are its fields in declaration order, embedded fields included. An enum's members are each variant's payload parameters.
 2. r[data.derive.payload-names] An unnamed payload parameter is the member `_0`, `_1`, and so on, by position.
 3. r[data.derive.shared] Shared constructor data is not a member. A derivation reads it from the variant's information, and `build` never reads it.
 4. r[data.derive.newtype] A newtype derives through its base type, as [Derived Newtypes](09-traits.md#derived-newtypes) defines.
@@ -1093,7 +886,7 @@ See also: [Members And Variants](14-annotations.md#members-and-variants).
 2. r[data.unsupported.non-exhaustive] Enums have no non-exhaustive form, so adding a variant to a public enum is a breaking change for its users.
 
 > **Note.** A library that needs to grow a set of error kinds can wrap a
-> private enum in a data type with a private field. It then exposes accessor
+> private enum in a struct with a private field. It then exposes accessor
 > methods.
 
 ```hd

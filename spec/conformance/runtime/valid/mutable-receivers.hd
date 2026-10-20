@@ -1,5 +1,5 @@
 # test: traits / mutable receivers
-# Spec 09 Traits: trait.decl.mut-receiver, trait.dyn.mut.
+# Spec 09 Traits: trait.decl.mut-receiver, trait.dyn.ref.share, trait.dyn.ref.write-through.
 
 trait Add:
     fn add(&mut self, value: i32) -> void

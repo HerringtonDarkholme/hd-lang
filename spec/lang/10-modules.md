@@ -914,7 +914,7 @@ fn demo(x: i32) -> i32:
 
 | Rule | Static type | Prints |
 | --- | --- | --- |
-| r[module.dbg.value.data] Data type | a `data` type | its name and each field with its name, private fields included, as `Point { x: 1, y: 2 }` |
+| r[module.dbg.value.data] Struct | a struct type | its name and each field with its name, private fields included, as `Point { x: 1, y: 2 }` |
 | r[module.dbg.value.variant] Enum | an `enum` | its variant as hd source constructs it, qualified by the enum, with positional payloads first and named ones as `name=value`: `Shape.Dot`, `Shape.Pair(1, 2)`, or `Shape.Circle(radius=2.0)` |
 | r[module.dbg.value.newtype] Newtype | a [newtype](04-type-system.md#newtypes) | its name and its base value, as `Meters(1.5)` |
 | r[module.dbg.value.composite] Built-in composite | a list, map, tuple, `T?`, or `Result` | as its standard `Debug` implementation writes it, as `[1, 2]`, `{"a": 1}`, `(1, "a")`, `Option.Some(1)`, or `Result.Ok(1)` |
@@ -939,7 +939,7 @@ fn audit(account: Account) -> Account:
 #### Large Values
 
 1. r[module.dbg.layout] A value prints on its line when the whole line fits in about 80 columns. Otherwise it prints over several lines, each field or entry on its own line and indented by its depth.
-2. r[module.dbg.cycle.tracked] A data value with fields, a list, or a map that is reached again while it is being printed, through a cycle of references, prints `<cycle>`.
+2. r[module.dbg.cycle.reference] A value that a reference refers to, and that is reached again through a cycle of references while it is being printed, prints `<cycle>`.
 3. r[module.dbg.cycle.untracked] Other values, enums included, are not tracked, and print again each time they are reached.
 4. r[module.dbg.limit.entries] A list or map prints at most its first 100 entries, then `… N more` for the N entries it leaves out.
 5. r[module.dbg.limit.depth] A part nested more than 10 levels deep prints `…`.
@@ -952,8 +952,8 @@ fn demo(items: List[i32]) -> void:
 
 > **Note.** The limits keep one `dbg` call of a large or cyclic value
 > readable, and keep it from running without end. Every cycle passes through
-> a data value, a list, or a map, because an enum never refers to a value
-> built after it, so `<cycle>` still ends each one.
+> a reference, because a value holds no other value that refers back to it,
+> so `<cycle>` still ends each one.
 
 #### Release Builds And Dependencies
 
@@ -1169,7 +1169,7 @@ fn version!() -> string $ Process:
 ### Value-Category Traits
 
 1. r[module.prelude.any-subtraits] `AnyVal` and `AnyRef` are the two sealed marker subtraits of `Any`.
-2. r[module.prelude.anyref-members] `AnyRef` is implemented by the reference types, trait value references included, and by data values, bare trait values, and `Any`. It is also implemented by suspensions and those runtime handles that have identity.
+2. r[module.prelude.anyref-members] `AnyRef` is implemented by the reference types, trait value references included, and by bare trait values and `Any`. It is also implemented by suspensions and those runtime handles that have identity.
 3. r[module.prelude.anyref-excludes] `AnyRef` is not implemented by primitives, tuples, enums (optionals included), or functions.
 4. r[module.prelude.anyval-members] `AnyVal` is implemented by exactly the primitives, `string`, tuples (`void` included), enums (optionals and `Result` included), structs, `List`, `Map`, function types, and newtypes whose base type implements `AnyVal`.
 5. r[module.prelude.newtype-category] A newtype implements `AnyRef` exactly when its base type does.
@@ -1198,7 +1198,7 @@ The following built-in methods are normative:
 | `Display` | `to_string(self) -> string` |
 
 1. r[module.method.normative] The built-in methods in the table are normative.
-2. r[module.method.changing-ref] The methods of the changing rows take `&mut self` and change the collection. Calling one needs the list or map in a writable place, or a list element or a map value of one, as [Collection Values](04-type-system.md#collection-values) states. Error: `mutable-receiver-required`.
+2. r[module.method.changing-ref] The methods of the changing rows take `&mut self` and change the collection. Calling one needs the list or map in a writable place, or a list element or a map value of one, as [Collection Values](04-type-system.md#collection-values) states. Error: `not-writable`.
 3. r[module.method.iter-ref] Each `iter()` call on a list or a map returns a reference to a new iterator object, which [`flow.for.iterator-handle`](06-control-flow.md#r-flow.for.iterator-handle) describes.
 4. r[module.method.usize-sizes] Lengths, indices, and byte offsets use [`usize`](04-type-system.md#the-usize-type).
 5. r[module.method.no-set] No `set` type is part of the core prelude.
@@ -1890,7 +1890,7 @@ struct User:
 ### Public Signatures
 
 1. r[module.vis.signature] A public declaration's complete source-level signature must not expose a module-private declaration. Error: `private-type-leak`.
-2. r[module.vis.signature.coverage] This check recursively covers function parameters and results, data fields (every embedded field included), and enum constructor data and payloads. It also covers alias/newtype underlying types, trait bounds, supertraits, public generic arguments, and every requirement-row key. An implementation whose trait and target are both public is covered too: the type each associated type binds, nested types included, must not be module-private. An implementation with a private trait or a private target is not covered.
+2. r[module.vis.signature.coverage] This check recursively covers function parameters and results, struct fields (every embedded field included), and enum constructor data and payloads. It also covers alias/newtype underlying types, trait bounds, supertraits, public generic arguments, and every requirement-row key. An implementation whose trait and target are both public is covered too: the type each associated type binds, nested types included, must not be module-private. An implementation with a private trait or a private target is not covered.
 3. r[module.vis.body] A private implementation detail may occur in a public function body but not in its public typed interface.
 
 ```text
@@ -2155,7 +2155,7 @@ host before hd code sees it:
 | r[module.profile.host-result.char] `char` | `char` | a Unicode scalar value |
 | r[module.profile.host-result.string] `string` | `string` | valid UTF-8 text |
 | r[module.profile.host-result.float] Float | `f32` or `f64` | any value of that width, so a NaN, an infinity, or `-0.0` is never a contract violation |
-| r[module.profile.host-result.shape] Composite | an optional, `Result`, tuple, list, map, data type, or enum | of that type's shape, with each element, field, and payload checked against its own declared type |
+| r[module.profile.host-result.shape] Composite | an optional, `Result`, tuple, list, map, struct, or enum | of that type's shape, with each element, field, and payload checked against its own declared type |
 
 2. r[module.profile.host-result.no-coercion] The adapter never rounds, truncates, wraps, or otherwise converts a host value to make it fit.
 3. r[module.profile.host-result.contract-panic] A value that fails the check is a host fault. The call panics with a message that names the trait and the method and says that the host broke its contract. Panic: `host-contract`.
@@ -2211,11 +2211,11 @@ Registered boundaries initially allow recursively structural values:
 - primitive scalar types and `string`;
 - tuples;
 - `List[T]` and `Map[K, V]` whose contents are boundary-safe;
-- data types and enums whose complete fields and payloads are boundary-safe;
+- structs and enums whose complete fields and payloads are boundary-safe;
 - `T?` and `Result[T, E]` whose contained types are boundary-safe.
 
 1. r[module.boundary.allowed] Registered boundaries initially allow the recursively structural values in the list above.
-2. r[module.boundary.not-safe] Mutable types, dynamic trait values (including `Inspectable` values), `std.inspect.TypeId`, closures, and live runtime handles are not boundary-safe.
+2. r[module.boundary.not-safe] Dynamic trait values (including `Inspectable` values), `std.inspect.TypeId`, closures, and live runtime handles are not boundary-safe.
 3. r[module.boundary.rows] Requirement-row entries are host bindings and are not serialized parameters.
 4. r[module.boundary.erased-error] In particular, the erased error `std.error.Error` never crosses a registered boundary.
 5. r[module.boundary.domain-error] A registered function returns a boundary-safe error type, such as a domain error enum, and code converts an erased error to such a type explicitly.
@@ -2239,7 +2239,7 @@ See also: [Error Trait](09-traits.md#error-trait).
 
 1. r[module.boundary.tree] Boundary values have tree semantics.
 2. r[module.boundary.cycle] Encoding a cycle is a boundary error. Boundary failure: `boundary-cycle`.
-3. r[module.boundary.cycle.tracked] The encoder finds a cycle at a data value with fields, a list, or a map that it reaches again on its path. It does not track enum values.
+3. r[module.boundary.cycle.tracked] The encoder finds a cycle at a struct value with fields, a list, or a map that it reaches again on its path. It does not track enum values.
 4. r[module.boundary.sharing] When an acyclic graph shares a node, each incoming path encodes a duplicate tree value, and decoding does not restore sharing.
 5. r[module.boundary.map-decode] Decoding a map invokes the key type's ordinary `Eq` and `Hash` implementations.
 
@@ -2274,7 +2274,7 @@ fn demo() -> void:
 
 #### Private Fields At A Boundary
 
-A data type with a private field crosses a boundary only through that
+A struct type with a private field crosses a boundary only through that
 type's `Serialize` and `Deserialize` implementations
 ([serialization opt-in](14-annotations.md#serialization)):
 
@@ -2295,12 +2295,12 @@ pub trait Vault:  # a host capability of the selected runtime profile
     fn badge(self) -> Badge  # error: boundary-private-field
 ```
 
-1. r[module.boundary.out] A value of a data type with a field that is not `pub` crosses a boundary out of hd only when the type implements `std.serde.Serialize`.
+1. r[module.boundary.out] A value of a struct type with a field that is not `pub` crosses a boundary out of hd only when the type implements `std.serde.Serialize`.
 2. r[module.boundary.in] Such a value crosses a boundary into hd only when the type implements `std.serde.Deserialize`.
 3. r[module.boundary.serialize.exact] A value of a type that implements `std.serde.Serialize` crosses out of hd as exactly what its `serialize` writes: private fields the implementation does not write do not cross.
 4. r[module.boundary.deserialize.exact] A value crosses into hd only as built by its type's `std.serde.Deserialize` implementation; a `deserialize` error is a `host-contract` panic the caller sees.
 5. r[module.boundary.deserialize.no-dyn] Deserialization at a boundary never selects a type from the data: the target type comes from the signature.
-6. r[module.boundary.public] A data type whose fields are all `pub` crosses in either direction without either trait. An enum's payloads have no visibility, so they need neither trait.
+6. r[module.boundary.public] A struct type whose fields are all `pub` crosses in either direction without either trait. An enum's payloads have no visibility, so they need neither trait.
 7. r[module.boundary.direction] A registered function's arguments cross into hd, and its result crosses out. A host capability method's arguments cross out of hd, and its result crosses in.
 8. r[module.boundary.error] A boundary signature whose type, or a type inside it, would cross without the trait its direction needs is an error, reported at that signature. Error: `boundary-private-field`.
 

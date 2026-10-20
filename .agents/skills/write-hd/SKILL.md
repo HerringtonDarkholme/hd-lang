@@ -276,8 +276,7 @@ pub fn main() -> void $ Console:
 
 - Build a record with `Item { field: value }`, never `Item(field: v)`.
   `...tea` copies the rest. Fields of a `pub struct` that other modules
-  read are `pub` too. `data` is still accepted but is being removed; write
-  `struct`.
+  read are `pub` too. There is no `data`; write `struct`.
 - `.Variant` works where the type is known; otherwise `Status.Paid(1)`.
 - `match` must be exhaustive. An arm is `pattern => expr` or an indented
   body, never `{ ... }`.
@@ -472,7 +471,7 @@ the code `hd check` reports today.
 | `fn main()` with no `pub` | `private-main` warning, nothing runs | `pub fn main()` |
 | `pub fn main()` calling `read_line!()` | `bang-call-outside-suspension` | `pub fn main!()` |
 | `?` in `main!() -> void` | `invalid-result-propagation` | `-> Result[void, ConsoleError]`, end with `.Ok(())` |
-| `$ Console, Clock` | `old-row-separator` | `$ Console + Clock` |
+| `$ Console, Clock` | `syntax-error` | `$ Console + Clock` |
 | `let i = 0` compared with an `i32` | `mixed-signedness` | `let i = +0`, or `let i: i32 = 0` |
 | an `i32` counter (`+0`) plus `len()` or another `usize` | `mixed-signedness` (no hint) | keep counters `usize` (`0`), or convert explicitly: `i32(n)` |
 | `s.len()` used as a character count | (none: wrong result) | `len()` counts bytes; characters are `s.chars().count()` |
@@ -481,17 +480,17 @@ the code `hd check` reports today.
 | `let mut n = +0` | `redundant-let-mut` warning | `let n = +0` |
 | `total: i64 = 0` | `missing-let` | `let total: i64 = 0` |
 | `pub let LIMIT = 3`, `pub LIMIT := 3` | `syntax-error` | private `LIMIT := +3`, plus `pub fn limit() -> i32: LIMIT` |
-| `let xs: List[string] = []` then `xs.push(x)` | `mutable-receiver-required` | `let mut xs: List[string] = []` |
-| `xs.push(x)` on a parameter `xs: List[i32]`, meant for the caller's list | `mutable-receiver-required` | `xs: &mut List[i32]`, and the call `f(&mut xs)` |
+| `let xs: List[string] = []` then `xs.push(x)` | `not-writable` | `let mut xs: List[string] = []` |
+| `xs.push(x)` on a parameter `xs: List[i32]`, meant for the caller's list | `not-writable` | `xs: &mut List[i32]`, and the call `f(&mut xs)` |
 | `p := P { x: 1 }` then `p.x = 2` | `non-reassignable-binding` | `let mut p = P { x: 1 }` |
-| `p.x = 2` on a `let p` | `readonly-root` | `let mut p = ...` |
+| `p.x = 2` on a `let p` | `not-writable` | `let mut p = ...` |
 | `fn bump(self)` that writes `self.x` | `non-reassignable-parameter-binding` | `fn bump(&mut self)` |
-| `p.bump()` on a `:=` binding, `bump` takes `&mut self` | `mutable-receiver-required` | `let mut p = ...` |
+| `p.bump()` on a `:=` binding, `bump` takes `&mut self` | `not-writable` | `let mut p = ...` |
 | `bump(p)` where `bump` takes `&mut P` | `type-mismatch` | `bump(&mut p)` |
-| a write through a `&P` parameter | `readonly-root` | take `&mut P` |
+| a write through a `&P` parameter | `not-writable` | take `&mut P` |
 | `a == b` on two references | `reference-equality` | `a is b`, or `*a == *b` |
 | `$.with(Mailer=fake)` | `type-mismatch` | `$.with(Mailer=&mut fake)` |
-| `data Item:` | (none: still accepted) | `struct Item:` |
+| `data Item:` | `syntax-error` | `struct Item:` |
 | `xs.append(x)` | `unknown-method` | `xs.push(x)` |
 | `pair.0` | `syntax-error` | `pair._0` |
 | `defer save()` | `syntax-error` | `defer: save()` |

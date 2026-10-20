@@ -175,8 +175,8 @@ pub fn main() -> void:
 "
     );
     let found = errors(&src);
-    assert!(found.contains(&Code::MutableReceiverRequired), "{found:?}");
-    assert!(found.contains(&Code::ReadonlyRoot), "{found:?}");
+    assert!(found.contains(&Code::NotWritable), "{found:?}");
+    assert!(found.contains(&Code::NotWritable), "{found:?}");
 }
 
 #[test]

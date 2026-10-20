@@ -1,9 +1,0 @@
-# The package does not check: `bonus` names nothing. hd fix --object-model
-# reports the error, writes no file, and exits 101
-# (cli.fix.object-model.check, cli.fix.object-model.status).
-run: hd fix --object-model
-exit: 101
-same-text: src/main.hd want/main.hd
-run: hd check --format json
-exit: 101
-stdout-json: [{"kind":"diagnostic","code":"unknown-name","file":"src/main.hd","line":6},{"kind":"summary","errors":1,"status":101}]

@@ -2,7 +2,7 @@
 //! (spec/lang/04-type-system.md, types.bind.let-mut-primitive-top) and, in a
 //! body, valid with a warning unless `&mut` of it is taken
 //! (types.bind.let-mut-primitive-local, types.bind.let-mut-primitive-unused).
-//! On a tuple it is an error in both (types.bind.let-mut-tuple). An annotated
+//! On a tuple it is valid in both (types.bind.let-mut-tuple-valid). An annotated
 //! list binding is a writable value (types.coll.let-mut).
 
 use hd_diag::Code;
@@ -69,10 +69,10 @@ fn local_let_mut_of_a_primitive_with_a_mut_reference_is_quiet() {
 }
 
 #[test]
-fn module_level_let_mut_of_a_tuple_is_rejected_once() {
+fn let_mut_of_a_tuple_is_valid() {
     let decl = "let mut pair = (1, 2)";
-    assert_eq!(module(decl), vec![Code::MutOnTuple]);
-    assert_eq!(local(decl), vec![Code::MutOnTuple]);
+    assert_eq!(module(decl), Vec::<Code>::new());
+    assert_eq!(local(decl), Vec::<Code>::new());
 }
 
 #[test]

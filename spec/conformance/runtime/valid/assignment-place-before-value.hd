@@ -2,7 +2,7 @@
 # expect: test
 # Spec 05 Evaluation And Assignment: expr.evaluated,
 # expr.order.left-to-right, expr.order.applies, expr.category.value,
-# expr.category.place, expr.place.field, expr.place.index,
+# expr.category.place, expr.place.deref, expr.place.index,
 # expr.place.receiver, expr.place.call-update, expr.assign.statement,
 # expr.assign.target, expr.assign.order, expr.assign.order.field,
 # expr.assign.order.index, expr.assign.order.call.

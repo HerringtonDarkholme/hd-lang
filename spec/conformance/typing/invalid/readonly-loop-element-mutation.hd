@@ -4,4 +4,4 @@ struct User:
 
 fn rename_all(users: &mut List[User]) -> void:
     for user in users:
-        user.name = "Grace"  # diagnostic: readonly-root
+        user.name = "Grace"  # diagnostic: not-writable

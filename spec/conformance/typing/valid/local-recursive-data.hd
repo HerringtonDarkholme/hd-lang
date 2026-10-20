@@ -1,5 +1,5 @@
 # test: a local struct type may refer to itself and to local types declared before it
-# Spec 08 Recursive Data Types: data.recursive.local, data.recursive.direct.
+# Spec 08 Recursive Data Types: data.recursive.local, data.recursive.through-reference.
 fn route_length() -> i32:
     struct Stop:
         name: string

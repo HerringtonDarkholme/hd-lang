@@ -1,5 +1,5 @@
-# test: find walks the cause chain in order and returns the first error of the target type, an equal enum value or the same data reference, or .None
-# Spec std/error Root Cause And Find: std-error.find.first, std-error.find.value, std-error.find.reference.
+# test: find walks the cause chain in order and returns the first error of the target type, an equal enum or struct value, or .None
+# Spec std/error Root Cause And Find: std-error.find.first, std-error.find.value.
 use std.error.Error
 @error
 enum FsError:
@@ -17,7 +17,7 @@ enum AppError:
     Start(@source error: ConfigError)
 
 @error("disk full")
-data DiskError:
+struct DiskError:
     free: i64
 
 @error
@@ -41,11 +41,11 @@ tests:
             .Some(found) => assert_equal(found.to_string(), "cannot load app", reason="one level down")
             .None => assert(false, reason="ConfigError is in the chain")
 
-    it("returns the same reference for a data error"):
+    it("returns an equal value for a struct error"):
         disk := DiskError { free: 0 }
         let failure: dyn Error = SaveError.Write("notes.txt", disk)
         match failure.find::[DiskError]():
-            .Some(found) => assert(found is disk, reason="a data error is not copied")
+            .Some(found) => assert_equal(found.free, disk.free, reason="a struct error comes back as an equal value")
             .None => assert(false, reason="DiskError is in the chain")
 
     it("returns .None when no error matches"):

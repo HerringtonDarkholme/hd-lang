@@ -462,8 +462,9 @@ impl Ck<'_, '_> {
             .map(|_| self.infer.fresh(pool, VarKind::General))
             .collect();
         let want = subst_owner(pool, fact, &vars, pattern);
-        // A `mut` target passes as a `mut T` argument does: whole, or
-        // weakened to its readonly form (`annot.typed-fact.infer.weaken`).
+        // A `mut Suspend[T]` target passes as an argument does: whole, or
+        // weakened to its readonly form (`annot.typed-fact.infer.call`,
+        // `types.mut.weaken`).
         let target = self.norm_ty(target);
         let fits = self.unify_now(target, want)
             || matches!(pool.get(target), TyData::Mut(inner) if self.unify_now(inner, want));

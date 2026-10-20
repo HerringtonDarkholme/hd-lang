@@ -52,7 +52,7 @@ fn first_evens(values: List[i32]) -> List[(usize, i32)]:
 4. r[std-iter.adapter.lazy.next] The returned iterator advances `self` only when its own `next` is called.
 5. r[std-iter.adapter.take.limit] The iterator that `take` returns calls `next` on `self` at most `count` times.
 6. r[std-iter.adapter.fold.drain] `fold` advances `self` until `next` returns `.None`, which leaves `self` exhausted.
-7. r[std-iter.adapter.ref-receiver] Each adapter takes `&mut self`, so it applies to a `&mut Iterator[T]`, such as what `iter()` or another adapter returns, and its result chains. Calling one on an iterator value that is not in a writable place, or through a `&Iterator[T]`, is an error. Error: `mutable-receiver-required`.
+7. r[std-iter.adapter.ref-receiver] Each adapter takes `&mut self`, so it applies to a `&mut Iterator[T]`, such as what `iter()` or another adapter returns, and its result chains. Calling one on an iterator value that is not in a writable place, or through a `&Iterator[T]`, is an error. Error: `not-writable`.
 8. r[std-iter.adapter.callback-row] The `keep` callback has the empty row. A function value whose row lists a requirement key does not fit it. Error: `type-mismatch`.
 9. r[std-iter.adapter.callback-row.map] The `transform` callback of `map` has the empty row too.
 10. r[std-iter.adapter.fold.row] The `step` callback of `fold` may have a requirement row `R`, and `fold` then requires `R`.
@@ -72,7 +72,7 @@ fn scoped(values: List[i32], logger: dyn Logger) -> List[i32]:
         values.iter().filter(fn(value): noisy(value)).collect()  # error: type-mismatch
 
 fn drain(source: Iterator[i32]) -> List[i32]:
-    source.collect()  # error: mutable-receiver-required
+    source.collect()  # error: not-writable
 ```
 
 A callback that needs a provider captures the provider value from `$.use`

@@ -194,8 +194,7 @@ pub(crate) enum RowFrame {
 pub(crate) enum LetMutKind {
     /// Its type is primitive (types.bind.let-mut-primitive-local).
     Primitive,
-    /// Its `mut T` annotation already grants `mut`
-    /// (types.bind.let-mut-annotated-valid).
+    /// Its `mut Suspend[T]` annotation already grants `mut`.
     Annotated,
 }
 
@@ -247,11 +246,11 @@ pub(crate) struct Ck<'a, 'c> {
     pub param_writes: Vec<(LocalId, hd_base::NodeIdx)>,
     /// The bindings whose stores copy a collection value
     /// (`types.coll.value`): `let`, `let mut` and `:=` locals, and `mut`
-    /// pattern names, but not a legacy `mut List[T]` annotation.
+    /// pattern names.
     pub copy_locals: Vec<LocalId>,
     /// The writable locals whose collection something besides the local
-    /// may change while a call runs: a closure that changes it, a `&mut`
-    /// to it, a legacy `mut List[T]` view sharing it (`types.coll.value`).
+    /// may change while a call runs: a closure that changes it, or a `&mut`
+    /// to it (`types.coll.value`).
     /// A value argument read from one is copied (`crate::coll`).
     pub alias_locals: Vec<LocalId>,
     /// The value arguments read from a writable local not yet in
@@ -293,11 +292,6 @@ pub(crate) struct Ck<'a, 'c> {
     /// A member call's explicit method type arguments (`x.f::[T]()`),
     /// taken by the method's instantiation.
     pub method_targs: Vec<Ty>,
-    /// Set while a conversion to a trait value reference checks its impl:
-    /// a struct's `&mut self` method may fill a `mut self` trait method
-    /// there, since the trait value passes the reference
-    /// (`trait.dyn.ref.bridge`).
-    pub bridge_ok: bool,
     /// The receiver of the method call being checked is a trait value read
     /// through `&dyn` (`false`) or `&mut dyn` (`true`), written at the node
     /// (`trait.dyn.ref.member`).
@@ -589,7 +583,6 @@ pub(crate) fn new_ck<'a, 'c>(
         never_args: Vec::new(),
         fell_back: HashSet::default(),
         method_targs: Vec::new(),
-        bridge_ok: false,
         dyn_recv: None,
         in_explicit_targs: false,
         default_owner: None,
@@ -1384,15 +1377,8 @@ impl Ck<'_, '_> {
                 self.row_gens
                     .push((g.name, hd_types::RowParamRef { owner, index }));
             }
-            let first = self.env.clause_self.len();
             for b in &g.bounds {
                 self.add_bound(p, *b, 0);
-            }
-            // `T < mut Trait`: values of `T` have mutable access.
-            if g.mut_bound {
-                for m in &mut self.env.clause_mut[first..] {
-                    *m = true;
-                }
             }
         }
     }
@@ -1668,20 +1654,6 @@ impl Ck<'_, '_> {
         {
             return out;
         }
-        // A collection value from a writable place, or a new one, goes to a
-        // legacy `mut List[T]` or `mut Map[K, V]` position by sharing
-        // (`types.coll.legacy`), as `&mut` to the place would.
-        if let TyData::Mut(wi) = pool.get(w)
-            && self.is_coll_value(wi)
-            && self.is_coll_value(g)
-            && self.can_unify(g, wi)
-            && (self.place_writable_quiet(r) || self.is_fresh(r))
-        {
-            self.mark_write_path(r);
-            self.note_legacy_share(r);
-            self.expect(got, wi, n, what, position);
-            return self.retype(r, want, n.index());
-        }
         // A variable a generic call solves is not a declared type either:
         // permissions inside it weaken (types.generic.infer.join).
         let joined = matches!(pool.get(want), TyData::Infer(_));
@@ -1948,9 +1920,6 @@ impl Ck<'_, '_> {
                 _ => String::new(),
             };
             self.err(code, n, &format!("{msg}{hint}"));
-            if code == Code::TypeMismatch {
-                self.migration_ref_fix(got, want, n);
-            }
             // `types.num.no-implicit.fix`: write the conversion around the
             // value, as `i64(small)`.
             if code == Code::TypeMismatch && self.num_widens(got, want) {
@@ -2561,9 +2530,6 @@ impl Ck<'_, '_> {
                 for (v, t) in learned {
                     let var = pool.intern_ty(&TyData::Infer(v));
                     let _ = self.infer.unify(pool, var, t);
-                }
-                if self.bridge_only_direct(tref, &evidence, at) {
-                    return Ok(None);
                 }
                 Ok(Some(evidence))
             }
@@ -3759,7 +3725,7 @@ impl Ck<'_, '_> {
                             "this writes through a read-only reference {}; take the reference with `&mut` to write through it",
                             self.show(bt)
                         );
-                        self.err(Code::ReadonlyRoot, *lhs, &msg);
+                        self.err(Code::NotWritable, *lhs, &msg);
                         return Ok(());
                     }
                     Some((_, true)) => self.emit_deref(br, bt, base.index()),
@@ -3792,7 +3758,7 @@ impl Ck<'_, '_> {
                     return Ok(());
                 };
                 self.check_field_visible(pt, &fname, *lhs);
-                self.check_store_target(base, (br, bt), *lhs);
+                self.check_store_target((br, bt), *lhs);
                 let br = pr;
                 let v = match compound {
                     None => {
@@ -3865,7 +3831,7 @@ impl Ck<'_, '_> {
                     );
                     return Ok(());
                 }
-                self.check_store_target(*base, (br, bt), *lhs);
+                self.check_store_target((br, bt), *lhs);
                 let kr = self.index_key((kr, key_ty), *key, kt);
                 let v = match compound {
                     None => {

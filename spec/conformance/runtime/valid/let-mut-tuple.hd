@@ -1,0 +1,9 @@
+# test: let mut on a name whose type is a tuple is valid, and the binding may be reassigned as a whole
+# Spec 04 Binding Forms: types.bind.let-mut-tuple-valid.
+# expect-stdout: 1 2
+# expect-stdout: 3 4
+pub fn main() -> void $ Console:
+    let mut pair = (1, 2)
+    println("${pair._0} ${pair._1}")
+    pair = (3, 4)
+    println("${pair._0} ${pair._1}")

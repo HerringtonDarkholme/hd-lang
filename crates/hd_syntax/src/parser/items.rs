@@ -92,27 +92,13 @@ impl Parser<'_> {
         if self.at(TokenKind::Ident)
             && matches!(self.nth(1), Some(TokenKind::Ident))
             && !self.nth_line_first(1)
+            && self.at_word("newtype")
         {
-            let old = match self.nth_text(0) {
-                "import" => Some((Code::OldImportDeclaration, "'import' was replaced by 'use'")),
-                "export" => Some((
-                    Code::OldExportDeclaration,
-                    "'export' was replaced by 'pub use'",
-                )),
-                _ => None,
-            };
-            if let Some((code, message)) = old {
-                self.error(code, message);
-                self.recover_line();
-                return;
-            }
-            if self.at_word("newtype") {
-                self.error_at(
-                    Code::SyntaxError,
-                    self.pos() + 1,
-                    "a newtype is declared with 'type': write 'type Name(Base)'",
-                );
-            }
+            self.error_at(
+                Code::SyntaxError,
+                self.pos() + 1,
+                "a newtype is declared with 'type': write 'type Name(Base)'",
+            );
         }
         if self.at(TokenKind::KwTests) {
             if place == Place::Top {
@@ -347,27 +333,6 @@ impl Parser<'_> {
         }
         if self.at(TokenKind::Dollar) {
             self.requirement_clause();
-            if self.at(TokenKind::Comma) {
-                // grammar.type.row.old-separator
-                let at = self.pos();
-                let error = self.errors.len();
-                self.error_at(
-                    Code::OldRowSeparator,
-                    at,
-                    "requirement keys are joined with '+': write '$ A + B'",
-                );
-                let reported = self.errors.len() > error;
-                let mut edits = Vec::new();
-                while self.at(TokenKind::Comma) {
-                    let (lo, hi) = self.token_span(self.pos());
-                    edits.push((lo, hi, " +"));
-                    self.bump();
-                    self.ty_bound_trait(true);
-                }
-                if reported {
-                    self.fix_error(error, "join requirement keys with `+`", &edits);
-                }
-            }
         }
         if self.eat(TokenKind::Colon) {
             self.suite(false, Ctx::Inline);
@@ -442,24 +407,13 @@ impl Parser<'_> {
         self.complete(marker, SyntaxKind::GenericParameterList);
     }
 
-    /// `< [mut] Bound & Bound ...` as a `BoundList`.
+    /// `< Bound & Bound ...` as a `BoundList`.
     pub(crate) fn bound_list(&mut self) {
         let marker = self.start();
         self.bump(); // <
-        self.eat(TokenKind::KwMut);
         self.ty_bound_trait(true);
         loop {
             if self.eat(TokenKind::Amp) {
-                self.ty_bound_trait(true);
-            } else if self.at(TokenKind::Plus) {
-                // grammar.generic.bound.old-plus
-                let at = self.pos();
-                self.error_at(
-                    Code::OldBoundOperator,
-                    at,
-                    "several bounds are joined with '&': write 'A & B'",
-                );
-                self.bump();
                 self.ty_bound_trait(true);
             } else {
                 break;

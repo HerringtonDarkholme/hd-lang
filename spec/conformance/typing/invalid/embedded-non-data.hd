@@ -1,4 +1,4 @@
-# test: embedding an enum is rejected; an embedded field must name a data type
+# test: embedding an enum is rejected; an embedded field must name a struct
 
 enum JobStatus:
     Queued

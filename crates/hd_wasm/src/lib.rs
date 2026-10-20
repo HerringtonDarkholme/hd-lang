@@ -438,9 +438,9 @@ pub enum GSym {
     Binding(Hash128, u32, VT),
     /// A runtime global by name, with its type.
     Rt(String, VT),
-    /// The canonical value of a fieldless data type: an immutable constant
-    /// global, named by the canonical encoding of the type, holding the
-    /// struct `VT` (`expr.is.canonical-data`).
+    /// The canonical value of a fieldless struct or compiler-supplied data
+    /// type: an immutable constant global, named by the canonical encoding
+    /// of the type, holding the struct `VT`.
     Canon(Hash128, VT),
     /// A witness (`crates/hd_mono/DESIGN.md` §13.5.1): an immutable constant global per
     /// `(family, method type arguments)`, which link fills from the

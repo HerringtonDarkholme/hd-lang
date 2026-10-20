@@ -161,23 +161,17 @@ fn run(cell: &mut Cell) -> void:
 #[test]
 fn a_store_needs_a_mut_cell() {
     let param = with_cell("fn run(cell: Cell) -> void:\n    cell() = 2\n");
-    assert_eq!(codes_of(&param), vec![Code::MutableReceiverRequired]);
+    assert_eq!(codes_of(&param), vec![Code::NotWritable]);
     let param_compound = with_cell("fn run(cell: Cell) -> void:\n    cell() += 2\n");
-    assert_eq!(
-        codes_of(&param_compound),
-        vec![Code::MutableReceiverRequired]
-    );
+    assert_eq!(codes_of(&param_compound), vec![Code::NotWritable]);
     let view = with_cell("fn run() -> void:\n    view := live(1)\n    view() = 2\n");
-    assert_eq!(codes_of(&view), vec![Code::MutableReceiverRequired]);
+    assert_eq!(codes_of(&view), vec![Code::NotWritable]);
     let read_only = with_cell("fn run(cell: &Cell) -> void:\n    cell() = 2\n");
-    assert_eq!(codes_of(&read_only), vec![Code::MutableReceiverRequired]);
+    assert_eq!(codes_of(&read_only), vec![Code::NotWritable]);
     let edge = with_cell("fn run(panel: &Panel) -> void:\n    (panel.frozen)() = 2\n");
-    assert_eq!(codes_of(&edge), vec![Code::MutableReceiverRequired]);
+    assert_eq!(codes_of(&edge), vec![Code::NotWritable]);
     let readonly_holder = with_cell("fn run(panel: Panel) -> void:\n    (panel.count)() = 2\n");
-    assert_eq!(
-        codes_of(&readonly_holder),
-        vec![Code::MutableReceiverRequired]
-    );
+    assert_eq!(codes_of(&readonly_holder), vec![Code::NotWritable]);
 }
 
 #[test]

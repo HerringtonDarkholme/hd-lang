@@ -1,0 +1,31 @@
+# test: `*r = v` stores a copy, so a list, or a struct holding one, stored through a reference no longer changes with its source
+# Spec 04 Collection Values: types.coll.value. Spec 13 Writing Through A Reference: ref.deref.write.
+# expect-stdout: 3 2
+# expect-stdout: 2 1
+# expect-stdout: 2 1
+struct Box:
+    items: List[i32]
+
+fn set_list(r: &mut List[i32], xs: List[i32]) -> void:
+    *r = xs
+
+fn set_box(r: &mut Box, b: Box) -> void:
+    *r = b
+
+pub fn main() -> void $ Console:
+    let mut a: List[i32] = [1, 2]
+    let mut b: List[i32] = [5]
+    set_list(&mut b, a)
+    a.push(3)
+    println("${a.len()} ${b.len()}")
+    let mut src = Box { items: [7] }
+    let mut dst = Box { items: [] }
+    set_box(&mut dst, src)
+    src.items.push(8)
+    println("${src.items.len()} ${dst.items.len()}")
+    let mut l2: List[i32] = [1]
+    let mut l3: List[i32] = []
+    let r = &mut l3
+    *r = l2
+    l2.push(5)
+    println("${l2.len()} ${l3.len()}")

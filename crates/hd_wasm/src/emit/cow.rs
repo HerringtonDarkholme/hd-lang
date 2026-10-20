@@ -26,22 +26,20 @@ use hd_base::StageResult;
 impl Em<'_> {
     /// Whether copying a value of type `t` copies collections: a `List` or
     /// a `Map` value, or a struct that holds one in its fields, at any
-    /// depth of struct fields. A legacy `mut List[T]` view shares its list
-    /// and is no value.
+    /// depth of struct fields.
     pub(super) fn holds_coll(&self, t: Ty) -> bool {
         hd_mono::holds_coll(self.pool(), self.env(), t)
     }
 
     /// Whether the operand `r` is a value its own instruction made, which
-    /// no place holds: a literal, a constructor, a call's result whose
-    /// type is no legacy `mut` view, a copy. Reading through a reference
+    /// no place holds: a literal, a constructor, a call's result, a copy.
+    /// Reading through a reference
     /// (`Ref[T]`'s `get`) is no such call.
     fn fresh_operand(&self, r: u32) -> bool {
         if hd_tir::ir::Ref(r).as_inst().is_none() {
             return true;
         }
         let i = r as usize;
-        let legacy = matches!(self.pool().get(self.ty_of(r)), TyData::Mut(_));
         match self.b.tags[i] {
             Tag::NewList
             | Tag::NewMap
@@ -52,7 +50,7 @@ impl Em<'_> {
             | Tag::Closure
             | Tag::Interp
             | Tag::Prim => true,
-            Tag::Call | Tag::CallDyn | Tag::DefaultCall => !legacy,
+            Tag::Call | Tag::CallDyn | Tag::DefaultCall => true,
             Tag::CallValue => {
                 let f = self.b.data[i][0];
                 let deref = hd_tir::ir::Ref(f).as_inst().is_some()
@@ -62,14 +60,12 @@ impl Em<'_> {
                         self.pool().get(self.lay.strip(self.ty_of(self.b.data[f as usize][0]))),
                         TyData::Adt { def, .. } if def == self.env().ref_cell()
                     );
-                !deref && !legacy
+                !deref
             }
-            Tag::Intrinsic => {
-                matches!(
-                    IntrinsicOp::from_u32(self.b.data[i][0]),
-                    Some(IntrinsicOp::ValueCopy | IntrinsicOp::Item)
-                ) && !legacy
-            }
+            Tag::Intrinsic => matches!(
+                IntrinsicOp::from_u32(self.b.data[i][0]),
+                Some(IntrinsicOp::ValueCopy | IntrinsicOp::Item)
+            ),
             Tag::Coerce => self.fresh_operand(self.b.data[i][0]),
             _ => false,
         }
@@ -77,38 +73,25 @@ impl Em<'_> {
 
     /// After the operand `r` is pushed for a slot of type `slot` (an
     /// element, a field, a payload), copies it when the slot holds a
-    /// collection and `r` is held by some place (`types.coll.value`). A
-    /// legacy data type's `List[T]` field shares its list, as a read-only
-    /// view did; only a struct value in such a field is copied.
-    pub(super) fn copy_slot(&mut self, r: u32, slot: Ty, in_data: bool) -> StageResult<()> {
+    /// collection and `r` is held by some place (`types.coll.value`).
+    pub(super) fn copy_slot(&mut self, r: u32, slot: Ty) -> StageResult<()> {
         if !self.holds_coll(slot) || self.fresh_operand(r) {
-            return Ok(());
-        }
-        if in_data
-            && matches!(
-                self.lay.shape(slot)?,
-                Shape::List { .. } | Shape::Map { .. }
-            )
-        {
             return Ok(());
         }
         self.copy_top(slot)
     }
 
-    /// The field types of the data or struct type `t`, substituted, and
-    /// whether it is a legacy data type rather than a struct.
-    pub(super) fn field_tys(&self, t: Ty) -> (Vec<Ty>, bool) {
+    /// The field types of the struct type `t`, substituted.
+    pub(super) fn field_tys(&self, t: Ty) -> Vec<Ty> {
         let (pool, env) = (self.pool(), self.env());
         let TyData::Adt { def, args } = pool.get(self.lay.erase(t)) else {
-            return (Vec::new(), true);
+            return Vec::new();
         };
-        let tys = env
-            .data_fields(def)
+        env.data_fields(def)
             .unwrap_or_default()
             .iter()
             .map(|f| hd_mono::subst(pool, env, def, args, *f))
-            .collect();
-        (tys, !env.is_struct(def))
+            .collect()
     }
 
     /// The slot type of each member of a tuple type, or each payload of

@@ -3,7 +3,7 @@
 hd is garbage-collected. Every composite value is a reference on the
 Wasm GC heap, `mut` is an access permission that any number of aliases
 may hold, and the engine's collector frees what nothing reaches
-([Composite Values And Access Permission](../../spec/lang/04-type-system.md#composite-values-and-access-permission)).
+([Composite Values And Access Permission](../../spec/lang/04-type-system.md#value-types)).
 The owner asked on 2026-10-18 whether hd should instead adopt Rust's
 model: owned values, moves, borrows with lifetimes and destructors, no
 tracing collector, with hd's requirement rows, providers, suspension,

@@ -37,29 +37,7 @@ impl Ck<'_, '_> {
         self.add_flags(l, local_flags::SHORT | local_flags::READ);
         self.using_locals.push(l);
         let t = self.b.local_ty(l);
-        self.dispose_suite((l, depth), t, ty_node.is_some(), s)
-    }
-
-    /// The access of a binding that holds the value itself
-    /// (`flow.using.access`): mutable, as the receiver of
-    /// `dispose!(&mut self)` needs.
-    fn using_access(&mut self, t: Ty, annotated: bool, at: NodeRef<'_>) {
-        if !self.is_composite(self.strip_mut(t)) || self.let_mut_ok(t) {
-            return;
-        }
-        if annotated {
-            let msg = format!(
-                "a `using` binding is disposed through `&mut self`; write `mut {}`",
-                self.show(t)
-            );
-            self.err(Code::LetMutReadonlyType, at, &msg);
-        } else {
-            let msg = format!(
-                "a `using` binding needs mutable access, but the value is a readonly {}",
-                self.show(t)
-            );
-            self.err(Code::MutableUpgrade, at, &msg);
-        }
+        self.dispose_suite((l, depth), t, s)
     }
 
     /// Registers the suite that disposes local `l` of type `t`
@@ -72,7 +50,6 @@ impl Ck<'_, '_> {
         &mut self,
         (l, depth): (LocalId, usize),
         t: Ty,
-        annotated: bool,
         s: NodeRef<'_>,
     ) -> StageResult<()> {
         let pool = self.pool();
@@ -115,9 +92,6 @@ impl Ck<'_, '_> {
             .children()
             .find(|k| k.kind() == SyntaxKind::BindingPattern)
             .unwrap_or(s);
-        if referred.is_none() {
-            self.using_access(t, annotated, at);
-        }
         let m = self.b.open_block();
         let (recv, rt) = if referred.is_none() {
             // The binding's own place, which the call changes in place.

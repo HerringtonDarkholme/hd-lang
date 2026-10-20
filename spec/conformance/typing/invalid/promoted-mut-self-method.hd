@@ -21,4 +21,4 @@ struct Page:
     Wrapper
 
 fn invalid(page: Page) -> void:
-    page.reset()  # diagnostic: mutable-receiver-required
+    page.reset()  # diagnostic: not-writable

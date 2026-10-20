@@ -8,5 +8,5 @@ fn below[T < Ord & Hash, $R](value: T, limit: i32) -> bool $ R:
 trait Numeric < Add[Out = Self] & Copy:
     fn zero() -> Self
 
-impl[T < mut Clear] Reset for Holder[T]:
-    fn reset(mut self) -> void: self.value.clear()
+impl[T < Clear] Reset for Holder[T]:
+    fn reset(&mut self) -> void: self.value.clear()

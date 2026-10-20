@@ -1,5 +1,5 @@
-//! Data-literal spread, `D { ...src, f: e }` (expr.update.*, data.update.*,
-//! data.part.copy-update): programs build through the driver and run on
+//! Struct-literal spread, `D { ...src, f: e }` (expr.update.*,
+//! data.update.*): programs build through the driver and run on
 //! V8 (`host/run.mjs`), as the conformance runner does.
 
 use std::path::Path;
@@ -121,7 +121,7 @@ pub fn main() -> void:
 
 #[test]
 fn a_generic_data_type_copies_with_substituted_fields() {
-    // expr.update.generic
+    // expr.update.exact-type
     let main = "\
 struct Pair[T]:
     first: T
@@ -141,7 +141,7 @@ pub fn main() -> void $ Console:
 
 #[test]
 fn a_copy_shares_composite_fields_with_its_source() {
-    // expr.update.shallow
+    // expr.update.copy-fields
     let main = "\
 struct Child:
     name: string
@@ -162,7 +162,7 @@ pub fn main() -> void $ Console:
 
 #[test]
 fn a_copy_makes_its_own_embedded_parts_when_the_spread_runs() {
-    // data.part.copy-update, data.part.copy-time
+    // expr.update.copy-time, types.value.copy
     let main = "\
 struct Stamp:
     pub at: i32

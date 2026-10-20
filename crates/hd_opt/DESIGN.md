@@ -280,7 +280,7 @@ retunes one row and checks that only that row's key moves.
 
 Why `devirt_known` (A1), `closure_spec` (A2) and the per-target closure
 code field (E1) exist, and the options not taken. The public API stays
-`mut Iterator[T]`: no concrete adapter types, no opaque returns.
+`&mut Iterator[T]`: no concrete adapter types, no opaque returns.
 
 ## 1. Today
 
@@ -314,7 +314,7 @@ lookup and the subtype check but still calls the libcall. That is why
 | a function reference | `xs.map(double)` | A1 at the creating body, A2 in the callee |
 | a parameter of a higher-order function | `transform` in `map`, `step` in `fold` | A2: one instance per (callee, literal), since closure types are structural |
 | a capture of a parameter | `keep` inside `filter`'s step closure | A2, carried into the sub-body instance |
-| a data field, a captured upstream iterator | `Iterator.step` read by `next` | inlining, then field forwarding (option C; see #65) |
+| a struct field, a captured upstream iterator | `Iterator.step` read by `next` | inlining, then field forwarding (option C; see #65) |
 | a global, a host value, a list element | `let handlers = [...]` | stays indirect |
 
 `Iterator.step` is private and written only by `from_fn`'s `NewData`, so

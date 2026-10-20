@@ -323,7 +323,7 @@ impl Parser<'_> {
         done
     }
 
-    /// `$ key + key`, `$()`; the old `$(A, B)` and `$ A, B` forms report.
+    /// `$ key + key`, `$()`.
     pub(crate) fn requirement_clause(&mut self) -> Done {
         let marker = self.start();
         self.bump(); // $
@@ -332,16 +332,7 @@ impl Parser<'_> {
             if !self.at(TokenKind::RParen) {
                 self.ty_bound_trait(true);
                 loop {
-                    if self.at(TokenKind::Comma) {
-                        // grammar.type.row.old-separator
-                        let at = self.pos();
-                        self.error_at(
-                            Code::OldRowSeparator,
-                            at,
-                            "requirement keys are joined with '+': write '$ A + B'",
-                        );
-                        self.bump();
-                    } else if self.at(TokenKind::Plus) {
+                    if self.at(TokenKind::Plus) {
                         // grammar.type.row.no-parentheses
                         self.error(
                             Code::SyntaxError,

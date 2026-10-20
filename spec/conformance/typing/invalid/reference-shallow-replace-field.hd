@@ -7,4 +7,4 @@ struct Team:
     lead: &mut User
 
 fn replace(t: &Team, user: &mut User) -> void:
-    t.lead = user  # diagnostic: readonly-root
+    t.lead = user  # diagnostic: not-writable

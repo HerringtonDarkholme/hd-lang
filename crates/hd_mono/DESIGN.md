@@ -212,7 +212,7 @@ instance.
 | `ItemRef` | a function reference value, built as §13.11's adapter: a `Closure` struct whose code is the adapter instance |
 | `CallHost` | an import call with the exchange-buffer codecs (§17.2) |
 | `Closure` | a struct of the closure's environment: `Copy` and `Move` captures as fields, `Shared` ones as their cells; a closure with no capture is a constant global |
-| `CopyData` | evaluate the source once, then the replacements in source order (spec: the spread is first); allocate a fresh value of the source's exact type; copy every non-replaced field with a field read through the source's access view (readonly source reads a direct `mut U` field as `U`); store the replacements; an unreplaced embedded part copies as its own nested `CopyData`. A field the checker read at the spread (`expr.update.copy-time`) arrives as a replacement |
+| `CopyData` | evaluate the source once, then the replacements in source order (spec: the spread is first); allocate a new value of the source's exact type; read every non-replaced field from the source, an embedded field included (a struct value is an immutable object, so sharing it is its copy, crates/hd_wasm/DESIGN.md §15.2); store the replacements. A field the checker read at the spread (`expr.update.copy-time`) arrives as a replacement |
 | `NewList` with spreads | a builder seeded with the fixed-element count: evaluate each element and spread operand once, in order, appending values and `array.copy`ing spread lists; one exact-size array at the end, then the `{len, data}` struct |
 | `NewTuple` with a rest operand | the fixed elements as usual, plus the rest-list operand as the tuple's rest field |
 | `Coerce` | option wrap: a tag set or nothing (§15.2); to a trait value: a pair with a constant vtable; `Supertrait`: the payload unchanged and `struct.get` of the parent's vtable field from the child's vtable (§13.5); readonly view, variance and row subsumption: nothing (§12.4) |
@@ -904,7 +904,7 @@ growing type) has no finite instance set.
 A generic method called through a `dyn` value has one erased body per
 impl, accepts any type argument, and gets a type witness per call.
 Everything else is monomorphized. Examples are a user trait's `fn visit[T](self, f:
-fn(T) -> T, out: mut List[T])`, and `Inspectable.downcast[T]`, whose
+fn(T) -> T, out: &mut List[T])`, and `Inspectable.downcast[T]`, whose
 builtin body has one open instruction, the type-id read. The
 inherent `dyn Error` methods `find`, `root_cause` and `chain` are
 ordinary generic functions over `T` with a `dyn` receiver, so they are
@@ -919,14 +919,14 @@ concrete representation, viewed as `eqref`**:
 
 | Concrete layout of the value | As an open value |
 | --- | --- |
-| one reference, nullable or not (data, `List`, `Map`, closure, `T?` of a reference, a value layout over the bound, which is already a box) | the same reference, upcast; no allocation. Under A1 a reference `T` reaches a class instance such as `List[REF].push` directly, with no thunk |
+| one reference, nullable or not (a struct, `List`, `Map`, closure, `T?` of a reference, a value layout over the bound, which is already a box) | the same reference, upcast; no allocation. Under A1 a reference `T` reaches a class instance such as `List[REF].push` directly, with no thunk |
 | a scalar | §15.2's erased form: `i31ref` for 16-bit-or-smaller scalars and for any integer whose value fits in 31 signed bits, else `$Box_i32` or `$Box_i64`; floats in `$Box_f32` or `$Box_f64` |
 | a `multi` layout (a string view, a scalar's `T?`, `Result`, a value enum, a tuple, a trait value) | one immutable struct of its Wasm values |
 | `void` | `ref.null eq` |
 
 Every boxed layout is identity-free (S1c), so boxing is not observable.
-A mutable container is a reference, so it is never boxed or copied:
-the erased body holds the caller's own `$List_i32`.
+A list or map header is a reference, so it is never boxed: the erased
+body holds the caller's own `$List_i32`.
 
 **What the erased body emits.** Control stays in the erased body:
 blocks, loops, `if`, returns, locals and `defer` work on open values as
@@ -953,8 +953,8 @@ list of supported operations. In particular:
 
 | Operation in the erased body | Its thunk at `T = i32` |
 | --- | --- |
-| `Buffer[T] { items: ..., len: 0 }` for a user `data Buffer[T]` | `struct.new $Buffer_i32` of the unboxed fields; returns the reference |
-| `out.push(x)` on a caller-owned `mut List[T]` | `ref.cast $List_i32`, unbox `x`, `call List[i32].push`; in place |
+| `Buffer[T] { items: ..., len: 0 }` for a user `struct Buffer[T]` | `struct.new $Buffer_i32` of the unboxed fields; returns the reference |
+| `out.push(x)` through a caller's `&mut List[T]` | unbox `x`, `call List[i32].push` on the place the reference names; in place |
 | `x.show()` with `T < Display` | the impl that `select` picks at `i32` (§13.2), called directly |
 | `T::type_id()`, `downcast_val::[T](a)` | the concrete type id, the concrete cast |
 | a closure `fn(T) -> T` built in the body | a concrete `$Fn_i32_i32` closure whose code unboxes, calls the erased closure body, and boxes |
@@ -1040,8 +1040,7 @@ builds `Buffer[T]`'s layout from `T`'s witness, as Swift's metadata
 accessors do, cannot work on Wasm GC: a struct type cannot be created
 at run time. A uniform erased layout for every generic type that may
 reach erased code (`Buffer[T]` with `anyref` fields everywhere) would
-slow every monomorphized use of that type. Copying a caller's container
-into such a layout would break the identity of data values.
+slow every monomorphized use of that type.
 
 **As built.**
 
@@ -1492,7 +1491,7 @@ values):
 | --- | --- | --- | --- | --- | --- |
 | plain function | `scaled`, `identity` as an argument | `ItemRef(item, args)`; args solved from the call/expected type, defaults applied, error if unsolved (`fn.type.generic.*`) | `H("adapter", item path, canon(args))` | forward `(args…, ctx)` to a `Call` of the item instance | none |
 | unbound method | `Counter::bump` | `ItemRef` | as above | forward `(receiver, rest…, ctx)`; receiver first (`fn.ref.unbound.receiver`) | caller supplies it |
-| bound method | `counter::bump` | a `Closure` node wrapping the adapter, capturing the receiver | as above (the receiver is data, not a type argument, so one key serves every receiver value) | read receiver from `env[0]`, forward `(rest…, ctx)`; a `mut self` receiver is a `Move` capture (creation already requires mutable access, `fn.ref.bound.mut`) | evaluated once at creation and captured (`fn.ref.bound.capture`) |
+| bound method | `counter::bump` | a `Closure` node wrapping the adapter, capturing the receiver | as above (the receiver is data, not a type argument, so one key serves every receiver value) | read receiver from `env[0]`, forward `(rest…, ctx)`; a `&mut self` receiver is captured as its address, taken at creation, which needs a writable place (`fn.ref.bound.address`, `fn.ref.bound.address.writable`) | evaluated once at creation and captured (`fn.ref.bound.capture`) |
 | associated function | `Counter::zero` | `ItemRef` | as above | plain forward | none |
 | explicit type arguments | `Json::decode::[User]`, `Box::[i32]::get` | `ItemRef` with `b` = the written arguments | as above | plain forward | none |
 | trait-qualified | `Trait::name` | `ItemRef` after `select` resolves `Self` from the expected type (`fn.ref.trait-self`; unsolved is `cannot-infer-type`) | as above | plain forward | none |

@@ -1,5 +1,5 @@
 # test: struct types may be directly and mutually recursive, with an optional or list base case
-# Spec 08 Recursive Data Types: data.recursive.direct, data.recursive.mutual.
+# Spec 08 Recursive Data Types: data.recursive.through-reference, data.recursive.mutual.
 struct Comment:
     body: string
     replies: List[Comment]

@@ -3,7 +3,7 @@
 # req.mut.use-writable, req.mut.use.binding, req.mut.row.plain,
 # req.mut.row.no-access-rules.
 # Spec 11 Mutable Providers: a requirement trait with a &mut self method is always provided
-# with mutable access, so $.use(Counter) yields mut Counter.
+# with mutable access, so $.use(Counter) yields &mut dyn Counter.
 
 fn tick() -> i32 $ Counter:
     $.use(Counter).bump()

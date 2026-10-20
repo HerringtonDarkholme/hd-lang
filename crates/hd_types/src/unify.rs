@@ -367,8 +367,8 @@ impl InferTable {
         }
         match (pool.get(a), pool.get(b)) {
             (TyData::Poison, _) | (_, TyData::Poison) => Ok(()),
-            // A variable binds to the whole type, its view included, so
-            // `T = mut User` is inferred (types.generic.mut-argument).
+            // A variable binds to the whole type, its `mut` included, so
+            // `T = mut Suspend[X]` is inferred.
             (TyData::Infer(x), TyData::Mut(_))
                 if self.kind[self.root(x.raw()) as usize] == VarKind::General =>
             {

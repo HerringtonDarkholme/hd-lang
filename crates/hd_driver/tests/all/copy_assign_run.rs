@@ -1,5 +1,5 @@
-//! Assigning an embedded part stores a copy of the part
-//! (spec/lang/08-data-and-enums.md, data.part.construct), and an
+//! Assigning an embedded field stores a copy of the value
+//! (spec/lang/08-data-and-enums.md, data.struct.embed.plain), and an
 //! assignment to an expression that is no place stays an error
 //! (spec/lang/02-grammar.md, grammar.stmt.assign-place).
 
@@ -78,7 +78,7 @@ struct Post:
 
 #[test]
 fn a_copy_assignment_stores_a_copy_of_the_part() {
-    // data.part.construct
+    // data.struct.embed.plain
     let main = format!(
         "{PARTS}
 pub fn main() -> void $ Console:
@@ -97,7 +97,7 @@ pub fn main() -> void $ Console:
 
 #[test]
 fn a_copy_assignment_copies_the_parts_of_the_part() {
-    // data.part.copy-update
+    // data.struct.embed.plain, types.value.stored
     let main = "\
 struct Clock:
     pub at: i32
@@ -145,14 +145,14 @@ pub fn main() -> void $ Console:
 
 #[test]
 fn a_copy_assignment_to_a_readonly_value_is_a_readonly_root() {
-    // types.path.store.readonly-root
+    // types.path.store.not-writable
     let main = format!(
         "{PARTS}
 fn invalid(post: &Post, stamps: Timestamps) -> void:
     post.Timestamps = stamps
 "
     );
-    assert_eq!(codes_of(&main), vec![Code::ReadonlyRoot]);
+    assert_eq!(codes_of(&main), vec![Code::NotWritable]);
 }
 
 #[test]

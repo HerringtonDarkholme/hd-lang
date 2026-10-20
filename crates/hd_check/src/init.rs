@@ -876,7 +876,9 @@ impl Ck<'_, '_> {
             ),
             None => (r, t),
         };
-        // The binding forms' views (types.bind.short, types.bind.let-mut-infer).
+        // A binding without an annotation drops an outer `mut` from its
+        // type (types.mut.weaken); `let mut` is judged by `let_mut_binding`
+        // (types.value.let-mut).
         let mutable = pat
             .direct_tokens()
             .any(|t| self.cx.src.tkind(t) == Some(TokenKind::KwMut));

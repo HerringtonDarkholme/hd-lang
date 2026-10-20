@@ -1,5 +1,5 @@
-# test: == between a readonly Date and a fresh Date literal compares at the readonly view
-# Spec Expressions, Equality: expr.eq.readonly-view; Type System, Bindings And Fresh Values: types.fresh.weaken.meet.
+# test: == between a Date value and a Date literal calls Eq.eq, on either side
+# Spec Expressions, Equality: expr.eq.calls-eq.
 struct Date:
     year: i32
 

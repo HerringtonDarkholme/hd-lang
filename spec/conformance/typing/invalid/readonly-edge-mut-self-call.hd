@@ -1,5 +1,5 @@
-# test: a &mut self call through a readonly edge is mutable-receiver-required
-# Spec 04 Mutation Checks: types.path.mutation.receiver (owner decision TY-28, batch 51b, 2026-10-02).
+# test: a &mut self call through a `&` field is not-writable
+# Spec 04 Writable Places: types.path.store.not-writable.
 
 struct Child:
     name: string
@@ -12,4 +12,4 @@ struct Parent:
     child: &Child
 
 fn invalid(parent: &mut Parent) -> void:
-    parent.child.rename("new")  # diagnostic: mutable-receiver-required
+    parent.child.rename("new")  # diagnostic: not-writable

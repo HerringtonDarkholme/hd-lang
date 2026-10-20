@@ -4,4 +4,4 @@ struct Tally:
     count: i64
 
 fn invalid(tally: &Tally) -> void:
-    tally.count += 1  # diagnostic: readonly-root
+    tally.count += 1  # diagnostic: not-writable

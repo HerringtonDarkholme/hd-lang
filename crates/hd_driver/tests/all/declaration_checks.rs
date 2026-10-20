@@ -760,31 +760,6 @@ struct Wrapper[T]:
     );
 }
 
-const ACCOUNT: &str = "struct User:
-    name: string
-
-struct Account:
-    owner: User
-
-";
-
-#[test]
-fn the_copy_marker_fills_only_an_embedded_field() {
-    rule(
-        &format!(
-            "{ACCOUNT}fn open(user: User) -> Account:
-    Account {{ owner: ...user }}
-"
-        ),
-        Code::CopyIntoOrdinaryField,
-        &format!(
-            "{ACCOUNT}fn open(user: User) -> Account:
-    Account {{ owner: user }}
-"
-        ),
-    );
-}
-
 // ---- Member lines (group 13) ----
 
 const WALKER: &str = "use std.structure.{Structure, Field, Variant, Walker}

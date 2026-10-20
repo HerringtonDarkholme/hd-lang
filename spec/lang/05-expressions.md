@@ -17,7 +17,7 @@ fn demo(x: i32) -> i32:
 This section defines the default order in which subexpressions are evaluated.
 
 1. r[expr.order.left-to-right] Unless a construct states otherwise, subexpressions are evaluated from left to right and exactly once.
-2. r[expr.order.applies] This rule applies to tuple and collection elements, data fields, call arguments, operands, and indexing expressions.
+2. r[expr.order.applies] This rule applies to tuple and collection elements, struct fields, call arguments, operands, and indexing expressions.
 3. r[expr.order.conditional] `&&`, `||`, `if`, `match`, loops, optional or result propagation with `?`, and comprehension filters evaluate conditionally as described below.
 4. r[expr.order.reorder] A compiler may reorder only when it can prove that the program's observable behavior is unchanged.
 
@@ -36,7 +36,7 @@ fn demo() -> string:
 This section defines value expressions and place expressions.
 
 1. r[expr.category.value] A **value expression** produces a value.
-2. r[expr.category.place] A **place expression** identifies a storage location and may be read or, when permissions allow, assigned.
+2. r[expr.category.place] A **place expression** identifies a storage location and may be read or, when it is writable, assigned.
 
 ```hd
 fn demo() -> void:
@@ -50,15 +50,14 @@ The core place expressions are locals, fields, index operations, and
 calls through a callable value that accepts a store:
 
 1. r[expr.place.local] A reassignable local introduced by `let` is a core place expression.
-2. r[expr.place.field] A field selected through a mutable composite root is a core place expression.
-3. r[expr.place.index] An index operation whose receiver and indexing protocol expose mutable storage is a core place expression.
-4. r[expr.place.receiver] The receiver of a field or index place may be any expression of mutable composite type, including a call that returns mutable access.
-5. r[expr.place.call-update] A call is a place only when its callee's type implements `Update`, as [Callable Values](#callable-values) defines.
-6. r[expr.place.value-forms] `:=` bindings, literals, other calls, arithmetic, and temporary values are not places.
-7. r[expr.place.tuple-element] A tuple element selection such as `pair._0` is not a place: tuples are immutable, and a changed tuple is built as a new tuple value.
-8. r[expr.place.enum-shared-field] A shared enum field such as `status.phrase` is not a place: enum values never change once built.
-9. r[expr.place.struct-field] A field of a struct value is a place when the struct is in a writable place, as [Writable Places](04-type-system.md#writable-places) defines.
-10. r[expr.place.deref] `*r` with a `&mut` reference `r` is a place, and so is a field read through one, such as `r.x`, as [Writing Through A Reference](13-values-and-references.md#writing-through-a-reference) defines.
+2. r[expr.place.index] An index operation whose receiver and indexing protocol expose mutable storage is a core place expression.
+3. r[expr.place.receiver] The receiver of a field or index place may be any expression of a `&mut` reference type, including a call that returns one.
+4. r[expr.place.call-update] A call is a place only when its callee's type implements `Update`, as [Callable Values](#callable-values) defines.
+5. r[expr.place.value-forms] `:=` bindings, literals, other calls, arithmetic, and temporary values are not places.
+6. r[expr.place.tuple-element] A tuple element selection such as `pair._0` is not a place: tuples are immutable, and a changed tuple is built as a new tuple value.
+7. r[expr.place.enum-shared-field] A shared enum field such as `status.phrase` is not a place: enum values never change once built.
+8. r[expr.place.struct-field] A field of a struct value is a place when the struct is in a writable place, as [Writable Places](04-type-system.md#writable-places) defines.
+9. r[expr.place.deref] `*r` with a `&mut` reference `r` is a place, and so is a field read through one, such as `r.x`, as [Writing Through A Reference](13-values-and-references.md#writing-through-a-reference) defines.
 
 ```hd
 fn demo() -> void:
@@ -68,7 +67,7 @@ fn demo() -> void:
 
 ### Assignment
 
-1. r[expr.assign.statement] Assignment is a statement and requires a mutable place on its left side.
+1. r[expr.assign.statement] Assignment is a statement and requires a writable place on its left side.
 2. r[expr.assign.target] Assigning to an expression that is not a place is an error. Error: `invalid-assignment-target`.
 3. r[expr.assign.order] Assignment evaluates the place before the right-hand side, then performs one store.
 4. r[expr.assign.order.local] A local place requires no subexpression evaluation.
@@ -83,12 +82,6 @@ fn invalid() -> (i32, i32):
     pair._0 = 1  # error: invalid-assignment-target
     pair
 ```
-
-> **Note.** An embedded field is stored with the copy assignment
-> `place ...= value`, as [`data.part.construct`](08-data-and-enums.md#r-data.part.construct)
-> states.
-
-See also: [Data Embedding](08-data-and-enums.md#data-embedding).
 
 #### Compound Assignment
 
@@ -125,11 +118,11 @@ fn record(tally: &mut Tally, hits: List[i64]) -> Meters:
 5. r[expr.assign.compound.meaning] For every type, `p op= e` means `p = p op e`: it reads the place, applies the operator to that value and `e`, and stores the result in the place.
 6. r[expr.assign.compound.primitive] When the place and the right operand have primitive types, `p op= e` computes `p op e` by the built-in rules and stores the result in the place. The store follows the rules of `p = p op e`, so a name must be a reassignable local.
 7. r[expr.assign.compound.operator] Otherwise the operator follows [Operator Traits](#operator-traits), so the place's type needs the operator's trait. Without a fitting implementation, the statement is an error. Error: `type-mismatch`.
-8. r[expr.assign.compound.store-rules] The store follows the rules of assignment. So the place must be a reassignable local, a field selected through a mutable root, or an index place that accepts a store. A call place also qualifies.
+8. r[expr.assign.compound.store-rules] The store follows the rules of assignment. So the place must be a reassignable local, a field of a writable place, or an index place that accepts a store. A call place also qualifies.
 9. r[expr.assign.compound.index-read-write] On an index place, the read is `r[k]` and the store is `r[k] = v`. `List` and `Map` use their built-in indexing, and another type needs both `Index` and `IndexSet`, as [Index Traits](#index-traits) defines.
 10. r[expr.assign.compound.call-once] On a call place `v() op= e`, the callee `v` is evaluated once, then `e`.
 11. r[expr.assign.compound.call-read-write] On a call place, the read is `v()` and the store is `v() = x`. So the callee's type needs both `Apply` and `Update`, as [Callable Values](#callable-values) defines.
-12. r[expr.assign.compound.fresh-value] On a composite value, the store replaces the place's value with the operator's result. Other references to the old value keep the old value.
+12. r[expr.assign.compound.fresh-value] On a struct value, the store replaces the place's whole value with the operator's result. A copy made from the place before the store keeps the old value.
 13. r[expr.assign.compound.no-assign-traits] `std.ops` declares no assign trait, and no operator changes a value in place.
 
 ```text
@@ -143,7 +136,7 @@ fn current() -> i64: 1
 
 fn invalid(tally: &Tally, bonus: Score) -> void:
     let score = Score { points: 0 }
-    tally.count += 1  # error: readonly-root
+    tally.count += 1  # error: not-writable
     score += bonus    # error: type-mismatch
     current() += 1    # error: invalid-assignment-target
 ```
@@ -156,19 +149,18 @@ fn tally(counts: &mut Map[string, i32], word: string) -> void:
 > **Note.** A diagnostic that rejects `p op= e` may show `p = p op e` as a
 > hint. That hint is not normative.
 
-> **Why.** One meaning for every type means an alias never observes `+=`:
-> a `data` value in the place is replaced, never changed. Accumulators and
-> builders change themselves through ordinary methods, such as
-> `sb.push(x)`.
+> **Why.** One meaning for every type means `+=` never changes a value in
+> place: the place gets a new value. Accumulators and builders change
+> themselves through ordinary methods, such as `sb.push(x)`.
 
 See also: [Operator Traits](#operator-traits),
 [Callable Values](#callable-values),
-[Mutation Checks](04-type-system.md#mutation-checks).
+[Writable Places](04-type-system.md#writable-places).
 
 ## Primary Expressions
 
 This section defines names, literals, and parenthesized, tuple, collection,
-and data expressions.
+and data expressions, which build struct values.
 
 ### Names
 
@@ -630,7 +622,7 @@ fn main() -> void:
 
 ### Data Expressions
 
-A data expression names its type and provides every required field:
+A data expression builds a struct value. It names its struct type and provides every required field:
 
 ```text
 user := User {
@@ -643,11 +635,6 @@ user := User {
 2. r[expr.data.once] Every field may appear at most once.
 3. r[expr.data.eval] Field initializers evaluate in source order, not declaration order.
 4. r[expr.data.shorthand] A field written as its bare name, as in `Point { x, y }`, is field shorthand for `name: name`. Its initializer is a use of that value name, evaluated in its source position.
-
-> **Note.** An embedded field is filled with a copy marker, as in
-> `Timestamps: ...stamps`, which stores the copy-update
-> `Timestamps { ...stamps }`, as
-> [`data.part.construct`](08-data-and-enums.md#r-data.part.construct) states.
 
 See also: [Data Literals](08-data-and-enums.md#data-literals) for field order and
 unknown fields, and [Data Embedding](08-data-and-enums.md#data-embedding).
@@ -664,25 +651,13 @@ renamed := User {
 ```
 
 1. r[expr.update.form] Copy-update syntax begins with one spread followed by explicit replacements.
-2. r[expr.update.one-spread] A data expression permits at most one data spread, and it must precede every explicit field.
+2. r[expr.update.one-spread] A data expression permits at most one spread, and it must precede every explicit field.
 3. r[expr.update.spread-first] The spread expression is evaluated first.
 4. r[expr.update.copy-time] Each field not explicitly replaced is read from the spread value when the spread is evaluated, before any explicit field expression runs.
-5. r[expr.update.exact-type] The spread expression must have the exact data type being constructed.
-6. r[expr.update.access-view] For each field not explicitly replaced, the copied value is type-checked as a read through the spread source's access view.
-7. r[expr.update.readonly-source] A readonly source reads a direct `mut U` field as `U`.
-8. r[expr.update.readonly-fill] That `U` value can fill the same field in a readonly result, but not in a `mut` result without an explicit `mut U` replacement.
-9. r[expr.update.generic] Generic fields retain their substituted type, even when it is `mut U`.
-10. r[expr.update.mutable-source] A mutable source retains direct fields' declared permissions.
-11. r[expr.update.shallow] Copy-update is shallow: primitive fields are copied by value, while composite field references continue to refer to the same underlying objects.
-12. r[expr.update.no-upgrade] A fresh mutable outer result does not upgrade copied child references.
+5. r[expr.update.exact-type] The spread expression must have the exact struct type being constructed.
+6. r[expr.update.copy-fields] Copy-update is shallow: each field not explicitly replaced is a copy of the spread value's field. A reference field's copy refers to the same object as the source's field.
 
-> **Note.** Embedded parts are the exception to a shallow copy. Each part
-> that is not replaced is copied as a copy-update of its own, as
-> [`data.part.copy-update`](08-data-and-enums.md#r-data.part.copy-update)
-> states.
-
-See also: [Copy-Update Literals](08-data-and-enums.md#copy-update-literals),
-[Mutable Edges](08-data-and-enums.md#mutable-edges).
+See also: [Copy-Update Literals](08-data-and-enums.md#copy-update-literals).
 
 ## Postfix Expressions
 
@@ -737,20 +712,6 @@ fn invalid(button: Button) -> i32:
 
 See also: [Method References](07-functions.md#method-references).
 
-#### Readonly Roots
-
-1. r[expr.member.readonly-root] Member access through a readonly data root weakens a direct `mut U` field to `U` and an embedded field to readonly access.
-2. r[expr.member.readonly-generic] Member access through a readonly data root does not weaken a generic field's substituted type.
-3. r[expr.member.other-forms] Other member forms follow their own access rules in [Type System](04-type-system.md).
-
-```hd
-data Shelf:
-    content: mut List[i32]
-
-fn demo(shelf: Shelf) -> usize:
-    shelf.content.len()   # readonly root: content reads as List[i32]
-```
-
 ### Indexing
 
 1. r[expr.index.order] `receiver[index]` evaluates the receiver, then the index, and invokes the receiver type's indexing behavior.
@@ -768,8 +729,8 @@ fn demo(items: List[i32]) -> i32:
 1. r[expr.index.list.unsigned] For `List[T]`, an index must have an unsigned integer type, such as `usize`. A signed index is an error. Error: `type-mismatch`.
 2. r[expr.index.list.range] A list index must be non-negative and less than the list length.
 3. r[expr.index.list.panic] A failed check causes the standard checked runtime panic.
-4. r[expr.index.list.read] Reading a list element yields its declared generic type `T`, including `mut U` when `T = mut U`, regardless of the list root's permission.
-5. r[expr.index.list.assign] Assigning `items[index] = value` still requires a mutable list root and an in-range index.
+4. r[expr.index.list.read] Reading a list element yields its declared element type `T`, whether the list is reached directly or through a reference.
+5. r[expr.index.list.assign] Assigning `items[index] = value` requires a list in a writable place or reached through a `&mut` reference, and an in-range index.
 
 ```text
 fn previous(items: List[i32], i: usize) -> i32:
@@ -788,9 +749,9 @@ fn invalid(items: List[i32], i: i32) -> void:
 
 1. r[expr.index.map.type] For `Map[K, V]`, the index must have type `K`.
 2. r[expr.index.map.read-value] Reading `entries[key]` returns `V`. When the map holds no equal key, the read is a checked runtime panic. Panic: `index-out-of-bounds`.
-3. r[expr.index.map.value-type] The read's type is the declared `V`, preserved through a readonly map, including `mut U` when `V = mut U`.
+3. r[expr.index.map.value-type] The read's type is the declared `V`, whether the map is reached directly or through a reference.
 4. r[expr.index.map.get] The optional read is the built-in method `get`: `entries.get(key)` returns `V?`, and `.None` means no equal key exists.
-5. r[expr.index.map.assign] Assigning `entries[key] = value` requires `mut Map[K, V]` and inserts or replaces the entry.
+5. r[expr.index.map.assign] Assigning `entries[key] = value` requires a map in a writable place or reached through a `&mut` reference, and inserts or replaces the entry.
 6. r[expr.index.map.library] Removal and entry APIs are standard-library methods rather than special syntax.
 
 ```text
@@ -893,9 +854,7 @@ fn invalid(items: List[i32], start: i32) -> void:
 > **Why.** A slice goes through `std.ops.Index`, as Rust's does, so generic
 > code bounded by `Index[Range[usize]]` accepts strings and lists. A list
 > slice is a copy, so later changes to the list never reach it. A
-> string slice shares its bytes because strings are immutable. The copy's
-> mutable access comes from the implementation's declared `Out`, so no
-> extra freshness rule is needed.
+> string slice shares its bytes because strings are immutable.
 
 > **Note.** A read-only window on a list with no copy is the `view` method
 > of [Collections](../std/collections.md#views).
@@ -943,7 +902,7 @@ pub trait IndexSet[K, V]:
 3. r[expr.index.trait.write-ref] Assigning `r[k] = v` to such a receiver is the call `IndexSet::[K, V]::index_set(&mut r, k, v)`. The call takes the address of the place `r`, as a `&mut self` call does by [`fn.method.auto-address`](07-functions.md#r-fn.method.auto-address). When `r` is a `&mut` reference, the call passes it, so the store changes the value it refers to.
 4. r[expr.index.trait.choice] The candidates are chosen as for a binary operator, by the receiver's type, then by the key and, for a store, the value.
 5. r[expr.index.trait.no-use] Neither call needs a `use` of the trait.
-6. r[expr.index.trait.mut-ref] Since `index_set` takes `&mut self`, the receiver must be a writable place or a `&mut` reference. A store into any other receiver, such as a `:=` binding, a value parameter, or a read-only reference, is an error. Error: `mutable-receiver-required`.
+6. r[expr.index.trait.mut-ref] Since `index_set` takes `&mut self`, the receiver must be a writable place or a `&mut` reference. A store into any other receiver, such as a `:=` binding, a value parameter, or a read-only reference, is an error. Error: `not-writable`.
 7. r[expr.index.trait.place] `r[k]` is a place only when the receiver's type implements `IndexSet`. Assigning to it otherwise is an error. Error: `invalid-assignment-target`.
 8. r[expr.index.trait.no-read] Reading `r[k]` when the receiver's type has no fitting `Index` implementation is an error. Error: `type-mismatch`.
 9. r[expr.index.trait.builtin-direct] A receiver whose type is `List`, `Map`, or `string` keeps the built-in indexing above, even though these types implement the traits, as [Built-In Implementations](#built-in-implementations) states.
@@ -967,11 +926,6 @@ fn invalid(row: &mut Row, plain: Plain) -> i32:
     row[0] = 1  # error: invalid-assignment-target
     plain[0]    # error: type-mismatch
 ```
-
-> **Note.** `Index` has one `Out` for every reader, whatever the receiver's
-> permission. An element's permission comes from `Out`, as a `List[mut U]`
-> element's comes from `U`: an `Out = mut Cell` gives `mut Cell` even
-> through a readonly receiver.
 
 ##### Built-In Implementations
 
@@ -1018,11 +972,7 @@ fn invalid(text: string) -> void:
 ```
 
 > **Note.** Through a bound, `items[k]` has type `Out`, the declared
-> element or value type, whatever the receiver's permission. Built-in
-> indexing gives the same type, as
-> [`types.path.collection`](04-type-system.md#r-types.path.collection)
-> states: a `List[mut User]` yields `mut User`, and a `mut List[User]`
-> yields `User`.
+> element or value type, as built-in indexing gives.
 
 See also: [Operator Traits](#operator-traits),
 [Compound Assignment](#compound-assignment).
@@ -1196,7 +1146,7 @@ pub trait Update[V]:
 8. r[expr.call.apply.no-use] Neither call needs a `use` of the trait.
 9. r[expr.call.apply.place] `v()` is a place only when the callee's type implements `Update`. Assigning to any other call, including a function call, is an error. Error: `invalid-assignment-target`.
 10. r[expr.call.apply.mut-ref] A store through `v()` changes `v` in place, so `v` must be a writable place or a `&mut` reference.
-11. r[expr.call.apply.readonly-ref] A store through any other callee, such as a `:=` binding, a value parameter, or a read-only reference, is an error. Error: `mutable-receiver-required`.
+11. r[expr.call.apply.readonly-ref] A store through any other callee, such as a `:=` binding, a value parameter, or a read-only reference, is an error. Error: `not-writable`.
 12. r[expr.call.apply.not-callable] Calling a value whose type is neither a function type nor implements `Apply` is an error. Error: `not-callable`.
 13. r[expr.call.apply.independent] The two traits are independent: a type may implement either one alone.
 14. r[expr.call.apply.field] A callable value in a field is called by parenthesizing the field read, as in `(panel.count)()`, as [`expr.member.stored-fn`](#r-expr.member.stored-fn) states for a stored function.
@@ -1230,8 +1180,8 @@ the function's own copy:
 ```text
 fn invalid(count: Cell[i32]) -> void:
     view := live(0)
-    view() = 1   # error: mutable-receiver-required
-    count() = 2  # error: mutable-receiver-required
+    view() = 1   # error: not-writable
+    count() = 2  # error: not-writable
 ```
 
 > **Note.** `let mut count = live(0)` is a writable place, so its stores
@@ -1266,7 +1216,7 @@ Postfix `?` handles either an optional or a `Result` value:
 | Rule | Operand | Value case | Early return |
 | --- | --- | --- | --- |
 | r[expr.try.option] Optional | `T?` | `.Some(value)` produces `value` as `T`. | `.None` immediately returns `.None` from the nearest function. |
-| r[expr.try.result] Result | `Result[T, E]` | `.Ok(value)` produces the declared `T`, including a mutable type argument. | `.Err(error)` immediately returns `.Err` from the nearest function, holding the error converted as [Error Conversion](#error-conversion) describes. |
+| r[expr.try.result] Result | `Result[T, E]` | `.Ok(value)` produces the declared `T`. | `.Err(error)` immediately returns `.Err` from the nearest function, holding the error converted as [Error Conversion](#error-conversion) describes. |
 
 1. r[expr.try.once] The operand is evaluated once.
 2. r[expr.try.no-panic] `?` does not catch runtime panics and does not interact with suspension by itself.
@@ -1330,19 +1280,18 @@ fn sync(path: string) -> Result[string, SyncError]:
 
 These rules refine the steps:
 
-1. r[expr.try.convert.assignable.covers] The assignability step covers an identical type, permission weakening, and variance. It also covers construction of a dynamic trait value such as the erased `dyn Error`, supertrait widening of a dynamic value, and optional injection.
-2. r[expr.try.convert.strip-mut] In the conversion step, an outer `mut` on `E` is removed before the implementation is chosen.
-3. r[expr.try.convert.no-import] The code using `?` does not need to import `From`.
-4. r[expr.try.convert.message] The message of the third step's error should name `E` and `F`. It should suggest an implementation of `From[E]` for `F` or an explicit mapping of the error.
-5. r[expr.try.convert.one-step] Exactly one step converts the error.
-6. r[expr.try.convert.no-combine] `?` never combines an assignability rule with a conversion, and it never chains conversions.
-7. r[expr.try.convert.no-chain] With `impl From[A] for B` and `impl From[B] for C`, a `?` on `Result[T, A]` in a function returning `Result[U, C]` is an error. Error: `invalid-result-propagation`.
-8. r[expr.try.convert.no-injection] With the same implementations, a `?` on `Result[T, A]` in a function returning `Result[U, B?]` is also an error. The conversion to `B` would need an optional injection after it. Error: `invalid-result-propagation`.
-9. r[expr.try.convert.single-rule] Assignability is itself one rule: an `A` that implements the trait `Tr` does not propagate into `Result[U, dyn Tr?]`.
-10. r[expr.try.convert.only-try] Only `?` calls a conversion. `return .Err(error)` and every other `.Err` construction use ordinary assignability.
-11. r[expr.try.convert.before-defer] The conversion is part of the propagated value, so it runs before any deferred cleanup.
-12. r[expr.try.convert.pure] A conversion neither suspends nor uses a requirement, because `from` has neither.
-13. r[expr.try.convert.inferred-closure] When the nearest function is a closure whose result type is neither written nor supplied by an expected function type, `?` performs no conversion. There, `E` itself contributes to the inferred result type.
+1. r[expr.try.convert.assignable.covers] The assignability step covers an identical type, the weakening of `&mut T` to `&T`, and variance. It also covers construction of a dynamic trait value such as the erased `dyn Error`, supertrait widening of a dynamic value, and optional injection.
+2. r[expr.try.convert.no-import] The code using `?` does not need to import `From`.
+3. r[expr.try.convert.message] The message of the third step's error should name `E` and `F`. It should suggest an implementation of `From[E]` for `F` or an explicit mapping of the error.
+4. r[expr.try.convert.one-step] Exactly one step converts the error.
+5. r[expr.try.convert.no-combine] `?` never combines an assignability rule with a conversion, and it never chains conversions.
+6. r[expr.try.convert.no-chain] With `impl From[A] for B` and `impl From[B] for C`, a `?` on `Result[T, A]` in a function returning `Result[U, C]` is an error. Error: `invalid-result-propagation`.
+7. r[expr.try.convert.no-injection] With the same implementations, a `?` on `Result[T, A]` in a function returning `Result[U, B?]` is also an error. The conversion to `B` would need an optional injection after it. Error: `invalid-result-propagation`.
+8. r[expr.try.convert.single-rule] Assignability is itself one rule: an `A` that implements the trait `Tr` does not propagate into `Result[U, dyn Tr?]`.
+9. r[expr.try.convert.only-try] Only `?` calls a conversion. `return .Err(error)` and every other `.Err` construction use ordinary assignability.
+10. r[expr.try.convert.before-defer] The conversion is part of the propagated value, so it runs before any deferred cleanup.
+11. r[expr.try.convert.pure] A conversion neither suspends nor uses a requirement, because `from` has neither.
+12. r[expr.try.convert.inferred-closure] When the nearest function is a closure whose result type is neither written nor supplied by an expected function type, `?` performs no conversion. There, `E` itself contributes to the inferred result type.
 
 See also: [Error Trait](09-traits.md#error-trait),
 [Conversion Trait](09-traits.md#conversion-trait),
@@ -1591,17 +1540,16 @@ fn demo(a: bool, b: bool) -> bool:
 1. r[expr.eq.calls-eq] `==` calls `Eq.eq` and `!=` negates that result.
 2. r[expr.eq.std] Standard-library implementations provide value equality for primitives, optional and result values, tuples, lists, and maps when their elements support equality.
 3. r[expr.eq.map-order] Map equality is independent of entry order.
-4. r[expr.eq.no-implicit] A user-defined data or enum type has no implicit `Eq` implementation, even if all its members are comparable. Its author must explicitly implement or request derivation of the trait.
+4. r[expr.eq.no-implicit] A user-defined struct or enum type has no implicit `Eq` implementation, even if all its members are comparable. Its author must explicitly implement or request derivation of the trait.
 5. r[expr.eq.no-identity-fallback] Equality never silently falls back to reference identity.
 6. r[expr.eq.float] Floating-point equality follows IEEE 754, so NaN is unequal even to itself, although floating-point types implement `Eq`.
 7. r[expr.eq.std.intrinsic] The `Eq` implementations of the number types, `char`, and `bool` are [intrinsic methods](09-traits.md#intrinsic-methods). The one for `string` is not.
 8. r[expr.eq.functions] Function and closure values do not implement `Eq`; applying `==` or `!=` to them is an error. Error: `type-mismatch`.
 9. r[expr.eq.contextual-operand] In `==` and `!=`, a contextual variant operand, such as `.None`, `.Ok(1)`, or `.Some(x)`, takes the other operand's type as its expected type. This holds on either side.
 10. r[expr.eq.contextual-both] When both operands are contextual variants, neither has an expected type, so `.None == .None` is an error. Error: `missing-contextual-enum-type`.
-11. r[expr.eq.readonly-view] `==` and `!=` with one `mut T` operand and one `T` operand compare at `T`, because the readonly view is enough. So `d == Date { year: 2026 }` with `d: Date` is valid, though the literal is a fresh `mut Date`.
-12. r[expr.eq.enum-hint] `==` or `!=` on an enum that does not implement `Eq` is an error whose message suggests adding `@derive(Eq)` to the enum. Error: `type-mismatch`.
-13. r[expr.eq.enum-hint.fix] When the enum is declared in the same file as the comparison, the error has a fix-it. The fix-it inserts `@derive(Eq)` on its own line before the enum's declaration.
-14. r[expr.eq.references] `==` and `!=` between two references are an error, by [`ref.identity.no-equality`](13-values-and-references.md#r-ref.identity.no-equality). Error: `reference-equality`.
+11. r[expr.eq.enum-hint] `==` or `!=` on an enum that does not implement `Eq` is an error whose message suggests adding `@derive(Eq)` to the enum. Error: `type-mismatch`.
+12. r[expr.eq.enum-hint.fix] When the enum is declared in the same file as the comparison, the error has a fix-it. The fix-it inserts `@derive(Eq)` on its own line before the enum's declaration.
+13. r[expr.eq.references] `==` and `!=` between two references are an error, by [`ref.identity.no-equality`](13-values-and-references.md#r-ref.identity.no-equality). Error: `reference-equality`.
 
 ```text
 fn invalid(left: fn() -> void, right: fn() -> void) -> bool:
@@ -1690,33 +1638,36 @@ fn demo(a: &Account, b: &Account) -> bool:
 
 #### Allocation Identity
 
-1. r[expr.is.heap-data] Data values and other heap composites have allocation identity; access permission (`mut`) does not change it. A list or a map is a value with no identity ([`types.coll.no-identity`](04-type-system.md#r-types.coll.no-identity)).
-2. r[expr.is.conversion] Converting such a value to a trait value or `Any` preserves the underlying identity.
-3. r[expr.is.function-none] A function value has no identity. This covers named functions, generic instantiations, one-payload variant constructors, and closures.
-4. r[expr.is.function-sharing] An implementation may share one function value between evaluations or allocate a new one at each evaluation. No program can observe the choice.
-5. r[expr.is.box-value-kinds] A conversion of a value whose type implements `AnyVal`, such as a primitive, a string, a tuple, an enum, a list, or a function, to a dynamic trait value or `Any` may box the value. The box has no identity.
-6. r[expr.is.box-unspecified] `is` between two trait or `Any` values has an unspecified result when either holds such a value at run time.
-7. r[expr.is.no-wrapper] A direct conversion of a heap composite continues to preserve the composite's underlying identity and does not allocate an identity wrapper.
-8. r[expr.is.canonical-data] A fieldless data value is canonical for its data type.
-9. r[expr.is.canonical.same] Two occurrences of the same such value have the same identity, and constructing one allocates nothing.
+1. r[expr.is.conversion] Converting a reference to a trait value reference preserves the identity of the place it refers to.
+2. r[expr.is.function-none] A function value has no identity. This covers named functions, generic instantiations, one-payload variant constructors, and closures.
+3. r[expr.is.function-sharing] An implementation may share one function value between evaluations or allocate a new one at each evaluation. No program can observe the choice.
+4. r[expr.is.box-value-kinds] A conversion of a value whose type implements `AnyVal`, such as a primitive, a string, a tuple, an enum, a list, or a function, to a dynamic trait value or `Any` may box the value. The box has no identity.
+5. r[expr.is.box-unspecified] `is` between two trait or `Any` values has an unspecified result when either holds such a value at run time.
+6. r[expr.is.no-wrapper] A direct conversion of a reference does not allocate an identity wrapper.
 
 ```hd
-data Account:
-    owner: string
+trait Named:
+    fn name(&self) -> string
 
-fn demo() -> bool:
-    let account: mut Account = Account { owner: "Ada" }
-    same := account
-    account is same   # one allocation, one identity
+struct User:
+    name: string
+
+impl Named for User:
+    fn name(&self) -> string: self.name
+
+fn demo(user: &mut User) -> bool:
+    let first: &mut dyn Named = user
+    let second: &mut dyn Named = user
+    first is second   # one place, one identity
 ```
 
 #### Identity Operands
 
 1. r[expr.is.tuple] Tuples have no identity, and using `is` with a tuple is an error even if it contains references. Error: `identity-requires-references`.
 2. r[expr.is.value-operand] Primitive values, strings, enum values, optionals included, and function values likewise cannot be compared with `is`: an operand type must implement `AnyRef`, not `AnyVal`. Error: `identity-requires-references`.
-3. r[expr.is.compatible] Both operands must otherwise have compatible composite reference types. Two such types are compatible when, after removing `mut` at every level, they are equal. They are also compatible when one is a trait value or `Any` type that the other converts to.
-4. r[expr.is.permissions.data] Permissions never affect identity, so `Box[User]` and `mut Box[mut User]` are compatible for a data type `Box[T]`.
-5. r[expr.is.incompatible.data] Two composite reference operands that are not compatible, such as `Box[User]` and `Box[Order]`, are an error. Error: `incompatible-identity-operands`.
+3. r[expr.is.compatible.referent] Both operands must otherwise have compatible types. Two reference types are compatible when the types they refer to are equal, whether each reference is `&` or `&mut`.
+4. r[expr.is.compatible.trait-value] A trait value or `Any` type is also compatible with a type that converts to it.
+5. r[expr.is.incompatible.data] Two operands that are not compatible, such as `&User` and `&Order`, are an error. Error: `incompatible-identity-operands`.
 6. r[expr.is.function.operand] An `is` with an operand whose static type is a function type is an error, as for a value type. Error: `identity-requires-references`.
 7. r[expr.is.function.bound] A function type does not implement `AnyRef`, so generic code over `T < AnyRef` never receives a function value. Error: `unsatisfied-trait-bound`.
 

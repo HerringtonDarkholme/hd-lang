@@ -1,5 +1,5 @@
 # test: a struct literal fills defaults and shorthand fields, and a copy-update builds a new struct value without changing its source
-# Spec 08 Struct Declarations: data.struct.data-rules; Spec 08 Copy-Update Literals.
+# Spec 08 Data Literals: data.literal.form; Spec 08 Copy-Update Literals: data.update.new-value.
 # expect-stdout: 1 0 shop
 # expect-stdout: 1 4 shop
 # expect-stdout: 3 0 cart

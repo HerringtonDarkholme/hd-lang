@@ -121,7 +121,7 @@ fn edit(t: Tally) -> void:
     tags.push(name)
 ",
     );
-    assert_eq!(codes_of(&main), vec![Code::MutableReceiverRequired]);
+    assert_eq!(codes_of(&main), vec![Code::NotWritable]);
 }
 
 #[test]

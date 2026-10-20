@@ -1,5 +1,5 @@
-# test: mutable data paths share identity
-# Spec 08 Reference Semantics: data.kind.data, data.ref.shared.
+# test: copies of a &mut reference refer to one place and see each other's writes
+# Spec 13 Places And New Objects: ref.place.alias.
 
 struct Child:
     name: string

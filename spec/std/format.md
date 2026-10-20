@@ -31,7 +31,7 @@ The language tier keeps what the compiler knows by name
 
 | Rule | Value | Text |
 | --- | --- | --- |
-| r[std-format.debug.source.data] Data | a `data` value | `Point { x: 1, y: 2 }`, and `Empty {}` without fields |
+| r[std-format.debug.source.data] Struct | a struct value | `Point { x: 1, y: 2 }`, and `Empty {}` without fields |
 | r[std-format.debug.source.variant] Enum variant | a variant of an enum | the qualified variant, then a call's arguments: positional payloads first, then named ones as `name=value`, as in `Shape.Dot`, `Shape.Pair(1, 2)`, `Shape.Circle(radius=2.0)`, and `Shape.Mixed(1, label="x")` |
 | r[std-format.debug.source.prelude] Option and Result | `T?` and `Result[T, E]` | `Option.Some(1)`, `Option.None`, `Result.Ok(1)`, and `Result.Err("bad")`, as [`data.prelude.values`](../lang/08-data-and-enums.md#r-data.prelude.values) spells them |
 | r[std-format.debug.source.newtype] Newtype | a newtype value | its constructor call, as in `Meters(2.5)`, unless it derives `Debug`, which writes the base value as [`trait.derive.newtype.templated`](../lang/09-traits.md#r-trait.derive.newtype.templated) says |
@@ -86,7 +86,7 @@ impl Debug for Point:
 
 | Rule | Value | Derived calls |
 | --- | --- | --- |
-| r[std-format.debug.derive-builders.data] Data type | a value of a `data` type, with or without fields | `out.debug_struct(type_name)`, then `.field(field_name, value)` per field in declaration order, then `.finish()` |
+| r[std-format.debug.derive-builders.data] Struct | a struct value, with or without fields | `out.debug_struct(type_name)`, then `.field(field_name, value)` per field in declaration order, then `.finish()` |
 | r[std-format.debug.derive-builders.variant.named] Named variant | a variant whose payload fields are all named | `out.debug_tuple(qualified_name)`, then `.named_field(field_name, value)` per payload field in order, then `.finish()`, printing `Shape.Circle(radius=2.0)` |
 | r[std-format.debug.derive-builders.variant.positional] Positional variant | a variant whose payload fields are all positional | `out.debug_tuple(qualified_name)`, then `.field(value)` per payload value in order, then `.finish()` |
 | r[std-format.debug.derive-builders.variant.unit] Unit variant | a variant without a payload | `out.write(qualified_name)` only |
@@ -121,7 +121,7 @@ fn shown(timeout: Duration) -> string:
     debug(timeout)
 ```
 
-1. r[std-format.debug.std-types] Every public data type, enum, and newtype that `std` declares implements `Debug` when the type of each of its members implements `Debug`.
+1. r[std-format.debug.std-types] Every public struct, enum, and newtype that `std` declares implements `Debug` when the type of each of its members implements `Debug`.
 2. r[std-format.debug.std-types.generic] A generic one implements `Debug` under the bounds that its members need, as in `impl[T < Debug] Debug for Reverse[T]`.
 3. r[std-format.debug.std-types.calls] Its builder calls are those that `@derive(Debug)` generates for its declaration, by [`std-format.debug.derive-builders.source`](#r-std-format.debug.derive-builders.source). A newtype with `@derive(Debug)` writes its base value, as [`trait.derive.newtype.templated`](../lang/09-traits.md#r-trait.derive.newtype.templated) gives. A std newtype with a hand-written `Debug`, such as `Path` or `ExitCode`, writes its constructor call.
 4. r[std-format.debug.std-types.sequences] `Deque` and `Heap` are exceptions to [`std-format.debug.std-types.calls`](#r-std-format.debug.std-types.calls): each writes one `debug_list` entry per element, as `List` does. A `Deque` writes them from front to back, and a `Heap` in an order this chapter does not specify.

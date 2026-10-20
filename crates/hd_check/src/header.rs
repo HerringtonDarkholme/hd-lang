@@ -926,18 +926,6 @@ impl<'a> ItemCheck<'_, 'a> {
                         {
                             continue;
                         }
-                        // `types.map-key.no-mut`: a `mut` key is its own error.
-                        if def == self.cx.names.known.map
-                            && i == 0
-                            && matches!(pool.get(a), TyData::Mut(_))
-                        {
-                            let message = format!(
-                                "{} is a `mut` map key type; a map key type is not `mut`",
-                                self.show(a)
-                            );
-                            self.report(slot, Code::InvalidMapKey, message);
-                            continue;
-                        }
                         for b in &g.bounds {
                             let b = pool.subst(*b, &|p: ParamRef| {
                                 (p.owner == def)
@@ -995,8 +983,8 @@ impl<'a> ItemCheck<'_, 'a> {
                 self.check_bound(t)?;
             }
             TyData::Mut(i) if !self.keeps_mut(i) => {
-                // `types.value.no-mut.any`: a value has no `mut` form; only
-                // `mut Suspend[T]` and a type parameter keep one.
+                // `types.value.no-mut.written`: a value has no `mut` form; only
+                // `mut Suspend[T]` keeps one.
                 let message = if self.is_struct(i) {
                     format!(
                         "{} is a struct, a value with no `mut` form; a `let mut` binding changes its fields",
@@ -1034,8 +1022,9 @@ impl<'a> ItemCheck<'_, 'a> {
         Ok(())
     }
 
-    /// Whether a written `mut t` is accepted: `t` is a `Suspend[T]`, or a
-    /// type parameter, whose `mut` bounds decide.
+    /// Whether a `mut t` in a signature is accepted: `t` is a `Suspend[T]`,
+    /// or a type parameter, as a `mut self` receiver's `Self` is (a written
+    /// `mut T` on a parameter is the resolver's error).
     fn keeps_mut(&self, t: Ty) -> bool {
         match self.pool().get(t) {
             TyData::Adt { def, .. } => def == self.cx.names.known.suspend,

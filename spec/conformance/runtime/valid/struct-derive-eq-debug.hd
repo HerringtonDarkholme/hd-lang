@@ -1,5 +1,5 @@
 # test: derived Eq and Hash on a struct compare field values, derived Debug renders its fields, and a struct pattern tests and binds fields
-# Spec 08 Struct Declarations: data.struct.data-rules; Spec 08 Data Patterns; Spec 04 Value Types: types.value.copy.
+# Spec 08 Typed Derivation Of Data And Enums: data.derive.members; Spec 08 Data Patterns; Spec 04 Value Types: types.value.copy.
 # expect-stdout: true false
 # expect-stdout: Key { id: 1, tag: "a" }
 # expect-stdout: 10

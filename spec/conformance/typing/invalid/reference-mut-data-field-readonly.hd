@@ -1,8 +1,0 @@
-# test: `&mut` of a field of a readonly data value is readonly-root
-# Spec 13 Writable Places Of References: ref.place.not-writable.data.
-data Counter:
-    n: i32
-
-fn invalid(c: Counter) -> i32:
-    n := &mut c.n  # diagnostic: readonly-root
-    *n

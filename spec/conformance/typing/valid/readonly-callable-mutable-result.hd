@@ -1,9 +1,0 @@
-struct Child:
-    name: string
-
-struct Holder:
-    get_child: fn() -> &mut Child
-
-fn recover(get_child: fn() -> &mut Child) -> &mut Child:
-    holder := &mut Holder { get_child: get_child }
-    (holder.get_child)()

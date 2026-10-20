@@ -7,4 +7,4 @@ fn origin() -> Point:
     Point { x: 0, y: 0 }
 
 fn demo() -> void:
-    origin().x = 1  # diagnostic: readonly-root
+    origin().x = 1  # diagnostic: not-writable

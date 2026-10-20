@@ -1,6 +1,0 @@
-data Account:
-    balance: i64
-
-pub fn main() -> void $ Console:
-    acct := Account { balance: 10 }
-    println("${acct.balance + bonus}")

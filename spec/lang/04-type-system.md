@@ -2,8 +2,8 @@
 
 Status: language specification draft.
 
-This chapter defines types, assignability, access permission, generics, and
-variance.
+This chapter defines types, assignability, value types and writable places,
+generics, and variance.
 
 1. r[types.static] hd-lang is statically typed: every expression has a compile-time type.
 2. r[types.no-execute] A program with a type error must not execute.
@@ -23,7 +23,7 @@ r[types.forms.set] The type forms are:
 | Form | Spelling |
 | --- | --- |
 | Primitive types | |
-| Nominal data types and enums | |
+| Nominal struct types and enums | |
 | Tuples | `(A, B)`, or ending in a rest element, `(A, List[T]...)` |
 | Lists and maps | `List[T]`, `Map[K, V]` |
 | Optional types | `T?` |
@@ -34,7 +34,7 @@ r[types.forms.set] The type forms are:
 | Associated type projections | such as `T::Item` |
 | Trait value types | |
 | Transparent aliases and nominal newtypes | |
-| Mutable-access types | `mut T` |
+| Reference types | `&T`, `&mut T` |
 
 1. r[types.suspend] `Suspend[T]` is the dynamic one-shot computation protocol.
 
@@ -110,7 +110,7 @@ impl Counter for i32:
 > `Self`.
 
 8. r[types.prim.no-mut.self-type] In such a method the `mut` is dropped, because a primitive has no `mut` form: `self` has the plain type `Self`, as in `i32`.
-9. r[types.prim.no-mut.self-call] A call of such a method therefore needs no mutable access to its receiver.
+9. r[types.prim.no-mut.self-call] A call of such a method therefore needs no writable place as its receiver.
 
 ```text
 trait Step:
@@ -338,7 +338,7 @@ The expression forms in which literals meet typed parts:
 | r[types.literal.local.form.operand] Operands | an operand of an arithmetic or comparison operator, on either side | `5 + price`, `identity(0) + price` | the other operand |
 | r[types.literal.local.form.argument] Call arguments | the arguments of one call | `biggest(0, items.len())` | the parameter types, and the other arguments that solve a type parameter |
 | r[types.literal.local.form.receiver] Receivers | the receiver of a method call | `[1, 2].iter().all(fn(n: i32) -> bool: n > 0)` | the typed values the call meets, such as a closure parameter type |
-| r[types.literal.local.form.element] Collections | the elements of one list, map, tuple, or data literal | `[small, 1]` | the typed elements |
+| r[types.literal.local.form.element] Collections | the elements of one list, map, tuple, or struct literal | `[small, 1]` | the typed elements |
 | r[types.literal.local.form.arm] Arms | the branches of one `if` and the arms of one `match` | `if c: 1 else: count` | the typed branches |
 | r[types.literal.local.form.closure-return] Closure returns | the return paths of a closure with no written result type | `return value` and a final `0` | the typed return paths |
 | r[types.literal.local.form.loop-else] Loop values | the `else` value and the `break` values of one `while` or `for` | `break total` and `else: 0` | the typed values |
@@ -500,7 +500,7 @@ See also: [Optional Types](#optional-types).
 
 ## Nominal And Structural Types
 
-Each `data` and `enum` declaration introduces a distinct nominal type:
+Each `struct` and `enum` declaration introduces a distinct nominal type:
 
 ```text
 struct UserId:
@@ -512,7 +512,7 @@ struct PostId:
 
 `UserId` and `PostId` are distinct even though their field shapes match.
 
-1. r[types.nominal.distinct] Each `data` and `enum` declaration introduces a distinct nominal type.
+1. r[types.nominal.distinct] Each `struct` and `enum` declaration introduces a distinct nominal type.
 2. r[types.nominal.shape] Matching fields or variants do not make two nominal types interchangeable.
 
 ### Tuple Types
@@ -527,22 +527,14 @@ states.
 2. r[types.tuple.same] Two tuples have the same type when they have the same arity and pairwise-equal element types.
 3. r[types.tuple.one-element] One-element tuples require a trailing comma.
 4. r[types.tuple.empty] `()` is the empty tuple.
-5. r[types.tuple.no-mut] A tuple type has no `mut` form. A tuple type written with `mut`, as in `mut (User, i32)`, is an error. Error: `mut-on-tuple`.
-6. r[types.tuple.element-permission] Each element type keeps its own permission, so `(mut User, i32)` is valid, and its first element has mutable access.
 
-```text
-fn rename(pair: (mut User, i32)) -> void:
-    pair._0.name = "Grace"  # valid: the element has mutable access
+```hd
+fn swap(pair: (i32, string)) -> (string, i32):
+    (pair._1, pair._0)   # (i32, string) is the same type wherever it is written
 ```
 
-```text
-fn invalid(pair: mut (User, i32)) -> void:  # error: mut-on-tuple
-    let p: mut (i32, i32) = (1, 2)            # error: mut-on-tuple
-```
-
-> **Why.** A tuple has no identity and no assignable element, so a mutable
-> view of one would permit nothing. Its elements carry their own
-> permissions.
+See also: [`types.value.no-mut.written`](#r-types.value.no-mut.written),
+which rejects a tuple type written with `mut`.
 
 #### Rest Elements
 
@@ -618,7 +610,7 @@ type AppRow = $ Ledger  # error: unknown-trait
 ```
 
 > **Why.** A transparent alias is replaced by its right side, so a cycle
-> never ends. A recursive type needs a `data` or `enum` declaration.
+> never ends. A recursive type needs a `struct` or `enum` declaration.
 
 ### Newtypes
 
@@ -641,29 +633,7 @@ n := i32(m)
 5. r[types.newtype.no-inherit] A newtype does not inherit trait implementations from its underlying type.
 6. r[types.newtype.map-key] In particular, a newtype is not a valid map key until it explicitly implements or derives both `Eq` and `Hash`.
 7. r[types.newtype.construct-ref] Constructing a newtype over an `AnyRef` base creates no new object: the newtype value wraps the base value.
-8. r[types.newtype.construct-permission] So such a construction carries its base value's permission. `Order(d)` has type `mut Order` exactly when `d` has mutable access, and readonly `Order` otherwise.
-9. r[types.newtype.construct-value] A newtype construction over an `AnyVal` base, such as `Mile(10)`, is a value, as its base is. It is not a fresh mutable object.
-10. r[types.newtype.unwrap-permission] Unwrapping a newtype over an `AnyRef` base carries the newtype value's permission. `Draft(o)` has type `mut Draft` exactly when `o` has mutable access, and readonly `Draft` otherwise.
-
-```text
-data Draft:
-    lines: List[string]
-
-type Order(Draft)
-
-fn keep(open: Order, closed: Order) -> void:
-    pass
-
-fn wrap(draft: mut Draft, seen: Draft) -> void:
-    let open: mut Order = Order(draft)
-    let closed: mut Order = Order(seen)  # error: mutable-upgrade
-    keep(open, closed)
-
-fn unwrap(order: mut Order, sent: Order) -> void:
-    let editable: mut Draft = Draft(order)
-    let frozen: mut Draft = Draft(sent)  # error: mutable-upgrade
-    editable.lines = frozen.lines
-```
+8. r[types.newtype.construct-value] A newtype construction over an `AnyVal` base, such as `Mile(10)`, is a value, as its base is.
 
 See also: [Map Key Types](#map-key-types).
 
@@ -721,7 +691,7 @@ fn demo(flag: bool) -> i32?:
 2. r[types.option.propagate] Postfix `?` on an optional expression either produces its contained value or returns `.None` from the nearest function.
 3. r[types.option.propagate.result] That function must itself return a compatible optional type.
 4. r[types.option.propagate.one-layer] Postfix `?` removes and propagates one optional layer at a time.
-5. r[types.option.propagate.permission] A present value keeps the optional's declared contained type `T`, including `mut U` when `T = mut U`; unwrapping does not weaken that generic argument.
+5. r[types.option.propagate.permission] A present value keeps the optional's declared contained type `T`, including `&mut U` when `T = &mut U`; unwrapping does not weaken that generic argument.
 
 ```hd
 fn first(items: List[i32]) -> i32?:
@@ -740,7 +710,6 @@ fn demo(items: List[i32]) -> i32?:
 4. r[types.option.identity-error] `is` with an optional operand is an error, as for every enum. Error: `identity-requires-references`.
 5. r[types.option.invariant] `Option` declares its parameter unmarked, so an optional is invariant in its contained type, as every unmarked parameter is.
 6. r[types.option.invariant.result] `Result[T, E]` likewise declares both parameters unmarked, so it is invariant in both `T` and `E`.
-7. r[types.option.variance.mutable] As with every generic composite, a mutable outer view is invariant.
 
 ```text
 struct User:
@@ -758,8 +727,8 @@ struct Maybe[+T]:
 
 > **Why.** The standard methods on optionals and results take `T` as a
 > parameter, as `unwrap_or(self, fallback: T)` does. That is a negative
-> position on the readonly public surface, so a covariant `T` would fail
-> its own polarity check.
+> position on the public surface, so a covariant `T` would fail its own
+> polarity check.
 
 See also: [Unary And Binary Operators](05-expressions.md#unary-and-binary-operators),
 [Variance](#variance), and the stdlib chapters [Option](../std/option.md)
@@ -805,7 +774,7 @@ fn save(ready: bool) -> Result[void, string]:
 3. r[types.result.propagate.one-step] The error reaches `F` in one step: by one rule of [Assignability And Coercion](#assignability-and-coercion), or otherwise by one call of `F`'s `From[E]` implementation.
 4. r[types.result.propagate.not-both] The step is never both, and conversions are never chained.
 5. r[types.result.err-value] Returning an `.Err` value without `?` does not itself alter control flow, and it never calls a conversion.
-6. r[types.result.propagate.permission] The success value retains its declared generic type `T`, including `mut U` when `T = mut U`, regardless of whether the `Result` value itself is readonly.
+6. r[types.result.propagate.permission] The success value retains its declared generic type `T`, including `&mut U` when `T = &mut U`.
 7. r[types.result.no-effects] The core language does not use effect syntax for recoverable errors.
 
 ```hd
@@ -972,27 +941,30 @@ fn demo() -> string:
 r[types.assign] An expression of type `S` is assignable to a location of type `T` when at least one of these rules applies:
 
 1. r[types.assign.identical] `S` and `T` are identical after expanding transparent aliases.
-2. r[types.assign.weaken] `S` is `mut T` and the target requests the readonly view `T`.
+2. r[types.assign.weaken] `S` is `mut Suspend[U]` and `T` is its readonly form `Suspend[U]`, or `S` is `&mut U` and `T` is `&U`, by [`ref.convert.weaken`](13-values-and-references.md#r-ref.convert.weaken).
 3. r[types.assign.variance] A declared generic variance conversion permits the readonly outer type to change its type arguments.
 4. r[types.assign.trait-value] `S` explicitly implements trait `T`, or `T` is `Inspectable` and `S` is an inspectable type, allowing construction of a dynamic trait value.
 5. r[types.assign.supertrait] `S` is a dynamic child-trait value whose trait has `T` as a direct or transitive supertrait.
 6. r[types.assign.optional] A value of `T` is injected into `T?`. The injection adds one layer only, so a `T` is not injected into `T??`.
 7. r[types.assign.row-subsumption] `S` and `T` are function types, and `T`'s row entails every key of `S`'s row. Then `S` with `T`'s row is assignable to `T`, as [Row Subsumption](11-requirements-and-suspension.md#row-subsumption) states.
 8. r[types.assign.never] `S` is `never`, as [`types.never.assignable`](#r-types.never.assignable) states.
-9. r[types.assign.trait-value.mut] `S` is `mut U`, `T` is `mut dyn Trait`, and `U` meets `types.assign.trait-value` for `Trait`. This builds a mutable dynamic trait value, as in `let edit: mut dyn Display = mutable_user`.
-10. r[types.assign.trait-value.ref] `T` is a trait value reference, `&dyn Trait` or `&mut dyn Trait`, and `S` converts to it by [Trait Value References](09-traits.md#trait-value-references).
+9. r[types.assign.trait-value.ref] `T` is a trait value reference, `&dyn Trait` or `&mut dyn Trait`, and `S` converts to it by [Trait Value References](09-traits.md#trait-value-references).
 
 ```text
-data User:
-    name: string
+trait Counter:
+    fn bump(&mut self) -> void
 
-impl Display for User:
-    fn to_string(self) -> string:
-        self.name
+struct Clicks:
+    value: i32
 
-fn edit(mutable_user: mut User) -> void:
-    let edit: mut dyn Display = mutable_user
-    let shown: dyn Display = edit
+impl Counter for Clicks:
+    fn bump(&mut self) -> void:
+        self.value = self.value + 1
+
+fn edit() -> void:
+    let mut clicks = Clicks { value: 0 }
+    let edit: &mut dyn Counter = &mut clicks
+    edit.bump()
 ```
 
 No rule converts one numeric type to another, as
@@ -1013,6 +985,34 @@ fn demo() -> i32:
     x
 ```
 
+### Access Permission
+
+A `&mut T` reference and a `mut Suspend[T]` permit writes. A `&T` and a
+readonly `Suspend[T]` do not, and never gain that permission.
+
+1. r[types.mut.weaken] A `mut Suspend[T]` may be used as a `Suspend[T]`, and a `&mut T` as a `&T`.
+2. r[types.mut.no-upgrade] A `Suspend[T]` must never be upgraded to `mut Suspend[T]`, nor a `&T` to `&mut T`. An upgrade is an error. Error: `mutable-upgrade`.
+3. r[types.mut.no-upgrade.inference] The error includes an upgrade that generic inference would produce. Given `keep[T](value: T) -> T`, binding `keep(user)` with `user: &User` to a `&mut User` declaration is rejected rather than inferring `T` as `&mut User`.
+4. r[types.mut.argument] A readonly `Suspend[T]` argument cannot satisfy a `mut Suspend[T]` parameter. Error: `readonly-argument-to-mutable-parameter`.
+5. r[types.mut.argument.infer] Before reporting this error for a generic mutable parameter, inference solves its type variables from the argument's readonly shape.
+
+> **Why.** Solving the generic variables keeps the diagnostic concrete without
+> granting mutable access to the readonly argument.
+
+```text
+struct User:
+    name: string
+
+fn keep[T](value: T) -> T:
+    value
+
+fn invalid(user: &User) -> void:
+    let mutable: &mut User = user     # error: mutable-upgrade
+    let kept: &mut User = keep(user)  # error: mutable-upgrade
+```
+
+See also: [Conversions](13-values-and-references.md#conversions).
+
 ## Value Types
 
 A **value type** has values without identity: binding a value copies it,
@@ -1029,12 +1029,12 @@ fn moved(p: Point) -> Point:
     q
 ```
 
-1. r[types.value.struct] A struct type is a value type. Each struct declaration introduces a distinct nominal type, as a data or enum declaration does.
+1. r[types.value.struct] A struct type is a value type. Each struct declaration introduces a distinct nominal type, as an enum declaration does.
 2. r[types.value.copy] Binding, assigning, passing, and returning a struct value copies it. A later change to the copy leaves the source unchanged, and the reverse.
-3. r[types.value.stored] A struct value stored in a data field, a list element, a map value, a tuple element, or an enum payload is a copy, and reading it out yields a copy.
+3. r[types.value.stored] A struct value stored in a struct field, a list element, a map value, a tuple element, or an enum payload is a copy, and reading it out yields a copy.
 4. r[types.value.no-view] A struct type has no readonly or `mut` view, so a struct literal or copy-update has the plain struct type.
-5. r[types.value.no-mut.any] A type written with `mut`, as in `mut Point` or `mut List[i32]`, is an error unless it is a `Suspend[T]` or a type parameter. Error: `mut-on-struct`.
-6. r[types.value.field-type] A field read through a struct value has the field's declared type, whatever holds the struct. A `field: mut U` keeps its `mut`.
+5. r[types.value.no-mut.written] A type written with `mut`, as in `mut Point`, `mut List[i32]`, `mut (i32, i32)`, or `mut T` for a type parameter `T`, is an error unless it is a `Suspend[T]`. Error: `mut-on-struct`.
+6. r[types.value.field-type] A field read through a struct value has the field's declared type, whatever holds the struct.
 7. r[types.value.anyval] A struct type implements `AnyVal`, so `is` with a struct operand is an error. Error: `identity-requires-references`.
 
 ```text
@@ -1045,9 +1045,19 @@ struct Point:
 fn nudge(p: mut Point) -> void:  # error: mut-on-struct
     pass
 
+fn reset[T](value: mut T) -> void:  # error: mut-on-struct
+    pass
+
+fn invalid() -> i32:
+    let p: mut (i32, i32) = (1, 2)  # error: mut-on-struct
+    p._0
+
 fn same(a: Point, b: Point) -> bool:
     a is b  # error: identity-requires-references
 ```
+
+> **Note.** A primitive type written with `mut` is the error of
+> [`types.prim.no-mut.error`](#r-types.prim.no-mut.error) instead.
 
 > **Why.** A struct value has no identity, so a `mut` view of one would
 > name no shared object, and `is` would have nothing to compare.
@@ -1056,7 +1066,7 @@ fn same(a: Point, b: Point) -> bool:
 
 A field of a struct value changes in place only through a writable place.
 
-1. r[types.value.writable-forms] A place is **writable** when it is a `let mut` binding, local or top-level, a `mut` parameter, or `mut self`. A field of a data value with mutable access and a value reached through a `&mut` reference are writable too. So are a struct field of a writable place and an element of a list in a writable place.
+1. r[types.value.writable-forms] A place is **writable** when it is a `let mut` binding, local or top-level, a `mut` parameter, or `mut self`. A value reached through a `&mut` reference is writable too. So are a struct field of a writable place and an element of a list in a writable place.
 2. r[types.value.let-mut] `let mut name = value` with a struct value is valid, with or without a struct annotation, and makes `name` writable.
 3. r[types.value.field-write] Assigning a struct field, with `=` or a compound assignment, requires the struct to be in a writable place.
 4. r[types.value.write-once] The assignment changes that place alone, since no other place shares its value.
@@ -1069,11 +1079,10 @@ by what holds the struct:
 | --- | --- | --- |
 | r[types.value.write.short] Short binding | a `:=` or `using` binding | `non-reassignable-binding` |
 | r[types.value.write.plain-param] Parameter | a value parameter or `self` that is not `mut` | `non-reassignable-parameter-binding` |
-| r[types.value.write.let] Plain `let` | a `let` binding without `mut` | `readonly-root` |
-| r[types.value.write.other-value] Other value | a call result, an element of a list that is no writable place, an unwrapped value, or a pattern binding | `readonly-root` |
+| r[types.value.write.let] Plain `let` | a `let` binding without `mut` | `not-writable` |
+| r[types.value.write.other-value] Other value | a call result, an element of a list that is no writable place, an unwrapped value, or a pattern binding | `not-writable` |
 | r[types.value.write.map-value] Map value | a value of a map, which is no place, as [`types.coll.map-value.field`](#r-types.coll.map-value.field) states | `map-value-not-addressable` |
-| r[types.value.write.data] Data field | a field of a data value without mutable access | as [Mutation Checks](#mutation-checks) states |
-| r[types.value.write.shared-ref] Read-only reference | a value reached through a `&T` reference | `readonly-root` |
+| r[types.value.write.shared-ref] Read-only reference | a value reached through a `&T` reference | `not-writable` |
 
 ```text
 struct Point:
@@ -1087,7 +1096,7 @@ fn demo() -> void:
     origin := Point { x: 0, y: 0 }
     origin.x = 1  # error: non-reassignable-binding
     let start = origin
-    start.x = 2  # error: readonly-root
+    start.x = 2  # error: not-writable
     start = Point { x: 2, y: 0 }  # valid: reassigned as a whole
     let mut cur = start
     cur.x = 3  # valid: cur is writable
@@ -1097,9 +1106,111 @@ fn shifted(mut p: Point) -> Point:
     p
 ```
 
+Every other write to a place that is not writable has one code:
+
+6. r[types.path.store.not-writable] A write to a place that is not writable is an error. A write is an assignment or compound assignment, an element store, or a call of a `&mut self` method on the place. A field write takes the code that the table above gives. A call of a `mut self` method on a readonly `Suspend[T]` is the same error. Error: `not-writable`.
+
+```text
+struct Child:
+    name: string
+
+impl Child:
+    fn rename(&mut self, name: string) -> void:
+        self.name = name
+
+struct Parent:
+    child: &Child
+
+fn invalid(parent: &mut Parent, child: &Child) -> void:
+    parent.child.name = "new"   # error: not-writable
+    child.name = "new"          # error: not-writable
+    parent.child.rename("new")  # error: not-writable
+```
+
+> **Note.** A struct's `mut self` method takes its own copy of the
+> receiver, by [`fn.method.mut-self-struct`](07-functions.md#r-fn.method.mut-self-struct),
+> so a call of one needs no writable place.
+
 See also: [Struct Declarations](08-data-and-enums.md#struct-declarations),
 [Places](05-expressions.md#places),
 [Writing Through A Reference](13-values-and-references.md#writing-through-a-reference).
+
+### Binding Forms
+
+A binding's form decides whether its name may be rebound and whether its
+value may change in place.
+
+1. r[types.view.non-reassignable] A binding is **non-reassignable** when its name cannot be rebound, as a `:=` binding and a parameter that is not `mut` cannot.
+2. r[types.bind.let-rebind] A `let` binding without `mut` may still be reassigned as a whole; only a change in place through it is rejected.
+
+```text
+fn rename(other: User) -> void:
+    let user = User { name: "Ada" }  # User
+    user = other                     # valid: reassignment
+```
+
+```text
+fn invalid() -> void:
+    let user = User { name: "Ada" }
+    user.name = "Grace"  # error: not-writable
+```
+
+3. r[types.bind.let-mut-primitive-local] `let mut` on a local whose type is primitive, as in `let mut n = 0`, is valid, since `&mut n` needs a writable place.
+4. r[types.bind.let-mut-primitive-unused] When no `&mut` of such a local is taken, its `mut` changes nothing, and it gets a warning whose fix-it removes the `mut`. Warning: `redundant-let-mut`.
+5. r[types.bind.let-mut-primitive-top] `let mut` on a top-level binding whose type is primitive is an error. Error: `mut-on-primitive`.
+6. r[types.bind.let-mut-primitive.hint] The diagnostic says that a plain `let` is already reassignable.
+7. r[types.bind.let-mut-tuple-valid] `let mut` on a name whose type is a tuple, as in `let mut pair = (1, 2)`, is valid.
+
+```text
+fn count_up() -> void:
+    let mut count = 0      # warning: redundant-let-mut
+    let mut n: i32 = 0     # warning: redundant-let-mut
+    let mut pair = (1, 2)  # valid: a tuple
+```
+
+8. r[types.bind.let-pattern-mut] A name written `mut` in a `let` pattern is a writable binding, as in a `match` arm; a name without `mut` is not. In `let (mut log, db) = pair`, `log` is writable and `db` is not.
+9. r[types.bind.let-pattern-mut.data-field] The same holds in a struct or variant pattern. In `let Profile { mut tags, name } = profile`, `tags` is a writable copy of the field.
+
+```text
+struct User:
+    name: string
+
+fn pair() -> (User, User):
+    (User { name: "Ada" }, User { name: "Grace" })
+
+fn edit() -> void:
+    let (mut first, second) = pair()  # first is writable, second is not
+    first.name = "Lin"
+    second.name = "Kay"  # error: not-writable
+```
+
+```text
+struct Profile:
+    name: string
+    tags: List[string]
+
+fn tag(profile: Profile) -> string:
+    let Profile { mut tags, name } = profile  # tags is a writable copy
+    tags.push(name)
+    name
+```
+
+> **Note.** No binding form is non-reassignable and mutable at once: a
+> local that is changed in place but never reassigned is written with
+> `let mut`.
+
+> **Why.** `let mut` says at the declaration which locals change in place.
+
+10. r[types.bind.never] A binding without a type annotation whose initializer has type `never` is an error. Error: `uninhabited-binding`.
+
+```text
+fn first_even(values: List[i32]) -> i32:
+    found := panic("no even value")  # error: uninhabited-binding
+    found
+```
+
+> **Why.** No value of type `never` exists, so the binding could never be
+> read. The initializer alone, without `found :=`, says the same thing.
 
 ## Collection Values
 
@@ -1117,9 +1228,9 @@ fn tagged(names: List[string]) -> List[string]:
 2. r[types.coll.copy-on-write] A copy shares its source's elements until one of the two changes. That change first copies the changed side's elements, once.
 3. r[types.coll.no-identity] A list or a map has no identity. `List` and `Map` implement `AnyVal`, so `is` with one is an error. Error: `identity-requires-references`.
 4. r[types.coll.let-mut] `let mut name = value` with a list or map value is valid, with no annotation or a `List[T]` or `Map[K, V]` one, and makes `name` writable.
-5. r[types.coll.writable] Changing a list or a map needs a writable place, as a struct field write does ([`types.value.writable-forms`](#r-types.value.writable-forms)). A change is a call of a changing method such as `push`, an element store, or passing it to a legacy `mut` parameter.
-6. r[types.coll.writable.call] A changing method called on a list or a map that is no writable place is an error. Its fix-it makes the binding writable. Error: `mutable-receiver-required`.
-7. r[types.coll.writable.store] An element store into such a list or map, or a field write through its element, is an error with the same fix-it. Error: `readonly-root`.
+5. r[types.coll.writable] Changing a list or a map needs a writable place, as a struct field write does ([`types.value.writable-forms`](#r-types.value.writable-forms)). A change is a call of a changing method such as `push`, or an element store.
+6. r[types.coll.writable.call] A changing method called on a list or a map that is no writable place is an error. Its fix-it makes the binding writable. Error: `not-writable`.
+7. r[types.coll.writable.store] An element store into such a list or map, or a field write through its element, is an error with the same fix-it. Error: `not-writable`.
 8. r[types.coll.element-place] An element of a list in a writable place is a writable place. So `xs[i] = v`, `xs[i].x = v`, and `xs[i].push(v)` change `xs` in place.
 9. r[types.coll.nested] A change through a path, such as `m[k].push(x)`, `team.members.push(x)`, or `xs[i].name = n`, changes the inner value where it is stored. It never reads the inner value out and stores a changed copy back.
 10. r[types.coll.shared] A list or a map that two places share is written `&mut List[T]` or `&mut Map[K, V]`. A change through the reference changes the place it refers to.
@@ -1127,12 +1238,12 @@ fn tagged(names: List[string]) -> List[string]:
 ```text
 fn names() -> usize:
     found := ["ada"]
-    found.push("grace")  # error: mutable-receiver-required
+    found.push("grace")  # error: not-writable
     found.len()
 
 fn first() -> i32:
     let scores = [+1, 2]
-    scores[0] = 5  # error: readonly-root
+    scores[0] = 5  # error: not-writable
     scores[0]
 
 fn same(left: List[i32], right: List[i32]) -> bool:
@@ -1166,455 +1277,22 @@ fn count(shelves: Map[string, Stock]) -> i32:
     found.count
 ```
 
-### Legacy Collection Views
-
-Until the standard library migrates, a collection type written with `mut`
-keeps the sharing it had before collections were values.
-
-1. r[types.coll.legacy] A parameter, field, result, or annotation written `mut List[T]` or `mut Map[K, V]` shares the collection it is given, as `&mut List[T]` would.
-2. r[types.coll.legacy.argument] A list in a writable place, or a new list, passes to such a parameter by sharing, so the callee's changes reach the caller's place.
-3. r[types.coll.legacy.data-field] A `data` field written `List[T]` or `Map[K, V]`, without `mut`, shares the collection it is given as a readonly view, and is no writable place.
-4. r[types.coll.legacy.binding] A binding copies the collection of a legacy `mut` view unless its own annotation is a `mut` view, so `copy := shared` is a copy.
-
-```text
-fn append(items: mut List[string], name: string) -> void:
-    items.push(name)  # the caller's list changes
-
-fn demo() -> usize:
-    let mut names = ["ada"]
-    append(names, "grace")
-    names.len()  # 2
-```
-
 See also: [Snapshot Iteration](06-control-flow.md#snapshot-iteration),
 [Writable Places](#writable-places).
-
-## Composite Values And Access Permission
-
-Composite values are shared by reference, and `mut` grants mutable access to
-one.
-
-1. r[types.composite.kinds-shared] Data types, enums with storage, tuples, trait values, and closures are composite values. A list or a map is a value ([Collection Values](#collection-values)), and a legacy `mut List[T]` view of one is composite.
-2. r[types.composite.shared] Composite parameters and results use shared references at the language level.
-3. r[types.composite.aliases] hd-lang does not require exclusive ownership and may have multiple aliases to one composite value.
-
-```hd
-fn demo(items: mut List[i32]) -> void:
-    items.push(+1)   # shared by reference: the caller sees the push
-```
-
-### Views
-
-For a composite type `T`:
-
-1. r[types.view.readonly] `T` is a readonly reference view. It permits observation but not mutation through that reference.
-2. r[types.view.mutable] `mut T` is a mutable reference view. It permits operations that mutate the referenced value.
-3. r[types.view.term] Throughout the specification, **readonly view** is the single term for `T` access to a composite value; it does not imply deep immutability.
-4. r[types.view.non-reassignable] A binding is described separately as **non-reassignable** when its name cannot be rebound.
-
-```hd
-fn demo(items: List[i32]) -> usize:
-    items.len()   # a readonly view: observation only
-```
-
-### Access Permission
-
-1. r[types.mut.permission] `mut` expresses access permission, not ownership, uniqueness, or a deep freeze of the object.
-2. r[types.mut.no-field-reassign] A readonly `T` reference cannot reassign its fields.
-3. r[types.mut.mut-field] A direct data field declared `field: mut U` is read as `U` through readonly `T`.
-4. r[types.mut.generic-field] A generic data field declared `field: P` retains its substituted type even when `P` is instantiated as `mut U`.
-5. r[types.mut.other-forms] Other extraction forms state their own permission rules below.
-6. r[types.mut.weaken] A `mut T` may be viewed as `T`.
-7. r[types.mut.no-upgrade] A `T` must never be upgraded to `mut T`. An upgrade is an error. Error: `mutable-upgrade`.
-8. r[types.mut.no-upgrade.inference] The error includes an upgrade that generic inference would produce. Given `keep[T](value: T) -> T`, binding `keep(readonly_value)` to a `mut T` declaration is rejected rather than inferring `T` as a mutable type.
-9. r[types.mut.argument] A readonly argument cannot satisfy a mutable parameter. Error: `readonly-argument-to-mutable-parameter`.
-10. r[types.mut.argument.infer] Before reporting this error for a generic mutable parameter, inference solves its type variables from the argument's readonly shape.
-
-> **Why.** Solving the generic variables keeps the diagnostic concrete without
-> granting mutable access to the readonly argument.
-
-```text
-fn keep[T](value: T) -> T:
-    value
-
-fn invalid(user: User) -> void:
-    let mutable: mut User = user     # error: mutable-upgrade
-    let kept: mut User = keep(user)  # error: mutable-upgrade
-```
-
-### Readonly Views Are Shallow
-
-1. r[types.readonly.blocks] A readonly view blocks reassignment of its fields and removes the `mut` of its direct `mut U` fields and embedded fields.
-2. r[types.readonly.not-deep] A readonly view is not a deep authority boundary.
-3. r[types.readonly.nested] A `mut U` supplied as an optional, tuple, collection, or other generic argument keeps its permission when that nested value is extracted.
-4. r[types.readonly.deep-api] APIs that require a deep no-mutation guarantee must not expose mutable references through such nested field types.
-
-```text
-let mut user = User { name: "Ada" }
-readonly := user
-user.name = "Grace"
-println(readonly.name)  # observes "Grace"
-```
-
-5. r[types.readonly.alias] The readonly alias prevents mutation through `readonly`; it does not freeze the underlying object against other mutable aliases.
-6. r[types.readonly.no-guarantee] Readonly access does not guarantee any of the following:
-   - that repeated reads return the same values;
-   - that the object is a stable cache input;
-   - that independently held mutable aliases cannot change its reachable state.
-7. r[types.readonly.structural] A readonly view restricts structural access through that view.
-8. r[types.readonly.results] A readonly view does not prohibit a called function from returning a separately held mutable reference according to its declared result type.
-
-See also: [Mutable Paths](#mutable-paths).
-
-### Bindings And Fresh Values
-
-1. r[types.fresh.mutable-outer] A fresh data or copy-update expression, stored enum construction, list expression, or map expression produces mutable access to its new outer object.
-2. r[types.fresh.tuple] A tuple expression produces a tuple, which has no `mut` form, as [`types.tuple.no-mut`](#r-types.tuple.no-mut) states. Its elements keep their permissions.
-3. r[types.fresh.weaken] This permission may be weakened immediately by an expected readonly type.
-4. r[types.fresh.weaken.meet] It is also weakened where the fresh value meets a readonly value of its type. An `==` or `!=` operand pair compares at the readonly view, and a generic inference join solves at it.
-5. r[types.fresh.not-recursive] Freshness does not recursively upgrade composite values stored in the new object.
-6. r[types.fresh.element-permission] Each field or element keeps the permission of the supplied expression and declared edge.
-7. r[types.fresh.element-no-weaken] An expected type weakens only the fresh expression it applies to, never the elements of a collection already built. So `[for p in parts => Word { text: p }].iter()` has type `&mut Iterator[mut Word]`, and returning it as `&mut Iterator[Word]` is an error. Error: `type-mismatch`.
-
-```hd
-fn demo() -> List[i32]:
-    [+1, +2]   # fresh: mutable access to the new outer object
-```
-
-#### Fresh Literals With Readonly Parts
-
-1. r[types.fresh.readonly-field] A data literal with a direct `field: mut U` may produce readonly `T` when that field is supplied only `U`.
-2. r[types.fresh.mut-literal] A literal produces `mut T` only when every direct mutable field is supplied mutable access and every embedded copy has mutable access.
-3. r[types.fresh.spread] A value copied from a spread counts as supplied through the spread source's view.
-4. r[types.fresh.expected-readonly] An expected readonly `T`, including a `:=` binding, permits the weaker field value.
-5. r[types.fresh.expected-mut] An expected `mut T` rejects the weaker field value or a readonly part copy. Error: `mutable-upgrade`.
-6. r[types.fresh.expected-mut.sites] The expected type is `mut T` wherever the literal is used as `mut T`:
-   - an annotated `mut T` binding;
-   - a `mut T` argument or result;
-   - a store into a `mut T` field or element.
-7. r[types.fresh.generic-field] A generic field declared `field: P` still requires its substituted type, including `mut U` when `P = mut U`.
-
-```hd
-data Box:
-    content: mut List[i32]
-
-fn demo(items: List[i32]) -> Box:
-    Box { content: items }   # readonly items: the Box is readonly
-```
-
-See also: [Data Embedding](08-data-and-enums.md#data-embedding).
-
-#### Binding Forms
-
-1. r[types.bind.short] `:=` always exposes a readonly composite view, even when its initializer creates a fresh value:
-
-```text
-user := User { name: "Ada" }  # User
-```
-
-2. r[types.bind.let-mut] A `let` annotation may state mutable access explicitly:
-
-```text
-let names: mut List[string] = []
-```
-
-3. r[types.bind.let-readonly] A `let` without `mut` and without an annotation infers the readonly view of its initializer's type, even when the initializer creates a fresh value.
-4. r[types.bind.let-rebind] Such a binding may still be reassigned; only mutation through it is rejected.
-
-```text
-fn rename(other: User) -> void:
-    let user = User { name: "Ada" }  # User
-    user = other                     # valid: reassignment
-```
-
-```text
-fn invalid() -> void:
-    let user = User { name: "Ada" }
-    user.name = "Grace"  # error: readonly-root
-```
-
-5. r[types.bind.let-mut-infer] `let mut name = value` infers mutable access: when `value` has type `mut T`, the binding has type `mut T`.
-6. r[types.bind.let-mut-upgrade.view] `let mut` never upgrades access: an initializer with a readonly composite type is an error. Error: `mutable-upgrade`. A list or map value is no view, so `let mut` copies it ([`types.coll.let-mut`](#r-types.coll.let-mut)).
-7. r[types.bind.let-mut-primitive-local] `let mut` on a local whose type is primitive, as in `let mut n = 0`, is valid, since `&mut n` needs a writable place.
-8. r[types.bind.let-mut-primitive-unused] When no `&mut` of such a local is taken, its `mut` changes nothing, and it gets a warning whose fix-it removes the `mut`. Warning: `redundant-let-mut`.
-9. r[types.bind.let-mut-primitive-top] `let mut` on a top-level binding whose type is primitive is an error, in place of `mutable-upgrade` or `let-mut-readonly-type`. Error: `mut-on-primitive`.
-10. r[types.bind.let-mut-primitive.hint] The diagnostic says that a plain `let` is already reassignable.
-11. r[types.bind.let-mut-tuple] `let mut` on a name whose type is a tuple, as in `let mut pair = (1, 2)`, is an error, in place of `mutable-upgrade` or `let-mut-readonly-type`. Error: `mut-on-tuple`.
-12. r[types.bind.let-mut-tuple.hint] The diagnostic says that a plain `let` is already reassignable, and that an element's permission comes from its own type.
-13. r[types.bind.let-mut-optional] For `let mut`, an optional written `mut T?` counts as mutable access. So `let mut u = find()` is valid when `find` returns `mut User?`, and `u` has that type.
-14. r[types.bind.let-mut-expected] The initializer of an unannotated `let mut` is used as `mut T`. So a fresh literal whose direct `mut` field or embedded copy is readonly is an error, as [`types.fresh.expected-mut`](#r-types.fresh.expected-mut) states. Error: `mutable-upgrade`.
-15. r[types.bind.let-mut-copy] A mutable copy of a readonly value is therefore written as a fresh literal, such as `User { ...user }`, whose `mut` fields are supplied mutable values.
-
-```text
-fn find() -> mut User?:
-    .Some(User { name: "Lin" })
-
-fn edit(user: User) -> void:
-    let mut draft = User { name: "Ada" }  # mut User
-    draft.name = "Grace"
-    let mut copy = User { ...user }       # a fresh copy
-    copy.name = "Grace"
-    let mut found = find()                # mut User?
-```
-
-```text
-fn invalid(user: User) -> void:
-    let mut alias = user  # error: mutable-upgrade
-    let mut count = 0     # warning: redundant-let-mut
-    let mut n: i32 = 0    # warning: redundant-let-mut
-    let mut pair = (1, 2) # error: mut-on-tuple
-```
-
-16. r[types.bind.let-mut-annotated-valid] `let mut` with an annotation whose type is `mut T`, as in `let mut user: mut User = ...`, is valid. The `mut` after `let` adds only that `&mut` of the binding may be taken.
-17. r[types.bind.let-mut-annotated.unused] When the binding is top-level, or a local that no `&mut` refers to, that redundant `mut` gets a warning. Warning: `redundant-let-mut`.
-18. r[types.bind.let-mut-annotated.fix] The warning's fix-it removes the `mut` before the name and keeps the annotation.
-19. r[types.bind.let-mut-annotation.view] `let mut` with a readonly composite annotation, as in `let mut user: User = ...`, is an error, because the annotation and `let mut` disagree. Error: `let-mut-readonly-type`. A `List[T]` or `Map[K, V]` annotation is no view and is valid.
-20. r[types.bind.let-mut-annotation.fix] The diagnostic suggests adding `mut` to the type or removing the `mut` after `let`.
-
-```text
-fn invalid() -> void:
-    let mut user: User = User { name: "Ada" }  # error: let-mut-readonly-type
-    let mut ids: mut List[i64] = []   # warning: redundant-let-mut
-```
-
-21. r[types.bind.let-pattern-mut] In a `let` pattern, each name follows these rules for the value it binds, as a `match` arm would bind it. In `let (mut log, db) = pair`, `log` has mutable access and `db` the readonly view.
-22. r[types.bind.let-pattern-mut.data-field] The same holds in a data or variant pattern. In `let Profile { mut owner, name } = profile`, with `profile: mut Profile` and a field `owner: mut User`, `owner` has type `mut User`.
-23. r[types.bind.let-mut-pattern.annotated] With a tuple annotation, the element type of each name written `mut` must be a `mut` type. Error: `let-mut-readonly-type`.
-24. r[types.bind.let-mut-pattern.redundant] That `mut` before the name is redundant and gets the same warning, with the same fix-it. Warning: `redundant-let-mut`.
-
-```text
-fn pair() -> (mut User, mut User):
-    (User { name: "Ada" }, User { name: "Grace" })
-
-fn edit() -> void:
-    let (mut first, second) = pair()  # mut User, User
-    first.name = "Lin"
-    println(second.name)
-```
-
-```text
-data Profile:
-    name: string
-    owner: mut User
-
-fn rename(profile: mut Profile, readonly: Profile) -> void:
-    let Profile { mut owner, name } = profile  # mut User, string
-    owner.name = name
-    let Profile { owner: mut other } = readonly  # error: mutable-upgrade
-```
-
-```text
-fn pair() -> (mut User, mut User):
-    (User { name: "Ada" }, User { name: "Grace" })
-
-fn edit() -> void:
-    let (mut first, second): (mut User, User) = pair()  # warning: redundant-let-mut
-    first.name = "Lin"
-    println(second.name)
-```
-
-> **Why.** The fix-it keeps the annotation because the annotation may be
-> what solves a generic right-hand side, as in
-> `let (a, b): (User, mut User) = make_pair()` for
-> `fn make_pair[A, B]() -> (A, B)`. A `mut` before a name never supplies a
-> type.
-
-> **Note.** No binding form is non-reassignable and mutable at once: a
-> local that is mutated but never reassigned is written with `let mut`.
-
-> **Why.** `let mut` removes the repeated type from
-> `let mut user = User { ... }`, while the declaration still says
-> which locals change. `mut` keeps one meaning, a permission in the type.
-
-25. r[types.bind.call-result] Passing through a function also follows the declared result type rather than recovering freshness.
-26. r[types.bind.call-result.argument] Consequently, a fresh literal may be passed directly to a `mut T` parameter. A call declared to return `T` cannot be passed to one, even when its implementation constructs a fresh value.
-27. r[types.bind.never] A binding without a type annotation whose initializer has type `never` is an error. Error: `uninhabited-binding`.
-
-```text
-fn first_even(values: List[i32]) -> i32:
-    found := panic("no even value")  # error: uninhabited-binding
-    found
-```
-
-> **Why.** No value of type `never` exists, so the binding could never be
-> read. The initializer alone, without `found :=`, says the same thing.
-
-### Mutable Paths
-
-This section defines the access type of each expression in an access path,
-and the mutations that access type permits.
-
-1. r[types.path.access-type] Every expression in an access path has an access type, computed one step at a time from the expression it extends.
-2. r[types.path.root] A binding, parameter, or `self` has its declared or inferred type.
-3. r[types.path.call] A call has its callable's declared result type, whatever value the call was reached through.
-4. r[types.path.field] A field read `e.field` depends on the kind of field, and on whether `e` has type `mut T` or readonly type `T`, as this table shows.
-
-| Field kind | Declared | Through `mut T` | Through readonly `T` |
-| --- | --- | --- | --- |
-| r[types.path.field.mutable-edge] **mutable edge** | `field: mut U` | `mut U` | `U` |
-| r[types.path.field.readonly-edge] **readonly edge** | `field: U` with a composite `U` | `U` | `U` |
-| r[types.path.field.embedded] **embedded field** | `E` | `mut E` | `E` |
-| r[types.path.field.generic] **generic field** | `field: P`, with a generic parameter `P` | the substituted type, unchanged | the substituted type, unchanged |
-
-5. r[types.path.field.mutable-edge.removed] The `mut` written directly in a mutable edge's declaration is removed by a readonly container.
-6. r[types.path.field.generic.example] Reading `value: P` from readonly `Box[mut User]` therefore yields `mut User`.
-7. r[types.path.field.substituted] Every type is read after substitution of the container's type arguments.
-8. r[types.path.collection] Indexing, iteration, and lookup on a built-in collection yield its declared element or value type, whatever the collection's own permission.
-9. r[types.path.collection.example] Indexing readonly `List[mut User]` yields `mut User`, and a successful lookup in a readonly `Map[K, mut User]` yields `mut User` after unwrapping.
-10. r[types.path.contents] Optional and `Result` unwrapping, tuple element extraction, and generic enum payloads likewise yield their declared contents.
-11. r[types.path.enum-payload] A non-generic enum payload declared `mut U` follows the field rule above.
-
-```hd
-data User:
-    name: string
-
-fn rename(user: mut User, name: string) -> void:
-    user.name = name
-```
-
-See also: [Data Embedding](08-data-and-enums.md#data-embedding),
-[Member Resolution](03-names-and-scopes.md#member-resolution).
-
-#### Mutation Checks
-
-An expression has **mutable access** when one of these holds:
-
-| Rule | The expression | Example |
-| --- | --- | --- |
-| r[types.path.access.mut-type] Mutable type | has a type `mut U` | `account.profile` below |
-| r[types.path.access.mut-bound] Mutable bound | has a type parameter's type, and the parameter is bounded by `mut Trait` or `mut Any` | `value` in `clear_value[T < mut Clear](value: T)` |
-| r[types.path.access.mut-self] Mutable receiver | is `self` inside a `mut self` method | `self` in `fn clear(mut self)` |
-
-1. r[types.path.mutation] A mutation needs mutable access on exactly one expression: the one it acts on.
-2. r[types.path.mutation.needs-access] Each of these requires mutable access to `e`:
-   - reassigning `e.field`;
-   - replacing an element with `e[i] = value`;
-   - calling a `mut self` method on `e`, including a container-mutating method such as `push`, and a method promoted from an embedded field.
-3. r[types.path.mutation.only] Nothing else in the path is checked: the access type of `e` already records every permission removed on the way to it.
-4. r[types.path.mutation.receiver] A `mut self` call on an `e` without mutable access is an error, whatever the path to `e`, including a promoted call. Error: `mutable-receiver-required`.
-
-```text
-data Account:
-    profile: mut Profile
-
-let mut account = Account { profile: profile }
-account.profile.display_name = "Ada"   # account.profile has type mut Profile
-```
-
-When the `e` of a field store or an element replacement lacks mutable
-access, the diagnostic names why:
-
-5. r[types.path.store.readonly-edge] A store through an `e` that is a field read through a readonly edge, `field: U`, is an error. Error: `readonly-edge`.
-6. r[types.path.store.readonly-root] A store through any other `e` without mutable access is an error. Error: `readonly-root`.
-7. r[types.path.readonly-root.cases] The `readonly-root` cases are these:
-   - a readonly binding, parameter, `self`, call result, element, or unwrapped value;
-   - a mutable edge or embedded field read through a readonly value;
-   - a generic field whose type argument is readonly.
-
-```text
-data Child:
-    name: string
-
-impl Child:
-    fn rename(mut self, name: string) -> void:
-        self.name = name
-
-data Parent:
-    child: Child
-
-fn invalid(parent: mut Parent, child: Child) -> void:
-    parent.child.name = "new"      # error: readonly-edge
-    child.name = "new"             # error: readonly-root
-    parent.child.rename("new")     # error: mutable-receiver-required
-```
-
-#### Field Stores
-
-1. r[types.path.reassign] A `mut T` value may reassign every field with a value assignable to the field's declared type, whether the field is `field: U` or `field: mut U`.
-2. r[types.path.reassign.old-value] Replacing a field does not mutate the old referenced value.
-3. r[types.path.store-mut-edge] Storing into a direct `field: mut U` of a mutable value requires `mut U`.
-4. r[types.path.store-readonly] A readonly value may store `U` there and cannot later be upgraded to `mut T`.
-5. r[types.path.store-embedded] Storing into an embedded field, written `e.E ...= value`, stores the copy-update `T { ...value }` of the field's type `T`. A store into a readonly target is an error, as for any store. Error: `readonly-root`. When the copy itself has only readonly access, as from a readonly source with a `mut` composite field, the store is an error. Error: `mutable-upgrade`.
-
-```hd
-data Box:
-    content: mut List[i32]
-
-fn demo(box: mut Box) -> void:
-    box.content = [+1]   # storing mutable access into a mut edge
-```
-
-See also: [Data Embedding](08-data-and-enums.md#data-embedding).
-
-#### Containers And Elements
-
-r[types.path.container-element] Container mutation and element mutation are independent:
-
-| Type | Replace elements | Mutate referenced elements |
-| --- | --- | --- |
-| `List[User]` | no | no |
-| `List[mut User]` | no | yes |
-| `mut List[User]` | yes | no |
-| `mut List[mut User]` | yes | yes |
-
-1. r[types.path.generic-args] Generic type arguments are never weakened because their enclosing value is readonly.
-2. r[types.path.loses-mut] Only a mutable edge or an embedded field loses `mut` through a readonly container.
-3. r[types.path.patterns] Data patterns and copy-update use the same access types as field reads on the subject.
-
-```hd
-fn demo() -> void:
-    let table: mut Map[string, i32] = {}
-    table["a"] = +1   # replace elements: yes
-```
-
-### Parameters And Results
-
-A function that returns mutable access declares `-> mut T`:
-
-```text
-fn new_user() -> User: User { name: "Ada" }
-fn new_mutable_user() -> mut User: User { name: "Ada" }
-```
-
-1. r[types.param.readonly] `value: T` accepts readonly composite access.
-2. r[types.param.mut] `value: mut T` requires mutable access.
-3. r[types.param.mut-self] `mut self` is shorthand for `self: mut Self`.
-4. r[types.return.mut] A function that returns mutable access must declare `-> mut T`.
-5. r[types.return.readonly] A declared result of `T` exposes only readonly access, even when the function creates a fresh object internally.
 
 ## Generics
 
 This section defines generic parameters, bounds, arguments, and their runtime representation.
 
 1. r[types.generic.complete] Generic type and function parameters denote complete types.
-2. r[types.generic.mut-argument] A type parameter `T` may therefore be instantiated with either `User` or `mut User`.
-3. r[types.generic.naming] By convention, generic parameters, including row parameters, use uppercase names such as `T`, `U`, `K`, `V`, and `R`.
-4. r[types.generic.kind] The convention is style only: a parameter's kind comes from its declaration and use, never from the case of its name.
+2. r[types.generic.naming] By convention, generic parameters, including row parameters, use uppercase names such as `T`, `U`, `K`, `V`, and `R`.
+3. r[types.generic.kind] The convention is style only: a parameter's kind comes from its declaration and use, never from the case of its name.
 
 ```hd
 fn first[T](items: List[T]) -> T?:
     if items.len() == 0: .None
     else: .Some(items[0])
 ```
-
-### Mutable Bounds
-
-Mutable generic requirements use a bound:
-
-```text
-fn clear_value[T < mut Clear](value: T) -> void:
-    value.clear()
-```
-
-1. r[types.generic.direct] An unconstrained generic declaration stores or passes `T` directly.
-2. r[types.generic.no-mut-t] An unconstrained generic declaration must not write `mut T`, as in `fn invalid[T](value: mut T)`. It is an error at the `mut T` type, in place of `invalid-variance`. Error: `mut-on-type-parameter`.
-3. r[types.generic.mut-bound] Mutable generic requirements use a bound.
-4. r[types.generic.mut-any] `T < mut Any` accepts any mutable-root type.
-5. r[types.generic.mut-trait] `T < mut Trait` additionally requires the underlying type to implement `Trait`.
-6. r[types.generic.trait-bound] A plain `T < Trait` requires trait conformance without mutable-root authority.
-
-> **Why.** Substitution with `T = mut User` would turn `mut T` into the
-> meaningless form `mut mut User`.
 
 ### Bound Order
 
@@ -1685,16 +1363,15 @@ fn count(names: List[string, i32]) -> i32:  # error: argument-count
 ### Inference From Several Arguments
 
 When a call solves one type parameter from several arguments, the
-arguments' types may differ only in `mut`:
+arguments' types may differ only in an outer `mut`:
 
-1. r[types.generic.infer.join] When generic call inference solves one type parameter from several arguments, the only conversion between their types is permission weakening. `mut X` and `X` meet at `X`.
-2. r[types.generic.infer.join.outer-permission] Sources that disagree only in outer permission weaken to the readonly view, so a `mut T` and a `T` solve the parameter as `T`. This holds when one argument is a fresh value, as in `same(Date { year: 2026 }, d)` with `d: Date`.
-3. r[types.generic.infer.join.no-trait-value] A trait-value conversion never applies, as [`types.lct.no-trait-value`](#r-types.lct.no-trait-value) states for the least common type. So `cmp(user, label)` with a `User` and a `Display` argument is an error. Error: `no-common-type`.
-4. r[types.generic.infer.join.no-supertrait-widening] A supertrait widening never applies either, so two arguments of two child traits of one supertrait are an error. Error: `no-common-type`.
-5. r[types.generic.infer.join.other-conflict] Any other conflict between the arguments' types is an error. Examples are `choose(1, true)`, `max(small, large)` with an `i32` and an `i64`, a `List[mut User]` and a `List[User]`, and a `T` and a `T?`. Error: `type-mismatch`. The caller writes a cast, as in `max(i64(small), large)`.
-6. r[types.generic.infer.join.literal] An integer literal argument is not a conversion: it takes the type solved from the other arguments as its expected type, in any position. So `pick(1, large)` with an `i64` `large` solves `T = i64`.
-7. r[types.generic.infer.join.explicit] An explicit type argument, as in `cmp::[dyn Display](user, label)`, is an expected type for each argument, which then converts by [Assignability And Coercion](#assignability-and-coercion), as [`types.lct.expected-trait`](#r-types.lct.expected-trait) allows.
-8. r[types.generic.infer.join.not-lct] This join is narrower than the [least common type](#least-common-type), and is not one of that section's constructs.
+1. r[types.generic.infer.join] When generic call inference solves one type parameter from several arguments, the only conversion between their types is permission weakening. A `mut Suspend[X]` and a `Suspend[X]` meet at `Suspend[X]`.
+2. r[types.generic.infer.join.no-trait-value] A trait-value conversion never applies, as [`types.lct.no-trait-value`](#r-types.lct.no-trait-value) states for the least common type. So `cmp(user, label)` with a `User` and a `Display` argument is an error. Error: `no-common-type`.
+3. r[types.generic.infer.join.no-supertrait-widening] A supertrait widening never applies either, so two arguments of two child traits of one supertrait are an error. Error: `no-common-type`.
+4. r[types.generic.infer.join.other-conflict] Any other conflict between the arguments' types is an error. Examples are `choose(1, true)`, `max(small, large)` with an `i32` and an `i64`, a `&mut User` and a `&User`, and a `T` and a `T?`. Error: `type-mismatch`. The caller writes a cast, as in `max(i64(small), large)`.
+5. r[types.generic.infer.join.literal] An integer literal argument is not a conversion: it takes the type solved from the other arguments as its expected type, in any position. So `pick(1, large)` with an `i64` `large` solves `T = i64`.
+6. r[types.generic.infer.join.explicit] An explicit type argument, as in `cmp::[dyn Display](user, label)`, is an expected type for each argument, which then converts by [Assignability And Coercion](#assignability-and-coercion), as [`types.lct.expected-trait`](#r-types.lct.expected-trait) allows.
+7. r[types.generic.infer.join.not-lct] This join is narrower than the [least common type](#least-common-type), and is not one of that section's constructs.
 
 ```text
 fn max[T < Ord](left: T, right: T) -> T:
@@ -1713,14 +1390,11 @@ fn same(user: User, label: dyn Display) -> bool:
 ```
 
 ```text
-data User:
+struct User:
     name: string
 
 fn pick[T](left: T, right: T) -> T:
     left
-
-fn first(owned: mut User, shared: User) -> User:
-    pick(owned, shared)  # T is User
 
 fn either(large: i64) -> i64:
     pick(1, large)  # T is i64; the literal 1 is an i64
@@ -1897,7 +1571,7 @@ fn small() -> i32:
     narrow
 ```
 
-1. r[types.generic.default.form] A generic parameter of a function, method, data type, enum, trait, or `type` declaration may declare a default.
+1. r[types.generic.default.form] A generic parameter of a function, method, struct, enum, trait, or `type` declaration may declare a default.
 2. r[types.generic.default.order] After the first parameter with a default, every later parameter of the same list must have one. A later parameter without one is an error. Error: `default-order`.
 3. r[types.generic.default.scope] A default may name earlier parameters of the same list, the parameters of an enclosing declaration, and `Self` where `Self` is in scope.
 4. r[types.generic.default.later] A default that names its own parameter or a later one is an error. Error: `binding-not-yet-visible`.
@@ -1914,7 +1588,7 @@ How a use site treats a defaulted parameter:
 | its slot omitted from an explicit list in an expression | inferred; the default when inference leaves it unsolved |
 | its slot omitted, or no list, in a written type | the default |
 
-8. r[types.generic.default.after-inference] At a use site that infers, the use site first solves its parameters as it would without defaults. That holds for a call, a function value, and a data literal.
+8. r[types.generic.default.after-inference] At a use site that infers, the use site first solves its parameters as it would without defaults. That holds for a call, a function value, and a struct literal.
 9. r[types.generic.default.fill] Then each parameter left unsolved that has a default takes it, in declaration order, with the earlier arguments substituted. The bounds are checked last.
 10. r[types.generic.default.argument-wins] A default never replaces a solution, so an argument or expected type that solves the parameter wins: `widen(3)` above has `T = i32`.
 11. r[types.generic.default.unsolved] A parameter left unsolved that has no default stays an error. Error: `cannot-infer-type`.
@@ -1955,7 +1629,7 @@ See also: [Type-Argument Default Syntax](02-grammar.md#type-argument-default-syn
 5. r[types.generic.instantiation-depth.error] A program whose instantiations exceed that limit is an error, reported on the call that would exceed it. Error: `instantiation-too-deep`.
 6. r[types.generic.call-cycle.step] A call passes type parameter `P` of its body to parameter `Q` of its callee when its type argument for `Q` holds `P`.
 7. r[types.generic.call-cycle] A **generic call cycle** is a chain of such steps that leads a type parameter back to itself.
-8. r[types.generic.call-cycle.grows] A step grows when its type argument is larger than `P`, such as `List[P]`, `(P, P)`, or `P?`. A `mut P` argument counts as `P`.
+8. r[types.generic.call-cycle.grows] A step grows when its type argument is larger than `P`, such as `List[P]`, `(P, P)`, or `P?`.
 9. r[types.generic.polymorphic-recursion] A generic call cycle with a step that grows is an error, reported on that step's call. Neither the instantiation limit nor how bodies are shared changes this. Error: `instantiation-too-deep`.
 10. r[types.generic.call-cycle.fixed-callee] Only a call whose callee is fixed where it is written makes a step. That is a call of a function, a local function, a method, or a trait method whose implementation the receiver's type selects. A call through a bound or a trait value makes none.
 11. r[types.generic.call-cycle.impl-params] Each method of an implementation has its own copy of the implementation's type parameters.
@@ -2003,8 +1677,8 @@ Generic type declarations mark covariance with `+T`, contravariance with `-T`,
 and invariance by leaving `T` unmarked:
 
 ```text
-struct Producer[+T]:
-    produce: fn() -> T
+struct Box[+T]:
+    value: T
 
 struct Consumer[-T]:
     consume: fn(T) -> void
@@ -2014,8 +1688,8 @@ struct Cell[T]:
 ```
 
 1. r[types.variance.markers] Generic type declarations mark covariance with `+T`, contravariance with `-T`, and invariance by leaving `T` unmarked.
-2. r[types.variance.verified] The compiler verifies each declared parameter against its use on the type's readonly surface.
-3. r[types.variance.surface] That surface includes data fields, enum shared data and variant payloads, and trait method signatures. It also includes the signature of every inherent method of the nominal type that has a `self` receiver, private methods included.
+2. r[types.variance.verified] The compiler verifies each declared parameter against its use on the type's surface.
+3. r[types.variance.surface] That surface includes struct fields, enum shared data and variant payloads, and trait method signatures. It also includes the signature of every inherent method of the nominal type that has a `self` receiver, private methods included.
 4. r[types.variance.trait-impl] A separate trait implementation does not alter the nominal type declaration's variance; its own instantiated signatures must still type-check.
 5. r[types.variance.trait-params] A trait's generic parameters are invariant. A variance marker on one is an error. Error: `invalid-variance`.
 
@@ -2033,22 +1707,22 @@ impl[T] Box[T]:
 > it. So a private method's signature counts toward variance as a public
 > one's does.
 
-A `mut self` method is on that surface too:
+A `mut self`, `&self`, or `&mut self` method is on that surface too:
 
-1. r[types.variance.surface.mut-self] An inherent method with a `mut self` receiver counts toward declared variance, as a method with a `self` receiver does.
+1. r[types.variance.surface.mut-self] An inherent method with a `mut self`, `&self`, or `&mut self` receiver counts toward declared variance, as a method with a `self` receiver does.
 
 ```text
-data Box[+T]:
+struct Box[+T]:
     value: T
 
 impl[U] Box[U]:
-    pub fn set(mut self, value: U) -> void:  # error: invalid-variance
+    pub fn set(&mut self, value: U) -> void:  # error: invalid-variance
         self.value = value
 ```
 
 An associated function with no receiver is not on that surface:
 
-1. r[types.variance.surface.no-receiver] An inherent associated function with no `self` receiver does not count toward declared variance. Only instance methods do, whether `self` or `mut self`.
+1. r[types.variance.surface.no-receiver] An inherent associated function with no `self` receiver does not count toward declared variance. Only instance methods do, whatever their receiver.
 
 ```text
 struct Box[+T]:
@@ -2063,15 +1737,15 @@ impl[U] Box[U]:
 
 r[types.polarity] Polarity is computed as follows:
 
-1. r[types.polarity.positive] A returned value and an ordinary readonly field are positive positions.
+1. r[types.polarity.positive] A returned value and an ordinary field are positive positions.
 2. r[types.polarity.negative] A function or method parameter is a negative position.
 3. r[types.polarity.function] Entering a function parameter reverses polarity, while entering a function result preserves it.
 4. r[types.polarity.generic] Applying a covariant generic argument preserves polarity, a contravariant argument reverses it, and an invariant argument makes the occurrence invariant.
-5. r[types.polarity.mut] Occurrence beneath `mut` is invariant, and an embedded field's type counts as beneath `mut`.
+5. r[types.polarity.mut] Occurrence beneath `&mut` is invariant, and an embedded field's type counts as beneath `&mut`.
 6. r[types.polarity.both] A parameter used in both positive and negative positions must be invariant.
 
-> **Why.** The referenced storage beneath `mut` can be both read and
-> written. Access through an embedded field follows its container.
+> **Why.** The storage beneath `&mut` can be both read and written.
+> Access through an embedded field follows its container.
 
 1. r[types.variance.covariant-check] A declared `+T` is rejected if any occurrence is negative or invariant. Error: `invalid-variance`.
 2. r[types.variance.contravariant-check] A declared `-T` is rejected if any occurrence is positive or invariant. Error: `invalid-variance`.
@@ -2127,13 +1801,13 @@ See also: [Polarity](#polarity), [`types.option.invariant`](#r-types.option.inva
 
 ### Readonly Outer Views
 
-1. r[types.variance.readonly-only] Variance conversion applies only to a readonly outer view.
-2. r[types.variance.mut-invariant] Every `mut G[T]` view is invariant in all generic arguments.
-3. r[types.variance.list] The built-in `List` declares a covariant element parameter for its readonly view.
-4. r[types.variance.map] Readonly `Map[K, V]` is invariant in `K` and covariant in `V`.
+1. r[types.variance.readonly-only] Variance conversion applies only to a readonly outer type: one not written `&mut` or `mut`, such as `G[T]` or `&G[T]`.
+2. r[types.variance.mut-invariant] Every `&mut G[T]` reference, and every `mut Suspend[T]`, is invariant in all generic arguments.
+3. r[types.variance.list] The built-in `List` declares a covariant element parameter.
+4. r[types.variance.map] `Map[K, V]` is invariant in `K` and covariant in `V`.
 5. r[types.variance.function] The function type constructors `Fn` and `SuspendFn` are contravariant in each input element, covariant in the output, and invariant in the requirement row.
 
-> **Why.** The mutable view may replace stored values. Map keys are both
+> **Why.** A `&mut` reference may replace stored values. Map keys are both
 > accepted for lookup and exposed during traversal. Converting a function's
 > row would change which providers the call passes, so the row stays
 > invariant under variance. A function value itself may still widen its row
@@ -2141,21 +1815,21 @@ See also: [Polarity](#polarity), [`types.option.invariant`](#r-types.option.inva
 > which may adapt the value.
 
 ```hd
-data User:
+struct User:
     name: string
 
-data Box[+T]:
+struct Box[+T]:
     value: T
 
-fn demo(box: Box[mut User]) -> Box[User]:
-    box   # a readonly outer view converts covariantly
+fn demo(box: &Box[&mut User]) -> &Box[&User]:
+    box   # a readonly outer type converts covariantly
 ```
 
 ### Representation-Preserving Variance
 
 1. r[types.variance.repr.covariant] A variance conversion `G[S] -> G[T]` requires a representation-preserving `S -> T` conversion for each covariant argument.
 2. r[types.variance.repr.contravariant] A variance conversion `G[S] -> G[T]` requires a representation-preserving `T -> S` conversion for each contravariant argument.
-3. r[types.variance.repr.weakening] Permission weakening `mut U -> U` is representation-preserving.
+3. r[types.variance.repr.weakening] Permission weakening, `&mut U -> &U` or `mut Suspend[U] -> Suspend[U]`, is representation-preserving.
 4. r[types.variance.repr.excluded] These conversions are not representation-preserving:
    - construction of a trait value such as `i32 -> dyn Display` or `User -> dyn Display`;
    - child-dynamic-trait to supertrait widening;
@@ -2163,8 +1837,8 @@ fn demo(box: Box[mut User]) -> Box[User]:
 5. r[types.variance.no-insertion] Variance never inserts element wrappers, metadata rewrapping, boxing, copies, or per-access conversions. A variance conversion that would need one is an error. Error: `variance-representation-change`.
 
 ```hd
-fn demo(items: mut List[i32]) -> List[i32]:
-    items   # weakening mut U to U keeps the representation
+fn demo(items: &mut List[i32]) -> &List[i32]:
+    items   # weakening &mut U to &U keeps the representation
 ```
 
 See also: [Representation-Preserving Conversions](#representation-preserving-conversions).
@@ -2195,8 +1869,7 @@ fn demo(user: User) -> dyn Any:
 5. r[types.trait.value.bound.available] It satisfies such a bound only when every member of the bound's trait is available on the `dyn` value, as [`trait.dyn.bound.available`](09-traits.md#r-trait.dyn.bound.available) states.
 6. r[types.trait.value.bindings] A trait value type may bind the trait's associated types, as in `dyn Supplier[Item = i32]`, as [Bound Associated Types](09-traits.md#bound-associated-types) specifies.
 7. r[types.trait.value.not-target] A dynamic trait value type is still not an implementation target.
-8. r[types.trait.value.mut] `mut dyn Trait` is the mutable view of a trait value, as `mut T` is of any type.
-9. r[types.trait.value.ref-written] A trait value reference, `&dyn Trait` or `&mut dyn Trait`, is a trait value that is a reference. A converted `&S` or `&mut S` is shared, and a value that is no reference does not convert, as [Trait Value References](09-traits.md#trait-value-references) states.
+8. r[types.trait.value.ref-written] A trait value reference, `&dyn Trait` or `&mut dyn Trait`, is a trait value that is a reference. A converted `&S` or `&mut S` is shared, and a value that is no reference does not convert, as [Trait Value References](09-traits.md#trait-value-references) states.
 
 ```hd
 trait Greet:
@@ -2285,9 +1958,8 @@ See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
 2. r[types.any.all] Every value type, including an optional type, satisfies `Any` automatically.
 3. r[types.any.never] `never` satisfies `Any` too. A `void` value needs no rule of its own, because it is the tuple `()`.
 4. r[types.any.erase] As a value type, `dyn Any` erases the concrete type.
-5. r[types.any.mut] `mut dyn Trait` and `mut dyn Any` preserve mutable access to an erased composite root.
-6. r[types.any.one-way] `Any` erasure is one-way.
-7. r[types.any.inspectable] A value erased to the sealed trait `std.inspect.Inspectable` instead keeps a runtime record of its concrete type, which `downcast` compares exactly.
+5. r[types.any.one-way] `Any` erasure is one-way.
+6. r[types.any.inspectable] A value erased to the sealed trait `std.inspect.Inspectable` instead keeps a runtime record of its concrete type, which `downcast` compares exactly.
 
 ```hd
 fn demo(value: dyn Any) -> string:
@@ -2306,13 +1978,12 @@ See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
 | Trait | Types | Identity |
 | --- | --- | --- |
 | r[types.sealed.anyval-members] `AnyVal` | `bool`, `char`, the integer types, `f32`, `f64`, `string`, tuples (`void` included), enums (optionals and `Result` included), structs, `List`, `Map`, and function types | These values have no identity. |
-| r[types.sealed.anyref-members] `AnyRef` | the reference types `&T` and `&mut T`, trait value references `&dyn Tr` and `&mut dyn Tr` included; and the types whose values are shared objects: data types, bare trait value types, `Any`, suspensions, and runtime handles | These values have identity. |
+| r[types.sealed.anyref-members] `AnyRef` | the reference types `&T` and `&mut T`, trait value references `&dyn Tr` and `&mut dyn Tr` included; and the types whose values are shared objects: bare trait value types, `Any`, suspensions, and runtime handles | These values have identity. |
 
-5. r[types.sealed.newtype] A newtype has its base type's category: `type Mile(i32)` implements `AnyVal`, and `type Owner(User)` implements `AnyRef`.
+5. r[types.sealed.newtype] A newtype has its base type's category: `type Mile(i32)` implements `AnyVal`, and `type Owner(&User)` implements `AnyRef`.
 6. r[types.sealed.never] `never` implements neither, because it has no values.
-7. r[types.sealed.permission] Access permission does not change the category, so `mut User` implements `AnyRef`.
-8. r[types.sealed.type-parameter] A type parameter implements `AnyVal` or `AnyRef` only through its bound.
-9. r[types.sealed.bounds] `T < AnyVal` accepts only `AnyVal` types, and `T < AnyRef` accepts only `AnyRef` types.
+7. r[types.sealed.type-parameter] A type parameter implements `AnyVal` or `AnyRef` only through its bound.
+8. r[types.sealed.bounds] `T < AnyVal` accepts only `AnyVal` types, and `T < AnyRef` accepts only `AnyRef` types.
 
 ```text
 struct Handle: pass
@@ -2326,39 +1997,28 @@ impl AnyVal for Handle  # error: sealed-trait-implementation
 This section defines which types may be map keys, and how keys behave.
 
 1. r[types.map-key.declared-bound] `Map` is declared as `Map[K < Eq & Hash, V]`. A key type that does not implement both traits fails that bound, as any unmet bound does. Error: `unsatisfied-trait-bound`.
-2. r[types.map-key.no-mut] A `mut T` key type is an error, even when `T` implements both traits. Error: `invalid-map-key`.
-3. r[types.map-key.hash] `Hash` is a standard-library trait in `std.hash`.
-4. r[types.map-key.user] User-defined data and enum types can become keys by explicitly implementing or deriving both traits.
-5. r[types.map-key.builtin-hash] Standard-library implementations of `Hash` cover `bool`, integers, `char`, `string`, and tuples, optionals, results, and lists of hashable elements. So `List[T]` implements `Hash` when `T < Hash`, and `Result[T, E]` when `T < Hash` and `E < Hash`.
-6. r[types.map-key.unhashable] Maps, floating-point values, functions, suspensions, dynamic trait values, and `Any` do not have built-in `Hash`.
-7. r[types.map-key.user-enums] User data and every user enum, including a payload-free one, require an explicit or derived implementation of both traits.
-8. r[types.map-key.float-no-hash] Floating-point types implement `Eq` but not `Hash`, so they are not valid map keys.
-9. r[types.map-key.no-map-hash] Consequently maps have no built-in hash and impose no order-independent map-hash obligation.
-10. r[types.map-key.reference] A reference type implements `Eq` and `Hash` when the type it refers to does, so `&T` may be a key, compared and hashed by value. A map keyed by place uses [`Id[T]`](../std/cmp.md#identity-keys).
+2. r[types.map-key.hash] `Hash` is a standard-library trait in `std.hash`.
+3. r[types.map-key.user] User-defined struct and enum types can become keys by explicitly implementing or deriving both traits.
+4. r[types.map-key.builtin-hash] Standard-library implementations of `Hash` cover `bool`, integers, `char`, `string`, and tuples, optionals, results, and lists of hashable elements. So `List[T]` implements `Hash` when `T < Hash`, and `Result[T, E]` when `T < Hash` and `E < Hash`.
+5. r[types.map-key.unhashable] Maps, floating-point values, functions, suspensions, dynamic trait values, and `Any` do not have built-in `Hash`.
+6. r[types.map-key.user-enums] Every user struct and every user enum, including a payload-free one, require an explicit or derived implementation of both traits.
+7. r[types.map-key.float-no-hash] Floating-point types implement `Eq` but not `Hash`, so they are not valid map keys.
+8. r[types.map-key.no-map-hash] Consequently maps have no built-in hash and impose no order-independent map-hash obligation.
+9. r[types.map-key.reference] A reference type implements `Eq` and `Hash` when the type it refers to does, so `&T` may be a key, compared and hashed by value. A map keyed by place uses [`Id[T]`](../std/cmp.md#identity-keys).
 
 ```text
 struct UserId:
     value: string
 
-@derive(Eq, Hash)
-data Session:
-    token: string
-
 fn setup() -> void:
     let users: Map[UserId, string] = {}  # error: unsatisfied-trait-bound
-    let open: Map[mut Session, i32] = {}  # error: invalid-map-key
     pass
 ```
 
 > **Why.** A NaN key is unequal even to itself, so no lookup could find it.
 
-> **Note.** A list key can still change through a `mut` alias, as a data
-> key with a derived `Hash` already can. Its entry then becomes a
-> [stale entry](#r-types.map.stale).
-
 > **Why.** The key traits are an ordinary bound, so a missing trait reads
-> as any other unmet bound. A `mut` key stays an error: code holding it
-> could change the key and leave a [stale entry](#r-types.map.stale).
+> as any other unmet bound.
 
 ### Lookup And Order
 
@@ -2385,11 +2045,10 @@ fn demo() -> List[string]:
 
 ### Mutated Keys
 
-1. r[types.map.key-view] A readonly key view does not freeze the object.
-2. r[types.map.no-reindex] If another mutable alias changes a stored key's equality or hash after insertion, the map does not automatically reindex it.
-3. r[types.map.stale] The entry can remain visible during iteration yet be unreachable by lookup or removal with the mutated key: a stale entry.
-4. r[types.map.no-repair] Such mutation does not trigger a compile-time error or an automatic repair.
-5. r[types.map.reference-key] A key that holds a `&mut` reference, at any depth, changes when the value the reference refers to is written through any path. Its entry then becomes a stale entry.
+1. r[types.map.no-reindex] If a stored key's equality or hash changes after insertion, the map does not automatically reindex it.
+2. r[types.map.stale] The entry can remain visible during iteration yet be unreachable by lookup or removal with the mutated key: a stale entry.
+3. r[types.map.no-repair] Such mutation does not trigger a compile-time error or an automatic repair.
+4. r[types.map.reference-key] A key that holds a `&mut` reference, at any depth, changes when the value the reference refers to is written through any path. Its entry then becomes a stale entry.
 
 ```hd
 use std.hash.Hash
@@ -2420,7 +2079,7 @@ r[types.lct.sites] Several constructs infer one type from several values when no
 
 1. r[types.lct.uses] Each of these uses the least common type defined here.
 2. r[types.lct.unique] The compiler computes a unique least common type of the values' types using only the conversions that `types.lct.conversions` lists.
-3. r[types.lct.conversions] Permission weakening, declared readonly variance, and optional injection may contribute. No other conversion does: no numeric conversion, so `[small, large]` with an `i16` and an `i64` has no common type. Permission weakening applies inside tuple elements too, as assignment allows, so `(mut User, i32)` and `(User, i32)` join to `(User, i32)`. Error: `no-common-type`.
+3. r[types.lct.conversions] Permission weakening, declared readonly variance, and optional injection may contribute. No other conversion does: no numeric conversion, so `[small, large]` with an `i16` and an `i64` has no common type. Error: `no-common-type`.
 4. r[types.lct.optional] Optional injection adds one layer, as [`types.assign.optional`](#r-types.assign.optional) states. So an `i32` and an `i32?` join to `i32?`, in a list literal, a value-producing `if` or `match`, and an inferred result type alike.
 5. r[types.lct.optional.one-layer] A `T` and a `T??` have no common type, because injection never adds two layers. Error: `no-common-type`.
 6. r[types.lct.no-combine] Least-common-type inference never combines permission weakening with a variance step for the same candidate conversion.
@@ -2478,15 +2137,12 @@ fn pick(flag: bool) -> void:
 3. r[types.lct.no-least] When they have common types but these rules admit no unique least one, the failure is an error. Error: `no-least-common-type`.
 
 ```text
-fn combine(small: mut List[mut User], wide: List[User]) -> void:
-    both := [small, wide]  # error: no-least-common-type
-
-fn mix(shown: Shown, tagged: Tagged) -> void:
+fn mix(shown: dyn Shown, tagged: dyn Tagged) -> void:
     items := [shown, tagged]  # error: no-common-type
 ```
 
-In the second function, `Shown` and `Tagged` are traits that both extend
-`Named`; `let items: List[dyn Named] = [shown, tagged]` is valid.
+Here `Shown` and `Tagged` are traits that both extend `Named`;
+`let items: List[dyn Named] = [shown, tagged]` is valid.
 
 ## Type Inference Boundaries
 
@@ -2500,7 +2156,7 @@ r[types.infer.explicit] The following declarations require explicit types:
 
 1. r[types.infer.explicit.parameters] Named function parameters.
 2. r[types.infer.explicit.results-declared] The results of public functions, public inherent methods, trait methods, and methods of trait implementations, and of at least one function in each recursive cycle.
-3. r[types.infer.explicit.fields] Public and private data fields.
+3. r[types.infer.explicit.fields] Public and private struct fields.
 4. r[types.infer.explicit.enum] Enum payload fields and constructor data.
 5. r[types.infer.explicit.trait-methods] Trait method parameters and results.
 6. r[types.infer.explicit.fn-type] Named function type parameters and bounds where applicable.
@@ -2561,7 +2217,7 @@ Runtime values fall into three categories:
 | --- | --- | --- |
 | Scalar values | `bool`, `char`, the integer types, `f32`, `f64` | none |
 | Identity-free composites | `string`, tuples, enum values (including `Result` and optionals), struct values, lists, maps, function values | none |
-| Reference values | references, trait value references included, data values, bare trait values, `Any`, suspensions, runtime handles | the place a reference refers to; allocation identity, or one canonical identity for a fieldless data value |
+| Reference values | references, trait value references included, bare trait values, `Any`, suspensions, runtime handles | the place a reference refers to; otherwise allocation identity |
 
 The reference values are exactly the implementers of the sealed `AnyRef`
 trait. The scalar values and identity-free composites are exactly the
@@ -2571,8 +2227,7 @@ Values without identity are immutable at their top level, or change only
 through their own place, so storing one by copy or by reference cannot be
 observed. An implementation may copy, share, or deduplicate such a value
 freely. A list or a map shares its elements with its copies and copies them
-before its first change while they are shared. A fieldless data value
-stores no data and has one canonical identity.
+before its first change while they are shared.
 
 Converting a value without identity to a trait value or `Any` may box it.
 The box has no identity of its own, as
@@ -2612,7 +2267,7 @@ See also: [Name Resolution Across Packages](10-modules.md#name-resolution-across
 
 ### Composite Representation
 
-- A data type is a record of its fields. A field whose type has a value
+- A struct is a record of its fields. A field whose type has a value
   layout is stored unboxed.
 - An enum has a value layout that the implementation chooses. A small
   enum may be a tag and a few unboxed slots, and a larger one an immutable
@@ -2661,7 +2316,7 @@ A conversion is representation-preserving when the value after conversion is
 the same runtime value as before. It keeps the same identity and the same
 stored content, with no wrapper, copy, box, or re-encoding.
 
-Permission weakening `mut U -> U` preserves representation. Conversion to a
+Permission weakening `&mut U -> &U` preserves representation. Conversion to a
 trait value or `Any`, supertrait widening of a dynamic value, and optional
 injection do not, which is why [Variance](#variance) excludes them.
 

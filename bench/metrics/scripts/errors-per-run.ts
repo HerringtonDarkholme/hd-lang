@@ -37,7 +37,7 @@ const SEMANTIC = [
   [
     "fn pieces(text: string) -> List[string]:",
     "    let found: List[string] = []",
-    "    found.push(text)  # diagnostic: mutable-receiver-required",
+    "    found.push(text)  # diagnostic: not-writable",
     "    found",
   ],
   [
@@ -58,7 +58,7 @@ const SEMANTIC = [
   [
     "fn table() -> Map[string, i32]:",
     "    let scores: Map[string, i32] = {}",
-    '    scores["ada"] = 1  # diagnostic: readonly-root',
+    '    scores["ada"] = 1  # diagnostic: not-writable',
     "    scores",
   ],
 ];

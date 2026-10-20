@@ -1,5 +1,5 @@
-# test: a list literal of fresh Box literals fills a generic List[Box[T]] parameter
-# Spec 04 Bindings And Fresh Values: types.fresh.weaken; each Box literal weakens at the readonly Box[T] element.
+# test: a list literal of Box literals fills a generic List[Box[T]] parameter
+# Spec 04 Generic Arguments: types.generic.infer; each Box literal meets the Box[T] element.
 struct Box[T]:
     item: T
 

@@ -224,7 +224,7 @@ fn total(point: Point, pair: (i32, i32)) -> i32:
 3. r[grammar.stmt.let-list.bare] A multi-name `let` without parentheses, as in `let a, b = ...` or `let mut log, db = ...`, is an error whose fix-it adds the parentheses. Error: `syntax-error`.
 4. r[grammar.stmt.let-pattern.parenthesized] Parentheses around one pattern with no comma form no pattern, so `let (a) = ...` is an error. Error: `syntax-error`.
 5. r[grammar.stmt.let-pattern.mut] In a `let` pattern, `mut` may precede each name the pattern binds, as in `let mut user = ...`, `let (mut log, db) = ...`, and `let Point { mut tags, name } = ...`.
-6. r[grammar.stmt.let-mut.per-name] A `mut` belongs to the one name it precedes. The access it requests is a semantic rule of [Binding Forms](04-type-system.md#binding-forms).
+6. r[grammar.stmt.let-mut.per-name] A `mut` belongs to the one name it precedes. What it makes writable is a semantic rule of [Writable Places](04-type-system.md#writable-places).
 7. r[grammar.stmt.let-mut.only-let] Only `let` accepts it: `mut user := ...` and `for mut item in items:` are errors. Error: `syntax-error`.
 8. r[grammar.stmt.let-pattern.semantic] Whether a pattern may fail, and so needs an `else`, is a semantic rule of [Let Patterns](06-control-flow.md#let-patterns).
 
@@ -421,7 +421,7 @@ See also: [Physical And Logical Lines](01-lexical-structure.md#physical-and-logi
 
 1. r[grammar.stmt.semantic] Whether a statement may appear in a particular value-producing block is a semantic rule.
 2. r[grammar.stmt.break] In particular, `break` is valid only inside a loop, and `break` with a value is valid only in a loop with an `else` suite.
-3. r[grammar.stmt.assign-place] The left side of an assignment must resolve to a reassignable local, a mutable field, a mutable indexed place, or a [call place](05-expressions.md#callable-values). Other postfix expressions are errors. Error: `invalid-assignment-target`.
+3. r[grammar.stmt.assign-place] The left side of an assignment must resolve to a reassignable local, a field or element of a writable place, or a [call place](05-expressions.md#callable-values). Other postfix expressions are errors. Error: `invalid-assignment-target`.
 4. r[grammar.stmt.compound-assign] A compound assignment `place op= value` takes the same left side as an assignment, and its right side follows the same forms as `=`. [Compound Assignment](05-expressions.md#compound-assignment) defines it.
 5. r[grammar.stmt.no-copy-assignment] A statement `place ...= value` is a syntax error. Error: `syntax-error`.
 
@@ -518,12 +518,11 @@ data_field = [ "pub" ], identifier, ":", type, [ "=", closed_expression ] ;
 embedded_field = named_type ;
 ```
 
-1. r[grammar.data.no-mut-modifier] `mut` is not a data-member modifier: `mut name: string` and `mut Base` are errors. Error: `mutable-field-modifier`.
-2. r[grammar.data.mut-type] A named field may instead declare a mutable type, as in `friend: mut User`.
-3. r[grammar.data.embedded] An embedded field must denote a data type and must not include `mut`.
-4. r[grammar.data.embedded.no-pub] An embedded field takes no `pub` marker, so `pub Base` in a data body is an error. Error: `syntax-error`.
-5. r[grammar.data.default] Data-field default expressions have the requirement-free constraint specified in [Data Types and Enums](08-data-and-enums.md#data-declarations).
-6. r[grammar.data.struct-only] This declaration is written with `struct` and declares a struct ([Struct Declarations](08-data-and-enums.md#struct-declarations)). `data` is a reserved word that starts no declaration, so `data Point:` is an error. Error: `syntax-error`.
+1. r[grammar.data.no-mut-modifier] `mut` is not a struct-member modifier: `mut name: string` and `mut Base` are errors. Error: `mutable-field-modifier`.
+2. r[grammar.data.embedded] An embedded field must denote a struct type and must not include `mut`.
+3. r[grammar.data.embedded.no-pub] An embedded field takes no `pub` marker, so `pub Base` in a struct body is an error. Error: `syntax-error`.
+4. r[grammar.data.default] Field default expressions have the requirement-free constraint specified in [Field Defaults](08-data-and-enums.md#field-defaults).
+5. r[grammar.data.struct-only] This declaration is written with `struct` and declares a struct ([Struct Declarations](08-data-and-enums.md#struct-declarations)). `data` is a reserved word that starts no declaration, so `data Point:` is an error. Error: `syntax-error`.
 
 ```text
 pub struct Base:
@@ -539,7 +538,7 @@ data Point:  # error: syntax-error
 
 > **Why.** An embedded field is always public.
 
-See also: [Data Declarations](08-data-and-enums.md#data-declarations).
+See also: [Struct Declarations](08-data-and-enums.md#struct-declarations).
 
 ### Enums
 
@@ -698,7 +697,7 @@ function_generic_parameter = generic_parameter, [ type_default ] ;
 type_default = "=", type_argument ;
 variance = "+" | "-" ;
 
-trait_bounds = [ "mut" ], bound_trait_type, { "&", bound_trait_type } ;
+trait_bounds = bound_trait_type, { "&", bound_trait_type } ;
 bound_trait_type = qualified_name, [ bound_type_arguments ] ;
 bound_type_arguments = "[", bound_type_argument_list, [ "," ], "]" ;
 bound_type_argument_list = type_argument, { ",", type_argument },
@@ -716,16 +715,16 @@ trait_type = qualified_name, [ type_arguments ] ;
 2. r[grammar.generic.bound.and.positions] `&` joins bounds in every bound position: a generic parameter, a supertrait list, and an implementation's generic parameters.
 3. r[grammar.generic.bound.and.examples] For example, `trait Ord < Eq & PartialOrd` and `impl[T < Eq & Hash] Hash for Bag[T]` join bounds with `&`.
 4. r[grammar.generic.bound.and.types-only] Bounds appear only in type positions, so a bound's `&` never conflicts with the bitwise `&` of an expression.
-5. r[grammar.generic.bound.old-plus] A `+` between bounds, as in the former `T < A + B`, is an error whose fix-it writes `A & B`. Error: `old-bound-operator`.
 
-```text
+```hd
 trait Named:
     fn name(self) -> string
 
 trait Tagged:
     fn tag(self) -> string
 
-fn label[T < Named + Tagged](value: T) -> string: value.name()  # error: old-bound-operator
+fn label[T < Named & Tagged](value: T) -> string:
+    value.name() + value.tag()   # T implements both traits
 ```
 
 > **Why.** `&` means both at once, as in Java `<T extends A & B>`, TypeScript
@@ -774,7 +773,7 @@ fn pick[T, I < Supplier[Item = T] = Constant](source: I) -> T:
     source.get()
 ```
 
-1. r[grammar.generic.default] A `type_default` may end a generic parameter of a data type, enum, trait, `type` declaration, function, or method, after any bound.
+1. r[grammar.generic.default] A `type_default` may end a generic parameter of a struct, enum, trait, `type` declaration, function, or method, after any bound.
 2. r[grammar.generic.default.binding] A binding sits inside a bound trait's brackets, while a default follows them at the level of the parameter list. `I < Supplier[Item = T] = Constant` has both.
 3. r[grammar.generic.default.impl] The generic parameters of an implementation use `generic_params`, which has no default. A default there is an error. Error: `syntax-error`.
 4. r[grammar.generic.default.semantic] Default order, the names a default may use, and when it applies are semantic rules of [Type-Argument Defaults](04-type-system.md#type-argument-defaults).
@@ -793,6 +792,7 @@ impl[T = i32] Box[T]:  # error: syntax-error
 2. r[grammar.generic.row-marker] A `$` before a generic parameter's name, as in `fn map[T, U, $R]`, declares a row parameter, as [Row Parameters](11-requirements-and-suspension.md#row-parameters) specifies.
 3. r[grammar.generic.row-marker.no-bound] A row parameter takes no bound, so `$R < Log` is an error. Error: `syntax-error`.
 4. r[grammar.generic.row-marker.default] A row parameter's default is a row type argument, as in `$R = $()`.
+5. r[grammar.generic.bound.no-mut] A bound takes no `mut` prefix, so `T < mut Named` is an error. Error: `syntax-error`.
 
 ```text
 trait Log
@@ -892,18 +892,11 @@ fn run(callback: fn() -> void $ Clock, Logger) -> void: pass  # error: syntax-er
 
 1. r[grammar.type.row.plus-only] `+` is the only row operator: it joins keys into one row.
 2. r[grammar.type.row.plus-rows-only] `+` has no bound meaning; several bounds on one type are joined with `&`, as in `T < A & B`.
-3. r[grammar.type.row.old-separator] A comma between requirement keys, as in the former `$ A, B` or `$(A, B)`, is an error whose fix-it writes `A + B`. Error: `old-row-separator`.
-4. r[grammar.type.row.no-subtraction] A `-` between requirement keys, as in the former `$ R - K`, is an error. Error: `syntax-error`.
-5. r[grammar.type.row.extension] Removing a key from a callback row is written by extension instead, as [Requirement Polymorphism](11-requirements-and-suspension.md#requirement-polymorphism) specifies.
+3. r[grammar.type.row.no-subtraction] A `-` between requirement keys, as in the former `$ R - K`, is an error. Error: `syntax-error`.
+4. r[grammar.type.row.extension] Removing a key from a callback row is written by extension instead, as [Requirement Polymorphism](11-requirements-and-suspension.md#requirement-polymorphism) specifies.
 
 ```text
-trait Clock
-
 trait Logger
-
-fn run(callback: fn() -> void $ Clock + Logger) -> void $ Clock, Logger: callback()  # error: old-row-separator
-
-fn observed(callback: fn() -> void $(Clock, Logger)) -> void: pass  # error: old-row-separator
 
 fn drop_logger[R](callback: fn() -> void $ R) -> void $ R - Logger: callback()  # error: syntax-error
 ```
@@ -925,13 +918,13 @@ fn invalid(value: Box[$()]) -> void: pass  # error: generic-kind-mismatch
 ### Modifiers, Optionality, And Grouping
 
 1. r[grammar.type.mut] `mut` is a type modifier.
-2. r[grammar.type.mut.semantic] Semantic rules reject meaningless or nested forms, including direct `mut mut T`.
+2. r[grammar.type.mut.suspend-only] Semantic rules accept the modifier only in `mut Suspend[T]` and reject it on every other type.
 3. r[grammar.type.mut.no-function] `mut` never directly precedes `fn`: `mut fn() -> i32` as a type, or `mut fn() -> i32:` as a closure header, is an error. Error: `syntax-error`.
 4. r[grammar.type.optional] Optionality applies to the complete reference access type and may be nested.
 5. r[grammar.type.optional.function] In `fn() -> T?`, `?` belongs to the innermost result type; an optional function type must be grouped, as in `(fn() -> T)?`.
 6. r[grammar.type.group] Parentheses group types; unlike a one-element tuple type, grouping has no trailing comma.
 7. r[grammar.type.dyn] A `dyn_type` writes a trait value type: `dyn`, then a trait name with its type arguments and associated type bindings, as in `dyn Supplier[Item = i32]`.
-8. r[grammar.type.dyn.mut] `mut` precedes `dyn`, as in `mut dyn Counter`; `dyn mut Counter` is an error. Error: `syntax-error`.
+8. r[grammar.type.dyn.mut] A `mut` modifier precedes `dyn`, so `dyn mut Counter` is an error. Error: `syntax-error`.
 9. r[grammar.type.dyn.optional] `?` applies to the whole `dyn` type, so `dyn Display?` is an optional trait value.
 10. r[grammar.type.row-owner] Inside a type, a requirement clause following nested function types likewise belongs to the innermost ungrouped function type. That holds in a parameter type, a field type, and a type argument.
 11. r[grammar.type.row-owner.grouped] Parentheses select an outer owner.
@@ -1017,16 +1010,9 @@ use_item = identifier, [ "as", identifier ] ;
 ```
 
 1. r[grammar.use.no-import-export] `import` and `export` are not declaration keywords.
-2. r[grammar.use.old-import] A legacy `import path` form must be diagnosed. Error: `old-import-declaration`.
-3. r[grammar.use.old-export] A legacy `export path` form must be diagnosed. Error: `old-export-declaration`.
-4. r[grammar.use.contextual-words] `pkg`, `std`, `dep`, and `super` are contextual use-root words, and `as` is contextual before an alias.
-5. r[grammar.use.needs-root] `use` begins a use declaration only when a use root follows it.
-6. r[grammar.use.self-root] The reserved word `self` also acts as a relative use root.
-
-```text
-import pkg.user.types.{User}  # error: old-import-declaration
-export pkg.user.types.{User}  # error: old-export-declaration
-```
+2. r[grammar.use.contextual-words] `pkg`, `std`, `dep`, and `super` are contextual use-root words, and `as` is contextual before an alias.
+3. r[grammar.use.needs-root] `use` begins a use declaration only when a use root follows it.
+4. r[grammar.use.self-root] The reserved word `self` also acts as a relative use root.
 
 See also: [Keywords And Reserved Words](01-lexical-structure.md#keywords-and-reserved-words).
 
@@ -1394,7 +1380,7 @@ data_items = [ "...", expression, "," ],
              data_field_item, { ",", data_field_item }, [ "," ]
              | "...", expression, [ "," ]
              ;
-data_field_item = identifier, ":", [ "..." ], expression
+data_field_item = identifier, ":", expression
                 | identifier
                 ;
 ```
@@ -1414,8 +1400,7 @@ fn demo(text: string) -> string:
 
 #### Copies In Data Expressions
 
-1. r[grammar.primary.field-copy] A `...` after a field label copies the value into an embedded field.
-2. r[grammar.primary.prefix-copy-meaning] A prefix `...` in a data expression always means "copy the named members of this value". This holds whether it begins a copy-update spread or follows a field label.
+1. r[grammar.primary.update-spread] A prefix `...` in a data expression begins a copy-update spread, which copies the named members of its operand.
 
 ```hd
 struct Point:
@@ -1534,7 +1519,7 @@ fn demo() -> i32:
 
 1. r[grammar.primary.list-spread] A list element ending in `...` is a spread that expands a list's elements in place.
 2. r[grammar.primary.ellipsis-positions] The two positions of `...` never overlap.
-3. r[grammar.primary.prefix-copies] A prefix `...` always copies. It copies the named members of a value in a copy-update spread and after an embedded field label. `...=` stores a copy into an embedded field.
+3. r[grammar.primary.prefix-copy] A prefix `...` always copies: its one position is the copy-update spread of a data expression.
 4. r[grammar.primary.suffix-spreads] A suffix `...` always spreads: it expands the elements or entries of its operand in arguments, list elements, and provider-context entries, as in `$.with(ctx...)`.
 5. r[grammar.primary.tuple-spread] The last element of a tuple expression may also be a suffix spread, as in `(1, 2, [3, 4]...)`. A spread alone keeps the one-element trailing comma, `(xs...,)`, so `(xs...)` and a spread before another element are errors. Error: `syntax-error`.
 6. r[grammar.primary.prefix-elsewhere] A prefix `...` anywhere else, including before a provider-context entry, is an error. Error: `syntax-error`.
@@ -1951,8 +1936,8 @@ derive_decorator = "derive", "(", qualified_name,
                    { ",", qualified_name }, [ "," ], ")" ;
 ```
 
-1. r[grammar.annot.item-targets] Decorator lines may precede a data type, enum, function, trait, newtype, or implementation declaration.
-2. r[grammar.annot.member-targets] Decorator lines may also precede a data field, an enum variant, and a method of a trait or implementation. The `data_member`, `enum_variant`, `trait_member`, and `impl_member` productions show this.
+1. r[grammar.annot.item-targets] Decorator lines may precede a struct, enum, function, trait, newtype, or implementation declaration.
+2. r[grammar.annot.member-targets] Decorator lines may also precede a struct field, an enum variant, and a method of a trait or implementation. The `data_member`, `enum_variant`, `trait_member`, and `impl_member` productions show this.
 3. r[grammar.annot.alias-no-decorator] Any decorator before a transparent alias is an error. Error: `syntax-error`.
 4. r[grammar.annot.derive-traits] The names in a `derive_decorator` are traits. [Opting In](14-annotations.md#opting-in) defines which traits it accepts.
 

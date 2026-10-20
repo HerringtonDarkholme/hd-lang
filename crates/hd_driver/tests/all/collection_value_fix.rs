@@ -70,17 +70,17 @@ fn each_fix_makes_the_program_check_clean() {
     let cases = [
         (
             "fn f() -> usize:\n    xs := [+1]\n    xs.push(2)\n    xs.len()\n",
-            Code::MutableReceiverRequired,
+            Code::NotWritable,
             "let mut xs = [+1]",
         ),
         (
             "fn f() -> i32:\n    let xs = [+1]\n    xs[0] = 2\n    xs[0]\n",
-            Code::ReadonlyRoot,
+            Code::NotWritable,
             "let mut xs = [+1]",
         ),
         (
             "fn f(xs: List[i32]) -> usize:\n    xs.push(2)\n    xs.len()\n",
-            Code::MutableReceiverRequired,
+            Code::NotWritable,
             "fn f(mut xs: List[i32])",
         ),
         (

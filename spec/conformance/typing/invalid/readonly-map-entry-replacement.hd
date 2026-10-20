@@ -2,4 +2,4 @@ struct Child:
     name: string
 
 fn invalid(children: &Map[string, Child], replacement: Child) -> void:
-    children["id"] = replacement  # diagnostic: readonly-root
+    children["id"] = replacement  # diagnostic: not-writable

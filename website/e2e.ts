@@ -272,7 +272,7 @@ try {
     );
     await page.click("#tour-run");
     await output.locator(".outcome.failed").waitFor({ timeout: FIRST_REPLY_MS });
-    assert.equal(await output.locator(".diagnostic .code").textContent(), "readonly-root");
+    assert.equal(await output.locator(".diagnostic .code").textContent(), "not-writable");
     await page.click("#tour-reset");
 
     // Alt+Left goes back a page when the focus is outside the editor.

@@ -117,12 +117,12 @@ needs no self-derivation.
 
 | `by Structure` template | Location | Instance family |
 | --- | --- | --- |
-| `Arbitrary` | `testing.hd` | data and enum values |
-| `Hash` | `hash.hd` | data and enum values; tuples |
-| `Default` | `ops.hd` | tuples; data and enum values |
-| `Eq`, `PartialOrd`, `Ord` | `cmp.hd` | data and enum values; tuples |
-| `Serialize`, `Deserialize` | `serde.hd` | data and enum values |
-| `Debug` | `format.hd` | data and enum values; tuples |
+| `Arbitrary` | `testing.hd` | struct and enum values |
+| `Hash` | `hash.hd` | struct and enum values; tuples |
+| `Default` | `ops.hd` | tuples; struct and enum values |
+| `Eq`, `PartialOrd`, `Ord` | `cmp.hd` | struct and enum values; tuples |
+| `Serialize`, `Deserialize` | `serde.hd` | struct and enum values |
+| `Debug` | `format.hd` | struct and enum values; tuples |
 | `Display` | `format.hd` | tuples |
 
 ## Folder Graph

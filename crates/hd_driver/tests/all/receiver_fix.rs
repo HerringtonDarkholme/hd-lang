@@ -71,22 +71,22 @@ fn each_fix_makes_the_receiver_writable_and_checks_clean() {
     let cases = [
         (
             "fn demo() -> i32:\n    p := Point { x: 0, y: 0 }\n    p.shift(1)\n    p.x\n",
-            Code::MutableReceiverRequired,
+            Code::NotWritable,
             "let mut p = Point",
         ),
         (
             "fn demo() -> i32:\n    let p = Point { x: 0, y: 0 }\n    p.shift(1)\n    p.x\n",
-            Code::MutableReceiverRequired,
+            Code::NotWritable,
             "let mut p = Point",
         ),
         (
             "fn demo(p: Point) -> i32:\n    p.shift(1)\n    p.x\n",
-            Code::MutableReceiverRequired,
+            Code::NotWritable,
             "fn demo(mut p: Point)",
         ),
         (
             "impl Point:\n    fn nudge(self) -> void:\n        self.shift(1)\n",
-            Code::MutableReceiverRequired,
+            Code::NotWritable,
             "fn nudge(&mut self)",
         ),
         (
@@ -122,11 +122,7 @@ fn a_mut_method_through_a_shared_trait_value_reference_fixes_its_type() {
     for (body, want) in cases {
         let src = format!("{COUNTER}{body}\npub fn main() -> void:\n    ()\n");
         let d = diags(&src);
-        assert!(
-            d.code.contains(&Code::MutableReceiverRequired),
-            "{body}: {:?}",
-            d.code
-        );
+        assert!(d.code.contains(&Code::NotWritable), "{body}: {:?}", d.code);
         let out = apply_fix(&src, &d);
         assert!(out.contains(want), "{body}: {out}");
         assert_eq!(codes(&out), Vec::<Code>::new(), "{body}: {out}");

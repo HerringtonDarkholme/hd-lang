@@ -1,7 +1,4 @@
-# Spec 04 Fresh Values: types.fresh.mutable-outer,
-# types.fresh.not-recursive, types.fresh.element-permission,
-# types.fresh.mut-literal, types.fresh.expected-mut,
-# types.fresh.expected-mut.sites, types.return.mut.
+# Spec 13 Places And New Objects: ref.expr.allocate, ref.expr.allocate.writable.
 struct User:
     name: string
 

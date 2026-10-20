@@ -1,5 +1,5 @@
 # test: traits / mutable errors / readonly dynamic
-# Spec 09 Traits: trait.decl.mut-receiver, trait.dyn.mut.
+# Spec 09 Traits: trait.decl.mut-receiver, trait.dyn.ref.member.mut.
 
 trait Add:
     fn add(&mut self) -> void
@@ -7,4 +7,4 @@ struct Counter:
     value: i32
 impl Add for Counter:
     fn add(&mut self) -> void: pass
-fn invalid(value: &dyn Add) -> void: value.add()  # diagnostic: mutable-receiver-required
+fn invalid(value: &dyn Add) -> void: value.add()  # diagnostic: not-writable

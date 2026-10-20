@@ -7,5 +7,5 @@ data Counter:
 
 fn reset(value: dyn Inspectable) -> void:
     match value.downcast::[Counter]():
-        .Some(counter) => counter.count = 0  # diagnostic: readonly-root
+        .Some(counter) => counter.count = 0  # diagnostic: not-writable
         .None => pass

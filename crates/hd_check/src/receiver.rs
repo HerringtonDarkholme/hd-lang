@@ -5,23 +5,13 @@
 //! `&mut self` needs a writable place (`fn.method.auto-address.writable`);
 //! `&self` on a value that is no place refers to a new object holding it.
 //!
-//! The legacy bridge (`trait.impl.receiver-bridge`): until std's traits move
-//! to `&mut self`, a struct's `&mut self` method fills a trait method
-//! declared with `data`'s `mut self`. Calls of such a method on the struct
-//! itself take its address as for any `&mut self` method; every use that
-//! reaches the method through the trait's own declaration (a bound, a trait
-//! value, a qualified call, a default body) would pass a copy instead, so
-//! those are errors until the migration.
-//!
 //! On the Wasm GC emulation the address is a `std.core.Ref[T]`
 //! (`crates/hd_wasm/DESIGN.md` §15.2, "References"), built by `refs.rs`.
 
 use hd_base::{DefId, LocalId, NodeIdx, StageResult};
 use hd_diag::{Code, FixSafety};
-use hd_resolve::ItemData;
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{ChoiceKind, NONE, Ref, Tag, TirSink, local_flags};
-use hd_types::solver::Candidate;
 use hd_types::{Ty, TyData};
 
 use crate::body::Ck;
@@ -31,13 +21,8 @@ use crate::refs::{Operand, Place, Root};
 impl Ck<'_, '_> {
     /// Whether the method `method`, reached with the impl choice `choice`,
     /// takes a reference receiver, and whether it is `&mut`: its declared
-    /// receiver is `&self` or `&mut self`, or it is a trait method declared
-    /// `mut self` that the chosen impl fills with `&mut self` (the bridge).
-    pub(crate) fn ref_receiver_of(
-        &self,
-        method: DefId,
-        choice: Option<(ChoiceKind, u32)>,
-    ) -> StageResult<Option<bool>> {
+    /// receiver is `&self` or `&mut self`.
+    pub(crate) fn ref_receiver_of(&self, method: DefId) -> StageResult<Option<bool>> {
         let pool = self.pool();
         let sig = self.sig_of(method)?;
         let Some(&(s, st)) = sig.params.first() else {
@@ -49,157 +34,7 @@ impl Ck<'_, '_> {
         if let TyData::Ref { mutable, .. } = pool.get(st) {
             return Ok(Some(mutable));
         }
-        if let Some((ChoiceKind::Impl, raw)) = choice
-            && self.bridged_method(DefId::from_raw(raw), method).is_some()
-        {
-            return Ok(Some(true));
-        }
         Ok(None)
-    }
-
-    /// [`Self::ref_receiver_of`] for a trait method whose impl is one of
-    /// the candidates `cands`: the bridge applies when one of them fills
-    /// it with `&mut self`.
-    pub(crate) fn ref_receiver_cands(
-        &self,
-        method: DefId,
-        cands: &[Candidate],
-    ) -> StageResult<Option<bool>> {
-        if let Some(m) = self.ref_receiver_of(method, None)? {
-            return Ok(Some(m));
-        }
-        let bridged = cands.iter().any(|c| {
-            self.cx.impl_table(c.row.module).is_some_and(|t| {
-                self.bridged_method(t.def[c.row.row as usize], method)
-                    .is_some()
-            })
-        });
-        Ok(bridged.then_some(true))
-    }
-
-    /// The method of the impl `imp` that fills the trait method `tm`
-    /// through the bridge (`trait.impl.receiver-bridge`): `tm` is declared
-    /// `mut self` and the impl, of a struct, writes it with `&mut self`.
-    pub(crate) fn bridged_method(&self, imp: DefId, tm: DefId) -> Option<DefId> {
-        let pool = self.pool();
-        let ItemData::Impl {
-            methods, self_ty, ..
-        } = &self.cx.lookup.item(imp)?.data
-        else {
-            return None;
-        };
-        if !self.is_struct_ty(*self_ty) {
-            return None;
-        }
-        let name = self.cx.lookup.item(tm)?.name;
-        let &(_, m) = methods.iter().find(|(n, _)| *n == name)?;
-        let tsig = self.cx.lookup.item(tm)?.sig()?;
-        let msig = self.cx.lookup.item(m)?.sig()?;
-        let (Some(&(ts, tt)), Some(&(_, mt))) = (tsig.params.first(), msig.params.first()) else {
-            return None;
-        };
-        let legacy = self.cx.names.text(ts) == "self" && matches!(pool.get(tt), TyData::Mut(_));
-        let by_ref = matches!(pool.get(mt), TyData::Ref { mutable: true, .. });
-        (legacy && by_ref).then_some(m)
-    }
-
-    /// `trait.impl.receiver-bridge.serves`: an obligation `tref` that the
-    /// evidence answers with an impl filling some method through the
-    /// bridge is an error, since the trait's declaration would pass that
-    /// method a copy. Reports at `at`; returns whether it did.
-    pub(crate) fn bridge_only_direct(
-        &mut self,
-        tref: hd_types::solver::TraitRef,
-        ev: &hd_types::solver::Evidence,
-        at: NodeRef<'_>,
-    ) -> bool {
-        let hd_types::solver::Evidence::Impl { row, .. } = ev else {
-            return false;
-        };
-        if self.bridge_ok {
-            return false;
-        }
-        let Some(imp) = self
-            .cx
-            .impl_table(row.module)
-            .map(|t| t.def[row.row as usize])
-        else {
-            return false;
-        };
-        let Some(m) = self.bridged_methods(imp).into_iter().next() else {
-            return false;
-        };
-        let msg = format!(
-            "{} implements {} with `&mut self` for `{}`, which the trait declares `&mut self`; until the trait takes `&mut self`, that serves only calls on a {} itself, not this use through the trait",
-            self.show(tref.self_ty),
-            self.cx.names.display_name(tref.trait_),
-            self.cx.names.text(m),
-            self.show(self.strip_mut(tref.self_ty)),
-        );
-        self.err(Code::UnsatisfiedTraitBound, at, &msg);
-        true
-    }
-
-    /// `trait.impl.receiver-bridge.other-uses`: a call on a struct of a default
-    /// method of a trait whose impl, one of `impls`, fills some method
-    /// through the bridge. The default body would pass that method a copy.
-    /// Reports at `n`; returns whether it did.
-    pub(crate) fn bridge_default_call(
-        &mut self,
-        method: DefId,
-        impls: &[DefId],
-        name: &str,
-        n: NodeRef<'_>,
-    ) -> bool {
-        let Some(mname) = self.cx.lookup.item(method).map(|i| i.name) else {
-            return false;
-        };
-        for &imp in impls {
-            let Some(ItemData::Impl {
-                methods, self_ty, ..
-            }) = self.cx.lookup.item(imp).map(|i| &i.data)
-            else {
-                continue;
-            };
-            if methods.iter().any(|(n, _)| *n == mname) {
-                continue;
-            }
-            let self_ty = *self_ty;
-            let Some(b) = self.bridged_methods(imp).into_iter().next() else {
-                continue;
-            };
-            let msg = format!(
-                "`{name}` is a default method of the trait, whose body would pass `{}` a copy of the {}; write `{name}` in the implementation with `&mut self`",
-                self.cx.names.text(b),
-                self.show(self_ty)
-            );
-            self.err(Code::UnsatisfiedTraitBound, n, &msg);
-            return true;
-        }
-        false
-    }
-
-    /// The names of the trait methods the impl `imp` fills through the
-    /// bridge.
-    fn bridged_methods(&self, imp: DefId) -> Vec<hd_base::Symbol> {
-        let Some(ItemData::Impl {
-            trait_, self_ty, ..
-        }) = self.cx.lookup.item(imp).map(|i| &i.data)
-        else {
-            return Vec::new();
-        };
-        // Only a struct's implementation bridges.
-        if !self.is_struct_ty(*self_ty) {
-            return Vec::new();
-        }
-        let Some(ItemData::Trait(td)) = self.cx.lookup.item(*trait_).map(|t| &t.data) else {
-            return Vec::new();
-        };
-        td.methods
-            .iter()
-            .filter(|&&(_, tm)| self.bridged_method(imp, tm).is_some())
-            .map(|&(n, _)| n)
-            .collect()
     }
 
     /// The type a place-shaped receiver expression would read, without
@@ -261,14 +96,14 @@ impl Ck<'_, '_> {
             return Ok(None);
         }
         match self.resolve_method(t, name)? {
-            Some(Hit::Inherent { method, .. }) => self.ref_receiver_of(method, None),
+            Some(Hit::Inherent { method, .. }) => self.ref_receiver_of(method),
             // A trait value passes its payload to a reference receiver
             // itself (`trait.dyn.ref.member`), or a bare one has none
             // (`trait.dyn.member.ref-receiver-bare`); the call decides.
             Some(Hit::Trait { choice, .. }) if choice.0 == ChoiceKind::TraitValue => Ok(None),
-            Some(Hit::Trait { method, choice, .. }) => self.ref_receiver_of(method, Some(choice)),
-            Some(Hit::Choice { method, cands, .. }) => self.ref_receiver_cands(method, &cands),
-            Some(Hit::Pending { method, .. }) => self.ref_receiver_of(method, None),
+            Some(Hit::Trait { method, .. }) => self.ref_receiver_of(method),
+            Some(Hit::Choice { method, .. }) => self.ref_receiver_of(method),
+            Some(Hit::Pending { method, .. }) => self.ref_receiver_of(method),
             _ => Ok(None),
         }
     }
@@ -353,18 +188,6 @@ impl Ck<'_, '_> {
                     // The receiver is still read, so its binding is used.
                     self.read_place(&p, base);
                     return Ok(self.poisoned(base));
-                }
-                // A legacy `mut List[T]` or `mut Map[K, V]` view shares its
-                // collection (`types.coll.legacy`): the call refers to that
-                // collection, not to the binding that holds the view.
-                let pool = self.pool();
-                if mutable
-                    && self.is_coll_ty(p.ty)
-                    && matches!(pool.get(self.infer.resolve(pool, p.ty)), TyData::Mut(_))
-                {
-                    let (v, t) = self.read_place(&p, base);
-                    let (r, _) = self.new_object_ref(v, t, true, base);
-                    return Ok((r, t));
                 }
                 if mutable && let Root::Local(l, _) = p.root {
                     self.ref_taken.push(l);
@@ -547,7 +370,7 @@ impl Ck<'_, '_> {
             "`{name}` takes `&mut self`, but the receiver is a read-only reference {}; take it with `&mut` to change what it refers to",
             self.show(t)
         );
-        self.err(Code::MutableReceiverRequired, base, &msg);
+        self.err(Code::NotWritable, base, &msg);
     }
 
     /// `fn.method.auto-address.place`: `&mut self` on a value that is no
@@ -556,7 +379,7 @@ impl Ck<'_, '_> {
         let msg = format!(
             "`{name}` takes `&mut self`, which changes the receiver in place, but this receiver is not a variable or a field of one; bind it with `let mut` first"
         );
-        self.err(Code::MutableReceiverRequired, n, &msg);
+        self.err(Code::NotWritable, n, &msg);
     }
 
     /// Whether a `&mut self` method may take the address of the place `p`
@@ -574,7 +397,7 @@ impl Ck<'_, '_> {
                     let msg = format!(
                         "`{name}` takes `&mut self`, which changes `{binding}` in place, but `{binding}` is not `let mut`; bind it with `let mut`"
                     );
-                    self.err(Code::MutableReceiverRequired, at, &msg);
+                    self.err(Code::NotWritable, at, &msg);
                     false
                 }
             }
@@ -586,7 +409,7 @@ impl Ck<'_, '_> {
                         "`{name}` takes `&mut self`, but the receiver is reached through a read-only reference {}; take it with `&mut`",
                         self.show(rt)
                     );
-                    self.err(Code::MutableReceiverRequired, at, &msg);
+                    self.err(Code::NotWritable, at, &msg);
                     false
                 }
             }
@@ -599,7 +422,7 @@ impl Ck<'_, '_> {
                         "`{name}` takes `&mut self`, but the receiver is a field of a readonly {}",
                         self.show(dt)
                     );
-                    self.err(Code::MutableReceiverRequired, at, &msg);
+                    self.err(Code::NotWritable, at, &msg);
                     false
                 }
             }
@@ -613,7 +436,7 @@ impl Ck<'_, '_> {
                 "`{name}` takes `&mut self`, but the receiver holds a readonly {}",
                 self.show(p.ty)
             );
-            self.err(Code::MutableReceiverRequired, at, &msg);
+            self.err(Code::NotWritable, at, &msg);
             return false;
         }
         true
@@ -623,13 +446,6 @@ impl Ck<'_, '_> {
     /// `let mut` binding or a `mut` parameter. Reports why not otherwise.
     fn receiver_local_writable(&mut self, l: LocalId, at: NodeRef<'_>, name: &str) -> bool {
         if self.mut_locals.contains(&l) {
-            return true;
-        }
-        // A legacy `mut List[T]` or `mut Map[K, V]` view shares its
-        // collection (`types.coll.legacy`), so a change through it is
-        // allowed and reaches the shared collection.
-        let lt = self.b.local_ty(l);
-        if self.is_coll_ty(lt) && self.has_mut_access(lt) {
             return true;
         }
         let (sym, flags, syn) = {
@@ -661,7 +477,7 @@ impl Ck<'_, '_> {
                 "`{name}` takes `&mut self`, which changes `{binding}` in place, but `{binding}` is not `let mut`; bind it with `let mut`"
             )
         };
-        self.err(Code::MutableReceiverRequired, at, &msg);
+        self.err(Code::NotWritable, at, &msg);
         if !using {
             self.writable_binding_fix(&binding, short, param, syn);
         }

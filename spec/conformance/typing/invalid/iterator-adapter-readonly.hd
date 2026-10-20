@@ -2,4 +2,4 @@
 # std Iterators, Iterator Adapters: std-iter.adapter.ref-receiver (STDLIB question 14).
 
 fn drain(source: Iterator[i32]) -> List[i32]:
-    source.collect()  # diagnostic: mutable-receiver-required
+    source.collect()  # diagnostic: not-writable

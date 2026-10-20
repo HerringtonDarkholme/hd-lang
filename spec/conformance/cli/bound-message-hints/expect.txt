@@ -33,7 +33,7 @@ run: hd check --format json display-tuple-valid.hd
 stdout-json: [{"kind":"summary","errors":0,"warnings":0,"status":0}]
 run: hd check --format json display-tuple.hd
 exit: 101
-stdout-json: [{"kind":"diagnostic","code":"unsatisfied-trait-bound","message":"(mut List[usize], i32) does not implement Display; use `debug(pair)`","line":3,"column":5,"fixes":[],"file":"display-tuple.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
+stdout-json: [{"kind":"diagnostic","code":"unsatisfied-trait-bound","message":"(List[usize], i32) does not implement Display; use `debug(pair)`","line":3,"column":5,"fixes":[],"file":"display-tuple.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 run: hd check --format json index-set.hd
 exit: 101
 stdout-json: [{"kind":"diagnostic","code":"trait-method-signature","message":"`index_set` differs from the trait's declaration: a parameter type; the trait takes 2 type arguments, `IndexSet[K, V]`, for the key and value types","line":6,"column":5,"fixes":[],"file":"index-set.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]

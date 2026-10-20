@@ -10,4 +10,4 @@ impl IndexSet[usize, i32] for Cell:
         self.value[0] = value
 
 fn store(cell: Cell) -> void:
-    cell[0] = +4  # diagnostic: mutable-receiver-required
+    cell[0] = +4  # diagnostic: not-writable

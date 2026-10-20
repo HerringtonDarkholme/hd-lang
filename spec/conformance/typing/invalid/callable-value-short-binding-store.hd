@@ -18,5 +18,5 @@ fn live[T](value: T) -> Cell[T]:
 
 fn invalid() -> i32:
     view := live(+0)
-    view() = 1  # diagnostic: mutable-receiver-required
+    view() = 1  # diagnostic: not-writable
     view()

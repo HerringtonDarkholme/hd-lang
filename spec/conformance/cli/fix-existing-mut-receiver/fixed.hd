@@ -1,7 +1,0 @@
-# café keeps this edit in UTF-8 byte coordinates.
-data Outbox:
-    sent: List[string]
-
-impl Outbox:
-    fn record(&mut self, message: string) -> void:
-        self.sent.push(message)

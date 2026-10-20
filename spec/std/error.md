@@ -99,10 +99,9 @@ returns `"disk full"`, and `free_space` returns `.Some(0)`.
 1. r[std-error.root-cause] `e.root_cause()` returns the last error of `chain(e)`, so an error without a cause is its own root cause.
 2. r[std-error.dyn-receiver] `chain`, `root_cause`, and `find` are inherent methods of `dyn Error`, by [`trait.error.dyn-methods`](../lang/09-traits.md#r-trait.error.dyn-methods). A concrete error converts to `dyn Error` before the call.
 3. r[std-error.find.first] `e.find::[T]()` returns `.Some` of the first error of `chain(e)`, in order, whose recorded type is `T`, and `.None` when no error does.
-4. r[std-error.find.value] The found error is recovered as `downcast_val::[T]` recovers it, so it is readonly. An enum error comes back as an equal value.
-5. r[std-error.find.reference] When `T` implements `AnyRef`, as a data error type does, the found error is the same reference that the chain holds, by [`trait.downcast.same-reference`](../lang/09-traits.md#r-trait.downcast.same-reference).
-6. r[std-error.find.exact] Types match exactly, by [`trait.downcast.exact`](../lang/09-traits.md#r-trait.downcast.exact). No supertrait search takes place, so `e.find::[dyn Error]()` returns `.None`.
-7. r[std-error.find.bound] `T` must implement `Error`, so a target such as `i32` is an error. Error: `unsatisfied-trait-bound`.
+4. r[std-error.find.value] The found error is recovered as `downcast_val::[T]` recovers it. A struct or enum error comes back as an equal value.
+5. r[std-error.find.exact] Types match exactly, by [`trait.downcast.exact`](../lang/09-traits.md#r-trait.downcast.exact). No supertrait search takes place, so `e.find::[dyn Error]()` returns `.None`.
+6. r[std-error.find.bound] `T` must implement `Error`, so a target such as `i32` is an error. Error: `unsatisfied-trait-bound`.
 
 ```text
 use std.error.Error
@@ -176,7 +175,7 @@ For `parse_port("")`, the error displays as `empty port`.
 4. r[std-error.message.cause] Its `cause` returns `.None`, so `chain` lists only that error.
 5. r[std-error.message.propagate] The result converts as any `dyn Error` does, so `.Err(message(text))` is a valid result of a function that returns `Result[T, dyn Error]`.
 
-> **Why.** An ad hoc failure otherwise needs a data type, a `Display`
+> **Why.** An ad hoc failure otherwise needs a struct, a `Display`
 > impl, and an `Error` impl. The text is the whole error, as in Go.
 
 ## Error Context

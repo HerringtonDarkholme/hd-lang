@@ -1,7 +1,0 @@
-# test: a header row after a '+' callback row still rejects the former comma list
-
-trait Clock
-
-trait Logger
-
-fn run(callback: fn() -> void $ Clock + Logger) -> void $ Clock, Logger: callback()  # diagnostic: old-row-separator

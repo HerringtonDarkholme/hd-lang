@@ -57,7 +57,7 @@ describe("website build", () => {
     assert.match(types, /href="\/hd-lang\/spec\/09-traits\.html#[a-z0-9-]+"/);
     assert.match(types, /href="\/hd-lang\/assets\/style\.css"/);
     assert.match(types, /href="https:\/\/github\.com\/HerringtonDarkholme\/hd-lang"/);
-    assert.match(types, /id="mutable-paths"/);
+    assert.match(types, /id="writable-places"/);
 
     const playground = await readFile(join(outDir, PLAYGROUND_PAGE), "utf8");
     assert.match(playground, /playground is not part of this build/);

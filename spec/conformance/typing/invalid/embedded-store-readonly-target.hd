@@ -1,5 +1,5 @@
-# test: storing into an embedded field of a readonly value is readonly-root, as for any store
-# Spec 04 Field Stores: types.path.store-embedded.
+# test: storing into an embedded field through a `&` reference is not-writable, as for any store
+# Spec 04 Writable Places: types.path.store.not-writable.
 struct Stamp:
     at: i32
 
@@ -8,4 +8,4 @@ struct Post:
     title: string
 
 fn touch(post: &Post, stamp: Stamp) -> void:
-    post.Stamp = stamp  # diagnostic: readonly-root
+    post.Stamp = stamp  # diagnostic: not-writable

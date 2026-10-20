@@ -31,9 +31,6 @@ struct Options {
     all: bool,
     /// The members `-p NAME` selects (`cli.workspace.select.anywhere`).
     packages: Vec<String>,
-    /// The migration edits among the fix-its, which only `hd fix
-    /// --object-model` reads (`crate::object_model`).
-    migration: bool,
 }
 
 fn options(args: &[OsString]) -> Result<Options, String> {
@@ -211,12 +208,12 @@ fn check_one(mut t: Target, o: &Options, store: &dyn CacheStore) -> (Vec<Diag>, 
     } else {
         &t.program.sources
     };
-    let (mut shown, mut checked) = check_role(&t, store, lib_sources, &Goal::Analyze, &[], o);
+    let (mut shown, mut checked) = check_role(&t, store, lib_sources, &Goal::Analyze, &[]);
     if tests {
         for d in &docs {
             t.program.sources.add_synthetic(&d.path, &d.test.program);
         }
-        let (more, names) = check_role(&t, store, &t.program.sources, &Goal::CheckTests, &docs, o);
+        let (more, names) = check_role(&t, store, &t.program.sources, &Goal::CheckTests, &docs);
         for x in more {
             if !shown.contains(&x) {
                 shown.push(x);
@@ -241,7 +238,6 @@ fn check_role(
     sources: &disk::DiskSources,
     goal: &Goal,
     docs: &[crate::test_cmd::Doc],
-    o: &Options,
 ) -> (Vec<Diag>, Vec<String>) {
     let clock = Wall(Instant::now());
     let host = Host {
@@ -261,7 +257,7 @@ fn check_role(
             .collect()
     });
     let out = hd_driver::build_packages(&host, &t.program.package, &packages, goal);
-    let mut shown = shown(&out, t, docs, o.migration);
+    let mut shown = shown(&out, t, docs);
     for x in &mut shown {
         if let Some(d) = docs.iter().find(|d| x.file.as_ref() == Some(&d.path)) {
             d.relocate(x);
@@ -285,24 +281,6 @@ pub(crate) fn check_package(program: disk::Program) -> Vec<Diag> {
         &DeferredStore::new(crate::disk_store()),
     )
     .0
-}
-
-/// The diagnostics of a check of the whole of `program`, as `hd check
-/// --all` reports them (`cli.check.all`), with the migration edits among
-/// their fix-its: what `hd fix --object-model` checks
-/// (`cli.fix.object-model.check`).
-pub(crate) fn check_package_all(program: disk::Program) -> Vec<Diag> {
-    let t = Target {
-        program,
-        only: None,
-        member: None,
-    };
-    let o = Options {
-        all: true,
-        migration: true,
-        ..Options::default()
-    };
-    check_one(t, &o, &DeferredStore::new(crate::disk_store())).0
 }
 
 pub(crate) fn command(args: &[OsString]) -> ExitCode {
@@ -394,13 +372,9 @@ fn scope(t: &mut Target, o: &Options) -> (bool, Vec<Diag>) {
 /// narrows them to its module and the modules it uses, deeply
 /// (`cli.package.file`), and the doc tests of its module; a diagnostic of
 /// no file is kept.
-fn shown(out: &Output, t: &Target, docs: &[crate::test_cmd::Doc], migration: bool) -> Vec<Diag> {
+fn shown(out: &Output, t: &Target, docs: &[crate::test_cmd::Doc]) -> Vec<Diag> {
     let as_written = t.program.as_written.as_deref();
-    let all = if migration {
-        report::from_output_migration(out, as_written)
-    } else {
-        report::from_output(out, as_written)
-    };
+    let all = report::from_output(out, as_written);
     let Some(only) = &t.only else {
         return all;
     };

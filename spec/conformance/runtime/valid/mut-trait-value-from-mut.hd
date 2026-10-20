@@ -1,5 +1,5 @@
-# test: a mutable trait value is built from a mutable value of a type that implements the trait
-# Spec 04 Assignability And Coercion: types.assign.trait-value.mut (owner decision TY-20b, batch 51b, 2026-10-02).
+# test: a `&mut dyn` trait value reference is built from `&mut` of a value whose type implements the trait
+# Spec 04 Assignability And Coercion: types.assign.trait-value.ref.
 trait Counter:
     fn count(&self) -> i32
     fn bump(&mut self) -> void

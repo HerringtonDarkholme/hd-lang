@@ -1,5 +1,5 @@
 # test: let destructures any pattern, mut belongs to the one name it precedes, and let-else runs its block when the pattern does not match
-# Spec 02 Let Statements: grammar.stmt.let-pattern, grammar.stmt.let-pattern.tuple, grammar.stmt.let-pattern.mut, grammar.data.mut-type, grammar.stmt.let-mut.per-name, grammar.stmt.let-pattern.semantic, grammar.stmt.short-binding.one-name.
+# Spec 02 Let Statements: grammar.stmt.let-pattern, grammar.stmt.let-pattern.tuple, grammar.stmt.let-pattern.mut, grammar.stmt.let-mut.per-name, grammar.stmt.let-pattern.semantic, grammar.stmt.short-binding.one-name.
 # Spec 02 Let-Else Statements: grammar.stmt.let-else, grammar.stmt.let-else.same-line, grammar.stmt.let-else.closed, grammar.stmt.let-else.semantic.
 # expect-stdout: 3 4 1 8
 # expect-stdout: 50

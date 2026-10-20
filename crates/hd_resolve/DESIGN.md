@@ -210,9 +210,10 @@ are frozen (`build_folder`, `src/lower.rs`):
    `Self`: the bounded type in a bound, or the target type in an impl
    head. Thus a bound or head written `Add` lowers as `Add[Self]` for the
    declared `Rhs = Self` default.
-   While lowering a `mut T` type, a type parameter with no written bound
-   list is `mut-on-type-parameter` (`types.generic.no-mut-t`); a parameter
-   with any bound list passes, and `mut Self` is exempt.
+   While lowering a `mut T` type, a primitive is `mut-on-primitive` and a
+   type parameter `mut-on-struct` (`types.prim.no-mut.error`,
+   `types.value.no-mut.written`); the checker rejects every other type
+   but `Suspend[T]`.
 4. Build derived heads. For `@derive(X)`, the impl of `X` with `T < X` for
    each type parameter in a walked member
    ([Derived Bounds](../../spec/lang/14-annotations.md#derived-bounds)). For

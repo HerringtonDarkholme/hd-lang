@@ -1,5 +1,5 @@
-# test: through a readonly outer value the embedded part is readonly, so a promoted &mut self call is rejected
-# Spec 08 Access Through Parts: data.part.access.
+# test: a promoted &mut self call needs a writable receiver, so a call on a value parameter is rejected
+# Spec 07 Reference Receivers: fn.method.auto-address.writable.
 struct Timestamps:
     created_at: i32
     updated_at: i32
@@ -14,4 +14,4 @@ struct Post:
     title: string
 
 fn invalid(post: Post) -> void:
-    post.touch(5)  # diagnostic: mutable-receiver-required
+    post.touch(5)  # diagnostic: not-writable

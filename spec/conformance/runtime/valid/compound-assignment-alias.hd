@@ -1,4 +1,4 @@
-# test: += on a data place stores a new value, so another reference keeps the old one
+# test: += on a struct place stores a new value, so an earlier copy keeps the old one
 # Spec 05 Compound Assignment: expr.assign.compound.fresh-value (Operator Traits OP13).
 use std.ops.Add
 struct Score:

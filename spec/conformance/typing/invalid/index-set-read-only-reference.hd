@@ -10,4 +10,4 @@ impl IndexSet[usize, i32] for Grid:
         self.cells[key] = value
 
 fn store(grid: &Grid) -> void:
-    grid[0] = +4  # diagnostic: mutable-receiver-required
+    grid[0] = +4  # diagnostic: not-writable

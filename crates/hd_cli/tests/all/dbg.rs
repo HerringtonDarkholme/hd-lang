@@ -199,8 +199,9 @@ pub fn main() -> void $ Console:
     assert_eq!(lines.last(), Some(&"]"));
 }
 
-/// A value reached again while it is printed prints `<cycle>`
-/// (`module.dbg.cycle.tracked`).
+/// A value that a reference refers to, reached again through a cycle of
+/// references while it is printed, prints `<cycle>`
+/// (`module.dbg.cycle.reference`).
 #[test]
 fn dbg_marks_a_cycle() {
     let ran = run_main(

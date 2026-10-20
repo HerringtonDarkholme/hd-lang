@@ -1,5 +1,5 @@
-# test: a bound reference to a &mut self method needs a mutable receiver
-# Spec 07 Method References: fn.ref.bound.mut (Method References MR1).
+# test: a bound reference to a &mut self method needs a writable receiver
+# Spec 07 Method References: fn.ref.bound.address.writable (Method References MR1).
 
 struct Counter:
     value: i32
@@ -9,4 +9,4 @@ impl Counter:
         self.value = self.value + by
 
 fn frozen(counter: Counter) -> fn(i32) -> void:
-    counter::bump  # diagnostic: mutable-receiver-required
+    counter::bump  # diagnostic: not-writable

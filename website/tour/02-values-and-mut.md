@@ -28,7 +28,7 @@ pub fn main() -> void $ Console:
     println(receipt(order))
 
 # Change `&mut Order` to `&Order` in apply_discount's parameter and Run:
-#     readonly-root: this writes through a read-only reference &Order; take the reference with `&mut` to write through it
+#     not-writable: this writes through a read-only reference &Order; take the reference with `&mut` to write through it
 
 # ── plumbing ──
 struct Order:
@@ -39,7 +39,7 @@ struct Order:
 ```edit
 replace: fn apply_discount(order: &mut Order, percent: i32) -> void:  # ← changes the caller's order
 with: fn apply_discount(order: &Order, percent: i32) -> void:
-error: readonly-root: this writes through a read-only reference &Order; take the reference with `&mut` to write through it
+error: not-writable: this writes through a read-only reference &Order; take the reference with `&mut` to write through it
 ```
 
 ```output

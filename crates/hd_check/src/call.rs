@@ -775,8 +775,8 @@ impl Ck<'_, '_> {
     }
 
     /// The base type's constructor unwraps a newtype value `r` of type `t`
-    /// (`types.newtype.construct`). A base that is an object carries the
-    /// newtype value's permission (`types.newtype.unwrap-permission`).
+    /// (`types.newtype.construct`). A composite base keeps the newtype
+    /// value's outer `mut`, which only a `mut Suspend[T]` base can have.
     fn unwrap_newtype(
         &mut self,
         r: Ref,
@@ -937,7 +937,7 @@ impl Ck<'_, '_> {
             // Driving a suspension advances it (`mut self`).
             if !self.has_mut_access(full) {
                 self.err(
-                    Code::MutableReceiverRequired,
+                    Code::NotWritable,
                     n,
                     "driving a suspension needs `mut` access to it",
                 );
@@ -1924,9 +1924,6 @@ impl Ck<'_, '_> {
                         .any(|&k| crate::trial::names_param(pool, b, def, k))
                 };
                 for (i, g) in sig.generics.iter().enumerate() {
-                    if g.mut_bound {
-                        self.check_mut_bound(vars[i], n);
-                    }
                     for b in &g.bounds {
                         let waiting = waits(*b);
                         let b = inst(*b);
@@ -2038,8 +2035,8 @@ impl Ck<'_, '_> {
                 let it = subst_owner(pool, def, pool.list_items(targs), inner);
                 let (r, rt) = self.expr(*e, Some(it))?;
                 let r = self.coerce(r, rt, it, *e, "argument", ExpectPosition::General);
-                // A newtype over a composite carries its base value's
-                // permission (types.newtype.construct-permission).
+                // A newtype over a composite keeps its base value's outer
+                // `mut`, which only a `mut Suspend[T]` base can have.
                 let t = if self.is_composite(rt) && self.has_mut_access(rt) {
                     pool.intern_ty(&TyData::Mut(t))
                 } else {
@@ -3029,7 +3026,6 @@ impl Ck<'_, '_> {
     ) -> StageResult<()> {
         let pool = self.pool();
         for (i, g) in sig.generics.iter().enumerate() {
-            let before = self.diags.len();
             for b in &g.bounds {
                 let b = inst(*b);
                 if let TyData::TraitValue {
@@ -3043,9 +3039,6 @@ impl Ck<'_, '_> {
                     };
                     self.require_ref(tref, n)?;
                 }
-            }
-            if g.mut_bound && self.diags.len() == before {
-                self.check_mut_bound(vars[i], n);
             }
         }
         for (i, g) in sig.generics.iter().enumerate() {
@@ -3748,21 +3741,7 @@ impl Ck<'_, '_> {
                 {
                     self.check_receiver(st, recv, rt, n);
                 }
-                let impls: Vec<DefId> = cands
-                    .iter()
-                    .filter_map(|c| {
-                        self.cx
-                            .impl_table(c.row.module)
-                            .map(|t| t.def[c.row.row as usize])
-                    })
-                    .collect();
-                if self.bridge_default_call(method, &impls, name, n) {
-                    for e in &args.positional {
-                        self.expr(*e, None)?;
-                    }
-                    return Ok((Ref(NONE), Ty::POISON));
-                }
-                let recv = match self.ref_receiver_cands(method, &cands)? {
+                let recv = match self.ref_receiver_of(method)? {
                     Some(m) if !addressed => self.fit_receiver(recv, rt, m, name, n),
                     _ => recv,
                 };
@@ -3783,7 +3762,7 @@ impl Ck<'_, '_> {
                 {
                     self.check_receiver(st, recv, rt, n);
                 }
-                let recv = match self.ref_receiver_of(method, None)? {
+                let recv = match self.ref_receiver_of(method)? {
                     Some(m) if !addressed => self.fit_receiver(recv, rt, m, name, n),
                     _ => recv,
                 };
@@ -3827,7 +3806,7 @@ impl Ck<'_, '_> {
                     self.err(Code::UnknownMethod, n, &msg);
                     return Ok((Ref(NONE), Ty::POISON));
                 }
-                let recv = match self.ref_receiver_of(method, None)? {
+                let recv = match self.ref_receiver_of(method)? {
                     Some(m) if !addressed => self.fit_receiver(recv, rt, m, name, n),
                     Some(_) => recv,
                     None => {
@@ -4003,7 +3982,7 @@ impl Ck<'_, '_> {
                 }
                 // A trait value passes its payload to a reference receiver
                 // itself (`hd_mono::SlotRecv`).
-                let recv = match self.ref_receiver_of(method, Some(choice))? {
+                let recv = match self.ref_receiver_of(method)? {
                     Some(m) if !addressed && choice.0 != ChoiceKind::TraitValue => {
                         self.fit_receiver(recv, rt, m, name, n)
                     }

@@ -68,7 +68,7 @@ fn save_all(values: List[i32]) -> void:
 
 1. r[flow.unused.warning] The compiler emits an `unused-local-binding` warning when an ordinary local binding is never read.
 2. r[flow.unused.underscore] Names beginning with `_` suppress that warning.
-3. r[flow.unused.must-use] The exception is an unread binding of a suspension, which is an error. A suspension counts however it is bound: the readonly view of `:=` and `let` does not lift the obligation. Error: `discarded-must-use-value`. An unread `Result` or `T?` binding is the ordinary `unused-local-binding` warning, because binding a value to a name counts as using it.
+3. r[flow.unused.must-use] The exception is an unread binding of a suspension, which is an error. A suspension counts however it is bound, with `:=`, `let`, or `let mut`. Error: `discarded-must-use-value`. An unread `Result` or `T?` binding is the ordinary `unused-local-binding` warning, because binding a value to a name counts as using it.
 4. r[flow.unused.discard-forms] The two discard forms, `_ := expression` and `let _ = expression`, each explicitly discard a must-use value without binding it. No other form discards one.
 
 ```hd
@@ -203,8 +203,8 @@ struct Iterator[T]:
 15. r[flow.for.iterable.cursor] When the iterable expression's type implements `Iterable[T]` and is not a `List` or a `Map`, the loop calls `iter` once and advances the resulting cursor. A list or a map is iterated as [Snapshot Iteration](#snapshot-iteration) states.
 16. r[flow.for.iterator-direct] When the iterable expression is an iterator, the loop advances that iterator itself, without calling `iter`, cloning it, or resetting it.
 17. r[flow.for.iterator.position] Iteration therefore continues from the cursor's current position and leaves it exhausted.
-18. r[flow.for.iterator-ref] Advancing an iterator needs `&mut`, so a loop over a `&Iterator[T]` reference is an error. Error: `mutable-receiver-required`.
-19. r[flow.for.iterator-place] A loop over an `Iterator[T]` value advances it where it is stored, taking the place's address as a call of its `&mut self` method `next` does ([`fn.method.auto-address`](07-functions.md#r-fn.method.auto-address)). A place that is not writable, or a value that is no place, is an error. Error: `mutable-receiver-required`.
+18. r[flow.for.iterator-ref] Advancing an iterator needs `&mut`, so a loop over a `&Iterator[T]` reference is an error. Error: `not-writable`.
+19. r[flow.for.iterator-place] A loop over an `Iterator[T]` value advances it where it is stored, taking the place's address as a call of its `&mut self` method `next` does ([`fn.method.auto-address`](07-functions.md#r-fn.method.auto-address)). A place that is not writable, or a value that is no place, is an error. Error: `not-writable`.
 20. r[flow.for.not-iterable-or-iterator] An iterable expression whose type neither implements `Iterable[T]` nor is an iterator or a reference to one is an error. Error: `unsatisfied-trait-bound`.
 21. r[flow.for.comprehension] Comprehension `for` clauses accept the same values by the same rules.
 22. r[flow.for.iterator-no-bound] A generic parameter bounded by `Iterable[T]` does not accept an iterator argument, or a reference to one. Error: `unsatisfied-trait-bound`.
@@ -249,7 +249,7 @@ fn twice(values: List[i32]) -> i32:
 
 ```text
 fn main(source: Iterator[i32]) -> List[i32]:
-    [for value in source => value]  # error: mutable-receiver-required
+    [for value in source => value]  # error: not-writable
 
 fn bad() -> void:
     for value in 1:  # error: unsatisfied-trait-bound
@@ -293,10 +293,10 @@ the iterator adapters, `collect`, and `FromIterator`.
 
 ### Built-In Collection Iteration
 
-1. r[flow.for.list] The built-in `List[T]` iterable yields each element as `T`, including `mut U` when `T = mut U`, even through a readonly list.
+1. r[flow.for.list] The built-in `List[T]` iterable yields each element as `T`, whether the list is reached directly or through a reference.
 2. r[flow.for.map.entries] The built-in `Map[K, V]` iterable yields `(K, V)` tuples in the map's [iteration order](04-type-system.md#r-types.map.order.deterministic).
-3. r[flow.for.map.value] Destructuring each entry preserves `V`, including `mut U` when `V = mut U`, even through a readonly map.
-4. r[flow.for.no-root-grant] Iteration does not grant mutable element access merely because the list root is mutable. The declared list or map value type determines that permission, and mutating a readonly element is an error. Error: `readonly-root`.
+3. r[flow.for.map.value] Destructuring each entry yields the value as `V`, whether the map is reached directly or through a reference.
+4. r[flow.for.no-root-grant] A loop binding is not writable, even when the list is in a writable place or behind a `&mut` reference. Changing a field of an element it binds is an error. Writing through an element of a `&mut U` type is valid. Error: `not-writable`.
 5. r[flow.for.library] Libraries may provide additional mutable-iteration APIs with separate aliasing rules.
 6. r[flow.for.collection.reference] Outside [Element Reference Loops](#element-reference-loops), a `for` over a reference to a `List` or `Map` iterates the referenced value.
 
@@ -351,14 +351,14 @@ fn raised(prices: List[i32]) -> List[i32]:
 1. r[flow.for.ref] `for p in &mut xs`, where `xs` is a list, binds the pattern to a `&mut T` [element reference](13-values-and-references.md#element-references) to each slot of `xs` in order, and `for p in &xs` to a `&T` one.
 2. r[flow.for.ref.slots] `xs` is evaluated once. The loop visits the slots from 0 up to the list's length when the loop began.
 3. r[flow.for.ref.pin] The loop pins `xs` from its start until it ends or is left, as an element reference does ([`ref.elem.pin`](13-values-and-references.md#r-ref.elem.pin)), so a change of the list's length in its body panics. Panic: `collection-pinned`.
-4. r[flow.for.ref.writable] `for p in &mut xs` needs `xs` in a writable place, as `&mut xs[i]` does. Error: `readonly-root`.
+4. r[flow.for.ref.writable] `for p in &mut xs` needs `xs` in a writable place, as `&mut xs[i]` does. Error: `not-writable`.
 5. r[flow.for.ref.map] A map value is no place, so a loop over `&m` or `&mut m` with a map `m` is an error. Error: `map-value-not-addressable`.
-6. r[flow.for.ref.through] `xs` may be a reference to a list: `for p in &mut r` and `for p in &r` loop over the slots of the list `r` refers to, as if `*r` were the place. Through `&T`, `for p in &mut r` is an error. Error: `readonly-root`.
+6. r[flow.for.ref.through] `xs` may be a reference to a list: `for p in &mut r` and `for p in &r` loop over the slots of the list `r` refers to, as if `*r` were the place. Through `&T`, `for p in &mut r` is an error. Error: `not-writable`.
 
 ```text
 fn invalid(prices: Map[string, i32]) -> void:
     fixed := [+1, 2]
-    for x in &mut fixed:  # error: readonly-root
+    for x in &mut fixed:  # error: not-writable
         *x = 0
     for price in &prices:  # error: map-value-not-addressable
         pass
@@ -581,7 +581,7 @@ fn grade(score: i32) -> string:
 | r[flow.match.cover.bool] Bool | `bool` is covered by both `true` and `false`, or by a catch-all pattern. |
 | r[flow.match.cover.tuple] Tuple | A tuple pattern covers the tuple values covered recursively by its element patterns. |
 | r[flow.match.cover.unit] Unit | `void` is covered by the [unit pattern](#unit-pattern) `()`, or by a catch-all pattern. |
-| r[flow.match.cover.data] Data | A data pattern covers its nominal data type when every listed field pattern is irrefutable, while unlisted fields are unconstrained. |
+| r[flow.match.cover.data] Data | A data pattern covers its nominal struct type when every listed field pattern is irrefutable, while unlisted fields are unconstrained. |
 | r[flow.match.cover.integer] Integer | An integer type is covered when its literal and [range patterns](#range-patterns) together hold every value of the type, or by a catch-all pattern. |
 | r[flow.match.cover.other-values] Other values | Floating-point, `char`, `string`, and other value spaces require an irrefutable catch-all after any literal cases. |
 | r[flow.match.cover.reference] Reference | A subject of type `&T` or `&mut T` is covered as a subject of type `T`, since its patterns [read through it](13-values-and-references.md#matching-through-a-reference). |
@@ -694,11 +694,10 @@ fn bad(choice: Choice) -> i32:
 
 1. r[flow.match.no-ownership] Matching does not transfer ownership.
 2. r[flow.match.bind.primitive] Primitive payloads bind by value.
-3. r[flow.match.bind.composite] Composite payloads bind reference access after applying the matched subject's viewpoint permission when the payload directly declares a non-generic mutable type.
-4. r[flow.match.bind.generic] A payload declared with a generic parameter instead binds its substituted type, including `mut U`.
-5. r[flow.match.bind.tuple] Tuple pattern elements retain their declared types.
-6. r[flow.match.literal-payload] A literal-constrained payload pattern such as `Expr.Scale(value, factor=2)` covers only that subset of the variant.
-7. r[flow.match.literal-payload.rest] Another arm must therefore cover the remaining `Scale` values unless a later catch-all does.
+3. r[flow.match.bind.generic] A payload declared with a generic parameter binds its substituted type.
+4. r[flow.match.bind.tuple] Tuple pattern elements retain their declared types.
+5. r[flow.match.literal-payload] A literal-constrained payload pattern such as `Expr.Scale(value, factor=2)` covers only that subset of the variant.
+6. r[flow.match.literal-payload.rest] Another arm must therefore cover the remaining `Scale` values unless a later catch-all does.
 
 ```hd
 enum Event:
@@ -713,7 +712,7 @@ fn describe(event: Event) -> string:
 
 ### Nested And Data Patterns
 
-A data pattern destructures a data value by field:
+A data pattern destructures a struct value by field:
 
 ```text
 match value:
@@ -729,16 +728,14 @@ match value:
 4. r[flow.match.data.literal] `User { age: 18 }` matches only values with that field value.
 5. r[flow.match.data.unlisted] Unlisted fields are ignored.
 6. r[flow.match.data.label] As in a data expression, a field label inside the braces is followed by `:`. The `=` label belongs to payload patterns in parentheses.
-7. r[flow.match.data.fields] Listed fields must be distinct and exist on the named data type.
-8. r[flow.match.data.fields.unknown] A listed field that the data type does not declare is an error. Error: `unknown-field`.
+7. r[flow.match.data.fields] Listed fields must be distinct and exist on the named struct type.
+8. r[flow.match.data.fields.unknown] A listed field that the struct type does not declare is an error. Error: `unknown-field`.
 9. r[flow.match.data.fields.duplicate] A field listed twice is an error, in a data pattern and in an enum payload pattern alike. In `.Rect(w, w=1)` the positional pattern and `w=` both name the payload field `w`. Error: `duplicate-data-pattern-field`.
 10. r[flow.match.data.public] A cross-module pattern may name only public fields.
-11. r[flow.match.data.empty] An empty data pattern is irrefutable for that data type.
-12. r[flow.match.data.nominal] A named data pattern must match the subject's nominal type. It does not structurally match a different data type with the same fields.
+11. r[flow.match.data.empty] An empty data pattern is irrefutable for that struct type.
+12. r[flow.match.data.nominal] A named data pattern must match the subject's nominal type. It does not structurally match a different struct type with the same fields.
 13. r[flow.match.data.bind-primitive] Primitive fields bind by value.
-14. r[flow.match.data.bind-composite] Composite fields bind reference access under the data subject's effective field types.
-15. r[flow.match.data.readonly-mut] A direct `mut U` field in a readonly subject binds as `U`.
-16. r[flow.match.data.generic] A generic field declared `field: P` binds as substituted `P`, including `mut U` when `P = mut U`.
+14. r[flow.match.data.generic] A generic field declared `field: P` binds as substituted `P`.
 
 ```text
 struct User:
@@ -1117,27 +1114,25 @@ pub trait Disposable:
 1. r[flow.using.form] `using name = expression` and `using name: T = expression` bind `name` to the value of `expression` for the rest of the suite.
 2. r[flow.using.binding] A `using` binding is not reassignable. Error: `non-reassignable-binding`.
 3. r[flow.using.disposable-required-ref] The binding's type must implement `Disposable`. For a binding of a reference `&mut T`, `T` must implement it instead, or, for `&mut dyn Tr`, `Tr` must have it as a supertrait. Error: `unsatisfied-trait-bound`.
-4. r[flow.using.access] The binding keeps its initializer's type, or its annotation, and never takes the readonly view of [`types.bind.short`](04-type-system.md#r-types.bind.short).
-5. r[flow.using.access.readonly] For a binding that holds its value, an initializer without an annotation whose type has no mutable access is an error, since `dispose!` changes the value. Error: `mutable-upgrade`.
-6. r[flow.using.access.annotation] For a binding that holds its value, an annotation without mutable access is an error. Error: `let-mut-readonly-type`.
-7. r[flow.using.place] A binding that holds its value is the place that `dispose!` changes: the registered call takes the binding's address, as a `&mut self` call on a `let mut` binding does. No other `&mut self` call may change the binding. Error: `mutable-receiver-required`.
-8. r[flow.using.reference] A binding of a reference `&mut T` disposes the value it refers to: the registered call passes the reference, so every other reference to that value sees it disposed. A trait value reference `&mut dyn Tr` disposes through its trait value, by [`trait.dyn.ref.member`](09-traits.md#r-trait.dyn.ref.member).
-9. r[flow.using.reference.read-only] A binding of a read-only reference, `&T` or `&dyn Tr`, is an error, since `dispose!` changes the value. Error: `mutable-receiver-required`.
-10. r[flow.using.register] Once the initializer is evaluated and bound, the statement registers a cleanup suite that calls `name.dispose!()`, exactly as a `defer` at that point would.
-11. r[flow.using.dispose] That suite runs by the rules of [Registration And Order](#registration-and-order). So a value is disposed when its block exits normally, through `return`, `break`, or `continue`, or because postfix `?` propagates.
-12. r[flow.using.order] Disposes and `defer` suites of one block run in one last-in, first-out order.
-13. r[flow.using.loop] Each loop iteration disposes the values that its body bound with `using` before the next iteration begins.
-14. r[flow.using.unbound] A statement whose initializer does not complete, because it propagates with `?` or panics, registers nothing.
-15. r[flow.using.scopes] A `using` binding follows the cleanup scope rules of `defer`, so one at module top level is an error. Error: `defer-outside-cleanup-scope`.
-16. r[flow.using.bang] The registered call is a bang call written at the `using` statement. So a `using` binding outside a driver context is an error. Error: `bang-call-outside-suspension`.
-17. r[flow.using.in-defer] A `using` binding inside a `defer` suite is a suspension in that suite. Error: `suspension-forbidden-context`.
-18. r[flow.using.suite-suspends] Unlike a written `defer` suite, a dispose suite may suspend, and the scope exit goes on once `dispose!` returns.
-19. r[flow.using.not-forbidden] A dispose suite is not a forbidden context of [`req.drive.block-on.indirect`](11-requirements-and-suspension.md#r-req.drive.block-on.indirect).
-20. r[flow.using.panic] A runtime panic does not run pending disposes, as [`flow.defer.panic`](#r-flow.defer.panic) says of `defer` suites.
-21. r[flow.using.cancel] Cancellation unwinds a task as any exit does: its registered disposes run, in last-in, first-out order with its `defer` suites.
-22. r[flow.using.cancel.shielded] A `dispose!` that suspends is shielded from the cancellation, and it takes no cancellation of its own. So each dispose runs to its end, unless it is cut short as the next rule says.
-23. r[flow.using.cancel.cut-short] Only [`abandon()`](11-requirements-and-suspension.md#abandoning) and an await of a suspension cancelled elsewhere cut a dispose short, by [`req.abandon.dispose`](11-requirements-and-suspension.md#r-req.abandon.dispose) and [`req.abandon.dependency`](11-requirements-and-suspension.md#r-req.abandon.dependency).
-24. r[flow.using.cancel.wait] The cancellation of a task completes only once its disposes have. A suspension whose cancellation reaches a child waits for the child's disposes before it runs its own.
+4. r[flow.using.access] The binding has its annotation's type, or else its initializer's type.
+5. r[flow.using.place] A binding that holds its value is the place that `dispose!` changes: the registered call takes the binding's address, as a `&mut self` call on a `let mut` binding does. No other `&mut self` call may change the binding. Error: `not-writable`.
+6. r[flow.using.reference] A binding of a reference `&mut T` disposes the value it refers to: the registered call passes the reference, so every other reference to that value sees it disposed. A trait value reference `&mut dyn Tr` disposes through its trait value, by [`trait.dyn.ref.member`](09-traits.md#r-trait.dyn.ref.member).
+7. r[flow.using.reference.read-only] A binding of a read-only reference, `&T` or `&dyn Tr`, is an error, since `dispose!` changes the value. Error: `not-writable`.
+8. r[flow.using.register] Once the initializer is evaluated and bound, the statement registers a cleanup suite that calls `name.dispose!()`, exactly as a `defer` at that point would.
+9. r[flow.using.dispose] That suite runs by the rules of [Registration And Order](#registration-and-order). So a value is disposed when its block exits normally, through `return`, `break`, or `continue`, or because postfix `?` propagates.
+10. r[flow.using.order] Disposes and `defer` suites of one block run in one last-in, first-out order.
+11. r[flow.using.loop] Each loop iteration disposes the values that its body bound with `using` before the next iteration begins.
+12. r[flow.using.unbound] A statement whose initializer does not complete, because it propagates with `?` or panics, registers nothing.
+13. r[flow.using.scopes] A `using` binding follows the cleanup scope rules of `defer`, so one at module top level is an error. Error: `defer-outside-cleanup-scope`.
+14. r[flow.using.bang] The registered call is a bang call written at the `using` statement. So a `using` binding outside a driver context is an error. Error: `bang-call-outside-suspension`.
+15. r[flow.using.in-defer] A `using` binding inside a `defer` suite is a suspension in that suite. Error: `suspension-forbidden-context`.
+16. r[flow.using.suite-suspends] Unlike a written `defer` suite, a dispose suite may suspend, and the scope exit goes on once `dispose!` returns.
+17. r[flow.using.not-forbidden] A dispose suite is not a forbidden context of [`req.drive.block-on.indirect`](11-requirements-and-suspension.md#r-req.drive.block-on.indirect).
+18. r[flow.using.panic] A runtime panic does not run pending disposes, as [`flow.defer.panic`](#r-flow.defer.panic) says of `defer` suites.
+19. r[flow.using.cancel] Cancellation unwinds a task as any exit does: its registered disposes run, in last-in, first-out order with its `defer` suites.
+20. r[flow.using.cancel.shielded] A `dispose!` that suspends is shielded from the cancellation, and it takes no cancellation of its own. So each dispose runs to its end, unless it is cut short as the next rule says.
+21. r[flow.using.cancel.cut-short] Only [`abandon()`](11-requirements-and-suspension.md#abandoning) and an await of a suspension cancelled elsewhere cut a dispose short, by [`req.abandon.dispose`](11-requirements-and-suspension.md#r-req.abandon.dispose) and [`req.abandon.dependency`](11-requirements-and-suspension.md#r-req.abandon.dependency).
+22. r[flow.using.cancel.wait] The cancellation of a task completes only once its disposes have. A suspension whose cancellation reaches a child waits for the child's disposes before it runs its own.
 
 ```text
 use std.ops.Disposable
@@ -1161,7 +1156,7 @@ fn read!(note: Note) -> string:
     copy.text
 
 fn peek!(lock: &Lock) -> void:
-    using held = lock  # error: mutable-receiver-required
+    using held = lock  # error: not-writable
 
 fn plain(id: i32) -> void:
     using session = Lock { name: "s" }  # error: bang-call-outside-suspension

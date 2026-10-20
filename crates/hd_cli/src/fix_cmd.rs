@@ -82,10 +82,9 @@ struct Outcome {
 }
 
 pub(crate) fn command(args: &[OsString]) -> ExitCode {
-    let object_model = match flags(args) {
-        Ok(o) => o,
-        Err(e) => return fail(&e),
-    };
+    if let Err(e) = flags(args) {
+        return fail(&e);
+    }
     let cwd = match std::env::current_dir() {
         Ok(c) => c,
         Err(e) => return fail(&e.to_string()),
@@ -99,9 +98,6 @@ pub(crate) fn command(args: &[OsString]) -> ExitCode {
         Ok(r) => r,
         Err(e) => return fail(&e),
     };
-    if object_model {
-        return crate::object_model::command(&root);
-    }
     let sources = match disk::sources_of(&root) {
         Ok((s, _)) => s,
         Err(e) => return fail(&e),
@@ -171,10 +167,8 @@ pub(crate) fn command(args: &[OsString]) -> ExitCode {
 }
 
 /// The options of `hd fix`: `--jobs N` or `--jobs=N` (`cli.jobs`), which
-/// sets the thread count, and `--object-model`
-/// (`cli.fix.object-model.command`), which it returns.
-fn flags(args: &[OsString]) -> Result<bool, String> {
-    let mut object_model = false;
+/// sets the thread count.
+fn flags(args: &[OsString]) -> Result<(), String> {
     let mut i = 0;
     while i < args.len() {
         if let Some(jobs) = crate::jobs_flag(args, i) {
@@ -184,11 +178,6 @@ fn flags(args: &[OsString]) -> Result<bool, String> {
             continue;
         }
         let text = args[i].to_string_lossy();
-        if text == "--object-model" {
-            object_model = true;
-            i += 1;
-            continue;
-        }
         return Err(if text.starts_with('-') {
             format!("`hd fix` has no option `{text}`")
         } else {
@@ -197,7 +186,7 @@ fn flags(args: &[OsString]) -> Result<bool, String> {
             )
         });
     }
-    Ok(object_model)
+    Ok(())
 }
 
 /// Replaces the file at `path` with `text`, through a temporary file
@@ -386,7 +375,6 @@ mod tests {
                     text: text.to_owned(),
                 }],
                 exact: true,
-                migration: false,
             });
         }
         d

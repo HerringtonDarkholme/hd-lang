@@ -145,14 +145,14 @@ fn rename(user: &mut User, name: string) -> void:
 
 1. r[fn.param.init-order] Parameters are evaluated and initialized from left to right after argument mapping.
 2. r[fn.param.fixed] A parameter that is not `mut` is a non-reassignable binding: its name cannot be reassigned. Reassigning one is an error. Error: `non-reassignable-parameter-binding`.
-3. r[fn.param.access] For composite parameters, `T` permits readonly access and `mut T` requires mutable access.
-4. r[fn.param.primitive] Primitive parameters pass by value.
-5. r[fn.param.composite] Composite parameters pass shared reference access according to their declared type.
+3. r[fn.param.primitive] Primitive parameters pass by value.
+4. r[fn.param.value-copy] Every other parameter that is not a reference passes by value too. The callee gets its own copy of a struct, tuple, enum, list, or map argument.
+5. r[fn.param.reference] A `&T` parameter passes a reference, through which the callee reads the caller's place or object. Through a `&mut T` parameter it may also write.
 6. r[fn.param.no-transfer] hd-lang does not perform ownership transfer at a call.
 7. r[fn.param.mut] `mut` before a parameter name, as in `mut a: S`, marks the callee's own copy of the argument, which may change.
 8. r[fn.param.mut.copy] The argument moves into a `mut` parameter at the caller's last use of it, and is copied otherwise. The caller's value is unchanged unless the callee returns the copy and the caller keeps it.
 9. r[fn.param.mut.reassign] A `mut` parameter may be reassigned as a whole, and a struct field of one is a [writable place](04-type-system.md#writable-places).
-10. r[fn.param.mut.view] `mut a: T` marks the binding and `a: mut T` types it as a `mut` view. A struct has no `mut` view, so `mut a: S` is valid and `a: mut S` is an error. Error: `mut-on-struct`.
+10. r[fn.param.mut.view] `mut a: T` marks the binding, not the type, so `mut a: S` with a struct `S` is valid and `a: mut S` is an error. Error: `mut-on-struct`.
 11. r[fn.param.mut.closure] A closure parameter may be `mut` in the same way.
 12. r[fn.param.mut.lost-write] A write to a `mut` parameter, or to a struct field of one, that is never read afterwards and never returned, stored, or passed on is a warning. The help says to take `&mut self` or `&mut T` to change the caller's value. Warning: `lost-write`.
 13. r[fn.param.mut.lost-write.scope] The check judges a write written directly in the function body. It stays silent when a later statement names the parameter, or when a closure or `defer` in the body does.
@@ -244,7 +244,7 @@ fn run() -> void:
 4. r[fn.default.requirement-free.signatures] The check reads only signatures, never function bodies, because both properties are part of every callable's type.
 5. r[fn.default.requirement-free.uniform] The check applies equally to named functions, function values, and dynamic trait methods.
 6. r[fn.default.effects] A default may otherwise evaluate any expression, including calls that mutate state.
-7. r[fn.default.provider] A default that uses a provider, in a parameter, data field, or shared enum constructor parameter, is an error. Error: `requirement-in-default`.
+7. r[fn.default.provider] A default that uses a provider, in a parameter, struct field, or shared enum constructor parameter, is an error. Error: `requirement-in-default`.
 8. r[fn.default.suspends] A default that suspends is an error. Error: `suspension-forbidden-context`.
 
 ```text
@@ -483,21 +483,11 @@ fn counter() -> mut fn() -> i32:  # error: syntax-error
 1. r[fn.type.named-value] A named function value may be passed anywhere its function type is expected.
 2. r[fn.type.variant-value] So may a variant constructor with exactly one payload field, such as `SyncError.Fs` of type `fn(FsError) -> SyncError`.
 3. r[fn.type.declared-variance] Function types follow the declared variance of `Fn` and `SuspendFn`: contravariant in each input element, covariant in the output, and invariant in the row.
-4. r[fn.type.variance-repr] Like every variance conversion, a function-type conversion must be representation-preserving, so it changes only access permissions.
+4. r[fn.type.variance-repr] Like every variance conversion, a function-type conversion must be representation-preserving.
 5. r[fn.type.variance-repr.excluded] Trait-value construction and optional injection therefore never convert a parameter or result of a function type. Error: `variance-representation-change`.
 
 ```text
-data User:
-    name: string
-
-fn fresh() -> mut User: User { name: "Ada" }
 fn count() -> i32: 1
-
-fn readonly_maker() -> fn() -> User:
-    fresh
-
-fn widen(callback: fn(User) -> mut User) -> fn(mut User) -> User:
-    callback
 
 fn erase() -> fn() -> dyn Display:
     count  # error: variance-representation-change
@@ -605,8 +595,8 @@ fn bumper(counter: &mut Counter) -> fn(i32) -> void:
 ```
 
 1. r[fn.ref.unbound] `Owner::name` without an argument clause, where `Owner` names a type, a trait, or a type parameter, is an **unbound method reference**.
-2. r[fn.ref.unbound.receiver] For a method, the reference takes the receiver first, then the method's own parameters: `Counter::bump` has type `fn(mut Counter, i32) -> void`.
-3. r[fn.ref.unbound.mut-self] A `mut self` method gives a `mut` first parameter, and a `self` method a readonly one.
+2. r[fn.ref.unbound.receiver] For a method, the reference takes the receiver first, then the method's own parameters: `Counter::bump` has type `fn(&mut Counter, i32) -> void`.
+3. r[fn.ref.unbound.value-self] A `self` method gives a `Self` first parameter, and so does a struct's `mut self` method.
 4. r[fn.ref.unbound.ref-self] A `&self` method gives a `&Self` first parameter, and a `&mut self` method a `&mut Self` one.
 5. r[fn.ref.associated] For an associated function, the parameters are the function's own: `Counter::zero` has type `fn() -> Counter`.
 6. r[fn.ref.lookup] A reference resolves `name` as the qualified call `Owner::name(...)` does. That is inherent members of a type first, then its available traits, and a type parameter through its bounds.
@@ -618,8 +608,8 @@ fn bumper(counter: &mut Counter) -> fn(i32) -> void:
 12. r[fn.ref.bound] `value::name`, where `value` names a value rather than a type or trait, is a **bound method reference**.
 13. r[fn.ref.bound.capture] It evaluates `value` once, when the reference is created, and captures that receiver. Calling the reference later calls the method on the captured receiver, whatever `value` names by then.
 14. r[fn.ref.bound.type] Its parameters are the method's own, without the receiver: `counter::bump` has type `fn(i32) -> void`.
-15. r[fn.ref.bound.mut] A bound reference to a `mut self` method needs mutable access to the receiver when it is created. Error: `mutable-receiver-required`.
-16. r[fn.ref.bound.address] A bound reference to a `&self` or `&mut self` method takes the receiver's address when it is created, as a [call](#reference-receivers) does. Calling it later reads or changes that place.
+15. r[fn.ref.bound.address] A bound reference to a `&self` or `&mut self` method takes the receiver's address when it is created, as a [call](#reference-receivers) does. Calling it later reads or changes that place.
+16. r[fn.ref.bound.address.writable] A bound reference to a `&mut self` method needs a writable place or a `&mut` reference as its receiver, as the call does. Error: `not-writable`.
 17. r[fn.ref.call] A reference followed by an argument clause is an ordinary call, so `user::domain()` calls `domain` on `user`.
 18. r[fn.ref.suspending] A suspending method is referenced without `!`, as `Store::load`, and the reference has a suspending function type such as `fn!(Store, Key) -> Blob`.
 19. r[fn.ref.value] A reference is an ordinary function value: it has no parameter names or defaults, and it carries the member's row and suspension.
@@ -644,7 +634,7 @@ fn emails() -> fn(User) -> string:
     User::email  # error: unknown-method
 
 fn frozen(counter: Counter) -> fn(i32) -> void:
-    counter::bump  # error: mutable-receiver-required
+    counter::bump  # error: not-writable
 
 fn restart(counter: Counter) -> fn() -> Counter:
     counter::zero  # error: unknown-method
@@ -810,10 +800,10 @@ fn make_appender(items: &mut List[i32]) -> fn(i32) -> void:
 ```
 
 1. r[fn.capture.access] A closure uses each capture with the access that the captured binding has in the enclosing scope.
-2. r[fn.capture.mutate] A closure may assign captured `let` storage and may obtain mutable access from a captured `mut T` binding.
-3. r[fn.capture.mutate.forms] Calling a `mut self` method on a captured list or mutable child is such a use. So are passing a captured `mut T` binding to a `mut T` parameter, and returning that access.
-4. r[fn.capture.readonly] A readonly capture stays readonly. Assigning a field through a captured readonly root is an error. Error: `readonly-root`.
-5. r[fn.capture.result-not-weakened] A callable's declared `mut T` result is not itself weakened when the callable is read through a readonly reference.
+2. r[fn.capture.mutate] A closure may assign captured `let` storage, change a captured `let mut` binding in place, and write through a captured `&mut T` reference.
+3. r[fn.capture.mutate.forms] Calling a `&mut self` method on a captured `let mut` list or through a captured `&mut T` reference is such a use. So are passing a captured `&mut T` reference to a `&mut T` parameter, and returning it.
+4. r[fn.capture.readonly] A read-only capture stays read-only. Assigning a field through a captured `&T` reference is an error. Error: `not-writable`.
+5. r[fn.capture.result-not-weakened] A callable's declared `&mut T` result is not weakened when the callable is read through a `&T` reference.
 
 ```text
 struct User:
@@ -821,7 +811,7 @@ struct User:
 
 fn rename(user: &User) -> void:
     change := fn() -> void:
-        user.name = "Grace"  # error: readonly-root
+        user.name = "Grace"  # error: not-writable
     change()
 ```
 
@@ -1047,30 +1037,19 @@ label := user.tagged::[string]("admin")
 
 1. r[fn.method.receiver-forms] A function declared in an `impl` block is a method when its first parameter is a **receiver**, in one of the four forms of the table below.
 2. r[fn.method.no-long-form] A receiver has no long form, so `self: &mut Self` is an error. Error: `syntax-error`.
-3. r[fn.method.self-data] On a data type, `self` is readonly access to the receiver, so mutating the receiver through it is an error. Error: `readonly-root`.
-4. r[fn.method.mut-self-data] On a data type, `mut self` is shorthand for `self: mut Self`.
-5. r[fn.method.mut-self-struct] On a struct, `mut self` is the method's own changeable copy of the receiver, a `mut` [parameter](#parameters) named `self` of the struct type.
-6. r[fn.method.no-ownership-receiver] There is no ownership-taking receiver form.
-7. r[fn.method.associated] Receiverless members are associated functions and are called with qualified `Type::function(...)` or `Trait::function(...)` syntax.
-8. r[fn.method.eval-order] Method-call syntax evaluates the receiver first and then ordinary arguments.
-9. r[fn.method.equivalence] It is semantically equivalent to selecting the resolved method and supplying the receiver as its first argument.
-10. r[fn.method.value-deferred] The treatment of bare `receiver.method` as a function value is deferred.
+3. r[fn.method.mut-self-struct] On a struct, `mut self` is the method's own changeable copy of the receiver, a `mut` [parameter](#parameters) named `self` of the struct type.
+4. r[fn.method.no-ownership-receiver] There is no ownership-taking receiver form.
+5. r[fn.method.associated] Receiverless members are associated functions and are called with qualified `Type::function(...)` or `Trait::function(...)` syntax.
+6. r[fn.method.eval-order] Method-call syntax evaluates the receiver first and then ordinary arguments.
+7. r[fn.method.equivalence] It is semantically equivalent to selecting the resolved method and supplying the receiver as its first argument.
+8. r[fn.method.value-deferred] The treatment of bare `receiver.method` as a function value is deferred.
 
 | Receiver | Type of `self` | What the method gets |
 | --- | --- | --- |
-| r[fn.method.receiver.self] `self` | `Self` | the receiver, read-only: a struct's own copy, a data value's readonly view |
-| r[fn.method.receiver.mut-self] `mut self` | `Self` on a struct, `mut Self` on a data type | a struct's own changeable copy; a data value's mutable view |
+| r[fn.method.receiver.self] `self` | `Self` | the method's own copy of the receiver, which never changes |
+| r[fn.method.receiver.mut-self] `mut self` | `Self` on a struct | the method's own changeable copy of the receiver |
 | r[fn.method.receiver.ref-self] `&self` | `&Self` | a read of the caller's value, with no copy |
 | r[fn.method.receiver.ref-mut-self] `&mut self` | `&mut Self` | the caller's value, changed in place |
-
-```text
-data Counter:
-    value: i32
-
-impl Counter:
-    fn reset(self) -> void:
-        self.value = 0  # error: readonly-root
-```
 
 ### Reference Receivers
 
@@ -1097,14 +1076,14 @@ fn demo() -> f64:
 ```
 
 1. r[fn.method.ref-self] In a `&self` method `self` is a reference `&Self`, and in a `&mut self` method `&mut Self`. Reads and writes through it follow [Values And References](13-values-and-references.md).
-2. r[fn.method.ref-self.kinds] A method of any type may take `&self` or `&mut self`: a struct, a data type, an enum, or a primitive.
+2. r[fn.method.ref-self.kinds] A method of any type may take `&self` or `&mut self`: a struct, an enum, or a primitive.
 3. r[fn.method.auto-address] Calling a `&self` or `&mut self` method on a place takes the place's address. `p.shift(d)` means `(&mut p).shift(d)`, and no mark appears at the call.
-4. r[fn.method.auto-address.place] A place is what `&` refers to ([Places And New Objects](13-values-and-references.md#places-and-new-objects)): a binding, a struct field of a place, a field of a data value, or a value reached through a reference.
+4. r[fn.method.auto-address.place] A place is what `&` refers to ([Places And New Objects](13-values-and-references.md#places-and-new-objects)): a binding, a struct field of a place, or a value reached through a reference.
 5. r[fn.method.auto-address.reference] A receiver that is itself a reference is passed on, so through `r: &mut Vec2`, `r.shift(d)` changes what `r` refers to.
 6. r[fn.method.auto-address.value] On a value that is no place, such as a call result, a `&self` method refers to a new object holding the value.
-7. r[fn.method.auto-address.writable] A `&mut self` call needs a [writable place](04-type-system.md#writable-places). Any other receiver is an error, with a fix-it that makes the binding writable. Error: `mutable-receiver-required`.
+7. r[fn.method.auto-address.writable] A `&mut self` call needs a [writable place](04-type-system.md#writable-places). Any other receiver is an error, with a fix-it that makes the binding writable. Error: `not-writable`.
 8. r[fn.method.auto-address.fix] The fix-it writes `let mut` for a `let` or `:=` binding, `mut` before a parameter name, and `&mut self` for a `self` receiver.
-9. r[fn.method.auto-address.read-only] A `&mut self` call through a `&T` reference, or on a value that is no place, is an error. Error: `mutable-receiver-required`.
+9. r[fn.method.auto-address.read-only] A `&mut self` call through a `&T` reference, or on a value that is no place, is an error. Error: `not-writable`.
 10. r[fn.method.auto-address.element] A list element is a place for the call, as in `bodies[i].shift(d)`, also through a reference to the list, as in `r[i].shift(d)`. The call takes an element reference ([Element References](13-values-and-references.md#element-references)) that pins the list from before the arguments are evaluated until the call returns. A `&mut self` call needs the list in a writable place, as `&mut xs[i]` does.
 11. r[fn.method.self-struct-write] Writing a field of `self` in a struct's `self` method is an error, with a fix-it that takes `&mut self`. Error: `non-reassignable-parameter-binding`.
 
@@ -1125,10 +1104,10 @@ fn make() -> Point:
 
 fn demo() -> void:
     origin := Point { x: 0, y: 0 }
-    origin.shift(1)  # error: mutable-receiver-required
+    origin.shift(1)  # error: not-writable
     let fixed = Point { x: 1, y: 1 }
-    fixed.shift(1)  # error: mutable-receiver-required
-    make().shift(1)  # error: mutable-receiver-required
+    fixed.shift(1)  # error: not-writable
+    make().shift(1)  # error: not-writable
 ```
 
 > **Why.** A method says whether it changes its receiver, and the `let mut`

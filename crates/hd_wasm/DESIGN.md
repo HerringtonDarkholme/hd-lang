@@ -58,15 +58,15 @@ such a field or element. The spec allows either form
 | hd value | In locals and results | In a field or array element |
 | --- | --- | --- |
 | integers, `bool`, `char`, floats | the scalar | packed: `i8` for `bool`, `u8`, `i8`; `i16` for 16-bit integers; else the scalar |
-| `data T` | `(ref $T)`: a struct with one mutable field per declared field, in declaration order | same |
-| `struct T` | `(ref $T)`: the same struct as a data type's, which nothing writes after `struct.new` ("Struct values" below) | same |
+| a compiler-supplied data type, such as `std.core.Ref[T]` | `(ref $T)`: a struct with one mutable field per declared field, in declaration order | same |
+| `struct T` | `(ref $T)`: the same struct layout, which nothing writes after `struct.new` ("Struct values" below) | same |
 | `&T`, `&mut T` | `(ref $Ref_T)`: the data type `std.core.Ref[T]`, two closures that read and replace the place, and the place's identity ("References" below) | same |
-| embedded part | a separate struct, referenced by an immutable field of the outer struct ([`data.part.unobservable`](../../spec/lang/08-data-and-enums.md#r-data.part.unobservable)) | same |
+| embedded field | a field of the outer struct holding the embedded struct value, as a named struct field does | same |
 | payloadless enum | `i32` tag | `i8` or `i16` when the variant count fits |
 | enum with payloads, within the bound | `multi`: `(i32 tag, shared payload slots...)` (§15.1) | the same fields; a structure of arrays in an array |
 | enum box, **flat** (over the bound, at most 4 payload fields in total) | one immutable struct: tag plus the union of payload fields, unused fields null or zero | same: the box reference |
 | enum box, **subtypes** (over the bound with more fields, or self-recursive) | a non-final base struct (tag, shared fields) and one final subtype per payload variant; payloadless variants are constant singletons | same: the box reference |
-| `T?`, `T` a non-nullable reference (data, list, string, closure, a box) | `(ref null $T)`; null is `.None` | same |
+| `T?`, `T` a non-nullable reference (a struct, list, string, closure, a box) | `(ref null $T)`; null is `.None` | same |
 | `T?`, `T` a trait value | `(eqref, (ref null $VT))`; a null vtable is `.None` | two fields |
 | `T?`, `T` a scalar | `(i32 tag, T)` | two fields |
 | `T??` and `Option` of a `multi` | a tag plus the inner layout, boxed over the bound | the same fields |
@@ -79,14 +79,14 @@ such a field or element. The spec allows either form
 | `string?` | `(ref null $bytes, i64)`; a null `bytes` is `.None` | two fields |
 | `List[T]` | `(ref $List_T)` = struct `{len: mut i32, data: mut (ref $Arr_T), cow: mut i32, pin: mut i32}`; under A1 every reference `T` shares `$List_eq` over `(array (mut eqref))`. `cow` is the copy-on-write word ("Collection values" below), `pin` the count of element references ("Element references" below) | same |
 | `Map[K, V]` | a compact insertion-ordered table of `index`, `hashes`, `keys` and `values` arrays and a `cow` word (`layout::map_ty`, [docs/compiler/lowering-catalog.md](../../docs/compiler/lowering-catalog.md#mapk-v)). Its operations are runtime helpers (`map.rs`); std hd over arrays is not built yet; see #180 | same |
-| `TypeId` | `(ref $TypeId)`, a constant global per type: `{id: i64, name: (ref $LitFn)}`, `id` the first 64 bits of `H(canon(T))`. Implementation differs: `TypeId` is std's `data TypeId {key, name}`, built with `struct.new` at each use and compared by its `key` bytes; that allocates per use and compares strings, not one `i64` (see #175) | same |
+| `TypeId` | `(ref $TypeId)`, a constant global per type: `{id: i64, name: (ref $LitFn)}`, `id` the first 64 bits of `H(canon(T))`. Implementation differs: `TypeId` is std's `struct TypeId {key, name}`, built with `struct.new` at each use and compared by its `key` bytes; that allocates per use and compares strings, not one `i64` (see #175) | same |
 | `mut Suspend[T]` | `(ref $Suspend_L)` (§14.1) | same |
 
 **Struct values: immutable objects, rebuilt on a field write.** A
 `struct` value has no identity and is copied on every binding, store and
 call ([Value Types](../../spec/lang/04-type-system.md#value-types)). On
-Wasm GC it is emulated, not laid out inline: a struct value is the GC
-object a data type of the same fields would be, and the checker never
+Wasm GC it is emulated, not laid out inline: a struct value is a GC
+struct object with one field per declared field, and the checker never
 emits a store into one. A field write to a writable place,
 `a.b.x = v`, is lowered in TIR (`crates/hd_check/src/value.rs`) as
 `a = A { ...a, b: B { ...a.b, x: v } }`: one `CopyData` per struct on the
@@ -104,8 +104,8 @@ path, then a `LocalSet`, `GlobalSet` or `FieldSet` of the place's root.
   replaces this layout anyway.
 - **Cost.** A field write allocates one object per struct on the path,
   so a loop that writes a field of a `let mut` struct allocates per
-  iteration; a data type's field write allocates nothing. Reads cost what
-  a data field read costs. Correct first: inline layout and in-place
+  iteration. A read costs one `struct.get` per step. Correct first:
+  inline layout and in-place
   writes come with the linear-memory backend.
 
 **Collection values: shared arrays, a mark, a copy before the change.**
@@ -128,8 +128,8 @@ header's `cow` word stands in for it (`crates/hd_wasm/src/emit/cow.rs`):
   store, `remove` and `MapIndexMut` first test `cow`: when it is not 0
   they copy every array of the header (a `push` with room to grow), copy
   each element that holds a collection in turn, and clear `cow`. The
-  header itself never moves, so a legacy `mut List[T]` alias of it sees
-  the change, and a nested write needs no store back into its place.
+  header itself never moves, so a nested write needs no store back into
+  its place.
 - **A path makes each collection on it its own.** `m[k].push(x)` reads
   `m[k]` with `MapIndexMut`, and `xs[i].x = v` reads and stores `xs[i]`
   with `ListIndexMut` and `ListSet`, so each list or map on the path is
@@ -146,8 +146,7 @@ What is eager, and why:
 - **The mark never clears.** With no count, a header copied once stays
   marked, so its next change copies its arrays even when the other copy
   is gone: `let mut a = xs.filter(f)` then `a.push(x)` copies once. A
-  legacy `mut List[T]` returned as a value (std's builders) is such a
-  copy. A function's own `let mut` local returned is moved, not copied.
+  function's own `let mut` local returned is moved, not copied.
 - **A loop left by `return` or `?`** keeps its 2, so the collection's
   next change copies once; a `break` and the normal end take it off.
 - **A struct copy rebuilds** its object when the struct holds a
@@ -164,14 +163,14 @@ caller's collection in place while the callee holds it, so the checker
 
 - **During the call.** An argument read from a place that something
   besides the caller may change is copied at the call: a writable local
-  that a closure changes in place, that a closure or `&mut` assigns
-  (`CAPTURED_ASSIGNED`), or that a legacy `mut List[T]` view shares; a
-  legacy view itself; a mutable global; a value read through a
-  reference; a `data` field. An argument read from a `:=` or plain `let`
-  binding, a value parameter, a tuple element or a payload is passed as
-  is: nothing changes those in place, and a parameter's caller already
-  copied an aliased source. A legacy `mut List[T]` parameter, or a type
-  parameter the call solves to one, shares as before. The test runs
+  that a closure changes in place, or that a closure or `&mut` assigns
+  (`CAPTURED_ASSIGNED`); a mutable global; a value read through a
+  reference or from a field of an object that is not a struct. An
+  argument read from a `:=` or plain `let` binding, a value parameter, a
+  tuple element or a payload is passed as is: nothing changes those in
+  place, and a parameter's caller already copied an aliased source. A
+  `&mut List[T]` parameter refers to the caller's place and copies
+  nothing. The test runs
   after all of the call's arguments, so a callback passed in the same
   call counts.
 - **Later in a loop or a closure.** A closure or `&mut` made after the
@@ -260,8 +259,8 @@ ordinary generic data type, and the emitter is unchanged but for one line.
   path with `CopyData` and stores the root, as a struct field write does
   ("Struct values" above). A place reached through a reference,
   `&mut r.pos`, evaluates `r` once into a fresh local; its closures call
-  `r`'s own. A data field, `&mut d.n`, uses `struct.get` and `FieldSet`
-  on the data object, evaluated once.
+  `r`'s own. A field of a compiler-supplied data object, `&mut d.n`,
+  uses `struct.get` and `FieldSet` on that object, evaluated once.
 - **Identity.** `r is s` compares the three identity fields
   ([Identity](../../spec/lang/13-values-and-references.md#identity)):
   the emitter lowers `Is` on two `Ref` operands (`ref_identity_eq`) to
@@ -276,7 +275,7 @@ ordinary generic data type, and the emitter is unchanged but for one line.
   | a local or parameter | `RefRoot`'s one value | the local's serial | the struct field path, as `.1.0` |
   | a new object | `RefRoot`'s one value | a fresh serial | `""` |
   | a top-level binding | `RefRoot`'s one value | 0 | `g:` and its path, then the field path |
-  | a field of a data value | the data object | 0 | `f` and the field index, then the field path |
+  | a field of a compiler-supplied data object | the object | 0 | `f` and the field index, then the field path |
   | a place reached through `r` | `r.base` | `r.serial` | `r.key` and the field path |
 
   A serial comes from the `ref_serial` intrinsic, a runtime counter
@@ -287,8 +286,8 @@ ordinary generic data type, and the emitter is unchanged but for one line.
   `&` in the file names draws one (`BodyCx::ref_names`, a scan of the
   file's syntax for `&name` and `&name.field`); the rest pay nothing.
   `RefRoot` is a private fieldless data type, so its one value is a
-  canonical constant ([`expr.is.canonical-data`](../../spec/lang/05-expressions.md#r-expr.is.canonical-data))
-  and no `base` but a data field's allocates.
+  constant global (`canonical_data`), and no `base` but a data object's
+  allocates.
 - **Why a serial and not the cell.** The cell that holds a referenced
   local is the emitter's, made after checking; TIR has no name for it.
   A serial needs no new layout, and it hashes, which a Wasm GC reference
@@ -350,16 +349,6 @@ ordinary generic data type, and the emitter is unchanged but for one line.
   closures, and the receiver local lives in a heap cell for the whole
   function. Only a local whose name some `&` in the file names draws an
   identity serial, so a receiver otherwise gets a fresh serial per call.
-- **The receiver bridge.** A struct's `&mut self` method may fill a trait
-  method declared `mut self`
-  ([`trait.impl.receiver-bridge`](../../spec/lang/09-traits.md#r-trait.impl.receiver-bridge)).
-  Its instance takes `Ref[S]` while the trait's declaration passes `S`, so
-  only a call the checker resolves to the struct's impl (choice `Impl`,
-  receiver addressed) may reach it. The checker rejects every other use, and
-  `hd_mono`'s `method_target` stops a call through a bound that selects
-  such a method (`bridged`) with an unsupported-stage error rather than
-  emit a mismatched call. A trait value reference's vtable may reach it
-  ("Trait value references" below), since it passes the reference.
 - **Trait value references.** `&dyn Tr` and `&mut dyn Tr`
   ([Trait Value References](../../spec/lang/09-traits.md#trait-value-references))
   lower as every reference does, to `Ref[dyn Tr]`, so generic code over
@@ -377,8 +366,8 @@ ordinary generic data type, and the emitter is unchanged but for one line.
     `Ref[S]` itself as the trait value's payload; collection (`hd_mono`
     `vtable` with `through`) builds the vtable at `S`'s implementation and
     records per slot how its adapter passes the payload
-    (`hd_mono::SlotRecv`): a method that takes `&self` or `&mut self`, or a
-    struct's bridged `&mut self` method, gets the `Ref[S]` unchanged
+    (`hd_mono::SlotRecv`): a method that takes `&self` or `&mut self`
+    gets the `Ref[S]` unchanged
     (`Payload`), so its writes reach the caller's place; a method that
     takes the value gets what `get` returns (`ReadThrough`): the adapter
     (`Helper::Adapter` with a `RefRead`) calls the `get` closure, as
@@ -1730,17 +1719,17 @@ inline in memory where Wasm GC stored a reference.
 | `T?` of another `T` | as an enum with one payload | as an enum |
 | `string` | `(address, length)`: two `i32` | 8 bytes |
 | `&T`, `&mut T` | the address of the `T`, possibly inside an object (§23.5) | 4 bytes |
-| `data T` (today's language) | the address of a counted object holding the fields | 4 bytes |
+| a compiler-supplied data type | the address of a counted object holding the fields | 4 bytes |
 | `List[T]`, `Map[K, V]` | the address of a counted header over a counted buffer (§23.7) | 4 bytes |
 | closure | `(code, environment)`: a function-table index and the address of a counted environment, 0 when nothing is captured | 8 bytes |
 | `dyn Trait`, `Any` | `(data, vtable)`: the value's address and a static vtable's (§23.8) | 8 bytes |
 | suspension | the address of a counted frame owned by its task | 4 bytes |
 | `void`, `()`, `never` | none | 0 bytes |
 
-- **Today's language first.** Until the tier 1 jobs change the language,
-  a `data` value keeps its identity as a counted object, and a struct
-  value, which Wasm GC rebuilt on every field write (§15.2, "Struct
-  values"), is inline at last, so a field write is one store.
+- **Struct values inline.** A struct value, which Wasm GC rebuilds on
+  every field write (§15.2, "Struct values"), is inline here, so a field
+  write is one store. A program declares no `data` type; only a
+  compiler-supplied data type is still a counted object with identity.
 - **No bound.** Wasm GC boxed a value layout over 4 values (§15.1); in
   linear memory a wide value costs only its moves, as in Go and C#. A
   large struct passed by value is the price OBJECT_MODEL_TIER1.md §3

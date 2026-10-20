@@ -1,5 +1,5 @@
-# test: let mut accepts an initializer of type mut T?, and the binding has that type
-# Spec 04 Binding Forms: types.bind.let-mut-optional (evening follow-up 3, 2026-09-29).
+# test: let mut binds an optional `&mut` reference, and a write through its payload changes the referenced value
+# Spec 13 Writing Through A Reference: ref.write.field.
 struct User:
     name: string
 

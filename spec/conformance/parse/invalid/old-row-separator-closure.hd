@@ -1,9 +1,0 @@
-# test: a closure's row rejects the former comma between keys
-# Spec 11 Row Syntax: req.row.syntax.old-separator.
-trait Clock
-
-trait Logger
-
-fn build() -> void:
-    job := fn() -> void $(Clock, Logger): pass  # diagnostic: old-row-separator
-    pass

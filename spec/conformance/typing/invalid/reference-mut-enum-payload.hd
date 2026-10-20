@@ -1,4 +1,4 @@
-# test: an enum payload is not a place, so `&mut` of a payload binding is readonly-root
+# test: an enum payload is not a place, so `&mut` of a payload binding is not-writable
 # Spec 13 Writable Places Of References: ref.place.writable.enum.
 enum Slot:
     Empty
@@ -8,6 +8,6 @@ fn invalid() -> void:
     let mut s = Slot.Full(+1)
     match s:
         .Full(n) =>
-            r := &mut n  # diagnostic: readonly-root
+            r := &mut n  # diagnostic: not-writable
             *r = n
         .Empty => ()

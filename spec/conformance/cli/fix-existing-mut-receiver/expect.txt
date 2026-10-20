@@ -1,7 +1,0 @@
-# The receiver edit preserves the existing field error without a new syntax error.
-run: hd check --format json bad.hd
-exit: 101
-stdout-json: [{"kind":"diagnostic","code":"mutable-receiver-required","file":"bad.hd","line":7,"fixes":[{"message":"take `&mut self`","edits":[{"file":"bad.hd","start":115,"end":123,"text":"&mut self"}]}]},{"kind":"summary","errors":1,"warnings":0,"status":101}]
-run: hd check --format json fixed.hd
-exit: 101
-stdout-json: [{"kind":"diagnostic","code":"mutable-receiver-required","file":"fixed.hd","line":7,"fixes":[]},{"kind":"summary","errors":1,"warnings":0,"status":101}]

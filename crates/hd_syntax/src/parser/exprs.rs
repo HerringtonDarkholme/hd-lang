@@ -1593,7 +1593,6 @@ impl Parser<'_> {
                 let field = self.start();
                 self.expect_name("a data field name");
                 if self.eat(TokenKind::Colon) {
-                    self.eat(TokenKind::Ellipsis);
                     self.expr(Ctx::Expr);
                 }
                 self.complete(field, SyntaxKind::DataFieldInit);

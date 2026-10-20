@@ -493,8 +493,8 @@ impl Ck<'_, '_> {
                         continue;
                     };
                     self.check_field_visible(t, &fname, f);
-                    // `flow.match.data.readonly-mut`: a readonly subject
-                    // binds a direct `mut U` field as `U`.
+                    // A subject that is not writable binds a field declared
+                    // `mut Suspend[T]` as `Suspend[T]`.
                     let ft = self.field_access(t, &fname, ft);
                     if let Some(sub) = f.children().next() {
                         self.declare_pattern(sub, ft, binds)?;
@@ -558,7 +558,7 @@ impl Ck<'_, '_> {
 
     /// Binds a name of a binding or spread pattern to a local of type `t`
     /// (`names.bind.pattern`; a `let` pattern's names follow the binding
-    /// forms, types.bind.let-pattern-mut, types.bind.let-mut-pattern.annotated).
+    /// forms, types.bind.let-pattern-mut).
     fn bind_pattern_name(
         &mut self,
         p: NodeRef<'_>,
@@ -585,7 +585,7 @@ impl Ck<'_, '_> {
                 if p.direct_tokens()
                     .any(|t| self.cx.src.tkind(t) == Some(TokenKind::KwMut)) =>
             {
-                self.let_mut_name(t, annotated, p);
+                let _ = annotated;
                 if self.is_coll_ty(t) {
                     self.readonly_view(t)
                 } else {
@@ -603,7 +603,7 @@ impl Ck<'_, '_> {
             self.mut_locals.push(l);
         }
         if self.let_view.is_some() {
-            self.note_copy_local(l, None);
+            self.note_copy_local(l);
         }
         binds.push((p.index(), l));
         Ok(())
@@ -920,7 +920,7 @@ impl Ck<'_, '_> {
             None => (r, t),
         };
         // `let mut` on a primitive or a tuple (types.bind.let-mut-primitive-local,
-        // types.bind.let-mut-tuple).
+        // types.bind.let-mut-tuple-valid).
         let mut t = t;
         let let_mut = pat.kind() == SyntaxKind::BindingPattern
             && pat
@@ -930,14 +930,13 @@ impl Ck<'_, '_> {
         if let_mut {
             deferred = self.let_mut_binding(t, annot.is_some(), true, pat);
             // A collection in a `let mut` is a value that changes in place
-            // (`types.coll.writable`): its type is the value type, unless
-            // the annotation is a legacy `mut` view.
+            // (`types.coll.writable`): its type is the value type.
             if annot.is_none() && self.is_coll_ty(t) {
                 t = self.readonly_view(t);
             }
         } else if pat.kind() == SyntaxKind::BindingPattern && annot.is_none() && !using {
-            // `x := e` and `let x = e` bind the readonly view
-            // (types.bind.short, types.bind.let-readonly).
+            // `x := e` and `let x = e` drop an outer `mut` from the type
+            // (types.mut.weaken).
             t = self.readonly_view(t);
         }
         // A plain name: a new local.
@@ -972,7 +971,7 @@ impl Ck<'_, '_> {
             if let Some(kind) = deferred {
                 self.prim_let_mut.push((l, pat.index(), kind));
             }
-            self.note_copy_local(l, annot);
+            self.note_copy_local(l);
             self.set_local(l, r, at.index());
             return Ok(());
         }

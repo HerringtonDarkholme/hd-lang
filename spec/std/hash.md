@@ -29,8 +29,8 @@ fn lookup_status(items: Map[Status, i32], status: Status) -> i32?:
 ```
 
 1. r[std-hash.derive.hash.template] `std.hash` declares the [template](../lang/14-annotations.md#templates) of `Hash`, which `@derive(Hash)` instantiates.
-2. r[std-hash.derive.hash.support] `@derive(Hash)` supports data and enums.
-3. r[std-hash.derive.hash.data] It hashes every declared data field in declaration order, including embedded fields.
+2. r[std-hash.derive.hash.support] `@derive(Hash)` supports structs and enums.
+3. r[std-hash.derive.hash.data] It hashes every declared struct field in declaration order, including embedded fields.
 4. r[std-hash.derive.hash.enum] For an enum, it hashes the variant, then shared enum data in declaration order, then that variant's payload fields in declaration order.
 5. r[std-hash.derive.hash.fields] Every hashed field must implement `Hash`; no field is implicitly excluded.
 6. r[std-hash.derive.hash.cycles] Like derived equality, derived hashing does not detect cycles, so hashing a cyclic graph may exhaust the execution stack.
@@ -102,7 +102,7 @@ fn digest() -> u64:
 1. r[std-hash.bytes.sequence] Each standard implementation of `Hash` writes exactly the bytes of the table above, so `hash_of` of a value is the same in every implementation.
 2. r[std-hash.bytes.methods] An implementation may write a `u64` or a string's bytes through `write_u64` or `write_str` instead of `write`, since those write the same bytes ([`trait.hash.hasher-methods`](../lang/09-traits.md#r-trait.hash.hasher-methods)).
 3. r[std-hash.bytes.derive-enum] A derived `Hash` on an enum writes the variant's zero-based index as a `u32`, before the members that [`std-hash.derive.hash.enum`](#r-std-hash.derive.hash.enum) lists.
-4. r[std-hash.bytes.derive-data] A derived `Hash` on data writes no tag, only the bytes of its members in the order of [`std-hash.derive.hash.data`](#r-std-hash.derive.hash.data).
+4. r[std-hash.bytes.derive-data] A derived `Hash` on a struct writes no tag, only the bytes of its members in the order of [`std-hash.derive.hash.data`](#r-std-hash.derive.hash.data).
 
 > **Why.** A string writes its length first, as a list does, so one rule
 > covers every sequence, and `("ab", "c")` writes other bytes than

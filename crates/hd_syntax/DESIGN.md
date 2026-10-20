@@ -174,7 +174,7 @@ pass. `precede` wraps a finished node through `forward_parent`;
   node. The parser reports only the first error in a statement, and none
   where the lexer already reported.
   Inside brackets, the column-0 tokens that start an item are `fn name`,
-  `data`, `enum`, `trait`, `impl`, `type`, `pub` and `tests`; no
+  `struct`, `enum`, `trait`, `impl`, `type`, `pub` and `tests`; no
   bracketed construct holds one, since a nested suite is indented deeper
   than its statement. The lexer's delimiter matching reports the openers
   still open there as `unclosed-delimiter` and records the token in
@@ -246,12 +246,12 @@ can change its folder's interface:
 
 - every `use` and `pub use` line, except test-only ones;
 - every declaration header, private ones included, without bodies;
-- every field and variant of every `data` and `enum`, private ones
+- every field and variant of every `struct` and `enum`, private ones
   included, since derived bounds read member types
   ([`annot.bound.params`](../../spec/lang/14-annotations.md#r-annot.bound.params));
 - decorators, `@derive`, `@error` and their message strings;
 - template bodies, and the default and fact token ranges;
-- a function body that declares a local `data`, `enum`, `trait`, `impl`
+- a function body that declares a local `struct`, `enum`, `trait`, `impl`
   or `type`, since those lift to module items and a local impl is in the
   folder interface.
 

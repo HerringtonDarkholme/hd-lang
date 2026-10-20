@@ -1,8 +1,6 @@
 //! A `Map` key type meets `Map[K < Eq & Hash, V]` wherever a type is
 //! written (`types.map-key.declared-bound`): annotations, parameters,
-//! results, fields and nested arguments, one error per bad key. A `mut`
-//! key, which only a type parameter can be, is `invalid-map-key`
-//! (`types.map-key.no-mut`).
+//! results, fields and nested arguments, one error per bad key.
 
 use hd_diag::Code;
 use hd_driver::{Executor, Goal, Host, NoClock, build};
@@ -150,41 +148,4 @@ fn bad[K](m: Map[K, i32]) -> i32:
     0
 ";
     assert_eq!(errors(src), BOUND);
-}
-
-#[test]
-fn a_mut_key_is_invalid_in_a_let_annotation() {
-    let src = "\
-fn setup[Session < Eq & Hash]() -> void:
-    let open: Map[mut Session, i32] = {}
-    pass
-";
-    assert_eq!(errors(src), [Code::InvalidMapKey]);
-}
-
-#[test]
-fn a_mut_key_is_invalid_in_a_parameter_a_result_and_a_field() {
-    let src = "\
-struct Holder[Session < Eq & Hash]:
-    pub open: Map[mut Session, i32]
-
-fn f[Session < Eq & Hash](m: Map[mut Session, i32]) -> Map[mut Session, i32]:
-    m
-";
-    assert_eq!(errors(src), [Code::InvalidMapKey; 3]);
-}
-
-#[test]
-fn a_mut_key_that_is_also_unhashable_is_one_error() {
-    let src = "fn f[Plain < Display](m: Map[mut Plain, i32]) -> i32:\n    0\n";
-    assert_eq!(errors(src), [Code::InvalidMapKey]);
-}
-
-#[test]
-fn a_mut_value_is_not_a_key() {
-    let src = "\
-fn f[Session < Display](m: Map[string, mut Session]) -> i32:
-    0
-";
-    assert_eq!(errors(src), Vec::<Code>::new());
 }

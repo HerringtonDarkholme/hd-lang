@@ -9,5 +9,5 @@ impl Point:
 
 fn demo() -> i32:
     origin := Point { x: 0, y: 0 }
-    origin.shift(1)  # diagnostic: mutable-receiver-required
+    origin.shift(1)  # diagnostic: not-writable
     origin.x

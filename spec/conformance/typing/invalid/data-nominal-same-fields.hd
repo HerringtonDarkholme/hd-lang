@@ -1,5 +1,5 @@
-# test: two data types with the same fields are different types
-# Spec 08 Data Declarations: data.decl.nominal.
+# test: two structs with the same fields are different types
+# Spec 08 Struct Declarations: data.decl.nominal.
 struct CustomerId:
     value: i64
 

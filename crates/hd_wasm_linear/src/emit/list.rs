@@ -420,8 +420,7 @@ impl Em<'_, '_, '_> {
     /// `ValueCopy`: each collection in the value becomes its copy, a new
     /// header over the same buffer; a value holding none is itself.
     pub(super) fn value_copy(&mut self, i: u32, r: u32) -> StageResult<()> {
-        // The copy's own type says what it copies: a legacy `mut` view of
-        // the operand is no copy's type (`types.coll.legacy`).
+        // The copy's own type says what it copies.
         let t = self.ty(i);
         let colls = coll_leaves(self.pool(), self.env(), t);
         if colls.is_empty() {

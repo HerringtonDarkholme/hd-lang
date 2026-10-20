@@ -1,6 +1,6 @@
-# test: erasing a readonly value to mut Inspectable is a mutable upgrade
-# Spec 09 Erasure To Inspectable: erasing to mut Inspectable requires mutable access to the source.
-# Spec 09 Traits: trait.erase.mut.source.
+# test: a `&Counter` never converts to `&mut dyn Inspectable`
+# Spec 09 Trait Value References: a shared reference never becomes a mutable trait value reference.
+# Spec 09 Traits: trait.dyn.ref.no-upgrade.
 use std.inspect.Inspectable
 
 struct Counter:

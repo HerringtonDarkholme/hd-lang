@@ -76,13 +76,7 @@ impl Ck<'_, '_> {
                     Some(self.build_dyn_ref(r, g, tv, mutable, Coercion::Supertrait, n))
                 }
                 _ => {
-                    let before = self.diags.len();
                     self.require_dyn_impl(inner, tv, n);
-                    // `&e` on what already is a reference, as a former
-                    // data value is after `hd fix --object-model`.
-                    if self.diags.len() != before {
-                        self.migration_ref_fix(g, target, n);
-                    }
                     Some(self.build_dyn_ref(r, g, tv, mutable, Coercion::RefToTraitValue, n))
                 }
             };
@@ -130,7 +124,6 @@ impl Ck<'_, '_> {
         self.err(Code::TypeMismatch, n, &msg);
         if hint.is_none() {
             self.dyn_ref_value_fix(gs, tv, mutable, n);
-            self.migration_ref_fix(g, target, n);
         }
         Some(r)
     }
@@ -283,8 +276,7 @@ impl Ck<'_, '_> {
     }
 
     /// `trait.dyn.ref.convert.impl`: the concrete type `s` implements the
-    /// trait of `tv`. A struct's `&mut self` method that fills a `mut self`
-    /// trait method serves the reference (`trait.dyn.ref.bridge`).
+    /// trait of `tv`.
     fn require_dyn_impl(&mut self, s: Ty, tv: Ty, n: NodeRef<'_>) {
         let pool = self.pool();
         let TyData::TraitValue { def, args, .. } = pool.get(tv) else {
@@ -296,29 +288,11 @@ impl Ck<'_, '_> {
             args,
         };
         let before = self.diags.len();
-        let bridge = std::mem::replace(&mut self.bridge_ok, true);
-        let ev = self.require_ref_as(tref, n, Code::TypeMismatch);
-        self.bridge_ok = bridge;
+        let _ = self.require_ref_as(tref, n, Code::TypeMismatch);
         if self.diags.len() != before {
             return;
         }
         self.check_value_bindings(s, tv, n);
-        // A default method the implementation does not write would pass a
-        // bridged `&mut self` method a copy (`trait.dyn.ref.bridge.default`).
-        if let Ok(Some(hd_types::solver::Evidence::Impl { row, .. })) = ev
-            && let Some(imp) = self
-                .cx
-                .impl_table(row.module)
-                .map(|t| t.def[row.row as usize])
-            && let Some(ItemData::Trait(td)) = self.cx.lookup.item(def).map(|i| &i.data)
-        {
-            for &(name, tm) in &td.methods.clone() {
-                let text = self.cx.names.text(name).to_owned();
-                if self.bridge_default_call(tm, &[imp], &text, n) {
-                    return;
-                }
-            }
-        }
     }
 
     /// A new `std.core.Ref[tv]` for the source reference `src` of type
@@ -448,7 +422,7 @@ impl Ck<'_, '_> {
         let msg = format!(
             "`{name}` changes its receiver, but this receiver is a read-only `&dyn` reference; take it as `&mut dyn` to call `{name}`"
         );
-        self.err(Code::MutableReceiverRequired, n, &msg);
+        self.err(Code::NotWritable, n, &msg);
         if recv == NodeIdx::NONE {
             return;
         }

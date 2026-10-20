@@ -68,13 +68,6 @@ impl<'a> Ck<'a, '_> {
         self.err(Code::PrivateMember, n, &msg);
     }
 
-    /// A copy of a value of `t`: as a literal of its data type.
-    pub(crate) fn check_copy_visible(&mut self, t: Ty, n: NodeRef<'_>) {
-        if let Some((def, _)) = self.data_decl(t) {
-            self.check_literal_visible(def, n);
-        }
-    }
-
     /// A data literal of the data type `def`, a copy-update included: in
     /// another module, every field of the type must be public
     /// (`data.vis.literal`, `data.vis.private-fields`). Reports the first

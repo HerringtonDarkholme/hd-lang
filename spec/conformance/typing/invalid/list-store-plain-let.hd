@@ -2,5 +2,5 @@
 # Spec 04 Collection Values: types.coll.writable.store.
 fn first() -> i32:
     let scores = [+1, 2]
-    scores[0] = 5  # diagnostic: readonly-root
+    scores[0] = 5  # diagnostic: not-writable
     scores[0]

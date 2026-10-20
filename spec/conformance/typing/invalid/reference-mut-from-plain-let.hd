@@ -1,6 +1,6 @@
-# test: `&mut` of a plain let binding is readonly-root
+# test: `&mut` of a plain let binding is not-writable
 # Spec 13 Writable Places Of References: ref.place.not-writable.let.
 fn invalid() -> i32:
     let total = 0
-    r := &mut total  # diagnostic: readonly-root
+    r := &mut total  # diagnostic: not-writable
     *r

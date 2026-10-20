@@ -36,7 +36,7 @@ pub fn main() -> void $ Console:
     println(players[0].score)
 
 # Change the loop in `bonus` to `for p in players:` and Run:
-#     readonly-root: `p` is not `let mut`, so it may only be reassigned as a whole; bind it with `let mut` to change a field
+#     not-writable: `p` is not `let mut`, so it may only be reassigned as a whole; bind it with `let mut` to change a field
 
 # ── plumbing ──
 struct Player:
@@ -47,7 +47,7 @@ struct Player:
 ```edit
 replace:     for p in &mut players:  # ← a writable reference per element; the list is pinned
 with:     for p in players:
-error: readonly-root: `p` is not `let mut`, so it may only be reassigned as a whole; bind it with `let mut` to change a field
+error: not-writable: `p` is not `let mut`, so it may only be reassigned as a whole; bind it with `let mut` to change a field
 ```
 
 ```output

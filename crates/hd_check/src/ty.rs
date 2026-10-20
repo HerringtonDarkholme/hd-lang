@@ -403,9 +403,9 @@ impl Ck<'_, '_> {
 
     /// A written type meets the declared bounds of its constructor's
     /// parameters (`types.generic.bound`, `types.map-key.declared-bound`):
-    /// one error at the argument that misses a bound. A `mut` map key is
-    /// `invalid-map-key` instead (`types.map-key.no-mut`), and an argument
-    /// the written type did not fix waits for inference.
+    /// one error at the argument that misses a bound. A written `mut` key
+    /// is `mut-on-struct` instead (`types.value.no-mut.written`), and an
+    /// argument the written type did not fix waits for inference.
     fn check_written_bounds(
         &mut self,
         t: Ty,
@@ -426,14 +426,6 @@ impl Ck<'_, '_> {
         for (i, g) in item.generics.iter().enumerate() {
             let Some(&a) = args.get(i) else { continue };
             let at = arg_nodes.get(i).copied().unwrap_or(whole);
-            if def == self.cx.names.known.map && i == 0 && matches!(pool.get(a), TyData::Mut(_)) {
-                let msg = format!(
-                    "{} is a `mut` map key type; a map key type is not `mut`",
-                    self.show(a)
-                );
-                self.err(Code::InvalidMapKey, at, &msg);
-                continue;
-            }
             for b in &g.bounds {
                 let b = pool.subst(*b, &|p: ParamRef| {
                     (p.owner == def)
@@ -694,16 +686,8 @@ impl Ck<'_, '_> {
                     );
                     return Ok(t);
                 }
-                if matches!(pool.get(t), TyData::Tuple { .. }) {
-                    self.err(
-                        hd_diag::Code::MutOnTuple,
-                        n,
-                        "a tuple type has no `mut` form",
-                    );
-                    return Ok(t);
-                }
-                // `types.value.no-mut.any`: a value has no `mut` form; only
-                // `mut Suspend[T]` and a type parameter keep one.
+                // `types.value.no-mut.written`: a value has no `mut` form; only
+                // `mut Suspend[T]` keeps one.
                 let keeps = match pool.get(t) {
                     TyData::Adt { def, .. } => def == self.cx.names.known.suspend,
                     TyData::Param(_) | TyData::Infer(_) => true,
@@ -838,8 +822,8 @@ impl Ck<'_, '_> {
                 }))?
             }
             SyntaxKind::RefType => {
-                // `ref.type.forms`, `ref.type.view`: an outer `mut` view of
-                // the operand is no part of a reference type.
+                // `ref.type.forms`: an outer `mut` on the operand is no part
+                // of a reference type.
                 let mutable = n
                     .direct_token(&self.cx.src.parse.tokens, hd_syntax::TokenKind::KwMut)
                     .is_some();

@@ -150,7 +150,7 @@ fn argument(pool: Types<'_>, t: Ty, out: &mut Vec<Ty>) {
 }
 
 /// The row of `self_ty: trait_` (§3.9), or `None` when no row answers
-/// `trait_`. `self_ty` has no outer `mut` (`types.sealed.permission`), is
+/// `trait_`. `self_ty` has no outer `mut`, is
 /// not poison, and an environment clause did not answer it: a parameter
 /// or a projection gets nothing more here (`types.sealed.type-parameter`).
 pub(crate) fn row(

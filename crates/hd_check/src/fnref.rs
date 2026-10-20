@@ -775,7 +775,7 @@ impl Ck<'_, '_> {
         let syn = n.index();
         // `push` and `remove` change the receiver, which a bound reference
         // takes in place and an unbound one as `&mut List[T]` or
-        // `&mut Map[K, V]` (`fn.ref.unbound.mut-self`).
+        // `&mut Map[K, V]` (`fn.ref.unbound.ref-self`).
         let mutates = matches!(op, IntrinsicOp::ListPush | IntrinsicOp::MapRemove);
         let recv_ty = if mutates {
             pool.intern_ty(&TyData::Mut(self_ty))
@@ -794,7 +794,7 @@ impl Ck<'_, '_> {
         let mut ptys = Vec::new();
         let mut captured = None;
         if let Some((recv, rt)) = bound {
-            // `fn.ref.bound.mut`.
+            // `fn.ref.bound.address.writable`.
             self.check_receiver(recv_ty, recv, rt, n);
             let receiver = self.cx.names.syms.intern("$receiver");
             let rl = self.b.local(rt, receiver, local_flags::ASSIGNED, syn);
@@ -886,13 +886,10 @@ impl Ck<'_, '_> {
             return Ok((Ref(NONE), Ty::POISON));
         }
         self.note_call(m.def);
-        // `fn.ref.bound.mut`.
+        // `fn.ref.bound.address.writable`.
         let self_param = inst(pool, &m, m.sig.params[0].1);
         let addressed = self.addressed(recv, rt);
-        let by_ref = match &m.owner {
-            Owner::Trait { choice, .. } => self.ref_receiver_of(m.def, *choice)?,
-            _ => self.ref_receiver_of(m.def, None)?,
-        };
+        let by_ref = self.ref_receiver_of(m.def)?;
         let recv = match by_ref {
             Some(mutable) if !addressed => self.fit_receiver(recv, rt, mutable, name, n),
             Some(_) => recv,

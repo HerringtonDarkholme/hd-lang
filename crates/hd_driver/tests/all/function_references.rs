@@ -201,15 +201,15 @@ fn reference_errors_are_reported() {
             "struct Counter:\n    value: i32\n\nimpl Counter:\n    fn zero() -> Counter:\n        Counter { value: 0 }\n\nfn restart(counter: Counter) -> fn() -> Counter:\n    counter::zero\n",
             Code::UnknownMethod,
         ),
-        // `fn.ref.bound.mut`.
+        // `fn.ref.bound.address.writable`.
         (
             "struct Counter:\n    value: i32\n\nimpl Counter:\n    fn bump(&mut self, by: i32) -> void:\n        self.value = self.value + by\n\nfn frozen(counter: Counter) -> fn(i32) -> void:\n    counter::bump\n",
-            Code::MutableReceiverRequired,
+            Code::NotWritable,
         ),
-        // `fn.ref.bound.mut`, for a built-in method.
+        // `fn.ref.bound.address.writable`, for a built-in method.
         (
             "fn frozen(items: List[i32]) -> fn(i32) -> void:\n    items::push\n",
-            Code::MutableReceiverRequired,
+            Code::NotWritable,
         ),
         // `fn.ref.unbound`, for a built-in method whose type nothing solves.
         (
@@ -237,7 +237,7 @@ fn reference_errors_are_reported() {
             "trait Left:\n    fn name(self) -> string\n\ntrait Right:\n    fn name(self) -> string\n\nstruct Both: pass\n\nimpl Left for Both:\n    fn name(self) -> string: \"l\"\n\nimpl Right for Both:\n    fn name(self) -> string: \"r\"\n\nfn named() -> fn(Both) -> string:\n    Both::name\n",
             Code::AmbiguousMethod,
         ),
-        // `fn.ref.unbound.mut-self` with `fn.type.declared-variance`.
+        // `fn.ref.unbound.ref-self` with `fn.type.declared-variance`.
         (
             "struct Counter:\n    value: i32\n\nimpl Counter:\n    fn reset(&mut self) -> void:\n        self.value = 0\n\nfn readonly() -> fn(Counter) -> void:\n    Counter::reset\n",
             Code::TypeMismatch,

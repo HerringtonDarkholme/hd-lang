@@ -38,7 +38,7 @@ fn same(a: State, b: State) -> bool:
 ```
 
 1. r[std-cmp.derive.eq.template] `std.cmp` declares the [template](../lang/14-annotations.md#templates) of `Eq`, which `@derive(Eq)` instantiates.
-2. r[std-cmp.derive.eq.compare-fields] Derived `Eq` compares every declared data field, including embedded fields, by its `Eq` implementation.
+2. r[std-cmp.derive.eq.compare-fields] Derived `Eq` compares every declared struct field, including embedded fields, by its `Eq` implementation.
 3. r[std-cmp.derive.eq.no-exclusion] No field is implicitly excluded.
 4. r[std-cmp.derive.eq.enum] Derived enum equality first compares the variant, then every payload field of that variant, including common enum fields.
 5. r[std-cmp.derive.eq.variants] Different variants are unequal.
@@ -62,8 +62,8 @@ fn before(a: Key, b: Key) -> bool:
 ```
 
 1. r[std-cmp.derive.ord.template] `std.cmp` declares the templates of `PartialOrd` and `Ord`, which `@derive` instantiates.
-2. r[std-cmp.derive.ord.support] `@derive(PartialOrd, Ord)` supports data and enums.
-3. r[std-cmp.derive.ord.data] Derived ordering is lexicographic in declared data-field order, including embedded fields.
+2. r[std-cmp.derive.ord.support] `@derive(PartialOrd, Ord)` supports structs and enums.
+3. r[std-cmp.derive.ord.data] Derived ordering is lexicographic in declared struct-field order, including embedded fields.
 4. r[std-cmp.derive.ord.variants] For enums, distinct variants compare by variant declaration order.
 5. r[std-cmp.derive.ord.same-variant] Values of the same variant compare shared enum data in declaration order, followed by that variant's payload parameters in declaration order.
 6. r[std-cmp.derive.ord.argument-order] Constructor argument order does not affect comparison.

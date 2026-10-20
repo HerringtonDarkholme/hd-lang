@@ -9,5 +9,5 @@ impl Point:
 
 fn demo() -> i32:
     let fixed = Point { x: 1, y: 1 }
-    fixed.shift(1)  # diagnostic: mutable-receiver-required
+    fixed.shift(1)  # diagnostic: not-writable
     fixed.x

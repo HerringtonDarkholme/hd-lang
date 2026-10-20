@@ -1520,7 +1520,9 @@ struct Gen {
     type_kinded: bool,
     self_ty: Option<Ty>,
     self_trait: Option<DefId>,
-    /// Type parameters written with a bound list (types.generic.no-mut-t).
+    /// Type parameters written with a bound list. Nothing reads it now:
+    /// `mut T` is an error for every type parameter
+    /// (types.value.no-mut.written).
     bounded: Vec<Ty>,
     /// Type parameters of the list being lowered whose bounds are not
     /// lowered yet: whether one is bounded by `Tuple` is not known.
@@ -2186,15 +2188,6 @@ impl Lower<'_, '_, '_> {
         }
     }
 
-    /// Whether a `mut` type wraps the written name `Self`, which is no
-    /// declared type parameter (types.param.mut-self).
-    fn names_self(&self, n: NodeRef<'_>) -> bool {
-        n.children().find(|c| c.kind().is_type()).is_some_and(|c| {
-            c.kind() == SyntaxKind::NamedType
-                && self.segments(c).first().is_some_and(|s| s.0 == "Self")
-        })
-    }
-
     fn ty(&mut self, n: Option<NodeRef<'_>>, gn: &Gen) -> Ty {
         let Some(n) = n else { return Ty::VOID };
         let pool = self.names.pool;
@@ -2210,8 +2203,9 @@ impl Lower<'_, '_, '_> {
             }
             SyntaxKind::MutType => {
                 let t = first_ty(self, n);
-                // Neither a primitive nor a tuple has a `mut` form
-                // (types.prim.no-mut.error, types.tuple.no-mut).
+                // A primitive has no `mut` form (types.prim.no-mut.error),
+                // nor has a type parameter (types.value.no-mut.written); the
+                // checker rejects the others but `Suspend[T]`.
                 match pool.get(t) {
                     TyData::Prim(_) => {
                         self.diags.error(
@@ -2221,19 +2215,11 @@ impl Lower<'_, '_, '_> {
                         );
                         t
                     }
-                    TyData::Tuple { .. } => {
+                    TyData::Param(_) => {
                         self.diags.error(
-                            Code::MutOnTuple,
+                            Code::MutOnStruct,
                             self.src.span(n),
-                            "a tuple type has no `mut` form",
-                        );
-                        t
-                    }
-                    TyData::Param(_) if !gn.bounded.contains(&t) && !self.names_self(n) => {
-                        self.diags.error(
-                            Code::MutOnTypeParameter,
-                            self.src.span(n),
-                            "`mut` on an unconstrained type parameter; use a `< mut Any` bound",
+                            "a type parameter has no `mut` form",
                         );
                         t
                     }
@@ -2399,15 +2385,19 @@ impl Lower<'_, '_, '_> {
             }
             SyntaxKind::ContextType => self.context_ty(n, gn),
             SyntaxKind::RefType => {
-                // `ref.type.forms`: an outer `mut` view of the operand is no
-                // part of a reference type; the reference's own `mut` says
-                // whether it writes (`ref.type.view`).
+                // `ref.type.forms`: the reference's own `mut` says whether it
+                // writes. A `mut` operand is the checker's `mut-on-struct`,
+                // except the legacy `mut Suspend[T]`, whose `mut` a
+                // reference drops.
                 let mutable = n
                     .direct_token(&self.src.parse.tokens, TokenKind::KwMut)
                     .is_some();
                 let inner = first_ty(self, n);
+                let suspend = self.names.known.suspend;
                 let inner = match pool.get(inner) {
-                    TyData::Mut(i) => i,
+                    TyData::Mut(i) if matches!(pool.get(i), TyData::Adt { def, .. } if def == suspend) => {
+                        i
+                    }
                     _ => inner,
                 };
                 pool.intern_ty(&TyData::Ref { inner, mutable })
@@ -2515,9 +2505,6 @@ impl Lower<'_, '_, '_> {
             self.generic_default_rules(&params, position, row, &mut defaulted);
             let mut bounds = Vec::new();
             if let Some(bl) = Src::child(node, SyntaxKind::BoundList) {
-                g.mut_bound = bl
-                    .direct_token(&self.src.parse.tokens, TokenKind::KwMut)
-                    .is_some();
                 let me = (!row)
                     .then(|| gn.tys[start..].iter().find(|(s, _, _)| *s == g.name))
                     .flatten()
@@ -4855,7 +4842,6 @@ fn misplaced_block_in<'a>(
                 let index = u16::try_from(i).unwrap_or(u16::MAX);
                 g.bound.is_none()
                     && g.bounds.is_empty()
-                    && !g.mut_bound
                     && g.default.is_none()
                     && own.get(i).is_some_and(|a| {
                         pool.get(*a)

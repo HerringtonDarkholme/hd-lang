@@ -282,7 +282,7 @@ const COMMANDS: &[Command] = &[
     Command {
         name: "fix",
         summary: "apply the package's safe fix-its",
-        usage: "hd fix [--object-model]",
+        usage: "hd fix",
         about: &[
             "Check the package as hd check does and apply each safe fix-it: one that adds",
             "no syntax error and no new diagnostic. Check again and repeat, at most 3 rounds.",
@@ -290,13 +290,7 @@ const COMMANDS: &[Command] = &[
             "the fix-it of unlisted-entry is reported, not applied.",
             "Print each change, then the diagnostics that remain.",
         ],
-        flags: &[
-            (
-                "--object-model",
-                "rewrite data types and shared lists as references, keeping the program's meaning",
-            ),
-            JOBS,
-        ],
+        flags: &[JOBS],
     },
     Command {
         name: "cache gc",

@@ -4,7 +4,7 @@ Status: language specification draft.
 
 ## Terminology
 
-- **Member metadata** is the ordered list of values attached to a data
+- **Member metadata** is the ordered list of values attached to a struct
   field, an enum variant, or a parameter.
 - Coherence works one `(trait, concrete target)` pair at a time over the
   resolved package graph.
@@ -23,7 +23,7 @@ The design principles are:
    values.
 
 An ordinary decorator attaches a value to the item or member it precedes.
-That is a type-level fact before a data type or enum, or member metadata
+That is a type-level fact before a struct or enum, or member metadata
 before a field, variant, or parameter. A derivation block with no
 trait attaches the same values away from the declaration.
 
@@ -56,12 +56,12 @@ with no trait, for shared metadata written away from the declaration.
 
 ### Prefix Decorators
 
-An `@value` line immediately before a module-level data or enum declaration
+An `@value` line immediately before a module-level struct or enum declaration
 attaches a type-level fact, as [Facts](#facts) defines. It does not register
 or derive anything.
 
 A decorator may precede any item or member, and attaches its value to it.
-Items are functions, data types, enums, traits, implementations, and
+Items are functions, structs, enums, traits, implementations, and
 newtypes. Members are fields, variants, value parameters, and methods:
 
 ```text
@@ -90,8 +90,8 @@ impl Tool:
 type ToolId(i64)
 ```
 
-1. r[annot.decorator.targets] A decorator may precede an item: a module-level function, data type, enum, trait, implementation, or newtype declaration.
-2. r[annot.decorator.members] A decorator may also precede a member: a data field, an enum variant, a value parameter, or a method of a trait or implementation.
+1. r[annot.decorator.targets] A decorator may precede an item: a module-level function, struct, enum, trait, implementation, or newtype declaration.
+2. r[annot.decorator.members] A decorator may also precede a member: a struct field, an enum variant, a value parameter, or a method of a trait or implementation.
 3. r[annot.decorator.attach] A decorator before a function, trait, implementation, newtype, or method attaches its value to that declaration and changes nothing else about it.
 4. r[annot.decorator.no-locals] A local declaration, a statement, and an expression take no decorator. A decorator there is an error. Error: `decorator-not-top-level`.
 5. r[annot.decorator.no-module] A module takes no decorator, because it has no declaration.
@@ -142,7 +142,7 @@ marked := facts_of(internal_check).find::[Hidden]()
 > that it suits its target, so the compiler knows no signatures. Reading
 > one function's facts, never a listing, keeps discovery with tools.
 
-An `@value` line immediately before a named or embedded data field or an enum
+An `@value` line immediately before a named or embedded struct field or an enum
 variant attaches its value to that member's metadata. For a field
 `name: string`, `@max_len(80)` attaches `max_len(80)` to `name`. Member
 metadata is also the member's or variant's declaration facts for
@@ -245,7 +245,7 @@ impl User by Structure:
     display_name = [min_len(1), max_len(80)]
 ```
 
-A derivation block with no trait writes metadata for a data type's fields
+A derivation block with no trait writes metadata for a struct's fields
 or an enum's variants. A function has no derivation block, so parameter metadata is
 written only with `@value` on the parameter.
 
@@ -344,9 +344,9 @@ Each target has one kind:
 | Rule | Target | Kind |
 | --- | --- | --- |
 | r[annot.target.kind.fn] Function | a module-level function declaration | `.Fn` |
-| r[annot.target.kind.data] Data type | a data type declaration | `.Data` |
+| r[annot.target.kind.data] Struct | a struct declaration | `.Data` |
 | r[annot.target.kind.enum] Enum | an enum declaration | `.Enum` |
-| r[annot.target.kind.field] Field | a named or embedded data field, or a variant payload member | `.Field` |
+| r[annot.target.kind.field] Field | a named or embedded struct field, or a variant payload member | `.Field` |
 | r[annot.target.kind.variant] Variant | an enum variant | `.Variant` |
 | r[annot.target.kind.param] Parameter | a value parameter of a function or method | `.Param` |
 | r[annot.target.kind.trait] Trait | a trait declaration | `.Trait` |
@@ -355,16 +355,16 @@ Each target has one kind:
 | r[annot.target.kind.newtype-kind] Newtype | a newtype declaration | `.Newtype` |
 
 1. r[annot.target.declarations] `std.annotation` declares `Target`, `Annotate`, and `annotate`. They are not prelude names, so code imports them, as in `use std.annotation.annotate`.
-2. r[annot.target.limit] A data type or enum `F` whose type-level facts include an `Annotate` value limits values of type `F` to targets whose kind that value lists.
+2. r[annot.target.limit] A struct or enum `F` whose type-level facts include an `Annotate` value limits values of type `F` to targets whose kind that value lists.
 3. r[annot.target.limit.kind-error] A value of a limited type attached to a target of any other kind is an error. It is reported on the decorator or member line that attaches it. Error: `decorator-target-kind`.
 4. r[annot.target.unlimited] A type without an `Annotate` fact is not limited: its values may be attached to any target, as `@"note"` may.
 5. r[annot.target.recognized] The compiler recognizes `std.annotation.Annotate` by its qualified name. A type of another package named `Annotate` limits nothing.
-6. r[annot.target.bootstrap] `Annotate` itself carries `@annotate(.Data, .Enum)`, so an `Annotate` value may be attached only to a data type or an enum.
+6. r[annot.target.bootstrap] `Annotate` itself carries `@annotate(.Data, .Enum)`, so an `Annotate` value may be attached only to a struct or an enum.
 7. r[annot.target.kind-only.untyped] For an untyped fact type, one that is not [typed](#member-typed-facts), the compiler checks only the kind. Whether its value suits its target's type or signature is checked by the code that reads the value.
 
 > **Note.** Only some targets have a reader in the language. User code
-> reads a function's values through `facts_of`, and the values on a data
-> type or enum, its fields, and its variants through typed derivation. The
+> reads a function's values through `facts_of`, and the values on a
+> struct or enum, its fields, and its variants through typed derivation. The
 > values on the other targets, such as traits, implementations, methods,
 > newtypes, and parameters, are for tools.
 
@@ -438,29 +438,28 @@ The check has three steps:
 | 2 | Infers the pattern's parameters from that type, as a call infers them from its one argument | [`annot.typed-fact.infer`](#r-annot.typed-fact.infer) |
 | 3 | Checks the value at the fact type with the inferred arguments | [`annot.typed-fact.check`](#r-annot.typed-fact.check) |
 
-1. r[annot.typed-fact.declare] A data type or enum whose `@annotate` decorator writes a type argument, as in `@annotate::[T](.Field)`, is a **typed fact type**. The compiler recognizes `std.annotation.annotate` by its qualified name and reads that argument.
+1. r[annot.typed-fact.declare] A struct or enum whose `@annotate` decorator writes a type argument, as in `@annotate::[T](.Field)`, is a **typed fact type**. The compiler recognizes `std.annotation.annotate` by its qualified name and reads that argument.
 2. r[annot.typed-fact.pattern] That type argument is the fact type's **pattern**, a type over the fact type's own type parameters, such as `T`, `List[T]`, or `fn(T) -> R`. It describes the type of each target that the fact type's values attach to.
 3. r[annot.typed-fact.pattern.scope] Names in the pattern see the fact type's type parameters, as the fact type's own fields do.
 4. r[annot.typed-fact.pattern.trivial] A pattern that is one of those parameters alone, as `T` in `@annotate::[T](.Field)`, is a **trivial pattern**. That parameter is the fact type's **target parameter**, and it is inferred as the target's whole type.
-5. r[annot.typed-fact.pattern.concrete] A pattern that mentions none of the fact type's parameters, as `i32` in `@annotate::[i32](.Field)`, is valid. A value of that fact type attaches only to a target of that type or its `mut` form, and any other target is an error. Error: `type-mismatch`.
+5. r[annot.typed-fact.pattern.concrete] A pattern that mentions none of the fact type's parameters, as `i32` in `@annotate::[i32](.Field)`, is valid. A value of that fact type attaches only to a target of that type, and any other target is an error. Error: `type-mismatch`.
 6. r[annot.typed-fact.untyped] A fact type whose `annotate` type argument is the default `dyn Any`, as in `@annotate(.Field)`, is an **untyped fact type**. Its values stay unchecked, as [Member Metadata](#member-metadata) states.
 7. r[annot.typed-fact.untyped.no-annotate] A fact type without an `Annotate` fact is untyped too.
-8. r[annot.typed-fact.targets] A value of a typed fact type may be attached only to a field or a module-level function. A field is a named or embedded data field, or a payload member. Error: `decorator-target-kind`.
-9. r[annot.typed-fact.declared-type] A target's type is the type written on the field, so for `hits: mut Counter` it is `mut Counter`. A function's type is its signature as a function type, with its `!` and requirement row, as in `fn(i32) -> string`.
+8. r[annot.typed-fact.targets] A value of a typed fact type may be attached only to a field or a module-level function. A field is a named or embedded struct field, or a payload member. Error: `decorator-target-kind`.
+9. r[annot.typed-fact.declared-type] A target's type is the type written on the field, so for `hits: &mut Counter` it is `&mut Counter`. A function's type is its signature as a function type, with its `!` and requirement row, as in `fn(i32) -> string`.
 10. r[annot.typed-fact.monomorphic] For the check, a target's type is made monomorphic. Each type parameter it mentions, of a generic function or of a field's owner, is written as its bound, and an unbounded one as `Any`.
 11. r[annot.typed-fact.monomorphic.bound] There, a bound such as `Integer` or `Integer & Display` stands for one fixed type that satisfies it, the same at each mention. It is not a `dyn` type, so any bound is valid there.
 12. r[annot.typed-fact.infer] The fact type's parameters that the pattern mentions are inferred as if the monomorphic target type were the one argument of a call to `infer[P](annotatee: Q)`. Here `P` is the fact type's type-parameter list with its bounds, and `Q` is the pattern.
 13. r[annot.typed-fact.infer.call] That call follows the ordinary rules for a call that infers its type arguments, by [`fn.generic.call-list`](07-functions.md#r-fn.generic.call-list) and [`types.generic.infer`](04-type-system.md#r-types.generic.infer). A function target passes as a function value does, by [`fn.type.named-value`](07-functions.md#r-fn.type.named-value) and [`fn.type.declared-variance`](07-functions.md#r-fn.type.declared-variance).
 14. r[annot.typed-fact.infer.suspending] So a suspending function does not match a pattern written with `fn`, such as `fn(T) -> R`. It could not be passed to a parameter of that type either. Its `fn!` type is a `SuspendFn`, and the pattern is an `Fn`, by [`fn.type.ctor.sugar`](07-functions.md#r-fn.type.ctor.sugar).
 15. r[annot.typed-fact.infer.row] Likewise, a function with a requirement row does not match a pattern whose row is empty, such as `fn(T) -> R`, by [`req.row.subsume.missing`](11-requirements-and-suspension.md#r-req.row.subsume.missing).
-16. r[annot.typed-fact.infer.weaken] A `mut` target passes as a `mut T` argument does, through [mut weakening](04-type-system.md#r-types.mut.weaken). So `List[T]` matches a field `ids: mut List[i64]` with `T = i64`, and `Counter` matches `hits: mut Counter`.
-17. r[annot.typed-fact.infer.mismatch] A target whose type does not fit the pattern is an error, as an `i32` field or a two-parameter function is under `fn(T) -> R`. Error: `type-mismatch`.
-18. r[annot.typed-fact.check.bounds] An inferred argument that breaks the bound of its parameter, as `string` breaks `F < Integer` in `Positive[F < Integer]`, is an error, by [`trait.bound.unsatisfied`](09-traits.md#r-trait.bound.unsatisfied). Error: `unsatisfied-trait-bound`.
-19. r[annot.typed-fact.check] A decorator or member-line element `v` whose type constructor is a typed fact type `D` then checks like `let f: D[A] = v`. `A` holds, in the order of `D`'s type parameters, the inferred arguments and a `_` for each parameter the pattern does not mention. Error: `type-mismatch`.
-20. r[annot.typed-fact.check.other-params] Each type parameter of `D` that the pattern does not mention is inferred from `v` as a `_` slot is, by [`fn.generic.placeholder.solve`](07-functions.md#r-fn.generic.placeholder.solve), [`.default`](07-functions.md#r-fn.generic.placeholder.default), and [`.unsolved`](07-functions.md#r-fn.generic.placeholder.unsolved). Error: `cannot-infer-type`.
-21. r[annot.typed-fact.check.inferred] Type arguments in `v` are inferred from that expected type, by [`fn.type.generic.argument.sources`](07-functions.md#r-fn.type.generic.argument.sources), as in any such binding.
-22. r[annot.typed-fact.check.reported] Every error of the inference and the check is reported on the decorator or member line.
-23. r[annot.typed-fact.read] A template reads such a fact typed, through the field's handle, as [`annot.handle.fact.pattern`](#r-annot.handle.fact.pattern) states.
+16. r[annot.typed-fact.infer.mismatch] A target whose type does not fit the pattern is an error, as an `i32` field or a two-parameter function is under `fn(T) -> R`. Error: `type-mismatch`.
+17. r[annot.typed-fact.check.bounds] An inferred argument that breaks the bound of its parameter, as `string` breaks `F < Integer` in `Positive[F < Integer]`, is an error, by [`trait.bound.unsatisfied`](09-traits.md#r-trait.bound.unsatisfied). Error: `unsatisfied-trait-bound`.
+18. r[annot.typed-fact.check] A decorator or member-line element `v` whose type constructor is a typed fact type `D` then checks like `let f: D[A] = v`. `A` holds, in the order of `D`'s type parameters, the inferred arguments and a `_` for each parameter the pattern does not mention. Error: `type-mismatch`.
+19. r[annot.typed-fact.check.other-params] Each type parameter of `D` that the pattern does not mention is inferred from `v` as a `_` slot is, by [`fn.generic.placeholder.solve`](07-functions.md#r-fn.generic.placeholder.solve), [`.default`](07-functions.md#r-fn.generic.placeholder.default), and [`.unsolved`](07-functions.md#r-fn.generic.placeholder.unsolved). Error: `cannot-infer-type`.
+20. r[annot.typed-fact.check.inferred] Type arguments in `v` are inferred from that expected type, by [`fn.type.generic.argument.sources`](07-functions.md#r-fn.type.generic.argument.sources), as in any such binding.
+21. r[annot.typed-fact.check.reported] Every error of the inference and the check is reported on the decorator or member line.
+22. r[annot.typed-fact.read] A template reads such a fact typed, through the field's handle, as [`annot.handle.fact.pattern`](#r-annot.handle.fact.pattern) states.
 
 > **Note.** In `@annotate(.Field)`, nothing solves `T`, since neither
 > `kinds` nor `Annotate` mentions it. So `T` takes its default `Any`, by
@@ -621,7 +620,7 @@ impl_decl = "impl", [ generic_params ], impl_header_types,
 
 ## Typed Derivation
 
-**Typed derivation** implements a library's trait for a data type or enum
+**Typed derivation** implements a library's trait for a struct or enum
 from the type's members. The library writes the implementation once, as a
 template over the compiler-generated `Structure` trait. A type opts in with
 `@derive`, and configures the result with facts.
@@ -636,7 +635,7 @@ struct User:
     nickname: string = ""
 ```
 
-1. r[annot.derive.definition] Typed derivation implements a trait for a data type or enum from the type's members, through the trait's template.
+1. r[annot.derive.definition] Typed derivation implements a trait for a struct or enum from the type's members, through the trait's template.
 2. r[annot.derive.supplied] The compiler supplies only `Structure`, the handle constants, and the generated `walk`, `describe`, and `build` bodies.
 3. r[annot.derive.library] Templates, walkers, describers, sources, and facts are ordinary library code.
 
@@ -653,7 +652,7 @@ See also: [Derived Implementations](09-traits.md#derived-implementations),
 
 1. r[annot.derive.opt-in] `@derive(...)` is the only form that creates a derived implementation from a declaration.
 2. r[annot.derive.accepted] It accepts any trait that has a [template](#templates), the comparison traits of [Derived Implementations](09-traits.md#derived-implementations) included.
-3. r[annot.derive.means] For a trait `X` with a template, `@derive(X)` before a data type or enum `T` means exactly the derivation block `impl X for T by Structure` with an empty body. A newtype derives through its base type instead, as [Derived Newtypes](09-traits.md#derived-newtypes) defines.
+3. r[annot.derive.means] For a trait `X` with a template, `@derive(X)` before a struct or enum `T` means exactly the derivation block `impl X for T by Structure` with an empty body. A newtype derives through its base type instead, as [Derived Newtypes](09-traits.md#derived-newtypes) defines.
 4. r[annot.derive.no-use] `@derive(X)` needs no `use` of `Structure`. The import is needed only where code writes `by Structure`, as [`annot.block.structure-use`](#r-annot.block.structure-use) states.
 5. r[annot.derive.other] Any other trait in a `@derive` list is an error, reported on the `@derive` line. Error: `underivable-trait`.
 6. r[annot.derive.error-trait] `Error` has no template, so `@derive(Error)` is an error. Error: `underivable-trait`.
@@ -774,7 +773,7 @@ pub trait Source[S]:
 6. r[annot.structure.members-api] `members.end()` is the end key. `members.at(position)` is the key of the member at that position, and `members.find(matches)` is the key of the first member that `matches` accepts. Each returns the end key when no member fits.
 7. r[annot.structure.no-names] The names of `Members`, `Key`, and the handle methods are fixed by these declarations. Further helpers over them are standard-library design, outside this specification.
 8. r[annot.structure.self-ref-enum] `std.structure` also declares the enum `SelfRef`, whose three values [Self References](#self-references) defines.
-9. r[annot.structure.self-ref-field] The compiler computes the `self_ref` field of every `Member` and `VariantInfo` value it supplies.
+8. r[annot.structure.self-ref-field] The compiler computes the `self_ref` field of every `Member` and `VariantInfo` value it supplies.
 
 ```text
 use std.inspect.Inspectable
@@ -812,16 +811,15 @@ fn first_or[M](facts: Facts, fallback: M) -> M:
 3. r[annot.structure.per-derivation] Each derivation sees its own `Structure` for the target, which reflects that derivation's facts and omitted members.
 4. r[annot.structure.named-positions] `Structure` may be named, as a bound or in a call such as `T::facts()`, only inside a template. Outside one, it may appear only in the `use` declaration that imports it and after `by` in a derivation block's header.
 5. r[annot.structure.named-positions.error] Any other use of `Structure`, such as the bound in `fn fields[X < Structure]`, is an error. Error: `structure-outside-template`.
-6. r[annot.structure.receivers] `walk` takes the value as a readonly `self`. `facts`, `describe`, and `build` are receiverless.
+6. r[annot.structure.receivers] `walk` takes the value as `self`. `facts`, `describe`, and `build` are receiverless.
 7. r[annot.structure.protocol-ref] `walk`, `describe`, and `build` take the walker, describer, or source as a `&mut` reference, and every method of `Walker`, `Describer`, and `Source` takes `&mut self`. So a struct walker changes in place, and its caller reads the walker's fields after the traversal.
-8. r[annot.structure.build-fresh] `build` returns `mut Self`, because a built value is fresh like a data literal. Callers weaken it by ordinary assignability.
-9. r[annot.structure.private] `walk`, `describe`, and `build` include private members. Opting a type in lets the template's library read every member.
-10. r[annot.structure.pure] `walk`, `describe`, and `build`, and every method of `Walker`, `Describer`, and `Source`, have the empty requirement row and are not suspending.
-11. r[annot.structure.pure.impl] An implementation method of `Walker`, `Describer`, or `Source` that declares a requirement or suspends is an error. Error: `trait-method-signature`.
-12. r[annot.structure.name] `T::name()` returns the target's declared name, with no module path and no type arguments. Like `facts`, `name` is receiverless.
-13. r[annot.structure.name.constant] `T::name()` is a compile-time constant. Like every use of `Structure`, it may be called only inside a template.
-14. r[annot.structure.name.newtype] A newtype has its own name: its `name()` is the newtype's declared name, not its base type's.
-15. r[annot.structure.name.alias] A transparent alias has no `Structure` of its own. A derivation through it sees its base type's, so `name()` is the base type's declared name.
+8. r[annot.structure.private] `walk`, `describe`, and `build` include private members. Opting a type in lets the template's library read every member.
+9. r[annot.structure.pure] `walk`, `describe`, and `build`, and every method of `Walker`, `Describer`, and `Source`, have the empty requirement row and are not suspending.
+10. r[annot.structure.pure.impl] An implementation method of `Walker`, `Describer`, or `Source` that declares a requirement or suspends is an error. Error: `trait-method-signature`.
+11. r[annot.structure.name] `T::name()` returns the target's declared name, with no module path and no type arguments. Like `facts`, `name` is receiverless.
+12. r[annot.structure.name.constant] `T::name()` is a compile-time constant. Like every use of `Structure`, it may be called only inside a template.
+13. r[annot.structure.name.newtype] A newtype has its own name: its `name()` is the newtype's declared name, not its base type's.
+14. r[annot.structure.name.alias] A transparent alias has no `Structure` of its own. A derivation through it sees its base type's, so `name()` is the base type's declared name.
 
 ```text
 use std.structure.Structure
@@ -835,7 +833,7 @@ fn fields[X < Structure]() -> void:  # error: structure-outside-template
     pass
 ```
 
-For `data Box[T]` declared in the module `shapes`, `T::name()` is
+For `struct Box[T]` declared in the module `shapes`, `T::name()` is
 `"Box"`, not `"shapes.Box"` or `"Box[i32]"`.
 
 > **Note.** A newtype gets no `Structure` today
@@ -947,7 +945,7 @@ impl[T < Tuple] Encode for T by Structure:
 > **Why.** A tuple has no declaration to write `@derive` on, so the trait
 > opts every tuple in. A separate form keeps `@derive` meaning one thing.
 > So a trait that suits only tuples, such as a tuple `Display`, does not
-> become derivable for data types.
+> become derivable for structs.
 
 ### Derivation Blocks
 
@@ -1074,7 +1072,7 @@ impl Show for Account by Structure:
     Audit = pass  # error: omitted-member-without-default
 ```
 
-An embedded part has no default syntax
+An embedded field has no default syntax
 ([`data.default.embedded`](08-data-and-enums.md#r-data.default.embedded)),
 so omitting one, as `Audit = pass` above, is always this error.
 
@@ -1139,10 +1137,10 @@ change the type of a member.
 8. r[annot.no-trait.then-blocks] A derivation block's member lines then edit those declaration facts, for that block only.
 9. r[annot.no-trait.module] A derivation block with no trait must be declared in the module that declares `X`, as an inherent implementation must. One declared elsewhere is an error, reported on the block. Error: `misplaced-derivation`.
 10. r[annot.no-trait.local] A derivation block with no trait in a local scope is an error, reported on the block: local declarations carry no metadata. Error: `misplaced-derivation`.
-11. r[annot.no-trait.target] `X` must be a data type or an enum. Any other target, including a newtype, is an error, reported on the block. Error: `misplaced-derivation`.
+11. r[annot.no-trait.target] `X` must be a struct or an enum. Any other target, including a newtype, is an error, reported on the block. Error: `misplaced-derivation`.
 12. r[annot.no-trait.by] The name after `by` in a header without a trait must be `Structure`, as [`trait.by.no-trait`](09-traits.md#r-trait.by.no-trait) states.
 13. r[annot.no-trait.generic] The header must declare only the own type parameters of `X`'s declaration, in order and without bounds, and apply `X` to them, as `impl[T] Box[T] by Structure:`.
-14. r[annot.no-trait.generic.rename] The header may rename the parameters, as `impl[U] Box[U] by Structure:` for `data Box[T]`. Only their count, their order, and the absence of bounds are checked.
+14. r[annot.no-trait.generic.rename] The header may rename the parameters, as `impl[U] Box[U] by Structure:` for `struct Box[T]`. Only their count, their order, and the absence of bounds are checked.
 15. r[annot.no-trait.generic.error] Any other header, such as `impl Box[i32] by Structure:` or `impl[T < Hash] Box[T] by Structure:`, is an error, reported on the block. Error: `misplaced-derivation`.
 16. r[annot.no-trait.unique] A type has at most one derivation block with no trait. A second one is an error, reported on the second block. Error: `overlapping-impl`.
 
@@ -1193,7 +1191,7 @@ fn key_for(style: Style, m: Member) -> string:
 ```
 
 1. r[annot.fact.descriptive] Facts are descriptive: a fact changes no generated call. Only a template's own code reads it.
-2. r[annot.fact.type-level-decorator] A decorator before a data or enum declaration attaches a type-level fact, as `@style(prefix="user_")` does.
+2. r[annot.fact.type-level-decorator] A decorator before a struct or enum declaration attaches a type-level fact, as `@style(prefix="user_")` does.
 3. r[annot.fact.member-metadata] A member's or variant's declaration facts are its member metadata. Those are the values that its decorators attach, in source order, as the type's derivation block with no trait edits them.
 4. r[annot.fact.payload] A payload member's declaration facts are the values of the decorators before its payload parameter.
 5. r[annot.fact.shared] Declaration facts are seen by every derivation of the type. A derivation block's member lines edit them for that block only.
@@ -1289,14 +1287,14 @@ struct User:
 
 ### Walk, Describe, And Build
 
-The compiler generates three traversals for each derivation. A data type is
+The compiler generates three traversals for each derivation. A struct is
 traversed as an enum with one variant.
 
 #### Walk
 
 1. r[annot.walk.match] Generated `walk` matches the value once and calls `w.variant(v)` for the value's variant.
 2. r[annot.walk.members] It then calls `w.member(h, value)` for each member of that variant, in declaration order.
-3. r[annot.walk.value] Each member value is read through the readonly `self`, so it has the member's read type.
+3. r[annot.walk.value] Each member value is read from `self`, so it has the member's declared type.
 4. r[annot.walk.error] The first `.Err` that `variant` or `member` returns ends the walk, and `walk` returns it. Otherwise `walk` returns `.Ok(())`.
 5. r[annot.walk.nested] A member is passed as one value. Its own members are reached only through its own type's implementations.
 6. r[annot.walk.rest] For a [rest member](#r-annot.tuple.rest), generated `walk` calls `w.rest(h, items)` in place of `w.member`, with the rest element's list as `items`.
@@ -1353,11 +1351,11 @@ fn demo() -> List[string]:
 
 #### Build
 
-1. r[annot.build.variant] Generated `build` first calls `s.variant(choices)` once, with every variant in declaration order. A data type offers its one variant.
+1. r[annot.build.variant] Generated `build` first calls `s.variant(choices)` once, with every variant in declaration order. A struct offers its one variant.
 2. r[annot.build.next] It then calls `s.next(members)` with the chosen variant's members, repeatedly, until the source returns the end key.
 3. r[annot.build.member] For each member key, it calls `s.member(h, previous)`, where `previous` is the value already read for that member, or `.None`.
 4. r[annot.build.missing] After the end key, it calls `s.missing(h)` once for each member that the source never named.
-5. r[annot.build.construct] It then constructs the chosen variant from one local per member, and returns it as `mut Self`.
+5. r[annot.build.construct] It then constructs the chosen variant from one local per member, and returns it.
 6. r[annot.build.errors] The first `.Err` from a source method ends the build and is returned. Generated code never creates an error value of its own.
 7. r[annot.build.foreign-key] A key that does not name one of the chosen variant's members is a checked runtime panic with category `structure-variant-mismatch`.
 8. r[annot.build.shared] `build` never reads shared constructor data: the chosen variant's `->` expression fixes it.
@@ -1380,7 +1378,7 @@ fn demo() -> Config:
 2. r[annot.member.embedded] An embedded field is one member, named by its embedded type's final name, with `embedded` true.
 3. r[annot.member.positional] An unnamed payload parameter is a member named `_0`, `_1`, and so on, by position, with `positional` true.
 4. r[annot.variant.info] Each variant has a `VariantInfo` value: its name, its zero-based index, its facts, its doc comment, `of_data`, and `shared`.
-5. r[annot.variant.data] A data type's one variant has `of_data` true, and its name and doc comment are the type's.
+5. r[annot.variant.data] A struct's one variant has `of_data` true, and its name and doc comment are the type's.
 6. r[annot.variant.data-facts] That variant's `facts` is empty: a template reads the type-level facts once, through `T::facts()`.
 7. r[annot.variant.shared-pairs] `shared` holds the variant's shared constructor data as `(name, value)` pairs. An unnamed shared parameter is named `_0`, `_1`, and so on.
 8. r[annot.variant.shared.no-handle] Shared constructor data is never a member: it is never passed as a handle.
@@ -1419,10 +1417,9 @@ fn demo() -> List[string]:
     # ["variant 0: Dot", "variant 1: Pair", "member 0: _0", "member 1: _1"]
 ```
 
-> **Note.** An embedded member's value is the part itself, not a copy, as
-> [`data.part.access`](08-data-and-enums.md#r-data.part.access) states.
-> The language never flattens a part; a library that flattens reads the
-> `embedded` flag.
+> **Note.** An embedded member is passed as one value of its embedded
+> type. The language never flattens an embedded field; a library that
+> flattens reads the `embedded` flag.
 
 See also: [Data Embedding](08-data-and-enums.md#data-embedding),
 [Shared Enum Constructor Data](08-data-and-enums.md#shared-enum-constructor-data).
@@ -1430,7 +1427,7 @@ See also: [Data Embedding](08-data-and-enums.md#data-embedding),
 ### Tuple Structure
 
 A tuple type has a `Structure` for its [tuple templates](#tuple-templates).
-It is traversed as a data type whose members are its elements:
+It is traversed as a struct whose members are its elements:
 
 ```text
 fn show(t: (i32, i32, List[i32]...)) -> string:
@@ -1464,13 +1461,13 @@ also tells whether the member's type needs that type. Both follow from the
 member's declared type
 alone, by the rules below.
 
-1. r[annot.self-ref.enclosing] The enclosing type of a member or a variant is the data type or enum that declares it.
+1. r[annot.self-ref.enclosing] The enclosing type of a member or a variant is the struct or enum that declares it.
 2. r[annot.self-ref.enclosing.arguments] In these rules, the enclosing type is its declaration applied to any type arguments. Inside `enum Nest[T]`, `Nest[List[T]]` is the enclosing type.
 3. r[annot.self-ref.refers] A type refers to the enclosing type when it is that type, or has a type argument or a tuple element that refers to it.
-4. r[annot.self-ref.refers.members] A data type or enum also refers to the enclosing type when one of its members has a type that refers to it.
+4. r[annot.self-ref.refers.members] A struct or enum also refers to the enclosing type when one of its members has a type that refers to it.
 5. r[annot.self-ref.refers.reference] A reference type, `&T` or `&mut T`, refers to the enclosing type when `T` does.
 6. r[annot.self-ref.needs.self] A type needs the enclosing type when it is the enclosing type.
-7. r[annot.self-ref.needs.compound] A tuple or data type needs it when one of its element or member types needs it, with the data type's type arguments substituted.
+7. r[annot.self-ref.needs.compound] A tuple or struct needs it when one of its element or member types needs it, with the struct's type arguments substituted.
 8. r[annot.self-ref.needs.result] `Result[T, E]` needs it when `T` does.
 9. r[annot.self-ref.needs.reference] A reference type, `&T` or `&mut T`, needs it when `T` does, since a reference always refers to a value.
 10. r[annot.self-ref.needs.enum] Any other enum type needs it when each of its variants has a member whose type needs it, with the enum's type arguments substituted.
@@ -1513,7 +1510,7 @@ struct Node:
 > also refers to it, so two independent flags would allow a state that
 > cannot occur.
 
-> **Note.** In `data Node` with `parent: Node?` and a block line
+> **Note.** In `struct Node` with `parent: &Node?` and a block line
 > `parent = pass`, the one variant of `Node` still has `self_ref`
 > `.Optional`, although its derivation walks only `label`.
 
@@ -1529,34 +1526,32 @@ A **handle** is a compiler-generated constant that names one member or
 variant of a derivation's target.
 
 1. r[annot.handle.constants] Each member has one constant handle of type `Field[S, F]`, and each variant one of type `Variant[S]`.
-2. r[annot.handle.read-type] `walk` and `describe` pass handles whose `F` is the member's read type: for `hits: mut Counter`, it is `Counter`.
-3. r[annot.handle.declared-type] `build` passes handles whose `F` is the member's declared type: for `hits: mut Counter`, it is `mut Counter`.
-4. r[annot.handle.field-variance] `Field` is contravariant in `S` and invariant in `F`, since `default` returns `F?` and an optional is invariant.
-5. r[annot.handle.get] `h.get(x)` accepts any `S`. Its type is the type that the field access `x.member` would have, for a member declared `F`.
-6. r[annot.handle.get.views] So `get` on a declared-type handle returns the readonly view for a readonly `x`, and `F` for a `mut S`. No member is upgraded.
-7. r[annot.handle.get.variant] `h.get(x)` on a payload member, when `x` holds another variant, is a checked runtime panic with category `structure-variant-mismatch`.
-8. r[annot.handle.holds] `v.holds(x)` is true exactly when `x` holds the variant `v`.
-9. r[annot.handle.default] `h.has_default()` is true when the member declares a default. `h.default()` evaluates that default, or returns `.None` when there is none.
-10. r[annot.handle.escape] Handles are ordinary values and may escape the traversal that passed them.
-11. r[annot.handle.fact.typed] `h.fact::[D]()` reads the member's fact of the [typed fact type](#member-typed-facts) `D`, or `.None`.
-12. r[annot.handle.fact.pattern] It matches `D`'s pattern against the handle's `F` exactly as the attach-time check does, by [`annot.typed-fact.infer`](#r-annot.typed-fact.infer). Its type is `D[A]?`, where `A` holds the inferred arguments.
-13. r[annot.handle.fact.pattern.example] So under `@annotate::[List[T]](.Field) data MaxLen[T]`, `h.fact::[MaxLen]()` on the handle of `tags: List[string]` has type `MaxLen[string]?`.
-14. r[annot.handle.fact.pattern.mismatch] An `F` that does not fit `D`'s pattern is an error, as it is at attach time. Error: `type-mismatch`.
-15. r[annot.handle.fact.pattern.written] `D` may be written with its type arguments, as in `h.fact::[Fallback[F]]()`. They must be the arguments that the match infers. Error: `type-mismatch`.
-16. r[annot.handle.fact.exact] It finds only a fact whose type is exactly `D[A]`. On a read-type handle of a member declared `mut T`, `F` is `T`, so a fact bound to `mut T` is not found.
-17. r[annot.handle.fact.key] The type parameters that `D[A]` mentions follow [`annot.structure.find-key`](#r-annot.structure.find-key), except the handle's own `F`, which needs no runtime identity. Error: `unsatisfied-trait-bound`.
+2. r[annot.handle.member-type] `walk`, `describe`, and `build` pass handles whose `F` is the member's declared type: for `hits: &mut Counter`, it is `&mut Counter`.
+3. r[annot.handle.field-variance] `Field` is contravariant in `S` and invariant in `F`, since `default` returns `F?` and an optional is invariant.
+4. r[annot.handle.get] `h.get(x)` accepts any `S`. Its type is the type that the field access `x.member` would have, for a member declared `F`.
+5. r[annot.handle.get.variant] `h.get(x)` on a payload member, when `x` holds another variant, is a checked runtime panic with category `structure-variant-mismatch`.
+6. r[annot.handle.holds] `v.holds(x)` is true exactly when `x` holds the variant `v`.
+7. r[annot.handle.default] `h.has_default()` is true when the member declares a default. `h.default()` evaluates that default, or returns `.None` when there is none.
+8. r[annot.handle.escape] Handles are ordinary values and may escape the traversal that passed them.
+9. r[annot.handle.fact.typed] `h.fact::[D]()` reads the member's fact of the [typed fact type](#member-typed-facts) `D`, or `.None`.
+10. r[annot.handle.fact.pattern] It matches `D`'s pattern against the handle's `F` exactly as the attach-time check does, by [`annot.typed-fact.infer`](#r-annot.typed-fact.infer). Its type is `D[A]?`, where `A` holds the inferred arguments.
+11. r[annot.handle.fact.pattern.example] So under `@annotate::[List[T]](.Field) struct MaxLen[T]`, `h.fact::[MaxLen]()` on the handle of `tags: List[string]` has type `MaxLen[string]?`.
+12. r[annot.handle.fact.pattern.mismatch] An `F` that does not fit `D`'s pattern is an error, as it is at attach time. Error: `type-mismatch`.
+13. r[annot.handle.fact.pattern.written] `D` may be written with its type arguments, as in `h.fact::[Fallback[F]]()`. They must be the arguments that the match infers. Error: `type-mismatch`.
+14. r[annot.handle.fact.exact] It finds only a fact whose type is exactly `D[A]`.
+15. r[annot.handle.fact.key] The type parameters that `D[A]` mentions follow [`annot.structure.find-key`](#r-annot.structure.find-key), except the handle's own `F`, which needs no runtime identity. Error: `unsatisfied-trait-bound`.
 
 ```text
-data Counter:
+struct Counter:
     count: i64
 
 @derive(Duplicate)
-data Stats:
-    hits: mut Counter
+struct Stats:
+    hits: &mut Counter
     label: string
 
 struct CopySource[S]:
-    old: mut S
+    old: S
 
 impl[S] Source[S] for CopySource[S]:  # variant, next, and member elided
     type Error = never
@@ -1568,14 +1563,8 @@ impl[S] Source[S] for CopySource[S]:  # variant, next, and member elided
 > **Note.** A walker that holds a second value, such as a diff, checks
 > `v.holds(other)` in `variant` before any `h.get(other)`. The
 > standard-library `Clone` trait, listed in
-> STDLIB, declares `clone(self)`, which
-> reads the readonly views. It also declares `clone_mut(mut self) -> mut
-> Self`, whose
-> source reads the declared types from a `mut` value, as `CopySource` does.
-
-> **Note.** Since `F` is invariant, a declared-type handle such as
-> `Field[Stats, mut Counter]` does not convert to the read-type handle
-> `Field[Stats, Counter]`.
+> STDLIB, declares `clone(self)`, whose source reads each member from the
+> value, as `CopySource` does.
 
 > **Note.** Handles are constants, and each generated call passes a
 > constant dictionary, so a traversal allocates nothing per member.
@@ -1877,7 +1866,7 @@ fn load(text: string) -> Result[i64, LoadError]:
 
 1. r[annot.error.intrinsic] `@error` is a compiler intrinsic, as `@derive` is. It is not an ordinary decorator and attaches no value.
 2. r[annot.error.name] `@error` always means the intrinsic. A binding named `error` in scope, such as an import, does not change it.
-3. r[annot.error.type] An **error type** is an enum with a bare `@error` line, or a data type with an `@error("...")` or `@error(transparent)` line.
+3. r[annot.error.type] An **error type** is an enum with a bare `@error` line, or a struct with an `@error("...")` or `@error(transparent)` line.
 4. r[annot.error.generates] For an error type `E`, the compiler generates `impl Display for E`, `impl Error for E`, and one `impl From[P] for E` for each `@from` member.
 5. r[annot.error.ordinary] The generated implementations are ordinary implementations, under the ordinary rules for coherence and overlap.
 6. r[annot.error.hand-written] A hand-written implementation of `Display`, `Error`, or a generated `From[P]` for an error type is an error, reported on that implementation. Error: `overlapping-impl`.
@@ -1889,14 +1878,14 @@ The forms are:
 | r[annot.error.form.enum] Error enum | `@error` | an enum | makes the enum an error type |
 | r[annot.error.form.variant-message] Variant message | `@error("...")` | a variant of an error enum | the variant's message |
 | r[annot.error.form.variant-transparent] Transparent variant | `@error(transparent)` | a variant of an error enum with one payload member | forwards the message and the cause to that member |
-| r[annot.error.form.data-message] Error data type | `@error("...")` | a data type | makes it an error type with that message |
-| r[annot.error.form.data-transparent] Transparent data type | `@error(transparent)` | a data type with one field | makes it an error type that forwards to that field |
-| r[annot.error.form.from] Conversion marker | `@from` | the only payload parameter of a variant of an error enum, or the only field of an error data type | generates `From` and marks the cause |
-| r[annot.error.form.source] Cause marker | `@source` | one payload parameter of a variant of an error enum, or one field of an error data type | marks the cause |
+| r[annot.error.form.data-message] Error struct | `@error("...")` | a struct | makes it an error type with that message |
+| r[annot.error.form.data-transparent] Transparent struct | `@error(transparent)` | a struct with one field | makes it an error type that forwards to that field |
+| r[annot.error.form.from] Conversion marker | `@from` | the only payload parameter of a variant of an error enum, or the only field of an error struct | generates `From` and marks the cause |
+| r[annot.error.form.source] Cause marker | `@source` | one payload parameter of a variant of an error enum, or one field of an error struct | marks the cause |
 
 7. r[annot.error.form.other] Any other `@error` line is an error, and so is any other `@from` or `@source` line inside an error type. A form on the wrong target is `decorator-target-kind`; an invalid argument or marker argument is `invalid-error-marker`, as the rules below specify.
 8. r[annot.error.form.misplaced] A form written before a target that the table does not list for it is an error, reported on the form. Error: `decorator-target-kind`.
-9. r[annot.error.form.misplaced.examples] So `@error` before a function or a newtype, and a bare `@error` before a data type, are each `decorator-target-kind`. So are `@error("...")` before an enum, and `@from` beside a second payload member.
+9. r[annot.error.form.misplaced.examples] So `@error` before a function or a newtype, and a bare `@error` before a struct, are each `decorator-target-kind`. So are `@error("...")` before an enum, and `@from` beside a second payload member.
 10. r[annot.error.form.argument] An `@error` line whose arguments are neither one message nor `transparent` is an error, reported on the line. Error: `invalid-error-marker`.
 11. r[annot.error.form.argument.examples] So `@error(opaque)`, `@error(42)`, and `@error("closed", "shut")` are each `invalid-error-marker`.
 12. r[annot.error.form.marker-argument] An `@from` or `@source` line with arguments inside an error type, such as `@from(yaml)`, is an error, reported on the line. A marker takes no value. Error: `invalid-error-marker`.
@@ -1945,7 +1934,7 @@ enum WriteError:
 3. r[annot.error.message.unnamed] Unnamed payload members are numbered from zero, in declaration order.
 4. r[annot.error.message.shared] A variant's message also sees the enum's named [shared fields](08-data-and-enums.md#shared-fields) by name.
 5. r[annot.error.message.shared-unnamed] Unnamed shared data is not in scope, so `$_0` and `$_1` always name the variant's unnamed payload members.
-6. r[annot.error.message.data] A data type's message sees the type's fields by name.
+6. r[annot.error.message.data] A struct's message sees the struct's fields by name.
 7. r[annot.error.message.checked] A message is type-checked as ordinary code in that scope. A name that resolves to nothing is an error. Error: `unknown-name`.
 8. r[annot.error.message.display] Each interpolated value must implement `Display`, as [`expr.interp.no-display`](05-expressions.md#r-expr.interp.no-display) requires. Error: `unsatisfied-trait-bound`.
 9. r[annot.error.message.no-self] A message is not inside a method, so `self` names nothing there, and `$self` in a message is an error. Error: `unknown-name`.
@@ -1982,9 +1971,9 @@ status code, so `Missing` has no `_0` in scope.
 ### Error Causes
 
 1. r[annot.error.cause.method] The generated `Error` implementation defines [`cause`](09-traits.md#r-trait.error.cause), which returns the value's cause member, or `.None` when it has none.
-2. r[annot.error.cause.member] A variant's or data type's cause member is its `@from` or `@source` member.
-3. r[annot.error.cause.explicit] A variant or data type without `@from` or `@source` has no cause. There is no automatic cause and no field-name convention.
-4. r[annot.error.cause.one] A variant or data type has at most one `@from` or `@source` member. A second one is an error, reported on that member. Error: `invalid-error-marker`.
+2. r[annot.error.cause.member] A variant's or struct's cause member is its `@from` or `@source` member.
+3. r[annot.error.cause.explicit] A variant or struct without `@from` or `@source` has no cause. There is no automatic cause and no field-name convention.
+4. r[annot.error.cause.one] A variant or struct has at most one `@from` or `@source` member. A second one is an error, reported on that member. Error: `invalid-error-marker`.
 5. r[annot.error.cause.type] A cause member's type must implement `Error`. Error: `unsatisfied-trait-bound`.
 6. r[annot.error.cause.optional] A `@source` member may instead have the type `E?`, where `E` implements `Error`. A `.None` member gives no cause.
 
@@ -2008,7 +1997,7 @@ enum SaveError:
 ### Error Conversions
 
 1. r[annot.error.from.generate] `@from` on a variant's only payload member of type `P` generates `impl From[P] for E`, whose `from` builds that variant.
-2. r[annot.error.from.data] `@from` on an error data type's only field generates the same implementation, whose `from` builds the data value.
+2. r[annot.error.from.data] `@from` on an error struct's only field generates the same implementation, whose `from` builds the struct value.
 3. r[annot.error.from.unmarked] A member without `@from` generates no `From`, so `Invalid(reason: string)` never yields `From[string]`.
 4. r[annot.error.from.same-type] Two `@from` members of one type `P` generate overlapping implementations of `From[P]`. The later one is an error, reported on its member. Error: `overlapping-impl`.
 5. r[annot.error.from.type-parameter] A `@from` member whose type is a bare type parameter is an error. Error: `invalid-error-marker`.
@@ -2037,7 +2026,7 @@ enum AppError[E]:
 
 ### Transparent Errors
 
-1. r[annot.error.transparent.display] A transparent variant or data type displays as its one member displays.
+1. r[annot.error.transparent.display] A transparent variant or struct displays as its one member displays.
 2. r[annot.error.transparent.cause] Its `cause` returns that member's own `cause`, so a chain does not repeat the inner message.
 3. r[annot.error.transparent.type] The member's type must implement `Error`. Error: `unsatisfied-trait-bound`.
 

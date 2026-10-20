@@ -197,7 +197,7 @@ impl DebugWriter:
     # Starts writing `value`, a data value with fields, a list or a map: the
     # values that have identity and can change, so every cycle passes one.
     # A value that is already being written is part of a cycle: this writes
-    # `<cycle>` and returns false (spec/lang/10-modules.md#r-module.dbg.cycle.tracked).
+    # `<cycle>` and returns false (spec/lang/10-modules.md#r-module.dbg.cycle.reference).
     # Enum values are never passed here: they have no identity.
     fn enter(&mut self, value: dyn Any) -> bool:
         for seen in self.active:
@@ -752,7 +752,7 @@ fn dbg_result[A, B](value: Result[A, B], out: &mut DebugWriter, show_ok: fn(A, &
                 out.tuple_close(1, false)
 
 # A list can change after it is built, so a cycle may pass through it
-# (r-module.dbg.cycle.tracked).
+# (r-module.dbg.cycle.reference).
 fn dbg_list[E](value: List[E], out: &mut DebugWriter, show: fn(E, &mut DebugWriter) -> void) -> void:
     if out.enter(value):
         if out.open():

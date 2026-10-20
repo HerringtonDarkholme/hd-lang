@@ -1,4 +1,4 @@
-# test: iterating readonly List[mut User] yields mut User, so element fields may be assigned
+# test: iterating a readonly List[&mut User] yields &mut User, so element fields may be assigned
 struct User:
     name: string
 

@@ -1,7 +1,0 @@
-# test: a function-type conversion that only weakens permissions is representation-preserving
-# Spec 07 Passing Function Values: fn.type.variance-repr.
-data User:
-    name: string
-
-fn readonly(make: fn() -> mut User) -> fn() -> User:
-    make

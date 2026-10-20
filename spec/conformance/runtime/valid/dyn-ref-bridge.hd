@@ -1,9 +1,9 @@
-# test: a struct's `&mut self` method that fills a trait method declared `mut self` is called through `&mut dyn`, changing the caller's place or a new object written `&mut Tally { ... }`
-# Spec 09 Trait Value References: trait.dyn.ref.bridge. Spec 09 Receivers Of Struct Implementations: trait.impl.receiver-bridge.serves.
+# test: a struct's `&mut self` method is called through `&mut dyn`, changing the caller's place or a new object written `&mut Tally { ... }`
+# Spec 09 Trait Value References: trait.dyn.ref.share, trait.dyn.ref.member.
 # expect-stdout: 2 2
 # expect-stdout: 1
 trait Counter:
-    fn bump(mut self) -> void
+    fn bump(&mut self) -> void
     fn total(self) -> i32
 
 struct Tally:

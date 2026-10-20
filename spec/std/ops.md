@@ -83,7 +83,7 @@ See also: [Associated Function Calls](../lang/09-traits.md#associated-function-c
 
 ## Derived Default
 
-`@derive(Default)` builds a data type's or an enum's default from its
+`@derive(Default)` builds a struct's or an enum's default from its
 members' defaults. A member's declared default wins over its type's. An
 enum marks its default variant with `@default`:
 
@@ -119,7 +119,7 @@ pub fn default() -> DefaultVariant
 ```
 
 1. r[std-ops.default.derive.template] `std.ops` declares the [template](../lang/14-annotations.md#templates) of `Default`, which `@derive(Default)` instantiates. It is ordinary `std.ops` code over `std.structure`, as the templates of `Eq` and `Hash` are.
-2. r[std-ops.default.derive.data.declared] A derived data type's default sets a member that declares a default, as `retries: i32 = 3`, to that default.
+2. r[std-ops.default.derive.data.declared] A derived struct's default sets a member that declares a default, as `retries: i32 = 3`, to that default.
 3. r[std-ops.default.derive.data.type-default] It sets every other member to its own type's default, `F::default()`.
 4. r[std-ops.default.derive.member-bound.undeclared] The template requires `Default` only of the type of a member that declares no default. Such a member whose type does not implement it makes the type not derivable, reported at the opt-in and naming the member. Error: `member-not-derivable`.
 5. r[std-ops.default.derive.member-bound.declared] A member that declares a default needs no `Default` on its type, as `secret: Secret = Secret { value: 7 }` shows below.
@@ -177,7 +177,7 @@ fn opened() -> i32:
 > [`annot.omit.default`](../lang/14-annotations.md#r-annot.omit.default).
 
 > **Why.** No variant is more neutral than another, so the enum names its
-> default, as Rust's `#[default]` does. A data type has one shape, so its
+> default, as Rust's `#[default]` does. A struct has one shape, so its
 > default needs no marker.
 
 See also: [Derived Implementations](../lang/09-traits.md#derived-implementations),

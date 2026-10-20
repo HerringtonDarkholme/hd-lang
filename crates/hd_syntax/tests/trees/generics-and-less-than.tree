@@ -74,7 +74,7 @@ Root
   ImplDecl impl for :
     GenericParameterList [ ]
       GenericParameter T
-        BoundList < mut
+        BoundList <
           NamedType Clear
     NamedType Reset
     NamedType Holder
@@ -83,7 +83,7 @@ Root
     Block
       FnDecl fn reset -> :
         ParameterList ( )
-          Parameter mut self
+          Parameter & mut self
         NamedType void
         Block
           ExprStmt

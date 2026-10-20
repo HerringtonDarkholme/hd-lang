@@ -179,9 +179,5 @@ fn main() -> void:
     _ := pending.cancel()
 ";
     let out = built(main);
-    assert!(
-        out.render().contains("mutable-receiver-required"),
-        "{}",
-        out.render()
-    );
+    assert!(out.render().contains("not-writable"), "{}", out.render());
 }

@@ -896,11 +896,11 @@ impl Em<'_> {
                 if fields.is_empty() {
                     return self.canonical_data(i, ty, st);
                 }
-                let (ftys, in_data) = self.field_tys(ty);
+                let ftys = self.field_tys(ty);
                 for (k, (r, (_, vs))) in self.rec(bw).into_iter().zip(fields).enumerate() {
                     self.load_as(r, &vs)?;
                     if let (1, Some(&ft)) = (vs.len(), ftys.get(k)) {
-                        self.copy_slot(r, ft, in_data)?;
+                        self.copy_slot(r, ft)?;
                     }
                 }
                 self.a.struct_new(&st);
@@ -932,12 +932,12 @@ impl Em<'_> {
                 // is read from the source (`crates/hd_mono/DESIGN.md` `CopyData`).
                 let words = self.rec(bw);
                 let repl: Vec<(u32, u32)> = words.chunks(2).map(|w| (w[0], w[1])).collect();
-                let (ftys, in_data) = self.field_tys(ty);
+                let ftys = self.field_tys(ty);
                 for (idx, (start, vs)) in fields.iter().enumerate() {
                     if let Some((_, v)) = repl.iter().find(|(f, _)| *f as usize == idx) {
                         self.load_as(*v, vs)?;
                         if let (1, Some(&ft)) = (vs.len(), ftys.get(idx)) {
-                            self.copy_slot(*v, ft, in_data)?;
+                            self.copy_slot(*v, ft)?;
                         }
                     } else {
                         for k in 0..vs.len() {
@@ -984,12 +984,12 @@ impl Em<'_> {
                         self.store_from(i, &vs)?;
                     }
                     Some(v) => {
-                        let (ftys, in_data) = self.field_tys(base_t);
+                        let ftys = self.field_tys(base_t);
                         for (k, w) in vs.iter().enumerate() {
                             self.comp(a, 0, &VT::r(st.clone()))?;
                             self.comp(v, k, w)?;
                             if let (1, Some(&ft)) = (vs.len(), ftys.get(idx as usize)) {
-                                self.copy_slot(v, ft, in_data)?;
+                                self.copy_slot(v, ft)?;
                             }
                             self.a.struct_set(&st, start + u32_of(k));
                         }
@@ -1009,7 +1009,7 @@ impl Em<'_> {
                 for (k, (r, vs)) in members.into_iter().zip(elems).enumerate() {
                     self.load_as(r, &vs)?;
                     if let (1, Some(&mt)) = (vs.len(), mtys.get(k)) {
-                        self.copy_slot(r, mt, false)?;
+                        self.copy_slot(r, mt)?;
                     }
                 }
                 if let Some(b) = boxed {
@@ -1051,7 +1051,7 @@ impl Em<'_> {
                     for r in &items {
                         self.comp(*r, k, v)?;
                         if let (1, Some(et)) = (elem.len(), ety) {
-                            self.copy_slot(*r, et, false)?;
+                            self.copy_slot(*r, et)?;
                         }
                     }
                     self.a.array_new_fixed(&WTy::Array(st), u32_of(items.len()));
@@ -1456,7 +1456,7 @@ impl Em<'_> {
                     Some(r) => {
                         s.comp(*r, k, x)?;
                         match (single.get(f), ptys.get(f)) {
-                            (Some(true), Some(&pt)) => s.copy_slot(*r, pt, false),
+                            (Some(true), Some(&pt)) => s.copy_slot(*r, pt),
                             _ => Ok(()),
                         }
                     }
@@ -1471,7 +1471,7 @@ impl Em<'_> {
                         if some {
                             self.comp(args[0], 0, r)?;
                             if let Some(&pt) = self.member_tys(ty, None).first() {
-                                self.copy_slot(args[0], pt, false)?;
+                                self.copy_slot(args[0], pt)?;
                             }
                         } else {
                             self.a.zero(&r.dflt());
@@ -3897,7 +3897,7 @@ impl Em<'_> {
                     self.a.get(ix);
                     self.comp(args[2], k, v)?;
                     if let (1, Some(et)) = (elem.len(), ety) {
-                        self.copy_slot(args[2], et, false)?;
+                        self.copy_slot(args[2], et)?;
                     }
                     self.a.array_set(&WTy::Array(st));
                 }
@@ -3923,7 +3923,7 @@ impl Em<'_> {
                     self.a.get(n);
                     self.comp(args[1], k, v)?;
                     if let (1, Some(et)) = (elem.len(), ety) {
-                        self.copy_slot(args[1], et, false)?;
+                        self.copy_slot(args[1], et)?;
                     }
                     self.a.array_set(&WTy::Array(st));
                 }
@@ -3950,8 +3950,7 @@ impl Em<'_> {
             | IntrinsicOp::MapSet
             | IntrinsicOp::MapRemove => self.map_op(i, op, &args, ty),
             IntrinsicOp::ValueCopy => {
-                // The copy's own type says what it copies: a legacy `mut`
-                // view of the operand is no copy's type (`types.coll.legacy`).
+                // The copy's own type says what it copies.
                 let vts = self.load(args[0])?;
                 self.copy_top(self.sub(ty))?;
                 self.store_from(i, &vts)
@@ -4299,7 +4298,7 @@ impl Em<'_> {
                     self.a.get(off);
                     self.comp(*r, c, v)?;
                     if let (1, Some(et)) = (elem.len(), ety) {
-                        self.copy_slot(*r, et, false)?;
+                        self.copy_slot(*r, et)?;
                     }
                     self.a.array_set(&arr);
                     self.a.get(off);
@@ -4493,7 +4492,7 @@ impl Em<'_> {
             self.comp(v, k, vt)?;
         }
         if let (1, Some(vty)) = (val.len(), vty) {
-            self.copy_slot(v, vty, false)?;
+            self.copy_slot(v, vty)?;
         }
         self.a.call(Sym::Helper(Helper::MapPut {
             map: mt.clone(),
@@ -5134,9 +5133,6 @@ impl<'a> Em<'a> {
         Ok(())
     }
 
-    /// A fieldless data value is canonical for its data type
-    /// (`expr.is.canonical-data`): one constant global per type, read here
-    /// without allocating (`expr.is.canonical.same`).
     /// `a is b` on two references (`crates/hd_wasm/DESIGN.md` §15.2,
     /// "References"): their identity fields are equal, the bases by
     /// `ref.eq` on the payloads, the serials by `i64.eq`, and the keys as
@@ -5178,6 +5174,11 @@ impl<'a> Em<'a> {
         self.store_from(i, &[VT::I32])
     }
 
+    /// A fieldless struct value, or the value of a fieldless
+    /// compiler-supplied data type such as `RefRoot`: one constant global
+    /// per type, read here without allocating. A struct value has no
+    /// identity (`types.value.anyval`), so no program sees the sharing;
+    /// a reference's identity relies on `RefRoot`'s one value.
     fn canonical_data(&mut self, i: u32, ty: Ty, st: WTy) -> StageResult<()> {
         let h = self.type_hash("canonical-data", ty);
         self.a.global_get(GSym::Canon(h, VT::r(st)));

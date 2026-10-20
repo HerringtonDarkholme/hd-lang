@@ -2,7 +2,7 @@
 //! (`names.module.unique`, `names.tests.unique`), supertrait member names
 //! (`trait.super.no-redeclare`, `trait.sealed.member-names`), inherent member names
 //! (`trait.inherent.unique-unifying`) and embedded types
-//! (`data.embed.data-only`, `data.embed.depth`, `data.embed.depth.self`). They run once the
+//! (`data.struct.embed.struct-only`, `data.embed.depth`, `data.embed.depth.self`). They run once the
 //! folder's items are lowered, over every module of the folder; a type
 //! or trait from another folder is read from its frozen interface.
 
@@ -377,9 +377,9 @@ impl Folder<'_, '_> {
         }
     }
 
-    /// An embedded field names a data type, generic or not: not an enum, a
+    /// An embedded field names a struct type, generic or not: not an enum, a
     /// newtype, a trait value, a built-in or collection type, a function
-    /// type, or a type parameter (`data.embed.data-only`).
+    /// type, or a type parameter (`data.struct.embed.struct-only`).
     fn embedded_data_only<'i>(
         &self,
         item: &dyn Fn(DefId) -> Option<Cow<'i, Item>>,

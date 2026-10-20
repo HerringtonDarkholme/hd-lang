@@ -806,28 +806,6 @@ impl Ck<'_, '_> {
         }
         self.diags
             .add_fix("compare the values with `*`", FixSafety::Suggestion, &edits);
-        // `hd fix --object-model` compares two former data values by value
-        // (`cli.fix.object-model.equality`); a new object it made, `&mut D
-        // { ... }`, loses its `&mut` instead.
-        let mut migration = Vec::new();
-        for (e, sp) in [(l, ls), (r, rs)] {
-            match e.children().next() {
-                Some(operand) if e.kind() == SyntaxKind::RefExpr => {
-                    let inner = self.cx.src.span(operand);
-                    migration.push((at(sp.lo, inner.lo), ""));
-                }
-                _ if wrap(e) => {
-                    migration.push((at(sp.lo, sp.lo), "*("));
-                    migration.push((at(sp.hi, sp.hi), ")"));
-                }
-                _ => migration.push((at(sp.lo, sp.lo), "*")),
-            }
-        }
-        self.diags.add_fix(
-            "compare the values with `*`",
-            FixSafety::Migration,
-            &migration,
-        );
     }
 
     /// Whether a node is an unsuffixed integer literal with the value
@@ -966,7 +944,8 @@ impl Ck<'_, '_> {
                     return Ok(self.b.emit(Tag::Is, a.0, c.0, Ty::BOOL, n.index()));
                 }
             }
-            // `expr.is.compatible`, `expr.is.incompatible.data`.
+            // `expr.is.compatible.referent`, `expr.is.compatible.trait-value`,
+            // `expr.is.incompatible.data`.
             if !self.identity_compatible(at, ct)? {
                 let msg = format!(
                     "`is` compares {} with {}, which are not compatible reference types",
@@ -1685,7 +1664,8 @@ impl Ck<'_, '_> {
     }
 
     /// Whether two `is` operands, both with identity, have compatible
-    /// types (`expr.is.compatible`): equal once `mut` is removed at every
+    /// types (`expr.is.compatible.referent`,
+    /// `expr.is.compatible.trait-value`): equal once `mut` is removed at every
     /// level, which unification does, or one is a trait value or `Any` type
     /// that the other converts to. A match fixes the types' open variables.
     fn identity_compatible(&mut self, l: Ty, r: Ty) -> StageResult<bool> {
@@ -2242,20 +2222,16 @@ impl Ck<'_, '_> {
                 let (r, t) = this.expr(*e, Some(elem))?;
                 refs.push(this.coerce(r, t, elem, *e, "list element", ExpectPosition::General));
             }
-            // An element type solved from the elements alone is their readonly
-            // view, as before permissions were tracked in inference. This keeps
-            // `typing/invalid/orphan-impl-nested-trait-argument.hd` at one error;
-            // types.fresh.element-permission would keep `mut` (reported).
+            // An element type solved from the elements alone drops an outer
+            // `mut`. This keeps
+            // `typing/invalid/orphan-impl-nested-trait-argument.hd` at one error.
             if inferred && let TyData::Mut(x) = pool.get(this.infer.shallow(pool, elem)) {
                 this.infer.rebind(pool, elem, x);
             }
-            // A fresh list has mutable access to its new outer object
-            // (types.fresh.mutable-outer).
             let t = pool.intern_ty(&TyData::Adt {
                 def: list,
                 args: pool.list(&[elem]),
             });
-            let t = pool.intern_ty(&TyData::Mut(t));
             let rec = this.b.refs_record(&refs);
             let marks = if spreads.is_empty() {
                 NONE
@@ -2310,7 +2286,6 @@ impl Ck<'_, '_> {
                     def: map,
                     args: pool.list(&[k, v]),
                 });
-                let t = pool.intern_ty(&TyData::Mut(t));
                 let rec = this.b.refs_record(&refs);
                 Ok((this.b.emit(Tag::NewMap, NONE, rec, t, n.index()), t))
             })
@@ -2398,9 +2373,6 @@ impl Ck<'_, '_> {
         };
         let mut vals = vec![Ref(NONE); fields.len()];
         let mut seen = vec![false; fields.len()];
-        // A struct literal is a plain value (`types.value.no-view`).
-        let value = item.is_struct;
-        let mut fresh_mut = !value;
         // `expr.update.form`: a leading spread supplies every field the
         // literal does not name. The fields it names are replaced.
         let spread = kids[1..]
@@ -2441,13 +2413,8 @@ impl Ck<'_, '_> {
                 if !self.copy_source_fits(st, target, inner) {
                     return Ok((Ref(NONE), Ty::NEVER));
                 }
-                // `data.part.copy-time`: the parts are copied now, before
-                // any explicit field expression runs.
-                if !value && !self.copy_parts((sr, st), &replaced, &mut vals, *a) {
-                    fresh_mut = false;
-                }
-                // `expr.update.copy-time`: the copied fields are read now
-                // too, when an explicit field expression could change the
+                // `expr.update.copy-time`: the copied fields are read now,
+                // when an explicit field expression could change the
                 // source before construction.
                 if kids[1..].iter().any(|f| may_run_code(*f)) {
                     self.copy_fields_now((sr, st), &replaced, &mut vals, *a);
@@ -2484,63 +2451,6 @@ impl Ck<'_, '_> {
                 };
                 self.read_local(l, d, *a)
             };
-            // `E: ...e` stores the copy-update `T { ...e }`
-            // (`data.part.construct`).
-            let marker = self
-                .cx
-                .src
-                .tokens(*a)
-                .nth(2)
-                .and_then(|t| self.cx.src.tkind(t))
-                == Some(TokenKind::Ellipsis);
-            // `data.part.marker-required`: the marker fills an embedded
-            // field and no other.
-            // A struct's embedded field is filled as a named field is, so
-            // a marker there fills no part (`data.struct.embed.no-marker`).
-            if value {
-                if marker {
-                    let msg = format!(
-                        "`{}` of a struct is filled without `...`",
-                        self.cx.names.text(fname)
-                    );
-                    self.err(Code::CopyIntoOrdinaryField, *a, &msg);
-                }
-            } else if fields[i].embedded && !marker {
-                let msg = format!(
-                    "the embedded field `{}` is filled with `...`",
-                    self.cx.names.text(fname)
-                );
-                self.err(Code::EmbeddedCopyRequired, *a, &msg);
-            } else if marker && !fields[i].embedded {
-                let msg = format!(
-                    "`...` fills an embedded field, and `{}` is not one",
-                    self.cx.names.text(fname)
-                );
-                self.err(Code::CopyIntoOrdinaryField, *a, &msg);
-            }
-            let copies = !value && fields[i].embedded && marker;
-            let (r, t) = if copies {
-                let (cr, ct) = self.copy_value((r, t), *a);
-                if !self.has_mut_access(ct) {
-                    fresh_mut = false;
-                }
-                (cr, ct)
-            } else {
-                (r, t)
-            };
-            // A readonly value in a direct `mut U` field makes the literal
-            // readonly (types.fresh.readonly-field).
-            let ft = if !value
-                && matches!(pool.get(fields[i].ty), TyData::Mut(_))
-                && !fields[i].embedded
-                && self.is_composite(t)
-                && !self.has_mut_access(t)
-            {
-                fresh_mut = false;
-                self.readonly_view(ft)
-            } else {
-                ft
-            };
             let ft = self.infer.resolve(pool, ft);
             vals[i] = self.coerce(r, t, ft, *a, "field", ExpectPosition::General);
             seen[i] = true;
@@ -2576,17 +2486,6 @@ impl Ck<'_, '_> {
             args: pool.list(&targs),
         });
         if let Some((sr, st)) = source {
-            // `expr.update.access-view`, `expr.update.readonly-source`,
-            // `expr.update.readonly-fill`: a readonly source reads a
-            // direct `mut U` field as `U`, so the copy is readonly.
-            if self.reads_readonly_edge(st, &replaced) {
-                fresh_mut = false;
-            }
-            let ty = if fresh_mut {
-                pool.intern_ty(&TyData::Mut(ty))
-            } else {
-                ty
-            };
             let rec = self.copy_record(&vals);
             let at = spread.map_or(n, |s| s);
             // The fields the update keeps are copied out of the source
@@ -2594,11 +2493,6 @@ impl Ck<'_, '_> {
             let sr = self.coll_copy(sr, self.strip_mut(st), at.index());
             return Ok((self.b.emit(Tag::CopyData, sr.0, rec, ty, at.index()), ty));
         }
-        let ty = if fresh_mut {
-            pool.intern_ty(&TyData::Mut(ty))
-        } else {
-            ty
-        };
         let rec = self.b.refs_record(&vals);
         Ok((self.b.emit(Tag::NewData, NONE, rec, ty, n.index()), ty))
     }
@@ -2990,7 +2884,7 @@ impl Ck<'_, '_> {
                 };
                 if !m {
                     self.err(
-                        Code::MutableReceiverRequired,
+                        Code::NotWritable,
                         src,
                         "a loop advances its iterator, but this is a read-only reference `&Iterator`; take it with `&mut`",
                     );
@@ -3004,7 +2898,7 @@ impl Ck<'_, '_> {
             // (flow.for.iterator-place).
             TyData::Adt { def, args } if def == iterator => {
                 self.err(
-                    Code::MutableReceiverRequired,
+                    Code::NotWritable,
                     src,
                     "a loop advances its iterator in place, but this iterator is not a variable or a field of one; bind it with `let mut` first",
                 );
@@ -3481,7 +3375,8 @@ impl Ck<'_, '_> {
         let r = self.clauses(clauses, *element, (acc, mt), &args, n);
         self.scopes.pop();
         r?;
-        Ok((self.b.get(acc, mt, n.index()), mt))
+        let v = self.b.get(acc, mt, n.index());
+        Ok((self.retype(v, t, n.index()), t))
     }
 
     fn clauses(

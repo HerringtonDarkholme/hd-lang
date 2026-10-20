@@ -1,5 +1,5 @@
 # test: a data expression names its fields with colons, accepts shorthand, spreads a value to copy its members, and is told apart from a map by the name before the brace
-# Spec 02 Primary Expressions: grammar.primary.field-shorthand, grammar.primary.field-shorthand.mixed, grammar.primary.field-copy, grammar.primary.prefix-copy-meaning, grammar.primary.prefix-copies, grammar.primary.resolution, grammar.label.braces.
+# Spec 02 Primary Expressions: grammar.primary.field-shorthand, grammar.primary.field-shorthand.mixed, grammar.primary.update-spread, grammar.primary.prefix-copy, grammar.primary.resolution, grammar.label.braces.
 # expect-stdout: 3 4
 # expect-stdout: 3 0
 # expect-stdout: 8 4

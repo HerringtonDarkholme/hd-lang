@@ -1,5 +1,5 @@
 # test: downcast_mut needs a mutable receiver, which a readonly view cannot provide
-# Spec 09 Recovering A Concrete Type: downcast_mut through a readonly view is mutable-receiver-required.
+# Spec 09 Recovering A Concrete Type: downcast_mut through a readonly view is not-writable.
 # Spec 09 Traits: trait.downcast.mut-receiver.
 use std.inspect.Inspectable
 
@@ -7,6 +7,6 @@ data Counter:
     count: i32
 
 fn bump(value: dyn Inspectable) -> void:
-    match value.downcast_mut::[Counter]():  # diagnostic: mutable-receiver-required
+    match value.downcast_mut::[Counter]():  # diagnostic: not-writable
         .Some(counter) => counter.count = counter.count + 1
         .None => pass

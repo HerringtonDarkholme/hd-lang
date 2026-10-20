@@ -16,4 +16,4 @@ impl[T < Named & Tagged] Named for Box[T]:
 
 fn label[T < Named & Tagged](value: T) -> string: value.name() + value.tag()
 
-fn twice[T < mut Named & Tagged, U < Tagged](value: T, other: U) -> string: other.tag()
+fn twice[T < Named & Tagged, U < Tagged](value: T, other: U) -> string: other.tag()

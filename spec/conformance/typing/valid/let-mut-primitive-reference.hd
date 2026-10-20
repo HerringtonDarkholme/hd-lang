@@ -1,5 +1,5 @@
 # test: `let mut` on a primitive local is valid and draws no warning when `&mut` of it is taken
-# Spec 04 Binding Forms: types.bind.let-mut-primitive-local, types.bind.let-mut-annotated-valid. Spec 13 Writable Places Of References: ref.place.writable.
+# Spec 04 Binding Forms: types.bind.let-mut-primitive-local; Collection Values: types.coll.let-mut. Spec 13 Writable Places Of References: ref.place.writable.
 fn bump(count: &mut i32) -> void:
     *count += 1
 

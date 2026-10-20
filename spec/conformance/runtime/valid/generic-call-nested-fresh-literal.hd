@@ -1,5 +1,5 @@
-# test: a fresh literal nested in a generic call's argument weakens where the formal is readonly
-# Spec 04 Bindings And Fresh Values: types.fresh.weaken; the inner Box literal meets the readonly Box[T] of b: Box[Box[T]].
+# test: a literal nested in a generic call's argument solves the type parameter
+# Spec 04 Generic Arguments: types.generic.infer; the inner Box literal meets the Box[T] of b: Box[Box[T]].
 struct Box[T]:
     item: T
 
