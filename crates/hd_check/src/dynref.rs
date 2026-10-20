@@ -17,7 +17,7 @@ use hd_base::{DefId, NodeIdx, TokenIdx};
 use hd_diag::{Code, FixSafety};
 use hd_resolve::ItemData;
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
-use hd_tir::ir::{Coercion, NONE, Ref, Tag, TirSink, local_flags};
+use hd_tir::ir::{Callee, Coercion, NONE, Ref, Tag, TirSink, local_flags};
 use hd_types::{Prim, Ty, TyData, VarKind};
 
 use crate::body::{Ck, ExpectPosition, OpenSub, supertrait_args};
@@ -217,11 +217,16 @@ impl Ck<'_, '_> {
     ) -> Ref {
         let pool = self.pool();
         let mutable = self.trait_is_mutable(def, 0);
-        let (r, t) = if self.ref_of(t).is_none() && !self.has_ref_receiver_member(def) {
-            self.new_object_ref(r, t, mutable, n)
-        } else {
-            (r, t)
-        };
+        if self.ref_of(t).is_none() && !self.has_ref_receiver_member(def) {
+            let inner = self.strip_mut(self.infer.resolve(pool, t));
+            self.require_dyn_impl(inner, key, n);
+            let r = self.coerce(r, t, inner, n, "provider", ExpectPosition::General);
+            let (source, source_ty) = self.shared_provider_object(r, inner, n);
+            let r = self.shared_provider_ref(source, source_ty, key, mutable, n);
+            return self
+                .b
+                .coerce(Coercion::RefAsProvider, NONE, r, key, n.index());
+        }
         let want = pool.intern_ty(&TyData::Ref {
             inner: key,
             mutable,
@@ -229,6 +234,72 @@ impl Ck<'_, '_> {
         let r = self.coerce(r, t, want, n, "provider", ExpectPosition::General);
         self.b
             .coerce(Coercion::RefAsProvider, NONE, r, key, n.index())
+    }
+
+    /// Reuse the runtime's generic object constructor. Local reference
+    /// getter/setter closures would become sub-bodies of every provider site.
+    fn shared_provider_object(&mut self, value: Ref, ty: Ty, n: NodeRef<'_>) -> (Ref, Ty) {
+        let pool = self.pool();
+        let ret = pool.intern_ty(&TyData::Ref {
+            inner: ty,
+            mutable: true,
+        });
+        let callee = Callee::Item {
+            def: self.cx.names.item("std.rt", "host_provider"),
+            targs: pool.list(&[ty]),
+        };
+        self.emit_call(&callee, &[value], ret, false, false, n)
+    }
+
+    /// A newly copied provider has the ordinary dyn-reference address form.
+    /// Its GC form reuses shared getter/setter code and retains the concrete
+    /// object's identity, so downcasting and `is` still name that same object.
+    fn shared_provider_ref(
+        &mut self,
+        source: Ref,
+        source_ty: Ty,
+        key: Ty,
+        mutable: bool,
+        n: NodeRef<'_>,
+    ) -> Ref {
+        let pool = self.pool();
+        let syn = n.index();
+        let addr = self.b.open_block();
+        let value = self.dyn_ref_value(source, source_ty, key, Coercion::RefToTraitValue, syn);
+        let addr = self.b.close_block(addr, Some(value), key, syn);
+        let form = self.b.open_block();
+        let value = self.dyn_ref_value(source, source_ty, key, Coercion::RefToTraitValue, syn);
+        let (wrapper, _) = self.shared_provider_object(value, key, n);
+        let get_ty = pool.intern_ty(&TyData::Fn {
+            params: pool.list(&[]),
+            result: key,
+            row: hd_types::RowId::EMPTY,
+            suspends: false,
+            inputs: hd_types::Inputs::Fixed,
+        });
+        let set_ty = pool.intern_ty(&TyData::Fn {
+            params: pool.list(&[key]),
+            result: Ty::VOID,
+            row: hd_types::RowId::EMPTY,
+            suspends: false,
+            inputs: hd_types::Inputs::Fixed,
+        });
+        let get = self.b.emit(Tag::Field, wrapper.0, 0, get_ty, syn);
+        let set = self.b.emit(Tag::Field, wrapper.0, 1, set_ty, syn);
+        let any = self.any_ty();
+        let base = self.b.emit(Tag::Field, source.0, 2, any, syn);
+        let serial = self
+            .b
+            .emit(Tag::Field, source.0, 3, Ty::prim(Prim::I64), syn);
+        let path = self.b.emit(Tag::Field, source.0, 4, Ty::STRING, syn);
+        let rt = pool.intern_ty(&TyData::Ref {
+            inner: key,
+            mutable,
+        });
+        let rec = self.b.refs_record(&[get, set, base, serial, path]);
+        let value = self.b.emit(Tag::NewData, NONE, rec, rt, syn);
+        let form = self.b.close_block(form, Some(value), rt, syn);
+        self.b.emit(Tag::RefDyn, addr.0, form.0, rt, syn)
     }
 
     /// Every requirement key yields a trait value reference; permission

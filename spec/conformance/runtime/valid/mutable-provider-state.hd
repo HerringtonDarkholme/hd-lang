@@ -1,6 +1,6 @@
 # test: requirements / mutable providers / state change through &mut self
 # Spec 11 Mutable Providers: req.mut.trait-access,
-# req.mut.use-writable.reference-values, req.mut.use.binding, req.mut.row.plain,
+# req.mut.use-writable.reference-values, req.mut.use.shared-reference, req.mut.row.plain,
 # req.mut.row.no-access-rules.
 # Spec 11 Mutable Providers: a requirement trait with a &mut self method is always provided
 # with mutable access, so $.use(Counter) yields &mut dyn Counter.

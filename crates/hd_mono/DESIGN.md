@@ -410,6 +410,13 @@ Requirement rows never become type arguments
   call's context, which a suspending closure keeps in its frame. A
   function reference's adapter passes its context on to the instance.
 
+- Value providers copied behind references use the existing generic
+  `std.rt.host_provider` constructor for their concrete object and GC
+  descriptor wrapper. Their reference identity fields still come from
+  the concrete object. Getter/setter code belongs to shared constructor
+  instances, rather than four fresh closure sub-bodies per provider site;
+  the address backend strips the GC wrapper form as usual.
+
 ### 12.5 Counted Loops And Checks
 
 `ForRange`, `ForList` and `ForMap` are emitted as counters in both pipelines.

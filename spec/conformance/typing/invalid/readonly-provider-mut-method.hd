@@ -1,10 +1,10 @@
-# test: requirements / mutable providers / a readonly binding of a provider cannot call mut self
-# Spec 11 Retrieving: req.mut.use.binding; a := binding of $.use(Counter) is not writable, so a mut self method cannot be called through it.
+# test: requirements / mutable providers / a readonly provider reference cannot call &mut self
+# Spec 11 Retrieving: req.mut.use.shared-reference; permission belongs to the reference, so &dyn Counter cannot call &mut self.
 
 fn tick() -> void $ Counter:
-    counter := $.use(Counter)
+    let counter: &dyn Counter = $.use(Counter)
     counter.bump()  # diagnostic: not-writable
 
 trait Counter:
     fn count(self) -> i32
-    fn bump(mut self) -> void
+    fn bump(&mut self) -> void

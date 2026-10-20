@@ -997,20 +997,19 @@ pub fn main() -> void:
 
 1. r[req.mut.use-writable.reference-values] For a mutable requirement trait `K`, `$.use(K)` yields a writable provider, `&mut dyn K` by [`req.ref.use.reference-values`](#r-req.ref.use.reference-values). The methods of `K` that change their receiver may be called on it.
 2. r[req.mut.use-readonly.reference-values] For a trait without a mutable receiver, `$.use(K)` yields `&dyn K`.
-3. r[req.mut.use.binding] The ordinary binding rules still apply to the result: a `:=` binding is not writable, so a method declared `mut self` cannot be called through it. Error: `not-writable`.
+3. r[req.mut.use.shared-reference] A read-only `&dyn K` provider reference cannot call a `&mut self` method, regardless of its binding spelling. Error: `not-writable`.
 
 ```text
 trait Counter:
     fn count(self) -> i32
-    fn bump(mut self) -> void
+    fn bump(&mut self) -> void
 
 fn tick() -> void $ Counter:
-    counter := $.use(Counter)
+    let counter: &dyn Counter = $.use(Counter)
     counter.bump()  # error: not-writable
 ```
 
-> **Note.** Code that keeps a mutable provider in a local writes
-> `let mut counter = $.use(Counter)`. A `&mut dyn K` provider
+> **Note.** A `&mut dyn K` provider
 > ([`req.ref.use.reference-values`](#r-req.ref.use.reference-values)) stays writable in a `:=` binding, as
 > every `&mut` reference does.
 

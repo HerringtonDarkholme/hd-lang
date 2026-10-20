@@ -1,0 +1,20 @@
+# test: copied value providers keep identity on repeated use and allocate distinct nested objects
+# expect-stdout: inner true false true
+trait Label:
+    fn name(self) -> string
+
+struct Named:
+    label: string
+
+impl Label for Named:
+    fn name(self) -> string: self.label
+
+pub fn main() -> void $ Console:
+    $.with(Label=Named { label: "inner" }):
+        provider := $.use(Label)
+        repeated := $.use(Label)
+        same := provider is repeated
+        let nested_is_same = true
+        $.with(Label=Named { label: "inner" }):
+            nested_is_same = provider is $.use(Label)
+        println("${provider.name()} $same $nested_is_same ${provider is $.use(Label)}")

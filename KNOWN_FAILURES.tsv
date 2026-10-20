@@ -18,4 +18,3 @@ runtime/panic/element-reference-return-escape-panics.hd	#556		escaped element-re
 runtime/valid/deep-equal-rings.hd	#593	wasmtime	illegal cast on wasmtime only
 runtime/valid/deep-equal-visits-shared.hd	#593	wasmtime	illegal cast on wasmtime only
 typing/invalid/fn-type-variance-direction.hd	#536		no &mut U to &U variance in function types
-typing/invalid/readonly-provider-mut-method.hd	#597		lost its diagnostic when #592 met #587
