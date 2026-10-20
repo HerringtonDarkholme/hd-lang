@@ -237,6 +237,8 @@ impl BTy {
         if let TyData::Adt { def, args } = pool.get(t)
             && def == lay.env.ref_cell()
             && let [inner] = pool.list_items(args)[..]
+            // Permission belongs to reference identity, not the handle ABI.
+            && let inner = lay.strip(inner)
             && matches!(pool.get(inner), TyData::TraitValue { .. })
         {
             let (BTy::Handle(mut handle), Some(wrap)) = (

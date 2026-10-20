@@ -1949,6 +1949,12 @@ impl Cx<'_> {
                         && is_trait_value(self.pool, inner)
                         && let Some(json) = self.env.json_items()
                     {
+                        // The wrapper builds a handle value. Reference permission
+                        // stays in the boundary key, not its payload type.
+                        let inner = match self.pool.get(inner) {
+                            TyData::Mut(inner) => inner,
+                            _ => inner,
+                        };
                         let at = self.pool.list(&[inner]);
                         let wrap = self.target(json.host_provider, at, InstId::NONE)?;
                         self.out.boundary.entry(ty).or_default().handle_ref = Some(wrap.key);
