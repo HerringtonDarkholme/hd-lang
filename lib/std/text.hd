@@ -677,6 +677,8 @@ impl StringBuilder:
     ## Returns every pushed text in push order, joined with nothing between. It leaves the builder unchanged.
     ## See [std-text.builder.build](../../spec/std/text.md#r-std-text.builder.build).
     pub fn build(&self) -> string:
+        if self.chars.len() == 0:
+            return concat_all(self.parts)
         concat_all(self.pieces())
 
     # Moves the pushed characters' bytes into `parts` as one string.

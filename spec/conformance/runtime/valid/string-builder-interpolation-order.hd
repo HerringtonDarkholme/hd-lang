@@ -1,0 +1,26 @@
+# test: builder interpolation evaluates every expression before appending its parts
+# Spec std/text Joining And Building: std-text.builder.push-ref, std-text.builder.build.
+use std.text.StringBuilder
+use std.testing.assert_equal
+
+fn select(out: &mut StringBuilder, log: &mut List[string]) -> &mut StringBuilder:
+    log.push("receiver")
+    out
+
+fn piece(out: &mut StringBuilder, log: &mut List[string], text: string) -> string:
+    log.push(text)
+    out.push(text)
+    text
+
+tests:
+    it("receiver and expressions run once before builder writes"):
+        out := StringBuilder::new()
+        let mut log: List[string] = []
+        out.push_char('é')
+        select(out, &mut log).push("left${piece(out, &mut log, "one")}middle${piece(out, &mut log, "two")}right")
+        assert_equal(log, ["receiver", "one", "two"], reason="left to right, exactly once")
+        assert_equal(out.build(), "éonetwoleftonemiddletworight", reason="effects precede every append")
+        snapshot := out.build()
+        out.push("${+3}").push_char('λ').push("${""}")
+        assert_equal(snapshot, "éonetwoleftonemiddletworight", reason="build remains a snapshot")
+        assert_equal(out.build(), snapshot + "3λ", reason="mixed text and characters retain order")

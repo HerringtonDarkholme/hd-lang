@@ -3675,3 +3675,5 @@ runtime/valid/parameter-list-unique-loops.hd	runtime	accept	lang/04-type-system.
 runtime/valid/temporary-method-receivers.hd	runtime	accept	lang/07-functions.md#r-fn.method.auto-address.temporary
 runtime/valid/collection-temporary-receivers.hd	runtime	accept	std/collections.md#r-std-collections.struct.receiver-mut
 typing/invalid/temporary-receiver-shared-reference.hd	type	reject:not-writable	lang/07-functions.md#r-fn.method.auto-address.shared-reference
+runtime/valid/string-builder-interpolation-order.hd	runtime	accept	std/text.md#r-std-text.builder.push-ref
+runtime/valid/json-reused-object-frames.hd	runtime	accept	std/json.md#r-std-json.decode.direct
