@@ -10068,6 +10068,9 @@ impl ProgramEnv for Env<'_> {
     fn ref_cell(&self) -> DefId {
         self.run.known.ref_cell
     }
+    fn suspend_def(&self) -> DefId {
+        self.run.known.suspend
+    }
     fn is_derived_newtype_impl(&self, impl_: DefId) -> bool {
         let Some(it) = self.p.items.get(&impl_) else {
             return false;

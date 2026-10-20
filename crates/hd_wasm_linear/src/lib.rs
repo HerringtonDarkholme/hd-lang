@@ -271,6 +271,12 @@ impl Runtime {
 /// Builds the program's module, or says which construct the linear
 /// backend does not lower yet.
 pub fn build(input: &Input<'_>) -> StageResult<Vec<u8>> {
+    // Every layout and walk the link asks for is computed once.
+    layout::cached(|| link(input))
+}
+
+/// [`build`]'s link, with the layout cache in place.
+fn link(input: &Input<'_>) -> StageResult<Vec<u8>> {
     let mut m = module::Module::default();
     m.runtime = input.runtime;
     m.release = input.release;

@@ -49,7 +49,7 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
     let mut erased = None;
     let sub = match t.sub[id.idx()] {
         Sub::Body(sub) => sub,
-        Sub::Adapter => return adapter(input, id),
+        Sub::Adapter => return adapter(input, m, id),
         Sub::Erased => {
             erased = Some(erased::family(input, id)?);
             0
@@ -59,25 +59,54 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
     let Some(b) = (input.body)(id) else {
         return unsupported("an instance without TIR");
     };
+    let own = Own {
+        item,
+        args,
+        sub: t.sub[id.idx()],
+        key: t.key[id.idx()],
+        erased,
+        cold: None,
+    };
+    body_func(input, m, &own, sub, &input.collected.calls[id.idx()], b)
+}
 
+/// What [`body_func`] emits: item `item`'s instance at `args`, its sub-body
+/// `sub` and key, and for an erased body its family. `cold` is the result
+/// type of a plain function of a suspending item, which only makes the
+/// item's cold call ([`call_func`]); it never suspends.
+struct Own {
+    item: DefId,
+    args: TyList,
+    sub: Sub,
+    key: Hash128,
+    erased: Option<Hash128>,
+    cold: Option<Ty>,
+}
+
+/// The function of body `b`'s sub-body `sub`, the instance `own`, whose
+/// call targets are `targets`.
+fn body_func<'a>(
+    input: &Input<'a>,
+    m: &mut Module,
+    own: &Own,
+    sub: u16,
+    targets: &HashMap<u32, Target>,
+    b: &'a Body,
+) -> StageResult<Func> {
+    let (item, args, erased) = (own.item, own.args, own.erased);
     // A suspending body is a state machine over a frame (`susp.rs`), but
     // a root that only the entry calls and that never suspends runs as a
     // plain function: it ends on its first poll.
     let plan = susp::plan(b, b.sub_root[sub as usize]);
     let suspending = if sub == 0 {
-        input.env.suspends(item) && !(input.entry.root(item) && plan.0.is_empty())
+        own.cold.is_none()
+            && input.env.suspends(item)
+            && !(input.entry.root(item) && plan.0.is_empty())
     } else {
         closure::closure_suspends(input, b, args, sub)?
     };
     let cells = closure::cell_locals(b, &ref_roots(input, b, item, args, suspending));
-    let mut em = Em::new(
-        input,
-        m,
-        b,
-        (item, args),
-        &input.collected.calls[id.idx()],
-        cells,
-    );
+    let mut em = Em::new(input, m, b, (item, args), targets, cells);
     let mut params = Vec::new();
     // A suspending body takes its frame first (`susp::FRAME`).
     if suspending {
@@ -88,7 +117,8 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
     let (plocals, ret, keys, closure) = if sub == 0 {
         (
             param_locals(b),
-            em.sub(input.env.ret(item).unwrap_or(Ty::VOID)),
+            own.cold
+                .unwrap_or_else(|| em.sub(input.env.ret(item).unwrap_or(Ty::VOID))),
             hd_mono::declared_row_keys(input.pool, input.env, item, args),
             None,
         )
@@ -173,12 +203,12 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
         fres.push(Val::I32);
     }
     em.f = Func::new(
-        format!("{}#{}", (input.path)(item), t.sub[id.idx()]),
+        format!("{}#{}", (input.path)(item), own.sub),
         params.clone(),
         fres,
     );
-    let key = t.key[id.idx()];
-    let once = match (sub, t.sub[id.idx()], b.kind) {
+    let key = own.key;
+    let once = match (sub, own.sub, b.kind) {
         (0, Sub::Body(_), BodyKind::Fact) => Some(Some(b.label.as_ref())),
         (0, Sub::Body(_), BodyKind::Handle) => Some(None),
         _ => None,
@@ -553,37 +583,159 @@ fn sub_param_locals(b: &Body, sub: u16) -> Vec<usize> {
 
 /// The code of a function reference (`Sub::Adapter`), a closure's code
 /// whose environment it never reads: `(environment, parameters,
-/// providers) -> results`, one call of its target.
-fn adapter(input: &Input<'_>, id: InstId) -> StageResult<Func> {
-    let Some(Target::Call(ct)) = input.collected.calls[id.idx()].get(&0).cloned() else {
-        return unsupported("a reference to a trait-value method (job 11)");
-    };
-    if ct.kind != TargetKind::Instance {
-        return unsupported("a function value of an intrinsic or a builtin");
+/// providers) -> results`, one call of its target. A target the emitter
+/// lowers at each call, an intrinsic, a built-in family's method or a
+/// trait method at a trait-value `Self`, is called from a function of one
+/// `Call` whose operands are the parameters ([`call_func`]), so the
+/// reference lowers as a direct call at the same types does
+/// (`crates/hd_mono/DESIGN.md` §13.11).
+fn adapter(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Func> {
+    let item = input.collected.table.item[id.idx()];
+    match input.collected.calls[id.idx()].get(&0).cloned() {
+        Some(Target::Call(ct)) if ct.kind == TargetKind::Instance => {
+            forward(input, item, (ct.item, ct.args), ct.ret, Sym::Inst(ct.key))
+        }
+        Some(target @ (Target::Call(_) | Target::Dyn)) => {
+            let args = input.collected.table.args[id.idx()];
+            let key = input.collected.table.key[id.idx()];
+            let (sym, ret) = call_func(input, m, (item, args), key, target)?;
+            forward(input, item, (item, args), ret, sym)
+        }
+        _ => unsupported("a function reference that collection did not resolve"),
     }
+}
+
+/// The function of one call of `item` at `args` through `target`, whose
+/// operands are its parameters: `(parameters, providers) -> results`, as
+/// a plain instance of `item` at `args` takes them. It is defined under a
+/// key derived from the adapter's `key`; with its result type.
+fn call_func(
+    input: &Input<'_>,
+    m: &mut Module,
+    (item, args): (DefId, TyList),
+    key: Hash128,
+    target: Target,
+) -> StageResult<(Sym, Ty)> {
+    use hd_tir::ir::{Callee, ChoiceKind, Providers, TirBuilder, TirSink};
+    let (pool, env) = (input.pool, input.env);
+    let s = |t: Ty| subst(pool, env, item, args, t);
+    let callee = match target {
+        Target::Dyn => {
+            let Some((trait_, _)) = env.parent(item) else {
+                return unsupported("a dynamic function reference to a method outside a trait");
+            };
+            let all = pool.list_items(args);
+            let Some((&self_ty, targs)) = all.split_first() else {
+                return unsupported("a trait member reference without `Self`");
+            };
+            Callee::TraitMethod {
+                trait_,
+                method: item,
+                self_ty,
+                targs: pool.list(targs),
+                choice: (ChoiceKind::TraitValue, 0),
+            }
+        }
+        _ => Callee::Item {
+            def: item,
+            targs: args,
+        },
+    };
+    let ret = s(env.ret(item).unwrap_or(Ty::VOID));
+    // A suspending item's call is its cold constructor, whose frame the
+    // function returns (`fn.ref.suspending`).
+    let cold = env.suspends(item).then(|| {
+        pool.intern_ty(&TyData::Adt {
+            def: env.suspend_def(),
+            args: pool.list(&[ret]),
+        })
+    });
+    let call_ty = cold.unwrap_or(ret);
+    let none = hd_base::NodeIdx::NONE;
+    let mut tb = TirBuilder::new(item, BodyKind::Fn);
+    let params: Vec<_> = env
+        .params(item)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|p| {
+            let t = s(p);
+            (
+                tb.local(t, hd_base::Symbol::from_raw(0), local_flags::PARAM, none),
+                t,
+            )
+        })
+        .collect();
+    let blk = tb.open_block();
+    let operands: Vec<_> = params.iter().map(|&(l, t)| tb.get(l, t, none)).collect();
+    let call = tb.call(&callee, &operands, Providers::None, call_ty, none);
+    let root = tb.close_block(blk, Some(call), call_ty, none);
+    let b = tb.finish(root, &[]).map_err(|_| {
+        hd_base::NotImplemented::bug(hd_base::Stage::Link, "a function reference's call body")
+    })?;
+    let calls = HashMap::from_iter([(call.0, target)]);
+    let mut k = hd_base::StableHasher::new("linear-adapter-call");
+    k.hash(key);
+    let own = Own {
+        item,
+        args,
+        sub: Sub::Body(0),
+        key: k.finish(),
+        erased: None,
+        cold,
+    };
+    // The input again, at the lifetime of this body, which only it holds.
+    let body = |i: InstId| (input.body)(i);
+    let here = Input {
+        pool: input.pool,
+        env: input.env,
+        path: input.path,
+        collected: input.collected,
+        order: input.order,
+        body: &body,
+        entry: input.entry.clone(),
+        release: input.release,
+        runtime: input.runtime,
+        host_refs: input.host_refs,
+    };
+    let f = body_func(&here, m, &own, 0, &calls, &b)?;
+    let sym = Sym::Inst(own.key);
+    m.define(sym.clone(), f);
+    Ok((sym, ret))
+}
+
+/// The closure code of a reference to `item` that forwards its
+/// parameters and its row's providers, read from the caller's context,
+/// to one call of `sym`, a function of `callee` at its arguments, of
+/// result type `ret`.
+fn forward(
+    input: &Input<'_>,
+    item: DefId,
+    (callee, cargs): (DefId, TyList),
+    ret: Ty,
+    sym: Sym,
+) -> StageResult<Func> {
     let (pool, env) = (input.pool, input.env);
     let mut params = vec![Val::I32];
-    for p in env.params(ct.item).unwrap_or_default() {
-        params.extend(vals(pool, env, subst(pool, env, ct.item, ct.args, p))?);
+    for p in env.params(callee).unwrap_or_default() {
+        params.extend(vals(pool, env, subst(pool, env, callee, cargs, p))?);
     }
     // The context of the value's caller, which holds the value's row.
     let c = u32::try_from(params.len()).expect("params");
     params.push(Val::I32);
     // A suspending target's plain call is its cold constructor, which
     // returns the frame.
-    let results = if env.suspends(ct.item) {
+    let results = if env.suspends(callee) {
         vec![Val::I32]
     } else {
-        vals(pool, env, ct.ret)?
+        vals(pool, env, ret)?
     };
-    let item = input.collected.table.item[id.idx()];
     let mut f = Func::new(
         format!("{}#adapter", (input.path)(item)),
         params.clone(),
         results,
     );
     let mut provs = Vec::new();
-    for k in hd_mono::declared_row_keys(pool, env, ct.item, ct.args) {
+    for k in hd_mono::declared_row_keys(pool, env, callee, cargs) {
         provs.push(ctx::ctx_lookup(&mut f, c, ctx::key_id(input, k)));
     }
     for k in 1..c {
@@ -595,10 +747,10 @@ fn adapter(input: &Input<'_>, id: InstId) -> StageResult<Func> {
     }
     // The target's own row parameters read their keys from the same
     // context, which passes on.
-    if hd_mono::has_row_params(env, ct.item) {
+    if hd_mono::has_row_params(env, callee) {
         f.get(c);
     }
-    f.call(Sym::Inst(ct.key));
+    f.call(sym);
     Ok(f)
 }
 

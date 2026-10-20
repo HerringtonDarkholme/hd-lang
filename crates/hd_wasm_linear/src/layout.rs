@@ -291,8 +291,13 @@ type PartFn<'a, T> = dyn Fn(Ty, &dyn Fn(Ty) -> T) -> T + 'a;
 /// ([`value_parts`]), parts first, with a stack of its own: a long chain
 /// of types held by value takes no native stack depth. `one` computes a
 /// type's result from its parts' results, which its second argument reads.
-fn by_parts<T: Clone>(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, one: &PartFn<'_, T>) -> T {
-    let mut done: hd_base::HashMap<Ty, T> = hd_base::HashMap::default();
+fn by_parts<T: Clone>(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    t: Ty,
+    done: &mut hd_base::HashMap<Ty, T>,
+    one: &PartFn<'_, T>,
+) -> T {
     let mut stack = vec![(strip(pool, env, t), false)];
     while let Some((u, ready)) = stack.pop() {
         if done.contains_key(&u) {
@@ -315,13 +320,55 @@ fn by_parts<T: Clone>(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, one: &Part
         });
         done.insert(u, got);
     }
-    done.remove(&strip(pool, env, t))
+    done.get(&strip(pool, env, t))
+        .cloned()
         .expect("the type computed")
+}
+
+/// The layouts and walks one link has computed, by stripped type
+/// ([`cached`]); a type's layout is fixed for the whole link.
+type Memo<T> = std::cell::RefCell<Option<hd_base::HashMap<Ty, T>>>;
+
+thread_local! {
+    static MEMS: Memo<StageResult<Mem>> = const { std::cell::RefCell::new(None) };
+    static WALKS: Memo<Option<Walk>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Runs `link` with the layout cache in place: within it, [`mem`] and
+/// [`walk`] compute each type once, so a long chain of types held by
+/// value costs its length, not its square, at every use.
+pub fn cached<R>(link: impl FnOnce() -> R) -> R {
+    let outer = (MEMS.take(), WALKS.take());
+    MEMS.set(Some(hd_base::HashMap::default()));
+    WALKS.set(Some(hd_base::HashMap::default()));
+    let r = link();
+    MEMS.set(outer.0);
+    WALKS.set(outer.1);
+    r
+}
+
+/// [`by_parts`] over `memo`'s map when a link has one in place, else over
+/// a map of this call's own.
+fn memoized<T: Clone + 'static>(
+    memo: &'static std::thread::LocalKey<Memo<T>>,
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    t: Ty,
+    one: &PartFn<'_, T>,
+) -> T {
+    let held = memo.take();
+    let linked = held.is_some();
+    let mut done = held.unwrap_or_default();
+    let got = by_parts(pool, env, t, &mut done, one);
+    if linked {
+        memo.set(Some(done));
+    }
+    got
 }
 
 /// A concrete type's layout.
 pub fn mem(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Mem> {
-    by_parts(pool, env, t, &|u, part| mem_one(pool, env, u, part))
+    memoized(&MEMS, pool, env, t, &|u, part| mem_one(pool, env, u, part))
 }
 
 /// `t`'s layout from its parts' layouts, which `part` reads.
@@ -437,7 +484,9 @@ impl Walk {
 /// has none: scalars, and what holds no counted address. A type this
 /// backend does not lay out has none here; its layout refuses it.
 pub fn walk(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Walk> {
-    by_parts(pool, env, t, &|u, part| walk_one(pool, env, u, part))
+    memoized(&WALKS, pool, env, t, &|u, part| {
+        walk_one(pool, env, u, part)
+    })
 }
 
 /// `t`'s walk from its parts' walks, which `part` reads.

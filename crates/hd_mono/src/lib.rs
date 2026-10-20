@@ -74,6 +74,8 @@ pub trait ProgramEnv: LayoutEnv {
     /// (`hd_types::Types::lower_refs`); selection raises it back to `&T`
     /// (`hd_types::Types::raise_refs`), the form std's impl heads name.
     fn ref_cell(&self) -> DefId;
+    /// The suspension type `Suspend[T]`, a suspending call's cold value.
+    fn suspend_def(&self) -> DefId;
     /// Whether `impl_` is a `@derive` implementation on a nominal
     /// newtype: its methods forward to the base type's implementation,
     /// so with erased newtypes calls use the base method directly and

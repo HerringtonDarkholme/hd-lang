@@ -368,7 +368,9 @@ fn a_large_recursion_group_and_long_chains_of_types() {
     // One group of `N` struct types (a ring through `&`), a chain of `N`
     // struct types and a chain of `N` enums each held by value: layout,
     // encoding and link walk them with loops, so their depth is no native
-    // stack depth.
+    // stack depth. A chain value is thousands of Wasm values, more than an
+    // engine takes as a function's parameters, so the functions take
+    // references to them.
     const N: usize = 1500;
     let mut main = String::new();
     for i in 0..N {
@@ -390,20 +392,20 @@ fn around(r: R0) -> i32:
         .Some(n) => n.v
         .None => 0
 
-fn along(c: C0) -> i32:
+fn along(c: &C0) -> i32:
     match c.next:
         .Some(n) => n.v
         .None => 0
 
-fn tag(e: E0) -> i32:
+fn tag(e: &E0) -> i32:
     match e:
         .Stop => 0
         .Go(_n) => 1
 
 pub fn main() -> void $ Console:
     println(around(R0 { v: +1, next: .Some(&R1 { v: +2, next: .None }) }))
-    println(along(C0 { v: +3, next: .Some(C1 { v: +4, next: .None }) }))
-    println(tag(E0.Go(E1.Stop)))
+    println(along(&C0 { v: +3, next: .Some(C1 { v: +4, next: .None }) }))
+    println(tag(&E0.Go(E1.Stop)))
 ",
     );
     assert_eq!(output_of("long", &main), "2\n4\n1\n");
