@@ -4,6 +4,8 @@
 # may read the heap's size, so the conformance runner adds this file to std
 # as `std.rt.count_tests`, as it does alloc_tests.hd.
 use std.rt.memory.pages
+use std.rt.checked.released
+use std.testing.assert
 
 # The heap's pages in a bounded run: the static page, the page table, a
 # page for each size class the objects use, and the cycle collector's
@@ -11,6 +13,15 @@ use std.rt.memory.pages
 # live candidates, not with the loop. Without the frees the chains alone
 # need about 50 MB.
 BOUND := 12
+
+# The checked runtime poisons released blocks and deliberately quarantines
+# them forever (DESIGN §23.24). Its release counter advances only when the
+# driver links checked counting; in the normal runtime it stays zero.
+# Keep the reuse regression in normal mode, while checked runs keep every
+# workload/value assertion and the entry audit for leaked counts.
+fn assert_reuse_bound(reason: string) -> void:
+    if released() == 0:
+        assert(pages() <= BOUND, reason)
 
 struct Node:
     name: string
@@ -65,7 +76,7 @@ fn pick(n: i32) -> Shape:
     .Empty
 
 tests:
-    use std.testing.{assert, it}
+    use std.testing.it
 
     it("a million short strings run in bounded memory"):
         let total: usize = 0
@@ -74,14 +85,14 @@ tests:
             total = total + label(i).len()
             i = i + 1
         assert(total == 6888890, "every string was built")
-        assert(pages() <= BOUND, "each string's block is reused")
+        assert_reuse_bound("each string's block is reused")
 
     it("the last release of a chain frees every node and its name"):
         let round = +0
         while round < 300:
             assert(length(chain(1000)) == 1000, "the chain is whole while held")
             round = round + 1
-        assert(pages() <= BOUND, "the nodes' and names' blocks are reused")
+        assert_reuse_bound("the nodes' and names' blocks are reused")
 
     it("an enum's release frees the payload of the variant it holds"):
         let named = +0
@@ -92,7 +103,7 @@ tests:
                 _ => pass
             i = i + 1
         assert(named == 100000, "every third is named")
-        assert(pages() <= BOUND, "the payloads' blocks are reused")
+        assert_reuse_bound("the payloads' blocks are reused")
 
     it("moved and borrowed arguments keep their values and run in bounded memory"):
         let total: usize = 0
@@ -102,7 +113,7 @@ tests:
             total = total + left_of(&p).len() + p.right.len()
             i = i + 1
         assert(total == 2577780, "every pair holds both strings")
-        assert(pages() <= BOUND, "the strings' and pairs' blocks are reused")
+        assert_reuse_bound("the strings' and pairs' blocks are reused")
 
     it("an argument used again after the call is not moved"):
         s := label(7)

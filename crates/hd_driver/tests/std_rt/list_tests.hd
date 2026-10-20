@@ -4,6 +4,7 @@
 # bounded memory. Only std may read the heap's size, so the conformance
 # runner adds this file to std as `std.rt.list_tests`.
 use std.rt.memory.pages
+use std.rt.checked.released
 
 struct Row:
     name: string
@@ -51,7 +52,9 @@ tests:
             total = total + built[999].len()
             round = round + 1
         assert(total == 1320, "each list was whole while held")
-        assert(pages() == start, "each list's buffers and strings are reused")
+        # Checked frees quarantine blocks; only the normal allocator reuses them.
+        if released() == 0:
+            assert(pages() == start, "each list's buffers and strings are reused")
 
     it("lists of structs holding lists free every inner list"):
         let cells = +0
@@ -64,7 +67,9 @@ tests:
             cells = cells + built[499].cells[1]
             round = round + 1
         assert(cells == 165000, "each row kept its cells")
-        assert(pages() == start, "the rows' lists and names are reused")
+        # Checked frees quarantine blocks; only the normal allocator reuses them.
+        if released() == 0:
+            assert(pages() == start, "the rows' lists and names are reused")
 
     it("a copy shares its buffer until either side changes"):
         let mut xs: List[string] = ["a", "b" + "c"]
@@ -90,7 +95,9 @@ tests:
             assert(copy.len() == 101, "the copy grew")
             round = round + 1
         assert(base.len() == 100, "the source is unchanged")
-        assert(pages() == start, "each copy's buffer is reused")
+        # Checked frees quarantine blocks; only the normal allocator reuses them.
+        if released() == 0:
+            assert(pages() == start, "each copy's buffer is reused")
 
     it("a for loop iterates the list as it was"):
         let mut xs: List[i32] = [+1, 2, 3]

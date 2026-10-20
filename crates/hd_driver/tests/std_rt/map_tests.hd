@@ -4,6 +4,7 @@
 # in bounded memory. Only std may read the heap's size, so the
 # conformance runner adds this file to std as `std.rt.map_tests`.
 use std.rt.memory.pages
+use std.rt.checked.released
 
 fn label(n: i32) -> string:
     "k$n"
@@ -52,7 +53,9 @@ tests:
             total = total + built["k499"] % 7
             round = round + 1
         assert(total == 330 * (499 * 3 % 7), "each map was whole while held")
-        assert(pages() == start, "each table and its keys are reused")
+        # Checked frees quarantine blocks; only the normal allocator reuses them.
+        if released() == 0:
+            assert(pages() == start, "each table and its keys are reused")
 
     it("maps of lists free every list"):
         let total: usize = 0
@@ -65,7 +68,9 @@ tests:
             total = total + built[3].len()
             round = round + 1
         assert(total == 330 * 50, "each group kept its labels")
-        assert(pages() == start, "the groups' lists and labels are reused")
+        # Checked frees quarantine blocks; only the normal allocator reuses them.
+        if released() == 0:
+            assert(pages() == start, "the groups' lists and labels are reused")
 
     it("removal keeps the survivors' order and their values"):
         let mut m: Map[string, i32] = {"a": +1, "b": 2, "c": 3, "a": 4}
@@ -89,7 +94,9 @@ tests:
             _ := m.remove(label(round - 5))
             round = round + 1
         assert(m.len() == 5, "five live entries")
-        assert(pages() == start, "rebuilds reuse the tables")
+        # Checked frees quarantine blocks; only the normal allocator reuses them.
+        if released() == 0:
+            assert(pages() == start, "rebuilds reuse the tables")
 
     it("a copy shares its table until either side changes"):
         let mut a: Map[string, i32] = {"x": +1, "y": 2}

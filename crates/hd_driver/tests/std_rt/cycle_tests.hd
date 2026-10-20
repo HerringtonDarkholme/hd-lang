@@ -4,6 +4,7 @@
 # Only std may read the heap's size, so the conformance runner adds this
 # file to std as `std.rt.cycle_tests`, as it does count_tests.hd.
 use std.rt.memory.pages
+use std.rt.checked.released
 
 # The heap's pages in a bounded run: the static page, the page table, a
 # page for each size class the objects use, the garbage dropped before a
@@ -39,7 +40,9 @@ tests:
             total = total + ring(round)
             round = round + 1
         assert(total == 200000, "each ring reaches its second stop")
-        assert(pages() <= BOUND, "the rings' blocks are reused")
+        # Checked frees quarantine blocks; only the normal allocator reuses them.
+        if released() == 0:
+            assert(pages() <= BOUND, "the rings' blocks are reused")
 
     it("two hundred thousand dropped recursive closures run in bounded memory"):
         let total = +0
@@ -48,4 +51,6 @@ tests:
             total = total + sum_to(round % 10)
             round = round + 1
         assert(total == 3300000, "each closure sums its range")
-        assert(pages() <= BOUND, "the closures' blocks are reused")
+        # Checked frees quarantine blocks; only the normal allocator reuses them.
+        if released() == 0:
+            assert(pages() <= BOUND, "the closures' blocks are reused")

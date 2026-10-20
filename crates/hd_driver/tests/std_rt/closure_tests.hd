@@ -5,6 +5,7 @@
 # runs in bounded memory. Only std may read the heap's size, so the
 # conformance runner adds this file to std as `std.rt.closure_tests`.
 use std.rt.memory.pages
+use std.rt.checked.released
 
 trait Shape:
     fn area(self) -> i32
@@ -93,7 +94,9 @@ tests:
             round = round + 1
         assert(chars > 2030, "every closure ran")
         assert(total == 2030 * 5, "each closure kept its captures")
-        assert(pages() == start, "each environment and its captures are freed")
+        # Checked frees quarantine blocks; only the normal allocator reuses them.
+        if released() == 0:
+            assert(pages() == start, "each environment and its captures are freed")
 
     it("a trait value dispatches to its payload's implementation"):
         let shapes: List[&dyn Shape] = [&Square { side: 3 }, &Cube { side: 2, tags: ["a", "b"] }]
@@ -115,4 +118,6 @@ tests:
             total = total + held[0].area() + held[1].area()
             round = round + 1
         assert(total == 2030 * 25, "each trait value was whole while held")
-        assert(pages() == start, "each box and its payload are freed")
+        # Checked frees quarantine blocks; only the normal allocator reuses them.
+        if released() == 0:
+            assert(pages() == start, "each box and its payload are freed")

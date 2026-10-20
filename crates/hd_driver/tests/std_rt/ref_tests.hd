@@ -7,6 +7,7 @@
 # conformance runner adds this file to std as `std.rt.ref_tests`.
 use std.rt.alloc.allocated
 use std.rt.memory.pages
+use std.rt.checked.released
 
 struct Holder:
     slot: &mut i32
@@ -72,4 +73,6 @@ tests:
             xs.push(label(round))
             round = round + 1
         assert(right == 2030, "every round wrote through its references")
-        assert(pages() == start, "each cell, pin and list is freed")
+        # Checked frees quarantine blocks; only the normal allocator reuses them.
+        if released() == 0:
+            assert(pages() == start, "each cell, pin and list is freed")
