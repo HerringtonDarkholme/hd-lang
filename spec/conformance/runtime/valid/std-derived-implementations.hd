@@ -26,7 +26,7 @@ tests:
         assert_equal(debug(xs.view(0, 2)), "ListView { items: [1, 2, 3], start: 0, end: 2, len: 3 }", reason="the view reads through its reference")
         assert_equal(debug(Reverse { value: +4 }), "Reverse { value: 4 }", reason="generic field")
         assert_equal(debug(Annotate { kinds: [.Fn, .Data] }), "Annotate { kinds: [Target.Fn, Target.Data] }", reason="annotation values")
-        assert_equal(debug(Arg { name: "out" }), "Arg { name: \"out\", kind: ArgKind.Option, short: Option.None, help: \"\", required: false }", reason="declaration defaults")
+        assert_equal(debug(Arg { name: "out" }), "Arg { name: \"out\", kind: ArgKind.Option, short: Option.None, help: \"\", required: false, choices: [], repeated: false }", reason="declaration defaults")
         assert_equal(debug(ErrorReport { message: "top", causes: ["root"] }), "ErrorReport { message: \"top\", causes: [\"root\"] }", reason="report fields")
         assert_equal(debug(Entry { path: Path("a"), kind: .File, size: 3 }), "Entry { path: Path(\"a\"), kind: EntryKind.File, size: 3 }", reason="custom newtype Debug stays wrapped")
         assert_equal(debug(ScriptedArgs::new("tool", ["x"])), "ScriptedArgs { program: \"tool\", values: [\"x\"] }", reason="provider fields")

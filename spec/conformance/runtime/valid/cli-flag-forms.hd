@@ -1,8 +1,8 @@
 # test: every flag and option form, -- ending the options, a lone - as a positional, and repeated flags and options
-# Spec std/cli Argument Forms: std-cli.form.long-flag, std-cli.form.short-flag, std-cli.form.long-option, std-cli.form.attached, std-cli.form.short-option, std-cli.form.end, std-cli.form.dash, std-cli.form.positional, std-cli.form.interleaved, std-cli.form.repeat-flag, std-cli.form.repeat-option, std-cli.form.value-dash; Parsed Arguments (task #242).
+# Spec std/cli Argument Forms: std-cli.form.long-flag, std-cli.form.short-flag, std-cli.form.long-option, std-cli.form.attached, std-cli.form.short-option, std-cli.form.end, std-cli.form.dash, std-cli.form.positional, std-cli.form.interleaved, std-cli.form.repeat-flag, std-cli.form.repeat-declared, std-cli.form.value-dash; Parsed Arguments (task #242).
 use std.cli.{Arg, ArgParser, CliError, Parsed}
 fn tool() -> &mut ArgParser:
-    ArgParser::new("count").arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "print each file" }).arg(Arg { name: "out", kind: .Option, short: 'o', help: "write the total here" }).arg(Arg { name: "pattern", kind: .Positional, required: true, help: "the files to count" })
+    ArgParser::new("count").arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "print each file" }).arg(Arg { name: "out", kind: .Option, repeated: true, short: 'o', help: "write the total here" }).arg(Arg { name: "pattern", kind: .Positional, required: true, help: "the files to count" })
 
 fn read(arguments: List[string]) -> Parsed:
     match tool().parse(arguments):

@@ -2310,6 +2310,7 @@ runtime/valid/rng-from-random.hd	runtime	accept	std/random.md#rng
 runtime/valid/rng-handle-shared.hd	runtime	accept	std/random.md#r-std-random.rng.new-ref
 runtime/valid/random-fill.hd	runtime	accept	std/random.md#random-source
 runtime/valid/random-host-mut-ref.hd	runtime	accept	std/random.md#r-std-random.mut-ref.reference-values
+runtime/valid/cli-repeated-choices.hd	runtime	accept	std/cli.md#r-std-cli.parsed.all-values
 runtime/valid/cli-flag-forms.hd	runtime	accept	std/cli.md#argument-forms
 runtime/valid/cli-errors.hd	runtime	accept	std/cli.md#parse-errors
 runtime/valid/cli-usage.hd	runtime	accept	std/cli.md#usage-text

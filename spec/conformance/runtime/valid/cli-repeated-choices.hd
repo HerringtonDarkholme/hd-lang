@@ -1,0 +1,55 @@
+# test: repeated options preserve all values, and choices validate actual input
+# Spec std/cli: std-cli.form.repeat-declared, std-cli.parsed.all-values, std-cli.parse.choices.
+use std.cli.{Arg, ArgKind, ArgParser, CliError}
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("repeated options keep ordered values and the last value"):
+        parser := ArgParser::new("tool").arg(Arg { name: "exclude", short: 'x', repeated: true })
+        parsed := parser.parse(["-x", "a", "--exclude=b", "-x", "c"]).expect("repeat allowed")
+        assert_equal(parsed.values("exclude"), ["a", "b", "c"], reason="all values in input order")
+        assert_equal(parsed.value("exclude"), .Some("c"), reason="last-value accessor stays compatible")
+        assert_equal(parsed.values("missing"), [], reason="absent and undeclared have no values")
+        let mut copy = parsed.values("exclude")
+        copy.push("changed")
+        assert_equal(parsed.values("exclude"), ["a", "b", "c"], reason="private buffers do not escape")
+
+    it("non-repeated options reject a second occurrence, including aliases"):
+        parser := ArgParser::new("tool").arg(Arg { name: "out", short: 'o' })
+        assert_equal(parser.parse(["-o", "a", "--out=b"]), .Err(CliError.InvalidValue("out", "argument cannot be repeated")), reason="default repetition policy")
+        parsed := parser.parse(["-o", "a"]).expect("one value")
+        assert_equal(parsed.values("out"), ["a"], reason="single-valued options still expose a list")
+
+    it("choices validate separate, attached, repeated, and positional values"):
+        parser := ArgParser::new("tool").arg(Arg { name: "format", short: 'f', choices: ["json", "markdown"], repeated: true }).arg(Arg { name: "mode", kind: .Positional, choices: ["read", "write"] })
+        parsed := parser.parse(["--format=json", "-f", "markdown", "read"]).expect("allowed values")
+        assert_equal(parsed.values("format"), ["json", "markdown"], reason="each occurrence is retained")
+        assert_equal(parsed.values("mode"), ["read"], reason="named positional values are exposed")
+        assert_equal(parser.parse(["--format=html"]), .Err(CliError.InvalidValue("format", "expected json or markdown, got html")), reason="actual value and choices")
+        assert_equal(parser.parse(["-f", "json", "-f", "text"]), .Err(CliError.InvalidValue("format", "expected json or markdown, got text")), reason="later occurrences are also checked")
+        assert_equal(parser.parse(["delete"]), .Err(CliError.InvalidValue("mode", "expected read or write, got delete")), reason="positional choices")
+
+    it("choice errors are built from the declaration and offending input"):
+        parser := ArgParser::new("tool").arg(Arg { name: "colour", choices: ["red", "green", "blue"] })
+        error := match parser.parse(["--colour=purple"]):
+            .Err(error) => error
+            .Ok(_) => panic("invalid choice accepted")
+        assert_equal(error.to_string(), "invalid value for --colour: expected red or green or blue, got purple", reason="no example-specific names or values")
+
+    it("choices are included in usage through the existing writer"):
+        parser := ArgParser::new("tool").arg(Arg { name: "format", choices: ["json", "markdown"], help: "output" })
+        assert_equal(parser.usage(), "usage: tool [options]\n\noptions:\n      --format <value>  output [choices: json, markdown]", reason="exact choice listing")
+        bare := ArgParser::new("tool").arg(Arg { name: "format", choices: ["json"] })
+        assert(bare.usage().ends_with("  [choices: json]"), reason="choices are shown without a help description")
+
+    it("repeated appends retain every value on a large option"):
+        let mut args: List[string] = []
+        for index in 0..2000:
+            args.push("-x")
+            args.push("$index")
+        parsed := ArgParser::new("tool").arg(Arg { name: "exclude", short: 'x', repeated: true }).parse(args).expect("many values")
+        values := parsed.values("exclude")
+        assert_equal(values.len(), 2000, reason="one in-place append per occurrence")
+        assert_equal(values[0], "0", reason="first")
+        assert_equal(values[1999], "1999", reason="last")

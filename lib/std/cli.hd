@@ -21,6 +21,8 @@ pub struct Arg:
     pub short: char? = .None
     pub help: string = ""
     pub required: bool = false
+    pub choices: List[string] = []
+    pub repeated: bool = false
 
 ## A command line's declarations, changed in place through its mutable reference.
 pub struct ArgParser:
@@ -60,6 +62,7 @@ impl ArgParser:
     pub fn parse(&self, arguments: List[string]) -> Result[Parsed, CliError]:
         let mut flags: Map[string, bool] = {}
         let mut values: Map[string, string] = {}
+        let mut histories: Map[string, &mut List[string]] = {}
         let mut positionals: List[string] = []
         let only_positionals = false
         let index: usize = 0
@@ -69,7 +72,7 @@ impl ArgParser:
             if only_positionals || argument == "-" || !argument.starts_with("-"):
                 if positionals.len() < self.positional_slots.len():
                     slot := self.positional_slots[positionals.len()]
-                    values[self.declarations[slot].name] = argument
+                    store_value(self.declarations[slot], argument, &mut values, &mut histories)?
                 positionals.push(argument)
                 continue
             if argument == "--":
@@ -93,11 +96,11 @@ impl ArgParser:
                 flags[option.name] = true
             else:
                 match attached:
-                    .Some(value) => values[option.name] = value
+                    .Some(value) => store_value(option, value, &mut values, &mut histories)?
                     .None =>
                         if index >= arguments.len():
                             return .Err(CliError.MissingValue(option.name))
-                        values[option.name] = arguments[index]
+                        store_value(option, arguments[index], &mut values, &mut histories)?
                         index = index + 1
         # Preserve the declared help flag's old behavior until #501 supplies automatic help.
         if !flags.get("help").unwrap_or(false):
@@ -106,7 +109,7 @@ impl ArgParser:
                     present := if arg.kind == .Flag: flags.get(arg.name).unwrap_or(false) else: values.get(arg.name).is_some()
                     if !present:
                         return .Err(CliError.MissingArgument(argument_name(arg)))
-        .Ok(Parsed { present_flags: flags, option_values: values, position_values: positionals })
+        .Ok(Parsed { present_flags: flags, option_values: values, value_histories: histories, position_values: positionals })
 
     pub fn parse_args(&self) -> Result[Parsed, CliError] $ Args:
         self.parse($.use(Args).list())
@@ -132,12 +135,12 @@ impl ArgParser:
         if self.positional_slots.len() > 0:
             text.push("\n\narguments:")
             for slot in self.positional_slots:
-                write_entry(text, terms[slot], self.declarations[slot].help, width)
+                write_entry(text, terms[slot], self.declarations[slot], width)
         if self.options.len() > 0:
             text.push("\n\noptions:")
             for (slot, arg) in self.declarations.iter().enumerate():
                 if arg.kind != .Positional:
-                    write_entry(text, terms[slot], arg.help, width)
+                    write_entry(text, terms[slot], arg, width)
         text.build()
 
 fn argument_name(arg: Arg) -> string:
@@ -151,15 +154,33 @@ fn argument_term(arg: Arg) -> string:
         .Some(short) => "-${short}, --${arg.name}${suffix}"
         .None => "    --${arg.name}${suffix}"
 
-fn write_entry(text: &mut StringBuilder, term: string, help: string, width: usize) -> void:
+fn write_entry(text: &mut StringBuilder, term: string, arg: Arg, width: usize) -> void:
     text.push("\n  ").push(term)
-    if help != "":
-        text.push("".pad_end(width - term.chars().count(), ' ')).push("  ").push(help)
+    if arg.help != "" || !arg.choices.is_empty():
+        text.push("".pad_end(width - term.chars().count(), ' ')).push("  ").push(arg.help)
+        if !arg.choices.is_empty():
+            if arg.help != "": text.push(" ")
+            text.push("[choices: ").push(arg.choices.join(", ")).push("]")
+
+# Repeated values append through a private shared buffer while parsing;
+# Parsed exposes copies, so no caller can mutate a parsed result through it.
+fn store_value(arg: Arg, value: string, values: &mut Map[string, string], histories: &mut Map[string, &mut List[string]]) -> Result[void, CliError]:
+    if !arg.repeated && values.get(arg.name).is_some():
+        return .Err(CliError.InvalidValue(arg.name, "argument cannot be repeated"))
+    if !arg.choices.is_empty() && !arg.choices.contains(value):
+        return .Err(CliError.InvalidValue(arg.name, "expected ${arg.choices.join(" or ")}, got $value"))
+    if arg.repeated:
+        match histories.get(arg.name):
+            .Some(buffer) => buffer.push(value)
+            .None => histories[arg.name] = &mut [value]
+    values[arg.name] = value
+    .Ok(())
 
 @derive(Eq)
 pub struct Parsed:
     present_flags: Map[string, bool]
     option_values: Map[string, string]
+    value_histories: Map[string, &mut List[string]]
     position_values: List[string]
 
 impl Parsed:
@@ -175,6 +196,15 @@ impl Parsed:
     ## See [std-cli.parsed.named-value](../../spec/std/cli.md#r-std-cli.parsed.named-value).
     pub fn value(self, name: string) -> string?:
         self.option_values.get(name)
+
+    ## A copy of every value of the named option or positional, in argument order.
+    pub fn values(self, name: string) -> List[string]:
+        match self.value_histories.get(name):
+            .Some(buffer) => *buffer
+            .None =>
+                match self.option_values.get(name):
+                    .Some(value) => [value]
+                    .None => []
 
     # `value` read as a `T` (r-std-cli.parsed.value-as).
     ## The value of the option `name` read as a `T`: `.None` when absent, an error naming the option when unreadable.
