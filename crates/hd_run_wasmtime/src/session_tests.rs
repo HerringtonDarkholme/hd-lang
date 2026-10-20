@@ -1,16 +1,18 @@
-//! The wasmtime session (`f1c55020:future-work/compiler/repl-plan.md` job S1): inputs the driver builds
-//! with `Goal::ReplInput` (job C4) run one after another in one store. A
-//! later input sees an earlier input's declarations and top-level bindings
-//! by name (job C5). An input that is one expression shows its value, and
-//! an input's top level may make bang calls (job C6). A session that
-//! starts with its prelude (job C8) runs it first, as input 0.
+//! The wasmtime session: inputs the driver builds with `Goal::ReplInput`
+//! run one after another. Each input's build is one linear module of the
+//! session's inputs (`hd_wasm_linear::Entry::Inputs`), and the session
+//! replays the earlier inputs from its journal before it runs the new one.
+//! A later input sees an earlier input's declarations and top-level
+//! bindings by name. An input that is one expression shows its value, and
+//! an input's top level may make bang calls.
 
 use std::collections::BTreeMap;
 
+use hd_run::journal::End;
 use hd_run::{HostSetup, Outcome};
 
 use crate::hd_source::{hd_path, hd_string};
-use crate::{EngineConfig, HostIo, Shared, WasmtimeEngine, WasmtimeSession, thread_stack};
+use crate::{EngineConfig, HostIo, Ran, Shared, WasmtimeEngine, WasmtimeSession, thread_stack};
 
 #[path = "session_parity_tests.rs"]
 mod parity;
@@ -70,38 +72,25 @@ fn with_session_input(
     }
 }
 
-/// The inputs that ran without a panic, as the driver's session and as
-/// the `repl#N` files of the next input's build, and the session they run
-/// in.
+/// The inputs the session keeps, as the `repl#N` files of the next build,
+/// and the session they run in.
 struct Repl<'s> {
     session: &'s mut WasmtimeSession,
-    built: hd_driver::Session,
     files: hd_project::MemorySources,
     next: u32,
-    /// The text of each input that ran, for a rebuild.
-    texts: BTreeMap<u32, String>,
-    /// The build cache every build of the session shares, so a rebuild of
-    /// unchanged inputs compiles nothing again.
+    /// The text of each input the session keeps, and whether it ended
+    /// with status 0, so later inputs see it.
+    kept: BTreeMap<u32, (String, bool)>,
+    /// The build cache every build of the session shares.
     store: hd_cache::MemoryStore,
 }
 
-/// Builds `file`, the input `number`, over the session `built`.
-fn build_input(
+/// Builds the session program of every input in `files` up to `number`,
+/// the `failed` ones hidden from later inputs.
+fn build_session(
     files: &hd_project::MemorySources,
     store: &hd_cache::MemoryStore,
-    built: &hd_driver::Session,
-    number: u32,
-) -> hd_driver::Output {
-    build_inputs(files, store, built, None, number)
-}
-
-/// Builds the inputs `from` to `number` as one module over the session
-/// `built`, or with `from` `None` the input `number` alone.
-fn build_inputs(
-    files: &hd_project::MemorySources,
-    store: &hd_cache::MemoryStore,
-    built: &hd_driver::Session,
-    from: Option<u32>,
+    failed: &[u32],
     number: u32,
 ) -> hd_driver::Output {
     let host = hd_driver::Host {
@@ -111,125 +100,21 @@ fn build_inputs(
         clock: &hd_driver::NoClock,
         executor: hd_driver::Executor::Serial(hd_sched::SerialOrder::Priority),
     };
+    let start = hd_driver::Session::start();
     let packages = hd_driver::Packages {
-        session: Some(built),
-        // Sessions link on the Wasm GC backend only so far.
-        backend: hd_driver::Backend::WasmGc,
-        inputs_from: from,
+        build_profile: hd_driver::BuildProfile::Checked,
+        session: Some(&start),
+        inputs_from: Some(1),
+        failed_inputs: failed,
+        backend: hd_driver::Backend::Linear,
         ..hd_driver::Packages::default()
     };
     let goal = hd_driver::Goal::ReplInput { input: number };
     hd_driver::build_packages(&host, "app", &packages, &goal)
 }
 
-/// Builds the session's prelude.
-fn build_prelude(store: &hd_cache::MemoryStore) -> hd_driver::Output {
-    let files = hd_project::MemorySources::default();
-    let host = hd_driver::Host {
-        render_tir: &[],
-        sources: &files,
-        store,
-        clock: &hd_driver::NoClock,
-        executor: hd_driver::Executor::Serial(hd_sched::SerialOrder::Priority),
-    };
-    hd_driver::build_repl_prelude(
-        &host,
-        hd_driver::BuildProfile::Checked,
-        hd_driver::EngineTarget::default(),
-    )
-}
-
-/// A rebuild's builder over a test session's texts: input 0 is the
-/// prelude.
-struct Again<'r> {
-    files: &'r mut hd_project::MemorySources,
-    built: &'r mut hd_driver::Session,
-    store: &'r hd_cache::MemoryStore,
-    texts: &'r BTreeMap<u32, String>,
-    /// What each input built adds to the session once it is replayed.
-    added: hd_base::HashMap<u32, hd_driver::Session>,
-    /// The time spent building.
-    building: std::time::Duration,
-}
-
-impl crate::Rebuilder for Again<'_> {
-    fn build(&mut self, number: u32) -> Result<(String, Vec<u8>), String> {
-        let started = std::time::Instant::now();
-        let (text, out) = if number == 0 {
-            (String::new(), build_prelude(self.store))
-        } else {
-            let text = self
-                .texts
-                .get(&number)
-                .ok_or_else(|| format!("no text for input {number}"))?
-                .clone();
-            self.files.insert(&hd_project::repl_file(number), &text);
-            (
-                text,
-                build_input(self.files, self.store, self.built, number),
-            )
-        };
-        self.building += started.elapsed();
-        if !out.diags.is_empty() {
-            let file = hd_project::repl_file(number);
-            self.files.retain(|p| p != file);
-            return Err(out.render());
-        }
-        let (Some(wasm), Some(added)) = (out.wasm, out.session_added) else {
-            return Err(format!("input {number} built no module"));
-        };
-        self.added.insert(number, added);
-        Ok((text, wasm))
-    }
-
-    fn build_joined(&mut self, numbers: &[u32]) -> Result<(Vec<String>, Vec<u8>), String> {
-        let started = std::time::Instant::now();
-        let (Some(&first), Some(&last)) = (numbers.first(), numbers.last()) else {
-            return Err("no inputs".into());
-        };
-        let mut texts = Vec::new();
-        for n in numbers {
-            let text = self
-                .texts
-                .get(n)
-                .ok_or_else(|| format!("no text for input {n}"))?
-                .clone();
-            self.files.insert(&hd_project::repl_file(*n), &text);
-            texts.push(text);
-        }
-        let out = build_inputs(self.files, self.store, self.built, Some(first), last);
-        self.building += started.elapsed();
-        if !out.diags.is_empty() {
-            return Err(out.render());
-        }
-        let (Some(wasm), Some(added)) = (out.wasm, out.session_added) else {
-            return Err(format!("inputs {first} to {last} built no module"));
-        };
-        self.added.insert(last, added);
-        Ok((texts, wasm))
-    }
-
-    fn replayed(&mut self, number: u32, joined: bool) {
-        let added = self.added.remove(&number);
-        if !joined {
-            let file = hd_project::repl_file(number);
-            self.files.retain(|p| p != file);
-        } else if let Some(added) = added {
-            self.built.add(added);
-        }
-    }
-
-    fn restart(&mut self) {
-        *self.built = hd_driver::Session::start();
-        *self.files = hd_project::MemorySources::default();
-        self.added.clear();
-    }
-}
-
 impl Repl<'_> {
-    /// Builds the next input over the earlier ones and runs it. An input
-    /// that ends with status 0 joins the session; one that panics leaves
-    /// it as it was (`cli.repl.panic.binding`).
+    /// Builds the next input over the kept ones and runs it.
     fn input(&mut self, text: &str) -> Outcome {
         let built = self.build(text);
         self.run(built)
@@ -274,114 +159,102 @@ impl Repl<'_> {
         outcome
     }
 
-    /// Builds the next input over the earlier ones: its file, its module
-    /// and what it adds to the session.
+    /// The numbers of the kept inputs that did not end with status 0.
+    fn failed(&self) -> Vec<u32> {
+        self.kept
+            .iter()
+            .filter(|(_, (_, joined))| !joined)
+            .map(|(n, _)| *n)
+            .collect()
+    }
+
+    /// Builds the next input over the kept ones: its number, text and the
+    /// session program.
     fn build(&mut self, text: &str) -> Built {
         self.next += 1;
         let n = self.next;
         let file = hd_project::repl_file(n);
         self.files.insert(&file, text);
-        let out = build_input(&self.files, &self.store, &self.built, n);
+        let out = build_session(&self.files, &self.store, &self.failed(), n);
         assert!(out.diags.is_empty(), "{file}: {}", out.render());
-        let wasm = out.wasm.expect("a module");
-        let added = out.session_added.expect("what the input adds");
         Built {
             number: n,
             source: text.to_owned(),
-            file,
-            wasm,
-            added,
+            wasm: out.wasm.expect("a module"),
         }
     }
 
-    /// Runs a built input. One that ends with status 0 joins the session.
+    /// Runs a built input after replaying the kept ones. One that ends
+    /// with status 0 joins the session; one that ends otherwise stays for
+    /// later replays, hidden; a stopped or cancelled one is dropped.
     fn run(&mut self, built: Built) -> Outcome {
-        self.texts.insert(built.number, built.source.clone());
-        let outcome = self
+        let mut sources: Vec<(u32, &str)> = self
+            .kept
+            .iter()
+            .map(|(n, (text, _))| (*n, text.as_str()))
+            .collect();
+        sources.push((built.number, &built.source));
+        let ran = self
             .session
-            .run_input(built.number, &built.source, &built.wasm)
+            .run(&built.wasm, &sources, Some(built.number))
             .expect("the input runs");
-        if outcome == Outcome::Exit(0) {
-            self.built.add(built.added);
+        assert!(ran.dropped.is_empty(), "{ran:?}");
+        self.forget(&ran);
+        let (outcome, end) = ran.live.expect("the input ran");
+        if matches!(end, End::Stopped | End::Cancelled) {
+            self.files
+                .retain(|p| p != hd_project::repl_file(built.number));
         } else {
-            self.files.retain(|p| p != built.file);
+            self.kept
+                .insert(built.number, (built.source, end == End::Exit(0)));
         }
         outcome
     }
-}
 
-impl Repl<'_> {
-    /// Rebuilds the session from its journal over the inputs' texts, as
-    /// `:reload` does; it forgets the inputs the rebuild skipped or
-    /// dropped.
-    fn rebuild(&mut self) -> crate::Rebuilt {
-        self.rebuild_timed().0
-    }
-
-    /// `rebuild`, with the part of its time spent building the inputs.
-    fn rebuild_timed(&mut self) -> (crate::Rebuilt, std::time::Duration) {
-        self.built = hd_driver::Session::start();
-        self.files = hd_project::MemorySources::default();
-        let mut again = Again {
-            files: &mut self.files,
-            built: &mut self.built,
-            store: &self.store,
-            texts: &self.texts,
-            added: hd_base::HashMap::default(),
-            building: std::time::Duration::ZERO,
-        };
-        let rebuilt = self
-            .session
-            .rebuild(&mut again)
-            .expect("the session rebuilds");
-        let building = again.building;
-        for n in rebuilt.skipped.iter().chain(&rebuilt.dropped) {
-            self.texts.remove(n);
+    /// Forgets the inputs a run skipped or dropped.
+    fn forget(&mut self, ran: &Ran) {
+        for n in ran.skipped.iter().chain(&ran.dropped) {
+            self.kept.remove(n);
             let file = hd_project::repl_file(*n);
             self.files.retain(|p| p != file);
         }
-        (rebuilt, building)
+    }
+
+    /// Rebuilds the session from its journal over the kept inputs, as
+    /// `:reload` does, and forgets the inputs it skipped or dropped.
+    fn rebuild(&mut self) -> Ran {
+        let last = *self.kept.keys().last().expect("an input");
+        let out = build_session(&self.files, &self.store, &self.failed(), last);
+        assert!(out.diags.is_empty(), "{}", out.render());
+        let wasm = out.wasm.expect("a module");
+        let sources: Vec<(u32, &str)> = self
+            .kept
+            .iter()
+            .map(|(n, (text, _))| (*n, text.as_str()))
+            .collect();
+        let ran = self
+            .session
+            .run(&wasm, &sources, None)
+            .expect("the session rebuilds");
+        self.forget(&ran);
+        ran
     }
 }
 
-/// An input built for a session: its number, text, file, module and what
-/// it adds to the session.
+/// An input built for a session: its number, text and the session program.
 struct Built {
     number: u32,
     source: String,
-    file: String,
     wasm: Vec<u8>,
-    added: hd_driver::Session,
 }
 
 fn repl(session: &mut WasmtimeSession) -> Repl<'_> {
     Repl {
         session,
-        built: hd_driver::Session::start(),
         files: hd_project::MemorySources::default(),
         next: 0,
-        texts: BTreeMap::new(),
+        kept: BTreeMap::new(),
         store: hd_cache::MemoryStore::default(),
-    }
-}
-
-/// A session that starts as the REPL does: its prelude runs first and
-/// owns the memory and runtime globals; inputs import what it holds.
-fn repl_with_prelude(session: &mut WasmtimeSession) -> Repl<'_> {
-    let store = hd_cache::MemoryStore::default();
-    let out = build_prelude(&store);
-    assert!(out.diags.is_empty(), "{}", out.render());
-    let wasm = out.wasm.expect("the prelude");
-    assert_eq!(session.run_input(0, "", &wasm), Ok(Outcome::Exit(0)));
-    let mut built = hd_driver::Session::start();
-    built.add(out.session_added.expect("what the prelude adds"));
-    Repl {
-        session,
-        built,
-        files: hd_project::MemorySources::default(),
-        next: 0,
-        texts: BTreeMap::from([(0, String::new())]),
-        store,
     }
 }
 
@@ -607,11 +480,10 @@ fn an_input_makes_bang_calls_at_top_level() {
     });
 }
 
-/// Over the prelude, inputs show values of the types it holds and of
-/// others, and the session still resets the runtime globals the prelude
-/// owns after a panic inside `defer` (`cli.repl.panic`).
+/// Inputs show values of many types, and the session still resets the
+/// runtime state after a panic inside `defer` (`cli.repl.panic`).
 #[test]
-fn inputs_run_over_the_prelude() {
+fn inputs_show_values_and_go_on_after_a_panic_inside_defer() {
     let panics = "\
 fn cleanup(xs: List[i32]) -> void:
     defer:
@@ -621,7 +493,7 @@ fn cleanup(xs: List[i32]) -> void:
 cleanup([+1])
 ";
     with_session(|session, io| {
-        let mut repl = repl_with_prelude(session);
+        let mut repl = repl(session);
         assert_eq!(text(&io.out), "");
         assert_eq!(text(&io.err), "");
         for (input, shown) in [
@@ -673,9 +545,9 @@ fn a_stopped_loop_input_ends_and_the_session_goes_on() {
 
 /// `cli.repl.cancel`: an input that waits on the host is cancelled at
 /// once by `req.cancel.steps`, so its `defer` runs; it ends as a
-/// panicking input does: it adds no declaration, its `defer`'s change to
-/// an earlier binding stays (`cli.repl.panic.mutations`), and the next
-/// input runs.
+/// panicking input does: it adds no declaration, and the next input runs.
+/// The next input's rebuild skips it (`cli.repl.rebuild.stopped`), so its
+/// `defer`'s change to an earlier binding is not restored.
 #[test]
 fn a_waiting_input_is_cancelled_and_its_defer_runs() {
     let nap = "\
@@ -711,7 +583,7 @@ nap!()
             text(&io.err)
         );
         assert_eq!(repl.input("println(nap())\n"), Outcome::Exit(0));
-        assert_eq!(text(&io.out), "cleanup\n");
+        assert_eq!(text(&io.out), "\n");
         assert_eq!(text(&io.err), "");
     });
 }
@@ -1002,52 +874,6 @@ fn a_program_run_records_no_journal() {
     });
 }
 
-/// The cost of recording on a host-call-heavy input: 10,000 clock
-/// readings, with the session's journal and without it. Run it with
-/// `cargo test -p hd_run_wasmtime clock_loop -- --ignored --nocapture`.
-#[test]
-#[ignore = "a measurement, not a check"]
-fn clock_loop_recording_overhead() {
-    use std::time::{Duration, Instant};
-    let reads = "\
-fn reads() -> i64 $ Clock:
-    let sum: i64 = 0
-    for _ in 0..10000:
-        sum = sum + now().unix_milliseconds()
-    sum
-";
-    with_session(|session, io| {
-        let mut repl = repl(session);
-        assert_eq!(repl.input("use std.time.{now, Clock}\n"), Outcome::Exit(0));
-        assert_eq!(repl.input(reads), Outcome::Exit(0), "{}", text(&io.err));
-        let (mut on, mut off) = (Vec::new(), Vec::new());
-        for round in 0..40 {
-            let recording = round % 2 == 0;
-            repl.session.record(recording);
-            let built = repl.build("_ := reads()\n");
-            let start = Instant::now();
-            assert_eq!(repl.run(built), Outcome::Exit(0), "{}", text(&io.err));
-            let took = start.elapsed();
-            if recording {
-                let bytes = repl.session.journal().expect("recording").len();
-                assert!(bytes > 10_000 * 12, "{bytes}");
-                on.push(took);
-            } else {
-                off.push(took);
-            }
-        }
-        let median = |v: &mut Vec<Duration>| {
-            v.sort();
-            v[v.len() / 2]
-        };
-        let (on, off) = (median(&mut on), median(&mut off));
-        println!(
-            "10,000 clock reads per input, median of 20: recording {on:?}, not recording {off:?}, {:.0} ns per read",
-            (on.as_secs_f64() - off.as_secs_f64()) * 1e9 / 10_000.0
-        );
-    });
-}
-
 /// The `Input` rows of the session's journal, by number.
 fn journal_inputs(session: &WasmtimeSession) -> Vec<u32> {
     let record = hd_run::replay::recorded(session.journal().expect("recording")).expect("reads");
@@ -1076,7 +902,7 @@ fn a_rebuilt_session_repeats_no_host_call() {
     ];
     let shown = ["started\n", "text\n", "answer\n"];
     with_session_input(Some(b"typed line\n"), |session, io| {
-        let mut repl = repl_with_prelude(session);
+        let mut repl = repl(session);
         for input in &inputs {
             assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
         }
@@ -1095,22 +921,22 @@ fn a_rebuilt_session_repeats_no_host_call() {
         let rebuilt = repl.rebuild();
         assert_eq!(
             rebuilt,
-            crate::Rebuilt {
-                kept: (0..=8).collect(),
-                ..crate::Rebuilt::default()
+            crate::Ran {
+                kept: (1..=8).collect(),
+                ..crate::Ran::default()
             }
         );
         assert_eq!(repl.session.host_calls(), calls, "a host call repeated");
         assert_eq!(text(&io.out), "");
         assert_eq!(text(&io.err), "");
-        assert_eq!(journal_inputs(repl.session), (0..=8).collect::<Vec<_>>());
+        assert_eq!(journal_inputs(repl.session), (1..=8).collect::<Vec<_>>());
         let mut after = String::new();
         for input in shown {
             assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
             after.push_str(&text(&io.out));
         }
         assert_eq!(after, before);
-        assert_eq!(journal_inputs(repl.session), (0..=11).collect::<Vec<_>>());
+        assert_eq!(journal_inputs(repl.session), (1..=11).collect::<Vec<_>>());
     });
     let _ = std::fs::remove_file(&path);
 }
@@ -1155,11 +981,11 @@ fn a_string_keyed_map_is_found_after_a_panic_and_a_rebuild() {
     });
 }
 
-/// `cli.repl.rebuild.stopped` and `.prefix`: a rebuild skips a stopped
-/// and a cancelled input, so the stopped input's change to `kept` is lost.
-/// The first input that then asks the host for something else, the one
-/// that shows `kept`, is dropped with every later input. It ran before it
-/// diverged, so the rebuild starts again to undo its change too.
+/// `cli.repl.rebuild.stopped` and `.prefix`: the run of the next input
+/// skips a stopped and a cancelled input, so the stopped input's change to
+/// `kept` is lost. A rebuild whose input 6 is no longer the text the
+/// session ran drops it with every later input. Input 6 ran before, so
+/// the rebuild starts again to undo its change too.
 #[test]
 fn a_rebuild_skips_stopped_inputs_and_drops_from_the_first_divergence() {
     with_session(|session, io| {
@@ -1177,18 +1003,35 @@ fn a_rebuild_skips_stopped_inputs_and_drops_from_the_first_divergence() {
             Outcome::Exit(3)
         );
         assert_eq!(text(&io.err), "stopped\ncancelled\n");
-        for input in ["1 + 1\n", "kept = kept + 1\nprintln(kept)\n", "2 + 2\n"] {
+        let built = repl.build("1 + 1\n");
+        let mut sources: Vec<(u32, &str)> = repl
+            .kept
+            .iter()
+            .map(|(n, (t, _))| (*n, t.as_str()))
+            .collect();
+        sources.push((built.number, &built.source));
+        let ran = repl
+            .session
+            .run(&built.wasm, &sources, Some(built.number))
+            .expect("runs");
+        // Input 4's own run skipped input 3 already.
+        assert_eq!((ran.kept, ran.skipped), (vec![1, 2], vec![4]));
+        repl.kept.insert(built.number, (built.source, true));
+        for input in ["kept = kept + 1\nprintln(kept)\n", "2 + 2\n"] {
             assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
         }
-        assert_eq!(text(&io.out), "2 : usize\n9\n4 : usize\n");
+        assert_eq!(text(&io.out), "2 : usize\n8\n4 : usize\n");
         assert_eq!(text(&io.err), "");
+        let changed = "kept = kept + 2\nprintln(kept)\n";
+        repl.files.insert(&hd_project::repl_file(6), changed);
+        repl.kept.insert(6, (changed.to_owned(), true));
         let rebuilt = repl.rebuild();
         assert_eq!(rebuilt.kept, [1, 2, 5]);
-        assert_eq!(rebuilt.skipped, [3, 4]);
+        assert!(rebuilt.skipped.is_empty());
         assert_eq!(rebuilt.dropped, [6, 7]);
         assert_eq!(
             rebuilt.reason.as_deref(),
-            Some("input 6 called hd:Console write_line.start with other arguments than before")
+            Some("input 6 is not the text the session ran")
         );
         assert_eq!(text(&io.err), "");
         assert_eq!(text(&io.out), "");
@@ -1198,15 +1041,16 @@ fn a_rebuild_skips_stopped_inputs_and_drops_from_the_first_divergence() {
     });
 }
 
-/// A rebuild of a long session: 200 inputs that each add to a binding,
-/// every tenth showing it, rebuilt from the journal. The build cache is
+/// A long session: 60 inputs that each add to a binding, every tenth
+/// showing it, each input built with every earlier one and run after
+/// replaying them, then rebuilt from the journal. The build cache is
 /// warm, as it is for `:reload` of unchanged inputs. Run it with
 /// `cargo test -p hd_run_wasmtime long_session -- --nocapture` for the
 /// times.
 #[test]
 fn a_long_session_rebuild_is_timed() {
     use std::time::Instant;
-    let inputs: Vec<String> = (0..200)
+    let inputs: Vec<String> = (0..60)
         .map(|i| match i {
             0 => "let total = 0\n".to_owned(),
             i if i % 10 == 0 => "total\n".to_owned(),
@@ -1214,7 +1058,7 @@ fn a_long_session_rebuild_is_timed() {
         })
         .collect();
     with_session(|session, io| {
-        let mut repl = repl_with_prelude(session);
+        let mut repl = repl(session);
         let started = Instant::now();
         for input in &inputs {
             assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
@@ -1223,86 +1067,25 @@ fn a_long_session_rebuild_is_timed() {
         let shown = text(&io.out);
         let calls = repl.session.host_calls();
         let started = Instant::now();
-        let (rebuilt, building) = repl.rebuild_timed();
+        let rebuilt = repl.rebuild();
         let took = started.elapsed();
-        assert_eq!(rebuilt.kept.len(), 201);
+        assert_eq!(rebuilt.kept.len(), 60);
         assert!(rebuilt.dropped.is_empty(), "{:?}", rebuilt.reason);
         assert_eq!(repl.session.host_calls(), calls);
-        // The prelude's instance, and one for the 200 inputs.
-        assert_eq!(repl.session.instances(), 2);
         assert_eq!(text(&io.err), "");
         assert_eq!(repl.input("total\n"), Outcome::Exit(0));
-        let total: usize = (1..200).filter(|i| i % 10 != 0).sum();
+        let total: usize = (1..60).filter(|i| i % 10 != 0).sum();
         assert_eq!(text(&io.out), format!("{total} : usize\n"));
-        assert_eq!(shown.lines().count(), 19);
-        println!(
-            "200 inputs: built and run live in {live:?}; rebuilt from the journal in {took:?} ({:?} per input), of which building {building:?} and replaying {:?} ({:?} per input)",
-            took / 201,
-            took.saturating_sub(building),
-            took.saturating_sub(building) / 201
-        );
+        assert_eq!(shown.lines().count(), 5);
+        println!("60 inputs: built and run in {live:?}; rebuilt from the journal in {took:?}");
     });
 }
 
-/// #228: once more inputs than its bound ran, a session wants a rebuild,
-/// and the rebuild holds the replayed inputs in one instance. With a
-/// bound of 3 the fourth input asks for it, and only it: the session then
-/// holds two instances, the prelude's and the inputs'. No host call
-/// repeats, nothing prints again, and later inputs see the same bindings.
+/// An input that panicked stays in the session program, hidden from
+/// later inputs, and a rebuild replays it: its change to an earlier value
+/// survives (`cli.repl.panic.mutations`).
 #[test]
-fn a_session_past_its_bound_rebuilds_into_one_instance() {
-    let inputs = [
-        "use std.time.{now}\nfn twice(n: usize) -> usize: n * 2\n",
-        "let total = 5\nstarted := now().unix_milliseconds()\nprintln(\"once\")\n",
-        "started\n",
-        "total = twice(total)\n",
-        "started\n",
-        "total\n",
-        "1 + 1\n",
-    ];
-    with_session(|session, io| {
-        session.set_rebuild_after(3);
-        let mut repl = repl_with_prelude(session);
-        let mut rebuilds = 0;
-        let mut out = String::new();
-        for input in inputs {
-            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
-            out.push_str(&text(&io.out));
-            if repl.session.wants_rebuild() {
-                assert_eq!(repl.session.instances(), 5);
-                let calls = repl.session.host_calls();
-                let rebuilt = repl.rebuild();
-                assert_eq!(
-                    rebuilt,
-                    crate::Rebuilt {
-                        kept: (0..=4).collect(),
-                        ..crate::Rebuilt::default()
-                    }
-                );
-                assert_eq!(repl.session.host_calls(), calls, "a host call repeated");
-                assert_eq!(repl.session.instances(), 2);
-                assert_eq!(text(&io.out), "");
-                rebuilds += 1;
-            }
-        }
-        assert_eq!(rebuilds, 1);
-        assert_eq!(repl.session.instances(), 5);
-        let lines: Vec<&str> = out.lines().collect();
-        assert_eq!(lines.len(), 5, "{out}");
-        assert_eq!(lines[0], "once");
-        assert!(lines[1].ends_with(" : i64"), "{out}");
-        assert_eq!(lines[2], lines[1]);
-        assert_eq!(lines[3..], ["10 : usize", "2 : usize"]);
-        assert_eq!(text(&io.err), "");
-        assert_eq!(journal_inputs(repl.session), (0..=7).collect::<Vec<_>>());
-    });
-}
-
-/// #228: an input that panicked added nothing for the inputs after it, so
-/// a rebuild builds it alone, between the runs of inputs it holds in one
-/// instance each. Its change to an earlier value survives.
-#[test]
-fn a_rebuild_builds_a_panicked_input_alone() {
+fn a_rebuild_replays_a_panicked_input() {
     let inputs = [
         ("let mut log: List[string] = []\n", 0),
         ("log.push(\"a\")\nline := log[5]\n", 3),
@@ -1310,7 +1093,7 @@ fn a_rebuild_builds_a_panicked_input_alone() {
         ("log.len()\n", 0),
     ];
     with_session(|session, io| {
-        let mut repl = repl_with_prelude(session);
+        let mut repl = repl(session);
         for (input, status) in inputs {
             assert_eq!(repl.input(input), Outcome::Exit(status));
         }
@@ -1319,9 +1102,7 @@ fn a_rebuild_builds_a_panicked_input_alone() {
             text(&io.err),
             "panic: index-out-of-bounds: list index out of bounds\n"
         );
-        assert_eq!(repl.rebuild().kept, [0, 1, 2, 3, 4]);
-        // The prelude, input 1, input 2 alone, then inputs 3 and 4.
-        assert_eq!(repl.session.instances(), 4);
+        assert_eq!(repl.rebuild().kept, [1, 2, 3, 4]);
         assert_eq!(repl.input("log.join(\", \")\n"), Outcome::Exit(0));
         assert_eq!(text(&io.out), "\"a, b\" : string\n");
         assert_eq!(text(&io.err), "");
@@ -1433,7 +1214,7 @@ fn a_rebuilt_session_runs_no_child_again() {
     ));
     inputs.push("out\n".to_owned());
     with_session(|session, io| {
-        let mut repl = repl_with_prelude(session);
+        let mut repl = repl(session);
         for input in &inputs {
             assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
         }
@@ -1447,9 +1228,9 @@ fn a_rebuilt_session_runs_no_child_again() {
         let rebuilt = repl.rebuild();
         assert_eq!(
             rebuilt,
-            crate::Rebuilt {
-                kept: (0..=4).collect(),
-                ..crate::Rebuilt::default()
+            crate::Ran {
+                kept: (1..=4).collect(),
+                ..crate::Ran::default()
             }
         );
         assert_eq!(repl.session.host_calls(), calls, "a host call repeated");
@@ -1531,7 +1312,7 @@ fn a_rebuilt_session_makes_no_network_call() {
         "out\n".to_owned(),
     ];
     with_session(|session, io| {
-        let mut repl = repl_with_prelude(session);
+        let mut repl = repl(session);
         for input in &inputs {
             assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
         }
@@ -1542,9 +1323,9 @@ fn a_rebuilt_session_makes_no_network_call() {
         let rebuilt = repl.rebuild();
         assert_eq!(
             rebuilt,
-            crate::Rebuilt {
-                kept: (0..=4).collect(),
-                ..crate::Rebuilt::default()
+            crate::Ran {
+                kept: (1..=4).collect(),
+                ..crate::Ran::default()
             }
         );
         assert_eq!(repl.session.host_calls(), calls, "a host call repeated");
@@ -1743,7 +1524,7 @@ fn a_rebuilt_session_sends_no_request_again() {
     inputs.push(format!("out := fetch!(\"{url}\")\n"));
     inputs.push("out\n".to_owned());
     with_session(|session, io| {
-        let mut repl = repl_with_prelude(session);
+        let mut repl = repl(session);
         for input in &inputs {
             assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
         }
@@ -1754,9 +1535,9 @@ fn a_rebuilt_session_sends_no_request_again() {
         let rebuilt = repl.rebuild();
         assert_eq!(
             rebuilt,
-            crate::Rebuilt {
-                kept: (0..=5).collect(),
-                ..crate::Rebuilt::default()
+            crate::Ran {
+                kept: (1..=5).collect(),
+                ..crate::Ran::default()
             }
         );
         assert_eq!(repl.session.host_calls(), calls, "a host call repeated");
@@ -1914,7 +1695,7 @@ fn a_rebuilt_session_reads_no_fifo_again() {
     inputs.push(format!("out := slurp!({})\n", hd_path(&fifo.0)));
     inputs.push("out\n".to_owned());
     with_session(|session, io| {
-        let mut repl = repl_with_prelude(session);
+        let mut repl = repl(session);
         for input in &inputs {
             assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
         }
@@ -1924,9 +1705,9 @@ fn a_rebuilt_session_reads_no_fifo_again() {
         let rebuilt = repl.rebuild();
         assert_eq!(
             rebuilt,
-            crate::Rebuilt {
-                kept: (0..=5).collect(),
-                ..crate::Rebuilt::default()
+            crate::Ran {
+                kept: (1..=5).collect(),
+                ..crate::Ran::default()
             }
         );
         assert_eq!(repl.session.host_calls(), calls, "a host call repeated");

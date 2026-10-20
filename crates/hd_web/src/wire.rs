@@ -28,37 +28,39 @@
 //! test goal's programs (the unit-test program, then each integration test
 //! file's) follow one another in the bytes, each as long as its `size`.
 //!
-//! **REPL goals** (`f1c55020:future-work/compiler/repl-plan.md` job W3) drive the session's REPL session
-//! ([`Session::repl_start`]), one module per request:
+//! **REPL goals** drive the session's REPL session
+//! ([`Session::repl_start`]), one input per request:
 //!
-//! - Repl start drops any earlier REPL session and builds the new one's
-//!   prelude, module 0. Repl input builds the next input, `repl#N`, over
-//!   the inputs that joined. N is the number the request gives, which must
-//!   be greater than every module's before it, or else one more than the
-//!   last module's; a host that rebuilds a session builds its kept inputs
-//!   again under their old numbers. Both answer
-//!   `{"diagnostics":[...],"input":N,"sessionKeys":[...]}` and the module
-//!   in the bytes (output kind 1), or no bytes and status 1 when it does
-//!   not build; such an input is dropped at once. `sessionKeys` are the
-//!   module's exports that the host registers under `hd.s` for later
-//!   modules (`hd_wasm::is_session_key`).
-//! - The host links and runs a module that built, then reports how it
-//!   ended with repl outcome: outcome byte 0 when it ended with status 0,
-//!   so it joins the session; 1 for any other end (it did not
-//!   instantiate, it panicked, it was stopped or cancelled, or it ended
-//!   with another status), so it adds nothing. A prelude that does not
-//!   join ends the session. The answer is
-//!   `{"diagnostics":[],"input":N,"joined":true|false}`, no bytes.
-//! - The session builds nothing more until the waiting module's outcome
+//! - Repl start drops any earlier REPL session and starts a new one over
+//!   the files; it builds nothing and answers input 0 with no bytes. Repl
+//!   input builds the session program of the next input, `repl#N`: every
+//!   kept input and this one in one module, input K running from its
+//!   exports `hd.init.K` and `hd.poll.K`. N is the number the request
+//!   gives, which must be greater than every input's before it, or else
+//!   one more than the last input's; a host that rebuilds a session
+//!   builds its kept inputs again under their old numbers. Both answer
+//!   `{"diagnostics":[...],"input":N}` and the module in the bytes (output
+//!   kind 1), or no bytes and status 1 when it does not build; such an
+//!   input is dropped at once.
+//! - The host runs a module that built, replaying the kept inputs from its
+//!   journal before input N (host/core.mjs `createSession`), then reports
+//!   how input N ended with repl outcome: outcome byte 0 when it ended
+//!   with status 0, so it joins the session; 1 when it did not run or was
+//!   stopped or cancelled, so it is dropped; 2 when it panicked or ended
+//!   with another status, so it stays for replays but later inputs do not
+//!   see what it declares. The answer is
+//!   `{"diagnostics":[],"input":N,"outcome":"joined"|"dropped"|"failed"}`,
+//!   no bytes.
+//! - The session builds nothing more until the waiting input's outcome
 //!   arrives. A REPL request that does not fit the session's state (no
-//!   session, a module still waiting, an outcome for another module)
+//!   session, an input still waiting, an outcome for another input)
 //!   answers status 2 and `{"error":"..."}`, as a malformed request does.
 
 use std::fmt::Write as _;
 
 use hd_driver::diagnostics::{Diag, quote};
 
-use crate::{CompileResult, Goal, ReplBuild, ReplError, Session};
+use crate::{CompileResult, Goal, ReplBuild, ReplError, ReplOutcome, Session};
 
 /// `hd_compile`'s status: compiled, and no diagnostic is an error.
 pub const STATUS_OK: u32 = 0;
@@ -87,8 +89,8 @@ pub enum Action {
     /// Goal byte 5: build the REPL session's next input, numbered
     /// `number`, or one after the last module.
     ReplInput { text: String, number: Option<u32> },
-    /// Goal byte 6: module `input` ended with status 0 (`joined`), or not.
-    ReplOutcome { input: u32, joined: bool },
+    /// Goal byte 6: how input `input` ended.
+    ReplOutcome { input: u32, outcome: ReplOutcome },
 }
 
 /// Why a request did not decode.
@@ -120,10 +122,17 @@ pub fn respond(session: &mut Session, request: &[u8]) -> Response {
             text,
             number: Some(number),
         } => repl_build(session.repl_input_as(number, &text)),
-        Action::ReplOutcome { input, joined } => match session.repl_outcome(input, joined) {
+        Action::ReplOutcome { input, outcome } => match session.repl_outcome(input, outcome) {
             Ok(()) => Response {
                 status: STATUS_OK,
-                json: format!("{{\"diagnostics\":[],\"input\":{input},\"joined\":{joined}}}"),
+                json: format!(
+                    "{{\"diagnostics\":[],\"input\":{input},\"outcome\":\"{}\"}}",
+                    match outcome {
+                        ReplOutcome::Joined => "joined",
+                        ReplOutcome::Dropped => "dropped",
+                        ReplOutcome::Failed => "failed",
+                    }
+                ),
                 wasm: Vec::new(),
                 wat: String::new(),
             },
@@ -240,12 +249,13 @@ pub fn decode_request(bytes: &[u8]) -> Result<Request, WireError> {
         6 => {
             let input =
                 u32::try_from(r.leb()?).map_err(|_| WireError("number does not fit 32 bits"))?;
-            let joined = match r.byte()? {
-                0 => true,
-                1 => false,
+            let outcome = match r.byte()? {
+                0 => ReplOutcome::Joined,
+                1 => ReplOutcome::Dropped,
+                2 => ReplOutcome::Failed,
                 _ => return Err(WireError("unknown outcome byte")),
             };
-            Action::ReplOutcome { input, joined }
+            Action::ReplOutcome { input, outcome }
         }
         _ => return Err(WireError("unknown goal byte")),
     };
@@ -365,21 +375,13 @@ pub fn encode_result(result: &CompileResult, goal: Goal) -> String {
     s
 }
 
-/// The JSON text of a REPL start or input: its diagnostics, the module's
-/// number (`input`) and its session keys (`sessionKeys`, empty when it did
-/// not build).
+/// The JSON text of a REPL start or input: its diagnostics and the
+/// input's number (`input`).
 #[must_use]
 pub fn encode_repl(build: &ReplBuild) -> String {
     let mut s = String::from("{\"diagnostics\":");
     push_diagnostics(&mut s, &build.diagnostics);
-    let _ = write!(s, ",\"input\":{},\"sessionKeys\":[", build.input);
-    for (n, key) in build.session_keys.iter().enumerate() {
-        if n > 0 {
-            s.push(',');
-        }
-        s.push_str(&quote(key));
-    }
-    s.push_str("]}");
+    let _ = write!(s, ",\"input\":{}}}", build.input);
     s
 }
 
@@ -651,13 +653,20 @@ mod tests {
             decode_request(&repl_outcome(300, 1)).unwrap().action,
             Action::ReplOutcome {
                 input: 300,
-                joined: false
+                outcome: ReplOutcome::Dropped
             }
         );
         let bad = |bytes: &[u8]| decode_request(bytes).unwrap_err().0;
         numbered.push(0);
         assert_eq!(bad(&numbered), "bytes after the request's last field");
-        assert_eq!(bad(&repl_outcome(1, 2)), "unknown outcome byte");
+        assert_eq!(
+            decode_request(&repl_outcome(1, 2)).unwrap().action,
+            Action::ReplOutcome {
+                input: 1,
+                outcome: ReplOutcome::Failed
+            }
+        );
+        assert_eq!(bad(&repl_outcome(1, 3)), "unknown outcome byte");
         assert_eq!(
             bad(&request(&[], "src/main.hd", 4)),
             "a REPL request has no entry"
@@ -684,36 +693,28 @@ mod tests {
             "{\"error\":\"no REPL session: start one first\"}"
         );
 
-        let prelude = respond(&mut session, &request(&[], "", 4));
-        assert_eq!(prelude.status, STATUS_OK, "{}", prelude.json);
-        assert!(
-            prelude
-                .json
-                .starts_with("{\"diagnostics\":[],\"input\":0,\"sessionKeys\":[\""),
-            "{}",
-            &prelude.json[..80]
-        );
-        assert!(prelude.json.contains("\"hd.x\""));
-        assert_eq!(&prelude.wasm[..4], b"\0asm");
-        let waiting = respond(&mut session, &repl_input("1\n"));
-        assert_eq!(waiting.json, "{\"error\":\"module 0 has no outcome yet\"}");
-        let joined = respond(&mut session, &repl_outcome(0, 0));
+        let start = respond(&mut session, &request(&[], "", 4));
         assert_eq!(
-            (joined.status, joined.json.as_str()),
-            (
-                STATUS_OK,
-                "{\"diagnostics\":[],\"input\":0,\"joined\":true}"
-            )
+            (start.status, start.json.as_str()),
+            (STATUS_OK, "{\"diagnostics\":[],\"input\":0}")
         );
-        assert!(joined.wasm.is_empty());
+        assert!(start.wasm.is_empty());
 
         let input = respond(&mut session, &repl_input("x := 20\n"));
         assert_eq!(input.status, STATUS_OK, "{}", input.json);
-        assert!(input.json.contains("\"input\":1,\"sessionKeys\":[\""));
-        assert!(input.json.contains("\"bind."), "{}", input.json);
+        assert_eq!(input.json, "{\"diagnostics\":[],\"input\":1}");
         assert_eq!(&input.wasm[..4], b"\0asm");
+        let waiting = respond(&mut session, &repl_input("1\n"));
+        assert_eq!(waiting.json, "{\"error\":\"input 1 has no outcome yet\"}");
         let dropped = respond(&mut session, &repl_outcome(1, 1));
-        assert!(dropped.json.ends_with("\"joined\":false}"));
+        assert_eq!(
+            (dropped.status, dropped.json.as_str()),
+            (
+                STATUS_OK,
+                "{\"diagnostics\":[],\"input\":1,\"outcome\":\"dropped\"}"
+            )
+        );
+        assert!(dropped.wasm.is_empty());
         let unknown = respond(&mut session, &repl_input("x\n"));
         assert_eq!(unknown.status, STATUS_ERRORS);
         assert!(
@@ -723,7 +724,7 @@ mod tests {
             "{}",
             unknown.json
         );
-        assert!(unknown.json.ends_with("\"input\":2,\"sessionKeys\":[]}"));
+        assert!(unknown.json.ends_with("\"input\":2}"));
         assert!(unknown.wasm.is_empty());
 
         // A numbered input keeps its number, which only goes up.
@@ -738,13 +739,13 @@ mod tests {
             seven.json
         );
         let after = respond(&mut session, &repl_input("1\n"));
-        assert!(after.json.contains("\"input\":8,"), "{}", after.json);
+        assert!(after.json.ends_with("\"input\":8}"), "{}", after.json);
         respond(&mut session, &repl_outcome(8, 0));
         let mut again = repl_input("1\n");
         leb(&mut again, 8);
         assert_eq!(
             respond(&mut session, &again).json,
-            "{\"error\":\"input 8 does not come after module 8\"}"
+            "{\"error\":\"input 8 does not come after input 8\"}"
         );
     }
 

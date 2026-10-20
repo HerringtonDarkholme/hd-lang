@@ -296,6 +296,7 @@ impl Program {
             check_roots: None,
             session: None,
             inputs_from: None,
+            failed_inputs: &[],
             body_fuel: None,
             backend: hd_driver::Backend::Linear,
         }

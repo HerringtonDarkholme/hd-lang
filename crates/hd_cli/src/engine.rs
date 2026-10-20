@@ -15,6 +15,7 @@
 use std::ffi::OsString;
 
 use hd_driver::{EngineTarget, OptLevel};
+use hd_run::journal::End;
 use hd_run::{HostSetup, Limits, Outcome, run_program};
 
 pub(crate) use crate::node::{CaseRun, HostCase, Panic, Snapshot};
@@ -394,19 +395,15 @@ impl SessionStopper {
     }
 }
 
-pub(crate) trait SessionBuilder {
-    fn build(&mut self, number: u32) -> Result<(String, Vec<u8>), String>;
-    #[cfg(feature = "wasmtime")]
-    fn build_joined(&mut self, numbers: &[u32]) -> Result<(Vec<String>, Vec<u8>), String>;
-    fn replayed(&mut self, number: u32, joined: bool);
-    fn restart(&mut self);
-}
-
-pub(crate) struct Rebuilt {
+/// What one run of a session program did (`hd_run_wasmtime::Ran`): the
+/// inputs it replayed, skipped (`cli.repl.rebuild.stopped`) and dropped
+/// (`cli.repl.rebuild.prefix`), and how the new input ended, when it ran.
+pub(crate) struct Ran {
     pub(crate) kept: Vec<u32>,
     pub(crate) skipped: Vec<u32>,
     pub(crate) dropped: Vec<u32>,
     pub(crate) reason: Option<String>,
+    pub(crate) live: Option<(Outcome, End)>,
 }
 
 pub(crate) enum ReplSession {
@@ -471,16 +468,28 @@ impl ReplSession {
         }
     }
 
-    pub(crate) fn run_input(
+    /// Runs the session program `wasm`: replays the session's inputs from
+    /// its journal, each of its text in `sources`, then runs input `live`
+    /// when one is asked for (`hd_run_wasmtime::WasmtimeSession::run`).
+    pub(crate) fn run(
         &mut self,
-        number: u32,
-        source: &str,
         wasm: &[u8],
-    ) -> Result<Outcome, String> {
+        sources: &[(u32, &str)],
+        live: Option<u32>,
+    ) -> Result<Ran, String> {
         match self {
-            Self::Node(session) => session.input(number, source, wasm),
+            Self::Node(session) => session.run(wasm, sources, live),
             #[cfg(feature = "wasmtime")]
-            Self::Wasmtime(session) => session.run_input(number, source, wasm),
+            Self::Wasmtime(session) => {
+                let ran = session.run(wasm, sources, live)?;
+                Ok(Ran {
+                    kept: ran.kept,
+                    skipped: ran.skipped,
+                    dropped: ran.dropped,
+                    reason: ran.reason,
+                    live: ran.live,
+                })
+            }
         }
     }
 
@@ -492,27 +501,24 @@ impl ReplSession {
         }
     }
 
-    pub(crate) fn set_rebuild_after(&mut self, inputs: usize) {
+    /// Whether the journal still records, so the session can run another
+    /// input.
+    pub(crate) fn recording(&self) -> bool {
         match self {
-            Self::Node(session) => session.rebuild_after = inputs,
+            Self::Node(session) => session.has_journal,
             #[cfg(feature = "wasmtime")]
-            Self::Wasmtime(session) => session.set_rebuild_after(inputs),
+            Self::Wasmtime(session) => session.journal().is_some(),
         }
     }
 
-    pub(crate) fn wants_rebuild(&self) -> bool {
+    /// The journal's size in bytes so far; 0 on Node, whose journal
+    /// stays in its process.
+    #[cfg(all(test, feature = "wasmtime"))]
+    pub(crate) fn journal_len(&self) -> usize {
         match self {
-            Self::Node(session) => session.ran > session.rebuild_after,
+            Self::Node(_) => 0,
             #[cfg(feature = "wasmtime")]
-            Self::Wasmtime(session) => session.wants_rebuild(),
-        }
-    }
-
-    pub(crate) fn journal(&self) -> Option<&[u8]> {
-        match self {
-            Self::Node(session) => session.has_journal.then_some(&[]),
-            #[cfg(feature = "wasmtime")]
-            Self::Wasmtime(session) => session.journal(),
+            Self::Wasmtime(session) => session.journal().map_or(0, <[u8]>::len),
         }
     }
 
@@ -521,40 +527,6 @@ impl ReplSession {
             Self::Node(session) => std::mem::take(&mut session.notice),
             #[cfg(feature = "wasmtime")]
             Self::Wasmtime(session) => session.take_journal_notice(),
-        }
-    }
-
-    pub(crate) fn rebuild(&mut self, builder: &mut dyn SessionBuilder) -> Result<Rebuilt, String> {
-        match self {
-            Self::Node(session) => session.rebuild(builder),
-            #[cfg(feature = "wasmtime")]
-            Self::Wasmtime(session) => {
-                struct NativeBuilder<'a>(&'a mut dyn SessionBuilder);
-                impl hd_run_wasmtime::Rebuilder for NativeBuilder<'_> {
-                    fn build(&mut self, number: u32) -> Result<(String, Vec<u8>), String> {
-                        self.0.build(number)
-                    }
-                    fn build_joined(
-                        &mut self,
-                        numbers: &[u32],
-                    ) -> Result<(Vec<String>, Vec<u8>), String> {
-                        self.0.build_joined(numbers)
-                    }
-                    fn replayed(&mut self, number: u32, joined: bool) {
-                        self.0.replayed(number, joined);
-                    }
-                    fn restart(&mut self) {
-                        self.0.restart();
-                    }
-                }
-                let result = session.rebuild(&mut NativeBuilder(builder))?;
-                Ok(Rebuilt {
-                    kept: result.kept,
-                    skipped: result.skipped,
-                    dropped: result.dropped,
-                    reason: result.reason,
-                })
-            }
         }
     }
 }
@@ -569,8 +541,6 @@ pub(crate) struct NodeSession {
     io: HostIo,
     opened: bool,
     cap: usize,
-    ran: usize,
-    rebuild_after: usize,
     has_journal: bool,
     notice: bool,
 }
@@ -605,8 +575,6 @@ impl NodeSession {
             io,
             opened: false,
             cap: hd_run::journal::SESSION_CAP,
-            ran: 0,
-            rebuild_after: 1000,
             has_journal: true,
             notice: false,
         })
@@ -696,85 +664,87 @@ impl NodeSession {
         Ok(())
     }
 
-    fn module(&self, number: u32, wasm: &[u8]) -> Result<String, String> {
-        let path = self.scratch.0.join(format!("input-{number}.wasm"));
-        std::fs::write(&path, wasm).map_err(|error| error.to_string())?;
-        Ok(crate::report::quote(&path.to_string_lossy()))
-    }
-
-    fn input(&mut self, number: u32, source: &str, wasm: &[u8]) -> Result<Outcome, String> {
+    fn run(
+        &mut self,
+        wasm: &[u8],
+        sources: &[(u32, &str)],
+        live: Option<u32>,
+    ) -> Result<Ran, String> {
         self.open()?;
-        let path = self.module(number, wasm)?;
+        let path = self.scratch.0.join("session.wasm");
+        std::fs::write(&path, wasm).map_err(|error| error.to_string())?;
+        let pairs: Vec<String> = sources
+            .iter()
+            .map(|(n, text)| format!("[{n},{}]", crate::report::quote(text)))
+            .collect();
         self.send(&format!(
-            "{{\"op\":\"input\",\"number\":{number},\"source\":{},\"wasm\":{path}}}",
-            crate::report::quote(source)
+            "{{\"op\":\"run\",\"wasm\":{},\"sources\":[{}],\"live\":{}}}",
+            crate::report::quote(&path.to_string_lossy()),
+            pairs.join(","),
+            live.map_or_else(|| "null".to_owned(), |n| n.to_string()),
         ))?;
         let row = self.receive()?;
-        let mut fields = row.split('\t');
-        if fields.next() != Some("done") {
-            return Err("the Node session sent no input outcome".into());
-        }
-        let status = fields
-            .next()
-            .and_then(|s| s.parse::<u8>().ok())
-            .ok_or("the Node session sent an invalid status")?;
-        self.has_journal = fields.next() == Some("1");
-        self.notice = fields.next() == Some("1");
-        self.ran += usize::from(number != 0);
-        Ok(Outcome::Exit(status))
-    }
-
-    fn rebuild(&mut self, builder: &mut dyn SessionBuilder) -> Result<Rebuilt, String> {
-        builder.restart();
-        self.send("{\"op\":\"rebuild\"}")?;
-        loop {
-            let row = self.receive()?;
-            if let Some(number) = row.strip_prefix("build\t").and_then(|s| s.parse().ok()) {
-                let reply = match builder.build(number) {
-                    Ok((source, wasm)) => format!(
-                        "{{\"source\":{},\"wasm\":{}}}",
-                        crate::report::quote(&source),
-                        self.module(number, &wasm)?
+        let Some(fields) = row.strip_prefix("ran\t") else {
+            return Err("the Node session sent no run outcome".into());
+        };
+        let fields: Vec<&str> = fields.split('\t').collect();
+        let [
+            kept,
+            skipped,
+            dropped,
+            reason,
+            status,
+            end,
+            error,
+            recording,
+            notice,
+        ] = fields[..]
+        else {
+            return Err("the Node session sent an invalid run outcome".into());
+        };
+        let numbers = |list: &str| -> Result<Vec<u32>, String> {
+            list.split(',')
+                .filter(|s| !s.is_empty())
+                .map(|s| s.parse().map_err(|_| "invalid input number".to_owned()))
+                .collect()
+        };
+        let reason = match reason {
+            "null" => None,
+            text => Some(Self::text(text)?),
+        };
+        let live = match (status, end) {
+            ("-", _) | (_, "-") => None,
+            (status, end) => {
+                let end = match end {
+                    "trapped" => End::Trapped,
+                    "stopped" => End::Stopped,
+                    "cancelled" => End::Cancelled,
+                    "failed" => End::Failed,
+                    exit => End::Exit(
+                        exit.strip_prefix("exit")
+                            .and_then(|s| s.parse().ok())
+                            .ok_or("the Node session sent an invalid end")?,
                     ),
-                    Err(error) => format!("{{\"error\":{}}}", crate::report::quote(&error)),
                 };
-                self.send(&reply)?;
-            } else if let Some(fields) = row.strip_prefix("replayed\t") {
-                let (number, joined) = fields.split_once('\t').ok_or("invalid replay outcome")?;
-                builder.replayed(
-                    number.parse().map_err(|_| "invalid replay input")?,
-                    joined == "1",
-                );
-            } else if let Some(fields) = row.strip_prefix("rebuilt\t") {
-                let mut fields = fields.splitn(4, '\t');
-                let mut numbers = || -> Result<Vec<u32>, String> {
-                    fields
-                        .next()
-                        .ok_or_else(|| "incomplete rebuild outcome".to_owned())?
-                        .split(',')
-                        .filter(|s| !s.is_empty())
-                        .map(|s| s.parse().map_err(|_| "invalid rebuilt input".into()))
-                        .collect()
+                let outcome = match status.parse::<u8>() {
+                    Ok(status) => Outcome::Exit(status),
+                    Err(_) => Outcome::Internal(match error {
+                        "null" => "the input failed".to_owned(),
+                        text => Self::text(text)?,
+                    }),
                 };
-                let kept = numbers()?;
-                let skipped = numbers()?;
-                let dropped = numbers()?;
-                let reason = match fields.next() {
-                    Some("null") => None,
-                    Some(text) => Some(Self::text(text)?),
-                    None => return Err("incomplete rebuild reason".into()),
-                };
-                self.ran = 0;
-                return Ok(Rebuilt {
-                    kept,
-                    skipped,
-                    dropped,
-                    reason,
-                });
-            } else {
-                return Err("the Node session sent an invalid rebuild frame".into());
+                Some((outcome, end))
             }
-        }
+        };
+        self.has_journal = recording == "1";
+        self.notice = notice == "1";
+        Ok(Ran {
+            kept: numbers(kept)?,
+            skipped: numbers(skipped)?,
+            dropped: numbers(dropped)?,
+            reason,
+            live,
+        })
     }
 }
 

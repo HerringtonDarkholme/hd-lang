@@ -7,12 +7,17 @@
 //! on wasm32. On wasm32 the crate exports four functions over that session
 //! (the `exports` module); [`wire`] holds their request and response format.
 //!
-//! A session also holds one REPL session (`f1c55020:future-work/compiler/repl-plan.md` job W3): the
-//! playground's files as its package, and the inputs that joined it. Each
-//! REPL request builds one module of that session, which the JS host links
-//! to the modules before it and runs; the host then reports how the module
-//! ended, and only a module that ended with status 0 joins the session
-//! (`cli.repl.panic.binding`, `cli.repl.panic.declarations`).
+//! A session also holds one REPL session: the playground's files as its
+//! package, and the inputs it keeps. Each REPL request builds the session
+//! program: every kept input and the new one in one module
+//! (`hd_driver::Packages::inputs_from`), which the JS host runs, replaying
+//! the kept inputs from its journal before the new one (host/core.mjs
+//! `createSession`). The host then reports how the new input ended: one
+//! that ended with status 0 joins the session; one that panicked or ended
+//! with another status stays, hidden from later inputs
+//! (`cli.repl.panic.binding`, `cli.repl.panic.declarations`), so later
+//! replays repeat its changes (`cli.repl.panic.mutations`); one that did
+//! not run or was stopped is dropped.
 
 use hd_cache::MemoryStore;
 use hd_driver::diagnostics::{Diag, from_output};
@@ -99,23 +104,31 @@ pub struct Program {
     pub wasm: Option<Vec<u8>>,
 }
 
-/// What one REPL request built: one module of the session.
+/// What one REPL request built: the session program of an input.
 pub struct ReplBuild {
-    /// The module's number: 0 for the session's prelude, then 1, 2, ... for
-    /// the inputs, as diagnostics name them (`repl#3`). A failed input uses
-    /// its number up, as on the CLI.
+    /// The input's number: 1, 2, ... as diagnostics name them (`repl#3`);
+    /// 0 for a start, which builds nothing. A failed input uses its number
+    /// up, as on the CLI.
     pub input: u32,
-    /// The module, when no diagnostic is an error. The session waits for
-    /// its outcome ([`Session::repl_outcome`]) before it builds another.
+    /// The session program, when no diagnostic is an error: the kept
+    /// inputs and this one, input N running from the exports `hd.init.N`
+    /// and `hd.poll.N`. The session waits for the input's outcome
+    /// ([`Session::repl_outcome`]) before it builds another.
     pub wasm: Option<Vec<u8>>,
-    /// The module's exports that are session keys
-    /// ([`hd_wasm::is_session_key`]), in export order: the host registers
-    /// them under [`hd_wasm::SESSION_MODULE`] for the modules after it,
-    /// once the module joined. The entry exports (`hd.init`, `hd.poll`,
-    /// `hd.wake`) are not among them.
-    pub session_keys: Vec<String>,
     /// In content order; an input's file is `repl#N`.
     pub diagnostics: Vec<Diag>,
+}
+
+/// How an input that built ended, as the host reports it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReplOutcome {
+    /// It ended with status 0: it joins the session.
+    Joined,
+    /// It did not run, or it was stopped or cancelled: it is dropped.
+    Dropped,
+    /// It panicked or ended with another status: it stays for replays,
+    /// but later inputs do not see what it declares.
+    Failed,
 }
 
 /// Why a REPL request does not fit the session's state: no session, a
@@ -125,16 +138,15 @@ pub struct ReplError(pub String);
 
 /// The REPL session of a worker.
 struct Repl {
-    /// The playground's files, and the `repl#N` file of each input that
-    /// joined or waits for its outcome.
+    /// The playground's files, and the `repl#N` file of each input it
+    /// keeps or that waits for its outcome.
     sources: MemorySources,
-    /// What the modules that joined export, for the next build.
-    built: hd_driver::Session,
-    /// The number of the last module built.
+    /// The kept inputs that did not end with status 0.
+    failed: Vec<u32>,
+    /// The number of the last input built.
     last: u32,
-    /// The module that waits for its outcome, with what it adds to the
-    /// session once it ran with status 0.
-    waiting: Option<(u32, hd_driver::Session)>,
+    /// The input that waits for its outcome.
+    waiting: Option<u32>,
 }
 
 /// One playground worker's state.
@@ -143,7 +155,7 @@ pub struct Session {
     /// The files of the last compile.
     sources: MemorySources,
     store: MemoryStore,
-    /// The REPL session, once one started and while its prelude ran.
+    /// The REPL session, once one started.
     repl: Option<Repl>,
 }
 
@@ -266,10 +278,9 @@ impl Session {
     }
 
     /// Starts a REPL session over `files`, which act as its package
-    /// (`cli.repl.package.lib`: `src/lib.hd` when present), and builds its
-    /// prelude, module 0 ([`hd_driver::build_repl_prelude`]). A session
-    /// that ran before is dropped. The prelude waits for its outcome as
-    /// every module does; a prelude that does not build ends the session.
+    /// (`cli.repl.package.lib`: `src/lib.hd` when present). A session that
+    /// ran before is dropped. It builds nothing: its answer is input 0,
+    /// with no module.
     ///
     /// # Errors
     ///
@@ -291,35 +302,27 @@ impl Session {
             }
             sources.insert(path, text.as_ref());
         }
-        let host = Host {
-            render_tir: &[],
-            sources: &sources,
-            store: &self.store,
-            clock: &NoClock,
-            executor: Executor::Serial(SerialOrder::Priority),
-        };
-        let out = hd_driver::build_repl_prelude(&host, BuildProfile::Checked, PIPELINE.0);
-        let (build, added) = finish(0, out);
-        self.tidy_store();
-        if let Some(added) = added {
-            self.repl = Some(Repl {
-                sources,
-                built: hd_driver::Session::start(),
-                last: 0,
-                waiting: Some((0, added)),
-            });
-        }
-        Ok(build)
+        self.repl = Some(Repl {
+            sources,
+            failed: Vec::new(),
+            last: 0,
+            waiting: None,
+        });
+        Ok(ReplBuild {
+            input: 0,
+            wasm: None,
+            diagnostics: Vec::new(),
+        })
     }
 
-    /// Builds `text` as the session's next input (`Goal::ReplInput`) over
-    /// the inputs that joined, numbered one after the last module built. An
+    /// Builds `text` as the session's next input (`Goal::ReplInput`) with
+    /// the inputs it keeps, numbered one after the last input built. An
     /// input that does not build is dropped at once; one that builds waits
     /// for its outcome.
     ///
     /// # Errors
     ///
-    /// No session started, or the last module still waits for its outcome.
+    /// No session started, or the last input still waits for its outcome.
     pub fn repl_input(&mut self, text: &str) -> Result<ReplBuild, ReplError> {
         let last = self.repl.as_ref().ok_or_else(no_session)?.last;
         self.repl_input_as(last + 1, text)
@@ -335,17 +338,17 @@ impl Session {
     ///
     /// # Errors
     ///
-    /// No session started, the last module still waits for its outcome, or
-    /// `number` does not come after the last module built.
+    /// No session started, the last input still waits for its outcome, or
+    /// `number` does not come after the last input built.
     pub fn repl_input_as(&mut self, number: u32, text: &str) -> Result<ReplBuild, ReplError> {
         let repl = self.repl.as_mut().ok_or_else(no_session)?;
-        if let Some((n, _)) = &repl.waiting {
-            return Err(ReplError(format!("module {n} has no outcome yet")));
+        if let Some(n) = &repl.waiting {
+            return Err(ReplError(format!("input {n} has no outcome yet")));
         }
         if number <= repl.last {
             let last = repl.last;
             return Err(ReplError(format!(
-                "input {number} does not come after module {last}"
+                "input {number} does not come after input {last}"
             )));
         }
         repl.last = number;
@@ -358,52 +361,47 @@ impl Session {
             clock: &NoClock,
             executor: Executor::Serial(SerialOrder::Priority),
         };
+        let start = hd_driver::Session::start();
         let packages = Packages {
             build_profile: BuildProfile::Checked,
             target: PIPELINE.0,
             level: PIPELINE.1,
-            session: Some(&repl.built),
-            // A session links one module per input, which only the Wasm
-            // GC backend does so far, as for the prelude
-            // (`hd_driver::build_repl_prelude`).
-            backend: hd_driver::Backend::WasmGc,
+            session: Some(&start),
+            inputs_from: Some(1),
+            failed_inputs: &repl.failed,
             ..Packages::default()
         };
         let goal = hd_driver::Goal::ReplInput { input: number };
         let out = build_packages(&host, PACKAGE, &packages, &goal);
-        let (build, added) = finish(number, out);
-        match added {
-            Some(added) => repl.waiting = Some((number, added)),
+        let build = finish(number, out);
+        match build.wasm {
+            Some(_) => repl.waiting = Some(number),
             None => repl.sources.retain(|p| p != file),
         }
         self.tidy_store();
         Ok(build)
     }
 
-    /// Takes the outcome of module `input`, the one that waits: with
-    /// `joined`, it ran and ended with status 0, so it joins the session
-    /// and later inputs see its names. Otherwise it failed to instantiate,
-    /// panicked, was stopped or ended with another status, and adds
-    /// nothing (`cli.repl.panic.binding`, `cli.repl.panic.declarations`);
-    /// a prelude that did not join ends the session.
+    /// Takes the outcome of input `input`, the one that waits
+    /// ([`ReplOutcome`]).
     ///
     /// # Errors
     ///
-    /// No session started, or `input` is not the module that waits.
-    pub fn repl_outcome(&mut self, input: u32, joined: bool) -> Result<(), ReplError> {
+    /// No session started, or `input` is not the input that waits.
+    pub fn repl_outcome(&mut self, input: u32, outcome: ReplOutcome) -> Result<(), ReplError> {
         let repl = self.repl.as_mut().ok_or_else(no_session)?;
-        let Some((_, added)) = repl.waiting.take_if(|(n, _)| *n == input) else {
+        if repl.waiting.take_if(|n| *n == input).is_none() {
             return Err(ReplError(format!(
-                "module {input} does not wait for its outcome"
+                "input {input} does not wait for its outcome"
             )));
-        };
-        if joined {
-            repl.built.add(added);
-        } else if input == 0 {
-            self.repl = None;
-        } else {
-            let file = repl_file(input);
-            repl.sources.retain(|p| p != file);
+        }
+        match outcome {
+            ReplOutcome::Joined => {}
+            ReplOutcome::Failed => repl.failed.push(input),
+            ReplOutcome::Dropped => {
+                let file = repl_file(input);
+                repl.sources.retain(|p| p != file);
+            }
         }
         Ok(())
     }
@@ -413,46 +411,25 @@ fn no_session() -> ReplError {
     ReplError("no REPL session: start one first".to_owned())
 }
 
-/// A REPL build's answer from the driver's output, and what the module
-/// adds to the session once it ran; `None` when it did not build.
-fn finish(input: u32, out: hd_driver::Output) -> (ReplBuild, Option<hd_driver::Session>) {
+/// A REPL build's answer from the driver's output.
+fn finish(input: u32, out: hd_driver::Output) -> ReplBuild {
     note_built(&out);
     let mut diagnostics =
         hd_driver::diagnostics::for_input(from_output(&out, None), &repl_file(input));
-    let mut build = ReplBuild {
-        input,
-        wasm: None,
-        session_keys: Vec::new(),
-        diagnostics: Vec::new(),
-    };
-    let mut added = None;
+    let mut wasm = None;
     if !diagnostics.iter().any(Diag::is_error) {
-        if let (Some(wasm), Some(adds)) = (out.wasm, out.session_added) {
-            build.session_keys = session_keys(&wasm);
-            build.wasm = Some(wasm);
-            added = Some(adds);
+        if out.wasm.is_some() {
+            wasm = out.wasm;
         } else {
             let file = repl_file(input);
             diagnostics.push(Diag::error(None, "no Wasm produced").at(&file, None));
         }
     }
-    build.diagnostics = diagnostics;
-    (build, added)
-}
-
-/// The exports of `wasm` that are session keys, in export order.
-fn session_keys(wasm: &[u8]) -> Vec<String> {
-    let mut keys = Vec::new();
-    for payload in wasmparser::Parser::new(0).parse_all(wasm) {
-        if let Ok(wasmparser::Payload::ExportSection(exports)) = payload {
-            for export in exports.into_iter().flatten() {
-                if hd_wasm::is_session_key(export.name) {
-                    keys.push(export.name.to_owned());
-                }
-            }
-        }
+    ReplBuild {
+        input,
+        wasm,
+        diagnostics,
     }
-    keys
 }
 
 #[cfg(test)]
@@ -477,11 +454,10 @@ mod pipeline_tests {
             assert!(result.diagnostics.is_empty(), "{goal:?}");
             assert_eq!(BUILT.take(), [browser], "{goal:?}");
         }
-        let prelude = session.repl_start(files).expect("a session");
-        assert!(prelude.wasm.is_some());
-        session.repl_outcome(0, true).expect("the prelude joins");
+        let start = session.repl_start(files).expect("a session");
+        assert!(start.wasm.is_none());
         let input = session.repl_input("x := +1\n").expect("an input");
         assert!(input.diagnostics.is_empty());
-        assert_eq!(BUILT.take(), [browser, browser]);
+        assert_eq!(BUILT.take(), [browser]);
     }
 }

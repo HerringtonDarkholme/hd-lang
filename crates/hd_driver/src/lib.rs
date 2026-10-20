@@ -898,11 +898,6 @@ enum Roots {
     },
 }
 
-/// Whether this build of the compiler builds joined REPL inputs
-/// ([`Packages::inputs_from`]). The web compiler does not: the JS host's
-/// session keeps one module per input, so it leaves that code out.
-const JOINED_INPUTS: bool = cfg!(not(target_arch = "wasm32"));
-
 /// One input of a joined REPL build: its number, its first own init body
 /// and that body's instance, every init it runs, in order, and its own
 /// ones (as [`Roots::Script`]'s `own`).
@@ -939,6 +934,9 @@ struct LibScope {
 struct ReplInputs {
     /// (number, module), by number.
     sorted: Vec<(u32, usize)>,
+    /// `sorted` without the failed inputs ([`Packages::failed_inputs`]):
+    /// the inputs a later input sees.
+    visible: Vec<(u32, usize)>,
     /// Each module's number, if it is an input.
     numbers: Vec<Option<u32>>,
     /// The input this run builds, by module; `None` for the prelude, which
@@ -972,6 +970,7 @@ impl ReplInputs {
         table: &ModuleTable,
         goal: &Goal,
         from: Option<u32>,
+        failed: &[u32],
         text: &mut dyn FnMut(usize) -> Arc<str>,
     ) -> Self {
         let n = table.modules.len();
@@ -988,6 +987,11 @@ impl ReplInputs {
             .filter_map(|(k, n)| Some(((*n)?, k)))
             .collect();
         sorted.sort_unstable();
+        let visible: Vec<(u32, usize)> = sorted
+            .iter()
+            .filter(|(n, _)| !failed.contains(n))
+            .copied()
+            .collect();
         let built = match goal {
             Goal::ReplInput { input } => Some(*input),
             _ => None,
@@ -1001,20 +1005,26 @@ impl ReplInputs {
         if let (Some(lib), Some(built)) = (lib, built) {
             let mut names: Option<HashSet<String>> = None;
             let mut joined = false;
-            for &(_, k) in sorted.iter().take_while(|(number, _)| *number <= built) {
-                if !joined {
+            for &(number, k) in sorted.iter().take_while(|(number, _)| *number <= built) {
+                let own = joined || {
                     let names = names.get_or_insert_with(|| lib_names(&text(lib)));
-                    joined = names_any(&text(k), names);
+                    names_any(&text(k), names)
+                };
+                with_lib[k] = own;
+                // A failed input's session is its own: it leaves the
+                // library out of later inputs' that never name it.
+                if !failed.contains(&number) {
+                    joined = own;
                 }
-                with_lib[k] = joined;
             }
         }
         ReplInputs {
             sorted,
+            visible,
             numbers,
             input,
             built: built.map(|b| (from.unwrap_or(b), b)),
-            joined: JOINED_INPUTS && built.is_some() && from.is_some(),
+            joined: built.is_some() && from.is_some(),
             lib,
             with_lib,
         }
@@ -1356,6 +1366,13 @@ pub struct Packages<'a> {
     /// level runs from the exports `hd.init.K` and `hd.poll.K`. `None`
     /// builds `input` alone, whose exports are `hd.init` and `hd.poll`.
     pub inputs_from: Option<u32>,
+    /// For a joined REPL build ([`Packages::inputs_from`]): the inputs that
+    /// ran but did not end with status 0. Each is built and runs again
+    /// when the host replays the session, so its changes to earlier values
+    /// stay (`cli.repl.panic.mutations`), but no later input sees what it
+    /// declares (`cli.repl.panic.binding`, `cli.repl.panic.declarations`),
+    /// and its implementations are not checked against later ones.
+    pub failed_inputs: &'a [u32],
     /// A test-only hook: the fuel of each body of the root package's
     /// modules, and of each of their items' header goals, smaller than
     /// `Fuel::BODY_DEFAULT`, so a small program reaches `item-too-complex`
@@ -1629,7 +1646,13 @@ pub fn build_packages(
         (package != "std").then(|| skims::StdSkims::new(host.store, toolchain)),
         table.modules.len(),
     );
-    let repl_inputs = ReplInputs::new(&table, goal, packages.inputs_from, &mut text);
+    let repl_inputs = ReplInputs::new(
+        &table,
+        goal,
+        packages.inputs_from,
+        packages.failed_inputs,
+        &mut text,
+    );
     // A REPL input reads only the modules it reaches; every other run reads
     // them all.
     let ModuleTexts {
@@ -3668,14 +3691,15 @@ impl Run<'_> {
         Some((reach, folders))
     }
 
-    /// The inputs before REPL input `m`, in order; none for any other
+    /// The inputs before REPL input `m` that it sees, in order: not the
+    /// failed ones ([`Packages::failed_inputs`]); none for any other
     /// module.
     fn earlier_inputs(&self, m: usize) -> &[(u32, usize)] {
-        let sorted = &self.repl_inputs().sorted;
+        let visible = &self.repl_inputs().visible;
         let n = self
             .repl_number(m)
-            .map_or(0, |n| sorted.partition_point(|(k, _)| *k < n));
-        &sorted[..n]
+            .map_or(0, |n| visible.partition_point(|(k, _)| *k < n));
+        &visible[..n]
     }
 
     /// The modules REPL input `m` sees through its session scope:
@@ -4272,9 +4296,17 @@ impl Run<'_> {
     /// the traits whose `coh_key` changed (`crates/hd_cache/DESIGN.md`,
     /// "Coherence runs per changed trait").
     fn coherence_inputs(&self) -> Option<(Vec<Arc<FolderIface>>, Hash128)> {
+        // A failed REPL input adds no implementation to the session
+        // (`cli.repl.panic.declarations`): a later one may repeat it.
+        let repl = self.repl_inputs();
+        let failed = |f: &FolderId| {
+            repl.sorted.iter().any(|&(n, m)| {
+                self.table.modules[m].folder == *f && !repl.visible.iter().any(|(v, _)| *v == n)
+            })
+        };
         let built: Vec<FolderId> = (0..self.table.folders.len())
             .map(|f| FolderId::from_raw(u32_of(f)))
-            .filter(|f| self.builds(*f))
+            .filter(|f| self.builds(*f) && !failed(f))
             .collect();
         let mut all = Vec::new();
         for &f in &built {
@@ -7575,7 +7607,7 @@ impl Run<'_> {
                     return;
                 }
             };
-            if JOINED_INPUTS && self.repl_inputs.joined {
+            if self.repl_inputs.joined {
                 order.clone_from(&defs);
             }
             for (d, module) in &defs {
@@ -7738,7 +7770,7 @@ impl Run<'_> {
             .filter_map(|(k, r)| key_of_extra(r).map(|h| (*k, h)))
             .collect();
         let plan = match &self.goal {
-            Goal::ReplInput { .. } if JOINED_INPUTS && self.repl_inputs.joined => {
+            Goal::ReplInput { .. } if self.repl_inputs.joined => {
                 match self.joined_inputs(&order, &key_of_init) {
                     Ok(inputs) => Roots::Inputs(inputs),
                     Err(e) => {
@@ -8129,9 +8161,6 @@ impl Run<'_> {
         c: &CollectOut,
     ) -> hd_base::StageResult<Vec<(String, hd_wasm::Helper)>> {
         let mut out = Vec::new();
-        if !JOINED_INPUTS {
-            return Ok(out);
-        }
         let mut wake = None;
         for i in inputs {
             let entry = hd_wasm::script_entry(
@@ -8717,7 +8746,12 @@ impl Run<'_> {
         };
         let inits = &c.collected.inits;
         let entry = match &c.roots {
-            _ if self.session.is_some() => hd_wasm_linear::Entry::Unsupported("REPL sessions"),
+            // A linear module owns its memory, so it links to no earlier
+            // module: a session is one module of all its inputs
+            // ([`Packages::inputs_from`]) over a session with no module.
+            _ if self.session.is_some_and(|s| *s != Session::start()) => {
+                hd_wasm_linear::Entry::Unsupported("a REPL input over earlier modules")
+            }
             Roots::Main {
                 def,
                 key,
@@ -8757,7 +8791,44 @@ impl Run<'_> {
                 }
                 None => hd_wasm_linear::Entry::Unsupported("a script whose init is not run"),
             },
-            Roots::Inputs(_) => hd_wasm_linear::Entry::Unsupported("REPL inputs"),
+            Roots::Inputs(inputs) => {
+                // The inits no input reaches through its uses, as the
+                // linear runtime's, which the compiler roots: they run
+                // first, before the first input's.
+                let mut first: Vec<(Hash128, bool)> = inits
+                    .iter()
+                    .filter(|k| !inputs.iter().any(|i| i.inits.contains(k)))
+                    .map(|k| (*k, true))
+                    .collect();
+                let mut out = Vec::new();
+                for i in inputs {
+                    // As `Roots::Script`'s split, over the input's own inits.
+                    let Some(at) = i.inits.iter().position(|k| *k == i.key) else {
+                        self.stage::<()>(
+                            Stage::Link,
+                            Err(NotImplemented::bug(
+                                Stage::Link,
+                                "a joined REPL input whose init is not run",
+                            )),
+                        );
+                        return;
+                    };
+                    out.push(hd_wasm_linear::ReplInput {
+                        number: i.number,
+                        init: i.def,
+                        key: i.key,
+                        before: std::mem::take(&mut first)
+                            .into_iter()
+                            .chain(i.inits[..at].iter().map(|k| (*k, true)))
+                            .collect(),
+                        after: i.inits[at + 1..]
+                            .iter()
+                            .map(|k| (*k, !i.own.contains(k)))
+                            .collect(),
+                    });
+                }
+                hd_wasm_linear::Entry::Inputs(out)
+            }
             Roots::Tests { cases, inits } => hd_wasm_linear::Entry::Tests {
                 cases: cases.clone(),
                 inits: inits.clone(),

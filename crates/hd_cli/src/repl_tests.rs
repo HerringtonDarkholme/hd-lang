@@ -183,38 +183,27 @@ fn write_files(dir: &Path, files: &[(&str, &str)]) {
     }
 }
 
-/// A session builds its prelude and every input for wasmtime, the REPL's
-/// only engine, in the dev pipeline (`crates/hd_opt/DESIGN.md` (optimization pipelines) §5).
+/// A session builds its program for wasmtime, in the dev pipeline
+/// (`crates/hd_opt/DESIGN.md` (optimization pipelines) §5), on the
+/// linear backend.
 #[test]
 fn a_session_builds_for_wasmtime_in_the_dev_pipeline() {
     let pipeline = crate::Pipeline {
         target: hd_driver::EngineTarget::Wasmtime,
         level: hd_driver::OptLevel::Dev,
-        backend: hd_driver::Backend::WasmGc,
+        backend: hd_driver::Backend::Linear,
     };
     assert_eq!(super::PIPELINE, pipeline);
     let dir = Scratch::new(SCRATCH, &format!("repl-pipeline-{}", unique()));
     let mut program = disk::load_session(&dir).expect("the session's scope");
     let store = crate::disk_store();
     crate::take_built();
-    let prelude = super::build_prelude(&program, &store, super::PIPELINE.target);
-    let mut built = hd_driver::Session::start();
-    built.add(prelude.session_added.expect("what the prelude adds"));
     program
         .sources
         .add_synthetic(&hd_project::repl_file(1), "x := +1\n");
-    let mut diags = Vec::new();
-    let input = super::build_input(
-        &program,
-        &store,
-        &built,
-        None,
-        1,
-        &mut diags,
-        super::PIPELINE.target,
-    );
-    assert!(input.is_some(), "{}", String::from_utf8_lossy(&diags));
-    assert_eq!(crate::take_built(), [pipeline, pipeline]);
+    let (wasm, diags) = super::build_session(&program, &store, &[], 1, super::PIPELINE.target);
+    assert!(wasm.is_some(), "{diags:?}");
+    assert_eq!(crate::take_built(), [pipeline]);
 }
 
 /// `cli.dbg.repl`: an input's `dbg` lines print before its value line.
@@ -641,12 +630,16 @@ fn a_stopped_input_ends_and_the_session_goes_on() {
         .expect("started")
         .join()
         .expect("the stopping thread");
-    assert_eq!(t.out, "stopped\n8 : usize\n");
+    assert_eq!(
+        t.out,
+        "stopped\nnote: repl#2 was stopped, so the next rebuild skips it; its changes are not restored\n8 : usize\n"
+    );
 }
 
 /// `cli.repl.cancel`: Ctrl-C while an input waits on the host cancels it
-/// at once; its `defer` runs, it ends as a panicking input does, and the
-/// next input sees what the `defer` changed.
+/// at once; its `defer` runs, and it ends as a panicking input does. The
+/// next input's rebuild skips it (`cli.repl.rebuild.stopped`), so what
+/// the `defer` changed is not restored, which the REPL says.
 #[test]
 fn a_waiting_input_is_cancelled_and_the_session_goes_on() {
     use std::sync::atomic::{AtomicU8, Ordering};
@@ -695,7 +688,10 @@ fn a_waiting_input_is_cancelled_and_the_session_goes_on() {
         "the prompt waited for the timer: {:?}",
         started.elapsed()
     );
-    assert_eq!(t.out, "cancelled\n[\"cleanup\"] : List[string]\n");
+    assert_eq!(
+        t.out,
+        "cancelled\nnote: repl#4 was cancelled, so the next rebuild skips it; its changes are not restored\n[] : List[string]\n"
+    );
 }
 
 /// `cli.repl.uses.other`: a use that names a module reaches later inputs.
@@ -932,9 +928,9 @@ fn diagnostics_name_the_input_and_line() {
 }
 
 /// Past its journal's cap the REPL says once, after the input that passed
-/// it, that the session can no longer be rebuilt; the session goes on
-/// (`docs/future-work/live-execution.md` §4.6). The cap here is 200 bytes: the prelude, the
-/// `use` and the first clock reading fit; the next input passes it.
+/// it, that the session can run no further input, since every input
+/// replays the journal (`docs/future-work/live-execution.md` §4.6); each
+/// later input and `:reload` is refused. The cap here is 200 bytes.
 #[test]
 fn a_full_journal_is_noted_once() {
     let dir = Scratch::new(SCRATCH, &format!("repl-journal-{}", unique()));
@@ -947,17 +943,16 @@ fn a_full_journal_is_noted_once() {
         "+7",
         ":reload",
     ]);
-    let bounds = Bounds {
-        journal_cap: 200,
-        ..Bounds::default()
-    };
+    let bounds = Bounds { journal_cap: 200 };
     let t = session_with(&dir, script, |_| {}, None, bounds);
+    let lines: Vec<&str> = t.out.lines().collect();
+    assert_eq!(lines.first(), Some(&super::JOURNAL_FULL), "{}", t.out);
+    let refused = &lines[1..lines.len() - 1];
+    assert!(!refused.is_empty(), "{}", t.out);
+    assert!(refused.iter().all(|l| *l == super::NO_JOURNAL), "{}", t.out);
     assert_eq!(
-        t.out,
-        format!(
-            "{}\n7 : i32\nerror: the session's record of host calls is full, so it cannot be rebuilt\n",
-            super::JOURNAL_FULL
-        )
+        lines.last(),
+        Some(&"error: the session's record of host calls is full, so it cannot be rebuilt")
     );
 }
 
@@ -987,35 +982,6 @@ fn reload_repeats_no_host_call() {
         ["once", "reloaded: 7 inputs replayed", lines[0]]
     );
     assert_eq!(lines[4], "true : bool");
-}
-
-/// #228: past its bound of inputs the session rebuilds from its journal,
-/// silently. With a bound of 2 it rebuilds after the third input and
-/// again after the sixth. The clock is not read again, nothing prints
-/// again, and the bindings stay.
-#[test]
-fn a_session_past_its_bound_rebuilds_silently() {
-    let dir = Scratch::new(SCRATCH, "repl-rebuild-bound");
-    let script = Script::of(&[
-        "use std.time.{now}",
-        "t := now().unix_milliseconds()",
-        "println(\"once\")",
-        "t",
-        "let total = 1",
-        "total = total + 1",
-        "t",
-        "total",
-    ]);
-    let bounds = Bounds {
-        rebuild_after: 2,
-        ..Bounds::default()
-    };
-    let t = session_with(&dir, script, |_| {}, None, bounds);
-    let lines: Vec<&str> = t.out.lines().collect();
-    assert_eq!(lines.len(), 4, "{}", t.out);
-    assert_eq!(lines[0], "once");
-    assert!(lines[1].ends_with(" : i64"), "{}", t.out);
-    assert_eq!(lines[2..], [lines[1], "2 : usize"]);
 }
 
 /// A package `shop` whose `lib.hd` the test edits when the script hands
@@ -1138,7 +1104,7 @@ fn reload_skips_and_reports_a_stopped_input() {
     assert_eq!(
         t.out,
         "stopped\n\
-         note: repl#2 was stopped, so the rebuild skipped it; its changes are not restored\n\
+         note: repl#2 was stopped, so the next rebuild skips it; its changes are not restored\n\
          reloaded: 1 input replayed\n\
          7 : usize\n"
     );
@@ -1235,11 +1201,12 @@ fn resident_kib() -> u64 {
         .expect("ps prints the RSS in KiB")
 }
 
-/// Runs 1,000 inputs through the session API the REPL uses (`build_input`
-/// over the kept session, then `run_input`), and prints one line every 50
-/// inputs: the process RSS, the build and run time of the input just done,
-/// the mean of the 50 before it, and the journal size. `bench/metrics`'s
-/// `long-session` runs this test and reads the lines.
+/// Runs 1,000 inputs through the session API the REPL uses
+/// (`build_session` over the kept inputs, then `run`, which replays them),
+/// and prints one line every 50 inputs: the process RSS, the build and run
+/// time of the input just done, the mean of the 50 before it, and the
+/// journal size. `bench/metrics`'s `long-session` runs this test and reads
+/// the lines.
 fn long_session(mix: bool) {
     const INPUTS: u32 = 1000;
     const STEP: u32 = 50;
@@ -1273,7 +1240,6 @@ fn long_session(mix: bool) {
                 program,
                 super::complete::Names::default(),
             );
-            repl.start().expect("the prelude");
             println!("LONG-SESSION-START rss_kib={}", resident_kib());
             let (mut build_sum, mut run_sum) = (0.0f64, 0.0f64);
             for index in 0..INPUTS {
@@ -1281,28 +1247,32 @@ fn long_session(mix: bool) {
                 repl.next += 1;
                 let file = hd_project::repl_file(repl.next);
                 repl.program.sources.add_synthetic(&file, &text);
-                let mut diags = Vec::new();
                 let start = Instant::now();
-                let result = super::build_input(
+                let (wasm, diags) = super::build_session(
                     &repl.program,
                     &repl.store,
-                    &repl.built,
-                    None,
+                    &[],
                     repl.next,
-                    &mut diags,
                     super::PIPELINE.target,
                 );
                 let build = start.elapsed().as_secs_f64();
-                let (wasm, added) = result.unwrap_or_else(|| {
-                    panic!("input {index} {text:?}: {}", String::from_utf8_lossy(&diags))
-                });
-                repl.texts.insert(repl.next, text.clone());
+                let wasm = wasm.unwrap_or_else(|| panic!("input {index} {text:?}: {diags:?}"));
+                let mut sources = super::sources(&repl.inputs);
+                sources.push((repl.next, &text));
                 let start = Instant::now();
-                let outcome = repl.session.run_input(repl.next, &text, &wasm);
+                let ran = repl.session.run(&wasm, &sources, Some(repl.next));
                 let run = start.elapsed().as_secs_f64();
-                assert!(matches!(outcome, Ok(Outcome::Exit(0))), "input {index}");
-                repl.built.add(added);
-                repl.names.add_input(repl.next, &text);
+                assert!(
+                    matches!(ran, Ok(super::Ran { live: Some((Outcome::Exit(0), _)), .. })),
+                    "input {index}"
+                );
+                repl.inputs.insert(
+                    repl.next,
+                    super::Kept {
+                        text: text.clone(),
+                        joined: true,
+                    },
+                );
                 build_sum += build;
                 run_sum += run;
                 if (index + 1) % STEP == 0 {
@@ -1314,7 +1284,7 @@ fn long_session(mix: bool) {
                         run * 1e6,
                         build_sum / f64::from(STEP) * 1e6,
                         run_sum / f64::from(STEP) * 1e6,
-                        repl.session.journal().map_or(0, <[u8]>::len),
+                        repl.session.journal_len(),
                     );
                     (build_sum, run_sum) = (0.0, 0.0);
                 }
@@ -1365,7 +1335,7 @@ fn node_session_keeps_guest_stdin_separate_from_control() {
     );
 }
 
-/// Explicit and automatic Node rebuilds use journaled host results.
+/// Every Node input and an explicit rebuild use journaled host results.
 #[test]
 fn node_session_rebuilds_without_repeating_host_calls() {
     let dir = Scratch::new(SCRATCH, "node-session-replay");
@@ -1383,10 +1353,7 @@ fn node_session_rebuilds_without_repeating_host_calls() {
         script,
         |_| {},
         None,
-        Bounds {
-            rebuild_after: 2,
-            ..Bounds::default()
-        },
+        Bounds::default(),
         None,
     );
     let lines: Vec<_> = t.out.lines().collect();

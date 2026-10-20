@@ -14,8 +14,9 @@
 //! (`flow.panic.stack-exhausted`), a refused heap allocation is
 //! `heap-exhausted`, and a wall deadline is `time-limit`.
 //!
-//! A REPL session (`WasmtimeSession`, `session.rs`) runs each input's
-//! module the same way, in one store that keeps every input's instance.
+//! A REPL session (`WasmtimeSession`, `session.rs`) runs its program the
+//! same way, one input after another, replaying the inputs before the new
+//! one from its journal.
 //!
 //! The host traits of the default profile that run here are `Console`,
 //! `ConsoleInput`, `Clock`, `Args`, `Env`, `FsRead`, `FsWrite`, `Process`,
@@ -52,8 +53,6 @@ mod runtime;
 pub mod scenario;
 mod session;
 #[cfg(test)]
-mod session_link_tests;
-#[cfg(test)]
 mod session_tests;
 mod sys;
 mod test_engine;
@@ -76,7 +75,7 @@ pub use run::{
     run_traced, run_with_profile,
 };
 pub use runtime::io::io_started;
-pub use session::{REBUILD_AFTER, Rebuilder, Rebuilt, Stopper, WasmtimeSession};
+pub use session::{Ran, Stopper, WasmtimeSession};
 pub use test_engine::{
     NamedProgram, NativeBodyRunner, PreparedTest, TestEngine, TestEnvironment, TestHostKind,
     TestModule, TestPoolConfig,

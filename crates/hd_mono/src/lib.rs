@@ -3356,6 +3356,12 @@ impl Cx<'_> {
         }
         let mut boundary_roots = vec![(root, TyList::EMPTY)];
         boundary_roots.extend(extra.iter().copied());
+        // A session's joined REPL inputs each run their init with the
+        // entry's providers, so each init body is a root of the boundary
+        // too.
+        if self.session.is_some() {
+            boundary_roots.extend(inits.iter().map(|d| (*d, TyList::EMPTY)));
+        }
         self.note_boundary_codecs(&boundary_roots)?;
         // Breadth-first in push order (`crates/hd_mono/DESIGN.md` §13.4): the first
         // instance over a limit is the same on every run.

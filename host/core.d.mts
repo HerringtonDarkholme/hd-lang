@@ -60,37 +60,35 @@ export function timeLimitReport(ms: number): string;
 
 export function createCoreHost(sink: Sink, env?: CoreEnv, layer?: unknown): Host;
 
-/** How a REPL session's input ended (`createSession`). */
+/** How a REPL session's new input ended (`createSession`'s `run`). */
 export interface InputOutcome {
-  /** 0, the input's own status, or 3 after a panic; null when it did not run. */
+  /** 0, the input's own status, or 3 after a panic; null when it failed to run. */
   status: number | null;
-  /** Its `End` row; null for a module the session could not link. */
-  end: End | null;
+  /** Its `End` row. */
+  end: End;
   /** Whether it ended with status 0 and joined the session. */
   joined: boolean;
   /** Why it could not run, or null. */
   error?: string | null;
 }
 
-/** Builds a session's inputs again for a rebuild; input 0 is the prelude. */
-export interface Rebuilder {
-  build(
-    number: number,
-  ): { source: string; wasm: Uint8Array } | Promise<{ source: string; wasm: Uint8Array }>;
-  replayed?(number: number, joined: boolean): void | Promise<void>;
-}
-
-/** What a rebuild kept, skipped and dropped, by input number. */
-export interface Rebuilt {
+/** What one run of a session program replayed, skipped and dropped, by input number. */
+export interface Ran {
   kept: number[];
   skipped: number[];
   dropped: number[];
   reason: string | null;
+  /** How the new input ended; null when none was asked for or it did not run. */
+  live: InputOutcome | null;
 }
 
 export interface Session {
-  input(number: number, source: string, wasm: Uint8Array): Promise<InputOutcome>;
-  rebuild(rebuilder: Rebuilder, journal?: Uint8Array | null): Promise<Rebuilt>;
+  run(
+    wasm: Uint8Array,
+    sources: Iterable<readonly [number, string]>,
+    live?: number | null,
+    journal?: Uint8Array | null,
+  ): Promise<Ran>;
   journal(): Uint8Array | null;
   setJournalCap(cap: number): void;
   takeJournalNotice(): boolean;
@@ -99,7 +97,6 @@ export interface Session {
   close(): void;
 }
 
-export function isSessionKey(name: string): boolean;
 export function createSession(
   sink: Sink,
   env?: CoreEnv,

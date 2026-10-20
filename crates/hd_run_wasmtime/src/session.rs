@@ -1,100 +1,96 @@
-//! A REPL session on wasmtime (`f1c55020:future-work/compiler/repl-plan.md` §2.3 and §2.4, job S1).
+//! A REPL session on wasmtime (spec `cli.repl.*`; `docs/future-work/live-execution.md`
+//! §4 and §5).
 //!
-//! One `Store` and one `Linker` hold the whole session. Each input is one
-//! module that `hd_wasm::link` linked in `LinkMode::Session`: it imports
-//! host functions, which the linker defines once for every input, and the
-//! session keys of earlier inputs (module `hd_wasm::SESSION_MODULE`),
-//! which the linker gained from them. An input runs as a program's entry
-//! does: `hd.init`, then `hd.poll` and `hd.wake` until it ends. Its
-//! instance stays in the store, so its bindings and functions live on.
+//! A session holds no instance from one input to the next. Its state is
+//! its host (the standard streams, standard input, open sockets and HTTP
+//! clients, which outlive an input) and its journal: the record of every
+//! input that ran and of each host call it made (`hd_run::journal`).
 //!
-//! An input that ends with status 0 adds its session keys to the linker,
-//! for later inputs to import; the caller then adds the driver's
-//! `Output::session_added` to its `hd_driver::Session`. An input that
-//! panics adds nothing (`cli.repl.panic.binding`), but what it changed in
-//! earlier inputs' values stays (`cli.repl.panic.mutations`), and its host
-//! calls are never made again (`cli.repl.host.once`). The session resets
-//! the runtime state a panic can leave set, so the next input starts as
-//! the first did (`cli.repl.panic`).
+//! The caller builds one module that holds every input the session keeps
+//! and the new one (`hd_wasm_linear::Entry::Inputs`: `hd.init.N` and
+//! `hd.poll.N` run input N). `WasmtimeSession::run` instantiates it once
+//! in a new store and runs the journal's inputs again in order, with each
+//! host call and wake served from the record (`hd_run::replay::Replay`)
+//! and their output dropped, so no host call is made twice
+//! (`cli.repl.host.once`) and nothing is printed again; that is a rebuild
+//! by `cli.repl.rebuild`. Then it runs the new input live, recording it.
 //!
-//! A `Stopper` interrupts the input that runs (job S2 and S3). While Wasm
-//! runs, the input traps at the next epoch tick or host call and is
-//! `stopped` (`cli.repl.stop`). While it waits on the host, the wait wakes
-//! at once and the session calls the input's `hd.cancel`, which cancels
-//! its root suspension by `req.cancel.steps`: its `defer` suites run and
-//! it is `cancelled` (`cli.repl.cancel`). Either way it then ends as a
-//! panicking input does, and the host operations it left are dropped.
+//! - An input that was stopped or cancelled is skipped and reported
+//!   (`cli.repl.rebuild.stopped`): it ended partway, so running it again
+//!   could not repeat it.
+//! - The first input whose text is not the one it ran, or that asks the
+//!   host for what its record does not hold, or ends otherwise, is
+//!   dropped with every later input, and reported
+//!   (`cli.repl.rebuild.prefix`). One that ran before it diverged may have
+//!   changed earlier values, so the session then replays the kept inputs
+//!   once more in a new store. The new input then runs only when every
+//!   dropped input is one the caller left out of the program, as a
+//!   rebuild that no longer builds it does.
+//! - After an input that did not end with status 0, the session drops the
+//!   host operations it left pending and calls `hd.reset`, which clears
+//!   the runtime state a trap leaves set, so the next input starts as the
+//!   first did (`cli.repl.panic`). What it changed in earlier inputs'
+//!   values stays (`cli.repl.panic.mutations`).
 //!
-//! The session records a journal in memory (`docs/future-work/live-execution.md` §4, job
-//! J1): an `Input` row as each input starts, a row for each of its host
-//! calls, written where the host dispatches imports, its `Wake` and
-//! `Cancel` driver events, and an `End` row with how it ended. It is the
-//! record a rebuild serves host results from (`cli.repl.rebuild`, job J2,
-//! `session_rebuild.rs`). Past
-//! `hd_run::journal::SESSION_CAP` recording stops; the REPL then says once
-//! that the session can no longer be rebuilt (`take_journal_notice`).
+//! A `Stopper` interrupts the input that runs. While Wasm runs, the input
+//! traps at the next epoch tick or host call and is `stopped`
+//! (`cli.repl.stop`). While it waits on the host, the wait wakes at once
+//! and the session calls `hd.cancel`, which cancels its root suspension by
+//! `req.cancel.steps`: its `defer` suites run and it is `cancelled`
+//! (`cli.repl.cancel`). Either way it then ends as a panicking input does.
 //!
-//! wasmtime frees no instance before its store, so each input holds its
-//! instance, about 89 KiB, until the session ends. Once more than
-//! `REBUILD_AFTER` inputs ran since the session started or last rebuilt,
-//! `wants_rebuild` says so, and the REPL rebuilds the session silently: a
-//! rebuild holds the inputs it replays in one instance
-//! (`session_rebuild.rs`).
+//! Past its cap, the journal stops recording; the session then cannot run
+//! another input, and says so once (`take_journal_notice`).
 
 use hd_base::HashSet;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use hd_run::journal::{End, Recorder, SESSION_CAP};
+use hd_run::replay::{Recorded, RecordedInput, Replay, recorded};
 use hd_run::{HostSetup, Instance, Outcome, StartError};
-use hd_wasm::{MEMORY_KEY, SESSION_MODULE, global_key, is_session_key};
-use wasmtime::{Extern, Global, Linker, Val};
+use wasmtime::Linker;
 
+use crate::cache;
 use crate::engine::{EngineConfig, WasmtimeEngine, new_store};
-use crate::host::{Host, HostIo, Stop, define_session, supported, unsupported_message};
+use crate::host::{Host, HostIo, define_session, supported, unsupported_message};
 use crate::instance::WasmtimeInstance;
 use crate::profiles::RuntimeProfile;
 use crate::runtime::reactor::Waker;
-use crate::{cache, limits};
 
-#[path = "session_rebuild.rs"]
-mod rebuild;
-pub use rebuild::{Rebuilder, Rebuilt};
-
-/// How many inputs a session runs, after it starts or rebuilds, before it
-/// wants a rebuild to free their instances' memory (#228, decided
-/// 2026-10-16): about 87 MiB of instances at 89 KiB each.
-pub const REBUILD_AFTER: usize = 1000;
-
-/// A REPL session: the instances of every input that ran, in one store.
-/// Like the `Engine` methods, it runs on a thread with at least
-/// `thread_stack` of stack.
+/// A REPL session: its host and its journal. Like the `Engine` methods,
+/// it runs on a thread with at least `thread_stack` of stack.
 pub struct WasmtimeSession {
     /// The store, and the input that runs or ran last.
     run: WasmtimeInstance,
-    /// The host imports and the session keys of the inputs that ended
-    /// with status 0.
+    /// The host imports of the module that runs.
     linker: Linker<Host>,
     /// The host imports `linker` defines, as (module, name).
     hosts: HashSet<(String, String)>,
-    /// Whether `linker` holds the session's memory.
-    memory: bool,
-    /// The runtime globals every input shares (`hd_wasm::rt`) but the map
-    /// hash key, which `reset` sets back, once the input that defines
-    /// them has ended with status 0.
-    runtime: Vec<Global>,
     config: EngineConfig,
     profile: RuntimeProfile,
     /// Set by a `Stopper`; the store's epoch callback, every host call and
     /// the host's wait read it.
     flag: Arc<AtomicBool>,
-    /// The instances the store holds.
-    instances: usize,
-    /// The inputs, not the prelude, that `run_input` started since the
-    /// store did.
-    ran: usize,
-    /// `REBUILD_AFTER`, or a test's lower bound.
-    rebuild_after: usize,
+}
+
+/// What one [`WasmtimeSession::run`] did, by input number, in order.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Ran {
+    /// The inputs that ran again as before.
+    pub kept: Vec<u32>,
+    /// The stopped or cancelled inputs it skipped
+    /// (`cli.repl.rebuild.stopped`).
+    pub skipped: Vec<u32>,
+    /// The first input that no longer replays, then every later input
+    /// (`cli.repl.rebuild.prefix`); empty when all were kept.
+    pub dropped: Vec<u32>,
+    /// Why the first dropped input was dropped.
+    pub reason: Option<String>,
+    /// How the new input ended: its outcome, as `hd run` answers it, and
+    /// its journal `End`. `None` when no new input was asked for, or an
+    /// input was dropped, so it did not run.
+    pub live: Option<(Outcome, End)>,
 }
 
 /// Interrupts the input a `WasmtimeSession` is running. It is `Send +
@@ -151,81 +147,193 @@ impl WasmtimeEngine {
             run,
             linker: Linker::new(&self.engine),
             hosts: HashSet::default(),
-            memory: false,
-            runtime: Vec::new(),
             config: self.config,
             profile: self.profile,
             flag,
-            instances: 0,
-            ran: 0,
-            rebuild_after: REBUILD_AFTER,
         })
     }
 }
 
 impl WasmtimeSession {
-    /// Runs the input module `wasm`, numbered `number` in the session, of
-    /// the source text `source`, to its end and answers how it ended, as
-    /// `hd run` would: status 0, a program's own status, or 3 after a
-    /// panic, which is reported on standard error. Its standard output is
-    /// written before this returns. `Err` is a module the session cannot
-    /// run: one wasmtime refuses, an import not on wasmtime yet, or a
-    /// session import no earlier input exports. Such an input does not run.
-    pub fn run_input(&mut self, number: u32, source: &str, wasm: &[u8]) -> Result<Outcome, String> {
-        let (outcome, end) = self.run_ended(number, source, wasm);
-        if end.is_some() && number != 0 {
-            self.ran += 1;
-        }
-        outcome
-    }
-
-    /// Whether more inputs than the bound (`REBUILD_AFTER`) ran since the
-    /// session started or last rebuilt, so a rebuild would free the
-    /// memory of their instances.
-    #[must_use]
-    pub fn wants_rebuild(&self) -> bool {
-        self.ran > self.rebuild_after
-    }
-
-    /// Sets the bound `wants_rebuild` reads, `REBUILD_AFTER` until then.
-    pub fn set_rebuild_after(&mut self, inputs: usize) {
-        self.rebuild_after = inputs;
-    }
-
-    /// The instances the session's store holds: one per input that ran,
-    /// or after a rebuild one for each run of inputs it held together.
-    #[must_use]
-    pub fn instances(&self) -> usize {
-        self.instances
-    }
-
-    /// Runs an input as `run_input` does, and answers how it ended too, as
-    /// its `End` row says: `None` for an input that did not start.
-    fn run_ended(
+    /// Runs the session program `wasm` (see the module text): replays the
+    /// journal's inputs, each of the text `sources` gives for its number,
+    /// then runs input `live`, also of its text in `sources`, when one is
+    /// asked for. The new input's standard output is written before this
+    /// returns; a panic is reported on standard error. `Err` is a session
+    /// that cannot run: its journal passed its cap, the module is one
+    /// wasmtime refuses or imports what wasmtime does not have, or a new
+    /// store could not be made.
+    pub fn run(
         &mut self,
+        wasm: &[u8],
+        sources: &[(u32, &str)],
+        live: Option<u32>,
+    ) -> Result<Ran, String> {
+        let journal = self.run.store.data().journal.as_ref();
+        let (Some(bytes), Some(cap)) = (
+            journal.and_then(Recorder::journal),
+            journal.map(Recorder::cap),
+        ) else {
+            return Err(
+                "the session's record of host calls is full, so it cannot run another input".into(),
+            );
+        };
+        let record = recorded(bytes)?;
+        self.run_record(&record, cap, wasm, sources, live)
+    }
+
+    /// Runs as `run` does over another session's `journal`: one the JS
+    /// host recorded, which must replay here as the session's own does.
+    #[cfg(test)]
+    pub(crate) fn run_from(
+        &mut self,
+        journal: &[u8],
+        wasm: &[u8],
+        sources: &[(u32, &str)],
+        live: Option<u32>,
+    ) -> Result<Ran, String> {
+        let cap = self
+            .run
+            .store
+            .data()
+            .journal
+            .as_ref()
+            .map_or(SESSION_CAP, Recorder::cap);
+        self.run_record(&recorded(journal)?, cap, wasm, sources, live)
+    }
+
+    fn run_record(
+        &mut self,
+        record: &Recorded,
+        cap: usize,
+        wasm: &[u8],
+        sources: &[(u32, &str)],
+        live: Option<u32>,
+    ) -> Result<Ran, String> {
+        let source = |n: u32| sources.iter().find(|(k, _)| *k == n).map(|(_, s)| *s);
+        // A stop that came while no input ran is dropped.
+        self.flag.store(false, Ordering::Relaxed);
+        let module = self.load(wasm)?;
+        let mut ran = Ran::default();
+        self.restart(Recorder::new(cap, record.execution))?;
+        let instance = self.instantiate(&module)?;
+        // The kept inputs, for a second start.
+        let mut kept: Vec<(&RecordedInput, &str)> = Vec::new();
+        for (at, input) in record.inputs.iter().enumerate() {
+            if matches!(input.end, Some(End::Stopped | End::Cancelled)) {
+                ran.skipped.push(input.number);
+                continue;
+            }
+            let replayed = match source(input.number) {
+                Some(text) if input.ran(text) => {
+                    self.replay(instance, input, text, wasm).map(|()| text)
+                }
+                Some(_) => Err(format!(
+                    "input {} is not the text the session ran",
+                    input.number
+                )),
+                None => Err(format!("input {} is not in the session", input.number)),
+            };
+            match replayed {
+                Ok(text) => {
+                    ran.kept.push(input.number);
+                    kept.push((input, text));
+                }
+                Err(reason) => {
+                    ran.dropped = record.inputs[at..].iter().map(|i| i.number).collect();
+                    ran.reason = Some(reason);
+                    break;
+                }
+            }
+        }
+        let mut instance = instance;
+        if !ran.dropped.is_empty() {
+            self.restart(Recorder::new(cap, record.execution))?;
+            instance = self.instantiate(&module)?;
+            for (input, text) in kept {
+                self.replay(instance, input, text, wasm)
+                    .map_err(|e| format!("the rebuild did not repeat itself: {e}"))?;
+            }
+            // An input left out of `sources` is one the caller forgot: the
+            // program does not hold it, so the new input still runs. One
+            // that diverged may have declared what the new input uses.
+            if ran.dropped.iter().any(|n| source(*n).is_some()) {
+                return Ok(ran);
+            }
+        }
+        if let Some(n) = live {
+            let text = source(n).ok_or_else(|| format!("input {n} has no text"))?;
+            ran.live = Some(self.input(instance, n, text, wasm)?);
+        }
+        Ok(ran)
+    }
+
+    /// Runs input `input` again from `instance`, with its host calls and
+    /// wakes served from its record and its output dropped. `Err` is a
+    /// divergence: it asked for what the record does not hold, or ended
+    /// otherwise.
+    fn replay(
+        &mut self,
+        instance: wasmtime::Instance,
+        input: &RecordedInput,
+        source: &str,
+        wasm: &[u8],
+    ) -> Result<(), String> {
+        let host = self.run.store.data_mut();
+        host.replay = Some(Replay::new(input));
+        host.muted = true;
+        // A stop is for the new input, the one the user sees run: it waits
+        // until the replay is done.
+        let interrupt = host.interrupt.take();
+        let result = self.input(instance, input.number, source, wasm);
+        let host = self.run.store.data_mut();
+        host.muted = false;
+        host.interrupt = interrupt;
+        let mut replay = host
+            .replay
+            .take()
+            .ok_or("the replay ended before its input")?;
+        let (_, end) = result?;
+        replay.end(end, input.end)
+    }
+
+    /// Runs input `number` of the text `source` from `instance`'s exports
+    /// `hd.init.N` and `hd.poll.N`, recording it, and answers how it ended
+    /// and its `End` row. After one that did not end with status 0, it
+    /// resets the instance for the next.
+    fn input(
+        &mut self,
+        instance: wasmtime::Instance,
         number: u32,
         source: &str,
         wasm: &[u8],
-    ) -> (Result<Outcome, String>, Option<End>) {
-        self.flag.store(false, Ordering::Relaxed);
-        let module = match self.load(wasm) {
-            Ok(module) => module,
-            Err(e) => return (Err(e), None),
-        };
+    ) -> Result<(Outcome, End), String> {
+        let host = self.run.store.data_mut();
         // A panic or standard error of an earlier input does not hide this
         // one's internal error.
-        self.run.store.data_mut().reported = false;
-        if let Err(e) = define_session(&mut self.linker, &module, self.profile, &mut self.hosts) {
-            return (Err(e), None);
-        }
-        if let Some(journal) = self.run.store.data_mut().journal.as_mut() {
+        host.reported = false;
+        if let Some(journal) = host.journal.as_mut() {
             journal.input(number, source.as_bytes(), wasm);
         }
         self.run.halt = None;
         self.run.last_trapped = false;
-        let result = self.execute(&module);
+        let result = self.run_entry(
+            instance,
+            &format!("hd.init.{number}"),
+            &format!("hd.poll.{number}"),
+        );
         let end = self.ended(&result);
-        (result, Some(end))
+        // The stop that ended a new input, if one did, is spent before its
+        // reset runs.
+        if self.run.store.data().replay.is_none() {
+            self.flag.store(false, Ordering::Relaxed);
+        }
+        // An input that failed to run is an outcome too.
+        let outcome = result.unwrap_or_else(Outcome::Internal);
+        if outcome != Outcome::Exit(0) {
+            self.reset(instance)?;
+        }
+        Ok((outcome, end))
     }
 
     /// How the input that ran ended, as its `End` row says, which this
@@ -244,48 +352,13 @@ impl WasmtimeSession {
         end
     }
 
-    /// Instantiates and runs an input whose host imports the linker
-    /// defines.
-    fn execute(&mut self, module: &wasmtime::Module) -> Result<Outcome, String> {
-        let instance = match self.instantiate(module)? {
-            Ok(instance) => instance,
-            Err(outcome) => return Ok(outcome),
-        };
-        let outcome = self.run_entry(instance, "hd.init", "hd.poll")?;
-        if outcome == Outcome::Exit(0) {
-            self.add(instance)?;
-        } else {
-            self.reset()?;
-        }
-        Ok(outcome)
-    }
-
-    /// Instantiates a module whose host imports the linker defines, or
-    /// answers how its input ended when that ran out of heap or time or
-    /// was stopped. `Err` is a module the session cannot instantiate.
-    fn instantiate(
-        &mut self,
-        module: &wasmtime::Module,
-    ) -> Result<Result<wasmtime::Instance, Outcome>, String> {
-        match self.linker.instantiate(&mut self.run.store, module) {
-            Ok(instance) => {
-                self.instances += 1;
-                Ok(Ok(instance))
-            }
-            Err(error)
-                if limits::is_heap_exhausted(&error)
-                    || matches!(
-                        error.downcast_ref::<Stop>(),
-                        Some(Stop::TimeLimit | Stop::Interrupted)
-                    ) =>
-            {
-                self.run.done = None;
-                let outcome = self.run.trapped(&error);
-                self.reset()?;
-                Ok(Err(outcome))
-            }
-            Err(error) => Err(format!("{error:#}")),
-        }
+    /// Instantiates the session program, whose host imports this defines.
+    /// `Err` is a module the session cannot instantiate.
+    fn instantiate(&mut self, module: &wasmtime::Module) -> Result<wasmtime::Instance, String> {
+        define_session(&mut self.linker, module, self.profile, &mut self.hosts)?;
+        self.linker
+            .instantiate(&mut self.run.store, module)
+            .map_err(|error| format!("{error:#}"))
     }
 
     /// Runs an input from `instance`'s entry exports `init` and `poll`, as
@@ -332,8 +405,8 @@ impl WasmtimeSession {
     }
 
     /// True once, after the input in which the journal passed its cap and
-    /// recording stopped: the REPL then says that the session can no
-    /// longer be rebuilt.
+    /// recording stopped: the REPL then says that the session can run no
+    /// further input.
     pub fn take_journal_notice(&mut self) -> bool {
         self.run
             .store
@@ -355,13 +428,6 @@ impl WasmtimeSession {
         self.run.store.data().waiting()
     }
 
-    /// Starts a new journal, or with `on` false records none from now on:
-    /// for measuring what recording costs.
-    #[cfg(test)]
-    pub(crate) fn record(&mut self, on: bool) {
-        self.run.store.data_mut().journal = on.then(|| Recorder::new(SESSION_CAP, 0));
-    }
-
     /// A handle that stops or cancels the running input from another
     /// thread.
     #[must_use]
@@ -372,17 +438,14 @@ impl WasmtimeSession {
         }
     }
 
-    /// Compiles an input, or names the first import that does not run on
-    /// wasmtime yet. Session imports are the linker's to check.
+    /// Compiles the session program, or names the first import that does
+    /// not run on wasmtime yet.
     fn load(&self, wasm: &[u8]) -> Result<Arc<wasmtime::Module>, String> {
         if wasm.get(..4) != Some(b"\0asm") {
             return Err("not a Wasm module".into());
         }
         let imports = hd_run::module_imports(wasm)?;
-        if let Some((m, n)) = imports
-            .iter()
-            .find(|(m, n)| m != SESSION_MODULE && !supported(m, n, self.profile))
-        {
+        if let Some((m, n)) = imports.iter().find(|(m, n)| !supported(m, n, self.profile)) {
             return Err(unsupported_message(m, n));
         }
         let shared = cache::ondemand(&self.config)?;
@@ -392,69 +455,39 @@ impl WasmtimeSession {
             .map_err(|e| format!("{e:#}"))
     }
 
-    /// Adds the session keys `instance` exports to the linker, for later
-    /// inputs to import; not its entry exports, which every input has.
-    /// Every input exports the memory; the first one's is the session's.
-    fn add(&mut self, instance: wasmtime::Instance) -> Result<(), String> {
-        let store = &mut self.run.store;
-        // The map hash key is never reset: a map an earlier input built
-        // must still be found after an input panics. Nor is the last
-        // reference serial: a reference an earlier input kept must never
-        // meet an equal serial in a later one.
-        let kept = [
-            global_key(&hd_wasm::rt::hash_seed_global()),
-            global_key(&hd_wasm::rt::ref_serial_global()),
-        ];
-        let runtime: Vec<String> = hd_wasm::rt::runtime_globals()
-            .iter()
-            .map(global_key)
-            .filter(|k| !kept.contains(k))
-            .collect();
-        let exports: Vec<(String, Extern)> = instance
-            .exports(&mut *store)
-            .map(|e| (e.name().to_owned(), e.into_extern()))
-            .collect();
-        for (name, export) in exports {
-            if !is_session_key(&name) || (name == MEMORY_KEY && self.memory) {
-                continue;
-            }
-            self.memory |= name == MEMORY_KEY;
-            if let Extern::Global(global) = &export
-                && runtime.contains(&name)
-            {
-                self.runtime.push(*global);
-            }
-            self.linker
-                .define(&*store, SESSION_MODULE, &name, export)
-                .map_err(|e| format!("{e:#}"))?;
-        }
-        Ok(())
-    }
-
     /// After an input that did not end with status 0: drops the host
     /// operations it left pending, a panicking or stopped input's or a
     /// timer a cancel did not abort, so none wakes a later input or hides
     /// its deadlock. Inputs run one at a time and one that ends with
     /// status 0 has finished every operation it started, so each one left
-    /// is this input's.
-    ///
-    /// Then sets every runtime global the session's inputs share back to
-    /// its initial value. A panic can leave them set: the forbidden-context
-    /// counter after a panic inside `defer` or a facts body (so the next
-    /// input's `println` would panic), the facts label, the entry's root
-    /// suspension and the wake table. Before the first input that ends with
-    /// status 0 there are none: the next input defines its own.
-    fn reset(&mut self) -> Result<(), String> {
+    /// is this input's. Then `hd.reset` clears the runtime state a trap
+    /// leaves set.
+    fn reset(&mut self, instance: wasmtime::Instance) -> Result<(), String> {
         let store = &mut self.run.store;
         store.data_mut().drop_pending();
-        for global in &self.runtime {
-            let ty = global.ty(&*store);
-            let initial = Val::default_for_ty(ty.content())
-                .ok_or_else(|| format!("a runtime global of type {ty:?} has no default"))?;
-            global
-                .set(&mut *store, initial)
-                .map_err(|e| format!("{e:#}"))?;
-        }
+        let Some(reset) = instance.get_func(&mut *store, "hd.reset") else {
+            return Ok(());
+        };
+        reset
+            .typed::<(), ()>(&*store)
+            .and_then(|f| f.call(&mut *store, ()))
+            .map_err(|e| format!("`hd.reset`: {e:#}"))
+    }
+
+    /// Replaces the store with a new one over the same host, whose journal
+    /// starts again as `journal`.
+    fn restart(&mut self, journal: Recorder) -> Result<(), String> {
+        let engine = Arc::clone(self.run.engine());
+        let mut host = std::mem::replace(self.run.store.data_mut(), Host::placeholder());
+        host.restart(journal);
+        let store = new_store(&engine, host).map_err(|e| match e {
+            StartError::Refused(m) | StartError::Engine(m) => m,
+        })?;
+        let mut run = WasmtimeInstance::stopped(store, Arc::clone(&engine));
+        run.close_on_end = false;
+        self.run = run;
+        self.linker = Linker::new(&engine);
+        self.hosts.clear();
         Ok(())
     }
 }

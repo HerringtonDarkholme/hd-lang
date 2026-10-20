@@ -8,28 +8,29 @@
 //! [`SessionStopper`]: an input that computes is stopped (`cli.repl.stop`), and
 //! one that waits on the host is cancelled at once, running its `defer`
 //! suites (`cli.repl.cancel`). The session picks which by the input's
-//! state. The session thread, with the stack a
-//! guest needs, owns the [`WasmtimeSession`]: it builds and runs the
-//! session's prelude first, while the prompt already waits for the first
-//! line, then builds each input as `repl#N` with `Goal::ReplInput` and runs
-//! it. An input that ends with status 0 joins the session; one that fails
-//! to build, panics or is stopped adds nothing (`cli.repl.panic.binding`,
-//! `cli.repl.panic.declarations`).
+//! state. The session thread, with the stack a guest needs, owns the
+//! [`ReplSession`].
+//!
+//! Each input `N` builds as `repl#N` with `Goal::ReplInput`, in one module
+//! with every input the session keeps (`hd_driver::Packages::inputs_from`),
+//! on the linear backend. The session then runs that module: it replays
+//! the kept inputs from its journal of host calls, so none is made again
+//! (`cli.repl.host.once`) and nothing prints again, and runs the new input
+//! live (`ReplSession::run`): every input is a rebuild by
+//! `cli.repl.rebuild`. An input that ends with status 0 joins the session.
+//! One that fails to build adds nothing, nor does one that was stopped or
+//! cancelled, which the next rebuild skips and reports
+//! (`cli.repl.rebuild.stopped`). One that panicked or ended with another
+//! status stays in the session's program, so the next rebuild repeats its
+//! changes to earlier values (`cli.repl.panic.mutations`), but no later
+//! input sees what it declared (`cli.repl.panic.binding`,
+//! `cli.repl.panic.declarations`; `hd_driver::Packages::failed_inputs`).
 //!
 //! `:reload` reads the session's scope from disk again and rebuilds the
-//! session over it from its journal (`cli.repl.rebuild`,
-//! `WasmtimeSession::rebuild`): each input is built again from its text
-//! and run again with its host calls served from the journal. The inputs
-//! that still build and replay are kept; the REPL reports each stopped
-//! input the rebuild skipped and the first input it dropped.
-//!
-//! Each input holds its wasmtime instance until the session ends. Once
-//! more than `hd_run_wasmtime::REBUILD_AFTER` inputs ran since the session
-//! started or last rebuilt, the REPL rebuilds it over the same files,
-//! silently but for those reports (#228). The rebuild holds the inputs it
-//! replays in one instance, which frees the memory of the others.
+//! session over it: the inputs that still build and replay are kept; the
+//! REPL reports each stopped input the rebuild skipped and the first
+//! input it dropped.
 
-use hd_base::HashMap;
 use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -37,11 +38,12 @@ use std::process::ExitCode;
 use std::sync::mpsc;
 use std::time::Instant;
 
-use crate::engine::{EngineKind, HostIo, ReplSession, SessionBuilder, SessionStopper};
+use crate::engine::{EngineKind, HostIo, Ran, ReplSession, SessionStopper};
 use hd_cache::DiskStore;
-use hd_driver::{BuildProfile, EngineTarget, Goal, Host, OptLevel};
+use hd_driver::{EngineTarget, Goal, Host, OptLevel};
 use hd_project::SourceSet;
 use hd_run::Outcome;
+use hd_run::journal::End;
 
 use crate::{HD_FAILURE, Wall, disk, report};
 
@@ -85,26 +87,27 @@ Ctrl-C clears the line, or stops the input that runs.
 ";
 
 /// Said once, after the input in which the session's journal of host
-/// calls passed its cap (`docs/future-work/live-execution.md` §4.6): recording stopped, so
-/// the session cannot be rebuilt (`cli.repl.rebuild`). The session itself
-/// goes on.
+/// calls passed its cap (`docs/future-work/live-execution.md` §4.6):
+/// recording stopped, and every input replays the journal, so the session
+/// can run no further input.
 const JOURNAL_FULL: &str =
-    "note: the session's record of host calls is full, so this session can no longer be rebuilt";
+    "note: the session's record of host calls is full, so this session can run no further input";
 
-/// How large a session may grow: its journal's cap in bytes, and how many
-/// inputs run before it rebuilds to free their instances. Tests lower
-/// them.
+/// Why an input cannot run once the journal is full.
+const NO_JOURNAL: &str =
+    "error: the session's record of host calls is full, so it cannot run another input";
+
+/// How large a session may grow: its journal's cap in bytes. Tests lower
+/// it.
 #[derive(Clone, Copy)]
 pub(crate) struct Bounds {
     pub(crate) journal_cap: usize,
-    pub(crate) rebuild_after: usize,
 }
 
 impl Default for Bounds {
     fn default() -> Bounds {
         Bounds {
             journal_cap: hd_run::journal::SESSION_CAP,
-            rebuild_after: 1000,
         }
     }
 }
@@ -493,8 +496,8 @@ fn continuation_indent(text: &str) -> String {
     indent
 }
 
-/// The session thread: starts the session and its prelude, then builds and
-/// runs each input that arrives, answering on `done` after each.
+/// The session thread: starts the session, then builds and runs each
+/// input that arrives, answering on `done` after each.
 fn serve(
     kind: EngineKind,
     cwd: PathBuf,
@@ -514,7 +517,6 @@ fn serve(
     let session = match session {
         Ok(mut session) => {
             session.set_journal_cap(bounds.journal_cap);
-            session.set_rebuild_after(bounds.rebuild_after);
             let _ = started.send(Ok(session.stopper()));
             session
         }
@@ -524,10 +526,6 @@ fn serve(
         }
     };
     let mut repl = Repl::new(session, cwd, program, names);
-    if let Err(e) = repl.start() {
-        let _ = writeln!(diags, "error: the session's prelude: {e}");
-        return;
-    }
     for request in inputs {
         match request {
             Request::Input(text) => repl.input(&text, &mut *diags),
@@ -540,64 +538,55 @@ fn serve(
     }
 }
 
-/// A session: the wasmtime store, what its modules hold for the next
-/// build, and the sources of the inputs that joined it.
+/// An input the session keeps: its text, and whether it ended with status
+/// 0, so later inputs see what it declares.
+struct Kept {
+    text: String,
+    joined: bool,
+}
+
+/// The text of each kept input, by number.
+fn sources(inputs: &BTreeMap<u32, Kept>) -> Vec<(u32, &str)> {
+    inputs
+        .iter()
+        .map(|(n, kept)| (*n, kept.text.as_str()))
+        .collect()
+}
+
+/// A session: the engine's session, which holds the journal, and the
+/// sources of the inputs it keeps.
 struct Repl {
     session: ReplSession,
-    built: hd_driver::Session,
     /// Where the session started, which `:reload` loads its scope from.
     cwd: PathBuf,
     program: disk::Program,
     store: DiskStore,
     /// The number of the last input read (`repl#N`).
     next: u32,
-    /// The text of each input that ran, the prelude as input 0, which a
-    /// rebuild builds again.
-    texts: BTreeMap<u32, String>,
-    /// The names Tab completes: `src/lib.hd`'s and the kept inputs'.
+    /// The inputs the session keeps, by number; each one's file is among
+    /// `program`'s sources.
+    inputs: BTreeMap<u32, Kept>,
+    /// The names Tab completes: `src/lib.hd`'s and the joined inputs'.
     names: complete::Names,
 }
 
 /// The pipeline of every module a session builds (`crates/hd_opt/DESIGN.md` (optimization pipelines) §5): the
-/// REPL runs on wasmtime only, unoptimized, on the Wasm GC backend.
+/// REPL runs unoptimized, on the default backend.
 #[cfg(all(test, feature = "wasmtime"))]
 pub(crate) const PIPELINE: crate::Pipeline =
-    crate::Pipeline::of(crate::engine::EngineKind::Wasmtime, false)
-        .with(Some(hd_driver::Backend::WasmGc));
+    crate::Pipeline::of(crate::engine::EngineKind::Wasmtime, false);
 
-/// Builds the session's prelude, or reads it from the cache.
-fn build_prelude(
+/// Builds the session program: every input among `program`'s sources up
+/// to `number` as one module, the `failed` ones hidden from later inputs
+/// (`hd_driver::Packages::failed_inputs`). The diagnostics, named
+/// `repl#N:LINE:COL`, are those of input `number` and every error.
+fn build_session(
     program: &disk::Program,
     store: &DiskStore,
-    target: EngineTarget,
-) -> hd_driver::Output {
-    let clock = Wall(Instant::now());
-    let host = Host {
-        render_tir: &[],
-        sources: &program.sources,
-        store,
-        clock: &clock,
-        executor: crate::executor(),
-    };
-    let out = hd_driver::build_repl_prelude(&host, BuildProfile::Checked, target);
-    crate::note_built(&out);
-    out
-}
-
-/// Builds the input `number`, whose file is in `program`'s sources, over
-/// the session `built`, and writes its diagnostics, named
-/// `repl#N:LINE:COL`, to `diags`. With `from`, it builds the inputs from
-/// `from` to `number` as one module (`hd_driver::Packages::inputs_from`).
-/// `None` when it does not build.
-fn build_input(
-    program: &disk::Program,
-    store: &DiskStore,
-    built: &hd_driver::Session,
-    from: Option<u32>,
+    failed: &[u32],
     number: u32,
-    diags: &mut dyn Write,
     target: EngineTarget,
-) -> Option<(Vec<u8>, hd_driver::Session)> {
+) -> (Option<Vec<u8>>, Vec<report::Diag>) {
     let clock = Wall(Instant::now());
     let host = Host {
         render_tir: &[],
@@ -606,16 +595,13 @@ fn build_input(
         clock: &clock,
         executor: crate::executor(),
     };
+    let start = hd_driver::Session::start();
     let packages = hd_driver::Packages {
-        build_profile: BuildProfile::Checked,
         target,
         level: OptLevel::Dev,
-        session: Some(built),
-        inputs_from: from,
-        // A session links one module per input, which only the Wasm GC
-        // backend does so far, as for the prelude
-        // (`hd_driver::build_repl_prelude`).
-        backend: hd_driver::Backend::WasmGc,
+        session: Some(&start),
+        inputs_from: Some(1),
+        failed_inputs: failed,
         ..program.packages()
     };
     let goal = Goal::ReplInput { input: number };
@@ -624,17 +610,13 @@ fn build_input(
     let file = hd_project::repl_file(number);
     let mut found = hd_driver::diagnostics::for_input(report::from_output(&out, None), &file);
     report::relocate(&mut found, |f| program.sources.display(f));
-    for d in &found {
-        let _ = writeln!(diags, "{}", d.text());
-    }
     if found.iter().any(report::Diag::is_error) {
-        return None;
+        return (None, found);
     }
-    let (Some(wasm), Some(added)) = (out.wasm, out.session_added) else {
-        let _ = writeln!(diags, "error: {file}: no Wasm produced");
-        return None;
-    };
-    Some((wasm, added))
+    if out.wasm.is_none() {
+        found.push(report::Diag::error(None, "no Wasm produced").at(&file, None));
+    }
+    (out.wasm, found)
 }
 
 impl Repl {
@@ -644,34 +626,17 @@ impl Repl {
         program: disk::Program,
         names: complete::Names,
     ) -> Repl {
-        Repl {
+        let repl = Repl {
             session: session.into(),
-            built: hd_driver::Session::start(),
             cwd,
             program,
             store: crate::disk_store(),
             next: 0,
-            texts: BTreeMap::new(),
+            inputs: BTreeMap::new(),
             names,
-        }
-    }
-
-    /// Builds the session's prelude, or reads it from the cache, and runs
-    /// it as input 0.
-    fn start(&mut self) -> Result<(), String> {
-        let out = build_prelude(&self.program, &self.store, self.session.kind().target());
-        let Some(wasm) = &out.wasm else {
-            return Err(out.render());
         };
-        self.texts.insert(0, String::new());
-        match self.session.run_input(0, "", wasm)? {
-            Outcome::Exit(0) => {}
-            other => return Err(format!("it ended with {other:?}")),
-        }
-        self.built
-            .add(out.session_added.ok_or("it adds nothing to the session")?);
-        self.publish_package_names();
-        Ok(())
+        repl.publish_package_names();
+        repl
     }
 
     /// Reads `src/lib.hd`'s top-level names for Tab, when a package is open.
@@ -685,57 +650,132 @@ impl Repl {
         self.names.set_package(text.as_deref());
     }
 
-    /// Builds `text` as the next input over the earlier ones and runs it.
+    /// The kept inputs that did not end with status 0.
+    fn failed(&self) -> Vec<u32> {
+        self.inputs
+            .iter()
+            .filter(|(_, kept)| !kept.joined)
+            .map(|(n, _)| *n)
+            .collect()
+    }
+
+    /// Forgets input `n`: its text, its file and its names.
+    fn forget(&mut self, n: u32) {
+        self.inputs.remove(&n);
+        self.names.drop_input(n);
+        self.program
+            .sources
+            .remove_synthetic(&hd_project::repl_file(n));
+    }
+
+    /// Builds `text` as the next input with the kept ones and runs it.
     /// Its diagnostics, named `repl#N:LINE:COL`, go to `diags`; the guest's
     /// output and a panic report go to the session's streams.
     fn input(&mut self, text: &str, diags: &mut dyn Write) {
         self.next += 1;
-        let file = hd_project::repl_file(self.next);
+        let number = self.next;
+        let file = hd_project::repl_file(number);
+        if !self.session.recording() {
+            let _ = writeln!(diags, "{NO_JOURNAL}");
+            return;
+        }
         self.program.sources.add_synthetic(&file, text);
-        if !self.build_and_run(&file, text, diags) {
+        let target = self.session.kind().target();
+        let (wasm, found) =
+            build_session(&self.program, &self.store, &self.failed(), number, target);
+        for d in &found {
+            let _ = writeln!(diags, "{}", d.text());
+        }
+        let Some(wasm) = wasm else {
             self.program.sources.remove_synthetic(&file);
-        }
-        if self.session.wants_rebuild() && self.session.journal().is_some() {
-            self.rebuild(diags, false);
-        }
-    }
-
-    /// Whether the input `file`, of the text `text`, built and ended with
-    /// status 0, so it joins the session.
-    fn build_and_run(&mut self, file: &str, text: &str, diags: &mut dyn Write) -> bool {
-        let Some((wasm, added)) = build_input(
-            &self.program,
-            &self.store,
-            &self.built,
-            None,
-            self.next,
-            diags,
-            self.session.kind().target(),
-        ) else {
-            return false;
+            return;
         };
-        self.texts.insert(self.next, text.to_owned());
-        let outcome = self.session.run_input(self.next, text, &wasm);
+        let mut sources = sources(&self.inputs);
+        sources.push((number, text));
+        let ran = self.session.run(&wasm, &sources, Some(number));
         if self.session.take_journal_notice() {
             let _ = writeln!(diags, "{JOURNAL_FULL}");
         }
-        match outcome {
-            Ok(Outcome::Exit(0)) => {
-                self.built.add(added);
-                self.names.add_input(self.next, text);
-                true
+        let ran = match ran {
+            Ok(ran) => ran,
+            Err(e) => {
+                let _ = writeln!(diags, "error: {file}: {e}");
+                self.program.sources.remove_synthetic(&file);
+                return;
             }
+        };
+        self.report(&ran, &[], diags);
+        let Some((outcome, end)) = ran.live else {
+            self.program.sources.remove_synthetic(&file);
+            return;
+        };
+        match outcome {
             // A panic, a stop or a cancel, reported by the session, or a
             // program's own exit status.
-            Ok(Outcome::Exit(_)) => false,
-            Ok(Outcome::Panic(p)) => {
+            Outcome::Exit(_) => {}
+            Outcome::Panic(p) => {
                 let _ = writeln!(diags, "panic: {}: {}", p.category, p.message);
-                false
             }
-            Ok(Outcome::Internal(e)) | Err(e) => {
+            Outcome::Internal(e) => {
                 let _ = writeln!(diags, "error: {file}: {e}");
-                false
             }
+        }
+        match end {
+            // A stopped input ended partway, so no rebuild repeats it
+            // (`cli.repl.rebuild.stopped`): the next input's skips it.
+            End::Stopped | End::Cancelled => {
+                let how = if end == End::Stopped {
+                    "stopped"
+                } else {
+                    "cancelled"
+                };
+                let _ = writeln!(
+                    diags,
+                    "note: {file} was {how}, so the next rebuild skips it; its changes are not restored"
+                );
+                self.program.sources.remove_synthetic(&file);
+            }
+            end => {
+                let joined = end == End::Exit(0);
+                if joined {
+                    self.names.add_input(number, text);
+                }
+                let text = text.to_owned();
+                self.inputs.insert(number, Kept { text, joined });
+            }
+        }
+    }
+
+    /// Reports what a run of the session's program dropped
+    /// (`cli.repl.rebuild.prefix`), with `diagnostics`, those of the first
+    /// dropped input when it no longer builds, and forgets those inputs.
+    /// The inputs it skipped were reported when they were stopped
+    /// (`cli.repl.rebuild.stopped`).
+    fn report(&mut self, ran: &Ran, diagnostics: &[report::Diag], diags: &mut dyn Write) {
+        // Inputs this session forgot already, which a rebuild left out,
+        // are dropped from the journal now, unreported.
+        let fresh = ran
+            .dropped
+            .first()
+            .is_some_and(|n| self.inputs.contains_key(n));
+        if let (true, Some(first), Some(reason)) = (fresh, ran.dropped.first(), &ran.reason) {
+            let file = hd_project::repl_file(*first);
+            if diagnostics.is_empty() {
+                let _ = writeln!(diags, "error: {file} does not replay: {reason}");
+            } else {
+                for d in diagnostics {
+                    let _ = writeln!(diags, "{}", d.text());
+                }
+            }
+            let later = ran.dropped.len() - 1;
+            let _ = writeln!(
+                diags,
+                "note: the rebuild dropped {file} and the {later} input{} after it",
+                if later == 1 { "" } else { "s" }
+            );
+        }
+        for n in ran.skipped.iter().chain(&ran.dropped) {
+            self.forget(*n);
         }
     }
 }
@@ -748,14 +788,14 @@ impl Repl {
     /// (`.prefix`). A session whose journal is full, or a package whose
     /// manifest is broken, is left as it was.
     fn reload(&mut self, diags: &mut dyn Write) {
-        if self.session.journal().is_none() {
+        if !self.session.recording() {
             let _ = writeln!(
                 diags,
                 "error: the session's record of host calls is full, so it cannot be rebuilt"
             );
             return;
         }
-        let program = match disk::load_session(&self.cwd) {
+        let mut program = match disk::load_session(&self.cwd) {
             Ok(program) => program,
             Err(e) => {
                 let _ = writeln!(diags, "error: {e}");
@@ -768,192 +808,102 @@ impl Repl {
         if program.problems.iter().any(report::Diag::is_error) {
             return;
         }
+        for (n, kept) in &self.inputs {
+            program
+                .sources
+                .add_synthetic(&hd_project::repl_file(*n), &kept.text);
+        }
         self.program = program;
-        self.rebuild(diags, true);
+        self.publish_package_names();
+        self.rebuild(diags);
     }
 
     /// Rebuilds the session over `self.program` from its journal
-    /// (`cli.repl.rebuild`), and reports each stopped input it skipped
-    /// (`.stopped`) and the first input it dropped (`.prefix`). `summary`
-    /// adds the line that counts the inputs it replayed, which `:reload`
-    /// writes and a rebuild that frees memory does not.
-    fn rebuild(&mut self, diags: &mut dyn Write, summary: bool) {
-        // The rebuild adds each input's file again as it builds it.
-        for n in self.texts.keys().filter(|n| **n != 0) {
-            self.program
-                .sources
-                .remove_synthetic(&hd_project::repl_file(*n));
-        }
-        self.built = hd_driver::Session::start();
-        let mut again = Again {
-            target: self.session.kind().target(),
-            program: &mut self.program,
-            built: &mut self.built,
-            store: &self.store,
-            texts: &self.texts,
-            added: HashMap::default(),
-            diagnostics: Vec::new(),
+    /// (`cli.repl.rebuild`): builds the kept inputs, leaving out the first
+    /// one that no longer builds and every later one (`.prefix`), then
+    /// runs the program with no new input. It reports what it skipped and
+    /// dropped, and counts the inputs it replayed.
+    fn rebuild(&mut self, diags: &mut dyn Write) {
+        let target = self.session.kind().target();
+        // The first input that no longer builds, and its diagnostics.
+        let mut cut: Option<(u32, Vec<report::Diag>)> = None;
+        let before = |cut: &Option<(u32, Vec<report::Diag>)>, n: u32| {
+            cut.as_ref().is_none_or(|(first, _)| n < *first)
         };
-        let rebuilt = self.session.rebuild(&mut again);
-        let diagnostics = std::mem::take(&mut again.diagnostics);
-        let rebuilt = match rebuilt {
-            Ok(rebuilt) => rebuilt,
-            Err(e) => {
-                let _ = writeln!(diags, "error: the rebuild: {e}");
-                return;
+        let wasm = loop {
+            let Some(last) = self.inputs.keys().copied().rev().find(|n| before(&cut, *n)) else {
+                break None;
+            };
+            let failed: Vec<u32> = self
+                .failed()
+                .into_iter()
+                .filter(|n| before(&cut, *n))
+                .collect();
+            let (wasm, found) = build_session(&self.program, &self.store, &failed, last, target);
+            if let Some(wasm) = wasm {
+                break Some(wasm);
             }
+            // The first input with an error no longer builds; the inputs
+            // before it do not see the ones after it.
+            let in_input = |d: &report::Diag, n: u32| {
+                let file = hd_project::repl_file(n);
+                d.file.as_deref().is_some_and(|f| f.starts_with(&file))
+            };
+            let first = self
+                .inputs
+                .keys()
+                .copied()
+                .filter(|n| before(&cut, *n))
+                .find(|n| found.iter().any(|d| d.is_error() && in_input(d, *n)))
+                .unwrap_or(last);
+            for n in self.inputs.keys().filter(|n| **n >= first) {
+                self.program
+                    .sources
+                    .remove_synthetic(&hd_project::repl_file(*n));
+            }
+            let shown = found.into_iter().filter(|d| in_input(d, first)).collect();
+            cut = Some((first, shown));
         };
-        for n in &rebuilt.skipped {
-            let _ = writeln!(
-                diags,
-                "note: {} was stopped, so the rebuild skipped it; its changes are not restored",
-                hd_project::repl_file(*n)
-            );
-        }
-        if let (Some(first), Some(reason)) = (rebuilt.dropped.first(), &rebuilt.reason) {
-            let file = hd_project::repl_file(*first);
-            if diagnostics.is_empty() {
-                let _ = writeln!(diags, "error: {file} does not replay: {reason}");
-            } else {
-                let _ = diags.write_all(&diagnostics);
+        let mut ran = Ran {
+            kept: Vec::new(),
+            skipped: Vec::new(),
+            dropped: Vec::new(),
+            reason: None,
+            live: None,
+        };
+        if let Some(wasm) = wasm {
+            let sources: Vec<(u32, &str)> = sources(&self.inputs)
+                .into_iter()
+                .filter(|(n, _)| before(&cut, *n))
+                .collect();
+            match self.session.run(&wasm, &sources, None) {
+                Ok(done) => ran = done,
+                Err(e) => {
+                    let _ = writeln!(diags, "error: the rebuild: {e}");
+                    return;
+                }
             }
-            let later = rebuilt.dropped.len() - 1;
-            let _ = writeln!(
-                diags,
-                "note: the rebuild dropped {file} and the {later} input{} after it",
-                if later == 1 { "" } else { "s" }
-            );
         }
-        for n in rebuilt.skipped.iter().chain(&rebuilt.dropped) {
-            self.texts.remove(n);
-            self.names.drop_input(*n);
-            self.program
-                .sources
-                .remove_synthetic(&hd_project::repl_file(*n));
+        let mut shown = Vec::new();
+        if let Some((first, diagnostics)) = cut
+            && ran.dropped.first().is_none_or(|d| *d >= first)
+        {
+            ran.dropped = self
+                .inputs
+                .keys()
+                .copied()
+                .filter(|n| *n >= first)
+                .collect();
+            ran.reason = Some("it no longer builds".into());
+            shown = diagnostics;
         }
-        self.publish_package_names();
-        if !summary {
-            return;
-        }
-        let kept = rebuilt.kept.iter().filter(|n| **n != 0).count();
+        self.report(&ran, &shown, diags);
+        let kept = ran.kept.len();
         let _ = writeln!(
             diags,
             "reloaded: {kept} input{} replayed",
             if kept == 1 { "" } else { "s" }
         );
-    }
-}
-
-/// A rebuild's builder: it builds each input again from its text, over
-/// the package as it is on disk now; input 0 is the prelude.
-struct Again<'r> {
-    target: EngineTarget,
-    program: &'r mut disk::Program,
-    built: &'r mut hd_driver::Session,
-    store: &'r DiskStore,
-    texts: &'r BTreeMap<u32, String>,
-    /// What each input built adds to the session once it is replayed.
-    added: HashMap<u32, hd_driver::Session>,
-    /// The diagnostics of the input that no longer builds.
-    diagnostics: Vec<u8>,
-}
-
-impl SessionBuilder for Again<'_> {
-    fn build(&mut self, number: u32) -> Result<(String, Vec<u8>), String> {
-        let text = self
-            .texts
-            .get(&number)
-            .ok_or_else(|| format!("the text of input {number} is gone"))?
-            .clone();
-        let (wasm, added) = if number == 0 {
-            let out = build_prelude(self.program, self.store, self.target);
-            let Some(wasm) = out.wasm else {
-                return Err(out.render());
-            };
-            (wasm, out.session_added)
-        } else {
-            let file = hd_project::repl_file(number);
-            self.program.sources.add_synthetic(&file, &text);
-            let mut diagnostics = Vec::new();
-            let built = build_input(
-                self.program,
-                self.store,
-                self.built,
-                None,
-                number,
-                &mut diagnostics,
-                self.target,
-            );
-            let Some((wasm, added)) = built else {
-                self.program.sources.remove_synthetic(&file);
-                let reason = String::from_utf8_lossy(&diagnostics).trim_end().to_owned();
-                self.diagnostics = diagnostics;
-                return Err(reason);
-            };
-            (wasm, Some(added))
-        };
-        if let Some(added) = added {
-            self.added.insert(number, added);
-        }
-        Ok((text, wasm))
-    }
-
-    #[cfg(feature = "wasmtime")]
-    fn build_joined(&mut self, numbers: &[u32]) -> Result<(Vec<String>, Vec<u8>), String> {
-        let (Some(&first), Some(&last)) = (numbers.first(), numbers.last()) else {
-            return Err("no inputs to build".into());
-        };
-        let mut texts = Vec::new();
-        for n in numbers {
-            let text = self
-                .texts
-                .get(n)
-                .ok_or_else(|| format!("the text of input {n} is gone"))?;
-            self.program
-                .sources
-                .add_synthetic(&hd_project::repl_file(*n), text);
-            texts.push(text.clone());
-        }
-        // The rebuild that follows a failure builds each input alone and
-        // reports the first that fails, so these diagnostics are dropped.
-        let mut diagnostics = Vec::new();
-        let built = build_input(
-            self.program,
-            self.store,
-            self.built,
-            Some(first),
-            last,
-            &mut diagnostics,
-            self.target,
-        );
-        let Some((wasm, added)) = built else {
-            return Err(String::from_utf8_lossy(&diagnostics).into_owned());
-        };
-        self.added.insert(last, added);
-        Ok((texts, wasm))
-    }
-
-    fn replayed(&mut self, number: u32, joined: bool) {
-        let added = self.added.remove(&number);
-        match added {
-            Some(added) if joined => self.built.add(added),
-            _ if joined || number == 0 => {}
-            _ => self
-                .program
-                .sources
-                .remove_synthetic(&hd_project::repl_file(number)),
-        }
-    }
-
-    fn restart(&mut self) {
-        *self.built = hd_driver::Session::start();
-        self.added.clear();
-        self.diagnostics.clear();
-        for n in self.texts.keys().filter(|n| **n != 0) {
-            self.program
-                .sources
-                .remove_synthetic(&hd_project::repl_file(*n));
-        }
     }
 }
 

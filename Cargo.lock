@@ -934,8 +934,6 @@ dependencies = [
  "hd_driver",
  "hd_project",
  "hd_sched",
- "hd_wasm",
- "wasmparser 0.261.0",
  "wasmprinter 0.261.0",
 ]
 

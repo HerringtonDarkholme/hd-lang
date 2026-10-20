@@ -1,14 +1,16 @@
-// The worker side of the REPL (`f1c55020:future-work/compiler/repl-plan.md` job W5): the compiler's REPL
-// session (W3's goals over the compiler wasm) and the JS session that runs
-// its modules (host/core.mjs `createSession`, W4) live in one worker, the
-// playground's compiler worker. The page numbers the inputs; each input is
-// built under its number (`encodeReplInput(text, number)`), so diagnostics,
-// `dbg` lines and the journal all name `repl#N` as the page shows it.
+// The worker side of the REPL: the compiler's REPL session (the REPL goals
+// over the compiler wasm) and the JS session that runs its programs
+// (host/core.mjs `createSession`) live in one worker, the playground's
+// compiler worker. The page numbers the inputs; each input is built under
+// its number (`encodeReplInput(text, number)`), so diagnostics, `dbg` lines
+// and the journal all name `repl#N` as the page shows it. Each input's
+// build is the session program, every kept input and the new one, which
+// the JS session runs after replaying the kept inputs from its journal.
 //
 // The protocol, page to worker:
 //
 // - `repl-start` starts a session over `files` (its package: `src/lib.hd`
-//   when present) and runs its prelude, input 0. It answers `started`.
+//   when present). It answers `started`.
 // - `repl-input` builds and runs input `number`. Its output streams as
 //   `repl-out` messages while it runs; it answers `ran`, with the session's
 //   journal so far, which the page keeps for a rebuild in a fresh worker.
@@ -19,11 +21,13 @@
 // - `repl-rebuild` starts a fresh compiler session over `files` and a fresh
 //   JS session, and rebuilds it from `journal` (`cli.repl.rebuild`): each
 //   input is built again from its text in `sources` under its old number
-//   and replayed with every host call served from the journal. It answers
-//   `rebuilt` with what it kept, skipped and dropped.
+//   and the last one's program replays the journal with every host call
+//   served from it. It answers `rebuilt` with what it kept, skipped and
+//   dropped.
 // - `repl-quit` ends the session; the next input needs a `repl-start`.
 
-import type { End } from "../../../host/journal.mjs";
+import { recorded, type End } from "../../../host/journal.mjs";
+import type { InputOutcome, Ran } from "../../../host/core.mjs";
 import { createWebSession, type Session } from "../../../host/web.mjs";
 import {
   OUTCOME,
@@ -59,7 +63,7 @@ export type ReplRequest =
     }
   | { readonly kind: "repl-quit"; readonly id: number };
 
-/** A session started: its prelude built and ran. */
+/** A session started. */
 export interface ReplStarted {
   readonly type: "started";
   readonly ok: boolean;
@@ -89,7 +93,7 @@ export interface ReplRan {
 /** What a rebuild kept, skipped and dropped, by input number. */
 export interface ReplRebuilt {
   readonly type: "rebuilt";
-  /** Whether a session runs: the prelude built and replayed. */
+  /** Whether a session runs. */
   readonly ok: boolean;
   readonly kept: readonly number[];
   readonly skipped: readonly number[];
@@ -136,9 +140,18 @@ function runError(number: number, error: string): string {
   return `repl#${number}: ${error}`;
 }
 
+/** The outcome byte of an input that ran as `ran` (`OUTCOME`). */
+function outcomeOf(ran: InputOutcome | null): number {
+  if (ran === null || ran.end.kind === "stopped" || ran.end.kind === "cancelled")
+    return OUTCOME.dropped;
+  return ran.joined ? OUTCOME.joined : OUTCOME.failed;
+}
+
 /** The REPL of one worker over the compiler wasm `compiler`; `post` sends to the page. */
 export function createReplHost(compiler: Promise<CompilerExports>, post: ReplPost) {
   let session: Session | null = null;
+  // The text of each input the session keeps, by number.
+  let texts = new Map<number, string>();
   // The request whose input runs; the session's output goes to it.
   let current = 0;
   const sink = {
@@ -154,9 +167,10 @@ export function createReplHost(compiler: Promise<CompilerExports>, post: ReplPos
     const journal = "journal" in value ? value.journal : null;
     post({ kind: "repl", id, answer: value }, journal ? [journal.buffer as ArrayBuffer] : []);
   };
-  const outcome = (exports: CompilerExports, input: number, joined: boolean): void => {
-    compileRequest(exports, encodeReplOutcome(input, joined ? OUTCOME.joined : OUTCOME.dropped));
+  const outcome = (exports: CompilerExports, input: number, value: number): void => {
+    compileRequest(exports, encodeReplOutcome(input, value));
   };
+  const message = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
   async function start(id: number, files: ReplFiles): Promise<ReplStarted> {
     const failed = (diagnostics: readonly string[], error: string | null): ReplStarted => {
@@ -165,20 +179,17 @@ export function createReplHost(compiler: Promise<CompilerExports>, post: ReplPos
       return { type: "started", ok: false, diagnostics, error, journal: null };
     };
     const exports = await compiler;
-    const prelude = compileRequest(exports, encodeReplStart(files));
-    if (prelude.status === STATUS.malformed) return failed([], prelude.json.error ?? "refused");
-    if (prelude.status !== STATUS.ok || prelude.wasm.length === 0)
-      return failed(lines(prelude), "the session's package does not build");
+    const started = compileRequest(exports, encodeReplStart(files));
+    if (started.status === STATUS.malformed) return failed([], started.json.error ?? "refused");
+    if (started.status !== STATUS.ok)
+      return failed(lines(started), "the session's package does not build");
     session = fresh();
+    texts = new Map();
     current = id;
-    const ran = await session.input(0, "", prelude.wasm);
-    outcome(exports, 0, ran.joined);
-    if (!ran.joined)
-      return failed(lines(prelude), `the session's prelude: ${ran.error ?? "failed"}`);
     return {
       type: "started",
       ok: true,
-      diagnostics: lines(prelude),
+      diagnostics: lines(started),
       error: null,
       journal: session.journal(),
     };
@@ -204,13 +215,23 @@ export function createReplHost(compiler: Promise<CompilerExports>, post: ReplPos
     const diagnostics = lines(compiled);
     if (compiled.status !== STATUS.ok || compiled.wasm.length === 0) return ran({ diagnostics });
     current = id;
-    const result = await session.input(number, source, compiled.wasm);
-    outcome(exports, number, result.joined);
+    let result;
+    try {
+      result = await session.run(compiled.wasm, [...texts, [number, source]], number);
+    } catch (error) {
+      outcome(exports, number, OUTCOME.dropped);
+      return ran({ diagnostics, error: runError(number, message(error)) });
+    }
+    for (const n of [...result.skipped, ...result.dropped]) texts.delete(n);
+    const live = result.live;
+    const value = outcomeOf(live);
+    outcome(exports, number, value);
+    if (value !== OUTCOME.dropped) texts.set(number, source);
     return ran({
       diagnostics,
-      end: result.end,
-      joined: result.joined,
-      error: result.error ? runError(number, result.error) : null,
+      end: live?.end ?? null,
+      joined: live?.joined ?? false,
+      error: live?.error ? runError(number, live.error) : null,
       journalFull: session.takeJournalNotice(),
     });
   }
@@ -221,7 +242,7 @@ export function createReplHost(compiler: Promise<CompilerExports>, post: ReplPos
     journal: Uint8Array | null,
     sources: readonly (readonly [number, string])[],
   ): Promise<ReplRebuilt> {
-    const texts = new Map(sources);
+    const given = new Map(sources);
     const done = (fields: Partial<ReplRebuilt>): ReplRebuilt => ({
       type: "rebuilt",
       ok: false,
@@ -236,63 +257,80 @@ export function createReplHost(compiler: Promise<CompilerExports>, post: ReplPos
     });
     session?.close();
     session = null;
+    texts = new Map();
     if (journal === null)
       return done({
         error: "the session's record of host calls is full, so it cannot be rebuilt",
       });
     const exports = await compiler;
-    const prelude = compileRequest(exports, encodeReplStart(files));
-    if (prelude.status !== STATUS.ok || prelude.wasm.length === 0)
+    const record = recorded(journal);
+    // Starts the compiler's session again and builds `inputs` in order,
+    // reporting each one's outcome as its journal row says: the last one's
+    // program, the inputs that built, and the first that did not with its
+    // diagnostics.
+    const build = (inputs: readonly { number: number; end: End | null }[]) => {
+      compileRequest(exports, encodeReplStart(files));
+      let wasm: Uint8Array | null = null;
+      const built = new Map<number, string>();
+      for (const i of inputs) {
+        const source = given.get(i.number);
+        const compiled =
+          source === undefined ? null : compileRequest(exports, encodeReplInput(source, i.number));
+        if (source === undefined || compiled === null || compiled.status !== STATUS.ok || compiled.wasm.length === 0) {
+          return { wasm, built, cut: i.number, diagnostics: compiled ? lines(compiled) : [] };
+        }
+        wasm = compiled.wasm;
+        built.set(i.number, source);
+        const joined = i.end?.kind === "exit" && i.end.status === 0;
+        outcome(exports, i.number, joined ? OUTCOME.joined : OUTCOME.failed);
+      }
+      return { wasm, built, cut: null, diagnostics: [] as string[] };
+    };
+    const started = compileRequest(exports, encodeReplStart(files));
+    if (started.status !== STATUS.ok)
       return done({
-        diagnostics: lines(prelude),
-        error: prelude.json.error ?? "the session's package does not build",
+        diagnostics: lines(started),
+        error: started.json.error ?? "the session's package does not build",
       });
+    const replayable = record.inputs.filter(
+      (i) => i.end?.kind !== "stopped" && i.end?.kind !== "cancelled",
+    );
+    let { wasm, built, cut, diagnostics } = build(replayable);
     const next = fresh();
     current = id;
-    // The module the compiler built that waits for its outcome, and the
-    // diagnostics of the input that no longer builds.
-    let waiting: number | null = null;
-    let diagnostics: string[] = [];
-    const rebuilder = {
-      build(number: number) {
-        if (number === 0) {
-          waiting = 0;
-          return { source: "", wasm: prelude.wasm };
-        }
-        const source = texts.get(number);
-        if (source === undefined) throw new Error(`the text of repl#${number} is gone`);
-        const compiled = compileRequest(exports, encodeReplInput(source, number));
-        if (compiled.status === STATUS.malformed) throw new Error(compiled.json.error);
-        if (compiled.status !== STATUS.ok || compiled.wasm.length === 0) {
-          diagnostics = lines(compiled);
-          throw new Error(`repl#${number} no longer builds`);
-        }
-        waiting = number;
-        return { source, wasm: compiled.wasm };
-      },
-      replayed(_number: number, joined: boolean) {
-        if (waiting !== null) outcome(exports, waiting, joined);
-        waiting = null;
-      },
-    };
-    let rebuilt;
-    try {
-      rebuilt = await next.rebuild(rebuilder, journal);
-    } catch (error) {
-      next.close();
-      return done({ error: error instanceof Error ? error.message : String(error) });
+    let rebuilt: Ran = { kept: [], skipped: [], dropped: [], reason: null, live: null };
+    if (wasm !== null) {
+      try {
+        rebuilt = await next.run(wasm, built, null, journal);
+      } catch (error) {
+        next.close();
+        return done({ error: message(error) });
+      }
+    } else {
+      rebuilt.skipped = record.inputs.filter((i) => !replayable.includes(i)).map((i) => i.number);
     }
-    // An input that built but did not replay adds nothing.
-    if (waiting !== null) outcome(exports, waiting, false);
-    const ok = rebuilt.kept.includes(0);
-    if (ok) session = next;
-    else next.close();
+    if (cut !== null && (rebuilt.dropped.length === 0 || rebuilt.dropped[0] >= cut)) {
+      rebuilt.dropped = replayable.filter((i) => i.number >= cut!).map((i) => i.number);
+      rebuilt.reason = `repl#${cut} no longer builds`;
+    } else {
+      diagnostics = [];
+    }
+    // The compiler holds an input that did not replay: build the kept ones
+    // again, so later inputs do not see it.
+    if (rebuilt.dropped.some((n) => built.has(n))) {
+      ({ built } = build(replayable.filter((i) => rebuilt.kept.includes(i.number))));
+    }
+    texts = new Map([...built].filter(([n]) => rebuilt.kept.includes(n)));
+    session = next;
     return done({
-      ...rebuilt,
-      ok,
+      kept: rebuilt.kept,
+      skipped: rebuilt.skipped,
+      dropped: rebuilt.dropped,
+      reason: rebuilt.reason,
+      ok: true,
       diagnostics,
-      error: ok ? null : "the session's prelude did not replay",
-      journal: ok ? next.journal() : null,
+      error: null,
+      journal: next.journal(),
     });
   }
 

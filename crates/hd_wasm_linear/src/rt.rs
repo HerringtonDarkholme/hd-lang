@@ -105,6 +105,12 @@ pub enum Helper {
     /// (§23.28): the entry is idle when the answer is Pending, and done
     /// otherwise. Checked mode collects in [`Helper::CheckedPoll`] instead.
     CollectPoll { poll: Box<Helper> },
+    /// `hd.reset()`: after a REPL input that trapped
+    /// ([`crate::Entry::Inputs`]), clears what the trap left set: the
+    /// forbidden-context and abandon counters, the root and its owner, the
+    /// wake table (left to leak, as its frames may be gone) and a release
+    /// in progress. The bindings and the heap stay.
+    EntryReset,
     /// `()`: checked mode releases the counted references that each
     /// top-level binding holds, and zeroes them, before the audit at an
     /// entry's end.
@@ -563,6 +569,34 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
             }
             if bang {
                 m.export("hd.wake", Sym::Helper(Helper::WakeMark));
+            }
+            return Ok(());
+        }
+        Entry::Inputs(inputs) => {
+            let mut bang = false;
+            for i in inputs {
+                let n = i.number;
+                m.export(
+                    format!("hd.init.{n}"),
+                    Sym::Helper(Helper::EntryInit {
+                        inits: i.before.clone(),
+                    }),
+                );
+                let poll = poll(input, m, i.init, i.key, None, i.after.clone())?;
+                m.export(format!("hd.poll.{n}"), collecting(m, poll));
+                bang |= m.frames.contains_key(&i.key);
+            }
+            m.export("hd.reset", Sym::Helper(Helper::EntryReset));
+            if bang {
+                m.export("hd.wake", Sym::Helper(Helper::WakeMark));
+                m.export(
+                    "hd.cancel",
+                    Sym::Helper(Helper::EntryCancel { abandon: false }),
+                );
+                m.export(
+                    "hd.abandon",
+                    Sym::Helper(Helper::EntryCancel { abandon: true }),
+                );
             }
             return Ok(());
         }
@@ -1044,6 +1078,24 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::EntryCall { func } => {
             let mut f = Func::new("rt:entry_call", vec![], vec![Val::I32]);
             f.call(Sym::Inst(*func));
+            f
+        }
+        Helper::EntryReset => {
+            let mut f = Func::new("rt:entry_reset", vec![], vec![]);
+            for g in [
+                Global::Forbid,
+                Global::Aband,
+                Global::AbSeen,
+                Global::Rewake,
+                Global::Root,
+                Global::Owner,
+                Global::WakeTab,
+                Global::WakeCap,
+                Global::Releasing,
+            ] {
+                f.i32(0);
+                f.global_set(g);
+            }
             f
         }
         Helper::EntryInit { inits } => {

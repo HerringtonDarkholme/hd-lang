@@ -923,34 +923,30 @@ export async function driveNodeSession() {
             );
             send("ready");
             break;
-          case "input": {
-            const result = await session.input(
-              request.number,
-              request.source,
+          case "run": {
+            // `run(wasm, sources, live)` (core.mjs `createSession`). The
+            // answer is one row: the kept, skipped and dropped inputs,
+            // the reason, then the new input's status, end kind and error
+            // (`-` when it did not run), and the journal flags.
+            const ran = await session.run(
               readFileSync(request.wasm),
+              request.sources,
+              request.live,
             );
-            if (result.error) throw new Error(result.error);
             const notice = session.takeJournalNotice();
             if (notice) recording = false;
-            send("done", result.status, Number(recording), Number(notice));
-            break;
-          }
-          case "rebuild": {
-            const rebuilt = await session.rebuild({
-              build: (number) => {
-                send("build", number);
-                const built = receive();
-                if (built.error) throw new Error(built.error);
-                return { source: built.source, wasm: readFileSync(built.wasm) };
-              },
-              replayed: (number, joined) => send("replayed", number, Number(joined)),
-            });
+            const live = ran.live;
             send(
-              "rebuilt",
-              rebuilt.kept.join(","),
-              rebuilt.skipped.join(","),
-              rebuilt.dropped.join(","),
-              JSON.stringify(rebuilt.reason),
+              "ran",
+              ran.kept.join(","),
+              ran.skipped.join(","),
+              ran.dropped.join(","),
+              JSON.stringify(ran.reason),
+              live === null ? "-" : String(live.status),
+              live === null ? "-" : live.end.kind === "exit" ? `exit${live.end.status}` : live.end.kind,
+              JSON.stringify(live?.error ?? null),
+              Number(recording),
+              Number(notice),
             );
             break;
           }

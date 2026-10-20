@@ -1,23 +1,22 @@
-//! One REPL session on wasmtime and on Node (`f1c55020:future-work/compiler/repl-plan.md` job W4): the
-//! JS host's session (`host/core.mjs`, `createSession`) runs the same
-//! input modules with the same transcript, and each engine's journal
-//! replays on the other byte for byte (`hd_run::journal`'s row format).
+//! One REPL session on wasmtime and on Node: the JS host's session
+//! (`host/core.mjs`, `createSession`) runs the same session programs with
+//! the same transcript, and each engine's journal replays on the other
+//! (`hd_run::journal`'s row format).
 //!
-//! The session runs here first. Its modules, texts, transcript and journal
-//! go to a scratch directory, where `scripts/repl-parity.js` runs them on
-//! Node, checks the transcript, rebuilds a Node session from the wasmtime
-//! journal and writes the Node session's own journal. A new wasmtime
-//! session is then rebuilt from that one. Each rebuild makes no host call,
-//! prints nothing, records a journal equal to the one it replayed, and
-//! goes on live: a later input reads the rebuilt bindings. The wasmtime
-//! rebuild holds each run of inputs that joined the session in one module
-//! (#228), so its journal names that module where Node's names each
-//! input's own; it is equal to Node's but for those hashes.
+//! The session runs here first. Each input's session program, its text,
+//! transcript and the journal go to a scratch directory, where
+//! `scripts/repl-parity.js` runs them on Node, checks the transcript,
+//! rebuilds a Node session from the wasmtime journal and writes the Node
+//! session's own journal. A new wasmtime session is then rebuilt from
+//! that one. Each rebuild makes no host call, prints nothing, records a
+//! journal equal to the one it replayed but for the module hashes (a
+//! rebuild runs every input from the last program), and goes on live: a
+//! later input reads the rebuilt bindings.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use super::{Again, Repl, build_prelude, text, with_session};
+use super::{Repl, repl, text, with_session};
 use hd_run::Outcome;
 
 /// Bindings, a function, a value, a clock read, a sleep, a line longer
@@ -61,7 +60,7 @@ impl Drop for Scratch {
 }
 
 /// Writes one input that ran as `N.hd`, `N.wasm`, `N.status`, `N.out`
-/// and `N.err`: its text, module, status and output.
+/// and `N.err`: its text, its session program, status and output.
 fn write_input(
     dir: &Scratch,
     number: u32,
@@ -88,26 +87,10 @@ fn script() -> PathBuf {
 fn a_session_runs_and_replays_the_same_on_node() {
     let dir = Scratch::new();
     let mut numbers = Vec::new();
+    let mut after_wasm = Vec::new();
     let mut texts = std::collections::BTreeMap::new();
     with_session(|session, io| {
-        let store = hd_cache::MemoryStore::default();
-        let prelude = build_prelude(&store);
-        assert!(prelude.diags.is_empty(), "{}", prelude.render());
-        let wasm = prelude.wasm.expect("the prelude");
-        let outcome = session.run_input(0, "", &wasm).expect("the prelude runs");
-        write_input(&dir, 0, "", &wasm, (outcome, text(&io.out), text(&io.err)));
-        numbers.push(0);
-        texts.insert(0, String::new());
-        let mut built = hd_driver::Session::start();
-        built.add(prelude.session_added.expect("what the prelude adds"));
-        let mut repl = Repl {
-            session,
-            built,
-            files: hd_project::MemorySources::default(),
-            next: 0,
-            texts: std::collections::BTreeMap::from([(0, String::new())]),
-            store,
-        };
+        let mut repl = repl(session);
         for input in INPUTS {
             let built = repl.build(input);
             let (number, wasm) = (built.number, built.wasm.clone());
@@ -137,6 +120,7 @@ fn a_session_runs_and_replays_the_same_on_node() {
             (outcome, text(&io.out), text(&io.err)),
         );
         dir.write("after", number.to_string().as_bytes());
+        after_wasm = wasm;
     });
     let inputs: Vec<String> = numbers.iter().map(u32::to_string).collect();
     dir.write("inputs", inputs.join("\n").as_bytes());
@@ -153,19 +137,16 @@ fn a_session_runs_and_replays_the_same_on_node() {
         String::from_utf8_lossy(&node.stderr)
     );
     let said = String::from_utf8_lossy(&node.stdout);
-    assert!(said.starts_with("repl parity: 11 inputs"), "{said}");
+    assert!(said.starts_with("repl parity: 10 inputs"), "{said}");
     let journal = std::fs::read(dir.0.join("node.journal")).expect("the Node journal");
 
     with_session(|session, io| {
-        let mut repl = Repl {
-            session,
-            built: hd_driver::Session::start(),
-            files: hd_project::MemorySources::default(),
-            next: 0,
-            texts,
-            store: hd_cache::MemoryStore::default(),
-        };
-        let rebuilt = rebuild_from(&mut repl, &journal);
+        let mut repl: Repl<'_> = repl(session);
+        let sources: Vec<(u32, &str)> = texts.iter().map(|(n, t)| (*n, t.as_str())).collect();
+        let rebuilt = repl
+            .session
+            .run_from(&journal, &after_wasm, &sources, None)
+            .expect("the session rebuilds");
         assert_eq!(rebuilt.kept, numbers, "{:?}", rebuilt.reason);
         assert_eq!(repl.session.host_calls(), 0, "a host call repeated");
         assert_eq!(text(&io.out), "");
@@ -176,6 +157,11 @@ fn a_session_runs_and_replays_the_same_on_node() {
             "the rebuilt journal differs from the Node journal it replayed"
         );
         repl.next = *numbers.last().expect("inputs");
+        for (n, t) in &texts {
+            repl.files.insert(&hd_project::repl_file(*n), t);
+            // The panicking input stays, hidden from later inputs.
+            repl.kept.insert(*n, (t.clone(), !t.contains("[3]")));
+        }
         assert_eq!(repl.input(AFTER), Outcome::Exit(0), "{}", text(&io.err));
         assert_eq!(text(&io.out), "3\n");
     });
@@ -188,19 +174,4 @@ fn but_modules(journal: &[u8]) -> hd_run::replay::Recorded {
         input.module = 0;
     }
     record
-}
-
-/// Rebuilds `repl`'s session from `journal` over its texts.
-fn rebuild_from(repl: &mut Repl<'_>, journal: &[u8]) -> crate::Rebuilt {
-    let mut again = Again {
-        files: &mut repl.files,
-        built: &mut repl.built,
-        store: &repl.store,
-        texts: &repl.texts,
-        added: hd_base::HashMap::default(),
-        building: std::time::Duration::ZERO,
-    };
-    repl.session
-        .rebuild_from(journal, &mut again)
-        .expect("the session rebuilds")
 }

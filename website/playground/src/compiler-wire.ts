@@ -29,7 +29,7 @@ export const GOAL = {
  * instantiate, panicked, was stopped or ended with another status), so it
  * adds nothing.
  */
-export const OUTCOME = { joined: 0, dropped: 1 } as const;
+export const OUTCOME = { joined: 0, dropped: 1, failed: 2 } as const;
 /** `hd_compile`'s status: compiled, compiled with errors, or a request that did not decode. */
 export const STATUS = { ok: 0, errors: 1, malformed: 2 } as const;
 
@@ -86,22 +86,17 @@ export interface WireTest {
  * A compiled request answers `diagnostics`, and for the test goal its
  * `programs` and `tests`; a malformed one, or a REPL request that does not
  * fit the session's state, answers `error`. A REPL start or input answers
- * `input` and `sessionKeys`, with the module in the bytes when it built; a
- * REPL outcome answers `input` and `joined`.
+ * `input`, with the session program in the bytes when the input built; a
+ * REPL outcome answers `input` and `outcome`.
  */
 export interface WireResponse {
   readonly diagnostics?: readonly WireDiagnostic[];
   readonly programs?: readonly WireProgram[];
   readonly tests?: readonly WireTest[];
-  /** The REPL module's number: 0 for the prelude, then `repl#N`'s N. */
+  /** The REPL input's number, `repl#N`'s N; 0 for a start. */
   readonly input?: number;
-  /**
-   * The module's exports that the host registers under `hd.s` for later
-   * modules once it joined; empty when it did not build.
-   */
-  readonly sessionKeys?: readonly string[];
-  /** Whether the module the outcome reported joined the session. */
-  readonly joined?: boolean;
+  /** How the input the outcome reported ended. */
+  readonly outcome?: "joined" | "dropped" | "failed";
   readonly error?: string;
 }
 
@@ -177,7 +172,12 @@ export function encodeReplInput(text: string, number?: number): Uint8Array {
   return Uint8Array.from(out);
 }
 
-/** Reports how module `input` ended: `OUTCOME.joined` after status 0, else `OUTCOME.dropped`. */
+/**
+ * Reports how input `input` ended: `OUTCOME.joined` after status 0,
+ * `OUTCOME.failed` after a panic or another status (it stays for replays,
+ * hidden from later inputs), else `OUTCOME.dropped` (it did not run, or it
+ * was stopped or cancelled).
+ */
 export function encodeReplOutcome(input: number, outcome: number): Uint8Array {
   const out = header({}, "", GOAL.replOutcome);
   leb(out, input);

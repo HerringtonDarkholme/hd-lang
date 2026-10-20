@@ -85,8 +85,26 @@ pub enum Entry {
         cleanup: Option<Hash128>,
         hold: Option<(DefId, bool)>,
     },
-    /// An entry this backend does not build yet: REPL inputs.
+    /// A REPL session's inputs, all in one module, which a host runs one
+    /// after another in one instance: `hd.init.N` and `hd.poll.N` run
+    /// input `N` as [`Entry::Script`]'s exports run a script, with no
+    /// audit at its end, since its bindings outlive it. After an input
+    /// that trapped or did not end with status 0, the host calls
+    /// `hd.reset`, which clears the runtime state a trap leaves set, so
+    /// the next input starts as the first did.
+    Inputs(Vec<ReplInput>),
+    /// An entry this backend does not build.
     Unsupported(&'static str),
+}
+
+/// One input of [`Entry::Inputs`], as [`Entry::Script`] has a script.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReplInput {
+    pub number: u32,
+    pub init: DefId,
+    pub key: Hash128,
+    pub before: Vec<(Hash128, bool)>,
+    pub after: Vec<(Hash128, bool)>,
 }
 
 impl Entry {
@@ -110,7 +128,7 @@ impl Entry {
         match self {
             Entry::Main { main, .. } | Entry::Scenario { main, .. } => *main == item,
             Entry::Tests { cases, .. } => cases.iter().any(|(def, _, _)| *def == item),
-            Entry::Script { .. } | Entry::Unsupported(_) => false,
+            Entry::Script { .. } | Entry::Inputs(_) | Entry::Unsupported(_) => false,
         }
     }
 }

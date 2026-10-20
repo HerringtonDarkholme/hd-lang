@@ -16,12 +16,9 @@ hd_diag = { path = "../hd_diag" }
 hd_project = { path = "../hd_project" }
 hd_sched = { path = "../hd_sched" }
 hd_driver = { path = "../hd_driver", default-features = false }
-hd_wasm = { path = "../hd_wasm" }
 # Prints the compiled module for the WAT goal; the same wasm-tools line as
 # hd_wasm's wasm-encoder.
 wasmprinter = { version = "0.261.0", default-features = false }
-# Reads a REPL module's export names; wasmprinter already links it.
-wasmparser = { version = "0.261.0", default-features = false, features = ["std"] }
 
 [lints]
 workspace = true

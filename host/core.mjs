@@ -50,7 +50,7 @@ import {
   SESSION_CAP,
   callArgs,
   importTypes,
-  ran,
+  ran as ranText,
   recorded,
 } from "./journal.mjs";
 import { Dec, decodeUtf8, Enc, Err, HostContract, Ok, str, variant } from "./wire.mjs";
@@ -855,21 +855,6 @@ export function createCoreHost(sink, env = {}, layer = null) {
 
 // --- REPL sessions ------------------------------------------------------
 
-// The Wasm module that a session's input imports earlier inputs' exports
-// from, and the session key of the memory (`hd_wasm::SESSION_MODULE`,
-// `MEMORY_KEY`).
-const SESSION_MODULE = "hd.s";
-const MEMORY_KEY = "hd.x";
-// The runtime globals every input shares (`hd_wasm::rt::runtime_globals`)
-// that a failed input sets back; never the map hash key `rt.hseed`, so a
-// map an earlier input built is still found.
-const RUNTIME_GLOBALS = new Set(["rt.wake", "rt.forbid", "rt.root", "rt.owner"]);
-
-// Whether an input's export is a session key (`hd_wasm::is_session_key`):
-// the memory, a function or a global; not the entry exports.
-export const isSessionKey = (name) =>
-  name === MEMORY_KEY || /^(inst|bind|rt|canon|wit|witf)\./.test(name);
-
 // Which journal row a call of an import writes (`Kind::record` in
 // hd_run_wasmtime): none for `hd:prim`, which answers from its arguments
 // alone, or `hd:rt` `fact`, which only marks where a facts body runs, so a
@@ -938,36 +923,34 @@ const handleParam = (args) => {
   return Number.isInteger(h) && h >= 0 && h <= 0xffffffff ? h : 0xffffffff;
 };
 
-// A REPL session (`f1c55020:future-work/compiler/repl-plan.md` job W4): the instances of every input that
-// ran, sharing the first one's memory, as `hd_run_wasmtime`'s
-// `WasmtimeSession` holds them. `sink`, `env` and `layer` are
-// `createCoreHost`'s: one host serves every input.
+// A REPL session (spec `cli.repl.*`), as `hd_run_wasmtime`'s
+// `WasmtimeSession` runs one. It holds no instance from one input to the
+// next: its state is its host and its journal (journal.mjs), the record of
+// every input that ran and of each host call it made. `sink`, `env` and
+// `layer` are `createCoreHost`'s: one host serves every input.
 //
-// - `input(number, source, wasm)` runs the input module `wasm`, numbered
-//   `number`, of the text `source`, as `hd run` runs an entry: `hd.init`,
-//   then `hd.poll` and `hd.wake` until it ends. It imports the session
-//   keys of every earlier input that ended with status 0 from `hd.s`, and
-//   the host imports. It answers `{ status, end, joined, error }`: status
-//   0 joins the session, so the caller reports the outcome to the compiler
-//   (W3's repl-outcome request); a panicking input ends with status 3,
-//   its report on standard error. `error` names why a module cannot run;
-//   a module the host cannot link does not start (`end` null).
+// - `run(wasm, sources, live, journal)` runs the session program `wasm`,
+//   one module of every input the session keeps and the new one
+//   (`hd_wasm_linear::Entry::Inputs`: `hd.init.N` and `hd.poll.N` run input
+//   N). It instantiates it once and replays the journal's inputs (the
+//   session's own, or `journal`), each of its text in `sources` (pairs of
+//   number and text), with every host result served from the record
+//   (`cli.repl.host.once`) and nothing printed: a rebuild by
+//   `cli.repl.rebuild`. It skips stopped and cancelled inputs
+//   (`cli.repl.rebuild.stopped`) and drops the first input whose text
+//   changed or that asks for what its record does not hold, with every
+//   later one (`cli.repl.rebuild.prefix`); then the kept ones replay
+//   again in a new instance, and the new input runs only when each
+//   dropped input is one `sources` leaves out. It runs input `live` (a
+//   number, or null for none) as `hd run` runs an entry, recording it. It answers `{ kept, skipped, dropped, reason,
+//   live }`, with `live` the new input's `{ status, end, joined, error }`
+//   or null: status 0 joins the session; a panicking input ends with
+//   status 3, its report on standard error. It throws when the journal
+//   passed its cap or the module cannot be linked or instantiated.
 // - After an input that did not end with status 0, the session drops the
-//   host operations it left pending and sets the runtime globals back to
-//   their initial values, so the next input starts as the first did
-//   (`cli.repl.panic`).
-// - The session records a journal of every input's host calls
-//   (journal.mjs) at the import call sites; `journal()` returns it, or null
-//   once it passed its cap. `rebuild(rebuilder, journal)` starts the
-//   instances again and replays the journal's inputs with every host result
-//   served from it (`cli.repl.host.once`) and nothing printed. It skips
-//   stopped and cancelled inputs (`cli.repl.rebuild.stopped`) and drops the
-//   first input that no longer builds or asks for what its record does not
-//   hold, with every later one (`cli.repl.rebuild.prefix`).
-//   `rebuilder.build(number)` returns `{ source, wasm }` (or throws the
-//   reason it no longer builds), and `rebuilder.replayed(number, joined)`
-//   hears each input replayed. It answers `{ kept, skipped, dropped,
-//   reason }`.
+//   host operations it left pending and calls `hd.reset`, so the next
+//   input starts as the first did (`cli.repl.panic`); what it changed in
+//   earlier values stays (`cli.repl.panic.mutations`).
 // - `stop()` cancels the input that waits on the host: it calls the
 //   input's `hd.cancel`, so its `defer` suites run, and the input ends as
 //   a panicking input does, `cancelled` (`cli.repl.cancel`). An input that
@@ -987,11 +970,6 @@ export function createSession(sink, env = {}, layer = null, options = {}) {
   const execution = crypto.getRandomValues(new Uint8Array(16));
   let recorder = new Recorder(options.journalCap ?? SESSION_CAP, execution);
   let replay = null;
-  // The session keys of the inputs that ended with status 0, whether one
-  // of them is the memory, and the runtime globals among them.
-  let keys = {};
-  let memory = false;
-  let runtime = [];
   // The host calls made, not served from a record.
   let calls = 0;
   // A stop request, the wait it ends, and how it ended the input.
@@ -1113,57 +1091,35 @@ export function createSession(sink, env = {}, layer = null, options = {}) {
   };
 
   // After an input that did not end with status 0: drops the host
-  // operations it left pending, then sets every runtime global the inputs
-  // share back to its initial value.
-  const reset = () => {
+  // operations it left pending, then clears the runtime state a trap
+  // leaves set.
+  const reset = (instance) => {
     st.ops.clear();
-    for (const g of runtime) {
-      const v = g.value;
-      g.value = typeof v === "bigint" ? 0n : typeof v === "number" ? 0 : null;
-    }
-  };
-  // Adds the session keys `instance` exports, for later inputs to import;
-  // every input exports the memory, and the first one's is the session's.
-  const add = (instance) => {
-    for (const [name, value] of Object.entries(instance.exports)) {
-      if (!isSessionKey(name) || (name === MEMORY_KEY && memory)) continue;
-      memory ||= name === MEMORY_KEY;
-      if (RUNTIME_GLOBALS.has(name) && !runtime.includes(value)) runtime.push(value);
-      keys[name] = value;
-    }
+    instance.exports["hd.reset"]?.();
   };
 
-  // Links an input's module: its host imports through their call sites,
-  // and its session imports from the keys so far. Null and the reason for
-  // a host import this host does not have.
+  // Links the session program: its host imports through their call
+  // sites. Throws for a host import this host does not have.
   const link = (module, wasm) => {
     const types = importTypes(wasm);
-    const object = { [SESSION_MODULE]: keys };
+    const object = {};
     for (const { module: m, name, kind } of WebAssembly.Module.imports(module)) {
-      if (m === SESSION_MODULE) continue;
       const f = host.imports[m]?.[name];
       if (kind !== "function" || typeof f !== "function") {
-        return { error: `the import \`${m}\` \`${name}\` is not in this host` };
+        throw new Error(`the import \`${m}\` \`${name}\` is not in this host`);
       }
       const key = `${m}\0${name}`;
       if (!sites.has(key)) sites.set(key, site(m, name, f, types.get(key)));
       object[m] ??= {};
       object[m][name] = sites.get(key);
     }
-    return { object };
+    return object;
   };
 
-  const runInput = async (number, source, wasm) => {
-    stopped = false;
+  // Runs input `number` of the text `source` from `instance`'s exports
+  // `hd.init.N` and `hd.poll.N`, recording it.
+  const runInput = async (instance, number, source, wasm) => {
     halt = null;
-    let module;
-    try {
-      module = await WebAssembly.compile(wasm);
-    } catch (e) {
-      return { status: null, end: null, joined: false, error: String(e?.message ?? e) };
-    }
-    const { object, error } = link(module, wasm);
-    if (error) return { status: null, end: null, joined: false, error };
     // A panic or standard error of an earlier input does not hide this
     // one's internal error.
     st.reported = false;
@@ -1171,24 +1127,26 @@ export function createSession(sink, env = {}, layer = null, options = {}) {
     recorder.input(number, source, wasm);
     let outcome;
     try {
-      const instance = await WebAssembly.instantiate(module, object);
-      const { status, trapped } = await host.run(instance, "hd.init", "hd.poll", driver);
+      const { status, trapped } = await host.run(
+        instance,
+        `hd.init.${number}`,
+        `hd.poll.${number}`,
+        driver,
+      );
       const end = halt ?? (trapped ? { kind: "trapped" } : { kind: "exit", status });
-      const joined = status === 0 && !trapped;
-      if (joined) add(instance);
-      outcome = { status, end, joined, error: null };
+      outcome = { status, end, joined: status === 0 && !trapped, error: null };
     } catch (e) {
       flush();
       outcome = { status: null, end: { kind: "failed" }, joined: false };
       outcome.error = String(e?.message ?? e);
     }
-    if (!outcome.joined) reset();
+    if (!outcome.joined) reset(instance);
     recorder.end(outcome.end);
     return outcome;
   };
 
-  // Starts the instances again with a journal that starts as `journal`,
-  // over the same host; every input is forgotten.
+  // Starts the instance again with a journal that starts as `journal`,
+  // over the same host.
   const restart = (journal) => {
     flush();
     st.ops.clear();
@@ -1199,81 +1157,90 @@ export function createSession(sink, env = {}, layer = null, options = {}) {
     recorder = journal;
     replay = null;
     muted = false;
-    keys = {};
-    memory = false;
-    runtime = [];
   };
 
-  // Runs `input` again, of the text `source` built as `wasm`, with its host
+  // Runs `input` again from `instance`, of the text `source`, with its host
   // calls and wakes served from its record and its output dropped. Throws
   // the divergence: it asked for what the record does not hold, or ended
   // otherwise.
-  const replayInput = async (input, source, wasm) => {
+  const replayInput = async (instance, input, source, wasm) => {
     replay = new Replay(input);
     muted = true;
     let outcome;
     try {
-      outcome = await runInput(input.number, source, wasm);
+      outcome = await runInput(instance, input.number, source, wasm);
     } finally {
       muted = false;
     }
     const served = replay;
     replay = null;
-    if (outcome.end === null) throw new Error(`input ${input.number} cannot run: ${outcome.error}`);
     served.end(outcome.end, input.end);
-    return outcome;
   };
 
-  const rebuild = async (rebuilder, journal = recorder.journal()) => {
+  const run = async (wasm, sources, live = null, journal = recorder.journal()) => {
     if (journal === null) {
-      throw new Error("the session's record of host calls is full, so it cannot be rebuilt");
+      throw new Error(
+        "the session's record of host calls is full, so it cannot run another input",
+      );
     }
     const record = recorded(journal);
+    const texts = new Map(sources);
+    // A stop that came while no input ran is dropped; one that comes
+    // while the inputs replay is for the new input.
+    stopped = false;
     const cap = recorder.cap;
-    restart(new Recorder(cap, record.execution));
-    const rebuilt = { kept: [], skipped: [], dropped: [], reason: null };
+    const module = await WebAssembly.compile(wasm);
+    const start = async () => {
+      restart(new Recorder(cap, record.execution));
+      return WebAssembly.instantiate(module, link(module, wasm));
+    };
+    let instance = await start();
+    const ran = { kept: [], skipped: [], dropped: [], reason: null, live: null };
     const kept = [];
-    let ranAndDropped = false;
     for (const [at, input] of record.inputs.entries()) {
       if (input.end?.kind === "stopped" || input.end?.kind === "cancelled") {
-        rebuilt.skipped.push(input.number);
+        ran.skipped.push(input.number);
         continue;
       }
-      let built;
-      let outcome;
+      const source = texts.get(input.number);
       try {
-        built = await rebuilder.build(input.number);
-        if (!ran(input, built.source)) {
+        if (source === undefined) throw new Error(`input ${input.number} is not in the session`);
+        if (!ranText(input, source)) {
           throw new Error(`input ${input.number} is not the text the session ran`);
         }
-        ranAndDropped = true;
-        outcome = await replayInput(input, built.source, built.wasm);
-        ranAndDropped = false;
+        await replayInput(instance, input, source, wasm);
       } catch (e) {
-        rebuilt.dropped = record.inputs.slice(at).map((i) => i.number);
-        rebuilt.reason = String(e?.message ?? e);
+        ran.dropped = record.inputs.slice(at).map((i) => i.number);
+        ran.reason = String(e?.message ?? e);
         break;
       }
-      await rebuilder.replayed?.(input.number, outcome.joined);
-      rebuilt.kept.push(input.number);
-      kept.push([input, built]);
+      ran.kept.push(input.number);
+      kept.push([input, source]);
     }
-    if (ranAndDropped) {
-      restart(new Recorder(cap, record.execution));
-      for (const [input, { source, wasm }] of kept) {
+    if (ran.dropped.length > 0) {
+      instance = await start();
+      for (const [input, source] of kept) {
         try {
-          await replayInput(input, source, wasm);
+          await replayInput(instance, input, source, wasm);
         } catch (e) {
           throw new Error(`the rebuild did not repeat itself: ${e.message}`);
         }
       }
+      // An input left out of `sources` is one the caller forgot: the
+      // program does not hold it, so the new input still runs. One that
+      // diverged may have declared what the new input uses.
+      if (ran.dropped.some((n) => texts.has(n))) return ran;
     }
-    return rebuilt;
+    if (live !== null) {
+      const source = texts.get(live);
+      if (source === undefined) throw new Error(`input ${live} has no text`);
+      ran.live = await runInput(instance, live, source, wasm);
+    }
+    return ran;
   };
 
   return {
-    input: runInput,
-    rebuild,
+    run,
     // A copy of the journal so far, or null once it passed its cap.
     journal: () => recorder.journal()?.slice() ?? null,
     setJournalCap: (cap) => recorder.setCap(cap),
