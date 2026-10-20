@@ -740,13 +740,29 @@ impl<'a, 'n> Gen<'a, 'n> {
         Ok(self.b.close_sub(m, root, ft, SYN))
     }
 
-    /// Erases an existing reference while preserving its place identity.
+    /// Erases an existing reference while preserving its place identity:
+    /// a `RefDyn`, as the checker's `build_dyn_ref` makes one, whose
+    /// address form is the trait value converting the reference and whose
+    /// closure form is a new `std.core.Ref[tv]` whose `get` makes that
+    /// trait value, whose `set` is never called, and whose identity is the
+    /// source's (`crates/hd_tir/DESIGN.md` §4.13.11).
     fn erase_reference(&mut self, src: Ref, src_ty: Ty, tv: Ty) -> StageResult<Ref> {
         let pool = self.names.pool;
         let held = self
             .b
             .local(src_ty, self.names.syms.intern("$reference"), 0, SYN);
         self.b.set(held, src, SYN);
+        let rt = pool.intern_ty(&TyData::Ref {
+            inner: tv,
+            mutable: false,
+        });
+        let addr = self.b.open_block();
+        let source = self.b.get(held, src_ty, SYN);
+        let value = self
+            .b
+            .coerce(Coercion::RefToTraitValue, NONE, source, tv, SYN);
+        let addr = self.b.close_block(addr, Some(value), tv, SYN);
+        let form = self.b.open_block();
         let get = self.closure(&[], tv, |g, _| {
             let source = g.b.get(held, src_ty, SYN);
             Ok(g.b.coerce(Coercion::RefToTraitValue, NONE, source, tv, SYN))
@@ -765,12 +781,10 @@ impl<'a, 'n> Gen<'a, 'n> {
             .b
             .emit(Tag::Field, source.0, 3, Ty::prim(hd_types::Prim::I64), SYN);
         let key = self.b.emit(Tag::Field, source.0, 4, Ty::STRING, SYN);
-        let rt = pool.intern_ty(&TyData::Ref {
-            inner: tv,
-            mutable: false,
-        });
         let rec = self.b.refs_record(&[get, set, base, serial, key]);
-        Ok(self.b.emit(Tag::NewData, NONE, rec, rt, SYN))
+        let r = self.b.emit(Tag::NewData, NONE, rec, rt, SYN);
+        let form = self.b.close_block(form, Some(r), rt, SYN);
+        Ok(self.b.emit(Tag::RefDyn, addr.0, form.0, rt, SYN))
     }
 
     /// A copied value in a new object, erased as a shared trait reference.
