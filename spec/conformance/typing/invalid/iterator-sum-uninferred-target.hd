@@ -1,0 +1,14 @@
+# test: sum has no default target without result context
+# Spec std/iter Numeric Aggregation: std-iter.aggregate.unsolved.
+use std.iter.Sum
+
+struct Total:
+    value: i32
+
+impl Sum[i32] for Total:
+    fn sum[I < Iterator[i32]](items: I) -> Total:
+        _ := items
+        panic("not run")
+
+fn unspecified(values: List[i32]) -> void:
+    _ := values.iter().sum()  # diagnostic: cannot-infer-type

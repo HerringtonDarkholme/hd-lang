@@ -1,0 +1,114 @@
+# test: user-defined Iterator implementations use named adapter values and generic FromIterator targets
+# Spec std/iter Iterator Adapters and What Collect Builds: adapters are trait defaults over their concrete source.
+# expect: test
+use std.iter.{FromIterator, MapIter}
+
+struct Countdown:
+    remaining: i32
+
+impl Iterator[i32] for Countdown:
+    fn next(&mut self) -> i32?:
+        if self.remaining <= 0:
+            return .None
+        self.remaining -= 1
+        .Some(self.remaining)
+
+struct Bag:
+    values: List[i32]
+
+impl FromIterator[i32] for Bag:
+    fn from_iter[I < Iterator[i32]](items: I) -> Bag:
+        let mut cursor = items
+        let mut values: List[i32] = []
+        for item in cursor:
+            values.push(item)
+        Bag { values: values }
+
+struct First[T]:
+    value: T?
+
+impl[T] FromIterator[T] for First[T]:
+    fn from_iter[I < Iterator[T]](items: I) -> First[T]:
+        let mut cursor = items
+        First { value: cursor.next() }
+
+fn evens(xs: &List[i32]) -> &mut dyn Iterator[i32]:
+    &mut xs.iter().filter(fn(value: i32) -> bool: value % 2 == 0)
+
+tests:
+    use std.testing.assert_equal
+
+    it("maps and filters a user cursor through named adapter values"):
+        source := Countdown { remaining: +5 }
+        let mapped: MapIter[Countdown, i32, i32] = source.map(fn(value: i32) -> i32: value * 2)
+        selected := mapped.filter(fn(value: i32) -> bool: value >= 4)
+        assert_equal(selected.collect(), [+8, 6, 4], reason="trait defaults compose concrete adapters")
+        assert_equal(source.remaining, +5, reason="value-taking adapters hold their own cursor copy")
+
+    it("collects a custom target through a generic owned cursor"):
+        let mut source = Countdown { remaining: +3 }
+        let bag: Bag = source.by_ref().collect()
+        assert_equal(bag.values, [+2, 1, 0], reason="generic FromIterator drains a mutable cursor reference")
+        assert_equal(source.remaining, +0, reason="draining advances the borrowed source")
+
+    it("returns an erased adapter chain from a function"):
+        values := [+1, 2, 3, 4, 5, 6]
+        let mut collected: List[i32] = []
+        for value in evens(&values):
+            collected.push(value)
+        assert_equal(collected, [+2, 4, 6], reason="the erased chain owns its source after the function returns")
+
+    it("keeps early termination and draining methods on custom cursors"):
+        let mut first = Countdown { remaining: +6 }
+        assert_equal(first.by_ref().find(fn(value: i32) -> bool: value == 3), .Some(+3), reason="find stops at the first match")
+        assert_equal(first.next(), .Some(+2), reason="find leaves the rest unread")
+        assert_equal(first.fold(+10, fn(total: i32, value: i32) -> i32: total + value), +11, reason="fold drains the remaining items")
+
+    it("borrows a prefix and leaves the rest in the cursor"):
+        let mut source = Countdown { remaining: +5 }
+        assert_equal(source.by_ref().take(2).collect(), [+4, 3], reason="by_ref keeps the source in place")
+        assert_equal(source.next(), .Some(+2), reason="only the borrowed prefix was consumed")
+
+    it("drains an owned cursor copy without advancing its binding"):
+        source := Countdown { remaining: +3 }
+        assert_equal(source.collect(), [+2, 1, 0], reason="owned draining works on a read-only binding")
+        assert_equal(source.remaining, +3, reason="hd passes the cursor value by copy")
+
+    it("aggregates a custom cursor through Iterator defaults"):
+        let added: i32 = Countdown { remaining: +3 }.sum()
+        let multiplied: i32 = Countdown { remaining: +4 }.map(fn(value: i32) -> i32: value + 1).product()
+        assert_equal(added, +3, reason="sum is available on a user cursor")
+        assert_equal(multiplied, +24, reason="product is available after a user cursor adapter")
+
+    it("streams Result payloads only as far as a custom target asks"):
+        let values: List[Result[i32, string]] = [.Ok(+1), .Err("unread"), .Ok(+2)]
+        let mut source = values.iter()
+        let result: Result[First[i32], string] = source.by_ref().collect()
+        match result:
+            .Ok(first) => assert_equal(first.value, .Some(+1), reason="the target reads one payload")
+            .Err(_) => panic("a later error must remain unread")
+        assert_equal(source.next(), .Some(.Err("unread")), reason="Result collection leaves the next source item untouched")
+
+    it("streams optional payloads only as far as a custom target asks"):
+        let values: List[i32?] = [.Some(+1), .None, .Some(+2)]
+        let mut source = values.iter()
+        let result: First[i32]? = source.by_ref().collect()
+        match result:
+            .Some(first) => assert_equal(first.value, .Some(+1), reason="the target reads one payload")
+            .None => panic("a later None must remain unread")
+        assert_equal(source.next(), .Some(.None), reason="optional collection leaves the next source item untouched")
+
+    it("loops over a temporary adapter chain"):
+        xs := [+1, +2, +3]
+        let mut values: List[i32] = []
+        for value in xs.iter().map(fn(v: i32) -> i32: v * 10):
+            values.push(value)
+        assert_equal(values, [+10, 20, 30], reason="for owns a temporary adapter")
+
+    it("loops over by_ref without copying the caller's progress"):
+        let mut cursor = Countdown { remaining: +4 }
+        let mut values: List[i32] = []
+        for value in cursor.by_ref().take(2):
+            values.push(value)
+        assert_equal(values, [+3, 2], reason="the owned adapter retains a reference to the cursor")
+        assert_equal(cursor.next(), .Some(+1), reason="by_ref advances the caller")

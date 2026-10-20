@@ -1,5 +1,5 @@
 # test: iterator adapters are lazy, take stops pulling at its count, and collect, map, and fold work
-# std Iterators, Iterator Adapters: std-iter.adapter.lazy, std-iter.adapter.lazy.map, std-iter.adapter.lazy.next, std-iter.adapter.take.limit, std-iter.collect.drain, std-iter.adapter.enumerate-usize, std-iter.adapter.map, std-iter.adapter.fold (STDLIB question 14, Chaining Study CS7).
+# std Iterators, Iterator Adapters: std-iter.adapter.lazy, std-iter.adapter.lazy.map, std-iter.adapter.lazy.stored-source, std-iter.adapter.take.limit, std-iter.collect.owned-drain, std-iter.adapter.enumerate.value, std-iter.adapter.map.value, std-iter.adapter.fold.value (STDLIB question 14, Chaining Study CS7).
 struct Tally:
     pulled: i32
 

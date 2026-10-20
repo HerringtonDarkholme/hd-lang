@@ -5,5 +5,5 @@ struct Word:
     text: string
 
 impl Iterable[Word] for string:
-    fn iter(self) -> &mut Iterator[Word]:
-        Iterator::from_fn(fn() -> Word?: .None)
+    fn iter(self) -> &mut dyn Iterator[Word]:
+        panic("not evaluated")

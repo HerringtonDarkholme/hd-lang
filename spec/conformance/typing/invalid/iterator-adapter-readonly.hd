@@ -1,5 +1,0 @@
-# test: an adapter on a readonly iterator needs a mutable receiver
-# std Iterators, Iterator Adapters: std-iter.adapter.ref-receiver (STDLIB question 14).
-
-fn drain(source: Iterator[i32]) -> List[i32]:
-    source.collect()  # diagnostic: not-writable

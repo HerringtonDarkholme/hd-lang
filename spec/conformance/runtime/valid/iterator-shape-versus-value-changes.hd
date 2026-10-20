@@ -42,14 +42,14 @@ tests:
     it("an iterator created after removal is valid"):
         let mut values: Map[string, i32] = {"a": 1, "b": 2}
         _ := values.remove("a")
-        let iterator: &mut Iterator[(string, i32)] = values.iter()
+        let iterator: &mut dyn Iterator[(string, i32)] = values.iter()
         let expected: (string, i32)? = ("b", 2)
         assert(iterator.next() == expected, reason="fresh iterator sees the new shape")
 
     it("an iterator created after growth sees the new element"):
         let mut values: List[i32] = [1]
         values.push(2)
-        let iterator: &mut Iterator[i32] = values.iter()
+        let iterator: &mut dyn Iterator[i32] = values.iter()
         _ := iterator.next()
         let second: i32? = 2
         assert(iterator.next() == second, reason="fresh iterator sees the appended element")

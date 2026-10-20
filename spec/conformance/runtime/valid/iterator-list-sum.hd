@@ -1,5 +1,5 @@
 # test: sum adds a numeric iterator or list in order from zero, and an empty one gives zero
-# Spec std/iter More Adapters: std-iter.adapter.sum, .sum.order, .sum.drain; std/collections List Helpers: std-collections.helper.sum, .sum.iterator.
+# Spec std/iter More Adapters: std-iter.adapter.sum.numeric-target, .sum.order, .sum.drain; std/collections List Helpers: std-collections.helper.sum, .sum.iterator.
 fn total(readings: List[i32]) -> i32:
     readings.sum()
 

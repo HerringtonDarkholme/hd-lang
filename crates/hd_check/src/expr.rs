@@ -2810,21 +2810,10 @@ impl Ck<'_, '_> {
             return Ok(done);
         }
         let iterator = self.cx.names.known.iterator;
-        // An iterator in a place advances there: the loop takes the place's
-        // address, as a call of its `&mut self` `next` would
-        // (`flow.for.iterator-place`).
-        let placed = self.peek_place_ty(src).is_some_and(|t| {
-            matches!(pool.get(self.strip_mut(self.infer.resolve(pool, t))),
-                TyData::Adt { def, .. } if def == iterator)
-        });
-        let (sr, st) = if placed {
-            match self.auto_address(src, "next")? {
-                Some(got) => (got.0, self.b.ty_of(got.0)),
-                None => self.expr(src, None)?,
-            }
-        } else {
-            self.expr(src, None)?
-        };
+        // The source is evaluated once. A cursor value becomes the loop's
+        // own writable copy; an explicit reference keeps sharing its target
+        // (`flow.for.iterator.owned-binding`).
+        let (sr, st) = self.expr(src, None)?;
         // A named reference to a collection is a value source; the
         // syntactic `&xs` element-reference loop was handled above.
         let (sr, st) = if self
@@ -2869,43 +2858,24 @@ impl Ck<'_, '_> {
             };
             return self.collection_loop(pat, (sr, st, item, map), els, e, body);
         }
-        let iter_ref = self.ref_of(st_i).and_then(|(inner, m)| {
-            match pool.get(self.strip_mut(self.infer.resolve(pool, inner))) {
-                TyData::Adt { def, args } if def == iterator => Some((m, args)),
-                _ => None,
-            }
-        });
-        let (it, item_ty) = match pool.get(st_i) {
-            // The loop advances the iterator itself, through a `&mut`
-            // reference (flow.for.iterator-ref).
-            _ if iter_ref.is_some() => {
-                let Some((m, args)) = iter_ref else {
-                    return unsupported("an iterator reference");
+        let (referent, writable) = self.ref_of(st_i).unwrap_or((st_i, false));
+        let direct = self.iterator_item(referent)?;
+        let (it, it_ty, item_ty) = match pool.get(st_i) {
+            _ if direct.is_some() => {
+                let cursor = if self.ref_of(st_i).is_some() {
+                    if !writable {
+                        self.err(
+                            Code::NotWritable,
+                            src,
+                            "a loop cannot advance an iterator through a shared reference; use `&mut`",
+                        );
+                        return Ok(self.poison_value(e));
+                    }
+                    sr
+                } else {
+                    self.new_object_ref(sr, st_i, true, src).0
                 };
-                if !m {
-                    self.err(
-                        Code::NotWritable,
-                        src,
-                        "a loop advances its iterator, but this is a read-only reference `&Iterator`; take it with `&mut`",
-                    );
-                }
-                (
-                    sr,
-                    pool.list_items(args).first().copied().unwrap_or(Ty::POISON),
-                )
-            }
-            // An iterator value that is no place has nowhere to advance
-            // (flow.for.iterator-place).
-            TyData::Adt { def, args } if def == iterator => {
-                self.err(
-                    Code::NotWritable,
-                    src,
-                    "a loop advances its iterator in place, but this iterator is not a variable or a field of one; bind it with `let mut` first",
-                );
-                (
-                    sr,
-                    pool.list_items(args).first().copied().unwrap_or(Ty::POISON),
-                )
+                (cursor, referent, direct.unwrap_or(Ty::POISON))
             }
             // An infer-typed source, such as an open numeric literal, goes
             // through the general `Iterable` call below: the solver waits
@@ -2931,9 +2901,10 @@ impl Ck<'_, '_> {
                     self.require_ref(tref, src)?;
                 }
                 let method = self.cx.names.member(iterable, PathKind::Member, "iter");
-                let it_s = pool.intern_ty(&TyData::Adt {
+                let it_s = pool.intern_ty(&TyData::TraitValue {
                     def: iterator,
                     args: pool.list(&[et]),
+                    bindings: vec![],
                 });
                 let it_t = pool.intern_ty(&TyData::Ref {
                     inner: it_s,
@@ -2949,7 +2920,7 @@ impl Ck<'_, '_> {
                 let r = self
                     .b
                     .call(&c, &[sr], hd_tir::ir::Providers::None, it_t, src.index());
-                (r, et)
+                (r, it_s, et)
             }
             _ => {
                 let iterable = self.cx.names.known.iterable;
@@ -2957,24 +2928,13 @@ impl Ck<'_, '_> {
                 let t = self.infer.resolve(pool, t);
                 let t = self.ref_of(t).map_or(t, |(inner, _)| inner);
                 let t = self.strip_mut(self.infer.resolve(pool, t));
-                match pool.get(t) {
-                    TyData::Adt { def, args } if def == iterator => (
-                        r,
-                        pool.list_items(args).first().copied().unwrap_or(Ty::POISON),
-                    ),
-                    _ => return unsupported("an `iter` that does not return an `Iterator`"),
-                }
+                let Some(item) = self.iterator_item(t)? else {
+                    return unsupported("an `iter` result that does not implement `Iterator`");
+                };
+                (r, t, item)
             }
         };
-        let it_ty = pool.intern_ty(&TyData::Adt {
-            def: iterator,
-            args: pool.list(&[item_ty]),
-        });
-        let it_ref = pool.intern_ty(&TyData::Ref {
-            inner: it_ty,
-            mutable: true,
-        });
-        let it = self.retype(it, it_ref, e.index());
+        let it_ref = self.b.ty_of(it);
         let it_sym = self.cx.names.syms.intern("$iter");
         let itl = self
             .b
@@ -2983,7 +2943,17 @@ impl Ck<'_, '_> {
         let lp = self.b.open_loop();
         let lb = self.b.open_block();
         let cur = self.b.get(itl, it_ref, e.index());
-        let (next, nt) = self.inherent_call(it_ty, "next", cur, &[], e)?;
+        if matches!(pool.get(self.strip_mut(it_ty)), TyData::TraitValue { .. }) {
+            self.dyn_recv = Some((true, e.index()));
+        }
+        let (next, nt) = self.method_on(
+            cur,
+            it_ty,
+            "next",
+            &crate::call::Args::empty(),
+            (e, false),
+            None,
+        )?;
         let _ = nt;
         let opt = pool.intern_ty(&TyData::Option(item_ty));
         let result = els.map(|(_, t)| t);
@@ -3015,6 +2985,41 @@ impl Ck<'_, '_> {
         let lbody = self.b.close_block(lb, None, Ty::VOID, e.index());
         let ty = result.unwrap_or(Ty::VOID);
         Ok((self.b.close_loop(lp, lbody, ty, e.index()), ty))
+    }
+
+    /// Probes the cursor trait without reporting when the source is an
+    /// iterable instead; a successful answer fixes its item type.
+    fn iterator_item(&mut self, ty: Ty) -> StageResult<Option<Ty>> {
+        let pool = self.pool();
+        let ty = self.strip_mut(self.infer.resolve(pool, ty));
+        if matches!(
+            pool.get(ty),
+            TyData::Infer(_) | TyData::Poison | TyData::Never
+        ) {
+            return Ok(None);
+        }
+        if let TyData::TraitValue { def, args, .. } = pool.get(ty)
+            && def == self.cx.names.known.iterator
+        {
+            return Ok(pool.list_items(args).first().copied());
+        }
+        let snap = self.infer.snapshot();
+        let item = self.infer.fresh(pool, VarKind::General);
+        let goal = TraitRef {
+            trait_: self.cx.names.known.iterator,
+            self_ty: ty,
+            args: pool.list(&[item]),
+        };
+        if let Answer::Holds { learned, .. } = self.solve(goal)? {
+            for (v, t) in learned {
+                let var = pool.intern_ty(&TyData::Infer(v));
+                let _ = self.infer.unify(pool, var, t);
+            }
+            Ok(Some(self.infer.resolve(pool, item)))
+        } else {
+            self.infer.rollback(snap);
+            Ok(None)
+        }
     }
 
     /// A `for` over a numeric `Range` as a counting loop (lowering-catalog

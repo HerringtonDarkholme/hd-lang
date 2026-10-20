@@ -4,7 +4,7 @@ struct Bag:
     items: List[i32]
 
 impl Iterable[i32] for Bag:
-    fn iter(self) -> &mut Iterator[i32]:
+    fn iter(self) -> &mut dyn Iterator[i32]:
         self.items.iter()
 
 fn sum(bag: Bag) -> i32:

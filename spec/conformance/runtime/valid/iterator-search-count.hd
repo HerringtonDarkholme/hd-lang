@@ -1,5 +1,5 @@
 # test: any, all, and find stop at the deciding item; count drains; an exhausted iterator gives the empty results
-# Spec std/iter More Adapters: std-iter.adapter.any, .all, .find, .count, .stop-early, .exhausted, and .count.drain.
+# Spec std/iter More Adapters: std-iter.adapter.any.value, .all, .find, .count, .stop-early, .exhausted, and .count.drain.
 fn has_blank(lines: List[string]) -> bool:
     lines.iter().any(fn(line: string) -> bool: line.trim() == "")
 

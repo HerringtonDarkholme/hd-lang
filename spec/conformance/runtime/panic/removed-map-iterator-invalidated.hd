@@ -1,5 +1,5 @@
 fn invalidated(values: &mut Map[string, i32]) -> void:
-    let iterator: &mut Iterator[(string, i32)] = values.iter()
+    let iterator: &mut dyn Iterator[(string, i32)] = values.iter()
     _ := values.remove("first")
     _ := iterator.next()  # panic: iterator-invalidated
 

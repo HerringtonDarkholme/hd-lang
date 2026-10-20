@@ -1,5 +1,5 @@
 # test: sum is declared only for a numeric item type
-# Spec std/iter More Adapters: std-iter.adapter.sum.bound.
+# Spec std/iter More Adapters: std-iter.sum.target-bound.
 
 fn total(values: List[i32]) -> i32:
     values.iter().sum()

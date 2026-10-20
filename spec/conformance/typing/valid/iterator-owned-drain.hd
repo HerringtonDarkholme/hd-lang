@@ -1,0 +1,6 @@
+# test: a read-only cursor binding can drain its own value copy
+# std Iterators, Iterator Adapters: std-iter.adapter.draining-value.
+use std.iter.FromFn
+
+fn drain(source: FromFn[i32]) -> List[i32]:
+    source.collect()

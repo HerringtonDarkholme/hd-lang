@@ -1,6 +1,6 @@
 # test: a loop advances its iterator, so a read-only `&Iterator` reference cannot drive one
-# Spec 06 Iteration Protocols: flow.for.iterator-ref.
-fn drain(source: &Iterator[i32]) -> i32:
+# Spec 06 Iteration Protocols: flow.for.iterator.shared-reference.
+fn drain(source: &dyn Iterator[i32]) -> i32:
     let total = +0
     for value in source:  # diagnostic: not-writable
         total = total + value

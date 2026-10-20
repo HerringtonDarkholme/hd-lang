@@ -56,15 +56,15 @@ pub fn main() -> void $ Console:
 }
 
 /// `Iterable.iter` on a range of literals: the range's class takes its
-/// default, and the impl it chooses fixes the item type that `sum` and
-/// the other literal of the statement then take.
+/// default, and the impl it chooses fixes the item type. `sum` has an
+/// independently inferred result target, written explicitly here.
 #[test]
 fn a_range_of_literals_chooses_its_iterable_impl() {
     let main = "\
 pub fn main() -> void $ Console:
-    total := (1..=10).iter().sum()
+    total := (1..=10).iter().sum::[usize]()
     println(total)
-    signed := (+1..=4).iter().sum() - 20
+    signed := (+1..=4).iter().sum::[i32]() - 20
     println(signed)
     for x in (1..=2).iter():
         println(x)

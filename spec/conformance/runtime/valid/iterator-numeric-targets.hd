@@ -1,0 +1,71 @@
+# test: numeric iterator methods use inferred or explicit aggregate targets and by_ref preserves progress
+# Spec std/iter Numeric Aggregation: numeric target traits and borrowed cursors.
+# expect: test
+use std.iter.{Product, Sum}
+use std.num.Num
+
+struct Total:
+    value: i32
+
+impl Sum[i32] for Total:
+    fn sum[I < Iterator[i32]](items: I) -> Total:
+        let mut cursor = items
+        let value = +0
+        for item in cursor:
+            value += item
+        Total { value: value }
+
+impl Product[i32] for Total:
+    fn product[I < Iterator[i32]](items: I) -> Total:
+        let mut cursor = items
+        let value = +1
+        for item in cursor:
+            value *= item
+        Total { value: value }
+
+struct Joined:
+    value: string
+
+impl Sum[string] for Joined:
+    fn sum[I < Iterator[string]](items: I) -> Joined:
+        let mut cursor = items
+        let value = ""
+        for item in cursor:
+            value = value + item
+        Joined { value: value }
+
+fn totals[T < Num](items: List[T]) -> (T, T):
+    (items.iter().sum(), items.iter().product())
+
+tests:
+    use std.testing.assert_equal
+
+    it("supports every numeric family with an expected target"):
+        assert_equal(totals([2i8, 3i8]), (5i8, 6i8), reason="i8")
+        assert_equal(totals([2i16, 3i16]), (5i16, 6i16), reason="i16")
+        assert_equal(totals([2i32, 3i32]), (5i32, 6i32), reason="i32")
+        assert_equal(totals([2i64, 3i64]), (5i64, 6i64), reason="i64")
+        assert_equal(totals([2u8, 3u8]), (5u8, 6u8), reason="u8")
+        assert_equal(totals([2u16, 3u16]), (5u16, 6u16), reason="u16")
+        assert_equal(totals([2u32, 3u32]), (5u32, 6u32), reason="u32")
+        assert_equal(totals([2u64, 3u64]), (5u64, 6u64), reason="u64")
+        assert_equal(totals([2usize, 3usize]), (5usize, 6usize), reason="usize")
+        assert_equal(totals([2.0f32, 3.0f32]), (5.0f32, 6.0f32), reason="f32")
+        assert_equal(totals([2.0f64, 3.0f64]), (5.0f64, 6.0f64), reason="f64")
+
+    it("uses neutral totals for empty cursors"):
+        let empty: List[i32] = []
+        assert_equal(empty.iter().sum(), +0, reason="sum starts at zero")
+        assert_equal(empty.iter().product(), +1, reason="product starts at one")
+
+    it("infers or accepts an explicit custom target"):
+        let added: Total = [+2, 3, 4].iter().sum()
+        let multiplied: Total = [+2, 3, 4].iter().product()
+        assert_equal(added.value, +9, reason="expected Sum target")
+        assert_equal(multiplied.value, +24, reason="expected Product target")
+        assert_equal([+2, 3].iter().sum::[Total]().value, +5, reason="explicit Sum target")
+        assert_equal([+2, 3].iter().product::[Total]().value, +6, reason="explicit Product target")
+
+    it("allows a custom aggregate for nonnumeric items"):
+        let combined: Joined = ["a", "b", "c"].iter().sum()
+        assert_equal(combined.value, "abc", reason="Sum is an ordinary user-implementable trait")

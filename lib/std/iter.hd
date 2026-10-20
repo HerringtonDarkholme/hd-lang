@@ -1,172 +1,53 @@
-# std.iter: the prelude `Iterator[T]` with its adapters, `FromIterator` and
-# its implementations, and the `Iterable` implementations of `List` and
-# `Map`. The range types and their `Iterable` implementations
-# (spec/lang/06-control-flow.md#range-iteration) are in `std.ops`.
-# `Iterator` and `Iterable` are prelude
-# names.
-#
-# `Iterator[T]` is a struct whose private `step` closure yields the next
-# item (spec/lang/06-control-flow.md#iteration-protocols), and the adapters are
-# its ordinary `&mut self` methods (spec/std/iter.md#iterator-adapters). An
-# iterator is a handle, so `from_fn` and every adapter return a new object
-# behind `&mut`. `filter`, `take`, `enumerate`, and `map` return a lazy
-# iterator that pulls from `self` only when its own `next` is called; `fold`
-# and `collect` drain `self`.
-#
-# Prototype: the compiler builds `list.iter()` and `map.iter()` as
-# `Iterator::from_fn` over its built-in cursor, which keeps the iterator
-# invalidation checks, and a `for` loop over a list or map uses that cursor
-# directly.
-
+# std.iter: user-defined cursors and lazy, named adapter values.
 use std.num.Num
 
-## A cursor that yields items of `T` one at a time: what `Iterable.iter` returns and `for` accepts directly.
-## See [flow.for.iterator-struct](../../spec/lang/06-control-flow.md#r-flow.for.iterator-struct).
-pub struct Iterator[T]:
-    step: fn() -> T?
+## A cursor that yields its next item, or None when exhausted.
+pub trait Iterator[T]:
+    fn next(&mut self) -> T?
 
-impl[T] Iterator[T]:
-    ## Builds an iterator whose items are what `step` returns, ending at its first `.None`.
-    ## See [flow.for.iterator-from-fn.ref](../../spec/lang/06-control-flow.md#r-flow.for.iterator-from-fn.ref).
-    pub fn from_fn(step: fn() -> T?) -> &mut Iterator[T]:
-        &mut Iterator::[T] { step: step }
+    fn sum[S < Sum[T]](self) -> S:
+        S::sum(self)
 
-    ## Advances the iterator: the next item, or `.None` at the end.
-    ## See [flow.for.iterator-next.ref](../../spec/lang/06-control-flow.md#r-flow.for.iterator-next.ref).
-    pub fn next(&mut self) -> T?:
-        (self.step)()
+    fn product[P < Product[T]](self) -> P:
+        P::product(self)
 
-    ## A new iterator over the items of `self` for which `keep` returns `true`.
-    ## See [std-iter.adapter.filter](../../spec/std/iter.md#r-std-iter.adapter.filter).
-    pub fn filter(&mut self, keep: fn(T) -> bool) -> &mut Iterator[T]:
-        Iterator::from_fn(fn() -> T?:
-            while true:
-                item := match self.next():
-                    .Some(found) => found
-                    .None => return .None
-                if keep(item):
-                    return .Some(item)
-        )
+    fn by_ref(&mut self) -> ByRef[Self]:
+        ByRef { inner: self }
 
-    ## A new iterator over the first `count` items of `self`, or fewer when `self` ends first.
-    ## See [std-iter.adapter.take-first](../../spec/std/iter.md#r-std-iter.adapter.take-first).
-    pub fn take(&mut self, count: usize) -> &mut Iterator[T]:
-        let left = count
-        Iterator::from_fn(fn() -> T?:
-            if left <= 0:
-                return .None
-            left = left - 1
-            self.next()
-        )
+    fn map[U](self, transform: fn(T) -> U) -> MapIter[Self, T, U]:
+        MapIter { source: self, transform: transform }
 
-    ## A new iterator over `(index, item)` pairs, with `usize` indices counting from `0`.
-    ## See [std-iter.adapter.enumerate-usize](../../spec/std/iter.md#r-std-iter.adapter.enumerate-usize).
-    pub fn enumerate(&mut self) -> &mut Iterator[(usize, T)]:
-        let index: usize = 0
-        Iterator::from_fn(fn() -> (usize, T)?:
-            match self.next():
-                .Some(item) =>
-                    let numbered = (index, item)
-                    index = index + 1
-                    .Some(numbered)
-                .None => .None
-        )
+    fn filter(self, keep: fn(T) -> bool) -> Filter[Self, T]:
+        Filter { source: self, keep: keep }
 
-    ## A new iterator over `transform(item)` for each item of `self`, in order.
-    ## See [std-iter.adapter.map](../../spec/std/iter.md#r-std-iter.adapter.map).
-    pub fn map[U](&mut self, transform: fn(T) -> U) -> &mut Iterator[U]:
-        Iterator::from_fn(fn() -> U?:
-            match self.next():
-                .Some(item) => .Some(transform(item))
-                .None => .None
-        )
+    fn take(self, count: usize) -> Take[Self, T]:
+        Take { source: self, left: count }
 
-    # Skips the first `count` items on its own first `next` call.
-    ## A new iterator over the items of `self` after the first `count`.
-    ## See [std-iter.adapter.skip-first](../../spec/std/iter.md#r-std-iter.adapter.skip-first).
-    pub fn skip(&mut self, count: usize) -> &mut Iterator[T]:
-        let left = count
-        Iterator::from_fn(fn() -> T?:
-            while left > 0:
-                left = left - 1
-                match self.next():
-                    .Some(_) => pass
-                    .None => return .None
-            self.next()
-        )
+    fn enumerate(self) -> Enumerate[Self, T]:
+        Enumerate { source: self, index: 0 }
 
-    # The items while `keep` holds; the first item it rejects is consumed
-    # and dropped, and no item after it is read.
-    ## A new iterator over the items of `self` before the first one for which `keep` returns `false`.
-    ## See [std-iter.adapter.take-while](../../spec/std/iter.md#r-std-iter.adapter.take-while).
-    pub fn take_while(&mut self, keep: fn(T) -> bool) -> &mut Iterator[T]:
-        let open = true
-        Iterator::from_fn(fn() -> T?:
-            if !open:
-                return .None
-            match self.next():
-                .Some(item) =>
-                    if keep(item):
-                        return .Some(item)
-                    open = false
-                    .None
-                .None => .None
-        )
+    fn skip(self, count: usize) -> Skip[Self, T]:
+        Skip { source: self, left: count }
 
-    # Pairs by position. It calls `other.iter()` once, when `zip` is
-    # called. It pulls `self` first and stops when either ends, so `other`
-    # is not read past the end of `self`.
-    ## A new iterator over pairs of the items of `self` and `other` at the same position, which ends when either ends.
-    ## See [std-iter.adapter.zip-iterable](../../spec/std/iter.md#r-std-iter.adapter.zip-iterable).
-    pub fn zip[U, I < Iterable[U]](&mut self, other: I) -> &mut Iterator[(T, U)]:
-        rest := other.iter()
-        Iterator::from_fn(fn() -> (T, U)?:
-            match self.next():
-                .Some(left) =>
-                    match rest.next():
-                        .Some(right) => .Some((left, right))
-                        .None => .None
-                .None => .None
-        )
+    fn take_while(self, keep: fn(T) -> bool) -> TakeWhile[Self, T]:
+        TakeWhile { source: self, keep: keep, open: true }
 
-    # The items of `self`, then those of `other`. It calls `other.iter()`
-    # once, when `chain` is called.
-    ## A new iterator over the items of `self`, then those of `other`.
-    ## See [std-iter.adapter.chain-iterable](../../spec/std/iter.md#r-std-iter.adapter.chain-iterable).
-    pub fn chain[I < Iterable[T]](&mut self, other: I) -> &mut Iterator[T]:
-        rest := other.iter()
-        let first = true
-        Iterator::from_fn(fn() -> T?:
-            if first:
-                match self.next():
-                    .Some(item) => return .Some(item)
-                    .None => first = false
-            rest.next()
-        )
+    fn zip[U, J < Iterable[U]](self, other: J) -> Zip[Self, T, U]:
+        Zip { source: self, rest: other.iter() }
 
-    # The items of each list `transform` returns, in order.
-    ## A new iterator over the elements of each list that `transform(item)` returns, in order.
-    ## See [std-iter.adapter.flat-map](../../spec/std/iter.md#r-std-iter.adapter.flat-map).
-    pub fn flat_map[U](&mut self, transform: fn(T) -> List[U]) -> &mut Iterator[U]:
-        let part: List[U] = []
-        let at: usize = 0
-        Iterator::from_fn(fn() -> U?:
-            while at >= part.len():
-                item := match self.next():
-                    .Some(found) => found
-                    .None => return .None
-                part = transform(item)
-                at = 0
-            at = at + 1
-            .Some(part[at - 1])
-        )
+    fn chain[J < Iterable[T]](self, other: J) -> Chain[Self, T]:
+        Chain { source: self, rest: other.iter(), first: true }
+
+    fn flat_map[U](self, transform: fn(T) -> List[U]) -> FlatMap[Self, T, U]:
+        FlatMap { source: self, transform: transform, part: [], at: 0 }
 
     # Stops at the first item that passes, leaving the rest unread.
     ## True when `test` accepts an item; it stops at the first one.
-    ## See [std-iter.adapter.any](../../spec/std/iter.md#r-std-iter.adapter.any).
-    pub fn any(&mut self, test: fn(T) -> bool) -> bool:
+    ## See [std-iter.adapter.any.value](../../spec/std/iter.md#r-std-iter.adapter.any.value).
+    fn any(self, test: fn(T) -> bool) -> bool:
+        let mut cursor = self
         while true:
-            match self.next():
+            match cursor.next():
                 .Some(item) =>
                     if test(item):
                         return true
@@ -175,10 +56,11 @@ impl[T] Iterator[T]:
 
     # Stops at the first item that fails, leaving the rest unread.
     ## True when `test` accepts every item; it stops at the first one it rejects.
-    ## See [std-iter.adapter.all](../../spec/std/iter.md#r-std-iter.adapter.all).
-    pub fn all(&mut self, test: fn(T) -> bool) -> bool:
+    ## See [std-iter.adapter.all.value](../../spec/std/iter.md#r-std-iter.adapter.all.value).
+    fn all(self, test: fn(T) -> bool) -> bool:
+        let mut cursor = self
         while true:
-            match self.next():
+            match cursor.next():
                 .Some(item) =>
                     if !test(item):
                         return false
@@ -187,10 +69,11 @@ impl[T] Iterator[T]:
 
     # The first item that passes, leaving the rest unread.
     ## The first item that `test` accepts, in `.Some`, or `.None`.
-    ## See [std-iter.adapter.find](../../spec/std/iter.md#r-std-iter.adapter.find).
-    pub fn find(&mut self, test: fn(T) -> bool) -> T?:
+    ## See [std-iter.adapter.find.value](../../spec/std/iter.md#r-std-iter.adapter.find.value).
+    fn find(self, test: fn(T) -> bool) -> T?:
+        let mut cursor = self
         while true:
-            match self.next():
+            match cursor.next():
                 .Some(item) =>
                     if test(item):
                         return .Some(item)
@@ -199,21 +82,23 @@ impl[T] Iterator[T]:
 
     # The number of remaining items; it drains `self`.
     ## The number of remaining items; it drains the iterator.
-    ## See [std-iter.adapter.count.drain](../../spec/std/iter.md#r-std-iter.adapter.count.drain).
-    pub fn count(&mut self) -> usize:
+    ## See [std-iter.adapter.count.owned-drain](../../spec/std/iter.md#r-std-iter.adapter.count.owned-drain).
+    fn count(self) -> usize:
+        let mut cursor = self
         let found: usize = 0
         while true:
-            match self.next():
+            match cursor.next():
                 .Some(_) => found = found + 1
                 .None => break
         found
 
     ## Folds the remaining items into `initial`: `step(accumulator, item)` per item, in order.
-    ## See [std-iter.adapter.fold](../../spec/std/iter.md#r-std-iter.adapter.fold).
-    pub fn fold[A, $R](&mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R:
+    ## See [std-iter.adapter.fold.value](../../spec/std/iter.md#r-std-iter.adapter.fold.value).
+    fn fold[A, $R](self, initial: A, step: fn(A, T) -> A $ R) -> A $ R:
+        let mut cursor = self
         let total = initial
         while true:
-            match self.next():
+            match cursor.next():
                 .Some(item) => total = step(total, item)
                 .None => break
         total
@@ -222,34 +107,256 @@ impl[T] Iterator[T]:
     # argument, and is `List[T]` when nothing determines it
     # (spec/std/iter.md#what-collect-builds).
     ## A `C` built from the remaining items of `self`; a list when the target type is not named.
-    ## See [std-iter.adapter.collect-defaulted](../../spec/std/iter.md#r-std-iter.adapter.collect-defaulted).
-    pub fn collect[C < FromIterator[T] = List[T]](&mut self) -> C:
+    ## See [std-iter.adapter.collect.value-defaulted](../../spec/std/iter.md#r-std-iter.adapter.collect.value-defaulted).
+    fn collect[C < FromIterator[T] = List[T]](self) -> C:
         C::from_iter(self)
 
-# The total of a numeric iterator (r-std-iter.adapter.sum.order). It starts at zero and
-# adds with `+`, so an integer total that overflows panics like any sum.
-impl[T < Num] Iterator[T]:
-    ## The sum of the remaining items, which a `Num` item type supports.
-    ## See [std-iter.adapter.sum](../../spec/std/iter.md#r-std-iter.adapter.sum).
-    pub fn sum(&mut self) -> T:
+## A cursor that borrows another cursor and shares its progress.
+pub struct ByRef[I]:
+    inner: &mut I
+
+impl[I < Iterator[T], T] Iterator[T] for ByRef[I]:
+    fn next(&mut self) -> T?:
+        self.inner.next()
+
+## A total built from the items of a cursor.
+pub trait Sum[T]:
+    fn sum[I < Iterator[T]](items: I) -> Self
+
+impl[T < Num] Sum[T] for T:
+    fn sum[I < Iterator[T]](items: I) -> T:
+        let mut cursor = items
         let total = T::zero()
         while true:
-            match self.next():
+            match cursor.next():
                 .Some(item) => total = total + item
                 .None => break
         total
 
+## A product built from the items of a cursor.
+pub trait Product[T]:
+    fn product[I < Iterator[T]](items: I) -> Self
+
+impl[T < Num] Product[T] for T:
+    fn product[I < Iterator[T]](items: I) -> T:
+        let mut cursor = items
+        let total = T::one()
+        while true:
+            match cursor.next():
+                .Some(item) => total = total * item
+                .None => break
+        total
+
+impl[T, I < Iterator[T]] Iterator[T] for &mut I:
+    fn next(&mut self) -> T?:
+        (*self).next()
+
+
+## A concrete cursor forwarding to an erased iterator reference.
+pub struct DynIterator[T]:
+    source: &mut dyn Iterator[T]
+
+impl[T] Iterator[T] for DynIterator[T]:
+    fn next(&mut self) -> T?:
+        self.source.next()
+
+impl[T] dyn Iterator[T]:
+    pub fn sum[S < Sum[T]](&mut self) -> S:
+        DynIterator { source: self }.sum::[S]()
+
+    pub fn product[P < Product[T]](&mut self) -> P:
+        DynIterator { source: self }.product::[P]()
+
+    pub fn by_ref(&mut self) -> DynIterator[T]:
+        DynIterator { source: self }
+
+    pub fn map[U](&mut self, transform: fn(T) -> U) -> MapIter[DynIterator[T], T, U]:
+        DynIterator { source: self }.map::[U](transform)
+
+    pub fn filter(&mut self, keep: fn(T) -> bool) -> Filter[DynIterator[T], T]:
+        DynIterator { source: self }.filter(keep)
+
+    pub fn take(&mut self, count: usize) -> Take[DynIterator[T], T]:
+        DynIterator { source: self }.take(count)
+
+    pub fn enumerate(&mut self) -> Enumerate[DynIterator[T], T]:
+        DynIterator { source: self }.enumerate()
+
+    pub fn skip(&mut self, count: usize) -> Skip[DynIterator[T], T]:
+        DynIterator { source: self }.skip(count)
+
+    pub fn take_while(&mut self, keep: fn(T) -> bool) -> TakeWhile[DynIterator[T], T]:
+        DynIterator { source: self }.take_while(keep)
+
+    pub fn zip[U, J < Iterable[U]](&mut self, other: J) -> Zip[DynIterator[T], T, U]:
+        DynIterator { source: self }.zip::[U, J](other)
+
+    pub fn chain[J < Iterable[T]](&mut self, other: J) -> Chain[DynIterator[T], T]:
+        DynIterator { source: self }.chain::[J](other)
+
+    pub fn flat_map[U](&mut self, transform: fn(T) -> List[U]) -> FlatMap[DynIterator[T], T, U]:
+        DynIterator { source: self }.flat_map::[U](transform)
+
+    pub fn any(&mut self, test: fn(T) -> bool) -> bool:
+        DynIterator { source: self }.any(test)
+
+    pub fn all(&mut self, test: fn(T) -> bool) -> bool:
+        DynIterator { source: self }.all(test)
+
+    pub fn find(&mut self, test: fn(T) -> bool) -> T?:
+        DynIterator { source: self }.find(test)
+
+    pub fn count(&mut self) -> usize:
+        DynIterator { source: self }.count()
+
+    pub fn fold[A, $R](&mut self, initial: A, step: fn(A, T) -> A $ R) -> A $ R:
+        DynIterator { source: self }.fold::[A](initial, step)
+
+    pub fn collect[C < FromIterator[T] = List[T]](&mut self) -> C:
+        DynIterator { source: self }.collect::[C]()
+
+pub struct FromFn[T]:
+    step: fn() -> T?
+
+pub fn from_fn[T](step: fn() -> T?) -> FromFn[T]:
+    FromFn { step: step }
+
+impl[T] Iterator[T] for FromFn[T]:
+    fn next(&mut self) -> T?:
+        (self.step)()
+
+pub struct MapIter[I < Iterator[T], T, U]:
+    source: I
+    transform: fn(T) -> U
+
+impl[I < Iterator[T], T, U] Iterator[U] for MapIter[I, T, U]:
+    fn next(&mut self) -> U?:
+        match self.source.next():
+            .Some(item) => .Some((self.transform)(item))
+            .None => .None
+
+pub struct Filter[I < Iterator[T], T]:
+    source: I
+    keep: fn(T) -> bool
+
+impl[I < Iterator[T], T] Iterator[T] for Filter[I, T]:
+    fn next(&mut self) -> T?:
+        while true:
+            item := match self.source.next():
+                .Some(found) => found
+                .None => return .None
+            if (self.keep)(item):
+                return .Some(item)
+
+pub struct Take[I < Iterator[T], T]:
+    source: I
+    left: usize
+
+impl[I < Iterator[T], T] Iterator[T] for Take[I, T]:
+    fn next(&mut self) -> T?:
+        if self.left == 0:
+            return .None
+        self.left -= 1
+        self.source.next()
+
+pub struct Enumerate[I < Iterator[T], T]:
+    source: I
+    index: usize
+
+impl[I < Iterator[T], T] Iterator[(usize, T)] for Enumerate[I, T]:
+    fn next(&mut self) -> (usize, T)?:
+        match self.source.next():
+            .Some(item) =>
+                pair := (self.index, item)
+                self.index += 1
+                .Some(pair)
+            .None => .None
+
+pub struct Skip[I < Iterator[T], T]:
+    source: I
+    left: usize
+
+impl[I < Iterator[T], T] Iterator[T] for Skip[I, T]:
+    fn next(&mut self) -> T?:
+        while self.left > 0:
+            self.left -= 1
+            match self.source.next():
+                .Some(_) => pass
+                .None => return .None
+        self.source.next()
+
+pub struct TakeWhile[I < Iterator[T], T]:
+    source: I
+    keep: fn(T) -> bool
+    open: bool
+
+impl[I < Iterator[T], T] Iterator[T] for TakeWhile[I, T]:
+    fn next(&mut self) -> T?:
+        if !self.open:
+            return .None
+        match self.source.next():
+            .Some(item) =>
+                if (self.keep)(item):
+                    return .Some(item)
+                self.open = false
+                .None
+            .None => .None
+
+pub struct Zip[I < Iterator[T], T, U]:
+    source: I
+    rest: &mut dyn Iterator[U]
+
+impl[I < Iterator[T], T, U] Iterator[(T, U)] for Zip[I, T, U]:
+    fn next(&mut self) -> (T, U)?:
+        match self.source.next():
+            .Some(left) =>
+                match self.rest.next():
+                    .Some(right) => .Some((left, right))
+                    .None => .None
+            .None => .None
+
+pub struct Chain[I < Iterator[T], T]:
+    source: I
+    rest: &mut dyn Iterator[T]
+    first: bool
+
+impl[I < Iterator[T], T] Iterator[T] for Chain[I, T]:
+    fn next(&mut self) -> T?:
+        if self.first:
+            match self.source.next():
+                .Some(item) => return .Some(item)
+                .None => self.first = false
+        self.rest.next()
+
+pub struct FlatMap[I < Iterator[T], T, U]:
+    source: I
+    transform: fn(T) -> List[U]
+    part: List[U]
+    at: usize
+
+impl[I < Iterator[T], T, U] Iterator[U] for FlatMap[I, T, U]:
+    fn next(&mut self) -> U?:
+        while self.at >= self.part.len():
+            item := match self.source.next():
+                .Some(found) => found
+                .None => return .None
+            self.part = (self.transform)(item)
+            self.at = 0
+        self.at += 1
+        .Some(self.part[self.at - 1])
+
 # A collection built from the items of an iterator. It is not a prelude name.
 ## What `collect` builds: a target that gathers items of `T`.
-## See [std-iter.collect.trait-ref](../../spec/std/iter.md#r-std-iter.collect.trait-ref).
+## See [std-iter.collect.generic-owned-cursor](../../spec/std/iter.md#r-std-iter.collect.generic-owned-cursor).
 pub trait FromIterator[T]:
-    fn from_iter(items: &mut Iterator[T]) -> Self
+    fn from_iter[I < Iterator[T]](items: I) -> Self
 
 impl[T] FromIterator[T] for List[T]:
-    fn from_iter(items: &mut Iterator[T]) -> List[T]:
+    fn from_iter[I < Iterator[T]](items: I) -> List[T]:
+        let mut cursor = items
         let mut collected: List[T] = []
         while true:
-            match items.next():
+            match cursor.next():
                 .Some(item) => collected.push(item)
                 .None => break
         collected
@@ -257,49 +364,58 @@ impl[T] FromIterator[T] for List[T]:
 # One entry per pair: for an equal key the later value wins
 # (spec/std/iter.md#r-std-iter.collect.map-last).
 impl[K < Eq & Hash, V] FromIterator[(K, V)] for Map[K, V]:
-    fn from_iter(items: &mut Iterator[(K, V)]) -> Map[K, V]:
+    fn from_iter[I < Iterator[(K, V)]](items: I) -> Map[K, V]:
+        let mut cursor = items
         let mut collected: Map[K, V] = {}
         while true:
-            match items.next():
+            match cursor.next():
                 .Some((key, value)) => collected[key] = value
                 .None => break
         collected
 
-# `.Ok` of the collection of the `.Ok` payloads, or the first `.Err`, which
-# stops the pulling there.
+struct ResultItems[I, T, E]:
+    source: I
+    failure: &mut Option[E]
+
+impl[I < Iterator[Result[T, E]], T, E] Iterator[T] for ResultItems[I, T, E]:
+    fn next(&mut self) -> T?:
+        match self.source.next():
+            .Some(item) =>
+                match item:
+                    .Ok(value) => .Some(value)
+                    .Err(error) =>
+                        *self.failure = .Some(error)
+                        .None
+            .None => .None
+
 impl[T, E, C < FromIterator[T]] FromIterator[Result[T, E]] for Result[C, E]:
-    fn from_iter(items: &mut Iterator[Result[T, E]]) -> Result[C, E]:
-        let failure: E? = .None
-        payloads := Iterator::from_fn(fn() -> T?:
-            match items.next():
-                .Some(item) =>
-                    match item:
-                        .Ok(value) => .Some(value)
-                        .Err(error) =>
-                            failure = .Some(error)
-                            .None
-                .None => .None
-        )
+    fn from_iter[I < Iterator[Result[T, E]]](items: I) -> Result[C, E]:
+        let mut failure: E? = .None
+        payloads := ResultItems { source: items, failure: &mut failure }
         collected := C::from_iter(payloads)
         match failure:
             .Some(error) => .Err(error)
             .None => .Ok(collected)
 
-# `.Some` of the collection of the `.Some` payloads, or `.None` at the first
-# `.None`, which stops the pulling there.
+struct OptionItems[I, T]:
+    source: I
+    missing: &mut bool
+
+impl[I < Iterator[T?], T] Iterator[T] for OptionItems[I, T]:
+    fn next(&mut self) -> T?:
+        match self.source.next():
+            .Some(item) =>
+                match item:
+                    .Some(value) => .Some(value)
+                    .None =>
+                        *self.missing = true
+                        .None
+            .None => .None
+
 impl[T, C < FromIterator[T]] FromIterator[T?] for C?:
-    fn from_iter(items: &mut Iterator[T?]) -> C?:
-        let missing = false
-        payloads := Iterator::from_fn(fn() -> T?:
-            match items.next():
-                .Some(item) =>
-                    match item:
-                        .Some(value) => .Some(value)
-                        .None =>
-                            missing = true
-                            .None
-                .None => .None
-        )
+    fn from_iter[I < Iterator[T?]](items: I) -> C?:
+        let mut missing = false
+        payloads := OptionItems { source: items, missing: &mut missing }
         collected := C::from_iter(payloads)
         if missing: .None else: .Some(collected)
 
@@ -308,16 +424,16 @@ impl[T, C < FromIterator[T]] FromIterator[T?] for C?:
 ## What `for` iterates: a type whose `iter` returns an iterator of its items.
 ## See [flow.for.iterable.cursor](../../spec/lang/06-control-flow.md#r-flow.for.iterable.cursor).
 pub trait Iterable[T]:
-    fn iter(self) -> &mut Iterator[T]
+    fn iter(self) -> &mut dyn Iterator[T]
 
-# `Iterator[T]` is not `Iterable[T]`: a loop over a writable iterator
-# advances it directly (spec/lang/06-control-flow.md#r-flow.for.iterator-not-iterable,
-# spec/lang/06-control-flow.md#r-flow.for.iterator-direct).
+# Iterator does not imply Iterable: a loop owns a cursor value copy
+# or advances a referenced cursor directly (spec/lang/06-control-flow.md#r-flow.for.iterator.iterable-not-implied,
+# spec/lang/06-control-flow.md#r-flow.for.iterator.owned-source).
 
 impl[T] Iterable[T] for List[T]:
-    fn iter(self) -> &mut Iterator[T]:
+    fn iter(self) -> &mut dyn Iterator[T]:
         self.iter()
 
 impl[K < Eq & Hash, V] Iterable[(K, V)] for Map[K, V]:
-    fn iter(self) -> &mut Iterator[(K, V)]:
+    fn iter(self) -> &mut dyn Iterator[(K, V)]:
         self.iter()

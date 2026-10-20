@@ -7,7 +7,7 @@ tests:
     it("growth of the source leaves the copy's iterator valid"):
         let mut values: List[i32] = [1, 2]
         let view: List[i32] = values
-        let iterator: &mut Iterator[i32] = view.iter()
+        let iterator: &mut dyn Iterator[i32] = view.iter()
         _ := iterator.next()
         values.push(3)
         let second: i32? = 2

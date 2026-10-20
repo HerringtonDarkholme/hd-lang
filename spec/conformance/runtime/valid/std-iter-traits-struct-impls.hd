@@ -1,5 +1,6 @@
 # test: a struct with a `&mut self` `next` implements `Iterable`, and another implements `FromIterator` over `&mut Iterator`; each works through a bound, a trait value reference, and `collect`
-# Spec std/iter What Collect Builds: std-iter.collect.trait-ref, std-iter.collect.expected. Spec 06 Iteration Protocols: flow.for.iterable.cursor, flow.for.accepts-ref.
+# Spec std/iter What Collect Builds: std-iter.collect.generic-owned-cursor, std-iter.collect.expected. Spec 06 Iteration Protocols: flow.for.iterable.cursor, flow.for.accepts-owned-cursor.
+use std.iter.{from_fn}
 use std.iter.FromIterator
 
 struct Countdown:
@@ -13,18 +14,19 @@ impl Countdown:
         .Some(self.left + 1)
 
 impl Iterable[i32] for Countdown:
-    fn iter(self) -> &mut Iterator[i32]:
+    fn iter(self) -> &mut dyn Iterator[i32]:
         let mut state = self
-        Iterator::from_fn(fn() -> i32?: state.next())
+        &mut from_fn(fn() -> i32?: state.next())
 
 struct Bag:
     items: List[i32]
     pulls: usize
 
 impl FromIterator[i32] for Bag:
-    fn from_iter(items: &mut Iterator[i32]) -> Bag:
+    fn from_iter[I < Iterator[i32]](items: I) -> Bag:
+        let mut cursor = items
         let mut bag = Bag { items: [], pulls: 0 }
-        for item in items:
+        for item in cursor:
             bag.items.push(item)
             bag.pulls += 1
         bag
@@ -41,7 +43,7 @@ fn total_dyn(source: &dyn Iterable[i32]) -> i32:
         sum = sum + value
     sum
 
-fn gather[C < FromIterator[i32]](source: &mut Iterator[i32]) -> C:
+fn gather[C < FromIterator[i32]](source: &mut dyn Iterator[i32]) -> C:
     C::from_iter(source)
 
 tests:

@@ -323,7 +323,7 @@ impl Ck<'_, '_> {
     ) -> StageResult<(Ref, Ty)> {
         let target = (trait_, method, self_ty);
         if let [only] = cands {
-            return self.call_candidate(target, only, recv, args, (n, bang), None);
+            return self.call_candidate(target, only, recv, args, (n, bang), want);
         }
         let targs = std::mem::take(&mut self.method_targs);
         let pre = self.pre_args.len();
@@ -359,7 +359,7 @@ impl Ck<'_, '_> {
         let r = match fits.as_slice() {
             [one] => {
                 self.method_targs = targs;
-                self.call_candidate(target, &cands[*one], recv, args, (n, bang), None)
+                self.call_candidate(target, &cands[*one], recv, args, (n, bang), want)
             }
             [] => {
                 let msg = format!(
@@ -486,6 +486,18 @@ impl Ck<'_, '_> {
             .filter(|(i, _)| c.residual.contains(i))
             .map(|(_, g)| g)
             .collect();
+        // A closed residual bound may already determine a trait argument
+        // used by a method's own bounds, e.g. I: Iterator[T] for ByRef[I].
+        // Learn those facts before checking collect's target bound; bounds
+        // still waiting on call arguments are checked below as before.
+        for &goal in &residual {
+            if let hd_types::solver::Answer::Holds { learned, .. } = self.solve(goal)? {
+                for (v, t) in learned {
+                    let var = pool.intern_ty(&TyData::Infer(v));
+                    let _ = self.infer.unify(pool, var, t);
+                }
+            }
+        }
         let (r, t) = self.trait_method_call(
             TraitTarget {
                 trait_,
@@ -498,7 +510,12 @@ impl Ck<'_, '_> {
             n,
             (bang, want),
         )?;
-        if let Some(w) = want.filter(|w| *w != Ty::VOID) {
+        // Trials need the expected result to reject candidates. Once a
+        // winner is committed, the enclosing expression performs its own
+        // coercion; reporting here too duplicates a failed conversion.
+        if self.open_trials > 0
+            && let Some(w) = want.filter(|w| *w != Ty::VOID)
+        {
             self.coerce(r, t, w, n, "result", ExpectPosition::General);
         }
         for g in residual {

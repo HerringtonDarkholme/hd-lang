@@ -462,11 +462,60 @@ fn copies_stop_at_depth_two() {
     assert_eq!(run("depth-opt", &opt), "9\n");
 }
 
-/// The std adapters call the user's closure inside the step closure they
-/// pass to `from_fn`: the copy's step closure carries the literal, so that
-/// call is direct. A function reference counts as a literal. Only `next`,
-/// which reads the `step` field, keeps a `call_ref`.
+/// Factories that create a closure over their callable parameter preserve
+/// known call targets in their specialized closure copies. Iterator
+/// adapters are named structs now, so this optimization test uses its own
+/// factories instead of depending on removed std step closures.
 const ADAPTERS: &str = "\
+fn double(x: i32) -> i32: x * 2
+
+fn mapper(transform: fn(i32) -> i32) -> fn(i32) -> i32:
+    fn(value: i32) -> i32: transform(value)
+
+fn filterer(keep: fn(i32) -> bool) -> fn(i32) -> bool:
+    fn(value: i32) -> bool: keep(value)
+
+fn total(items: List[i32]) -> i32:
+    mapped := mapper(fn(x: i32) -> i32: x * 3 + 1)
+    selected := filterer(fn(x: i32) -> bool: x % 2 == 0)
+    let sum = +0
+    for item in items:
+        value := mapped(item)
+        if selected(value):
+            sum += value
+    sum
+
+fn refs(items: List[i32]) -> i32:
+    mapped := mapper(double)
+    let sum = +0
+    for item in items:
+        sum += mapped(item)
+    sum
+
+pub fn main() -> void $ Console:
+    println(total([+1, +2, +3, +4, +5]))
+    println(refs([+1, +2, +3, +4]))
+";
+
+#[test]
+fn closures_a_copy_creates_call_its_known_literals_directly() {
+    let dev = wasm_of(ADAPTERS, false);
+    let opt = wasm_of(ADAPTERS, true);
+    assert_eq!(calls_in(&dev, "app/main/mapper#1").1, 1, "dev");
+    for factory in ["mapper#1", "filterer#1"] {
+        let copies = copies_of(&opt, &format!("app/main/{factory}"));
+        assert!(!copies.is_empty(), "{factory} is carried");
+        for c in &copies {
+            assert_eq!(calls_in(&opt, c).1, 0, "{c}");
+        }
+    }
+    assert_eq!(copies_of(&opt, "app/main/mapper#1").len(), 2, "per literal");
+    assert!(!has(&opt, "app/main/mapper#1"), "no plain step closure");
+    assert_eq!(run("adapters-dev", &dev), "30\n20\n");
+    assert_eq!(run("adapters-opt", &opt), "30\n20\n");
+}
+
+const ITERATOR_ADAPTERS: &str = "\
 fn double(x: i32) -> i32:
     x * 2
 
@@ -482,29 +531,11 @@ pub fn main() -> void $ Console:
 ";
 
 #[test]
-fn closures_a_copy_creates_call_its_known_literals_directly() {
-    let dev = wasm_of(ADAPTERS, false);
-    let opt = wasm_of(ADAPTERS, true);
-    let iter = "std/iter/impl [ T ] Iterator [ T ]";
-    assert_eq!(calls_in(&dev, &format!("{iter}.map#1")).1, 1, "dev");
-    for step in ["map#1", "filter#1"] {
-        let copies = copies_of(&opt, &format!("{iter}.{step}"));
-        assert!(!copies.is_empty(), "{step} is carried");
-        for c in &copies {
-            assert_eq!(calls_in(&opt, c).1, 0, "{c}");
-        }
+fn named_iterator_adapters_run_in_both_pipelines() {
+    for optimized in [false, true] {
+        let wasm = wasm_of(ITERATOR_ADAPTERS, optimized);
+        assert_eq!(run("named-adapters", &wasm), "30\n20\n");
     }
-    assert_eq!(
-        copies_of(&opt, &format!("{iter}.map#1")).len(),
-        2,
-        "per literal"
-    );
-    assert!(
-        !has(&opt, &format!("{iter}.map#1")),
-        "no plain step closure"
-    );
-    assert_eq!(run("adapters-dev", &dev), "30\n20\n");
-    assert_eq!(run("adapters-opt", &opt), "30\n20\n");
 }
 
 /// A function that wraps its parameter in a new closure and recurses makes

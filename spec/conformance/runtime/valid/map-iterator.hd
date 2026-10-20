@@ -3,7 +3,7 @@ tests:
 
     it("map iterator yields each entry once"):
         let mut values: Map[string, i32] = {"first": 1, "second": 2}
-        let iterator: &mut Iterator[(string, i32)] = values.iter()
+        let iterator: &mut dyn Iterator[(string, i32)] = values.iter()
         let first: (string, i32)? = ("first", 1)
         let second: (string, i32)? = ("second", 2)
         let exhausted: (string, i32)? = .None
@@ -14,7 +14,7 @@ tests:
 
     it("map value replacement preserves an iterator and changes a later yield"):
         let mut values: Map[string, i32] = {"first": 1, "second": 2}
-        let iterator: &mut Iterator[(string, i32)] = values.iter()
+        let iterator: &mut dyn Iterator[(string, i32)] = values.iter()
         let first: (string, i32)? = ("first", 1)
         let later = "first"
         if iterator.next() == first:

@@ -46,7 +46,7 @@ pub fn main() -> void $ Console:
     let listed = fs.iter().map(fn(f): f(+2)).fold(0, fn(acc, x): acc + x)
     println(listed)
     let mut m: Map[string, i32] = {\"a\": 1, \"b\": 2}
-    let it: &mut Iterator[(string, i32)] = m.iter()
+    let it: &mut dyn Iterator[(string, i32)] = m.iter()
     let sum = +0
     for (_, v) in it:
         sum = sum + v * 10

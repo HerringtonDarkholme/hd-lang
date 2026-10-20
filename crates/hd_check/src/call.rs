@@ -3394,9 +3394,9 @@ impl Ck<'_, '_> {
     }
 
     /// Emits the built-in method `op` on `refs`, whose intrinsic gives
-    /// `ret`. `iter` on a list or a map wraps the `Iterator[T]` it gives in
+    /// `ret`. `iter` on a list or a map wraps the `FromFn[T]` it gives in
     /// a new object, since an iterator is a handle behind `&mut`
-    /// (`module.method.iter-ref`).
+    /// (`module.method.iter-from-fn`).
     pub(crate) fn emit_builtin(
         &mut self,
         op: IntrinsicOp,
@@ -3437,9 +3437,9 @@ impl Ck<'_, '_> {
         };
         let a = pool.list_items(args);
         let usize_t = Ty::prim(Prim::Usize);
-        let iterator = self.cx.names.known.iterator;
-        // The intrinsic gives the `Iterator[T]` struct; the call wraps it in
-        // a new object, so `iter()` returns `&mut Iterator[T]`
+        let iterator = self.cx.names.item("std.iter", "FromFn");
+        // The intrinsic gives the `FromFn[T]` cursor; the call wraps it in
+        // a new object, so `iter()` returns `&mut FromFn[T]`
         // (`Self::emit_builtin`).
         let iter_of = |x: Ty| {
             pool.intern_ty(&TyData::Adt {
@@ -4237,40 +4237,6 @@ impl Ck<'_, '_> {
             self_ty: t,
             targs: pool.list(&targs),
             choice,
-        };
-        Ok(self.emit_call(&c, &refs, ret, sig.suspends, false, n))
-    }
-
-    /// `inherent.name(recv, args)` on a known type.
-    pub(crate) fn inherent_call(
-        &mut self,
-        t: Ty,
-        name: &str,
-        recv: Ref,
-        args: &[Ref],
-        n: NodeRef<'_>,
-    ) -> StageResult<(Ref, Ty)> {
-        let pool = self.pool();
-        let Some((method, impl_def, impl_args)) = self.find_inherent_any(t, name) else {
-            return unsupported(format!("the inherent method `{name}`"));
-        };
-        let sig = self.sig_of(method)?;
-        let explicit = std::mem::take(&mut self.method_targs);
-        let vars = self.fresh_generics(&sig, &explicit, n);
-        let ret = subst_owner(
-            pool,
-            method,
-            &vars,
-            subst_owner(pool, impl_def, &impl_args, sig.ret),
-        );
-        let ret = self.normalize_deep(ret)?;
-        let mut refs = vec![recv];
-        refs.extend_from_slice(args);
-        let mut targs = impl_args;
-        targs.extend(&vars);
-        let c = Callee::Item {
-            def: method,
-            targs: pool.list(&targs),
         };
         Ok(self.emit_call(&c, &refs, ret, sig.suspends, false, n))
     }

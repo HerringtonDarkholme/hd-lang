@@ -1,5 +1,6 @@
 # test: skip drops leading items, and take_while stops at the first rejected item, which it consumes
-# Spec std/iter More Adapters: std-iter.adapter.skip-first, .skip.first-next, .take-while, .take-while.stop, and .lazy.more.
+# Spec std/iter More Adapters: std-iter.adapter.skip.value, .skip.first-next, .take-while, .take-while.stop, and .lazy.more.
+use std.iter.{from_fn}
 fn body(lines: List[string]) -> List[string]:
     lines.iter().skip(1).take_while(fn(line: string) -> bool: line != "").collect()
 
@@ -17,7 +18,7 @@ tests:
         assert_equal(source.next(), .Some(3), reason="9 was read and dropped")
     it("is lazy"):
         let pulled = +0
-        let mut source = Iterator::from_fn(fn() -> i32?:
+        let mut source = &mut from_fn(fn() -> i32?:
             pulled = pulled + 1
             .Some(pulled)
         )

@@ -3,7 +3,7 @@ tests:
 
     it("list iterator yields values, then .None"):
         let mut values: List[i32] = [20, 22]
-        let iterator: &mut Iterator[i32] = values.iter()
+        let iterator: &mut dyn Iterator[i32] = values.iter()
         let first: i32? = 20
         let second: i32? = 22
         let exhausted: i32? = .None
@@ -13,7 +13,7 @@ tests:
 
     it("element replacement preserves an iterator and changes a later yield"):
         let mut values: List[i32] = [1, 2]
-        let iterator: &mut Iterator[i32] = values.iter()
+        let iterator: &mut dyn Iterator[i32] = values.iter()
         let first: i32? = 1
         let replacement: i32? = 42
         assert(iterator.next() == first, reason="the iterator advances before replacement")
@@ -22,7 +22,7 @@ tests:
 
     it("for continues from a partly consumed mutable iterator"):
         let mut values: List[i32] = [20, 21, 22]
-        let iterator: &mut Iterator[i32] = values.iter()
+        let iterator: &mut dyn Iterator[i32] = values.iter()
         let first: i32? = 20
         assert(iterator.next() == first, reason="the explicit call consumes the first value")
         let total = +0

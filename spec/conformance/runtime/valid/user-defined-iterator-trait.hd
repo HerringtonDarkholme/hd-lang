@@ -1,0 +1,87 @@
+# test: user-defined iterators and generic bounds drive for without an Iterable implementation
+# Spec 06 Iteration Protocols: flow.for.iterator.owned-binding, flow.for.iterator.evaluate-once, flow.for.iterator.copy-preserves-source, flow.for.iterator.reference-progress.
+# expect: test
+struct Countdown:
+    remaining: i32
+
+impl Iterator[i32] for Countdown:
+    fn next(&mut self) -> i32?:
+        if self.remaining <= 0:
+            return .None
+        self.remaining -= 1
+        .Some(self.remaining)
+
+fn drain[I < Iterator[i32]](source: I) -> List[i32]:
+    let mut cursor = source
+    let mut values: List[i32] = []
+    for value in cursor:
+        values.push(value)
+    values
+
+fn counted_cursor(calls: &mut i32) -> Countdown:
+    *calls += 1
+    Countdown { remaining: +3 }
+
+tests:
+    use std.testing.assert_equal
+
+    it("advances a writable user-defined cursor in place"):
+        let mut cursor = Countdown { remaining: +3 }
+        let mut values: List[i32] = []
+        for value in &mut cursor:
+            values.push(value)
+        assert_equal(values, [+2, 1, 0], reason="custom next supplies the loop items")
+        assert_equal(cursor.next(), .None, reason="the loop advances the original cursor")
+
+    it("supports generic iterator bounds and mutable-reference forwarding"):
+        let mut cursor = Countdown { remaining: +3 }
+        assert_equal(drain(&mut cursor), [+2, 1, 0], reason="a mutable cursor reference forwards next")
+        assert_equal(cursor.next(), .None, reason="the forwarded cursor shares its progress")
+
+    it("erases a concrete cursor to a mutable iterator reference"):
+        let source: &mut dyn Iterator[i32] = &mut Countdown { remaining: +3 }
+        let mut values: List[i32] = []
+        for value in source:
+            values.push(value)
+        assert_equal(values, [+2, 1, 0], reason="for calls the available dynamic next method")
+
+    it("owns a struct literal cursor"):
+        let mut values: List[i32] = []
+        for value in Countdown { remaining: +3 }:
+            values.push(value)
+        assert_equal(values, [+2, 1, 0], reason="a temporary cursor needs no writable source place")
+
+    it("copies a readonly cursor binding and preserves its position"):
+        cursor := Countdown { remaining: +3 }
+        let mut values: List[i32] = []
+        for value in cursor:
+            values.push(value)
+        assert_equal(values, [+2, 1, 0], reason="a readonly value can supply a cursor")
+        assert_equal(cursor.remaining, +3, reason="the loop owns its cursor copy")
+        assert_equal([for value in cursor => value], [+2, 1, 0], reason="comprehensions also copy cursor values")
+        assert_equal(cursor.remaining, +3, reason="a comprehension preserves the source value")
+
+    it("copies a writable cursor at its current position"):
+        let mut cursor = Countdown { remaining: +4 }
+        assert_equal(cursor.next(), .Some(+3), reason="advance before copying")
+        assert_equal([for value in cursor => value], [+2, 1, 0], reason="the copy starts at the current position")
+        assert_equal(cursor.next(), .Some(+2), reason="the original keeps its position")
+
+    it("evaluates a cursor expression once"):
+        let mut calls = +0
+        let total = +0
+        for value in counted_cursor(&mut calls):
+            total += value
+        assert_equal(total, +3, reason="the loop traverses the returned cursor")
+        assert_equal(calls, +1, reason="the source is evaluated once")
+
+    it("break preserves an owned source and leaves a borrowed cursor partly read"):
+        let mut cursor = Countdown { remaining: +3 }
+        for value in cursor:
+            assert_equal(value, +2, reason="the owned copy starts at the source position")
+            break
+        assert_equal(cursor.remaining, +3, reason="breaking an owned loop preserves the original")
+        for value in &mut cursor:
+            assert_equal(value, +2, reason="the reference starts at the original position")
+            break
+        assert_equal(cursor.next(), .Some(+1), reason="breaking a borrowed loop keeps partial progress")

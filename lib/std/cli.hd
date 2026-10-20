@@ -169,7 +169,8 @@ impl ArgParser:
                 write_entry(text, terms[slot], self.declarations[slot], width)
         if self.options.len() > 0:
             text.push("\n\noptions:")
-            for (slot, arg) in self.declarations.iter().enumerate():
+            let mut declarations = self.declarations.iter().enumerate()
+            for (slot, arg) in declarations:
                 if arg.kind != .Positional && arg.name != "help":
                     write_entry(text, terms[slot], arg, width)
             help_slot := self.options.get("--help").expect("automatic help declaration")

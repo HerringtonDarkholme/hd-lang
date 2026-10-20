@@ -148,7 +148,8 @@ fn every_std_body_checks_with_no_diagnostic() {
 /// suspending call, `block_on`, interpolation, `match` on a `BlockOn` of a
 /// `Result`),
 /// `simple_escape` (integer patterns), `Option.map` (an `Option` match with a
-/// closure call) and `Iterator.take` (a closure capturing and assigning).
+/// closure call) and `Iterator.take` (a trait default returning an owned
+/// named adapter).
 /// `HD_UPDATE_GOLDEN=1` rewrites the files.
 #[test]
 fn std_bodies_match_golden_tir() {
@@ -156,7 +157,7 @@ fn std_bodies_match_golden_tir() {
         ("std/console/println", "println"),
         ("std/text/simple_escape", "simple_escape"),
         ("std/option/impl [ T ] T ?.map", "option_map"),
-        ("std/iter/impl [ T ] Iterator [ T ].take", "iterator_take"),
+        ("std/iter/Iterator.take", "iterator_take"),
     ];
     let paths: Vec<&str> = bodies.iter().map(|b| b.0).collect();
     let out = analyze_std(&paths);

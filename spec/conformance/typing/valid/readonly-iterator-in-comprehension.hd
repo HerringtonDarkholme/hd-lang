@@ -1,0 +1,6 @@
+# test: a readonly iterator value can drive a comprehension
+# Spec 06 Iteration Protocols: flow.for.iterator.owned-binding, flow.for.comprehension (Chaining Study CS7, batch 24 IT1).
+
+use std.iter.{FromFn}
+fn main(source: FromFn[i32]) -> List[i32]:
+    [for value in source => value]

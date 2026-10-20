@@ -108,7 +108,7 @@ impl JsonObject:
         self.entries.map(fn(entry: (string, Json)) -> string: entry._0)
 
 impl Iterable[(string, Json)] for JsonObject:
-    fn iter(self) -> &mut Iterator[(string, Json)]:
+    fn iter(self) -> &mut dyn Iterator[(string, Json)]:
         self.entries.iter()
 
 # The same members, in any order (r-std-json.value.eq.object).

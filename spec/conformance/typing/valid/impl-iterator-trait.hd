@@ -1,0 +1,8 @@
+# test: a user struct implements the Iterator trait
+# Spec 06 Iteration Protocols: flow.for.iterator.trait (Chaining Study CS7).
+
+struct Counter:
+    current: i32
+
+impl Iterator[i32] for Counter:
+    fn next(&mut self) -> i32?: .None

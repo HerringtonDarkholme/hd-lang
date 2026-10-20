@@ -1,6 +1,7 @@
 # test: an iterator is a handle behind `&mut`: each `iter()` call makes a new iterator object, a `:=` binding or a copy of the reference advances that one iterator, and a callee or a loop given the reference continues from where it stands
-# Spec 06 Iteration Protocols: flow.for.iterator-handle, flow.for.iterator-next.ref, flow.for.iterator-ref. Spec 10 Built-In Methods: module.method.iter-ref.
-fn take_two(source: &mut Iterator[i32]) -> List[i32]:
+# Spec 06 Iteration Protocols: flow.for.iterator.value-state, flow.for.iterator.next.trait, flow.for.iterator.shared-reference. Spec 10 Built-In Methods: module.method.iter-from-fn.
+use std.iter.{from_fn}
+fn take_two(source: &mut dyn Iterator[i32]) -> List[i32]:
     let mut taken: List[i32] = []
     for _ in 0..2:
         match source.next():
@@ -42,7 +43,7 @@ tests:
 
     it("from_fn makes a new iterator"):
         let left = +2
-        countdown := Iterator::from_fn(fn() -> i32?:
+        countdown := &mut from_fn(fn() -> i32?:
             left = left - 1
             if left < 0: .None else: .Some(left)
         )

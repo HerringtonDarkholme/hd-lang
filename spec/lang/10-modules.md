@@ -739,6 +739,8 @@ every module has:
 | `std.testing` | `it` |
 | `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker` |
 
+1. r[module.prelude.iterator-trait] The prelude name `Iterator` names the cursor trait `std.iter.Iterator[T]`.
+
 1. r[module.prelude.in-scope] Every module implicitly has the public standard-library names in the table in scope, but for the `std.testing` row.
 2. r[module.prelude.test-only] The names of the `std.testing` row are in scope only in [test code](#r-module.test.code): `tests:` blocks, test modules, and integration test modules.
 3. r[module.prelude.test-only.outside] Outside test code, such a name is unknown, as an undeclared name is. Error: `unknown-name`.
@@ -1190,16 +1192,16 @@ The following built-in methods are normative:
 
 | Receiver | Methods |
 | --- | --- |
-| `string` | `len(self) -> usize`; `chars(self) -> &mut Iterator[char]`; `char_indices(self) -> &mut Iterator[(usize, char)]`; `bytes(self) -> &mut Iterator[u8]`; `slice(self, start: usize, end: usize) -> string` |
-| `List[T]` | `len(self) -> usize`; `iter(self) -> &mut Iterator[T]` |
+| `string` | `len(self) -> usize`; `chars(self) -> &mut dyn Iterator[char]`; `char_indices(self) -> &mut dyn Iterator[(usize, char)]`; `bytes(self) -> &mut dyn Iterator[u8]`; `slice(self, start: usize, end: usize) -> string` |
+| `List[T]` | `len(self) -> usize`; `iter(self) -> &mut FromFn[T]` |
 | `List[T]`, changing | `push(&mut self, value: T) -> void`; `pop(&mut self) -> T?`; `insert(&mut self, index: usize, value: T) -> void`; `remove_at(&mut self, index: usize) -> T`; `clear(&mut self) -> void` |
-| `Map[K, V]` | `len(self) -> usize`; `get(self, key: K) -> V?`; `iter(self) -> &mut Iterator[(K, V)]` |
+| `Map[K, V]` | `len(self) -> usize`; `get(self, key: K) -> V?`; `iter(self) -> &mut FromFn[(K, V)]` |
 | `Map[K, V]`, changing | `remove(&mut self, key: K) -> V?` |
 | `Display` | `to_string(self) -> string` |
 
 1. r[module.method.normative] The built-in methods in the table are normative.
 2. r[module.method.changing-ref] The methods of the changing rows take `&mut self` and change the collection. Calling one needs the list or map in a writable place, or a list element or a map value of one, as [Collection Values](04-type-system.md#collection-values) states. Error: `not-writable`.
-3. r[module.method.iter-ref] Each `iter()` call on a list or a map returns a reference to a new iterator object, which [`flow.for.iterator-handle`](06-control-flow.md#r-flow.for.iterator-handle) describes.
+3. r[module.method.iter-from-fn] Each `iter()` call on a list or map returns a mutable reference to a new `std.iter.FromFn` cursor.
 4. r[module.method.usize-sizes] Lengths, indices, and byte offsets use [`usize`](04-type-system.md#the-usize-type).
 5. r[module.method.no-set] No `set` type is part of the core prelude.
 6. r[module.method.list-pop] `pop` removes the last element of the list and returns it as `.Some`.

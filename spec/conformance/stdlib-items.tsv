@@ -79,3 +79,17 @@ std.cmp.Id	std/cmp.md#identity-keys
 std.cmp.deep_equal	std/cmp.md#deep-equality
 std.cmp.DeepEq	std/cmp.md#deep-equality
 std.cmp.DeepVisits	std/cmp.md#deep-equality
+std.iter.from_fn	std/iter.md#iterator-factory
+std.iter.MapIter	std/iter.md#iterator-adapters
+std.iter.Filter	std/iter.md#iterator-adapters
+std.iter.Take	std/iter.md#iterator-adapters
+std.iter.Enumerate	std/iter.md#iterator-adapters
+std.iter.Skip	std/iter.md#iterator-adapters
+std.iter.TakeWhile	std/iter.md#iterator-adapters
+std.iter.Zip	std/iter.md#iterator-adapters
+std.iter.Chain	std/iter.md#iterator-adapters
+std.iter.FlatMap	std/iter.md#iterator-adapters
+std.iter.ByRef	std/iter.md#borrowed-cursors
+std.iter.DynIterator	std/iter.md#iterator-adapters
+std.iter.Sum	std/iter.md#numeric-aggregation
+std.iter.Product	std/iter.md#numeric-aggregation

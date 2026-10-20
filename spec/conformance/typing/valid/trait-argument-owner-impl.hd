@@ -5,7 +5,7 @@ struct Word:
     text: string
 
 impl Iterable[Word] for string:
-    fn iter(self) -> &mut Iterator[Word]:
+    fn iter(self) -> &mut dyn Iterator[Word]:
         [for part in [self] => Word { text: part }].iter()
 
 fn first_word(text: string) -> string:
