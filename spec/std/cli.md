@@ -1,11 +1,11 @@
-# Cli
+# Argument Parser
 
 Status: standard library specification draft.
 
 This chapter defines `std.cli`, which `lib/std` writes in ordinary hd
 over the language tier:
 
-- `Cli`, which declares a program's flags, options, and positionals;
+- `ArgParser`, which declares a program's flags, options, and positionals;
 - `parse` and `parse_args`, which read arguments into `Parsed`;
 - `CliError`, the parse errors, and the exit status they give;
 - `usage`, the generated help text.
@@ -17,28 +17,37 @@ program's arguments is CLI tier
 
 ## Declaring Arguments
 
-A `Cli` value lists what a program accepts. Each builder method returns a
-new `Cli` with one more declaration:
+A `ArgParser` value lists what a program accepts. Its builder changes one shared parser through a mutable reference:
 
 ```text
-use std.cli.Cli
+use std.cli.{Arg, ArgParser}
 
-fn tool() -> Cli:
-    Cli::new("count").flag("verbose", 'v', "print each file").option("out", 'o', "write the total here").positional("pattern", "the files to count")
+fn tool() -> &mut ArgParser:
+    ArgParser::new("count").arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "print each file" }).arg(Arg { name: "out", kind: .Option, short: 'o', help: "write the total here" }).arg(Arg { name: "pattern", kind: .Positional, required: true, help: "the files to count" })
 ```
 
-| Rule | Method | Declares |
-| --- | --- | --- |
-| r[std-cli.cli.new] `new` | `pub fn new(program: string) -> Cli` | nothing; `program` names the program in the usage text |
-| r[std-cli.cli.flag] `flag` | `pub fn flag(self, name: string, short: char?, help: string) -> Cli` | a **flag**, an argument that takes no value |
-| r[std-cli.cli.option] `option` | `pub fn option(self, name: string, short: char?, help: string) -> Cli` | an **option**, an argument that takes one value |
-| r[std-cli.cli.positional] `positional` | `pub fn positional(self, name: string, help: string) -> Cli` | a required **positional**, an argument that is not a flag or an option |
+```text
+pub enum ArgKind:
+    Flag
+    Option
+    Positional
 
-1. r[std-cli.cli.decl-struct] `std.cli` declares the struct `Cli`, a value with private fields, and the methods in this chapter. Code imports it, as in `use std.cli.Cli`.
-2. r[std-cli.cli.builder] Each builder method returns a new `Cli` with every declaration of `self`, then the new one. `self` is unchanged.
-3. r[std-cli.cli.names] A flag or an option has a long name, `name`, and may have a short name, `short`. `help` is its text in the usage.
-4. r[std-cli.cli.duplicate] Declaring a long or short name of a flag or option a second time panics, and so does declaring a positional's name a second time. Panic: `explicit-panic`.
-5. r[std-cli.cli.positional.order] Positionals are filled in declaration order, and each one is required.
+pub struct Arg:
+    pub name: string
+    pub kind: ArgKind = .Option
+    pub short: char? = .None
+    pub help: string = ""
+    pub required: bool = false
+```
+
+1. r[std-cli.parser.decl] `std.cli` declares `ArgParser`, a struct with private fields, and public `ArgKind` and `Arg` as shown above.
+2. r[std-cli.parser.new] `ArgParser::new(program: string, about: string = "") -> &mut ArgParser` returns a new empty parser.
+3. r[std-cli.parser.arg] `arg(&mut self, arg: Arg) -> &mut ArgParser` appends a declaration in place and returns the same parser reference.
+4. r[std-cli.parser.kind] `ArgKind.Flag` takes no value, `Option` takes one value, and `Positional` takes a positional value.
+5. r[std-cli.parser.names] An argument's `name` is its lookup name; flags and options also accept `--name` and an optional short form.
+6. r[std-cli.parser.duplicate] Declaring any argument name twice, any short option twice, or a short form on a positional panics. Panic: `explicit-panic`.
+7. r[std-cli.parser.positional-order] Positionals fill declarations in order and are required only when their `required` field is true.
+8. r[std-cli.parser.indexed] Declaration and parsing should take linear time in declaration and argument counts, using indexed option lookup and in-place appends.
 
 > **Why.** A builder needs no fact types and no derivation, and it reads
 > like Go's `flag` and Node's `util.parseArgs` tables. A typed form, which
@@ -51,11 +60,11 @@ fn tool() -> Cli:
 own:
 
 ```text
-use std.cli.{Cli, CliError}
+use std.cli.{Arg, ArgParser, CliError}
 use std.host.Args
 
-fn tool() -> Cli:
-    Cli::new("count").flag("verbose", 'v', "print each file").option("out", 'o', "write the total here").positional("pattern", "the files to count")
+fn tool() -> &mut ArgParser:
+    ArgParser::new("count").arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "print each file" }).arg(Arg { name: "out", kind: .Option, short: 'o', help: "write the total here" }).arg(Arg { name: "pattern", kind: .Positional, required: true, help: "the files to count" })
 
 fn target() -> string $ Args:
     match tool().parse_args():
@@ -65,8 +74,8 @@ fn target() -> string $ Args:
 
 | Rule | Method | Result |
 | --- | --- | --- |
-| r[std-cli.parse.decl] `parse` | `pub fn parse(self, arguments: List[string]) -> Result[Parsed, CliError]` | what `arguments` hold, read from first to last against the declarations |
-| r[std-cli.parse-args] `parse_args` | `pub fn parse_args(self) -> Result[Parsed, CliError] $ Args` | `parse` of the `list()` of the `Args` provider that covers the call |
+| r[std-cli.parse.parser] `parse` | `pub fn parse(&self, arguments: List[string]) -> Result[Parsed, CliError]` | what `arguments` hold, read from first to last against the declarations |
+| r[std-cli.parse-args.parser] `parse_args` | `pub fn parse_args(&self) -> Result[Parsed, CliError] $ Args` | `parse` of the `list()` of the `Args` provider that covers the call |
 
 1. r[std-cli.parse.plain] `parse` and `parse_args` are plain calls, not bang calls. `parse` has the empty requirement row.
 
@@ -93,10 +102,10 @@ Each argument is read by its form:
 6. r[std-cli.form.repeat-option] An option given more than once keeps its last value.
 
 ```text
-use std.cli.Cli
+use std.cli.{Arg, ArgParser}
 
-fn tool() -> Cli:
-    Cli::new("count").flag("verbose", 'v', "print each file").option("out", 'o', "write the total here").positional("pattern", "the files to count")
+fn tool() -> &mut ArgParser:
+    ArgParser::new("count").arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "print each file" }).arg(Arg { name: "out", kind: .Option, short: 'o', help: "write the total here" }).arg(Arg { name: "pattern", kind: .Positional, required: true, help: "the files to count" })
 
 fn out_of(arguments: List[string]) -> string:
     match tool().parse(arguments):
@@ -124,7 +133,7 @@ pub enum CliError:
     UnknownOption(text: string)
     MissingValue(name: string)
     UnexpectedValue(name: string)
-    MissingPositional(name: string)
+    MissingArgument(name: string)
     InvalidValue(name: string, reason: string)
 ```
 
@@ -133,18 +142,19 @@ pub enum CliError:
 | r[std-cli.error.unknown] Unknown option | `UnknownOption` | an argument that starts with `-`, is not `-` or `--`, and names no declared flag or option | `unknown option TEXT` |
 | r[std-cli.error.missing-value] Missing value | `MissingValue` | an option without `=` is the last argument | `option --NAME needs a value` |
 | r[std-cli.error.unexpected-value] Unexpected value | `UnexpectedValue` | a flag is written `--name=VALUE` | `flag --NAME takes no value` |
-| r[std-cli.error.missing-positional] Missing positional | `MissingPositional` | fewer positionals are given than declared | `missing argument <NAME>` |
+| r[std-cli.error.missing-argument] Missing argument | `MissingArgument` | a required flag, option or positional is absent | `missing argument NAME` |
 
-1. r[std-cli.error.declared] `std.cli` declares the enum `CliError` with the five variants above. `parse` returns only the first four.
-2. r[std-cli.error.traits] `CliError` implements `Eq`, `Debug`, and `Display`.
-3. r[std-cli.error.text] `UnknownOption`'s `text` is the argument as written, up to its first `=` when it starts with `--`.
-4. r[std-cli.error.name] The `name` of `MissingValue` and `UnexpectedValue` is the long name of the flag or option. The `name` of `MissingPositional` is the first positional not given.
-5. r[std-cli.error.display] In the `Display` text, `TEXT`, `NAME`, and `REASON` stand for the variant's field.
-6. r[std-cli.error.first] `parse` returns the first error in argument order. A missing positional is checked after the last argument.
-7. r[std-cli.error.help] When a flag named `help` is declared and set, `parse` does not check for a missing positional.
+1. r[std-cli.error.enum-argument] `CliError` declares the five variants above; `parse` returns only the first four.
+2. r[std-cli.error.required-argument] `MissingArgument` names a missing required argument as `--name` for a flag or option, or `<name>` for a positional.
+3. r[std-cli.error.traits] `CliError` implements `Eq`, `Debug`, and `Display`.
+4. r[std-cli.error.text] `UnknownOption`'s `text` is the argument as written, up to its first `=` when it starts with `--`.
+5. r[std-cli.error.option-name] `MissingValue` and `UnexpectedValue` hold the option or flag’s long name.
+6. r[std-cli.error.display] In the `Display` text, `TEXT`, `NAME`, and `REASON` stand for the variant's field.
+7. r[std-cli.error.first-required] `parse` returns the first error in argument order, then checks required arguments in declaration order.
+8. r[std-cli.error.help-required] A declared flag named `help`, when set, skips missing-required-argument checks.
 
 > **Why.** `tool --help` must reach the program even when `tool` requires
-> a positional, as `argparse` and `clap` let it. `Cli` declares no
+> a positional, as `argparse` and `clap` let it. `ArgParser` declares no
 > `--help` itself, so the program prints `usage` when the flag is set.
 
 ### Exit Status
@@ -153,12 +163,12 @@ A command-line failure picks its exit status through `CliError`, not
 through `Error`. `main` reports a parse error and exits with its code:
 
 ```text
-use std.cli.Cli
+use std.cli.{Arg, ArgParser}
 use std.host.Args
 use std.process.ExitCode
 
 pub fn main() -> ExitCode $ Args + Console:
-    cli := Cli::new("tool").option("level", .None, "how loud")
+    cli := ArgParser::new("tool").arg(Arg { name: "level", help: "how loud" })
     parsed := match cli.parse_args():
         .Ok(parsed) => parsed
         .Err(error) => return error.exit()
@@ -181,22 +191,17 @@ output and exits with status 2.
 `Parsed` holds what `parse` read:
 
 ```text
-pub struct Parsed:
-    pub flags: List[string]
-    pub values: Map[string, string]
-    pub positionals: List[string]
+fn first(arguments: List[string]) -> string?:
+    match tool().parse(arguments):
+        .Ok(parsed) => parsed.value("pattern")
+        .Err(_) => .None
 ```
 
-1. r[std-cli.parsed.decl-struct] `std.cli` declares the struct `Parsed`, a value with the public fields above, so copying one copies its lists and map. It implements `Eq` and `Debug`.
-2. r[std-cli.parsed.flags] `flags` holds the long name of every flag that was set, each once, in the order of first appearance.
-3. r[std-cli.parsed.values] `values` maps the long name of every option that was given to its value.
-4. r[std-cli.parsed.positionals] `positionals` holds every positional in argument order, including those past the declared ones.
-5. r[std-cli.parsed.flag] `pub fn flag(self, name: string) -> bool` returns whether `flags` holds `name`.
-6. r[std-cli.parsed.value] `pub fn value(self, name: string) -> string?` returns the value of `name` in `values`, or `.None`.
-7. r[std-cli.parsed.undeclared] A name that nothing declares is never set, so `flag` returns `false` and `value` returns `.None` for it.
-
-> **Note.** A declared positional is required, so `positionals[0]` holds
-> the first one whenever `parse` succeeds.
+1. r[std-cli.parsed.private] `Parsed` is a value with private storage and implements `Eq` and `Debug`; its methods expose copied values.
+2. r[std-cli.parsed.flag-presence] `flag(self, name: string) -> bool` returns whether the declared flag was present.
+3. r[std-cli.parsed.named-value] `value(self, name: string) -> string?` returns the last option value or the declared positional value, otherwise `.None`.
+4. r[std-cli.parsed.positional-copy] `positionals(self) -> List[string]` returns a copy of every positional in input order, including undeclared extras.
+5. r[std-cli.parsed.unknown] For an undeclared name, `flag` returns false and `value` returns `.None`.
 
 ### Typed Values
 
@@ -204,10 +209,10 @@ pub struct Parsed:
 [`Parse`](text.md#parsing-text):
 
 ```text
-use std.cli.{Cli, CliError}
+use std.cli.{Arg, ArgParser, CliError}
 
 fn max_lines(args: List[string]) -> Result[usize, CliError]:
-    parsed := Cli::new("tail").option("max", .None, "lines to show").parse(args)?
+    parsed := ArgParser::new("tail").arg(Arg { name: "max", kind: .Option, short: .None, help: "lines to show" }).parse(args)?
     .Ok(parsed.value_as::[usize]("max")?.unwrap_or(10))
 ```
 
@@ -230,7 +235,7 @@ fn max_lines(args: List[string]) -> Result[usize, CliError]:
 
 ## Usage Text
 
-`usage` returns the help text. For the `Cli` above, with one more flag
+`usage` returns the help text. For the `ArgParser` above, with one more flag
 `dry-run` that has no short name and no help, it is:
 
 ```console
@@ -245,15 +250,18 @@ options:
       --dry-run
 ```
 
-1. r[std-cli.usage.decl] `pub fn usage(self) -> string` returns the lines below, joined by `\n`, with no final line break.
-2. r[std-cli.usage.line] The first line is `usage: `, the program name, ` [options]` when a flag or an option is declared, and ` <name>` for each positional, in declaration order.
+1. r[std-cli.usage.parser] `pub fn usage(&self) -> string` returns the lines below, joined by `\n`, with no final line break.
+2. r[std-cli.usage.parser-line] The usage line names the program, optional options, and each positional as `<name>` when required or `[<name>]` otherwise.
 3. r[std-cli.usage.arguments] When a positional is declared, an empty line and the line `arguments:` follow, then one entry per positional, in declaration order. A positional's term is its name.
 4. r[std-cli.usage.options] When a flag or an option is declared, an empty line and the line `options:` follow. Then one entry per flag or option follows, in declaration order.
 5. r[std-cli.usage.term] A flag's or option's term is `-c, --name`, or four spaces and `--name` when it has no short name. An option's term ends with ` <value>`.
 6. r[std-cli.usage.entry] An entry is two spaces, its term padded with spaces to the width of the longest term in the text, two spaces, and its help.
 7. r[std-cli.usage.width] A width counts characters, as `pad_end` does.
 8. r[std-cli.usage.no-help] An entry whose help is empty is two spaces and its term, with no padding.
-9. r[std-cli.usage.no-help-flag] Neither `usage` nor `parse` adds a flag that the `Cli` does not declare, `--help` included.
+9. r[std-cli.usage.parser-no-help] Neither `usage` nor `parse` adds a flag that the `ArgParser` does not declare, `--help` included.
+
+10. r[std-cli.usage.about] When `about` is nonempty, one empty line and its text follow the usage line.
+11. r[std-cli.usage.builder] `usage` should write its result with one `StringBuilder`, without repeated concatenation of the accumulated text.
 
 > **Why.** One column of help text is the layout of Go's `flag` output and
 > of `hd help`. The four spaces keep the long names of every term aligned.

@@ -1,10 +1,10 @@
 # test: declaring a short name a second time panics
-# Spec std/cli Declaring Arguments: std-cli.cli.duplicate (task #242).
-use std.cli.Cli
+# Spec std/cli Declaring Arguments: std-cli.parser.duplicate (task #242).
+use std.cli.{Arg, ArgParser}
 
-fn tool() -> Cli:
-    base := Cli::new("count").flag("verbose", 'v', "print each file")
-    base.option("version", 'v', "the version to check")  # panic: explicit-panic
+fn tool() -> &mut ArgParser:
+    base := ArgParser::new("count").arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "print each file" })
+    base.arg(Arg { name: "version", kind: .Option, short: 'v', help: "the version to check" })  # panic: explicit-panic
 
 tests:
     it("rejects a short name declared twice"):

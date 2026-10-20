@@ -1,9 +1,9 @@
 # test: Parsed.value_as reads an option as a Parse type and names the option when it cannot
-# Spec std/cli Typed Values: std-cli.parsed.value-as, std-cli.value-as.absent, std-cli.value-as.present, std-cli.value-as.invalid, std-cli.value-as.display, std-cli.error.declared, std-text.parse.never-traits (task #372).
-use std.cli.{Cli, CliError, Parsed}
+# Spec std/cli Typed Values: std-cli.parsed.value-as, std-cli.value-as.absent, std-cli.value-as.present, std-cli.value-as.invalid, std-cli.value-as.display, std-cli.error.required-argument, std-text.parse.never-traits (task #372).
+use std.cli.{Arg, ArgParser, CliError, Parsed}
 
-fn tool() -> Cli:
-    Cli::new("tail").option("max", 'm', "lines to show").option("name", 'n', "a label").option("on", 'o', "a switch")
+fn tool() -> &mut ArgParser:
+    ArgParser::new("tail").arg(Arg { name: "max", kind: .Option, short: 'm', help: "lines to show" }).arg(Arg { name: "name", kind: .Option, short: 'n', help: "a label" }).arg(Arg { name: "on", kind: .Option, short: 'o', help: "a switch" })
 
 fn parsed_from(arguments: List[string]) -> Parsed:
     match tool().parse(arguments):

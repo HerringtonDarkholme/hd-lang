@@ -1,0 +1,4 @@
+# test: Parsed storage is private and callers use accessors
+use std.cli.Parsed
+fn expose(parsed: Parsed) -> List[string]:
+    parsed.position_values  # diagnostic: private-member

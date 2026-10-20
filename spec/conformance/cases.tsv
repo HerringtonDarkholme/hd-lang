@@ -2313,7 +2313,7 @@ runtime/valid/cli-errors.hd	runtime	accept	std/cli.md#parse-errors
 runtime/valid/cli-usage.hd	runtime	accept	std/cli.md#usage-text
 runtime/valid/cli-parse-args.hd	runtime	accept	std/cli.md#parsing
 runtime/valid/cli-error-exit.hd	runtime	accept	std/cli.md#r-std-cli.error.exit
-runtime/panic/cli-duplicate-option.hd	runtime	panic:explicit-panic	std/cli.md#r-std-cli.cli.duplicate
+runtime/panic/cli-duplicate-option.hd	runtime	panic:explicit-panic	std/cli.md#r-std-cli.parser.duplicate
 runtime/valid/regex-literals-escapes.hd	runtime	accept	std/regex.md#literals-and-escapes
 runtime/valid/regex-classes.hd	runtime	accept	std/regex.md#classes
 runtime/valid/regex-anchors-groups.hd	runtime	accept	std/regex.md#anchors-groups-and-alternation
@@ -3288,7 +3288,7 @@ runtime/valid/time-iso8601-format.hd	runtime	accept	std/time.md#r-std-time.forma
 runtime/valid/text-parse-trait.hd	runtime	accept	std/text.md#r-std-text.parse.trait
 runtime/valid/num-parse-trait.hd	runtime	accept	std/num.md#r-std-num.parse.trait-impls
 runtime/valid/cli-value-as.hd	runtime	accept	std/cli.md#r-std-cli.parsed.value-as
-runtime/valid/cli-parsed-value-copy.hd	runtime	accept	std/cli.md#r-std-cli.parsed.decl-struct
+runtime/valid/cli-parsed-value-copy.hd	runtime	accept	std/cli.md#r-std-cli.parsed.private
 runtime/valid/host-env-as.hd	runtime	accept	std/host.md#r-std-host.env-as.decl
 runtime/valid/num-abs.hd	runtime	accept	std/num.md#r-std-num.abs.value
 runtime/panic/num-abs-min-i8.hd	runtime	panic:integer-overflow	std/num.md#r-std-num.abs.min
@@ -3623,3 +3623,5 @@ typing/invalid/duration-unknown-unit.hd	type	reject:unknown-name	lang/03-names-a
 runtime/valid/duration-literals.hd	runtime	accept	std/time.md#duration
 runtime/valid/duration-literal-timeout.hd	runtime	accept	std/time.md#duration
 runtime/valid/provider-value-reference-identity.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.ref.share.reference-values
+runtime/valid/cli-required-and-many.hd	runtime	accept	std/cli.md#r-std-cli.parser.indexed
+typing/invalid/cli-parsed-private.hd	type	reject:private-member	std/cli.md#r-std-cli.parsed.private

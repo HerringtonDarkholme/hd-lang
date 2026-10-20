@@ -1,9 +1,9 @@
-# test: parse_args reads the arguments of the Args provider, and builder methods leave their receiver unchanged
-# Spec std/cli Declaring Arguments and Parsing: std-cli.cli.decl-struct, std-cli.cli.new, std-cli.cli.flag, std-cli.cli.option, std-cli.cli.positional, std-cli.cli.builder, std-cli.parse.decl, std-cli.parse-args, std-cli.parsed.decl-struct (task #242).
-use std.cli.{Cli, CliError, Parsed}
+# test: parse_args reads the arguments of the Args provider, and builder methods update their receiver in place
+# Spec std/cli Declaring Arguments and Parsing: std-cli.parser.decl, std-cli.parser.new, std-cli.parser.arg, std-cli.parser.arg, std-cli.parser.arg, std-cli.parser.arg, std-cli.parse.parser, std-cli.parse-args.parser, std-cli.parsed.private (task #242).
+use std.cli.{Arg, ArgParser, CliError, Parsed}
 use std.host.{Args, ScriptedArgs}
-fn tool() -> Cli:
-    Cli::new("count").flag("verbose", 'v', "print each file").option("out", 'o', "write the total here").positional("pattern", "the files to count")
+fn tool() -> &mut ArgParser:
+    ArgParser::new("count").arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "print each file" }).arg(Arg { name: "out", kind: .Option, short: 'o', help: "write the total here" }).arg(Arg { name: "pattern", kind: .Positional, required: true, help: "the files to count" })
 
 fn target() -> string $ Args:
     match tool().parse_args():
@@ -21,10 +21,10 @@ tests:
         $.with(Args=empty):
             assert_equal(target(), "missing argument <pattern>", reason="the error's text")
 
-    it("a builder method returns a new Cli"):
-        base := Cli::new("count")
-        more := base.flag("verbose", 'v', "print each file")
-        assert_equal(base.parse(["-v"]), .Err(CliError.UnknownOption("-v")), reason="the receiver is unchanged")
+    it("a builder method returns the same mutable parser"):
+        base := ArgParser::new("count")
+        more := base.arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "print each file" })
+        assert_equal(base is more, true, reason="the receiver is updated in place")
         match more.parse(["-v"]):
-            .Ok(parsed) => assert_equal(parsed.flags, ["verbose"], reason="the new Cli has the flag")
+            .Ok(parsed) => assert_equal(parsed.flag("verbose"), true, reason="the new ArgParser has the flag")
             .Err(error) => panic("parse failed: $error")

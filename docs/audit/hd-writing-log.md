@@ -436,3 +436,5 @@ says that the check covered syntax only.
 | 2026-10-19 | linear backend probes (#573) | API misuse | `k.len().as_i32_or(0)` on a `usize` | unknown-method: no method `as_i32_or` on usize | no: it named no conversion that exists | a `usize` total | opus |
 | 2026-10-19 | linear backend probes (#573) | API misuse | `ages.values().collect()`, as if `values()` were an iterator | unknown-method: no method `collect` on List[i32]; did you mean `clear`? | yes: it showed `values()` is a list | `ages.values().len()` | opus |
 | 2026-10-19 | linear backend probes (#573) | API misuse | `xs.remove(2)` on a list | unknown-method: no method `remove` on mut List[string]; did you mean `remove_at`? | yes | `xs.remove_at(2)` | opus |
+| 2026-10-20 | #491 ArgParser | api | `hd check lib/std/cli.hd` directly | `` no module named `std.cmp` `` | partly | Check std through an importing probe or focused conformance harness, with a rebuilt compiler | GPT-6 |
+| 2026-10-20 | #491 ArgParser | api | `self.declarations.enumerate()` | `` no method `enumerate` on List[Arg] `` | yes | `self.declarations.iter().enumerate()` | GPT-6 |

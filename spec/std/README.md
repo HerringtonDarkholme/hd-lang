@@ -235,12 +235,12 @@ the [language glossary](../README.md#glossary).
 | --- | --- |
 | **Debug builders** | The `DebugWriter` methods that describe a value as a struct, tuple, list, or map. See [Debug Builders](format.md#debug-builders). |
 | **draw limit** | The per-case limit on draws from `Choices`; once it is spent, every draw returns its simplest value. See [`std-testing.limit`](testing.md#r-std-testing.limit). |
-| **flag** | A command-line argument that `std.cli` reads as set or not set; it takes no value. See [`std-cli.cli.flag`](cli.md#r-std-cli.cli.flag). |
+| **flag** | A command-line argument that `std.cli` reads as set or not set; it takes no value. See [`std-cli.parser.arg`](cli.md#r-std-cli.parser.arg). |
 | **iterator adapters** | Methods of the prelude `Iterator[T]` that wrap an iterator in a new one, or drain it. See [Iterator Adapters](iter.md#iterator-adapters). |
-| **option** | A command-line argument that `std.cli` reads with one value. See [`std-cli.cli.option`](cli.md#r-std-cli.cli.option). |
+| **option** | A command-line argument that `std.cli` reads with one value. See [`std-cli.parser.arg`](cli.md#r-std-cli.parser.arg). |
 | **pad bits** | The low bits of the last base64 symbol that encode no byte; they are zero. See [`std-encoding.base64.encode.pad-bits`](encoding.md#r-std-encoding.base64.encode.pad-bits). |
 | **padding** | The one or two `=` characters that end a base64 text. See [`std-encoding.base64.decode.padding`](encoding.md#r-std-encoding.base64.decode.padding). |
-| **positional** | A command-line argument that is not a flag or an option; `std.cli` reads it by position. See [`std-cli.cli.positional`](cli.md#r-std-cli.cli.positional). |
+| **positional** | A command-line argument that is not a flag or an option; `std.cli` reads it by position. See [`std-cli.parser.arg`](cli.md#r-std-cli.parser.arg). |
 | **property test** | A test case whose body runs on inputs drawn from a `Choices` source. See [Property Tests](testing.md#property-tests). |
 
 ## Rule IDs

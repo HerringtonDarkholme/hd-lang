@@ -1,0 +1,30 @@
+# test: required option names match usage and a thousand declarations use indexed lookup
+use std.cli.{Arg, ArgKind, ArgParser, CliError}
+
+tests:
+    use std.testing.assert_equal
+
+    it("reports a required option and accepts its short form"):
+        parser := ArgParser::new("tool").arg(Arg { name: "out", short: 'o', required: true })
+        assert_equal(parser.parse([]), .Err(CliError.MissingArgument("--out")), reason="usage spelling")
+        assert_equal(parser.parse(["-o", "done"]).expect("parse").value("out"), .Some("done"), reason="short lookup")
+
+    it("looks up a thousand declared options"):
+        parser := ArgParser::new("many")
+        let mut arguments: List[string] = []
+        for index in 0..1000:
+            parser.arg(Arg { name: "key${index}" })
+            arguments.push("--key${index}")
+            arguments.push("value${index}")
+        parsed := parser.parse(arguments).expect("parse")
+        assert_equal(parsed.value("key0"), .Some("value0"), reason="first")
+        assert_equal(parsed.value("key999"), .Some("value999"), reason="last")
+
+    it("positionals can be optional and are also read by name"):
+        parser := ArgParser::new("tool").arg(Arg { name: "file", kind: .Positional })
+        assert_equal(parser.parse([]).expect("parse").value("file"), .None, reason="optional")
+        assert_equal(parser.parse(["a"]).expect("parse").value("file"), .Some("a"), reason="named value")
+
+    it("ArgKind flags take no value"):
+        parser := ArgParser::new("tool").arg(Arg { name: "verbose", kind: ArgKind.Flag })
+        assert_equal(parser.parse(["--verbose"]).expect("flag").flag("verbose"), true, reason="flag kind")

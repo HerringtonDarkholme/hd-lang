@@ -1,83 +1,63 @@
-# std.cli: argument parsing for scripts (spec/std/cli.md). A `Cli` value
-# lists the flags, options, and positionals; `parse` reads a list of
-# arguments against it, and `usage` writes its help text.
+# std.cli: a mutable declaration builder and private parsed results.
+use std.cmp.max
 use std.format.DebugWriter
 use std.error.Error
 use std.host.Args
-use std.text.Parse
+use std.text.{Parse, StringBuilder}
 use std.process.ExitCode
 use std.console.eprintln
 
-# A command line's declared arguments (r-std-cli.cli.decl-struct). Each builder
-# method returns a new `Cli` with one more declaration, in order.
-## The declaration of a command line: its program name, flags, options, and positionals.
-## See [std-cli.cli.decl-struct](../../spec/std/cli.md#r-std-cli.cli.decl-struct).
-pub struct Cli:
+@derive(Eq)
+pub enum ArgKind:
+    Flag
+    Option
+    Positional
+
+## One declaration. Options take a value, flags do not, and positionals follow declaration order.
+pub struct Arg:
+    pub name: string
+    pub kind: ArgKind = .Option
+    pub short: char? = .None
+    pub help: string = ""
+    pub required: bool = false
+
+## A command line's declarations, changed in place through its mutable reference.
+pub struct ArgParser:
     program: string
-    options: List[CliOption]
-    positionals: List[CliPositional]
+    about: string
+    declarations: List[Arg]
+    options: Map[string, usize]
+    names: Map[string, bool]
+    positional_slots: List[usize]
 
-# One flag or option: a long name, an optional short name, and whether it
-# takes a value.
-struct CliOption:
-    name: string
-    short: char?
-    takes_value: bool
-    help: string
+impl ArgParser:
+    pub fn new(program: string, about: string = "") -> &mut ArgParser:
+        &mut ArgParser { program: program, about: about, declarations: [], options: {}, names: {}, positional_slots: [] }
 
-struct CliPositional:
-    name: string
-    help: string
+    pub fn arg(&mut self, arg: Arg) -> &mut ArgParser:
+        if self.names.get(arg.name).is_some():
+            panic("std.cli: argument ${arg.name} declared twice")
+        index := self.declarations.len()
+        if arg.kind == .Positional:
+            if arg.short.is_some():
+                panic("std.cli: a positional has no short option")
+            self.positional_slots.push(index)
+        else:
+            long := "--${arg.name}"
+            match arg.short:
+                .Some(short) =>
+                    written := "-${short}"
+                    if self.options.get(written).is_some():
+                        panic("std.cli: short option ${written} declared twice")
+                    self.options[written] = index
+                .None => pass
+            self.options[long] = index
+        self.names[arg.name] = true
+        self.declarations.push(arg)
+        self
 
-impl Cli:
-    ## Starts the declaration of a command line whose program is `program`.
-    ## See [std-cli.cli.new](../../spec/std/cli.md#r-std-cli.cli.new).
-    pub fn new(program: string) -> Cli:
-        Cli { program: program, options: [], positionals: [] }
-
-    ## Declares a flag: a long form `--name`, and a short form `-c` when `short` is `.Some`.
-    ## See [std-cli.cli.flag](../../spec/std/cli.md#r-std-cli.cli.flag).
-    pub fn flag(self, name: string, short: char?, help: string) -> Cli:
-        self.with_option(CliOption { name: name, short: short, takes_value: false, help: help })
-
-    ## Declares an option, which takes a value: a long form `--name`, and a short form `-c` when `short` is `.Some`.
-    ## See [std-cli.cli.option](../../spec/std/cli.md#r-std-cli.cli.option).
-    pub fn option(self, name: string, short: char?, help: string) -> Cli:
-        self.with_option(CliOption { name: name, short: short, takes_value: true, help: help })
-
-    ## Declares a positional argument, which a later positional follows.
-    ## See [std-cli.cli.positional](../../spec/std/cli.md#r-std-cli.cli.positional).
-    pub fn positional(self, name: string, help: string) -> Cli:
-        for declared in self.positionals:
-            if declared.name == name:
-                panic("std.cli: positional <${name}> declared twice")
-        let mut positionals: List[CliPositional] = []
-        for declared in self.positionals:
-            positionals.push(declared)
-        positionals.push(CliPositional { name: name, help: help })
-        Cli { program: self.program, options: self.options, positionals: positionals }
-
-    # A name or short name declared twice panics (r-std-cli.cli.duplicate).
-    fn with_option(self, added: CliOption) -> Cli:
-        let mut options: List[CliOption] = []
-        for declared in self.options:
-            if declared.name == added.name:
-                panic("std.cli: option --${added.name} declared twice")
-            match (declared.short, added.short):
-                (.Some(a), .Some(b)) =>
-                    if a == b:
-                        panic("std.cli: short option -${b} declared twice")
-                _ => pass
-            options.push(declared)
-        options.push(added)
-        Cli { program: self.program, options: options, positionals: self.positionals }
-
-    # Reads `arguments` from left to right (spec/std/cli.md#parsing). The
-    # first error in that order wins; a missing positional is found last.
-    ## Parses `arguments` against the declaration, or returns the first error.
-    ## See [std-cli.parse.decl](../../spec/std/cli.md#r-std-cli.parse.decl).
-    pub fn parse(self, arguments: List[string]) -> Result[Parsed, CliError]:
-        let mut flags: List[string] = []
+    pub fn parse(&self, arguments: List[string]) -> Result[Parsed, CliError]:
+        let mut flags: Map[string, bool] = {}
         let mut values: Map[string, string] = {}
         let mut positionals: List[string] = []
         let only_positionals = false
@@ -86,6 +66,9 @@ impl Cli:
             argument := arguments[index]
             index = index + 1
             if only_positionals || argument == "-" || !argument.starts_with("-"):
+                if positionals.len() < self.positional_slots.len():
+                    slot := self.positional_slots[positionals.len()]
+                    values[self.declarations[slot].name] = argument
                 positionals.push(argument)
                 continue
             if argument == "--":
@@ -99,14 +82,14 @@ impl Cli:
                         written = before
                         attached = .Some(after)
                     .None => pass
-            option := match self.find(written):
+            slot := match self.options.get(written):
                 .None => return .Err(CliError.UnknownOption(written))
                 .Some(found) => found
-            if !option.takes_value:
+            option := self.declarations[slot]
+            if option.kind == .Flag:
                 if attached.is_some():
                     return .Err(CliError.UnexpectedValue(option.name))
-                if !flags.contains(option.name):
-                    flags.push(option.name)
+                flags[option.name] = true
             else:
                 match attached:
                     .Some(value) => values[option.name] = value
@@ -115,104 +98,87 @@ impl Cli:
                             return .Err(CliError.MissingValue(option.name))
                         values[option.name] = arguments[index]
                         index = index + 1
-        # A set `help` flag skips the missing-positional check (r-std-cli.error.help).
-        if positionals.len() < self.positionals.len() && !flags.contains("help"):
-            return .Err(CliError.MissingPositional(self.positionals[positionals.len()].name))
-        .Ok(Parsed { flags: flags, values: values, positionals: positionals })
+        # Preserve the declared help flag's old behavior until #501 supplies automatic help.
+        if !flags.get("help").unwrap_or(false):
+            for arg in self.declarations:
+                if arg.required:
+                    present := if arg.kind == .Flag: flags.get(arg.name).unwrap_or(false) else: values.get(arg.name).is_some()
+                    if !present:
+                        return .Err(CliError.MissingArgument(argument_name(arg)))
+        .Ok(Parsed { present_flags: flags, option_values: values, position_values: positionals })
 
-    # `parse` over the program's arguments (r-std-cli.parse-args).
-    ## Parses the process's own arguments, without the program name.
-    ## See [std-cli.parse-args](../../spec/std/cli.md#r-std-cli.parse-args).
-    pub fn parse_args(self) -> Result[Parsed, CliError] $ Args:
+    pub fn parse_args(&self) -> Result[Parsed, CliError] $ Args:
         self.parse($.use(Args).list())
 
-    # The option that `--name` or `-c` names.
-    fn find(self, written: string) -> CliOption?:
-        for option in self.options:
-            if written == "--${option.name}":
-                return .Some(option)
-            match option.short:
-                .Some(short) =>
-                    if written == "-${short}":
-                        return .Some(option)
-                .None => pass
-        .None
-
-    # The help text (spec/std/cli.md#usage-text): a usage line, then an
-    # `arguments:` and an `options:` section, each entry's help in one
-    # column.
-    ## The command line's usage text: its forms and its entries with their help.
-    ## See [std-cli.usage.decl](../../spec/std/cli.md#r-std-cli.usage.decl).
-    pub fn usage(self) -> string:
-        let text = "usage: ${self.program}"
+    pub fn usage(&self) -> string:
+        text := StringBuilder::new().push("usage: ").push(self.program)
         if self.options.len() > 0:
-            text = text + " [options]"
-        for declared in self.positionals:
-            text = text + " <${declared.name}>"
+            text.push(" [options]")
+        for slot in self.positional_slots:
+            arg := self.declarations[slot]
+            text.push(" ")
+            if !arg.required: text.push("[")
+            text.push("<").push(arg.name).push(">")
+            if !arg.required: text.push("]")
+        if self.about != "":
+            text.push("\n\n").push(self.about)
+        let mut terms: List[string] = []
         let width: usize = 0
-        for declared in self.positionals:
-            width = wider(width, declared.name)
-        for option in self.options:
-            width = wider(width, option_term(option))
-        if self.positionals.len() > 0:
-            text = text + "\n\narguments:"
-            for declared in self.positionals:
-                text = text + "\n" + entry(declared.name, declared.help, width)
+        for arg in self.declarations:
+            term := argument_term(arg)
+            terms.push(term)
+            width = max(width, term.chars().count())
+        if self.positional_slots.len() > 0:
+            text.push("\n\narguments:")
+            for slot in self.positional_slots:
+                write_entry(text, terms[slot], self.declarations[slot].help, width)
         if self.options.len() > 0:
-            text = text + "\n\noptions:"
-            for option in self.options:
-                text = text + "\n" + entry(option_term(option), option.help, width)
-        text
+            text.push("\n\noptions:")
+            for (slot, arg) in self.declarations.iter().enumerate():
+                if arg.kind != .Positional:
+                    write_entry(text, terms[slot], arg.help, width)
+        text.build()
 
-# An option's term in the usage text: its short and long names, and
-# `<value>` when it takes one.
-fn option_term(option: CliOption) -> string:
-    let term = match option.short:
-        .Some(short) => "-${short}, --${option.name}"
-        .None => "    --${option.name}"
-    if option.takes_value:
-        term = term + " <value>"
-    term
+fn argument_name(arg: Arg) -> string:
+    if arg.kind == .Positional: "<${arg.name}>" else: "--${arg.name}"
 
-fn wider(width: usize, term: string) -> usize:
-    length := term.chars().count()
-    if length > width: length else: width
+fn argument_term(arg: Arg) -> string:
+    if arg.kind == .Positional:
+        return arg.name
+    suffix := if arg.kind == .Option: " <value>" else: ""
+    match arg.short:
+        .Some(short) => "-${short}, --${arg.name}${suffix}"
+        .None => "    --${arg.name}${suffix}"
 
-fn entry(term: string, help: string, width: usize) -> string:
-    if help == "":
-        return "  ${term}"
-    "  ${term.pad_end(width, ' ')}  ${help}"
+fn write_entry(text: &mut StringBuilder, term: string, help: string, width: usize) -> void:
+    text.push("\n  ").push(term)
+    if help != "":
+        text.push("".pad_end(width - term.chars().count(), ' ')).push("  ").push(help)
 
-# What `parse` read (r-std-cli.parsed.decl-struct).
-## What a successful parse returns: the flags present, the option values, and the positional arguments.
-## See [std-cli.parsed.decl-struct](../../spec/std/cli.md#r-std-cli.parsed.decl-struct).
 pub struct Parsed:
-    ## The names of the flags present, in argument order.
-    ## See [std-cli.parsed.flags](../../spec/std/cli.md#r-std-cli.parsed.flags).
-    pub flags: List[string]
-    ## The options' values by name; a repeated option keeps its last value.
-    ## See [std-cli.parsed.values](../../spec/std/cli.md#r-std-cli.parsed.values).
-    pub values: Map[string, string]
-    ## The positional arguments, in argument order.
-    ## See [std-cli.parsed.positionals](../../spec/std/cli.md#r-std-cli.parsed.positionals).
-    pub positionals: List[string]
+    present_flags: Map[string, bool]
+    option_values: Map[string, string]
+    position_values: List[string]
 
 impl Parsed:
+    ## A copy of every positional in input order, including extra positionals.
+    pub fn positionals(self) -> List[string]: self.position_values
+
     ## True when the flag `name` was present.
-    ## See [std-cli.parsed.flag](../../spec/std/cli.md#r-std-cli.parsed.flag).
+    ## See [std-cli.parsed.flag-presence](../../spec/std/cli.md#r-std-cli.parsed.flag-presence).
     pub fn flag(self, name: string) -> bool:
-        self.flags.contains(name)
+        self.present_flags.get(name).unwrap_or(false)
 
     ## The value of the option `name`, in `.Some`, or `.None` when it was absent.
-    ## See [std-cli.parsed.value](../../spec/std/cli.md#r-std-cli.parsed.value).
+    ## See [std-cli.parsed.named-value](../../spec/std/cli.md#r-std-cli.parsed.named-value).
     pub fn value(self, name: string) -> string?:
-        self.values.get(name)
+        self.option_values.get(name)
 
     # `value` read as a `T` (r-std-cli.parsed.value-as).
     ## The value of the option `name` read as a `T`: `.None` when absent, an error naming the option when unreadable.
     ## See [std-cli.parsed.value-as](../../spec/std/cli.md#r-std-cli.parsed.value-as).
     pub fn value_as[T < Parse[Error = E], E < Display](self, name: string) -> Result[T?, CliError]:
-        text := match self.values.get(name):
+        text := match self.option_values.get(name):
             .Some(found) => found
             .None => return .Ok(.None)
         match T::parse(text):
@@ -221,17 +187,17 @@ impl Parsed:
 
 impl Eq for Parsed:
     fn eq(self, other: Parsed) -> bool:
-        self.flags == other.flags && self.values == other.values && self.positionals == other.positionals
+        self.present_flags == other.present_flags && self.option_values == other.option_values && self.position_values == other.position_values
 
-# Why `parse` failed (r-std-cli.error.declared).
+# Why `parse` failed (r-std-cli.error.required-argument).
 ## Why parsing failed: an unknown option, a missing value or positional, an unexpected value, or a value that does not read as its type.
-## There is no help-request variant: a program that declares a `help` flag reads it from `Parsed` (std-cli.error.help).
-## See [std-cli.error.declared](../../spec/std/cli.md#r-std-cli.error.declared).
+## There is no help-request variant: a program that declares a `help` flag reads it from `Parsed` (std-cli.error.help-required).
+## See [std-cli.error.required-argument](../../spec/std/cli.md#r-std-cli.error.required-argument).
 pub enum CliError:
     UnknownOption(text: string)
     MissingValue(name: string)
     UnexpectedValue(name: string)
-    MissingPositional(name: string)
+    MissingArgument(name: string)
     InvalidValue(name: string, reason: string)
 
 impl Eq for CliError:
@@ -240,7 +206,7 @@ impl Eq for CliError:
             (.UnknownOption(a), .UnknownOption(b)) => a == b
             (.MissingValue(a), .MissingValue(b)) => a == b
             (.UnexpectedValue(a), .UnexpectedValue(b)) => a == b
-            (.MissingPositional(a), .MissingPositional(b)) => a == b
+            (.MissingArgument(a), .MissingArgument(b)) => a == b
             (.InvalidValue(a, reason), .InvalidValue(b, other)) => a == b && reason == other
             _ => false
 
@@ -250,7 +216,7 @@ impl Display for CliError:
             .UnknownOption(text) => "unknown option ${text}"
             .MissingValue(name) => "option --${name} needs a value"
             .UnexpectedValue(name) => "flag --${name} takes no value"
-            .MissingPositional(name) => "missing argument <${name}>"
+            .MissingArgument(name) => "missing argument ${name}"
             .InvalidValue(name, reason) => "invalid value for --${name}: ${reason}"
 
 # A std error type implements `Error` (r-std-error.std-types.impl.reference-values).
@@ -276,21 +242,24 @@ impl CliError:
 # derivation pass before it joins std (src/checker/program.ts), so a
 # `@derive` on a std declaration has no effect.
 
-impl Debug for Cli:
+impl Debug for ArgParser:
     fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("Cli").field("program", self.program).field("options", self.options).field("positionals", self.positionals).finish()
+        out.debug_struct("ArgParser").field("program", self.program).field("about", self.about).field("arguments", self.declarations).finish()
 
-impl Debug for CliOption:
+impl Debug for Arg:
     fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("CliOption").field("name", self.name).field("short", self.short).field("takes_value", self.takes_value).field("help", self.help).finish()
+        out.debug_struct("Arg").field("name", self.name).field("kind", self.kind).field("short", self.short).field("help", self.help).field("required", self.required).finish()
 
-impl Debug for CliPositional:
+impl Debug for ArgKind:
     fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("CliPositional").field("name", self.name).field("help", self.help).finish()
+        match self:
+            .Flag => out.debug_tuple("ArgKind.Flag").finish()
+            .Option => out.debug_tuple("ArgKind.Option").finish()
+            .Positional => out.debug_tuple("ArgKind.Positional").finish()
 
 impl Debug for Parsed:
     fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("Parsed").field("flags", self.flags).field("values", self.values).field("positionals", self.positionals).finish()
+        out.debug_struct("Parsed").field("flags", self.present_flags).field("values", self.option_values).field("positionals", self.position_values).finish()
 
 impl Debug for CliError:
     fn debug(self, out: &mut DebugWriter) -> void:
@@ -298,5 +267,5 @@ impl Debug for CliError:
             .UnknownOption(text) => out.debug_tuple("CliError.UnknownOption").named_field("text", text).finish()
             .MissingValue(name) => out.debug_tuple("CliError.MissingValue").named_field("name", name).finish()
             .UnexpectedValue(name) => out.debug_tuple("CliError.UnexpectedValue").named_field("name", name).finish()
-            .MissingPositional(name) => out.debug_tuple("CliError.MissingPositional").named_field("name", name).finish()
+            .MissingArgument(name) => out.debug_tuple("CliError.MissingArgument").named_field("name", name).finish()
             .InvalidValue(name, reason) => out.debug_tuple("CliError.InvalidValue").named_field("name", name).named_field("reason", reason).finish()

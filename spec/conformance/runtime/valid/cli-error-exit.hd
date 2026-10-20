@@ -1,13 +1,13 @@
 # test: main returns error.exit() for a parse error, which writes the error as error output and exits 2
 # Spec std/cli Exit Status: std-cli.error.exit-code, std-cli.error.exit.
 # expect-stdout: quiet
-use std.cli.{Cli, CliError}
+use std.cli.{Arg, ArgParser, CliError}
 use std.console.MemoryConsole
 use std.host.{Args, ScriptedArgs}
 use std.process.ExitCode
 
 pub fn main() -> ExitCode $ Args + Console:
-    cli := Cli::new("tool").option("level", .None, "how loud")
+    cli := ArgParser::new("tool").arg(Arg { name: "level", help: "how loud" })
     parsed := match cli.parse_args():
         .Ok(parsed) => parsed
         .Err(error) => return error.exit()
@@ -35,7 +35,7 @@ tests:
             CliError.UnknownOption("-x"),
             CliError.MissingValue("out"),
             CliError.UnexpectedValue("verbose"),
-            CliError.MissingPositional("pattern"),
+            CliError.MissingArgument("pattern"),
             CliError.InvalidValue("max", "not a number"),
         ]
         for error in errors:

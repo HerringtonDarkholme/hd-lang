@@ -1,6 +1,6 @@
 # test: DecodeError, RegexError, and CliError implement Error, so ? converts each into Result[T, Error]
 # Spec std/error Standard Error Types: std-error.std-types.impl.reference-values (spec pass 89, audit item 2).
-use std.cli.Cli
+use std.cli.{Arg, ArgParser}
 use std.encoding.hex_decode
 use std.error.Error
 use std.regex.Regex
@@ -13,7 +13,7 @@ fn pattern(text: string) -> Result[Regex, &dyn Error]:
     .Ok(value)
 
 fn verbose(arguments: List[string]) -> Result[bool, &dyn Error]:
-    parsed := Cli::new("tool").flag("verbose", .None, "say more").parse(arguments)?
+    parsed := ArgParser::new("tool").arg(Arg { name: "verbose", kind: .Flag, short: .None, help: "say more" }).parse(arguments)?
     .Ok(parsed.flag("verbose"))
 
 tests:
