@@ -119,9 +119,7 @@ written implementation; values have no `is`. There is no null:
 `Option[&T]` costs one pointer, `.None` being the null address.
 
 **Large structs.** A copy is never hidden behind a reference, so a
-struct of 40 fields costs 40 moves at every copy, as in C# and Go. An
-optional `large-struct` warning at the declaration says so; measurement
-sets its threshold.
+struct of 40 fields costs 40 moves at every copy, as in C# and Go.
 
 ## 4. References
 
@@ -425,15 +423,7 @@ hd compiles modules separately, where Go analyzes a package at a time;
 only headers cross a module boundary, so a body edit never changes a
 caller's meaning or type check.
 
-**What the programmer sees** is nothing in semantics. For performance,
-`hd build --explain-escapes` lists each heap cell and its reason, as
-`go build -gcflags=-m` does:
-
-```text
-geometry.hd:14: `p` lives in a heap cell: `&mut p` is passed to shapes.Rect.translate,
-  whose header lets it keep the reference
-  help: a tier 2 receiver `&{} mut self` on `translate` keeps `p` on the stack
-```
+**What the programmer sees** is nothing in semantics.
 
 ## 9. Closures
 
@@ -515,7 +505,7 @@ also runs at orderly shutdown, before the final leak report.
 | Closures sharing one loop variable | fixed in Go 1.22 | per-iteration variables from the start |
 | A value receiver that writes `self` | compiles; the write is lost | error, with the fix `&mut self` |
 | A pointer method on a non-addressable value | error | error, with the reason |
-| An accidental large copy | silent | parameters pass by pointer when safe; `large-struct` warns at the declaration; `--explain-copies` lists copies in loops |
+| An accidental large copy | silent | parameters pass by pointer when safe |
 | A pointer into a slice that `append` reallocates | later writes are lost, depending on capacity | the reference pins the list; the push panics with `collection-pinned` |
 | `append` aliasing two slices | depends on capacity | lists are values; no aliasing without `&mut` |
 | Nil pointer dereference | panic | no null; `Option[&T]` |
@@ -852,10 +842,9 @@ them. A std migration chunk that runs long splits into further jobs.
 | 17 | `examples/`, the guide and the website: section 11's programs in place of the `data` examples | none |
 | 18 | Remove `data`, permission views, freshness rules, readonly edges and part copies from spec and checker | removed rules and fixtures; a rule inventory diff |
 | 19 | After the RC backend: stack placement of address-taken locals and new objects within one body | none (unobservable); allocation counts on the tour programs |
-| 20 | After the RC backend: `hd build --explain-escapes` and `--explain-copies`, and the `large-struct` warning | CLI rules; fixtures for the report format |
 
 Jobs 1 to 10 are the language; 11 and 12 let it run before the backend
-moves, so the suite stays green on the Wasm GC backend; 13 to 18 migrate; 19 and 20 follow the backend.
+moves, so the suite stays green on the Wasm GC backend; 13 to 18 migrate; 19 follows the backend.
 
 ## 17. Open Points
 

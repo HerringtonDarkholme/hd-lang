@@ -746,12 +746,7 @@ elements through references.
 | Facts across modules | none: a reference passed to an opaque call escapes | the callee's header: `{}`, result sets, closure sets and kinds |
 
 A body edit that starts storing a `{}` parameter is an error in that
-body. Tier 1's `hd build --explain-escapes` gains suggestions:
-
-```text
-shapes.hd:22: `Rect.translate` never keeps `self`; 14 call sites move a local to a heap cell
-  help: write `&{} mut self` (fix-it available)
-```
+body.
 
 ## 10. Suspension, Providers And Boundaries
 
@@ -1018,8 +1013,8 @@ few safe tier 1 programs of this shape: a borrowed result held across a
 change or replacement of its source. The fix-it copies the value out
 first, when it can: a value that holds a `&mut` at any depth cannot be
 copied out of a borrow, so there the fix is to take a global reference
-in place of the borrowed result. Applications adopt marks where `--explain-escapes`
-shows a cost.
+in place of the borrowed result. Applications adopt marks where
+measurement shows a cost.
 
 ## 16. Implementation Plan
 
@@ -1053,7 +1048,7 @@ jobs 1 to 10.
 | 17 | Suspension: borrows across bang calls, scoped cold suspensions, borrows in `all!` children | rules; fixtures |
 | 18 | std 1: `List`, `Map`, iterators, `Span`, `sort_by` with tier 2 headers; the span-splitting intrinsic and `iter_mut` on it | std and intrinsic rules; fixtures, including two live `iter_mut` items |
 | 19 | std 2: text (`slice`, `split`, `Builder`), formatting, encoding | std rules; fixtures |
-| 20 | std 3: the rest of std's writing methods; `--explain-escapes` suggestions | std rules; report-format fixtures |
+| 20 | std 3: the rest of std's writing methods | std rules; fixtures |
 | 21 | RC backend: uncounted scoped references; instances split on `global` lifetime arguments; the flag word and its tests | none (unobservable); count totals and flag tests on the tour programs |
 | 22 | RC backend: locals behind `{}` borrows in the shadow-stack frame; scoped closure environments in the frame, a counted environment for one returned past its frame | allocation counts on the tour programs |
 | 23 | RC backend: NonCopyable release glue and drop flags | run fixtures from job 15 on the new backend |
