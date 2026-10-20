@@ -2,7 +2,6 @@
 # provider `SeededRandom`, and the `Rng` helpers (spec/std/random.md). The
 # default profile binds a host `Random` (src/commands/default-profile.ts);
 # `std.testing` draws a property test's cases from a `SeededRandom`.
-use std.format.DebugWriter
 use std.num.Integer
 use std.ops.Range
 
@@ -28,6 +27,7 @@ pub fn fill(count: usize) -> List[u8] $ Random:
 # the state with SplitMix32 from the seed.
 ## The deterministic `Random` provider: a seeded generator for tests, with no host access.
 ## See [std-random.seeded.decl-ref](../../spec/std/random.md#r-std-random.seeded.decl-ref).
+@derive(Debug)
 pub struct SeededRandom:
     s0: u64
     s1: u64
@@ -88,6 +88,7 @@ fn advanced(state: SeededRandom) -> SeededRandom:
 ## A random generator: seeded, so its draws repeat for one seed.
 ## Its draws are predictable from the seed, so never use them for a secret; `Random.fill` draws from the host's source.
 ## See [std-random.rng.decl-struct](../../spec/std/random.md#r-std-random.rng.decl-struct).
+@derive(Debug)
 pub struct Rng:
     source: &mut SeededRandom
 
@@ -214,17 +215,3 @@ fn mix32(z: u64) -> u64:
     let a: u64 = low32((z ^ (z >> 16)) * 0x85EBCA6B)
     a = low32((a ^ (a >> 13)) * 0xC2B2AE35)
     a ^ (a >> 16)
-
-# `Debug` for this module's public types (r-std-format.debug.std-types),
-# written by hand with the builder calls that `@derive(Debug)` generates
-# (r-std-format.debug.derive-builders.source): the prototype runs the
-# derivation pass before it joins std (src/checker/program.ts), so a
-# `@derive` on a std declaration has no effect.
-
-impl Debug for SeededRandom:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("SeededRandom").field("s0", self.s0).field("s1", self.s1).field("s2", self.s2).field("s3", self.s3).finish()
-
-impl Debug for Rng:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("Rng").field("source", self.source).finish()

@@ -169,27 +169,33 @@ impl[S, R < Deserializer] Source[S] for DeserializeSource[S, R]:
 # ---------------------------------------------------------------------------
 # The standard implementations (spec/std/serde.md#standard-implementations).
 
+# Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Serialize for bool:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         out.bool(self)
 
+# Keep handwritten Deserialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Deserialize for bool:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[bool, R::Error]:
         input.bool("bool")
 
+# Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Serialize for string:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         out.text(self)
 
+# Keep handwritten Deserialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Deserialize for string:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[string, R::Error]:
         input.text("string")
 
 # A `char` is a text of one character (r-std-serde.std.char).
+# Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Serialize for char:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         out.text("$self")
 
+# Keep handwritten Deserialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Deserialize for char:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[char, R::Error]:
         text := input.text("char")?
@@ -214,91 +220,113 @@ fn unsigned_in[R < Deserializer](input: &mut R, high: u64, expected: string) -> 
         return .Ok(found)
     .Err(input.invalid(expected))
 
+# Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Serialize for i8:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         out.int(i64(self))
 
+# Keep handwritten Deserialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Deserialize for i8:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[i8, R::Error]:
         .Ok(i8(signed_in(input, -128, 127, "i8")?))
 
+# Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Serialize for i16:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         out.int(i64(self))
 
+# Keep handwritten Deserialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Deserialize for i16:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[i16, R::Error]:
         .Ok(i16(signed_in(input, -32768, 32767, "i16")?))
 
+# Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Serialize for i32:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         out.int(i64(self))
 
+# Keep handwritten Deserialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Deserialize for i32:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[i32, R::Error]:
         .Ok(i32(signed_in(input, -2147483648, 2147483647, "i32")?))
 
+# Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Serialize for i64:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         out.int(self)
 
+# Keep handwritten Deserialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Deserialize for i64:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[i64, R::Error]:
         input.int("i64")
 
+# Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Serialize for u8:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         out.uint(u64(self))
 
+# Keep handwritten Deserialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Deserialize for u8:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[u8, R::Error]:
         .Ok(u8(unsigned_in(input, 255, "u8")?))
 
+# Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Serialize for u16:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         out.uint(u64(self))
 
+# Keep handwritten Deserialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Deserialize for u16:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[u16, R::Error]:
         .Ok(u16(unsigned_in(input, 65535, "u16")?))
 
+# Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Serialize for u32:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         out.uint(u64(self))
 
+# Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Serialize for usize:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         out.uint(u64(self))
 
+# Keep handwritten Deserialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Deserialize for u32:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[u32, R::Error]:
         .Ok(u32(unsigned_in(input, 4294967295, "u32")?))
 
+# Keep handwritten Deserialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Deserialize for usize:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[usize, R::Error]:
         .Ok(usize(unsigned_in(input, 4294967295, "usize")?))
 
+# Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Serialize for u64:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         out.uint(self)
 
+# Keep handwritten Deserialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Deserialize for u64:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[u64, R::Error]:
         input.uint("u64")
 
+# Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Serialize for f64:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         out.float(self)
 
+# Keep handwritten Deserialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Deserialize for f64:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[f64, R::Error]:
         input.float("f64")
 
+# Keep handwritten Serialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Serialize for f32:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         out.float(f64(self))
 
 # A number past the finite `f32` range does not fit (r-std-serde.std.float-read).
+# Keep handwritten Deserialize: implement the builtin scalar protocol, which has no derivable declaration.
 impl Deserialize for f32:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[f32, R::Error]:
         limit := 340282346638528859811704183484516925440.0
@@ -308,12 +336,14 @@ impl Deserialize for f32:
         .Err(input.invalid("f32"))
 
 # `.None` is `null` (r-std-serde.std.optional).
+# Keep handwritten Serialize: keep the builtin optional wire form instead of a tagged object.
 impl[T < Serialize] Serialize for T?:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         match self:
             .Some(found) => found.serialize(out)
             .None => out.null()
 
+# Keep handwritten Deserialize: read the builtin optional wire form instead of a tagged object.
 impl[T < Deserialize] Deserialize for T?:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[T?, R::Error]:
         if input.is_null()?:
@@ -322,24 +352,29 @@ impl[T < Deserialize] Deserialize for T?:
 
 # A reference writes the value it refers to, and reads into a new object
 # (r-std-serde.std.reference).
+# Keep handwritten Serialize: delegate through the reference; structural derivation is for its referent.
 impl[T < Serialize] Serialize for &T:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         value := *self
         value.serialize(out)
 
+# Keep handwritten Serialize: delegate through the reference; structural derivation is for its referent.
 impl[T < Serialize] Serialize for &mut T:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         value := *self
         value.serialize(out)
 
+# Keep handwritten Deserialize: delegate through the reference; structural derivation is for its referent.
 impl[T < Deserialize] Deserialize for &T:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[&T, R::Error]:
         .Ok(&T::deserialize(input)?)
 
+# Keep handwritten Deserialize: delegate through the reference; structural derivation is for its referent.
 impl[T < Deserialize] Deserialize for &mut T:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[&mut T, R::Error]:
         .Ok(&mut T::deserialize(input)?)
 
+# Keep handwritten Serialize: write the collection wire form rather than backing storage.
 impl[T < Serialize] Serialize for List[T]:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         out.begin_list(self.len())?
@@ -347,6 +382,7 @@ impl[T < Serialize] Serialize for List[T]:
             item.serialize(out)?
         out.end_list()
 
+# Keep handwritten Deserialize: build logical entries from the collection wire form.
 impl[T < Deserialize] Deserialize for List[T]:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[List[T], R::Error]:
         input.begin_list()?
@@ -356,6 +392,7 @@ impl[T < Deserialize] Deserialize for List[T]:
         .Ok(found)
 
 # Only `string` keys (r-std-serde.std.map-keys).
+# Keep handwritten Serialize: write the collection wire form rather than backing storage.
 impl[V < Serialize] Serialize for Map[string, V]:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         out.begin_map(self.len())?
@@ -364,6 +401,7 @@ impl[V < Serialize] Serialize for Map[string, V]:
             entry._1.serialize(out)?
         out.end_map()
 
+# Keep handwritten Deserialize: build logical entries from the collection wire form.
 impl[V < Deserialize] Deserialize for Map[string, V]:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[Map[string, V], R::Error]:
         input.begin_map()?
@@ -376,6 +414,7 @@ impl[V < Deserialize] Deserialize for Map[string, V]:
 
 # A set is a list of its elements in insertion order
 # (r-std-serde.std.set).
+# Keep handwritten Serialize: write the collection wire form rather than backing storage.
 impl[T < Eq & Hash & Serialize] Serialize for Set[T]:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         out.begin_list(self.len())?
@@ -384,6 +423,7 @@ impl[T < Eq & Hash & Serialize] Serialize for Set[T]:
         out.end_list()
 
 # A repeated element keeps one entry (r-std-serde.std.set).
+# Keep handwritten Deserialize: build logical entries from the collection wire form.
 impl[T < Eq & Hash & Deserialize] Deserialize for Set[T]:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[Set[T], R::Error]:
         input.begin_list()?

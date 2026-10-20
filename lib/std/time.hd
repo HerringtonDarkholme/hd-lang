@@ -88,6 +88,7 @@ impl Sub for Duration:
 # `h`, `min`, then `s` with the milliseconds as a fraction, and every
 # component below the largest one written, even when zero; under one
 # second, `ms`; zero is `0s`.
+# Keep handwritten Display: keep canonical time text rather than an Error message.
 impl Display for Duration:
     fn to_string(self) -> string:
         millis := self.millis
@@ -125,18 +126,14 @@ fn fraction_digits(fraction: i64) -> string:
         return "0${fraction}"
     "${fraction}"
 
-# `Debug` for this module's public types (r-std-format.debug.std-types),
-# written by hand with the builder calls that `@derive(Debug)` generates
-# (r-std-format.debug.derive-builders.source): the prototype runs the
-# derivation pass before it joins std (src/checker/program.ts), so a
-# `@derive` on a std declaration has no effect.
-# A `Duration` debugs as its `Display` text, as `250ms`
-# (r-std-format.debug.std-types.time).
+# Keep handwritten Debug: keep the duration/time text instead of structural fields.
 impl Debug for Duration:
     fn debug(self, out: &mut DebugWriter) -> void:
         out.write(self.to_string())
 
 # Durations compare by their milliseconds (r-std-time.duration.eq-ord).
+
+# Keep handwritten Eq: deriving Eq alone conflicts with the existing order impls.
 impl Eq for Duration:
     fn eq(self, other: Duration) -> bool:
         self.millis == other.millis
@@ -320,16 +317,19 @@ impl Parse for Timestamp:
         parse_byte_codes(byte_codes(text))
 
 # The RFC 3339 text, as Go's `Time.String` (r-std-time.timestamp.display).
+# Keep handwritten Display: keep canonical time text rather than an Error message.
 impl Display for Timestamp:
     fn to_string(self) -> string:
         self.to_rfc3339()
 
 # A `Timestamp` debugs as its RFC 3339 text
 # (r-std-format.debug.std-types.time).
+# Keep handwritten Debug: keep the duration/time text instead of structural fields.
 impl Debug for Timestamp:
     fn debug(self, out: &mut DebugWriter) -> void:
         out.write(self.to_rfc3339())
 
+# Keep handwritten Eq: deriving Eq alone conflicts with the existing order impls.
 impl Eq for Timestamp:
     fn eq(self, other: Timestamp) -> bool:
         self.millis == other.millis
@@ -346,6 +346,7 @@ impl Ord for Timestamp:
 # year numbering: year 0 is 1 BC (spec/std/time.md#dates).
 ## A calendar day in UTC, in the proleptic Gregorian calendar.
 ## See [std-time.date.decl-struct](../../spec/std/time.md#r-std-time.date.decl-struct).
+@derive(Debug, Eq)
 pub struct Date:
     ## The year, with a year 0.
     ## See [std-time.date.decl-struct](../../spec/std/time.md#r-std-time.date.decl-struct).
@@ -364,65 +365,31 @@ impl Date:
     pub fn to_iso8601(self) -> string:
         year_digits(self.year) + "-" + zero_padded(i64(self.month), 2) + "-" + zero_padded(i64(self.day), 2)
 
-impl Eq for Date:
-    fn eq(self, other: Date) -> bool:
-        self.year == other.year && self.month == other.month && self.day == other.day
-
-impl Debug for Date:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("Date").field("year", self.year).field("month", self.month).field("day", self.day).finish()
-
 # Why time text did not parse (spec/std/time.md#time-parse-errors): one error
 # for RFC 3339 timestamps and duration text.
 ## Why time text failed to parse: the kind, and the byte position.
 ## See [std-time.parse-error.declared](../../spec/std/time.md#r-std-time.parse-error.declared).
+@error
+@derive(Debug, Eq)
 pub enum ParseTimeError:
     # A character that the grammar does not allow at its place.
+    @error("invalid character at position $position")
     InvalidCharacter(position: usize)
     # A field or total whose value is not allowed.
+    @error("value out of range at position $position")
     OutOfRange(position: usize)
     # The text ends early; `position` is its length.
+    @error("the text ends at position $position, before the value is complete")
     TooShort(position: usize)
     # Duration text: a number with no unit after it.
+    @error("missing unit at position $position")
     MissingUnit(position: usize)
     # Duration text: letters after a number that name no unit.
+    @error("unknown unit at position $position")
     UnknownUnit(position: usize)
     # Duration text: a component that is not a whole number of milliseconds.
+    @error("not a whole number of milliseconds at position $position")
     Inexact(position: usize)
-
-impl Eq for ParseTimeError:
-    fn eq(self, other: ParseTimeError) -> bool:
-        match (self, other):
-            (.InvalidCharacter(left), .InvalidCharacter(right)) => left == right
-            (.OutOfRange(left), .OutOfRange(right)) => left == right
-            (.TooShort(left), .TooShort(right)) => left == right
-            (.MissingUnit(left), .MissingUnit(right)) => left == right
-            (.UnknownUnit(left), .UnknownUnit(right)) => left == right
-            (.Inexact(left), .Inexact(right)) => left == right
-            _ => false
-
-impl Display for ParseTimeError:
-    fn to_string(self) -> string:
-        match self:
-            .InvalidCharacter(position) => "invalid character at position $position"
-            .OutOfRange(position) => "value out of range at position $position"
-            .TooShort(position) => "the text ends at position $position, before the value is complete"
-            .MissingUnit(position) => "missing unit at position $position"
-            .UnknownUnit(position) => "unknown unit at position $position"
-            .Inexact(position) => "not a whole number of milliseconds at position $position"
-
-# A std error type implements `Error` (r-std-error.std-types.impl.reference-values).
-impl Error for ParseTimeError
-
-impl Debug for ParseTimeError:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        match self:
-            .InvalidCharacter(position) => out.debug_tuple("ParseTimeError.InvalidCharacter").named_field("position", position).finish()
-            .OutOfRange(position) => out.debug_tuple("ParseTimeError.OutOfRange").named_field("position", position).finish()
-            .TooShort(position) => out.debug_tuple("ParseTimeError.TooShort").named_field("position", position).finish()
-            .MissingUnit(position) => out.debug_tuple("ParseTimeError.MissingUnit").named_field("position", position).finish()
-            .UnknownUnit(position) => out.debug_tuple("ParseTimeError.UnknownUnit").named_field("position", position).finish()
-            .Inexact(position) => out.debug_tuple("ParseTimeError.Inexact").named_field("position", position).finish()
 
 # Howard Hinnant's `civil_from_days`: the date `day` days after
 # 1970-01-01. An era is 400 years, 146097 days, and each year in it starts
@@ -625,10 +592,12 @@ fn millis_since(later: i64, earlier: i64) -> Duration:
 
 # An `Instant` debugs as its milliseconds, as `Instant(5ms)`
 # (r-std-format.debug.std-types.time).
+# Keep handwritten Debug: keep the duration/time text instead of structural fields.
 impl Debug for Instant:
     fn debug(self, out: &mut DebugWriter) -> void:
         out.write("Instant(${self.millis}ms)")
 
+# Keep handwritten Eq: deriving Eq alone conflicts with the existing order impls.
 impl Eq for Instant:
     fn eq(self, other: Instant) -> bool:
         self.millis == other.millis
@@ -651,6 +620,7 @@ impl Ord for Instant:
 # returns at once (r-std-time.manual.sleep).
 ## The deterministic `Clock` provider: virtual time that a test advances.
 ## See [std-time.manual.decl-ref](../../spec/std/time.md#r-std-time.manual.decl-ref).
+@derive(Debug)
 pub struct ManualClock:
     current: Timestamp
 
@@ -659,10 +629,6 @@ impl ManualClock:
     ## See [std-time.manual.decl-ref](../../spec/std/time.md#r-std-time.manual.decl-ref).
     pub fn new(start: Timestamp) -> &mut ManualClock:
         &mut ManualClock { current: start }
-
-impl Debug for ManualClock:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("ManualClock").field("current", self.current).finish()
 
 impl Clock for ManualClock:
     fn now(self) -> Timestamp:
@@ -680,10 +646,12 @@ impl Clock for ManualClock:
 # boundary, as their whole milliseconds; a `Timestamp` serializes as its
 # RFC 3339 text (r-std-time.serde.impls, r-std-time.serde.int-form,
 # r-std-time.serde.text-form).
+# Keep handwritten Serialize: keep the canonical text wire format instead of a field object.
 impl Serialize for Duration:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         out.int(self.millis)
 
+# Keep handwritten Deserialize: keep the canonical text wire format instead of a field object.
 impl Deserialize for Duration:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[Duration, R::Error]:
         match input.peek()?:
@@ -698,10 +666,12 @@ impl Deserialize for Duration:
                     return .Err(input.invalid("Duration"))
                 .Ok(Duration { millis: millis })
 
+# Keep handwritten Serialize: keep the canonical text wire format instead of a field object.
 impl Serialize for Timestamp:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         out.text(self.to_rfc3339())
 
+# Keep handwritten Deserialize: keep the canonical text wire format instead of a field object.
 impl Deserialize for Timestamp:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[Timestamp, R::Error]:
         text := input.text("Timestamp")?
@@ -709,10 +679,12 @@ impl Deserialize for Timestamp:
             .Ok(stamp) => .Ok(stamp)
             .Err(_) => .Err(input.invalid("Timestamp"))
 
+# Keep handwritten Serialize: keep the millisecond scalar wire format instead of a field object.
 impl Serialize for Instant:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         out.int(self.millis)
 
+# Keep handwritten Deserialize: keep the millisecond scalar wire format instead of a field object.
 impl Deserialize for Instant:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[Instant, R::Error]:
         .Ok(Instant { millis: input.int("Instant")? })

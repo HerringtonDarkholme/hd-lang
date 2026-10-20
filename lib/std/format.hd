@@ -225,6 +225,7 @@ impl DebugWriter:
 
 ## The builder `debug_struct` returns: `field` per field, then `finish`.
 ## See [std-format.debug.builder.types-ref](../../spec/std/format.md#r-std-format.debug.builder.types-ref).
+@derive(Debug)
 pub struct DebugStruct:
     out: &mut DebugWriter
     count: usize
@@ -249,6 +250,7 @@ impl DebugStruct:
 
 ## The builder `debug_tuple` returns: `field` per field, then `finish`.
 ## See [std-format.debug.builder.types-ref](../../spec/std/format.md#r-std-format.debug.builder.types-ref).
+@derive(Debug)
 pub struct DebugTuple:
     out: &mut DebugWriter
     count: usize
@@ -287,6 +289,7 @@ impl DebugTuple:
 
 ## The builder `debug_list` returns: `entry` per item, then `finish`.
 ## See [std-format.debug.builder.types-ref](../../spec/std/format.md#r-std-format.debug.builder.types-ref).
+@derive(Debug)
 pub struct DebugList:
     out: &mut DebugWriter
     count: usize
@@ -310,6 +313,7 @@ impl DebugList:
 
 ## The builder `debug_map` returns: `entry` per pair, then `finish`.
 ## See [std-format.debug.builder.types-ref](../../spec/std/format.md#r-std-format.debug.builder.types-ref).
+@derive(Debug)
 pub struct DebugMap:
     out: &mut DebugWriter
     count: usize
@@ -333,96 +337,94 @@ impl DebugMap:
         if self.shown:
             self.out.entry_close(self.count, "{", "}")
 
-# The derived builder calls, written by hand because `@derive` does not
-# run inside lib/std (r-std-format.debug.std-types). The writer shows its
-# text only.
+# Keep handwritten Debug: show only accumulated text, not writer bookkeeping.
 impl Debug for DebugWriter:
     fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("DebugWriter").field("text", self.text()).finish()
-
-impl Debug for DebugStruct:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("DebugStruct").field("out", self.out).field("count", self.count).field("shown", self.shown).finish()
-
-impl Debug for DebugTuple:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("DebugTuple").field("out", self.out).field("count", self.count).field("unnamed", self.unnamed).field("shown", self.shown).finish()
-
-impl Debug for DebugList:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("DebugList").field("out", self.out).field("count", self.count).field("shown", self.shown).finish()
-
-impl Debug for DebugMap:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("DebugMap").field("out", self.out).field("count", self.count).field("shown", self.shown).finish()
 
 # The standard `Display` implementations for `string` and the printable
 # primitives (spec/lang/05-expressions.md#r-expr.interp.std): an integer's
 # decimal digits, with `-` when negative; `true` or `false`; a `char`'s
 # one-scalar string; a float's canonical text, which the host writes
 # (spec/lang/04-type-system.md#numeric-display).
+# Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for string:
     fn to_string(self) -> string:
         self
 
 # A reference displays as the value it refers to
 # (r-std-format.display.reference), as Rust's `&T` does.
+# Keep handwritten Display: delegate through the reference; structural derivation is for its referent.
 impl[T < Display] Display for &T:
     fn to_string(self) -> string:
         (*self).to_string()
 
+# Keep handwritten Display: delegate through the reference; structural derivation is for its referent.
 impl[T < Display] Display for &mut T:
     fn to_string(self) -> string:
         (*self).to_string()
 
+# Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for bool:
     fn to_string(self) -> string:
         if self: "true" else: "false"
 
+# Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for char:
     fn to_string(self) -> string:
         scalar_text(i32(char_scalar(self)))
 
+# Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for i8:
     fn to_string(self) -> string:
         format_int(self)
 
+# Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for i16:
     fn to_string(self) -> string:
         format_int(self)
 
+# Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for i32:
     fn to_string(self) -> string:
         format_int(self)
 
+# Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for i64:
     fn to_string(self) -> string:
         format_int(self)
 
+# Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for u8:
     fn to_string(self) -> string:
         format_int(self)
 
+# Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for u16:
     fn to_string(self) -> string:
         format_int(self)
 
+# Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for u32:
     fn to_string(self) -> string:
         format_int(self)
 
+# Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for usize:
     fn to_string(self) -> string:
         format_int(self)
 
+# Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for u64:
     fn to_string(self) -> string:
         format_int(self)
 
+# Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for f32:
     fn to_string(self) -> string:
         f32_text(self)
 
+# Keep handwritten Display: implement the builtin scalar protocol, which has no derivable declaration.
 impl Display for f64:
     fn to_string(self) -> string:
         f64_text(self)
@@ -475,58 +477,72 @@ fn f32_text(value: f32) -> string:
     panic("intrinsic")
 
 # The standard `Debug` implementations (spec/lang/09-traits.md#r-trait.debug.std-impls).
+# Keep handwritten Debug: implement the builtin scalar protocol, which has no derivable declaration.
 impl Debug for i32:
     fn debug(self, out: &mut DebugWriter) -> void:
         out.write("$self")
 
+# Keep handwritten Debug: implement the builtin scalar protocol, which has no derivable declaration.
 impl Debug for i64:
     fn debug(self, out: &mut DebugWriter) -> void:
         out.write("$self")
 
+# Keep handwritten Debug: implement the builtin scalar protocol, which has no derivable declaration.
 impl Debug for u8:
     fn debug(self, out: &mut DebugWriter) -> void:
         out.write("$self")
 
+# Keep handwritten Debug: implement the builtin scalar protocol, which has no derivable declaration.
 impl Debug for i8:
     fn debug(self, out: &mut DebugWriter) -> void:
         out.write("$self")
 
+# Keep handwritten Debug: implement the builtin scalar protocol, which has no derivable declaration.
 impl Debug for i16:
     fn debug(self, out: &mut DebugWriter) -> void:
         out.write("$self")
 
+# Keep handwritten Debug: implement the builtin scalar protocol, which has no derivable declaration.
 impl Debug for u16:
     fn debug(self, out: &mut DebugWriter) -> void:
         out.write("$self")
 
+# Keep handwritten Debug: implement the builtin scalar protocol, which has no derivable declaration.
 impl Debug for u32:
     fn debug(self, out: &mut DebugWriter) -> void:
         out.write("$self")
 
+# Keep handwritten Debug: implement the builtin scalar protocol, which has no derivable declaration.
 impl Debug for usize:
     fn debug(self, out: &mut DebugWriter) -> void:
         out.write("$self")
 
+# Keep handwritten Debug: implement the builtin scalar protocol, which has no derivable declaration.
 impl Debug for u64:
     fn debug(self, out: &mut DebugWriter) -> void:
         out.write("$self")
 
+# Keep handwritten Debug: implement the builtin scalar protocol, which has no derivable declaration.
 impl Debug for f32:
     fn debug(self, out: &mut DebugWriter) -> void:
         out.write("$self")
 
+# Keep handwritten Debug: implement the builtin scalar protocol, which has no derivable declaration.
 impl Debug for f64:
     fn debug(self, out: &mut DebugWriter) -> void:
         out.write("$self")
 
+# Keep handwritten Debug: implement the builtin scalar protocol, which has no derivable declaration.
 impl Debug for bool:
     fn debug(self, out: &mut DebugWriter) -> void:
         out.write("$self")
 
+# Keep handwritten Debug: implement the builtin scalar protocol, which has no derivable declaration.
 impl Debug for char:
     fn debug(self, out: &mut DebugWriter) -> void:
         out.write("'" + escape_char(self, '\'') + "'")
 
+# Keep handwritten Debug: implement the builtin scalar protocol, which has no derivable declaration.
 impl Debug for string:
     fn debug(self, out: &mut DebugWriter) -> void:
         out.write("\"" + escape_text(out.cut(self), '"') + "\"")
@@ -567,6 +583,7 @@ fn hex_digit(digit: u32) -> string:
         return format_int(digit)
     scalar_text(i32(87 + digit))
 
+# Keep handwritten Debug: render logical entries as collection syntax rather than storage fields.
 impl[T < Debug] Debug for List[T]:
     fn debug(self, out: &mut DebugWriter) -> void:
         list := out.debug_list()
@@ -577,28 +594,33 @@ impl[T < Debug] Debug for List[T]:
 # A reference writes the value it refers to, with no trace of the
 # reference (r-std-format.debug.reference), so a derived `Debug` prints a
 # tree through its `&` links. A cycle runs until the stack is exhausted.
+# Keep handwritten Debug: delegate through the reference; structural derivation is for its referent.
 impl[T < Debug] Debug for &T:
     fn debug(self, out: &mut DebugWriter) -> void:
         value := *self
         value.debug(out)
 
+# Keep handwritten Debug: delegate through the reference; structural derivation is for its referent.
 impl[T < Debug] Debug for &mut T:
     fn debug(self, out: &mut DebugWriter) -> void:
         value := *self
         value.debug(out)
 
+# Keep handwritten Debug: render builtin variants, which have no declaration to decorate.
 impl[T < Debug] Debug for T?:
     fn debug(self, out: &mut DebugWriter) -> void:
         match self:
             .Some(value) => out.debug_tuple("Option.Some").field(value).finish()
             .None => out.write("Option.None")
 
+# Keep handwritten Debug: render builtin variants, which have no declaration to decorate.
 impl[T < Debug, E < Debug] Debug for Result[T, E]:
     fn debug(self, out: &mut DebugWriter) -> void:
         match self:
             .Ok(value) => out.debug_tuple("Result.Ok").field(value).finish()
             .Err(error) => out.debug_tuple("Result.Err").field(error).finish()
 
+# Keep handwritten Debug: render logical entries as collection syntax rather than storage fields.
 impl[K < Debug & Eq & Hash, V < Debug] Debug for Map[K, V]:
     fn debug(self, out: &mut DebugWriter) -> void:
         map := out.debug_map()
@@ -928,11 +950,13 @@ impl[S] Walker[S] for TupleText[S]:
 
 # `never` has no value, so none of these methods ever runs
 # (r-std-text.parse.never-traits).
+# Keep handwritten Display: this uninhabited builtin has no value or derivable declaration.
 impl Display for never:
     fn to_string(self) -> string:
         match self:
             _ => panic("never has no value")
 
+# Keep handwritten Debug: this uninhabited builtin has no value or derivable declaration.
 impl Debug for never:
     fn debug(self, out: &mut DebugWriter) -> void:
         match self:

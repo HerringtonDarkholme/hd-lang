@@ -14,7 +14,6 @@
 # prototype cannot infer an inherent method's parameters from a receiver
 # whose type arguments are the caller's parameters of the same names.
 use std.inspect.Inspectable
-use std.format.DebugWriter
 
 # A member's or variant's facts. The prototype holds `Inspectable` values
 # rather than `Any`.
@@ -88,6 +87,7 @@ pub struct VariantInfo:
 
 ## How a member or variant refers to the type being derived: `Absent`, `Optional`, or `Required`.
 ## See [annot.structure.self-ref-enum](../../spec/lang/14-annotations.md#r-annot.structure.self-ref-enum).
+@derive(Debug)
 pub enum SelfRef:
     Absent
     Optional
@@ -97,12 +97,6 @@ pub enum SelfRef:
 # written by hand with the builder calls that `@derive(Debug)` generates
 # (r-std-format.debug.derive-builders.source): a `@derive` on a std
 # declaration has no effect in the prototype.
-impl Debug for SelfRef:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        match self:
-            .Absent => out.write("SelfRef.Absent")
-            .Optional => out.write("SelfRef.Optional")
-            .Required => out.write("SelfRef.Required")
 
 # A member's handle. `hd_witness` names the member's type, so that `fact`
 # needs no `Inspectable` bound on `HdF` (annot.handle.fact.key).

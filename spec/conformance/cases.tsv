@@ -2177,6 +2177,7 @@ typing/invalid/error-find-non-error.hd	type	reject:unsatisfied-trait-bound	std/e
 runtime/valid/error-context-generic-reference.hd	runtime	accept	lang/09-traits.md#r-trait.error.inherent-recovery.reference-values
 runtime/valid/error-context.hd	runtime	accept	std/error.md#r-std-error.context.reference-wrapper
 typing/valid/dynamic-safety-implied-anyref.hd	type	accept	lang/09-traits.md#r-trait.dyn.safe.method-type-param
+runtime/valid/std-derived-implementations.hd	runtime	accept	std/format.md#r-std-format.debug.std-types
 typing/valid/std-types-debug.hd	type	accept	std/format.md#r-std-format.debug.std-types
 typing/valid/std-joined-types-debug.hd	type	accept	std/format.md#r-std-format.debug.std-types
 typing/valid/std-host-types-debug.hd	type	accept	std/format.md#r-std-format.debug.std-types

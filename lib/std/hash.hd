@@ -8,7 +8,6 @@
 # (spec/std/hash.md#default-hasher).
 use std.function.Tuple
 use std.structure.{Structure, Walker, Variant, Field}
-use std.format.DebugWriter
 
 ## A sink that hashes the bytes written to it; its methods change it, so a hasher is passed as `&mut dyn Hasher`.
 ## See [trait.hash.ref-receiver](../../spec/lang/09-traits.md#r-trait.hash.ref-receiver).
@@ -30,16 +29,19 @@ pub trait Hasher:
 pub trait Hash:
     fn hash(self, state: &mut dyn Hasher) -> void
 
+# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for string:
     fn hash(self, state: &mut dyn Hasher) -> void:
         state.write_u64(u64(bytes_len(self)))
         state.write_str(self)
 
+# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for char:
     fn hash(self, state: &mut dyn Hasher) -> void:
         char_scalar(self).hash(state)
 
 # An optional writes the tag byte 0 for `.None`, or 1 and then its payload.
+# Keep handwritten Hash: keep one-byte variant tags instead of structural tag hashing.
 impl[T < Hash] Hash for T?:
     fn hash(self, state: &mut dyn Hasher) -> void:
         match self:
@@ -48,16 +50,19 @@ impl[T < Hash] Hash for T?:
                 state.write([1])
                 value.hash(state)
 
+# Keep handwritten Hash: delegate through the reference; structural derivation is for its referent.
 impl[T < Hash] Hash for &T:
     fn hash(self, state: &mut dyn Hasher) -> void:
         (*self).hash(state)
 
+# Keep handwritten Hash: delegate through the reference; structural derivation is for its referent.
 impl[T < Hash] Hash for &mut T:
     fn hash(self, state: &mut dyn Hasher) -> void:
         (*self).hash(state)
 
 # A result writes the tag byte 0 and then its `.Ok` payload, or 1 and then
 # its `.Err` payload (spec/std/hash.md#r-std-hash.bytes.result).
+# Keep handwritten Hash: keep one-byte variant tags instead of structural tag hashing.
 impl[T < Hash, E < Hash] Hash for Result[T, E]:
     fn hash(self, state: &mut dyn Hasher) -> void:
         match self:
@@ -68,6 +73,7 @@ impl[T < Hash, E < Hash] Hash for Result[T, E]:
                 state.write([1])
                 error.hash(state)
 
+# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for bool:
     fn hash(self, state: &mut dyn Hasher) -> void:
         let byte: u8 = 0
@@ -75,44 +81,54 @@ impl Hash for bool:
             byte = 1
         state.write([byte])
 
+# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for i8:
     fn hash(self, state: &mut dyn Hasher) -> void:
         state.write(signed_bytes(i64(self), 1))
 
+# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for i16:
     fn hash(self, state: &mut dyn Hasher) -> void:
         state.write(signed_bytes(i64(self), 2))
 
+# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for i32:
     fn hash(self, state: &mut dyn Hasher) -> void:
         state.write(signed_bytes(i64(self), 4))
 
+# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for i64:
     fn hash(self, state: &mut dyn Hasher) -> void:
         state.write_u64(u64(self))
 
+# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for u8:
     fn hash(self, state: &mut dyn Hasher) -> void:
         state.write([self])
 
+# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for u16:
     fn hash(self, state: &mut dyn Hasher) -> void:
         state.write(unsigned_bytes(u64(self), 2))
 
+# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for u32:
     fn hash(self, state: &mut dyn Hasher) -> void:
         state.write(unsigned_bytes(u64(self), 4))
 
+# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for usize:
     fn hash(self, state: &mut dyn Hasher) -> void:
         state.write(unsigned_bytes(u64(self), 4))
 
+# Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for u64:
     fn hash(self, state: &mut dyn Hasher) -> void:
         state.write_u64(self)
 
 # A list hashes its length as a `u64`, then each item in order
 # (spec/std/hash.md#list-hashing), so equal lists hash the same.
+# Keep handwritten Hash: hash the logical length and entries, not backing storage.
 impl[T < Hash] Hash for List[T]:
     fn hash(self, state: &mut dyn Hasher) -> void:
         state.write_u64(u64(self.len()))
@@ -145,14 +161,9 @@ fn unsigned_bytes(value: u64, count: usize) -> List[u8]:
 # starts at the FNV offset basis `0xcbf29ce484222325`.
 ## The standard hasher: 64-bit FNV-1a over the bytes written to it.
 ## See [std-hash.default.decl-struct](../../spec/std/hash.md#r-std-hash.default.decl-struct).
+@derive(Debug)
 pub struct DefaultHasher:
     state: u64
-
-# The derived builder calls, written by hand because `@derive` does not
-# run inside lib/std (r-std-format.debug.std-types).
-impl Debug for DefaultHasher:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("DefaultHasher").field("state", self.state).finish()
 
 impl DefaultHasher:
     # A new object, so `value.hash(hasher)` changes the one hasher that

@@ -7,7 +7,6 @@
 # lets a search start threads only where a match could start and jump over
 # the text between.
 use std.format.DebugWriter
-use std.error.Error
 
 # A compiled pattern (r-std-regex.regex.decl-struct). `names[i]` is the name of
 # group i, or "" for an unnamed group and for group 0.
@@ -23,6 +22,7 @@ pub struct Regex:
 # (r-std-regex.match.decl-struct).
 ## One match of a regex in a text.
 ## See [std-regex.match.decl-struct](../../spec/std/regex.md#r-std-regex.match.decl-struct).
+@derive(Debug, Eq)
 pub struct Match:
     ## The byte offset where the match starts.
     ## See [std-regex.match.offsets](../../spec/std/regex.md#r-std-regex.match.offsets).
@@ -38,6 +38,7 @@ pub struct Match:
 # offsets per group; `.None` means that the group took no part.
 ## The capture groups of one match: group 0 is the whole match.
 ## See [std-regex.captures.decl-struct](../../spec/std/regex.md#r-std-regex.captures.decl-struct).
+@derive(Debug)
 pub struct Captures:
     text: string
     slots: List[usize?]
@@ -48,17 +49,30 @@ pub struct Captures:
 # error (r-std-regex.error.position).
 ## Why a pattern failed to compile: eleven variants, each at a byte position in the pattern.
 ## See [std-regex.error.variants](../../spec/std/regex.md#r-std-regex.error.variants).
+@error
+@derive(Debug, Eq)
 pub enum RegexError:
+    @error("missing closing ) at byte $position")
     MissingParen(position: usize)
+    @error("unexpected ) at byte $position")
     UnmatchedParen(position: usize)
+    @error("missing closing ] at byte $position")
     MissingBracket(position: usize)
+    @error("invalid escape at byte $position")
     BadEscape(position: usize)
+    @error("invalid character class range at byte $position")
     BadRange(position: usize)
+    @error("missing argument to repetition operator at byte $position")
     NothingToRepeat(position: usize)
+    @error("invalid repeat count at byte $position")
     BadRepeat(position: usize)
+    @error("unsupported group at byte $position")
     UnsupportedGroup(position: usize)
+    @error("invalid named capture at byte $position")
     BadGroupName(position: usize)
+    @error("duplicate capture group name at byte $position")
     DuplicateGroupName(position: usize)
+    @error("expression too large at byte $position")
     TooLarge(position: usize)
 
 impl Regex:
@@ -173,7 +187,6 @@ impl Regex:
     # Two slots per group, group 0 included.
     fn slot_count(self) -> usize:
         2 * self.names.len()
-
 
 impl Captures:
     # The number of groups, plus one for the whole match
@@ -1616,73 +1629,13 @@ fn push_ranges(ranges: &mut List[i32], set: List[i32], negated: bool) -> void:
 fn word_char(c: char) -> bool:
     (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
 
-impl Eq for Match:
-    fn eq(self, other: Match) -> bool:
-        self.start == other.start && self.end == other.end && self.text == other.text
-
-impl Eq for RegexError:
-    fn eq(self, other: RegexError) -> bool:
-        match (self, other):
-            (.MissingParen(left), .MissingParen(right)) => left == right
-            (.UnmatchedParen(left), .UnmatchedParen(right)) => left == right
-            (.MissingBracket(left), .MissingBracket(right)) => left == right
-            (.BadEscape(left), .BadEscape(right)) => left == right
-            (.BadRange(left), .BadRange(right)) => left == right
-            (.NothingToRepeat(left), .NothingToRepeat(right)) => left == right
-            (.BadRepeat(left), .BadRepeat(right)) => left == right
-            (.UnsupportedGroup(left), .UnsupportedGroup(right)) => left == right
-            (.BadGroupName(left), .BadGroupName(right)) => left == right
-            (.DuplicateGroupName(left), .DuplicateGroupName(right)) => left == right
-            (.TooLarge(left), .TooLarge(right)) => left == right
-            _ => false
-
-impl Display for RegexError:
-    fn to_string(self) -> string:
-        match self:
-            .MissingParen(position) => "missing closing ) at byte $position"
-            .UnmatchedParen(position) => "unexpected ) at byte $position"
-            .MissingBracket(position) => "missing closing ] at byte $position"
-            .BadEscape(position) => "invalid escape at byte $position"
-            .BadRange(position) => "invalid character class range at byte $position"
-            .NothingToRepeat(position) => "missing argument to repetition operator at byte $position"
-            .BadRepeat(position) => "invalid repeat count at byte $position"
-            .UnsupportedGroup(position) => "unsupported group at byte $position"
-            .BadGroupName(position) => "invalid named capture at byte $position"
-            .DuplicateGroupName(position) => "duplicate capture group name at byte $position"
-            .TooLarge(position) => "expression too large at byte $position"
-
-# A std error type implements `Error` (r-std-error.std-types.impl.reference-values).
-impl Error for RegexError
-
 # `Debug` for this module's types (r-std-format.debug.std-types), written by
 # hand with the builder calls that `@derive(Debug)` generates.
 
+# Keep handwritten Debug: show the pattern text and hide compiled instructions.
 impl Debug for Regex:
     fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("Regex").field("pattern", self.text).finish()
-
-impl Debug for Captures:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("Captures").field("text", self.text).field("slots", self.slots).field("names", self.names).finish()
-
-impl Debug for Match:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("Match").field("start", self.start).field("end", self.end).field("text", self.text).finish()
-
-impl Debug for RegexError:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        match self:
-            .MissingParen(position) => out.debug_tuple("RegexError.MissingParen").named_field("position", position).finish()
-            .UnmatchedParen(position) => out.debug_tuple("RegexError.UnmatchedParen").named_field("position", position).finish()
-            .MissingBracket(position) => out.debug_tuple("RegexError.MissingBracket").named_field("position", position).finish()
-            .BadEscape(position) => out.debug_tuple("RegexError.BadEscape").named_field("position", position).finish()
-            .BadRange(position) => out.debug_tuple("RegexError.BadRange").named_field("position", position).finish()
-            .NothingToRepeat(position) => out.debug_tuple("RegexError.NothingToRepeat").named_field("position", position).finish()
-            .BadRepeat(position) => out.debug_tuple("RegexError.BadRepeat").named_field("position", position).finish()
-            .UnsupportedGroup(position) => out.debug_tuple("RegexError.UnsupportedGroup").named_field("position", position).finish()
-            .BadGroupName(position) => out.debug_tuple("RegexError.BadGroupName").named_field("position", position).finish()
-            .DuplicateGroupName(position) => out.debug_tuple("RegexError.DuplicateGroupName").named_field("position", position).finish()
-            .TooLarge(position) => out.debug_tuple("RegexError.TooLarge").named_field("position", position).finish()
 
 # Primitives (spec/std/README.md#standard-library-primitives). The compiler
 # supplies each body. `@intrinsic` is prototype-internal and accepted only

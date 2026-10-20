@@ -14,6 +14,7 @@ pub enum ArgKind:
     Positional
 
 ## One declaration. Options take a value, flags do not, and positionals follow declaration order.
+@derive(Debug)
 pub struct Arg:
     pub name: string
     pub kind: ArgKind = .Option
@@ -155,6 +156,7 @@ fn write_entry(text: &mut StringBuilder, term: string, help: string, width: usiz
     if help != "":
         text.push("".pad_end(width - term.chars().count(), ' ')).push("  ").push(help)
 
+@derive(Eq)
 pub struct Parsed:
     present_flags: Map[string, bool]
     option_values: Map[string, string]
@@ -185,42 +187,23 @@ impl Parsed:
             .Ok(value) => .Ok(.Some(value))
             .Err(error) => .Err(CliError.InvalidValue(name, error.to_string()))
 
-impl Eq for Parsed:
-    fn eq(self, other: Parsed) -> bool:
-        self.present_flags == other.present_flags && self.option_values == other.option_values && self.position_values == other.position_values
-
 # Why `parse` failed (r-std-cli.error.required-argument).
 ## Why parsing failed: an unknown option, a missing value or positional, an unexpected value, or a value that does not read as its type.
 ## There is no help-request variant: a program that declares a `help` flag reads it from `Parsed` (std-cli.error.help-required).
 ## See [std-cli.error.required-argument](../../spec/std/cli.md#r-std-cli.error.required-argument).
+@error
+@derive(Debug, Eq)
 pub enum CliError:
+    @error("unknown option ${text}")
     UnknownOption(text: string)
+    @error("option --${name} needs a value")
     MissingValue(name: string)
+    @error("flag --${name} takes no value")
     UnexpectedValue(name: string)
+    @error("missing argument ${name}")
     MissingArgument(name: string)
+    @error("invalid value for --${name}: ${reason}")
     InvalidValue(name: string, reason: string)
-
-impl Eq for CliError:
-    fn eq(self, other: CliError) -> bool:
-        match (self, other):
-            (.UnknownOption(a), .UnknownOption(b)) => a == b
-            (.MissingValue(a), .MissingValue(b)) => a == b
-            (.UnexpectedValue(a), .UnexpectedValue(b)) => a == b
-            (.MissingArgument(a), .MissingArgument(b)) => a == b
-            (.InvalidValue(a, reason), .InvalidValue(b, other)) => a == b && reason == other
-            _ => false
-
-impl Display for CliError:
-    fn to_string(self) -> string:
-        match self:
-            .UnknownOption(text) => "unknown option ${text}"
-            .MissingValue(name) => "option --${name} needs a value"
-            .UnexpectedValue(name) => "flag --${name} takes no value"
-            .MissingArgument(name) => "missing argument ${name}"
-            .InvalidValue(name, reason) => "invalid value for --${name}: ${reason}"
-
-# A std error type implements `Error` (r-std-error.std-types.impl.reference-values).
-impl Error for CliError
 
 # The exit status of a command-line failure belongs to `CliError`, not to
 # `Error` (r-std-cli.error.exit-code); `main` calls `exit` itself.
@@ -236,36 +219,20 @@ impl CliError:
         eprintln(self)
         self.exit_code()
 
-# `Debug` for this module's types (r-std-format.debug.std-types), written by
-# hand with the builder calls that `@derive(Debug)` generates
-# (r-std-format.debug.derive-builders.source): the prototype runs the
-# derivation pass before it joins std (src/checker/program.ts), so a
-# `@derive` on a std declaration has no effect.
-
+# Keep handwritten Debug: show declarations as arguments and omit lookup indexes.
 impl Debug for ArgParser:
     fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("ArgParser").field("program", self.program).field("about", self.about).field("arguments", self.declarations).finish()
 
-impl Debug for Arg:
+# Keep handwritten Debug: keep public-facing field labels instead of private storage names.
+impl Debug for Parsed:
     fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("Arg").field("name", self.name).field("kind", self.kind).field("short", self.short).field("help", self.help).field("required", self.required).finish()
+        out.debug_struct("Parsed").field("flags", self.present_flags).field("values", self.option_values).field("positionals", self.position_values).finish()
 
+# Keep handwritten Debug: empty tuple builders apply dbg depth limits to these variants.
 impl Debug for ArgKind:
     fn debug(self, out: &mut DebugWriter) -> void:
         match self:
             .Flag => out.debug_tuple("ArgKind.Flag").finish()
             .Option => out.debug_tuple("ArgKind.Option").finish()
             .Positional => out.debug_tuple("ArgKind.Positional").finish()
-
-impl Debug for Parsed:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("Parsed").field("flags", self.present_flags).field("values", self.option_values).field("positionals", self.position_values).finish()
-
-impl Debug for CliError:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        match self:
-            .UnknownOption(text) => out.debug_tuple("CliError.UnknownOption").named_field("text", text).finish()
-            .MissingValue(name) => out.debug_tuple("CliError.MissingValue").named_field("name", name).finish()
-            .UnexpectedValue(name) => out.debug_tuple("CliError.UnexpectedValue").named_field("name", name).finish()
-            .MissingArgument(name) => out.debug_tuple("CliError.MissingArgument").named_field("name", name).finish()
-            .InvalidValue(name, reason) => out.debug_tuple("CliError.InvalidValue").named_field("name", name).named_field("reason", reason).finish()

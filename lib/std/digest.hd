@@ -165,6 +165,7 @@ impl Digest:
 # Constant time over the bytes (r-std-digest.digest.eq): the loop never
 # exits early and no branch reads a byte value. The lengths are compared
 # first, because a length is not secret.
+# Keep handwritten Eq: compare equal-length byte arrays in constant time.
 impl Eq for Digest:
     fn eq(self, other: Digest) -> bool:
         if self.bytes.len() != other.bytes.len():

@@ -6,9 +6,6 @@
 # (module.prelude.error-inspectable).
 use std.inspect.Inspectable
 use std.format.DebugWriter
-use std.num.ParseNumberError
-use std.text.{Utf8Error, ParseBoolError, ParseCharError}
-use std.console.ConsoleError
 
 ## The standard error trait: a displayable, inspectable failure that may name its cause.
 ## See [trait.error.module](../../spec/lang/09-traits.md#r-trait.error.module).
@@ -60,6 +57,7 @@ impl dyn Error:
 # (r-std-error.report.decl-struct). Its fields are boundary-safe.
 ## A boundary-safe report of an error: its message and the messages of its causes.
 ## See [std-error.report.decl-struct](../../spec/std/error.md#r-std-error.report.decl-struct).
+@derive(Debug)
 pub struct ErrorReport:
     ## The error's own message.
     ## See [std-error.report.message](../../spec/std/error.md#r-std-error.report.message).
@@ -70,6 +68,7 @@ pub struct ErrorReport:
 
 # The text an entry point prints for an `.Err` (r-std-error.report.display):
 # the message, then one `caused by: ` line per cause.
+# Keep handwritten Display: join the message and causes with the report separator.
 impl Display for ErrorReport:
     fn to_string(self) -> string:
         let mut lines: List[string] = [self.message]
@@ -114,39 +113,29 @@ pub struct ContextError:
     message: string
     error: &dyn Error
 
+# Keep handwritten Display: retain the existing Error.cause implementation and original reference.
 impl Display for ContextError:
     fn to_string(self) -> string:
         self.message
 
+# Keep handwritten Error: return the original erased cause reference without wrapping it.
 impl Error for ContextError:
     fn cause(self) -> (&dyn Error)?:
         .Some(self.error)
 
 # The error that `message` returns: only a text (r-std-error.message.reference-struct).
+@error("$text")
 struct MessageError:
     text: string
-
-impl Display for MessageError:
-    fn to_string(self) -> string:
-        self.text
-
-impl Error for MessageError
 
 ## Makes an error whose `Display` text is `text` and that has no cause.
 ## See [std-error.message.reference](../../spec/std/error.md#r-std-error.message.reference).
 pub fn message(text: string) -> &dyn Error:
     &MessageError { text: text }
 
-# The std error types of the prelude-joined modules implement `Error` here,
-# so a program that never names `Error` does not join this module
-# (r-std-error.std-types.impl.reference-values). The other modules' error types implement it
-# beside their declarations.
-impl Error for ParseNumberError
-impl Error for Utf8Error
-impl Error for ParseBoolError
-impl Error for ParseCharError
-impl Error for ConsoleError
+# Builtin errors have no declaration on which to place @error.
 impl Error for never
+# Keep handwritten Error: string is a builtin and has no declaration to decorate.
 impl Error for string
 
 # Wraps an `.Err(e)` in a `ContextError`; `.Ok` passes through
@@ -169,18 +158,9 @@ impl[T] T?:
             .Some(value) => .Ok(value)
             .None => .Err(message(text))
 
-# `Debug` for this module's public types (r-std-format.debug.std-types),
-# written by hand with the builder calls that `@derive(Debug)` generates
-# (r-std-format.debug.derive-builders.source): the prototype runs the
-# derivation pass before it joins std (src/checker/program.ts), so a
-# `@derive` on a std declaration has no effect.
-
-impl Debug for ErrorReport:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("ErrorReport").field("message", self.message).field("causes", self.causes).finish()
-
 # The erased cause has no `Debug`, so its `Display` text stands in for it
 # (r-std-error.context.debug).
+# Keep handwritten Debug: display the erased cause, which need not implement Debug.
 impl Debug for ContextError:
     fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("ContextError").field("message", self.message).field("cause", self.error.to_string()).finish()

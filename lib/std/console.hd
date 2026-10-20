@@ -7,7 +7,6 @@
 # provider's `write_line!` with `block_on` (MHP-1), so a `MemoryConsole`
 # records `println` lines too.
 use std.task.block_on
-use std.format.DebugWriter
 use std.text.StringBuilder
 
 # The host console capability; `write_line!` takes `&mut self`, so it is a
@@ -70,6 +69,7 @@ pub fn read_all!() -> Result[string, ConsoleError] $ ConsoleInput:
 # the lines it recorded (r-std-console.buffer.install-ref).
 ## The recording `Console` provider: it keeps the lines in memory for a test to read.
 ## See [std-console.buffer.decl](../../spec/std/console.md#r-std-console.buffer.decl).
+@derive(Debug)
 pub struct MemoryConsole:
     lines: List[string]
     error_lines: List[string]
@@ -92,12 +92,6 @@ impl MemoryConsole:
     ## See [std-console.buffer.error-output](../../spec/std/console.md#r-std-console.buffer.error-output).
     pub fn error_output(&self) -> List[string]:
         self.error_lines
-
-# The derived builder calls, written by hand because `@derive` does not
-# run inside lib/std (r-std-format.debug.std-types).
-impl Debug for MemoryConsole:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("MemoryConsole").field("lines", self.lines).field("error_lines", self.error_lines).finish()
 
 # The `&mut MemoryConsole` that `new` returns, installed as the provider,
 # records into this object (r-req.ref.share.reference-values).
@@ -146,6 +140,7 @@ pub fn eprintln[T < Display](value: T) -> void $ Console:
 # it returns its lines in order, then `.None`.
 ## The deterministic `ConsoleInput` provider: it answers from a list of lines, with no host access.
 ## See [std-console.scripted.decl](../../spec/std/console.md#r-std-console.scripted.decl).
+@derive(Debug)
 pub struct ScriptedInput:
     lines: List[string]
     next: usize
@@ -174,26 +169,13 @@ impl ConsoleInput for ScriptedInput:
             self.next = self.next + 1
         .Ok(out.build())
 
-impl Debug for ScriptedInput:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("ScriptedInput").field("lines", self.lines).field("next", self.next).finish()
-
 # The error of a console write or read (spec/lang/10-modules.md#r-module.console.error.closed).
 ## The console's error type, with one variant, the payload-free `Closed`.
 ## See [module.console.error.closed](../../spec/lang/10-modules.md#r-module.console.error.closed).
+@derive(Debug, Eq)
+@error
 pub enum ConsoleError:
+    @error("console closed")
     Closed
 
-impl Display for ConsoleError:
-    fn to_string(self) -> string:
-        match self:
-            .Closed => "console closed"
-
 # One variant, so every two values are equal (r-std-console.error.traits).
-impl Eq for ConsoleError:
-    fn eq(self, other: ConsoleError) -> bool:
-        true
-
-impl Debug for ConsoleError:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.write("ConsoleError.Closed")

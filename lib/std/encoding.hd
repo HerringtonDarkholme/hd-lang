@@ -1,36 +1,21 @@
 # std.encoding: bytes as hex and base64 text (spec/std/encoding.md).
-use std.format.DebugWriter
-use std.error.Error
 
 # Why decoding failed, at a byte offset into the text
 # (r-std-encoding.error.position-bytes).
 ## Why decoding failed: the kind, and the byte position.
 ## See [std-encoding.error.declared](../../spec/std/encoding.md#r-std-encoding.error.declared).
+@error
+@derive(Debug, Eq)
 pub enum DecodeError:
     # A character outside the alphabet.
+    @error("invalid character at position $position")
     InvalidCharacter(position: usize)
     # The text stops inside a unit; `position` is its length.
+    @error("invalid length: the text ends at position $position")
     InvalidLength(position: usize)
     # A misplaced `=`, or nonzero pad bits in the last symbol.
+    @error("invalid padding at position $position")
     InvalidPadding(position: usize)
-
-impl Eq for DecodeError:
-    fn eq(self, other: DecodeError) -> bool:
-        match (self, other):
-            (.InvalidCharacter(left), .InvalidCharacter(right)) => left == right
-            (.InvalidLength(left), .InvalidLength(right)) => left == right
-            (.InvalidPadding(left), .InvalidPadding(right)) => left == right
-            _ => false
-
-impl Display for DecodeError:
-    fn to_string(self) -> string:
-        match self:
-            .InvalidCharacter(position) => "invalid character at position $position"
-            .InvalidLength(position) => "invalid length: the text ends at position $position"
-            .InvalidPadding(position) => "invalid padding at position $position"
-
-# A std error type implements `Error` (r-std-error.std-types.impl.reference-values).
-impl Error for DecodeError
 
 # Lowercase hex, two digits per byte (r-std-encoding.hex.encode).
 ## The bytes as lowercase hex text, two digits per byte.
@@ -68,6 +53,7 @@ pub fn hex_decode(text: string) -> Result[List[u8], DecodeError]:
 # `base64.Encoding` values (r-std-encoding.base64.variants).
 ## A base64 encoding: the standard or URL-safe alphabet, with or without `=` padding.
 ## See [std-encoding.base64.variants](../../spec/std/encoding.md#r-std-encoding.base64.variants).
+@derive(Debug, Eq)
 pub enum Base64:
     # RFC 4648 section 4, padded.
     Standard
@@ -198,15 +184,6 @@ impl Base64:
         else:
             -1
 
-impl Eq for Base64:
-    fn eq(self, other: Base64) -> bool:
-        match (self, other):
-            (.Standard, .Standard) => true
-            (.StandardNoPad, .StandardNoPad) => true
-            (.Url, .Url) => true
-            (.UrlNoPad, .UrlNoPad) => true
-            _ => false
-
 fn hex_symbol(value: u8) -> u8:
     if value < 10: 48 + value else: 87 + value
 
@@ -242,27 +219,6 @@ fn ascii_text(codes: List[u8]) -> string:
     match string::from_utf8(codes):
         .Ok(text) => text
         .Err(_) => panic("std.encoding: ASCII codes are valid UTF-8")
-
-# `Debug` for this module's public types (r-std-format.debug.std-types),
-# written by hand with the builder calls that `@derive(Debug)` generates
-# (r-std-format.debug.derive-builders.source): the prototype runs the
-# derivation pass before it joins std (src/checker/program.ts), so a
-# `@derive` on a std declaration has no effect.
-
-impl Debug for DecodeError:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        match self:
-            .InvalidCharacter(position) => out.debug_tuple("DecodeError.InvalidCharacter").named_field("position", position).finish()
-            .InvalidLength(position) => out.debug_tuple("DecodeError.InvalidLength").named_field("position", position).finish()
-            .InvalidPadding(position) => out.debug_tuple("DecodeError.InvalidPadding").named_field("position", position).finish()
-
-impl Debug for Base64:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        match self:
-            .Standard => out.write("Base64.Standard")
-            .StandardNoPad => out.write("Base64.StandardNoPad")
-            .Url => out.write("Base64.Url")
-            .UrlNoPad => out.write("Base64.UrlNoPad")
 
 # Primitives: the string's bytes read in place, and a string made of bytes
 # that the caller has checked are UTF-8.

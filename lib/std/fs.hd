@@ -3,23 +3,32 @@
 # default profile binds the host's file system
 # (src/commands/default-profile.ts).
 use std.path.Path
-use std.format.DebugWriter
-use std.error.Error
 
 ## Every file system operation reports one of these errors: `NotFound`, `PermissionDenied`, `AlreadyExists`, `NotADirectory`, `IsADirectory`, `InvalidUtf8`, or `Other`.
 ## See [std-fs.error.decl-struct](../../spec/std/fs.md#r-std-fs.error.decl-struct).
+@error
+@derive(Debug)
 pub enum FsError:
+    @error("not found: ${path}")
     NotFound(path: Path)
+    @error("permission denied: ${path}")
     PermissionDenied(path: Path)
+    @error("access to ${path} is not granted; run with --cap FsRead=${path} or --cap FsWrite=${path}")
     NotGranted(path: Path)
+    @error("already exists: ${path}")
     AlreadyExists(path: Path)
+    @error("not a directory: ${path}")
     NotADirectory(path: Path)
+    @error("is a directory: ${path}")
     IsADirectory(path: Path)
+    @error("invalid UTF-8: ${path}")
     InvalidUtf8(path: Path)
+    @error("$message")
     Other(message: string)
 
 ## Whether a file system entry is a file, a directory, or a symlink.
 ## See [std-fs.error.decl-struct](../../spec/std/fs.md#r-std-fs.error.decl-struct).
+@derive(Debug, Eq)
 pub enum EntryKind:
     File
     Directory
@@ -27,6 +36,7 @@ pub enum EntryKind:
 
 ## The value that describes one file system entry.
 ## See [std-fs.error.decl-struct](../../spec/std/fs.md#r-std-fs.error.decl-struct).
+@derive(Debug, Eq)
 pub struct Entry:
     ## The entry's path.
     ## See [std-fs.error.decl-struct](../../spec/std/fs.md#r-std-fs.error.decl-struct).
@@ -38,16 +48,10 @@ pub struct Entry:
     ## See [std-fs.entry.size](../../spec/std/fs.md#r-std-fs.entry.size).
     pub size: u64
 
+# Keep handwritten Eq: compare rendered messages, including across different variants.
 impl Eq for FsError:
     fn eq(self, other: FsError) -> bool:
         fs_error_text(self) == fs_error_text(other)
-
-impl Display for FsError:
-    fn to_string(self) -> string:
-        fs_error_text(self)
-
-# A std error type implements `Error` (r-std-error.std-types.impl.reference-values).
-impl Error for FsError
 
 fn fs_error_text(error: FsError) -> string:
     match error:
@@ -59,20 +63,6 @@ fn fs_error_text(error: FsError) -> string:
         .IsADirectory(path) => "is a directory: ${path}"
         .InvalidUtf8(path) => "invalid UTF-8: ${path}"
         .Other(message) => message
-
-impl Eq for EntryKind:
-    fn eq(self, other: EntryKind) -> bool:
-        entry_kind_rank(self) == entry_kind_rank(other)
-
-fn entry_kind_rank(kind: EntryKind) -> i32:
-    match kind:
-        .File => 0
-        .Directory => 1
-        .Symlink => 2
-
-impl Eq for Entry:
-    fn eq(self, other: Entry) -> bool:
-        self.path == other.path && self.kind == other.kind && self.size == other.size
 
 ## The host capability to read from the file system: `read_bytes!`, `read_text!`, `list_dir!`, and `stat!`.
 ## See [std-fs.read.decl](../../spec/std/fs.md#r-std-fs.read.decl).
@@ -350,6 +340,7 @@ fn glob_component_matches(pieces: List[GlobPiece], name: string) -> bool:
 # (r-std-fs.memory.dirs); `.` is the root (r-std-fs.memory.current-dir).
 ## The deterministic `FsRead` and `FsWrite` provider: a file system in memory for unit tests.
 ## See [std-fs.memory.decl](../../spec/std/fs.md#r-std-fs.memory.decl).
+@derive(Debug)
 pub struct MemoryFs:
     files: Map[string, List[u8]]
     dirs: List[string]
@@ -557,36 +548,3 @@ impl FsWrite for MemoryFs:
                 renamed.push(made)
         self.dirs = renamed
         .Ok(())
-
-# `Debug` for this module's public types (r-std-format.debug.std-types),
-# written by hand with the builder calls that `@derive(Debug)` generates
-# (r-std-format.debug.derive-builders.source): the prototype runs the
-# derivation pass before it joins std (src/checker/program.ts), so a
-# `@derive` on a std declaration has no effect.
-
-impl Debug for FsError:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        match self:
-            .NotFound(path) => out.debug_tuple("FsError.NotFound").named_field("path", path).finish()
-            .PermissionDenied(path) => out.debug_tuple("FsError.PermissionDenied").named_field("path", path).finish()
-            .NotGranted(path) => out.debug_tuple("FsError.NotGranted").named_field("path", path).finish()
-            .AlreadyExists(path) => out.debug_tuple("FsError.AlreadyExists").named_field("path", path).finish()
-            .NotADirectory(path) => out.debug_tuple("FsError.NotADirectory").named_field("path", path).finish()
-            .IsADirectory(path) => out.debug_tuple("FsError.IsADirectory").named_field("path", path).finish()
-            .InvalidUtf8(path) => out.debug_tuple("FsError.InvalidUtf8").named_field("path", path).finish()
-            .Other(message) => out.debug_tuple("FsError.Other").named_field("message", message).finish()
-
-impl Debug for EntryKind:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        match self:
-            .File => out.write("EntryKind.File")
-            .Directory => out.write("EntryKind.Directory")
-            .Symlink => out.write("EntryKind.Symlink")
-
-impl Debug for Entry:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("Entry").field("path", self.path).field("kind", self.kind).field("size", self.size).finish()
-
-impl Debug for MemoryFs:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("MemoryFs").field("files", self.files).field("dirs", self.dirs).finish()

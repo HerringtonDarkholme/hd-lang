@@ -2,7 +2,6 @@
 # the target kinds (#target-kinds). `facts_of`, `Target`, `Annotate`, and
 # `annotate` are imported, not prelude names (r-annot.facts-of.declared,
 # r-annot.target.declarations).
-use std.format.DebugWriter
 use std.structure.Facts
 
 # The facts that decorators attach to the module-level function `f`, in
@@ -20,6 +19,7 @@ pub fn facts_of[F](f: F) -> Facts:
 # and the rows after it); a newtype is `.Newtype` (Decorators D10).
 ## The kind of declaration a fact value may be attached to.
 ## See [annot.target.declarations](../../spec/lang/14-annotations.md#r-annot.target.declarations).
+@derive(Debug)
 pub enum Target:
     Fn
     Data
@@ -38,6 +38,7 @@ pub enum Target:
 @annotate(.Data, .Enum)
 ## The fact that limits a fact type's values to targets of the listed kinds.
 ## See [annot.target.declarations](../../spec/lang/14-annotations.md#r-annot.target.declarations).
+@derive(Debug)
 pub struct Annotate:
     ## The target kinds the fact type allows.
     ## See [annot.target.declarations](../../spec/lang/14-annotations.md#r-annot.target.declarations).
@@ -54,24 +55,3 @@ pub struct Annotate:
 ## See [annot.target.declarations](../../spec/lang/14-annotations.md#r-annot.target.declarations).
 pub fn annotate[T = &dyn Any](kinds...: List[Target]) -> Annotate:
     Annotate { kinds: kinds }
-
-# The derived builder calls, written by hand because `@derive` does not
-# run inside lib/std (r-std-format.debug.std-types).
-impl Debug for Target:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        name := match self:
-            .Fn => "Target.Fn"
-            .Data => "Target.Data"
-            .Enum => "Target.Enum"
-            .Newtype => "Target.Newtype"
-            .Field => "Target.Field"
-            .Variant => "Target.Variant"
-            .Param => "Target.Param"
-            .Trait => "Target.Trait"
-            .Impl => "Target.Impl"
-            .Method => "Target.Method"
-        out.write(name)
-
-impl Debug for Annotate:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("Annotate").field("kinds", self.kinds).finish()

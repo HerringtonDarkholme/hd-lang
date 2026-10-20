@@ -36,14 +36,11 @@ pub fn interpolate[T < Display](t: Template[T]) -> string:
 # (Literal Suffixes L21, L22; Strings STR10).
 ## A template expression that is not well formed, at a byte position.
 ## See [std-text.prefix-helper.escape-error-value](../../spec/std/text.md#r-std-text.prefix-helper.escape-error-value).
+@derive(Debug, Eq)
 pub struct EscapeError:
     ## The byte offset of the first character that makes the expression malformed.
     ## See [std-text.prefix-helper.escape-error-value](../../spec/std/text.md#r-std-text.prefix-helper.escape-error-value).
     pub position: usize
-
-impl Eq for EscapeError:
-    fn eq(self, other: EscapeError) -> bool:
-        self.position == other.position
 
 # The text with each escape sequence replaced by its meaning, or an
 # `EscapeError` at the first invalid one (spec/lang/01-lexical-structure.md#escape-sequences). Every escape is ASCII, so
@@ -140,27 +137,18 @@ fn scalar_value(point: i32) -> bool:
 # A malformed byte sequence given to `string::from_utf8`.
 ## A malformed byte sequence given to `string::from_utf8`.
 ## See [std-text.utf8.error.declared-positions](../../spec/std/text.md#r-std-text.utf8.error.declared-positions).
+@derive(Debug, Eq)
+@error
 pub enum Utf8Error:
     # The byte offset where the first invalid sequence starts.
+    @error("invalid UTF-8 sequence at byte $position")
     InvalidSequence(position: usize)
     # The byte offset where the sequence the bytes end inside starts.
+    @error("incomplete UTF-8 sequence at byte $position")
     Truncated(position: usize)
-
-impl Eq for Utf8Error:
-    fn eq(self, other: Utf8Error) -> bool:
-        match (self, other):
-            (.InvalidSequence(left), .InvalidSequence(right)) => left == right
-            (.Truncated(left), .Truncated(right)) => left == right
-            _ => false
 
 # The texts of r-std-text.utf8.error.display.invalid and
 # r-std-text.utf8.error.display.truncated-position.
-impl Display for Utf8Error:
-    fn to_string(self) -> string:
-        match self:
-            .InvalidSequence(position) => "invalid UTF-8 sequence at byte $position"
-            .Truncated(position) => "incomplete UTF-8 sequence at byte $position"
-
 # The text-reading trait (spec/std/text.md#parsing-text): `T::parse(text)`
 # reads a `T` from the whole of `text`, and `string.parse::[T]()` calls it.
 # It is not a prelude name.
@@ -173,36 +161,22 @@ pub trait Parse:
 # The error of `bool::parse` (r-std-text.parse.bool).
 ## Why `bool` text was refused: it was neither `true` nor `false`.
 ## See [std-text.parse.bool](../../spec/std/text.md#r-std-text.parse.bool).
+@derive(Debug, Eq)
+@error
 pub enum ParseBoolError:
+    @error("provided string was not `true` or `false`")
     Invalid
-
-impl Eq for ParseBoolError:
-    fn eq(self, other: ParseBoolError) -> bool:
-        true
-
-impl Display for ParseBoolError:
-    fn to_string(self) -> string:
-        "provided string was not `true` or `false`"
 
 # The error of `char::parse` (r-std-text.parse.char).
 ## Why `char` text was refused: it was empty or held more than one character.
 ## See [std-text.parse.char](../../spec/std/text.md#r-std-text.parse.char).
+@derive(Debug, Eq)
+@error
 pub enum ParseCharError:
+    @error("cannot parse a character from empty text")
     Empty
+    @error("text has more than one character")
     TooMany
-
-impl Eq for ParseCharError:
-    fn eq(self, other: ParseCharError) -> bool:
-        match (self, other):
-            (.Empty, .Empty) => true
-            (.TooMany, .TooMany) => true
-            _ => false
-
-impl Display for ParseCharError:
-    fn to_string(self) -> string:
-        match self:
-            .Empty => "cannot parse a character from empty text"
-            .TooMany => "text has more than one character"
 
 impl Parse for bool:
     type Error = ParseBoolError
@@ -1212,32 +1186,7 @@ fn char_scalar(value: char) -> u32:
 fn panic_with(category: string, message: string) -> void:
     panic("intrinsic")
 
-# `Debug` for this module's public types (r-std-format.debug.std-types),
-# written by hand with the builder calls that `@derive(Debug)` generates
-# (r-std-format.debug.derive-builders.source): the prototype runs the
-# derivation pass before it joins std (src/checker/program.ts), so a
-# `@derive` on a std declaration has no effect.
-
-impl Debug for EscapeError:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("EscapeError").field("position", self.position).finish()
-
-impl Debug for Utf8Error:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        match self:
-            .InvalidSequence(position) => out.debug_tuple("Utf8Error.InvalidSequence").named_field("position", position).finish()
-            .Truncated(position) => out.debug_tuple("Utf8Error.Truncated").named_field("position", position).finish()
-
-impl Debug for ParseBoolError:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.write("ParseBoolError.Invalid")
-
-impl Debug for ParseCharError:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        match self:
-            .Empty => out.write("ParseCharError.Empty")
-            .TooMany => out.write("ParseCharError.TooMany")
-
+# Keep handwritten Debug: show the pieces as parts, not the reference to private state.
 impl Debug for StringBuilder:
     fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("StringBuilder").field("parts", self.pieces()).finish()

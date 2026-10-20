@@ -11,6 +11,7 @@ use std.structure.{VariantInfo, Member, Facts}
 # insertion order (r-std-json.object.order).
 ## A JSON value: `null`, `Bool`, `Number`, `Text`, `Array`, or `Object`.
 ## See [std-json.value.decl](../../spec/std/json.md#r-std-json.value.decl).
+@derive(Debug, Eq)
 pub enum Json:
     Null
     Bool(value: bool)
@@ -111,6 +112,7 @@ impl Iterable[(string, Json)] for JsonObject:
         self.entries.iter()
 
 # The same members, in any order (r-std-json.value.eq.object).
+# Keep handwritten Eq: compare keys and values, independent of entry order.
 impl Eq for JsonObject:
     fn eq(self, other: JsonObject) -> bool:
         if self.len() != other.len():
@@ -126,6 +128,7 @@ impl Eq for JsonObject:
 # What a `Number` holds: an integer below zero, an integer from zero up, or
 # a finite float. Normalized, so one integer has one representation
 # (r-std-json.number.repr).
+@derive(Eq)
 enum NumberRepr:
     Negative(value: i64)
     NonNegative(value: u64)
@@ -135,6 +138,7 @@ enum NumberRepr:
 # `serde_json::Number` (r-std-json.number.decl-struct).
 ## A JSON number, exact for 64-bit integers: integers in the `i64` and `u64` ranges are exact, and every other number is an `f64`.
 ## See [std-json.number.decl-struct](../../spec/std/json.md#r-std-json.number.decl-struct).
+@derive(Eq)
 pub struct Number:
     repr: NumberRepr
 
@@ -185,14 +189,7 @@ impl Number:
             .NonNegative(value) => .Some(f64(value))
             .Float(value) => .Some(value)
 
-impl Eq for Number:
-    fn eq(self, other: Number) -> bool:
-        match (self.repr, other.repr):
-            (.Negative(left), .Negative(right)) => left == right
-            (.NonNegative(left), .NonNegative(right)) => left == right
-            (.Float(left), .Float(right)) => left == right
-            _ => false
-
+# Keep handwritten Display: render the represented number without its private enum wrapper.
 impl Display for Number:
     fn to_string(self) -> string:
         match self.repr:
@@ -293,17 +290,6 @@ impl Json:
             start = end + 1
         .Some(current)
 
-impl Eq for Json:
-    fn eq(self, other: Json) -> bool:
-        match (self, other):
-            (.Null, .Null) => true
-            (.Bool(left), .Bool(right)) => left == right
-            (.Number(left), .Number(right)) => left == right
-            (.Text(left), .Text(right)) => left == right
-            (.Array(left), .Array(right)) => left == right
-            (.Object(left), .Object(right)) => left == right
-            _ => false
-
 # One pointer step: an object's member named `token`, or an array's item
 # at the index `token` writes (r-std-json.pointer.step).
 fn pointer_step(value: Json, token: string) -> Json?:
@@ -357,6 +343,7 @@ fn pointer_token(path: string, start: usize, end: usize) -> string:
     concat_all(parts)
 
 # Compact JSON text (r-std-json.display.compact).
+# Keep handwritten Display: render JSON syntax rather than an Error message.
 impl Display for Json:
     fn to_string(self) -> string:
         let mut parts: List[string] = []
@@ -464,61 +451,41 @@ fn hex_symbol(value: u8) -> u8:
 # (r-std-json.error.variants).
 ## The error that `parse` and `decode` return: seven parse errors at a byte position, and three decode errors at a path.
 ## See [std-json.error.variants](../../spec/std/json.md#r-std-json.error.variants).
+@error
+@derive(Debug, Eq)
 pub enum JsonError:
     # The text stops inside a value; `position` is its length.
+    @error("unexpected end of text at position $position")
     UnexpectedEnd(position: usize)
     # A character the grammar does not allow there.
+    @error("unexpected character at position $position")
     UnexpectedCharacter(position: usize)
     # A bad escape; `position` is its backslash.
+    @error("invalid escape at position $position")
     InvalidEscape(position: usize)
     # A `\u` surrogate with no partner; `position` is its backslash.
+    @error("lone surrogate escape at position $position")
     LoneSurrogate(position: usize)
     # A raw control character inside a string.
+    @error("control character in a string at position $position")
     ControlCharacter(position: usize)
     # A number past the finite f64 range; `position` is its first character.
+    @error("number out of range at position $position")
     NumberOutOfRange(position: usize)
     # An array or object nested deeper than 128 levels; `position` is its
     # opening bracket.
+    @error("nesting too deep at position $position")
     NestingTooDeep(position: usize)
     # A value of the wrong kind, or a number out of the type's range;
     # `expected` names what the decoder reads (r-std-json.error.kind.type).
+    @error("expected $expected at $path")
     WrongType(path: string, expected: string)
     # An object without a key that its type needs.
+    @error("missing field at $path")
     MissingField(path: string)
     # A variant name that the enum does not declare.
+    @error("unknown variant \"$name\" at $path")
     UnknownVariant(path: string, name: string)
-
-impl Eq for JsonError:
-    fn eq(self, other: JsonError) -> bool:
-        match (self, other):
-            (.UnexpectedEnd(left), .UnexpectedEnd(right)) => left == right
-            (.UnexpectedCharacter(left), .UnexpectedCharacter(right)) => left == right
-            (.InvalidEscape(left), .InvalidEscape(right)) => left == right
-            (.LoneSurrogate(left), .LoneSurrogate(right)) => left == right
-            (.ControlCharacter(left), .ControlCharacter(right)) => left == right
-            (.NumberOutOfRange(left), .NumberOutOfRange(right)) => left == right
-            (.NestingTooDeep(left), .NestingTooDeep(right)) => left == right
-            (.WrongType(left, wanted), .WrongType(right, other)) => left == right && wanted == other
-            (.MissingField(left), .MissingField(right)) => left == right
-            (.UnknownVariant(left, name), .UnknownVariant(right, other)) => left == right && name == other
-            _ => false
-
-impl Display for JsonError:
-    fn to_string(self) -> string:
-        match self:
-            .UnexpectedEnd(position) => "unexpected end of text at position $position"
-            .UnexpectedCharacter(position) => "unexpected character at position $position"
-            .InvalidEscape(position) => "invalid escape at position $position"
-            .LoneSurrogate(position) => "lone surrogate escape at position $position"
-            .ControlCharacter(position) => "control character in a string at position $position"
-            .NumberOutOfRange(position) => "number out of range at position $position"
-            .NestingTooDeep(position) => "nesting too deep at position $position"
-            .WrongType(path, expected) => "expected $expected at $path"
-            .MissingField(path) => "missing field at $path"
-            .UnknownVariant(path, name) => "unknown variant \"$name\" at $path"
-
-# A std error type implements `Error` (r-std-error.std-types.impl.reference-values).
-impl Error for JsonError
 
 # Strict RFC 8259 text to a `Json` (r-std-json.parse).
 ## Reads one JSON text, strictly as RFC 8259 defines it, and returns `.Ok` of the value or `.Err` of the first error.
@@ -865,10 +832,7 @@ fn float_number(text: string, start: usize, end: usize) -> Result[Json, JsonErro
         .Some(number) => .Ok(Json.Number(number))
         .None => .Err(JsonError.NumberOutOfRange(start))
 
-# `Debug` for this module's public types (r-std-format.debug.std-types),
-# written by hand with the builder calls that `@derive(Debug)` generates:
-# a `@derive` on a std declaration has no effect in the prototype.
-
+# Keep handwritten Debug: hide the representation variant behind Number(value).
 impl Debug for Number:
     fn debug(self, out: &mut DebugWriter) -> void:
         match self.repr:
@@ -876,37 +840,14 @@ impl Debug for Number:
             .NonNegative(value) => out.debug_tuple("Number").field(value).finish()
             .Float(value) => out.debug_tuple("Number").field(value).finish()
 
-impl Debug for Json:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        match self:
-            .Null => out.write("Json.Null")
-            .Bool(value) => out.debug_tuple("Json.Bool").named_field("value", value).finish()
-            .Number(value) => out.debug_tuple("Json.Number").named_field("value", value).finish()
-            .Text(value) => out.debug_tuple("Json.Text").named_field("value", value).finish()
-            .Array(items) => out.debug_tuple("Json.Array").named_field("items", items).finish()
-            .Object(fields) => out.debug_tuple("Json.Object").named_field("fields", fields).finish()
-
 # One `debug_list` entry per member, in insertion order.
+# Keep handwritten Debug: render entries as a list rather than storage fields.
 impl Debug for JsonObject:
     fn debug(self, out: &mut DebugWriter) -> void:
         list := out.debug_list()
         for entry in self.entries:
             _ := list.entry(entry)
         list.finish()
-
-impl Debug for JsonError:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        match self:
-            .UnexpectedEnd(position) => out.debug_tuple("JsonError.UnexpectedEnd").named_field("position", position).finish()
-            .UnexpectedCharacter(position) => out.debug_tuple("JsonError.UnexpectedCharacter").named_field("position", position).finish()
-            .InvalidEscape(position) => out.debug_tuple("JsonError.InvalidEscape").named_field("position", position).finish()
-            .LoneSurrogate(position) => out.debug_tuple("JsonError.LoneSurrogate").named_field("position", position).finish()
-            .ControlCharacter(position) => out.debug_tuple("JsonError.ControlCharacter").named_field("position", position).finish()
-            .NumberOutOfRange(position) => out.debug_tuple("JsonError.NumberOutOfRange").named_field("position", position).finish()
-            .NestingTooDeep(position) => out.debug_tuple("JsonError.NestingTooDeep").named_field("position", position).finish()
-            .WrongType(path, expected) => out.debug_tuple("JsonError.WrongType").named_field("path", path).named_field("expected", expected).finish()
-            .MissingField(path) => out.debug_tuple("JsonError.MissingField").named_field("path", path).finish()
-            .UnknownVariant(path, name) => out.debug_tuple("JsonError.UnknownVariant").named_field("path", path).named_field("name", name).finish()
 
 # ---------------------------------------------------------------------------
 # Typed JSON (spec/std/json.md#typed-json): JSON as a format that reads the
@@ -963,6 +904,7 @@ pub fn decode[T < Deserialize](text: string) -> Result[T, JsonError]:
     from_json::[T](value)
 
 # `Json` writes and reads itself (r-std-json.std.json).
+# Keep handwritten Serialize: write the JSON value itself, not an externally tagged enum.
 impl Serialize for Json:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         match self:
@@ -986,6 +928,7 @@ impl Serialize for Json:
                     entry._1.serialize(out)?
                 out.end_map()
 
+# Keep handwritten Deserialize: read the JSON value itself, not an externally tagged enum.
 impl Deserialize for Json:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[Json, R::Error]:
         match input.peek()?:

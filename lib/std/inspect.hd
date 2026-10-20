@@ -7,8 +7,6 @@
 # `runtime_type` alone. `TypeId::of` is declared below; only its body is the
 # compiler's.
 
-use std.format.DebugWriter
-
 ## The sealed trait of types with a runtime identity, which the compiler supplies.
 ## See [module.prelude.inspect-reference-api](../../spec/lang/10-modules.md#r-module.prelude.inspect-reference-api).
 pub trait Inspectable:
@@ -28,6 +26,7 @@ impl dyn Inspectable:
 # different identity can print alike, as two packages that share a name do.
 ## The runtime identity of an inspectable type.
 ## See [module.prelude.inspect-reference-api](../../spec/lang/10-modules.md#r-module.prelude.inspect-reference-api).
+@derive(Debug)
 pub struct TypeId:
     key: string
     name: string
@@ -37,9 +36,11 @@ impl TypeId:
     @intrinsic("type_id_of")
     pub fn of[T < Inspectable]() -> TypeId: panic("intrinsic")
 
+# Keep handwritten Eq: compare the identity key, ignoring the descriptive name.
 impl Eq for TypeId:
     fn eq(self, other: TypeId) -> bool: self.key == other.key
 
+# Keep handwritten Display: display only the descriptive type name; this is not an Error.
 impl Display for TypeId:
     fn to_string(self) -> string: self.name
 
@@ -47,6 +48,3 @@ impl Display for TypeId:
 # written by hand with the builder calls that `@derive(Debug)` generates
 # (r-std-format.debug.derive-builders.source): a `@derive` on a std
 # declaration has no effect in the prototype.
-impl Debug for TypeId:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("TypeId").field("key", self.key).field("name", self.name).finish()

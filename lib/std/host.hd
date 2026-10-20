@@ -2,7 +2,6 @@
 # the deterministic providers `ScriptedArgs` and `ScriptedEnv` (spec/std/host.md).
 # The default profile binds a host `Args` and `Env`
 # (src/commands/default-profile.ts).
-use std.format.DebugWriter
 use std.error.Error
 use std.text.Parse
 
@@ -43,26 +42,17 @@ pub fn env_as[T < Parse[Error = E], E < Display](name: string) -> Result[T?, Env
 
 ## Why `env_as` failed: the variable's text could not be read as the requested type.
 ## See [std-host.env-as.error](../../spec/std/host.md#r-std-host.env-as.error).
+@error
+@derive(Debug, Eq)
 pub enum EnvError:
+    @error("invalid value for ${name}: ${reason}")
     InvalidValue(name: string, reason: string)
-
-impl Eq for EnvError:
-    fn eq(self, other: EnvError) -> bool:
-        match (self, other):
-            (.InvalidValue(a, reason), .InvalidValue(b, other_reason)) => a == b && reason == other_reason
-
-impl Display for EnvError:
-    fn to_string(self) -> string:
-        match self:
-            .InvalidValue(name, reason) => "invalid value for ${name}: ${reason}"
-
-# A std error type implements `Error` (r-std-error.std-types.impl.reference-values).
-impl Error for EnvError
 
 # The deterministic `Args` (spec/std/host.md#map-providers):
 # it returns the program name and the arguments it was made with.
 ## The deterministic `Args` provider: a fixed list of arguments, with no host access.
 ## See [std-host.map-args.decl](../../spec/std/host.md#r-std-host.map-args.decl).
+@derive(Debug)
 pub struct ScriptedArgs:
     program: string
     values: List[string]
@@ -84,6 +74,7 @@ impl Args for ScriptedArgs:
 # lists the map's keys in its iteration order (r-std-host.map-env.names.order).
 ## The deterministic `Env` provider: a fixed map of variables, with no host access.
 ## See [std-host.map-env.decl](../../spec/std/host.md#r-std-host.map-env.decl).
+@derive(Debug)
 pub struct ScriptedEnv:
     values: Map[string, string]
 
@@ -102,22 +93,3 @@ impl Env for ScriptedEnv:
         for (key, _) in self.values:
             found.push(key)
         found
-
-# `Debug` for this module's public types (r-std-format.debug.std-types),
-# written by hand with the builder calls that `@derive(Debug)` generates
-# (r-std-format.debug.derive-builders.source): the prototype runs the
-# derivation pass before it joins std (src/checker/program.ts), so a
-# `@derive` on a std declaration has no effect.
-
-impl Debug for ScriptedArgs:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("ScriptedArgs").field("program", self.program).field("values", self.values).finish()
-
-impl Debug for ScriptedEnv:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("ScriptedEnv").field("values", self.values).finish()
-
-impl Debug for EnvError:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        match self:
-            .InvalidValue(name, reason) => out.debug_tuple("EnvError.InvalidValue").named_field("name", name).named_field("reason", reason).finish()

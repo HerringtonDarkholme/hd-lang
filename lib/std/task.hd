@@ -5,7 +5,6 @@
 # signature (r-req.combinator.all-typing).
 use std.task.all
 use std.error.Error
-use std.format.DebugWriter
 use std.ops.Disposable
 use std.time.{Clock, Duration, Instant, sleep}
 
@@ -42,24 +41,10 @@ pub fn block_on[T](s: mut Suspend[T]) -> BlockOn[T]:
 # `.Abandoned` comes from the job's frame.
 ## How a job's cleanup ended: `Finished` when it ran to its end, `Abandoned` when a part of it was cut short.
 ## See [std-task.cleanup-end.decl](../../spec/std/task.md#r-std-task.cleanup-end.decl).
+@derive(Debug, Eq)
 pub enum CleanupEnd:
     Finished
     Abandoned
-
-impl Eq for CleanupEnd:
-    fn eq(self, other: CleanupEnd) -> bool:
-        cleanup_end_rank(self) == cleanup_end_rank(other)
-
-fn cleanup_end_rank(end: CleanupEnd) -> i32:
-    match end:
-        .Finished => 0
-        .Abandoned => 1
-
-impl Debug for CleanupEnd:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        match self:
-            .Finished => out.write("CleanupEnd.Finished")
-            .Abandoned => out.write("CleanupEnd.Abandoned")
 
 # The `Suspend[T]` protocol's `cancel!` (r-req.cancel.bang). The job's
 # frame holds its one cleanup; each call waits on it through a cleanup
@@ -161,15 +146,12 @@ fn should_retry[T, E](result: Result[T, E], when: fn(E) -> bool) -> bool:
 # how many calls, the first delay, the multiplier, and the cap.
 ## How many times to try, how long to wait, and the wait's cap.
 ## See [std-task.backoff.decl-value](../../spec/std/task.md#r-std-task.backoff.decl-value).
+@derive(Eq)
 pub struct Backoff:
     pub attempts: usize
     pub initial: Duration
     pub factor: i32
     pub max: Duration
-
-impl Eq for Backoff:
-    fn eq(self, other: Backoff) -> bool:
-        self.attempts == other.attempts && self.initial == other.initial && self.factor == other.factor && self.max == other.max
 
 # As `retry!`, but waits on the covering `Clock` between attempts with a
 # growing delay (spec/std/task.md#retry-with-backoff). The attempt's row
@@ -193,25 +175,19 @@ pub fn retry_with![T, E, $R](backoff: Backoff, when: fn(E) -> bool = fn(error: E
 # cleanup ended (spec/std/task.md#timeout).
 ## The error of `timeout!`: the work did not finish within `limit`, and `cleanup` says how its cleanup ended.
 ## See [std-task.timeout.fields-value](../../spec/std/task.md#r-std-task.timeout.fields-value).
+@derive(Debug, Eq)
 pub struct TimedOut:
     pub limit: Duration
     pub cleanup: CleanupEnd
 
 # The limit, and a note when the cleanup was cut short
 # (r-std-task.timeout.display).
+# Keep handwritten Display: choose the message from cleanup state, not a fixed field template.
 impl Display for TimedOut:
     fn to_string(self) -> string:
         match self.cleanup:
             .Finished => "timed out after ${self.limit}"
             .Abandoned => "timed out after ${self.limit}, cleanup abandoned"
-
-impl Eq for TimedOut:
-    fn eq(self, other: TimedOut) -> bool:
-        self.limit == other.limit && self.cleanup == other.cleanup
-
-impl Debug for TimedOut:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("TimedOut").field("limit", self.limit).field("cleanup", self.cleanup).finish()
 
 impl Error for TimedOut
 

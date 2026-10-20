@@ -492,17 +492,12 @@ impl[K < Eq & Hash] Map[K, usize]:
 # the checked panic `iterator-invalidated` (r-std-collections.view.invalid-use).
 ## A read-only window on a run of a list's elements. It holds the list, not a copy, so an element write shows through it.
 ## See [std-collections.view.type](../../spec/std/collections.md#r-std-collections.view.type).
+@derive(Debug)
 pub struct ListView[T]:
     items: &List[T]
     start: usize
     end: usize
     len: usize
-
-# The derived builder calls, written by hand because `@derive` does not
-# run inside lib/std (r-std-format.debug.std-types).
-impl[T < Debug] Debug for ListView[T]:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("ListView").field("items", *self.items).field("start", self.start).field("end", self.end).field("len", self.len).finish()
 
 impl[T] ListView[T]:
     ## Returns the number of elements in the view.
@@ -667,6 +662,7 @@ impl[T] Iterable[T] for Deque[T]:
 
 # Equal lengths and equal elements front to back, as `List`'s `Eq`
 # (r-std-collections.deque.eq); the ring layout does not matter.
+# Keep handwritten Eq: compare logical elements, independent of ring layout.
 impl[T < Eq] Eq for Deque[T]:
     fn eq(self, other: Deque[T]) -> bool:
         if self.count != other.count:
@@ -680,6 +676,7 @@ impl[T < Eq] Eq for Deque[T]:
 
 # The elements front to back, as `List`'s `Debug` writes them
 # (r-std-format.debug.std-types.sequences).
+# Keep handwritten Debug: render logical entries as collection syntax rather than storage fields.
 impl[T < Debug] Debug for Deque[T]:
     fn debug(self, out: &mut DebugWriter) -> void:
         list := out.debug_list()
@@ -751,6 +748,7 @@ impl[T < Eq & Hash] FromIterator[T] for Set[T]:
         collected
 
 # The same elements, in any order (r-std-collections.set.eq).
+# Keep handwritten Eq: compare membership, independent of insertion order.
 impl[T < Eq & Hash] Eq for Set[T]:
     fn eq(self, other: Set[T]) -> bool:
         if self.len() != other.len():
@@ -762,6 +760,7 @@ impl[T < Eq & Hash] Eq for Set[T]:
 
 # One `debug_list` entry per element, in iteration order
 # (r-std-format.debug.std-types.set).
+# Keep handwritten Debug: render logical entries as collection syntax rather than storage fields.
 impl[T < Eq & Hash & Debug] Debug for Set[T]:
     fn debug(self, out: &mut DebugWriter) -> void:
         list := out.debug_list()
@@ -871,6 +870,7 @@ impl[T < Ord] Heap[T]:
 
 # The elements in heap order, which the spec leaves unspecified
 # (r-std-format.debug.std-types.sequences).
+# Keep handwritten Debug: render logical entries as collection syntax rather than storage fields.
 impl[T < Ord & Debug] Debug for Heap[T]:
     fn debug(self, out: &mut DebugWriter) -> void:
         list := out.debug_list()

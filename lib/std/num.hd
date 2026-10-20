@@ -2,7 +2,6 @@
 # Overflow is checked by default; the arithmetic methods make the other
 # behaviors explicit. They are declared for every integer width.
 use std.ops.{Add, BitAnd, BitOr, BitXor, Div, Mul, Neg, Not, Rem, Shl, Shr, Sub}
-use std.format.DebugWriter
 use std.cmp.Ordering
 use std.text.Parse
 
@@ -126,25 +125,15 @@ impl Float for f64
 
 ## Why number parsing failed: `Empty`, `InvalidDigit(position)`, or `OutOfRange`.
 ## See [std-num.parse.import](../../spec/std/num.md#r-std-num.parse.import).
+@derive(Debug, Eq)
+@error
 pub enum ParseNumberError:
+    @error("cannot parse a number from empty text")
     Empty
+    @error("invalid digit at position $position")
     InvalidDigit(position: usize)
+    @error("number out of range for its type")
     OutOfRange
-
-impl Eq for ParseNumberError:
-    fn eq(self, other: ParseNumberError) -> bool:
-        match (self, other):
-            (.Empty, .Empty) => true
-            (.InvalidDigit(left), .InvalidDigit(right)) => left == right
-            (.OutOfRange, .OutOfRange) => true
-            _ => false
-
-impl Display for ParseNumberError:
-    fn to_string(self) -> string:
-        match self:
-            .Empty => "cannot parse a number from empty text"
-            .InvalidDigit(position) => "invalid digit at position $position"
-            .OutOfRange => "number out of range for its type"
 
 # The integer methods (spec/std/num.md), written once for every integer
 # width by r-trait.target.numeric-family. Generic code has no literals or
@@ -1034,7 +1023,6 @@ fn int_min[N < Integer]() -> N:
 fn int_max[N < Integer]() -> N:
     ~int_min::[N]()
 
-
 # Returns `n` when `low <= n <= high`. Otherwise it panics with integer
 # overflow, in every build (r-trait.num.from-i64-checked): a release build
 # wraps `+`, so the panic is explicit.
@@ -1060,19 +1048,6 @@ fn nonneg_u64(n: i64) -> u64:
 # `i64` literals take their type from context, so the bound is a function.
 fn i64_max() -> i64:
     9223372036854775807
-
-# `Debug` for this module's public types (r-std-format.debug.std-types),
-# written by hand with the builder calls that `@derive(Debug)` generates
-# (r-std-format.debug.derive-builders.source): the prototype runs the
-# derivation pass before it joins std (src/checker/program.ts), so a
-# `@derive` on a std declaration has no effect.
-
-impl Debug for ParseNumberError:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        match self:
-            .Empty => out.write("ParseNumberError.Empty")
-            .InvalidDigit(position) => out.debug_tuple("ParseNumberError.InvalidDigit").named_field("position", position).finish()
-            .OutOfRange => out.write("ParseNumberError.OutOfRange")
 
 # The checked runtime panic of `category`, such as `integer-overflow`,
 # showing `message`; it does not return.

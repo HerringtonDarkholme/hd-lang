@@ -4,10 +4,10 @@
 use std.function.Tuple
 use std.num.{Num, Integer}
 use std.structure.{Structure, Walker, Variant, Field}
-use std.format.DebugWriter
 
 ## How two values order: `Less`, `Equal`, or `Greater`.
 ## See [trait.cmp.ordering](../../spec/lang/09-traits.md#r-trait.cmp.ordering).
+@derive(Debug, Eq)
 pub enum Ordering:
     Less
     Equal
@@ -27,21 +27,6 @@ impl Ordering:
             _ => self
 
 # Two orderings are equal when they are the same case (r-std-cmp.ordering.eq).
-impl Eq for Ordering:
-    fn eq(self, other: Ordering) -> bool:
-        match self:
-            .Less =>
-                match other:
-                    .Less => true
-                    _ => false
-            .Equal =>
-                match other:
-                    .Equal => true
-                    _ => false
-            .Greater =>
-                match other:
-                    .Greater => true
-                    _ => false
 
 # `.None` means unordered.
 ## Partial ordering: `partial_cmp` answers `.None` when the two values are unordered, as NaN is.
@@ -88,11 +73,13 @@ pub fn clamp[T < Ord](value: T, low: T, high: T) -> T:
 # Orders values in reverse.
 ## A wrapper whose order is the wrapped value's order reversed.
 ## See [std-cmp.reverse.decl-struct](../../spec/std/cmp.md#r-std-cmp.reverse.decl-struct).
+@derive(Debug)
 pub struct Reverse[T]:
     ## The wrapped value.
     ## See [std-cmp.reverse.decl-struct](../../spec/std/cmp.md#r-std-cmp.reverse.decl-struct).
     pub value: T
 
+# Keep handwritten Eq: equality follows Ord.cmp, including custom orders.
 impl[T < Ord] Eq for Reverse[T]:
     fn eq(self, other: Reverse[T]) -> bool:
         match self.value.cmp(other.value):
@@ -115,6 +102,7 @@ impl[T < Ord] Ord for Reverse[T]:
 # unordered, and they have no `Ord` (#r-expr.eq.float, #r-expr.ord.total).
 # Characters order by scalar value (#r-expr.ord.std.char-scalar), and
 # `bool` has `Eq` only.
+# Keep handwritten Eq: implement the builtin scalar protocol, which has no derivable declaration.
 impl[N < Num] Eq for N:
     @intrinsic
     fn eq(self, other: N) -> bool
@@ -127,6 +115,7 @@ impl[N < Integer] Ord for N:
     @intrinsic
     fn cmp(self, other: N) -> Ordering
 
+# Keep handwritten Eq: implement the builtin scalar protocol, which has no derivable declaration.
 impl Eq for char:
     @intrinsic
     fn eq(self, other: char) -> bool
@@ -139,12 +128,14 @@ impl Ord for char:
     @intrinsic
     fn cmp(self, other: char) -> Ordering
 
+# Keep handwritten Eq: implement the builtin scalar protocol, which has no derivable declaration.
 impl Eq for bool:
     @intrinsic
     fn eq(self, other: bool) -> bool
 
 # Strings are hd over their bytes, not intrinsics, and order by byte
 # (#r-expr.ord.std.string-bytes).
+# Keep handwritten Eq: implement the builtin scalar protocol, which has no derivable declaration.
 impl Eq for string:
     fn eq(self, other: string) -> bool:
         if self.len() != other.len():
@@ -180,6 +171,7 @@ fn string_order(left: string, right: string) -> Ordering:
 # at the end of this module.
 
 # Lists are equal when they have the same length and equal elements in order.
+# Keep handwritten Eq: compare logical entries rather than backing storage.
 impl[T < Eq] Eq for List[T]:
     fn eq(self, other: List[T]) -> bool:
         if self.len() != other.len():
@@ -207,6 +199,7 @@ impl[T < PartialOrd] PartialOrd for List[T]:
             return .Some(.Greater)
         .Some(.Equal)
 
+# Keep handwritten Eq: compare the builtin variants, which have no derivable declaration.
 impl[T < Eq] Eq for T?:
     fn eq(self, other: T?) -> bool:
         match self:
@@ -224,10 +217,12 @@ impl[T < Eq] Eq for T?:
 # (r-std-cmp.ref.eq). `==` written between two references is
 # an error (lang/13 ref.identity.no-equality): a generic `==` and a derived
 # `Eq` reach this impl.
+# Keep handwritten Eq: delegate through the reference; structural derivation is for its referent.
 impl[T < Eq] Eq for &T:
     fn eq(self, other: &T) -> bool:
         *self == *other
 
+# Keep handwritten Eq: delegate through the reference; structural derivation is for its referent.
 impl[T < Eq] Eq for &mut T:
     fn eq(self, other: &mut T) -> bool:
         *self == *other
@@ -246,6 +241,7 @@ impl[T < PartialOrd] PartialOrd for T?:
                     .Some(_) => .Some(.Less)
                     .None => .Some(.Equal)
 
+# Keep handwritten Eq: compare the builtin variants, which have no derivable declaration.
 impl[T < Eq, E < Eq] Eq for Result[T, E]:
     fn eq(self, other: Result[T, E]) -> bool:
         match self:
@@ -260,6 +256,7 @@ impl[T < Eq, E < Eq] Eq for Result[T, E]:
 
 # Maps are equal when they have the same keys, each with an equal value, in
 # any order (spec/lang/05-expressions.md#r-expr.eq.map-order).
+# Keep handwritten Eq: compare logical entries rather than backing storage.
 impl[K < Eq & Hash, V < Eq] Eq for Map[K, V]:
     fn eq(self, other: Map[K, V]) -> bool:
         if self.len() != other.len():
@@ -457,24 +454,8 @@ impl[T < Tuple] Ord for T by Structure:
         _ := Structure::walk(self, &mut w)
         w.result
 
-# `Debug` for this module's public types (r-std-format.debug.std-types),
-# written by hand with the builder calls that `@derive(Debug)` generates
-# (r-std-format.debug.derive-builders.source): the prototype runs the
-# derivation pass before it joins std (src/checker/program.ts), so a
-# `@derive` on a std declaration has no effect.
-
-impl Debug for Ordering:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        match self:
-            .Less => out.write("Ordering.Less")
-            .Equal => out.write("Ordering.Equal")
-            .Greater => out.write("Ordering.Greater")
-
-impl[T < Debug] Debug for Reverse[T]:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("Reverse").field("value", self.value).finish()
-
 # `never` has no value, so `eq` never runs (r-std-text.parse.never-traits).
+# Keep handwritten Eq: this uninhabited builtin has no value or derivable declaration.
 impl Eq for never:
     fn eq(self, other: never) -> bool:
         match self:
@@ -489,10 +470,12 @@ pub struct Id[T]:
 
 # Two ids are equal when their references refer to the same place
 # (r-std-cmp.id.eq), and hash alike then (r-std-cmp.id.hash).
+# Keep handwritten Eq: compare reference identity instead of referent values.
 impl[T] Eq for Id[T]:
     fn eq(self, other: Id[T]) -> bool:
         self.target is other.target
 
+# Keep handwritten Hash: hash the reference identity instead of its referent.
 impl[T] Hash for Id[T]:
     fn hash(self, state: &mut dyn Hasher) -> void:
         identity_of(self.target).hash(state)
@@ -506,12 +489,14 @@ struct RefIdentity:
     serial: i64
     key: string
 
+# Keep handwritten Eq: compare the base by identity, then its serial and field path.
 impl Eq for RefIdentity:
     fn eq(self, other: RefIdentity) -> bool:
         self.base is other.base && self.serial == other.serial && self.key == other.key
 
 # The base has no hash, so places in one data object share the hash of
 # their field path.
+# Keep handwritten Hash: hash only the serial and field path; the base is an identity reference.
 impl Hash for RefIdentity:
     fn hash(self, state: &mut dyn Hasher) -> void:
         self.serial.hash(state)

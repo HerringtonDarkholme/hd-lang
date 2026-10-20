@@ -11,6 +11,7 @@ use std.path.Path
 
 ## The exit status a `main` returns: a small integer the process exits with.
 ## See [module.entry.exit-code](../../spec/lang/10-modules.md#r-module.entry.exit-code).
+@derive(Eq)
 pub type ExitCode(u8)
 
 ## What a `main` may return: `void`, an `ExitCode`, or a `Result` whose error is reported.
@@ -35,6 +36,7 @@ impl[T < Termination, E < Error] Termination for Result[T, E]:
 # The host capability to start a program (spec/lang/10-modules.md#processes).
 ## What `run!` returns for a started program: its output and exit status; the fields default to `""`, `""`, and 0.
 ## See [module.process.ok-output](../../spec/lang/10-modules.md#r-module.process.ok-output).
+@derive(Debug, Eq)
 pub struct ProcessOutput:
     ## The text the program wrote to standard output.
     ## See [module.process.ok-output](../../spec/lang/10-modules.md#r-module.process.ok-output).
@@ -50,15 +52,23 @@ pub struct ProcessOutput:
 # started and exited non-zero is `.Ok` (r-module.process.nonzero-ok).
 ## Why a program did not start: not found or denied (each naming the program), not granted, or another reason with a message.
 ## See [module.process.decl-struct](../../spec/lang/10-modules.md#r-module.process.decl-struct).
+@error
+@derive(Debug, Eq)
 pub enum ProcessError:
+    @error("program not found: ${program}")
     NotFound(program: string)
+    @error("permission denied: ${program}")
     PermissionDenied(program: string)
+    @error("program not granted; run with --cap Process=PROGRAM")
     NotGranted
+    @error("$message")
     Other(message: string)
+    @error("program exited with status ${status}: ${stderr}")
     Exited(status: i32, stderr: string)
 
 ## A program to start with its arguments, environment, working directory, and standard input. `run!` starts it.
 ## See [module.process.decl-struct](../../spec/lang/10-modules.md#r-module.process.decl-struct).
+@derive(Debug, Eq)
 pub struct Command:
     ## The program to start.
     ## See [module.process.run-command](../../spec/lang/10-modules.md#r-module.process.run-command).
@@ -167,68 +177,14 @@ impl Process for ScriptedProcess:
                 queued[if done < queued.len(): done else: queued.len() - 1]
             .None => .Err(.NotFound(program))
 
-impl Eq for ExitCode:
-    fn eq(self, other: ExitCode) -> bool:
-        u8(self) == u8(other)
-
-impl Eq for ProcessOutput:
-    fn eq(self, other: ProcessOutput) -> bool:
-        self.stdout == other.stdout && self.stderr == other.stderr && self.status == other.status
-
-impl Eq for Command:
-    fn eq(self, other: Command) -> bool:
-        self.program == other.program && self.args == other.args && self.env == other.env && self.current_dir == other.current_dir && self.stdin == other.stdin
-
-impl Eq for ProcessError:
-    fn eq(self, other: ProcessError) -> bool:
-        match (self, other):
-            (.NotFound(left), .NotFound(right)) => left == right
-            (.PermissionDenied(left), .PermissionDenied(right)) => left == right
-            (.NotGranted, .NotGranted) => true
-            (.Other(left), .Other(right)) => left == right
-            (.Exited(left_status, left_stderr), .Exited(right_status, right_stderr)) => left_status == right_status && left_stderr == right_stderr
-            _ => false
-
 # The text of each variant (r-std-process.error.display.other and its rows).
-impl Display for ProcessError:
-    fn to_string(self) -> string:
-        match self:
-            .NotFound(program) => "program not found: ${program}"
-            .PermissionDenied(program) => "permission denied: ${program}"
-            .NotGranted => "program not granted; run with --cap Process=PROGRAM"
-            .Other(message) => message
-            .Exited(status, stderr) => "program exited with status ${status}: ${stderr}"
 
-# A std error type implements `Error` (r-std-error.std-types.impl.reference-values).
-impl Error for ProcessError
-
-# `Debug` for this module's public types (r-std-format.debug.std-types),
-# written by hand with the builder calls that `@derive(Debug)` generates
-# (r-std-format.debug.derive-builders.source): the prototype runs the
-# derivation pass before it joins std (src/checker/program.ts), so a
-# `@derive` on a std declaration has no effect.
-
+# Keep handwritten Debug: keep the ExitCode wrapper; derived Debug delegates to u8.
 impl Debug for ExitCode:
     fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_tuple("ExitCode").field(u8(self)).finish()
 
-impl Debug for ProcessOutput:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("ProcessOutput").field("stdout", self.stdout).field("stderr", self.stderr).field("status", self.status).finish()
-
-impl Debug for ProcessError:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        match self:
-            .NotFound(program) => out.debug_tuple("ProcessError.NotFound").named_field("program", program).finish()
-            .PermissionDenied(program) => out.debug_tuple("ProcessError.PermissionDenied").named_field("program", program).finish()
-            .NotGranted => out.write("ProcessError.NotGranted")
-            .Other(message) => out.debug_tuple("ProcessError.Other").named_field("message", message).finish()
-            .Exited(status, stderr) => out.debug_tuple("ProcessError.Exited").named_field("status", status).named_field("stderr", stderr).finish()
-
-impl Debug for Command:
-    fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("Command").field("program", self.program).field("args", self.args).field("env", self.env).field("current_dir", self.current_dir).field("stdin", self.stdin).finish()
-
+# Keep handwritten Debug: show seen requests and omit queued results.
 impl Debug for ScriptedProcess:
     fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("ScriptedProcess").field("seen", self.seen).finish()
