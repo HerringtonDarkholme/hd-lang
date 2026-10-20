@@ -2864,3 +2864,61 @@ where its counts are taken does (`emit/count.rs`, `emit/live.rs`).
   new cases pass strings through owned and borrowed parameters into a
   struct in a loop, check that the heap does not grow, and check that an
   argument used again after a call keeps its value.
+
+### 23.26 Requirement Rows And Context Values
+
+Issue #613 lowers requirement rows with row parameters, function values
+whose row changes and `$.Context` values on the linear backend
+(`emit/ctx.rs`), after crates/hd_mono/DESIGN.md §12.4.
+
+- **A context** is a counted list buffer (§23.7) whose elements are
+  16-byte entries: a key id (`i64`, the first 64 bits of the key's
+  content hash, as on Wasm GC) and a provider, the trait value's data and
+  vtable. Each entry holds a count of its provider's data, so the
+  buffer's release glue is the list glue's (`rt::ctx_elem`). The empty
+  context is 0. `rt:ctx_find` looks a key id up and takes the first
+  entry that has it; `rt:ctx_new(n, base)` makes a context of `n`
+  entries for the caller to fill, followed by the entries of `base`,
+  which take counts of their own.
+- **One callable ABI.** A closure's code and a function reference's
+  adapter take the environment, their parameters, then one context,
+  whatever the value's row. The code looks its own row's keys up on
+  entry, after a suspending body has reloaded its locals; a row that
+  lists an open row keeps the context for the keys it does not name. A
+  caller passes a context of the value's row, built from its providers
+  in scope, so row subsumption (`fn $ A` to `fn $ A + B`) is no
+  instruction. An empty row passes 0, and a row that is only the
+  caller's open row passes the caller's context unchanged. The iterator
+  step codes take the context too and ignore it.
+- **Row parameters.** An instance of an item with row parameters is
+  compiled once with each row parameter the open row (`hd_mono::rowless`).
+  It takes one provider per key its row lists itself, then the context
+  of its row parameters' keys. A key no provider in scope covers is read
+  from that context. A caller builds the context from the keys of its
+  row arguments, in front of its own context when an argument lists its
+  open row, with the keys of its open `$.with` scopes in front too, so
+  the nearer provider wins (`req.with.nearest.row-parameter`).
+- **Counts.** A caller releases a context it built once the call has
+  returned. A callee borrows the context, as it borrows its providers;
+  a suspending callee's frame takes a count of it, as of its providers,
+  since the call's scope may end first.
+- **Context values.** `$.Context[$ R]` is one counted address of a
+  context whose entries are in key order (`req.context.order`).
+  `ContextNew` builds it from the last pair that binds each key, a trait
+  value or an entry of a spread context. A spread in `$.with` reads each
+  entry into provider locals, borrowed from the value.
+- **Dynamic calls.** A vtable slot of a method whose row lists a key, or
+  that has row parameters, takes one context last: the caller cannot know
+  the implementation's row, which may list fewer keys. The slot looks up
+  the implementation's own keys and passes the context on when the
+  target has row parameters. A method whose own type parameters are all
+  rows has an erased body that opens no instruction, so it is emitted as
+  a plain body at the open rows, without a witness.
+- **Size.** hello (`println("hello")`, release): 4,977 bytes on
+  `linear` before and after; a program that calls no function value and
+  no function with row parameters links neither context helper.
+- **Not yet.** A method with type parameters of its own called through
+  a trait value needs the erased method ABI (§13.5.1, job 11), so
+  `dynamic-row-parameter-erased-body.hd` is still refused, as is a call
+  at an erased body's open row, which the Wasm GC backend outlines into
+  a thunk.

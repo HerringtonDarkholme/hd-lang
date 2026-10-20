@@ -284,6 +284,9 @@ pub fn mem(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Mem> {
         },
         TyData::Fn { .. } => record(&[Mem::address(), Mem::address()]).0,
         TyData::TraitValue { .. } => record(&[Mem::address(), Mem::address()]).0,
+        // A `$.Context` value is the address of a counted context
+        // (`rt::ctx_elem`).
+        TyData::Context(_) => Mem::address(),
         TyData::Ref { .. } => return unsupported("references (job 12)"),
         // An instance that collection shares among reference arguments
         // (A1, `crates/hd_mono/DESIGN.md` §13.2) holds one as an address:
@@ -356,7 +359,7 @@ pub fn walk(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Walk> {
     match pool.get(t) {
         TyData::Prim(Prim::String) => Some(Walk::Ref(0)),
         TyData::Fn { .. } => Some(Walk::Ref(1)),
-        TyData::TraitValue { .. } => Some(Walk::Ref(0)),
+        TyData::TraitValue { .. } | TyData::Context(_) => Some(Walk::Ref(0)),
         TyData::Tuple { .. } => fields_walk(pool, env, &tuple_members(pool, t)),
         TyData::Adt { def, .. }
             if matches!(

@@ -23,6 +23,8 @@ use crate::{Input, unsupported};
 
 mod closure;
 mod count;
+mod ctx;
+pub(crate) use ctx::ctx_lookup;
 mod dyn_value;
 mod iter;
 mod list;
@@ -42,6 +44,10 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
     let sub = match t.sub[id.idx()] {
         Sub::Body(sub) => sub,
         Sub::Adapter => return adapter(input, id),
+        // The erased body of a method whose own parameters are all rows
+        // is its body with those rows open: it opens no instruction, so it
+        // takes no witness (`ctx.rs`).
+        Sub::Erased if ctx::own_types(input.env, item) == 0 => 0,
         _ => return unsupported("erased bodies and thunks (job 11)"),
     };
     let Some(b) = (input.body)(id) else {
@@ -68,6 +74,8 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
         vals: HashMap::default(),
         locals: HashMap::default(),
         providers: Vec::new(),
+        open_ctx: None,
+        open_base: 0,
         ctl: Vec::new(),
         deciding: Vec::new(),
         loops: 0,
@@ -94,12 +102,12 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
         params.push(Val::I32);
     }
     // A closure's code takes its environment first, then its own
-    // parameters and its type's row (`closure.rs`).
+    // parameters and one context (`closure.rs`, `ctx.rs`).
     let (plocals, ret, keys, closure) = if sub == 0 {
         (
             param_locals(b),
             em.sub(input.env.ret(item).unwrap_or(Ty::VOID)),
-            input.env.row_keys(item, args),
+            hd_mono::declared_row_keys(input.pool, input.env, item, args),
             None,
         )
     } else {
@@ -114,7 +122,7 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
         (
             sub_param_locals(b, sub),
             em.sub(result),
-            em.fn_row_keys(ft)?,
+            Vec::new(),
             Some(ci),
         )
     };
@@ -150,6 +158,27 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
         em.providers.push((key, [at, at + 1]));
         params.extend([Val::I32, Val::I32]);
     }
+    // A function with row parameters takes their keys' context last, and
+    // a closure's code its caller's (`ctx.rs`).
+    let ctx = (closure.is_some() || hd_mono::has_row_params(input.env, item)).then(|| {
+        let at = u32::try_from(params.len()).expect("params");
+        params.push(Val::I32);
+        at
+    });
+    // A closure's own row: each key's provider from the context, once the
+    // body has its locals. A row that lists the open row keeps the
+    // context for the keys it does not name.
+    let mut row = Vec::new();
+    if let Some(ci) = closure {
+        let (ks, open) = em.fn_row(em.sub(b.ty[ci]))?;
+        row = ks;
+        if open {
+            em.open_ctx = ctx;
+        }
+    } else {
+        em.open_ctx = ctx;
+    }
+    em.open_base = em.providers.len();
     let results = em.vals(ret)?;
     em.results.clone_from(&results);
     let mut fres = results.clone();
@@ -165,7 +194,9 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
     if suspending {
         let pc = em.f.local(Val::I32);
         let cancelled = em.f.local(Val::I32);
-        let provs = em.providers.iter().map(|p| p.1[0]).collect();
+        // A frame holds a count of each provider's data, and of the
+        // context, which holds the closure's own.
+        let provs = em.providers.iter().map(|p| p.1[0]).chain(ctx).collect();
         em.susp = Some(susp::Susp {
             key,
             pc,
@@ -244,6 +275,14 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
     }
     if suspending {
         em.f.op(Instruction::End);
+    }
+    if let Some(c) = ctx {
+        for k in row {
+            let id = ctx::key_id(input, k);
+            let ls = ctx::ctx_lookup(&mut em.f, c, id);
+            em.providers.push((k, ls));
+        }
+        em.open_base = em.providers.len();
     }
     if em.counting {
         em.open(Ctl::Exit);
@@ -347,9 +386,9 @@ fn adapter(input: &Input<'_>, id: InstId) -> StageResult<Func> {
     for p in env.params(ct.item).unwrap_or_default() {
         params.extend(vals(pool, env, subst(pool, env, ct.item, ct.args, p))?);
     }
-    for _ in env.row_keys(ct.item, ct.args) {
-        params.extend([Val::I32, Val::I32]);
-    }
+    // The context of the value's caller, which holds the value's row.
+    let c = u32::try_from(params.len()).expect("params");
+    params.push(Val::I32);
     // A suspending target's plain call is its cold constructor, which
     // returns the frame.
     let results = if env.suspends(ct.item) {
@@ -363,8 +402,21 @@ fn adapter(input: &Input<'_>, id: InstId) -> StageResult<Func> {
         params.clone(),
         results,
     );
-    for k in 1..params.len() {
-        f.get(u32::try_from(k).expect("params"));
+    let mut provs = Vec::new();
+    for k in hd_mono::declared_row_keys(pool, env, ct.item, ct.args) {
+        provs.push(ctx::ctx_lookup(&mut f, c, ctx::key_id(input, k)));
+    }
+    for k in 1..c {
+        f.get(k);
+    }
+    for [d, v] in provs {
+        f.get(d);
+        f.get(v);
+    }
+    // The target's own row parameters read their keys from the same
+    // context, which passes on.
+    if hd_mono::has_row_params(env, ct.item) {
+        f.get(c);
     }
     f.call(Sym::Inst(ct.key));
     Ok(f)
@@ -452,6 +504,13 @@ struct Em<'i, 'a, 'm> {
     locals: HashMap<usize, Vec<u32>>,
     /// The providers in scope: each key's data and vtable locals.
     providers: Vec<(Ty, [u32; 2])>,
+    /// The local of the context this body takes, when its row lists an
+    /// open row (`ctx.rs`): a key no provider in scope covers is read
+    /// from it.
+    open_ctx: Option<u32>,
+    /// How many of `providers` the body had on entry: those after them
+    /// are a `$.with` scope's, which go in front of the open context.
+    open_base: usize,
     ctl: Vec<Ctl>,
     /// The `Match` instructions whose decision trees are being emitted.
     deciding: Vec<u32>,
@@ -925,13 +984,9 @@ impl Em<'_, '_, '_> {
                         if self.vals(self.ty_of(a))? != self.vals(self.ty(i))? {
                             return unsupported("a coercion that changes the layout");
                         }
-                        // A function value's code takes its row's providers,
-                        // so a row that changes needs an adapter.
-                        if self.is_fn(self.ty(i))
-                            && self.fn_row_keys(self.ty_of(a))? != self.fn_row_keys(self.ty(i))?
-                        {
-                            return unsupported("a function value whose row changes");
-                        }
+                        // A function value's code looks its row up in the
+                        // context its caller passes, so a row that changes
+                        // changes nothing (`ctx.rs`).
                         self.push(a)?;
                         self.store(i)?;
                     }
@@ -1188,6 +1243,7 @@ impl Em<'_, '_, '_> {
                 self.point(i, a, bw)?;
             }
             Tag::With => self.with(i, a, bw)?,
+            Tag::ContextNew => self.context_new(i, a)?,
             // The condition block's instructions, then its `bool` tail.
             Tag::Guard => {
                 let r = self.rec(bw);
@@ -1223,17 +1279,6 @@ impl Em<'_, '_, '_> {
         self.env().path_hash(def)
     }
 
-    /// The data and vtable locals of the innermost provider of key `k`.
-    fn provider(&self, k: Ty) -> StageResult<[u32; 2]> {
-        match self.providers.iter().rev().find(|p| p.0 == k) {
-            Some((_, ls)) => Ok(*ls),
-            None => unsupported(format!(
-                "a provider of `{}` this function does not take",
-                self.pool().display(k)
-            )),
-        }
-    }
-
     /// `$.with(K: v, ...) body` (`req.with.*`): each pair's value is the
     /// provider of its key inside the body. The provider borrows the
     /// value's locals, whose count lasts to the function's exit.
@@ -1242,6 +1287,11 @@ impl Em<'_, '_, '_> {
         let mut pushed = 0;
         for c in pairs.chunks(2) {
             let key = self.sub(Ty(c[0]));
+            // A spread context's providers, key by key.
+            if matches!(self.pool().get(key), TyData::Context(_)) {
+                pushed += self.push_context(c[1], key)?;
+                continue;
+            }
             if !matches!(self.pool().get(key), TyData::TraitValue { .. }) {
                 return unsupported("a `$.with` key that is not a trait");
             }
@@ -1259,24 +1309,6 @@ impl Em<'_, '_, '_> {
         self.close();
         self.providers.truncate(self.providers.len() - pushed);
         r
-    }
-
-    /// Pushes the providers of a callee's row keys, in key order. A
-    /// function with row parameters is compiled once for every row and
-    /// takes its declared keys' providers, then one context value of its
-    /// rows' (`crates/hd_mono/DESIGN.md` §12.4), which this backend does
-    /// not build yet: a call whose row arguments hold a key is refused.
-    fn push_providers(&mut self, item: DefId, args: TyList) -> StageResult<()> {
-        let keys = self.env().row_keys(item, args);
-        if !hd_mono::row_param_keys(self.pool(), self.env(), item, args).is_empty() {
-            return unsupported("functions with row parameters and context values");
-        }
-        for key in keys {
-            let [d, v] = self.provider(key)?;
-            self.f.get(d);
-            self.f.get(v);
-        }
-        Ok(())
     }
 
     /// The parameter types of plain callee `item` at `args`, instance
@@ -1377,7 +1409,7 @@ impl Em<'_, '_, '_> {
                 TargetKind::Instance => {
                     let params = self.param_tys(ct.key, ct.item, ct.args);
                     self.push_args(&args, params.as_deref())?;
-                    self.push_providers(ct.item, ct.args)?;
+                    let c = self.push_call_providers(ct.item, ct.args)?;
                     self.f.call(Sym::Inst(ct.key));
                     // A suspending callee called cold returns its frame.
                     let ret = if self.env().suspends(ct.item) {
@@ -1385,7 +1417,9 @@ impl Em<'_, '_, '_> {
                     } else {
                         ct.ret
                     };
-                    self.call_results(i, ret)
+                    self.call_results(i, ret)?;
+                    self.release_ctx(c);
+                    Ok(())
                 }
                 TargetKind::Intrinsic(key) if key == "type_id_of" => self.type_id_of(i, ct.args),
                 TargetKind::Intrinsic(key)
@@ -1435,10 +1469,11 @@ impl Em<'_, '_, '_> {
         else {
             return unsupported("a dynamic call of a method without a slot");
         };
-        if !self.env().row_keys(method, targs).is_empty() {
-            return unsupported("a dynamic call with providers");
+        let takes_ctx = ctx::slot_ctx(self.env(), method);
+        if !takes_ctx && !self.env().row_keys(method, targs).is_empty() {
+            return unsupported("a dynamic call of a method whose row is a trait's row parameter");
         }
-        if hd_mono::erased::own_count(self.env(), method) > 0 {
+        if ctx::own_types(self.env(), method) > 0 {
             return unsupported("a dynamic call of a generic method");
         }
         let Some((&recv, rest)) = args.split_first() else {
@@ -1462,6 +1497,12 @@ impl Em<'_, '_, '_> {
             params.extend(self.vals(self.ty_of(*r))?);
             self.push(*r)?;
         }
+        let c = if takes_ctx {
+            params.push(Val::I32);
+            self.push_dyn_ctx(method, targs)?
+        } else {
+            None
+        };
         let steps = self.dyn_steps(value_ty, trait_, targs)?;
         if let Some(value) = &payload {
             self.f.get(value[1]);
@@ -1484,7 +1525,7 @@ impl Em<'_, '_, '_> {
             self.f.get(value[0]);
             self.f.helper(Helper::ReleaseRef);
         }
-
+        self.release_ctx(c);
         Ok(())
     }
 
@@ -1513,7 +1554,7 @@ impl Em<'_, '_, '_> {
                 let args = self.rec(bw);
                 let params = self.param_tys(call.key, call.item, call.args);
                 self.push_args(&args, params.as_deref())?;
-                self.push_providers(call.item, call.args)?;
+                let c = self.push_call_providers(call.item, call.args)?;
                 if bracket {
                     self.forbid_by(1);
                 }
@@ -1521,7 +1562,9 @@ impl Em<'_, '_, '_> {
                 if bracket {
                     self.forbid_by(-1);
                 }
-                self.call_results(i, call.ret)
+                self.call_results(i, call.ret)?;
+                self.release_ctx(c);
+                Ok(())
             }
             _ => unsupported("a default argument without a target"),
         }

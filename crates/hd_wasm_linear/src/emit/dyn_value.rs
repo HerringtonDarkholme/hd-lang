@@ -8,7 +8,7 @@
 //! supertraits' vtables.
 
 use hd_base::StageResult;
-use hd_mono::{SlotRecv, Target, TargetKind, VTable, erased, subst};
+use hd_mono::{SlotRecv, Target, TargetKind, VTable, subst};
 use hd_types::{Ty, TyData};
 use wasm_encoder::Instruction as I;
 
@@ -184,9 +184,21 @@ impl Em<'_, '_, '_> {
                 own.push((u32::try_from(vs.len()).expect("values"), w));
                 params.extend(vs);
             }
-            for _ in env.row_keys(t.item, t.args) {
-                params.extend([Val::I32, Val::I32]);
-            }
+            // A method with a row takes its caller's context last
+            // (`ctx.rs`), in which the slot looks up its target's keys.
+            let ctx = if super::ctx::slot_ctx(env, *m) {
+                params.push(Val::I32);
+                let keys = hd_mono::declared_row_keys(self.pool(), env, t.item, t.args);
+                Some(crate::rt::SlotCtx {
+                    ids: keys
+                        .into_iter()
+                        .map(|k| super::ctx::key_id(self.input, k))
+                        .collect(),
+                    forward: hd_mono::has_row_params(env, t.item),
+                })
+            } else {
+                None
+            };
             // A suspending method's slot builds its cold frame.
             let results = if env.suspends(t.item) {
                 vec![Val::I32]
@@ -195,7 +207,7 @@ impl Em<'_, '_, '_> {
             };
             // Generic erased methods and compiler-supplied methods still
             // use their existing dynamic-call lowering restrictions.
-            let traps = erased::own_count(env, *m) > 0 || t.kind != TargetKind::Instance;
+            let traps = super::ctx::own_types(env, *m) > 0 || t.kind != TargetKind::Instance;
             // The vtable's `runtime_type` answers the type the vtable is
             // built at (trait.inspect.dynamic).
             if let TargetKind::Builtin { self_ty, .. } = t.kind
@@ -225,6 +237,7 @@ impl Em<'_, '_, '_> {
                     params,
                     results,
                     own,
+                    ctx,
                 }
             } else {
                 Helper::DynSlot {
@@ -233,6 +246,7 @@ impl Em<'_, '_, '_> {
                     params,
                     results,
                     own,
+                    ctx,
                 }
             }));
         }

@@ -762,7 +762,8 @@ pub fn slot_next() -> Func {
 /// changed, the entries before the written count at creation are where
 /// they were. The entry leaves with its own counts.
 pub fn step(entry: &Entry, opt: &[OptVal], results: &[Val]) -> Func {
-    let mut f = Func::new("rt:map_step", vec![Val::I32], results.to_vec());
+    // A closure's code: the environment, then the context it ignores.
+    let mut f = Func::new("rt:map_step", vec![Val::I32, Val::I32], results.to_vec());
     let (h, t, cap) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
     let (i, end, at) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
     let out: Vec<u32> = results.iter().map(|v| f.local(*v)).collect();

@@ -37,6 +37,39 @@ pub struct RefRead {
     pub leaves: Vec<Leaf>,
 }
 
+/// How a vtable slot whose method has a row passes its providers on: its
+/// last parameter is a context (`emit/ctx.rs`), in which it looks up the
+/// key ids `ids`, the target's own row in key order, and which it passes
+/// on when the target has row parameters (`forward`).
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct SlotCtx {
+    pub ids: Vec<i64>,
+    pub forward: bool,
+}
+
+/// Pushes slot parameters `1..=n` of `f`, then, for a slot that takes a
+/// context as parameter `n + 1`, the providers of `ctx.ids` from it and
+/// the context itself when the target takes it.
+fn push_slot_params(f: &mut Func, n: usize, ctx: Option<&SlotCtx>) {
+    for k in 1..=n {
+        f.get(u32::try_from(k).expect("params"));
+    }
+    if let Some(sc) = ctx {
+        let c = u32::try_from(n + 1).expect("params");
+        let mut provs = Vec::new();
+        for id in &sc.ids {
+            provs.push(crate::emit::ctx_lookup(f, c, *id));
+        }
+        for [d, v] in provs {
+            f.get(d);
+            f.get(v);
+        }
+        if sc.forward {
+            f.get(c);
+        }
+    }
+}
+
 /// A generated function, by what it does.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Helper {
@@ -130,6 +163,14 @@ pub enum Helper {
     /// `(list) -> list`: a copy of a list (`types.coll.value`): a new
     /// header over the same buffer, which counts one more owner.
     ListCopy,
+    /// `(ctx, key) -> entry`: the entry of key id `key` in context `ctx`
+    /// ([`ctx_elem`]), `LIST_ELEMS` before it. Checking covers every key a
+    /// body looks up, so a miss is internal and traps.
+    CtxFind,
+    /// `(n, base) -> ctx`: a new context of `n` entries, which the caller
+    /// fills, then the entries of context `base` (0 for none), which take
+    /// counts of their own.
+    CtxNew,
     /// `(at, n)`: the `n` elements at `at`, just copied from a buffer that
     /// keeps them too, take their own counts; each collection among an
     /// element's values becomes its copy ([`Helper::ListCopy`]).
@@ -171,6 +212,7 @@ pub enum Helper {
         params: Vec<Val>,
         results: Vec<Val>,
         own: Vec<(u32, Option<Walk>)>,
+        ctx: Option<SlotCtx>,
     },
     /// `(ref, params..) -> results`: a vtable slot whose payload is a
     /// reference and whose target takes the value: reads it through the
@@ -181,8 +223,9 @@ pub enum Helper {
         params: Vec<Val>,
         results: Vec<Val>,
         own: Vec<(u32, Option<Walk>)>,
+        ctx: Option<SlotCtx>,
     },
-    /// `(env) -> T?`: the step closure code of `List.iter()`
+    /// `(env, ctx) -> T?`: the step closure code of `List.iter()`
     /// (`emit/iter.rs`): `.Some` of the next element, with its own count,
     /// laid out as `opt` says, or `.None` at the end.
     ListStep {
@@ -190,7 +233,7 @@ pub enum Helper {
         opt: Vec<OptVal>,
         results: Vec<Val>,
     },
-    /// `(env) -> (K, V)?`: the step closure code of `Map.iter()`
+    /// `(env, ctx) -> (K, V)?`: the step closure code of `Map.iter()`
     /// (`map.rs`).
     MapStep {
         entry: map::Entry,
@@ -368,6 +411,38 @@ pub const LIST_OWN: u64 = 4;
 /// the elements inline from [`LIST_ELEMS`].
 pub const LIST_LEN: u64 = 4;
 pub const LIST_ELEMS: u32 = 8;
+
+/// A context (`crates/hd_mono/DESIGN.md` §12.4, `emit/ctx.rs`): a list
+/// buffer whose elements are entries of [`CTX_ENTRY`] bytes, each a key id
+/// (`i64`) and its provider, the trait value's counted data and its
+/// vtable. A function value's code and a function with row parameters
+/// take one, 0 for none, and look their keys up in it; a `$.Context`
+/// value is one too, its entries in key order.
+#[must_use]
+pub fn ctx_elem() -> Elem {
+    let leaf = |offset, val, bytes| Leaf {
+        offset,
+        val,
+        bytes,
+        signed: false,
+    };
+    Elem {
+        size: CTX_ENTRY,
+        leaves: vec![
+            leaf(0, Val::I64, 8),
+            leaf(8, Val::I32, 4),
+            leaf(12, Val::I32, 4),
+        ],
+        walk: Some(Walk::Ref(1)),
+        colls: Vec::new(),
+    }
+}
+
+/// A context entry's size, and its provider's data and vtable offsets
+/// from the address `LIST_ELEMS` before it: past the key id.
+pub const CTX_ENTRY: u32 = 16;
+pub const CTX_DATA: u64 = 16;
+pub const CTX_VTABLE: u64 = 20;
 
 /// The address of the one static empty buffer, shared by every empty list
 /// and map literal: its payload's 16 zero bytes are an empty list buffer
@@ -741,7 +816,8 @@ fn rt_import(name: &str, params: &[Val], results: &[Val]) -> Sym {
 /// [`Helper::ListStep`]'s function. The environment holds the list's
 /// header at 0, the next index at 4 and the length at creation at 8.
 fn list_step(elem: &Elem, opt: &[OptVal], results: &[Val]) -> Func {
-    let mut f = Func::new("rt:list_step", vec![Val::I32], results.to_vec());
+    // A closure's code: the environment, then the context it ignores.
+    let mut f = Func::new("rt:list_step", vec![Val::I32, Val::I32], results.to_vec());
     let b = f.local(Val::I32);
     let i = f.local(Val::I32);
     let at = f.local(Val::I32);
@@ -824,6 +900,7 @@ fn dyn_read(
     params: &[Val],
     results: &[Val],
     own: &[(u32, Option<Walk>)],
+    ctx: Option<&SlotCtx>,
     m: &Module,
 ) -> Func {
     let mut all = vec![Val::I32];
@@ -838,9 +915,7 @@ fn dyn_read(
     let rvals: Vec<Val> = read.leaves.iter().map(|l| l.val).collect();
     own_lent(&mut f, &rvals, &recv, params, own, m);
     recv(&mut f);
-    for k in 1..=params.len() {
-        f.get(u32::try_from(k).expect("params"));
-    }
+    push_slot_params(&mut f, params.len() - usize::from(ctx.is_some()), ctx);
     f.call(Sym::Inst(target));
     f
 }
@@ -1053,6 +1128,8 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::ListBuf { elem } => list_buf(elem),
         Helper::DropElems { elem } => drop_elems(elem),
         Helper::ListCopy => list_copy(m),
+        Helper::CtxFind => ctx_find(),
+        Helper::CtxNew => ctx_new(),
         Helper::CopyElems { elem } => copy_elems(elem, m),
         Helper::ListUnique { elem, push } => list_unique(elem, *push, m),
         Helper::MapTable { entry } => map::table(entry),
@@ -1069,6 +1146,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             params,
             results,
             own,
+            ctx,
         } => {
             let mut all = vec![Val::I32];
             all.extend(params.iter().copied());
@@ -1087,9 +1165,11 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
                 .map_or(vec![Val::I32], |ls| ls.iter().map(|l| l.val).collect());
             own_lent(&mut f, &rvals, &recv, params, own, m);
             recv(&mut f);
-            for k in 1..=params.len() {
-                f.get(u32::try_from(k).expect("params"));
-            }
+            push_slot_params(
+                &mut f,
+                params.len() - usize::from(ctx.is_some()),
+                ctx.as_ref(),
+            );
             f.call(Sym::Inst(*target));
             f
         }
@@ -1099,7 +1179,8 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             params,
             results,
             own,
-        } => dyn_read(*target, read, params, results, own, m),
+            ctx,
+        } => dyn_read(*target, read, params, results, own, ctx.as_ref(), m),
         Helper::ListStep { elem, opt, results } => list_step(elem, opt, results),
         Helper::ListTruncate { elem } => list_truncate(elem),
         Helper::TypeIdOf(parts) => type_id(parts, vec![], m),
@@ -1813,6 +1894,95 @@ fn list_buf(elem: &Elem) -> Func {
     f.i32(0);
     f.op(Instruction::I32Store(mem(HEAP, LIST_LEN, 2)));
     f.get(b);
+    f
+}
+
+/// [`Helper::CtxFind`].
+fn ctx_find() -> Func {
+    let mut f = Func::new("rt:ctx_find", vec![Val::I32, Val::I64], vec![Val::I32]);
+    let end = f.local(Val::I32);
+    f.get(0);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::If(BlockType::Empty));
+    f.op(Instruction::Unreachable);
+    f.op(Instruction::End);
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
+    f.u32(CTX_ENTRY);
+    f.op(Instruction::I32Mul);
+    f.get(0);
+    f.op(Instruction::I32Add);
+    f.set(end);
+    f.op(Instruction::Block(BlockType::Empty));
+    f.op(Instruction::Loop(BlockType::Empty));
+    f.get(0);
+    f.get(end);
+    f.op(Instruction::I32GeU);
+    f.op(Instruction::If(BlockType::Empty));
+    f.op(Instruction::Unreachable);
+    f.op(Instruction::End);
+    f.get(0);
+    f.op(Instruction::I64Load(mem(HEAP, u64::from(LIST_ELEMS), 3)));
+    f.get(1);
+    f.op(Instruction::I64Eq);
+    f.op(Instruction::BrIf(1));
+    f.get(0);
+    f.u32(CTX_ENTRY);
+    f.op(Instruction::I32Add);
+    f.set(0);
+    f.op(Instruction::Br(0));
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+    f.get(0);
+    f
+}
+
+/// [`Helper::CtxNew`].
+fn ctx_new() -> Func {
+    let mut f = Func::new("rt:ctx_new", vec![Val::I32, Val::I32], vec![Val::I32]);
+    let (len, c, at) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
+    f.get(1);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(1);
+    f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
+    f.set(len);
+    f.op(Instruction::End);
+    f.get(0);
+    f.get(len);
+    f.op(Instruction::I32Add);
+    f.helper(Helper::ListBuf { elem: ctx_elem() });
+    f.set(c);
+    f.get(c);
+    f.get(0);
+    f.get(len);
+    f.op(Instruction::I32Add);
+    f.op(Instruction::I32Store(mem(HEAP, LIST_LEN, 2)));
+    f.get(len);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(c);
+    f.u32(LIST_ELEMS);
+    f.op(Instruction::I32Add);
+    f.get(0);
+    f.u32(CTX_ENTRY);
+    f.op(Instruction::I32Mul);
+    f.op(Instruction::I32Add);
+    f.set(at);
+    f.get(at);
+    f.get(1);
+    f.u32(LIST_ELEMS);
+    f.op(Instruction::I32Add);
+    f.get(len);
+    f.u32(CTX_ENTRY);
+    f.op(Instruction::I32Mul);
+    f.op(Instruction::MemoryCopy {
+        src_mem: HEAP,
+        dst_mem: HEAP,
+    });
+    f.get(at);
+    f.get(len);
+    f.helper(Helper::CopyElems { elem: ctx_elem() });
+    f.op(Instruction::End);
+    f.get(c);
     f
 }
 

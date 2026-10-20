@@ -2,8 +2,8 @@
 //! job 11). A function value is `(code, environment)`: the function-table
 //! slot of its code instance and the address of a counted environment
 //! that holds the captures, 0 when there are none. A code instance takes
-//! the environment first, then its parameters, then the providers of its
-//! type's row in key order. A local that a closure shares (`Shared`, one
+//! the environment first, then its parameters, then the context its
+//! caller passes, which holds the providers of its type's row (`ctx.rs`). A local that a closure shares (`Shared`, one
 //! that is assigned after it is captured) lives in a cell, a counted
 //! object holding its value, and every holder keeps the cell's address.
 
@@ -324,38 +324,9 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// Whether `t` is a function type.
-    pub(super) fn is_fn(&self, t: Ty) -> bool {
-        matches!(
-            self.pool().get(strip(self.pool(), self.env(), t)),
-            TyData::Fn { .. }
-        )
-    }
-
-    /// The keys of function type `t`'s row, in key order; an open row is
-    /// refused.
-    pub(super) fn fn_row_keys(&self, t: Ty) -> StageResult<Vec<Ty>> {
-        let TyData::Fn { row, .. } = self.pool().get(strip(self.pool(), self.env(), t)) else {
-            return unsupported("a call of a value that is not a function");
-        };
-        let data = self.pool().row_data(row);
-        if !data.params.is_empty() {
-            return unsupported("a function value with an open row");
-        }
-        let env = self.env();
-        Ok(hd_mono::key_order(
-            self.pool(),
-            &|d| env.path_hash(d),
-            data.keys
-                .into_iter()
-                .map(|k| self.sub(k))
-                .collect::<Vec<_>>(),
-        ))
-    }
-
-    /// `CallValue`: the environment, the arguments and the providers of
-    /// the callee type's row, then an indirect call of the code, or a
-    /// direct one of a closure collection resolved.
+    /// `CallValue`: the environment, the arguments and the context of the
+    /// callee type's row (`ctx.rs`), then an indirect call of the code, or
+    /// a direct one of a closure collection resolved.
     pub(super) fn call_value(&mut self, i: u32, callee: u32, args: &[u32]) -> StageResult<()> {
         let ft = self.ty_of(callee);
         // A suspending value's code is its cold constructor, which
@@ -383,12 +354,8 @@ impl Em<'_, '_, '_> {
         self.comp(callee, 1)?;
         // A suspending value's code counts each argument into its frame.
         self.push_args(args, (!suspends).then_some(&tys[..]))?;
-        for key in self.fn_row_keys(ft)? {
-            let [d, v] = self.provider(key)?;
-            self.f.get(d);
-            self.f.get(v);
-            ps.extend([Val::I32, Val::I32]);
-        }
+        let c = self.push_fn_ctx(ft)?;
+        ps.push(Val::I32);
         let results = self.vals(self.ty(i))?;
         if let Some(&Target::KnownClosure(key)) = self.calls.get(&i) {
             self.f.call(Sym::Inst(key));
@@ -397,6 +364,8 @@ impl Em<'_, '_, '_> {
             self.f.body.push(Ins::CallIndirect(ps, results));
         }
         let ty = self.ty(i);
-        self.call_results(i, ty)
+        self.call_results(i, ty)?;
+        self.release_ctx(c);
+        Ok(())
     }
 }

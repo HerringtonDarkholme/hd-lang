@@ -19,7 +19,9 @@ runtime/panic/block-on-completed-suspension.hd	#575: suspension frames, the wake
 runtime/panic/boundary-deserialize-error.hd	#595: host codecs over linear memory
 runtime/panic/char-to-digit-radix-high.hd	#552: strings
 runtime/panic/char-to-digit-radix-low.hd	#552: strings
+runtime/panic/cli-command-after-positional.hd	#613: passed unlisted in the 2026-10-20 sweep
 runtime/panic/cli-duplicate-option.hd	#554: lists
+runtime/panic/cli-positional-after-command.hd	#613: passed unlisted in the 2026-10-20 sweep
 runtime/panic/cmp-clamp-reversed.hd	#541: test programs, and roots that never suspend
 runtime/panic/competing-suspension-drivers.hd	#575: suspension frames, the waker and the entry driver
 runtime/panic/compound-assign-map-missing-key.hd	#572: maps
@@ -255,10 +257,15 @@ runtime/valid/char-unicode-whitespace.hd	#573: closures and trait values
 runtime/valid/character-literals.hd	#573: closures and trait values
 runtime/valid/choices-choose.hd	#595: host codecs over linear memory
 runtime/valid/choices-int-range.hd	#595: host codecs over linear memory
+runtime/valid/cli-automatic-help.hd	#613: passed unlisted in the 2026-10-20 sweep
+runtime/valid/cli-error-exit.hd	#613: passed unlisted in the 2026-10-20 sweep
 runtime/valid/cli-errors.hd	#573: closures and trait values
 runtime/valid/cli-flag-forms.hd	#573: closures and trait values
 runtime/valid/cli-parse-args.hd	#573: closures and trait values
 runtime/valid/cli-parsed-value-copy.hd	#573: closures and trait values
+runtime/valid/cli-repeated-choices.hd	#613: passed unlisted in the 2026-10-20 sweep
+runtime/valid/cli-required-and-many.hd	#613: passed unlisted in the 2026-10-20 sweep
+runtime/valid/cli-subcommands.hd	#613: passed unlisted in the 2026-10-20 sweep
 runtime/valid/cli-usage.hd	#573: closures and trait values
 runtime/valid/cli-value-as.hd	#573: closures and trait values
 runtime/valid/clock-elapsed.hd	#575: suspension frames, the waker and the entry driver
@@ -313,6 +320,7 @@ runtime/valid/console-read-all.hd	#575: suspension frames, the waker and the ent
 runtime/valid/console-struct-fake-ref.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/construction-provider-capture.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/context-error-debug.hd	#573: closures and trait values
+runtime/valid/context-values-install-providers.hd	#613: requirement rows and context values
 runtime/valid/contextual-variant-after-same-line-if.hd	#573: closures and trait values
 runtime/valid/contextual-variant-expected-type.hd	#573: closures and trait values
 runtime/valid/contextual-variant-expressions.hd	#573: closures and trait values
@@ -412,6 +420,7 @@ runtime/valid/downcast-reference-permission-identity.hd	#586: reference recovery
 runtime/valid/duration-api.hd	#573: closures and trait values
 runtime/valid/duration-arithmetic.hd	#573: closures and trait values
 runtime/valid/duration-display.hd	#573: closures and trait values
+runtime/valid/duration-literal-timeout.hd	#613: requirement rows and context values
 runtime/valid/duration-literals.hd	#595: found passing by the linear sweep; no host codec involved
 runtime/valid/duration-order.hd	#551: structs, tuples, enums and data values
 runtime/valid/duration-parse-errors.hd	#573: closures and trait values
@@ -425,6 +434,8 @@ runtime/valid/dyn-ref-list-written.hd	#573: closures and trait values
 runtime/valid/dyn-ref-mut-changes-caller.hd	#573: closures and trait values
 runtime/valid/dyn-ref-receiver-forms.hd	#573: closures and trait values
 runtime/valid/dyn-ref-widen.hd	#573: closures and trait values
+runtime/valid/dynamic-row-parameter-method.hd	#613: requirement rows and context values
+runtime/valid/dynamic-row-parameter-nearest.hd	#613: requirement rows and context values
 runtime/valid/dynamic-suspending-method.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/dynamic-trait-value-satisfies-own-bound.hd	#573: closures and trait values
 runtime/valid/element-receiver-auto-address.hd	#573: closures and trait values
@@ -445,6 +456,7 @@ runtime/valid/empty-string-operations.hd	#573: closures and trait values
 runtime/valid/encoding-base64-vectors.hd	#573: closures and trait values
 runtime/valid/encoding-decode-errors.hd	#573: closures and trait values
 runtime/valid/encoding-hex-vectors.hd	#573: closures and trait values
+runtime/valid/entry-exit-code-map.hd	#613: passed unlisted in the 2026-10-20 sweep
 runtime/valid/entry-suspending-main.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/enum-payload-match.hd	#573: closures and trait values
 runtime/valid/enum-payload-mut-shallow.hd	#573: closures and trait values
@@ -515,6 +527,7 @@ runtime/valid/for-snapshot-helper-growth.hd	#573: closures and trait values
 runtime/valid/for-string-explicit-views.hd	#573: closures and trait values
 runtime/valid/from-direct-call.hd	#573: closures and trait values
 runtime/valid/from-propagation-and-panic.hd	#573: closures and trait values
+runtime/valid/fs-error-variant-equality.hd	#613: passed unlisted in the 2026-10-20 sweep
 runtime/valid/fs-glob-errors.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/fs-glob.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/fs-helpers-all.hd	#575: suspension frames, the waker and the entry driver
@@ -590,6 +603,7 @@ runtime/valid/host-env-as.hd	#573: closures and trait values
 runtime/valid/host-result-special-floats.hd	#595: host codecs over linear memory
 runtime/valid/http-handles-and-values.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/http-json.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/http-method-variant-equality.hd	#613: passed unlisted in the 2026-10-20 sweep
 runtime/valid/http-scripted-provider.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/http-scripted-unknown-url.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/http-status-as-error.hd	#575: suspension frames, the waker and the entry driver
@@ -639,6 +653,7 @@ runtime/valid/inspectable-generic-arguments-exact.hd	#573: closures and trait va
 runtime/valid/inspectable-generic-downcast-targets.hd	#586: reference recovery methods
 runtime/valid/inspectable-generic-target-helper.hd	#586: reference recovery methods
 runtime/valid/inspectable-primitives-collections-options.hd	#573: closures and trait values
+runtime/valid/installer-function-runs.hd	#613: requirement rows and context values
 runtime/valid/integer-cast-wraps-examples.hd	#573: closures and trait values
 runtime/valid/integer-display-every-width.hd	#595: host codecs over linear memory
 runtime/valid/integer-literal-forms.hd	#540: integers, strings and enums in locals
@@ -666,6 +681,7 @@ runtime/valid/iterator-single-pass.hd	#573: closures and trait values
 runtime/valid/iterator-skip-take-while.hd	#573: closures and trait values
 runtime/valid/iterator-zip-iterable.hd	#573: closures and trait values
 runtime/valid/json-decode-bytes-matches-old.hd	#595: host codecs over linear memory
+runtime/valid/json-decode-streaming.hd	#613: passed unlisted in the 2026-10-20 sweep
 runtime/valid/json-encode-pretty.hd	#573: closures and trait values
 runtime/valid/json-encode-text-writer-matches-tree.hd	#595: host codecs over linear memory
 runtime/valid/json-errors.hd	#573: closures and trait values
@@ -727,6 +743,7 @@ runtime/valid/list-suffix-spread.hd	#573: closures and trait values
 runtime/valid/list-value-parameter-copy.hd	#573: closures and trait values
 runtime/valid/list-view-run.hd	#573: closures and trait values
 runtime/valid/list-view-to-list-mut.hd	#573: closures and trait values
+runtime/valid/list-window-views.hd	#613: passed unlisted in the 2026-10-20 sweep
 runtime/valid/literal-erased-fallback.hd	#573: closures and trait values
 runtime/valid/literal-fallback-hint-fix.hd	#573: closures and trait values
 runtime/valid/literal-interpolation-width.hd	#573: closures and trait values
@@ -752,6 +769,7 @@ runtime/valid/local-inherent-and-trait-impls.hd	#573: closures and trait values
 runtime/valid/local-shadows-module-namespace.hd	#573: closures and trait values
 runtime/valid/logical-operators.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/long-else-if-chain.hd	#573: closures and trait values
+runtime/valid/loop-break-join-rows.hd	#613: requirement rows and context values
 runtime/valid/loop-iteration-binding-capture.hd	#573: closures and trait values
 runtime/valid/loop-iteration-cells.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/manual-clock-handle-shared.hd	#575: suspension frames, the waker and the entry driver
@@ -848,6 +866,7 @@ runtime/valid/nested-closure-captures.hd	#573: closures and trait values
 runtime/valid/nested-control-flow-as-expressions.hd	#551: structs, tuples, enums and data values
 runtime/valid/nested-mutable-captures.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/nested-optional-layers.hd	#573: closures and trait values
+runtime/valid/nested-provider-restoration.hd	#613: requirement rows and context values
 runtime/valid/nested-provider-scope.hd	#573: closures and trait values
 runtime/valid/nested-suspending-call.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/nested-variant-positional-bindings.hd	#573: closures and trait values
@@ -942,6 +961,7 @@ runtime/valid/payloads-and-fields-keep-every-width.hd	#551: structs, tuples, enu
 runtime/valid/pending-first-poll-argument-order.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/pending-first-poll-branches.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/pending-first-poll-comprehension-propagation.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/pending-first-poll-dynamic-method.hd	#613: requirement rows and context values
 runtime/valid/pending-first-poll-generic-callable-list.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/pending-first-poll-loops.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/pending-first-poll-match-guards.hd	#575: suspension frames, the waker and the entry driver
@@ -1007,11 +1027,13 @@ runtime/valid/property-generators-collections.hd	#595: host codecs over linear m
 runtime/valid/property-generators-scalars.hd	#595: host codecs over linear memory
 runtime/valid/provider-capture-timing.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/provider-from-suspending-call.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/provider-ref-context.hd	#613: requirement rows and context values
 runtime/valid/provider-ref-host.hd	#595: host codecs over linear memory
 runtime/valid/provider-ref-mut-changes-caller.hd	#573: closures and trait values
 runtime/valid/provider-ref-new-object.hd	#573: closures and trait values
 runtime/valid/provider-ref-same-place.hd	#573: closures and trait values
 runtime/valid/provider-scope-dynamic-callback.hd	#573: closures and trait values
+runtime/valid/provider-scope-lexical-capture.hd	#613: requirement rows and context values
 runtime/valid/provider-value-reference-identity.hd	#595: found passing by the linear sweep; no host codec involved
 runtime/valid/pub-own-member-hides-promoted-other-module.hd	#573: closures and trait values
 runtime/valid/pub-own-member-hides-promoted.hd	#573: closures and trait values
@@ -1098,6 +1120,7 @@ runtime/valid/requirement-row-forwarded-through-calls.hd	#573: closures and trai
 runtime/valid/requirement-row-order-data-field.hd	#573: closures and trait values
 runtime/valid/requirement-row-order-stored-suspension.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/requirement-row-order-trait-value.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/requirement-row-union-and-order.hd	#613: requirement rows and context values
 runtime/valid/resource-disposed-result.hd	#595: host codecs over linear memory
 runtime/valid/result-and-then.hd	#573: closures and trait values
 runtime/valid/result-entry-point-ok.hd	#575: suspension frames, the waker and the entry driver
@@ -1118,18 +1141,35 @@ runtime/valid/rng-int-generic.hd	#573: closures and trait values
 runtime/valid/rng-int-range.hd	#573: closures and trait values
 runtime/valid/rng-seeded-sequence.hd	#573: closures and trait values
 runtime/valid/rng-shuffle-choose-sample.hd	#573: closures and trait values
+runtime/valid/row-alias-bare-runs.hd	#613: requirement rows and context values
 runtime/valid/row-alias-dollar-forms.hd	#573: closures and trait values
+runtime/valid/row-alias-expand-before-solving.hd	#613: requirement rows and context values
 runtime/valid/row-alias-key-written.hd	#573: closures and trait values
 runtime/valid/row-alias-mutable-key.hd	#573: closures and trait values
+runtime/valid/row-alias-runs.hd	#613: requirement rows and context values
+runtime/valid/row-extension-absent-key-runs.hd	#613: requirement rows and context values
+runtime/valid/row-extension-provider-restoration.hd	#613: requirement rows and context values
 runtime/valid/row-extension-restores-provider.hd	#573: closures and trait values
+runtime/valid/row-forced-overlap-nearest.hd	#613: requirement rows and context values
 runtime/valid/row-inference-empty-row.hd	#573: closures and trait values
 runtime/valid/row-omitted-closure-row.hd	#573: closures and trait values
 runtime/valid/row-omitted-cycle.hd	#573: closures and trait values
+runtime/valid/row-omitted-expected-parameter.hd	#613: requirement rows and context values
 runtime/valid/row-omitted-parameter-calls.hd	#573: closures and trait values
 runtime/valid/row-omitted-private-inferred.hd	#573: closures and trait values
 runtime/valid/row-omitted-public-body-with.hd	#573: closures and trait values
+runtime/valid/row-parameter-callable-in-list.hd	#613: requirement rows and context values
 runtime/valid/row-parameter-name-in-row.hd	#573: closures and trait values
+runtime/valid/row-parameter-owners-run.hd	#613: requirement rows and context values
+runtime/valid/row-polymorphic-forwarding.hd	#613: requirement rows and context values
+runtime/valid/row-polymorphic-union-forwarding.hd	#613: requirement rows and context values
 runtime/valid/row-slot-empty.hd	#573: closures and trait values
+runtime/valid/row-subsume-closure.hd	#613: requirement rows and context values
+runtime/valid/row-subsumption-runs.hd	#613: requirement rows and context values
+runtime/valid/row-union-branches-run.hd	#613: requirement rows and context values
+runtime/valid/row-union-closure-result-runs.hd	#613: requirement rows and context values
+runtime/valid/row-union-list-runs.hd	#613: requirement rows and context values
+runtime/valid/row-variable-binds-union.hd	#613: requirement rows and context values
 runtime/valid/row-variable-plus-key.hd	#573: closures and trait values
 runtime/valid/runtimes-bind-different-providers.hd	#573: closures and trait values
 runtime/valid/same-line-function-body.hd	#573: closures and trait values
@@ -1184,6 +1224,7 @@ runtime/valid/spread-at-vararg-evaluated-once.hd	#573: closures and trait values
 runtime/valid/spread-forms-and-positions.hd	#554: lists
 runtime/valid/spread-pattern.hd	#573: closures and trait values
 runtime/valid/static-and-dynamic-trait-dispatch.hd	#573: closures and trait values
+runtime/valid/std-derived-implementations.hd	#613: passed unlisted in the 2026-10-20 sweep
 runtime/valid/std-errors-erased-codecs.hd	#573: closures and trait values
 runtime/valid/std-errors-erased.hd	#592: standard errors erased through references
 runtime/valid/std-iter-traits-struct-impls.hd	#573: closures and trait values
@@ -1273,11 +1314,13 @@ runtime/valid/task-all-list-empty.hd	#575: suspension frames, the waker and the 
 runtime/valid/task-all-list-order.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/task-block-on.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/task-cleanup-end.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/task-map-all.hd	#613: requirement rows and context values
 runtime/valid/task-records-value-copy.hd	#572: maps
 runtime/valid/task-retry-at-least-once.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/task-retry-when.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/task-retry.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/task-timeout-cleanup.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/task-timeout.hd	#613: requirement rows and context values
 runtime/valid/template-beside-hand-written-impl.hd	#573: closures and trait values
 runtime/valid/template-derived-trait-self.hd	#573: closures and trait values
 runtime/valid/termination-report.hd	#575: suspension frames, the waker and the entry driver
@@ -1311,6 +1354,9 @@ runtime/valid/time-rfc3339-text.hd	#573: closures and trait values
 runtime/valid/time-serde-forms.hd	#573: closures and trait values
 runtime/valid/time-unix-milliseconds.hd	#573: closures and trait values
 runtime/valid/time-values-copy.hd	#568: concrete keys preserve inline generic arguments
+runtime/valid/timeout-cleanup-cancel-first.hd	#613: requirement rows and context values
+runtime/valid/timeout-cleanup-cooperative.hd	#613: requirement rows and context values
+runtime/valid/timeout-cleanup-kept-deadline.hd	#613: requirement rows and context values
 runtime/valid/timeout-cleanup-unbounded.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/timeout-cleanup-zero.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/timeout-work-cancelled-elsewhere.hd	#575: suspension frames, the waker and the entry driver
