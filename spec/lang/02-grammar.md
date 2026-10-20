@@ -618,7 +618,8 @@ method_decl = [ "pub" ], "fn", callable_name, [ function_generic_params ],
               parameter_clause, [ "->", result_type ],
               [ requirement_clause ], ":", suite_body ;
 
-associated_type_decl = "type", identifier, [ "=", type ], NEWLINE ;
+associated_type_decl = "type", identifier, [ "<", supertrait_bounds ],
+                       [ "=", type ], NEWLINE ;
 ```
 
 1. r[grammar.impl.inherent] `impl T:` is an inherent implementation.
@@ -632,6 +633,7 @@ associated_type_decl = "type", identifier, [ "=", type ], NEWLINE ;
 9. r[grammar.decl.bound-vs-colon] In declarations, `<` introduces a bound (a supertrait or a generic parameter bound), while `:` means "has type" or opens a suite.
 10. r[grammar.trait.method-receiver] A function member whose first parameter is a receiver (`self`, `mut self`, `&self`, or `&mut self`) is a method; a receiverless member is an associated function.
 11. r[grammar.trait.associated-type] Associated type declarations omit `=` in a trait requirement and provide `= type` in an implementation.
+12. r[grammar.trait.associated-type.bound] Only a trait's associated type declaration may name bounds after `<`. Bounds in an implementation's declaration are an error. Error: `syntax-error`.
 13. r[grammar.impl.inline-bounds] Generic implementations state every bound inline in their generic parameter list; the language has no separate bound clause.
 14. r[grammar.impl.by-structure] `impl Trait for T by Structure` declares a derivation template or a derivation block, as [Typed Derivation](14-annotations.md#typed-derivation) defines.
 15. r[grammar.impl.by-no-trait] `impl T by Structure`, without a trait, declares a derivation block with no trait, as [Derivation Blocks With No Trait](14-annotations.md#derivation-blocks-with-no-trait) defines.

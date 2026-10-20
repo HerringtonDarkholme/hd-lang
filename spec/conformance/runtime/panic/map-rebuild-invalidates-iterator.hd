@@ -10,7 +10,7 @@ fn churn(entries: &mut Map[string, i32]) -> void:
 tests:
     it("next after removals and insertions that keep the length"):
         let mut entries: Map[string, i32] = {"a": +1, "b": +2, "c": +3, "d": +4}
-        let cursor: &mut dyn Iterator[(string, i32)] = entries.iter()
+        let mut cursor = entries.iter()
         _ := cursor.next()
         churn(&mut entries)
         _ := cursor.next()  # panic: iterator-invalidated

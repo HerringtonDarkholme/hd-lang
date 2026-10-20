@@ -8,7 +8,6 @@
 # tables (src/README.md, Compiler/library boundary). The raw-text prefix
 # `r` is here too (Literal Suffixes L20), with the prefix helpers
 # `interpolate`, `process_escapes`, and `EscapeError` (L22).
-use std.iter.from_fn
 use std.ops.{Template, str_prefix}
 use std.format.DebugWriter
 
@@ -193,7 +192,7 @@ impl Parse for char:
     type Error = ParseCharError
 
     fn parse(text: string) -> Result[char, ParseCharError]:
-        chars := text.chars()
+        let mut chars = text.chars()
         first := match chars.next():
             .Some(found) => found
             .None => return .Err(ParseCharError.Empty)
@@ -223,43 +222,21 @@ impl string:
     # The scalar values in order (spec/lang/10-modules.md#r-module.string.chars).
     ## Iterates the string's characters, one Unicode scalar value at a time.
     ## See [module.string.chars](../../spec/lang/10-modules.md#r-module.string.chars).
-    pub fn chars(self) -> &mut dyn Iterator[char]:
-        let at: usize = 0
-        &mut from_fn(fn() -> char?:
-            if at >= bytes_len(self):
-                return .None
-            point := scalar_at(self, at)
-            at = scalar_end(self, at)
-            char_from_scalar(u32(point))
-        )
+    pub fn chars(self) -> Chars:
+        Chars { text: self, at: 0 }
 
     # Each scalar value with the byte offset where its encoding starts
     # (spec/lang/10-modules.md#r-module.string.char-indices).
     ## Iterates `(byte offset, character)` pairs, one per character.
     ## See [module.string.char-indices](../../spec/lang/10-modules.md#r-module.string.char-indices).
-    pub fn char_indices(self) -> &mut dyn Iterator[(usize, char)]:
-        let at: usize = 0
-        &mut from_fn(fn() -> (usize, char)?:
-            if at >= bytes_len(self):
-                return .None
-            start := at
-            at = scalar_end(self, start)
-            match char_from_scalar(u32(scalar_at(self, start))):
-                .Some(scalar) => .Some((start, scalar))
-                .None => .None
-        )
+    pub fn char_indices(self) -> CharIndices:
+        CharIndices { text: self, at: 0 }
 
     # The bytes in order (spec/lang/10-modules.md#r-module.string.bytes).
     ## Iterates the string's bytes, one `u8` at a time.
     ## See [module.string.bytes](../../spec/lang/10-modules.md#r-module.string.bytes).
-    pub fn bytes(self) -> &mut dyn Iterator[u8]:
-        let at: usize = 0
-        &mut from_fn(fn() -> u8?:
-            if at >= bytes_len(self):
-                return .None
-            at = at + 1
-            .Some(bytes_at(self, at - 1))
-        )
+    pub fn bytes(self) -> Bytes:
+        Bytes { text: self, at: 0 }
 
     # The bytes from offset `start` up to `end`. Both must be scalar
     # boundaries with `start <= end`, or it panics with `index-out-of-bounds`
@@ -1191,3 +1168,46 @@ fn panic_with(category: string, message: string) -> void:
 impl Debug for StringBuilder:
     fn debug(self, out: &mut DebugWriter) -> void:
         out.debug_struct("StringBuilder").field("parts", self.pieces()).finish()
+
+## The cursor of a string's `chars`: its characters in order.
+## See [module.string.chars](../../spec/lang/10-modules.md#r-module.string.chars).
+pub struct Chars:
+    text: string
+    at: usize
+
+impl Iterator[char] for Chars:
+    fn next(&mut self) -> char?:
+        if self.at >= bytes_len(self.text):
+            return .None
+        point := scalar_at(self.text, self.at)
+        self.at = scalar_end(self.text, self.at)
+        char_from_scalar(u32(point))
+
+## The cursor of a string's `char_indices`: `(byte offset, character)` pairs in order.
+## See [module.string.char-indices](../../spec/lang/10-modules.md#r-module.string.char-indices).
+pub struct CharIndices:
+    text: string
+    at: usize
+
+impl Iterator[(usize, char)] for CharIndices:
+    fn next(&mut self) -> (usize, char)?:
+        if self.at >= bytes_len(self.text):
+            return .None
+        start := self.at
+        self.at = scalar_end(self.text, start)
+        match char_from_scalar(u32(scalar_at(self.text, start))):
+            .Some(scalar) => .Some((start, scalar))
+            .None => .None
+
+## The cursor of a string's `bytes`: its bytes in order.
+## See [module.string.bytes](../../spec/lang/10-modules.md#r-module.string.bytes).
+pub struct Bytes:
+    text: string
+    at: usize
+
+impl Iterator[u8] for Bytes:
+    fn next(&mut self) -> u8?:
+        if self.at >= bytes_len(self.text):
+            return .None
+        self.at = self.at + 1
+        .Some(bytes_at(self.text, self.at - 1))

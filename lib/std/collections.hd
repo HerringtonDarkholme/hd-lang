@@ -5,7 +5,7 @@
 # `ListView`, `Deque`, `Set`, and `Heap` are structs, values copied as a
 # list is; a view refers to its list. They are generic, so a program that
 # names none of them compiles none of their code.
-use std.iter.from_fn
+use std.iter.MapEntries
 use std.num.Num
 use std.iter.FromIterator
 use std.ops.Index
@@ -532,16 +532,24 @@ impl[T] Index[usize] for ListView[T]:
         self.items[self.start + key]
 
 impl[T] Iterable[T] for ListView[T]:
-    fn iter(self) -> &mut dyn Iterator[T]:
+    type IntoIter = ListViewIter[T]
+    fn iter(self) -> ListViewIter[T]:
         self.check()
-        let at = self.start
-        &mut from_fn(fn() -> T?:
-            self.check()
-            if at >= self.end:
-                return .None
-            at = at + 1
-            .Some(self.items[at - 1])
-        )
+        ListViewIter { view: self, at: self.start }
+
+## The cursor of a view's `iter`: the view's elements in order, each read from the list when it is reached.
+## See [std-collections.view.iter](../../spec/std/collections.md#r-std-collections.view.iter).
+pub struct ListViewIter[T]:
+    view: ListView[T]
+    at: usize
+
+impl[T] Iterator[T] for ListViewIter[T]:
+    fn next(&mut self) -> T?:
+        self.view.check()
+        if self.at >= self.view.end:
+            return .None
+        self.at = self.at + 1
+        .Some(self.view.items[self.at - 1])
 
 # A double-ended queue (spec/std/collections.md#deque): a ring buffer.
 # `slots` holds the `count` elements from `head` on, wrapping at its end,
@@ -652,14 +660,22 @@ impl[T] Deque[T]:
 # Front to back, over the deque as it was when `iter` was called
 # (r-std-collections.deque.iter, r-std-collections.deque.snapshot).
 impl[T] Iterable[T] for Deque[T]:
-    fn iter(self) -> &mut dyn Iterator[T]:
-        let at: usize = 0
-        &mut from_fn(fn() -> T?:
-            if at >= self.count:
-                return .None
-            at = at + 1
-            self.get(at - 1)
-        )
+    type IntoIter = DequeIter[T]
+    fn iter(self) -> DequeIter[T]:
+        DequeIter { deque: self, at: 0 }
+
+## The cursor of a deque's `iter`: its elements front to back.
+## See [std-collections.deque.iter](../../spec/std/collections.md#r-std-collections.deque.iter).
+pub struct DequeIter[T]:
+    deque: Deque[T]
+    at: usize
+
+impl[T] Iterator[T] for DequeIter[T]:
+    fn next(&mut self) -> T?:
+        if self.at >= self.deque.count:
+            return .None
+        self.at = self.at + 1
+        self.deque.get(self.at - 1)
 
 # Equal lengths and equal elements front to back, as `List`'s `Eq`
 # (r-std-collections.deque.eq); the ring layout does not matter.
@@ -733,9 +749,21 @@ impl[T < Eq & Hash] Set[T]:
 # Over the set as it was when `iter` was called
 # (r-std-collections.set.snapshot): the cursor walks a copy of the map.
 impl[T < Eq & Hash] Iterable[T] for Set[T]:
-    fn iter(self) -> &mut dyn Iterator[T]:
+    type IntoIter = SetIter[T]
+    fn iter(self) -> SetIter[T]:
         let mut entries = self.entries
-        &mut entries.iter().map(fn(entry: (T, bool)) -> T: entry._0)
+        SetIter { entries: entries.iter() }
+
+## The cursor of a set's `iter`: its elements in the set's order.
+## See [std-collections.set.iter](../../spec/std/collections.md#r-std-collections.set.iter).
+pub struct SetIter[T < Eq & Hash]:
+    entries: MapEntries[T, bool]
+
+impl[T < Eq & Hash] Iterator[T] for SetIter[T]:
+    fn next(&mut self) -> T?:
+        match self.entries.next():
+            .Some(entry) => .Some(entry._0)
+            .None => .None
 
 # A set of the distinct items, in the order each first appears
 # (r-std-collections.set.collect).

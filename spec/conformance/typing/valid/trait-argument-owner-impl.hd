@@ -1,11 +1,13 @@
 # test: the package owning a trait argument may implement a foreign trait for a foreign type
 # Spec 09 Traits: trait.own.argument.
+use std.iter.ListIter
 
 struct Word:
     text: string
 
 impl Iterable[Word] for string:
-    fn iter(self) -> &mut dyn Iterator[Word]:
+    type IntoIter = ListIter[Word]
+    fn iter(self) -> ListIter[Word]:
         [for part in [self] => Word { text: part }].iter()
 
 fn first_word(text: string) -> string:

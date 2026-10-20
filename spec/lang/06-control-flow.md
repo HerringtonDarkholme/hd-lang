@@ -181,7 +181,8 @@ trait Iterator[T]:
     fn next(&mut self) -> T?
 
 trait Iterable[T]:
-    fn iter(self) -> &mut dyn Iterator[T]
+    type IntoIter < Iterator[T]
+    fn iter(self) -> Self::IntoIter
 ```
 
 1. r[flow.for.iterator.trait] `Iterator[T]` is a prelude trait declaring `fn next(&mut self) -> T?`.
@@ -198,16 +199,23 @@ trait Iterable[T]:
 12. r[flow.for.string-explicit] A loop over a string's contents iterates `chars()`, `char_indices()`, or `bytes()`, which [String Methods](10-modules.md#string-methods) defines.
 13. r[flow.for.accepts-owned-cursor] `for` accepts an `Iterable[T]`, a value implementing `Iterator[T]`, or a mutable reference to such a cursor.
 14. r[flow.for.iterable.cursor] When the iterable expression's type implements `Iterable[T]` and is not a `List` or a `Map`, the loop calls `iter` once and advances the resulting cursor. A list or a map is iterated as [Snapshot Iteration](#snapshot-iteration) states.
-15. r[flow.for.iterator.owned-source] When the source is an iterator, the loop calls `next` on its owned binding without calling `iter`.
-16. r[flow.for.iterator.owned-position] Iteration starts at the copied cursor's current position and exhausts that copy unless the loop exits early.
-17. r[flow.for.iterator.shared-reference] A loop cannot advance a cursor through a shared reference. Error: `not-writable`.
-18. r[flow.for.iterator.owned-binding] A loop copies its cursor value into a hidden writable binding, regardless of whether the source expression is a writable place.
-19. r[flow.for.protocol-required] A source implementing neither `Iterable[T]` nor `Iterator[T]` is an error. Error: `unsatisfied-trait-bound`.
-20. r[flow.for.comprehension] Comprehension `for` clauses accept the same values by the same rules.
-21. r[flow.for.iterator.iterable-bound] An iterator without an `Iterable[T]` implementation does not satisfy an `Iterable[T]` bound. Error: `unsatisfied-trait-bound`.
-22. r[flow.for.iterator.evaluate-once] A loop evaluates its source expression once before iteration starts.
-23. r[flow.for.iterator.copy-preserves-source] Advancing the loop's owned cursor value does not change the original value.
-24. r[flow.for.iterator.reference-progress] Iterating a mutable cursor reference advances the referenced cursor's progress.
+15. r[flow.for.iterable.into-iter] `Iterable[T]` declares the associated cursor type `IntoIter`, bounded by `Iterator[T]`, and `iter` returns a value of it. Each implementation names its cursor type, as in `type IntoIter = ListIter[T]`.
+16. r[flow.for.iterable.static-cursor] The loop holds the `IntoIter` value `iter` returned as its own writable copy, as it holds an iterator source, and calls its `next` through that type's `Iterator[T]` implementation, with no trait value.
+17. r[flow.for.iterator.owned-source] When the source is an iterator, the loop calls `next` on its owned binding without calling `iter`.
+18. r[flow.for.iterator.owned-position] Iteration starts at the copied cursor's current position and exhausts that copy unless the loop exits early.
+19. r[flow.for.iterator.shared-reference] A loop cannot advance a cursor through a shared reference. Error: `not-writable`.
+20. r[flow.for.iterator.owned-binding] A loop copies its cursor value into a hidden writable binding, regardless of whether the source expression is a writable place.
+21. r[flow.for.protocol-required] A source implementing neither `Iterable[T]` nor `Iterator[T]` is an error. Error: `unsatisfied-trait-bound`.
+22. r[flow.for.comprehension] Comprehension `for` clauses accept the same values by the same rules.
+23. r[flow.for.iterator.iterable-bound] An iterator without an `Iterable[T]` implementation does not satisfy an `Iterable[T]` bound. Error: `unsatisfied-trait-bound`.
+24. r[flow.for.iterator.evaluate-once] A loop evaluates its source expression once before iteration starts.
+25. r[flow.for.iterator.copy-preserves-source] Advancing the loop's owned cursor value does not change the original value.
+26. r[flow.for.iterator.reference-progress] Iterating a mutable cursor reference advances the referenced cursor's progress.
+
+> **Why.** The cursor type is the implementation's own, as Rust's
+> `IntoIterator::IntoIter` is. So a loop or an adapter chain over a list
+> or a range advances a concrete cursor and calls its `next` directly,
+> never through a trait value.
 
 > **Why.** `Iterable[T]` promises a fresh, independent traversal on every
 > `iter()` call. A function bounded by it may loop over its argument twice,
@@ -399,15 +407,16 @@ fn first_square_over(limit: i32) -> i32:
 ```
 
 1. r[flow.for.range.iterable-two] For each integer type `T`, `Range[T]` and `RangeFrom[T]` implement `Iterable[T]`.
-2. r[flow.for.range.half-open] Iterating `a..b` yields `a`, `a + 1`, and so on, up to but not including `b`. It yields nothing when `a >= b`.
-3. r[flow.for.range.inclusive] Iterating `a..=b` yields `a` through `b`, and yields `b` even when it is the type's largest value. It yields nothing when `a > b`.
-4. r[flow.for.range.from] Iterating `a..` yields `a`, `a + 1`, and so on, with no end, so `for i in 0..:` runs until the loop exits another way.
-5. r[flow.for.range.from-overflow] An iterator over `a..` has no end. Asking it for the item after the type's largest value is a checked runtime panic in a debug or test build, as `a + 1` is. It wraps in a release build, again as `a + 1` does. Panic: `integer-overflow`.
-6. r[flow.for.range.fresh] Each `iter()` call on a range starts from its start bound, and iterating never changes the range value.
-7. r[flow.for.range.to] `RangeTo[T]` does not implement `Iterable`, since it has no start, so a loop over `..b` is an error. Error: `unsatisfied-trait-bound`.
-8. r[flow.for.range.to-through] `..=b` is a `RangeTo[T]` too, so a loop over it is an error. Error: `unsatisfied-trait-bound`.
-9. r[flow.for.range.full] `RangeFull` does not implement `Iterable` either, so a loop over `..` is an error. Error: `unsatisfied-trait-bound`.
-10. r[flow.for.range.float] A range of a floating-point type does not implement `Iterable`, so a loop over `0.0..1.0` is an error. Error: `unsatisfied-trait-bound`.
+2. r[flow.for.range.cursor] The cursor type of `Range[T]` is `std.ops.RangeIter[T]`, and that of `RangeFrom[T]` is `std.ops.RangeFromIter[T]`.
+3. r[flow.for.range.half-open] Iterating `a..b` yields `a`, `a + 1`, and so on, up to but not including `b`. It yields nothing when `a >= b`.
+4. r[flow.for.range.inclusive] Iterating `a..=b` yields `a` through `b`, and yields `b` even when it is the type's largest value. It yields nothing when `a > b`.
+5. r[flow.for.range.from] Iterating `a..` yields `a`, `a + 1`, and so on, with no end, so `for i in 0..:` runs until the loop exits another way.
+6. r[flow.for.range.from-overflow] An iterator over `a..` has no end. Asking it for the item after the type's largest value is a checked runtime panic in a debug or test build, as `a + 1` is. It wraps in a release build, again as `a + 1` does. Panic: `integer-overflow`.
+7. r[flow.for.range.fresh] Each `iter()` call on a range starts from its start bound, and iterating never changes the range value.
+8. r[flow.for.range.to] `RangeTo[T]` does not implement `Iterable`, since it has no start, so a loop over `..b` is an error. Error: `unsatisfied-trait-bound`.
+9. r[flow.for.range.to-through] `..=b` is a `RangeTo[T]` too, so a loop over it is an error. Error: `unsatisfied-trait-bound`.
+10. r[flow.for.range.full] `RangeFull` does not implement `Iterable` either, so a loop over `..` is an error. Error: `unsatisfied-trait-bound`.
+11. r[flow.for.range.float] A range of a floating-point type does not implement `Iterable`, so a loop over `0.0..1.0` is an error. Error: `unsatisfied-trait-bound`.
 
 ```text
 fn invalid(n: i32) -> void:
@@ -419,8 +428,9 @@ fn invalid(n: i32) -> void:
         pass
 ```
 
-> **Note.** `std` writes one implementation per integer type, so no
-> stepping trait is needed.
+> **Note.** `std` writes one implementation over `std.num.Integer`, so a
+> range of literals whose type is still open, as in `(1..4).iter()`,
+> already has its cursor type.
 
 ### Iterator Invalidation
 
@@ -435,11 +445,12 @@ loop over a list or a map iterates a snapshot instead
 5. r[flow.for.replace] Replacing an existing list element or map value keeps the length, so it does not invalidate the iterator.
 6. r[flow.for.replace.observed] Later visits observe the replacement.
 7. r[flow.for.user-defined] User-defined iterables must document equivalent mutation behavior in their own contract.
+8. r[flow.for.collection-cursor.copy] A copy of a list or map cursor has its own position and reads the same collection, so these rules hold for each copy.
 
 ```hd
 fn demo() -> void:
     let mut items: List[i32] = [+1, +2]
-    let cursor: &mut dyn Iterator[i32] = items.iter()
+    let mut cursor = items.iter()
     _ := cursor.next()
     items.push(+3)
     _ := cursor.next()   # panics with iterator-invalidated

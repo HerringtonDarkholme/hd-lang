@@ -3,7 +3,7 @@
 tests:
     it("a rebuild invalidates an exhausted iterator"):
         let mut entries: Map[string, i32] = {"a": +1}
-        let cursor: &mut dyn Iterator[(string, i32)] = entries.iter()
+        let mut cursor = entries.iter()
         _ := cursor.next()
         _ := cursor.next()
         for i in 0..64:

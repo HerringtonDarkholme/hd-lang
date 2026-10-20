@@ -1502,7 +1502,9 @@ fn prelude(
 }
 
 /// An associated type declared in a trait or bound in an impl body.
-type AssocDecl = (Symbol, DefId, Option<Ty>);
+/// An associated type member: its name, its def, its value in an
+/// implementation, and its bounds in a trait (`trait.assoc.bound-decl`).
+type AssocDecl = (Symbol, DefId, Option<Ty>, Vec<Ty>);
 
 /// A bound's trait and its arguments, defaults filled.
 type BoundRef = (DefId, TyList);
@@ -3229,7 +3231,15 @@ impl Lower<'_, '_, '_> {
                     let text = self.src.text(t).to_owned();
                     let def = self.names.member(owner, PathKind::Member, &text);
                     let ty = Src::type_child(f).map(|c| self.ty(Some(c), gn));
-                    assoc.push((self.sym(&text), def, ty));
+                    let mut bounds = Vec::new();
+                    if let Some(bl) = Src::child(f, SyntaxKind::BoundList) {
+                        for b in bl.children().filter(|c| c.kind() == SyntaxKind::NamedType) {
+                            if let Some(t) = self.trait_value(b, gn, gn.self_ty) {
+                                bounds.push(t);
+                            }
+                        }
+                    }
+                    assoc.push((self.sym(&text), def, ty, bounds));
                 }
                 _ => {}
             }
@@ -3562,7 +3572,7 @@ impl Lower<'_, '_, '_> {
             self.impl_variance(h.def, &generics, (self_ty, &gn), b);
         }
         let mut assoc: Vec<(DefId, Ty)> = header_bindings;
-        for (name, _, ty) in assoc_decls {
+        for (name, _, ty, _) in assoc_decls {
             if trait_ != DefId::NONE {
                 assoc.push((
                     self.names
@@ -4176,14 +4186,14 @@ impl Lower<'_, '_, '_> {
                 self.duplicate_members(block);
                 let (methods, assoc_decls) = self.members(block, h.def, h.public, true, &gn, out);
                 let mut assoc = Vec::new();
-                for (name, def, ty) in assoc_decls {
+                for (name, def, ty, bounds) in assoc_decls {
                     out.push(Item::new(
                         def,
                         name,
                         h.public,
                         ItemData::AssocType {
                             owner: h.def,
-                            bounds: Vec::new(),
+                            bounds,
                             default: ty,
                         },
                     ));

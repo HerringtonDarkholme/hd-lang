@@ -843,7 +843,7 @@ impl Ck<'_, '_> {
             }
         }
         ptys.extend(params);
-        let result = self.builtin_result(op, ret);
+        let result = ret;
         let ft = pool.intern_ty(&TyData::Fn {
             params: pool.list(&ptys),
             result,

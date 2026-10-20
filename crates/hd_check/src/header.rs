@@ -484,6 +484,7 @@ impl<'a> ItemCheck<'_, 'a> {
         if !self.cx.names.is_local(it.def) {
             self.supertraits(it)?;
         }
+        self.assoc_bounds(it)?;
         if *kind == ImplKind::Delegated
             && let Some(by) = by
         {
@@ -697,6 +698,53 @@ impl<'a> ItemCheck<'_, 'a> {
                 self.report(0, Code::MissingSupertraitImplementation, message);
             } else {
                 self.super_bindings(*trait_, *self_ty, s);
+            }
+        }
+        Ok(())
+    }
+
+    /// Each associated type a written implementation binds implements
+    /// the bounds its trait declares on it (`trait.assoc.bound-impl`).
+    fn assoc_bounds(&mut self, it: &Item) -> StageResult<()> {
+        let ItemData::Impl {
+            trait_,
+            trait_args,
+            self_ty,
+            assoc,
+            kind: ImplKind::Written,
+            ..
+        } = &it.data
+        else {
+            return Ok(());
+        };
+        let pool = self.pool();
+        let args = pool.list_items(*trait_args);
+        for (a, bound_to) in assoc {
+            let Some(ItemData::AssocType { bounds, .. }) = self.cx.lookup.item(*a).map(|i| &i.data)
+            else {
+                continue;
+            };
+            for b in bounds.clone() {
+                let b = pool.subst(b, &|p: ParamRef| {
+                    (p.owner == *trait_).then(|| {
+                        if p.index == 0 {
+                            Some(*self_ty)
+                        } else {
+                            args.get(usize::from(p.index) - 1).copied()
+                        }
+                    })?
+                });
+                if pool.has_poison(*bound_to) || !self.fails(*bound_to, b, 0)? {
+                    continue;
+                }
+                let message = format!(
+                    "{} binds `{}` to {}, which does not implement {}",
+                    self.show(*self_ty),
+                    self.cx.names.display_name(*a),
+                    self.show(*bound_to),
+                    self.show(b)
+                );
+                self.report(0, Code::UnsatisfiedTraitBound, message);
             }
         }
         Ok(())

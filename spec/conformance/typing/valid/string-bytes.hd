@@ -1,6 +1,7 @@
 # test: a string's length and index count bytes, and iteration is explicit
 # Spec 04 Strings, 05 String Indexing, 10 String Methods (Strings STR1-STR5).
 # expect: accept
+use std.text.{Bytes, CharIndices, Chars}
 
 fn initial(name: string) -> u8:
     name[0]
@@ -11,13 +12,13 @@ fn size(name: string) -> usize:
 fn wide_index(name: string, at: u64) -> u8:
     name[at]
 
-fn letters(text: string) -> &mut dyn Iterator[char]:
+fn letters(text: string) -> Chars:
     text.chars()
 
-fn positions(text: string) -> &mut dyn Iterator[(usize, char)]:
+fn positions(text: string) -> CharIndices:
     text.char_indices()
 
-fn raw(text: string) -> &mut dyn Iterator[u8]:
+fn raw(text: string) -> Bytes:
     text.bytes()
 
 fn head(text: string, end: usize) -> string:

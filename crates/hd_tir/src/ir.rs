@@ -235,7 +235,6 @@ impl PrimOp {
 pub enum IntrinsicOp {
     ListLen,
     ListPush,
-    ListIter,
     ListIndex,
     ListSet,
     MapLen,
@@ -243,7 +242,6 @@ pub enum IntrinsicOp {
     MapRemove,
     MapIndex,
     MapSet,
-    MapIter,
     StrIndex,
     /// `a + b` on two strings.
     StrConcat,
@@ -292,10 +290,9 @@ pub enum IntrinsicOp {
 }
 
 impl IntrinsicOp {
-    pub const ALL: [IntrinsicOp; 25] = [
+    pub const ALL: [IntrinsicOp; 23] = [
         IntrinsicOp::ListLen,
         IntrinsicOp::ListPush,
-        IntrinsicOp::ListIter,
         IntrinsicOp::ListIndex,
         IntrinsicOp::ListSet,
         IntrinsicOp::MapLen,
@@ -303,7 +300,6 @@ impl IntrinsicOp {
         IntrinsicOp::MapRemove,
         IntrinsicOp::MapIndex,
         IntrinsicOp::MapSet,
-        IntrinsicOp::MapIter,
         IntrinsicOp::StrIndex,
         IntrinsicOp::StrConcat,
         IntrinsicOp::StrEq,

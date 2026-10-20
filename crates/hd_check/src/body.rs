@@ -894,6 +894,36 @@ pub(crate) fn add_bound(
             });
             add_bound(lookup, global, pool, env, (self_ty, s), depth + 1);
         }
+        // Each associated type's declared bounds hold for its projection
+        // (`trait.assoc.bound-use`): under `I < Iterable[T]`, the clause
+        // `I::IntoIter < Iterator[T]`.
+        for &(_, a) in &t.assoc {
+            let Some(ItemData::AssocType { bounds, .. }) = lookup.item(a).map(|i| &i.data) else {
+                continue;
+            };
+            if bounds.is_empty() {
+                continue;
+            }
+            let proj = pool.intern_ty(&TyData::Assoc {
+                assoc: a,
+                trait_: def,
+                self_ty,
+                args,
+            });
+            for b in bounds {
+                let b = pool.subst(*b, &|p: ParamRef| {
+                    if p.owner != def {
+                        return None;
+                    }
+                    if p.index == 0 {
+                        Some(self_ty)
+                    } else {
+                        known.get(p.index as usize - 1).copied()
+                    }
+                });
+                add_bound(lookup, global, pool, env, (proj, b), depth + 1);
+            }
+        }
     }
 }
 

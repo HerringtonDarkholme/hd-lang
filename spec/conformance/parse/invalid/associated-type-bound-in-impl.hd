@@ -1,0 +1,11 @@
+# Spec 02 Traits And Implementations: grammar.trait.associated-type.bound.
+trait Bag[T]:
+    type Cursor < Iterator[T]
+    fn cursor(self) -> Self::Cursor
+
+struct Empty: pass
+
+impl Bag[i32] for Empty:
+    type Cursor < Iterator[i32] = std.iter.FromFn[i32]  # diagnostic: syntax-error
+    fn cursor(self) -> std.iter.FromFn[i32]:
+        std.iter.from_fn(fn() -> i32?: .None)

@@ -1,0 +1,42 @@
+# test: a bounded associated type's projection implements its bound: its methods are callable, it meets a bound naming the trait, and a signature may name it
+# Spec 09 Associated Types: trait.assoc.bound-decl, trait.assoc.bound-use. Spec 06 Iteration Protocols: flow.for.iterable.into-iter.
+
+trait Bag[T]:
+    type Cursor < Iterator[T]
+    fn cursor(self) -> Self::Cursor
+
+struct Down:
+    left: i32
+
+impl Iterator[i32] for Down:
+    fn next(&mut self) -> i32?:
+        if self.left <= 0:
+            return .None
+        self.left -= 1
+        .Some(self.left + 1)
+
+struct Three: pass
+
+impl Bag[i32] for Three:
+    type Cursor = Down
+    fn cursor(self) -> Down:
+        Down { left: 3 }
+
+fn total[B < Bag[i32]](bag: B) -> i32:
+    bag.cursor().sum::[i32]()
+
+fn counted[I < Iterator[i32]](cursor: I) -> usize:
+    cursor.count()
+
+fn bag_count[B < Bag[i32]](bag: B) -> usize:
+    counted(bag.cursor())
+
+fn first[B < Bag[i32]](bag: B) -> B::Cursor:
+    bag.cursor()
+
+fn first_item[B < Bag[i32]](bag: B) -> i32?:
+    let mut cursor = first(bag)
+    cursor.next()
+
+fn items[I < Iterable[i32]](source: I) -> I::IntoIter:
+    source.iter()

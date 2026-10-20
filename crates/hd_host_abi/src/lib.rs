@@ -577,6 +577,8 @@ pub static INTRINSICS: &[(&str, Lowering)] = &[
     ("f32_to_bits", Lowering::Compiler),
     ("f32_from_bits", Lowering::Compiler),
     ("list_truncate", Lowering::Compiler),
+    ("list_steps", Lowering::Compiler),
+    ("map_steps", Lowering::Compiler),
     ("panic", Lowering::Compiler),
     ("panic_message", Lowering::Compiler),
     ("facts_of", Lowering::Compiler),

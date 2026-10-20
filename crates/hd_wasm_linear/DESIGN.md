@@ -794,11 +794,13 @@ environments in `emit/closure.rs`, trait values and their vtables in
   body, borrowing `v`'s locals, whose count lasts to the function's
   exit. (`Guard`, a match guard's condition block and its two branches,
   lowers here too.)
-- **Iterators.** `List.iter()` and `Map.iter()` build an `Iterator[T]`
-  whose step closure's environment holds the collection's header, with a
-  count of its own, the next position and what the collection looked
-  like at creation: `rt:list_step` and `rt:map_step` panic
-  `iterator-invalidated` when it changed (`flow.for.invalidate.panic`).
+- **Iterators.** std's `list_steps` and `map_steps` intrinsics, under
+  `List.iter()`'s `ListIter` and `Map.iter()`'s `MapEntries`, build a
+  step closure whose environment holds the collection's header, with a
+  count of its own, and what the collection looked like at creation; the
+  cursor keeps its position and passes it in, so a copy advances on its
+  own. `rt:list_step` and `rt:map_step` panic `iterator-invalidated`
+  when the collection changed (`flow.for.invalidate.panic`).
   `list_truncate`, and so `pop`, `insert`, `remove_at` and `clear`, reads
   the list through its reference and truncates it in place.
 - **Bounded memory.** `crates/hd_driver/tests/std_rt/closure_tests.hd`

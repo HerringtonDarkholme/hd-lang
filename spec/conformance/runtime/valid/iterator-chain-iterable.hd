@@ -1,6 +1,6 @@
 # test: chain takes any Iterable, takes its iterator once when called, and reads self, then other
 # Spec std/iter More Adapters: std-iter.adapter.chain.value, .iterable-arg, and .chain-iterable.order.
-use std.iter.{from_fn}
+use std.iter.{FromFn, from_fn}
 use std.collections.Set
 # An iterable whose `iter` and whose iterator's pulls run given closures.
 struct Probe:
@@ -8,9 +8,10 @@ struct Probe:
     pull: fn() -> i32?
 
 impl Iterable[i32] for Probe:
-    fn iter(self) -> &mut dyn Iterator[i32]:
+    type IntoIter = FromFn[i32]
+    fn iter(self) -> FromFn[i32]:
         (self.start)()
-        &mut from_fn(self.pull)
+        from_fn(self.pull)
 
 tests:
     use std.testing.assert_equal

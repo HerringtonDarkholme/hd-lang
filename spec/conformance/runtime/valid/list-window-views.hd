@@ -47,6 +47,6 @@ tests:
     it("length changes invalidate iterators from a window", expect_panic="iterator-invalidated"):
         let mut items = [+1, +2]
         windows := items.windows(1)
-        iterator := windows[0].iter()
+        let mut iterator = windows[0].iter()
         items.push(+3)
         _ := iterator.next()

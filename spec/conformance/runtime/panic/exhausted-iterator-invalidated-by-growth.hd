@@ -3,7 +3,7 @@
 tests:
     it("a shape change invalidates an exhausted iterator"):
         let mut values: List[i32] = [1]
-        let iterator: &mut dyn Iterator[i32] = values.iter()
+        let mut iterator = values.iter()
         _ := iterator.next()
         _ := iterator.next()
         values.push(3)

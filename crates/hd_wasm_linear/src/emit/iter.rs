@@ -1,11 +1,13 @@
-//! `List.iter()` and `Map.iter()` (`crates/hd_wasm_linear/DESIGN.md` §23.19, job
-//! 11): an `Iterator[T]`, whose one field is a step closure. A list's
-//! environment holds its header, with a count of its own, the next index
-//! and the length at creation; its code is `rt:list_step`, which panics
-//! `iterator-invalidated` when the length has changed
-//! (`flow.for.invalidate.panic`) and otherwise returns the next element,
-//! with its own count, or `.None`. A map's holds its header, the next
-//! entry and, at creation, the table's written, live and rebuild counts
+//! std's `list_steps` and `map_steps` (`crates/hd_wasm_linear/DESIGN.md`
+//! §23.19, job 11): the step closures of `List.iter()`'s `ListIter` and
+//! `Map.iter()`'s `MapEntries`, which keep their position themselves and
+//! pass it in. A list's environment holds its header, with a count of its
+//! own, and the length at creation; its code is `rt:list_step`, which
+//! panics `iterator-invalidated` when the length has changed
+//! (`flow.for.invalidate.panic`) and otherwise returns the element at the
+//! index, with its own count, or `.None`. A map's holds its header and, at
+//! creation, the table's written, live and rebuild counts; its code
+//! returns the first live entry from the one passed in, with its number
 //! (`rt:map_step`, `map.rs`).
 
 use hd_base::StageResult;
@@ -92,14 +94,10 @@ impl Em<'_, '_, '_> {
         self.store_owned(i)
     }
 
-    /// `ListIter` of list `list`: the iterator's step closure.
+    /// `list_steps` of list `list`: the cursor's step closure.
     pub(super) fn list_iter(&mut self, i: u32, list: u32) -> StageResult<()> {
         let (et, elem) = self.elem(self.ty_of(list))?;
         let (opt, results) = self.opt_of(et)?;
-        let zero = |em: &mut Self, _: u32| {
-            em.f.i32(0);
-            Ok(())
-        };
         let len = |em: &mut Self, h: u32| {
             em.f.get(h);
             em.f.op(I::I32Load(mem(HEAP, 0, 2)));
@@ -107,27 +105,25 @@ impl Em<'_, '_, '_> {
             Ok(())
         };
         let code = Helper::ListStep { elem, opt, results };
-        self.iter_env(i, list, &[&zero, &len], code)
+        self.iter_env(i, list, &[&len], code)
     }
 
-    /// `MapIter` of map `map`: the iterator's step closure over its
-    /// entries as `(K, V)` tuples.
+    /// `map_steps` of map `map`: the cursor's step closure over its
+    /// entries, each as its entry number and a `(K, V)` tuple.
     pub(super) fn map_iter(&mut self, i: u32, map: u32) -> StageResult<()> {
         let (_, _, entry) = self.entry(self.ty_of(map))?;
-        let TyData::Adt { args, .. } = self.pool().get(self.strip_mut(self.ty(i))) else {
-            return unsupported("a map iterator that is not an `Iterator`");
+        let TyData::Fn { result, .. } = self.pool().get(self.strip_mut(self.ty(i))) else {
+            return unsupported("a map step that is not a function");
         };
-        let Some(&item) = self.pool().list_items(args).first() else {
-            return unsupported("an iterator type without its item");
+        let TyData::Option(item) = self.pool().get(result) else {
+            return unsupported("a map step whose result is not optional");
         };
-        if self.vals(item)? != entry.leaves.iter().map(|l| l.val).collect::<Vec<_>>() {
+        let mut want = vec![crate::module::Val::I32];
+        want.extend(entry.leaves.iter().map(|l| l.val));
+        if self.vals(item)? != want {
             return unsupported("a map entry that lays out unlike its tuple");
         }
         let (opt, results) = self.opt_of(item)?;
-        let zero = |em: &mut Self, _: u32| {
-            em.f.i32(0);
-            Ok(())
-        };
         let count = |at: u64| {
             move |em: &mut Self, h: u32| {
                 em.f.get(h);
@@ -142,6 +138,6 @@ impl Em<'_, '_, '_> {
             opt,
             results,
         };
-        self.iter_env(i, map, &[&zero, &used, &live, &grown], code)
+        self.iter_env(i, map, &[&used, &live, &grown], code)
     }
 }

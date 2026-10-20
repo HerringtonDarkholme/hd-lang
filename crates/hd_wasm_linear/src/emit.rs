@@ -1579,7 +1579,6 @@ impl Em<'_, '_, '_> {
                     // statement; each copy of the reference holds a pin of
                     // its own until its last use (`list.rs`, §23.20).
                     Some(IntrinsicOp::ListUnpin) => self.list_unpin(args[0])?,
-                    Some(IntrinsicOp::ListIter) => self.list_iter(i, args[0])?,
                     Some(hd_tir::ir::IntrinsicOp::StrConcat) => self.concat(i, &args)?,
                     Some(hd_tir::ir::IntrinsicOp::StrIndex) => self.str_at(i, args[0], args[1])?,
                     Some(hd_tir::ir::IntrinsicOp::StrEq) => {
@@ -1599,7 +1598,6 @@ impl Em<'_, '_, '_> {
                     Some(IntrinsicOp::MapSlots) => self.map_slots(i, args[0])?,
                     Some(IntrinsicOp::MapSlotNext) => self.map_slot_next(i, &args)?,
                     Some(IntrinsicOp::MapSlotEntry) => self.map_slot_entry(i, args[0], args[1])?,
-                    Some(IntrinsicOp::MapIter) => self.map_iter(i, args[0])?,
                     _ => return unsupported("an intrinsic operation without its kernel"),
                 }
             }
@@ -2193,6 +2191,10 @@ impl Em<'_, '_, '_> {
                 self.f.op(I::I64Const(0));
                 self.store(i)
             }
+            // std's `list_steps` and `map_steps`: the step closures of
+            // `ListIter` and `MapEntries` (`emit/iter.rs`).
+            "list_steps" => self.list_iter(i, args[0]),
+            "map_steps" => self.map_iter(i, args[0]),
             "bytes_len" => {
                 self.comp(args[0], 1)?;
                 self.store(i)

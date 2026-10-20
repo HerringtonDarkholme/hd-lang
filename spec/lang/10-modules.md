@@ -1192,16 +1192,16 @@ The following built-in methods are normative:
 
 | Receiver | Methods |
 | --- | --- |
-| `string` | `len(self) -> usize`; `chars(self) -> &mut dyn Iterator[char]`; `char_indices(self) -> &mut dyn Iterator[(usize, char)]`; `bytes(self) -> &mut dyn Iterator[u8]`; `slice(self, start: usize, end: usize) -> string` |
-| `List[T]` | `len(self) -> usize`; `iter(self) -> &mut FromFn[T]` |
+| `string` | `len(self) -> usize`; `chars(self) -> Chars`; `char_indices(self) -> CharIndices`; `bytes(self) -> Bytes`; `slice(self, start: usize, end: usize) -> string` |
+| `List[T]` | `len(self) -> usize`; `iter(self) -> ListIter[T]` |
 | `List[T]`, changing | `push(&mut self, value: T) -> void`; `pop(&mut self) -> T?`; `insert(&mut self, index: usize, value: T) -> void`; `remove_at(&mut self, index: usize) -> T`; `clear(&mut self) -> void` |
-| `Map[K, V]` | `len(self) -> usize`; `get(self, key: K) -> V?`; `iter(self) -> &mut FromFn[(K, V)]` |
+| `Map[K, V]` | `len(self) -> usize`; `get(self, key: K) -> V?`; `iter(self) -> MapEntries[K, V]` |
 | `Map[K, V]`, changing | `remove(&mut self, key: K) -> V?` |
 | `Display` | `to_string(self) -> string` |
 
 1. r[module.method.normative] The built-in methods in the table are normative.
 2. r[module.method.changing-ref] The methods of the changing rows take `&mut self` and change the collection. Calling one needs the list or map in a writable place, or a list element or a map value of one, as [Collection Values](04-type-system.md#collection-values) states. Error: `not-writable`.
-3. r[module.method.iter-from-fn] Each `iter()` call on a list or map returns a mutable reference to a new `std.iter.FromFn` cursor.
+3. r[module.method.iter-cursor] A list's or a map's `iter` is its [`Iterable`](06-control-flow.md#iteration-protocols) method. Each call returns a new cursor value: a `std.iter.ListIter[T]` for a list and a `std.iter.MapEntries[K, V]` for a map.
 4. r[module.method.usize-sizes] Lengths, indices, and byte offsets use [`usize`](04-type-system.md#the-usize-type).
 5. r[module.method.no-set] No `set` type is part of the core prelude.
 6. r[module.method.list-pop] `pop` removes the last element of the list and returns it as `.Some`.
@@ -1266,10 +1266,11 @@ fn first_word(text: string) -> string:
 3. r[module.string.chars] `chars` yields the string's scalar values in order, each as a `char`.
 4. r[module.string.char-indices] `char_indices` yields each scalar value in order, as `(offset, char)`, where `offset` is the byte offset at which its encoding starts.
 5. r[module.string.bytes] `bytes` yields the string's bytes in order, each as a `u8`.
-6. r[module.string.slice] `slice(start, end)` returns the bytes from offset `start` up to but not including offset `end`, in constant time.
-7. r[module.string.slice.shared] The result shares the original string's bytes rather than copying them.
-8. r[module.string.slice.bad-offset] An offset that is not a [scalar boundary](04-type-system.md#r-types.string.boundary), inside a scalar's encoding or past the end, is a checked runtime panic. Panic: `index-out-of-bounds`.
-9. r[module.string.slice.reversed] A `start` greater than `end` is a checked runtime panic, even when both are scalar boundaries. Panic: `index-out-of-bounds`.
+6. r[module.string.cursors] `chars`, `char_indices`, and `bytes` return new cursor values of the `std.text` types `Chars`, `CharIndices`, and `Bytes`, which implement `Iterator`. Advancing one needs a writable binding, as for any cursor.
+7. r[module.string.slice] `slice(start, end)` returns the bytes from offset `start` up to but not including offset `end`, in constant time.
+8. r[module.string.slice.shared] The result shares the original string's bytes rather than copying them.
+9. r[module.string.slice.bad-offset] An offset that is not a [scalar boundary](04-type-system.md#r-types.string.boundary), inside a scalar's encoding or past the end, is a checked runtime panic. Panic: `index-out-of-bounds`.
+10. r[module.string.slice.reversed] A `start` greater than `end` is a checked runtime panic, even when both are scalar boundaries. Panic: `index-out-of-bounds`.
 
 > **Note.** `char_indices` gives the offsets that Go's `range` over a
 > string gives. `text[start..end]` gives the same substring as

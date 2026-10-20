@@ -2,6 +2,7 @@
 # typed JSON over the `std.serde` opt-in: `to_json`, `from_json`,
 # `encode`, `encode_pretty`, and `decode` (spec/std/json.md).
 use std.format.DebugWriter
+use std.iter.ListIter
 use std.error.Error
 use std.num.parse_f64
 use std.serde.{Serialize, Deserialize, Serializer, Deserializer, ValueKind}
@@ -108,7 +109,8 @@ impl JsonObject:
         self.entries.map(fn(entry: (string, Json)) -> string: entry._0)
 
 impl Iterable[(string, Json)] for JsonObject:
-    fn iter(self) -> &mut dyn Iterator[(string, Json)]:
+    type IntoIter = ListIter[(string, Json)]
+    fn iter(self) -> ListIter[(string, Json)]:
         self.entries.iter()
 
 # The same members, in any order (r-std-json.value.eq.object).

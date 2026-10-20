@@ -33,10 +33,10 @@ pub trait Iterator[T]:
         TakeWhile { source: self, keep: keep, open: true }
 
     fn zip[U, J < Iterable[U]](self, other: J) -> Zip[Self, T, U]:
-        Zip { source: self, rest: other.iter() }
+        Zip { source: self, rest: &mut other.iter() }
 
     fn chain[J < Iterable[T]](self, other: J) -> Chain[Self, T]:
-        Chain { source: self, rest: other.iter(), first: true }
+        Chain { source: self, rest: &mut other.iter(), first: true }
 
     fn flat_map[U](self, transform: fn(T) -> List[U]) -> FlatMap[Self, T, U]:
         FlatMap { source: self, transform: transform, part: [], at: 0 }
@@ -420,20 +420,70 @@ impl[T, C < FromIterator[T]] FromIterator[T?] for C?:
         if missing: .None else: .Some(collected)
 
 # A value that a `for` loop or a comprehension clause iterates
-# (spec/lang/06-control-flow.md#iteration-protocols).
-## What `for` iterates: a type whose `iter` returns an iterator of its items.
+# (spec/lang/06-control-flow.md#iteration-protocols). Its cursor is the
+# concrete type the implementation names, as Rust's `IntoIterator::IntoIter`,
+# so iterating it needs no trait value.
+## What `for` iterates: a type whose `iter` returns its cursor type `IntoIter`, an iterator of its items.
 ## See [flow.for.iterable.cursor](../../spec/lang/06-control-flow.md#r-flow.for.iterable.cursor).
 pub trait Iterable[T]:
-    fn iter(self) -> &mut dyn Iterator[T]
+    type IntoIter < Iterator[T]
+    fn iter(self) -> Self::IntoIter
 
 # Iterator does not imply Iterable: a loop owns a cursor value copy
 # or advances a referenced cursor directly (spec/lang/06-control-flow.md#r-flow.for.iterator.iterable-not-implied,
 # spec/lang/06-control-flow.md#r-flow.for.iterator.owned-source).
 
+# The built-in list and map cursors call a step closure the compiler
+# builds over the collection itself, not a copy, so they read an element
+# replaced after `iter` and panic `iterator-invalidated` once the collection
+# changed length (spec/lang/06-control-flow.md#iterator-invalidation). The
+# position is the cursor's own field, so a copy of a cursor advances on its
+# own and still reads the same collection.
+# `list_steps(items)(i)` is element `i`, or `.None` past the end.
+@intrinsic("list_steps")
+fn list_steps[T](items: List[T]) -> fn(usize) -> T?:
+    panic("intrinsic")
+
+# `map_steps(entries)(at)` is the first entry from entry number `at` on,
+# with its number, or `.None` past the last.
+@intrinsic("map_steps")
+fn map_steps[K < Eq & Hash, V](entries: Map[K, V]) -> fn(usize) -> (usize, (K, V))?:
+    panic("intrinsic")
+
+## The cursor of a list's `iter`: its elements in order.
+## See [std-iter.cursor.list](../../spec/std/iter.md#r-std-iter.cursor.list).
+pub struct ListIter[T]:
+    step: fn(usize) -> T?
+    at: usize
+
+impl[T] Iterator[T] for ListIter[T]:
+    fn next(&mut self) -> T?:
+        match (self.step)(self.at):
+            .Some(item) =>
+                self.at = self.at + 1
+                .Some(item)
+            .None => .None
+
+## The cursor of a map's `iter`: its `(key, value)` entries in iteration order.
+## See [std-iter.cursor.map](../../spec/std/iter.md#r-std-iter.cursor.map).
+pub struct MapEntries[K < Eq & Hash, V]:
+    step: fn(usize) -> (usize, (K, V))?
+    at: usize
+
+impl[K < Eq & Hash, V] Iterator[(K, V)] for MapEntries[K, V]:
+    fn next(&mut self) -> (K, V)?:
+        match (self.step)(self.at):
+            .Some((slot, entry)) =>
+                self.at = slot + 1
+                .Some(entry)
+            .None => .None
+
 impl[T] Iterable[T] for List[T]:
-    fn iter(self) -> &mut dyn Iterator[T]:
-        self.iter()
+    type IntoIter = ListIter[T]
+    fn iter(self) -> ListIter[T]:
+        ListIter { step: list_steps(self), at: 0 }
 
 impl[K < Eq & Hash, V] Iterable[(K, V)] for Map[K, V]:
-    fn iter(self) -> &mut dyn Iterator[(K, V)]:
-        self.iter()
+    type IntoIter = MapEntries[K, V]
+    fn iter(self) -> MapEntries[K, V]:
+        MapEntries { step: map_steps(self), at: 0 }

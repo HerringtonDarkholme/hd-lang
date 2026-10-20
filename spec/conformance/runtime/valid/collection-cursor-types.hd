@@ -1,0 +1,19 @@
+# test: a deque, a set and a list view name their cursor types, which `iter` returns
+# Spec std/collections: std-collections.view.cursor, std-collections.set.cursor, std-collections.deque.cursor.
+use std.collections.{Deque, DequeIter, Set, SetIter, ListViewIter}
+
+tests:
+    use std.testing.assert_equal
+
+    it("collection cursors"):
+        let mut queue: Deque[i32] = Deque::new()
+        queue.push_back(+7)
+        let mut front: DequeIter[i32] = queue.iter()
+        assert_equal(front.next(), .Some(7), reason="a deque")
+        let mut seen: Set[i32] = Set::new()
+        _ := seen.insert(+8)
+        let mut members: SetIter[i32] = seen.iter()
+        assert_equal(members.next(), .Some(8), reason="a set")
+        let mut items = [+1, 2, 3]
+        let mut window: ListViewIter[i32] = items.view(1, 3).iter()
+        assert_equal(window.collect::[List[i32]](), [2, 3], reason="a view")

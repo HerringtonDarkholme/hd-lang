@@ -3209,7 +3209,7 @@ impl Ck<'_, '_> {
             .keys()
             .chain(index.traits.keys())
             .map(|s| self.cx.names.text(*s).to_owned())
-            .chain(["len", "push", "iter", "get", "remove"].map(str::to_owned))
+            .chain(["len", "push", "get", "remove"].map(str::to_owned))
             .collect();
         names.sort();
         names.dedup();
@@ -3394,9 +3394,7 @@ impl Ck<'_, '_> {
     }
 
     /// Emits the built-in method `op` on `refs`, whose intrinsic gives
-    /// `ret`. `iter` on a list or a map wraps the `FromFn[T]` it gives in
-    /// a new object, since an iterator is a handle behind `&mut`
-    /// (`module.method.iter-from-fn`).
+    /// `ret`.
     pub(crate) fn emit_builtin(
         &mut self,
         op: IntrinsicOp,
@@ -3406,22 +3404,7 @@ impl Ck<'_, '_> {
     ) -> (Ref, Ty) {
         let rec = self.b.refs_record(refs);
         let r = self.b.emit(Tag::Intrinsic, op as u32, rec, ret, n.index());
-        if matches!(op, IntrinsicOp::ListIter | IntrinsicOp::MapIter) {
-            return self.new_object_ref(r, ret, true, n);
-        }
         (r, ret)
-    }
-
-    /// The type `emit_builtin` gives for the built-in method `op` whose
-    /// intrinsic gives `ret`.
-    pub(crate) fn builtin_result(&self, op: IntrinsicOp, ret: Ty) -> Ty {
-        if matches!(op, IntrinsicOp::ListIter | IntrinsicOp::MapIter) {
-            return self.pool().intern_ty(&TyData::Ref {
-                inner: ret,
-                mutable: true,
-            });
-        }
-        ret
     }
 
     /// A built-in method of `List`, `Map` (spec/lang/10-modules.md#built-in-methods).
@@ -3437,16 +3420,6 @@ impl Ck<'_, '_> {
         };
         let a = pool.list_items(args);
         let usize_t = Ty::prim(Prim::Usize);
-        let iterator = self.cx.names.item("std.iter", "FromFn");
-        // The intrinsic gives the `FromFn[T]` cursor; the call wraps it in
-        // a new object, so `iter()` returns `&mut FromFn[T]`
-        // (`Self::emit_builtin`).
-        let iter_of = |x: Ty| {
-            pool.intern_ty(&TyData::Adt {
-                def: iterator,
-                args: pool.list(&[x]),
-            })
-        };
         let known = self.cx.names.known;
         let which = if def == known.list {
             1
@@ -3458,7 +3431,6 @@ impl Ck<'_, '_> {
         match (which, name) {
             (1, "len") => Some((IntrinsicOp::ListLen, vec![], usize_t)),
             (1, "push") => Some((IntrinsicOp::ListPush, vec![a[0]], Ty::VOID)),
-            (1, "iter") => Some((IntrinsicOp::ListIter, vec![], iter_of(a[0]))),
             (2, "len") => Some((IntrinsicOp::MapLen, vec![], usize_t)),
             (2, "get") => Some((
                 IntrinsicOp::MapGet,
@@ -3470,13 +3442,6 @@ impl Ck<'_, '_> {
                 vec![a[0]],
                 pool.intern_ty(&TyData::Option(a[1])),
             )),
-            (2, "iter") => {
-                let pair = pool.intern_ty(&TyData::Tuple {
-                    elems: pool.list(&[a[0], a[1]]),
-                    rest: None,
-                });
-                Some((IntrinsicOp::MapIter, vec![], iter_of(pair)))
-            }
             _ => None,
         }
     }
@@ -3503,8 +3468,10 @@ impl Ck<'_, '_> {
         }
         let sym = self.cx.names.syms.intern(name);
         let traits = self.traits_declaring(sym);
-        // A parameter: its bounds, supertraits included.
-        if let TyData::Param(p) = pool.get(t) {
+        // A parameter: its bounds, supertraits included. A rigid
+        // projection such as `I::IntoIter` has the bounds its trait
+        // declares on the associated type (`trait.assoc.bound-use`).
+        if matches!(pool.get(t), TyData::Param(_) | TyData::Assoc { .. }) {
             for i in 0..self.env.clause_self.len() {
                 if self.env.clause_self[i] != t {
                     continue;
@@ -3519,7 +3486,6 @@ impl Ck<'_, '_> {
                     }));
                 }
             }
-            let _ = p;
             return Ok(None);
         }
         // A trait value: its trait and supertraits, a supertrait at the
@@ -4521,6 +4487,7 @@ impl Ck<'_, '_> {
             args: pool.list(&av),
         };
         let answer = self.solve(tref)?;
+        let stalled = matches!(answer, Answer::Stalled { .. });
         // A rejected trait has no associated value. Its bound reports the
         // error; consumers of this projection must not add follow-ons.
         if matches!(answer, Answer::Fails(_)) {
@@ -4534,13 +4501,42 @@ impl Ck<'_, '_> {
                 },
             learned,
         } = answer
-            && (learned.is_empty() || !pool.has_infer(st))
             && let Some(table) = self.cx.impl_table(row.module)
         {
+            // The one impl that fits fixes the trait's arguments, which
+            // the solver learned from its head; the self type's own
+            // variables stay open (`List[?]::IntoIter` is `ListIter[?]`).
+            for (v, x) in learned {
+                let var = pool.intern_ty(&TyData::Infer(v));
+                let _ = self.infer.unify(pool, var, x);
+            }
             let r = row.row as usize;
             let impl_def = table.def[r];
             if let Some((_, b)) = table.assoc[r].iter().find(|(d, _)| *d == assoc) {
                 let ia = pool.list_items(impl_args);
+                let x = subst_owner(pool, impl_def, ia, *b);
+                return self.normalized(x);
+            }
+        }
+        // An impl whose head alone fits, with bounds that wait on the self
+        // type's literals, still names the projection: under
+        // `impl[T < Integer] Iterable[T] for Range[T]`, `Range[?]::IntoIter`
+        // is `RangeIter[?]`. The bounds are the trait goal's to check.
+        if stalled
+            && let Answer::Candidates(cands) =
+                self.solve_goal(&hd_types::solver::Goal::Instantiations {
+                    self_ty: st,
+                    trait_,
+                    mut_: false,
+                })?
+            && let [c] = &cands[..]
+            && c.n_fresh == 0
+            && let Some(table) = self.cx.impl_table(c.row.module)
+        {
+            let r = c.row.row as usize;
+            let impl_def = table.def[r];
+            if let Some((_, b)) = table.assoc[r].iter().find(|(d, _)| *d == assoc) {
+                let ia = pool.list_items(c.impl_args);
                 let x = subst_owner(pool, impl_def, ia, *b);
                 return self.normalized(x);
             }

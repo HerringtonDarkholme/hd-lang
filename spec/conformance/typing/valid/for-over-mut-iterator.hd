@@ -11,4 +11,4 @@ fn doubled(source: &mut dyn Iterator[i32]) -> List[i32]:
     [for value in source => value * 2]
 
 fn from_list(values: List[i32]) -> i32:
-    drain(values.iter())
+    drain(&mut values.iter())

@@ -804,6 +804,17 @@ impl Parser<'_> {
         let marker = self.start();
         self.bump(); // type
         self.expect_name("an associated type name");
+        // grammar.trait.associated-type.bound: a trait's associated type
+        // may name the traits every binding implements.
+        if self.at(TokenKind::Lt) {
+            if with_value {
+                self.error(
+                    Code::SyntaxError,
+                    "an associated type in an implementation states no bound",
+                );
+            }
+            self.bound_list();
+        }
         if self.at(TokenKind::Eq) {
             if !with_value {
                 self.error(

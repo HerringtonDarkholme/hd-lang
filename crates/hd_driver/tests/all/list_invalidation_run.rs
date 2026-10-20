@@ -144,7 +144,7 @@ fn a_list_iterator_panics_after_the_list_changes_length() {
     panics(
         "list-iter-push",
         "    let mut v: List[i32] = [1, 2]
-    let it: &mut dyn Iterator[i32] = v.iter()
+    let mut it = v.iter()
     println(it.next().unwrap_or(-1))
     v.push(3)
     _ := it.next()
@@ -158,7 +158,7 @@ fn an_exhausted_list_iterator_still_panics_after_a_pop() {
     panics(
         "list-iter-pop",
         "    let mut v: List[i32] = [1]
-    let it: &mut dyn Iterator[i32] = v.iter()
+    let mut it = v.iter()
     _ := it.next()
     _ := it.next()
     _ := v.pop()
@@ -173,7 +173,7 @@ fn a_list_iterator_survives_an_element_replacement() {
     prints(
         "list-iter-set",
         "    let mut v: List[i32] = [1, 2]
-    let it: &mut dyn Iterator[i32] = v.iter()
+    let mut it = v.iter()
     println(it.next().unwrap_or(-1))
     v[1] = 20
     println(it.next().unwrap_or(-1))
@@ -261,7 +261,7 @@ fn a_view_iterator_panics_after_a_length_change() {
     panics(
         "view-iter",
         "    let mut v: List[i32] = [1, 2, 3]
-    let it: &mut dyn Iterator[i32] = v.view(0, 3).iter()
+    let mut it = v.view(0, 3).iter()
     println(it.next().unwrap_or(-1))
     v.push(4)
     _ := it.next()

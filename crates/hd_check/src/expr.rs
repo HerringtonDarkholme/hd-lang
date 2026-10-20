@@ -2809,7 +2809,6 @@ impl Ck<'_, '_> {
         {
             return Ok(done);
         }
-        let iterator = self.cx.names.known.iterator;
         // The source is evaluated once. A cursor value becomes the loop's
         // own writable copy; an explicit reference keeps sharing its target
         // (`flow.for.iterator.owned-binding`).
@@ -2828,6 +2827,33 @@ impl Ck<'_, '_> {
         let st_i = match pool.get(st_r) {
             TyData::Mut(i) => i,
             _ => st_r,
+        };
+        // A source whose type a waiting call or projection fixes, such as
+        // `(1..4).iter()`'s cursor, is learned now, as a receiver's is.
+        let st_i = if matches!(pool.get(st_i), TyData::Infer(_))
+            && self.infer.kind_of(pool, st_i) == Some(VarKind::General)
+            && self.learn_waiting(st_i)?
+        {
+            self.strip_mut(self.infer.resolve(pool, st_i))
+        } else {
+            st_i
+        };
+        // A literal source takes its default type, as a literal does once
+        // a member is asked of it; no number is iterable
+        // (`flow.for.protocol-required`).
+        let st_i = match self.infer.kind_of(pool, st_i) {
+            Some(k @ (VarKind::IntLit | VarKind::SignedIntLit | VarKind::FloatLit))
+                if matches!(pool.get(st_i), TyData::Infer(_)) =>
+            {
+                let d = match k {
+                    VarKind::SignedIntLit => Ty::I32,
+                    VarKind::IntLit => Ty::prim(Prim::Usize),
+                    _ => Ty::prim(Prim::F64),
+                };
+                let _ = self.infer.unify(pool, st_i, d);
+                d
+            }
+            _ => st_i,
         };
         if let TyData::Adt { def, args } = pool.get(st_i)
             && def == self.cx.names.known.range
@@ -2859,7 +2885,14 @@ impl Ck<'_, '_> {
             return self.collection_loop(pat, (sr, st, item, map), els, e, body);
         }
         let (referent, writable) = self.ref_of(st_i).unwrap_or((st_i, false));
-        let direct = self.iterator_item(referent)?;
+        let mut direct = self.iterator_item(referent)?;
+        // A cursor over open literals, such as `(1..4).iter()`'s
+        // `RangeIter[?]`, whose `Iterator` impl waits on their type: its
+        // literals take their defaults, as a literal does once a member is
+        // asked of it.
+        if direct.is_none() && self.default_open_literals(referent) {
+            direct = self.iterator_item(referent)?;
+        }
         let (it, it_ty, item_ty) = match pool.get(st_i) {
             _ if direct.is_some() => {
                 let cursor = if self.ref_of(st_i).is_some() {
@@ -2897,18 +2930,23 @@ impl Ck<'_, '_> {
                 // literal's range has no impl whatever type it takes
                 // (`flow.for.range.float`), so it is required now.
                 let open = pool.has_infer(self.infer.resolve(pool, et));
-                if !open || self.float_like(self.infer.resolve(pool, et)) {
-                    self.require_ref(tref, src)?;
+                if (!open || self.float_like(self.infer.resolve(pool, et)))
+                    && self.require_ref(tref, src)?.is_none()
+                {
+                    return Ok(self.poison_value(e));
                 }
                 let method = self.cx.names.member(iterable, PathKind::Member, "iter");
-                let it_s = pool.intern_ty(&TyData::TraitValue {
-                    def: iterator,
+                // The one impl over every integer type names the std
+                // cursor, so its type is known before the element type is
+                // (`flow.for.range.cursor`).
+                let cursor = if def == self.cx.names.known.range {
+                    "RangeIter"
+                } else {
+                    "RangeFromIter"
+                };
+                let it_t = pool.intern_ty(&TyData::Adt {
+                    def: self.cx.names.item("std.ops", cursor),
                     args: pool.list(&[et]),
-                    bindings: vec![],
-                });
-                let it_t = pool.intern_ty(&TyData::Ref {
-                    inner: it_s,
-                    mutable: true,
                 });
                 let c = hd_tir::ir::Callee::TraitMethod {
                     trait_: iterable,
@@ -2920,18 +2958,25 @@ impl Ck<'_, '_> {
                 let r = self
                     .b
                     .call(&c, &[sr], hd_tir::ir::Providers::None, it_t, src.index());
-                (r, it_s, et)
+                (self.new_object_ref(r, it_t, true, src).0, it_t, et)
             }
+            // `flow.for.iterable.cursor`: `iter` gives the type's own
+            // cursor, `Self::IntoIter`, which the loop owns as a writable
+            // copy and advances with no trait value.
             _ => {
                 let iterable = self.cx.names.known.iterable;
                 let (r, t) = self.trait_call(iterable, "iter", sr, st, &[], src)?;
-                let t = self.infer.resolve(pool, t);
-                let t = self.ref_of(t).map_or(t, |(inner, _)| inner);
+                let t = self.normalize_deep(t)?;
                 let t = self.strip_mut(self.infer.resolve(pool, t));
+                // A source already reported, or one with no `Iterable`
+                // impl, whose bound reported it.
+                if pool.has_poison(t) || pool.has_poison(self.infer.resolve(pool, st)) {
+                    return Ok(self.poison_value(e));
+                }
                 let Some(item) = self.iterator_item(t)? else {
                     return unsupported("an `iter` result that does not implement `Iterator`");
                 };
-                (r, t, item)
+                (self.new_object_ref(r, t, true, src).0, t, item)
             }
         };
         let it_ref = self.b.ty_of(it);
@@ -2985,6 +3030,41 @@ impl Ck<'_, '_> {
         let lbody = self.b.close_block(lb, None, Ty::VOID, e.index());
         let ty = result.unwrap_or(Ty::VOID);
         Ok((self.b.close_loop(lp, lbody, ty, e.index()), ty))
+    }
+
+    /// Gives each open literal variable in `t` its default type; whether
+    /// there was one.
+    fn default_open_literals(&mut self, t: Ty) -> bool {
+        let pool = self.pool();
+        let t = self.infer.resolve(pool, t);
+        if !pool.has_infer(t) {
+            return false;
+        }
+        let parts: Vec<Ty> = match pool.get(t) {
+            TyData::Infer(_) => {
+                return match self
+                    .infer
+                    .kind_of(pool, t)
+                    .and_then(VarKind::literal_default)
+                {
+                    Some(d) => {
+                        let k = self.infer.kind_of(pool, t).unwrap_or(VarKind::General);
+                        self.note_fallback(t, k);
+                        self.infer.unify(pool, t, d).is_ok()
+                    }
+                    None => false,
+                };
+            }
+            TyData::Adt { args, .. } => pool.list_items(args).to_vec(),
+            TyData::Tuple { elems, .. } => pool.list_items(elems).to_vec(),
+            TyData::Option(i) | TyData::Mut(i) | TyData::Ref { inner: i, .. } => vec![i],
+            _ => vec![],
+        };
+        let mut any = false;
+        for p in parts {
+            any |= self.default_open_literals(p);
+        }
+        any
     }
 
     /// Probes the cursor trait without reporting when the source is an

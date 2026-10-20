@@ -757,16 +757,23 @@ pub fn slot_next() -> Func {
     f
 }
 
-/// [`Helper::MapStep`]: `(env) -> (K, V)?`, the step closure code of
-/// `Map.iter()` (`emit/iter.rs`). The environment holds the map's header
-/// at 0, the next entry at 4, and at creation the written entry count at
-/// 8, the live count at 12 and the rebuild count at 16. A changed live or
-/// rebuild count is the `iterator-invalidated` panic; with neither
-/// changed, the entries before the written count at creation are where
-/// they were. The entry leaves with its own counts.
+/// [`Helper::MapStep`]: `(env, at) -> (usize, (K, V))?`, the step closure
+/// code of std's `map_steps` (`emit/iter.rs`): the first live entry from
+/// entry `at` on, with its entry number. The environment holds the map's
+/// header at 0, and at creation the written entry count at 4, the live
+/// count at 8 and the rebuild count at 12. A changed live or rebuild count
+/// is the `iterator-invalidated` panic; with neither changed, the entries
+/// before the written count at creation are where they were. The entry
+/// leaves with its own counts. In `opt`, the item's leaf 0 is the entry
+/// number and leaf `k` the entry's leaf `k - 1`.
 pub fn step(entry: &Entry, opt: &[OptVal], results: &[Val]) -> Func {
-    // A closure's code: the environment, then the context it ignores.
-    let mut f = Func::new("rt:map_step", vec![Val::I32, Val::I32], results.to_vec());
+    // A closure's code: the environment, the first entry to look at, then
+    // the context it ignores.
+    let mut f = Func::new(
+        "rt:map_step",
+        vec![Val::I32, Val::I32, Val::I32],
+        results.to_vec(),
+    );
     let (h, t, cap) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
     let (i, end, at) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
     let out: Vec<u32> = results.iter().map(|v| f.local(*v)).collect();
@@ -775,10 +782,10 @@ pub fn step(entry: &Entry, opt: &[OptVal], results: &[Val]) -> Func {
     load_u32(&mut f, h, 0);
     f.set(t);
     load_u32(&mut f, t, LIVE);
-    load_u32(&mut f, 0, 12);
+    load_u32(&mut f, 0, 8);
     f.op(I::I32Ne);
     load_u32(&mut f, t, GROWN);
-    load_u32(&mut f, 0, 16);
+    load_u32(&mut f, 0, 12);
     f.op(I::I32Ne);
     f.op(I::I32Or);
     f.op(I::If(BlockType::Empty));
@@ -788,9 +795,9 @@ pub fn step(entry: &Entry, opt: &[OptVal], results: &[Val]) -> Func {
     f.op(I::End);
     load_u32(&mut f, t, CAP);
     f.set(cap);
-    load_u32(&mut f, 0, 4);
+    f.get(1);
     f.set(i);
-    load_u32(&mut f, 0, 8);
+    load_u32(&mut f, 0, 4);
     f.set(end);
     f.op(I::Block(BlockType::Empty));
     f.op(I::Loop(BlockType::Empty));
@@ -802,11 +809,6 @@ pub fn step(entry: &Entry, opt: &[OptVal], results: &[Val]) -> Func {
     f.i32(0);
     f.op(I::I32GeS);
     f.op(I::If(BlockType::Empty));
-    store_u32(&mut f, 0, 4, &|f| {
-        f.get(i);
-        f.i32(1);
-        f.op(I::I32Add);
-    });
     entry_at(&mut f, t, cap, i, entry.size);
     f.set(at);
     let mut vals = Vec::new();
@@ -816,9 +818,13 @@ pub fn step(entry: &Entry, opt: &[OptVal], results: &[Val]) -> Func {
                 f.i32(1);
                 f.set(out[p]);
             }
+            OptVal::Elem(0) => {
+                f.get(i);
+                f.set(out[p]);
+            }
             OptVal::Elem(k) => {
                 f.get(at);
-                f.op(entry.leaves[*k as usize].load(0));
+                f.op(entry.leaves[*k as usize - 1].load(0));
                 f.set(out[p]);
                 vals.push((*k, out[p]));
             }

@@ -10,7 +10,6 @@
 # `std.ops.StrPrefix`, and `std.ops.Template` by their qualified names
 # (r-expr.literal-fn.marker), and `@annotate::[F](.Fn)` limits
 # each marker to functions (r-expr.literal-fn.fn-only).
-use std.iter.from_fn
 use std.annotation.annotate
 use std.hash.Hash
 use std.num.{Num, Integer, Float}
@@ -400,281 +399,58 @@ impl[T] Index[RangeTo[u64]] for List[T]:
     fn index(self, key: RangeTo[u64]) -> List[T]: slice_list(self, 0, u64(key.end), key.inclusive)
 
 # Range iteration (spec/lang/06-control-flow.md#range-iteration): one
-# implementation per integer type. Each `iter()` starts from the start
-# bound (r-flow.for.range.fresh). A `Range` stops before its end, or after
-# it when `inclusive`, so `a..=b` never steps past `b`. An `a..` iterator
-# steps only when asked for its next item, so asking past the largest value
-# is the checked `integer-overflow` panic (r-flow.for.range.from-overflow).
+# implementation over every integer type, with a concrete cursor, so a
+# range's `iter` needs no trait value and a range of open literals has one
+# cursor type. Each `iter()` starts from the start bound
+# (r-flow.for.range.fresh). A `Range` stops before its end, or after it
+# when `inclusive`, so `a..=b` never steps past `b`. An `a..` cursor steps
+# only when asked for its next item, so asking past the largest value is
+# the checked `integer-overflow` panic (r-flow.for.range.from-overflow).
 
-impl Iterable[i8] for Range[i8]:
-    fn iter(self) -> &mut dyn Iterator[i8]:
-        let next = self.start
-        end := self.end
-        inclusive := self.inclusive
-        let done = next > end || (next == end && !inclusive)
-        &mut from_fn(fn() -> i8?:
-            if done:
-                return .None
-            value := next
-            if value == end:
-                done = true
-            else:
-                next = next + 1
-                if next == end && !inclusive:
-                    done = true
-            .Some(value)
-        )
+## The cursor of a range's `iter`: the integers from its start up to its end.
+## See [flow.for.range.cursor](../../spec/lang/06-control-flow.md#r-flow.for.range.cursor).
+pub struct RangeIter[T]:
+    at: T
+    end: T
+    inclusive: bool
+    done: bool
 
-impl Iterable[i8] for RangeFrom[i8]:
-    fn iter(self) -> &mut dyn Iterator[i8]:
-        let next = self.start
-        let started = false
-        &mut from_fn(fn() -> i8?:
-            if started:
-                next = next + 1
-            started = true
-            .Some(next)
-        )
+## The cursor of an `a..` range's `iter`: the integers from its start on, with no end.
+## See [flow.for.range.cursor](../../spec/lang/06-control-flow.md#r-flow.for.range.cursor).
+pub struct RangeFromIter[T]:
+    at: T
+    started: bool
 
-impl Iterable[i16] for Range[i16]:
-    fn iter(self) -> &mut dyn Iterator[i16]:
-        let next = self.start
-        end := self.end
-        inclusive := self.inclusive
-        let done = next > end || (next == end && !inclusive)
-        &mut from_fn(fn() -> i16?:
-            if done:
-                return .None
-            value := next
-            if value == end:
-                done = true
-            else:
-                next = next + 1
-                if next == end && !inclusive:
-                    done = true
-            .Some(value)
-        )
+impl[T < Integer] Iterable[T] for Range[T]:
+    type IntoIter = RangeIter[T]
+    fn iter(self) -> RangeIter[T]:
+        done := self.start > self.end || (self.start == self.end && !self.inclusive)
+        RangeIter { at: self.start, end: self.end, inclusive: self.inclusive, done: done }
 
-impl Iterable[i16] for RangeFrom[i16]:
-    fn iter(self) -> &mut dyn Iterator[i16]:
-        let next = self.start
-        let started = false
-        &mut from_fn(fn() -> i16?:
-            if started:
-                next = next + 1
-            started = true
-            .Some(next)
-        )
+impl[T < Integer] Iterator[T] for RangeIter[T]:
+    fn next(&mut self) -> T?:
+        if self.done:
+            return .None
+        value := self.at
+        if value == self.end:
+            self.done = true
+        else:
+            self.at = value + T::one()
+            if self.at == self.end && !self.inclusive:
+                self.done = true
+        .Some(value)
 
-impl Iterable[i32] for Range[i32]:
-    fn iter(self) -> &mut dyn Iterator[i32]:
-        let next = self.start
-        end := self.end
-        inclusive := self.inclusive
-        let done = next > end || (next == end && !inclusive)
-        &mut from_fn(fn() -> i32?:
-            if done:
-                return .None
-            value := next
-            if value == end:
-                done = true
-            else:
-                next = next + 1
-                if next == end && !inclusive:
-                    done = true
-            .Some(value)
-        )
+impl[T < Integer] Iterable[T] for RangeFrom[T]:
+    type IntoIter = RangeFromIter[T]
+    fn iter(self) -> RangeFromIter[T]:
+        RangeFromIter { at: self.start, started: false }
 
-impl Iterable[i32] for RangeFrom[i32]:
-    fn iter(self) -> &mut dyn Iterator[i32]:
-        let next = self.start
-        let started = false
-        &mut from_fn(fn() -> i32?:
-            if started:
-                next = next + 1
-            started = true
-            .Some(next)
-        )
-
-impl Iterable[i64] for Range[i64]:
-    fn iter(self) -> &mut dyn Iterator[i64]:
-        let next = self.start
-        end := self.end
-        inclusive := self.inclusive
-        let done = next > end || (next == end && !inclusive)
-        &mut from_fn(fn() -> i64?:
-            if done:
-                return .None
-            value := next
-            if value == end:
-                done = true
-            else:
-                next = next + 1
-                if next == end && !inclusive:
-                    done = true
-            .Some(value)
-        )
-
-impl Iterable[i64] for RangeFrom[i64]:
-    fn iter(self) -> &mut dyn Iterator[i64]:
-        let next = self.start
-        let started = false
-        &mut from_fn(fn() -> i64?:
-            if started:
-                next = next + 1
-            started = true
-            .Some(next)
-        )
-
-impl Iterable[u8] for Range[u8]:
-    fn iter(self) -> &mut dyn Iterator[u8]:
-        let next = self.start
-        end := self.end
-        inclusive := self.inclusive
-        let done = next > end || (next == end && !inclusive)
-        &mut from_fn(fn() -> u8?:
-            if done:
-                return .None
-            value := next
-            if value == end:
-                done = true
-            else:
-                next = next + 1
-                if next == end && !inclusive:
-                    done = true
-            .Some(value)
-        )
-
-impl Iterable[u8] for RangeFrom[u8]:
-    fn iter(self) -> &mut dyn Iterator[u8]:
-        let next = self.start
-        let started = false
-        &mut from_fn(fn() -> u8?:
-            if started:
-                next = next + 1
-            started = true
-            .Some(next)
-        )
-
-impl Iterable[u16] for Range[u16]:
-    fn iter(self) -> &mut dyn Iterator[u16]:
-        let next = self.start
-        end := self.end
-        inclusive := self.inclusive
-        let done = next > end || (next == end && !inclusive)
-        &mut from_fn(fn() -> u16?:
-            if done:
-                return .None
-            value := next
-            if value == end:
-                done = true
-            else:
-                next = next + 1
-                if next == end && !inclusive:
-                    done = true
-            .Some(value)
-        )
-
-impl Iterable[u16] for RangeFrom[u16]:
-    fn iter(self) -> &mut dyn Iterator[u16]:
-        let next = self.start
-        let started = false
-        &mut from_fn(fn() -> u16?:
-            if started:
-                next = next + 1
-            started = true
-            .Some(next)
-        )
-
-impl Iterable[u32] for Range[u32]:
-    fn iter(self) -> &mut dyn Iterator[u32]:
-        let next = self.start
-        end := self.end
-        inclusive := self.inclusive
-        let done = next > end || (next == end && !inclusive)
-        &mut from_fn(fn() -> u32?:
-            if done:
-                return .None
-            value := next
-            if value == end:
-                done = true
-            else:
-                next = next + 1
-                if next == end && !inclusive:
-                    done = true
-            .Some(value)
-        )
-
-impl Iterable[usize] for Range[usize]:
-    fn iter(self) -> &mut dyn Iterator[usize]:
-        let next = self.start
-        end := self.end
-        inclusive := self.inclusive
-        let done = next > end || (next == end && !inclusive)
-        &mut from_fn(fn() -> usize?:
-            if done:
-                return .None
-            value := next
-            if value == end:
-                done = true
-            else:
-                next = next + 1
-                if next == end && !inclusive:
-                    done = true
-            .Some(value)
-        )
-
-impl Iterable[u32] for RangeFrom[u32]:
-    fn iter(self) -> &mut dyn Iterator[u32]:
-        let next = self.start
-        let started = false
-        &mut from_fn(fn() -> u32?:
-            if started:
-                next = next + 1
-            started = true
-            .Some(next)
-        )
-
-impl Iterable[usize] for RangeFrom[usize]:
-    fn iter(self) -> &mut dyn Iterator[usize]:
-        let next = self.start
-        let started = false
-        &mut from_fn(fn() -> usize?:
-            if started:
-                next = next + 1
-            started = true
-            .Some(next)
-        )
-
-impl Iterable[u64] for Range[u64]:
-    fn iter(self) -> &mut dyn Iterator[u64]:
-        let next = self.start
-        end := self.end
-        inclusive := self.inclusive
-        let done = next > end || (next == end && !inclusive)
-        &mut from_fn(fn() -> u64?:
-            if done:
-                return .None
-            value := next
-            if value == end:
-                done = true
-            else:
-                next = next + 1
-                if next == end && !inclusive:
-                    done = true
-            .Some(value)
-        )
-
-impl Iterable[u64] for RangeFrom[u64]:
-    fn iter(self) -> &mut dyn Iterator[u64]:
-        let next = self.start
-        let started = false
-        &mut from_fn(fn() -> u64?:
-            if started:
-                next = next + 1
-            started = true
-            .Some(next)
-        )
+impl[T < Integer] Iterator[T] for RangeFromIter[T]:
+    fn next(&mut self) -> T?:
+        if self.started:
+            self.at = self.at + T::one()
+        self.started = true
+        .Some(self.at)
 
 # The primitive implementations (spec/lang/05-expressions.md#primitive-implementations).
 # Each method is intrinsic: the compiler supplies its body, one per

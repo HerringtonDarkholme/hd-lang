@@ -199,6 +199,9 @@ impl Supplier for NameSupplier:
 4. r[trait.assoc.ambiguous-type] A projection whose bounds select two different associated type declarations is ambiguous. An ambiguous projection is an error. Error: `ambiguous-associated-type`.
 5. r[trait.assoc.no-type] A projection whose bounds select no associated type declaration is an error. Error: `unknown-associated-type`.
 6. r[trait.assoc.bound] A bound may also fix a projection to a type.
+7. r[trait.assoc.bound-decl] A trait's associated type may name bounds after `<`, joined by `&`, as in `type IntoIter < Iterator[T]`. A bound may use the trait's parameters and `Self`.
+8. r[trait.assoc.bound-impl] The type an implementation binds must implement each bound, with the trait's arguments and the implementing type substituted. A type that does not is an error. Error: `unsatisfied-trait-bound`.
+9. r[trait.assoc.bound-use] Under a bound `I < Tr[...]`, the projection `I::X` implements each bound that `Tr` declares on `X`. So its methods are callable, and it satisfies a bound that names one of them.
 
 ```text
 trait Named:
@@ -209,6 +212,23 @@ trait Keyed:
 
 fn pick[I < Named & Keyed](value: I) -> I::Item:  # error: ambiguous-associated-type
     panic("unreachable")
+```
+
+```text
+trait Bag[T]:
+    type Cursor < Iterator[T]
+    fn cursor(self) -> Self::Cursor
+
+fn total[B < Bag[i32]](bag: B) -> i32:
+    bag.cursor().sum::[i32]()
+
+struct Words:
+    text: string
+
+impl Bag[i32] for Words:  # error: unsatisfied-trait-bound
+    type Cursor = string
+    fn cursor(self) -> string:
+        self.text
 ```
 
 See also: [Associated Type Bindings](#associated-type-bindings).

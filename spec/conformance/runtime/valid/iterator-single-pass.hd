@@ -1,11 +1,11 @@
-# test: an iterator is single-pass; a second pass calls iter() on the collection again
+# test: an iterator is single-pass: a loop over &mut continues it, and a second pass calls iter() on the collection again
 # Spec 06 Iteration Protocols: flow.for.iterator.owned-source, flow.for.iterator.owned-position, flow.for.iter-independent (batch 24 IT2, IT3).
 
 fn main() -> i32:
     values := [+1, 2, 3, 4]
     let mut source = values.iter()
     let first = +0
-    for value in source:
+    for value in &mut source:
         first = first + value
         if value == 2:
             break

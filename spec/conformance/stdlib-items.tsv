@@ -24,6 +24,9 @@ std.task.retry	std/task.md#retry
 std.ops.Default	std/ops.md#default-trait
 std.collections.ListView	std/collections.md#views
 std.collections.Deque	std/collections.md#deque
+std.collections.DequeIter	std/collections.md#deque
+std.collections.SetIter	std/collections.md#set
+std.collections.ListViewIter	std/collections.md#views
 std.collections.Heap	std/collections.md#heap
 std.collections.Set	std/collections.md#set
 std.collections.counts	std/collections.md#counts

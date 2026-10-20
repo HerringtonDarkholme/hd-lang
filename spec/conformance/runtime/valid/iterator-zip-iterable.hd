@@ -1,7 +1,7 @@
 # test: zip takes any Iterable, takes its iterator once when called, pulls self first, and stops at the shorter
 # Spec std/iter More Adapters: std-iter.adapter.zip.value, .iterable-arg, and .zip-iterable.order.
 # `.zip(names)` has no type arguments: `U` is solved through the bound (types.generic.infer.bound.one).
-use std.iter.{from_fn}
+use std.iter.{FromFn, from_fn}
 use std.collections.Set
 # An iterable whose `iter` and whose iterator's pulls run given closures.
 struct Probe:
@@ -9,9 +9,10 @@ struct Probe:
     pull: fn() -> i32?
 
 impl Iterable[i32] for Probe:
-    fn iter(self) -> &mut dyn Iterator[i32]:
+    type IntoIter = FromFn[i32]
+    fn iter(self) -> FromFn[i32]:
         (self.start)()
-        &mut from_fn(self.pull)
+        from_fn(self.pull)
 
 fn labeled(names: List[string]) -> List[(i32, string)]:
     [+1, 2, 3].iter().zip(names).collect()

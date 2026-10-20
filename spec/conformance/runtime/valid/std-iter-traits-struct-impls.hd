@@ -1,6 +1,6 @@
-# test: a struct with a `&mut self` `next` implements `Iterable`, and another implements `FromIterator` over `&mut Iterator`; each works through a bound, a trait value reference, and `collect`
+# test: a struct with a `&mut self` `next` implements `Iterable`, and another implements `FromIterator` over `&mut Iterator`; each works through a bound, and `collect`
 # Spec std/iter What Collect Builds: std-iter.collect.generic-owned-cursor, std-iter.collect.expected. Spec 06 Iteration Protocols: flow.for.iterable.cursor, flow.for.accepts-owned-cursor.
-use std.iter.{from_fn}
+use std.iter.{FromFn, from_fn}
 use std.iter.FromIterator
 
 struct Countdown:
@@ -14,9 +14,10 @@ impl Countdown:
         .Some(self.left + 1)
 
 impl Iterable[i32] for Countdown:
-    fn iter(self) -> &mut dyn Iterator[i32]:
+    type IntoIter = FromFn[i32]
+    fn iter(self) -> FromFn[i32]:
         let mut state = self
-        &mut from_fn(fn() -> i32?: state.next())
+        from_fn(fn() -> i32?: state.next())
 
 struct Bag:
     items: List[i32]
@@ -37,30 +38,24 @@ fn total[I < Iterable[i32]](source: I) -> i32:
         sum = sum + value
     sum
 
-fn total_dyn(source: &dyn Iterable[i32]) -> i32:
-    let sum = +0
-    for value in source.iter():
-        sum = sum + value
-    sum
-
 fn gather[C < FromIterator[i32]](source: &mut dyn Iterator[i32]) -> C:
     C::from_iter(source)
 
 tests:
     use std.testing.assert_equal
 
-    it("an Iterable struct through a bound and a trait value reference"):
+    it("an Iterable struct through a bound"):
         start := Countdown { left: 3 }
         assert_equal(total(start), 6, reason="through the bound")
-        assert_equal(total_dyn(&start), 6, reason="through &dyn")
+        assert_equal(total(start), 6, reason="again, from the start")
         assert_equal(start.left, 3, reason="each loop walked its own copy")
 
     it("a FromIterator struct through collect and a bound"):
         let bag: Bag = Countdown { left: 3 }.iter().collect()
         assert_equal(bag.items, [3, 2, 1], reason="collected in order")
-        cursor := [+4, 5, 6].iter()
+        let mut cursor = [+4, 5, 6].iter()
         _ := cursor.next()
-        let rest: Bag = gather(cursor)
+        let rest: Bag = gather(&mut cursor)
         assert_equal(rest.pulls, 2, reason="the bound's from_iter drained the rest")
 
     it("the &mut self method changes the caller's struct"):

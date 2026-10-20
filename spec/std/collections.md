@@ -106,12 +106,13 @@ fn total(view: ListView[i32]) -> i32:
 10. r[std-collections.view.index] `view[i]` reads the list's element at index `start + i`.
 11. r[std-collections.view.index.range] A view index that is not less than the view's `len` is a checked runtime panic, even when the list has an element there. Panic: `index-out-of-bounds`.
 12. r[std-collections.view.iter] Iterating a view yields its elements in order, each as `T`.
-13. r[std-collections.view.to-list-value] `to_list` returns a new list value that holds the view's elements in order, as the slice `items[start..end]` does, so `let mut copy = view.to_list()` may grow the copy.
-14. r[std-collections.view.read-only] A view has no `IndexSet` implementation, so assigning to `view[i]` is an error. Error: `invalid-assignment-target`.
-15. r[std-collections.view.writes] An element write to the list's place, as `items[i] = v`, shows through every view of it, so a later read of the view gives the new value.
-16. r[std-collections.view.invalidate] Changing the list's length invalidates every view of it, as [`flow.for.invalidate`](../lang/06-control-flow.md#r-flow.for.invalidate) does for an iterator.
-17. r[std-collections.view.invalidate.anywhere] A length change invalidates a view wherever it happens, so appending past a view's end invalidates it too.
-18. r[std-collections.view.invalid-use] The next use of an invalidated view is a checked runtime panic. Such a use is a `len`, index, or `to_list` call, an `iter()` call, or the next `next` call of an iterator taken from it. Panic: `iterator-invalidated`.
+13. r[std-collections.view.cursor] A view's cursor type is `ListViewIter[T]`, which `std.collections` declares with private fields.
+14. r[std-collections.view.to-list-value] `to_list` returns a new list value that holds the view's elements in order, as the slice `items[start..end]` does, so `let mut copy = view.to_list()` may grow the copy.
+15. r[std-collections.view.read-only] A view has no `IndexSet` implementation, so assigning to `view[i]` is an error. Error: `invalid-assignment-target`.
+16. r[std-collections.view.writes] An element write to the list's place, as `items[i] = v`, shows through every view of it, so a later read of the view gives the new value.
+17. r[std-collections.view.invalidate] Changing the list's length invalidates every view of it, as [`flow.for.invalidate`](../lang/06-control-flow.md#r-flow.for.invalidate) does for an iterator.
+18. r[std-collections.view.invalidate.anywhere] A length change invalidates a view wherever it happens, so appending past a view's end invalidates it too.
+19. r[std-collections.view.invalid-use] The next use of an invalidated view is a checked runtime panic. Such a use is a `len`, index, or `to_list` call, an `iter()` call, or the next `next` call of an iterator taken from it. Panic: `iterator-invalidated`.
 
 ```text
 use std.collections.ListView
@@ -354,9 +355,10 @@ fn distinct(words: List[string]) -> Set[string]:
 5. r[std-collections.set.insert] `insert(value)` adds `value` and returns `true` when the set has no element equal to it. Otherwise it changes nothing and returns `false`.
 6. r[std-collections.set.remove] `remove(value)` removes the element equal to `value` and returns `true`. When there is none, it changes nothing and returns `false`.
 7. r[std-collections.set.iter] Iterating a set yields its elements in the order that a map's keys would have after the same inserts and removes, by [`types.map.order.deterministic`](../lang/04-type-system.md#r-types.map.order.deterministic).
-8. r[std-collections.set.snapshot] Iterating a set walks the set as it was when `iter` was called. An `insert` or a `remove` while the loop runs changes the set but not the loop, and never panics, as [`flow.for.snapshot`](../lang/06-control-flow.md#r-flow.for.snapshot) states for a map.
-9. r[std-collections.set.eq] Two sets are equal when each element of one equals an element of the other, in any order.
-10. r[std-collections.set.collect] A set implements `FromIterator[T]`. Collecting inserts each item in order, so the set holds each distinct item once, in the order of its first occurrence, and an empty iterator gives an empty set.
+8. r[std-collections.set.cursor] A set's cursor type is `SetIter[T]`, which `std.collections` declares with private fields.
+9. r[std-collections.set.snapshot] Iterating a set walks the set as it was when `iter` was called. An `insert` or a `remove` while the loop runs changes the set but not the loop, and never panics, as [`flow.for.snapshot`](../lang/06-control-flow.md#r-flow.for.snapshot) states for a map.
+10. r[std-collections.set.eq] Two sets are equal when each element of one equals an element of the other, in any order.
+11. r[std-collections.set.collect] A set implements `FromIterator[T]`. Collecting inserts each item in order, so the set holds each distinct item once, in the order of its first occurrence, and an empty iterator gives an empty set.
 
 > **Note.** `lib/std` builds a set over a `Map` whose values carry no
 > meaning, so `insert`, `remove`, and `contains` take expected constant
@@ -411,8 +413,9 @@ fn rotate(items: List[i32]) -> List[i32]:
 6. r[std-collections.deque.ends] `front` and `back` return the front and the back element without removing it, or `.None` when the deque is empty.
 7. r[std-collections.deque.get] `get(i)` returns the element `i` places from the front in `.Some`, so `get(0)` is the front. An `i` that is not less than `len` gives `.None`.
 8. r[std-collections.deque.iter] Iterating a deque yields its elements from front to back, each as `T`.
-9. r[std-collections.deque.snapshot] Iterating a deque walks the deque as it was when `iter` was called. A push or a pop while the loop runs changes the deque but not the loop, and never panics, as [`flow.for.snapshot`](../lang/06-control-flow.md#r-flow.for.snapshot) states for a list.
-10. r[std-collections.deque.eq] Two deques are equal when they have the same length and equal elements in the same order from the front, as two lists are.
+9. r[std-collections.deque.cursor] A deque's cursor type is `DequeIter[T]`, which `std.collections` declares with private fields.
+10. r[std-collections.deque.snapshot] Iterating a deque walks the deque as it was when `iter` was called. A push or a pop while the loop runs changes the deque but not the loop, and never panics, as [`flow.for.snapshot`](../lang/06-control-flow.md#r-flow.for.snapshot) states for a list.
+11. r[std-collections.deque.eq] Two deques are equal when they have the same length and equal elements in the same order from the front, as two lists are.
 
 ```text
 use std.collections.Deque

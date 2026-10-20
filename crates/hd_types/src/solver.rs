@@ -1922,8 +1922,10 @@ impl<'s, 'a> Search<'s, 'a> {
             TyData::Mut(i) => i,
             _ => tref.self_ty,
         };
-        // The environment: a clause on the same parameter and trait.
-        if let TyData::Param(param) = pool.get(self_ty) {
+        // The environment: a clause on the same parameter and trait, or
+        // on the same rigid projection of a parameter, whose trait bounds
+        // its associated type.
+        if let Some(param) = clause_param(pool, self_ty) {
             let env = self.cx.env;
             for i in 0..env.clause_self.len() {
                 // A bound that names no trait, already reported, holds
@@ -2605,6 +2607,16 @@ impl Search<'_, '_> {
             }
         }
         Ok(Answer::Candidates(all))
+    }
+}
+
+/// The parameter a clause on `t` is about: `t` itself, or the parameter
+/// a rigid projection such as `I::IntoIter` projects from.
+fn clause_param(pool: Types<'_>, t: Ty) -> Option<ParamRef> {
+    match pool.get(t) {
+        TyData::Param(p) => Some(p),
+        TyData::Assoc { self_ty, .. } => clause_param(pool, strip_outer_mut(pool, self_ty)),
+        _ => None,
     }
 }
 

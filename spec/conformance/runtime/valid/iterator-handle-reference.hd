@@ -1,5 +1,5 @@
-# test: an iterator is a handle behind `&mut`: each `iter()` call makes a new iterator object, a `:=` binding or a copy of the reference advances that one iterator, and a callee or a loop given the reference continues from where it stands
-# Spec 06 Iteration Protocols: flow.for.iterator.value-state, flow.for.iterator.next.trait, flow.for.iterator.shared-reference. Spec 10 Built-In Methods: module.method.iter-from-fn.
+# test: a cursor is a value: each `iter()` call makes a new one, a copy advances on its own, and a `&mut` reference, a loop over it, or a callee given it advances the one cursor it refers to
+# Spec 06 Iteration Protocols: flow.for.iterator.value-state, flow.for.iterator.next.trait, flow.for.iterator.reference-progress, flow.for.iterator.copy-preserves-source; Iterator Invalidation: flow.for.collection-cursor.copy.
 use std.iter.{from_fn}
 fn take_two(source: &mut dyn Iterator[i32]) -> List[i32]:
     let mut taken: List[i32] = []
@@ -12,38 +12,58 @@ fn take_two(source: &mut dyn Iterator[i32]) -> List[i32]:
 tests:
     use std.testing.assert_equal
 
-    it("a := iterator advances"):
-        cursor := [+1, 2, 3].iter()
+    it("a loop over &mut continues the cursor"):
+        let mut cursor = [+1, 2, 3].iter()
         assert_equal(cursor.next(), .Some(1), reason="the first item")
         let mut rest: List[i32] = []
-        for item in cursor:
+        for item in &mut cursor:
             rest.push(item)
         assert_equal(rest, [2, 3], reason="the loop continues after it")
         assert_equal(cursor.next(), .None, reason="the loop left it exhausted")
 
-    it("a copy of the reference is the same iterator"):
-        first := [+1, 2, 3].iter()
-        second := first
-        _ := second.next()
-        assert_equal(first.next(), .Some(2), reason="the copy advanced it")
-        assert_equal(first is second, true, reason="one iterator")
+    it("a loop over the value walks a copy"):
+        let mut cursor = [+1, 2, 3].iter()
+        _ := cursor.next()
+        let mut rest: List[i32] = []
+        for item in cursor:
+            rest.push(item)
+        assert_equal(rest, [2, 3], reason="the copy starts where the cursor stands")
+        assert_equal(cursor.next(), .Some(2), reason="the cursor itself did not move")
 
-    it("a callee advances the caller's iterator"):
-        cursor := [+1, 2, 3].iter()
-        assert_equal(take_two(cursor), [1, 2], reason="the callee's items")
+    it("a copy advances on its own, a reference does not"):
+        let mut first = [+1, 2, 3].iter()
+        let mut second = first
+        _ := second.next()
+        assert_equal(first.next(), .Some(1), reason="the copy advanced itself")
+        shared := &mut first
+        _ := shared.next()
+        assert_equal(first.next(), .Some(3), reason="the reference advanced it")
+
+    it("a copy reads the same list"):
+        let mut values: List[i32] = [+1, 2, 3]
+        let mut first = values.iter()
+        let mut second = first
+        _ := first.next()
+        values[1] = 20
+        assert_equal(second.next(), .Some(1), reason="the copy keeps its own position")
+        assert_equal(second.next(), .Some(20), reason="the copy reads the replacement")
+        assert_equal(first.next(), .Some(20), reason="so does the original")
+
+    it("a callee advances the caller's cursor through &mut"):
+        let mut cursor = [+1, 2, 3].iter()
+        assert_equal(take_two(&mut cursor), [1, 2], reason="the callee's items")
         assert_equal(cursor.next(), .Some(3), reason="the caller goes on from there")
 
     it("each iter call makes a new iterator"):
         values := [+1, 2]
-        first := values.iter()
-        second := values.iter()
-        assert_equal(first is second, false, reason="two iterators")
+        let mut first = values.iter()
+        let mut second = values.iter()
         _ := first.next()
         assert_equal(second.next(), .Some(1), reason="the second starts at the front")
 
     it("from_fn makes a new iterator"):
         let left = +2
-        countdown := &mut from_fn(fn() -> i32?:
+        countdown := from_fn(fn() -> i32?:
             left = left - 1
             if left < 0: .None else: .Some(left)
         )

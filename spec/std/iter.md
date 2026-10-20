@@ -19,13 +19,30 @@ The language tier keeps what the compiler knows by name
 | Item | Why it stays in the language tier |
 | --- | --- |
 | `Iterator[T]` | the prelude cursor trait that `for` advances through `next` |
-| `FromFn[T]` | the concrete cursor type built-in list and map methods construct |
+| `ListIter[T]` and `MapEntries[K, V]` | the cursor types of a list's and a map's `iter`, which [Built-In Methods](../lang/10-modules.md#built-in-methods) names |
 | `Iterable[T]` and its impls | the lang item that drives `for` and comprehensions; `List`, `Map`, and the [iterable ranges](../lang/06-control-flow.md#range-iteration) implement it, not `Iterator` |
 
 Nothing in the language tier names an adapter, `collect`, or
 `FromIterator`. `collect`'s default target, `List[T]`, is an ordinary
 [type-argument default](../lang/04-type-system.md#type-argument-defaults),
 which needs no compiler knowledge of `collect`.
+
+## Collection Cursors
+
+A list's `iter` returns a `ListIter[T]` and a map's a `MapEntries[K, V]`,
+as their `Iterable` implementations' `IntoIter`:
+
+```text
+use std.iter.ListIter
+
+fn evens(values: List[i32]) -> List[i32]:
+    let cursor: ListIter[i32] = values.iter()
+    cursor.filter(fn(value): value % 2 == 0).collect()
+```
+
+1. r[std-iter.cursor.list] `std.iter` declares `ListIter[T]`, whose `next` yields the list's elements in order, each read from the list when it is reached.
+2. r[std-iter.cursor.map] `std.iter` declares `MapEntries[K < Eq & Hash, V]`, whose `next` yields the map's entries as `(K, V)` tuples in the map's iteration order.
+3. r[std-iter.cursor.private] Both have private fields, so only `iter` makes one, and both follow [Iterator Invalidation](../lang/06-control-flow.md#iterator-invalidation).
 
 ## Iterator Factory
 

@@ -7,7 +7,7 @@
 # expect-stdout: 1
 # expect-stdout: next 1
 # expect-stdout: 2
-use std.iter.{from_fn}
+use std.iter.{FromFn, from_fn}
 struct Countdown:
     left: i32
 
@@ -19,9 +19,10 @@ impl Countdown:
         .Some(self.left + 1)
 
 impl Iterable[i32] for Countdown:
-    fn iter(self) -> &mut dyn Iterator[i32]:
+    type IntoIter = FromFn[i32]
+    fn iter(self) -> FromFn[i32]:
         let mut cursor = self
-        &mut from_fn(fn() -> i32?: cursor.next())
+        from_fn(fn() -> i32?: cursor.next())
 
 pub fn main() -> void $ Console:
     for n in Countdown { left: 3 }:

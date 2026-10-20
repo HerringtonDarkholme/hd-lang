@@ -358,16 +358,16 @@ pub enum Helper {
         own: Vec<(u32, Option<Walk>)>,
         ctx: Option<SlotCtx>,
     },
-    /// `(env, ctx) -> T?`: the step closure code of `List.iter()`
-    /// (`emit/iter.rs`): `.Some` of the next element, with its own count,
-    /// laid out as `opt` says, or `.None` at the end.
+    /// `(env, index, ctx) -> T?`: the step closure code of std's
+    /// `list_steps` (`emit/iter.rs`): `.Some` of the element at the index,
+    /// with its own count, laid out as `opt` says, or `.None` past the end.
     ListStep {
         elem: Elem,
         opt: Vec<OptVal>,
         results: Vec<Val>,
     },
-    /// `(env, ctx) -> (K, V)?`: the step closure code of `Map.iter()`
-    /// (`map.rs`).
+    /// `(env, at, ctx) -> (usize, (K, V))?`: the step closure code of
+    /// std's `map_steps` (`map.rs`).
     MapStep {
         entry: map::Entry,
         opt: Vec<OptVal>,
@@ -1040,10 +1040,16 @@ fn rt_import(name: &str, params: &[Val], results: &[Val]) -> Sym {
 }
 
 /// [`Helper::ListStep`]'s function. The environment holds the list's
-/// header at 0, the next index at 4 and the length at creation at 8.
+/// header at 0 and the length at creation at 4; the index to read is the
+/// code's parameter, so the cursor that calls it keeps its own position.
 fn list_step(elem: &Elem, opt: &[OptVal], results: &[Val]) -> Func {
-    // A closure's code: the environment, then the context it ignores.
-    let mut f = Func::new("rt:list_step", vec![Val::I32, Val::I32], results.to_vec());
+    // A closure's code: the environment, the index, then the context it
+    // ignores.
+    let mut f = Func::new(
+        "rt:list_step",
+        vec![Val::I32, Val::I32, Val::I32],
+        results.to_vec(),
+    );
     let b = f.local(Val::I32);
     let i = f.local(Val::I32);
     let at = f.local(Val::I32);
@@ -1058,26 +1064,20 @@ fn list_step(elem: &Elem, opt: &[OptVal], results: &[Val]) -> Func {
     f.get(b);
     f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
     f.get(0);
-    f.op(Instruction::I32Load(mem(HEAP, 8, 2)));
+    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
     f.op(Instruction::I32Ne);
     f.op(Instruction::If(BlockType::Empty));
     f.helper(Helper::Panic(
         "iterator-invalidated: list changed during iteration".into(),
     ));
     f.op(Instruction::End);
-    f.get(0);
-    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+    f.get(1);
     f.set(i);
     f.get(i);
     f.get(b);
     f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
     f.op(Instruction::I32LtU);
     f.op(Instruction::If(BlockType::Empty));
-    f.get(0);
-    f.get(i);
-    f.i32(1);
-    f.op(Instruction::I32Add);
-    f.op(Instruction::I32Store(mem(HEAP, 4, 2)));
     f.get(b);
     f.get(i);
     f.u32(elem.size);

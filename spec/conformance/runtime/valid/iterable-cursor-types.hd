@@ -1,0 +1,54 @@
+# test: each std iterable names its cursor type, which a signature may write: `iter` returns it, a loop or a chain advances it with no trait value, and a bound's projection `I::IntoIter` is it
+# Spec 06 Iteration Protocols: flow.for.iterable.into-iter, flow.for.iterable.static-cursor; Range Iteration: flow.for.range.cursor. Spec 09 Associated Types: trait.assoc.bound-use. Spec 10 String Methods: module.string.cursors. Spec std/iter: std-iter.cursor.list, std-iter.cursor.map.
+use std.iter.{ListIter, MapEntries}
+use std.ops.{RangeIter, RangeFromIter}
+use std.text.{Bytes, CharIndices, Chars}
+
+fn cursor_of[I < Iterable[i32]](source: I) -> I::IntoIter:
+    source.iter()
+
+fn rest(cursor: ListIter[i32]) -> i32:
+    let total = +0
+    for value in cursor:
+        total = total + value
+    total
+
+fn doubled(values: List[i32]) -> List[i32]:
+    let cursor: ListIter[i32] = values.iter()
+    cursor.map(fn(value: i32) -> i32: value * 2).collect()
+
+tests:
+    use std.testing.assert_equal
+
+    it("a list's cursor is a ListIter"):
+        let mut cursor: ListIter[i32] = [+1, 2, 3].iter()
+        assert_equal(cursor.next(), .Some(1), reason="the first item")
+        assert_equal(rest(cursor), 5, reason="a loop over a ListIter parameter")
+        assert_equal(doubled([+1, 2]), [2, 4], reason="a chain over a named cursor")
+
+    it("a bound's projection is the implementation's cursor"):
+        let mut from_list: ListIter[i32] = cursor_of([+4, 5])
+        assert_equal(from_list.next(), .Some(4), reason="a list")
+        let mut from_range: RangeIter[i32] = cursor_of(+1..+3)
+        assert_equal(from_range.next(), .Some(1), reason="a range")
+
+    it("range cursors"):
+        let mut range: RangeIter[i64] = (0i64..=2i64).iter()
+        assert_equal(range.collect::[List[i64]](), [0, 1, 2], reason="an inclusive range")
+        let mut from: RangeFromIter[u8] = (254u8..).iter()
+        assert_equal(from.next(), .Some(254), reason="the start")
+        assert_equal(from.next(), .Some(255), reason="the largest value")
+
+    it("a map's cursor yields its entries"):
+        let mut entries: MapEntries[string, i32] = {"a": +1, "b": +2}.iter()
+        assert_equal(entries.next(), .Some(("a", 1)), reason="insertion order")
+        assert_equal(entries.count(), 1, reason="one left")
+
+    it("string cursors"):
+        let mut letters: Chars = "hé".chars()
+        assert_equal(letters.next(), .Some('h'), reason="a char")
+        let mut places: CharIndices = "hé".char_indices()
+        _ := places.next()
+        assert_equal(places.next(), .Some((1, 'é')), reason="a byte offset")
+        let mut raw: Bytes = "hé".bytes()
+        assert_equal(raw.count(), 3, reason="three bytes")
