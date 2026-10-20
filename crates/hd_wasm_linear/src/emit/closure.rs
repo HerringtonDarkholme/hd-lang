@@ -380,7 +380,7 @@ impl Em<'_, '_, '_> {
             self.f.call(Sym::Inst(key));
         } else {
             self.comp(callee, 0)?;
-            self.f.body.push(Ins::CallIndirect(ps, results));
+            self.f.call_indirect(ps, results);
         }
         let ty = self.ty(i);
         self.call_results(i, ty)?;

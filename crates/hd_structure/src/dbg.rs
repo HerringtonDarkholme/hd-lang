@@ -189,8 +189,9 @@ impl Gen<'_, '_> {
     }
 
     /// Writes the value the reference `r` refers to, of type `inner`: a
-    /// read through its `get` closure (`crates/hd_wasm/DESIGN.md` §15.2,
-    /// "References"), printed by its own `dbg_show`.
+    /// `RefRead`, as the checker writes `*r`, whose closure form calls its
+    /// `get` closure (`crates/hd_wasm/DESIGN.md` §15.2, "References"),
+    /// printed by its own `dbg_show`.
     fn referent(&mut self, out: (LocalId, Ty), inner: Ty, r: Ref) -> StageResult<()> {
         let pool = self.names.pool;
         let any = pool.intern_ty(&TyData::TraitValue {
@@ -202,9 +203,12 @@ impl Gen<'_, '_> {
         let entered = self.writer_call(out, "enter", &[erased], Ty::BOOL);
         self.when(entered, |g| {
             let get_ty = g.fn_ty(&[], inner);
+            let form = g.b.open_block();
             let get = g.b.emit(Tag::Field, r.0, 0, get_ty, SYN);
             let rec = g.b.refs_record(&[]);
-            let value = g.b.emit(Tag::CallValue, get.0, rec, inner, SYN);
+            let read = g.b.emit(Tag::CallValue, get.0, rec, inner, SYN);
+            let form = g.b.close_block(form, Some(read), inner, SYN);
+            let value = g.b.emit(Tag::RefRead, r.0, form.0, inner, SYN);
             g.part(out, inner, value);
             g.writer_call(out, "leave", &[], Ty::VOID);
             Ok(())

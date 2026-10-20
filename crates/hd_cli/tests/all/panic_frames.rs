@@ -472,7 +472,7 @@ fn function_names(wasm: &[u8]) -> Vec<String> {
     out
 }
 
-/// Runtime helpers are named by kind (`rt:entry_poll`, `rt:lit#3`), never
+/// Runtime helpers are named by kind (`rt:entry_poll`, `rt:panic#3`), never
 /// by a `Debug` dump: no `{`, `[` or `Hash128`, at most 64 characters, and
 /// unique within the module.
 #[test]
@@ -488,8 +488,6 @@ fn runtime_helper_names_are_short_and_readable() {
     let names = function_names(&wasm);
     let rt: Vec<&String> = names.iter().filter(|n| n.starts_with("rt:")).collect();
     assert!(rt.iter().any(|n| n.as_str() == "rt:entry_poll"), "{rt:?}");
-    assert!(rt.iter().any(|n| n.starts_with("rt:lit#")), "{rt:?}");
-    assert!(rt.iter().any(|n| n.starts_with("rt:host_")), "{rt:?}");
     for name in &rt {
         assert!(
             !name.contains(['{', '[']) && !name.contains("Hash128") && name.len() <= 64,

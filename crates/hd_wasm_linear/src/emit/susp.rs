@@ -381,7 +381,7 @@ impl Em<'_, '_, '_> {
         self.f.get(c);
         self.f.get(c);
         self.f.op(I::I32Load(mem(HEAP, F_CANCEL, 2)));
-        self.f.body.push(Ins::CallIndirect(vec![Val::I32], vec![]));
+        self.f.call_indirect(vec![Val::I32], vec![]);
         self.f.get(c);
         self.f.op(I::I32Load(mem(HEAP, F_FLAGS, 2)));
         self.f.i32(UNWINDING);
@@ -647,10 +647,8 @@ impl Em<'_, '_, '_> {
         self.f.get(s);
         self.f.get(s);
         self.f.op(I::I32Load(mem(HEAP, F_POLL, 2)));
-        self.f.body.push(Ins::CallIndirect(
-            vec![Val::I32],
-            [vec![Val::I32], res].concat(),
-        ));
+        self.f
+            .call_indirect(vec![Val::I32], [vec![Val::I32], res].concat());
         for l in tmp.iter().rev() {
             self.f.set(*l);
         }
@@ -768,10 +766,8 @@ impl Em<'_, '_, '_> {
             self.f.get(s);
             self.f.op(I::I32Load(mem(HEAP, F_POLL, 2)));
             let vs = self.vals(*t)?;
-            self.f.body.push(Ins::CallIndirect(
-                vec![Val::I32],
-                [vec![Val::I32], vs].concat(),
-            ));
+            self.f
+                .call_indirect(vec![Val::I32], [vec![Val::I32], vs].concat());
             for l in ls.iter().rev() {
                 self.f.set(*l);
             }

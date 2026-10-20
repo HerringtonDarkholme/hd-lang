@@ -44,7 +44,7 @@ use wasm_encoder::Instruction as I;
 use super::value::Src;
 use super::{Ctl, Em};
 use crate::layout::{Kind, Mem, Part, Walk, kind, mem as mem_of, ref_mutable, walk};
-use crate::module::{Func, HEAP, Ins, Module, Val, mem};
+use crate::module::{Func, HEAP, Module, Val, mem};
 use crate::rt::Helper;
 use crate::{Input, unsupported};
 
@@ -359,7 +359,7 @@ impl Em<'_, '_, '_> {
         };
         self.f.get(ops);
         self.f.op(I::I32Load(mem(HEAP, 4 * u64::from(k), 2)));
-        self.f.body.push(Ins::CallIndirect(params, results));
+        self.f.call_indirect(params, results);
         self.release_ctx(c);
         Ok(())
     }

@@ -187,6 +187,11 @@ pub enum Ins {
     SaveAll,
     /// The loads of every local from the frame.
     LoadAll,
+    /// The TIR instruction that anchors the calls after it: a row of the
+    /// `hd.lines` table at each call that starts a new anchor
+    /// (`crates/hd_wasm/DESIGN.md` §15.9). [`Func::call`] writes it just
+    /// before a call whose anchor is new; it writes no code.
+    Anchor(u32),
 }
 
 /// One function body before numbering.
@@ -200,6 +205,11 @@ pub struct Func {
     pub body: Vec<Ins>,
     /// A complete relocation-free body, including locals and the final end.
     pub raw: Option<Vec<u8>>,
+    /// The TIR instruction whose code is being written, when it has a
+    /// source position: it anchors the calls written now.
+    pub at: Option<u32>,
+    /// The anchor the last [`Ins::Anchor`] wrote.
+    anchored: Option<u32>,
 }
 
 impl Func {
@@ -240,7 +250,24 @@ impl Func {
     }
 
     pub fn call(&mut self, s: Sym) {
+        self.anchor();
         self.body.push(Ins::Call(s));
+    }
+
+    /// `call_indirect` through the function table, at this signature.
+    pub fn call_indirect(&mut self, params: Vec<Val>, results: Vec<Val>) {
+        self.anchor();
+        self.body.push(Ins::CallIndirect(params, results));
+    }
+
+    /// Writes [`Ins::Anchor`] before a call whose anchor is new.
+    fn anchor(&mut self) {
+        if let Some(at) = self.at
+            && self.anchored != self.at
+        {
+            self.body.push(Ins::Anchor(at));
+            self.anchored = self.at;
+        }
     }
 
     pub fn helper(&mut self, h: Helper) {
@@ -313,6 +340,9 @@ pub struct Module {
     /// In checked mode, each stored binding or once-cell, which the audit
     /// at exit releases and zeros first (§23.24).
     pub stored: BTreeMap<Hash128, Stored>,
+    /// A release build: its function names go in `hd.names`, not `name`
+    /// (`crates/hd_wasm/DESIGN.md` §15.9).
+    pub release: bool,
 }
 
 /// Stored values and their counted-reference walk (§23.24), with a static
@@ -531,24 +561,54 @@ impl Module {
         let mut funcs = FunctionSection::new();
         let mut code = CodeSection::new();
         let mut names = NameMap::new();
+        let mut lines: Vec<(u32, Vec<(u32, u32)>)> = Vec::new();
         for im in &imports {
             names.append(
                 index[&Sym::Import(im.clone())],
                 &format!("{}/{}", im.module, im.name),
             );
         }
+        // A helper name that several helpers share, at different
+        // arguments, takes its place among them as a suffix. An instance
+        // keeps its item's `path#sub`, which a panic's frames read.
+        let mut seen: BTreeMap<&str, u32> = BTreeMap::new();
+        for s in &defined {
+            *seen.entry(self.funcs[s].name.as_str()).or_default() += 1;
+        }
+        let mut taken: BTreeMap<&str, u32> = BTreeMap::new();
+        let mut own: Vec<(u32, String)> = Vec::new();
         for s in &defined {
             let f = &self.funcs[s];
+            let name = if f.name.starts_with("rt:") && seen[f.name.as_str()] > 1 {
+                let k = taken.entry(f.name.as_str()).or_default();
+                *k += 1;
+                format!("{}#{}", f.name, *k - 1)
+            } else {
+                f.name.clone()
+            };
+            own.push((index[s], name));
             funcs.function(ty(&f.params, &f.results, &mut types));
             if let Some(raw) = &f.raw {
                 assert!(f.locals.is_empty() && f.body.is_empty());
                 code.raw(raw);
-                names.append(index[s], &f.name);
                 continue;
             }
             let mut body = Function::new_with_locals_types(f.locals.iter().map(|v| v.wasm()));
+            let mut at = None;
+            let mut rows: Vec<(u32, u32)> = Vec::new();
             for i in &f.body {
+                // A call at a new anchor starts a row: its offset in the
+                // body, locals included, and the anchor.
+                if let (Ins::Call(_) | Ins::CallIndirect(..), Some(a)) = (i, at)
+                    && rows.last().is_none_or(|&(_, last)| last != a)
+                {
+                    rows.push((u32::try_from(body.byte_len()).expect("offset"), a));
+                }
                 match i {
+                    Ins::Anchor(a) => {
+                        at = Some(*a);
+                        &mut body
+                    }
                     Ins::Op(op) => body.instruction(op),
                     Ins::Call(c) => body.instruction(&Instruction::Call(
                         *index.get(c).ok_or_else(|| undefined(c))?,
@@ -576,7 +636,9 @@ impl Module {
             }
             body.instruction(&Instruction::End);
             code.function(&body);
-            names.append(index[s], &f.name);
+            if !rows.is_empty() {
+                lines.push((index[s], rows));
+            }
         }
         let mut tables = TableSection::new();
         let mut elements = ElementSection::new();
@@ -681,9 +743,63 @@ impl Module {
         if !self.data.is_empty() {
             module.section(&data);
         }
-        let mut name_sec = NameSection::new();
-        name_sec.functions(&names);
-        module.section(&name_sec);
+        if !lines.is_empty() {
+            module.section(&line_table(&lines));
+        }
+        if self.release {
+            module.section(&compact_names(&own));
+        } else {
+            for (f, name) in &own {
+                names.append(*f, name);
+            }
+            let mut name_sec = NameSection::new();
+            name_sec.functions(&names);
+            module.section(&name_sec);
+        }
         Ok(module.finish())
+    }
+}
+
+/// The `hd.lines` section (`crates/hd_wasm/DESIGN.md` §15.9), as the Wasm
+/// GC backend writes it: per function with anchored calls, by function
+/// index, its rows as (offset from the previous row's, anchor).
+fn line_table(functions: &[(u32, Vec<(u32, u32)>)]) -> wasm_encoder::CustomSection<'static> {
+    use wasm_encoder::Encode;
+    let mut sorted: Vec<&(u32, Vec<(u32, u32)>)> = functions.iter().collect();
+    sorted.sort_unstable_by_key(|(f, _)| *f);
+    let mut data = Vec::new();
+    u32::try_from(sorted.len()).expect("rows").encode(&mut data);
+    for (f, rows) in sorted {
+        f.encode(&mut data);
+        u32::try_from(rows.len()).expect("rows").encode(&mut data);
+        let mut last = 0;
+        for &(off, at) in rows {
+            (off - last).encode(&mut data);
+            at.encode(&mut data);
+            last = off;
+        }
+    }
+    wasm_encoder::CustomSection {
+        name: "hd.lines".into(),
+        data: data.into(),
+    }
+}
+
+/// The `hd.names` section of a release build (`crates/hd_wasm/DESIGN.md`
+/// §15.5), which writes no `name` section: each defined function's index
+/// and the name `name` would give it.
+fn compact_names(own: &[(u32, String)]) -> wasm_encoder::CustomSection<'static> {
+    use wasm_encoder::Encode;
+    let mut data = Vec::new();
+    u32::try_from(own.len())
+        .expect("functions")
+        .encode(&mut data);
+    for (f, name) in own {
+        f.encode(&mut data);
+        name.as_str().encode(&mut data);
+    }
+    wasm_encoder::CustomSection {
+        name: "hd.names".into(),
+        data: data.into(),
     }
 }

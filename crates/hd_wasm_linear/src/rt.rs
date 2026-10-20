@@ -1081,8 +1081,12 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
                     f.op(Instruction::Drop);
                 }
                 // A script's later inits: its own bodies, which share the
-                // first's result, and the others, as forbidden contexts.
+                // first's providers and result, and the others, as
+                // forbidden contexts.
                 for (k, forbid) in then {
+                    if !forbid {
+                        host_providers(&mut f, providers);
+                    }
                     call_init(&mut f, *k, *forbid);
                     if !forbid {
                         for _ in 0..*results {
@@ -1118,7 +1122,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f.get(desc);
             f.i32(1);
             f.op(Instruction::I32Sub);
-            f.body.push(Ins::CallIndirect(vec![Val::I32], vec![]));
+            f.call_indirect(vec![Val::I32], vec![]);
             f.op(Instruction::End);
             f
         }
@@ -1903,7 +1907,7 @@ fn release_ref(m: &Module) -> Func {
     f.get(desc);
     f.i32(1);
     f.op(Instruction::I32Sub);
-    f.body.push(Ins::CallIndirect(vec![Val::I32], vec![]));
+    f.call_indirect(vec![Val::I32], vec![]);
     f.op(Instruction::End);
     f.get(block);
     f.call(Sym::Inst(r.free));
@@ -1951,8 +1955,7 @@ fn list_copy(m: &Module) -> Func {
     f.get(own);
     f.i32(1);
     f.op(Instruction::I32Sub);
-    f.body
-        .push(Ins::CallIndirect(vec![Val::I32], vec![Val::I32]));
+    f.call_indirect(vec![Val::I32], vec![Val::I32]);
     f.op(Instruction::Return);
     f.op(Instruction::End);
     f.get(0);

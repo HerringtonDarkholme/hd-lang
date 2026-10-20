@@ -273,6 +273,7 @@ impl Runtime {
 pub fn build(input: &Input<'_>) -> StageResult<Vec<u8>> {
     let mut m = module::Module::default();
     m.runtime = input.runtime;
+    m.release = input.release;
     for id in input.order {
         m.inst_of.insert(input.collected.table.key[id.idx()], *id);
     }

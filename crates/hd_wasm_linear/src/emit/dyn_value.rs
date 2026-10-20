@@ -322,9 +322,7 @@ impl Em<'_, '_, '_> {
             self.f.op(I::I32Load(mem(HEAP, u64::from(at), 2)));
         }
         self.f.op(I::I32Load(mem(HEAP, 0, 2)));
-        self.f
-            .body
-            .push(Ins::CallIndirect(vec![Val::I32], vec![Val::I32; 4]));
+        self.f.call_indirect(vec![Val::I32], vec![Val::I32; 4]);
         self.store(i)
     }
 
@@ -433,9 +431,7 @@ impl Em<'_, '_, '_> {
             self.f.op(I::I32Load(mem(HEAP, u64::from(at), 2)));
         }
         self.f.op(I::I32Load(mem(HEAP, 0, 2)));
-        self.f
-            .body
-            .push(Ins::CallIndirect(vec![Val::I32], vec![Val::I32; 4]));
+        self.f.call_indirect(vec![Val::I32], vec![Val::I32; 4]);
         self.f.op(I::Drop);
         self.f.op(I::Drop);
         let at = self.m.static_bytes(want.as_bytes(), 1);

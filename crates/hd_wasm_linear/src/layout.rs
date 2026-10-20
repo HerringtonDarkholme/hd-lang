@@ -256,8 +256,81 @@ pub fn vals(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Vec<V
     Ok(mem(pool, env, t)?.vals())
 }
 
+/// The types whose layouts `t`'s layout is made of, held by value: a
+/// tuple's members, an optional's inner type, a value enum's payload
+/// fields, a struct's fields. Every other type is one leaf or address.
+fn value_parts(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<Ty> {
+    if hd_mono::is_open(pool, t) {
+        return Vec::new();
+    }
+    match pool.get(t) {
+        TyData::Tuple { .. } => tuple_members(pool, t),
+        TyData::Option(inner) => vec![inner],
+        TyData::Adt { def, args }
+            if env.std_kind(def) == StdKind::Other && matches!(kind(pool, env, t), Kind::Value) =>
+        {
+            match env.enum_variants(def, args) {
+                Some(variants) => variants.into_iter().flatten().collect(),
+                None => env
+                    .data_fields(def)
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|f| subst(pool, env, def, args, f))
+                    .collect(),
+            }
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// A type's result from its parts' results, which the second argument
+/// reads ([`by_parts`]).
+type PartFn<'a, T> = dyn Fn(Ty, &dyn Fn(Ty) -> T) -> T + 'a;
+
+/// Computes a result for `t` and every type it holds by value
+/// ([`value_parts`]), parts first, with a stack of its own: a long chain
+/// of types held by value takes no native stack depth. `one` computes a
+/// type's result from its parts' results, which its second argument reads.
+fn by_parts<T: Clone>(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, one: &PartFn<'_, T>) -> T {
+    let mut done: hd_base::HashMap<Ty, T> = hd_base::HashMap::default();
+    let mut stack = vec![(strip(pool, env, t), false)];
+    while let Some((u, ready)) = stack.pop() {
+        if done.contains_key(&u) {
+            continue;
+        }
+        let parts: Vec<Ty> = value_parts(pool, env, u)
+            .into_iter()
+            .map(|p| strip(pool, env, p))
+            .filter(|p| !done.contains_key(p))
+            .collect();
+        if !ready && !parts.is_empty() {
+            stack.push((u, true));
+            stack.extend(parts.into_iter().map(|p| (p, false)));
+            continue;
+        }
+        let got = one(u, &|p| {
+            done.get(&strip(pool, env, p))
+                .cloned()
+                .expect("a part computed first")
+        });
+        done.insert(u, got);
+    }
+    done.remove(&strip(pool, env, t))
+        .expect("the type computed")
+}
+
 /// A concrete type's layout.
 pub fn mem(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Mem> {
+    by_parts(pool, env, t, &|u, part| mem_one(pool, env, u, part))
+}
+
+/// `t`'s layout from its parts' layouts, which `part` reads.
+fn mem_one(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    t: Ty,
+    part: &dyn Fn(Ty) -> StageResult<Mem>,
+) -> StageResult<Mem> {
     let t = strip(pool, env, t);
     // A value of an open type in an erased body is one counted address,
     // whatever the caller's type (`emit/erased.rs`).
@@ -277,8 +350,8 @@ pub fn mem(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Mem> {
             Prim::String => record(&[Mem::address(), Mem::address()]).0,
         },
         TyData::Never => Mem::EMPTY,
-        TyData::Tuple { .. } => payload_mem(pool, env, &tuple_members(pool, t))?.0,
-        TyData::Option(inner) => enum_mem(pool, env, &[vec![], vec![inner]])?.0,
+        TyData::Tuple { .. } => payload_mem_by(&tuple_members(pool, t), part)?.0,
+        TyData::Option(inner) => enum_mem_by(&[vec![], vec![inner]], part)?.0,
         TyData::Adt { def, args } => match env.std_kind(def) {
             StdKind::Suspend => Mem::address(),
             StdKind::List | StdKind::Map => Mem::address(),
@@ -286,8 +359,8 @@ pub fn mem(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Mem> {
                 Kind::Data(_) | Kind::Boxed | Kind::Ref { fat: false, .. } => Mem::address(),
                 Kind::Ref { fat: true, .. } => record(&[Mem::address(), Mem::address()]).0,
                 Kind::Value => match env.enum_variants(def, args) {
-                    Some(variants) => enum_mem(pool, env, &variants)?.0,
-                    None => struct_mem(pool, env, t)?.0,
+                    Some(variants) => enum_mem_by(&variants, part)?.0,
+                    None => payload_mem_by(&value_parts(pool, env, t), part)?.0,
                 },
             },
         },
@@ -364,6 +437,16 @@ impl Walk {
 /// has none: scalars, and what holds no counted address. A type this
 /// backend does not lay out has none here; its layout refuses it.
 pub fn walk(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Walk> {
+    by_parts(pool, env, t, &|u, part| walk_one(pool, env, u, part))
+}
+
+/// `t`'s walk from its parts' walks, which `part` reads.
+fn walk_one(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    t: Ty,
+    part: &dyn Fn(Ty) -> Option<Walk>,
+) -> Option<Walk> {
     let t = strip(pool, env, t);
     if hd_mono::is_open(pool, t) {
         return Some(Walk::Ref(0));
@@ -372,7 +455,7 @@ pub fn walk(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Walk> {
         TyData::Prim(Prim::String) => Some(Walk::Ref(0)),
         TyData::Fn { .. } => Some(Walk::Ref(1)),
         TyData::TraitValue { .. } | TyData::Context(_) => Some(Walk::Ref(0)),
-        TyData::Tuple { .. } => fields_walk(pool, env, &tuple_members(pool, t)),
+        TyData::Tuple { .. } => fields_walk_by(pool, env, &tuple_members(pool, t), part),
         TyData::Adt { def, .. }
             if matches!(
                 env.std_kind(def),
@@ -381,21 +464,15 @@ pub fn walk(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Walk> {
         {
             Some(Walk::Ref(0))
         }
-        TyData::Option(inner) => switch_walk(pool, env, &[vec![], vec![inner]]),
+        TyData::Option(inner) => switch_walk_by(pool, env, &[vec![], vec![inner]], part),
         TyData::Adt { def, args } if env.std_kind(def) == StdKind::Other => {
             match kind(pool, env, t) {
                 Kind::Data(_) | Kind::Boxed | Kind::Ref { .. } => Some(Walk::Ref(0)),
                 Kind::Value => {
                     if let Some(variants) = env.enum_variants(def, args) {
-                        return switch_walk(pool, env, &variants);
+                        return switch_walk_by(pool, env, &variants, part);
                     }
-                    let fields: Vec<Ty> = env
-                        .data_fields(def)
-                        .unwrap_or_default()
-                        .into_iter()
-                        .map(|f| subst(pool, env, def, args, f))
-                        .collect();
-                    fields_walk(pool, env, &fields)
+                    fields_walk_by(pool, env, &value_parts(pool, env, t), part)
                 }
             }
         }
@@ -441,6 +518,16 @@ pub fn pass(pool: &InternPool, env: &dyn ProgramEnv, counts: bool, t: Ty) -> Pas
 /// The walk of fields laid out in order, as a struct, a tuple or a data
 /// payload lays them out.
 pub fn fields_walk(pool: &InternPool, env: &dyn ProgramEnv, fields: &[Ty]) -> Option<Walk> {
+    fields_walk_by(pool, env, fields, &|f| walk(pool, env, f))
+}
+
+/// [`fields_walk`], with each field's own walk read by `part`.
+fn fields_walk_by(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    fields: &[Ty],
+    part: &dyn Fn(Ty) -> Option<Walk>,
+) -> Option<Walk> {
     let (_, parts) = payload_mem(pool, env, fields).ok()?;
     let first = |p: &Part| u32::try_from(p.first).expect("values");
     Walk::seq(
@@ -449,7 +536,7 @@ pub fn fields_walk(pool: &InternPool, env: &dyn ProgramEnv, fields: &[Ty]) -> Op
             .zip(&parts)
             .filter_map(|(f, p)| {
                 let at = first(p);
-                walk(pool, env, *f).map(|w| w.remap(&|k| at + k))
+                part(*f).map(|w| w.remap(&|k| at + k))
             })
             .collect(),
     )
@@ -492,6 +579,16 @@ pub fn env_mem(
 /// The walk of an enum of `variants`: by the tag, each variant's fields at
 /// the slots they share.
 pub fn switch_walk(pool: &InternPool, env: &dyn ProgramEnv, variants: &[Vec<Ty>]) -> Option<Walk> {
+    switch_walk_by(pool, env, variants, &|f| walk(pool, env, f))
+}
+
+/// [`switch_walk`], with each field's own walk read by `part`.
+fn switch_walk_by(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    variants: &[Vec<Ty>],
+    part: &dyn Fn(Ty) -> Option<Walk>,
+) -> Option<Walk> {
     let (_, positions) = enum_mem(pool, env, variants).ok()?;
     let arms: Vec<Option<Walk>> = variants
         .iter()
@@ -502,7 +599,7 @@ pub fn switch_walk(pool: &InternPool, env: &dyn ProgramEnv, variants: &[Vec<Ty>]
                     .iter()
                     .zip(at)
                     .filter_map(|(f, ks)| {
-                        walk(pool, env, *f)
+                        part(*f)
                             .map(|w| w.remap(&|k| u32::try_from(ks[k as usize]).expect("values")))
                     })
                     .collect(),
@@ -560,9 +657,17 @@ pub fn payload_mem(
     env: &dyn ProgramEnv,
     fields: &[Ty],
 ) -> StageResult<(Mem, Vec<Part>)> {
+    payload_mem_by(fields, &|f| mem(pool, env, f))
+}
+
+/// [`payload_mem`], with each field's layout read by `part`.
+fn payload_mem_by(
+    fields: &[Ty],
+    part: &dyn Fn(Ty) -> StageResult<Mem>,
+) -> StageResult<(Mem, Vec<Part>)> {
     let ms = fields
         .iter()
-        .map(|f| mem(pool, env, *f))
+        .map(|f| part(*f))
         .collect::<StageResult<Vec<_>>>()?;
     Ok(record(&ms))
 }
@@ -583,12 +688,20 @@ pub fn enum_mem(
     env: &dyn ProgramEnv,
     variants: &[Vec<Ty>],
 ) -> StageResult<(Mem, Positions)> {
+    enum_mem_by(variants, &|f| mem(pool, env, f))
+}
+
+/// [`enum_mem`], with each payload field's layout read by `part`.
+fn enum_mem_by(
+    variants: &[Vec<Ty>],
+    part: &dyn Fn(Ty) -> StageResult<Mem>,
+) -> StageResult<(Mem, Positions)> {
     let mut payloads = Vec::new();
     let mut slots = [0usize; 4];
     for fields in variants {
         let ms = fields
             .iter()
-            .map(|f| mem(pool, env, *f))
+            .map(|f| part(*f))
             .collect::<StageResult<Vec<_>>>()?;
         for (k, v) in SLOT_ORDER.iter().enumerate() {
             let n = ms

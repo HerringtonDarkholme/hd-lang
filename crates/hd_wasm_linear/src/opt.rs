@@ -451,6 +451,7 @@ fn store_after(b: &[Ins], at: usize, arity: &Arity) -> Option<usize> {
 fn effect(i: &Ins, arity: &Arity) -> Option<(usize, usize)> {
     Some(match i {
         Ins::GlobalGet(_) | Ins::TableSlot(_) | Ins::VTable(_) => (0, 1),
+        Ins::Anchor(_) => (0, 0),
         Ins::GlobalSet(_) => (1, 0),
         Ins::Call(s) => match s {
             Sym::Import(im) => (im.params.len(), im.results.len()),

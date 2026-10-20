@@ -238,7 +238,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f.get(root);
             f.get(root);
             f.op(Instruction::I32Load(mem(HEAP, F_CANCEL, 2)));
-            f.body.push(Ins::CallIndirect(vec![Val::I32], vec![]));
+            f.call_indirect(vec![Val::I32], vec![]);
             if *abandon {
                 abandon_by(&mut f, -1);
             }
@@ -334,7 +334,7 @@ fn poll_check() -> Func {
     f.get(0);
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, F_CANCEL, 2)));
-    f.body.push(Ins::CallIndirect(vec![Val::I32], vec![]));
+    f.call_indirect(vec![Val::I32], vec![]);
     f.op(Instruction::End);
     f.i32(1);
     f
@@ -805,7 +805,7 @@ pub fn root_poll(
     f.get(root);
     f.get(root);
     f.op(Instruction::I32Load(mem(HEAP, F_CANCEL, 2)));
-    f.body.push(Ins::CallIndirect(vec![Val::I32], vec![]));
+    f.call_indirect(vec![Val::I32], vec![]);
     f.i32(0);
     f.set(ready);
     f.op(Instruction::Else);
@@ -814,7 +814,7 @@ pub fn root_poll(
     f.op(Instruction::I32Load(mem(HEAP, F_POLL, 2)));
     let mut pres = vec![Val::I32];
     pres.extend(rvals.iter().copied());
-    f.body.push(Ins::CallIndirect(vec![Val::I32], pres));
+    f.call_indirect(vec![Val::I32], pres);
     for l in got.iter().rev() {
         f.set(*l);
     }
@@ -878,7 +878,7 @@ fn call_cancel(f: &mut Func, c: u32) {
     f.get(c);
     f.get(c);
     f.op(Instruction::I32Load(mem(HEAP, F_CANCEL, 2)));
-    f.body.push(Ins::CallIndirect(vec![Val::I32], vec![]));
+    f.call_indirect(vec![Val::I32], vec![]);
 }
 
 /// [`Helper::CleanupCold`]: `(task) -> frame`, `cancel!`'s cleanup frame
@@ -1204,7 +1204,7 @@ fn race_poll(results: &[Val]) -> Func {
     f.op(Instruction::I32Load(mem(HEAP, F_POLL, 2)));
     let mut pres = vec![Val::I32];
     pres.extend(results.iter().copied());
-    f.body.push(Ins::CallIndirect(vec![Val::I32], pres));
+    f.call_indirect(vec![Val::I32], pres);
     for t in tmp.iter().rev() {
         f.set(*t);
     }
@@ -1333,8 +1333,7 @@ fn open_poll(leaves: &[Leaf], walk: Option<&Walk>, counts: bool) -> Func {
     f.get(c);
     f.get(c);
     f.op(Instruction::I32Load(mem(HEAP, F_POLL, 2)));
-    f.body
-        .push(Ins::CallIndirect(vec![Val::I32], vec![Val::I32, Val::I32]));
+    f.call_indirect(vec![Val::I32], vec![Val::I32, Val::I32]);
     f.set(o);
     f.set(ready);
     f.get(ready);

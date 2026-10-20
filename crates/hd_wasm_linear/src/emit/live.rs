@@ -257,7 +257,10 @@ pub(super) fn plan(b: &Body, sub: u32, entry: &[usize]) -> (Drops, Moves) {
         }
     }
     // Locals: the innermost block that holds every access, after the last
-    // statement there that holds one.
+    // statement there that holds one. By local, so locals released at one
+    // statement are released in the same order in every build.
+    let mut access: Vec<(usize, Vec<u32>)> = access.into_iter().collect();
+    access.sort_unstable();
     for (l, xs) in access {
         let paths: Option<Vec<Vec<(u32, usize)>>> = xs.iter().map(|&x| tree.path(b, x)).collect();
         let Some(paths) = paths else {

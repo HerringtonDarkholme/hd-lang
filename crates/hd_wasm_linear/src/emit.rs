@@ -1069,11 +1069,27 @@ impl Em<'_, '_, '_> {
     /// Emits instruction `i`; the operands whose counts it took are zeroed
     /// once it has read them ([`Em::take`]).
     fn inst(&mut self, i: u32) -> StageResult<()> {
+        // An instruction with a source position anchors the calls it
+        // writes, for a panic's frames (`crates/hd_wasm/DESIGN.md` §15.9);
+        // the enclosing anchor holds again after it.
+        let outer = self.f.at;
+        if self.anchored(i) {
+            self.f.at = Some(i);
+        }
         self.emitting.push(i);
         let r = self.inst_body(i);
         self.emitting.pop();
+        self.f.at = outer;
         self.settle(i);
         r
+    }
+
+    /// Whether instruction `i` has a source position, so it anchors calls.
+    fn anchored(&self, i: u32) -> bool {
+        self.b
+            .syn
+            .get(i as usize)
+            .is_some_and(|n| *n != hd_base::NodeIdx::NONE)
     }
 
     fn inst_body(&mut self, i: u32) -> StageResult<()> {
@@ -1792,7 +1808,7 @@ impl Em<'_, '_, '_> {
             4 * u64::try_from(slot).expect("slot"),
             2,
         )));
-        self.f.body.push(Ins::CallIndirect(params, results.clone()));
+        self.f.call_indirect(params, results.clone());
         if let (Some(t), Some(o)) = (result, &open)
             && o.ret
             && kept
@@ -1950,7 +1966,7 @@ impl Em<'_, '_, '_> {
                 self.f.get(s);
                 self.f
                     .op(Instruction::I32Load(mem(HEAP, crate::task::F_CANCEL, 2)));
-                self.f.body.push(Ins::CallIndirect(vec![Val::I32], vec![]));
+                self.f.call_indirect(vec![Val::I32], vec![]);
                 crate::task::abandon_by(&mut self.f, -1);
                 self.f.get(s);
                 self.f
@@ -2131,10 +2147,8 @@ impl Em<'_, '_, '_> {
         self.f.get(frame);
         self.f
             .op(Instruction::I32Load(mem(HEAP, crate::task::F_POLL, 2)));
-        self.f.body.push(Ins::CallIndirect(
-            vec![Val::I32],
-            [vec![Val::I32], result.clone()].concat(),
-        ));
+        self.f
+            .call_indirect(vec![Val::I32], [vec![Val::I32], result.clone()].concat());
         for l in tmp.iter().rev() {
             self.f.set(*l);
         }
