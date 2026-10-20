@@ -1,0 +1,86 @@
+# expect-stdout: 65
+# test: wide captures and locals survive a pending suspension and resume
+# Spec std/time: std-time.helper.sleep; Spec lang/08 Struct Values: data.struct.value.
+use std.time.{Clock, ms, sleep}
+
+struct Wide:
+    n0: i64
+    n1: i64
+    n2: i64
+    n3: i64
+    n4: i64
+    n5: i64
+    n6: i64
+    n7: i64
+    n8: i64
+    n9: i64
+    n10: i64
+    n11: i64
+    n12: i64
+    n13: i64
+    n14: i64
+    n15: i64
+    n16: i64
+    n17: i64
+    n18: i64
+    n19: i64
+    n20: i64
+    n21: i64
+    n22: i64
+    n23: i64
+    n24: i64
+    n25: i64
+    n26: i64
+    n27: i64
+    n28: i64
+    n29: i64
+    n30: i64
+    n31: i64
+    n32: i64
+    n33: i64
+    n34: i64
+    n35: i64
+    n36: i64
+    n37: i64
+    n38: i64
+    n39: i64
+    n40: i64
+    n41: i64
+    n42: i64
+    n43: i64
+    n44: i64
+    n45: i64
+    n46: i64
+    n47: i64
+    n48: i64
+    n49: i64
+    n50: i64
+    n51: i64
+    n52: i64
+    n53: i64
+    n54: i64
+    n55: i64
+    n56: i64
+    n57: i64
+    n58: i64
+    n59: i64
+    n60: i64
+    n61: i64
+    n62: i64
+    n63: i64
+    n64: i64
+
+fn paused!(value: Wide) -> i64 $ Clock:
+    carry := value
+    sleep!(ms(1))
+    carry.n0 + carry.n64
+
+fn drive!(value: Wide) -> i64 $ Clock:
+    loader := fn!(extra: i64) -> i64 $ Clock:
+        paused!(value) + extra
+    let pending: mut Suspend[i64] = loader(1)
+    pending!()
+
+pub fn main!() -> void $ Console + Clock:
+    value := Wide { n0: 0, n1: 1, n2: 2, n3: 3, n4: 4, n5: 5, n6: 6, n7: 7, n8: 8, n9: 9, n10: 10, n11: 11, n12: 12, n13: 13, n14: 14, n15: 15, n16: 16, n17: 17, n18: 18, n19: 19, n20: 20, n21: 21, n22: 22, n23: 23, n24: 24, n25: 25, n26: 26, n27: 27, n28: 28, n29: 29, n30: 30, n31: 31, n32: 32, n33: 33, n34: 34, n35: 35, n36: 36, n37: 37, n38: 38, n39: 39, n40: 40, n41: 41, n42: 42, n43: 43, n44: 44, n45: 45, n46: 46, n47: 47, n48: 48, n49: 49, n50: 50, n51: 51, n52: 52, n53: 53, n54: 54, n55: 55, n56: 56, n57: 57, n58: 58, n59: 59, n60: 60, n61: 61, n62: 62, n63: 63, n64: 64 }
+    println(drive!(value))

@@ -25,7 +25,7 @@ pub const BUF: u32 = 0;
 pub const HEAP: u32 = 1;
 
 /// The shadow stack's memory (`crates/hd_wasm_linear/DESIGN.md` §23.29),
-/// declared only when a signature passes through it.
+/// declared only when a signature or a wide body needs it.
 pub const STACK: u32 = 2;
 
 /// The shadow stack's pages: it grows down from their end, and a frame
@@ -236,6 +236,8 @@ pub struct Func {
     pub results: Vec<Val>,
     /// The locals after the parameters.
     pub locals: Vec<Val>,
+    /// A body materializes a value wider than the direct-value bound.
+    pub stack_values: bool,
     pub body: Vec<Ins>,
     /// A complete relocation-free body, including locals and the final end.
     pub raw: Option<Vec<u8>>,
@@ -251,6 +253,7 @@ impl Func {
     pub fn new(name: impl Into<String>, params: Vec<Val>, results: Vec<Val>) -> Self {
         Func {
             name: name.into(),
+            stack_values: params.len() > crate::wide::WIDTH || results.len() > crate::wide::WIDTH,
             params,
             results,
             ..Func::default()

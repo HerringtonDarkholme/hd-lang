@@ -1,0 +1,241 @@
+# test: every field of a 1650-value aggregate runs by value and through references
+# Spec 08 Struct Values: data.struct.value; Spec 13 References: ref.place.lifetime.
+use std.testing.assert_equal
+
+struct Chunk:
+    s0: string
+    s1: string
+    s2: string
+    s3: string
+    s4: string
+    s5: string
+    s6: string
+    s7: string
+    s8: string
+    s9: string
+    s10: string
+    s11: string
+    s12: string
+    s13: string
+    s14: string
+
+struct Wide:
+    c0: Chunk
+    c1: Chunk
+    c2: Chunk
+    c3: Chunk
+    c4: Chunk
+    c5: Chunk
+    c6: Chunk
+    c7: Chunk
+    c8: Chunk
+    c9: Chunk
+    c10: Chunk
+    c11: Chunk
+    c12: Chunk
+    c13: Chunk
+    c14: Chunk
+    c15: Chunk
+    c16: Chunk
+    c17: Chunk
+    c18: Chunk
+    c19: Chunk
+    c20: Chunk
+    c21: Chunk
+    c22: Chunk
+    c23: Chunk
+    c24: Chunk
+    c25: Chunk
+    c26: Chunk
+    c27: Chunk
+    c28: Chunk
+    c29: Chunk
+    c30: Chunk
+    c31: Chunk
+    c32: Chunk
+    c33: Chunk
+    c34: Chunk
+    c35: Chunk
+    c36: Chunk
+    c37: Chunk
+    c38: Chunk
+    c39: Chunk
+    c40: Chunk
+    c41: Chunk
+    c42: Chunk
+    c43: Chunk
+    c44: Chunk
+    c45: Chunk
+    c46: Chunk
+    c47: Chunk
+    c48: Chunk
+    c49: Chunk
+    c50: Chunk
+    c51: Chunk
+    c52: Chunk
+    c53: Chunk
+    c54: Chunk
+
+fn make(text: string) -> Wide:
+    chunk := Chunk { s0: text, s1: text, s2: text, s3: text, s4: text, s5: text, s6: text, s7: text, s8: text, s9: text, s10: text, s11: text, s12: text, s13: text, s14: text }
+    Wide { c0: chunk, c1: chunk, c2: chunk, c3: chunk, c4: chunk, c5: chunk, c6: chunk, c7: chunk, c8: chunk, c9: chunk, c10: chunk, c11: chunk, c12: chunk, c13: chunk, c14: chunk, c15: chunk, c16: chunk, c17: chunk, c18: chunk, c19: chunk, c20: chunk, c21: chunk, c22: chunk, c23: chunk, c24: chunk, c25: chunk, c26: chunk, c27: chunk, c28: chunk, c29: chunk, c30: chunk, c31: chunk, c32: chunk, c33: chunk, c34: chunk, c35: chunk, c36: chunk, c37: chunk, c38: chunk, c39: chunk, c40: chunk, c41: chunk, c42: chunk, c43: chunk, c44: chunk, c45: chunk, c46: chunk, c47: chunk, c48: chunk, c49: chunk, c50: chunk, c51: chunk, c52: chunk, c53: chunk, c54: chunk }
+
+fn chunk_sum(value: Chunk) -> usize:
+    value.s0.len() + value.s1.len() + value.s2.len() + value.s3.len() + value.s4.len() + value.s5.len() + value.s6.len() + value.s7.len() + value.s8.len() + value.s9.len() + value.s10.len() + value.s11.len() + value.s12.len() + value.s13.len() + value.s14.len()
+
+fn sum_value(value: Wide) -> usize:
+    let sum: usize = 0
+    sum += chunk_sum(value.c0)
+    sum += chunk_sum(value.c1)
+    sum += chunk_sum(value.c2)
+    sum += chunk_sum(value.c3)
+    sum += chunk_sum(value.c4)
+    sum += chunk_sum(value.c5)
+    sum += chunk_sum(value.c6)
+    sum += chunk_sum(value.c7)
+    sum += chunk_sum(value.c8)
+    sum += chunk_sum(value.c9)
+    sum += chunk_sum(value.c10)
+    sum += chunk_sum(value.c11)
+    sum += chunk_sum(value.c12)
+    sum += chunk_sum(value.c13)
+    sum += chunk_sum(value.c14)
+    sum += chunk_sum(value.c15)
+    sum += chunk_sum(value.c16)
+    sum += chunk_sum(value.c17)
+    sum += chunk_sum(value.c18)
+    sum += chunk_sum(value.c19)
+    sum += chunk_sum(value.c20)
+    sum += chunk_sum(value.c21)
+    sum += chunk_sum(value.c22)
+    sum += chunk_sum(value.c23)
+    sum += chunk_sum(value.c24)
+    sum += chunk_sum(value.c25)
+    sum += chunk_sum(value.c26)
+    sum += chunk_sum(value.c27)
+    sum += chunk_sum(value.c28)
+    sum += chunk_sum(value.c29)
+    sum += chunk_sum(value.c30)
+    sum += chunk_sum(value.c31)
+    sum += chunk_sum(value.c32)
+    sum += chunk_sum(value.c33)
+    sum += chunk_sum(value.c34)
+    sum += chunk_sum(value.c35)
+    sum += chunk_sum(value.c36)
+    sum += chunk_sum(value.c37)
+    sum += chunk_sum(value.c38)
+    sum += chunk_sum(value.c39)
+    sum += chunk_sum(value.c40)
+    sum += chunk_sum(value.c41)
+    sum += chunk_sum(value.c42)
+    sum += chunk_sum(value.c43)
+    sum += chunk_sum(value.c44)
+    sum += chunk_sum(value.c45)
+    sum += chunk_sum(value.c46)
+    sum += chunk_sum(value.c47)
+    sum += chunk_sum(value.c48)
+    sum += chunk_sum(value.c49)
+    sum += chunk_sum(value.c50)
+    sum += chunk_sum(value.c51)
+    sum += chunk_sum(value.c52)
+    sum += chunk_sum(value.c53)
+    sum += chunk_sum(value.c54)
+    sum
+
+fn sum_ref(value: &Wide) -> usize:
+    let sum: usize = 0
+    sum += chunk_sum(value.c0)
+    sum += chunk_sum(value.c1)
+    sum += chunk_sum(value.c2)
+    sum += chunk_sum(value.c3)
+    sum += chunk_sum(value.c4)
+    sum += chunk_sum(value.c5)
+    sum += chunk_sum(value.c6)
+    sum += chunk_sum(value.c7)
+    sum += chunk_sum(value.c8)
+    sum += chunk_sum(value.c9)
+    sum += chunk_sum(value.c10)
+    sum += chunk_sum(value.c11)
+    sum += chunk_sum(value.c12)
+    sum += chunk_sum(value.c13)
+    sum += chunk_sum(value.c14)
+    sum += chunk_sum(value.c15)
+    sum += chunk_sum(value.c16)
+    sum += chunk_sum(value.c17)
+    sum += chunk_sum(value.c18)
+    sum += chunk_sum(value.c19)
+    sum += chunk_sum(value.c20)
+    sum += chunk_sum(value.c21)
+    sum += chunk_sum(value.c22)
+    sum += chunk_sum(value.c23)
+    sum += chunk_sum(value.c24)
+    sum += chunk_sum(value.c25)
+    sum += chunk_sum(value.c26)
+    sum += chunk_sum(value.c27)
+    sum += chunk_sum(value.c28)
+    sum += chunk_sum(value.c29)
+    sum += chunk_sum(value.c30)
+    sum += chunk_sum(value.c31)
+    sum += chunk_sum(value.c32)
+    sum += chunk_sum(value.c33)
+    sum += chunk_sum(value.c34)
+    sum += chunk_sum(value.c35)
+    sum += chunk_sum(value.c36)
+    sum += chunk_sum(value.c37)
+    sum += chunk_sum(value.c38)
+    sum += chunk_sum(value.c39)
+    sum += chunk_sum(value.c40)
+    sum += chunk_sum(value.c41)
+    sum += chunk_sum(value.c42)
+    sum += chunk_sum(value.c43)
+    sum += chunk_sum(value.c44)
+    sum += chunk_sum(value.c45)
+    sum += chunk_sum(value.c46)
+    sum += chunk_sum(value.c47)
+    sum += chunk_sum(value.c48)
+    sum += chunk_sum(value.c49)
+    sum += chunk_sum(value.c50)
+    sum += chunk_sum(value.c51)
+    sum += chunk_sum(value.c52)
+    sum += chunk_sum(value.c53)
+    sum += chunk_sum(value.c54)
+    sum
+
+fn recurse(value: Wide, depth: usize) -> usize:
+    if depth == 0:
+        return chunk_sum(value.c0)
+    recurse(value, depth - 1) + chunk_sum(value.c54)
+
+
+fn repeated_ref(value: &Wide, stop: bool) -> usize:
+    let sum: usize = 0
+    for i in 0..3:
+        sum += chunk_sum(value.c0)
+        if stop && i == 1:
+            return sum
+    sum
+
+struct Holder[T]:
+    item: &mut T
+
+trait Factory:
+    fn hold[T](self, value: T) -> Holder[T]:
+        let mut local = value
+        Holder { item: &mut local }
+
+struct Maker: pass
+impl Factory for Maker
+
+tests:
+    it("all wide fields read by value and reference instantiate"):
+        value := make("word${+7}")
+        assert_equal(sum_value(value), 4125, reason="55 chunks of fifteen five-byte strings")
+        assert_equal(sum_ref(&value), 4125, reason="the reference reads the same fields")
+        assert_equal(recurse(value, 2), 225, reason="recursive frames restore the caller storage")
+
+    it("wide fields through erased reference views"):
+        let factory: &dyn Factory = &Maker {}
+        value := factory.hold(make("word${+7}")).item
+        assert_equal(sum_ref(value), 4125, reason="erased getter retains the selected field")
+        assert_equal(repeated_ref(value, false), 225, reason="each loop getter releases its box")
+        assert_equal(repeated_ref(value, true), 150, reason="early return releases the selected field")

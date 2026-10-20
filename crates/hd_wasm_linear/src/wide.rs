@@ -1,4 +1,4 @@
-//! Wide signatures pass through the shadow stack
+//! Wide signatures and value storage use the shadow stack
 //! (`crates/hd_wasm_linear/DESIGN.md` §23.29). A value lays out as its flattened
 //! Wasm values, so a function that takes or returns a struct of a
 //! thousand fields would have a thousand parameters or results, more than
@@ -26,7 +26,7 @@
 use std::collections::BTreeMap;
 
 use hd_base::{NotImplemented, Stage, StageResult};
-use wasm_encoder::Instruction as I;
+use wasm_encoder::{BlockType, Instruction as I};
 
 use crate::module::{Func, Global, Ins, STACK, Sym, Val, mem};
 
@@ -95,8 +95,132 @@ pub fn lower(funcs: &mut BTreeMap<Sym, Func>, exports: &[(String, Sym)]) -> Stag
             callee(f)?;
         }
         any |= calls(f, &sig)?;
+        any |= storage(f)?;
     }
     Ok(any)
+}
+
+/// A function that materializes a wide aggregate keeps its temporaries in
+/// one zeroed shadow frame. Rewriting after value emission leaves ownership,
+/// suspension saves and early-exit cleanup unchanged. Narrow bodies use no
+/// frame. Spill all locals in the wide body so helper scratch and copies
+/// cannot recreate an unbounded Wasm-local signature.
+fn storage(f: &mut Func) -> StageResult<bool> {
+    if !f.stack_values || f.locals.is_empty() {
+        return Ok(false);
+    }
+    if f.raw.is_some() {
+        return Err(bug("a raw body needing wide local storage"));
+    }
+    let np = u32::try_from(f.params.len()).expect("params");
+    let locals = f.locals.clone();
+    let end = np + u32::try_from(locals.len()).expect("locals");
+    let size = i32::try_from(locals.len()).expect("wide locals") * SLOT.cast_signed();
+    let base = f.local(Val::I32);
+    let mut temps = BTreeMap::new();
+    for &v in &locals {
+        temps.entry(v).or_insert_with(|| f.local(v));
+    }
+    let selector = f.local(Val::I32);
+    let mut out = vec![
+        Ins::GlobalGet(Global::Stack),
+        Ins::Op(I::I32Const(size)),
+        Ins::Op(I::I32Sub),
+        Ins::Op(I::LocalTee(base)),
+        Ins::GlobalSet(Global::Stack),
+        Ins::Op(I::LocalGet(base)),
+        Ins::Op(I::I32Const(0)),
+        Ins::Op(I::I32Const(size)),
+        Ins::Op(I::MemoryFill(STACK)),
+    ];
+    let restore = |out: &mut Vec<Ins>| {
+        out.extend([
+            Ins::Op(I::LocalGet(base)),
+            Ins::Op(I::I32Const(size)),
+            Ins::Op(I::I32Add),
+            Ins::GlobalSet(Global::Stack),
+        ]);
+    };
+    let body = std::mem::take(&mut f.body);
+    let mut depth = 0;
+    for ins in body {
+        match ins {
+            Ins::Op(I::LocalGet(l)) if (np..end).contains(&l) => {
+                out.push(Ins::Op(I::LocalGet(base)));
+                out.push(Ins::Op(load(
+                    locals[(l - np) as usize],
+                    slot((l - np) as usize),
+                )));
+            }
+            Ins::Op(I::LocalSet(l) | I::LocalTee(l)) if (np..end).contains(&l) => {
+                let v = locals[(l - np) as usize];
+                let t = temps[&v];
+                let tee = matches!(ins, Ins::Op(I::LocalTee(_)));
+                out.push(Ins::Op(if tee { I::LocalTee(t) } else { I::LocalSet(t) }));
+                out.push(Ins::Op(I::LocalGet(base)));
+                out.push(Ins::Op(I::LocalGet(t)));
+                out.push(Ins::Op(store(v, slot((l - np) as usize))));
+            }
+            Ins::Op(I::Return) => {
+                restore(&mut out);
+                out.push(ins);
+            }
+            Ins::Op(I::Br(d)) if d == depth => {
+                restore(&mut out);
+                out.push(ins);
+            }
+            Ins::Op(I::BrIf(d)) if d == depth => {
+                // Preserve the branch payload below the selector; no
+                // branch crosses the temporary if's operand-stack floor.
+                out.push(Ins::Op(I::LocalTee(selector)));
+                out.push(Ins::Op(I::If(BlockType::Empty)));
+                restore(&mut out);
+                out.push(Ins::Op(I::End));
+                out.push(Ins::Op(I::LocalGet(selector)));
+                out.push(ins);
+            }
+            Ins::Op(I::BrTable(ref labels, default))
+                if default == depth || labels.contains(&depth) =>
+            {
+                out.push(Ins::Op(I::LocalSet(selector)));
+                out.push(Ins::Op(I::I32Const(0)));
+                for (k, &label) in labels.iter().enumerate() {
+                    if label == depth {
+                        out.push(Ins::Op(I::LocalGet(selector)));
+                        out.push(Ins::Op(I::I32Const(i32::try_from(k).expect("labels"))));
+                        out.push(Ins::Op(I::I32Eq));
+                        out.push(Ins::Op(I::I32Or));
+                    }
+                }
+                if default == depth {
+                    out.push(Ins::Op(I::LocalGet(selector)));
+                    out.push(Ins::Op(I::I32Const(
+                        i32::try_from(labels.len()).expect("labels"),
+                    )));
+                    out.push(Ins::Op(I::I32GeU));
+                    out.push(Ins::Op(I::I32Or));
+                }
+                out.push(Ins::Op(I::If(BlockType::Empty)));
+                restore(&mut out);
+                out.push(Ins::Op(I::End));
+                out.push(Ins::Op(I::LocalGet(selector)));
+                out.push(ins);
+            }
+            Ins::Op(I::Block(_) | I::Loop(_) | I::If(_)) => {
+                depth += 1;
+                out.push(ins);
+            }
+            Ins::Op(I::End) => {
+                depth -= 1;
+                out.push(ins);
+            }
+            _ => out.push(ins),
+        }
+    }
+    restore(&mut out);
+    f.body = out;
+    crate::opt::renumber(f);
+    Ok(true)
 }
 
 fn bug(what: &str) -> NotImplemented {
@@ -308,4 +432,95 @@ fn calls(f: &mut Func, sig: &BTreeMap<Sym, (Vec<Val>, Vec<Val>)>) -> StageResult
     }
     f.body = out;
     Ok(true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::module::Module;
+    use hd_base::Hash128;
+    use std::io::Write;
+
+    #[test]
+    fn shadow_storage_zeroes_each_entry_and_restores_every_exit() {
+        let mut m = Module::default();
+        let mut branched = Func::new("branched", vec![Val::I32], vec![Val::I32]);
+        branched.stack_values = true;
+        let value = branched.local(Val::I32);
+        // A local is zero at each entry, including after a previous entry
+        // left nonzero bytes in this frame.
+        branched.get(value);
+        branched.get(0);
+        branched.op(I::I32Eqz);
+        branched.op(I::BrIf(0));
+        branched.i32(7);
+        branched.op(I::LocalTee(value));
+        branched.op(I::Block(BlockType::Result(wasm_encoder::ValType::I32)));
+        branched.get(value);
+        branched.get(0);
+        branched.i32(1);
+        branched.op(I::I32Sub);
+        branched.op(I::BrTable(vec![0].into(), 1));
+        branched.op(I::End);
+        branched.op(I::I32Add);
+        branched.op(I::Return);
+        m.define(Sym::Inst(Hash128(6401)), branched);
+        m.export("branched", Sym::Inst(Hash128(6401)));
+        let mut top = Func::new("top", vec![], vec![Val::I32]);
+        top.global_get(Global::Stack);
+        m.define(Sym::Inst(Hash128(6402)), top);
+        m.export("top", Sym::Inst(Hash128(6402)));
+        let mut numeric = Func::new(
+            "numeric",
+            vec![],
+            vec![Val::I64, Val::F64, Val::F32, Val::I32],
+        );
+        numeric.stack_values = true;
+        let locals = [Val::I64, Val::F64, Val::F32, Val::I32].map(|v| numeric.local(v));
+        for (l, op) in locals.into_iter().zip([
+            I::I64Const(123),
+            I::F64Const(1.5.into()),
+            I::F32Const(2.25.into()),
+            I::I32Const(7),
+        ]) {
+            numeric.op(op);
+            numeric.set(l);
+        }
+        for l in locals {
+            numeric.get(l);
+        }
+        m.define(Sym::Inst(Hash128(6403)), numeric);
+        m.export("numeric", Sym::Inst(Hash128(6403)));
+        let bytes = m.finish().expect("link shadow-storage fixture");
+        wasmparser::Validator::new_with_features(wasmparser::WasmFeatures::all())
+            .validate_all(&bytes)
+            .expect("validate shadow storage");
+        let mut child = std::process::Command::new("node")
+            .args([
+                "--input-type=module",
+                "-e",
+                r"
+                import assert from 'node:assert/strict';
+                const chunks=[]; for await (const c of process.stdin) chunks.push(c);
+                const {instance:{exports:e}}=await WebAssembly.instantiate(Buffer.concat(chunks));
+                const top=e.top();
+                assert.deepEqual(e.numeric(),[123n,1.5,2.25,7]);
+                assert.equal(e.top(),top);
+                for(const [input,want] of [[1,14],[2,7],[0,0],[1,14],[0,0]]){
+                    assert.equal(e.branched(input),want);
+                    assert.equal(e.top(),top);
+                }
+            ",
+            ])
+            .stdin(std::process::Stdio::piped())
+            .spawn()
+            .expect("start node");
+        child
+            .stdin
+            .take()
+            .expect("stdin")
+            .write_all(&bytes)
+            .expect("write wasm");
+        assert!(child.wait().expect("run node").success());
+    }
 }

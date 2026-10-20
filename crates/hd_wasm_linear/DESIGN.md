@@ -1683,14 +1683,25 @@ signatures before encoding, as clang's and Rust's wasm32 `byval` and
   frame as through Wasm values, and the frame is never allocated or
   counted, so `linear-checked` audits the same counts.
 - **The stack** is memory 2, 16 pages that the module declares only when
-  some signature is wide. It grows down from its end; a frame below
+  some signature or body needs it. It grows down from its end; a frame below
   address 0 wraps to an address past the end, so a too-deep chain of wide
   calls traps on its first store. A trap skips its frames' release,
   which only shrinks the room a later entry in the same instance has.
-- **Not yet.** A function that handles a wide value keeps it in locals:
-  each copy of a 1650-value struct is 1650 more locals, and V8 refuses a
-  function of more than 50,000 locals. A body that reads many fields of
-  such a value by value can reach that limit.
+- **Wide bodies** (#640) put their locals in a zeroed shadow frame after
+  signature and call lowering. An emitted aggregate wider than 64 values,
+  or a wide signature, marks the body. Narrow bodies keep Wasm locals.
+  The rewrite includes scratch storage, so copies cannot recreate the
+  local-count limit. Four typed scratch locals, a branch selector and
+  the frame address suffice; unused declarations are removed afterward.
+- **Exits** restore the frame on fallthrough, explicit return and a branch
+  to the function label, including conditional and table branches. Calls
+  reserve their argument/result frames below this frame. A resumed
+  suspension restores its saved values into its fresh shadow frame.
+- **Projection** reads only a sole field consumer at the original
+  LocalGet or RefRead position. It retains the selected field before the
+  original owner may die, without copying or retaining other fields.
+  A boxed reference view reads that field from the getter's box and
+  releases the box, without materializing the parent in value locals.
 
 
 ### 23.30 Known Block Starts
@@ -1746,9 +1757,9 @@ header, so they do not invalidate a borrowed header read.
 - **Read the selected field.** A reference or list-index read whose only
   consumer selects one field loads only that field. It computes and owns
   the field at the original read's position, before its source can drop.
-  The view path conservatively reads the parent, retains the selected
-  field and releases that temporary parent. Unselected physical fields
-  need neither locals nor counts.
+  A boxed view loads the selected field from the getter's box, retains
+  it and releases the box. An unboxed one-field parent keeps its scalar
+  fallback. Unselected fields need neither value locals nor extra counts.
 - **Invariant buffer ownership.** An uncounted-element list parameter
   needs one uniqueness check when its body cannot create another buffer
   owner. The first actual write checks lazily; zero iterations do nothing.

@@ -1,7 +1,8 @@
 //! One instance's TIR body to one Wasm function
 //! (`crates/hd_wasm_linear/DESIGN.md` §23).
 //!
-//! Every value lives in Wasm locals: an instruction's value is stored in
+//! Emission uses virtual Wasm locals; wide bodies later move them to
+//! shadow storage (wide.rs). An instruction's value is stored in
 //! fresh locals of its layout as it is computed, a constant is pushed as an
 //! immediate, and a TIR local owns the locals of its layout. Structured
 //! control is Wasm's own: a `Match` is a block per arm around its decision
@@ -1111,6 +1112,7 @@ impl Em<'_, '_, '_> {
             return Ok(ls.clone());
         }
         let vs = self.vals(self.ty(i))?;
+        self.f.stack_values |= vs.len() > crate::wide::WIDTH;
         let ls: Vec<u32> = vs.into_iter().map(|v| self.f.local(v)).collect();
         self.vals.insert(i, ls.clone());
         Ok(ls)
@@ -1134,6 +1136,7 @@ impl Em<'_, '_, '_> {
         } else {
             self.vals(self.sub(self.b.local_ty[l]))?
         };
+        self.f.stack_values |= vs.len() > crate::wide::WIDTH;
         let ls: Vec<u32> = vs.into_iter().map(|v| self.f.local(v)).collect();
         self.locals.insert(l, ls.clone());
         Ok(ls)
@@ -1277,6 +1280,14 @@ impl Em<'_, '_, '_> {
             }
             Tag::LocalGet => {
                 let ls = self.local(a)?;
+                if let Some((field, part)) = self.projected_field(i)? {
+                    for l in &ls[part.first..part.first + part.count] {
+                        self.f.get(*l);
+                    }
+                    self.store(field)?;
+                    self.precomputed_fields.insert(field);
+                    return Ok(());
+                }
                 for l in &ls {
                     self.f.get(*l);
                 }

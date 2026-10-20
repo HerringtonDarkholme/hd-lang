@@ -779,7 +779,7 @@ fn counts(f: &Func) -> (Vec<u32>, Vec<u32>) {
 
 /// Drops the locals past the parameters that no instruction names, and
 /// numbers the others again in order.
-fn renumber(f: &mut Func) {
+pub(crate) fn renumber(f: &mut Func) {
     let np = f.params.len();
     let mut used = vec![false; f.locals.len()];
     for i in &f.body {

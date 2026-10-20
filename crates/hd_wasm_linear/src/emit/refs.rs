@@ -334,12 +334,31 @@ impl Em<'_, '_, '_> {
             self.f.get(at);
             self.f.helper(Helper::RefIsView);
             self.f.op(I::If(wasm_encoder::BlockType::Empty));
-            let parent = rt::ref_load(&mut self.f, at, &value);
-            for l in &parent[part.first..part.first + part.count] {
-                self.f.get(*l);
+            if value.boxed {
+                // A view's getter owns a box in this native layout. Keep
+                // only the selected field before releasing that box;
+                // unboxing the whole parent here grows with every read.
+                let boxed = self.f.local(Val::I32);
+                self.f.get(at);
+                self.f.get(at);
+                self.f.op(I::I32Load(mem(HEAP, 4, 2)));
+                self.f.call_indirect(vec![Val::I32], vec![Val::I32]);
+                self.f.set(boxed);
+                for leaf in &value.leaves[part.first..part.first + part.count] {
+                    self.f.get(boxed);
+                    self.f.op(leaf.load(0));
+                }
+                self.store(field)?;
+                self.f.get(boxed);
+                self.f.helper(Helper::ReleaseRef);
+            } else {
+                let parent = rt::ref_load(&mut self.f, at, &value);
+                for l in &parent[part.first..part.first + part.count] {
+                    self.f.get(*l);
+                }
+                self.store(field)?;
+                self.release_locals(&parent, target)?;
             }
-            self.store(field)?;
-            self.release_locals(&parent, target)?;
             self.f.op(I::Else);
             for leaf in &value.leaves[part.first..part.first + part.count] {
                 self.f.get(at);

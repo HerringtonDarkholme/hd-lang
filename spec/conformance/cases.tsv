@@ -3678,3 +3678,5 @@ runtime/valid/collection-temporary-receivers.hd	runtime	accept	std/collections.m
 typing/invalid/temporary-receiver-shared-reference.hd	type	reject:not-writable	lang/07-functions.md#r-fn.method.auto-address.shared-reference
 runtime/valid/string-builder-interpolation-order.hd	runtime	accept	std/text.md#r-std-text.builder.push-ref
 runtime/valid/json-reused-object-frames.hd	runtime	accept	std/json.md#r-std-json.decode.direct
+runtime/valid/wide-value-field-reads.hd	runtime	accept	lang/08-data-and-enums.md#r-data.struct.value
+runtime/valid/wide-value-suspension.hd	runtime	accept	std/time.md#r-std-time.helper.sleep

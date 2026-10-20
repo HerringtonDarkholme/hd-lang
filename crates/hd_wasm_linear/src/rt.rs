@@ -2929,6 +2929,7 @@ pub(crate) fn ref_load_borrowed(f: &mut Func, at: u32, value: &RefLayout, owned:
 }
 
 fn ref_load_inner(f: &mut Func, at: u32, value: &RefLayout, owned: Option<u32>) -> Vec<u32> {
+    f.stack_values |= value.leaves.len() > crate::wide::WIDTH;
     if let Some(flag) = owned {
         f.zero(flag);
     }
