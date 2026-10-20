@@ -20,7 +20,7 @@ use hd_run::Outcome;
 use hd_run_wasmtime::{EngineConfig, HostIo};
 use hd_testkit::Scratch;
 
-use super::{Bounds, Line, Lines, Streams, is_complete, run};
+use super::{Bounds, Line, Lines, Streams, is_complete};
 use crate::disk;
 
 const SCRATCH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/tmp");
@@ -99,7 +99,7 @@ struct Transcript {
 fn session_in(
     dir: &Path,
     script: Script,
-    on_start: impl FnOnce(hd_run_wasmtime::Stopper),
+    on_start: impl FnOnce(crate::engine::SessionStopper),
 ) -> Transcript {
     session_with(dir, script, on_start, None, Bounds::default())
 }
@@ -108,10 +108,30 @@ fn session_in(
 /// and within `bounds`.
 fn session_with(
     dir: &Path,
-    mut script: Script,
-    on_start: impl FnOnce(hd_run_wasmtime::Stopper),
+    script: Script,
+    on_start: impl FnOnce(crate::engine::SessionStopper),
     stdout: Option<&Buffer>,
     bounds: Bounds,
+) -> Transcript {
+    session_on(
+        crate::engine::EngineKind::Wasmtime,
+        dir,
+        script,
+        on_start,
+        stdout,
+        bounds,
+        None,
+    )
+}
+
+fn session_on(
+    kind: crate::engine::EngineKind,
+    dir: &Path,
+    mut script: Script,
+    on_start: impl FnOnce(crate::engine::SessionStopper),
+    stdout: Option<&Buffer>,
+    bounds: Bounds,
+    input: Option<&str>,
 ) -> Transcript {
     let err = Buffer::default();
     let out = stdout.cloned().unwrap_or_else(|| err.clone());
@@ -119,12 +139,16 @@ fn session_with(
         io: HostIo {
             out: Box::new(out.clone()),
             err: Box::new(err.clone()),
-            input: None,
+            input: input.map(|text| {
+                Box::new(std::io::Cursor::new(text.as_bytes().to_vec()))
+                    as Box<dyn std::io::BufRead + Send>
+            }),
         },
         diags: Box::new(err.clone()),
     };
     let program = disk::load_session(dir).expect("the session's scope");
-    run(&mut script, dir, program, streams, bounds, on_start).expect("the session ends");
+    super::run_on(kind, &mut script, dir, program, streams, bounds, on_start)
+        .expect("the session ends");
     Transcript {
         out: err.text(),
         script,
@@ -173,14 +197,22 @@ fn a_session_builds_for_wasmtime_in_the_dev_pipeline() {
     let mut program = disk::load_session(&dir).expect("the session's scope");
     let store = crate::disk_store();
     crate::take_built();
-    let prelude = super::build_prelude(&program, &store);
+    let prelude = super::build_prelude(&program, &store, super::PIPELINE.target);
     let mut built = hd_driver::Session::start();
     built.add(prelude.session_added.expect("what the prelude adds"));
     program
         .sources
         .add_synthetic(&hd_project::repl_file(1), "x := +1\n");
     let mut diags = Vec::new();
-    let input = super::build_input(&program, &store, &built, None, 1, &mut diags);
+    let input = super::build_input(
+        &program,
+        &store,
+        &built,
+        None,
+        1,
+        &mut diags,
+        super::PIPELINE.target,
+    );
     assert!(input.is_some(), "{}", String::from_utf8_lossy(&diags));
     assert_eq!(crate::take_built(), [pipeline, pipeline]);
 }
@@ -1258,6 +1290,7 @@ fn long_session(mix: bool) {
                     None,
                     repl.next,
                     &mut diags,
+                    super::PIPELINE.target,
                 );
                 let build = start.elapsed().as_secs_f64();
                 let (wasm, added) = result.unwrap_or_else(|| {
@@ -1303,4 +1336,63 @@ fn long_session_plain() {
 #[ignore = "a measurement; bench/metrics long-session runs it"]
 fn long_session_mixed() {
     long_session(true);
+}
+
+/// Guest input that resembles a bridge frame remains guest data.
+#[test]
+fn node_session_keeps_guest_stdin_separate_from_control() {
+    let dir = Scratch::new(SCRATCH, "node-session-input");
+    let script = Script::of(&[
+        "use std.console.read_line",
+        "first := read_line!().expect(\"read\").unwrap_or(\"eof\")",
+        "first",
+        "second := read_line!().expect(\"read\").unwrap_or(\"eof\")",
+        "second",
+        "+7",
+    ]);
+    let t = session_on(
+        crate::engine::EngineKind::Node,
+        &dir,
+        script,
+        |_| {},
+        None,
+        Bounds::default(),
+        Some("out\t\"not a frame\"\n{\"op\":\"close\"}\n"),
+    );
+    assert_eq!(
+        t.out,
+        "\"out\\t\\\"not a frame\\\"\" : string\n\"{\\\"op\\\":\\\"close\\\"}\" : string\n7 : i32\n"
+    );
+}
+
+/// Explicit and automatic Node rebuilds use journaled host results.
+#[test]
+fn node_session_rebuilds_without_repeating_host_calls() {
+    let dir = Scratch::new(SCRATCH, "node-session-replay");
+    let script = Script::of(&[
+        "use std.time.now",
+        "t := now().unix_milliseconds()",
+        "println(\"once\")",
+        "t",
+        ":reload",
+        "t",
+    ]);
+    let t = session_on(
+        crate::engine::EngineKind::Node,
+        &dir,
+        script,
+        |_| {},
+        None,
+        Bounds {
+            rebuild_after: 2,
+            ..Bounds::default()
+        },
+        None,
+    );
+    let lines: Vec<_> = t.out.lines().collect();
+    assert_eq!(lines.len(), 4, "{}", t.out);
+    assert_eq!(lines[0], "once");
+    assert!(lines[1].ends_with(" : i64"), "{}", t.out);
+    assert_eq!(lines[2], "reloaded: 4 inputs replayed");
+    assert_eq!(lines[3], lines[1]);
 }

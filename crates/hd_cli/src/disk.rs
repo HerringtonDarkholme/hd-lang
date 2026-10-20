@@ -59,7 +59,6 @@ impl DiskSources {
 
     /// Removes a file that `add_synthetic` added, such as a REPL input
     /// that did not join its session.
-    #[cfg(feature = "wasmtime")]
     pub fn remove_synthetic(&mut self, path: &str) {
         self.files.retain(|e| e.path != path);
         self.synthetic.retain(|(p, _)| p != path);
@@ -826,7 +825,6 @@ pub fn load_stdin(text: &str) -> Result<Program, String> {
 /// root, no sources: the session uses only `std` (`cli.repl.outside`,
 /// `cli.workspace.repl`). The session's inputs are added as synthetic
 /// `repl#N` files.
-#[cfg(feature = "wasmtime")]
 pub fn load_session(cwd: &Path) -> Result<Program, String> {
     if let Some(root) = package_root(cwd) {
         return load_package(&root, "src/lib.hd");
@@ -854,7 +852,6 @@ pub fn load_session(cwd: &Path) -> Result<Program, String> {
 
 /// The package name of a REPL session outside any package. Its inputs are
 /// files of no folder, so the name never meets a directory's.
-#[cfg(feature = "wasmtime")]
 const SESSION_PACKAGE: &str = "repl";
 
 /// The whole package at `root`, with the packages it requires, and the

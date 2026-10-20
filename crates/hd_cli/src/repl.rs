@@ -1,12 +1,11 @@
 //! The REPL (spec `cli.repl.*`, `f1c55020:future-work/compiler/repl-plan.md` job C9): `hd` with no
 //! arguments on a terminal (`cli.repl.open.terminal`). It runs on wasmtime
-//! only, so it exists in a build with the `wasmtime` feature; `main.rs`
-//! says so in a build without it.
+//! for terminal input; scripted sessions also run on Node.
 //!
 //! Two threads share the work. The main thread reads inputs at the prompt
 //! ([`Lines`]: rustyline on a terminal, a script in tests) and waits while
 //! an input runs; Ctrl-C then interrupts the input through its session's
-//! [`Stopper`]: an input that computes is stopped (`cli.repl.stop`), and
+//! [`SessionStopper`]: an input that computes is stopped (`cli.repl.stop`), and
 //! one that waits on the host is cancelled at once, running its `defer`
 //! suites (`cli.repl.cancel`). The session picks which by the input's
 //! state. The session thread, with the stack a
@@ -38,16 +37,34 @@ use std::process::ExitCode;
 use std::sync::mpsc;
 use std::time::Instant;
 
+use crate::engine::{EngineKind, HostIo, ReplSession, SessionBuilder, SessionStopper};
 use hd_cache::DiskStore;
-use hd_driver::{BuildProfile, Goal, Host};
+use hd_driver::{BuildProfile, EngineTarget, Goal, Host, OptLevel};
 use hd_project::SourceSet;
-use hd_run::{HostSetup, Outcome};
-use hd_run_wasmtime::{EngineConfig, HostIo, Rebuilder, Stopper, WasmtimeEngine, WasmtimeSession};
+use hd_run::Outcome;
 
 use crate::{HD_FAILURE, Wall, disk, report};
 
+#[cfg(feature = "wasmtime")]
 mod complete;
+#[cfg(feature = "wasmtime")]
 mod highlight;
+
+// Scripted sessions do not offer completion in a build without an editor.
+#[cfg(not(feature = "wasmtime"))]
+mod complete {
+    #[derive(Clone, Default)]
+    pub(crate) struct Names {
+        _private: (),
+    }
+    // Match the optional editor interface; scripts have no completion state.
+    #[allow(clippy::unused_self)]
+    impl Names {
+        pub(crate) fn set_package(&self, _text: Option<&str>) {}
+        pub(crate) fn add_input(&self, _number: u32, _text: &str) {}
+        pub(crate) fn drop_input(&self, _number: u32) {}
+    }
+}
 
 /// The prompt of an input's first line, and of each line that continues it.
 const PROMPT: &str = "hd> ";
@@ -87,7 +104,7 @@ impl Default for Bounds {
     fn default() -> Bounds {
         Bounds {
             journal_cap: hd_run::journal::SESSION_CAP,
-            rebuild_after: hd_run_wasmtime::REBUILD_AFTER,
+            rebuild_after: 1000,
         }
     }
 }
@@ -105,6 +122,7 @@ enum Request {
 pub(crate) enum Line {
     Text(String),
     /// Ctrl-C at the prompt: the input so far is dropped.
+    #[cfg(feature = "wasmtime")]
     Interrupted,
     /// Ctrl-D at an empty prompt, or the end of a script.
     Eof,
@@ -125,8 +143,10 @@ pub(crate) trait Lines {
 }
 
 /// The terminal's line editor, with the session's history in memory.
+#[cfg(feature = "wasmtime")]
 struct Editor(rustyline::Editor<highlight::Helper, rustyline::history::DefaultHistory>);
 
+#[cfg(feature = "wasmtime")]
 impl Lines for Editor {
     fn read(&mut self, prompt: &str, initial: &str) -> Line {
         match self.0.readline_with_initial(prompt, (initial, "")) {
@@ -158,6 +178,7 @@ pub(crate) struct Streams {
 
 /// `hd` on a terminal: a session in the package around the working
 /// directory, or outside any package, until Ctrl-D or `:quit`.
+#[cfg(feature = "wasmtime")]
 pub(crate) fn command() -> ExitCode {
     let cwd = match std::env::current_dir() {
         Ok(cwd) => cwd,
@@ -185,7 +206,7 @@ pub(crate) fn command() -> ExitCode {
     // prompt the line editor reads it as a key. The handler stops or
     // cancels the input that runs and never ends the process; a stop while
     // none runs is dropped when the next input starts.
-    let on_start = |stopper: Stopper| {
+    let on_start = |stopper: SessionStopper| {
         if let Err(e) = ctrlc::set_handler(move || stopper.stop()) {
             eprintln!("warning: Ctrl-C cannot stop an input: {e}");
         }
@@ -233,7 +254,7 @@ impl Lines for ScriptLines {
 /// `hd --repl FILE` (`cli.repl.script`): a session over the lines of
 /// `file`, in the package around the working directory or outside any
 /// package, until the end of `file` or `:quit`.
-pub(crate) fn script(file: &Path) -> ExitCode {
+pub(crate) fn script(file: &Path, kind: EngineKind) -> ExitCode {
     let text = match std::fs::read_to_string(file) {
         Ok(text) => text,
         Err(e) => return crate::fail(&format!("{}: {e}", file.display())),
@@ -261,7 +282,8 @@ pub(crate) fn script(file: &Path) -> ExitCode {
             .collect::<Vec<_>>()
             .into_iter(),
     };
-    match run(
+    match run_on(
+        kind,
         &mut lines,
         &cwd,
         program,
@@ -280,26 +302,46 @@ pub(crate) fn script(file: &Path) -> ExitCode {
 /// scope from `cwd` again. `on_start` gets the session's stopper before the
 /// first input. `Err` is a session that could not start or whose thread
 /// ended.
+#[cfg(feature = "wasmtime")]
 pub(crate) fn run(
     lines: &mut dyn Lines,
     cwd: &Path,
     program: disk::Program,
     streams: Streams,
     bounds: Bounds,
-    on_start: impl FnOnce(Stopper),
+    on_start: impl FnOnce(SessionStopper),
 ) -> Result<(), String> {
-    let config = EngineConfig::pipeline(PIPELINE.level);
+    run_on(
+        EngineKind::Wasmtime,
+        lines,
+        cwd,
+        program,
+        streams,
+        bounds,
+        on_start,
+    )
+}
+
+fn run_on(
+    kind: EngineKind,
+    lines: &mut dyn Lines,
+    cwd: &Path,
+    program: disk::Program,
+    streams: Streams,
+    bounds: Bounds,
+    on_start: impl FnOnce(SessionStopper),
+) -> Result<(), String> {
     let names = lines.names();
     let cwd = cwd.to_path_buf();
     let (send_input, inputs) = mpsc::channel::<Request>();
     let (send_done, done) = mpsc::channel::<()>();
-    let (send_start, started) = mpsc::channel::<Result<Stopper, String>>();
+    let (send_start, started) = mpsc::channel::<Result<SessionStopper, String>>();
     let thread = std::thread::Builder::new()
         .name("hd-repl".into())
-        .stack_size(hd_run_wasmtime::thread_stack(&config))
+        .stack_size(kind.worker_stack(OptLevel::Dev).unwrap_or(8 * 1024 * 1024))
         .spawn(move || {
             serve(
-                config,
+                kind,
                 cwd,
                 program,
                 bounds,
@@ -336,6 +378,7 @@ fn read_input(lines: &mut dyn Lines) -> Option<Request> {
     loop {
         let first = match lines.read(PROMPT, "") {
             Line::Text(text) => text,
+            #[cfg(feature = "wasmtime")]
             Line::Interrupted => continue,
             Line::Eof => return None,
         };
@@ -367,6 +410,7 @@ fn read_input(lines: &mut dyn Lines) -> Option<Request> {
                     text.push_str(&line);
                     text.push('\n');
                 }
+                #[cfg(feature = "wasmtime")]
                 Line::Interrupted => break false,
                 Line::Eof => return None,
             }
@@ -452,35 +496,21 @@ fn continuation_indent(text: &str) -> String {
 /// The session thread: starts the session and its prelude, then builds and
 /// runs each input that arrives, answering on `done` after each.
 fn serve(
-    config: EngineConfig,
+    kind: EngineKind,
     cwd: PathBuf,
     program: disk::Program,
     bounds: Bounds,
     streams: Streams,
     names: complete::Names,
-    started: &mpsc::Sender<Result<Stopper, String>>,
+    started: &mpsc::Sender<Result<SessionStopper, String>>,
     inputs: &mpsc::Receiver<Request>,
     done: &mpsc::Sender<()>,
 ) {
     let Streams { io, mut diags } = streams;
     // Before the engine, so its inputs reuse earlier runs' functions.
+    #[cfg(feature = "wasmtime")]
     let _code = crate::engine::code_cache();
-    let session = WasmtimeEngine::new(config).and_then(|engine| {
-        // `cli.repl.host.default-profile`, `.args` (no program name or
-        // arguments) and `cli.cap.source.flags-only` (bare `hd` has no
-        // flags, so no grant narrows a trait); relative paths resolve from
-        // the working directory (`cli.repl.host.cwd`).
-        let setup = HostSetup {
-            providers: Vec::new(),
-            grants: hd_run::Grants::default(),
-            limits: hd_run::Limits::default(),
-            args: Vec::new(),
-            program: String::new(),
-        };
-        engine.session(&setup, io).map_err(|e| match e {
-            hd_run::StartError::Refused(m) | hd_run::StartError::Engine(m) => m,
-        })
-    });
+    let session = ReplSession::new(kind, io, &cwd);
     let session = match session {
         Ok(mut session) => {
             session.set_journal_cap(bounds.journal_cap);
@@ -513,7 +543,7 @@ fn serve(
 /// A session: the wasmtime store, what its modules hold for the next
 /// build, and the sources of the inputs that joined it.
 struct Repl {
-    session: WasmtimeSession,
+    session: ReplSession,
     built: hd_driver::Session,
     /// Where the session started, which `:reload` loads its scope from.
     cwd: PathBuf,
@@ -530,11 +560,16 @@ struct Repl {
 
 /// The pipeline of every module a session builds (`crates/hd_opt/DESIGN.md` (optimization pipelines) §5): the
 /// REPL runs on wasmtime only, unoptimized.
+#[cfg(all(test, feature = "wasmtime"))]
 pub(crate) const PIPELINE: crate::Pipeline =
     crate::Pipeline::of(crate::engine::EngineKind::Wasmtime, false);
 
 /// Builds the session's prelude, or reads it from the cache.
-fn build_prelude(program: &disk::Program, store: &DiskStore) -> hd_driver::Output {
+fn build_prelude(
+    program: &disk::Program,
+    store: &DiskStore,
+    target: EngineTarget,
+) -> hd_driver::Output {
     let clock = Wall(Instant::now());
     let host = Host {
         render_tir: &[],
@@ -543,7 +578,7 @@ fn build_prelude(program: &disk::Program, store: &DiskStore) -> hd_driver::Outpu
         clock: &clock,
         executor: crate::executor(),
     };
-    let out = hd_driver::build_repl_prelude(&host, BuildProfile::Checked, PIPELINE.target);
+    let out = hd_driver::build_repl_prelude(&host, BuildProfile::Checked, target);
     crate::note_built(&out);
     out
 }
@@ -560,6 +595,7 @@ fn build_input(
     from: Option<u32>,
     number: u32,
     diags: &mut dyn Write,
+    target: EngineTarget,
 ) -> Option<(Vec<u8>, hd_driver::Session)> {
     let clock = Wall(Instant::now());
     let host = Host {
@@ -571,8 +607,8 @@ fn build_input(
     };
     let packages = hd_driver::Packages {
         build_profile: BuildProfile::Checked,
-        target: PIPELINE.target,
-        level: PIPELINE.level,
+        target,
+        level: OptLevel::Dev,
         session: Some(built),
         inputs_from: from,
         ..program.packages()
@@ -598,13 +634,13 @@ fn build_input(
 
 impl Repl {
     fn new(
-        session: WasmtimeSession,
+        session: impl Into<ReplSession>,
         cwd: PathBuf,
         program: disk::Program,
         names: complete::Names,
     ) -> Repl {
         Repl {
-            session,
+            session: session.into(),
             built: hd_driver::Session::start(),
             cwd,
             program,
@@ -618,7 +654,7 @@ impl Repl {
     /// Builds the session's prelude, or reads it from the cache, and runs
     /// it as input 0.
     fn start(&mut self) -> Result<(), String> {
-        let out = build_prelude(&self.program, &self.store);
+        let out = build_prelude(&self.program, &self.store, self.session.kind().target());
         let Some(wasm) = &out.wasm else {
             return Err(out.render());
         };
@@ -669,6 +705,7 @@ impl Repl {
             None,
             self.next,
             diags,
+            self.session.kind().target(),
         ) else {
             return false;
         };
@@ -744,6 +781,7 @@ impl Repl {
         }
         self.built = hd_driver::Session::start();
         let mut again = Again {
+            target: self.session.kind().target(),
             program: &mut self.program,
             built: &mut self.built,
             store: &self.store,
@@ -804,6 +842,7 @@ impl Repl {
 /// A rebuild's builder: it builds each input again from its text, over
 /// the package as it is on disk now; input 0 is the prelude.
 struct Again<'r> {
+    target: EngineTarget,
     program: &'r mut disk::Program,
     built: &'r mut hd_driver::Session,
     store: &'r DiskStore,
@@ -814,7 +853,7 @@ struct Again<'r> {
     diagnostics: Vec<u8>,
 }
 
-impl Rebuilder for Again<'_> {
+impl SessionBuilder for Again<'_> {
     fn build(&mut self, number: u32) -> Result<(String, Vec<u8>), String> {
         let text = self
             .texts
@@ -822,7 +861,7 @@ impl Rebuilder for Again<'_> {
             .ok_or_else(|| format!("the text of input {number} is gone"))?
             .clone();
         let (wasm, added) = if number == 0 {
-            let out = build_prelude(self.program, self.store);
+            let out = build_prelude(self.program, self.store, self.target);
             let Some(wasm) = out.wasm else {
                 return Err(out.render());
             };
@@ -838,6 +877,7 @@ impl Rebuilder for Again<'_> {
                 None,
                 number,
                 &mut diagnostics,
+                self.target,
             );
             let Some((wasm, added)) = built else {
                 self.program.sources.remove_synthetic(&file);
@@ -853,6 +893,7 @@ impl Rebuilder for Again<'_> {
         Ok((text, wasm))
     }
 
+    #[cfg(feature = "wasmtime")]
     fn build_joined(&mut self, numbers: &[u32]) -> Result<(Vec<String>, Vec<u8>), String> {
         let (Some(&first), Some(&last)) = (numbers.first(), numbers.last()) else {
             return Err("no inputs to build".into());
@@ -878,6 +919,7 @@ impl Rebuilder for Again<'_> {
             Some(first),
             last,
             &mut diagnostics,
+            self.target,
         );
         let Some((wasm, added)) = built else {
             return Err(String::from_utf8_lossy(&diagnostics).into_owned());
@@ -910,6 +952,6 @@ impl Rebuilder for Again<'_> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "wasmtime"))]
 #[path = "repl_tests.rs"]
 mod tests;

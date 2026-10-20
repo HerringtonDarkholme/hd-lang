@@ -1,9 +1,9 @@
-let log: mut List[string] = []
-fn record_then_read(entries: mut List[string]) -> string:
+let mut log: List[string] = []
+fn record_then_read(entries: &mut List[string]) -> string:
     entries.push("started")
     entries[5]
 
-line := record_then_read(log)
+line := record_then_read(&mut log)
 log
 line := "fresh"
 line

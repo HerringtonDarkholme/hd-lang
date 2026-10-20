@@ -346,6 +346,447 @@ pub(crate) fn on_ctrl_c(handler: impl FnMut() + Send + 'static) {
     }
 }
 
+/// Streams of the shared REPL loop. Keep the native stream type when that
+/// engine is present, so existing embedders and tests keep their API.
+#[cfg(feature = "wasmtime")]
+pub(crate) use hd_run_wasmtime::HostIo;
+
+#[cfg(not(feature = "wasmtime"))]
+pub(crate) struct HostIo {
+    pub(crate) out: Box<dyn std::io::Write + Send>,
+    pub(crate) err: Box<dyn std::io::Write + Send>,
+    pub(crate) input: Option<Box<dyn std::io::BufRead + Send>>,
+}
+
+#[cfg(not(feature = "wasmtime"))]
+impl HostIo {
+    pub(crate) fn process() -> Self {
+        Self {
+            out: Box::new(std::io::stdout()),
+            err: Box::new(std::io::stderr()),
+            input: Some(Box::new(std::io::BufReader::new(std::io::stdin()))),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub(crate) enum SessionStopper {
+    // Scripted sessions install no interrupt handler, on either engine.
+    Node,
+    #[cfg(feature = "wasmtime")]
+    Wasmtime(hd_run_wasmtime::Stopper),
+}
+
+#[cfg(feature = "wasmtime")]
+impl SessionStopper {
+    pub(crate) fn stop(&self) {
+        if let Self::Wasmtime(stopper) = self {
+            stopper.stop();
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn waiting(&self) -> bool {
+        match self {
+            Self::Node => false,
+            Self::Wasmtime(stopper) => stopper.waiting(),
+        }
+    }
+}
+
+pub(crate) trait SessionBuilder {
+    fn build(&mut self, number: u32) -> Result<(String, Vec<u8>), String>;
+    #[cfg(feature = "wasmtime")]
+    fn build_joined(&mut self, numbers: &[u32]) -> Result<(Vec<String>, Vec<u8>), String>;
+    fn replayed(&mut self, number: u32, joined: bool);
+    fn restart(&mut self);
+}
+
+pub(crate) struct Rebuilt {
+    pub(crate) kept: Vec<u32>,
+    pub(crate) skipped: Vec<u32>,
+    pub(crate) dropped: Vec<u32>,
+    pub(crate) reason: Option<String>,
+}
+
+pub(crate) enum ReplSession {
+    Node(Box<NodeSession>),
+    #[cfg(feature = "wasmtime")]
+    Wasmtime(Box<hd_run_wasmtime::WasmtimeSession>),
+}
+
+#[cfg(feature = "wasmtime")]
+impl From<hd_run_wasmtime::WasmtimeSession> for ReplSession {
+    fn from(session: hd_run_wasmtime::WasmtimeSession) -> Self {
+        Self::Wasmtime(Box::new(session))
+    }
+}
+
+impl ReplSession {
+    pub(crate) fn new(kind: EngineKind, io: HostIo, cwd: &std::path::Path) -> Result<Self, String> {
+        match kind {
+            EngineKind::Node => {
+                NodeSession::new(io, cwd).map(|session| Self::Node(Box::new(session)))
+            }
+            #[cfg(feature = "wasmtime")]
+            EngineKind::Wasmtime => {
+                let setup = HostSetup {
+                    providers: Vec::new(),
+                    grants: hd_run::Grants::default(),
+                    limits: Limits::default(),
+                    args: Vec::new(),
+                    program: String::new(),
+                };
+                let engine = hd_run_wasmtime::WasmtimeEngine::new(
+                    hd_run_wasmtime::EngineConfig::pipeline(OptLevel::Dev),
+                )?;
+                engine
+                    .session(&setup, io)
+                    .map(Into::into)
+                    .map_err(|error| match error {
+                        hd_run::StartError::Refused(message)
+                        | hd_run::StartError::Engine(message) => message,
+                    })
+            }
+            #[cfg(not(feature = "wasmtime"))]
+            EngineKind::Wasmtime => {
+                Err(wasmtime::UNAVAILABLE.unwrap_or("no wasmtime engine").into())
+            }
+        }
+    }
+
+    pub(crate) fn kind(&self) -> EngineKind {
+        match self {
+            Self::Node(_) => EngineKind::Node,
+            #[cfg(feature = "wasmtime")]
+            Self::Wasmtime(_) => EngineKind::Wasmtime,
+        }
+    }
+
+    pub(crate) fn stopper(&self) -> SessionStopper {
+        match self {
+            Self::Node(_) => SessionStopper::Node,
+            #[cfg(feature = "wasmtime")]
+            Self::Wasmtime(session) => SessionStopper::Wasmtime(session.stopper()),
+        }
+    }
+
+    pub(crate) fn run_input(
+        &mut self,
+        number: u32,
+        source: &str,
+        wasm: &[u8],
+    ) -> Result<Outcome, String> {
+        match self {
+            Self::Node(session) => session.input(number, source, wasm),
+            #[cfg(feature = "wasmtime")]
+            Self::Wasmtime(session) => session.run_input(number, source, wasm),
+        }
+    }
+
+    pub(crate) fn set_journal_cap(&mut self, cap: usize) {
+        match self {
+            Self::Node(session) => session.cap = cap,
+            #[cfg(feature = "wasmtime")]
+            Self::Wasmtime(session) => session.set_journal_cap(cap),
+        }
+    }
+
+    pub(crate) fn set_rebuild_after(&mut self, inputs: usize) {
+        match self {
+            Self::Node(session) => session.rebuild_after = inputs,
+            #[cfg(feature = "wasmtime")]
+            Self::Wasmtime(session) => session.set_rebuild_after(inputs),
+        }
+    }
+
+    pub(crate) fn wants_rebuild(&self) -> bool {
+        match self {
+            Self::Node(session) => session.ran > session.rebuild_after,
+            #[cfg(feature = "wasmtime")]
+            Self::Wasmtime(session) => session.wants_rebuild(),
+        }
+    }
+
+    pub(crate) fn journal(&self) -> Option<&[u8]> {
+        match self {
+            Self::Node(session) => session.has_journal.then_some(&[]),
+            #[cfg(feature = "wasmtime")]
+            Self::Wasmtime(session) => session.journal(),
+        }
+    }
+
+    pub(crate) fn take_journal_notice(&mut self) -> bool {
+        match self {
+            Self::Node(session) => std::mem::take(&mut session.notice),
+            #[cfg(feature = "wasmtime")]
+            Self::Wasmtime(session) => session.take_journal_notice(),
+        }
+    }
+
+    pub(crate) fn rebuild(&mut self, builder: &mut dyn SessionBuilder) -> Result<Rebuilt, String> {
+        match self {
+            Self::Node(session) => session.rebuild(builder),
+            #[cfg(feature = "wasmtime")]
+            Self::Wasmtime(session) => {
+                struct NativeBuilder<'a>(&'a mut dyn SessionBuilder);
+                impl hd_run_wasmtime::Rebuilder for NativeBuilder<'_> {
+                    fn build(&mut self, number: u32) -> Result<(String, Vec<u8>), String> {
+                        self.0.build(number)
+                    }
+                    fn build_joined(
+                        &mut self,
+                        numbers: &[u32],
+                    ) -> Result<(Vec<String>, Vec<u8>), String> {
+                        self.0.build_joined(numbers)
+                    }
+                    fn replayed(&mut self, number: u32, joined: bool) {
+                        self.0.replayed(number, joined);
+                    }
+                    fn restart(&mut self) {
+                        self.0.restart();
+                    }
+                }
+                let result = session.rebuild(&mut NativeBuilder(builder))?;
+                Ok(Rebuilt {
+                    kept: result.kept,
+                    skipped: result.skipped,
+                    dropped: result.dropped,
+                    reason: result.reason,
+                })
+            }
+        }
+    }
+}
+
+/// One persistent Node session. Its protocol carries output and guest
+/// reads in order; the real standard input is never the control pipe.
+pub(crate) struct NodeSession {
+    child: std::process::Child,
+    control: std::process::ChildStdin,
+    replies: std::io::BufReader<std::process::ChildStdout>,
+    scratch: crate::node::Scratch,
+    io: HostIo,
+    opened: bool,
+    cap: usize,
+    ran: usize,
+    rebuild_after: usize,
+    has_journal: bool,
+    notice: bool,
+}
+
+impl NodeSession {
+    fn new(io: HostIo, cwd: &std::path::Path) -> Result<Self, String> {
+        use std::process::{Command, Stdio};
+        let scratch = crate::node::Scratch::new(&[])?;
+        let mut child = Command::new("node")
+            .args(["--input-type=module", "--eval", "import { pathToFileURL } from 'node:url'; const { driveNodeSession } = await import(pathToFileURL(process.argv[1])); await driveNodeSession(); process.exit(0);"])
+            .arg(scratch.0.join("node.mjs"))
+            .current_dir(cwd)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::inherit())
+            .spawn().map_err(|error| format!("the Node session: {error}"))?;
+        let control = child
+            .stdin
+            .take()
+            .ok_or("the Node session has no control stream")?;
+        let replies = std::io::BufReader::new(
+            child
+                .stdout
+                .take()
+                .ok_or("the Node session has no reply stream")?,
+        );
+        Ok(Self {
+            child,
+            control,
+            replies,
+            scratch,
+            io,
+            opened: false,
+            cap: hd_run::journal::SESSION_CAP,
+            ran: 0,
+            rebuild_after: 1000,
+            has_journal: true,
+            notice: false,
+        })
+    }
+
+    fn send(&mut self, request: &str) -> Result<(), String> {
+        use std::io::Write;
+        writeln!(self.control, "{request}")
+            .and_then(|()| self.control.flush())
+            .map_err(|error| format!("the Node session control stream: {error}"))
+    }
+
+    fn receive(&mut self) -> Result<String, String> {
+        use std::io::BufRead;
+        loop {
+            let mut row = String::new();
+            if self
+                .replies
+                .read_line(&mut row)
+                .map_err(|error| error.to_string())?
+                == 0
+            {
+                return Err("the Node session ended without a reply".into());
+            }
+            let row = row.trim_end_matches(['\r', '\n']);
+            if let Some(text) = row.strip_prefix("out\t") {
+                let text = Self::text(text)?;
+                self.io
+                    .out
+                    .write_all(text.as_bytes())
+                    .and_then(|()| self.io.out.flush())
+                    .map_err(|error| error.to_string())?;
+            } else if let Some(text) = row.strip_prefix("err\t") {
+                let text = Self::text(text)?;
+                self.io
+                    .err
+                    .write_all(text.as_bytes())
+                    .and_then(|()| self.io.err.flush())
+                    .map_err(|error| error.to_string())?;
+            } else if matches!(row, "input" | "all") {
+                let mut text = String::new();
+                let value = match self.io.input.as_mut() {
+                    None if row == "all" => crate::report::quote(""),
+                    None => "null".into(),
+                    Some(input) if row == "all" => match input.read_to_string(&mut text) {
+                        Ok(_) => crate::report::quote(&text.replace("\r\n", "\n")),
+                        Err(_) => "false".into(),
+                    },
+                    Some(input) => match input.read_line(&mut text) {
+                        Ok(0) => "null".into(),
+                        Ok(_) => {
+                            if text.ends_with('\n') {
+                                text.pop();
+                                if text.ends_with('\r') {
+                                    text.pop();
+                                }
+                            }
+                            crate::report::quote(&text)
+                        }
+                        Err(_) => "false".into(),
+                    },
+                };
+                self.send(&format!("{{\"value\":{value}}}"))?;
+            } else if let Some(error) = row.strip_prefix("error\t") {
+                return Err(Self::text(error)?);
+            } else {
+                return Ok(row.to_owned());
+            }
+        }
+    }
+
+    fn text(json: &str) -> Result<String, String> {
+        crate::node::json_str(json)
+            .filter(|(_, rest)| rest.is_empty())
+            .map(|(text, _)| text)
+            .ok_or_else(|| "the Node session sent an invalid text frame".into())
+    }
+
+    fn open(&mut self) -> Result<(), String> {
+        if !self.opened {
+            self.send(&format!("{{\"op\":\"open\",\"cap\":{}}}", self.cap))?;
+            if self.receive()? != "ready" {
+                return Err("the Node session did not start".into());
+            }
+            self.opened = true;
+        }
+        Ok(())
+    }
+
+    fn module(&self, number: u32, wasm: &[u8]) -> Result<String, String> {
+        let path = self.scratch.0.join(format!("input-{number}.wasm"));
+        std::fs::write(&path, wasm).map_err(|error| error.to_string())?;
+        Ok(crate::report::quote(&path.to_string_lossy()))
+    }
+
+    fn input(&mut self, number: u32, source: &str, wasm: &[u8]) -> Result<Outcome, String> {
+        self.open()?;
+        let path = self.module(number, wasm)?;
+        self.send(&format!(
+            "{{\"op\":\"input\",\"number\":{number},\"source\":{},\"wasm\":{path}}}",
+            crate::report::quote(source)
+        ))?;
+        let row = self.receive()?;
+        let mut fields = row.split('\t');
+        if fields.next() != Some("done") {
+            return Err("the Node session sent no input outcome".into());
+        }
+        let status = fields
+            .next()
+            .and_then(|s| s.parse::<u8>().ok())
+            .ok_or("the Node session sent an invalid status")?;
+        self.has_journal = fields.next() == Some("1");
+        self.notice = fields.next() == Some("1");
+        self.ran += usize::from(number != 0);
+        Ok(Outcome::Exit(status))
+    }
+
+    fn rebuild(&mut self, builder: &mut dyn SessionBuilder) -> Result<Rebuilt, String> {
+        builder.restart();
+        self.send("{\"op\":\"rebuild\"}")?;
+        loop {
+            let row = self.receive()?;
+            if let Some(number) = row.strip_prefix("build\t").and_then(|s| s.parse().ok()) {
+                let reply = match builder.build(number) {
+                    Ok((source, wasm)) => format!(
+                        "{{\"source\":{},\"wasm\":{}}}",
+                        crate::report::quote(&source),
+                        self.module(number, &wasm)?
+                    ),
+                    Err(error) => format!("{{\"error\":{}}}", crate::report::quote(&error)),
+                };
+                self.send(&reply)?;
+            } else if let Some(fields) = row.strip_prefix("replayed\t") {
+                let (number, joined) = fields.split_once('\t').ok_or("invalid replay outcome")?;
+                builder.replayed(
+                    number.parse().map_err(|_| "invalid replay input")?,
+                    joined == "1",
+                );
+            } else if let Some(fields) = row.strip_prefix("rebuilt\t") {
+                let mut fields = fields.splitn(4, '\t');
+                let mut numbers = || -> Result<Vec<u32>, String> {
+                    fields
+                        .next()
+                        .ok_or_else(|| "incomplete rebuild outcome".to_owned())?
+                        .split(',')
+                        .filter(|s| !s.is_empty())
+                        .map(|s| s.parse().map_err(|_| "invalid rebuilt input".into()))
+                        .collect()
+                };
+                let kept = numbers()?;
+                let skipped = numbers()?;
+                let dropped = numbers()?;
+                let reason = match fields.next() {
+                    Some("null") => None,
+                    Some(text) => Some(Self::text(text)?),
+                    None => return Err("incomplete rebuild reason".into()),
+                };
+                self.ran = 0;
+                return Ok(Rebuilt {
+                    kept,
+                    skipped,
+                    dropped,
+                    reason,
+                });
+            } else {
+                return Err("the Node session sent an invalid rebuild frame".into());
+            }
+        }
+    }
+}
+
+impl Drop for NodeSession {
+    fn drop(&mut self) {
+        if self.send("{\"op\":\"close\"}").is_err() {
+            let _ = self.child.kill();
+        }
+        let _ = self.child.wait();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{EngineKind, ProgramLimits, parse_duration, parse_size, time_limit_flag};

@@ -10,10 +10,10 @@ hd> let count = +1
 hd> count = count + 1
 hd> count
 2 : i32
-hd> data Point:
+hd> struct Point:
 ...     x: i32
 ...
-hd> data Point:
+hd> struct Point:
 ...     y: i32
 ...
 hd> Point { x: +4 }

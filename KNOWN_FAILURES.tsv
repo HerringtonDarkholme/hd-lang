@@ -1,17 +1,4 @@
 path	issue	engine	reason
-cli/repl-bang	#518	node	the REPL runs on wasmtime only; the Node engine has no session
-cli/repl-declarations	#518	node	the REPL runs on wasmtime only; the Node engine has no session
-cli/repl-host	#518	node	the REPL runs on wasmtime only; the Node engine has no session
-cli/repl-member	#518	node	the REPL runs on wasmtime only; the Node engine has no session
-cli/repl-outside	#518	node	the REPL runs on wasmtime only; the Node engine has no session
-cli/repl-package-deps	#518	node	the REPL runs on wasmtime only; the Node engine has no session
-cli/repl-package-lib	#518	node	the REPL runs on wasmtime only; the Node engine has no session
-cli/repl-package-no-lib	#518	node	the REPL runs on wasmtime only; the Node engine has no session
-cli/repl-panic	#518	node	the REPL runs on wasmtime only; the Node engine has no session
-cli/repl-quit	#518	node	the REPL runs on wasmtime only; the Node engine has no session
-cli/repl-value	#518	node	the REPL runs on wasmtime only; the Node engine has no session
-cli/repl-value-stream	#518	node	the REPL runs on wasmtime only; the Node engine has no session
-cli/repl-workspace	#518	node	the REPL runs on wasmtime only; the Node engine has no session
 runtime/panic/element-reference-capture-escape-panics.hd	#556		escaped element-reference copies do not retain a pin on the Wasm GC backend, whose references hold no count; they pass on the linear backend (#574)
 runtime/panic/element-reference-field-escape-panics.hd	#556		escaped element-reference copies do not retain a pin on the Wasm GC backend, whose references hold no count; they pass on the linear backend (#574)
 runtime/panic/element-reference-return-escape-panics.hd	#556		escaped element-reference copies do not retain a pin on the Wasm GC backend, whose references hold no count; they pass on the linear backend (#574)

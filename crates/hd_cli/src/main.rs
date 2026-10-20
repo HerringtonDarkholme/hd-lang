@@ -19,7 +19,6 @@ mod new_cmd;
 mod node;
 #[cfg(test)]
 mod pipeline_tests;
-#[cfg(feature = "wasmtime")]
 mod repl;
 mod report;
 mod snapshot_update;
@@ -163,8 +162,7 @@ fn repl_command() -> ExitCode {
 }
 
 /// `hd --repl [--engine NAME] FILE` (`cli.repl.script`): a session whose
-/// inputs are the lines of FILE. The REPL runs on wasmtime only, so
-/// any other engine is refused (`cli.engine.unknown`).
+/// inputs are the lines of FILE, run on the selected engine.
 fn repl_script_command(args: &[OsString]) -> ExitCode {
     let mut script: Option<PathBuf> = None;
     let mut engine = None;
@@ -200,20 +198,7 @@ fn repl_script_command(args: &[OsString]) -> ExitCode {
     let Some(script) = script else {
         return usage();
     };
-    if engine != engine::EngineKind::Wasmtime {
-        return fail("the REPL runs on the wasmtime engine only; name it with `--engine wasmtime`");
-    }
-    repl_script(&script)
-}
-
-#[cfg(feature = "wasmtime")]
-fn repl_script(script: &Path) -> ExitCode {
-    repl::script(script)
-}
-
-#[cfg(not(feature = "wasmtime"))]
-fn repl_script(_script: &Path) -> ExitCode {
-    repl_command()
+    repl::script(&script, engine)
 }
 
 /// Follow command dispatch: a source argument to `fmt` is not a program run.

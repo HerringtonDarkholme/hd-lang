@@ -102,10 +102,10 @@ impl Engine for NodeEngine {
 
 /// A scratch directory with the host scripts and the module, removed on
 /// drop. Each is unique, so parallel test workers do not share one.
-struct Scratch(PathBuf);
+pub(crate) struct Scratch(pub(crate) PathBuf);
 
 impl Scratch {
-    fn new(wasm: &[u8]) -> Result<Self, String> {
+    pub(crate) fn new(wasm: &[u8]) -> Result<Self, String> {
         static NEXT: AtomicU32 = AtomicU32::new(0);
         let n = NEXT.fetch_add(1, Ordering::Relaxed);
         let dir = std::env::temp_dir().join(format!("hd-run-{}-{n}", std::process::id()));
@@ -687,7 +687,7 @@ fn json_frames(s: &str) -> Option<(Vec<(u32, u32)>, &str)> {
 }
 
 /// A JSON string at the start of `s`, decoded, and the rest after it.
-fn json_str(s: &str) -> Option<(String, &str)> {
+pub(crate) fn json_str(s: &str) -> Option<(String, &str)> {
     let body = s.strip_prefix('"')?;
     let mut out = String::new();
     let mut chars = body.char_indices();

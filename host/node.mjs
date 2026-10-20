@@ -25,6 +25,7 @@ import {
   statSync,
   unlinkSync,
   writeFileSync,
+  writeSync,
 } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { isIP } from "node:net";
@@ -874,3 +875,95 @@ export const createHost = (sink, env = {}) => createCoreHost(sink, env, nodeLaye
 // `createHost`'s.
 export const createNodeSession = (sink, env = {}, options = {}) =>
   createSession(sink, env, nodeLayer, options);
+
+// The CLI owns the user's streams. stdin/stdout of this child carry only
+// framed control messages; even a guest read goes through its own request,
+// so it cannot consume the next session command. Output frames precede the
+// completion frame, which lets the CLI flush them before its next prompt.
+export async function driveNodeSession() {
+  const control = lineReader(0);
+  const receive = () => {
+    const line = control();
+    if (line === null) return null;
+    if (line === false) throw new Error("cannot read the session control stream");
+    return JSON.parse(line);
+  };
+  const send = (kind, ...fields) => {
+    const bytes = Buffer.from(`${[kind, ...fields].join("\t")}\n`);
+    const waiter = new Int32Array(new SharedArrayBuffer(4));
+    for (let at = 0; at < bytes.length;) {
+      try {
+        at += writeSync(1, bytes, at);
+      } catch (error) {
+        if (error.code !== "EAGAIN") throw error;
+        Atomics.wait(waiter, 0, 0, 5);
+      }
+    }
+  };
+  const input = (all) => {
+    send(all ? "all" : "input");
+    return receive()?.value ?? null;
+  };
+  const readLine = () => input(false);
+  readLine.all = () => input(true);
+  let session;
+  let recording = true;
+  try {
+    for (let request; (request = receive()) !== null;) {
+      try {
+        switch (request.op) {
+          case "open":
+            session = createNodeSession(
+              {
+                out: (text) => send("out", JSON.stringify(text)),
+                err: (text) => send("err", JSON.stringify(text)),
+              },
+              { args: [], program: "", readLine },
+              { journalCap: request.cap },
+            );
+            send("ready");
+            break;
+          case "input": {
+            const result = await session.input(
+              request.number,
+              request.source,
+              readFileSync(request.wasm),
+            );
+            if (result.error) throw new Error(result.error);
+            const notice = session.takeJournalNotice();
+            if (notice) recording = false;
+            send("done", result.status, Number(recording), Number(notice));
+            break;
+          }
+          case "rebuild": {
+            const rebuilt = await session.rebuild({
+              build: (number) => {
+                send("build", number);
+                const built = receive();
+                if (built.error) throw new Error(built.error);
+                return { source: built.source, wasm: readFileSync(built.wasm) };
+              },
+              replayed: (number, joined) => send("replayed", number, Number(joined)),
+            });
+            send(
+              "rebuilt",
+              rebuilt.kept.join(","),
+              rebuilt.skipped.join(","),
+              rebuilt.dropped.join(","),
+              JSON.stringify(rebuilt.reason),
+            );
+            break;
+          }
+          case "close":
+            return;
+          default:
+            throw new Error("unknown session control request");
+        }
+      } catch (error) {
+        send("error", JSON.stringify(String(error?.message ?? error)));
+      }
+    }
+  } finally {
+    session?.close();
+  }
+}
