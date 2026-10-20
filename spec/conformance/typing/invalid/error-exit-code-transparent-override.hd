@@ -1,0 +1,4 @@
+# test: invalid exit code options are rejected on the marker
+@error(transparent, exit_code=2)  # diagnostic: invalid-error-marker
+struct E:
+    inner: i32

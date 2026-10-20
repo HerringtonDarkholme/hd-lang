@@ -1,0 +1,12 @@
+# test: explicit codes retain the full signed i32 type of Error.exit_code
+@error("minimum", exit_code=-2147483648)
+struct Minimum: pass
+
+@error("maximum", exit_code=2147483647)
+struct Maximum: pass
+
+@error(exit_code=2)
+enum Default:
+    Normal
+    @error(exit_code=0)
+    Help

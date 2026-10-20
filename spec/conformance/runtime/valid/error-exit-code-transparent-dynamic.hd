@@ -1,0 +1,14 @@
+# test: transparent wrappers forward the dynamic error code through reference members
+# expect-stdout: 0
+use std.error.Error
+
+@error("help", exit_code=0)
+struct Help: pass
+
+@error(transparent)
+struct Wrapper:
+    inner: &dyn Error
+
+pub fn main() -> void $ Console:
+    let inner: &dyn Error = &Help {}
+    println(Wrapper { inner: inner }.exit_code())

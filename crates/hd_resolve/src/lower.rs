@@ -3963,7 +3963,7 @@ impl Lower<'_, '_, '_> {
                     self_ty,
                 ),
             };
-            let methods = if g == Generated::Error && !shape.has_cause() {
+            let mut methods = if g == Generated::Error && !shape.has_cause() {
                 Vec::new()
             } else {
                 out.push(Item::new(
@@ -3978,6 +3978,26 @@ impl Lower<'_, '_, '_> {
                 ));
                 vec![(self.sym(method), mdef)]
             };
+            if g == Generated::Error && shape.has_exit_code() {
+                let name = self.sym("exit_code");
+                let method = self.names.member(def, PathKind::Member, "exit_code");
+                let sig = FnSig::simple(
+                    vec![],
+                    vec![(self.sym("self"), self_ty)],
+                    Ty::prim(Prim::I32),
+                );
+                out.push(Item::new(
+                    method,
+                    name,
+                    true,
+                    ItemData::Method {
+                        owner: def,
+                        sig,
+                        has_body: true,
+                    },
+                ));
+                methods.push((name, method));
+            }
             let seg = g.segment(self.names.display_name(h.def));
             let mut it = Item::new(
                 def,

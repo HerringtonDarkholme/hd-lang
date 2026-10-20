@@ -1,5 +1,5 @@
 # test: an @error argument that is a name, neither a message nor transparent
-# Spec 14 Error Types: annot.error.form.argument.
+# Spec 14 Error Types: annot.error.form.options.
 
 @error
 enum WriteError:

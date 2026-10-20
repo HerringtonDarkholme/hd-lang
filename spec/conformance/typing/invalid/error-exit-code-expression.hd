@@ -1,0 +1,3 @@
+# test: invalid exit code options are rejected on the marker
+@error("bad", exit_code=1 + 1)  # diagnostic: invalid-error-marker
+struct E: pass

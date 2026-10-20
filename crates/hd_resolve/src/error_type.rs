@@ -47,6 +47,7 @@ pub struct Member<'t> {
 pub struct ErrVariant<'t> {
     pub node: NodeRef<'t>,
     pub message: Message<'t>,
+    pub exit_code: Option<i32>,
     pub members: Vec<Member<'t>>,
 }
 
@@ -77,6 +78,14 @@ impl ErrorShape<'_> {
         self.variants
             .iter()
             .any(|v| matches!(v.message, Message::Transparent) || v.cause().is_some())
+    }
+
+    /// Whether `Error` needs a generated `exit_code` instead of the default 1.
+    #[must_use]
+    pub fn has_exit_code(&self) -> bool {
+        self.variants
+            .iter()
+            .any(|v| v.exit_code.is_some() || matches!(v.message, Message::Transparent))
     }
 
     /// The implementations the type generates: `Display`, `Error`, then
@@ -166,28 +175,58 @@ fn lines<'a, 't: 'a>(
         .filter_map(move |d| line(src, d).map(|(a, b, c)| (a, b, c, d)))
 }
 
-/// The message form of an `@error(...)` line's arguments; `None` when they
-/// are invalid (`annot.error.form.argument`, already reported).
-fn message<'t>(src: &Src<'t>, args: Option<NodeRef<'t>>) -> Option<Message<'t>> {
-    let mut all = args?.children();
-    let (Some(one), None) = (all.next(), all.next()) else {
-        return None;
-    };
-    let mut inner = one.children();
-    let (Some(value), None) = (inner.next(), inner.next()) else {
-        return None;
-    };
-    match value.kind() {
-        SyntaxKind::StringExpr => Some(Message::Text(value)),
-        SyntaxKind::NameExpr
-            if src
-                .first_ident(value)
-                .is_some_and(|t| src.text(t) == "transparent") =>
-        {
-            Some(Message::Transparent)
+/// Valid arguments of the existing error intrinsic. A named code extends
+/// its options without introducing a decorator or changing impl coherence.
+pub(crate) struct ErrorArgs<'t> {
+    pub message: Message<'t>,
+    pub exit_code: Option<i32>,
+}
+
+pub(crate) fn error_args<'t>(src: &Src<'t>, args: Option<NodeRef<'t>>) -> Option<ErrorArgs<'t>> {
+    let mut message = Message::Absent;
+    let mut exit_code = None;
+    let mut any = false;
+    for arg in args?.children() {
+        any = true;
+        let value = arg.children().next()?;
+        if arg.kind() == SyntaxKind::NamedArgument {
+            if src.text(src.first_ident(arg)?) != "exit_code" || exit_code.is_some() {
+                return None;
+            }
+            if !matches!(
+                value.kind(),
+                SyntaxKind::LiteralExpr | SyntaxKind::UnaryExpr
+            ) {
+                return None;
+            }
+            let span = src.span(value);
+            let text = src
+                .text
+                .get(span.lo as usize..span.hi as usize)?
+                .replace('_', "");
+            exit_code = Some(text.parse::<i32>().ok()?);
+        } else if arg.kind() == SyntaxKind::Argument && matches!(message, Message::Absent) {
+            message = match value.kind() {
+                SyntaxKind::StringExpr if src.text(src.first(value)).starts_with('"') => {
+                    Message::Text(value)
+                }
+                SyntaxKind::NameExpr
+                    if src
+                        .first_ident(value)
+                        .is_some_and(|t| src.text(t) == "transparent") =>
+                {
+                    Message::Transparent
+                }
+                _ => return None,
+            };
+        } else {
+            return None;
         }
-        _ => None,
     }
+    if !any || (matches!(message, Message::Transparent) && exit_code.is_some()) {
+        return None;
+    }
+    Some(ErrorArgs { message, exit_code })
 }
 
 /// The members of a variant's parameter list or a data type's block.
@@ -231,7 +270,7 @@ fn members<'t>(src: &Src<'t>, holder: Option<NodeRef<'t>>) -> Vec<Member<'t>> {
 fn variant_message<'t>(src: &Src<'t>, n: NodeRef<'t>, count: usize) -> Message<'t> {
     let found = lines(src, n)
         .filter(|(name, bare, _, _)| *name == "error" && !bare)
-        .find_map(|(_, _, args, _)| message(src, args));
+        .find_map(|(_, _, args, _)| error_args(src, args).map(|a| a.message));
     match found {
         Some(Message::Transparent) if count != 1 => Message::Absent,
         Some(m) => m,
@@ -240,13 +279,21 @@ fn variant_message<'t>(src: &Src<'t>, n: NodeRef<'t>, count: usize) -> Message<'
 }
 
 /// The error shape of a data or enum declaration, or `None` when it is
-/// not an error type (`annot.error.type`).
+/// not an error type (`annot.error.type.exit-code`).
 #[must_use]
 pub fn shape<'t>(src: &Src<'t>, decl: NodeRef<'t>) -> Option<ErrorShape<'t>> {
     match decl.kind() {
         SyntaxKind::EnumDecl => {
-            let (_, _, _, line) =
-                lines(src, decl).find(|(n, bare, _, _)| *n == "error" && *bare)?;
+            let (_, bare, args, line) = lines(src, decl).find(|(n, _, _, _)| *n == "error")?;
+            let default_code = if bare {
+                None
+            } else {
+                let a = error_args(src, args)?;
+                if !matches!(a.message, Message::Absent) {
+                    return None;
+                }
+                a.exit_code
+            };
             let variants = Src::child(decl, SyntaxKind::Block)
                 .into_iter()
                 .flat_map(NodeRef::children)
@@ -256,6 +303,12 @@ pub fn shape<'t>(src: &Src<'t>, decl: NodeRef<'t>) -> Option<ErrorShape<'t>> {
                     ErrVariant {
                         node: v,
                         message: variant_message(src, v, members.len()),
+                        exit_code: lines(src, v)
+                            .filter(|(name, _, _, _)| *name == "error")
+                            .find_map(|(_, _, args, _)| {
+                                error_args(src, args).and_then(|a| a.exit_code)
+                            })
+                            .or(default_code),
                         members,
                     }
                 })
@@ -269,7 +322,7 @@ pub fn shape<'t>(src: &Src<'t>, decl: NodeRef<'t>) -> Option<ErrorShape<'t>> {
         SyntaxKind::DataDecl => {
             let (_, _, args, line) =
                 lines(src, decl).find(|(n, bare, _, _)| *n == "error" && !*bare)?;
-            message(src, args)?;
+            let options = error_args(src, args)?;
             let members = members(src, Src::child(decl, SyntaxKind::Block));
             let message = variant_message(src, decl, members.len());
             if matches!(message, Message::Absent) {
@@ -281,6 +334,7 @@ pub fn shape<'t>(src: &Src<'t>, decl: NodeRef<'t>) -> Option<ErrorShape<'t>> {
                 variants: vec![ErrVariant {
                     node: decl,
                     message,
+                    exit_code: options.exit_code,
                     members,
                 }],
             })

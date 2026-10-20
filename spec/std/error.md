@@ -265,6 +265,10 @@ status 2.
 > **Why.** The error knows whether it is a failure. A help request is an
 > error value to `?`, yet clap and Go's `flag` exit 0 for it.
 
+> **Note.** Derived errors can set a variant code or an enum default;
+> transparent errors forward their member's code. See
+> [Derived Error Exit Codes](../lang/14-annotations.md#derived-error-exit-codes).
+
 ## Standard Error Types
 
 Every std error type implements `Error`, so `?` and `context` accept it:

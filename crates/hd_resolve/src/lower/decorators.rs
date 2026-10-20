@@ -246,48 +246,6 @@ impl Lower<'_, '_, '_> {
         self.diags.error(Code::InvalidErrorMarker, span, what);
     }
 
-    /// The one value in an `@error(...)` argument list, when it has one.
-    fn error_arg(args: Option<NodeRef<'_>>) -> Option<NodeRef<'_>> {
-        let mut all = args?.children();
-        let (Some(one), None) = (all.next(), all.next()) else {
-            return None;
-        };
-        if one.kind() != SyntaxKind::Argument {
-            return None;
-        }
-        let mut inner = one.children();
-        let (Some(value), None) = (inner.next(), inner.next()) else {
-            return None;
-        };
-        Some(value)
-    }
-
-    /// Whether an `@error` line's arguments are one message or
-    /// `transparent` (`annot.error.form.argument`).
-    fn error_args_ok(&self, args: Option<NodeRef<'_>>) -> bool {
-        Self::error_arg(args).is_some_and(|value| match value.kind() {
-            // A prefixed string runs a user function, so it is no message
-            // (`annot.error.message.string`).
-            SyntaxKind::StringExpr => self.src.text(self.src.first(value)).starts_with('"'),
-            SyntaxKind::NameExpr => self
-                .src
-                .first_ident(value)
-                .is_some_and(|t| self.src.text(t) == "transparent"),
-            _ => false,
-        })
-    }
-
-    /// Whether an `@error(...)` line names the `transparent` form.
-    fn error_transparent(&self, args: Option<NodeRef<'_>>) -> bool {
-        Self::error_arg(args).is_some_and(|value| {
-            value.kind() == SyntaxKind::NameExpr
-                && self
-                    .src
-                    .first_ident(value)
-                    .is_some_and(|t| self.src.text(t) == "transparent")
-        })
-    }
-
     /// Checks the decorators of one target; returns whether it carries a
     /// valid `@from` or `@source` cause marker.
     fn check_decorators(
@@ -313,17 +271,32 @@ impl Lower<'_, '_, '_> {
                     }
                 }
                 "error" => {
+                    let options = crate::error_type::error_args(&self.src, deco.args);
+                    let code_only = options
+                        .as_ref()
+                        .is_some_and(|a| matches!(a.message, crate::error_type::Message::Absent));
+                    let named_only = deco.args.is_some_and(|a| {
+                        let args: Vec<_> = a.children().collect();
+                        !args.is_empty()
+                            && args.iter().all(|v| v.kind() == SyntaxKind::NamedArgument)
+                    });
                     let ok = if deco.bare {
                         k == kind::ENUM
                     } else {
-                        k & (kind::DATA | kind::VARIANT) != 0
+                        k == kind::VARIANT
+                            || (k == kind::DATA && !code_only)
+                            || (k == kind::ENUM && named_only)
                     };
                     if !ok {
                         self.target_error(span, "this `@error` form does not precede this target");
-                    } else if !deco.bare && !self.error_args_ok(deco.args) {
-                        let msg = "`@error` takes one message or `transparent`";
+                    } else if !deco.bare && options.is_none() {
+                        let msg = "`@error` takes a message or `transparent`, optionally `exit_code=<i32 integer>`; transparent errors forward their code";
                         self.marker_error(span, msg);
-                    } else if !deco.bare && self.error_transparent(deco.args) && place.members != 1
+                    } else if !deco.bare
+                        && options.is_some_and(|a| {
+                            matches!(a.message, crate::error_type::Message::Transparent)
+                        })
+                        && place.members != 1
                     {
                         self.target_error(span, "`@error(transparent)` needs exactly one member");
                     }

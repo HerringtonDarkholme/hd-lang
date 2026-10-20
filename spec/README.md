@@ -209,7 +209,7 @@ The stdlib chapters' terms are in the
 | **entry point** | A public top-level function named `main` or `main!` with no parameters. See [`module.entry.definition`](lang/10-modules.md#r-module.entry.definition). |
 | **enum** | A nominal sum type. See [`data.kind.enum`](lang/08-data-and-enums.md#r-data.kind.enum). |
 | **error derivation** | Implementing `Display`, `Error`, and `From` for an error type from its `@error` lines. See [Error Derivation](lang/14-annotations.md#error-derivation). |
-| **error type** | An enum with a bare `@error` line, or a struct with an `@error("...")` or `@error(transparent)` line. See [`annot.error.type`](lang/14-annotations.md#r-annot.error.type). |
+| **error type** | An enum with `@error` or `@error(exit_code=N)`, or a struct with a message or transparent `@error` form. See [`annot.error.type.exit-code`](lang/14-annotations.md#r-annot.error.type.exit-code). |
 | **executable** | A program a package ships, declared by an `[[executable]]` table of `hd.toml`, or `src/main.hd` when the manifest declares none. See [`cli.exe.table`](cli/command-line.md#r-cli.exe.table) and [`cli.exe.default-main`](cli/command-line.md#r-cli.exe.default-main). |
 | **exhausted** | An iterator whose `next` has returned `.None`. See [`flow.for.iterator-exhausted`](lang/06-control-flow.md#r-flow.for.iterator-exhausted). |
 | **exhausted iterator** | An iterator whose `next` has returned `.None`. What a later `next` returns is unspecified. See [`flow.for.iterator-exhausted`](lang/06-control-flow.md#r-flow.for.iterator-exhausted). |
