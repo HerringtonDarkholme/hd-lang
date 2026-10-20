@@ -3636,3 +3636,4 @@ runtime/valid/duration-literal-timeout.hd	runtime	accept	std/time.md#duration
 runtime/valid/provider-value-reference-identity.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.ref.share.reference-values
 runtime/valid/cli-required-and-many.hd	runtime	accept	std/cli.md#r-std-cli.parser.indexed
 typing/invalid/cli-parsed-private.hd	type	reject:private-member	std/cli.md#r-std-cli.parsed.private
+runtime/valid/facts-and-handles-build-once.hd	runtime	accept	lang/14-annotations.md#r-annot.handle.constants

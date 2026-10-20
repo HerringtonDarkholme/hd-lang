@@ -10,14 +10,16 @@
 //! lowering (§13.15 of `crates/hd_mono/DESIGN.md`), so both backends panic
 //! alike.
 
-use hd_base::{DefId, HashMap, InstId, StageResult};
+use hd_base::{DefId, Hash128, HashMap, InstId, StageResult};
 use hd_mono::{ProgramEnv, Sub, Target, TargetKind, subst};
-use hd_tir::ir::{Body, Callee, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, local_flags};
+use hd_tir::ir::{
+    Body, BodyKind, Callee, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, local_flags,
+};
 use hd_types::{InternPool, Ty, TyData, TyList};
 use wasm_encoder::{BlockType, Instruction, Instruction as I};
 
 use crate::layout::{Pass, num, vals};
-use crate::module::{Func, Global, HEAP, Ins, Module, Sym, Val, mem};
+use crate::module::{Func, Global, HEAP, Import, Ins, Module, Stored, Sym, Val, mem};
 use crate::rt::Helper;
 use crate::{Input, unsupported};
 
@@ -176,6 +178,19 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
         fres,
     );
     let key = t.key[id.idx()];
+    let once = match (sub, t.sub[id.idx()], b.kind) {
+        (0, Sub::Body(_), BodyKind::Fact) => Some(Some(b.label.as_ref())),
+        (0, Sub::Body(_), BodyKind::Handle) => Some(None),
+        _ => None,
+    }
+    .map(|fact| OnceCell {
+        key,
+        results: results.clone(),
+        fact,
+    });
+    if let Some(cell) = &once {
+        cell.enter(&mut em, ret)?;
+    }
     if suspending {
         let pc = em.f.local(Val::I32);
         let cancelled = em.f.local(Val::I32);
@@ -209,7 +224,9 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
             em.f.op(Instruction::End);
         }
     }
-    em.counting = em.counts_anything();
+    // Once-cells also need the common exit when their result is uncounted:
+    // every return must publish the cached value and end fact evaluation.
+    em.counting = em.counts_anything() || once.is_some();
     let mut held: Vec<(usize, Vec<u32>)> = em.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
     held.sort_unstable();
     if em.counting {
@@ -304,6 +321,9 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
             em.f.get(l);
         }
     }
+    if let Some(cell) = &once {
+        cell.leave(&mut em, ret)?;
+    }
     if !suspending {
         return Ok(em.f);
     }
@@ -314,6 +334,178 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
         None
     };
     susp::finish(em, key, &plocals, &params, ret, closure, held)
+}
+
+/// A facts or structure-handle body owns one cached result per instance.
+/// Its flag follows the result globals: 0 empty, 2 evaluating, 1 ready.
+struct OnceCell<'b> {
+    key: Hash128,
+    results: Vec<Val>,
+    fact: Option<&'b str>,
+}
+
+impl OnceCell<'_> {
+    fn global(&self, k: usize) -> Global {
+        Global::Storage(
+            self.key,
+            u32::try_from(k).expect("once-cell values"),
+            self.results.get(k).copied().unwrap_or(Val::I32),
+        )
+    }
+
+    /// Opens the cached path and loads its result, before its retain.
+    fn load_cached(&self, f: &mut Func) -> Vec<u32> {
+        f.global_get(self.global(self.results.len()));
+        f.i32(1);
+        f.op(I::I32Eq);
+        f.op(I::If(BlockType::Empty));
+        let held: Vec<u32> = self.results.iter().map(|v| f.local(*v)).collect();
+        for (k, l) in held.iter().enumerate() {
+            f.global_get(self.global(k));
+            f.set(*l);
+        }
+        held
+    }
+
+    fn return_cached(f: &mut Func, held: &[u32]) {
+        for l in held {
+            f.get(*l);
+        }
+        f.op(I::Return);
+        f.op(I::End);
+    }
+
+    /// Publishes the values after the global has taken its own count.
+    fn publish(&self, f: &mut Func, held: &[u32]) {
+        for (k, l) in held.iter().enumerate() {
+            f.get(*l);
+            f.global_set(self.global(k));
+        }
+        f.i32(1);
+        f.global_set(self.global(self.results.len()));
+    }
+
+    fn fact_import() -> Sym {
+        Sym::Import(Import::new("hd:rt", "fact", &[Val::I32], &[]))
+    }
+
+    fn enter(&self, em: &mut Em<'_, '_, '_>, ret: Ty) -> StageResult<()> {
+        if em.input.runtime.and_then(|r| r.checked).is_some() {
+            // Teardown releases the cached count and zeros the whole cell,
+            // including an uncounted result and the flag, between test cases.
+            let mut vals = self.results.clone();
+            vals.push(Val::I32);
+            let walk = em.counted(ret).unwrap_or(crate::layout::Walk::Seq(vec![]));
+            em.m.stored.insert(
+                self.key,
+                Stored {
+                    vals,
+                    walk,
+                    slot: None,
+                },
+            );
+        }
+        let held = self.load_cached(&mut em.f);
+        // The global keeps its count; every caller receives a fresh one.
+        em.retain_locals(&held, ret)?;
+        Self::return_cached(&mut em.f, &held);
+        let flag = self.global(self.results.len());
+        if let Some(label) = self.fact {
+            let at = em.m.static_bytes(label.as_bytes(), 1);
+            em.f.u32(at);
+            em.f.u32(u32::try_from(label.len()).expect("fact label"));
+            em.f.helper(Helper::ToBuf);
+            em.f.call(Self::fact_import());
+            em.f.global_get(flag.clone());
+            em.f.op(I::If(BlockType::Empty));
+            em.panic("reentrant-evaluation: the fact reads itself");
+            em.f.op(I::End);
+            em.f.i32(2);
+            em.f.global_set(flag);
+            em.forbid_by(1);
+        }
+        Ok(())
+    }
+
+    fn leave(&self, em: &mut Em<'_, '_, '_>, ret: Ty) -> StageResult<()> {
+        let held: Vec<u32> = self.results.iter().map(|v| em.f.local(*v)).collect();
+        for l in held.iter().rev() {
+            em.f.set(*l);
+        }
+        // The result already owns its caller's count; the global adds one.
+        em.retain_locals(&held, ret)?;
+        self.publish(&mut em.f, &held);
+        if self.fact.is_some() {
+            em.f.i32(-1);
+            em.f.call(Self::fact_import());
+            em.forbid_by(-1);
+        }
+        for l in &held {
+            em.f.get(*l);
+        }
+        Ok(())
+    }
+}
+
+/// A minimal handle body increments a counter on entry and returns it.
+/// Execute the emitted cache twice: the body must have run only once.
+#[test]
+fn handle_once_cell_runs_its_body_once() {
+    let cell = OnceCell {
+        key: Hash128(616),
+        results: vec![Val::I32],
+        fact: None,
+    };
+    let counter = Global::Storage(Hash128(617), 0, Val::I32);
+    let mut handle = Func::new("handle", vec![], vec![Val::I32]);
+    let cached = cell.load_cached(&mut handle);
+    OnceCell::return_cached(&mut handle, &cached);
+    handle.global_get(counter.clone());
+    handle.i32(1);
+    handle.op(I::I32Add);
+    let result = handle.local(Val::I32);
+    handle.set(result);
+    handle.get(result);
+    handle.global_set(counter.clone());
+    cell.publish(&mut handle, &[result]);
+    handle.get(result);
+    let mut runs = Func::new("runs", vec![], vec![Val::I32]);
+    runs.global_get(counter);
+    let mut m = Module::default();
+    m.define(Sym::Inst(Hash128(616)), handle);
+    m.export("handle", Sym::Inst(Hash128(616)));
+    m.define(Sym::Inst(Hash128(617)), runs);
+    m.export("runs", Sym::Inst(Hash128(617)));
+    let wasm = m.finish().expect("link counter fixture");
+    let mut child = std::process::Command::new("node")
+        .args([
+            "--input-type=module",
+            "-e",
+            r"
+            const chunks = [];
+            for await (const chunk of process.stdin) chunks.push(chunk);
+            const {instance} = await WebAssembly.instantiate(Buffer.concat(chunks));
+            const first = instance.exports.handle();
+            const second = instance.exports.handle();
+            const runs = instance.exports.runs();
+            if (first !== 1 || second !== 1 || runs !== 1) {
+                throw new Error(JSON.stringify({first, second, runs}));
+            }
+        ",
+        ])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("start Node counter fixture");
+    std::io::Write::write_all(&mut child.stdin.take().expect("fixture stdin"), &wasm)
+        .expect("send counter fixture");
+    let output = child.wait_with_output().expect("run counter fixture");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 /// The locals that some `RefPlace` of body `b` refers to as its root and

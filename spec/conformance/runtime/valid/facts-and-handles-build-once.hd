@@ -1,0 +1,64 @@
+# test: facts and member handles build lazily once and keep their counted results across reads
+# Spec 14 Facts and Field and Variant Handles: annot.fact.eval.lazy, annot.fact.eval.unread, annot.handle.constants.
+# expect: test
+use std.structure.{Structure, Field, Variant, Describer}
+use std.testing.assert_equal
+
+let mut events: List[string] = []
+
+struct Tag:
+    words: List[string]
+
+fn record(label: string) -> Tag:
+    events.push(label)
+    Tag { words: [label] }
+
+trait Labels:
+    fn labels() -> List[string]
+
+struct Reader:
+    words: List[string]
+
+impl[S] Describer[S] for Reader:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:
+        match h.info.facts.find::[Tag]():
+            .Some(tag) => self.words.extend(tag.words)
+            .None => pass
+        .Ok(())
+
+impl[T] Labels for T by Structure:
+    fn labels() -> List[string]:
+        let mut reader = Reader { words: [] }
+        _ := T::describe(&mut reader)
+        match T::facts().find::[Tag]():
+            .Some(tag) => reader.words.extend(tag.words)
+            .None => pass
+        reader.words
+
+@derive(Labels)
+@record("type")
+struct Point:
+    @record("field")
+    x: i32
+
+fn check_once() -> void:
+    assert_equal(events, [], reason="unread facts and handles stay unevaluated")
+    let mut first = Point::labels()
+    first.push("caller copy")
+    assert_equal(first, ["field", "type", "caller copy"], reason="caller owns its result")
+    assert_equal(events, ["field", "type"], reason="first reads run each body once")
+    assert_equal(Point::labels(), ["field", "type"], reason="cached counted values survive the first caller")
+    assert_equal(Point::labels(), ["field", "type"], reason="repeated reads keep the original values")
+    assert_equal(events, ["field", "type"], reason="cached reads never rebuild the handle or fact")
+
+tests:
+    it("builds each handle and fact only once"):
+        check_once()
+
+    it("starts the next test with a fresh cache"):
+        check_once()

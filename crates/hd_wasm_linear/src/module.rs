@@ -300,15 +300,14 @@ pub struct Module {
     /// each lives in a static slot at this address, not in Wasm globals
     /// (`crates/hd_wasm/DESIGN.md` §23.20).
     pub addressed: BTreeMap<Hash128, u32>,
-    /// In checked mode, each top-level binding that holds counted
-    /// references, by path hash, which the audit at exit releases first
-    /// (§23.24).
+    /// In checked mode, each stored binding or once-cell, which the audit
+    /// at exit releases and zeros first (§23.24).
     pub stored: BTreeMap<Hash128, Stored>,
 }
 
-/// A top-level binding's counted references (§23.24): its values and
-/// their walk, and the static slot and leaves it lives in when some
-/// reference refers to it.
+/// Stored values and their counted-reference walk (§23.24), with a static
+/// slot when addressed. A once-cell includes its uncounted flag after its
+/// result values so teardown resets the cache between test cases.
 #[derive(Clone, Debug)]
 pub struct Stored {
     pub vals: Vec<Val>,

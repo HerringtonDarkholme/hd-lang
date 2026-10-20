@@ -48,6 +48,10 @@ runtime/panic/exhausted-iterator-invalidated.hd	#573: closures and trait values
 runtime/panic/exhausted-map-iterator-invalidated-by-rebuild.hd	#573: closures and trait values
 runtime/panic/explicit-panic-skips-defer.hd	#574: references, cleanup scopes and releases at last use
 runtime/panic/explicit-panic.hd	#540: an explicit panic
+runtime/panic/fact-evaluation-cycle.hd	#616: facts evaluate once and label their panics
+runtime/panic/fact-evaluation-host-trap.hd	#616: facts evaluate once and label their panics
+runtime/panic/fact-evaluation-panics-on-read.hd	#616: facts evaluate once and label their panics
+runtime/panic/fact-evaluation-reads-itself.hd	#616: facts evaluate once and label their panics
 runtime/panic/for-element-references-push-panics.hd	#574: references, cleanup scopes and releases at last use
 runtime/panic/generic-i32-overflow.hd	#554: lists
 runtime/panic/host-result-out-of-range.hd	#595: host codecs over linear memory
@@ -57,6 +61,7 @@ runtime/panic/index-trait-map-missing.hd	#572: maps
 runtime/panic/integer-add-overflow.hd	#540: checked integer arithmetic
 runtime/panic/integer-divide-by-zero.hd	#540: checked integer arithmetic
 runtime/panic/integer-negation-overflow.hd	#540: checked integer arithmetic
+runtime/panic/integer-power-overflow.hd	#614: checked integer power overflow
 runtime/panic/intrinsic-method-overflow.hd	#541: test programs, and roots that never suspend
 runtime/panic/invalid-shift.hd	#540: checked integer arithmetic
 runtime/panic/invalidated-iterator.hd	#573: closures and trait values
@@ -495,6 +500,7 @@ runtime/valid/f64-nan-ordering.hd	#541: test programs, and roots that never susp
 runtime/valid/f64-ordering-operators.hd	#541: test programs, and roots that never suspend
 runtime/valid/fact-line-keeps-member-walked.hd	#573: closures and trait values
 runtime/valid/fact-unread-never-evaluated.hd	#573: closures and trait values
+runtime/valid/facts-and-handles-build-once.hd	#616: facts and handles build once and own cached results
 runtime/valid/facts-of-compiler-decorators.hd	#573: closures and trait values
 runtime/valid/facts-of-literal-generic-none.hd	#573: closures and trait values
 runtime/valid/facts-of-read.hd	#573: closures and trait values
@@ -511,6 +517,8 @@ runtime/valid/float-display-shortest-tie.hd	#573: closures and trait values
 runtime/valid/float-display.hd	#573: closures and trait values
 runtime/valid/float-eq-bound.hd	#573: closures and trait values
 runtime/valid/float-literal-forms.hd	#551: structs, tuples, enums and data values
+runtime/valid/float-remainder-run.hd	#614: integer and floating power, floating remainder
+runtime/valid/floating-power.hd	#614: integer and floating power, floating remainder
 runtime/valid/folder-graph-test-edges.hd	#573: closures and trait values
 runtime/valid/folder-graph-tests-block-edges.hd	#573: closures and trait values
 runtime/valid/for-element-references-exit-releases.hd	#574: references, cleanup scopes and releases at last use
@@ -660,6 +668,7 @@ runtime/valid/installer-function-runs.hd	#613: requirement rows and context valu
 runtime/valid/integer-cast-wraps-examples.hd	#573: closures and trait values
 runtime/valid/integer-display-every-width.hd	#595: host codecs over linear memory
 runtime/valid/integer-literal-forms.hd	#540: integers, strings and enums in locals
+runtime/valid/integer-power-associativity.hd	#614: integer and floating power, floating remainder
 runtime/valid/integration-program-no-module-path.hd	#573: closures and trait values
 runtime/valid/integration-shared-use.hd	#573: closures and trait values
 runtime/valid/integration-test-public-view.hd	#573: closures and trait values
@@ -920,6 +929,7 @@ runtime/valid/numeric-candidate-tie-break.hd	#573: closures and trait values
 runtime/valid/numeric-casts-in-range.hd	#573: closures and trait values
 runtime/valid/numeric-display-notation.hd	#552: strings
 runtime/valid/numeric-display-special-values.hd	#552: strings
+runtime/valid/numeric-explicit-widening.hd	#614: integer and floating power, floating remainder
 runtime/valid/omitted-member-default.hd	#573: closures and trait values
 runtime/valid/omitted-member-exempt-from-bound.hd	#573: closures and trait values
 runtime/valid/omitted-member-not-described.hd	#573: closures and trait values
@@ -928,6 +938,7 @@ runtime/valid/operator-generic-primitive-run.hd	#573: closures and trait values
 runtime/valid/operator-string-add.hd	#573: closures and trait values
 runtime/valid/operator-syntax-without-import.hd	#573: closures and trait values
 runtime/valid/operator-traits-run.hd	#573: closures and trait values
+runtime/valid/operators-longest-match.hd	#614: integer and floating power, floating remainder
 runtime/valid/operators-without-spaces.hd	#554: lists
 runtime/valid/option-and-then.hd	#573: closures and trait values
 runtime/valid/option-enum-spellings.hd	#573: closures and trait values
@@ -982,6 +993,9 @@ runtime/valid/pipe-placeholder-steps.hd	#552: strings
 runtime/valid/pipe-suspending-substitution-step.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/plain-dollar-text.hd	#573: closures and trait values
 runtime/valid/postfix-binds-tighter-than-infix.hd	#573: closures and trait values
+runtime/valid/power-and-remainder-edges.hd	#614: integer and floating power, floating remainder
+runtime/valid/power-type-parameter-bound.hd	#614: integer and floating power, floating remainder
+runtime/valid/precedence-and-associativity.hd	#614: integer and floating power, floating remainder
 runtime/valid/prefix-import-without-marker.hd	#573: closures and trait values
 runtime/valid/prefixed-string-template.hd	#554: lists
 runtime/valid/prefixed-string-values-not-displayed.hd	#573: closures and trait values
@@ -1435,6 +1449,7 @@ runtime/valid/unit-pattern-void-success.hd	#573: closures and trait values
 runtime/valid/unit-test-manual-clock.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/unit-value.hd	#573: closures and trait values
 runtime/valid/unsafe-trait-static-bound.hd	#573: closures and trait values
+runtime/valid/unsigned-exponent.hd	#614: integer and floating power, floating remainder
 runtime/valid/use-declaration-position-independent.hd	#573: closures and trait values
 runtime/valid/use-module-member-beside-root-declaration.hd	#573: closures and trait values
 runtime/valid/user-iterable-for-loop.hd	#573: closures and trait values
@@ -1461,13 +1476,3 @@ runtime/valid/while-else-break-value.hd	#574: references, cleanup scopes and rel
 runtime/valid/while-else-exhaustion-value.hd	#573: closures and trait values
 runtime/valid/write-line-around-suspending-provider-scope.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/write-line-suspending-call-argument.hd	#575: suspension frames, the waker and the entry driver
-runtime/valid/integer-power-associativity.hd	#614: integer and floating power, floating remainder
-runtime/valid/operators-longest-match.hd	#614: integer and floating power, floating remainder
-runtime/valid/precedence-and-associativity.hd	#614: integer and floating power, floating remainder
-runtime/valid/power-type-parameter-bound.hd	#614: integer and floating power, floating remainder
-runtime/valid/unsigned-exponent.hd	#614: integer and floating power, floating remainder
-runtime/valid/floating-power.hd	#614: integer and floating power, floating remainder
-runtime/valid/float-remainder-run.hd	#614: integer and floating power, floating remainder
-runtime/valid/numeric-explicit-widening.hd	#614: integer and floating power, floating remainder
-runtime/valid/power-and-remainder-edges.hd	#614: integer and floating power, floating remainder
-runtime/panic/integer-power-overflow.hd	#614: checked integer power overflow
