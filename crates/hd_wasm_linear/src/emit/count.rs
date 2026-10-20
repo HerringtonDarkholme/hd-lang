@@ -88,6 +88,124 @@ impl Em<'_, '_, '_> {
         self.moves.loan_locals = locals.into_iter().collect();
     }
 
+    pub(super) fn prepare_parameter_loans(&mut self) {
+        // The checker introduces single-assignment reference temporaries
+        // for method receivers. They borrow the same caller-owned pointer.
+        let mut roots = self.borrowed.clone();
+        let mut sets: hd_base::HashMap<usize, Vec<u32>> = hd_base::HashMap::default();
+        for (i, tag) in self.b.tags.iter().enumerate() {
+            if *tag == Tag::LocalSet {
+                sets.entry(self.b.data[i][0] as usize)
+                    .or_default()
+                    .push(self.b.data[i][1]);
+            }
+        }
+        loop {
+            let mut changed = false;
+            let mut bindings: Vec<_> = sets.iter().collect();
+            bindings.sort_by_key(|(l, _)| **l);
+            for (&l, values) in bindings {
+                let [source] = values.as_slice() else {
+                    continue;
+                };
+                if roots.contains(&l)
+                    || self.is_cell(l)
+                    || self.b.local_flags[l]
+                        & (hd_tir::ir::local_flags::MUTATED
+                            | hd_tir::ir::local_flags::CAPTURED_ASSIGNED)
+                        != 0
+                    || *source == NONE
+                    || Ref(*source).as_inst().is_none()
+                    || self.b.tags[*source as usize] != Tag::LocalGet
+                    || !roots.contains(&(self.b.data[*source as usize][0] as usize))
+                    || !matches!(self.kind(self.sub(self.b.local_ty[l])), Kind::Ref { .. })
+                {
+                    continue;
+                }
+                roots.insert(l);
+                self.moves.loan_locals.insert(l, *source);
+                changed = true;
+            }
+            if !changed {
+                break;
+            }
+        }
+        let headers = self
+            .b
+            .tags
+            .iter()
+            .enumerate()
+            .filter_map(|(i, tag)| {
+                if *tag != Tag::RefRead {
+                    return None;
+                }
+                let i = u32::try_from(i).expect("insts");
+                match self.pool().get(self.strip_mut(self.ty(i))) {
+                    hd_types::TyData::Adt { def, .. }
+                        if self.env().std_kind(def) == hd_mono::layout::StdKind::List =>
+                    {
+                        Some(i)
+                    }
+                    _ => None,
+                }
+            })
+            .collect();
+        let mut reads: Vec<u32> = super::live::parameter_loans(self.b, &roots, &headers)
+            .into_iter()
+            .collect();
+        reads.sort_unstable();
+        for i in reads {
+            // Erased thunks can construct a fresh owned representation.
+            if hd_mono::is_open(self.pool(), self.ty(i))
+                || matches!(self.calls.get(&i), Some(hd_mono::Target::Open(_)))
+            {
+                continue;
+            }
+            if self.b.tags[i as usize] == Tag::RefRead
+                && !self.moves.loans.contains(&self.b.data[i as usize][0])
+            {
+                continue;
+            }
+            if self.b.tags[i as usize] == Tag::RefPlace
+                && self.ref_target(self.ty(i)).is_some_and(|(_, fat)| fat)
+            {
+                continue;
+            }
+            self.moves.loans.insert(i);
+            if self.b.tags[i as usize] != Tag::LocalGet {
+                let flag = self.f.local(crate::module::Val::I32);
+                self.view_loans.insert(i, flag);
+            }
+        }
+    }
+
+    /// Release the owned fallback of a view-backed loan, leaving a physical
+    /// loan uncounted. The flag is cleared so loop and exit drops agree.
+    fn release_view_loan(&mut self, i: u32, ls: &[u32]) -> StageResult<()> {
+        let flag = self.view_loans[&i];
+        self.f.get(flag);
+        self.f.op(wasm_encoder::Instruction::If(
+            wasm_encoder::BlockType::Empty,
+        ));
+        self.release_locals(ls, self.ty(i))?;
+        self.f.op(wasm_encoder::Instruction::End);
+        self.f.zero(flag);
+        Ok(())
+    }
+
+    /// An instruction may run again in a loop. Its previous view temporary
+    /// is independent of the caller-owned parameter backing the new read.
+    pub(super) fn begin_view_loan(&mut self, i: u32) -> StageResult<Option<u32>> {
+        let Some(&flag) = self.view_loans.get(&i) else {
+            return Ok(None);
+        };
+        if self.loops > 0 {
+            let ls = self.slot(i)?;
+            self.release_view_loan(i, &ls)?;
+        }
+        Ok(Some(flag))
+    }
+
     /// The counted references of a `t` value, when the program counts.
     pub(super) fn counted(&self, t: Ty) -> Option<Walk> {
         self.input.runtime?;
@@ -359,7 +477,9 @@ impl Em<'_, '_, '_> {
                     if self.counted(t).is_none() {
                         continue;
                     }
-                    if !self.moves.loans.contains(&x) {
+                    if self.view_loans.contains_key(&x) {
+                        self.release_view_loan(x, &ls)?;
+                    } else if !self.moves.loans.contains(&x) {
                         self.release_locals(&ls, t)?;
                     }
                     ls
@@ -448,7 +568,9 @@ impl Em<'_, '_, '_> {
             self.vals.iter().map(|(k, v)| (*k, v.clone())).collect();
         vals.sort_unstable();
         for (i, ls) in vals {
-            if !self.moves.loans.contains(&i) {
+            if self.view_loans.contains_key(&i) {
+                self.release_view_loan(i, &ls)?;
+            } else if !self.moves.loans.contains(&i) {
                 self.release_locals(&ls, self.ty(i))?;
             }
         }

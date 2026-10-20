@@ -1728,3 +1728,36 @@ physical or erased references without a block-start proof.
   Field projection cannot originate a view without a parent view. A
   module that can construct erased representation views keeps the full
   discriminator; the #619 erased-reference fixtures audit that path.
+
+### 23.31 Parameter And Projection Loans
+
+Issue #645 borrows reference-parameter reads from the caller's existing
+ownership. The reference pointer and its single-assignment receiver
+aliases need no count. A projected address stays inside the caller-owned
+place; reading its value instead needs an interval with no invalidating
+call or store before its last use. List element writes preserve their
+header, so they do not invalidate a borrowed header read.
+
+- **Views keep temporaries.** A physical read takes no count. An erased
+  view can return a fresh owned value, so that path sets an ownership
+  flag. Its last-use, exit and next-iteration drops release the temporary
+  only when that flag is set. A projected view still owns its newly
+  allocated forwarding reference. Open thunks keep their ordinary counts.
+- **Read the selected field.** A reference or list-index read whose only
+  consumer selects one field loads only that field. It computes and owns
+  the field at the original read's position, before its source can drop.
+  The view path conservatively reads the parent, retains the selected
+  field and releases that temporary parent. Unselected physical fields
+  need neither locals nor counts.
+- **Invariant buffer ownership.** An uncounted-element list parameter
+  needs one uniqueness check when its body cannot create another buffer
+  owner. The first actual write checks lazily; zero iterations do nothing.
+  Calls, copies, global access and other invalidating operations disable
+  this cache, except scalar square root and the constant reference serial.
+  The link enables it only in a module with no reachable view constructor:
+  a view's getter could otherwise create a buffer owner implicitly.
+- **Conservative boundaries.** Deferred scopes, mutable reference bindings,
+  shared cells and effectful read intervals keep their ownership. Copies
+  that escape a loan still take their own counts. The fixtures cover
+  invalidating alias calls, erased getter temporaries, early returns,
+  initial COW sharing and snapshots created by callbacks between writes.

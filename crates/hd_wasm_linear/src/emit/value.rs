@@ -353,6 +353,9 @@ impl Em<'_, '_, '_> {
     /// `Field`: field `idx` of `a`, picked from a struct's values or loaded
     /// from a data value's object.
     pub(super) fn field(&mut self, i: u32, a: u32, idx: u32) -> StageResult<()> {
+        if self.precomputed_fields.contains(&i) {
+            return Ok(());
+        }
         let t = self.ty_of(a);
         if self.newtype(t) {
             self.push(a)?;

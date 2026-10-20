@@ -323,10 +323,19 @@ impl Em<'_, '_, '_> {
         let mut b = self.buffer(h);
         let ix = self.index(b, args[1])?;
         if write {
-            self.unique(h, &e, false);
+            self.invariant_unique(args[0], h, &e);
             b = self.buffer(h);
         }
         let at = self.slot_at(b, ix, e.size);
+        if !write && let Some((field, part)) = self.projected_field(i)? {
+            for leaf in &e.leaves[part.first..part.first + part.count] {
+                self.f.get(at);
+                self.f.op(leaf.load(LIST_ELEMS));
+            }
+            self.store(field)?;
+            self.precomputed_fields.insert(field);
+            return Ok(());
+        }
         for l in &e.leaves {
             self.f.get(at);
             self.f.op(l.load(LIST_ELEMS));
@@ -343,6 +352,151 @@ impl Em<'_, '_, '_> {
         });
     }
 
+    /// No call or operation here can share a buffer after its first write.
+    /// The one allowed call is the compiler's scalar square-root operation.
+    fn cannot_share_buffers(&self) -> bool {
+        for i in 0..self.b.len() {
+            let tag = self.b.tags[i];
+            let x = u32::try_from(i).expect("insts");
+            if let Some(target) = self.calls.get(&x) {
+                let hd_mono::Target::Call(call) = target else {
+                    return false;
+                };
+                let sqrt = match &call.kind {
+                    hd_mono::TargetKind::Intrinsic(key) => {
+                        matches!(key.as_str(), "sqrt" | "ref_serial")
+                    }
+                    hd_mono::TargetKind::Builtin { self_ty, .. } => {
+                        matches!(self.pool().get(*self_ty), TyData::Prim(p) if p.is_float())
+                            && (self.input.path)(call.item).rsplit(['.', '/']).next()
+                                == Some("sqrt")
+                    }
+                    hd_mono::TargetKind::Instance => false,
+                };
+                if !sqrt
+                    || self.counted(self.ty(x)).is_some()
+                    || self
+                        .b
+                        .value_operands(i)
+                        .unwrap_or_default()
+                        .iter()
+                        .any(|r| self.counted(self.ty_of(*r)).is_some())
+                {
+                    return false;
+                }
+            }
+            match tag {
+                Tag::GlobalGet
+                | Tag::GlobalSet
+                | Tag::RefWrite
+                | Tag::FieldSet
+                | Tag::CallValue
+                | Tag::CallDyn
+                | Tag::CallHost
+                | Tag::DefaultCall
+                | Tag::Await
+                | Tag::AwaitValue
+                | Tag::AwaitAll
+                | Tag::AwaitRace
+                | Tag::Hook
+                | Tag::Scope
+                | Tag::Defer
+                | Tag::Closure => return false,
+                Tag::Call if !self.calls.contains_key(&x) => return false,
+                Tag::NewData
+                | Tag::CopyData
+                | Tag::NewTuple
+                | Tag::NewVariant
+                | Tag::NewList
+                | Tag::NewMap
+                | Tag::Interp => {
+                    if self.counted(self.ty(x)).is_some() {
+                        return false;
+                    }
+                }
+                Tag::Intrinsic => {
+                    let [op, record] = self.b.data[i];
+                    match IntrinsicOp::from_u32(op) {
+                        Some(IntrinsicOp::ListLen | IntrinsicOp::ListIndex) => {}
+                        Some(IntrinsicOp::ListSet | IntrinsicOp::ListIndexMut) => {
+                            let Some(&list) = self.b.record(record).first() else {
+                                return false;
+                            };
+                            if !self
+                                .elem(self.ty_of(list))
+                                .is_ok_and(|(_, e)| e.walk.is_none())
+                            {
+                                return false;
+                            }
+                        }
+                        Some(IntrinsicOp::ValueCopy)
+                            if coll_leaves(self.pool(), self.env(), self.ty(x)).is_empty() => {}
+                        _ => return false,
+                    }
+                }
+                _ => {}
+            }
+        }
+        true
+    }
+
+    fn invariant_unique(&mut self, list: u32, h: u32, e: &Elem) {
+        let safe = if self.loops > 0 && e.walk.is_none() {
+            self.unique_body.unwrap_or_else(|| {
+                let safe = self.cannot_share_buffers();
+                self.unique_body = Some(safe);
+                safe
+            })
+        } else {
+            false
+        };
+        let root = safe
+            .then(|| {
+                if self.b.tags.get(list as usize) != Some(&Tag::RefRead) {
+                    return None;
+                }
+                let r = self.b.data[list as usize][0];
+                if r == hd_tir::ir::NONE
+                    || Ref(r).as_inst().is_none()
+                    || self.b.tags[r as usize] != Tag::LocalGet
+                {
+                    return None;
+                }
+                let mut l = self.b.data[r as usize][0] as usize;
+                for _ in 0..self.b.local_ty.len() {
+                    if self.borrowed.contains(&l) {
+                        return Some(l);
+                    }
+                    let &source = self.moves.loan_locals.get(&l)?;
+                    if self.b.tags[source as usize] != Tag::LocalGet {
+                        return None;
+                    }
+                    l = self.b.data[source as usize][0] as usize;
+                }
+                None
+            })
+            .flatten();
+        let Some(root) = root else {
+            self.unique(h, e, false);
+            return;
+        };
+        let flag = *self
+            .unique_once
+            .entry(root)
+            .or_insert_with(|| self.f.local(Val::I32));
+        // A view's getter can make another buffer owner implicitly. The
+        // link enables this cache only when no view constructor is reachable.
+        self.f.helper(Helper::RefViewsAbsent);
+        self.f.get(flag);
+        self.f.op(I::I32And);
+        self.f.op(I::I32Eqz);
+        self.f.op(I::If(BlockType::Empty));
+        self.unique(h, e, false);
+        self.f.i32(1);
+        self.f.set(flag);
+        self.f.op(I::End);
+    }
+
     /// `ListSet`: the element's old value is released after the new one
     /// is counted.
     pub(super) fn list_set(&mut self, args: &[u32]) -> StageResult<()> {
@@ -350,7 +504,7 @@ impl Em<'_, '_, '_> {
         let h = self.header(args[0])?;
         let b = self.buffer(h);
         let ix = self.index(b, args[1])?;
-        self.unique(h, &e, false);
+        self.invariant_unique(args[0], h, &e);
         let b = self.buffer(h);
         let at = self.slot_at(b, ix, e.size);
         let s = self.slot_src(args[2], et, false)?;

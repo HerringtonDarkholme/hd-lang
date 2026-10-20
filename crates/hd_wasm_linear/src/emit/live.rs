@@ -487,3 +487,124 @@ fn loans(
     }
     (reads, locals)
 }
+
+/// Additional reads backed by a parameter the caller keeps alive. Referent
+/// reads stay within one straight-line interval without an invalidating call
+/// or store; copying the reference parameter itself needs no such interval.
+pub(super) fn parameter_loans(
+    b: &Body,
+    parameters: &HashSet<usize>,
+    headers: &HashSet<u32>,
+) -> HashSet<u32> {
+    fn root(b: &Body, x: u32, parameters: &HashSet<usize>) -> bool {
+        if x == NONE || Ref(x).as_inst().is_none() {
+            return false;
+        }
+        match b.tags[x as usize] {
+            Tag::LocalGet => parameters.contains(&(b.data[x as usize][0] as usize)),
+            Tag::RefPlace => b.place(x as usize).is_some_and(|p| {
+                p.kind == hd_tir::ir::place_root::DEREF && parameters.contains(&(p.x as usize))
+            }),
+            _ => false,
+        }
+    }
+    if parameters.is_empty() || b.tags.iter().any(|t| matches!(t, Tag::Defer | Tag::Scope)) {
+        return HashSet::default();
+    }
+    let tree = Tree::new(b);
+    let mut users: HashMap<u32, Vec<u32>> = HashMap::default();
+    for i in 0..b.len() {
+        for r in uses(b, i) {
+            users
+                .entry(r)
+                .or_default()
+                .push(u32::try_from(i).expect("insts"));
+        }
+    }
+    let mut out = HashSet::default();
+    for i in 0..b.len() {
+        let x = u32::try_from(i).expect("insts");
+        if b.tags[i] == Tag::LocalGet && root(b, x, parameters) {
+            out.insert(x);
+            continue;
+        }
+        // This is an address inside a caller-owned place, even if a call
+        // changes the value stored there. Views retain their owned fallback.
+        if b.tags[i] == Tag::RefPlace && root(b, x, parameters) {
+            out.insert(x);
+            continue;
+        }
+        if !match b.tags[i] {
+            Tag::RefRead => {
+                let source = b.data[i][0];
+                root(b, source, parameters)
+                    && (b.tags[source as usize] == Tag::LocalGet || out.contains(&source))
+            }
+            Tag::RefPlace => root(b, x, parameters),
+            _ => false,
+        } {
+            continue;
+        }
+        let (blk, start) = tree.parent[i];
+        let Some(us) = users.get(&x).filter(|us| !us.is_empty()) else {
+            continue;
+        };
+        if blk == NONE || us.iter().any(|u| tree.parent[*u as usize].0 != blk) {
+            continue;
+        }
+        let end = us
+            .iter()
+            .map(|u| tree.parent[*u as usize].1)
+            .max()
+            .unwrap_or(start);
+        if end <= start {
+            continue;
+        }
+        let safe = b.record(b.data[blk as usize][0])[start + 1..=end]
+            .iter()
+            .all(|j| {
+                let j = *j as usize;
+                match b.tags[j] {
+                    // Stripped reference closure forms leave empty blocks
+                    // in the containing statement list; they do not run.
+                    Tag::Block => b.data[j][1] == NONE && b.record(b.data[j][0]).is_empty(),
+                    Tag::LocalGet
+                    | Tag::Field
+                    | Tag::TupleGet
+                    | Tag::Payload
+                    | Tag::Unwrap
+                    | Tag::Prim
+                    | Tag::NewData
+                    | Tag::CopyData
+                    | Tag::NewTuple
+                    | Tag::NewVariant
+                    | Tag::Coerce
+                    | Tag::RefRead
+                    | Tag::RefPlace => true,
+                    Tag::LocalSet => {
+                        us.contains(&u32::try_from(j).expect("insts")) && tree.parent[j].1 == end
+                    }
+                    Tag::Intrinsic
+                        if headers.contains(&x)
+                            && matches!(
+                                IntrinsicOp::from_u32(b.data[j][0]),
+                                Some(IntrinsicOp::ListSet | IntrinsicOp::ListIndexMut)
+                            ) =>
+                    {
+                        true
+                    }
+                    Tag::Intrinsic => matches!(
+                        IntrinsicOp::from_u32(b.data[j][0]),
+                        Some(
+                            IntrinsicOp::ListLen | IntrinsicOp::ListIndex | IntrinsicOp::ValueCopy
+                        )
+                    ),
+                    _ => false,
+                }
+            });
+        if safe {
+            out.insert(x);
+        }
+    }
+    out
+}

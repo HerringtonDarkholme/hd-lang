@@ -1,0 +1,36 @@
+# test: borrowed parameter and receiver reads survive alias mutation and calls
+# Spec 13 Reference Lifetime: ref.place.lifetime; Spec 04 Value Types: types.value.copy.
+use std.testing.assert_equal
+
+struct Holder:
+    text: string
+
+fn first(value: string, ignored: void) -> string:
+    value
+
+fn replace(target: &mut Holder, n: i32) -> void:
+    target.text = "after $n"
+
+fn across_call(target: &mut Holder, alias: &mut Holder, n: i32) -> string:
+    first(target.text, replace(alias, n))
+
+fn write_text(target: &mut string, value: string) -> void:
+    *target = value
+
+impl Holder:
+    fn project_and_write(&mut self, n: i32) -> void:
+        write_text(&mut self.text, "written $n")
+
+    fn read_then_call(&mut self, alias: &mut Holder, n: i32) -> string:
+        first(self.text, replace(alias, n))
+
+tests:
+    it("a call cannot invalidate a previously read field"):
+        for n in +0..+20:
+            let mut holder = Holder { text: "before $n" }
+            shared := &mut holder
+            assert_equal(across_call(shared, shared, n), "before $n", reason="the earlier field owns its value across the call")
+            assert_equal(holder.text, "after $n", reason="the alias replaced the field")
+            holder.project_and_write(n)
+            assert_equal(holder.text, "written $n", reason="a borrowed field address remains writable through the callee")
+            assert_equal(shared.read_then_call(shared, n), "written $n", reason="the receiver read stays alive across alias mutation")

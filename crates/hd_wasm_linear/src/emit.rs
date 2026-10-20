@@ -322,6 +322,7 @@ fn body_func<'a>(
     if em.counting {
         em.open(Ctl::Exit);
     }
+    em.prepare_parameter_loans();
     let root = b.sub_root[sub as usize];
     em.block_into(root, None)?;
     let tail = b.data[root as usize][1];
@@ -863,6 +864,14 @@ struct Em<'i, 'a, 'm> {
     drops: live::Drops,
     /// Where counts may move instead of being copied (`live.rs`).
     moves: live::Moves,
+    /// A loan owns a temporary only when its source is an erased view.
+    view_loans: HashMap<u32, u32>,
+    /// A sole field consumer computed directly by its memory read.
+    precomputed_fields: hd_base::HashSet<u32>,
+    /// Lazy uniqueness checks for invariant parameter headers in a body
+    /// that cannot create another buffer owner.
+    unique_once: HashMap<usize, u32>,
+    unique_body: Option<bool>,
     /// The releases planned after a statement that a move at that
     /// statement made empty ([`Em::take`], [`Em::take_local`]); a jump
     /// out of the block still releases the place, which may hold a value
@@ -930,6 +939,10 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             defer_flags: HashMap::default(),
             drops: live::Drops::default(),
             moves: live::Moves::default(),
+            view_loans: HashMap::default(),
+            precomputed_fields: hd_base::HashSet::default(),
+            unique_once: HashMap::default(),
+            unique_body: None,
             skip: hd_base::HashSet::default(),
             borrowed: hd_base::HashSet::default(),
             emitting: Vec::new(),

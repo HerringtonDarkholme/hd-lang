@@ -1,0 +1,36 @@
+# test: loans through erased views keep getter temporaries owned across loop exits
+# Spec 13 Reference Lifetime: ref.place.lifetime; Spec 09 Dynamic Safety: trait.dyn.safe.method-type-param.
+use std.testing.assert_equal
+
+struct Holder[T]:
+    item: &mut T
+
+trait Factory:
+    fn hold[T](self, value: T) -> Holder[T]:
+        let mut local = value
+        Holder { item: &mut local }
+
+struct Maker: pass
+impl Factory for Maker
+
+fn first_word(words: &List[string]) -> string:
+    words[0]
+
+fn repeated(words: &List[string], stop: bool) -> string:
+    let result = ""
+    for i in 0..3:
+        result = first_word(words)
+        if stop && i == 1:
+            return result
+    result
+
+tests:
+    it("erased getter temporaries are released on iteration and early return"):
+        let factory: &dyn Factory = &Maker {}
+        for n in +0..+20:
+            words := factory.hold(["kept $n", "tail $n"]).item
+            assert_equal(first_word(words), "kept $n", reason="the projected list is read through its view")
+            assert_equal(repeated(words, true), "kept $n", reason="early return keeps the result and releases the temporary")
+            assert_equal(repeated(words, false), "kept $n", reason="each iteration releases its getter temporary")
+            *words = ["changed $n"]
+            assert_equal(first_word(words), "changed $n", reason="the view still forwards writes after the reads")

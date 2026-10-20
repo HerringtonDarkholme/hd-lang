@@ -1,0 +1,36 @@
+# test: lazy loop uniqueness preserves zero iterations, COW snapshots and callbacks
+# Spec 04 Value Types: types.value.copy; Spec 13 Reference Lifetime: ref.place.lifetime.
+use std.testing.assert_equal
+
+fn add(values: &mut List[i32], rounds: usize) -> void:
+    for _ in 0..rounds:
+        values[0] = values[0] + 1
+        values[1] = values[1] + 2
+
+fn copy_into(values: &List[i32], log: &mut List[List[i32]]) -> void:
+    log.push(*values)
+
+fn interleaved(values: &mut List[i32], snapshot: fn() -> void) -> void:
+    for n in 0..3:
+        values[0] = i32(n)
+        snapshot()
+        values[0] = +99
+
+tests:
+    it("an invariant loop separates a shared buffer on its first actual write"):
+        let mut values: List[i32] = [+10, +20]
+        before := values
+        add(&mut values, 0)
+        assert_equal(values, before, reason="zero iterations perform no write")
+        add(&mut values, 3)
+        assert_equal(values, [+13, +26], reason="all entered iterations update the original header")
+        assert_equal(before, [+10, +20], reason="the first actual write separates the copied value")
+
+    it("a callback can create a new buffer owner between writes"):
+        let mut values: List[i32] = [+0]
+        let mut log: List[List[i32]] = []
+        source := &mut values
+        saved := &mut log
+        interleaved(source, fn() -> void: copy_into(source, saved))
+        assert_equal(log, [[+0], [+1], [+2]], reason="each callback snapshot keeps its own value")
+        assert_equal(values, [+99], reason="the final write changes only the source")

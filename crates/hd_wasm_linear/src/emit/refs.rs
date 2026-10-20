@@ -29,6 +29,30 @@ enum Base {
 }
 
 impl Em<'_, '_, '_> {
+    /// Read just a sole field consumer at the original read's position.
+    /// In particular, do not defer a view read until after its source drops.
+    pub(super) fn projected_field(&self, read: u32) -> StageResult<Option<(u32, Part)>> {
+        let Some(&(field, _)) = self.moves.sole.get(&read) else {
+            return Ok(None);
+        };
+        let parent = self.ty(read);
+        if self.b.tags[field as usize] != hd_tir::ir::Tag::Field
+            || self.b.data[field as usize][0] != read
+            || self.calls.contains_key(&field)
+            || hd_mono::is_open(self.pool(), parent)
+            || hd_mono::is_open(self.pool(), self.ty(field))
+            || !matches!(self.kind(parent), Kind::Value)
+            || self.newtype(parent)
+        {
+            return Ok(None);
+        }
+        let (_, parts) = struct_mem(self.pool(), self.env(), parent)?;
+        Ok(parts
+            .get(self.b.data[field as usize][1] as usize)
+            .copied()
+            .map(|part| (field, part)))
+    }
+
     pub(super) fn ref_layout(&self, ty: Ty) -> StageResult<RefLayout> {
         let m = mem_of(self.pool(), self.env(), ty)?;
         let walk = self.counted(ty);
@@ -215,8 +239,15 @@ impl Em<'_, '_, '_> {
         {
             let parent = self.ref_layout(parent_ty)?;
             let field = self.ref_layout(ty)?;
+            let loan = self.begin_view_loan(i)?;
+            if let Some(flag) = loan {
+                self.f.get(*at);
+                self.f.helper(Helper::RefIsView);
+                self.f.set(flag);
+            }
             self.f.get(*at);
             self.f.helper(Helper::RefProject {
+                borrowed: loan.is_some(),
                 parent,
                 field: field.clone(),
                 first: u32::try_from(first).expect("field"),
@@ -299,7 +330,33 @@ impl Em<'_, '_, '_> {
         let at = self.f.local(Val::I32);
         self.comp(r, 0)?;
         self.f.set(at);
-        self.load_through(at, &value);
+        if let Some((field, part)) = self.projected_field(i)? {
+            self.f.get(at);
+            self.f.helper(Helper::RefIsView);
+            self.f.op(I::If(wasm_encoder::BlockType::Empty));
+            let parent = rt::ref_load(&mut self.f, at, &value);
+            for l in &parent[part.first..part.first + part.count] {
+                self.f.get(*l);
+            }
+            self.store(field)?;
+            self.release_locals(&parent, target)?;
+            self.f.op(I::Else);
+            for leaf in &value.leaves[part.first..part.first + part.count] {
+                self.f.get(at);
+                self.f.op(leaf.load(0));
+            }
+            self.store(field)?;
+            self.f.op(I::End);
+            self.precomputed_fields.insert(field);
+            return Ok(());
+        }
+        if let Some(flag) = self.begin_view_loan(i)? {
+            for l in rt::ref_load_borrowed(&mut self.f, at, &value, flag) {
+                self.f.get(l);
+            }
+        } else {
+            self.load_through(at, &value);
+        }
         self.store_owned(i)
     }
 

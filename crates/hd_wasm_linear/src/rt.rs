@@ -89,6 +89,7 @@ pub struct RefLayout {
 pub enum Helper {
     /// A field reference forwards reads and writes through its parent view.
     RefProject {
+        borrowed: bool,
         parent: RefLayout,
         field: RefLayout,
         first: u32,
@@ -108,6 +109,8 @@ pub enum Helper {
     },
     /// Whether an address names a counted representation view.
     RefIsView,
+    /// A link-time proof: no reachable representation-view constructor.
+    RefViewsAbsent,
     /// A view's descriptor releases its original reference.
     RefViewDrop,
     /// The canonical identity serial, following views and field projections.
@@ -1182,6 +1185,11 @@ fn write_str(f: &mut Func, s: u32) {
 /// Builds helper `h`; it may ask `m` for more helpers and static data.
 pub fn helper(h: &Helper, m: &mut Module) -> Func {
     match h {
+        Helper::RefViewsAbsent => {
+            let mut f = Func::new("rt:ref_views_absent", vec![], vec![Val::I32]);
+            f.i32(0);
+            f
+        }
         Helper::RefProject { .. } | Helper::RefFieldGet { .. } | Helper::RefFieldSet { .. } => {
             ref_field_helper(h, m)
         }
@@ -2913,6 +2921,17 @@ fn ref_unbox_into(f: &mut Func, at: u32, value: &RefLayout, ls: &[u32]) {
 /// the address. Emitted inline, so a value of any width stays in locals
 /// and never crosses a function's parameters or results.
 pub(crate) fn ref_load(f: &mut Func, at: u32, value: &RefLayout) -> Vec<u32> {
+    ref_load_inner(f, at, value, None)
+}
+
+pub(crate) fn ref_load_borrowed(f: &mut Func, at: u32, value: &RefLayout, owned: u32) -> Vec<u32> {
+    ref_load_inner(f, at, value, Some(owned))
+}
+
+fn ref_load_inner(f: &mut Func, at: u32, value: &RefLayout, owned: Option<u32>) -> Vec<u32> {
+    if let Some(flag) = owned {
+        f.zero(flag);
+    }
     let ls: Vec<u32> = value.leaves.iter().map(|l| f.local(l.val)).collect();
     if ls.is_empty() {
         return ls;
@@ -2920,6 +2939,10 @@ pub(crate) fn ref_load(f: &mut Func, at: u32, value: &RefLayout) -> Vec<u32> {
     f.get(at);
     f.helper(Helper::RefIsView);
     f.op(Instruction::If(BlockType::Empty));
+    if let Some(flag) = owned {
+        f.i32(1);
+        f.set(flag);
+    }
     let boxed = f.local(Val::I32);
     f.get(at);
     f.get(at);
@@ -2934,7 +2957,9 @@ pub(crate) fn ref_load(f: &mut Func, at: u32, value: &RefLayout) -> Vec<u32> {
         f.op(leaf.load(0));
         f.set(*l);
     }
-    ref_count(f, &ls, value, true);
+    if owned.is_none() {
+        ref_count(f, &ls, value, true);
+    }
     f.op(Instruction::End);
     ls
 }
@@ -3143,6 +3168,7 @@ fn ref_field_helper(h: &Helper, m: &Module) -> Func {
             field,
             first,
             offset,
+            ..
         }
         | Helper::RefFieldGet {
             parent,
@@ -3169,7 +3195,9 @@ fn ref_field_helper(h: &Helper, m: &Module) -> Func {
             f.u32(offset);
             f.op(Instruction::I32Add);
             f.set(0);
-            if let Some(r) = m.runtime {
+            if !matches!(h, Helper::RefProject { borrowed: true, .. })
+                && let Some(r) = m.runtime
+            {
                 f.get(0);
                 f.call(Sym::Inst(r.retain));
             }
