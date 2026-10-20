@@ -132,7 +132,7 @@ pub struct Input<'a> {
     /// module counts nothing and allocates from a bump pointer.
     pub runtime: Option<Runtime>,
     /// The `std.rt.host_provider` instance per entry row key whose host
-    /// provider is installed behind a reference (`req.ref.host`).
+    /// provider is installed behind a reference (`req.ref.host.reference-values`).
     pub host_refs: &'a [(Ty, Hash128)],
 }
 

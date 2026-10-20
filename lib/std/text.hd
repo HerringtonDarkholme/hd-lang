@@ -11,12 +11,12 @@
 use std.ops.{Template, str_prefix}
 use std.format.DebugWriter
 
-# The standard raw-text prefix (spec/std/text.md#r-std-text.prefix.std.r):
+# The standard raw-text prefix (spec/std/text.md#r-std-text.prefix.std.r.reference-values):
 # no escape is processed.
 @str_prefix
 ## The standard string prefix: raw text with the values' `Display` text interpolated, as in `r"cost $5"`.
-## See [std-text.prefix.std.r](../../spec/std/text.md#r-std-text.prefix.std.r).
-pub fn r(t: Template[dyn Display]) -> string:
+## See [std-text.prefix.std.r.reference-values](../../spec/std/text.md#r-std-text.prefix.std.r.reference-values).
+pub fn r(t: Template[&dyn Display]) -> string:
     interpolate(t)
 
 # The raw pieces joined with the values' `Display` text, in order

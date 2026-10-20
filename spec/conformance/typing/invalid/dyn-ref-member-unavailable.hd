@@ -1,7 +1,7 @@
-# Spec 09 Trait Value References: trait.dyn.ref.member.other. A method that names `Self` beyond its receiver stays unavailable through `&dyn`.
+# Spec 09 Trait Value References: trait.dyn.ref.member.other.reference-values. A method that names `Self` beyond its receiver stays unavailable through `&dyn`.
 trait Versioned:
     fn version(&self) -> i32
     fn newer_than(&self, other: Self) -> bool
 
-fn audit(record: &dyn Versioned, other: dyn Versioned) -> bool:
+fn audit(record: &dyn Versioned, other: &dyn Versioned) -> bool:
     record.newer_than(other)  # diagnostic: dyn-member-unavailable

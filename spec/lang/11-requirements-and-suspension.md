@@ -461,9 +461,9 @@ fn get_order() -> string $ AppRow + Clock:
 7. r[req.row.alias.duplicate] A key reached twice, directly or through aliases, occurs once in the row, as [`req.row.set.duplicate`](#r-req.row.set.duplicate) states, and is not diagnosed.
 8. r[req.row.alias.in-rows] A row alias is written only in a row after `$`: in a requirement clause, or in a [row slot](#row-slots), as in `$.Context[$ AppRow]`.
 9. r[req.row.alias.type-or-key] A row alias is row-kinded. Using one as a value type, a bound, a type-kinded argument, or a single key, as in `$.use(AppRow)` or `AppRow=value`, is an error. Error: `generic-kind-mismatch`.
-10. r[req.row.alias.type-alias] A right side without `$` declares a type alias, never a key, as in `type Users = dyn Store[Item = User]`. It is usable only where a type is, as in `x: Users`.
+10. r[req.row.alias.type-alias.reference-values] A right side without `$` declares a type alias, never a key, as in `type Users = &dyn Store[Item = User]`. It is usable only where a type is, as in `x: Users`.
 11. r[req.row.alias.type-alias.key] A type alias names a type, so writing one where a trait goes, as in `$ Users`, `$.use(Users)`, `Users=value`, or the bound `T < Users`, is an error. Error: `unknown-trait`.
-12. r[req.row.alias.bare-trait] A bare trait on the right side, as in `type Store = Db`, is a trait in a type position, so [`types.trait.value.dyn-required`](04-type-system.md#r-types.trait.value.dyn-required) rejects it. Error: `trait-used-as-type`.
+12. r[req.row.alias.bare-trait.reference-values] A bare trait on the right side, as in `type Store = Db`, is a trait in a type position, so [`types.trait.value.dyn-required.reference-values`](04-type-system.md#r-types.trait.value.dyn-required.reference-values) rejects it. Error: `trait-used-as-type`.
 13. r[req.row.alias.named-key] A key or a set of keys gets a name only through a row alias, as in `type UserRow = $ Store[Item = User]`, written `$ UserRow` in a row.
 14. r[req.row.alias.bound-key] A row alias may list a [bound key](#bound-requirement-keys), as in `type UserRow = $ Store[Item = User] + Log`.
 15. r[req.row.alias.key-written] `$.use`, a binding in `$.with`, and a bound write the trait itself, as in `$.use(Store[Item = User])`.
@@ -516,7 +516,7 @@ fn load(rows: AppRow) -> void: pass  # error: generic-kind-mismatch
 fn read() -> void $ AppRow:
     _ := $.use(AppRow)  # error: generic-kind-mismatch
 
-type Users = dyn Db
+type Users = &dyn Db
 
 fn count() -> i32 $ Users:  # error: unknown-trait
     0
@@ -570,7 +570,7 @@ See also: [Transparent Aliases And Newtypes](04-type-system.md#transparent-alias
 3. r[req.key.inspectable] A trait that is `std.inspect.Inspectable` or has it as a direct or transitive supertrait is never a requirement key.
 4. r[req.key.inspectable.error] Writing one as a key is an error reported on the key. That covers a requirement clause, a provider scope, and any other place a key is named. Error: `inspectable-requirement`.
 5. r[req.key.inspectable.bound] Such a trait remains valid as a bound and as a value type.
-6. r[req.key.any-trait-members] A requirement key may name any trait. A member that is [unavailable](09-traits.md#dynamic-safety) on the value `$.use` yields, a `dyn` value or a [trait value reference](09-traits.md#trait-value-references), is unavailable through `$.use` too.
+6. r[req.key.any-trait-members.reference-values] A requirement key may name any trait. A member unavailable on the trait value reference that `$.use` yields is unavailable through `$.use` too.
 
 ```text
 use std.inspect.Inspectable
@@ -627,7 +627,7 @@ fn wrong(id: string) -> User $ Store[Item = Post]:
 4. r[req.key.binding.identity.example] So `Store[Item = User]` and `Store[Item = Post]` are two keys, as `Repo[User]` and `Repo[Post]` are.
 5. r[req.key.binding.identity.super] A binding that the key's trait fixes through its supertrait list counts as written, as for a trait value ([`trait.dyn.binding.identity`](09-traits.md#r-trait.dyn.binding.identity)). So under `trait PriceFeed < Feed[Item = i32]`, `$ PriceFeed` and `$ PriceFeed[Item = i32]` are one key: a provider given for one covers a function that names the other, and `$.use` of either has the same provider value type.
 6. r[req.key.binding.rows] Row sets, entailment, least row solutions, and row subsumption compare keys by that identity. A row that lists `Store[Item = Post]` therefore does not entail `Store[Item = User]`.
-7. r[req.key.binding.value] The provider value of a bound key has the bound trait value type, so `$.use(Store[Item = User])` has type `dyn Store[Item = User]` and its `load` returns `User`.
+7. r[req.key.binding.value.reference-values] The provider value of a bound key has the bound trait value type, so `$.use(Store[Item = User])` has type `&dyn Store[Item = User]` and its `load` returns `User`.
 8. r[req.key.binding.complete] A requirement key must bind every associated type of its trait, including those that its supertraits declare.
 9. r[req.key.binding.complete.error] A key that leaves one unbound, such as `$ Store` for the `Store` above, is an error, as its trait value type is. Error: `trait-not-dynamically-safe`.
 
@@ -641,7 +641,7 @@ fn count(id: string) -> i32 $ Store:  # error: trait-not-dynamically-safe
 ```
 
 > **Why.** A key names the type of its provider value
-> ([`req.use.value.ordinary-type`](#r-req.use.value.ordinary-type)), and a trait value
+> ([`req.use.value.ordinary-type.reference-values`](#r-req.use.value.ordinary-type.reference-values)), and a trait value
 > type may bind associated types
 > ([Bound Associated Types](09-traits.md#bound-associated-types)). The key
 > takes the same form, so a provider's methods have concrete types.
@@ -673,7 +673,7 @@ trait Clock
 
 ### Provider Values
 
-1. r[req.use.value.ordinary-type] A provider value returned by `$.use(K)` is an ordinary value of type `dyn K`, or a trait value reference to `dyn K` by [`req.ref.use`](#r-req.ref.use).
+1. r[req.use.value.ordinary-type.reference-values] A provider returned by `$.use(K)` has type `&mut dyn K` for a mutable requirement trait, and `&dyn K` otherwise.
 2. r[req.use.value.access-by-trait] Its access follows from its trait, as [Mutable Providers](#mutable-providers) describes: writable for a mutable requirement trait, not writable otherwise.
 3. r[req.use.value.flow] A provider value may flow anywhere an ordinary value of that type may flow, including fields, collections, closure captures, return values, and suspension frames.
 4. r[req.use.value.outlives-scope] A provider value remains usable after its provider scope ends.
@@ -683,7 +683,7 @@ trait Clock
 trait Store:
     fn get(self) -> string
 
-fn keep() -> dyn Store $ Store:
+fn keep() -> &dyn Store $ Store:
     $.use(Store)   # an ordinary value: it may flow into a return
 ```
 
@@ -713,7 +713,7 @@ fn demo!() -> Result[User?, DbError] $ Cache:
 1. r[req.with.block] `$.with` binds providers for one lexical trailing block.
 2. r[req.with.evaluated] Each provider expression is evaluated before entering the block.
 3. r[req.with.type-or-ref] Each provider expression must have a type implementing its named requirement trait, or be a reference to such a type, as [Providers Behind References](#providers-behind-references) states.
-4. r[req.with.type.binding] For a [bound key](#bound-requirement-keys), the provider's implementation must also bind each associated type to the type the key states. A value converting to that trait value type must do the same ([`trait.dyn.binding.convert`](09-traits.md#r-trait.dyn.binding.convert)). A provider whose implementation binds another type is an error. Error: `type-mismatch`.
+4. r[req.with.type.binding.reference-values] For a [bound key](#bound-requirement-keys), the provider's implementation must also bind each associated type to the type the key states. A value converting to that trait value type must do the same ([`trait.dyn.binding.reference-convert`](09-traits.md#r-trait.dyn.binding.reference-convert)). A provider whose implementation binds another type is an error. Error: `type-mismatch`.
 5. r[req.with.nested] Nested scopes may replace an outer provider for the same key within the nested block.
 6. r[req.with.nearest] A call receives, for each key of its row, the nearest provider in effect at the call.
 7. r[req.with.nearest.which] The nearest provider is that of the innermost enclosing `$.with` that binds the key, or else the one the caller received.
@@ -823,12 +823,12 @@ trait Repo[T]
 
 struct User: pass
 
-fn choose[T, U](first: dyn Repo[T], second: dyn Repo[U]) -> void:
+fn choose[T, U](first: &dyn Repo[T], second: &dyn Repo[U]) -> void:
     $.with(Repo[T]=first):
         $.with(Repo[U]=second):  # error: generic-requirement-key-collision
             pass
 
-fn mixed[T](local: dyn Repo[User]) -> void $ Repo[T]:
+fn mixed[T](local: &dyn Repo[User]) -> void $ Repo[T]:
     $.with(Repo[User]=local):  # error: generic-requirement-key-collision
         pass
 ```
@@ -840,14 +840,14 @@ trait Repo[T]
 
 struct User: pass
 
-fn outer[T](generic: dyn Repo[T], local: dyn Repo[User]) -> void:
+fn outer[T](generic: &dyn Repo[T], local: &dyn Repo[User]) -> void:
     $.with(Repo[T]=generic):
         run := fn() -> void:
             $.with(Repo[User]=local):  # valid: the outer block is not compared
                 pass
         run()
 
-fn declared[T](local: dyn Repo[User]) -> void:
+fn declared[T](local: &dyn Repo[User]) -> void:
     _ := fn() -> void $ Repo[T]:
         $.with(Repo[User]=local):  # error: generic-requirement-key-collision
             pass
@@ -969,7 +969,7 @@ fn tick() -> void $ mut Counter:  # error: syntax-error
 > change. `$.use` then yields a writable provider, and installing a `&T`
 > reference becomes `mutable-upgrade`. Adding a first `&self` or
 > `&mut self` method changes the type of `$.use` too
-> ([`req.ref.use`](#r-req.ref.use)).
+> ([`req.ref.use.reference-values`](#r-req.ref.use.reference-values)).
 
 > **Note.** Two tasks in one provider scope, such as the children of
 > `std.task.all!`, share one mutable provider. Each sees the other's changes
@@ -995,8 +995,8 @@ pub fn main() -> void:
 
 ### Retrieving
 
-1. r[req.mut.use-writable] For a mutable requirement trait `K`, `$.use(K)` yields a writable provider, `&mut dyn K` by [`req.ref.use`](#r-req.ref.use). The methods of `K` that change their receiver may be called on it.
-2. r[req.mut.use-readonly] For any other trait, `$.use(K)` yields `dyn K`, or `&dyn K` by [`req.ref.use`](#r-req.ref.use).
+1. r[req.mut.use-writable.reference-values] For a mutable requirement trait `K`, `$.use(K)` yields a writable provider, `&mut dyn K` by [`req.ref.use.reference-values`](#r-req.ref.use.reference-values). The methods of `K` that change their receiver may be called on it.
+2. r[req.mut.use-readonly.reference-values] For a trait without a mutable receiver, `$.use(K)` yields `&dyn K`.
 3. r[req.mut.use.binding] The ordinary binding rules still apply to the result: a `:=` binding is not writable, so a method declared `mut self` cannot be called through it. Error: `not-writable`.
 
 ```text
@@ -1011,7 +1011,7 @@ fn tick() -> void $ Counter:
 
 > **Note.** Code that keeps a mutable provider in a local writes
 > `let mut counter = $.use(Counter)`. A `&mut dyn K` provider
-> ([`req.ref.use`](#r-req.ref.use)) stays writable in a `:=` binding, as
+> ([`req.ref.use.reference-values`](#r-req.ref.use.reference-values)) stays writable in a `:=` binding, as
 > every `&mut` reference does.
 
 ### Access In Rows
@@ -1088,11 +1088,11 @@ fn demo() -> i32:
 
 ### Keys Of Reference Receiver Traits
 
-1. r[req.ref.key] When a key's trait, or one of its supertraits, declares a `&self` or `&mut self` method, its provider is a [trait value reference](09-traits.md#trait-value-references).
-2. r[req.ref.use] `$.use(K)` of such a key yields `&mut dyn K` for a mutable requirement trait, and `&dyn K` for any other trait.
+1. r[req.ref.key.reference-values] Every requirement provider is a [trait value reference](09-traits.md#trait-value-references).
+2. r[req.ref.use.reference-values] `$.use(K)` yields `&mut dyn K` for a mutable requirement trait, and `&dyn K` otherwise.
 3. r[req.ref.install-ref] The expression of a binding `K=expression` for such a key converts to that type as any value does, by [Trait Value References](09-traits.md#trait-value-references). So `&S` and `&mut S` share the place they refer to, and a value of `S` is an error whose fix-it writes `&` or `&mut`. Error: `type-mismatch`.
 4. r[req.ref.same-place] Every `$.use(K)` that reaches one provider refers to the place that provider refers to. So `is` between two of them is true, and so is `is` with a reference converted from the one installed.
-5. r[req.ref.host] A runtime profile or a registration contract installs its host provider for such a key as a trait value reference too, of the type `$.use(K)` yields, to a new object that holds the host's implementation. So every `$.use(K)` below one entry refers to one place.
+5. r[req.ref.host.reference-values] A host provider is a trait value reference to a new object holding the host implementation; every `$.use(K)` below that entry refers to the same place.
 
 ```text
 trait Counter:
@@ -1110,16 +1110,14 @@ fn shared(tally: &Tally) -> void:
         pass
 ```
 
-> **Why.** A bare `dyn` value holds no reference to pass to a `&self` or
-> `&mut self` method, so the provider of such a trait is a reference
-> whatever expression installs it.
+> **Why.** Every provider is a reference. Reference-receiver traits require
+> a written reference so their writes reach the chosen place.
 
 ### References To Other Providers
 
-1. r[req.ref.share] For a key whose trait has no `&self` or `&mut self` method, the expression of a binding may be a reference `&S` or `&mut S` when `S` implements `K`. Its provider is the trait value `dyn K` that refers to the place the reference refers to.
+1. r[req.ref.share.reference-values] A provider for a trait without reference receivers accepts `&S` or `&mut S`, sharing its place, or a value of `S`, copied into a new object.
 2. r[req.ref.share.impl] A reference to a type that does not implement `K` explicitly is an error. Error: `type-mismatch`.
 3. r[req.ref.share.write-through] A method that changes its receiver, called on that provider through `$.use(K)`, changes that place.
-4. r[req.ref.share.no-trait-value-ref] A trait value reference is no provider for such a key. Error: `type-mismatch`.
 
 ```hd
 trait Inventory:
@@ -1133,7 +1131,7 @@ impl Inventory for Shelf:
         self.apples
 
 fn count() -> i32 $ Inventory:
-    $.use(Inventory).stock("apple")  # a `dyn Inventory` that refers to `shelf`
+    $.use(Inventory).stock("apple")  # a `&dyn Inventory` that refers to `shelf`
 
 fn demo() -> i32:
     let shelf = Shelf { apples: 10 }
@@ -1141,10 +1139,8 @@ fn demo() -> i32:
         count()  # 10
 ```
 
-> **Why.** The trait has no `&self` or `&mut self` method, so its provider
-> stays the trait value `dyn K`, and code that names that type keeps
-> checking. The trait value shares the place, as a trait value reference
-> made from the same reference would.
+> **Why.** Existing references share their place; a value provider is copied
+> into a new object. Both yield the same reference type from `$.use`.
 
 See also: [Mutable Providers](#mutable-providers).
 
@@ -1399,7 +1395,7 @@ Standard-library suspension implementations access the waker of a
 struct PollContext: pass
 
 impl PollContext:
-    fn waker(self) -> dyn Waker
+    fn waker(self) -> &dyn Waker
 
 trait Waker:
     fn wake(self) -> void

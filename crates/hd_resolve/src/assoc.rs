@@ -256,7 +256,7 @@ pub fn with_super_bindings(pool: Types<'_>, view: &dyn TraitView, t: Ty) -> Ty {
 
 /// The associated types a trait value type leaves unbound: those of its
 /// trait and its supertraits that neither it nor a supertrait list binds
-/// (trait.dyn.binding.complete, req.key.binding.complete). A binding that
+/// (trait.dyn.binding.complete.reference-values, req.key.binding.complete). A binding that
 /// names `Self` still fixes its type.
 #[must_use]
 pub fn unbound_assocs(pool: Types<'_>, view: &dyn TraitView, t: Ty) -> Vec<DefId> {

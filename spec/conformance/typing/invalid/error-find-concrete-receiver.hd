@@ -1,5 +1,5 @@
 # test: find is an inherent method of dyn Error, so a concrete error converts to dyn Error before the call
-# Spec std/error Root Cause And Find: std-error.dyn-reference-receiver; Spec 09 Error Trait: trait.error.dyn-methods.reference-receiver.
+# Spec std/error Root Cause And Find: std-error.dyn-reference-receiver.reference-values; Spec 09 Error Trait: trait.error.dyn-methods.reference-receiver.
 use std.error.Error
 
 @error("disk full")

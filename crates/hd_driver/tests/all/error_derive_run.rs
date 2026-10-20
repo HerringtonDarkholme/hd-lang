@@ -145,8 +145,7 @@ pub fn main() -> void $ Console:
 
 #[test]
 fn source_members_are_the_cause() {
-    let main = "\
-use std.error.{Error, chain}
+    let main = "use std.error.{Error, chain}
 
 @error(\"disk full\")
 struct DiskError:
@@ -166,15 +165,15 @@ enum SyncError:
     @error(\"sync failed\")
     Save(@from error: SaveError)
 
-fn has_cause(error: dyn Error) -> bool:
+fn has_cause(error: &dyn Error) -> bool:
     error.cause().is_some()
 
 pub fn main() -> void $ Console:
-    println(has_cause(SaveError.Write(\"a\", DiskError { free: 0 })))
-    println(has_cause(SaveError.Open(\"a\", .None)))
-    println(has_cause(SaveError.Open(\"a\", DiskError { free: 0 })))
-    println(has_cause(SaveError.ReadOnly))
-    println(has_cause(DiskError { free: 0 }))
+    println(has_cause(&SaveError.Write(\"a\", DiskError { free: 0 })))
+    println(has_cause(&SaveError.Open(\"a\", .None)))
+    println(has_cause(&SaveError.Open(\"a\", DiskError { free: 0 })))
+    println(has_cause(&SaveError.ReadOnly))
+    println(has_cause(&DiskError { free: 0 }))
     println(chain(&SyncError.Save(SaveError.Write(\"a\", DiskError { free: 0 }))).len())
     println(chain(&SyncError.Save(SaveError.ReadOnly)).len())
 ";

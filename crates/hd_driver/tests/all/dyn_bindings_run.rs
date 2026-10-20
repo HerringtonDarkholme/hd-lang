@@ -123,21 +123,21 @@ impl[K] Lookup for Pair[K]:
     fn find(self, key: K) -> K?: .Some(self.key)
     fn keys(self) -> List[K]: [self.key]
 
-fn numbers(book: dyn Lookup[Key = string, Value = i32]) -> void:
+fn numbers(book: &dyn Lookup[Key = string, Value = i32]) -> void:
     pass
 
-fn same(pair: dyn Lookup[Key = i32, Value = i32]) -> void:
+fn same(pair: &dyn Lookup[Key = i32, Value = i32]) -> void:
     pass
 
 pub fn main() -> void:
-    numbers(PhoneBook {{ names: [], numbers: [] }})
-    same(Pair {{ key: 1 }})
+    numbers(&PhoneBook {{ names: [], numbers: [] }})
+    same(&Pair {{ key: 1 }})
 "
     );
     assert_eq!(codes_of(&main), Vec::<Code>::new());
     let wrong = format!(
         "{LOOKUP}
-fn numbers(book: dyn Lookup[Key = string, Value = i32]) -> void:
+fn numbers(book: &dyn Lookup[Key = string, Value = i32]) -> void:
     pass
 
 pub fn main() -> void:
@@ -151,17 +151,17 @@ pub fn main() -> void:
 fn the_checker_reads_a_projection_through_a_trait_value_as_its_bound_type() {
     let main = format!(
         "{LOOKUP}
-fn number(book: dyn Lookup[Key = string, Value = i32], name: string) -> i32:
+fn number(book: &dyn Lookup[Key = string, Value = i32], name: string) -> i32:
     book.find(name).unwrap_or(0)
 
 pub fn main() -> void:
-    _ := number(PhoneBook {{ names: [\"ada\"], numbers: [1] }}, \"ada\")
+    _ := number(&PhoneBook {{ names: [\"ada\"], numbers: [1] }}, \"ada\")
 "
     );
     assert_eq!(codes_of(&main), Vec::<Code>::new());
     let wrong = format!(
         "{LOOKUP}
-fn number(book: dyn Lookup[Key = string, Value = i32], name: string) -> string:
+fn number(book: &dyn Lookup[Key = string, Value = i32], name: string) -> string:
     book.find(name).unwrap_or(0)
 "
     );
@@ -172,18 +172,18 @@ fn number(book: dyn Lookup[Key = string, Value = i32], name: string) -> string:
 fn a_slot_returning_a_projection_runs_at_the_bound_type() {
     let main = format!(
         "{LOOKUP}
-fn number(book: dyn Lookup[Key = string, Value = i32], name: string) -> i32:
+fn number(book: &dyn Lookup[Key = string, Value = i32], name: string) -> i32:
     book.find(name).unwrap_or(-1)
 
-fn square(table: dyn Lookup[Value = string, Key = i32], key: i32) -> string:
+fn square(table: &dyn Lookup[Value = string, Key = i32], key: i32) -> string:
     table.find(key).unwrap_or(\"none\")
 
 pub fn main() -> void $ Console:
     book := PhoneBook {{ names: [\"ada\", \"alan\"], numbers: [100, 200] }}
-    println(number(book, \"alan\"))
-    println(number(book, \"eve\"))
-    println(square(Squares {{ size: 4 }}, 3))
-    println(square(Squares {{ size: 4 }}, 9))
+    println(number(&book, \"alan\"))
+    println(number(&book, \"eve\"))
+    println(square(&Squares {{ size: 4 }}, 3))
+    println(square(&Squares {{ size: 4 }}, 9))
 "
     );
     assert_eq!(output_of("slot", &main), "200\n-1\n9\nnone\n");
@@ -194,8 +194,8 @@ fn trait_values_that_bind_differently_get_their_own_vtables() {
     let main = format!(
         "{LOOKUP}
 pub fn main() -> void $ Console:
-    let book: dyn Lookup[Key = string, Value = i32] = PhoneBook {{ names: [\"ada\"], numbers: [7] }}
-    let table: dyn Lookup[Key = i32, Value = string] = Squares {{ size: 3 }}
+    let book: &dyn Lookup[Key = string, Value = i32] = &PhoneBook {{ names: [\"ada\"], numbers: [7] }}
+    let table: &dyn Lookup[Key = i32, Value = string] = &Squares {{ size: 3 }}
     println(book.keys().len())
     println(table.keys().len())
     for k in table.keys():
@@ -213,7 +213,7 @@ fn first_key[L < Lookup](table: L) -> L::Key?:
     table.keys().first()
 
 pub fn main() -> void $ Console:
-    let table: dyn Lookup[Key = i32, Value = string] = Squares {{ size: 3 }}
+    let table: &dyn Lookup[Key = i32, Value = string] = &Squares {{ size: 3 }}
     println(first_key(table).unwrap_or(-1))
 "
     );

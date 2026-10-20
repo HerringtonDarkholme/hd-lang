@@ -124,7 +124,7 @@ fn first[S < Supplier](s: S) -> S::Item:
 pub fn main() -> void:
     service := Service {{ Logger: Logger {{ name: \"api\", hits: 1 }}, port: 80 }}
     _ := service.get() + first(service)
-    let erased: dyn Supplier[Item = i32] = service
+    let erased: &dyn Supplier[Item = i32] = &service
     _ := erased.get() + 1
 "
     );
@@ -177,14 +177,14 @@ struct Service:
 fn generated_methods_forward_to_the_parts_implementation() {
     let main = format!(
         "{PARTS}
-fn show(value: dyn Describe) -> string:
+fn show(value: &dyn Describe) -> string:
     value.headline()
 
 pub fn main() -> void $ Console:
     service := Service {{ Logger: Logger {{ name: \"api\", hits: 0 }}, port: 80 }}
     println(service.describe())
     println(service.headline())
-    println(show(service))
+    println(show(&service))
     println(service.wrap(\"x\").len())
 "
     );
@@ -218,14 +218,14 @@ fn a_delegated_associated_type_normalizes_at_every_use() {
 fn first[S < Supplier](s: S) -> S::Item:
     s.get()
 
-fn read(source: dyn Supplier[Item = i32]) -> i32:
+fn read(source: &dyn Supplier[Item = i32]) -> i32:
     source.get() * 10
 
 pub fn main() -> void $ Console:
     service := Service {{ Logger: Logger {{ name: \"api\", hits: 4 }}, port: 80 }}
     println(service.get() + 1)
     println(first(service))
-    println(read(service))
+    println(read(&service))
 "
     );
     assert_eq!(output_of("assoc", &main), "5\n4\n40\n");
@@ -233,8 +233,7 @@ pub fn main() -> void $ Console:
 
 #[test]
 fn a_generic_part_delegates_at_the_targets_arguments() {
-    let main = "\
-trait Supplier:
+    let main = "trait Supplier:
     type Item
     fn get(self) -> Self::Item
     fn twice(self) -> List[Self::Item]:
@@ -261,7 +260,7 @@ pub fn main() -> void $ Console:
     println(shelf.get() + 1)
     println(first(shelf))
     println(shelf.twice().len())
-    let s: dyn Supplier[Item = string] = Shelf { Box: Box { value: \"hi\" }, label: \"b\" }
+    let s: &dyn Supplier[Item = string] = &Shelf { Box: Box { value: \"hi\" }, label: \"b\" }
     println(s.get())
 ";
     assert_eq!(output_of("generic", main), "8\n7\n2\nhi\n");

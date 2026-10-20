@@ -30,6 +30,7 @@ pub(crate) enum Named {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum NameRole {
     Type,
+    Referent,
     Trait,
 }
 
@@ -259,7 +260,7 @@ impl Ck<'_, '_> {
             // `unknown-trait` where a trait is written (`req.key.in-scope`).
             if let [name] = segs.as_slice() {
                 let (code, what) = match role {
-                    NameRole::Type => (Code::UnknownType, "type"),
+                    NameRole::Type | NameRole::Referent => (Code::UnknownType, "type"),
                     NameRole::Trait => (Code::UnknownTrait, "trait"),
                 };
                 self.err(
@@ -317,9 +318,9 @@ impl Ck<'_, '_> {
             }
         }
         if self.kind_of_item(def) == Some(HeadKind::Trait) {
-            if role == NameRole::Type {
+            if role != NameRole::Trait {
                 // A bare trait name in a type position
-                // (`types.trait.value.dyn-required`); the fix is `dyn`.
+                // (`types.trait.value.dyn-required.reference-values`); the fix is `dyn`.
                 let name = self.cx.names.display_name(def);
                 let msg = format!("`{name}` is a trait, not a type");
                 self.err(Code::TraitUsedAsType, n, &msg);
@@ -328,11 +329,13 @@ impl Ck<'_, '_> {
                     hi: span.lo,
                     ..span
                 };
-                self.diags.add_fix(
-                    "insert `dyn` before the trait name",
-                    hd_diag::FixSafety::Exact,
-                    &[(at, "dyn ")],
-                );
+                let (title, prefix) = if role == NameRole::Referent {
+                    ("insert `dyn` before the trait name", "dyn ")
+                } else {
+                    ("insert `&dyn` before the trait name", "&dyn ")
+                };
+                self.diags
+                    .add_fix(title, hd_diag::FixSafety::Exact, &[(at, prefix)]);
                 return Ok(Ty::POISON);
             }
             // A written trait value omits its defaulted trailing arguments
@@ -548,7 +551,7 @@ impl Ck<'_, '_> {
     }
 
     /// A trait value type binds every associated type of its trait and
-    /// supertraits (trait.dyn.binding.complete, req.key.binding.complete).
+    /// supertraits (trait.dyn.binding.complete.reference-values, req.key.binding.complete).
     fn require_complete(&mut self, t: Ty, at: NodeRef<'_>) {
         let view = hd_resolve::assoc::LookupView {
             lookup: self.cx.lookup,
@@ -707,7 +710,10 @@ impl Ck<'_, '_> {
                 }
                 pool.intern_ty(&TyData::Mut(t))
             }
-            SyntaxKind::ParenType => first(self, n)?,
+            SyntaxKind::ParenType => match n.children().find(|c| c.kind().is_type()) {
+                Some(child) => self.ty_node_as(child, role)?,
+                None => Ty::VOID,
+            },
             SyntaxKind::TupleType => {
                 let mut elems = Vec::new();
                 let mut rest = None;
@@ -735,19 +741,29 @@ impl Ck<'_, '_> {
                     rest,
                 })
             }
-            SyntaxKind::DynType => match Src::child(n, SyntaxKind::NamedType) {
-                Some(c) => {
-                    let t = self.named_ty_as(c, NameRole::Trait)?;
-                    let view = hd_resolve::assoc::LookupView {
-                        lookup: self.cx.lookup,
-                        names: &self.cx.names,
-                    };
-                    let t = hd_resolve::assoc::with_super_bindings(pool, &view, t);
-                    self.require_complete(t, n);
-                    t
+            SyntaxKind::DynType => {
+                if role != NameRole::Referent {
+                    self.err(
+                        Code::TraitUsedAsType,
+                        n,
+                        "a trait value needs a reference type, `&dyn` or `&mut dyn`",
+                    );
+                    return Ok(Ty::POISON);
                 }
-                None => return unsupported("this `dyn` form"),
-            },
+                match Src::child(n, SyntaxKind::NamedType) {
+                    Some(c) => {
+                        let t = self.named_ty_as(c, NameRole::Trait)?;
+                        let view = hd_resolve::assoc::LookupView {
+                            lookup: self.cx.lookup,
+                            names: &self.cx.names,
+                        };
+                        let t = hd_resolve::assoc::with_super_bindings(pool, &view, t);
+                        self.require_complete(t, n);
+                        t
+                    }
+                    None => return unsupported("this `dyn` form"),
+                }
+            }
             SyntaxKind::FunctionType => {
                 let arrow = n
                     .direct_token(&self.cx.src.parse.tokens, TokenKind::Arrow)
@@ -827,7 +843,10 @@ impl Ck<'_, '_> {
                 let mutable = n
                     .direct_token(&self.cx.src.parse.tokens, hd_syntax::TokenKind::KwMut)
                     .is_some();
-                let inner = first(self, n)?;
+                let inner = match n.children().find(|c| c.kind().is_type()) {
+                    Some(child) => self.ty_node_as(child, NameRole::Referent)?,
+                    None => Ty::VOID,
+                };
                 let inner = match pool.get(inner) {
                     TyData::Mut(i) => i,
                     _ => inner,

@@ -60,8 +60,7 @@ fn output_of(name: &str, main: &str) -> String {
 
 #[test]
 fn to_string_on_a_dyn_error_reads_the_display_vtable() {
-    let main = "\
-use std.error.Error
+    let main = "use std.error.Error
 
 @error(\"disk full on $device\")
 struct DiskError:
@@ -75,12 +74,12 @@ impl Display for Timeout:
 
 impl Error for Timeout
 
-fn message(error: dyn Error) -> string:
+fn message(error: &dyn Error) -> string:
     error.to_string()
 
 pub fn main() -> void $ Console:
-    println(message(DiskError { device: \"sda\" }))
-    println(message(Timeout { seconds: 3 }))
+    println(message(&DiskError { device: \"sda\" }))
+    println(message(&Timeout { seconds: 3 }))
 ";
     assert_eq!(
         output_of("dyn-error", main),
@@ -90,8 +89,7 @@ pub fn main() -> void $ Console:
 
 #[test]
 fn a_two_level_chain_reaches_the_grandparent_method() {
-    let main = "\
-trait Named:
+    let main = "trait Named:
     fn name(self) -> string
 
 trait Greeter < Named:
@@ -112,11 +110,11 @@ impl Greeter for Concierge:
 impl Host for Concierge:
     fn room(self) -> string: \"lobby\"
 
-fn introduce(host: dyn Host) -> string:
+fn introduce(host: &dyn Host) -> string:
     \"${host.greeting()}, I am ${host.name()} in the ${host.room()}\"
 
 pub fn main() -> void $ Console:
-    println(introduce(Concierge { who: \"Ada\" }))
+    println(introduce(&Concierge { who: \"Ada\" }))
 ";
     assert_eq!(
         output_of("two-level", main),
@@ -126,8 +124,7 @@ pub fn main() -> void $ Console:
 
 #[test]
 fn a_child_value_widens_where_a_supertrait_value_is_expected() {
-    let main = "\
-trait Named:
+    let main = "trait Named:
     fn name(self) -> string
 
 trait Greeter < Named:
@@ -148,14 +145,14 @@ impl Greeter for Concierge:
 impl Host for Concierge:
     fn room(self) -> string: \"lobby\"
 
-fn name_of(named: dyn Named) -> string:
+fn name_of(named: &dyn Named) -> string:
     named.name()
 
-fn greet(greeter: dyn Greeter) -> string:
+fn greet(greeter: &dyn Greeter) -> string:
     \"${greeter.greeting()} from ${name_of(greeter)}\"
 
 pub fn main() -> void $ Console:
-    let host: dyn Host = Concierge { who: \"Ada\" }
+    let host: &dyn Host = &Concierge { who: \"Ada\" }
     println(greet(host))
     println(name_of(host))
 ";
@@ -164,8 +161,7 @@ pub fn main() -> void $ Console:
 
 #[test]
 fn a_blanket_parent_impl_answers_through_the_child_value() {
-    let main = "\
-trait Score:
+    let main = "trait Score:
     fn score(self) -> i32
 
 trait Measure:
@@ -188,7 +184,7 @@ impl[Item < Score] Scored for List[Item]:
 
 pub fn main() -> void $ Console:
     let points: List[Point] = [Point { value: 42 }]
-    let dynamic: dyn Scored = points
+    let dynamic: &dyn Scored = &points
     println(dynamic.measure())
 ";
     assert_eq!(output_of("blanket", main), "42\n");
@@ -196,8 +192,7 @@ pub fn main() -> void $ Console:
 
 #[test]
 fn a_generic_supertrait_takes_the_child_arguments() {
-    let main = "\
-trait Source[Output]:
+    let main = "trait Source[Output]:
     fn source(self) -> Output
 
 trait Wrapped[Item] < Source[List[Item]]:
@@ -212,11 +207,11 @@ impl[T] Source[List[T]] for Crate[T]:
 impl[T] Wrapped[T] for Crate[T]:
     fn count(self) -> i32: 2
 
-fn first(source: dyn Source[List[string]]) -> string:
+fn first(source: &dyn Source[List[string]]) -> string:
     source.source()[0]
 
 pub fn main() -> void $ Console:
-    let wrapped: dyn Wrapped[string] = Crate::[string] { item: \"apple\" }
+    let wrapped: &dyn Wrapped[string] = &Crate::[string] { item: \"apple\" }
     println(wrapped.source().len())
     println(first(wrapped))
 ";
@@ -225,8 +220,7 @@ pub fn main() -> void $ Console:
 
 #[test]
 fn a_diamond_reaches_the_shared_parent_through_both_paths() {
-    let main = "\
-trait Base:
+    let main = "trait Base:
     fn base(self) -> i32
 
 trait Left < Base:
@@ -253,14 +247,14 @@ impl Right for Num:
 impl Both for Num:
     fn both(self) -> i32: self.n + 3
 
-fn via_left(left: dyn Left) -> i32:
+fn via_left(left: &dyn Left) -> i32:
     left.base() + left.left()
 
-fn via_right(right: dyn Right) -> i32:
+fn via_right(right: &dyn Right) -> i32:
     right.base() + right.right()
 
 pub fn main() -> void $ Console:
-    let both: dyn Both = Num { n: 10 }
+    let both: &dyn Both = &Num { n: 10 }
     println(both.base() + both.both())
     println(via_left(both))
     println(via_right(both))

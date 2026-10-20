@@ -1,5 +1,5 @@
-# test: a legacy bare erased error through a generic context must not produce an invalid recovery payload
-# Spec 09 Trait Values As Bounds: trait.dyn.bound; Error Trait: trait.error.inherent-recovery.
+# test: an erased error reference keeps its recovery payload through a generic context
+# Spec 09 Trait Values As Bounds: trait.dyn.bound.reference; Error Trait: trait.error.inherent-recovery.reference-values.
 # expect-stdout: 3
 use std.error.Error
 @error("inner")
@@ -11,8 +11,8 @@ fn wrapped[E < Error](error: E) -> &dyn Error:
         .Err(failure) => failure
         .Ok(_) => panic("expected an error")
 pub fn main() -> void $ Console:
-    let bare: dyn Error = UserError { count: 3 }
-    failure := wrapped(bare)
+    let original: &dyn Error = &UserError { count: 3 }
+    failure := wrapped(original)
     match failure.find::[UserError]():
         .Some(found) => println(found.count)
         .None => println("none")

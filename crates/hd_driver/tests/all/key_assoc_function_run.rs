@@ -1,5 +1,5 @@
 //! A trait with an associated function (no `self`) as a requirement key
-//! and as a `dyn` type (spec 11 req.key.any-trait-members; spec 09
+//! and as a `dyn` type (spec 11 req.key.any-trait-members.reference-values; spec 09
 //! trait.dyn.member.assoc-function). The associated function has no
 //! vtable slot, so a module that only uses the other members validates
 //! and runs; calling it through the provider or the `dyn` value is
@@ -101,11 +101,11 @@ pub fn main() -> void $ Console:
 fn a_dyn_value_of_a_trait_with_an_associated_function_calls_its_other_members() {
     let main = format!(
         "{FACTORY}
-fn show(f: dyn Factory) -> string:
+fn show(f: &dyn Factory) -> string:
     f.name()
 
 pub fn main() -> void $ Console:
-    println(show(D {{ n: 1 }}))
+    println(show(&D {{ n: 1 }}))
 "
     );
     assert_eq!(output_of("dyn", &main), "d\n");
@@ -181,7 +181,7 @@ pub fn main() -> void:
 fn an_associated_function_through_a_dyn_value_is_unavailable_once_at_the_call() {
     let main = format!(
         "{FACTORY}
-fn build(f: dyn Factory) -> string:
+fn build(f: &dyn Factory) -> string:
     f.create().name()
 
 pub fn main() -> void:

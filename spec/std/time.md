@@ -239,7 +239,7 @@ pub trait Clock:
 4. r[std-time.clock.sleep] `sleep!(duration)` completes once `duration` has passed on the clock.
 5. r[std-time.clock.sleep.zero] `sleep!` with a zero `duration` completes without waiting.
 6. r[std-time.clock.plain-reads] `now` and `monotonic` are plain calls. Only `sleep!` suspends.
-7. r[std-time.clock.mut-ref] `sleep!` takes `&mut self`, so `Clock` is a mutable requirement trait, `$.use(Clock)` is a `&mut dyn Clock` by [`req.ref.use`](../lang/11-requirements-and-suspension.md#r-req.ref.use), and a provider may advance its own time.
+7. r[std-time.clock.mut-ref.reference-values] `sleep!` takes `&mut self`, so `Clock` is a mutable requirement trait, `$.use(Clock)` is a `&mut dyn Clock` by [`req.ref.use.reference-values`](../lang/11-requirements-and-suspension.md#r-req.ref.use.reference-values), and a provider may advance its own time.
 
 > **Why.** A clock read is a value from the host, as an environment read
 > is, so it needs no driver. Replay records it at the boundary either

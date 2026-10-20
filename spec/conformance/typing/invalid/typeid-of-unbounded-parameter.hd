@@ -1,5 +1,5 @@
 # test: a type parameter without an Inspectable bound is not inspectable
-# Spec 09 Types That Are Not Inspectable: trait.inspectable.not.parameter; Limits Of Runtime Identity: trait.limit.signatures, trait.limit.signatures.branch.
+# Spec 09 Types That Are Not Inspectable: trait.inspectable.not.parameter; Limits Of Runtime Identity: trait.limit.signatures.reference-values, trait.limit.signatures.branch.
 use std.inspect.TypeId
 
 fn kind_of[T](value: T) -> TypeId:

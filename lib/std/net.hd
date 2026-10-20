@@ -53,7 +53,7 @@ impl Display for NetError:
             .Closed => "the socket is closed"
             .Other(message) => message
 
-# A std error type implements `Error` (r-std-error.std-types.impl).
+# A std error type implements `Error` (r-std-error.std-types.impl.reference-values).
 impl Error for NetError
 
 # A socket is a handle behind a trait value reference, `&mut dyn

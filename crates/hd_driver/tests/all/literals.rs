@@ -295,19 +295,19 @@ fn an_open_literal_wraps_into_an_optional() {
 
 #[test]
 fn a_literal_converts_to_a_trait_value_at_its_default_type() {
-    // `types.literal.local.erased`: `5` is a `usize`, which is `Display`.
+    // `types.literal.local.erased.reference-values`: `5` is a `usize`, which is `Display`.
     assert_clean(&format!(
-        "fn f() -> string:\n    let x: dyn Display = 5\n    \"$x\"\n{MAIN}"
+        "fn f() -> string:\n    let x: &dyn Display = &5\n    \"$x\"\n{MAIN}"
     ));
     let gauge = "trait Gauge:\n    fn level(self) -> f64\n\nimpl Gauge for f64:\n    fn level(self) -> f64:\n        self\n\n";
     assert_clean(&format!(
-        "{gauge}fn f() -> f64:\n    let g: dyn Gauge = 0.5\n    g.level()\n{MAIN}"
+        "{gauge}fn f() -> f64:\n    let g: &dyn Gauge = &0.5\n    g.level()\n{MAIN}"
     ));
     // `0` falls back to `usize`, which is no `Gauge`; a value whose type
-    // lacks the impl does not convert (`trait.dyn.convert`).
+    // lacks the impl does not convert (`trait.dyn.convert.reference-values`).
     assert_eq!(
         errors(&format!(
-            "{gauge}fn f() -> f64:\n    let g: dyn Gauge = 0\n    g.level()\n{MAIN}"
+            "{gauge}fn f() -> f64:\n    let g: &dyn Gauge = &0\n    g.level()\n{MAIN}"
         )),
         vec![Code::TypeMismatch]
     );

@@ -94,7 +94,7 @@ pub fn tests_block_statements<'t>(src: &Src<'t>) -> Vec<NodeRef<'t>> {
 }
 
 /// Whether a block, or a closure's body, holds a `?` outside any nested
-/// closure or function (`expr.try.test.with-try`).
+/// closure or function (`expr.try.test.with-try.reference-values`).
 pub(crate) fn has_try(n: NodeRef<'_>) -> bool {
     n.children().any(|c| match c.kind() {
         SyntaxKind::TryExpr => true,
@@ -461,7 +461,7 @@ enum CaseBody<'t> {
 /// One `it` body: a suspending function item with no parameters, whose
 /// row is the keys of `profile` that its body uses, which the runner binds
 /// for it. A trailing block is the item's body, with the fixed result
-/// `void`, or `Result[void, dyn Error]` when it uses `?`
+/// `void`, or `Result[void, &dyn Error]` when it uses `?`
 /// (`expr.try.test.fixed-result`). An explicit closure keeps its own
 /// result: the item's body calls it and returns what it returns
 /// (`expr.try.test.explicit-closure`). A `timeout` argument is evaluated
@@ -577,8 +577,8 @@ fn call_body(ck: &mut Ck<'_, '_>, e: NodeRef<'_>) -> StageResult<(Ref, Ty)> {
     Ok((r, t))
 }
 
-/// A test body's result: `void`, or `Result[void, dyn Error]` when it
-/// uses `?` (`expr.try.test.with-try`, `expr.try.test.without-try`).
+/// A test body's result: `void`, or `Result[void, &dyn Error]` when it
+/// uses `?` (`expr.try.test.with-try.reference-values`, `expr.try.test.without-try`).
 pub(crate) fn case_result(cx: &BodyCx<'_>, tries: bool) -> Ty {
     let pool = cx.names.pool;
     if !tries {
@@ -588,6 +588,10 @@ pub(crate) fn case_result(cx: &BodyCx<'_>, tries: bool) -> Ty {
         def: cx.names.item("std.error", "Error"),
         args: TyList::EMPTY,
         bindings: vec![],
+    });
+    let error = pool.intern_ty(&TyData::Ref {
+        inner: error,
+        mutable: false,
     });
     pool.intern_ty(&TyData::Adt {
         def: cx.names.item("std.core", "Result"),
@@ -658,7 +662,7 @@ fn add_key(cx: &BodyCx<'_>, used: &mut RowData, runner: DefId) {
 /// `e` against the registration function's signature and runs the std body
 /// of its test case with the call's arguments (`case_runner`). Its result
 /// is the registration body's, `void` or, when that body uses `?`,
-/// `Result[void, dyn Error]` (`module.testing.reg.body-closure-result`). Its
+/// `Result[void, &dyn Error]` (`module.testing.reg.body-closure-result.reference-values`). Its
 /// row is the keys of `profile` that the body uses, and the runner
 /// capability that the std body uses: `TestRunner` for a table,
 /// `PropertyRunner` for a property, which the runner binds for that std

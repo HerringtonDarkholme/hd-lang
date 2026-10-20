@@ -20,7 +20,7 @@ use hd_base::{DefId, LocalId, StageResult};
 use hd_intern::PathKind;
 use hd_resolve::ItemData;
 use hd_tir::Body;
-use hd_tir::ir::{BodyKind, Callee, Coercion, NONE, Providers, Ref, Tag, TirBuilder, TirSink};
+use hd_tir::ir::{BodyKind, Callee, NONE, Providers, Ref, Tag, TirBuilder, TirSink};
 use hd_types::{ParamRef, Prim, Ty, TyData, TyList};
 
 use super::{Cx, Gen, Handles, Mem, SYN, Shape, Var, strip_mut};
@@ -191,12 +191,24 @@ impl Gen<'_, '_> {
     /// Writes the value the reference `r` refers to, of type `inner`: a
     /// read through its `get` closure (`crates/hd_wasm/DESIGN.md` §15.2,
     /// "References"), printed by its own `dbg_show`.
-    fn referent(&mut self, out: (LocalId, Ty), inner: Ty, r: Ref) {
-        let get_ty = self.fn_ty(&[], inner);
-        let get = self.b.emit(Tag::Field, r.0, 0, get_ty, SYN);
-        let rec = self.b.refs_record(&[]);
-        let value = self.b.emit(Tag::CallValue, get.0, rec, inner, SYN);
-        self.part(out, inner, value);
+    fn referent(&mut self, out: (LocalId, Ty), inner: Ty, r: Ref) -> StageResult<()> {
+        let pool = self.names.pool;
+        let any = pool.intern_ty(&TyData::TraitValue {
+            def: self.names.known.any,
+            args: TyList::EMPTY,
+            bindings: vec![],
+        });
+        let erased = self.erase_reference(r, self.b.ty_of(r), any)?;
+        let entered = self.writer_call(out, "enter", &[erased], Ty::BOOL);
+        self.when(entered, |g| {
+            let get_ty = g.fn_ty(&[], inner);
+            let get = g.b.emit(Tag::Field, r.0, 0, get_ty, SYN);
+            let rec = g.b.refs_record(&[]);
+            let value = g.b.emit(Tag::CallValue, get.0, rec, inner, SYN);
+            g.part(out, inner, value);
+            g.writer_call(out, "leave", &[], Ty::VOID);
+            Ok(())
+        })
     }
 
     /// Writes `v`, a part of type `ty`, through its own `dbg_show`.
@@ -319,11 +331,11 @@ impl Gen<'_, '_> {
             // A reference prints the value it refers to
             // (`module.dbg.value.reference`): its `get` closure's result,
             // never the `Ref` object of the emulation.
-            TyData::Ref { inner, .. } => self.referent(out, inner, v),
+            TyData::Ref { inner, .. } => self.referent(out, inner, v)?,
             TyData::Adt { def, args }
                 if def == names.known.ref_cell && pool.list_items(args).len() == 1 =>
             {
-                self.referent(out, pool.list_items(args)[0], v);
+                self.referent(out, pool.list_items(args)[0], v)?;
             }
             TyData::Adt { def, args } => {
                 let args: Vec<Ty> = pool
@@ -499,23 +511,6 @@ impl Gen<'_, '_> {
                 return Ok(());
             }
         };
-        // A struct value is tracked through `enter`
-        // (module.dbg.cycle.reference). A local struct type is not
-        // inspectable, so it converts to no `Any` and takes no part in
-        // finding a cycle; an enum is not tracked
-        // (module.dbg.cycle.untracked).
-        let tracked = kind == Kind::Data && !names.is_local(def);
-        let guard = if tracked {
-            let any = pool.intern_ty(&TyData::TraitValue {
-                def: names.known.any,
-                args: TyList::EMPTY,
-                bindings: vec![],
-            });
-            let as_any = self.b.coerce(Coercion::ToTraitValue, NONE, v, any, SYN);
-            Some(self.writer_call(out, "enter", &[as_any], Ty::BOOL))
-        } else {
-            None
-        };
         let body = |g: &mut Self| -> StageResult<()> {
             g.dispatch(&vars, v, &mut |g, var| {
                 let members: Vec<&Mem> = var.members.iter().collect();
@@ -565,13 +560,6 @@ impl Gen<'_, '_> {
                 )
             })
         };
-        match guard {
-            Some(entered) => self.when(entered, |g| {
-                body(g)?;
-                g.writer_call(out, "leave", &[], Ty::VOID);
-                Ok(())
-            }),
-            None => body(self),
-        }
+        body(self)
     }
 }

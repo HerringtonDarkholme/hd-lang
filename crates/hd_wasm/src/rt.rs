@@ -667,7 +667,7 @@ pub enum Helper {
     EntryPoll {
         main: Hash128,
         /// Per row key: its vtable type, the host slots, and for a key
-        /// whose provider is a trait value reference (`req.ref.host`) the
+        /// whose provider is a trait value reference (`req.ref.host.reference-values`) the
         /// `std.rt.host_provider` instance that puts the host's trait
         /// value behind a new object.
         providers: Vec<(WTy, Vec<Helper>, Option<Hash128>)>,
@@ -2206,7 +2206,7 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
             let mut a = Asm::new(vec![VT::I32]);
             let ctx = 0;
             // A host provider is a trait value with no payload. One whose
-            // key takes a trait value reference (`req.ref.host`) is that
+            // key takes a trait value reference (`req.ref.host.reference-values`) is that
             // trait value behind a new object, the `Ref[dyn K]` that
             // `host_provider` returns, stored as the payload with the
             // vtable again beside it, as `RefAsProvider` stores one.

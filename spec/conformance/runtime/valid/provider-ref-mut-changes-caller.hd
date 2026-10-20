@@ -1,5 +1,5 @@
 # test: a `&mut Tally` provider of a trait with a `&mut self` method changes `tally`, and the caller reads the new state after the scope
-# Spec 11 Providers Behind References: req.ref.key, req.ref.use, req.ref.install-ref; Spec 11 Mutable Providers: req.mut.trait-changing, req.mut.use-writable.
+# Spec 11 Providers Behind References: req.ref.key.reference-values, req.ref.use.reference-values, req.ref.install-ref; Spec 11 Mutable Providers: req.mut.trait-changing, req.mut.use-writable.reference-values.
 # expect-stdout: 1 2
 # expect-stdout: 2
 # expect-stdout: 2

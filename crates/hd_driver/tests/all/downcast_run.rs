@@ -136,7 +136,7 @@ pub fn main() -> void $ Console:
 }
 
 /// Type arguments match exactly: an erased `Box[i64]` is not a
-/// `Box[i32]` (trait.downcast.exact, trait.identity.arguments).
+/// `Box[i32]` (trait.downcast.exact.reference-values, trait.identity.arguments).
 #[test]
 fn type_arguments_match_exactly() {
     let main = "\

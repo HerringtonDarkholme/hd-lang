@@ -8,5 +8,5 @@ struct Feed[+T]:
     latest: T
 
 impl[T] Feed[T]:
-    pub fn pipe(self, sink: dyn Sink[T]) -> void:  # diagnostic: invalid-variance
+    pub fn pipe(self, sink: &dyn Sink[T]) -> void:  # diagnostic: invalid-variance
         pass

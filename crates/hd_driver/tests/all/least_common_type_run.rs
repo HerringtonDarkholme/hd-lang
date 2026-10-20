@@ -246,7 +246,7 @@ fn a_restarted_site_reports_no_common_type() {
 /// No trait-value conversion or supertrait widening joins values
 /// (`types.lct.no-trait-value`, `types.lct.no-supertrait-widening`), in
 /// either order, while an expected type may ask for one
-/// (`types.lct.expected-trait`).
+/// (`types.lct.expected-trait.reference-values`).
 #[test]
 fn trait_values_have_no_common_type_without_an_expected_type() {
     let decls = "\
@@ -267,16 +267,16 @@ trait Tagged < Named:
     fn tag(self) -> string
 ";
     for body in [
-        "fn f(u: User, d: dyn Display) -> void:\n    _v := [d, u]\n",
-        "fn f(u: User, d: dyn Display) -> void:\n    _v := [u, d]\n",
-        "fn f(s: dyn Shown, t: dyn Tagged) -> void:\n    _v := [s, t]\n",
-        "fn f(s: dyn Shown, n: dyn Named) -> void:\n    _v := [n, s]\n",
+        "fn f(u: User, d: &dyn Display) -> void:\n    _v := [d, u]\n",
+        "fn f(u: User, d: &dyn Display) -> void:\n    _v := [u, d]\n",
+        "fn f(s: &dyn Shown, t: &dyn Tagged) -> void:\n    _v := [s, t]\n",
+        "fn f(s: &dyn Shown, n: &dyn Named) -> void:\n    _v := [n, s]\n",
     ] {
         let main = format!("{decls}\n{body}");
         assert_eq!(codes_of(&main), vec![Code::NoCommonType], "{body}");
     }
     let main =
-        format!("{decls}\nfn f(s: dyn Shown, t: dyn Tagged) -> List[dyn Named]:\n    [s, t]\n");
+        format!("{decls}\nfn f(s: &dyn Shown, t: &dyn Tagged) -> List[&dyn Named]:\n    [s, t]\n");
     assert_eq!(codes_of(&main), vec![]);
 }
 
@@ -308,11 +308,11 @@ fn same[T](left: T, right: T) -> bool:
     true
 ";
     for body in [
-        "fn f(u: User, d: dyn Display) -> bool:\n    same(u, d)\n",
-        "fn f(u: User, d: dyn Display) -> bool:\n    same(d, u)\n",
-        "fn f(s: dyn Shown, t: dyn Tagged) -> bool:\n    same(s, t)\n",
-        "fn f(s: dyn Shown, n: dyn Named) -> bool:\n    same(n, s)\n",
-        "fn f(u: User, d: dyn Display) -> bool:\n    same(left=d, right=u)\n",
+        "fn f(u: User, d: &dyn Display) -> bool:\n    same(u, d)\n",
+        "fn f(u: User, d: &dyn Display) -> bool:\n    same(d, u)\n",
+        "fn f(s: &dyn Shown, t: &dyn Tagged) -> bool:\n    same(s, t)\n",
+        "fn f(s: &dyn Shown, n: &dyn Named) -> bool:\n    same(n, s)\n",
+        "fn f(u: User, d: &dyn Display) -> bool:\n    same(left=d, right=u)\n",
     ] {
         let main = format!("{decls}\n{body}");
         assert_eq!(codes_of(&main), vec![Code::NoCommonType], "{body}");

@@ -1,5 +1,5 @@
 # test: traits / dispatch
-# Spec 09 Traits: trait.dyn.form, trait.dyn.contents, trait.dyn.convert.
+# Spec 09 Traits: trait.dyn.reference-form, trait.dyn.reference-contents, trait.dyn.convert.reference-values.
 
 trait Describe:
     fn describe(self) -> i32
@@ -10,12 +10,12 @@ struct User:
 impl Describe for User:
     fn describe(self) -> i32: self.value
 
-fn dynamic_show(value: dyn Describe) -> i32:
+fn dynamic_show(value: &dyn Describe) -> i32:
     value.describe()
 
 fn main() -> i32:
     user := User { value: 21 }
-    user.describe() + dynamic_show(user)
+    user.describe() + dynamic_show(&user)
 
 tests:
     use std.testing.assert_equal

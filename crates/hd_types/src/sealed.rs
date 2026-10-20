@@ -82,7 +82,7 @@ pub trait Declarations {
     fn supertraits(&self, trait_: DefId) -> &[Ty];
     /// Whether the trait itself declares a member that cannot work through
     /// a `dyn` value, so a `dyn` type does not satisfy a bound on it
-    /// (`trait.dyn.member.unavailable`, `trait.dyn.bound.available`).
+    /// (`trait.dyn.member.unavailable`, `trait.dyn.bound.reference`).
     fn has_unavailable_member(&self, trait_: DefId) -> bool;
     /// Member availability through a trait value reference.
     fn has_unavailable_reference_member(&self, trait_: DefId, _mutable: bool) -> bool {
@@ -142,7 +142,7 @@ fn category(pool: Types<'_>, decls: &dyn Declarations, t: Ty) -> Category {
 
 /// The subgoal an inspectable type's argument adds (`trait.inspectable.*`):
 /// none for a trait value type or `Any`, which count as arguments only
-/// (`trait.inspectable.argument-only`), else the argument itself.
+/// (`trait.inspectable.reference`), else the argument itself.
 fn argument(pool: Types<'_>, t: Ty, out: &mut Vec<Ty>) {
     let inner = match pool.get(t) {
         TyData::Mut(i) => i,

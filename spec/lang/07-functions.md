@@ -489,7 +489,7 @@ fn counter() -> mut fn() -> i32:  # error: syntax-error
 ```text
 fn count() -> i32: 1
 
-fn erase() -> fn() -> dyn Display:
+fn erase() -> fn() -> &dyn Display:
     count  # error: variance-representation-change
 ```
 

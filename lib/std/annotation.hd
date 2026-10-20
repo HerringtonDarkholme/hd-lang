@@ -49,10 +49,10 @@ pub struct Annotate:
 # type (r-annot.typed-fact.declare, r-annot.typed-fact.pattern). The compiler
 # reads it and checks each value (src/checker/typed-facts.ts). When omitted,
 # it takes the default `Any`, and the fact type is untyped
-# (r-annot.typed-fact.untyped).
+# (r-annot.typed-fact.untyped.reference-values).
 ## The `@annotate` decorator: it attaches an `Annotate` fact listing the target `kinds`.
 ## See [annot.target.declarations](../../spec/lang/14-annotations.md#r-annot.target.declarations).
-pub fn annotate[T = dyn Any](kinds...: List[Target]) -> Annotate:
+pub fn annotate[T = &dyn Any](kinds...: List[Target]) -> Annotate:
     Annotate { kinds: kinds }
 
 # The derived builder calls, written by hand because `@derive` does not

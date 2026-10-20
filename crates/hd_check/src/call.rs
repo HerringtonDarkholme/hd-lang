@@ -3049,39 +3049,6 @@ impl Ck<'_, '_> {
         Ok(())
     }
 
-    /// An inherent method of a type that is visible here
-    /// A bare erased payload cannot supply references for either trait or
-    /// inherent reference-receiver methods of its trait and supertraits.
-    pub(crate) fn bare_dyn_needs_reference_payload(&self, trait_: DefId) -> bool {
-        if self.has_ref_receiver_member(trait_) {
-            return true;
-        }
-        let mut lineage = vec![trait_];
-        let mut at = 0;
-        while at < lineage.len() {
-            let current = lineage[at];
-            at += 1;
-            if let Some(ItemData::Trait(declaration)) =
-                self.cx.lookup.item(current).map(|i| &i.data)
-            {
-                for supertype in &declaration.supers {
-                    if let TyData::TraitValue { def, .. } = self.pool().get(*supertype)
-                        && !lineage.contains(&def)
-                    {
-                        lineage.push(def);
-                    }
-                }
-            }
-        }
-        self.method_index().inherent.values().flatten().any(|(owner, method)| {
-            let Some(ItemData::Impl { self_ty, .. }) = self.cx.lookup.item(*owner).map(|i| &i.data) else { return false; };
-            if !matches!(self.pool().get(*self_ty), TyData::TraitValue { def, .. } if lineage.contains(&def)) { return false; }
-            self.cx.lookup.item(*method).and_then(|item| item.sig()).and_then(|sig| sig.params.first()).is_some_and(|&(name, ty)| {
-                self.cx.names.text(name) == "self" && matches!(self.pool().get(ty), TyData::Ref { .. })
-            })
-        })
-    }
-
     /// An inherent method (`names.method-lookup.inherent`): method, impl and arguments.
     pub(crate) fn find_inherent(&mut self, t: Ty, name: &str) -> Option<(DefId, DefId, Vec<Ty>)> {
         self.inherent_where(t, name, true)
@@ -3974,18 +3941,6 @@ impl Ck<'_, '_> {
                     if !(addressed || passes_payload) {
                         self.check_receiver(st, recv, rt, n);
                     }
-                    if choice.0 == ChoiceKind::TraitValue && by_ref && via_dyn.is_none() {
-                        // `trait.dyn.member.ref-receiver-bare`: a bare trait
-                        // value holds no reference to pass.
-                        for e in &args.positional {
-                            self.expr(*e, Some(Ty::POISON))?;
-                        }
-                        let msg = format!(
-                            "`{name}` takes a reference receiver (`&self` or `&mut self`), which is unavailable on a bare trait value; call it through a `&dyn` or `&mut dyn` reference"
-                        );
-                        self.err(Code::DynMemberUnavailable, n, &msg);
-                        return Ok((Ref(NONE), Ty::NEVER));
-                    }
                     if choice.0 == ChoiceKind::TraitValue
                         && self.names_self_beyond_receiver(method, trait_)?
                     {
@@ -4576,7 +4531,7 @@ impl Ck<'_, '_> {
                     args,
                 }));
             }
-            // `trait.dyn.bound.projection`: the trait value's binding.
+            // `trait.dyn.bound.reference-projection`: the trait value's binding.
             TyData::TraitValue { bindings, .. } => {
                 return match bound(&bindings, self) {
                     Some(b) => self.normalized(b),
@@ -4814,10 +4769,10 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// `module.testing.reg.body-closure-result`: the body closure of a
+    /// `module.testing.reg.body-closure-result.reference-values`: the body closure of a
     /// registration call that writes no result type returns `void`, or
     /// `Result[void, dyn Error]` when it uses `?`
-    /// (`expr.try.test.with-try`, `expr.try.test.without-try`). The body
+    /// (`expr.try.test.with-try.reference-values`, `expr.try.test.without-try`). The body
     /// is the final parameter, given by name, as a trailing block or last
     /// in position.
     /// Reports a test case's `timeout`, a `Duration?` value, to the

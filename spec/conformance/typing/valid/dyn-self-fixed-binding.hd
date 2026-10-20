@@ -1,7 +1,7 @@
 # test: a binding to Self that a supertrait list fixes counts as bound for a trait value
 # expect: accept
 # Spec 09 Bound Associated Types: trait.dyn.binding.self-fixed,
-# trait.dyn.binding.complete.
+# trait.dyn.binding.complete.reference-values.
 use std.ops.Add
 
 trait Summable < Add[Out = Self]:
@@ -10,9 +10,9 @@ trait Summable < Add[Out = Self]:
 impl Summable for i32:
     fn label(self) -> string: "i32"
 
-fn describe(value: dyn Summable) -> string:
+fn describe(value: &dyn Summable) -> string:
     value.label()
 
 fn demo() -> string:
-    let value: dyn Summable = +3
+    let value: &dyn Summable = &+3
     describe(value)

@@ -1,9 +1,0 @@
-# Spec 09 Trait Values As Bounds: trait.dyn.bound.available, with trait.dyn.member.ref-receiver-bare. A trait with a `&self` method has a member unavailable on its trait value.
-trait Shape:
-    fn area(&self) -> f64
-
-fn area_of[S < Shape](s: S) -> f64:
-    s.area()
-
-fn demo(s: dyn Shape) -> f64:
-    area_of(s)  # diagnostic: unsatisfied-trait-bound

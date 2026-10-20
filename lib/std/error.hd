@@ -18,7 +18,7 @@ pub trait Error < Display & Inspectable:
 
 # The cause-chain helpers are inherent methods of `dyn Error`
 # (spec/lang/09-traits.md#r-trait.own.dyn-inherent.form): every error value
-# reaches them, and no implementation can override them (spec/lang/09-traits.md#r-trait.error.dyn-methods).
+# reaches them, and no implementation can override them (spec/lang/09-traits.md#r-trait.error.dyn-methods.reference-values).
 impl dyn Error:
     ## Recovers the original shared error reference when its concrete type is `T`.
     @intrinsic("downcast_ref")
@@ -86,10 +86,10 @@ pub fn chain(error: &dyn Error) -> List[&dyn Error]:
     error.chain()
 
 # The `Display` text of the error and of each cause that `chain` yields
-# after it (r-std-error.report.of).
+# after it (r-std-error.report.of.reference-values).
 ## Builds the boundary-safe report of `error`: its message, and its causes' messages.
-## See [std-error.report.of](../../spec/std/error.md#r-std-error.report.of).
-pub fn report_of(error: dyn Error) -> ErrorReport:
+## See [std-error.report.of.reference-values](../../spec/std/error.md#r-std-error.report.of.reference-values).
+pub fn report_of(error: &dyn Error) -> ErrorReport:
     let mut causes: List[string] = []
     let next = error.cause()
     while true:
@@ -104,7 +104,7 @@ pub fn report_of(error: dyn Error) -> ErrorReport:
 # `.Err(error)` and the error's type implements `Error`
 # (spec/lang/10-modules.md#r-module.entry.err-render-chain). The checker
 # calls it from the entry renderer (checker/entry-error.ts).
-fn entry_report(error: dyn Error) -> string:
+fn entry_report(error: &dyn Error) -> string:
     report_of(error).to_string()
 
 # The error that `context` wraps around an `.Err`: its text is the message,
@@ -140,7 +140,7 @@ pub fn message(text: string) -> &dyn Error:
 
 # The std error types of the prelude-joined modules implement `Error` here,
 # so a program that never names `Error` does not join this module
-# (r-std-error.std-types.impl). The other modules' error types implement it
+# (r-std-error.std-types.impl.reference-values). The other modules' error types implement it
 # beside their declarations.
 impl Error for ParseNumberError
 impl Error for Utf8Error

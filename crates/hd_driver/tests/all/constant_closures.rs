@@ -176,7 +176,7 @@ impl Module {
 
     /// The functions that constant globals hold closures of, but the
     /// runtime's own (`rt:`), such as the `runtime_type` slot of the host
-    /// `Console` provider's reference (req.ref.host).
+    /// `Console` provider's reference (req.ref.host.reference-values).
     fn constant_closures(&self) -> Vec<u32> {
         self.globals
             .iter()

@@ -195,16 +195,16 @@ fn first[T, S < NamedSupplier[Item = T]](s: S) -> T:
 fn item[S < NamedSupplier](s: S) -> S::Item:
     s.get()
 
-fn read(s: dyn NamedSupplier[Item = i32]) -> i32:
+fn read(s: &dyn NamedSupplier[Item = i32]) -> i32:
     s.get() + item(s)
 
-fn counted(s: dyn Count) -> dyn Count[Item = i32]:
-    s
+fn counted(s: &dyn Count) -> &dyn Count[Item = i32]:
+    &s
 
 pub fn main() -> void:
     _ := first(Counter {{ start: 1 }}) + item(Counter {{ start: 2 }})
-    _ := read(Counter {{ start: 3 }})
-    _ := counted(Counter {{ start: 4 }}).get() + 1
+    _ := read(&Counter {{ start: 3 }})
+    _ := counted(&Counter {{ start: 4 }}).get() + 1
 "
     ));
     assert_eq!(codes, Vec::<Code>::new());
@@ -219,22 +219,22 @@ fn a_projection_through_a_supertrait_runs_at_each_binding() {
 fn item[S < NamedSupplier](s: S) -> S::Item:
     s.get()
 
-fn read(s: dyn NamedSupplier[Item = i32]) -> i32:
+fn read(s: &dyn NamedSupplier[Item = i32]) -> i32:
     s.get() + 1
 
-fn widen(s: dyn NamedSupplier[Item = i32]) -> dyn Supplier[Item = i32]:
-    s
+fn widen(s: &dyn NamedSupplier[Item = i32]) -> &dyn Supplier[Item = i32]:
+    &s
 
-fn twice(c: dyn Count) -> i32:
+fn twice(c: &dyn Count) -> i32:
     c.get() * 2
 
 pub fn main() -> void $ Console:
     c := Counter {{ start: 20 }}
     println(item(c))
-    println(read(c))
-    println(widen(c).get())
-    println(twice(c))
-    let s: dyn NamedSupplier[Item = i32] = c
+    println(read(&c))
+    println(widen(&c).get())
+    println(twice(&c))
+    let s: &dyn NamedSupplier[Item = i32] = &c
     println(item(s))
 "
         ),
@@ -249,7 +249,7 @@ fn a_binding_name_must_reach_one_associated_type() {
 fn first[T, S < Supplier[Element = T]](s: S) -> T:
     s.get()
 
-fn read(s: dyn Supplier[Element = i32]) -> i32:
+fn read(s: &dyn Supplier[Element = i32]) -> i32:
     s.get()
 "
     ));

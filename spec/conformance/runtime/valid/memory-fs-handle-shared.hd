@@ -1,5 +1,5 @@
 # test: MemoryFs::new returns a new object behind &mut that a helper, both installed providers and the test share, `*files` copies it as a value, and an Entry is a value
-# Spec std/fs: std-fs.memory.new-ref, std-fs.write.mut-ref, std-fs.error.decl-struct, std-fs.memory.decl.
+# Spec std/fs: std-fs.memory.new-ref, std-fs.write.mut-ref.reference-values, std-fs.error.decl-struct, std-fs.memory.decl.
 # expect: test
 use std.fs.{Entry, EntryKind, FsError, FsRead, FsWrite, MemoryFs, read_text, stat, write_text}
 use std.path.Path

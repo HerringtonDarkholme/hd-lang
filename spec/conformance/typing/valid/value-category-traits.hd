@@ -1,5 +1,5 @@
 # test: AnyVal holds primitives, tuples, enums, optionals, functions, lists, maps, and newtypes of them; AnyRef holds data
-# Spec 10 Value-Category Traits: module.prelude.any-subtraits, module.prelude.anyref-members,
+# Spec 10 Value-Category Traits: module.prelude.any-subtraits, module.prelude.anyref-members.reference-values,
 # module.prelude.anyval-members, module.prelude.newtype-category.
 type Meters(f64)
 type Tags(List[string])

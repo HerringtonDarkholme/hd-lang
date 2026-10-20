@@ -1,5 +1,5 @@
 # test: a bare trait on the right side of a type alias is a trait used as a type
-# Spec 11 Row Aliases: req.row.alias.bare-trait.
+# Spec 11 Row Aliases: req.row.alias.bare-trait.reference-values.
 trait Db
 
 type Store = Db  # diagnostic: trait-used-as-type

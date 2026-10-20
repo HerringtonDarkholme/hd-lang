@@ -1,5 +1,5 @@
 # test: a Console provider that overrides write_error_line! keeps error lines apart from ordinary lines
-# Spec 10 Console: module.console.write-error-line, module.console.write-line-ref.
+# Spec 10 Console: module.console.write-error-line, module.console.write-line-ref.reference-values.
 struct SplitConsole:
     lines: List[string]
     errors: List[string]

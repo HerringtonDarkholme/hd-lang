@@ -5,8 +5,8 @@ trait Visitor:
     fn visit[T < AnyRef](self, value: T) -> void
 
 struct Walk:
-    visitors: List[dyn Visitor]
+    visitors: List[&dyn Visitor]
 
-fn plan(choose: fn(dyn Visitor?) -> List[dyn Visitor]) -> void:
-    let current: dyn Visitor? = .None
+fn plan(choose: fn(&dyn Visitor?) -> List[&dyn Visitor]) -> void:
+    let current: &dyn Visitor? = .None
     _ := choose(current)

@@ -25,7 +25,7 @@ impl Describe for Worker by Logger:
     fn headline(self) -> string:
         "worker " + self.Logger.headline()
 
-fn show(value: dyn Describe) -> string:
+fn show(value: &dyn Describe) -> string:
     value.headline()
 
 tests:
@@ -37,4 +37,4 @@ tests:
         assert_equal(service.describe(), "api", reason="generated required method")
         assert_equal(service.headline(), "* api", reason="generated method forwards to the part's default")
         assert_equal(worker.headline(), "worker * job", reason="the body replaces one method")
-        assert_equal(show(service), "* api", reason="dynamic trait value")
+        assert_equal(show(&service), "* api", reason="dynamic trait value")

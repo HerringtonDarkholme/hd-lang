@@ -67,9 +67,9 @@ fn a_data_type_written_too_long_reports_once() {
 fn a_trait_reference_written_too_long_reports_once() {
     assert_once(&[
         "fn f[T < Conv[i32, i32]](t: T) -> i32: 0",
-        "fn f(x: dyn Conv[i32, i32]) -> i32: 0",
+        "fn f(x: &dyn Conv[i32, i32]) -> i32: 0",
         "impl Conv[i32, i32] for i32:\n    fn conv(self) -> i32: 0",
-        "fn f() -> i32:\n    let _x: dyn Conv[i32, i32] = panic(\"x\")\n    0",
+        "fn f() -> i32:\n    let _x: &dyn Conv[i32, i32] = panic(\"x\")\n    0",
     ]);
 }
 

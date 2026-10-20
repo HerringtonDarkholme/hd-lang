@@ -450,7 +450,7 @@ impl Em<'_, '_, '_> {
         }
         // A data value, a boxed enum, a list, a map and a trait value's
         // data are each one counted address first; a trait value that
-        // boxed a value compares its boxes (`expr.is.box-unspecified`).
+        // boxed a value compares its boxes (`ref.identity.same-place`).
         let t = self.ty_of(a);
         if !matches!(self.kind(t), Kind::Data(_) | Kind::Boxed)
             && walk(self.pool(), self.env(), t) != Some(Walk::Ref(0))

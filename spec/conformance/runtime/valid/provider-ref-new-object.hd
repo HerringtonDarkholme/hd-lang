@@ -1,5 +1,5 @@
 # test: a new object written `&mut Tally { ... }` installed for a trait with `&self` or `&mut self` methods is one object that every `$.use` shares, and `&Name { ... }` serves a trait whose methods read only
-# Spec 11 Providers Behind References: req.ref.install-ref, req.ref.use; Spec 11 Mutable Providers: req.mut.install-writable-ref, req.mut.use-readonly.
+# Spec 11 Providers Behind References: req.ref.install-ref, req.ref.use.reference-values; Spec 11 Mutable Providers: req.mut.install-writable-ref, req.mut.use-readonly.reference-values.
 # expect-stdout: 11 12
 # expect-stdout: <ada> <bo>
 trait Counter:

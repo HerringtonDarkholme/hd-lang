@@ -5,7 +5,7 @@ Status: standard library specification draft.
 This chapter defines the part of `std.error` that `lib/std` writes in
 ordinary hd over the language tier:
 
-- the inherent methods `chain`, `root_cause`, and `find` of `dyn Error`,
+- the inherent methods `chain`, `root_cause`, and `find` of `&dyn Error`,
   and the free function `chain`, which list and search an error's causes;
 - the type `ErrorReport` and the helper `report_of`, which snapshot an
   error's message and its causes' messages;
@@ -21,14 +21,14 @@ The language tier keeps what the compiler knows by name:
 | --- | --- |
 | the trait `Error`, its member `cause`, and the `impl dyn Error:` block that holds `chain`, `root_cause`, and `find` | [Error Trait](../lang/09-traits.md#error-trait); the compiler generates implementations of it |
 | `@error`, `@from`, `@source`, and transparent errors | [Error Derivation](../lang/14-annotations.md#error-derivation), a compiler intrinsic that defines `cause` ([Error Causes](../lang/14-annotations.md#error-causes)) |
-| the erased `dyn Error` and `?` into it | [Erased Errors](../lang/09-traits.md#erased-errors) and [Propagation](../lang/05-expressions.md#propagation) |
+| the erased `&dyn Error` and `?` into it | [Erased Errors](../lang/09-traits.md#erased-errors) and [Propagation](../lang/05-expressions.md#propagation) |
 | what an entry point prints for an `.Err` | [Entry Results](../lang/10-modules.md#entry-results), which the host follows |
 | which values cross a registered boundary | [Boundary-Safe Values](../lang/10-modules.md#boundary-safe-values) |
 
 ## Cause Chain
 
 `chain` lists an error, then its cause, then that cause's cause. It is an
-inherent method of `dyn Error`, and also a free function:
+inherent method of `&dyn Error`, and also a free function:
 
 ```text
 use std.error.{Error, chain}
@@ -69,7 +69,7 @@ returns `["cannot save notes.txt", "disk full"]`.
 
 ## Root Cause And Find
 
-The `dyn Error` methods `root_cause` and `find` walk the list that `chain`
+The `&dyn Error` methods `root_cause` and `find` walk the list that `chain`
 returns:
 
 ```text
@@ -97,7 +97,7 @@ For `SaveError.Write("notes.txt", DiskError { free: 0 })`, `innermost`
 returns `"disk full"`, and `free_space` returns `.Some(0)`.
 
 1. r[std-error.root-cause.reference] `e.root_cause()` returns the last shared error reference of `chain(e)`, including `e` itself when it has no cause.
-2. r[std-error.dyn-reference-receiver] `chain`, `root_cause`, and `find` are inherent methods of `dyn Error`, by [`trait.error.dyn-methods`](../lang/09-traits.md#r-trait.error.dyn-methods). Their receivers have type `&dyn Error`; a concrete error reference converts before the call.
+2. r[std-error.dyn-reference-receiver.reference-values] `chain`, `root_cause`, and `find` are inherent methods of `&dyn Error`, by [`trait.error.dyn-methods.reference-values`](../lang/09-traits.md#r-trait.error.dyn-methods.reference-values). Their receivers have type `&dyn Error`; a concrete error reference converts before the call.
 3. r[std-error.find.first] `e.find::[T]()` returns `.Some` of the first error of `chain(e)`, in order, whose recorded type is `T`, and `.None` when no error does.
 4. r[std-error.find.copied-value] The found error is copied through the reference returned by `downcast_ref::[T]()`.
 5. r[std-error.find.struct-copy] For a struct target, the returned value is an independent copy of that struct.
@@ -140,7 +140,7 @@ fn summary() -> string:
 1. r[std-error.report.decl-struct] `std.error` declares the struct `ErrorReport`, a value with the public fields `message: string` and `causes: List[string]`, and no other fields. Copying a report copies both fields.
 2. r[std-error.report.import] Code imports both names, as in `use std.error.{ErrorReport, report_of}`.
 3. r[std-error.report.boundary-safe] Both fields are boundary-safe, so `ErrorReport` is boundary-safe by [`module.boundary.allowed`](../lang/10-modules.md#r-module.boundary.allowed).
-4. r[std-error.report.of] `std.error` declares `pub fn report_of(error: dyn Error) -> ErrorReport`.
+4. r[std-error.report.of.reference-values] `std.error` declares `pub fn report_of(error: &dyn Error) -> ErrorReport`.
 5. r[std-error.report.message] The report's `message` is the `Display` text of `error`.
 6. r[std-error.report.cause-texts] Its `causes` holds the `Display` text of each successive cause, starting with `error.cause()`.
 7. r[std-error.report.display] `ErrorReport` implements `Display`. Its text is `message`, then, for each element of `causes`, a line feed, `caused by: `, and that element.
@@ -149,7 +149,7 @@ fn summary() -> string:
 > **Note.** A report holds only text. It keeps no error value, so code
 > cannot downcast it back to the error it came from.
 
-> **Why.** An erased `dyn Error` never crosses a registered boundary
+> **Why.** An erased `&dyn Error` never crosses a registered boundary
 > ([`module.boundary.erased-error`](../lang/10-modules.md#r-module.boundary.erased-error)).
 > A report keeps the message and the causes apart, so a receiver can show
 > the first line alone or the whole chain.
@@ -201,7 +201,7 @@ fn load() -> Result[string, &dyn Error]:
 fn summary() -> string:
     match load():
         .Ok(text) => text
-        .Err(failure) => report_of(*failure).to_string()  # "loading config\ncaused by: not found: app.toml"
+        .Err(failure) => report_of(failure).to_string()  # "loading config\ncaused by: not found: app.toml"
 ```
 
 1. r[std-error.context.reference-result] `std.error` declares the inherent method `pub fn context(self, message: string) -> Result[T, &dyn Error]` on `Result[T, E]` for every `E < Error`.
@@ -220,7 +220,7 @@ fn summary() -> string:
 > `ContextError { message: "loading config", cause: "not found: app.toml" }`.
 > Like all `debug` text, that layout is not portable.
 
-> **Why.** The wrapped error is an erased `dyn Error`, which has no `Debug`.
+> **Why.** The wrapped error is an erased `&dyn Error`, which has no `Debug`.
 > Its `Display` text is the one description every cause has, so a test
 > that compares a `ContextError` can still show both parts.
 
@@ -254,7 +254,7 @@ status 2.
 
 1. r[std-error.exit-code.decl] `Error` declares `fn exit_code(self) -> i32`, by [`trait.error.exit-code`](../lang/09-traits.md#r-trait.error.exit-code).
 2. r[std-error.exit-code.default] The default returns 1, so an error that does not override it exits with 1.
-3. r[std-error.exit-code.dyn] `exit_code` is a member of `Error`, so a `dyn Error` value answers it with the code of the error it holds.
+3. r[std-error.exit-code.dyn.reference-values] `exit_code` is a member of `Error`, so a `&dyn Error` value answers it with the code of the error it holds.
 4. r[std-error.exit-code.context] A `ContextError` keeps the default, so `context` makes the status 1 whatever code the wrapped error has.
 5. r[std-error.exit-code.string] `string` and every std error type keep the default.
 
@@ -273,7 +273,7 @@ Every std error type implements `Error`, so `?` and `context` accept it:
 use std.error.Error
 use std.num.parse_i32
 
-fn count(text: string) -> Result[i32, dyn Error]:
+fn count(text: string) -> Result[i32, &dyn Error]:
     value := parse_i32(text)?
     .Ok(value)
 
@@ -298,13 +298,13 @@ fn width(text: string) -> Result[i32, &dyn Error]:
 | `RegexError` | `std.regex` |
 | `NetError` | `std.net` |
 
-1. r[std-error.std-types.impl] Each type in the table above implements `Error`. So `?` converts it into a `Result[T, dyn Error]`, by [`trait.error.result`](../lang/09-traits.md#r-trait.error.result), and `context` accepts it.
+1. r[std-error.std-types.impl.reference-values] Each type in the table above implements `Error`. So `?` converts it into a `Result[T, &dyn Error]`, by [`trait.error.result.reference-values`](../lang/09-traits.md#r-trait.error.result.reference-values), and `context` accepts it.
 2. r[std-error.std-types.cause] Their `cause` is the default `.None`.
 3. r[std-error.std-types.display] Each keeps the `Display` text its chapter defines.
-4. r[std-error.std-types.string] The language type `string` implements `Error`. Its `Display` text is the string itself, and its `cause` is the default `.None`. So `.Err("disk full")` is a valid `Result[T, string]` for a bound `E < Error`, and converts into `dyn Error`.
+4. r[std-error.std-types.string.reference-values] The language type `string` implements `Error`. Its `Display` text is the string itself, and its `cause` is the default `.None`. So `.Err("disk full")` is a valid `Result[T, string]` for a bound `E < Error`, and `?` can propagate it into `Result[T, &dyn Error]`.
 5. r[std-error.std-types.new] A std error type added later implements `Error` too, and joins this table.
 
-> **Why.** An application error type is the erased `dyn Error` in most
+> **Why.** An application error type is the erased `&dyn Error` in most
 > scripts. A std error that cannot reach it forces a wrapper type at
 > every call, which Rust's `std::io::Error` and Go's `error` never need.
 

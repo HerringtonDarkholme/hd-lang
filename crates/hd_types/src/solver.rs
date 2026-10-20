@@ -2253,9 +2253,9 @@ fn learned_from(pool: Types<'_>, head: TyList, goal: TyList) -> Vec<(InferVar, T
 }
 
 /// §9.3's rows: a trait value `self_ty` of `value` satisfies a goal on its
-/// own trait with equal arguments (`trait.dyn.bound.instantiation`) and on
+/// own trait with equal arguments (`trait.dyn.bound.reference-binding`) and on
 /// each supertrait, whose arguments are the elaborated ones
-/// (`trait.dyn.bound`). Returns what the goal's bare variables learn, or
+/// (`trait.dyn.bound.reference`). Returns what the goal's bare variables learn, or
 /// `None` when no row holds. Supertraits are walked depth first in
 /// declared order, as an environment is elaborated (§4.2).
 fn trait_value_holds(
@@ -2276,7 +2276,7 @@ fn trait_value_holds(
             let m = match_list(pool, DefId::NONE, args, goal.args, &mut Vec::new());
             if m != M::No {
                 // The bound holds only when every member of its trait and
-                // supertraits works through the value (trait.dyn.bound.available).
+                // supertraits works through the value (trait.dyn.bound.reference).
                 if !all_members_available(
                     pool,
                     decls,
@@ -2315,7 +2315,7 @@ fn trait_value_holds(
 }
 
 /// Whether no member of `trait_` or of its supertraits is unavailable on a
-/// `dyn` value (trait.dyn.bound.available).
+/// `dyn` value (trait.dyn.bound.reference).
 fn all_members_available(
     pool: Types<'_>,
     decls: &dyn Declarations,

@@ -14,5 +14,5 @@ struct Square:
 impl Shape for Square:
     fn area(self) -> f64: self.side * self.side
 
-fn report(shape: dyn Shape, square: Square) -> f64:
+fn report(shape: &dyn Shape, square: Square) -> f64:
     shape.double() + square.double()  # diagnostic: unknown-method

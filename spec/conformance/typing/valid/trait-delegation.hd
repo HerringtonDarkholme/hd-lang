@@ -25,8 +25,8 @@ impl Describe for Worker by Logger:
     fn headline(self) -> string:
         "worker " + self.Logger.headline()
 
-fn show(value: dyn Describe) -> string:
+fn show(value: &dyn Describe) -> string:
     value.headline()
 
 fn valid(service: Service, worker: Worker) -> string:
-    service.describe() + service.headline() + worker.headline() + show(service) + show(worker)
+    service.describe() + service.headline() + worker.headline() + show(&service) + show(&worker)

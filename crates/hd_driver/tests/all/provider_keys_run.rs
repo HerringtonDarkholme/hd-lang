@@ -252,7 +252,7 @@ pub fn main() -> void $ Console:
 
 /// The providers of a multi-key `$.use` keep their access: a provider
 /// installed as `&mut` writes through its tuple element, and it is the one
-/// provider a later `$.use` sees (`req.mut.use-writable`).
+/// provider a later `$.use` sees (`req.mut.use-writable.reference-values`).
 #[test]
 fn a_multi_key_use_keeps_each_provider_access() {
     let main = "\

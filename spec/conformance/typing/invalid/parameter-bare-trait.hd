@@ -1,5 +1,5 @@
 # test: a bare trait name as a parameter type is an error whose fix-it inserts dyn
-# Spec 04 Trait Value Types: types.trait.value.dyn-required; Spec 09 Dynamic Trait Values: trait.dyn.keyword.
+# Spec 04 Trait Value Types: types.trait.value.dyn-required.reference-values; Spec 09 Dynamic Trait Values: trait.dyn.reference-keyword.
 
 trait Greet:
     fn greet(self) -> string

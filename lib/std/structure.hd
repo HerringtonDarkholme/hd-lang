@@ -81,7 +81,7 @@ pub struct VariantInfo:
     pub of_data: bool
     ## The facts the variants share.
     ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
-    pub shared: List[(string, dyn Inspectable)]
+    pub shared: List[(string, &dyn Inspectable)]
     ## How the variant's fields refer to the type being derived, which the compiler computes.
     ## See [annot.structure.self-ref-field](../../spec/lang/14-annotations.md#r-annot.structure.self-ref-field).
     pub self_ref: SelfRef
@@ -115,7 +115,7 @@ pub struct Field[HdS, HdF]:
     hd_get: fn(HdS) -> HdF
     hd_has_default: bool
     hd_default: fn() -> HdF?
-    hd_witness: dyn Inspectable
+    hd_witness: &dyn Inspectable
 
 impl[HdS, HdF] Field[HdS, HdF]:
     ## Reads the member's value from `s`.
@@ -139,7 +139,7 @@ impl[HdS, HdF] Field[HdS, HdF]:
         self.info.facts.find::[HdM]()
 
 # The handle of a member with no facts, doc comment, or default.
-fn hd__plain_field[HdS, HdF](name: string, position: i32, positional: bool, self_ref: SelfRef, get: fn(HdS) -> HdF, witness: dyn Inspectable) -> Field[HdS, HdF]:
+fn hd__plain_field[HdS, HdF](name: string, position: i32, positional: bool, self_ref: SelfRef, get: fn(HdS) -> HdF, witness: &dyn Inspectable) -> Field[HdS, HdF]:
     Field::[HdS, HdF] { info: Member { name: name, position: position, facts: Facts { items: [] }, doc: .None, embedded: false, positional: positional, self_ref: self_ref }, hd_get: get, hd_has_default: false, hd_default: hd__no_default::[HdF], hd_witness: witness }
 
 fn hd__no_default[HdF]() -> HdF?:

@@ -8,7 +8,7 @@ use std.ops.Range
 
 # Draws values from a source of randomness (r-std-random.decl-ref). Both
 # methods take `&mut self`, so a seeded provider advances its own state
-# and `$.use(Random)` is a `&mut dyn Random` (r-std-random.mut-ref).
+# and `$.use(Random)` is a `&mut dyn Random` (r-std-random.mut-ref.reference-values).
 ## The host capability to fill bytes from the system random source.
 ## See [std-random.decl-ref](../../spec/std/random.md#r-std-random.decl-ref).
 pub trait Random:

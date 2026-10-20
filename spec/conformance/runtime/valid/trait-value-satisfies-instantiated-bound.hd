@@ -1,5 +1,5 @@
 # test: a trait value of a generic trait satisfies a bound that names the same instantiation, and calls dispatch through its table
-# Spec 09 Trait Values As Bounds: trait.dyn.bound, trait.dyn.bound.instantiation, trait.dyn.bound.dispatch.
+# Spec 09 Trait Values As Bounds: trait.dyn.bound.reference, trait.dyn.bound.reference-binding, trait.dyn.bound.reference-dispatch.
 struct User:
     name: string
 
@@ -20,5 +20,5 @@ tests:
     use std.testing.assert_equal
 
     it("Repository[User] satisfies R < Repository[User]"):
-        let users: dyn Repository[User] = MemoryUsers { users: [User { name: "ada" }, User { name: "alan" }] }
+        let users: &dyn Repository[User] = &MemoryUsers { users: [User { name: "ada" }, User { name: "alan" }] }
         assert_equal(size(users), 2, reason="the static call dispatches through the value's table")

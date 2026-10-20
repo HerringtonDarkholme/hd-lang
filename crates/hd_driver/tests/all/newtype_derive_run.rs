@@ -240,18 +240,19 @@ fn a_newtype_wraps_no_new_object() {
     // `types.newtype.construct-ref`: constructing over an `AnyRef` base
     // creates no new object, so the wrapper and the base are identical
     // through `dyn Any`.
-    let main = "\
-struct User:
+    let main = "struct User:
     name: string
 
-type Owner(User)
+type UserRef = &User
 
-fn same(a: dyn Any, b: dyn Any) -> bool:
+type Owner(UserRef)
+
+fn same(a: &dyn Any, b: &dyn Any) -> bool:
     a is b
 
 pub fn main() -> void $ Console:
-    u := User { name: \"ada\" }
-    println(same(Owner(u), u))
+    u := &User { name: \"ada\" }
+    println(same(UserRef(Owner(u)), u))
 ";
     assert_eq!(output_of("identity", main), "true\n");
 }

@@ -1,5 +1,5 @@
 # test: a value of a type that implements a trait is assignable to that dyn trait
-# Spec 04 Assignability And Coercion: types.assign.trait-value.
+# Spec 04 Assignability And Coercion: types.assign.trait-value.ref.
 struct User:
     name: string
 
@@ -10,5 +10,5 @@ tests:
     use std.testing.assert_equal
 
     it("a User is a dyn Display"):
-        let shown: dyn Display = User { name: "ada" }
+        let shown: &dyn Display = &User { name: "ada" }
         assert_equal("$shown", "ada", reason="the trait value calls User's to_string")

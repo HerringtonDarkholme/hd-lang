@@ -34,21 +34,21 @@ fn errors(src: &str) -> Vec<Code> {
 
 const SUPPLIER: &str = "trait Supplier:\n    type Item\n    fn get(self) -> Self::Item\n\n";
 
-// trait.dyn.binding.complete
+// trait.dyn.binding.complete.reference-values
 
 #[test]
 fn a_dyn_type_must_bind_every_associated_type() {
-    let src = format!("{SUPPLIER}fn unbound(source: dyn Supplier) -> void:\n    pass\n");
+    let src = format!("{SUPPLIER}fn unbound(source: &dyn Supplier) -> void:\n    pass\n");
     assert_eq!(errors(&src), vec![Code::TraitNotDynamicallySafe]);
     let bound =
-        format!("{SUPPLIER}fn bound(source: dyn Supplier[Item = i32]) -> void:\n    pass\n");
+        format!("{SUPPLIER}fn bound(source: &dyn Supplier[Item = i32]) -> void:\n    pass\n");
     assert_eq!(errors(&bound), vec![]);
 }
 
 #[test]
 fn a_dyn_type_in_a_body_must_bind_every_associated_type() {
     let src = format!(
-        "{SUPPLIER}fn run() -> void:\n    let f = fn(source: dyn Supplier) -> void: pass\n    f\n"
+        "{SUPPLIER}fn run() -> void:\n    let f = fn(source: &dyn Supplier) -> void: pass\n    f\n"
     );
     assert!(
         errors(&src).contains(&Code::TraitNotDynamicallySafe),
@@ -60,7 +60,7 @@ fn a_dyn_type_in_a_body_must_bind_every_associated_type() {
 #[test]
 fn a_dyn_type_counts_the_bindings_its_supertrait_list_fixes() {
     let src = format!(
-        "{SUPPLIER}trait Prices < Supplier[Item = i32]\n\nfn ok(source: dyn Prices) -> void:\n    pass\n"
+        "{SUPPLIER}trait Prices < Supplier[Item = i32]\n\nfn ok(source: &dyn Prices) -> void:\n    pass\n"
     );
     assert_eq!(errors(&src), vec![]);
 }
@@ -68,7 +68,7 @@ fn a_dyn_type_counts_the_bindings_its_supertrait_list_fixes() {
 #[test]
 fn a_dyn_type_binds_the_associated_types_of_its_supertraits_too() {
     let src = format!(
-        "{SUPPLIER}trait Named < Supplier:\n    fn name(self) -> string\n\nfn bad(source: dyn Named) -> void:\n    pass\n\nfn good(source: dyn Named[Item = i32]) -> void:\n    pass\n"
+        "{SUPPLIER}trait Named < Supplier:\n    fn name(self) -> string\n\nfn bad(source: &dyn Named) -> void:\n    pass\n\nfn good(source: &dyn Named[Item = i32]) -> void:\n    pass\n"
     );
     assert_eq!(errors(&src), vec![Code::TraitNotDynamicallySafe]);
 }
@@ -84,14 +84,14 @@ fn a_requirement_key_must_bind_every_associated_type() {
     assert_eq!(errors(&bound), vec![]);
 }
 
-// trait.dyn.bound.available
+// trait.dyn.bound.reference
 
 const FACTORY: &str = "trait Factory:\n    type Item\n    fn count() -> i32\n\nfn total[F < Factory[Item = i32]]() -> i32:\n    F::count()\n\n";
 
 #[test]
 fn a_dyn_type_does_not_satisfy_a_bound_on_a_trait_with_an_associated_function() {
     let src = format!(
-        "{FACTORY}fn with_function(factory: dyn Factory[Item = i32]) -> i32:\n    total::[dyn Factory[Item = i32]]()\n"
+        "{FACTORY}fn with_function(factory: &dyn Factory[Item = i32]) -> i32:\n    total::[&dyn Factory[Item = i32]]()\n"
     );
     assert_eq!(errors(&src), vec![Code::UnsatisfiedTraitBound]);
 }
@@ -99,14 +99,14 @@ fn a_dyn_type_does_not_satisfy_a_bound_on_a_trait_with_an_associated_function() 
 #[test]
 fn a_dyn_type_does_not_satisfy_a_bound_on_a_supertrait_with_an_associated_function() {
     let src = format!(
-        "{FACTORY}trait Named < Factory:\n    fn name(self) -> string\n\nfn with_named(source: dyn Named[Item = i32]) -> i32:\n    total::[dyn Named[Item = i32]]()\n"
+        "{FACTORY}trait Named < Factory:\n    fn name(self) -> string\n\nfn with_named(source: &dyn Named[Item = i32]) -> i32:\n    total::[&dyn Named[Item = i32]]()\n"
     );
     assert_eq!(errors(&src), vec![Code::UnsatisfiedTraitBound]);
 }
 
 #[test]
 fn a_dyn_type_satisfies_a_bound_on_a_trait_of_methods() {
-    let src = "trait Sized:\n    type Item\n    fn size(self) -> i32\n\nfn measure[S < Sized[Item = i32]](value: S) -> i32:\n    value.size()\n\nfn with_value(value: dyn Sized[Item = i32]) -> i32:\n    measure(value)\n";
+    let src = "trait Sized:\n    type Item\n    fn size(self) -> i32\n\nfn measure[S < Sized[Item = i32]](value: S) -> i32:\n    value.size()\n\nfn with_value(value: &dyn Sized[Item = i32]) -> i32:\n    measure(value)\n";
     assert_eq!(errors(src), vec![]);
 }
 

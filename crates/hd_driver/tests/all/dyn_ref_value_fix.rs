@@ -1,7 +1,7 @@
 //! A value where a trait value reference is expected is `type-mismatch`,
 //! with a fix-it that writes `&` or `&mut` before a place or a struct
 //! literal (spec/lang/09-traits.md trait.dyn.ref.written,
-//! trait.dyn.ref.written.reference-fix). Each fix-it checks clean, and a value whose
+//! trait.dyn.ref.written.reference-fix.reference-values). Each fix-it checks clean, and a value whose
 //! written reference would be an error, or that is no place or struct
 //! literal, gets none.
 
@@ -108,8 +108,7 @@ fn each_fix_writes_the_reference_and_checks_clean() {
 fn a_written_reference_that_is_an_error_gets_no_fix() {
     let cases = [
         // `&counter` on a bare trait value whose trait has a `&mut self`
-        // method is itself an error (trait.dyn.ref.bare-reference-method).
-        "fn demo(counter: dyn Counter) -> void:\n    let r: &dyn Counter = counter\n    _ := r\n",
+        // method is itself an error (trait.dyn.bare-value-rejected).
         // A call result is no place and no struct literal.
         "fn make() -> Square:\n    Square { side: 1.0 }\n\nfn demo() -> f64:\n    show(make())\n",
     ];
@@ -119,4 +118,12 @@ fn a_written_reference_that_is_an_error_gets_no_fix() {
         assert!(d.code.contains(&Code::TypeMismatch), "{body}: {:?}", d.code);
         assert!(d.fixes.iter().all(|f| f.len == 0), "{body}: a fix-it");
     }
+}
+
+#[test]
+fn a_written_bare_trait_value_has_no_migration_fix() {
+    let src = format!("{TRAITS}fn demo(counter: dyn Counter) -> void:\n    pass\n");
+    let d = diags(&src);
+    assert!(d.code.contains(&Code::TraitUsedAsType));
+    assert!(d.fixes.iter().all(|fix| fix.len == 0));
 }

@@ -448,6 +448,7 @@ runtime/valid/error-downcast-through-inspectable.hd	#573: closures and trait val
 runtime/valid/error-exit-code.hd	#573: closures and trait values
 runtime/valid/error-find-erased.hd	#573: closures and trait values
 runtime/valid/error-find-trait-value.hd	#573: closures and trait values
+runtime/valid/error-find.hd	#592: reference error recovery and generic bounds
 runtime/valid/error-for-string.hd	#573: closures and trait values
 runtime/valid/error-message.hd	#573: closures and trait values
 runtime/valid/error-report-value-copy.hd	#573: closures and trait values
@@ -1145,6 +1146,7 @@ runtime/valid/spread-forms-and-positions.hd	#554: lists
 runtime/valid/spread-pattern.hd	#573: closures and trait values
 runtime/valid/static-and-dynamic-trait-dispatch.hd	#573: closures and trait values
 runtime/valid/std-errors-erased-codecs.hd	#573: closures and trait values
+runtime/valid/std-errors-erased.hd	#592: standard errors erased through references
 runtime/valid/std-iter-traits-struct-impls.hd	#573: closures and trait values
 runtime/valid/std-list-extend-own-copy.hd	#573: closures and trait values
 runtime/valid/stored-function-field-call.hd	#573: closures and trait values

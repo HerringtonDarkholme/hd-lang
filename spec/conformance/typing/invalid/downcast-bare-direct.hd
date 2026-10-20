@@ -1,7 +1,0 @@
-# test: inherent recovery needs an original reference payload, so a bare erased value cannot be addressed or auto-addressed
-# Spec 09 Trait Value References: trait.dyn.ref.bare-reference-method; Ordinary Rules For Recovery: trait.downcast.reference-receivers.
-use std.inspect.Inspectable
-struct User:
-    count: i32
-fn direct(value: dyn Inspectable) -> void:
-    _ := value.downcast_ref::[User]()  # diagnostic: dyn-member-unavailable

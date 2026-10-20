@@ -3,7 +3,7 @@
 # Also covers std-http.types.decl-struct, std-http.types.traits,
 # std-http.request.defaults, std-http.headers.pairs,
 # std-http.error.decl, std-http.error.traits, std-http.error.other,
-# std-http.trait.decl-ref, std-http.send, std-http.send.mut-ref,
+# std-http.trait.decl-ref, std-http.send, std-http.send.mut-ref.reference-values,
 # std-http.bodies, std-http.helper.send, std-http.scripted.decl,
 # and std-http.scripted.no-host.
 # expect: test

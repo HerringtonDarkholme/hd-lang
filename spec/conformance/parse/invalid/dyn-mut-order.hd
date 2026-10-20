@@ -4,5 +4,5 @@
 trait Counter:
     fn bump(mut self) -> void
 
-fn tick(counter: dyn mut Counter) -> void:  # diagnostic: syntax-error
+fn tick(counter: &dyn mut Counter) -> void:  # diagnostic: syntax-error
     counter.bump()

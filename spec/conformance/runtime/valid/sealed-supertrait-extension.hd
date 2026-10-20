@@ -1,6 +1,6 @@
 # test: a trait extending Inspectable is implemented with its own members only, and its values keep their recorded type when widened
 # Spec 09 Extending A Sealed Trait: trait.sealed.extend, trait.sealed.extend.members; Compiler-Supplied Implementations: trait.sealed.supplied, trait.sealed.behaves.
-# Spec 09 Supertrait Widening: trait.dyn.widen, trait.dyn.recover; Erasure To Inspectable: trait.erase.child-impl, trait.erase.widen, trait.erase.keeps.
+# Spec 09 Supertrait Widening: trait.dyn.widen, trait.dyn.recover; Erasure To Inspectable: trait.erase.child-impl, trait.erase.widen.reference-values, trait.erase.keeps.
 use std.inspect.{Inspectable, TypeId}
 trait Plugin < Inspectable:
     fn name(self) -> string

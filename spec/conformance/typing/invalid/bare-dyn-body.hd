@@ -1,0 +1,8 @@
+# test: a bare trait value type is rejected in a local annotation without a fix
+# Spec 09 Dynamic Trait Values: trait.dyn.bare-value-rejected, trait.dyn.bare-value-no-fix.
+trait Shape:
+    fn area(self) -> i32
+
+fn consume() -> void:
+    let value: dyn Shape = panic("unreachable")  # diagnostic: trait-used-as-type
+    _ := value

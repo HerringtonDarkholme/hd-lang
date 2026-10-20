@@ -868,7 +868,7 @@ growing type) has no finite instance set.
   Supplier[Item = i32]` is `(eqref) -> i32`, and `dyn Supplier[Item =
   string]` gets a vtable of its own. A parent field's key is the
   supertrait with its supertrait-list bindings plus those of the child's
-  bindings it reaches (`trait.dyn.binding.widen`), so widening still
+  bindings it reaches (`trait.dyn.binding.widen.reference-values`), so widening still
   reads one parent field. Requirement-key vtables use the same key, so a
   `$ Store[Item = User]` provider's `load` returns a `User`. A trait's
   layout hash covers its supertrait list, whose bindings shape the key.
@@ -1744,7 +1744,7 @@ directly because the clamp is monotone.
 The spec exposes transitive supertrait methods on every dynamic value
 (`trait.dyn.value-methods`, `trait.dyn.supertrait-methods`) and lets
 a `dyn` child widen implicitly to a supertrait value
-(`trait.dyn.widen`, bindings kept per `trait.dyn.binding.widen`).
+(`trait.dyn.widen`, bindings kept per `trait.dyn.binding.widen.reference-values`).
 
 A child vtable holds its own methods' slots plus one vtable field
 per direct supertrait (the `Supertrait` coercion already reads "the

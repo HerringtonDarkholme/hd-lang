@@ -94,7 +94,7 @@ impl Shape for Sq:
 fn dyn_call(call: &str) -> String {
     format!(
         "{TRAIT}
-fn use_it(s: dyn Shape) -> void:
+fn use_it(s: &dyn Shape) -> void:
     {call}
 
 pub fn main() -> void:
@@ -167,14 +167,14 @@ fn self_in_a_function_type_is_unavailable_through_a_key() {
 fn the_available_members_of_a_trait_with_self_members_run() {
     let main = format!(
         "{TRAIT}
-fn show(s: dyn Shape) -> string:
+fn show(s: &dyn Shape) -> string:
     s.area().to_string() + \",\" + s.pick(5).to_string() + \",\" + s.many([1, 2]).len().to_string()
 
 fn keyed() -> i32 $ Shape:
     $.use(Shape).area() + $.use(Shape).pick(1)
 
 pub fn main() -> void $ Console:
-    println(show(Sq {{ n: 3 }}))
+    println(show(&Sq {{ n: 3 }}))
     $.with(Shape=Sq {{ n: 2 }}):
         println(keyed())
 "
@@ -184,8 +184,7 @@ pub fn main() -> void $ Console:
 
 #[test]
 fn a_supertrait_with_a_self_member_stays_usable_through_the_subtrait() {
-    let main = "\
-trait Base:
+    let main = "trait Base:
     fn id(self) -> i32
     fn merge(self, other: Self) -> Self
 
@@ -202,26 +201,25 @@ impl Base for D:
 impl Sub for D:
     fn extra(self) -> i32: 4
 
-fn show(s: dyn Sub) -> i32:
+fn show(s: &dyn Sub) -> i32:
     s.id() + s.extra()
 
 pub fn main() -> void $ Console:
-    println(show(D { n: 1 }))
+    println(show(&D { n: 1 }))
 ";
     assert_eq!(output_of("super", main), "5\n");
 }
 
 #[test]
 fn a_supertrait_self_member_is_unavailable_through_the_subtrait() {
-    let main = "\
-trait Base:
+    let main = "trait Base:
     fn id(self) -> i32
     fn merge(self, other: Self) -> Self
 
 trait Sub < Base:
     fn extra(self) -> i32
 
-fn show(s: dyn Sub) -> i32:
+fn show(s: &dyn Sub) -> i32:
     s.merge(s).id()
 
 pub fn main() -> void:
@@ -232,8 +230,7 @@ pub fn main() -> void:
 
 #[test]
 fn an_associated_type_projection_of_self_keeps_a_method_available() {
-    let main = "\
-trait Bag:
+    let main = "trait Bag:
     type Item
     fn first(self) -> Self::Item
 
@@ -244,11 +241,11 @@ impl Bag for D:
     type Item = i32
     fn first(self) -> i32: self.n
 
-fn show(b: dyn Bag[Item = i32]) -> i32:
+fn show(b: &dyn Bag[Item = i32]) -> i32:
     b.first()
 
 pub fn main() -> void $ Console:
-    println(show(D { n: 8 }))
+    println(show(&D { n: 8 }))
 ";
     assert_eq!(output_of("assoc", main), "8\n");
 }

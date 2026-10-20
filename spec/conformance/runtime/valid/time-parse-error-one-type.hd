@@ -8,7 +8,7 @@ fn both(duration: string, stamp: string) -> Result[void, ParseTimeError]:
     _ := stamp.parse::[Timestamp]()?
     .Ok(())
 
-fn erased(duration: string) -> Result[Duration, dyn Error]:
+fn erased(duration: string) -> Result[Duration, &dyn Error]:
     .Ok(duration.parse::[Duration]()?)
 
 tests:

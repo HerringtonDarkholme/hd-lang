@@ -17,9 +17,9 @@ fn loud() -> i32 $ Console:
     println("inside")
     +7
 
-fn go(v: dyn Runner) -> void $ Console:
+fn go(v: &dyn Runner) -> void $ Console:
     println("${v.run(fn() -> i32: +5)}")
     println("${v.run(loud)}")
 
 pub fn main() -> void $ Console:
-    go(Plain {})
+    go(&Plain {})

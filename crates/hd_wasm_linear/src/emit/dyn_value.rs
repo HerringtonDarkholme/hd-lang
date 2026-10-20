@@ -79,7 +79,16 @@ impl Em<'_, '_, '_> {
         let from = self.strip_mut(self.ty_of(a));
         let sealed = self.env().decls().sealed();
         let sealed_identity = matches!(self.pool().get(self.strip_mut(self.ty(i))), TyData::TraitValue { def, .. } if def == sealed.inspectable || def == sealed.any);
-        if self.is_dyn(from) || (!sealed_identity && self.is_dyn(self.dyn_value_ty(from))) {
+        if self.is_dyn(from)
+            || ((!sealed_identity
+                || hd_mono::trait_reference_widens(
+                    self.pool(),
+                    self.env(),
+                    from,
+                    self.strip_mut(self.ty(i)),
+                ))
+                && self.is_dyn(self.dyn_value_ty(from)))
+        {
             return self.widen(i, a);
         }
         let Some(Target::VTable(table)) = self.calls.get(&i).cloned() else {
@@ -160,13 +169,9 @@ impl Em<'_, '_, '_> {
             } else {
                 self.vals(t.ret)?
             };
-            // A `&self` method on a payload that is no reference, which
-            // the checker never lets a call reach, a generic method (its
-            // erased body) and a compiler-supplied method trap; the
-            // dynamic call refuses the last two (`Em::call_dyn`).
-            let traps = *recv == SlotRecv::Unavailable
-                || erased::own_count(env, *m) > 0
-                || t.kind != TargetKind::Instance;
+            // Generic erased methods and compiler-supplied methods still
+            // use their existing dynamic-call lowering restrictions.
+            let traps = erased::own_count(env, *m) > 0 || t.kind != TargetKind::Instance;
             // The vtable's `runtime_type` answers the type the vtable is
             // built at (trait.inspect.dynamic).
             if let TargetKind::Builtin { self_ty, .. } = t.kind

@@ -83,7 +83,7 @@ pub trait ConsoleInput:
 1. r[std-console.input.decl] `std.console` declares the host capability trait `ConsoleInput` with the method above. Code imports it, as in `use std.console.ConsoleInput`.
 2. r[std-console.input.read-line] `read_line!` returns the next line of input without its line ending, or `.None` at the end of input.
 3. r[std-console.input.suspends] Console input is I/O, so `read_line!` is a bang call.
-4. r[std-console.input.mut-ref] `read_line!` takes `&mut self`, so `ConsoleInput` is a [mutable requirement trait](../lang/11-requirements-and-suspension.md#r-req.mut.trait-changing), `$.use(ConsoleInput)` is a `&mut dyn ConsoleInput` by [`req.ref.use`](../lang/11-requirements-and-suspension.md#r-req.ref.use), and a provider may advance through its input.
+4. r[std-console.input.mut-ref.reference-values] `read_line!` takes `&mut self`, so `ConsoleInput` is a [mutable requirement trait](../lang/11-requirements-and-suspension.md#r-req.mut.trait-changing), `$.use(ConsoleInput)` is a `&mut dyn ConsoleInput` by [`req.ref.use.reference-values`](../lang/11-requirements-and-suspension.md#r-req.ref.use.reference-values), and a provider may advance through its input.
 5. r[std-console.input.helper] `std.console` declares `pub fn read_line!() -> Result[string?, ConsoleError] $ ConsoleInput`, which calls `read_line!` on the `ConsoleInput` provider that covers the call.
 
 ```text

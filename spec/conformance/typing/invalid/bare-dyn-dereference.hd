@@ -1,0 +1,6 @@
+# test: dereferencing an erased reference does not create a sized trait value
+# Spec 09 Dynamic Trait Values: trait.dyn.reference-no-bare-read.
+trait Shape:
+    fn area(self) -> i32
+fn read(value: &dyn Shape) -> void:
+    _ := *value  # diagnostic: trait-used-as-type

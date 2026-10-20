@@ -1,5 +1,5 @@
 # test: a bare trait name in a bound's associated binding value is an error; the type is written dyn Factory
-# Spec 09 Dynamic Trait Values: trait.dyn.keyword, trait.dyn.keyword.positions.
+# Spec 09 Dynamic Trait Values: trait.dyn.reference-keyword, trait.dyn.keyword.positions.
 
 trait Store:
     type Item

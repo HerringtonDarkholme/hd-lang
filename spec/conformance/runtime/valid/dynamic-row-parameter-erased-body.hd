@@ -23,7 +23,7 @@ trait Runner:
     fn wrapped[$R](self, job: fn() -> string $ R) -> string $ R
     fn apply[T, $R](self, x: T, f: fn(T) -> T $ R) -> T $ R
     fn both[$S, $T](self, a: fn() -> string $ S, b: fn() -> string $ T) -> string $ S + T
-    fn again[$R](self, other: dyn Runner, job: fn() -> string $ R) -> string $ R
+    fn again[$R](self, other: &dyn Runner, job: fn() -> string $ R) -> string $ R
     fn fallback[$R](self, job: fn() -> string $ R) -> string $ R:
         "default " + job()
 
@@ -58,7 +58,7 @@ impl Runner for Plain:
     fn both[$S, $T](self, a: fn() -> string $ S, b: fn() -> string $ T) -> string $ S + T:
         a() + self.prefix + b()
 
-    fn again[$R](self, other: dyn Runner, job: fn() -> string $ R) -> string $ R:
+    fn again[$R](self, other: &dyn Runner, job: fn() -> string $ R) -> string $ R:
         self.prefix + other.run(job)
 
 fn read_tag() -> string $ Tag:
@@ -69,8 +69,8 @@ fn plain() -> string: "plain"
 fn double(x: i32) -> i32 $ Tag:
     x * 2
 
-fn runner(prefix: string) -> dyn Runner:
-    Plain { prefix: prefix }
+fn runner(prefix: string) -> &dyn Runner:
+    &Plain { prefix: prefix }
 
 tests:
     use std.testing.assert_equal

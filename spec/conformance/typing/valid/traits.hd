@@ -1,4 +1,4 @@
-# Spec 09 Traits: trait.impl.explicit, trait.inherent.decl, trait.bound.static, trait.dyn.form, trait.dyn.keyword.
+# Spec 09 Traits: trait.impl.explicit, trait.inherent.decl, trait.bound.static, trait.dyn.reference-form, trait.dyn.reference-keyword.
 trait Describe:
     fn describe(self) -> string
 
@@ -20,5 +20,5 @@ impl User:
 fn show[T < Describe](value: T) -> string:
     value.describe()
 
-fn dynamic_show(value: dyn Describe) -> string:
+fn dynamic_show(value: &dyn Describe) -> string:
     value.describe()

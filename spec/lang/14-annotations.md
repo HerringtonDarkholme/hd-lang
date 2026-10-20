@@ -337,7 +337,7 @@ pub enum Target:
 pub struct Annotate:
     pub kinds: List[Target]
 
-pub fn annotate[T = dyn Any](kinds...: List[Target]) -> Annotate:
+pub fn annotate[T = &dyn Any](kinds...: List[Target]) -> Annotate:
     Annotate { kinds: kinds }
 ```
 
@@ -445,7 +445,7 @@ The check has three steps:
 3. r[annot.typed-fact.pattern.scope] Names in the pattern see the fact type's type parameters, as the fact type's own fields do.
 4. r[annot.typed-fact.pattern.trivial] A pattern that is one of those parameters alone, as `T` in `@annotate::[T](.Field)`, is a **trivial pattern**. That parameter is the fact type's **target parameter**, and it is inferred as the target's whole type.
 5. r[annot.typed-fact.pattern.concrete] A pattern that mentions none of the fact type's parameters, as `i32` in `@annotate::[i32](.Field)`, is valid. A value of that fact type attaches only to a target of that type, and any other target is an error. Error: `type-mismatch`.
-6. r[annot.typed-fact.untyped] A fact type whose `annotate` type argument is the default `dyn Any`, as in `@annotate(.Field)`, is an **untyped fact type**. Its values stay unchecked, as [Member Metadata](#member-metadata) states.
+6. r[annot.typed-fact.untyped.reference-values] A fact type whose `annotate` type argument is the default `&dyn Any`, as in `@annotate(.Field)`, is an **untyped fact type**. Its values stay unchecked, as [Member Metadata](#member-metadata) states.
 7. r[annot.typed-fact.untyped.no-annotate] A fact type without an `Annotate` fact is untyped too.
 8. r[annot.typed-fact.targets] A value of a typed fact type may be attached only to a field or a module-level function. A field is a named or embedded struct field, or a payload member. Error: `decorator-target-kind`.
 9. r[annot.typed-fact.declared-type] A target's type is the type written on the field, so for `hits: &mut Counter` it is `&mut Counter`. A function's type is its signature as a function type, with its `!` and requirement row, as in `fn(i32) -> string`.
@@ -529,9 +529,9 @@ fn later!(id: i64) -> i64:
     id
 ```
 
-The generic `wrap` has the monomorphic type `fn(i64) -> List[dyn Any]`, where
+The generic `wrap` has the monomorphic type `fn(i64) -> List[&dyn Any]`, where
 `Any` is one fixed type, so its line is
-`let f: Handler[fn(i64) -> List[dyn Any]] = handler()`. Likewise
+`let f: Handler[fn(i64) -> List[&dyn Any]] = handler()`. Likewise
 `fn ms[M < Integer, R](n: M) -> R` has the type `fn(Integer) -> Any`.
 `later` is a `fn!`, so `Handler[fn!(i64) -> i64]` does not match
 `handler`'s result.
@@ -713,7 +713,7 @@ pub struct VariantInfo:
     pub facts: Facts
     pub doc: string?
     pub of_data: bool
-    pub shared: List[(string, dyn Any)]
+    pub shared: List[(string, &dyn Any)]
     pub self_ref: SelfRef
 
 pub enum SelfRef:

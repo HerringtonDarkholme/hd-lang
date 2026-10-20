@@ -1,5 +1,5 @@
 # test: a trait value type that binds every associated type is dynamically safe, and satisfies its trait's bound with the bound projection
-# Spec 09 Bound Associated Types: trait.dyn.binding.form, trait.dyn.binding.signatures, trait.dyn.binding.names, trait.dyn.binding.widen; Trait Values As Bounds: trait.dyn.bound.projection (owner decision AT2).
+# Spec 09 Bound Associated Types: trait.dyn.binding.form.reference-values, trait.dyn.binding.signatures, trait.dyn.binding.names, trait.dyn.binding.widen.reference-values; Trait Values As Bounds: trait.dyn.bound.reference-projection (owner decision AT2).
 
 trait Supplier:
     type Item
@@ -18,7 +18,7 @@ impl Supplier for Constant:
 impl NamedSupplier for Constant:
     fn name(self) -> string: "constant"
 
-fn read(source: dyn Supplier[Item = i32]) -> i32:
+fn read(source: &dyn Supplier[Item = i32]) -> i32:
     source.get() + 1
 
 fn first[T < Supplier](source: T) -> T::Item:
@@ -27,10 +27,10 @@ fn first[T < Supplier](source: T) -> T::Item:
 fn pinned[T < Supplier[Item = i32]](source: T) -> i32:
     source.get()
 
-fn widened(named: dyn NamedSupplier[Item = i32]) -> i32:
+fn widened(named: &dyn NamedSupplier[Item = i32]) -> i32:
     read(named)
 
 fn run() -> i32:
-    let source: dyn Supplier[Item = i32] = Constant { value: 41 }
+    let source: &dyn Supplier[Item = i32] = &Constant { value: 41 }
     let item: i32 = first(source)
-    item + read(source) + pinned(source) + widened(Constant { value: 1 })
+    item + read(source) + pinned(source) + widened(&Constant { value: 1 })

@@ -568,7 +568,7 @@ fn checker_errors_are_reported() {
             Code::MissingContextualEnumType,
         ),
         (
-            "pub fn main() -> void $ Console:\n    let v: dyn Any = .None\n    println(1)\n",
+            "pub fn main() -> void $ Console:\n    let v: &dyn Any = .None\n    println(1)\n",
             Code::MissingContextualEnumType,
         ),
         (
@@ -914,7 +914,7 @@ fn a_dependency_diagnostic_is_located_in_its_file() {
 /// `expr.try.convert`: a `?` error that is assignable or converts by
 /// `From` propagates; one that does neither is `invalid-result-propagation`
 /// (`expr.try.convert.none`), whether the function returns a plain error
-/// type or the erased `dyn Error` (`expr.try.test.converts`).
+/// type or the erased `dyn Error` (`expr.try.test.converts.reference-values`).
 #[test]
 fn a_try_error_that_does_not_convert_is_invalid_propagation() {
     const ERRORS: &str = "\
@@ -943,13 +943,13 @@ fn word() -> Result[i32, i64]:
 ";
     for ok in [
         "fn f() -> Result[i32, Wrapped]:\n    .Ok(parse()?)",
-        "fn f() -> Result[i32, dyn Error]:\n    .Ok(parse()?)",
+        "fn f() -> Result[i32, &dyn Error]:\n    .Ok(parse()?)",
     ] {
         assert_eq!(item_codes(&format!("{ERRORS}\n{ok}\n")), [], "{ok}");
     }
     for bad in [
         "fn f() -> Result[i32, Wrapped]:\n    .Ok(word()?)",
-        "fn f() -> Result[i32, dyn Error]:\n    .Ok(word()?)",
+        "fn f() -> Result[i32, &dyn Error]:\n    .Ok(word()?)",
     ] {
         assert_eq!(
             item_codes(&format!("{ERRORS}\n{bad}\n")),
@@ -1087,7 +1087,7 @@ fn written_types_may_omit_only_defaulted_slots() {
     for ok in [
         "fn f(p: Pair[i32, i64]) -> void: pass",
         "fn f(p: Pair[i32]) -> void: pass",
-        "fn f(r: dyn Repo[i32]) -> void: pass",
+        "fn f(r: &dyn Repo[i32]) -> void: pass",
         "fn f() -> void $ Repo[i32]: pass",
     ] {
         assert_eq!(item_codes(&format!("{HEAD}\n{ok}\n")), [], "{ok}");
@@ -1095,8 +1095,8 @@ fn written_types_may_omit_only_defaulted_slots() {
     for bad in [
         "fn f(m: Map[string]) -> void: pass",
         "fn f(p: Pair) -> void: pass",
-        "fn f(r: dyn Same) -> void: pass",
-        "fn f(r: dyn Repo) -> void: pass",
+        "fn f(r: &dyn Same) -> void: pass",
+        "fn f(r: &dyn Repo) -> void: pass",
         "fn f() -> void $ Repo: pass",
     ] {
         assert_eq!(
@@ -1132,7 +1132,7 @@ fn top_level_bindings_are_read_in_order() {
             "{READER}bounded := via_bound(Box {{ value: 2 }})\nlater := +5\nimpl Reader for Box:\n    fn read(self) -> i32:\n        later"
         ),
         format!(
-            "{READER}let reader: dyn Reader = Box {{ value: 3 }}\ndynamic := reader.read()\nlater := +5\nimpl Reader for Box:\n    fn read(self) -> i32:\n        later"
+            "{READER}let reader: &dyn Reader = &Box {{ value: 3 }}\ndynamic := reader.read()\nlater := +5\nimpl Reader for Box:\n    fn read(self) -> i32:\n        later"
         ),
     ] {
         assert_eq!(
@@ -1421,7 +1421,7 @@ fn implementation_heads_are_well_formed() {
         "impl[T < Display] Summary for Feed[T]:\n    fn summary(self) -> string: \"x\"",
         "impl[T < Display, I < Store[Item = T]] Summary for Feed[I]:\n    fn summary(self) -> string: \"x\"",
         "impl[$ R] Marker for Fn[(), i32, $ R]",
-        "impl Marker for List[dyn Display]",
+        "impl Marker for List[&dyn Display]",
     ] {
         assert_eq!(item_codes(&format!("{HEAD}\n{ok}\n")), [], "{ok}");
     }

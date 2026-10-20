@@ -21,7 +21,7 @@ pub fn main() -> void $ Console:
     for config in ["port = 8080", "host = local", "port = eighty"]:
         match start(config):
             .Ok(port) => println("listening on $port")
-            .Err(error) => println(report_of(*error))  # ← the whole chain
+            .Err(error) => println(report_of(error))  # ← the whole chain
 
 # ── plumbing ──
 use std.error.{Error, report_of}

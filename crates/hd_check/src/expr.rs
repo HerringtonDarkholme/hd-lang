@@ -1683,7 +1683,7 @@ impl Ck<'_, '_> {
     }
 
     /// Whether `t` coerces into the trait value `target` because it
-    /// implements the trait (`types.assign.trait-value`), or the answer waits for
+    /// implements the trait (`types.assign.trait-value.ref`), or the answer waits for
     /// inference; `false` when `target` is no trait value.
     fn erases_into(&mut self, t: Ty, target: Ty) -> StageResult<bool> {
         let pool = self.pool();
@@ -3838,11 +3838,15 @@ impl Ck<'_, '_> {
                 let ev = if self.can_unify(et, ret_e) {
                     self.expect(et, ret_e, *e, "error", ExpectPosition::General);
                     ev
-                } else if self.erases_into(et, ret_e)? {
-                    // Into an erased error such as `dyn Error` that the
-                    // error's type implements: a trait-value coercion
-                    // (`expr.try.convert.assignable`, `expr.try.test.converts`).
-                    self.coerce(ev, et, ret_e, *e, "error", ExpectPosition::General)
+                } else if let Some((tv, mutable)) = self.dyn_ref_of(ret_e)
+                    && self.dyn_fits(self.ref_of(et).map_or(et, |(inner, _)| inner), tv)
+                {
+                    let (ev, source) = if self.ref_of(et).is_none() {
+                        self.new_object_ref(ev, et, mutable, *e)
+                    } else {
+                        (ev, et)
+                    };
+                    self.coerce(ev, source, ret_e, *e, "error", ExpectPosition::General)
                 } else {
                     let from = self.cx.names.known.from;
                     let tref = hd_types::solver::TraitRef {

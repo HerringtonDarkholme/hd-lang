@@ -695,7 +695,12 @@ impl<'a, 'n> Gen<'a, 'n> {
             let name = self.str_(&f.name);
             let rec = self.b.refs_record(&[Ref(f.global.raw())]);
             let x = self.b.emit(Tag::GlobalGet, rec, NONE, f.ty, SYN);
-            let value = self.b.coerce(Coercion::ToTraitValue, NONE, x, value_t, SYN);
+            let TyData::Ref { inner, .. } = pool.get(value_t) else {
+                return self
+                    .cx
+                    .unsupported("a shared member without a trait reference type");
+            };
+            let value = self.erase_value_reference(x, f.ty, inner)?;
             let rec = self.b.refs_record(&[name, value]);
             pairs.push(self.b.emit(Tag::NewTuple, NONE, rec, pair_t, SYN));
         }
@@ -733,6 +738,59 @@ impl<'a, 'n> Gen<'a, 'n> {
         let root = self.b.close_block(blk, tail, ret, SYN);
         let ft = self.fn_ty(params, ret);
         Ok(self.b.close_sub(m, root, ft, SYN))
+    }
+
+    /// Erases an existing reference while preserving its place identity.
+    fn erase_reference(&mut self, src: Ref, src_ty: Ty, tv: Ty) -> StageResult<Ref> {
+        let pool = self.names.pool;
+        let held = self
+            .b
+            .local(src_ty, self.names.syms.intern("$reference"), 0, SYN);
+        self.b.set(held, src, SYN);
+        let get = self.closure(&[], tv, |g, _| {
+            let source = g.b.get(held, src_ty, SYN);
+            Ok(g.b.coerce(Coercion::RefToTraitValue, NONE, source, tv, SYN))
+        })?;
+        let set = self.closure(&[tv], Ty::VOID, |g, _| {
+            Ok(g.b.emit(Tag::Unreachable, NONE, NONE, Ty::NEVER, SYN))
+        })?;
+        let any = pool.intern_ty(&TyData::TraitValue {
+            def: self.names.known.any,
+            args: TyList::EMPTY,
+            bindings: vec![],
+        });
+        let source = self.b.get(held, src_ty, SYN);
+        let base = self.b.emit(Tag::Field, source.0, 2, any, SYN);
+        let serial = self
+            .b
+            .emit(Tag::Field, source.0, 3, Ty::prim(hd_types::Prim::I64), SYN);
+        let key = self.b.emit(Tag::Field, source.0, 4, Ty::STRING, SYN);
+        let rt = pool.intern_ty(&TyData::Ref {
+            inner: tv,
+            mutable: false,
+        });
+        let rec = self.b.refs_record(&[get, set, base, serial, key]);
+        Ok(self.b.emit(Tag::NewData, NONE, rec, rt, SYN))
+    }
+
+    /// A copied value in a new object, erased as a shared trait reference.
+    fn erase_value_reference(&mut self, value: Ref, ty: Ty, tv: Ty) -> StageResult<Ref> {
+        let pool = self.names.pool;
+        let reference = pool.intern_ty(&TyData::Ref {
+            inner: ty,
+            mutable: true,
+        });
+        let source = self.b.call(
+            &Callee::Item {
+                def: self.names.item("std.rt", "host_provider"),
+                targs: pool.list(&[ty]),
+            },
+            &[value],
+            Providers::None,
+            reference,
+            SYN,
+        );
+        self.erase_reference(source, reference, tv)
     }
 
     /// Reads member `m` of variant `v` from `s` (a value of the target):
@@ -888,9 +946,7 @@ impl<'a, 'n> Gen<'a, 'n> {
             args: TyList::EMPTY,
             bindings: vec![],
         });
-        let witness = self
-            .b
-            .coerce(Coercion::ToTraitValue, NONE, info, inspectable, SYN);
+        let witness = self.erase_value_reference(info, self.b.ty_of(info), inspectable)?;
         let field = self.names.known.field;
         self.new_data(
             field,

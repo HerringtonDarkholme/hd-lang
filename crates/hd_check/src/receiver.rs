@@ -99,7 +99,7 @@ impl Ck<'_, '_> {
             Some(Hit::Inherent { method, .. }) => self.ref_receiver_of(method),
             // A trait value passes its payload to a reference receiver
             // itself (`trait.dyn.ref.member`), or a bare one has none
-            // (`trait.dyn.member.ref-receiver-bare`); the call decides.
+            // (`trait.dyn.ref.member`); the call decides.
             Some(Hit::Trait { choice, .. }) if choice.0 == ChoiceKind::TraitValue => Ok(None),
             Some(Hit::Trait { method, .. }) => self.ref_receiver_of(method),
             Some(Hit::Choice { method, .. }) => self.ref_receiver_of(method),
@@ -147,13 +147,6 @@ impl Ck<'_, '_> {
         let Some(mutable) = mutable else {
             return Ok(None);
         };
-        if via_ref.is_none()
-            && let TyData::TraitValue { def, .. } = self.pool().get(self.strip_mut(vt))
-            && self.bare_dyn_needs_reference_payload(def)
-        {
-            self.bare_dyn_ref_error(def, base);
-            return Ok(Some(self.poisoned(base)));
-        }
         if via_ref.is_some() && part.is_empty() {
             // A reference receiver: the method refers to what it refers to.
             let (r, t) = self.expr(base, None)?;
@@ -214,12 +207,6 @@ impl Ck<'_, '_> {
         };
         let pool = self.pool();
         let inner = self.strip_mut(place.ty);
-        if let TyData::TraitValue { def, .. } = pool.get(inner)
-            && self.bare_dyn_needs_reference_payload(def)
-        {
-            self.bare_dyn_ref_error(def, base);
-            return Ok(self.poisoned(base));
-        }
 
         let rt = pool.intern_ty(&TyData::Ref { inner, mutable });
         let r = self.make_ref(&place, inner, mutable, rt, base);

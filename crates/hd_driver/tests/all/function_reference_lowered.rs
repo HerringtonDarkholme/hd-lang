@@ -118,7 +118,7 @@ fn references_to_builtin_impls_call_through_their_adapters() {
 }
 
 /// A member reference at a `dyn` receiver calls the method in the
-/// receiver's vtable (`trait.dyn.bound.dispatch`): a plain method, a `mut
+/// receiver's vtable (`trait.dyn.bound.reference-dispatch`): a plain method, a `mut
 /// self` method, a default method, a method of a supertrait, a generic
 /// method through its erased body, and a bound reference.
 #[test]

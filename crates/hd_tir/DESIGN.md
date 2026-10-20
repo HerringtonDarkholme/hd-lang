@@ -224,8 +224,8 @@ alike, in source order. An entry `K=e` checks `e`, keeps the
 `e` to the key's trait value type `K` (`ToTraitValue`, or `Supertrait`
 from a subtrait value, or nothing from a `K` value), so a value whose
 type lacks the impl is `type-mismatch`. A `&S` or `&mut S` value becomes
-`K` by `RefToTraitValue`, sharing the place (`req.ref.share`). When `K`'s
-trait has a `&self` or `&mut self` method (`req.ref.key`), `e` converts
+`K` by `RefToTraitValue`, sharing the place (`req.ref.share.reference-values`). When `K`'s
+trait has a `&self` or `&mut self` method (`req.ref.key.reference-values`), `e` converts
 to `&dyn K` or `&mut dyn K` as any value does (only a reference does,
 `req.ref.install-ref`), and `RefAsProvider` keeps
 that reference as the provider; `$.use(K)` reads it back with

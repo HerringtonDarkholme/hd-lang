@@ -1,5 +1,5 @@
 # test: the parser accepts every type form, with a default type parameter naming Self, tuple rest types, bindings in trait value types, and row clauses owned by the innermost function type
-# Spec 02 Types: grammar.type.rest, grammar.type.dyn, grammar.type.dyn.mut, grammar.type.dyn.optional, grammar.type.row-owner, grammar.type.row-owner.grouped, grammar.type.row.key-binding, grammar.type.row.key-binding.everywhere, grammar.type.optional, grammar.type.optional.function, grammar.type.group, grammar.generic.binding.positions-key, grammar.type.row.one-form, grammar.generic.default.
+# Spec 02 Types: grammar.type.rest, grammar.type.dyn.reference-values, grammar.type.dyn.mut, grammar.type.dyn.optional.reference-values, grammar.type.row-owner, grammar.type.row-owner.grouped, grammar.type.row.key-binding, grammar.type.row.key-binding.everywhere, grammar.type.optional, grammar.type.optional.function, grammar.type.group, grammar.generic.binding.positions-key.reference-values, grammar.type.row.one-form, grammar.generic.default.
 # Spec 02 Types: the unit tuple type, a one-element tuple type, and an associated type projection.
 
 pub trait Add[Rhs = Self]:
@@ -31,7 +31,7 @@ fn total(pair: (i32, List[i32]...), callback: fn(i32, List[i32]...) -> i32) -> i
 
 fn only(values: (List[i32]...,)) -> usize: values._0.len()
 
-fn feeds(feed: dyn Supplier[Item = i32], cache: &mut dyn Supplier[Item = i32], maybe: dyn Display?) -> void: pass
+fn feeds(feed: &dyn Supplier[Item = i32], cache: &mut dyn Supplier[Item = i32], maybe: &dyn Display?) -> void: pass
 
 fn unit(none: (), single: (i32,), nested: ((i32, i32), (string,))) -> (): ()
 

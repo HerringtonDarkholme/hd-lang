@@ -9,11 +9,11 @@ struct FixedReader:
 impl Reader for FixedReader:
     fn read!(self, value: i32) -> i32: self.offset + value
 
-fn combine!(reader: dyn Reader) -> i32:
+fn combine!(reader: &dyn Reader) -> i32:
     reader.read!(20) + reader.read!(22)
 
 fn main!() -> i32:
-    combine!(FixedReader { offset: 0 })
+    combine!(&FixedReader { offset: 0 })
 
 tests:
     use std.testing.assert_equal

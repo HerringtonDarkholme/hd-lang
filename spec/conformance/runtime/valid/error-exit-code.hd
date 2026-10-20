@@ -1,5 +1,5 @@
 # test: Error.exit_code defaults to 1, an override picks the code, and Termination reads it
-# Spec std/error Exit Status: std-error.exit-code.default, std-error.exit-code.dyn, std-error.exit-code.context.
+# Spec std/error Exit Status: std-error.exit-code.default, std-error.exit-code.dyn.reference-values, std-error.exit-code.context.
 # Spec 10 Exit Status: module.entry.termination.err-code.
 use std.error.{Error, message}
 use std.process.{ExitCode, Termination}
@@ -35,7 +35,7 @@ tests:
         assert_equal(Usage { text: "x" }.exit_code(), 3, reason="the override")
 
     it("a dyn Error answers with its own code"):
-        let erased: dyn Error = Usage { text: "x" }
+        let erased: &dyn Error = &Usage { text: "x" }
         assert_equal(erased.exit_code(), 3, reason="forwarded through dyn")
         assert_equal(message("x").exit_code(), 1, reason="a message error keeps the default")
 

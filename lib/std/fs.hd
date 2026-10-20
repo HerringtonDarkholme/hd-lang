@@ -46,7 +46,7 @@ impl Display for FsError:
     fn to_string(self) -> string:
         fs_error_text(self)
 
-# A std error type implements `Error` (r-std-error.std-types.impl).
+# A std error type implements `Error` (r-std-error.std-types.impl.reference-values).
 impl Error for FsError
 
 fn fs_error_text(error: FsError) -> string:

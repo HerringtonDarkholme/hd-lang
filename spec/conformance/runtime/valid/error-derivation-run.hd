@@ -50,7 +50,7 @@ struct PublicError:
     @from
     repr: LoadError
 
-fn cause_text(error: dyn Error) -> string:
+fn cause_text(error: &dyn Error) -> string:
     match error.cause():
         .Some(cause) => cause.to_string()
         .None => "none"
@@ -69,12 +69,12 @@ fn publish(text: string) -> Result[i64, PublicError]:
 fn load_text(result: Result[i64, LoadError]) -> string:
     match result:
         .Ok(_) => "ok"
-        .Err(error) => error.to_string() + " / " + cause_text(error)
+        .Err(error) => error.to_string() + " / " + cause_text(&error)
 
 fn publish_text(result: Result[i64, PublicError]) -> string:
     match result:
         .Ok(_) => "ok"
-        .Err(error) => error.to_string() + " / " + cause_text(error)
+        .Err(error) => error.to_string() + " / " + cause_text(&error)
 
 tests:
     use std.testing.assert_equal
@@ -93,14 +93,14 @@ tests:
         assert_equal(FsError.Busy.to_string(), "Busy", reason="the variant name")
 
     it("a variant without @from or @source has no cause"):
-        assert_equal(cause_text(FsError.Busy), "none", reason="no automatic cause")
+        assert_equal(cause_text(&FsError.Busy), "none", reason="no automatic cause")
 
     it("a @source member is the cause"):
-        assert_equal(cause_text(LoadError.Read("c.txt", FsError.Busy)), "Busy", reason="the source")
+        assert_equal(cause_text(&LoadError.Read("c.txt", FsError.Busy)), "Busy", reason="the source")
 
     it("an optional @source member gives a cause only when present"):
-        assert_equal(cause_text(LoadError.Open("c.txt", .None)), "none", reason="an absent cause")
-        assert_equal(cause_text(LoadError.Open("c.txt", FsError.Busy)), "Busy", reason="a present cause")
+        assert_equal(cause_text(&LoadError.Open("c.txt", .None)), "none", reason="an absent cause")
+        assert_equal(cause_text(&LoadError.Open("c.txt", FsError.Busy)), "Busy", reason="a present cause")
 
     it("? converts through the generated From, and @from marks the cause"):
         assert_equal(load_text(load("")), "bad config / bad yaml at line 3", reason="From[YamlError]")
@@ -109,9 +109,9 @@ tests:
     it("a transparent variant forwards its message and its payload's cause"):
         let wrapped: LoadError = LoadError.Fs(FsError.NotFound("d.txt"))
         assert_equal(wrapped.to_string(), "not found: d.txt", reason="the payload's message")
-        assert_equal(cause_text(wrapped), "none", reason="the payload's own cause")
+        assert_equal(cause_text(&wrapped), "none", reason="the payload's own cause")
 
     it("a transparent data type forwards to its field and converts with From"):
         assert_equal(publish_text(publish("")), "bad config / bad yaml at line 3", reason="From[LoadError]")
         let public: PublicError = PublicError { repr: LoadError.Read("e.txt", FsError.Busy) }
-        assert_equal(cause_text(public), "Busy", reason="the field's cause")
+        assert_equal(cause_text(&public), "Busy", reason="the field's cause")

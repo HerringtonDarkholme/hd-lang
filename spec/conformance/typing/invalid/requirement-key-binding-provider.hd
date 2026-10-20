@@ -1,5 +1,5 @@
 # test: a provider for a bound key must bind the associated type to the stated type
-# Spec 11 Provider Scopes: req.with.type.binding (owner decision AT5).
+# Spec 11 Provider Scopes: req.with.type.binding.reference-values (owner decision AT5).
 
 trait Store:
     type Item

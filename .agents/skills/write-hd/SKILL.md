@@ -519,7 +519,7 @@ Import `std.inspect.Inspectable`. Store an erased shared reference as
 The target names the referent: use `User` for an erased `&User`.
 If the referent itself is a reference value, its reference type is the
 target instead. The recovered reference keeps identity with the original reference. Copy its value with `*found`, or with
-`.map(fn(found): *found)`. A bare trait value cannot call either method.
+`.map(fn(found): *found)`. A written bare `dyn Trait` type is an error; write `&dyn Trait` or `&mut dyn Trait`.
 
 ```hd
 use std.inspect.Inspectable

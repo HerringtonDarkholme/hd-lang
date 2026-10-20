@@ -3,7 +3,7 @@
 trait Db:
     fn name(self) -> string
 
-type Store = dyn Db
+type Store = &dyn Db
 
 type DbRow = $ Db
 

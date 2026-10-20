@@ -1244,8 +1244,9 @@ open type argument `T` as `i32`.
 The steps are:
 
 1. r[expr.try.convert.assignable] **Assignability.** If `E` is assignable to `F` by one rule of [Assignability And Coercion](04-type-system.md#assignability-and-coercion), the returned error is the error converted by that rule.
-2. r[expr.try.convert.from] **Conversion.** Otherwise, if `F` implements `From[E]`, the returned error is the result of that implementation's `from` applied to the error.
-3. r[expr.try.convert.none] Otherwise the `?` is an error. Error: `invalid-result-propagation`.
+2. r[expr.try.convert.erased-reference] An error implementing the referent trait propagates into a trait value reference error type by sharing an existing reference or copying a value into a new object. This step does not perform optional injection.
+3. r[expr.try.convert.from] **Conversion.** Otherwise, if `F` implements `From[E]`, the returned error is the result of that implementation's `from` applied to the error.
+4. r[expr.try.convert.none] Otherwise the `?` is an error. Error: `invalid-result-propagation`.
 
 ```text
 use std.convert.From
@@ -1280,14 +1281,14 @@ fn sync(path: string) -> Result[string, SyncError]:
 
 These rules refine the steps:
 
-1. r[expr.try.convert.assignable.covers] The assignability step covers an identical type, the weakening of `&mut T` to `&T`, and variance. It also covers construction of a dynamic trait value such as the erased `dyn Error`, supertrait widening of a dynamic value, and optional injection.
+1. r[expr.try.convert.assignable.covers.reference-values] The assignability step covers identical types, reference weakening, variance, supertrait widening and optional injection.
 2. r[expr.try.convert.no-import] The code using `?` does not need to import `From`.
-3. r[expr.try.convert.message] The message of the third step's error should name `E` and `F`. It should suggest an implementation of `From[E]` for `F` or an explicit mapping of the error.
+3. r[expr.try.convert.message.reference-values] The failed propagation's message should name `E` and `F`. It should suggest an implementation of `From[E]` for `F` or an explicit mapping of the error.
 4. r[expr.try.convert.one-step] Exactly one step converts the error.
 5. r[expr.try.convert.no-combine] `?` never combines an assignability rule with a conversion, and it never chains conversions.
 6. r[expr.try.convert.no-chain] With `impl From[A] for B` and `impl From[B] for C`, a `?` on `Result[T, A]` in a function returning `Result[U, C]` is an error. Error: `invalid-result-propagation`.
 7. r[expr.try.convert.no-injection] With the same implementations, a `?` on `Result[T, A]` in a function returning `Result[U, B?]` is also an error. The conversion to `B` would need an optional injection after it. Error: `invalid-result-propagation`.
-8. r[expr.try.convert.single-rule] Assignability is itself one rule: an `A` that implements the trait `Tr` does not propagate into `Result[U, dyn Tr?]`.
+8. r[expr.try.convert.single-rule.reference-values] Assignability is itself one rule: an `A` that implements the trait `Tr` does not propagate into `Result[U, &dyn Tr?]`.
 9. r[expr.try.convert.only-try] Only `?` calls a conversion. `return .Err(error)` and every other `.Err` construction use ordinary assignability.
 10. r[expr.try.convert.before-defer] The conversion is part of the propagated value, so it runs before any deferred cleanup.
 11. r[expr.try.convert.pure] A conversion neither suspends nor uses a requirement, because `from` has neither.
@@ -1347,9 +1348,9 @@ tests:
 ```
 
 1. r[expr.try.test.fixed-result] When a trailing block is the body of an [`it` call](10-modules.md#test-cases), its result type is fixed rather than inferred.
-2. r[expr.try.test.with-try] If the block contains a `?` outside any nested closure, its result type is `Result[void, dyn Error]`, where `dyn Error` is the erased `std.error.Error`.
+2. r[expr.try.test.with-try.reference-values] If the block contains a `?` outside any nested closure, its result type is `Result[void, &dyn Error]`, where `&dyn Error` is the erased `std.error.Error`.
 3. r[expr.try.test.without-try] Otherwise its result type is `void`.
-4. r[expr.try.test.converts] `?` in such a block converts by the ordinary rules, so an error type that implements `Error` propagates into the erased `dyn Error`. An error type that does not is an error. Error: `invalid-result-propagation`.
+4. r[expr.try.test.converts.reference-values] An error implementing `Error` propagates into the test block's `&dyn Error`, sharing an existing reference or copying a value into a new object. An error that does not implement `Error` is rejected. Error: `invalid-result-propagation`.
 5. r[expr.try.test.final-value] The block's final value must be assignable to its result type, as for a function body. So a block that uses `?` usually ends in `.Ok(())`.
 6. r[expr.try.test.explicit-closure] A body passed as an explicit closure keeps its written or inferred result type. That type must implement `std.process.Termination`, the bound on `it`. Error: `unsatisfied-trait-bound`.
 7. r[expr.try.test.closure] Inside a closure nested in a test body, that closure is the nearest function, and these rules do not apply to it.
@@ -1378,12 +1379,12 @@ tests:
         .Ok(())
 ```
 
-> **Why.** A fixed `Result[void, dyn Error]` lets one test body use `?` on
+> **Why.** A fixed `Result[void, &dyn Error]` lets one test body use `?` on
 > several error types, as Zig's inferred `anyerror!void` test bodies do.
 
 > **Note.** The body closures of `it_each`, `it_prop`, and `it_prop_with`
 > get their result types by rules 2 and 3, by
-> [`module.testing.reg.body-closure-result`](10-modules.md#r-module.testing.reg.body-closure-result).
+> [`module.testing.reg.body-closure-result.reference-values`](10-modules.md#r-module.testing.reg.body-closure-result.reference-values).
 
 See also: [Error Trait](09-traits.md#error-trait),
 [Standard Testing](10-modules.md#standard-testing).
@@ -1641,8 +1642,6 @@ fn demo(a: &Account, b: &Account) -> bool:
 1. r[expr.is.conversion] Converting a reference to a trait value reference preserves the identity of the place it refers to.
 2. r[expr.is.function-none] A function value has no identity. This covers named functions, generic instantiations, one-payload variant constructors, and closures.
 3. r[expr.is.function-sharing] An implementation may share one function value between evaluations or allocate a new one at each evaluation. No program can observe the choice.
-4. r[expr.is.box-value-kinds] A conversion of a value whose type implements `AnyVal`, such as a primitive, a string, a tuple, an enum, a list, or a function, to a dynamic trait value or `Any` may box the value. The box has no identity.
-5. r[expr.is.box-unspecified] `is` between two trait or `Any` values has an unspecified result when either holds such a value at run time.
 6. r[expr.is.no-wrapper] A direct conversion of a reference does not allocate an identity wrapper.
 
 ```hd
@@ -2192,7 +2191,7 @@ fn demo(flag: bool) -> i32:
 
 1. r[expr.unsupported.custom-operators] hd-lang has no user-defined operator symbols, and no overloading of the operators that [`expr.op.not-overloaded`](#r-expr.op.not-overloaded) lists.
 2. r[expr.unsupported.chaining] hd-lang has no comparison chaining.
-3. r[expr.unsupported.any-fallback] hd-lang has no fallback conversion of heterogeneous literals to `dyn Any`.
+3. r[expr.unsupported.any-fallback.reference-values] hd-lang has no fallback conversion of heterogeneous literals to `&dyn Any`.
 4. r[expr.unsupported.try-mapping] Postfix `?` has no mapping clause.
 5. r[expr.unsupported.try-mapping.explicit] A site that needs a different error conversion maps the `Result` explicitly before `?`. One way is a function that takes a single-payload variant constructor as its mapper.
 

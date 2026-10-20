@@ -610,7 +610,7 @@ pub struct PropertyCase:
     pub replay: List[i64]
 ```
 
-1. r[std-testing.runner.declares-ref] `std.testing` declares the host capability traits `TestRunner` and `PropertyRunner` with the methods above. Each method takes `&mut self`, so `$.use(TestRunner)` is a `&mut dyn TestRunner` by [`req.ref.use`](../lang/11-requirements-and-suspension.md#r-req.ref.use). Code imports them, as in `use std.testing.TestRunner`.
+1. r[std-testing.runner.declares-ref.reference-values] `std.testing` declares the host capability traits `TestRunner` and `PropertyRunner` with the methods above. Each method takes `&mut self`, so `$.use(TestRunner)` is a `&mut dyn TestRunner` by [`req.ref.use.reference-values`](../lang/11-requirements-and-suspension.md#r-req.ref.use.reference-values). Code imports them, as in `use std.testing.TestRunner`.
 2. r[std-testing.runner.case-type-struct] `std.testing` declares the public struct value `PropertyCase` with the fields above. Code imports it, as in `use std.testing.PropertyCase`.
 3. r[std-testing.runner.plain] Every method is a plain call, not a bang call.
 4. r[std-testing.runner.binding] When it runs a test case, the test runner binds `TestRunner` for the `std.testing` code that runs the case around its body. For a property test case, it also binds `PropertyRunner`.

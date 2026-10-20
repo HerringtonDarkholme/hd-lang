@@ -1,6 +1,6 @@
 # test: every type form parses to its own reading: optionals, grouped function types, tuples, trait value types, and reference types
-# Spec 01 Reserved Words: lex.keyword.dyn.
-# Spec 02 Modifiers, Optionality, And Grouping: grammar.type.optional, grammar.type.optional.function, grammar.type.group, grammar.type.dyn, grammar.type.dyn.optional. Spec 13 Reference Types: ref.type.forms, ref.type.dyn.
+# Spec 01 Reserved Words: lex.keyword.dyn.reference-values.
+# Spec 02 Modifiers, Optionality, And Grouping: grammar.type.optional, grammar.type.optional.function, grammar.type.group, grammar.type.dyn.reference-values, grammar.type.dyn.optional.reference-values. Spec 13 Reference Types: ref.type.forms, ref.type.dyn.
 # expect-stdout: 5 none
 # expect-stdout: some 2, some none, none
 # expect-stdout: 11
@@ -63,7 +63,7 @@ fn adder(a: i32) -> fn(i32) -> fn(i32) -> i32:
 
 fn halves(pair: (i32, string)) -> (string, i32): (pair._1, pair._0 / 2)
 
-fn show(value: dyn Display?) -> string:
+fn show(value: &dyn Display?) -> string:
     match value:
         .Some(shown) => "shown: ${shown}"
         .None => "nothing"
@@ -78,7 +78,7 @@ pub fn main() -> void $ Console:
     println(adder(+1)(+2)(+8))
     println("${apply_lifted(fn(x: i32) -> i32: x * 2, true)} ${apply_lifted(fn(x: i32) -> i32: x + 1, false)}")
     println("${halves((+4, "x"))._1} ${halves((+8, "y"))._1}")
-    println(show(.Some("four")))
+    println(show(.Some(&"four")))
     println(show(.None))
     let mut ticker = Ticker { n: 0 }
     println("${tick(&mut ticker)} ${tick(&mut ticker)}")

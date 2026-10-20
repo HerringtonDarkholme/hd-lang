@@ -15,8 +15,7 @@ use hd_sched::SerialOrder;
 
 /// `as_shape` coerces a data value, already a reference, to a trait
 /// value: the only allocation it could make is the vtable.
-const PROGRAM: &str = "\
-trait Shape:
+const PROGRAM: &str = "trait Shape:
     fn area(self) -> i32
 
 trait Named < Shape:
@@ -31,15 +30,15 @@ impl Shape for Square:
 impl Named for Square:
     fn name(self) -> string: \"square\"
 
-fn as_shape(s: Square) -> dyn Shape:
+fn as_shape(s: &dyn Shape) -> &dyn Shape:
     s
 
-fn as_named(s: Square) -> dyn Named:
+fn as_named(s: &dyn Named) -> &dyn Named:
     s
 
 pub fn main() -> void $ Console:
-    a := as_shape(Square { side: 3 })
-    b := as_named(Square { side: 4 })
+    a := as_shape(&Square { side: 3 })
+    b := as_named(&Square { side: 4 })
     println(a.area())
     println(b.name())
     println(b.area())

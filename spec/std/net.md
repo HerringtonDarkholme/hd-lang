@@ -72,7 +72,7 @@ pub trait Net:
 5. r[std-net.listen] `listen!(host, port)` listens for TCP connections on the local address `host` and `port`, and returns its listener.
 6. r[std-net.listen.reuse] On Unix, `listen!` may bind an address whose old connections are in `TIME_WAIT`. Two live listeners never share an address: the second `listen!` returns `.Err(NetError.Refused(address))`.
 7. r[std-net.bind-udp] `bind_udp!(host, port)` binds a UDP socket to the local address `host` and `port`, and returns it.
-8. r[std-net.mut-ref] Each method takes `&mut self`, so `Net` is a mutable requirement trait, `$.use(Net)` is a `&mut dyn Net` by [`req.ref.use`](../lang/11-requirements-and-suspension.md#r-req.ref.use), and a provider may record what it opens.
+8. r[std-net.mut-ref.reference-values] Each method takes `&mut self`, so `Net` is a mutable requirement trait, `$.use(Net)` is a `&mut dyn Net` by [`req.ref.use.reference-values`](../lang/11-requirements-and-suspension.md#r-req.ref.use.reference-values), and a provider may record what it opens.
 
 > **Why.** A connect has no handle yet, so its bound cannot be a handle
 > setting, and a second method leaves every `connect!` caller unchanged.

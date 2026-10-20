@@ -708,7 +708,7 @@ pub fn declares_assoc_function<'i>(
 
 /// Whether the trait `trait_` declares a method with a `&self` or
 /// `&mut self` receiver, which a bare trait value does not provide
-/// (`trait.dyn.member.ref-receiver-bare`). `item` reads a declaration.
+/// (`trait.dyn.ref.member`). `item` reads a declaration.
 #[must_use]
 pub fn declares_ref_receiver<'i>(
     syms: &ShardedInterner,

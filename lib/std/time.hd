@@ -175,7 +175,7 @@ pub fn h(count: i64) -> Duration:
 
 # The host capability that reads time and waits (spec/std/time.md#clock).
 # `sleep!` takes `&mut self`, so a provider may advance its own time and
-# `$.use(Clock)` is a `&mut dyn Clock` (r-std-time.clock.mut-ref).
+# `$.use(Clock)` is a `&mut dyn Clock` (r-std-time.clock.mut-ref.reference-values).
 ## The host capability to read the clock and to wait: `now`, `monotonic`, and `sleep!`.
 ## See [std-time.clock.decl-ref](../../spec/std/time.md#r-std-time.clock.decl-ref).
 pub trait Clock:
@@ -411,7 +411,7 @@ impl Display for ParseTimeError:
             .UnknownUnit(position) => "unknown unit at position $position"
             .Inexact(position) => "not a whole number of milliseconds at position $position"
 
-# A std error type implements `Error` (r-std-error.std-types.impl).
+# A std error type implements `Error` (r-std-error.std-types.impl.reference-values).
 impl Error for ParseTimeError
 
 impl Debug for ParseTimeError:

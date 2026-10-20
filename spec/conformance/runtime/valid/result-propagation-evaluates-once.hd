@@ -3,8 +3,8 @@
 # immediately returns a compatible `.Err` from the nearest function." and "The operand is evaluated once."
 # Rules: expr.try.result, expr.try.once, expr.try.no-panic,
 # expr.try.convert.assignable, expr.try.convert.none,
-# expr.try.convert.assignable.covers, expr.try.convert.one-step,
-# expr.try.convert.single-rule, expr.try.convert.only-try.
+# expr.try.convert.assignable.covers.reference-values, expr.try.convert.one-step,
+# expr.try.convert.single-rule.reference-values, expr.try.convert.only-try.
 struct Log:
     text: string
 

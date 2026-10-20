@@ -1,5 +1,5 @@
 # test: PropertyRunner is a host capability trait whose start returns a PropertyCase
-# Spec std Testing, Runner Capabilities: std-testing.runner.declares-ref, std-testing.runner.case-type-struct, and std-testing.runner.record.
+# Spec std Testing, Runner Capabilities: std-testing.runner.declares-ref.reference-values, std-testing.runner.case-type-struct, and std-testing.runner.record.
 use std.testing.{PropertyCase, PropertyRunner}
 
 struct Replay:

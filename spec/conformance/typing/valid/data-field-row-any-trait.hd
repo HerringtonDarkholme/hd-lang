@@ -1,5 +1,5 @@
 # test: a data field's row may name any trait as a key, including one declared later with an associated function
-# Spec 11 Requirement Keys: req.key.any-trait-members; Spec 03 Module Scope: names.module.order-free.
+# Spec 11 Requirement Keys: req.key.any-trait-members.reference-values; Spec 03 Module Scope: names.module.order-free.
 
 struct Job:
     callback: fn() -> void $ Factory

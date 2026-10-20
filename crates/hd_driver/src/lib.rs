@@ -109,16 +109,16 @@ fn embedded_std() -> &'static EmbeddedStd {
 /// `report()` gives, after an `.Err`'s report on standard error
 /// (module.entry.err-stream). The driver picks one by the result type:
 /// `entry_status` for any `Termination`, `entry_status_error` for a
-/// `Result` whose error type implements `Error` and `entry_status_dyn`
+/// `Result` whose error type implements `Error` and `entry_status_dyn_ref`
 /// for the erased `dyn Error`; the last two print the cause chain
 /// (module.entry.err-render-chain), on standard output for an error whose
 /// `exit_code` is 0 and on standard error otherwise (module.entry.err-stream).
 /// A test case's `Result` goes through `test_status_error` and
-/// `test_status_dyn` instead: the same report always on standard error,
+/// `test_status_dyn_ref` instead: the same report always on standard error,
 /// and status 1 for an `.Err` whose `exit_code` is 0
 /// (module.testing.fails). `host_provider` puts a host provider behind a
 /// new object, the reference an entry installs for a key whose trait has a
-/// `&self` or `&mut self` method (req.ref.host); the driver roots one
+/// `&self` or `&mut self` method (req.ref.host.reference-values); the driver roots one
 /// instance per such key of an entry row. It is compiler-supplied, like
 /// `std.core`, so the TS prototype's `lib/std` is unchanged.
 pub const RT_SOURCE: &str = "\
@@ -134,15 +134,7 @@ fn entry_status_error[T < Termination, E < Error](result: Result[T, E]) -> u8:
         .Ok(value) => u8(value.report())
         .Err(error) =>
             code := error.exit_code()
-            entry_report(report_of(error).to_string(), code)
-            u8(code)
-
-fn entry_status_dyn[T < Termination](result: Result[T, dyn Error]) -> u8:
-    match result:
-        .Ok(value) => u8(value.report())
-        .Err(error) =>
-            code := error.exit_code()
-            entry_report(report_of(error).to_string(), code)
+            entry_report(report_of(&error).to_string(), code)
             u8(code)
 
 fn entry_status_dyn_ref[T < Termination](result: Result[T, &dyn Error]) -> u8:
@@ -150,28 +142,21 @@ fn entry_status_dyn_ref[T < Termination](result: Result[T, &dyn Error]) -> u8:
         .Ok(value) => u8(value.report())
         .Err(error) =>
             code := error.exit_code()
-            entry_report(report_of(*error).to_string(), code)
+            entry_report(report_of(error).to_string(), code)
             u8(code)
 
 fn test_status_error[T < Termination, E < Error](result: Result[T, E]) -> u8:
     match result:
         .Ok(value) => u8(value.report())
         .Err(error) =>
-            entry_write(report_of(error).to_string())
-            test_failed(error.exit_code())
-
-fn test_status_dyn[T < Termination](result: Result[T, dyn Error]) -> u8:
-    match result:
-        .Ok(value) => u8(value.report())
-        .Err(error) =>
-            entry_write(report_of(error).to_string())
+            entry_write(report_of(&error).to_string())
             test_failed(error.exit_code())
 
 fn test_status_dyn_ref[T < Termination](result: Result[T, &dyn Error]) -> u8:
     match result:
         .Ok(value) => u8(value.report())
         .Err(error) =>
-            entry_write(report_of(*error).to_string())
+            entry_write(report_of(error).to_string())
             test_failed(error.exit_code())
 
 fn test_failed(code: i32) -> u8:
@@ -792,7 +777,7 @@ struct CollectOut {
     prog_key: Hash128,
     roots: Roots,
     /// The `std.rt.host_provider` instance per entry row key whose host
-    /// provider is installed behind a reference (req.ref.host).
+    /// provider is installed behind a reference (req.ref.host.reference-values).
     host_refs: Vec<(Ty, Hash128)>,
     /// Nominal types' layouts, shared by the program's emissions so each
     /// recursion group is laid out once.
@@ -917,7 +902,7 @@ enum Roots {
         key: Hash128,
         own: Vec<Hash128>,
         /// The report function of a result that `?` makes
-        /// (`module.init.script-try`).
+        /// (`module.init.script-try.reference-values`).
         report: Option<Hash128>,
     },
     /// The inputs of a joined REPL build ([`Packages::inputs_from`]), in
@@ -7638,7 +7623,7 @@ impl Run<'_> {
                 let d = if script && i == 0 { &root } else { d };
                 // A REPL input reports no result. A script's result is
                 // `Result[void, dyn Error]` when its top level uses `?`
-                // (`module.init.script-try`), else `void`: its entry is
+                // (`module.init.script-try.reference-values`), else `void`: its entry is
                 // its init.
                 if matches!(self.goal, Goal::ReplInput { .. }) {
                     return None;
@@ -7652,7 +7637,7 @@ impl Run<'_> {
             }
         }
         // A host provider of a key whose trait has a `&self` or `&mut self`
-        // method is installed behind a new object (req.ref.host): one
+        // method is installed behind a new object (req.ref.host.reference-values): one
         // `std.rt.host_provider` instance per such key of a root's row. A
         // script's or a REPL input's root is one of its init bodies.
         let mut host_refs: Vec<(Ty, (DefId, TyList))> = Vec::new();
@@ -7662,12 +7647,10 @@ impl Run<'_> {
             .chain(all_inits.iter().copied())
         {
             for key in env.row_keys(d, TyList::EMPTY) {
-                let TyData::TraitValue { def, .. } = self.pool.get(key) else {
+                let TyData::TraitValue { .. } = self.pool.get(key) else {
                     continue;
                 };
-                if host_refs.iter().any(|(k, _)| *k == key)
-                    || !hd_mono::provider_by_ref(&self.pool, &env, def)
-                {
+                if host_refs.iter().any(|(k, _)| *k == key) {
                     continue;
                 }
                 let r = (host_provider, self.pool.list(&[key]));
@@ -8081,14 +8064,6 @@ impl Run<'_> {
         });
         let tests = matches!(self.goal, Goal::Tests { .. });
         match pool.get(err) {
-            TyData::TraitValue { def, .. } if def == error => Some((
-                rt(if tests {
-                    "test_status_dyn"
-                } else {
-                    "entry_status_dyn"
-                }),
-                pool.list(&[ok]),
-            )),
             _ if reference.is_some_and(
                 |inner| matches!(pool.get(inner), TyData::TraitValue { def, .. } if def == error),
             ) =>
@@ -10011,7 +9986,7 @@ impl ProgramEnv for Env<'_> {
             return b.sub_root.first().map(|&r| b.ty[r as usize]);
         }
         // A script's init returns `Result[void, dyn Error]` when its top
-        // level uses `?` (`module.init.script-try`).
+        // level uses `?` (`module.init.script-try.reference-values`).
         if let Some((b, _)) = self.run.body_of(self.p, def)
             && b.kind == hd_tir::BodyKind::Init
         {

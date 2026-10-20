@@ -383,47 +383,24 @@ ordinary generic data type, and the emitter is unchanged but for one line.
     trait's slots (`Any`, `Inspectable`) stay at the reference type itself,
     so `runtime_type` reports `&S` and a downcast to `&S` recovers the
     payload.
-  - **Bare trait values.** Every vtable now has a slot for a `&self` or
-    `&mut self` method (the driver's `trait_methods`). On a bare `dyn Tr`
-    built from a value the slot is `Unavailable`, a trap the checker never
-    lets a call reach (`trait.dyn.member.ref-receiver-bare`); `&e` on a bare
-    trait value of such a trait is an error for the same reason
-    (`trait.dyn.ref.bare-reference-method`). Generic code can still form `&T` with `T` a
-    bare trait value and return it as `&dyn Tr`; a `&self` call through
-    that value reaches the trap. Likewise a generic `*r = v` through
-    `&mut T`, given a converted trait value reference with `T` its bare
-    trait value type, reaches the `unreachable` `set`. Both paths end when
-    bare `dyn` goes.
+  - **Reference-only surface.** Written bare trait values are rejected.
+    All reachable reference-receiver slots receive a reference payload;
+    no unavailable trap slots are emitted. Internal `dyn` descriptors
+    remain in reference getters and vtables, never as user value types.
   - **Cost.** A conversion allocates the `Ref[dyn Tr]` object and its
     `get` closure (the `set` is a constant), on top of the source
     reference; a call through one calls `get`, then the slot, and a
     `self` method's adapter calls the source's `get` again. Correct first:
     on the linear-memory backend a trait value reference is the address
     and the vtable, two words, as Go's interface value is.
-- **Providers of reference traits.** A provider slot holds a trait value
-  of its key, `(eqref, (ref $VT))`, whatever the key
-  ([Providers Behind References](../../spec/lang/11-requirements-and-suspension.md#providers-behind-references)).
-  A `&S` or `&mut S` provider of a key whose trait has only `self` and
-  `mut self` methods is a `RefToTraitValue` box, as above, so its
-  methods reach the place. A key whose trait has a `&self` or `&mut self`
-  method takes the `Ref[dyn K]` itself (`req.ref.key`): `RefAsProvider`
-  stores it as the payload, next to the vtable its `get` returns, which
-  no call reads, so the slot keeps its layout; `$.use(K)` is
-  `ProviderAsRef`, a `ref.cast` of the payload back to the `Ref[dyn K]`
-  struct. So two `$.use(K)` of one provider are one reference, and `is`
-  compares its identity fields with any other's (`req.ref.same-place`).
-  The cost is one `get` call per installation.
-- **Host providers of reference traits.** The entry's host provider of
-  such a key (`req.ref.host`) is laid out the same way. `hd.poll` builds
-  the host trait value, a null payload beside the vtable of host stubs,
-  and calls the `std.rt.host_provider` instance at `dyn K`, whose
-  `&mut held` makes the `Ref[dyn K]` of a new object; the slot stores
-  that reference as the payload, next to the host vtable again. A host
-  stub ignores its receiver, so a call through the reference reaches the
-  host whatever the method's receiver form. The driver roots one
-  instance per such key of an entry row (`hd_mono::provider_by_ref`), as
-  it roots the `std.rt` report functions, so the binding needs no change
-  per trait.
+- **Providers.** Every provider slot stores its `Ref[dyn K]` as the
+  payload beside its getter's vtable. `RefAsProvider` installs it, and
+  `ProviderAsRef` reads it back. Two `$.use(K)` calls share the provider's
+  place. Value providers of traits without reference receivers are first
+  copied into new objects; explicit reference providers share their place.
+- **Host providers.** The driver roots `std.rt.host_provider` for every
+  entry-row key. The host creates its trait descriptor and wraps it in a
+  reference to a new object, using the same provider layout for all keys.
 - **Host handles behind references.** A host method that returns a
   handle as a trait value reference, as `Net.connect!` returns
   `&mut dyn TcpStream` (`std-net.handles.ref`), crosses as a
@@ -641,12 +618,11 @@ identity. `.Some`, `.Ok`, `.Err`
 and primitive, string or tuple boxes have no identity. `is` is a compile
 error on an operand whose static type is a value type and on function
 values; since S1c that covers every enum, optionals and `Result`
-included. On an `Any` or trait value that holds a value at run time,
-the result is unspecified. The spec has this as
+included. A trait value reference instead compares its place. See
 [`expr.is.value-operand`](../../spec/lang/05-expressions.md#r-expr.is.value-operand),
-[`expr.is.box-value-kinds`](../../spec/lang/05-expressions.md#r-expr.is.box-value-kinds)
+[`ref.expr.allocate`](../../spec/lang/13-values-and-references.md#r-ref.expr.allocate)
 and
-[`expr.is.box-unspecified`](../../spec/lang/05-expressions.md#r-expr.is.box-unspecified).
+[`ref.identity.same-place`](../../spec/lang/13-values-and-references.md#r-ref.identity.same-place).
 Keeping identity would cost one 16 to 24 byte allocation per `.Some`
 that crosses a call, which `T?`-heavy code pays on every lookup, and an
 optional's identity has no known use.
@@ -695,15 +671,13 @@ the operands' layout:
 | --- | --- |
 | `ref` (data, lists, maps, an `AnyRef` type parameter's instance) | `ref.eq` |
 | `Ref[T]`, a reference ("References" above) | its identity fields compared |
-| trait value, `Any` | `ref.eq` on the payloads; unspecified when the payload is a boxed value |
+| internal trait descriptors | no user-visible identity operation |
 
 An enum, optional, `Result`, tuple, primitive, string or function operand
 has no row: `is` on it is the compile error
 `identity-requires-references` (S1c,
 [`expr.is.value-operand`](../../spec/lang/05-expressions.md#r-expr.is.value-operand)).
-No type-id test is needed in the last row. Two different objects are
-never `ref.eq`, and two equal `i31ref`s of different types are boxed
-values, whose result is unspecified.
+Internal trait descriptors are carried only by reference getters and vtables.
 
 **Arrays.** Not built yet; see #180: std has no `Array[T]`, and `List`
 and `Map` are compiler-known types over Wasm arrays. The design:
@@ -2351,7 +2325,7 @@ environments in `emit/closure.rs`, trait values and their vtables in
 - **Identity.** `is` compares the first counted address: a data value's,
   a list's or a map's header, a trait value's data; two references
   compare their identity fields (§15.2). A trait value that boxed a value
-  compares its boxes (`expr.is.box-unspecified`). `ref_serial` is a
+  compares its boxes (`ref.identity.same-place`). `ref_serial` is a
   global counter.
 - **Providers.** `$.with(K: v) body` makes `v` the provider of `K` in the
   body, borrowing `v`'s locals, whose count lasts to the function's
@@ -2452,7 +2426,7 @@ element references whose copies own their list's pin (OBJECT_MODEL_TIER1.md
   and 7,529 in release, the releases at last use in the code it links.
 - **Host providers behind references.** A key whose trait has a `&self`
   or `&mut self` method, as `Console` has since `write_line!` takes
-  `&mut self`, gets its host provider behind a reference (`req.ref.host`):
+  `&mut self`, gets its host provider behind a reference (`req.ref.host.reference-values`):
   the entry's poll builds the host trait value, no data beside the
   vtable of host stubs, and calls the driver's `std.rt.host_provider`
   instance at `dyn K`, whose `Ref` it installs as the data beside the

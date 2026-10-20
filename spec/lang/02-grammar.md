@@ -664,7 +664,7 @@ row_alias_target = "$", requirement_row ;
 2. r[grammar.type-decl.newtype] The parenthesized form declares a nominal single-field newtype.
 3. r[grammar.type-decl.row-alias.dollar] An `=` form whose right side is a row after `$`, as in `type AppRow = $ Db + Cache` or `type NoRow = $()`, declares a row alias.
 4. r[grammar.type-decl.row-alias.bare] A right side that joins keys with `+` but has no `$`, as in `type AppRow = Db + Cache`, parses, and [`req.row.alias.dollar.missing`](11-requirements-and-suspension.md#r-req.row.alias.dollar.missing) rejects it.
-5. r[grammar.type-decl.alias.bare-trait] A right side of one trait without `$`, as in `type Store = Db`, parses as a type, and [`types.trait.value.dyn-required`](04-type-system.md#r-types.trait.value.dyn-required) rejects it.
+5. r[grammar.type-decl.alias.bare-trait.reference-values] A right side of one trait without `$`, as in `type Store = Db`, parses as a type, and [`types.trait.value.dyn-required.reference-values`](04-type-system.md#r-types.trait.value.dyn-required.reference-values) rejects it.
 6. r[grammar.type-decl.row-alias.no-and] `&` joins bounds only, so `type Both = $ Db & Cache` is an error. Error: `syntax-error`.
 
 ```text
@@ -735,7 +735,7 @@ fn label[T < Named & Tagged](value: T) -> string:
 
 1. r[grammar.generic.binding] A trait in a generic parameter bound may end its bracketed arguments with associated type bindings. So `I < Supplier[Item = T]` requires `I` to implement `Supplier` with `I::Item` equal to `T`.
 2. r[grammar.generic.binding.order] Bindings follow every positional type argument.
-3. r[grammar.generic.binding.positions-key] Bindings are valid in `trait_bounds`, and in `supertrait_bounds` as in `trait Summable < Add[Out = Self]`. They are also valid in a `dyn_type`, as in the trait value type `dyn Supplier[Item = i32]`, and in a `requirement_key`, as in `$ Store[Item = User]`.
+3. r[grammar.generic.binding.positions-key.reference-values] Bindings are valid in `trait_bounds`, and in `supertrait_bounds` as in `trait Summable < Add[Out = Self]`. They are also valid in a `dyn_type`, as in the trait value type `&dyn Supplier[Item = i32]`, and in a `requirement_key`, as in `$ Store[Item = User]`.
 4. r[grammar.generic.binding.trait-type-only] The trait of an implementation header is a `trait_type`, and the qualifier of a trait-qualified call or a method reference is an `expression_trait_type`. Neither takes a binding in its arguments. A binding there is an error. Error: `syntax-error`.
 5. r[grammar.generic.binding.named-type] A binding in a `named_type` has no meaning; [Binding Positions](09-traits.md#binding-positions) rejects it, and a trait value type writes its bindings after `dyn`.
 
@@ -923,9 +923,9 @@ fn invalid(value: Box[$()]) -> void: pass  # error: generic-kind-mismatch
 4. r[grammar.type.optional] Optionality applies to the complete reference access type and may be nested.
 5. r[grammar.type.optional.function] In `fn() -> T?`, `?` belongs to the innermost result type; an optional function type must be grouped, as in `(fn() -> T)?`.
 6. r[grammar.type.group] Parentheses group types; unlike a one-element tuple type, grouping has no trailing comma.
-7. r[grammar.type.dyn] A `dyn_type` writes a trait value type: `dyn`, then a trait name with its type arguments and associated type bindings, as in `dyn Supplier[Item = i32]`.
+7. r[grammar.type.dyn.reference-values] A `dyn_type` writes `dyn` and a trait name with its arguments and bindings, as in the referent of `&dyn Supplier[Item = i32]`. A bare descriptor is rejected as a value type.
 8. r[grammar.type.dyn.mut] A `mut` modifier precedes `dyn`, so `dyn mut Counter` is an error. Error: `syntax-error`.
-9. r[grammar.type.dyn.optional] `?` applies to the whole `dyn` type, so `dyn Display?` is an optional trait value.
+9. r[grammar.type.dyn.optional.reference-values] `?` applies to the whole trait value reference: `&dyn Display?` is an optional reference.
 10. r[grammar.type.row-owner] Inside a type, a requirement clause following nested function types likewise belongs to the innermost ungrouped function type. That holds in a parameter type, a field type, and a type argument.
 11. r[grammar.type.row-owner.grouped] Parentheses select an outer owner.
 12. r[grammar.type.ref] `&T` and `&mut T` write reference types. [Reference Types](13-values-and-references.md#reference-types) states their syntax rules.

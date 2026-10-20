@@ -1,5 +1,5 @@
 # test: a value converts to a bound trait value type only when its implementation binds the bound type
-# Spec 09 Associated Type Bindings In Trait Values: trait.dyn.binding.convert (error-code proposal F4).
+# Spec 09 Associated Type Bindings In Trait Values: trait.dyn.binding.reference-convert (error-code proposal F4).
 
 trait Source:
     type Item

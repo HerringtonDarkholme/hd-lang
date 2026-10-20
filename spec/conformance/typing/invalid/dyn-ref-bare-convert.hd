@@ -1,7 +1,0 @@
-# Spec 09 Trait Value References: trait.dyn.ref.written. A bare trait value is no reference, so it does not convert to a trait value reference.
-trait Counter:
-    fn bump(&mut self) -> void
-
-fn demo(counter: dyn Counter) -> void:
-    let r: &dyn Counter = counter  # diagnostic: type-mismatch
-    _ := r

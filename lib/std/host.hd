@@ -56,7 +56,7 @@ impl Display for EnvError:
         match self:
             .InvalidValue(name, reason) => "invalid value for ${name}: ${reason}"
 
-# A std error type implements `Error` (r-std-error.std-types.impl).
+# A std error type implements `Error` (r-std-error.std-types.impl.reference-values).
 impl Error for EnvError
 
 # The deterministic `Args` (spec/std/host.md#map-providers):

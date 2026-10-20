@@ -1,9 +1,0 @@
-# Spec 09 Trait Value References: trait.dyn.ref.bound. A trait value reference does not satisfy a bound on its trait.
-trait Shape:
-    fn area(&self) -> f64
-
-fn area_of[S < Shape](shape: S) -> f64:
-    shape.area()
-
-fn demo(shape: &dyn Shape) -> f64:
-    area_of(shape)  # diagnostic: unsatisfied-trait-bound

@@ -34,7 +34,7 @@ tests:
     use std.testing.assert_equal
 
     it("blanket dictionaries retain their erased suspending ABI"):
-        let dynamic: dyn Read[i32] = Box::[i32] { value: 20 }
+        let dynamic: &dyn Read[i32] = &Box::[i32] { value: 20 }
         direct := dynamic.read!()
         bounded := read_bound!(Box::[i32] { value: 22 })
         assert_equal(
@@ -46,7 +46,7 @@ tests:
     it("suspending blanket adapters retain captured bound dictionaries"):
         let first: List[Point] = [Point { value: 20 }]
         let second: List[Point] = [Point { value: 22 }]
-        let dynamic: dyn AsyncScore = first
+        let dynamic: &dyn AsyncScore = &first
         assert_equal(
             dynamic.score!() + score_bound!(second),
             42,

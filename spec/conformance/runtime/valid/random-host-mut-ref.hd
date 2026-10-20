@@ -1,5 +1,5 @@
 # test: Random's methods take `&mut self`, so `$.use(Random)` is a `&mut dyn Random`, and the host's source and a SeededRandom both serve through it
-# Spec std/random Random Source: std-random.mut-ref, std-random.decl-ref, std-random.seeded.decl-ref.
+# Spec std/random Random Source: std-random.mut-ref.reference-values, std-random.decl-ref, std-random.seeded.decl-ref.
 # expect-stdout: 4 6
 # expect-stdout: true
 use std.random.{Random, SeededRandom, fill}

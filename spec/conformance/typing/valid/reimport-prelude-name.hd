@@ -10,5 +10,5 @@ impl Hash for Label:
     fn hash(self, state: &mut dyn Hasher) -> void:
         self.value.hash(state)
 
-fn render(value: dyn Display) -> string:
+fn render(value: &dyn Display) -> string:
     value.to_string()

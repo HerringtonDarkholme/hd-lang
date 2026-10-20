@@ -4,5 +4,5 @@ trait Supplier:
     type Item
     fn get(self) -> Self::Item
 
-fn read(source: dyn Supplier[Element = i32]) -> i32:  # diagnostic: unknown-associated-type
+fn read(source: &dyn Supplier[Element = i32]) -> i32:  # diagnostic: unknown-associated-type
     source.get()

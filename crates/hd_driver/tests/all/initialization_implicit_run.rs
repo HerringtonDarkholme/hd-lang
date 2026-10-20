@@ -239,7 +239,7 @@ fn a_std_function_bound_reaches_the_impls_it_is_given() {
 fn a_trait_value_reaches_every_impl() {
     check(&Case {
         name: "trait-value",
-        pre: "trait Name:\n    fn name(self) -> string\n\nstruct Other:\n    n: i32\n\nimpl Name for Tag:\n    fn name(self) -> string: \"a\"\n\nfn pick() -> dyn Name:\n    Tag { n: 1 }\n",
+        pre: "trait Name:\n    fn name(self) -> string\n\nstruct Other:\n    n: i32\n\nimpl Name for Tag:\n    fn name(self) -> string: \"a\"\n\nfn pick() -> &dyn Name:\n    &Tag { n: 1 }\n",
         post: "impl Name for Other:\n    fn name(self) -> string: \"b${later}\"\n",
         value: "pick().name()",
         printed: "a",

@@ -34,7 +34,7 @@ fn covariant_argument_to_a_trait_value() {
     let src = "struct Producer[+T]:
     value: T
 
-fn widen(value: Producer[i32]) -> Producer[dyn Display]:
+fn widen(value: Producer[&i32]) -> Producer[&dyn Display]:
     value
 ";
     assert_eq!(codes(src), vec![REPR]);
@@ -45,7 +45,7 @@ fn contravariant_argument_from_a_trait_value() {
     let src = "struct Consumer[-T]:
     consume: fn(T) -> void
 
-fn narrow(value: Consumer[dyn Display]) -> Consumer[i32]:
+fn narrow(value: Consumer[&dyn Display]) -> Consumer[&i32]:
     value
 ";
     assert_eq!(codes(src), vec![REPR]);
@@ -53,9 +53,9 @@ fn narrow(value: Consumer[dyn Display]) -> Consumer[i32]:
 
 #[test]
 fn function_result_to_a_trait_value() {
-    let src = "fn count() -> i32: 1
+    let src = "fn count() -> &i32: &1
 
-fn erase() -> fn() -> dyn Display:
+fn erase() -> fn() -> &dyn Display:
     count
 ";
     assert_eq!(codes(src), vec![REPR]);
@@ -63,9 +63,9 @@ fn erase() -> fn() -> dyn Display:
 
 #[test]
 fn function_parameter_from_a_trait_value() {
-    let src = "fn show(value: dyn Display) -> void: ()
+    let src = "fn show(value: &dyn Display) -> void: ()
 
-fn narrow() -> fn(i32) -> void:
+fn narrow() -> fn(&i32) -> void:
     show
 ";
     assert_eq!(codes(src), vec![REPR]);
@@ -112,7 +112,7 @@ fn child_trait_widening_inside_a_list_names_the_representation_change() {
 trait Dog < Animal:
     fn bark(self) -> string
 
-fn widen(items: List[dyn Dog]) -> List[dyn Animal]:
+fn widen(items: List[&dyn Dog]) -> List[&dyn Animal]:
     items
 ";
     assert_eq!(codes(src), vec![REPR]);
@@ -126,7 +126,7 @@ fn unrelated_trait_values_stay_a_type_mismatch() {
 trait Cat:
     fn meow(self) -> string
 
-fn widen(items: List[dyn Dog]) -> List[dyn Cat]:
+fn widen(items: List[&dyn Dog]) -> List[&dyn Cat]:
     items
 
 trait Dog:

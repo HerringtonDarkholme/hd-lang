@@ -183,6 +183,16 @@ impl Ck<'_, '_> {
         got
     }
 
+    /// Interpolation owns a fresh object when its erased element is a reference.
+    fn template_value(&mut self, r: Ref, ty: Ty, elem: Ty, n: NodeRef<'_>) -> Ref {
+        let (r, ty) = if self.dyn_ref_of(elem).is_some() && self.ref_of(ty).is_none() {
+            self.new_object_ref(r, ty, false, n)
+        } else {
+            (r, ty)
+        };
+        self.coerce(r, ty, elem, n, "argument", ExpectPosition::General)
+    }
+
     /// The `Template[T]` argument of a prefix function: the raw text
     /// pieces and the interpolated values (`expr.prefix.template`).
     /// `want` is the parameter type, whose `T` checks each value.
@@ -225,7 +235,7 @@ impl Ck<'_, '_> {
                 pieces.push(self.b.const_str(&std::mem::take(&mut cur)));
                 let (r, ty) = self.expr(e, Some(elem))?;
                 let ty = self.default_literal(ty, elem);
-                values.push(self.coerce(r, ty, elem, e, "argument", ExpectPosition::General));
+                values.push(self.template_value(r, ty, elem, e));
             }
             let raw = strip_piece(self.cx.src.text(t), k).to_owned();
             let mut parts = Vec::new();
@@ -248,14 +258,7 @@ impl Ck<'_, '_> {
                         };
                         pieces.push(self.b.const_str(&std::mem::take(&mut cur)));
                         let ty = self.default_literal(ty, elem);
-                        values.push(self.coerce(
-                            r,
-                            ty,
-                            elem,
-                            n,
-                            "argument",
-                            ExpectPosition::General,
-                        ));
+                        values.push(self.template_value(r, ty, elem, n));
                     }
                 }
             }

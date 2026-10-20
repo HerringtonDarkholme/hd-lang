@@ -46,7 +46,7 @@ pub fn save(free: i64) -> Result[void, SaveError]:
     if free > 0: .Ok(()) else: .Err(SaveError.Write(\"notes.txt\", DiskError { free: free }))
 ";
 
-/// `expr.try.test.with-try`, `module.testing.err-print`: a body that uses
+/// `expr.try.test.with-try.reference-values`, `module.testing.err-print`: a body that uses
 /// `?` returns `Result[void, dyn Error]`. `.Ok(())` passes; an `.Err` fails,
 /// and the runner prints the error and its cause chain in its own report on
 /// standard output, for an `it` body and an `it_each` row alike.

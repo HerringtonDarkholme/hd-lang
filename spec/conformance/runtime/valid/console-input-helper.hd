@@ -1,5 +1,5 @@
 # test: read_line!() reads through the covering ConsoleInput provider, which advances through its lines
-# Spec std/console Console Input: std-console.input.read-line, std-console.input.mut-ref, and
+# Spec std/console Console Input: std-console.input.read-line, std-console.input.mut-ref.reference-values, and
 # std-console.input.helper (batch 64, STD-2 and STD-3; INPUT-MUT).
 use std.console.{ConsoleInput, read_line}
 struct ScriptedInput:

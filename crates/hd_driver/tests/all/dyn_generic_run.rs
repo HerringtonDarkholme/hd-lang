@@ -67,8 +67,7 @@ fn output_of(name: &str, main: &str) -> String {
 /// loop over an iterator, and a trait default, over two implementations.
 #[test]
 fn erased_bodies_run_at_packed_and_reference_type_arguments() {
-    let main = "\
-struct Buffer[T]:
+    let main = "struct Buffer[T]:
     items: List[T]
     len: i32
 
@@ -120,7 +119,7 @@ impl Collector for Other:
     fn show_all[T < Display](self, xs: List[T]) -> string:
         \"other ${xs.len()}\"
 
-fn run(c: dyn Collector) -> void $ Console:
+fn run(c: &dyn Collector) -> void $ Console:
     let mut ints: List[(i32, i32?)] = []
     b := c.collect(+5, &mut ints)
     println(\"${b.len} ${b.items.len()} ${ints.len()}\")
@@ -144,8 +143,8 @@ fn run(c: dyn Collector) -> void $ Console:
         .None => println(\"no pair\")
 
 pub fn main() -> void $ Console:
-    run(Simple { tag: \"s:\" })
-    run(Other { n: 7 })
+    run(&Simple { tag: \"s:\" })
+    run(&Other { n: 7 })
 ";
     assert_eq!(
         output_of("collector", main),
@@ -160,8 +159,7 @@ pub fn main() -> void $ Console:
 /// and tuples cross boxed.
 #[test]
 fn a_dyn_generic_call_inside_an_erased_body_reaches_its_own_witness() {
-    let main = "\
-trait Store[K]:
+    let main = "trait Store[K]:
     fn put[V](self, key: K, value: V, into: List[(K, V)]) -> (V, List[(K, V)])
 
 struct Plain:
@@ -174,13 +172,13 @@ impl Store[string] for Plain:
         (value, pairs)
 
 trait Relay:
-    fn relay[T](self, inner: dyn Store[string], value: T) -> T
+    fn relay[T](self, inner: &dyn Store[string], value: T) -> T
 
 struct Hop:
     tag: string
 
 impl Relay for Hop:
-    fn relay[T](self, inner: dyn Store[string], value: T) -> T:
+    fn relay[T](self, inner: &dyn Store[string], value: T) -> T:
         let (got, pairs) = inner.put(self.tag, value, [])
         let (k, _) = pairs[0]
         if k != self.tag:
@@ -192,8 +190,8 @@ enum Shape:
     Box(w: f64, h: f64)
 
 pub fn main() -> void $ Console:
-    let store: dyn Store[string] = Plain { n: 1 }
-    let r: dyn Relay = Hop { tag: \"hop\" }
+    let store: &dyn Store[string] = &Plain { n: 1 }
+    let r: &dyn Relay = &Hop { tag: \"hop\" }
     println(r.relay(store, +7))
     let big: i64 = 1 << 40
     println(r.relay(store, big))
@@ -222,8 +220,7 @@ pub fn main() -> void $ Console:
 /// and through a bound at `C = dyn Keeper`.
 #[test]
 fn values_keep_their_identity_through_an_erased_body() {
-    let main = "\
-struct User:
+    let main = "struct User:
     name: string
 
 trait Keeper:
@@ -241,7 +238,7 @@ fn via[C < Keeper](c: C, u: &User) -> bool:
     c.keep(u) is u
 
 pub fn main() -> void $ Console:
-    let k: dyn Keeper = K { n: 100 }
+    let k: &dyn Keeper = &K { n: 100 }
     u := &User { name: \"ada\" }
     println(k.keep(u) is u)
     println(via(k, u))
@@ -276,8 +273,7 @@ pub fn main() -> void $ Console:
 /// is instantiated at the caller's types, captures and calls included.
 #[test]
 fn a_closure_in_an_erased_body_runs_at_the_callers_types() {
-    let main = "\
-trait Visitor:
+    let main = "trait Visitor:
     fn twice[T](self, x: T, f: fn(T) -> T) -> T
     fn gather[T](self, x: T) -> List[T]
 
@@ -298,7 +294,7 @@ impl Visitor for Doubler:
         ys
 
 pub fn main() -> void $ Console:
-    let v: dyn Visitor = Doubler { n: 1 }
+    let v: &dyn Visitor = &Doubler { n: 1 }
     println(v.twice(+3, fn(a: i32) -> i32: a + 1))
     println(v.gather(\"a\").len())
 ";
@@ -310,8 +306,7 @@ pub fn main() -> void $ Console:
 /// allocates no box. A wider one is still boxed, and both come back whole.
 #[test]
 fn a_small_i32_crosses_an_erased_method_without_a_box() {
-    let main = "\
-trait Echo:
+    let main = "trait Echo:
     fn echo[T](self, x: T) -> T
 
 struct Same:
@@ -320,7 +315,7 @@ struct Same:
 impl Echo for Same:
     fn echo[T](self, x: T) -> T: x
 
-fn run(e: dyn Echo) -> void $ Console:
+fn run(e: &dyn Echo) -> void $ Console:
     let i: i32 = 0
     let s: i32 = 0
     while i < 1000:
@@ -331,7 +326,7 @@ fn run(e: dyn Echo) -> void $ Console:
     println(e.echo(-2000000000))
 
 pub fn main() -> void $ Console:
-    run(Same { n: 1 })
+    run(&Same { n: 1 })
 ";
     assert_eq!(output_of("echo", main), "-500\n2000000000\n-2000000000\n");
     let out = built(main);

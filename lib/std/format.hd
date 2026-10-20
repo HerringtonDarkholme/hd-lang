@@ -41,7 +41,7 @@ pub struct DebugWriter:
     # How many parts the value being written is inside.
     depth: usize
     # The data values, lists and maps being written, to find a cycle.
-    active: List[dyn Any]
+    active: List[&dyn Any]
 
 impl DebugWriter:
     # Writes custom text, for a value that no builder fits.
@@ -199,7 +199,7 @@ impl DebugWriter:
     # A value that is already being written is part of a cycle: this writes
     # `<cycle>` and returns false (spec/lang/10-modules.md#r-module.dbg.cycle.reference).
     # Enum values are never passed here: they have no identity.
-    fn enter(&mut self, value: dyn Any) -> bool:
+    fn enter(&mut self, value: &dyn Any) -> bool:
         for seen in self.active:
             if seen is value:
                 self.write("<cycle>")
@@ -754,7 +754,7 @@ fn dbg_result[A, B](value: Result[A, B], out: &mut DebugWriter, show_ok: fn(A, &
 # A list can change after it is built, so a cycle may pass through it
 # (r-module.dbg.cycle.reference).
 fn dbg_list[E](value: List[E], out: &mut DebugWriter, show: fn(E, &mut DebugWriter) -> void) -> void:
-    if out.enter(value):
+    if out.enter(&value):
         if out.open():
             let count: usize = 0
             for item in value:
@@ -766,7 +766,7 @@ fn dbg_list[E](value: List[E], out: &mut DebugWriter, show: fn(E, &mut DebugWrit
         out.leave()
 
 fn dbg_map[K < Eq & Hash, V](value: Map[K, V], out: &mut DebugWriter, show_key: fn(K, &mut DebugWriter) -> void, show_value: fn(V, &mut DebugWriter) -> void) -> void:
-    if out.enter(value):
+    if out.enter(&value):
         if out.open():
             let count: usize = 0
             for (key, item) in value:

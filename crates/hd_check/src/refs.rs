@@ -295,12 +295,6 @@ impl Ck<'_, '_> {
             }
         };
         let inner = self.strip_mut(self.infer.resolve(pool, place.ty));
-        if let TyData::TraitValue { def, .. } = pool.get(inner)
-            && self.bare_dyn_needs_reference_payload(def)
-        {
-            self.bare_dyn_ref_error(def, n);
-            return Ok(self.ref_poison(n));
-        }
         let rt = pool.intern_ty(&TyData::Ref { inner, mutable });
         let r = self.make_ref(&place, inner, mutable, rt, n);
         Ok((r, rt))
@@ -996,7 +990,10 @@ impl Ck<'_, '_> {
     pub(crate) fn ref_identity_value(&mut self, r: Ref, ty: Ty, n: NodeRef<'_>) -> Ref {
         let at = n.index();
         let any = self.any_ty();
-        let base = self.b.emit(Tag::Field, r.0, 2, any, at);
+        // Keep the whole place identity in the erased reference. This avoids
+        // exposing the backend's internal bare identity descriptor to std.
+        let rt = self.b.ty_of(r);
+        let base = self.build_dyn_ref(r, rt, any, false, Coercion::RefToTraitValue, n);
         let serial = self.b.emit(Tag::Field, r.0, 3, Ty::prim(Prim::I64), at);
         let key = self.b.emit(Tag::Field, r.0, 4, Ty::STRING, at);
         let rec = self.b.refs_record(&[base, serial, key]);
@@ -1162,6 +1159,14 @@ impl Ck<'_, '_> {
             return unsupported("a dereference without an operand");
         };
         let (r, t) = self.expr(e, None)?;
+        if self.dyn_ref_of(t).is_some() {
+            self.err(
+                Code::TraitUsedAsType,
+                n,
+                "a trait value referent cannot be read as a bare value",
+            );
+            return Ok(self.ref_poison(n));
+        }
         let Some(_) = self.ref_of(t) else {
             self.not_a_reference(t, e);
             return Ok(self.ref_poison(n));

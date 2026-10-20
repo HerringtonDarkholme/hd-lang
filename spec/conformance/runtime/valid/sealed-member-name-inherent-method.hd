@@ -8,7 +8,7 @@ impl Shipment:
     fn runtime_type(self) -> string:
         "shipment by " + self.carrier
 
-fn recorded(value: dyn Inspectable) -> TypeId:
+fn recorded(value: &dyn Inspectable) -> TypeId:
     value.runtime_type()
 
 tests:
@@ -20,4 +20,4 @@ tests:
 
     it("the compiler-supplied runtime_type is unchanged"):
         shipment := Shipment { carrier: "dhl" }
-        assert(recorded(shipment) == TypeId::of::[Shipment](), reason="the erased value reports Shipment")
+        assert(recorded(&shipment) == TypeId::of::[Shipment](), reason="the erased value reports Shipment")

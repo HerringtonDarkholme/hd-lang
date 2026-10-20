@@ -59,8 +59,7 @@ fn output_of(name: &str, main: &str) -> String {
 /// value selects the compiler-supplied impl.
 #[test]
 fn programs_under_sealed_bounds_run() {
-    let main = "\
-use std.inspect.Inspectable
+    let main = "use std.inspect.Inspectable
 use std.function.Tuple
 
 type Mile(i32)
@@ -89,7 +88,7 @@ fn names[T < Named](xs: List[T]) -> string:
 
 fn first[A < Tuple](a: A) -> A: a
 
-fn erase[T < Inspectable](x: T) -> dyn Inspectable: x
+fn erase[T < Inspectable](x: T) -> &dyn Inspectable: &x
 
 pub fn main() -> void $ Console:
     u := &User { name: \"ann\" }
@@ -111,8 +110,7 @@ pub fn main() -> void $ Console:
 /// over one is no `AnyVal` either, and a function type is not inspectable.
 #[test]
 fn sealed_rows_reject_what_their_table_excludes() {
-    let main = "\
-use std.inspect.Inspectable
+    let main = "use std.inspect.Inspectable
 
 struct User:
     name: string
@@ -121,7 +119,7 @@ type Owner(&User)
 
 fn keep[T < AnyVal](x: T) -> T: x
 
-fn erase[T < Inspectable](x: T) -> dyn Inspectable: x
+fn erase[T < Inspectable](x: T) -> &dyn Inspectable: &x
 
 pub fn main() -> void:
     u := &User { name: \"ann\" }

@@ -3,7 +3,7 @@ fn start(config: string) -> Result[string, &dyn Error]:
     n := port(config).context("starting the server")?  # ← early return, with context
     .Ok("listening on $n")
 
-# For "port = eighty", `report_of(*e)` prints:
+# For "port = eighty", `report_of(e)` prints:
 #   starting the server
 #   caused by: port 'eighty' is not a number
 #   caused by: invalid digit at position 0
@@ -45,4 +45,4 @@ pub fn main() -> void $ Console:
     for config in ["port = 8080", "host = local", "port = eighty"]:
         match start(config):
             .Ok(message) => println(message)
-            .Err(e) => println(report_of(*e))
+            .Err(e) => println(report_of(e))

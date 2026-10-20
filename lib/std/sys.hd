@@ -31,7 +31,7 @@ impl Display for SysError:
             .NotGranted(name) => "sys access to ${name} is not granted; run with --cap Sys=${name}"
             .Unsupported(name) => "sys access to ${name} is not supported"
 
-# A std error type implements `Error` (r-std-error.std-types.impl).
+# A std error type implements `Error` (r-std-error.std-types.impl.reference-values).
 impl Error for SysError
 
 ## The host capability to read four facts about the host system.

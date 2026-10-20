@@ -1,7 +1,0 @@
-# Spec 09 Trait Value References: trait.dyn.ref.bare-reference-method. `&e` on a bare trait value whose trait declares a `&self` method.
-trait Shape:
-    fn area(&self) -> f64
-
-fn demo(shape: dyn Shape) -> void:
-    let r = &shape  # diagnostic: dyn-member-unavailable
-    _ := r

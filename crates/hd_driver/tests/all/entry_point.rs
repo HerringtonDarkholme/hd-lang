@@ -274,7 +274,7 @@ fn a_user_error_with_only_display_is_not_an_entry_error() {
 
 #[test]
 fn the_erased_error_satisfies_display() {
-    accepts("use std.error.Error\n\npub fn main() -> Result[void, dyn Error]:\n    .Ok(())\n");
+    accepts("use std.error.Error\n\npub fn main() -> Result[void, &dyn Error]:\n    .Ok(())\n");
 }
 
 // Where the rules do not apply.

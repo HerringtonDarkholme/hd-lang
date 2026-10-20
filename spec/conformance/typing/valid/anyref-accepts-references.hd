@@ -1,5 +1,5 @@
 # test: `T < AnyRef` accepts `&T`, `&mut T` and trait value references; `T < AnyVal` accepts a struct
-# Spec 04 AnyVal And AnyRef: types.sealed.anyref-members, types.sealed.anyval-members. Spec 13 Reference Types: ref.type.any-ref, ref.type.dyn.
+# Spec 04 AnyVal And AnyRef: types.sealed.anyref-members.reference-values, types.sealed.anyval-members. Spec 13 Reference Types: ref.type.any-ref, ref.type.dyn.
 trait Shape:
     fn area(&self) -> f64
 

@@ -495,10 +495,10 @@ The standard library declares the standard error trait `Error` in
 6. r[trait.error.value-types] A value type may implement `Error`, as an enum or a newtype over `string` does.
 7. r[trait.error.reference-cause] `Error` declares `fn cause(self) -> (&dyn Error)?`, which returns the error that caused this one. Its default returns `.None`.
 8. r[trait.error.exit-code] `Error` declares `fn exit_code(self) -> i32`, the process exit status of an entry point that returns this error. Its default returns 1.
-9. r[trait.error.dyn-methods] `std.error` gives `dyn Error` the inherent methods `chain`, `root_cause`, and `find[T < Error]`, in an `impl dyn Error:` block beside the trait.
+9. r[trait.error.dyn-methods.reference-values] `std.error` gives `&dyn Error` the inherent methods `chain`, `root_cause`, and `find[T < Error]`, in an `impl dyn Error:` block beside the trait.
 10. r[trait.error.dyn-methods.not-members] They are not members of `Error`, so an implementation of `Error` cannot declare or override them.
 11. r[trait.error.dyn-methods.reference-receiver] They take shared reference receivers, as in `let erased: &dyn Error = &failure; erased.find::[FsError]()`.
-12. r[trait.error.inherent-recovery] `dyn Error` also declares the inherent recovery methods of `dyn Inspectable`, with identical reference signatures.
+12. r[trait.error.inherent-recovery.reference-values] The inherent `impl dyn Error` declares the recovery methods of `impl dyn Inspectable`, with identical reference signatures.
 13. r[trait.error.std-api] What `chain`, `root_cause`, and `find` return is standard-library API.
 14. r[trait.error.derive] A struct or enum may implement `Display` and `Error` through the `@error` intrinsic, as [Error Derivation](14-annotations.md#error-derivation) defines.
 14. r[trait.error.import] `Error` is not a prelude name; code imports it with `use std.error.Error`.
@@ -521,7 +521,7 @@ fn local() -> void:
 > **Why.** Most errors are enums, which are values without identity, so
 > `Error` has no `AnyRef` supertrait. `find` still works on an erased
 > error, because a method type parameter may take any type argument. As
-> inherent methods of `dyn Error`, the chain helpers mean the same thing
+> inherent methods of `&dyn Error`, the chain helpers mean the same thing
 > for every error.
 
 See also: [Sealed Traits](#sealed-traits),
@@ -531,12 +531,12 @@ See also: [Sealed Traits](#sealed-traits),
 
 #### Erased Errors
 
-1. r[trait.error.erased] The dynamic trait value `dyn Error` is the erased application error.
-2. r[trait.error.result] A `Result[T, dyn Error]` holds any error that implements `Error`. `?` reaches it by assignability, constructing the dynamic value.
-3. r[trait.error.convert] A concrete error value converts implicitly to `dyn Error` wherever a `dyn Error` is expected, as an argument, a binding, or a result.
-4. r[trait.error.entry-point] A dynamic trait value satisfies bounds on its own trait and its supertraits. `dyn Error` therefore satisfies an entry point's `E < Display` requirement, so `pub fn main() -> Result[void, dyn Error]` is a valid entry point.
-5. r[trait.error.boundary] Like every dynamic trait value, an erased `dyn Error` is not boundary-safe and never crosses a registered boundary.
-6. r[trait.error.convert-first] Code converts an erased `dyn Error` explicitly to a boundary-safe error type first.
+1. r[trait.error.erased.reference-values] The dynamic trait value `&dyn Error` is the erased application error.
+2. r[trait.error.result.reference-values] A `Result[T, &dyn Error]` holds any error that implements `Error`. `?` reaches it by reference erasure, sharing a reference or copying a value into a new object.
+3. r[trait.error.convert.reference-values] A concrete error reference converts implicitly to `&dyn Error`; an ordinary value requires a written `&`, as [Trait Value References](#trait-value-references) specifies.
+4. r[trait.error.entry-point.reference-values] A dynamic trait value satisfies bounds on its own trait and its supertraits. `&dyn Error` therefore satisfies an entry point's `E < Display` requirement, so `pub fn main() -> Result[void, &dyn Error]` is a valid entry point.
+5. r[trait.error.boundary.reference-values] Like every dynamic trait value, an erased `&dyn Error` is not boundary-safe and never crosses a registered boundary.
+6. r[trait.error.convert-first.reference-values] Code converts an erased `&dyn Error` explicitly to a boundary-safe error type first.
 7. r[trait.error.reference-recovery] Because `Error` extends `Inspectable`, a reference to an erased error recovers its concrete struct or enum through its inherent recovery methods.
 
 ```text
@@ -555,7 +555,7 @@ impl Error for FsError
 fn read_config(path: string) -> Result[string, FsError]:
     .Err(FsError.NotFound(path))
 
-fn load(path: string) -> Result[string, dyn Error]:
+fn load(path: string) -> Result[string, &dyn Error]:
     text := read_config(path)?
     .Ok(text)
 ```
@@ -755,7 +755,7 @@ constructor.
 13. r[trait.target.row-argument.extension] A row argument that lists a row parameter beside other keys, as in `Fn[(), i32, $ R + Log]`, is an error in an implementation head. Error: `invalid-impl-target`.
 14. r[trait.target.trait-value] A trait value type is never an implementation target either: `Display` used as a type names a dynamic trait value, not a type constructor.
 15. r[trait.target.trait-value.error] `impl Marker for Display` and `impl Marker for Any` are errors. Error: `trait-value-impl-target`.
-16. r[trait.target.trait-value.argument] A trait value type may still be a constructor's argument, as in `impl Marker for List[dyn Display]`.
+16. r[trait.target.trait-value.argument.reference-values] A trait value type may still be a constructor's argument, as in `impl Marker for List[&dyn Display]`.
 17. r[trait.target.no-mut] A target must not be written with an outer `mut`: `impl Marker for mut Counter` is an error. Error: `mutable-impl-target`.
 18. r[trait.target.template] A derivation template, written `impl[T] Trait for T by Structure`, is not an implementation, so these target rules do not apply to it. Each derivation it produces is an ordinary implementation for a declared target, as [Templates](14-annotations.md#templates) defines.
 
@@ -772,7 +772,7 @@ impl[T] Describe for T:  # error: bare-parameter-impl-target
     fn describe(self) -> string:
         "value"
 
-impl Marker for dyn Display      # error: trait-value-impl-target
+impl Marker for &dyn Display      # error: trait-value-impl-target
 impl Marker for mut Counter  # error: mutable-impl-target
 ```
 
@@ -921,7 +921,7 @@ struct Square:
 impl Shape for Square:
     fn area(self) -> f64: self.side * self.side
 
-fn report(shape: dyn Shape, square: Square) -> f64:
+fn report(shape: &dyn Shape, square: Square) -> f64:
     shape.double() + square.double()  # error: unknown-method
 ```
 
@@ -1616,20 +1616,24 @@ impl Summable for Money  # error: missing-supertrait-implementation
 
 ## Dynamic Trait Values
 
-A trait value type, written `dyn` and a trait, is a Go-style dynamic trait
-value:
+A trait value is a shared or mutable reference to an object with dynamic
+dispatch, written `&dyn Tr` or `&mut dyn Tr`:
 
 ```text
-fn print_display(value: dyn Display) -> void $ Console:
+fn print_display(value: &dyn Display) -> void $ Console:
     println(value.to_string())
 ```
 
-1. r[trait.dyn.form] A value type written `dyn Tr`, for a trait `Tr`, creates a Go-style dynamic trait value.
-2. r[trait.dyn.contents] Such a value contains a concrete value plus dispatch metadata for the trait.
-3. r[trait.dyn.keyword] A trait value type is always written with `dyn`. A bare trait name in a type position is an error whose fix-it inserts `dyn`. Error: `trait-used-as-type`.
-4. r[trait.dyn.keyword.positions] The type positions include parameter, result, field, payload, and local annotation types, type arguments, and associated type bindings.
-5. r[trait.dyn.keyword.bare] A trait stays bare where a trait, not a type, is named: a bound, a supertrait list, an implementation header's trait, a requirement key, and a trait-qualified call.
-6. r[trait.dyn.value-methods] The available methods of the trait and of its transitive supertraits, and the methods of an [inherent `impl dyn` block](#inherent-methods-on-dyn-types), may be called through the value. The concrete type's inherent methods may not.
+1. r[trait.dyn.reference-form] A trait value type is written `&dyn Tr` or `&mut dyn Tr`, for a trait `Tr`.
+2. r[trait.dyn.reference-contents] A trait value reference refers to a concrete object and carries dispatch metadata for the trait.
+3. r[trait.dyn.reference-keyword] A bare trait name in a type position is an error: its fix-it inserts `dyn` after an existing `&` or `&mut`, and writes `&dyn` otherwise. Error: `trait-used-as-type`.
+4. r[trait.dyn.bare-value-rejected] A written `dyn Tr` is invalid as a value type, including within a container or alias. Error: `trait-used-as-type`.
+5. r[trait.dyn.bare-value-no-fix] The bare trait value error has no fix-it.
+6. r[trait.dyn.referent-descriptor] The descriptor `dyn Tr` is valid as the immediate referent of `&` or `&mut`, optionally grouped, or as an inherent implementation target.
+7. r[trait.dyn.reference-no-bare-read] Explicitly dereferencing a trait value reference would produce an unsized bare value and is an error. Error: `trait-used-as-type`.
+8. r[trait.dyn.keyword.positions] The type positions include parameter, result, field, payload, and local annotation types, type arguments, and associated type bindings.
+9. r[trait.dyn.keyword.bare] A trait stays bare where a trait, not a type, is named: a bound, a supertrait list, an implementation header's trait, a requirement key, and a trait-qualified call.
+10. r[trait.dyn.value-methods] The available methods of the trait and of its transitive supertraits, and the methods of an [inherent `impl dyn` block](#inherent-methods-on-dyn-types), may be called through the value. The concrete type's inherent methods may not.
 
 ```text
 trait Greet:
@@ -1639,8 +1643,7 @@ fn demo(g: Greet) -> string:  # error: trait-used-as-type
     g.greet()
 ```
 
-> **Why.** `dyn` marks where a value is boxed and its calls are dispatched
-> at run time. A bound such as `T < Greet` stays fully monomorphized.
+> **Why.** `&dyn` makes the reference and runtime dispatch explicit. A bound such as `T < Greet` stays fully monomorphized.
 
 ### Dynamic Safety
 
@@ -1654,8 +1657,7 @@ Each kind of member is available or unavailable on a `dyn` value:
 | --- | --- | --- |
 | r[trait.dyn.member.assoc-function] Associated functions | an associated function, which has no `self` receiver | unavailable |
 | r[trait.dyn.member.self] `Self` | a method that names `Self` anywhere other than its receiver | unavailable |
-| r[trait.dyn.member.ref-receiver-bare] Reference receivers | a method declared `&self` or `&mut self`, on a bare `dyn` value, which holds no reference to pass | unavailable on a bare `dyn` value; available through a trait value reference, by [`trait.dyn.ref.member`](#r-trait.dyn.ref.member) |
-| r[trait.dyn.safe.assoc-type] Associated types | a method whose signature names an associated type | available; the `dyn` type binds every associated type, as `dyn Supplier[Item = i32]` does |
+| r[trait.dyn.safe.assoc-type.reference-values] Associated types | a method whose signature names an associated type | available; the `dyn` type binds every associated type, as `&dyn Supplier[Item = i32]` does |
 | r[trait.dyn.safe.method-type-param] Method type parameters | a method-level type parameter, whatever its bounds, as in `T < Display` or `T < Error` | available; a call through the trait value may pass any type argument, a value type included |
 | r[trait.dyn.safe.suspending] Suspending methods | a suspending method, as the prelude `Console`'s `write_line!` is | available |
 | r[trait.dyn.safe.row-parameter] Row parameters | a method-level row parameter | available |
@@ -1669,7 +1671,7 @@ Each kind of member is available or unavailable on a `dyn` value:
 trait Runner:
     fn run[$R](self, job: fn() -> void $ R) -> void $ R
 
-fn valid(runner: dyn Runner) -> void:
+fn valid(runner: &dyn Runner) -> void:
     pass
 ```
 
@@ -1682,7 +1684,7 @@ use std.error.Error
 trait Registry:
     fn lookup[T < Error](self, name: string) -> T?
 
-fn valid(registry: dyn Registry) -> void:
+fn valid(registry: &dyn Registry) -> void:
     pass
 ```
 
@@ -1694,7 +1696,7 @@ trait Versioned:
     fn version(self) -> i32
     fn newer_than(self, other: Self) -> bool
 
-fn audit(record: dyn Versioned) -> bool:
+fn audit(record: &dyn Versioned) -> bool:
     if record.version() > 0:
         return true
     record.newer_than(record)  # error: dyn-member-unavailable
@@ -1724,25 +1726,25 @@ impl Supplier for Constant:
     type Item = i32
     fn get(self) -> i32: self.value
 
-fn read(source: dyn Supplier[Item = i32]) -> i32:
+fn read(source: &dyn Supplier[Item = i32]) -> i32:
     source.get() + 1
 
 fn first[T < Supplier](source: T) -> T::Item:
     source.get()
 
 fn run() -> i32:
-    let source: dyn Supplier[Item = i32] = Constant { value: 41 }
+    let source: &dyn Supplier[Item = i32] = &Constant { value: 41 }
     first(source) + read(source)
 ```
 
-1. r[trait.dyn.binding.form] A trait value type may bind associated types after its positional arguments, as in `dyn Supplier[Item = i32]`.
-2. r[trait.dyn.binding.complete] It must bind every associated type of the trait and of its supertraits. A binding that a supertrait list fixes counts as bound, so under `trait Sub < Super[Item = T]` the types `dyn Sub` and `dyn Sub[Item = T]` are one type. A trait value type that leaves one unbound is an error. Error: `trait-not-dynamically-safe`.
+1. r[trait.dyn.binding.form.reference-values] A trait value type may bind associated types after its positional arguments, as in `&dyn Supplier[Item = i32]`.
+2. r[trait.dyn.binding.complete.reference-values] It must bind every associated type of the trait and of its supertraits. A binding that a supertrait list fixes counts as bound, so under `trait Sub < Super[Item = T]` the types `&dyn Sub` and `&dyn Sub[Item = T]` are one type. A trait value type that leaves one unbound is an error. Error: `trait-not-dynamically-safe`.
 3. r[trait.dyn.binding.self-fixed] A binding to `Self` that a supertrait list fixes, as in `trait Summable < Add[Out = Self]`, counts as bound. The trait value does not carry it, so `Out` stays a projection.
 4. r[trait.dyn.binding.names] The rules of [Binding Names](#binding-names) apply, so a binding may name a supertrait's associated type. An unknown name is an error. Error: `unknown-associated-type`. An ambiguous name is an error. Error: `ambiguous-associated-type`.
 5. r[trait.dyn.binding.signatures] Through the value, each projection in a method signature denotes its bound type, so `get` above returns `i32`.
-6. r[trait.dyn.binding.convert] A concrete value converts to the trait value type only when its implementation binds each associated type to the bound type. Any other such conversion is an error. Error: `type-mismatch`.
+6. r[trait.dyn.binding.reference-convert] A concrete reference converts to a trait value reference only when its referent's implementation binds each associated type to the bound type. Any other such conversion is an error. Error: `type-mismatch`.
 7. r[trait.dyn.binding.identity] Two trait value types are the same type when they name the same trait instantiation and bind each associated type to the same type. Order does not matter.
-8. r[trait.dyn.binding.widen] Widening to a supertrait value keeps the bindings of the associated types that the supertrait reaches, so `dyn NamedSupplier[Item = i32]` widens to `dyn Supplier[Item = i32]`.
+8. r[trait.dyn.binding.widen.reference-values] Widening to a supertrait value keeps the bindings of the associated types that the supertrait reaches, so `&dyn NamedSupplier[Item = i32]` widens to `&dyn Supplier[Item = i32]`.
 
 ```text
 trait Supplier:
@@ -1753,17 +1755,17 @@ trait Factory:
     type Item
     fn count() -> i32
 
-fn unbound(source: dyn Supplier) -> void:  # error: trait-not-dynamically-safe
+fn unbound(source: &dyn Supplier) -> void:  # error: trait-not-dynamically-safe
     pass
 
 fn total[F < Factory[Item = i32]]() -> i32:
     F::count()
 
-fn with_function(factory: dyn Factory[Item = i32]) -> i32:
-    total::[dyn Factory[Item = i32]]()  # error: unsatisfied-trait-bound
+fn with_function(factory: &dyn Factory[Item = i32]) -> i32:
+    total::[&dyn Factory[Item = i32]]()  # error: unsatisfied-trait-bound
 ```
 
-> **Why.** Rust accepts `dyn Iterator<Item = T>`, and hd had simply not
+> **Why.** Rust accepts `&dyn Iterator<Item = T>`, and hd had simply not
 > added the form. Once every associated type is bound, every method
 > signature is concrete. An associated function still has no receiver to
 > dispatch on, so it stays unavailable whatever the type binds.
@@ -1791,11 +1793,11 @@ impl Animal for Pup:
 impl Dog for Pup:
     fn bark(self) -> string: "woof"
 
-fn name_of(animal: dyn Animal) -> string:
+fn name_of(animal: &dyn Animal) -> string:
     animal.name()
 
 fn demo(pup: Pup) -> string:
-    name_of(pup)   # a Pup widens to Animal
+    name_of(&pup)   # the reference converts to Animal
 ```
 
 ### Trait Values As Bounds
@@ -1810,7 +1812,7 @@ fn show[T < Display](value: T) -> string:
 fn tag[T < Named](value: T) -> string:
     value.name()
 
-fn describe(named: dyn Named, shown: dyn Display) -> string:
+fn describe(named: &dyn Named, shown: &dyn Display) -> string:
     tag(named) + show(named) + show(shown)
 ```
 
@@ -1821,13 +1823,6 @@ fn describe(named: dyn Named, shown: dyn Display) -> string:
 5. r[trait.dyn.bound.reference-dispatch] Calls through such a bound dispatch through the referenced trait value's table.
 6. r[trait.dyn.bound.reference-no-impl] This adds no implementation and permits no trait value reference as an implementation target.
 
-1. r[trait.dyn.bound] A dynamic trait value type satisfies a generic bound on its own trait and on each direct or transitive supertrait of that trait.
-2. r[trait.dyn.bound.projection] When it satisfies a bound `T < Tr`, each projection such as `T::Item` is the type the value type binds. So `first(source)` in [Bound Associated Types](#bound-associated-types) has type `i32`.
-3. r[trait.dyn.bound.binding] It satisfies a bound's binding only when it binds the same type, so `dyn Supplier[Item = i32]` does not satisfy `T < Supplier[Item = string]`. Error: `unsatisfied-trait-bound`.
-4. r[trait.dyn.bound.instantiation] For a generic trait, the bound must name the same instantiation, so `dyn Repository[User]` satisfies `T < Repository[User]`.
-5. r[trait.dyn.bound.dispatch] A statically dispatched call through such a bound dispatches each method through the value's table.
-6. r[trait.dyn.bound.no-impl] The rule adds no implementation: the trait value type satisfies no other bound through it, and it still cannot be an implementation target.
-7. r[trait.dyn.bound.available] A `dyn` type satisfies a bound on a trait only when every member of that trait and of its supertraits is available on the `dyn` value. Otherwise the bound is not satisfied. Error: `unsatisfied-trait-bound`.
 
 > **Why.** Generic code under `T < Tr` may call any member of `Tr`,
 > including an associated function such as `T::create()`. The availability
@@ -1836,7 +1831,7 @@ fn describe(named: dyn Named, shown: dyn Display) -> string:
 
 ### Conversion To Trait Values
 
-1. r[trait.dyn.convert] Converting a concrete value to a trait value requires an explicit implementation. A conversion without one is an error. Error: `type-mismatch`.
+1. r[trait.dyn.convert.reference-values] Converting a concrete reference to a trait value reference requires an implementation of the trait for its referent type. A conversion without one is an error. Error: `type-mismatch`.
 2. r[trait.dyn.convert.any-type] The concrete type can be composite or primitive.
 3. r[trait.dyn.type-test] A dynamic trait value supports a type test only when its trait is `Inspectable` or extends it. The test recovers an exact concrete type.
 4. r[trait.dyn.no-trait-test] No test asks whether a value implements another trait.
@@ -1851,8 +1846,8 @@ struct User:
 impl Greet for User:
     fn greet(self) -> string: "hi"
 
-fn demo(user: User) -> dyn Greet:
-    user   # an explicit implementation converts the value
+fn demo(user: User) -> &dyn Greet:
+    &user   # the reference converts through the explicit implementation
 ```
 
 See also: [Runtime Type Identity](#runtime-type-identity).
@@ -1862,8 +1857,7 @@ See also: [Runtime Type Identity](#runtime-type-identity).
 A **trait value reference**, written `&dyn Tr` or `&mut dyn Tr`, is a trait
 value that is a reference: it refers to one object whose type implements
 `Tr`. It is made only from a reference the program writes or already
-holds, as in Rust: `&s`, `&mut s`, `&S { ... }`, or a `&S` value. A bare
-`dyn Tr` remains a trait value type, as the sections above define.
+holds, as in Rust: `&s`, `&mut s`, `&S { ... }`, or a `&S` value. Bare `dyn Tr` is not a value type.
 
 ```hd
 trait Counter:
@@ -1891,19 +1885,17 @@ fn demo() -> i32:
 1. r[trait.dyn.ref.form] `&dyn Tr` and `&mut dyn Tr` are trait value references. They are reference types, as [Reference Types](13-values-and-references.md#reference-types) defines.
 2. r[trait.dyn.ref.share] `&S` converts implicitly to `&dyn Tr`, and `&mut S` to `&mut dyn Tr`, when `S` implements `Tr`. The result refers to the place the source refers to.
 3. r[trait.dyn.ref.written] A value that is no reference never converts to `&dyn Tr` or `&mut dyn Tr`. Using one where a trait value reference is expected is an error, so a new object is written `&e` or `&mut e`, as in `&S { ... }`. Error: `type-mismatch`.
-4. r[trait.dyn.ref.written.reference-fix] The error's fix-it writes `&` before the value, or `&mut` where `&mut dyn Tr` is expected, when the value is a place or a struct literal whose type implements `Tr`. A place is a binding, a field, an element, or a value reached through a reference. No fix-it is offered when the written reference is itself an error: `&e` on a bare trait value, by [`trait.dyn.ref.bare-reference-method`](#r-trait.dyn.ref.bare-reference-method), or `&mut e` on a readonly view.
+4. r[trait.dyn.ref.written.reference-fix.reference-values] The error's fix-it writes `&` before the value, or `&mut` where `&mut dyn Tr` is expected, for a place or struct literal whose type implements `Tr`. No fix-it offers `&mut` on a readonly view.
 5. r[trait.dyn.ref.convert.impl] Either conversion is an error when `S` does not implement `Tr` explicitly. Error: `type-mismatch`.
 6. r[trait.dyn.ref.weaken] `&mut dyn Tr` converts implicitly to `&dyn Tr`, and both refer to the same object.
 7. r[trait.dyn.ref.no-upgrade] `&dyn Tr` and `&S` never convert to `&mut dyn Tr`. Error: `mutable-upgrade`.
 8. r[trait.dyn.ref.widen] A child trait value reference converts implicitly to a supertrait value reference of the same mutability, which refers to the same object.
 9. r[trait.dyn.ref.member] Through `&dyn Tr`, the methods declared `self` and `&self` are available. Through `&mut dyn Tr`, the methods declared `mut self` and `&mut self` are available too.
 10. r[trait.dyn.ref.member.mut] Calling a `mut self` or `&mut self` method through `&dyn Tr` is an error. Its fix-it writes `&mut dyn` in the declared type of the receiver binding. Error: `not-writable`.
-11. r[trait.dyn.ref.member.other] Every other member is available or unavailable as on a bare `dyn Tr` value, by [Dynamic Safety](#dynamic-safety).
+11. r[trait.dyn.ref.member.other.reference-values] Other members follow [Dynamic Safety](#dynamic-safety).
 12. r[trait.dyn.ref.write-through] A method that changes its receiver, called through a trait value reference, changes the object the reference refers to. Through a reference converted from `&mut s`, that object is `s` itself.
 13. r[trait.dyn.ref.identity] `is` on two trait value references compares the places they refer to, by [`ref.identity.same-place`](13-values-and-references.md#r-ref.identity.same-place). Two conversions of one `&s` refer to one place, and two conversions of `&e` on a value refer to two new objects.
 14. r[trait.dyn.ref.no-store] `*r = v` and `*r op= v` with a trait value reference `r` are errors, since `r` does not know the type of what it refers to. Error: `type-mismatch`.
-15. r[trait.dyn.ref.bare-reference-method] A bare `dyn Tr` operand cannot be addressed when its trait, a supertrait, or either's inherent block declares a reference-receiver method. Error: `dyn-member-unavailable`.
-16. r[trait.dyn.ref.bound] A trait value reference satisfies a bound on its trait only through an implementation for reference types, as std's `Display` for `&T` is. [Trait Values As Bounds](#trait-values-as-bounds) covers bare `dyn` types only.
 
 ```text
 trait Counter:
@@ -1949,12 +1941,12 @@ See also: [Values And References](13-values-and-references.md),
 1. r[trait.any.universal] `Any` is the universal empty trait.
 2. r[trait.any.all] Every value type, including an optional type, implements `Any` automatically.
 3. r[trait.any.never] `never` implements `Any` as well, by [`types.any.never`](04-type-system.md#r-types.any.never).
-4. r[trait.any.erases] As a value type, `Any` erases the concrete type and exposes no type-specific methods.
-5. r[trait.any.optional] An optional value erases to `dyn Any` like any other enum value.
-6. r[trait.any.none] A bare `.None` still needs an expected optional type. `let value: dyn Any = .None` is an error, while `let value: dyn Any? = .None` is valid. Error: `missing-contextual-enum-type`.
+4. r[trait.any.erases.reference-values] The reference type `&dyn Any` hides its referent's concrete type and exposes no type-specific methods.
+5. r[trait.any.optional.reference-values] A reference to an optional value erases to `&dyn Any` like a reference to any other enum value.
+6. r[trait.any.none.reference-values] A bare `.None` still needs an expected optional type: `let value: &dyn Any = &.None` is an error, while `let value: (&dyn Any)? = .None` is valid. Error: `missing-contextual-enum-type`.
 
 ```text
-let invalid: dyn Any = .None  # error: missing-contextual-enum-type
+let invalid: &dyn Any = &.None  # error: missing-contextual-enum-type
 ```
 
 ## Sealed Traits
@@ -2203,7 +2195,7 @@ The rules have these consequences:
 | r[trait.identity.newtype] Newtype | a newtype and its base type | different |
 | r[trait.identity.reference-permission] Reference permission | `&User` and `&mut User` | different |
 | r[trait.identity.arguments] Arguments | `Box[User]` and `Box[Post]` | different |
-| r[trait.identity.no-conversion] No conversion | `i32` and `i64`; `User` and `User?`; `List[FsError]` and `List[dyn Error]` | different: no numeric conversion, optional injection, or variance applies |
+| r[trait.identity.no-conversion.reference-values] No conversion | `i32` and `i64`; `User` and `User?`; `List[FsError]` and `List[&dyn Error]` | different: no numeric conversion, optional injection, or variance applies |
 | r[trait.identity.modules] Modules | two declarations named `User` in different modules | different |
 
 See also: [Transparent Aliases And Newtypes](04-type-system.md#transparent-aliases-and-newtypes).
@@ -2257,14 +2249,13 @@ The compiler supplies `Inspectable` for exactly the **inspectable types**:
 | r[trait.inspectable.primitive] Primitive | the primitive types and `string` |
 | r[trait.inspectable.declared] Declared | a struct, enum, or newtype declared at module level, public or private, applied to inspectable type arguments |
 | r[trait.inspectable.collections] Collection | `List[T]` and `Map[K, V]` with inspectable type arguments, and tuples of inspectable elements |
-| r[trait.inspectable.dynamic] Dynamic value | a dynamic value of `Inspectable` or of a trait with `Inspectable` as a supertrait, which satisfies the trait by [Dynamic Trait Values](#dynamic-trait-values) |
+| r[trait.inspectable.reference-type] Reference | a reference whose referent is inspectable or is a trait value type |
 | r[trait.inspectable.parameter] Type parameter | a type parameter bounded by `Inspectable` or by a trait that has it as a supertrait |
 
 1. r[trait.inspectable.exact] The compiler supplies `Inspectable` for exactly the types in the table above.
 2. r[trait.inspectable.option] The declared case includes `Option` and `Result`, so `T?` is inspectable when `T` is.
 3. r[trait.inspectable.fields] What the fields hold does not matter. A struct with a function-typed field, and a newtype over a function type, are inspectable, because identity is the declaration.
-4. r[trait.inspectable.argument-only] As a type argument only, any trait value type and `Any` also count as inspectable, and they match exactly.
-5. r[trait.inspectable.argument-examples] `List[dyn Display]`, `Result[void, FsError]`, and `Map[string, dyn Any]` are inspectable.
+5. r[trait.inspectable.argument-examples.reference-values] `List[&dyn Display]`, `Result[void, FsError]`, and `Map[string, &dyn Any]` are inspectable.
 
 ```hd
 use std.inspect.TypeId
@@ -2286,30 +2277,27 @@ These types are not inspectable, as values or as type arguments:
 | r[trait.inspectable.not.argument] Argument | a type applied to a non-inspectable argument, such as `Box[fn() -> i32]` |
 | r[trait.inspectable.not.parameter] Unbounded parameter | a type parameter without an `Inspectable` bound |
 
-1. r[trait.inspectable.dynamic-values] A dynamic trait value whose trait does not have `Inspectable` as a supertrait, and `Any`, are not inspectable as values.
-2. r[trait.inspectable.one-way] Erasing to them stays one-way.
 
 ```text
 use std.inspect.Inspectable
 
 fn erase() -> void:
-    let erased: dyn Inspectable = fn(x: i32) -> i32: x + 1   # error: type-mismatch
+    let erased: &dyn Inspectable = fn(x: i32) -> i32: x + 1   # error: type-mismatch
     pass
 ```
 
 ### Erasure To `Inspectable`
 
-A value is erased to `dyn Inspectable` by an expected type, like any other
-dynamic trait value.
+A concrete reference converts to `&dyn Inspectable` by an expected type.
 
-1. r[trait.erase.expected] A value is erased to `dyn Inspectable` by an expected type, like any other dynamic trait value: [`types.assign.trait-value`](04-type-system.md#r-types.assign.trait-value) constructs an `Inspectable` value from an inspectable type.
+1. r[trait.erase.expected.reference-values] A concrete reference converts to `&dyn Inspectable` when its referent is inspectable, by [Trait Value References](#trait-value-references).
 2. r[trait.erase.no-cast] There is no cast operator.
 3. r[trait.erase.child-impl] A trait that extends `Inspectable` still needs its own explicit implementation; only its `Inspectable` part is supplied. Converting a value without one is an error. Error: `type-mismatch`.
-4. r[trait.erase.recorded] The recorded type is the static type of the value at the erasure site.
+4. r[trait.erase.recorded.reference-values] The recorded type is the static type of the referent at the erasure site.
 5. r[trait.erase.parameter] For a value of a type parameter `T < Inspectable`, the recorded type is the type `T` is instantiated with, which the bound supplies at run time.
 6. r[trait.erase.built] A value built from `T`, such as a `Box[T]`, records `Box` applied to that type.
-7. r[trait.erase.bound-required] Erasing a value of a type parameter requires an `Inspectable` bound on it. A value of a type parameter without the bound is not assignable to `dyn Inspectable`, which is an error. Error: `type-mismatch`.
-8. r[trait.erase.widen] Widening a dynamic value of a trait that extends `Inspectable` to `Inspectable` is ordinary supertrait widening, by [`types.assign.supertrait`](04-type-system.md#r-types.assign.supertrait).
+7. r[trait.erase.bound-required.reference-values] Erasing a reference to a type parameter requires an `Inspectable` bound on its referent type. A reference without that evidence is not assignable to `&dyn Inspectable`. Error: `type-mismatch`.
+8. r[trait.erase.widen.reference-values] Widening a dynamic value of a trait that extends `Inspectable` to `Inspectable` is ordinary supertrait widening, by [`trait.dyn.ref.widen`](09-traits.md#r-trait.dyn.ref.widen).
 9. r[trait.erase.keeps] The widened value keeps its recorded concrete type. Nothing is wrapped twice, including when a type parameter is instantiated with such a trait value type.
 
 ```text
@@ -2340,7 +2328,7 @@ branch.
 ```text
 use std.inspect.Inspectable
 
-fn erase[T](value: T) -> dyn Inspectable:
+fn erase[T](value: T) -> &dyn Inspectable:
     value  # error: type-mismatch
 ```
 
@@ -2351,7 +2339,7 @@ See also: [Assignability And Coercion](04-type-system.md#assignability-and-coerc
 1. r[trait.downcast.reference] `value.downcast_ref::[T]()` on `&dyn Inspectable` returns `.Some` of an `&T` exactly when its recorded concrete type has `T`'s runtime identity, and `.None` otherwise.
 2. r[trait.downcast.mutable-reference] `value.downcast_mut::[T]()` on `&mut dyn Inspectable` performs the same test and returns `Option[&mut T]`.
 3. r[trait.downcast.reference-identity] The recovered reference refers to the original place, so `is` holds between it and the reference erased to the trait value.
-4. r[trait.downcast.exact] Type arguments must match exactly: an erased `Box[i32]` is not a `Box[i64]`, and an erased `List[FsError]` is not a `List[dyn Error]`.
+4. r[trait.downcast.exact.reference-values] Type arguments must match exactly: an erased `Box[i32]` is not a `Box[i64]`, and an erased `List[FsError]` is not a `List[&dyn Error]`.
 5. r[trait.downcast.no-conversion] No variance, numeric conversion, optional unwrapping, newtype unwrapping, or supertrait search takes place.
 6. r[trait.downcast.optional-reference] An erased reference to `User?` is recovered with target `User?`, giving `Option[&User?]`, and never with target `User`.
 7. r[trait.downcast.copy-through-reference] Dereferencing the recovered reference with `*found` copies its value under the ordinary value-copy rules.
@@ -2378,8 +2366,8 @@ fn number(value: &dyn Inspectable) -> i32:
 
 #### Ordinary Rules For Recovery
 
-1. r[trait.downcast.reference-methods] `downcast_ref` and `downcast_mut` are inherent methods on `dyn Inspectable` and `dyn Error`.
-2. r[trait.downcast.reference-receivers] The ordinary reference-receiver rules govern both methods; neither is available on a bare trait value.
+1. r[trait.downcast.reference-methods.reference-values] `downcast_ref` and `downcast_mut` are reference-receiver methods in the inherent blocks of `dyn Inspectable` and `dyn Error`.
+2. r[trait.downcast.reference-receivers.reference-values] The ordinary reference-receiver rules govern both recovery methods.
 3. r[trait.downcast.evidence] The `Inspectable` evidence for `T`, passed with each call like the evidence for any bound, carries the runtime identity of `T`.
 4. r[trait.downcast.pass-reference-target] A generic function passes its target through an `Inspectable` bound, as in `fn get[T < Inspectable](value: &dyn Inspectable) -> (&T)?`.
 5. r[trait.downcast.shared-result] `downcast_ref` returns a shared reference, whose immediate referent cannot be written. Error: `not-writable`.
@@ -2403,7 +2391,7 @@ fn get[T < Inspectable](value: &dyn Inspectable) -> (&T)?:
 
 1. r[trait.limit.no-trait-tests] **No trait tests.** A test compares two runtime identities. Nothing asks whether a value implements a trait, and a dynamic value of one trait is never converted to an unrelated trait.
 2. r[trait.limit.no-requirement-keys] **No inspectable requirement keys.** A trait that is `Inspectable` or has it as a supertrait is never a requirement key. A provider value therefore cannot be tested to recover a concrete provider.
-3. r[trait.limit.signatures] **Visible in signatures.** Only a value of an inspectable type can be erased to `dyn Inspectable`. A value of an unbounded type parameter, of `Any`, or of a trait value type whose trait does not extend `Inspectable` cannot.
+3. r[trait.limit.signatures.reference-values] **Visible in signatures.** Only a value of an inspectable type can be erased to `&dyn Inspectable`. A value of an unbounded type parameter, of `Any`, or of a trait value type whose trait does not extend `Inspectable` cannot.
 4. r[trait.limit.signatures.branch] A function can therefore branch on a value's type only when a parameter type names `Inspectable` or a trait extending it. A parameter bounded by one of them also qualifies.
 5. r[trait.limit.reference-deterministic] **Deterministic.** `runtime_type`, the `TypeId` operations, and `downcast_ref` are pure functions of the build and the value, and call no provider.
 

@@ -14,7 +14,7 @@ impl Fetch for Slow:
         y
 
 pub fn main!() -> void $ Console:
-    let v: dyn Fetch = Slow { n: 1 }
+    let v: &dyn Fetch = &Slow { n: 1 }
     println(v.get!(+3))
     let mut xs = [+1, 2]
     let mut ys = v.get!(xs)

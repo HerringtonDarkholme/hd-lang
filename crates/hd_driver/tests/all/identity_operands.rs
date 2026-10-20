@@ -109,12 +109,12 @@ fn same_trait(a: &dyn Named, b: &dyn Named) -> bool:
 #[test]
 fn generics_bounded_by_a_reference_trait_compare() {
     accepted(
-        "\
-fn same[T < AnyRef](a: T, b: T) -> bool:
+        "fn same[T < AnyRef](a: T, b: T) -> bool:
     a is b
 
-fn against_any[T < AnyRef](a: T, b: dyn Any) -> bool:
-    a is b
+fn against_any[T < AnyRef](a: &T, b: &dyn Any) -> bool:
+    let erased: &dyn Any = a
+    erased is b
 
 fn through_trait[T < Handle](a: T, b: T) -> bool:
     a is b
@@ -180,7 +180,7 @@ fn one_value_operand_is_one_error() {
         Code::IdentityRequiresReferences,
     );
     rejected(
-        "fn f(a: string, b: dyn Any) -> bool:\n    a is b\n",
+        "fn f(a: string, b: &dyn Any) -> bool:\n    a is b\n",
         Code::IdentityRequiresReferences,
     );
     rejected(
@@ -212,7 +212,7 @@ fn a_function_has_no_identity() {
         Code::IdentityRequiresReferences,
     );
     rejected(
-        "fn f(a: fn() -> i32, b: dyn Any) -> bool:\n    a is b\n",
+        "fn f(a: fn() -> i32, b: &dyn Any) -> bool:\n    a is b\n",
         Code::IdentityRequiresReferences,
     );
     rejected(

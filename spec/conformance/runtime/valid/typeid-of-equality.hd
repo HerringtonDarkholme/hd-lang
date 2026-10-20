@@ -1,7 +1,7 @@
 # test: TypeId equality follows runtime identity and prints the canonical name
 # Spec 09 Inspectable And TypeId: type arguments are part of identity; Display spells
 # prelude names with T? and tuple sugar.
-# Spec 09 Traits: trait.inspect.static, trait.inspect.runtime-type, trait.typeid.traits, trait.typeid.of, trait.typeid.equality, trait.identity.no-conversion, trait.typeid.name, trait.typeid.name.prelude, trait.typeid.name.option, trait.typeid.name.tuple, trait.typeid.name.separator.
+# Spec 09 Traits: trait.inspect.static, trait.inspect.runtime-type, trait.typeid.traits, trait.typeid.of, trait.typeid.equality, trait.identity.no-conversion.reference-values, trait.typeid.name, trait.typeid.name.prelude, trait.typeid.name.option, trait.typeid.name.tuple, trait.typeid.name.separator.
 use std.inspect.{Inspectable, TypeId}
 struct User:
     name: string
@@ -9,7 +9,7 @@ struct User:
 struct Box[T]:
     value: T
 
-fn of_value(value: dyn Inspectable) -> TypeId:
+fn of_value(value: &dyn Inspectable) -> TypeId:
     value.runtime_type()
 
 tests:
@@ -17,10 +17,10 @@ tests:
 
     it("TypeId::of agrees with runtime_type"):
         user := User { name: "Ada" }
-        assert(of_value(user) == TypeId::of::[User](), reason="a User records User")
+        assert(of_value(&user) == TypeId::of::[User](), reason="a User records User")
         let seven: i32 = 7
-        assert(of_value(seven) == TypeId::of::[i32](), reason="an i32 records i32")
-        assert(of_value(seven) != TypeId::of::[string](), reason="i32 is not string")
+        assert(of_value(&seven) == TypeId::of::[i32](), reason="an i32 records i32")
+        assert(of_value(&seven) != TypeId::of::[string](), reason="i32 is not string")
 
     it("type arguments are part of identity"):
         assert(TypeId::of::[Box[i32]]() != TypeId::of::[Box[string]](), reason="Box[i32] and Box[string] differ")

@@ -168,7 +168,7 @@ pub fn main() -> void $ Console:
 
 /// A mutable provider installed through a context keeps one value for the
 /// whole block, so each call sees the last one's change
-/// (`req.mut.install-writable-ref`, `req.mut.use-writable`).
+/// (`req.mut.install-writable-ref`, `req.mut.use-writable.reference-values`).
 #[test]
 fn a_mutable_provider_through_a_context_keeps_its_state() {
     let main = "
@@ -456,7 +456,7 @@ struct Post: pass
 fn a_spread_key_collides_with_a_generic_entry() {
     let collide = format!(
         "{REPO}
-fn choose[T, U](first: dyn Repo[T], second: dyn Repo[U]) -> void:
+fn choose[T, U](first: &dyn Repo[T], second: &dyn Repo[U]) -> void:
     base := $.context(Repo[T]=first)
     _ := $.context(base..., Repo[U]=second)
 "
@@ -464,7 +464,7 @@ fn choose[T, U](first: dyn Repo[T], second: dyn Repo[U]) -> void:
     assert_eq!(codes(&collide), vec![Code::GenericRequirementKeyCollision]);
     let with = format!(
         "{REPO}
-fn choose[T, U](first: dyn Repo[T], second: dyn Repo[U]) -> void:
+fn choose[T, U](first: &dyn Repo[T], second: &dyn Repo[U]) -> void:
     base := $.context(Repo[T]=first)
     $.with(base..., Repo[U]=second):
         pass
@@ -480,7 +480,7 @@ fn choose[T, U](first: dyn Repo[T], second: dyn Repo[U]) -> void:
 fn a_spread_key_collides_with_an_enclosing_block() {
     let nested = format!(
         "{REPO}
-fn choose[T, U](first: dyn Repo[T], second: dyn Repo[U]) -> void:
+fn choose[T, U](first: &dyn Repo[T], second: &dyn Repo[U]) -> void:
     $.with(Repo[T]=first):
         ctx := $.context(Repo[U]=second)
         $.with(ctx...):
@@ -490,7 +490,7 @@ fn choose[T, U](first: dyn Repo[T], second: dyn Repo[U]) -> void:
     assert_eq!(codes(&nested), vec![Code::GenericRequirementKeyCollision]);
     let exact = format!(
         "{REPO}
-fn choose[T](first: dyn Repo[T], second: dyn Repo[T]) -> void:
+fn choose[T](first: &dyn Repo[T], second: &dyn Repo[T]) -> void:
     base := $.context(Repo[T]=first)
     $.with(base..., Repo[T]=second):
         pass
@@ -504,7 +504,7 @@ fn choose[T](first: dyn Repo[T], second: dyn Repo[T]) -> void:
 fn concrete_spread_keys_do_not_collide() {
     let ok = format!(
         "{REPO}
-fn choose(users: dyn Repo[User], posts: dyn Repo[Post]) -> void:
+fn choose(users: &dyn Repo[User], posts: &dyn Repo[Post]) -> void:
     base := $.context(Repo[User]=users)
     $.with(base..., Repo[Post]=posts):
         pass

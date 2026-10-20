@@ -18,7 +18,7 @@ struct SyncError:
     @source
     repo: RepoError
 
-fn load() -> Result[i32, dyn Error]:
+fn load() -> Result[i32, &dyn Error]:
     let failed: Result[i32, RepoError] = .Err(RepoError.Write("a.txt", .Some(DiskError { free: 0 })))
     value := failed?
     .Ok(value)

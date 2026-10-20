@@ -1,5 +1,5 @@
 # test: a provider installed for a bound key is the value $.use returns, with the bound item type
-# Spec 11 Bound Requirement Keys: req.key.binding.value; Provider Scopes: req.with.type.binding (owner decision AT5).
+# Spec 11 Bound Requirement Keys: req.key.binding.value.reference-values; Provider Scopes: req.with.type.binding.reference-values (owner decision AT5).
 trait Store:
     type Item
     fn load(self, id: string) -> Self::Item

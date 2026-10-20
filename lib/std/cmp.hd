@@ -502,7 +502,7 @@ impl[T] Hash for Id[T]:
 # number of its local or new object, and the path of fields from there
 # (crates/hd_wasm/DESIGN.md §15.2, "References").
 struct RefIdentity:
-    base: dyn Any
+    base: &dyn Any
     serial: i64
     key: string
 

@@ -7,7 +7,7 @@ impl Display for Label:
 fn render_generic[T < Display](value: T) -> string:
     "generic=$value"
 
-fn render_dynamic(value: dyn Display) -> string:
+fn render_dynamic(value: &dyn Display) -> string:
     "dynamic=$value"
 
 tests:
@@ -17,4 +17,4 @@ tests:
         label := Label { value: "Ada" }
         assert_equal("label=$label", "label=Ada", reason="concrete Display implementation")
         assert_equal(render_generic(label), "generic=Ada", reason="generic Display dictionary")
-        assert_equal(render_dynamic(label), "dynamic=Ada", reason="dynamic Display dispatch")
+        assert_equal(render_dynamic(&label), "dynamic=Ada", reason="dynamic Display dispatch")

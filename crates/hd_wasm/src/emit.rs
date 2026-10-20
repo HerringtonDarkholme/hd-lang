@@ -3836,7 +3836,8 @@ impl Em<'_> {
         }
         let sealed_identity = matches!(self.pool().get(ty), TyData::TraitValue { def, .. } if def == self.env().decls().sealed().inspectable || def == self.env().decls().sealed().any);
         if kind == Coercion::RefToTraitValue as u32
-            && !sealed_identity
+            && (!sealed_identity
+                || hd_mono::trait_reference_widens(self.pool(), self.env(), self.ty_of(v), ty))
             && matches!(
                 self.pool().get(self.dyn_value_ty(self.ty_of(v))),
                 TyData::TraitValue { .. }
@@ -5786,13 +5787,6 @@ impl<'a> Em<'a> {
         let methods = self.env().trait_methods(trait_);
         for ((m, t), recv) in methods.iter().zip(&table.slots).zip(&table.recv) {
             let sig = self.lay.slot_sig(key, *m)?;
-            if *recv == SlotRecv::Unavailable {
-                self.a.ref_func(Sym::Helper(Helper::Unlowered {
-                    sig,
-                    what: "a `&self` or `&mut self` method through a trait value that holds no reference".into(),
-                }));
-                continue;
-            }
             // A method the compiler supplies for every type: the vtable's
             // `runtime_type` answers the recorded type, the concrete type
             // the vtable is built at (trait.inspect.dynamic). Any other
@@ -6258,9 +6252,12 @@ impl<'a> Em<'a> {
                         .iter()
                         .map(|t| self.sub(*t))
                         .collect();
-                    let slot =
-                        self.lay
-                            .dyn_slot(self.ty_of(args[0]), trait_, &targs_sub, method)?;
+                    let slot = self.lay.dyn_slot(
+                        self.dyn_value_ty(self.ty_of(args[0])),
+                        trait_,
+                        &targs_sub,
+                        method,
+                    )?;
                     let stored = if slot.open.is_some_and(|o| o.ret) {
                         // The cold frame is one reference either way; its
                         // poll returns the open result as `eqref`.
@@ -7338,7 +7335,7 @@ fn convert_results(a: &mut Asm, got: &[VT], crs: &[VT]) {
 }
 
 /// A function reference to a trait method at a trait-value `Self`, as
-/// `T::name` at `T = dyn Named` (trait.dyn.bound.dispatch): the call
+/// `T::name` at `T = dyn Named` (trait.dyn.bound.reference-dispatch): the call
 /// goes through the method's slot in the receiver's vtable.
 fn emit_dyn_adapter(lay: &Lay, item: DefId, args: TyList) -> StageResult<Code> {
     let (pool, env) = (lay.pool, lay.env);
@@ -7349,7 +7346,11 @@ fn emit_dyn_adapter(lay: &Lay, item: DefId, args: TyList) -> StageResult<Code> {
     let Some((&recv, targs)) = all.split_first() else {
         return unsupported("a trait member reference without `Self`");
     };
-    let slot = lay.dyn_slot(recv, trait_, targs, item)?;
+    let value_ty = match pool.get(recv) {
+        TyData::Adt { def, args } if def == env.ref_cell() => pool.list_items(args)[0],
+        _ => recv,
+    };
+    let slot = lay.dyn_slot(value_ty, trait_, targs, item)?;
     let callee = Callee::TraitMethod {
         trait_,
         method: item,
@@ -7834,7 +7835,7 @@ fn abandon_by(a: &mut Asm, by: i32) {
 /// default-profile provider per row key, each a vtable of host stubs
 /// generated from `hd_host_abi::TABLE` (`crates/hd_run_wasmtime/DESIGN.md` §17.1), behind
 /// the reference its `host_refs` instance makes for a key whose trait has
-/// a `&self` or `&mut self` method (`req.ref.host`), and
+/// a `&self` or `&mut self` method (`req.ref.host.reference-values`), and
 /// runs `main` or polls `main!`, then turns its result into the exit
 /// status with `report` (a `std.rt` instance; `None` for `void`);
 /// `hd.wake(n)` records completed handles.
@@ -8085,18 +8086,13 @@ fn root_poll(
                 None,
             )?);
         }
-        // A key whose trait has a `&self` or `&mut self` method takes its
-        // provider behind a reference (`req.ref.host`).
-        let by_ref = if hd_mono::provider_by_ref(pool, env, k) {
-            let Some(&(_, inst)) = host_refs.iter().find(|(t, _)| *t == key) else {
-                return unsupported(format!(
-                    "a default provider for `{p}` without its reference"
-                ));
-            };
-            Some(inst)
-        } else {
-            None
+        // Every requirement provider has a reference representation.
+        let Some(&(_, inst)) = host_refs.iter().find(|(t, _)| *t == key) else {
+            return unsupported(format!(
+                "a default provider for `{p}` without its reference"
+            ));
         };
+        let by_ref = Some(inst);
         providers.push((vt, slots, by_ref));
     }
     let ret = env.ret(main).unwrap_or(Ty::VOID);

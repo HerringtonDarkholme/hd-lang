@@ -3,7 +3,7 @@
 # Also covers std-net.error.decl, std-net.error.traits,
 # std-net.error.address, std-net.error.not-granted, std-net.error.dns,
 # std-net.error.refused, std-net.connect, std-net.listen,
-# std-net.bind-udp, std-net.mut-ref, and std-net.handles.decl-ref.
+# std-net.bind-udp, std-net.mut-ref.reference-values, and std-net.handles.decl-ref.
 # expect: test
 use std.net.{Net, NetError, TcpListener, TcpStream, UdpSocket}
 use std.time.Duration

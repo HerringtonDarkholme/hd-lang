@@ -141,7 +141,7 @@ fn latest_release!(repo: string) -> Result[string, HttpError] $ Http:
 6. r[std-http.send.timeout.whole] A timeout covers the whole request, every redirect included.
 7. r[std-http.send.cancel] Cancelling the suspension of `send!` aborts the request, by [`req.cancel.external-abort`](../lang/11-requirements-and-suspension.md#r-req.cancel.external-abort).
 8. r[std-http.send.cancel.close] Aborting a request closes its connection.
-9. r[std-http.send.mut-ref] `send!` takes `&mut self`, so `Http` is a mutable requirement trait, `$.use(Http)` is a `&mut dyn Http` by [`req.ref.use`](../lang/11-requirements-and-suspension.md#r-req.ref.use), and a provider may record what it sends.
+9. r[std-http.send.mut-ref.reference-values] `send!` takes `&mut self`, so `Http` is a mutable requirement trait, `$.use(Http)` is a `&mut dyn Http` by [`req.ref.use.reference-values`](../lang/11-requirements-and-suspension.md#r-req.ref.use.reference-values), and a provider may record what it sends.
 10. r[std-http.bodies] A body is a whole list of bytes. `std.http` has no streaming body.
 11. r[std-http.helper.send] `std.http` declares `pub fn send!(request: Request) -> Result[Response, HttpError] $ Http`, which calls `send!(request)` on the `Http` provider that covers the call.
 12. r[std-http.helper.get] `std.http` declares `pub fn get!(url: string) -> Result[Response, HttpError] $ Http`, which sends `Request { url: url }` the same way.

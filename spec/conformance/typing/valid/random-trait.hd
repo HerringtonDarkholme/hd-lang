@@ -1,5 +1,5 @@
 # test: Random is a host capability trait whose draws are plain calls
-# Spec std/random Random Source: std-random.decl-ref, std-random.plain, and std-random.mut-ref (batch 64, STD-2).
+# Spec std/random Random Source: std-random.decl-ref, std-random.plain, and std-random.mut-ref.reference-values (batch 64, STD-2).
 use std.random.Random
 
 struct Counter:

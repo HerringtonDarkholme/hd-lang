@@ -1,5 +1,5 @@
 # test: converting a literal to a trait value is no one-fit site, so 0 falls back to usize, which is no Gauge
-# Spec 04 One Fitting Candidate: types.literal.local.erased (ONE-FIT).
+# Spec 04 One Fitting Candidate: types.literal.local.erased.reference-values (ONE-FIT).
 
 trait Gauge:
     fn level(self) -> f64
@@ -9,5 +9,5 @@ impl Gauge for f64:
         self
 
 fn idle_sensor() -> f64:
-    let reading: dyn Gauge = 0  # diagnostic: type-mismatch
+    let reading: &dyn Gauge = 0  # diagnostic: type-mismatch
     reading.level()

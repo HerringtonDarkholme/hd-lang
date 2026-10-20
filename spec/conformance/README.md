@@ -327,7 +327,7 @@ one provider value per trait. Each provider has the access its trait gives
 mutable when the trait has a `mut self` or `&mut self` method, readonly
 otherwise. A trait with a `&self` or `&mut self` method gets its provider
 behind a trait value reference
-([`req.ref.host`](../lang/11-requirements-and-suspension.md#r-req.ref.host)).
+([`req.ref.host.reference-values`](../lang/11-requirements-and-suspension.md#r-req.ref.host.reference-values)).
 
 - `console` is the profile a fixture gets when it names no profile. The
   runner selects no runtime profile for it. It implements the prelude

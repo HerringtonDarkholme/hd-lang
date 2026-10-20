@@ -52,17 +52,17 @@ fn modified(dir: &Scratch) -> SystemTime {
 const GREET: &str = "pub trait Greet:\n    fn greet(self) -> string\n\npub fn twice(g: Greet) -> string:\n    g.greet() + g.greet()\n";
 
 /// `cli.fix.command`, `cli.fix.report`, `cli.fix.status`: the `dyn` of
-/// `types.trait.value.dyn-required` is written, the change is printed with
+/// `types.trait.value.dyn-required.reference-values` is written, the change is printed with
 /// its file and code, and with no error left the status is 0.
 #[test]
 fn applies_a_safe_fix_and_reports_it() {
     let dir = package("hd-fix-dyn", GREET);
     let r = hd(&dir, &dir, &["fix"]);
     assert_eq!(r.code, Some(0), "{}", r.err);
-    assert_eq!(lib(&dir), GREET.replace("g: Greet", "g: dyn Greet"));
+    assert_eq!(lib(&dir), GREET.replace("g: Greet", "g: &dyn Greet"));
     assert_eq!(
         r.err,
-        "fixed: src/lib.hd:4:17: trait-used-as-type: insert `dyn` before the trait name\nfix result: ok. fixed: 1; errors: 0; warnings: 0\n"
+        "fixed: src/lib.hd:4:17: trait-used-as-type: insert `&dyn` before the trait name\nfix result: ok. fixed: 1; errors: 0; warnings: 0\n"
     );
     assert_eq!(r.out, "");
     assert!(!dir.join("src/lib.hd.fix-tmp").exists());
@@ -116,7 +116,7 @@ fn applies_every_safe_fix_and_fails_while_an_error_remains() {
     let r = hd(&dir, &dir, &["fix"]);
     assert_eq!(r.code, Some(101), "{}", r.err);
     let fixed = source
-        .replace("g: Greet", "g: dyn Greet")
+        .replace("g: Greet", "g: &dyn Greet")
         .replace("run[R]", "run[$R]");
     assert_eq!(lib(&dir), fixed);
     let lines: Vec<&str> = r.err.lines().collect();
@@ -183,7 +183,7 @@ fn rejects_a_file_a_format_and_no_package() {
 fn a_warm_cache_keeps_fix_its_where_their_code_moved() {
     let dir = package("hd-fix-warm", GREET);
     let r = hd(&dir, &dir, &["check", "--format", "json"]);
-    assert!(r.out.contains("\"text\":\"dyn \""), "{}", r.out);
+    assert!(r.out.contains("\"text\":\"&dyn \""), "{}", r.out);
     let moved = format!("# a comment that moves every byte below it\n\n{GREET}");
     std::fs::write(dir.join("src/lib.hd"), &moved).expect("write");
     let r = hd(&dir, &dir, &["check", "--format", "json"]);
@@ -191,5 +191,5 @@ fn a_warm_cache_keeps_fix_its_where_their_code_moved() {
     assert!(r.out.contains("\"start\":107,\"end\":107"), "{}", r.out);
     let r = hd(&dir, &dir, &["fix"]);
     assert_eq!(r.code, Some(0), "{}", r.err);
-    assert_eq!(lib(&dir), moved.replace("g: Greet", "g: dyn Greet"));
+    assert_eq!(lib(&dir), moved.replace("g: Greet", "g: &dyn Greet"));
 }

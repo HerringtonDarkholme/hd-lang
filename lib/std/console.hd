@@ -25,7 +25,7 @@ pub trait Console:
         self.write_line!(text)
 
 # `read_line!` takes `&mut self`, so a scripted provider can advance
-# through its lines (spec/std/console.md#r-std-console.input.mut-ref).
+# through its lines (spec/std/console.md#r-std-console.input.mut-ref.reference-values).
 ## The host capability to read a line of input.
 ## See [std-console.input.decl](../../spec/std/console.md#r-std-console.input.decl).
 pub trait ConsoleInput:
@@ -100,7 +100,7 @@ impl Debug for MemoryConsole:
         out.debug_struct("MemoryConsole").field("lines", self.lines).field("error_lines", self.error_lines).finish()
 
 # The `&mut MemoryConsole` that `new` returns, installed as the provider,
-# records into this object (r-req.ref.share).
+# records into this object (r-req.ref.share.reference-values).
 impl Console for MemoryConsole:
     fn write_line!(&mut self, text: string) -> Result[void, ConsoleError]:
         self.lines.push(text)

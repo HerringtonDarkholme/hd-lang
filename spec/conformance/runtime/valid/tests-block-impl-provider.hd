@@ -11,7 +11,7 @@ fn register(email: string) -> string $ Mailer:
 fn notify[M < Mailer](mailer: M, to: string) -> string:
     mailer.send(to)
 
-fn through(mailer: dyn Mailer, to: string) -> string:
+fn through(mailer: &dyn Mailer, to: string) -> string:
     mailer.send(to)
 
 tests:
@@ -31,5 +31,5 @@ tests:
     it("passes the test-only mailer to generic and trait-value parameters"):
         mailer := OutboxMailer { label: "direct" }
         assert_equal(notify(mailer, "bo"), "outbox:direct:bo", reason="a generic instance")
-        assert_equal(through(mailer, "cy"), "outbox:direct:cy", reason="a trait value")
+        assert_equal(through(&mailer, "cy"), "outbox:direct:cy", reason="a trait value")
         assert_equal(mailer, OutboxMailer { label: "direct" }, reason="a derived Eq")

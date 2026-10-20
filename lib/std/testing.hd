@@ -28,7 +28,7 @@ use std.path.Path
 # or `it_prop_with` test case or a `timeout` option, never for the test
 # body itself (src/test-runner.ts).
 ## The host capability of the test runner: it reports the run and answers the checks of a test case.
-## See [std-testing.runner.declares-ref](../../spec/std/testing.md#r-std-testing.runner.declares-ref).
+## See [std-testing.runner.declares-ref.reference-values](../../spec/std/testing.md#r-std-testing.runner.declares-ref.reference-values).
 pub trait TestRunner:
     # The table has `count` rows; the index of the row this case runs.
     fn row(&mut self, count: usize) -> usize
@@ -63,7 +63,7 @@ pub struct PropertyCase:
 # The property runner records and shrinks each case's draws
 # (src/property-tests.ts); `Choices` replays them.
 ## The host capability of a property runner: it records and shrinks each case's draws.
-## See [std-testing.runner.declares-ref](../../spec/std/testing.md#r-std-testing.runner.declares-ref).
+## See [std-testing.runner.declares-ref.reference-values](../../spec/std/testing.md#r-std-testing.runner.declares-ref.reference-values).
 pub trait PropertyRunner:
     # Reports the caps and the example count, and returns the case to run
     # (r-std-testing.runner.start-case). Once every example has run, the

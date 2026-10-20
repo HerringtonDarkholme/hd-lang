@@ -14,11 +14,11 @@ impl Shape for Square:
     fn same(self, other: Square) -> bool: self.side == other.side
     fn unit() -> Square: Square { side: 1.0 }
 
-fn total(shapes: List[dyn Shape]) -> f64:
+fn total(shapes: List[&dyn Shape]) -> f64:
     let sum = 0.0
     for shape in shapes:
         sum = sum + shape.area()
     sum
 
 fn demo() -> f64:
-    total([Square { side: 2.0 }, Square::unit()])
+    total([&Square { side: 2.0 }, &Square::unit()])

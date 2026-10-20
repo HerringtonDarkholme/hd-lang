@@ -1,7 +1,7 @@
 //! A bare trait name in a type written inside a body is
 //! `trait-used-as-type` at the name, one error per name and no knock-on
-//! errors (spec/lang/04-type-system.md types.trait.value.dyn-required,
-//! spec/lang/09-traits.md trait.dyn.keyword). `dyn Trait`, bounds and
+//! errors (spec/lang/04-type-system.md types.trait.value.dyn-required.reference-values,
+//! spec/lang/09-traits.md trait.dyn.reference-keyword). `dyn Trait`, bounds and
 //! `impl Trait for` stay valid.
 
 use hd_diag::{Code, DiagBuf, FixSafety};
@@ -50,7 +50,7 @@ fn assert_dyn_fix(main: &str, diags: &DiagBuf) {
     let fixes = diags.fixes[i];
     assert_eq!(fixes.len, 1, "{main}");
     let title = diags.get_text(diags.fix_title[fixes.start as usize]);
-    assert_eq!(title, "insert `dyn` before the trait name", "{main}");
+    assert_eq!(title, "insert `&dyn` before the trait name", "{main}");
     assert_eq!(diags.fix_safety[fixes.start as usize], FixSafety::Exact);
     let edits = diags.fix_edits[fixes.start as usize];
     assert_eq!(edits.len, 1, "{main}");
@@ -58,9 +58,9 @@ fn assert_dyn_fix(main: &str, diags: &DiagBuf) {
     let (lo, hi) = (edit.span.lo as usize, edit.span.hi as usize);
     assert_eq!(lo, hi, "the edit inserts, not replaces");
     assert!(main[lo..].starts_with("Factory"), "{main}");
-    assert_eq!(diags.get_text(edit.text), "dyn ");
-    let repaired = format!("{}dyn {}", &main[..lo], &main[lo..]);
-    assert!(repaired.contains("dyn Factory"), "{repaired}");
+    assert_eq!(diags.get_text(edit.text), "&dyn ");
+    let repaired = format!("{}&dyn {}", &main[..lo], &main[lo..]);
+    assert!(repaired.contains("&dyn Factory"), "{repaired}");
 }
 
 #[test]
@@ -147,8 +147,8 @@ impl Greet for P:
 fn use_it[T < Greet](x: T) -> string: x.greet()
 
 pub fn main() -> void $ Console:
-    let x: dyn Greet = P { n: 1 }
-    let y: List[dyn Greet] = [x]
+    let x: &dyn Greet = &P { n: 1 }
+    let y: List[&dyn Greet] = [x]
     println(use_it(P { n: 2 }))
     _ := y
 ";

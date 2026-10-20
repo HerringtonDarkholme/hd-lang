@@ -1,5 +1,5 @@
 # test: the entry installs the host's Clock and Random, traits with `&mut self` methods, as trait value references to one new object each, so every `$.use` below the entry refers to one place and calls through it reach the host
-# Spec 11 Providers Behind References: req.ref.host, req.ref.use, req.ref.same-place.
+# Spec 11 Providers Behind References: req.ref.host.reference-values, req.ref.use.reference-values, req.ref.same-place.
 # expect-stdout: true true
 # expect-stdout: true true
 # expect-stdout: 16 true

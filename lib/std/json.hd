@@ -517,7 +517,7 @@ impl Display for JsonError:
             .MissingField(path) => "missing field at $path"
             .UnknownVariant(path, name) => "unknown variant \"$name\" at $path"
 
-# A std error type implements `Error` (r-std-error.std-types.impl).
+# A std error type implements `Error` (r-std-error.std-types.impl.reference-values).
 impl Error for JsonError
 
 # Strict RFC 8259 text to a `Json` (r-std-json.parse).

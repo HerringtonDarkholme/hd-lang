@@ -1,7 +1,7 @@
 # test: a dynamic trait value satisfies bounds on its own trait and its supertraits
 # Spec 09 Dynamic Trait Values: a dynamic trait value type satisfies a generic bound on its
 # own trait and on each direct or transitive supertrait of that trait.
-# Spec 09 Traits: trait.dyn.bound.
+# Spec 09 Traits: trait.dyn.bound.reference.
 trait Named < Display:
     fn name(self) -> string
 
@@ -20,7 +20,7 @@ fn show[T < Display](value: T) -> string:
 fn tag[T < Named](value: T) -> string:
     value.name()
 
-fn describe(named: dyn Named, shown: dyn Display) -> string:
+fn describe(named: &dyn Named, shown: &dyn Display) -> string:
     tag(named) + " " + show(named) + " " + show(shown)
 
 tests:
@@ -28,4 +28,4 @@ tests:
 
     it("own trait and supertrait bounds"):
         user := User { handle: "ada" }
-        assert_equal(describe(user, 42), "ada @ada 42", reason="Named satisfies Named and Display; Display satisfies Display")
+        assert_equal(describe(&user, &42), "ada @ada 42", reason="Named satisfies Named and Display; Display satisfies Display")

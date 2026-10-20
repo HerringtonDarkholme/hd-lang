@@ -1,5 +1,5 @@
 # test: shared and mutable reference-valued referents have different identities and cannot recover as each other
-# Spec 09 Runtime Type Identity: trait.identity.reference-permission, trait.typeid.name.reference; Recovering A Concrete Type: trait.downcast.exact.
+# Spec 09 Runtime Type Identity: trait.identity.reference-permission, trait.typeid.name.reference; Recovering A Concrete Type: trait.downcast.exact.reference-values.
 # expect-stdout: false
 # expect-stdout: false
 use std.inspect.{Inspectable, TypeId}

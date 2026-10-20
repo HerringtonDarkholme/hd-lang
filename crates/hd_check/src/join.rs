@@ -754,7 +754,7 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let s = self.strip_mut(solved);
         let g = self.strip_mut(got);
-        let trait_value = |t: Ty| matches!(pool.get(t), TyData::TraitValue { .. });
+        let trait_value = |t: Ty| self.dyn_ref_of(t).is_some();
         if g == Ty::NEVER
             || pool.has_poison(g)
             || pool.has_poison(s)

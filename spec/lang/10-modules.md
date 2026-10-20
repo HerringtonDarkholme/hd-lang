@@ -1002,7 +1002,7 @@ pub enum ConsoleError:
 ```
 
 1. r[module.console.host-trait] `Console` is a host capability trait.
-2. r[module.console.write-line-ref] `write_line!` takes `&mut self`, so `Console` is a [mutable requirement trait](11-requirements-and-suspension.md#r-req.mut.trait-changing), `$.use(Console)` is a `&mut dyn Console` by [`req.ref.use`](11-requirements-and-suspension.md#r-req.ref.use), and a provider may record what it writes.
+2. r[module.console.write-line-ref.reference-values] `write_line!` takes `&mut self`, so `Console` is a [mutable requirement trait](11-requirements-and-suspension.md#r-req.mut.trait-changing), `$.use(Console)` is a `&mut dyn Console` by [`req.ref.use.reference-values`](11-requirements-and-suspension.md#r-req.ref.use.reference-values), and a provider may record what it writes.
 3. r[module.console.write-error-line] `write_error_line!` writes one line of error output, which a host keeps apart from the output of `write_line!`.
 4. r[module.console.write-error-line.default] Its default body calls `write_line!` with the same text, so a provider that does not override it records both kinds of line together.
 5. r[module.console.error] `ConsoleError` is its standard boundary-safe error type, and `ConsoleError` implements `Display`.
@@ -1169,7 +1169,7 @@ fn version!() -> string $ Process:
 ### Value-Category Traits
 
 1. r[module.prelude.any-subtraits] `AnyVal` and `AnyRef` are the two sealed marker subtraits of `Any`.
-2. r[module.prelude.anyref-members] `AnyRef` is implemented by the reference types, trait value references included, and by bare trait values and `Any`. It is also implemented by suspensions and those runtime handles that have identity.
+2. r[module.prelude.anyref-members.reference-values] `AnyRef` is implemented by reference types, trait value references included, suspensions and runtime handles that have identity.
 3. r[module.prelude.anyref-excludes] `AnyRef` is not implemented by primitives, tuples, enums (optionals included), or functions.
 4. r[module.prelude.anyval-members] `AnyVal` is implemented by exactly the primitives, `string`, tuples (`void` included), enums (optionals and `Result` included), structs, `List`, `Map`, function types, and newtypes whose base type implements `AnyVal`.
 5. r[module.prelude.newtype-category] A newtype implements `AnyRef` exactly when its base type does.
@@ -1426,8 +1426,8 @@ pub fn it_prop_with[T < Debug, R < Termination, $Q](name: string, gen: fn(&mut C
 8. r[module.testing.reg.prop-registers] A call of `it_prop` or `it_prop_with` in test position registers one property test case.
 9. r[module.testing.reg.name] The name of an `it_each`, `it_prop`, or `it_prop_with` call must be a string literal without interpolation. Any other name is an error. Error: `non-literal-test-argument`.
 10. r[module.testing.reg.options] Each takes the options of `it`, `ignore`, `expect_panic`, and `timeout`, under the same rules.
-11. r[module.testing.reg.body-result] The body's result follows [Propagation In Test Blocks](05-expressions.md#propagation-in-test-blocks): `void`, or `Result[void, dyn Error]` when it uses `?`.
-12. r[module.testing.reg.body-closure-result] The body closure of an `it_each`, `it_prop`, or `it_prop_with` call that writes no result type gets its result type by [`expr.try.test.with-try`](05-expressions.md#r-expr.try.test.with-try) and [`expr.try.test.without-try`](05-expressions.md#r-expr.try.test.without-try). A trailing block given to `it` gets its result type the same way.
+11. r[module.testing.reg.body-result.reference-values] The body's result follows [Propagation In Test Blocks](05-expressions.md#propagation-in-test-blocks): `void`, or `Result[void, &dyn Error]` when it uses `?`.
+12. r[module.testing.reg.body-closure-result.reference-values] The body closure of an `it_each`, `it_prop`, or `it_prop_with` call that writes no result type gets its result type by [`expr.try.test.with-try.reference-values`](05-expressions.md#r-expr.try.test.with-try.reference-values) and [`expr.try.test.without-try`](05-expressions.md#r-expr.try.test.without-try). A trailing block given to `it` gets its result type the same way.
 13. r[module.testing.reg.prop-debug] `it_prop` and `it_prop_with` require `T < Debug`. A property whose input type does not implement `Debug` is an error. Error: `unsatisfied-trait-bound`.
 
 ```text
@@ -1755,7 +1755,7 @@ fn first_name() -> string:
 1. r[module.init.script-body] After dependency initialization, a script executes its top-level statements as that module's initialization.
 2. r[module.init.script-driver] A script's top level is a suspension driver context, as `main!`'s body is, so it may make bang calls. The whole script runs as one suspending entry. It stays one module, and `hd` replays no statement. The top level of any other module is not a driver context, also when it is an entry module that has a `main`.
 3. r[module.init.script-profile] A script declares no requirement row. Its top level may use every host capability trait of the [default profile](../cli/command-line.md#r-cli.host.default-profile), as a REPL input may by [`cli.repl.host.default-profile`](../cli/command-line.md#r-cli.repl.host.default-profile).
-4. r[module.init.script-try] A `?` at a script's top level leaves the script as `main!` leaves with a `Result[void, dyn Error]`. The operand is a `Result` whose error type implements `Error`. An `.Err` is then handled by [Entry Results](#entry-results): the host prints it, and the script exits with the status of its `report()`. A `?` on an optional there is an error. Error: `invalid-result-propagation`.
+4. r[module.init.script-try.reference-values] A `?` at a script's top level leaves the script as `main!` leaves with a `Result[void, &dyn Error]`. The operand is a `Result` whose error type implements `Error`. An `.Err` is then handled by [Entry Results](#entry-results): the host prints it, and the script exits with the status of its `report()`. A `?` on an optional there is an error. Error: `invalid-result-propagation`.
 5. r[module.init.main] An executable package then invokes `main` after its entry module has initialized.
 6. r[module.init.tests] Test runners initialize the module under test and the modules it uses before running its test cases.
 7. r[module.init.test-cases] The `it` calls of a `tests:` block or a test module, and their bodies, are not part of module initialization.
@@ -2020,7 +2020,7 @@ See also: [Mutable Providers](11-requirements-and-suspension.md#mutable-provider
 
 1. r[module.entry.exit-report] When an entry point returns, the process exits with the `u8` held by the `ExitCode` that `report()` returns for its result, as [Exit Status](#exit-status) describes.
 2. r[module.entry.err-host-prints] When the result holds an `.Err`, the host prints that error by the rules below before it exits.
-3. r[module.entry.err-dynamic] The erased `std.error.Error` satisfies the `E < Error` bound, so `Result[T, dyn Error]` is a valid entry result.
+3. r[module.entry.err-dynamic.reference-values] The erased `std.error.Error` satisfies the `E < Error` bound, so `Result[T, &dyn Error]` is a valid entry result.
 4. r[module.entry.err-render-chain] The host prints the error's `Display` text. Then it prints each cause that the standard-library `chain` yields after it.
 5. r[module.entry.err-render-chain.line] Each cause is printed on its own line as `caused by: ` followed by the cause's `Display` text.
 6. r[module.entry.err-stream] When an entry point returns `.Err(e)`, the host writes the text and `caused by: ` lines of `e` to standard output when `e.exit_code()` is 0, and to standard error otherwise. Then it exits with the status that `report()` returns, as [Exit Status](#exit-status) describes.
@@ -2123,7 +2123,7 @@ values that cross a boundary, and the official host boundary.
 ### Runtime Profiles
 
 1. r[module.profile.definition] A **runtime profile** is a named compile-time set of host capability traits, their boundary adapters, and runtime choices such as panic exit statuses.
-2. r[module.profile.trait-access-ref] The profile binds each host provider with the access its trait gives, by [`req.mut.entry.trait-access`](11-requirements-and-suspension.md#r-req.mut.entry.trait-access). For a trait with a `&self` or `&mut self` method, the provider is a trait value reference, by [`req.ref.host`](11-requirements-and-suspension.md#r-req.ref.host).
+2. r[module.profile.trait-access-ref.reference-values] The profile binds each host provider with the access its trait gives, by [`req.mut.entry.trait-access`](11-requirements-and-suspension.md#r-req.mut.entry.trait-access). For a trait with a `&self` or `&mut self` method, the provider is a trait value reference, by [`req.ref.host.reference-values`](11-requirements-and-suspension.md#r-req.ref.host.reference-values).
 3. r[module.profile.build] The compiler receives the selected profile as build configuration.
 4. r[module.profile.default] The default profile contains at least the prelude `Console` trait.
 5. r[module.profile.other] Another profile may add or omit host traits explicitly.

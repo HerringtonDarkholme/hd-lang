@@ -105,15 +105,18 @@ fn every_row_of_the_table_is_inspectable() {
         "Map[string, Plain]",
         "(i32, string)",
         "List[(i32, Map[string, bool])]",
-        // trait.inspectable.dynamic
-        "dyn Inspectable",
-        "dyn Named",
-        "dyn Deeper",
-        // trait.inspectable.argument-only
-        "List[dyn Display]",
-        "Map[string, dyn Any]",
-        "Boxed[dyn Display]",
-        "Boxed[dyn Any]",
+        "&dyn Display",
+        "&dyn Any",
+        "(&dyn Display, i32)",
+        // trait.inspectable.reference
+        "&dyn Inspectable",
+        "&dyn Named",
+        "&dyn Deeper",
+        // trait.inspectable.reference
+        "List[&dyn Display]",
+        "Map[string, &dyn Any]",
+        "Boxed[&dyn Display]",
+        "Boxed[&dyn Any]",
     ];
     for ty in valid {
         assert_eq!(errors(&type_id_program(ty)), vec![], "{ty}");
@@ -151,12 +154,6 @@ fn excluded_types_are_one_error() {
         "Map[string, fn() -> i32]",
         "(i32, fn() -> i32)",
         "(fn() -> i32)?",
-        // trait.inspectable.dynamic-values: a trait value and `Any` are
-        // inspectable as arguments only.
-        "dyn Display",
-        "dyn Any",
-        // A tuple's elements are not type arguments.
-        "(dyn Display, i32)",
     ];
     for ty in invalid {
         assert_eq!(
@@ -303,7 +300,7 @@ fn each_bad_key_is_one_error() {
 fn an_inspectable_trait_stays_a_bound_and_a_value_type() {
     let cases = [
         "fn use_it[S < Storage](s: S) -> string?:\n    s.get(\"k\")\n",
-        "fn use_dyn(s: dyn Storage) -> string?:\n    s.get(\"k\")\n",
+        "fn use_dyn(s: &dyn Storage) -> string?:\n    s.get(\"k\")\n",
         "fn now() -> i64 $ Clock:\n    $.use(Clock).now()\n",
         "fn schedule(job: fn() -> void $ Clock) -> void:\n    pass\n",
     ];

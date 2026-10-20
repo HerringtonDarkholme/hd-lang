@@ -1,5 +1,5 @@
 # test: prelude / Console / a provider whose write_line! takes mut self does not match the &mut self method
-# Spec 10 Console: module.console.write-line-ref.
+# Spec 10 Console: module.console.write-line-ref.reference-values.
 struct Quiet:
     count: i32
 

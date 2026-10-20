@@ -7,5 +7,5 @@ enum FsError:
     NotFound(path: string)
 
 impl From[FsError] for dyn Error:  # diagnostic: trait-value-impl-target
-    fn from(value: FsError) -> dyn Error:
+    fn from(value: FsError) -> Self:
         panic("unreachable")

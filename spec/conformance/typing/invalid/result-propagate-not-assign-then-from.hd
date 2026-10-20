@@ -12,8 +12,8 @@ impl Display for Code:
 enum Report:
     Shown(text: string)
 
-impl From[dyn Display] for Report:
-    fn from(value: dyn Display) -> Report:
+impl From[&dyn Display] for Report:
+    fn from(value: &dyn Display) -> Report:
         Report.Shown(value.to_string())
 
 fn code() -> Result[i32, Code]:

@@ -1,18 +1,18 @@
 # test: DecodeError, RegexError, and CliError implement Error, so ? converts each into Result[T, Error]
-# Spec std/error Standard Error Types: std-error.std-types.impl (spec pass 89, audit item 2).
+# Spec std/error Standard Error Types: std-error.std-types.impl.reference-values (spec pass 89, audit item 2).
 use std.cli.Cli
 use std.encoding.hex_decode
 use std.error.Error
 use std.regex.Regex
-fn bytes(text: string) -> Result[List[u8], dyn Error]:
+fn bytes(text: string) -> Result[List[u8], &dyn Error]:
     value := hex_decode(text)?
     .Ok(value)
 
-fn pattern(text: string) -> Result[Regex, dyn Error]:
+fn pattern(text: string) -> Result[Regex, &dyn Error]:
     value := Regex::new(text)?
     .Ok(value)
 
-fn verbose(arguments: List[string]) -> Result[bool, dyn Error]:
+fn verbose(arguments: List[string]) -> Result[bool, &dyn Error]:
     parsed := Cli::new("tool").flag("verbose", .None, "say more").parse(arguments)?
     .Ok(parsed.flag("verbose"))
 

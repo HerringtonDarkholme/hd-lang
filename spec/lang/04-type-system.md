@@ -351,7 +351,7 @@ The expression forms in which literals meet typed parts:
 10. r[types.literal.local.form.closure-return.statements] The return paths of one closure, and the values of one loop, join although they are in different statements of its body. A value that leaves its own statement takes no part.
 11. r[types.literal.local.form.function-return.statements] The return paths of a non-public function whose result type is omitted join the same way, across the statements of its body.
 12. r[types.literal.local.form.join-open] A literal class that reaches such a join stays open until the join, and takes its default type there when the join meets no type.
-13. r[types.literal.local.erased] A literal converted to `dyn Any` or to another trait value type has its class's default type. So `let x: dyn Any = 42` holds a `usize`.
+13. r[types.literal.local.erased.reference-values] A literal addressed and converted to a trait value reference has its class's default type. So `let x: &dyn Any = &42` refers to a `usize`.
 14. r[types.literal.local.instantiation] Two or more instantiations of one generic trait may fit a call only because a literal argument could take several widths. Then the literal keeps its default type. With no instantiation for that type, the call is an error. Error: `type-mismatch`.
 
 ```text
@@ -705,7 +705,7 @@ fn demo(items: List[i32]) -> i32?:
 ### Optional Identity And Variance
 
 1. r[types.option.ordinary] Optionals follow the ordinary enum rules in every other respect.
-2. r[types.option.any] An optional value may be erased to `dyn Any` like any other enum value.
+2. r[types.option.any.reference-values] A reference to an optional value may be erased to `&dyn Any` like a reference to any other enum value.
 3. r[types.option.value] An optional is an enum, so it is a value without identity and implements `AnyVal`, whatever its payload type.
 4. r[types.option.identity-error] `is` with an optional operand is an error, as for every enum. Error: `identity-requires-references`.
 5. r[types.option.invariant] `Option` declares its parameter unmarked, so an optional is invariant in its contained type, as every unmarked parameter is.
@@ -943,8 +943,6 @@ r[types.assign] An expression of type `S` is assignable to a location of type `T
 1. r[types.assign.identical] `S` and `T` are identical after expanding transparent aliases.
 2. r[types.assign.weaken] `S` is `mut Suspend[U]` and `T` is its readonly form `Suspend[U]`, or `S` is `&mut U` and `T` is `&U`, by [`ref.convert.weaken`](13-values-and-references.md#r-ref.convert.weaken).
 3. r[types.assign.variance] A declared generic variance conversion permits the readonly outer type to change its type arguments.
-4. r[types.assign.trait-value] `S` explicitly implements trait `T`, or `T` is `Inspectable` and `S` is an inspectable type, allowing construction of a dynamic trait value.
-5. r[types.assign.supertrait] `S` is a dynamic child-trait value whose trait has `T` as a direct or transitive supertrait.
 6. r[types.assign.optional] A value of `T` is injected into `T?`. The injection adds one layer only, so a `T` is not injected into `T??`.
 7. r[types.assign.row-subsumption] `S` and `T` are function types, and `T`'s row entails every key of `S`'s row. Then `S` with `T`'s row is assignable to `T`, as [Row Subsumption](11-requirements-and-suspension.md#row-subsumption) states.
 8. r[types.assign.never] `S` is `never`, as [`types.never.assignable`](#r-types.never.assignable) states.
@@ -1370,7 +1368,7 @@ arguments' types may differ only in an outer `mut`:
 3. r[types.generic.infer.join.no-supertrait-widening] A supertrait widening never applies either, so two arguments of two child traits of one supertrait are an error. Error: `no-common-type`.
 4. r[types.generic.infer.join.other-conflict] Any other conflict between the arguments' types is an error. Examples are `choose(1, true)`, `max(small, large)` with an `i32` and an `i64`, a `&mut User` and a `&User`, and a `T` and a `T?`. Error: `type-mismatch`. The caller writes a cast, as in `max(i64(small), large)`.
 5. r[types.generic.infer.join.literal] An integer literal argument is not a conversion: it takes the type solved from the other arguments as its expected type, in any position. So `pick(1, large)` with an `i64` `large` solves `T = i64`.
-6. r[types.generic.infer.join.explicit] An explicit type argument, as in `cmp::[dyn Display](user, label)`, is an expected type for each argument, which then converts by [Assignability And Coercion](#assignability-and-coercion), as [`types.lct.expected-trait`](#r-types.lct.expected-trait) allows.
+6. r[types.generic.infer.join.explicit.reference-values] An explicit type argument, as in `cmp::[&dyn Display](&user, label)`, is an expected type for each argument, which then converts by [Assignability And Coercion](#assignability-and-coercion), as [`types.lct.expected-trait.reference-values`](#r-types.lct.expected-trait.reference-values) allows.
 7. r[types.generic.infer.join.not-lct] This join is narrower than the [least common type](#least-common-type), and is not one of that section's constructs.
 
 ```text
@@ -1385,7 +1383,7 @@ fn cmp[T < Display](left: T, right: T) -> bool:
 fn widest(small: i32, large: i64) -> i64:
     max(small, large)  # error: type-mismatch
 
-fn same(user: User, label: dyn Display) -> bool:
+fn same(user: User, label: &dyn Display) -> bool:
     cmp(user, label)  # error: no-common-type
 ```
 
@@ -1402,8 +1400,8 @@ fn either(large: i64) -> i64:
 fn widest(small: i32, large: i64) -> i64:
     max(i64(small), large)
 
-fn same(user: User, label: dyn Display) -> bool:
-    cmp::[dyn Display](user, label)
+fn same(user: User, label: &dyn Display) -> bool:
+    cmp::[&dyn Display](&user, label)
 ```
 
 > **Why.** A call's arguments are not a list literal. A reader expects `T`
@@ -1831,7 +1829,7 @@ fn demo(box: &Box[&mut User]) -> &Box[&User]:
 2. r[types.variance.repr.contravariant] A variance conversion `G[S] -> G[T]` requires a representation-preserving `T -> S` conversion for each contravariant argument.
 3. r[types.variance.repr.weakening] Permission weakening, `&mut U -> &U` or `mut Suspend[U] -> Suspend[U]`, is representation-preserving.
 4. r[types.variance.repr.excluded] These conversions are not representation-preserving:
-   - construction of a trait value such as `i32 -> dyn Display` or `User -> dyn Display`;
+   - construction of a trait value reference such as `&i32 -> &dyn Display` or `&User -> &dyn Display`;
    - child-dynamic-trait to supertrait widening;
    - optional injection `U -> U?`.
 5. r[types.variance.no-insertion] Variance never inserts element wrappers, metadata rewrapping, boxing, copies, or per-access conversions. A variance conversion that would need one is an error. Error: `variance-representation-change`.
@@ -1846,7 +1844,7 @@ See also: [Representation-Preserving Conversions](#representation-preserving-con
 ## Trait Values And `Any`
 
 This section defines trait conformance, dynamic trait values, written
-`dyn Trait`, and the `Any` trait family.
+`&dyn Trait`, and the `Any` trait family.
 
 1. r[types.trait.explicit] Trait conformance is explicit.
 2. r[types.trait.no-shape] Matching method shape alone does not make a type implement a trait.
@@ -1856,18 +1854,18 @@ This section defines trait conformance, dynamic trait values, written
 struct User:
     name: string
 
-fn demo(user: User) -> dyn Any:
-    user   # every value satisfies Any
+fn demo(user: User) -> &dyn Any:
+    &user   # every value satisfies Any
 ```
 
 ### Trait Value Types
 
-1. r[types.trait.value] A trait value type is written `dyn` and a trait, as in `dyn Display`. It creates a Go-style dynamic trait value.
-2. r[types.trait.value.contents] A dynamic trait value contains a concrete value and dispatch metadata for that trait.
-3. r[types.trait.value.dyn-required] A bare trait name in a type position is an error, and its fix-it inserts `dyn`. Error: `trait-used-as-type`.
-4. r[types.trait.value.bound] A dynamic trait value type satisfies a generic bound on its own trait and on each of that trait's supertraits. For example, a `dyn Display` value is a valid argument for `T < Display`.
-5. r[types.trait.value.bound.available] It satisfies such a bound only when every member of the bound's trait is available on the `dyn` value, as [`trait.dyn.bound.available`](09-traits.md#r-trait.dyn.bound.available) states.
-6. r[types.trait.value.bindings] A trait value type may bind the trait's associated types, as in `dyn Supplier[Item = i32]`, as [Bound Associated Types](09-traits.md#bound-associated-types) specifies.
+1. r[types.trait.value.reference-values] A trait value type is `&dyn Tr` or `&mut dyn Tr`, referring to an object whose concrete type implements `Tr`.
+2. r[types.trait.value.contents.reference-values] A trait value reference holds a reference to an object and dispatch metadata for its trait.
+3. r[types.trait.value.dyn-required.reference-values] A bare trait name in a type position is an error whose fix-it writes `&dyn`. Error: `trait-used-as-type`.
+4. r[types.trait.value.bound.reference-values] A dynamic trait value type satisfies a generic bound on its own trait and on each of that trait's supertraits. For example, a `&dyn Display` value is a valid argument for `T < Display`.
+5. r[types.trait.value.bound.available.reference-values] It satisfies such a bound only when every member of the bound's trait is available on the `dyn` value, as [`trait.dyn.bound.reference`](09-traits.md#r-trait.dyn.bound.reference) states.
+6. r[types.trait.value.bindings.reference-values] A trait value type may bind the trait's associated types, as in `&dyn Supplier[Item = i32]`, as [Bound Associated Types](09-traits.md#bound-associated-types) specifies.
 7. r[types.trait.value.not-target] A dynamic trait value type is still not an implementation target.
 8. r[types.trait.value.ref-written] A trait value reference, `&dyn Trait` or `&mut dyn Trait`, is a trait value that is a reference. A converted `&S` or `&mut S` is shared, and a value that is no reference does not convert, as [Trait Value References](09-traits.md#trait-value-references) states.
 
@@ -1875,7 +1873,7 @@ fn demo(user: User) -> dyn Any:
 trait Greet:
     fn greet(self) -> string
 
-fn demo(g: dyn Greet) -> string:
+fn demo(g: &dyn Greet) -> string:
     g.greet()
 ```
 
@@ -1887,8 +1885,7 @@ fn demo(g: Greet) -> string:  # error: trait-used-as-type
     g.greet()
 ```
 
-> **Why.** `dyn` marks where a value is boxed and its calls are dispatched
-> at run time. A bound such as `T < Greet` stays the monomorphized form.
+> **Why.** `&dyn` makes the reference and runtime dispatch explicit. A bound such as `T < Greet` stays the monomorphized form.
 
 See also: [Dynamic Trait Values](09-traits.md#dynamic-trait-values), which
 gives the rule.
@@ -1897,7 +1894,7 @@ gives the rule.
 
 1. r[types.trait.dyn.any-trait] Every trait may be used as a `dyn` type. There is no per-trait safety check.
 2. r[types.trait.dyn.member] A member that cannot work through a `dyn` value is unavailable on it, and calling it there is an error at the call. [Dynamic Safety](09-traits.md#dynamic-safety) lists those members. Error: `dyn-member-unavailable`.
-3. r[types.trait.safe.assoc-bound] The trait value type must bind each associated type of the trait and its supertraits, as in `dyn Supplier[Item = i32]`.
+3. r[types.trait.safe.assoc-bound.reference-values] The trait value type must bind each associated type of the trait and its supertraits, as in `&dyn Supplier[Item = i32]`.
 4. r[types.trait.safe.method-type-param] A method with a method-level type parameter is available on a `dyn` value whatever the parameter's bounds, as in `T < Display` or an unbounded `T`.
 5. r[types.trait.safe.method-type-arg] A call through a trait value may pass any type argument for such a parameter, including an `AnyVal` type such as `i32` or an enum.
 6. r[types.trait.safe.method-type-arg.any-use] The method's signature and body may use the parameter in any way, including inside a container or a function type.
@@ -1909,13 +1906,13 @@ trait Versioned:
     fn version(self) -> i32
     fn newer_than(self, other: Self) -> bool
 
-fn audit(record: dyn Versioned) -> bool:
+fn audit(record: &dyn Versioned) -> bool:
     if record.version() > 0:
         return true
     record.newer_than(record)  # error: dyn-member-unavailable
 ```
 
-> **Why.** One concrete trait instantiation, such as `dyn Repository[User]`, fixes
+> **Why.** One concrete trait instantiation, such as `&dyn Repository[User]`, fixes
 > the trait declaration's generic parameters before dispatch. A member is
 > judged where it is called, so a trait with one unusual member still works
 > as a `dyn` type.
@@ -1943,11 +1940,11 @@ impl Animal for Pup:
 impl Dog for Pup:
     fn bark(self) -> string: "woof"
 
-fn name_of(animal: dyn Animal) -> string:
+fn name_of(animal: &dyn Animal) -> string:
     animal.name()
 
 fn demo(pup: Pup) -> string:
-    name_of(pup)   # a Pup widens to Animal
+    name_of(&pup)   # the reference converts to Animal
 ```
 
 See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
@@ -1957,12 +1954,12 @@ See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
 1. r[types.any] `Any` is the built-in universal empty trait.
 2. r[types.any.all] Every value type, including an optional type, satisfies `Any` automatically.
 3. r[types.any.never] `never` satisfies `Any` too. A `void` value needs no rule of its own, because it is the tuple `()`.
-4. r[types.any.erase] As a value type, `dyn Any` erases the concrete type.
+4. r[types.any.erase.reference-values] The reference type `&dyn Any` hides the concrete type of its referent.
 5. r[types.any.one-way] `Any` erasure is one-way.
 6. r[types.any.inspectable] A value erased to the sealed trait `std.inspect.Inspectable` instead keeps a runtime record of its concrete type, which `downcast` compares exactly.
 
 ```hd
-fn demo(value: dyn Any) -> string:
+fn demo(value: &dyn Any) -> string:
     "got one"   # Any erases the concrete type
 ```
 
@@ -1978,7 +1975,7 @@ See also: [Runtime Type Identity](09-traits.md#runtime-type-identity).
 | Trait | Types | Identity |
 | --- | --- | --- |
 | r[types.sealed.anyval-members] `AnyVal` | `bool`, `char`, the integer types, `f32`, `f64`, `string`, tuples (`void` included), enums (optionals and `Result` included), structs, `List`, `Map`, and function types | These values have no identity. |
-| r[types.sealed.anyref-members] `AnyRef` | the reference types `&T` and `&mut T`, trait value references `&dyn Tr` and `&mut dyn Tr` included; and the types whose values are shared objects: bare trait value types, `Any`, suspensions, and runtime handles | These values have identity. |
+| r[types.sealed.anyref-members.reference-values] `AnyRef` | reference types, trait value references included; suspensions and runtime handles with identity | These values have identity. |
 
 5. r[types.sealed.newtype] A newtype has its base type's category: `type Mile(i32)` implements `AnyVal`, and `type Owner(&User)` implements `AnyRef`.
 6. r[types.sealed.never] `never` implements neither, because it has no values.
@@ -2113,10 +2110,10 @@ arguments uses a narrower join, permission weakening only
 
 ### No Implicit Erasure
 
-1. r[types.lct.no-any] The compiler never falls back to `dyn Any` merely to make heterogeneous values type-check.
+1. r[types.lct.no-any.reference-values] The compiler never falls back to `&dyn Any` merely to make heterogeneous values type-check.
 2. r[types.lct.no-trait-value] Unconstrained inference also does not introduce a dynamic trait-value conversion.
 3. r[types.lct.no-supertrait-widening] It also never widens a dynamic trait value to a supertrait value, so values of two child traits of one supertrait have no common type.
-4. r[types.lct.expected-trait] An expected type such as `List[dyn Display]` or `Map[K, dyn Display]` may request that conversion explicitly.
+4. r[types.lct.expected-trait.reference-values] An expected type such as `List[&dyn Display]` or `Map[K, &dyn Display]` may request that conversion explicitly.
 5. r[types.lct.contextual] A contextual variant, `.None` included, takes its type only from an expected type, never from the other values.
 6. r[types.lct.contextual.error] `[1, .None]` or `if c: 1 else: .None` without an expected type is an error. Error: `missing-contextual-enum-type`.
 7. r[types.lct.contextual.expected] `let values: List[i32?] = [1, .None]` supplies the type.
@@ -2137,12 +2134,12 @@ fn pick(flag: bool) -> void:
 3. r[types.lct.no-least] When they have common types but these rules admit no unique least one, the failure is an error. Error: `no-least-common-type`.
 
 ```text
-fn mix(shown: dyn Shown, tagged: dyn Tagged) -> void:
+fn mix(shown: &dyn Shown, tagged: &dyn Tagged) -> void:
     items := [shown, tagged]  # error: no-common-type
 ```
 
 Here `Shown` and `Tagged` are traits that both extend `Named`;
-`let items: List[dyn Named] = [shown, tagged]` is valid.
+`let items: List[&dyn Named] = [shown, tagged]` is valid.
 
 ## Type Inference Boundaries
 
@@ -2217,7 +2214,7 @@ Runtime values fall into three categories:
 | --- | --- | --- |
 | Scalar values | `bool`, `char`, the integer types, `f32`, `f64` | none |
 | Identity-free composites | `string`, tuples, enum values (including `Result` and optionals), struct values, lists, maps, function values | none |
-| Reference values | references, trait value references included, bare trait values, `Any`, suspensions, runtime handles | the place a reference refers to; otherwise allocation identity |
+| Reference values | references, trait value references included, suspensions, runtime handles | the place a reference refers to; otherwise allocation identity |
 
 The reference values are exactly the implementers of the sealed `AnyRef`
 trait. The scalar values and identity-free composites are exactly the
@@ -2229,9 +2226,9 @@ observed. An implementation may copy, share, or deduplicate such a value
 freely. A list or a map shares its elements with its copies and copies them
 before its first change while they are shared.
 
-Converting a value without identity to a trait value or `Any` may box it.
-The box has no identity of its own, as
-[Expressions](05-expressions.md#unary-and-binary-operators) specifies.
+Writing `&e` for a value that is no place creates a new object with its
+own identity. Converting an existing reference to a trait value reference
+shares its place, by [Values And References](13-values-and-references.md).
 
 See also: [Trait Values And `Any`](#trait-values-and-any).
 

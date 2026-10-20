@@ -1798,7 +1798,7 @@ impl Lower<'_, '_, '_> {
     }
 
     /// A trait value type binds every associated type of its trait and
-    /// supertraits (trait.dyn.binding.complete, req.key.binding.complete).
+    /// supertraits (trait.dyn.binding.complete.reference-values, req.key.binding.complete).
     fn require_complete(&mut self, t: Ty, span: Span) {
         if let Some(msg) = crate::assoc::incomplete_message(&self.names, self.r, t) {
             self.diags.error(Code::TraitNotDynamicallySafe, span, &msg);
@@ -1955,7 +1955,7 @@ impl Lower<'_, '_, '_> {
     fn ctor(
         &mut self,
         def: DefId,
-        (kind, gn): (HeadKind, &Gen),
+        (kind, gn, referent): (HeadKind, &Gen, bool),
         args: &[Ty],
         row: Option<RowId>,
         span: Span,
@@ -2071,11 +2071,13 @@ impl Lower<'_, '_, '_> {
                     hi: span.lo,
                     ..span
                 };
-                self.diags.add_fix(
-                    "insert `dyn` before the trait name",
-                    hd_diag::FixSafety::Exact,
-                    &[(at, "dyn ")],
-                );
+                let (message, prefix) = if referent {
+                    ("insert `dyn` before the trait name", "dyn ")
+                } else {
+                    ("insert `&dyn` before the trait name", "&dyn ")
+                };
+                self.diags
+                    .add_fix(message, hd_diag::FixSafety::Exact, &[(at, prefix)]);
                 Ty::POISON
             }
             HeadKind::Fn | HeadKind::Impl => {
@@ -2099,7 +2101,7 @@ impl Lower<'_, '_, '_> {
         self.diags.error(Code::ArgumentCount, span, &msg);
     }
 
-    fn named(&mut self, n: NodeRef<'_>, gn: &Gen) -> Ty {
+    fn named(&mut self, n: NodeRef<'_>, gn: &Gen, referent: bool) -> Ty {
         let segs = self.segments(n);
         let span = self.src.span(n);
         let Some((first, ft)) = segs.first().cloned() else {
@@ -2169,7 +2171,7 @@ impl Lower<'_, '_, '_> {
             );
             self.diags.error(Code::UnknownAssociatedType, span, &msg);
         }
-        self.ctor(def, (kind, gn), &args, row, span)
+        self.ctor(def, (kind, gn, referent), &args, row, span)
     }
 
     /// Whether `t` may be the inputs argument of `Fn` or `SuspendFn`: a
@@ -2189,6 +2191,12 @@ impl Lower<'_, '_, '_> {
     }
 
     fn ty(&mut self, n: Option<NodeRef<'_>>, gn: &Gen) -> Ty {
+        self.ty_at(n, gn, false)
+    }
+
+    // `dyn Tr` describes a referent or an inherent implementation target;
+    // it is never a sized value type in its own right.
+    fn ty_at(&mut self, n: Option<NodeRef<'_>>, gn: &Gen, referent: bool) -> Ty {
         let Some(n) = n else { return Ty::VOID };
         let pool = self.names.pool;
         let first_ty = |me: &mut Self, n: NodeRef<'_>| -> Ty {
@@ -2196,7 +2204,7 @@ impl Lower<'_, '_, '_> {
             me.ty(c, gn)
         };
         match n.kind() {
-            SyntaxKind::NamedType => self.named(n, gn),
+            SyntaxKind::NamedType => self.named(n, gn, referent),
             SyntaxKind::OptionalType => {
                 let t = first_ty(self, n);
                 pool.intern_ty(&TyData::Option(t))
@@ -2226,7 +2234,9 @@ impl Lower<'_, '_, '_> {
                     _ => pool.intern_ty(&TyData::Mut(t)),
                 }
             }
-            SyntaxKind::ParenType => first_ty(self, n),
+            SyntaxKind::ParenType => {
+                self.ty_at(n.children().find(|c| c.kind().is_type()), gn, referent)
+            }
             SyntaxKind::RestType => first_ty(self, n),
             SyntaxKind::TupleType => {
                 let mut elems = Vec::new();
@@ -2256,6 +2266,14 @@ impl Lower<'_, '_, '_> {
                 })
             }
             SyntaxKind::DynType => {
+                if !referent {
+                    self.diags.error(
+                        Code::TraitUsedAsType,
+                        self.src.span(n),
+                        "a trait value needs a reference type, `&dyn` or `&mut dyn`",
+                    );
+                    return Ty::POISON;
+                }
                 let Some(c) = Src::child(n, SyntaxKind::NamedType) else {
                     return Ty::POISON;
                 };
@@ -2392,7 +2410,7 @@ impl Lower<'_, '_, '_> {
                 let mutable = n
                     .direct_token(&self.src.parse.tokens, TokenKind::KwMut)
                     .is_some();
-                let inner = first_ty(self, n);
+                let inner = self.ty_at(n.children().find(|c| c.kind().is_type()), gn, true);
                 let suspend = self.names.known.suspend;
                 let inner = match pool.get(inner) {
                     TyData::Mut(i) if matches!(pool.get(i), TyData::Adt { def, .. } if def == suspend) => {
@@ -3344,7 +3362,7 @@ impl Lower<'_, '_, '_> {
             }
             return;
         }
-        let self_ty = self.ty(Some(target), &gn);
+        let self_ty = self.ty_at(Some(target), &gn, true);
         gn.self_ty = Some(self_ty);
         let toks: Vec<_> = n.direct_tokens().collect();
         let by = toks

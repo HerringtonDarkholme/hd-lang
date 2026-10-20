@@ -26,7 +26,7 @@ pub trait Random:
 2. r[std-random.next] `next_u64` returns the next value of the provider's source.
 3. r[std-random.fill] `fill(count)` returns `count` values of that source, as bytes.
 4. r[std-random.plain] Both methods are plain calls, not bang calls.
-5. r[std-random.mut-ref] Both take `&mut self`, so `Random` is a mutable requirement trait, `$.use(Random)` is a `&mut dyn Random` by [`req.ref.use`](../lang/11-requirements-and-suspension.md#r-req.ref.use), and a seeded provider may advance its own state.
+5. r[std-random.mut-ref.reference-values] Both take `&mut self`, so `Random` is a mutable requirement trait, `$.use(Random)` is a `&mut dyn Random` by [`req.ref.use.reference-values`](../lang/11-requirements-and-suspension.md#r-req.ref.use.reference-values), and a seeded provider may advance its own state.
 6. r[std-random.fill-free] `std.random` declares `pub fn fill(count: usize) -> List[u8] $ Random`. It returns `fill(count)` of the `Random` provider that covers the call.
 
 ```text

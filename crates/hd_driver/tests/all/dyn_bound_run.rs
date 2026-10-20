@@ -1,5 +1,5 @@
-//! Generic code instantiated at a trait-value type (trait.dyn.bound,
-//! trait.dyn.bound.dispatch, `crates/hd_mono/DESIGN.md` §13.2 step 4): a trait value
+//! Generic code instantiated at a trait-value type (trait.dyn.bound.reference,
+//! trait.dyn.bound.reference-dispatch, `crates/hd_mono/DESIGN.md` §13.2 step 4): a trait value
 //! satisfies a bound on its own trait and on each supertrait, and a call
 //! through the bound at `T = dyn Tr` dispatches through the value's
 //! vtable, as a direct `dyn` call does. The checker half checks the
@@ -119,12 +119,12 @@ fn the_checker_accepts_trait_values_for_own_and_supertrait_bounds() {
     let main = format!(
         "{CHANNELS}
 pub fn main() -> void:
-    let channel: dyn Channel = Email {{ address: \"ops@example.com\" }}
+    let channel: &dyn Channel = &Email {{ address: \"ops@example.com\" }}
     _ := notify(channel, \"disk full\")
     _ := label(channel)
-    let shown: dyn Display = Pager {{ number: 7 }}
+    let shown: &dyn Display = &Pager {{ number: 7 }}
     _ := label(shown)
-    let all: List[dyn Channel] = [Email {{ address: \"a@example.com\" }}, Pager {{ number: 1 }}]
+    let all: List[&dyn Channel] = [&Email {{ address: \"a@example.com\" }}, &Pager {{ number: 1 }}]
     _ := broadcast(all, \"up\")
 "
     );
@@ -136,7 +136,7 @@ fn the_checker_rejects_a_trait_value_for_a_bound_its_trait_does_not_extend() {
     let main = format!(
         "{CHANNELS}
 pub fn main() -> void:
-    let shown: dyn Display = Pager {{ number: 7 }}
+    let shown: &dyn Display = &Pager {{ number: 7 }}
     _ := notify(shown, \"disk full\")
 "
     );
@@ -148,8 +148,8 @@ fn a_bound_call_at_a_trait_value_dispatches_through_its_vtable() {
     let main = format!(
         "{CHANNELS}
 pub fn main() -> void $ Console:
-    let email: dyn Channel = Email {{ address: \"ops@example.com\" }}
-    let pager: dyn Channel = Pager {{ number: 7 }}
+    let email: &dyn Channel = &Email {{ address: \"ops@example.com\" }}
+    let pager: &dyn Channel = &Pager {{ number: 7 }}
     println(notify(email, \"disk full\"))
     println(notify(pager, \"disk full\"))
     println(escalate(pager, \"down\"))
@@ -166,7 +166,7 @@ fn a_supertrait_bound_at_a_trait_value_reads_the_parent_vtable() {
     let main = format!(
         "{CHANNELS}
 pub fn main() -> void $ Console:
-    let email: dyn Channel = Email {{ address: \"ops@example.com\" }}
+    let email: &dyn Channel = &Email {{ address: \"ops@example.com\" }}
     println(label(email))
     println(route(email, \"hi\"))
 "
@@ -182,7 +182,7 @@ fn a_generic_over_a_list_of_trait_values_dispatches_per_element() {
     let main = format!(
         "{CHANNELS}
 pub fn main() -> void $ Console:
-    let all: List[dyn Channel] = [Email {{ address: \"a@example.com\" }}, Pager {{ number: 1 }}]
+    let all: List[&dyn Channel] = [&Email {{ address: \"a@example.com\" }}, &Pager {{ number: 1 }}]
     for line in broadcast(all, \"up\"):
         println(line)
     for target in targets(all):
@@ -203,8 +203,8 @@ fn sender[C < Channel]() -> fn(C, string) -> string:
     C::send
 
 pub fn main() -> void $ Console:
-    let pager: dyn Channel = Pager {{ number: 7 }}
-    let send = sender::[dyn Channel]()
+    let pager: &dyn Channel = &Pager {{ number: 7 }}
+    let send = sender::[&dyn Channel]()
     println(send(pager, \"ping\"))
 "
     );
@@ -224,10 +224,10 @@ impl Display for Missing:
 
 impl Error for Missing
 
-fn erase[T < Inspectable](value: T) -> dyn Inspectable:
+fn erase[T < Inspectable](value: &T) -> &dyn Inspectable:
     value
 
-fn is_missing(value: dyn Inspectable) -> bool:
+fn is_missing(value: &dyn Inspectable) -> bool:
     value.runtime_type() == TypeId::of::[Missing]()
 
 fn describe[E < Error](error: E) -> string:
@@ -239,7 +239,7 @@ fn the_checker_accepts_erasing_a_dyn_error_through_a_generic() {
     let main = format!(
         "{ERASURE}
 pub fn main() -> void:
-    let failure: dyn Error = Missing {{ path: \"a.txt\" }}
+    let failure: &dyn Error = &Missing {{ path: \"a.txt\" }}
     _ := erase(failure)
 "
     );
@@ -251,10 +251,10 @@ fn erasing_a_trait_value_through_a_generic_keeps_its_recorded_type() {
     let main = format!(
         "{ERASURE}
 pub fn main() -> void $ Console:
-    let failure: dyn Error = Missing {{ path: \"a.txt\" }}
+    let failure: &dyn Error = &Missing {{ path: \"a.txt\" }}
     println(is_missing(erase(failure)))
-    println(is_missing(erase(Missing {{ path: \"b.txt\" }})))
-    println(is_missing(erase(3)))
+    println(is_missing(erase(&Missing {{ path: \"b.txt\" }})))
+    println(is_missing(erase(&3)))
     println(describe(failure))
 "
     );

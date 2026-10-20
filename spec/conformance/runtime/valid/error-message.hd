@@ -18,7 +18,7 @@ tests:
         failure := message("disk full")
         assert_equal(failure.to_string(), "disk full", reason="the text as is")
         assert_equal(chain(failure).len(), 1, reason="no cause")
-        assert_equal(report_of(*failure).to_string(), "disk full", reason="one line")
+        assert_equal(report_of(failure).to_string(), "disk full", reason="one line")
 
     it("? carries a message error out of a function"):
         match parse_port(""):

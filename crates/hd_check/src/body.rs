@@ -1687,6 +1687,8 @@ impl Ck<'_, '_> {
             }
             return self.b.coerce(Coercion::WrapSome, NONE, r, want, n.index());
         }
+        // Internal reference getters and identity metadata still use trait
+        // descriptors. Written value types cannot reach these conversions.
         if let (
             TyData::TraitValue { def: to, .. },
             TyData::TraitValue {
@@ -1716,7 +1718,7 @@ impl Ck<'_, '_> {
             && !open
             && !matches!(pool.get(gs), TyData::TraitValue { .. } | TyData::Poison)
         {
-            // `types.literal.local.erased`: a literal converted to a trait
+            // `types.literal.local.erased.reference-values`: a literal converted to a trait
             // value has its class's default type.
             let gs = match lit {
                 Some(d) => {
@@ -1731,7 +1733,7 @@ impl Ck<'_, '_> {
                 args,
             };
             // A value whose type lacks the impl does not convert: the
-            // binding's type does not fit (`trait.dyn.convert`).
+            // binding's type does not fit (`trait.dyn.convert.reference-values`).
             let before = self.diags.len();
             let _ = self.require_ref_as(tref, n, Code::TypeMismatch);
             if self.diags.len() == before {
@@ -2100,17 +2102,12 @@ impl Ck<'_, '_> {
         let from = self.strip_mut(from);
         let to = self.infer.resolve(pool, to);
         let to = self.strip_mut(to);
+        if let Some((tv, mutable)) = self.dyn_ref_of(to) {
+            return self.ref_of(from).is_some_and(|(inner, writable)| {
+                (!mutable || writable) && self.dyn_fits(inner, tv)
+            });
+        }
         match pool.get(to) {
-            TyData::TraitValue { def, args, .. }
-                if !matches!(pool.get(from), TyData::TraitValue { .. } | TyData::Poison) =>
-            {
-                let tref = TraitRef {
-                    trait_: def,
-                    self_ty: from,
-                    args,
-                };
-                matches!(self.solve(tref), Ok(Answer::Holds { .. }))
-            }
             TyData::Option(inner) => self.injects_into(from, to) && self.can_unify(from, inner),
             _ => false,
         }
@@ -2161,7 +2158,7 @@ impl Ck<'_, '_> {
 
     /// A concrete value of type `got` converts to the trait value type
     /// `want` only when its implementation binds each associated type to
-    /// the bound type (trait.dyn.binding.convert): otherwise the vtable's
+    /// the bound type (trait.dyn.binding.reference-convert): otherwise the vtable's
     /// slots would read another type than the value's methods return.
     pub(crate) fn check_value_bindings(&mut self, got: Ty, want: Ty, n: NodeRef<'_>) {
         let pool = self.pool();

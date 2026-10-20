@@ -447,7 +447,7 @@ fn poll(
 
 /// Pushes each host provider: no data beside its vtable of host stubs; for
 /// a key whose trait has a `&self` or `&mut self` method, that trait value
-/// behind a new object (`req.ref.host`), the reference that
+/// behind a new object (`req.ref.host.reference-values`), the reference that
 /// `std.rt.host_provider` returns, beside the vtable again.
 pub fn host_providers(f: &mut Func, providers: &[(usize, Option<Hash128>)]) {
     for (v, by_ref) in providers {

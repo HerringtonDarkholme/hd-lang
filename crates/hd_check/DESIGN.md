@@ -772,7 +772,7 @@ is held; not judged whether nested classes reach the join.
 
 | Form | Rule | Mechanism |
 | --- | --- | --- |
-| converted to `Any` or a trait value, `let x: Any = 42` | the group default ([`types.literal.local.erased`](../../spec/lang/04-type-system.md#r-types.literal.local.erased)) | the coercion defaults the class first, then wraps |
+| converted to `Any` or a trait value, `let x: Any = 42` | the group default ([`types.literal.local.erased.reference-values`](../../spec/lang/04-type-system.md#r-types.literal.local.erased.reference-values)) | the coercion defaults the class first, then wraps |
 | several instantiations fit only by width, `price.add(5)` | the default ([`types.literal.local.instantiation`](../../spec/lang/04-type-system.md#r-types.literal.local.instantiation)) | the instantiation choice defaults and re-chooses (section 2.5) |
 | a waiting call's result, `x.pick() + 1` | the class waits for the call's impl | the statement's other classes default first, then the waiting goal settles (`close_literals_but`) |
 | a method on an open literal receiver, `5.max(n)` | a type only an impl names is not met | the receiver takes its defaults before the goal is solved again |
@@ -2052,7 +2052,7 @@ not special cases scattered through matching.
 | --- | --- | --- | --- |
 | `Any` | every value type, `never`, optionals | none | `Builtin(Any)` |
 | `AnyVal` | `bool`, `char`, integers, floats, `string`, tuples, enums (optionals included), structs, `List`, `Map`, function types; a newtype over one of them ([`types.sealed.anyval-members`](../../spec/lang/04-type-system.md#r-types.sealed.anyval-members)) | the newtype's base | `Builtin(AnyVal)` |
-| `AnyRef` | `&T` and `&mut T`, trait values, `Any`, suspensions, handles; a newtype over one ([`types.sealed.anyref-members`](../../spec/lang/04-type-system.md#r-types.sealed.anyref-members)) | the newtype's base | `Builtin(AnyRef)` |
+| `AnyRef` | `&T` and `&mut T`, trait values, `Any`, suspensions, handles; a newtype over one ([`types.sealed.anyref-members.reference-values`](../../spec/lang/04-type-system.md#r-types.sealed.anyref-members.reference-values)) | the newtype's base | `Builtin(AnyRef)` |
 | `Inspectable` | [inspectable types](../../spec/lang/09-traits.md#inspectable-types): primitives, `string`, module-level declarations with inspectable arguments, `List`, `Map`, tuples, `Inspectable` trait values; trait values and `Any` as arguments only | one per type argument, one level deeper | `Builtin(Inspectable)` |
 | `Tuple` | every tuple type | none | `Builtin(Tuple)` |
 | `Num`, `Integer`, `Float` | the fixed primitive lists of [Numeric Traits](../../spec/lang/09-traits.md#numeric-traits): std writes one impl per type (`lib/std/num.hd`), so the impl tables answer them | the impl's | `Impl` |
@@ -2224,7 +2224,7 @@ For `<S as Tr[A]>::Name`:
 | --- | --- |
 | a parameter with an environment binding for `Name` | the bound type: `I::Item` is `T` under `I < Supplier[Item = T]` |
 | a parameter with a bound on `Tr` but no binding | the projection itself, as a rigid type, with the bound's arguments. It equals only itself |
-| a trait value that binds `Name` | the binding ([`trait.dyn.bound.projection`](../../spec/lang/09-traits.md#r-trait.dyn.bound.projection)) |
+| a trait value that binds `Name` | the binding ([`trait.dyn.bound.reference-projection`](../../spec/lang/09-traits.md#r-trait.dyn.bound.reference-projection)) |
 | known, or open with one fitting impl | prove `Implements` first; on `Holds` with `Impl` evidence, read that impl's binding for `Name`, substitute the impl's arguments, and normalize the result again |
 | known, no impl binds it | the trait's default for the associated type, if any |
 
@@ -2781,9 +2781,9 @@ trait-value source (section 9.3) reads it through
 `Declarations::has_unavailable_member`.
 
 A `dyn` type must bind every associated type
-([`trait.dyn.binding.complete`](../../spec/lang/09-traits.md#r-trait.dyn.binding.complete)).
+([`trait.dyn.binding.complete.reference-values`](../../spec/lang/09-traits.md#r-trait.dyn.binding.complete.reference-values)).
 Requirement keys
-([`req.key.any-trait-members`](../../spec/lang/11-requirements-and-suspension.md#r-req.key.any-trait-members))
+([`req.key.any-trait-members.reference-values`](../../spec/lang/11-requirements-and-suspension.md#r-req.key.any-trait-members.reference-values))
 follow the same per-member rule.
 
 ### 9.2 Vtable Shapes
@@ -2821,17 +2821,17 @@ Implementation differs: no `VtableShape` is stored in the trait record;
 ### 9.3 Trait Values As Self Types
 
 A trait value type satisfies a bound on its own trait and on each
-supertrait ([`trait.dyn.bound`](../../spec/lang/09-traits.md#r-trait.dyn.bound)).
+supertrait ([`trait.dyn.bound.reference`](../../spec/lang/09-traits.md#r-trait.dyn.bound.reference)).
 These are the rows of source 2 in section 3.1 (`trait_value_holds`):
 
 | Goal | Holds when |
 | --- | --- |
-| `Tr[A]: Tr[B]` | `A` matches `B` ([`trait.dyn.bound.instantiation`](../../spec/lang/09-traits.md#r-trait.dyn.bound.instantiation)) |
+| `Tr[A]: Tr[B]` | `A` matches `B` ([`trait.dyn.bound.reference-binding`](../../spec/lang/09-traits.md#r-trait.dyn.bound.reference-binding)) |
 | `Child[A]: Parent[B]` | the elaborated supertraits of `Child[A]` contain `Parent[B]` |
-| any member of the trait or its supertraits unavailable on `dyn` | never (`trait.dyn.bound.available`) |
-| any other trait | never: the value satisfies no other bound and is no impl target ([`trait.dyn.bound.no-impl`](../../spec/lang/09-traits.md#r-trait.dyn.bound.no-impl)) |
+| any member of the trait or its supertraits unavailable on `dyn` | never (`trait.dyn.bound.reference`) |
+| any other trait | never: the value satisfies no other bound and is no impl target ([`trait.dyn.bound.reference-no-impl`](../../spec/lang/09-traits.md#r-trait.dyn.bound.reference-no-impl)) |
 
-The binding rule ([`trait.dyn.bound.binding`](../../spec/lang/09-traits.md#r-trait.dyn.bound.binding))
+The binding rule ([`trait.dyn.bound.reference-binding`](../../spec/lang/09-traits.md#r-trait.dyn.bound.reference-binding))
 is checked by the checker against the normalized projection. The
 goal's `mut_` flag is part of its memo key, but the solver does not test
 it.
@@ -2840,7 +2840,7 @@ it.
 
 `S` converts to `Tr[A, N = U]` when `Implements { S: Tr[A], bindings:
 [N = U], mut_ }` holds
-([`trait.dyn.binding.convert`](../../spec/lang/09-traits.md#r-trait.dyn.binding.convert)). `Any`
+([`trait.dyn.binding.reference-convert`](../../spec/lang/09-traits.md#r-trait.dyn.binding.reference-convert)). `Any`
 always converts. `Inspectable` converts through its compiler-supplied row.
 A trait extending `Inspectable` still needs its own impl
 ([`trait.erase.child-impl`](../../spec/lang/09-traits.md#r-trait.erase.child-impl)).

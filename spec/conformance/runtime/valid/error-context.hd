@@ -24,7 +24,7 @@ tests:
                 assert_equal(failure.to_string(), "loading config", reason="the context displays as its message")
                 assert(failure.find::[ContextError]().is_some(), reason="the wrapper is a ContextError")
                 assert_equal(chain(failure).len(), 2, reason="the context, then the cause")
-                assert_equal(report_of(*failure).to_string(), "loading config\ncaused by: not found: app.toml", reason="the context first")
+                assert_equal(report_of(failure).to_string(), "loading config\ncaused by: not found: app.toml", reason="the context first")
 
     it("an .Ok passes through"):
         match load("other.toml"):
@@ -36,4 +36,4 @@ tests:
             .Ok(_) => assert(false, reason="the read fails")
             .Err(failure) =>
                 assert_equal(chain(failure).len(), 3, reason="both wrappers and the concrete cause")
-                assert_equal(report_of(*failure).to_string(), "starting app\ncaused by: loading config\ncaused by: not found: app.toml", reason="generic reference-bound forwarding")
+                assert_equal(report_of(failure).to_string(), "starting app\ncaused by: loading config\ncaused by: not found: app.toml", reason="generic reference-bound forwarding")

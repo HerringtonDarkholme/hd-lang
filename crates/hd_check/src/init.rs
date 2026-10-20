@@ -346,7 +346,7 @@ pub enum TopLevel {
     /// `main!`'s body is, so it may make bang calls
     /// (`module.init.script-driver`). Its row is inferred under the default
     /// profile (`module.init.script-profile`), and `?` returns from it
-    /// (`module.init.script-try`).
+    /// (`module.init.script-try.reference-values`).
     Script,
     /// A REPL input: an inferred row too, and a driver context, as
     /// `main!`'s body is, so it may make bang calls. An input that is one
@@ -476,8 +476,8 @@ fn init_steps(
     } else {
         RowId::EMPTY
     };
-    // A script whose top level uses `?` returns `Result[void, dyn Error]`,
-    // as `main!` with an erased error type does (`module.init.script-try`).
+    // A script whose top level uses `?` returns `Result[void, &dyn Error]`,
+    // as `main!` with an erased error type does (`module.init.script-try.reference-values`).
     let script_try = top == TopLevel::Script
         && stmts
             .iter()
@@ -488,6 +488,10 @@ fn init_steps(
             def: known.error,
             args: hd_types::TyList::EMPTY,
             bindings: vec![],
+        });
+        let dyn_error = pool.intern_ty(&hd_types::TyData::Ref {
+            inner: dyn_error,
+            mutable: false,
         });
         pool.intern_ty(&hd_types::TyData::Adt {
             def: known.result,

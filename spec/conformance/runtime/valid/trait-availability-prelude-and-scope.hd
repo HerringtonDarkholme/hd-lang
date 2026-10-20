@@ -24,7 +24,7 @@ fn shout(order: Order) -> string:
 
     order.loud()
 
-fn label_of(value: dyn Labeled) -> string:
+fn label_of(value: &dyn Labeled) -> string:
     value.label()
 
 tests:
@@ -35,4 +35,4 @@ tests:
         assert_equal(order.to_string(), "order 7", reason="Display comes from the prelude")
         assert_equal(order.label(), "#7", reason="Labeled is declared in this module")
         assert_equal(shout(order), "ORDER 7", reason="Loud is visible in the enclosing scope")
-        assert_equal(label_of(order), "#7", reason="a trait value dispatches label")
+        assert_equal(label_of(&order), "#7", reason="a trait value dispatches label")

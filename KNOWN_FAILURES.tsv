@@ -17,9 +17,4 @@ runtime/panic/element-reference-field-escape-panics.hd	#556		escaped element-ref
 runtime/panic/element-reference-return-escape-panics.hd	#556		escaped element-reference copies do not retain a pin on the Wasm GC backend, whose references hold no count; they pass on the linear backend (#574)
 runtime/valid/deep-equal-rings.hd	#593		illegal cast on wasmtime only
 runtime/valid/deep-equal-visits-shared.hd	#593		illegal cast on wasmtime only
-runtime/valid/error-context-legacy-bare-generic.hd	#592		legacy bare dyn Error through E < Error yields a value payload during reference recovery; removed with bare erasure
-runtime/valid/error-find.hd	#592		uses bare dyn Error; #592 moves it to &dyn Error
-runtime/valid/std-errors-erased.hd	#592		uses bare dyn Error; #592 moves it to &dyn Error
-typing/invalid/dyn-ref-bound.hd	#592		expects the bound error that #586 removed for &dyn; #592 updates or deletes it
 typing/invalid/fn-type-variance-direction.hd	#536		no &mut U to &U variance in function types
-typing/invalid/provider-share-trait-value-ref.hd	#592		expects an error #586 no longer reports; #592 updates or deletes it

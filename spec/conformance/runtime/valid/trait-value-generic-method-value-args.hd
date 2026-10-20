@@ -26,8 +26,8 @@ impl Labeler for Brackets:
         if items.len() == 0: fallback
         else: items[0]
 
-fn labeler() -> dyn Labeler:
-    Brackets { open: "[", close: "]" }
+fn labeler() -> &dyn Labeler:
+    &Brackets { open: "[", close: "]" }
 
 tests:
     use std.testing.assert_equal

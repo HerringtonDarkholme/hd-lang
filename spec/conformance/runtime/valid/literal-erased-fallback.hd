@@ -1,5 +1,5 @@
 # test: a literal erased to Inspectable records its fallback type: usize, or i32 for a signed literal
-# Spec 04 Neutral Uses: types.literal.local.erased (ONE-FIT).
+# Spec 04 Neutral Uses: types.literal.local.erased.reference-values (ONE-FIT).
 use std.inspect.{Inspectable}
 fn width(value: &dyn Inspectable) -> string:
     match value.downcast_ref::[usize]().map(fn(found): *found):

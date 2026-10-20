@@ -769,7 +769,7 @@ impl<'a> Lay<'a> {
     /// A trait value's direct supertraits' keys, in declared order: each
     /// supertrait at the value's arguments (`Self` being the class `REF`),
     /// with the supertrait list's bindings and those of `bindings` that
-    /// the supertrait reaches (trait.dyn.binding.widen).
+    /// the supertrait reaches (trait.dyn.binding.widen.reference-values).
     fn super_keys(&self, trait_: DefId, args: TyList, bindings: &[(DefId, Ty)]) -> Vec<Ty> {
         let (pool, env) = (self.pool, self.env);
         let full = self.dyn_args(args);
@@ -1840,7 +1840,7 @@ impl<'a> Lay<'a> {
 
     /// Where a call of `method`, declared by `trait_`, goes through a
     /// receiver of the trait-value type `recv` (trait.dyn.value-methods,
-    /// trait.dyn.bound.dispatch, `crates/hd_mono/DESIGN.md` §13.16): the method's slot in
+    /// trait.dyn.bound.reference-dispatch, `crates/hd_mono/DESIGN.md` §13.16): the method's slot in
     /// the vtable of `trait_`, reached from the receiver's vtable through
     /// the parent fields when `trait_` is a supertrait. `targs` are the
     /// callee's type arguments under the caller's substitution, the

@@ -246,7 +246,7 @@ pub enum Target {
     VTable(VTable),
     /// A trait method call at a trait-value receiver: it dispatches
     /// through the receiver's table (`crates/hd_mono/DESIGN.md` §13.5,
-    /// trait.dyn.bound.dispatch), so collection pushes nothing.
+    /// trait.dyn.bound.reference-dispatch), so collection pushes nothing.
     Dyn,
     /// A closure's code instance.
     Closure(Hash128),
@@ -316,36 +316,38 @@ pub enum SlotRecv {
     /// The payload is a reference (`std.core.Ref[T]`) and the target takes
     /// the value: the adapter reads the value through the reference first.
     ReadThrough,
-    /// A `&self` or `&mut self` method on a payload that is no reference:
-    /// the checker never lets a call reach it, and the slot traps.
-    Unavailable,
 }
 
-/// Whether the provider of a key whose trait is `trait_` is a trait value
-/// reference (`req.ref.key`): the trait, or one of its supertraits,
-/// declares a `&self` or `&mut self` method, whose receiver lowers to
-/// `std.core.Ref`. The entry installs a host provider of such a key behind
-/// a reference (`req.ref.host`, `crates/hd_wasm/DESIGN.md` §15.2).
-#[must_use]
-pub fn provider_by_ref(pool: &InternPool, env: &dyn ProgramEnv, trait_: DefId) -> bool {
-    let cell = env.ref_cell();
-    let mut todo = vec![trait_];
-    let mut seen = Vec::new();
-    while let Some(t) = todo.pop() {
-        if seen.contains(&t) {
-            continue;
-        }
-        seen.push(t);
-        let by_ref = env.trait_methods(t).into_iter().any(|m| {
-            env.params(m)
-                .and_then(|ps| ps.first().copied())
-                .is_some_and(|p| matches!(pool.get(p), TyData::Adt { def, .. } if def == cell))
-        });
-        if by_ref {
+/// A reference whose immediate referent is an erased trait can widen to
+/// that trait or a declared supertrait without wrapping its referent again.
+/// Nested references still erase their reference-valued referent normally.
+pub fn trait_reference_widens(pool: &InternPool, env: &dyn ProgramEnv, from: Ty, to: Ty) -> bool {
+    let TyData::Adt { def, args } = pool.get(from) else {
+        return false;
+    };
+    if def != env.ref_cell() {
+        return false;
+    }
+    let mut inner = pool.list_items(args)[0];
+    if let TyData::Mut(t) = pool.get(inner) {
+        inner = t;
+    }
+    let (TyData::TraitValue { def: from, .. }, TyData::TraitValue { def: to, .. }) =
+        (pool.get(inner), pool.get(to))
+    else {
+        return false;
+    };
+    let mut todo = vec![from];
+    let mut seen = HashSet::default();
+    while let Some(trait_) = todo.pop() {
+        if trait_ == to {
             return true;
         }
-        for s in env.decls().supertraits(t) {
-            if let TyData::TraitValue { def, .. } = pool.get(*s) {
+        if !seen.insert(trait_) {
+            continue;
+        }
+        for sup in env.decls().supertraits(trait_) {
+            if let TyData::TraitValue { def, .. } = pool.get(*sup) {
                 todo.push(def);
             }
         }
@@ -2254,10 +2256,8 @@ impl Cx<'_> {
                     };
                     (t, r)
                 }
-                // `trait.dyn.member.ref-receiver-bare`: a trait value whose
-                // payload is no reference has no reference to pass.
                 None if takes_ref(m) => {
-                    (self.builtin_target(m, from, targs), SlotRecv::Unavailable)
+                    return err("a reference-receiver vtable without a reference payload");
                 }
                 None if erased::own_count(env, m) > 0 => (
                     self.erased_target(trait_, m, from, targs, parent)?,
@@ -2491,8 +2491,12 @@ impl Cx<'_> {
                     return err("a trait member reference without `Self`");
                 };
                 // At a trait-value `Self`, the adapter dispatches through
-                // the receiver's table (trait.dyn.bound.dispatch).
-                if is_trait_value(pool, self_ty) {
+                // the receiver's table (trait.dyn.bound.reference-dispatch).
+                let value_ty = match pool.get(self_ty) {
+                    TyData::Adt { def, args } if def == env.ref_cell() => pool.list_items(args)[0],
+                    _ => self_ty,
+                };
+                if is_trait_value(pool, value_ty) {
                     reps.hash(env.path_hash(item));
                     self.record_pair(trait_, item, targs)?;
                     Target::Dyn
@@ -2741,7 +2745,7 @@ impl Cx<'_> {
                             // A call at a trait-value receiver goes
                             // through the value's table, whatever the
                             // checker chose: a bound at `T = dyn Tr`
-                            // included (trait.dyn.bound.dispatch).
+                            // included (trait.dyn.bound.reference-dispatch).
                             let value_ty = match pool.get(self_ty) {
                                 TyData::Adt { def, args } if def == env.ref_cell() => {
                                     pool.list_items(args)[0]
@@ -2927,7 +2931,8 @@ impl Cx<'_> {
                     let sealed = env.decls().sealed();
                     let sealed_identity = matches!(pool.get(ty), TyData::TraitValue { def, .. } if def == sealed.inspectable || def == sealed.any);
                     if is_trait_value(pool, from)
-                        || (!sealed_identity && is_trait_value(pool, value_ty))
+                        || ((!sealed_identity || trait_reference_widens(pool, env, from, ty))
+                            && is_trait_value(pool, value_ty))
                     {
                         continue;
                     }

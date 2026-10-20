@@ -4,7 +4,7 @@ trait Versioned:
     fn version(self) -> i32
     fn newer_than(self, other: Self) -> bool
 
-fn audit(record: dyn Versioned) -> bool:
+fn audit(record: &dyn Versioned) -> bool:
     if record.version() > 0:
         return true
     record.newer_than(record)  # diagnostic: dyn-member-unavailable

@@ -1,5 +1,5 @@
 # test: TestRunner is a host capability trait whose methods are plain calls
-# Spec std Testing, Runner Capabilities: std-testing.runner.declares-ref, std-testing.runner.plain, std-testing.runner.snapshot-check, and std-testing.runner.temp-dir.
+# Spec std Testing, Runner Capabilities: std-testing.runner.declares-ref.reference-values, std-testing.runner.plain, std-testing.runner.snapshot-check, and std-testing.runner.temp-dir.
 # Also covers std-testing.runner.binding, std-testing.runner.row,
 # std-testing.runner.timeout, std-testing.runner.start-case,
 # std-testing.runner.show, std-testing.runner.case.example,

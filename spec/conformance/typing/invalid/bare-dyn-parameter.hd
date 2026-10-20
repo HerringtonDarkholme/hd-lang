@@ -1,0 +1,6 @@
+# test: bare dyn is not a sized value type
+# Spec 09 Dynamic Trait Values: trait.dyn.bare-value-rejected.
+trait Shape:
+    fn area(self) -> i32
+
+fn consume(value: dyn Shape) -> void: pass  # diagnostic: trait-used-as-type

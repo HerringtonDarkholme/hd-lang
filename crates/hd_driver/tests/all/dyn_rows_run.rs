@@ -95,12 +95,12 @@ impl Sensor for Barometer:
 fn a_suspending_dyn_method_with_a_row_waits_and_uses_its_providers() {
     let main = format!(
         "{SENSORS}
-fn read_twice!(sensor: dyn Sensor) -> i32 $ Console + Clock:
+fn read_twice!(sensor: &dyn Sensor) -> i32 $ Console + Clock:
     sensor.sample!(1) + sensor.sample!(2)
 
 pub fn main!() -> void $ Console + Clock:
-    println(read_twice!(Thermometer {{ offset: 10 }}))
-    let sensors: List[dyn Sensor] = [Barometer {{ scale: 3 }}, Thermometer {{ offset: 0 }}]
+    println(read_twice!(&Thermometer {{ offset: 10 }}))
+    let sensors: List[&dyn Sensor] = [&Barometer {{ scale: 3 }}, &Thermometer {{ offset: 0 }}]
     for s in sensors:
         println(\"${{s.name()}} ${{s.sample!(5)}}\")
 "
@@ -123,7 +123,7 @@ fn via_reference![S < Sensor](sensor: S, tick: i32) -> i32 $ Console + Clock:
     sample!(sensor, tick)
 
 pub fn main!() -> void $ Console + Clock:
-    let sensor: dyn Sensor = Barometer {{ scale: 2 }}
+    let sensor: &dyn Sensor = &Barometer {{ scale: 2 }}
     println(via_bound!(sensor, 4))
     println(via_reference!(sensor, 6))
 "
@@ -136,8 +136,7 @@ pub fn main!() -> void $ Console + Clock:
 
 #[test]
 fn a_plain_dyn_method_with_a_row_gets_its_provider() {
-    let main = "\
-trait Greeter:
+    let main = "trait Greeter:
     fn greet(self, who: string) -> void $ Console
 
 struct Polite:
@@ -147,12 +146,12 @@ impl Greeter for Polite:
     fn greet(self, who: string) -> void $ Console:
         println(\"Good day, ${self.title} ${who}\")
 
-fn greet_all(greeter: dyn Greeter, names: List[string]) -> void $ Console:
+fn greet_all(greeter: &dyn Greeter, names: List[string]) -> void $ Console:
     for n in names:
         greeter.greet(n)
 
 pub fn main() -> void $ Console:
-    greet_all(Polite { title: \"Dr.\" }, [\"Ada\", \"Alan\"])
+    greet_all(&Polite { title: \"Dr.\" }, [\"Ada\", \"Alan\"])
 ";
     assert_eq!(
         output_of("plain", main),

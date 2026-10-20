@@ -311,7 +311,7 @@ impl Display for HttpError:
             .Status(status, url) => "HTTP status ${status} for ${url}"
             .Json(error) => "invalid JSON in the response: ${error}"
 
-# A std error type implements `Error` (r-std-error.std-types.impl).
+# A std error type implements `Error` (r-std-error.std-types.impl.reference-values).
 impl Error for HttpError
 
 # `Debug` for this module's public types (r-std-format.debug.std-types),
