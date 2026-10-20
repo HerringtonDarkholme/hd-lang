@@ -70,6 +70,50 @@ $ echo $?
 
 Read next: [Engines](../../spec/cli/command-line.md#engines).
 
+## Parse Your Program's Arguments
+
+`std.cli.ArgParser` declares your program's options and provides `-h` and
+`--help`. Return `error.exit()` from `main` to use its command-line policy:
+help goes to standard output with status 0, and usage errors go to standard
+error with status 2.
+
+Save this as `volume.hd`:
+
+```hd
+use std.cli.{Arg, ArgParser}
+use std.host.Args
+use std.process.ExitCode
+
+pub fn main() -> ExitCode $ Args + Console:
+    parser := ArgParser::new("volume").arg(Arg { name: "level", help: "how loud" })
+    parsed := match parser.parse_args():
+        .Ok(parsed) => parsed
+        .Err(error) => return error.exit()
+    println(parsed.value("level").unwrap_or("quiet"))
+    ExitCode(0)
+```
+
+Pass its arguments after `--`:
+
+```sh
+$ hd volume.hd -- --level 3
+3
+$ hd volume.hd -- --levl 3
+unknown option --levl
+$ echo $?
+2
+$ hd volume.hd -- --help >help.txt
+$ echo $?
+0
+```
+
+`help.txt` contains the generated usage. The exit policy belongs to
+`CliError`, and `main` selects it by returning `error.exit()`. Propagating a
+parse error with `?` instead uses the ordinary `Result` entry behavior.
+
+Read next: [Argument Parser](../../spec/std/cli.md) and
+[Exit Status](../../spec/std/cli.md#exit-status).
+
 ## Check And Build
 
 You want to know it compiles, without running it. `hd check` type-checks
