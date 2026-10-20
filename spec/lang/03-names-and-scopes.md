@@ -329,16 +329,16 @@ names a function in module scope, usually one brought in by `use`:
 use std.ops.num_suffix
 
 @num_suffix
-fn s(count: i64) -> i64: count * 1000
+fn secs(count: i64) -> i64: count * 1000
 
-fn retry_after(s: i32) -> i32:
-    limit := 5s  # the module's suffix function s, not the parameter
-    s
+fn retry_after(secs: i32) -> i32:
+    limit := 5secs  # the module'secs suffix function secs, not the parameter
+    secs
 ```
 
-1. r[names.literal-fn.bare-in-scope] A literal suffix or a string prefix is a bare name, resolved as a module name. That is a module-scope declaration, or a name that a use declaration or the prelude introduces. Ordinary rules apply, so it is brought in, renamed with `as`, or found in conflict as other used names are.
+1. r[names.literal-fn.user-scope] A user literal suffix or string prefix resolves in module scope, including declarations, imports and prelude names.
 2. r[names.literal-fn.no-local] Parameters, local bindings, and local type declarations never participate, so a local named `s` or `r` does not change what `5s` or `r"..."` calls.
-3. r[names.literal-fn.unknown-name] A suffix or prefix that names nothing in module scope is an error. Error: `unknown-name`.
+3. r[names.literal-fn.unknown-user] A user suffix or string prefix naming nothing in module scope is an error. Error: `unknown-name`.
 
 ```text
 fn margin() -> i32:

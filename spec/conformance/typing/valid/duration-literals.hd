@@ -1,0 +1,15 @@
+# test: duration units need no import and cannot be shadowed
+use std.time.Duration
+
+fn ms(n: i64) -> i64: n
+fn s(n: i64) -> i64: n
+fn min(n: i64) -> i64: n
+fn h(n: i64) -> i64: n
+
+fn delay() -> Duration: 500ms
+fn seconds() -> Duration: 30s
+fn minutes() -> Duration: 90min
+fn hours() -> Duration: 1h
+fn separator() -> Duration: 1_500ms
+fn largest() -> Duration: 9223372036854775807ms
+fn largest_hour() -> Duration: 2562047788015h

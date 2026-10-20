@@ -6,9 +6,9 @@ struct Millis:
     count: i64
 
 @num_suffix
-fn ms(count: i64) -> Millis:
+fn ticks(count: i64) -> Millis:
     Millis { count: count }
 
 enum Tier(limit: Millis):
-    Fast -> Tier(limit=250ms)
-    Slow -> Tier(limit=5_000ms)
+    Fast -> Tier(limit=250ticks)
+    Slow -> Tier(limit=5_000ticks)

@@ -1,0 +1,3 @@
+# test: duration units do not extend radix integers
+fn delay():
+    _ := 0x10ms  # diagnostic: syntax-error

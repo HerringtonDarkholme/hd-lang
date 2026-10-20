@@ -22,7 +22,7 @@ The language tier keeps the suffix mechanism
 | Item | Why it stays in the language tier |
 | --- | --- |
 | `@num_suffix`, `std.ops.NumSuffix` | the compiler recognizes the marker by its qualified name |
-| a suffixed literal as a call | [`expr.suffix.fn-call`](../lang/05-expressions.md#r-expr.suffix.fn-call), a language rule, turns `250ms` into `ms(250)` |
+| a suffixed literal as a call | [`expr.suffix.user-call`](../lang/05-expressions.md#r-expr.suffix.user-call), a language rule, turns `250ms` into `ms(250)` |
 | suffix name lookup and typing | [Literal Suffix Names](../lang/03-names-and-scopes.md#literal-suffix-names) and [Suffixed Literals](../lang/04-type-system.md#suffixed-literals) hold for every suffix |
 | `Duration?` in the test signature | `it` names it as its `timeout` type ([Test Cases](../lang/10-modules.md#test-cases)); the stdlib-tier `it_each`, `it_prop`, and `it_prop_with` name it too |
 
@@ -205,8 +205,8 @@ The standard library declares these suffixes in `std.time`:
 
 1. r[std-time.suffix.std.fn] Each is a suffix function that takes one `i64` and returns the standard `std.time.Duration`, as in `@num_suffix pub fn ms(count: i64) -> Duration`.
 2. r[std-time.suffix.std.only-four] These four are the only standard suffixes. `std` declares no `ns`, `us`, `m`, `d`, byte-size, or string suffix.
-3. r[std-time.suffix.std.import] None is a prelude name; code imports them, as in `use std.time.{ms, s}`.
-4. r[std-time.suffix.std.overflow] A standard suffix call whose result does not fit in `i64` milliseconds panics at run time in a debug or test build, as in `10_000_000_000_000_000h`. It wraps in a release build, as `i64` arithmetic does. Panic: `integer-overflow`.
+3. r[std-time.suffix.std.call-import] None is a prelude name; ordinary calls import them, as in `use std.time.{ms, s}`.
+4. r[std-time.suffix.std.call-overflow] A standard suffix call whose result does not fit in `i64` milliseconds panics at run time in a debug or test build, as in `h(10_000_000_000_000_000)`. It wraps in a release build, as `i64` arithmetic does. Panic: `integer-overflow`.
 
 ```text
 use std.time.{Duration, ms, s}

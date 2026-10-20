@@ -1,5 +1,5 @@
 //! Literal typing and conversions: negative literals into unsigned types,
-//! numeric literal suffixes (`250ms`), and string prefixes (`sql"..."`).
+//! numeric literal suffixes (`250ticks`), and string prefixes (`sql"..."`).
 
 use hd_diag::Code;
 use hd_driver::{
@@ -93,7 +93,7 @@ struct Millis:
     count: i64
 
 @num_suffix
-fn ms(count: i64) -> Millis:
+fn ticks(count: i64) -> Millis:
     Millis { count: count }
 
 ";
@@ -109,6 +109,71 @@ fn sql(t: Template[i32]) -> Query:
     Query { text: t.raw_parts, params: t.values }
 
 ";
+
+#[test]
+fn duration_literals_have_a_fixed_import_free_type() {
+    assert_clean(&format!(
+        "use std.time.Duration\nfn delay() -> Duration:\n    1h + 30min + 1_500ms + 30s\n{MAIN}"
+    ));
+    assert_clean(&format!(
+        "use std.time.Duration\nfn ms(n: i64) -> i64: n\nfn delay() -> Duration: 500ms\n{MAIN}"
+    ));
+    for literal in [
+        "9223372036854775807ms",
+        "9223372036854775s",
+        "153722867280912min",
+        "2562047788015h",
+    ] {
+        assert_clean(&format!("fn delay():\n    _ := {literal}\n{MAIN}"));
+    }
+    for literal in [
+        "9223372036854775808ms",
+        "9223372036854776s",
+        "153722867280913min",
+        "2562047788016h",
+        "999999999999999999999999999999999ms",
+    ] {
+        assert_code(
+            &format!("fn delay():\n    _ := {literal}\n{MAIN}"),
+            Code::IntegerLiteralRange,
+        );
+    }
+    assert_code(
+        &format!("fn delay() -> i64: 500ms\n{MAIN}"),
+        Code::TypeMismatch,
+    );
+    assert_code(
+        &format!("fn delay():\n    _ := -500ms\n{MAIN}"),
+        Code::TypeMismatch,
+    );
+}
+
+#[test]
+fn fractional_duration_hints_use_the_written_value() {
+    for (literal, hint) in [
+        ("1.5s", Some("1500ms")),
+        ("2.25min", Some("135000ms")),
+        ("0.125h", Some("450000ms")),
+        ("1.000s", Some("1000ms")),
+        ("0.1ms", None),
+        ("1e3ms", None),
+    ] {
+        let src = format!("fn delay():\n    _ := {literal}\n{MAIN}");
+        let out = program(&src);
+        assert!(
+            codes(&out).contains(&Code::TypeMismatch),
+            "{}",
+            out.render()
+        );
+        let message = out.render();
+        assert!(message.contains(literal), "{message}");
+        if let Some(hint) = hint {
+            assert!(message.contains(&format!("write `{hint}`")), "{message}");
+        } else {
+            assert!(!message.contains("; write"), "{message}");
+        }
+    }
+}
 
 #[test]
 fn a_negative_literal_needs_a_signed_type() {
@@ -136,15 +201,17 @@ fn a_negative_literal_needs_a_signed_type() {
 
 #[test]
 fn a_suffixed_literal_calls_its_suffix_function() {
-    assert_clean(&format!("{MILLIS}fn delay() -> Millis:\n    250ms\n{MAIN}"));
+    assert_clean(&format!(
+        "{MILLIS}fn delay() -> Millis:\n    250ticks\n{MAIN}"
+    ));
     // The result type is the function's.
     assert_code(
-        &format!("{MILLIS}fn delay() -> i64:\n    250ms\n{MAIN}"),
+        &format!("{MILLIS}fn delay() -> i64:\n    250ticks\n{MAIN}"),
         Code::TypeMismatch,
     );
     // The literal is checked as the argument: a float for an `i64`.
     assert_code(
-        &format!("{MILLIS}fn delay() -> Millis:\n    1.5ms\n{MAIN}"),
+        &format!("{MILLIS}fn delay() -> Millis:\n    1.5ticks\n{MAIN}"),
         Code::TypeMismatch,
     );
     assert_code(

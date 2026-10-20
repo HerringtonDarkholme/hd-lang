@@ -1,5 +1,5 @@
 # test: a function pattern's parameters are inferred from the target's type as a call's are, then the value checks at those arguments
-# Spec 14 Member-Typed Facts: annot.typed-fact.infer and annot.typed-fact.check; `@fn_fact` on `fn ms(n: i32) -> Duration` checks like `let f: FnFact[i32, Duration] = fn_fact()` (batch 50, 2026-10-02).
+# Spec 14 Member-Typed Facts: annot.typed-fact.infer and annot.typed-fact.check; `@fn_fact` on `fn ticks(n: i32) -> Duration` checks like `let f: FnFact[i32, Duration] = fn_fact()` (batch 50, 2026-10-02).
 use std.annotation.annotate
 use std.num.Num
 
@@ -16,7 +16,7 @@ struct Duration:
     millis: i32
 
 @fn_fact
-fn ms(n: i32) -> Duration:
+fn ticks(n: i32) -> Duration:
     Duration { millis: n }
 
 @to_ms

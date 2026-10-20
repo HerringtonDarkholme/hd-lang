@@ -693,13 +693,13 @@ after its digits:
 use std.ops.num_suffix
 
 @num_suffix
-fn ms(count: i64) -> i64: count
+fn ticks(count: i64) -> i64: count
 
 @num_suffix
-fn s(count: i64) -> i64: count * 1000
+fn secs(count: i64) -> i64: count * 1000
 
-timeout := 5s
-delay := 1_500ms
+timeout := 5secs
+delay := 1_500ticks
 ```
 
 ```ebnf
@@ -712,7 +712,7 @@ literal_suffix = XID_START, { identifier_continue } ;
 3. r[lex.suffix.decimal] Only a decimal integer or floating-point literal takes a suffix, as in `5s`, `1.5kb`, and `5_000ms`. A letter after a radix literal follows the integer rules, so `0xffB` is `0xffb` and `0x1fs` is an error. Error: `syntax-error`.
 4. r[lex.suffix.exponent] An `e` or `E` after the digits begins an exponent when digits follow it, after an optional sign, and otherwise a suffix. So `1e3ms` is `1e3` with the suffix `ms`, and `5em` is `5` with the suffix `em`.
 5. r[lex.literal-fn.reserved-glued] A reserved word written directly after a numeric literal or directly before a string literal is an error. That is the position where a suffix or prefix would go, as in `5else` and `return"done"`. Error: `syntax-error`.
-6. r[lex.literal-fn.user-meaning] A non-primitive literal suffix or string prefix resolves as a name and calls its literal function, as [Literal Suffixes](05-expressions.md#literal-suffixes) specifies.
+6. r[lex.literal-fn.user-meaning-duration] A suffix other than a primitive or duration unit, or a string prefix, resolves as a name and calls its literal function.
 7. r[lex.suffix.primitive] A numeric primitive suffix fixes the literal's type, as [Suffixed Literals](04-type-system.md#suffixed-literals) specifies.
 8. r[lex.suffix.primitive.names] The following primitive names are numeric type suffixes.
 
@@ -747,6 +747,25 @@ mask := 0xff'B  # error: unterminated-string
 > floating-point literals take one, so radix literals need no separate
 > spelling. A reserved word glued to a literal reads like a suffix or a
 > prefix, so it is rejected, and a space fixes it.
+
+### Duration Literals
+
+A **duration literal** is a whole decimal integer followed by a duration unit.
+
+```text
+fn delays():
+    _ := 500ms
+    _ := 30s
+    _ := 1_500ms
+    _ := 1h + 30min
+```
+
+1. r[lex.duration.form] A duration literal has a decimal integer immediately followed by `ms`, `s`, `min`, or `h`, with no intervening space.
+2. r[lex.duration.separators] Duration digits follow the integer digit-separator rules, as in `1_500ms`.
+3. r[lex.duration.integer] A fractional or exponent form with a duration unit is an error. Error: `type-mismatch`.
+4. r[lex.duration.fraction-hint] A rejected decimal fraction representing whole milliseconds should suggest its equivalent integer `ms` spelling, as `1.5s` suggests `1500ms`.
+5. r[lex.duration.compound] Compound durations use `+`, as in `1h + 30min`.
+6. r[lex.duration.radix] A radix-prefixed integer does not take a duration unit suffix. Error: `syntax-error`.
 
 See also: [Suffixed Literals](04-type-system.md#suffixed-literals),
 [Literal Suffix Names](03-names-and-scopes.md#literal-suffix-names).

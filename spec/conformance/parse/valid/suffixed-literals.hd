@@ -3,15 +3,15 @@
 use std.ops.num_suffix
 
 @num_suffix
-fn ms(count: i64) -> i64: count
+fn ticks(count: i64) -> i64: count
 
 @num_suffix
-fn s(count: i64) -> i64: count * 1000
+fn secs(count: i64) -> i64: count * 1000
 
-timeout := 5s
-delay := 1_500ms
+timeout := 5secs
+delay := 1_500ticks
 size := 1.5kb
-scaled := 1e3ms
+scaled := 1e3ticks
 indent := 5em
-back := -5s
+back := -5secs
 plain := 1e3

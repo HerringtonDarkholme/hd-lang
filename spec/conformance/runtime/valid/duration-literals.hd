@@ -1,0 +1,13 @@
+# test: duration literals equal constructors and work with sleep and timeout
+use std.time.{Duration, ms}
+
+tests:
+    use std.testing.assert_equal
+
+    it("literal units equal the existing functions and constructors"):
+        assert_equal(500ms, ms(500), reason="milliseconds")
+        assert_equal(30s, Duration::seconds(30), reason="seconds")
+        assert_equal(1_500ms, Duration::milliseconds(1500), reason="separators")
+        assert_equal(1h + 30min, Duration::seconds(5400), reason="compound")
+        assert_equal((9223372036854775807ms).as_milliseconds(), 9223372036854775807, reason="maximum")
+

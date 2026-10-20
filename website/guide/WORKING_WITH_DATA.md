@@ -211,7 +211,7 @@ fn load_page!() -> (string, string, string) $ Store:
     all!(fetch_user(), fetch_orders(), fetch_profile())
 
 fn slow!() -> string $ Clock:
-    sleep!(s(60))
+    sleep!(60s)
     "too slow"
 
 fn load_with_timeout!() -> string $ Store + Clock:

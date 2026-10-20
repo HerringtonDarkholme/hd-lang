@@ -326,7 +326,7 @@ So for `fn px(count: i32) -> Pixels $ Console`, `Q` is `$ Console`.
 
 Rules for suffixes:
 
-7. r[expr.suffix.fn-call] A suffixed literal `Nx` is the call `x(N)` of the suffix function `x`, with the literal `N` as its one argument, so `250ms` means `ms(250)`.
+7. r[expr.suffix.user-call] A user-suffixed literal `Nx` calls its suffix function `x(N)` with the numeric literal as its only argument.
 
 ```text
 use std.ops.num_suffix
@@ -385,12 +385,12 @@ struct Millis:
     count: i64
 
 @num_suffix
-fn ms(count: i64) -> Millis:
+fn ticks(count: i64) -> Millis:
     Millis { count: count }
 
 enum Tier(limit: Millis):
-    Fast -> Tier(limit=250ms)
-    Slow -> Tier(limit=5_000ms)
+    Fast -> Tier(limit=250ticks)
+    Slow -> Tier(limit=5_000ticks)
 ```
 
 > **Why.** A suffix is an ordinary function found through `use`, so

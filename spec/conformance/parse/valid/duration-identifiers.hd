@@ -1,0 +1,3 @@
+# test: duration unit names remain ordinary identifiers outside numeric tokens
+fn ms(s: i64, min: i64, h: i64) -> i64:
+    s + min + h

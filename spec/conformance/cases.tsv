@@ -1286,13 +1286,13 @@ typing/valid/literal-suffix-negation.hd	type	accept	lang/05-expressions.md#r-exp
 typing/invalid/literal-suffix-negation-no-neg.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.op.no-impl
 typing/valid/test-timeout-duration.hd	type	accept	std/testing.md#r-std-testing.option.timeout-any-duration
 typing/valid/test-timeout-call.hd	type	accept	std/testing.md#r-std-testing.option.timeout-any-duration
-typing/invalid/unknown-literal-suffix.hd	type	reject:unknown-name	lang/03-names-and-scopes.md#r-names.literal-fn.unknown-name
+typing/invalid/unknown-literal-suffix.hd	type	reject:unknown-name	lang/03-names-and-scopes.md#r-names.literal-fn.unknown-user
 typing/invalid/literal-suffix-float-into-integer.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.literal.suffixed.in
 typing/invalid/literal-suffix-unmarked.hd	type	reject:invalid-literal-suffix	lang/05-expressions.md#r-expr.literal-fn.not-marked
 typing/invalid/literal-suffix-negative-range.hd	type	reject:integer-literal-range	lang/04-type-system.md#r-types.literal.suffixed.in
 typing/invalid/literal-suffix-requirement.hd	type	reject:missing-requirement	lang/05-expressions.md#r-expr.literal-fn.row
 typing/invalid/test-timeout-string.hd	type	reject:type-mismatch	lang/10-modules.md#r-module.testing.it-function
-runtime/valid/literal-suffix-call.hd	runtime	accept	lang/05-expressions.md#r-expr.suffix.fn-call
+runtime/valid/literal-suffix-call.hd	runtime	accept	lang/05-expressions.md#r-expr.suffix.user-call
 runtime/valid/literal-is-call-each-time.hd	runtime	accept	lang/05-expressions.md#r-expr.literal.call
 typing/invalid/pass-has-void-type.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.literal.pass
 typing/valid/decorator-targets.hd	type	accept	lang/14-annotations.md#r-annot.decorator.targets
@@ -1338,7 +1338,7 @@ typing/invalid/integration-test-tests-block.hd	type	reject:misplaced-tests-block
 runtime/valid/test-module-top-level-cases.hd	runtime	accept	lang/10-modules.md#r-module.test.module
 typing/valid/debug-writer-builders.hd	type	accept	std/format.md#r-std-format.debug.builder.struct
 typing/valid/choices-arbitrary.hd	type	accept	std/testing.md#r-std-testing.choices.declare-ref
-runtime/panic/duration-suffix-overflow.hd	runtime	panic:integer-overflow	std/time.md#r-std-time.suffix.std.overflow
+runtime/panic/duration-suffix-overflow.hd	runtime	panic:integer-overflow	std/time.md#r-std-time.suffix.std.call-overflow
 runtime/valid/duration-api.hd	runtime	accept	std/time.md#r-std-time.suffix.std.duration-api
 typing/valid/println-top-level-script.hd	type	accept	lang/10-modules.md#r-module.console.println-script
 runtime/panic/snapshot-mismatch.hd	runtime	panic:assertion-failed	std/testing.md#r-std-testing.snapshot.mismatch
@@ -1373,7 +1373,7 @@ parse/invalid/prefixed-string-pattern.hd	parse	reject:syntax-error	lang/02-gramm
 typing/valid/string-prefix-user.hd	type	accept	lang/05-expressions.md#r-expr.literal-fn.marker
 typing/valid/string-prefix-local-shadow.hd	type	accept	lang/03-names-and-scopes.md#r-names.literal-fn.no-local
 typing/valid/string-prefix-std-r.hd	type	accept	std/text.md#r-std-text.prefix.std.r.reference-values
-typing/invalid/unknown-string-prefix.hd	type	reject:unknown-name	lang/03-names-and-scopes.md#r-names.literal-fn.unknown-name
+typing/invalid/unknown-string-prefix.hd	type	reject:unknown-name	lang/03-names-and-scopes.md#r-names.literal-fn.unknown-user
 typing/invalid/bytes-prefix-unknown.hd	type	reject:unknown-name	std/text.md#r-std-text.prefix.std.only-r
 typing/invalid/string-prefix-unmarked.hd	type	reject:invalid-string-prefix	lang/05-expressions.md#r-expr.literal-fn.not-marked
 typing/invalid/string-prefix-parameter-type.hd	type	reject:type-mismatch	lang/14-annotations.md#r-annot.typed-fact.check
@@ -2349,7 +2349,7 @@ typing/invalid/default-names-later-beside-forward-bound.hd	type	reject:binding-n
 typing/invalid/qualified-string-prefix.hd	parse	reject:qualified-string-prefix	lang/02-grammar.md#r-grammar.primary.prefix-after-dot
 typing/invalid/qualified-string-prefix-call.hd	parse	reject:qualified-string-prefix	lang/02-grammar.md#r-grammar.primary.prefix-after-dot
 parse/invalid/qualified-string-prefix-value.hd	parse	reject:qualified-string-prefix	lang/02-grammar.md#r-grammar.primary.prefix-after-dot
-runtime/valid/string-prefix-imported-by-name.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.literal-fn.bare-in-scope
+runtime/valid/string-prefix-imported-by-name.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.literal-fn.user-scope
 runtime/valid/prefix-import-without-marker.hd	runtime	accept	lang/05-expressions.md#r-expr.literal-fn.no-marker-import
 typing/valid/literal-first-use-while-len.hd	type	accept	lang/04-type-system.md#r-types.literal.local.form.operand
 typing/valid/literal-first-use-float-argument.hd	type	accept	lang/04-type-system.md#r-types.literal.local.form.argument
@@ -3613,3 +3613,13 @@ runtime/valid/generic-sharing-distinct-value-layouts.hd	runtime	accept	lang/04-t
 runtime/valid/generic-sharing-inline-values.hd	runtime	accept	lang/04-type-system.md#r-types.generic.unobservable
 runtime/valid/let-mut-tuple.hd	runtime	accept	lang/04-type-system.md#r-types.bind.let-mut-tuple-valid
 runtime/valid/deref-store-copies-collection.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
+parse/valid/duration-literals.hd	parse	accept	lang/01-lexical-structure.md#r-lex.duration.form
+parse/valid/duration-identifiers.hd	parse	accept	lang/01-lexical-structure.md#r-lex.duration.form
+parse/invalid/duration-space.hd	parse	reject:syntax-error	lang/01-lexical-structure.md#r-lex.duration.form
+parse/invalid/duration-radix.hd	parse	reject:syntax-error	lang/01-lexical-structure.md#r-lex.duration.radix
+typing/valid/duration-literals.hd	type	accept	lang/04-type-system.md#r-types.literal.duration.fixed
+typing/invalid/duration-fraction.hd	type	reject:type-mismatch	lang/01-lexical-structure.md#r-lex.duration.fraction-hint
+typing/invalid/duration-range.hd	type	reject:integer-literal-range	lang/04-type-system.md#r-types.literal.duration.range
+typing/invalid/duration-unknown-unit.hd	type	reject:unknown-name	lang/03-names-and-scopes.md#r-names.literal-fn.unknown-user
+runtime/valid/duration-literals.hd	runtime	accept	std/time.md#duration
+runtime/valid/duration-literal-timeout.hd	runtime	accept	std/time.md#duration

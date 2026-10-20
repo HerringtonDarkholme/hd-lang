@@ -410,6 +410,24 @@ See also: [Binary Numeric Operators](#binary-numeric-operators),
 [Ordering](05-expressions.md#ordering) covers comparisons that a `usize`
 default makes always true.
 
+### Duration Literals
+
+A duration literal has the standard `std.time.Duration` type without importing its unit function.
+
+```text
+fn delay() -> void:
+    _ := 500ms
+    _ := 30s
+```
+
+1. r[types.literal.duration.fixed] A duration literal has type `std.time.Duration`, independent of its expected type and names in scope.
+2. r[types.literal.duration.units] Units `ms`, `s`, `min`, and `h` multiply their integer counts by 1, 1000, 60000, and 3600000 milliseconds, respectively.
+3. r[types.literal.duration.range] A duration literal must represent between zero and 9223372036854775807 milliseconds, inclusive. Error: `integer-literal-range`.
+4. r[types.literal.duration.call] A duration literal evaluates as the corresponding qualified `std.time` unit function applied to its integer count.
+5. r[types.literal.duration.negative] Unary `-` does not apply to a duration literal. Error: `type-mismatch`.
+
+The functions and named constructors remain available; a duration literal is the preferred spelling for a literal duration.
+
 ### Suffixed Literals
 
 A primitive suffix fixes a numeric literal's type. A user suffix has the
@@ -422,11 +440,11 @@ struct Millis:
     count: i64
 
 @num_suffix
-fn ms(count: i64) -> Millis:
+fn ticks(count: i64) -> Millis:
     Millis { count: count }
 
 fn delay() -> Millis:
-    250ms  # ms(250): Millis
+    250ticks  # ticks(250): Millis
 ```
 
 1. r[types.literal.user-call-result] A user-suffixed literal or prefixed string has the result type of its literal function.
@@ -441,10 +459,10 @@ fn delay() -> Millis:
 use std.ops.num_suffix
 
 @num_suffix
-fn s(count: i64) -> i64: count * 1000
+fn secs(count: i64) -> i64: count * 1000
 
 fn wait() -> void:
-    half := 1.5s  # error: type-mismatch
+    half := 1.5secs  # error: type-mismatch
     pass
 ```
 

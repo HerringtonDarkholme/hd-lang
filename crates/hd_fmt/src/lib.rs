@@ -73,6 +73,15 @@ mod tests {
     use super::{format, round_trip};
 
     #[test]
+    fn duration_units_keep_their_spelling() {
+        let src = "fn durations():\n    [500ms, 30s, 1_500ms, 1h + 30min]  \n";
+        assert_eq!(round_trip(src), src);
+        let formatted = format(src).expect("duration tokens parse");
+        assert_eq!(formatted, src.replace("]  ", "]"));
+        assert_eq!(format(&formatted).expect("parses"), formatted);
+    }
+
+    #[test]
     fn round_trip_is_lossless() {
         let src = "fn main():\n    println(1)\n";
         assert_eq!(round_trip(src), src);

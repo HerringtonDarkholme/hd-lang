@@ -1,0 +1,15 @@
+# test: sleep and timeout accept duration units without importing their functions
+use std.time.{Clock, ManualClock, Timestamp, sleep}
+use std.task.timeout
+
+tests:
+    use std.testing.assert_equal
+
+    it("sleep and timeout accept import-free units"):
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        $.with(Clock=clock):
+            result := timeout!(10ms):
+                sleep!(2ms)
+                7
+            assert_equal(result, .Ok(7), reason="manual time")
+        assert_equal(clock.now().unix_milliseconds(), 2, reason="slept two milliseconds")

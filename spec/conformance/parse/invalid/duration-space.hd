@@ -1,0 +1,3 @@
+# test: whitespace does not join a number to a duration unit
+fn delay():
+    _ := 500 ms  # diagnostic: syntax-error

@@ -1342,6 +1342,33 @@ mod tests {
     use hd_diag::Code;
 
     #[test]
+    fn duration_units_and_radix_numbers_remain_unambiguous() {
+        let source = "500ms 30s 1_500ms 90min 1h 0xffB ms min";
+        let lexed = lex(source.as_bytes());
+        assert!(lexed.diagnostics.is_empty());
+        assert_eq!(lexed.tokens.reconstruct(source), source);
+        assert_eq!(
+            lexed.tokens.kind,
+            [
+                TokenKind::Number,
+                TokenKind::Number,
+                TokenKind::Number,
+                TokenKind::Number,
+                TokenKind::Number,
+                TokenKind::Number,
+                TokenKind::Ident,
+                TokenKind::Ident
+            ]
+        );
+        assert!(
+            lex(b"0xFF_u8")
+                .diagnostics
+                .iter()
+                .any(|d| d.code == Code::InvalidToken)
+        );
+    }
+
+    #[test]
     fn lexes_losslessly() {
         let source = "## docs\nfn café(x: i32) -> string:\n    r\"hello $x\" # tail\n";
         let lexed = lex(source.as_bytes());

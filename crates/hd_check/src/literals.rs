@@ -65,6 +65,32 @@ pub(crate) fn split_suffix(text: &str) -> (&str, &str) {
     text.split_at(i)
 }
 
+/// Built-in duration units (`types.literal.duration.fixed`).
+fn duration_scale(name: &str) -> Option<u64> {
+    Some(match name {
+        "ms" => 1,
+        "s" => 1_000,
+        "min" => 60_000,
+        "h" => 3_600_000,
+        _ => return None,
+    })
+}
+
+/// An exact, whole-millisecond replacement for a decimal fraction.
+/// Integer arithmetic keeps the suggested spelling independent of float rounding.
+fn duration_fraction(digits: &str, scale: u64) -> Option<u128> {
+    let digits = digits.replace('_', "");
+    let (whole, fraction) = digits.split_once('.')?;
+    let denominator = 10u128.checked_pow(u32::try_from(fraction.len()).ok()?)?;
+    let numerator = whole
+        .parse::<u128>()
+        .ok()?
+        .checked_mul(denominator)?
+        .checked_add(fraction.parse::<u128>().ok()?)?
+        .checked_mul(u128::from(scale))?;
+    (numerator % denominator == 0).then_some(numerator / denominator)
+}
+
 /// Primitive names are reserved for type suffixes, never user suffix functions.
 pub(crate) fn primitive_suffix(name: &str) -> Option<Prim> {
     Prim::ALL.into_iter().find(|p| p.name() == name)
@@ -119,7 +145,7 @@ impl Ck<'_, '_> {
     }
 
     /// The call of the literal function `name` with the literal at `n` as
-    /// its one argument (`expr.suffix.fn-call`, `expr.prefix.fn-call`).
+    /// its one argument (`expr.suffix.user-call`, `expr.prefix.fn-call`).
     pub(crate) fn literal_fn_call(
         &mut self,
         n: NodeRef<'_>,
@@ -127,36 +153,69 @@ impl Ck<'_, '_> {
         kind: u8,
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
-        let sym = self.cx.names.syms.intern(name);
-        if self.is_poison_name(name) {
-            return Ok(self.poison(n));
-        }
-        let Some(b) = self.cx.scope_at(self.at).lookup(sym) else {
-            let msg = format!("`{name}` is not defined");
-            self.err(Code::UnknownName, n, &msg);
-            return Ok(self.poison(n));
-        };
-        let def = DefId::from_raw(b.value);
-        let marked = b.kind == BindingKind::Item
-            && self
-                .cx
-                .lookup
-                .item(def)
-                .is_some_and(|i| matches!(i.data, ItemData::Fn(_)) && i.literal_fn == kind);
-        if !marked {
-            let (code, name_of, what) = if kind == LITERAL_SUFFIX {
-                (
-                    Code::InvalidLiteralSuffix,
-                    "invalid-literal-suffix",
-                    "suffix",
-                )
-            } else {
-                (Code::InvalidStringPrefix, "invalid-string-prefix", "prefix")
+        let duration = (kind == LITERAL_SUFFIX)
+            .then(|| duration_scale(name))
+            .flatten();
+        let def = if let Some(scale) = duration {
+            let text = self.cx.src.text(self.cx.src.first(n));
+            let digits = split_suffix(text).0;
+            if !decimal_digits(digits) {
+                let mut msg = format!("duration literal `{text}` needs a whole decimal integer");
+                if let Some(millis) = duration_fraction(digits, scale)
+                    && millis <= i64::MAX as u128
+                {
+                    msg = format!("{msg}; write `{millis}ms`");
+                }
+                self.err(Code::TypeMismatch, n, &msg);
+                return Ok(self.poison(n));
+            }
+            let count = digits.replace('_', "").parse::<u64>().ok();
+            if count
+                .and_then(|v| v.checked_mul(scale))
+                .is_none_or(|v| i64::try_from(v).is_err())
+            {
+                self.err(
+                    Code::IntegerLiteralRange,
+                    n,
+                    "duration literal exceeds 9223372036854775807 milliseconds",
+                );
+                return Ok(self.poison(n));
+            }
+            self.cx.names.item("std.time", name)
+        } else {
+            let sym = self.cx.names.syms.intern(name);
+            if self.is_poison_name(name) {
+                return Ok(self.poison(n));
+            }
+            let Some(b) = self.cx.scope_at(self.at).lookup(sym) else {
+                let msg = format!("`{name}` is not defined");
+                self.err(Code::UnknownName, n, &msg);
+                return Ok(self.poison(n));
             };
-            let msg = format!("{name_of}: `{name}` is not a function marked for a literal {what}");
-            self.err(code, n, &msg);
-            return Ok(self.poison(n));
-        }
+            let def = DefId::from_raw(b.value);
+            let marked = b.kind == BindingKind::Item
+                && self
+                    .cx
+                    .lookup
+                    .item(def)
+                    .is_some_and(|i| matches!(i.data, ItemData::Fn(_)) && i.literal_fn == kind);
+            if !marked {
+                let (code, name_of, what) = if kind == LITERAL_SUFFIX {
+                    (
+                        Code::InvalidLiteralSuffix,
+                        "invalid-literal-suffix",
+                        "suffix",
+                    )
+                } else {
+                    (Code::InvalidStringPrefix, "invalid-string-prefix", "prefix")
+                };
+                let msg =
+                    format!("{name_of}: `{name}` is not a function marked for a literal {what}");
+                self.err(code, n, &msg);
+                return Ok(self.poison(n));
+            }
+            def
+        };
         let args = Args {
             positional: vec![n],
             ..Args::empty()

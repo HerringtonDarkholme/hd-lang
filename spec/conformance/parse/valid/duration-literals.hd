@@ -1,0 +1,6 @@
+# test: duration units are glued decimal suffixes and compound with plus
+fn delays():
+    _ := 500ms
+    _ := 30s
+    _ := 1_500ms
+    _ := 1h + 30min

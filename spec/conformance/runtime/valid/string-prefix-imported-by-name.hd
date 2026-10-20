@@ -1,5 +1,5 @@
 # test: a prefix function that another module declares is used by importing its bare name
-# Spec Names, Literal Suffix Names: names.literal-fn.bare-in-scope.
+# Spec Names, Literal Suffix Names: names.literal-fn.user-scope.
 # fixture-package-tree: qualified-prefix/src/main.hd
 use pkg.marks.tag
 

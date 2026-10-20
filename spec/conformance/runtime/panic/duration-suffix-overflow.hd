@@ -1,9 +1,9 @@
 # test: a standard suffix whose Duration does not fit in i64 milliseconds panics at run time
-# Spec std/time Duration Suffixes: std-time.suffix.std.overflow (Literal Suffixes L18).
+# Spec std/time Duration Suffixes: std-time.suffix.std.call-overflow (Literal Suffixes L18).
 use std.time.{Duration, h}
 
 fn forever() -> Duration:
-    10_000_000_000_000_000h  # panic: integer-overflow
+    h(10_000_000_000_000_000)  # panic: integer-overflow
 
 tests:
     it("overflows on the hour scale"):
