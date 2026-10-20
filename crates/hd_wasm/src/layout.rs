@@ -678,7 +678,7 @@ impl<'a> Lay<'a> {
     /// `types.newtype.construct-value`). Only value layouts erase;
     /// identity stays nominal.
     pub(crate) fn erase(&self, t: Ty) -> Ty {
-        self.ref_storage_type(strip_newtype(self.pool, self.env, self.strip(t)))
+        strip_newtype(self.pool, self.env, self.strip(t))
     }
 
     /// A reference's permission affects selection and `TypeId`, but its GC
@@ -919,7 +919,7 @@ impl<'a> Lay<'a> {
     /// The Wasm values of a type in locals, parameters and results.
     pub fn vts(&self, t: Ty) -> StageResult<Vec<VT>> {
         let pool = self.pool;
-        let t = self.erase(t);
+        let t = self.ref_storage_type(self.erase(t));
         // An open value is the caller's representation, viewed as `eqref`
         // (`crates/hd_mono/DESIGN.md` §13.5.1).
         if is_class_ref(pool, t) || is_open(pool, t) {
@@ -1682,7 +1682,7 @@ impl<'a> Lay<'a> {
     /// its parts.
     pub fn shape(&self, t: Ty) -> StageResult<Shape> {
         let pool = self.pool;
-        let t = self.erase(t);
+        let t = self.ref_storage_type(self.erase(t));
         if is_class_ref(pool, t) {
             return Ok(Shape::ClassRef);
         }
