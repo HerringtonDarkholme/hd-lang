@@ -1,0 +1,8 @@
+# `main` returns `error.exit()` for a parse error, so a misspelled option
+# exits with status 2; a good command line exits 0
+# (std-cli.error.exit-code, std-cli.error.exit).
+run: hd tool.hd -- --levl 3
+exit: 2
+run: hd tool.hd -- --level 3
+exit: 0
+stdout: 3

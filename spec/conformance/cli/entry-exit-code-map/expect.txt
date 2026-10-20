@@ -1,0 +1,7 @@
+# A program that needs another code for an error maps its errors in `main`
+# and returns an `ExitCode`, here 2 for a usage error
+# (module.entry.termination.exit-code, module.entry.exit-code).
+run: hd map.hd
+exit: 2
+stdout: starting
+stdout: usage: tool FILE

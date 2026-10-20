@@ -1,5 +1,5 @@
 # M4c: a `main` returning `.Err` writes the error's `Display` text to
-# standard error and exits with status 1 (module.entry.err-stream).
+# standard error and exits with status 1 (module.entry.err-to-stderr).
 use std.error.Error
 
 pub struct Oops:

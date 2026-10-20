@@ -1,7 +1,0 @@
-# An error whose `exit_code` is 0 is printed on standard output, after the
-# program's own output, and the program exits with status 0
-# (module.entry.err-stream, module.entry.termination.err-code).
-run: hd zero.hd
-exit: 0
-stdout: starting
-stdout: usage: tool FILE

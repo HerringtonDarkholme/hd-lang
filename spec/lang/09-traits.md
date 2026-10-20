@@ -494,13 +494,12 @@ The standard library declares the standard error trait `Error` in
 5. r[trait.error.not-inspectable] An `impl Error` whose target is not inspectable, such as a type declared in a block suite, is an error. Error: `missing-supertrait-implementation`.
 6. r[trait.error.value-types] A value type may implement `Error`, as an enum or a newtype over `string` does.
 7. r[trait.error.reference-cause] `Error` declares `fn cause(self) -> (&dyn Error)?`, which returns the error that caused this one. Its default returns `.None`.
-8. r[trait.error.exit-code] `Error` declares `fn exit_code(self) -> i32`, the process exit status of an entry point that returns this error. Its default returns 1.
-9. r[trait.error.dyn-methods.reference-values] `std.error` gives `&dyn Error` the inherent methods `chain`, `root_cause`, and `find[T < Error]`, in an `impl dyn Error:` block beside the trait.
-10. r[trait.error.dyn-methods.not-members] They are not members of `Error`, so an implementation of `Error` cannot declare or override them.
-11. r[trait.error.dyn-methods.reference-receiver] They take shared reference receivers, as in `let erased: &dyn Error = &failure; erased.find::[FsError]()`.
-12. r[trait.error.inherent-recovery.reference-values] The inherent `impl dyn Error` declares the recovery methods of `impl dyn Inspectable`, with identical reference signatures.
-13. r[trait.error.std-api] What `chain`, `root_cause`, and `find` return is standard-library API.
-14. r[trait.error.derive] A struct or enum may implement `Display` and `Error` through the `@error` intrinsic, as [Error Derivation](14-annotations.md#error-derivation) defines.
+8. r[trait.error.dyn-methods.reference-values] `std.error` gives `&dyn Error` the inherent methods `chain`, `root_cause`, and `find[T < Error]`, in an `impl dyn Error:` block beside the trait.
+9. r[trait.error.dyn-methods.not-members] They are not members of `Error`, so an implementation of `Error` cannot declare or override them.
+10. r[trait.error.dyn-methods.reference-receiver] They take shared reference receivers, as in `let erased: &dyn Error = &failure; erased.find::[FsError]()`.
+11. r[trait.error.inherent-recovery.reference-values] The inherent `impl dyn Error` declares the recovery methods of `impl dyn Inspectable`, with identical reference signatures.
+12. r[trait.error.std-api] What `chain`, `root_cause`, and `find` return is standard-library API.
+13. r[trait.error.derive] A struct or enum may implement `Display` and `Error` through the `@error` intrinsic, as [Error Derivation](14-annotations.md#error-derivation) defines.
 14. r[trait.error.import] `Error` is not a prelude name; code imports it with `use std.error.Error`.
 15. r[trait.error.no-inspect-import] Implementing `Error` needs no import of `std.inspect`.
 

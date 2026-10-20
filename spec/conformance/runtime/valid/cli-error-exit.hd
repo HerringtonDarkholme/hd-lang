@@ -1,0 +1,42 @@
+# test: main returns error.exit() for a parse error, which writes the error as error output and exits 2
+# Spec std/cli Exit Status: std-cli.error.exit-code, std-cli.error.exit.
+# expect-stdout: quiet
+use std.cli.{Cli, CliError}
+use std.console.MemoryConsole
+use std.host.{Args, ScriptedArgs}
+use std.process.ExitCode
+
+pub fn main() -> ExitCode $ Args + Console:
+    cli := Cli::new("tool").option("level", .None, "how loud")
+    parsed := match cli.parse_args():
+        .Ok(parsed) => parsed
+        .Err(error) => return error.exit()
+    println(parsed.value("level").unwrap_or("quiet"))
+    ExitCode(0)
+
+tests:
+    use std.testing.assert_equal
+
+    it("a parse error exits 2 and writes error output"):
+        let mut console = MemoryConsole::new()
+        $.with(Args=ScriptedArgs::new("tool", ["--levl", "3"]), Console=console):
+            assert_equal(u8(main()), 2, reason="error.exit() returns the usage code")
+        assert_equal(console.error_output(), ["unknown option --levl"], reason="the error on error output")
+        assert_equal(console.output(), [], reason="nothing on standard output")
+
+    it("a good command line exits 0"):
+        let mut console = MemoryConsole::new()
+        $.with(Args=ScriptedArgs::new("tool", ["--level", "3"]), Console=console):
+            assert_equal(u8(main()), 0, reason="main's own code")
+        assert_equal(console.output(), ["3"], reason="the value")
+
+    it("every variant's exit code is 2"):
+        errors := [
+            CliError.UnknownOption("-x"),
+            CliError.MissingValue("out"),
+            CliError.UnexpectedValue("verbose"),
+            CliError.MissingPositional("pattern"),
+            CliError.InvalidValue("max", "not a number"),
+        ]
+        for error in errors:
+            assert_equal(u8(error.exit_code()), 2, reason="a usage error")

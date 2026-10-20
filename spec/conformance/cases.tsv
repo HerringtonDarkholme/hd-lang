@@ -2312,6 +2312,7 @@ runtime/valid/cli-flag-forms.hd	runtime	accept	std/cli.md#argument-forms
 runtime/valid/cli-errors.hd	runtime	accept	std/cli.md#parse-errors
 runtime/valid/cli-usage.hd	runtime	accept	std/cli.md#usage-text
 runtime/valid/cli-parse-args.hd	runtime	accept	std/cli.md#parsing
+runtime/valid/cli-error-exit.hd	runtime	accept	std/cli.md#r-std-cli.error.exit
 runtime/panic/cli-duplicate-option.hd	runtime	panic:explicit-panic	std/cli.md#r-std-cli.cli.duplicate
 runtime/valid/regex-literals-escapes.hd	runtime	accept	std/regex.md#literals-and-escapes
 runtime/valid/regex-classes.hd	runtime	accept	std/regex.md#classes
@@ -3333,11 +3334,9 @@ typing/invalid/polymorphic-recursion-mutual.hd	type	reject:instantiation-too-dee
 typing/invalid/polymorphic-recursion-tuple.hd	type	reject:instantiation-too-deep	lang/04-type-system.md#r-types.generic.call-cycle.grows
 typing/valid/polymorphic-recursion-non-growing.hd	type	accept	lang/04-type-system.md#r-types.generic.call-cycle.step
 runtime/valid/error-for-string.hd	runtime	accept	std/error.md#r-std-error.std-types.string.reference-values
-runtime/valid/error-exit-code.hd	runtime	accept	std/error.md#r-std-error.exit-code.default
 typing/invalid/display-only-entry-error.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.entry.termination.result
-typing/valid/entry-err-exit-zero.hd	type	accept	lang/10-modules.md#r-module.entry.termination.err-code
-typing/valid/error-exit-code-usage.hd	type	accept	std/error.md#r-std-error.exit-code.decl
-runtime/valid/error-reference-entry-report.hd	runtime	accept	lang/10-modules.md#r-module.entry.err-stream
+runtime/valid/entry-exit-code-map.hd	runtime	accept	lang/10-modules.md#r-module.entry.termination.err-one
+typing/valid/entry-exit-code-map.hd	type	accept	lang/10-modules.md#exit-status
 runtime/valid/error-report-value-copy.hd	runtime	accept	std/error.md#r-std-error.report.decl-struct
 runtime/valid/time-parse-error-one-type.hd	runtime	accept	std/time.md#r-std-time.parse-error.declared
 runtime/valid/duration-serde-text.hd	runtime	accept	std/time.md#r-std-time.serde.duration-text-read

@@ -7,7 +7,7 @@ over the language tier:
 
 - `Cli`, which declares a program's flags, options, and positionals;
 - `parse` and `parse_args`, which read arguments into `Parsed`;
-- `CliError`, the parse errors;
+- `CliError`, the parse errors, and the exit status they give;
 - `usage`, the generated help text.
 
 The arguments themselves come from `Args`
@@ -146,6 +146,35 @@ pub enum CliError:
 > **Why.** `tool --help` must reach the program even when `tool` requires
 > a positional, as `argparse` and `clap` let it. `Cli` declares no
 > `--help` itself, so the program prints `usage` when the flag is set.
+
+### Exit Status
+
+A command-line failure picks its exit status through `CliError`, not
+through `Error`. `main` reports a parse error and exits with its code:
+
+```text
+use std.cli.Cli
+use std.host.Args
+use std.process.ExitCode
+
+pub fn main() -> ExitCode $ Args + Console:
+    cli := Cli::new("tool").option("level", .None, "how loud")
+    parsed := match cli.parse_args():
+        .Ok(parsed) => parsed
+        .Err(error) => return error.exit()
+    println(parsed.value("level").unwrap_or("quiet"))
+    ExitCode(0)
+```
+
+With `--levl 3`, this `main` writes `unknown option --levl` as error
+output and exits with status 2.
+
+1. r[std-cli.error.exit-code] `CliError` has the method `pub fn exit_code(self) -> ExitCode`. It returns `ExitCode(2)` for every variant.
+2. r[std-cli.error.exit] `CliError` has the method `pub fn exit(self) -> ExitCode $ Console`. It writes the error's `Display` text as `eprintln` does, then returns `exit_code()`.
+
+> **Why.** As in clap, the exit code of a usage error belongs to the
+> command-line error type. `Error` has no exit code, so `main` chooses one
+> by calling `exit`.
 
 ### Parsed Arguments
 

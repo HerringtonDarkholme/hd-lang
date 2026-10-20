@@ -41,7 +41,7 @@ wins.
 | `std.function` | `Fn`, `SuspendFn` | function-type syntax lowers to these constructors; `Tuple` stays in `function.hd` |
 | `std.structure` | `Structure` and its members | derivation templates receive this sealed view from the compiler |
 | `std.testing` | `it`, `assert_equal` | intrinsic bodies (`test_case`, `assert_equal`) |
-| `std.rt` | `entry_status`, `entry_status_error`, `entry_status_dyn`, `entry_status_dyn_ref`, `test_status_error`, `test_status_dyn`, `test_status_dyn_ref`, `test_failed`, `entry_report`, `entry_write`, `entry_write_out` | hd functions in the virtual `rt.hd` report entry and test results over the `entry_write` and `entry_write_out` intrinsics |
+| `std.rt` | `entry_status`, `entry_status_error`, `entry_status_dyn`, `entry_status_dyn_ref`, `test_status_error`, `test_status_dyn`, `test_status_dyn_ref`, `entry_write` | hd functions in the virtual `rt.hd` report entry and test results over the `entry_write` intrinsic |
 
 | Fixed, non-exporting prelude use | Why the compiler needs it |
 | --- | --- |
@@ -70,7 +70,7 @@ every key in `lib/std` has a row.
 | `type_id_of` | `TypeId.of[T < Inspectable]() -> TypeId`, in `inspect.hd` | compiler |
 | `task_cleanup_frame`, `task_abandon`, `task_pending_frame`, `task_race_frame`, `task_all_frame` | `task.hd` | compiler |
 | `dbg`, `dbg_text`, `dbg_write`, `dbg_show`, `repl_write` | `format.hd` | compiler |
-| `panic_message`, `task_all`, `test_case`, `assert_equal`, `entry_write`, `entry_write_out` | seeded items and `rt.hd` | compiler |
+| `panic_message`, `task_all`, `test_case`, `assert_equal`, `entry_write` | seeded items and `rt.hd` | compiler |
 | `mem_pages`, `mem_grow`, `mem_load_u8` to `mem_load_u64`, `mem_store_u8` to `mem_store_u64`, `mem_copy`, `mem_fill` | `rt/memory.hd`, the `pub` functions of the runtime module `std.rt.memory` (spec 10 `module.rt.memory.*`) | compiler, linear backend only; on Wasm GC a build that reaches one is `unsupported`, and only std can |
 | `format_f64`, `format_f32` | `format.hd` | host primitive |
 | `string_lower`, `string_upper` | `text.hd` | host primitive |

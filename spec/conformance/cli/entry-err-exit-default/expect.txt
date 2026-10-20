@@ -1,6 +1,6 @@
-# An error that keeps the default `exit_code` exits with status 1 and
-# reports on standard error (trait.error.exit-code,
-# std-error.exit-code.default).
+# An error returned from `main` exits with status 1 and reports on
+# standard error (module.entry.termination.err-one,
+# module.entry.err-to-stderr).
 run: hd default.hd
 exit: 1
 stderr: failed

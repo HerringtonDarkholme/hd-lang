@@ -5,6 +5,8 @@ use std.format.DebugWriter
 use std.error.Error
 use std.host.Args
 use std.text.Parse
+use std.process.ExitCode
+use std.console.eprintln
 
 # A command line's declared arguments (r-std-cli.cli.decl-struct). Each builder
 # method returns a new `Cli` with one more declaration, in order.
@@ -253,6 +255,20 @@ impl Display for CliError:
 
 # A std error type implements `Error` (r-std-error.std-types.impl.reference-values).
 impl Error for CliError
+
+# The exit status of a command-line failure belongs to `CliError`, not to
+# `Error` (r-std-cli.error.exit-code); `main` calls `exit` itself.
+impl CliError:
+    ## The status a command line exits with for this error: 2, a usage error.
+    ## See [std-cli.error.exit-code](../../spec/std/cli.md#r-std-cli.error.exit-code).
+    pub fn exit_code(self) -> ExitCode:
+        ExitCode(2)
+
+    ## Writes this error's text as a line of error output, then returns `exit_code()`.
+    ## See [std-cli.error.exit](../../spec/std/cli.md#r-std-cli.error.exit).
+    pub fn exit(self) -> ExitCode $ Console:
+        eprintln(self)
+        self.exit_code()
 
 # `Debug` for this module's types (r-std-format.debug.std-types), written by
 # hand with the builder calls that `@derive(Debug)` generates

@@ -1501,9 +1501,9 @@ tests:
 11. r[module.testing.integration-row.unbound] An integration test case whose body needs a trait that the profile does not bind must bind it explicitly with `$.with`.
 12. r[module.testing.integration-row.unbound.error] Otherwise checking reports `missing-requirement` with the hint `bind it with $.with(Trait=...)`.
 13. r[module.testing.passes] A test case passes when its body completes, its result holds no `.Err`, and `report()` on its result returns `ExitCode(0)`.
-14. r[module.testing.fails] It fails when its result holds an `.Err`, whatever the error's `exit_code`, when `report()` returns another code, or when its body panics, including by a failed assertion. A case of `it_each` or `it_prop` follows the same rules.
+14. r[module.testing.fail-cases] It fails when its result holds an `.Err`, when `report()` returns another code, or when its body panics, including by a failed assertion. A case of `it_each` or `it_prop` follows the same rules.
 15. r[module.testing.cancelled] It also fails when its body turns out cancelled, once the body's cleanup has ended, as a cancelled entry ends by [`req.entry.cancelled`](11-requirements-and-suspension.md#r-req.entry.cancelled).
-16. r[module.testing.err-print] When the result holds an `.Err`, the runner reports the error and its cause chain, rendered as [Entry Results](#entry-results) describes. The report is the runner's own text or JSON report on standard output, and [`module.entry.err-stream`](#r-module.entry.err-stream) does not apply.
+16. r[module.testing.err-runner-report] When the result holds an `.Err`, the runner reports the error and its cause chain, rendered as [Entry Results](#entry-results) describes. The report is the runner's own text or JSON report on standard output, and [`module.entry.err-to-stderr`](#r-module.entry.err-to-stderr) does not apply.
 17. r[module.testing.expect-panic-fail] With `expect_panic`, the test case instead fails when its body completes or panics with another category.
 
 ```text
@@ -2023,7 +2023,7 @@ See also: [Mutable Providers](11-requirements-and-suspension.md#mutable-provider
 3. r[module.entry.err-dynamic.reference-values] The erased `std.error.Error` satisfies the `E < Error` bound, so `Result[T, &dyn Error]` is a valid entry result.
 4. r[module.entry.err-render-chain] The host prints the error's `Display` text. Then it prints each cause that the standard-library `chain` yields after it.
 5. r[module.entry.err-render-chain.line] Each cause is printed on its own line as `caused by: ` followed by the cause's `Display` text.
-6. r[module.entry.err-stream] When an entry point returns `.Err(e)`, the host writes the text and `caused by: ` lines of `e` to standard output when `e.exit_code()` is 0, and to standard error otherwise. Then it exits with the status that `report()` returns, as [Exit Status](#exit-status) describes.
+6. r[module.entry.err-to-stderr] When an entry point returns `.Err(e)`, the host writes the text and `caused by: ` lines of `e` to standard error. Then it exits with the status that `report()` returns, as [Exit Status](#exit-status) describes.
 7. r[module.entry.panic] A panic exits with a distinct nonzero status selected by the runtime profile and poisons the program instance.
 
 ```text
@@ -2054,7 +2054,7 @@ pub trait Termination:
 4. r[module.entry.termination.exit-code] `ExitCode` implements `Termination`; its `report` returns the code itself.
 5. r[module.entry.termination.result] `Result[T, E]` implements `Termination` when `T < Termination` and `E < Error`.
 6. r[module.entry.termination.ok] For `.Ok(value)`, its `report` returns `value.report()`.
-7. r[module.entry.termination.err-code] For `.Err(error)`, its `report` returns `ExitCode` of `error.exit_code()`, read as a `u8` the way an integer cast reads it, by [`types.cast.wrap`](04-type-system.md#r-types.cast.wrap). `Error` gives `exit_code` the default 1, by [`trait.error.exit-code`](09-traits.md#r-trait.error.exit-code).
+7. r[module.entry.termination.err-one] For `.Err(_)`, its `report` returns `ExitCode(1)`.
 8. r[module.entry.termination.no-print] `report` only computes the code. The host or test runner prints the error, as [Entry Results](#entry-results) describes.
 9. r[module.entry.process-import] `ExitCode` and `Termination` are not prelude names; code imports them from `std.process`, as in `use std.process.ExitCode`.
 
@@ -2071,32 +2071,35 @@ pub fn main() -> Result[ExitCode, string]:
     if changes > 0: .Ok(ExitCode(1)) else: .Ok(ExitCode(0))
 ```
 
+A program that needs another code for an error maps its errors in `main`:
+
 ```text
-use std.error.Error
+use std.process.ExitCode
 
-pub struct Help:
-    text: string
+enum CliError:
+    Usage(string)
+    Failed(string)
 
-impl Display for Help:
-    fn to_string(self) -> string: self.text
+fn run(args: List[string]) -> Result[void, CliError]:
+    if args.len() == 0: .Err(.Usage("usage: tool FILE")) else: .Ok(())
 
-impl Error for Help:
-    fn exit_code(self) -> i32: 0
-
-pub fn main() -> Result[void, Help]:
-    .Err(Help { text: "usage: tool FILE" })
+pub fn main() -> ExitCode $ Console:
+    match run([]):
+        .Ok(_) => ExitCode(0)
+        .Err(.Usage(text)) =>
+            println(text)
+            ExitCode(2)
+        .Err(.Failed(text)) =>
+            println(text)
+            ExitCode(1)
 ```
 
-This `main` prints `usage: tool FILE` on standard output and exits with
-status 0.
+This `main` prints `usage: tool FILE` and exits with status 2.
 
 > **Why.** One trait serves entry points and tests, as Rust's `Termination`
-> does. The error type picks the code, so `--help` can exit 0 as clap and
-> Go's `flag` do, with no special case for one error type.
-
-> **Note.** An error that does not override `exit_code` exits with 1. A
-> tool that picks a code per call returns `ExitCode` or
-> `Result[ExitCode, E]`.
+> does. An exit code concerns the command-line entry, not the error, so
+> `Error` has no code. `main` picks codes in one place, as a Rust `main`
+> does.
 
 > **Note.** A tool that must exit without printing, such as one that stops
 > quietly on a closed pipe, prints what it needs. Then it returns an

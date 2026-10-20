@@ -1438,10 +1438,9 @@ impl Em<'_, '_, '_> {
             }
             "map_hash_seed" => self.hash_seed(i),
             // A line to the host's standard error (an entry's error
-            // report, `dbg`) or standard output (an entry's report whose
-            // exit code is 0), through the runtime, which needs no
-            // `Console`.
-            "entry_write" | "dbg_write" | "entry_write_out" | "repl_write" => {
+            // report, `dbg`) or standard output (the REPL's value line),
+            // through the runtime, which needs no `Console`.
+            "entry_write" | "dbg_write" | "repl_write" => {
                 let stream = if matches!(key, "entry_write" | "dbg_write") {
                     "stderr"
                 } else {

@@ -571,7 +571,7 @@ lang/10-modules.md	63	mixed	typing/invalid/entry-point-parameters.hd
 lang/10-modules.md	64	mixed	typing/invalid/nondisplay-entry-error.hd
 lang/10-modules.md	65	type-fragment	-
 lang/10-modules.md	66	accept	typing/valid/entry-exit-code.hd
-lang/10-modules.md	67	accept	typing/valid/entry-err-exit-zero.hd
+lang/10-modules.md	67	accept	typing/valid/entry-exit-code-map.hd
 lang/10-modules.md	68	mixed	runtime/valid/boundary-derived-round-trip.hd|typing/invalid/boundary-private-field-no-traits.hd
 lang/10-modules.md	69	accept	typing/valid/closable-handle-closed.hd
 lang/11-requirements-and-suspension.md	1	accept	typing/valid/requirements-and-suspension.hd
@@ -770,8 +770,7 @@ std/error.md	3	mixed	typing/invalid/error-find-non-error.hd
 std/error.md	4	accept	runtime/valid/error-report.hd
 std/error.md	5	accept	runtime/valid/error-message.hd
 std/error.md	6	accept	runtime/valid/error-context.hd
-std/error.md	7	accept	typing/valid/error-exit-code-usage.hd
-std/error.md	8	accept	runtime/valid/std-errors-erased.hd|runtime/valid/std-errors-erased-codecs.hd
+std/error.md	7	accept	runtime/valid/std-errors-erased.hd|runtime/valid/std-errors-erased-codecs.hd
 std/task.md	1	type-fragment	-
 std/task.md	2	accept	runtime/valid/task-retry.hd
 std/task.md	3	accept	runtime/valid/task-retry-when.hd
@@ -950,8 +949,9 @@ std/cli.md	1	accept	runtime/valid/cli-parse-args.hd
 std/cli.md	2	accept	runtime/valid/cli-parse-args.hd
 std/cli.md	3	accept	runtime/valid/cli-parse-args.hd
 std/cli.md	4	type-fragment	-
-std/cli.md	5	type-fragment	-
-std/cli.md	6	accept	runtime/valid/cli-value-as.hd
+std/cli.md	5	accept	runtime/valid/cli-error-exit.hd
+std/cli.md	6	type-fragment	-
+std/cli.md	7	accept	runtime/valid/cli-value-as.hd
 std/regex.md	1	accept	runtime/valid/regex-literals-escapes.hd
 std/regex.md	2	accept	runtime/valid/regex-anchors-groups.hd
 std/regex.md	3	accept	runtime/valid/regex-literals-escapes.hd

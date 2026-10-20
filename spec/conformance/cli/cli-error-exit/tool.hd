@@ -1,0 +1,11 @@
+use std.cli.Cli
+use std.host.Args
+use std.process.ExitCode
+
+pub fn main() -> ExitCode $ Args + Console:
+    cli := Cli::new("tool").option("level", .None, "how loud")
+    parsed := match cli.parse_args():
+        .Ok(parsed) => parsed
+        .Err(error) => return error.exit()
+    println(parsed.value("level").unwrap_or("quiet"))
+    ExitCode(0)

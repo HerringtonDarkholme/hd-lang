@@ -555,7 +555,7 @@ export function panicOf(record) {
 }
 
 // What one result record of the case `expectPanic` (its `expect_panic`
-// option, or null) comes to (module.testing.passes, module.testing.fails,
+// option, or null) comes to (module.testing.passes, module.testing.fail-cases,
 // module.testing.expect-panic-fail): `{ outcome: "passed" }`, `{ outcome:
 // "failed", message }`, or `{ outcome: "panicked", category, message,
 // debug }`.

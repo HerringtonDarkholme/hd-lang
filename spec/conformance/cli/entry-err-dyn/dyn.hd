@@ -6,8 +6,7 @@ pub struct Usage:
 impl Display for Usage:
     fn to_string(self) -> string: self.text
 
-impl Error for Usage:
-    fn exit_code(self) -> i32: 3
+impl Error for Usage
 
 fn parse() -> Result[void, Usage]:
     .Err(Usage { text: "bad flag" })

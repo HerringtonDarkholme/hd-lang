@@ -1,0 +1,19 @@
+use std.process.ExitCode
+
+enum CliError:
+    Usage(string)
+    Failed(string)
+
+fn run(args: List[string]) -> Result[void, CliError]:
+    if args.len() == 0: .Err(.Usage("usage: tool FILE")) else: .Ok(())
+
+pub fn main() -> ExitCode $ Console:
+    println("starting")
+    match run([]):
+        .Ok(_) => ExitCode(0)
+        .Err(.Usage(text)) =>
+            println(text)
+            ExitCode(2)
+        .Err(.Failed(text)) =>
+            println(text)
+            ExitCode(1)

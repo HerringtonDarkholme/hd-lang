@@ -107,19 +107,17 @@ fn embedded_std() -> &'static EmbeddedStd {
 /// `std.rt`: the hd the compiler roots after an entry point or a test case
 /// returns (module.entry.exit-report, module.testing.passes): the status
 /// `report()` gives, after an `.Err`'s report on standard error
-/// (module.entry.err-stream). The driver picks one by the result type:
+/// (module.entry.err-to-stderr). The driver picks one by the result type:
 /// `entry_status` for any `Termination`, `entry_status_error` for a
 /// `Result` whose error type implements `Error` and `entry_status_dyn_ref`
 /// for the erased `dyn Error`; the last two print the cause chain
-/// (module.entry.err-render-chain), on standard output for an error whose
-/// `exit_code` is 0 and on standard error otherwise (module.entry.err-stream).
-/// A test case's `Result` goes through `test_status_error` and
-/// `test_status_dyn_ref` instead: the same report always on standard error,
-/// and status 1 for an `.Err` whose `exit_code` is 0
-/// (module.testing.fails). `host_provider` puts a host provider behind a
-/// new object, the reference an entry installs for a key whose trait has a
-/// `&self` or `&mut self` method (req.ref.host.reference-values); the driver roots one
-/// instance per such key of an entry row. It is compiler-supplied, like
+/// (module.entry.err-render-chain) on standard error and give status 1
+/// (module.entry.termination.err-one). A test case's `Result` goes through
+/// the same functions (module.testing.fail-cases). `host_provider` puts a host
+/// provider behind a new object, the reference an entry installs for a key
+/// whose trait has a `&self` or `&mut self` method
+/// (req.ref.host.reference-values); the driver roots one instance per such
+/// key of an entry row. It is compiler-supplied, like
 /// `std.core`, so the TS prototype's `lib/std` is unchanged.
 pub const RT_SOURCE: &str = "\
 # std.rt: the entry and test-case result functions (hd_driver::RT_SOURCE).
@@ -133,48 +131,19 @@ fn entry_status_error[T < Termination, E < Error](result: Result[T, E]) -> u8:
     match result:
         .Ok(value) => u8(value.report())
         .Err(error) =>
-            code := error.exit_code()
-            entry_report(report_of(&error).to_string(), code)
-            u8(code)
+            entry_write(report_of(&error).to_string())
+            1
 
 fn entry_status_dyn_ref[T < Termination](result: Result[T, &dyn Error]) -> u8:
     match result:
         .Ok(value) => u8(value.report())
         .Err(error) =>
-            code := error.exit_code()
-            entry_report(report_of(error).to_string(), code)
-            u8(code)
-
-fn test_status_error[T < Termination, E < Error](result: Result[T, E]) -> u8:
-    match result:
-        .Ok(value) => u8(value.report())
-        .Err(error) =>
-            entry_write(report_of(&error).to_string())
-            test_failed(error.exit_code())
-
-fn test_status_dyn_ref[T < Termination](result: Result[T, &dyn Error]) -> u8:
-    match result:
-        .Ok(value) => u8(value.report())
-        .Err(error) =>
             entry_write(report_of(error).to_string())
-            test_failed(error.exit_code())
-
-fn test_failed(code: i32) -> u8:
-    if code == 0: 1 else: u8(code)
-
-fn entry_report(text: string, code: i32) -> void:
-    if code == 0:
-        entry_write_out(text)
-    else:
-        entry_write(text)
+            1
 
 fn host_provider[T](provider: T) -> &mut T:
     let mut held = provider
     &mut held
-
-@intrinsic(\"entry_write_out\")
-fn entry_write_out(text: string) -> void:
-    panic(\"intrinsic\")
 
 @intrinsic(\"entry_write\")
 fn entry_write(text: string) -> void:
@@ -8070,29 +8039,12 @@ impl Run<'_> {
             TyData::Mut(inner) => inner,
             _ => inner,
         });
-        let tests = matches!(self.goal, Goal::Tests { .. });
-        match pool.get(err) {
-            _ if reference.is_some_and(
-                |inner| matches!(pool.get(inner), TyData::TraitValue { def, .. } if def == error),
-            ) =>
-            {
-                Some((
-                    rt(if tests {
-                        "test_status_dyn_ref"
-                    } else {
-                        "entry_status_dyn_ref"
-                    }),
-                    pool.list(&[ok]),
-                ))
-            }
-            _ => Some((
-                rt(if tests {
-                    "test_status_error"
-                } else {
-                    "entry_status_error"
-                }),
-                args,
-            )),
+        if reference.is_some_and(
+            |inner| matches!(pool.get(inner), TyData::TraitValue { def, .. } if def == error),
+        ) {
+            Some((rt("entry_status_dyn_ref"), pool.list(&[ok])))
+        } else {
+            Some((rt("entry_status_error"), args))
         }
     }
 

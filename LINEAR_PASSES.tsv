@@ -461,13 +461,11 @@ runtime/valid/error-context-generic-reference.hd	#595: found passing by the line
 runtime/valid/error-context.hd	#573: closures and trait values
 runtime/valid/error-derivation-run.hd	#573: closures and trait values
 runtime/valid/error-downcast-through-inspectable.hd	#573: closures and trait values
-runtime/valid/error-exit-code.hd	#573: closures and trait values
 runtime/valid/error-find-erased.hd	#573: closures and trait values
 runtime/valid/error-find-trait-value.hd	#573: closures and trait values
 runtime/valid/error-find.hd	#592: reference error recovery and generic bounds
 runtime/valid/error-for-string.hd	#573: closures and trait values
 runtime/valid/error-message.hd	#573: closures and trait values
-runtime/valid/error-reference-entry-report.hd	#586: reference recovery methods
 runtime/valid/error-report-value-copy.hd	#573: closures and trait values
 runtime/valid/error-report.hd	#573: closures and trait values
 runtime/valid/error-root-cause.hd	#573: closures and trait values

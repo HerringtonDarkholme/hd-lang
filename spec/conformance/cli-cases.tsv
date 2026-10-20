@@ -171,8 +171,9 @@ toolchain-minimum-met	cli.manifest.toolchain-keys,cli.exit.success
 toolchain-dependency-too-old	cli.manifest.toolchain-keys,cli.dep.reached
 integration-shared-copy	cli.test.every-case,cli.exit.success
 doc-test-compile-fail-compiles	cli.test.doc.default,cli.exit.test-failure
-entry-err-exit-code	cli.file.run,cli.exit.program
-entry-err-exit-zero	cli.file.run,cli.exit.program
+entry-err-dyn	cli.file.run,cli.exit.program
+entry-exit-code-map	cli.file.run,cli.exit.program
+cli-error-exit	cli.file.run,cli.exit.program
 entry-err-exit-default	cli.file.run,cli.exit.program
 result-expect-error-text	cli.exit.test-failure,cli.json.test.result.fields
 test-snapshot-update	cli.test.snapshot.update,cli.test.snapshot.update.passing,cli.test.snapshot.update.form,cli.test.snapshot.update.omitted,cli.test.snapshot.update.rows,cli.test.snapshot.update.continue,cli.test.snapshot.update.accepted
@@ -194,7 +195,7 @@ repl-package-lib	cli.repl.package.lib,cli.repl.uses.other
 repl-package-no-lib	cli.repl.package.no-lib,cli.repl.package.no-lib.main
 repl-package-deps	cli.repl.package.dependencies
 repl-workspace	cli.workspace.repl
-test-err-exit-zero	cli.exit.test-failure,cli.json.test.result
+test-err-fails	cli.exit.test-failure,cli.json.test.result
 script-top-level-try	cli.file.run,cli.exit.program,cli.host.script-binding,cli.host.default-profile
 script-grant-no-manifest	cli.file.run,cli.host.script-binding,cli.cap.source.flags-only,cli.cap.order.default,cli.host.default-profile.granted
 script-grant-package	cli.file.run,cli.host.script-binding,cli.cap.source.package,cli.cap.value.list,cli.cap.partial.refuse,cli.cap.order.deny,cli.cap.flag.commands,cli.cap.total.refuse,cli.cap.total.status

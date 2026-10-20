@@ -438,7 +438,7 @@ ranges, `Option` and tuples (`crates/hd_check/src/pat.rs`).
   report and cause chain through `entry_write` into the case's captured
   standard error, and `hd test` prints that text as the case's `FAIL`
   message on standard output (the JSON `message` in `--format json`),
-  never on its own standard error (`module.testing.err-print`). A `?`
+  never on its own standard error (`module.testing.err-runner-report`). A `?`
   whose error neither is assignable nor converts by `From` is
   `invalid-result-propagation` (`expr.try.convert.none`).
 - **Snapshots are host work inside ordinary cases.** `snapshot_file`

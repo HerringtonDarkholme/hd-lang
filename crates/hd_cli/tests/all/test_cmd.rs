@@ -1,6 +1,6 @@
 //! `hd test` on `examples/testing` (M4c): exact output and exit
 //! status of passing, failing, panicking and ignored cases, a body whose
-//! `?` returns an error (`module.testing.err-print`),
+//! `?` returns an error (`module.testing.err-runner-report`),
 //! `--filter`, a warm second run, and the same output on one thread and
 //! on several (`cli.jobs.result`).
 
@@ -128,7 +128,7 @@ fn a_file_runs_its_module_and_a_missed_filter_is_an_error() {
 /// `cli.json.test.result`, `cli.json.test.order`: one test object per case
 /// in content order, then the summary with the counts and status 1 when a
 /// case failed. A body that returns an `.Err` fails with the error's
-/// report as its message, on standard output (`module.testing.err-print`).
+/// report as its message, on standard output (`module.testing.err-runner-report`).
 #[test]
 fn json_lists_test_objects_then_the_summary() {
     let out = hd_test(&cache("hd-cache-test-json"), &["--format", "json"]);

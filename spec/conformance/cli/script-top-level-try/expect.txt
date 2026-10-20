@@ -1,10 +1,10 @@
 # A script's top level is a driver context, so ok.hd waits with sleep! at
 # the top level with no main!. A `?` there that meets an .Err ends the
-# script as main! would: the host prints the error on standard error
-# (its exit_code is 3, not 0), and the script exits with that status.
+# script as main! would: the host prints the error on standard error, and
+# the script exits with status 1.
 run: hd ok.hd
 stdout: half 4
 run: hd err.hd
-exit: 3
+exit: 1
 stdout: before
 stderr: refused: no

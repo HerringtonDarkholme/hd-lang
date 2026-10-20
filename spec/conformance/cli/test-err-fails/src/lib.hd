@@ -7,8 +7,7 @@ impl Display for Notice:
     fn to_string(self) -> string:
         "notice: ${self.text}"
 
-impl Error for Notice:
-    fn exit_code(self) -> i32: 0
+impl Error for Notice
 
 fn check(text: string) -> Result[void, Notice]:
     if text == "ok": .Ok(()) else: .Err(Notice { text: text })
@@ -20,7 +19,7 @@ tests:
         check("ok")?
         .Ok(())
 
-    it("fails on an Err whose exit code is 0"):
+    it("fails on an Err result"):
         check("help")?
         .Ok(())
 
@@ -34,4 +33,4 @@ tests:
         .Ok(())
     )
 
-# Spec 10 Test Outcomes: module.testing.passes, module.testing.fails, module.testing.err-print.
+# Spec 10 Test Outcomes: module.testing.passes, module.testing.fail-cases, module.testing.err-runner-report.
