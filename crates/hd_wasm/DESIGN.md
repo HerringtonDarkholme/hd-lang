@@ -246,7 +246,7 @@ compiler-supplied data type `std.core.Ref[T]` (`hd_resolve::seed`), whose
 first two fields are closures, `get: fn() -> T` and `set: fn(T) -> void`,
 that read and replace the referenced place, and whose last three are the
 place's identity, `base: dyn Any`, `serial: i64` and `key: string`. The checker builds both when it
-checks `&e` (`crates/hd_check/src/refs.rs`) and lowers every `&T` and
+checks `&e` (`crates/hd_check/src/refs.rs`) and lowers
 `&mut T` in a finished body to `Ref[Mut[T]]` (an internal permission
 marker) and `&T` to `Ref[T]` (`hd_types::Types::lower_refs`,
 `hd_tir::ir::map_body_types`); the driver lowers the declarations the
@@ -259,6 +259,12 @@ The TIR names the place itself (`RefPlace`, `RefRead`, `RefWrite`,
 calls the closures below; this backend emits that block as the
 instruction's value, while the linear backend lowers the place to its
 address (§23.20).
+The GC layout normalizes `Ref[Mut[T]]` to `Ref[T]` before discovering
+recursive nominal edges and forming recursion groups. Their storage and
+closure signatures are identical; keeping distinct graph nodes can create
+incompatible recursive heap types on Wasmtime. This normalization is only
+for physical layout: type identity and implementation selection retain the
+permission marker.
 
 - **Places.** `&x` on a local makes closures that capture `x`; since the
   `set` closure assigns it, the capture is `Shared` and `x` lives in a

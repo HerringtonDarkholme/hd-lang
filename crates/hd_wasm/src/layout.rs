@@ -678,7 +678,30 @@ impl<'a> Lay<'a> {
     /// `types.newtype.construct-value`). Only value layouts erase;
     /// identity stays nominal.
     pub(crate) fn erase(&self, t: Ty) -> Ty {
-        strip_newtype(self.pool, self.env, self.strip(t))
+        self.ref_storage_type(strip_newtype(self.pool, self.env, self.strip(t)))
+    }
+
+    /// A reference's permission affects selection and `TypeId`, but its GC
+    /// storage is identical. Normalize the core `Ref` argument before forming
+    /// recursive groups, including when visiting a nominal field's edges.
+    fn ref_storage_type(&self, t: Ty) -> Ty {
+        let TyData::Adt { def, args } = self.pool.get(t) else {
+            return t;
+        };
+        if def != self.env.ref_cell() {
+            return t;
+        }
+        let [inner] = self.pool.list_items(args) else {
+            return t;
+        };
+        let value = self.strip(*inner);
+        if value == *inner {
+            return t;
+        }
+        self.pool.intern_ty(&TyData::Adt {
+            def,
+            args: self.pool.list(&[value]),
+        })
     }
 
     /// Whether `t` is nominally a newtype: values of `t` erase to their
@@ -1198,7 +1221,7 @@ impl<'a> Lay<'a> {
         let mut out = Vec::new();
         let mut todo = self.member_tys(n)?;
         while let Some(x) = todo.pop() {
-            let x = self.strip(x);
+            let x = self.ref_storage_type(self.strip(x));
             if is_class_ref(pool, x) {
                 continue;
             }
