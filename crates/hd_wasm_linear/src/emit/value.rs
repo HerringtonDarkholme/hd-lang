@@ -172,8 +172,9 @@ impl Em<'_, '_, '_> {
             let [r] = fields[..] else {
                 return unsupported("a newtype construction without one value");
             };
+            let moved = self.take(r);
             self.push(r)?;
-            return self.store(i);
+            return self.store_as(i, moved);
         }
         match self.kind(t) {
             Kind::Value => {
@@ -182,6 +183,8 @@ impl Em<'_, '_, '_> {
                 for (r, ft) in fields.iter().zip(&tys) {
                     srcs.push(self.slot_src(*r, *ft, false)?);
                 }
+                // Construction consumes its parts (§23.25).
+                self.count_parts(&srcs, &tys)?;
                 for (s, ft) in srcs.iter().zip(&tys) {
                     for k in 0..self.vals(*ft)?.len() {
                         self.src(s, k)?;
@@ -203,7 +206,7 @@ impl Em<'_, '_, '_> {
                     for (s, p) in srcs.iter().zip(&parts) {
                         self.store_part(at, &m, *p, s)?;
                     }
-                    self.retain_fields(at, &m, walk.as_ref());
+                    self.count_parts(&srcs, &tys)?;
                     self.f.get(at);
                 }
                 // A new object arrives with its count.
@@ -212,7 +215,19 @@ impl Em<'_, '_, '_> {
             Kind::Boxed => return unsupported("a data literal of an enum"),
             Kind::Ref { .. } => return unsupported("a reference's closure form"),
         }
-        self.store(i)
+        // The parts' counts are the new value's.
+        self.store_owned(i)
+    }
+
+    /// One count for a new value on each part of `srcs`, of types `tys`,
+    /// that does not move its own count in ([`Em::retain_src`]).
+    pub(super) fn count_parts(&mut self, srcs: &[Src], tys: &[Ty]) -> StageResult<()> {
+        for (s, t) in srcs.iter().zip(tys) {
+            if self.counted(*t).is_some() {
+                self.retain_src(s, *t)?;
+            }
+        }
+        Ok(())
     }
 
     /// Stores the values of `s` as the part `p` of the object at local `at`
@@ -260,6 +275,21 @@ impl Em<'_, '_, '_> {
                         Some(v) => Some(self.slot_src(v, *ft, false)?),
                         None => None,
                     });
+                }
+                // The copy takes a count of each kept field, and each
+                // replacement moves its count in or takes one (§23.25).
+                let from = self.vals.get(&a).cloned();
+                for ((s, ft), p) in srcs.iter().zip(&tys).zip(&parts) {
+                    if self.counted(*ft).is_none() {
+                        continue;
+                    }
+                    match (s, &from) {
+                        (Some(s), _) => self.retain_src(s, *ft)?,
+                        (None, Some(ls)) => {
+                            self.retain_locals(&ls[p.first..p.first + p.count], *ft)?;
+                        }
+                        (None, None) => {}
+                    }
                 }
                 for (f, p) in parts.iter().enumerate() {
                     match &srcs[f] {
@@ -319,7 +349,7 @@ impl Em<'_, '_, '_> {
             Kind::Boxed => return unsupported("a copy-update of an enum"),
             Kind::Ref { .. } => return unsupported("a reference's closure form"),
         }
-        self.store(i)
+        self.store_owned(i)
     }
 
     /// `Field`: field `idx` of `a`, picked from a struct's values or loaded
@@ -376,10 +406,7 @@ impl Em<'_, '_, '_> {
         self.f.set(at);
         // The field takes a count of the new value and drops the old one's.
         if self.counted(ft).is_some() {
-            match &s {
-                Src::Ref(r) => self.retain_ref(*r)?,
-                Src::Locals(ls) => self.retain_locals(ls, ft)?,
-            }
+            self.retain_src(&s, ft)?;
             let old: Vec<u32> = m.leaves[p.first..p.first + p.count]
                 .iter()
                 .map(|l| self.f.local(l.val))
@@ -495,6 +522,12 @@ impl Em<'_, '_, '_> {
                 from[*p] = Some((f, k));
             }
         }
+        let tys = crate::layout::variants(self.pool(), self.env(), t)
+            .and_then(|vs| vs.get(variant as usize).cloned())
+            .unwrap_or_default();
+        if tys.len() != fields.len() {
+            return unsupported("a variant built from other fields than it has");
+        }
         let push = |em: &mut Self, p: usize| -> StageResult<()> {
             if p == 0 {
                 em.f.u32(variant);
@@ -521,13 +554,17 @@ impl Em<'_, '_, '_> {
                     &mut |em: &mut Self| push(em, p),
                 )?;
             }
-            self.retain_fields(cell, &m, walk.as_ref());
+            if walk.is_some() {
+                self.count_parts(fields, &tys)?;
+            }
             self.f.get(cell);
             return self.store_owned(i);
         }
+        // Construction consumes its parts (§23.25).
+        self.count_parts(fields, &tys)?;
         for p in 0..m.leaves.len() {
             push(self, p)?;
         }
-        self.store(i)
+        self.store_owned(i)
     }
 }

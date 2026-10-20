@@ -24,7 +24,7 @@ use wasm_encoder::{BlockType, Instruction as I};
 
 use crate::layout::{self, Leaf, Walk};
 use crate::module::{BUF, EMPTY, Func, HEAP, Import, Ins, Module, Sym, Val, mem};
-use crate::rt::{Elem, Helper, LIST_ELEMS, LIST_LEN};
+use crate::rt::{Elem, Helper, LIST_ELEMS, LIST_LEN, own_arg};
 use crate::task::{HostArg, HostRes};
 use crate::{Input, unsupported};
 
@@ -96,6 +96,9 @@ pub struct LHandle {
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct LJson {
     pub vals: Vec<Val>,
+    /// The value's counted references, which `encode` owns
+    /// (`layout::Pass`): the encoder counts a copy for it.
+    pub walk: Option<Walk>,
     pub encode: Option<Hash128>,
     pub decode: Option<[Hash128; 3]>,
     pub decoded: Vec<Val>,
@@ -360,6 +363,10 @@ fn json(input: &Input<'_>, t: Ty, s: Ty, at: AtProfile<'_>) -> StageResult<LTy> 
         ));
     };
     let vals = layout::vals(pool, env, s)?;
+    let walk = match layout::pass(pool, env, input.runtime.is_some(), s) {
+        layout::Pass::Owned(w) => Some(w),
+        _ => None,
+    };
     if at.out {
         let Some(encode) = codecs.encode else {
             return unsupported(format!(
@@ -369,6 +376,7 @@ fn json(input: &Input<'_>, t: Ty, s: Ty, at: AtProfile<'_>) -> StageResult<LTy> 
         };
         return Ok(LTy::Json(Box::new(LJson {
             vals,
+            walk,
             encode: Some(encode),
             decode: None,
             decoded: Vec::new(),
@@ -383,6 +391,7 @@ fn json(input: &Input<'_>, t: Ty, s: Ty, at: AtProfile<'_>) -> StageResult<LTy> 
     };
     Ok(LTy::Json(Box::new(LJson {
         vals,
+        walk,
         encode: None,
         decode: Some([decode.decode, decode.is_ok, decode.expect]),
         decoded: layout::vals(pool, env, decoded)?,
@@ -1159,9 +1168,17 @@ pub fn enc(b: &LTy, m: &Module) -> Func {
                 return f;
             };
             let text = [f.local(Val::I32), f.local(Val::I32)];
-            for k in 0..j.vals.len() {
-                f.get(1 + u32::try_from(k).expect("values"));
+            // The encoder borrows the value; `encode` owns its copy.
+            let n = u32::try_from(j.vals.len()).expect("values");
+            let get = |f: &mut Func| {
+                for k in 0..n {
+                    f.get(1 + k);
+                }
+            };
+            if m.runtime.is_some() {
+                own_arg(&mut f, &j.vals, j.walk.as_ref(), &get);
             }
+            get(&mut f);
             f.call(Sym::Inst(encode));
             f.set(text[1]);
             f.set(text[0]);
@@ -1405,7 +1422,11 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
             f.body.push(Ins::VTable(h.vtable));
             if let Some(wrap) = h.wrap {
                 // The reference arrives with a count of its own; the box's
-                // first goes.
+                // first goes. `wrap` owns its argument (`layout::Pass`),
+                // so it takes a count of the box of its own.
+                if m.runtime.is_some() {
+                    own_arg(&mut f, &[Val::I32], Some(&Walk::Ref(0)), &|f| f.get(data));
+                }
                 f.call(Sym::Inst(wrap));
                 release(&mut f, m, &[data], vec![Val::I32], Some(Walk::Ref(0)));
             }
@@ -1416,6 +1437,15 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
                 return f;
             };
             let text = dec_into(&mut f, 0, &LTy::Str);
+            // `decode`, `is_ok` and `expect` own their arguments
+            // (`layout::Pass`): each takes a count of its own.
+            let counts = m.runtime.is_some();
+            if counts {
+                own_arg(&mut f, &[Val::I32, Val::I32], Some(&Walk::Ref(0)), &|f| {
+                    f.get(text[0]);
+                    f.get(text[1]);
+                });
+            }
             for l in &text {
                 f.get(*l);
             }
@@ -1431,9 +1461,15 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
                 vec![Val::I32, Val::I32],
                 Some(Walk::Ref(0)),
             );
-            for l in &res {
-                f.get(*l);
+            let get_res = |f: &mut Func| {
+                for l in &res {
+                    f.get(*l);
+                }
+            };
+            if counts {
+                own_arg(&mut f, &j.decoded, j.decoded_walk.as_ref(), &get_res);
             }
+            get_res(&mut f);
             f.call(Sym::Inst(is_ok));
             f.op(I::I32Eqz);
             f.op(I::If(BlockType::Empty));
@@ -1447,9 +1483,10 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
             let checked = b"a host boundary decode already checked";
             let lit = m.static_bytes(checked, 1);
             let value: Vec<u32> = j.vals.iter().map(|v| f.local(*v)).collect();
-            for l in &res {
-                f.get(*l);
+            if counts {
+                own_arg(&mut f, &j.decoded, j.decoded_walk.as_ref(), &get_res);
             }
+            get_res(&mut f);
             f.u32(lit);
             f.u32(u32::try_from(checked.len()).expect("literal"));
             f.call(Sym::Inst(expect));

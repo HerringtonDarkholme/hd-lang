@@ -1,11 +1,17 @@
-//! Naive counting (`crates/hd_wasm/DESIGN.md` §23.16, job 8): every place
-//! that holds a counted reference owns one count. An instruction's value
-//! owns one from its store, a TIR local from its set, a field from its
-//! object's construction or its write; a call's result arrives with its
-//! own. A parameter is borrowed from the caller and retained on entry, so
-//! a function releases every place it owns at its one exit. A store in a
+//! Counting (`crates/hd_wasm/DESIGN.md` §23.16, job 8): every place that
+//! holds a counted reference owns one count. An instruction's value owns
+//! one from its store, a TIR local from its set, a field from its object's
+//! construction or its write; a call's result arrives with its own. A
+//! function releases every place it owns at its one exit. A store in a
 //! loop releases the value the place held from the last iteration.
-//! Elision is later work (`REFCOUNT_RUNTIME.md` §10.2, jobs 17 and 18).
+//!
+//! Elision 1 (§23.25, job 17): a parameter is taken as `layout::Pass`
+//! says, so a value parameter arrives with its count and a `&T` one is
+//! never counted; and a count moves instead of being copied where a value
+//! is consumed at its only use, or a local read at its last access
+//! ([`Em::take`], [`Em::take_local`], [`Em::take_tail`]). A moved place is
+//! zeroed, so the exit, which still releases every place, releases it as
+//! nothing.
 
 use hd_base::StageResult;
 use hd_tir::ir::{NONE, Ref};
@@ -150,6 +156,81 @@ impl Em<'_, '_, '_> {
         self.store_as(i, true)
     }
 
+    /// Whether operand `r` moves its count into the instruction being
+    /// emitted, which is its only use, a later statement of its own block
+    /// (`live::Moves::sole`): then no count is taken for the consumer, the
+    /// release planned after that statement goes, and `r`'s locals are
+    /// zeroed once the instruction has read them ([`Em::settle`]).
+    pub(super) fn take(&mut self, r: u32) -> bool {
+        if !self.counting || r == NONE || Ref(r).as_inst().is_none() {
+            return false;
+        }
+        let Some(&(u, at)) = self.moves.sole.get(&r) else {
+            return false;
+        };
+        if self.emitting.last() != Some(&u)
+            || !self.vals.contains_key(&r)
+            || self.counted(self.ty_of(r)).is_none()
+            || self.moving.contains(&(u, r))
+        {
+            return false;
+        }
+        self.skip.insert((at, super::live::Drop::Val(r)));
+        self.moving.push((u, r));
+        true
+    }
+
+    /// Whether `LocalGet` `i` of local `l` is the local's last access and
+    /// takes its count (`live::Moves::last_get`): the local's release
+    /// after that statement goes, and the caller zeroes its locals. A
+    /// borrowed parameter has no count to give, and a cell is shared.
+    pub(super) fn take_local(&mut self, i: u32, l: usize) -> bool {
+        if !self.counting || self.borrowed.contains(&l) || self.is_cell(l) {
+            return false;
+        }
+        let Some(&(of, at)) = self.moves.last_get.get(&i) else {
+            return false;
+        };
+        if of != l || self.counted(self.sub(self.b.local_ty[l])).is_none() {
+            return false;
+        }
+        self.skip.insert((at, super::live::Drop::Local(l)));
+        true
+    }
+
+    /// Whether block tail `r`, used only as its block's value
+    /// (`live::Moves::tails`), moves its count into that value; the
+    /// caller zeroes it once read ([`Em::settle_value`]).
+    pub(super) fn take_tail(&self, r: u32) -> bool {
+        self.counting
+            && self.moves.tails.contains(&r)
+            && self.vals.contains_key(&r)
+            && self.counted(self.ty_of(r)).is_some()
+    }
+
+    /// Zeroes the locals of the operands whose counts moved into
+    /// instruction `u` ([`Em::take`]).
+    pub(super) fn settle(&mut self, u: u32) {
+        let (done, rest): (Vec<_>, Vec<_>) = self.moving.drain(..).partition(|m| m.0 == u);
+        self.moving = rest;
+        for (_, r) in done {
+            self.zero_locals_of(r);
+        }
+    }
+
+    /// Zeroes moved value `r`'s locals now, before a branch leaves the
+    /// instruction that took it.
+    pub(super) fn settle_value(&mut self, r: u32) {
+        self.moving.retain(|m| m.1 != r);
+        self.zero_locals_of(r);
+    }
+
+    fn zero_locals_of(&mut self, r: u32) {
+        for l in self.vals.get(&r).cloned().unwrap_or_default() {
+            self.f.zero(l);
+        }
+    }
+
     /// Releases what dies after statement `p` of block `blk`
     /// ([`super::live::plan`]), and zeroes its places, which the exit
     /// then releases as nothing.
@@ -157,9 +238,11 @@ impl Em<'_, '_, '_> {
         if !self.counting {
             return Ok(());
         }
-        let Some(ds) = self.drops.get(&(blk, p)).cloned() else {
+        let Some(mut ds) = self.drops.get(&(blk, p)).cloned() else {
             return Ok(());
         };
+        // A place whose count moved at this statement holds nothing.
+        ds.retain(|d| !self.skip.contains(&((blk, p), *d)));
         self.release_drops(&ds)
     }
 
@@ -179,6 +262,9 @@ impl Em<'_, '_, '_> {
                     ls
                 }
                 super::live::Drop::Local(l) => {
+                    if self.borrowed.contains(&l) {
+                        continue;
+                    }
                     let Some(ls) = self.locals.get(&l).cloned() else {
                         continue;
                     };
@@ -263,7 +349,9 @@ impl Em<'_, '_, '_> {
             self.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
         locals.sort_unstable();
         for (l, ls) in locals {
-            self.count_local(l, &ls, false)?;
+            if !self.borrowed.contains(&l) {
+                self.count_local(l, &ls, false)?;
+            }
         }
         for tmp in self.temps.clone() {
             self.f.get(tmp);

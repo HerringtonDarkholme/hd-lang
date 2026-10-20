@@ -15,7 +15,7 @@ use hd_base::HashMap;
 use hd_tir::ir::{Body, NONE, Op, Ref, Tag};
 
 /// What to release after a statement.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum Drop {
     /// An instruction's value.
     Val(u32),
@@ -26,6 +26,25 @@ pub(super) enum Drop {
 /// The releases to make after each statement, keyed by the statement's
 /// block and its position in that block.
 pub(super) type Drops = HashMap<(u32, usize), Vec<Drop>>;
+
+/// Where a body's counts can move instead of being copied
+/// (`crates/hd_wasm/DESIGN.md` §23.25, job 17).
+#[derive(Default)]
+pub(super) struct Moves {
+    /// Each instruction value whose only use is one later statement of its
+    /// own block: that statement runs exactly once after the value is made
+    /// and nothing reads the value after it, so a consuming use there can
+    /// take the value's count. With the use, the statement after which the
+    /// value's release was planned.
+    pub sole: HashMap<u32, (u32, (u32, usize))>,
+    /// Each `LocalGet` that is its local's last access: the statement
+    /// after which the local is released ([`plan`]), so the value it makes
+    /// can take the local's count instead of a count of its own. With the
+    /// local and that statement.
+    pub last_get: HashMap<u32, (usize, (u32, usize))>,
+    /// Each block tail whose only use is as its block's value.
+    pub tails: hd_base::HashSet<u32>,
+}
 
 /// The block structure of a body: each instruction's block and position,
 /// and each block's owning instruction.
@@ -163,13 +182,15 @@ fn uses(b: &Body, i: usize) -> Vec<u32> {
     out
 }
 
-/// The releases of sub-body `sub`'s values and locals at their last uses.
-/// `entry` are the locals that hold a value from the prologue: the
-/// parameters, and a closure's captures.
-pub(super) fn plan(b: &Body, sub: u32, entry: &[usize]) -> Drops {
+/// The releases of sub-body `sub`'s values and locals at their last uses,
+/// and the uses that may move a count instead ([`Moves`]). `entry` are the
+/// locals that hold a value from the prologue: the parameters, and a
+/// closure's captures.
+pub(super) fn plan(b: &Body, sub: u32, entry: &[usize]) -> (Drops, Moves) {
     let tree = Tree::new(b);
     let subs = b.inst_subs();
     let mut drops = Drops::default();
+    let mut moves = Moves::default();
     let mut users: HashMap<u32, Vec<u32>> = HashMap::default();
     let mut access: HashMap<usize, Vec<u32>> = HashMap::default();
     for (i, &s) in subs.iter().enumerate() {
@@ -212,7 +233,17 @@ pub(super) fn plan(b: &Body, sub: u32, entry: &[usize]) -> Drops {
         }
         let mut last = def;
         let mut ok = true;
-        for &u in users.get(&x).map_or(&[][..], Vec::as_slice) {
+        let us = users.get(&x).map_or(&[][..], Vec::as_slice);
+        if let [u] = *us {
+            if b.tags[u as usize] == Tag::Block {
+                if u == blk && b.data[u as usize][1] == x {
+                    moves.tails.insert(x);
+                }
+            } else if tree.parent[u as usize].0 == blk && tree.parent[u as usize].1 > def {
+                moves.sole.insert(x, (u, tree.parent[u as usize]));
+            }
+        }
+        for &u in us {
             match tree
                 .path(b, u)
                 .and_then(|p| p.into_iter().find(|(k, _)| *k == blk))
@@ -254,7 +285,14 @@ pub(super) fn plan(b: &Body, sub: u32, entry: &[usize]) -> Drops {
             .filter_map(|p| p.iter().find(|(k, _)| *k == blk).map(|(_, p)| *p))
             .max()
             .unwrap_or(0);
+        // The statement at `last` is a read of the local itself: nothing
+        // else in it, or after it, reads the local.
+        if let Some(&x) = xs.iter().find(|&&x| tree.parent[x as usize] == (blk, last))
+            && b.tags[x as usize] == Tag::LocalGet
+        {
+            moves.last_get.insert(x, (l, (blk, last)));
+        }
         drops.entry((blk, last)).or_default().push(Drop::Local(l));
     }
-    drops
+    (drops, moves)
 }

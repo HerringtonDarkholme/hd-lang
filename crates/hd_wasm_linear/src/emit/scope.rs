@@ -252,12 +252,18 @@ impl Em<'_, '_, '_> {
             self.ret = self.results.iter().map(|v| self.f.local(*v)).collect();
         }
         if a != NONE && !self.results.is_empty() {
-            if self.counting {
+            // The value moves out at its only use, or takes a count for
+            // the caller.
+            let moved = self.counting && self.take(a);
+            if self.counting && !moved {
                 self.retain_ref(a)?;
             }
             self.push(a)?;
             for l in self.ret.clone().iter().rev() {
                 self.f.set(*l);
+            }
+            if moved {
+                self.settle_value(a);
             }
         }
         self.exit(Exit::Ret)

@@ -200,7 +200,9 @@ impl Em<'_, '_, '_> {
         let src = if v == NONE {
             self.zero_src(l)?
         } else {
-            self.retain_ref(v)?;
+            if !self.take(v) {
+                self.retain_ref(v)?;
+            }
             Src::Ref(v)
         };
         let c = self.local(u32::try_from(l).expect("locals"))?[0];
@@ -358,22 +360,29 @@ impl Em<'_, '_, '_> {
         let ft = self.ty_of(callee);
         // A suspending value's code is its cold constructor, which
         // returns the frame that the call's `mut Suspend[T]` holds.
-        let TyData::Fn { params, .. } = self.pool().get(strip(self.pool(), self.env(), ft)) else {
+        let TyData::Fn {
+            params, suspends, ..
+        } = self.pool().get(strip(self.pool(), self.env(), ft))
+        else {
             return unsupported("a call of a value that is not a function");
         };
         let mut ps = vec![Val::I32];
+        let mut tys = Vec::new();
         for p in self.pool().list_items(params).to_vec() {
-            ps.extend(self.vals(self.sub(p))?);
+            let t = self.sub(p);
+            ps.extend(self.vals(t)?);
+            tys.push(t);
         }
         let mut have = vec![Val::I32];
-        self.comp(callee, 1)?;
         for r in args {
             have.extend(self.vals(self.ty_of(*r))?);
-            self.push(*r)?;
         }
         if have != ps {
             return unsupported("a call whose arguments lay out unlike the callee's parameters");
         }
+        self.comp(callee, 1)?;
+        // A suspending value's code counts each argument into its frame.
+        self.push_args(args, (!suspends).then_some(&tys[..]))?;
         for key in self.fn_row_keys(ft)? {
             let [d, v] = self.provider(key)?;
             self.f.get(d);

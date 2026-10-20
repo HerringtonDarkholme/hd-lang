@@ -162,11 +162,15 @@ pub enum Helper {
     /// `(data, params..) -> results`: a vtable slot (`emit/dyn_value.rs`):
     /// calls `target` with the payload, loaded from the box at `data` as
     /// `leaves`, or `data` itself without them, then the parameters.
+    /// The dynamic call lends its arguments; `own` has the walk of each of
+    /// `target`'s parameters, the receiver first, that it owns
+    /// (`layout::Pass`), and the slot counts a copy of each of those.
     DynSlot {
         target: Hash128,
         leaves: Option<Vec<Leaf>>,
         params: Vec<Val>,
         results: Vec<Val>,
+        own: Vec<(u32, Option<Walk>)>,
     },
     /// `(ref, params..) -> results`: a vtable slot whose payload is a
     /// reference and whose target takes the value: reads it through the
@@ -176,6 +180,7 @@ pub enum Helper {
         read: RefRead,
         params: Vec<Val>,
         results: Vec<Val>,
+        own: Vec<(u32, Option<Walk>)>,
     },
     /// `(env) -> T?`: the step closure code of `List.iter()`
     /// (`emit/iter.rs`): `.Some` of the next element, with its own count,
@@ -459,6 +464,11 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
         checked(m, poll, Vec::new())
     };
     m.export("hd.poll", poll);
+    // Checked mode's count totals, for measuring elision (§23.24).
+    if let Some(c) = m.runtime.and_then(|r| r.checked) {
+        m.export("hd.retained", Sym::Inst(c.retained));
+        m.export("hd.released", Sym::Inst(c.released));
+    }
     if m.frames.contains_key(&key) {
         m.export("hd.wake", Sym::Helper(Helper::WakeMark));
         m.export(
@@ -798,14 +808,26 @@ fn list_step(elem: &Elem, opt: &[OptVal], results: &[Val]) -> Func {
 
 /// [`Helper::DynRead`]'s function: the value at the data's address, lent
 /// to the call as the receiver.
-fn dyn_read(target: Hash128, read: &RefRead, params: &[Val], results: &[Val]) -> Func {
+fn dyn_read(
+    target: Hash128,
+    read: &RefRead,
+    params: &[Val],
+    results: &[Val],
+    own: &[(u32, Option<Walk>)],
+    m: &Module,
+) -> Func {
     let mut all = vec![Val::I32];
     all.extend(params.iter().copied());
     let mut f = Func::new("rt:dyn_read", all, results.to_vec());
-    for l in &read.leaves {
-        f.get(0);
-        f.op(l.load(0));
-    }
+    let recv = |f: &mut Func| {
+        for l in &read.leaves {
+            f.get(0);
+            f.op(l.load(0));
+        }
+    };
+    let rvals: Vec<Val> = read.leaves.iter().map(|l| l.val).collect();
+    own_lent(&mut f, &rvals, &recv, params, own, m);
+    recv(&mut f);
     for k in 1..=params.len() {
         f.get(u32::try_from(k).expect("params"));
     }
@@ -1036,11 +1058,12 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             leaves,
             params,
             results,
+            own,
         } => {
             let mut all = vec![Val::I32];
             all.extend(params.iter().copied());
             let mut f = Func::new("rt:dyn_slot", all, results.clone());
-            match leaves {
+            let recv = |f: &mut Func| match leaves {
                 Some(ls) => {
                     for l in ls {
                         f.get(0);
@@ -1048,7 +1071,12 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
                     }
                 }
                 None => f.get(0),
-            }
+            };
+            let rvals = leaves
+                .as_ref()
+                .map_or(vec![Val::I32], |ls| ls.iter().map(|l| l.val).collect());
+            own_lent(&mut f, &rvals, &recv, params, own, m);
+            recv(&mut f);
             for k in 1..=params.len() {
                 f.get(u32::try_from(k).expect("params"));
             }
@@ -1060,7 +1088,8 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             read,
             params,
             results,
-        } => dyn_read(*target, read, params, results),
+            own,
+        } => dyn_read(*target, read, params, results, own, m),
         Helper::ListStep { elem, opt, results } => list_step(elem, opt, results),
         Helper::ListTruncate { elem } => list_truncate(elem),
         Helper::TypeIdOf(parts) => type_id(parts, vec![], m),
@@ -1438,6 +1467,54 @@ fn host_prim(name: &str, args: &[PrimArg], result: Option<Val>) -> Func {
     f.get(out);
     f.get(len);
     f
+}
+
+/// A vtable slot's counts for its target (`crates/hd_wasm/DESIGN.md`
+/// §23.25): a dynamic call lends the receiver, pushed by `recv` with
+/// layout `rvals`, and the arguments, in the slot's parameters from 1 on,
+/// laid out as `params`. `own` has, for each of the target's parameters,
+/// the receiver first, how many values it has and its walk when the target
+/// owns it; each of those takes a count of its own here.
+fn own_lent(
+    f: &mut Func,
+    rvals: &[Val],
+    recv: &dyn Fn(&mut Func),
+    params: &[Val],
+    own: &[(u32, Option<Walk>)],
+    m: &Module,
+) {
+    if m.runtime.is_none() {
+        return;
+    }
+    let Some(((_, r), rest)) = own.split_first() else {
+        return;
+    };
+    own_arg(f, rvals, r.as_ref(), recv);
+    let mut at = 1u32;
+    for (n, w) in rest {
+        let first = at;
+        let vals = &params[(first - 1) as usize..(first - 1 + n) as usize];
+        own_arg(f, vals, w.as_ref(), &|f| {
+            for k in first..first + n {
+                f.get(k);
+            }
+        });
+        at += n;
+    }
+}
+
+/// One more count on a value that a helper lends to a plain function that
+/// owns its parameter (`layout::Pass::Owned`, `crates/hd_wasm/DESIGN.md`
+/// §23.25): `get` pushes the value, of layout `vals`; `walk` is the
+/// parameter's when the callee owns it.
+pub(crate) fn own_arg(f: &mut Func, vals: &[Val], walk: Option<&Walk>, get: &dyn Fn(&mut Func)) {
+    if let Some(w) = walk {
+        get(f);
+        f.helper(Helper::Retain {
+            vals: vals.to_vec(),
+            walk: w.clone(),
+        });
+    }
 }
 
 /// What retains the address on the stack: std's `retain`, or nothing when

@@ -146,9 +146,12 @@ pub const RUNTIME_MODULE: &str = "std.rt.alloc";
 pub const RUNTIME_FNS: [&str; 4] = ["alloc", "free", "retain", "release"];
 
 /// The checked runtime (`crates/hd_wasm/DESIGN.md` §23.24): the same four
-/// functions over the allocator, then the two the exit audit calls.
+/// functions over the allocator, then the two the exit audit calls and the
+/// two count totals the entry exports.
 pub const CHECKED_MODULE: &str = "std.rt.checked";
-pub const CHECKED_FNS: [&str; 6] = ["allocate", "free", "retain", "release", "live", "audit"];
+pub const CHECKED_FNS: [&str; 8] = [
+    "allocate", "free", "retain", "release", "live", "audit", "retained", "released",
+];
 
 /// The runtime module a build links: the checked one in checked mode.
 #[must_use]
@@ -180,11 +183,15 @@ pub struct Runtime {
 
 /// The checked runtime's audit functions (`crates/hd_wasm/DESIGN.md`
 /// §23.24): `live()`, the blocks allocated and not yet freed, and
-/// `audit(expected)`, which panics unless that is `expected`.
+/// `audit(expected)`, which panics unless that is `expected`; `retained()`
+/// and `released()`, the counts added and taken so far, which the entry
+/// exports as `hd.retained` and `hd.released` for measuring elision.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Checked {
     pub live: Hash128,
     pub audit: Hash128,
+    pub retained: Hash128,
+    pub released: Hash128,
 }
 
 impl Runtime {
@@ -194,11 +201,22 @@ impl Runtime {
     pub fn from_keys(keys: &[Option<Hash128>]) -> Option<Runtime> {
         let (counts, checked) = match keys {
             [a, b, c, d] => ([*a, *b, *c, *d], None),
-            [a, b, c, d, Some(live), Some(audit)] => (
+            [
+                a,
+                b,
+                c,
+                d,
+                Some(live),
+                Some(audit),
+                Some(retained),
+                Some(released),
+            ] => (
                 [*a, *b, *c, *d],
                 Some(Checked {
                     live: *live,
                     audit: *audit,
+                    retained: *retained,
+                    released: *released,
                 }),
             ),
             _ => return None,
@@ -221,6 +239,9 @@ impl Runtime {
 pub fn build(input: &Input<'_>) -> StageResult<Vec<u8>> {
     let mut m = module::Module::default();
     m.runtime = input.runtime;
+    for id in input.order {
+        m.inst_of.insert(input.collected.table.key[id.idx()], *id);
+    }
     address_globals(input, &mut m)?;
     for (slot, id) in input.order.iter().enumerate() {
         let f = emit::instance(input, &mut m, slot, *id)?;

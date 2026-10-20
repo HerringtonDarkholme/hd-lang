@@ -68,7 +68,9 @@ impl Em<'_, '_, '_> {
                 Ok(match (key, self.key_params(hash, 0)?.as_slice()) {
                     ([Val::I32], [Val::I64]) if !string => KeyOps::I32(hash.key),
                     ([Val::I64], [Val::I64]) => KeyOps::I64(hash.key),
-                    ([Val::I32, Val::I32], [Val::I32, Val::I32]) if string => KeyOps::Str(hash.key),
+                    ([Val::I32, Val::I32], [Val::I32, Val::I32]) if string => {
+                        KeyOps::Str(hash.key, self.key_own(hash, 0)?)
+                    }
                     _ => return unsupported("an inline map key of another layout"),
                 })
             }
@@ -85,10 +87,29 @@ impl Em<'_, '_, '_> {
                 Ok(KeyOps::Call {
                     hash: hash.key,
                     eq: eq.key,
+                    own: [
+                        self.key_own(hash, 0)?,
+                        self.key_own(eq, 0)?,
+                        self.key_own(eq, 1)?,
+                    ],
                 })
             }
             _ => unsupported("a map key whose operations collection did not select"),
         }
+    }
+
+    /// The walk of parameter `k` of a key operation's instance when the
+    /// instance owns it (`layout::Pass`): the map glue that lends it the
+    /// key then counts a copy for it.
+    fn key_own(&self, t: &CallTarget, k: usize) -> StageResult<Option<crate::layout::Walk>> {
+        let ps = super::callee_params(self.input, self.m, t.key, t.item, t.args);
+        let Some(&p) = ps.get(k) else {
+            return unsupported("a map key operation without its parameter");
+        };
+        Ok(match self.pass(p) {
+            crate::layout::Pass::Owned(w) => Some(w),
+            _ => None,
+        })
     }
 
     /// The values parameter `k` of a key operation's instance takes.

@@ -33,6 +33,23 @@ fn length(node: List[Node]) -> i32:
         at = at[0].next
     count
 
+struct Pair:
+    left: string
+    right: string
+
+# An owned parameter, consumed by a construction (crates/hd_wasm/DESIGN.md
+# §23.25).
+fn wrap(s: string, t: string) -> Pair:
+    Pair { left: s, right: t }
+
+# A borrowed parameter: neither side counts it.
+fn left_of(p: &Pair) -> string:
+    p.left
+
+# An owned parameter returned: its count moves out.
+fn pass_on(s: string) -> string:
+    s
+
 fn pick(n: i32) -> Shape:
     if n % 3 == 0:
         return .Named(label(n), n)
@@ -69,3 +86,20 @@ tests:
             i = i + 1
         assert(named == 100000, "every third is named")
         assert(pages() <= 4, "the payloads' blocks are reused")
+
+    it("moved and borrowed arguments keep their values and run in bounded memory"):
+        let total: usize = 0
+        let i = +0
+        while i < 200000:
+            p := wrap(pass_on(label(i)), label(i))
+            total = total + left_of(&p).len() + p.right.len()
+            i = i + 1
+        assert(total == 2577780, "every pair holds both strings")
+        assert(pages() <= 4, "the strings' and pairs' blocks are reused")
+
+    it("an argument used again after the call is not moved"):
+        s := label(7)
+        t := pass_on(s)
+        p := wrap(s, t)
+        assert(s == "n7" && t == "n7", "both still hold the string")
+        assert(left_of(&p) == "n7" && p.right == s, "and so does the pair")

@@ -2774,3 +2774,87 @@ its own counting bugs. `--backend linear-checked` selects it
   reference cycles, which wait for the collector (job 21): rings of
   `&mut` nodes, and a recursive local function, whose environment holds
   the cell that holds the function.
+
+### 23.25 What Job 17 Adds
+
+Job 17 (issue #596) is the first round of count elision
+(docs/future-work/REFCOUNT_RUNTIME.md §4.3): a parameter is passed as its
+type says, and a count moves instead of being copied where a value is
+consumed at its only use. A program's behaviour does not change; only
+where its counts are taken does (`emit/count.rs`, `emit/live.rs`).
+
+- **Parameters by their type** (`layout::Pass`). A plain function, one
+  that does not suspend, takes a value parameter `T` as its own copy:
+  the argument arrives with a count of each counted reference in it, and
+  the callee releases it as it releases any place it owns. A `&T`
+  parameter is borrowed: the caller keeps the argument alive for the
+  call, and neither side counts it. The callee's prologue no longer
+  retains its parameters. A borrowed parameter that the body writes, or
+  that a cell holds, is retained on entry and owned from then on. Only
+  the parameter's type decides, so every caller and the callee agree
+  without reading each other's bodies (§4.3's header rule). A caller
+  reads the types from the callee instance's own parameter locals
+  (`emit::callee_params`), which the callee itself counts by. A
+  suspending function's cold constructor still counts each argument into
+  its frame, so its callers lend their arguments.
+- **Callers.** A direct call, a default argument's call and a call of a
+  function value give each owned argument its count: by a move when the
+  argument is the operand's only use, else by one retain. Arguments
+  spread from a tuple do not line up with the parameters one to one, so
+  each owned parameter's values take a count wherever they come from. A
+  function reference's adapter passes its arguments on unchanged. Code
+  the backend generates still lends what it passes: a vtable slot
+  (`Helper::DynSlot`, `DynRead`), the map glue's `key_bucket_hash` and
+  `eq` calls (`KeyOps`), and the boundary's JSON codecs and
+  `host_provider` count a copy of each argument the target owns
+  (`rt::own_arg`). So a dynamic call lends its arguments, as host stubs
+  expect.
+- **Moves at last use** (`live::Moves`). An instruction value whose only
+  use is a later statement of its own block moves its count into that
+  statement when the statement consumes it: an owned argument, a local's
+  or a global's or a cell's store, a field write, a write through a
+  reference, a list or map store, a return, a `break` value
+  (`Em::take`). A block's tail used only as the block's value moves into
+  it (`Em::take_tail`). A `LocalGet` that is its local's last access, the
+  read after which the local was to be released, takes the local's count
+  instead of one of its own (`Em::take_local`). A borrowed parameter has
+  no count to give, and a cell is shared, so neither moves.
+- **Construction consumes.** A struct, a tuple, a data object, a variant,
+  a newtype, a copy-update and a list literal count each part they take
+  (`Em::count_parts`) rather than the whole new value: a part at its only
+  use moves its count in, any other takes one.
+- **Why it is sound.** A moved place is zeroed once its consumer has read
+  it, so the function's one exit, which still releases every place,
+  releases it as nothing. The release planned after the consuming
+  statement is skipped there, and only there: a jump out of the block
+  before the move still releases the place (`Em::drop_exited`). A value
+  with one use in its own block runs that use at most once per value
+  computed, and nothing reads it afterwards. A value that only `with`
+  lends, or that two operands of one call read, has more than one use and
+  keeps its count. A borrowed argument is an instruction value that keeps
+  its own count until its statement has ended, so the referent outlives
+  the call. `HD_CONFORMANCE_BACKEND=linear-checked` passes every
+  `LINEAR_PASSES.tsv` case but the eight cycles that wait for the
+  collector (§23.24), with every count audited and no freed block
+  touched.
+- **Counts.** `std.rt.checked` now totals the counts it adds and takes,
+  and a checked entry exports them as `hd.retained` and `hd.released`.
+  Over the 21 single-file tour programs of `website/tour/`, the retains
+  executed went from 1,203 to 477 and the releases from 1,446 to 720.
+  Over hello, the four `examples/dogfood` programs, three bench and
+  example programs and ten conformance programs, retains went from 15,465
+  to 9,940 and releases from 16,890 to 11,365. `calc.hd`: 3,084 retains
+  to 2,072; `textstats.hd`: 6,803 to 4,623; hello: 5 to 2. Every program
+  printed the same output before and after.
+- **Size.** hello (`println(42)`, dev): 5,457 bytes on `linear` before,
+  5,418 after; 4,734 on `wasm-gc`, unchanged; 7,350 on `linear-checked`,
+  whose count totals cost 132 bytes. Programs shrink by about 1 to 10 per
+  cent, as most entry retains and many copies go.
+- **Not yet.** Reads of immutable fields, loop elements, and a local read
+  that is not its last still take a count and give it back (job 18).
+  A dynamic call lends its arguments, so its slot counts what the target
+  owns.
+- **Checked by** `crates/hd_driver/tests/std_rt/count_tests.hd`, whose
+  new cases pass strings through owned and borrowed parameters into a
+  struct in a loop, check that the heap does not grow, and check that an
+  argument used again after a call keeps its value.

@@ -389,6 +389,40 @@ pub fn walk(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Walk> {
     }
 }
 
+/// How a plain function's parameter takes its argument
+/// (`crates/hd_wasm/DESIGN.md` §23.25; `REFCOUNT_RUNTIME.md` §4.3), fixed
+/// by the parameter's type alone so that every caller and the callee
+/// agree without reading each other's bodies.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Pass {
+    /// Nothing in the value is counted.
+    Uncounted,
+    /// A value parameter `T`: the callee's own copy, which arrives with a
+    /// count of each counted reference the walk names and which the
+    /// callee releases. The caller moves its value in at its last use,
+    /// else counts a copy.
+    Owned(Walk),
+    /// A `&T` parameter: a borrowed read. The caller keeps the argument
+    /// alive for the call, and neither side counts it.
+    Borrowed,
+}
+
+/// How a plain function takes a parameter of type `t`; `counts` is whether
+/// the program counts at all.
+pub fn pass(pool: &InternPool, env: &dyn ProgramEnv, counts: bool, t: Ty) -> Pass {
+    if !counts {
+        return Pass::Uncounted;
+    }
+    let Some(w) = walk(pool, env, t) else {
+        return Pass::Uncounted;
+    };
+    if matches!(kind(pool, env, t), Kind::Ref { .. }) {
+        Pass::Borrowed
+    } else {
+        Pass::Owned(w)
+    }
+}
+
 /// The walk of fields laid out in order, as a struct, a tuple or a data
 /// payload lays them out.
 pub fn fields_walk(pool: &InternPool, env: &dyn ProgramEnv, fields: &[Ty]) -> Option<Walk> {

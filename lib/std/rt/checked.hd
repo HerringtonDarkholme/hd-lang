@@ -22,6 +22,11 @@ FRESH := 0xa5a5a5a5
 # How many blocks `allocate` has given and `free` has not taken back.
 let held: usize = 0
 
+# How many counts `retain` added and `release` took, over the program's
+# run: what the entry exports as `hd.counts` for measuring elision.
+let retains: u64 = 0
+let releases: u64 = 0
+
 ## Allocates a block of at least `size` bytes, as `std.rt.alloc.alloc` does, and fills it with FRESH bytes.
 pub fn allocate(size: usize) -> usize:
     # The cycle collector, once it lands (REFCOUNT_RUNTIME.md §10.2, job
@@ -46,6 +51,7 @@ pub fn retain(address: usize) -> void:
     if block != 0:
         count := counted(block, "retain")
         store_u32(block, u32(count + 1))
+        retains = retains + 1
 
 ## Takes one from the count of the block that holds `address`, as `std.rt.alloc.release` does, after checking the block holds a live count.
 pub fn release(address: usize) -> usize:
@@ -53,6 +59,7 @@ pub fn release(address: usize) -> usize:
     if block == 0:
         return 0
     count := counted(block, "release")
+    releases = releases + 1
     if count == 1:
         return block
     store_u32(block, u32(count - 1))
@@ -61,6 +68,14 @@ pub fn release(address: usize) -> usize:
 ## How many blocks are allocated and not yet freed.
 pub fn live() -> usize:
     held
+
+## How many counts `retain` has added since the program started.
+pub fn retained() -> u64:
+    retains
+
+## How many counts `release` has taken since the program started.
+pub fn released() -> u64:
+    releases
 
 ## Panics unless exactly `expected` blocks are allocated and not yet freed: the audit at a program's or a test case's end.
 pub fn audit(expected: usize) -> void:

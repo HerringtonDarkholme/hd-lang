@@ -152,10 +152,37 @@ impl Em<'_, '_, '_> {
         let methods = self.env().trait_methods(table.trait_);
         let mut slots = Vec::new();
         for ((m, t), recv) in methods.iter().zip(&table.slots).zip(&table.recv) {
-            let (pool, env) = (self.pool(), self.env());
+            let env = self.env();
             let mut params = Vec::new();
-            for p in env.params(t.item).unwrap_or_default().into_iter().skip(1) {
-                params.extend(self.vals(subst(pool, env, t.item, t.args, p))?);
+            // What the target owns of what the dynamic call lends it
+            // (`layout::Pass`); a suspending target's cold constructor
+            // counts its arguments itself.
+            let mut own = Vec::new();
+            let tys = super::callee_params(self.input, self.m, t.key, t.item, t.args);
+            for (k, mut pt) in tys.into_iter().enumerate() {
+                if k == 0 {
+                    // The receiver: a reference, or the value the slot
+                    // passes, the payload or what its reference reads.
+                    if matches!(self.kind(pt), crate::layout::Kind::Ref { .. }) {
+                        own.push((0, None));
+                        continue;
+                    }
+                    pt = match (recv, self.kind(from)) {
+                        (SlotRecv::ReadThrough, crate::layout::Kind::Ref { target, .. }) => target,
+                        _ => from,
+                    };
+                }
+                let w = match self.pass(pt) {
+                    crate::layout::Pass::Owned(w) if !env.suspends(t.item) => Some(w),
+                    _ => None,
+                };
+                if k == 0 {
+                    own.push((0, w));
+                    continue;
+                }
+                let vs = self.vals(pt)?;
+                own.push((u32::try_from(vs.len()).expect("values"), w));
+                params.extend(vs);
             }
             for _ in env.row_keys(t.item, t.args) {
                 params.extend([Val::I32, Val::I32]);
@@ -197,6 +224,7 @@ impl Em<'_, '_, '_> {
                     read: read.clone(),
                     params,
                     results,
+                    own,
                 }
             } else {
                 Helper::DynSlot {
@@ -204,6 +232,7 @@ impl Em<'_, '_, '_> {
                     leaves: leaves.map(<[Leaf]>::to_vec),
                     params,
                     results,
+                    own,
                 }
             }));
         }

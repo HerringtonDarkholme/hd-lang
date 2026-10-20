@@ -260,8 +260,10 @@ impl Em<'_, '_, '_> {
         self.comp(r, 0)?;
         self.f.set(at);
         let old: Vec<u32> = m.leaves.iter().map(|l| self.f.local(l.val)).collect();
-        if counted {
+        if counted && !self.take(v) {
             self.retain_ref(v)?;
+        }
+        if counted {
             for (l, o) in m.leaves.iter().zip(&old) {
                 self.f.get(at);
                 self.f.op(l.load(0));
@@ -330,8 +332,10 @@ impl Em<'_, '_, '_> {
         self.f.u32(at);
         self.f.set(a);
         let old: Vec<u32> = m.leaves.iter().map(|l| self.f.local(l.val)).collect();
-        if counted {
+        if counted && !self.take(v) {
             self.retain_ref(v)?;
+        }
+        if counted {
             for (l, o) in m.leaves.iter().zip(&old) {
                 self.f.get(a);
                 self.f.op(l.load(0));

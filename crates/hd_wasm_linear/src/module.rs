@@ -289,6 +289,9 @@ pub struct Module {
     exports: Vec<(String, Sym)>,
     /// The std runtime that helpers call, when the program links it.
     pub runtime: Option<crate::Runtime>,
+    /// Each instance by its key, for a caller to read how its callee takes
+    /// its parameters (`crates/hd_wasm/DESIGN.md` §23.25).
+    pub inst_of: hd_base::HashMap<Hash128, hd_base::InstId>,
     /// Each suspending instance's frame payload size.
     pub frames: BTreeMap<Hash128, u32>,
     /// The top-level bindings some reference refers to, by path hash:

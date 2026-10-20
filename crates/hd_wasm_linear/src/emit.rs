@@ -16,7 +16,7 @@ use hd_tir::ir::{Body, Callee, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, lo
 use hd_types::{InternPool, Ty, TyData, TyList};
 use wasm_encoder::{BlockType, Instruction, Instruction as I};
 
-use crate::layout::{num, vals};
+use crate::layout::{Pass, num, vals};
 use crate::module::{Func, Global, HEAP, Ins, Module, Sym, Val, mem};
 use crate::rt::Helper;
 use crate::{Input, unsupported};
@@ -77,6 +77,11 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
         scopes: HashMap::default(),
         defer_flags: HashMap::default(),
         drops: live::Drops::default(),
+        moves: live::Moves::default(),
+        skip: hd_base::HashSet::default(),
+        borrowed: hd_base::HashSet::default(),
+        emitting: Vec::new(),
+        moving: Vec::new(),
         blocks: Vec::new(),
         susp: None,
         shield: 0,
@@ -126,7 +131,11 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
     if let Some(ci) = closure {
         entry.extend(closure::captures(b, ci).into_iter().map(|(l, _)| l));
     }
-    em.drops = live::plan(b, u32::from(sub), &entry);
+    (em.drops, em.moves) = live::plan(b, u32::from(sub), &entry);
+    // A plain function takes its parameters by the conventions of
+    // `layout::Pass` (§23.25); a suspending one's cold constructor counts
+    // each argument into its frame, so the callee takes a count of each.
+    let by_type = !suspending && (sub != 0 || !input.env.suspends(item));
     for &l in &plocals {
         let vs = em.vals(em.sub(b.local_ty[l]))?;
         let at = u32::try_from(params.len()).expect("params");
@@ -206,7 +215,21 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
             // A parameter still holds its value until it moves into its
             // cell below.
             if plocals.contains(l) {
-                em.count_locals(ls, em.sub(b.local_ty[*l]), true)?;
+                let t = em.sub(b.local_ty[*l]);
+                if by_type {
+                    match em.pass(t) {
+                        // Its count arrives with it.
+                        Pass::Uncounted | Pass::Owned(_) => continue,
+                        // A borrowed read the body never writes and no
+                        // cell holds is never counted.
+                        Pass::Borrowed if !em.is_cell(*l) && !written(b, *l) => {
+                            em.borrowed.insert(*l);
+                            continue;
+                        }
+                        Pass::Borrowed => {}
+                    }
+                }
+                em.count_locals(ls, t, true)?;
             } else {
                 em.count_local(*l, ls, true)?;
             }
@@ -232,10 +255,16 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
         if tail == NONE || em.diverges(tail) {
             em.f.op(Instruction::Unreachable);
         } else if em.counting {
-            em.retain_ref(tail)?;
+            let moved = em.take_tail(tail);
+            if !moved {
+                em.retain_ref(tail)?;
+            }
             em.push(tail)?;
             for l in em.ret.clone().iter().rev() {
                 em.f.set(*l);
+            }
+            if moved {
+                em.settle_value(tail);
             }
         } else {
             em.push(tail)?;
@@ -341,6 +370,41 @@ fn adapter(input: &Input<'_>, id: InstId) -> StageResult<Func> {
     Ok(f)
 }
 
+/// The parameter types of instance `key` of `item` at `args`, as its own
+/// body's parameter locals have them ([`param_locals`]), substituted: what
+/// the callee itself counts by (`count.rs`). An instance without a body of
+/// its own has its item's declared parameters.
+pub(crate) fn callee_params(
+    input: &Input<'_>,
+    m: &Module,
+    key: hd_base::Hash128,
+    item: DefId,
+    args: TyList,
+) -> Vec<Ty> {
+    let (pool, env) = (input.pool, input.env);
+    let t = &input.collected.table;
+    if let Some(&id) = m.inst_of.get(&key)
+        && t.sub[id.idx()] == Sub::Body(0)
+        && let Some(b) = (input.body)(id)
+    {
+        let (it, ia) = (t.item[id.idx()], t.args[id.idx()]);
+        return param_locals(b)
+            .into_iter()
+            .map(|l| subst(pool, env, it, ia, b.local_ty[l]))
+            .collect();
+    }
+    env.params(item)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|p| subst(pool, env, item, args, p))
+        .collect()
+}
+
+/// Whether some `LocalSet` of body `b` writes local `l`.
+fn written(b: &Body, l: usize) -> bool {
+    (0..b.len()).any(|i| b.tags[i] == Tag::LocalSet && b.data[i][0] as usize == l)
+}
+
 /// The parameter locals of the body's own function, in order: those
 /// flagged as parameters that belong to no closure.
 fn param_locals(b: &Body) -> Vec<usize> {
@@ -406,6 +470,22 @@ struct Em<'i, 'a, 'm> {
     defer_flags: HashMap<u32, u32>,
     /// The values and locals to release after each statement (`live.rs`).
     drops: live::Drops,
+    /// Where counts may move instead of being copied (`live.rs`).
+    moves: live::Moves,
+    /// The releases planned after a statement that a move at that
+    /// statement made empty ([`Em::take`], [`Em::take_local`]); a jump
+    /// out of the block still releases the place, which may hold a value
+    /// when the move did not run.
+    skip: hd_base::HashSet<((u32, usize), live::Drop)>,
+    /// The parameters borrowed from the caller, which the body never
+    /// counts ([`crate::layout::Pass::Borrowed`]).
+    borrowed: hd_base::HashSet<usize>,
+    /// The instructions being emitted, innermost last.
+    emitting: Vec<u32>,
+    /// The operands whose counts moved into an instruction being emitted,
+    /// with that instruction: their locals are zeroed once it has read
+    /// them ([`Em::take`]).
+    moving: Vec<(u32, u32)>,
     /// The blocks being emitted, outermost first, each with the length of
     /// `ctl` when it was entered (`live.rs`, [`Em::drop_exited`]).
     blocks: Vec<(u32, usize)>,
@@ -683,11 +763,30 @@ impl Em<'_, '_, '_> {
             self.f.op(Instruction::Unreachable);
             return Ok(());
         }
+        // A break's value moves at its only use; a block's tail, used
+        // only as the block's value, moves into it.
+        let moved = self.take(r) || self.take_tail(r);
         self.push(r)?;
-        self.store(dest)
+        if moved {
+            self.store_owned(dest)?;
+            self.settle_value(r);
+            Ok(())
+        } else {
+            self.store(dest)
+        }
     }
 
+    /// Emits instruction `i`; the operands whose counts it took are zeroed
+    /// once it has read them ([`Em::take`]).
     fn inst(&mut self, i: u32) -> StageResult<()> {
+        self.emitting.push(i);
+        let r = self.inst_body(i);
+        self.emitting.pop();
+        self.settle(i);
+        r
+    }
+
+    fn inst_body(&mut self, i: u32) -> StageResult<()> {
         let [a, bw] = self.b.data[i as usize];
         match self.b.tags[i as usize] {
             Tag::LocalGet if self.is_cell(a as usize) => self.cell_get(i, a as usize)?,
@@ -699,10 +798,19 @@ impl Em<'_, '_, '_> {
                 self.cell_set(i, a as usize, bw)?;
             }
             Tag::LocalGet => {
-                for l in self.local(a)? {
-                    self.f.get(l);
+                let ls = self.local(a)?;
+                for l in &ls {
+                    self.f.get(*l);
                 }
-                self.store(i)?;
+                // At the local's last read its count moves to the value.
+                if self.take_local(i, a as usize) {
+                    self.store_owned(i)?;
+                    for l in ls {
+                        self.f.zero(l);
+                    }
+                } else {
+                    self.store(i)?;
+                }
             }
             Tag::LocalSet => {
                 let ls = self.local(a)?;
@@ -715,7 +823,9 @@ impl Em<'_, '_, '_> {
                     // the old one's.
                     let t = self.sub(self.b.local_ty[a as usize]);
                     if self.counted(t).is_some() {
-                        self.retain_ref(bw)?;
+                        if !self.take(bw) {
+                            self.retain_ref(bw)?;
+                        }
                         self.release_locals(&ls, t)?;
                     }
                     self.push(bw)?;
@@ -756,7 +866,9 @@ impl Em<'_, '_, '_> {
                 let t = self.ty_of(bw);
                 if self.counted(t).is_some() {
                     self.note_stored(h, t, None)?;
-                    self.retain_ref(bw)?;
+                    if !self.take(bw) {
+                        self.retain_ref(bw)?;
+                    }
                     let old: Vec<u32> = vs.iter().map(|v| self.f.local(*v)).collect();
                     for (k, (v, o)) in vs.iter().zip(&old).enumerate() {
                         self.f
@@ -886,6 +998,7 @@ impl Em<'_, '_, '_> {
                     if bw != NONE {
                         self.tail_into(bw, target)?;
                     }
+                    self.settle(i);
                     self.exit(scope::Exit::Brk(target))?;
                 } else {
                     self.exit(scope::Exit::Cont(target))?;
@@ -1042,12 +1155,14 @@ impl Em<'_, '_, '_> {
                 for (r, mt) in members.into_iter().zip(&tys) {
                     srcs.push(self.slot_src(r, *mt, false)?);
                 }
+                // Construction consumes its parts (§23.25).
+                self.count_parts(&srcs, &tys)?;
                 for (s, mt) in srcs.iter().zip(tys) {
                     for k in 0..self.vals(mt)?.len() {
                         self.src(s, k)?;
                     }
                 }
-                self.store(i)?;
+                self.store_owned(i)?;
             }
             Tag::TupleGet => self.tuple_get(i, a, bw)?,
             Tag::Is => self.is(i, a, bw)?,
@@ -1164,6 +1279,82 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
+    /// The parameter types of plain callee `item` at `args`, instance
+    /// `key`, by which it takes its arguments (`layout::Pass`); `None` for
+    /// a suspending callee, whose cold constructor takes a count of each
+    /// argument itself, so they are all lent to it.
+    pub(super) fn param_tys(
+        &self,
+        key: hd_base::Hash128,
+        item: DefId,
+        args: TyList,
+    ) -> Option<Vec<Ty>> {
+        if self.env().suspends(item) {
+            return None;
+        }
+        Some(callee_params(self.input, self.m, key, item, args))
+    }
+
+    /// How a plain function takes a parameter of type `t`.
+    pub(super) fn pass(&self, t: Ty) -> Pass {
+        crate::layout::pass(self.pool(), self.env(), self.input.runtime.is_some(), t)
+    }
+
+    /// Pushes a call's arguments `args` for a callee with parameters of
+    /// types `params` (`None`: all lent). Each argument the callee owns
+    /// moves in at its only use ([`Em::take`]) or takes a count of its own;
+    /// a borrowed one is lent. Arguments spread from a tuple do not line up
+    /// with the parameters one to one: each owned parameter's values then
+    /// take a count, wherever they come from.
+    pub(super) fn push_args(&mut self, args: &[u32], params: Option<&[Ty]>) -> StageResult<()> {
+        let Some(params) = params else {
+            for r in args {
+                self.push(*r)?;
+            }
+            return Ok(());
+        };
+        if params.len() == args.len() {
+            for (r, t) in args.iter().zip(params) {
+                if matches!(self.pass(*t), Pass::Owned(_)) && !self.take(*r) {
+                    self.retain_ref(*r)?;
+                }
+                self.push(*r)?;
+            }
+            return Ok(());
+        }
+        // Each value of the arguments, as its argument and index.
+        let mut flat = Vec::new();
+        for r in args {
+            for k in 0..self.vals(self.ty_of(*r))?.len() {
+                flat.push((*r, k));
+            }
+        }
+        let mut at = 0;
+        for t in params {
+            let vs = self.vals(*t)?;
+            let Some(part) = flat.get(at..at + vs.len()) else {
+                return unsupported("a call whose arguments do not fill its parameters");
+            };
+            if let Pass::Owned(walk) = self.pass(*t) {
+                for &(r, k) in part {
+                    self.comp(r, k)?;
+                }
+                self.f.helper(Helper::Retain {
+                    vals: vs.clone(),
+                    walk,
+                });
+            }
+            at += vs.len();
+        }
+        if at != flat.len() {
+            return unsupported("a call whose arguments do not fill its parameters");
+        }
+        for r in args {
+            self.push(*r)?;
+        }
+        Ok(())
+    }
+
     /// Stores a call's results as `i`'s, or ends the path when its result
     /// is `never`.
     fn call_results(&mut self, i: u32, ret: Ty) -> StageResult<()> {
@@ -1184,9 +1375,8 @@ impl Em<'_, '_, '_> {
         match self.calls.get(&i).cloned() {
             Some(Target::Call(ct)) => match &ct.kind {
                 TargetKind::Instance => {
-                    for r in &args {
-                        self.push(*r)?;
-                    }
+                    let params = self.param_tys(ct.key, ct.item, ct.args);
+                    self.push_args(&args, params.as_deref())?;
                     self.push_providers(ct.item, ct.args)?;
                     self.f.call(Sym::Inst(ct.key));
                     // A suspending callee called cold returns its frame.
@@ -1320,9 +1510,9 @@ impl Em<'_, '_, '_> {
                 self.store(i)
             }
             Some(Target::Default { call, bracket }) => {
-                for r in self.rec(bw) {
-                    self.push(r)?;
-                }
+                let args = self.rec(bw);
+                let params = self.param_tys(call.key, call.item, call.args);
+                self.push_args(&args, params.as_deref())?;
                 self.push_providers(call.item, call.args)?;
                 if bracket {
                     self.forbid_by(1);

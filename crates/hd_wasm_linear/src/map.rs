@@ -10,7 +10,7 @@ use wasm_encoder::{BlockType, Instruction as I};
 
 use crate::layout::{Leaf, Walk};
 use crate::module::{Func, HEADER, HEAP, Ins, Module, Sym, Val, mem};
-use crate::rt::{Helper, OptVal, retain_call, walk_code};
+use crate::rt::{Helper, OptVal, own_arg, retain_call, walk_code};
 
 /// A table's payload: the live entry count, the written entry count
 /// (removed ones included), how many times growth rebuilt the entries,
@@ -33,10 +33,17 @@ pub enum KeyOps {
     I32(Hash128),
     /// A 64-bit integer; equal by `i64.eq`.
     I64(Hash128),
-    /// A string, hashed over its bytes; equal by its bytes.
-    Str(Hash128),
-    /// The key type's `key_bucket_hash` and `Eq.eq`.
-    Call { hash: Hash128, eq: Hash128 },
+    /// A string, hashed over its bytes; equal by its bytes. With the walk
+    /// of the hash's parameter when the hash owns it (`layout::Pass`).
+    Str(Hash128, Option<Walk>),
+    /// The key type's `key_bucket_hash` and `Eq.eq`. With the walk of
+    /// each of their parameters that the callee owns: the hash's key, then
+    /// `eq`'s two.
+    Call {
+        hash: Hash128,
+        eq: Hash128,
+        own: [Option<Walk>; 3],
+    },
 }
 
 /// A map's entry as the glue sees it: a `(K, V)` record of `size` bytes
@@ -279,7 +286,18 @@ pub fn hash(key: &[Val], ops: &KeyOps) -> Func {
             f.get(0);
             f.call(Sym::Inst(*h));
         }
-        KeyOps::Str(h) | KeyOps::Call { hash: h, .. } => {
+        KeyOps::Str(h, own)
+        | KeyOps::Call {
+            hash: h,
+            own: [own, ..],
+            ..
+        } => {
+            // The map lends the key; a hash that owns it takes a count.
+            own_arg(&mut f, key, own.as_ref(), &|f| {
+                for k in 0..key.len() {
+                    f.get(n32(k));
+                }
+            });
             for k in 0..key.len() {
                 f.get(n32(k));
             }
@@ -356,14 +374,30 @@ pub fn find(entry: &Entry, ops: &KeyOps) -> Func {
             f.get(2);
             f.op(I::I64Eq);
         }
-        KeyOps::Str(_) => {
+        KeyOps::Str(..) => {
             f.get(stored[0]);
             f.get(stored[1]);
             f.get(2);
             f.get(3);
             f.helper(Helper::StrEq);
         }
-        KeyOps::Call { eq, .. } => {
+        KeyOps::Call {
+            eq,
+            own: [_, own_self, own_other],
+            ..
+        } => {
+            // Both keys are lent; an `eq` that owns them takes counts.
+            let kv: Vec<Val> = entry.leaves[..entry.keys].iter().map(|l| l.val).collect();
+            own_arg(&mut f, &kv, own_self.as_ref(), &|f| {
+                for s in &stored[..entry.keys] {
+                    f.get(*s);
+                }
+            });
+            own_arg(&mut f, &kv, own_other.as_ref(), &|f| {
+                for k in 0..entry.keys {
+                    f.get(2 + n32(k));
+                }
+            });
             for s in &stored[..entry.keys] {
                 f.get(*s);
             }

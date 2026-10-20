@@ -125,9 +125,12 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// One more count on each counted reference of `s`, a value of type `t`.
+    /// One more count on each counted reference of `s`, a value of type
+    /// `t`, for the place that consumes it; an operand at its only use
+    /// moves its count there instead ([`Em::take`]).
     pub(super) fn retain_src(&mut self, s: &Src, t: Ty) -> StageResult<()> {
         match s {
+            Src::Ref(r) if self.take(*r) => Ok(()),
             Src::Ref(r) => self.retain_ref(*r),
             Src::Locals(ls) => self.retain_locals(ls, t),
         }
