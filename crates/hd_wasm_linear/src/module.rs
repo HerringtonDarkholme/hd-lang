@@ -24,6 +24,14 @@ pub const BUF: u32 = 0;
 /// The heap memory (`crates/hd_wasm_linear/DESIGN.md` §23.2).
 pub const HEAP: u32 = 1;
 
+/// The shadow stack's memory (`crates/hd_wasm_linear/DESIGN.md` §23.29),
+/// declared only when a signature passes through it.
+pub const STACK: u32 = 2;
+
+/// The shadow stack's pages: it grows down from their end, and a frame
+/// below 0 wraps to an address past it, which traps.
+pub const STACK_PAGES: u32 = 16;
+
 /// The first address of static data: addresses below it are never used,
 /// so 0 stays null.
 pub const STATIC_BASE: u32 = 16;
@@ -142,6 +150,9 @@ pub enum Global {
     ReleaseHead,
     /// One outer release drains `ReleaseHead`; nested releases only enqueue.
     Releasing,
+    /// The shadow stack pointer: the lowest address of the newest frame
+    /// (§23.29).
+    Stack,
     /// One value of a top-level binding: its item's path hash and the
     /// value's index in its layout.
     Storage(Hash128, u32, Val),
@@ -161,7 +172,8 @@ impl Global {
             | Global::WakeTab
             | Global::WakeCap
             | Global::ReleaseHead
-            | Global::Releasing => Val::I32,
+            | Global::Releasing
+            | Global::Stack => Val::I32,
             Global::HashSeed => Val::I64,
             Global::Storage(_, _, v) => *v,
         }
@@ -461,6 +473,7 @@ impl Module {
         for f in self.funcs.values_mut() {
             crate::opt::locals(f, &arity);
         }
+        let stack = crate::wide::lower(&mut self.funcs, &self.exports)?;
         // Every import and global a body names; imports come first.
         let mut imports: BTreeSet<Import> = BTreeSet::new();
         let mut globals: BTreeSet<Global> = BTreeSet::new();
@@ -685,12 +698,23 @@ impl Module {
             shared: false,
             page_size_log2: None,
         });
+        // Memory 2: the shadow stack, when a wide signature uses it.
+        if stack {
+            memories.memory(MemoryType {
+                minimum: u64::from(STACK_PAGES),
+                maximum: Some(u64::from(STACK_PAGES)),
+                memory64: false,
+                shared: false,
+                page_size_log2: None,
+            });
+        }
         let mut global_sec = GlobalSection::new();
         for g in &globals {
             let v = g.val();
             let init = match (g, v) {
                 (Global::HeapTop, _) => ConstExpr::i32_const(heap_base.cast_signed()),
                 (Global::HeapEnd, _) => ConstExpr::i32_const((heap_pages << 16).cast_signed()),
+                (Global::Stack, _) => ConstExpr::i32_const((STACK_PAGES << 16).cast_signed()),
                 (_, Val::I32) => ConstExpr::i32_const(0),
                 (_, Val::I64) => ConstExpr::i64_const(0),
                 (_, Val::F32) => ConstExpr::f32_const(wasm_encoder::Ieee32::from(0.0)),

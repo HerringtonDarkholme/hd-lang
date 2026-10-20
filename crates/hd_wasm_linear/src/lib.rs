@@ -20,6 +20,7 @@ mod pow;
 mod rem;
 mod rt;
 mod task;
+mod wide;
 
 use hd_base::{DefId, Hash128, InstId, NotImplemented, Stage, StageResult};
 use hd_mono::{Collected, ProgramEnv};

@@ -1,0 +1,78 @@
+# test: a struct of 1100 `i32` fields, more Wasm values than an engine takes as a function's parameters or results, passes and returns by value through direct, recursive and suspending calls
+# Spec 08 Struct Declarations: data.struct.value.
+# expect-stdout: 604450
+# expect-stdout: 604451
+# expect-stdout: 1100
+# expect-stdout: 1104
+# expect-stdout: 1101
+# expect-stdout: 1101
+# expect-stdout: 1100
+struct A:
+    a0: i32
+    a1: i32
+    a2: i32
+    a3: i32
+    a4: i32
+    a5: i32
+    a6: i32
+    a7: i32
+    a8: i32
+    a9: i32
+
+struct B:
+    x0: A
+    x1: A
+    x2: A
+    x3: A
+    x4: A
+    x5: A
+    x6: A
+    x7: A
+    x8: A
+    x9: A
+
+struct C:
+    y0: B
+    y1: B
+    y2: B
+    y3: B
+    y4: B
+    y5: B
+    y6: B
+    y7: B
+    y8: B
+    y9: B
+    y10: B
+
+fn a(base: i32) -> A: A { a0: base + 0, a1: base + 1, a2: base + 2, a3: base + 3, a4: base + 4, a5: base + 5, a6: base + 6, a7: base + 7, a8: base + 8, a9: base + 9 }
+fn b(base: i32) -> B: B { x0: a(base + 0), x1: a(base + 10), x2: a(base + 20), x3: a(base + 30), x4: a(base + 40), x5: a(base + 50), x6: a(base + 60), x7: a(base + 70), x8: a(base + 80), x9: a(base + 90) }
+fn c(base: i32) -> C: C { y0: b(base + 0), y1: b(base + 100), y2: b(base + 200), y3: b(base + 300), y4: b(base + 400), y5: b(base + 500), y6: b(base + 600), y7: b(base + 700), y8: b(base + 800), y9: b(base + 900), y10: b(base + 1000) }
+fn sa(v: A) -> i32: v.a0 + v.a1 + v.a2 + v.a3 + v.a4 + v.a5 + v.a6 + v.a7 + v.a8 + v.a9
+fn sb(v: B) -> i32: sa(v.x0) + sa(v.x1) + sa(v.x2) + sa(v.x3) + sa(v.x4) + sa(v.x5) + sa(v.x6) + sa(v.x7) + sa(v.x8) + sa(v.x9)
+fn sc(v: C) -> i32: sb(v.y0) + sb(v.y1) + sb(v.y2) + sb(v.y3) + sb(v.y4) + sb(v.y5) + sb(v.y6) + sb(v.y7) + sb(v.y8) + sb(v.y9) + sb(v.y10)
+
+fn bump(v: C) -> C:
+    let mut w = v
+    w.y10.x9.a9 = w.y10.x9.a9 + 1
+    w
+
+fn bump_times(v: C, n: i32) -> C:
+    if n <= 0:
+        return v
+    bump_times(bump(v), n - 1)
+
+fn later!(v: C) -> C:
+    bump(v)
+
+pub fn main!() -> void $ Console:
+    v := c(+0)
+    w := bump(v)
+    println(sc(v))
+    println(sc(w))
+    println(w.y10.x9.a9)
+    println(bump_times(v, +5).y10.x9.a9)
+    println(later!(w).y10.x9.a9)
+    let mut first = later(v)
+    let mut second = later(w)
+    println(second!().y10.x9.a9)
+    println(first!().y10.x9.a9)

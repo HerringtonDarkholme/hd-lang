@@ -50,6 +50,68 @@ fn an_empty_entry_links_two_memories_and_the_entry_exports() {
     assert_eq!(exports, ["hd.init", "hd.poll", "hd.x"]);
 }
 
+/// A function of more parameters and results than `wide::WIDTH`, called
+/// directly and through the table, early return included, lowers to frames
+/// on the shadow stack: the module validates, no function type is wider
+/// than the bound, and the stack is a third memory.
+#[test]
+fn wide_signatures_pass_through_the_shadow_stack() {
+    use wasm_encoder::Instruction as I;
+    let n = u32::try_from(crate::wide::WIDTH).expect("width") + 36;
+    let vals = vec![Val::I32; n as usize];
+    let wide = Sym::Inst(Hash128(9));
+    // Returns its arguments reversed, early when the first is zero.
+    let mut w = Func::new("wide", vals.clone(), vals.clone());
+    w.get(0);
+    w.op(I::I32Eqz);
+    w.op(I::If(wasm_encoder::BlockType::Empty));
+    for k in (0..n).rev() {
+        w.get(k);
+    }
+    w.op(I::Return);
+    w.op(I::End);
+    for k in (0..n).rev() {
+        w.get(k);
+    }
+    let mut m = Module::default();
+    m.define(wide.clone(), w);
+    let main = Hash128(7);
+    let mut f = Func::new("main", vec![], vec![]);
+    for indirect in [false, true] {
+        for k in 0..n {
+            f.i32(i32::try_from(k).expect("k"));
+        }
+        if indirect {
+            f.body.push(crate::module::Ins::TableSlot(wide.clone()));
+            f.call_indirect(vals.clone(), vals.clone());
+        } else {
+            f.call(wide.clone());
+        }
+        for _ in 0..n {
+            f.op(I::Drop);
+        }
+    }
+    m.define(Sym::Inst(main), f);
+    m.export("hd.init", Sym::Inst(main));
+    let wasm = m.finish().expect("link");
+    validate(&wasm);
+    let mut memories = 0;
+    for payload in wasmparser::Parser::new(0).parse_all(&wasm) {
+        match payload.expect("payload") {
+            wasmparser::Payload::MemorySection(r) => memories += r.count(),
+            wasmparser::Payload::TypeSection(r) => {
+                for t in r.into_iter_err_on_gc_types() {
+                    let t = t.expect("type");
+                    assert!(t.params().len() <= crate::wide::WIDTH);
+                    assert!(t.results().len() <= crate::wide::WIDTH);
+                }
+            }
+            _ => {}
+        }
+    }
+    assert_eq!(memories, 3);
+}
+
 /// Static data is placed once per content, aligned, from `STATIC_BASE`,
 /// and the same slots make one vtable.
 #[test]

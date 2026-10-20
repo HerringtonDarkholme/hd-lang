@@ -1,0 +1,151 @@
+# test: a struct of 550 strings and 550 `i32`s, more Wasm values than an engine takes as a function's parameters or results, copies through `&mut`, a closure's parameter and capture, and a trait method called statically and through a trait value, keeping every string's count
+# Spec 13 Writing Through A Reference: ref.deref.write. Spec 08 Struct Declarations: data.struct.value. Spec 09 Trait Value References: trait.dyn.ref.member.
+# expect-stdout: b1000 1275 b1549 1549
+# expect-stdout: b1000 1275 closure 1549
+# expect-stdout: b1000 1275 b1549 1549
+# expect-stdout: b1000 1275 b1549 1549
+# expect-stdout: s2000 2275 s2549 2549
+# expect-stdout: c3000 3275 c3549 3549
+# expect-stdout: s2000 2275 s2549 2549
+# expect-stdout: d4000 4275 d4549 4549
+struct T:
+    s0: string
+    s1: string
+    s2: string
+    s3: string
+    s4: string
+    s5: string
+    s6: string
+    s7: string
+    s8: string
+    s9: string
+    n0: i32
+    n1: i32
+    n2: i32
+    n3: i32
+    n4: i32
+    n5: i32
+    n6: i32
+    n7: i32
+    n8: i32
+    n9: i32
+
+struct W:
+    t0: T
+    t1: T
+    t2: T
+    t3: T
+    t4: T
+    t5: T
+    t6: T
+    t7: T
+    t8: T
+    t9: T
+    t10: T
+    t11: T
+    t12: T
+    t13: T
+    t14: T
+    t15: T
+    t16: T
+    t17: T
+    t18: T
+    t19: T
+    t20: T
+    t21: T
+    t22: T
+    t23: T
+    t24: T
+    t25: T
+    t26: T
+    t27: T
+    t28: T
+    t29: T
+    t30: T
+    t31: T
+    t32: T
+    t33: T
+    t34: T
+    t35: T
+    t36: T
+    t37: T
+    t38: T
+    t39: T
+    t40: T
+    t41: T
+    t42: T
+    t43: T
+    t44: T
+    t45: T
+    t46: T
+    t47: T
+    t48: T
+    t49: T
+    t50: T
+    t51: T
+    t52: T
+    t53: T
+    t54: T
+
+fn t(tag: string, base: i32) -> T: T { s0: "${tag}${base + 0}", s1: "${tag}${base + 1}", s2: "${tag}${base + 2}", s3: "${tag}${base + 3}", s4: "${tag}${base + 4}", s5: "${tag}${base + 5}", s6: "${tag}${base + 6}", s7: "${tag}${base + 7}", s8: "${tag}${base + 8}", s9: "${tag}${base + 9}", n0: base + 0, n1: base + 1, n2: base + 2, n3: base + 3, n4: base + 4, n5: base + 5, n6: base + 6, n7: base + 7, n8: base + 8, n9: base + 9 }
+
+fn w(tag: string, base: i32) -> W: W { t0: t(tag, base + 0), t1: t(tag, base + 10), t2: t(tag, base + 20), t3: t(tag, base + 30), t4: t(tag, base + 40), t5: t(tag, base + 50), t6: t(tag, base + 60), t7: t(tag, base + 70), t8: t(tag, base + 80), t9: t(tag, base + 90), t10: t(tag, base + 100), t11: t(tag, base + 110), t12: t(tag, base + 120), t13: t(tag, base + 130), t14: t(tag, base + 140), t15: t(tag, base + 150), t16: t(tag, base + 160), t17: t(tag, base + 170), t18: t(tag, base + 180), t19: t(tag, base + 190), t20: t(tag, base + 200), t21: t(tag, base + 210), t22: t(tag, base + 220), t23: t(tag, base + 230), t24: t(tag, base + 240), t25: t(tag, base + 250), t26: t(tag, base + 260), t27: t(tag, base + 270), t28: t(tag, base + 280), t29: t(tag, base + 290), t30: t(tag, base + 300), t31: t(tag, base + 310), t32: t(tag, base + 320), t33: t(tag, base + 330), t34: t(tag, base + 340), t35: t(tag, base + 350), t36: t(tag, base + 360), t37: t(tag, base + 370), t38: t(tag, base + 380), t39: t(tag, base + 390), t40: t(tag, base + 400), t41: t(tag, base + 410), t42: t(tag, base + 420), t43: t(tag, base + 430), t44: t(tag, base + 440), t45: t(tag, base + 450), t46: t(tag, base + 460), t47: t(tag, base + 470), t48: t(tag, base + 480), t49: t(tag, base + 490), t50: t(tag, base + 500), t51: t(tag, base + 510), t52: t(tag, base + 520), t53: t(tag, base + 530), t54: t(tag, base + 540) }
+
+fn show(v: &W) -> string: "${v.t0.s0} ${v.t27.n5} ${v.t54.s9} ${v.t54.n9}"
+
+fn copy_into(dst: &mut W, src: &W) -> void:
+    *dst = *src
+
+trait Keep:
+    fn swap(&mut self, next: W) -> W
+
+struct Slot:
+    held: W
+
+impl Keep for Slot:
+    fn swap(&mut self, next: W) -> W:
+        old := self.held
+        self.held = next
+        old
+
+fn swap_through(k: &mut dyn Keep, next: W) -> W: k.swap(next)
+
+fn through_mut() -> void $ Console:
+    let mut a = w("a", +0)
+    b := w("b", +1000)
+    copy_into(&mut a, &b)
+    println(show(&a))
+
+fn through_closure() -> void $ Console:
+    b := w("b", +1000)
+    relabel := fn(v: W) -> W:
+        let mut out = v
+        out.t54.s9 = "closure"
+        out
+    c := relabel(b)
+    println(show(&c))
+    println(show(&b))
+
+fn through_capture() -> void $ Console:
+    b := w("b", +1000)
+    pick := fn() -> W: b
+    println(show(&pick()))
+
+fn through_method() -> void $ Console:
+    let mut slot = Slot { held: w("s", +2000) }
+    old := slot.swap(w("c", +3000))
+    println(show(&old))
+    println(show(&slot.held))
+
+fn through_trait_value() -> void $ Console:
+    let mut slot = Slot { held: w("s", +2000) }
+    old := swap_through(&mut slot, w("d", +4000))
+    println(show(&old))
+    println(show(&slot.held))
+
+pub fn main() -> void $ Console:
+    through_mut()
+    through_closure()
+    through_capture()
+    through_method()
+    through_trait_value()

@@ -26,7 +26,8 @@ value edges contribute inline scalar leaves.
 
 `hd.init` runs initializers in dependency order; `hd.poll` drives the root.
 Tests export numbered entry points. REPL histories export `hd.init.N` and
-`hd.poll.N` for each input. Each module owns its two memories and globals.
+`hd.poll.N` for each input. Each module owns its two memories, a third for the shadow stack when
+a signature is wide (§23.29), and its globals.
 
 ### 15.5 Panic Sites And Backtraces
 
@@ -132,6 +133,7 @@ runtime can change its representation without breaking a program.
 | --- | --- | --- |
 | 0 | the exchange buffer (crates/hd_run_wasmtime/DESIGN.md §17.3) | `hd.x` |
 | 1 | the heap: static data, the page table, every counted object | not exported: the host reads and writes only memory 0 (§23.23) |
+| 2 | the shadow stack: the frames of wide calls, declared only when a signature is wide (§23.29) | not exported |
 
 - **Why two memories.** The exchange buffer grows from address 0 as the
   host's results need, so it cannot share a memory with a heap that must
@@ -180,7 +182,8 @@ type in every position; aggregate values are inline in memory.
 - **No bound.** In
   linear memory a wide value costs only its moves, as in Go and C#. A
   large struct passed by value is the price OBJECT_MODEL_TIER1.md §3
-  accepts.
+  accepts. A signature too wide for Wasm values passes through the
+  shadow stack (§23.29).
 - **Type-only.** Every rule reads the type's definition and the
   definitions its fields name, never a use, so a laid-out instance is
   valid in every program that reaches it.
@@ -1524,3 +1527,49 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
 - **Not yet.** Per-type cycle analysis (job 20), so that an acyclic type
   records no candidate and carries no collector word; a cycle through a
   frame is never collected while frames are opaque.
+
+### 23.29 Wide Signatures And The Shadow Stack
+
+Issue #629. A value's Wasm values are its flattened fields (§23.3), so a
+function that takes or returns a struct of a thousand fields would have a
+thousand parameters or results. V8 refuses a function type of more than
+1000 parameters or 1000 results at instantiation, and wasmparser, which
+wasmtime validates with, has the same limits. `wide.rs` lowers such
+signatures before encoding, as clang's and Rust's wasm32 `byval` and
+`sret` do:
+
+- **The bound** is 64 Wasm values (`wide::WIDTH`). Any bound under 1000
+  is correct; 64 keeps every ordinary signature, a struct of some thirty
+  strings included, as Wasm values, and moves only rare wide ones. The
+  parameters and the results are bounded apart.
+- **Wide parameters** become one `i32`: the address of a frame that holds
+  each argument in an 8-byte slot, in order. The callee loads every slot
+  into a local before anything else runs, so a suspending callee keeps
+  its arguments in its own frame (§23.21) from then on.
+- **Wide results** become none, and the function takes the frame's
+  address as its last parameter. It stores each result in the frame's
+  slots just before each `return` and at its end. Arguments and results
+  share the slots, since the callee reads every argument before it
+  writes a result.
+- **The caller** reserves the frame below the stack pointer
+  (`Global::Stack`), stores the arguments, calls, loads the results and
+  moves the pointer back. A function under the bound never touches the
+  stack pointer.
+- **Uniform.** The pass rewrites every function, `call` and
+  `call_indirect` of a wide signature by the signature alone, so
+  instances, closures, adapters, vtable slots, erased thunks, suspension
+  parts and runtime helpers that take a whole value (retain and release
+  glue, codecs, copies) agree without knowing of it. A wide import or
+  export is a compiler bug: the host calls those by their Wasm signature.
+- **Counts.** The moves copy bits: a value's counts move through the
+  frame as through Wasm values, and the frame is never allocated or
+  counted, so `linear-checked` audits the same counts.
+- **The stack** is memory 2, 16 pages that the module declares only when
+  some signature is wide. It grows down from its end; a frame below
+  address 0 wraps to an address past the end, so a too-deep chain of wide
+  calls traps on its first store. A trap skips its frames' release,
+  which only shrinks the room a later entry in the same instance has.
+- **Not yet.** A function that handles a wide value keeps it in locals:
+  each copy of a 1650-value struct is 1650 more locals, and V8 refuses a
+  function of more than 50,000 locals. A body that reads many fields of
+  such a value by value can reach that limit.
