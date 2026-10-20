@@ -234,8 +234,9 @@ the page table:
    reference never points into a free page.
 
 The page table is one 4-byte entry per heap page, an array in memory 1
-whose base and length are allocator globals, after 128 bytes that hold
-each class's list of pages with room. It starts at one page (16,352
+whose base and length are allocator globals, after 256 bytes that hold
+each class's list of pages with room and the size/reciprocal tables.
+It starts at one page (16,320
 entries, almost 1 GiB of heap) and moves to a larger run when the heap
 outgrows it, so its cost follows the heap: 256 KiB for a full 4 GiB
 memory.
@@ -456,8 +457,8 @@ that run their hd tests.
   become free, so neighbors coalesce with no merge step. The scan costs
   time proportional to the pages before the first fit; a free-run index is
   a later speed-up.
-- **Division.** `block_of` divides by the class size; the reciprocal
-  table of §23.5 is a later speed-up.
+- **Division.** Issue #643 replaces the class-size division with the
+  reciprocal table of §23.5; see §23.30.
 - **Not wired in yet.** Emitted code still allocates through `rt:alloc`,
   which never frees, until blocks are counted (jobs 7 and 8). So no
   program links `std.rt.alloc` today, and hello is unchanged.
@@ -471,7 +472,7 @@ that run their hd tests.
   build. The study's Rust `sc` spends about 7 ns per binary-trees node,
   allocation, initialization, traversal and free together
   (REFCOUNT_RUNTIME.md §3.2), so hd's allocator is about 4 times slower
-  for now. The table move past 16,352 pages, almost 1 GiB of heap, has no
+  for now. The table move past 16,320 pages, almost 1 GiB of heap, has no
   test: it needs a heap that large.
 
 ### 23.14 What Job 6 Adds
@@ -1664,3 +1665,40 @@ signatures before encoding, as clang's and Rust's wasm32 `byval` and
   each copy of a 1650-value struct is 1650 more locals, and V8 refuses a
   function of more than 50,000 locals. A body that reads many fields of
   such a value by value can reach that limit.
+
+
+### 23.30 Known Block Starts
+
+Issue #643 avoids finding an object's block when its representation
+already supplies the payload start, eight bytes after its header.
+Interior pointers keep the page-table path, including string slices and
+physical or erased references without a block-start proof.
+
+- **Known counts.** The runtime's `retain_known` and `release_known`
+  entries use `address - 8`. Null and static zero-count objects stay
+  uncounted. Final releases use the existing allocation-free release
+  worklist. Both release paths visit only while `Tracing` is set, buffer
+  only `CYCLIC` objects and forget only `BUFFERED` candidates. Collection
+  header copies inherit their original cycle eligibility. The emitter uses
+  this path for cells, nominal heap objects, closure environments,
+  suspension and collection headers, and collection buffers. Untyped
+  aggregate walks conservatively keep general counts.
+- **Checked proofs.** Checked mode verifies that every claimed payload
+  start agrees with `block_of`, then performs the existing audited count
+  update. An incorrect proof fails even when the ordinary count would
+  have found the enclosing block. `RefLayout` carries the same proof into
+  generated reads and writes through references.
+- **Class tables.** Two 20-entry memory tables give each class's size
+  and `ceil(2^32 / size)`. The allocator initializes them in its own
+  metadata prefix, beside the class heads. Growing the page table copies
+  that prefix, and neither table needs a counted allocation. A small-page
+  offset is below `2^16`; multiplying it by the reciprocal and shifting
+  right 32 gives the exact quotient for every class. No variable division
+  remains in that lookup. The allocator fixture checks every offset in
+  all 20 classes against integer division.
+- **Physical references.** After reachability, a module with no
+  `RefView` constructor cannot contain a representation view. Its
+  `ref_is_view` calls become false, removing their page-table queries.
+  Field projection cannot originate a view without a parent view. A
+  module that can construct erased representation views keeps the full
+  discriminator; the #619 erased-reference fixtures audit that path.

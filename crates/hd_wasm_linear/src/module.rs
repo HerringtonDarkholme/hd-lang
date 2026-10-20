@@ -486,6 +486,24 @@ impl Module {
     /// the module.
     pub fn finish(mut self) -> StageResult<Vec<u8>> {
         self.reach();
+        if !self
+            .funcs
+            .keys()
+            .any(|s| matches!(s, Sym::Helper(crate::rt::Helper::RefView { .. })))
+        {
+            for f in self.funcs.values_mut() {
+                let body = std::mem::take(&mut f.body);
+                for ins in body {
+                    if matches!(ins, Ins::Call(Sym::Helper(crate::rt::Helper::RefIsView))) {
+                        f.op(Instruction::Drop);
+                        f.i32(0);
+                    } else {
+                        f.body.push(ins);
+                    }
+                }
+            }
+            self.reach();
+        }
         crate::opt::constants(&mut self.funcs);
         let arity: BTreeMap<Sym, (usize, usize)> = self
             .funcs

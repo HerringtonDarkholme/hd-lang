@@ -821,12 +821,15 @@ pub fn count_pairs(f: &mut Func, retain: Hash128) -> bool {
     #[derive(PartialEq, Eq)]
     enum Count {
         Ref,
+        KnownRef,
         Value(Vec<crate::module::Val>, crate::layout::Walk),
     }
     fn count(ins: &Ins, retain: Hash128) -> Option<(bool, Count, usize)> {
         match ins {
             Ins::Call(Sym::Inst(k)) if *k == retain => Some((true, Count::Ref, 1)),
             Ins::Call(Sym::Helper(Helper::ReleaseRef)) => Some((false, Count::Ref, 1)),
+            Ins::Call(Sym::Helper(Helper::RetainKnown)) => Some((true, Count::KnownRef, 1)),
+            Ins::Call(Sym::Helper(Helper::ReleaseKnown)) => Some((false, Count::KnownRef, 1)),
             Ins::Call(Sym::Helper(Helper::Retain { vals, walk })) => {
                 Some((true, Count::Value(vals.clone(), walk.clone()), vals.len()))
             }

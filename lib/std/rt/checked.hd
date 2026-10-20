@@ -73,6 +73,20 @@ pub fn release(address: usize) -> usize:
         suspect(block)
     0
 
+# Audit the emitter's block-start proof instead of trusting its fast path.
+fn known_payload(address: usize) -> void:
+    block := block_of(address)
+    if block != 0 && block + 8 != address:
+        fail("known payload ${address} is not at the block start ${block + 8}")
+
+pub fn retain_known(address: usize) -> void:
+    known_payload(address)
+    retain(address)
+
+pub fn release_known(address: usize) -> usize:
+    known_payload(address)
+    release(address)
+
 ## How many blocks are allocated and not yet freed.
 pub fn live() -> usize:
     held

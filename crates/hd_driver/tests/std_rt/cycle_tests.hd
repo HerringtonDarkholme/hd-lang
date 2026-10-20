@@ -7,6 +7,7 @@ use std.rt.alloc.{alloc, free_block}
 use std.rt.cycle.{collect, opaque, pending, suspect}
 use std.rt.memory.{pages, store_u32}
 use std.rt.checked.released
+use std.testing.assert
 
 # The heap's pages in a bounded run: the static page, the page table, a
 # page for each size class the objects use, the garbage dropped before a
@@ -64,6 +65,21 @@ fn bodies(xs: List[Body]) -> i32:
 
 fn apply(f: fn(i32) -> i32) -> i32:
     f(1)
+
+
+struct ListRing:
+    value: i32
+    next: List[&mut ListRing]
+
+fn list_count(xs: List[&mut ListRing]) -> usize:
+    xs.len()
+
+fn copied_list_ring(n: i32) -> i32:
+    first := &mut ListRing { value: n, next: [] }
+    xs := [first]
+    first.next = xs
+    assert(list_count(xs) == 1, "a copied cyclic list keeps its element")
+    first.next[0].value
 
 
 let traced: usize = 0
@@ -149,3 +165,13 @@ tests:
         assert(total == 1800000, "each frame retains its argument or capture")
         if released() == 0:
             assert(pages() <= 256, "cycle collection reuses suspension frames")
+
+    it("copied cyclic list headers keep their collection eligibility"):
+        let total = +0
+        let round = +0
+        while round < 20000:
+            total += copied_list_ring(round % 10)
+            round += 1
+        assert(total == 90000, "each copied list reaches its ring")
+        if released() == 0:
+            assert(pages() <= 64, "cyclic headers and buffers are collected and reused")

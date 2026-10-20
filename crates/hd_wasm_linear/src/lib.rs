@@ -165,14 +165,30 @@ pub struct Input<'a> {
 /// The std module whose functions emitted code calls by key, and their
 /// names: the driver roots them for this backend ([`Runtime`]).
 pub const RUNTIME_MODULE: &str = "std.rt.alloc";
-pub const RUNTIME_FNS: [&str; 4] = ["alloc", "free", "retain", "release"];
+pub const RUNTIME_FNS: [&str; 6] = [
+    "alloc",
+    "free",
+    "retain",
+    "release",
+    "retain_known",
+    "release_known",
+];
 
-/// The checked runtime (`crates/hd_wasm_linear/DESIGN.md` §23.24): the same four
+/// The checked runtime (`crates/hd_wasm_linear/DESIGN.md` §23.24): the same six
 /// functions over the allocator, then the two the exit audit calls and the
 /// two count totals the entry exports.
 pub const CHECKED_MODULE: &str = "std.rt.checked";
-pub const CHECKED_FNS: [&str; 8] = [
-    "allocate", "free", "retain", "release", "live", "audit", "retained", "released",
+pub const CHECKED_FNS: [&str; 10] = [
+    "allocate",
+    "free",
+    "retain",
+    "release",
+    "retain_known",
+    "release_known",
+    "live",
+    "audit",
+    "retained",
+    "released",
 ];
 
 /// The cycle collector (`crates/hd_wasm_linear/DESIGN.md` §23.28), which both
@@ -220,6 +236,8 @@ pub struct Runtime {
     pub free: Hash128,
     pub retain: Hash128,
     pub release: Hash128,
+    pub retain_known: Hash128,
+    pub release_known: Hash128,
     pub block_of: Hash128,
     pub cycle: Cycle,
     pub checked: Option<Checked>,
@@ -259,7 +277,7 @@ impl Runtime {
     pub fn from_keys(keys: &[Option<Hash128>]) -> Option<Runtime> {
         let keys: Vec<Hash128> = keys.iter().copied().collect::<Option<_>>()?;
         let (block_of, keys) = keys.split_last()?;
-        let (counts, rest) = keys.split_first_chunk::<4>()?;
+        let (counts, rest) = keys.split_first_chunk::<6>()?;
         let (checked, rest) = match rest.len() {
             n if n == CYCLE_FNS.len() => (None, rest),
             n if n == CYCLE_FNS.len() + 4 => {
@@ -279,12 +297,14 @@ impl Runtime {
         let [collect, due, track, opaque, visit] = *rest else {
             return None;
         };
-        let [alloc, free, retain, release] = *counts;
+        let [alloc, free, retain, release, retain_known, release_known] = *counts;
         Some(Runtime {
             alloc,
             free,
             retain,
             release,
+            retain_known,
+            release_known,
             block_of: *block_of,
             cycle: Cycle {
                 collect,

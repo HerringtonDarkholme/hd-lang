@@ -265,7 +265,7 @@ impl Em<'_, '_, '_> {
     /// One count less on the cell address on the stack.
     pub(super) fn release_cell(&mut self) {
         if self.input.runtime.is_some() {
-            self.f.helper(crate::rt::Helper::ReleaseRef);
+            self.f.helper(crate::rt::Helper::ReleaseKnown);
         } else {
             self.f.op(I::Drop);
         }

@@ -711,7 +711,7 @@ pub fn unique(entry: &Entry, m: &Module) -> Func {
         });
     }
     f.get(t);
-    f.helper(Helper::ReleaseRef);
+    f.helper(Helper::ReleaseKnown);
     store_u32(&mut f, 0, 0, &|f| f.get(nt));
     f.op(I::End);
     f

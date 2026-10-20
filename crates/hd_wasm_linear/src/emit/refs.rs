@@ -36,6 +36,7 @@ impl Em<'_, '_, '_> {
             || crate::layout::walk(self.pool(), self.env(), ty)
                 != Some(crate::layout::Walk::Ref(0));
         Ok(RefLayout {
+            known: crate::layout::block_start(self.pool(), self.env(), ty),
             size: m.size,
             leaves: m.leaves,
             walk,

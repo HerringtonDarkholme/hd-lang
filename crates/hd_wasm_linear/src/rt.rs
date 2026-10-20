@@ -81,6 +81,7 @@ pub struct RefLayout {
     pub leaves: Vec<Leaf>,
     pub walk: Option<Walk>,
     pub boxed: bool,
+    pub known: bool,
 }
 
 /// A generated function, by what it does.
@@ -228,6 +229,9 @@ pub enum Helper {
     /// its last count, the references in its payload are released through
     /// its descriptor and its block is freed.
     ReleaseRef,
+    /// Count a statically known payload start without a block lookup.
+    RetainKnown,
+    ReleaseKnown,
     /// `(payload)`: the release glue of an object whose payload is laid
     /// out as `leaves`: one count less on each counted reference in it.
     DropFields {
@@ -255,6 +259,8 @@ pub enum Helper {
     ListHeader {
         cyclic: bool,
     },
+    /// A collection header owns a known buffer payload start.
+    ListHeaderDrop,
     /// `(capacity) -> buffer`: a new, empty list buffer with room for
     /// `capacity` elements laid out as `elem`.
     ListBuf {
@@ -1451,7 +1457,16 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             });
             f
         }
-        Helper::ReleaseRef => release_ref(m),
+        Helper::ReleaseRef => release_ref(m, false),
+        Helper::ReleaseKnown => release_ref(m, true),
+        Helper::RetainKnown => {
+            let mut f = Func::new("rt:retain_known", vec![Val::I32], vec![]);
+            if let Some(r) = m.runtime {
+                f.get(0);
+                f.call(Sym::Inst(r.retain_known));
+            }
+            f
+        }
         Helper::DropFields { leaves, walk } => fields_glue("rt:drop", leaves, walk, &|f| {
             f.helper(Helper::ReleaseRef);
         }),
@@ -1459,11 +1474,18 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             fields_glue("rt:retain_fields", leaves, walk, &retain_call(m))
         }
         Helper::ListHeader { cyclic } => list_header(*cyclic),
+        Helper::ListHeaderDrop => {
+            let mut f = Func::new("rt:list_header_drop", vec![Val::I32], vec![]);
+            f.get(0);
+            f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+            f.helper(Helper::ReleaseKnown);
+            f
+        }
         Helper::ListPinned => list_pinned(),
         Helper::ListClone { elem } => list_clone(elem),
         Helper::ListBuf { elem } => list_buf(elem),
         Helper::DropElems { elem } => drop_elems(elem),
-        Helper::ListCopy => list_copy(m),
+        Helper::ListCopy => list_copy(),
         Helper::CtxFind => ctx_find(),
         Helper::CtxNew => ctx_new(),
         Helper::CopyElems { elem } => copy_elems(elem, m),
@@ -2097,7 +2119,7 @@ fn collect(m: &Module) -> Func {
 /// native stack. While the collector traces an object (`Tracing`), the
 /// reference goes to its `visit` instead, checked here so that `visit` is
 /// called only during a collection (§23.28).
-fn release_ref(m: &Module) -> Func {
+fn release_ref(m: &Module, known: bool) -> Func {
     let mut f = Func::new("rt:release_ref", vec![Val::I32], vec![]);
     let Some(r) = m.runtime else {
         return f;
@@ -2112,7 +2134,7 @@ fn release_ref(m: &Module) -> Func {
     f.op(Instruction::End);
     f.op(Instruction::End);
     f.get(0);
-    f.call(Sym::Inst(r.release));
+    f.call(Sym::Inst(if known { r.release_known } else { r.release }));
     f.set(block);
     f.get(block);
     f.op(Instruction::I32Eqz);
@@ -2167,21 +2189,12 @@ fn release_ref(m: &Module) -> Func {
     f
 }
 
-/// The leaf of a list header's buffer address, which its release glue
-/// releases.
-const LIST_BUF_LEAF: Leaf = Leaf {
-    offset: 0,
-    val: Val::I32,
-    bytes: 4,
-    signed: false,
-};
-
 /// [`Helper::ListHeader`].
 /// [`Helper::ListCopy`]: a new header over the same buffer, which counts
 /// one more owner. A pinned list's buffer has one owner, so its copy is a
 /// copy of the buffer (`ref.elem.pin`); an unpinned list whose header
 /// still has an owner word gives the word up, as its buffer is shared now.
-fn list_copy(m: &Module) -> Func {
+fn list_copy() -> Func {
     let mut f = Func::new("rt:list_copy", vec![Val::I32], vec![Val::I32]);
     let (b, own) = (f.local(Val::I32), f.local(Val::I32));
     f.get(0);
@@ -2211,7 +2224,7 @@ fn list_copy(m: &Module) -> Func {
     f.op(Instruction::I32Store(mem(HEAP, LIST_OWN, 2)));
     f.op(Instruction::End);
     f.get(b);
-    retain_call(m)(&mut f);
+    f.helper(Helper::RetainKnown);
     // The copy takes part in cycle collection as its original does.
     f.get(0);
     f.u32(HEADER);
@@ -2296,11 +2309,7 @@ fn list_header(cyclic: bool) -> Func {
     let mut f = Func::new("rt:list_header", vec![Val::I32], vec![Val::I32]);
     let h = f.local(Val::I32);
     f.i32(8);
-    let glue = Sym::Helper(Helper::DropFields {
-        leaves: vec![LIST_BUF_LEAF],
-        walk: Walk::Ref(0),
-    });
-    push_desc(&mut f, Some(glue), cyclic);
+    push_desc(&mut f, Some(Sym::Helper(Helper::ListHeaderDrop)), cyclic);
     f.helper(Helper::New);
     f.set(h);
     f.get(h);
@@ -2663,7 +2672,7 @@ fn list_unique(elem: &Elem, push: bool, m: &Module) -> Func {
         f.helper(Helper::CopyElems { elem: elem.clone() });
     }
     f.get(b);
-    f.helper(Helper::ReleaseRef);
+    f.helper(Helper::ReleaseKnown);
     f.op(Instruction::Else);
     if let Some(r) = m.runtime {
         f.get(b);
@@ -2781,7 +2790,16 @@ fn ref_vals(value: &RefLayout) -> Vec<Val> {
 }
 
 fn ref_count(f: &mut Func, ls: &[u32], value: &RefLayout, retain: bool) {
-    if let Some(walk) = &value.walk {
+    if value.known
+        && let Some(Walk::Ref(k)) = &value.walk
+    {
+        f.get(ls[*k as usize]);
+        f.helper(if retain {
+            Helper::RetainKnown
+        } else {
+            Helper::ReleaseKnown
+        });
+    } else if let Some(walk) = &value.walk {
         for l in ls {
             f.get(*l);
         }

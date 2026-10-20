@@ -530,6 +530,27 @@ fn walk_one(
     }
 }
 
+/// Whether this representation's counted pointer is a payload start,
+/// never a string's interior bytes or an interior/erased reference.
+pub fn block_start(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
+    let t = strip(pool, env, t);
+    if hd_mono::is_open(pool, t) {
+        return false;
+    }
+    match pool.get(t) {
+        TyData::Fn { .. } | TyData::Context(_) => true,
+        TyData::Adt { def, .. }
+            if matches!(
+                env.std_kind(def),
+                StdKind::List | StdKind::Map | StdKind::Suspend
+            ) =>
+        {
+            true
+        }
+        _ => matches!(kind(pool, env, t), Kind::Data(_) | Kind::Boxed),
+    }
+}
+
 /// How a plain function's parameter takes its argument
 /// (`crates/hd_wasm_linear/DESIGN.md` §23.25; `REFCOUNT_RUNTIME.md` §4.3), fixed
 /// by the parameter's type alone so that every caller and the callee

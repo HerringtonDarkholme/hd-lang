@@ -115,7 +115,15 @@ impl Em<'_, '_, '_> {
         };
         if let Walk::Ref(k) = w {
             self.f.get(ls[k as usize]);
-            self.ref_count(retain);
+            if crate::layout::block_start(self.pool(), self.env(), t) {
+                self.f.helper(if retain {
+                    Helper::RetainKnown
+                } else {
+                    Helper::ReleaseKnown
+                });
+            } else {
+                self.ref_count(retain);
+            }
             return Ok(());
         }
         for l in ls {
@@ -167,7 +175,11 @@ impl Em<'_, '_, '_> {
     pub(super) fn count_local(&mut self, l: usize, ls: &[u32], retain: bool) -> StageResult<()> {
         if self.is_cell(l) {
             self.f.get(ls[0]);
-            self.ref_count(retain);
+            self.f.helper(if retain {
+                Helper::RetainKnown
+            } else {
+                Helper::ReleaseKnown
+            });
             return Ok(());
         }
         let t = self.sub(self.b.local_ty[l]);

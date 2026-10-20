@@ -3,7 +3,8 @@
 # as `std.rt.alloc_tests` and runs its cases on the linear backend
 # (crates/hd_driver/tests/conformance.rs, `STD_RT_TESTS`). Each case runs
 # in an instance of its own, so each starts with a fresh heap.
-use std.rt.alloc.{alloc, block_of, block_size, free, release, retain}
+use std.rt.alloc.{alloc, block_of, block_size, free, release, release_known, retain, retain_known}
+use std.rt.cycle.{pending, track}
 use std.rt.memory.{grow, load_u32, store_u32, store_u8}
 
 PAGE := 65536
@@ -128,3 +129,55 @@ tests:
         assert(release(a + 20) == a, "the last count gives the block")
         retain(16)
         assert(release(16) == 0, "static data has no count")
+
+    it("every small-page offset uses the exact reciprocal quotient"):
+        let sizes: List[usize] = [16, 32, 48, 64, 80, 96, 112, 128, 160, 208, 256, 320, 400, 512, 640, 800, 1024, 1280, 1600, 2048]
+        for size in sizes:
+            first := alloc(size)
+            page := first / PAGE * PAGE
+            let offset: usize = 0
+            while offset < PAGE - 16:
+                expected := page + 16 + offset / size * size
+                assert(block_of(page + 16 + offset) == expected, "the class table gives the exact slot")
+                offset += 1
+
+    it("known payload counts agree with interior-address counts"):
+        block := alloc(32)
+        store_u32(block, 1)
+        store_u32(block + 4, 0)
+        retain_known(block + 8)
+        assert(load_u32(block) == 2, "a known payload increments its header")
+        assert(release_known(block + 8) == 0, "the first release leaves one count")
+        assert(release(block + 15) == block, "an interior release sees the same final count")
+        free(block)
+        retain_known(0)
+        assert(release_known(0) == 0, "null stays uncounted")
+        retain_known(16)
+        assert(release_known(16) == 0, "a static zero-count header stays uncounted")
+
+    it("known releases leave acyclic blocks out of the candidate buffer"):
+        block := alloc(32)
+        store_u32(block, 3)
+        store_u32(block + 4, 1)
+        before := pending()
+        assert(release_known(block + 8) == 0, "two counts remain")
+        assert(release_known(block + 8) == 0, "one count remains")
+        assert(pending() == before, "nonzero glue alone does not make a candidate")
+        assert(release_known(block + 8) == block, "the final count returns the block")
+        free(block)
+
+    it("known releases buffer cyclic blocks once and forget their final count"):
+        block := alloc(64)
+        store_u32(block, 3)
+        store_u32(block + 4, 0x80000001)
+        track(block)
+        before := pending()
+        assert(release_known(block + 8) == 0, "the shared cyclic block stays live")
+        assert(pending() == before + 1, "the block becomes a candidate")
+        assert((usize(load_u32(block + 4)) & 0x40000000) != 0, "the candidate is marked buffered")
+        assert(release_known(block + 8) == 0, "one count remains")
+        assert(pending() == before + 1, "a second release does not buffer twice")
+        assert(release_known(block + 8) == block, "the final release returns the block")
+        assert(pending() == before, "the final release forgets the candidate")
+        assert((usize(load_u32(block + 4)) & 0x40000000) == 0, "forget clears the buffered bit")
+        free(block)
