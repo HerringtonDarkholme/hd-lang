@@ -33,7 +33,7 @@ fn explain(error: ProcessError) -> string:
 | --- | --- | --- |
 | r[std-process.error.display.not-found-named] Not found | `NotFound(program)` | `program not found: PROGRAM` |
 | r[std-process.error.display.permission-named] Permission | `PermissionDenied(program)` | `permission denied: PROGRAM` |
-| r[std-process.error.display.not-granted] Not granted | `NotGranted` | `program not granted; run with --cap Process=PROGRAM` |
+| r[std-process.error.display.not-granted.plain] Not granted | `NotGranted` | `program not granted` |
 | r[std-process.error.display.other] Other | `Other(message)` | `message`, as written |
 | r[std-process.error.display.exited] Exited | `Exited(status, stderr)` | `program exited with status STATUS: STDERR` |
 

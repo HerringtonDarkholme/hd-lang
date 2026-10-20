@@ -59,7 +59,7 @@ pub enum ProcessError:
     NotFound(program: string)
     @error("permission denied: ${program}")
     PermissionDenied(program: string)
-    @error("program not granted; run with --cap Process=PROGRAM")
+    @error("program not granted")
     NotGranted
     @error("$message")
     Other(message: string)

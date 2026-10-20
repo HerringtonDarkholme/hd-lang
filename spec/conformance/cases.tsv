@@ -3831,7 +3831,7 @@ runtime/valid/net-timeouts.hd	runtime	accept	std/net.md#timeouts
 runtime/valid/net-socket-options.hd	runtime	accept	std/net.md#socket-options
 runtime/valid/net-local-address.hd	runtime	accept	std/net.md#local-address
 runtime/valid/process-not-granted.hd	runtime	accept	lang/10-modules.md#r-module.process.not-granted
-runtime/valid/not-granted-display.hd	runtime	accept	std/fs.md#r-std-fs.error.not-granted.text
+runtime/valid/not-granted-display.hd	runtime	accept	std/fs.md#r-std-fs.error.not-granted.plain
 typing/invalid/impl-head-projection.hd	type	reject:unconstrained-impl-parameter	lang/09-traits.md#r-trait.overlap.head-projection
 typing/invalid/function-field-identity.hd	type	reject:identity-requires-references	lang/05-expressions.md#r-expr.is.function.operand
 typing/valid/literal-classes-separate-widths.hd	type	accept	lang/04-type-system.md#r-types.literal.local.class.meet

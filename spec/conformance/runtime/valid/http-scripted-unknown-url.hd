@@ -1,5 +1,5 @@
 # test: ScriptedHttp answers an unknown URL with a Connect error that names it, and still records the request
-# Spec std/http Scripted Http: std-http.scripted.unknown, std-http.scripted.sent-ref, std-http.error.not-granted.text.
+# Spec std/http Scripted Http: std-http.scripted.unknown, std-http.scripted.sent-ref, std-http.error.not-granted.plain.
 # Also covers std-http.error.not-granted, std-http.error.connect.
 # expect: test
 use std.http.{Http, HttpError, Request, Response, ScriptedHttp, get}
@@ -20,5 +20,5 @@ tests:
             assert_equal(ping!("https://example.com/other"), "the browser refused the request", reason="a Connect error")
         assert_equal(http.sent(), [Request { url: "https://example.com/missing" }, Request { url: "https://example.com/other" }], reason="unanswered requests count")
 
-    it("a refused host names the flag"):
-        assert_equal(HttpError.NotGranted("api.example.com").to_string(), "http access to api.example.com is not granted; run with --cap Http=api.example.com", reason="the fix in one rerun")
+    it("a refused host names the host"):
+        assert_equal(HttpError.NotGranted("api.example.com").to_string(), "http access to api.example.com is not granted", reason="plain denial without host-specific advice")

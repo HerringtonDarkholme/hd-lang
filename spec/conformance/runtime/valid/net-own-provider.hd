@@ -1,5 +1,5 @@
-# test: a unit test binds its own Net provider, and NetError names the flag for a refused address
-# Spec std/net Net Providers: std-net.trait.decl-ref, std-net.lookup, std-net.error.not-granted.text.
+# test: a unit test binds its own Net provider, and NetError names a refused address
+# Spec std/net Net Providers: std-net.trait.decl-ref, std-net.lookup, std-net.error.not-granted.plain.
 # Also covers std-net.error.decl, std-net.error.traits,
 # std-net.error.address, std-net.error.not-granted, std-net.error.dns,
 # std-net.error.refused, std-net.connect, std-net.listen,
@@ -40,5 +40,5 @@ tests:
             assert_equal(addresses!("example.com").len(), 0, reason="no lookup answers")
             assert_equal(reach!("example.com", 80), false, reason="the connection is refused")
 
-    it("a refused address names the flag"):
-        assert_equal(NetError.NotGranted("db.internal:5432").to_string(), "net access to db.internal:5432 is not granted; run with --cap Net=db.internal:5432", reason="the fix in one rerun")
+    it("a refused address names the address"):
+        assert_equal(NetError.NotGranted("db.internal:5432").to_string(), "net access to db.internal:5432 is not granted", reason="plain denial without host-specific advice")

@@ -12,7 +12,7 @@ use std.time.Duration
 @error
 @derive(Debug, Eq)
 pub enum NetError:
-    @error("net access to ${address} is not granted; run with --cap Net=${address}")
+    @error("net access to ${address} is not granted")
     NotGranted(address: string)
     @error("invalid net address: ${address}")
     InvalidAddress(address: string)

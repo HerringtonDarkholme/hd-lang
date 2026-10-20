@@ -136,7 +136,7 @@ pub enum HttpError:
 | r[std-http.error.status] Status | `Status(status, url)` | `Response.ok` found a status outside 200 to 299; `url` is the response's `url` |
 | r[std-http.error.json] JSON | `Json(error)` | `Response.json` could not decode the body; `error` is the `std.json.JsonError` |
 
-3. r[std-http.error.not-granted.text] The `Display` text of `NotGranted(host)` is `http access to HOST is not granted; run with --cap Http=HOST`, with the host for `HOST`.
+3. r[std-http.error.not-granted.plain] The `Display` text of `NotGranted(host)` is `http access to HOST is not granted`, with the host for `HOST`.
 4. r[std-http.error.status.text] The `Display` text of `Status(status, url)` is `HTTP status STATUS for URL`, with the status and the URL, for every URL, an empty one included.
 5. r[std-http.error.json.text] The `Display` text of `Json(error)` is `invalid JSON in the response: ERROR`, with the `Display` text of `error`.
 

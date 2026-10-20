@@ -45,7 +45,7 @@ pub enum NetError:
 | r[std-net.error.closed] Closed | `Closed` | the handle was closed or disposed, by [Socket Handles](#socket-handles) |
 | r[std-net.error.other] Other | `Other(message)` | any other failure, with the provider's message |
 
-4. r[std-net.error.not-granted.text] The `Display` text of `NotGranted(address)` is `net access to ADDRESS is not granted; run with --cap Net=ADDRESS`, with the address for `ADDRESS`.
+4. r[std-net.error.not-granted.plain] The `Display` text of `NotGranted(address)` is `net access to ADDRESS is not granted`, with the address for `ADDRESS`.
 5. r[std-net.error.timeout.text] The `Display` text of `Timeout` is `the net operation timed out`.
 6. r[std-net.error.closed.text] The `Display` text of `Closed` is `the socket is closed`.
 

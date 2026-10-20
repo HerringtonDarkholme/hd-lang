@@ -171,8 +171,7 @@ fn files_are_read_and_written_inside_the_grant() {
     assert_eq!(
         text(&out.stdout),
         "ok\nok\nok\nok\nh\u{e9}llo!\n3 200\nout/sub/a.txt file 7\nout/sub/b.bin file 3\n\
-         no entry\nok\nok\naccess to denied.txt is not granted; run with --cap FsRead=denied.txt \
-         or --cap FsWrite=denied.txt\nread not granted\nnot found\n"
+         no entry\nok\nok\naccess to denied.txt is not granted\nread not granted\nnot found\n"
     );
     assert_eq!(
         std::fs::read_to_string(dir.join("out/c.txt")).expect("renamed"),
@@ -240,7 +239,7 @@ fn process_runs_a_granted_host_program() {
     assert_eq!(text(&out.stderr), "");
     assert_eq!(
         text(&out.stdout),
-        "3 [fed] [oops\n]\nprogram not granted; run with --cap Process=PROGRAM\nprogram not found: hd-no-such-program-176\n"
+        "3 [fed] [oops\n]\nprogram not granted\nprogram not found: hd-no-such-program-176\n"
     );
 }
 
@@ -486,7 +485,7 @@ fn sys_reads_the_host_inside_the_grant() {
     assert_eq!(
         text(&partial.stdout),
         format!(
-            "{os}\nsys access to arch is not granted; run with --cap Sys=arch\n\
+            "{os}\nsys access to arch is not granted\n\
              false\ntrue\nrefused hostname\n"
         )
     );
@@ -819,7 +818,7 @@ fn net_opens_sockets_inside_the_grant() {
          NetError.NotGranted(address=\"example.com\")\n\
          NetError.InvalidAddress(address=\"bad host:80\")\n\
          datagram [104, 101] from 127.0.0.1\n\
-         net access to example.com:53 is not granted; run with --cap Net=example.com:53\n"
+         net access to example.com:53 is not granted\n"
     );
     assert!(out.status.success());
     // A socket's methods import from `hd:Net`, so `Net = false` refuses

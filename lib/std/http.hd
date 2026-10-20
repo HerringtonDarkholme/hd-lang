@@ -184,7 +184,7 @@ impl Response:
 @error
 @derive(Debug, Eq)
 pub enum HttpError:
-    @error("http access to ${host} is not granted; run with --cap Http=${host}")
+    @error("http access to ${host} is not granted")
     NotGranted(host: string)
     @error("invalid URL: ${url}")
     InvalidUrl(url: string)
@@ -332,7 +332,6 @@ fn push_replacement(out: &mut List[u8]) -> void:
     out.push(191)
     out.push(189)
 
-# The text of each variant; `NotGranted` names the flag that grants the
-# host (r-std-http.error.not-granted.text).
+# NotGranted describes the refused host (r-std-http.error.not-granted.plain).
 
 # A std error type implements `Error` (r-std-error.std-types.impl.reference-values).

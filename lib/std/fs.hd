@@ -13,7 +13,7 @@ pub enum FsError:
     NotFound(path: Path)
     @error("permission denied: ${path}")
     PermissionDenied(path: Path)
-    @error("access to ${path} is not granted; run with --cap FsRead=${path} or --cap FsWrite=${path}")
+    @error("access to ${path} is not granted")
     NotGranted(path: Path)
     @error("already exists: ${path}")
     AlreadyExists(path: Path)

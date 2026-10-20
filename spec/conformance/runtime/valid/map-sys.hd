@@ -1,5 +1,5 @@
 # test: ScriptedSys answers each Sys method from its key, reads cpu_count as a count, and reports a missing key as Unsupported
-# Spec std/sys Map Sys: std-sys.map.new, std-sys.map.cpu-count, std-sys.map.missing, std-sys.error.not-granted.text.
+# Spec std/sys Map Sys: std-sys.map.new, std-sys.map.cpu-count, std-sys.map.missing, std-sys.error.not-granted.plain.
 # Also covers std-sys.decl, std-sys.os, std-sys.arch,
 # std-sys.hostname, std-sys.cpu-count, std-sys.plain,
 # std-sys.unsupported, std-sys.error.traits, std-sys.map.decl,
@@ -25,5 +25,5 @@ tests:
             assert_equal($.use(Sys).cpu_count(), .Err(SysError.Unsupported("cpu_count")), reason="not a decimal u32")
             assert_equal($.use(Sys).arch(), .Err(SysError.Unsupported("arch")), reason="no key")
 
-    it("a refused read names the flag"):
-        assert_equal(SysError.NotGranted("hostname").to_string(), "sys access to hostname is not granted; run with --cap Sys=hostname", reason="the fix in one rerun")
+    it("a refused read names the method"):
+        assert_equal(SysError.NotGranted("hostname").to_string(), "sys access to hostname is not granted", reason="plain denial without host-specific advice")

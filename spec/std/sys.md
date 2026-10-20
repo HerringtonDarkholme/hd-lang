@@ -38,7 +38,7 @@ pub trait Sys:
 7. r[std-sys.not-granted] A method returns `.Err(SysError.NotGranted(name))` when the program's capability grant does not cover it, with the method's name for `name`.
 8. r[std-sys.unsupported] A method returns `.Err(SysError.Unsupported(name))` when the host can't answer it, as a browser can't for `hostname`.
 9. r[std-sys.error.traits] `SysError` implements `Eq`, `Debug`, `Display`, and `std.error.Error`.
-10. r[std-sys.error.not-granted.text] The `Display` text of `NotGranted(name)` is `sys access to NAME is not granted; run with --cap Sys=NAME`, with the method's name for `NAME`.
+10. r[std-sys.error.not-granted.plain] The `Display` text of `NotGranted(name)` is `sys access to NAME is not granted`, with the method's name for `NAME`.
 
 > **Why.** The grant covers each read by its method's name, as Deno gates
 > each `sys` call, so each method returns a `Result`.

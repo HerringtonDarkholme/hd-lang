@@ -8,7 +8,7 @@
 @error
 @derive(Debug, Eq)
 pub enum SysError:
-    @error("sys access to ${name} is not granted; run with --cap Sys=${name}")
+    @error("sys access to ${name} is not granted")
     NotGranted(name: string)
     @error("sys access to ${name} is not supported")
     Unsupported(name: string)
