@@ -435,6 +435,10 @@ runtime/valid/row-variable-binds-union.hd	runtime	accept	lang/11-requirements-an
 typing/invalid/row-extension-without-provider.hd	type	reject:missing-requirement	lang/11-requirements-and-suspension.md#requirement-polymorphism
 runtime/valid/row-extension-provider-restoration.hd	runtime	accept	lang/11-requirements-and-suspension.md#requirement-polymorphism
 runtime/valid/row-variable-plus-key.hd	runtime	accept	lang/11-requirements-and-suspension.md#requirement-polymorphism
+runtime/valid/trait-reference-method-values.hd	runtime	accept	lang/07-functions.md#r-fn.ref.dynamic.reference-receiver
+typing/invalid/trait-reference-method-readonly.hd	type	reject:not-writable	lang/07-functions.md#r-fn.ref.dynamic.permission
+typing/invalid/trait-reference-method-unbound-readonly.hd	type	reject:not-writable	lang/07-functions.md#r-fn.ref.dynamic.permission
+typing/invalid/trait-reference-method-self-unavailable.hd	type	reject:dyn-member-unavailable	lang/09-traits.md#r-trait.dyn.member.self
 runtime/valid/trait-default-method-inherited.hd	runtime	accept	lang/09-traits.md#trait-implementations
 runtime/valid/trait-default-method-overridden.hd	runtime	accept	lang/09-traits.md#trait-implementations
 typing/invalid/ambiguous-method-two-traits.hd	type	reject:ambiguous-method	lang/09-traits.md#trait-implementations

@@ -616,6 +616,10 @@ fn bumper(counter: &mut Counter) -> fn(i32) -> void:
 20. r[fn.ref.no-fields] `::` names only methods and associated functions, never fields. `User::email` for a field `email` is an error. Error: `unknown-method`.
 21. r[fn.ref.bound.associated] A bound reference names a method, since an associated function has no receiver to bind. `counter::zero` for an associated function `zero` is an error. Error: `unknown-method`.
 
+22. r[fn.ref.dynamic.reference-receiver] A trait method reference may take a trait value reference as its first parameter and dispatches through its vtable.
+23. r[fn.ref.dynamic.bound-reference] A bound method reference on a trait value reference captures that reference once and calls the method on its place.
+24. r[fn.ref.dynamic.permission] A method reference retains the receiver permission a direct call requires. A mutating method needs `&mut dyn`, and a reference to it through `&dyn` is an error. Error: `not-writable`.
+
 ```text
 struct Counter:
     value: i32

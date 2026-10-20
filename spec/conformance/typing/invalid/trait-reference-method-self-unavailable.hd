@@ -1,0 +1,8 @@
+# test: a method naming Self beyond its receiver remains unavailable as a reference
+# Spec 09 Dynamic Safety: trait.dyn.member.self.
+trait Versioned:
+    fn newer(self, other: Self) -> bool
+
+fn unavailable() -> void:
+    let compare: fn(&dyn Versioned, &dyn Versioned) -> bool = Versioned::newer  # diagnostic: dyn-member-unavailable
+    _ := compare

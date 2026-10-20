@@ -1,0 +1,29 @@
+# test: bound and unbound method references retain trait receiver permission and place
+# Spec 07 Function References: fn.ref.dynamic.reference-receiver, fn.ref.dynamic.bound-reference.
+# expect-stdout: item9
+# expect-stdout: item12
+# expect-stdout: item12
+
+trait Named:
+    fn label(&self) -> string
+    fn rename(&mut self, to: i32) -> void
+
+struct Item:
+    n: i32
+
+impl Named for Item:
+    fn label(&self) -> string: "item${self.n}"
+    fn rename(&mut self, to: i32) -> void:
+        self.n = to
+
+pub fn main() -> void $ Console:
+    let rename: fn(&mut dyn Named, i32) -> void = Named::rename
+    let shared: &mut dyn Named = &mut Item { n: 5 }
+    label := shared::label
+    rename(shared, 9)
+    println(label())
+    change := shared::rename
+    change(12)
+    println(label())
+    let read: fn(&dyn Named) -> string = Named::label
+    println(read(shared))

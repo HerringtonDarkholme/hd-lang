@@ -22,7 +22,7 @@ use hd_tir::ir::{
 use hd_types::solver::TraitRef;
 use hd_types::{Inputs, ParamRef, Prim, RowId, Ty, TyData, VarKind, with_assoc_args};
 
-use crate::body::{Ck, unsupported};
+use crate::body::{Ck, supertrait_args, unsupported};
 use crate::call::{Hit, subst_owner};
 use crate::ty::Named;
 
@@ -332,6 +332,40 @@ impl Ck<'_, '_> {
                 choice: None,
             },
         };
+        if self.has_self(&m)
+            && let Some(want) = want
+            && let TyData::Fn { params, .. } = pool.get(self.strip_mut(want))
+            && let Some(&receiver) = pool.list_items(params).first()
+            && let Some((tv, _)) = self.dyn_ref_of(receiver)
+            && let TyData::TraitValue {
+                def: from,
+                args: from_args,
+                ..
+            } = pool.get(tv)
+            && let Some(inherited) = supertrait_args(self.cx.lookup, pool, from, from_args, tr, 0)
+        {
+            let mut m = m;
+            if let Owner::Trait {
+                self_ty,
+                args,
+                choice,
+                ..
+            } = &mut m.owner
+            {
+                *self_ty = tv;
+                for (arg, actual) in args.iter().zip(pool.list_items(inherited)) {
+                    self.expect(
+                        *actual,
+                        *arg,
+                        n,
+                        "trait argument",
+                        crate::body::ExpectPosition::General,
+                    );
+                }
+                *choice = Some((ChoiceKind::TraitValue, tr.raw()));
+            }
+            return self.dynamic_member_ref(m, receiver, None, Some(want), n);
+        }
         self.unbound(m, want, n)
     }
 
@@ -855,6 +889,133 @@ impl Ck<'_, '_> {
         (self.b.close_sub(mark, root, ft, syn), ft)
     }
 
+    /// A method reference through a trait value reference. Keep the written
+    /// receiver type at the closure boundary, then read its payload for the
+    /// same vtable call as a direct method call. A bound reference captures
+    /// that reference once, preserving its place and permission.
+    fn dynamic_member_ref(
+        &mut self,
+        mut m: Member,
+        receiver: Ty,
+        bound: Option<Ref>,
+        want: Option<Ty>,
+        n: NodeRef<'_>,
+    ) -> StageResult<(Ref, Ty)> {
+        let pool = self.pool();
+        let Some((tv, writable)) = self.dyn_ref_of(receiver) else {
+            return unsupported("a dynamic member reference without a reference receiver");
+        };
+        let Owner::Trait { def: trait_, .. } = m.owner else {
+            return unsupported("a dynamic member reference outside a trait");
+        };
+        let changes = m.sig.params.first().is_some_and(|(_, t)| {
+            matches!(
+                pool.get(*t),
+                TyData::Ref { mutable: true, .. } | TyData::Mut(_)
+            )
+        });
+        if changes && !writable {
+            let name = self
+                .cx
+                .lookup
+                .item(m.def)
+                .map_or("method", |item| self.cx.names.text(item.name));
+            let message = format!(
+                "`{name}` changes its receiver, but this method reference has a read-only `&dyn` receiver; use `&mut dyn`"
+            );
+            self.err(Code::NotWritable, n, &message);
+            return Ok(self.poison_value(n));
+        }
+        let unavailable = !self.has_self(&m)
+            || m.sig
+                .params
+                .iter()
+                .skip(1)
+                .map(|(_, t)| *t)
+                .chain([m.sig.ret])
+                .chain(m.sig.generics.iter().flat_map(|g| g.bounds.iter().copied()))
+                .any(|t| pool.names_trait_self(t, trait_))
+            || pool.row_names_trait_self(m.sig.row, trait_);
+        if unavailable {
+            self.err(Code::DynMemberUnavailable, n, "this member cannot be referenced through a trait value: it has no receiver or names `Self` outside it");
+            return Ok(self.poison_value(n));
+        }
+        let method_ty = self.member_fn_ty(&m, 1)?;
+        let TyData::Fn {
+            params,
+            result,
+            row,
+            suspends,
+            inputs,
+        } = pool.get(method_ty)
+        else {
+            return unsupported("a dynamic member reference without a function type");
+        };
+        let mut ptys = Vec::new();
+        if bound.is_none() {
+            ptys.push(receiver);
+        }
+        ptys.extend(pool.list_items(params));
+        let ft = pool.intern_ty(&TyData::Fn {
+            params: pool.list(&ptys),
+            result,
+            row,
+            suspends,
+            inputs,
+        });
+        self.fit_expected(ft, want);
+        self.member_bounds(&mut m, n)?;
+        self.open_ref_params(&m, n);
+        self.note_call(m.def);
+        let syn = n.index();
+        let captured = bound.map(|r| {
+            let name = self.cx.names.syms.intern("$receiver");
+            let local = self.b.local(receiver, name, local_flags::ASSIGNED, syn);
+            self.set_local(local, r, syn);
+            local
+        });
+        let locals: Vec<_> = ptys
+            .iter()
+            .enumerate()
+            .map(|(i, t)| {
+                let name = self.cx.names.syms.intern(&format!("${i}"));
+                self.b.local(*t, name, local_flags::PARAM, syn)
+            })
+            .collect();
+        let mark = self.b.open_sub(&locals);
+        if let Some(local) = captured {
+            self.b.capture(mark, local);
+            self.add_flags(local, local_flags::READ | local_flags::CAPTURED);
+        }
+        let blk = self.b.open_block();
+        let recv = self
+            .b
+            .get(captured.unwrap_or_else(|| locals[0]), receiver, syn);
+        let (payload, _) = self.emit_deref(recv, receiver, syn);
+        let mut refs = vec![payload];
+        for (local, ty) in locals.iter().zip(&ptys).skip(usize::from(bound.is_none())) {
+            refs.push(self.b.get(*local, *ty, syn));
+        }
+        let Owner::Trait { args, choice, .. } = &m.owner else {
+            unreachable!()
+        };
+        let mut all = args.clone();
+        all.extend(&m.vars);
+        let callee = Callee::TraitMethod {
+            trait_,
+            method: m.def,
+            self_ty: tv,
+            targs: pool.list(&all),
+            choice: choice.unwrap_or((ChoiceKind::TraitValue, trait_.raw())),
+        };
+        let r = self.b.call(&callee, &refs, Providers::None, result, syn);
+        if suspends {
+            self.b.body_mut().tags[r.0 as usize] = Tag::Await;
+        }
+        let root = self.b.close_block(blk, Some(r), result, syn);
+        Ok((self.b.close_sub(mark, root, ft, syn), ft))
+    }
+
     /// `value::name`: the receiver is evaluated once, into a local the
     /// closure captures (`fn.ref.bound.capture`); calling the closure
     /// calls the method on it (`fn.ref.bound.type`).
@@ -869,7 +1030,9 @@ impl Ck<'_, '_> {
     ) -> StageResult<(Ref, Ty)> {
         let pool = self.pool();
         let rt = self.norm_ty(rt);
-        let mut m = match self.member_of(rt, name, explicit, n)? {
+        let dynamic = self.dyn_ref_of(rt);
+        let lookup = dynamic.map_or(rt, |(tv, _)| tv);
+        let mut m = match self.member_of(lookup, name, explicit, n)? {
             Some(Found::Member(m)) => m,
             Some(Found::Builtin {
                 op, params, ret, ..
@@ -884,6 +1047,17 @@ impl Ck<'_, '_> {
             );
             self.err(Code::UnknownMethod, n, &msg);
             return Ok((Ref(NONE), Ty::POISON));
+        }
+        if dynamic.is_some()
+            && matches!(
+                m.owner,
+                Owner::Trait {
+                    choice: Some((ChoiceKind::TraitValue, _)),
+                    ..
+                }
+            )
+        {
+            return self.dynamic_member_ref(m, rt, Some(recv), want, n);
         }
         self.note_call(m.def);
         // `fn.ref.bound.address.writable`.

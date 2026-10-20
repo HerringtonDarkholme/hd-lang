@@ -124,8 +124,9 @@ fn references_to_builtin_impls_call_through_their_adapters() {
 #[test]
 fn references_at_a_dyn_receiver_dispatch_through_the_vtable() {
     let main = "trait Named:
-    fn label(self) -> string
+    fn label(&self) -> string
     fn pick[V](self, value: V) -> V
+    fn rename(&mut self, to: i32) -> void
     fn greet(self, other: string) -> string:
         \"hi \" + other + \" from \" + self.label()
 
@@ -136,39 +137,46 @@ struct Item:
     n: i32
 
 impl Named for Item:
-    fn label(self) -> string:
+    fn label(&self) -> string:
         \"item\" + self.n.to_string()
 
     fn pick[V](self, value: V) -> V:
         value
+
+    fn rename(&mut self, to: i32) -> void:
+        self.n = to
 
 impl Tagged for Item:
     fn tag(self) -> string:
         \"t\"
 
 fn labels[T < Named](items: List[T]) -> List[string]:
-    items.map(T::label)
+    items.map(fn(item: T) -> string: item.label())
 
 pub fn main() -> void $ Console:
-    let items: List[dyn Named] = [Item { n: 1 }]
+    let items: List[&mut dyn Named] = [&mut Item { n: 1 }]
     println(labels(items)[0])
     println(items.map(Named::label)[0])
-    let greet: fn(dyn Named, string) -> string = Named::greet
-    println(greet(Item { n: 2 }, \"bob\"))
-    let tag: fn(dyn Tagged) -> string = Tagged::tag
-    println(tag(Item { n: 3 }))
-    let inherited: fn(dyn Tagged) -> string = Named::label
-    println(inherited(Item { n: 3 }))
-    let shared: dyn Named = Item { n: 9 }
+    let greet: fn(&dyn Named, string) -> string = Named::greet
+    println(greet(&Item { n: 2 }, \"bob\"))
+    let tag: fn(&dyn Tagged) -> string = Tagged::tag
+    println(tag(&Item { n: 3 }))
+    let inherited: fn(&dyn Tagged) -> string = Named::label
+    println(inherited(&Item { n: 3 }))
+    let rename: fn(&mut dyn Named, i32) -> void = Named::rename
+    let mutable: &mut dyn Named = &mut Item { n: 5 }
+    rename(mutable, 9)
+    println(mutable.label())
+    let shared: &dyn Named = &Item { n: 9 }
     let bound = shared::label
     println(bound())
-    let pick: fn(dyn Named, i32) -> i32 = Named::pick
-    println(pick(Item { n: 1 }, 5))
-    let word: fn(dyn Named, string) -> string = Named::pick
-    println(word(Item { n: 1 }, \"w\"))
+    let pick: fn(&dyn Named, i32) -> i32 = Named::pick
+    println(pick(&Item { n: 1 }, 5))
+    let word: fn(&dyn Named, string) -> string = Named::pick
+    println(word(&Item { n: 1 }, \"w\"))
 ";
     assert_eq!(
         run("dyn", main),
-        "item1\nitem1\nhi bob from item2\nt\nitem3\nitem9\n5\nw\n"
+        "item1\nitem1\nhi bob from item2\nt\nitem3\nitem9\nitem9\n5\nw\n"
     );
 }

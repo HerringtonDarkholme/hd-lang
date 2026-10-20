@@ -1,0 +1,8 @@
+# test: an unbound mutating trait method cannot take a shared trait reference
+# Spec 07 Function References: fn.ref.dynamic.permission.
+trait Named:
+    fn rename(&mut self, to: i32) -> void
+
+fn cannot_change() -> void:
+    let rename: fn(&dyn Named, i32) -> void = Named::rename  # diagnostic: not-writable
+    _ := rename
