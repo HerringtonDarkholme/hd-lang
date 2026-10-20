@@ -155,7 +155,10 @@ pub fn kind(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Kind {
             .list_items(args)
             .first()
             .map_or(Ty::VOID, |a| strip(pool, env, *a));
-        let fat = matches!(pool.get(target), TyData::TraitValue { .. });
+        // A reference to an open trait value is one open value
+        // (`emit/erased.rs`), however the caller lays it out.
+        let fat = matches!(pool.get(target), TyData::TraitValue { .. })
+            && !hd_mono::is_open(pool, target);
         return Kind::Ref { target, fat };
     }
     if env.std_kind(def) != StdKind::Other {
@@ -218,7 +221,8 @@ pub fn tuple_members(pool: &InternPool, t: Ty) -> Vec<Ty> {
 /// field, at any depth of structs. A legacy `mut` view shares its list
 /// and holds none.
 pub fn coll_leaves(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<u32> {
-    if !hd_mono::holds_coll(pool, env, t) {
+    // An open value's copies are made by the thunks that know its type.
+    if hd_mono::is_open(pool, t) || !hd_mono::holds_coll(pool, env, t) {
         return Vec::new();
     }
     let s = strip_newtype(pool, env, t);
@@ -255,6 +259,11 @@ pub fn vals(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Vec<V
 /// A concrete type's layout.
 pub fn mem(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Mem> {
     let t = strip(pool, env, t);
+    // A value of an open type in an erased body is one counted address,
+    // whatever the caller's type (`emit/erased.rs`).
+    if hd_mono::is_open(pool, t) {
+        return Ok(Mem::address());
+    }
     Ok(match pool.get(t) {
         TyData::Prim(p) => match p {
             Prim::I8 => Mem::one(Val::I32, 1, true),
@@ -356,6 +365,9 @@ impl Walk {
 /// backend does not lay out has none here; its layout refuses it.
 pub fn walk(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Option<Walk> {
     let t = strip(pool, env, t);
+    if hd_mono::is_open(pool, t) {
+        return Some(Walk::Ref(0));
+    }
     match pool.get(t) {
         TyData::Prim(Prim::String) => Some(Walk::Ref(0)),
         TyData::Fn { .. } => Some(Walk::Ref(1)),

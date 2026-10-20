@@ -44,16 +44,7 @@ impl Em<'_, '_, '_> {
         if !self.is_cell(l as usize) {
             return self.local(l);
         }
-        let t = self.sub(self.b.local_ty[l as usize]);
-        let m = mem_of(self.pool(), self.env(), t)?;
-        let c = self.cell_of(l as usize)?;
-        let ls: Vec<u32> = m.leaves.iter().map(|x| self.f.local(x.val)).collect();
-        for (leaf, x) in m.leaves.iter().zip(&ls) {
-            self.f.get(c);
-            self.f.op(leaf.load(0));
-            self.f.set(*x);
-        }
-        Ok(ls)
+        self.cell_read(l as usize)
     }
 
     /// A local holding the address in local `at` plus `off`.
@@ -115,6 +106,13 @@ impl Em<'_, '_, '_> {
         let (base, mut ty) = match p.kind {
             place_root::LOCAL => {
                 let t = local_ty(self, p.x);
+                // A cell that boxes its value for an erased body holds no
+                // value of the reference's type (`erased.rs`).
+                if self.is_cell(p.x as usize) && self.cell_converts(p.x as usize) {
+                    return unsupported(
+                        "a reference to a local that closures share in a generic method",
+                    );
+                }
                 if self.is_cell(p.x as usize) {
                     (Base::At(self.cell_of(p.x as usize)?), t)
                 } else {

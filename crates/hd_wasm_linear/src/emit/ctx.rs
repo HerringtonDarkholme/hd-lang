@@ -32,16 +32,6 @@ pub(crate) fn key_id(input: &crate::Input<'_>, k: Ty) -> i64 {
     i64::from_le_bytes(bytes[..8].try_into().unwrap_or_default())
 }
 
-/// How many type parameters item `m` declares itself that are not row
-/// parameters. A method whose own parameters are all rows has an erased
-/// body (`crates/hd_mono/DESIGN.md` §13.5.1) that its vtable slot holds,
-/// which takes its rows' context as any instance with row parameters
-/// does; one with type parameters needs the erased method ABI (job 11).
-pub(crate) fn own_types(env: &dyn hd_mono::ProgramEnv, m: hd_base::DefId) -> usize {
-    let rows = env.generic_rows(m).into_iter().filter(|r| *r).count();
-    hd_mono::erased::own_count(env, m).saturating_sub(rows)
-}
-
 /// Whether trait method `m`'s vtable slot takes a context: whether its row
 /// lists a key, or it has row parameters. A dynamic call cannot know the
 /// implementation's row, which may list fewer keys, so the slot looks
@@ -147,7 +137,7 @@ impl Em<'_, '_, '_> {
     /// when no key goes in front, 0 when there is neither. Returns the
     /// local of a context it built, which the caller releases once the
     /// call has returned; a callee that keeps it takes a count of its own.
-    fn push_ctx_of(&mut self, keys: &[Ty], open: bool) -> StageResult<Option<u32>> {
+    pub(super) fn push_ctx_of(&mut self, keys: &[Ty], open: bool) -> StageResult<Option<u32>> {
         let base = if open { self.open_ctx } else { None };
         if keys.is_empty() {
             match base {
@@ -254,8 +244,10 @@ impl Em<'_, '_, '_> {
     ) -> StageResult<Option<u32>> {
         // A trait method call's arguments leave `Self` out: a trait
         // value's is unknown, and no key names it.
+        // Its arguments as this instance has them: a thunk's row argument
+        // is its caller's row, whose keys the row lists (`erased.rs`).
         let mut all = vec![hd_mono::class_ref(self.pool())];
-        all.extend_from_slice(self.pool().list_items(targs));
+        all.extend(self.pool().list_items(targs).iter().map(|t| self.sub(*t)));
         let all = self.pool().list(&all);
         let mut keys = Vec::new();
         let mut open = false;

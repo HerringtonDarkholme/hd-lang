@@ -2374,10 +2374,10 @@ environments in `emit/closure.rs`, trait values and their vtables in
   provider: 10,635 bytes in the dev profile (10,607 after job 8) and
   7,445 in release.
 - **Not yet.** A generic method called through a trait value needs the
-  erased method ABI (crates/hd_mono/DESIGN.md §13.5.1): its open values
-  and thunks are refused, as are their `^N` open types. A function with
-  row parameters, which takes its rows' providers as one context value
-  (crates/hd_mono/DESIGN.md §12.4), and so `$.Context` values and a
+  erased method ABI (crates/hd_mono/DESIGN.md §13.5.1), which §23.27
+  adds. A function with row parameters, which takes its rows' providers
+  as one context value (crates/hd_mono/DESIGN.md §12.4), and so
+  `$.Context` values and a
   `$.with` of one, are refused, as is a coercion of a function value
   whose row changes, which needs an adapter that passes the providers
   its code takes. Suspending function values and closures wait for job
@@ -2911,14 +2911,70 @@ whose row changes and `$.Context` values on the linear backend
   that has row parameters, takes one context last: the caller cannot know
   the implementation's row, which may list fewer keys. The slot looks up
   the implementation's own keys and passes the context on when the
-  target has row parameters. A method whose own type parameters are all
-  rows has an erased body that opens no instruction, so it is emitted as
-  a plain body at the open rows, without a witness.
+  target has row parameters. A method with row parameters of its own
+  has an erased body like any generic method (§23.27): a call at its open
+  row is an open instruction.
 - **Size.** hello (`println("hello")`, release): 4,977 bytes on
   `linear` before and after; a program that calls no function value and
   no function with row parameters links neither context helper.
 - **Not yet.** A method with type parameters of its own called through
-  a trait value needs the erased method ABI (§13.5.1, job 11), so
-  `dynamic-row-parameter-erased-body.hd` is still refused, as is a call
-  at an erased body's open row, which the Wasm GC backend outlines into
-  a thunk.
+  a trait value needs the erased method ABI, which §23.27 adds.
+
+### 23.27 Erased Generic Methods
+
+Issue #615 lowers generic methods called through a trait value on the
+linear backend (`emit/erased.rs`), with the Wasm GC backend's ABI
+(crates/hd_mono/DESIGN.md §13.5.1): one erased body per implementation,
+a witness per call's type arguments, and one thunk per open instruction
+at the caller's types. Collection is shared, so both backends build the
+same erased bodies, thunks and witness fields.
+
+- **Open values.** In an erased body, a value of an open type (one that
+  mentions a method type parameter) is one `i32`, a counted address that
+  owns one count, as a trait value's data is (§23.19): the caller's value
+  itself when its layout is one counted address (a list, a map, a data
+  value, a reference), 0 when it has no Wasm values, and otherwise a new
+  counted box of its layout, whose descriptor releases its fields. So the
+  erased body lays out, moves, stores and counts every open value alike,
+  and its locals, cells and suspension frames need nothing new. A copy of
+  an open collection is no `ListCopy` in the erased body; the thunks that
+  know the type copy it.
+- **The slot.** A generic method's vtable slot takes the receiver, the
+  arguments with open ones as open values, the witness address, then the
+  context when the method has a row (§23.26). A caller boxes each open
+  argument into an open value it releases after the call, passes the
+  witness of the call's type arguments, and unboxes an open result,
+  which arrives with its count. An awaited suspending method's poll
+  returns the open value, which the await unboxes once it is Ready.
+- **Witnesses** are static data, as vtables are (§23.8): one word per
+  erased body of the method's family, in link's field order, holding the
+  address of that body's thunk table, one function-table slot per open
+  instruction. The erased body reads its own table from its field once on
+  entry, after a resumed body has reloaded its locals, since the witness
+  is a parameter and stays in the frame.
+- **Open instructions.** Instruction `k` loads slot `k` of the table and
+  makes one `call_indirect`: its operands and captures, each with a count
+  the thunk owns (a shared capture as its cell, counted once more), the
+  providers of the keys the body's row lists, and, with row parameters, a
+  context of every other key in scope in front of the open one. A tag
+  switch outlines only its tag read. The thunk is the instruction emitted
+  at the caller's types: it unboxes its open operands, taking counts of
+  the fields and releasing the boxes, emits the instruction, boxes an
+  open result with its own count and releases what it holds at its exit.
+- **Cells.** A local that closures share in a generic method of a trait
+  or an implementation keeps its erased view in every instance, as on
+  Wasm GC: the erased body's thunks build the closures, and they are the
+  concrete instances' own. So a concrete instance's cell holds an open
+  value: a read unboxes it, a write boxes the new value.
+- **References.** A reference whose target is open is the address of an
+  open value. It crosses a thunk or a call only when the concrete target
+  is one counted address, whose place holds the same word; any other
+  (`&mut x` of an open `x` passed to a helper at `T = i32`) is refused at
+  link. Such a reference would need a copy in and out around the thunk.
+- **Rows.** A method's own row parameters are open too, so a method with
+  only row parameters is erased the same way, and a call at its open row
+  is a thunk at the caller's row. A dynamic call reads the keys of its
+  rows from its arguments as the instance has them, so a thunk's row,
+  which is the caller's own, lists its keys.
+- **Checked by** the five conformance cases of the issue, on `linear` and
+  `linear-checked`, whose count audit covers every box and cell.

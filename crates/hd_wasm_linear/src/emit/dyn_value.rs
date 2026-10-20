@@ -184,6 +184,13 @@ impl Em<'_, '_, '_> {
                 own.push((u32::try_from(vs.len()).expect("values"), w));
                 params.extend(vs);
             }
+            // A generic method's erased body takes the caller's witness
+            // after its parameters (`erased.rs`), passed on unchanged.
+            let generic = hd_mono::own_count(env, *m) > 0;
+            if generic {
+                params.push(Val::I32);
+                own.push((1, None));
+            }
             // A method with a row takes its caller's context last
             // (`ctx.rs`), in which the slot looks up its target's keys.
             let ctx = if super::ctx::slot_ctx(env, *m) {
@@ -205,9 +212,8 @@ impl Em<'_, '_, '_> {
             } else {
                 self.vals(t.ret)?
             };
-            // Generic erased methods and compiler-supplied methods still
-            // use their existing dynamic-call lowering restrictions.
-            let traps = super::ctx::own_types(env, *m) > 0 || t.kind != TargetKind::Instance;
+            // A compiler-supplied method has no instance to call.
+            let traps = t.kind != TargetKind::Instance;
             // The vtable's `runtime_type` answers the type the vtable is
             // built at (trait.inspect.dynamic).
             if let TargetKind::Builtin { self_ty, .. } = t.kind

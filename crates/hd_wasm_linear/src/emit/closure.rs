@@ -117,9 +117,9 @@ impl Em<'_, '_, '_> {
     }
 
     /// The layout of the value in local `l`'s cell, and its counted
-    /// references.
+    /// references: its erased view's in a generic method (`erased.rs`).
     fn cell_mem(&self, l: usize) -> StageResult<(Mem, Option<Walk>)> {
-        let t = self.sub(self.b.local_ty[l]);
+        let t = self.cell_ty(l);
         Ok((mem_of(self.pool(), self.env(), t)?, self.counted(t)))
     }
 
@@ -140,20 +140,9 @@ impl Em<'_, '_, '_> {
     /// A new cell for local `l`, holding the values `src` pushes, which
     /// the cell's count of them already covers: a local holding its
     /// address.
-    fn new_cell(&mut self, l: usize, src: &Src) -> StageResult<u32> {
-        let (m, walk) = self.cell_mem(l)?;
-        let at = self.object(&m, walk.as_ref());
-        self.store_part(
-            at,
-            &m,
-            Part {
-                first: 0,
-                count: m.leaves.len(),
-                offset: 0,
-            },
-            src,
-        )?;
-        Ok(at)
+    fn new_cell(&mut self, l: usize, src: Src) -> StageResult<u32> {
+        let src = self.cell_src(l, src)?;
+        self.raw_cell(l, &src)
     }
 
     /// Pushes the zero of each value of local `l`'s type, for a cell that
@@ -172,20 +161,49 @@ impl Em<'_, '_, '_> {
         self.f.op(I::I32Eqz);
         self.f.op(I::If(BlockType::Empty));
         let z = self.zero_src(l)?;
-        let at = self.new_cell(l, &z)?;
+        let at = self.raw_cell(l, &z)?;
         self.f.get(at);
         self.f.set(c);
         self.f.op(I::End);
         Ok(c)
     }
 
-    /// `LocalGet` of a cell's local: its values, a copy with its own count.
-    pub(super) fn cell_get(&mut self, i: u32, l: usize) -> StageResult<()> {
+    /// A new cell for local `l` holding `src`, already in the cell's
+    /// layout.
+    fn raw_cell(&mut self, l: usize, src: &Src) -> StageResult<u32> {
+        let (m, walk) = self.cell_mem(l)?;
+        let at = self.object(&m, walk.as_ref());
+        let part = Part {
+            first: 0,
+            count: m.leaves.len(),
+            offset: 0,
+        };
+        self.store_part(at, &m, part, src)?;
+        Ok(at)
+    }
+
+    /// Fresh locals holding local `l`'s value, read from its cell with no
+    /// count of its own: a view that lives as long as the cell's value.
+    pub(super) fn cell_read(&mut self, l: usize) -> StageResult<Vec<u32>> {
         let (m, _) = self.cell_mem(l)?;
         let c = self.cell_of(l)?;
-        for leaf in &m.leaves {
+        let ls: Vec<u32> = m.leaves.iter().map(|x| self.f.local(x.val)).collect();
+        for (leaf, x) in m.leaves.iter().zip(&ls) {
             self.f.get(c);
             self.f.op(leaf.load(0));
+            self.f.set(*x);
+        }
+        if self.cell_converts(l) {
+            let t = self.sub(self.b.local_ty[l]);
+            return self.unerase(ls[0], self.cell_ty(l), t, false);
+        }
+        Ok(ls)
+    }
+
+    /// `LocalGet` of a cell's local: its values, a copy with its own count.
+    pub(super) fn cell_get(&mut self, i: u32, l: usize) -> StageResult<()> {
+        for x in self.cell_read(l)? {
+            self.f.get(x);
         }
         self.store(i)
     }
@@ -196,18 +214,19 @@ impl Em<'_, '_, '_> {
     /// the old. `NONE` stores zeros: a recursive local function's name,
     /// declared before its closure exists.
     pub(super) fn cell_set(&mut self, i: u32, l: usize, v: u32) -> StageResult<()> {
-        let t = self.sub(self.b.local_ty[l]);
+        let t = self.cell_ty(l);
+        // The value in the cell's layout, with the count the cell takes.
         let src = if v == NONE {
             self.zero_src(l)?
         } else {
             if !self.take(v) {
                 self.retain_ref(v)?;
             }
-            Src::Ref(v)
+            self.cell_src(l, Src::Ref(v))?
         };
-        let c = self.local(u32::try_from(l).expect("locals"))?[0];
         if self.cells.get(&l) == Some(&i) {
-            let at = self.new_cell(l, &src)?;
+            let c = self.local(u32::try_from(l).expect("locals"))?[0];
+            let at = self.raw_cell(l, &src)?;
             if self.counting {
                 self.f.get(c);
                 self.release_cell();
@@ -254,7 +273,7 @@ impl Em<'_, '_, '_> {
     /// Moves parameter `l`, whose values are in `ls`, into a new cell:
     /// the local's locals become the cell's address.
     pub(super) fn param_cell(&mut self, l: usize, ls: &[u32]) -> StageResult<()> {
-        let at = self.new_cell(l, &Src::Locals(ls.to_vec()))?;
+        let at = self.new_cell(l, Src::Locals(ls.to_vec()))?;
         self.locals.insert(l, vec![at]);
         Ok(())
     }

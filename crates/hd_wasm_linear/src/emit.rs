@@ -26,6 +26,7 @@ mod count;
 mod ctx;
 pub(crate) use ctx::ctx_lookup;
 mod dyn_value;
+mod erased;
 mod iter;
 mod list;
 mod live;
@@ -41,14 +42,17 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
     let t = &input.collected.table;
     let item = t.item[id.idx()];
     let args = t.args[id.idx()];
+    // An erased body takes the witness of its caller's type arguments
+    // after its parameters (`erased.rs`).
+    let mut erased = None;
     let sub = match t.sub[id.idx()] {
         Sub::Body(sub) => sub,
         Sub::Adapter => return adapter(input, id),
-        // The erased body of a method whose own parameters are all rows
-        // is its body with those rows open: it opens no instruction, so it
-        // takes no witness (`ctx.rs`).
-        Sub::Erased if ctx::own_types(input.env, item) == 0 => 0,
-        _ => return unsupported("erased bodies and thunks (job 11)"),
+        Sub::Erased => {
+            erased = Some(erased::family(input, id)?);
+            0
+        }
+        Sub::Thunk(_) => return erased::thunk(input, m, id),
     };
     let Some(b) = (input.body)(id) else {
         return unsupported("an instance without TIR");
@@ -63,39 +67,15 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
     } else {
         closure::closure_suspends(input, b, args, sub)?
     };
-    let mut em = Em {
+    let cells = closure::cell_locals(b, &ref_roots(input, b, item, args, suspending));
+    let mut em = Em::new(
         input,
         m,
         b,
-        item,
-        args,
-        calls: &input.collected.calls[id.idx()],
-        f: Func::default(),
-        vals: HashMap::default(),
-        locals: HashMap::default(),
-        providers: Vec::new(),
-        open_ctx: None,
-        open_base: 0,
-        ctl: Vec::new(),
-        deciding: Vec::new(),
-        loops: 0,
-        counting: false,
-        ret: Vec::new(),
-        results: Vec::new(),
-        scopes: HashMap::default(),
-        defer_flags: HashMap::default(),
-        drops: live::Drops::default(),
-        moves: live::Moves::default(),
-        skip: hd_base::HashSet::default(),
-        borrowed: hd_base::HashSet::default(),
-        emitting: Vec::new(),
-        moving: Vec::new(),
-        blocks: Vec::new(),
-        susp: None,
-        shield: 0,
-        temps: Vec::new(),
-        cells: closure::cell_locals(b, &ref_roots(input, b, item, args, suspending)),
-    };
+        (item, args),
+        &input.collected.calls[id.idx()],
+        cells,
+    );
     let mut params = Vec::new();
     // A suspending body takes its frame first (`susp::FRAME`).
     if suspending {
@@ -153,6 +133,11 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
         );
         params.extend(vs);
     }
+    let witness = erased.map(|_| {
+        let at = u32::try_from(params.len()).expect("params");
+        params.push(Val::I32);
+        at
+    });
     for key in keys {
         let at = u32::try_from(params.len()).expect("params");
         em.providers.push((key, [at, at + 1]));
@@ -283,6 +268,9 @@ pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> 
             em.providers.push((k, ls));
         }
         em.open_base = em.providers.len();
+    }
+    if let (Some(family), Some(w)) = (erased, witness) {
+        em.read_ops(family, key, w)?;
     }
     if em.counting {
         em.open(Ctl::Exit);
@@ -559,6 +547,57 @@ struct Em<'i, 'a, 'm> {
     /// The locals that closures share, each in a cell, with the store
     /// that declares it (`closure.rs`).
     cells: HashMap<usize, u32>,
+    /// In an erased body, the local holding the address of its thunks'
+    /// table, read from the witness (`erased.rs`).
+    ops: Option<u32>,
+}
+
+impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
+    /// An emitter of `b`'s instance of `item` at `args`, with no function
+    /// yet.
+    fn new(
+        input: &'i Input<'a>,
+        m: &'m mut Module,
+        b: &'a Body,
+        (item, args): (DefId, TyList),
+        calls: &'i HashMap<u32, Target>,
+        shared: HashMap<usize, u32>,
+    ) -> Self {
+        Em {
+            input,
+            m,
+            b,
+            item,
+            args,
+            calls,
+            f: Func::default(),
+            vals: HashMap::default(),
+            locals: HashMap::default(),
+            providers: Vec::new(),
+            open_ctx: None,
+            open_base: 0,
+            ctl: Vec::new(),
+            deciding: Vec::new(),
+            loops: 0,
+            counting: false,
+            ret: Vec::new(),
+            results: Vec::new(),
+            scopes: HashMap::default(),
+            defer_flags: HashMap::default(),
+            drops: live::Drops::default(),
+            moves: live::Moves::default(),
+            skip: hd_base::HashSet::default(),
+            borrowed: hd_base::HashSet::default(),
+            emitting: Vec::new(),
+            moving: Vec::new(),
+            blocks: Vec::new(),
+            susp: None,
+            shield: 0,
+            temps: Vec::new(),
+            cells: shared,
+            ops: None,
+        }
+    }
 }
 
 impl Em<'_, '_, '_> {
@@ -847,6 +886,13 @@ impl Em<'_, '_, '_> {
 
     fn inst_body(&mut self, i: u32) -> StageResult<()> {
         let [a, bw] = self.b.data[i as usize];
+        // An erased body's open instruction calls its thunk (`erased.rs`);
+        // a tag switch outlines only its tag read.
+        if let Some(&Target::Open(k)) = self.calls.get(&i)
+            && self.b.tags[i as usize] != Tag::SwitchTag
+        {
+            return self.open_inst(i, k);
+        }
         match self.b.tags[i as usize] {
             Tag::LocalGet if self.is_cell(a as usize) => self.cell_get(i, a as usize)?,
             Tag::LocalSet if self.is_cell(a as usize) => {
@@ -1113,7 +1159,9 @@ impl Em<'_, '_, '_> {
                 {
                     return unsupported("a switch on a 64-bit integer");
                 }
-                if self.b.tags[i as usize] == Tag::SwitchTag {
+                if let Some(&Target::Open(k)) = self.calls.get(&i) {
+                    self.open_call(i, k)?;
+                } else if self.b.tags[i as usize] == Tag::SwitchTag {
                     self.tag(a)?;
                 } else {
                     self.comp(a, 0)?;
@@ -1443,15 +1491,18 @@ impl Em<'_, '_, '_> {
     /// indirect call through the slot of the receiver's vtable that the
     /// method's position in the trait names.
     fn call_dyn(&mut self, i: u32, a: u32, args: &[u32]) -> StageResult<()> {
-        let results = self.vals(self.ty(i))?;
-        self.push_dyn(a, args, results)?;
         let ty = self.ty(i);
+        self.push_dyn(a, args, Some(ty))?;
         self.call_results(i, ty)
     }
 
-    /// Pushes a dynamic call's results: callee record `a` dispatched
-    /// through its receiver's vtable with `args`, the receiver first.
-    fn push_dyn(&mut self, a: u32, args: &[u32], results: Vec<Val>) -> StageResult<()> {
+    /// Pushes a dynamic call's results, of type `result`, or its cold frame
+    /// when `result` is `None`: callee record `a` dispatched through its
+    /// receiver's vtable with `args`, the receiver first. A generic
+    /// method's slot takes its open arguments as open values and the
+    /// witness of the call's type arguments, and an open result comes
+    /// back as an open value (`erased.rs`).
+    fn push_dyn(&mut self, a: u32, args: &[u32], result: Option<Ty>) -> StageResult<()> {
         let Some(Callee::TraitMethod {
             trait_,
             method,
@@ -1473,9 +1524,19 @@ impl Em<'_, '_, '_> {
         if !takes_ctx && !self.env().row_keys(method, targs).is_empty() {
             return unsupported("a dynamic call of a method whose row is a trait's row parameter");
         }
-        if ctx::own_types(self.env(), method) > 0 {
-            return unsupported("a dynamic call of a generic method");
+        let open = self.dyn_open(trait_, method, targs)?;
+        // A suspension kept as a value is polled where its result type is
+        // concrete, so an open one has no reader there.
+        if result.is_some() && self.env().suspends(method) && open.as_ref().is_some_and(|o| o.ret) {
+            return unsupported(
+                "a kept suspension of a generic method called through a trait value",
+            );
         }
+        let results = match (result, &open) {
+            (Some(_), Some(o)) if o.ret => vec![Val::I32],
+            (Some(t), _) => self.vals(t)?,
+            (None, _) => vec![Val::I32],
+        };
         let Some((&recv, rest)) = args.split_first() else {
             return unsupported("a dynamic call without a receiver");
         };
@@ -1493,9 +1554,27 @@ impl Em<'_, '_, '_> {
         } else {
             self.comp(recv, 0)?;
         }
-        for r in rest {
+        // Open arguments cross as open values the call owns until it
+        // has returned.
+        let mut boxed = Vec::new();
+        for (j, r) in rest.iter().enumerate() {
+            if let Some(et) = open
+                .as_ref()
+                .and_then(|o| o.params.get(j).copied().flatten())
+            {
+                let ls = self.local_value_of(*r)?;
+                let o = self.erase(&ls, et, self.ty_of(*r), false)?;
+                self.f.get(o);
+                params.push(Val::I32);
+                boxed.push(o);
+                continue;
+            }
             params.extend(self.vals(self.ty_of(*r))?);
             self.push(*r)?;
+        }
+        if let Some(o) = &open {
+            self.f.body.push(Ins::VTable(o.witness));
+            params.push(Val::I32);
         }
         let c = if takes_ctx {
             params.push(Val::I32);
@@ -1517,13 +1596,25 @@ impl Em<'_, '_, '_> {
             4 * u64::try_from(slot).expect("slot"),
             2,
         )));
-        self.f.body.push(Ins::CallIndirect(params, results));
+        self.f.body.push(Ins::CallIndirect(params, results.clone()));
+        if let (Some(t), Some(o)) = (result, &open)
+            && o.ret
+        {
+            let x = self.f.local(Val::I32);
+            self.f.set(x);
+            for l in self.unerase(x, o.ret_ty, t, true)? {
+                self.f.get(l);
+            }
+        }
         if let Some(value) = payload
             && owned
             && self.input.runtime.is_some()
         {
             self.f.get(value[0]);
             self.f.helper(Helper::ReleaseRef);
+        }
+        for o in boxed {
+            self.release_open(o);
         }
         self.release_ctx(c);
         Ok(())

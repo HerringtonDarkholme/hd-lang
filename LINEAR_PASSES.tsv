@@ -434,6 +434,8 @@ runtime/valid/dyn-ref-list-written.hd	#573: closures and trait values
 runtime/valid/dyn-ref-mut-changes-caller.hd	#573: closures and trait values
 runtime/valid/dyn-ref-receiver-forms.hd	#573: closures and trait values
 runtime/valid/dyn-ref-widen.hd	#573: closures and trait values
+runtime/valid/dyn-suspending-generic-method.hd	#615: erased generic method bodies, witnesses and thunks
+runtime/valid/dynamic-row-parameter-erased-body.hd	#615: erased generic method bodies, witnesses and thunks
 runtime/valid/dynamic-row-parameter-method.hd	#613: requirement rows and context values
 runtime/valid/dynamic-row-parameter-nearest.hd	#613: requirement rows and context values
 runtime/valid/dynamic-suspending-method.hd	#575: suspension frames, the waker and the entry driver
@@ -465,6 +467,7 @@ runtime/valid/enum-value-fixed-at-construction.hd	#573: closures and trait value
 runtime/valid/enum-variant-by-type-name.hd	#573: closures and trait values
 runtime/valid/eprintln-error-line.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/erased-error-result.hd	#573: closures and trait values
+runtime/valid/erased-method-local-reference.hd	#615: erased generic method bodies, witnesses and thunks
 runtime/valid/error-bound-downcast-evidence.hd	#586: reference recovery methods
 runtime/valid/error-chain-derived-causes.hd	#573: closures and trait values
 runtime/valid/error-chain-method.hd	#573: closures and trait values
@@ -1066,6 +1069,7 @@ runtime/valid/recursive-optional-reference-list.hd	#573: closures and trait valu
 runtime/valid/recursive-private-functions-least-row.hd	#573: closures and trait values
 runtime/valid/reference-aliases-see-writes.hd	#573: closures and trait values
 runtime/valid/reference-allocates.hd	#573: closures and trait values
+runtime/valid/reference-bounded-dynamic-method.hd	#615: erased generic method bodies, witnesses and thunks
 runtime/valid/reference-copy-out.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/reference-cycles-are-ordinary-data.hd	#573: closures and trait values
 runtime/valid/reference-deref-replace.hd	#573: closures and trait values
@@ -1386,6 +1390,7 @@ runtime/valid/trait-reference-bounds.hd	#586: reference recovery methods
 runtime/valid/trait-reference-method-values.hd	#590: method references through trait reference receivers
 runtime/valid/trait-value-as-provider.hd	#573: closures and trait values
 runtime/valid/trait-value-binding-identity.hd	#573: closures and trait values
+runtime/valid/trait-value-generic-method-value-args.hd	#615: erased generic method bodies, witnesses and thunks
 runtime/valid/trait-value-satisfies-instantiated-bound.hd	#573: closures and trait values
 runtime/valid/trim-unicode-white-space.hd	#573: closures and trait values
 runtime/valid/try-operand-expected-type.hd	#573: closures and trait values
