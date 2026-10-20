@@ -86,6 +86,59 @@ so PATH is an `hd` built with two local edits: `Program::packages` in
 and `retained()` and `released()` in `lib/std/rt/checked.hd` put
 `allocated()` and `pages()` in the high 32 bits of their results.
 
+### Results, 2026-10-20, after #642 to #655
+
+Commit `de67c20fb`, the same machine and tools as below (Node v24.19.0,
+Go 1.24.1, CPython 3.14.7, wasmtime 49 in `hd`), the full suite with
+references, median of 3 and a run over 60 s once. The one-minute load was
+4 to 15. The commit holds #642 (cycle hooks only for cycle-capable
+types), #643 (known block starts), #645 (borrowed parameter projections),
+#649 (no collector for acyclic programs) and #655 (one-field element
+stores, constant branches), not #644's wasmtime-only inline counts.
+"Wasm GC era" is the GC era's hd on V8 from the table below, and
+"baseline" is the first RC run below. Milliseconds.
+
+| Program | hd V8 | hd wasmtime | Node | Go | Python | Wasm GC era hd V8 | #638 baseline hd V8 | Beats Wasm GC era? | At least Node? |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- |
+| spectral-norm (n 2500) | 606 | 810 | 452 | 281 | 20,256 | 317 | 20,935 | no | no |
+| fannkuch-redux (n 10) | 3,522 | 4,568 | 225 | 156 | 3,254 | 753 | 9,107 | no | no |
+| mandelbrot (1600², 50) | 385 | 334 | 158 | 118 | 5,243 | 430 | 388 | yes | no |
+| nbody (5M steps) | 1,313 | 2,295 | 293 | 183 | 18,512 | 262 | 63,121 | no | no |
+| sieve (30M) | 566 | 607 | 106 | 73 | 1,264 | 624 | 2,990 | yes | no |
+| binary-trees (depth 20) | 31,583 | 85,442 | 2,991 | 4,746 | 110,391 | 1,934 | 68,816 | no | no |
+| points† (1M, 10 rounds) | 111 | 327 | 248 | 27 | 3,273 | 399 | 557 | yes | yes |
+| closures† (1M, 50 rounds) | 1,865 | 5,781 | 258 | 166 | 1,825 | 272 | 16,264 | no | no |
+| map-count† (2M words) | 915 | 2,249 | 460 | 123 | 436 | 497 | 2,864 | no | no |
+| string-build† (3M pieces) | 593 | 1,500 | 306 | 179 | 266 | 366 | 1,443 | no | no |
+| json† (400k records) | 18,133 | 33,399 | 259 | 458 | 881 | 1,007 | 92,216 | no | no |
+| dyn_iter (#634, 6 variants) | 2,831 | 9,250 |  | 510 | 11,726 |  | 50,911 |  |  |
+| progs/closures | 1,112 | 2,614 | 560 |  |  |  | 6,977 |  | no |
+| progs/int-loop | 1,234 | 1,013 | 832 |  |  |  | 1,519 |  | no |
+| progs/list-sort | 1,363 | 803 | 151 |  |  |  | 41,951 |  | no |
+| progs/map-count | 49 | 235 | 39 |  |  |  | 59 |  | no |
+| progs/string-build | 181 | 285 | 289 |  |  |  | 152 |  | yes |
+| progs/string-builder | 50 | 193 | 45 |  |  |  | 57 |  | no |
+| progs/trait-dispatch | 853 | 826 | 627 |  |  |  | 812 |  | no |
+| micro/sort | 151 | 347 |  |  |  |  | 493 |  |  |
+| micro/fib, sum, map, string_build | 55 to 105 | 134 to 191 |  |  |  |  | 40 to 87 |  |  |
+| tokenizer, math | 308 to 312 | 158 to 189 |  |  |  |  | 40 to 87 |  |  |
+| empty program | 57 | 197 |  |  |  | 36 | 44 | no |  |
+
+Under V8's sampling profiler, the three programs furthest behind Node
+spend their time on counting, not on their own code:
+
+- **json** (70x Node): 40% in `block_of` and about 30% in releases and
+  retains. Its strings and text views are interior addresses, so each
+  count still finds its block through the page table.
+- **fannkuch-redux** (16x): the program's own loop is 44%. Releases of
+  known starts take 29%, `retain_known` 14% and `list_unique` 11%: each
+  permutation copies and writes its lists, and every write checks
+  uniqueness.
+- **binary-trees** (11x): releases take 36% and the collector 11%
+  (`suspect`, `forget`, `set_word`). `block_of` takes 8%, and allocation
+  and free about 5%. Its `&Node` cells are cycle-capable, as a reference
+  may close a cycle, so every shared count reaches the collector.
+
 ### Results, 2026-10-20
 
 Commit `e8636d4b3`, Apple M3 Max (14 cores), macOS 26.6.2, Node v24.19.0,
