@@ -19,7 +19,7 @@ use super::Em;
 use super::value::Src;
 use crate::layout::{Kind, Part, mem as mem_of, payload_mem, struct_mem};
 use crate::module::{EMPTY, HEAP, Val, mem};
-use crate::rt::{Helper, LIST_ELEMS, LIST_LEN, RefLayout};
+use crate::rt::{self, Helper, LIST_ELEMS, LIST_LEN, RefLayout};
 use crate::unsupported;
 
 /// Where a place starts: an address in a local, or a value's locals.
@@ -224,8 +224,7 @@ impl Em<'_, '_, '_> {
             if fat {
                 let projected = self.f.local(Val::I32);
                 self.f.set(projected);
-                self.f.get(projected);
-                self.f.helper(Helper::RefLoad { value: field });
+                self.load_through(projected, &field);
                 self.release_open(projected);
             }
             self.store_owned(i)?;
@@ -237,8 +236,7 @@ impl Em<'_, '_, '_> {
         match base {
             Base::At(at) if fat => {
                 let value = self.ref_layout(ty)?;
-                self.f.get(at);
-                self.f.helper(Helper::RefLoad { value });
+                self.load_through(at, &value);
                 self.store_owned(i)?;
                 if let Some(view) = owned_base {
                     self.release_open(view);
@@ -296,9 +294,19 @@ impl Em<'_, '_, '_> {
             return self.store(i);
         }
         let value = self.ref_layout(target)?;
+        let at = self.f.local(Val::I32);
         self.comp(r, 0)?;
-        self.f.helper(Helper::RefLoad { value });
+        self.f.set(at);
+        self.load_through(at, &value);
         self.store_owned(i)
+    }
+
+    /// Pushes the value that the reference in local `at` names, with
+    /// counts of its own ([`rt::ref_load`]).
+    fn load_through(&mut self, at: u32, value: &RefLayout) {
+        for l in rt::ref_load(&mut self.f, at, value) {
+            self.f.get(l);
+        }
     }
 
     /// `RefWrite` of `v` through reference `r`: the place takes a count
@@ -312,9 +320,15 @@ impl Em<'_, '_, '_> {
             return unsupported("a write of a whole value through a trait value reference");
         };
         let value = self.ref_layout(target)?;
+        let at = self.f.local(Val::I32);
         self.comp(r, 0)?;
+        self.f.set(at);
+        let ls: Vec<u32> = value.leaves.iter().map(|l| self.f.local(l.val)).collect();
         self.push(v)?;
-        self.f.helper(Helper::RefStore { value });
+        for l in ls.iter().rev() {
+            self.f.set(*l);
+        }
+        rt::ref_store(&mut self.f, at, &ls, &value);
         Ok(())
     }
 

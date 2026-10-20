@@ -2970,17 +2970,28 @@ same erased bodies, thunks and witness fields.
 - **References.** A reference whose target is open is the address of an
   open value. When the concrete target is one counted address, its place
   holds the same word, so the reference crosses as it is. Any other
-  target is copied around the call it is an argument of (issue #617).
-  In a thunk, `&mut x` of an open `x` passed to a helper at `T = i32`
-  becomes a reference to a new box holding a copy of `x`'s box, which
-  replaces it in `x`'s place once the call returns: other open values may
-  share the old box, so the helper must not write into it. A `&` names
-  the box itself. A dynamic call passing a `&mut i32` to a `&mut T`
-  parameter passes a new word holding a box of a copy of the value, and
-  after the call stores the value of the box the word then holds back
-  into the caller's place. A reference that outlives its call (a result,
-  a capture, a field, or an argument of a cold call) has no point to
-  write back at and is refused at link.
+  reference crosses as a counted view of its original place (issue
+  #619), still one word, so a reference keeps one ABI on both sides. A
+  view is a 20-byte object whose descriptor is `rt:ref_view_drop`: the
+  source reference it retains (an address, or another view), a getter
+  slot that answers the value as an owned erased box, a setter slot that
+  takes one, a field offset, and whether the source is an erased word.
+  A field reference into a view (`&mut alias.text`) is a view whose
+  getter and setter read and write the whole parent through the parent
+  view. Every concrete read and write through a reference is emitted
+  inline: when std's `block_of` finds the address is the payload of a
+  block whose descriptor is the view's, the access goes through the
+  getter or setter and unboxes or boxes the value; otherwise it loads or
+  stores the leaves at the address as before. Inline, a value of any
+  width stays in locals and never crosses a function's parameters or
+  results. Since a view forwards each access, aliases see later writes
+  from either side, after the call has returned and from a cold call.
+  Identity (`is`) follows views to their source: an address plus the
+  field offset, or for an erased word the pair of the word and the
+  offset, since a concrete offset added to a one-word cell could name an
+  unrelated object. A synchronous call releases the views it made for
+  its arguments when it returns; a result, a capture, a field or a cold
+  call's argument keeps its view counted like any other value.
 - **Kept suspensions.** A plain call of a suspending generic method
   through a trait value keeps the erased frame, whose poll answers an
   open value, as a `Suspend[T]` that is polled where only `T` is known:
@@ -2988,7 +2999,8 @@ same erased bodies, thunks and witness fields.
   open value, the caller wraps it in a frame of its own
   (`Helper::OpenFrame`, issue #617): `cancel!`'s cleanup frame with a
   poll that polls the child and, once it is Ready, unboxes its result
-  with counts of its own and releases the box. Its cancel cancels the
+  with counts of its own and releases the box; a reference result
+  becomes a view of the open word instead. Its cancel cancels the
   child and unwinds while the child does, as the cleanup frame's does,
   and its glue releases the child. The Wasm GC backend wraps every such
   frame the same way (`Helper::OpenCold`, `OpenPoll`), since a frame's
@@ -3001,7 +3013,8 @@ same erased bodies, thunks and witness fields.
 - **Checked by** the five conformance cases of the issue, on `linear` and
   `linear-checked`, whose count audit covers every box and cell, and by
   `erased-method-boxed-reference-argument` and
-  `dyn-generic-suspension-kept` (issue #617), which run on Wasm GC too.
+  `dyn-generic-suspension-kept` (issue #617), and the seven
+  `erased-reference-*` cases (issue #619), which run on Wasm GC too.
 
 ### 23.28 The Cycle Collector
 

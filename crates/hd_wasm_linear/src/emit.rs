@@ -2166,11 +2166,13 @@ impl Em<'_, '_, '_> {
                 let (_, e) = self.elem(lt)?;
                 // A field reference may be a representation view rather
                 // than an address holding the header directly.
-                let header = self.f.local(Val::I32);
                 let value = self.ref_layout(lt)?;
+                let at = self.f.local(Val::I32);
                 self.comp(args[0], 0)?;
-                self.f.helper(Helper::RefLoad { value });
-                self.f.set(header);
+                self.f.set(at);
+                let [header] = crate::rt::ref_load(&mut self.f, at, &value)[..] else {
+                    return unsupported("a list that is not one address");
+                };
                 self.f.get(header);
                 self.push(args[1])?;
                 self.f.helper(Helper::ListTruncate { elem: e });
