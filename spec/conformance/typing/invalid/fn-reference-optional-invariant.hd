@@ -1,0 +1,7 @@
+# test: fn reference optional invariant
+# Spec 04: types.option.invariant.
+struct User:
+    name: string
+
+fn invariant(f: fn() -> (&mut User)?) -> fn() -> (&User)?:
+    f  # diagnostic: type-mismatch

@@ -1,10 +1,10 @@
 # test: function types convert only by the declared variance: inputs contravariant, output covariant
 # Spec 04 Function Type Identity: types.fn.declared-variance.
-data User:
+struct User:
     name: string
 
-fn widen(f: fn(User) -> mut User) -> fn(mut User) -> User:
+fn widen(f: fn(&User) -> &mut User) -> fn(&mut User) -> &User:
     f
 
-fn narrow(f: fn(mut User) -> User) -> fn(User) -> User:
+fn narrow(f: fn(&mut User) -> &User) -> fn(&User) -> &User:
     f  # diagnostic: type-mismatch

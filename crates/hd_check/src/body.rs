@@ -1756,8 +1756,23 @@ impl Ck<'_, '_> {
                 .coerce(Coercion::SuspendFnToCtor, NONE, r, lowered, n.index());
             return self.coerce(r, lowered, target, n, what, position);
         }
+        // Reference permissions in a function type vary by its input and
+        // result positions, rather than by invariant unification (#624).
+        // Keep the row fitting below: top-level function rows may widen.
+        let snapshot = self.infer.snapshot();
+        let variance_view = matches!(
+            (pool.get(g), pool.get(w)),
+            (TyData::Fn { .. }, TyData::Fn { .. })
+                | (TyData::Adt { .. }, TyData::Adt { .. })
+                | (TyData::Tuple { .. }, TyData::Tuple { .. })
+        ) && self.variance_view_fits(g, w, 0);
+        if !variance_view {
+            self.infer.rollback(snapshot);
+        }
         let before = self.diags.len();
-        self.expect(got, want, n, what, position);
+        if !variance_view {
+            self.expect(got, want, n, what, position);
+        }
         // A row parameter inside a type argument takes its solution from
         // the argument's nested row, exactly (`types.variance.function`).
         if self.diags.len() == before && !joined {

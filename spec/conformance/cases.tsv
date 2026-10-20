@@ -3109,6 +3109,12 @@ typing/valid/fn-type-constructor-sugar.hd	type	accept	lang/04-type-system.md#r-t
 typing/valid/fn-type-same-normalized-row.hd	type	accept	lang/04-type-system.md#r-types.fn.same
 typing/invalid/fn-type-different-output.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.fn.same
 typing/invalid/fn-type-variance-direction.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.fn.declared-variance
+typing/valid/fn-reference-variance.hd	type	accept	lang/04-type-system.md#r-types.variance.function
+typing/invalid/fn-reference-mutable-container-invariant.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.variance.mut-invariant
+typing/invalid/fn-reference-nested-row-invariant.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.variance.function
+typing/invalid/fn-reference-optional-invariant.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.option.invariant
+typing/invalid/fn-reference-result-upgrade.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.variance.function
+runtime/valid/fn-reference-variance.hd	runtime	accept	lang/04-type-system.md#r-types.variance.function
 typing/valid/alias-same-type.hd	type	accept	lang/04-type-system.md#r-types.alias.same
 typing/valid/alias-names-row.hd	type	accept	lang/04-type-system.md#r-types.alias.row
 typing/invalid/alias-cycle-reported-once.hd	type	reject:alias-cycle	lang/04-type-system.md#r-types.alias.cycle.reported

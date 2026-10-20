@@ -1,0 +1,9 @@
+# test: fn reference nested row invariant
+# Spec 04: types.variance.function.
+struct User:
+    name: string
+
+trait Service
+
+fn invariant(f: fn(fn() -> void $ Service) -> void) -> fn(fn() -> void) -> void:
+    f  # diagnostic: type-mismatch

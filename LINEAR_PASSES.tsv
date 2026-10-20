@@ -522,6 +522,7 @@ runtime/valid/float-eq-bound.hd	#573: closures and trait values
 runtime/valid/float-literal-forms.hd	#551: structs, tuples, enums and data values
 runtime/valid/float-remainder-run.hd	#614: integer and floating power, floating remainder
 runtime/valid/floating-power.hd	#614: integer and floating power, floating remainder
+runtime/valid/fn-reference-variance.hd	#624
 runtime/valid/folder-graph-test-edges.hd	#573: closures and trait values
 runtime/valid/folder-graph-tests-block-edges.hd	#573: closures and trait values
 runtime/valid/for-element-references-exit-releases.hd	#574: references, cleanup scopes and releases at last use

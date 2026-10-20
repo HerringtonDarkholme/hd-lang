@@ -1,0 +1,31 @@
+# test: reference variance keeps function calls and referenced values intact
+# Spec 04 Readonly Outer Views: types.variance.function; Representation-Preserving Variance: types.variance.repr.weakening.
+# expect: test
+struct User:
+    name: string
+
+fn identity(user: &User) -> &User:
+    user
+
+fn new_user() -> &mut User:
+    &mut User { name: "Ada" }
+
+fn widen_input(f: fn(&User) -> &User) -> fn(&mut User) -> &User:
+    f
+
+fn widen_result(f: fn() -> &mut User) -> fn() -> &User:
+    f
+
+tests:
+    use std.testing.assert_equal
+
+    it("calls a function through its contravariant input view"):
+        let mut user = User { name: "Ada" }
+        read := widen_input(identity)
+        shared := read(&mut user)
+        user.name = "Grace"
+        assert_equal(shared.name, "Grace", reason="the function keeps reference identity")
+
+    it("calls a function through its covariant result view"):
+        create := widen_result(new_user)
+        assert_equal(create().name, "Ada", reason="permission weakening preserves the returned reference")

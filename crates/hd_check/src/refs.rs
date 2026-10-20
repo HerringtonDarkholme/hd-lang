@@ -151,7 +151,93 @@ impl Ck<'_, '_> {
                         _ => false,
                     }
             }
+            // Function inputs reverse the conversion; results preserve it.
+            // Nested rows stay invariant (`types.variance.function`). A
+            // top-level function value fits its row after this trial.
+            (
+                TyData::Fn {
+                    params: a,
+                    result: ar,
+                    row: aw,
+                    suspends: ac,
+                    inputs: ai,
+                },
+                TyData::Fn {
+                    params: b,
+                    result: br,
+                    row: bw,
+                    suspends: bc,
+                    inputs: bi,
+                },
+            ) if ac == bc && ai == bi => {
+                let (a, b) = (pool.list_items(a), pool.list_items(b));
+                a.len() == b.len()
+                    && (depth == 0 || self.rows_equal(aw, bw))
+                    && a.iter()
+                        .zip(b)
+                        .all(|(&a, &b)| self.variance_view_fits(b, a, d))
+                    && self.variance_view_fits(ar, br, d)
+            }
             _ => self.infer.unify(pool, from, to).is_ok() && self.perm_fits(from, to, false, d),
+        }
+    }
+
+    /// Representation-preserving variance inside a function signature.
+    /// Unlike a readonly reference view, an ordinary optional or invariant
+    /// argument cannot weaken permissions (`types.option.invariant`).
+    pub(crate) fn variance_view_fits(&mut self, from: Ty, to: Ty, depth: u32) -> bool {
+        if depth > 32 {
+            return false;
+        }
+        let pool = self.pool();
+        let from = self.infer.resolve(pool, from);
+        let to = self.infer.resolve(pool, to);
+        if from == to {
+            return true;
+        }
+        let d = depth + 1;
+        match (pool.get(from), pool.get(to)) {
+            (TyData::Fn { .. }, TyData::Fn { .. })
+            | (TyData::Ref { .. }, TyData::Ref { mutable: false, .. }) => {
+                self.readonly_view_fits(from, to, depth)
+            }
+            (
+                TyData::Adt { def, args: a },
+                TyData::Adt {
+                    def: other,
+                    args: b,
+                },
+            ) if def == other => {
+                let (a, b) = (pool.list_items(a), pool.list_items(b));
+                let variance = self.declared_variances(def);
+                a.len() == b.len()
+                    && a.iter().zip(b).enumerate().all(|(i, (&a, &b))| {
+                        match variance.get(i).copied().unwrap_or(0) {
+                            1 => self.variance_view_fits(a, b, d),
+                            -1 => self.variance_view_fits(b, a, d),
+                            _ => {
+                                self.infer.unify(pool, a, b).is_ok()
+                                    && self.perm_fits(a, b, false, d)
+                            }
+                        }
+                    })
+            }
+            (TyData::Tuple { elems: a, rest: ar }, TyData::Tuple { elems: b, rest: br }) => {
+                let (a, b) = (pool.list_items(a), pool.list_items(b));
+                a.len() == b.len()
+                    && a.iter()
+                        .zip(b)
+                        .all(|(&a, &b)| self.variance_view_fits(a, b, d))
+                    && match (ar, br) {
+                        (Some(a), Some(b)) => self.variance_view_fits(a, b, d),
+                        (None, None) => true,
+                        _ => false,
+                    }
+            }
+            _ => {
+                self.infer.unify(pool, from, to).is_ok()
+                    && self.perm_fits(from, to, !matches!(pool.get(from), TyData::Option(_)), d)
+            }
         }
     }
 

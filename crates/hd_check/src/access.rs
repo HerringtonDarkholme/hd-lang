@@ -327,8 +327,18 @@ impl Ck<'_, '_> {
             (TyData::Option(a), TyData::Option(b)) => self.perm_fits(a, b, false, d),
             // `ref.type.distinct`: a reference type is invariant in its
             // operand, whose own outer `mut` is no part of it.
-            (TyData::Ref { inner: a, .. }, TyData::Ref { inner: b, .. }) => {
-                self.perm_fits(self.strip_mut(a), self.strip_mut(b), false, d)
+            (
+                TyData::Ref {
+                    inner: a,
+                    mutable: am,
+                },
+                TyData::Ref {
+                    inner: b,
+                    mutable: bm,
+                },
+            ) => {
+                (am == bm || (weaken && am && !bm))
+                    && self.perm_fits(self.strip_mut(a), self.strip_mut(b), false, d)
             }
             (TyData::Tuple { elems: a, .. }, TyData::Tuple { elems: b, .. }) => pool
                 .list_items(a)

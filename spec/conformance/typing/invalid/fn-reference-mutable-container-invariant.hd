@@ -1,0 +1,7 @@
+# test: fn reference mutable container invariant
+# Spec 04: types.variance.mut-invariant.
+struct User:
+    name: string
+
+fn invariant(f: fn() -> &mut List[&mut User]) -> fn() -> &mut List[&User]:
+    f  # diagnostic: type-mismatch
