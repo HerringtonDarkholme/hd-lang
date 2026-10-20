@@ -3,7 +3,8 @@
 //! (`module.resource.closed`, spec/conformance/README.md "Runtime Profiles").
 //! It crosses as its number, and its methods are imported from
 //! `hd:<Trait>` by name with the number first. A handle trait that one
-//! of its own methods returns does not cross.
+//! of its own called methods returns does not cross. A method no code
+//! calls is imported by no one.
 
 use hd_cache::{CacheStore, MemoryStore};
 use hd_driver::{Executor, Goal, Host, NoClock, Output, Packages, build_packages};
@@ -31,7 +32,7 @@ pub fn main!() -> void $ Files:
 ";
 
 /// Builds `main.hd` with `text` under a profile of the traits `traits`
-/// that it declares.
+/// that it declares, or under the default profile when there are none.
 fn build(text: &str, traits: &[&str]) -> Output {
     build_in(&crate::warm_store(), text, traits)
 }
@@ -49,7 +50,8 @@ fn build_in(store: &dyn CacheStore, text: &str, traits: &[&str]) -> Output {
     };
     let module = hd_project::module_path("app", "main.hd");
     let packages = Packages {
-        profile: Some(traits.iter().map(|t| format!("{module}.{t}")).collect()),
+        profile: (!traits.is_empty())
+            .then(|| traits.iter().map(|t| format!("{module}.{t}")).collect()),
         ..Packages::default()
     };
     build_packages(
@@ -101,7 +103,9 @@ fn a_returned_profile_trait_value_is_a_handle_whose_methods_take_its_number() {
 
 #[test]
 fn a_handle_trait_that_its_own_method_returns_stops_at_link() {
-    let text = format!("{FILES}    fn again(self) -> &mut dyn FileHandle\n{MAIN}");
+    let text = format!(
+        "{FILES}    fn again(&mut self) -> &mut dyn FileHandle\n{MAIN}    let _ = handle.again()\n"
+    );
     let out = build(&text, &["Files", "FileHandle"]);
     assert!(out.wasm.is_none());
     assert!(
@@ -111,25 +115,22 @@ fn a_handle_trait_that_its_own_method_returns_stops_at_link() {
     );
 }
 
-/// The trait method's edit leaves every body's TIR as it was, so only
-/// the module's declarations tell the two builds' links apart.
+/// The trait method's edit leaves every body's TIR as it was. No code
+/// calls the new method, so its slot is a trap that crosses nothing.
 #[test]
-fn a_self_returning_handle_method_stops_at_link_after_the_handle_free_build() {
+fn an_uncalled_self_returning_handle_method_links_after_the_handle_free_build() {
     let store = crate::warm_store();
     let traits = ["Files", "FileHandle"];
     let free = build_in(&store, &format!("{FILES}{MAIN}"), &traits);
-    assert!(free.wasm.is_some(), "{}", free.render());
+    let free = free.wasm.as_deref().expect("the handle-free program links");
     let text = format!("{FILES}    fn again(self) -> &mut dyn FileHandle\n{MAIN}");
     let out = build_in(&store, &text, &traits);
-    assert!(out.wasm.is_none());
-    assert!(
-        out.render().contains("which a method of its own returns"),
-        "{}",
-        out.render()
-    );
+    let wasm = out.wasm.as_deref().expect("the program links");
+    assert_eq!(profile_imports(wasm), profile_imports(free));
 }
 
-/// A handle trait's new method is a new import, though no body changed.
+/// A handle trait's new method relinks, though no body changed; no code
+/// calls it, so it imports nothing.
 #[test]
 fn a_handle_trait_edit_relinks() {
     let store = MemoryStore::default();
@@ -143,7 +144,41 @@ fn a_handle_trait_edit_relinks() {
     assert_eq!(edited.counters.miss("link"), 1);
     let imports = profile_imports(wasm);
     assert!(
-        imports.contains(&"hd:FileHandle name".to_owned()),
+        !imports.contains(&"hd:FileHandle name".to_owned()),
         "{imports:?}"
+    );
+}
+
+/// A host trait of the ABI table links only the methods the program
+/// calls: `println` alone imports no `write_error_line`.
+#[test]
+fn an_uncalled_host_method_is_not_imported() {
+    let out = build(
+        "pub fn main() -> void $ Console:\n    println(\"hello\")\n",
+        &[],
+    );
+    let Some(wasm) = out.wasm.as_deref() else {
+        panic!("{}", out.render());
+    };
+    assert_eq!(
+        profile_imports(wasm),
+        [
+            "hd:Console write_line.finish",
+            "hd:Console write_line.start"
+        ]
+    );
+    let out = build(
+        "use std.console.eprintln\n\npub fn main() -> void $ Console:\n    eprintln(\"oops\")\n",
+        &[],
+    );
+    let Some(wasm) = out.wasm.as_deref() else {
+        panic!("{}", out.render());
+    };
+    assert_eq!(
+        profile_imports(wasm),
+        [
+            "hd:Console write_error_line.finish",
+            "hd:Console write_error_line.start"
+        ]
     );
 }

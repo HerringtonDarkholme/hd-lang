@@ -415,6 +415,12 @@ recursion edges normalize storage.
 - **Host providers.** The driver roots `std.rt.host_provider` for every
   entry-row key. The host creates its trait descriptor and wraps it in a
   reference to a new object, using the same provider layout for all keys.
+  A program links only the host methods it calls: collection records each
+  trait method that scanned code calls through a trait value
+  (`hd_mono::Collected::dyn_methods`), and a provider's or host handle's
+  slot for any other method is a trap stub with no import, on both
+  backends. A session build that reaches an earlier module's instances
+  did not scan them, so it lowers every slot (`Collected::calls_dyn`).
 - **Host handles behind references.** A host method that returns a
   handle as a trait value reference, as `Net.connect!` returns
   `&mut dyn TcpStream` (`std-net.handles.ref`), crosses as a
@@ -429,7 +435,7 @@ recursion edges normalize storage.
   instance while it walks the entry rows' provider signatures for their
   boundary codecs (`hd_mono::BoundaryCodecs::handle_ref`, nested handles
   included, as `TcpListener.accept!` returns a stream), and the entry's
-  layout reads it from that map (`Lay::boundary`). The host's imports and
+  layout reads it from that map (`Lay::entry`). The host's imports and
   the handle numbers are unchanged, so host/ and hd_run_wasmtime need
   nothing new.
 

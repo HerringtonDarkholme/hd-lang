@@ -7874,7 +7874,7 @@ pub fn entry(
     inits: &[hd_base::Hash128],
     entry_inits: &[hd_base::Hash128],
     report: Option<hd_base::Hash128>,
-    boundary: &hd_mono::BoundaryMap,
+    collected: &hd_mono::Collected,
     host_refs: &[(Ty, hd_base::Hash128)],
 ) -> StageResult<Vec<(String, Helper)>> {
     // Only the entry module's own init bodies may use `block_on`
@@ -7896,7 +7896,7 @@ pub fn entry(
                 key,
                 report,
                 Vec::new(),
-                boundary,
+                collected,
                 host_refs,
             )?,
         ),
@@ -7920,7 +7920,7 @@ pub fn script_entry(
     inits: &[hd_base::Hash128],
     own: &[hd_base::Hash128],
     report: Option<hd_base::Hash128>,
-    boundary: &hd_mono::BoundaryMap,
+    collected: &hd_mono::Collected,
     host_refs: &[(Ty, hd_base::Hash128)],
 ) -> StageResult<Vec<(String, Helper)>> {
     let (before, after): (Vec<_>, Vec<_>) = match inits.iter().position(|k| *k == key) {
@@ -7943,7 +7943,7 @@ pub fn script_entry(
         (
             "hd.poll".into(),
             root_poll(
-                pool, env, path, lowering, init, key, report, after, boundary, host_refs,
+                pool, env, path, lowering, init, key, report, after, collected, host_refs,
             )?,
         ),
         ("hd.wake".into(), Helper::EntryWake),
@@ -7960,7 +7960,7 @@ pub fn test_entry(
     lowering: Lowering,
     cases: &[(DefId, hd_base::Hash128, Option<hd_base::Hash128>)],
     inits: &[Vec<hd_base::Hash128>],
-    boundary: &hd_mono::BoundaryMap,
+    collected: &hd_mono::Collected,
     host_refs: &[(Ty, hd_base::Hash128)],
 ) -> StageResult<Vec<(String, Helper)>> {
     let mut out = Vec::new();
@@ -7986,7 +7986,7 @@ pub fn test_entry(
                 *key,
                 *report,
                 Vec::new(),
-                boundary,
+                collected,
                 host_refs,
             )?,
         ));
@@ -8011,7 +8011,7 @@ pub fn scenario_entry(
     entry_inits: &[hd_base::Hash128],
     report: Option<hd_base::Hash128>,
     cleanup: Option<hd_base::Hash128>,
-    boundary: &hd_mono::BoundaryMap,
+    collected: &hd_mono::Collected,
     host_refs: &[(Ty, hd_base::Hash128)],
 ) -> StageResult<Vec<(String, Helper)>> {
     let mut out = entry(
@@ -8024,7 +8024,7 @@ pub fn scenario_entry(
         inits,
         entry_inits,
         report,
-        boundary,
+        collected,
         host_refs,
     )?;
     if let Some(func) = cleanup {
@@ -8046,11 +8046,11 @@ fn root_poll(
     key: hd_base::Hash128,
     report: Option<hd_base::Hash128>,
     then: Vec<(hd_base::Hash128, bool)>,
-    boundary: &hd_mono::BoundaryMap,
+    collected: &hd_mono::Collected,
     host_refs: &[(Ty, hd_base::Hash128)],
 ) -> StageResult<Helper> {
     let shared = Layouts::new(lowering);
-    let lay = Lay::new(pool, env, path, &shared).with_boundary(boundary);
+    let lay = Lay::new(pool, env, path, &shared).with_entry(collected);
     let mut providers = Vec::new();
     for key in env.row_keys(main, TyList::EMPTY) {
         // A host capability is never generic (`req.use.entry-row`), so the
@@ -8077,6 +8077,11 @@ fn root_poll(
         let mut slots = Vec::new();
         for m in env.trait_methods(k) {
             let sig = lay.slot_sig(tk, m)?;
+            // A method no reachable code calls links no host method.
+            if !lay.calls_dyn(m) {
+                slots.push(Helper::Uncalled { sig });
+                continue;
+            }
             let mp = path(m);
             let name = mp.rsplit(['.', '/']).next().unwrap_or("");
             // A trait the ABI table does not list is a runtime profile's
@@ -8084,7 +8089,7 @@ fn root_poll(
             let Some(host) = host else {
                 let key = p.rsplit(['.', '/']).next().unwrap_or("");
                 let at = crate::boundary::AtProfile {
-                    codecs: boundary,
+                    codecs: &collected.boundary,
                     out: false,
                     handles: &[],
                 };
@@ -8193,6 +8198,10 @@ fn handle_trait_slots(
     let mut slots = Vec::new();
     for m in lay.env.trait_methods(trait_) {
         let sig = lay.slot_sig(key, m)?;
+        if !lay.calls_dyn(m) {
+            slots.push(Helper::Uncalled { sig });
+            continue;
+        }
         let mp = (lay.path)(m);
         let method = mp.rsplit(['.', '/']).next().unwrap_or("");
         let WTy::Func(params, results) = &sig else {

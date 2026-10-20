@@ -438,6 +438,9 @@ pub struct Collected {
     /// earlier module of the session already defines: they are not in
     /// `table`, and the module imports them. Empty without a session.
     pub externs: BTreeSet<Hash128>,
+    /// The trait methods that scanned code calls through a trait value
+    /// ([`Target::Dyn`], a function reference's adapter included).
+    pub dyn_methods: HashSet<DefId>,
 }
 
 /// What the earlier modules of a session already hold, such as the inputs
@@ -461,6 +464,16 @@ impl Collected {
     pub fn supplied_body(&self, pool: &InternPool, item: DefId, args: TyList) -> Option<&Body> {
         let self_ty = pool.list_items(args).first().copied()?;
         self.supplied.get(&(item, self_ty)).map(AsRef::as_ref)
+    }
+
+    /// Whether the program may call trait method `method` through a trait
+    /// value, so a host provider's slot for it needs its host call
+    /// (`crates/hd_wasm/DESIGN.md`, host providers). An instance an earlier
+    /// session module defines was not scanned, so once one is reached
+    /// every method may be called.
+    #[must_use]
+    pub fn calls_dyn(&self, method: DefId) -> bool {
+        !self.externs.is_empty() || self.dyn_methods.contains(&method)
     }
 }
 
@@ -2499,6 +2512,7 @@ impl Cx<'_> {
                 if is_trait_value(pool, value_ty) {
                     reps.hash(env.path_hash(item));
                     self.record_pair(trait_, item, targs)?;
+                    self.out.dyn_methods.insert(item);
                     Target::Dyn
                 } else {
                     Target::Call(self.method_target(trait_, item, self_ty, targs, None, id)?)
@@ -2755,6 +2769,7 @@ impl Cx<'_> {
                             if is_trait_value(pool, value_ty) {
                                 reps.hash(env.path_hash(method));
                                 self.record_pair(trait_, method, &targs)?;
+                                self.out.dyn_methods.insert(method);
                                 calls.insert(ix, Target::Dyn);
                                 continue;
                             }

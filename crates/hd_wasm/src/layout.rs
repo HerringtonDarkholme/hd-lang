@@ -111,10 +111,12 @@ pub struct Lay<'a> {
     pub path: &'a dyn Fn(DefId) -> String,
     /// The program's laid-out nominal types, shared by its instances.
     pub shared: &'a Layouts,
-    /// The entry's boundary codecs, which name the `std.rt.host_provider`
-    /// instance that puts a host handle behind a reference
-    /// (`hd_mono::BoundaryCodecs::handle_ref`). `None` outside an entry.
-    pub boundary: Option<&'a hd_mono::BoundaryMap>,
+    /// The program's collection, at an entry: its boundary codecs name the
+    /// `std.rt.host_provider` instance that puts a host handle behind a
+    /// reference (`hd_mono::BoundaryCodecs::handle_ref`), and its trait
+    /// value calls say which host slots to lower (`Lay::calls_dyn`).
+    /// `None` outside an entry.
+    pub entry: Option<&'a hd_mono::Collected>,
     rec: RefCell<Rec>,
 }
 
@@ -628,18 +630,26 @@ impl<'a> Lay<'a> {
             env,
             path,
             shared,
-            boundary: None,
+            entry: None,
             rec: RefCell::default(),
         }
     }
 
-    /// This layout with the entry's boundary codecs (`Lay::boundary`).
+    /// This layout at an entry of the program `collected` (`Lay::entry`).
     #[must_use]
-    pub fn with_boundary(self, boundary: &'a hd_mono::BoundaryMap) -> Lay<'a> {
+    pub fn with_entry(self, collected: &'a hd_mono::Collected) -> Lay<'a> {
         Lay {
-            boundary: Some(boundary),
+            entry: Some(collected),
             ..self
         }
+    }
+
+    /// Whether a host provider's slot for trait method `method` needs its
+    /// host call: some reachable code may call it through a trait value
+    /// (`hd_mono::Collected::calls_dyn`). Outside an entry, every one.
+    #[must_use]
+    pub fn calls_dyn(&self, method: DefId) -> bool {
+        self.entry.is_none_or(|c| c.calls_dyn(method))
     }
 
     /// How the build stores closure code (`Lowering::closure_code`).

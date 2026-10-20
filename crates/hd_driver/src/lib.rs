@@ -8146,7 +8146,7 @@ impl Run<'_> {
                 &i.inits,
                 &i.own,
                 None,
-                &c.collected.boundary,
+                &c.collected,
                 &c.host_refs,
             )?;
             for (name, helper) in entry {
@@ -8603,7 +8603,7 @@ impl Run<'_> {
                 &c.collected.inits,
                 entry_inits,
                 *report,
-                &c.collected.boundary,
+                &c.collected,
                 &c.host_refs,
             ),
             Roots::Script {
@@ -8621,7 +8621,7 @@ impl Run<'_> {
                 &c.collected.inits,
                 own,
                 *report,
-                &c.collected.boundary,
+                &c.collected,
                 &c.host_refs,
             ),
             Roots::Inputs(inputs) => self.joined_exports(inputs, &env, &path, c),
@@ -8632,7 +8632,7 @@ impl Run<'_> {
                 self.lowering,
                 cases,
                 inits,
-                &c.collected.boundary,
+                &c.collected,
                 &c.host_refs,
             ),
             Roots::Scenario {
@@ -8652,7 +8652,7 @@ impl Run<'_> {
                 entry_inits,
                 *report,
                 *cleanup,
-                &c.collected.boundary,
+                &c.collected,
                 &c.host_refs,
             ),
         };

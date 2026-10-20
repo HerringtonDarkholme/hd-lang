@@ -444,6 +444,27 @@ fn signature(pool: &InternPool, env: &dyn ProgramEnv, m: DefId) -> (Vec<Ty>, Ty)
     (params, ret)
 }
 
+/// A host provider's vtable slot for method `m` that no reachable code
+/// calls (`hd_mono::Collected::calls_dyn`): `(data, params) -> results`, a
+/// trap with no import.
+pub fn uncalled_slot(input: &Input<'_>, m: DefId) -> StageResult<Helper> {
+    let (pool, env) = (input.pool, input.env);
+    let (params, ret) = signature(pool, env, m);
+    let mut all = vec![Val::I32];
+    for p in &params {
+        all.extend(layout::vals(pool, env, *p)?);
+    }
+    let results = if env.suspends(m) {
+        vec![Val::I32]
+    } else {
+        layout::vals(pool, env, ret)?
+    };
+    Ok(Helper::DynTrap {
+        params: all,
+        results,
+    })
+}
+
 /// One vtable slot of a host provider (`crates/hd_run_wasmtime/DESIGN.md`
 /// §17.2) for method `m` of the trait imported from `hd:<key>`: a host
 /// call for a method that never waits, a cold leaf frame for one that
@@ -623,6 +644,10 @@ fn handle_slots(
     let (pool, env) = (input.pool, input.env);
     let mut slots = Vec::new();
     for method in env.trait_methods(trait_) {
+        if !input.collected.calls_dyn(method) {
+            slots.push(Sym::Helper(uncalled_slot(input, method)?));
+            continue;
+        }
         let mp = (input.path)(method);
         let name = mp.rsplit(['.', '/']).next().unwrap_or("");
         let inner = match (host, at) {

@@ -243,7 +243,7 @@ impl BTy {
         {
             let (BTy::Handle(mut handle), Some(wrap)) = (
                 Self::of_at(lay, inner, depth + 1, json)?,
-                lay.boundary.and_then(|b| b.get(&t)?.handle_ref),
+                lay.entry.and_then(|c| c.boundary.get(&t)?.handle_ref),
             ) else {
                 return unsupported(what());
             };

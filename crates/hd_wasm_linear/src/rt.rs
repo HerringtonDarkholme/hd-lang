@@ -622,7 +622,8 @@ pub fn host_providers(f: &mut Func, providers: &[(usize, Option<Hash128>)]) {
 
 /// The vtable of the host's provider of capability `key`, in the trait's
 /// method order (`ProgramEnv::trait_methods`): each slot a host call or a
-/// host leaf over the exchange buffer's codecs (`boundary.rs`).
+/// host leaf over the exchange buffer's codecs (`boundary.rs`), or a trap
+/// with no import for a method no reachable code calls.
 fn host_vtable(input: &Input<'_>, m: &mut Module, key: Ty) -> StageResult<usize> {
     let TyData::TraitValue { def, args, .. } = input.pool.get(key) else {
         return unsupported("a provider key that is not a trait");
@@ -636,6 +637,11 @@ fn host_vtable(input: &Input<'_>, m: &mut Module, key: Ty) -> StageResult<usize>
     };
     let mut slots = Vec::new();
     for method in input.env.trait_methods(def) {
+        // A method no reachable code calls links no host method.
+        if !input.collected.calls_dyn(method) {
+            slots.push(Sym::Helper(crate::boundary::uncalled_slot(input, method)?));
+            continue;
+        }
         let mp = (input.path)(method);
         let name = mp.rsplit(['.', '/']).next().unwrap_or("");
         let Some(hm) = host.methods.iter().find(|x| x.name == name) else {
@@ -672,6 +678,10 @@ fn profile_vtable(
     let full = input.pool.list(&[hd_mono::class_ref(input.pool)]);
     let mut slots = Vec::new();
     for method in input.env.trait_methods(def) {
+        if !input.collected.calls_dyn(method) {
+            slots.push(Sym::Helper(crate::boundary::uncalled_slot(input, method)?));
+            continue;
+        }
         let mp = (input.path)(method);
         let name = mp.rsplit(['.', '/']).next().unwrap_or("").to_owned();
         let params = input.env.params(method).unwrap_or_default();

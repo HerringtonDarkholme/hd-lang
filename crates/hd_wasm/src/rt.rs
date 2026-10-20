@@ -530,6 +530,9 @@ pub enum Helper {
     HostCancel { frame: WTy },
     /// A slot the compiler does not lower yet: panics when called.
     Unlowered { sig: WTy, what: String },
+    /// A host provider's slot for a method no reachable code calls: it
+    /// traps, and the module imports nothing for it.
+    Uncalled { sig: WTy },
     /// A vtable slot of a host handle (`boundary::BTy::Handle`): reads the
     /// handle number from the receiver, a `payload` struct, and calls
     /// `inner`, a host call whose first argument after the receiver is
@@ -934,6 +937,10 @@ impl Helper {
                 enc_wty(sig, w);
                 w.str(what);
             }
+            Helper::Uncalled { sig } => {
+                w.u8(58);
+                enc_wty(sig, w);
+            }
             Helper::HandleSlot {
                 sig,
                 payload,
@@ -1204,6 +1211,7 @@ impl Helper {
                 sig: dec_wty(r)?,
                 what: r.str().to_owned(),
             },
+            58 => Helper::Uncalled { sig: dec_wty(r)? },
             33 => Helper::HandleSlot {
                 sig: dec_wty(r)?,
                 payload: dec_wty(r)?,
@@ -1897,6 +1905,14 @@ pub fn helper_code(h: &Helper) -> StageResult<Code> {
             a.call(Sym::Helper(Helper::Panic(format!(
                 "unsupported: {what} is not lowered yet"
             ))));
+            a.s().unreachable();
+            a.finish(results.clone())
+        }
+        Helper::Uncalled { sig } => {
+            let WTy::Func(params, results) = sig else {
+                return unsupported("an uncalled slot without a signature");
+            };
+            let mut a = Asm::new(params.clone());
             a.s().unreachable();
             a.finish(results.clone())
         }
@@ -3641,6 +3657,7 @@ impl Helper {
             Helper::Fit => "fit".into(),
             Helper::HostCancel { .. } => "host_cancel".into(),
             Helper::Unlowered { .. } => "unlowered".into(),
+            Helper::Uncalled { .. } => "uncalled".into(),
             Helper::HandleSlot { inner, .. } => format!("handle_slot({})", inner.short_name()),
             Helper::RuntimeType { .. } => "runtime_type".into(),
             Helper::TypeIdOf { name, .. } => format!("type_id({})", plain(name)),
