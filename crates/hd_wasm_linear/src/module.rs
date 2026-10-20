@@ -381,6 +381,15 @@ impl Module {
     /// the module.
     pub fn finish(mut self) -> StageResult<Vec<u8>> {
         self.reach();
+        crate::opt::constants(&mut self.funcs);
+        let arity: BTreeMap<Sym, (usize, usize)> = self
+            .funcs
+            .iter()
+            .map(|(s, f)| (s.clone(), (f.params.len(), f.results.len())))
+            .collect();
+        for f in self.funcs.values_mut() {
+            crate::opt::locals(f, &arity);
+        }
         // Every import and global a body names; imports come first.
         let mut imports: BTreeSet<Import> = BTreeSet::new();
         let mut globals: BTreeSet<Global> = BTreeSet::new();

@@ -2548,3 +2548,56 @@ counted frames in memory 1 (`emit/susp.rs`, `task.rs`).
   `TestRunner.snapshot_check`, `Random.fill`, `ConsoleInput.read_line`),
   and a profile trait's methods with arguments. Calls whose row
   parameters carry keys. Erased generic methods (job 11).
+
+### 23.22 Code Size: The Local Cleanup And The Allocator
+
+Issue #581 brings the allocator toward §10.1's size budget of
+REFCOUNT_RUNTIME.md (`opt.rs`, `lib/std/rt/alloc.hd`).
+
+- **The local cleanup.** Emission gives every TIR value a fresh local, and
+  checks every integer operation. Before encoding, `opt::locals` rewrites
+  each function by rules that keep what every path computes:
+  - a set and get of a local used once is the value left on the stack,
+    and another adjacent set and get is a `local.tee`;
+  - a store to a local nothing reads is a `drop`;
+  - a copy of a local, a global or a constant moves to its one read in
+    the same straight-line run;
+  - a `while` test's `if … else br` is a `br_if`;
+  - an `if` whose arms each end by setting one local, read once right
+    after it, is a typed `if`;
+  - two values computed into locals only to be pushed in order stay on
+    the stack;
+  - constants fold: a zero test of a nonzero constant, `== 0`, a
+    power-of-two multiply, divide or remainder, and a constant added to
+    a load or store address, which becomes its offset;
+  - unused locals are not declared.
+  Across functions, `opt::constants` reads a top-level binding as its
+  constant when an init stores that constant and nothing else writes
+  it, as the allocator's `PAGE` and tag constants.
+- **Arithmetic in `std.rt`.** The runtime modules' integer arithmetic
+  wraps, as the release profile's does (`types.arith.release`): their
+  values stay in range by construction, and only std may use them
+  (`module.rt.std-only`). An unsigned quotient or remainder needs only
+  the zero check, and none for a nonzero literal divisor.
+- **The allocator's source.** `class_bytes` computes the size classes
+  instead of matching on them. A new small page's header is zeroed with
+  `fill`, as is a freed run's table entries. The wake table grows and
+  frees through the std allocator, so a program that counts no longer
+  links the bump allocator as well.
+- **Literals.** A string literal is a view into static data (§23.7), so
+  it is never counted: `block_of` finds no block on a static page, and
+  retain and release change nothing. A program that allocates nothing
+  links no allocator: a `main` that only computes and panics with a
+  literal is 656 bytes.
+- **Size.** `std.rt.alloc` linked: 7,861 bytes of code before, 1,587
+  after. hello (`println(42)`): 12,758 bytes in the dev profile before
+  and 9,568 in release; 6,010 in both after. The Wasm GC backend's hello
+  is 4,151. `println("hello")` is 5,988 bytes here and 3,969 there.
+- **Not yet.** hello still links the allocator. Its literal is no
+  longer the reason. `println` reaches the Console through a
+  `&mut dyn Console`, whose `Ref` the entry builds (§23.20). The host
+  call's frame is a counted object (§23.21). `"$value"` builds a
+  counted string. The counting code all three need links `retain`,
+  `release` and `free`. Making hello link nothing would take static
+  host-provider references and formatting into the exchange buffer.
+  That is a design question for the owner.

@@ -23,7 +23,7 @@
 # class's list (u32 each), its live count (u16) and its bump offset in
 # units of 16 bytes (u16). Its slots follow from offset 16. A freed slot
 # holds the next free slot's address in its first 4 bytes.
-use std.rt.memory.{copy, grow, load_u16, load_u32, store_u16, store_u32}
+use std.rt.memory.{copy, fill, grow, load_u16, load_u32, store_u16, store_u32}
 
 PAGE := 65536
 LISTS := 128
@@ -60,10 +60,7 @@ pub fn alloc(size: usize) -> usize:
     if page == 0:
         page = take(1) * PAGE
         set(page / PAGE, u32(SMALL + class))
-        store_u32(page, 0)
-        store_u32(page + 4, 0)
-        store_u32(page + 8, 0)
-        store_u16(page + 12, 0)
+        fill(page, 0, 14)
         store_u16(page + 14, 1)
         set_head(class, page)
     free := usize(load_u32(page))
@@ -90,11 +87,7 @@ pub fn free(address: usize) -> void:
     entry := usize(get(page_number))
     kind := entry / SMALL
     if kind == 2:
-        count := entry & LOW
-        let j: usize = 0
-        while j < count:
-            set(page_number + j, 0)
-            j = j + 1
+        fill(table + LISTS + 4 * page_number, 0, 4 * (entry & LOW))
         lower_hint(page_number)
     else if kind == 1 && entry != SMALL:
         class := entry & LOW
@@ -123,7 +116,8 @@ pub fn free(address: usize) -> void:
 ## The address of the block that holds `address`, a block's own address or one inside it; 0 for an address in static data or in no block.
 pub fn block_of(address: usize) -> usize:
     page_number := address / PAGE
-    if table == 0 || page_number >= known:
+    # Before the first allocation `known` is 0 too.
+    if page_number >= known:
         return 0
     entry := usize(get(page_number))
     kind := entry / SMALL
@@ -176,22 +170,15 @@ fn class_of(size: usize) -> usize:
     class
 
 # The bytes of each block of size class `class`: 16 to 128 in steps of 16,
-# then about 25% apart up to 2 KiB, each a multiple of 16.
+# then three steps per doubling, about 25% apart, up to 2 KiB, each a
+# multiple of 16: 160, 208, 256, 320, 400, 512, ..., 1600, 2048.
 fn class_bytes(class: usize) -> usize:
-    match class:
-        9 => 160
-        10 => 208
-        11 => 256
-        12 => 320
-        13 => 400
-        14 => 512
-        15 => 640
-        16 => 800
-        17 => 1024
-        18 => 1280
-        19 => 1600
-        20 => 2048
-        _ => class * 16
+    if class <= 8:
+        return class * 16
+    step := class - 8
+    base := 128 << (step / 3)
+    scaled := if step % 3 == 0: base else if step % 3 == 1: base * 5 / 4 else: base * 25 / 16
+    (scaled + 15) / 16 * 16
 
 # Whether the small page at `page` has no room left for a block of `class`.
 fn full(page: usize, class: usize) -> bool:
@@ -294,7 +281,7 @@ fn claim(first: usize, count: usize, entry: u32) -> void:
 fn grown(count: usize) -> usize:
     match grow(count):
         .Some(first) => first
-        .None => panic_with("heap-exhausted", "the heap cannot grow by ${count} pages")
+        .None => panic_with("heap-exhausted", "an allocation does not fit the heap")
 
 @intrinsic("panic")
 fn panic_with(category: string, message: string) -> never:

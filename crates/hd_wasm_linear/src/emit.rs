@@ -390,6 +390,15 @@ impl Em<'_, '_, '_> {
         self.input.env
     }
 
+    /// Whether integer arithmetic wraps and shift counts are masked: in
+    /// the release profile (`types.arith.release`), and in `std.rt`'s
+    /// runtime modules, whose arithmetic stays in range by construction
+    /// and which only std may use (`module.rt.std-only`).
+    fn wraps(&self) -> bool {
+        let p = (self.input.path)(self.item);
+        self.input.release || p.starts_with("std/rt.") || p.starts_with("std/rt/")
+    }
+
     fn sub(&self, t: Ty) -> Ty {
         subst(self.input.pool, self.input.env, self.item, self.args, t)
     }
@@ -471,6 +480,16 @@ impl Em<'_, '_, '_> {
             self.f.op(op);
         }
         Ok(())
+    }
+
+    /// The value of `r` when it is a constant of one `i32`.
+    fn const_u32(&self, r: u32) -> Option<u32> {
+        if r == NONE || Ref(r).as_inst().is_some() {
+            return None;
+        }
+        let (ty, bits) = self.b.consts[(r & !Ref::CONST_BIT) as usize];
+        matches!(self.vals(self.sub(ty)).ok()?.as_slice(), [Val::I32])
+            .then(|| u32::try_from(bits & 0xffff_ffff).expect("low bits"))
     }
 
     /// Constant `r`'s values, each as the instructions that push it: a
@@ -1752,7 +1771,7 @@ impl Em<'_, '_, '_> {
             return self.float_value(op, ops, v);
         }
         match op {
-            PrimOp::Add | PrimOp::Sub | PrimOp::Mul | PrimOp::Neg if self.input.release => {
+            PrimOp::Add | PrimOp::Sub | PrimOp::Mul | PrimOp::Neg if self.wraps() => {
                 self.wrapping(op, ops, bits, signed)?;
             }
             PrimOp::Add | PrimOp::Sub | PrimOp::Mul | PrimOp::Div | PrimOp::Rem | PrimOp::Neg => {
@@ -1858,7 +1877,7 @@ impl Em<'_, '_, '_> {
         self.f.set(n);
         self.f.get(n);
         let c64 = cv == Val::I64;
-        if self.input.release {
+        if self.wraps() {
             if bits < 32 {
                 if c64 {
                     self.f.op(Instruction::I64Const(i64::from(bits) - 1));
@@ -2064,6 +2083,48 @@ impl Em<'_, '_, '_> {
     /// compute exactly in `i32` and 32-bit widths in `i64`, each checked
     /// against the type's range; 64-bit widths test the native result.
     fn checked(&mut self, op: PrimOp, ops: &[u32], bits: u8, signed: bool) -> StageResult<()> {
+        // An unsigned quotient or remainder is never larger than its
+        // dividend, so it needs only the zero check, at its own width.
+        if !signed && bits <= 32 && matches!(op, PrimOp::Div | PrimOp::Rem) {
+            // A nonzero literal divisor needs no check, and a power of two
+            // is a shift or a mask.
+            if let Some(c) = self.const_u32(ops[1]).filter(|c| *c != 0) {
+                self.comp(ops[0], 0)?;
+                if c.is_power_of_two() {
+                    if op == PrimOp::Div {
+                        self.f.u32(c.trailing_zeros());
+                        self.f.op(I::I32ShrU);
+                    } else {
+                        self.f.u32(c - 1);
+                        self.f.op(I::I32And);
+                    }
+                } else {
+                    self.f.u32(c);
+                    self.f.op(if op == PrimOp::Div {
+                        I::I32DivU
+                    } else {
+                        I::I32RemU
+                    });
+                }
+                return Ok(());
+            }
+            let y = self.f.local(Val::I32);
+            self.comp(ops[0], 0)?;
+            self.comp(ops[1], 0)?;
+            self.f.set(y);
+            self.f.get(y);
+            self.f.op(Instruction::I32Eqz);
+            self.f.op(Instruction::If(BlockType::Empty));
+            self.panic("integer-division-by-zero: division by zero");
+            self.f.op(Instruction::End);
+            self.f.get(y);
+            self.f.op(if op == PrimOp::Div {
+                I::I32DivU
+            } else {
+                I::I32RemU
+            });
+            return Ok(());
+        }
         let wide = bits == 64;
         let in64 = bits >= 32;
         let exact = if in64 { Val::I64 } else { Val::I32 };

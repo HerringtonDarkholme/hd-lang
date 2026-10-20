@@ -14,6 +14,7 @@ mod emit;
 mod layout;
 mod map;
 mod module;
+mod opt;
 mod rt;
 mod task;
 

@@ -195,7 +195,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f
         }
         Helper::CancelLeave => cancel_leave(),
-        Helper::WakeMark => wake_mark(),
+        Helper::WakeMark => wake_mark(m),
         Helper::WakeTake => wake_take(),
         Helper::HostCold {
             module,
@@ -403,7 +403,7 @@ fn slot(f: &mut Func, h: u32) {
 /// [`Helper::WakeMark`] (`hd.wake(n)`): records each of the `n` handles
 /// the host wrote to the exchange buffer in the wake table, by slot,
 /// growing it to fit.
-fn wake_mark() -> Func {
+fn wake_mark(m: &Module) -> Func {
     let mut f = Func::new("rt:wake_mark", vec![Val::I32], vec![]);
     let (i, h, cap, fresh) = (
         f.local(Val::I32),
@@ -436,7 +436,10 @@ fn wake_mark() -> Func {
     f.get(cap);
     f.i32(4);
     f.op(Instruction::I32Mul);
-    f.helper(Helper::Alloc);
+    match m.runtime {
+        Some(r) => f.call(Sym::Inst(r.alloc)),
+        None => f.helper(Helper::Alloc),
+    }
     f.set(fresh);
     f.get(fresh);
     f.i32(0);
@@ -455,6 +458,10 @@ fn wake_mark() -> Func {
         src_mem: HEAP,
         dst_mem: HEAP,
     });
+    if let Some(r) = m.runtime {
+        f.global_get(Global::WakeTab);
+        f.call(Sym::Inst(r.free));
+    }
     f.op(Instruction::End);
     f.get(fresh);
     f.global_set(Global::WakeTab);
