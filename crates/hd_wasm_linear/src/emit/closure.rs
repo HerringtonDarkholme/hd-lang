@@ -22,7 +22,7 @@ use crate::unsupported;
 /// Each local a closure shares, or that a reference refers to (`roots`,
 /// `refs.rs`), mapped to the instruction of its first store outside any
 /// closure that captures it: that store declares it and makes its cell
-/// (the Wasm GC backend's `cell_locals`). A parameter moves into its cell
+/// during RC lowering. A parameter moves into its cell
 /// on entry, so it has none (`u32::MAX`). Only the closures the body still
 /// makes count: a reference's closure form is gone.
 pub(super) fn cell_locals(b: &Body, roots: &[usize]) -> HashMap<usize, u32> {

@@ -261,10 +261,10 @@ pub enum IntrinsicOp {
     MapSlotEntry,
     /// `(value) -> value`: a copy of a value that holds a `List` or a
     /// `Map` (spec/lang/04-type-system.md, "Collection Values"). Where
-    /// the type holds none, the copy is the value itself. On the Wasm GC
-    /// backend a collection's copy shares its buffer, and both marked as
-    /// shared copy it before their next change (`crates/hd_wasm_linear/DESIGN.md`
-    /// §15.2, "Collection values").
+    /// the type holds none, the copy is the value itself. A collection's
+    /// copy shares its counted buffer and copies it before its next change
+    /// when another owner still holds it (`crates/hd_wasm_linear/DESIGN.md`
+    /// §23.20, "Collections").
     ValueCopy,
     /// `(list, index) -> element`: `ListIndex` for a write through the
     /// element (`xs[i].push(v)`, `xs[i].x = v`): the list's buffer is made

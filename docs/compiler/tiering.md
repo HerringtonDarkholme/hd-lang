@@ -49,8 +49,7 @@ The owner's direction:
 From the TPDE paper's Fig. 9, normalized to Cranelift's default
 (backtracking allocator): the single-pass allocator compiles in about
 0.63 of the time and its code runs about 2.15x slower; Winch compiles in
-about 0.13 and runs about 1.87x slower. These are linear-memory
-benchmarks, not Wasm GC code.
+about 0.13 and runs about 1.87x slower. These benchmarks use linear memory.
 
 ### 1.3 When Fusing Pays
 
@@ -142,8 +141,7 @@ it, not a link pass.
 
 ### 3.2 Binaryen
 
-Most of Binaryen's Wasm GC passes recover types and call targets that an
-erasing front end threw away. hd monomorphizes with exact types and
+hd monomorphizes with exact types and
 direct calls, so the expected gain on top of hd's own passes is small
 (estimate: 0 to 15% speed, 10 to 25% size). Binaryen is not in the
 pipeline.

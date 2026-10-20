@@ -100,7 +100,7 @@ impl Em<'_, '_, '_> {
         if direct || vs.is_empty() {
             // A value of no Wasm values needs no box: its slots load
             // nothing. A value that is one counted address is the data
-            // itself, never a copy, as the Wasm GC backend erases it, so
+            // itself, never a copy, so
             // an element reference's identity base is its list's header.
             let leaves: Option<&[Leaf]> = if direct {
                 self.comp(a, 0)?;

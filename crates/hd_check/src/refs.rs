@@ -6,19 +6,20 @@
 //!
 //! The TIR names the place (`RefPlace`) and each read, write and identity
 //! through a reference (`RefRead`, `RefWrite`, `RefIdentity`), so a
-//! backend with interior addresses lowers a reference to the place's
+//! RC backend lowers a reference to the place's
 //! address (`crates/hd_wasm_linear/DESIGN.md` §23.20). Each of those instructions
-//! owns the block of its closure form, the Wasm GC emulation
+//! owns the block of its intermediate closure form
 //! (`crates/hd_wasm_linear/DESIGN.md` §15.2, "References"): a reference is a
 //! `std.core.Ref[T]` object holding two closures, `get` and `set`, that
 //! read and replace the referenced place.
 //! `&x` on a local makes closures that capture `x`, so the backend keeps
 //! `x` in a shared cell; `&e` on any other value binds it to a fresh local
-//! that only the closures hold, which is the new object. A place reached
+//! that only the closures hold, which is the new object. The RC backend
+//! strips these closure forms before emission (`strip_closure_forms`). A place reached
 //! through struct fields is rebuilt on a write, as `value.rs` rebuilds a
 //! struct field write. The checker lowers `&T` and `&mut T` to one type,
 //! `Ref[T]`, when it finishes a body (`Types::lower_refs`), so the
-//! backend sees an ordinary data type and `&mut T` to `&T` costs nothing.
+//! layout pass recognizes the reference carrier and `&mut T` to `&T` costs nothing.
 //!
 //! Identity (`ref.identity.*`): a `Ref` also holds the place's identity,
 //! which `r is s` compares field by field in the backend. A local some `&` in the file

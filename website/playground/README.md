@@ -3,7 +3,7 @@
 A browser playground for hd-lang. It edits, checks, tests, and runs hd
 programs entirely in the browser with the Rust compiler: the
 [`hd_web`](../../crates/hd_web) crate built for `wasm32-unknown-unknown`,
-the same front end, checker, and Wasm GC emitter as `hd`. It is part of
+the same front end, checker, and RC emitter as `hd`. It is part of
 the website: the website build emits it as static files at `playground/`,
 and the site's **Playground** page (`playground.html`) frames it.
 
@@ -19,8 +19,7 @@ it with the `web` cargo profile. Every URL in the playground build is
 relative, so it works at `/` and under a sub-path such as
 `/hd-lang/playground/`. The e2e run serves the site under `/hd-lang/`, the
 GitHub Pages base. It needs a local Chrome, Edge, or Chromium; `CHROME_PATH`
-selects one. The playground steps are in [`e2e.ts`](e2e.ts). The browser
-needs WebAssembly GC: Chrome 119, Firefox 120, Safari 18.2, or later.
+selects one. The playground steps are in [`e2e.ts`](e2e.ts). The browser needs WebAssembly support.
 
 ## Features
 

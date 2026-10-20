@@ -3,7 +3,7 @@
 //! (`crate::map`), so a copy is a new header over the same table and a
 //! change makes the table the map's own first (`rt:map_unique`). Keys
 //! hash and compare through the operations collection chose
-//! (`crates/hd_mono/DESIGN.md` §13.12), as on the Wasm GC backend.
+//! (`crates/hd_mono/DESIGN.md` §13.12).
 
 use hd_base::StageResult;
 use hd_mono::layout::{inline_map_key, strip_newtype};

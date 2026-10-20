@@ -2332,7 +2332,7 @@ fn demo() -> i32:
 ### Host Boundary
 
 1. r[module.host.wasm] The official compiler targets Wasm only.
-2. r[module.host.runtime] The official runtime uses Wasm GC for managed language values and a WASI-compatible host boundary.
+2. r[module.host.rc-runtime] The official runtime manages values with reference counting and cycle collection and uses a WASI-compatible host boundary.
 3. r[module.host.providers] Authority-bearing providers originate at that boundary.
 4. r[module.host.boundary-abi] How values, strings included, cross the host boundary is an implementation detail, not part of the language.
 5. r[module.host.tooling-hooks] Hooks that a toolchain adds for development, testing, or tracing are implementation tooling, not a language boundary.

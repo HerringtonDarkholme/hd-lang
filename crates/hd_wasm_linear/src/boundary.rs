@@ -3,8 +3,7 @@
 //! (`crates/hd_run_wasmtime/DESIGN.md` §17.4), generated per boundary type
 //! from its linear layout, and the host method slots that call them.
 //!
-//! The bytes are the Wasm GC backend's, so one host serves both backends:
-//! an encoder reads a value from its Wasm values (and, for a list, from
+//! The boundary bytes follow the host ABI: an encoder reads a value from its Wasm values (and, for a list, from
 //! its buffer in the heap) and writes it to memory 0; a decoder reads
 //! memory 0 and builds the value's Wasm values, allocating its strings and
 //! lists in the heap with their counts. Strings and byte lists cross with

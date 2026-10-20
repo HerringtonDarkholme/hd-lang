@@ -80,7 +80,7 @@ backend that breaks one of them is wrong, however fast.
 
 | Requirement | Where it comes from | What it costs a native backend |
 | --- | --- | --- |
-| The official compiler targets Wasm only | [`module.host.wasm`](../../spec/lang/10-modules.md#r-module.host.wasm), [`module.host.runtime`](../../spec/lang/10-modules.md#r-module.host.runtime) | a spec change naming the native target; until then it is an extension |
+| The official compiler targets Wasm only | [`module.host.wasm`](../../spec/lang/10-modules.md#r-module.host.wasm), [`module.host.rc-runtime`](../../spec/lang/10-modules.md#r-module.host.rc-runtime) | a spec change naming the native target; until then it is an extension |
 | Instances share nothing: heaps, globals and drivers are disjoint | [`module.instance.disjoint`](../../spec/lang/10-modules.md#r-module.instance.disjoint) | holds for free with one heap per instance; stage C needs the spec to change first |
 | A fresh instance per test case | [`module.testing.instance`](../../spec/lang/10-modules.md#r-module.testing.instance) | module globals live in a per-instance context, not in static data; many instances per process |
 | Panics are observable: category, message, site, backtrace | crates/hd_run_wasmtime/DESIGN.md §16.2 | a panic unwinds or abandons a stack to the case boundary; code offsets map to lines |

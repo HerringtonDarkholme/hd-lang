@@ -836,7 +836,7 @@ See also: [Optional Types](04-type-system.md#optional-types),
 
 ## Representation And Garbage Collection
 
-1. r[data.repr.backend] Struct and enum representation is chosen by the Wasm GC backend subject to observable language semantics.
+1. r[data.repr.implementation] Struct and enum representation is chosen by the implementation subject to observable language semantics.
 2. r[data.repr.no-dependence] Programs must not depend on field offsets, variant tags, object addresses, or representation identity unless a future interop facility exposes them explicitly.
 3. r[data.repr.gc] Reachable composite values are garbage collected, and unreachable reference cycles are reclaimable.
 4. r[data.repr.no-manual] The language does not expose manual deallocation, user-visible finalizers, or weak references.

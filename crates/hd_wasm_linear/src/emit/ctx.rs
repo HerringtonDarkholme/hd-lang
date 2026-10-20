@@ -21,7 +21,7 @@ use crate::rt::{CTX_DATA, CTX_ENTRY, CTX_VTABLE, Helper};
 use crate::unsupported;
 
 /// The id a context gives key `k`: the low bits of its content hash, so
-/// `Repo[User]` and `Repo[Post]` have two ids, as on Wasm GC
+/// `Repo[User]` and `Repo[Post]` have two ids
 /// (the canonical requirement-key hash).
 pub(crate) fn key_id(input: &crate::Input<'_>, k: Ty) -> i64 {
     let env = input.env;

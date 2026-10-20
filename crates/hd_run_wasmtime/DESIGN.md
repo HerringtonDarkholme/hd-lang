@@ -55,13 +55,13 @@ string key hashes with no allocation.
 
 ### 16.3 Allocation
 
-- Every hd object is a Wasm GC struct or array. There is no allocator in
-  linear memory.
-- The exchange buffer (§17.3) is the only linear memory, and only modules
-  that cross structured values have one.
+- Managed hd objects live in linear memory, with reference counts and
+  cycle collection (`crates/hd_wasm_linear/DESIGN.md` §23).
+- The exchange buffer (§17.3) shares linear memory with the RC heap;
+  boundary encoders and decoders copy values through that buffer.
 
-Planned, not built: a `Hook(Alloc)` at each `struct.new` and
-`array.new` site, emitted as a counter in a stats build, so the
+Planned, not built: a `Hook(Alloc)` at each runtime allocation
+site, emitted as a counter in a stats build, so the
 `allocations` metric has a count on wasmtime.
 
 ### 16.4 Metadata And The Import List
@@ -252,7 +252,7 @@ Rust's own `{:e}` and `{:.N}` printing.
   calls back into Wasm. `block` returns before any wake is processed, so
   one buffer is enough.
 - **Strings and byte lists** cross as raw bytes, copied by a generated
-  Wasm loop (Wasm GC has no bulk copy between arrays and memory). A
+  memory copy. A
   string crosses with no conversion
   ([`types.string.host-bytes`](../../spec/lang/04-type-system.md#r-types.string.host-bytes)).
   A string is a view (crates/hd_wasm_linear/DESIGN.md §15.2): Wasm to host

@@ -1,5 +1,5 @@
 //! Cleanup scopes (`crates/hd_wasm_linear/DESIGN.md` §23.20, job 12): a `Scope`
-//! with `defer` suites is the Wasm GC backend's exit ladder
+//! with `defer` suites uses the exit ladder
 //! (`crates/hd_mono/DESIGN.md` §12.2). Each suite has a "registered" flag
 //! that its `Defer` sets; every way out of the body stores its exit's
 //! code and branches to the scope's end, which runs the registered

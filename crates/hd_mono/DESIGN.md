@@ -6,7 +6,7 @@ Part of the [compiler design](../../docs/compiler/ARCHITECTURE.md).
 
 ## Part D2: The Back Half
 
-The back half monomorphizes, emits Wasm GC and links. Suspension
+The back half monomorphizes, emits RC-managed Wasm and links. Suspension
 lowering and the Wasm layouts are in crates/hd_wasm_linear/DESIGN.md, the
 optimization passes in crates/hd_opt/DESIGN.md. It consumes these
 interfaces and does not reach around them:
@@ -1042,12 +1042,9 @@ monomorphization per `(impl, type arguments)`, with a type-id switch in
 the slot, would remove the erased path altogether, at a whole body per
 pair; it was not chosen.
 
-**Rejected alternatives.** A runtime "representation factory" that
-builds `Buffer[T]`'s layout from `T`'s witness, as Swift's metadata
-accessors do, cannot work on Wasm GC: a struct type cannot be created
-at run time. A uniform erased layout for every generic type that may
-reach erased code (`Buffer[T]` with `anyref` fields everywhere) would
-slow every monomorphized use of that type.
+**Rejected alternatives.** A uniform erased layout for every generic
+type that may reach erased code (`Buffer[T]` with boxed fields everywhere)
+would slow every monomorphized use of that type.
 
 **As built.**
 
@@ -1171,10 +1168,9 @@ relocation. Equal bytes arise from:
 
 - type arguments with the same Wasm layout: `List[u32].push` and
   `List[i32].push`, `Option[char]` and `Option[u32]` helpers;
-- data types with the same field layout. Wasm GC canonicalizes types
-  structurally, and hd needs no nominal Wasm types (§15.3), so `data A:
-  x: i32` and `data B: x: i32` are one Wasm type, and their instances
-  fold;
+- data types with the same field layout. RC layouts share the same
+  Wasm value shape, so `data A: x: i32` and `data B: x: i32` can share
+  emitted instances when their ownership operations also agree;
 - type parameters that the body does not use in any operation;
 - identical small std helpers at different types.
 
@@ -1766,9 +1762,8 @@ per child trait.
 Widening `dyn Sub` to `dyn Super` allocates nothing: it keeps the
 payload and reads the parent's vtable field from the child's vtable,
 one `struct.get` per level (the `Coerce` row's `Supertrait` case).
-Reusing the child vtable as-is would need the child's vtable type to
-be a Wasm GC subtype of the parent's, which only flattening gives, and
-this design does not flatten. Child-only
+Reusing the child vtable as-is would need its method slots to match
+the parent's layout, and this design does not flatten. Child-only
 methods become unreachable (`trait.dyn.widen` drops them,
 `trait.dyn.no-narrow` never returns).
 Vtables exist per (concrete type, trait) pair (§13.2 step 5),

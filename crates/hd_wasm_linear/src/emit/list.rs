@@ -2,8 +2,7 @@
 //! is the address of a counted header that holds its buffer's address and
 //! its owner word (§23.20); the buffer is a counted object holding the
 //! capacity, the length and the elements inline. A header never moves, so
-//! a change through it reaches every place that holds the same list, as
-//! the Wasm GC backend's header does; a copy (`ValueCopy`) is a new header
+//! a change through it reaches every place that holds the same list; a copy (`ValueCopy`) is a new header
 //! over the same buffer, whose count is its number of owners. A change
 //! makes the buffer the list's own first (`rt:list_unique`): a shared one
 //! is copied, and the copied elements' collections are copied in turn, so
@@ -138,8 +137,7 @@ impl Em<'_, '_, '_> {
 
     /// Whether operand `r` is a value its own instruction made, which no
     /// place holds: a literal, a constructor, a call's result whose type
-    /// is no legacy `mut` view, a copy (as the Wasm GC backend's
-    /// `fresh_operand` decides).
+    /// is no legacy `mut` view, or a copy.
     fn fresh(&self, r: u32) -> bool {
         let Some(at) = Ref(r).as_inst() else {
             return true;

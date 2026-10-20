@@ -1,6 +1,6 @@
 //! Recursive type layouts (#120; `crates/hd_wasm_linear/DESIGN.md` §15.2, §15.3): an
 //! enum recurs through `&` (`data.enum.recursive`), and data types and
-//! trait values that name themselves lay out as Wasm GC recursion groups.
+//! trait values that name themselves have finite RC layouts through counted pointers.
 //! Programs build through the driver and run on V8 (`host/run.mjs`), as the
 //! conformance runner does, so each module also validates there.
 

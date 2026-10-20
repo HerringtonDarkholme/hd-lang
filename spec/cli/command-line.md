@@ -866,7 +866,7 @@ hd run --engine no-such-name  # a usage error: exits 101 and runs no program
 ### Code Generation
 
 1. r[cli.codegen.single] Every command that builds a program uses the implementation's one code generator.
-2. r[cli.codegen.no-selection] Commands take no `--backend` flag; a written `--backend` is a usage error by [`cli.exit.hd-failure`](#r-cli.exit.hd-failure).
+2. r[cli.codegen.no-option] Commands take no code-generator selection option; such an option is a usage error by [`cli.exit.hd-failure`](#r-cli.exit.hd-failure).
 
 > **Note.** This implementation stores values in linear memory and frees
 > counted objects through reference counting and cycle collection.

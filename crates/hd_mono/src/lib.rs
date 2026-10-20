@@ -36,8 +36,8 @@ use crate::plan::{BodyPlan, Planner, Source};
 /// What collection reads about the program (the driver implements it over
 /// TIR and interfaces).
 pub trait ProgramEnv: LayoutEnv {
-    /// The selected backend's A1 reference-storage class. `None` keeps
-    /// the Wasm GC classification; other layouts retain concrete keys.
+    /// The RC layout's A1 reference-storage class. `None` uses the
+    /// generic reference classification; concrete layouts retain their keys.
     fn shared_reference_layout(&self, _ty: Ty) -> Option<bool> {
         None
     }

@@ -720,13 +720,13 @@ body with suspension rows (`src/wire.rs`), so no body writes them today.
 
 **References**
 
-A reference names its place, so a backend with interior addresses lowers
+A reference names its place, so the RC backend lowers
 it to the place's address (`crates/hd_wasm_linear/DESIGN.md` §23.20). Each
 instruction also owns, as its last operand, the `Block` of its closure
 form: the `std.core.Ref[T]` object of a `get` and a `set` closure over
-the place and the place's identity, or a call of one of them. Only the
-Wasm GC backend, which has no interior addresses, runs that block
-(§15.2 there, "References"). The linear backend's bodies arrive without
+the place and the place's identity, or a call of one of them. This is
+an intermediate checker representation (§15.2 there, "References").
+The RC backend's bodies arrive without
 it (`strip_closure_forms`), so its closures, the locals they capture and
 the instances they call are not there.
 

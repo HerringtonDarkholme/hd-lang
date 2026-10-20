@@ -3,8 +3,7 @@
 //! (`crates/hd_mono/DESIGN.md` §11.4; `docs/compiler/engines-and-test-runner.md` §18; `crates/hd_run_wasmtime/DESIGN.md`
 //! §17.5).
 //!
-//! A program runs in-process: its module is compiled by Cranelift with
-//! Wasm GC disabled, instantiated with the imports of `host/`, and driven by
+//! A program runs in-process: its RC module is compiled by Cranelift, instantiated with the imports of `host/`, and driven by
 //! `hd.init`, then `hd.poll` and `hd.wake` until it is done, as the Node
 //! host (`host/core.mjs`) drives it. Its standard output, error
 //! and status are the Node host's: a panic stub's report and status 3, an

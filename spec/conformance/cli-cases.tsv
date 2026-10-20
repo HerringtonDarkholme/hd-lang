@@ -5,7 +5,7 @@ exit-hd-failure	cli.exit.hd-failure,cli.package.file,cli.package.whole
 exit-package-check	cli.package.whole,cli.check.default,cli.exit.success,cli.mode.package.nearest,cli.mode.start
 exit-package-file	cli.package.file,cli.exit.success,cli.file.in-package
 exit-usage-error	cli.exit.hd-failure
-backend-selection-removed	cli.codegen.single,cli.codegen.no-selection
+backend-selection-removed	cli.codegen.single,cli.codegen.no-option
 command-help	cli.command.help,cli.command.help.command,cli.command.positional,cli.engine.flag
 exit-test-empty	cli.test.package-empty,cli.test.file-empty,cli.exit.hd-failure
 exit-outside-package	cli.run.package-only,cli.file.check-test.no-file,cli.exit.hd-failure,cli.mode.outside,cli.package.no-root

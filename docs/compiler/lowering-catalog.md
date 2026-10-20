@@ -3,7 +3,7 @@
 Status: design record; may lag the code. The code and the spec win.
 
 Part of the [compiler design](ARCHITECTURE.md). One entry per data type
-and per syntax form: its Wasm GC representation and emitted code, with
+and per syntax form: its RC representation and emitted code, with
 its cost in speed and size. The layout rules themselves live in
 [crates/hd_wasm_linear/DESIGN.md](../../crates/hd_wasm_linear/DESIGN.md) (§15.1,
 §15.2; `hd_wasm::layout`), the emission rules in
@@ -21,7 +21,7 @@ the bound, the A1 read cost on wasmtime and the inliner caps.
 
 Each entry gives:
 
-- **Wasm:** the Wasm GC types and the shape of the emitted code, as a
+- **Wasm:** the Wasm value layouts and the shape of the emitted code, as a
   small WAT-like snippet. `$X` names a canonical type; `dflt(L)` is the
   defaultable form of layout `L` (crates/hd_wasm_linear/DESIGN.md §15.2).
 - **Speed:** allocations, indirect calls and casts on the hot path of the
@@ -305,11 +305,9 @@ The layout and its table by position are in crates/hd_wasm_linear/DESIGN.md §15
 - **Speed:** one extra load per part access; one extra allocation per
   construction and per copy-update that copies the part.
 - **Size:** none beyond the field.
-- **Why not inline:** a part read yields the part itself, which a
-  `mut self` method may store elsewhere, and Wasm GC has no interior
-  references. An inline layout would copy on every escaping read and
-  lose later writes through the copy. Inline parts are impossible on
-  Wasm GC; a native backend with interior pointers may revisit them.
+- **Why not inline:** an escaping part reference must keep its owner alive.
+  RC interior references carry that ownership; the part's storage must
+  remain stable while a reference names it.
 - **Engines:** the extra load is one more dependent load on both; V8 may hoist it in loops.
 - **Type-only:** yes. The part's struct depends on the part's fields.
 
@@ -911,8 +909,8 @@ it reads, which the code key lists (crates/hd_mono/DESIGN.md §13.8).
   lowering rule, not an optimization. A loop over a list under A1 casts
   each element only where the body needs its exact type.
 - **Size:** about 20 to 30 bytes of loop scaffolding.
-- **Engines:** Cranelift does not vectorize; V8 neither for Wasm GC
-  arrays.
+- **Engines:** vectorization depends on the engine's handling of the emitted
+  linear-memory loop.
 - **Type-only:** yes.
 
 A numeric range loop advances before the body runs, so `continue` needs

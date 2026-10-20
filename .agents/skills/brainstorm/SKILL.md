@@ -51,7 +51,7 @@ recommendation is advice, labeled as such.
    option adds or removes and the tier of each, by the tier test in
    AGENTS.md "Spec Scope For The Standard Library", its soundness conditions, and its interaction
    with existing features (traits, requirement rows, suspension, derivation,
-   Wasm GC representation).
+   RC representation).
 6. **Compare.** Build one table: options as columns, and as rows the use
    cases, the rules added or removed, soundness, agent-writability,
    human readability, implementation cost, and evolution.

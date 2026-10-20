@@ -1,8 +1,8 @@
 //! The task runtime of suspending code (`crates/hd_wasm_linear/DESIGN.md`
 //! §23.21, job 13): the frame's task prefix and flags, the runtime checks
 //! of a poll and a cancel, the wake table, the host's leaf frames, and the
-//! entry's driver of a suspending root. These are the Wasm GC backend's
-//! helpers of §14 over linear memory.
+//! entry's driver of a suspending root. These implement the task
+//! protocol of §14 over linear memory.
 
 use hd_base::Hash128;
 use wasm_encoder::{BlockType, Instruction};

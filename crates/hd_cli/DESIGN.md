@@ -362,10 +362,9 @@ exports (crates/hd_run_wasmtime/DESIGN.md §16.4).
 ### 20.5 The REPL
 
 - The session is one wasmtime `Store` (`WasmtimeSession`). Each input is
-  checked (§7.8) and built as its own small Wasm module, which imports
-  the earlier inputs' exported bindings and functions under `hd.s` and
-  exports its own. Wasm GC types canonicalize across modules, so values
-  flow between inputs unchanged.
+  checked (§7.8), then the accepted input history is rebuilt as one RC
+  Wasm module. Earlier host calls replay from the journal, and earlier
+  bindings are reconstructed in the module's linear memory.
 - Each input runs once: its init function evaluates its statements and
   prints an expression input's value with its type
   ([`cli.repl.value`](../../spec/cli/command-line.md#r-cli.repl.value)).

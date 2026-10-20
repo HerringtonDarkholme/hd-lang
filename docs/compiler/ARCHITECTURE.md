@@ -18,8 +18,8 @@ those interfaces and emits one typed IR (TIR, `hd_tir`) per body; the
 driver's `Coherence` and `InitOrder` tasks add the overlap and
 initialization-order results. For a program, `hd_mono`
 collects the reachable instances from the TIR, `hd_opt` runs the pass
-pipeline chosen by engine target and level, and `hd_wasm` emits and links
-one Wasm GC module. The CLI runs it on V8 through Node (`host/*.mjs`), or
+pipeline chosen by engine target and level, and `hd_wasm_linear` emits and links
+one RC-managed Wasm module. The CLI runs it on V8 through Node (`host/*.mjs`), or
 in process on wasmtime (`hd_run_wasmtime`) when built with the `wasmtime`
 feature. Every stage boundary goes through the caller's cache store.
 
@@ -60,7 +60,7 @@ Back half:
   body plans. [DESIGN.md](../../crates/hd_mono/DESIGN.md)
 - `hd_opt`: the pass manager and the pipelines keyed by (engine target,
   level). [DESIGN.md](../../crates/hd_opt/DESIGN.md)
-- `hd_wasm`: Wasm GC layout, emission, linking, the runtime pieces it
+- `hd_wasm_linear`: RC layout, emission, linking, the runtime pieces it
   generates, and each target's lowering profile.
   [DESIGN.md](../../crates/hd_wasm_linear/DESIGN.md)
 

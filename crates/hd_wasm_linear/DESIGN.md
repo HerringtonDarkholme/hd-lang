@@ -1205,7 +1205,7 @@ is unchanged.
   `crates/hd_driver/tests/std_rt/checked_tests.hd` tests the runtime's
   poison, its reuse rule and its counts.
 - **Size.** hello (`println(42)`, dev): 5,463 bytes on `linear` before
-  and after, 4,738 on `wasm-gc`, and 7,297 on `linear-checked`.
+  and after, and 7,297 with the checked runtime.
 - **What the first sweep found.** A point's cancellation branch kept
   its cancelled child in the frame's child slot, and a `using` binding's
   `dispose!` that waited overwrote that slot, so the child frame leaked
@@ -1287,7 +1287,7 @@ where its counts are taken does (`emit/count.rs`, `emit/live.rs`).
   to 2,072; `textstats.hd`: 6,803 to 4,623; hello: 5 to 2. Every program
   printed the same output before and after.
 - **Size.** hello (`println(42)`, dev): 5,457 bytes on `linear` before,
-  5,418 after; 4,734 on `wasm-gc`, unchanged; 7,350 on `linear-checked`,
+  5,418 after; 7,350 with the checked runtime,
   whose count totals cost 132 bytes. Programs shrink by about 1 to 10 per
   cent, as most entry retains and many copies go.
 - **Not yet.** Reads of immutable fields, loop elements, and a local read

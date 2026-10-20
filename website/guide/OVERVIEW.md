@@ -91,7 +91,7 @@ derivation.
 
 ### WebAssembly execution
 
-hd-lang targets WebAssembly with Wasm GC and a WASI-compatible host boundary.
+hd-lang targets WebAssembly with reference counting and cycle collection and a WASI-compatible host boundary.
 Authority-bearing providers originate at that boundary, allowing runtimes to
 sandbox code and record meaningful operations. Durable execution and replay
 are runtime protocols over explicit suspensions rather than serialization of

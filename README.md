@@ -134,7 +134,7 @@ blocks, and `@error`.
   codegen.
 - **Effects you can review.** A signature shows every capability a function
   can touch, and tests swap providers instead of patching globals.
-- **Sandboxed.** Wasm GC, with host access only through requirements.
+- **Sandboxed.** WebAssembly, with host access only through requirements.
 
 ## Built for agents: three pillars
 

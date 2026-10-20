@@ -6,11 +6,11 @@
 // sizes, SMALL and LARGE iterations, and run 3 times each. The allocated
 // bytes per iteration are the median of (bytes at LARGE - bytes at SMALL)
 // / (LARGE - SMALL), which cancels start-up.
-// A Wasm GC host has no allocation counter, so the bytes come from V8: a
+// This probe measures the Node host heap, not the RC linear heap: a
 // module preloaded through NODE_OPTIONS turns on `--trace-gc-nvp` and
 // writes `v8.getHeapStatistics()` at exit. The bytes a run allocated are
 // the heap in use at exit plus what every collection freed. This works when
-// the hd under test runs programs on Node; no other counter is known.
+// the hd under test runs programs on Node; it does not count RC allocations.
 // A count needs an object size, so the bounds are in bytes: below 1 B per
 // iteration is no per-iteration allocation, and 32 B holds one small object
 // (this harness's bounds).
@@ -108,7 +108,8 @@ const errorText = (error: unknown): string =>
 export const allocations: Metric = {
   name: NAME,
   pillar: 3,
-  summary: "bytes allocated per iteration of counted, list and map loops and an iterator chain (V8 heap stats)",
+  summary:
+    "bytes allocated per iteration of counted, list and map loops and an iterator chain (V8 heap stats)",
   async run(context) {
     const probe = heapProbe();
     const results: TargetResult[] = [];

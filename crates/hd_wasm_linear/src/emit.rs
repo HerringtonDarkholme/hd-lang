@@ -6,9 +6,8 @@
 //! immediate, and a TIR local owns the locals of its layout. Structured
 //! control is Wasm's own: a `Match` is a block per arm around its decision
 //! tree, whose `ToArm` branches out to its arm, and a `Loop` is a block
-//! around a loop. Integer arithmetic follows the Wasm GC backend's
-//! lowering (§13.15 of `crates/hd_mono/DESIGN.md`), so both backends panic
-//! alike.
+//! around a loop. Integer arithmetic follows §13.15 of
+//! `crates/hd_mono/DESIGN.md`, including its panic checks.
 
 use hd_base::{DefId, Hash128, HashMap, InstId, StageResult};
 use hd_mono::{ProgramEnv, Sub, Target, TargetKind, subst};

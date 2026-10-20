@@ -71,7 +71,7 @@ every key in `lib/std` has a row.
 | `task_cleanup_frame`, `task_abandon`, `task_pending_frame`, `task_race_frame`, `task_all_frame` | `task.hd` | compiler |
 | `dbg`, `dbg_text`, `dbg_write`, `dbg_show`, `repl_write` | `format.hd` | compiler |
 | `panic_message`, `task_all`, `test_case`, `assert_equal`, `entry_write` | seeded items and `rt.hd` | compiler |
-| `mem_pages`, `mem_grow`, `mem_load_u8` to `mem_load_u64`, `mem_store_u8` to `mem_store_u64`, `mem_copy`, `mem_fill` | `rt/memory.hd`, the `pub` functions of the runtime module `std.rt.memory` (spec 10 `module.rt.memory.*`) | compiler, linear backend only; on Wasm GC a build that reaches one is `unsupported`, and only std can |
+| `mem_pages`, `mem_grow`, `mem_load_u8` to `mem_load_u64`, `mem_store_u8` to `mem_store_u64`, `mem_copy`, `mem_fill` | `rt/memory.hd`, the `pub` functions of the runtime module `std.rt.memory` (spec 10 `module.rt.memory.*`) | compiler; only std can use these runtime memory intrinsics |
 | `format_f64`, `format_f32` | `format.hd` | host primitive |
 | `string_lower`, `string_upper` | `text.hd` | host primitive |
 | `parse_f64`, `format_f64_fixed` | `num.hd` | host primitive |

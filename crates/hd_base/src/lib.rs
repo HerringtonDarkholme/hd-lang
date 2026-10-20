@@ -96,8 +96,8 @@ impl BuildProfile {
 }
 
 /// The engine a build is tuned for (`crates/hd_opt/DESIGN.md` (optimization pipelines) §1.1). Every target
-/// emits standard Wasm GC that every engine runs; a target only tunes
-/// speed. It is not the output format (`wasm32-gc`), and its name is in no
+/// emits standard Wasm that every engine runs; a target only tunes
+/// speed. It is not the output format, and its name is in no
 /// key: only the pipeline content it selects is.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum EngineTarget {

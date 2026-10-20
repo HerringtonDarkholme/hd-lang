@@ -4,12 +4,11 @@
 //! field of a data value with mutable access, or a struct field of one of
 //! these (`types.value.writable-forms`).
 //!
-//! The Wasm GC backend holds a struct value as an object that is never
-//! written after it is built (`crates/hd_wasm_linear/DESIGN.md` §15.2, "Struct
-//! values"). So `a.b.x = v` is lowered as `a = A { ...a, b: B { ...a.b,
+//! The checker represents a struct field write as a value rebuild
+//! (`crates/hd_wasm_linear/DESIGN.md` §23.20). So `a.b.x = v` is lowered as `a = A { ...a, b: B { ...a.b,
 //! x: v } }`: each struct on the path is rebuilt with `CopyData`, and the
-//! place's root is stored. Since no struct object changes, two places may
-//! hold one object, and a copy of a struct value copies one reference.
+//! place's root is stored. The RC backend stores struct fields inline,
+//! so the rebuild copies their Wasm values rather than a struct object reference.
 
 use hd_base::{DefId, LocalId, StageResult};
 use hd_diag::Code;

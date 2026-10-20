@@ -5,7 +5,7 @@
 //! `&mut self` needs a writable place (`fn.method.auto-address.writable`);
 //! `&self` on a value that is no place refers to a new object holding it.
 //!
-//! On the Wasm GC emulation the address is a `std.core.Ref[T]`
+//! In the checker's intermediate closure form the address is a `std.core.Ref[T]`
 //! (`crates/hd_wasm_linear/DESIGN.md` §15.2, "References"), built by `refs.rs`.
 
 use hd_base::{DefId, LocalId, NodeIdx, StageResult};

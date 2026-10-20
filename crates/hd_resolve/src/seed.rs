@@ -132,7 +132,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             if let Some(p) = out.last_mut() {
                 p.intrinsic = Some(sym(names, "panic_message"));
             }
-            // What `&T` and `&mut T` lower to on the Wasm GC backend
+            // The checker's intermediate closure form of `&T` and `&mut T`
             // (`crates/hd_wasm_linear/DESIGN.md` §15.2, "References"): a closure
             // that reads the referenced place and one that replaces it,
             // then the place's identity, which `is` compares: the data
@@ -141,6 +141,7 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             // (0 for a top-level binding or a data field), and the path of
             // fields from there.
             // Not visible to programs; `hd_types::Types::lower_refs` names it.
+            // RC emission strips the closure blocks and uses counted place addresses.
             let root = names.item(module, "RefRoot");
             out.push(Item::new(
                 root,
