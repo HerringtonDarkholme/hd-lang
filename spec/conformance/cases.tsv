@@ -2068,7 +2068,8 @@ typing/valid/path-newtype.hd	type	accept	std/path.md#paths
 typing/valid/random-trait.hd	type	accept	std/random.md#random-source
 runtime/valid/string-lines.hd	runtime	accept	std/text.md#r-std-text.string.lines
 runtime/valid/string-repeat.hd	runtime	accept	std/text.md#r-std-text.string.repeat
-runtime/valid/list-chunks.hd	runtime	accept	std/collections.md#r-std-collections.list.chunks
+runtime/valid/list-window-views.hd	runtime	accept	std/collections.md#r-std-collections.list.chunks.views
+runtime/valid/list-chunks.hd	runtime	accept	std/collections.md#r-std-collections.list.chunks.views
 runtime/panic/list-chunks-zero.hd	runtime	panic:explicit-panic	std/collections.md#r-std-collections.list.chunks.size
 runtime/valid/map-keys-values.hd	runtime	accept	std/collections.md#map-methods
 runtime/valid/cmp-clamp.hd	runtime	accept	std/cmp.md#r-std-cmp.clamp.result
@@ -2263,7 +2264,7 @@ runtime/panic/num-to-fixed-digits-range.hd	runtime	panic:explicit-panic	std/num.
 runtime/valid/list-sorted-by-key.hd	runtime	accept	std/collections.md#r-std-collections.helper.sorted-by-key
 runtime/valid/list-group-by.hd	runtime	accept	std/collections.md#r-std-collections.helper.group-by
 runtime/valid/list-partition-search.hd	runtime	accept	std/collections.md#list-helpers
-runtime/valid/list-flat-map-windows.hd	runtime	accept	std/collections.md#r-std-collections.helper.windows
+runtime/valid/list-flat-map-windows.hd	runtime	accept	std/collections.md#r-std-collections.helper.windows.views
 runtime/panic/list-windows-size.hd	runtime	panic:explicit-panic	std/collections.md#r-std-collections.helper.windows.size
 runtime/valid/list-min-max.hd	runtime	accept	std/collections.md#r-std-collections.helper.min-max.first
 typing/invalid/list-helper-callback-row.hd	type	reject:type-mismatch	std/collections.md#r-std-collections.helper.callback-row

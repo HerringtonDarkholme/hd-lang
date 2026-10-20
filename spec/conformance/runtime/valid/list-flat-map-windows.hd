@@ -1,7 +1,8 @@
 # test: flat_map joins lists in order, and windows gives overlapping runs or [] for a short list
-# Spec std/collections List Helpers: std-collections.helper.flat-map, .windows, and .windows.short.
+# Spec std/collections List Helpers: std-collections.helper.flat-map, std-collections.helper.windows.views, std-collections.helper.windows.short.
+use std.collections.ListView
 fn steps(readings: List[i32]) -> List[List[i32]]:
-    readings.windows(2)
+    readings.windows(2).map(fn(window: ListView[i32]) -> List[i32]: window.to_list())
 
 tests:
     use std.testing.assert_equal
@@ -11,6 +12,6 @@ tests:
         assert_equal([1, 2].flat_map(fn(n: i32) -> List[i32]: []), [], reason="empty parts")
     it("windows"):
         assert_equal(steps([1, 4, 9]), [[1, 4], [4, 9]], reason="overlapping runs")
-        assert_equal([1, 2].windows(2), [[1, 2]], reason="one run")
+        assert_equal([+1, +2].windows(2).map(fn(window: ListView[i32]) -> List[i32]: window.to_list()), [[1, 2]], reason="one run")
         assert_equal([1, 2].windows(3).len(), 0, reason="too short")
         assert_equal(steps([]).len(), 0, reason="an empty list")

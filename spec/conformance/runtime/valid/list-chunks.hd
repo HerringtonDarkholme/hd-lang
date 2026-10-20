@@ -1,13 +1,14 @@
 # test: chunks splits a list into consecutive pieces, and only the last may be shorter
-# Spec std/collections List Methods: std-collections.list.chunks (STDLIB question 18, 2026-09-29; batch 64, STD-1).
+# Spec std/collections List Methods: std-collections.list.chunks.views (STDLIB question 18, 2026-09-29; batch 64, STD-1).
+use std.collections.ListView
 fn pairs(items: List[i32]) -> List[List[i32]]:
-    items.chunks(2)
+    items.chunks(2).map(fn(piece: ListView[i32]) -> List[i32]: piece.to_list())
 
 tests:
     use std.testing.assert_equal
 
     it("splits into pieces of size elements"):
         assert_equal(pairs([1, 2, 3]), [[1, 2], [3]], reason="the last piece is shorter")
-        assert_equal([1, 2, 3, 4].chunks(2), [[1, 2], [3, 4]], reason="even pieces")
+        assert_equal([+1, +2, +3, +4].chunks(2).map(fn(piece: ListView[i32]) -> List[i32]: piece.to_list()), [[1, 2], [3, 4]], reason="even pieces")
         let empty: List[i32] = []
         assert_equal(empty.chunks(3).len(), 0, reason="no pieces for an empty list")

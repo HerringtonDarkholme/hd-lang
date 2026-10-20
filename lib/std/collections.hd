@@ -175,20 +175,18 @@ impl[T] List[T]:
         merged
 
     # Consecutive pieces of `size` items; the last may be shorter.
-    ## Returns the elements in order, in consecutive pieces of `size` elements. Only the last piece may be shorter.
-    ## See [std-collections.list.chunks](../../spec/std/collections.md#r-std-collections.list.chunks).
-    pub fn chunks(self, size: usize) -> List[List[T]]:
-        if size <= 0:
+    ## Returns read-only views in consecutive pieces of `size` elements; only the last may be shorter.
+    ## See [std-collections.list.chunks.views](../../spec/std/collections.md#r-std-collections.list.chunks.views).
+    pub fn chunks(&self, size: usize) -> List[ListView[T]]:
+        if size == 0:
             panic("chunks: size must be positive")
-        let mut pieces: List[List[T]] = []
-        let mut piece: List[T] = []
-        for item in self:
-            piece.push(item)
-            if piece.len() == size:
-                pieces.push(piece)
-                piece = []
-        if piece.len() > 0:
-            pieces.push(piece)
+        let mut pieces: List[ListView[T]] = []
+        let start: usize = 0
+        while start < self.len():
+            remaining := self.len() - start
+            width := if size < remaining: size else: remaining
+            pieces.push(self.view(start, start + width))
+            start = start + width
         pieces
 
     # Pairs items by position, stopping at the shorter list.
@@ -278,15 +276,17 @@ impl[T] List[T]:
         flat
 
     # Every run of `size` consecutive elements, overlapping, in order.
-    ## Returns every run of `size` consecutive elements, each starting one index later.
-    ## See [std-collections.helper.windows](../../spec/std/collections.md#r-std-collections.helper.windows).
-    pub fn windows(self, size: usize) -> List[List[T]]:
-        if size <= 0:
+    ## Returns read-only views of every run of `size` consecutive elements, each starting one index later.
+    ## See [std-collections.helper.windows.views](../../spec/std/collections.md#r-std-collections.helper.windows.views).
+    pub fn windows(&self, size: usize) -> List[ListView[T]]:
+        if size == 0:
             panic("windows: size must be positive")
-        let mut runs: List[List[T]] = []
+        let mut runs: List[ListView[T]] = []
+        if size > self.len(): return runs
+        last := self.len() - size
         let start: usize = 0
-        while start + size <= self.len():
-            runs.push(self[start..start + size])
+        while start <= last:
+            runs.push(self.view(start, start + size))
             start = start + 1
         runs
 

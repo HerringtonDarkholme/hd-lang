@@ -1,7 +1,9 @@
 # test: windows with a size below 1 panics
 # Spec std/collections List Helpers: std-collections.helper.windows.size.
 
-fn paged(items: List[i32]) -> List[List[i32]]:
+use std.collections.ListView
+
+fn paged(items: List[i32]) -> List[ListView[i32]]:
     items.windows(0)  # panic: explicit-panic
 
 tests:

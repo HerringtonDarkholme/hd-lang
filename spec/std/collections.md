@@ -7,7 +7,7 @@ in ordinary hd over the language tier:
 
 - the `List` methods `view` and `chunks`, and the access and building
   methods such as `get`, `take`, and `extend`;
-- the `ListView[T]` type that `view` returns;
+- the `ListView[T]` type returned by `view`, `chunks`, and `windows`;
 - the `List` helpers, such as `sorted_by_key`, `group_by`, and `windows`,
   and the function `counts`;
 - the `Map` methods `contains_key`, `keys`, `values`, and `get_or`;
@@ -48,17 +48,22 @@ fn joined(first: List[i32], second: List[i32]) -> List[i32]:
 
 | Receiver | Methods |
 | --- | --- |
-| `List[T]` | `view(&self, start: usize, end: usize) -> ListView[T]`; `chunks(self, size: usize) -> List[List[T]]` |
+| `List[T]` | `view(&self, start: usize, end: usize) -> ListView[T]`; `chunks(&self, size: usize) -> List[ListView[T]]` |
 
-1. r[std-collections.list.chunks] `chunks(size)` returns the list's elements in order, in consecutive pieces of `size` elements. Only the last piece may be shorter.
+1. r[std-collections.list.chunks.views] `chunks(size)` returns consecutive read-only `ListView[T]` values in order; only the last view may be shorter than `size`.
 2. r[std-collections.list.chunks.size] A `size` below 1 panics. Panic: `explicit-panic`.
+3. r[std-collections.list.window-borrow] `chunks` and `windows` take `&self`, so every returned view refers to the receiver's place.
+4. r[std-collections.list.window-cost] Both methods create one result list of views and should copy no elements.
 
 ```text
-fn pairs(items: List[i32]) -> List[List[i32]]:
-    items.chunks(2)  # [[1, 2], [3]] for [1, 2, 3]
+use std.collections.ListView
+
+fn pairs(items: &List[i32]) -> List[ListView[i32]]:
+    items.chunks(2)  # views of [1, 2] and [3] for [1, 2, 3]
 ```
 
-> **Note.** A copy of a run of elements is a slice,
+> **Note.** `piece.to_list()` copies a returned view into a list.
+> A copy of a run of elements is also a slice,
 > `items[start..end]`, a new list
 > ([Slicing](../lang/05-expressions.md#slicing)).
 
@@ -135,6 +140,8 @@ See also: [List Indexing](../lang/05-expressions.md#list-indexing),
 list without a hand-written loop:
 
 ```text
+use std.collections.ListView
+
 struct Task:
     name: string
     owner: string
@@ -149,8 +156,8 @@ fn by_owner(tasks: List[Task]) -> Map[string, List[Task]]:
 fn has_long(tasks: List[Task]) -> bool:
     tasks.any(fn(task: Task) -> bool: task.hours > 8)
 
-fn steps(readings: List[i32]) -> List[List[i32]]:
-    readings.windows(2)  # [[1, 4], [4, 9]] for [1, 4, 9]
+fn steps(readings: &List[i32]) -> List[ListView[i32]]:
+    readings.windows(2)  # views of [1, 4] and [4, 9] for [1, 4, 9]
 
 fn shortest(tasks: List[Task]) -> Task?:
     tasks.min_by_key(fn(task: Task) -> i32: task.hours)  # the first of equal hours
@@ -161,7 +168,7 @@ fn owners(tasks: List[Task]) -> List[string]:
 
 | Receiver | Methods |
 | --- | --- |
-| `List[T]` | `sorted_by_key[K < Ord](self, key: fn(T) -> K) -> List[T]`; `group_by[K < Eq & Hash](self, key: fn(T) -> K) -> Map[K, List[T]]`; `partition(self, keep: fn(T) -> bool) -> (List[T], List[T])`; `any(self, test: fn(T) -> bool) -> bool`; `all(self, test: fn(T) -> bool) -> bool`; `find(self, test: fn(T) -> bool) -> T?`; `flat_map[U](self, transform: fn(T) -> List[U]) -> List[U]`; `windows(self, size: usize) -> List[List[T]]` |
+| `List[T]` | `sorted_by_key[K < Ord](self, key: fn(T) -> K) -> List[T]`; `group_by[K < Eq & Hash](self, key: fn(T) -> K) -> Map[K, List[T]]`; `partition(self, keep: fn(T) -> bool) -> (List[T], List[T])`; `any(self, test: fn(T) -> bool) -> bool`; `all(self, test: fn(T) -> bool) -> bool`; `find(self, test: fn(T) -> bool) -> T?`; `flat_map[U](self, transform: fn(T) -> List[U]) -> List[U]`; `windows(&self, size: usize) -> List[ListView[T]]` |
 | `List[T]` | `min_by_key[K < Ord](self, key: fn(T) -> K) -> T?`; `max_by_key[K < Ord](self, key: fn(T) -> K) -> T?` |
 | `List[T]`, when `T < Eq` | `contains(self, value: T) -> bool`; `index_of(self, value: T) -> usize?`; `dedup(self) -> List[T]` |
 | `List[T]`, when `T < Eq & Hash` | `unique(self) -> List[T]` |
@@ -180,7 +187,7 @@ fn owners(tasks: List[Task]) -> List[string]:
 10. r[std-collections.helper.find] `find(test)` returns the first element for which `test` is true in `.Some`, or `.None` when there is none.
 11. r[std-collections.helper.short-circuit] `any`, `all`, and `find` call `test` on no element after the first one that decides the result.
 12. r[std-collections.helper.flat-map] `flat_map(transform)` joins the lists that `transform` returns, in list order.
-13. r[std-collections.helper.windows] `windows(size)` returns every run of `size` consecutive elements, in order of its first index, so the runs overlap.
+13. r[std-collections.helper.windows.views] `windows(size)` returns overlapping `ListView[T]` values of `size` elements, in starting-index order.
 14. r[std-collections.helper.windows.short] A list with fewer than `size` elements gives `[]`.
 15. r[std-collections.helper.windows.size] A `size` below 1 panics, as it does for `chunks`. Panic: `explicit-panic`.
 16. r[std-collections.helper.contains] `contains(value)` is true when an element equals `value` by `Eq`. `index_of(value)` returns the index of the first such element in `.Some`, or `.None`.
@@ -196,7 +203,7 @@ fn owners(tasks: List[Task]) -> List[string]:
 | --- | --- |
 | `[3, 1, 2].partition(fn(n: i32) -> bool: n > 1)` | `([3, 2], [1])` |
 | `[1, 2].flat_map(fn(n: i32) -> List[i32]: [n, n])` | `[1, 1, 2, 2]` |
-| `[1, 2, 3].windows(2)` | `[[1, 2], [2, 3]]` |
+| `[1, 2, 3].windows(2)` | views of `[1, 2]` and `[2, 3]` |
 | `[1, 2].windows(3)` | `[]` |
 | `[5, 7, 5].index_of(5)` | `.Some(0)` |
 | `[2, 9, 4].max()` | `.Some(9)` |

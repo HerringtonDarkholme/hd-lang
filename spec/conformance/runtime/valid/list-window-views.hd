@@ -1,0 +1,52 @@
+# test: chunks and windows borrow their source and can be iterated or explicitly copied
+# Spec std/collections: std-collections.list.chunks.views, std-collections.helper.windows.views.
+use std.collections.ListView
+
+fn total(window: ListView[i32]) -> i32:
+    window.iter().sum()
+
+tests:
+    use std.testing.assert_equal
+
+    it("overlapping windows sum without materializing their elements"):
+        let mut items = [+1, +2, +3, +4, +5]
+        windows := items.windows(3)
+        assert_equal(windows.len(), 3, reason="one view per complete window")
+        assert_equal(windows.map(total), [+6, +9, +12], reason="iterator sum")
+        assert_equal(windows[0][2], +3, reason="indexing")
+        items[1] = +20
+        assert_equal(windows[0].to_list(), [+1, +20, +3], reason="the view refers to the original place")
+        assert_equal(windows[1].to_list(), [+20, +3, +4], reason="overlapping view observes the same write")
+
+    it("chunks keep a short final view and explicit copies are independent"):
+        let mut items = [+1, +2, +3, +4, +5]
+        pieces := items.chunks(2)
+        assert_equal(pieces.map(fn(piece: ListView[i32]) -> usize: piece.len()), [2, 2, 1], reason="short final piece")
+        assert_equal(pieces[2].to_list(), [+5], reason="final value")
+        let mut copy = pieces[0].to_list()
+        items[0] = +9
+        copy[1] = +8
+        assert_equal(pieces[0].to_list(), [+9, +2], reason="element writes remain visible")
+        assert_equal(copy, [+1, +8], reason="to_list makes an independent value")
+
+    it("empty, short, and very large sizes retain their boundary behavior"):
+        let empty: List[i32] = []
+        assert_equal(empty.chunks(3).len(), 0, reason="empty chunks")
+        assert_equal(empty.windows(3).len(), 0, reason="empty windows")
+        assert_equal([+1, +2].windows(3).len(), 0, reason="no complete window")
+        assert_equal([+1, +2].windows(4294967295usize).len(), 0, reason="no addition overflow")
+        assert_equal([+1, +2].chunks(4294967295usize)[0].to_list(), [+1, +2], reason="one short chunk")
+        assert_equal([+1, +2, +3].windows(2).map(fn(window: ListView[i32]) -> List[i32]: window.to_list()), [[+1, +2], [+2, +3]], reason="temporary sources stay alive")
+
+    it("length changes invalidate chunk views", expect_panic="iterator-invalidated"):
+        let mut items = [+1, +2]
+        pieces := items.chunks(1)
+        items.push(+3)
+        _ := pieces[0].len()
+
+    it("length changes invalidate iterators from a window", expect_panic="iterator-invalidated"):
+        let mut items = [+1, +2]
+        windows := items.windows(1)
+        iterator := windows[0].iter()
+        items.push(+3)
+        _ := iterator.next()

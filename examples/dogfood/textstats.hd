@@ -38,7 +38,10 @@ fn by_count_then_word(a: WordCount, b: WordCount) -> Ordering:
         other => other
 
 fn top_words(lines: List[string], limit: usize) -> List[WordCount]:
-    word_counts(lines).sorted_by(by_count_then_word).chunks(limit).first().unwrap_or([])
+    pieces := word_counts(lines).sorted_by(by_count_then_word).chunks(limit)
+    match pieces.first():
+        .Some(piece) => piece.to_list()
+        .None => []
 
 fn errors(lines: List[string]) -> List[string]:
     lines.filter(fn(line: string) -> bool: line.contains("ERROR"))
