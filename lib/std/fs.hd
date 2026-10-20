@@ -7,7 +7,7 @@ use std.path.Path
 ## Every file system operation reports one of these errors: `NotFound`, `PermissionDenied`, `AlreadyExists`, `NotADirectory`, `IsADirectory`, `InvalidUtf8`, or `Other`.
 ## See [std-fs.error.decl-struct](../../spec/std/fs.md#r-std-fs.error.decl-struct).
 @error
-@derive(Debug)
+@derive(Debug, Eq)
 pub enum FsError:
     @error("not found: ${path}")
     NotFound(path: Path)
@@ -47,22 +47,6 @@ pub struct Entry:
     ## The file's length in bytes.
     ## See [std-fs.entry.size](../../spec/std/fs.md#r-std-fs.entry.size).
     pub size: u64
-
-# Keep handwritten Eq: compare rendered messages, including across different variants.
-impl Eq for FsError:
-    fn eq(self, other: FsError) -> bool:
-        fs_error_text(self) == fs_error_text(other)
-
-fn fs_error_text(error: FsError) -> string:
-    match error:
-        .NotFound(path) => "not found: ${path}"
-        .PermissionDenied(path) => "permission denied: ${path}"
-        .NotGranted(path) => "access to ${path} is not granted; run with --cap FsRead=${path} or --cap FsWrite=${path}"
-        .AlreadyExists(path) => "already exists: ${path}"
-        .NotADirectory(path) => "not a directory: ${path}"
-        .IsADirectory(path) => "is a directory: ${path}"
-        .InvalidUtf8(path) => "invalid UTF-8: ${path}"
-        .Other(message) => message
 
 ## The host capability to read from the file system: `read_bytes!`, `read_text!`, `list_dir!`, and `stat!`.
 ## See [std-fs.read.decl](../../spec/std/fs.md#r-std-fs.read.decl).

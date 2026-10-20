@@ -9,7 +9,7 @@ use std.serde.{Deserialize, Serialize}
 
 ## An HTTP method: a standard one, or `Other(name)`.
 ## See [std-http.types.decl-struct](../../spec/std/http.md#r-std-http.types.decl-struct).
-@derive(Debug)
+@derive(Debug, Eq)
 pub enum Method:
     Get
     Head
@@ -269,23 +269,6 @@ fn push_replacement(out: &mut List[u8]) -> void:
     out.push(239)
     out.push(191)
     out.push(189)
-
-# Keep handwritten Eq: compare HTTP spelling, so Other("GET") equals Get.
-impl Eq for Method:
-    fn eq(self, other: Method) -> bool:
-        method_name(self) == method_name(other)
-
-# The method's name on the wire.
-fn method_name(method: Method) -> string:
-    match method:
-        .Get => "GET"
-        .Head => "HEAD"
-        .Post => "POST"
-        .Put => "PUT"
-        .Patch => "PATCH"
-        .Delete => "DELETE"
-        .Options => "OPTIONS"
-        .Other(name) => name
 
 # The text of each variant; `NotGranted` names the flag that grants the
 # host (r-std-http.error.not-granted.text).

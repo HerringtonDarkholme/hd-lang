@@ -2062,6 +2062,7 @@ typing/invalid/eprintln-without-console.hd	type	reject:missing-requirement	std/c
 runtime/valid/console-input-helper.hd	runtime	accept	std/console.md#console-input
 runtime/valid/console-read-all.hd	runtime	accept	std/console.md#r-std-console.input.read-all-default
 runtime/valid/host-args-env.hd	runtime	accept	std/host.md#plain-reads
+runtime/valid/fs-error-variant-equality.hd	runtime	accept	std/fs.md#r-std-fs.error.eq.variant-payload
 runtime/valid/fs-helpers.hd	runtime	accept	std/fs.md#file-helpers
 typing/valid/path-newtype.hd	type	accept	std/path.md#paths
 typing/valid/random-trait.hd	type	accept	std/random.md#random-source
@@ -2900,6 +2901,7 @@ typing/invalid/trait-qualified-supertrait-call.hd	type	reject:unknown-method	lan
 typing/invalid/trait-qualified-supertrait-reference.hd	type	reject:unknown-method	lang/09-traits.md#r-trait.qualified.declaring
 typing/valid/trait-qualified-declaring-trait.hd	type	accept	lang/09-traits.md#r-trait.qualified.declaring
 typing/valid/trait-qualified-call-generic-receiver.hd	type	accept	lang/09-traits.md#r-trait.qualified.receiver
+runtime/valid/http-method-variant-equality.hd	runtime	accept	std/http.md#r-std-http.method.eq.variant-payload
 runtime/valid/http-scripted-provider.hd	runtime	accept	std/http.md#scripted-http
 runtime/valid/http-handles-and-values.hd	runtime	accept	std/http.md#r-std-http.scripted.new-ref
 runtime/valid/http-scripted-unknown-url.hd	runtime	accept	std/http.md#r-std-http.scripted.unknown

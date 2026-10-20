@@ -1,0 +1,20 @@
+# test: HTTP method equality compares variants and payloads, not wire spelling
+# Spec std/http: std-http.method.eq.variant-payload.
+use std.http.{Method, Request}
+
+tests:
+    use std.testing.assert
+
+    it("a custom method is distinct from the corresponding standard variant"):
+        assert(Method.Other("GET") != Method.Get, reason="different variants")
+        assert(Method.Get != Method.Other("GET"), reason="symmetric variant comparison")
+        assert(Method.Head != Method.Get, reason="different standard variants")
+        assert(Method.Get == Method.Get, reason="same standard variant")
+
+    it("custom method equality compares its payload"):
+        assert(Method.Other("GET") == Method.Other("GET"), reason="same custom spelling")
+        assert(Method.Other("GET") != Method.Other("get"), reason="case-sensitive payload")
+        assert(Method.Other("GET") != Method.Other("POST"), reason="different payload")
+
+    it("request equality preserves method variant identity"):
+        assert(Request { url: "a", method: .Get } != Request { url: "a", method: .Other("GET") }, reason="derived request equality reaches Method")

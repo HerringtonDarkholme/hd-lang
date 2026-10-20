@@ -5,7 +5,7 @@ use std.cli.{Arg, ArgKind, CliError}
 use std.cmp.Reverse
 use std.encoding.{Base64, DecodeError}
 use std.error.{Error, ErrorReport}
-use std.fs.{Entry, EntryKind, FsError}
+use std.fs.{Entry, EntryKind}
 use std.host.{EnvError, ScriptedArgs}
 use std.http.{Method, Request, Response}
 use std.json.{Json, Number}
@@ -63,9 +63,7 @@ tests:
         assert(Number::from_i64(-1) != Number::from_u64(1), reason="private number representation")
         assert(Json.Array([.Bool(true)]) == Json.Array([.Bool(true)]), reason="recursive equality")
 
-    it("behavior-specific equality and formatting remain custom"):
-        assert(Method.Get == Method.Other("GET"), reason="HTTP equality compares wire spelling")
-        assert(FsError.NotFound(Path("a")) == FsError.Other("not found: a"), reason="filesystem equality compares text across variants")
+    it("behavior-specific formatting remains custom"):
         assert_equal(debug(ExitCode(2)), "ExitCode(2)", reason="newtype Debug keeps its wrapper")
         assert_equal(debug(Number::from_i64(-1)), "Number(-1)", reason="number Debug hides its private representation")
         assert_equal(TimedOut { limit: ms(10), cleanup: .Abandoned }.to_string(), "timed out after 10ms, cleanup abandoned", reason="conditional timeout message")

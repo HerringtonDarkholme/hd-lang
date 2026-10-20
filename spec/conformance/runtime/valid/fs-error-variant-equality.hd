@@ -1,0 +1,20 @@
+# test: filesystem error equality compares variants and payloads, not rendered text
+# Spec std/fs: std-fs.error.eq.variant-payload.
+use std.fs.FsError
+use std.path.Path
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("equal messages do not erase variant identity"):
+        missing := FsError.NotFound(Path("a"))
+        other := FsError.Other("not found: a")
+        assert_equal(missing.to_string(), other.to_string(), reason="the messages coincide")
+        assert(missing != other, reason="different variants")
+        assert(other != missing, reason="symmetric variant comparison")
+
+    it("equality compares payloads within the same variant"):
+        assert(FsError.NotFound(Path("a")) == FsError.NotFound(Path("a")), reason="equal variant and path")
+        assert(FsError.NotFound(Path("a")) != FsError.NotFound(Path("b")), reason="different paths")
+        assert(FsError.Other("a") == FsError.Other("a"), reason="equal messages within Other")
+        assert(FsError.Other("a") != FsError.Other("b"), reason="different messages within Other")

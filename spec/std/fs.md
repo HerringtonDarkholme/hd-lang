@@ -48,6 +48,7 @@ pub struct Entry:
 6. r[std-fs.error.not-granted] `NotGranted(path)` reports that the program's capability grant does not cover `path`, by [Partial Deny](../cli/command-line.md#partial-deny).
 7. r[std-fs.error.permission-denied] `PermissionDenied(path)` reports that the operating system refused the access.
 8. r[std-fs.error.not-granted.text] The `Display` text of `NotGranted(path)` is `access to PATH is not granted; run with --cap FsRead=PATH or --cap FsWrite=PATH`, with the path for `PATH`.
+9. r[std-fs.error.eq.variant-payload] Two `FsError` values compare equal only when their variants and corresponding payloads are equal.
 
 > **Why.** `NotGranted` and `PermissionDenied` have different fixes: a
 > flag or an `hd.toml` entry for the first, file modes for the second.
