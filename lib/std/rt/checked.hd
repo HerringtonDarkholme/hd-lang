@@ -41,11 +41,23 @@ pub fn allocate(size: usize) -> usize:
 
 ## Frees the block at `block`: fills it with POISON bytes and keeps it from reuse; a second free of it panics.
 pub fn free(block: usize) -> void:
+    freeable(block)
+    forget(block)
+    poison(block)
+
+## Frees the block at `block` as `free` does, in a program where no object takes part in cycle collection.
+pub fn free_acyclic(block: usize) -> void:
+    freeable(block)
+    poison(block)
+
+# Panics unless `block` is the start of a block that is not yet freed.
+fn freeable(block: usize) -> void:
     if block == 0 || block_of(block) != block:
         fail("free of ${block}, which is not the start of a block")
     if usize(load_u32(block)) == POISON:
         fail("double free of the block at ${block}")
-    forget(block)
+
+fn poison(block: usize) -> void:
     fill(block, 0xde, block_bytes(block))
     held = held - 1
 
@@ -86,6 +98,22 @@ pub fn retain_known(address: usize) -> void:
 pub fn release_known(address: usize) -> usize:
     known_payload(address)
     release(address)
+
+## Takes one from the count of the block that holds `address`, as `release` does, in a program where no object takes part in cycle collection.
+pub fn release_acyclic(address: usize) -> usize:
+    block := block_of(address)
+    if block == 0:
+        return 0
+    count := counted(block, "release")
+    releases = releases + 1
+    if count == 1:
+        return block
+    store_u32(block, u32(count - 1))
+    0
+
+pub fn release_known_acyclic(address: usize) -> usize:
+    known_payload(address)
+    release_acyclic(address)
 
 ## How many blocks are allocated and not yet freed.
 pub fn live() -> usize:

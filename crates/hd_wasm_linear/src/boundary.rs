@@ -588,8 +588,9 @@ fn args_area(input: &Input<'_>, types: &[Ty]) -> StageResult<Elem> {
             None
         },
         colls: if counts { colls } else { Vec::new() },
-        // A host call's arguments are kept as a frame keeps them.
-        cyclic: counts,
+        // The leaf frame that keeps a host call's arguments takes part as
+        // they say: only an open value holds the frame.
+        cyclic: counts && crate::cycle::holding(pool, env, types),
     })
 }
 

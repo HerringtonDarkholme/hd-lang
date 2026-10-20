@@ -157,19 +157,18 @@ fn flags_any(f: &mut Func, t: u32, bits: i32) {
 }
 
 /// A new counted object of `size` payload bytes, zeroed, with release
-/// glue `drop` (none for `None`), in a fresh local of `f`. A frame is
-/// tagged for the cycle collector ([`Helper::Opaque`]), which enters it
-/// only while its saved slots are stable.
-fn new_zeroed(f: &mut Func, size: u32, drop: Option<Sym>) -> u32 {
+/// glue `drop` (none for `None`), in a fresh local of `f`. A frame that
+/// takes part in cycle collection (`cyclic`, and glue) is tagged for the
+/// collector ([`Helper::Opaque`]), which enters it only while its saved
+/// slots are stable.
+fn new_zeroed(f: &mut Func, size: u32, drop: Option<Sym>, cyclic: bool) -> u32 {
     let at = f.local(Val::I32);
     f.u32(size);
-    let glue = drop.is_some();
-    // A frame with glue takes part in cycle collection: what its saved
-    // slots hold is not known here (§23.28).
-    crate::rt::push_desc(f, drop, true);
+    let tagged = drop.is_some() && cyclic;
+    crate::rt::push_desc(f, drop, cyclic);
     f.helper(Helper::New);
     f.set(at);
-    if glue {
+    if tagged {
         f.get(at);
         f.helper(Helper::Opaque);
     }
@@ -359,7 +358,9 @@ pub fn abandon_by(f: &mut Func, by: i32) {
 fn frame(key: Hash128, m: &Module) -> Func {
     let size = m.frames.get(&key).copied().unwrap_or(F_SAVED);
     let mut f = Func::new("rt:frame", vec![], vec![Val::I32]);
-    let at = new_zeroed(&mut f, size, Some(Sym::Part(key, Part::Drop)));
+    // What a suspending body's frame saves is not known here, so it takes
+    // part in cycle collection (§23.28).
+    let at = new_zeroed(&mut f, size, Some(Sym::Part(key, Part::Drop)), true);
     f.get(at);
     f.body.push(Ins::TableSlot(Sym::Part(key, Part::Poll)));
     f.op(Instruction::I32Store(mem(HEAP, F_POLL, 2)));
@@ -879,7 +880,8 @@ fn host_cold(module: &str, method: &str, args: &[HostArg], area: &Elem, res: &Ho
     let mut params = vec![Val::I32];
     params.extend(args.iter().flat_map(HostArg::vals));
     let mut f = Func::new(format!("rt:{module}/{method}"), params, vec![Val::I32]);
-    let fr = new_zeroed(&mut f, LEAF_ARGS + area.size, leaf_drop(area));
+    // A leaf frame takes part as its arguments' types say.
+    let fr = new_zeroed(&mut f, LEAF_ARGS + area.size, leaf_drop(area), area.cyclic);
     let poll = Sym::Helper(Helper::HostPoll {
         module: module.to_owned(),
         method: method.to_owned(),
@@ -1204,7 +1206,7 @@ fn call_cancel(f: &mut Func, c: u32) {
 /// over `task`, which it holds as its child with a count of its own.
 fn cleanup_cold() -> Func {
     let mut f = Func::new("rt:cleanup_cold", vec![Val::I32], vec![Val::I32]);
-    let fr = new_zeroed(&mut f, F_SAVED, Some(Sym::Helper(Helper::ChildDrop)));
+    let fr = new_zeroed(&mut f, F_SAVED, Some(Sym::Helper(Helper::ChildDrop)), true);
     f.get(fr);
     f.body
         .push(Ins::TableSlot(Sym::Helper(Helper::CleanupPoll)));
@@ -1314,7 +1316,7 @@ fn cleanup_cancel() -> Func {
 /// for std's `timeout!`.
 fn pending_cold(results: &[Val]) -> Func {
     let mut f = Func::new("rt:pending_cold", vec![], vec![Val::I32]);
-    let fr = new_zeroed(&mut f, F_SAVED, None);
+    let fr = new_zeroed(&mut f, F_SAVED, None, false);
     f.get(fr);
     f.body.push(Ins::TableSlot(Sym::Helper(Helper::PendingPoll {
         results: results.to_vec(),
@@ -1371,7 +1373,7 @@ fn race_cold(results: &[Val], walk: Option<&Walk>) -> Func {
         results: results.to_vec(),
         walk: walk.cloned(),
     });
-    let fr = new_zeroed(&mut f, size, Some(drop));
+    let fr = new_zeroed(&mut f, size, Some(drop), true);
     let h = |k| Helper::Race {
         part: k,
         results: results.to_vec(),
@@ -1609,7 +1611,7 @@ fn open_cold(
     reference: Option<&crate::rt::RefLayout>,
 ) -> Func {
     let mut f = Func::new("rt:open_cold", vec![Val::I32], vec![Val::I32]);
-    let fr = new_zeroed(&mut f, F_SAVED, Some(Sym::Helper(Helper::ChildDrop)));
+    let fr = new_zeroed(&mut f, F_SAVED, Some(Sym::Helper(Helper::ChildDrop)), true);
     f.get(fr);
     f.body.push(Ins::TableSlot(Sym::Helper(Helper::OpenFrame {
         part: 1,

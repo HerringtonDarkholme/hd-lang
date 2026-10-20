@@ -165,26 +165,32 @@ pub struct Input<'a> {
 /// The std module whose functions emitted code calls by key, and their
 /// names: the driver roots them for this backend ([`Runtime`]).
 pub const RUNTIME_MODULE: &str = "std.rt.alloc";
-pub const RUNTIME_FNS: [&str; 6] = [
+pub const RUNTIME_FNS: [&str; 9] = [
     "alloc",
     "free",
     "retain",
     "release",
     "retain_known",
     "release_known",
+    "free_block",
+    "release_acyclic",
+    "release_known_acyclic",
 ];
 
-/// The checked runtime (`crates/hd_wasm_linear/DESIGN.md` §23.24): the same six
+/// The checked runtime (`crates/hd_wasm_linear/DESIGN.md` §23.24): the same nine
 /// functions over the allocator, then the two the exit audit calls and the
 /// two count totals the entry exports.
 pub const CHECKED_MODULE: &str = "std.rt.checked";
-pub const CHECKED_FNS: [&str; 10] = [
+pub const CHECKED_FNS: [&str; 13] = [
     "allocate",
     "free",
     "retain",
     "release",
     "retain_known",
     "release_known",
+    "free_acyclic",
+    "release_acyclic",
+    "release_known_acyclic",
     "live",
     "audit",
     "retained",
@@ -240,7 +246,19 @@ pub struct Runtime {
     pub release_known: Hash128,
     pub block_of: Hash128,
     pub cycle: Cycle,
+    pub acyclic: Acyclic,
     pub checked: Option<Checked>,
+}
+
+/// The runtime's free and releases without collector hooks, which a
+/// program links in place of [`Runtime`]'s when none of its objects takes
+/// part in cycle collection (`crates/hd_wasm_linear/DESIGN.md` §23.28), so
+/// it links no `std.rt.cycle`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Acyclic {
+    pub free: Hash128,
+    pub release: Hash128,
+    pub release_known: Hash128,
 }
 
 /// The cycle collector's functions (`crates/hd_wasm_linear/DESIGN.md` §23.28):
@@ -277,7 +295,7 @@ impl Runtime {
     pub fn from_keys(keys: &[Option<Hash128>]) -> Option<Runtime> {
         let keys: Vec<Hash128> = keys.iter().copied().collect::<Option<_>>()?;
         let (block_of, keys) = keys.split_last()?;
-        let (counts, rest) = keys.split_first_chunk::<6>()?;
+        let (counts, rest) = keys.split_first_chunk::<9>()?;
         let (checked, rest) = match rest.len() {
             n if n == CYCLE_FNS.len() => (None, rest),
             n if n == CYCLE_FNS.len() + 4 => {
@@ -297,7 +315,17 @@ impl Runtime {
         let [collect, due, track, opaque, visit] = *rest else {
             return None;
         };
-        let [alloc, free, retain, release, retain_known, release_known] = *counts;
+        let [
+            alloc,
+            free,
+            retain,
+            release,
+            retain_known,
+            release_known,
+            acyclic_free,
+            acyclic_release,
+            acyclic_release_known,
+        ] = *counts;
         Some(Runtime {
             alloc,
             free,
@@ -312,6 +340,11 @@ impl Runtime {
                 track,
                 opaque,
                 visit,
+            },
+            acyclic: Acyclic {
+                free: acyclic_free,
+                release: acyclic_release,
+                release_known: acyclic_release_known,
             },
             checked,
         })
@@ -331,7 +364,11 @@ fn link(input: &Input<'_>) -> StageResult<Vec<u8>> {
     m.runtime = input.runtime;
     m.release = input.release;
     for id in input.order {
-        m.inst_of.insert(input.collected.table.key[id.idx()], *id);
+        let key = input.collected.table.key[id.idx()];
+        m.inst_of.insert(key, *id);
+        if (input.path)(input.collected.table.item[id.idx()]).starts_with("std/rt.cycle/") {
+            m.cycle_insts.insert(key);
+        }
     }
     address_globals(input, &mut m)?;
     for (slot, id) in input.order.iter().enumerate() {

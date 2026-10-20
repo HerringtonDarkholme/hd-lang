@@ -29,6 +29,7 @@ mod context_values;
 mod copy_assign_run;
 mod copy_update_run;
 mod crlf_run;
+mod cycle_linking;
 mod dbg_release;
 mod declaration_checks;
 mod decorator_misplaced;

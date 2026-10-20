@@ -1605,10 +1605,12 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   the walk does not know), or, for `object`, the object's own type. The
   walk does not ask whether a slot can be written after construction
   (§7.1's mutable edge): a recursive immutable enum takes part, which is
-  conservative. A frame with glue (#637), a reference view and a boxed
-  reference value (`rt:ref_view_drop`, `ref_box`, whose types `rt.rs`
-  does not know) and a host call's argument area always take part. A
-  list copy (`rt:list_copy`) takes part as its original does.
+  conservative. A suspending body's frame, a child's or a race's frame
+  with glue (#637), a reference view and a boxed reference value
+  (`rt:ref_view_drop`, `ref_box`, whose types `rt.rs` does not know)
+  always take part. A host call's leaf frame takes part as `holding` says
+  of its arguments' types. A list copy (`rt:list_copy`) takes part as its
+  original does, read from the original's descriptor at run time.
 - **What it saves** (`bench/study/run.mjs`, hd on V8 only, same machine,
   load 9 to 13 before and 5 to 9 after, so the ratios are approximate):
   nbody 60,803 ms to 33,322; binary-trees 65,452 to 44,953; closures
@@ -1621,6 +1623,28 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   `rt:release_ref`, behind the `Tracing` check. `std_rt/cycle_tests.hd`
   checks that sharing and dropping lists of `f64` and of a struct and a
   closure leaves no candidate, while a dropped ring does.
+- **No collector when nothing takes part** (issue #649). The driver roots
+  both sets of the runtime's frees and releases: with collector hooks
+  (`free`, `release`, `release_known`) and without (`std.rt.alloc`'s
+  `free_block`, `release_acyclic`, `release_known_acyclic`;
+  `std.rt.checked`'s `free_acyclic`, `release_acyclic`,
+  `release_known_acyclic`). `Module::finish` looks through what the exports
+  reach for a descriptor that `rt::push_desc` pushed with `CYCLIC`. When
+  there is none, it sets `Module::acyclic`, points the runtime at the
+  releases without hooks, and builds every helper again. `rt:new` then
+  asks for no collector word and never collects, `rt:release_ref` has no
+  `Tracing` check, and neither the entry's poll nor checked mode's
+  shutdown collects. The init of `std.rt.cycle` is skipped too, unless
+  code still calls the collector directly, as std's own tests do. So
+  `std.rt.cycle` is not linked: hello (release) goes from 11,346 bytes to
+  7,183 for `println(42)` and from 11,247 to 7,084 for `println("hello")`.
+  Before #618 (and at #618 itself) these were 3,725 and 3,569, because
+  hello then allocated nothing. Its host call's leaf frame now needs the
+  allocator and the wake table. `CYCLE_FNS` are still rooted, since
+  collection runs before any allocation is emitted; only the link drops
+  them. `tests/all/cycle_linking.rs` checks that a program of lists and
+  closures links no `std.rt.cycle` and calls `release_acyclic`, while a
+  ring of references links the collector.
 
 ### 23.29 Wide Signatures And The Shadow Stack
 

@@ -259,6 +259,10 @@ pub enum Helper {
     ListHeader {
         cyclic: bool,
     },
+    /// `(buffer, flag) -> list`: a new list header as [`Helper::ListHeader`]
+    /// makes, whose descriptor takes `flag`, [`CYCLIC`] or 0, as a copied
+    /// header's original says at run time.
+    ListHeaderAs,
     /// A collection header owns a known buffer payload start.
     ListHeaderDrop,
     /// `(capacity) -> buffer`: a new, empty list buffer with room for
@@ -849,14 +853,18 @@ fn checked_poll(poll: &Helper, reinit: &[Hash128], m: &Module) -> Func {
     f.helper(Helper::Teardown);
     // The bindings are gone, so a cycle they held is garbage now, and a
     // handle leaked inside one is still reported (§23.28).
-    f.helper(Helper::Collect);
+    if !m.acyclic {
+        f.helper(Helper::Collect);
+    }
     f.i32(0);
     f.call(Sym::Inst(c.audit));
     for k in reinit {
         call_init(&mut f, *k, true);
     }
     f.op(Instruction::Else);
-    f.helper(Helper::Collect);
+    if !m.acyclic {
+        f.helper(Helper::Collect);
+    }
     f.op(Instruction::End);
     f.get(status);
     f
@@ -1262,7 +1270,10 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::EntryInit { inits } => {
             let mut f = Func::new("rt:entry_init", vec![], vec![]);
             for (k, forbid) in inits {
-                call_init(&mut f, *k, *forbid);
+                // A program that links no collector needs no collector state.
+                if !(m.acyclic && m.cycle_insts.contains(k)) {
+                    call_init(&mut f, *k, *forbid);
+                }
             }
             f
         }
@@ -1316,7 +1327,9 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             let mut f = Func::new("rt:collect_poll", vec![Val::I32], vec![Val::I32]);
             f.get(0);
             f.helper((**poll).clone());
-            f.helper(Helper::Collect);
+            if !m.acyclic {
+                f.helper(Helper::Collect);
+            }
             f
         }
         Helper::Teardown => teardown(m),
@@ -1474,6 +1487,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             fields_glue("rt:retain_fields", leaves, walk, &retain_call(m))
         }
         Helper::ListHeader { cyclic } => list_header(*cyclic),
+        Helper::ListHeaderAs => list_header_as(),
         Helper::ListHeaderDrop => {
             let mut f = Func::new("rt:list_header_drop", vec![Val::I32], vec![]);
             f.get(0);
@@ -2055,7 +2069,8 @@ pub(crate) fn glue_of(f: &mut Func) {
 fn new_object(m: &Module) -> Func {
     let mut f = Func::new("rt:new", vec![Val::I32, Val::I32], vec![Val::I32]);
     let block = f.local(Val::I32);
-    if let Some(r) = m.runtime {
+    let cycles = m.runtime.filter(|_| !m.acyclic);
+    if let Some(r) = cycles {
         f.call(Sym::Inst(r.cycle.due));
         f.op(Instruction::If(BlockType::Empty));
         f.helper(Helper::Collect);
@@ -2066,12 +2081,14 @@ fn new_object(m: &Module) -> Func {
     f.op(Instruction::I32Add);
     match m.runtime {
         Some(r) => {
-            f.get(1);
-            f.i32(31);
-            f.op(Instruction::I32ShrU);
-            f.u32(crate::module::CYCLE_WORD);
-            f.op(Instruction::I32Mul);
-            f.op(Instruction::I32Add);
+            if !m.acyclic {
+                f.get(1);
+                f.i32(31);
+                f.op(Instruction::I32ShrU);
+                f.u32(crate::module::CYCLE_WORD);
+                f.op(Instruction::I32Mul);
+                f.op(Instruction::I32Add);
+            }
             f.call(Sym::Inst(r.alloc));
         }
         None => f.helper(Helper::Alloc),
@@ -2083,7 +2100,7 @@ fn new_object(m: &Module) -> Func {
     f.get(block);
     f.get(1);
     f.op(Instruction::I32Store(mem(HEAP, 4, 2)));
-    if let Some(r) = m.runtime {
+    if let Some(r) = cycles {
         f.get(1);
         f.i32(0);
         f.op(Instruction::I32LtS);
@@ -2101,7 +2118,7 @@ fn new_object(m: &Module) -> Func {
 /// [`Helper::Collect`].
 fn collect(m: &Module) -> Func {
     let mut f = Func::new("rt:collect", vec![], vec![]);
-    let Some(r) = m.runtime else {
+    let Some(r) = m.runtime.filter(|_| !m.acyclic) else {
         return f;
     };
     for h in [Helper::CycleTrace, Helper::CycleRelease, Helper::CycleFree] {
@@ -2125,14 +2142,16 @@ fn release_ref(m: &Module, known: bool) -> Func {
         return f;
     };
     let (block, desc) = (f.local(Val::I32), f.local(Val::I32));
-    f.global_get(Global::Tracing);
-    f.op(Instruction::If(BlockType::Empty));
-    f.get(0);
-    f.call(Sym::Inst(r.cycle.visit));
-    f.op(Instruction::If(BlockType::Empty));
-    f.op(Instruction::Return);
-    f.op(Instruction::End);
-    f.op(Instruction::End);
+    if !m.acyclic {
+        f.global_get(Global::Tracing);
+        f.op(Instruction::If(BlockType::Empty));
+        f.get(0);
+        f.call(Sym::Inst(r.cycle.visit));
+        f.op(Instruction::If(BlockType::Empty));
+        f.op(Instruction::Return);
+        f.op(Instruction::End);
+        f.op(Instruction::End);
+    }
     f.get(0);
     f.call(Sym::Inst(if known { r.release_known } else { r.release }));
     f.set(block);
@@ -2225,22 +2244,16 @@ fn list_copy() -> Func {
     f.op(Instruction::End);
     f.get(b);
     f.helper(Helper::RetainKnown);
-    // The copy takes part in cycle collection as its original does.
+    // The copy takes part in cycle collection as its original does, read
+    // at run time, so that no constant makes a program look cycle-capable.
+    f.get(b);
     f.get(0);
     f.u32(HEADER);
     f.op(Instruction::I32Sub);
     f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
-    f.i32(0);
-    f.op(Instruction::I32LtS);
-    f.op(Instruction::If(BlockType::Result(
-        wasm_encoder::ValType::I32,
-    )));
-    f.get(b);
-    f.helper(Helper::ListHeader { cyclic: true });
-    f.op(Instruction::Else);
-    f.get(b);
-    f.helper(Helper::ListHeader { cyclic: false });
-    f.op(Instruction::End);
+    f.u32(CYCLIC);
+    f.op(Instruction::I32And);
+    f.helper(Helper::ListHeaderAs);
     f
 }
 
@@ -2302,6 +2315,26 @@ fn list_clone(elem: &Elem) -> Func {
     f.helper(Helper::ListHeader {
         cyclic: elem.cyclic,
     });
+    f
+}
+
+/// [`Helper::ListHeaderAs`].
+fn list_header_as() -> Func {
+    let mut f = Func::new("rt:list_header_as", vec![Val::I32; 2], vec![Val::I32]);
+    let h = f.local(Val::I32);
+    f.i32(8);
+    push_desc(&mut f, Some(Sym::Helper(Helper::ListHeaderDrop)), false);
+    f.get(1);
+    f.op(Instruction::I32Or);
+    f.helper(Helper::New);
+    f.set(h);
+    f.get(h);
+    f.get(0);
+    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    f.get(h);
+    f.i32(0);
+    f.op(Instruction::I32Store(mem(HEAP, LIST_OWN, 2)));
+    f.get(h);
     f
 }
 

@@ -377,6 +377,14 @@ pub struct Module {
     /// A release build: its function names go in `hd.names`, not `name`
     /// (`crates/hd_wasm_linear/DESIGN.md` §15.9).
     pub release: bool,
+    /// Set by [`Module::finish`] when no object of the program takes part
+    /// in cycle collection: the helpers then call the runtime's releases
+    /// without collector hooks and never collect, so `std.rt.cycle` is not
+    /// linked (§23.28).
+    pub acyclic: bool,
+    /// The instances of `std.rt.cycle`, whose module init an acyclic
+    /// program does not run.
+    pub cycle_insts: BTreeSet<Hash128>,
 }
 
 /// Stored values and their counted-reference walk (§23.24), with a static
@@ -387,6 +395,19 @@ pub struct Stored {
     pub vals: Vec<Val>,
     pub walk: crate::layout::Walk,
     pub slot: Option<(u32, Vec<crate::layout::Leaf>)>,
+}
+
+/// Whether `f` allocates an object that takes part in cycle collection:
+/// a descriptor word with [`CYCLIC`], which `rt::push_desc` pushes as a
+/// constant right after its glue's table slot.
+fn cyclic_desc(f: &Func) -> bool {
+    f.body.windows(2).any(|w| {
+        matches!(
+            w,
+            [Ins::TableSlot(_), Ins::Op(Instruction::I32Const(c))]
+                if c.cast_unsigned() & CYCLIC != 0
+        )
+    })
 }
 
 impl Module {
@@ -454,6 +475,13 @@ impl Module {
     /// only for the runtime, such as the allocator of a program that never
     /// allocates (§23.6, "Reachable code only").
     fn reach(&mut self) {
+        let seen = self.reached();
+        self.funcs.retain(|s, _| seen.contains(s));
+        self.inst_order.retain(|s| seen.contains(s));
+    }
+
+    /// What the exports reach, building the helpers among it.
+    fn reached(&mut self) -> BTreeSet<Sym> {
         let mut seen: BTreeSet<Sym> = BTreeSet::new();
         let mut work: Vec<Sym> = self.exports.iter().map(|(_, s)| s.clone()).collect();
         work.extend(self.vtables.iter().flat_map(|v| v.0.iter()).cloned());
@@ -478,13 +506,41 @@ impl Module {
                 }
             }
         }
-        self.funcs.retain(|s, _| seen.contains(s));
-        self.inst_order.retain(|s| seen.contains(s));
+        seen
     }
 
     /// Builds the reachable helpers, numbers every function and encodes
     /// the module.
     pub fn finish(mut self) -> StageResult<Vec<u8>> {
+        let seen = self.reached();
+        if let Some(r) = self.runtime
+            && !self
+                .funcs
+                .iter()
+                .any(|(s, f)| seen.contains(s) && cyclic_desc(f))
+        {
+            // No allocation takes part in cycle collection: build the
+            // helpers again over the runtime's releases without hooks.
+            self.acyclic = true;
+            self.runtime = Some(crate::Runtime {
+                free: r.acyclic.free,
+                release: r.acyclic.release,
+                release_known: r.acyclic.release_known,
+                ..r
+            });
+            self.funcs.retain(|s, _| !matches!(s, Sym::Helper(_)));
+            // Code that calls the collector itself, as std's own tests do,
+            // still needs its state: run its module init after all.
+            let seen = self.reached();
+            if self
+                .cycle_insts
+                .iter()
+                .any(|k| seen.contains(&Sym::Inst(*k)))
+            {
+                self.cycle_insts.clear();
+                self.funcs.retain(|s, _| !matches!(s, Sym::Helper(_)));
+            }
+        }
         self.reach();
         if !self
             .funcs
