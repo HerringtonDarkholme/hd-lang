@@ -10,6 +10,7 @@
 //! and encodes them. There is no per-instance code cache yet: the driver
 //! calls [`build`] once per program, at link.
 
+mod boundary;
 mod emit;
 mod layout;
 mod map;

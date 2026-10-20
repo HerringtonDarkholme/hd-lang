@@ -2,8 +2,9 @@
 
 use hd_base::Hash128;
 
+use crate::boundary::{LEnum, LList, LTy};
 use crate::module::{Func, Module, Sym, Val};
-use crate::rt::Helper;
+use crate::rt::{Elem, Helper};
 
 fn validate(wasm: &[u8]) {
     let mut v = wasmparser::Validator::new_with_features(wasmparser::WasmFeatures::all());
@@ -64,6 +65,7 @@ fn static_bytes_and_vtables_are_shared_by_content() {
             module: "hd:Console".into(),
             method: "write_line".into(),
             args: vec![crate::task::HostArg::Str],
+            area: string_area(),
             res: crate::task::HostRes::Tags,
         })
     };
@@ -80,7 +82,7 @@ fn static_bytes_and_vtables_are_shared_by_content() {
 fn every_runtime_helper_validates() {
     let mut m = Module::default();
     let main = Hash128(9);
-    let mut f = Func::new("main", vec![Val::I32, Val::I32], vec![]);
+    let mut f = Func::new("main", vec![Val::I32; 4], vec![]);
     for h in [
         Helper::Panic("explicit-panic: x".into()),
         Helper::ForbidCheck,
@@ -117,13 +119,51 @@ fn every_runtime_helper_validates() {
         module: "hd:Console".into(),
         method: "write_line".into(),
         args: vec![crate::task::HostArg::Str],
+        area: string_area(),
         res: crate::task::HostRes::Tags,
     })]);
+    // A host call of every boundary type, in both directions, and a
+    // waiting one through a handle's slot.
+    let every = every_boundary_type();
+    let call = Helper::HostCall {
+        module: "hd:Probe".into(),
+        method: "echo".into(),
+        args: vec![
+            crate::task::HostArg::Scalar(Val::I64),
+            crate::task::HostArg::Buf(every.clone()),
+        ],
+        result: crate::boundary::CallRes::Buf(every.clone()),
+    };
+    let mut params = vec![Val::I64];
+    params.extend(every.vals());
+    let leaf = Helper::HostCold {
+        module: "hd:Probe".into(),
+        method: "wait".into(),
+        args: vec![
+            crate::task::HostArg::Scalar(Val::I32),
+            crate::task::HostArg::Buf(LTy::Str),
+        ],
+        area: Elem {
+            size: 12,
+            leaves: vec![word(0), word(4), word(8)],
+            walk: None,
+            colls: vec![],
+        },
+        res: crate::task::HostRes::Buf(every.clone()),
+    };
+    let probe = m.vtable(vec![
+        Sym::Helper(call),
+        Sym::Helper(Helper::HandleSlot {
+            inner: Box::new(leaf),
+            params: vec![Val::I32, Val::I32],
+            results: vec![Val::I32],
+        }),
+    ]);
     m.export("hd.init", Sym::Helper(Helper::EntryInit { inits: vec![] }));
     m.export(
         "hd.poll",
         Sym::Helper(Helper::EntryPoll {
-            providers: vec![(console, None)],
+            providers: vec![(console, None), (probe, None)],
             main,
             results: 0,
             report: None,
@@ -132,4 +172,71 @@ fn every_runtime_helper_validates() {
         }),
     );
     validate(&m.finish().expect("link"));
+}
+
+/// A 4-byte `i32` leaf at `offset`.
+fn word(offset: u32) -> crate::layout::Leaf {
+    crate::layout::Leaf {
+        offset,
+        val: Val::I32,
+        bytes: 4,
+        signed: false,
+    }
+}
+
+/// A leaf frame's area of one string argument.
+fn string_area() -> Elem {
+    Elem {
+        size: 8,
+        leaves: vec![word(0), word(4)],
+        walk: Some(crate::layout::Walk::Ref(0)),
+        colls: vec![],
+    }
+}
+
+/// A record of every kind of boundary type the codecs build.
+fn every_boundary_type() -> LTy {
+    let opt = LTy::Enum(Box::new(LEnum {
+        vals: vec![Val::I32, Val::I32, Val::I32, Val::I64],
+        variants: vec![
+            vec![],
+            vec![(vec![1, 2], LTy::Str)],
+            vec![(
+                vec![3],
+                LTy::Int {
+                    bits: 64,
+                    signed: true,
+                },
+            )],
+        ],
+    }));
+    LTy::Record(vec![
+        LTy::Void,
+        LTy::Int {
+            bits: 8,
+            signed: false,
+        },
+        LTy::Int {
+            bits: 16,
+            signed: true,
+        },
+        LTy::Int {
+            bits: 1,
+            signed: false,
+        },
+        LTy::F32,
+        LTy::F64,
+        LTy::Str,
+        LTy::Bytes,
+        LTy::List(Box::new(LList {
+            elem: Elem {
+                size: 8,
+                leaves: vec![word(0), word(4)],
+                walk: None,
+                colls: vec![],
+            },
+            ty: LTy::Str,
+        })),
+        opt,
+    ])
 }

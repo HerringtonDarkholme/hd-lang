@@ -7,8 +7,10 @@
 use hd_base::Hash128;
 use wasm_encoder::{BlockType, Instruction};
 
+use crate::boundary::LTy;
 use crate::layout::{Leaf, Walk};
 use crate::module::{BUF, Func, Global, HEAP, Import, Ins, Module, Part, Sym, Val, mem};
+use crate::rt::Elem;
 use crate::rt::Helper;
 
 /// A frame's task prefix: its poll function's table slot.
@@ -43,43 +45,56 @@ pub const EXITED: i32 = 64;
 /// cleanup ran to its end; one less when a part of it was cut short.
 pub const CANCELLED_END: i32 = -2;
 
-/// A host method's argument as its leaf frame keeps it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// A host method's argument (`crates/hd_run_wasmtime/DESIGN.md` §17.4,
+/// "Arguments").
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum HostArg {
     /// A string, the method's only argument: its bytes cross in the
     /// exchange buffer and its length is the parameter.
     Str,
     /// A scalar, a Wasm parameter of the import.
     Scalar(Val),
+    /// A structured value, encoded in the exchange buffer after the ones
+    /// before it (`boundary.rs`).
+    Buf(LTy),
 }
 
 impl HostArg {
-    fn vals(self) -> Vec<Val> {
+    #[must_use]
+    pub fn vals(&self) -> Vec<Val> {
         match self {
             HostArg::Str => vec![Val::I32, Val::I32],
-            HostArg::Scalar(v) => vec![v],
+            HostArg::Scalar(v) => vec![*v],
+            HostArg::Buf(b) => b.vals(),
         }
     }
 }
 
-/// A host leaf's result as its import answers it: nothing, or an enum of
-/// tags, its variant index and its payload's (§17.4 of
-/// `crates/hd_run_wasmtime/DESIGN.md`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// A host leaf's result as its import answers it, always in the buffer
+/// (§17.4): nothing; an enum of tags, read as its variant index and its
+/// payload's; or any other value, through its decoder.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum HostRes {
     Void,
     Tags,
+    Buf(LTy),
 }
 
 impl HostRes {
     #[must_use]
-    pub fn vals(self) -> Vec<Val> {
+    pub fn vals(&self) -> Vec<Val> {
         match self {
             HostRes::Void => vec![],
             HostRes::Tags => vec![Val::I32, Val::I32],
+            HostRes::Buf(b) => b.vals(),
         }
     }
 }
+
+/// Where a leaf frame keeps its arguments: after the handle at
+/// [`F_SAVED`], 8-aligned, laid out as one record (`Helper::HostCold`'s
+/// `area`).
+const LEAF_ARGS: u32 = (F_SAVED + 4).next_multiple_of(8);
 
 /// The size of a `v` in memory.
 fn size_of(v: Val) -> u32 {
@@ -87,20 +102,6 @@ fn size_of(v: Val) -> u32 {
         Val::I32 | Val::F32 => 4,
         Val::I64 | Val::F64 => 8,
     }
-}
-
-/// Each value of a leaf frame's arguments `args` with its offset, after
-/// the handle, and the payload's size.
-fn leaf_area(args: &[HostArg]) -> (Vec<(u32, Val)>, u32) {
-    let mut at = F_SAVED + 4;
-    let mut out = Vec::new();
-    for v in args.iter().flat_map(|a| a.vals()) {
-        let size = size_of(v);
-        at = at.div_ceil(size) * size;
-        out.push((at, v));
-        at += size;
-    }
-    (out, at.div_ceil(8) * 8)
 }
 
 fn store(v: Val, at: u32) -> Instruction<'static> {
@@ -201,30 +202,23 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             module,
             method,
             args,
+            area,
             res,
-        } => host_cold(module, method, args, *res),
+        } => host_cold(module, method, args, area, res),
         Helper::HostPoll {
             module,
             method,
             args,
+            area,
             res,
-        } => host_poll(module, method, args, *res),
+        } => host_poll(module, method, args, area, res),
         Helper::HostCancel => host_cancel(),
         Helper::HostCall {
             module,
             method,
-            params,
-            results,
-        } => {
-            let mut all = vec![Val::I32];
-            all.extend(params.iter().copied());
-            let mut f = Func::new(format!("rt:{module}/{method}"), all, results.clone());
-            for k in 0..params.len() {
-                f.get(u32::try_from(k + 1).expect("params"));
-            }
-            f.call(Sym::Import(Import::new(module, method, params, results)));
-            f
-        }
+            args,
+            result,
+        } => crate::boundary::host_call(module, method, args, result),
         Helper::EntryCancel { abandon } => {
             let mut f = Func::new("rt:entry_cancel", vec![], vec![]);
             let root = f.local(Val::I32);
@@ -518,53 +512,58 @@ fn wake_take() -> Func {
     f
 }
 
-/// The release glue of a leaf frame of arguments `args`: one count less
-/// on each string's bytes.
-fn leaf_drop(args: &[HostArg]) -> Option<Sym> {
-    let (area, _) = leaf_area(args);
-    let mut leaves = Vec::new();
-    let mut k = 0;
-    for a in args {
-        if *a == HostArg::Str {
-            let (at, _) = area[k];
-            leaves.push(Leaf {
-                offset: at,
-                val: Val::I32,
-                bytes: 4,
-                signed: false,
-            });
-        }
-        k += a.vals().len();
-    }
-    if leaves.is_empty() {
-        return None;
-    }
-    let walk = if leaves.len() == 1 {
-        Walk::Ref(0)
-    } else {
-        Walk::Seq(
-            (0..leaves.len())
-                .map(|k| Walk::Ref(u32::try_from(k).expect("leaves")))
-                .collect(),
-        )
-    };
+/// The release glue of a leaf frame whose arguments are laid out as
+/// `area`: one count less on each counted reference among them.
+fn leaf_drop(area: &Elem) -> Option<Sym> {
+    let walk = area.walk.as_ref()?;
+    // Only the leaves the walk reads, so the glue loads nothing else.
+    let mut used = Vec::new();
+    walk_indices(walk, &mut used);
+    used.sort_unstable();
+    used.dedup();
+    let leaves = used
+        .iter()
+        .map(|k| {
+            let l = area.leaves[*k as usize];
+            Leaf {
+                offset: l.offset + LEAF_ARGS,
+                ..l
+            }
+        })
+        .collect();
+    let walk = walk.remap(&|k| {
+        u32::try_from(used.iter().position(|u| *u == k).expect("used")).expect("leaves")
+    });
     Some(Sym::Helper(Helper::DropFields { leaves, walk }))
 }
 
+/// Every value index a walk reads: its references and its tags.
+fn walk_indices(w: &Walk, out: &mut Vec<u32>) {
+    match w {
+        Walk::Ref(k) => out.push(*k),
+        Walk::Seq(ws) => ws.iter().for_each(|w| walk_indices(w, out)),
+        Walk::Switch(k, arms) => {
+            out.push(*k);
+            arms.iter().flatten().for_each(|w| walk_indices(w, out));
+        }
+    }
+}
+
 /// [`Helper::HostCold`]: `(data, arguments) -> frame`, a host method
-/// that may wait, called cold: a leaf frame holding the arguments, each
-/// string with a count of its own, and no handle yet (-1).
-fn host_cold(module: &str, method: &str, args: &[HostArg], res: HostRes) -> Func {
-    let (area, size) = leaf_area(args);
+/// that may wait, called cold: a leaf frame holding the arguments, laid
+/// out as `area`, each with a count of its own (a collection as its
+/// copy), and no handle yet (-1).
+fn host_cold(module: &str, method: &str, args: &[HostArg], area: &Elem, res: &HostRes) -> Func {
     let mut params = vec![Val::I32];
-    params.extend(args.iter().flat_map(|a| a.vals()));
+    params.extend(args.iter().flat_map(HostArg::vals));
     let mut f = Func::new(format!("rt:{module}/{method}"), params, vec![Val::I32]);
-    let fr = new_zeroed(&mut f, size, leaf_drop(args));
+    let fr = new_zeroed(&mut f, LEAF_ARGS + area.size, leaf_drop(area));
     let poll = Sym::Helper(Helper::HostPoll {
         module: module.to_owned(),
         method: method.to_owned(),
         args: args.to_vec(),
-        res,
+        area: area.clone(),
+        res: res.clone(),
     });
     f.get(fr);
     f.body.push(Ins::TableSlot(poll));
@@ -575,19 +574,23 @@ fn host_cold(module: &str, method: &str, args: &[HostArg], res: HostRes) -> Func
     f.get(fr);
     f.i32(-1);
     f.op(Instruction::I32Store(mem(HEAP, u64::from(F_SAVED), 2)));
-    for (k, (at, v)) in area.iter().enumerate() {
+    for (k, l) in area.leaves.iter().enumerate() {
         f.get(fr);
         f.get(u32::try_from(k + 1).expect("params"));
-        f.op(store(*v, *at));
+        f.op(l.store(LEAF_ARGS));
     }
-    // The frame's count of each string.
-    let mut k = 0;
-    for a in args {
-        if *a == HostArg::Str {
-            f.get(u32::try_from(k + 1).expect("params"));
+    // The frame's count of each counted argument; a collection becomes
+    // its copy.
+    if !area.colls.is_empty() {
+        f.get(fr);
+        f.u32(LEAF_ARGS);
+        f.op(Instruction::I32Add);
+        f.i32(1);
+        f.helper(Helper::CopyElems { elem: area.clone() });
+    } else if let Some(w) = &area.walk {
+        crate::rt::walk_code(&mut f, w, &|f, k| f.get(k + 1), &|f| {
             f.body.push(Ins::Call(Sym::Helper(Helper::RetainAny)));
-        }
-        k += a.vals().len();
+        });
     }
     f.get(fr);
     f
@@ -597,8 +600,7 @@ fn host_cold(module: &str, method: &str, args: &[HostArg], res: HostRes) -> Func
 /// calls `.start` with the arguments; a call that finished at once is
 /// Ready, else its handle waits in the frame. A later poll is Pending
 /// until the wake table holds the handle, then calls `.finish`.
-fn host_poll(module: &str, method: &str, args: &[HostArg], res: HostRes) -> Func {
-    let (area, _) = leaf_area(args);
+fn host_poll(module: &str, method: &str, args: &[HostArg], area: &Elem, res: &HostRes) -> Func {
     let rvals = res.vals();
     let mut results = vec![Val::I32];
     results.extend(rvals.iter().copied());
@@ -627,26 +629,11 @@ fn host_poll(module: &str, method: &str, args: &[HostArg], res: HostRes) -> Func
     f.i32(0);
     f.op(Instruction::I32LtS);
     f.op(Instruction::If(BlockType::Empty));
-    let mut imp = Vec::new();
-    let mut k = 0;
-    for a in args {
-        match a {
-            HostArg::Str => {
-                for j in 0..2 {
-                    f.get(0);
-                    f.op(load(Val::I32, area[k + j].0));
-                }
-                f.helper(Helper::ToBuf);
-                imp.push(Val::I32);
-            }
-            HostArg::Scalar(v) => {
-                f.get(0);
-                f.op(load(*v, area[k].0));
-                imp.push(*v);
-            }
-        }
-        k += a.vals().len();
-    }
+    let leaves = area.leaves.clone();
+    let imp = crate::boundary::push_args(&mut f, args, &|f, k| {
+        f.get(0);
+        f.op(leaves[k as usize].load(LEAF_ARGS));
+    });
     f.call(Sym::Import(Import::new(
         module,
         &format!("{method}.start"),
@@ -680,22 +667,30 @@ fn host_poll(module: &str, method: &str, args: &[HostArg], res: HostRes) -> Func
     f.op(Instruction::End);
     flags_or(&mut f, 0, DONE);
     f.i32(1);
-    if res == HostRes::Tags {
-        // The variant index, then the payload's variant index when the
-        // result has one.
-        f.i32(0);
-        f.op(Instruction::I32Load8U(mem(BUF, 0, 0)));
-        f.get(n);
-        f.i32(1);
-        f.op(Instruction::I32GtS);
-        f.op(Instruction::If(BlockType::Result(
-            wasm_encoder::ValType::I32,
-        )));
-        f.i32(0);
-        f.op(Instruction::I32Load8U(mem(BUF, 1, 0)));
-        f.op(Instruction::Else);
-        f.i32(0);
-        f.op(Instruction::End);
+    match res {
+        HostRes::Void => {}
+        HostRes::Tags => {
+            // The variant index, then the payload's variant index when
+            // the result has one.
+            f.i32(0);
+            f.op(Instruction::I32Load8U(mem(BUF, 0, 0)));
+            f.get(n);
+            f.i32(1);
+            f.op(Instruction::I32GtS);
+            f.op(Instruction::If(BlockType::Result(
+                wasm_encoder::ValType::I32,
+            )));
+            f.i32(0);
+            f.op(Instruction::I32Load8U(mem(BUF, 1, 0)));
+            f.op(Instruction::Else);
+            f.i32(0);
+            f.op(Instruction::End);
+        }
+        HostRes::Buf(b) => {
+            f.i32(0);
+            f.helper(Helper::Dec(b.clone()));
+            f.op(Instruction::Drop);
+        }
     }
     f
 }

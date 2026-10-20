@@ -59,6 +59,27 @@ impl Leaf {
     }
 }
 
+impl Leaf {
+    /// The store of this leaf to the heap at an address, then the value,
+    /// on the stack, `base` bytes before the value.
+    #[must_use]
+    pub fn store(self, base: u32) -> I<'static> {
+        let m = memarg(
+            HEAP,
+            u64::from(base + self.offset),
+            u32::from(self.bytes).trailing_zeros(),
+        );
+        match (self.val, self.bytes) {
+            (Val::I32, 1) => I::I32Store8(m),
+            (Val::I32, 2) => I::I32Store16(m),
+            (Val::I32, _) => I::I32Store(m),
+            (Val::I64, _) => I::I64Store(m),
+            (Val::F32, _) => I::F32Store(m),
+            (Val::F64, _) => I::F64Store(m),
+        }
+    }
+}
+
 /// A type's layout: its size and alignment in memory, and its values.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Mem {

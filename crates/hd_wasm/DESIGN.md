@@ -1661,6 +1661,7 @@ what the spec names as intrinsic or what only it can build.
 | maps | `emit/map.rs` for the map kernels, and `map.rs` for the table: its probe, put, growth, release glue and the change that makes a table a map's own (§23.18) | 10 |
 | closures and `dyn` | `emit/closure.rs` for environments, cells and calls of function values, `emit/dyn_value.rs` for trait values and their vtables, `emit/iter.rs` for collection iterators (§23.19) | 11 |
 | references, cleanup scopes, releases at last use | `emit/refs.rs` for references as addresses, `emit/live.rs` for each value's and local's last use, `emit/scope.rs` for the `defer` exit ladder, `emit/list.rs` for element references' pins (§23.20) | 12 |
+| host codecs | `boundary.rs`: each boundary type's encoder and decoder over the exchange buffer, and the host method slots that call them (§23.23) | 14 |
 | iterative release, the collector | hd in further `std.rt` modules, called by emitted code | 19, 21 |
 
 `std.rt` modules are privileged: only std modules may import them, so the
@@ -1671,14 +1672,15 @@ runtime can change its representation without breaking a program.
 | Memory | Holds | Exported as |
 | --- | --- | --- |
 | 0 | the exchange buffer, exactly as on Wasm GC (crates/hd_run_wasmtime/DESIGN.md §17.3) | `hd.x` |
-| 1 | the heap: static data, the page table, every counted object | not exported until the host codecs move (jobs 14, 15) |
+| 1 | the heap: static data, the page table, every counted object | not exported: the host reads and writes only memory 0 (§23.23) |
 
 - **Why two memories.** The exchange buffer grows from address 0 as the
   host's results need, so it cannot share a memory with a heap that must
   never move. A second memory (Wasm multi-memory, on by default in V8
   and wasmtime) keeps the host contract unchanged, so both hosts run both
-  backends' modules until jobs 14 and 15 rewrite the codecs. A string
-  crosses with one `memory.copy` from memory 1 to memory 0.
+  backends' modules: the module's own codecs move values between its
+  layouts and the buffer's bytes (§23.23). A string crosses with one
+  `memory.copy` from memory 1 to memory 0.
 - **Addresses** are `i32`, unsigned (`usize` on wasm32). Address 0 is
   null: `.None` of `Option[&T]`. The first 16 bytes are never used.
 - **Static data** starts at address 16 in page 0: string literals, the
@@ -2567,11 +2569,10 @@ counted frames in memory 1 (`emit/susp.rs`, `task.rs`).
   loop, and checks that the heap does not grow after a warm-up.
 - **Size.** hello: 11,463 bytes in the dev profile and 8,273 in release.
   A `main` that never suspends links no task runtime.
-- **Not yet.** Host methods whose arguments or results cross in the
-  exchange buffer as structured values (`PropertyRunner.start`,
-  `TestRunner.snapshot_check`, `Random.fill`, `ConsoleInput.read_line`),
-  and a profile trait's methods with arguments. Calls whose row
-  parameters carry keys. Erased generic methods (job 11).
+- **Not yet.** Calls whose row parameters carry keys. Erased generic
+  methods (job 11). Host methods with structured arguments or results,
+  and a profile trait's methods with arguments, came with job 14
+  (§23.23).
 
 ### 23.22 Code Size: The Local Cleanup And The Allocator
 
@@ -2625,3 +2626,88 @@ REFCOUNT_RUNTIME.md (`opt.rs`, `lib/std/rt/alloc.hd`).
   code both need links `retain`, `release` and `free`. Making hello link
   nothing would take formatting into the exchange buffer. That is a
   design question for the owner.
+
+### 23.23 What Job 14 Adds
+
+Job 14 (issue #595) lowers every host method of the ABI table, the test
+runner's host traits, host handles and a runtime profile's own traits,
+so programs that use `fs`, `process`, `host`, `sys`, `net`, `http`,
+`time` and `random` run on this backend (`boundary.rs`).
+
+- **One wire format, generated in the module.** The host contract stays
+  crates/hd_run_wasmtime/DESIGN.md §17: the exchange buffer is memory 0,
+  `hd.x`, and every structured argument and result crosses in it in the
+  §17.4 encoding. This backend generates the encoders and decoders the
+  Wasm GC backend's `hd_wasm::boundary` generates, over its own layouts,
+  so `host/*.mjs` and the wasmtime host need no backend switch, and the
+  heap (memory 1) stays private to the module. The alternative, host
+  codecs that read the heap's layouts, would need the host to know each
+  type's offsets and slot sharing (§23.3) and to allocate counted
+  objects for its results, which means calling back into the module
+  during an import (§17.3 forbids nested calls); it would also tie the
+  host to this backend's layouts.
+- **Boundary types.** `boundary::of` describes a type as an `LTy` from
+  its linear layout: an integer (`bool` one bit, `char` 21), a float, a
+  string, `List[u8]`, any other list with its element's layout, a
+  struct or a tuple as a record of its fields' values, an enum or an
+  optional as its tag and shared slots (each payload field's value
+  indices from `layout::enum_mem`), a host handle with its vtable, and,
+  at a profile's boundary, a private-field type as its JSON text through
+  the codecs collection gathered (`module.boundary.serialize.exact`). A
+  newtype is its field, so `Path` is its string with its length; only a
+  lone `string` argument crosses as its bytes alone. A map, a function, a
+  data object, a recursive enum or another trait value is refused at
+  Link, and nesting past 32 levels is too.
+- **Encoders** are `rt:enc` helpers, `(off, values...) -> off'`, one per
+  `LTy`, each growing the buffer (`rt:fit`) before it writes. A string
+  and a byte list are one `memory.copy` from the heap to the buffer; a
+  list's elements are loaded from its buffer at their offsets. A value
+  is borrowed: an encoder takes no count.
+- **Decoders** are `rt:dec` helpers, `(off) -> (values..., off')`. They
+  check every LEB128 byte and length against the buffer's size, a
+  variant index against the variant count, and a narrow integer against
+  its range (`host-contract`). A string of bytes is a new string buffer
+  filled by one `memory.copy` from the buffer, and no bytes is the one
+  static empty string (§23.7). A byte list is a new list buffer filled
+  the same way; any other list decodes each element into its slot and
+  counts it in the buffer's length once stored, so the glue never
+  releases an unwritten one. Every value a decoder returns arrives with
+  its count, as a call's result does (§23.16).
+- **Host calls that never wait** (`Helper::HostCall`): the structured
+  arguments are encoded one after another from offset 0, the scalars are
+  the import's parameters, then the length; a scalar result is the
+  import's result, a structured one is decoded from offset 0.
+- **Host leaves** (`Helper::HostCold`, `HostPoll`): the cold frame keeps
+  the arguments as one record after the handle (`LEAF_ARGS`), each with a
+  count of its own, a list as its copy (`rt:copy_elems`); its glue
+  releases them. The first poll encodes them for `.start`. Any result
+  but an enum of tags decodes from offset 0 after `.start` or `.finish`;
+  `Result[void, E]` with a payload-free `E` keeps the two-byte read, so
+  hello's code is unchanged.
+- **Host handles.** A handle is a trait value whose data is a counted
+  box of its number and whose vtable's slots (`Helper::HandleSlot`) load
+  the number and call the inner host call or leaf with it first; a
+  supertrait's vtable, as `Disposable`'s, follows the slots (§23.8). A
+  `&mut dyn TcpStream` result calls the `std.rt.host_provider` instance
+  collection recorded (`handle_ref`), which returns the trait value
+  itself, and releases the box's first count. A handle never crosses to
+  the host. A profile's own handle trait is imported from `hd:<Trait>`
+  by method name, as `disposed-file`'s `FileHandle`.
+- **Runtime profiles.** Every argument and result of a profile trait's
+  method crosses in the buffer, so a `u8` result of 300 is the
+  `host-contract` panic (`module.profile.host-result.contract-panic`)
+  and a NaN, an infinity or `-0.0` keeps its bits.
+- **Size.** hello (`println(42)`, dev): 5,046 bytes here before and
+  after, 4,175 on the Wasm GC backend. A program links only the codecs
+  of the types its host methods cross.
+- **Checked by** `tests::every_runtime_helper_validates`, which builds
+  a host call and a handle's leaf over a record of every kind of boundary
+  type and validates the module, and by the runtime fixtures of the
+  profiles, the property and snapshot runners, `Random.fill` and
+  `ConsoleInput.read_line` in `LINEAR_PASSES.tsv`. Programs over the
+  real `fs`, `process`, `env`, `args`, `sys`, `clock`, `random`, `net`
+  (loopback TCP and UDP) and `http` (a local server) hosts print the
+  same output on both backends.
+- **Not yet.** These modules are untested on the wasmtime host while it
+  is parked (job 15). It reads and writes the same wire format, so job
+  15 should need no codecs of its own.

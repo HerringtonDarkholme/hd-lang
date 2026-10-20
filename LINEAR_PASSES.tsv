@@ -16,6 +16,7 @@ runtime/panic/assert-equal-string-unequal.hd	#573: closures and trait values
 runtime/panic/assert-equal-tuple-unequal.hd	#573: closures and trait values
 runtime/panic/assert-failure-in-main.hd	#540: a std panic report
 runtime/panic/block-on-completed-suspension.hd	#575: suspension frames, the waker and the entry driver
+runtime/panic/boundary-deserialize-error.hd	#595: host codecs over linear memory
 runtime/panic/char-to-digit-radix-high.hd	#552: strings
 runtime/panic/char-to-digit-radix-low.hd	#552: strings
 runtime/panic/cli-duplicate-option.hd	#554: lists
@@ -47,6 +48,7 @@ runtime/panic/explicit-panic-skips-defer.hd	#574: references, cleanup scopes and
 runtime/panic/explicit-panic.hd	#540: an explicit panic
 runtime/panic/for-element-references-push-panics.hd	#574: references, cleanup scopes and releases at last use
 runtime/panic/generic-i32-overflow.hd	#554: lists
+runtime/panic/host-result-out-of-range.hd	#595: host codecs over linear memory
 runtime/panic/i32-add-overflow-in-function.hd	#541: test programs, and roots that never suspend
 runtime/panic/i32-min-divided-by-minus-one.hd	#541: test programs, and roots that never suspend
 runtime/panic/index-trait-map-missing.hd	#572: maps
@@ -114,6 +116,7 @@ runtime/panic/second-suspension-drive.hd	#575: suspension frames, the waker and 
 runtime/panic/shift-count-at-bit-width.hd	#541: test programs, and roots that never suspend
 runtime/panic/sign-fallback-balance-underflow.hd	#540: checked integer arithmetic
 runtime/panic/signed-min-division-overflow.hd	#540: checked integer arithmetic
+runtime/panic/snapshot-file-missing.hd	#595: host codecs over linear memory
 runtime/panic/snapshot-mismatch.hd	#573: closures and trait values
 runtime/panic/string-index-at-length.hd	#552: strings
 runtime/panic/string-index-out-of-bounds.hd	#552: strings
@@ -198,6 +201,9 @@ runtime/valid/bound-inference-default.hd	#573: closures and trait values
 runtime/valid/bound-inference-explicit.hd	#573: closures and trait values
 runtime/valid/bound-inference-two-bounds.hd	#573: closures and trait values
 runtime/valid/bound-inference-user-trait.hd	#573: closures and trait values
+runtime/valid/boundary-derived-round-trip.hd	#595: host codecs over linear memory
+runtime/valid/boundary-public-fields-cross.hd	#595: host codecs over linear memory
+runtime/valid/boundary-redacted-round-trip.hd	#595: host codecs over linear memory
 runtime/valid/bounded-blanket-impl.hd	#573: closures and trait values
 runtime/valid/bounded-blanket-supertraits.hd	#573: closures and trait values
 runtime/valid/branch-scopes-shadow.hd	#573: closures and trait values
@@ -247,6 +253,8 @@ runtime/valid/char-unicode-digits.hd	#552: strings
 runtime/valid/char-unicode-letters.hd	#552: strings
 runtime/valid/char-unicode-whitespace.hd	#573: closures and trait values
 runtime/valid/character-literals.hd	#573: closures and trait values
+runtime/valid/choices-choose.hd	#595: host codecs over linear memory
+runtime/valid/choices-int-range.hd	#595: host codecs over linear memory
 runtime/valid/cli-errors.hd	#573: closures and trait values
 runtime/valid/cli-flag-forms.hd	#573: closures and trait values
 runtime/valid/cli-parse-args.hd	#573: closures and trait values
@@ -367,6 +375,10 @@ runtime/valid/derivation-block-member-lines.hd	#573: closures and trait values
 runtime/valid/derivation-block-not-delegation.hd	#573: closures and trait values
 runtime/valid/derivation-block-written-method.hd	#573: closures and trait values
 runtime/valid/derive-members-of-data-and-enums.hd	#573: closures and trait values
+runtime/valid/derived-arbitrary-no-finite-data.hd	#595: host codecs over linear memory
+runtime/valid/derived-arbitrary-no-finite-value.hd	#595: host codecs over linear memory
+runtime/valid/derived-arbitrary-recursive-members.hd	#595: host codecs over linear memory
+runtime/valid/derived-arbitrary-with.hd	#595: host codecs over linear memory
 runtime/valid/derived-debug-newtype.hd	#573: closures and trait values
 runtime/valid/derived-default-data.hd	#573: closures and trait values
 runtime/valid/derived-default-declared-no-bound.hd	#573: closures and trait values
@@ -400,6 +412,7 @@ runtime/valid/downcast-reference-permission-identity.hd	#586: reference recovery
 runtime/valid/duration-api.hd	#573: closures and trait values
 runtime/valid/duration-arithmetic.hd	#573: closures and trait values
 runtime/valid/duration-display.hd	#573: closures and trait values
+runtime/valid/duration-literals.hd	#595: found passing by the linear sweep; no host codec involved
 runtime/valid/duration-order.hd	#551: structs, tuples, enums and data values
 runtime/valid/duration-parse-errors.hd	#573: closures and trait values
 runtime/valid/duration-parse.hd	#573: closures and trait values
@@ -444,6 +457,7 @@ runtime/valid/error-bound-downcast-evidence.hd	#586: reference recovery methods
 runtime/valid/error-chain-derived-causes.hd	#573: closures and trait values
 runtime/valid/error-chain-method.hd	#573: closures and trait values
 runtime/valid/error-chain.hd	#573: closures and trait values
+runtime/valid/error-context-generic-reference.hd	#595: found passing by the linear sweep; no host codec involved
 runtime/valid/error-context.hd	#573: closures and trait values
 runtime/valid/error-derivation-run.hd	#573: closures and trait values
 runtime/valid/error-downcast-through-inspectable.hd	#573: closures and trait values
@@ -540,6 +554,7 @@ runtime/valid/generic-methods.hd	#573: closures and trait values
 runtime/valid/generic-optional-and-result.hd	#573: closures and trait values
 runtime/valid/generic-parameter-forms.hd	#573: closures and trait values
 runtime/valid/generic-partial-eq-bound-primitives.hd	#552: strings
+runtime/valid/generic-reference-erasure-keeps-type.hd	#595: found passing by the linear sweep; no host codec involved
 runtime/valid/generic-requirement-key-substitution.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/generic-sharing-distinct-value-layouts.hd	#568: generic keys follow the backend layout
 runtime/valid/generic-sharing-inline-values.hd	#568: generic keys follow the backend layout
@@ -574,6 +589,7 @@ runtime/valid/host-args-env.hd	#573: closures and trait values
 runtime/valid/host-cancel-abandons-past-bound.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/host-cancel-waits-for-dispose.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/host-env-as.hd	#573: closures and trait values
+runtime/valid/host-result-special-floats.hd	#595: host codecs over linear memory
 runtime/valid/http-handles-and-values.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/http-json.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/http-scripted-provider.hd	#575: suspension frames, the waker and the entry driver
@@ -626,6 +642,7 @@ runtime/valid/inspectable-generic-downcast-targets.hd	#586: reference recovery m
 runtime/valid/inspectable-generic-target-helper.hd	#586: reference recovery methods
 runtime/valid/inspectable-primitives-collections-options.hd	#573: closures and trait values
 runtime/valid/integer-cast-wraps-examples.hd	#573: closures and trait values
+runtime/valid/integer-display-every-width.hd	#595: host codecs over linear memory
 runtime/valid/integer-literal-forms.hd	#540: integers, strings and enums in locals
 runtime/valid/integration-program-no-module-path.hd	#573: closures and trait values
 runtime/valid/integration-shared-use.hd	#573: closures and trait values
@@ -636,6 +653,8 @@ runtime/valid/interpolation-forms.hd	#573: closures and trait values
 runtime/valid/intrinsic-method-calls.hd	#573: closures and trait values
 runtime/valid/it-body-by-name.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/it-each-options.hd	#539: tests only, so no entry point runs
+runtime/valid/it-each-propagation.hd	#595: host codecs over linear memory
+runtime/valid/it-each-rows.hd	#595: host codecs over linear memory
 runtime/valid/iterator-adapters-run.hd	#573: closures and trait values
 runtime/valid/iterator-chain-iterable.hd	#573: closures and trait values
 runtime/valid/iterator-drives-loops.hd	#573: closures and trait values
@@ -648,7 +667,9 @@ runtime/valid/iterator-shape-versus-value-changes.hd	#573: closures and trait va
 runtime/valid/iterator-single-pass.hd	#573: closures and trait values
 runtime/valid/iterator-skip-take-while.hd	#573: closures and trait values
 runtime/valid/iterator-zip-iterable.hd	#573: closures and trait values
+runtime/valid/json-decode-bytes-matches-old.hd	#595: host codecs over linear memory
 runtime/valid/json-encode-pretty.hd	#573: closures and trait values
+runtime/valid/json-encode-text-writer-matches-tree.hd	#595: host codecs over linear memory
 runtime/valid/json-errors.hd	#573: closures and trait values
 runtime/valid/json-escapes.hd	#573: closures and trait values
 runtime/valid/json-float-text.hd	#573: closures and trait values
@@ -860,6 +881,7 @@ runtime/valid/num-integer-u64.hd	#573: closures and trait values
 runtime/valid/num-is-finite.hd	#541: test programs, and roots that never suspend
 runtime/valid/num-is-nan.hd	#541: test programs, and roots that never suspend
 runtime/valid/num-ordered-display.hd	#573: closures and trait values
+runtime/valid/num-parse-byte-reader-matches-scalar-reader.hd	#595: host codecs over linear memory
 runtime/valid/num-parse-f64-errors.hd	#573: closures and trait values
 runtime/valid/num-parse-f64-round-trip.hd	#554: lists
 runtime/valid/num-parse-f64-specials.hd	#554: lists
@@ -980,12 +1002,19 @@ runtime/valid/propagation-from-two-domains.hd	#573: closures and trait values
 runtime/valid/propagation-in-closure-targets-closure.hd	#573: closures and trait values
 runtime/valid/propagation-into-erased-error.hd	#573: closures and trait values
 runtime/valid/propagation-prefers-assignability.hd	#573: closures and trait values
+runtime/valid/property-assume-discards.hd	#595: host codecs over linear memory
+runtime/valid/property-body-discard-message-fails.hd	#595: host codecs over linear memory
+runtime/valid/property-draw-budget.hd	#595: host codecs over linear memory
+runtime/valid/property-generators-collections.hd	#595: host codecs over linear memory
+runtime/valid/property-generators-scalars.hd	#595: host codecs over linear memory
 runtime/valid/provider-capture-timing.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/provider-from-suspending-call.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/provider-ref-host.hd	#595: host codecs over linear memory
 runtime/valid/provider-ref-mut-changes-caller.hd	#573: closures and trait values
 runtime/valid/provider-ref-new-object.hd	#573: closures and trait values
 runtime/valid/provider-ref-same-place.hd	#573: closures and trait values
 runtime/valid/provider-scope-dynamic-callback.hd	#573: closures and trait values
+runtime/valid/provider-value-reference-identity.hd	#595: found passing by the linear sweep; no host codec involved
 runtime/valid/pub-own-member-hides-promoted-other-module.hd	#573: closures and trait values
 runtime/valid/pub-own-member-hides-promoted.hd	#573: closures and trait values
 runtime/valid/pub-use-same-declaration.hd	#573: closures and trait values
@@ -994,6 +1023,7 @@ runtime/valid/question-mark-finds-std-from.hd	#573: closures and trait values
 runtime/valid/race-cancelled-child.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/race-loser-cleanup-outer-cancel.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/random-fill.hd	#573: closures and trait values
+runtime/valid/random-host-mut-ref.hd	#595: host codecs over linear memory
 runtime/valid/range-eq.hd	#573: closures and trait values
 runtime/valid/range-float-bounds.hd	#573: closures and trait values
 runtime/valid/range-inclusive-field.hd	#573: closures and trait values
@@ -1052,6 +1082,8 @@ runtime/valid/regex-linear-time.hd	#573: closures and trait values
 runtime/valid/regex-literals-escapes.hd	#573: closures and trait values
 runtime/valid/regex-match-value-copy.hd	#573: closures and trait values
 runtime/valid/regex-named-groups.hd	#573: closures and trait values
+runtime/valid/regex-pike-vm-matches-old-engine.hd	#595: host codecs over linear memory
+runtime/valid/regex-prefilter-matches-plain-vm.hd	#595: host codecs over linear memory
 runtime/valid/regex-repetition.hd	#573: closures and trait values
 runtime/valid/regex-replace.hd	#573: closures and trait values
 runtime/valid/regex-split.hd	#573: closures and trait values
@@ -1068,6 +1100,7 @@ runtime/valid/requirement-row-forwarded-through-calls.hd	#573: closures and trai
 runtime/valid/requirement-row-order-data-field.hd	#573: closures and trait values
 runtime/valid/requirement-row-order-stored-suspension.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/requirement-row-order-trait-value.hd	#575: suspension frames, the waker and the entry driver
+runtime/valid/resource-disposed-result.hd	#595: host codecs over linear memory
 runtime/valid/result-and-then.hd	#573: closures and trait values
 runtime/valid/result-entry-point-ok.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/result-enum-spellings.hd	#573: closures and trait values
@@ -1105,6 +1138,7 @@ runtime/valid/same-line-function-body.hd	#573: closures and trait values
 runtime/valid/same-line-suite-body-forms.hd	#551: structs, tuples, enums and data values
 runtime/valid/same-line-suite-boundaries.hd	#573: closures and trait values
 runtime/valid/script-empty-run.hd	#539: an empty script runs
+runtime/valid/script-top-level-bang.hd	#595: host codecs over linear memory
 runtime/valid/script-top-level-runs.hd	#554: lists
 runtime/valid/scripted-input.hd	#575: suspension frames, the waker and the entry driver
 runtime/valid/scripted-process.hd	#575: suspension frames, the waker and the entry driver
@@ -1259,6 +1293,10 @@ runtime/valid/test-case-options.hd	#573: closures and trait values
 runtime/valid/test-expect-panic.hd	#554: lists
 runtime/valid/test-module-top-level-cases.hd	#573: closures and trait values
 runtime/valid/test-module-uses-test-module.hd	#573: closures and trait values
+runtime/valid/test-registration-qualified-call.hd	#595: host codecs over linear memory
+runtime/valid/test-registration-qualified-prop.hd	#595: host codecs over linear memory
+runtime/valid/test-registration-renamed-import.hd	#595: host codecs over linear memory
+runtime/valid/test-timeout-options.hd	#595: host codecs over linear memory
 runtime/valid/tests-block-impl-provider.hd	#573: closures and trait values
 runtime/valid/tests-block-items.hd	#573: closures and trait values
 runtime/valid/tests-block-use-shadow.hd	#573: closures and trait values

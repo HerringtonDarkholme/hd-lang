@@ -218,12 +218,13 @@ pub enum Helper {
     ForbidCheck,
     /// A host provider's vtable slot for a method that may wait
     /// (`crates/hd_run_wasmtime/DESIGN.md` §17.2): `(data, arguments) ->
-    /// frame`, a cold leaf frame (`task.rs`) whose poll is
-    /// [`Helper::HostPoll`].
+    /// frame`, a cold leaf frame (`task.rs`) holding the arguments laid
+    /// out as `area`, whose poll is [`Helper::HostPoll`].
     HostCold {
         module: String,
         method: String,
         args: Vec<crate::task::HostArg>,
+        area: Elem,
         res: crate::task::HostRes,
     },
     /// `(frame) -> (ready, results)`: the leaf's `.start`, then its
@@ -232,18 +233,38 @@ pub enum Helper {
         module: String,
         method: String,
         args: Vec<crate::task::HostArg>,
+        area: Elem,
         res: crate::task::HostRes,
     },
     /// `(frame)`: a leaf's cancel, which aborts a waiting call.
     HostCancel,
-    /// A host provider's vtable slot for a method of scalars that never
-    /// waits: `(data, arguments) -> results`, one import call.
+    /// A host provider's vtable slot for a method that never waits:
+    /// `(data, arguments) -> results`, one import call, its structured
+    /// arguments and result in the exchange buffer (`boundary.rs`).
     HostCall {
         module: String,
         method: String,
+        args: Vec<crate::task::HostArg>,
+        result: crate::boundary::CallRes,
+    },
+    /// `(data, params) -> results`: a host handle's vtable slot, which
+    /// calls `inner`, a host call or a cold leaf, with the handle number
+    /// from the box at `data` first (`boundary.rs`).
+    HandleSlot {
+        inner: Box<Helper>,
         params: Vec<Val>,
         results: Vec<Val>,
     },
+    /// `(end)`: grows the exchange buffer to `end` bytes.
+    Fit,
+    /// `(off, v: i64) -> off'`: unsigned LEB128 into the buffer.
+    LebPut,
+    /// `(off) -> (v: i64, off')`: unsigned LEB128 from the buffer.
+    LebGet,
+    /// `(off, values) -> off'`: a boundary value's encoder.
+    Enc(crate::boundary::LTy),
+    /// `(off) -> (values, off')`: a boundary value's decoder.
+    Dec(crate::boundary::LTy),
     /// `() -> frame`: a new frame of the suspending instance (§23.21).
     Frame(Hash128),
     /// `(frame) -> i32`: a poll's runtime checks; 1 answers Pending.
@@ -462,9 +483,10 @@ pub fn host_providers(f: &mut Func, providers: &[(usize, Option<Hash128>)]) {
 }
 
 /// The vtable of the host's provider of capability `key`, in the trait's
-/// method order (`ProgramEnv::trait_methods`). A method the ABI table
-/// does not list is answered by its first method, as the Wasm GC
-/// backend's default profile does for `write_error_line!`.
+/// method order (`ProgramEnv::trait_methods`): each slot a host call or a
+/// host leaf over the exchange buffer's codecs (`boundary.rs`). A method
+/// the ABI table does not list is answered by its first method, as the
+/// Wasm GC backend's default profile does for `write_error_line!`.
 fn host_vtable(input: &Input<'_>, m: &mut Module, key: Ty) -> StageResult<usize> {
     let TyData::TraitValue { def, args, .. } = input.pool.get(key) else {
         return unsupported("a provider key that is not a trait");
@@ -488,129 +510,68 @@ fn host_vtable(input: &Input<'_>, m: &mut Module, key: Ty) -> StageResult<usize>
         else {
             return unsupported(format!("the host method `{name}`"));
         };
-        let refused = || unsupported(format!("the host method `{}.{}`", host.key, hm.name));
-        let scalar = |s: &hd_host_abi::Scalar| match s {
-            hd_host_abi::Scalar::I32 => Val::I32,
-            hd_host_abi::Scalar::I64 => Val::I64,
-            hd_host_abi::Scalar::F64 => Val::F64,
-        };
-        let mut args = Vec::new();
-        for p in hm.params {
-            args.push(match p {
-                hd_host_abi::Codec::Buffer("string") if hm.params.len() == 1 => {
-                    crate::task::HostArg::Str
-                }
-                hd_host_abi::Codec::Scalar(s) => crate::task::HostArg::Scalar(scalar(s)),
-                _ => return refused(),
-            });
-        }
-        let ret = input.env.ret(method).unwrap_or(Ty::VOID);
-        slots.push(Sym::Helper(match hm.wait {
-            hd_host_abi::Wait::May => {
-                let res = if ret == Ty::VOID {
-                    crate::task::HostRes::Void
-                } else if tags_result(input, method) {
-                    crate::task::HostRes::Tags
-                } else {
-                    return refused();
-                };
-                Helper::HostCold {
-                    module: format!("hd:{}", host.key),
-                    method: hm.name.to_owned(),
-                    args,
-                    res,
-                }
-            }
-            hd_host_abi::Wait::Never => {
-                let results = crate::layout::vals(input.pool, input.env, ret)?;
-                let want = match hm.result {
-                    hd_host_abi::Codec::Scalar(r) => vec![scalar(&r)],
-                    hd_host_abi::Codec::Void => vec![],
-                    hd_host_abi::Codec::Buffer(_) => return refused(),
-                };
-                if results != want {
-                    return refused();
-                }
-                let mut params = Vec::new();
-                for a in &args {
-                    match a {
-                        crate::task::HostArg::Scalar(v) => params.push(*v),
-                        crate::task::HostArg::Str => return refused(),
-                    }
-                }
-                Helper::HostCall {
-                    module: format!("hd:{}", host.key),
-                    method: hm.name.to_owned(),
-                    params,
-                    results,
-                }
-            }
-        }));
+        let row = crate::boundary::Row::of(hm);
+        slots.push(Sym::Helper(crate::boundary::host_slot(
+            input, m, host.key, &row, method, false, None,
+        )?));
     }
     Ok(m.vtable(slots))
 }
 
 /// The vtable of a host trait that a runtime profile declares itself
 /// (`spec/conformance/README.md`, Runtime Profiles), which the ABI table
-/// does not list: each method is imported from `hd:<Trait>` by its name,
-/// and waits when it suspends. Only methods with no arguments past the
-/// receiver and a `void` result are built.
+/// does not list: each method is imported from `hd:<Trait>` by its name
+/// and waits when it suspends; every argument and result crosses in the
+/// exchange buffer, so a result gets each check of its declared type
+/// (`module.profile.host-result.*`), and a private-field type crosses as
+/// its JSON text (`module.boundary.serialize.exact`).
 fn profile_vtable(
     input: &Input<'_>,
     m: &mut Module,
     def: hd_base::DefId,
     p: &str,
 ) -> StageResult<usize> {
+    use hd_host_abi::{Codec, Wait};
     let key = p.rsplit('.').next().unwrap_or("");
+    let at = crate::boundary::AtProfile {
+        codecs: &input.collected.boundary,
+        out: false,
+        handles: &[],
+    };
+    let full = input.pool.list(&[hd_mono::class_ref(input.pool)]);
     let mut slots = Vec::new();
     for method in input.env.trait_methods(def) {
         let mp = (input.path)(method);
         let name = mp.rsplit(['.', '/']).next().unwrap_or("").to_owned();
         let params = input.env.params(method).unwrap_or_default();
         let ret = input.env.ret(method).unwrap_or(Ty::VOID);
-        if params.len() > 1 || !crate::layout::vals(input.pool, input.env, ret)?.is_empty() {
-            return unsupported(format!("the default provider of `{p}`"));
-        }
-        let module = format!("hd:{key}");
-        slots.push(Sym::Helper(if input.env.suspends(method) {
-            Helper::HostCold {
-                module,
-                method: name,
-                args: vec![],
-                res: crate::task::HostRes::Void,
-            }
-        } else {
-            Helper::HostCall {
-                module,
-                method: name,
-                params: vec![],
-                results: vec![],
-            }
-        }));
+        let ret = hd_mono::subst(input.pool, input.env, method, full, ret);
+        let codecs = vec![Codec::Buffer(""); params.len().saturating_sub(1)];
+        let row = crate::boundary::Row {
+            name: &name,
+            params: &codecs,
+            result: if crate::layout::vals(input.pool, input.env, ret)?.is_empty() {
+                Codec::Void
+            } else {
+                Codec::Buffer("")
+            },
+            wait: if input.env.suspends(method) {
+                Wait::May
+            } else {
+                Wait::Never
+            },
+        };
+        slots.push(Sym::Helper(crate::boundary::host_slot(
+            input,
+            m,
+            key,
+            &row,
+            method,
+            false,
+            Some(at),
+        )?));
     }
     Ok(m.vtable(slots))
-}
-
-/// Whether a host method's result is a `Result` of `void` and an enum of
-/// fieldless variants, which crosses as tags.
-fn tags_result(input: &Input<'_>, method: hd_base::DefId) -> bool {
-    let Some(ret) = input.env.ret(method) else {
-        return false;
-    };
-    let fieldless = |t: Ty| match input.pool.get(t) {
-        TyData::Adt { def, args } => input
-            .env
-            .enum_variants(def, args)
-            .is_some_and(|vs| vs.iter().all(Vec::is_empty)),
-        _ => false,
-    };
-    match input.pool.get(ret) {
-        TyData::Adt { def, args } => input.env.enum_variants(def, args).is_some_and(|vs| {
-            matches!(vs.as_slice(), [ok, err] if ok.iter().all(|t| *t == Ty::VOID)
-                && matches!(err.as_slice(), [e] if fieldless(*e)))
-        }),
-        _ => false,
-    }
 }
 
 /// Adds `by` to the forbidden-context counter.
@@ -772,6 +733,16 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         | Helper::PendingCancel
         | Helper::Race { .. }
         | Helper::RaceDrop { .. } => crate::task::helper(h, m),
+        Helper::HandleSlot {
+            inner,
+            params,
+            results,
+        } => crate::boundary::handle_slot(inner, params, results),
+        Helper::Fit => crate::boundary::fit(),
+        Helper::LebPut => crate::boundary::leb_put(),
+        Helper::LebGet => crate::boundary::leb_get(),
+        Helper::Enc(b) => crate::boundary::enc(b, m),
+        Helper::Dec(b) => crate::boundary::dec(b, m),
         Helper::EntryCall { func } => {
             let mut f = Func::new("rt:entry_call", vec![], vec![Val::I32]);
             f.call(Sym::Inst(*func));
