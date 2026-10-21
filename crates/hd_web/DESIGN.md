@@ -39,23 +39,12 @@ that shrink.
 
 ## 2. How Std Reaches the Compiler
 
-std is embedded by `hd_driver/build.rs`. Native builds and the public
-Rust `STD_FILES` API keep source text; `std_sources()` adds the virtual
-`core.hd` and `rt.hd`. The browser's internal source path uses the same
-comment-stripped bytes, stored with a static dictionary for repeated
-words and indentation. One-byte codes select dictionary entries; literal
-high bytes use an escape, preserving Unicode and every source offset.
-The decoder restores each file byte-for-byte. The driver's existing
-`embedded_std` cache retains those sources once per instance; the temporary
-decoded string is dropped. The unused raw copy is removed by LTO.
-Native documentation keeps its existing source representation.
-
-The worker keeps one `MemoryStore` alive, so only its first compile parses
-std and builds interfaces for the folders a program reaches. Compression
-changes storage, not parsing, interface caching or generic instantiation.
-A separately fetched std asset would gain nothing: every compile needs
-std. The codec tests cover all browser std files, all literal byte values,
-Unicode, all dictionary codes and deterministic frequency ties.
+std is embedded: `hd_driver/build.rs` `include_str!`s every `lib/std`
+file into `STD_FILES`, and `std_sources()` adds the virtual `core.hd` and
+`rt.hd`. The browser build uses the same sources. The worker keeps one
+`MemoryStore` alive, so only its first compile parses std and builds the
+interfaces of the std folders a program reaches. A separately fetched
+std asset would gain nothing, since every compile needs std.
 
 Planned, not built: a prebuilt std pack of interface blobs, which would
 skip std parsing; `hd_stdpack::build_pack` still refuses ("std pack
@@ -188,7 +177,7 @@ browser must support the emitted multi-memory and multi-value features.
 ## 4. Cost Model
 
 - **Size.** The compiler wasm is gated by
-  `scripts/test-web-compiler.js` (raw and gzip ceilings and a raw floor);
+  `scripts/test-web-compiler.js` (a gzip ceiling and a raw floor);
   that script records each raise and its cause. The build keeps compile
   speed over download: `opt-level = "z"` would make the gzip download
   167 KB smaller but compiles about 25% slower, so the profile stays at

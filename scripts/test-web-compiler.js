@@ -59,10 +59,10 @@ const FIXTURE = join(root, "spec", "conformance", "runtime", "valid", "println-c
 // 5.2 MB, since a tighter one broke CI twice as RC work landed. #677's
 // known-null release pass took it to 5.2106 MB, so the raw gate is
 // 5.25 MB (owner approval, 2026-10-21).
-// #700 dictionary-compresses browser std text: 5,251,687 -> 5,069,426
-// raw and 1,729,530 -> 1,722,848 gzip. Owner 2026-10-21: the raw size is
-// not a useful limit; only the download (gzip) size is gated. Raw is still
-// printed for reference.
+// Owner 2026-10-21: the raw size is not a useful limit; only the download
+// (gzip) size is gated. Raw is still printed for reference. (#700's
+// dictionary compression of std text saved raw bytes but only 6.7 KB of
+// download, so it was reverted.)
 const GZIP_LIMIT = 1_750_000;
 const RAW_FLOOR = 2e6;
 
