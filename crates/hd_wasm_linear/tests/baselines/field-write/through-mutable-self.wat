@@ -3,61 +3,52 @@ impl Counter.bump
   block
     local.get self
     local.tee t0
+    drop
+    local.get self
     local.tee t1
     drop
     block
       local.get t1
       i64.load
-      drop
-      local.get t1
-      i64.load offset=8
-      drop
+      local.set t2
     end
-    local.get self
-    local.tee t2
-    drop
-    block
-      local.get t2
-      i64.load
-      local.set t3
-    end
-    local.get t3
+    local.get t2
     i64.const 1
     i64.add
-    local.set t4
+    local.set t3
     local.get t0
-    local.tee t5
+    local.tee t4
     drop
     block
-      local.get t5
+      local.get t4
       i64.load
+      local.set t5
+      local.get t4
+      i64.load offset=8
       local.set t6
-      local.get t5
-      i64.load offset=8
-      local.set t7
     end
-    local.get t6
+    local.get t5
     drop
     local.get t0
+    local.set t7
+    local.get t3
+    local.get t6
     local.set t8
-    local.get t4
-    local.get t7
     local.set t9
-    local.set t10
-    local.get t8
+    local.get t7
     drop
     block
-      local.get t8
+      local.get t7
       i64.load
       drop
-      local.get t8
+      local.get t7
       i64.load offset=8
       drop
-      local.get t8
-      local.get t10
-      i64.store
-      local.get t8
+      local.get t7
       local.get t9
+      i64.store
+      local.get t7
+      local.get t8
       i64.store offset=8
     end
     i32.const 0

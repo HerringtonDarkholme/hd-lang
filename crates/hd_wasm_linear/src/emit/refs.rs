@@ -330,6 +330,9 @@ impl Em<'_, '_, '_> {
             return unsupported("a read through a value that is no reference");
         };
         if fat {
+            if self.moves.unused_reads.contains(&i) {
+                return Ok(());
+            }
             self.push(r)?;
             return self.store(i);
         }
@@ -337,6 +340,19 @@ impl Em<'_, '_, '_> {
         let at = self.f.local(Val::I32);
         self.comp(r, 0)?;
         self.f.set(at);
+        if self.moves.unused_reads.contains(&i) {
+            // The source has already been evaluated. A discarded load of
+            // a physical place need not copy/count its contents. A view
+            // must keep its getter and the release of that owned result,
+            // at this original read position, including in loops.
+            self.f.get(at);
+            self.f.helper(Helper::RefIsView);
+            self.f.op(I::If(wasm_encoder::BlockType::Empty));
+            let ls = rt::ref_load(&mut self.f, at, &value);
+            self.release_locals(&ls, target)?;
+            self.f.op(I::End);
+            return Ok(());
+        }
         if let Some((field, part)) = self.projected_field(i)? {
             // A borrowed field owns a count only on a view's branch.
             let flag = self.begin_view_loan(field)?;

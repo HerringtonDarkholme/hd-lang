@@ -31,6 +31,9 @@ pub(super) type Drops = HashMap<(u32, usize), Vec<Drop>>;
 /// (`crates/hd_wasm_linear/DESIGN.md` §23.25, job 17).
 #[derive(Default)]
 pub(super) struct Moves {
+    /// Reference reads with no value consumer. A physical load has no
+    /// effect; a representation view must still run and drop its getter.
+    pub unused_reads: HashSet<u32>,
     /// Each instruction value whose only use is one later statement of its
     /// own block: that statement runs exactly once after the value is made
     /// and nothing reads the value after it, so a consuming use there can
@@ -417,6 +420,9 @@ pub(super) fn plan(b: &Body, sub: u32, entry: &[usize]) -> (Drops, Moves) {
         let mut last = def;
         let mut ok = true;
         let us = users.get(&x).map_or(&[][..], Vec::as_slice);
+        if us.is_empty() && b.tags[i] == Tag::RefRead {
+            moves.unused_reads.insert(x);
+        }
         if let [u] = *us {
             if b.tags[u as usize] == Tag::Block {
                 if u == blk && b.data[u as usize][1] == x {

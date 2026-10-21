@@ -1,0 +1,12 @@
+# @dump: wat counts
+# @build: v8 release
+# expected: no loads, retains or releases for a discarded physical read.
+
+struct State:
+    text: string
+    values: List[string]
+
+fn inspect(state: &State) -> void:
+    # subject
+    *state
+    pass

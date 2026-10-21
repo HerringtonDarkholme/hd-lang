@@ -1,0 +1,14 @@
+# @dump: wat counts
+# @build: v8 release
+# expected: update and count only pending; do not copy or count parts.
+# JSON: TextWriter.name_next writes one field through a reference.
+# The discarded read is removed by #669; full writeback copies remain #667.
+
+struct WriterState:
+    pending: string
+    parts: List[string]
+    depth: usize
+
+fn name_next(state: &mut WriterState, key: string) -> void:
+    # subject
+    state.pending = key

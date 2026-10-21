@@ -1,0 +1,52 @@
+# test: discarded reference reads preserve physical places and release temporary values produced by erased views
+# Spec 13 Reference Lifetime: ref.place.lifetime; Reference Reads: ref.read.shallow.
+# expect: test
+
+struct State:
+    text: string
+    values: List[string]
+    writes: usize
+
+trait Factory:
+    fn make[T](self, value: T) -> &mut T:
+        let mut local = value
+        &mut local
+
+struct Maker: pass
+impl Factory for Maker
+
+fn write(state: &mut State, text: string) -> void:
+    *state
+    state.text = text
+    state.writes += 1
+
+fn inspect(values: &List[string], early: bool) -> void:
+    for i in 0..3:
+        *values
+        if early && i == 1:
+            return
+
+tests:
+    use std.testing.assert_equal
+
+    it("discarded physical reads leave aliases and neighboring fields intact"):
+        state := &mut State { text: "before", values: ["kept"], writes: 0 }
+        alias := state
+        for i in 0..100:
+            write(state, "value $i")
+        assert_equal(alias.text, "value 99", reason="writes still reach the same physical place")
+        assert_equal(alias.writes, 100, reason="the scalar field changes exactly once per write")
+        assert_equal(alias.values, ["kept"], reason="the neighboring collection is preserved")
+
+    it("discarded erased getter results are released across iterations and early returns"):
+        let factory: &dyn Factory = &Maker {}
+        for i in 0..100:
+            state := factory.make(State { text: "before $i", values: ["kept $i"], writes: 0 })
+            snapshot := state.values
+            write(state, "changed $i")
+            assert_equal(state.text, "changed $i", reason="the view still forwards the write")
+            assert_equal(state.values, snapshot, reason="the unrelated view field stays alive")
+            values := factory.make(["first $i", "second $i"])
+            inspect(values, true)
+            inspect(values, false)
+            assert_equal((*values)[1], "second $i", reason="the getter result can still be read after discarded reads")

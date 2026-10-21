@@ -3851,3 +3851,4 @@ runtime/valid/f32-remainder-matches-rust.hd	runtime	accept	lang/05-expressions.m
 runtime/valid/constant-size-reference-allocation.hd	runtime	accept	lang/13-values-and-references.md#identity
 runtime/valid/counted-field-overwrite-preserves-copies.hd	runtime	accept	lang/04-type-system.md#value-types
 runtime/valid/recursive-value-copies-stay-independent.hd	runtime	accept	lang/04-type-system.md#collection-values
+runtime/valid/discarded-reference-reads-preserve-views.hd	runtime	accept	lang/13-values-and-references.md#r-ref.place.lifetime
