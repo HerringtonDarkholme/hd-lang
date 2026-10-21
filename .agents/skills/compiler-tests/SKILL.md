@@ -26,9 +26,6 @@ Design record: issues #657 and #675,
 
 ## Layout
 
-Until #675 lands, existing cases are `.stage` files under each crate's
-`tests/stages/`; #675 converts them to this layout.
-
 | Path | Holds |
 | --- | --- |
 | `crates/<crate>/tests/cases/<topic>/<name>.hd` | a case: plain hd, hand-written |
@@ -37,8 +34,10 @@ Until #675 lands, existing cases are `.stage` files under each crate's
 The crate is the stage whose view the case uses: `hd_syntax` (tokens,
 tree), `hd_check` (tir), `hd_wasm_linear` (wat), `hd_driver` (counts,
 layout). The harness is `crates/hd_testkit/src/stages.rs`; every crate
-runs its cases with `cargo test -p <crate> --test stages` (hd_syntax:
-`--test all`).
+runs its cases with `cargo test -p <crate> --test stages` (`hd_syntax`:
+`cargo test -p hd_syntax --test all stages::`). Cases are discovered
+recursively; no generated output belongs in a source case. A baseline
+starts with a generated/do-not-edit banner.
 
 ## Writing A Case
 
@@ -58,7 +57,10 @@ fn place(bodies: &mut List[Body], i: usize, x: f64) -> void:
   - `# @dump: VIEW...` names the views to generate;
   - `# @build: wasmtime release` picks the engine target and profile
     (defaults `v8`, `dev`);
-  - `# @file: other.hd` adds a module.
+  - `# @file: other.hd` starts an additional virtual module; following
+    lines belong to it until the next `@file`. The first module defaults
+    to `main.hd`; dumps and subject markers select that module only.
+    The harness checks multi-module cases as virtual packages.
 - **The subject** (optional): a caret line `#^^^` under the code it marks,
   or a `# subject` line before a statement (it covers the lines indented
   deeper after it). Without a marker the whole file is dumped, each source
@@ -77,6 +79,7 @@ fn place(bodies: &mut List[Body], i: usize, x: f64) -> void:
 | `tokens` | each token's kind and text |
 | `tree` | the largest syntax nodes inside the subject |
 | `tir` | the subject's TIR instructions, locals by name and type, fields by name |
+| `tir-flags` | the same TIR with each local's flags |
 | `wat` | the Wasm instructions that came from the subject: calls by name (`rt:retain_known`, `identity[i32]`, `println`), locals by source name or field path (`bodies`, `b.vx`), temporaries `t0`, `t1`... |
 | `counts` | only the retains, releases and frees inside the subject, with what they count |
 | `layout` | a type's fields, offsets, sizes, counted parts and cycle-capable bit |
@@ -87,15 +90,18 @@ are the point. Never snapshot a whole module.
 
 ## Running And Blessing
 
-- Run: `cargo test -p <crate> --test stages`. A mismatch prints a line
-  diff (`-` baseline, `+` actual).
+- Run: `cargo test -p <crate> --test stages` (`hd_syntax`: use
+  `cargo test -p hd_syntax --test all stages::`). A mismatch prints a line
+  diff (`-` baseline, `+` actual); a missing baseline gives a blessing hint.
 - Bless: `HD_BLESS=1 cargo test -p <crate> --test stages` overwrites the
-  baselines. **Read the baseline diff before committing**: it is the
-  review of what the compiler now emits. A blessed regression is a bug
+  baselines, leaving source cases untouched. A separate case file selects
+  a different build, so one baseline has one build. **Read the baseline
+  diff before committing**: it is the review of what the compiler now emits. A blessed regression is a bug
   you just recorded as correct.
-- To see any snippet through every stage while exploring, write it as a
-  case with `# @dump: tokens tree tir wat counts` and bless it in a
-  scratch directory.
+- To explore a snippet through every stage, temporarily add a case under
+  a crate's `tests/cases/` with `# @dump: tokens tree tir wat counts`,
+  bless it with that crate's command, and remove the scratch case and its
+  baselines afterward.
 
 ## Recording Bad Emitted Code
 
