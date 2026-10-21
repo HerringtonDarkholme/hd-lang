@@ -15,11 +15,18 @@
 //! - So does an open value: a function value (a closure may capture
 //!   anything), a trait value, a context, a suspension, an erased body's
 //!   open type, and any type this walk does not know.
-//! - A list, a map, a data value or a self-recursive enum is an object of
-//!   its own type: reaching the deciding object's own type is capable, and
-//!   the walk goes on into what it holds.
-//! - Scalars and strings hold nothing; a tuple, an option, a struct and a
-//!   value enum are their parts.
+//! - Value edges do not close a cycle. A freshly constructed value holds
+//!   older values only. A write to a shared collection or value first
+//!   copies its shared buffer/cell, so that write cannot add a back edge
+//!   to the old object. Recursive value-only paths therefore stop at
+//!   already visited types without marking them capable.
+//! - Scalars and strings hold nothing; tuples, options, structs, enums,
+//!   lists and maps are walked through their value parts.
+//!
+//! A closure literal is decided from its actual captures: a shared cell
+//! keeps its environment capable even when the cell's value type is a
+//! scalar. A copied/moved capture is walked as a value. An ordinary `fn`
+//! field remains open and capable: no callee/capture summary is inferred.
 
 use hd_base::HashSet;
 use hd_mono::ProgramEnv;
@@ -32,7 +39,7 @@ use crate::layout::{Kind, kind, strip, tuple_members, value_parts, variants};
 /// a map's table, a data value's object or a self-recursive enum's cell.
 pub fn object(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
     let t = strip(pool, env, t);
-    reaches(pool, env, Some(t), &contents(pool, env, t))
+    reaches(pool, env, &contents(pool, env, t))
 }
 
 /// Whether an object holding values of `parts` takes part, when only
@@ -40,7 +47,7 @@ pub fn object(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> bool {
 /// cell, a trait value's or an open value's box, an iterator's
 /// environment.
 pub fn holding(pool: &InternPool, env: &dyn ProgramEnv, parts: &[Ty]) -> bool {
-    reaches(pool, env, None, parts)
+    reaches(pool, env, parts)
 }
 
 /// The types an object of type `t` holds.
@@ -64,8 +71,8 @@ fn contents(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<Ty> {
 }
 
 /// Whether a walk from `start` over the types they hold meets a
-/// reference, an open value, or an object of type `own`.
-fn reaches(pool: &InternPool, env: &dyn ProgramEnv, own: Option<Ty>, start: &[Ty]) -> bool {
+/// reference or an open value. Repeated value types end that branch.
+fn reaches(pool: &InternPool, env: &dyn ProgramEnv, start: &[Ty]) -> bool {
     let mut seen: HashSet<Ty> = HashSet::default();
     let mut work: Vec<Ty> = start.to_vec();
     while let Some(t) = work.pop() {
@@ -82,24 +89,15 @@ fn reaches(pool: &InternPool, env: &dyn ProgramEnv, own: Option<Ty>, start: &[Ty
             TyData::Option(inner) => work.push(inner),
             TyData::Adt { def, args } => match env.std_kind(def) {
                 StdKind::List | StdKind::Map => {
-                    if own == Some(t) {
-                        return true;
-                    }
                     work.extend(pool.list_items(args).iter().copied());
                 }
                 StdKind::Suspend => return true,
                 StdKind::Other => match kind(pool, env, t) {
                     Kind::Ref { .. } => return true,
                     Kind::Data(fields) => {
-                        if own == Some(t) {
-                            return true;
-                        }
                         work.extend(fields);
                     }
                     Kind::Boxed => {
-                        if own == Some(t) {
-                            return true;
-                        }
                         work.extend(
                             variants(pool, env, t)
                                 .unwrap_or_default()

@@ -1650,10 +1650,17 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   into any object with a place of its target's type, so the type graph
   cannot say what it reaches), an open value (a function value, a trait
   value, a context, a suspension, an erased body's open type, or a type
-  the walk does not know), or, for `object`, the object's own type. The
-  walk does not ask whether a slot can be written after construction
-  (§7.1's mutable edge): a recursive immutable enum takes part, which is
-  conservative. A suspending body's frame, a child's or a race's frame
+  the walk does not know). A path through values alone is acyclic, even
+  when it revisits its own type. Construction holds older values; a write
+  first copies a shared collection buffer or value cell. That copy keeps
+  the old object's edges unchanged, so the write cannot close a cycle
+  through value edges. The visited-type set therefore ends a repeated
+  value path without making it capable.
+  A closure literal's environment is decided from its actual captures:
+  a shared captured cell or a captured reference keeps it capable; copied
+  or moved values use the same value walk. A type with an ordinary `fn`
+  field remains open and capable. No callee or whole-program summary is
+  involved. A suspending body's frame, a child's or a race's frame
   with glue (#637), a reference view and a boxed reference value
   (`rt:ref_view_drop`, `ref_box`, whose types `rt.rs` does not know)
   always take part. A host call's leaf frame takes part as `holding` says

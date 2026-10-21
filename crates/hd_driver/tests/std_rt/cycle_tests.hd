@@ -67,6 +67,16 @@ fn apply(f: fn(i32) -> i32) -> i32:
     f(1)
 
 
+struct Dir:
+    value: i32
+    kids: List[Dir]
+
+fn directory_total(dir: Dir) -> i32:
+    let total = dir.value
+    for child in dir.kids:
+        total += directory_total(child)
+    total
+
 struct ListRing:
     value: i32
     next: List[&mut ListRing]
@@ -175,3 +185,14 @@ tests:
         assert(total == 90000, "each copied list reaches its ring")
         if released() == 0:
             assert(pages() <= 64, "cyclic headers and buffers are collected and reused")
+
+    it("recursive values remain acyclic when copies are written"):
+        before := pending()
+        root := Dir { value: +1, kids: [Dir { value: +2, kids: [] }] }
+        let mut changed = root
+        changed.kids[0].value = +9
+        let total = +0
+        for _ in 0..1000:
+            total += directory_total(root) + directory_total(changed)
+        assert(total == 13000, "the old and changed copies keep separate children")
+        assert(pending() == before, "value-only recursion never buffers a candidate")

@@ -366,7 +366,9 @@ impl Em<'_, '_, '_> {
             .iter()
             .map(|(l, _)| self.sub(self.b.local_ty[*l]))
             .collect();
-        let cyclic = self.cyclic_holding(&tys);
+        // The literal knows whether it captures a shared cell. Its
+        // value type alone cannot describe that mutable reference edge.
+        let cyclic = caps.iter().any(|(_, shared)| *shared) || self.cyclic_holding(&tys);
         let at = self.object(&m, walk.as_ref(), cyclic);
         for (s, p) in srcs.iter().zip(&parts) {
             self.store_part(at, &m, *p, s)?;

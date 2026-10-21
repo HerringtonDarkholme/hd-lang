@@ -1,0 +1,10 @@
+# @dump: wat
+# The literal captures a shared scalar cell, so its environment keeps
+# the cycle bit even though its captured value type is scalar.
+
+fn shared(seed: i32) -> fn() -> i32:
+    let count = seed
+    # subject
+    read := fn() -> i32: count
+    count += 1
+    read

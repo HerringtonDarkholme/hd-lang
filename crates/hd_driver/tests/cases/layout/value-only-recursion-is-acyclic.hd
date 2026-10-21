@@ -1,0 +1,21 @@
+# @dump: layout
+# Value recursion through collection contents is acyclic; reference and
+# open function fields remain capable. Direct recursive payloads are illegal.
+
+struct Tree:
+    left: List[Tree]
+    right: List[Tree]
+
+struct Dir:
+    kids: List[Dir]
+
+struct Catalog:
+    entries: Map[string, Catalog]
+
+struct RefDir:
+    kids: List[RefDir]
+    parent: (&mut RefDir)?
+
+struct CallbackDir:
+    kids: List[CallbackDir]
+    callback: fn() -> i32

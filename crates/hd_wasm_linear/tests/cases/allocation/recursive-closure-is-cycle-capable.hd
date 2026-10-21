@@ -1,0 +1,8 @@
+# @dump: wat
+# Cycle capability is decided from this literal's actual captures.
+
+fn recursive() -> fn(i32) -> i32:
+    # subject
+    sum := fn(n: i32) -> i32:
+        if n == 0: 0 else: n + sum(n - 1)
+    sum

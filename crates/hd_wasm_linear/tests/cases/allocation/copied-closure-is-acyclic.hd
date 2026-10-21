@@ -1,0 +1,6 @@
+# @dump: wat
+# Cycle capability is decided from this literal's actual captures.
+
+fn copied(seed: i32) -> fn() -> i32:
+    fn() -> i32: seed
+    #^^^^^^^^^^^^^^^^
