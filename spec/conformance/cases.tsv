@@ -3680,3 +3680,6 @@ runtime/valid/string-builder-interpolation-order.hd	runtime	accept	std/text.md#r
 runtime/valid/json-reused-object-frames.hd	runtime	accept	std/json.md#r-std-json.decode.direct
 runtime/valid/wide-value-field-reads.hd	runtime	accept	lang/08-data-and-enums.md#r-data.struct.value
 runtime/valid/wide-value-suspension.hd	runtime	accept	std/time.md#r-std-time.helper.sleep
+runtime/valid/integer-remainder-native-widths.hd	runtime	accept	lang/04-type-system.md#integer-arithmetic
+runtime/panic/i32-remainder-by-zero.hd	runtime	panic:integer-division-by-zero	lang/04-type-system.md#integer-arithmetic
+runtime/panic/i64-remainder-by-zero.hd	runtime	panic:integer-division-by-zero	lang/04-type-system.md#integer-arithmetic

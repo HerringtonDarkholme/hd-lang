@@ -1,0 +1,46 @@
+# test: integer remainder preserves signed minima and operand widths
+# Spec 04 Checked Arithmetic: types.arith.remainder, types.arith.min-remainder.
+# expect: test
+
+fn rem_i8(a: i8, b: i8) -> i8: a % b
+fn rem_i16(a: i16, b: i16) -> i16: a % b
+fn rem_i32(a: i32, b: i32) -> i32: a % b
+fn rem_i64(a: i64, b: i64) -> i64: a % b
+fn rem_u8(a: u8, b: u8) -> u8: a % b
+fn rem_u16(a: u16, b: u16) -> u16: a % b
+fn rem_u32(a: u32, b: u32) -> u32: a % b
+fn rem_u64(a: u64, b: u64) -> u64: a % b
+fn rem_usize(a: usize, b: usize) -> usize: a % b
+
+fn constant32(a: i32) -> i32: a % -1
+fn constant64(a: i64) -> i64: a % -1
+
+tests:
+    use std.testing.assert_equal
+
+    it("signed minima modulo minus one are zero at every width"):
+        assert_equal(rem_i8(-128, -1), 0, reason="i8 minimum")
+        assert_equal(rem_i16(-32768, -1), 0, reason="i16 minimum")
+        assert_equal(rem_i32(-2147483648, -1), 0, reason="i32 minimum")
+        assert_equal(rem_i64(-9223372036854775808, -1), 0, reason="i64 minimum")
+
+    it("constant negative divisors preserve minimum remainders"):
+        assert_equal(constant32(-2147483648), 0, reason="constant i32 divisor")
+        assert_equal(constant64(-9223372036854775808), 0, reason="constant i64 divisor")
+
+    it("the dividend determines the sign"):
+        assert_equal(rem_i8(-7, 3), -1, reason="i8 negative dividend")
+        assert_equal(rem_i8(7, -3), 1, reason="i8 negative divisor")
+        assert_equal(rem_i16(-7, 3), -1, reason="i16 negative dividend")
+        assert_equal(rem_i16(7, -3), 1, reason="i16 negative divisor")
+        assert_equal(rem_i32(-7, 3), -1, reason="i32 negative dividend")
+        assert_equal(rem_i32(7, -3), 1, reason="i32 negative divisor")
+        assert_equal(rem_i64(-7, 3), -1, reason="i64 negative dividend")
+        assert_equal(rem_i64(7, -3), 1, reason="i64 negative divisor")
+
+    it("unsigned remainders remain within their native width"):
+        assert_equal(rem_u8(255, 3), 0, reason="u8 maximum")
+        assert_equal(rem_u16(65535, 3), 0, reason="u16 maximum")
+        assert_equal(rem_u32(4294967295, 3), 0, reason="u32 maximum")
+        assert_equal(rem_u64(18446744073709551615, 3), 0, reason="u64 maximum")
+        assert_equal(rem_usize(4294967295, 3), 0, reason="usize maximum")
