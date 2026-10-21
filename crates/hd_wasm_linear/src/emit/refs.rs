@@ -331,6 +331,8 @@ impl Em<'_, '_, '_> {
         self.comp(r, 0)?;
         self.f.set(at);
         if let Some((field, part)) = self.projected_field(i)? {
+            // A borrowed field owns a count only on a view's branch.
+            let flag = self.begin_view_loan(field)?;
             self.f.get(at);
             self.f.helper(Helper::RefIsView);
             self.f.op(I::If(wasm_encoder::BlockType::Empty));
@@ -349,6 +351,7 @@ impl Em<'_, '_, '_> {
                     self.f.op(leaf.load(0));
                 }
                 self.store(field)?;
+                self.own_view_field(field, flag)?;
                 self.f.get(boxed);
                 self.f.helper(Helper::ReleaseRef);
             } else {
@@ -357,6 +360,7 @@ impl Em<'_, '_, '_> {
                     self.f.get(*l);
                 }
                 self.store(field)?;
+                self.own_view_field(field, flag)?;
                 self.release_locals(&parent, target)?;
             }
             self.f.op(I::Else);
@@ -377,6 +381,20 @@ impl Em<'_, '_, '_> {
             self.load_through(at, &value);
         }
         self.store_owned(i)
+    }
+
+    /// A borrowed field read through a view ([`Em::deref_read`]) came
+    /// from the getter's fresh value, not the caller's place: it takes a
+    /// count of its own, and `flag` says its drops release it.
+    fn own_view_field(&mut self, field: u32, flag: Option<u32>) -> StageResult<()> {
+        let Some(flag) = flag else {
+            return Ok(());
+        };
+        let ls = self.slot(field)?;
+        self.retain_locals(&ls, self.ty(field))?;
+        self.f.i32(1);
+        self.f.set(flag);
+        Ok(())
     }
 
     /// Pushes the value that the reference in local `at` names, with

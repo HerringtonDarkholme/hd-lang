@@ -1,0 +1,21 @@
+# @dump: counts
+# @build: v8 release
+# The first read of `b` keeps its count: the second read is the local's
+# last access, so it moves the count into `Holder`, which `consume` frees
+# before `keep` reads the first value.
+struct Box:
+    n: usize
+
+struct Holder:
+    b: &Box
+
+fn keep(b: &Box, n: usize) -> usize:
+    b.n + n
+
+fn consume(h: Holder) -> usize:
+    h.b.n
+
+fn last(n: usize) -> usize:
+    b := &Box { n: n }
+    # subject
+    keep(b, consume(Holder { b: b }))

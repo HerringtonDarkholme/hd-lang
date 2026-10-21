@@ -1934,3 +1934,58 @@ files in `hd_driver/tests/stages` cover padding, nested/List fields,
 conditional counted leaves, cycle capability, parameters, returns, loops,
 field writes. A backend encoding regression covers direct frees. The WAT
 view remains a separate topic/tool (#664).
+
+### 23.36 Span Loans
+
+Issue #676 borrows a local's read for the span in which its value is
+used, where earlier rounds needed the local's whole lifetime to contain
+every use (§23.25 round two) or a parameter the caller keeps (§23.31).
+The read takes no count and its last use releases nothing; the local's
+own count keeps the value alive (`live::span_loans`).
+
+- **The span.** A `LocalGet` of local `l` stands at statement `s` of
+  block `k`. Its span is the statements of `k` after `s` up to the last
+  one that holds a use of the read, with every block they run. A use
+  outside `k`'s later statements (a block's tail, a use in an earlier
+  statement of an enclosing loop) keeps the count.
+- **The rule.** The read borrows when nothing in the span can drop or
+  replace `l`:
+  1. No `RefPlace` starts from `l` and no closure captures it, and `l`
+     lives in no cell. Then no call, global or write through a reference
+     reaches `l`; only the body's own instructions change it. A call that
+     receives `&mut l` therefore always keeps the read's count.
+  2. No `LocalSet` of `l` stands in the span. It is the one instruction
+     that replaces `l`, and it releases the old value.
+  3. `l`'s planned release (§23.20) is in a block around `k`, or in `k` at
+     or after the span's last statement. That release, or the move of
+     `l`'s count into its last read just before it, is the only other
+     point that drops `l`'s count.
+  4. The span holds no suspension point, and the sub-body registers no
+     deferred cleanup, so no frame holds the borrowed value.
+- **Why the rest is safe.** A jump out of the span leaves the read's
+  remaining uses behind. A change made in place through the value, a
+  list push or element store, keeps the list's header, which is the whole
+  value read (§23.7); copy-on-write counts the buffer, not the header,
+  so a missing header count changes no copy decision. A use that keeps
+  the value (an owned argument, a store, a return) takes a count of its
+  own, since a borrowed read has none to move.
+- **Fields of parameter reads.** §23.31's interval rule now also covers
+  a field read from a borrowed parameter read, `self.parts` in
+  `self.parts.push(x)`: the interval holds no call and no store, so
+  nothing can replace the field. It borrows only where the read loads
+  that one field. A view's branch there makes a fresh value, so that
+  branch retains the field and sets a flag its drops test, as for a view
+  read. A list push joins the element stores that keep a borrowed
+  header valid, since it changes the buffer, not the header.
+- **Refused at emission.** A cell local, an open value whose thunk may
+  build a fresh box, and a local that itself borrows from another
+  (`Moves::loan_locals`, whose lifetime ends at its own last access).
+- **Not covered.** Reads through a reference other than a parameter's,
+  a field read whose uses sit in nested blocks (a match's arms), and a
+  closure stored in a field: a call can reach the referent, including the
+  closure's own environment, so those keep their counts.
+- **Fixtures.** `hd_driver/tests/cases/counts/`: the element read and
+  write of a local list, a method call on a local reference, a
+  reference argument and a push to a list field now take no count. `local-replaced-inside-the-span`,
+  `local-moved-inside-the-span` and `local-lent-by-mut-reference` each
+  keep the count because of rules 2, 3 and 1.

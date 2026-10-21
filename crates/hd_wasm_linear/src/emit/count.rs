@@ -86,6 +86,23 @@ impl Em<'_, '_, '_> {
             .collect();
         self.moves.loans = reads.into_iter().collect();
         self.moves.loan_locals = locals.into_iter().collect();
+        // Span loans (`live::span_loans`): a cell can change in any call,
+        // an open value's thunk may make a fresh box, and a borrowed
+        // binding's own lifetime ends at its last access, not the span's.
+        let span: Vec<u32> = self
+            .moves
+            .span
+            .iter()
+            .copied()
+            .filter(|&i| {
+                let l = self.b.data[i as usize][0] as usize;
+                !self.is_cell(l)
+                    && !self.moves.loan_locals.contains_key(&l)
+                    && !hd_mono::is_open(self.pool(), self.ty(i))
+                    && !matches!(self.calls.get(&i), Some(hd_mono::Target::Open(_)))
+            })
+            .collect();
+        self.moves.loans.extend(span);
     }
 
     pub(super) fn prepare_parameter_loans(&mut self) {
@@ -136,7 +153,7 @@ impl Em<'_, '_, '_> {
             .iter()
             .enumerate()
             .filter_map(|(i, tag)| {
-                if *tag != Tag::RefRead {
+                if !matches!(tag, Tag::RefRead | Tag::Field) {
                     return None;
                 }
                 let i = u32::try_from(i).expect("insts");
@@ -165,6 +182,18 @@ impl Em<'_, '_, '_> {
                 && !self.moves.loans.contains(&self.b.data[i as usize][0])
             {
                 continue;
+            }
+            // A field of a borrowed read borrows only where the read loads
+            // that one field ([`Em::projected_field`]): a view's branch
+            // then owns the field ([`Em::own_view_field`]), and the
+            // physical branch reads it in place.
+            if self.b.tags[i as usize] == Tag::Field {
+                let base = self.b.data[i as usize][0];
+                if !self.moves.loans.contains(&base)
+                    || !matches!(self.projected_field(base), Ok(Some((f, _))) if f == i)
+                {
+                    continue;
+                }
             }
             if self.b.tags[i as usize] == Tag::RefPlace
                 && self.ref_target(self.ty(i)).is_some_and(|(_, fat)| fat)

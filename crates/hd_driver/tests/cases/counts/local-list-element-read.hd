@@ -1,8 +1,7 @@
 # @dump: counts
 # @build: v8 release
-# expected: no count operations; reading an element of a local list
-# borrows the list (fannkuch_redux: every perm[i] read retains and releases perm).
-# tracked by #672
+# Reading an element of a local list borrows the list for the read
+# (#676; fannkuch_redux's perm[i]).
 fn total(n: usize) -> usize:
     let mut xs: List[usize] = []
     for i in 0..n:

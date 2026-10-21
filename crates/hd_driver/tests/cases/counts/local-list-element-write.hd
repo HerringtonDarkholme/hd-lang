@@ -1,9 +1,8 @@
 # @dump: counts
 # @build: v8 release
-# expected: no count operations; writing an element of a local list
-# borrows the list. Today the write is counted only inside a loop with an
-# early exit, as in fannkuch_redux, whose loops all sit inside `while true`.
-# tracked by #672
+# Writing an element of a local list borrows the list for the write, also
+# inside a loop with an early exit (#676; fannkuch_redux's loops all sit
+# inside `while true`).
 fn fill(n: usize) -> usize:
     let mut count: List[usize] = []
     for i in 0..n:

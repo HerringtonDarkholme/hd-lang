@@ -1,8 +1,8 @@
 # @dump: counts
 # @build: v8 release
-# expected: no count operations; pushing to a list field through
-# `&mut self` borrows the field's list (StringBuilder.push in map_count and
-# string_build retains and releases `parts` per push).
+# Pushing to a list field through `&mut self` borrows the field's list
+# (#676; StringBuilder.push in map_count and string_build). The two string
+# releases are of the moved `line` parameter's zeroed slots (#656 pattern 2).
 struct Log:
     lines: List[string]
 

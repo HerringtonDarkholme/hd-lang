@@ -1,7 +1,7 @@
 # @dump: counts
 # @build: v8 release
-# expected: no count operations; calling a `&mut self` method on a local
-# reference borrows it for the call (map_count, string_build: `out.push`).
+# Calling a `&mut self` method on a local reference borrows it for the
+# call (#676; map_count, string_build: `out.push`).
 struct Log:
     lines: List[string]
 

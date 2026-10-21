@@ -2,7 +2,9 @@
 # @build: v8 release
 # expected: no count operations; matching a field read through `&` and
 # binding its payload borrows both (binary_trees: two retains and two
-# releases per node visited).
+# releases per node visited). #676 borrows the read of the binding `left`.
+# The field read keeps its count: its uses sit inside the match's arms,
+# which call a reference getter that could replace the field.
 # tracked by #670
 struct Node:
     value: i64

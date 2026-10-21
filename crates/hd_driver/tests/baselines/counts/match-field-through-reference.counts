@@ -3,11 +3,8 @@ app/main/left_value
   retain &app.main.Node?
   retain &app.main.Node
   release &app.main.Node
-  retain &app.main.Node
-  release &app.main.Node
   release &app.main.Node?
   release &app.main.Node
   release &app.main.Node?
-  release &app.main.Node
   release &app.main.Node
   release &app.main.Node

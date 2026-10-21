@@ -49,6 +49,10 @@ pub(super) struct Moves {
     pub loans: HashSet<u32>,
     /// Single-assignment bindings of such reads, with their source value.
     pub loan_locals: HashMap<usize, u32>,
+    /// Local reads borrowed for their span ([`span_loans`]). Emission
+    /// drops the ones whose local lives in a cell or whose value is open
+    /// before adding the rest to [`Moves::loans`].
+    pub span: HashSet<u32>,
 }
 
 /// The block structure of a body: each instruction's block and position,
@@ -303,7 +307,141 @@ pub(super) fn plan(b: &Body, sub: u32, entry: &[usize]) -> (Drops, Moves) {
         drops.entry((blk, last)).or_default().push(Drop::Local(l));
     }
     (moves.loans, moves.loan_locals) = loans(b, sub, &tree, &drops, &users);
+    moves.span = span_loans(b, sub, &tree, &drops, &users);
     (drops, moves)
+}
+
+/// Whether sub-body `sub` registers cleanup that runs later than where it
+/// stands (`defer`, a scope's cleanup). Its counts stay as they are, since
+/// the lifetime plan does not model that edge.
+fn defers(b: &Body, sub: u32) -> bool {
+    b.inst_subs().iter().enumerate().any(|(i, of)| {
+        *of == sub
+            && (b.tags[i] == Tag::Defer
+                || (b.tags[i] == Tag::Scope
+                    && b.data[i][1] != NONE
+                    && !b.record(b.data[i][1]).is_empty()))
+    })
+}
+
+/// Span loans (`crates/hd_wasm_linear/DESIGN.md` §23.36, issue #676): a
+/// read of a local borrows the local's count, taking no count of its own,
+/// when nothing between the read and its last use can drop or replace the
+/// local.
+///
+/// The read is a `LocalGet` of local `l` at statement `s` of block `k`.
+/// Its span is the statements of `k` after `s` up to the last one that
+/// holds a use of the read, with every block those statements run. The
+/// read borrows when:
+///
+/// 1. No reference or closure reaches `l`: no `RefPlace` starts from it
+///    and no closure captures it. Then a call, a write through a
+///    reference or a global cannot reach `l`, and only this body's own
+///    instructions change it. (Emission also refuses a local that lives in
+///    a cell, and an open value, whose thunk may make a fresh box.)
+/// 2. No `LocalSet` of `l` stands in the span: that is the only
+///    instruction that replaces `l`, and it releases the old value.
+/// 3. `l`'s planned release ([`plan`]) is not inside the span: it is in a
+///    block around `k`, or in `k` at or after the span's last statement.
+///    The release after `l`'s last access is the only other point that
+///    drops `l`'s count, and moving that count into a read
+///    (`Moves::last_get`) happens at the same statement.
+/// 4. No suspension point stands in the span, so the frame never holds
+///    the read's value, and the sub-body registers no deferred cleanup.
+///
+/// A jump out of the span leaves the read's remaining uses behind, so it
+/// needs no rule. A change made in place through the value (a list push
+/// or element store) keeps its header, which is the read's whole value
+/// (§23.7), and copy-on-write counts the buffer, not the header. A use
+/// that keeps the value (an owned argument, a store, a return) still takes
+/// a count of its own, because a borrowed read has none to move.
+fn span_loans(
+    b: &Body,
+    sub: u32,
+    tree: &Tree,
+    drops: &Drops,
+    users: &HashMap<u32, Vec<u32>>,
+) -> HashSet<u32> {
+    let mut out = HashSet::default();
+    if defers(b, sub) {
+        return out;
+    }
+    let subs = b.inst_subs();
+    let mut reached = HashSet::default();
+    let mut sets: HashMap<usize, Vec<u32>> = HashMap::default();
+    let mut points = Vec::new();
+    for (i, &of) in subs.iter().enumerate() {
+        let x = u32::try_from(i).expect("insts");
+        match b.tags[i] {
+            Tag::RefPlace => reached.extend(b.place_locals(i).into_iter().map(|l| l as usize)),
+            Tag::Closure => {
+                let r = b.record(b.data[i][1]);
+                reached.extend(
+                    b.cap_local[r[0] as usize..(r[0] + r[1]) as usize]
+                        .iter()
+                        .map(|l| l.raw() as usize),
+                );
+            }
+            Tag::LocalSet if of == sub => {
+                sets.entry(b.data[i][0] as usize).or_default().push(x);
+            }
+            t if of == sub && super::susp::is_point(t) => points.push(x),
+            _ => {}
+        }
+    }
+    let ends: HashMap<usize, (u32, usize)> = drops
+        .iter()
+        .flat_map(|(at, ds)| {
+            ds.iter().filter_map(move |d| match d {
+                Drop::Local(l) => Some((*l, *at)),
+                Drop::Val(_) => None,
+            })
+        })
+        .collect();
+    // The position in block `k` of the statement that holds `x`.
+    let at = |x: u32, k: u32| {
+        tree.path(b, x)
+            .and_then(|p| p.into_iter().find(|(of, _)| *of == k))
+            .map(|(_, p)| p)
+    };
+    for (i, &of) in subs.iter().enumerate() {
+        if of != sub || b.tags[i] != Tag::LocalGet {
+            continue;
+        }
+        let x = u32::try_from(i).expect("insts");
+        let l = b.data[i][0] as usize;
+        let (k, s) = tree.parent[i];
+        if k == NONE || reached.contains(&l) {
+            continue;
+        }
+        let Some(us) = users.get(&x).filter(|us| !us.is_empty()) else {
+            continue;
+        };
+        // The span's last statement; every use after the read.
+        let Some(end) = us
+            .iter()
+            .map(|&u| at(u, k).filter(|p| *p > s))
+            .collect::<Option<Vec<usize>>>()
+            .and_then(|ps| ps.into_iter().max())
+        else {
+            continue;
+        };
+        let inside = |y: &u32| at(*y, k).is_some_and(|p| s < p && p <= end);
+        if sets.get(&l).is_some_and(|v| v.iter().any(inside)) || points.iter().any(inside) {
+            continue;
+        }
+        if let Some(&(dk, dp)) = ends.get(&l) {
+            // Released in a block around `k`, or in `k` once the span
+            // has ended; anywhere else the release may fall inside it.
+            let around = dk != k && at(x, dk).is_some();
+            let after = dk == k && dp >= end;
+            if !(around || after) {
+                continue;
+            }
+        }
+        out.insert(x);
+    }
+    out
 }
 
 /// Borrow only from an unaliased, unchanged local whose existing lifetime
@@ -491,6 +629,9 @@ fn loans(
 /// Additional reads backed by a parameter the caller keeps alive. Referent
 /// reads stay within one straight-line interval without an invalidating call
 /// or store; copying the reference parameter itself needs no such interval.
+/// A field of such a referent read borrows over the same kind of interval
+/// (§23.36). A list header read may see an element store or a push in its
+/// interval: both change the buffer and keep the header.
 pub(super) fn parameter_loans(
     b: &Body,
     parameters: &HashSet<usize>,
@@ -541,6 +682,15 @@ pub(super) fn parameter_loans(
                     && (b.tags[source as usize] == Tag::LocalGet || out.contains(&source))
             }
             Tag::RefPlace => root(b, x, parameters),
+            // A field of such a read stays in the caller-owned place over
+            // the same kind of interval; emission keeps it only where the
+            // read loads that one field (`Em::prepare_parameter_loans`).
+            Tag::Field => {
+                let base = b.data[i][0];
+                Ref(base).as_inst().is_some()
+                    && b.tags[base as usize] == Tag::RefRead
+                    && out.contains(&base)
+            }
             _ => false,
         } {
             continue;
@@ -592,6 +742,7 @@ pub(super) fn parameter_loans(
                                     IntrinsicOp::ListSet
                                         | IntrinsicOp::ListFieldSet
                                         | IntrinsicOp::ListIndexMut
+                                        | IntrinsicOp::ListPush
                                 )
                             ) =>
                     {

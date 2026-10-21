@@ -2,7 +2,9 @@
 # @build: v8 release
 # expected: no count operations; calling a closure stored in a field of
 # `&self` borrows its environment for the call (closures: MapIter.next,
-# Filter.next, ListIter.next count an environment per element).
+# Filter.next, ListIter.next count an environment per element). #676 keeps
+# the count: the closure itself could reach `self` and replace `transform`
+# while it runs, so borrowing needs proof that it cannot.
 # tracked by #671
 struct Mapper:
     transform: fn(i32) -> i32

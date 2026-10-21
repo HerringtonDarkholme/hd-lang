@@ -1,8 +1,7 @@
 # @dump: counts
 # @build: v8 release
-# expected: no count operations; passing a reference the caller holds to a
-# `&` parameter lends it for the call (binary_trees: check(left)).
-# tracked by #670
+# Passing a reference the caller holds to a `&` parameter lends it for
+# the call (#676; binary_trees: check(left)).
 struct Node:
     left: (&Node)?
 

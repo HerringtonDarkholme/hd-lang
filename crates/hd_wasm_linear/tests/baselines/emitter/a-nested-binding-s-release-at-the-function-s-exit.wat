@@ -9,7 +9,5 @@ first
   local.set ys
   i32.const 0
   local.set t0
-  local.get t0
-  call rt:release_ref
   local.get ys
   call rt:release_ref
