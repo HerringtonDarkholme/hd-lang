@@ -532,7 +532,8 @@ in `src/ir.rs`, so every encoding goes through it.
   `Block` that this instruction owns), a **label** (`LabelId`), or a
   **local** (`LocalId`). Metadata words (`DefId`, types, indices) are a
   fifth, non-reference kind, and `Values`, `Blocks` and `Record` point at
-  a record in `extra`. Def-before-use and visibility (invariant 1) apply
+  a record in `extra`. A **place** word (`Op::Place`) names where a value
+  lives, below. Def-before-use and visibility (invariant 1) apply
   to value edges only. A label is allocated when its loop or block opens,
   before the body, so `Break` and `Continue` never point forward; the
   label row is written once when the target closes.
@@ -556,6 +557,21 @@ in `src/ir.rs`, so every encoding goes through it.
   a column written once at `finish`. The checker decides the modes
   (rule TC-1); the builder only stores them. No instruction word is
   patched.
+- **Places** (`ir::place`, `Place`; [docs/compiler/tir-v2.md](../../docs/compiler/tir-v2.md#places)).
+  A place is a root (a local, a top-level binding and its type, a value,
+  or a tier-2 frame slot) and projections (dereference, field by
+  declaration index, list element at an index value, enum variant). A
+  place word with bit 31 set is a bare local `$n` (bits 0 to 30) with no
+  record. Otherwise it is the offset of a place record
+  `[len, root kind, root word, (root word 2), projection word ...]`: root
+  kinds 0 local (`LocalId`), 1 global (`DefId`, `Ty`), 2 value (`Ref`), 3
+  frame (reserved); a projection word's top two bits are its kind, 00
+  field (bits 0 to 29 the index), 01 dereference, 10 element (the next
+  word is the index `Ref`), 11 variant (bits 0 to 29 the index). A record
+  is immutable, so instructions may share one; the wire form remaps a
+  shared record's IDs once. `TirBuilder::place` encodes a place,
+  `Body::decode_place` decodes one, and its text form is
+  `[*$0 .1 [%5] as .2]`. No tag has a place operand yet.
 - **Sizes.** 17 bytes per instruction plus its `extra` records; 13 per
   local.
 
@@ -973,15 +989,19 @@ The verifier checks each of these:
 17. A `CallDyn` has one evidence operand per method-level bound.
 18. (Unused.)
 19. (Unused.)
+20. Every place operand is well formed: it decodes, a local root names a
+    local of the body, a value root and each element index precede the
+    user and are visible there, and a frame root occurs only in tier 2.
 
 Implementation differs: `verify` checks invariants 1 to 15 and 17
-(`CHECKED_INVARIANTS`), several in part. The checker's facts come in
+(`CHECKED_INVARIANTS`), several in part, and 20 on any place operand,
+though no tag has one yet. The checker's facts come in
 through `VerifyCx`: `verify_in` and `TirBuilder::finish_in` take them,
 and the checker's own `finish` passes them for each body it checks. A
 body built elsewhere, such as a generated structure method, gets
 `verify` alone.
 - **Partial checks.**
-  - 1: only def-before-use.
+  - 1 and 20: only def-before-use.
   - 2: only block lists.
   - 3: that no type is body-local, and no `Hole` or `Poison` in a module
     without errors. The second half runs in the driver's

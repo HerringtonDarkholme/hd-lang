@@ -71,7 +71,8 @@ macro_rules! tags {
 }
 
 /// What a data word means. `Values`, `Blocks` and `Record` point at a
-/// record in `extra`: a length word, then that many words.
+/// record in `extra`: a length word, then that many words. `Place` is a
+/// place word ([`place`]): a bare local, or a place record in `extra`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Op {
     None,
@@ -83,6 +84,7 @@ pub enum Op {
     Values,
     Blocks,
     Record,
+    Place,
 }
 
 tags! {
@@ -502,6 +504,218 @@ pub struct PlaceRec<'a> {
     pub path: &'a [u32],
 }
 
+/// The place encoding (`docs/compiler/tir-v2.md`, "Encoding, wire format
+/// and caching"). A place operand is one data word ([`Op::Place`]): with
+/// [`BARE_LOCAL`](place::BARE_LOCAL) set, a bare local `$n` in bits 0 to
+/// 30, with no record; clear, the offset of a place record in `extra`:
+/// `[len, root kind, root word, (root word 2), projection word ...]`.
+/// A record is immutable, so instructions may share one.
+pub mod place {
+    /// The place word is a bare local, not a record offset.
+    pub const BARE_LOCAL: u32 = 1 << 31;
+    /// Root word: a `LocalId`.
+    pub const ROOT_LOCAL: u32 = 0;
+    /// Root words: a top-level binding's `DefId`, then its `Ty` (ID
+    /// words, which the wire form remaps).
+    pub const ROOT_GLOBAL: u32 = 1;
+    /// Root word: a `Ref`, an instruction's value or a constant.
+    pub const ROOT_VALUE: u32 = 2;
+    /// Root word: a frame slot (tier 2, reserved; the verifier rejects it).
+    pub const ROOT_FRAME: u32 = 3;
+    /// A projection word's kind, its top two bits.
+    pub const PROJ_KIND: u32 = 3 << 30;
+    /// A projection word's payload, bits 0 to 29.
+    pub const PROJ_INDEX: u32 = (1 << 30) - 1;
+    /// A struct field or tuple element, by declaration index.
+    pub const PROJ_FIELD: u32 = 0;
+    /// A dereference; no payload.
+    pub const PROJ_DEREF: u32 = 1 << 30;
+    /// A list element; no payload, and the next word is the index `Ref`.
+    pub const PROJ_ELEM: u32 = 2 << 30;
+    /// An enum variant's payload, by variant declaration index (stage 2).
+    pub const PROJ_VARIANT: u32 = 3 << 30;
+}
+
+/// Where a place starts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PlaceRoot {
+    /// A parameter, binding or hidden local of the body: `$n`.
+    Local(LocalId),
+    /// A top-level binding and its type: `@def:ty`.
+    Global(DefId, Ty),
+    /// An instruction's value or a constant: `%n`. Read-only unless a
+    /// dereference follows.
+    Value(Ref),
+    /// A slot of the function's frame (tier 2, reserved): `^n`.
+    Frame(u32),
+}
+
+/// One step of a place, read left to right.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Proj {
+    /// A struct field or tuple element, by declaration index: `.k`.
+    Field(u32),
+    /// The place a reference value refers to, or the payload of a
+    /// compiler-supplied data object: `*`.
+    Deref,
+    /// A slot of a list's buffer at an index value, bounds-checked: `[%n]`.
+    /// In stages 1 and 2 the projected value is the list header.
+    Elem(Ref),
+    /// The payload of an enum value known to be that variant, by
+    /// declaration index: `as .k` (stage 2).
+    Variant(u32),
+}
+
+/// A place: a root and its projections (`docs/compiler/tir-v2.md`,
+/// "Places"). [`TirBuilder::place`] encodes one and
+/// [`Body::decode_place`] decodes one.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct Place {
+    pub root: PlaceRoot,
+    pub proj: Vec<Proj>,
+}
+
+impl Place {
+    /// A bare local, `[$n]`.
+    #[must_use]
+    pub fn local(l: LocalId) -> Place {
+        Place {
+            root: PlaceRoot::Local(l),
+            proj: vec![],
+        }
+    }
+
+    /// The place record's words after its length word; `None` for a bare
+    /// local, which has no record.
+    #[must_use]
+    pub fn words(&self) -> Option<Vec<u32>> {
+        use place::{
+            PROJ_DEREF, PROJ_ELEM, PROJ_FIELD, PROJ_INDEX, PROJ_VARIANT, ROOT_FRAME, ROOT_GLOBAL,
+            ROOT_LOCAL, ROOT_VALUE,
+        };
+        let mut w = match self.root {
+            PlaceRoot::Local(_) if self.proj.is_empty() => return None,
+            PlaceRoot::Local(l) => vec![ROOT_LOCAL, l.raw()],
+            PlaceRoot::Global(d, t) => vec![ROOT_GLOBAL, d.raw(), t.0],
+            PlaceRoot::Value(r) => vec![ROOT_VALUE, r.0],
+            PlaceRoot::Frame(s) => vec![ROOT_FRAME, s],
+        };
+        for p in &self.proj {
+            match *p {
+                Proj::Field(k) => w.push(PROJ_FIELD | (k & PROJ_INDEX)),
+                Proj::Deref => w.push(PROJ_DEREF),
+                Proj::Elem(r) => w.extend([PROJ_ELEM, r.0]),
+                Proj::Variant(k) => w.push(PROJ_VARIANT | (k & PROJ_INDEX)),
+            }
+        }
+        Some(w)
+    }
+
+    /// The values the place reads, in evaluation order: a value root, then
+    /// each element index. Constants included.
+    #[must_use]
+    pub fn values(&self) -> Vec<u32> {
+        let root = match self.root {
+            PlaceRoot::Value(r) => Some(r.0),
+            _ => None,
+        };
+        root.into_iter()
+            .chain(self.proj.iter().filter_map(|p| match p {
+                Proj::Elem(r) => Some(r.0),
+                _ => None,
+            }))
+            .collect()
+    }
+
+    /// Whether a `Store` or a mutable `Ref` may reach the place: a local
+    /// or global root, or a dereference among the projections. A value
+    /// root is never written in place.
+    #[must_use]
+    pub fn writable(&self) -> bool {
+        matches!(self.root, PlaceRoot::Local(_) | PlaceRoot::Global(..))
+            || self.proj.contains(&Proj::Deref)
+    }
+}
+
+/// The text form: `[*$0 .1 [%5] as .2]`. Dereferences right after the root
+/// are written before it, later ones as `*` after the projection they
+/// follow; fields and variants by index; a constant value as `%cK` (row
+/// `K` of `consts`); a global root as `@def:ty`.
+impl std::fmt::Display for Place {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let value = |r: Ref| match r.as_inst() {
+            Some(i) => format!("%{}", i.0),
+            None => format!("%c{}", r.0 & !Ref::CONST_BIT),
+        };
+        let lead = self.proj.iter().take_while(|p| **p == Proj::Deref).count();
+        f.write_str("[")?;
+        f.write_str(&"*".repeat(lead))?;
+        match self.root {
+            PlaceRoot::Local(l) => write!(f, "${}", l.raw())?,
+            PlaceRoot::Global(d, t) => write!(f, "@{}:{}", d.raw(), t.0)?,
+            PlaceRoot::Value(r) => f.write_str(&value(r))?,
+            PlaceRoot::Frame(s) => write!(f, "^{s}")?,
+        }
+        for p in &self.proj[lead..] {
+            match *p {
+                Proj::Field(k) => write!(f, " .{k}")?,
+                Proj::Deref => f.write_str(" *")?,
+                Proj::Elem(r) => write!(f, " [{}]", value(r))?,
+                Proj::Variant(k) => write!(f, " as .{k}")?,
+            }
+        }
+        f.write_str("]")
+    }
+}
+
+impl std::str::FromStr for Place {
+    type Err = String;
+
+    /// Parses the text form [`Place`]'s `Display` writes.
+    fn from_str(s: &str) -> Result<Place, String> {
+        let bad = || format!("bad place `{s}`");
+        let inner = s
+            .strip_prefix('[')
+            .and_then(|x| x.strip_suffix(']'))
+            .ok_or_else(bad)?;
+        let num = |t: &str| t.parse::<u32>().map_err(|_| bad());
+        let value = |t: &str| match t.strip_prefix("%c") {
+            Some(k) => num(k).map(Ref::konst),
+            None => t.strip_prefix('%').ok_or_else(bad).and_then(num).map(Ref),
+        };
+        let mut toks = inner.split_whitespace();
+        let first = toks.next().ok_or_else(bad)?;
+        let root_text = first.trim_start_matches('*');
+        let lead = first.len() - root_text.len();
+        let root = match root_text.as_bytes().first() {
+            Some(b'$') => PlaceRoot::Local(LocalId::from_raw(num(&root_text[1..])?)),
+            Some(b'@') => {
+                let (d, t) = root_text[1..].split_once(':').ok_or_else(bad)?;
+                PlaceRoot::Global(DefId::from_raw(num(d)?), Ty(num(t)?))
+            }
+            Some(b'%') => PlaceRoot::Value(value(root_text)?),
+            Some(b'^') => PlaceRoot::Frame(num(&root_text[1..])?),
+            _ => return Err(bad()),
+        };
+        let mut proj = vec![Proj::Deref; lead];
+        while let Some(t) = toks.next() {
+            proj.push(if t == "*" {
+                Proj::Deref
+            } else if t == "as" {
+                let k = toks.next().and_then(|k| k.strip_prefix('.'));
+                Proj::Variant(num(k.ok_or_else(bad)?)?)
+            } else if let Some(k) = t.strip_prefix('.') {
+                Proj::Field(num(k)?)
+            } else if let Some(v) = t.strip_prefix('[').and_then(|v| v.strip_suffix(']')) {
+                Proj::Elem(value(v)?)
+            } else {
+                return Err(bad());
+            });
+        }
+        Ok(Place { root, proj })
+    }
+}
+
 /// Local flags (u8): READ | ASSIGNED | MUTATED | CAPTURED | `CAPTURED_ASSIGNED` | PARAM.
 pub mod local_flags {
     pub const READ: u8 = 1;
@@ -755,6 +969,59 @@ impl Body {
         })
     }
 
+    /// Decodes a place word ([`place`]); `None` when it is malformed: a
+    /// record out of range, an unknown root kind, a projection with stray
+    /// payload bits, or an element with no index word.
+    #[must_use]
+    pub fn decode_place(&self, word: u32) -> Option<Place> {
+        use place::{
+            BARE_LOCAL, PROJ_DEREF, PROJ_ELEM, PROJ_FIELD, PROJ_INDEX, PROJ_KIND, PROJ_VARIANT,
+            ROOT_FRAME, ROOT_GLOBAL, ROOT_LOCAL, ROOT_VALUE,
+        };
+        if word & BARE_LOCAL != 0 {
+            return Some(Place::local(LocalId::from_raw(word & !BARE_LOCAL)));
+        }
+        let at = word as usize;
+        let n = *self.extra.get(at)? as usize;
+        let rec = self.extra.get(at + 1..at + 1 + n)?;
+        let (root, mut rest) = match rec {
+            [ROOT_LOCAL, l, rest @ ..] => (PlaceRoot::Local(LocalId::from_raw(*l)), rest),
+            [ROOT_GLOBAL, d, t, rest @ ..] => {
+                (PlaceRoot::Global(DefId::from_raw(*d), Ty(*t)), rest)
+            }
+            [ROOT_VALUE, v, rest @ ..] => (PlaceRoot::Value(Ref(*v)), rest),
+            [ROOT_FRAME, s, rest @ ..] => (PlaceRoot::Frame(*s), rest),
+            _ => return None,
+        };
+        let mut proj = Vec::with_capacity(rest.len());
+        while let [w, more @ ..] = rest {
+            rest = more;
+            proj.push(match (w & PROJ_KIND, w & PROJ_INDEX) {
+                (PROJ_FIELD, k) => Proj::Field(k),
+                (PROJ_DEREF, 0) => Proj::Deref,
+                (PROJ_ELEM, 0) => {
+                    let [index, more @ ..] = rest else {
+                        return None;
+                    };
+                    rest = more;
+                    Proj::Elem(Ref(*index))
+                }
+                (PROJ_VARIANT, k) => Proj::Variant(k),
+                _ => return None,
+            });
+        }
+        Some(Place { root, proj })
+    }
+
+    /// The values place word `word` reads ([`Place::values`]); none when it
+    /// is malformed.
+    #[must_use]
+    pub fn place_values(&self, word: u32) -> Vec<u32> {
+        self.decode_place(word)
+            .map(|p| p.values())
+            .unwrap_or_default()
+    }
+
     #[must_use]
     pub fn len(&self) -> usize {
         self.tags.len()
@@ -894,6 +1161,18 @@ impl TirBuilder {
     /// operand of `If`, `CallHost` and others).
     pub fn refs_record(&mut self, refs: &[Ref]) -> u32 {
         let words: Vec<u32> = refs.iter().map(|r| r.0).collect();
+        self.record(&words)
+    }
+
+    /// The place word of `p` ([`place`]): a bare local as itself, any
+    /// other place as a new record. Instructions over one place may share
+    /// the word.
+    pub fn place(&mut self, p: &Place) -> u32 {
+        if let (PlaceRoot::Local(l), []) = (p.root, p.proj.as_slice()) {
+            assert!(l.raw() & place::BARE_LOCAL == 0, "local out of range");
+            return l.raw() | place::BARE_LOCAL;
+        }
+        let words = p.words().unwrap_or_default();
         self.record(&words)
     }
 
@@ -1437,6 +1716,31 @@ pub fn map_body_types(b: &mut Body, ty: &dyn Fn(Ty) -> Ty, list: &dyn Fn(TyList)
             _ => {}
         }
     }
+    // A global root's type; instructions may share a place record, which
+    // is mapped once.
+    for at in global_place_types(b) {
+        b.extra[at] = ty(Ty(b.extra[at])).0;
+    }
+}
+
+/// The `extra` positions of the type words of global place roots, each
+/// once, though instructions share a record ([`place`]).
+fn global_place_types(b: &Body) -> Vec<usize> {
+    let mut out: Vec<usize> = (0..b.len())
+        .flat_map(|i| {
+            let (oa, ob) = b.tags[i].operands();
+            [(b.data[i][0], oa), (b.data[i][1], ob)]
+        })
+        .filter(|&(word, op)| {
+            op == Op::Place
+                && word & place::BARE_LOCAL == 0
+                && b.extra.get(word as usize + 1) == Some(&place::ROOT_GLOBAL)
+        })
+        .map(|(word, _)| word as usize + 3)
+        .collect();
+    out.sort_unstable();
+    out.dedup();
+    out
 }
 
 /// Removes the closure form of every reference instruction (`RefPlace`,
@@ -1624,6 +1928,7 @@ pub fn verify(b: &Body) -> Vec<VerifyError> {
                 Op::Local if (word as usize) >= b.local_ty.len() => {
                     errs.push(err(1, "unknown local".into()));
                 }
+                Op::Place => errs.extend(place_errors(b, i, word)),
                 _ => {}
             }
         }
@@ -1749,6 +2054,37 @@ pub fn poison_sites(b: &Body) -> Vec<u32> {
         })
         .map(|i| u32::try_from(i).expect("i"))
         .collect()
+}
+
+/// Invariant 20: place word `word` of instruction `user` is well formed.
+/// It decodes; a local root names a local of the body; a value root and
+/// each element index precede their user (of invariant 1, def-before-use
+/// only); a frame root occurs only in tier 2, so never yet.
+fn place_errors(b: &Body, user: u32, word: u32) -> Vec<VerifyError> {
+    let err = |what: String| VerifyError {
+        invariant: 20,
+        inst: user,
+        what,
+    };
+    let Some(p) = b.decode_place(word) else {
+        return vec![err(format!("malformed place word {word}"))];
+    };
+    let mut out = Vec::new();
+    match p.root {
+        PlaceRoot::Local(l) if l.idx() >= b.local_ty.len() => {
+            out.push(err(format!("place {p} names no local")));
+        }
+        PlaceRoot::Frame(_) => out.push(err(format!("place {p} has a frame root (tier 2)"))),
+        _ => {}
+    }
+    for v in p.values() {
+        if v & Ref::CONST_BIT == 0 && v >= user {
+            out.push(err(format!(
+                "value %{v} of place {p} used before it is defined"
+            )));
+        }
+    }
+    out
 }
 
 /// Block ownership from the block lists, and the sub-body roots.
@@ -1905,6 +2241,7 @@ fn constant_rows(b: &Body, errs: &mut Vec<VerifyError>) {
                 Op::Values if (word as usize) < b.extra.len() => {
                     vals.extend_from_slice(b.record(word));
                 }
+                Op::Place => vals.extend(b.place_values(word)),
                 _ => {}
             }
         }
@@ -2494,6 +2831,138 @@ mod tests {
             .collect();
         assert_eq!(six, [out.0, ret.0], "{errs:?}");
         assert_eq!(errs.len(), 2, "{errs:?}");
+    }
+
+    /// Places of every root and projection kind, from the design's
+    /// examples (`docs/compiler/tir-v2.md`, "Places").
+    fn places() -> Vec<super::Place> {
+        [
+            "[$3]",
+            "[*$0 .0]",
+            "[$1 .2 .0]",
+            "[*$0 [%5] .3]",
+            "[*%3 .0]",
+            "[*$4 .1]",
+            "[$0 as .1 .0]",
+            "[@7:9 .1]",
+            "[%c2 * .1]",
+            "[**$2 .0 * [%c0]]",
+            "[^2]",
+        ]
+        .iter()
+        .map(|t| t.parse().expect(t))
+        .collect()
+    }
+
+    #[test]
+    fn places_round_trip_through_words_and_text() {
+        use super::{Place, PlaceRoot, Proj, place};
+        let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Fn);
+        for p in places() {
+            let word = b.place(&p);
+            assert_eq!(b.body_mut().decode_place(word).as_ref(), Some(&p), "{p}");
+            assert_eq!(p.to_string().parse::<Place>().as_ref(), Ok(&p));
+            let bare = matches!(p.root, PlaceRoot::Local(_)) && p.proj.is_empty();
+            assert_eq!(word & place::BARE_LOCAL != 0, bare, "{p}");
+        }
+        // `self.x` through `self: &mut Point`: `[4, 0, 0, 1<<30, 0]`.
+        let p: Place = "[*$0 .0]".parse().expect("place");
+        let word = b.place(&p);
+        let body = b.body_mut();
+        assert_eq!(body.extra[word as usize..], [4, 0, 0, 1 << 30, 0]);
+        assert_eq!(p.proj, [Proj::Deref, Proj::Field(0)]);
+        // Leading dereferences print before the root, later ones after.
+        let p: Place = "[**$2 .0 * [%c0]]".parse().expect("place");
+        assert_eq!(p.proj[..3], [Proj::Deref, Proj::Deref, Proj::Field(0)]);
+        assert_eq!(p.to_string(), "[**$2 .0 * [%c0]]");
+        assert_eq!(p.values(), [super::Ref::konst(0).0]);
+        for bad in ["$0", "[]", "[$x]", "[$0 .]", "[$0 as]", "[$0 [5]]", "[#1]"] {
+            assert!(bad.parse::<Place>().is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn malformed_place_records_do_not_decode() {
+        use super::place::{PROJ_DEREF, PROJ_ELEM};
+        let mut body = super::Body::new(DefId::from_raw(1), BodyKind::Fn);
+        for (k, rec) in [
+            vec![2, 4, 0],                 // root kind 4
+            vec![3, 0, 0, PROJ_DEREF | 1], // a dereference with a payload
+            vec![3, 0, 0, PROJ_ELEM],      // an element with no index
+            vec![1, 0],                    // a global root missing its type
+            vec![9, 0, 0],                 // past the end of `extra`
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            let at = u32::try_from(body.extra.len()).expect("extra");
+            body.extra.extend(&rec);
+            assert_eq!(body.decode_place(at), None, "record {k}");
+        }
+    }
+
+    #[test]
+    fn places_are_writable_through_locals_globals_and_dereferences() {
+        let writable: Vec<bool> = places().iter().map(super::Place::writable).collect();
+        assert_eq!(
+            writable,
+            [
+                true, true, true, true, true, true, true, true, true, true, false
+            ]
+        );
+        let value: super::Place = "[%3 .0]".parse().expect("place");
+        assert!(!value.writable());
+    }
+
+    #[test]
+    fn verifier_rejects_ill_formed_places() {
+        let place_errors = |b: &super::Body, user: u32, text: &str| -> Vec<u8> {
+            let p: super::Place = text.parse().expect("place");
+            let mut b = b.clone();
+            let word = match p.words() {
+                None => {
+                    let super::PlaceRoot::Local(l) = p.root else {
+                        return vec![];
+                    };
+                    l.raw() | super::place::BARE_LOCAL
+                }
+                Some(words) => {
+                    let at = u32::try_from(b.extra.len()).expect("extra");
+                    b.extra.push(u32::try_from(words.len()).expect("len"));
+                    b.extra.extend(words);
+                    at
+                }
+            };
+            super::place_errors(&b, user, word)
+                .iter()
+                .map(|e| e.invariant)
+                .collect()
+        };
+        let b = sample();
+        // The sample has one local and four instructions before its call.
+        assert!(place_errors(&b, 4, "[*$0 .1 [%2]]").is_empty());
+        assert!(place_errors(&b, 4, "[*%3 [%c0]]").is_empty());
+        assert_eq!(place_errors(&b, 4, "[$1]"), [20], "no such local");
+        assert_eq!(place_errors(&b, 4, "[*$7 .0]"), [20], "no such local");
+        assert_eq!(
+            place_errors(&b, 3, "[*%3 .0]"),
+            [20],
+            "root not yet defined"
+        );
+        assert_eq!(
+            place_errors(&b, 3, "[*$0 [%5]]"),
+            [20],
+            "index not yet defined"
+        );
+        assert_eq!(place_errors(&b, 4, "[^0]"), [20], "frame roots are tier 2");
+        assert_eq!(
+            super::place_errors(&b, 4, 9999)
+                .iter()
+                .map(|e| e.invariant)
+                .collect::<Vec<_>>(),
+            [20],
+            "malformed"
+        );
     }
 
     #[test]

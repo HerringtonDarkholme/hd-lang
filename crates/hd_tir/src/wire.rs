@@ -17,7 +17,7 @@ use hd_intern::{PathTable, ShardedInterner};
 use hd_types::wire::{TableWriter, Tables};
 use hd_types::{InternPool, Ty, TyList};
 
-use crate::ir::{Body, BodyKind, CaptureMode, ChoiceKind, Tag};
+use crate::ir::{Body, BodyKind, CaptureMode, ChoiceKind, Op, Tag, place};
 
 const KINDS: [BodyKind; 7] = [
     BodyKind::Fn,
@@ -37,8 +37,65 @@ pub(crate) enum IdWord {
     List(usize),
 }
 
-/// The ID words of one instruction's records, as `extra` positions.
+impl IdWord {
+    fn at(self) -> usize {
+        match self {
+            IdWord::Def(at) | IdWord::Ty(at) | IdWord::List(at) => at,
+        }
+    }
+}
+
+/// The ID words of one instruction's records, as `extra` positions: those
+/// of its place operands, then its tag's.
 pub(crate) fn id_words(b: &Body, i: usize) -> StageResult<Vec<IdWord>> {
+    let mut out = place_id_words(b, i);
+    out.extend(tag_id_words(b, i)?);
+    Ok(out)
+}
+
+/// The ID words of instruction `i`'s place operands ([`Op::Place`]): a
+/// global root's `DefId` and `Ty`, `[len, 1, def, ty, ...]`.
+fn place_id_words(b: &Body, i: usize) -> Vec<IdWord> {
+    let (oa, ob) = b.tags[i].operands();
+    [(b.data[i][0], oa), (b.data[i][1], ob)]
+        .into_iter()
+        .filter(|&(word, op)| {
+            op == Op::Place
+                && word & place::BARE_LOCAL == 0
+                && b.extra.get(word as usize + 1) == Some(&place::ROOT_GLOBAL)
+        })
+        .flat_map(|(word, _)| {
+            [
+                IdWord::Def(word as usize + 2),
+                IdWord::Ty(word as usize + 3),
+            ]
+        })
+        .collect()
+}
+
+/// Every ID word of a body, in instruction order, each position once:
+/// instructions may share a place record, whose IDs are remapped once.
+fn body_id_words(b: &Body) -> StageResult<Vec<IdWord>> {
+    let mut seen = vec![false; b.extra.len()];
+    let mut out = Vec::new();
+    for i in 0..b.len() {
+        for w in id_words(b, i)? {
+            match seen.get_mut(w.at()) {
+                Some(s) if *s => {}
+                Some(s) => {
+                    *s = true;
+                    out.push(w);
+                }
+                // Out of range: the caller's lookup refuses it.
+                None => out.push(w),
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// The ID words of one instruction's tag-specific records.
+fn tag_id_words(b: &Body, i: usize) -> StageResult<Vec<IdWord>> {
     let [a, _] = b.data[i];
     Ok(match b.tags[i] {
         Tag::Call => return id_words_call(b, a as usize + 1),
@@ -174,12 +231,12 @@ pub fn write_body(
                 ));
             }
         }
-        for w in id_words(b, i)? {
-            match w {
-                IdWord::Def(at) => extra[at] = t.def(DefId::from_raw(extra[at])),
-                IdWord::Ty(at) => extra[at] = t.ty(Ty(extra[at]))?,
-                IdWord::List(at) => extra[at] = t.list(TyList(extra[at]))?,
-            }
+    }
+    for w in body_id_words(b)? {
+        match w {
+            IdWord::Def(at) => extra[at] = t.def(DefId::from_raw(extra[at])),
+            IdWord::Ty(at) => extra[at] = t.ty(Ty(extra[at]))?,
+            IdWord::List(at) => extra[at] = t.list(TyList(extra[at]))?,
         }
     }
     let item = t.def(b.item);
@@ -340,13 +397,11 @@ pub fn read_body(
     if !r.ok() || b.data.len() != b.tags.len() || b.ty.len() != b.tags.len() {
         return None;
     }
-    for i in 0..b.len() {
-        for w in id_words(&b, i).ok()? {
-            match w {
-                IdWord::Def(at) => b.extra[at] = t.def(*b.extra.get(at)?)?.raw(),
-                IdWord::Ty(at) => b.extra[at] = t.ty(*b.extra.get(at)?)?.0,
-                IdWord::List(at) => b.extra[at] = t.list(*b.extra.get(at)?)?.0,
-            }
+    for w in body_id_words(&b).ok()? {
+        match w {
+            IdWord::Def(at) => b.extra[at] = t.def(*b.extra.get(at)?)?.raw(),
+            IdWord::Ty(at) => b.extra[at] = t.ty(*b.extra.get(at)?)?.0,
+            IdWord::List(at) => b.extra[at] = t.list(*b.extra.get(at)?)?.0,
         }
     }
     Some(b)
@@ -366,13 +421,11 @@ pub fn map_ids(
     ty: &dyn Fn(Ty) -> Ty,
     list: &dyn Fn(TyList) -> TyList,
 ) -> StageResult<()> {
-    for i in 0..b.len() {
-        for w in id_words(b, i)? {
-            match w {
-                IdWord::Def(at) => b.extra[at] = def(DefId::from_raw(b.extra[at])).raw(),
-                IdWord::Ty(at) => b.extra[at] = ty(Ty(b.extra[at])).0,
-                IdWord::List(at) => b.extra[at] = list(TyList(b.extra[at])).0,
-            }
+    for w in body_id_words(b)? {
+        match w {
+            IdWord::Def(at) => b.extra[at] = def(DefId::from_raw(b.extra[at])).raw(),
+            IdWord::Ty(at) => b.extra[at] = ty(Ty(b.extra[at])).0,
+            IdWord::List(at) => b.extra[at] = list(TyList(b.extra[at])).0,
         }
     }
     b.item = def(b.item);

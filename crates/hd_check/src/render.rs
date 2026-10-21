@@ -103,6 +103,78 @@ fn type_of(b: &Body, w: u32) -> Option<Ty> {
     }
 }
 
+/// The type a dereference of a value of type `t` reaches: a reference's
+/// referent, before or after the checker lowers it to `std.core.Ref[T]`;
+/// a compiler-supplied data object's payload is the object's own type.
+fn deref_ty(names: &Names<'_>, t: Ty) -> Ty {
+    use hd_types::TyData;
+    let strip = |t: Ty| match names.pool.get(t) {
+        TyData::Mut(inner) => inner,
+        _ => t,
+    };
+    match names.pool.get(strip(t)) {
+        TyData::Ref { inner, .. } => inner,
+        TyData::Adt { def, args } if def == names.known.ref_cell => names
+            .pool
+            .list_items(args)
+            .first()
+            .map_or(t, |inner| strip(*inner)),
+        _ => t,
+    }
+}
+
+/// A place operand (`hd_tir::ir::place`), as `[*$0 .x [%5]]`: fields by
+/// name under the type each step reaches, variants by number.
+fn place(names: &Names<'_>, b: &Body, word: u32, fields: &FieldNames<'_>) -> String {
+    use hd_tir::ir::{PlaceRoot, Proj};
+    let Some(p) = b.decode_place(word) else {
+        return "?place".into();
+    };
+    let (root, mut at) = match p.root {
+        PlaceRoot::Local(l) => (format!("${}", l.raw()), b.local_ty.get(l.idx()).copied()),
+        PlaceRoot::Global(d, t) => (format!("@{}", names.path(d)), Some(t)),
+        PlaceRoot::Value(r) => (value(names, b, r.0), type_of(b, r.0)),
+        PlaceRoot::Frame(s) => (format!("^{s}"), None),
+    };
+    let lead = p.proj.iter().take_while(|x| **x == Proj::Deref).count();
+    let mut out = format!("[{}{root}", "*".repeat(lead));
+    for (k, step) in p.proj.iter().enumerate() {
+        match *step {
+            Proj::Deref => {
+                if k >= lead {
+                    out.push_str(" *");
+                }
+                at = at.map(|t| deref_ty(names, t));
+            }
+            Proj::Field(f) => {
+                out.push(' ');
+                match at {
+                    Some(t) => out.push_str(&field(fields, t, f)),
+                    None => {
+                        let _ = write!(out, ".{f}");
+                    }
+                }
+                at = at.and_then(|t| fields(t, f)).map(|(_, ft)| ft);
+            }
+            Proj::Elem(r) => {
+                let _ = write!(out, " [{}]", value(names, b, r.0));
+                at = at.and_then(|t| match names.pool.get(t) {
+                    hd_types::TyData::Adt { args, .. } => {
+                        names.pool.list_items(args).first().copied()
+                    }
+                    _ => None,
+                });
+            }
+            Proj::Variant(v) => {
+                let _ = write!(out, " as #{v}");
+                at = None;
+            }
+        }
+    }
+    out.push(']');
+    out
+}
+
 /// A local's flags by name, as ` [param read]`; empty when none is set.
 fn local_flag_names(flags: u8) -> String {
     use hd_tir::ir::local_flags as f;
@@ -181,6 +253,7 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
                 // sit in meta words.
                 Op::Meta if matches!(b.tags[i], Tag::Defer | Tag::Hook) => vec![word],
                 Op::Values | Op::Blocks | Op::Record if word != NONE => b.record(word).to_vec(),
+                Op::Place => b.place_values(word),
                 _ => Vec::new(),
             };
             for v in words {
@@ -299,6 +372,7 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
                     Op::Value | Op::Block => ops.push(value(names, b, word)),
                     Op::Label => ops.push(format!("L{word}")),
                     Op::Local => ops.push(format!("${word}")),
+                    Op::Place => ops.push(place(names, b, word, fields)),
                     // A `Prim`'s or an `Intrinsic`'s operation by name.
                     Op::Meta
                         if tag == Tag::Prim

@@ -283,7 +283,10 @@ tables, then the columns, with ID words of `extra` remapped by
 
 - `id_words` learns the place record: a global root's `DefId` and `Ty`
   are ID words, every other word is copied. `map_body_types` and
-  `map_ids` follow the same list.
+  `map_ids` follow the same list. Since instructions share place
+  records, a body's ID words are collected once per `extra` position
+  before they are remapped; mapping a shared word twice would remap a
+  table row as if it were an ID.
 - `RefPlace`'s special case for a global root goes with `RefPlace`.
 - The tag numbers change, so every body's TIR hash changes once. The
   toolchain key changes with the compiler anyway, so no stale entry is
@@ -299,7 +302,8 @@ format change.
 
 ### Invariants
 
-The verifier keeps invariants 1 to 17 and adds:
+The verifier keeps invariants 1 to 17 and adds these four, numbered 20
+to 23 in `crates/hd_tir/DESIGN.md` §4.13.11's list:
 
 1. **Places are well formed.** A local root names a local of the body;
    a value root precedes its user and is visible there; an element
@@ -936,8 +940,12 @@ must not change except where the plan below says it improves.
 
 - **Add** the place encoding (place word, place record, roots local,
   global and value, the frame root reserved; projections field,
-  dereference and element), with `Body::place(i)` decoding it and
-  `TirBuilder::place(&Place) -> u32` encoding it.
+  dereference and element), with `Body::decode_place(word)` decoding it
+  and `TirBuilder::place(&Place) -> u32` encoding it. The operand schema
+  gets a place kind, `Op::Place`, so the verifier, the wire form,
+  `map_body_types`, the TIR view and the schema walkers handle place
+  operands for every tag that has one. (`Body::place(i)` still decodes
+  a `RefPlace` record until commit 10 deletes it.)
 - **Add** `Read` (a: place with a dereference, b: mode `use`), `Store`
   (a: place, b: value) and `Ref` (a: place, b: mutable).
 - **Change** `RefDyn` to own only its address-form block, and
@@ -947,9 +955,12 @@ must not change except where the plan below says it improves.
   `ListFieldSet` intrinsics; `place_root`, `PlaceRec`,
   `Body::place_locals`, `Body::ref_operands`, `strip_closure_forms`.
 - **Update** `value_operands` (a place's value root and element indices),
-  `print` and `parse` (places as `[*$0 .x]`), the verifier (invariants
+  the text forms (places as `[*$0 .x]`), the verifier (invariants
   1 to 3 of [Invariants](#invariants)), `wire::id_words`,
-  `map_body_types` and `map_ids`.
+  `map_body_types` and `map_ids`. `hd_tir::ir::print` and `parse` dump
+  `extra` word for word, so they round-trip place records unchanged; the
+  `[*$0 .1 [%5]]` text is `Place`'s `Display` and `FromStr`, and the
+  checker's TIR view (`render.rs`) prints fields by name.
 
 ### Checker changes, by function
 
@@ -1015,11 +1026,13 @@ and conformance green (with `HD_CONFORMANCE_CHECKED=1` for the count
 audit on the commits that touch the emitter).
 
 1. **Place encoding.** `hd_tir`: the place word and record, `Place` with
-   its decoder and encoder, print and parse, wire `id_words` and
-   `map_body_types` for global roots, verifier invariants 1 and 2,
-   round-trip tests. Delete the dead `ForRange`, `ForList` and `ForMap`
-   tags and their arms in `hd_mono`, `live.rs` and `emit.rs`. No
-   producer yet.
+   its decoder and encoder, its text form, `Op::Place`, wire `id_words`
+   and `map_body_types` for global roots (a shared record mapped once),
+   verifier invariant 1 (invariant 2's test, `Place::writable`, is
+   wired to `Store` and `Ref` in commit 2), the TIR view's place
+   printing, round-trip tests. No producer yet. (The dead `ForRange`,
+   `ForList` and `ForMap` tags this commit was to delete went first, in
+   #716.)
 2. **New tags in the IR and collection.** `Read`, `Store`, `Ref` in the
    catalog with their operand schema, `value_operands`, the wire, and
    `hd_mono`'s erased-body schema. Unit tests built with `TirBuilder`.
