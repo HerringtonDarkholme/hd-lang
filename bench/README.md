@@ -113,8 +113,10 @@ owner's RC target is hd V8 at most 1.2x the Wasm GC era.
 
 `closures` is not like for like with its GC-era number: #712 replaced
 `List.iter`'s step closure with direct indexing after that run, and
-`closures.js` now calls three function values per element, as the hd and
-Go versions do (it was one hand-fused loop).
+`closures.js` is idiomatic JavaScript: `map`, `filter` and `reduce` on a
+plain array (eager; it was one hand-fused loop over an `Int32Array`). Its
+Node number is from a re-run after that change; Go keeps a `fold` over
+three function values, as Go has no `map`/`filter`.
 
 | Program | Input | hd V8 | hd V8, 10-20 | hd wasmtime | Node | Go | Python | Wasm GC era hd V8 | hd / Wasm GC | Meets 1.2x? |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
@@ -125,7 +127,7 @@ Go versions do (it was one hand-fused loop).
 | sieve | 16M | 267 | 318 | 306 | 68 | 34 | 646 | 365 | 0.73 | yes |
 | binary_trees | depth 14 | 127 | 360 | 338 | 59 | 59 | 402 | 108 | 1.18 | yes |
 | points | 3.3M records, 10 rounds | 222 | 288 | 446 | 738 | 71 | 11,242 | 1,537 | 0.14 | yes |
-| closures | 170k items, 50 rounds | 152 | 363 | 314 | 105 | 36 | 340 | 132 | 1.15 | yes (std changed) |
+| closures | 170k items, 50 rounds | 152 | 363 | 314 | 204 | 36 | 340 | 132 | 1.15 | yes (std changed) |
 | map_count | 650k words | 170 | 316 | 357 | 167 | 47 | 136 | 239 | 0.71 | yes |
 | string_build | 1.5M pieces | 165 | 336 | 338 | 173 | 94 | 147 | 278 | 0.59 | yes |
 | json | 6k records | 122 | 341 | 225 | 38 | 13 | 33 | 149 | 0.82 | yes |
@@ -133,8 +135,8 @@ Go versions do (it was one hand-fused loop).
 
 All eleven programs with a GC-era number meet the target; binary_trees
 (1.18) and closures (1.15) with the least margin. Against Node, hd is
-level or faster on spectral_norm, points, map_count and string_build, and
-1.5x to 3.9x slower on the rest.
+level or faster on spectral_norm, points, closures, map_count and
+string_build, and 2.1x to 3.9x slower on the rest.
 The GC-era numbers for nbody and points are far above the earlier
 scratch-source GC-era figures, since these sources copy more.
 
