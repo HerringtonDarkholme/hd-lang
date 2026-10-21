@@ -1288,6 +1288,26 @@ pub(super) fn finish(
     // A closure's code reads its captures from its environment, its first
     // parameter, into the frame, with a count of each.
     if let Some(ci) = closure {
+        if let Some(l) = super::closure::self_local(em.b, ci) {
+            // The executing closure's value is not an environment field.
+            // Save it directly in the fresh frame, with the same ownership
+            // as a capture loaded from that environment.
+            let ls = em.locals[&l].clone();
+            for (j, x) in ls.iter().enumerate() {
+                if let Some((at, v)) = at_of(*x) {
+                    em.f.get(fr);
+                    if j == 0 {
+                        em.f.push(Ins::TableSlot(Sym::Inst(key)));
+                    } else {
+                        em.f.get(0);
+                    }
+                    em.f.op(store_op(v, at));
+                }
+            }
+            if em.counting {
+                em.ref_retain(0);
+            }
+        }
         let caps = super::closure::captures(em.b, ci);
         if !caps.is_empty() {
             let (m, parts, _) = em.env_layout(&caps)?;

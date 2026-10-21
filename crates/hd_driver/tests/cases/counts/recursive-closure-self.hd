@@ -1,0 +1,8 @@
+# @dump: counts
+# @build: v8 release
+# Recursive := calls use code plus the current environment, with no cell.
+fn sum_to(limit: i32) -> i32:
+    sum := fn(n: i32) -> i32:
+        if n == 0: 0
+        else: n + sum(n - 1)
+    sum(limit)

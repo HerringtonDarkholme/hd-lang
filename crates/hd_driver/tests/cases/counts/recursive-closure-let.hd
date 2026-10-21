@@ -1,0 +1,8 @@
+# @dump: counts
+# @build: v8 release
+# Reassignable self recursion still reads the shared binding's cell.
+fn sum_to(limit: i32) -> i32:
+    let sum = fn(n: i32) -> i32:
+        if n == 0: 0
+        else: n + sum(n - 1)
+    sum(limit)

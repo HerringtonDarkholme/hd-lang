@@ -7,7 +7,7 @@
 //! that is assigned after it is captured) lives in a cell, a counted
 //! object holding its value, and every holder keeps the cell's address.
 
-use hd_base::{HashMap, StageResult};
+use hd_base::{Hash128, HashMap, NodeIdx, StageResult};
 use hd_mono::Target;
 use hd_tir::ir::{Body, CaptureMode, NONE, Tag, local_flags, sub_flags};
 use hd_types::{Ty, TyData};
@@ -95,16 +95,51 @@ pub(super) fn closure_suspends(
     ))
 }
 
+/// The immutable name introduced by this closure itself. Its declaration
+/// and closure share a syntax node; other captures do not. Address-taking
+/// keeps the independently addressable cell and its existing ownership.
+pub(super) fn self_local(b: &Body, ci: usize) -> Option<usize> {
+    if b.syn[ci] == NodeIdx::NONE {
+        return None;
+    }
+    let rec = b.record(b.data[ci][1]);
+    let (start, n) = (rec[0] as usize, rec[1] as usize);
+    b.cap_local[start..start + n].iter().find_map(|l| {
+        let l = l.idx();
+        (b.local_flags[l] & local_flags::SHORT != 0
+            && b.local_syn[l] == b.syn[ci]
+            && !(0..b.len()).any(|i| {
+                b.place(i)
+                    .is_some_and(|p| p.kind == hd_tir::ir::place_root::LOCAL && p.x as usize == l)
+            }))
+        .then_some(l)
+    })
+}
+
+/// A nested closure copies an immutable recursive function's value,
+/// rather than sharing the cell required by the checker's initialization.
+fn recursive_binding(b: &Body, l: usize) -> bool {
+    if b.local_flags[l] & local_flags::SHORT == 0 {
+        return false;
+    }
+    (0..b.len()).any(|ci| {
+        b.tags[ci] == Tag::Closure && b.syn[ci] == b.local_syn[l] && self_local(b, ci) == Some(l)
+    })
+}
+
 /// The captures of closure instruction `ci`: each local, and whether it
 /// is shared through a cell.
 pub(super) fn captures(b: &Body, ci: usize) -> Vec<(usize, bool)> {
     let rec = b.record(b.data[ci][1]);
     let (start, n) = (rec[0] as usize, rec[1] as usize);
+    let own = self_local(b, ci);
     (start..start + n)
+        .filter(|&c| Some(b.cap_local[c].idx()) != own)
         .map(|c| {
             (
                 b.cap_local[c].raw() as usize,
-                b.cap_mode.get(c) == Some(&CaptureMode::Shared),
+                b.cap_mode.get(c) == Some(&CaptureMode::Shared)
+                    && !recursive_binding(b, b.cap_local[c].idx()),
             )
         })
         .collect()
@@ -389,7 +424,14 @@ impl Em<'_, '_, '_> {
     /// The prologue of closure `ci`'s code instance: each capture loaded
     /// from the environment, parameter `env`, into its local, as a value or
     /// a cell's address.
-    pub(super) fn load_captures(&mut self, ci: usize, env: u32) -> StageResult<()> {
+    pub(super) fn load_captures(&mut self, ci: usize, env: u32, key: Hash128) -> StageResult<()> {
+        if let Some(l) = self_local(self.b, ci) {
+            let ls = self.local(u32::try_from(l).expect("locals"))?;
+            self.f.push(Ins::TableSlot(Sym::Inst(key)));
+            self.f.set(ls[0]);
+            self.f.get(env);
+            self.f.set(ls[1]);
+        }
         let caps = captures(self.b, ci);
         if caps.is_empty() {
             return Ok(());

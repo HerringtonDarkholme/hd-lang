@@ -33,6 +33,12 @@ fn sum_to(limit: i32) -> i32:
         else: n + sum(n - 1)
     sum(limit)
 
+fn biased_sum_to(limit: i32, seed: i32) -> i32:
+    sum := fn(n: i32) -> i32:
+        if n == 0: seed
+        else: n + sum(n - 1)
+    sum(limit)
+
 struct FrameRing:
     value: i32
     task: mut Suspend[i32]?
@@ -164,6 +170,15 @@ tests:
         # Checked frees quarantine blocks; only the normal allocator reuses them.
         if released() == 0:
             assert(pages() <= BOUND, "the closures' blocks are reused")
+
+    it("two hundred thousand immutable recursive closures make no candidates"):
+        before := pending()
+        let total = +0
+        for round in 0..200000:
+            total += sum_to(round % 10)
+            total += biased_sum_to(round % 10, 1)
+        assert(total == 6800000, "recursive closures keep their own captured seed")
+        assert(pending() == before, "neither a cell nor an environment back-link becomes a candidate")
 
     it("dropped argument and capture frame cycles reuse their heap"):
         let total = +0

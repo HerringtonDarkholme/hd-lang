@@ -1,5 +1,5 @@
 # @dump: wat
-# Cycle capability is decided from this literal's actual captures.
+# An immutable recursive closure has no self-capture or binding cell.
 
 fn recursive() -> fn(i32) -> i32:
     # subject

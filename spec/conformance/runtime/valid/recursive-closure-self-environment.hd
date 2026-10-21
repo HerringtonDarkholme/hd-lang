@@ -1,0 +1,58 @@
+# test: immutable recursive closures keep their environment across escape and nested calls
+# Spec 07 Recursive Local Closures: fn.recursion.closure.ordinary-binding.
+
+fn make_sum(seed: i32) -> fn(i32) -> i32:
+    sum := fn(n: i32) -> i32:
+        if n == 0: seed
+        else: n + sum(n - 1)
+    sum
+
+fn nested_sum(seed: i32, limit: i32) -> i32:
+    sum := fn(n: i32) -> i32:
+        if n == 0: seed
+        else:
+            next := fn() -> i32: sum(n - 1)
+            n + next()
+    sum(limit)
+
+fn generic_sum(limit: i32) -> string:
+    fn repeat[T](n: i32, value: T) -> T:
+        if n == 0: value
+        else: repeat(n - 1, value)
+    repeat(limit, "kept")
+
+fn reassigned_sum() -> i32:
+    let sum = fn(n: i32) -> i32:
+        if n == 0: 0
+        else: 1 + sum(n - 1)
+    saved := sum
+    sum = fn(n: i32) -> i32: 100
+    saved(3)
+
+fn addressed_sum(limit: i32) -> i32:
+    sum := fn(n: i32) -> i32:
+        if n == 0: 0
+        else:
+            saved := &sum
+            n + (*saved)(n - 1)
+    sum(limit)
+
+tests:
+    use std.testing.assert_equal
+
+    it("an escaped recursive closure keeps its captured value"):
+        sum := make_sum(7)
+        assert_equal(sum(4), 17, reason="the recursive call uses the same environment")
+        assert_equal(sum(2), 10, reason="the escaped closure can be called again")
+
+    it("a nested closure copies the reconstructed self value"):
+        assert_equal(nested_sum(7, 4), 17, reason="the nested environment keeps self alive")
+
+    it("a generic recursive local function keeps its instantiation"):
+        assert_equal(generic_sum(4), "kept", reason="the recursive generic call keeps its type")
+
+    it("a saved let closure still calls the reassigned binding"):
+        assert_equal(reassigned_sum(), 101, reason="the old closure reads the shared cell")
+
+    it("an address of the immutable function remains valid"):
+        assert_equal(addressed_sum(4), 10, reason="explicit address-taking keeps its cell")

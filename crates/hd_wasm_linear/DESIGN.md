@@ -634,8 +634,16 @@ Trait values and vtables use `emit/dyn_value.rs`; map cursor closures use
   every later store writes the cell, counting the new value before it
   releases the old; a read copies the value out with a count. A shared
   `mut` parameter moves into a cell on entry. A capture reached before
-  its declaration (a recursive local function's own name) makes a cell of
-  zeros, which the declaration fills.
+  its declaration (a recursive reassignable local function's own name)
+  makes a cell of zeros, which the declaration fills.
+- **Immutable self-recursion.** A recursive `:=` local function's own
+  binding is not an environment field. Its code reconstructs that value
+  from its current function-table slot and hidden environment parameter.
+  Entry liveness owns that value like a copied capture; a suspending cold
+  constructor saves it in the initial frame. A nested closure copies the
+  reconstructed value. Thus value-only captures form no cell/environment
+  back-link. A reassignable `let` keeps its shared cell, as does explicit
+  address-taking of the binding, whose address must remain stable.
 - **Trait values.** `(data, vtable)`. The data is the value itself when
   its layout is one counted address (a data value, a list, a map, a
   reference), 0 when it has no Wasm values, and otherwise a new counted
@@ -1460,6 +1468,10 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   local closures; `crates/hd_driver/tests/std_rt/cycle_tests.hd` drops
   200,000 of each and checks the heap: the rings take 23 pages with the
   collector and 430 without.
+- **Immutable recursive closures (#713).** The std runtime tests also
+  drop 200,000 recursive `:=` functions, with and without value captures,
+  and check that `pending()` is unchanged. Their environments contain no
+  self-binding cell; no collection is needed to reclaim them (§23.19).
 - **Frame cycles (#637).** `dropped-suspension-cycles` drops cold frames
   retaining arguments and closure captures, then resumes a nested direct
   call through a pending host write and collects while saved strings are

@@ -153,6 +153,7 @@ fn body_func<'a>(
     let mut entry = plocals.clone();
     if let Some(ci) = closure {
         entry.extend(closure::captures(b, ci).into_iter().map(|(l, _)| l));
+        entry.extend(closure::self_local(b, ci));
     }
     (em.drops, em.moves) = live::plan(b, u32::from(sub), &entry);
     em.prepare_loans();
@@ -291,7 +292,7 @@ fn body_func<'a>(
             em.f.op(Instruction::I32Eqz);
             em.f.op(Instruction::If(BlockType::Empty));
         }
-        em.load_captures(ci, u32::from(suspending))?;
+        em.load_captures(ci, u32::from(suspending), own.key)?;
         if suspending {
             em.f.op(Instruction::End);
         } else {
