@@ -1,0 +1,15 @@
+# @dump: counts
+# @build: v8 release
+# expected: no count operations; writing a scalar field through `&mut self`
+# stores that field and leaves the counted field alone (ListIter.next in
+# closures and json: a retain of the whole value and a release of the old one
+# per element).
+# tracked by #667
+struct Steps:
+    step: fn(usize) -> i32?
+    at: usize
+
+impl Steps:
+    fn advance(&mut self) -> void:
+        # subject
+        self.at = self.at + 1

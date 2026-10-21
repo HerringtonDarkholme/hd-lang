@@ -1,0 +1,12 @@
+# @dump: counts
+# @build: v8 release
+# expected: no count operations; pushing to a list field through
+# `&mut self` borrows the field's list (StringBuilder.push in map_count and
+# string_build retains and releases `parts` per push).
+struct Log:
+    lines: List[string]
+
+impl Log:
+    fn add(&mut self, line: string) -> void:
+        # subject
+        self.lines.push(line)

@@ -1,0 +1,14 @@
+# @dump: counts
+# @build: v8 release
+# expected: no count operations; passing a reference the caller holds to a
+# `&` parameter lends it for the call (binary_trees: check(left)).
+# tracked by #670
+struct Node:
+    left: (&Node)?
+
+fn depth(node: &Node) -> i64:
+    match node.left:
+        .None => 1
+        .Some(left) =>
+            # subject
+            1 + depth(left)

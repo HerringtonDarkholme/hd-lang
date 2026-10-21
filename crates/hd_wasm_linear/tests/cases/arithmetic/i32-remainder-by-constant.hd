@@ -1,0 +1,7 @@
+# @dump: wat
+# @build: v8 release
+# expected: `local.get x; i32.const 1000003; i32.rem_s`; no widening to i64,
+# no zero test of the constant divisor, no range check of the result
+# (closures: the filter and fold steps run this per element).
+fn wrap(x: i32) -> i32:
+    x % 1_000_003

@@ -1,0 +1,17 @@
+# @dump: counts
+# @build: v8 release
+# expected: no count operations; calling a `&mut self` method on a local
+# reference borrows it for the call (map_count, string_build: `out.push`).
+struct Log:
+    lines: List[string]
+
+impl Log:
+    fn add(&mut self, line: string) -> void:
+        self.lines.push(line)
+
+fn fill(n: usize) -> &mut Log:
+    log := &mut Log { lines: [] }
+    for _ in 0..n:
+        # subject
+        log.add("x")
+    log

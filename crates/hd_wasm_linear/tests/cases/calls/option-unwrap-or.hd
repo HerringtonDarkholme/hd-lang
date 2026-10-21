@@ -1,0 +1,6 @@
+# @dump: wat
+# @build: v8 release
+# expected: `unwrap_or` on an `i64?` is a `select` on the tag, not a call
+# (map_count: once per word).
+fn or_zero(found: i64?) -> i64:
+    found.unwrap_or(0)

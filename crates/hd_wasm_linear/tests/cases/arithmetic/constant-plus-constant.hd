@@ -1,0 +1,7 @@
+# @dump: wat
+# @build: v8 release
+# expected: one `i32.const` for the interpolation's fixed length, not
+# `i32.const 0; i32.const 3; i32.add` (binary_trees: every println; the same
+# `0 + c` feeds `rt:new`'s second argument).
+fn label(name: string) -> string:
+    "id $name"

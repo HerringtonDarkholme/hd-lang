@@ -1,0 +1,15 @@
+# @dump: wat
+# @build: v8 release
+# expected: no `rt:release_ref` of a local before its first write, and no
+# exit release of a local that every path has already moved or released
+# (binary_trees: make ends with fourteen release calls, three of `i32.const 0`).
+# tracked by #670
+struct Node:
+    left: (&Node)?
+    right: (&Node)?
+
+fn make(depth: i32) -> &Node:
+    if depth == 0:
+        &Node { left: .None, right: .None }
+    else:
+        &Node { left: .Some(make(depth - 1)), right: .Some(make(depth - 1)) }

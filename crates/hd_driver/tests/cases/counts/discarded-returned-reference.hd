@@ -1,0 +1,17 @@
+# @dump: counts
+# @build: v8 release
+# expected: no count operations; a chaining method's `&mut` result that
+# the caller drops needs no retain in the callee and no release in the caller
+# (StringBuilder.push in map_count and string_build).
+struct Tally:
+    count: usize
+
+# subject
+impl Tally:
+    fn add(&mut self) -> &mut Tally:
+        self.count = self.count + 1
+        self
+
+    fn fill(&mut self, n: usize) -> void:
+        for _ in 0..n:
+            self.add()

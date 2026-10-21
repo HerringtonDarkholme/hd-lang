@@ -1,0 +1,6 @@
+# @dump: wat
+# @build: v8 release
+# expected: `i64.rem_s` (or a mask for the test against zero) with no zero
+# test of the constant divisor (fannkuch_redux: perm_count % 2).
+fn even(n: i64) -> bool:
+    n % 2 == 0

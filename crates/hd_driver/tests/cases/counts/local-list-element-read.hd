@@ -1,0 +1,14 @@
+# @dump: counts
+# @build: v8 release
+# expected: no count operations; reading an element of a local list
+# borrows the list (fannkuch_redux: every perm[i] read retains and releases perm).
+# tracked by #672
+fn total(n: usize) -> usize:
+    let mut xs: List[usize] = []
+    for i in 0..n:
+        xs.push(i)
+    let sum: usize = 0
+    for i in 0..n:
+        # subject
+        sum = sum + xs[i]
+    sum

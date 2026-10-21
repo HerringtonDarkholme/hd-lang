@@ -1,0 +1,13 @@
+# @dump: counts
+# @build: v8 release
+# expected: no count operations; calling a closure stored in a field of
+# `&self` borrows its environment for the call (closures: MapIter.next,
+# Filter.next, ListIter.next count an environment per element).
+# tracked by #671
+struct Mapper:
+    transform: fn(i32) -> i32
+
+impl Mapper:
+    fn apply(&self, x: i32) -> i32:
+        # subject
+        (self.transform)(x)

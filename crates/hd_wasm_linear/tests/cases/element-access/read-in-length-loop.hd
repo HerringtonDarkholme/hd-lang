@@ -1,0 +1,13 @@
+# @dump: wat
+# @build: v8 release
+# expected: the buffer address loaded once before the loop and no bounds
+# check, since `i < n == xs.len()` and nothing in the loop can resize `xs`;
+# the body is one `f64.load` at `buffer + i * 8` (nbody, spectral_norm).
+# tracked by #671
+fn total(xs: &List[f64]) -> f64:
+    n := xs.len()
+    let sum = 0.0
+    for i in 0..n:
+        # subject
+        sum = sum + xs[i]
+    sum

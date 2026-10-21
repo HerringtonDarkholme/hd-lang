@@ -1,0 +1,7 @@
+# @dump: wat
+# @build: v8 release
+# expected: the element loads at a constant offset from the buffer
+# (`i32.load offset=8`); no `i32.const 0; i32.const 4; i32.mul; i32.add`
+# (fannkuch_redux: perm[0] and perm1[0]).
+fn first(xs: &List[i32]) -> i32:
+    xs[0]

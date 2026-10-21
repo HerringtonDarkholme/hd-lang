@@ -1,0 +1,14 @@
+# @dump: wat
+# @build: v8 release
+# expected: one `rt:list_unique` before the loop, none per write, since
+# nothing in the loop can share the local list's buffer (#653; fannkuch_redux
+# checks per write on perm, perm1 and count).
+# tracked by #653
+fn ramp(n: usize) -> List[usize]:
+    let mut xs: List[usize] = []
+    for _ in 0..n:
+        xs.push(0)
+    for i in 0..n:
+        # subject
+        xs[i] = i
+    xs

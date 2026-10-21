@@ -1,0 +1,14 @@
+# @dump: wat
+# @build: v8 release
+# expected: one `i64.store` of `value + 1` at `self`'s `at` field; no loads
+# of the other fields, no reload of `at`, and no store of `end`
+# (dyn_iter: Counter.next; std ListIter.next per element).
+# tracked by #667
+struct Counter:
+    at: i64
+    end: i64
+
+impl Counter:
+    fn bump(&mut self) -> void:
+        # subject
+        self.at = self.at + 1

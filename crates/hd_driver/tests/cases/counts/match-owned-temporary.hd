@@ -1,0 +1,17 @@
+# @dump: counts
+# @build: v8 release
+# expected: no count operations; a payload bound from a call's result moves
+# out of it, with no retain of the payload and no release of the whole result
+# (json: every `?` and Result match in the decoder).
+# tracked by #669
+fn parse(text: string) -> Result[string, string]:
+    if text.len() > 3:
+        .Ok(text)
+    else:
+        .Err("short")
+
+fn first(text: string) -> string:
+    # subject
+    match parse(text):
+        .Ok(found) => found
+        .Err(error) => error
