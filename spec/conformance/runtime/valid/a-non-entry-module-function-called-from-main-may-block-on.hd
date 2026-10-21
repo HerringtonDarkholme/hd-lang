@@ -1,0 +1,14 @@
+# test: a non entry module function called from main may block on
+# Rules: std-task.block-on.completed; Spec 11 Drivers: req.drive.block-on.indirect.
+# fixture-package-tree: migrated-a-non-entry-module-function-called-from-main-may-block-on/src/main.hd
+# expect-stdout: 45
+use pkg.helper.get
+
+pub fn main() -> void $ Console:
+    println(get())
+
+tests:
+    use std.testing.assert_equal
+
+    it("a non-entry helper can drive after initialization"):
+        assert_equal(get(), 45, reason="the module has finished initializing")

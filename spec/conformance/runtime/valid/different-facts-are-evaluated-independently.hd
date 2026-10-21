@@ -1,0 +1,81 @@
+# test: different facts are evaluated independently
+# Rules: annot.fact.eval.lazy, annot.fact.eval.unread, annot.facts-of.result.
+# expect-stdout: 0
+# expect-stdout: 0
+# expect-stdout: a_
+# expect-stdout: a_
+# expect-stdout: 1
+# expect-stdout: 0
+# expect-stdout: b_
+# expect-stdout: 1
+# expect-stdout: 1
+# expect-stdout: a_b_
+# expect-stdout: 1
+# expect-stdout: 1
+use std.annotation.facts_of
+use std.structure.{Structure, Field, Variant, Walker}
+
+struct Style:
+    prefix: string = ""
+
+fn no_prefix() -> string:
+    panic("no prefix configured")
+
+trait Label:
+    fn label(self) -> string
+
+struct Sink:
+    n: i32
+
+impl[S] Walker[S] for Sink:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.n = self.n + 1
+        .Ok(())
+
+impl[T] Label for T by Structure:
+    fn label(self) -> string:
+        let mut w = Sink { n: 0 }
+        _ := Structure::walk(self, &mut w)
+        match T::facts().find::[Style]():
+            .Some(found) => found.prefix
+            .None => "none"
+
+let first = +0
+let second = +0
+
+fn style_a(prefix: string) -> Style:
+    first = first + 1
+    Style { prefix: prefix }
+
+fn style_b(prefix: string) -> Style:
+    second = second + 1
+    Style { prefix: prefix }
+
+@derive(Label)
+@style_a("a_")
+struct A:
+    x: i64
+
+@derive(Label)
+@style_b("b_")
+struct B:
+    x: i64
+
+pub fn main() -> void $ Console:
+    println(first)
+    println(second)
+    println(A { x: 1 }.label())
+    println(A { x: 2 }.label())
+    println(first)
+    println(second)
+    println(B { x: 1 }.label())
+    println(first)
+    println(second)
+    println(A { x: 3 }.label() + B { x: 3 }.label())
+    println(first)
+    println(second)

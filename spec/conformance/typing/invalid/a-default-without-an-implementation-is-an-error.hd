@@ -1,0 +1,19 @@
+# test: a default without an implementation is an error
+# Rules: expr.index.trait.choice, trait.resolve.literal-arg.
+use std.ops.Index
+
+struct Small:
+    size: i32
+
+impl Index[(u8, u8)] for Small:
+    type Out = i32
+    fn index(self, at: (u8, u8)) -> i32:
+        self.size
+
+impl Index[(u16, u16)] for Small:
+    type Out = i32
+    fn index(self, at: (u16, u16)) -> i32:
+        self.size
+
+fn read(s: Small) -> void:
+    _ := s[(0, 1)]  # diagnostic: type-mismatch

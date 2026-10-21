@@ -1,0 +1,22 @@
+# test: a shared data value keeps one identity across values
+# Rules: data.shared.generic-copy, data.shared.per-variant, data.shared.default.eval-once.
+# expect-stdout: true
+# expect-stdout: true
+# expect-stdout: false
+# expect-stdout: 2
+struct Names:
+    items: List[string]
+
+enum Tagged[T](names: &Names = &Names { items: ["x", "y"] }):
+    One(value: T) -> Tagged()
+    Two(value: T) -> Tagged()
+
+pub fn main() -> void $ Console:
+    let a: Tagged[i32] = Tagged.One(+1)
+    let b: Tagged[i32] = Tagged.One(+2)
+    let c: Tagged[string] = Tagged.One("s")
+    let d: Tagged[i32] = Tagged.Two(+3)
+    println(a.names is b.names)
+    println(a.names is c.names)
+    println(a.names is d.names)
+    println(a.names.items.len())

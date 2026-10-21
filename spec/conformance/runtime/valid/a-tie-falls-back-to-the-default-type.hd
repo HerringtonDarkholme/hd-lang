@@ -1,0 +1,29 @@
+# test: a tie falls back to the default type
+# Rules: expr.index.trait.choice, trait.resolve.literal-arg.
+# expect-stdout: usize 0 1
+# expect-stdout: 1
+# expect-stdout: 24
+use std.ops.Index
+
+struct Grid:
+    size: i32
+
+impl Index[(usize, usize)] for Grid:
+    type Out = string
+    fn index(self, at: (usize, usize)) -> string:
+        "usize ${at._0} ${at._1}"
+
+impl Index[(i32, i32)] for Grid:
+    type Out = i32
+    fn index(self, at: (i32, i32)) -> i32:
+        at._0 * 10 + at._1
+
+pub fn main() -> void $ Console:
+    let g = Grid { size: 0 }
+    let i: i32 = 4
+    let a: string = g[(0, 1)]
+    let b: i32 = g[(0, +1)]
+    let c: i32 = g[(2, i)]
+    println(a)
+    println(b)
+    println(c)

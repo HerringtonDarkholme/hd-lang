@@ -1,0 +1,19 @@
+# test: a data value is its trait value conversion
+# Rules: ref.identity.same-place, ref.identity.copies; Spec 09 Trait Value References: trait.dyn.ref.identity.
+# expect-stdout: true true true false true
+struct User:
+    name: string
+
+impl Display for User:
+    fn to_string(self) -> string:
+        self.name
+
+pub fn main() -> void $ Console:
+    ada := &User { name: "Ada" }
+    twin := &User { name: "Ada" }
+    let shown: &dyn Display = ada
+    let again: &dyn Display = ada
+    let other: &dyn Display = twin
+    let erased: &dyn Any = ada
+    let erased_again: &dyn Any = ada
+    println("${shown is again} ${again is shown} ${erased is erased_again} ${other is shown} ${erased_again is erased}")

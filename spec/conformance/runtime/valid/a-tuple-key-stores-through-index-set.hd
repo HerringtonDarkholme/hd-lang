@@ -1,0 +1,31 @@
+# test: a tuple key stores through index set
+# Rules: expr.index.trait.choice, trait.resolve.literal-arg.
+# expect-stdout: 7
+# expect-stdout: 8
+# expect-stdout: 14
+use std.ops.Index
+use std.ops.IndexSet
+
+struct Matrix[T]:
+    cells: List[T]
+
+impl[T] Index[(usize, usize)] for Matrix[T]:
+    type Out = T
+    fn index(self, at: (usize, usize)) -> T:
+        self.cells[at._0 * 2 + at._1]
+
+impl[T] IndexSet[(usize, usize), T] for Matrix[T]:
+    fn index_set(&mut self, at: (usize, usize), value: T) -> void:
+        self.cells[at._0 * 2 + at._1] = value
+
+fn fill[T](m: &mut Matrix[T], v: T) -> void:
+    m[(0, 1)] = v
+
+pub fn main() -> void $ Console:
+    let mut m = Matrix { cells: [1, 2, 3, 4] }
+    fill(&mut m, 7)
+    m[(1, 0)] = 8
+    m[(1, 1)] += 10
+    println(m[(0, 1)])
+    println(m[(1, 0)])
+    println(m[(1, 1)])

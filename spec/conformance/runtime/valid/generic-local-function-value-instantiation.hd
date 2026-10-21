@@ -1,0 +1,15 @@
+# test: a use as a value is instantiated
+# Rules: fn.local.declare, fn.generic.call-list.
+# expect-stdout: 2 2 2
+fn apply[A, B](value: A, f: fn(A) -> B) -> B:
+    f(value)
+
+fn sizes() -> string:
+    fn wrap[U](u: U) -> List[U]: [u, u]
+    let typed: fn(i32) -> List[i32] = wrap
+    explicit := wrap::[string]
+    passed := apply(true, wrap)
+    "${typed(+1).len()} ${explicit("a").len()} ${passed.len()}"
+
+pub fn main() -> void $ Console:
+    println(sizes())

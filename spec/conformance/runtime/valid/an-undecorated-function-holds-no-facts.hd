@@ -1,0 +1,10 @@
+# test: an undecorated function holds no facts
+# Rules: annot.fact.eval.lazy, annot.fact.eval.unread, annot.facts-of.result.
+# expect-stdout: 0
+use std.annotation.facts_of
+
+fn plain() -> void:
+    pass
+
+pub fn main() -> void $ Console:
+    println(facts_of(plain).items.len())

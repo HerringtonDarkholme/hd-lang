@@ -1,0 +1,37 @@
+# test: values are found by type in source order
+# Rules: annot.fact.eval.lazy, annot.fact.eval.unread, annot.facts-of.result.
+# expect-stdout: 3
+# expect-stdout: /users
+# expect-stdout: lists users
+# expect-stdout: true
+# expect-stdout: false
+use std.annotation.facts_of
+
+struct Route:
+    path: string
+
+fn route(path: string) -> Route:
+    Route { path: path }
+
+struct Hidden: pass
+
+fn hidden() -> Hidden:
+    Hidden {}
+
+@route("/users")
+@"lists users"
+@hidden
+fn list_users() -> string:
+    "[]"
+
+pub fn main() -> void $ Console:
+    facts := facts_of(list_users)
+    println(facts.items.len())
+    match facts.find::[Route]():
+        .Some(found) => println(found.path)
+        .None => println("no route")
+    match facts.find::[string]():
+        .Some(label) => println(label)
+        .None => println("no label")
+    println(facts.find::[Hidden]().is_some())
+    println(facts.find::[i32]().is_some())

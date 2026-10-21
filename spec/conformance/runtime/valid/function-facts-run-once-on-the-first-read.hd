@@ -1,0 +1,63 @@
+# test: function facts run once on the first read
+# Rules: annot.fact.eval.lazy, annot.fact.eval.unread, annot.facts-of.result.
+# expect-stdout: 0
+# expect-stdout: 2
+# expect-stdout: 11
+# expect-stdout: b_
+# expect-stdout: 11
+use std.annotation.facts_of
+use std.structure.{Structure, Field, Variant, Walker}
+
+struct Style:
+    prefix: string = ""
+
+fn no_prefix() -> string:
+    panic("no prefix configured")
+
+trait Label:
+    fn label(self) -> string
+
+struct Sink:
+    n: i32
+
+impl[S] Walker[S] for Sink:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.n = self.n + 1
+        .Ok(())
+
+impl[T] Label for T by Structure:
+    fn label(self) -> string:
+        let mut w = Sink { n: 0 }
+        _ := Structure::walk(self, &mut w)
+        match T::facts().find::[Style]():
+            .Some(found) => found.prefix
+            .None => "none"
+
+let evaluations = +0
+
+fn style(prefix: string) -> Style:
+    evaluations = evaluations + 1
+    Style { prefix: prefix }
+
+@style("a_")
+@style2("b_")
+fn route() -> void:
+    pass
+
+fn style2(prefix: string) -> string:
+    evaluations = evaluations + 10
+    prefix
+
+pub fn main() -> void $ Console:
+    println(evaluations)
+    println(facts_of(route).items.len())
+    println(evaluations)
+    match facts_of(route).find::[string]():
+        .Some(label) => println(label)
+        .None => println("-")
+    println(evaluations)

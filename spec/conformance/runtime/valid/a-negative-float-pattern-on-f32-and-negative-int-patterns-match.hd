@@ -1,0 +1,24 @@
+# test: a negative float pattern on f32 and negative int patterns match
+# Rules: flow.match.literal.
+# expect-stdout: 1
+# expect-stdout: 0
+# expect-stdout: 7
+# expect-stdout: 8
+# expect-stdout: 0
+fn small(value: f32) -> i32:
+    match value:
+        -2.5 => 1
+        _ => 0
+
+fn whole(value: i32) -> i32:
+    match value:
+        -1 => 7
+        1 => 8
+        _ => 0
+
+pub fn main() -> void $ Console:
+    println(small(-2.5))
+    println(small(2.5))
+    println(whole(-1))
+    println(whole(1))
+    println(whole(+2))

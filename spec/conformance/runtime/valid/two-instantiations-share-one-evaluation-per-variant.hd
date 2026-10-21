@@ -1,0 +1,31 @@
+# test: two instantiations share one evaluation per variant
+# Rules: data.shared.generic-copy, data.shared.per-variant, data.shared.default.eval-once.
+# expect-stdout: 2
+# expect-stdout: 1
+# expect-stdout: 1
+# expect-stdout: 2
+# expect-stdout: true
+# expect-stdout: false
+let calls: i32 = 0
+
+fn bump() -> i32:
+    calls = calls + 1
+    calls
+
+struct Bag:
+    values: List[i32]
+
+enum Box[T](seen: i32 = bump(), items: &Bag = &Bag { values: [] }):
+    Full(value: T) -> Box()
+    Empty -> Box()
+
+pub fn main() -> void $ Console:
+    let text: Box[string] = Box.Full("a")
+    let number: Box[i32] = Box.Full(+5)
+    let empty: Box[i32] = Box.Empty
+    println(calls)
+    println(text.seen)
+    println(number.seen)
+    println(empty.seen)
+    println(text.items is number.items)
+    println(number.items is empty.items)

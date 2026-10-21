@@ -1,0 +1,14 @@
+# test: it runs inside a test case
+# Rules: fn.local.declare, fn.generic.call-list.
+# expect: test
+pub fn main() -> void:
+    pass
+
+tests:
+    use std.testing.assert_equal
+
+    it("shouts at two types"):
+        suffix := "!"
+        fn shout[U < Display](u: U) -> string: "${u}${suffix}"
+        assert_equal(shout(+3), "3!", reason="number")
+        assert_equal(shout("hi"), "hi!", reason="text")

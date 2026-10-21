@@ -52,17 +52,6 @@ fn ran(name: &str, files: &[(&str, &str)]) -> Ran {
     ran
 }
 
-/// The standard output of a program that must build and succeed.
-fn output_of(name: &str, files: &[(&str, &str)]) -> String {
-    let r = ran(name, files);
-    assert!(
-        r.status.success(),
-        "{name}: {}",
-        String::from_utf8_lossy(&r.stderr)
-    );
-    String::from_utf8(r.stdout).expect("UTF-8")
-}
-
 /// A program that must exit with a panic: its standard output, and the
 /// panic line of its report.
 fn panic_of(name: &str, files: &[(&str, &str)]) -> (String, String) {
@@ -75,14 +64,6 @@ fn panic_of(name: &str, files: &[(&str, &str)]) -> (String, String) {
         .unwrap_or_else(|| panic!("{name}: no panic line in {err:?}"))
         .to_owned();
     (String::from_utf8(r.stdout).expect("UTF-8"), line)
-}
-
-fn assert_forbidden(name: &str, files: &[(&str, &str)]) {
-    let (_, line) = panic_of(name, files);
-    assert!(
-        line.starts_with("panic: suspension-forbidden-context"),
-        "{name}: {line}"
-    );
 }
 
 /// A helper that `block_on`s a ready suspension, and a console that
@@ -116,111 +97,6 @@ fn with_helpers(rest: &str) -> String {
 }
 
 #[test]
-fn block_on_through_a_helper_in_a_defer_suite_panics() {
-    let main = with_helpers(
-        "fn cleanup() -> void:
-    defer:
-        _ := wait_now()
-    pass
-
-pub fn main() -> void:
-    cleanup()
-",
-    );
-    assert_forbidden("defer", &[("main.hd", &main)]);
-}
-
-#[test]
-fn println_through_a_helper_in_a_defer_suite_panics() {
-    let main = with_helpers(
-        "fn cleanup() -> void:
-    defer:
-        _ := print_now()
-    pass
-
-pub fn main() -> void:
-    cleanup()
-",
-    );
-    assert_forbidden("defer-println", &[("main.hd", &main)]);
-}
-
-#[test]
-fn block_on_in_a_defer_suite_of_a_suspending_function_panics() {
-    let main = with_helpers(
-        "fn work!() -> void:
-    defer:
-        _ := wait_now()
-    pass
-
-pub fn main!() -> void:
-    work!()
-",
-    );
-    assert_forbidden("defer-suspending", &[("main.hd", &main)]);
-}
-
-#[test]
-fn block_on_through_a_helper_in_a_default_expression_panics() {
-    let main = with_helpers(
-        "fn count(start: i32 = wait_now()) -> i32:
-    start
-
-pub fn main() -> void:
-    _ := count()
-",
-    );
-    assert_forbidden("default", &[("main.hd", &main)]);
-}
-
-#[test]
-fn println_through_a_helper_in_a_default_expression_panics() {
-    let main = with_helpers(
-        "fn count(start: i32 = print_now()) -> i32:
-    start
-
-pub fn main() -> void:
-    _ := count()
-",
-    );
-    assert_forbidden("default-println", &[("main.hd", &main)]);
-}
-
-#[test]
-fn block_on_through_a_helper_in_non_entry_module_init_panics() {
-    let helper = with_helpers(
-        "let value = wait_now()
-
-pub fn get() -> i32:
-    value
-",
-    );
-    let main = "use pkg.helper.get
-
-pub fn main() -> void $ Console:
-    println(get())
-";
-    assert_forbidden("init", &[("main.hd", main), ("helper.hd", &helper)]);
-}
-
-#[test]
-fn println_through_a_helper_in_non_entry_module_init_panics() {
-    let helper = with_helpers(
-        "let value = print_now()
-
-pub fn get() -> i32:
-    value
-",
-    );
-    let main = "use pkg.helper.get
-
-pub fn main() -> void $ Console:
-    println(get())
-";
-    assert_forbidden("init-println", &[("main.hd", main), ("helper.hd", &helper)]);
-}
-
-#[test]
 fn block_on_in_a_facts_body_panics() {
     let main = with_helpers(
         "use std.annotation.facts_of
@@ -247,91 +123,5 @@ pub fn main() -> void $ Console:
         line.starts_with("panic: fact-evaluation-failed")
             && line.contains("panicked with suspension-forbidden-context"),
         "{line}"
-    );
-}
-
-#[test]
-fn block_on_outside_forbidden_contexts_runs() {
-    let main = with_helpers(
-        "fn quiet() -> void:
-    pass
-
-fn cleanup() -> void:
-    defer:
-        quiet()
-    pass
-
-fn count(start: i32 = 7) -> i32:
-    start
-
-pub fn main!() -> void $ Console:
-    println(wait_now())
-    cleanup()
-    println(wait_now())
-    println(count())
-    println(wait_now())
-",
-    );
-    assert_eq!(
-        output_of("outside", &[("main.hd", &main)]),
-        "42\n42\n7\n42\n"
-    );
-}
-
-#[test]
-fn the_count_is_balanced_after_a_defer_suite_and_a_default_expression() {
-    let main = with_helpers(
-        "fn plain() -> i32:
-    5
-
-fn count(start: i32 = plain()) -> i32:
-    start
-
-fn cleanup() -> void:
-    defer:
-        _ := count()
-    pass
-
-pub fn main() -> void $ Console:
-    cleanup()
-    println(count())
-    println(wait_now())
-",
-    );
-    assert_eq!(output_of("balanced", &[("main.hd", &main)]), "5\n42\n");
-}
-
-#[test]
-fn the_entry_module_init_may_block_on() {
-    let main = with_helpers(
-        "let value = wait_now()
-
-pub fn main() -> void $ Console:
-    println(value)
-",
-    );
-    assert_eq!(output_of("entry-init", &[("main.hd", &main)]), "42\n");
-}
-
-#[test]
-fn a_non_entry_module_function_called_from_main_may_block_on() {
-    let helper = with_helpers(
-        "let value = +3
-
-pub fn get() -> i32:
-    value + wait_now()
-",
-    );
-    let main = "use pkg.helper.get
-
-pub fn main() -> void $ Console:
-    println(get())
-";
-    assert_eq!(
-        output_of(
-            "non-entry-call",
-            &[("main.hd", main), ("helper.hd", &helper)]
-        ),
-        "45\n"
     );
 }

@@ -1,0 +1,35 @@
+# test: literal key reads by its default type
+# Rules: expr.index.trait.choice, trait.resolve.literal-arg.
+# expect-stdout: 10
+# expect-stdout: a
+# expect-stdout: 12
+use std.ops.Index
+use std.ops.IndexSet
+
+struct Table:
+    size: i32
+
+impl Index[usize] for Table:
+    type Out = i32
+    fn index(self, key: usize) -> i32:
+        self.size + i32(key)
+
+impl Index[string] for Table:
+    type Out = string
+    fn index(self, key: string) -> string:
+        key
+
+impl IndexSet[usize, i32] for Table:
+    fn index_set(&mut self, key: usize, value: i32) -> void:
+        self.size = value
+
+impl IndexSet[string, i32] for Table:
+    fn index_set(&mut self, key: string, value: i32) -> void:
+        self.size = value + 1000
+
+pub fn main() -> void $ Console:
+    let table = Table { size: 10 }
+    let k: usize = 2
+    println(table[0])
+    println(table["a"])
+    println(table[k])

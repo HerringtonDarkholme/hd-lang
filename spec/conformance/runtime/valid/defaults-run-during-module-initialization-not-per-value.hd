@@ -1,0 +1,22 @@
+# test: defaults run during module initialization not per value
+# Rules: data.shared.generic-copy, data.shared.per-variant, data.shared.default.eval-once.
+# expect-stdout: 1
+# expect-stdout: 1
+# expect-stdout: 5
+let calls: i32 = 0
+
+fn bump() -> i32:
+    calls = calls + 1
+    calls
+
+enum Cell[T](tag: i32 = bump()):
+    Some(value: T) -> Cell()
+
+pub fn main() -> void $ Console:
+    println(calls)
+    let sum = +0
+    for i in 0..5:
+        let cell: Cell[usize] = Cell.Some(i)
+        sum = sum + cell.tag
+    println(calls)
+    println(sum)

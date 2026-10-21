@@ -1,0 +1,13 @@
+# test: it captures an enclosing local and type parameter
+# Rules: fn.local.declare, fn.generic.call-list.
+# expect-stdout: #1 ada true; #2 bob true; #3 ada again
+fn number_rows[T < Display](rows: List[T], prefix: string) -> string:
+    let count = +0
+    fn row[U < Display](item: T, note: U) -> string:
+        count = count + 1
+        "${prefix}${count} ${item} ${note}"
+    each := [for item in rows => row(item, true)].join("; ")
+    "${each}; ${row(rows[0], "again")}"
+
+pub fn main() -> void $ Console:
+    println(number_rows(["ada", "bob"], "#"))

@@ -1,0 +1,42 @@
+# test: the count is balanced after a defer suite and a default expression
+# Rules: std-task.block-on.completed; Spec 11 Drivers: req.drive.block-on.indirect.
+# expect-stdout: 5
+# expect-stdout: 42
+use std.task.block_on
+
+fn ready!() -> i32:
+    42
+
+fn wait_now() -> i32:
+    let pending: mut Suspend[i32] = ready()
+    match block_on(pending):
+        .Completed(value) => value
+        _ => 0
+
+struct QuietConsole: pass
+
+impl Console for QuietConsole:
+    fn write_line!(&mut self, text: string) -> Result[void, ConsoleError]:
+        .Ok(())
+
+fn print_now() -> i32:
+    let mut console = QuietConsole {}
+    $.with(Console=&mut console):
+        println("quiet")
+    1
+
+fn plain() -> i32:
+    5
+
+fn count(start: i32 = plain()) -> i32:
+    start
+
+fn cleanup() -> void:
+    defer:
+        _ := count()
+    pass
+
+pub fn main() -> void $ Console:
+    cleanup()
+    println(count())
+    println(wait_now())

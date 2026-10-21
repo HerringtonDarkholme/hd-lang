@@ -1,0 +1,16 @@
+# test: it recurses directly and from a closure in its body
+# Rules: fn.local.declare, fn.generic.call-list.
+# expect-stdout: 106
+fn depth() -> i32:
+    floor := +100
+    fn down[U](tag: U, n: i32) -> i32:
+        if n == 0: 0 else: 1 + down(tag, n - 1)
+    fn walk[U](tag: U, n: i32) -> i32:
+        if n == 0:
+            floor
+        else:
+            [n].map(fn(x: i32) -> i32: walk(tag, x - 1))[0]
+    down("x", 4) + down(true, 2) + walk("go", 3)
+
+pub fn main() -> void $ Console:
+    println(depth())

@@ -1,0 +1,32 @@
+# test: block on in a defer suite of a suspending function panics
+# Rules: std-task.block-on.completed; Spec 11 Drivers: req.drive.block-on.indirect.
+use std.task.block_on
+
+fn ready!() -> i32:
+    42
+
+fn wait_now() -> i32:
+    let pending: mut Suspend[i32] = ready()
+    match block_on(pending):  # panic: suspension-forbidden-context
+        .Completed(value) => value
+        _ => 0
+
+struct QuietConsole: pass
+
+impl Console for QuietConsole:
+    fn write_line!(&mut self, text: string) -> Result[void, ConsoleError]:
+        .Ok(())
+
+fn print_now() -> i32:
+    let mut console = QuietConsole {}
+    $.with(Console=&mut console):
+        println("quiet")
+    1
+
+fn work!() -> void:
+    defer:
+        _ := wait_now()
+    pass
+
+pub fn main!() -> void:
+    work!()

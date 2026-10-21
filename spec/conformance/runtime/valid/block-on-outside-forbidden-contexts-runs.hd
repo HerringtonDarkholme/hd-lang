@@ -1,0 +1,46 @@
+# test: block on outside forbidden contexts runs
+# Rules: std-task.block-on.completed; Spec 11 Drivers: req.drive.block-on.indirect.
+# expect-stdout: 42
+# expect-stdout: 42
+# expect-stdout: 7
+# expect-stdout: 42
+use std.task.block_on
+
+fn ready!() -> i32:
+    42
+
+fn wait_now() -> i32:
+    let pending: mut Suspend[i32] = ready()
+    match block_on(pending):
+        .Completed(value) => value
+        _ => 0
+
+struct QuietConsole: pass
+
+impl Console for QuietConsole:
+    fn write_line!(&mut self, text: string) -> Result[void, ConsoleError]:
+        .Ok(())
+
+fn print_now() -> i32:
+    let mut console = QuietConsole {}
+    $.with(Console=&mut console):
+        println("quiet")
+    1
+
+fn quiet() -> void:
+    pass
+
+fn cleanup() -> void:
+    defer:
+        quiet()
+    pass
+
+fn count(start: i32 = 7) -> i32:
+    start
+
+pub fn main!() -> void $ Console:
+    println(wait_now())
+    cleanup()
+    println(wait_now())
+    println(count())
+    println(wait_now())

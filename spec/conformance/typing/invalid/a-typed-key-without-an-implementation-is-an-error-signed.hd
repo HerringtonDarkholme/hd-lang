@@ -1,0 +1,28 @@
+# test: a typed key without an implementation is an error
+# Rules: expr.index.trait.choice, trait.resolve.literal-arg.
+use std.ops.Index
+use std.ops.IndexSet
+
+struct Table:
+    size: i32
+
+impl Index[usize] for Table:
+    type Out = i32
+    fn index(self, key: usize) -> i32:
+        self.size + i32(key)
+
+impl Index[string] for Table:
+    type Out = string
+    fn index(self, key: string) -> string:
+        key
+
+impl IndexSet[usize, i32] for Table:
+    fn index_set(&mut self, key: usize, value: i32) -> void:
+        self.size = value
+
+impl IndexSet[string, i32] for Table:
+    fn index_set(&mut self, key: string, value: i32) -> void:
+        self.size = value + 1000
+
+fn read(table: Table) -> void:
+    _ := table[+0]  # diagnostic: type-mismatch

@@ -1,0 +1,15 @@
+use std.task.block_on
+
+fn ready!() -> i32:
+    42
+
+fn wait_now() -> i32:
+    let pending: mut Suspend[i32] = ready()
+    match block_on(pending):
+        .Completed(value) => value
+        _ => 0
+
+let value = +3
+
+pub fn get() -> i32:
+    value + wait_now()

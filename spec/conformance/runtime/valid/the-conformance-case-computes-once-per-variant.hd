@@ -1,0 +1,25 @@
+# test: the conformance case computes once per variant
+# Rules: data.shared.generic-copy, data.shared.per-variant, data.shared.default.eval-once.
+# expect-stdout: 16
+let calls: i32 = 0
+
+fn bump() -> i32:
+    calls = calls + 1
+    calls
+
+struct Bag:
+    values: List[i32]
+
+enum Box[T](count: i32, seen: i32 = bump(), items: &Bag = &Bag { values: [1] }):
+    Full(value: T) -> Box(1)
+    Empty -> Box(0)
+
+fn total() -> i32:
+    let first: Box[string] = Box.Full("a")
+    let second: Box[string] = Box.Full("b")
+    let empty: Box[string] = Box.Empty
+    shared := if first.items is second.items: +10 else: 0
+    shared + first.seen + second.seen + empty.seen + calls
+
+pub fn main() -> void $ Console:
+    println(total())

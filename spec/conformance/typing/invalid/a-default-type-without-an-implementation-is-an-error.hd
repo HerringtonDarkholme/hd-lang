@@ -1,0 +1,19 @@
+# test: a default type without an implementation is an error
+# Rules: expr.index.trait.choice, trait.resolve.literal-arg.
+use std.ops.Index
+
+struct Table:
+    size: i32
+
+impl Index[u8] for Table:
+    type Out = i32
+    fn index(self, key: u8) -> i32:
+        self.size
+
+impl Index[i64] for Table:
+    type Out = i32
+    fn index(self, key: i64) -> i32:
+        self.size
+
+fn read(table: Table) -> i32:
+    table[5]  # diagnostic: type-mismatch
