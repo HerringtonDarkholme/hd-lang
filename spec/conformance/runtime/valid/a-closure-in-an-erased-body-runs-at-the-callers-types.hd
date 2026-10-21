@@ -1,0 +1,28 @@
+# test: a closure in an erased body runs at the callers types
+# Rules: trait.dyn.member.other, trait.dyn.binding.signatures, trait.dyn.bound.reference-dispatch.
+# expect-stdout: 5
+# expect-stdout: 2
+trait Visitor:
+    fn twice[T](self, x: T, f: fn(T) -> T) -> T
+    fn gather[T](self, x: T) -> List[T]
+
+struct Doubler:
+    n: i32
+
+impl Visitor for Doubler:
+    fn twice[T](self, x: T, f: fn(T) -> T) -> T:
+        let g = fn(y: T) -> T: f(f(y))
+        g(x)
+
+    fn gather[T](self, x: T) -> List[T]:
+        let mut ys: List[T] = []
+        let add = fn() -> void:
+            ys.push(x)
+        add()
+        add()
+        ys
+
+pub fn main() -> void $ Console:
+    let v: &dyn Visitor = &Doubler { n: 1 }
+    println(v.twice(+3, fn(a: i32) -> i32: a + 1))
+    println(v.gather("a").len())

@@ -1,0 +1,45 @@
+# test: a dyn method with a row through a bound and a function reference
+# Rules: std-time.clock.sleep; Spec 09 Dynamic Safety: trait.dyn.member.other.
+# expect-stdout: barometer 4
+# expect-stdout: 8
+# expect-stdout: barometer 6
+# expect-stdout: 12
+use std.time.{Clock, Duration, sleep}
+
+trait Sensor:
+    fn sample!(self, tick: i32) -> i32 $ Console + Clock
+    fn name(self) -> string
+
+struct Thermometer:
+    offset: i32
+
+impl Sensor for Thermometer:
+    fn sample!(self, tick: i32) -> i32 $ Console + Clock:
+        sleep!(Duration::milliseconds(2))
+        println("thermometer ${tick}")
+        self.offset + tick
+
+    fn name(self) -> string: "thermometer"
+
+struct Barometer:
+    scale: i32
+
+impl Sensor for Barometer:
+    fn sample!(self, tick: i32) -> i32 $ Console + Clock:
+        println("barometer ${tick}")
+        sleep!(Duration::milliseconds(1))
+        self.scale * tick
+
+    fn name(self) -> string: "barometer"
+
+fn via_bound![S < Sensor](sensor: S, tick: i32) -> i32 $ Console + Clock:
+    sensor.sample!(tick)
+
+fn via_reference![S < Sensor](sensor: S, tick: i32) -> i32 $ Console + Clock:
+    sample := S::sample
+    sample!(sensor, tick)
+
+pub fn main!() -> void $ Console + Clock:
+    let sensor: &dyn Sensor = &Barometer { scale: 2 }
+    println(via_bound!(sensor, 4))
+    println(via_reference!(sensor, 6))

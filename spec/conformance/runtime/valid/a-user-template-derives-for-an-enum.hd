@@ -1,0 +1,62 @@
+# test: a user template derives for an enum
+# Rules: annot.structure.protocol-ref, annot.structure.generated.
+# expect-stdout: Reply:Sent#0(id=7;)
+# expect-stdout: Reply:Raw#1(_0=hi;)
+# expect-stdout: Reply:Busy#2()
+# expect-stdout: Reply|Sent id|Raw _0|Busy
+use std.structure.{Structure, Field, Variant, Walker, Describer}
+
+trait Listing:
+    fn listing(self) -> string
+    fn shape() -> string
+
+struct Lister:
+    pub out: string
+
+impl[S] Walker[S] for Lister:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        self.out = self.out + v.info.name + "#" + "${v.info.index}" + "("
+        .Ok(())
+
+    fn member[F < Display](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.out = self.out + h.info.name + "=" + "$value" + ";"
+        .Ok(())
+
+struct Shaper:
+    pub out: string
+
+impl[S] Describer[S] for Shaper:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        self.out = self.out + "|" + v.info.name
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:
+        self.out = self.out + " " + h.info.name
+        .Ok(())
+
+impl[T] Listing for T by Structure:
+    fn listing(self) -> string:
+        let mut w = Lister { out: T::name() + ":" }
+        _ := Structure::walk(self, &mut w)
+        w.out + ")"
+
+    fn shape() -> string:
+        let mut d = Shaper { out: Structure::name() }
+        _ := T::describe(&mut d)
+        d.out
+
+@derive(Listing)
+enum Reply:
+    Sent(id: i64)
+    Raw(string)
+    Busy
+
+pub fn main() -> void $ Console:
+    println(Reply.Sent(7).listing())
+    println(Reply.Raw("hi").listing())
+    println(Reply.Busy.listing())
+    println(Reply::shape())

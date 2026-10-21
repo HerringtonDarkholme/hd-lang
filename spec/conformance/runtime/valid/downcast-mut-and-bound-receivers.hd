@@ -1,0 +1,59 @@
+# test: downcast mut and bound receivers
+# Rules: trait.inspect.runtime-type, trait.downcast.reference, trait.downcast.copy-through-reference.
+# expect-stdout: 2
+# expect-stdout: sda
+# expect-stdout: sdb
+# expect-stdout: none
+use std.error.Error
+
+struct DiskError:
+    device: string
+
+impl Display for DiskError:
+    fn to_string(self) -> string: "disk ${self.device}"
+
+impl Error for DiskError
+
+struct Timeout:
+    seconds: i32
+
+impl Display for Timeout:
+    fn to_string(self) -> string: "timed out"
+
+impl Error for Timeout
+
+enum FsError:
+    NotFound(path: string)
+    Denied
+
+impl Display for FsError:
+    fn to_string(self) -> string: "fs"
+
+impl Error for FsError
+
+use std.inspect.Inspectable
+
+struct Counter:
+    count: i32
+
+fn bump(value: &mut dyn Inspectable) -> void:
+    match value.downcast_mut::[Counter]():
+        .Some(counter) => counter.count = counter.count + 1
+        .None => pass
+
+fn disk_of[T < Error](value: &T) -> string:
+    let error: &dyn Error = value
+    match error.downcast_ref::[DiskError]():
+        .Some(found) => found.device
+        .None => "none"
+
+pub fn main() -> void $ Console:
+    let mut counter = Counter { count: 1 }
+    bump(&mut counter)
+    println("${counter.count}")
+    let error: &dyn Error = &DiskError { device: "sda" }
+    match error.downcast_ref::[DiskError]():
+        .Some(found) => println(found.device)
+        .None => println("none")
+    println(disk_of(&DiskError { device: "sdb" }))
+    println(disk_of(&Timeout { seconds: 1 }))

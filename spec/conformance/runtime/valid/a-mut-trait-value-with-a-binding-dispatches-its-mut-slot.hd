@@ -1,0 +1,33 @@
+# test: a mut trait value with a binding dispatches its mut slot
+# Rules: trait.dyn.member.other, trait.dyn.binding.signatures, trait.dyn.bound.reference-dispatch.
+# expect-stdout: 16
+# expect-stdout: 3
+trait Feed:
+    type Item
+    fn next(&mut self) -> Self::Item?
+
+struct Ticker:
+    prices: List[i32]
+    at: usize
+
+impl Feed for Ticker:
+    type Item = i32
+    fn next(&mut self) -> i32?:
+        if self.at >= self.prices.len():
+            return .None
+        price := self.prices[self.at]
+        self.at = self.at + 1
+        .Some(price)
+
+fn total(feed: &mut dyn Feed[Item = i32]) -> i32:
+    let sum = +0
+    while true:
+        match feed.next():
+            .Some(p) => sum = sum + p
+            .None => break
+    sum
+
+pub fn main() -> void $ Console:
+    let mut ticker = Ticker { prices: [3, 9, 4], at: 0 }
+    println(total(&mut ticker))
+    println(ticker.at)

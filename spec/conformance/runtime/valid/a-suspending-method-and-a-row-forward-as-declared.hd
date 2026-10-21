@@ -1,0 +1,24 @@
+# test: a suspending method and a row forward as declared
+# Rules: trait.by.form, trait.by.assoc-types, trait.by.ordinary.
+# expect-stdout: 42
+# expect-stdout: 40
+trait Source:
+    fn fetch!(self, n: i32) -> i32
+    fn show(self) -> void $ Console
+
+struct Disk:
+    base: i32
+
+impl Source for Disk:
+    fn fetch!(self, n: i32) -> i32: self.base + n
+    fn show(self) -> void $ Console: println(self.base)
+
+struct Cache:
+    Disk
+
+impl Source for Cache by Disk
+
+pub fn main!() -> void $ Console:
+    c := Cache { Disk: Disk { base: 40 } }
+    println(c.fetch!(2))
+    c.show()

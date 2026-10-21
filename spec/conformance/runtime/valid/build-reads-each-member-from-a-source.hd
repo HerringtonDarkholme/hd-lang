@@ -1,0 +1,72 @@
+# test: build reads each member from a source
+# Rules: annot.structure.protocol-ref, annot.structure.generated.
+# expect-stdout: Order { id: 11, label: "#12" }
+# expect-stdout: Event.Move(dx=1, dy=2)
+# expect-stdout: Box { value: "#5" }
+use std.structure.{Structure, Field, Variant, Members, Key, Source}
+
+trait Fill:
+    fn fill(seed: i64) -> Self
+
+trait FromNum:
+    fn from_num(n: i64) -> Self
+
+impl FromNum for i64:
+    fn from_num(n: i64) -> i64: n
+
+impl FromNum for string:
+    fn from_num(n: i64) -> string: "#$n"
+
+# Chooses the last variant, names every member in order, and reads the
+# next number for each.
+struct Counter:
+    next: i64
+    at: usize
+
+impl[S] Source[S] for Counter:
+    type Error = string
+
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], string]:
+        .Ok(choices[choices.len() - 1])
+
+    fn next(&mut self, members: Members[S]) -> Result[Key[S], string]:
+        if self.at >= members.infos.len():
+            return .Ok(members.end())
+        info := members.infos[self.at]
+        self.at = self.at + 1
+        .Ok(members.at(info.position))
+
+    fn member[F < FromNum](&mut self, h: Field[S, F], previous: F?) -> Result[F, string]:
+        self.next = self.next + 1
+        .Ok(F::from_num(self.next))
+
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, string]:
+        .Err("missing " + h.info.name)
+
+impl[T] Fill for T by Structure:
+    fn fill(seed: i64) -> T:
+        let mut source = Counter { next: seed, at: 0 }
+        match T::build(&mut source):
+            .Ok(value) => value
+            .Err(message) => panic(message)
+
+@derive(Fill, Debug)
+struct Order:
+    id: i64
+    label: string
+
+@derive(Fill, Debug)
+enum Event:
+    Start
+    Move(dx: i64, dy: i64)
+
+@derive(Debug)
+struct Box[T]:
+    value: T
+
+impl[T < FromNum] Fill for Box[T] by Structure
+
+pub fn main() -> void $ Console:
+    println(debug(Order::fill(10)))
+    println(debug(Event::fill(0)))
+    println(debug(Box::[string]::fill(4)))

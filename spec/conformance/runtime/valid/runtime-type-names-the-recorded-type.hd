@@ -1,0 +1,43 @@
+# test: runtime type names the recorded type
+# Rules: trait.typeid.name.option, trait.typeid.name.tuple, trait.inspect.runtime-type.
+# expect-stdout: true
+# expect-stdout: true
+# expect-stdout: true
+use std.inspect.{Inspectable, TypeId}
+use std.error.Error
+
+struct DiskError:
+    device: string
+
+impl Display for DiskError:
+    fn to_string(self) -> string: "disk ${self.device}"
+
+impl Error for DiskError
+
+struct Timeout:
+    seconds: i32
+
+impl Display for Timeout:
+    fn to_string(self) -> string: "timed out"
+
+impl Error for Timeout
+
+enum FsError:
+    NotFound(path: string)
+    Denied
+
+impl Display for FsError:
+    fn to_string(self) -> string: "fs"
+
+impl Error for FsError
+
+struct User:
+    name: string
+
+pub fn main() -> void $ Console:
+    let error: &dyn Error = &DiskError { device: "sda" }
+    println(error.runtime_type() == TypeId::of::[DiskError]())
+    let mut users: List[User?] = []
+    println(users.runtime_type().to_string() == "List[" + TypeId::of::[User]().to_string() + "?]")
+    let pair: (i32, List[string]) = (1, [])
+    println(pair.runtime_type().to_string() == "(i32, List[string])")

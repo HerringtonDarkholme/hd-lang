@@ -1,0 +1,50 @@
+# test: trait values that bind differently get their own vtables
+# Rules: trait.dyn.member.other, trait.dyn.binding.signatures, trait.dyn.bound.reference-dispatch.
+# expect-stdout: 1
+# expect-stdout: 3
+# expect-stdout: 0
+# expect-stdout: 1
+# expect-stdout: 4
+trait Lookup:
+    type Key
+    type Value
+    fn find(self, key: Self::Key) -> Self::Value?
+    fn keys(self) -> List[Self::Key]
+
+struct PhoneBook:
+    names: List[string]
+    numbers: List[i32]
+
+impl Lookup for PhoneBook:
+    type Key = string
+    type Value = i32
+    fn find(self, key: string) -> i32?:
+        for index in 0..self.names.len():
+            if self.names[index] == key:
+                return .Some(self.numbers[index])
+        .None
+    fn keys(self) -> List[string]: self.names
+
+struct Squares:
+    size: i32
+
+impl Lookup for Squares:
+    type Key = i32
+    type Value = string
+    fn find(self, key: i32) -> string?:
+        if key < self.size:
+            return .Some("${key * key}")
+        .None
+    fn keys(self) -> List[i32]:
+        let mut out: List[i32] = []
+        for k in 0..self.size:
+            out.push(k)
+        out
+
+pub fn main() -> void $ Console:
+    let book: &dyn Lookup[Key = string, Value = i32] = &PhoneBook { names: ["ada"], numbers: [7] }
+    let table: &dyn Lookup[Key = i32, Value = string] = &Squares { size: 3 }
+    println(book.keys().len())
+    println(table.keys().len())
+    for k in table.keys():
+        println(table.find(k).unwrap_or(""))

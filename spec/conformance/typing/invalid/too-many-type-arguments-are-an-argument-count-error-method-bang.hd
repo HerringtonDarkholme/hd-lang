@@ -1,0 +1,27 @@
+# test: too many type arguments are an argument count error
+# Rules: fn.generic.call-list, fn.generic.methods.
+struct Identity: pass
+
+impl Identity:
+    fn echo![Value](value: Value) -> Value:
+        value
+
+    fn make[Value](value: Value) -> List[Value]:
+        [value]
+
+    fn say![Value](self, value: Value) -> Value:
+        value
+
+struct Box[T]:
+    item: T
+
+impl[T] Box[T]:
+    fn wrap[U](item: T, other: U) -> (T, U):
+        (item, other)
+
+fn convert![T](value: T) -> T: value
+
+fn ready!() -> i32: 1
+
+fn use_it!() -> void:
+    _ := Identity {}.say!::[i32, i32](43)  # diagnostic: argument-count

@@ -1,0 +1,32 @@
+# test: erasing a trait value through a generic keeps its recorded type
+# Rules: trait.inspect.runtime-type, trait.downcast.reference, trait.downcast.copy-through-reference.
+# expect-stdout: true
+# expect-stdout: true
+# expect-stdout: false
+# expect-stdout: missing a.txt
+use std.error.Error
+use std.inspect.{Inspectable, TypeId}
+
+struct Missing:
+    path: string
+
+impl Display for Missing:
+    fn to_string(self) -> string: "missing ${self.path}"
+
+impl Error for Missing
+
+fn erase[T < Inspectable](value: &T) -> &dyn Inspectable:
+    value
+
+fn is_missing(value: &dyn Inspectable) -> bool:
+    value.runtime_type() == TypeId::of::[Missing]()
+
+fn describe[E < Error](error: E) -> string:
+    error.to_string()
+
+pub fn main() -> void $ Console:
+    let failure: &dyn Error = &Missing { path: "a.txt" }
+    println(is_missing(erase(failure)))
+    println(is_missing(erase(&Missing { path: "b.txt" })))
+    println(is_missing(erase(&3)))
+    println(describe(failure))

@@ -1,0 +1,32 @@
+# test: an associated function takes type arguments through its type
+# Rules: fn.generic.call-list, fn.generic.methods.
+# expect-stdout: 1
+# expect-stdout: 42
+# expect-stdout: (1, x)
+struct Identity: pass
+
+impl Identity:
+    fn echo![Value](value: Value) -> Value:
+        value
+
+    fn make[Value](value: Value) -> List[Value]:
+        [value]
+
+    fn say![Value](self, value: Value) -> Value:
+        value
+
+struct Box[T]:
+    item: T
+
+impl[T] Box[T]:
+    fn wrap[U](item: T, other: U) -> (T, U):
+        (item, other)
+
+fn convert![T](value: T) -> T: value
+
+fn ready!() -> i32: 1
+
+pub fn main!() -> void $ Console:
+    println(Identity::make::[i32](42).len())
+    println(Identity::echo!::[i32](42))
+    println(Box::[i32]::wrap::[string](1, "x"))

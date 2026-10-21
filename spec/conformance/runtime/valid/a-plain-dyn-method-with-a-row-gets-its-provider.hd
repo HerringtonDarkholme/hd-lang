@@ -1,0 +1,20 @@
+# test: a plain dyn method with a row gets its provider
+# Rules: trait.dyn.member.other, trait.dyn.binding.signatures, trait.dyn.bound.reference-dispatch.
+# expect-stdout: Good day, Dr. Ada
+# expect-stdout: Good day, Dr. Alan
+trait Greeter:
+    fn greet(self, who: string) -> void $ Console
+
+struct Polite:
+    title: string
+
+impl Greeter for Polite:
+    fn greet(self, who: string) -> void $ Console:
+        println("Good day, ${self.title} ${who}")
+
+fn greet_all(greeter: &dyn Greeter, names: List[string]) -> void $ Console:
+    for n in names:
+        greeter.greet(n)
+
+pub fn main() -> void $ Console:
+    greet_all(&Polite { title: "Dr." }, ["Ada", "Alan"])

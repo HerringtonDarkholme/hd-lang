@@ -1,0 +1,35 @@
+# test: a generic part delegates at the targets arguments
+# Rules: trait.by.form, trait.by.assoc-types, trait.by.ordinary.
+# expect-stdout: 8
+# expect-stdout: 7
+# expect-stdout: 2
+# expect-stdout: hi
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+    fn twice(self) -> List[Self::Item]:
+        [self.get(), self.get()]
+
+struct Box[T]:
+    value: T
+
+impl[T] Supplier for Box[T]:
+    type Item = T
+    fn get(self) -> T: self.value
+
+struct Shelf[T]:
+    Box[T]
+    label: string
+
+impl[T] Supplier for Shelf[T] by Box
+
+fn first[S < Supplier](s: S) -> S::Item:
+    s.get()
+
+pub fn main() -> void $ Console:
+    shelf := Shelf { Box: Box { value: 7 }, label: "a" }
+    println(shelf.get() + 1)
+    println(first(shelf))
+    println(shelf.twice().len())
+    let s: &dyn Supplier[Item = string] = &Shelf { Box: Box { value: "hi" }, label: "b" }
+    println(s.get())

@@ -1,0 +1,30 @@
+# test: values keep their identity through an erased body
+# Rules: trait.dyn.member.other, trait.dyn.binding.signatures, trait.dyn.bound.reference-dispatch.
+# expect-stdout: true
+# expect-stdout: true
+# expect-stdout: 102
+# expect-stdout: text
+struct User:
+    name: string
+
+trait Keeper:
+    fn keep[T](self, x: T) -> T
+    fn size[T](self, xs: List[T]) -> usize
+
+struct K:
+    n: i32
+
+impl Keeper for K:
+    fn keep[T](self, x: T) -> T: x
+    fn size[T](self, xs: List[T]) -> usize: xs.len() + 100
+
+fn via[C < Keeper](c: C, u: &User) -> bool:
+    c.keep(u) is u
+
+pub fn main() -> void $ Console:
+    let k: &dyn Keeper = &K { n: 100 }
+    u := &User { name: "ada" }
+    println(k.keep(u) is u)
+    println(via(k, u))
+    println(k.size(["a", "b"]))
+    println(k.keep("text"))

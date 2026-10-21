@@ -1,0 +1,57 @@
+# test: a mut method forwards through the part in place
+# Rules: trait.by.form, trait.by.assoc-types, trait.by.ordinary.
+# expect-stdout: 5
+# expect-stdout: 7
+# expect-stdout: 7
+# expect-stdout: 7
+trait Describe:
+    fn describe(self) -> string
+    fn headline(self) -> string:
+        "* " + self.describe()
+
+trait Counter:
+    fn bump(&mut self, by: i32) -> i32
+    fn wrap[T](self, value: T) -> List[T]:
+        [value]
+
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+struct Logger:
+    name: string
+    hits: i32
+
+impl Describe for Logger:
+    fn describe(self) -> string: self.name
+
+impl Counter for Logger:
+    fn bump(&mut self, by: i32) -> i32:
+        self.hits = self.hits + by
+        self.hits
+
+impl Supplier for Logger:
+    type Item = i32
+    fn get(self) -> i32: self.hits
+
+struct Service:
+    Logger
+    port: i32
+
+impl Describe for Service by Logger:
+    fn describe(self) -> string: "service"
+
+impl Counter for Service by Logger
+
+impl Supplier for Service by Logger
+
+fn twice[C < Counter](counter: &mut C) -> i32:
+    counter.bump(1)
+    counter.bump(1)
+
+pub fn main() -> void $ Console:
+    let mut service = Service { Logger: Logger { name: "api", hits: 0 }, port: 80 }
+    println(service.bump(5))
+    println(twice(&mut service))
+    println(service.Logger.hits)
+    println(service.get())

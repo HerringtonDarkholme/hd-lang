@@ -1,0 +1,52 @@
+# test: a generic over a list of trait values dispatches per element
+# Rules: std-text.more.upper; Spec 09 Trait Values As Bounds: trait.dyn.bound.reference, trait.dyn.bound.reference-dispatch.
+# expect-stdout: to a@example.com: up
+# expect-stdout: page 1: up
+# expect-stdout: email:a@example.com
+# expect-stdout: pager:1
+trait Channel < Display:
+    fn send(self, message: string) -> string
+    fn urgent(self, message: string) -> string: self.send(message.upper())
+
+struct Email:
+    address: string
+
+impl Display for Email:
+    fn to_string(self) -> string: "email:${self.address}"
+
+impl Channel for Email:
+    fn send(self, message: string) -> string: "to ${self.address}: ${message}"
+
+struct Pager:
+    number: i32
+
+impl Display for Pager:
+    fn to_string(self) -> string: "pager:${self.number}"
+
+impl Channel for Pager:
+    fn send(self, message: string) -> string: "page ${self.number}: ${message}"
+
+fn notify[C < Channel](channel: C, message: string) -> string:
+    channel.send(message)
+
+fn escalate[C < Channel](channel: C, message: string) -> string:
+    channel.urgent(message)
+
+fn label[T < Display](value: T) -> string:
+    "[${value.to_string()}]"
+
+fn route[C < Channel](channel: C, message: string) -> string:
+    label(channel) + " " + notify(channel, message)
+
+fn broadcast[C < Channel](channels: List[C], message: string) -> List[string]:
+    channels.map(fn(channel: C) -> string: notify(channel, message))
+
+fn targets[C < Channel](channels: List[C]) -> List[string]:
+    channels.map(C::to_string)
+
+pub fn main() -> void $ Console:
+    let all: List[&dyn Channel] = [&Email { address: "a@example.com" }, &Pager { number: 1 }]
+    for line in broadcast(all, "up"):
+        println(line)
+    for target in targets(all):
+        println(target)

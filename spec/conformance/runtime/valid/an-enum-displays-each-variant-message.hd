@@ -1,0 +1,31 @@
+# test: an enum displays each variant message
+# Rules: annot.error.message.scope, annot.error.message.data, annot.error.message.absent.
+# expect-stdout: not found: a.txt
+# expect-stdout: permission denied: b.txt
+# expect-stdout: 2 retries left
+# expect-stdout: Busy
+# expect-stdout: denied: f.txt (403)
+# expect-stdout: Missing
+@error
+enum FsError:
+    @error("not found: $path")
+    NotFound(path: string)
+    @error("permission denied: $_0")
+    Denied(string)
+    @error("${count} retries left")
+    Retry(count: i32)
+    Busy
+
+@error
+enum HttpError(code: i32):
+    @error("denied: $_0 ($code)")
+    Denied(string) -> HttpError(403)
+    Missing -> HttpError(404)
+
+pub fn main() -> void $ Console:
+    println(FsError.NotFound("a.txt").to_string())
+    println(FsError.Denied("b.txt").to_string())
+    println(FsError.Retry(2).to_string())
+    println(FsError.Busy.to_string())
+    println(HttpError.Denied("f.txt").to_string())
+    println(HttpError.Missing.to_string())

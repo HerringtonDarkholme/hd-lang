@@ -1,0 +1,45 @@
+# test: a suspending dyn method with a row waits and uses its providers
+# Rules: std-time.clock.sleep; Spec 09 Dynamic Safety: trait.dyn.member.other.
+# expect-stdout: thermometer 1
+# expect-stdout: thermometer 2
+# expect-stdout: 23
+# expect-stdout: barometer 5
+# expect-stdout: barometer 15
+# expect-stdout: thermometer 5
+# expect-stdout: thermometer 5
+use std.time.{Clock, Duration, sleep}
+
+trait Sensor:
+    fn sample!(self, tick: i32) -> i32 $ Console + Clock
+    fn name(self) -> string
+
+struct Thermometer:
+    offset: i32
+
+impl Sensor for Thermometer:
+    fn sample!(self, tick: i32) -> i32 $ Console + Clock:
+        sleep!(Duration::milliseconds(2))
+        println("thermometer ${tick}")
+        self.offset + tick
+
+    fn name(self) -> string: "thermometer"
+
+struct Barometer:
+    scale: i32
+
+impl Sensor for Barometer:
+    fn sample!(self, tick: i32) -> i32 $ Console + Clock:
+        println("barometer ${tick}")
+        sleep!(Duration::milliseconds(1))
+        self.scale * tick
+
+    fn name(self) -> string: "barometer"
+
+fn read_twice!(sensor: &dyn Sensor) -> i32 $ Console + Clock:
+    sensor.sample!(1) + sensor.sample!(2)
+
+pub fn main!() -> void $ Console + Clock:
+    println(read_twice!(&Thermometer { offset: 10 }))
+    let sensors: List[&dyn Sensor] = [&Barometer { scale: 3 }, &Thermometer { offset: 0 }]
+    for s in sensors:
+        println("${s.name()} ${s.sample!(5)}")

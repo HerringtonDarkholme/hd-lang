@@ -1,0 +1,24 @@
+# test: a list of inspectable values downcasts by method
+# Rules: trait.inspect.runtime-type, trait.downcast.reference, trait.downcast.copy-through-reference.
+# expect-stdout: user Ada
+# expect-stdout: tag hi
+# expect-stdout: other
+use std.inspect.Inspectable
+
+struct User:
+    name: string
+
+struct Tag:
+    label: string
+
+fn describe(value: &dyn Inspectable) -> string:
+    match value.downcast_ref::[User]():
+        .Some(user) => "user ${user.name}"
+        .None => match value.downcast_ref::[Tag]():
+            .Some(tag) => "tag ${tag.label}"
+            .None => "other"
+
+pub fn main() -> void $ Console:
+    let values: List[&dyn Inspectable] = [&User { name: "Ada" }, &Tag { label: "hi" }, &3]
+    for value in values:
+        println(describe(value))

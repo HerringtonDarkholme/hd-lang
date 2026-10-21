@@ -1,0 +1,50 @@
+# test: a generic error type gets derived bounds
+# Rules: std-error.chain.order; Spec 14 Error Derivation: annot.error.cause.member.
+# expect-stdout: task build failed
+# expect-stdout: 2
+# expect-stdout: task build failed
+# expect-stdout: 2
+# expect-stdout: got 7
+# expect-stdout: got x
+# expect-stdout: 1
+use std.error.{Error, chain}
+
+@error("disk full")
+struct DiskError:
+    free: i64
+
+struct Job:
+    id: i64
+
+@error
+enum TaskError[E, T]:
+    @error("task $name failed")
+    Failed(name: string, @source error: E, input: T)
+
+@error
+enum Wrapped[P]:
+    @error(transparent)
+    Inner(error: P)
+
+@error
+enum Named[T]:
+    @error("got $value")
+    Got(value: T)
+
+fn depth[E < Error](error: E) -> usize:
+    chain(&error).len()
+
+fn show[T < Display](value: Named[T]) -> string:
+    value.to_string()
+
+pub fn main() -> void $ Console:
+    let task: TaskError[DiskError, Job] = TaskError.Failed("build", DiskError { free: 0 }, Job { id: 1 })
+    println(task.to_string())
+    println(depth(task))
+    let wrapped: Wrapped[TaskError[DiskError, Job]] = Wrapped.Inner(task)
+    println(wrapped.to_string())
+    println(depth(wrapped))
+    println(show(Named.Got(7)))
+    println(show(Named.Got("x")))
+    let named: Named[i32] = Named.Got(1)
+    println(depth(named))

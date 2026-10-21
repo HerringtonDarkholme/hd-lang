@@ -1,0 +1,45 @@
+# test: the checker takes the parts associated types
+# Rules: trait.by.form, trait.by.assoc-types, trait.by.ordinary.
+trait Describe:
+    fn describe(self) -> string
+    fn headline(self) -> string:
+        "* " + self.describe()
+
+trait Counter:
+    fn bump(&mut self, by: i32) -> i32
+    fn wrap[T](self, value: T) -> List[T]:
+        [value]
+
+trait Supplier:
+    type Item
+    fn get(self) -> Self::Item
+
+struct Logger:
+    name: string
+    hits: i32
+
+impl Describe for Logger:
+    fn describe(self) -> string: self.name
+
+impl Counter for Logger:
+    fn bump(&mut self, by: i32) -> i32:
+        self.hits = self.hits + by
+        self.hits
+
+impl Supplier for Logger:
+    type Item = i32
+    fn get(self) -> i32: self.hits
+
+struct Service:
+    Logger
+    port: i32
+
+impl Describe for Service by Logger:
+    fn describe(self) -> string: "service"
+
+impl Counter for Service by Logger
+
+impl Supplier for Service by Logger
+
+fn text(service: Service) -> string:
+    service.get()  # diagnostic: type-mismatch

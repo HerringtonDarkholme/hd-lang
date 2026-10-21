@@ -1,0 +1,63 @@
+# test: a generic type derives under its parameter bound
+# Rules: std-cmp.derive.eq.compare-fields; Spec 14 Typed Derivation: annot.structure.generated.
+# expect-stdout: true
+# expect-stdout: false
+# expect-stdout: Box { value: Box { value: true, count: 0 }, count: 2 }
+# expect-stdout: Box:Box#0(value=four;count=3;)
+use std.structure.{Structure, Field, Variant, Walker, Describer}
+
+trait Listing:
+    fn listing(self) -> string
+    fn shape() -> string
+
+struct Lister:
+    pub out: string
+
+impl[S] Walker[S] for Lister:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        self.out = self.out + v.info.name + "#" + "${v.info.index}" + "("
+        .Ok(())
+
+    fn member[F < Display](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.out = self.out + h.info.name + "=" + "$value" + ";"
+        .Ok(())
+
+struct Shaper:
+    pub out: string
+
+impl[S] Describer[S] for Shaper:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        self.out = self.out + "|" + v.info.name
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:
+        self.out = self.out + " " + h.info.name
+        .Ok(())
+
+impl[T] Listing for T by Structure:
+    fn listing(self) -> string:
+        let mut w = Lister { out: T::name() + ":" }
+        _ := Structure::walk(self, &mut w)
+        w.out + ")"
+
+    fn shape() -> string:
+        let mut d = Shaper { out: Structure::name() }
+        _ := T::describe(&mut d)
+        d.out
+
+@derive(Eq, Debug)
+struct Box[T]:
+    value: T
+    count: i32
+
+impl[T < Display] Listing for Box[T] by Structure
+
+pub fn main() -> void $ Console:
+    println(Box { value: "a", count: 1 } == Box { value: "a", count: 1 })
+    println(Box { value: 2, count: 1 } == Box { value: 3, count: 1 })
+    println(debug(Box { value: Box { value: true, count: 0 }, count: 2 }))
+    println(Box { value: "four", count: 3 }.listing())

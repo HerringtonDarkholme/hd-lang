@@ -1,0 +1,35 @@
+# test: the available members of a trait with self members run
+# Rules: trait.dyn.member.self, trait.dyn.member.unavailable.error, trait.dyn.member.other.
+# expect-stdout: 9,5,2
+# expect-stdout: 5
+trait Shape:
+    fn area(self) -> i32
+    fn same_as(self, other: Self) -> bool
+    fn twin(self) -> Self
+    fn pair(self) -> List[Self]
+    fn each(self, f: fn(Self) -> void) -> void
+    fn pick[T](self, x: T) -> T
+    fn many[T](self, xs: List[T]) -> List[T]
+
+struct Sq:
+    n: i32
+
+impl Shape for Sq:
+    fn area(self) -> i32: self.n * self.n
+    fn same_as(self, other: Sq) -> bool: self.n == other.n
+    fn twin(self) -> Sq: self
+    fn pair(self) -> List[Sq]: [self]
+    fn each(self, f: fn(Sq) -> void) -> void: f(self)
+    fn pick[T](self, x: T) -> T: x
+    fn many[T](self, xs: List[T]) -> List[T]: xs
+
+fn show(s: &dyn Shape) -> string:
+    s.area().to_string() + "," + s.pick(5).to_string() + "," + s.many([1, 2]).len().to_string()
+
+fn keyed() -> i32 $ Shape:
+    $.use(Shape).area() + $.use(Shape).pick(1)
+
+pub fn main() -> void $ Console:
+    println(show(&Sq { n: 3 }))
+    $.with(Shape=Sq { n: 2 }):
+        println(keyed())

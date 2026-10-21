@@ -1,0 +1,14 @@
+# test: a supertrait self member is unavailable through the subtrait
+# Rules: trait.dyn.member.self, trait.dyn.member.unavailable.error, trait.dyn.member.other.
+trait Base:
+    fn id(self) -> i32
+    fn merge(self, other: Self) -> Self
+
+trait Sub < Base:
+    fn extra(self) -> i32
+
+fn show(s: &dyn Sub) -> i32:
+    s.merge(s).id()  # diagnostic: dyn-member-unavailable
+
+pub fn main() -> void:
+    pass

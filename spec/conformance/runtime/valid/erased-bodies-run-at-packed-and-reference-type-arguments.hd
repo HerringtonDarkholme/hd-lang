@@ -1,0 +1,96 @@
+# test: erased bodies run at packed and reference type arguments
+# Rules: trait.dyn.member.other, trait.dyn.binding.signatures, trait.dyn.bound.reference-dispatch.
+# expect-stdout: 2 2 1
+# expect-stdout: ada 1
+# expect-stdout: 300
+# expect-stdout: abb
+# expect-stdout: s:12
+# expect-stdout: s:user ada
+# expect-stdout: picked 9
+# expect-stdout: picked pair 5
+# expect-stdout: 7 1 1
+# expect-stdout: ada 1
+# expect-stdout: 30
+# expect-stdout: ab
+# expect-stdout: other 2
+# expect-stdout: other 1
+# expect-stdout: picked 9
+# expect-stdout: picked pair 5
+struct Buffer[T]:
+    items: List[T]
+    len: i32
+
+struct User:
+    name: string
+
+impl Display for User:
+    fn to_string(self) -> string: "user ${self.name}"
+
+fn twice[T](x: T) -> List[T]:
+    [x, x]
+
+trait Collector:
+    fn collect[T](self, x: T, out: &mut List[(T, T?)]) -> Buffer[T]
+    fn apply[T](self, x: T, f: fn(T) -> T) -> T
+    fn show_all[T < Display](self, xs: List[T]) -> string
+    fn pick[T](self, xs: List[T]) -> T?:
+        if xs.len() > 0: xs[0]
+        else: .None
+
+struct Simple:
+    tag: string
+
+impl Collector for Simple:
+    fn collect[T](self, x: T, out: &mut List[(T, T?)]) -> Buffer[T]:
+        out.push((x, x))
+        Buffer { items: twice(x), len: 2 }
+
+    fn apply[T](self, x: T, f: fn(T) -> T) -> T:
+        f(f(x))
+
+    fn show_all[T < Display](self, xs: List[T]) -> string:
+        let s = self.tag
+        for x in xs:
+            s = s + x.to_string()
+        s
+
+struct Other:
+    n: i32
+
+impl Collector for Other:
+    fn collect[T](self, x: T, out: &mut List[(T, T?)]) -> Buffer[T]:
+        out.push((x, .None))
+        Buffer { items: [x], len: self.n }
+
+    fn apply[T](self, x: T, f: fn(T) -> T) -> T:
+        f(x)
+
+    fn show_all[T < Display](self, xs: List[T]) -> string:
+        "other ${xs.len()}"
+
+fn run(c: &dyn Collector) -> void $ Console:
+    let mut ints: List[(i32, i32?)] = []
+    b := c.collect(+5, &mut ints)
+    println("${b.len} ${b.items.len()} ${ints.len()}")
+    let mut users: List[(User, User?)] = []
+    u := User { name: "ada" }
+    ub := c.collect(u, &mut users)
+    println("${ub.items[0].name} ${users.len()}")
+    tenfold := fn(x: i32) -> i32: x * 10
+    suffix := fn(x: string) -> string: x + "b"
+    println(c.apply(+3, tenfold))
+    println(c.apply("a", suffix))
+    println(c.show_all([+1, +2]))
+    println(c.show_all([u]))
+    match c.pick([+9]):
+        .Some(v) => println("picked ${v}")
+        .None => println("none")
+    match c.pick(ints):
+        .Some(v) =>
+            let (first, _) = v
+            println("picked pair ${first}")
+        .None => println("no pair")
+
+pub fn main() -> void $ Console:
+    run(&Simple { tag: "s:" })
+    run(&Other { n: 7 })

@@ -1,0 +1,57 @@
+# test: a dyn generic call inside an erased body reaches its own witness
+# Rules: trait.dyn.member.other, trait.dyn.binding.signatures, trait.dyn.bound.reference-dispatch.
+# expect-stdout: 7
+# expect-stdout: 1099511627776
+# expect-stdout: 2.5
+# expect-stdout: box 1.5 2.0
+# expect-stdout: some 3
+# expect-stdout: 1 x
+trait Store[K]:
+    fn put[V](self, key: K, value: V, into: List[(K, V)]) -> (V, List[(K, V)])
+
+struct Plain:
+    n: i32
+
+impl Store[string] for Plain:
+    fn put[V](self, key: string, value: V, into: List[(string, V)]) -> (V, List[(string, V)]):
+        let mut pairs = into
+        pairs.push((key, value))
+        (value, pairs)
+
+trait Relay:
+    fn relay[T](self, inner: &dyn Store[string], value: T) -> T
+
+struct Hop:
+    tag: string
+
+impl Relay for Hop:
+    fn relay[T](self, inner: &dyn Store[string], value: T) -> T:
+        let (got, pairs) = inner.put(self.tag, value, [])
+        let (k, _) = pairs[0]
+        if k != self.tag:
+            panic("lost the key")
+        got
+
+enum Shape:
+    Dot
+    Box(w: f64, h: f64)
+
+pub fn main() -> void $ Console:
+    let store: &dyn Store[string] = &Plain { n: 1 }
+    let r: &dyn Relay = &Hop { tag: "hop" }
+    println(r.relay(store, +7))
+    let big: i64 = 1 << 40
+    println(r.relay(store, big))
+    println(r.relay(store, 2.5))
+    shape := Shape.Box(w = 1.5, h = 2.0)
+    s := r.relay(store, shape)
+    match s:
+        .Dot => println("dot")
+        .Box(w, h) => println("box ${w} ${h}")
+    let o: i32? = r.relay(store, .Some(+3))
+    match o:
+        .Some(v) => println("some ${v}")
+        .None => println("none")
+    t := r.relay(store, (+1, "x"))
+    let (a, b) = t
+    println("${a} ${b}")
