@@ -16,22 +16,19 @@ fn make(depth: i32) -> &Node:
 >     local.get depth
 >     i32.eqz
 >     if
->       local.get t2
->       local.set t3
->       i32.const 0
->       local.set t2
+>       local.set t1
 >     else
->       local.get t16
->       local.set t3
+>       local.get t14
+>       local.set t1
 >       i32.const 0
->       local.set t16
+>       local.set t14
 >     end
->     local.get t3
->     local.set t17
+>     local.get t1
+>     local.set t15
 >     i32.const 0
->     local.set t3
+>     local.set t1
 >   end
->   local.get t17
+>   local.get t15
 >   end
         &Node { left: .None, right: .None }
 >       i32.const 16
@@ -52,84 +49,74 @@ fn make(depth: i32) -> &Node:
 >       i32.const 0
 >       i32.store offset=12
 >       local.get t0
->       local.tee t1
->       local.tee t2
->       call retain
->       local.get t1
->       call rt:release_ref
->       i32.const 0
->       local.set t1
     else:
         &Node { left: .Some(make(depth - 1)), right: .Some(make(depth - 1)) }
 >       local.get depth
 >       i32.const 1
 >       i32.sub
 >       call make
->       local.set t4
+>       local.set t2
 >       i32.const 1
->       local.get t4
->       local.set t5
->       local.set t6
->       i32.const 0
+>       local.get t2
+>       local.set t3
 >       local.set t4
+>       i32.const 0
+>       local.set t2
 >       local.get depth
 >       i32.const 1
 >       i32.sub
 >       call make
->       local.set t7
+>       local.set t5
 >       i32.const 1
->       local.get t7
->       local.set t8
->       local.set t9
->       i32.const 0
->       local.set t7
->       local.get t6
 >       local.get t5
->       local.get t9
->       local.get t8
->       local.set t10
->       local.set t11
->       local.set t12
->       local.set t13
->       i32.const 0
 >       local.set t6
+>       local.set t7
 >       i32.const 0
 >       local.set t5
->       i32.const 0
->       local.set t9
->       i32.const 0
+>       local.get t4
+>       local.get t3
+>       local.get t7
+>       local.get t6
 >       local.set t8
+>       local.set t9
+>       local.set t10
+>       local.set t11
+>       i32.const 0
+>       local.set t4
+>       i32.const 0
+>       local.set t3
+>       i32.const 0
+>       local.set t7
+>       i32.const 0
+>       local.set t6
 >       i32.const 16
 >       i32.const 0
 >       i32.const -2147483647
 >       i32.add
 >       call rt:new
->       local.tee t14
->       local.get t13
->       i32.store8
->       local.get t14
->       local.get t12
->       i32.store offset=4
->       local.get t14
+>       local.tee t12
 >       local.get t11
->       i32.store8 offset=8
->       local.get t14
+>       i32.store8
+>       local.get t12
 >       local.get t10
+>       i32.store offset=4
+>       local.get t12
+>       local.get t9
+>       i32.store8 offset=8
+>       local.get t12
+>       local.get t8
 >       i32.store offset=12
->       local.get t14
->       local.set t15
->       i32.const 0
+>       local.get t12
 >       local.set t13
->       i32.const 0
->       local.set t12
 >       i32.const 0
 >       local.set t11
 >       i32.const 0
 >       local.set t10
->       local.get t15
->       local.tee t16
->       call retain
->       local.get t15
->       call rt:release_ref
 >       i32.const 0
->       local.set t15
+>       local.set t9
+>       i32.const 0
+>       local.set t8
+>       local.get t13
+>       local.set t14
+>       i32.const 0
+>       local.set t13

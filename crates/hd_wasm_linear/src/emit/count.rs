@@ -442,7 +442,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// Whether `LocalGet` `i` of local `l` is the local's last access and
-    /// takes its count (`live::Moves::last_get`): the local's release
+    /// takes its count (`live::Moves::last_access`): the local's release
     /// after that statement goes, and the caller zeroes its locals. A
     /// borrowed parameter has no count to give, and a cell is shared.
     pub(super) fn take_local(&mut self, i: u32, l: usize) -> bool {
@@ -454,7 +454,7 @@ impl Em<'_, '_, '_> {
         {
             return false;
         }
-        let Some(&(of, at)) = self.moves.last_get.get(&i) else {
+        let Some(&(of, at)) = self.moves.last_access.get(&i) else {
             return false;
         };
         if of != l || self.counted(self.sub(self.b.local_ty[l])).is_none() {
@@ -462,6 +462,66 @@ impl Em<'_, '_, '_> {
         }
         self.skip.insert((at, super::live::Drop::Local(l)));
         true
+    }
+
+    /// Whether `RefPlace` `i`, the address of cell local `l`'s cell with no
+    /// field path, is the local's last access and takes the cell's count
+    /// (`live::Moves::last_access`, `crates/hd_wasm_linear/DESIGN.md`
+    /// §23.20): the reference stores the address as owned, the caller
+    /// zeroes the local, and the local's release after that statement goes.
+    ///
+    /// The local owns one count of its cell, from the declaration that made
+    /// it or from the parameter moved into it, and the reference to the
+    /// cell's payload is counted through the same object. At the last
+    /// access nothing in the body reaches the local again until its
+    /// declaration runs again, which makes a new cell (a loop around the
+    /// reference and not the declaration makes the loop statement the
+    /// last access, not the reference), and the planned release is the
+    /// only other point that drops the local's count. So the count moves
+    /// as a `LocalGet`'s does at its last access ([`Em::take_local`]).
+    ///
+    /// Kept out, each taking a count of its own as before:
+    /// - a cell a closure shares (a capture in this body, or this closure
+    ///   body's shared capture): the cell's lifetime is the closures' as
+    ///   much as the local's;
+    /// - a suspending body, whose frame saves the cell's local at each
+    ///   point and whose resume enters blocks in the middle;
+    /// - a parameter the caller lends, and a reference that borrows
+    ///   (`Moves::loans`), which hold no count to move.
+    pub(super) fn take_cell(&mut self, i: u32, l: usize) -> bool {
+        if !self.counting
+            || self.susp.is_some()
+            || !self.is_cell(l)
+            || self.borrowed.contains(&l)
+            || self.moves.loans.contains(&i)
+            || self.moves.loan_locals.contains_key(&l)
+            || self.shares_cell(l)
+        {
+            return false;
+        }
+        let Some(&(of, at)) = self.moves.last_access.get(&i) else {
+            return false;
+        };
+        if of != l {
+            return false;
+        }
+        self.skip.insert((at, super::live::Drop::Local(l)));
+        true
+    }
+
+    /// Whether a closure shares local `l`'s cell: a closure of this body
+    /// captures it shared, or `l` is this closure body's or thunk's shared
+    /// capture, which the prologue received.
+    fn shares_cell(&self, l: usize) -> bool {
+        let param =
+            self.b.local_flags.get(l).copied().unwrap_or(0) & hd_tir::ir::local_flags::PARAM != 0;
+        (self.entry_cells.contains(&l) && !param)
+            || (0..self.b.len()).any(|ci| {
+                self.b.tags[ci] == Tag::Closure
+                    && super::closure::captures(self.b, ci)
+                        .iter()
+                        .any(|&(c, shared)| shared && c == l)
+            })
     }
 
     /// Whether block tail `r`, used only as its block's value

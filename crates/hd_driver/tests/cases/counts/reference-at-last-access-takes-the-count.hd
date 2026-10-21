@@ -1,0 +1,16 @@
+# @dump: counts
+# @build: v8 release
+# `&mut tally` is the local's last access, so the reference takes the
+# cell's count: no retain for it and no release of the cell after it.
+# Only the reference's release after the call remains, besides the exit's
+# releases of places already zeroed (DESIGN.md §23.20).
+struct Tally:
+    n: i64
+
+fn bump(t: &mut Tally) -> void:
+    t.n = t.n + 1
+
+fn once() -> void:
+    let mut tally = Tally { n: 0 }
+    # subject
+    bump(&mut tally)

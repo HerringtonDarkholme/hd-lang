@@ -1,0 +1,16 @@
+# @dump: counts
+# @build: v8 release
+# `read` shares `tally`'s cell, so `&mut tally` takes a count of its own
+# even at the local's last access.
+struct Tally:
+    n: i64
+
+fn bump(t: &mut Tally) -> void:
+    t.n = t.n + 1
+
+fn shared() -> i64:
+    let mut tally = Tally { n: 0 }
+    read := fn() -> i64: tally.n
+    # subject
+    bump(&mut tally)
+    read()

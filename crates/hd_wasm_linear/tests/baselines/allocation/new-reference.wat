@@ -3,8 +3,10 @@
 # @build: v8 release
 # expected: `rt:new` and the four field stores, then the pointer as the
 # result; no cell local holding the new pointer, and no retain or release
-# (binary_trees: every node made).
-# tracked by #678
+# (binary_trees: every node made). The reference takes the hidden local's
+# count of its cell (#701), so no retain and release pair remains; the
+# copies between locals and the releases of null locals do.
+# tracked by #678, #670
 struct Node:
     left: (&Node)?
     right: (&Node)?
@@ -31,17 +33,7 @@ fn leaf() -> &Node:
 >     i32.const 0
 >     i32.store offset=12
 >     local.get t0
->     local.tee t1
->     local.tee t2
->     call retain
->     local.get t1
->     call rt:release_ref
->     i32.const 0
 >     local.set t1
->     local.get t2
->     local.set t3
->     i32.const 0
->     local.set t2
 >   end
->   local.get t3
+>   local.get t1
 >   end

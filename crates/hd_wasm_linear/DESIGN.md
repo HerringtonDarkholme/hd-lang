@@ -886,6 +886,27 @@ element references whose copies own their list's pin (OBJECT_MODEL_TIER1.md
   pattern binding, bound in the decision block), and every use in a
   suspending body, whose resume reloads the locals from the frame and
   enters blocks in the middle (§23.21).
+- **A reference at its local's last access** (issue #701). `&x`, the
+  address of cell local `x`'s cell with no field path, takes the local's
+  count of the cell where it is `x`'s last access (`live::Moves::last_access`,
+  `Em::take_cell`), as a `LocalGet` there takes the local's count of its
+  value (§23.25). The reference is stored as owned, the local is zeroed,
+  and the release planned after that statement goes. This is sound
+  because the local owns one count of its cell, from the declaration that
+  made it or the parameter moved into it, and the reference counts the
+  same object. The last access is the last statement, in the innermost
+  block holding every access to `x` and the declaration, and the reference
+  must be that statement. Nothing in the body then reaches `x` until its
+  declaration runs again and makes a new cell. The planned release is the
+  only other point that drops the local's count. So `x` read after `&x`,
+  or `&x` in a loop that does not run `x`'s declaration, keeps the count.
+  Also kept: a cell a closure shares, every cell of a suspending body
+  (its frame saves the local, and a resume enters blocks in the middle),
+  a parameter the caller lends, a reference that borrows, and `&x.field`,
+  whose address `rt:ref_project` makes with a count of its own.
+  `&Node { ... }`, which the checker binds to a hidden local, now makes its
+  node with no count change (`allocation/new-reference`);
+  `hd_driver/tests/cases/counts/reference-*` hold the boundaries.
 - **Cleanup scopes.** A `Scope` with `defer` suites uses an
   exit ladder (`emit/scope.rs`, crates/hd_mono/DESIGN.md
   §12.2): each suite has a flag that its `Defer` sets; a `break`,

@@ -310,10 +310,17 @@ impl Em<'_, '_, '_> {
             }
         }
         if owned_base.is_some() {
-            self.store_owned(i)
-        } else {
-            self.store(i)
+            return self.store_owned(i);
         }
+        // `&x` at the last access of cell local `x` takes the local's count
+        // of its cell ([`Em::take_cell`]).
+        if p.kind == place_root::LOCAL && !has_path && self.take_cell(i, p.x as usize) {
+            self.store_owned(i)?;
+            let c = self.local(p.x)?[0];
+            self.f.zero(c);
+            return Ok(());
+        }
+        self.store(i)
     }
 
     /// `RefRead` `i` of reference `r`: the value at its address, a copy

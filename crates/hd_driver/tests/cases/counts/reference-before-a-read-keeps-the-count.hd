@@ -1,0 +1,16 @@
+# @dump: counts
+# @build: v8 release
+# `tally.n` reads the local after `&mut tally`, so the reference is not
+# its last access: the reference takes a count of its own, and the cell
+# is released after the read.
+struct Tally:
+    n: i64
+
+fn bump(t: &mut Tally) -> void:
+    t.n = t.n + 1
+
+fn read_after() -> i64:
+    let mut tally = Tally { n: 0 }
+    # subject
+    bump(&mut tally)
+    tally.n

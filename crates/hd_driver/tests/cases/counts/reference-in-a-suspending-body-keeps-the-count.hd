@@ -1,0 +1,17 @@
+# @dump: counts
+# @build: v8 release
+# A suspending body's frame saves `tally`'s cell, so `&mut tally` takes a
+# count of its own even at the local's last access.
+use std.time.{Clock, ms, sleep}
+
+struct Tally:
+    n: i64
+
+fn bump(t: &mut Tally) -> void:
+    t.n = t.n + 1
+
+fn waits!() -> void $ Clock:
+    let mut tally = Tally { n: 0 }
+    sleep!(ms(1))
+    # subject
+    bump(&mut tally)

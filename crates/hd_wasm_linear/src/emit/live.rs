@@ -37,11 +37,12 @@ pub(super) struct Moves {
     /// take the value's count. With the use, the statement after which the
     /// value's release was planned.
     pub sole: HashMap<u32, (u32, (u32, usize))>,
-    /// Each `LocalGet` that is its local's last access: the statement
-    /// after which the local is released ([`plan`]), so the value it makes
-    /// can take the local's count instead of a count of its own. With the
-    /// local and that statement.
-    pub last_get: HashMap<u32, (usize, (u32, usize))>,
+    /// Each `LocalGet`, and each `RefPlace` rooted at a local, that is its
+    /// local's last access: the statement after which the local is
+    /// released ([`plan`]), so the value it makes can take the local's
+    /// count instead of a count of its own (`Em::take_local`,
+    /// `Em::take_cell`). With the local and that statement.
+    pub last_access: HashMap<u32, (usize, (u32, usize))>,
     /// Each block tail whose only use is as its block's value.
     pub tails: hd_base::HashSet<u32>,
     /// Reads whose source remains owned past every use. Emission filters
@@ -310,12 +311,15 @@ pub(super) fn plan(b: &Body, sub: u32, entry: &[usize]) -> (Drops, Moves) {
             .filter_map(|p| p.iter().find(|(k, _)| *k == blk).map(|(_, p)| *p))
             .max()
             .unwrap_or(0);
-        // The statement at `last` is a read of the local itself: nothing
-        // else in it, or after it, reads the local.
+        // The statement at `last` is a read of the local itself, or a
+        // reference whose place is the local: nothing else in it, or
+        // after it, reaches the local.
         if let Some(&x) = xs.iter().find(|&&x| tree.parent[x as usize] == (blk, last))
-            && b.tags[x as usize] == Tag::LocalGet
+            && (b.tags[x as usize] == Tag::LocalGet
+                || b.place(x as usize)
+                    .is_some_and(|p| p.kind == hd_tir::ir::place_root::LOCAL && p.x as usize == l))
         {
-            moves.last_get.insert(x, (l, (blk, last)));
+            moves.last_access.insert(x, (l, (blk, last)));
         }
         drops.entry((blk, last)).or_default().push(Drop::Local(l));
     }
@@ -358,7 +362,7 @@ fn defers(b: &Body, sub: u32) -> bool {
 ///    block around `k`, or in `k` at or after the span's last statement.
 ///    The release after `l`'s last access is the only other point that
 ///    drops `l`'s count, and moving that count into a read
-///    (`Moves::last_get`) happens at the same statement.
+///    (`Moves::last_access`) happens at the same statement.
 /// 4. No suspension point stands in the span, so the frame never holds
 ///    the read's value, and the sub-body registers no deferred cleanup.
 ///
