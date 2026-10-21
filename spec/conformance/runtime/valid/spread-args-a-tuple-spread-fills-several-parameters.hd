@@ -1,0 +1,14 @@
+# test: a tuple spread fills several parameters
+# expect-stdout: 123
+# expect-stdout: ada2
+# expect-stdout: 423
+fn add3(a: i32, b: i32, c: i32) -> i32: a * 100 + b * 10 + c
+fn greet(name: string, times: i32) -> string: "${name}${times}"
+
+pub fn main() -> void $ Console:
+    pair := (+2, +3)
+    println(add3(1, pair...))
+    who := ("ada", +2)
+    println(greet(who...))
+    f := add3
+    println(f(4, pair...))

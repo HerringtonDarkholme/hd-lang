@@ -1,0 +1,43 @@
+# test: a tuple target walks through the same generator
+# expect-stdout: '' 0< facts=0 shared=0> _0=1 _1=a
+# expect-stdout: Size 0<Large facts=0 shared=1> scale=3
+use std.function.Tuple
+use std.structure.{Structure, Field, Variant, Walker}
+
+trait Shape:
+    fn shape(self) -> string
+
+struct Lister:
+    pub out: string
+
+impl[S] Walker[S] for Lister:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        self.out = self.out + "<" + v.info.name + " facts=${v.info.facts.items.len()} shared=${v.info.shared.len()}>"
+        .Ok(())
+
+    fn member[F < Display](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.out = self.out + " " + h.info.name + "=$value"
+        .Ok(())
+
+impl[T] Shape for T by Structure:
+    fn shape(self) -> string:
+        let mut w = Lister { out: T::name() + " ${T::facts().items.len()}" }
+        _ := Structure::walk(self, &mut w)
+        w.out
+
+impl[T < Tuple] Shape for T by Structure:
+    fn shape(self) -> string:
+        let mut w = Lister { out: "'" + T::name() + "' ${T::facts().items.len()}" }
+        _ := Structure::walk(self, &mut w)
+        w.out
+
+@derive(Shape)
+enum Size(code: i32):
+    Small -> Size(+1)
+    Large(scale: i32) -> Size(+2)
+
+pub fn main() -> void $ Console:
+    println((1, "a").shape())
+    println(Size.Large(3).shape())

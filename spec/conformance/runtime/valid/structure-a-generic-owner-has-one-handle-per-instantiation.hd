@@ -1,0 +1,59 @@
+# test: a generic owner has one handle per instantiation
+# expect-stdout: true true true true
+use std.structure.{Structure, Field, Variant, Walker, Describer, Member, VariantInfo}
+
+struct Keeper:
+    pub variants: List[VariantInfo]
+    pub members: List[Member]
+
+impl[S] Walker[S] for Keeper:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        self.variants.push(v.info)
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.members.push(h.info)
+        .Ok(())
+
+impl[S] Describer[S] for Keeper:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        self.variants.push(v.info)
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:
+        self.members.push(h.info)
+        .Ok(())
+
+trait Seen:
+    fn seen(self) -> Keeper
+
+impl[T] Seen for T by Structure:
+    fn seen(self) -> Keeper:
+        let mut k = Keeper { variants: [], members: [] }
+        _ := Structure::walk(self, &mut k)
+        k
+
+trait Listed:
+    fn listed() -> Keeper
+
+impl[T] Listed for T by Structure:
+    fn listed() -> Keeper:
+        let mut k = Keeper { variants: [], members: [] }
+        _ := T::describe(&mut k)
+        k
+
+struct Box[T]:
+    value: T
+
+impl[T] Seen for Box[T] by Structure
+
+pub fn main() -> void $ Console:
+    ints := Box { value: +1 }.seen()
+    more := Box { value: +2 }.seen()
+    strs := Box { value: "a" }.seen()
+    other := Box { value: "b" }.seen()
+    println("${ints.members[0].name == more.members[0].name} ${strs.members[0].position == other.members[0].position} ${ints.members[0].name == strs.members[0].name} ${ints.variants[0].index == strs.variants[0].index}")

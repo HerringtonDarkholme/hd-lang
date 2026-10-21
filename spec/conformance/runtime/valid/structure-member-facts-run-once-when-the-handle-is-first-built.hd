@@ -1,0 +1,86 @@
+# test: member facts run once when the handle is first built
+# expect-stdout: 0
+# expect-stdout: 1
+# expect-stdout: 1
+# expect-stdout: 1
+# expect-stdout: 2
+use std.structure.{Structure, Field, Variant, Walker, Describer, Member, VariantInfo}
+
+struct Keeper:
+    pub variants: List[VariantInfo]
+    pub members: List[Member]
+
+impl[S] Walker[S] for Keeper:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        self.variants.push(v.info)
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.members.push(h.info)
+        .Ok(())
+
+impl[S] Describer[S] for Keeper:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        self.variants.push(v.info)
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:
+        self.members.push(h.info)
+        .Ok(())
+
+trait Seen:
+    fn seen(self) -> Keeper
+
+impl[T] Seen for T by Structure:
+    fn seen(self) -> Keeper:
+        let mut k = Keeper { variants: [], members: [] }
+        _ := Structure::walk(self, &mut k)
+        k
+
+trait Listed:
+    fn listed() -> Keeper
+
+impl[T] Listed for T by Structure:
+    fn listed() -> Keeper:
+        let mut k = Keeper { variants: [], members: [] }
+        _ := T::describe(&mut k)
+        k
+
+let evaluations = +0
+
+struct Style:
+    prefix: string = ""
+
+fn style(prefix: string) -> Style:
+    evaluations = evaluations + 1
+    Style { prefix: prefix }
+
+@derive(Seen, Listed)
+struct Point:
+    @style("x_")
+    x: i64
+    y: i64
+
+@derive(Seen)
+enum Shape:
+    @style("dot_")
+    Dot
+    Line(length: i64)
+
+pub fn main() -> void $ Console:
+    point := Point { x: 1, y: 2 }
+    println(evaluations)
+    _ := point.seen()
+    println(evaluations)
+    _ := Point { x: 3, y: 4 }.seen()
+    _ := Point::listed()
+    println(evaluations)
+    _ := Shape.Line(1).seen()
+    println(evaluations)
+    _ := Shape.Dot.seen()
+    _ := Shape.Dot.seen()
+    println(evaluations)

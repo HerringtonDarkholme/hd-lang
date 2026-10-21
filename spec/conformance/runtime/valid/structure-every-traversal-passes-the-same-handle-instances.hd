@@ -1,0 +1,75 @@
+# test: every traversal passes the same handle instances
+# expect-stdout: {"id":2,"customer":"Bo"}
+# expect-stdout: true true true
+# expect-stdout: true true false
+# expect-stdout: true true false
+use std.structure.{Structure, Field, Variant, Walker, Describer, Member, VariantInfo}
+
+struct Keeper:
+    pub variants: List[VariantInfo]
+    pub members: List[Member]
+
+impl[S] Walker[S] for Keeper:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        self.variants.push(v.info)
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.members.push(h.info)
+        .Ok(())
+
+impl[S] Describer[S] for Keeper:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        self.variants.push(v.info)
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:
+        self.members.push(h.info)
+        .Ok(())
+
+trait Seen:
+    fn seen(self) -> Keeper
+
+impl[T] Seen for T by Structure:
+    fn seen(self) -> Keeper:
+        let mut k = Keeper { variants: [], members: [] }
+        _ := Structure::walk(self, &mut k)
+        k
+
+trait Listed:
+    fn listed() -> Keeper
+
+impl[T] Listed for T by Structure:
+    fn listed() -> Keeper:
+        let mut k = Keeper { variants: [], members: [] }
+        _ := T::describe(&mut k)
+        k
+
+use std.json.encode
+use std.serde.Serialize
+
+@derive(Seen, Listed, Serialize)
+struct Order:
+    id: i64
+    customer: string
+
+@derive(Seen)
+enum Step:
+    Go(first: i32)
+    Halt(code: i32)
+
+pub fn main() -> void $ Console:
+    first := Order { id: 1, customer: "Ada" }.seen()
+    println(encode(Order { id: 2, customer: "Bo" }))
+    second := Order { id: 3, customer: "Cy" }.seen()
+    listed := Order::listed()
+    println("${first.variants[0].name == second.variants[0].name} ${first.members[0].name == second.members[0].name} ${first.members[1].position == second.members[1].position}")
+    println("${first.variants[0].name == listed.variants[0].name} ${first.members[1].name == listed.members[1].name} ${first.members[0].name == first.members[1].name}")
+    go := Step.Go(1).seen()
+    again := Step.Go(2).seen()
+    halt := Step.Halt(3).seen()
+    println("${go.variants[0].index == again.variants[0].index} ${go.members[0].name == again.members[0].name} ${go.variants[0].index == halt.variants[0].index}")

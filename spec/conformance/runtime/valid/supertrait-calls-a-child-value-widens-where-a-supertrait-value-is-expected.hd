@@ -1,0 +1,34 @@
+# test: a child value widens where a supertrait value is expected
+# expect-stdout: welcome from Ada
+# expect-stdout: Ada
+trait Named:
+    fn name(self) -> string
+
+trait Greeter < Named:
+    fn greeting(self) -> string
+
+trait Host < Greeter:
+    fn room(self) -> string
+
+struct Concierge:
+    who: string
+
+impl Named for Concierge:
+    fn name(self) -> string: self.who
+
+impl Greeter for Concierge:
+    fn greeting(self) -> string: "welcome"
+
+impl Host for Concierge:
+    fn room(self) -> string: "lobby"
+
+fn name_of(named: &dyn Named) -> string:
+    named.name()
+
+fn greet(greeter: &dyn Greeter) -> string:
+    "${greeter.greeting()} from ${name_of(greeter)}"
+
+pub fn main() -> void $ Console:
+    let host: &dyn Host = &Concierge { who: "Ada" }
+    println(greet(host))
+    println(name_of(host))

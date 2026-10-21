@@ -1,0 +1,123 @@
+fn joined(parts: List[string], separator: string) -> string:
+    let out = ""
+    for i in 0..parts.len():
+        if i > 0:
+            out = out + separator
+        out = out + parts[i]
+    out
+
+# test: facts arrive in source order per derivation
+# expect-stdout: [tag:t note:n mark:m flag:f] Point[] x[flag:x1 tag:x2 note:x3 mark:x4] y[note:y2] z[]
+# expect-stdout: [tag:t note:n mark:m] Point[] x[flag:x1 tag:x2 note:x3] y[tag:y1] z[]
+# expect-stdout: [tag:e] Start[note:v0] at[flag:p0] by[]
+# expect-stdout: [tag:e] Stop[]
+use std.inspect.{Inspectable}
+use std.structure.{Structure, Facts, Field, Variant, Walker}
+
+struct Tag:
+    text: string
+
+struct Note:
+    text: string
+
+struct Mark:
+    text: string
+
+struct Flag:
+    text: string
+
+fn tag(text: string) -> Tag:
+    Tag { text: text }
+
+fn note(text: string) -> Note:
+    Note { text: text }
+
+fn mark(text: string) -> Mark:
+    Mark { text: text }
+
+fn flag(text: string) -> Flag:
+    Flag { text: text }
+
+# Each fact as `kind:text`, in the order `Facts` holds them.
+fn show(facts: Facts) -> string:
+    let mut parts: List[string] = []
+    for item in facts.items:
+        match item.downcast_ref::[Tag]():
+            .Some(t) => parts.push("tag:" + t.text)
+            .None => pass
+        match item.downcast_ref::[Note]():
+            .Some(t) => parts.push("note:" + t.text)
+            .None => pass
+        match item.downcast_ref::[Mark]():
+            .Some(t) => parts.push("mark:" + t.text)
+            .None => pass
+        match item.downcast_ref::[Flag]():
+            .Some(t) => parts.push("flag:" + t.text)
+            .None => pass
+    "[" + joined(parts, " ") + "]"
+
+trait Probe:
+    fn probe(self) -> string
+
+trait Plain:
+    fn plain(self) -> string
+
+struct Prober:
+    pub out: string
+
+impl[S] Walker[S] for Prober:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        self.out = self.out + " " + v.info.name + show(v.info.facts)
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.out = self.out + " " + h.info.name + show(h.info.facts)
+        .Ok(())
+
+impl[T] Probe for T by Structure:
+    fn probe(self) -> string:
+        let mut w = Prober { out: show(T::facts()) }
+        _ := Structure::walk(self, &mut w)
+        w.out
+
+impl[T] Plain for T by Structure:
+    fn plain(self) -> string:
+        let mut w = Prober { out: show(T::facts()) }
+        _ := Structure::walk(self, &mut w)
+        w.out
+
+@derive(Plain)
+@tag("t")
+@note("n")
+struct Point:
+    @flag("x1")
+    @tag("x2")
+    x: i32
+    @tag("y1")
+    y: i32
+    z: i32
+
+impl Point by Structure:
+    Self += [mark("m")]
+    x += [note("x3")]
+
+impl Probe for Point by Structure:
+    Self += [flag("f")]
+    x += [mark("x4")]
+    y = [note("y2")]
+
+@derive(Probe)
+@tag("e")
+enum Event:
+    @note("v0")
+    Start(@flag("p0") at: i32, by: string)
+    Stop
+
+pub fn main() -> void $ Console:
+    p := Point { x: 1, y: 2, z: 3 }
+    println(p.probe())
+    println(p.plain())
+    println(Event.Start(1, "a").probe())
+    println(Event.Stop.probe())

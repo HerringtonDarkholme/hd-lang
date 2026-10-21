@@ -1,0 +1,6 @@
+# test: tuple elements and shared data are not assignable
+enum Code(i32):
+    Missing -> Code(404)
+
+fn f(c: &mut Code):
+    c._0 = 1  # diagnostic: invalid-assignment-target

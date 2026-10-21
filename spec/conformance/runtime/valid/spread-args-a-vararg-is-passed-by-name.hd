@@ -1,0 +1,13 @@
+# test: a vararg is passed by name
+# expect-stdout: 3
+# expect-stdout: 3c
+fn sum(values...: List[i32]) -> i32:
+    let total = +0
+    for v in values:
+        total = total + v
+    total
+fn label(parts...: (i32, string)) -> string: "${parts._0}${parts._1}"
+
+pub fn main() -> void $ Console:
+    println(sum(values=[1, 2]))
+    println(label(parts=(3, "c")))

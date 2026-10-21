@@ -1,0 +1,48 @@
+# test: walk visits members in order and stops at the first error
+# expect-stdout: Run:a,b,stop@2
+# expect-stdout: Go:first,second,ok
+# expect-stdout: Halt:stop@0
+use std.structure.{Structure, Field, Variant, Walker}
+
+trait Trace:
+    fn trace(self) -> string
+
+struct Tracer:
+    pub out: string
+
+impl[S] Walker[S] for Tracer:
+    type Error = string
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, string]:
+        self.out = self.out + v.info.name + ":"
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, string]:
+        if h.info.name == "stop":
+            return .Err("stop@${h.info.position}")
+        self.out = self.out + h.info.name + ","
+        .Ok(())
+
+impl[T] Trace for T by Structure:
+    fn trace(self) -> string:
+        let mut w = Tracer { out: "" }
+        match Structure::walk(self, &mut w):
+            .Ok(_) => w.out + "ok"
+            .Err(e) => w.out + e
+
+@derive(Trace)
+struct Run:
+    a: i32
+    b: string
+    stop: bool
+    after: i32
+
+@derive(Trace)
+enum Step:
+    Go(first: i32, second: i32)
+    Halt(stop: i32, never: i32)
+
+pub fn main() -> void $ Console:
+    println(Run { a: 1, b: "x", stop: true, after: 2 }.trace())
+    println(Step.Go(1, 2).trace())
+    println(Step.Halt(1, 2).trace())

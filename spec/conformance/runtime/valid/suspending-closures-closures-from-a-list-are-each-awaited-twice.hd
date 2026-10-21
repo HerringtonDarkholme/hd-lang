@@ -1,0 +1,23 @@
+# test: closures from a list are each awaited twice
+# expect-stdout: 6
+# expect-stdout: 8
+# expect-stdout: 9
+# expect-stdout: 16
+use std.time.{Clock, Duration, sleep}
+use std.task.{all, race}
+
+fn nap!(ms: i64) -> void $ Clock:
+    sleep!(Duration::milliseconds(ms))
+
+pub fn main!() -> void $ Console + Clock:
+    double := fn!(x: i32) -> i32 $ Clock:
+        nap!(1)
+        x * 2
+    square := fn!(x: i32) -> i32: x * x
+    let fns: List[fn!(i32) -> i32 $ Clock] = [double, square]
+    first := fns[0]
+    second := fns[1]
+    println(first!(3))
+    println(first!(4))
+    println(second!(3))
+    println(second!(4))

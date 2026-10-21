@@ -1,0 +1,11 @@
+# test: a slice bound of another unsigned type selects its implementation
+# expect-stdout: el
+# expect-stdout: 3
+# expect-stdout: ell
+pub fn main() -> void $ Console:
+    let n: u8 = 3
+    let wide: u64 = 2
+    println("hello"[1..n])
+    println([1, 2, 3, 4][wide..][0])
+    let start: usize = 1
+    println("hello"[start..=3])

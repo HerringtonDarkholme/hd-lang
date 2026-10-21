@@ -1,0 +1,23 @@
+# test: to string on a dyn error reads the display vtable
+# expect-stdout: disk full on sda
+# expect-stdout: timed out after 3s
+use std.error.Error
+
+@error("disk full on $device")
+struct DiskError:
+    device: string
+
+struct Timeout:
+    seconds: i32
+
+impl Display for Timeout:
+    fn to_string(self) -> string: "timed out after ${self.seconds}s"
+
+impl Error for Timeout
+
+fn message(error: &dyn Error) -> string:
+    error.to_string()
+
+pub fn main() -> void $ Console:
+    println(message(&DiskError { device: "sda" }))
+    println(message(&Timeout { seconds: 3 }))

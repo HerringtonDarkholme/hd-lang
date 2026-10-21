@@ -1,0 +1,25 @@
+# test: a generic supertrait takes the child arguments
+# expect-stdout: 2
+# expect-stdout: apple
+trait Source[Output]:
+    fn source(self) -> Output
+
+trait Wrapped[Item] < Source[List[Item]]:
+    fn count(self) -> i32
+
+struct Crate[T]:
+    item: T
+
+impl[T] Source[List[T]] for Crate[T]:
+    fn source(self) -> List[T]: [self.item, self.item]
+
+impl[T] Wrapped[T] for Crate[T]:
+    fn count(self) -> i32: 2
+
+fn first(source: &dyn Source[List[string]]) -> string:
+    source.source()[0]
+
+pub fn main() -> void $ Console:
+    let wrapped: &dyn Wrapped[string] = &Crate::[string] { item: "apple" }
+    println(wrapped.source().len())
+    println(first(wrapped))

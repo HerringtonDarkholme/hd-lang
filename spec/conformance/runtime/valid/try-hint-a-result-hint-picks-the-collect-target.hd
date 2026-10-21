@@ -1,0 +1,15 @@
+# test: a result hint picks the collect target
+# expect-stdout: true
+# expect-stdout: true
+fn parse(text: string) -> Result[i32, string]:
+    if text == "x":
+        return .Err("bad")
+    .Ok(+7)
+
+fn all(items: List[string]) -> Result[List[i32], string]:
+    let xs: List[i32] = items.iter().map(parse).collect()?
+    .Ok(xs)
+
+pub fn main() -> void $ Console:
+    println(all(["a", "b"]) == .Ok([+7, +7]))
+    println(all(["a", "x"]) == .Err("bad"))

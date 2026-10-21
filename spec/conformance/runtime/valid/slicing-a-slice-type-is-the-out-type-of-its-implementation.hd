@@ -1,0 +1,20 @@
+# test: a slice type is the out type of its implementation
+# expect-stdout: a
+# expect-stdout: 1
+# expect-stdout: 9
+use std.ops.{Index, Range}
+
+fn head[C < Index[Range[usize]]](items: C) -> C::Out:
+    items[0..1]
+
+fn texts(text: string) -> string: head(text)
+fn lists(items: List[i32]) -> List[i32]: head(items)
+fn grown(items: List[i32]) -> List[i32]:
+    let mut part = items[0..2]
+    part.push(9)
+    part
+
+pub fn main() -> void $ Console:
+    println(texts("abc"))
+    println(lists([4, 5]).len())
+    println(grown([1, 2, 3])[2])

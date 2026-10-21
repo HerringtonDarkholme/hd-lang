@@ -1,0 +1,13 @@
+# test: unnamed shared enum parameters select as underscore members
+# expect-stdout: 301
+# expect-stdout: moved
+# expect-stdout: 404
+enum Code(i32, string):
+    Missing -> Code(404, "gone")
+    Moved -> Code(301, "moved")
+
+pub fn main() -> void $ Console:
+    c := Code.Moved
+    println(c._0)
+    println(c._1)
+    println(Code.Missing._0)

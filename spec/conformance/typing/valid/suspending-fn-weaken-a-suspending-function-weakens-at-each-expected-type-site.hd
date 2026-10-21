@@ -1,0 +1,38 @@
+# test: a suspending function weakens at each expected type site
+trait Clock:
+    fn instant(self) -> usize
+use std.function.{Fn, SuspendFn}
+
+fn plus!(by: i32) -> i32:
+    by + 1
+
+fn tick!(by: i32) -> i32 $ Clock:
+    by + 1
+
+fn ticker(by: i32) -> mut Suspend[i32] $ Clock:
+    tick(by + 10)
+
+fn drive!(constructor: fn(i32) -> mut Suspend[i32] $ Clock) -> i32 $ Clock:
+    let pending: mut Suspend[i32] = constructor(41)
+    pending!()
+
+fn as_result() -> fn(i32) -> mut Suspend[i32]:
+    plus
+
+fn as_return() -> Fn[(i32,), mut Suspend[i32], $ Clock]:
+    return tick
+
+fn as_branch(flag: bool) -> Fn[(i32,), mut Suspend[i32], $ Clock]:
+    if flag:
+        tick
+    else:
+        ticker
+
+fn as_constructor(op: SuspendFn[(i32,), i32, $ Clock]) -> Fn[(i32,), mut Suspend[i32], $ Clock]:
+    op
+
+pub fn main() -> void:
+    _ := as_result
+    _ := as_return
+    _ := as_branch
+    _ := as_constructor

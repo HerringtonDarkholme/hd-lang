@@ -1,0 +1,12 @@
+# test: a range value is a slice key
+# expect-stdout: el
+# expect-stdout: 4
+# expect-stdout: abc
+use std.ops.{Range, RangeFrom, RangeFull}
+
+pub fn main() -> void $ Console:
+    let r: Range[usize] = Range { start: 1, end: 3, inclusive: false }
+    let from: RangeFrom[usize] = RangeFrom { start: 3 }
+    println("hello"[r])
+    println([1, 2, 3, 4][from][0])
+    println("abc"[RangeFull {}])

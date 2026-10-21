@@ -1,0 +1,42 @@
+# test: a diamond reaches the shared parent through both paths
+# expect-stdout: 23
+# expect-stdout: 21
+# expect-stdout: 22
+trait Base:
+    fn base(self) -> i32
+
+trait Left < Base:
+    fn left(self) -> i32
+
+trait Right < Base:
+    fn right(self) -> i32
+
+trait Both < Left & Right:
+    fn both(self) -> i32
+
+struct Num:
+    n: i32
+
+impl Base for Num:
+    fn base(self) -> i32: self.n
+
+impl Left for Num:
+    fn left(self) -> i32: self.n + 1
+
+impl Right for Num:
+    fn right(self) -> i32: self.n + 2
+
+impl Both for Num:
+    fn both(self) -> i32: self.n + 3
+
+fn via_left(left: &dyn Left) -> i32:
+    left.base() + left.left()
+
+fn via_right(right: &dyn Right) -> i32:
+    right.base() + right.right()
+
+pub fn main() -> void $ Console:
+    let both: &dyn Both = &Num { n: 10 }
+    println(both.base() + both.both())
+    println(via_left(both))
+    println(via_right(both))

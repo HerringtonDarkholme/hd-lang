@@ -1,0 +1,17 @@
+# test: a closure awaited once keeps its capture across a wait
+# expect-stdout: 42
+# expect-stdout: 41
+use std.time.{Clock, Duration, sleep}
+use std.task.{all, race}
+
+fn nap!(ms: i64) -> void $ Clock:
+    sleep!(Duration::milliseconds(ms))
+
+pub fn main!() -> void $ Console + Clock:
+    base := +40
+    once := fn!(offset: i32) -> i32 $ Clock:
+        nap!(2)
+        base + offset
+    println(once!(2))
+    let pending: mut Suspend[i32] = once(1)
+    println(pending!())

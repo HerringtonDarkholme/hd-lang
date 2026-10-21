@@ -1,0 +1,15 @@
+# test: own module types written too long report once
+struct Pair[K, V]:
+    key: K
+    value: V
+
+enum Choice[T]:
+    Some(T)
+    Empty
+
+type Wrap[T](T)
+
+struct Holder:
+    p: Pair[i32, i32, i32]  # diagnostic: argument-count
+
+fn h() -> Holder: Holder { p: 5 }

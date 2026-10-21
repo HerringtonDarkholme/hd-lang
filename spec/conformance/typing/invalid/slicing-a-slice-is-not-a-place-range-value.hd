@@ -1,0 +1,6 @@
+# test: a slice is not a place
+use std.ops.Range
+
+fn invalid(items: &mut List[i32], text: string) -> void:
+    let r: Range[usize] = Range { start: 0, end: 1, inclusive: false }
+    items[r] = [3]  # diagnostic: invalid-assignment-target

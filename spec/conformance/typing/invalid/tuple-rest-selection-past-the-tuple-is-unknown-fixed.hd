@@ -1,0 +1,2 @@
+# test: selection past the tuple is unknown
+fn f(t: (i32, i32)) -> i32: t._2  # diagnostic: unknown-field

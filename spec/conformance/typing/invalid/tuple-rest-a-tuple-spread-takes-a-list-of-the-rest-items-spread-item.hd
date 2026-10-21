@@ -1,0 +1,3 @@
+# test: a tuple spread takes a list of the rest items
+fn wrong(xs: List[string]) -> (i32, List[i32]...):
+    (1, xs...)  # diagnostic: type-mismatch

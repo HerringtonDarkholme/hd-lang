@@ -1,0 +1,2 @@
+# test: a slice has the type of the receiver
+fn items(l: List[i32]) -> string: l[..]  # diagnostic: type-mismatch

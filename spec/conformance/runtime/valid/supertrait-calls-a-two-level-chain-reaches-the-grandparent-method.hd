@@ -1,0 +1,28 @@
+# test: a two level chain reaches the grandparent method
+# expect-stdout: welcome, I am Ada in the lobby
+trait Named:
+    fn name(self) -> string
+
+trait Greeter < Named:
+    fn greeting(self) -> string
+
+trait Host < Greeter:
+    fn room(self) -> string
+
+struct Concierge:
+    who: string
+
+impl Named for Concierge:
+    fn name(self) -> string: self.who
+
+impl Greeter for Concierge:
+    fn greeting(self) -> string: "welcome"
+
+impl Host for Concierge:
+    fn room(self) -> string: "lobby"
+
+fn introduce(host: &dyn Host) -> string:
+    "${host.greeting()}, I am ${host.name()} in the ${host.room()}"
+
+pub fn main() -> void $ Console:
+    println(introduce(&Concierge { who: "Ada" }))

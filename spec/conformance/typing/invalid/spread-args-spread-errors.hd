@@ -1,0 +1,3 @@
+# test: spread errors
+fn collect(values...: List[i32]) -> List[i32]: values
+fn bad(xs: List[i32]) -> List[i32]: collect(xs..., values=xs)  # diagnostic: duplicate-argument

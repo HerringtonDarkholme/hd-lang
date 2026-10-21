@@ -1,0 +1,5 @@
+# test: unnamed shared enum parameters select as underscore members
+enum Code(i32):
+    Missing -> Code(404)
+
+fn f(c: Code) -> i32: c._1  # diagnostic: unknown-field

@@ -1,0 +1,5 @@
+# test: a spread pattern covers every list
+fn describe(t: (i32, List[i32]...)) -> i32:
+    match t:
+        (0, _...) => 0
+        (n, _xs...) => n

@@ -1,0 +1,96 @@
+fn joined(parts: List[string], separator: string) -> string:
+    let out = ""
+    for i in 0..parts.len():
+        if i > 0:
+            out = out + separator
+        out = out + parts[i]
+    out
+
+# test: build fills the members the source never names
+# expect-stdout: 7 '' 9
+# expect-stdout: next, member b, missing a, missing c
+# expect-stdout: no a
+# expect-stdout: next, member b, missing a
+# expect-stdout: 1 '' 5
+# expect-stdout: next, member b, missing a
+trait Default:
+    fn default() -> Self
+
+impl Default for i32:
+    fn default() -> i32: +0
+
+impl Default for string:
+    fn default() -> string: ""
+use std.structure.{Structure, Field, Variant, Members, Key, Source}
+
+trait Make:
+    fn make(log: &mut List[string]) -> Result[Self, string]
+
+struct Partial[S]:
+    pub log: &mut List[string]
+    pub named: bool
+
+impl[S] Source[S] for Partial[S]:
+    type Error = string
+
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], string]:
+        .Ok(choices[0])
+
+    # Names the member at position 1 once, then ends.
+    fn next(&mut self, members: Members[S]) -> Result[Key[S], string]:
+        if self.named:
+            return .Ok(members.end())
+        self.named = true
+        self.log.push("next")
+        .Ok(members.at(1))
+
+    fn member[F < Default](&mut self, h: Field[S, F], previous: F?) -> Result[F, string]:
+        self.log.push("member ${h.info.name}")
+        .Ok(F::default())
+
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, string]:
+        self.log.push("missing ${h.info.name}")
+        match h.default():
+            .Some(value) => .Ok(value)
+            .None => .Err("no ${h.info.name}")
+
+impl[T] Make for T by Structure:
+    fn make(log: &mut List[string]) -> Result[T, string]:
+        let mut s = Partial::[T] { log: log, named: false }
+        T::build(&mut s)
+
+@derive(Make)
+struct Conf:
+    a: i32 = 7
+    b: string
+    c: i32 = 9
+
+@derive(Make)
+struct Strict:
+    a: i32
+    b: string
+
+struct Kept:
+    a: i32 = 1
+    b: string
+    skip: i32 = 5
+
+impl Make for Kept by Structure:
+    skip = pass
+
+pub fn main() -> void $ Console:
+    let mut log: List[string] = []
+    match Conf::make(&mut log):
+        .Ok(c) => println("${c.a} '${c.b}' ${c.c}")
+        .Err(e) => println(e)
+    println(joined(log, ", "))
+    let mut more: List[string] = []
+    match Strict::make(&mut more):
+        .Ok(_) => println("built")
+        .Err(e) => println(e)
+    println(joined(more, ", "))
+    let mut kept: List[string] = []
+    match Kept::make(&mut kept):
+        .Ok(k) => println("${k.a} '${k.b}' ${k.skip}")
+        .Err(e) => println(e)
+    println(joined(kept, ", "))

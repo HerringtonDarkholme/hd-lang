@@ -1,0 +1,15 @@
+# test: a spread fills a list vararg
+# expect-stdout: 6
+# expect-stdout: 9
+# expect-stdout: 0
+fn sum(values...: List[i32]) -> i32:
+    let total = +0
+    for v in values:
+        total = total + v
+    total
+
+pub fn main() -> void $ Console:
+    xs := [+1, 2, 3]
+    println(sum(xs...))
+    println(sum(4, 5))
+    println(sum())

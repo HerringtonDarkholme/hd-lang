@@ -1,0 +1,21 @@
+# test: a trailing block for a suspending parameter waits
+# expect-stdout: took 3 calls 3
+fn retry_n![$R](times: i32, attempt: fn!() -> bool $ R) -> i32 $ R:
+    ok := attempt!()
+    if ok || times <= 1:
+        return 1
+    1 + retry_n!(times - 1, attempt)
+
+use std.time.{Clock, Duration, sleep}
+use std.task.{all, race}
+
+fn nap!(ms: i64) -> void $ Clock:
+    sleep!(Duration::milliseconds(ms))
+
+pub fn main!() -> void $ Console + Clock:
+    let calls: i32 = 0
+    took := retry_n!(5):
+        calls = calls + 1
+        nap!(1)
+        calls == 3
+    println("took $took calls $calls")

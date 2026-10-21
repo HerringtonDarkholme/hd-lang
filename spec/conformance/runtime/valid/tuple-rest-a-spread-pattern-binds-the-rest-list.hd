@@ -1,0 +1,35 @@
+# test: a spread pattern binds the rest list
+# expect-stdout: 5
+# expect-stdout: 3
+# expect-stdout: 100
+# expect-stdout: 6
+# expect-stdout: 2
+# expect-stdout: 0
+# expect-stdout: 5
+fn total(t: (usize, usize, List[i32]...)) -> usize:
+    let (a, b, xs...) = t
+    a + b + xs.len()
+
+fn describe(t: (usize, List[i32]...)) -> usize:
+    match t:
+        (0, _...) => 100
+        (n, xs...) => n + xs.len()
+
+fn lengths(rows: List[(string, List[i32]...)]) -> List[usize]:
+    [for (_, xs...) in rows => xs.len()]
+
+fn nested(t: ((usize, usize), List[usize]...)) -> usize:
+    let ((a, b), xs...) = t
+    a + b + xs.len()
+
+pub fn main() -> void $ Console:
+    println(total((1, 2, 3, 4)))
+    println(total((1, 2)))
+    println(describe((0, 9)))
+    println(describe((4, 5, 6)))
+    let first: (string, List[i32]...) = ("a", 1, 2)
+    let second: (string, List[i32]...) = ("b",)
+    rows := lengths([first, second])
+    println(rows[0])
+    println(rows[1])
+    println(nested(((1, 2), 3, 4)))

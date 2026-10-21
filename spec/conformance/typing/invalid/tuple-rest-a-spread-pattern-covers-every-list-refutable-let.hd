@@ -1,0 +1,4 @@
+# test: a spread pattern covers every list
+fn describe(t: (i32, List[i32]...)) -> i32:
+    let (0, _...) = t  # diagnostic: refutable-let-pattern
+    0

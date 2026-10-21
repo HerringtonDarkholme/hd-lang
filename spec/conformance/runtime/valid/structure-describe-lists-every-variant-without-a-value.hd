@@ -1,0 +1,44 @@
+# test: describe lists every variant without a value
+# expect-stdout: <Dot><Pair> _0 _1<Box> width height
+# expect-stdout: <Cached> id
+use std.structure.{Structure, Field, Variant, Describer}
+
+trait Fields:
+    fn fields() -> string
+
+struct Names:
+    pub out: string
+
+impl[S] Describer[S] for Names:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        self.out = self.out + "<" + v.info.name + ">"
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F]) -> Result[void, never]:
+        self.out = self.out + " " + h.info.name
+        .Ok(())
+
+impl[T] Fields for T by Structure:
+    fn fields() -> string:
+        let mut d = Names { out: "" }
+        _ := T::describe(&mut d)
+        d.out
+
+@derive(Fields)
+enum Shape:
+    Dot
+    Pair(i32, i32)
+    Box(width: i32, height: i32)
+
+struct Cached:
+    id: i32
+    cache: string = ""
+
+impl Fields for Cached by Structure:
+    cache = pass
+
+pub fn main() -> void $ Console:
+    println(Shape::fields())
+    println(Cached::fields())

@@ -1,0 +1,17 @@
+# test: selection reads fixed elements and the rest list
+# expect-stdout: a
+# expect-stdout: 4
+# expect-stdout: 6
+# expect-stdout: 2
+# expect-stdout: 3
+fn rest_len(t: (usize, string, List[i32]...)) -> usize:
+    t._0 + t._2.len()
+
+pub fn main() -> void $ Console:
+    let t: (usize, string, List[i32]...) = (1, "a", 5, 6, 7)
+    println(t._1)
+    println(rest_len(t))
+    println(t._2[1])
+    println(rest_len((2, "b")))
+    pair := (+3, "x")
+    println(pair._0)

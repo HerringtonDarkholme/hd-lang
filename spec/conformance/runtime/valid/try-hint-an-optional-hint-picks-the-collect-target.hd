@@ -1,0 +1,15 @@
+# test: an optional hint picks the collect target
+# expect-stdout: true
+# expect-stdout: true
+fn find(text: string) -> i32?:
+    if text == "x":
+        return .None
+    .Some(+3)
+
+fn all(items: List[string]) -> List[i32]?:
+    let xs: List[i32] = items.iter().map(find).collect()?
+    .Some(xs)
+
+pub fn main() -> void $ Console:
+    println(all(["a", "b"]) == .Some([+3, +3]))
+    println(all(["x"]) == .None)

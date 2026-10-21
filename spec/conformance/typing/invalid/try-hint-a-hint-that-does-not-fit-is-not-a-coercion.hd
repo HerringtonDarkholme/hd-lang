@@ -1,0 +1,10 @@
+# test: a hint that does not fit is not a coercion
+fn parse(text: string) -> Result[usize, string]:
+    .Ok(text.len())
+
+fn run(text: string) -> Result[i32, string]:
+    let n: i32 = parse(text)?  # diagnostic: type-mismatch
+    .Ok(n)
+
+pub fn main() -> void $ Console:
+    println(run("a") == .Ok(+1))
