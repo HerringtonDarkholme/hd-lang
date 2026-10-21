@@ -83,6 +83,10 @@ fn tally(counts: &mut Map[string, i64], word: string) -> void:
 >       local.set t17
 >       local.set t18
 >     else
+>       i32.const 0
+>       i64.const 0
+>       local.set t17
+>       local.set t18
 >     end
 >     local.get t7
 >     call rt:release_ref'1
@@ -131,4 +135,14 @@ fn tally(counts: &mut Map[string, i64], word: string) -> void:
 >     i32.const 0
 >     local.set t3
 >   end
+>   local.get t2
+>   call rt:release_ref'1
+>   local.get t4
+>   call rt:release_ref'2
+>   local.get t7
+>   call rt:release_ref'1
+>   local.get t9
+>   call rt:release_ref'2
+>   local.get word.0
+>   call rt:release_ref'2
 >   end

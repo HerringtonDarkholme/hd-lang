@@ -3,7 +3,12 @@ none
   block
     i32.const &empty-buffer
     call rt:list_header
+    local.tee t0
+    local.set t1
+    i32.const 0
     local.set t0
   end
   local.get t0
+  call rt:release_ref
+  local.get t1
   end

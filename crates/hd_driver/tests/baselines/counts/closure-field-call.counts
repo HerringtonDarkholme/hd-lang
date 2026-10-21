@@ -2,3 +2,4 @@
 app/main/impl Mapper.apply
   retain fn(i32) -> i32
   release fn(i32) -> i32
+  release fn(i32) -> i32

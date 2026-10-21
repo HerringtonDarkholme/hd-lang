@@ -4,7 +4,13 @@ count
   local.set t0
   i32.const 0
   local.set xs
+  local.get ys
+  call rt:release_ref
   local.get t0
   local.set ys
   i32.const 0
   local.set t0
+  local.get t0
+  call rt:release_ref
+  local.get ys
+  call rt:release_ref

@@ -7,9 +7,13 @@ fn words(text: string) -> usize:
     let count: usize = 0
 > words
 >   block
->     local.set t14
+>     i32.const 0
+>     local.set count
+>     local.set t15
 >   end
->   local.get t14
+>   local.get text.0
+>   call rt:release_ref'2
+>   local.get t15
 >   end
     for word in text.split(" "):
 >     local.get text.0
@@ -30,6 +34,8 @@ fn words(text: string) -> usize:
 >     local.set t1
 >     i32.const 0
 >     local.set t0
+>     local.get t3
+>     call rt:release_ref'1
 >     local.get t2
 >     local.set t3
 >     i32.const 0
@@ -38,6 +44,8 @@ fn words(text: string) -> usize:
 >     i32.load
 >     i32.load offset=4
 >     local.set t4
+>     i32.const 0
+>     local.set t5
 >     block
 >       loop
 >         local.get t5
@@ -65,19 +73,25 @@ fn words(text: string) -> usize:
 >         i32.load offset=8
 >         local.get t8
 >         i32.load offset=12
->         local.set t9
->         local.tee t10
+>         local.get t9
+>         local.set t10
+>         local.set t11
+>         local.tee t9
 >         call retain
+>         local.get t10
+>         call rt:release_ref'2
 >         local.get t5
 >         i32.const 1
 >         i32.add
 >         local.set t5
 >         block
 >           block
->             local.get t10
->             call retain
->             local.get t10
 >             local.get t9
+>             call retain
+>             local.get word.0
+>             call rt:release_ref'2
+>             local.get t9
+>             local.get t11
 >             local.set word.1
 >             local.set word.0
 >             br 0
@@ -85,14 +99,14 @@ fn words(text: string) -> usize:
 >           end
 >           br 0
 >         end
->         local.get t10
->         call rt:release_ref'1
->         i32.const 0
->         local.set t10
+>         local.get t9
+>         call rt:release_ref'2
 >         i32.const 0
 >         local.set t9
+>         i32.const 0
+>         local.set t11
 >         local.get word.0
->         call rt:release_ref'1
+>         call rt:release_ref'2
 >         i32.const 0
 >         local.set word.0
 >         i32.const 0
@@ -101,25 +115,35 @@ fn words(text: string) -> usize:
 >       end
 >     end
 >     local.get t3
->     call rt:release_ref'2
+>     call rt:release_ref'1
 >     i32.const 0
 >     local.set t3
+>   local.get t1
+>   call rt:release_ref'2
+>   local.get t2
+>   call rt:release_ref'1
+>   local.get t9
+>   call rt:release_ref'2
+>   local.get t3
+>   call rt:release_ref'1
+>   local.get word.0
+>   call rt:release_ref'2
         count = count + word.len()
 >           local.get word.0
 >           local.get word.1
->           local.set t11
->           local.tee t12
+>           local.set t12
+>           local.tee t13
 >           call retain
+>           local.get t13
 >           local.get t12
->           local.get t11
 >           call impl string.len
+>           local.set t14
+>           i32.const 0
 >           local.set t13
 >           i32.const 0
 >           local.set t12
->           i32.const 0
->           local.set t11
 >           local.get count
->           local.get t13
+>           local.get t14
 >           i32.add
 >           local.set count
     count

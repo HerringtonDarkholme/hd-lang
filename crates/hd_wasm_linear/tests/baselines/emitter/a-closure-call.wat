@@ -24,5 +24,9 @@ apply
     local.get t2
     local.set t3
   end
+  local.get t0
+  call rt:release_ref
+  local.get f.1
+  call rt:release_ref
   local.get t3
   end

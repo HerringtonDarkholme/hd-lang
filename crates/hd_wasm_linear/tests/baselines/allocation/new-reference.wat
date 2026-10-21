@@ -30,6 +30,8 @@ fn leaf() -> &Node:
 >     local.get t0
 >     i32.const 0
 >     i32.store offset=12
+>     local.get t1
+>     call rt:release_ref'1
 >     local.get t0
 >     local.tee t1
 >     i32.eqz
@@ -58,7 +60,7 @@ fn leaf() -> &Node:
 >     local.tee t3
 >     call retain
 >     local.get t1
->     call rt:release_ref
+>     call rt:release_ref'1
 >     i32.const 0
 >     local.set t1
 >     local.get t3
@@ -66,5 +68,20 @@ fn leaf() -> &Node:
 >     i32.const 0
 >     local.set t3
 >   end
+>   i32.const 0
+>   i32.const 0
+>   call rt:release'1
+>   i32.const 0
+>   i32.const 0
+>   call rt:release'1
+>   i32.const 0
+>   i32.const 0
+>   i32.const 0
+>   i32.const 0
+>   call rt:release'2
+>   local.get t3
+>   call rt:release_ref'2
+>   local.get t1
+>   call rt:release_ref'1
 >   local.get t4
 >   end

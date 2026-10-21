@@ -56,6 +56,12 @@ fn label(name: string) -> string:
 >     i32.const 0
 >     local.set t5
 >   end
+>   local.get t1
+>   call rt:release_ref
+>   local.get t6
+>   call rt:release_ref
+>   local.get name.0
+>   call rt:release_ref
 >   local.get t8
 >   local.get t7
 >   end

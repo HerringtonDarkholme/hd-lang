@@ -6,3 +6,5 @@ app/main/impl Steps.advance
   retain counted reference
   release counted reference
   release app.main.Steps [step.1]
+  release app.main.Steps [step.1]
+  release app.main.Steps [step.1]
