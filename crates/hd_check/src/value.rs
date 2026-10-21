@@ -8,8 +8,8 @@
 //! (`crates/hd_wasm_linear/DESIGN.md` §23.20). So `a.b.x = v` is lowered as `a = A { ...a, b: B { ...a.b,
 //! x: v } }`: each struct on the path is rebuilt with `CopyData`, and the
 //! place's root is stored. A field reached through a reference instead
-//! names that field with `RefPlace` and writes it with `RefWrite`, so
-//! neighboring fields keep RHS alias writes. Collection element stores
+//! is one `Store [*%r .f ..] v` of that field, so neighboring fields
+//! keep RHS alias writes. Collection element stores
 //! use their in-place operation. The RC backend stores struct fields inline.
 
 use hd_base::{DefId, LocalId, StageResult};
@@ -307,13 +307,13 @@ impl Ck<'_, '_> {
         (node, s): (NodeRef<'_>, NodeRef<'_>),
     ) {
         let at = s.index();
-        if let Root::Deref(r, rt) = place.root {
+        if let Root::Deref(r, _) = place.root {
             let mut path = place.path.clone();
             path.push((idx, ft));
             // The field takes a value copy, just as CopyData's replacement
             // slot did; a named collection must not share its header.
             let v = self.coll_copy(v, ft, s.index());
-            self.store_ref_field(r, rt, path, v, s);
+            self.store_ref_field(r, &path, v, s);
             return;
         }
         // A list element's field is stored in place: the element is not

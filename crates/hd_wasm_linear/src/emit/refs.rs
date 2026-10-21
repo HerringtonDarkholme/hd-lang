@@ -760,8 +760,11 @@ impl Em<'_, '_, '_> {
         self.f
             .op(I::If(wasm_encoder::BlockType::Result(Val::I32.wasm())));
         self.f.get(at);
+        // Only a view reaches the helper here, and a field view always
+        // holds its source; `borrowed` drops only the retain of the
+        // helper's physical branch, which this write never takes.
         self.f.helper(Helper::RefProject {
-            borrowed: false,
+            borrowed: true,
             parent,
             field: field.clone(),
             first: u32::try_from(part.first).expect("field"),

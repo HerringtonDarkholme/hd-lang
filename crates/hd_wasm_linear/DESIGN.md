@@ -737,9 +737,9 @@ references preserve their owners and pins (OBJECT_MODEL_TIER1.md §6.3).
   reference's place in the TIR (`Ref` of a place: a local, a top-level
   binding, a place through another reference, a data object's field or a
   list element, then a struct field path; `docs/compiler/tir-v2.md`)
-  and each read, write and identity through one (a `Read` of a place
-  through it, `RefWrite`, `RefIdentity`), with no closure form (stage 1
-  of TIR v2 removed them).
+  and each read, write and identity through one (a `Read` or `Store` of
+  a place through it, `RefIdentity`), with no closure form (stage 1 of
+  TIR v2 removed them).
   Here `std.core.Ref[T]` is one address (`layout::Kind::Ref`,
   `emit/refs.rs`), the thin form of §23.5:
   - a local some reference refers to lives in a cell
@@ -756,8 +756,8 @@ references preserve their owners and pins (OBJECT_MODEL_TIER1.md §6.3).
   - a list element is its address in the buffer (below).
   A read loads the target's values from the address and a write stores
   them, counting the new value before it releases the old. A struct field
-  assignment through a reference names the field path with `RefPlace`
-  and writes that field with `RefWrite`, without rebuilding its parent.
+  assignment through a reference is one `Store [*r .f]` of that field,
+  without rebuilding its parent.
   The source reference evaluates once before the RHS. A compound assignment
   reads the old field before its RHS; both kinds store after the RHS,
   preserving changes it makes to neighboring fields through aliases. A reference

@@ -1131,6 +1131,25 @@ audit on the commits that touch the emitter).
    `live::uses` reads an `Await`'s callee record as values.
 6. **Writes through references.** `emit_ref_store`, `store_ref_field`
    and `deref_assign` emit `Store`. `RefWrite` has no producer.
+   As built: the root is the reference value, as for reads: `*r = v` is
+   `Store [*%r] v` and `body.x = v` through `&mut Body` is
+   `Store [*%0 .x] v`, after the RHS, with no hidden `$ref` local, no
+   field reference and no `make_ref`. `deref_assign` reaches it through
+   `emit_ref_store`, and `value.rs`'s field writes through
+   `store_ref_field`, which now takes the reference value and the field
+   path only. The emitter writes a field path in place
+   (`deref_field_write`), so the projected field reference, its
+   retain-free tee and zeroing go: `field-write/through-mutable-self`,
+   `field-write/update-one-counted-field` and
+   `allocation/mutable-local-of-parameter` lose instructions. Through a
+   representation view it projects with the borrowed `RefProject`: only
+   a view reaches that helper there, and a view holds its source either
+   way, so the counting helper only added a retain that never runs.
+   #717's
+   `field_spans` rejected `RefWrite` but not `Store` in a match span; it
+   now treats a `Store` as `LocalSet` when it replaces a whole local and
+   as `RefWrite` otherwise, so
+   `field-write/match-field-store-keeps-count` keeps its counts.
 7. **One place for every write.** `place_of` in `refs.rs` replaces
    `value.rs`'s instruction walk; struct field writes on local, global
    and data roots are one `Store`; `CopyData` remains only for

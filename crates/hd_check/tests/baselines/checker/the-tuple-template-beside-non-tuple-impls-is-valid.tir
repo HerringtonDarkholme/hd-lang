@@ -34,7 +34,6 @@ impl[S] Walker[S] for Encoder:
 > app/main/impl [ S ] Walker [ S ] for Encoder.member
 >   local $0 self: Ref[mut Encoder] [param read]
 >   local $2 value: F [param read]
->   local $3 $ref: Ref[mut Encoder] [read assigned captured]
 >   %0 = LocalGet $0 : Ref[mut Encoder]
 >   %1 = Read [*%0] : Encoder
 >   %2 = LocalGet $0 : Ref[mut Encoder]
@@ -43,12 +42,10 @@ impl[S] Walker[S] for Encoder:
 >   %5 = Call app/main/Encode.encode for F [] via Bound (%4) : string
 >   %6 = Intrinsic StrConcat [%3 %5] : string
 >   %7 = Intrinsic StrConcat [%6 ";"] : string
->   %8 = LocalSet $3 %0 : ()
->   %9 = Ref mut [*$3 .out] : Ref[mut string]
->   %10 = RefWrite [%9 %7] - : ()
->   %12 = Block %11 : Result[(), never]
+>   %8 = Store [*%0 .out] %7 : ()
+>   %10 = Block %9 : Result[(), never]
         .Ok(())
->   %11 = NewVariant #0 [-] : Result[(), never]
+>   %9 = NewVariant #0 [-] : Result[(), never]
 
 impl[T < Tuple] Encode for T by Structure:
     fn encode(self) -> string:

@@ -5,7 +5,7 @@
   (import "fixture" "rt:release_ref'1" (func $rt:release_ref'1 (param i32)))
   (import "fixture" "rt:release_ref'2" (func $rt:release_ref'2 (param i32)))
   (import "fixture" "heap" (memory $heap 1))
-  (func $"impl Counter.next" (param $self i32) (result i32 i64) (local $t5 i32) (local $t4 i64) (local $t0 i32) (local $t1 i64) (local $t2 i32) (local $t3 i64) (local $t6 i32) (local $t7 i64) (local $value i64) (local $t8 i64) (local $t9 i32) (local $t10 i32) (local $t11 i32) (local $t12 i64)
+  (func $"impl Counter.next" (param $self i32) (result i32 i64) (local $t5 i32) (local $t4 i64) (local $t0 i32) (local $t1 i64) (local $t2 i32) (local $t3 i64) (local $t6 i32) (local $t7 i64) (local $value i64) (local $t8 i64) (local $t9 i32) (local $t10 i64) (local $t11 i32)
     ;; 13 |         if self.at >= self.end:
     block
       local.get $self
@@ -52,30 +52,24 @@
       i64.add
       local.set $t8
       local.get $self
-      local.tee $t9
+      local.set $t9
+      local.get $t8
+      local.set $t10
+      local.get $t9
       drop
       block (result i32)
         local.get $t9
       end
-      local.set $t10
-      i32.const 0
-      local.set $t9
-      local.get $t10
-      local.set $t11
-      local.get $t8
-      local.set $t12
-      local.get $t11
+      local.tee $t11
       drop
       block
         local.get $t11
         i64.load $heap
         drop
         local.get $t11
-        local.get $t12
+        local.get $t10
         i64.store $heap
       end
-      i32.const 0
-      local.set $t10
     ;; 17 |         .Some(value)
       i32.const 1
       local.get $value

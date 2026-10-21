@@ -1058,6 +1058,10 @@ pub(super) fn field_spans(b: &Body, fields: &[u32], roots: &HashSet<usize>) -> V
                 | Tag::Hook => false,
                 t if super::susp::is_point(t) => false,
                 Tag::LocalSet => !roots.contains(&(b.data[i][0] as usize)),
+                // A store into a whole local is a `LocalSet`; any other
+                // store, through a reference among them, may replace the
+                // field, as `RefWrite` does.
+                Tag::Store => local_store(b, i).is_some_and(|(l, _)| !roots.contains(&l)),
                 Tag::Intrinsic => matches!(
                     IntrinsicOp::from_u32(b.data[i][0]),
                     Some(IntrinsicOp::ValueCopy | IntrinsicOp::ListLen | IntrinsicOp::ListIndex)

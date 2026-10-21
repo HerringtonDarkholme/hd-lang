@@ -8,12 +8,12 @@
 //! "`&` and `&mut`"), which the backend lowers to the place's address
 //! (`crates/hd_wasm_linear/DESIGN.md` §23.20); a read through one is a
 //! `Read` of a place through it, `[*%r]` or with the struct fields it
-//! follows, `[*%r .x]`; a write and identity through one are `RefWrite`
-//! and `RefIdentity`. `&x` on a
+//! follows, `[*%r .x]`, a write a `Store` into such a place, and its
+//! identity `RefIdentity`. `&x` on a
 //! local is `Ref [$x]`, so the backend keeps `x` in a cell; `&e` on any
 //! other value binds it to a fresh local, which is the new object. A
-//! field write through a reference is a `Ref` of the field's place and a
-//! `RefWrite` through it (`value.rs`). The checker lowers `&T` and
+//! field write through a reference is one `Store [*%r .x] v`
+//! (`value.rs`). The checker lowers `&T` and
 //! `&mut T` to one type, `Ref[T]`, when it finishes a body
 //! (`Types::lower_refs`), so the layout pass recognizes the reference
 //! carrier and `&mut T` to `&T` costs nothing.
@@ -332,14 +332,29 @@ impl Ck<'_, '_> {
     }
 
     /// Replaces the value the reference `r` of type `rt` refers to with
-    /// `v` (`*r = v`): a `RefWrite`.
+    /// `v` (`*r = v`): `Store [*%r] v`.
     pub(crate) fn emit_ref_store(&mut self, r: Ref, rt: Ty, v: Ref, at: NodeIdx) {
         let Some((inner, _)) = self.ref_of(rt) else {
             return;
         };
         let v = self.retype(v, inner, at);
-        let rec = self.b.refs_record(&[r, v]);
-        self.b.emit(Tag::RefWrite, rec, NONE, Ty::VOID, at);
+        self.store_through(r, &[], v, at);
+    }
+
+    /// `Store [*%r .f ..] v`: replaces the value at the struct field path
+    /// `fields` in what the reference `r` refers to (all of it for no
+    /// path). A poisoned reference stores nothing.
+    fn store_through(&mut self, r: Ref, fields: &[u32], v: Ref, at: NodeIdx) {
+        if r.0 == NONE {
+            return;
+        }
+        let mut proj = vec![Proj::Deref];
+        proj.extend(fields.iter().map(|k| Proj::Field(*k)));
+        let word = self.b.place(&TirPlace {
+            root: PlaceRoot::Value(r),
+            proj,
+        });
+        self.b.emit(Tag::Store, word, v.0, Ty::VOID, at);
     }
 
     /// `v` with the type `to`, which differs from `v`'s at most in views
@@ -434,31 +449,15 @@ impl Ck<'_, '_> {
         Ok((r, rt))
     }
 
-    /// Writes a field path of an already evaluated reference. The RHS
-    /// is already evaluated too; the reference keeps the original place,
-    /// and only this field is replaced.
-    pub(crate) fn store_ref_field(
-        &mut self,
-        r: Ref,
-        rt: Ty,
-        path: Vec<(u32, Ty)>,
-        v: Ref,
-        n: NodeRef<'_>,
-    ) {
+    /// Writes a field path of an already evaluated reference `r`:
+    /// `Store [*%r .f ..] v`. The RHS is already evaluated too; only this
+    /// field is replaced.
+    pub(crate) fn store_ref_field(&mut self, r: Ref, path: &[(u32, Ty)], v: Ref, n: NodeRef<'_>) {
         let ty = path.last().expect("a field path").1;
         let inner = self.strip_mut(self.infer.resolve(self.pool(), ty));
-        let (local, depth) = self.hold(r, rt, n);
-        let place = Place {
-            root: Root::Deref(local, depth, rt),
-            path,
-            ty: inner,
-        };
-        let field_ref = self.pool().intern_ty(&TyData::Ref {
-            inner,
-            mutable: true,
-        });
-        let target = self.make_ref(&place, true, field_ref, n);
-        self.emit_ref_store(target, field_ref, v, n.index());
+        let v = self.retype(v, inner, n.index());
+        let fields: Vec<u32> = path.iter().map(|(k, _)| *k).collect();
+        self.store_through(r, &fields, v, n.index());
     }
 
     /// A new object holding `v` of type `t`, as `&e` or `&mut e` on a value
