@@ -1,8 +1,8 @@
-# json: encode 400k records to JSON text, decode it back, check the sums.
+# json: encode 6k records to JSON text, decode it back, check the sums.
 use std.json.{decode, encode}
 use std.serde.{Deserialize, Serialize}
 
-N := 400_000
+N := 6_000
 
 @derive(Serialize, Deserialize)
 struct Record:

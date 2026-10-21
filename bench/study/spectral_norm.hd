@@ -1,5 +1,5 @@
-# spectral-norm, n = 2500 (benchmarks game). Prints trunc(norm * 1e9).
-N := 2500
+# spectral-norm, n = 2000 (benchmarks game). Prints trunc(norm * 1e9).
+N := 2000
 
 fn a(i: usize, j: usize) -> f64:
     1.0 / f64((i + j) * (i + j + 1) / 2 + i + 1)

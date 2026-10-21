@@ -1,5 +1,5 @@
 """Fannkuch redux, n=10: permutation checksum and maximum flips."""
-N = 10
+N = 9
 
 
 def main():

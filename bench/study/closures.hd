@@ -1,5 +1,5 @@
-# closures: 1M items, 50 rounds of map/filter/fold.
-N := +1_000_000
+# closures: 170k items, 50 rounds of map/filter/fold.
+N := +170_000
 
 pub fn main() -> void $ Console:
     let mut items: List[i32] = []

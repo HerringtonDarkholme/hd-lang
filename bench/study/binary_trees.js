@@ -1,5 +1,5 @@
-// binary-trees, depth 20 (benchmarks game). Prints one line per depth.
-const MAX = 20;
+// binary-trees, depth 14 (benchmarks game). Prints one line per depth.
+const MAX = 14;
 const MIN = 4;
 function make(d) {
   return d === 0 ? { l: null, r: null } : { l: make(d - 1), r: make(d - 1) };

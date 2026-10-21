@@ -1,5 +1,5 @@
-// json: encode 400k records to JSON text, decode it back, check the sums.
-const N = 400_000;
+// json: encode 6k records to JSON text, decode it back, check the sums.
+const N = 6_000;
 const records = [];
 for (let i = 0; i < N; i++) {
   records.push({ id: i, name: `user${i}`, active: i % 3 === 0, score: (i * 37) % 1000, tags: [`t${i % 10}`, `g${i % 7}`] });

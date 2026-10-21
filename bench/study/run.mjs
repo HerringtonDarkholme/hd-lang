@@ -6,12 +6,19 @@
 // through host/run.mjs and on wasmtime as `hd FILE.wasm --engine wasmtime`
 // (Cranelift compile included, as `hd run` pays it), and checked against
 // its reference's output. JavaScript (Node) and Go references run the same
-// way; Python references use python3. Every time is process wall time,
-// the median of the measured runs;
+// way; Python references use python3, three runs without a warm-up. Every time is process wall time,
+// the median of the measured runs, in integer milliseconds;
 // peak RSS is the largest `/usr/bin/time -l` saw.
 //
 // Usage: node bench/study/run.mjs [--runs N] [--only a,b] [--engines node,wasmtime]
 //                                 [--hd PATH] [--work DIR] [--no-refs] [--python-only]
+//                                 [--backend B] [--quick]
+//
+// Each study program's input is tuned so hd on V8 takes about 300 ms
+// (https://matklad.github.io/2026/10/05/benchmark-milliseconds.html); times
+// are integer milliseconds, the median of 5 runs after a warm-up run.
+// `--quick` is hd on V8 only, no references, 3 runs. `--backend B` passes
+// `--backend B` to `hd build` (the Wasm GC era CLI has `--backend wasm-gc`).
 //        node bench/study/run.mjs --checked PATH [--only a,b] [--work DIR]
 //
 // `--checked PATH` names an `hd` whose disk build sets `Packages::checked`
@@ -47,19 +54,19 @@ const STUDY = [
 // measurements without launching another reference to obtain expected output.
 const EXPECTED = {
   spectral_norm: "1274224152\n",
-  fannkuch_redux: "73196 38\n",
-  mandelbrot: "1017200\n",
-  nbody: "-169075163 -169083133\n",
-  sieve: "1857859\n",
+  fannkuch_redux: "8629 30\n",
+  mandelbrot: "778803\n",
+  nbody: "-169075163 -169077795\n",
+  sieve: "1031130\n",
   binary_trees:
-    "stretch 21 4194303\n1048576 4 32505856\n262144 6 33292288\n65536 8 33488896\n16384 10 33538048\n4096 12 33550336\n1024 14 33553408\n256 16 33554176\n64 18 33554368\n16 20 33554416\nlong 20 2097151\n",
-  points: "500501985024\n",
-  closures: "809058\n",
-  map_count: "50021 79967240\n",
-  string_build: "37888890\n",
-  json: "31600447 200733334\n",
+    "stretch 15 65535\n16384 4 507904\n4096 6 520192\n1024 8 523264\n256 10 524032\n64 12 524224\n16 14 524272\nlong 14 32767\n",
+  points: "1548151455099\n",
+  closures: "39055\n",
+  map_count: "50021 8446724\n",
+  string_build: "18388890\n",
+  json: "451121 3011000\n",
   dyn_iter:
-    "dyn 66666653333334\nin-place 66666653333334\nloop 66666653333334\nrange 66666653333334\ndyn-short 653400000\nin-place-short 653400000\n",
+    "dyn 666665333334\nin-place 666665333334\nloop 666665333334\nrange 666665333334\ndyn-short 65340000\nin-place-short 65340000\n",
 };
 
 const PROGS = [
@@ -108,25 +115,25 @@ function cases() {
 
 // Reduced inputs for checked builds: [constant line, replacement].
 const SMALL = {
-  spectral_norm: [["N := 2500", "N := 250"]],
-  fannkuch_redux: [["N := 10", "N := 8"]],
-  mandelbrot: [["SIZE := 1600", "SIZE := 160"]],
-  nbody: [["STEPS := 5_000_000", "STEPS := 50_000"]],
-  sieve: [["N := 30_000_000", "N := 300_000"]],
-  binary_trees: [["MAX := +20", "MAX := +10"]],
-  points: [["N := 1_000_000", "N := 10_000"]],
-  closures: [["N := +1_000_000", "N := +10_000"]],
-  map_count: [["N := 2_000_000", "N := 20_000"]],
-  string_build: [["N := 3_000_000", "N := 30_000"]],
-  json: [["N := 400_000", "N := 4_000"]],
+  spectral_norm: [["N := 2000", "N := 250"]],
+  fannkuch_redux: [["N := 9", "N := 8"]],
+  mandelbrot: [["SIZE := 1400", "SIZE := 160"]],
+  nbody: [["STEPS := 1_150_000", "STEPS := 50_000"]],
+  sieve: [["N := 16_000_000", "N := 300_000"]],
+  binary_trees: [["MAX := +14", "MAX := +10"]],
+  points: [["N := 3_300_000", "N := 10_000"]],
+  closures: [["N := +170_000", "N := +10_000"]],
+  map_count: [["N := 650_000", "N := 20_000"]],
+  string_build: [["N := 1_500_000", "N := 30_000"]],
+  json: [["N := 6_000", "N := 4_000"]],
   dyn_iter: [
-    ["N := 10_000_000i64", "N := 100_000i64"],
-    ["CALLS := 100_000", "CALLS := 1_000"],
+    ["N := 1_000_000i64", "N := 100_000i64"],
+    ["CALLS := 10_000", "CALLS := 1_000"],
   ],
 };
 
 function parseArgs(argv) {
-  const opts = { runs: 3, engines: ["node", "wasmtime"], refs: true };
+  const opts = { runs: 5, engines: ["node", "wasmtime"], refs: true };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--runs") opts.runs = Number(argv[++i]);
@@ -136,9 +143,17 @@ function parseArgs(argv) {
     else if (a === "--work") opts.work = resolve(argv[++i]);
     else if (a === "--checked") opts.checked = resolve(argv[++i]);
     else if (a === "--no-refs") opts.refs = false;
+    else if (a === "--backend") opts.backend = argv[++i];
+    else if (a === "--quick") {
+      opts.quick = true;
+      opts.runs = 3;
+      opts.engines = ["node"];
+      opts.refs = false;
+    }
     else if (a === "--python-only") opts.pythonOnly = true;
     else throw new Error(`unknown flag ${a}`);
   }
+  if (opts.quick && argv.includes("--runs")) opts.runs = Number(argv[argv.indexOf("--runs") + 1]);
   opts.hd ??= join(REPO, "target", "release", "hd");
   opts.work ??= join(REPO, "target", "bench-study");
   return opts;
@@ -192,14 +207,14 @@ function measure(argv, runs, expect, warmup = true) {
 }
 
 /** Builds `source` as package NAME in WORK/pkgs; returns the release Wasm path. */
-function build(hd, work, name, source, engine, env = process.env) {
+function build(hd, work, name, source, engine, env = process.env, backend = undefined) {
   const flat = name.replaceAll("/", "-").replaceAll("_", "-");
   const dir = join(work, "pkgs", `${flat}-${engine}`);
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(join(dir, "src"), { recursive: true });
   writeFileSync(join(dir, "hd.toml"), `[package]\nname = "${flat}"\n`);
   writeFileSync(join(dir, "src", "main.hd"), source);
-  execFileSync(hd, ["build", "--release", "--engine", engine], {
+  execFileSync(hd, ["build", "--release", "--engine", engine, ...(backend ? ["--backend", backend] : [])], {
     cwd: dir,
     env: { ...env, HD_CACHE: join(work, "cache") },
     stdio: ["ignore", "ignore", "inherit"],
@@ -259,6 +274,7 @@ await import("file://" + runner);
 `;
 
 function main() {
+  const startedAt = performance.now();
   const opts = parseArgs(process.argv.slice(2));
   let list = cases();
   if (opts.only) list = list.filter((c) => opts.only.includes(c.name));
@@ -295,7 +311,15 @@ function main() {
         !opts.pythonOnly,
       );
     for (const engine of opts.pythonOnly ? [] : opts.engines) {
-      const wasm = build(opts.hd, opts.work, c.name, c.src ?? readFileSync(c.hd, "utf8"), engine);
+      const wasm = build(
+        opts.hd,
+        opts.work,
+        c.name,
+        c.src ?? readFileSync(c.hd, "utf8"),
+        engine,
+        process.env,
+        opts.backend,
+      );
       row[`${engine}Bytes`] = statSync(wasm).size;
       const argv =
         engine === "node" ? ["node", RUNNER, wasm] : [opts.hd, wasm, "--engine", "wasmtime"];
@@ -329,6 +353,7 @@ function main() {
             .filter((l) => /^\S+ \d+ms$/.test(l))
             .join("; ")}`,
         );
+  console.log(`\nTotal ${Math.round((performance.now() - startedAt) / 1000)} s.`);
   if (rows.some((r) => ["node", "wasmtime", "js", "go", "py"].some((k) => r[k]?.error)))
     process.exitCode = 1;
 }

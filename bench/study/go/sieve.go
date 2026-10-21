@@ -3,7 +3,7 @@ package main
 
 import "fmt"
 
-const n = 30_000_000
+const n = 16_000_000
 
 func main() {
 	flags := make([]bool, n)

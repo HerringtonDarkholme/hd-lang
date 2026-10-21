@@ -1,5 +1,5 @@
-"""Count points inside a 1600 by 1600 Mandelbrot grid after 50 iterations."""
-SIZE = 1600
+"""Count points inside a 1400 by 1400 Mandelbrot grid after 50 iterations."""
+SIZE = 1400
 ITER = 50
 
 

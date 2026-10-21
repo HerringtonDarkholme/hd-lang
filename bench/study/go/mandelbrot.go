@@ -1,9 +1,9 @@
-// mandelbrot: a 1600 x 1600 grid, 50 iterations. Prints the points inside.
+// mandelbrot: a 1400 x 1400 grid, 50 iterations. Prints the points inside.
 package main
 
 import "fmt"
 
-const size, iter = 1600, 50
+const size, iter = 1400, 50
 
 func main() {
 	inside := 0

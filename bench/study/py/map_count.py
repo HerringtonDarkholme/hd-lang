@@ -1,5 +1,5 @@
 """Build two million words, split the text, and count each word."""
-N = 2_000_000
+N = 650_000
 
 
 def main():

@@ -1,9 +1,9 @@
-// fannkuch-redux, n = 10 (benchmarks game). Prints checksum and max flips.
+// fannkuch-redux, n = 9 (benchmarks game). Prints checksum and max flips.
 package main
 
 import "fmt"
 
-const n = 10
+const n = 9
 
 func main() {
 	perm := make([]int, n)

@@ -1,5 +1,5 @@
-"""Allocate and traverse binary trees, maximum depth 20."""
-MAX = 20
+"""Allocate and traverse binary trees, maximum depth 14."""
+MAX = 14
 MIN = 4
 
 

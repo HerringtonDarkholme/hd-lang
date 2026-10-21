@@ -1,5 +1,5 @@
-# binary-trees, depth 20 (benchmarks game). Prints one line per depth.
-MAX := +20
+# binary-trees, depth 14 (benchmarks game). Prints one line per depth.
+MAX := +14
 MIN := +4
 
 struct Node:

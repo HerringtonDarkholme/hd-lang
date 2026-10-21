@@ -1,5 +1,5 @@
-"""One million items, fifty rounds of the same fused map/filter/fold as JS."""
-N = 1_000_000
+"""170,000 items, fifty rounds of the same fused map/filter/fold as JS."""
+N = 170_000
 
 
 def main():

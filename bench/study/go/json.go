@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-const n = 400_000
+const n = 6_000
 
 type record struct {
 	ID     int64    `json:"id"`

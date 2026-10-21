@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-const n = 2_000_000
+const n = 650_000
 
 func main() {
 	var b strings.Builder

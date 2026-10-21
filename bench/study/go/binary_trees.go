@@ -1,9 +1,9 @@
-// binary-trees, depth 20 (benchmarks game). Prints one line per depth.
+// binary-trees, depth 14 (benchmarks game). Prints one line per depth.
 package main
 
 import "fmt"
 
-const maxDepth, minDepth = 20, 4
+const maxDepth, minDepth = 14, 4
 
 type node struct{ left, right *node }
 

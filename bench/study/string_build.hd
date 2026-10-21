@@ -1,7 +1,7 @@
-# string-build: append 3M pieces to one string. Prints its length.
+# string-build: append 1.5M pieces to one string. Prints its length.
 use std.text.StringBuilder
 
-N := 3_000_000
+N := 1_500_000
 
 pub fn main() -> void $ Console:
     out := StringBuilder::new()

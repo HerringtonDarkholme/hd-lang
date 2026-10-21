@@ -1,8 +1,8 @@
-// nbody, 5M steps (benchmarks game). Prints trunc(energy * 1e9) before and after.
+// nbody, 1.15M steps (benchmarks game). Prints trunc(energy * 1e9) before and after.
 const PI = 3.141592653589793;
 const SOLAR_MASS = 4 * PI * PI;
 const DAYS = 365.24;
-const STEPS = 5_000_000;
+const STEPS = 1_150_000;
 const x = [0, 4.84143144246472090e00, 8.34336671824457987e00, 1.28943695621391310e01, 1.53796971148509165e01];
 const y = [0, -1.16032004402742839e00, 4.12479856412430479e00, -1.51111514016986312e01, -2.59193146099879641e01];
 const z = [0, -1.03622044471123109e-01, -4.03523417114321381e-01, -2.23307578892655734e-01, 1.79258772950371181e-01];

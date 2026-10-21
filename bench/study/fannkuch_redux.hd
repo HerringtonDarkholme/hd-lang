@@ -1,5 +1,5 @@
 # fannkuch-redux, n = 10 (benchmarks game). Prints checksum and max flips.
-N := 10
+N := 9
 
 pub fn main() -> void $ Console:
     n := N

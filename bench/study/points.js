@@ -1,5 +1,5 @@
-// points: 1M two-field records, 10 rounds, each round a new list.
-const N = 1_000_000;
+// points: 3.3M two-field records, 10 rounds, each round a new list.
+const N = 3_300_000;
 let points = [];
 for (let i = 0; i < N; i++) points.push({ x: i, y: (i * 7) % 1000 });
 for (let round = 0; round < 10; round++) {

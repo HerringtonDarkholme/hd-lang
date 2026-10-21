@@ -3,7 +3,7 @@ package main
 
 import "fmt"
 
-const n = 1_000_000
+const n = 3_300_000
 
 type point struct{ x, y int64 }
 

@@ -1,5 +1,5 @@
-// mandelbrot: a 1600 x 1600 grid, 50 iterations. Prints the points inside.
-const SIZE = 1600;
+// mandelbrot: a 1400 x 1400 grid, 50 iterations. Prints the points inside.
+const SIZE = 1400;
 const ITER = 50;
 let inside = 0;
 for (let y = 0; y < SIZE; y++) {

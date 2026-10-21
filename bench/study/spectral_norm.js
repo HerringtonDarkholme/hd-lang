@@ -1,5 +1,5 @@
-// spectral-norm, n = 2500 (benchmarks game). Prints trunc(norm * 1e9).
-const N = 2500;
+// spectral-norm, n = 2000 (benchmarks game). Prints trunc(norm * 1e9).
+const N = 2000;
 const a = (i, j) => 1 / (((i + j) * (i + j + 1)) / 2 + i + 1);
 function mulAv(n, v, out) {
   for (let i = 0; i < n; i++) {

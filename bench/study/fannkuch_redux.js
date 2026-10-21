@@ -1,5 +1,5 @@
 // fannkuch-redux, n = 10 (benchmarks game). Prints checksum and max flips.
-const N = 10;
+const N = 9;
 const perm = new Int32Array(N);
 const perm1 = new Int32Array(N);
 const count = new Int32Array(N);

@@ -1,5 +1,5 @@
-# nbody, 5M steps (benchmarks game). Prints trunc(energy * 1e9) before and after.
-STEPS := 5_000_000
+# nbody, 1.15M steps (benchmarks game). Prints trunc(energy * 1e9) before and after.
+STEPS := 1_150_000
 PI := 3.141592653589793
 DAYS := 365.24
 

@@ -6,8 +6,8 @@ preserve where the chain is built. Each variant reports its best of three.
 from sys import stderr
 from time import perf_counter
 
-N = 10_000_000
-CALLS = 100_000
+N = 1_000_000
+CALLS = 10_000
 SHORT = 100
 
 

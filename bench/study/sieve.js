@@ -1,5 +1,5 @@
-// sieve of Eratosthenes below 30M. Prints the prime count.
-const N = 30_000_000;
+// sieve of Eratosthenes below 16M. Prints the prime count.
+const N = 16_000_000;
 const flags = new Uint8Array(N).fill(1);
 flags[0] = 0;
 flags[1] = 0;

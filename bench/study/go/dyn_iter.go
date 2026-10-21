@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-const n, calls, short = 10_000_000, 100_000, 100
+const n, calls, short = 1_000_000, 10_000, 100
 
 type Iterator interface{ Next() (int64, bool) }
 

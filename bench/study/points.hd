@@ -1,5 +1,5 @@
-# points: 1M two-field records, 10 rounds, each round a new list.
-N := 1_000_000
+# points: 3.3M two-field records, 10 rounds, each round a new list.
+N := 3_300_000
 
 struct Point:
     x: i64
