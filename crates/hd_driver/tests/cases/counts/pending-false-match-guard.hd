@@ -1,4 +1,4 @@
-# @dump: counts
+# @dump: counts mir
 # expected: every guarded binding is released after its last executed use
 
 enum Message:

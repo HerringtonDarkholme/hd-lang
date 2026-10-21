@@ -1,4 +1,4 @@
-# @dump: counts
+# @dump: counts mir
 # @build: v8 release
 # The first read of `b` keeps its count: the second read is the local's
 # last access, so it moves the count into `Holder`, which `consume` frees

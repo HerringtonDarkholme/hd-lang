@@ -1,4 +1,4 @@
-# @dump: counts
+# @dump: counts mir
 # @build: v8 release
 # Passing a reference the caller holds to a `&` parameter lends it for
 # the call (#676; binary_trees: check(left)).

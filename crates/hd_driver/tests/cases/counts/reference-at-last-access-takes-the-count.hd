@@ -1,4 +1,4 @@
-# @dump: counts
+# @dump: counts mir
 # @build: v8 release
 # `&mut tally` is the local's last access, so the reference takes the
 # cell's count: no retain for it and no release of the cell after it.

@@ -1,4 +1,4 @@
-# @dump: tir
+# @dump: tir mir
 # Current RC TIR patterns for the IR design study (#667, #668).
 # Snapshots record today's output; each expected note names the desired IR shape.
 use std.iter.ListIter

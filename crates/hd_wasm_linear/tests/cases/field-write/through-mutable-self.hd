@@ -1,4 +1,4 @@
-# @dump: wat
+# @dump: wat mir
 # @build: v8 release
 # expected: one `i64.store` of `value + 1` at `self`'s `at` field; no loads
 # of the other fields, no reload of `at`, and no store of `end`

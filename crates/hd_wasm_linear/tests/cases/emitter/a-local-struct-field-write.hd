@@ -1,4 +1,4 @@
-# @dump: wat
+# @dump: wat mir
 # Emitter: the Wasm instructions that come from a subject (`wat`).
 struct Body:
     x: f64

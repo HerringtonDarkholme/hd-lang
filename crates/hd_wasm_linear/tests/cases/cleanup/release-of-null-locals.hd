@@ -1,4 +1,4 @@
-# @dump: wat
+# @dump: wat mir
 # @build: v8 release
 # expected: no `rt:release_ref` of a local before its first write, and no
 # exit release of a local that every path has already moved or released

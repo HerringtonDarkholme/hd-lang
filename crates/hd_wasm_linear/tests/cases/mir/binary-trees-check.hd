@@ -1,0 +1,15 @@
+# @dump: mir
+# binary_trees' `check` in the IR study's memory IR (#667): the field read
+# through `&Node` keeps its count, since the recursive call in the arm
+# could replace `node.left` (#703 needs a whole-program fact).
+struct Node:
+    left: (&Node)?
+    right: (&Node)?
+
+fn check(node: &Node) -> i64:
+    match node.left:
+        .None => 1
+        .Some(left) =>
+            match node.right:
+                .None => 1 + check(left)
+                .Some(right) => 1 + check(left) + check(right)

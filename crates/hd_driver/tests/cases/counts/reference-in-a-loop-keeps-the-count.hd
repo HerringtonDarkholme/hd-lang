@@ -1,4 +1,4 @@
-# @dump: counts
+# @dump: counts mir
 # @build: v8 release
 # `tally` is declared outside the loop, so each iteration's `&mut tally`
 # reaches the same cell: the reference takes a count of its own, and the

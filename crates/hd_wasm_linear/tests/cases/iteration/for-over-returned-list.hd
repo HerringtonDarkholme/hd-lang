@@ -1,4 +1,4 @@
-# @dump: wat
+# @dump: wat mir
 # @build: v8 release
 # expected: the loop reads the list `split` returned; no `rt:list_copy` of
 # it, since nothing else holds that list (map_count: 650k words copied).

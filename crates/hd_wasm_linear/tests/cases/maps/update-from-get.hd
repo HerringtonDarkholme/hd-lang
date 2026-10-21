@@ -1,4 +1,4 @@
-# @dump: wat
+# @dump: wat mir
 # @build: v8 release
 # expected: `word` hashed once (one `rt:map_hash`) for the read and the write
 # of the same key (map_count: two hashes and two probes per word).

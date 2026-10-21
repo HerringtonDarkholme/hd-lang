@@ -1,4 +1,4 @@
-# @dump: counts
+# @dump: counts mir
 # @build: v8 release
 # The read of `cur` keeps its count: the `if` in the index replaces `cur`
 # before the index reads the list the first read returned.

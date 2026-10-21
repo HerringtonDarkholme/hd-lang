@@ -1,4 +1,4 @@
-# @dump: counts
+# @dump: counts mir
 # @build: v8 release
 # `read` shares `tally`'s cell, so `&mut tally` takes a count of its own
 # even at the local's last access.

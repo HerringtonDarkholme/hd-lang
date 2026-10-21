@@ -1,4 +1,4 @@
-# @dump: counts
+# @dump: counts mir
 # Only surviving count/free operations inside the subject; source type labels.
 struct Text:
     value: string

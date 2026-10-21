@@ -7,6 +7,7 @@
 mod counts;
 mod inspection;
 mod layout;
+mod mir;
 mod wat;
 pub use wat::{wat, wat_for};
 
@@ -101,7 +102,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
                     for view in value.split_whitespace() {
                         if !matches!(
                             view,
-                            "tokens" | "tree" | "tir" | "wat" | "counts" | "layout"
+                            "tokens" | "tree" | "tir" | "wat" | "counts" | "layout" | "mir"
                         ) {
                             return Err(format!("unknown dump `{view}`"));
                         }
@@ -436,6 +437,7 @@ pub fn view(name: &str, build: Build, p: &Program) -> Option<String> {
     Some(match name {
         "layout" => layout::view(p, build),
         "counts" => counts::view(p, build),
+        "mir" => mir::view(p, build),
         "tokens" => tokens(p),
         "tree" => tree(p),
         "tir" => tir(p),

@@ -1,4 +1,4 @@
-# @dump: wat
+# @dump: wat mir
 # @build: v8 release
 # expected: one `rt:list_unique` before the loop, none per write, since
 # nothing in the loop can share the local list's buffer (#653; fannkuch_redux

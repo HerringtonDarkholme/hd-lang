@@ -1,4 +1,4 @@
-# @dump: counts
+# @dump: counts mir
 # @build: v8 release
 # Reading an element of a local list borrows the list for the read
 # (#676; fannkuch_redux's perm[i]).

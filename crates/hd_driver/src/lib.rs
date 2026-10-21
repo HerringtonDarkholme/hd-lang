@@ -45,6 +45,7 @@ use hd_types::solver::{
     UniverseImpls, folder_table,
 };
 use hd_types::{InternPool, Ty, TyData, TyList};
+pub use hd_wasm_linear::mir;
 pub use hd_wasm_linear::views::{
     CountAction, CountOperation, CountedLeaf, FieldLayout, TypeLayout,
 };
@@ -466,6 +467,9 @@ pub struct Output {
     pub fixture_notes: Vec<String>,
     /// Actual backend layouts of a development fixture's concrete struct declarations.
     pub fixture_layouts: Vec<FixtureLayout>,
+    /// With [`Packages::mir`], the prototype memory IR of a development
+    /// fixture's own instances (`docs/compiler/memory-ir.md`).
+    pub fixture_mir: Vec<hd_wasm_linear::mir::Func>,
     /// A test run's selected cases, in content order.
     pub tests: Vec<TestCase>,
     /// Items in the run's global `InternPool` at the end (a size counter).
@@ -1185,6 +1189,8 @@ struct Run<'a> {
     collect: OnceLock<CollectOut>,
     fixture_notes: OnceLock<Vec<String>>,
     fixture_layouts: OnceLock<Vec<FixtureLayout>>,
+    fixture_mir: OnceLock<Vec<hd_wasm_linear::mir::Func>>,
+    mir: bool,
     wasm: OnceLock<Vec<u8>>,
     map_instructions: bool,
     instruction_origins: OnceLock<Vec<FunctionOrigins>>,
@@ -1258,6 +1264,10 @@ pub struct Packages<'a> {
     /// Development tooling: emit instruction origins without changing module bytes.
     /// Mapped builds bypass the linked-byte cache; checked bodies may still be cached.
     pub instruction_origins: bool,
+    /// Development tooling, for a `Goal::Fixture` only: also lower the
+    /// fixture's own instances to the prototype memory IR
+    /// ([`Output::fixture_mir`]). The module bytes do not change.
+    pub mir: bool,
     /// The root's requirements: each dependency name, as source writes it
     /// after `dep.`, and its package index: 0 is the root, `i + 1` is
     /// `deps[i]`.
@@ -1568,6 +1578,8 @@ pub fn build_packages(
         collect: OnceLock::new(),
         fixture_notes: OnceLock::new(),
         fixture_layouts: OnceLock::new(),
+        fixture_mir: OnceLock::new(),
+        mir: packages.mir,
         wasm: OnceLock::new(),
         map_instructions: packages.instruction_origins,
         instruction_origins: OnceLock::new(),
@@ -1749,6 +1761,7 @@ pub fn build_packages(
         tir_text: std::mem::take(&mut *lock(&run.tir_text)),
         fixture_notes: run.fixture_notes.get().cloned().unwrap_or_default(),
         fixture_layouts: run.fixture_layouts.get().cloned().unwrap_or_default(),
+        fixture_mir: run.fixture_mir.get().cloned().unwrap_or_default(),
         pool_items: run.pool.len(),
         memo: run.memo.stats(),
         session_added,
@@ -8369,6 +8382,11 @@ impl Run<'_> {
             inline_counts: self.inline_counts,
             host_refs: &c.host_refs,
         };
+        if self.mir && matches!(self.goal, Goal::Fixture { .. }) {
+            let _ = self
+                .fixture_mir
+                .set(hd_wasm_linear::views::mir(&input, "app/"));
+        }
         let built = if self.map_instructions {
             hd_wasm_linear::build_with_origins(&input).map(|mapped| {
                 let _ = self.instruction_origins.set(mapped.functions);

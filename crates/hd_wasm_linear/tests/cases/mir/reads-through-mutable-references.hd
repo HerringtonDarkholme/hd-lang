@@ -1,0 +1,13 @@
+# @dump: mir
+# The IR study's memory IR (#667) for the two known-bad TIR reads through
+# `&mut`, at a concrete type: a load from the reference's address, with no
+# getter and no count.
+struct Body:
+    x: f64
+    vx: f64
+
+fn length(items: &mut List[i32]) -> usize:
+    items.len()
+
+fn read(value: &mut Body) -> Body:
+    *value

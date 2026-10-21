@@ -1,0 +1,11 @@
+# @dump: mir
+# An element reference used only by a load: the pin's retain and release
+# remain, behind the `defer` flag the checker registers; the reference
+# itself takes no count.
+struct Body:
+    x: f64
+    vx: f64
+
+fn speed(items: &mut List[Body], index: usize) -> f64:
+    element := &items[index]
+    element.vx

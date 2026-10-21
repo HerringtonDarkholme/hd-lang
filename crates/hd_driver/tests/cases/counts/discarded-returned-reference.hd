@@ -1,4 +1,4 @@
-# @dump: counts
+# @dump: counts mir
 # @build: v8 release
 # expected: no count operations; a chaining method's `&mut` result that
 # the caller drops needs no retain in the callee and no release in the caller

@@ -1,4 +1,4 @@
-# @dump: wat counts
+# @dump: wat counts mir
 # @build: v8 release
 # expected: no loads, retains or releases for a discarded physical read.
 

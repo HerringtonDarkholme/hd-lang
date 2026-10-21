@@ -1,4 +1,4 @@
-# @dump: wat
+# @dump: wat mir
 # @build: v8 release
 # expected: one `i32.lt_u; i32.eqz; br_if` exit test and one increment per
 # iteration; no `if (result i32)` around the test, no empty `block`, and no

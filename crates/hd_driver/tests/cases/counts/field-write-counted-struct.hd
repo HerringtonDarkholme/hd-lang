@@ -1,4 +1,4 @@
-# @dump: counts
+# @dump: counts mir
 # @build: v8 release
 # expected: no count operations; writing a scalar field through `&mut self`
 # stores that field and leaves the counted field alone (ListIter.next in

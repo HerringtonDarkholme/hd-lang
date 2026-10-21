@@ -1,4 +1,4 @@
-# @dump: counts
+# @dump: counts mir
 # @build: v8 release
 # `tally.n` reads the local after `&mut tally`, so the reference is not
 # its last access: the reference takes a count of its own, and the cell

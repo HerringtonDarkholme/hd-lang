@@ -1,4 +1,4 @@
-# @dump: wat
+# @dump: wat mir
 # @build: v8 release
 # expected: the buffer address and length load once before the loop;
 # each element read uses those locals for its bounds check and f64.load.

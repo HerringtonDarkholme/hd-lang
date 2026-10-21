@@ -1,4 +1,4 @@
-# @dump: wat
+# @dump: wat mir
 # @build: v8 release
 # expected: the element loads at a constant offset from the buffer
 # (`i32.load offset=8`); no `i32.const 0; i32.const 4; i32.mul; i32.add`

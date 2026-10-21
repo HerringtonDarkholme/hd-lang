@@ -1,4 +1,4 @@
-# @dump: counts
+# @dump: counts mir
 # @build: v8 release
 # expected: no count operations; matching a field read through `&` and
 # binding its payload borrows both (binary_trees: two retains and two

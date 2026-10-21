@@ -1,4 +1,4 @@
-# @dump: wat
+# @dump: wat mir
 # @build: v8 release
 # expected: an unescaped local list can keep its buffer and length across a scalar call.
 fn value(i: usize) -> usize: i + 10

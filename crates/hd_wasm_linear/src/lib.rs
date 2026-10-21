@@ -15,6 +15,7 @@ mod cycle;
 mod emit;
 mod layout;
 mod map;
+pub mod mir;
 mod module;
 mod opt;
 mod origins;

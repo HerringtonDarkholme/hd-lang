@@ -1,4 +1,4 @@
-# @dump: wat
+# @dump: wat mir
 # @build: v8 release
 # expected: `cursor` lives in locals (or the stack frame); no `rt:new` box,
 # and no retain or release around each `next` call (Iterator.fold and

@@ -255,6 +255,22 @@ pub(crate) fn count_subject(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> 
     }
 }
 
+/// The `mir` development view (`docs/compiler/memory-ir.md`): the
+/// prototype memory IR of each instance of an item whose path starts with
+/// `prefix`, lowered from its closure-stripped TIR with its ownership
+/// passes run and verified. Not on any build path.
+#[must_use]
+pub fn mir(input: &crate::Input<'_>, prefix: &str) -> Vec<crate::mir::Func> {
+    layout::cached(|| {
+        input
+            .order
+            .iter()
+            .filter(|id| (input.path)(input.collected.table.item[id.idx()]).starts_with(prefix))
+            .map(|id| crate::mir::lower::function(input, *id))
+            .collect()
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::CountAction;

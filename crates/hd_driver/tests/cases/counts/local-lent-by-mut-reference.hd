@@ -1,4 +1,4 @@
-# @dump: counts
+# @dump: counts mir
 # @build: v8 release
 # The read of `xs` keeps its count: `&mut xs` lets `pick` reach the local,
 # and `pick` replaces it before the index reads the first value.

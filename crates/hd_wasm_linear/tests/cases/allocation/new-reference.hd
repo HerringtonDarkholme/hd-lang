@@ -1,4 +1,4 @@
-# @dump: wat
+# @dump: wat mir
 # @build: v8 release
 # expected: `rt:new` and the four field stores, then the pointer as the
 # result; no cell local holding the new pointer, and no retain or release

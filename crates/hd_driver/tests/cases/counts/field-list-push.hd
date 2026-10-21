@@ -1,4 +1,4 @@
-# @dump: counts
+# @dump: counts mir
 # @build: v8 release
 # Pushing to a list field through `&mut self` borrows the field's list
 # (#676; StringBuilder.push in map_count and string_build). The two string

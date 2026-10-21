@@ -1,4 +1,4 @@
-# @dump: wat counts
+# @dump: wat counts mir
 # @build: v8 release
 # expected: update and count only pending; do not copy or count parts.
 # JSON: TextWriter.name_next writes one field through a reference.
