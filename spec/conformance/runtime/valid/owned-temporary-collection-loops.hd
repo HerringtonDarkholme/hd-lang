@@ -1,0 +1,104 @@
+# test: loops own fresh collection sources and preserve snapshots of reachable places
+# Spec 06 For Loops: flow.for.snapshot.
+# expect: test
+
+fn numbers() -> List[i32]: [+1, +2, +3]
+
+fn words() -> List[string]: ["first", "second"]
+
+fn returned(values: List[i32]) -> List[i32]: values
+
+fn shared(values: &mut List[i32]) -> &mut List[i32]: values
+
+fn referenced(values: &mut List[i32]) -> i32:
+    let total = +0
+    for value in values:
+        values[1] = 99
+        total = total + value
+    total
+
+struct Holder:
+    values: List[i32]
+
+fn first_word() -> string:
+    for word in words():
+        return word
+    "missing"
+
+fn nested_words() -> List[string]:
+    let mut out: List[string] = []
+    for left in ["a", "b"]:
+        for right in ["x", "y"]:
+            out.push(left + right)
+    out
+
+fn table() -> Map[string, i32]: {"a": +1, "b": +2}
+
+tests:
+    use std.testing.assert_equal
+
+    it("calls and literals supply the loop's own value"):
+        let sum = +0
+        for value in numbers():
+            sum = sum + value
+        for value in [+4, +5]:
+            sum = sum + value
+        assert_equal(sum, +15, reason="owned call and literal sources")
+        let length = 0
+        for word in words():
+            length = length + word.len()
+        assert_equal(length, 11, reason="counted items survive their reads")
+
+    it("a returned copy stays independent of the caller's named list"):
+        let mut source = numbers()
+        let sum = +0
+        for value in returned(source):
+            source[1] = 99
+            sum = sum + value
+        assert_equal(sum, +6, reason="the returned value is independent")
+        assert_equal(source[1], +99, reason="the original changes")
+
+    it("named values and fields still iterate snapshots"):
+        let mut source = numbers()
+        let sum = +0
+        for value in source:
+            source[1] = 99
+            sum = sum + value
+        assert_equal(sum, +6, reason="a named source needs a snapshot")
+        let mut holder = Holder { values: numbers() }
+        let fields = +0
+        for value in holder.values:
+            holder.values[1] = 99
+            fields = fields + value
+        assert_equal(fields, +6, reason="a field source needs a snapshot")
+
+    it("reference sources stay snapshots even when a call returns the reference"):
+        let mut source = numbers()
+        assert_equal(referenced(&mut source), +6, reason="named reference source")
+        source = numbers()
+        let sum = +0
+        for value in shared(&mut source):
+            source[1] = 99
+            sum = sum + value
+        assert_equal(sum, +6, reason="a reference-returning call is not an owned list")
+
+    it("owned sources survive nested loops, breaks and early returns"):
+        assert_equal(first_word(), "first", reason="early return keeps its counted result")
+        assert_equal(nested_words(), ["ax", "ay", "bx", "by"], reason="nested owner lifetimes")
+        let seen = 0
+        for word in words():
+            seen = seen + word.len()
+            break
+        assert_equal(seen, 5, reason="a break finishes the owner")
+
+    it("map temporaries obey the same ownership rule and named maps keep snapshots"):
+        let total = +0
+        for (_, value) in table():
+            total = total + value
+        assert_equal(total, +3, reason="returned map owner")
+        let mut source = table()
+        let original = +0
+        for (key, value) in source:
+            source[key] = +99
+            original = original + value
+        assert_equal(original, +3, reason="named map snapshot")

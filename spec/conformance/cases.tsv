@@ -3683,3 +3683,4 @@ runtime/valid/wide-value-suspension.hd	runtime	accept	std/time.md#r-std-time.hel
 runtime/valid/integer-remainder-native-widths.hd	runtime	accept	lang/04-type-system.md#integer-arithmetic
 runtime/panic/i32-remainder-by-zero.hd	runtime	panic:integer-division-by-zero	lang/04-type-system.md#integer-arithmetic
 runtime/panic/i64-remainder-by-zero.hd	runtime	panic:integer-division-by-zero	lang/04-type-system.md#integer-arithmetic
+runtime/valid/owned-temporary-collection-loops.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot
