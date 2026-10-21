@@ -1,5 +1,5 @@
 std/text/simple_escape (Fn)
-  local $0 escaped: u8 flags=33
+  local $0 escaped: u8 [param read]
   %0 = LocalGet $0 : u8
   %1 = NewVariant #1 ["\\"] : string?
   %2 = Block %1 : string?

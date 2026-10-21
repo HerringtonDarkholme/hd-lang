@@ -1,6 +1,6 @@
 std/iter/Iterator.take (Fn)
-  local $0 self: Self flags=33
-  local $1 count: usize flags=33
+  local $0 self: Self [param read]
+  local $1 count: usize [param read]
   %0 = LocalGet $0 : Self
   %1 = LocalGet $1 : usize
   %2 = NewData [%0 %1] : Take[Self, T]

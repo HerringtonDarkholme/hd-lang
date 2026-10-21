@@ -103,6 +103,30 @@ fn type_of(b: &Body, w: u32) -> Option<Ty> {
     }
 }
 
+/// A local's flags by name, as ` [param read]`; empty when none is set.
+fn local_flag_names(flags: u8) -> String {
+    use hd_tir::ir::local_flags as f;
+    let names: Vec<&str> = [
+        (f::PARAM, "param"),
+        (f::SHORT, ":="),
+        (f::READ, "read"),
+        (f::ASSIGNED, "assigned"),
+        (f::MUTATED, "mutated"),
+        (f::CAPTURED, "captured"),
+        (f::CAPTURED_ASSIGNED, "captured-assigned"),
+        (f::NOT_YET, "not-yet"),
+    ]
+    .into_iter()
+    .filter(|(bit, _)| flags & bit != 0)
+    .map(|(_, name)| name)
+    .collect();
+    if names.is_empty() {
+        String::new()
+    } else {
+        format!(" [{}]", names.join(" "))
+    }
+}
+
 /// One line per local, sub-body and instruction, then the ownership
 /// columns when the body has them. `fields` names the fields of a type.
 #[must_use]
@@ -112,10 +136,10 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
     for i in 0..b.local_ty.len() {
         let _ = writeln!(
             o,
-            "  local ${i} {}: {} flags={}",
+            "  local ${i} {}: {}{}",
             names.text(b.local_name[i]),
             ty(names, b.local_ty[i]),
-            b.local_flags[i]
+            local_flag_names(b.local_flags[i])
         );
     }
     for s in 1..b.sub_root.len() {

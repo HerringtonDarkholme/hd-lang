@@ -1,7 +1,7 @@
 std/console/println (Fn)
-  local $0 value: T flags=33
-  local $1 console: Ref[mut Console] flags=3
-  local $2 call: mut Suspend[Result[(), ConsoleError]] flags=3
+  local $0 value: T [param read]
+  local $1 console: Ref[mut Console] [read assigned]
+  local $2 call: mut Suspend[Result[(), ConsoleError]] [read assigned]
   %0 = ProviderGet #0 : Console
   %1 = Coerce %0 [ProviderAsRef -] : Ref[mut Console]
   %2 = LocalSet $1 %1 : ()

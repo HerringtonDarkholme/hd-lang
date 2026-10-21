@@ -78,8 +78,7 @@ fn place(bodies: &mut List[Body], i: usize, x: f64) -> void:
 | --- | --- |
 | `tokens` | each token's kind and text |
 | `tree` | the largest syntax nodes inside the subject |
-| `tir` | the subject's TIR instructions, locals by name and type, fields by name |
-| `tir-flags` | the same TIR with each local's flags |
+| `tir` | the subject's TIR instructions, locals by name, type and flags (`[param read]`), fields by name |
 | `wat` | the Wasm instructions that came from the subject: calls by name (`rt:retain_known`, `identity[i32]`, `println`), locals by source name or field path (`bodies`, `b.vx`), temporaries `t0`, `t1`... |
 | `counts` | only the retains, releases and frees inside the subject, with what they count |
 | `layout` | a type's fields, offsets, sizes, counted parts and cycle-capable bit |

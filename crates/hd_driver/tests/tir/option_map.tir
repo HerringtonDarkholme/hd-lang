@@ -1,7 +1,7 @@
 std/option/impl [ T ] T ?.map (Fn)
-  local $0 self: T? flags=33
-  local $1 transform: fn(T) -> U flags=33
-  local $2 value: T flags=3
+  local $0 self: T? [param read]
+  local $1 transform: fn(T) -> U [param read]
+  local $2 value: T [read assigned]
   %0 = LocalGet $0 : T?
   %1 = LocalGet $1 : fn(T) -> U
   %2 = LocalGet $2 : T

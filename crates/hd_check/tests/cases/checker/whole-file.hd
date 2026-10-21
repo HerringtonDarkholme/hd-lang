@@ -1,4 +1,4 @@
-# @dump: tir tir-flags
+# @dump: tir
 
 fn first() -> i32: +1
 

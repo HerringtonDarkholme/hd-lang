@@ -133,7 +133,7 @@ fn duplicate(text: string) -> (string, string):
     (text, text)
 ```
 
-`@dump` lists one or more of `tokens`, `tree`, `tir`, `tir-flags`, `wat`,
+`@dump` lists one or more of `tokens`, `tree`, `tir`, `wat`,
 `counts`, or `layout`. `@build` is optional: engine targets are `v8`
 (the default), `wasmtime`, and `browser`; levels are `dev` (the default)
 and `release` (the optimized pipeline and release profile). A separate
@@ -171,7 +171,7 @@ The views keep their stage's evidence:
 - `tree`: outlines of syntax nodes, omitting wrappers that only repeat
   a child's span.
 - `tir`: checked instructions and the locals they use, by body, filtered
-  with `Positions::span`. `tir-flags` also prints local flags.
+  with `Positions::span`; each local shows its flags (`[param read]`).
 - `wat`: normalized Wasm for the functions a case defines, emitted with
   `Goal::Fixture` without requiring `main`. Generic functions need a
   concrete call. Per-instruction origins preserve source attribution.

@@ -99,7 +99,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
                     for view in value.split_whitespace() {
                         if !matches!(
                             view,
-                            "tokens" | "tree" | "tir" | "tir-flags" | "wat" | "counts" | "layout"
+                            "tokens" | "tree" | "tir" | "wat" | "counts" | "layout"
                         ) {
                             return Err(format!("unknown dump `{view}`"));
                         }
@@ -366,12 +366,6 @@ pub fn tree(p: &Program) -> String {
 /// subject, after the body's path; then the build's diagnostics.
 #[must_use]
 pub fn tir(p: &Program) -> String {
-    tir_with(p, false)
-}
-
-/// [`tir`], with each local's flags when `flags` (the `tir-flags` view).
-#[must_use]
-pub fn tir_with(p: &Program, flags: bool) -> String {
     let src = p.sources();
     let store = hd_cache::MemoryStore::default();
     let host = Host {
@@ -416,10 +410,6 @@ pub fn tir_with(p: &Program, flags: bool) -> String {
                     .iter()
                     .any(|(_, l)| l.split([' ', ']', '[']).any(|w| w == id))
                 {
-                    let local = match local.rsplit_once(" flags=") {
-                        Some((decl, _)) if !flags => decl,
-                        _ => local,
-                    };
                     let _ = writeln!(out, "  local {local}");
                 }
             }
@@ -452,7 +442,6 @@ pub fn view(view: &str, p: &Program) -> Option<String> {
         "tokens" => tokens(p),
         "tree" => tree(p),
         "tir" => tir(p),
-        "tir-flags" => tir_with(p, true),
         "wat" => wat_for(p, build),
         _ => return None,
     })
