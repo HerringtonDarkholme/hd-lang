@@ -241,7 +241,7 @@ with its issue; no slice is done while it adds one for its own feature.
   capability trait whose only method is the compiler-only `call`, entered
   in `hd_host_abi::TABLE` and regenerated into `host/gen/abi.json`,
   `host/gen/abi.mjs` and `hd_run_wasmtime/src/abi.rs` with
-  `HD_UPDATE_ABI=1`. The chapter file with its status note, a row in the
+  `HD_BLESS=1`. The chapter file with its status note, a row in the
   spec README's chapter table, and `spec/std/remote.md` with the items'
   rows in `stdlib-items.tsv`.
 - **Spec.** `spec/std/remote.md` (items); chapter 15's introduction,

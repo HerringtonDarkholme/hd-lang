@@ -132,7 +132,7 @@ those types reach, read from `lib/std`'s declarations. From it:
 
 The test `crates/hd_host_abi/tests/abi_model.rs` generates all three and
 fails when the tables or std change and the checked-in files do not;
-`HD_UPDATE_ABI=1` rewrites them. No build step generates them: the
+`HD_BLESS=1` rewrites them. No build step generates them: the
 generator is a test. Grant checks and providers stay written by hand on both
 hosts, since each trait refuses in its own way (§17.7).
 

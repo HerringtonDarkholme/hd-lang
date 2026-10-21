@@ -41,17 +41,11 @@ impl Program {
     /// An invalid or empty subject marker.
     pub fn new(text: &str) -> Result<Self, String> {
         let span = subject(text)?;
-        let marked = text.lines().any(|l| {
-            let t = l.trim();
-            t == "# subject"
-                || t.strip_prefix('#')
-                    .is_some_and(|r| !r.trim().is_empty() && r.trim().chars().all(|c| c == '^'))
-        });
         Ok(Self {
             text: text.to_owned(),
-            subject: span,
+            subject: span.unwrap_or((0, text.len())),
             files: Vec::new(),
-            marked,
+            marked: span.is_some(),
         })
     }
 
@@ -75,25 +69,33 @@ impl Program {
     }
 }
 
-/// Parses header directives. `@file` begins a virtual module; subsequent
-/// lines belong to it until the next `@file`. Main defaults to `main.hd`.
+/// Parses directives. `@dump` and `@build` belong in the header comments
+/// before the first line of code. `@file` begins a virtual module;
+/// subsequent lines belong to it until the next `@file`. Main defaults to
+/// `main.hd`.
 ///
 /// # Errors
-/// Unknown directives/builds/views, duplicate modules, unsafe module paths,
-/// or missing dump directives.
+/// Unknown directives/builds/views, `@dump` or `@build` after code,
+/// duplicate modules, unsafe module paths, or missing dump directives.
 pub fn parse(text: &str) -> Result<Case, String> {
     let mut dumps = Vec::new();
     let mut build = Build::default();
     let mut modules = BTreeMap::<String, String>::new();
     let mut current = "main.hd".to_owned();
     let mut declared = Vec::new();
+    let mut header = true;
     for line in text.split_inclusive('\n') {
+        let code = !line.trim().is_empty() && !line.trim_start().starts_with('#');
+        header &= !code;
         if let Some(directive) = line.trim_start().strip_prefix("# @") {
             let (name, value) = directive
                 .trim()
                 .split_once(':')
                 .ok_or("a directive needs `:`")?;
             let value = value.trim();
+            if !header && matches!(name, "dump" | "build") {
+                return Err(format!("`@{name}` after the header comments"));
+            }
             match name {
                 "dump" => {
                     for view in value.split_whitespace() {
@@ -227,8 +229,8 @@ impl std::fmt::Write for Dump<'_> {
     }
 }
 
-/// The subject's byte span in a case's code.
-fn subject(code: &str) -> Result<(usize, usize), String> {
+/// The subject's byte span in a case's code, `None` when it has no marker.
+fn subject(code: &str) -> Result<Option<(usize, usize)>, String> {
     // Each line's byte start and text, newline excluded.
     let mut lines: Vec<(usize, &str)> = Vec::new();
     let mut at = 0;
@@ -258,10 +260,10 @@ fn subject(code: &str) -> Result<(usize, usize), String> {
                 .copied()
                 .ok_or("a caret line with no code above it")?;
             // Carets past the end of the line stop at it.
-            return Ok((
+            return Ok(Some((
                 start + first.min(above.len()),
                 start + last.min(above.len()),
-            ));
+            )));
         }
         if t == "# subject" {
             let mut rest = lines[k + 1..].iter().filter(|(_, l)| is_code(l));
@@ -276,10 +278,10 @@ fn subject(code: &str) -> Result<(usize, usize), String> {
                 }
                 end = s + l.len();
             }
-            return Ok((start + depth, end));
+            return Ok(Some((start + depth, end)));
         }
     }
-    Ok((0, code.len()))
+    Ok(None)
 }
 
 /// The tokens view: each token inside the subject, its kind and text.
@@ -427,15 +429,10 @@ pub fn tir(p: &Program) -> String {
     out.finish()
 }
 
-/// The output of view `view` for `p`, or `None` for a view this harness
-/// does not know. A view header may name the build it shows after the
-/// view's name: `wat (wasmtime, release)` (see [`Build`]).
+/// The output of view `name` for `p` built as `build`, or `None` for a
+/// view this harness does not know.
 #[must_use]
-pub fn view(view: &str, p: &Program) -> Option<String> {
-    let (name, build) = match view.split_once(" (") {
-        Some((name, opts)) => (name, Build::parse(opts.strip_suffix(')')?)?),
-        None => (view, Build::default()),
-    };
+pub fn view(name: &str, build: Build, p: &Program) -> Option<String> {
     Some(match name {
         "layout" => layout::view(p, build),
         "counts" => counts::view(p, build),
@@ -539,12 +536,12 @@ pub fn diff(expected: &str, actual: &str) -> String {
 ///
 /// # Panics
 /// Invalid cases, missing baselines, view differences, or an empty directory.
-pub fn run_dir(dir: &Path, views: &dyn Fn(&str, &Program) -> Option<String>) {
+pub fn run_dir(dir: &Path, views: &dyn Fn(&str, Build, &Program) -> Option<String>) {
     let bless = std::env::var_os("HD_BLESS").as_deref() == Some(std::ffi::OsStr::new("1"));
     run_cases(dir, views, bless);
 }
 
-fn run_cases(dir: &Path, views: &dyn Fn(&str, &Program) -> Option<String>, bless: bool) {
+fn run_cases(dir: &Path, views: &dyn Fn(&str, Build, &Program) -> Option<String>, bless: bool) {
     fn collect(dir: &Path, files: &mut Vec<PathBuf>) {
         let entries = std::fs::read_dir(dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display()));
         for entry in entries {
@@ -575,21 +572,8 @@ fn run_cases(dir: &Path, views: &dyn Fn(&str, &Program) -> Option<String>, bless
         };
         let relative = path.strip_prefix(dir).expect("case under root");
         for dump in &case.dumps {
-            let name = if case.build == Build::default() {
-                dump.clone()
-            } else {
-                format!(
-                    "{dump} ({}, {})",
-                    match case.build.target {
-                        hd_driver::EngineTarget::V8 => "v8",
-                        hd_driver::EngineTarget::Wasmtime => "wasmtime",
-                        hd_driver::EngineTarget::Browser => "browser",
-                    },
-                    if case.build.release { "release" } else { "dev" }
-                )
-            };
-            let Some(output) = views(&name, &case.program) else {
-                failures.push(format!("{}: unknown dump `{name}`", path.display()));
+            let Some(output) = views(dump, case.build, &case.program) else {
+                failures.push(format!("{}: unknown dump `{dump}`", path.display()));
                 continue;
             };
             let actual = format!(
@@ -665,6 +649,8 @@ mod tests {
             "# @dump: tir\n# @file: /absolute.hd\n",
             "# @dump: tir\n# @file: other.hd\nx := 1\n# @file: other.hd\n",
             "# @dunp: tir\n",
+            "# @dump: tir\nx := 1\n# @dump: wat\n",
+            "# @dump: tir\nx := 1\n# @build: release\n",
         ] {
             assert!(parse(bad).is_err(), "{bad}");
         }
@@ -718,7 +704,7 @@ mod tests {
         let source = cases.join("one.hd");
         std::fs::write(&source, input).unwrap();
         let dir = root.join("cases");
-        let fake = |name: &str, _: &Program| Some(format!("{name} output\n"));
+        let fake = |name: &str, _: Build, _: &Program| Some(format!("{name} output\n"));
         assert!(std::panic::catch_unwind(|| super::run_cases(&dir, &fake, false)).is_err());
         super::run_cases(&dir, &fake, true);
         let baseline = root.join("baselines/topic/one.tokens");
@@ -742,7 +728,7 @@ mod tests {
         let built = super::inspection::build(&case.program, true, case.build);
         assert!(!built.diags.has_errors(), "{}", built.render());
         for view in ["tir", "wat", "counts", "layout"] {
-            let out = super::view(view, &case.program).unwrap();
+            let out = super::view(view, case.build, &case.program).unwrap();
             assert!(out.contains("fn result()"), "{view}: {out}");
             assert!(!out.contains("pub fn answer()"), "{view}: {out}");
         }

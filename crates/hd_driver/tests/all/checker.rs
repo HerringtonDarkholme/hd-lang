@@ -150,7 +150,7 @@ fn every_std_body_checks_with_no_diagnostic() {
 /// `simple_escape` (integer patterns), `Option.map` (an `Option` match with a
 /// closure call) and `Iterator.take` (a trait default returning an owned
 /// named adapter).
-/// `HD_UPDATE_GOLDEN=1` rewrites the files.
+/// `HD_BLESS=1` rewrites the files.
 #[test]
 fn std_bodies_match_golden_tir() {
     let bodies = [
@@ -162,7 +162,7 @@ fn std_bodies_match_golden_tir() {
     let paths: Vec<&str> = bodies.iter().map(|b| b.0).collect();
     let out = analyze_std(&paths);
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/tir");
-    let update = std::env::var_os("HD_UPDATE_GOLDEN").is_some();
+    let update = std::env::var_os("HD_BLESS").is_some();
     for (path, file) in bodies {
         let got = out
             .tir_text

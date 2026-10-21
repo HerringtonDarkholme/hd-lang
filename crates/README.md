@@ -125,14 +125,23 @@ cargo run -p hd_syntax --example parse_check -- examples/hello
 cargo run -p hd_syntax --example parse_check -- --tree examples/hello/hello.hd
 ```
 
-## Tests And Snapshots
+## Tests And Stage Cases
 
 - Unit tests live beside each crate's source. Integration tests live under
   `crates/*/tests/`.
+- Compiler output is tested with stage cases: a plain `.hd` file under
+  `crates/<crate>/tests/cases/<topic>/` with its generated output under
+  `tests/baselines/<topic>/`. `hd_syntax` (tokens, tree), `hd_check` (tir),
+  `hd_wasm_linear` (wat) and `hd_driver` (counts, layout) each run theirs
+  with `cargo test -p <crate> --test stages` (`hd_syntax`:
+  `cargo test -p hd_syntax --test all stages::`). The harness is
+  [`hd_testkit/src/stages.rs`](hd_testkit/src/stages.rs); the format, views
+  and how to write a case are in the
+  [compiler-tests skill](../.agents/skills/compiler-tests/SKILL.md).
 - Parser corpus, fuzz, and tree snapshots are under
   `crates/hd_syntax/tests/`. `.tree` files pair with `.hd` inputs.
-- Checker, runtime, incremental, and standard-library stage tests are under
-  `crates/hd_driver/tests/`. Golden TIR is in
+  Checker, runtime, incremental, and standard-library tests are under
+  `crates/hd_driver/tests/`. Golden TIR of a few std bodies is in
   `crates/hd_driver/tests/tir/`.
 - CLI compile/run samples are in `examples/` and exercised by
   `crates/hd_cli/tests/all/run.rs`.
@@ -150,15 +159,16 @@ cargo run -p hd_syntax --example parse_check -- --tree examples/hello/hello.hd
 From the repository root, `cargo test` runs the default members, which
 leave out `hd_run_wasmtime` and the tests that need it. `cargo test --workspace
 --all-features` runs everything (see [Wasmtime Engine](#wasmtime-engine)).
-Only update checked-in output after reviewing the diff:
+Only update checked-in output after reviewing the diff. `HD_BLESS=1` is the
+one variable that accepts new output: stage baselines, `.tree` snapshots,
+the golden std TIR
+(`checker::std_bodies_match_golden_tir`) and the generated host ABI files
+(`cargo test -p hd_host_abi --test abi_model`).
 
 ```sh
-HD_BLESS=1 cargo test -p hd_syntax --test all snapshots::
-HD_UPDATE_GOLDEN=1 cargo test -p hd_driver --test all checker::std_bodies_match_golden_tir
+HD_BLESS=1 cargo test -p hd_check --test stages
+HD_BLESS=1 cargo test -p hd_driver --test all checker::std_bodies_match_golden_tir
 ```
-
-`HD_BLESS=1` rewrites parser `.tree` snapshots.
-`HD_UPDATE_GOLDEN=1` rewrites the selected `.tir` golden files.
 
 ## Pre-Commit Hook
 

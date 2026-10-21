@@ -5,7 +5,7 @@
 //! hosts' codecs and method descriptors generated from it: the JS host's
 //! as `host/gen/abi.mjs`, the wasmtime host's as
 //! `crates/hd_run_wasmtime/src/abi.rs`. These tests fail when the tables
-//! or std change and the files do not. `HD_UPDATE_ABI=1` rewrites them.
+//! or std change and the files do not. `HD_BLESS=1` rewrites them.
 //!
 //! A type is its source text. `Result[T, E]` (variant 0 `Ok`, 1 `Err`),
 //! `T?`, `List[T]`, tuples and the primitives are the language's, and a
@@ -646,7 +646,7 @@ fn glue() -> String {
     format!(
         "// The host ABI's JS codecs and method descriptors, generated from the\n\
          // ABI model (host/gen/abi.json) by crates/hd_host_abi/tests/abi_model.rs.\n\
-         // Do not edit: `HD_UPDATE_ABI=1 cargo test -p hd_host_abi --test\n\
+         // Do not edit: `HD_BLESS=1 cargo test -p hd_host_abi --test\n\
          // abi_model` rewrites it. host/wire.mjs says how each value crosses.\n\
          {import}\n\n{body}"
     )
@@ -667,10 +667,10 @@ fn generic(generics: &[String], def: &str) -> String {
     }
 }
 
-/// Checks `path` against `want`, or rewrites it under `HD_UPDATE_ABI`.
+/// Checks `path` against `want`, or rewrites it under `HD_BLESS`.
 fn check(rel: &str, want: &str) {
     let path = root().join(rel);
-    if std::env::var_os("HD_UPDATE_ABI").is_some() {
+    if std::env::var_os("HD_BLESS").is_some() {
         std::fs::create_dir_all(path.parent().expect("dir")).expect("host/gen");
         std::fs::write(&path, want).expect("write a generated file");
         return;
@@ -678,7 +678,7 @@ fn check(rel: &str, want: &str) {
     let have = std::fs::read_to_string(&path).unwrap_or_default();
     assert!(
         have == want,
-        "{rel} is stale: rerun with HD_UPDATE_ABI=1 and check in the result"
+        "{rel} is stale: rerun with HD_BLESS=1 and check in the result"
     );
 }
 
@@ -935,7 +935,7 @@ fn wasmtime_glue() -> String {
     let mut out = String::from(
         "//! The host ABI's wasmtime codecs and method descriptors, generated from\n\
          //! the ABI model (`host/gen/abi.json`) by\n\
-         //! `crates/hd_host_abi/tests/abi_model.rs`. Do not edit: `HD_UPDATE_ABI=1\n\
+         //! `crates/hd_host_abi/tests/abi_model.rs`. Do not edit: `HD_BLESS=1\n\
          //! cargo test -p hd_host_abi --test abi_model` rewrites it. `codec.rs`\n\
          //! says how each value crosses.\n\
          //!\n\

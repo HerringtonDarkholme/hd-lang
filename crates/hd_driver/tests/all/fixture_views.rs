@@ -137,16 +137,22 @@ fn count_labels_preserve_bytes_offsets_and_real_source_origins() {
 
 #[test]
 fn topic_views_ignore_unrelated_source_and_function_numbering() {
-    use hd_testkit::stages::{Program, view};
+    use hd_testkit::stages::{Build, Program, view};
     let code =
         "fn duplicate(value: string) -> (string, string):\n    # subject\n    (value, value)\n";
     let plain = Program::new(code).expect("program");
     let extra = Program::new(&format!("struct Other:\n    text: string\nfn unrelated(text: string) -> (string, string): (text, text)\n{code}")).expect("program");
-    let expected = view("counts", &plain).expect("counts");
+    let expected = view("counts", Build::default(), &plain).expect("counts");
     assert!(expected.contains("retain string"), "{expected}");
-    assert_eq!(expected, view("counts", &extra).expect("counts"));
+    assert_eq!(
+        expected,
+        view("counts", Build::default(), &extra).expect("counts")
+    );
     let code = "# subject\nstruct Pair:\n    small: u8\n    large: i64\n";
     let plain = Program::new(code).expect("program");
     let extra = Program::new(&format!("struct Other:\n    text: string\n{code}")).expect("program");
-    assert_eq!(view("layout", &plain), view("layout", &extra));
+    assert_eq!(
+        view("layout", Build::default(), &plain),
+        view("layout", Build::default(), &extra)
+    );
 }

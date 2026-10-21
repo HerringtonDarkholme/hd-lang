@@ -1,6 +1,6 @@
 //! The host ABI's wasmtime codecs and method descriptors, generated from
 //! the ABI model (`host/gen/abi.json`) by
-//! `crates/hd_host_abi/tests/abi_model.rs`. Do not edit: `HD_UPDATE_ABI=1
+//! `crates/hd_host_abi/tests/abi_model.rs`. Do not edit: `HD_BLESS=1
 //! cargo test -p hd_host_abi --test abi_model` rewrites it. `codec.rs`
 //! says how each value crosses.
 //!

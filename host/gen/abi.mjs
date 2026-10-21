@@ -1,6 +1,6 @@
 // The host ABI's JS codecs and method descriptors, generated from the
 // ABI model (host/gen/abi.json) by crates/hd_host_abi/tests/abi_model.rs.
-// Do not edit: `HD_UPDATE_ABI=1 cargo test -p hd_host_abi --test
+// Do not edit: `HD_BLESS=1 cargo test -p hd_host_abi --test
 // abi_model` rewrites it. host/wire.mjs says how each value crosses.
 import {
   bytes,
