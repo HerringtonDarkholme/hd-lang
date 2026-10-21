@@ -339,6 +339,25 @@ checked when tier 2 is designed:
 The reserved parts cost a root kind number, two tag rows that the
 verifier rejects, and an empty column.
 
+## What the checker lowers
+
+The checker type-checks and emits TIR in one walk, as Zig's Sema does,
+rather than building a typed tree that a later pass lowers (Rust's THIR,
+Swift's SILGen). That keeps one walk and one IR. The cost of fusing is
+that representation decisions leak into the type checker, so the rule
+is (owner, 2026-10-21):
+
+**The checker lowers only what needs type information.** Method and
+trait resolution, coercions, match decision trees, and sugar whose
+meaning depends on types (`?`, interpolation, `for` over an `Iterable`)
+stay in the checker. Representation and ownership do not: copies,
+drops, pins, snapshots, uniqueness, reference forms and the choice of
+collection intrinsics belong to passes over TIR or to the emitter. Each
+stage moves the checker toward this rule: stage 1 removes the reference
+closure forms, stage 2 the copies and pin bookkeeping, stage 3 the three
+`for` lowerings and the collection intrinsics. A checker change in any
+stage that adds representation work is a design violation.
+
 ## What the checker emits
 
 The tables show today's TIR, taken from the stage fixtures (the
