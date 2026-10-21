@@ -12,6 +12,7 @@ use hd_types::{Ty, TyData};
 use wasm_encoder::Instruction as I;
 
 use super::Em;
+use super::refs::Start;
 use crate::layout::{
     Kind, Leaf, Mem, Part, Walk, enum_mem, fields_walk, kind, payload_mem, struct_mem, variants,
     walk,
@@ -401,14 +402,15 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
-    /// `FieldSet`: a store into a data value's field. The checker writes a
-    /// struct's field as a copy-update of the place, never as a store.
-    pub(super) fn field_set(&mut self, a: u32, idx: u32, v: u32) -> StageResult<()> {
+    /// `FieldSet`, or a `Store` into a data field: a store into field
+    /// `idx` of the data value at `obj`. The checker writes a struct's
+    /// field as a copy-update of the place, never as a store.
+    pub(super) fn field_set(&mut self, obj: Start, idx: u32, v: u32) -> StageResult<()> {
         if v != NONE && self.diverges(v) {
             self.f.op(I::Unreachable);
             return Ok(());
         }
-        let Kind::Data(tys) = self.kind(self.ty_of(a)) else {
+        let Kind::Data(tys) = self.kind(self.start_ty(obj)) else {
             return unsupported("a field write to a value that is not a data value");
         };
         let (m, parts) = payload_mem(self.pool(), self.env(), &tys)?;
@@ -418,7 +420,7 @@ impl Em<'_, '_, '_> {
         let ft = tys[idx as usize];
         let s = self.slot_src(v, ft, true)?;
         let at = self.f.local(Val::I32);
-        self.comp(a, 0)?;
+        self.push_start(obj, Some(0))?;
         self.f.set(at);
         // The field takes a count of the new value and drops the old one's.
         if self.counted(ft).is_some() {

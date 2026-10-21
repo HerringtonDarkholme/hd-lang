@@ -612,9 +612,10 @@ fn handle_once_cell_runs_its_body_once() {
     );
 }
 
-/// The locals that some `RefPlace` of body `b` refers to as its root and
-/// that must live in memory: those of a reference that is an address, not
-/// a trait value (`refs.rs`), but a suspending body's parameters.
+/// The locals that some reference of body `b` refers to as its own place
+/// (`live::ref_local`) and that must live in memory: those of a reference
+/// that is an address, not a trait value (`refs.rs`), but a suspending
+/// body's parameters.
 fn ref_roots(
     input: &Input<'_>,
     b: &Body,
@@ -625,23 +626,23 @@ fn ref_roots(
     let (pool, env) = (input.pool, input.env);
     (0..b.len())
         .filter_map(|i| {
-            let p = b.place(i)?;
+            let l = live::ref_local(b, i)?;
             let t = subst(pool, env, item, args, b.ty[i]);
             let addr = matches!(
                 crate::layout::kind(pool, env, t),
                 crate::layout::Kind::Ref { fat: false, .. }
             );
-            if p.kind != hd_tir::ir::place_root::LOCAL || !addr {
+            if !addr {
                 return None;
             }
             // A suspending body's parameter has no cell yet
             // (`susp::finish`), so a read-only reference to it is to a
             // copy; a `&mut` one keeps the cell, which `finish` refuses.
-            let param = b.local_flags[p.x as usize] & local_flags::PARAM != 0;
+            let param = b.local_flags[l] & local_flags::PARAM != 0;
             if suspending && param && !crate::layout::ref_mutable(pool, env, t) {
                 return None;
             }
-            Some(p.x as usize)
+            Some(l)
         })
         .collect()
 }
@@ -861,7 +862,7 @@ pub(crate) fn callee_params(
 
 /// Whether some `LocalSet` of body `b` writes local `l`.
 fn written(b: &Body, l: usize) -> bool {
-    (0..b.len()).any(|i| b.tags[i] == Tag::LocalSet && b.data[i][0] as usize == l)
+    (0..b.len()).any(|i| live::local_store(b, i).is_some_and(|(x, _)| x == l))
 }
 
 /// The parameter locals of the body's own function, in order: those
@@ -1395,13 +1396,6 @@ impl Em<'_, '_, '_> {
         }
         match self.b.tags[i as usize] {
             Tag::LocalGet if self.is_cell(a as usize) => self.cell_get(i, a as usize)?,
-            Tag::LocalSet if self.is_cell(a as usize) => {
-                if bw != NONE && self.diverges(bw) {
-                    self.f.op(Instruction::Unreachable);
-                    return Ok(());
-                }
-                self.cell_set(i, a as usize, bw)?;
-            }
             Tag::LocalGet => {
                 let ls = self.local(a)?;
                 if let Some((field, part)) = self.projected_field(i)? {
@@ -1425,46 +1419,14 @@ impl Em<'_, '_, '_> {
                     self.store(i)?;
                 }
             }
-            Tag::LocalSet if self.moves.loan_locals.contains_key(&(a as usize)) => {
-                let ls = self.local(a)?;
-                self.push(bw)?;
-                for l in ls.iter().rev() {
-                    self.f.set(*l);
-                }
-            }
-            Tag::LocalSet => {
-                let ls = self.local(a)?;
-                if bw != NONE {
-                    if self.diverges(bw) {
-                        self.f.op(Instruction::Unreachable);
-                        return Ok(());
-                    }
-                    // The local takes a count of the new value and drops
-                    // the old one's.
-                    let t = self.sub(self.b.local_ty[a as usize]);
-                    if self.counted(t).is_some() {
-                        if !self.take(bw) {
-                            self.retain_ref(bw)?;
-                        }
-                        self.release_locals(&ls, t)?;
-                    }
-                    self.push(bw)?;
-                    for l in ls.iter().rev() {
-                        self.f.set(*l);
-                    }
-                }
-            }
+            Tag::LocalSet => self.local_set(i, a, bw)?,
             Tag::GlobalGet if let Some(at) = self.global_slot(a) => self.slot_get(i, at)?,
-            Tag::GlobalSet if let Some(at) = self.global_slot(a) => self.slot_set(a, at, bw)?,
-            Tag::RefPlace => self.ref_place(i)?,
-            Tag::RefRead => self.deref_read(i, a)?,
-            Tag::RefWrite => {
-                let r = self.rec(a);
-                let [rf, v] = r[..] else {
-                    return unsupported("a write through a reference without its operands");
-                };
-                self.deref_write(rf, v)?;
-            }
+            Tag::GlobalSet => self.global_set(DefId::from_raw(self.rec(a)[0]), bw)?,
+            // Places (`emit/refs.rs`): the old reference tags share the
+            // resolver with `Ref`, `Read` and `Store`.
+            Tag::RefPlace | Tag::Ref => self.place_ref(i)?,
+            Tag::RefRead | Tag::Read => self.place_read(i)?,
+            Tag::RefWrite | Tag::Store => self.place_store(i)?,
             // The address form is the trait value its block makes.
             Tag::RefDyn => self.block_into(a, Some(i))?,
             Tag::RefIdentity => self.ref_identity(i, a)?,
@@ -1475,33 +1437,6 @@ impl Em<'_, '_, '_> {
                         .global_get(Global::Storage(h, u32::try_from(k).expect("k"), v));
                 }
                 self.store(i)?;
-            }
-            Tag::GlobalSet => {
-                let h = self.global_hash(a);
-                if self.diverges(bw) {
-                    self.f.op(Instruction::Unreachable);
-                    return Ok(());
-                }
-                let vs = self.vals(self.ty_of(bw))?;
-                let t = self.ty_of(bw);
-                if self.counted(t).is_some() {
-                    self.note_stored(h, t, None)?;
-                    if !self.take(bw) {
-                        self.retain_ref(bw)?;
-                    }
-                    let old: Vec<u32> = vs.iter().map(|v| self.f.local(*v)).collect();
-                    for (k, (v, o)) in vs.iter().zip(&old).enumerate() {
-                        self.f
-                            .global_get(Global::Storage(h, u32::try_from(k).expect("k"), *v));
-                        self.f.set(*o);
-                    }
-                    self.release_locals(&old, t)?;
-                }
-                self.push(bw)?;
-                for (k, v) in vs.into_iter().enumerate().rev() {
-                    self.f
-                        .global_set(Global::Storage(h, u32::try_from(k).expect("k"), v));
-                }
             }
             Tag::Prim => self.prim(i, a, bw)?,
             Tag::And | Tag::Or => {
@@ -1760,7 +1695,7 @@ impl Em<'_, '_, '_> {
             Tag::Field => self.field(i, a, bw)?,
             Tag::FieldSet => {
                 let r = self.rec(bw);
-                self.field_set(a, r[0], r[1])?;
+                self.field_set(refs::Start::Value(a), r[0], r[1])?;
             }
             Tag::NewTuple => {
                 // The rest list, if any, is the last member.
@@ -1834,9 +1769,90 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
+    /// `LocalSet`, or a `Store` into a whole local: TIR local `l` takes
+    /// value `v` (`NONE` for an empty initialization). A cell takes it in
+    /// memory; any other local takes a count of the new value and drops
+    /// the old one's, except a binding that borrows ([`live::Moves::loan_locals`]).
+    fn local_set(&mut self, i: u32, l: u32, v: u32) -> StageResult<()> {
+        if self.is_cell(l as usize) {
+            if v != NONE && self.diverges(v) {
+                self.f.op(Instruction::Unreachable);
+                return Ok(());
+            }
+            return self.cell_set(i, l as usize, v);
+        }
+        let ls = self.local(l)?;
+        if self.moves.loan_locals.contains_key(&(l as usize)) {
+            self.push(v)?;
+            for x in ls.iter().rev() {
+                self.f.set(*x);
+            }
+            return Ok(());
+        }
+        if v == NONE {
+            return Ok(());
+        }
+        if self.diverges(v) {
+            self.f.op(Instruction::Unreachable);
+            return Ok(());
+        }
+        let t = self.sub(self.b.local_ty[l as usize]);
+        if self.counted(t).is_some() {
+            if !self.take(v) {
+                self.retain_ref(v)?;
+            }
+            self.release_locals(&ls, t)?;
+        }
+        self.push(v)?;
+        for x in ls.iter().rev() {
+            self.f.set(*x);
+        }
+        Ok(())
+    }
+
+    /// `GlobalSet`, or a `Store` into a whole top-level binding: `def`
+    /// takes value `v`, in its static slot when some reference refers to
+    /// it, else in its Wasm globals.
+    fn global_set(&mut self, def: DefId, v: u32) -> StageResult<()> {
+        if let Some(at) = self.def_slot(def) {
+            return self.slot_set(def, at, v);
+        }
+        let h = self.def_hash(def);
+        if self.diverges(v) {
+            self.f.op(Instruction::Unreachable);
+            return Ok(());
+        }
+        let vs = self.vals(self.ty_of(v))?;
+        let t = self.ty_of(v);
+        if self.counted(t).is_some() {
+            self.note_stored(h, t, None)?;
+            if !self.take(v) {
+                self.retain_ref(v)?;
+            }
+            let old: Vec<u32> = vs.iter().map(|x| self.f.local(*x)).collect();
+            for (k, (x, o)) in vs.iter().zip(&old).enumerate() {
+                self.f
+                    .global_get(Global::Storage(h, u32::try_from(k).expect("k"), *x));
+                self.f.set(*o);
+            }
+            self.release_locals(&old, t)?;
+        }
+        self.push(v)?;
+        for (k, x) in vs.into_iter().enumerate().rev() {
+            self.f
+                .global_set(Global::Storage(h, u32::try_from(k).expect("k"), x));
+        }
+        Ok(())
+    }
+
     /// The path hash of a `GlobalGet` or `GlobalSet` binding.
     fn global_hash(&mut self, a: u32) -> hd_base::Hash128 {
-        let def = DefId::from_raw(self.rec(a)[0]);
+        self.def_hash(DefId::from_raw(self.rec(a)[0]))
+    }
+
+    /// The storage hash of top-level binding `def`, named for development
+    /// tools when they track origins.
+    fn def_hash(&mut self, def: DefId) -> hd_base::Hash128 {
         let h = self.env().path_hash(def);
         if self.m.track_origins {
             let path = (self.input.path)(def);

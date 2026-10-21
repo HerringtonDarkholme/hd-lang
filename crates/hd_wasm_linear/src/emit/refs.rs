@@ -6,12 +6,16 @@
 //! through it reaches the object that holds the place through the page
 //! table, and a place in static data has none. A reference to a trait
 //! value is that trait value, whose data is already one address, as Rust's
-//! `&dyn Tr` is a pointer and a vtable. The checker's `RefPlace`,
-//! `RefRead`, `RefWrite`, `RefDyn` and `RefIdentity` reach this backend
-//! without their closure forms (`hd_tir::ir::strip_closure_forms`).
+//! `&dyn Tr` is a pointer and a vtable.
+//!
+//! One resolver serves every place (`docs/compiler/tir-v2.md`, "The
+//! emitter after each stage"): the places of `Ref`, `Read` and `Store`
+//! (`hd_tir::ir::Place`), and those the older `RefPlace`, `RefRead` and
+//! `RefWrite` name, which reach this backend without their closure forms
+//! (`hd_tir::ir::strip_closure_forms`). Each is read as a [`Spot`].
 
 use hd_base::{DefId, StageResult};
-use hd_tir::ir::{NONE, place_root};
+use hd_tir::ir::{NONE, Place, PlaceRoot, Proj, Tag, place_root};
 use hd_types::{Ty, TyData};
 use wasm_encoder::Instruction as I;
 
@@ -26,6 +30,43 @@ use crate::unsupported;
 enum Base {
     At(u32),
     Vals(Vec<u32>),
+}
+
+/// Where a place's root is ([`hd_tir::ir::PlaceRoot`]): a TIR local, a
+/// top-level binding with its type, or an instruction's value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Start {
+    Local(u32),
+    Global(DefId, Ty),
+    Value(u32),
+}
+
+/// What a place projects from its root before its struct fields, as
+/// stage 1 lowers it: nothing, a dereference of a reference, a field of a
+/// data object (a dereference of the object, then the field), or a list
+/// element at an index.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Head {
+    Direct,
+    Deref,
+    Data(u32),
+    Elem(Index),
+}
+
+/// Where an element's index is: a TIR local (`RefPlace`) or a value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Index {
+    Local(u32),
+    Value(u32),
+}
+
+/// A place as the resolver reads it: its root, its head, then the struct
+/// field indices read from there in order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct Spot {
+    pub start: Start,
+    pub head: Head,
+    pub path: Vec<u32>,
 }
 
 impl Em<'_, '_, '_> {
@@ -141,69 +182,214 @@ impl Em<'_, '_, '_> {
         Ok((ft, part))
     }
 
-    /// `RefPlace` `i`: the place's address, or the trait value there for
-    /// a reference to a trait value, with a count of its own.
-    pub(super) fn ref_place(&mut self, i: u32) -> StageResult<()> {
-        let Some(p) = self.b.place(i as usize) else {
-            return unsupported("a reference without its place");
+    /// The place of `Ref`, `Read`, `Store`, `RefPlace`, `RefRead` or
+    /// `RefWrite` instruction `i`, as the resolver reads it. A `RefRead`
+    /// or `RefWrite` reads or writes through its reference value.
+    pub(super) fn spot(&self, i: u32) -> StageResult<Spot> {
+        let a = self.b.data[i as usize][0];
+        match self.b.tags[i as usize] {
+            Tag::RefPlace => {
+                let Some(p) = self.b.place(i as usize) else {
+                    return unsupported("a reference without its place");
+                };
+                let (start, head) = match p.kind {
+                    place_root::LOCAL => (Start::Local(p.x), Head::Direct),
+                    place_root::GLOBAL => {
+                        (Start::Global(DefId::from_raw(p.x), Ty(p.y)), Head::Direct)
+                    }
+                    place_root::DEREF => (Start::Local(p.x), Head::Deref),
+                    place_root::DATA_FIELD => (Start::Local(p.x), Head::Data(p.y)),
+                    place_root::ELEM => (Start::Local(p.x), Head::Elem(Index::Local(p.y))),
+                    _ => return unsupported("a place of an unknown kind"),
+                };
+                Ok(Spot {
+                    start,
+                    head,
+                    path: p.path.to_vec(),
+                })
+            }
+            Tag::RefRead => Ok(Spot {
+                start: Start::Value(a),
+                head: Head::Deref,
+                path: vec![],
+            }),
+            Tag::RefWrite => match self.b.record(a) {
+                [r, _] => Ok(Spot {
+                    start: Start::Value(*r),
+                    head: Head::Deref,
+                    path: vec![],
+                }),
+                _ => unsupported("a write through a reference without its operands"),
+            },
+            Tag::Ref | Tag::Read | Tag::Store => match self.b.decode_place(a) {
+                Some(p) => self.spot_of(&p),
+                None => unsupported("a malformed place"),
+            },
+            _ => unsupported("a place of an instruction that has none"),
+        }
+    }
+
+    /// Place `p` as a [`Spot`]. A dereference of a data value followed by
+    /// a field is that field of the data object; stage 1 lowers no
+    /// dereference, element or variant after a struct field.
+    fn spot_of(&self, p: &Place) -> StageResult<Spot> {
+        let start = match p.root {
+            PlaceRoot::Local(l) => Start::Local(l.raw()),
+            PlaceRoot::Global(d, t) => Start::Global(d, t),
+            PlaceRoot::Value(r) => Start::Value(r.0),
+            PlaceRoot::Frame(_) => return unsupported("a frame slot, which only tier 2 has"),
         };
+        let data = matches!(self.kind(self.start_ty(start)), Kind::Data(_));
+        let (head, rest) = match p.proj.as_slice() {
+            [Proj::Deref, Proj::Field(k), rest @ ..] if data => (Head::Data(*k), rest),
+            [Proj::Deref, rest @ ..] => (Head::Deref, rest),
+            [Proj::Elem(r), rest @ ..] => (Head::Elem(Index::Value(r.0)), rest),
+            rest => (Head::Direct, rest),
+        };
+        let mut path = Vec::with_capacity(rest.len());
+        for step in rest {
+            let Proj::Field(k) = step else {
+                return unsupported(
+                    "a place that dereferences, indexes or matches after a field, which stage 1 does not lower",
+                );
+            };
+            path.push(*k);
+        }
+        Ok(Spot { start, head, path })
+    }
+
+    /// The type of the value at a place's root.
+    pub(super) fn start_ty(&self, s: Start) -> Ty {
+        match s {
+            Start::Local(l) => self.sub(self.b.local_ty[l as usize]),
+            Start::Global(_, t) => self.sub(t),
+            Start::Value(r) => self.ty_of(r),
+        }
+    }
+
+    /// Locals holding the value at a place's root, a read with no count
+    /// of its own: a local's (loaded from its cell when it has one) or an
+    /// instruction's. A top-level binding's is no value of the body.
+    fn start_values(&mut self, s: Start) -> StageResult<Vec<u32>> {
+        match s {
+            Start::Local(l) => self.local_value(l),
+            Start::Value(r) => self.local_value_of(r),
+            Start::Global(..) => unsupported("a top-level binding as a place's value"),
+        }
+    }
+
+    /// Pushes the value at a place's root, or only its value `k`.
+    pub(super) fn push_start(&mut self, s: Start, k: Option<usize>) -> StageResult<()> {
+        if let Start::Value(r) = s {
+            return match k {
+                Some(k) => self.comp(r, k),
+                None => self.push(r),
+            };
+        }
+        let ls = self.start_values(s)?;
+        match k {
+            Some(k) => match ls.get(k) {
+                Some(l) => self.f.get(*l),
+                None => return unsupported("a component a value does not have"),
+            },
+            None => {
+                for l in ls {
+                    self.f.get(l);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// The type a struct field path reads from type `t`, and where it lies
+    /// in `t`'s values and memory ([`Em::path_step`], folded). No path is
+    /// all of `t`.
+    fn fold_path(&self, t: Ty, path: &[u32]) -> StageResult<(Ty, Part)> {
+        let (mut ty, mut first, mut offset, mut count) = (t, 0, 0, None);
+        for &f in path {
+            let (ft, part) = self.path_step(ty, f)?;
+            first += part.first;
+            offset += part.offset;
+            count = Some(part.count);
+            ty = ft;
+        }
+        let count = match count {
+            Some(n) => n,
+            None => mem_of(self.pool(), self.env(), t)?.leaves.len(),
+        };
+        Ok((
+            ty,
+            Part {
+                first,
+                count,
+                offset,
+            },
+        ))
+    }
+
+    /// `Ref` or `RefPlace` `i`: the place's address, or the trait value
+    /// there for a reference to a trait value, with a count of its own.
+    pub(super) fn place_ref(&mut self, i: u32) -> StageResult<()> {
+        let s = self.spot(i)?;
         let Some((_, fat)) = self.ref_target(self.ty(i)) else {
             return unsupported("a reference whose type is no reference");
         };
-        let path = p.path.to_vec();
-        let local_ty = |em: &Self, l: u32| em.sub(em.b.local_ty[l as usize]);
+        let path = s.path.clone();
         let mut owned_base = None;
-        let (base, mut ty) = match p.kind {
-            place_root::LOCAL => {
-                let t = local_ty(self, p.x);
-                if self.is_cell(p.x as usize)
-                    && self.cell_converts(p.x as usize)
+        let (base, mut ty) = match (s.start, s.head) {
+            (Start::Local(x), Head::Direct) => {
+                let t = self.start_ty(s.start);
+                if self.is_cell(x as usize)
+                    && self.cell_converts(x as usize)
                     && self.ref_layout(t)?.boxed
                 {
-                    let at = self.cell_of(p.x as usize)?;
-                    let view = self.ref_view(at, self.cell_ty(p.x as usize))?;
+                    let at = self.cell_of(x as usize)?;
+                    let view = self.ref_view(at, self.cell_ty(x as usize))?;
                     owned_base = Some(view);
                     (Base::At(view), t)
-                } else if self.is_cell(p.x as usize) {
-                    (Base::At(self.cell_of(p.x as usize)?), t)
+                } else if self.is_cell(x as usize) {
+                    (Base::At(self.cell_of(x as usize)?), t)
                 } else {
-                    (Base::Vals(self.local(p.x)?), t)
+                    (Base::Vals(self.local(x)?), t)
                 }
             }
-            place_root::GLOBAL => {
-                let h = self.env().path_hash(DefId::from_raw(p.x));
+            (Start::Global(def, t), Head::Direct) => {
+                let h = self.env().path_hash(def);
                 let Some(&at) = self.m.addressed.get(&h) else {
                     return unsupported("a top-level binding without its static slot");
                 };
                 let x = self.f.local(Val::I32);
                 self.f.static_addr(at);
                 self.f.set(x);
-                (Base::At(x), self.sub(Ty(p.y)))
+                (Base::At(x), self.sub(t))
             }
-            place_root::DEREF => {
-                let Some((target, f)) = self.ref_target(local_ty(self, p.x)) else {
+            (Start::Value(r), Head::Direct) => (Base::Vals(self.local_value_of(r)?), self.ty_of(r)),
+            (st, Head::Deref) => {
+                let Some((target, f)) = self.ref_target(self.start_ty(st)) else {
                     return unsupported("a place through a value that is no reference");
                 };
-                let ls = self.local_value(p.x)?;
+                let ls = self.start_values(st)?;
                 (if f { Base::Vals(ls) } else { Base::At(ls[0]) }, target)
             }
-            place_root::DATA_FIELD => {
-                let Kind::Data(tys) = self.kind(local_ty(self, p.x)) else {
+            (st, Head::Data(k)) => {
+                let Kind::Data(tys) = self.kind(self.start_ty(st)) else {
                     return unsupported("a data field of a value that is no data value");
                 };
                 let (_, parts) = payload_mem(self.pool(), self.env(), &tys)?;
-                let (Some(part), Some(&ft)) = (parts.get(p.y as usize), tys.get(p.y as usize))
-                else {
+                let (Some(part), Some(&ft)) = (parts.get(k as usize), tys.get(k as usize)) else {
                     return unsupported("a data field the data type does not have");
                 };
                 let off = part.offset;
-                let o = self.local_value(p.x)?[0];
+                let o = self.start_values(st)?[0];
                 (Base::At(self.offset_local(o, off)), ft)
             }
-            place_root::ELEM => {
-                let (et, e) = self.elem(local_ty(self, p.x))?;
-                let h = self.local_value(p.x)?[0];
-                let ix = self.local_value(p.y)?[0];
+            (st, Head::Elem(index)) => {
+                let (et, e) = self.elem(self.start_ty(st))?;
+                let h = self.start_values(st)?[0];
+                let ix = match index {
+                    Index::Local(y) => Some(self.local_value(y)?[0]),
+                    Index::Value(_) => None,
+                };
                 let at = self.f.local(Val::I32);
                 self.f.get(h);
                 self.f.op(I::I32Load(mem(HEAP, 0, 2)));
@@ -212,7 +398,13 @@ impl Em<'_, '_, '_> {
                 if e.size == 0 {
                     self.f.u32(u32::try_from(LIST_LEN).expect("offset"));
                 } else {
-                    self.f.get(ix);
+                    match (ix, index) {
+                        (Some(l), _) => self.f.get(l),
+                        (None, Index::Value(v)) => self.comp(v, 0)?,
+                        (None, Index::Local(_)) => {
+                            return unsupported("an element index without its local");
+                        }
+                    }
                     self.f.u32(e.size);
                     self.f.op(I::I32Mul);
                     self.f.op(I::I32Add);
@@ -222,7 +414,6 @@ impl Em<'_, '_, '_> {
                 self.f.set(at);
                 (Base::At(at), et)
             }
-            _ => return unsupported("a place of an unknown kind"),
         };
         let parent_ty = ty;
         let has_path = !path.is_empty();
@@ -340,31 +531,45 @@ impl Em<'_, '_, '_> {
         }
         // `&x` at the last access of cell local `x` takes the local's count
         // of its cell ([`Em::take_cell`]).
-        if p.kind == place_root::LOCAL && !has_path && self.take_cell(i, p.x as usize) {
+        if let (Start::Local(x), Head::Direct) = (s.start, s.head)
+            && !has_path
+            && self.take_cell(i, x as usize)
+        {
             self.store_owned(i)?;
-            let c = self.local(p.x)?[0];
+            let c = self.local(x)?[0];
             self.f.zero(c);
             return Ok(());
         }
         self.store(i)
     }
 
-    /// `RefRead` `i` of reference `r`: the value at its address, a copy
-    /// with its own count; a reference to a trait value is that value.
-    pub(super) fn deref_read(&mut self, i: u32, r: u32) -> StageResult<()> {
-        let Some((target, fat)) = self.ref_target(self.ty_of(r)) else {
+    /// `Read` or `RefRead` `i`: the value at a place through a reference,
+    /// a copy with its own count; a reference to a trait value is that
+    /// value. Stage 1 reads a place only through a dereference; a field
+    /// path after it reads only that field.
+    pub(super) fn place_read(&mut self, i: u32) -> StageResult<()> {
+        let s = self.spot(i)?;
+        if s.head != Head::Deref {
+            return unsupported(
+                "a read of a place with no dereference, which stage 1 reads with `LocalGet` and `Field`",
+            );
+        }
+        let Some((target, fat)) = self.ref_target(self.start_ty(s.start)) else {
             return unsupported("a read through a value that is no reference");
         };
         if fat {
+            if !s.path.is_empty() {
+                return unsupported("a field read through a trait value reference");
+            }
             if self.moves.unused_reads.contains(&i) {
                 return Ok(());
             }
-            self.push(r)?;
+            self.push_start(s.start, None)?;
             return self.store(i);
         }
         let value = self.ref_layout(target)?;
         let at = self.f.local(Val::I32);
-        self.comp(r, 0)?;
+        self.push_start(s.start, Some(0))?;
         self.f.set(at);
         if self.moves.unused_reads.contains(&i) {
             // The source has already been evaluated. A discarded load of
@@ -379,46 +584,12 @@ impl Em<'_, '_, '_> {
             self.f.op(I::End);
             return Ok(());
         }
+        if !s.path.is_empty() {
+            let (_, part) = self.fold_path(target, &s.path)?;
+            return self.read_part(i, at, &value, target, part);
+        }
         if let Some((field, part)) = self.projected_field(i)? {
-            // A borrowed field owns a count only on a view's branch.
-            let flag = self.begin_view_loan(field)?;
-            self.f.get(at);
-            self.f.helper(Helper::RefIsView);
-            self.f.op(I::If(wasm_encoder::BlockType::Empty));
-            if value.boxed {
-                // A view's getter owns a box in this native layout. Keep
-                // only the selected field before releasing that box;
-                // unboxing the whole parent here grows with every read.
-                let boxed = self.f.local(Val::I32);
-                self.f.get(at);
-                self.f.get(at);
-                self.f.op(I::I32Load(mem(HEAP, 4, 2)));
-                self.f.call_indirect(vec![Val::I32], vec![Val::I32]);
-                self.f.set(boxed);
-                for leaf in &value.leaves[part.first..part.first + part.count] {
-                    self.f.get(boxed);
-                    self.f.op(leaf.load(0));
-                }
-                self.store(field)?;
-                self.own_view_field(field, flag)?;
-                self.f.get(boxed);
-                self.f.helper(Helper::ReleaseRef);
-            } else {
-                let parent = rt::ref_load(&mut self.f, at, &value);
-                for l in &parent[part.first..part.first + part.count] {
-                    self.f.get(*l);
-                }
-                self.store(field)?;
-                self.own_view_field(field, flag)?;
-                self.release_locals(&parent, target)?;
-            }
-            self.f.op(I::Else);
-            for leaf in &value.leaves[part.first..part.first + part.count] {
-                self.f.get(at);
-                self.f.op(leaf.load(0));
-            }
-            self.store(field)?;
-            self.f.op(I::End);
+            self.read_part(field, at, &value, target, part)?;
             self.precomputed_fields.insert(field);
             return Ok(());
         }
@@ -432,7 +603,61 @@ impl Em<'_, '_, '_> {
         self.store_owned(i)
     }
 
-    /// A borrowed field read through a view ([`Em::deref_read`]) came
+    /// Reads only `part` of the `target` value that the reference in
+    /// local `at` names, into instruction `dest`'s value: a view's getter
+    /// makes the whole value, of which `dest` keeps that part; a physical
+    /// place loads only its leaves.
+    fn read_part(
+        &mut self,
+        dest: u32,
+        at: u32,
+        value: &RefLayout,
+        target: Ty,
+        part: Part,
+    ) -> StageResult<()> {
+        // A borrowed field owns a count only on a view's branch.
+        let flag = self.begin_view_loan(dest)?;
+        self.f.get(at);
+        self.f.helper(Helper::RefIsView);
+        self.f.op(I::If(wasm_encoder::BlockType::Empty));
+        if value.boxed {
+            // A view's getter owns a box in this native layout. Keep
+            // only the selected field before releasing that box;
+            // unboxing the whole parent here grows with every read.
+            let boxed = self.f.local(Val::I32);
+            self.f.get(at);
+            self.f.get(at);
+            self.f.op(I::I32Load(mem(HEAP, 4, 2)));
+            self.f.call_indirect(vec![Val::I32], vec![Val::I32]);
+            self.f.set(boxed);
+            for leaf in &value.leaves[part.first..part.first + part.count] {
+                self.f.get(boxed);
+                self.f.op(leaf.load(0));
+            }
+            self.store(dest)?;
+            self.own_view_field(dest, flag)?;
+            self.f.get(boxed);
+            self.f.helper(Helper::ReleaseRef);
+        } else {
+            let parent = rt::ref_load(&mut self.f, at, value);
+            for l in &parent[part.first..part.first + part.count] {
+                self.f.get(*l);
+            }
+            self.store(dest)?;
+            self.own_view_field(dest, flag)?;
+            self.release_locals(&parent, target)?;
+        }
+        self.f.op(I::Else);
+        for leaf in &value.leaves[part.first..part.first + part.count] {
+            self.f.get(at);
+            self.f.op(leaf.load(0));
+        }
+        self.store(dest)?;
+        self.f.op(I::End);
+        Ok(())
+    }
+
+    /// A borrowed field read through a view ([`Em::read_part`]) came
     /// from the getter's fresh value, not the caller's place: it takes a
     /// count of its own, and `flag` says its drops release it.
     fn own_view_field(&mut self, field: u32, flag: Option<u32>) -> StageResult<()> {
@@ -454,19 +679,45 @@ impl Em<'_, '_, '_> {
         }
     }
 
-    /// `RefWrite` of `v` through reference `r`: the place takes a count
-    /// of the new value before the old one's is released.
-    pub(super) fn deref_write(&mut self, r: u32, v: u32) -> StageResult<()> {
+    /// `Store` or `RefWrite` `i`: replaces the value at a place, which
+    /// takes a count of the new value before the old one's is released.
+    /// Stage 1 lowers a store through a dereference, into a data
+    /// object's field, and into a whole local or top-level binding; a
+    /// struct field of a local or top-level binding and a list element
+    /// come with their producers (`docs/compiler/tir-v2.md`, commits 7
+    /// and 8).
+    pub(super) fn place_store(&mut self, i: u32) -> StageResult<()> {
+        let s = self.spot(i)?;
+        let [a, w] = self.b.data[i as usize];
+        let v = match self.b.tags[i as usize] {
+            Tag::RefWrite => self.b.record(a).get(1).copied().unwrap_or(NONE),
+            _ => w,
+        };
+        match (s.start, s.head, s.path.is_empty()) {
+            (_, Head::Deref, true) => self.deref_write(s.start, v),
+            (_, Head::Deref, false) => self.deref_field_write(s.start, &s.path, v),
+            (_, Head::Data(k), true) => self.field_set(s.start, k, v),
+            (Start::Local(l), Head::Direct, true) => self.local_set(i, l, v),
+            (Start::Global(def, _), Head::Direct, true) => self.global_set(def, v),
+            _ => unsupported(
+                "a store into a struct field of a local, a top-level binding or a data field, or into a list element, which stage 1 lowers in a later commit",
+            ),
+        }
+    }
+
+    /// A write of `v` through the reference at `r`: the place takes a
+    /// count of the new value before the old one's is released.
+    fn deref_write(&mut self, r: Start, v: u32) -> StageResult<()> {
         if v != NONE && self.diverges(v) {
             self.f.op(I::Unreachable);
             return Ok(());
         }
-        let Some((target, false)) = self.ref_target(self.ty_of(r)) else {
+        let Some((target, false)) = self.ref_target(self.start_ty(r)) else {
             return unsupported("a write of a whole value through a trait value reference");
         };
         let value = self.ref_layout(target)?;
         let at = self.f.local(Val::I32);
-        self.comp(r, 0)?;
+        self.push_start(r, Some(0))?;
         self.f.set(at);
         let ls: Vec<u32> = value.leaves.iter().map(|l| self.f.local(l.val)).collect();
         self.push(v)?;
@@ -474,6 +725,63 @@ impl Em<'_, '_, '_> {
             self.f.set(*l);
         }
         rt::ref_store(&mut self.f, at, &ls, &value);
+        Ok(())
+    }
+
+    /// A write of `v` into the struct field `path` reaches in what the
+    /// reference at `r` refers to. A physical place takes the value at
+    /// its offset; a representation view takes it through a field view
+    /// (`RefProject`) made for the write and released after it.
+    fn deref_field_write(&mut self, r: Start, path: &[u32], v: u32) -> StageResult<()> {
+        if v != NONE && self.diverges(v) {
+            self.f.op(I::Unreachable);
+            return Ok(());
+        }
+        let Some((target, false)) = self.ref_target(self.start_ty(r)) else {
+            return unsupported("a field write through a trait value reference");
+        };
+        let (ft, part) = self.fold_path(target, path)?;
+        let parent = self.ref_layout(target)?;
+        let field = self.ref_layout(ft)?;
+        let at = self.f.local(Val::I32);
+        self.push_start(r, Some(0))?;
+        self.f.set(at);
+        let ls: Vec<u32> = field.leaves.iter().map(|l| self.f.local(l.val)).collect();
+        self.push(v)?;
+        for l in ls.iter().rev() {
+            self.f.set(*l);
+        }
+        let view = self.f.local(Val::I32);
+        self.f.get(at);
+        self.f.helper(Helper::RefIsView);
+        self.f.set(view);
+        let dst = self.f.local(Val::I32);
+        self.f.get(view);
+        self.f
+            .op(I::If(wasm_encoder::BlockType::Result(Val::I32.wasm())));
+        self.f.get(at);
+        self.f.helper(Helper::RefProject {
+            borrowed: false,
+            parent,
+            field: field.clone(),
+            first: u32::try_from(part.first).expect("field"),
+            offset: part.offset,
+        });
+        self.f.op(I::Else);
+        self.f.get(at);
+        if part.offset != 0 {
+            self.f.u32(part.offset);
+            self.f.op(I::I32Add);
+        }
+        self.f.op(I::End);
+        self.f.set(dst);
+        rt::ref_store(&mut self.f, dst, &ls, &field);
+        if self.input.runtime.is_some() {
+            self.f.get(view);
+            self.f.op(I::If(wasm_encoder::BlockType::Empty));
+            self.release_open(dst);
+            self.f.op(I::End);
+        }
         Ok(())
     }
 
@@ -496,7 +804,12 @@ impl Em<'_, '_, '_> {
     /// The static slot of the top-level binding a `GlobalGet` or
     /// `GlobalSet` names, when some reference refers to it.
     pub(super) fn global_slot(&self, a: u32) -> Option<u32> {
-        let def = DefId::from_raw(*self.b.record(a).first()?);
+        self.def_slot(DefId::from_raw(*self.b.record(a).first()?))
+    }
+
+    /// The static slot of top-level binding `def`, when some reference
+    /// refers to it.
+    pub(super) fn def_slot(&self, def: DefId) -> Option<u32> {
         self.m.addressed.get(&self.env().path_hash(def)).copied()
     }
 
@@ -510,8 +823,8 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
-    /// `GlobalSet` `g` of `v` into a binding in static slot `at`.
-    pub(super) fn slot_set(&mut self, g: u32, at: u32, v: u32) -> StageResult<()> {
+    /// A store of `v` into top-level binding `def` in static slot `at`.
+    pub(super) fn slot_set(&mut self, def: DefId, at: u32, v: u32) -> StageResult<()> {
         if v != NONE && self.diverges(v) {
             self.f.op(I::Unreachable);
             return Ok(());
@@ -520,7 +833,7 @@ impl Em<'_, '_, '_> {
         let m = mem_of(self.pool(), self.env(), t)?;
         let counted = self.counted(t).is_some();
         if counted {
-            let h = self.global_hash(g);
+            let h = self.def_hash(def);
             self.note_stored(h, t, Some((at, m.leaves.clone())))?;
         }
         let a = self.f.local(Val::I32);

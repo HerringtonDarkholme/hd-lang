@@ -462,23 +462,36 @@ fn address_globals(input: &Input<'_>, m: &mut module::Module) -> StageResult<()>
             continue;
         };
         for i in 0..b.len() {
-            let Some(p) = b.place(i) else {
+            let Some((def, ty)) = referenced_global(b, i) else {
                 continue;
             };
-            if p.kind != hd_tir::ir::place_root::GLOBAL {
-                continue;
-            }
-            let h = input.env.path_hash(DefId::from_raw(p.x));
+            let h = input.env.path_hash(def);
             if m.addressed.contains_key(&h) {
                 continue;
             }
-            let lay = layout::mem(input.pool, input.env, Ty(p.y))?;
+            let lay = layout::mem(input.pool, input.env, ty)?;
             let at = m.static_slot(lay.size, lay.align.max(4));
-            m.label_static(at, &(input.path)(DefId::from_raw(p.x)));
+            m.label_static(at, &(input.path)(def));
             m.addressed.insert(h, at);
         }
     }
     Ok(())
+}
+
+/// The top-level binding, with its type, that reference `i` of body `b`
+/// starts its place from: a `RefPlace` or `Ref` with a global root.
+fn referenced_global(b: &hd_tir::ir::Body, i: usize) -> Option<(DefId, Ty)> {
+    match b.tags[i] {
+        hd_tir::ir::Tag::RefPlace => b
+            .place(i)
+            .filter(|p| p.kind == hd_tir::ir::place_root::GLOBAL)
+            .map(|p| (DefId::from_raw(p.x), Ty(p.y))),
+        hd_tir::ir::Tag::Ref => match b.decode_place(b.data[i][0])?.root {
+            hd_tir::ir::PlaceRoot::Global(def, ty) => Some((def, ty)),
+            _ => None,
+        },
+        _ => None,
+    }
 }
 
 pub(crate) fn unsupported<T>(what: impl Into<String>) -> StageResult<T> {

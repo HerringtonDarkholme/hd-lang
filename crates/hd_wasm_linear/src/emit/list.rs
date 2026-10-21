@@ -14,6 +14,8 @@ use hd_types::{Ty, TyData};
 use wasm_encoder::{BlockType, Instruction as I};
 
 use super::Em;
+use super::live::Through;
+use super::refs::{Head, Start};
 use super::value::Src;
 use crate::layout::{coll_leaves, mem as mem_of, strip};
 use crate::module::{HEAP, Ins, Sym, Val, mem};
@@ -53,14 +55,21 @@ impl Em<'_, '_, '_> {
                 local: a,
                 indirect: false,
             }),
-            Tag::RefRead
-                if Ref(a).as_inst().is_some() && self.b.tags[a as usize] == Tag::LocalGet =>
-            {
-                Some(ListRoot {
-                    local: self.b.data[a as usize][0],
+            Tag::RefRead | Tag::Read => match super::live::read_through(self.b, i)? {
+                (Through::Value(r), true)
+                    if Ref(r).as_inst().is_some() && self.b.tags[r as usize] == Tag::LocalGet =>
+                {
+                    Some(ListRoot {
+                        local: self.b.data[r as usize][0],
+                        indirect: true,
+                    })
+                }
+                (Through::Local(l), true) => Some(ListRoot {
+                    local: u32::try_from(l).expect("locals"),
                     indirect: true,
-                })
-            }
+                }),
+                _ => None,
+            },
             Tag::Coerce => self.list_root(a),
             _ => None,
         }
@@ -75,26 +84,33 @@ impl Em<'_, '_, '_> {
         loop {
             let mut changed = false;
             for i in 0..self.b.len() {
-                let [a, w] = self.b.data[i];
+                let [a, _] = self.b.data[i];
                 let aliases = super::live::uses(self.b, i)
                     .iter()
                     .any(|r| values[*r as usize]);
-                if self.b.tags[i] == Tag::LocalSet
-                    && values.get(w as usize) == Some(&true)
-                    && !locals[a as usize]
+                if let Some((l, v)) = super::live::local_store(self.b, i)
+                    && values.get(v as usize) == Some(&true)
+                    && !locals[l]
                 {
-                    locals[a as usize] = true;
+                    locals[l] = true;
                     changed = true;
                 }
                 let reaches = match self.b.tags[i] {
                     Tag::LocalGet => locals[a as usize],
-                    Tag::RefPlace => self.b.place(i).is_some_and(|p| {
-                        matches!(
-                            p.kind,
-                            hd_tir::ir::place_root::LOCAL | hd_tir::ir::place_root::DEREF
-                        ) && locals[p.x as usize]
-                    }),
-                    Tag::RefRead | Tag::Coerce => values.get(a as usize) == Some(&true),
+                    // A reference to the list local's own place, or to
+                    // what the reference it holds refers to.
+                    Tag::RefPlace | Tag::Ref => {
+                        self.spot(u32::try_from(i).expect("insts")).is_ok_and(|s| {
+                            matches!(s.head, Head::Direct | Head::Deref)
+                                && matches!(s.start, Start::Local(l) if locals[l as usize])
+                        })
+                    }
+                    Tag::RefRead | Tag::Read => match super::live::read_through(self.b, i) {
+                        Some((Through::Value(r), _)) => values.get(r as usize) == Some(&true),
+                        Some((Through::Local(l), _)) => locals[l],
+                        None => false,
+                    },
+                    Tag::Coerce => values.get(a as usize) == Some(&true),
                     _ => {
                         aliases
                             && self
@@ -193,12 +209,12 @@ impl Em<'_, '_, '_> {
                 aliases[i]
                     && matches!(
                         self.b.tags[i],
-                        Tag::RefPlace | Tag::Call | Tag::CallValue | Tag::CallDyn
+                        Tag::RefPlace | Tag::Ref | Tag::Call | Tag::CallValue | Tag::CallDyn
                     )
             });
         for &x in body {
             let i = x as usize;
-            let [a, w] = self.b.data[i];
+            let [a, _] = self.b.data[i];
             let reaches = super::live::uses(self.b, i)
                 .iter()
                 .any(|r| aliases[*r as usize]);
@@ -232,20 +248,26 @@ impl Em<'_, '_, '_> {
                 }
                 continue;
             }
+            let store = super::live::local_store(self.b, i);
             match self.b.tags[i] {
-                Tag::LocalSet if a == root.local || aliases.get(w as usize) == Some(&true) => {
+                Tag::LocalSet | Tag::Store
+                    if store.is_some_and(|(l, v)| {
+                        l == root.local as usize || aliases.get(v as usize) == Some(&true)
+                    }) =>
+                {
                     return false;
                 }
-                Tag::LocalSet
+                Tag::LocalSet | Tag::Store
                     if external
-                        && self
-                            .counted(self.sub(self.b.local_ty[a as usize]))
-                            .is_some() =>
+                        && store.is_some_and(|(l, _)| {
+                            self.counted(self.sub(self.b.local_ty[l])).is_some()
+                        }) =>
                 {
                     return false;
                 }
                 Tag::GlobalGet if external => return false,
                 Tag::RefWrite | Tag::FieldSet | Tag::GlobalSet if external => return false,
+                Tag::Store if external && store.is_none() => return false,
                 Tag::Coerce
                 | Tag::NewData
                 | Tag::CopyData
@@ -285,7 +307,7 @@ impl Em<'_, '_, '_> {
                     ) => {}
                     _ => return false,
                 },
-                Tag::LocalGet | Tag::RefRead | Tag::Field | Tag::Block => {}
+                Tag::LocalGet | Tag::RefRead | Tag::Read | Tag::Field | Tag::Block => {}
                 _ if reaches => return false,
                 _ => {}
             }
@@ -832,6 +854,8 @@ impl Em<'_, '_, '_> {
                 | Tag::Scope
                 | Tag::Defer
                 | Tag::Closure => return false,
+                // Any store but one into a whole local, as `LocalSet`.
+                Tag::Store if super::live::local_store(self.b, i).is_none() => return false,
                 Tag::Call if !self.calls.contains_key(&x) => return false,
                 Tag::NewData
                 | Tag::CopyData
@@ -906,17 +930,25 @@ impl Em<'_, '_, '_> {
         };
         let root = safe
             .then(|| {
-                if self.b.tags.get(list as usize) != Some(&Tag::RefRead) {
+                if !matches!(
+                    self.b.tags.get(list as usize),
+                    Some(Tag::RefRead | Tag::Read)
+                ) {
                     return None;
                 }
-                let r = self.b.data[list as usize][0];
-                if r == hd_tir::ir::NONE
-                    || Ref(r).as_inst().is_none()
-                    || self.b.tags[r as usize] != Tag::LocalGet
-                {
-                    return None;
-                }
-                let mut l = self.b.data[r as usize][0] as usize;
+                let mut l = match super::live::read_through(self.b, list as usize)? {
+                    (Through::Value(r), true) => {
+                        if r == hd_tir::ir::NONE
+                            || Ref(r).as_inst().is_none()
+                            || self.b.tags[r as usize] != Tag::LocalGet
+                        {
+                            return None;
+                        }
+                        self.b.data[r as usize][0] as usize
+                    }
+                    (Through::Local(l), true) => l,
+                    _ => return None,
+                };
                 for _ in 0..self.b.local_ty.len() {
                     if self.borrowed.contains(&l) {
                         return Some(l);

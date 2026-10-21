@@ -110,11 +110,9 @@ impl Em<'_, '_, '_> {
         // for method receivers. They borrow the same caller-owned pointer.
         let mut roots = self.borrowed.clone();
         let mut sets: hd_base::HashMap<usize, Vec<u32>> = hd_base::HashMap::default();
-        for (i, tag) in self.b.tags.iter().enumerate() {
-            if *tag == Tag::LocalSet {
-                sets.entry(self.b.data[i][0] as usize)
-                    .or_default()
-                    .push(self.b.data[i][1]);
+        for i in 0..self.b.len() {
+            if let Some((l, v)) = super::live::local_store(self.b, i) {
+                sets.entry(l).or_default().push(v);
             }
         }
         loop {
@@ -153,7 +151,7 @@ impl Em<'_, '_, '_> {
             .iter()
             .enumerate()
             .filter_map(|(i, tag)| {
-                if !matches!(tag, Tag::RefRead | Tag::Field) {
+                if !matches!(tag, Tag::RefRead | Tag::Read | Tag::Field) {
                     return None;
                 }
                 let i = u32::try_from(i).expect("insts");
@@ -167,7 +165,14 @@ impl Em<'_, '_, '_> {
                 }
             })
             .collect();
-        let mut reads: Vec<u32> = super::live::parameter_loans(self.b, &roots, &headers)
+        // The roots that hold references, whose referents a place may
+        // dereference; a data value's fields are no such place.
+        let refs = roots
+            .iter()
+            .copied()
+            .filter(|&l| matches!(self.kind(self.sub(self.b.local_ty[l])), Kind::Ref { .. }))
+            .collect();
+        let mut reads: Vec<u32> = super::live::parameter_loans(self.b, &roots, &refs, &headers)
             .into_iter()
             .collect();
         reads.sort_unstable();
@@ -178,8 +183,9 @@ impl Em<'_, '_, '_> {
             {
                 continue;
             }
-            if self.b.tags[i as usize] == Tag::RefRead
-                && !self.moves.loans.contains(&self.b.data[i as usize][0])
+            if let Some((super::live::Through::Value(source), _)) =
+                super::live::read_through(self.b, i as usize)
+                && !self.moves.loans.contains(&source)
             {
                 continue;
             }
@@ -195,7 +201,7 @@ impl Em<'_, '_, '_> {
                     continue;
                 }
             }
-            if self.b.tags[i as usize] == Tag::RefPlace
+            if matches!(self.b.tags[i as usize], Tag::RefPlace | Tag::Ref)
                 && self.ref_target(self.ty(i)).is_some_and(|(_, fat)| fat)
             {
                 continue;
@@ -499,7 +505,7 @@ impl Em<'_, '_, '_> {
         true
     }
 
-    /// Whether `RefPlace` `i`, the address of cell local `l`'s cell with no
+    /// Whether `RefPlace` or `Ref` `i`, the address of cell local `l`'s cell with no
     /// field path, is the local's last access and takes the cell's count
     /// (`live::Moves::last_access`, `crates/hd_wasm_linear/DESIGN.md`
     /// §23.20): the reference stores the address as owned, the caller
@@ -733,17 +739,20 @@ impl Em<'_, '_, '_> {
     }
 
     /// The origin of each TIR local's exit release, when origins are
-    /// tracked: the first `LocalSet` with a source position that binds
-    /// it. A parameter has none, and its release stays at the root.
+    /// tracked: the first `LocalSet` (or whole-local `Store`) with a source
+    /// position that binds it. A parameter has none, and its release
+    /// stays at the root.
     fn exit_origins(&self) -> hd_base::HashMap<usize, u32> {
         let mut out = hd_base::HashMap::default();
         if !self.m.track_origins {
             return out;
         }
-        for (i, tag) in self.b.tags.iter().enumerate() {
-            let i = u32::try_from(i).expect("insts");
-            if *tag == Tag::LocalSet && self.anchored(i) {
-                out.entry(self.b.data[i as usize][0] as usize).or_insert(i);
+        for i in 0..self.b.len() {
+            let x = u32::try_from(i).expect("insts");
+            if let Some((l, _)) = super::live::local_store(self.b, i)
+                && self.anchored(x)
+            {
+                out.entry(l).or_insert(x);
             }
         }
         out

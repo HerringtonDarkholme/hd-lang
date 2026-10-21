@@ -12,7 +12,7 @@
 use std::collections::BTreeMap;
 
 use hd_base::{DefId, Hash128, InstId, StableHasher, StageResult};
-use hd_tir::ir::{Body, Callee, PlaceRoot, Tag};
+use hd_tir::ir::{Body, Callee, PlaceRoot, Proj, Tag};
 use hd_types::{InternPool, Ty, TyData, TyList};
 
 use crate::layout::{CanonMemo, Sub, canon};
@@ -308,9 +308,16 @@ pub fn open_insts(
                 continue;
             }
             // A `Ref` stays as `RefPlace` does; a `Read` or `Store` of a
-            // bare local stays as `LocalGet` and `LocalSet` do.
+            // bare local stays as `LocalGet` and `LocalSet` do, and one of
+            // the whole place a reference refers to (`[*r]`) as `RefRead`
+            // and `RefWrite` do: the backend reads and writes it through
+            // an erased reference's view.
             Tag::Ref => continue,
-            Tag::Read | Tag::Store if b.data[i][0] & hd_tir::ir::place::BARE_LOCAL != 0 => {
+            Tag::Read | Tag::Store
+                if b.data[i][0] & hd_tir::ir::place::BARE_LOCAL != 0
+                    || b.decode_place(b.data[i][0])
+                        .is_some_and(|p| p.proj == [Proj::Deref]) =>
+            {
                 continue;
             }
             // A tag switch reads its scrutinee's tag; over an open value,

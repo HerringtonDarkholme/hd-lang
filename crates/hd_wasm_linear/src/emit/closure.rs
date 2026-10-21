@@ -54,11 +54,12 @@ pub(super) fn cell_locals(b: &Body, roots: &[usize]) -> HashMap<usize, u32> {
         }
     }
     for (i, &sub) in subs.iter().enumerate() {
-        let l = b.data[i][0];
-        if b.tags[i] == Tag::LocalSet
-            && b.local_flags.get(l as usize).copied().unwrap_or(0) & local_flags::PARAM == 0
-            && !through_capture.contains(&(sub, l))
-            && let Some(first) = cells.get_mut(&(l as usize))
+        let Some((l, _)) = super::live::local_store(b, i) else {
+            continue;
+        };
+        if b.local_flags.get(l).copied().unwrap_or(0) & local_flags::PARAM == 0
+            && !through_capture.contains(&(sub, u32::try_from(l).expect("locals")))
+            && let Some(first) = cells.get_mut(&l)
             && *first == u32::MAX
         {
             *first = u32::try_from(i).expect("instructions");
@@ -108,10 +109,7 @@ pub(super) fn self_local(b: &Body, ci: usize) -> Option<usize> {
         let l = l.idx();
         (b.local_flags[l] & local_flags::SHORT != 0
             && b.local_syn[l] == b.syn[ci]
-            && !(0..b.len()).any(|i| {
-                b.place(i)
-                    .is_some_and(|p| p.kind == hd_tir::ir::place_root::LOCAL && p.x as usize == l)
-            }))
+            && !(0..b.len()).any(|i| super::live::ref_local(b, i) == Some(l)))
         .then_some(l)
     })
 }

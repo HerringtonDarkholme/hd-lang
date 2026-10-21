@@ -1048,6 +1048,30 @@ audit on the commits that touch the emitter).
    `live.rs` and `count.rs` treat them as described. Unit tests in
    `hd_wasm_linear/src/tests.rs` build bodies with the new tags and
    compare the module with the old-tag body's.
+   As built: the resolver reads a place as a root, a head (none, a
+   dereference, a data object's field, or an element) and a struct
+   field path, and `RefPlace`, `RefRead` and `RefWrite` decode into the
+   same form, so every existing baseline runs through it. `Read` lowers
+   a place through a dereference, whole or with a field path that loads
+   only that part. `Store` lowers a store through a dereference (a field
+   path goes through a field view, made and released for the write,
+   only when the reference is a view), into a data object's field, and
+   into a whole local or top-level binding. A struct field of a local or
+   top-level binding and a list element stay unsupported until commits
+   7 and 8 bring their producers, since today's emitter has no
+   one-instruction form of them to share. An element step does not
+   check its index again: `ListPin` checked it. `live.rs` names the
+   shared tests (`local_store`, `place_local`, `ref_local`, `ref_locals`,
+   `read_through`), which `count.rs`, `list.rs`, `closure.rs`, `emit.rs`
+   and `lib.rs` use for both tag sets; `parameter_loans` also takes the
+   parameters that hold references, since a data object's field is no
+   referent of one. In an erased body a `Read` or `Store` of a whole
+   referent (`[*r]`) stays, as `RefRead` and `RefWrite` do. Module
+   comparisons in `tests.rs` would need a whole program's tables, so a
+   `live.rs` unit test plans one body with each tag set instead, and a
+   local experiment that rewrote the old tags into `Ref`, `Read` and
+   `Store` at decode gave byte-identical modules for every runtime
+   conformance case (`HD_CONFORMANCE_WASM_DIGEST=check`).
 4. **References without closure forms.** The checker's `make_ref` emits
    `Ref`; identity, serials and `RefRoot` go; `RefIdentity` and `RefDyn`
    lose their blocks; the driver stops stripping. TIR baselines shrink;
