@@ -1,0 +1,8 @@
+# @dump: wat
+# @build: v8 release
+# expected: the exact induction proof does not cover i + 1.
+fn total(xs: &List[i32]) -> i32:
+    let sum = +0
+    for i in 0..xs.len():
+        sum += xs[i + 1]
+    sum

@@ -1,0 +1,90 @@
+# test: range iteration preserves empty, inclusive, wide and continued iteration with exact list indices
+# Spec 06 For Statements: flow.for.range.half-open, flow.for.range.inclusive; Spec 05 List Indexing: expr.index.list.range.
+fn total(xs: &List[i32]) -> i32:
+    let sum = +0
+    for i in 0..xs.len():
+        sum += xs[i]
+    sum
+
+fn odds(xs: &List[i32]) -> i32:
+    n := xs.len()
+    let sum = +0
+    for i in 0..n:
+        if i % 2 == 0:
+            continue
+        sum += xs[i]
+    sum
+
+fn nested(xs: &List[i32]) -> i32:
+    n := xs.len()
+    let sum = +0
+    for _i in 0..n:
+        for j in 0..n:
+            sum += xs[j]
+    sum
+
+fn wide(xs: &List[i32]) -> i32:
+    let sum = +0
+    for i in 0u64..u64(xs.len()):
+        sum += xs[i]
+    sum
+
+fn constant_bound(xs: &List[i32]) -> i32:
+    let i = 0
+    let sum = +0
+    while i < 3:
+        sum += xs[i]
+        i += 1
+    while false:
+        _ := xs[99]
+    sum
+
+struct Holder[T]:
+    item: &mut T
+
+trait Factory:
+    fn hold[T](self, item: T) -> Holder[T]:
+        let mut local = item
+        Holder { item: &mut local }
+
+struct Maker: pass
+impl Factory for Maker
+
+tests:
+    use std.testing.assert_equal
+
+    it("empty and ordinary ranges read only existing elements"):
+        assert_equal(total(&[]), 0, reason="an empty range performs no reads")
+        assert_equal(total(&[+1, 2, 3]), 6, reason="each exact index is in range")
+        assert_equal(odds(&[+1, 2, 3, 4]), 6, reason="continue still advances before the next iteration")
+        assert_equal(nested(&[+1, 2, 3]), 18, reason="nested induction variables have independent proofs")
+        assert_equal(wide(&[+1, 2, 3]), 6, reason="wide indices keep their correct bounds semantics")
+
+    it("inclusive ranges reach their full-width endpoint without overflowing"):
+        let sum = 0u32
+        for i in 0u8..=255u8:
+            sum += u32(i)
+        assert_equal(sum, 32640, reason="the last endpoint does not increment past u8")
+        let dynamic = 254u8..=255u8
+        let count = 0
+        for _i in dynamic:
+            count += 1
+        assert_equal(count, 2, reason="a range value keeps inclusive overflow protection")
+
+    it("exclusive full-width and empty descending ranges terminate"):
+        let count = 0
+        for _i in 254u8..255u8:
+            count += 1
+        for _i in 255u8..0u8:
+            count += 100
+        assert_equal(count, 1, reason="exclusive endpoints are never incremented in the body")
+
+    it("a typed view uses checked projections of its current list"):
+        let maker: &dyn Factory = &Maker {}
+        list := maker.hold([+1, 2, 3]).item
+        assert_equal(total(list), 6, reason="view-backed exact indices read the current list")
+        *list = [+4, 5]
+        assert_equal(total(list), 9, reason="replacing the viewed list changes its length and contents")
+
+    it("ordinary while conditions keep their checked indexing"):
+        assert_equal(constant_bound(&[+1, 2, 3]), 6, reason="literal bounds and a constant false loop are compiled safely")

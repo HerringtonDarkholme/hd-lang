@@ -1,0 +1,13 @@
+# test: a write through an alias can change a while induction variable after its test
+# Spec 05 List Indexing: expr.index.list.panic.
+fn fail() -> void:
+    xs := [+1, 2]
+    n := xs.len()
+    let mut i = 0
+    alias := &mut i
+    while i < n:
+        *alias = n
+        _ := xs[i]  # panic: index-out-of-bounds
+        i += 1
+
+fail()

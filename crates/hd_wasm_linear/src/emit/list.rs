@@ -9,7 +9,7 @@
 //! a nested write never reaches another list.
 
 use hd_base::StageResult;
-use hd_tir::ir::{IntrinsicOp, Ref, Tag};
+use hd_tir::ir::{Coercion, IntrinsicOp, PrimOp, Ref, Tag};
 use hd_types::{Ty, TyData};
 use wasm_encoder::{BlockType, Instruction as I};
 
@@ -196,6 +196,198 @@ impl Em<'_, '_, '_> {
         None
     }
 
+    /// Follow immutable scalar aliases and fields of a just-built range.
+    /// A changed or addressable binding never supplies a range fact.
+    fn range_source(&self, mut r: u32, sets: &[Vec<(u32, u32)>], tree: &super::live::Tree) -> u32 {
+        for _ in 0..32 {
+            let Some(i) = Ref(r).as_inst() else { break };
+            let [a, w] = self.b.data[i.0 as usize];
+            match self.b.tags[i.0 as usize] {
+                Tag::LocalGet
+                    if !self.is_cell(a as usize)
+                        && self.b.local_flags[a as usize]
+                            & (hd_tir::ir::local_flags::CAPTURED
+                                | hd_tir::ir::local_flags::CAPTURED_ASSIGNED)
+                            == 0 =>
+                {
+                    let [(set, value)] = sets[a as usize].as_slice() else {
+                        break;
+                    };
+                    if !tree.dominates(self.b, *set, r) {
+                        break;
+                    }
+                    r = *value;
+                }
+                Tag::Coerce if self.b.record(w).first() == Some(&(Coercion::Identity as u32)) => {
+                    r = a;
+                }
+                Tag::Field => {
+                    let base = self.range_source(a, sets, tree);
+                    let Some(bi) = Ref(base).as_inst() else { break };
+                    if self.b.tags[bi.0 as usize] != Tag::NewData {
+                        break;
+                    }
+                    let Some(&value) = self.b.record(self.b.data[bi.0 as usize][1]).get(w as usize)
+                    else {
+                        break;
+                    };
+                    r = value;
+                }
+                _ => break,
+            }
+        }
+        r
+    }
+
+    /// Exact usize induction from zero to an unchanged list length.
+    /// This is a body-local proof; no callee summaries or unchecked TIR.
+    fn range_indices(
+        &self,
+        loop_inst: u32,
+        test: u32,
+        tree: &super::live::Tree,
+        body: &[u32],
+    ) -> Vec<u32> {
+        let mut sets = vec![Vec::new(); self.b.local_ty.len()];
+        for (i, tag) in self.b.tags.iter().enumerate() {
+            if *tag == Tag::LocalSet {
+                let [local, value] = self.b.data[i];
+                sets[local as usize].push((u32::try_from(i).expect("insts"), value));
+            }
+        }
+        let cond = self.b.data[test as usize][0];
+        if Ref(cond).as_inst().is_none()
+            || self.b.tags[cond as usize] != Tag::Prim
+            || self.b.data[cond as usize][0] != PrimOp::Lt as u32
+        {
+            return Vec::new();
+        }
+        let args = self.b.record(self.b.data[cond as usize][1]);
+        let [cur, end] = args else { return Vec::new() };
+        if Ref(*cur).as_inst().is_none()
+            || Ref(*end).as_inst().is_none()
+            || self.b.tags[*cur as usize] != Tag::LocalGet
+            || self.b.tags[*end as usize] != Tag::LocalGet
+            || self.ty_of(*cur) != Ty::prim(hd_types::Prim::Usize)
+            || self.ty_of(*end) != Ty::prim(hd_types::Prim::Usize)
+        {
+            return Vec::new();
+        }
+        let current = self.b.data[*cur as usize][0];
+        let bound = self.b.data[*end as usize][0];
+        if self.is_cell(current as usize)
+            || self.is_cell(bound as usize)
+            || [current, bound].iter().any(|l| {
+                self.b.local_flags[*l as usize] & hd_tir::ir::local_flags::CAPTURED_ASSIGNED != 0
+            })
+        {
+            return Vec::new();
+        }
+        let [a, b] = sets[current as usize].as_slice() else {
+            return Vec::new();
+        };
+        let (init, step) = if tree.in_loop(self.b, a.0, loop_inst) {
+            (*b, *a)
+        } else {
+            (*a, *b)
+        };
+        if tree.in_loop(self.b, init.0, loop_inst)
+            || !tree.in_loop(self.b, step.0, loop_inst)
+            || !tree.dominates(self.b, init.0, loop_inst)
+            || self.const_u32(self.range_source(init.1, &sets, tree)) != Some(0)
+            || Ref(step.1).as_inst().is_none()
+            || self.b.tags[step.1 as usize] != Tag::Prim
+            || self.b.data[step.1 as usize][0] != PrimOp::Add as u32
+        {
+            return Vec::new();
+        }
+        let add = self.b.record(self.b.data[step.1 as usize][1]);
+        let [before, one] = add else {
+            return Vec::new();
+        };
+        if Ref(*before).as_inst().is_none()
+            || self.b.tags[*before as usize] != Tag::LocalGet
+            || self.b.data[*before as usize][0] != current
+            || self.const_u32(*one) != Some(1)
+        {
+            return Vec::new();
+        }
+        let [(bound_set, value)] = sets[bound as usize].as_slice() else {
+            return Vec::new();
+        };
+        if !tree.dominates(self.b, *bound_set, loop_inst) {
+            return Vec::new();
+        }
+        let len = self.range_source(*value, &sets, tree);
+        let Some(li) = Ref(len).as_inst() else {
+            return Vec::new();
+        };
+        let [op, rec] = self.b.data[li.0 as usize];
+        if self.b.tags[li.0 as usize] != Tag::Intrinsic
+            || op != IntrinsicOp::ListLen as u32
+            || !tree.dominates(self.b, len, loop_inst)
+        {
+            return Vec::new();
+        }
+        let Some(&list) = self.b.record(rec).first() else {
+            return Vec::new();
+        };
+        let Some(root) = self.list_root(list) else {
+            return Vec::new();
+        };
+        let aliases = self.list_aliases(root);
+        if !self.list_loop_safe(root, body, &aliases) {
+            return Vec::new();
+        }
+        // Length observation and loop entry can be separated by arbitrary
+        // statements. A pop there invalidates the fact just as one in the
+        // loop does. Include nested statements of that prelude.
+        let (blk, start) = tree.path(self.b, len).expect("dominating length")[0];
+        let Some(finish) = tree
+            .path(self.b, loop_inst)
+            .and_then(|p| p.into_iter().find(|(k, _)| *k == blk))
+            .map(|(_, p)| p)
+        else {
+            return Vec::new();
+        };
+        let prelude: Vec<_> = (0..self.b.len())
+            .map(|i| u32::try_from(i).expect("insts"))
+            .filter(|&x| {
+                tree.path(self.b, x).is_some_and(|p| {
+                    p.iter()
+                        .any(|(k, at)| *k == blk && start < *at && *at <= finish)
+                })
+            })
+            .collect();
+        if !self.list_loop_safe(root, &prelude, &aliases) {
+            return Vec::new();
+        }
+        body.iter()
+            .copied()
+            .filter(|&x| {
+                if self.b.tags[x as usize] != Tag::Intrinsic
+                    || self.b.data[x as usize][0] != IntrinsicOp::ListIndex as u32
+                {
+                    return false;
+                }
+                let access = self.b.record(self.b.data[x as usize][1]);
+                let [list, index] = access else { return false };
+                if self.list_root(*list) != Some(root)
+                    || self.ty_of(*index) != Ty::prim(hd_types::Prim::Usize)
+                {
+                    return false;
+                }
+                let index = self.range_source(*index, &sets, tree);
+                Ref(index).as_inst().is_some()
+                    && self.b.tags[index as usize] == Tag::LocalGet
+                    && self.b.data[index as usize][0] == current
+                    && tree.dominates(self.b, cond, index)
+                    && tree.dominates(self.b, index, step.0)
+                    && tree.dominates(self.b, index, x)
+            })
+            .collect()
+    }
+
     /// This body's proof never consults a callee. Unescaped locals may
     /// cross unrelated calls; parameters and escaped headers also reject
     /// unknown calls that could reach them through an external alias.
@@ -327,6 +519,10 @@ impl Em<'_, '_, '_> {
             .filter(|x| tree.in_loop(self.b, *x, loop_inst))
             .collect();
         let guard = self.list_loop_guard(loop_inst, block);
+        if let Some((_, test, false)) = &guard {
+            let proven = self.range_indices(loop_inst, *test, &tree, &body);
+            self.proven_list_indices.extend(proven);
+        }
         let mut candidates: Vec<(ListRoot, Elem, bool, bool)> = Vec::new();
         for &x in &body {
             if self.b.tags[x as usize] != Tag::Intrinsic {
@@ -771,7 +967,22 @@ impl Em<'_, '_, '_> {
         let (_, e) = self.elem(self.ty_of(args[0]))?;
         let h = self.header(args[0])?;
         let mut b = self.buffer(h);
-        let ix = self.index(b, args[1])?;
+        let ix = if !write && self.proven_list_indices.contains(&i) {
+            // Typed views keep the ordinary checked path. The linker
+            // folds this guard away in programs without any views.
+            let ix = self.f.local(Val::I32);
+            self.f.helper(Helper::RefViewsAbsent);
+            self.f.op(I::If(BlockType::Result(Val::I32.wasm())));
+            self.comp(args[1], 0)?;
+            self.f.op(I::Else);
+            let checked = self.index(b, args[1])?;
+            self.f.get(checked);
+            self.f.op(I::End);
+            self.f.set(ix);
+            ix
+        } else {
+            self.index(b, args[1])?
+        };
         if write {
             self.invariant_unique(args[0], h, &e);
             b = self.buffer(h);

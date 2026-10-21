@@ -1945,3 +1945,37 @@ own count keeps the value alive (`live::span_loans`).
   reference argument and a push to a list field now take no count. `local-replaced-inside-the-span`,
   `local-moved-inside-the-span` and `local-lent-by-mut-reference` each
   keep the count because of rules 2, 3 and 1.
+
+### 23.37 Range Bounds And Exact List Indices
+
+Issue #711 removes the second comparison when a range advances: the
+checker reuses the iteration's less-than result. A literal exclusive
+range uses that one exit test and increments directly, since an entered
+iteration is strictly below the endpoint. Dynamic and inclusive ranges
+keep their endpoint handling, including the largest integer value.
+Advancing still precedes the user body, preserving `continue`.
+
+The list emitter recognizes an exact `usize` induction variable from
+zero to an observed list length. Its local definition and increment must
+match the loop test, with no cell or captured assignment; the index read
+must precede the increment and dominate the access. Scalar aliases and
+fields of fresh range values may carry the bound. It applies the existing
+within-body alias/resize proof both to the loop and to the statements
+between the length observation and loop entry. Thus a pop in that
+prelude invalidates the fact too. Unknown calls and possibly aliased
+mutations keep the normal check.
+
+Proven ListIndex instruction IDs live only in emitter state; TIR tags,
+operands and arities do not change. Their physical reads calculate the
+element address directly. Typed views use the ordinary checked path,
+selected by the same RefViewsAbsent guard as cached list projections;
+the linker folds it in programs without views. Other index expressions,
+wide indices, offset indices and unproved paths retain their checks.
+Only element reads in list_index use this fact; element writes keep
+their existing checks and lowering for the parallel TIR rewrite.
+
+The focused WAT cases show the eliminated loop comparison and exact
+index check, and the retained checks for a pop in the body, a pop in the
+prelude, an aliased pop and an offset index. Checked runtime cases cover
+those panics, an addressable induction variable, typed views, empty and
+nested loops, continue and full-width inclusive endpoints.

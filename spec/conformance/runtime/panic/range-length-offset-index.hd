@@ -1,0 +1,5 @@
+# test: an offset index is not the exact length-bounded induction variable
+# Spec 05 List Indexing: expr.index.list.panic.
+xs := [+1, 2]
+for i in 0..xs.len():
+    _ := xs[i + 1]  # panic: index-out-of-bounds

@@ -1,0 +1,10 @@
+# @dump: wat
+# @build: v8 release
+# expected: distinct reference parameters may alias; keep the read check.
+fn total(xs: &List[i32], other: &mut List[i32]) -> i32:
+    n := xs.len()
+    let sum = +0
+    for i in 0..n:
+        _ := other.pop()
+        sum += xs[i]
+    sum

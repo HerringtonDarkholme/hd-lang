@@ -1,0 +1,10 @@
+# test: another reference parameter may shrink the indexed list
+# Spec 05 List Indexing: expr.index.list.panic.
+fn read(xs: &List[i32], alias: &mut List[i32]) -> void:
+    n := xs.len()
+    for i in 0..n:
+        _ := alias.pop()
+        _ := xs[i]  # panic: index-out-of-bounds
+
+let mut xs = [+1, 2]
+read(&xs, &mut xs)

@@ -1,0 +1,7 @@
+# test: popping after observing length and before the loop keeps the bounds check
+# Spec 05 List Indexing: expr.index.list.panic.
+let mut xs = [+1, 2]
+n := xs.len()
+_ := xs.pop()
+for i in 0..n:
+    _ := xs[i]  # panic: index-out-of-bounds

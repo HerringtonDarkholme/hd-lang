@@ -952,6 +952,8 @@ struct Em<'i, 'a, 'm> {
     list_caches: Vec<(list::ListRoot, list::ListCache)>,
     cached_headers: Vec<(u32, list::ListCache)>,
     cached_buffers: Vec<(u32, u32)>,
+    /// Exact range-index reads proven in bounds in this body's loops.
+    proven_list_indices: Vec<u32>,
     /// The releases planned after a statement that a move at that
     /// statement made empty ([`Em::take`], [`Em::take_local`]); a jump
     /// out of the block still releases the place, which may hold a value
@@ -1054,6 +1056,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             list_caches: Vec::new(),
             cached_headers: Vec::new(),
             cached_buffers: Vec::new(),
+            proven_list_indices: Vec::new(),
             skip: hd_base::HashSet::default(),
             borrowed: hd_base::HashSet::default(),
             emitting: Vec::new(),

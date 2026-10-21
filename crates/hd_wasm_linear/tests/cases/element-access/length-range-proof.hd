@@ -1,0 +1,10 @@
+# @dump: wat tir
+# @build: v8 release
+# expected: one range exit comparison; no bounds check for the exact
+# induction variable while the list cannot shrink or be replaced.
+fn total(xs: &List[i32]) -> i32:
+    n := xs.len()
+    let sum = +0
+    for i in 0..n:
+        sum += xs[i]
+    sum

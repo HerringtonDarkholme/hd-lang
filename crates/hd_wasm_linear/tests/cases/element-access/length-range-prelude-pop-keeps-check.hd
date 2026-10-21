@@ -1,0 +1,10 @@
+# @dump: wat
+# @build: v8 release
+# expected: observing length before a pop cannot justify a later read.
+fn total(xs: &mut List[i32]) -> i32:
+    n := xs.len()
+    _ := xs.pop()
+    let sum = +0
+    for i in 0..n:
+        sum += xs[i]
+    sum

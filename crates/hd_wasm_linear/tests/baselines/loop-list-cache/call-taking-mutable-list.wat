@@ -17,27 +17,13 @@
           local.get $t1
           i32.lt_u
           i32.eqz
-          if (result i32)
-            block
-            end
-            i32.const 0
-          else
-            i32.const 1
-          end
-          i32.eqz
           br_if 1
           local.get $t0
           local.set $i
           local.get $t0
-          local.get $t1
-          i32.lt_u
-          if
-            local.get $t0
-            i32.const 1
-            i32.add
-            local.set $t0
-          else
-          end
+          i32.const 1
+          i32.add
+          local.set $t0
     ;; 10 |         grow(xs)
           local.get $xs
           call $grow

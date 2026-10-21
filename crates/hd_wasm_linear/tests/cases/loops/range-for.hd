@@ -4,7 +4,7 @@
 # iteration; no `if (result i32)` around the test, no empty `block`, and no
 # second bounds test before the increment (every `for i in 0..n` in
 # fannkuch_redux, nbody, map_count and string_build).
-# tracked by #667
+# tracked by #711
 fn sum(n: usize) -> usize:
     let total: usize = 0
     for i in 0..n:

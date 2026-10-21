@@ -1,0 +1,10 @@
+# @dump: wat
+# @build: v8 release
+# expected: pop may shrink the source; the read keeps its bounds check.
+fn total(xs: &mut List[i32]) -> i32:
+    n := xs.len()
+    let sum = +0
+    for i in 0..n:
+        _ := xs.pop()
+        sum += xs[i]
+    sum

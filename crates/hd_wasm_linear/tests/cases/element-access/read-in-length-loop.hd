@@ -1,8 +1,8 @@
 # @dump: wat
 # @build: v8 release
 # expected: the buffer address and length load once before the loop;
-# each element read uses those locals for its bounds check and f64.load.
-# tracked by #710
+# each exact range index needs only its element address and f64.load.
+# tracked by #710 and #711
 fn total(xs: &List[f64]) -> f64:
     n := xs.len()
     let sum = 0.0
