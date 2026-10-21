@@ -1,0 +1,16 @@
+# test: a unary operator reaches neg
+# Spec lang/10-modules.md: module.init.definite.implicit.
+
+struct Tag:
+    n: i32
+use std.ops.Neg
+
+first := -Tag { n: 1 } # diagnostic: top-level-read-before-initialization
+later := +5
+
+impl Neg for Tag:
+    type Out = i32
+    fn neg(self) -> i32: later - self.n
+
+pub fn main() -> void $ Console:
+    println(first)

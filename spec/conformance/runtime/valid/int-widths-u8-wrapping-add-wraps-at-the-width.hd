@@ -1,0 +1,10 @@
+# test: u8 wrapping add wraps at the width
+# Spec std/num.md: std-num.wrapping.add.
+# expect-stdout: 0
+# expect-stdout: 255
+
+pub fn main() -> void $ Console:
+    let full: u8 = 255
+    println(full.wrapping_add(1))
+    let zero: u8 = 0
+    println(zero.wrapping_sub(1))

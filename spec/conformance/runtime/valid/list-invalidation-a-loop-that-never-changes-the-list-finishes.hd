@@ -1,0 +1,11 @@
+# test: a loop that never changes the list finishes
+# Spec lang/06-control-flow.md: flow.for.snapshot.
+# expect-stdout: 6
+
+pub fn main() -> void $ Console:
+    let mut v: List[i32] = [1, 2, 3]
+    let total = +0
+    for x in v:
+        total = total + x
+    v.push(4)
+    println(total)

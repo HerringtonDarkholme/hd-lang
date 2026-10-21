@@ -1,0 +1,6 @@
+# test: i64 multiply and minimum division overflow
+# Spec lang/04-type-system.md: types.arith.checked.
+
+pub fn main() -> void $ Console:
+    let big: u64 = 4294967296
+    println(big * big) # panic: integer-overflow

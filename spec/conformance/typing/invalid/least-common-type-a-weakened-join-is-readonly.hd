@@ -1,0 +1,9 @@
+# test: a weakened join is readonly
+# Spec lang/04-type-system.md: types.lct.sites.
+
+struct User:
+    name: string
+
+fn f(editable: &mut User, shared: &User) -> void:
+    both := [editable, shared]
+    both[0].name = "x" # diagnostic: not-writable

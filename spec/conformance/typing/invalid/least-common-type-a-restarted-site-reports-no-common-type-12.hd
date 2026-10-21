@@ -1,0 +1,8 @@
+# test: a restarted site reports no common type
+# Spec lang/04-type-system.md: types.lct.sites.
+
+fn f(k: i32, a: i32?) -> void:
+    _v := match k:
+        0 => "s"
+        1 => 1 # diagnostic: no-common-type
+        _ => a

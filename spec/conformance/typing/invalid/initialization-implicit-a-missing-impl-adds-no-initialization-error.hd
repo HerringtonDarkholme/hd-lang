@@ -1,0 +1,14 @@
+# test: a missing impl adds no initialization error
+# Spec lang/10-modules.md: module.init.definite.implicit.
+
+struct Tag:
+    n: i32
+
+first := "${[Tag { n: 1 }]}" # diagnostic: unsatisfied-trait-bound
+later := +5
+
+impl Display for Tag:
+    fn to_string(self) -> string: "tag ${later}"
+
+pub fn main() -> void $ Console:
+    println(first)

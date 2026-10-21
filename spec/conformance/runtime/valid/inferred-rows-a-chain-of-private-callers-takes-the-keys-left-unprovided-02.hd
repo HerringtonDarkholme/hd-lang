@@ -1,0 +1,36 @@
+# test: a chain of private callers takes the keys left unprovided
+# Spec lang/11-requirements-and-suspension.md: req.row.omitted.inferred-private.
+# expect-stdout: btl
+
+pub trait Tag:
+    fn name(self) -> string
+
+pub trait Log:
+    fn tag(self) -> string
+
+struct Named:
+    label: string
+
+impl Tag for Named:
+    fn name(self) -> string: self.label
+
+impl Log for Named:
+    fn tag(self) -> string: self.label
+
+fn tagged() -> string:
+    $.use(Tag).name() + $.use(Log).tag()
+
+fn logged() -> string:
+    $.with(Tag=Named { label: "t" }):
+        tagged()
+
+struct Box:
+    label: string
+
+impl Box:
+    fn show(self):
+        self.label + logged()
+
+pub fn main() -> void $ Console:
+    $.with(Log=Named { label: "l" }):
+        println(Box { label: "b" }.show())

@@ -1,0 +1,12 @@
+# test: u16 saturating sub stops at zero
+# Spec std/num.md: std-num.saturating.sub.
+# expect-stdout: 0
+# expect-stdout: 2
+# expect-stdout: 65535
+
+pub fn main() -> void $ Console:
+    let small: u16 = 3
+    println(small.saturating_sub(10))
+    println(small.saturating_sub(1))
+    let top: u16 = 65530
+    println(top.saturating_add(10))

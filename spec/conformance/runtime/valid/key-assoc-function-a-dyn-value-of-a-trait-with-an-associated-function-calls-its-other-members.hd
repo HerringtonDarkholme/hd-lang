@@ -1,0 +1,20 @@
+# test: a dyn value of a trait with an associated function calls its other members
+# Spec lang/11-requirements-and-suspension.md: req.key.binding.
+# expect-stdout: d
+
+trait Factory:
+    fn create() -> Self
+    fn name(self) -> string
+
+struct D:
+    n: i32
+
+impl Factory for D:
+    fn create() -> D: D { n: 0 }
+    fn name(self) -> string: "d"
+
+fn show(f: &dyn Factory) -> string:
+    f.name()
+
+pub fn main() -> void $ Console:
+    println(show(&D { n: 1 }))

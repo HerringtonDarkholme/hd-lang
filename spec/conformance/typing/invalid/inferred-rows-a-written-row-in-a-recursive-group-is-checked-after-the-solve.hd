@@ -1,0 +1,28 @@
+# test: a written row in a recursive group is checked after the solve
+# Spec lang/11-requirements-and-suspension.md: req.row.omitted.written.
+
+pub trait Tag:
+    fn name(self) -> string
+
+pub trait Log:
+    fn tag(self) -> string
+
+struct Named:
+    label: string
+
+impl Tag for Named:
+    fn name(self) -> string: self.label
+
+impl Log for Named:
+    fn tag(self) -> string: self.label
+
+fn walk(n: i32) -> string:
+    if n == 0:
+        return $.use(Log).tag()
+    step(n - 1)
+
+fn step(n: i32) $ Tag:
+    walk(n) # diagnostic: missing-requirement
+
+pub fn top() -> string $ Tag + Log:
+    walk(2)

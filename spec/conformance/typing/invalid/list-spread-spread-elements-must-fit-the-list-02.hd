@@ -1,0 +1,6 @@
+# test: spread elements must fit the list
+# Spec lang/05-expressions.md: expr.list.spread.inferred.
+
+fn f(xs: List[string]) -> usize:
+    ys := [+1, xs...] # diagnostic: no-common-type
+    ys.len()

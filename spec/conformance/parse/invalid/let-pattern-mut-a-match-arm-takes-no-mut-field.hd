@@ -1,0 +1,11 @@
+# test: a match arm takes no mut field
+# Spec lang/02-grammar.md: grammar.pattern.mut-let-only.
+
+struct Tally:
+    tags: List[string]
+    name: string
+    count: i32
+
+fn size(t: Tally) -> usize:
+    match t:
+        Tally { mut tags, name } => tags.len() # diagnostic: syntax-error

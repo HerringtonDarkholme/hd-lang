@@ -1,0 +1,19 @@
+# test: a key trait of associated functions only has an empty vtable
+# Spec lang/11-requirements-and-suspension.md: req.key.binding.
+# expect-stdout: 1
+
+trait Maker:
+    fn make() -> i32
+
+struct D:
+    n: i32
+
+impl Maker for D:
+    fn make() -> i32: 7
+
+fn only() -> i32 $ Maker:
+    1
+
+pub fn main() -> void $ Console:
+    $.with(Maker=D { n: 2 }):
+        println(only())

@@ -1,0 +1,18 @@
+# test: calling a value reaches apply
+# Spec lang/10-modules.md: module.init.definite.implicit.
+# expect-stdout: 6
+
+struct Tag:
+    n: i32
+use std.ops.Apply
+
+later := +5
+
+impl Apply for Tag:
+    type Out = i32
+    fn apply(self) -> i32: self.n + later
+
+first := Tag { n: 1 }()
+
+pub fn main() -> void $ Console:
+    println(first)

@@ -1,0 +1,27 @@
+# test: let else binds a mut field under a variant
+# Spec lang/04-type-system.md: types.bind.let-pattern-mut.data-field.
+# expect-stdout: 0
+# expect-stdout: 2
+# expect-stdout: 1
+
+struct Tally:
+    tags: List[string]
+    name: string
+    count: i32
+
+fn pick(t: Tally, ok: bool) -> Tally?:
+    if ok:
+        .Some(t)
+    else:
+        .None
+
+fn total(t: Tally, ok: bool) -> usize:
+    let .Some(Tally { mut tags, name }) = pick(t, ok) else: return 0
+    tags.push(name)
+    tags.len()
+
+pub fn main() -> void $ Console:
+    t := Tally { tags: ["a"], name: "box", count: +2 }
+    println(total(t, false))
+    println(total(t, true))
+    println(t.tags.len())

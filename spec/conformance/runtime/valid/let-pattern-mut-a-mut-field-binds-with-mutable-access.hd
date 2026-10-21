@@ -1,0 +1,17 @@
+# test: a mut field binds with mutable access
+# Spec lang/04-type-system.md: types.bind.let-pattern-mut.data-field.
+# expect-stdout: 2
+# expect-stdout: 1
+
+struct Tally:
+    tags: List[string]
+    name: string
+    count: i32
+
+pub fn main() -> void $ Console:
+    t := Tally { tags: ["a"], name: "box", count: +2 }
+    let Tally { mut tags, name } = t
+    tags.push(name)
+    tags = tags
+    println(tags.len())
+    println(t.tags.len())

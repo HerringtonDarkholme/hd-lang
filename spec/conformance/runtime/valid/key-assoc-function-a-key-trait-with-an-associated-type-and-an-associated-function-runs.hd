@@ -1,0 +1,27 @@
+# test: a key trait with an associated type and an associated function runs
+# Spec lang/11-requirements-and-suspension.md: req.key.binding.
+# expect-stdout: lbl
+
+trait Maker:
+    fn make() -> i32
+
+trait Named < Maker:
+    type Label
+    fn label(self) -> Self::Label
+
+struct D:
+    n: i32
+
+impl Maker for D:
+    fn make() -> i32: 7
+
+impl Named for D:
+    type Label = string
+    fn label(self) -> string: "lbl"
+
+fn show() -> string $ Named[Label = string]:
+    $.use(Named[Label = string]).label()
+
+pub fn main() -> void $ Console:
+    $.with(Named[Label = string]=D { n: 1 }):
+        println(show())

@@ -1,0 +1,7 @@
+# test: i64 multiply and minimum division overflow
+# Spec lang/04-type-system.md: types.arith.checked.
+
+pub fn main() -> void $ Console:
+    let low: i64 = -9223372036854775807 - 1
+    let minus: i64 = -1
+    println(minus * low) # panic: integer-overflow

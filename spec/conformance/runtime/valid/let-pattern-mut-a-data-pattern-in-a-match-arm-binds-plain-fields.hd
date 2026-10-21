@@ -1,0 +1,15 @@
+# test: a data pattern in a match arm binds plain fields
+# Spec lang/06-control-flow.md: flow.match.data.
+# expect-stdout: 4
+
+struct Tally:
+    tags: List[string]
+    name: string
+    count: i32
+
+fn size(t: Tally) -> usize:
+    match t:
+        Tally { name, tags } => name.len() + tags.len()
+
+pub fn main() -> void $ Console:
+    println(size(Tally { tags: ["a"], name: "box", count: +2 }))

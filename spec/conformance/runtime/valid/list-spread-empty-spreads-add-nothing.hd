@@ -1,0 +1,13 @@
+# test: empty spreads add nothing
+# Spec lang/05-expressions.md: expr.list.spread.
+# expect-stdout: 1
+# expect-stdout: 1
+# expect-stdout: 0
+
+pub fn main() -> void $ Console:
+    let none: List[i32] = []
+    a := [none..., +1, none..., none...]
+    let b: List[i32] = [none..., none...]
+    println(a.len())
+    println(a[0])
+    println(b.len())

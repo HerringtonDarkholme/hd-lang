@@ -1,0 +1,39 @@
+# test: mutually recursive private functions take the least rows
+# Spec lang/11-requirements-and-suspension.md: req.row.omitted.cycle.
+# expect-stdout: llpl
+# expect-stdout: 3
+
+pub trait Tag:
+    fn name(self) -> string
+
+pub trait Log:
+    fn tag(self) -> string
+
+struct Named:
+    label: string
+
+impl Tag for Named:
+    fn name(self) -> string: self.label
+
+impl Log for Named:
+    fn tag(self) -> string: self.label
+
+fn ping(n: i32) -> string:
+    if n == 0:
+        return $.use(Tag).name() + $.use(Log).tag()
+    $.use(Log).tag() + pong(n - 1)
+
+fn pong(n: i32) -> string:
+    $.with(Tag=Named { label: "p" }):
+        ping(n)
+
+fn count(n: i32) -> i32:
+    if n == 0:
+        return 0
+    _ := $.use(Log)
+    1 + count(n - 1)
+
+pub fn main() -> void $ Console:
+    $.with(Log=Named { label: "l" }):
+        println(pong(2))
+        println(count(3))

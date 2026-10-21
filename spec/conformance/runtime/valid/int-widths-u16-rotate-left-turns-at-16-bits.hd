@@ -1,0 +1,11 @@
+# test: u16 rotate left turns at 16 bits
+# Spec std/num.md: std-num.rotate.left.
+# expect-stdout: 3
+# expect-stdout: 49152
+# expect-stdout: 2
+
+pub fn main() -> void $ Console:
+    let half: u16 = 0x8001
+    println(half.rotate_left(1))
+    println(half.rotate_right(1))
+    println(half << 1)

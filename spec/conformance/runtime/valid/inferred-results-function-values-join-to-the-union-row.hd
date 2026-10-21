@@ -1,0 +1,38 @@
+# test: function values join to the union row
+# Spec lang/07-functions.md: fn.decl.result-inferred.
+# expect-stdout: db,noon
+
+trait Db:
+    fn name(self) -> string
+
+trait Clock:
+    fn now(self) -> string
+
+struct MemoryDb: pass
+
+impl Db for MemoryDb:
+    fn name(self) -> string: "db"
+
+struct FixedClock: pass
+
+impl Clock for FixedClock:
+    fn now(self) -> string: "noon"
+
+fn health() -> string $ Clock:
+    $.use(Clock).now()
+
+fn orders() -> string $ Db:
+    $.use(Db).name()
+
+fn pick(admin: bool):
+    if admin:
+        return orders
+    health
+
+fn serve(admin: bool) -> string $ Db + Clock:
+    handler := pick(admin)
+    handler()
+
+pub fn main() -> void $ Console:
+    $.with(Db = MemoryDb {}, Clock = FixedClock {}):
+        println(serve(true) + "," + serve(false))

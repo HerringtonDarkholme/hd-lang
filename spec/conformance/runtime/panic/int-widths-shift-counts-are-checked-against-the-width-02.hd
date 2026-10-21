@@ -1,0 +1,7 @@
+# test: shift counts are checked against the width
+# Spec lang/04-type-system.md: types.arith.shift-count.debug.
+
+pub fn main() -> void $ Console:
+    let one: i32 = 1
+    let count: u64 = 4294967296
+    println(one >> count) # panic: invalid-shift

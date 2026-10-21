@@ -1,0 +1,15 @@
+# test: bit counts read a u8 at its width
+# Spec std/num.md: std-num.bits.count-ones-u32.
+# expect-stdout: 3
+# expect-stdout: 0
+# expect-stdout: 8
+# expect-stdout: 8
+
+pub fn main() -> void $ Console:
+    let flags: u8 = 0b1011_0000
+    println(flags.count_ones())
+    println(flags.leading_zeros())
+    let zero: u8 = 0
+    println(zero.leading_zeros())
+    let minus: i8 = -1
+    println(minus.count_ones())

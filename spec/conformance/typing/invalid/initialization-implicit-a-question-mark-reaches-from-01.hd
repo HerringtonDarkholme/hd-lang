@@ -1,0 +1,30 @@
+# test: a question mark reaches from
+# Spec lang/10-modules.md: module.init.definite.implicit.
+
+struct Tag:
+    n: i32
+use std.convert.From
+
+struct Wide:
+    m: i32
+
+fn risky() -> Result[i32, Tag]:
+    .Err(Tag { n: 1 })
+
+fn wrap() -> Result[i32, Wide]:
+    risky()?
+    .Ok(1)
+
+fn code() -> i32:
+    match wrap():
+        .Ok(v) => v
+        .Err(e) => e.m
+
+first := code() # diagnostic: top-level-read-before-initialization
+later := +5
+
+impl From[Tag] for Wide:
+    fn from(e: Tag) -> Wide: Wide { m: e.n + later }
+
+pub fn main() -> void $ Console:
+    println(first)

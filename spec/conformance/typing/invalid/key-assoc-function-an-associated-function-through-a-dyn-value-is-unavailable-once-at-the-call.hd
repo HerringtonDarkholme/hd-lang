@@ -1,0 +1,19 @@
+# test: an associated function through a dyn value is unavailable once at the call
+# Spec lang/09-traits.md: trait.dyn.member.unavailable.error.
+
+trait Factory:
+    fn create() -> Self
+    fn name(self) -> string
+
+struct D:
+    n: i32
+
+impl Factory for D:
+    fn create() -> D: D { n: 0 }
+    fn name(self) -> string: "d"
+
+fn build(f: &dyn Factory) -> string:
+    f.create().name() # diagnostic: dyn-member-unavailable
+
+pub fn main() -> void:
+    pass

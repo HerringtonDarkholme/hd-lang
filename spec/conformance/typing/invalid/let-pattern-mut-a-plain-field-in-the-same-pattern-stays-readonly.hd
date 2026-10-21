@@ -1,0 +1,11 @@
+# test: a plain field in the same pattern stays readonly
+# Spec lang/04-type-system.md: types.bind.let-pattern-mut.data-field.
+
+struct Tally:
+    tags: List[string]
+    name: string
+    count: i32
+
+fn edit(t: Tally) -> void:
+    let Tally { tags, name } = t
+    tags.push(name) # diagnostic: not-writable

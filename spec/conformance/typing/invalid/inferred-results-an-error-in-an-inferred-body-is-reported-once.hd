@@ -1,0 +1,11 @@
+# test: an error in an inferred body is reported once
+# Spec lang/07-functions.md: fn.decl.result-inferred.
+
+fn broken(): missing_name # diagnostic: unknown-name
+
+fn caller():
+    let n: i32 = broken()
+    n
+
+pub fn main() -> void $ Console:
+    println(caller())

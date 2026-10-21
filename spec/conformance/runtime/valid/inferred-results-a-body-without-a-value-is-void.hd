@@ -1,0 +1,20 @@
+# test: a body without a value is void
+# Spec lang/07-functions.md: fn.decl.result-inferred.
+# expect-stdout: 42
+
+base := +40
+
+total := add_base(2)
+
+fn add_base(n: i32): base + n
+
+fn note(value: i32):
+    _ := value
+    pass
+
+fn check() -> void:
+    note(1)
+
+pub fn main() -> void $ Console:
+    check()
+    println(total)

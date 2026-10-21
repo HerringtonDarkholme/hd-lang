@@ -1,0 +1,21 @@
+# test: return paths join to their least common type
+# Spec lang/07-functions.md: fn.decl.result-inferred.
+# expect-stdout: 7 3
+
+fn find(flag: bool, count: i32, found: i32?):
+    if flag:
+        return found
+    count
+
+fn widths(flag: bool):
+    if flag:
+        return 1
+    +2
+
+pub fn main() -> void $ Console:
+    let missing: i32? = find(true, 7, .None)
+    let kept: i32? = find(false, 7, .None)
+    let w: i32 = widths(true) + widths(false)
+    match (missing, kept):
+        (.None, .Some(k)) => println("${k} ${w}")
+        _ => println("wrong")

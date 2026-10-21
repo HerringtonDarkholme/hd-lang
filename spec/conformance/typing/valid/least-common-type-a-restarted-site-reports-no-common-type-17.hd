@@ -1,0 +1,9 @@
+# test: a restarted site reports no common type
+# Spec lang/04-type-system.md: types.lct.sites.
+# expect: accept
+
+fn f(c: bool, a: i32?) -> void:
+    let _v: List[i32?] = [1, a, 2]
+    _w := [1, a, 2, a]
+    _m := {"p": 1, "q": a}
+    _i := if c: 1 else: a

@@ -1,0 +1,14 @@
+# test: a pattern mixes mut and plain fields
+# Spec lang/04-type-system.md: types.bind.let-pattern-mut.data-field.
+# expect-stdout: box 2 2
+
+struct Tally:
+    tags: List[string]
+    name: string
+    count: i32
+
+pub fn main() -> void $ Console:
+    t := Tally { tags: ["a"], name: "box", count: +2 }
+    let Tally { name, mut tags, count: n } = t
+    tags.push(name)
+    println("${name} ${tags.len()} ${n}")

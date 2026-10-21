@@ -1,0 +1,6 @@
+# test: i8 overflow panics at 127 plus 1
+# Spec lang/04-type-system.md: types.arith.checked.
+
+pub fn main() -> void $ Console:
+    let low: i8 = -128
+    println(-low) # panic: integer-overflow

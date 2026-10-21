@@ -1,0 +1,11 @@
+# test: an unknown field still reports after mut
+# Spec lang/06-control-flow.md: flow.match.data.fields.unknown.
+
+struct Tally:
+    tags: List[string]
+    name: string
+    count: i32
+
+fn edit(t: Tally) -> void:
+    let Tally { mut missing } = t # diagnostic: unknown-field
+    pass

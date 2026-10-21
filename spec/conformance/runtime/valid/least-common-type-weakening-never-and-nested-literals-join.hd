@@ -1,0 +1,32 @@
+# test: weakening never and nested literals join
+# Spec lang/04-type-system.md: types.lct.sites.
+# expect-stdout: a
+# expect-stdout: 9
+# expect-stdout: 7
+# expect-stdout: true
+
+struct User:
+    name: string
+
+fn weak(editable: &mut User, shared: &User) -> List[&User]:
+    both := [editable, shared]
+    both
+
+fn never_first(flag: bool, count: i32) -> i32:
+    value := if flag: panic("no") else: count
+    value
+
+fn nested(x: i64, flag: bool) -> List[List[i64]]:
+    lists := [[1], [x]]
+    picked := if flag: [x] else: [2]
+    [picked, lists[1]]
+
+fn same[T](left: T, right: T) -> bool:
+    true
+
+pub fn main() -> void $ Console:
+    let u = User { name: "a" }
+    println(weak(&mut User { name: "b" }, &u)[1].name)
+    println(never_first(false, 9))
+    println(nested(7, true)[1][0])
+    println(same(User { name: "c" }, u))

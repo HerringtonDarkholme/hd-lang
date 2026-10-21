@@ -1,0 +1,10 @@
+# test: a growing key in a recursive row is too deep
+# Spec lang/11-requirements-and-suspension.md: req.row.omitted.inferred-private.
+
+trait Repo[T]:
+    fn count(self) -> i32
+
+fn grow[T](n: i32) -> i32:
+    if n == 0:
+        return $.use(Repo[T]).count()
+    grow::[List[T]](n - 1) # diagnostic: instantiation-too-deep

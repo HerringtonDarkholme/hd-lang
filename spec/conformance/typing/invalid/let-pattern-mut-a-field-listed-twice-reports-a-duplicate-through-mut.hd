@@ -1,0 +1,11 @@
+# test: a field listed twice reports a duplicate through mut
+# Spec lang/06-control-flow.md: flow.match.data.fields.duplicate.
+
+struct Tally:
+    tags: List[string]
+    name: string
+    count: i32
+
+fn edit(t: Tally) -> void:
+    let Tally { mut tags, tags: _ } = t # diagnostic: duplicate-data-pattern-field
+    println(tags.len())

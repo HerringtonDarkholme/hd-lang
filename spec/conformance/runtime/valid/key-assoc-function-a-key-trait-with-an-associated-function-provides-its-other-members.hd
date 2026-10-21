@@ -1,0 +1,21 @@
+# test: a key trait with an associated function provides its other members
+# Spec lang/11-requirements-and-suspension.md: req.key.binding.
+# expect-stdout: d
+
+trait Factory:
+    fn create() -> Self
+    fn name(self) -> string
+
+struct D:
+    n: i32
+
+impl Factory for D:
+    fn create() -> D: D { n: 0 }
+    fn name(self) -> string: "d"
+
+fn build() -> string $ Factory:
+    $.use(Factory).name()
+
+pub fn main() -> void $ Console:
+    $.with(Factory=D { n: 1 }):
+        println(build())

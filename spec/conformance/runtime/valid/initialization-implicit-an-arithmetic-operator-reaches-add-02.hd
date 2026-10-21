@@ -1,0 +1,18 @@
+# test: an arithmetic operator reaches add
+# Spec lang/10-modules.md: module.init.definite.implicit.
+# expect-stdout: 8
+
+struct Tag:
+    n: i32
+use std.ops.Add
+
+later := +5
+
+impl Add for Tag:
+    type Out = i32
+    fn add(self, rhs: Tag) -> i32: self.n + rhs.n + later
+
+first := Tag { n: 1 } + Tag { n: 2 }
+
+pub fn main() -> void $ Console:
+    println(first)

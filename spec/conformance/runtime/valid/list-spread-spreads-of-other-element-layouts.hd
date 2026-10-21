@@ -1,0 +1,14 @@
+# test: spreads of other element layouts
+# Spec lang/05-expressions.md: expr.list.spread.
+# expect-stdout: abcd
+# expect-stdout: 3
+# expect-stdout: x
+
+pub fn main() -> void $ Console:
+    names := ["b", "c"]
+    all := ["a", names..., "d"]
+    pairs := [(1, "x")]
+    more := [(0, "w"), pairs..., (2, "y")]
+    println(all[0] + all[1] + all[2] + all[3])
+    println(more.len())
+    println(more[1]._1)

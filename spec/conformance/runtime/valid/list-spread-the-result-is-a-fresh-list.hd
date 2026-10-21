@@ -1,0 +1,14 @@
+# test: the result is a fresh list
+# Spec lang/05-expressions.md: expr.list.spread.
+# expect-stdout: 1
+# expect-stdout: 9
+# expect-stdout: 3
+
+pub fn main() -> void $ Console:
+    let mut xs = [+1, +2]
+    let mut ys = [xs..., +3]
+    ys[0] = +9
+    xs.push(+4)
+    println(xs[0])
+    println(ys[0])
+    println(ys.len())

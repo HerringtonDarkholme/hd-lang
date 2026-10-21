@@ -1,0 +1,32 @@
+# test: mutually recursive private functions take the least rows
+# Spec lang/11-requirements-and-suspension.md: req.row.omitted.cycle.
+
+pub trait Tag:
+    fn name(self) -> string
+
+pub trait Log:
+    fn tag(self) -> string
+
+struct Named:
+    label: string
+
+impl Tag for Named:
+    fn name(self) -> string: self.label
+
+impl Log for Named:
+    fn tag(self) -> string: self.label
+
+fn ping(n: i32) -> string:
+    if n == 0:
+        return $.use(Tag).name()
+    pong(n - 1)
+
+fn pong(n: i32) -> string:
+    $.with(Tag=Named { label: "p" }):
+        ping(n)
+
+pub fn free() -> string:
+    pong(3)
+
+pub fn bound() -> string:
+    ping(3) # diagnostic: missing-requirement

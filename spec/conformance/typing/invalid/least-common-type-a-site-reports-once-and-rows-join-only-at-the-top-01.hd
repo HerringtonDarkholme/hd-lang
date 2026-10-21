@@ -1,0 +1,10 @@
+# test: a site reports once and rows join only at the top
+# Spec lang/04-type-system.md: types.lct.sites.
+
+fn f(c: bool, k: i32) -> void:
+    _v := if c:
+        1
+    else if k > 0:
+        "a" # diagnostic: no-common-type
+    else:
+        true

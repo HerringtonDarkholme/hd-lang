@@ -70,75 +70,6 @@ fn panics(name: &str, body: &str, before: &str) {
     assert!(err.contains("panic: iterator-invalidated"), "{name}: {err}");
 }
 
-/// A program whose `body` runs in `main` and prints `expected`.
-fn prints(name: &str, body: &str, expected: &str) {
-    let main = program(body);
-    let r = ran(name, &main);
-    assert!(
-        r.status.success(),
-        "{name}: {}",
-        String::from_utf8_lossy(&r.stderr)
-    );
-    assert_eq!(String::from_utf8_lossy(&r.stdout), expected, "{name}");
-}
-
-#[test]
-fn pushing_during_a_list_loop_leaves_the_loop_on_its_snapshot() {
-    prints(
-        "list-push",
-        "    let mut v: List[i32] = [1, 2]
-    for x in v:
-        println(x)
-        v.push(x)
-    println(v.len())
-",
-        "1\n2\n4\n",
-    );
-}
-
-#[test]
-fn removing_during_a_list_loop_leaves_the_loop_on_its_snapshot() {
-    prints(
-        "list-remove",
-        "    let mut v: List[i32] = [1, 2, 3]
-    for x in v:
-        println(x)
-        _ := v.remove_at(0)
-    println(v.len())
-",
-        "1\n2\n3\n0\n",
-    );
-}
-
-#[test]
-fn replacing_an_element_during_a_list_loop_is_not_seen_by_it() {
-    prints(
-        "list-set",
-        "    let mut v: List[i32] = [1, 2, 3]
-    for x in v:
-        println(x)
-        v[2] = 30
-    println(v[2])
-",
-        "1\n2\n3\n30\n",
-    );
-}
-
-#[test]
-fn a_loop_that_never_changes_the_list_finishes() {
-    prints(
-        "list-plain",
-        "    let mut v: List[i32] = [1, 2, 3]
-    let total = +0
-    for x in v:
-        total = total + x
-    v.push(4)
-    println(total)
-",
-        "6\n",
-    );
-}
-
 #[test]
 fn a_list_iterator_panics_after_the_list_changes_length() {
     panics(
@@ -165,71 +96,6 @@ fn an_exhausted_list_iterator_still_panics_after_a_pop() {
     _ := it.next()
 ",
         "",
-    );
-}
-
-#[test]
-fn a_list_iterator_survives_an_element_replacement() {
-    prints(
-        "list-iter-set",
-        "    let mut v: List[i32] = [1, 2]
-    let mut it = v.iter()
-    println(it.next().unwrap_or(-1))
-    v[1] = 20
-    println(it.next().unwrap_or(-1))
-    println(it.next().unwrap_or(-1))
-",
-        "1\n20\n-1\n",
-    );
-}
-
-/// A deque is a value, so a loop over one walks it as it was when the
-/// loop began (`std-collections.deque.snapshot`).
-#[test]
-fn pushing_during_a_deque_loop_iterates_a_snapshot() {
-    prints(
-        "deque-push",
-        "    let mut q: Deque[i32] = Deque::new()
-    q.push_back(1)
-    q.push_back(2)
-    for x in q:
-        println(x)
-        q.push_back(x)
-    println(q.len())
-",
-        "1\n2\n4\n",
-    );
-}
-
-#[test]
-fn popping_during_a_deque_loop_iterates_a_snapshot() {
-    prints(
-        "deque-pop",
-        "    let mut q: Deque[i32] = Deque::new()
-    q.push_back(1)
-    q.push_back(2)
-    for x in q:
-        println(x)
-        _ := q.pop_front()
-    println(q.len())
-",
-        "1\n2\n0\n",
-    );
-}
-
-#[test]
-fn a_deque_loop_that_changes_nothing_finishes() {
-    prints(
-        "deque-plain",
-        "    let mut q: Deque[i32] = Deque::new()
-    q.push_back(1)
-    q.push_front(0)
-    for x in q:
-        println(x)
-    _ := q.pop_back()
-    println(q.len())
-",
-        "0\n1\n1\n",
     );
 }
 
@@ -267,19 +133,5 @@ fn a_view_iterator_panics_after_a_length_change() {
     _ := it.next()
 ",
         "1\n",
-    );
-}
-
-#[test]
-fn a_list_view_survives_an_element_replacement() {
-    prints(
-        "view-set",
-        "    let mut v: List[i32] = [1, 2, 3]
-    let w = v.view(0, 2)
-    v[1] = 20
-    println(w.len())
-    println(w[1])
-",
-        "2\n20\n",
     );
 }

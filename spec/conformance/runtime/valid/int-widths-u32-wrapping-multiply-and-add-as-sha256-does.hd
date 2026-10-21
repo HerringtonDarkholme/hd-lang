@@ -1,0 +1,12 @@
+# test: u32 wrapping multiply and add as sha256 does
+# Spec std/num.md: std-num.wrapping.add.
+# expect-stdout: 3238976083
+# expect-stdout: 628200684
+
+fn mul32(a: u32, b: u32) -> u32:
+    u32(u64(a) * u64(b))
+
+pub fn main() -> void $ Console:
+    println(mul32(0x9e3779b9, 0x85ebca6b))
+    let h: u32 = 0x6a09e667
+    println(h.wrapping_add(0xbb67ae85))

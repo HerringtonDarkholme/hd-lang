@@ -1,0 +1,29 @@
+# test: an inferred generic key keeps its type arguments
+# Spec lang/11-requirements-and-suspension.md: req.row.omitted.inferred-private.
+
+pub trait Repo[T]:
+    fn count(self) -> i32
+
+pub trait Store:
+    type Item
+    fn load(self) -> Self::Item
+
+pub struct User: pass
+pub struct Post: pass
+struct UserRepo: pass
+
+impl Repo[User] for UserRepo:
+    fn count(self) -> i32: 20
+
+impl Store for UserRepo:
+    type Item = i32
+    fn load(self) -> i32: 7
+
+fn find[T]() -> i32:
+    $.use(Repo[T]).count()
+
+fn total[T]() -> i32:
+    find::[T]() + $.use(Store[Item = i32]).load()
+
+pub fn posts() -> i32 $ Repo[Post] + Store[Item = i32]:
+    total::[Post]() + total::[User]() # diagnostic: missing-requirement

@@ -1,0 +1,16 @@
+# test: i64 multiply and minimum division overflow
+# Spec lang/04-type-system.md: types.arith.min-remainder.
+# expect-stdout: -9223372036854775808
+# expect-stdout: -5
+# expect-stdout: 18446744073709551615
+# expect-stdout: 0
+
+pub fn main() -> void $ Console:
+    let low: i64 = -9223372036854775807 - 1
+    let one: i64 = 1
+    println(low * one)
+    let minus: i64 = -1
+    println(minus * 5)
+    let three: u64 = 3
+    println(three * 6148914691236517205)
+    println(low % minus)

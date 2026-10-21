@@ -1,0 +1,19 @@
+# test: a site reports once and rows join only at the top
+# Spec lang/04-type-system.md: types.lct.sites.
+# expect: accept
+
+trait Db
+
+trait Clock
+
+fn health() -> string $ Clock:
+    "ok"
+
+fn orders() -> string $ Db:
+    "orders"
+
+fn count() -> i32 $ Clock:
+    1
+
+fn f() -> void:
+    _v := [health, orders]

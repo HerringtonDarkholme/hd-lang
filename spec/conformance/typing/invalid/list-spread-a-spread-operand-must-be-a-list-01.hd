@@ -1,0 +1,6 @@
+# test: a spread operand must be a list
+# Spec lang/05-expressions.md: expr.list.spread.type.
+
+fn f() -> List[i32]:
+    t := (+1, +2)
+    [t...] # diagnostic: type-mismatch

@@ -1,0 +1,16 @@
+# test: an unrelated display impl is not reached
+# Spec lang/10-modules.md: module.init.definite.implicit.
+# expect-stdout: 3 true
+
+struct Tag:
+    n: i32
+
+x := +3
+first := "${x} ${true}"
+later := +5
+
+impl Display for Tag:
+    fn to_string(self) -> string: "tag ${later}"
+
+pub fn main() -> void $ Console:
+    println(first)

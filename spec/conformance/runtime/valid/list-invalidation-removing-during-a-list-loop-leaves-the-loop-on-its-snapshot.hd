@@ -1,0 +1,13 @@
+# test: removing during a list loop leaves the loop on its snapshot
+# Spec lang/06-control-flow.md: flow.for.snapshot.
+# expect-stdout: 1
+# expect-stdout: 2
+# expect-stdout: 3
+# expect-stdout: 0
+
+pub fn main() -> void $ Console:
+    let mut v: List[i32] = [1, 2, 3]
+    for x in v:
+        println(x)
+        _ := v.remove_at(0)
+    println(v.len())

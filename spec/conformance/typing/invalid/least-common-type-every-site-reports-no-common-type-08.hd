@@ -1,0 +1,5 @@
+# test: every site reports no common type
+# Spec lang/04-type-system.md: types.lct.sites.
+
+fn f(c: bool, x: i64) -> void:
+    _v := if c: [x] else: ["x"] # diagnostic: no-common-type

@@ -1,0 +1,26 @@
+# test: a for loop reaches iter
+# Spec std/iter.md: std-iter.from-fn.value.
+
+struct Tag:
+    n: i32
+struct Src:
+    n: i32
+
+fn count() -> i32:
+    let t = +0
+    for x in Src { n: 1 }:
+        t = t + x
+        break
+    t
+
+first := count() # diagnostic: top-level-read-before-initialization
+later := +5
+
+use std.iter.{FromFn, from_fn}
+impl Iterable[i32] for Src:
+    type IntoIter = FromFn[i32]
+    fn iter(self) -> FromFn[i32]:
+        from_fn(fn() -> i32?: .Some(later))
+
+pub fn main() -> void $ Console:
+    println(first)

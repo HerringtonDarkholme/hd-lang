@@ -1,0 +1,18 @@
+# test: a private method infers its result
+# Spec lang/07-functions.md: fn.decl.result-inferred.
+# expect-stdout: 4 2
+
+struct Counter:
+    start: i32
+
+impl Counter:
+    fn twice(self): self.next() + self.next()
+
+    fn next(self): self.start + 1
+
+pub fn main() -> void $ Console:
+    c := Counter { start: 1 }
+    let n: i32 = c.twice()
+    step := Counter::next
+    let m: i32 = step(c)
+    println("${n} ${m}")

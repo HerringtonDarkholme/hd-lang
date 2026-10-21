@@ -1,0 +1,13 @@
+# test: bitwise not stays in the width
+# Spec lang/05-expressions.md: expr.op.complement.
+# expect-stdout: 79
+# expect-stdout: -6
+# expect-stdout: -1
+
+pub fn main() -> void $ Console:
+    let flags: u8 = 0b1011_0000
+    println(~flags)
+    let signed: i8 = 5
+    println(~signed)
+    let byte: i8 = -128
+    println(byte >> 7)

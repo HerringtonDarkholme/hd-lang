@@ -1,0 +1,23 @@
+# test: an index assignment reaches index set
+# Spec lang/10-modules.md: module.init.definite.implicit.
+# expect-stdout: 12
+
+struct Tag:
+    n: i32
+use std.ops.IndexSet
+
+fn fill() -> i32:
+    let mut t = Tag { n: 1 }
+    t[0] = 7
+    t.n
+
+later := +5
+
+impl IndexSet[i32, i32] for Tag:
+    fn index_set(&mut self, key: i32, value: i32) -> void:
+        self.n = key + value + later
+
+first := fill()
+
+pub fn main() -> void $ Console:
+    println(first)

@@ -1,0 +1,40 @@
+# test: optional values widen every site
+# Spec std/option.md: std-option.unwrap-or.
+# expect-stdout: some 1
+# expect-stdout: some 5
+# expect-stdout: some 3
+# expect-stdout: some 4
+# expect-stdout: 2
+
+fn late(flag: bool, count: i32, found: i32?):
+    if flag:
+        return count
+    found
+
+fn closure(count: i32, found: i32?) -> i32?:
+    pick := fn(flag: bool):
+        if flag:
+            return count
+        found
+    pick(true)
+
+fn values(count: i32, found: i32?) -> Map[string, i32?]:
+    joined := {"a": count, "b": found}
+    joined
+
+fn keys(small: i16) -> Map[i16, string]:
+    joined := {small: "a", 2: "b"}
+    joined
+
+fn show(v: i32?) -> string:
+    match v:
+        .Some(n) => "some ${n}"
+        .None => "none"
+
+pub fn main() -> void $ Console:
+    println(show(late(true, 1, .None)))
+    println(show(late(false, 1, .Some(5))))
+    println(show(closure(3, .None)))
+    let m = values(4, .None)
+    println(show(m.get("a").unwrap_or(.None)))
+    println(keys(+1).len())

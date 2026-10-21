@@ -1,0 +1,16 @@
+# test: an index read reaches index
+# Spec lang/10-modules.md: module.init.definite.implicit.
+
+struct Tag:
+    n: i32
+use std.ops.Index
+
+first := Tag { n: 1 }[2] # diagnostic: top-level-read-before-initialization
+later := +5
+
+impl Index[i32] for Tag:
+    type Out = i32
+    fn index(self, key: i32) -> i32: self.n + key + later
+
+pub fn main() -> void $ Console:
+    println(first)

@@ -1,0 +1,18 @@
+# test: a unary operator reaches neg
+# Spec lang/10-modules.md: module.init.definite.implicit.
+# expect-stdout: 4
+
+struct Tag:
+    n: i32
+use std.ops.Neg
+
+later := +5
+
+impl Neg for Tag:
+    type Out = i32
+    fn neg(self) -> i32: later - self.n
+
+first := -Tag { n: 1 }
+
+pub fn main() -> void $ Console:
+    println(first)
