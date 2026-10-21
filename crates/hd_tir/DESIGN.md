@@ -755,8 +755,6 @@ the instances they call are not there.
 | `Defer` | a: suite number in the enclosing `Scope` | `void`; registers that suite here |
 | `If` | a: condition, b: `[then Block, else Block]` | the join of both |
 | `Loop` | a: body `Block`, b: else `Block` or `NONE` | the join of its `Break` values, or `void` |
-| `ForRange` | a: `[start, end, kind, loop local]`, b: `[body, else]` | as `Loop`; `kind` is half-open, inclusive or from |
-| `ForList`, `ForMap` | a: `[collection, item locals]`, b: `[body, else]` | as `Loop` |
 | `Break` | a: target label, b: value or `NONE` | `never` |
 | `Continue` | a: target label of a `Loop` | `never` |
 | `Return` | a: value, or `NONE` for a bare `return` in a `void` body | `never` |
@@ -821,7 +819,8 @@ is a run ID.
 | `[for x in xs if c => e]`, map comprehensions | a `Block`: an empty `NewList` or `NewMap`, a loop, a push `Call` |
 | `e?` | `SwitchTag` on the `Result` or `Option`; the failing leaf converts the error with the resolved `From` call and `Return`s |
 | `while c: body` | `Loop` whose body is `If c then body else Break` |
-| `for` over a std range, list or map | `ForRange`, `ForList`, `ForMap`, chosen when the iterable's impl resolves to std's |
+| `for` over a std numeric range | a counting `Loop` with cursor/end/inclusive locals and ordinary tests and assignments; the cursor advances before the body, and the inclusive endpoint clears its flag instead of overflowing |
+| `for` over a built-in list or map | a counted `Loop` over indexed element/live-entry intrinsics; `SnapBegin`/`SnapEnd` keep a snapshot of a borrowed source, while a fresh source is owned by the loop |
 | any other `for` | a `Block`: the `iter` `Call`, then a `Loop` around the `next` `Call` and a `Match` on its `Option` |
 | `let p = e else: ...`, `x is p` | `Match` with two arms |
 | `x := e`, `let p = e` | a new local and `LocalSet`, or a `Match` for a pattern |

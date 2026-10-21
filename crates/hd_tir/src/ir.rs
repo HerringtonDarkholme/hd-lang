@@ -144,9 +144,6 @@ tags! {
     Defer: Meta, None;
     If: Value, Blocks;
     Loop: Block, Block;
-    ForRange: Record, Blocks;
-    ForList: Record, Blocks;
-    ForMap: Record, Blocks;
     Break: Label, Value;
     Continue: Label, None;
     Return: Value, None;
@@ -2518,7 +2515,7 @@ mod tests {
         let root = b.close_block(blk, Some(one), Ty::I32, NodeIdx::NONE);
         let body = b.finish(root, &[]).expect("ok");
         assert_eq!(body.len(), 1);
-        assert_eq!(Tag::ALL.len(), 64);
+        assert_eq!(Tag::ALL.len(), 61);
         assert!(
             Tag::ALL
                 .iter()

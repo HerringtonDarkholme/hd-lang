@@ -1787,9 +1787,7 @@ impl Em<'_, '_, '_> {
             Tag::TupleGet => self.tuple_get(i, a, bw)?,
             Tag::Is => self.is(i, a, bw)?,
             Tag::NewList => self.new_list(i, a, bw)?,
-            Tag::ForList => return unsupported("a `for` over a list that lowering kept"),
             Tag::NewMap => self.new_map(i, bw)?,
-            Tag::ForMap => return unsupported("a `for` over a map that lowering kept"),
             Tag::Closure => self.closure(i)?,
             Tag::ItemRef => {
                 let Some(Target::Closure(key)) = self.calls.get(&i).cloned() else {

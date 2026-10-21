@@ -320,9 +320,6 @@ pub fn open_insts(
             | Tag::Guard
             | Tag::And
             | Tag::Or
-            | Tag::ForRange
-            | Tag::ForList
-            | Tag::ForMap
             | Tag::With => {
                 if schema_values(b, i).into_iter().any(open_word) {
                     return err(&format!(

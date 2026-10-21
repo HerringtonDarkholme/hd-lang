@@ -220,7 +220,7 @@ instance.
 | a string literal | a view over its pooled array (crates/hd_wasm_linear/DESIGN.md §15.2): `i32.const` of its module-local number and a `call` of its module's literal getter, or `global.get` of an `array.new_fixed` constant at 4 bytes or less, then `i64.const` of its span; a literal passed straight to a host call takes the host fast path (crates/hd_wasm_linear/DESIGN.md §15.4). Implementation differs: a `call` of the literal's own getter, and no fast path or short-literal globals (crates/hd_wasm_linear/DESIGN.md §15.4) |
 | an explicit panic, a failed check | a `call` of the category's stub with no site immediate; the call's code offset is the site (crates/hd_wasm_linear/DESIGN.md §15.5) |
 | `DefaultCall` | a direct `call` of the default body's instance with the earlier argument values, inside the forbidden-context bracket (§12.3) |
-| `ForRange`, `ForList`, `ForMap` | counted loops (§12.4) |
+| `Loop` | the checker has expanded counted loops into ordinary control flow (§12.5) |
 | `Await*` | the state machine (§14) |
 | `Hook` | nothing, except in hook builds (§14.7) |
 
@@ -419,28 +419,19 @@ Requirement rows never become type arguments
 
 ### 12.5 Counted Loops And Checks
 
-`ForRange`, `ForList` and `ForMap` are emitted as counters in both pipelines.
-A loop that allocates per step fails the `allocations` target, so
-this is a lowering rule, not an optimization:
+The checker expands counted loops into ordinary `Loop`, blocks, locals,
+tests and intrinsics before monomorphization (`hd_check/src/expr.rs`).
+Numeric ranges keep a cursor, end and inclusive flag. Each round tests
+whether the cursor is in range and advances it before running the body,
+so `continue` needs no separate increment. At an inclusive endpoint it
+clears the flag rather than overflowing the cursor.
 
-```text
-ForRange a..b       i = a; end = b
-                    loop: if i >= end: break; body; i = i + 1     # cannot overflow here
-
-ForRange a..=b      i = a; end = b
-                    if i <= end: loop: body; if i == end: break; i = i + 1
-
-ForRange a..        i = a
-                    loop: body; i = i + 1   # checked in debug and test, wraps in release
-```
-
-The `a..` step is a checked add with the loop's site
-([`flow.for.range.from-overflow`](../../spec/lang/06-control-flow.md#r-flow.for.range.from-overflow)).
-`continue` jumps to the increment. No range value, no iterator and no
-`Option` exist at run time. `ForList` and `ForMap` loop over the backing
-arrays' indices, capture the length at the start and compare it before
-each step, panicking with `iterator-invalidated`
-([`flow.for.invalidate.panic`](../../spec/lang/06-control-flow.md#r-flow.for.invalidate.panic)).
+Built-in list and map loops read indexed elements or live entries. A
+borrowed source uses `SnapBegin`/`SnapEnd` to share its initial buffer;
+changes copy that buffer first (`flow.for.snapshot`). A fresh source is
+owned by the loop and needs no snapshot. Iterator-protocol loops instead
+call `iter`/`next` and match the optional item. No specialized counted-loop
+tags remain for emission to interpret.
 
 **Checks.** TIR holds no check sequences; emission adds them by profile.
 

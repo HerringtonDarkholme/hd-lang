@@ -214,16 +214,7 @@ pub(super) fn uses(b: &Body, i: usize) -> Vec<u32> {
                 // Only these records hold values; a closure's holds its
                 // captures' range, a switch's its case and arms.
                 Op::Record
-                    if word != NONE
-                        && matches!(
-                            tag,
-                            Tag::CallDyn
-                                | Tag::Await
-                                | Tag::NewList
-                                | Tag::ForRange
-                                | Tag::ForList
-                                | Tag::ForMap
-                        ) =>
+                    if word != NONE && matches!(tag, Tag::CallDyn | Tag::Await | Tag::NewList) =>
                 {
                     out.extend_from_slice(b.record(word));
                 }
