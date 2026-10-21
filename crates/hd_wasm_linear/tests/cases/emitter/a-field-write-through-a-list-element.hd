@@ -1,0 +1,8 @@
+# @dump: wat
+# Emitter: the Wasm instructions that come from a subject (`wat`).
+struct Body:
+    x: f64
+    vx: f64
+fn place(bodies: &mut List[Body], i: usize, x: f64) -> void:
+    bodies[i].x = x
+    #^^^^^^^^^^^^^^

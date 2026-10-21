@@ -1,0 +1,8 @@
+# @dump: tokens
+# Lexer: the tokens a subject splits into.
+struct Point:
+    x: i32
+    y: i32
+fn shift(p: &mut Point) -> void:
+    p.x = p.x + +1
+    #           ^^

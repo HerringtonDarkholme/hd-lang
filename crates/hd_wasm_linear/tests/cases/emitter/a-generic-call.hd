@@ -1,0 +1,10 @@
+# @dump: wat
+# Emitter: the Wasm instructions that come from a subject (`wat`).
+struct Body:
+    x: f64
+    vx: f64
+fn identity[T](x: T) -> T: x
+
+fn one() -> i32:
+    identity(+1)
+    #^^^^^^^^^^^

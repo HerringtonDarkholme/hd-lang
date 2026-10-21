@@ -1,0 +1,7 @@
+# @dump: layout
+
+struct First:
+    x: i32
+
+struct Second:
+    text: string

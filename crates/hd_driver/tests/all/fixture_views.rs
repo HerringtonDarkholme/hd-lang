@@ -137,25 +137,16 @@ fn count_labels_preserve_bytes_offsets_and_real_source_origins() {
 
 #[test]
 fn topic_views_ignore_unrelated_source_and_function_numbering() {
-    use hd_testkit::stages::{Case, program, view};
-    let case = Case {
-        name: "counts".into(),
-        code:
-            "fn duplicate(value: string) -> (string, string):\n    # subject\n    (value, value)\n"
-                .into(),
-        views: Vec::new(),
-    };
-    let plain = program("", &case).expect("program");
-    let extra = program("struct Other:\n    text: string\nfn unrelated(text: string) -> (string, string): (text, text)\n", &case).expect("program");
+    use hd_testkit::stages::{Program, view};
+    let code =
+        "fn duplicate(value: string) -> (string, string):\n    # subject\n    (value, value)\n";
+    let plain = Program::new(code).expect("program");
+    let extra = Program::new(&format!("struct Other:\n    text: string\nfn unrelated(text: string) -> (string, string): (text, text)\n{code}")).expect("program");
     let expected = view("counts", &plain).expect("counts");
     assert!(expected.contains("retain string"), "{expected}");
     assert_eq!(expected, view("counts", &extra).expect("counts"));
-    let case = Case {
-        name: "layout".into(),
-        code: "# subject\nstruct Pair:\n    small: u8\n    large: i64\n".into(),
-        views: Vec::new(),
-    };
-    let plain = program("", &case).expect("program");
-    let extra = program("struct Other:\n    text: string\n", &case).expect("program");
+    let code = "# subject\nstruct Pair:\n    small: u8\n    large: i64\n";
+    let plain = Program::new(code).expect("program");
+    let extra = Program::new(&format!("struct Other:\n    text: string\n{code}")).expect("program");
     assert_eq!(view("layout", &plain), view("layout", &extra));
 }

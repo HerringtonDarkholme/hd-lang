@@ -71,6 +71,8 @@ compile_commands.json
 
 # Generated parser artifacts
 *.tokens
+# Stage fixture baselines are tracked test outputs, not parser artifacts.
+!crates/*/tests/baselines/**/*.tokens
 *.interp
 parser.out
 parsetab.py

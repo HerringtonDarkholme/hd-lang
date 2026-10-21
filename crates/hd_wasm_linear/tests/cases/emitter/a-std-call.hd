@@ -1,0 +1,8 @@
+# @dump: wat
+# Emitter: the Wasm instructions that come from a subject (`wat`).
+struct Body:
+    x: f64
+    vx: f64
+fn hello() -> void $ Console:
+    println("hello")
+    #^^^^^^^^^^^^^^^^

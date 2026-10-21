@@ -3,11 +3,12 @@ use std::fmt::Write as _;
 /// Exact memory layouts of the concrete declarations inside the subject.
 pub(super) fn view(p: &super::Program, at: super::Build) -> String {
     let built = super::inspection::build(p, false, at);
-    let mut out = String::new();
+    let mut out = super::Dump::new(p);
     for ty in &built.fixture_layouts {
-        if !p.inside(ty.lo as usize, ty.hi as usize) {
+        if ty.file != "main.hd" || !p.inside(ty.lo as usize, ty.hi as usize) {
             continue;
         }
+        out.at(ty.lo as usize);
         let layout = &ty.layout;
         let _ = writeln!(
             out,
@@ -38,12 +39,13 @@ pub(super) fn view(p: &super::Program, at: super::Build) -> String {
             );
         }
     }
-    if out.is_empty() && !built.diags.has_errors() {
+    if out.flat.is_empty() && !built.diags.has_errors() {
         out.push_str("no concrete struct layouts\n");
     }
     let diagnostics = built.render();
     if !diagnostics.trim().is_empty() {
+        out.at(p.text.len());
         let _ = writeln!(out, "{}", diagnostics.trim_end());
     }
-    out
+    out.finish()
 }

@@ -1,0 +1,9 @@
+# @dump: wat
+# Emitter: the Wasm instructions that come from a subject (`wat`).
+struct Body:
+    x: f64
+    vx: f64
+fn count(xs: List[i32]) -> usize:
+    ys := xs
+    #^^^^^^^
+    ys.len()

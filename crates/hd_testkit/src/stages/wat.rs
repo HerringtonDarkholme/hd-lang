@@ -46,8 +46,7 @@ pub fn wat(p: &Program) -> String {
 /// [`wat`], for the target and level `at` names.
 #[must_use]
 pub fn wat_for(p: &Program, at: Build) -> String {
-    let mut src = hd_project::MemorySources::default();
-    src.insert("main.hd", &p.text);
+    let src = p.sources();
     let store = hd_cache::MemoryStore::default();
     let host = Host {
         render_tir: &["app/*"],
@@ -79,7 +78,7 @@ pub fn wat_for(p: &Program, at: Build) -> String {
             module: "main".into(),
         },
     );
-    let mut out = String::new();
+    let mut out = super::Dump::new(p);
     if let Some(wasm) = &built.wasm {
         let module = Module::read(wasm);
         let mut storage = String::new();
@@ -91,23 +90,25 @@ pub fn wat_for(p: &Program, at: Build) -> String {
         let mut pool = PositionPool::default();
         let positions = built.positions(&mut pool);
         // Each function's excerpt, as tokens, before anything is named.
-        let mut excerpts: Vec<(&FunctionOrigins, Vec<Vec<Tok>>)> = Vec::new();
+        let mut excerpts: Vec<(&FunctionOrigins, Instructions)> = Vec::new();
         for f in &built.instruction_origins {
             let Some(item) = f.item.as_deref().filter(|i| i.starts_with("app/")) else {
                 continue;
             };
             let start = module.bodies[&f.index];
-            let kept: Vec<Vec<Tok>> = f
+            let kept: Instructions = f
                 .instructions
                 .iter()
-                .filter(|ins| {
-                    ins.origin
-                        .and_then(|o| positions.span(item, o))
-                        .is_some_and(|(_, lo, hi)| p.inside(lo as usize, hi as usize))
-                })
-                .map(|ins| {
+                .filter_map(|ins| {
+                    let (file, lo, hi) = ins.origin.and_then(|o| positions.span(item, o))?;
+                    if file != "main.hd" || !p.inside(lo as usize, hi as usize) {
+                        return None;
+                    }
                     let at = start + u64::from(ins.offset);
-                    tokens(lines.get(&at).map_or("?", String::as_str), f, &module)
+                    Some((
+                        lo as usize,
+                        tokens(lines.get(&at).map_or("?", String::as_str), f, &module),
+                    ))
                 })
                 .collect();
             if !kept.is_empty() {
@@ -129,7 +130,7 @@ pub fn wat_for(p: &Program, at: Build) -> String {
         let mut funcs = Names::default();
         for (f, kept) in &excerpts {
             funcs.see_as(f.index, func_name(f.index));
-            for t in kept.iter().flatten() {
+            for t in kept.iter().flat_map(|(_, ts)| ts) {
                 if let Tok::Func(k) = t {
                     funcs.see_as(*k, func_name(*k));
                 }
@@ -142,14 +143,20 @@ pub fn wat_for(p: &Program, at: Build) -> String {
                 .and_then(|i| built.tir_text.get(i))
                 .map_or("", String::as_str);
             let mut locals = Locals::new(f, tir);
-            for t in kept.iter().flatten() {
+            for t in kept.iter().flat_map(|(_, ts)| ts) {
                 if let Tok::Local(l) = t {
                     locals.see(*l);
                 }
             }
+            out.at(kept
+                .iter()
+                .map(|(lo, _)| *lo)
+                .min()
+                .expect("kept instructions"));
             let _ = writeln!(out, "{}", funcs.name(f.index));
             let mut depth = 0usize;
-            for toks in kept {
+            for (lo, toks) in kept {
+                out.at(*lo);
                 let first = toks.first();
                 let closes = matches!(first, Some(Tok::Text(w)) if w == "end" || w == "else");
                 let opens = matches!(first, Some(Tok::Text(w))
@@ -181,10 +188,13 @@ pub fn wat_for(p: &Program, at: Build) -> String {
     }
     let rendered = built.render();
     if !rendered.trim().is_empty() {
+        out.at(p.text.len());
         let _ = writeln!(out, "{}", rendered.trim_end());
     }
-    out
+    out.finish()
 }
+
+type Instructions = Vec<(usize, Vec<Tok>)>;
 
 /// One word of a printed instruction: text, or a function or local that
 /// is named once the whole view is known.

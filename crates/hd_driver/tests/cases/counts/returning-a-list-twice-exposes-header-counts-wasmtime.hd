@@ -1,0 +1,11 @@
+# @dump: counts
+# @build: wasmtime
+# Only surviving count/free operations inside the subject; source type labels.
+struct Text:
+    value: string
+
+fn context_copy(value: string) -> (string, string):
+    (value, value)
+fn twice(items: List[i32]) -> (List[i32], List[i32]):
+    # subject
+    (items, items)

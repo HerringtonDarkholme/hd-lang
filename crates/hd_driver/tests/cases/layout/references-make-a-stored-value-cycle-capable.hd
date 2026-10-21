@@ -1,0 +1,9 @@
+# @dump: layout
+# Actual inline memory layouts; counted offsets are bytes from the value's base.
+# A ? after a counted offset means that only some variants hold that address.
+struct Point:
+    x: i32
+    y: i64
+# subject
+struct ReferenceField:
+    target: &mut i32

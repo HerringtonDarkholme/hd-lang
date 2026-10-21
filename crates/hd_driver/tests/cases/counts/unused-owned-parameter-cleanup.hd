@@ -1,0 +1,10 @@
+# @dump: counts
+# Only surviving count/free operations inside the subject; source type labels.
+struct Text:
+    value: string
+
+fn context_copy(value: string) -> (string, string):
+    (value, value)
+# subject
+fn first(left: string, _right: string) -> string:
+    left

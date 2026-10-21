@@ -1,0 +1,11 @@
+# @dump: wat
+# @build: wasmtime release
+# Emitter: the Wasm instructions that come from a subject (`wat`).
+struct Body:
+    x: f64
+    vx: f64
+let total = +0
+
+fn add(n: i32) -> void:
+    total = total + n
+    #^^^^^^^^^^^^^^^^

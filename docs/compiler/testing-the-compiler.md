@@ -117,63 +117,86 @@ The edit vocabulary:
 
 ### 8.4 Stage Fixtures
 
-Issue #657 chose, and #660 built, topic files of small cases whose
-expected outputs are views of one compiler stage. `hd_testkit::stages`
-runs them; each stage crate's test runs its own `tests/stages/*.stage`.
-The lexer and the parser are in `crates/hd_syntax/tests/stages/`, the
-checker in `crates/hd_check/tests/stages/`, and the emitter in
-`crates/hd_wasm_linear/tests/stages/`.
+A stage case is a plain hd file at `tests/cases/<topic>/<name>.hd` in
+its stage crate. Generated output lives separately at
+`tests/baselines/<topic>/<name>.<view>`. `hd_testkit::stages` discovers
+cases recursively; adding a file needs no registration. Syntax cases live
+in `hd_syntax`, checker cases in `hd_check`, WAT cases in
+`hd_wasm_linear`, and layout/count cases in `hd_driver`.
 
-- **A file is one topic.** It starts with `-- context --` and the hd that
-  every case uses. Each case is `-- case: NAME --`, its hd, then one
-  `-- VIEW --` block per view with the expected output. A case without view
-  blocks takes the views of the case before it, so adding a case is pasting
-  its code and blessing. No registration is needed: the harness finds every
-  `*.stage` file in the directory.
-- **The subject is marked by a comment**, so each case's program (the
-  context, then the case) stays valid hd for `hd fmt` and `hd check`.
-  A caret line `#^^^^` marks columns of the code line above it, from the
-  `#` when a `^` follows it directly, or else from the first `^`. A
-  `# subject` line marks the next line and the lines indented deeper after
-  it (an `else` at its depth continues it). With no marker, the subject is
-  the case's last statement or item.
-- **Each view keeps only what lies inside the subject's span.**
-  - `tokens` shows each token's kind and text.
-  - `tree` shows the outline of the largest syntax nodes inside the
-    subject, without wrappers that only repeat a child's span.
-  - `tir` shows, per body, the instructions whose source node lies inside
-    the subject, using `Positions::span`. The locals they name come first,
-    with their names and types, and `Prim` and `Intrinsic` operations print
-    by name.
-  - `wat` (#662) builds every function the case defines, with no `main`
-    (`Goal::Fixture`, #663), and shows, per function of the case, the Wasm
-    instructions whose origin (`Packages::instruction_origins`, #661)
-    lies inside the subject. A generic function shows code only once a
-    case function calls it at concrete types. The excerpt is normalized
-    so it reads by eye and does not move when unrelated code changes.
-    Functions, globals and static data print by name
-    (`call rt:retain_known`, `global.get calls`, `i32.const &"hi"`), and
-    the case's own module path, an instance's `#0` and a helper's
-    module-order `#k` go. An instance shows its type arguments
-    (`identity[i32]`), and a std function its own name (`println`), or
-    its path when another function in the excerpt has that name. Locals
-    print by source name, field path or role (`bodies`, `b.vx`, `ctx`),
-    and temporaries as `t0`, `t1`, ... in the order the excerpt names
-    them. Types print by signature, the heap memory goes unnamed, and
-    labels go, while branch depths stay. The releases at a function's
-    exit come from where each place began, so a statement's excerpt shows
-    the exit releases of what it binds; the closing `end` and the result
-    belong to the whole body.
-  - A view header may name the build it shows. The header
-    `-- wat (wasmtime, release) --` builds for that engine target with
-    the optimized pipeline and the release profile. The defaults are `v8`
-    and `dev`.
-  - Later issues add `counts` and `layout` (#664).
-  - Execution stays in conformance: a view never replaces a runtime
-    assertion.
-- **Blessing.** `HD_BLESS=1` rewrites every expected block in place. A
-  mismatch prints a line diff (`-` expected, `+` actual) around each
-  change.
+Header comments select the dumps and build:
+
+```hd
+# @dump: tir wat counts
+# @build: wasmtime release
+fn duplicate(text: string) -> (string, string):
+    (text, text)
+```
+
+`@dump` lists one or more of `tokens`, `tree`, `tir`, `tir-flags`, `wat`,
+`counts`, or `layout`. `@build` is optional: engine targets are `v8`
+(the default), `wasmtime`, and `browser`; levels are `dev` (the default)
+and `release` (the optimized pipeline and release profile). A separate
+case file chooses a different build, so each baseline has one unambiguous
+build. Unknown directives/options and duplicate dumps are errors.
+
+Without a marker, the whole main module is dumped: each source line
+appears once, with its output on `> ` lines directly below it. Tokens and
+syntax nodes use their source starts; TIR and Wasm instructions use their
+real source spans/origins, not the closest emitted instruction. A multiline
+operation belongs to its starting line; locals and function headings
+accompany the first kept instruction. Layouts belong to their declarations.
+Diagnostics without a per-view source attribution follow the source.
+The renderer builds once per view, rather than once per source line.
+
+An optional `# subject` immediately before a statement/item narrows the
+dump to it and the lines indented deeper after it (including an `else` at
+its own depth). A caret comment `#^^^^` below code selects columns of the
+code line above it, from the `#` when a caret follows it directly, or else
+from the first caret. Marked cases produce only the excerpt, preserving
+the small exact views. Markers are ordinary hd comments; cases can be
+checked and formatted with `hd check` and `hd fmt`.
+
+For a multi-module case, `# @file: other.hd` starts an additional virtual
+module; subsequent lines belong to that module until the next `@file`.
+The implicit first module is `main.hd`; an explicit `# @file: main.hd`
+can name it too. Module names are relative `.hd` paths with no `..`.
+Every compiler view receives all modules, but dumps and subject spans
+refer to `main.hd`. Such cases are compiled as virtual packages by the
+harness; their physical file remains plain hd with comment separators.
+
+The views keep their stage's evidence:
+
+- `tokens`: each token's kind and text.
+- `tree`: outlines of syntax nodes, omitting wrappers that only repeat
+  a child's span.
+- `tir`: checked instructions and the locals they use, by body, filtered
+  with `Positions::span`. `tir-flags` also prints local flags.
+- `wat`: normalized Wasm for the functions a case defines, emitted with
+  `Goal::Fixture` without requiring `main`. Generic functions need a
+  concrete call. Per-instruction origins preserve source attribution.
+  Functions, globals, static data, local names/field paths and signatures
+  print by name; unrelated module numbering and labels are removed.
+- `counts`: surviving retain/release/free sites, with counted type/value
+  labels; a Wasmtime inline fast path and fallback are one static site.
+- `layout`: concrete struct fields, offsets, sizes/alignment, counted
+  leaves (including conditional variant payloads), and cycle capability.
+
+A normal run compares against baselines and prints a short line diff on
+mismatch. A missing baseline fails with a blessing hint. `HD_BLESS=1`
+writes generated baselines in place, each with a `do not edit` banner;
+it **never rewrites source cases**. There is no local/reference split or
+accept-copy step. For example:
+
+```sh
+HD_BLESS=1 cargo test -p hd_check --test stages
+cargo test -p hd_check --test stages
+cargo test -p hd_syntax --test all stages::
+```
+
+The previous combined container format and its parser are retired.
+Execution assertions stay in conformance; stage dumps do not replace a
+runtime oracle.
 
 ## 21. Back-Half Determinism And Soundness Tests
 

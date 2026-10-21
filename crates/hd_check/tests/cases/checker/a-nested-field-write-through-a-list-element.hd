@@ -1,0 +1,18 @@
+# @dump: tir
+# Checker: the TIR of a subject.
+struct Body:
+    x: f64
+    vx: f64
+
+struct Counter:
+    count: i32
+
+impl Counter:
+    fn bump(&mut self, by: i32) -> void:
+        self.count = self.count + by
+struct Pos:
+    at: Body
+
+fn nudge(ps: &mut List[Pos], i: usize) -> void:
+    ps[i].at.vx = 0.5
+    #^^^^^^^^^^^^^^^^

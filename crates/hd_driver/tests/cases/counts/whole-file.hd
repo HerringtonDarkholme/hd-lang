@@ -1,0 +1,7 @@
+# @dump: counts
+
+fn first(text: string) -> (string, string):
+    (text, text)
+
+fn second(text: string) -> (string, string):
+    (text, text)

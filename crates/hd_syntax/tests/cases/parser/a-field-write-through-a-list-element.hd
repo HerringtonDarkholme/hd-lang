@@ -1,0 +1,8 @@
+# @dump: tree
+# Parser: the syntax tree of a subject.
+struct Body:
+    x: f64
+    vx: f64
+fn step(bodies: &mut List[Body], i: usize, dt: f64) -> void:
+    bodies[i].x = bodies[i].x + dt * bodies[i].vx
+    #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

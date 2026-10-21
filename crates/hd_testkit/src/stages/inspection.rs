@@ -2,8 +2,7 @@ use hd_driver::{Executor, Goal, Host, NoClock, Output, Packages, build_packages}
 use hd_sched::SerialOrder;
 
 pub(super) fn build(p: &super::Program, origins: bool, at: super::Build) -> Output {
-    let mut sources = hd_project::MemorySources::default();
-    sources.insert("main.hd", &p.text);
+    let sources = p.sources();
     let store = hd_cache::MemoryStore::default();
     let host = Host {
         sources: &sources,

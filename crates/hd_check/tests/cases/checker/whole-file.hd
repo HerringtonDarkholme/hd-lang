@@ -1,0 +1,7 @@
+# @dump: tir tir-flags
+
+fn first() -> i32: +1
+
+fn second(value: i32) -> i32:
+    copy := value
+    copy + 2

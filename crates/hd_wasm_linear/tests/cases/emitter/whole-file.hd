@@ -1,0 +1,7 @@
+# @dump: wat
+
+fn first(value: i32) -> i32:
+    copy := value + 1
+    copy + 2
+
+fn second() -> i32: +3

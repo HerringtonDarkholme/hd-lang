@@ -1,0 +1,10 @@
+# @dump: wat
+# Emitter: the Wasm instructions that come from a subject (`wat`).
+struct Body:
+    x: f64
+    vx: f64
+fn add(a: i32, b: i32) -> i32: a + b
+
+fn twice(a: i32) -> i32:
+    add(a, a)
+    #^^^^^^^^

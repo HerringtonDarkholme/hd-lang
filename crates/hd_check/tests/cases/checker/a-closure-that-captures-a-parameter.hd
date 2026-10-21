@@ -1,0 +1,15 @@
+# @dump: tir
+# Checker: the TIR of a subject.
+struct Body:
+    x: f64
+    vx: f64
+
+struct Counter:
+    count: i32
+
+impl Counter:
+    fn bump(&mut self, by: i32) -> void:
+        self.count = self.count + by
+# subject
+fn adder(k: i32) -> fn(i32) -> i32:
+    fn(x: i32) -> i32: x + k

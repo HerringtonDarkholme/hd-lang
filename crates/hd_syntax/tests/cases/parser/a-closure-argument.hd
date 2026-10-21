@@ -1,0 +1,8 @@
+# @dump: tree
+# Parser: the syntax tree of a subject.
+struct Body:
+    x: f64
+    vx: f64
+fn total(xs: List[i32]) -> i32:
+    xs.iter().fold(+0, fn(a, x): a + x)
+    #                  ^^^^^^^^^^^^^^^

@@ -1,0 +1,8 @@
+# @dump: tokens
+# Lexer: the tokens a subject splits into.
+struct Point:
+    x: i32
+    y: i32
+fn adder() -> fn(i32) -> i32:
+    # subject
+    fn(n: i32) -> i32: n + 1

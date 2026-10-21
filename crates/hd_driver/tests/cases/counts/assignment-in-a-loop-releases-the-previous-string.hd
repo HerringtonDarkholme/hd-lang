@@ -1,0 +1,13 @@
+# @dump: counts
+# Only surviving count/free operations inside the subject; source type labels.
+struct Text:
+    value: string
+
+fn context_copy(value: string) -> (string, string):
+    (value, value)
+fn last(items: List[string]) -> string:
+    let result = ""
+    for value in items:
+        # subject
+        result = value
+    result
