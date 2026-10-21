@@ -44,7 +44,7 @@ check("b:current_syntax is hd", vim.b.current_syntax == "hd", "got " .. tostring
 -- Keywords.
 expect(10, "fn", 0, "hdKeyword")
 expect(11, "if", 0, "hdConditional")
-expect(3, "data", 0, "hdStructure")
+expect(3, "struct", 0, "hdStructure")
 expect(16, "pub", 0, "hdStorage")
 expect(22, "true", 0, "hdBoolean")
 

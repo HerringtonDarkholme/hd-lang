@@ -1,8 +1,8 @@
 " Vim syntax file
 " Language:    hd (hd-lang)
 " Maintainer:  hd-lang
-" Reference:   spec/lang/01-lexical-structure.md; src/highlight.ts is the
-"              website's highlighter and makes the same choices.
+" Reference:   spec/lang/01-lexical-structure.md; website/src/highlight.ts is
+"              the website's highlighter and makes the same choices.
 
 if exists("b:current_syntax")
   finish
@@ -11,19 +11,21 @@ endif
 let s:cpo_save = &cpo
 set cpo&vim
 
-" Reserved words: KEYWORDS in src/lexer.ts. Keep this list in sync:
+" Reserved words: spec/lang/01-lexical-structure.md#keywords-and-reserved-words.
+" Keep this list in sync (`data` is reserved but declares nothing since
+" `struct` replaced it):
 "   Self break continue data defer dyn else enum false fn for if impl in is
-"   let match mut pass pub return self tests trait true type while
+"   let match mut pass pub return self struct tests trait true type while
 syn keyword hdConditional if else match
 syn keyword hdRepeat      for while in
 syn keyword hdStatement   return break continue pass defer
-syn keyword hdStructure   data enum trait impl type
+syn keyword hdStructure   struct enum trait impl type
 syn keyword hdStorage     pub mut dyn
 syn keyword hdKeyword     fn let is tests
 syn keyword hdBoolean     true false
 syn keyword hdSelf        self Self
 
-" Primitive types (src/highlight.ts PRIMITIVE_TYPES).
+" Primitive types (website/src/highlight.ts PRIMITIVE_TYPES).
 syn keyword hdPrimitive i8 i16 i32 i64 u8 u16 u32 u64 f32 f64
 syn keyword hdPrimitive bool char string void never
 
@@ -44,6 +46,8 @@ syn match hdBang "\w\@1<=![(\[]\@="
 syn match hdInclude "\%(^\s*\%(pub\s\+\)\=\)\@<=use\ze\s\+\%(pkg\|std\|dep\|self\|super\)\>"
 syn match hdInclude "\%(^\s*\%(pub\s\+\)\=use\s.*\)\@<=\<\%(as\|super\)\>"
 syn match hdKeyword "\%(^\s*impl\>.*\s\)\@<=by\ze\s\+\S"
+" `using` at the start of a statement, before a name (lex.contextual.using).
+syn match hdKeyword "^\s*\zsusing\ze\s\+\h"
 
 " The requirement row `$` and the provider operations `$.use`, `$.with`,
 " and `$.context`.

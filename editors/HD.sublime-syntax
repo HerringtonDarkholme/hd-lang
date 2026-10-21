@@ -55,12 +55,16 @@ contexts:
       scope: keyword.control.loop.hd
     - match: '\b(?:return|break|continue|pass|defer)\b'
       scope: keyword.control.flow.hd
-    - match: '\b(?:data|enum|trait|impl|type)\b'
+    - match: '\b(?:struct|enum|trait|impl|type)\b'
       scope: keyword.declaration.hd
     - match: '\b(?:pub|mut|dyn)\b'
       scope: storage.modifier.hd
     - match: '\b(?:fn|let|is|tests)\b'
       scope: keyword.other.hd
+    # `using` at the start of a statement, before a name (lex.contextual.using).
+    - match: '^\s*(using)(?=\s+[A-Za-z_])'
+      captures:
+        1: keyword.other.hd
 
     # Prefixed strings are raw but still support hd interpolation.
     - match: '({{identifier}})(""")'

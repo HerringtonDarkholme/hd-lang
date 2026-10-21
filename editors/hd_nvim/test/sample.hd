@@ -1,6 +1,6 @@
 ## A counter with a doc comment.
 @derive(Eq)
-data Counter:
+struct Counter:
     value: i32
 
 enum Mode:
