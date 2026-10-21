@@ -595,11 +595,17 @@ impl Elem {
 /// A list header's payload (§23.7): the buffer's address, then the
 /// owner word: 0 while the buffer may be shared, or, once an element
 /// reference pinned the list, the function-table slot of the list's
-/// [`Helper::ListClone`] plus one. A buffer whose header has an owner word
+/// [`Helper::ListClone`] plus one, with [`LIST_EXPOSED`] for transitive
+/// exposure. A buffer whose header has an owner word
 /// has that header as its one owner, so each count past the first is an
 /// element reference's: the list is pinned while its buffer's count is
 /// over 1 (§23.20).
 pub const LIST_OWN: u64 = 4;
+
+/// A list containing collection values has exposed an element. Keep its
+/// buffer unshared even after the direct pin ends: a descendant reference
+/// may still be alive. The remaining owner bits name the clone glue.
+pub const LIST_EXPOSED: u32 = 1 << 31;
 
 /// A list buffer's payload: the capacity in elements, the length, then
 /// the elements inline from [`LIST_ELEMS`].
@@ -2443,6 +2449,8 @@ fn release_ref(m: &Module, known: bool) -> Func {
 /// one more owner. A pinned list's buffer has one owner, so its copy is a
 /// copy of the buffer (`ref.elem.pin`); an unpinned list whose header
 /// still has an owner word gives the word up, as its buffer is shared now.
+/// Exposed ancestors stay unshared even without a direct pin: their
+/// recursively copied elements may contain a still-pinned descendant.
 fn list_copy() -> Func {
     let mut f = Func::new("rt:list_copy", vec![Val::I32], vec![Val::I32]);
     let (b, own) = (f.local(Val::I32), f.local(Val::I32));
@@ -2460,9 +2468,15 @@ fn list_copy() -> Func {
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
     f.i32(1);
     f.op(Instruction::I32GtU);
+    f.get(own);
+    f.u32(LIST_EXPOSED);
+    f.op(Instruction::I32And);
+    f.op(Instruction::I32Or);
     f.op(Instruction::If(BlockType::Empty));
     f.get(0);
     f.get(own);
+    f.u32(!LIST_EXPOSED);
+    f.op(Instruction::I32And);
     f.i32(1);
     f.op(Instruction::I32Sub);
     f.call_indirect(vec![Val::I32], vec![Val::I32]);

@@ -17,7 +17,7 @@ use super::Em;
 use super::value::Src;
 use crate::layout::{coll_leaves, mem as mem_of, strip};
 use crate::module::{HEAP, Ins, Sym, Val, mem};
-use crate::rt::{Elem, Helper, LIST_ELEMS, LIST_LEN, LIST_OWN, empty_buffer};
+use crate::rt::{Elem, Helper, LIST_ELEMS, LIST_EXPOSED, LIST_LEN, LIST_OWN, empty_buffer};
 use crate::unsupported;
 
 /// A stable list header, directly in a local or behind a reference local.
@@ -1128,11 +1128,16 @@ impl Em<'_, '_, '_> {
             self.index(b, ix)?;
         }
         self.unique(h, &e, false);
+        let exposed = !e.colls.is_empty();
         self.f.get(h);
         self.f
             .push(Ins::TableSlot(Sym::Helper(Helper::ListClone { elem: e })));
         self.f.i32(1);
         self.f.op(I::I32Add);
+        if exposed {
+            self.f.u32(LIST_EXPOSED);
+            self.f.op(I::I32Or);
+        }
         self.f.op(I::I32Store(mem(HEAP, LIST_OWN, 2)));
         let b = self.buffer(h);
         self.f.get(b);

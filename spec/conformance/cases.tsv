@@ -3824,6 +3824,7 @@ runtime/valid/element-reference-sort-sees-new-occupant.hd	runtime	accept	lang/13
 runtime/valid/element-reference-swap-allowed.hd	runtime	accept	lang/13-values-and-references.md#r-ref.elem.pinned.allowed
 runtime/valid/element-reference-element-store-allowed.hd	runtime	accept	lang/13-values-and-references.md#r-ref.elem.pinned.allowed
 runtime/valid/element-reference-copy-independent.hd	runtime	accept	lang/13-values-and-references.md#r-ref.elem.copy
+runtime/valid/element-reference-nested-copy-independent.hd	runtime	accept	lang/13-values-and-references.md#r-ref.elem.copy
 runtime/valid/element-reference-replace-whole-list.hd	runtime	accept	lang/13-values-and-references.md#r-ref.elem.replace
 runtime/valid/element-reference-identity.hd	runtime	accept	lang/13-values-and-references.md#r-ref.elem.identity
 runtime/valid/for-element-references-mut.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.ref

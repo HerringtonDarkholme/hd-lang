@@ -333,7 +333,7 @@ The allocator is hd in `std.rt.alloc`, REFCOUNT_RUNTIME.md §6's
 | Header payload offset | Size | Field |
 | --- | --- | --- |
 | 0 | 4 | the buffer's address |
-| 4 | 4 | the owner word: 0, or the function-table slot of the list's clone glue plus one once pinned |
+| 4 | 4 | the owner word: clone-glue table slot plus one once pinned (0 while shareable), with bit 31 recording transitive exposure |
 
 | Buffer payload offset | Size | Field |
 | --- | --- | --- |
@@ -853,6 +853,20 @@ references preserve their owners and pins (OBJECT_MODEL_TIER1.md §6.3).
   element reference sees. A copy of a pinned list copies its buffer at
   once through the owner word's clone glue (`rt:list_copy`), and a copy
   of an unpinned one clears the word, since the buffer is shared again.
+  When the element layout contains collection values, `ListPin` also sets
+  bit 31 of the owner word. This exposure survives the direct pin: an
+  escaped reference can still reach a descendant after that pin ends.
+  `ListCopy` clones exposed buffers regardless of the direct pin count,
+  masking off bit 31 before calling the clone glue. Recursive collection
+  copies isolate pinned descendants; the new header starts unexposed.
+  Before pinning through nested indexing, the checker changes ancestor
+  reads to `ListIndexMut` to detach shared buffers before loading their
+  children. Existing `ListPin`/`ListUnpin` pairs then expose those
+  ancestors, outside in, without preventing ancestor growth. Each index
+  is evaluated once. No TIR instruction shape changes. Fresh containment
+  uses the same collection-copy glue, so it cannot hide an exposed child
+  behind a shared outer buffer. Lists of scalar or reference elements
+  gain no exposure bit: their ordinary pin/count fast path is unchanged.
   `ListPin`'s own count lasts until the checker's `ListUnpin`; each
   copy of an element reference holds its own, so a reference stored in
   a field, returned, or captured by a closure called later keeps the

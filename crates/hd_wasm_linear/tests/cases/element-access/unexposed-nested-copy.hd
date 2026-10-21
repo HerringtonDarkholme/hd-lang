@@ -1,0 +1,5 @@
+# @dump: wat
+# expected: copying before any reference is taken calls the ordinary
+# list-copy helper; no ListPin, ListUnpin or ListClone runs at the copy.
+fn copy_nested(xs: &List[List[i32]]) -> List[List[i32]]:
+    *xs

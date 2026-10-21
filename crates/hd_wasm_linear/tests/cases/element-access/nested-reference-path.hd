@@ -1,0 +1,6 @@
+# @dump: wat
+# expected: each ancestor detaches before its child is loaded, then is
+# exposed by a balanced pin/unpin; only the leaf keeps a lexical pin.
+fn write_nested(xs: &mut List[List[i32]]) -> void:
+    p := &mut xs[0][0]
+    *p = 9

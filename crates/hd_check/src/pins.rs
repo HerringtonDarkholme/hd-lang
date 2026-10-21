@@ -231,6 +231,7 @@ impl Ck<'_, '_> {
         n: NodeRef<'_>,
     ) -> (LocalId, usize) {
         let at = n.index();
+        self.expose_list_path(list, at);
         let args: Vec<Ref> = std::iter::once(list).chain(index).collect();
         let rec = self.b.refs_record(&args);
         let pinned = self
@@ -359,6 +360,53 @@ impl Ck<'_, '_> {
                 self.not_yet_index(e);
                 Ok(None)
             }
+        }
+    }
+
+    /// Detach shared ancestors before their element headers are read, then
+    /// expose each ancestor without keeping its buffer pinned. The leaf's
+    /// reference may escape this scope; exposure therefore belongs to the
+    /// header rather than to a lexical cleanup. Reuse evaluated operands so
+    /// no index or receiver is evaluated twice.
+    fn expose_list_path(&mut self, r: Ref, at: NodeIdx) {
+        self.mark_write_path(r);
+        let mut cur = r;
+        let mut ancestors = Vec::new();
+        while let Some(i) = cur.as_inst() {
+            let (tag, data) = {
+                let body = self.b.body_mut();
+                (body.tags[i.0 as usize], body.data[i.0 as usize])
+            };
+            match tag {
+                Tag::Coerce | Tag::Field => cur = Ref(data[0]),
+                Tag::Intrinsic
+                    if matches!(
+                        IntrinsicOp::from_u32(data[0]),
+                        Some(IntrinsicOp::ListIndexMut)
+                    ) =>
+                {
+                    let args = self.b.body_mut().record(data[1]);
+                    let (base, index) = (Ref(args[0]), Ref(args[1]));
+                    ancestors.push((base, index));
+                    cur = base;
+                }
+                _ => break,
+            }
+        }
+        for (base, index) in ancestors.into_iter().rev() {
+            let ty = self.b.ty_of(base);
+            let args = self.b.refs_record(&[base, index]);
+            let pinned = self
+                .b
+                .emit(Tag::Intrinsic, IntrinsicOp::ListPin as u32, args, ty, at);
+            let args = self.b.refs_record(&[pinned]);
+            self.b.emit(
+                Tag::Intrinsic,
+                IntrinsicOp::ListUnpin as u32,
+                args,
+                Ty::VOID,
+                at,
+            );
         }
     }
 
