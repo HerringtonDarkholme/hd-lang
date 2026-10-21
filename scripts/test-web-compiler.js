@@ -55,9 +55,11 @@ const FIXTURE = join(root, "spec", "conformance", "runtime", "valid", "println-c
 // the raw gate is 5.2 MB (owner approval, 2026-10-16). With the ownership
 // prototype's slices still to land, the owner set the gzip gate to 2 MB
 // (2026-10-17). The sole code generator is now the linear backend
-// (4.93 MB raw after #627); the raw gate stays at the owner-approved
-// 5.2 MB, since a tighter one broke CI twice as RC work landed.
-const RAW_LIMIT = 5_200_000;
+// (4.93 MB raw after #627); the raw gate stayed at the owner-approved
+// 5.2 MB, since a tighter one broke CI twice as RC work landed. #677's
+// known-null release pass took it to 5.2106 MB, so the raw gate is
+// 5.25 MB (owner approval, 2026-10-21).
+const RAW_LIMIT = 5_250_000;
 const GZIP_LIMIT = 2e6;
 const RAW_FLOOR = 2e6;
 
