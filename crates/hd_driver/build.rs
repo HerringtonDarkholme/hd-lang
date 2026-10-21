@@ -5,6 +5,8 @@
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
+#[path = "src/std_compression.rs"]
+mod std_compression;
 #[path = "src/strip_comments.rs"]
 mod strip_comments;
 
@@ -88,7 +90,74 @@ fn main() {
         "/// The std files this build embeds: without `##` doc comments for the\n/// browser build, with them otherwise.\npub static STD_FILES: &[(&str, &str)] = {chosen};"
     );
     let _ = std::fs::write(Path::new(&out).join("std_files.rs"), code);
+    if web {
+        browser_std(&files, Path::new(&out));
+    }
     build_id(&manifest);
+}
+
+/// Store words and indentation as one-byte dictionary codes. Keep the
+/// public raw `STD_FILES` API; the browser's internal source path uses this
+/// archive, so LTO can drop the unreferenced raw copy from `hd_web`.
+fn browser_std(files: &[(String, PathBuf)], out: &Path) {
+    let mut text = String::new();
+    let mut ranges = Vec::new();
+    for (path, abs) in files {
+        if matches!(path.as_str(), "rt/checked.hd" | "rt/checked_report.hd") {
+            continue;
+        }
+        let start = text.len();
+        text.push_str(&strip_comments::strip_all_comments(
+            &std::fs::read_to_string(abs).unwrap_or_default(),
+        ));
+        ranges.push((path, start, text.len()));
+    }
+    let packed = std_compression::compress(text.as_bytes());
+    std::fs::write(out.join("std_text.bin"), &packed.bytes).expect("write packed std text");
+    let mut code = String::from("const WORDS: &[&[u8]] = &[\n");
+    for word in &packed.words {
+        let _ = writeln!(code, "    &{word:?},");
+    }
+    code.push_str("];\nconst FILES: &[(&str, usize, usize)] = &[\n");
+    for (path, start, end) in ranges {
+        let _ = writeln!(
+            code,
+            "    ({path:?}, {}, {}),",
+            literal(start),
+            literal(end)
+        );
+    }
+    code.push_str("];\n");
+    let _ = writeln!(code, "const TEXT_LEN: usize = {};", literal(text.len()));
+    code.push_str(
+        r#"
+        pub(super) fn sources() -> hd_project::MemorySources {
+            let bytes = crate::std_compression::decompress(
+                include_bytes!(concat!(env!("OUT_DIR"), "/std_text.bin")), WORDS, TEXT_LEN,
+            );
+            let text = String::from_utf8(bytes).expect("embedded std is UTF-8");
+            let mut sources = hd_project::MemorySources::default();
+            for &(path, start, end) in FILES {
+                sources.insert(path, &text[start..end]);
+            }
+            sources
+        }
+    "#,
+    );
+    std::fs::write(out.join("std_text.rs"), code).expect("write packed std source loader");
+}
+
+/// Group generated decimal constants so they pass the same lint as source.
+fn literal(value: usize) -> String {
+    let digits = value.to_string();
+    let mut out = String::new();
+    for (i, byte) in digits.bytes().enumerate() {
+        if i != 0 && (digits.len() - i).is_multiple_of(3) {
+            out.push('_');
+        }
+        out.push(char::from(byte));
+    }
+    out
 }
 
 /// The compiler build id of `crates/hd_cache/DESIGN.md` §5.3's `toolchain_key`: a hash of every

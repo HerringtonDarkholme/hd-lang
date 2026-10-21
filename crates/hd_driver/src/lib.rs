@@ -57,6 +57,12 @@ mod pipeline;
 mod positions;
 mod report;
 mod skims;
+#[cfg(any(test, target_family = "wasm"))]
+mod std_compression;
+#[cfg(target_family = "wasm")]
+mod web_std_text {
+    include!(concat!(env!("OUT_DIR"), "/std_text.rs"));
+}
 #[cfg(test)]
 mod strip_comments;
 
@@ -67,7 +73,11 @@ include!(concat!(env!("OUT_DIR"), "/std_files.rs"));
 /// virtual `rt.hd` of `std.rt`.
 #[must_use]
 pub fn std_sources() -> MemorySources {
+    #[cfg(target_family = "wasm")]
+    let mut s = web_std_text::sources();
+    #[cfg(not(target_family = "wasm"))]
     let mut s = MemorySources::default();
+    #[cfg(not(target_family = "wasm"))]
     for (path, text) in STD_FILES {
         s.insert(path, text);
     }
