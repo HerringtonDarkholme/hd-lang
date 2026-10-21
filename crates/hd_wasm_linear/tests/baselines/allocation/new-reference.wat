@@ -2,9 +2,9 @@
 # @dump: wat
 # @build: v8 release
 # expected: `rt:new` and the four field stores, then the pointer as the
-# result; no zero test of the new pointer, no second `rt:new` for it, and no
-# retain or release (binary_trees: every node made).
-# tracked by #670
+# result; no cell local holding the new pointer, and no retain or release
+# (binary_trees: every node made).
+# tracked by #678
 struct Node:
     left: (&Node)?
     right: (&Node)?
@@ -34,39 +34,16 @@ fn leaf() -> &Node:
 >     call rt:release_ref'1
 >     local.get t0
 >     local.tee t1
->     i32.eqz
->     if
->       i32.const 16
->       i32.const 0
->       i32.const -2147483647
->       i32.add
->       call rt:new
->       local.tee t2
->       i32.const 0
->       i32.store8
->       local.get t2
->       i32.const 0
->       i32.store offset=4
->       local.get t2
->       i32.const 0
->       i32.store8 offset=8
->       local.get t2
->       i32.const 0
->       i32.store offset=12
->       local.get t2
->       local.set t1
->     end
->     local.get t1
->     local.tee t3
+>     local.tee t2
 >     call retain
 >     local.get t1
 >     call rt:release_ref'1
 >     i32.const 0
 >     local.set t1
->     local.get t3
->     local.set t4
->     i32.const 0
+>     local.get t2
 >     local.set t3
+>     i32.const 0
+>     local.set t2
 >   end
 >   i32.const 0
 >   i32.const 0
@@ -79,9 +56,9 @@ fn leaf() -> &Node:
 >   i32.const 0
 >   i32.const 0
 >   call rt:release'2
->   local.get t3
+>   local.get t2
 >   call rt:release_ref'2
 >   local.get t1
 >   call rt:release_ref'1
->   local.get t4
+>   local.get t3
 >   end

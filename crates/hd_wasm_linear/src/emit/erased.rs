@@ -125,6 +125,8 @@ pub(super) fn thunk(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResul
         .map(|c| (c.0 as usize, u32::MAX))
         .collect();
     let mut em = Em::new(input, m, b, (item, args), calls, shared_cells);
+    // Each shared capture arrives as its cell's address.
+    em.entry_cells = em.cells.keys().copied().collect();
     em.origin_root = at;
     let mut params = Vec::new();
     let mut ops = Vec::new();

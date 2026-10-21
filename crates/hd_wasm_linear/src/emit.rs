@@ -294,6 +294,12 @@ fn body_func<'a>(
         em.load_captures(ci, u32::from(suspending))?;
         if suspending {
             em.f.op(Instruction::End);
+        } else {
+            em.entry_cells.extend(
+                closure::captures(b, ci)
+                    .into_iter()
+                    .filter_map(|(l, shared)| shared.then_some(l)),
+            );
         }
     }
     // Once-cells also need the common exit when their result is uncounted:
@@ -345,6 +351,9 @@ fn body_func<'a>(
     for (l, ls) in &held {
         if plocals.contains(l) && em.is_cell(*l) {
             em.param_cell(*l, ls)?;
+            if !suspending {
+                em.entry_cells.insert(*l);
+            }
         }
     }
     if suspending {
@@ -965,6 +974,13 @@ struct Em<'i, 'a, 'm> {
     /// The locals that closures share, each in a cell, with the store
     /// that declares it (`closure.rs`).
     cells: HashMap<usize, u32>,
+    /// The cell locals whose cell the prologue made or received: a
+    /// parameter moved into its cell, a closure's or a thunk's shared
+    /// capture (`closure.rs`, [`Em::cell_made`]).
+    entry_cells: hd_base::HashSet<usize>,
+    /// The body's block structure, built at the first use of a cell
+    /// ([`Em::cell_made`]).
+    tree: Option<live::Tree>,
     /// In an erased body, the local holding the address of its thunks'
     /// table, read from the witness (`erased.rs`).
     ops: Option<u32>,
@@ -1038,6 +1054,8 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             shield: 0,
             temps: Vec::new(),
             cells: shared,
+            entry_cells: hd_base::HashSet::default(),
+            tree: None,
             ops: None,
         }
     }

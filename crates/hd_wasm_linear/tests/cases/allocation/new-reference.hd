@@ -1,9 +1,9 @@
 # @dump: wat
 # @build: v8 release
 # expected: `rt:new` and the four field stores, then the pointer as the
-# result; no zero test of the new pointer, no second `rt:new` for it, and no
-# retain or release (binary_trees: every node made).
-# tracked by #670
+# result; no cell local holding the new pointer, and no retain or release
+# (binary_trees: every node made).
+# tracked by #678
 struct Node:
     left: (&Node)?
     right: (&Node)?

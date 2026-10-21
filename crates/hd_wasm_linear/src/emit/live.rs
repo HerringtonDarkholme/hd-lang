@@ -57,7 +57,7 @@ pub(super) struct Moves {
 
 /// The block structure of a body: each instruction's block and position,
 /// and each block's owning instruction.
-struct Tree {
+pub(super) struct Tree {
     /// The block whose list holds each instruction, and its position.
     parent: Vec<(u32, usize)>,
     /// The instruction that runs each block (an `If`, a `Loop`, ...).
@@ -65,7 +65,7 @@ struct Tree {
 }
 
 impl Tree {
-    fn new(b: &Body) -> Tree {
+    pub(super) fn new(b: &Body) -> Tree {
         let n = b.len();
         let mut parent = vec![(NONE, 0); n];
         let mut owner = vec![NONE; n];
@@ -106,7 +106,7 @@ impl Tree {
     /// The blocks around instruction `x`, innermost first, each with the
     /// position of the statement in it that holds `x`; `None` when the
     /// chain does not reach a sub-body's root (a closure's own body).
-    fn path(&self, b: &Body, mut x: u32) -> Option<Vec<(u32, usize)>> {
+    pub(super) fn path(&self, b: &Body, mut x: u32) -> Option<Vec<(u32, usize)>> {
         let mut out = Vec::new();
         loop {
             if b.tags[x as usize] == Tag::Block {
@@ -126,6 +126,19 @@ impl Tree {
             out.push((blk, p));
             x = blk;
         }
+    }
+
+    /// Whether instruction `d` runs before instruction `j` on every path
+    /// of their sub-body that reaches `j`: `d` is a statement of a block
+    /// around `j`, before the statement that holds `j`. Blocks are entered
+    /// only at their start (a resumed suspending body is the exception,
+    /// `susp.rs`), so reaching that statement ran `d`.
+    pub(super) fn dominates(&self, b: &Body, d: u32, j: u32) -> bool {
+        let (blk, p) = self.parent[d as usize];
+        blk != NONE
+            && self
+                .path(b, j)
+                .is_some_and(|path| path.iter().any(|&(k, q)| k == blk && q > p))
     }
 }
 

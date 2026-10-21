@@ -154,9 +154,13 @@ impl Em<'_, '_, '_> {
     }
 
     /// The local holding local `l`'s cell, made now when no store has made
-    /// it yet.
+    /// it yet. Where the cell certainly exists ([`Em::cell_made`]) the
+    /// local is read as it is, with no test.
     pub(super) fn cell_of(&mut self, l: usize) -> StageResult<u32> {
         let c = self.local(u32::try_from(l).expect("locals"))?[0];
+        if self.cell_made(l) {
+            return Ok(c);
+        }
         self.f.get(c);
         self.f.op(I::I32Eqz);
         self.f.op(I::If(BlockType::Empty));
@@ -166,6 +170,49 @@ impl Em<'_, '_, '_> {
         self.f.set(c);
         self.f.op(I::End);
         Ok(c)
+    }
+
+    /// Whether local `l`'s cell certainly exists at the instruction being
+    /// emitted, so its local holds a nonzero address:
+    ///
+    /// - the prologue made or received it ([`Em::entry_cells`]): a
+    ///   parameter moved into its cell, or a shared capture, whose holder
+    ///   made the cell before passing it; or
+    /// - the store that declares `l` (`cell_locals`) dominates the
+    ///   instruction in the structured TIR ([`super::live::Tree::dominates`]):
+    ///   it is a statement of a block around the instruction, before the
+    ///   statement holding it, and every execution of that store makes a
+    ///   cell.
+    ///
+    /// Either way nothing zeroes the local before this use: the release
+    /// at last use (`live.rs`) runs after the last statement of the
+    /// innermost block holding every access to `l`, the declaration
+    /// included, so any later access re-enters that block from its start
+    /// and runs the declaration again. A `defer` suite stands under its
+    /// `Scope`, so its uses count as after the whole scope.
+    ///
+    /// Anything else keeps the test: a use the TIR does not place after
+    /// the declaration (a match arm's pattern binding, which the decision
+    /// block binds), and every use in a suspending body, whose resume
+    /// reloads its locals from the frame and enters blocks in the middle
+    /// (`susp.rs`).
+    fn cell_made(&mut self, l: usize) -> bool {
+        if self.susp.is_some() {
+            return false;
+        }
+        if self.entry_cells.contains(&l) {
+            return true;
+        }
+        let (Some(&d), Some(&j)) = (self.cells.get(&l), self.emitting.last()) else {
+            return false;
+        };
+        if d == u32::MAX {
+            return false;
+        }
+        let b = self.b;
+        self.tree
+            .get_or_insert_with(|| super::live::Tree::new(b))
+            .dominates(b, d, j)
     }
 
     /// A new cell for local `l` holding `src`, already in the cell's

@@ -2,9 +2,9 @@
 # @dump: wat
 # @build: v8 release
 # expected: `cursor` lives in locals (or the stack frame); no `rt:new` box,
-# no zero test of it per iteration, and no retain or release around each
-# `next` call (Iterator.fold and Sum.sum in closures and dyn_iter).
-# tracked by #667
+# and no retain or release around each `next` call (Iterator.fold and
+# Sum.sum in closures and dyn_iter).
+# tracked by #678
 struct Counter:
     at: i64
     end: i64
@@ -133,11 +133,11 @@ fn total(counter: Counter) -> i64:
 >     call rt:release_ref'1
 >     local.get t0
 >     local.set cursor
->     local.set t8
+>     local.set t5
 >   end
 >   local.get cursor
 >   call rt:release_ref'1
->   local.get t8
+>   local.get t5
 >   end
     let sum: i64 = 0
 >     i64.const 0
@@ -156,35 +156,20 @@ fn total(counter: Counter) -> i64:
 >     local.set cursor
         match cursor.next():
 >           local.get cursor
->           i32.eqz
->           if
->             i32.const 16
->             i32.const 0
->             call rt:new
->             local.tee t1
->             local.get t2
->             i64.store
->             local.get t1
->             local.get t3
->             i64.store offset=8
->             local.get t1
->             local.set cursor
->           end
->           local.get cursor
->           local.get t4
->           local.set t5
->           local.tee t4
+>           local.get t1
+>           local.set t2
+>           local.tee t1
 >           call retain
->           local.get t5
+>           local.get t2
 >           call rt:release_ref'2
->           local.get t4
+>           local.get t1
 >           call impl Counter.next
->           local.set t6
->           local.set t7
->           local.get t4
+>           local.set t3
+>           local.set t4
+>           local.get t1
 >           call rt:release_ref'2
 >           i32.const 0
->           local.set t4
+>           local.set t1
 >           block
 >             block
 >               block
@@ -192,20 +177,20 @@ fn total(counter: Counter) -> i64:
 >               end
 >               br 1
 >             end
->             local.get t4
+>             local.get t1
 >             call rt:release_ref'2
 >             i32.const 0
->             local.set t4
+>             local.set t1
 >             br 0
 >           end
->   local.get t4
+>   local.get t1
 >   call rt:release_ref'2
             .Some(value) => sum = sum + value
->                 local.get t7
+>                 local.get t4
 >                 i32.const 1
 >                 i32.eq
 >                 if
->                   local.get t6
+>                   local.get t3
 >                   local.set value
 >                   br 1
 >                 else
@@ -215,7 +200,7 @@ fn total(counter: Counter) -> i64:
 >               i64.add
 >               local.set sum
             .None => break
->                   local.get t7
+>                   local.get t4
 >                   i32.eqz
 >                   br_if 2
 >                   unreachable

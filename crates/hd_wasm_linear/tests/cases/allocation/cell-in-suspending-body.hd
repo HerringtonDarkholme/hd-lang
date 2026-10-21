@@ -1,0 +1,22 @@
+# @dump: wat
+# @build: v8 release
+# A suspending body keeps the zero test of a cell at each use, with its
+# fallback `rt:new`: a resume reloads the locals from the frame and enters
+# blocks in the middle, so the declaration's place in the TIR proves
+# nothing (DESIGN.md §23.20, "Cells made before use"). Compare
+# allocation/new-reference, where the declaration dominates and the test
+# is gone.
+use std.time.{Clock, ms, sleep}
+
+struct Tally:
+    n: i64
+
+fn bump(t: &mut Tally) -> void:
+    t.n = t.n + 1
+
+fn waits!() -> i64 $ Clock:
+    let mut tally = Tally { n: 0 }
+    sleep!(ms(1))
+    bump(&mut tally)
+    #^^^^^^^^^^^^^^^
+    tally.n

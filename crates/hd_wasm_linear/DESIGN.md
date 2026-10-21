@@ -870,6 +870,22 @@ element references whose copies own their list's pin (OBJECT_MODEL_TIER1.md
   profile and in release; 16 of them are the count of blocks
   `std.rt.alloc.allocated` reports, which `ref_tests.hd` reads to see
   that a loop writing through `&mut` to a local allocates nothing.
+- **Cells made before use** (issue #678). A use of a cell reads its local
+  directly when the cell certainly exists there (`Em::cell_made`): the
+  prologue made or received it (a parameter moved into its cell, a
+  closure's or a thunk's shared capture), or the store that declares the
+  local dominates the use in the structured TIR, being a statement of a
+  block around the use before the statement that holds it
+  (`live::Tree::dominates`). A block is entered only at its start, so
+  reaching the use ran the declaration, and every run of it makes a cell.
+  The release at last use cannot zero the local in between: it follows
+  the last statement of the innermost block holding every access, the
+  declaration included, and a `defer` suite's uses stand under its
+  `Scope`. Any other use tests the local and makes a cell of zeros when it
+  is 0: a use the TIR does not place after the declaration (a match arm's
+  pattern binding, bound in the decision block), and every use in a
+  suspending body, whose resume reloads the locals from the frame and
+  enters blocks in the middle (§23.21).
 - **Cleanup scopes.** A `Scope` with `defer` suites uses an
   exit ladder (`emit/scope.rs`, crates/hd_mono/DESIGN.md
   §12.2): each suite has a flag that its `Defer` sets; a `break`,
