@@ -1,0 +1,13 @@
+# test: a generic function default runs at each instantiation
+# Spec 07 Default Values: fn.default.eval, fn.default.scope.
+# expect-stdout: 9
+# expect-stdout: hihi
+# expect-stdout: 1
+fn twice[T](value: T, items: List[T] = [value, value]) -> List[T]: items
+
+pub fn main() -> void $ Console:
+    numbers := twice(7)
+    words := twice("hi")
+    println(numbers.len() + numbers[1])
+    println("${words[0]}${words[1]}")
+    println(twice(1, [5]).len())

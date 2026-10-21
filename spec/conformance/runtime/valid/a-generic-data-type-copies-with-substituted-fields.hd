@@ -1,0 +1,16 @@
+# test: a generic data type copies with substituted fields
+# Spec 08 Copy-Update Literals: data.update.new-value.
+# expect-stdout: 42
+# expect-stdout: zb
+struct Pair[T]:
+    first: T
+    second: T
+
+fn source() -> Pair[i32]: Pair { first: 20, second: 1 }
+
+pub fn main() -> void $ Console:
+    pair := Pair { ...source(), second: 22 }
+    println(pair.first + pair.second)
+    words := Pair { first: "a", second: "b" }
+    swapped := Pair { ...words, first: "z" }
+    println("${swapped.first}${swapped.second}")

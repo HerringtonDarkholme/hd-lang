@@ -1,0 +1,20 @@
+# test: a copy assignment copies the parts of the part
+# Spec 08 Struct Declarations: data.struct.embed.plain.
+# expect-stdout: 5 b 6
+struct Clock:
+    pub at: i32
+
+struct Stamps:
+    Clock
+    pub who: string
+
+struct Post:
+    Stamps
+    id: string
+
+pub fn main() -> void $ Console:
+    let mut post = Post { Stamps: Stamps { Clock: Clock { at: 1 }, who: "a" }, id: "p" }
+    let mut other = Stamps { Clock: Clock { at: 5 }, who: "b" }
+    post.Stamps = other
+    other.Clock = Clock { at: 6 }
+    println("${post.at} ${post.who} ${other.at}")

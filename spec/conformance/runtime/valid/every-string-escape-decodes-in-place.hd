@@ -1,0 +1,9 @@
+# test: every string escape decodes in place
+# Spec 01 Escape Sequences: lex.escape.simple, lex.escape.unicode.
+# expect-stdout: a'b"c\\d$e
+# expect-stdout: xAy
+# expect-stdout: "
+pub fn main() -> void $ Console:
+    println("a\'b\"c\\d\$e")
+    println("x\u{41}y")
+    println("\"")

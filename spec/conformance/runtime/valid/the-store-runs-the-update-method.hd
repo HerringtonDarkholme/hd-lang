@@ -1,0 +1,28 @@
+# test: the store runs the update method
+# Spec 05 Callable Values: expr.assign.order.call, expr.assign.compound.call-once.
+# expect-stdout: 14
+# expect-stdout: 2
+use std.ops.{Apply, Update}
+
+struct Meter:
+    reading: i32
+    writes: i32
+
+impl Apply for Meter:
+    type Out = i32
+    fn apply(self) -> i32: self.reading
+
+impl Update[i32] for Meter:
+    fn update(&mut self, value: i32) -> void:
+        self.writes = self.writes + 1
+        self.reading = value * 2
+
+fn fresh() -> Meter:
+    Meter { reading: 0, writes: 0 }
+
+pub fn main() -> void $ Console:
+    let mut meter = fresh()
+    meter() = 3
+    meter() += 1
+    println(meter())
+    println(meter.writes)

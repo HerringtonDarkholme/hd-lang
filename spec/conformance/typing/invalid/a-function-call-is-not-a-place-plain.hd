@@ -1,0 +1,6 @@
+# test: a function call is not a place
+# Spec 05 Callable Values: expr.call.apply.place.
+fn current() -> i64: 1
+
+fn run() -> void:
+    current() = 2  # diagnostic: invalid-assignment-target

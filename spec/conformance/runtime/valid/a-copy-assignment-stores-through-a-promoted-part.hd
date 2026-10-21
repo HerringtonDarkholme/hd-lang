@@ -1,0 +1,18 @@
+# test: a copy assignment stores through a promoted part
+# Spec 08 Struct Declarations: data.struct.embed.plain.
+# expect-stdout: 4 a
+struct Clock:
+    pub at: i32
+
+struct Stamps:
+    Clock
+    pub who: string
+
+struct Post:
+    Stamps
+    id: string
+
+pub fn main() -> void $ Console:
+    let mut post = Post { Stamps: Stamps { Clock: Clock { at: 1 }, who: "a" }, id: "p" }
+    post.Clock = Clock { at: 4 }
+    println("${post.at} ${post.who}")

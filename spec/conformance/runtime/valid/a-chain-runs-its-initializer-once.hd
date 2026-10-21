@@ -1,0 +1,14 @@
+# test: a chain runs its initializer once
+# Spec 02 Suite Statements: grammar.stmt.chain.
+# expect-stdout: 1 1 1 1
+struct Counter:
+    n: i32
+
+fn next(c: &mut Counter) -> i32:
+    c.n = c.n + 1
+    c.n
+
+pub fn main() -> void $ Console:
+    let mut counter = Counter { n: 0 }
+    a := b := c := next(&mut counter)
+    println("$a $b $c ${counter.n}")

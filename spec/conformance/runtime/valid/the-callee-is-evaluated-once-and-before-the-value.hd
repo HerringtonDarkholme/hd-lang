@@ -1,0 +1,48 @@
+# test: the callee is evaluated once and before the value
+# Spec 05 Callable Values: expr.assign.order.call, expr.assign.compound.call-once.
+# expect-stdout: pick a
+# expect-stdout: rhs 7
+# expect-stdout: 7
+# expect-stdout: pick b
+# expect-stdout: rhs 5
+# expect-stdout: 12
+# expect-stdout: 2
+use std.ops.{Apply, Update}
+
+struct Cell:
+    value: i32
+
+impl Apply for Cell:
+    type Out = i32
+    fn apply(self) -> i32: self.value
+
+impl Update[i32] for Cell:
+    fn update(&mut self, value: i32) -> void:
+        self.value = value
+
+fn live(value: i32) -> Cell:
+    Cell { value: value }
+
+struct Panel:
+    count: Cell
+    frozen: Cell
+
+struct Pair:
+    left: Cell
+    right: Cell
+
+fn pick(pair: &mut Pair, name: string) -> &mut Cell $ Console:
+    println("pick ${name}")
+    &mut pair.left
+
+fn val(n: i32) -> i32 $ Console:
+    println("rhs ${n}")
+    n
+
+pub fn main() -> void $ Console:
+    let mut pair = Pair { left: live(+1), right: live(+2) }
+    pick(&mut pair, "a")() = val(7)
+    println((pair.left)())
+    pick(&mut pair, "b")() += val(5)
+    println((pair.left)())
+    println((pair.right)())

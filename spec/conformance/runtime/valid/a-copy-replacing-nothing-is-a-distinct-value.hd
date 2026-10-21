@@ -1,0 +1,14 @@
+# test: a copy replacing nothing is a distinct value
+# Spec 08 Copy-Update Literals: data.update.new-value.
+# expect-stdout: 1 2
+# expect-stdout: 3 2
+struct Counter:
+    value: i32
+
+pub fn main() -> void $ Console:
+    let mut original = Counter { value: 1 }
+    let mut copy = Counter { ...original }
+    copy.value = 2
+    println("${original.value} ${copy.value}")
+    original.value = 3
+    println("${original.value} ${copy.value}")

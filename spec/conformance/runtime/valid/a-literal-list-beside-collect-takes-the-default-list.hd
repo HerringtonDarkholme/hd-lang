@@ -1,0 +1,11 @@
+# test: a literal list beside collect takes the default list
+# std Iterators, What Collect Builds: std-iter.collect.default, std-iter.collect.expected.
+# expect-stdout: true
+# expect-stdout: false
+fn same[T < Eq](a: T, b: T) -> bool:
+    a == b
+
+pub fn main() -> void $ Console:
+    let xs: List[i32] = [1, 2, 3]
+    println(same(xs.iter().collect(), [1, 2, 3]))
+    println(same(xs.iter().skip(1).collect(), [1, 2, 3]))

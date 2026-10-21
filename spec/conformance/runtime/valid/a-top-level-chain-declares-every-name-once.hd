@@ -1,0 +1,12 @@
+# test: a top level chain declares every name once
+# Spec 02 Suite Statements: grammar.stmt.chain.
+# expect-stdout: 8 8 8 24
+fn seven() -> i32:
+    7
+
+a := b := c := seven() + 1
+
+fn sum() -> i32: a + b + c
+
+pub fn main() -> void $ Console:
+    println("$a $b $c ${sum()}")

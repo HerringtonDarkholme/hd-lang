@@ -1,0 +1,25 @@
+# test: a copy makes its own embedded parts when the spread runs
+# Spec 08 Copy-Update Literals: data.update.new-value.
+# expect-stdout: 1 2
+# expect-stdout: 9 2
+struct Stamp:
+    pub at: i32
+
+impl Stamp:
+    pub fn touch(&mut self, at: i32) -> void:
+        self.at = at
+
+struct Post:
+    Stamp
+    id: string
+
+fn bump(stamp: &mut Stamp) -> string:
+    stamp.at = stamp.at + 1
+    "bumped"
+
+pub fn main() -> void $ Console:
+    let mut post = Post { Stamp: Stamp { at: 1 }, id: "p" }
+    let mut copy = Post { ...post, id: bump(&mut post.Stamp) }
+    println("${copy.at} ${post.at}")
+    copy.touch(9)
+    println("${copy.at} ${post.at}")

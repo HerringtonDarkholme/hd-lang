@@ -1,0 +1,8 @@
+# test: an expected mut list wins over the default
+# std Iterators, What Collect Builds: std-iter.collect.default, std-iter.collect.expected.
+# expect-stdout: 3
+pub fn main() -> void $ Console:
+    let xs: List[i32] = [4, 5]
+    let mut out: List[i32] = xs.iter().collect()
+    out.push(6)
+    println(out.len())

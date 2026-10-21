@@ -1,0 +1,13 @@
+# test: field defaults run at each construction and explicit fields replace them
+# Spec 08 Field Defaults: data.default.eval, data.literal.defaulted.
+# expect-stdout: 1 0 3 9
+struct Order:
+    id: i32
+    tags: List[string] = []
+    priority: i32 = 3
+
+pub fn main() -> void $ Console:
+    let mut first = Order { id: 1 }
+    second := Order { id: 2, priority: 9 }
+    first.tags.push("rush")
+    println("${first.tags.len()} ${second.tags.len()} ${first.priority} ${second.priority}")

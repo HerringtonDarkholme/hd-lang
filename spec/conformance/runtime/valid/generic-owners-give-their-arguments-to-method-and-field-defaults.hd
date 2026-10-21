@@ -1,0 +1,14 @@
+# test: generic owners give their arguments to method and field defaults
+# Spec 07 Default Values: fn.default.eval, fn.default.scope.
+# expect-stdout: 1 3 2
+struct Shelf[T]:
+    first: T
+    rest: List[T] = []
+
+impl[T] Shelf[T]:
+    fn all(self, extra: List[T] = [self.first]) -> usize: extra.len() + self.rest.len()
+
+pub fn main() -> void $ Console:
+    words := Shelf { first: "a" }
+    numbers := Shelf { first: 1, rest: [2, 3] }
+    println("${words.all()} ${numbers.all()} ${numbers.all([])}")

@@ -1,0 +1,24 @@
+# test: a store needs a mut cell
+# Spec 04 Writable Places: types.path.store.not-writable.
+use std.ops.{Apply, Update}
+
+struct Cell:
+    value: i32
+
+impl Apply for Cell:
+    type Out = i32
+    fn apply(self) -> i32: self.value
+
+impl Update[i32] for Cell:
+    fn update(&mut self, value: i32) -> void:
+        self.value = value
+
+fn live(value: i32) -> Cell:
+    Cell { value: value }
+
+struct Panel:
+    count: Cell
+    frozen: Cell
+
+fn run(panel: &Panel) -> void:
+    (panel.frozen)() = 2  # diagnostic: not-writable

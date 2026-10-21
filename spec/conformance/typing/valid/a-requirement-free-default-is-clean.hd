@@ -1,0 +1,17 @@
+# test: a requirement free default is clean
+# Spec 07 Default Values: fn.default.eval.
+fn base() -> i32: 7
+
+struct Event:
+    time: i32 = base() + 1
+    tag: i32 = 3
+
+fn stamp(time: i32 = base()) -> i32:
+    time
+
+enum Status(time: i32 = base()):
+    Unknown -> Status()
+
+pub fn main() -> void:
+    _a := stamp()
+    _b := Event {}

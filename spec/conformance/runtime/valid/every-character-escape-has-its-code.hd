@@ -1,0 +1,17 @@
+# test: every character escape has its code
+# Spec 01 Escape Sequences: lex.escape.simple, lex.escape.unicode.
+# expect-stdout: true
+# expect-stdout: true
+# expect-stdout: true
+# expect-stdout: true
+# expect-stdout: true
+# expect-stdout: true
+# expect-stdout: true
+pub fn main() -> void $ Console:
+    println('\n' == '\u{a}')
+    println('\r' == '\u{d}')
+    println('\t' == '\u{9}')
+    println('\0' == '\u{0}')
+    println('\$' == '$')
+    println('\"' == '"')
+    println('\u{1F600}' == '\u{1f600}')

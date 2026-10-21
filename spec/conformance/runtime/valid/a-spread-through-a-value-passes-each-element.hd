@@ -1,0 +1,30 @@
+# test: a spread through a value passes each element
+# Spec 07 Function Types: fn.type.ctor.inputs.
+# expect-stdout: 55
+# expect-stdout: 14
+# expect-stdout: n4
+# expect-stdout: n4
+# expect-stdout: m5
+use std.function.{Fn, SuspendFn, Tuple}
+
+fn call[Args < Tuple, O, $R](f: Fn[Args, O, $ R], args...: Args) -> O $ R:
+    f(args...)
+
+fn through[Args < Tuple, O](f: Fn[Args, O, $()], args: Args) -> O:
+    f(args...)
+
+fn retry![Args < Tuple, O](f: SuspendFn[Args, O, $()], args: Args) -> O:
+    f!(args...)
+
+fn big(a: i64, b: i64, c: i64, d: i64, e: i64, f: i64, g: i64, h: i64, i: i64, j: i64) -> i64:
+    a + b + c + d + e + f + g + h + i + j
+fn twice!(a: i32, b: i32) -> i32: (a + b) * 2
+fn pair(a: string, b: i32) -> string: "${a}${b}"
+
+pub fn main!() -> void $ Console:
+    println(through(big, (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)))
+    println(retry!(twice, (3, 4)))
+    t := ("n", +4)
+    println(through(pair, t))
+    println(call(pair, t...))
+    println(call(pair, args=("m", 5)))

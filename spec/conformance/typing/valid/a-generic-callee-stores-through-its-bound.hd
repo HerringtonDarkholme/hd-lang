@@ -1,0 +1,7 @@
+# test: a generic callee stores through its bound
+# Spec 05 Callable Values: expr.call.apply.place.
+use std.ops.{Apply, Update}
+
+fn bump[C < Apply[Out = i32] & Update[i32]](cell: &mut C) -> i32:
+    cell() += 1
+    (*cell)()

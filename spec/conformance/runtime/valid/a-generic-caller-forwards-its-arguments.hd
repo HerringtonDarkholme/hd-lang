@@ -1,0 +1,21 @@
+# test: a generic caller forwards its arguments
+# Spec 07 Function Types: fn.type.ctor.inputs.
+# expect-stdout: 10
+use std.function.{Fn, SuspendFn, Tuple}
+
+fn call[Args < Tuple, O, $R](f: Fn[Args, O, $ R], args...: Args) -> O $ R:
+    f(args...)
+
+fn through[Args < Tuple, O](f: Fn[Args, O, $()], args: Args) -> O:
+    f(args...)
+
+fn retry![Args < Tuple, O](f: SuspendFn[Args, O, $()], args: Args) -> O:
+    f!(args...)
+
+fn twice_through[Args < Tuple](f: Fn[Args, i32, $()], args: Args) -> i32:
+    through(f, args) + call(f, args...)
+
+fn add(a: i32, b: i32) -> i32: a + b
+
+pub fn main() -> void $ Console:
+    println(twice_through(add, (2, 3)))

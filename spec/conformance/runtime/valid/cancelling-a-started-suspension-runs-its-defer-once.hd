@@ -1,0 +1,38 @@
+# test: explicit cancellation and race loser cleanup run a started suspension's defer only once
+# Spec 11 Cancellation: req.check.cancel-idempotent, req.combinator.race-losers-disposed.
+# fixture-runtime-profile: pending-gate
+# expect-empty-stdout: true
+use std.task.{CleanupEnd, race}
+use std.testing.assert_equal
+
+pub trait Gate:
+    fn wait!(self) -> void
+
+struct Log:
+    text: string
+
+fn slow!(log: &mut Log) -> i32 $ Gate:
+    log.text = log.text + "start;"
+    defer:
+        log.text = log.text + "cleanup;"
+    $.use(Gate).wait!()
+    log.text = log.text + "done;"
+    7
+
+fn end(cleanup: CleanupEnd) -> string:
+    match cleanup:
+        .Finished => "finished;"
+        .Abandoned => "abandoned;"
+
+fn stopper!(target: mut Suspend[i32], log: &mut Log) -> i32:
+    ended := end(target.cancel!())
+    log.text = log.text + ended
+    log.text = log.text + "stopped;"
+    1
+
+pub fn main!() -> void $ Gate:
+    let mut log = Log { text: "" }
+    let target: mut Suspend[i32] = slow(&mut log)
+    winner := race!(target, stopper(target, &mut log))
+    assert_equal(winner, 1, reason="the stopper wins")
+    assert_equal(log.text, "start;cleanup;finished;stopped;", reason="exact cleanup trace")

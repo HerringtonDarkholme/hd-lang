@@ -1,0 +1,6 @@
+# test: a three link chain binds every name
+# Spec 02 Suite Statements: grammar.stmt.chain.
+# expect-stdout: hd hd hd
+pub fn main() -> void $ Console:
+    a := b := c := "hd"
+    println("$a $b $c")

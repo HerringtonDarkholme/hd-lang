@@ -1,0 +1,16 @@
+# test: a list default is fresh on every call
+# Spec 07 Default Values: fn.default.eval, fn.default.scope.
+# expect-stdout: 1
+# expect-stdout: 1
+# expect-stdout: 1
+# expect-stdout: 2
+fn collect(item: i32, into: &mut List[i32] = &mut []) -> usize:
+    into.push(item)
+    into.len()
+
+pub fn main() -> void $ Console:
+    println(collect(1))
+    println(collect(2))
+    let mut shared: List[i32] = []
+    println(collect(3, &mut shared))
+    println(collect(4, &mut shared))

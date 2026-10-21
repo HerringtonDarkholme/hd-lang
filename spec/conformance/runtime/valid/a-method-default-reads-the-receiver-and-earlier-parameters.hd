@@ -1,0 +1,17 @@
+# test: a method default reads the receiver and earlier parameters
+# Spec 07 Default Values: fn.default.eval, fn.default.scope.
+# expect-stdout: 43
+# expect-stdout: 13
+# expect-stdout: 22
+struct Counter:
+    base: i32
+
+impl Counter:
+    fn add(self, step: i32 = self.base * 10, extra: i32 = step + 1) -> i32:
+        self.base + step + extra
+
+pub fn main() -> void $ Console:
+    counter := Counter { base: 2 }
+    println(counter.add())
+    println(counter.add(5))
+    println(counter.add(extra=0))

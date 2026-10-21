@@ -1,0 +1,7 @@
+# test: a chain may not redeclare a name
+# Spec 02 Suite Statements: grammar.stmt.chain.
+pub fn main() -> void $ Console:
+    b := +0
+    println(b)
+    a := b := +1  # diagnostic: duplicate-binding
+    println("$a $b")

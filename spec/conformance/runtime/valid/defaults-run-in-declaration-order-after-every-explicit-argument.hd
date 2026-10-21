@@ -1,0 +1,23 @@
+# test: defaults run in declaration order after every explicit argument
+# Spec 07 Default Values: fn.default.eval, fn.default.scope.
+# expect-stdout: first second third
+# expect-stdout: last second named
+# expect-stdout: first
+# expect-stdout: second
+# expect-stdout: third
+# expect-stdout: named
+# expect-stdout: last
+# expect-stdout: second
+fn note(log: &mut List[string], text: string) -> string:
+    log.push(text)
+    text
+
+fn join(log: &mut List[string], first: string, second: string = note(log, "second"), third: string = note(log, "third")) -> string:
+    "$first $second $third"
+
+pub fn main() -> void $ Console:
+    let mut log: List[string] = []
+    println(join(&mut log, note(&mut log, "first")))
+    println(join(&mut log, third=note(&mut log, "named"), first=note(&mut log, "last")))
+    for line in log:
+        println(line)
