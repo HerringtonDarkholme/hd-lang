@@ -1,0 +1,54 @@
+# test: a match over three rows calls each
+# Spec lang/11-requirements-and-suspension.md: req.row.union.sites.
+# expect-stdout: dbnoonlog;lognoondb
+
+trait Db:
+    fn name(self) -> string
+
+trait Clock:
+    fn now(self) -> string
+
+trait Log:
+    fn tag(self) -> string
+
+struct MemoryDb: pass
+
+impl Db for MemoryDb:
+    fn name(self) -> string: "db"
+
+struct FixedClock: pass
+
+impl Clock for FixedClock:
+    fn now(self) -> string: "noon"
+
+struct Tagged: pass
+
+impl Log for Tagged:
+    fn tag(self) -> string: "log"
+
+fn health() -> string $ Clock:
+    $.use(Clock).now()
+
+fn orders() -> string $ Db:
+    $.use(Db).name()
+
+fn audit() -> string $ Log:
+    $.use(Log).tag()
+
+fn by_match(n: i32) -> string $ Db + Clock + Log:
+    handler := match n:
+        0 => orders
+        1 => health
+        _ => audit
+    handler()
+
+fn by_chain(n: i32) -> string $ Db + Clock + Log:
+    handler := if n == 0: audit else if n == 1: health else: orders
+    handler()
+
+fn serve() -> string $ Db + Clock + Log:
+    by_match(0) + by_match(1) + by_match(2) + ";" + by_chain(0) + by_chain(1) + by_chain(2)
+
+pub fn main() -> void $ Console:
+    $.with(Db = MemoryDb {}, Clock = FixedClock {}, Log = Tagged {}):
+        println(serve())

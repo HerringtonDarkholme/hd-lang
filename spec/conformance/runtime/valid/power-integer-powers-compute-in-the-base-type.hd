@@ -1,0 +1,38 @@
+# test: integer powers compute in the base type
+# Spec lang/05-expressions.md: expr.power.int.exponent.
+# expect-stdout: 1024
+# expect-stdout: 19683
+# expect-stdout: -4
+# expect-stdout: -8
+# expect-stdout: 81
+# expect-stdout: 1000000000000000000
+# expect-stdout: 10000000000000000000
+# expect-stdout: 128
+# expect-stdout: -128
+# expect-stdout: -32768
+# expect-stdout: -2147483648
+# expect-stdout: 1162261467
+# expect-stdout: 3486784401
+# expect-stdout: 0
+# expect-stdout: 1
+# expect-stdout: -1
+# expect-stdout: 2147483648
+
+pub fn main() -> void $ Console:
+    println(i32(2) ** 10)
+    println(i32(3) ** 3 ** 2)
+    println(-i32(2) ** 2)
+    println(i32(-2) ** 3)
+    println(i32(-3) ** 4)
+    println(i64(10) ** 18)
+    println(u64(10) ** 19)
+    println(u8(2) ** 7)
+    println(i8(-2) ** 7)
+    println(i16(-2) ** 15)
+    println(i32(-2) ** 31)
+    println(i32(3) ** 19)
+    println(u32(3) ** 20)
+    println(i32(0) ** 5)
+    println(i32(1) ** 4000000000)
+    println(i32(-1) ** 4000000001)
+    println(2 ** 31)

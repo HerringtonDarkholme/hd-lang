@@ -1,0 +1,21 @@
+# test: serialize and deserialize wrap the base value
+# Spec std/json.md: std-json.encode.
+# Spec lang/09-traits.md: trait.derive.newtype.
+# expect-stdout: 42
+# expect-stdout: true
+# expect-stdout: error
+
+use std.json.{encode, decode}
+use std.serde.{Serialize, Deserialize}
+
+@derive(Serialize, Deserialize, Eq)
+type OrderId(u64)
+
+pub fn main() -> void $ Console:
+    println(encode(OrderId(42)))
+    match decode::[OrderId]("7"):
+        .Ok(found) => println(found == OrderId(7))
+        .Err(_) => println("error")
+    match decode::[OrderId]("-1"):
+        .Ok(_) => println("ok")
+        .Err(_) => println("error")

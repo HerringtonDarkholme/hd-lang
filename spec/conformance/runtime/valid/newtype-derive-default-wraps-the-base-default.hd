@@ -1,0 +1,13 @@
+# test: default wraps the base default
+# Spec std/ops.md: std-ops.default.derive.template.
+# Spec lang/09-traits.md: trait.derive.newtype.
+# expect-stdout: true
+
+use std.ops.{Default, default}
+
+@derive(Default, Eq, Debug)
+type Count(i32)
+
+pub fn main() -> void $ Console:
+    zero := Count::default()
+    println(zero == Count(0))

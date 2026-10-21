@@ -1,0 +1,33 @@
+# test: a multi key use returns the providers in requested order
+# Spec lang/11-requirements-and-suspension.md: req.use.order.
+# expect-stdout: 120
+# expect-stdout: 201120
+
+trait Repo[T]:
+    fn count(self) -> i32
+
+struct User: pass
+struct Post: pass
+struct UserRepo: pass
+struct PostRepo: pass
+
+impl Repo[User] for UserRepo:
+    fn count(self) -> i32: 20
+
+impl Repo[Post] for PostRepo:
+    fn count(self) -> i32: 1
+
+fn activity() -> i32 $ Repo[User] + Repo[Post]:
+    $.use(Repo[User]).count() * 10 + $.use(Repo[Post]).count()
+
+fn swapped() -> i32 $ Repo[User] + Repo[Post]:
+    let (posts, users) = $.use(Repo[Post], Repo[User])
+    posts.count() * 100 + users.count()
+
+fn reordered() -> i32 $ Repo[Post] + Repo[User]:
+    activity() * 1000 + swapped()
+
+pub fn main() -> void $ Console:
+    $.with(Repo[Post]=PostRepo {}, Repo[User]=UserRepo {}):
+        println(swapped())
+        println(reordered())

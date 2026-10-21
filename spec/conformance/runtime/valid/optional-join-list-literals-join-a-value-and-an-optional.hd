@@ -1,0 +1,12 @@
+# test: list literals join a value and an optional
+# Spec lang/04-type-system.md: types.lct.optional.
+# expect-stdout: 3
+# expect-stdout: ok
+
+pub fn main() -> void $ Console:
+    let none: i32? = .None
+    values := [3, none, 4]
+    let listed: List[i32?] = values
+    println("${listed.len()}")
+    if listed[0] == .Some(3) && listed[1] == .None && listed[2] == .Some(4):
+        println("ok")

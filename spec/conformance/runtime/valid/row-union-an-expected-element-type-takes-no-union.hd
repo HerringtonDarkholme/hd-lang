@@ -1,0 +1,50 @@
+# test: an expected element type takes no union
+# Spec lang/11-requirements-and-suspension.md: req.row.union.literal.
+# expect-stdout: noondb
+
+trait Db:
+    fn name(self) -> string
+
+trait Clock:
+    fn now(self) -> string
+
+trait Log:
+    fn tag(self) -> string
+
+struct MemoryDb: pass
+
+impl Db for MemoryDb:
+    fn name(self) -> string: "db"
+
+struct FixedClock: pass
+
+impl Clock for FixedClock:
+    fn now(self) -> string: "noon"
+
+struct Tagged: pass
+
+impl Log for Tagged:
+    fn tag(self) -> string: "log"
+
+fn health() -> string $ Clock:
+    $.use(Clock).now()
+
+fn orders() -> string $ Db:
+    $.use(Db).name()
+
+fn audit() -> string $ Log:
+    $.use(Log).tag()
+
+fn declared() -> string $ Db + Clock + Log:
+    let handlers: List[fn() -> string $ Db + Clock + Log] = [health, orders]
+    let text = ""
+    for handler in handlers:
+        text = text + handler()
+    text
+
+fn serve() -> string $ Db + Clock + Log:
+    declared()
+
+pub fn main() -> void $ Console:
+    $.with(Db = MemoryDb {}, Clock = FixedClock {}, Log = Tagged {}):
+        println(serve())

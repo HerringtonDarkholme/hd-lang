@@ -1,0 +1,15 @@
+# test: bare literal does not take the implementations width
+# Spec lang/05-expressions.md: expr.op.left-literal.no-fit.
+
+use std.ops.Mul
+
+struct Money:
+    cents: i64
+
+impl Mul[Money] for i64:
+    type Out = Money
+    fn mul(self, rhs: Money) -> Money:
+        Money { cents: self * rhs.cents }
+
+fn triple(price: Money) -> Money:
+    3 * price  # diagnostic: type-mismatch

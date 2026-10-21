@@ -1,0 +1,11 @@
+# test: a chain closure may call an outer function of the same name
+# Spec lang/07-functions.md: fn.recursion.closure.ordinary-binding.
+# expect-stdout: 62
+
+fn b(n: i32) -> i32:
+    n * 10
+
+pub fn main() -> void $ Console:
+    a := b := fn(n: i32) -> i32:
+        b(n) + 1
+    println(a(3) + b(3))

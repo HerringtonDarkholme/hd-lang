@@ -1,0 +1,30 @@
+# test: eq hash and ordering follow the base type
+# Spec lang/09-traits.md: trait.derive.newtype.base.
+# expect-stdout: true
+# expect-stdout: false
+# expect-stdout: true
+# expect-stdout: false
+# expect-stdout: true
+# expect-stdout: true
+# expect-stdout: Option.Some("far")
+# expect-stdout: Option.None
+
+@derive(Eq, Hash)
+type Mile(i32)
+
+@derive(Eq, PartialOrd, Ord)
+type Rank(i32)
+
+@derive(Eq, Hash)
+type Name(string)
+
+pub fn main() -> void $ Console:
+    println(Mile(3) == Mile(3))
+    println(Mile(3) == Mile(4))
+    println(Rank(1) < Rank(2))
+    println(Rank(2) <= Rank(1))
+    println(Rank(5).cmp(Rank(5)) == .Equal)
+    println(Name("a") == Name("a"))
+    distances := {Mile(5): "short", Mile(50): "far"}
+    println(debug(distances.get(Mile(50))))
+    println(debug(distances.get(Mile(7))))

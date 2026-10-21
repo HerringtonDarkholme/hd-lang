@@ -1,0 +1,20 @@
+# test: radix prefixes in both cases have the same value
+# Spec lang/01-lexical-structure.md: lex.int.forms.
+# expect-stdout: 493
+# expect-stdout: true
+# expect-stdout: 20
+# expect-stdout: 765
+# expect-stdout: 166
+# expect-stdout: 16776960
+# expect-stdout: 493
+# expect-stdout: 10
+
+pub fn main() -> void $ Console:
+    println(0O755)
+    println(0o755 == 0O755)
+    println(0B1010 + 0b1010)
+    println(0XfF + 0xFf + 0xff)
+    println(0b_1010_0110)
+    println(0x_FF_FF_00)
+    println(0O_7_5_5)
+    println(0X_a)

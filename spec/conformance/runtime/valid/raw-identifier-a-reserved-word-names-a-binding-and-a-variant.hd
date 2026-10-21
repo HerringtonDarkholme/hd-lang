@@ -1,0 +1,14 @@
+# test: a reserved word names a binding and a variant
+# Spec lang/01-lexical-structure.md: lex.raw.not-reserved.
+# expect-stdout: 9
+
+enum `match`:
+    `if`
+    `else`(`for`: i32)
+
+pub fn main() -> void $ Console:
+    `type` := `match`.`else`(`for` = +9)
+    r := match `type`:
+        `match`.`if` => 0
+        `match`.`else`(`while`) => `while`
+    println(r)

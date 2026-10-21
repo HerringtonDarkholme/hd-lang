@@ -1,0 +1,8 @@
+# test: a two link chain closure cannot see its own name
+# Spec lang/03-names-and-scopes.md: names.scope.not-in-initializer.
+
+pub fn main() -> void $ Console:
+    a := b := fn(n: i32) -> i32:
+        if n == 0: 0
+        else: n + b(n - 1)  # diagnostic: unknown-name
+    println(a(3) + b(3))

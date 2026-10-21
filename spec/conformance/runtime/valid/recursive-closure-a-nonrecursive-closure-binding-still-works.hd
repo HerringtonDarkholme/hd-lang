@@ -1,0 +1,10 @@
+# test: a nonrecursive closure binding still works
+# Spec lang/07-functions.md: fn.recursion.closure.ordinary-binding.
+# expect-stdout: 42
+
+fn double(value: i32) -> i32:
+    twice := fn(n: i32): n * 2
+    twice(value)
+
+pub fn main() -> void $ Console:
+    println(double(21))

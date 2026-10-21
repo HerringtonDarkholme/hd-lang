@@ -1,0 +1,24 @@
+# test: bare literal fits the default width implementation
+# Spec lang/05-expressions.md: expr.op.primitive.types.
+# expect-stdout: 1021
+# expect-stdout: 21
+
+use std.ops.Mul
+
+struct Money:
+    cents: i64
+
+impl Mul[Money] for i64:
+    type Out = Money
+    fn mul(self, rhs: Money) -> Money:
+        Money { cents: self * rhs.cents }
+
+impl Mul[Money] for usize:
+    type Out = Money
+    fn mul(self, rhs: Money) -> Money:
+        Money { cents: i64(self) * rhs.cents + 1000 }
+
+pub fn main() -> void $ Console:
+    let price = Money { cents: 7 }
+    println((3 * price).cents)
+    println((i64(3) * price).cents)

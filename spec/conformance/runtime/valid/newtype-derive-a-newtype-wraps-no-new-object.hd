@@ -1,0 +1,17 @@
+# test: a newtype wraps no new object
+# Spec lang/04-type-system.md: types.newtype.construct-ref.
+# expect-stdout: true
+
+struct User:
+    name: string
+
+type UserRef = &User
+
+type Owner(UserRef)
+
+fn same(a: &dyn Any, b: &dyn Any) -> bool:
+    a is b
+
+pub fn main() -> void $ Console:
+    u := &User { name: "ada" }
+    println(same(UserRef(Owner(u)), u))

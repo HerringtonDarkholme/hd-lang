@@ -1,0 +1,5 @@
+# test: an overflowing integer power panics
+# Spec lang/05-expressions.md: expr.power.checked.
+
+pub fn main() -> void $ Console:
+    println(i64(2) ** 63)  # panic: integer-overflow

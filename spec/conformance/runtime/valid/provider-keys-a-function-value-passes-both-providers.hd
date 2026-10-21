@@ -1,0 +1,37 @@
+# test: a function value passes both providers
+# Spec lang/11-requirements-and-suspension.md: req.key.binding.identity.
+# expect-stdout: 201
+# expect-stdout: 201
+# expect-stdout: 201
+
+trait Repo[T]:
+    fn count(self) -> i32
+
+struct User: pass
+struct Post: pass
+struct UserRepo: pass
+struct PostRepo: pass
+
+impl Repo[User] for UserRepo:
+    fn count(self) -> i32: 20
+
+impl Repo[Post] for PostRepo:
+    fn count(self) -> i32: 1
+
+fn activity() -> i32 $ Repo[User] + Repo[Post]:
+    $.use(Repo[User]).count() * 10 + $.use(Repo[Post]).count()
+
+fn call(callback: fn() -> i32 $ Repo[User] + Repo[Post]) -> i32 $ Repo[User] + Repo[Post]:
+    callback()
+
+fn count_of[T]() -> i32 $ Repo[T]:
+    $.use(Repo[T]).count()
+
+fn apply[T](callback: fn() -> i32 $ Repo[T]) -> i32 $ Repo[T]:
+    callback()
+
+pub fn main!() -> void $ Console:
+    $.with(Repo[User]=UserRepo {}, Repo[Post]=PostRepo {}):
+        println(call(activity))
+        println(call(fn(): $.use(Repo[User]).count() * 10 + $.use(Repo[Post]).count()))
+        println(apply(count_of::[User]) * 10 + apply(count_of::[Post]))

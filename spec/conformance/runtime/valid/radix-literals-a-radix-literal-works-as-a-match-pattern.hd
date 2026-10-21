@@ -1,0 +1,9 @@
+# test: a radix literal works as a match pattern
+# Spec lang/01-lexical-structure.md: lex.int.forms.
+# expect-stdout: fifteen
+
+pub fn main() -> void $ Console:
+    n := 0O17
+    match n:
+        0B1111 => println("fifteen")
+        _ => println("other")

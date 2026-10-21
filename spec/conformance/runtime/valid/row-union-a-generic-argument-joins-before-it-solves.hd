@@ -1,0 +1,54 @@
+# test: a generic argument joins before it solves
+# Spec lang/11-requirements-and-suspension.md: req.row.union.sites.
+# expect-stdout: dbnoon,noonnoon
+
+trait Db:
+    fn name(self) -> string
+
+trait Clock:
+    fn now(self) -> string
+
+trait Log:
+    fn tag(self) -> string
+
+struct MemoryDb: pass
+
+impl Db for MemoryDb:
+    fn name(self) -> string: "db"
+
+struct FixedClock: pass
+
+impl Clock for FixedClock:
+    fn now(self) -> string: "noon"
+
+struct Tagged: pass
+
+impl Log for Tagged:
+    fn tag(self) -> string: "log"
+
+fn health() -> string $ Clock:
+    $.use(Clock).now()
+
+fn orders() -> string $ Db:
+    $.use(Db).name()
+
+fn audit() -> string $ Log:
+    $.use(Log).tag()
+
+fn keep[F](f: F) -> F:
+    f
+
+fn second[T](items: List[T]) -> T:
+    items[1]
+
+fn generic(admin: bool) -> string $ Db + Clock:
+    chosen := keep(if admin: orders else: health)
+    listed := second([orders, health])
+    chosen() + listed()
+
+fn serve() -> string $ Db + Clock + Log:
+    generic(true) + "," + generic(false)
+
+pub fn main() -> void $ Console:
+    $.with(Db = MemoryDb {}, Clock = FixedClock {}, Log = Tagged {}):
+        println(serve())

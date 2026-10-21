@@ -1,0 +1,44 @@
+# test: if and match join a value and an optional
+# Spec lang/04-type-system.md: types.lct.optional.
+# expect-stdout: some 3
+# expect-stdout: none
+# expect-stdout: some 4
+# expect-stdout: none
+# expect-stdout: some 3
+# expect-stdout: some 5
+# expect-stdout: none
+# expect-stdout: none
+# expect-stdout: some 5
+
+fn value_first(flag: bool, count: i32, found: i32?):
+    if flag: count else: found
+
+fn optional_first(flag: bool, count: i32, found: i32?):
+    if flag: found else: count
+
+fn match_value_first(key: i32, count: i32, found: i32?):
+    match key:
+        0 => count
+        _ => found
+
+fn match_optional_first(key: i32, count: i32, found: i32?):
+    match key:
+        0 => found
+        _ => count
+
+fn show(v: i32?) -> string:
+    match v:
+        .Some(n) => "some ${n}"
+        .None => "none"
+
+pub fn main() -> void $ Console:
+    let none: i32? = .None
+    println(show(value_first(true, 3, none)))
+    println(show(value_first(false, 3, none)))
+    println(show(value_first(false, 3, .Some(4))))
+    println(show(optional_first(true, 3, none)))
+    println(show(optional_first(false, 3, none)))
+    println(show(match_value_first(0, 5, none)))
+    println(show(match_value_first(1, 5, none)))
+    println(show(match_optional_first(0, 5, none)))
+    println(show(match_optional_first(1, 5, none)))

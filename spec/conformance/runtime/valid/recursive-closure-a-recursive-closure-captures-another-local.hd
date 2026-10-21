@@ -1,0 +1,15 @@
+# test: a recursive closure captures another local
+# Spec lang/07-functions.md: fn.recursion.closure.ordinary-binding.
+# expect-stdout: 3, 2, 1, liftoff
+
+fn countdown(start: i32) -> string:
+    separator := ", "
+    from := fn(n: i32) -> string:
+        if n == 0:
+            "liftoff"
+        else:
+            "${n}${separator}${from(n - 1)}"
+    from(start)
+
+pub fn main() -> void $ Console:
+    println(countdown(3))

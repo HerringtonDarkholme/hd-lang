@@ -1,0 +1,24 @@
+# test: any unsigned exponent type is accepted
+# Spec lang/05-expressions.md: expr.power.int.exponent.
+# expect-stdout: 32
+# expect-stdout: 81
+# expect-stdout: 125
+# expect-stdout: 49
+# expect-stdout: 1000000000000
+# expect-stdout: 1
+# expect-stdout: 0
+
+fn p8(b: i32, e: u8) -> i32: b ** e
+fn p16(b: i32, e: u16) -> i32: b ** e
+fn p32(b: i32, e: u32) -> i32: b ** e
+fn p64(b: i32, e: u64) -> i32: b ** e
+fn pz(b: i64, e: usize) -> i64: b ** e
+
+pub fn main() -> void $ Console:
+    println(p8(2, 5))
+    println(p16(3, 4))
+    println(p32(5, 3))
+    println(p64(7, 2))
+    println(pz(10, 12))
+    println(p64(1, 18446744073709551615))
+    println(p64(0, 18446744073709551615))

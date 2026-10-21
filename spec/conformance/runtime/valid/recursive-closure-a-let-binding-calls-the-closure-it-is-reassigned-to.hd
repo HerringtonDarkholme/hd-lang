@@ -1,0 +1,16 @@
+# test: a let binding calls the closure it is reassigned to
+# Spec lang/07-functions.md: fn.recursion.closure.ordinary-binding.
+# expect-stdout: 104
+
+fn run() -> i32:
+    let step = fn(n: i32) -> i32:
+        if n == 0:
+            0
+        else:
+            1 + step(n - 1)
+    first := step(4)
+    step = fn(n: i32) -> i32: 100
+    first + step(4)
+
+pub fn main() -> void $ Console:
+    println(run())

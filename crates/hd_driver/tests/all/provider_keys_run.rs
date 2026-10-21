@@ -5,11 +5,6 @@
 //! Programs build through the driver and run on V8 (`host/run.mjs`), as
 //! the conformance runner does.
 
-use std::path::Path;
-use std::process::Command;
-
-use hd_testkit::Scratch;
-
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
@@ -32,30 +27,6 @@ fn built(main: &str) -> Output {
             entry: "main".into(),
         },
     )
-}
-
-/// The standard output of a program that must build and succeed.
-fn output_of(name: &str, main: &str) -> String {
-    let out = built(main);
-    assert!(out.diags.is_empty(), "{name}: {}", out.render());
-    let wasm = out.wasm.expect("wasm");
-    let path = Scratch::unmade(
-        env!("CARGO_TARGET_TMPDIR"),
-        &format!("provider-keys-{name}.wasm"),
-    );
-    std::fs::write(&path, wasm).expect("write wasm");
-    let ran = Command::new("node")
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))
-        .arg(&path)
-        .output()
-        .expect("node");
-    let _ = std::fs::remove_file(&path);
-    assert!(
-        ran.status.success(),
-        "{name}: {}",
-        String::from_utf8_lossy(&ran.stderr)
-    );
-    String::from_utf8(ran.stdout).expect("UTF-8")
 }
 
 /// One generic trait with two implementations at different arguments:
@@ -81,113 +52,6 @@ impl Repo[Post] for PostRepo:
 fn activity() -> i32 $ Repo[User] + Repo[Post]:
     $.use(Repo[User]).count() * 10 + $.use(Repo[Post]).count()
 ";
-
-/// `main!` runs `body` with both providers bound.
-fn run(name: &str, items: &str, body: &str) -> String {
-    let mut main = format!(
-        "{PRELUDE}\n{items}\n\
-pub fn main!() -> void $ Console + Clock:
-    $.with(Repo[User]=UserRepo {{}}, Repo[Post]=PostRepo {{}}):
-"
-    );
-    for line in body.lines() {
-        main.push_str("        ");
-        main.push_str(line);
-        main.push('\n');
-    }
-    output_of(name, &main)
-}
-
-#[test]
-fn a_direct_call_reads_each_key_from_its_own_provider() {
-    let body = "\
-println(activity())
-";
-    assert_eq!(run("direct", "", body), "201\n");
-}
-
-#[test]
-fn nested_scopes_bind_the_two_keys_separately() {
-    let main = format!(
-        "{PRELUDE}
-pub fn main() -> void $ Console:
-    $.with(Repo[User]=UserRepo {{}}):
-        $.with(Repo[Post]=PostRepo {{}}):
-            println(activity())
-"
-    );
-    assert_eq!(output_of("nested", &main), "201\n");
-}
-
-#[test]
-fn a_generic_function_has_one_instance_per_key() {
-    let items = "\
-fn count_of[T]() -> i32 $ Repo[T]:
-    $.use(Repo[T]).count()
-
-fn both[A, B]() -> i32 $ Repo[A] + Repo[B]:
-    count_of::[A]() * 10 + count_of::[B]()
-";
-    let body = "\
-println(count_of::[User]() * 10 + count_of::[Post]())
-println(both::[User, Post]())
-println(both::[Post, User]())
-";
-    assert_eq!(run("generic", items, body), "201\n201\n30\n");
-}
-
-#[test]
-fn a_function_value_passes_both_providers() {
-    let items = "\
-fn call(callback: fn() -> i32 $ Repo[User] + Repo[Post]) -> i32 $ Repo[User] + Repo[Post]:
-    callback()
-
-fn count_of[T]() -> i32 $ Repo[T]:
-    $.use(Repo[T]).count()
-
-fn apply[T](callback: fn() -> i32 $ Repo[T]) -> i32 $ Repo[T]:
-    callback()
-";
-    let body = "\
-println(call(activity))
-println(call(fn(): $.use(Repo[User]).count() * 10 + $.use(Repo[Post]).count()))
-println(apply(count_of::[User]) * 10 + apply(count_of::[Post]))
-";
-    assert_eq!(run("value", items, body), "201\n201\n201\n");
-}
-
-#[test]
-fn a_data_field_keeps_the_callable_and_its_keys() {
-    let items = "\
-struct Job:
-    callback: fn() -> i32 $ Repo[Post] + Repo[User]
-";
-    let body = "\
-job := Job { callback: activity }
-println((job.callback)())
-";
-    assert_eq!(run("field", items, body), "201\n");
-}
-
-#[test]
-fn a_suspension_binds_both_providers_at_construction() {
-    let items = "\
-fn later!() -> i32 $ Repo[User] + Repo[Post] + Clock:
-    first := $.use(Repo[User]).count()
-    sleep!(Duration::milliseconds(1))
-    first * 10 + $.use(Repo[Post]).count()
-";
-    let body = "\
-let pending: mut Suspend[i32] = later()
-println(pending!())
-tally := fn!() -> i32 $ Repo[User] + Repo[Post] + Clock:
-    first := $.use(Repo[Post]).count()
-    sleep!(Duration::milliseconds(1))
-    $.use(Repo[User]).count() * 10 + first
-println(tally!())
-";
-    assert_eq!(run("suspension", items, body), "201\n201\n");
-}
 
 /// The rendered diagnostics of a program that must not build.
 fn rejected(main: &str) -> String {
@@ -225,68 +89,6 @@ pub fn main() -> void $ Console:
         text.contains("missing-requirement") && text.contains("`$ Repo[Post]`"),
         "{text}"
     );
-}
-
-/// `$.use(A, B)` is the tuple of the providers in the requested key order
-/// (`req.use.order`), whatever order the row and the `$.with` name them
-/// in; a row written in another order is the same row (`req.row.set.union`).
-#[test]
-fn a_multi_key_use_returns_the_providers_in_requested_order() {
-    let main = format!(
-        "{PRELUDE}
-fn swapped() -> i32 $ Repo[User] + Repo[Post]:
-    let (posts, users) = $.use(Repo[Post], Repo[User])
-    posts.count() * 100 + users.count()
-
-fn reordered() -> i32 $ Repo[Post] + Repo[User]:
-    activity() * 1000 + swapped()
-
-pub fn main() -> void $ Console:
-    $.with(Repo[Post]=PostRepo {{}}, Repo[User]=UserRepo {{}}):
-        println(swapped())
-        println(reordered())
-"
-    );
-    assert_eq!(output_of("use-order", &main), "120\n201120\n");
-}
-
-/// The providers of a multi-key `$.use` keep their access: a provider
-/// installed as `&mut` writes through its tuple element, and it is the one
-/// provider a later `$.use` sees (`req.mut.use-writable.reference-values`).
-#[test]
-fn a_multi_key_use_keeps_each_provider_access() {
-    let main = "\
-trait Counter:
-    fn bump(&mut self) -> void
-    fn count(&self) -> i32
-
-trait Base:
-    fn value(self) -> i32
-
-struct Cell:
-    n: i32
-
-impl Counter for Cell:
-    fn bump(&mut self) -> void:
-        self.n = self.n + 1
-    fn count(&self) -> i32: self.n
-
-struct Fixed: pass
-
-impl Base for Fixed:
-    fn value(self) -> i32: 40
-
-fn tick() -> i32 $ Base + Counter:
-    let (base, counter) = $.use(Base, Counter)
-    counter.bump()
-    counter.bump()
-    base.value() + $.use(Counter).count()
-
-pub fn main() -> void $ Console:
-    $.with(Counter=&mut Cell { n: 0 }, Base=Fixed {}):
-        println(tick())
-";
-    assert_eq!(output_of("use-access", main), "42\n");
 }
 
 /// Each key of a multi-key `$.use` must be in the row, and the tuple has

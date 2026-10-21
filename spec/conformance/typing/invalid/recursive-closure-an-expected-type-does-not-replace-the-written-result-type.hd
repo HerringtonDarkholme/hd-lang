@@ -1,0 +1,11 @@
+# test: an expected type does not replace the written result type
+# Spec lang/07-functions.md: fn.closure.recursive-result.
+
+fn sum_to(limit: i32) -> i32:
+    let sum: fn(i32) -> i32 = fn(n):  # diagnostic: recursive-function-needs-result-type
+        if n == 0: 0
+        else: n + sum(n - 1)
+    sum(limit)
+
+pub fn main() -> void $ Console:
+    println(sum_to(3))

@@ -1,0 +1,27 @@
+# test: other operators and floats select by the left type
+# Spec lang/05-expressions.md: expr.op.primitive.types.
+# expect-stdout: 9
+# expect-stdout: 4
+# expect-stdout: 3
+
+use std.ops.Add
+use std.ops.Shl
+
+struct Money:
+    cents: i64
+
+impl Add[Money] for f64:
+    type Out = Money
+    fn add(self, rhs: Money) -> Money:
+        Money { cents: i64(self) + rhs.cents }
+
+impl Shl[Money] for u8:
+    type Out = u8
+    fn shl(self, rhs: Money) -> u8:
+        self + u8(1)
+
+pub fn main() -> void $ Console:
+    let price = Money { cents: 7 }
+    println((2.0 + price).cents)
+    println(u8(3) << price)
+    println(1 + 2)

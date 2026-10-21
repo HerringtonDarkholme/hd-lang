@@ -1,0 +1,10 @@
+# test: a negated bare power is signed
+# Spec lang/05-expressions.md: expr.op.power.grouping.
+# expect-stdout: -4
+# expect-stdout: -4
+# expect-stdout: -16
+
+pub fn main() -> void $ Console:
+    println(-2 ** 2)
+    println(-(2 ** 2))
+    println(-2 ** 2 ** 2)

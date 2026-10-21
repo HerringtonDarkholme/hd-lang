@@ -1,0 +1,14 @@
+# test: a reserved word labels a named argument
+# Spec lang/01-lexical-structure.md: lex.raw.not-reserved.
+# expect-stdout: 20
+# expect-stdout: 5
+
+fn pick(`if`: bool, `else`: i32 = 2) -> i32:
+    if `if`:
+        `else` * 10
+    else:
+        `else`
+
+pub fn main() -> void $ Console:
+    println(pick(`if` = true))
+    println(pick(`if` = false, `else` = +5))

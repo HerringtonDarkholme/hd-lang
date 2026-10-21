@@ -1,0 +1,18 @@
+# test: handwritten methods on newtypes keep their bodies
+# Spec lang/09-traits.md: trait.derive.newtype.not-inherited.
+# expect-stdout: owner
+# expect-stdout: ada
+
+struct User:
+    name: string
+
+type Owner(User)
+
+impl Owner:
+    pub fn tag(self) -> string:
+        "owner"
+
+pub fn main() -> void $ Console:
+    u := User { name: "ada" }
+    println(Owner(u).tag())
+    println(User(Owner(u)).name)

@@ -1,0 +1,19 @@
+# test: converted left operand selects the left types implementation
+# Spec lang/05-expressions.md: expr.op.primitive.types.
+# expect-stdout: 15
+
+use std.ops.Mul
+
+struct Money:
+    cents: i64
+
+impl Mul[Money] for i64:
+    type Out = Money
+    fn mul(self, rhs: Money) -> Money:
+        Money { cents: self * rhs.cents }
+
+fn triple(price: Money) -> Money:
+    i64(3) * price
+
+pub fn main() -> void $ Console:
+    println(triple(Money { cents: 5 }).cents)

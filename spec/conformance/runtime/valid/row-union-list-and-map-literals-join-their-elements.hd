@@ -1,0 +1,58 @@
+# test: list and map literals join their elements
+# Spec lang/11-requirements-and-suspension.md: req.row.union.literal.
+# expect-stdout: noon;db;noon;log;orders=db;health=noon;
+
+trait Db:
+    fn name(self) -> string
+
+trait Clock:
+    fn now(self) -> string
+
+trait Log:
+    fn tag(self) -> string
+
+struct MemoryDb: pass
+
+impl Db for MemoryDb:
+    fn name(self) -> string: "db"
+
+struct FixedClock: pass
+
+impl Clock for FixedClock:
+    fn now(self) -> string: "noon"
+
+struct Tagged: pass
+
+impl Log for Tagged:
+    fn tag(self) -> string: "log"
+
+fn health() -> string $ Clock:
+    $.use(Clock).now()
+
+fn orders() -> string $ Db:
+    $.use(Db).name()
+
+fn audit() -> string $ Log:
+    $.use(Log).tag()
+
+fn from_list(admin: bool) -> string $ Db + Clock + Log:
+    handlers := [health, if admin: orders else: audit]
+    let text = ""
+    for handler in handlers:
+        text = text + handler() + ";"
+    text
+
+fn from_map() -> string $ Db + Clock:
+    routes := {"orders": orders, "health": health}
+    let text = ""
+    for name in ["orders", "health"]:
+        route := routes[name]
+        text = text + name + "=" + route() + ";"
+    text
+
+fn serve() -> string $ Db + Clock + Log:
+    from_list(true) + from_list(false) + from_map()
+
+pub fn main() -> void $ Console:
+    $.with(Db = MemoryDb {}, Clock = FixedClock {}, Log = Tagged {}):
+        println(serve())

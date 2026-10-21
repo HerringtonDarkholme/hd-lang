@@ -1,0 +1,18 @@
+# test: a zero exponent gives one
+# Spec lang/05-expressions.md: expr.power.int.exponent.
+# expect-stdout: 1
+# expect-stdout: 1
+# expect-stdout: 1
+# expect-stdout: 1
+# expect-stdout: 1
+# expect-stdout: true
+# expect-stdout: true
+
+pub fn main() -> void $ Console:
+    println(i32(0) ** 0)
+    println(i32(7) ** 0)
+    println(i32(-7) ** 0)
+    println(i64(-9) ** 0)
+    println(u8(255) ** 0)
+    println(0.0 ** 0.0 == 1.0)
+    println(2.5 ** 0.0 == 1.0)

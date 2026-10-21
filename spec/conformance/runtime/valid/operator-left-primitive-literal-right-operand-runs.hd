@@ -1,0 +1,17 @@
+# test: literal right operand runs
+# Spec lang/05-expressions.md: expr.op.primitive.types.
+# expect-stdout: 21
+
+use std.ops.Mul
+
+struct Money:
+    cents: i64
+
+impl Mul[i64] for Money:
+    type Out = Money
+    fn mul(self, rhs: i64) -> Money:
+        Money { cents: self.cents * rhs }
+
+pub fn main() -> void $ Console:
+    let price = Money { cents: 7 }
+    println((price * 3).cents)

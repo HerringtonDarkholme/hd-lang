@@ -1,0 +1,47 @@
+# test: three branches and nested sites join to the optional
+# Spec lang/04-type-system.md: types.lct.optional.
+# expect-stdout: some 10
+# expect-stdout: some 11
+# expect-stdout: none
+# expect-stdout: some 10
+# expect-stdout: none
+# expect-stdout: some 12
+# expect-stdout: some 21
+# expect-stdout: some 7
+# expect-stdout: none
+# expect-stdout: some 22
+# expect-stdout: some 1
+
+fn show(v: i32?) -> string:
+    match v:
+        .Some(n) => "some ${n}"
+        .None => "none"
+
+fn last(key: i32, found: i32?):
+    if key == 0: 10 else if key == 1: 11 else: found
+
+fn middle(key: i32, found: i32?):
+    if key == 0: 10 else if key == 1: found else: 12
+
+fn nested(key: i32, found: i32?):
+    if key > 0:
+        match key:
+            1 => 21
+            _ => found
+    else:
+        22
+
+pub fn main() -> void $ Console:
+    let none: i32? = .None
+    println(show(last(0, none)))
+    println(show(last(1, none)))
+    println(show(last(2, none)))
+    println(show(middle(0, none)))
+    println(show(middle(1, none)))
+    println(show(middle(2, none)))
+    println(show(nested(1, none)))
+    println(show(nested(2, .Some(7))))
+    println(show(nested(2, none)))
+    println(show(nested(0, none)))
+    let local = if none == .None: 1 else: none
+    println(show(local))

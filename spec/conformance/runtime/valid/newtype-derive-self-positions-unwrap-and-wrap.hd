@@ -1,0 +1,62 @@
+# test: self positions unwrap and wrap
+# Spec std/result.md: std-result.map.
+# Spec lang/09-traits.md: trait.derive.newtype.
+# expect-stdout: 2
+# expect-stdout: 6
+# expect-stdout: Option.Some(1)
+# expect-stdout: Option.None
+# expect-stdout: Result.Ok(1)
+# expect-stdout: true
+# expect-stdout: [1, 2, 3]
+# expect-stdout: 13
+# expect-stdout: 3
+# expect-stdout: 10
+# expect-stdout: 0
+
+trait Step:
+    fn next(self) -> Self
+    fn plus(self, other: Self) -> Self
+    fn before(self, limit: Self) -> Self?
+    fn guard(self, limit: Self) -> Result[Self, string]
+    fn spread(self) -> List[Self]
+    fn total(self, rest: List[Self]) -> Self
+    fn or_else(self, other: Self?) -> Self
+    fn zero() -> Self
+
+impl Step for i32:
+    fn next(self) -> i32: self + 1
+    fn plus(self, other: i32) -> i32: self + other
+    fn before(self, limit: i32) -> i32?:
+        if self < limit: .Some(self) else: .None
+    fn guard(self, limit: i32) -> Result[i32, string]:
+        if self < limit: .Ok(self) else: .Err("too big")
+    fn spread(self) -> List[i32]: [self, self + 1, self + 2]
+    fn total(self, rest: List[i32]) -> i32:
+        let sum = self
+        for r in rest:
+            sum = sum + r
+        sum
+    fn or_else(self, other: i32?) -> i32:
+        match other:
+            .Some(v) => v
+            .None => self
+    fn zero() -> i32: 0
+
+@derive(Step)
+type Level(i32)
+
+fn show(level: Level) -> i32:
+    i32(level)
+
+pub fn main() -> void $ Console:
+    println(show(Level(1).next()))
+    println(show(Level(1).plus(Level(5))))
+    println(debug(Level(1).before(Level(3)).map(show)))
+    println(debug(Level(4).before(Level(3)).map(show)))
+    println(debug(Level(1).guard(Level(3)).map(show)))
+    println(Level(4).guard(Level(3)).is_err())
+    println(debug(Level(1).spread().map(show)))
+    println(show(Level(10).total([Level(1), Level(2)])))
+    println(show(Level(10).or_else(.Some(Level(3)))))
+    println(show(Level(10).or_else(.None)))
+    println(show(Level::zero()))
