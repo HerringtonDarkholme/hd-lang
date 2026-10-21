@@ -327,6 +327,18 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
                 })
                 .collect();
             ops.push(format!("[{}]", pairs.join(", ")));
+        } else if matches!(tag, Tag::Read | Tag::Ref) {
+            // `Ref mut [$0]`, `Read [*$0 .x]`; a read mode other than the
+            // checker's `use` before the place, as `Read copy [$1]`.
+            let mode = match tag {
+                Tag::Ref if w == 1 => Some("mut".to_owned()),
+                Tag::Read => hd_tir::ir::ReadMode::from_u32(w)
+                    .filter(|m| *m != hd_tir::ir::ReadMode::Use)
+                    .map(|m| format!("{m:?}").to_lowercase()),
+                _ => None,
+            };
+            ops.extend(mode);
+            ops.push(place(names, b, a, fields));
         } else if tag == Tag::Block {
             // A block's result; its instructions are the lines above.
             ops.push(value(names, b, w));

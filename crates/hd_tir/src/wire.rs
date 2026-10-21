@@ -123,6 +123,8 @@ fn tag_id_words(b: &Body, i: usize) -> StageResult<Vec<IdWord>> {
             vec![IdWord::Def(a as usize + 2), IdWord::Ty(a as usize + 3)]
         }
         Tag::RefPlace | Tag::RefRead | Tag::RefWrite | Tag::RefDyn | Tag::RefIdentity => vec![],
+        // A global root's IDs are the place's ([`place_id_words`]).
+        Tag::Read | Tag::Store | Tag::Ref => vec![],
         Tag::LocalGet
         | Tag::LocalSet
         | Tag::Prim
@@ -451,8 +453,11 @@ pub fn tir_hash(bytes: &[u8]) -> Hash128 {
 
 #[cfg(test)]
 mod tests {
-    use super::{read_body, tir_hash, write_body};
-    use crate::ir::{BodyKind, Callee, Providers, Tag, TirBuilder, TirSink, local_flags};
+    use super::{map_ids, read_body, tir_hash, write_body};
+    use crate::ir::{
+        BodyKind, Callee, Place, PlaceRoot, Providers, ReadMode, Tag, TirBuilder, TirSink,
+        local_flags, map_body_types,
+    };
     use hd_base::NodeIdx;
     use hd_intern::{PathTable, ShardedInterner};
     use hd_types::{InternPool, Ty, TyData};
@@ -500,5 +505,81 @@ mod tests {
         let again = write_body(&back, &pool2, &paths2, &syms2).expect("wire");
         assert_eq!(tir_hash(&bytes), tir_hash(&again));
         assert_eq!(back.item, paths2.item("app", "main", "f"));
+    }
+
+    /// `counter.count += 1` on a top-level binding: a `Read` and a `Store`
+    /// sharing one place record whose root's `DefId` and `Ty` are IDs.
+    #[test]
+    fn a_shared_global_place_is_remapped_once() {
+        let (pool, paths, syms) = (
+            InternPool::new(),
+            PathTable::new(),
+            ShardedInterner::default(),
+        );
+        let counter_ty = |pool: &InternPool, paths: &PathTable| {
+            pool.intern_ty(&TyData::Adt {
+                def: paths.item("app", "main", "Counter"),
+                args: pool.list(&[]),
+            })
+        };
+        let f = paths.item("app", "main", "f");
+        let counter = paths.item("app", "main", "counter");
+        let ty = counter_ty(&pool, &paths);
+        let mut b = TirBuilder::new(f, BodyKind::Fn);
+        let n = NodeIdx::from_raw(0);
+        let blk = b.open_block();
+        let at = b.place(&Place {
+            root: PlaceRoot::Global(counter, ty),
+            proj: vec![crate::ir::Proj::Field(0)],
+        });
+        let read = b.emit(Tag::Read, at, ReadMode::Use as u32, Ty::I32, n);
+        let one = b.const_value(Ty::I32, 1);
+        let sum = b.prim(crate::ir::PrimOp::Add as u32, &[read, one], Ty::I32, n);
+        b.emit(Tag::Store, at, sum.0, Ty::VOID, n);
+        let root = b.close_block(blk, None, Ty::VOID, n);
+        let body = b.finish(root, &[]).expect("verifies");
+        let bytes = write_body(&body, &pool, &paths, &syms).expect("wire");
+        let (pool2, paths2, syms2) = (
+            InternPool::new(),
+            PathTable::new(),
+            ShardedInterner::default(),
+        );
+        paths2.item("zzz", "a", "b");
+        pool2.intern_ty(&TyData::Tuple {
+            elems: pool2.list(&[Ty::I32, Ty::BOOL]),
+            rest: None,
+        });
+        let back = read_body(&bytes, &pool2, &paths2, &syms2).expect("read");
+        let want = Place {
+            root: PlaceRoot::Global(
+                paths2.item("app", "main", "counter"),
+                counter_ty(&pool2, &paths2),
+            ),
+            proj: vec![crate::ir::Proj::Field(0)],
+        };
+        for i in [0, 2] {
+            assert_eq!(back.decode_place(back.data[i][0]).as_ref(), Some(&want));
+        }
+        let again = write_body(&back, &pool2, &paths2, &syms2).expect("wire");
+        assert_eq!(tir_hash(&bytes), tir_hash(&again));
+        // The other two mappers, once per shared word too.
+        let mut moved = body.clone();
+        map_body_types(&mut moved, &|t| Ty(t.0 + 100), &|l| l);
+        let PlaceRoot::Global(_, t) = moved.decode_place(at).expect("place").root else {
+            panic!("a global root");
+        };
+        assert_eq!(t, Ty(ty.0 + 100));
+        let mut moved = body;
+        map_ids(
+            &mut moved,
+            &|d| hd_base::DefId::from_raw(d.raw() + 100),
+            &|t| t,
+            &|l| l,
+        )
+        .expect("mapped");
+        let PlaceRoot::Global(d, _) = moved.decode_place(at).expect("place").root else {
+            panic!("a global root");
+        };
+        assert_eq!(d.raw(), counter.raw() + 100);
     }
 }

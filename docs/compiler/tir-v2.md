@@ -1036,6 +1036,13 @@ audit on the commits that touch the emitter).
 2. **New tags in the IR and collection.** `Read`, `Store`, `Ref` in the
    catalog with their operand schema, `value_operands`, the wire, and
    `hd_mono`'s erased-body schema. Unit tests built with `TirBuilder`.
+   As built: `ReadMode` names the four modes; verifier invariant 2
+   (`hd_tir`'s 21) and invariant 4 for a `Store` into a bare local; in
+   an erased body a `Ref`, and a `Read` or `Store` of a bare local, stay
+   in the body as `RefPlace`, `LocalGet` and `LocalSet` do, an open
+   `Read` or `Store` rooted at a value is outlined, and one rooted at a
+   local or global is refused (`NotImplemented`) until the emitter can
+   pass its root to a thunk.
 3. **The emitter's place resolver.** `emit/refs.rs`: `Read`, `Store`
    and `Ref` for every root and projection, beside the old tags;
    `live.rs` and `count.rs` treat them as described. Unit tests in

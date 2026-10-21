@@ -136,6 +136,11 @@ tags! {
     RefWrite: Values, Block;
     RefDyn: Block, Block;
     RefIdentity: Value, Block;
+    // places (`crates/hd_tir/DESIGN.md` §4.13.11, "Places"): a is a place
+    // word; no producer yet (`docs/compiler/tir-v2.md`, stage 1)
+    Read: Place, Meta;
+    Store: Place, Value;
+    Ref: Place, Meta;
     // providers
     With: Record, Block;
     ContextNew: Record, None;
@@ -716,6 +721,35 @@ impl std::str::FromStr for Place {
     }
 }
 
+/// How a `Read` reads its place (its `Meta` word b;
+/// `docs/compiler/tir-v2.md`, "Read modes"). The checker writes `Use`;
+/// the ownership passes (stage 2) replace it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[repr(u32)]
+pub enum ReadMode {
+    /// Undecided: the checker's.
+    Use,
+    /// One more count of each counted leaf; the place is unchanged.
+    Copy,
+    /// The place's own count; the place is empty afterwards.
+    Move,
+    /// No count; the place must not change while the value lives.
+    Borrow,
+}
+
+impl ReadMode {
+    pub const ALL: [ReadMode; 4] = [
+        ReadMode::Use,
+        ReadMode::Copy,
+        ReadMode::Move,
+        ReadMode::Borrow,
+    ];
+    #[must_use]
+    pub fn from_u32(v: u32) -> Option<Self> {
+        Self::ALL.get(v as usize).copied()
+    }
+}
+
 /// Local flags (u8): READ | ASSIGNED | MUTATED | CAPTURED | `CAPTURED_ASSIGNED` | PARAM.
 pub mod local_flags {
     pub const READ: u8 = 1;
@@ -886,6 +920,9 @@ impl Body {
     /// values and own no block, label or local (an erased body outlines
     /// such an instruction, `crates/hd_mono/DESIGN.md` §13.5.1), in the order emission
     /// reads them; constants included. `None` for any other instruction.
+    /// For `Read`, `Store` and `Ref`, the values their place reads (a
+    /// value root, then each element index), then a `Store`'s value; a
+    /// local or global root is no value and is not listed.
     #[must_use]
     pub fn value_operands(&self, i: usize) -> Option<Vec<u32>> {
         let [a, w] = self.data[i];
@@ -912,6 +949,8 @@ impl Body {
             Tag::NewTuple => [self.record(w).to_vec(), one(a)].concat(),
             Tag::NewList if a == NONE => self.record(w).to_vec(),
             Tag::GlobalGet | Tag::ProviderGet | Tag::ItemRef => vec![],
+            Tag::Read | Tag::Ref => self.place_values(a),
+            Tag::Store => [self.place_values(a), one(w)].concat(),
             _ => return None,
         })
     }
@@ -1535,7 +1574,9 @@ impl VerifyError {
 /// §4.13.11, "Implementation differs"). Of them, 8, 11, 13 and 17 need
 /// the checker's facts ([`VerifyCx`], [`verify_in`]), and 3's `Hole` and
 /// `Poison` half the module's errors ([`poison_sites`]).
-pub const CHECKED_INVARIANTS: &[u8] = &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17];
+pub const CHECKED_INVARIANTS: &[u8] = &[
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 20, 21,
+];
 
 /// What the verifier reads from the checker for the invariants a body
 /// alone cannot show (`crates/hd_tir/DESIGN.md` §4.13.11): read-only facts
@@ -1958,6 +1999,9 @@ pub fn verify(b: &Body) -> Vec<VerifyError> {
         // target. `never` goes anywhere, and poison follows an error.
         let want = match tag {
             Tag::LocalSet => b.local_ty.get(a as usize).copied(),
+            Tag::Store if a & place::BARE_LOCAL != 0 => {
+                b.local_ty.get((a & !place::BARE_LOCAL) as usize).copied()
+            }
             Tag::Break if w != NONE => b
                 .label_inst
                 .get(a as usize)
@@ -1980,6 +2024,18 @@ pub fn verify(b: &Body) -> Vec<VerifyError> {
                     got.0,
                     want.0
                 ),
+            });
+        }
+        // Invariant 21: a `Store` or a mutable `Ref` reaches a writable
+        // place. A malformed place is invariant 20's.
+        if (tag == Tag::Store || (tag == Tag::Ref && w == 1))
+            && let Some(p) = b.decode_place(a)
+            && !p.writable()
+        {
+            errs.push(VerifyError {
+                invariant: 21,
+                inst: u32::try_from(i).expect("i"),
+                what: format!("{} into place {p}, which is not writable", tag.name()),
             });
         }
         if matches!(tag, Tag::Call | Tag::Await) {
@@ -2965,6 +3021,116 @@ mod tests {
         );
     }
 
+    /// Stage 1's forms (`docs/compiler/tir-v2.md`): `Point.shift`'s
+    /// `self.x += dx`, whose read and store share one place record, then
+    /// `p = 1; r := &mut p; *r = 5`. Types 40 to 42 stand in for `Point`,
+    /// `&mut Point` and `&mut i32`.
+    fn place_sample() -> super::Body {
+        use super::{Place, PlaceRoot, PrimOp, Proj, ReadMode, local_flags::PARAM};
+        let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let n = NodeIdx::from_raw(1);
+        let blk = b.open_block();
+        let _this = b.local(Ty(41), Symbol::from_raw(0), PARAM, n);
+        let dx = b.local(Ty::I32, Symbol::from_raw(1), PARAM, n);
+        let p = b.local(Ty::I32, Symbol::from_raw(2), 0, n);
+        let r = b.local(Ty(42), Symbol::from_raw(3), 0, n);
+        let x = b.place(&"[*$0 .0]".parse().expect("place"));
+        let read = b.emit(Tag::Read, x, ReadMode::Use as u32, Ty::I32, n);
+        let d = b.get(dx, Ty::I32, n);
+        let sum = b.prim(PrimOp::Add as u32, &[read, d], Ty::I32, n);
+        b.emit(Tag::Store, x, sum.0, Ty::VOID, n);
+        let one = b.const_value(Ty::I32, 1);
+        let at_p = b.place(&Place::local(p));
+        b.emit(Tag::Store, at_p, one.0, Ty::VOID, n);
+        let rf = b.emit(Tag::Ref, at_p, 1, Ty(42), n);
+        let at_r = b.place(&Place::local(r));
+        b.emit(Tag::Store, at_r, rf.0, Ty::VOID, n);
+        let rv = b.get(r, Ty(42), n);
+        let five = b.const_value(Ty::I32, 5);
+        let through = b.place(&Place {
+            root: PlaceRoot::Value(rv),
+            proj: vec![Proj::Deref],
+        });
+        b.emit(Tag::Store, through, five.0, Ty::VOID, n);
+        let root = b.close_block(blk, None, Ty::VOID, n);
+        b.finish(root, &[]).expect("verifies")
+    }
+
+    #[test]
+    fn place_tags_verify_print_and_name_their_values() {
+        let b = place_sample();
+        let text = print(&b);
+        assert_eq!(parse(&text).expect("parses"), b);
+        let shown: Vec<String> = (0..b.len())
+            .filter(|&i| matches!(b.tags[i], Tag::Read | Tag::Store | Tag::Ref))
+            .map(|i| {
+                let [a, w] = b.data[i];
+                let p = b.decode_place(a).expect("place");
+                format!(
+                    "{} {p} {:?}",
+                    b.tags[i].name(),
+                    b.value_operands(i).expect("values")
+                ) + &if b.tags[i] == Tag::Store {
+                    String::new()
+                } else {
+                    format!(" {w}")
+                }
+            })
+            .collect();
+        let c = |k: u32| super::Ref::konst(k).0;
+        assert_eq!(
+            shown,
+            [
+                "Read [*$0 .0] [] 0".to_owned(),
+                "Store [*$0 .0] [2]".to_owned(),
+                format!("Store [$2] [{}]", c(0)),
+                "Ref [$2] [] 1".to_owned(),
+                "Store [$3] [5]".to_owned(),
+                format!("Store [*%7] [7, {}]", c(1)),
+            ]
+        );
+        // The read and the store of `self.x` share one record.
+        let x = |t: Tag| b.tags.iter().position(|x| *x == t).map(|i| b.data[i][0]);
+        assert_eq!(x(Tag::Read), x(Tag::Store));
+    }
+
+    #[test]
+    fn verifier_checks_stores_and_mutable_references_reach_writable_places() {
+        use super::{Place, PlaceRoot, Proj};
+        // `sample()` plus one instruction over `place`.
+        let with = |tag: Tag, place: &Place, w: u32| {
+            let mut b = sample();
+            let words = place.words().expect("a record");
+            let at = u32::try_from(b.extra.len()).expect("extra");
+            b.extra.push(u32::try_from(words.len()).expect("len"));
+            b.extra.extend(words);
+            b.tags.push(tag);
+            b.data.push([at, w]);
+            b.ty.push(Ty::VOID);
+            b.syn.push(NodeIdx::from_raw(1));
+            invariants(&b)
+        };
+        let k = super::Ref::konst(0);
+        let value = |proj: Vec<Proj>| Place {
+            root: PlaceRoot::Value(super::Ref(3)),
+            proj,
+        };
+        assert_eq!(with(Tag::Store, &value(vec![Proj::Field(0)]), k.0), [21]);
+        assert_eq!(with(Tag::Ref, &value(vec![Proj::Field(0)]), 1), [21]);
+        assert!(with(Tag::Ref, &value(vec![Proj::Field(0)]), 0).is_empty());
+        assert!(with(Tag::Store, &value(vec![Proj::Deref, Proj::Field(0)]), k.0).is_empty());
+        let local = "[$0 .1]".parse().expect("place");
+        assert!(with(Tag::Store, &local, k.0).is_empty());
+        // A stored value against a bare local's type, as for `LocalSet`.
+        let mut b = sample();
+        b.tags.push(Tag::Store);
+        b.data.push([super::place::BARE_LOCAL, k.0]);
+        b.ty.push(Ty::VOID);
+        b.syn.push(NodeIdx::from_raw(1));
+        b.consts[0].0 = Ty::BOOL;
+        assert!(invariants(&b).contains(&4));
+    }
+
     #[test]
     fn rollback_restores_columns_and_every_tag_has_a_schema() {
         let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Init);
@@ -2984,7 +3150,7 @@ mod tests {
         let root = b.close_block(blk, Some(one), Ty::I32, NodeIdx::NONE);
         let body = b.finish(root, &[]).expect("ok");
         assert_eq!(body.len(), 1);
-        assert_eq!(Tag::ALL.len(), 61);
+        assert_eq!(Tag::ALL.len(), 64);
         assert!(
             Tag::ALL
                 .iter()

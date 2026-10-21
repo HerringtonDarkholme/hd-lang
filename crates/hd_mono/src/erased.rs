@@ -12,7 +12,7 @@
 use std::collections::BTreeMap;
 
 use hd_base::{DefId, Hash128, InstId, StableHasher, StageResult};
-use hd_tir::ir::{Body, Callee, Tag};
+use hd_tir::ir::{Body, Callee, PlaceRoot, Tag};
 use hd_types::{InternPool, Ty, TyData, TyList};
 
 use crate::layout::{CanonMemo, Sub, canon};
@@ -222,6 +222,7 @@ fn schema_values(b: &Body, i: usize) -> Vec<u32> {
     for (word, op) in [(a, oa), (w, ow)] {
         match op {
             hd_tir::ir::Op::Value => out.push(word),
+            hd_tir::ir::Op::Place => out.extend(b.place_values(word)),
             hd_tir::ir::Op::Values => {
                 let r = b.record(word);
                 let n = if matches!(b.tags[i], Tag::Call | Tag::Await) {
@@ -306,6 +307,12 @@ pub fn open_insts(
             Tag::RefPlace | Tag::RefRead | Tag::RefWrite | Tag::RefDyn | Tag::RefIdentity => {
                 continue;
             }
+            // A `Ref` stays as `RefPlace` does; a `Read` or `Store` of a
+            // bare local stays as `LocalGet` and `LocalSet` do.
+            Tag::Ref => continue,
+            Tag::Read | Tag::Store if b.data[i][0] & hd_tir::ir::place::BARE_LOCAL != 0 => {
+                continue;
+            }
             // A tag switch reads its scrutinee's tag; over an open value,
             // that read is outlined and the switch stays (§13.5.1 step 3).
             Tag::SwitchTag => {
@@ -346,6 +353,15 @@ pub fn open_insts(
             },
             Tag::DefaultCall => b.record(a).get(1).is_some_and(|l| open_list(TyList(*l))),
             Tag::ItemRef => b.record(w).first().is_some_and(|l| open_list(TyList(*l))),
+            // A projection from an open root has an open offset.
+            Tag::Read | Tag::Store => match b.decode_place(a).map(|p| p.root) {
+                Some(PlaceRoot::Local(l)) => b
+                    .local_ty
+                    .get(l.idx())
+                    .is_some_and(|t| is_open(pool, s(*t))),
+                Some(PlaceRoot::Global(_, t)) => is_open(pool, s(t)),
+                _ => false,
+            },
             _ => false,
         };
         if !open {
@@ -353,6 +369,16 @@ pub fn open_insts(
         }
         if tag == Tag::Await || b.value_operands(i).is_none() {
             return err(&format!("an open `{}` in an erased body", tag.name()));
+        }
+        // A thunk gets values, not the body's locals: only a place rooted
+        // at a value is outlined.
+        if matches!(tag, Tag::Read | Tag::Store)
+            && !matches!(b.decode_place(a).map(|p| p.root), Some(PlaceRoot::Value(_)))
+        {
+            return err(&format!(
+                "an open `{}` of a local's or a global's place in an erased body",
+                tag.name()
+            ));
         }
         out.push(u32::try_from(i).expect("insts"));
     }

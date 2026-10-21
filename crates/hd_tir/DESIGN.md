@@ -571,7 +571,8 @@ in `src/ir.rs`, so every encoding goes through it.
   is immutable, so instructions may share one; the wire form remaps a
   shared record's IDs once. `TirBuilder::place` encodes a place,
   `Body::decode_place` decodes one, and its text form is
-  `[*$0 .1 [%5] as .2]`. No tag has a place operand yet.
+  `[*$0 .1 [%5] as .2]`. `Read`, `Store` and `Ref` take a place
+  (below).
 - **Sizes.** 17 bytes per instruction plus its `extra` records; 13 per
   local.
 
@@ -753,6 +754,19 @@ the instances they call are not there.
 | `RefWrite` | a: `[reference, value]`, b: closure-form `Block` | `void` (`*r = v`) |
 | `RefDyn` | a: address-form `Block`, the trait value the source reference converts to, b: closure-form `Block` | the trait value reference (`trait.dyn.ref.share`, `trait.dyn.ref.widen`) |
 | `RefIdentity` | a: reference, b: closure-form `Block` | std's `RefIdentity` (`identity_of`) |
+
+**Places** ([docs/compiler/tir-v2.md](../../docs/compiler/tir-v2.md#reads-stores-and-references)).
+Nothing produces these yet: stage 1 of TIR v2 moves references and
+writes onto them, commit by commit.
+
+| Tag | Operands | Type rule |
+| --- | --- | --- |
+| `Read` | a: place, b: `ReadMode` (`Use` from the checker; `Copy`, `Move` or `Borrow` after the ownership passes) | the place's type; the value at the place |
+| `Store` | a: place, b: value | `void`; replaces the value at the place. The place is writable (invariant 21) |
+| `Ref` | a: place, b: `0` shared or `1` mutable | `&T` or `&mut T`: the place's address. A mutable one's place is writable (invariant 21) |
+
+`value_operands` of these is the place's value root and element indices
+(then a `Store`'s value); a local or global root is no value.
 
 **Providers**
 
@@ -992,10 +1006,12 @@ The verifier checks each of these:
 20. Every place operand is well formed: it decodes, a local root names a
     local of the body, a value root and each element index precede the
     user and are visible there, and a frame root occurs only in tier 2.
+21. A `Store` or a mutable `Ref` reaches a writable place: a local or
+    global root, or a dereference among its projections. A value root
+    is never written in place.
 
-Implementation differs: `verify` checks invariants 1 to 15 and 17
-(`CHECKED_INVARIANTS`), several in part, and 20 on any place operand,
-though no tag has one yet. The checker's facts come in
+Implementation differs: `verify` checks invariants 1 to 15, 17, 20 and
+21 (`CHECKED_INVARIANTS`), several in part. The checker's facts come in
 through `VerifyCx`: `verify_in` and `TirBuilder::finish_in` take them,
 and the checker's own `finish` passes them for each body it checks. A
 body built elsewhere, such as a generated structure method, gets
@@ -1009,7 +1025,8 @@ body built elsewhere, such as a generated structure method, gets
     is reported at the folder, outside the body that reads its poisoned
     name. It fires when neither the module nor the run so far reported
     an error.
-  - 4: only a `LocalSet` value against its local and a `Break` value
+  - 4: only a `LocalSet` value or a `Store` value into a bare local
+    against its local, and a `Break` value
     against its target, and not in a module with errors
     (`finish_tolerating`).
   - 5: only that labels exist and are written.

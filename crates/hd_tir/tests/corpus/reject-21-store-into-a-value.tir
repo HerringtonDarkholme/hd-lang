@@ -1,0 +1,8 @@
+# expect: reject 21
+body 1 Fn
+labels
+caps
+modes
+extra 3 2 2147483648 0
+const 4 0
+%0 = Store 0 2147483648 : 18 @-
