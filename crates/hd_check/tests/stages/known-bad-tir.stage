@@ -1,0 +1,487 @@
+# Current RC TIR patterns for the IR design study (#667, #668).
+# Snapshots record today's output; each expected note names the desired IR shape.
+-- context --
+use std.iter.ListIter
+
+struct Body:
+    x: f64
+    vx: f64
+
+struct Nested:
+    body: Body
+
+struct Record:
+    items: List[i32]
+
+struct Bag:
+    items: List[i32]
+
+impl Iterable[i32] for Bag:
+    type IntoIter = ListIter[i32]
+    fn iter(self) -> ListIter[i32]: self.items.iter()
+-- case: a mutable list reference reads through a getter --
+# expected: Load the list header from its address without a getter closure.
+fn read[T](items: &mut List[T]) -> usize:
+    # subject
+    items.len()
+-- tir --
+app/main/read
+  local $0 items: Ref[mut List[T]]
+  %0 = LocalGet $0 : Ref[mut List[T]]
+  %1 = Field %0 .0 : fn() -> List[T]
+  %2 = CallValue %1 [] : List[T]
+  %3 = Block %2 : List[T]
+  %4 = RefRead %0 %3 : List[T]
+  %5 = Intrinsic ListLen [%4] : usize
+  %6 = Block %5 : usize
+-- case: a mutable generic reference reads through a getter --
+# expected: Load the declared value from a pointer without a getter closure.
+fn read[T](value: &mut T) -> T:
+    # subject
+    *value
+-- tir --
+app/main/read
+  local $0 value: Ref[mut T]
+  %0 = LocalGet $0 : Ref[mut T]
+  %1 = Field %0 .0 : fn() -> T
+  %2 = CallValue %1 [] : T
+  %3 = Block %2 : T
+  %4 = RefRead %0 %3 : T
+  %5 = Intrinsic ValueCopy [%4] : T
+  %6 = Block %5 : T
+-- case: a local struct field write rebuilds its value --
+# expected: Store directly at the local struct address plus the field offset.
+fn update(value: Body) -> Body:
+    let mut body = value
+    # subject
+    body.x = 1.0
+    body
+-- tir --
+app/main/update
+  local $1 body: Body
+  %2 = LocalGet $1 : Body
+  %3 = LocalGet $1 : Body
+  %4 = CopyData %3 [.x = 1.0:f64] : Body
+  %5 = LocalSet $1 %4 : ()
+-- case: a referenced struct field write rebuilds its value --
+# expected: Store directly through the parameter pointer plus the field offset.
+fn update(body: &mut Body) -> void:
+    # subject
+    body.x = 1.0
+-- tir --
+app/main/update
+  local $0 body: Ref[mut Body]
+  %0 = LocalGet $0 : Ref[mut Body]
+  %1 = Field %0 .0 : fn() -> Body
+  %2 = CallValue %1 [] : Body
+  %3 = Block %2 : Body
+  %4 = RefRead %0 %3 : Body
+  %5 = Field %0 .0 : fn() -> Body
+  %6 = CallValue %5 [] : Body
+  %7 = Block %6 : Body
+  %8 = RefRead %0 %7 : Body
+  %9 = CopyData %8 [.x = 1.0:f64] : Body
+  %10 = Field %0 .1 : fn(Body) -> ()
+  %11 = CallValue %10 [%9] : ()
+  %12 = Block - : ()
+  %13 = RefWrite [%0 %9] %12 : ()
+  %14 = Block - : ()
+-- case: a nested field write rebuilds each enclosing value --
+# expected: Add both constant field offsets and store without rebuilding aggregates.
+fn update(value: Nested) -> Nested:
+    let mut nested = value
+    # subject
+    nested.body.x = 1.0
+    nested
+-- tir --
+app/main/update
+  local $1 nested: Nested
+  %2 = LocalGet $1 : Nested
+  %3 = Field %2 .body : Body
+  %4 = LocalGet $1 : Nested
+  %5 = Field %4 .body : Body
+  %6 = CopyData %5 [.x = 1.0:f64] : Body
+  %7 = CopyData %4 [.body = %6] : Nested
+  %8 = LocalSet $1 %7 : ()
+-- case: a list loop uses a snapshot and index desugaring --
+# expected: Lower for through Iterable and one Loop; inline its cursor to memory operations.
+fn visit(items: List[i32]) -> void:
+    # subject
+    for _item in items:
+        pass
+-- tir --
+app/main/visit
+  local $0 items: List[i32]
+  local $1 $orig: List[i32]
+  local $2 $coll: List[i32]
+  local $3 $len: usize
+  local $4 $pos: usize
+  local $5 $end: usize
+  local $6 _item: i32
+  %0 = LocalGet $0 : List[i32]
+  %1 = LocalSet $1 %0 : ()
+  %2 = LocalGet $1 : List[i32]
+  %3 = Intrinsic SnapBegin [%2] : List[i32]
+  %4 = LocalSet $2 %3 : ()
+  %5 = LocalGet $2 : List[i32]
+  %6 = Intrinsic ListLen [%5] : usize
+  %7 = LocalSet $3 %6 : ()
+  %8 = LocalGet $3 : usize
+  %9 = LocalSet $5 %8 : ()
+  %10 = LocalSet $4 0:usize : ()
+  %11 = LocalGet $4 : usize
+  %12 = LocalGet $5 : usize
+  %13 = Prim Lt [%11 %12] : bool
+  %14 = LocalGet $2 : List[i32]
+  %15 = LocalGet $4 : usize
+  %16 = Intrinsic ListIndex [%14 %15] : i32
+  %17 = LocalGet $4 : usize
+  %18 = Prim Add [%17 1:usize] : usize
+  %19 = LocalSet $4 %18 : ()
+  %20 = Block - : ()
+  %21 = LocalSet $6 %16 : ()
+  %23 = Block - : never
+  %24 = Match %16 [%23 %20] : ()
+  %25 = Block - : ()
+  %26 = Break L0 - : never
+  %27 = Block - : ()
+  %28 = If %13 [%25 %27] : ()
+  %29 = Block - : ()
+  %30 = Loop %29 - : ()
+  %31 = LocalGet $1 : List[i32]
+  %32 = LocalGet $2 : List[i32]
+  %33 = Intrinsic SnapEnd [%31 %32] : ()
+  %34 = Block - : ()
+-- case: a map loop uses slot intrinsics --
+# expected: Lower for through Iterable and one Loop without a separate map-slot protocol.
+fn visit(items: Map[string, i32]) -> void:
+    # subject
+    for (_key, _value) in items:
+        pass
+-- tir --
+app/main/visit
+  local $0 items: Map[string, i32]
+  local $1 $orig: Map[string, i32]
+  local $2 $coll: Map[string, i32]
+  local $3 $len: usize
+  local $4 $pos: usize
+  local $5 $end: usize
+  local $6 _key: string
+  local $7 _value: i32
+  %0 = LocalGet $0 : Map[string, i32]
+  %1 = LocalSet $1 %0 : ()
+  %2 = LocalGet $1 : Map[string, i32]
+  %3 = Intrinsic SnapBegin [%2] : Map[string, i32]
+  %4 = LocalSet $2 %3 : ()
+  %5 = LocalGet $2 : Map[string, i32]
+  %6 = Intrinsic MapLen [%5] : usize
+  %7 = LocalSet $3 %6 : ()
+  %8 = LocalGet $2 : Map[string, i32]
+  %9 = Intrinsic MapSlots [%8] : usize
+  %10 = LocalSet $5 %9 : ()
+  %11 = LocalSet $4 0:usize : ()
+  %12 = LocalGet $2 : Map[string, i32]
+  %13 = LocalGet $4 : usize
+  %14 = LocalGet $5 : usize
+  %15 = Intrinsic MapSlotNext [%12 %13 %14] : usize
+  %16 = LocalSet $4 %15 : ()
+  %17 = LocalGet $4 : usize
+  %18 = LocalGet $5 : usize
+  %19 = Prim Lt [%17 %18] : bool
+  %20 = LocalGet $2 : Map[string, i32]
+  %21 = LocalGet $4 : usize
+  %22 = Intrinsic MapSlotEntry [%20 %21] : (string, i32)
+  %23 = LocalGet $4 : usize
+  %24 = Prim Add [%23 1:usize] : usize
+  %25 = LocalSet $4 %24 : ()
+  %26 = Block - : ()
+  %27 = TupleGet %22 .0 : string
+  %28 = TupleGet %22 .1 : i32
+  %29 = LocalSet $6 %27 : ()
+  %30 = LocalSet $7 %28 : ()
+  %32 = Block - : never
+  %33 = Match %22 [%32 %26] : ()
+  %34 = Block - : ()
+  %35 = Break L0 - : never
+  %36 = Block - : ()
+  %37 = If %19 [%34 %36] : ()
+  %38 = Block - : ()
+  %39 = Loop %38 - : ()
+  %40 = LocalGet $1 : Map[string, i32]
+  %41 = LocalGet $2 : Map[string, i32]
+  %42 = Intrinsic SnapEnd [%40 %41] : ()
+  %43 = Block - : ()
+-- case: a range loop uses the cursor protocol --
+# expected: Use the same Iterable-to-Loop lowering as lists, maps and user types.
+fn visit(end: i32) -> void:
+    # subject
+    for _item in +0..end:
+        pass
+-- tir --
+app/main/visit
+  local $0 end: i32
+  local $1 $cur: i32
+  local $2 $end: i32
+  local $3 $incl: bool
+  local $4 _item: i32
+  %0 = LocalGet $0 : i32
+  %1 = NewData [0:i32 %0 0:bool] : Range[i32]
+  %2 = Field %1 .start : i32
+  %3 = LocalSet $1 %2 : ()
+  %4 = Field %1 .end : i32
+  %5 = LocalSet $2 %4 : ()
+  %6 = Field %1 .inclusive : bool
+  %7 = LocalSet $3 %6 : ()
+  %8 = LocalGet $1 : i32
+  %9 = LocalGet $2 : i32
+  %10 = Prim Lt [%8 %9] : bool
+  %11 = LocalGet $3 : bool
+  %12 = LocalGet $1 : i32
+  %13 = LocalGet $2 : i32
+  %14 = Prim Eq [%12 %13] : bool
+  %15 = Block %14 : bool
+  %16 = And %11 %15 : bool
+  %17 = Block %16 : bool
+  %18 = Or %10 %17 : bool
+  %19 = LocalGet $1 : i32
+  %20 = LocalSet $4 %19 : ()
+  %21 = LocalGet $1 : i32
+  %22 = LocalGet $2 : i32
+  %23 = Prim Lt [%21 %22] : bool
+  %24 = LocalGet $1 : i32
+  %25 = Prim Add [%24 1:i32] : i32
+  %26 = LocalSet $1 %25 : ()
+  %27 = Block - : ()
+  %28 = LocalSet $3 0:bool : ()
+  %29 = Block - : ()
+  %30 = If %23 [%27 %29] : ()
+  %31 = Block - : ()
+  %32 = Break L0 - : never
+  %33 = Block - : ()
+  %34 = If %18 [%31 %33] : ()
+  %35 = Block - : ()
+  %36 = Loop %35 - : ()
+  %37 = Block - : ()
+-- case: a user Iterable loop uses the cursor protocol --
+# expected: Use one Iterable-to-Loop lowering with visible ordinary cursor calls.
+fn visit(items: Bag) -> void:
+    # subject
+    for _item in items:
+        pass
+-- tir --
+app/main/visit
+  local $0 items: Bag
+  local $1 $ref: ListIter[i32]
+  local $2 $value: ListIter[i32]
+  local $3 $iter: Ref[mut ListIter[i32]]
+  local $4 _item: i32
+  %0 = LocalGet $0 : Bag
+  %1 = Call std/iter/Iterable.iter for Bag [i32] via Impl (%0) : ListIter[i32]
+  %2 = LocalSet $1 %1 : ()
+  %3 = LocalGet $1 : ListIter[i32]
+  %4 = Block %3 : ListIter[i32]
+  %5 = Closure #1 [%0 %1] : fn() -> ListIter[i32]
+  %6 = LocalGet $2 : ListIter[i32]
+  %7 = LocalSet $1 %6 : ()
+  %8 = Block - : ()
+  %9 = Closure #2 [%1 %1] : fn(ListIter[i32]) -> ()
+  %10 = NewData [] : RefRoot
+  %11 = Coerce %10 [ToTraitValue -] : Any
+  %12 = Call std/core/ref_serial[] () : i64
+  %13 = NewData [%5 %9 %11 %12 ""] : Ref[mut ListIter[i32]]
+  %14 = Block %13 : Ref[mut ListIter[i32]]
+  %15 = RefPlace [%0 %1 -] %14 : Ref[mut ListIter[i32]]
+  %16 = LocalSet $3 %15 : ()
+  %17 = LocalGet $3 : Ref[mut ListIter[i32]]
+  %18 = Call std/iter/Iterator.next for ListIter[i32] [i32] via Impl (%17) : i32?
+  %19 = Block - : ()
+  %20 = Break L0 - : never
+  %21 = Block - : ()
+  %22 = Unwrap %18 : i32
+  %23 = LocalSet $4 %22 : ()
+  %29 = Block - : never
+  %30 = Match %18 [%29 %19 %21] : ()
+  %31 = Block - : ()
+  %32 = Loop %31 - : ()
+  %33 = Block - : ()
+-- case: list length is an opaque intrinsic --
+# expected: Load the length field from the list header.
+fn length(items: List[i32]) -> usize:
+    # subject
+    items.len()
+-- tir --
+app/main/length
+  local $0 items: List[i32]
+  %0 = LocalGet $0 : List[i32]
+  %1 = Intrinsic ListLen [%0] : usize
+  %2 = Block %1 : usize
+-- case: list push is an opaque intrinsic --
+# expected: Call ordinary library code with visible capacity, COW and buffer operations.
+fn append(items: &mut List[i32]) -> void:
+    # subject
+    items.push(7)
+-- tir --
+app/main/append
+  local $0 items: Ref[mut List[i32]]
+  %0 = LocalGet $0 : Ref[mut List[i32]]
+  %1 = Field %0 .0 : fn() -> List[i32]
+  %2 = CallValue %1 [] : List[i32]
+  %3 = Block %2 : List[i32]
+  %4 = RefRead %0 %3 : List[i32]
+  %5 = Intrinsic ListPush [%4 7:i32] : ()
+  %6 = Block - : ()
+-- case: list indexing is an opaque intrinsic --
+# expected: Check bounds, compute the element address and load its value.
+fn at(items: List[i32], index: usize) -> i32:
+    # subject
+    items[index]
+-- tir --
+app/main/at
+  local $0 items: List[i32]
+  local $1 index: usize
+  %0 = LocalGet $0 : List[i32]
+  %1 = LocalGet $1 : usize
+  %2 = Intrinsic ListIndex [%0 %1] : i32
+  %3 = Block %2 : i32
+-- case: map lookup is an opaque intrinsic --
+# expected: Call ordinary map lookup code over a visible memory representation.
+fn lookup(items: Map[string, i32], key: string) -> i32?:
+    # subject
+    items.get(key)
+-- tir --
+app/main/lookup
+  local $0 items: Map[string, i32]
+  local $1 key: string
+  %0 = LocalGet $0 : Map[string, i32]
+  %1 = LocalGet $1 : string
+  %2 = Intrinsic MapGet [%0 %1] : i32?
+  %3 = Block %2 : i32?
+-- case: string concatenation is an opaque intrinsic --
+# expected: Call ordinary string library code with explicit allocation and byte copies.
+fn concat(left: string, right: string) -> string:
+    # subject
+    left + right
+-- tir --
+app/main/concat
+  local $0 left: string
+  local $1 right: string
+  %0 = LocalGet $0 : string
+  %1 = LocalGet $1 : string
+  %2 = Intrinsic StrConcat [%0 %1] : string
+  %3 = Block %2 : string
+-- case: string equality is an opaque intrinsic --
+# expected: Call ordinary string comparison code over lengths and bytes.
+fn equal(left: string, right: string) -> bool:
+    # subject
+    left == right
+-- tir --
+app/main/equal
+  local $0 left: string
+  local $1 right: string
+  %0 = LocalGet $0 : string
+  %1 = LocalGet $1 : string
+  %2 = Intrinsic StrEq [%0 %1] : bool
+  %3 = Block %2 : bool
+-- case: copying a struct containing a list uses ValueCopy --
+# expected: Copy the struct bytes with explicit ownership effects for its counted buffer.
+fn copy(value: Record) -> Record:
+    # subject
+    let mut copied = value
+    copied
+-- tir --
+app/main/copy
+  local $0 value: Record
+  local $1 copied: Record
+  %0 = LocalGet $0 : Record
+  %1 = Intrinsic ValueCopy [%0] : Record
+  %2 = LocalSet $1 %1 : ()
+-- case: a list element reference pins its buffer --
+# expected: Compute the element address and expose pin lifetime through explicit count operations.
+fn borrow(items: &mut List[Body], index: usize) -> f64:
+    # subject
+    element := &items[index]
+    element.x
+-- tir --
+app/main/borrow
+  local $0 items: Ref[mut List[Body]]
+  local $1 index: usize
+  local $2 $pinned: List[Body]
+  local $3 $pin: bool
+  local $4 $ref: usize
+  local $6 element: Ref[Body]
+  %0 = LocalGet $0 : Ref[mut List[Body]]
+  %1 = Field %0 .0 : fn() -> List[Body]
+  %2 = CallValue %1 [] : List[Body]
+  %3 = Block %2 : List[Body]
+  %4 = RefRead %0 %3 : List[Body]
+  %5 = LocalGet $1 : usize
+  %6 = Intrinsic ListPin [%4 %5] : List[Body]
+  %7 = LocalSet $2 %6 : ()
+  %8 = LocalSet $3 1:bool : ()
+  %9 = LocalGet $3 : bool
+  %10 = LocalGet $2 : List[Body]
+  %11 = Intrinsic ListUnpin [%10] : ()
+  %12 = LocalSet $3 0:bool : ()
+  %13 = Block - : ()
+  %14 = Block - : ()
+  %15 = If %9 [%13 %14] : ()
+  %16 = Block - : ()
+  %17 = Defer #16 : ()
+  %18 = LocalSet $4 %5 : ()
+  %19 = LocalGet $2 : List[Body]
+  %20 = LocalGet $4 : usize
+  %21 = Intrinsic ListIndex [%19 %20] : Body
+  %22 = Block %21 : Body
+  %23 = Closure #1 [%0 %2] : fn() -> Body
+  %24 = Unreachable  : never
+  %25 = Block - : ()
+  %26 = Closure #2 [%2 %0] : fn(Body) -> ()
+  %27 = LocalGet $2 : List[Body]
+  %28 = Coerce %27 [ToTraitValue -] : Any
+  %29 = LocalGet $4 : usize
+  %30 = Prim Conv [%29] : i64
+  %31 = NewData [%23 %26 %28 %30 "[]"] : Ref[Body]
+  %32 = Block %31 : Ref[Body]
+  %33 = RefPlace [%4 %2 %4] %32 : Ref[Body]
+  %34 = LocalSet $6 %33 : ()
+-- case: an element method call unpins after the call --
+# expected: Keep the buffer alive around the ordinary call with visible count operations.
+impl Body:
+    fn speed(&self) -> f64: self.vx
+fn speed(items: &mut List[Body], index: usize) -> f64:
+    # subject
+    items[index].speed()
+-- tir --
+app/main/speed
+  local $0 items: Ref[mut List[Body]]
+  local $1 index: usize
+  local $2 $pinned: List[Body]
+  local $3 $ref: usize
+  %0 = LocalGet $0 : Ref[mut List[Body]]
+  %1 = Field %0 .0 : fn() -> List[Body]
+  %2 = CallValue %1 [] : List[Body]
+  %3 = Block %2 : List[Body]
+  %4 = RefRead %0 %3 : List[Body]
+  %5 = LocalGet $1 : usize
+  %6 = Intrinsic ListPin [%4 %5] : List[Body]
+  %7 = LocalSet $2 %6 : ()
+  %8 = LocalSet $3 %5 : ()
+  %9 = LocalGet $2 : List[Body]
+  %10 = LocalGet $3 : usize
+  %11 = Intrinsic ListIndex [%9 %10] : Body
+  %12 = Block %11 : Body
+  %13 = Closure #1 [%0 %2] : fn() -> Body
+  %14 = Unreachable  : never
+  %15 = Block - : ()
+  %16 = Closure #2 [%2 %0] : fn(Body) -> ()
+  %17 = LocalGet $2 : List[Body]
+  %18 = Coerce %17 [ToTraitValue -] : Any
+  %19 = LocalGet $3 : usize
+  %20 = Prim Conv [%19] : i64
+  %21 = NewData [%13 %16 %18 %20 "[]"] : Ref[Body]
+  %22 = Block %21 : Ref[Body]
+  %23 = RefPlace [%4 %2 %3] %22 : Ref[Body]
+  %24 = Call app/main/impl Body.speed[] (%23) : f64
+  %25 = LocalGet $2 : List[Body]
+  %26 = Intrinsic ListUnpin [%25] : ()
+  %27 = Block %24 : f64
