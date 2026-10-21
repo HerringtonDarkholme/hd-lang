@@ -277,6 +277,11 @@ pub enum Goal {
         /// same-driver poll must find active).
         hold: Option<ScenarioHold>,
     },
+    /// Development-only emission of a case module's functions, methods and
+    /// closures, without an executable entry or host exports. `module` is a
+    /// package-relative dotted path (as `main`). Uninstantiated generics are
+    /// skipped with notes in [`Output::fixture_notes`].
+    Fixture { module: String },
     /// Every stage over a package; "not implemented" is counted.
     Analyze,
     /// `Analyze`, with each module's `tests:` blocks checked as test code
@@ -444,6 +449,8 @@ pub struct Output {
     pub scopes: Vec<(String, Vec<(String, hd_resolve::Named)>)>,
     /// Readable TIR of the bodies a `Host::render_tir` named, by item path.
     pub tir_text: std::collections::BTreeMap<String, String>,
+    /// Deterministic development fixture notes, separate from language diagnostics.
+    pub fixture_notes: Vec<String>,
     /// A test run's selected cases, in content order.
     pub tests: Vec<TestCase>,
     /// Items in the run's global `InternPool` at the end (a size counter).
@@ -797,6 +804,8 @@ fn skim_module(
 
 /// The roots a program's exports poll.
 enum Roots {
+    /// All collected own fixture bodies, independent of executable exports.
+    Fixture(Vec<Hash128>),
     /// `main`, its report and the inits it reaches.
     Main {
         def: DefId,
@@ -1159,6 +1168,7 @@ struct Run<'a> {
     graph_parts: OnceLock<GraphParts>,
     program: OnceLock<ProgramTables>,
     collect: OnceLock<CollectOut>,
+    fixture_notes: OnceLock<Vec<String>>,
     wasm: OnceLock<Vec<u8>>,
     map_instructions: bool,
     instruction_origins: OnceLock<Vec<FunctionOrigins>>,
@@ -1506,9 +1516,11 @@ pub fn build_packages(
             .contains(&"inline_counts"),
         build_profile: match goal {
             Goal::Program { .. } | Goal::ReplInput { .. } => packages.build_profile,
-            Goal::Tests { .. } | Goal::Scenario { .. } | Goal::Analyze | Goal::CheckTests => {
-                BuildProfile::Checked
-            }
+            Goal::Tests { .. }
+            | Goal::Scenario { .. }
+            | Goal::Fixture { .. }
+            | Goal::Analyze
+            | Goal::CheckTests => BuildProfile::Checked,
         },
         body_fuel: packages.body_fuel,
         checked: packages.checked,
@@ -1537,6 +1549,7 @@ pub fn build_packages(
         graph_parts: OnceLock::new(),
         program: OnceLock::new(),
         collect: OnceLock::new(),
+        fixture_notes: OnceLock::new(),
         wasm: OnceLock::new(),
         map_instructions: packages.instruction_origins,
         instruction_origins: OnceLock::new(),
@@ -1716,6 +1729,7 @@ pub fn build_packages(
         ifaces,
         scopes,
         tir_text: std::mem::take(&mut *lock(&run.tir_text)),
+        fixture_notes: run.fixture_notes.get().cloned().unwrap_or_default(),
         pool_items: run.pool.len(),
         memo: run.memo.stats(),
         session_added,
@@ -2405,6 +2419,9 @@ impl Run<'_> {
     /// `module.entry.parameters`): a root file other than the library
     /// root, an executable's module, or the file of a single-file program.
     fn entry_module(&self, m: usize) -> bool {
+        if matches!(self.goal, Goal::Fixture { .. }) {
+            return false;
+        }
         let module = &self.table.modules[m];
         let single_file = self
             .table
@@ -2440,6 +2457,9 @@ impl Run<'_> {
         }
         match &self.goal {
             Goal::Program { entry } | Goal::Scenario { entry, .. } => {
+                module.path == format!("{}.{entry}", hd_project::package_ident(&self.package))
+            }
+            Goal::Fixture { module: entry } => {
                 module.path == format!("{}.{entry}", hd_project::package_ident(&self.package))
             }
             Goal::Tests { .. } | Goal::ReplInput { .. } => false,
@@ -4533,6 +4553,9 @@ impl Run<'_> {
         // module's check holds whether its top level ran as entry
         // behavior, which the goal decides.
         let mut role = self.role(m).to_owned();
+        if matches!(self.goal, Goal::Fixture { .. }) {
+            role.push_str("+fixture");
+        }
         if self.entry_module(m) {
             role.push_str("+entry");
         }
@@ -6950,7 +6973,8 @@ impl Run<'_> {
             Goal::Program { .. }
             | Goal::ReplInput { .. }
             | Goal::Tests { .. }
-            | Goal::Scenario { .. } => {
+            | Goal::Scenario { .. }
+            | Goal::Fixture { .. } => {
                 if !lock(&self.diags).has_errors() {
                     sp.add(TaskKind::Ext(ExtTask::Collect), &orders);
                 }
@@ -7195,6 +7219,10 @@ impl Run<'_> {
         }
         let names = self.names();
         let (entry_key, roots) = match &self.goal {
+            Goal::Fixture { module } => (
+                format!("{}.{module}", hd_project::package_ident(&self.package)),
+                Vec::new(),
+            ),
             Goal::Program { entry } | Goal::Scenario { entry, .. } => {
                 let entry_module = format!("{}.{entry}", hd_project::package_ident(&self.package));
                 let root = names.item(&entry_module, "main");
@@ -7266,6 +7294,7 @@ impl Run<'_> {
                 held.func, held.active, entry_key
             ),
             Goal::Scenario { .. } => format!("scenario:{entry_key}"),
+            Goal::Fixture { .. } => format!("fixture:{entry_key}"),
             _ => entry_key.clone(),
         };
         let keyed_entry = format!("linear:checked={}:{}", self.checked(), keyed_entry);
@@ -7279,6 +7308,7 @@ impl Run<'_> {
         // A session module's link depends on the session: it is not cached.
         if !self.map_instructions
             && self.session.is_none()
+            && !matches!(self.goal, Goal::Fixture { .. })
             && let Some(sections) = self.lookup(EntryKind::Link, pkey)
             && let Some(w) = sections.first()
         {
@@ -7296,6 +7326,10 @@ impl Run<'_> {
             );
             return;
         };
+        if matches!(self.goal, Goal::Fixture { .. }) {
+            self.collect_fixture(sp, p, pkey, &entry_key);
+            return;
+        }
         let init_of = |m: &str| hd_check::default_body_def(&names, names.item(m, "init"), "init");
         // A script has no `main`: its top-level statements are its module
         // initialization, and that is the whole entry behavior.
@@ -7312,7 +7346,7 @@ impl Run<'_> {
         let script = match self.goal {
             Goal::Program { .. } | Goal::Scenario { .. } => !has_main,
             Goal::ReplInput { .. } => true,
-            Goal::Tests { .. } | Goal::Analyze | Goal::CheckTests => false,
+            Goal::Tests { .. } | Goal::Fixture { .. } | Goal::Analyze | Goal::CheckTests => false,
         };
         let root = if script { init_of(&entry_key) } else { main };
         if self.body_of(p, root).is_none() {
@@ -7589,6 +7623,138 @@ impl Run<'_> {
             prog_key: pkey,
             roots: plan,
             host_refs,
+        });
+        sp.add(TaskKind::Ext(ExtTask::Link), &[]);
+    }
+
+    /// Roots the case's declarations at their declared types. It is not an
+    /// executable: no Termination conversion or host providers are installed.
+    fn collect_fixture(&self, sp: &dyn Spawn, p: &ProgramTables, pkey: Hash128, module: &str) {
+        let names = self.names();
+        let folders = self.program_folders();
+        let arity = p.arity();
+        let view = self.program_view(p, &folders, &arity);
+        let env = Env {
+            run: self,
+            p,
+            impls: Impls::Owned(&view),
+            sealed: self.known.sealed(),
+        };
+        let mut definitions: Vec<DefId> = p
+            .items
+            .values()
+            .filter_map(|item| {
+                (item.sig().is_some()
+                    && names.module_of(item.def) == module
+                    && self
+                        .body_of(p, item.def)
+                        .is_some_and(|b| b.0.kind == hd_tir::ir::BodyKind::Fn))
+                .then_some(item.def)
+            })
+            .collect();
+        definitions.sort_by_key(|d| names.path(*d));
+        let generic = |d: DefId| {
+            p.items[&d].sig().is_some_and(|s| !s.generics.is_empty())
+                || env.parent(d).is_some_and(|(_, n)| n != 0)
+        };
+        let mut roots: Vec<(DefId, TyList)> = definitions
+            .iter()
+            .copied()
+            .filter(|d| !generic(*d))
+            .map(|d| (d, TyList::EMPTY))
+            .collect();
+        // Code generation can introduce allocator/count calls even when the
+        // source has none. Their bodies are collected but retained only when
+        // the emitted fixture reaches them.
+        for (m, n) in hd_wasm_linear::runtime_items(self.checked()) {
+            let d = names.item(m, n);
+            if self.body_of(p, d).is_some() {
+                roots.push((d, TyList::EMPTY));
+            }
+        }
+        let init_of = |m: &str| hd_check::default_body_def(&names, names.item(m, "init"), "init");
+        let has_init = |m: &str| self.body_of(p, init_of(m)).is_some();
+        let mut inits = Vec::new();
+        for m in [hd_wasm_linear::runtime_module(self.checked()), module] {
+            let Some(order) =
+                self.stage(Stage::Collect, self.root_init_order(m, &init_of, &has_init))
+            else {
+                return;
+            };
+            for (d, _) in order {
+                if !inits.contains(&d) {
+                    inits.push(d);
+                }
+            }
+        }
+        let result = hd_mono::collect_fixtures(
+            &self.pool,
+            &env,
+            &TableSolver,
+            &inits,
+            &roots,
+            &self.planner,
+        );
+        let result = if p.bodies.bad.load(std::sync::atomic::Ordering::Relaxed) {
+            Err(NotImplemented::bug(
+                Stage::Collect,
+                "a module's check entry did not decode",
+            ))
+        } else {
+            result
+        };
+        let Some(result) = self.stage(Stage::Collect, result) else {
+            return;
+        };
+        let collected = match result {
+            Ok(c) => c,
+            Err(deep) => {
+                self.too_deep(&deep);
+                return;
+            }
+        };
+        let mut notes = Vec::new();
+        for d in definitions {
+            let present = collected.table.item.contains(&d);
+            if generic(d) && !present {
+                notes.push(format!(
+                    "skipped {}: no concrete instantiation named by the case",
+                    names.path(d)
+                ));
+            }
+            if let Some((body, _)) = self.body_of(p, d) {
+                for sub in 1..body.sub_root.len() {
+                    if body.sub_is_generic(sub)
+                        && !collected.table.item.iter().enumerate().any(|(i, item)| {
+                            *item == d && matches!(collected.table.sub[i], hd_mono::Sub::Body(k) if usize::from(k) == sub)
+                        })
+                    {
+                        notes.push(format!(
+                            "skipped {}#{}: no concrete instantiation named by the case",
+                            names.path(d),
+                            sub
+                        ));
+                    }
+                }
+            }
+        }
+        notes.sort();
+        let _ = self.fixture_notes.set(notes);
+        let keep = collected
+            .table
+            .item
+            .iter()
+            .enumerate()
+            .filter(|(_, d)| names.module_of(**d) == module)
+            .map(|(i, _)| collected.table.key[i])
+            .collect();
+        let order = collected.table.content_order();
+        let _ = self.collect.set(CollectOut {
+            collected,
+            order,
+            prog_key: pkey,
+            roots: Roots::Fixture(keep),
+            host_refs: Vec::new(),
         });
         sp.add(TaskKind::Ext(ExtTask::Link), &[]);
     }
@@ -7995,6 +8161,9 @@ impl Run<'_> {
             _ if self.session.is_some_and(|s| *s != Session::start()) => {
                 hd_wasm_linear::Entry::Unsupported("a REPL input over earlier modules")
             }
+            Roots::Fixture(roots) => hd_wasm_linear::Entry::Fixture {
+                roots: roots.clone(),
+            },
             Roots::Main {
                 def,
                 key,
@@ -8154,7 +8323,7 @@ impl Run<'_> {
         let Some(wasm) = self.stage(Stage::Link, built) else {
             return;
         };
-        if !self.map_instructions {
+        if !self.map_instructions && !matches!(self.goal, Goal::Fixture { .. }) {
             self.put(EntryKind::Link, c.prog_key, &[&wasm]);
         }
         let _ = self.wasm.set(wasm);

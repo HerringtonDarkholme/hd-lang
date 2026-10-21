@@ -3244,6 +3244,45 @@ pub fn collect(
     joined_inputs: bool,
     planner: &dyn Planner,
 ) -> StageResult<Result<Collected, TooDeep>> {
+    collect_roots(
+        pool,
+        env,
+        solver,
+        Some(root),
+        inits,
+        extra,
+        refs,
+        joined_inputs,
+        planner,
+    )
+}
+
+/// Collects development fixture bodies at their supplied types, without an
+/// executable entry or host-boundary codec discovery. `roots` may be empty;
+/// their keys are returned in [`Collected::extra`]. Ordinary calls collect
+/// named generic instantiations and closures as in [`collect`].
+pub fn collect_fixtures(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    solver: &dyn Solver,
+    inits: &[DefId],
+    roots: &[(DefId, TyList)],
+    planner: &dyn Planner,
+) -> StageResult<Result<Collected, TooDeep>> {
+    collect_roots(pool, env, solver, None, inits, roots, &[], false, planner)
+}
+
+fn collect_roots(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    solver: &dyn Solver,
+    root: Option<DefId>,
+    inits: &[DefId],
+    extra: &[(DefId, TyList)],
+    refs: &[(DefId, TyList)],
+    joined_inputs: bool,
+    planner: &dyn Planner,
+) -> StageResult<Result<Collected, TooDeep>> {
     let mut cx = Cx {
         pool,
         env,
@@ -3282,18 +3321,20 @@ pub fn collect(
 impl Cx<'_> {
     fn run(
         &mut self,
-        root: DefId,
+        root: Option<DefId>,
         inits: &[DefId],
         extra: &[(DefId, TyList)],
         refs: &[(DefId, TyList)],
     ) -> StageResult<()> {
-        self.push(
-            root,
-            Sub::Body(0),
-            TyList::EMPTY,
-            TyList::EMPTY,
-            InstId::NONE,
-        )?;
+        if let Some(root) = root {
+            self.push(
+                root,
+                Sub::Body(0),
+                TyList::EMPTY,
+                TyList::EMPTY,
+                InstId::NONE,
+            )?;
+        }
         for i in inits {
             let k = self.push(*i, Sub::Body(0), TyList::EMPTY, TyList::EMPTY, InstId::NONE)?;
             self.out.inits.push(k);
@@ -3308,15 +3349,17 @@ impl Cx<'_> {
         for (d, args) in refs {
             self.push(*d, Sub::Adapter, *args, *args, InstId::NONE)?;
         }
-        let mut boundary_roots = vec![(root, TyList::EMPTY)];
-        boundary_roots.extend(extra.iter().copied());
-        // A session's joined REPL inputs each run their init with the
-        // entry's providers, so each init body is a root of the boundary
-        // too.
-        if self.joined_inputs {
-            boundary_roots.extend(inits.iter().map(|d| (*d, TyList::EMPTY)));
+        if let Some(root) = root {
+            let mut boundary_roots = vec![(root, TyList::EMPTY)];
+            boundary_roots.extend(extra.iter().copied());
+            // A session's joined REPL inputs each run their init with the
+            // entry's providers, so each init body is a root of the boundary
+            // too.
+            if self.joined_inputs {
+                boundary_roots.extend(inits.iter().map(|d| (*d, TyList::EMPTY)));
+            }
+            self.note_boundary_codecs(&boundary_roots)?;
         }
-        self.note_boundary_codecs(&boundary_roots)?;
         // Breadth-first in push order (`crates/hd_mono/DESIGN.md` §13.4): the first
         // instance over a limit is the same on every run.
         let mut next = 0;

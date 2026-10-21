@@ -652,6 +652,10 @@ pub enum PrimArg {
 /// Defines the entry exports of `input.entry` in `m`.
 pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
     let (main, key, before, after, report) = match &input.entry {
+        Entry::Fixture { roots } => {
+            m.retain_instances(roots);
+            return Ok(());
+        }
         Entry::Main {
             main,
             key,

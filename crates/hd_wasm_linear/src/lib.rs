@@ -99,6 +99,9 @@ pub enum Entry {
     /// `hd.reset`, which clears the runtime state a trap leaves set, so
     /// the next input starts as the first did.
     Inputs(Vec<ReplInput>),
+    /// Development-only fixture bodies, retained without executable exports.
+    /// Every supplied instance and its suspension parts survive link pruning.
+    Fixture { roots: Vec<Hash128> },
     /// An entry this backend does not build.
     Unsupported(&'static str),
 }
@@ -134,7 +137,10 @@ impl Entry {
         match self {
             Entry::Main { main, .. } | Entry::Scenario { main, .. } => *main == item,
             Entry::Tests { cases, .. } => cases.iter().any(|(def, _, _)| *def == item),
-            Entry::Script { .. } | Entry::Inputs(_) | Entry::Unsupported(_) => false,
+            Entry::Script { .. }
+            | Entry::Inputs(_)
+            | Entry::Fixture { .. }
+            | Entry::Unsupported(_) => false,
         }
     }
 }

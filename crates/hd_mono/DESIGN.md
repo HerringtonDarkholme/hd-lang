@@ -1833,3 +1833,19 @@ the full key:
 Cost per call: zero at run time (the same locals and the same
 context walk); at compile time, one interned-`Ty` comparison per
 lookup.
+
+### 13.19 Development Fixture Roots
+
+`collect_fixtures` shares ordinary collection's work queue, specialization,
+layout planning and depth limits. It accepts zero or many explicit roots;
+their keys are returned in `Collected.extra`. Module initialization bodies
+are collected as usual. Ordinary calls supply any generic instantiations,
+and ordinary closure instructions collect their sub-bodies.
+
+There is no executable entry in this mode. In particular, the collector
+does not discover host-boundary codecs from the roots' requirement rows:
+those rows are ordinary declared parameters, not capabilities installed by
+a host. `collect` keeps its executable root, boundary discovery and joined
+REPL behavior unchanged. The driver selects the fixture's source-defined
+functions and methods and reports uninstantiated generic definitions; the
+collector does not know the fixture file format (#663).

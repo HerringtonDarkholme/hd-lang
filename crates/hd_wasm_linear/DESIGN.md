@@ -1865,3 +1865,19 @@ anchors and panic reporting keep their behavior.
   `end`. Zero-width call anchors have no encoded instruction entry. Raw
   compiler-generated helper bodies have no instruction-origin table.
   Mapping does not require dense anchors and cannot interrupt a peephole.
+
+### 23.34 Development Fixture Retention
+
+`Entry::Fixture` gives the linker private instance roots. Every collected
+instance defined in the case module is retained, including closure bodies,
+named generic instantiations and generated suspension parts, even if a
+constant branch or cross-function fold removes its last caller. Their
+normal dependencies remain reachable by the ordinary helper walk.
+
+These roots are separate from exports: fixture functions keep their
+declared ABI, including wide signatures lowered through the shadow stack.
+No executable entry, Termination conversion, host providers or callable
+exports are synthesized. Ordinary builds still prune from their exports.
+The driver exposes this only through the development `Goal::Fixture`
+API, with sorted notes for generic definitions lacking an instantiation;
+there is no CLI flag or language rule (#663).

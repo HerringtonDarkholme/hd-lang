@@ -392,6 +392,8 @@ pub struct Module {
     /// supertraits, laid out after the data.
     vtables: Vec<(Vec<Sym>, Vec<usize>)>,
     exports: Vec<(String, Sym)>,
+    /// Development fixture roots, independent of the public export ABI.
+    retained: BTreeSet<Sym>,
     /// The std runtime that helpers call, when the program links it.
     pub runtime: Option<crate::Runtime>,
     /// Each instance by its key, for a caller to read how its callee takes
@@ -459,6 +461,21 @@ impl Module {
         self.exports.push((name.into(), s));
     }
 
+    /// Keeps fixture instances and their generated suspension parts, without
+    /// exporting them (wide signatures still use the internal lowering ABI).
+    pub fn retain_instances(&mut self, keys: &[Hash128]) {
+        let keys: BTreeSet<Hash128> = keys.iter().copied().collect();
+        self.retained.extend(
+            self.funcs
+                .keys()
+                .filter(|s| match s {
+                    Sym::Inst(k) | Sym::Part(k, _) => keys.contains(k),
+                    _ => false,
+                })
+                .cloned(),
+        );
+    }
+
     /// The heap address of `bytes` in static data, placed on first use
     /// and aligned to `align`.
     pub fn static_bytes(&mut self, bytes: &[u8], align: u32) -> u32 {
@@ -519,6 +536,7 @@ impl Module {
     fn reached(&mut self) -> BTreeSet<Sym> {
         let mut seen: BTreeSet<Sym> = BTreeSet::new();
         let mut work: Vec<Sym> = self.exports.iter().map(|(_, s)| s.clone()).collect();
+        work.extend(self.retained.iter().cloned());
         work.extend(self.vtables.iter().flat_map(|v| v.0.iter()).cloned());
         while let Some(s) = work.pop() {
             if matches!(s, Sym::Import(_)) || !seen.insert(s.clone()) {

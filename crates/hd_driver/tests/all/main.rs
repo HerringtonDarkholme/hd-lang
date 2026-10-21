@@ -62,6 +62,7 @@ mod fact_eval_run;
 mod facts_of_check;
 mod facts_of_run;
 mod failed_use;
+mod fixture_roots;
 mod float_patterns_run;
 mod float_run;
 mod float_text;
