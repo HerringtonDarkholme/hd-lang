@@ -96,14 +96,14 @@ so PATH is an `hd` built with two local edits: `Program::packages` in
 and `retained()` and `released()` in `lib/std/rt/checked.hd` put
 `allocated()` and `pages()` in the high 32 bits of their results.
 
-### Results, 2026-10-20, at the 300 ms sizes
+### Results, 2026-10-21, after the RC optimization round
 
-Commit `c163ee2c0` plus the retuned inputs, Apple M3 Max, Node v24.19.0,
-Go 1.24.1, CPython 3.14.7, wasmtime 49 in `hd`. The machine was shared
-(one-minute load 10 to 100), so a cell can be off by 1.5x or more; the
-full run took 7 min 18 s and `--quick` 48 s. Integer milliseconds,
-median of 5. spectral-norm and nbody on V8 are from a re-run, as the
-full run's first reading of nbody (610) came during a load spike.
+Commit `f7549b935`, Apple M3 Max, Node v24.19.0, Go 1.24.1, CPython
+3.14.7, wasmtime 49 in `hd`. The machine was shared (one-minute load 5 to
+15, Spotlight indexing), so a cell can be off by 1.3x; the full run took
+5 min 51 s. Integer milliseconds, median of 5. spectral_norm and points on
+V8 are from a `--quick` re-run (the full run's 291 and 349 came during a
+load spike). "hd V8, 10-20" is the previous table's run at `c163ee2c0`.
 
 "Wasm GC era" is hd on V8 built by `84095aa9e`, the last commit whose CLI
 has `--backend wasm-gc`, running the same sources at the same sizes
@@ -111,28 +111,30 @@ has `--backend wasm-gc`, running the same sources at the same sizes
 compile there (no `Iterator` trait), so it has no GC-era number. The
 owner's RC target is hd V8 at most 1.2x the Wasm GC era.
 
-The table below records the run before [#712](https://github.com/HerringtonDarkholme/hd-lang/issues/712).
-That std change replaces `List.iter`'s step closure with direct indexing.
-Later `closures` / Wasm GC ratios include this std change: the GC-era run
-used closure stepping. Judge #712 with paired hd before/after measurements.
+`closures` is not like for like with its GC-era number: #712 replaced
+`List.iter`'s step closure with direct indexing after that run, and
+`closures.js` now calls three function values per element, as the hd and
+Go versions do (it was one hand-fused loop).
 
-| Program | Input | hd V8 | hd wasmtime | Node | Go | Python | Wasm GC era hd V8 | hd / Wasm GC | Meets 1.2x? |
-| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| spectral_norm | n 2000 | 252 | 497 | 303 | 216 | 13,072 | 508 | 0.50 | yes |
-| fannkuch_redux | n 9 | 341 | 267 | 48 | 20 | 306 | 117 | 2.9 | no |
-| mandelbrot | 1400², 50 iterations | 311 | 327 | 131 | 92 | 4,100 | 356 | 0.87 | yes |
-| nbody | 1.15M steps | 314 | 659 | 97 | 53 | 4,429 | 1,277 | 0.25 | yes |
-| sieve | 16M | 318 | 393 | 69 | 35 | 673 | 365 | 0.87 | yes |
-| binary_trees | depth 14 | 360 | 1,018 | 64 | 60 | 433 | 108 | 3.3 | no |
-| points | 3.3M records, 10 rounds | 288 | 522 | 987 | 75 | 11,637 | 1,537 | 0.19 | yes |
-| closures | 170k items, 50 rounds | 363 | 896 | 72 | 34 | 330 | 132 | 2.8 | no |
-| map_count | 650k words | 316 | 817 | 166 | 45 | 139 | 239 | 1.3 | no |
-| string_build | 1.5M pieces | 336 | 692 | 440 | 94 | 147 | 278 | 1.21 | no |
-| json | 6k records | 341 | 694 | 300 | 13 | 38 | 149 | 2.3 | no |
-| dyn_iter | 1M elements, 10k calls | 339 | 754 |  | 63 | 1,227 |  |  |  |
+| Program | Input | hd V8 | hd V8, 10-20 | hd wasmtime | Node | Go | Python | Wasm GC era hd V8 | hd / Wasm GC | Meets 1.2x? |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| spectral_norm | n 2000 | 225 | 252 | 567 | 318 | 181 | 12,729 | 508 | 0.44 | yes |
+| fannkuch_redux | n 9 | 118 | 341 | 214 | 55 | 21 | 312 | 117 | 1.01 | yes |
+| mandelbrot | 1400², 50 iterations | 309 | 311 | 287 | 137 | 93 | 3,990 | 356 | 0.87 | yes |
+| nbody | 1.15M steps | 289 | 314 | 497 | 92 | 49 | 4,372 | 1,277 | 0.23 | yes |
+| sieve | 16M | 267 | 318 | 306 | 68 | 34 | 646 | 365 | 0.73 | yes |
+| binary_trees | depth 14 | 127 | 360 | 338 | 59 | 59 | 402 | 108 | 1.18 | yes |
+| points | 3.3M records, 10 rounds | 222 | 288 | 446 | 738 | 71 | 11,242 | 1,537 | 0.14 | yes |
+| closures | 170k items, 50 rounds | 152 | 363 | 314 | 105 | 36 | 340 | 132 | 1.15 | yes (std changed) |
+| map_count | 650k words | 170 | 316 | 357 | 167 | 47 | 136 | 239 | 0.71 | yes |
+| string_build | 1.5M pieces | 165 | 336 | 338 | 173 | 94 | 147 | 278 | 0.59 | yes |
+| json | 6k records | 122 | 341 | 225 | 38 | 13 | 33 | 149 | 0.82 | yes |
+| dyn_iter | 1M elements, 10k calls | 233 | 339 | 412 |  | 58 | 1,220 |  |  |  |
 
-Six of eleven programs miss the target: fannkuch_redux, binary_trees,
-closures and json by more than 2x, map_count and string_build narrowly.
+All eleven programs with a GC-era number meet the target; binary_trees
+(1.18) and closures (1.15) with the least margin. Against Node, hd is
+level or faster on spectral_norm, points, map_count and string_build, and
+1.5x to 3.9x slower on the rest.
 The GC-era numbers for nbody and points are far above the earlier
 scratch-source GC-era figures, since these sources copy more.
 
