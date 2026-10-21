@@ -115,6 +115,42 @@ The edit vocabulary:
   `cargo fuzz` for panics and round-trip failures, and program
   generators as portable tools that take any `hd` binary.
 
+### 8.4 Stage Fixtures
+
+Issue #657 chose, and #660 built, topic files of small cases whose
+expected outputs are views of one compiler stage. `hd_testkit::stages`
+runs them; each stage crate's test runs its own `tests/stages/*.stage`.
+The lexer and the parser are in `crates/hd_syntax/tests/stages/`, and the
+checker in `crates/hd_check/tests/stages/`.
+
+- **A file is one topic.** It starts with `-- context --` and the hd that
+  every case uses. Each case is `-- case: NAME --`, its hd, then one
+  `-- VIEW --` block per view with the expected output. A case without view
+  blocks takes the views of the case before it, so adding a case is pasting
+  its code and blessing. No registration is needed: the harness finds every
+  `*.stage` file in the directory.
+- **The subject is marked by a comment**, so each case's program (the
+  context, then the case) stays valid hd for `hd fmt` and `hd check`.
+  A caret line `#^^^^` marks columns of the code line above it, from the
+  `#` when a `^` follows it directly, or else from the first `^`. A
+  `# subject` line marks the next line and the lines indented deeper after
+  it (an `else` at its depth continues it). With no marker, the subject is
+  the case's last statement or item.
+- **Each view keeps only what lies inside the subject's span.**
+  - `tokens` shows each token's kind and text.
+  - `tree` shows the outline of the largest syntax nodes inside the
+    subject, without wrappers that only repeat a child's span.
+  - `tir` shows, per body, the instructions whose source node lies inside
+    the subject, using `Positions::span`. The locals they name come first,
+    with their names and types, and `Prim` and `Intrinsic` operations print
+    by name.
+  - Later issues add `wat`, `counts` and `layout` (#661 to #664).
+  - Execution stays in conformance: a view never replaces a runtime
+    assertion.
+- **Blessing.** `HD_BLESS=1` rewrites every expected block in place. A
+  mismatch prints a line diff (`-` expected, `+` actual) around each
+  change.
+
 ## 21. Back-Half Determinism And Soundness Tests
 
 ### 21.1 Byte-Identical Wasm

@@ -1,0 +1,53 @@
+# Lexer: the tokens a subject splits into.
+-- context --
+struct Point:
+    x: i32
+    y: i32
+-- case: an interpolated string --
+fn label(p: Point) -> string:
+    "at ${p.x}, ${p.y}"
+    #^^^^^^^^^^^^^^^^^^
+-- tokens --
+StrHead "at ${
+Ident p
+Dot .
+Ident x
+StrMid }, ${
+Ident p
+Dot .
+Ident y
+StrTail }"
+-- case: a typed literal and a reference --
+fn shift(p: &mut Point) -> void:
+    p.x = p.x + +1
+    #           ^^
+-- tokens --
+Plus +
+Number 1
+-- case: a closure type --
+fn adder() -> fn(i32) -> i32:
+    # subject
+    fn(n: i32) -> i32: n + 1
+-- tokens --
+KwFn fn
+LParen (
+Ident n
+Colon :
+Ident i32
+RParen )
+Arrow ->
+Ident i32
+Colon :
+Ident n
+Plus +
+Number 1
+-- case: a match arm --
+fn sign(n: i32) -> i32:
+    match n:
+        0 => 0
+        _ => 1
+        #^^^^^
+-- tokens --
+Placeholder _
+FatArrow =>
+Number 1

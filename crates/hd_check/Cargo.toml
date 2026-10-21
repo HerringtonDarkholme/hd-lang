@@ -16,5 +16,8 @@ hd_syntax = { path = "../hd_syntax" }
 hd_tir = { path = "../hd_tir" }
 hd_types = { path = "../hd_types" }
 
+[dev-dependencies]
+hd_testkit = { path = "../hd_testkit" }
+
 [lints]
 workspace = true

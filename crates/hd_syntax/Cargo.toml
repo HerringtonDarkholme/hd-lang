@@ -12,6 +12,9 @@ hd_intern = { path = "../hd_intern" }
 unicode-ident = "1.0"
 unicode-normalization = "0.1"
 
+[dev-dependencies]
+hd_testkit = { path = "../hd_testkit" }
+
 [lints]
 workspace = true
 

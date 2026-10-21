@@ -141,6 +141,19 @@ pub fn render(names: &Names<'_>, b: &Body) -> String {
                     Op::Value | Op::Block => ops.push(value(names, b, word)),
                     Op::Label => ops.push(format!("L{word}")),
                     Op::Local => ops.push(format!("${word}")),
+                    // A `Prim`'s or an `Intrinsic`'s operation by name.
+                    Op::Meta
+                        if tag == Tag::Prim
+                            && let Some(op) = hd_tir::ir::PrimOp::from_u32(word) =>
+                    {
+                        ops.push(format!("{op:?}"));
+                    }
+                    Op::Meta
+                        if tag == Tag::Intrinsic
+                            && let Some(op) = hd_tir::ir::IntrinsicOp::from_u32(word) =>
+                    {
+                        ops.push(format!("{op:?}"));
+                    }
                     Op::Meta => ops.push(format!("#{word}")),
                     Op::Values | Op::Blocks | Op::Record => {
                         if word == NONE {

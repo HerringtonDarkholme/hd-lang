@@ -633,6 +633,7 @@ dependencies = [
  "hd_resolve",
  "hd_structure",
  "hd_syntax",
+ "hd_testkit",
  "hd_tir",
  "hd_types",
 ]
@@ -862,6 +863,7 @@ dependencies = [
  "hd_base",
  "hd_diag",
  "hd_intern",
+ "hd_testkit",
  "unicode-ident",
  "unicode-normalization",
 ]
@@ -876,6 +878,7 @@ dependencies = [
  "hd_driver",
  "hd_project",
  "hd_sched",
+ "hd_syntax",
 ]
 
 [[package]]

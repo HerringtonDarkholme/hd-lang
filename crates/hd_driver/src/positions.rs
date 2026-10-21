@@ -144,6 +144,28 @@ impl Positions {
         Some((source.file.as_str(), line))
     }
 
+    /// The byte span of instruction `inst` of the body of the item with
+    /// stable path `item` in its file's text, with the package-relative
+    /// file, or `None` when the run has no such body or the instruction no
+    /// source position: what the stage fixtures (`hd_testkit::stages`)
+    /// filter a TIR view by.
+    #[must_use]
+    pub fn span(&self, item: &str, inst: u32) -> Option<(&str, u32, u32)> {
+        let (_, source) = self.module_of(item)?;
+        let module = source.module()?;
+        let node = *module.bodies.get(item)?.syn.get(inst as usize)?;
+        if node == NodeIdx::NONE || node.idx() >= module.parse.tree.len() {
+            return None;
+        }
+        let src = Src {
+            parse: &module.parse,
+            text: &source.text,
+            file: FileId::from_raw(0),
+        };
+        let s = src.span(module.parse.tree.node(node));
+        Some((source.file.as_str(), s.lo, s.hi))
+    }
+
     /// Whether instruction `inst` of the body of `item` is an operation
     /// whose `usize` type is a literal's default
     /// (`flow.panic.report.fallback`): `Some` with the name of the local

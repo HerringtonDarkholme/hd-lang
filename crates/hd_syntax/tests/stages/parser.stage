@@ -1,0 +1,48 @@
+# Parser: the syntax tree of a subject.
+-- context --
+struct Body:
+    x: f64
+    vx: f64
+-- case: a field write through a list element --
+fn step(bodies: &mut List[Body], i: usize, dt: f64) -> void:
+    bodies[i].x = bodies[i].x + dt * bodies[i].vx
+    #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+-- tree --
+AssignmentStmt =
+  FieldExpr . x
+    IndexExpr [ ]
+      NameExpr bodies
+      NameExpr i
+  AdditiveExpr +
+    FieldExpr . x
+      IndexExpr [ ]
+        NameExpr bodies
+        NameExpr i
+    MultiplicativeExpr *
+      NameExpr dt
+      FieldExpr . vx
+        IndexExpr [ ]
+          NameExpr bodies
+          NameExpr i
+-- case: a closure argument --
+fn total(xs: List[i32]) -> i32:
+    xs.iter().fold(+0, fn(a, x): a + x)
+    #                  ^^^^^^^^^^^^^^^
+-- tree --
+ClosureExpr fn :
+  ParameterList ( , )
+    Parameter a
+    Parameter x
+  AdditiveExpr +
+    NameExpr a
+    NameExpr x
+-- case: a method call --
+fn first(xs: List[i32]) -> i32?:
+    # subject
+    xs.get(0)
+-- tree --
+CallExpr
+  FieldExpr . get
+    NameExpr xs
+  ArgumentList ( )
+    LiteralExpr 0

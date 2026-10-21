@@ -8,13 +8,12 @@ publish = false
 
 [dependencies]
 hd_base = { path = "../hd_base" }
+hd_cache = { path = "../hd_cache" }
 hd_deps = { path = "../hd_deps" }
 hd_driver = { path = "../hd_driver" }
-hd_sched = { path = "../hd_sched" }
-
-[dev-dependencies]
-hd_cache = { path = "../hd_cache" }
 hd_project = { path = "../hd_project" }
+hd_sched = { path = "../hd_sched" }
+hd_syntax = { path = "../hd_syntax" }
 
 [lints]
 workspace = true

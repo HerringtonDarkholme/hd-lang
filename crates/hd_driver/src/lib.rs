@@ -227,7 +227,9 @@ type ForkedBody = (StageResult<Body>, DiagBuf, hd_check::fork::BodyLeft);
 
 /// What the caller supplies.
 pub struct Host<'a> {
-    /// Item paths whose checked bodies the output renders (golden tests).
+    /// Item paths whose checked bodies the output renders (golden tests);
+    /// a path ending in `*` renders every body whose path starts with what
+    /// precedes it (`app/*`, the stage fixtures of `hd_testkit::stages`).
     pub render_tir: &'a [&'a str],
     pub sources: &'a dyn SourceSet,
     pub store: &'a dyn CacheStore,
@@ -2153,6 +2155,19 @@ impl Run<'_> {
     /// (the internal allocation/count audit setting).
     fn checked(&self) -> bool {
         self.checked
+    }
+
+    /// Whether the output renders the body with stable path `path`
+    /// ([`Host::render_tir`]): a listed path, or one that starts with a
+    /// listed prefix ending in `*`.
+    fn renders_tir(&self, path: &str) -> bool {
+        self.host
+            .render_tir
+            .iter()
+            .any(|p| match p.strip_suffix('*') {
+                Some(prefix) => path.starts_with(prefix),
+                None => *p == path,
+            })
     }
 
     fn names(&self) -> Names<'_> {
@@ -5106,7 +5121,7 @@ impl Run<'_> {
                 Ok(b) => {
                     lock(&self.report).body_ok += 1;
                     let path = names.path(def);
-                    if self.host.render_tir.iter().any(|p| *p == path) {
+                    if self.renders_tir(&path) {
                         lock(&self.tir_text).insert(path, hd_check::render(&names, &b));
                     }
                     bodies.push(b);
@@ -5163,7 +5178,7 @@ impl Run<'_> {
                     lock(&self.report).body_ok += bs.len();
                     for b in &bs {
                         let path = names.path(b.item);
-                        if self.host.render_tir.iter().any(|p| *p == path) {
+                        if self.renders_tir(&path) {
                             lock(&self.tir_text).insert(path, hd_check::render(&names, b));
                         }
                     }
@@ -5195,7 +5210,7 @@ impl Run<'_> {
                     lock(&self.report).body_ok += bs.len();
                     for b in &bs {
                         let path = names.path(b.item);
-                        if self.host.render_tir.iter().any(|p| *p == path) {
+                        if self.renders_tir(&path) {
                             lock(&self.tir_text).insert(path, hd_check::render(&names, b));
                         }
                     }
@@ -5410,7 +5425,7 @@ impl Run<'_> {
         lock(&self.report).body_ok += derived.bodies.len();
         for b in &derived.bodies {
             let path = names.path(b.item);
-            if self.host.render_tir.iter().any(|p| *p == path) {
+            if self.renders_tir(&path) {
                 lock(&self.tir_text).insert(path, hd_check::render(&names, b));
             }
         }
