@@ -659,6 +659,43 @@ impl Module {
         self.inst_order.retain(|s| seen.contains(s));
     }
 
+    /// Reuse the existing no-view link fact before cycle selection: a
+    /// physical projection is an address offset plus its owned count.
+    /// Removing its unreachable view helper also prevents that helper's
+    /// allocation descriptor from needlessly linking the collector.
+    fn physical_projections(&mut self) {
+        let runtime = self.runtime;
+        for f in self.funcs.values_mut() {
+            let body = std::mem::take(&mut f.body);
+            let origins = f.origins.as_mut().map(std::mem::take);
+            let outer = f.origin_at;
+            for (i, ins) in body.into_iter().enumerate() {
+                f.origin_at = origins.as_ref().and_then(|o| o[i]);
+                if let Ins::Call(Sym::Helper(crate::rt::Helper::RefProject {
+                    offset,
+                    borrowed,
+                    ..
+                })) = ins
+                {
+                    if offset != 0 {
+                        f.u32(offset);
+                        f.op(Instruction::I32Add);
+                    }
+                    if !borrowed && let Some(runtime) = runtime {
+                        let at = f.local(Val::I32);
+                        f.set(at);
+                        f.get(at);
+                        f.call(Sym::Inst(runtime.retain));
+                        f.get(at);
+                    }
+                } else {
+                    f.push(ins);
+                }
+            }
+            f.origin_at = outer;
+        }
+    }
+
     /// What the exports reach, building the helpers among it.
     fn reached(&mut self) -> BTreeSet<Sym> {
         let mut seen: BTreeSet<Sym> = BTreeSet::new();
@@ -704,7 +741,14 @@ impl Module {
                 .map(|os| os.iter().map(|o| f.source_origin(*o)).collect())
                 .unwrap_or_default();
         }
-        let seen = self.reached();
+        let mut seen = self.reached();
+        if !seen
+            .iter()
+            .any(|s| matches!(s, Sym::Helper(crate::rt::Helper::RefView { .. })))
+        {
+            self.physical_projections();
+            seen = self.reached();
+        }
         let cyclic = self
             .funcs
             .iter()

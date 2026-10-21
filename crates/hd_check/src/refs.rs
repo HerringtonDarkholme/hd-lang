@@ -15,9 +15,10 @@
 //! `&x` on a local makes closures that capture `x`, so the backend keeps
 //! `x` in a shared cell; `&e` on any other value binds it to a fresh local
 //! that only the closures hold, which is the new object. The RC backend
-//! strips these closure forms before emission (`strip_closure_forms`). A place reached
-//! through struct fields is rebuilt on a write, as `value.rs` rebuilds a
-//! struct field write. The checker lowers `&T` and `&mut T` to one type,
+//! strips these closure forms before emission (`strip_closure_forms`). A legacy
+//! setter rebuilds a struct field path; ordinary field writes through a
+//! reference use that path's `RefPlace` and `RefWrite` directly (`value.rs`).
+//! The checker lowers `&T` and `&mut T` to one type,
 //! `Ref[T]`, when it finishes a body (`Types::lower_refs`), so the
 //! layout pass recognizes the reference carrier and `&mut T` to `&T` costs nothing.
 //!
@@ -390,6 +391,34 @@ impl Ck<'_, '_> {
         let rt = pool.intern_ty(&TyData::Ref { inner, mutable });
         let r = self.make_ref(&place, inner, mutable, rt, n);
         Ok((r, rt))
+    }
+
+    /// Writes a field path of an already evaluated reference. The RHS
+    /// is already evaluated too; the reference keeps the original place,
+    /// and only this field is replaced. `make_ref`'s legacy setter still
+    /// uses `store_place`, which terminates in the ordinary root store.
+    pub(crate) fn store_ref_field(
+        &mut self,
+        r: Ref,
+        rt: Ty,
+        path: Vec<(u32, Ty)>,
+        v: Ref,
+        n: NodeRef<'_>,
+    ) {
+        let ty = path.last().expect("a field path").1;
+        let inner = self.strip_mut(self.infer.resolve(self.pool(), ty));
+        let (local, depth) = self.hold(r, rt, n);
+        let place = Place {
+            root: Root::Deref(local, depth, rt),
+            path,
+            ty: inner,
+        };
+        let field_ref = self.pool().intern_ty(&TyData::Ref {
+            inner,
+            mutable: true,
+        });
+        let target = self.make_ref(&place, inner, true, field_ref, n);
+        self.emit_ref_store(target, field_ref, v, n.index());
     }
 
     /// A new object holding `v` of type `t`, as `&e` or `&mut e` on a value

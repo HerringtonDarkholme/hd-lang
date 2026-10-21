@@ -854,7 +854,12 @@ element references whose copies own their list's pin (OBJECT_MODEL_TIER1.md
     plus the field's offset;
   - a list element is its address in the buffer (below).
   A read loads the target's values from the address and a write stores
-  them, counting the new value before it releases the old. A reference
+  them, counting the new value before it releases the old. A struct field
+  assignment through a reference names the field path with `RefPlace`
+  and writes that field with `RefWrite`, without rebuilding its parent.
+  The source reference evaluates once before the RHS. A compound assignment
+  reads the old field before its RHS; both kinds store after the RHS,
+  preserving changes it makes to neighboring fields through aliases. A reference
   is counted through the page table at any address in its object, so a
   reference to a field keeps the whole object alive. `is` compares
   addresses, and `identity_of` is no base, the address as the serial and

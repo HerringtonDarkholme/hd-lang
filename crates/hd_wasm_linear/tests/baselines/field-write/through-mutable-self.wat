@@ -2,8 +2,7 @@
 impl Counter.bump
   block
     local.get self
-    local.tee t0
-    drop
+    local.set t0
     local.get self
     local.tee t1
     drop
@@ -19,39 +18,27 @@ impl Counter.bump
     local.get t0
     local.tee t4
     drop
-    block
+    block (result i32)
       local.get t4
-      i64.load
-      local.set t5
-      local.get t4
-      i64.load offset=8
-      local.set t6
     end
+    local.set t5
+    i32.const 0
+    local.set t4
     local.get t5
-    drop
-    local.get t0
-    local.set t7
+    local.set t6
     local.get t3
+    local.set t7
     local.get t6
-    local.set t8
-    local.set t9
-    local.get t7
     drop
     block
-      local.get t7
+      local.get t6
       i64.load
       drop
+      local.get t6
       local.get t7
-      i64.load offset=8
-      drop
-      local.get t7
-      local.get t9
       i64.store
-      local.get t7
-      local.get t8
-      i64.store offset=8
     end
     i32.const 0
-    local.set t0
+    local.set t5
   end
   end

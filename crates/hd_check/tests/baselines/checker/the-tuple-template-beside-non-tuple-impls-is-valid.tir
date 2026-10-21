@@ -34,11 +34,12 @@ impl[S] Walker[S] for Encoder:
 > app/main/impl [ S ] Walker [ S ] for Encoder.member
 >   local $0 self: Ref[mut Encoder] [param read]
 >   local $2 value: F [param read]
+>   local $3 $ref: Ref[mut Encoder] [read assigned captured]
+>   local $4 $value: string [param]
 >   %0 = LocalGet $0 : Ref[mut Encoder]
 >   %1 = Field %0 .0 : fn() -> Encoder
 >   %2 = CallValue %1 [] : Encoder
 >   %3 = Block %2 : Encoder
->   %4 = RefRead %0 %3 : Encoder
 >   %5 = LocalGet $0 : Ref[mut Encoder]
 >   %6 = Field %5 .0 : fn() -> Encoder
 >   %7 = CallValue %6 [] : Encoder
@@ -49,18 +50,44 @@ impl[S] Walker[S] for Encoder:
 >   %12 = Call app/main/Encode.encode for F [] via Bound (%11) : string
 >   %13 = Intrinsic StrConcat [%10 %12] : string
 >   %14 = Intrinsic StrConcat [%13 ";"] : string
->   %15 = Field %0 .0 : fn() -> Encoder
->   %16 = CallValue %15 [] : Encoder
->   %17 = Block %16 : Encoder
->   %18 = RefRead %0 %17 : Encoder
->   %19 = CopyData %18 [.out = %14] : Encoder
->   %20 = Field %0 .1 : fn(Encoder) -> ()
->   %21 = CallValue %20 [%19] : ()
->   %22 = Block - : ()
->   %23 = RefWrite [%0 %19] %22 : ()
->   %25 = Block %24 : Result[(), never]
+>   %15 = LocalSet $3 %0 : ()
+>   %16 = LocalGet $3 : Ref[mut Encoder]
+>   %17 = Field %16 .0 : fn() -> Encoder
+>   %18 = CallValue %17 [] : Encoder
+>   %19 = Block %18 : Encoder
+>   %20 = RefRead %16 %19 : Encoder
+>   %21 = Field %20 .out : string
+>   %22 = Block %21 : string
+>   %23 = Closure #1 [%0 %1] : fn() -> string
+>   %24 = LocalGet $4 : string
+>   %25 = LocalGet $3 : Ref[mut Encoder]
+>   %26 = Field %25 .0 : fn() -> Encoder
+>   %27 = CallValue %26 [] : Encoder
+>   %28 = Block %27 : Encoder
+>   %29 = RefRead %25 %28 : Encoder
+>   %30 = CopyData %29 [.out = %24] : Encoder
+>   %31 = LocalGet $3 : Ref[mut Encoder]
+>   %32 = Field %31 .1 : fn(Encoder) -> ()
+>   %33 = CallValue %32 [%30] : ()
+>   %34 = Block - : ()
+>   %35 = RefWrite [%31 %30] %34 : ()
+>   %36 = Block - : ()
+>   %37 = Closure #2 [%1 %1] : fn(string) -> ()
+>   %38 = LocalGet $3 : Ref[mut Encoder]
+>   %39 = Field %38 .2 : Any
+>   %40 = Field %38 .3 : i64
+>   %41 = Field %38 .4 : string
+>   %42 = Intrinsic StrConcat [%41 ".0"] : string
+>   %43 = NewData [%23 %37 %39 %40 %42] : Ref[mut string]
+>   %44 = Block %43 : Ref[mut string]
+>   %45 = RefPlace [%2 %3 - %0] %44 : Ref[mut string]
+>   %46 = Field %45 .1 : fn(string) -> ()
+>   %47 = CallValue %46 [%14] : ()
+>   %48 = Block - : ()
+>   %49 = RefWrite [%45 %14] %48 : ()
+>   %51 = Block %50 : Result[(), never]
         .Ok(())
->   %24 = NewVariant #0 [-] : Result[(), never]
+>   %50 = NewVariant #0 [-] : Result[(), never]
 
 impl[T < Tuple] Encode for T by Structure:
     fn encode(self) -> string:

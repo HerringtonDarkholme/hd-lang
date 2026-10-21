@@ -1,0 +1,94 @@
+# test: field stores through references preserve RHS alias writes, source evaluation and collection copies
+# Spec 13 References: ref.place.alias, ref.write.field.
+# Spec 04 Collection Values: types.coll.value.
+# expect: test
+
+struct Pair:
+    a: i32
+    b: i32
+
+fn changed(other: &mut Pair) -> i32:
+    other.b = +9
+    +42
+
+fn changed_both(other: &mut Pair) -> i32:
+    other.a = +100
+    other.b = +9
+    +3
+
+impl Pair:
+    fn assign(&mut self, other: &mut Pair) -> void:
+        self.a = changed(other)
+
+    fn compound(&mut self, other: &mut Pair) -> void:
+        self.a += changed_both(other)
+
+let selections: usize = 0
+
+fn selected(pair: &mut Pair) -> &mut Pair:
+    selections = selections + 1
+    pair
+
+struct Nested:
+    pair: Pair
+    text: string
+    items: List[string]
+
+fn changed_nested(other: &mut Nested) -> i32:
+    other.pair.b = +9
+    +42
+
+fn nested_assign(value: &mut Nested, other: &mut Nested) -> void:
+    value.pair.a = changed_nested(other)
+
+fn assign_items(value: &mut Nested, items: List[string]) -> void:
+    value.items = items
+
+trait Factory:
+    fn make[T](self, value: T) -> &mut T:
+        let mut local = value
+        &mut local
+
+struct Maker: pass
+impl Factory for Maker
+
+tests:
+    use std.testing.assert_equal
+
+    it("self.a = f() preserves a write to self.b through an alias"):
+        pair := &mut Pair { a: +1, b: +2 }
+        pair.assign(pair)
+        assert_equal(pair.a, +42, reason="the assigned result")
+        assert_equal(pair.b, +9, reason="the RHS changed the neighboring field")
+
+    it("compound assignment reads its old field before the RHS"):
+        pair := &mut Pair { a: +1, b: +2 }
+        pair.compound(pair)
+        assert_equal(pair.a, +4, reason="the original field plus the RHS result")
+        assert_equal(pair.b, +9, reason="the RHS changed the neighboring field")
+
+    it("the source reference evaluates once"):
+        pair := &mut Pair { a: +1, b: +2 }
+        selected(pair).a = changed(pair)
+        assert_equal(selections, 1, reason="taking the field place does not re-evaluate its source")
+        assert_equal(pair.a, +42, reason="the original referenced place receives the result")
+        assert_equal(pair.b, +9, reason="the RHS alias write survives")
+
+    it("a nested field store forwards through an erased view"):
+        let factory: &dyn Factory = &Maker {}
+        value := factory.make(Nested { pair: Pair { a: +1, b: +2 }, text: "kept", items: ["old"] })
+        nested_assign(value, value)
+        assert_equal(value.pair.a, +42, reason="the projected field view forwards its store")
+        assert_equal(value.pair.b, +9, reason="the view keeps the RHS alias write")
+        assert_equal(value.text, "kept", reason="the unrelated string stays alive")
+        assert_equal(value.items, ["old"], reason="the unrelated collection is preserved")
+
+    it("a stored collection keeps its own value copy"):
+        value := &mut Nested { pair: Pair { a: +1, b: +2 }, text: "kept", items: [] }
+        let mut source = ["first"]
+        assign_items(value, source)
+        source.push("caller")
+        value.items.push("field")
+        assert_equal(source, ["first", "caller"], reason="the caller owns its list header")
+        assert_equal(value.items, ["first", "field"], reason="the assigned field owns a separate list header")
+        assert_equal(value.text, "kept", reason="the neighboring string is preserved")

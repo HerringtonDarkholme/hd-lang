@@ -18,7 +18,7 @@ use wasm_encoder::Instruction as I;
 use super::Em;
 use super::value::Src;
 use crate::layout::{Kind, Part, mem as mem_of, payload_mem, struct_mem};
-use crate::module::{EMPTY, HEAP, Val, mem};
+use crate::module::{EMPTY, HEAP, Sym, Val, mem};
 use crate::rt::{self, Helper, LIST_ELEMS, LIST_LEN, RefLayout};
 use crate::unsupported;
 
@@ -245,6 +245,16 @@ impl Em<'_, '_, '_> {
                 self.f.helper(Helper::RefIsView);
                 self.f.set(flag);
             }
+            // Physical places project by an offset. Only a representation
+            // view needs a forwarding object and its helper call.
+            if let Some(flag) = loan {
+                self.f.get(flag);
+            } else {
+                self.f.get(*at);
+                self.f.helper(Helper::RefIsView);
+            }
+            self.f
+                .op(I::If(wasm_encoder::BlockType::Result(Val::I32.wasm())));
             self.f.get(*at);
             self.f.helper(Helper::RefProject {
                 borrowed: loan.is_some(),
@@ -253,6 +263,22 @@ impl Em<'_, '_, '_> {
                 first: u32::try_from(first).expect("field"),
                 offset: off,
             });
+            self.f.op(I::Else);
+            self.f.get(*at);
+            if off != 0 {
+                self.f.u32(off);
+                self.f.op(I::I32Add);
+            }
+            if loan.is_none()
+                && let Some(runtime) = self.m.runtime
+            {
+                let physical = self.f.local(Val::I32);
+                self.f.set(physical);
+                self.f.get(physical);
+                self.f.call(Sym::Inst(runtime.retain));
+                self.f.get(physical);
+            }
+            self.f.op(I::End);
             if fat {
                 let projected = self.f.local(Val::I32);
                 self.f.set(projected);

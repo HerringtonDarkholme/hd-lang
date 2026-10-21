@@ -57,52 +57,36 @@ impl Counter:
 >       local.set t7
 >     end
 >     local.get t7
->     local.set value
+>     local.tee value
         self.at = value + 1
->     local.get self
->     local.tee t8
->     drop
->     local.get value
 >     i64.const 1
 >     i64.add
->     local.set t9
->     local.get t8
->     local.tee t10
+>     local.set t8
+>     local.get self
+>     local.tee t9
 >     drop
->     block
->       local.get t10
->       i64.load
->       local.set t11
->       local.get t10
->       i64.load offset=8
->       local.set t12
+>     block (result i32)
+>       local.get t9
 >     end
+>     local.set t10
+>     i32.const 0
+>     local.set t9
+>     local.get t10
+>     local.set t11
+>     local.get t8
+>     local.set t12
 >     local.get t11
 >     drop
->     local.get t8
->     local.set t13
->     local.get t9
->     local.get t12
->     local.set t14
->     local.set t15
->     local.get t13
->     drop
 >     block
->       local.get t13
+>       local.get t11
 >       i64.load
 >       drop
->       local.get t13
->       i64.load offset=8
->       drop
->       local.get t13
->       local.get t15
+>       local.get t11
+>       local.get t12
 >       i64.store
->       local.get t13
->       local.get t14
->       i64.store offset=8
 >     end
 >     i32.const 0
->     local.set t8
+>     local.set t10
         .Some(value)
 >     i32.const 1
 >     local.get value

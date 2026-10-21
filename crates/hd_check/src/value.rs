@@ -7,8 +7,10 @@
 //! The checker represents a struct field write as a value rebuild
 //! (`crates/hd_wasm_linear/DESIGN.md` §23.20). So `a.b.x = v` is lowered as `a = A { ...a, b: B { ...a.b,
 //! x: v } }`: each struct on the path is rebuilt with `CopyData`, and the
-//! place's root is stored. The RC backend stores struct fields inline,
-//! so the rebuild copies their Wasm values rather than a struct object reference.
+//! place's root is stored. A field reached through a reference instead
+//! names that field with `RefPlace` and writes it with `RefWrite`, so
+//! neighboring fields keep RHS alias writes. Collection element stores
+//! use their in-place operation. The RC backend stores struct fields inline.
 
 use hd_base::{DefId, LocalId, StageResult};
 use hd_diag::Code;
@@ -72,11 +74,11 @@ impl Ck<'_, '_> {
                 self.compound(k, cur, ft, rhs, s)?
             }
         };
-        // A field stored in place needs no read of its element (#665): the
-        // element read and the struct fields on its path, which `br` reads,
-        // are dead unless `op=` read the field.
-        let in_place = matches!(place.root, Root::Elem(..));
-        self.store_field(&place, idx, v, (base, s));
+        // An in-place store needs no initial read of its parent: its
+        // reference/element source has already evaluated, and the fields
+        // on its path are dead unless `op=` read the field.
+        let in_place = matches!(place.root, Root::Elem(..) | Root::Deref(..));
+        self.store_field(&place, idx, ft, v, (base, s));
         if in_place && compound.is_none() {
             let mut cur = br;
             for _ in 0..=place.path.len() {
@@ -285,16 +287,27 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// Stores `v` into field `idx` of the struct at `place`: reads the
-    /// place again, rebuilds each struct on its path, and stores the root.
+    /// Stores `v` into field `idx` of the struct at `place`. References
+    /// and collection elements name their field; other roots rebuild the
+    /// structs on their path and replace the root.
     fn store_field(
         &mut self,
         place: &Place,
         idx: u32,
+        ft: Ty,
         v: Ref,
         (node, s): (NodeRef<'_>, NodeRef<'_>),
     ) {
         let at = s.index();
+        if let Root::Deref(r, rt) = place.root {
+            let mut path = place.path.clone();
+            path.push((idx, ft));
+            // The field takes a value copy, just as CopyData's replacement
+            // slot did; a named collection must not share its header.
+            let v = self.coll_copy(v, ft, s.index());
+            self.store_ref_field(r, rt, path, v, s);
+            return;
+        }
         // A list element's field is stored in place: the element is not
         // read, rebuilt and written back (#655).
         if let Root::Elem(list, index, _) = place.root {
