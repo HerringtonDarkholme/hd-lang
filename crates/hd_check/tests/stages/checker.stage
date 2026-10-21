@@ -16,50 +16,49 @@ fn step(bodies: &mut List[Body], i: usize, dt: f64) -> void:
     #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 -- tir --
 app/main/step
-  local $0 bodies: Ref[mut List[Body]] flags=33
-  local $1 i: usize flags=33
-  local $2 dt: f64 flags=33
+  local $0 bodies: Ref[mut List[Body]]
+  local $1 i: usize
+  local $2 dt: f64
   %0 = LocalGet $0 : Ref[mut List[Body]]
-  %1 = Field %0 #0 : fn() -> List[Body]
+  %1 = Field %0 .0 : fn() -> List[Body]
   %2 = CallValue %1 [] : List[Body]
-  %3 = Block [%1 %2] %2 : List[Body]
+  %3 = Block %2 : List[Body]
   %4 = RefRead %0 %3 : List[Body]
   %5 = LocalGet $1 : usize
-  %6 = Intrinsic ListIndex [%4 %5] : Body
   %7 = LocalGet $0 : Ref[mut List[Body]]
-  %8 = Field %7 #0 : fn() -> List[Body]
+  %8 = Field %7 .0 : fn() -> List[Body]
   %9 = CallValue %8 [] : List[Body]
-  %10 = Block [%8 %9] %9 : List[Body]
+  %10 = Block %9 : List[Body]
   %11 = RefRead %7 %10 : List[Body]
   %12 = LocalGet $1 : usize
   %13 = Intrinsic ListIndex [%11 %12] : Body
-  %14 = Field %13 #0 : f64
+  %14 = Field %13 .x : f64
   %15 = LocalGet $2 : f64
   %16 = LocalGet $0 : Ref[mut List[Body]]
-  %17 = Field %16 #0 : fn() -> List[Body]
+  %17 = Field %16 .0 : fn() -> List[Body]
   %18 = CallValue %17 [] : List[Body]
-  %19 = Block [%17 %18] %18 : List[Body]
+  %19 = Block %18 : List[Body]
   %20 = RefRead %16 %19 : List[Body]
   %21 = LocalGet $1 : usize
   %22 = Intrinsic ListIndex [%20 %21] : Body
-  %23 = Field %22 #1 : f64
+  %23 = Field %22 .vx : f64
   %24 = Prim Mul [%15 %23] : f64
   %25 = Prim Add [%14 %24] : f64
-  %26 = Intrinsic ListFieldSet [%4 %5 %25 0:i32] : ()
-  %27 = Block [%0 %3 %4 %5 %6 %7 %10 %11 %12 %13 %14 %15 %16 %19 %20 %21 %22 %23 %24 %25 %26] - : ()
+  %26 = Intrinsic ListFieldSet [%4 %5 %25] .x : ()
+  %27 = Block - : ()
 -- case: a closure that captures a parameter --
 fn adder(k: i32) -> fn(i32) -> i32:
     fn(x: i32) -> i32: x + k
 -- tir --
 app/main/adder
-  local $0 k: i32 flags=41
-  local $1 x: i32 flags=33
+  local $0 k: i32
+  local $1 x: i32
   %0 = LocalGet $1 : i32
   %1 = LocalGet $0 : i32
   %2 = Prim Add [%0 %1] : i32
-  %3 = Block [%0 %1 %2] %2 : i32
+  %3 = Block %2 : i32
   %4 = Closure #1 [%0 %1] : fn(i32) -> i32
-  %5 = Block [%3 %4] %4 : fn(i32) -> i32
+  %5 = Block %4 : fn(i32) -> i32
 -- case: a method call through a reference --
 fn twice(c: &mut Counter) -> void:
     c.bump(1)
@@ -67,6 +66,44 @@ fn twice(c: &mut Counter) -> void:
     c.bump(2)
 -- tir --
 app/main/twice
-  local $0 c: Ref[mut Counter] flags=33
+  local $0 c: Ref[mut Counter]
   %0 = LocalGet $0 : Ref[mut Counter]
   %1 = Call app/main/impl Counter.bump[] (%0, 1:i32) : ()
+-- case: a nested field write through a list element --
+struct Pos:
+    at: Body
+
+fn nudge(ps: &mut List[Pos], i: usize) -> void:
+    ps[i].at.vx = 0.5
+    #^^^^^^^^^^^^^^^^
+-- tir --
+app/main/nudge
+  local $0 ps: Ref[mut List[Pos]]
+  local $1 i: usize
+  %0 = LocalGet $0 : Ref[mut List[Pos]]
+  %1 = Field %0 .0 : fn() -> List[Pos]
+  %2 = CallValue %1 [] : List[Pos]
+  %3 = Block %2 : List[Pos]
+  %4 = RefRead %0 %3 : List[Pos]
+  %5 = LocalGet $1 : usize
+  %8 = Intrinsic ListFieldSet [%4 %5 0.5:f64] .at.vx : ()
+  %9 = Block - : ()
+-- case: a compound field write reads the field first --
+fn speed_up(bodies: &mut List[Body], i: usize) -> void:
+    bodies[i].vx += 1.0
+    #^^^^^^^^^^^^^^^^^^
+-- tir --
+app/main/speed_up
+  local $0 bodies: Ref[mut List[Body]]
+  local $1 i: usize
+  %0 = LocalGet $0 : Ref[mut List[Body]]
+  %1 = Field %0 .0 : fn() -> List[Body]
+  %2 = CallValue %1 [] : List[Body]
+  %3 = Block %2 : List[Body]
+  %4 = RefRead %0 %3 : List[Body]
+  %5 = LocalGet $1 : usize
+  %6 = Intrinsic ListIndex [%4 %5] : Body
+  %7 = Field %6 .vx : f64
+  %8 = Prim Add [%7 1.0:f64] : f64
+  %9 = Intrinsic ListFieldSet [%4 %5 %8] .vx : ()
+  %10 = Block - : ()

@@ -900,6 +900,21 @@ impl TirBuilder {
         self.record(&words)
     }
 
+    /// Takes instruction `r` out of the open block when it is there, so
+    /// no block computes it: a value the checker read that a later lowering
+    /// made unneeded, as `ListFieldSet` makes the element read of
+    /// `xs[i].x = v`. Nothing may read `r`. Gives whether it was taken out.
+    pub fn unlist(&mut self, r: Ref) -> bool {
+        let start = self.open.last().map_or(0, |&s| s as usize);
+        match self.scratch[start..].iter().rposition(|&x| x == r.0) {
+            Some(p) => {
+                self.scratch.remove(start + p);
+                true
+            }
+            None => false,
+        }
+    }
+
     /// The body so far (for the checker's final type pass).
     pub fn body_mut(&mut self) -> &mut Body {
         &mut self.body

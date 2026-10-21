@@ -1,5 +1,7 @@
-//! A readable rendering of a checked body, for golden tests: items and
-//! types by their stable names, so the text does not depend on run IDs.
+//! A readable rendering of a checked body, for golden tests and the stage
+//! fixtures' `tir` view: items, types and fields by their names, so the
+//! text does not depend on run IDs or on the order fields are declared in;
+//! a `Block` shows its result, not the list of its instructions.
 
 use std::fmt::Write as _;
 
@@ -41,7 +43,17 @@ fn value(names: &Names<'_>, b: &Body, w: u32) -> String {
             .map_or("?", |s| s.as_ref());
         return format!("{s:?}");
     }
-    format!("{bits}:{}", ty(names, t))
+    // A float by its value, not its bits.
+    match names.pool.get(t) {
+        hd_types::TyData::Prim(hd_types::Prim::F64) => format!("{:?}:f64", f64::from_bits(bits)),
+        hd_types::TyData::Prim(hd_types::Prim::F32) => {
+            format!(
+                "{:?}:f32",
+                f32::from_bits(u32::try_from(bits).unwrap_or_default())
+            )
+        }
+        _ => format!("{bits}:{}", ty(names, t)),
+    }
 }
 
 /// A `Coerce` record: the kind by name, then the evidence word.
@@ -70,10 +82,31 @@ fn coercion(names: &Names<'_>, b: &Body, word: u32) -> String {
     format!("[{kind} {evidence}]")
 }
 
+/// The name and type of field `k` of a value of type `t`, when `t` has
+/// named fields: what [`render`] prints a field by.
+pub type FieldNames<'a> = dyn Fn(Ty, u32) -> Option<(String, Ty)> + 'a;
+
+/// Field `k` of a value of type `t`: `.name`, or `.k` when `t` names none
+/// (a tuple).
+fn field(fields: &FieldNames<'_>, t: Ty, k: u32) -> String {
+    match fields(t, k) {
+        Some((name, _)) => format!(".{name}"),
+        None => format!(".{k}"),
+    }
+}
+
+/// The type of value `w` of `b`: an instruction's, or a constant's.
+fn type_of(b: &Body, w: u32) -> Option<Ty> {
+    match Ref(w).as_inst() {
+        Some(i) => b.ty.get(i.0 as usize).copied(),
+        None => b.consts.get((w & !Ref::CONST_BIT) as usize).map(|c| c.0),
+    }
+}
+
 /// One line per local, sub-body and instruction, then the ownership
-/// columns when the body has them.
+/// columns when the body has them. `fields` names the fields of a type.
 #[must_use]
-pub fn render(names: &Names<'_>, b: &Body) -> String {
+pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
     let mut o = String::new();
     let _ = writeln!(o, "{} ({:?})", names.path(b.item), b.kind);
     for i in 0..b.local_ty.len() {
@@ -99,7 +132,46 @@ pub fn render(names: &Names<'_>, b: &Body) -> String {
             caps.join(" ")
         );
     }
-    for i in 0..b.len() {
+    // An instruction that no block lists and no instruction reads is not
+    // computed (`TirBuilder::unlist`): it is not shown.
+    let mut read = vec![false; b.len()];
+    for &r in &b.sub_root {
+        if let Some(x) = read.get_mut(r as usize) {
+            *x = true;
+        }
+    }
+    if let Some(x) = read.last_mut() {
+        *x = true;
+    }
+    // Operands come before their readers, so one pass from the end finds
+    // every instruction a shown one reads.
+    for i in (0..b.len()).rev() {
+        if !read[i] {
+            continue;
+        }
+        let [a, w] = b.data[i];
+        for (word, op) in [(a, b.tags[i].operands().0), (w, b.tags[i].operands().1)] {
+            let words: Vec<u32> = match op {
+                Op::Value | Op::Block => vec![word],
+                // A `defer`'s suite and a `Hook`'s observed instruction
+                // sit in meta words.
+                Op::Meta if matches!(b.tags[i], Tag::Defer | Tag::Hook) => vec![word],
+                Op::Values | Op::Blocks | Op::Record if word != NONE => b.record(word).to_vec(),
+                _ => Vec::new(),
+            };
+            for v in words {
+                if Ref(v).as_inst().is_some()
+                    && let Some(x) = read.get_mut(v as usize)
+                {
+                    *x = true;
+                }
+            }
+        }
+    }
+    for (i, &shown) in read.iter().enumerate() {
+        if !shown {
+            continue;
+        }
         let tag = b.tags[i];
         let [a, w] = b.data[i];
         let mut ops = Vec::new();
@@ -131,6 +203,68 @@ pub fn render(names: &Names<'_>, b: &Body) -> String {
             let n = args.len().saturating_sub(3);
             let vals: Vec<String> = args[..n].iter().map(|x| value(names, b, *x)).collect();
             ops.push(format!("({})", vals.join(", ")));
+        } else if tag == Tag::Field || tag == Tag::TupleGet {
+            // A field by its name, under the type of the value it reads.
+            ops.push(value(names, b, a));
+            ops.push(type_of(b, a).map_or_else(|| format!(".{w}"), |t| field(fields, t, w)));
+        } else if tag == Tag::FieldSet {
+            let r = b.record(w);
+            ops.push(value(names, b, a));
+            if let (Some(&k), Some(t)) = (r.first(), type_of(b, a)) {
+                ops.push(field(fields, t, k));
+            }
+            let vals: Vec<String> = r.iter().skip(1).map(|x| value(names, b, *x)).collect();
+            ops.push(format!("[{}]", vals.join(" ")));
+        } else if tag == Tag::CopyData {
+            // `base` with each replaced field `.name = value`.
+            ops.push(value(names, b, a));
+            let t = type_of(b, a);
+            let pairs: Vec<String> = b
+                .record(w)
+                .chunks(2)
+                .map(|p| match (p, t) {
+                    ([k, v], Some(t)) => {
+                        format!("{} = {}", field(fields, t, *k), value(names, b, *v))
+                    }
+                    _ => "?".to_owned(),
+                })
+                .collect();
+            ops.push(format!("[{}]", pairs.join(", ")));
+        } else if tag == Tag::Block {
+            // A block's result; its instructions are the lines above.
+            ops.push(value(names, b, w));
+        } else if tag == Tag::Intrinsic
+            && hd_tir::ir::IntrinsicOp::from_u32(a) == Some(hd_tir::ir::IntrinsicOp::ListFieldSet)
+        {
+            // `(list, index, value, f1, ..., fk)`: the element's field path.
+            let r = b.record(w);
+            ops.push("ListFieldSet".to_owned());
+            let vals: Vec<String> = r.iter().take(3).map(|x| value(names, b, *x)).collect();
+            let mut at =
+                r.first()
+                    .and_then(|&l| type_of(b, l))
+                    .and_then(|t| match names.pool.get(t) {
+                        hd_types::TyData::Adt { args, .. } => {
+                            names.pool.list_items(args).first().copied()
+                        }
+                        _ => None,
+                    });
+            let mut path = String::new();
+            for &f in r.iter().skip(3) {
+                let k = b
+                    .consts
+                    .get((f & !Ref::CONST_BIT) as usize)
+                    .map_or(0, |c| c.1);
+                let k = u32::try_from(k).unwrap_or(u32::MAX);
+                match at {
+                    Some(t) => path.push_str(&field(fields, t, k)),
+                    None => {
+                        let _ = write!(path, ".{k}");
+                    }
+                }
+                at = at.and_then(|t| fields(t, k)).map(|(_, ft)| ft);
+            }
+            ops.push(format!("[{}] {path}", vals.join(" ")));
         } else {
             for (side, (word, op)) in [(a, tag.operands().0), (w, tag.operands().1)]
                 .into_iter()

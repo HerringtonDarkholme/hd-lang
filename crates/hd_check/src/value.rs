@@ -72,7 +72,26 @@ impl Ck<'_, '_> {
                 self.compound(k, cur, ft, rhs, s)?
             }
         };
+        // A field stored in place needs no read of its element (#665): the
+        // element read and the struct fields on its path, which `br` reads,
+        // are dead unless `op=` read the field.
+        let in_place = matches!(place.root, Root::Elem(..));
         self.store_field(&place, idx, v, (base, s));
+        if in_place && compound.is_none() {
+            let mut cur = br;
+            for _ in 0..=place.path.len() {
+                let Some(i) = cur.as_inst() else { break };
+                let (tag, data) = {
+                    let body = self.b.body_mut();
+                    (body.tags[i.0 as usize], body.data[i.0 as usize])
+                };
+                self.b.unlist(cur);
+                if tag != Tag::Field {
+                    break;
+                }
+                cur = Ref(data[0]);
+            }
+        }
         Ok(())
     }
 

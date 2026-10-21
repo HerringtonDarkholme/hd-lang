@@ -8,7 +8,7 @@
 //! - `-- context --` and the hd that every case in the file uses;
 //! - for each case, `-- case: NAME --`, the case's hd, then one block per
 //!   view, `-- VIEW --` followed by the expected output (`tokens`, `tree`,
-//!   `tir`).
+//!   `tir`, and `tir-flags`, which adds each local's flags).
 //!
 //! A case's program is the context followed by the case. Its subject is
 //! marked by a comment, so the case stays valid hd for `hd fmt` and
@@ -337,6 +337,12 @@ pub fn tree(p: &Program) -> String {
 /// subject, after the body's path; then the build's diagnostics.
 #[must_use]
 pub fn tir(p: &Program) -> String {
+    tir_with(p, false)
+}
+
+/// [`tir`], with each local's flags when `flags` (the `tir-flags` view).
+#[must_use]
+pub fn tir_with(p: &Program, flags: bool) -> String {
     let mut src = hd_project::MemorySources::default();
     src.insert("main.hd", &p.text);
     let store = hd_cache::MemoryStore::default();
@@ -376,6 +382,10 @@ pub fn tir(p: &Program) -> String {
                     .iter()
                     .any(|l| l.split([' ', ']', '[']).any(|w| w == id))
                 {
+                    let local = match local.rsplit_once(" flags=") {
+                        Some((decl, _)) if !flags => decl,
+                        _ => local,
+                    };
                     let _ = writeln!(out, "  local {local}");
                 }
             }
@@ -399,6 +409,7 @@ pub fn view(view: &str, p: &Program) -> Option<String> {
         "tokens" => tokens(p),
         "tree" => tree(p),
         "tir" => tir(p),
+        "tir-flags" => tir_with(p, true),
         _ => return None,
     })
 }

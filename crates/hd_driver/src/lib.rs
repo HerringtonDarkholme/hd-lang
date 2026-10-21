@@ -4854,6 +4854,28 @@ impl Run<'_> {
         };
         let lookup = Lookup::new(&own, ifaces.iter().map(AsRef::as_ref).collect());
         let names = self.names();
+        // A rendered body's fields by name (`hd_check::render`).
+        let field_names = |t: Ty, k: u32| -> Option<(String, Ty)> {
+            let pool = names.pool;
+            let t = match pool.get(t) {
+                TyData::Mut(inner) => inner,
+                _ => t,
+            };
+            let TyData::Adt { def, args } = pool.get(t) else {
+                return None;
+            };
+            let hd_resolve::ItemData::Data(fs) = &lookup.item(def)?.data else {
+                return None;
+            };
+            let f = fs.get(k as usize)?;
+            let argv = pool.list_items(args);
+            let ft = pool.subst(f.ty, &|p: hd_types::ParamRef| {
+                (p.owner == def)
+                    .then(|| argv.get(p.index as usize).copied())
+                    .flatten()
+            });
+            Some((names.text(f.name).to_owned(), ft))
+        };
         let own_impls: Vec<&Item> = prep
             .items
             .iter()
@@ -5133,7 +5155,8 @@ impl Run<'_> {
                     lock(&self.report).body_ok += 1;
                     let path = names.path(def);
                     if self.renders_tir(&path) {
-                        lock(&self.tir_text).insert(path, hd_check::render(&names, &b));
+                        lock(&self.tir_text)
+                            .insert(path, hd_check::render(&names, &b, &field_names));
                     }
                     bodies.push(b);
                 }
@@ -5190,7 +5213,8 @@ impl Run<'_> {
                     for b in &bs {
                         let path = names.path(b.item);
                         if self.renders_tir(&path) {
-                            lock(&self.tir_text).insert(path, hd_check::render(&names, b));
+                            lock(&self.tir_text)
+                                .insert(path, hd_check::render(&names, b, &field_names));
                         }
                     }
                     bodies.extend(bs);
@@ -5222,7 +5246,8 @@ impl Run<'_> {
                     for b in &bs {
                         let path = names.path(b.item);
                         if self.renders_tir(&path) {
-                            lock(&self.tir_text).insert(path, hd_check::render(&names, b));
+                            lock(&self.tir_text)
+                                .insert(path, hd_check::render(&names, b, &field_names));
                         }
                     }
                     bodies.extend(bs);
@@ -5437,7 +5462,7 @@ impl Run<'_> {
         for b in &derived.bodies {
             let path = names.path(b.item);
             if self.renders_tir(&path) {
-                lock(&self.tir_text).insert(path, hd_check::render(&names, b));
+                lock(&self.tir_text).insert(path, hd_check::render(&names, b, &field_names));
             }
         }
         bodies.extend(derived.bodies);

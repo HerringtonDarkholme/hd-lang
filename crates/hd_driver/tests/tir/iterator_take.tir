@@ -4,4 +4,4 @@ std/iter/Iterator.take (Fn)
   %0 = LocalGet $0 : Self
   %1 = LocalGet $1 : usize
   %2 = NewData [%0 %1] : Take[Self, T]
-  %3 = Block [%0 %1 %2] %2 : Take[Self, T]
+  %3 = Block %2 : Take[Self, T]
