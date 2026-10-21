@@ -528,8 +528,9 @@ fn wake_slot(m: &Module) -> Func {
         dst_mem: HEAP,
     });
     if let Some(r) = m.runtime {
+        // A raw block: the free that skips the collector's candidate test.
         f.global_get(Global::WakeTab);
-        f.call(Sym::Inst(r.free));
+        f.call(Sym::Inst(r.acyclic.free));
     }
     f.op(Instruction::End);
     f.get(fresh);

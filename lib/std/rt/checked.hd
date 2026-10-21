@@ -14,7 +14,7 @@
 # the program, so they panic `count-audit`, outside the stable panic
 # categories (spec/lang/06-control-flow.md#r-flow.panic.known-categories).
 use std.rt.alloc.{alloc, block_bytes, block_of}
-use std.rt.cycle.{forget, suspect}
+use std.rt.cycle.{keep, suspect}
 use std.rt.memory.{fill, load_u32, pages, store_u32}
 
 POISON := 0xdededede
@@ -42,8 +42,8 @@ pub fn allocate(size: usize) -> usize:
 ## Frees the block at `block`: fills it with POISON bytes and keeps it from reuse; a second free of it panics.
 pub fn free(block: usize) -> void:
     freeable(block)
-    forget(block)
-    poison(block)
+    if !keep(block):
+        poison(block)
 
 ## Frees the block at `block` as `free` does, in a program where no object takes part in cycle collection.
 pub fn free_acyclic(block: usize) -> void:
@@ -77,8 +77,6 @@ pub fn release(address: usize) -> usize:
     count := counted(block, "release")
     releases = releases + 1
     if count == 1:
-        if (usize(load_u32(block + 4)) & BUFFERED) != 0:
-            forget(block)
         return block
     store_u32(block, u32(count - 1))
     if (usize(load_u32(block + 4)) & CYCLIC) != 0:

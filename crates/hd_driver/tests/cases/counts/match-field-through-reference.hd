@@ -5,6 +5,11 @@
 # releases per node visited). #676 borrows the read of the binding `left`.
 # The field read keeps its count: its uses sit inside the match's arms,
 # which call a reference getter that could replace the field.
+# The first of these releases leaves the child a count, so a cycle-capable
+# child becomes a candidate (binary_trees: every node once, 3.2 million
+# per run). Since #670 a candidate's last release leaves its block in the
+# buffer for the collector's next sweep (std_rt/alloc_tests.hd), instead
+# of finding and clearing its buffer entry through the page table.
 # tracked by #670
 struct Node:
     value: i64

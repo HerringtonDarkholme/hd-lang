@@ -10,8 +10,12 @@
 #
 # 1. A release that leaves a count above zero on an object that takes part
 #    makes it a candidate: purple, and in the candidate buffer. Its last
-#    release takes it out again.
-# 2. A collection marks gray from each purple candidate, taking one count
+#    release still runs its release glue at once, but its block stays in
+#    the buffer with a count of 0 (`keep`), and the next collection frees
+#    it, as Bacon and Rajan's release does with a buffered object. So the
+#    buffer is a list of addresses that only a collection removes from.
+# 2. A collection first frees the candidates whose last count went. It
+#    then marks gray from each other candidate, taking one count
 #    off each object the gray ones reference; scans, so that an object
 #    with a count left, which something outside holds, and all it reaches
 #    turn black and get their counts back; and frees what stays white.
@@ -20,13 +24,12 @@
 # type can be on a cycle (crates/hd_wasm_linear/DESIGN.md §23.28): its
 # descriptor word (the header's second word) has the CYCLIC bit, and its
 # block ends with a collector word, which `track` zeroes. The word's low
-# 2 bits are the color, bit 2 marks a suspension frame, and the rest is
-# the object's place in the candidate buffer plus one, 0 when it is in
-# none. The descriptor's BUFFERED bit says whether it is in the buffer, so
-# a release that finds it there already, or an object's last release that
-# finds it in none, never reads the collector word. A buffered object is
-# purple except while a collection runs. A running frame has stale saved
-# slots and is not entered: what it holds counts as held from outside.
+# 2 bits are the color (black, gray or white) and bit 2 marks a
+# suspension frame; neither a release nor a free reads it, as its place
+# needs the block's size. The descriptor's BUFFERED bit says whether the
+# object is in the buffer. A buffered object is purple except while a
+# collection runs, whatever its color bits say. A running frame has stale
+# saved slots and is not entered: what it holds counts as held from outside.
 # Its candidate stays buffered until a later collection while it is idle.
 # Objects that do not take part are never entered; a white object's
 # reference to one is released as usual once the white objects are freed.
@@ -34,22 +37,24 @@
 # The backend supplies what only it can: `trace` runs an object's release
 # glue while the backend's release hands each reference the glue releases
 # to `visit`, `release` is the backend's release of one reference, and
-# `free` the runtime's free. It calls `collect` when `due` says the buffer
-# is full, before an allocation, and when the entry's poll answers, so at
-# idle and before checked mode's leak report.
+# `free` the runtime's free, which `keep` tells to leave a candidate's
+# block to the collector. It calls `collect` before an allocation when
+# `due` says the live candidates passed the threshold, or that enough of
+# them lost their last count to free them (then it only frees those),
+# and when the entry's poll answers, so at idle and before checked mode's
+# leak report.
 use std.rt.alloc.{alloc, block_bytes, block_of, free_block}
 use std.rt.memory.{copy, load_u32, store_u32}
 
 BLACK := 0
 GRAY := 1
 WHITE := 2
-PURPLE := 3
+# Purple is the BUFFERED bit, never painted.
 COLORS := 4
 FRAME := 4
 # Counted header (8 bytes) plus task::F_FLAGS (12); ACTIVE | RUNNING.
 FRAME_FLAGS := 20
 FRAME_RUNNING := 129
-SLOT := 8
 # The descriptor word's bits: the object takes part, and it is in the
 # candidate buffer.
 CYCLIC := 0x80000000
@@ -64,6 +69,8 @@ COLLECT := 4
 
 # The candidate buffer's first threshold, PHP's fixed buffer size.
 FIRST := 10000
+# The fewest candidates without counts that make a sweep due.
+SWEEP := 64
 
 # The candidate buffer, an array of block addresses (see `push`), where 0
 # is a candidate taken out, and how many candidates it holds.
@@ -85,6 +92,11 @@ let collecting = false
 let threshold: usize = FIRST
 # The objects the running collection marked gray.
 let visited: usize = 0
+# How many candidates in the buffer have no count left (`keep`).
+let dead: usize = 0
+# Whether the next collection only frees those: `due` found the live
+# candidates below the threshold.
+let sweep_only = false
 
 ## Zeroes the collector word of the new object at `block`, which takes part: black, and in no buffer.
 pub fn track(block: usize) -> void:
@@ -98,37 +110,38 @@ pub fn opaque(address: usize) -> void:
 pub fn pending() -> usize:
     candidates
 
-## Whether the candidate buffer has passed its threshold, so a collection is due.
+## Whether a collection is due: the live candidates passed the threshold, or enough candidates have no count left that freeing them is due.
 pub fn due() -> bool:
-    !collecting && candidates >= threshold
+    if collecting:
+        return false
+    if candidates - dead >= threshold:
+        sweep_only = false
+        return true
+    # A sweep walks the whole buffer, so it waits for at least as many
+    # candidates without counts as live ones: each costs a bounded share,
+    # and they hold no more blocks than the live candidates do.
+    sweep_only = dead >= SWEEP && dead * 2 >= candidates
+    sweep_only
 
 ## Makes the object at `block`, which takes part and whose count a release just left above zero, a candidate; one already in the buffer is purple already.
 pub fn suspect(block: usize) -> void:
     desc := usize(load_u32(block + 4))
     if (desc & BUFFERED) != 0:
         return
-    # A full buffer first closes the gaps of the candidates taken out.
+    # A full buffer first closes the gaps a collection left.
     if roots != 0 && length(roots) == usize(load_u32(roots + 4)) && candidates < length(roots):
         compact()
     roots = push(roots, block)
     candidates = candidates + 1
     store_u32(block + 4, u32(desc | BUFFERED))
-    set_word(block, length(roots) * SLOT + (word(block) & FRAME) + PURPLE)
 
-## Takes the block at `block` out of the candidate buffer before it is freed; a block in none is left alone.
-pub fn forget(block: usize) -> void:
-    desc := usize(load_u32(block + 4))
-    if (desc & BUFFERED) == 0:
-        return
-    w := word(block)
-    slot := w / SLOT
-    # Only a candidate's own entry names it, so a block that is no counted
-    # object, whose second word and last bytes are data, changes nothing.
-    if slot != 0 && slot <= length(roots) && item(roots, slot - 1) == block:
-        set_item(roots, slot - 1, 0)
-        candidates = candidates - 1
-        set_word(block, w % SLOT)
-        store_u32(block + 4, u32(desc - BUFFERED))
+## Whether the counted object at `block`, which is being freed, is a candidate. A candidate stays in the buffer with a count of 0, and the next collection frees it; any other block is the caller's to free.
+pub fn keep(block: usize) -> bool:
+    if (usize(load_u32(block + 4)) & BUFFERED) == 0:
+        return false
+    store_u32(block, 0)
+    dead = dead + 1
+    true
 
 ## While a collection traces an object, takes the reference at `address` that its release glue releases and gives true; else false, so the release goes on as usual.
 pub fn visit(address: usize) -> bool:
@@ -162,18 +175,23 @@ pub fn visit(address: usize) -> bool:
             stack = push(stack, block + RESTORE)
     true
 
-## Collects the candidates' garbage cycles: `trace` runs a block's release glue, `release` releases one reference, and `free` frees a block.
+## Frees the candidates whose last count went, then, unless `due` asked for that alone, collects the others' garbage cycles: `trace` runs a block's release glue, `release` releases one reference, and `free` frees a block.
 pub fn collect(trace: fn(usize) -> void, release: fn(usize) -> void, free: fn(usize) -> void) -> void:
     if collecting:
         return
     collecting = true
     visited = 0
+    sweep(free)
+    if sweep_only:
+        sweep_only = false
+        collecting = false
+        return
     n := length(roots)
     let i: usize = 0
     while i < n:
         s := item(roots, i)
         if s != 0 && takes_part(s):
-            if color(s) == PURPLE:
+            if color(s) != GRAY:
                 mark(s, trace)
             else:
                 drop_root(i, s)
@@ -264,10 +282,30 @@ fn drain(how: usize, trace: fn(usize) -> void) -> void:
 fn drop_root(i: usize, s: usize) -> void:
     set_item(roots, i, 0)
     candidates = candidates - 1
-    set_word(s, word(s) % SLOT)
     store_u32(s + 4, u32(usize(load_u32(s + 4)) & ~BUFFERED))
 
-# Moves the candidates left to the buffer's front, each told its new place.
+# Frees each candidate whose last count went, before a mark takes counts
+# off the others, and moves the rest to the buffer's front.
+fn sweep(free: fn(usize) -> void) -> void:
+    let j: usize = 0
+    let i: usize = 0
+    n := length(roots)
+    while i < n:
+        s := item(roots, i)
+        if s != 0:
+            if load_u32(s) == 0:
+                store_u32(s + 4, u32(usize(load_u32(s + 4)) & ~BUFFERED))
+                free(s)
+            else:
+                set_item(roots, j, s)
+                j = j + 1
+        i = i + 1
+    if roots != 0:
+        store_u32(roots, u32(j))
+    candidates = j
+    dead = 0
+
+# Moves the candidates left to the buffer's front.
 fn compact() -> void:
     let j: usize = 0
     let i: usize = 0
@@ -276,7 +314,6 @@ fn compact() -> void:
         if s != 0:
             set_item(roots, j, s)
             j = j + 1
-            set_word(s, j * SLOT + word(s) % SLOT)
         i = i + 1
     if roots != 0:
         store_u32(roots, u32(j))

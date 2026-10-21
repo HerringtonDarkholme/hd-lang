@@ -4,10 +4,16 @@
 # (crates/hd_driver/tests/conformance.rs, `STD_RT_TESTS`). Each case runs
 # in an instance of its own, so each starts with a fresh heap.
 use std.rt.alloc.{alloc, block_of, block_size, free, release, release_known, retain, retain_known}
-use std.rt.cycle.{pending, track}
+use std.rt.cycle.{collect, pending, track}
 use std.rt.memory.{grow, load_u32, store_u32, store_u8}
 
 PAGE := 65536
+
+fn unexpected_trace(block: usize) -> void:
+    panic("a candidate without counts is freed, not traced")
+
+fn unexpected_release(address: usize) -> void:
+    panic("a candidate without counts releases nothing")
 
 tests:
     use std.testing.{assert, it}
@@ -166,7 +172,7 @@ tests:
         assert(release_known(block + 8) == block, "the final count returns the block")
         free(block)
 
-    it("known releases buffer cyclic blocks once and forget their final count"):
+    it("known releases buffer cyclic blocks once, and a collection frees one whose last count went"):
         block := alloc(64)
         store_u32(block, 3)
         store_u32(block + 4, 0x80000001)
@@ -178,6 +184,9 @@ tests:
         assert(release_known(block + 8) == 0, "one count remains")
         assert(pending() == before + 1, "a second release does not buffer twice")
         assert(release_known(block + 8) == block, "the final release returns the block")
-        assert(pending() == before, "the final release forgets the candidate")
-        assert((usize(load_u32(block + 4)) & 0x40000000) == 0, "forget clears the buffered bit")
+        assert(pending() == before + 1, "the candidate stays in the buffer")
         free(block)
+        assert(load_u32(block) == 0, "free leaves the candidate in the buffer with no count")
+        collect(unexpected_trace, unexpected_release, free)
+        assert(pending() == before, "the collection frees it and empties its entry")
+        assert(alloc(64) == block, "its block is reused")

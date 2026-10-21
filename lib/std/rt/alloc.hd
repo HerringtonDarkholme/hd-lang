@@ -23,7 +23,7 @@
 # class's list (u32 each), its live count (u16) and its bump offset in
 # units of 16 bytes (u16). Its slots follow from offset 16. A freed slot
 # holds the next free slot's address in its first 4 bytes.
-use std.rt.cycle.{forget, suspect}
+use std.rt.cycle.{keep, suspect}
 use std.rt.memory.{copy, fill, grow, load_u16, load_u32, store_u16, store_u32}
 
 PAGE := 65536
@@ -95,10 +95,10 @@ pub fn alloc(size: usize) -> usize:
 pub fn allocated() -> usize:
     given
 
-## Frees the block at `address`, which `alloc` gave and which is not yet freed, after taking it out of the cycle collector's candidates.
+## Frees the block at `address`, which `alloc` gave and which is not yet freed; a counted object that is a cycle candidate is left to the collector's next sweep (`std.rt.cycle.keep`).
 pub fn free(address: usize) -> void:
-    forget(address)
-    free_block(address)
+    if !keep(address):
+        free_block(address)
 
 ## Frees the block at `address`, which `alloc` gave and which is not yet freed, as `free` does, for a block the cycle collector never sees.
 pub fn free_block(address: usize) -> void:
@@ -183,8 +183,6 @@ pub fn release(address: usize) -> usize:
         return 0
     count := load_u32(block)
     if count == 1:
-        if (usize(load_u32(block + 4)) & BUFFERED) != 0:
-            forget(block)
         return block
     store_u32(block, count - 1)
     if (usize(load_u32(block + 4)) & CYCLIC) != 0:
@@ -200,8 +198,6 @@ pub fn release_known(address: usize) -> usize:
     if count == 0:
         return 0
     if count == 1:
-        if (usize(load_u32(block + 4)) & BUFFERED) != 0:
-            forget(block)
         return block
     store_u32(block, count - 1)
     if (usize(load_u32(block + 4)) & CYCLIC) != 0:

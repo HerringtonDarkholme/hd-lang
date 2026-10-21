@@ -852,8 +852,10 @@ fn checked_poll(poll: &Helper, reinit: &[Hash128], m: &Module) -> Func {
     // waits once the root has ended.
     f.global_get(Global::WakeTab);
     f.op(Instruction::If(BlockType::Empty));
+    // A raw block, never a counted object: the free that skips the
+    // collector's candidate test.
     f.global_get(Global::WakeTab);
-    f.call(Sym::Inst(r.free));
+    f.call(Sym::Inst(r.acyclic.free));
     f.i32(0);
     f.global_set(Global::WakeTab);
     f.i32(0);

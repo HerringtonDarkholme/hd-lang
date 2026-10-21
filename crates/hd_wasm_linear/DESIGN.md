@@ -198,7 +198,7 @@ the slot's start:
 | 0 | 4 | the count: 32-bit, non-atomic, with no overflow check on wasm32 (REFCOUNT_RUNTIME.md §4.4) |
 | 4 | 4 | the descriptor word: bits 0 to 29 the release glue's function-table slot plus one (0 for none); bit 30 set while the object is a cycle candidate, bit 31 when its type is cycle-capable (§23.28) |
 | 8 | the payload's size | the payload: the fields, or a buffer's header and elements |
-| the block's last 4 bytes | 4 | the collector word, for a cycle-capable type only: the color, the frame flag and the candidate-buffer index (REFCOUNT_RUNTIME.md §7.2, §23.28) |
+| the block's last 4 bytes | 4 | the collector word, for a cycle-capable type only: the color and the frame flag (REFCOUNT_RUNTIME.md §7.2, §23.28) |
 
 - A reference to a whole object is the payload's address, slot + 8, so
   its fields read at constant offsets with no lookup; the header is at
@@ -1543,24 +1543,30 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   after the payload as §23.4 first planned: nothing records a payload's
   size, while the allocator knows each block's. `rt:new` asks for 4 more
   bytes when the descriptor has `CYCLIC` and has std's `track` zero the
-  word; any other object has no collector word. Its low 2 bits are the color (black, gray, white, purple), bit 2
-  marks a frame, and the rest is the object's place in the
-  candidate buffer plus one, 0 for none.
+  word; any other object has no collector word. Its low 2 bits are the
+  color (black, gray, white) and bit 2 marks a frame. Only a collection
+  reads it: no release or free needs the block's size.
 - **Candidates.** Std's `release` (`std.rt.alloc`'s and
-  `std.rt.checked`'s) makes a `CYCLIC` object purple and buffers it when
-  it leaves a count above zero (`suspect`), and takes it out of the
-  buffer at its last count (`forget`), before its glue runs, so a
-  collection never sees an object half released. Bit 30 of the
-  descriptor word (`BUFFERED`) says whether the object is in the buffer:
-  a buffered object is purple outside a collection, so `suspect` returns
-  at once for one, and `forget` returns at once for one that is not, and
-  neither reads the collector word, whose place needs the block's size.
-  The release of any other object is the decrement alone. `free` forgets
-  too, for the blocks the backend frees directly, such as a list's old
-  buffer. `forget` checks that the buffer's entry names the block, so a
-  block that is no counted object, whose words are data, is left alone. A
-  retain does not blacken a purple object: a needless candidate costs a
-  walk, not correctness.
+  `std.rt.checked`'s) buffers a `CYCLIC` object when it leaves a count
+  above zero (`suspect`). Bit 30 of the descriptor word (`BUFFERED`) says
+  whether the object is in the buffer, which makes it purple outside a
+  collection, so `suspect` returns at once for one already there. The
+  release of any other object is the decrement alone. A retain does not
+  blacken a purple object: a needless candidate costs a walk, not
+  correctness.
+- **A candidate's last count** (#670). Its last release runs its glue at
+  once, as any object's does, but the collector frees its block: std's
+  `free` asks `keep`, which leaves a `BUFFERED` block in the buffer with a
+  count of 0, and the next collection frees it before it marks anything
+  (Bacon and Rajan's release of a buffered object). The buffer is
+  therefore a plain list of addresses that only a collection removes
+  from, and no object records its place in it. Before #670 the last
+  release found the entry through the collector word and cleared it,
+  reading the block's size from the page table twice on the way in and
+  twice on the way out; binary-trees makes each node a candidate and then
+  frees it, so this was a sixth of its run. `free` takes counted objects
+  only (`BUFFERED` is a header bit); the wake table, a raw block, goes
+  to the free without the collector test.
 - **Tracing is the release glue.** `CycleTrace` runs the descriptor's
   glue on the payload with the `Tracing` global set, and `rt:release_ref`
   hands each reference to the collector's `visit` instead of counting it
@@ -1592,7 +1598,7 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   do not take part are released as usual, which may free more and make
   new candidates for the next collection.
 - **When.** `rt:new` collects first when std's `due` says the buffer holds
-  at least the threshold's candidates: 10,000 at first, halved back
+  at least the threshold's live candidates (those with a count): 10,000 at first, halved back
   toward 10,000 after a collection that frees at least half of what it
   marked gray, doubled after one that frees less (REFCOUNT_RUNTIME.md
   §7.4). An allocation is never reached from release glue, so a
@@ -1600,9 +1606,14 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   answers (`Helper::CollectPoll`): at idle when the answer is Pending, and
   at the end. Checked mode's poll collects after the teardown releases the
   bindings and before the leak audit, so a handle leaked inside a cycle
-  is still reported.
-- **Memory.** A full buffer first closes the gaps that forgotten
-  candidates left, so it grows with the live candidates only. The
+  is still reported. `due` also answers when at least 64 candidates have
+  no count left and they are at least half the buffer; that collection
+  only frees them (a sweep). A sweep walks the buffer once, so waiting
+  for as many dead candidates as live ones makes each cost a bounded
+  share, and the blocks waiting for it number no more than the live
+  candidates, or 64.
+- **Memory.** The buffer grows with the live candidates and the dead
+  ones a sweep waits for, at most as many again. The
   buffer, the work list and the lists of white and released objects are
   blocks of `std.rt.alloc`, which checked mode does not count as live.
   `count_tests.hd`'s heap bound goes from 4 pages to 12: the buffer's
@@ -1752,7 +1763,7 @@ physical or erased references without a block-start proof.
   entries use `address - 8`. Null and static zero-count objects stay
   uncounted. Final releases use the existing allocation-free release
   worklist. Both release paths visit only while `Tracing` is set, buffer
-  only `CYCLIC` objects and forget only `BUFFERED` candidates. Collection
+  only `CYCLIC` objects; a `BUFFERED` block's free waits for the collector. Collection
   header copies inherit their original cycle eligibility. The emitter uses
   this path for cells, nominal heap objects, closure environments,
   suspension and collection headers, and collection buffers. Untyped
