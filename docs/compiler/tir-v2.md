@@ -1086,6 +1086,40 @@ except where noted; any other change is a regression.
 | `hd_driver` `counts/field-write-counted-struct` | identical: no count operations since #656 pattern 4 was fixed |
 | every other `wat`, `counts` and `layout` baseline | identical |
 
+### Exposure along the whole path
+
+A `Pin` marks every list on the reference's path, not only the list
+whose slot it names. `&mut a[0][0]` pins the inner list and marks the
+outer list unshareable, so copying `a` copies the outer buffer and, with
+it, copies the pinned inner list (`r[ref.elem.copy]` applied to each
+element). Today's runtime pins only the innermost list, so `b := a`
+shares the outer buffer, and a write through the reference reaches `b`
+(#719, found by checking an external IR proposal's §8). The insertion
+pass emits one `Pin` per list on the place's projection chain, outermost
+first, detaching a shared ancestor before marking it. Containment
+propagates: storing an unshareable value into a fresh list or struct
+makes the container unshareable. #719 fixes the runtime first; stage 2
+then makes the rule explicit in the IR.
+
+### Aliasing conformance cases
+
+Stage 2 lands only with these runtime cases green on both engines in
+checked mode. They come from the same external review (§16.3). Each
+guards a rewrite the passes could get wrong:
+
+| Case | Required result |
+| --- | --- |
+| Copy a list, then take `&mut` to an element and write | the copy is unchanged |
+| Take `&mut` to an element, copy the list, write through the reference | the copy is unchanged |
+| Replace the list while an element reference lives | the reference reads the old element |
+| `&` and `&mut` to the same element | the `&` read sees the write |
+| Element reference into a nested list, copy the outer list | the copy is unchanged (#719) |
+| Copy a struct holding a list and a reference | the list is copied, the reference keeps its target |
+| Copy at the variable's last use while an element reference lives | the copy does not see later writes through the reference (no copy-to-move) |
+| Pass a pinned list by value to a function that runs a callback writing through the reference | the parameter keeps its value |
+| `a[i] = f()` where `f` replaces `a` | the write goes where the language rule says; pin that rule down in the spec first |
+| Copy, then write an element, in a loop where hoisting moved `IsUnique` | the copy is unchanged |
+
 ## Stage 2
 
 Stage 2 moves every count decision into `hd_tir::own`, deletes the
