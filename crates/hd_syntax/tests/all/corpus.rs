@@ -87,7 +87,7 @@ fn known_failures() -> Vec<String> {
 }
 
 /// Every source the parser must accept: `lib/std`, `examples/` (single
-/// files, dogfood programs, and sample packages), the parse-gap repros, and
+/// files, dogfood programs, and sample packages), and
 /// every conformance source but the parse-phase rejects and the known
 /// failures.
 fn valid_sources() -> Vec<PathBuf> {
@@ -107,40 +107,11 @@ fn valid_sources() -> Vec<PathBuf> {
             .any(|k| relative == *k || relative.starts_with(&format!("{k}/")));
         !rejects.contains(&relative) && !SPEC_CONFLICTS.contains(&relative.as_str()) && !listed
     });
-    for directory in ["lib/std", "examples", "crates/hd_syntax/tests/parse-gaps"] {
+    for directory in ["lib/std", "examples"] {
         hd_files(&root.join(directory), &mut files);
     }
     files.sort();
     files
-}
-
-#[test]
-fn parse_gap_repros_parse_clean() {
-    let mut files = Vec::new();
-    hd_files(
-        &repository_root().join("crates/hd_syntax/tests/parse-gaps"),
-        &mut files,
-    );
-    assert!(files.len() >= 17, "parse-gap repros missing");
-    for path in files {
-        let source = fs::read_to_string(&path).expect("read repro");
-        let parsed = parse(source.as_bytes());
-        assert!(
-            parsed.is_ok(),
-            "{}: {:?}",
-            path.display(),
-            parsed.diagnostic_codes()
-        );
-        assert!(
-            !parsed
-                .tree
-                .root()
-                .descendants()
-                .any(|node| node.kind() == SyntaxKind::Error),
-            "{}",
-            path.display()
-        );
-    }
 }
 
 #[test]

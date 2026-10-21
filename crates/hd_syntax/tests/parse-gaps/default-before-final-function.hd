@@ -1,4 +1,0 @@
-# 07-functions.md rule: r[fn.default.order-final-function].
-# From spec/conformance/typing/valid/default-before-final-function.hd.
-fn retry(times: i32, backoff: i32 = 100, body: fn() -> void) -> void:
-    body()

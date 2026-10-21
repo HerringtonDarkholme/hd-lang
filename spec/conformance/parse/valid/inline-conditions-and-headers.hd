@@ -1,0 +1,59 @@
+# test: parser accepts inline conditions, headers, colon-bearing literals, negative lines and assignment arms
+# Spec 02 Grammar: grammar.stmt.assign-place, grammar.scope.syntax, grammar.closed.header-positions, grammar.generic.bound.and.types-only, grammar.inline.else-if, grammar.flow.if-else, grammar.expr.type-arguments.marker.
+
+# assignment arm record.
+fn assignment_arm_record(value: i32?) -> void:
+    let out = +0
+    match value:
+        .Some(item) => out = Pair { left: item, right: +0 }
+        .None => pass
+
+# boolean word in string.
+fn boolean_word_in_string() -> string:
+    "one or two"
+
+# colon char in if header.
+fn colon_char_in_if_header(text: string) -> bool:
+    if text.has(+0, ':'):
+        true
+    false
+
+# comparison additive rhs.
+fn comparison_additive_rhs(index: i32, start: i32, width: i32) -> bool:
+    index < start + width
+
+# inline else if comparisons.
+fn inline_else_if_comparisons(need: i32, code: i32) -> bool:
+    if need == +1: code >= +0 && code <= +9 else if need == +2: code == +2 else: false
+
+# inline if call condition.
+fn inline_if_call_condition() -> i32:
+    if ready(): +1 else: +0
+
+# match arm after inline if.
+fn match_arm_after_inline_if(value: i32?) -> i32?:
+    match value:
+        .Some(item) => if item > +0: .Some(item) else: .None
+        .None => .None
+
+# negative literal line.
+fn negative_literal_line(ok: bool) -> i32:
+    if ok:
+        zero()
+    else:
+        -1
+
+# qualified generic call if header.
+fn qualified_generic_call_if_header(value: i32) -> bool:
+    if value < limit::[i32]():
+        true
+    false
+
+# r char literal.
+fn r_char_literal(c: char) -> bool:
+    if c == 'r': true else: false
+
+# string colon after equals.
+fn string_colon_after_equals() -> string:
+    let text = "usage: command"
+    text

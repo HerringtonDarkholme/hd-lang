@@ -1,4 +1,0 @@
-# 01-lexical-structure.md rule: r[lex.raw.interpolation].
-# From spec/conformance/runtime/valid/bang-call-and-prefix-not.hd.
-fn message(typed: bool) -> string:
-    "$typed"
