@@ -1,0 +1,106 @@
+# test: matching a borrowed field preserves value lifetimes across calls, alias stores, and returned payloads
+# Spec 13 References: ref.read.auto; Reference Lifetime: ref.place.lifetime.
+struct Node:
+    value: i64
+    left: (&Node)?
+
+fn value(node: &Node) -> i64:
+    match node.left:
+        .None => 0
+        .Some(left) => left.value
+
+fn clear(node: &mut Node) -> void:
+    node.left = .None
+
+fn across_call(node: &Node, alias: &mut Node) -> i64:
+    match node.left:
+        .None => 0
+        .Some(left) =>
+            clear(alias)
+            left.value
+
+fn across_store(node: &Node, alias: &mut Node) -> i64:
+    match node.left:
+        .None => 0
+        .Some(left) =>
+            alias.left = .None
+            left.value
+
+fn selected(node: &Node) -> &Node:
+    match node.left:
+        .None => node
+        .Some(left) => left
+
+fn guard_clear(node: &mut Node) -> bool:
+    clear(node)
+    true
+
+fn across_guard(node: &Node, alias: &mut Node) -> i64:
+    match node.left:
+        .Some(left) if guard_clear(alias) => left.value
+        _ => 0
+
+trait HasValue:
+    fn number(&self) -> i64
+
+impl HasValue for Node:
+    fn number(&self) -> i64: self.value
+
+fn selected_erased(node: &Node) -> &dyn HasValue:
+    match node.left:
+        .None => node
+        .Some(left) => left
+
+struct Holder[T]:
+    item: &mut T
+
+trait Factory:
+    fn hold[T](self, item: T) -> Holder[T]:
+        let mut local = item
+        Holder { item: &mut local }
+
+struct Maker: pass
+impl Factory for Maker
+
+tests:
+    use std.testing.assert_equal
+
+    it("a call-free match reads the borrowed payload"):
+        node := Node { value: 1, left: .Some(&Node { value: 42, left: .None }) }
+        assert_equal(value(&node), 42, reason="the payload stays live for the arm")
+        assert_equal(value(&Node { value: 1, left: .None }), 0, reason="the empty arm borrows nothing")
+
+    it("a call replacing the field keeps its former payload alive"):
+        let mut node = Node { value: 1, left: .Some(&Node { value: 42, left: .None }) }
+        assert_equal(across_call(&node, &mut node), 42, reason="the arm owns the replaced payload")
+        assert_equal(value(&node), 0, reason="the call reached the aliased field")
+
+    it("a store through another reference keeps the former payload alive"):
+        let mut node = Node { value: 1, left: .Some(&Node { value: 42, left: .None }) }
+        assert_equal(across_store(&node, &mut node), 42, reason="the arm owns the replaced payload")
+        assert_equal(value(&node), 0, reason="the other reference aliases the field")
+
+    it("a returned payload receives its own count"):
+        let mut node = Node { value: 1, left: .Some(&Node { value: 42, left: .None }) }
+        child := selected(&node)
+        node.left = .None
+        assert_equal(child.value, 42, reason="the returned reference outlives the matched field")
+
+    it("a guard call is included in the scrutinee span"):
+        let mut node = Node { value: 1, left: .Some(&Node { value: 42, left: .None }) }
+        assert_equal(across_guard(&node, &mut node), 42, reason="guard evaluation cannot free the payload")
+
+    it("a match over an erased view keeps its owned fallback until the arm ends"):
+        let factory: &dyn Factory = &Maker {}
+        for n in 0..20:
+            node := factory.hold(Node { value: 1, left: .Some(&Node { value: i64(n), left: .None }) }).item
+            assert_equal(value(node), i64(n), reason="a view-backed field stays live through its match")
+            child := selected(node)
+            node.left = .None
+            assert_equal(child.value, i64(n), reason="a returned payload owns its count after the getter is released")
+
+    it("an erased returned payload keeps its owned coercion"):
+        let mut node = Node { value: 1, left: .Some(&Node { value: 42, left: .None }) }
+        child := selected_erased(&node)
+        node.left = .None
+        assert_equal(child.number(), 42, reason="erasing a borrowed payload preserves ownership")

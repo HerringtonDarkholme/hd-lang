@@ -4054,3 +4054,4 @@ runtime/valid/recursive-value-copies-stay-independent.hd	runtime	accept	lang/04-
 runtime/valid/discarded-reference-reads-preserve-views.hd	runtime	accept	lang/13-values-and-references.md#r-ref.place.lifetime
 runtime/valid/package-tree-entry-only.hd	runtime	accept	lang/10-modules.md#r-module.entry.definition
 runtime/valid/package-tree-profile-entry-only.hd	runtime	accept	lang/10-modules.md#r-module.entry.row
+runtime/valid/match-reference-field-loan.hd	runtime	accept	lang/13-values-and-references.md#r-ref.place.lifetime

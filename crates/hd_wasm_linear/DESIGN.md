@@ -1925,10 +1925,21 @@ own count keeps the value alive (`live::span_loans`).
 - **Refused at emission.** A cell local, an open value whose thunk may
   build a fresh box, and a local that itself borrows from another
   (`Moves::loan_locals`, whose lifetime ends at its own last access).
-- **Not covered.** Reads through a reference other than a parameter's,
-  a field read whose uses sit in nested blocks (a match's arms), and a
-  closure stored in a field: a call can reach the referent, including the
-  closure's own environment, so those keep their counts.
+- **Call-free matches (#717).** A sole field projection of a borrowed
+  reference read may also borrow across a match and its pattern bindings.
+  `live::field_spans` follows pure projections and single-assignment,
+  uncaptured bindings to their last uses in the match. Every nested arm
+  and guard in the interval is checked: any call, reference/global/field
+  store, suspension, closure or replacement of a borrowed root refuses
+  the loan. Binding uses outside the match also refuse it, preserving
+  the lifetime of a view getter's owned fallback. An owned consumer or
+  returned payload still takes a count. Collections, open representations
+  and cells retain ownership. The typed `FieldSpan` plan is separate from
+  `Moves::span`, whose entries remain local reads; emission validates the
+  physical projection and keeps the existing field-view ownership flag.
+- **Not covered.** Other reference sources and calls that might be proved
+  harmless only with callee facts, including a recursive tree walk or a
+  closure stored in a field. Those keep their counts.
 - **Fixtures.** `hd_driver/tests/cases/counts/`: the element read and
   write of a local list, a method call on a local reference, a
   reference argument and a push to a list field now take no count. `local-replaced-inside-the-span`,

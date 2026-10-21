@@ -206,6 +206,41 @@ impl Em<'_, '_, '_> {
                 self.view_loans.insert(i, flag);
             }
         }
+        // Match spans have a separate, typed plan: `Moves::span` still
+        // contains only LocalGet instructions. Validate physical projection
+        // before treating a field or its pattern bindings as loans.
+        let fields: Vec<u32> = (0..self.b.len())
+            .filter_map(|i| {
+                let x = u32::try_from(i).expect("insts");
+                let base = self.b.data[i][0];
+                (self.b.tags[i] == Tag::Field
+                    && Ref(base).as_inst().is_some()
+                    && self.b.tags[base as usize] == Tag::RefRead
+                    && self.moves.loans.contains(&base)
+                    && !hd_mono::is_open(self.pool(), self.ty(x))
+                    && coll_leaves(self.pool(), self.env(), self.ty(x)).is_empty()
+                    && matches!(self.projected_field(base), Ok(Some((f, _))) if f == x))
+                .then_some(x)
+            })
+            .collect();
+        for span in super::live::field_spans(self.b, &fields, &roots) {
+            let field = span.field;
+            if span
+                .reads
+                .iter()
+                .any(|i| hd_mono::is_open(self.pool(), self.ty(*i)) || self.calls.contains_key(i))
+                || span.locals.keys().any(|l| {
+                    self.is_cell(*l) || hd_mono::is_open(self.pool(), self.sub(self.b.local_ty[*l]))
+                })
+            {
+                continue;
+            }
+            self.moves.loans.extend(span.reads);
+            self.moves.loan_locals.extend(span.locals);
+            self.view_loans
+                .entry(field)
+                .or_insert_with(|| self.f.local(crate::module::Val::I32));
+        }
     }
 
     /// Release the owned fallback of a view-backed loan, leaving a physical

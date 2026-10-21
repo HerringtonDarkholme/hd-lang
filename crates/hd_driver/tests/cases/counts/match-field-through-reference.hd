@@ -1,16 +1,7 @@
 # @dump: counts
 # @build: v8 release
-# expected: no count operations; matching a field read through `&` and
-# binding its payload borrows both (binary_trees: two retains and two
-# releases per node visited). #676 borrows the read of the binding `left`.
-# The field read keeps its count: its uses sit inside the match's arms,
-# which call a reference getter that could replace the field.
-# The first of these releases leaves the child a count, so a cycle-capable
-# child becomes a candidate (binary_trees: every node once, 3.2 million
-# per run). Since #670 a candidate's last release leaves its block in the
-# buffer for the collector's next sweep (std_rt/alloc_tests.hd), instead
-# of finding and clearing its buffer entry through the page table.
-# tracked by #670
+# expected: no counts for the field or Some binding across this call-free
+# match; a call or a reference store in an arm must keep ownership (#717).
 struct Node:
     value: i64
     left: (&Node)?

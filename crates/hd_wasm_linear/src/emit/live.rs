@@ -829,6 +829,151 @@ fn loans(
     (reads, locals)
 }
 
+/// A field span and the reads/bindings borrowing from it. Keep these
+/// separate from `Moves::span`, whose entries are local reads only.
+pub(super) struct FieldSpan {
+    pub field: u32,
+    pub reads: HashSet<u32>,
+    pub locals: HashMap<usize, u32>,
+}
+
+/// A caller-backed field can cross match decisions when the entire span
+/// is free of calls, reference stores, suspension and root replacement.
+/// Follow pattern bindings to their last use, rather than stopping at the
+/// scrutinee's test. Owned consumers still take their own count.
+pub(super) fn field_spans(b: &Body, fields: &[u32], roots: &HashSet<usize>) -> Vec<FieldSpan> {
+    if fields.is_empty() || b.tags.iter().any(|t| matches!(t, Tag::Defer | Tag::Scope)) {
+        return Vec::new();
+    }
+    let tree = Tree::new(b);
+    let mut users: HashMap<u32, Vec<u32>> = HashMap::default();
+    let mut sets: HashMap<usize, Vec<u32>> = HashMap::default();
+    let mut gets: HashMap<usize, Vec<u32>> = HashMap::default();
+    for i in 0..b.len() {
+        let x = u32::try_from(i).expect("insts");
+        for r in uses(b, i) {
+            users.entry(r).or_default().push(x);
+        }
+        match b.tags[i] {
+            Tag::LocalSet => sets.entry(b.data[i][0] as usize).or_default().push(x),
+            Tag::LocalGet => gets.entry(b.data[i][0] as usize).or_default().push(x),
+            _ => {}
+        }
+    }
+    let mut spans = Vec::new();
+    for &field in fields {
+        let (blk, start) = tree.parent[field as usize];
+        if blk == NONE
+            || !users
+                .get(&field)
+                .is_some_and(|us| us.iter().any(|&u| b.tags[u as usize] == Tag::Match))
+        {
+            continue;
+        }
+        let mut span = FieldSpan {
+            field,
+            reads: HashSet::from_iter([field]),
+            locals: HashMap::default(),
+        };
+        let mut pending = vec![field];
+        let mut touched = HashSet::default();
+        while let Some(source) = pending.pop() {
+            for &u in users.get(&source).into_iter().flatten() {
+                touched.insert(u);
+                let i = u as usize;
+                let [a, _] = b.data[i];
+                match b.tags[i] {
+                    Tag::Field | Tag::TupleGet | Tag::Payload | Tag::Unwrap if a == source => {
+                        if span.reads.insert(u) {
+                            pending.push(u);
+                        }
+                    }
+                    Tag::LocalSet => {
+                        let l = a as usize;
+                        if sets.get(&l).is_none_or(|ss| ss.len() != 1)
+                            || b.local_flags[l]
+                                & (local_flags::MUTATED
+                                    | local_flags::CAPTURED
+                                    | local_flags::CAPTURED_ASSIGNED)
+                                != 0
+                            || b.tags
+                                .iter()
+                                .enumerate()
+                                .any(|(j, t)| *t == Tag::RefPlace && b.place_locals(j).contains(&a))
+                        {
+                            continue;
+                        }
+                        span.locals.insert(l, source);
+                        for &read in gets.get(&l).into_iter().flatten() {
+                            if span.reads.insert(read) {
+                                pending.push(read);
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        let position = |x| {
+            tree.path(b, x)
+                .and_then(|path| path.into_iter().find(|(k, _)| *k == blk))
+                .map(|(_, p)| p)
+        };
+        let Some(end) = touched
+            .iter()
+            .chain(&span.reads)
+            .map(|&x| position(x).filter(|p| *p >= start))
+            .collect::<Option<Vec<_>>>()
+            .and_then(|ps| ps.into_iter().max())
+        else {
+            continue;
+        };
+        let safe = (0..b.len()).all(|i| {
+            let x = u32::try_from(i).expect("insts");
+            if !position(x).is_some_and(|p| start <= p && p <= end) {
+                return true;
+            }
+            match b.tags[i] {
+                Tag::Call
+                | Tag::CallValue
+                | Tag::CallDyn
+                | Tag::CallHost
+                | Tag::DefaultCall
+                | Tag::RefWrite
+                | Tag::FieldSet
+                | Tag::GlobalSet
+                | Tag::Closure
+                | Tag::Defer
+                | Tag::Scope
+                | Tag::Hook => false,
+                t if super::susp::is_point(t) => false,
+                Tag::LocalSet => !roots.contains(&(b.data[i][0] as usize)),
+                Tag::Intrinsic => matches!(
+                    IntrinsicOp::from_u32(b.data[i][0]),
+                    Some(IntrinsicOp::ValueCopy | IntrinsicOp::ListLen | IntrinsicOp::ListIndex)
+                ),
+                _ => true,
+            }
+        });
+        // Do not borrow a binding beyond the enclosing match: a typed
+        // view's owned field fallback can be released after that decision.
+        let bounded = span.locals.keys().all(|l| {
+            gets.get(l).into_iter().flatten().all(|&read| {
+                users.get(&field).into_iter().flatten().any(|&u| {
+                    b.tags[u as usize] == Tag::Match
+                        && tree.path(b, read).is_some_and(|path| {
+                            path.iter().any(|(k, _)| tree.owner[*k as usize] == u)
+                        })
+                })
+            })
+        });
+        if safe && bounded {
+            spans.push(span);
+        }
+    }
+    spans
+}
+
 /// Additional reads backed by a parameter the caller keeps alive. Referent
 /// reads stay within one straight-line interval without an invalidating call
 /// or store; copying the reference parameter itself needs no such interval.

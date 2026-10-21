@@ -1,0 +1,13 @@
+# @dump: counts
+# expected: the call can replace the caller-owned field, so the option
+# and payload retain ownership through the match.
+struct Node:
+    value: i64
+    left: (&Node)?
+
+fn read(node: &Node) -> i64: node.value
+
+fn value(node: &Node) -> i64:
+    match node.left:
+        .None => 0
+        .Some(left) => read(left)
