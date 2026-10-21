@@ -1,0 +1,58 @@
+# test: an optional injects into a nested optional at every site
+# expect-stdout: inner none
+# expect-stdout: value 3
+# expect-stdout: inner none
+# expect-stdout: value 3
+# expect-stdout: inner none
+# expect-stdout: inner none
+# expect-stdout: inner none
+# expect-stdout: outer none
+# expect-stdout: inner none
+# expect-stdout: value 3
+# expect-stdout: inner none
+# expect-stdout: outer none
+# expect-stdout: value 3
+# expect-stdout: outer none
+# expect-stdout: inner none
+# expect-stdout: value 1
+fn show(value: i32??) -> string:
+    match value:
+        .None => "outer none"
+        .Some(.None) => "inner none"
+        .Some(.Some(number)) => "value $number"
+
+struct Cell:
+    value: i32??
+
+fn returned(n: i32?) -> i32??:
+    n
+
+fn early(n: i32?) -> i32??:
+    return n
+
+fn chosen(flag: bool, n: i32?) -> i32??:
+    if flag: n else: .None
+
+pub fn main() -> void $ Console:
+    let some: i32? = .Some(3)
+    let none: i32? = .None
+    let bound: i32?? = none
+    println(show(bound))
+    println(show(some))
+    println(show(none))
+    println(show(returned(some)))
+    println(show(returned(none)))
+    println(show(early(none)))
+    println(show(chosen(true, none)))
+    println(show(chosen(false, none)))
+    println(show(Cell { value: none }.value))
+    let mut slot: i32?? = .None
+    slot = some
+    println(show(slot))
+    slot = none
+    println(show(slot))
+    slot = .None
+    println(show(slot))
+    let list: List[i32??] = [some, .None, none, .Some(.Some(1))]
+    for item in list:
+        println(show(item))

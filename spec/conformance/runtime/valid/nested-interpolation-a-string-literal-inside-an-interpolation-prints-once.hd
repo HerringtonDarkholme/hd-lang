@@ -1,0 +1,12 @@
+# test: a string literal inside an interpolation prints once
+# expect-stdout: x
+# expect-stdout: abcde
+# expect-stdout: [cd]
+# expect-stdout: nested "quoted" text
+# expect-stdout: in deep out
+pub fn main() -> void $ Console:
+    println("${"x"}")
+    println("a${"b"}c${"d"}e")
+    println("[${"cd"}]")
+    println("nested ${"\"quoted\""} text")
+    println("${"in ${"deep"} out"}")

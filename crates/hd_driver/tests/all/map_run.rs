@@ -264,63 +264,6 @@ pub fn main() -> void $ Console:
     );
 }
 
-#[test]
-fn every_map_method_takes_its_declared_parameter_names() {
-    // module.method.normative: `get(key)`, `remove(key)`, and the std
-    // methods `contains_key(key)` and `get_or(key, fallback)` take named
-    // arguments; so do the list built-ins `push(value)`.
-    let main = "\
-pub fn main() -> void $ Console:
-    let mut m: Map[string, i32] = {\"a\": 1, \"b\": 2}
-    println(m.get(key=\"a\").is_some())
-    println(m.contains_key(key=\"b\"))
-    println(m.get_or(fallback=9, key=\"z\"))
-    println(m.remove(key=\"a\").is_some())
-    println(m.remove(key=\"a\").is_some())
-    println(m.len())
-    let mut l: List[i32] = []
-    l.push(value=7)
-    l.insert(value=8, index=0)
-    println(l.remove_at(index=1))
-    println(l.len())
-";
-    assert_eq!(
-        output_of("named-args", main),
-        "true\ntrue\n9\ntrue\nfalse\n1\n7\n1\n"
-    );
-}
-
-#[test]
-fn a_misnamed_map_argument_is_rejected() {
-    let main = "\
-pub fn main() -> void:
-    let mut m: Map[string, i32] = {}
-    _ := m.remove(value=\"a\")
-";
-    let mut src = MemorySources::default();
-    src.insert("main.hd", main);
-    let store = crate::warm_store();
-    let host = Host {
-        render_tir: &[],
-        sources: &src,
-        store: &store,
-        clock: &NoClock,
-        executor: Executor::Serial(SerialOrder::Priority),
-    };
-    let out = build(
-        &host,
-        "app",
-        &Goal::Program {
-            entry: "main".into(),
-        },
-    );
-    assert!(
-        out.render().contains("unknown-named-argument"),
-        "{}",
-        out.render()
-    );
-}
-
 /// Keys that collide under the fixed FNV-1a-32 the map once bucketed
 /// strings by (#353): each key picks one 6-letter block of each pair, and
 /// both blocks of a pair lead from the same FNV state to the same state, so

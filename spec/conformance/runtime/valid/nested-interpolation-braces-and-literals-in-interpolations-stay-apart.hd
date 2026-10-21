@@ -1,0 +1,8 @@
+# test: braces and literals in interpolations stay apart
+# expect-stdout: map 2 {x}
+# expect-stdout: }|{
+# expect-stdout: ab3
+pub fn main() -> void $ Console:
+    println("map ${{"a": 1, "b": 2}.len()} {x}")
+    println("${"}"}|${"{"}")
+    println("${"a" + "b"}${1 + 2}")

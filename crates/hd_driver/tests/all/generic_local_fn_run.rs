@@ -1,10 +1,4 @@
-//! Exact generic-local diagnostics, plus shared runtime helpers used by
-//! `local_fn_default_run`. Fixed-source behavior is covered by conformance.
-
-use std::path::Path;
-use std::process::Command;
-
-use hd_testkit::Scratch;
+//! Exact generic-local diagnostics. Fixed-source behavior is covered by conformance.
 
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
 use hd_project::MemorySources;
@@ -31,40 +25,6 @@ fn program(main: &str) -> Output {
             entry: "main".into(),
         },
     )
-}
-
-/// Runs `wasm` on a Node host script with `args`.
-fn node(name: &str, wasm: &[u8], script: &str, args: &[String]) -> std::process::Output {
-    let path = Scratch::unmade(
-        env!("CARGO_TARGET_TMPDIR"),
-        &format!("generic-local-{name}.wasm"),
-    );
-    std::fs::write(&path, wasm).expect("write wasm");
-    let ran = Command::new("node")
-        .arg(
-            Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../../host")
-                .join(script),
-        )
-        .arg(&path)
-        .args(args)
-        .output()
-        .expect("node");
-    let _ = std::fs::remove_file(&path);
-    ran
-}
-
-/// The standard output of a program that must build and succeed.
-pub(crate) fn output_of(name: &str, main: &str) -> String {
-    let out = program(main);
-    assert!(out.diags.is_empty(), "{name}: {}", out.render());
-    let ran = node(name, &out.wasm.expect("wasm"), "run.mjs", &[]);
-    assert!(
-        ran.status.success(),
-        "{name}: {}",
-        String::from_utf8_lossy(&ran.stderr)
-    );
-    String::from_utf8(ran.stdout).expect("UTF-8")
 }
 
 /// The rendered diagnostics of a program that must not build.

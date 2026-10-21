@@ -1,0 +1,7 @@
+# test: a missing declaration through a module is unknown import
+# fixture-package-tree: qualified-declarations/src/main.hd
+use pkg.shapes
+
+pub fn main() -> void:
+    other := shapes.Missing::new()  # diagnostic: unknown-import
+    pass

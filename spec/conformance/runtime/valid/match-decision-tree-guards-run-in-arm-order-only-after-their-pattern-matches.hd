@@ -1,0 +1,44 @@
+# test: guards run in arm order only after their pattern matches
+# expect-stdout: line one x
+# expect-stdout: guard line
+# expect-stdout: long line at zero
+# expect-stdout: guard line
+# expect-stdout: guard x
+# expect-stdout: zero x
+# expect-stdout: guard pair
+# expect-stdout: pair a == n
+# expect-stdout: guard pair
+# expect-stdout: guard b
+# expect-stdout: positive b
+# expect-stdout: guard x
+# expect-stdout: zero x
+# expect-stdout: line y
+# expect-stdout: other
+enum Shape:
+    Dot
+    Line(len: i32)
+    Pair(a: i32, b: i32)
+
+fn seen(tag: string, v: bool) -> bool $ Console:
+    println("guard $tag")
+    v
+
+fn pick(s: Shape, t: (i32, string)) -> string $ Console:
+    match (s, t):
+        (.Line(1), (0, "x")) => "line one x"
+        (.Pair(a, 2), (n, _)) if seen("pair", a == n) => "pair a == n"
+        (.Line(len), (0, _)) if seen("line", len > 5) => "long line at zero"
+        (_, (0, "x")) if seen("x", true) => "zero x"
+        (.Pair(_, b), _) if seen("b", b > 0) => "positive b"
+        (.Line(_), (_, "y")) => "line y"
+        _ => "other"
+
+pub fn main() -> void $ Console:
+    println(pick(.Line(1), (0, "x")))
+    println(pick(.Line(9), (0, "x")))
+    println(pick(.Line(2), (0, "x")))
+    println(pick(.Pair(3, 2), (3, "z")))
+    println(pick(.Pair(3, 2), (4, "z")))
+    println(pick(.Pair(0, 0), (0, "x")))
+    println(pick(.Line(2), (1, "y")))
+    println(pick(.Dot, (1, "y")))

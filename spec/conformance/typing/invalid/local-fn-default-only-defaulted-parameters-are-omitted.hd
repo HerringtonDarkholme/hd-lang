@@ -1,0 +1,4 @@
+# test: only defaulted parameters are omitted
+pub fn main() -> void:
+    fn f(a: i32, b: i32 = 1) -> i32: a + b
+    _ := f()  # diagnostic: argument-count

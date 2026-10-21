@@ -1,0 +1,7 @@
+# test: a type with fields through a module is not a value
+# fixture-package-tree: qualified-declarations/src/main.hd
+use pkg.shapes
+
+pub fn main() -> void:
+    counter := shapes.Counter  # diagnostic: type-used-as-value
+    pass

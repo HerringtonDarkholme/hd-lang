@@ -1,0 +1,4 @@
+# test: a default naming a later parameter is not yet visible
+pub fn main() -> void $ Console:
+    fn one(x: i32 = x) -> i32: x  # diagnostic: binding-not-yet-visible
+    println(one())

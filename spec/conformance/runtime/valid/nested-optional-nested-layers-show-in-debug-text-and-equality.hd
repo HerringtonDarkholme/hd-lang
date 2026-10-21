@@ -1,0 +1,22 @@
+# test: nested layers show in debug text and equality
+# expect-stdout: Option.None
+# expect-stdout: Option.Some(Option.None)
+# expect-stdout: Option.Some(Option.Some(Option.None))
+# expect-stdout: Option.Some(Option.None)
+# expect-stdout: false
+# expect-stdout: true
+# expect-stdout: true
+fn deep(n: i32??) -> i32???:
+    n
+
+pub fn main() -> void $ Console:
+    let none: i32? = .None
+    let outer_none: i32?? = .None
+    let inner_none: i32?? = none
+    println(debug(outer_none))
+    println(debug(inner_none))
+    println(debug(deep(inner_none)))
+    println(debug(deep(.None)))
+    println(outer_none == inner_none)
+    println(inner_none == inner_none)
+    println(outer_none != inner_none)

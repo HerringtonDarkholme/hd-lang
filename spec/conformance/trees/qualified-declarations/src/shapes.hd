@@ -1,0 +1,36 @@
+@derive(Eq)
+pub enum Color:
+    Red
+    Grey(i32)
+    Rgb(i32, i32, i32)
+
+pub struct Counter:
+    pub count: i32
+
+impl Counter:
+    pub fn new() -> Counter:
+        Counter { count: 0 }
+
+    pub fn starting(count: i32) -> Counter:
+        Counter { count: count }
+
+    pub fn show(self) -> string:
+        "count ${self.count}"
+
+pub struct Marker:
+    pass
+
+pub trait Describe:
+    fn describe(self) -> string
+
+pub type Tally = Counter
+
+enum Hidden:
+    Only
+
+struct Secret:
+    pub count: i32
+
+impl Secret:
+    pub fn new() -> Secret:
+        Secret { count: 0 }

@@ -1,0 +1,14 @@
+# test: a local data value goes through a generic function
+# expect-stdout: Utrecht in 27
+fn keep[T](value: T) -> T:
+    value
+
+fn route() -> string:
+    struct Stop:
+        name: string
+        minutes: i32
+    stop := keep(Stop { name: "Utrecht", minutes: 27 })
+    "${stop.name} in ${stop.minutes}"
+
+pub fn main() -> void $ Console:
+    println(route())

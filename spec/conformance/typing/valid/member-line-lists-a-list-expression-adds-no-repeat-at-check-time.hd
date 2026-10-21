@@ -1,0 +1,59 @@
+# test: a list expression adds no repeat at check time
+use std.inspect.Inspectable
+use std.structure.{Structure, Field, Variant, Walker}
+
+struct Tag:
+    text: string
+
+struct Note:
+    text: string
+
+fn tag(text: string) -> Tag:
+    Tag { text: text }
+
+fn note(text: string) -> Note:
+    Note { text: text }
+
+let tagged: List[&dyn Inspectable] = [&tag("t")]
+let noted: List[&dyn Inspectable] = [&note("n")]
+
+fn made() -> List[&dyn Inspectable]:
+    [&note("made")]
+
+trait Probe:
+    fn probe(self) -> string
+
+struct Prober:
+    out: string
+
+impl[S] Walker[S] for Prober:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        t := match h.info.facts.find::[Tag]():
+            .Some(found) => found.text
+            .None => "-"
+        n := match h.info.facts.find::[Note]():
+            .Some(found) => found.text
+            .None => "-"
+        self.out = self.out + h.info.name + "=" + t + "/" + n + ";"
+        .Ok(())
+
+impl[T] Probe for T by Structure:
+    fn probe(self) -> string:
+        let mut w = Prober { out: "" }
+        _ := Structure::walk(self, &mut w)
+        w.out
+
+struct Point:
+    @tag("decl")
+    a: i64
+    @tag("decl")
+    b: i64
+
+impl Point by Structure:
+    a += tagged
+    b = [tag("x"), tagged...]

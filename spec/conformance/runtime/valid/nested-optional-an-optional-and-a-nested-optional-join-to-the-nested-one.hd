@@ -1,0 +1,25 @@
+# test: an optional and a nested optional join to the nested one
+# expect-stdout: value 3
+# expect-stdout: inner none
+# expect-stdout: inner none
+# expect-stdout: inner none
+# expect-stdout: value 3
+# expect-stdout: value 3
+# expect-stdout: inner none
+fn show(value: i32??) -> string:
+    match value:
+        .None => "outer none"
+        .Some(.None) => "inner none"
+        .Some(.Some(number)) => "value $number"
+
+pub fn main() -> void $ Console:
+    let some: i32? = .Some(3)
+    let none: i32? = .None
+    let nested: i32?? = .Some(.None)
+    let flag = true
+    for item in [some, nested, none]:
+        println(show(item))
+    for item in [nested, some]:
+        println(show(item))
+    println(show(if flag: some else: nested))
+    println(show(if flag: nested else: none))

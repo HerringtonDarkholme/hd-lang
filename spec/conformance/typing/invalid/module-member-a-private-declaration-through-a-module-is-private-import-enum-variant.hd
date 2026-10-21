@@ -1,0 +1,7 @@
+# test: a private declaration through a module is private import
+# fixture-package-tree: qualified-declarations/src/main.hd
+use pkg.shapes
+
+pub fn main() -> void:
+    only := shapes.Hidden.Only  # diagnostic: private-import
+    pass

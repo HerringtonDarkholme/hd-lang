@@ -1,0 +1,11 @@
+# test: a named sub pattern may leave a field out of order
+# expect-stdout: 24
+enum Shape:
+    Box(width: i32, height: i32, depth: i32)
+
+fn volume(shape: Shape) -> i32:
+    match shape:
+        .Box(w, depth = d, height = h) => w * h * d
+
+pub fn main() -> void $ Console:
+    println(volume(.Box(2, 3, 4)))

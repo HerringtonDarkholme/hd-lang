@@ -1,0 +1,76 @@
+# test: a call gives omits or names the argument; a default reads earlier parameters and captured locals
+# expect-stdout: hi you!
+# expect-stdout: hi bob!
+# expect-stdout: hi you?
+# expect-stdout: hi amy?
+# expect-stdout: 22
+# expect-stdout: 6
+# expect-stdout: 16
+# expect-stdout: 42
+# expect-stdout: abc abc
+# expect-stdout: 7
+# expect-stdout: s
+# expect-stdout: 9
+# expect-stdout: t
+# expect-stdout: 10
+# expect-stdout: hi z
+# expect-stdout: 2
+# expect-stdout: 100
+fn call_forms() -> void $ Console:
+    fn greet(name: string = "you", mark: string = "!") -> string: "hi $name$mark"
+    println(greet())
+    println(greet("bob"))
+    println(greet(mark="?"))
+    println(greet(mark="?", name="amy"))
+
+fn captured_and_prior_defaults() -> void $ Console:
+    let base = +10
+    fn add(a: i32, b: i32 = base, c: i32 = a + b) -> i32: a + b + c
+    println(add(1))
+    println(add(1, 2))
+    println(add(1, c=5))
+    base = +20
+    println(add(1))
+
+fn argument_then_default_order() -> void $ Console:
+    let log = ""
+    fn note(s: string) -> string:
+        log = log + s
+        s
+    fn f(a: string, b: string = note("b"), c: string = note("c")) -> string: a + b + c
+    r := f(note("a"))
+    println("$r $log")
+
+fn generic_defaults() -> void $ Console:
+    fn pick[T](x: T, n: i32 = +3, y: T = x) -> T: y
+    println(pick(+7))
+    println(pick("s", n=+1))
+    println(pick(+1, +2, +9))
+    println(pick::[string]("t"))
+
+fn recursive_defaults() -> void $ Console:
+    fn total(n: i32, step: i32 = +1) -> i32:
+        if n <= 0:
+            return 0
+        n + total(n - step)
+    println(total(+4))
+
+fn function_value_call() -> void $ Console:
+    fn greet(name: string = "you") -> string: "hi $name"
+    g := greet
+    println(g("z"))
+
+fn earlier_parameter_shadows_outer() -> void $ Console:
+    first := 100
+    fn span(first: i32 = 1, second: i32 = first) -> i32: first + second
+    println(span())
+    println(first)
+
+pub fn main() -> void $ Console:
+    call_forms()
+    captured_and_prior_defaults()
+    argument_then_default_order()
+    generic_defaults()
+    recursive_defaults()
+    function_value_call()
+    earlier_parameter_shadows_outer()

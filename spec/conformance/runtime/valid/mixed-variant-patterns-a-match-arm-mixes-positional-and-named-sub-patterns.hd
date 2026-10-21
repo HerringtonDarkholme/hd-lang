@@ -1,0 +1,28 @@
+# test: a match arm mixes positional and named sub patterns
+# expect-stdout: 3
+# expect-stdout: 12
+# expect-stdout: 6
+# expect-stdout: 1003
+# expect-stdout: -1
+# expect-stdout: 0
+enum Shape:
+    Rect(width: i32, height: i32)
+    Point(x: i32, y: i32, z: i32)
+    Empty
+
+fn describe(shape: Shape) -> i32:
+    match shape:
+        .Rect(w, height = 0) => w
+        .Rect(w, height = h) => w * h
+        .Point(x, y = 0, z = z) => x + z
+        .Point(x, y, z = 9) => x + y + 1000
+        .Point(_, _, _) => -1
+        .Empty => 0
+
+pub fn main() -> void $ Console:
+    println(describe(.Rect(3, 0)))
+    println(describe(.Rect(3, 4)))
+    println(describe(.Point(1, 0, 5)))
+    println(describe(.Point(1, 2, 9)))
+    println(describe(.Point(1, 2, 3)))
+    println(describe(.Empty))

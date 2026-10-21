@@ -1,0 +1,38 @@
+# test: a staircase match picks the first matching arm
+# expect-stdout: 4
+# expect-stdout: 3
+# expect-stdout: 3
+# expect-stdout: 2
+# expect-stdout: 1
+# expect-stdout: 0
+enum E0:
+    A(i32)
+    B
+
+enum E1:
+    A(E0)
+    B
+
+enum E2:
+    A(E1)
+    B
+
+enum E3:
+    A(E2)
+    B
+
+fn f(x: E3) -> i32:
+    match x:
+        .A(.A(.A(.A(1)))) => 4
+        .A(.A(.A(_))) => 3
+        .A(.A(_)) => 2
+        .A(_) => 1
+        _ => 0
+
+pub fn main() -> void $ Console:
+    println(f(.A(.A(.A(.A(1))))))
+    println(f(.A(.A(.A(.A(2))))))
+    println(f(.A(.A(.A(.B)))))
+    println(f(.A(.A(.B))))
+    println(f(.A(.B)))
+    println(f(.B))

@@ -1,0 +1,4 @@
+# test: layers never drop or double
+pub fn main() -> void:
+    let nested: i32?? = .None
+    let single: i32? = nested  # diagnostic: type-mismatch

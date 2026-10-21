@@ -1,0 +1,33 @@
+# test: let else and nested patterns mix the forms
+# expect-stdout: 11
+# expect-stdout: -1
+# expect-stdout: 8
+# expect-stdout: 106
+# expect-stdout: 8
+# expect-stdout: 0
+enum Slot:
+    Held(item: i32, qty: i32)
+    Free
+
+enum Bin:
+    Full(slot: Slot, label: i32)
+    Open
+
+fn take(slot: Slot) -> i32:
+    let .Held(item, qty = amount) = slot else: return -1
+    item + amount
+
+fn inner(bin: Bin) -> i32:
+    match bin:
+        .Full(.Held(item, qty = 0), label = l) => item + l
+        .Full(.Held(item, qty = q), l) => item + q + l + 100
+        .Full(.Free, label = l) => l
+        .Open => 0
+
+pub fn main() -> void $ Console:
+    println(take(.Held(5, 6)))
+    println(take(.Free))
+    println(inner(.Full(.Held(1, 0), 7)))
+    println(inner(.Full(.Held(1, 2), 3)))
+    println(inner(.Full(.Free, 8)))
+    println(inner(.Open))

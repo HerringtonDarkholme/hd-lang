@@ -1,0 +1,22 @@
+# test: every map method takes its declared parameter names
+# expect-stdout: true
+# expect-stdout: true
+# expect-stdout: 9
+# expect-stdout: true
+# expect-stdout: false
+# expect-stdout: 1
+# expect-stdout: 7
+# expect-stdout: 1
+pub fn main() -> void $ Console:
+    let mut m: Map[string, i32] = {"a": 1, "b": 2}
+    println(m.get(key="a").is_some())
+    println(m.contains_key(key="b"))
+    println(m.get_or(fallback=9, key="z"))
+    println(m.remove(key="a").is_some())
+    println(m.remove(key="a").is_some())
+    println(m.len())
+    let mut l: List[i32] = []
+    l.push(value=7)
+    l.insert(value=8, index=0)
+    println(l.remove_at(index=1))
+    println(l.len())

@@ -1,0 +1,7 @@
+# test: a bare trait or alias is not a value
+# fixture-package-tree: qualified-declarations/src/main.hd
+use pkg.shapes.{Tally}
+
+pub fn main() -> void:
+    t := Tally  # diagnostic: type-used-as-value
+    pass

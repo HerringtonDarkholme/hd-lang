@@ -1,0 +1,7 @@
+# test: a trait or alias through a module is not a value
+# fixture-package-tree: qualified-declarations/src/main.hd
+use pkg.shapes
+
+pub fn main() -> void:
+    d := shapes.Describe  # diagnostic: type-used-as-value
+    pass

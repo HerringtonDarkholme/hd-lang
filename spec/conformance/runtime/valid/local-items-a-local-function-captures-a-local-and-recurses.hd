@@ -1,0 +1,13 @@
+# test: a local function captures a local and recurses
+# expect-stdout: 3, 2, 1, liftoff
+fn countdown(start: i32) -> string:
+    separator := ", "
+    fn from(n: i32) -> string:
+        if n == 0:
+            "liftoff"
+        else:
+            "${n}${separator}${from(n - 1)}"
+    from(start)
+
+pub fn main() -> void $ Console:
+    println(countdown(3))

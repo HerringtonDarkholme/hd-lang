@@ -1,0 +1,16 @@
+# test: two functions declare local data of one name
+# expect-stdout: 60 paid
+fn invoice_total() -> i32:
+    struct Line:
+        quantity: i32
+        unit: i32
+    line := Line { quantity: 3, unit: 20 }
+    line.quantity * line.unit
+
+fn invoice_note() -> string:
+    struct Line:
+        text: string
+    Line { text: "paid" }.text
+
+pub fn main() -> void $ Console:
+    println("${invoice_total()} ${invoice_note()}")

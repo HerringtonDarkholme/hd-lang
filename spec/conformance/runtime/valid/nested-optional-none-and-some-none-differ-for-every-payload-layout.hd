@@ -1,0 +1,36 @@
+# test: none and some none differ for every payload layout
+# expect-stdout: inner none
+# expect-stdout: value hi
+# expect-stdout: inner none
+# expect-stdout: outer none
+# expect-stdout: inner none
+# expect-stdout: item z
+# expect-stdout: inner none
+# expect-stdout: outer none
+struct Item:
+    name: string
+
+fn text(value: string??) -> string:
+    match value:
+        .None => "outer none"
+        .Some(.None) => "inner none"
+        .Some(.Some(s)) => "value $s"
+
+fn item(value: Item??) -> string:
+    match value:
+        .None => "outer none"
+        .Some(.None) => "inner none"
+        .Some(.Some(it)) => "item ${it.name}"
+
+pub fn main() -> void $ Console:
+    let no_text: string? = .None
+    let some_text: string? = .Some("hi")
+    println(text(no_text))
+    println(text(some_text))
+    println(text(.Some(.None)))
+    println(text(.None))
+    let no_item: Item? = .None
+    println(item(no_item))
+    println(item(.Some(Item { name: "z" })))
+    println(item(.Some(.None)))
+    println(item(.None))

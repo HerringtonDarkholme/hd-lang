@@ -1,0 +1,8 @@
+# test: a constructor mixes positional and named arguments
+# expect-stdout: 12
+enum Shape:
+    Rect(width: i32, height: i32)
+
+pub fn main() -> void $ Console:
+    match Shape.Rect(3, height = 4):
+        .Rect(w, height = h) => println(w * h)

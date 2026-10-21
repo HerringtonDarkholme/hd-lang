@@ -1,0 +1,55 @@
+# test: a variant through a module is a value; a variant with a payload through a module is built by a call
+# fixture-package-tree: qualified-declarations/src/main.hd
+# expect-stdout: red
+# expect-stdout: other
+# expect-stdout: 6
+# expect-stdout: 2
+# expect-stdout: count 0
+# expect-stdout: count 7
+# expect-stdout: count 5
+# expect-stdout: marked
+use pkg.shapes
+
+fn convert[T, U](items: List[T], f: fn(T) -> U) -> List[U]:
+    [for item in items => f(item)]
+
+fn label(color: shapes.Color) -> string:
+    if color == shapes.Color.Red:
+        return "red"
+    "other"
+
+fn variant_value() -> void $ Console:
+    println(label(shapes.Color.Red))
+    println(label(shapes.Color.Grey(3)))
+
+fn variant_call() -> void $ Console:
+    color := shapes.Color.Rgb(1, 2, 3)
+    match color:
+        .Rgb(r, g, b) => println(r + g + b)
+        _ => println(0)
+
+fn variant_function_value() -> void $ Console:
+    greys := convert([+1, 2], shapes.Color.Grey)
+    println(greys.len())
+
+fn associated_call() -> void $ Console:
+    println(shapes.Counter::new().show())
+    println(shapes.Counter::starting(7).show())
+
+fn associated_function_value() -> void $ Console:
+    counters := convert([+4, 5], shapes.Counter::starting)
+    println(counters[1].show())
+
+fn mark(marker: shapes.Marker) -> string:
+    "marked"
+
+fn fieldless_struct_value() -> void $ Console:
+    println(mark(shapes.Marker))
+
+pub fn main() -> void $ Console:
+    variant_value()
+    variant_call()
+    variant_function_value()
+    associated_call()
+    associated_function_value()
+    fieldless_struct_value()

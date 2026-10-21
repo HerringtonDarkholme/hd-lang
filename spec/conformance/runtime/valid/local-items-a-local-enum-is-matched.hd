@@ -1,0 +1,15 @@
+# test: a local enum is matched
+# expect-stdout: go up to 50
+# expect-stdout: stop
+fn signal(speed: i32) -> string:
+    enum Light:
+        Red
+        Green(limit: i32)
+    light := if speed > 0: Light.Green(limit = speed) else: Light.Red
+    match light:
+        .Red => "stop"
+        .Green(limit) => "go up to ${limit}"
+
+pub fn main() -> void $ Console:
+    println(signal(50))
+    println(signal(0))
