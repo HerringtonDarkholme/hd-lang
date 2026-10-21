@@ -737,8 +737,9 @@ references preserve their owners and pins (OBJECT_MODEL_TIER1.md §6.3).
   reference's place in the TIR (`Ref` of a place: a local, a top-level
   binding, a place through another reference, a data object's field or a
   list element, then a struct field path; `docs/compiler/tir-v2.md`)
-  and each read, write and identity through one (`RefRead`, `RefWrite`,
-  `RefIdentity`), with no closure form (stage 1 of TIR v2 removed them).
+  and each read, write and identity through one (a `Read` of a place
+  through it, `RefWrite`, `RefIdentity`), with no closure form (stage 1
+  of TIR v2 removed them).
   Here `std.core.Ref[T]` is one address (`layout::Kind::Ref`,
   `emit/refs.rs`), the thin form of §23.5:
   - a local some reference refers to lives in a cell
@@ -1627,8 +1628,11 @@ signatures before encoding, as clang's and Rust's wasm32 `byval` and
   reserve their argument/result frames below this frame. A resumed
   suspension restores its saved values into its fresh shadow frame.
 - **Projection** reads only a sole field consumer at the original
-  LocalGet or RefRead position. It retains the selected field before the
-  original owner may die, without copying or retaining other fields.
+  LocalGet or whole `Read [*r]` position; a read through a reference
+  with a field path, `Read [*r .f]`, loads only that field by itself,
+  and a match over it borrows it as such a consumer does. It retains
+  the selected field before the original owner may die, without copying
+  or retaining other fields.
   A boxed reference view reads that field from the getter's box and
   releases the box, without materializing the parent in value locals.
 

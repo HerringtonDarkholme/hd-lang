@@ -4,16 +4,16 @@ app/main/step
   local $1 i: usize [param read]
   local $2 dt: f64 [param read]
   %0 = LocalGet $0 : Ref[mut List[Body]]
-  %1 = RefRead %0 - : List[Body]
+  %1 = Read [*%0] : List[Body]
   %2 = LocalGet $1 : usize
   %4 = LocalGet $0 : Ref[mut List[Body]]
-  %5 = RefRead %4 - : List[Body]
+  %5 = Read [*%4] : List[Body]
   %6 = LocalGet $1 : usize
   %7 = Intrinsic ListIndex [%5 %6] : Body
   %8 = Field %7 .x : f64
   %9 = LocalGet $2 : f64
   %10 = LocalGet $0 : Ref[mut List[Body]]
-  %11 = RefRead %10 - : List[Body]
+  %11 = Read [*%10] : List[Body]
   %12 = LocalGet $1 : usize
   %13 = Intrinsic ListIndex [%11 %12] : Body
   %14 = Field %13 .vx : f64

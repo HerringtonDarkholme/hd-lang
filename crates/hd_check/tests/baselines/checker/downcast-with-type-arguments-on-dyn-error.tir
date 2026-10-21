@@ -20,24 +20,23 @@ fn device_of(error: &dyn Error) -> string:
 >   local $1 found: Ref[DiskError] [read assigned]
 >   %0 = LocalGet $0 : Ref[Error]
 >   %1 = Call std/error/impl dyn Error.downcast_ref[DiskError] (%0) : Ref[DiskError]?
->   %18 = Block - : never
->   %19 = Match %1 [%18 %5 %6] : string
->   %20 = Block %19 : string
+>   %17 = Block - : never
+>   %18 = Match %1 [%17 %4 %5] : string
+>   %19 = Block %18 : string
         .Some(found) => found.device
 >   %2 = LocalGet $1 : Ref[DiskError]
->   %3 = RefRead %2 - : DiskError
->   %4 = Field %3 .device : string
->   %5 = Block %4 : string
->   %7 = Unwrap %1 : Ref[DiskError]
->   %8 = LocalSet $1 %7 : ()
->   %10 = Block - : never
->   %16 = Block - : never
->   %17 = SwitchTag %1 [#1 %10 %16] : never
+>   %3 = Read [*%2 .device] : string
+>   %4 = Block %3 : string
+>   %6 = Unwrap %1 : Ref[DiskError]
+>   %7 = LocalSet $1 %6 : ()
+>   %9 = Block - : never
+>   %15 = Block - : never
+>   %16 = SwitchTag %1 [#1 %9 %15] : never
         .None => "none"
->   %6 = Block "none" : string
->   %12 = Block - : never
->   %14 = Block - : never
->   %15 = SwitchTag %1 [#0 %12 %14] : never
+>   %5 = Block "none" : string
+>   %11 = Block - : never
+>   %13 = Block - : never
+>   %14 = SwitchTag %1 [#0 %11 %13] : never
 
 pub fn main() -> void:
     pass

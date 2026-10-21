@@ -3,7 +3,7 @@ app/main/nudge
   local $0 ps: Ref[mut List[Pos]] [param read]
   local $1 i: usize [param read]
   %0 = LocalGet $0 : Ref[mut List[Pos]]
-  %1 = RefRead %0 - : List[Pos]
+  %1 = Read [*%0] : List[Pos]
   %2 = LocalGet $1 : usize
   %5 = Intrinsic ListFieldSet [%1 %2 0.5:f64] .at.vx : ()
   %6 = Block - : ()

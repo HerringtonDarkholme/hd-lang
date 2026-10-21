@@ -3,7 +3,7 @@ app/main/speed_up
   local $0 bodies: Ref[mut List[Body]] [param read]
   local $1 i: usize [param read]
   %0 = LocalGet $0 : Ref[mut List[Body]]
-  %1 = RefRead %0 - : List[Body]
+  %1 = Read [*%0] : List[Body]
   %2 = LocalGet $1 : usize
   %3 = Intrinsic ListIndex [%1 %2] : Body
   %4 = Field %3 .vx : f64

@@ -7,7 +7,7 @@ app/main/borrow
   local $4 $ref: usize [read assigned captured]
   local $5 element: Ref[Body] [:= read assigned]
   %0 = LocalGet $0 : Ref[mut List[Body]]
-  %1 = RefRead %0 - : List[Body]
+  %1 = Read [*%0] : List[Body]
   %2 = LocalGet $1 : usize
   %3 = Intrinsic ListPin [%1 %2] : List[Body]
   %4 = LocalSet $2 %3 : ()

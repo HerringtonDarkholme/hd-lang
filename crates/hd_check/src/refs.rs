@@ -6,8 +6,10 @@
 //!
 //! A reference is a `Ref` of its place (`docs/compiler/tir-v2.md`,
 //! "`&` and `&mut`"), which the backend lowers to the place's address
-//! (`crates/hd_wasm_linear/DESIGN.md` §23.20); a read, write and identity
-//! through one are `RefRead`, `RefWrite` and `RefIdentity`. `&x` on a
+//! (`crates/hd_wasm_linear/DESIGN.md` §23.20); a read through one is a
+//! `Read` of a place through it, `[*%r]` or with the struct fields it
+//! follows, `[*%r .x]`; a write and identity through one are `RefWrite`
+//! and `RefIdentity`. `&x` on a
 //! local is `Ref [$x]`, so the backend keeps `x` in a cell; `&e` on any
 //! other value binds it to a fresh local, which is the new object. A
 //! field write through a reference is a `Ref` of the field's place and a
@@ -24,7 +26,8 @@ use hd_base::{DefId, LocalId, NodeIdx, StageResult, Symbol};
 use hd_diag::{Code, FixSafety, Severity};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{
-    Coercion, IntrinsicOp, NONE, Place as TirPlace, PlaceRoot, Proj, Ref, Tag, TirSink, local_flags,
+    Coercion, IntrinsicOp, NONE, Place as TirPlace, PlaceRoot, Proj, ReadMode, Ref, Tag, TirSink,
+    local_flags,
 };
 use hd_types::{Ty, TyData};
 
@@ -233,21 +236,85 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// The reference `base` a `RefRead` reads through, and whether it is
-    /// `&mut`.
-    pub(crate) fn deref_base(&mut self, base: Ref) -> Option<(Ref, bool)> {
-        let (_, m) = self.ref_of(self.b.ty_of(base))?;
-        Some((base, m))
+    /// What the value `v` reads when it is a `Read` through a reference
+    /// value, `[*%r .f .g]`: the reference `%r`, whether it is `&mut`, and
+    /// the struct fields the read follows from the referent.
+    pub(crate) fn read_through(&mut self, v: Ref) -> Option<(Ref, bool, Vec<u32>)> {
+        let i = v.as_inst()?;
+        let body = self.b.body_mut();
+        if body.tags[i.0 as usize] != Tag::Read {
+            return None;
+        }
+        let p = body.decode_place(body.data[i.0 as usize][0])?;
+        let (PlaceRoot::Value(r), [Proj::Deref, fields @ ..]) = (p.root, p.proj.as_slice()) else {
+            return None;
+        };
+        let path = fields
+            .iter()
+            .map(|f| match f {
+                Proj::Field(k) => Some(*k),
+                _ => None,
+            })
+            .collect::<Option<Vec<u32>>>()?;
+        let (_, m) = self.ref_of(self.b.ty_of(r))?;
+        Some((r, m, path))
     }
 
     /// Reads through the reference `r` of type `rt` (`*r`, or an automatic
-    /// dereference): a `RefRead`.
+    /// dereference): `Read [*%r]`. A field step on it extends the place
+    /// ([`Ck::field_read`]).
     pub(crate) fn emit_deref(&mut self, r: Ref, rt: Ty, at: NodeIdx) -> (Ref, Ty) {
         let Some((inner, mutable)) = self.ref_of(rt) else {
             return (r, rt);
         };
         let t = self.deref_ty(inner, mutable);
-        (self.b.emit(Tag::RefRead, r.0, NONE, t, at), t)
+        if r.0 == NONE {
+            return (self.b.emit(Tag::Poison, NONE, NONE, t, at), t);
+        }
+        let word = self.b.place(&TirPlace {
+            root: PlaceRoot::Value(r),
+            proj: vec![Proj::Deref],
+        });
+        (self.b.emit(Tag::Read, word, ReadMode::Use as u32, t, at), t)
+    }
+
+    /// Field `idx`, of type `ft`, of the struct value `base`. When `base`
+    /// is a `Read` through a reference that nothing uses yet (the last
+    /// instruction), the field extends its place, so `p.x` through `&Point`
+    /// is one `Read [*%r .x]` that loads only `x`; else a `Field`.
+    pub(crate) fn field_read(&mut self, base: Ref, idx: u32, ft: Ty, at: NodeIdx) -> Ref {
+        let last = base
+            .as_inst()
+            .is_some_and(|i| i.0 as usize + 1 == self.b.body_mut().len());
+        if last
+            && self.is_struct_ty(self.b.ty_of(base))
+            && let Some((r, _, mut path)) = self.read_through(base)
+        {
+            path.push(idx);
+            let mut proj = vec![Proj::Deref];
+            proj.extend(path.into_iter().map(Proj::Field));
+            let i = base.0 as usize;
+            // The old place's record, made just before the read, goes
+            // with it.
+            let body = self.b.body_mut();
+            let old = body.data[i][0] as usize;
+            if body
+                .extra
+                .get(old)
+                .is_some_and(|&n| old + 1 + n as usize == body.extra.len())
+            {
+                body.extra.truncate(old);
+            }
+            let word = self.b.place(&TirPlace {
+                root: PlaceRoot::Value(r),
+                proj,
+            });
+            let body = self.b.body_mut();
+            body.data[i][0] = word;
+            body.ty[i] = ft;
+            return base;
+        }
+        self.b.emit(Tag::Field, base.0, idx, ft, at)
     }
 
     /// The value `r` of type `t` as an index base (`ref.read.index.declared`):
@@ -843,7 +910,7 @@ impl Ck<'_, '_> {
     pub(crate) fn read_place(&mut self, p: &Place, n: NodeRef<'_>) -> (Ref, Ty) {
         let (mut v, mut t) = self.read_root(p.root, n);
         for &(idx, ft) in &p.path {
-            v = self.b.emit(Tag::Field, v.0, idx, ft, n.index());
+            v = self.field_read(v, idx, ft, n.index());
             t = ft;
         }
         (v, t)

@@ -5,7 +5,7 @@ app/main/speed
   local $2 $pinned: List[Body] [read assigned captured]
   local $3 $ref: usize [read assigned captured]
   %0 = LocalGet $0 : Ref[mut List[Body]]
-  %1 = RefRead %0 - : List[Body]
+  %1 = Read [*%0] : List[Body]
   %2 = LocalGet $1 : usize
   %3 = Intrinsic ListPin [%1 %2] : List[Body]
   %4 = LocalSet $2 %3 : ()

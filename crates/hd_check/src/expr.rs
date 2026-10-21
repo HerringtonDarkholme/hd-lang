@@ -1703,6 +1703,28 @@ impl Ck<'_, '_> {
         self.b.refs_record(&[])
     }
 
+    /// The type of field `idx` of the struct or data type `t` under its
+    /// arguments; poison for a field `t` does not have.
+    pub(crate) fn field_ty_at(&self, t: Ty, idx: u32) -> Ty {
+        let pool = self.pool();
+        let t = self.strip_mut(self.infer.resolve(pool, t));
+        let TyData::Adt { def, args } = pool.get(t) else {
+            return Ty::POISON;
+        };
+        let Some(ItemData::Data(fields)) = self.cx.lookup.item(def).map(|i| &i.data) else {
+            return Ty::POISON;
+        };
+        let Some(f) = fields.get(idx as usize) else {
+            return Ty::POISON;
+        };
+        let argv = pool.list_items(args);
+        pool.subst(f.ty, &|p: ParamRef| {
+            (p.owner == def)
+                .then(|| argv.get(p.index as usize).copied())
+                .flatten()
+        })
+    }
+
     /// A data field by name: its index and type under the value's
     /// arguments.
     pub(crate) fn field_of(&self, t: Ty, name: &str) -> Option<(u32, Ty)> {
@@ -1808,7 +1830,7 @@ impl Ck<'_, '_> {
         if let Some((idx, ft)) = self.field_of(bt, &name) {
             self.check_field_visible(bt, &name, n);
             let ft = self.field_access(bt, &name, ft);
-            return Ok((self.b.emit(Tag::Field, r.0, idx, ft, n.index()), ft));
+            return Ok((self.field_read(r, idx, ft, n.index()), ft));
         }
         if let Some(v) = self.shared_field(r, inner, &name, n) {
             return Ok(v);

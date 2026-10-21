@@ -1101,6 +1101,34 @@ audit on the commits that touch the emitter).
 5. **Reads through references.** `emit_deref` emits `Read`, and field
    steps through a dereference extend the place. `RefRead` has no
    producer.
+   As built: the root is the reference value, `Read [*%r]`, where `%r`
+   is the `LocalGet` of `$0` while stage 1 keeps `LocalGet` (stage 2
+   folds it into the root), so `p.x` through `&Point` is
+   `%0 = LocalGet $0`, `%1 = Read [*%0 .x]`. The checker emits the
+   whole read first; `Ck::field_read`, which `field_expr`, embedded
+   field promotion, `read_place` and a compound field write's read
+   use, extends it with the struct field when the read is the body's
+   last instruction (nothing uses it yet) and rewrites its place record
+   in place; any other base keeps a `Field`. A tuple element, a data
+   object's field and a second dereference stay their own
+   instructions. `Ck::read_through` decodes such a read for the
+   walkers that recognized `RefRead` (`value_place`, `arg_root`,
+   `place_writable_quiet`, `readonly_ref_root`); `value_place` turns
+   its field path into the written place's prefix. `hd_structure`'s
+   generated `dbg` bodies read `[*%r]` too. In the emitter, a match
+   over `Read [*%r .f]` through a borrowed reference borrows the field
+   for the match span as it did a `Field` of a borrowed whole read
+   (`count.rs`), and `field_spans` sees `Ref` roots as `RefPlace`
+   ones. Across the runtime conformance modules a read through a
+   reference with two or more field steps loads only its last field
+   instead of the first field's whole value; one function,
+   `std.regex.literal_near`, gains a retain and release of the string
+   `vm.filter.literal`, because the count now sits inside the
+   physical branch's `block`, where `opt::count_pairs` stops, where
+   before a borrowed `filter` let a `Field` outside the block count
+   the string next to its release. Other differences are suspending
+   bodies whose releases move with instruction numbering, since
+   `live::uses` reads an `Await`'s callee record as values.
 6. **Writes through references.** `emit_ref_store`, `store_ref_field`
    and `deref_assign` emit `Store`. `RefWrite` has no producer.
 7. **One place for every write.** `place_of` in `refs.rs` replaces

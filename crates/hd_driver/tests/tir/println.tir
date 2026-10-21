@@ -6,7 +6,7 @@ std/console/println (Fn)
   %1 = Coerce %0 [ProviderAsRef -] : Ref[mut Console]
   %2 = LocalSet $1 %1 : ()
   %3 = LocalGet $1 : Ref[mut Console]
-  %4 = RefRead %3 - : mut Console
+  %4 = Read [*%3] : mut Console
   %5 = LocalGet $0 : T
   %6 = Call std/format/Display.to_string for T [] via Bound (%5) : string
   %7 = Interp [%6] : string

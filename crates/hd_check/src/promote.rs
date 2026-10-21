@@ -7,7 +7,7 @@
 
 use hd_resolve::ItemData;
 use hd_syntax::NodeRef;
-use hd_tir::ir::{Ref, Tag, TirSink};
+use hd_tir::ir::Ref;
 use hd_types::{Ty, TyData};
 
 use crate::body::Ck;
@@ -107,7 +107,7 @@ impl Ck<'_, '_> {
                 break;
             };
             let ft = self.field_access(t, name, ft);
-            r = self.b.emit(Tag::Field, r.0, idx, ft, n.index());
+            r = self.field_read(r, idx, ft, n.index());
             t = ft;
         }
         (r, t)

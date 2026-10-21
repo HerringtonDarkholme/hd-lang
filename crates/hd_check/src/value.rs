@@ -70,7 +70,7 @@ impl Ck<'_, '_> {
                 self.coerce(r, t, ft, rhs, "assignment", ExpectPosition::General)
             }
             Some(k) => {
-                let cur = self.b.emit(Tag::Field, br.0, idx, ft, lhs.index());
+                let cur = self.field_read(br, idx, ft, lhs.index());
                 self.compound(k, cur, ft, rhs, s)?
             }
         };
@@ -177,8 +177,9 @@ impl Ck<'_, '_> {
                     });
                 }
                 // A read through a reference (`refs.rs`): the place is the
-                // referenced value, writable through `&mut` only.
-                Tag::RefRead if let Some((r, m)) = self.deref_base(Ref(data[0])) => {
+                // referenced value, or the struct fields the read follows
+                // in it, writable through `&mut` only.
+                Tag::Read if let Some((r, m, fields)) = self.read_through(cur) => {
                     let rt = self.b.ty_of(r);
                     if !m {
                         let msg = format!(
@@ -189,9 +190,16 @@ impl Ck<'_, '_> {
                         return None;
                     }
                     path.reverse();
+                    let (mut t, _) = self.ref_of(rt)?;
+                    let mut steps = Vec::with_capacity(fields.len() + path.len());
+                    for k in fields {
+                        t = self.field_ty_at(t, k);
+                        steps.push((k, t));
+                    }
+                    steps.extend(path);
                     return Some(Place {
                         root: Root::Deref(r, rt),
-                        path,
+                        path: steps,
                     });
                 }
                 Tag::LocalGet => {

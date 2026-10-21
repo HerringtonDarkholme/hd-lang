@@ -20,7 +20,10 @@ use hd_base::{DefId, LocalId, StageResult};
 use hd_intern::PathKind;
 use hd_resolve::ItemData;
 use hd_tir::Body;
-use hd_tir::ir::{BodyKind, Callee, NONE, Providers, Ref, Tag, TirBuilder, TirSink};
+use hd_tir::ir::{
+    BodyKind, Callee, NONE, Place, PlaceRoot, Proj, Providers, ReadMode, Ref, Tag, TirBuilder,
+    TirSink,
+};
 use hd_types::{ParamRef, Prim, Ty, TyData, TyList};
 
 use super::{Cx, Gen, Handles, Mem, SYN, Shape, Var, strip_mut};
@@ -189,7 +192,7 @@ impl Gen<'_, '_> {
     }
 
     /// Writes the value the reference `r` refers to, of type `inner`: a
-    /// `RefRead`, as the checker writes `*r`, printed by its own
+    /// `Read [*%r]`, as the checker writes `*r`, printed by its own
     /// `dbg_show`.
     fn referent(&mut self, out: (LocalId, Ty), inner: Ty, r: Ref) -> StageResult<()> {
         let pool = self.names.pool;
@@ -201,7 +204,11 @@ impl Gen<'_, '_> {
         let erased = self.erase_reference(r, self.b.ty_of(r), any);
         let entered = self.writer_call(out, "enter", &[erased], Ty::BOOL);
         self.when(entered, |g| {
-            let value = g.b.emit(Tag::RefRead, r.0, NONE, inner, SYN);
+            let at = g.b.place(&Place {
+                root: PlaceRoot::Value(r),
+                proj: vec![Proj::Deref],
+            });
+            let value = g.b.emit(Tag::Read, at, ReadMode::Use as u32, inner, SYN);
             g.part(out, inner, value);
             g.writer_call(out, "leave", &[], Ty::VOID);
             Ok(())

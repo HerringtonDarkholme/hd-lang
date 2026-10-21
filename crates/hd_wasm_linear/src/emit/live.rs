@@ -1009,10 +1009,7 @@ pub(super) fn field_spans(b: &Body, fields: &[u32], roots: &HashSet<usize>) -> V
                                     | local_flags::CAPTURED
                                     | local_flags::CAPTURED_ASSIGNED)
                                 != 0
-                            || b.tags
-                                .iter()
-                                .enumerate()
-                                .any(|(j, t)| *t == Tag::RefPlace && b.place_locals(j).contains(&a))
+                            || (0..b.len()).any(|j| ref_locals(b, j).contains(&a))
                         {
                             continue;
                         }

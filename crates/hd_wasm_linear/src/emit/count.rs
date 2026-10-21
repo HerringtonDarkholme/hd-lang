@@ -214,18 +214,40 @@ impl Em<'_, '_, '_> {
         }
         // Match spans have a separate, typed plan: `Moves::span` still
         // contains only LocalGet instructions. Validate physical projection
-        // before treating a field or its pattern bindings as loans.
+        // before treating a field or its pattern bindings as loans. A
+        // field is a `Field` that a borrowed whole read loads alone, or a
+        // `Read [*%r .f]` through a borrowed reference value, which loads
+        // only its field.
         let fields: Vec<u32> = (0..self.b.len())
             .filter_map(|i| {
                 let x = u32::try_from(i).expect("insts");
                 let base = self.b.data[i][0];
-                (self.b.tags[i] == Tag::Field
-                    && Ref(base).as_inst().is_some()
-                    && self.b.tags[base as usize] == Tag::RefRead
-                    && self.moves.loans.contains(&base)
+                let projected = match self.b.tags[i] {
+                    Tag::Field => {
+                        Ref(base).as_inst().is_some()
+                            && matches!(
+                                super::live::read_through(self.b, base as usize),
+                                Some((_, true))
+                            )
+                            && self.moves.loans.contains(&base)
+                            && matches!(self.projected_field(base), Ok(Some((f, _))) if f == x)
+                    }
+                    Tag::Read => match super::live::read_through(self.b, i) {
+                        Some((super::live::Through::Value(source), false)) => {
+                            self.moves.loans.contains(&source)
+                                && !hd_mono::is_open(self.pool(), self.ty_of(source))
+                                && self
+                                    .ref_target(self.ty_of(source))
+                                    .is_some_and(|(_, fat)| !fat)
+                                && !self.calls.contains_key(&x)
+                        }
+                        _ => false,
+                    },
+                    _ => false,
+                };
+                (projected
                     && !hd_mono::is_open(self.pool(), self.ty(x))
-                    && coll_leaves(self.pool(), self.env(), self.ty(x)).is_empty()
-                    && matches!(self.projected_field(base), Ok(Some((f, _))) if f == x))
+                    && coll_leaves(self.pool(), self.env(), self.ty(x)).is_empty())
                 .then_some(x)
             })
             .collect();

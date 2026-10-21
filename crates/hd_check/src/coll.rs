@@ -509,7 +509,7 @@ impl Ck<'_, '_> {
                         ArgRoot::Fixed
                     };
                 }
-                Tag::RefRead => {
+                Tag::Read => {
                     return ArgRoot::Shared;
                 }
                 Tag::TupleGet | Tag::Payload | Tag::Unwrap => return ArgRoot::Fixed,
@@ -702,8 +702,8 @@ impl Ck<'_, '_> {
                     }
                     cur = inner;
                 }
-                Tag::RefRead => {
-                    return self.deref_base(Ref(data[0])).is_some_and(|(_, m)| m);
+                Tag::Read => {
+                    return self.read_through(cur).is_some_and(|(_, m, _)| m);
                 }
                 Tag::Intrinsic => {
                     if !matches!(
@@ -760,8 +760,8 @@ impl Ck<'_, '_> {
             match tag {
                 Tag::Coerce | Tag::Field => cur = Ref(data[0]),
                 Tag::Intrinsic => cur = Ref(*self.b.body_mut().record(data[1]).first()?),
-                Tag::RefRead => {
-                    let (src, m) = self.deref_base(Ref(data[0]))?;
+                Tag::Read => {
+                    let (src, m, _) = self.read_through(cur)?;
                     return (!m).then(|| self.b.ty_of(src));
                 }
                 _ => return None,
