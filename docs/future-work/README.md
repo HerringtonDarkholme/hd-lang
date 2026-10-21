@@ -39,3 +39,5 @@ action at a distance.
 
 The compiler's design is in
 [docs/compiler/ARCHITECTURE.md](../compiler/ARCHITECTURE.md).
+
+- [WEAK_REFERENCES.md](WEAK_REFERENCES.md): weak references as a std type with side-table runtime (approved 2026-10-21).
