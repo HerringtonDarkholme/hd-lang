@@ -4,11 +4,18 @@
 //!
 //! - Functions print by name: the case's own without `app/main/`, an
 //!   instance's body without its `#0`, a runtime helper without the
-//!   module-order `#k` that tells helpers of one name apart.
+//!   module-order `#k` that tells helpers of one name apart. A generic
+//!   instance adds its type arguments (`identity[i32]`), and a std
+//!   function prints by its own name (`println`), or by its path when
+//!   another function in the view has that name.
 //! - Locals print by name: a parameter or a local by its source name
-//!   (`name.K` for the `K`th value of a local of several), a parameter
-//!   with a role by the role (`ctx`, `frame`, `env`, ...), and any other
-//!   local as `t0`, `t1`, ... in the order the excerpt first names it.
+//!   (`b.x` for a struct field of a local of several values, `f.K` for
+//!   the `K`th value of another), a parameter with a role by the role
+//!   (`ctx`, `frame`, `env`, ...), and any other local as `t0`, `t1`, ...
+//!   in the order the excerpt first names it.
+//! - The releases at a function's exit come from where each place began:
+//!   a local's binding statement, a temporary's instruction. The rest of
+//!   the exit (the closing `end`, the result) comes from the whole body.
 //! - A global prints by its binding's path or the runtime's name for it,
 //!   static data by what it holds (`&"text"`, `&empty-buffer`, `&vtable[..]`),
 //!   and a type by its signature.
@@ -21,18 +28,24 @@ use std::collections::BTreeMap;
 use std::fmt::Write as _;
 
 use hd_driver::{
-    Executor, FunctionOrigins, Goal, Host, NoClock, Packages, PositionPool, StaticData,
-    build_packages,
+    BuildProfile, Executor, FunctionOrigins, Goal, Host, NoClock, OptLevel, Packages, PositionPool,
+    StaticData, build_packages,
 };
 use hd_sched::SerialOrder;
 
-use super::Program;
+use super::{Build, Program};
 
-/// The `wat` view of `p`: built as a program from its `main`, with each
-/// case function's instructions from inside the subject, after the
-/// function's name; then the build's diagnostics.
+/// The `wat` view of `p`: every function the case defines, emitted
+/// without a `main` (`Goal::Fixture`), with each one's instructions from
+/// inside the subject after its name; then the build's diagnostics.
 #[must_use]
 pub fn wat(p: &Program) -> String {
+    wat_for(p, Build::default())
+}
+
+/// [`wat`], for the target and level `at` names.
+#[must_use]
+pub fn wat_for(p: &Program, at: Build) -> String {
     let mut src = hd_project::MemorySources::default();
     src.insert("main.hd", &p.text);
     let store = hd_cache::MemoryStore::default();
@@ -45,14 +58,25 @@ pub fn wat(p: &Program) -> String {
     };
     let packages = Packages {
         instruction_origins: true,
+        target: at.target,
+        level: if at.release {
+            OptLevel::Optimized
+        } else {
+            OptLevel::Dev
+        },
+        build_profile: if at.release {
+            BuildProfile::Release
+        } else {
+            BuildProfile::Checked
+        },
         ..Packages::default()
     };
     let built = build_packages(
         &host,
         "app",
         &packages,
-        &Goal::Program {
-            entry: "main".into(),
+        &Goal::Fixture {
+            module: "main".into(),
         },
     );
     let mut out = String::new();
@@ -90,12 +114,24 @@ pub fn wat(p: &Program) -> String {
                 excerpts.push((f, kept));
             }
         }
+        let by_index: BTreeMap<u32, &FunctionOrigins> = built
+            .instruction_origins
+            .iter()
+            .map(|f| (f.index, f))
+            .collect();
+        let func_name = |k: u32| {
+            let name = by_index
+                .get(&k)
+                .map_or_else(|| module.name(k), |f| f.name.clone());
+            let args = by_index.get(&k).map_or(&[][..], |f| &f.type_args[..]);
+            function_names(&name, args)
+        };
         let mut funcs = Names::default();
         for (f, kept) in &excerpts {
-            funcs.see(f.index, short_name(&f.name));
+            funcs.see_as(f.index, func_name(f.index));
             for t in kept.iter().flatten() {
                 if let Tok::Func(k) = t {
-                    funcs.see(*k, short_name(&module.name(*k)));
+                    funcs.see_as(*k, func_name(*k));
                 }
             }
         }
@@ -137,6 +173,10 @@ pub fn wat(p: &Program) -> String {
         }
         if excerpts.is_empty() {
             out.push_str("(no code from the subject)\n");
+            // Why a generic function's code is missing: no instance.
+            for note in &built.fixture_notes {
+                let _ = writeln!(out, "{}", note.replace("app.main.", ""));
+            }
         }
     }
     let rendered = built.render();
@@ -278,35 +318,97 @@ fn short_name(name: &str) -> String {
     name.to_owned()
 }
 
-/// Names for things the view shows, each from its preferred text; when
-/// different things share one, they take `'1`, `'2`, ... in the order
-/// first seen.
+/// A function's names for the view, shortest first: a std function by
+/// its own name (`println`, `List.push`), then by its path
+/// (`std/console/println`); either with an instance's type arguments
+/// (`identity[i32]`).
+fn function_names(name: &str, args: &[String]) -> Vec<String> {
+    let args = if args.is_empty() {
+        String::new()
+    } else {
+        let args: Vec<String> = args.iter().map(|a| type_name(a)).collect();
+        format!("[{}]", args.join(", "))
+    };
+    let full = format!("{}{args}", short_name(name));
+    match full.strip_prefix("std/") {
+        Some(rest) => {
+            let own = rest.rsplit_once('/').map_or(rest, |(_, own)| own);
+            vec![own.to_owned(), full.clone()]
+        }
+        None => vec![full],
+    }
+}
+
+/// A type argument's printed name without the case's own module path:
+/// `List[Body]`, not `List[main.Body]`.
+fn type_name(printed: &str) -> String {
+    let mut out = String::new();
+    let mut path = String::new();
+    let flush = |path: &mut String, out: &mut String| {
+        let own = ["app.main.", "main.", "app."]
+            .iter()
+            .find_map(|m| path.strip_prefix(m))
+            .unwrap_or(path);
+        out.push_str(own);
+        path.clear();
+    };
+    for c in printed.chars() {
+        if c.is_alphanumeric() || c == '_' || c == '.' {
+            path.push(c);
+        } else {
+            flush(&mut path, &mut out);
+            out.push(c);
+        }
+    }
+    flush(&mut path, &mut out);
+    out
+}
+
+/// Names for things the view shows. Each thing has its texts, shortest
+/// first, and prints by the first that no other thing in the view shares
+/// at the same rank; things alike in every text take `'1`, `'2`, ... in
+/// the order first seen.
 #[derive(Default)]
 struct Names {
-    /// Each thing's preferred text, in the order first seen.
-    seen: Vec<(u32, String)>,
+    /// Each thing's texts, in the order first seen.
+    seen: Vec<(u32, Vec<String>)>,
 }
 
 impl Names {
     fn see(&mut self, k: u32, text: String) {
+        self.see_as(k, vec![text]);
+    }
+
+    fn see_as(&mut self, k: u32, texts: Vec<String>) {
         if !self.seen.iter().any(|(j, _)| *j == k) {
-            self.seen.push((k, text));
+            self.seen.push((k, texts));
         }
     }
 
     fn name(&self, k: u32) -> String {
-        let Some((_, text)) = self.seen.iter().find(|(j, _)| *j == k) else {
+        let Some((_, texts)) = self.seen.iter().find(|(j, _)| *j == k) else {
             return format!("#{k}");
         };
+        let at_rank = |ts: &[String], r: usize| ts.get(r).or(ts.last()).cloned();
+        let ranks = self.seen.iter().map(|(_, ts)| ts.len()).max().unwrap_or(1);
+        for r in 0..ranks {
+            let text = at_rank(texts, r);
+            let alike = self
+                .seen
+                .iter()
+                .filter(|(_, ts)| at_rank(ts, r) == text)
+                .count();
+            if alike == 1 {
+                return text.unwrap_or_default();
+            }
+        }
+        let text = texts.last().cloned().unwrap_or_default();
         let alike: Vec<u32> = self
             .seen
             .iter()
-            .filter(|(_, t)| t == text)
+            .filter(|(_, ts)| ts.last() == Some(&text))
             .map(|(j, _)| *j)
             .collect();
-        if alike.len() == 1 {
-            return text.clone();
-        }
         let at = alike.iter().position(|j| *j == k).unwrap_or_default();
         format!("{text}'{}", at + 1)
     }
@@ -477,7 +579,7 @@ fn leb(bytes: &[u8]) -> (usize, usize) {
 
 #[cfg(test)]
 mod tests {
-    use super::{Names, short_name};
+    use super::{Names, function_names, short_name};
 
     #[test]
     fn names_drop_what_moves_with_unrelated_code() {
@@ -486,6 +588,26 @@ mod tests {
         assert_eq!(short_name("app/main/wait#0.poll"), "wait.poll");
         assert_eq!(short_name("rt:release_ref#3"), "rt:release_ref");
         assert_eq!(short_name("std/rt.alloc/retain#0"), "std/rt.alloc/retain");
+    }
+
+    #[test]
+    fn std_functions_print_by_their_own_name_unless_two_share_it() {
+        let mut names = Names::default();
+        names.see_as(1, function_names("std/console/println#0", &[]));
+        names.see_as(
+            2,
+            function_names("app/main/identity#0", &["main.Body".to_owned()]),
+        );
+        names.see_as(
+            3,
+            function_names("std/list/len#0", &["List[app.main.Body]".to_owned()]),
+        );
+        assert_eq!(names.name(1), "println");
+        assert_eq!(names.name(2), "identity[Body]");
+        assert_eq!(names.name(3), "len[List[Body]]");
+        names.see_as(4, function_names("app/main/println#0", &[]));
+        assert_eq!(names.name(1), "std/console/println");
+        assert_eq!(names.name(4), "println");
     }
 
     #[test]

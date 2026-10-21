@@ -145,19 +145,29 @@ checker in `crates/hd_check/tests/stages/`, and the emitter in
     the subject, using `Positions::span`. The locals they name come first,
     with their names and types, and `Prim` and `Intrinsic` operations print
     by name.
-  - `wat` (#662) builds the case as a program from its `main` and shows,
-    per function of the case, the Wasm instructions whose origin
-    (`Packages::instruction_origins`, #661) lies inside the subject. The
-    excerpt is normalized so it reads by eye and does not move when
-    unrelated code changes. Functions, globals and static data print by
-    name (`call rt:retain_known`, `global.get calls`, `i32.const &"hi"`),
-    and the case's own module path, an instance's `#0` and a helper's
-    module-order `#k` go. Locals print by source name or role (`bodies`,
-    `b.1` for a local's second value, `ctx`), and temporaries as `t0`,
-    `t1`, ... in the order the excerpt names them. Types print by
-    signature, the heap memory goes unnamed, and labels go, while branch
-    depths stay. Until #663 a case defines a `main` that calls its
-    functions, so they are emitted.
+  - `wat` (#662) builds every function the case defines, with no `main`
+    (`Goal::Fixture`, #663), and shows, per function of the case, the Wasm
+    instructions whose origin (`Packages::instruction_origins`, #661)
+    lies inside the subject. A generic function shows code only once a
+    case function calls it at concrete types. The excerpt is normalized
+    so it reads by eye and does not move when unrelated code changes.
+    Functions, globals and static data print by name
+    (`call rt:retain_known`, `global.get calls`, `i32.const &"hi"`), and
+    the case's own module path, an instance's `#0` and a helper's
+    module-order `#k` go. An instance shows its type arguments
+    (`identity[i32]`), and a std function its own name (`println`), or
+    its path when another function in the excerpt has that name. Locals
+    print by source name, field path or role (`bodies`, `b.vx`, `ctx`),
+    and temporaries as `t0`, `t1`, ... in the order the excerpt names
+    them. Types print by signature, the heap memory goes unnamed, and
+    labels go, while branch depths stay. The releases at a function's
+    exit come from where each place began, so a statement's excerpt shows
+    the exit releases of what it binds; the closing `end` and the result
+    belong to the whole body.
+  - A view header may name the build it shows. The header
+    `-- wat (wasmtime, release) --` builds for that engine target with
+    the optimized pipeline and the release profile. The defaults are `v8`
+    and `dev`.
   - Later issues add `counts` and `layout` (#664).
   - Execution stays in conformance: a view never replaces a runtime
     assertion.

@@ -1263,7 +1263,8 @@ pub struct Packages<'a> {
     /// name (`trait.typeid.name.single-file`).
     pub single_file: bool,
     /// The build profile of a `Goal::Program` (`cli.profile.default`,
-    /// `cli.profile.release`). Every other goal is checked: a test run
+    /// `cli.profile.release`), and of a `Goal::Fixture`, whose views may
+    /// show a release build. Every other goal is checked: a test run
     /// keeps the test profile (`cli.profile.test`, `cli.profile.test.release`).
     pub build_profile: BuildProfile,
     /// The engine the build is tuned for (`crates/hd_opt/DESIGN.md` (optimization pipelines) §5). With
@@ -1515,12 +1516,12 @@ pub fn build_packages(
             .link
             .contains(&"inline_counts"),
         build_profile: match goal {
-            Goal::Program { .. } | Goal::ReplInput { .. } => packages.build_profile,
-            Goal::Tests { .. }
-            | Goal::Scenario { .. }
-            | Goal::Fixture { .. }
-            | Goal::Analyze
-            | Goal::CheckTests => BuildProfile::Checked,
+            Goal::Program { .. } | Goal::ReplInput { .. } | Goal::Fixture { .. } => {
+                packages.build_profile
+            }
+            Goal::Tests { .. } | Goal::Scenario { .. } | Goal::Analyze | Goal::CheckTests => {
+                BuildProfile::Checked
+            }
         },
         body_fuel: packages.body_fuel,
         checked: packages.checked,
@@ -9643,6 +9644,15 @@ impl ProgramEnv for Env<'_> {
             ItemData::Data(fs) => Some(fs.iter().map(|f| self.low(f.ty)).collect()),
             // A newtype is a data value of its one inner value.
             ItemData::Newtype(inner) => Some(vec![self.low(*inner)]),
+            _ => None,
+        }
+    }
+    fn data_field_names(&self, def: DefId) -> Option<Vec<String>> {
+        match &self.p.items.get(&def)?.data {
+            ItemData::Data(fs) => {
+                let names = self.run.names();
+                Some(fs.iter().map(|f| names.text(f.name).to_owned()).collect())
+            }
             _ => None,
         }
     }

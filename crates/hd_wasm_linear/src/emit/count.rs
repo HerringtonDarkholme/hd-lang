@@ -576,6 +576,11 @@ impl Em<'_, '_, '_> {
 
     /// Releases every place the function owns: each counted instruction
     /// value and TIR local, a parameter's too.
+    ///
+    /// For development tools, each place's release comes from where the
+    /// place began (`exit_origins`), so a statement's excerpt shows
+    /// the releases at the function's exit of what it bound; the rest of
+    /// the exit comes from the function's root.
     pub(super) fn release_all(&mut self) -> StageResult<()> {
         let outer = self.f.origin_at;
         self.f.origin_at = self.f.origin_root;
@@ -584,11 +589,30 @@ impl Em<'_, '_, '_> {
         result
     }
 
+    /// The origin of each TIR local's exit release, when origins are
+    /// tracked: the first `LocalSet` with a source position that binds
+    /// it. A parameter has none, and its release stays at the root.
+    fn exit_origins(&self) -> hd_base::HashMap<usize, u32> {
+        let mut out = hd_base::HashMap::default();
+        if !self.m.track_origins {
+            return out;
+        }
+        for (i, tag) in self.b.tags.iter().enumerate() {
+            let i = u32::try_from(i).expect("insts");
+            if *tag == Tag::LocalSet && self.anchored(i) {
+                out.entry(self.b.data[i as usize][0] as usize).or_insert(i);
+            }
+        }
+        out
+    }
+
     fn release_all_inner(&mut self) -> StageResult<()> {
+        let root = self.f.origin_root;
         let mut vals: Vec<(u32, Vec<u32>)> =
             self.vals.iter().map(|(k, v)| (*k, v.clone())).collect();
         vals.sort_unstable();
         for (i, ls) in vals {
+            self.f.origin_at = if self.anchored(i) { Some(i) } else { root };
             if self.view_loans.contains_key(&i) {
                 self.release_view_loan(i, &ls)?;
             } else if !self.moves.loans.contains(&i) {
@@ -598,11 +622,14 @@ impl Em<'_, '_, '_> {
         let mut locals: Vec<(usize, Vec<u32>)> =
             self.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
         locals.sort_unstable();
+        let bound = self.exit_origins();
         for (l, ls) in locals {
+            self.f.origin_at = bound.get(&l).copied().or(root);
             if !self.borrowed.contains(&l) && !self.moves.loan_locals.contains_key(&l) {
                 self.count_local(l, &ls, false)?;
             }
         }
+        self.f.origin_at = root;
         for tmp in self.temps.clone() {
             self.f.get(tmp);
             self.f.helper(Helper::ReleaseRef);

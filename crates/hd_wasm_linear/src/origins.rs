@@ -16,6 +16,9 @@ pub struct FunctionOrigins {
     pub name: String,
     /// The source TIR item's stable path; generated runtime helpers have none.
     pub item: Option<String>,
+    /// An instance's type arguments, each by its printed name (`i32`,
+    /// `main.Body`); empty for a function of no type parameter.
+    pub type_args: Vec<String>,
     /// Origins before module optimization/lowering, for pass regression checks.
     pub before_opt: Vec<Option<u32>>,
     /// One entry per encoded instruction, including the final implicit `end`.

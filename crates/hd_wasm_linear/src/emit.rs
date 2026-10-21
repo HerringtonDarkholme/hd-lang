@@ -218,6 +218,12 @@ fn body_func<'a>(
         em.f.origin_at = em.f.origin_root;
         em.f.local_names = Some(BTreeMap::new());
         em.f.statics = Some(BTreeSet::new());
+        em.f.origin_args = input
+            .pool
+            .list_items(args)
+            .iter()
+            .map(|t| hd_mono::printed_type_name(input.pool, input.env, *t))
+            .collect();
         // The parameters that are no TIR local, by their role.
         let mut at = 0;
         if suspending {
@@ -395,9 +401,15 @@ fn body_func<'a>(
             em.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
         named.sort_unstable();
         for (l, ls) in named {
+            if let [w] = ls[..] {
+                em.f.name_local(w, format!("${l}"));
+                continue;
+            }
+            // A local of several values names each by its field path.
+            let paths = crate::layout::value_paths(input.pool, input.env, em.sub(b.local_ty[l]));
             for (k, w) in ls.iter().enumerate() {
-                let name = if ls.len() == 1 {
-                    format!("${l}")
+                let name = if paths.len() == ls.len() {
+                    format!("${l}.{}", paths[k])
                 } else {
                     format!("${l}.{k}")
                 };

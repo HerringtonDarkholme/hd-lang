@@ -1849,9 +1849,14 @@ anchors and panic reporting keep their behavior.
   at each instruction index. The item path identifies the source body;
   the driver or harness resolves its syntax node to a source span. A
   source-less generated helper has no item or origin. Frame setup and
-  function exit use the body's scope origin. Scope-exit releases use the
-  scope they end, including an early exit through several scopes. Last-use
-  cleanup follows the statement containing that last use instead.
+  function exit use the body's scope origin, except the exit's releases:
+  each uses where its place began, so a statement's excerpt shows the
+  exit releases of what it bound (#673). A TIR local's release uses its
+  first positioned binding (`LocalSet`), an instruction value's its own
+  instruction; a parameter's stays at the body's. An early exit's
+  releases use the scope they end, including an exit through several
+  scopes. Last-use cleanup follows the statement containing that last
+  use instead.
 - **Rewrites.** Unchanged and moved instructions keep their own origins.
   A merge takes the first available origin among the instructions it
   combines. An expansion copies the replaced instruction's origin to
@@ -1867,8 +1872,9 @@ anchors and panic reporting keep their behavior.
   Mapping does not require dense anchors and cannot interrupt a peephole.
 - **Names (#662).** A mapped function also names what its code refers to
   by index, for the stage fixtures' `wat` view. Each Wasm local is named
-  by its TIR local (`$N`, or `$N.K` for the `K`th value of a local of
-  several), by the role of a parameter that is no TIR local (`frame`,
+  by its TIR local (`$N`; `$N.PATH` for each value of a local of several,
+  where `layout::value_paths` gives a struct field by name, `$N.pos.x`,
+  and any other value by its index, `$N.1`), by the role of a parameter that is no TIR local (`frame`,
   `env`, `ctx`, `witness`, `providerN`, `providerN.vtable`, and `args`
   for a wide signature's frame address), or not at all for a temporary.
   Local renumbering (rule 11 of `opt.rs`) and wide-signature lowering
@@ -1876,7 +1882,9 @@ anchors and panic reporting keep their behavior.
   pushes is listed with what it holds: bytes, a vtable's slot functions,
   or a name (`empty-object`, `empty-buffer`, `""`, a top-level binding's
   slot). Each global the body names comes with its binding's path, or
-  the runtime's name for it. The tables change no byte of the module.
+  the runtime's name for it. An instance lists its type arguments by
+  their printed names (`FunctionOrigins::type_args`). The tables change
+  no byte of the module.
 
 ### 23.34 Development Fixture Retention
 

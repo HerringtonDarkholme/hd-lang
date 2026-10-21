@@ -256,6 +256,62 @@ pub fn vals(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> StageResult<Vec<V
     Ok(mem(pool, env, t)?.vals())
 }
 
+/// Each of a concrete type's Wasm values' path below the value, for
+/// development tools' local names (`FunctionOrigins::locals`): a struct
+/// value's field by name (`pos.x`), a tuple's member by index (`1`), and
+/// the values of any other type of several (a string, a closure, an enum)
+/// by their index among its values. A type of one value has the one path
+/// `""`, and a type of none no path. A layout view (#664) can share it.
+#[must_use]
+pub fn value_paths(pool: &InternPool, env: &dyn ProgramEnv, t: Ty) -> Vec<String> {
+    let n = mem(pool, env, t).map_or(1, |m| m.leaves.len());
+    match n {
+        0 => return Vec::new(),
+        1 => return vec![String::new()],
+        _ => {}
+    }
+    let t = strip(pool, env, t);
+    let fields: Option<(Vec<String>, Vec<Ty>)> = match pool.get(t) {
+        TyData::Tuple { .. } => {
+            let members = tuple_members(pool, t);
+            Some(((0..members.len()).map(|k| k.to_string()).collect(), members))
+        }
+        TyData::Adt { def, args }
+            if env.std_kind(def) == StdKind::Other
+                && matches!(kind(pool, env, t), Kind::Value)
+                && env.enum_variants(def, args).is_none() =>
+        {
+            let tys: Vec<Ty> = env
+                .data_fields(def)
+                .unwrap_or_default()
+                .into_iter()
+                .map(|f| subst(pool, env, def, args, f))
+                .collect();
+            let names = env
+                .data_field_names(def)
+                .filter(|ns| ns.len() == tys.len())
+                .unwrap_or_else(|| (0..tys.len()).map(|k| k.to_string()).collect());
+            Some((names, tys))
+        }
+        _ => None,
+    };
+    let by_index = || (0..n).map(|k| k.to_string()).collect();
+    let Some((names, tys)) = fields else {
+        return by_index();
+    };
+    let mut out = Vec::with_capacity(n);
+    for (name, ty) in names.iter().zip(tys) {
+        for below in value_paths(pool, env, ty) {
+            out.push(if below.is_empty() {
+                name.clone()
+            } else {
+                format!("{name}.{below}")
+            });
+        }
+    }
+    if out.len() == n { out } else { by_index() }
+}
+
 /// The types whose layouts `t`'s layout is made of, held by value: a
 /// tuple's members, an optional's inner type, a value enum's payload
 /// fields, a struct's fields. Every other type is one leaf or address.

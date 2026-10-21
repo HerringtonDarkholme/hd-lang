@@ -9,7 +9,8 @@
 //! - for each case, `-- case: NAME --`, the case's hd, then one block per
 //!   view, `-- VIEW --` followed by the expected output (`tokens`, `tree`,
 //!   `tir`, `tir-flags`, which adds each local's flags, and `wat`, the
-//!   normalized Wasm of the subject, `wat.rs`).
+//!   normalized Wasm of the subject, `wat.rs`). A header may name a build
+//!   after the view, `-- wat (wasmtime, release) --` ([`Build`]).
 //!
 //! A case's program is the context followed by the case. Its subject is
 //! marked by a comment, so the case stays valid hd for `hd fmt` and
@@ -34,7 +35,7 @@ use hd_driver::{Executor, Goal, Host, NoClock, PositionPool, build};
 use hd_sched::SerialOrder;
 
 mod wat;
-pub use wat::wat;
+pub use wat::{wat, wat_for};
 
 /// One case of a fixture file.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -97,7 +98,13 @@ pub fn parse(text: &str) -> Result<Fixture, String> {
         if let Some(view) = t
             .strip_prefix("-- ")
             .and_then(|r| r.strip_suffix(" --"))
-            .filter(|v| !v.contains(' '))
+            .filter(|v| {
+                // `NAME`, or `NAME (OPTIONS)`.
+                let name = v
+                    .split_once(" (")
+                    .map_or(*v, |(n, o)| if o.ends_with(')') { n } else { "" });
+                !name.is_empty() && !name.contains(' ')
+            })
         {
             let Some(case) = cases.last_mut() else {
                 return Err(format!("view `{view}` before any case"));
@@ -406,17 +413,52 @@ pub fn tir_with(p: &Program, flags: bool) -> String {
 }
 
 /// The output of view `view` for `p`, or `None` for a view this harness
-/// does not know.
+/// does not know. A view header may name the build it shows after the
+/// view's name: `wat (wasmtime, release)` (see [`Build`]).
 #[must_use]
 pub fn view(view: &str, p: &Program) -> Option<String> {
-    Some(match view {
-        "tokens" => tokens(p),
-        "tree" => tree(p),
-        "tir" => tir(p),
-        "tir-flags" => tir_with(p, true),
-        "wat" => wat(p),
+    let (name, build) = match view.split_once(" (") {
+        Some((name, opts)) => (name, Build::parse(opts.strip_suffix(')')?)?),
+        None => (view, Build::default()),
+    };
+    Some(match name {
+        "tokens" if build == Build::default() => tokens(p),
+        "tree" if build == Build::default() => tree(p),
+        "tir" if build == Build::default() => tir(p),
+        "tir-flags" if build == Build::default() => tir_with(p, true),
+        "wat" => wat_for(p, build),
         _ => return None,
     })
+}
+
+/// The build a view shows: its engine target (`v8`, the default,
+/// `wasmtime` or `browser`) and its level (`dev`, the default, or
+/// `release`: the optimized pipeline and the release profile, as
+/// `--release` builds).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Build {
+    pub target: hd_driver::EngineTarget,
+    pub release: bool,
+}
+
+impl Build {
+    /// The build of a view header's options, comma-separated in any
+    /// order; `None` for an option this harness does not know.
+    #[must_use]
+    pub fn parse(opts: &str) -> Option<Build> {
+        let mut build = Build::default();
+        for opt in opts.split(',').map(str::trim) {
+            match opt {
+                "v8" => build.target = hd_driver::EngineTarget::V8,
+                "wasmtime" => build.target = hd_driver::EngineTarget::Wasmtime,
+                "browser" => build.target = hd_driver::EngineTarget::Browser,
+                "dev" => build.release = false,
+                "release" => build.release = true,
+                _ => return None,
+            }
+        }
+        Some(build)
+    }
 }
 
 /// A line diff of `expected` against `actual`: `-` for an expected line

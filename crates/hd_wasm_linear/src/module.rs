@@ -248,6 +248,9 @@ pub struct Func {
     /// With origins: each local's development name, by index, as
     /// [`crate::FunctionOrigins::locals`] reports it.
     pub local_names: Option<BTreeMap<u32, String>>,
+    /// With origins: an instance's type arguments, as
+    /// [`crate::FunctionOrigins::type_args`] reports them.
+    pub origin_args: Vec<String>,
     /// With origins: the static data addresses the body pushes.
     pub statics: Option<BTreeSet<u32>>,
     /// A complete relocation-free body, including locals and the final end.
@@ -922,6 +925,7 @@ impl Module {
                     index: index[s],
                     name: own.last().expect("function name").1.clone(),
                     item: f.origin_item.clone(),
+                    type_args: f.origin_args.clone(),
                     before_opt: f.origins_before_opt.clone(),
                     instructions: mapped_instructions,
                     locals,

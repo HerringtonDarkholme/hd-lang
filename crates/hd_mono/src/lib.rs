@@ -99,6 +99,12 @@ pub trait ProgramEnv: LayoutEnv {
     fn json_items(&self) -> Option<JsonItems>;
     /// Data fields, for the struct types a program needs.
     fn data_fields(&self, def: DefId) -> Option<Vec<Ty>>;
+    /// The names of `def`'s data fields, in [`ProgramEnv::data_fields`]'
+    /// order, for development tools that name a value's parts
+    /// (`hd_wasm_linear::layout::value_paths`); `None` when unknown.
+    fn data_field_names(&self, _def: DefId) -> Option<Vec<String>> {
+        None
+    }
     /// Whether `def` is a `struct` declaration: a value whose copies copy
     /// the collections it holds (`crates/hd_wasm_linear/DESIGN.md` §15.2,
     /// "Collection values").

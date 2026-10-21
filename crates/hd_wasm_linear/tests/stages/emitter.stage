@@ -1,5 +1,4 @@
 # Emitter: the Wasm instructions that come from a subject (`wat`).
-# Each case has a `main` that calls its functions, so they are emitted.
 -- context --
 struct Body:
     x: f64
@@ -8,10 +7,6 @@ struct Body:
 fn x_of(bodies: &List[Body], i: usize) -> f64:
     bodies[i].x
     #^^^^^^^^^^
-
-pub fn main() -> void $ Console:
-    bodies := [Body { x: 1.0, vx: 2.0 }]
-    println(x_of(&bodies, 0))
 -- wat --
 x_of
   block
@@ -48,11 +43,6 @@ x_of
 fn place(bodies: &mut List[Body], i: usize, x: f64) -> void:
     bodies[i].x = x
     #^^^^^^^^^^^^^^
-
-pub fn main() -> void $ Console:
-    let mut bodies = [Body { x: 1.0, vx: 2.0 }]
-    place(&mut bodies, 0, 3.0)
-    println(bodies[0].x)
 -- wat --
 place
   block
@@ -101,35 +91,29 @@ fn moved(dt: f64) -> f64:
     b.x = b.x + dt * b.vx
     #^^^^^^^^^^^^^^^^^^^^
     b.x
-
-pub fn main() -> void $ Console:
-    println(moved(0.5))
 -- wat --
 moved
   drop
   local.get dt
-  local.get b.1
+  local.get b.vx
   f64.mul
   local.set t0
-  local.get b.0
+  local.get b.x
   local.get t0
   f64.add
   local.set t1
-  local.get b.0
+  local.get b.x
   drop
   local.get t1
-  local.get b.1
-  local.set b.1
-  local.tee b.0
+  local.get b.vx
+  local.set b.vx
+  local.tee b.x
 -- case: a call of a small function --
 fn add(a: i32, b: i32) -> i32: a + b
 
 fn twice(a: i32) -> i32:
     add(a, a)
     #^^^^^^^^
-
-pub fn main() -> void $ Console:
-    println(twice(+3))
 -- wat --
 twice
   local.get a
@@ -140,9 +124,6 @@ twice
 fn greet() -> string:
     "hello"
     #^^^^^^
-
-pub fn main() -> void $ Console:
-    println(greet())
 -- wat --
 greet
   block
@@ -160,10 +141,6 @@ let calls = +0
 fn count() -> void:
     calls = calls + 1
     #^^^^^^^^^^^^^^^^
-
-pub fn main() -> void $ Console:
-    count()
-    println(calls)
 -- wat --
 count
   global.get calls
@@ -190,10 +167,6 @@ count
 fn apply(f: fn(i32) -> i32, x: i32) -> i32:
     f(x)
     #^^^
-
-pub fn main() -> void $ Console:
-    k := +2
-    println(apply(fn(x: i32) -> i32: x + k, +3))
 -- wat --
 apply
   block
@@ -230,9 +203,6 @@ apply
 fn none() -> List[Body]:
     []
     #^
-
-pub fn main() -> void $ Console:
-    println(none().len())
 -- wat --
 none
   block
@@ -246,4 +216,98 @@ none
   local.get t0
   call rt:release_ref
   local.get t1
+  end
+-- case: a generic call --
+fn identity[T](x: T) -> T: x
+
+fn one() -> i32:
+    identity(+1)
+    #^^^^^^^^^^^
+-- wat --
+one
+  i32.const 1
+  call identity[i32]
+  end
+-- case: two instances of one generic --
+fn identity[T](x: T) -> T: x
+
+fn moved(x: f64) -> f64:
+    identity(identity(Body { x: x, vx: 1.0 }).x)
+    #^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+-- wat --
+moved
+  local.get x
+  f64.const 0x1p+0
+  call identity[Body]
+  drop
+  call identity[f64]
+  end
+-- case: a std call --
+fn hello() -> void $ Console:
+    println("hello")
+    #^^^^^^^^^^^^^^^^
+-- wat --
+hello
+  i32.const &"hello"
+  i32.const 5
+  local.get provider0
+  local.get provider0.vtable
+  call println[string]
+  end
+-- case: a binding's release at the function's exit --
+fn count(xs: List[i32]) -> usize:
+    ys := xs
+    #^^^^^^^
+    ys.len()
+-- wat --
+count
+  local.get xs
+  local.set t0
+  i32.const 0
+  local.set xs
+  local.get ys
+  call rt:release_ref
+  local.get t0
+  local.set ys
+  i32.const 0
+  local.set t0
+  local.get t0
+  call rt:release_ref
+  local.get ys
+  call rt:release_ref
+-- case: a nested binding's release at the function's exit --
+fn first(xs: List[i32], c: bool) -> usize:
+    if c:
+        # subject
+        ys := xs
+        ys.len()
+    else:
+        0
+-- wat --
+first
+  local.get xs
+  local.tee t0
+  call rt:retain_known
+  local.get ys
+  call rt:release_ref
+  local.get t0
+  local.set ys
+  i32.const 0
+  local.set t0
+  local.get t0
+  call rt:release_ref
+  local.get ys
+  call rt:release_ref
+-- case: a top-level binding in a release build --
+let total = +0
+
+fn add(n: i32) -> void:
+    total = total + n
+    #^^^^^^^^^^^^^^^^
+-- wat (wasmtime, release) --
+add
+  global.get total
+  local.get n
+  i32.add
+  global.set total
   end
