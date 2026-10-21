@@ -1,0 +1,13 @@
+# test: void implements tuple
+# expect-stdout: true
+
+use std.function.Tuple
+
+fn keep[T < Tuple](value: T) -> T: value
+
+fn log_start() -> void:
+    pass
+
+pub fn main() -> void $ Console:
+    let kept: void = keep(log_start())
+    println(kept == ())

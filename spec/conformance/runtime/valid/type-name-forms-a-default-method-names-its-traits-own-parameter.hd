@@ -1,0 +1,21 @@
+# test: a default method names its traits own parameter
+# expect-stdout: 2
+trait Source[T]:
+    fn next(&mut self) -> T?
+    fn second(&mut self) -> T?:
+        let _first: T? = self.next()
+        self.next()
+
+struct Counter:
+    n: i32
+
+impl Source[i32] for Counter:
+    fn next(&mut self) -> i32?:
+        self.n = self.n + 1
+        .Some(self.n)
+
+pub fn main() -> void $ Console:
+    let mut counter = Counter { n: 0 }
+    match counter.second():
+        .Some(value) => println(value)
+        .None => println(0)

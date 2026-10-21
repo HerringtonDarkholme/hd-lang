@@ -1,0 +1,14 @@
+# test: the impl fixes a trait argument
+# expect-stdout: picked
+# expect-stdout: picked
+trait Pick[T]:
+    fn pick(self) -> T
+
+impl Pick[string] for (i32, i32):
+    fn pick(self) -> string:
+        "picked"
+
+pub fn main() -> void $ Console:
+    println((+1, +2).pick())
+    let s: string = (+3, +4).pick()
+    println(s)

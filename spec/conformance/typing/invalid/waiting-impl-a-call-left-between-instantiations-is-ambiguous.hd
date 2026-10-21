@@ -1,0 +1,14 @@
+# test: a call left between instantiations is ambiguous
+trait Pick[T]:
+    fn pick(self) -> T
+
+impl Pick[string] for (i32, i32):
+    fn pick(self) -> string:
+        "picked"
+
+impl Pick[i64] for (i32, i32):
+    fn pick(self) -> i64:
+        7
+
+pub fn main() -> void $ Console:
+    _ := (+1, +2).pick()  # diagnostic: ambiguous-method

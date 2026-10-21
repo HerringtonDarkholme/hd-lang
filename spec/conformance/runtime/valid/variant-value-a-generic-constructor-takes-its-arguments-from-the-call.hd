@@ -1,0 +1,20 @@
+# test: a generic constructor takes its arguments from the call
+# expect-stdout: 7
+# expect-stdout: 5
+enum Wrapped[E]:
+    Failed(error: E)
+    Gone
+
+fn wrap[T](value: T, make: fn(T) -> Wrapped[T]) -> Wrapped[T]:
+    make(value)
+
+pub fn main() -> void $ Console:
+    match wrap(+7, Wrapped.Failed):
+        .Failed(n) => println(n)
+        .Gone => println(0)
+    match wrap_some(Option.Some, 5):
+        .Some(n) => println(n)
+        .None => println(0)
+
+fn wrap_some(make: fn(i32) -> Option[i32], value: i32) -> Option[i32]:
+    make(value)

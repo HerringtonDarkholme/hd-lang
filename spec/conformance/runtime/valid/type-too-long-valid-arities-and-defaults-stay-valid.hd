@@ -1,0 +1,17 @@
+# test: valid arities and defaults stay valid
+# expect-stdout: 2
+# expect-stdout: s
+# expect-stdout: 4
+type Twin[A, B = A] = (A, B)
+
+struct Pair[K, V = K]:
+    key: K
+    value: V
+
+pub fn main() -> void $ Console:
+    let a: Twin[i32] = (1, 2)
+    let b: Twin[i32, string] = (1, "s")
+    let p: Pair[i32] = Pair { key: 3, value: 4 }
+    println(a._1)
+    println(b._1)
+    println(p.value)

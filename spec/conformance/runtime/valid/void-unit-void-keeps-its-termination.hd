@@ -1,0 +1,10 @@
+# test: void keeps its termination
+# expect-stdout: 0
+
+use std.process.Termination
+
+fn code_of[T < Termination](value: T) -> u8:
+    u8(value.report())
+
+pub fn main() -> void $ Console:
+    println(code_of(()))

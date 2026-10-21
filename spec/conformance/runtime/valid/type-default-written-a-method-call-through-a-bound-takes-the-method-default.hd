@@ -1,0 +1,27 @@
+# test: a method call through a bound takes the method default
+# expect-stdout: 5
+trait Blank:
+    fn blank() -> Self
+
+struct Tally:
+    count: i32
+
+impl Blank for Tally:
+    fn blank() -> Tally:
+        Tally { count: 5 }
+
+trait Source:
+    fn drain[C < Blank = Tally](self) -> C
+
+struct Numbers: pass
+
+impl Source for Numbers:
+    fn drain[C < Blank = Tally](self) -> C:
+        C::blank()
+
+fn through_bound[S < Source](source: S) -> i32:
+    tally := source.drain()
+    tally.count
+
+pub fn main() -> void $ Console:
+    println(through_bound(Numbers {}))

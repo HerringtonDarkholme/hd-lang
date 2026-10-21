@@ -1,0 +1,20 @@
+# test: a trait reference written too long reports once
+type Both[A, B] = (A, B)
+
+trait Show:
+    fn show(self) -> string
+
+trait Conv[T]:
+    fn conv(self) -> T
+
+struct Pair[K, V]:
+    key: K
+    value: V
+
+enum Choice[T]:
+    Some(T)
+    Empty
+
+type Wrap[T](T)
+
+fn f[T < Conv[i32, i32]](t: T) -> i32: 0  # diagnostic: argument-count

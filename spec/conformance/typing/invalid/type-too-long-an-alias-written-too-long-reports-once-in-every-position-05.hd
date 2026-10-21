@@ -1,0 +1,20 @@
+# test: an alias written too long reports once in every position
+type Both[A, B] = (A, B)
+
+trait Show:
+    fn show(self) -> string
+
+trait Conv[T]:
+    fn conv(self) -> T
+
+struct Pair[K, V]:
+    key: K
+    value: V
+
+enum Choice[T]:
+    Some(T)
+    Empty
+
+type Wrap[T](T)
+
+fn f[T < Conv[Both[i32, string, bool]]](t: T) -> i32: 0  # diagnostic: argument-count

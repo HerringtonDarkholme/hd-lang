@@ -1,0 +1,22 @@
+# test: a data type written too long reports once
+type Both[A, B] = (A, B)
+
+trait Show:
+    fn show(self) -> string
+
+trait Conv[T]:
+    fn conv(self) -> T
+
+struct Pair[K, V]:
+    key: K
+    value: V
+
+enum Choice[T]:
+    Some(T)
+    Empty
+
+type Wrap[T](T)
+
+fn f() -> i32:
+    let _x: Wrap[i32, i32] = panic("x")  # diagnostic: argument-count
+    0

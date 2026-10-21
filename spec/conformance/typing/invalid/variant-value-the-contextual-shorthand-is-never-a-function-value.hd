@@ -1,0 +1,9 @@
+# test: the contextual shorthand is never a function value
+enum Shape:
+    Circle(radius: i32)
+
+fn apply(make: fn(i32) -> Shape) -> Shape:
+    make(1)
+
+fn run() -> Shape:
+    apply(.Circle)  # diagnostic: missing-contextual-enum-type

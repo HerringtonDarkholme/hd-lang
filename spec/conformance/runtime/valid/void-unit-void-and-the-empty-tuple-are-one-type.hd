@@ -1,0 +1,22 @@
+# test: void and the empty tuple are one type
+# expect-stdout: 1
+
+fn take(unit: ()) -> void:
+    pass
+
+fn log_start() -> void:
+    pass
+
+fn same() -> ():
+    log_start()
+
+fn pair() -> (void, i32):
+    (log_start(), 1)
+
+pub fn main() -> void $ Console:
+    take(())
+    take(log_start())
+    take(same())
+    let unit: void = ()
+    take(unit)
+    println(pair()._1)

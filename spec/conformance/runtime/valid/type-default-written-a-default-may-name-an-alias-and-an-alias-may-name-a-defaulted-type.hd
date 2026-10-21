@@ -1,0 +1,15 @@
+# test: a default may name an alias and an alias may name a defaulted type
+# expect-stdout: 6
+type Count = i32
+
+struct Counter[T, N = Count]:
+    item: T
+    count: N
+
+type Tally[T] = Counter[T]
+
+fn tally(x: i32) -> Tally[string]:
+    Counter { item: "t", count: x }
+
+pub fn main() -> void $ Console:
+    println(tally(6).count)

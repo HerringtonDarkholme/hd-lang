@@ -1,0 +1,3 @@
+# test: a key that reaches no trait is unknown
+fn run() -> void:
+    _ := $.use(Mailer)  # diagnostic: unknown-trait

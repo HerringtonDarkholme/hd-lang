@@ -1,0 +1,12 @@
+# test: a range of literals chooses its iterable impl
+# expect-stdout: 55
+# expect-stdout: -10
+# expect-stdout: 1
+# expect-stdout: 2
+pub fn main() -> void $ Console:
+    total := (1..=10).iter().sum::[usize]()
+    println(total)
+    signed := (+1..=4).iter().sum::[i32]() - 20
+    println(signed)
+    for x in (1..=2).iter():
+        println(x)

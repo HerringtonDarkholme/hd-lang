@@ -1,0 +1,5 @@
+# test: a set called with an inferred or written type is a type used as a value
+use std.collections.Set
+
+fn use_it() -> void:
+    let _s: Set[string] = Set()  # diagnostic: type-used-as-value

@@ -140,10 +140,7 @@ mod trait_resolution_depth;
 mod trials;
 mod tuple_structure;
 mod tuple_template_bounds;
-mod type_arity_written_run;
 mod type_default_written_run;
-mod type_name_forms_run;
-mod type_too_long_run;
 mod typed_facts;
 mod typeid_of;
 mod unlowered_intrinsic;
@@ -154,13 +151,9 @@ mod unsigned_comparison;
 mod unsolved_call_parameter;
 mod unsolved_scrutinee;
 mod vararg_invalid;
-mod vararg_value_run;
 mod variance_representation;
 mod variant_binding_names;
-mod variant_value_run;
 mod void_final;
-mod void_unit_run;
-mod waiting_impl_run;
 
 /// One content-addressed store shared by every test that only checks what
 /// a build produces: std compiles once for the process.

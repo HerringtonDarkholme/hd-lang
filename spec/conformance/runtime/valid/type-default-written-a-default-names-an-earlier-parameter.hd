@@ -1,0 +1,28 @@
+# test: a default names an earlier parameter
+# expect-stdout: 9
+# expect-stdout: (5, s)
+# expect-stdout: 3
+# expect-stdout: b
+type Twin[A, B = A] = (A, B)
+
+struct Holder[T, U = List[T]]:
+    first: T
+    rest: U
+
+fn twin(x: i32) -> Twin[i32]:
+    (x, x + 1)
+
+fn mixed(x: i32) -> Twin[i32, string]:
+    (x, "s")
+
+fn holder() -> Holder[i32]:
+    Holder { first: 1, rest: [2, 3] }
+
+pub fn main() -> void $ Console:
+    t := twin(4)
+    println(t._0 + t._1)
+    println(mixed(5))
+    h := holder()
+    println(h.first + h.rest[0])
+    let again: Holder[string] = Holder { first: "a", rest: ["b"] }
+    println(again.rest[0])

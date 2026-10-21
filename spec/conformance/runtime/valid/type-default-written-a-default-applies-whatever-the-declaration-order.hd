@@ -1,0 +1,43 @@
+# test: a default applies whatever the declaration order
+# expect-stdout: 7
+# expect-stdout: 5
+# expect-stdout: 8
+fn size(cache: Cache[string]) -> i32:
+    cache.policy.pick()
+
+fn load() -> Wrapped[i32]:
+    .Ok(5)
+
+type Wrapped[T, E = Failure] = Result[T, E]
+
+struct Failure:
+    code: i32
+
+struct Outer[T, U = Inner]:
+    item: T
+    inner: U
+
+struct Inner[V = i32]:
+    value: V
+
+struct Cache[K, P < Evict = Lru]:
+    key: K
+    policy: P
+
+trait Evict:
+    fn pick(self) -> i32
+
+struct Lru: pass
+
+impl Evict for Lru:
+    fn pick(self) -> i32: 7
+
+fn nested(outer: Outer[string]) -> i32:
+    outer.inner.value
+
+pub fn main() -> void $ Console:
+    println(size(Cache { key: "k", policy: Lru {} }))
+    match load():
+        .Ok(n) => println(n)
+        .Err(f) => println(f.code)
+    println(nested(Outer { item: "x", inner: Inner { value: 8 } }))

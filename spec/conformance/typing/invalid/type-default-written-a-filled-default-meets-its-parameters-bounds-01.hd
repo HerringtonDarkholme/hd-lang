@@ -1,0 +1,13 @@
+# test: a defaulted local written type checks its argument bound
+# The parameter and field fixtures check both copied Hash obligations.
+# This local type isolates T; never avoids a second invalid constructor.
+struct Plain:
+    x: i32
+
+struct Tagged[T < Hash, H = T]:
+    tag: T
+    hash: H
+
+fn use_it() -> i32:
+    let tagged: Tagged[Plain] = panic("unreachable")  # diagnostic: unsatisfied-trait-bound
+    tagged.tag.x

@@ -1,0 +1,24 @@
+# test: the base type constructor unwraps a newtype
+# expect-stdout: reopened
+struct Draft:
+    lines: List[string]
+
+type Order(Draft)
+type Sheet = Draft
+
+struct Box[T]:
+    item: T
+
+type Crate[T](Box[T])
+
+type Mile(i32)
+
+fn reopen(order: Order) -> Order:
+    let mut editable = Draft(order)
+    editable.lines = ["reopened"]
+    Order(editable)
+
+pub fn main() -> void $ Console:
+    draft := Draft { lines: ["first"] }
+    order := reopen(Order(draft))
+    println(Draft(order).lines[0])

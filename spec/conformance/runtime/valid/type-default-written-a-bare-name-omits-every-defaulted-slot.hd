@@ -1,0 +1,13 @@
+# test: a bare name omits every defaulted slot
+# expect-stdout: 4
+struct Lru: pass
+
+struct Slot[T = i32, P = Lru]:
+    item: T
+    policy: P
+
+fn read(slot: Slot) -> i32:
+    slot.item
+
+pub fn main() -> void $ Console:
+    println(read(Slot { item: 4, policy: Lru {} }))

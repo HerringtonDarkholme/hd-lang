@@ -1,0 +1,7 @@
+# test: constructors that are not function values are errors
+enum Either[L, R]:
+    Left(value: L)
+    Right(value: R)
+
+fn run() -> void:
+    _ := Either.Left  # diagnostic: cannot-infer-type

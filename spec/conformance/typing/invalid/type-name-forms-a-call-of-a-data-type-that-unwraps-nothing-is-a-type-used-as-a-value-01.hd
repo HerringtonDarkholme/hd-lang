@@ -1,0 +1,16 @@
+# test: a call of a data type that unwraps nothing is a type used as a value
+struct Draft:
+    lines: List[string]
+
+type Order(Draft)
+type Sheet = Draft
+
+struct Box[T]:
+    item: T
+
+type Crate[T](Box[T])
+
+type Mile(i32)
+
+fn use_it() -> void:
+    _ := Draft()  # diagnostic: type-used-as-value

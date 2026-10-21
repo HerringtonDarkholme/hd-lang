@@ -1,0 +1,62 @@
+# test: an alias data type and trait fill their defaults
+# expect-stdout: bad
+# expect-stdout: file
+# expect-stdout: x
+# expect-stdout: 2
+# expect-stdout: true
+# expect-stdout: false
+struct AppError:
+    message: string
+
+type Outcome[T, E = AppError] = Result[T, E]
+
+fn load(path: string) -> Outcome[string]:
+    .Ok(path)
+
+fn port(text: string) -> Outcome[i32, string]:
+    .Err(text)
+
+fn failure(outcome: Outcome[string]) -> string:
+    match outcome:
+        .Ok(path) => path
+        .Err(error) => error.message
+
+trait Evict:
+    fn pick(self, sizes: List[i32]) -> i32
+
+struct Lru: pass
+
+impl Evict for Lru:
+    fn pick(self, sizes: List[i32]) -> i32: i32(sizes.len())
+
+struct Cache[K < Eq & Hash, V, P < Evict = Lru]:
+    entries: Map[K, V]
+    policy: P
+
+fn size(cache: Cache[string, i32]) -> i32:
+    cache.policy.pick([1, 2])
+
+trait Same[Other = Self]:
+    fn same(self, other: Other) -> bool
+
+struct Money:
+    cents: i64
+
+impl Same for Money:
+    fn same(self, other: Money) -> bool:
+        self.cents == other.cents
+
+fn check[T < Same](left: T, right: T) -> bool:
+    left.same(right)
+
+pub fn main() -> void $ Console:
+    println(failure(.Err(AppError { message: "bad" })))
+    println(failure(load("file")))
+    match port("x"):
+        .Ok(_) => println("ok")
+        .Err(text) => println(text)
+    let entries: Map[string, i32] = {}
+    let cache: Cache[string, i32] = Cache { entries: entries, policy: Lru {} }
+    println(size(cache))
+    println(check(Money { cents: 3 }, Money { cents: 3 }))
+    println(check(Money { cents: 3 }, Money { cents: 4 }))

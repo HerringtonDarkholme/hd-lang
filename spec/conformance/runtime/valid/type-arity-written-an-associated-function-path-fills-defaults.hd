@@ -1,0 +1,17 @@
+# test: an associated function path fills defaults
+# expect-stdout: 3
+# expect-stdout: 2
+# expect-stdout: s
+struct Cell[T, U = List[T]]:
+    first: T
+    rest: U
+
+impl[T, U] Cell[T, U]:
+    fn make[V = T](v: V) -> V: v
+    fn rest_of(self) -> U: self.rest
+    fn first_of(a: U) -> U: a
+
+pub fn main() -> void $ Console:
+    println(Cell::[i32]::make(3))
+    println(Cell::[i32]::first_of([1, 2]).len())
+    println(Cell::[i32, string]::first_of("s"))

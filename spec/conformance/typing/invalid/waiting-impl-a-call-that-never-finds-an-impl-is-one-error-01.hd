@@ -1,0 +1,14 @@
+# test: a call that never finds an impl is one error
+trait Describe:
+    fn describe(self) -> string
+
+impl Describe for (i32, string):
+    fn describe(self) -> string:
+        "pair " + self._1
+
+impl Describe for (i32, i32, i32):
+    fn describe(self) -> string:
+        "triple"
+
+pub fn main() -> void $ Console:
+    println((1, "a").describe())  # diagnostic: unsatisfied-trait-bound

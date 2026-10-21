@@ -1,0 +1,11 @@
+# test: a spelled function type keeps the rest element
+# expect-stdout: 3
+use std.function.Fn
+
+fn count(label: string, values...: List[i32]) -> usize: values.len()
+
+fn spread(callback: Fn[(string, List[i32]...), usize, $()]) -> usize:
+    callback("n", 1, 2, 3)
+
+pub fn main() -> void $ Console:
+    println(spread(count))

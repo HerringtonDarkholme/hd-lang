@@ -1,0 +1,12 @@
+# test: too few arguments without a default are partial generic arguments
+struct Pair[K, V]:
+    key: K
+    value: V
+
+struct Mixed[A, B, C = A]:
+    a: A
+    b: B
+    c: C
+
+
+fn two(mixed: Mixed[string]) -> i32: 0  # diagnostic: partial-generic-arguments

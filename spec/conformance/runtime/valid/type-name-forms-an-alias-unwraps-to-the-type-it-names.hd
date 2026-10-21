@@ -1,0 +1,18 @@
+# test: an alias unwraps to the type it names
+# expect-stdout: 2
+struct Draft:
+    lines: List[string]
+
+type Order(Draft)
+type Sheet = Draft
+
+struct Box[T]:
+    item: T
+
+type Crate[T](Box[T])
+
+type Mile(i32)
+
+pub fn main() -> void $ Console:
+    order := Order(Draft { lines: ["a", "b"] })
+    println(Sheet(order).lines.len())

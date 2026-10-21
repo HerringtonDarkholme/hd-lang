@@ -1,0 +1,10 @@
+# test: an argument and the default filled from it report one bound error
+struct Plain:
+    x: i32
+
+struct Tagged[T < Hash, H < Hash = T]:
+    tag: T
+    hash: H
+
+struct Holder:
+    inner: Tagged[Plain]  # diagnostic: unsatisfied-trait-bound

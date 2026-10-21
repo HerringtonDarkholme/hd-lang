@@ -1,0 +1,25 @@
+# test: a tuple receiver with open literals chooses its impl
+# expect-stdout: pair a
+# expect-stdout: triple
+# expect-stdout: pair t
+# expect-stdout: pair c
+trait Describe:
+    fn describe(self) -> string
+
+impl Describe for (i32, string):
+    fn describe(self) -> string:
+        "pair " + self._1
+
+impl Describe for (i32, i32, i32):
+    fn describe(self) -> string:
+        "triple"
+
+fn tail() -> string:
+    (+1, "t").describe()
+
+pub fn main() -> void $ Console:
+    println((+1, "a").describe())
+    println((+1, +2, +3).describe())
+    println(tail())
+    f := fn() -> string: (+2, "c").describe()
+    println(f())

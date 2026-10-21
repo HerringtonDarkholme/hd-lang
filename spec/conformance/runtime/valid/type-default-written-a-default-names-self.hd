@@ -1,0 +1,31 @@
+# test: a default names self
+# expect-stdout: true
+# expect-stdout: true
+# expect-stdout: false
+trait Same[Other = Self]:
+    fn same(self, other: Other) -> bool
+
+struct Money:
+    cents: i64
+
+struct Meters:
+    value: i32
+
+impl Same for Money:
+    fn same(self, other: Money) -> bool:
+        self.cents == other.cents
+
+impl Same[Money] for Meters:
+    fn same(self, other: Money) -> bool:
+        i64(self.value) == other.cents
+
+fn agree[T < Same](left: T, right: T) -> bool:
+    left.same(right)
+
+fn measured[T < Same[Money]](left: T, right: Money) -> bool:
+    left.same(right)
+
+pub fn main() -> void $ Console:
+    println(agree(Money { cents: 2 }, Money { cents: 2 }))
+    println(measured(Meters { value: 2 }, Money { cents: 2 }))
+    println(measured(Money { cents: 1 }, Money { cents: 2 }))

@@ -1,0 +1,11 @@
+# test: an alias missing a slot without a default reports once in every position
+type Both[A, B] = (A, B)
+
+trait Show:
+    fn show(self) -> string
+
+struct Pair[K, V]:
+    key: K
+    value: V
+
+fn f(b: Pair[Both[i32], i32]) -> i32: 0  # diagnostic: partial-generic-arguments

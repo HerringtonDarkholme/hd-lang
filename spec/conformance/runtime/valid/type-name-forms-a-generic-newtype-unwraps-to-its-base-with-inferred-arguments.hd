@@ -1,0 +1,20 @@
+# test: a generic newtype unwraps to its base with inferred arguments
+# expect-stdout: 5
+# expect-stdout: 5
+struct Draft:
+    lines: List[string]
+
+type Order(Draft)
+type Sheet = Draft
+
+struct Box[T]:
+    item: T
+
+type Crate[T](Box[T])
+
+type Mile(i32)
+
+pub fn main() -> void $ Console:
+    let crate: Crate[i32] = Crate(Box { item: 5 })
+    println(Box(crate).item)
+    println(Box::[i32](crate).item)

@@ -1,0 +1,6 @@
+# test: a call that never finds an impl is one error
+use std.ops.Div
+
+pub fn main() -> void $ Console:
+    q := Div::[i32]::div(7, 2) + 1  # diagnostic: unsatisfied-trait-bound
+    println(q)
