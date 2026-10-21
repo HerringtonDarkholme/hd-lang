@@ -23,8 +23,8 @@ pub struct TypeIdParts {
     pub shown: String,
 }
 
-/// Where one value of an optional element comes from in
-/// [`Helper::ListStep`]: the tag, a value of the element, or a zero.
+/// Where one value of an optional map entry comes from in
+/// [`Helper::MapStep`]: the tag, a value of the entry, or a zero.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum OptVal {
     Tag,
@@ -376,14 +376,6 @@ pub enum Helper {
         results: Vec<Val>,
         own: Vec<(u32, Option<Walk>)>,
         ctx: Option<SlotCtx>,
-    },
-    /// `(env, index, ctx) -> T?`: the step closure code of std's
-    /// `list_steps` (`emit/iter.rs`): `.Some` of the element at the index,
-    /// with its own count, laid out as `opt` says, or `.None` past the end.
-    ListStep {
-        elem: Elem,
-        opt: Vec<OptVal>,
-        results: Vec<Val>,
     },
     /// `(env, at, ctx) -> (usize, (K, V))?`: the step closure code of
     /// std's `map_steps` (`map.rs`).
@@ -1080,85 +1072,6 @@ fn rt_import(name: &str, params: &[Val], results: &[Val]) -> Sym {
     Sym::Import(Import::new("hd:rt", name, params, results))
 }
 
-/// [`Helper::ListStep`]'s function. The environment holds the list's
-/// header at 0 and the length at creation at 4; the index to read is the
-/// code's parameter, so the cursor that calls it keeps its own position.
-fn list_step(elem: &Elem, opt: &[OptVal], results: &[Val]) -> Func {
-    // A closure's code: the environment, the index, then the context it
-    // ignores.
-    let mut f = Func::new(
-        "rt:list_step",
-        vec![Val::I32, Val::I32, Val::I32],
-        results.to_vec(),
-    );
-    let b = f.local(Val::I32);
-    let i = f.local(Val::I32);
-    let at = f.local(Val::I32);
-    let out: Vec<u32> = results.iter().map(|v| f.local(*v)).collect();
-    f.get(0);
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-    f.set(b);
-    // A length other than the one at creation is the
-    // `iterator-invalidated` panic, checked on every call so an exhausted
-    // iterator panics too.
-    f.get(b);
-    f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
-    f.get(0);
-    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
-    f.op(Instruction::I32Ne);
-    f.op(Instruction::If(BlockType::Empty));
-    f.helper(Helper::Panic(
-        "iterator-invalidated: list changed during iteration".into(),
-    ));
-    f.op(Instruction::End);
-    f.get(1);
-    f.set(i);
-    f.get(i);
-    f.get(b);
-    f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
-    f.op(Instruction::I32LtU);
-    f.op(Instruction::If(BlockType::Empty));
-    f.get(b);
-    f.get(i);
-    f.u32(elem.size);
-    f.op(Instruction::I32Mul);
-    f.op(Instruction::I32Add);
-    f.set(at);
-    let mut vals = Vec::new();
-    for (p, o) in opt.iter().enumerate() {
-        match o {
-            OptVal::Tag => {
-                f.i32(1);
-                f.set(out[p]);
-            }
-            OptVal::Elem(k) => {
-                f.get(at);
-                f.op(elem.leaves[*k as usize].load(LIST_ELEMS));
-                f.set(out[p]);
-                vals.push((*k, out[p]));
-            }
-            OptVal::Zero => {}
-        }
-    }
-    // The element leaves with a count of its own.
-    if let Some(w) = &elem.walk {
-        vals.sort_unstable();
-        for (_, l) in &vals {
-            f.get(*l);
-        }
-        f.helper(Helper::Retain {
-            vals: elem.leaves.iter().map(|l| l.val).collect(),
-            walk: w.clone(),
-        });
-    }
-    f.op(Instruction::End);
-    for l in &out {
-        f.get(*l);
-    }
-    f
-}
-
 /// [`Helper::DynRead`]'s function: the value at the data's address, lent
 /// to the call as the receiver.
 fn dyn_read(
@@ -1597,7 +1510,6 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             own,
             ctx,
         } => dyn_read(*target, read, params, results, own, ctx.as_ref(), m),
-        Helper::ListStep { elem, opt, results } => list_step(elem, opt, results),
         Helper::ListTruncate { elem } => list_truncate(elem),
         Helper::TypeIdOf(parts) => type_id(parts, vec![], m),
         Helper::RuntimeType(parts) => type_id(parts, vec![Val::I32], m),

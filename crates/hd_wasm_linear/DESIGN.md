@@ -793,15 +793,17 @@ environments in `emit/closure.rs`, trait values and their vtables in
   body, borrowing `v`'s locals, whose count lasts to the function's
   exit. (`Guard`, a match guard's condition block and its two branches,
   lowers here too.)
-- **Iterators.** std's `list_steps` and `map_steps` intrinsics, under
-  `List.iter()`'s `ListIter` and `Map.iter()`'s `MapEntries`, build a
-  step closure whose environment holds the collection's header, with a
-  count of its own, and what the collection looked like at creation; the
-  cursor keeps its position and passes it in, so a copy advances on its
-  own. `rt:list_step` and `rt:map_step` panic `iterator-invalidated`
-  when the collection changed (`flow.for.invalidate.panic`).
-  `list_truncate`, and so `pop`, `insert`, `remove_at` and `clear`, reads
-  the list through its reference and truncates it in place.
+- **Iterators.** `List.iter()` uses std's direct cursor: a reference to
+  the source list, its length at creation, and an independent position.
+  Its std `next` checks invalidation and reads the indexed element;
+  neither constructing nor stepping it needs a closure. `Map.iter()`'s
+  `MapEntries` still uses `map_steps`: its step closure keeps the map's
+  header and creation counts, while the cursor keeps its own position.
+  `rt:map_step` checks those counts on every step, including exhaustion.
+  Both report `iterator-invalidated` when the collection changes
+  (`flow.for.invalidate.panic`). `list_truncate`, used by `pop`, `insert`,
+  `remove_at` and `clear`, reads through the list reference and truncates
+  it in place.
 - **Bounded memory.** `crates/hd_driver/tests/std_rt/closure_tests.hd`
   calls function references and closures, shares a local between a scope
   and its closures, dispatches through boxed and widened trait values,

@@ -2345,9 +2345,7 @@ impl Em<'_, '_, '_> {
                 self.f.op(I::I64Const(0));
                 self.store(i)
             }
-            // std's `list_steps` and `map_steps`: the step closures of
-            // `ListIter` and `MapEntries` (`emit/iter.rs`).
-            "list_steps" => self.list_iter(i, args[0]),
+            // std's map cursor step closure (`emit/iter.rs`).
             "map_steps" => self.map_iter(i, args[0]),
             "bytes_len" => {
                 self.comp(args[0], 1)?;

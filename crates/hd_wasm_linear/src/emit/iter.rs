@@ -1,14 +1,9 @@
-//! std's `list_steps` and `map_steps` (`crates/hd_wasm_linear/DESIGN.md`
-//! §23.19, job 11): the step closures of `List.iter()`'s `ListIter` and
-//! `Map.iter()`'s `MapEntries`, which keep their position themselves and
-//! pass it in. A list's environment holds its header, with a count of its
-//! own, and the length at creation; its code is `rt:list_step`, which
-//! panics `iterator-invalidated` when the length has changed
-//! (`flow.for.invalidate.panic`) and otherwise returns the element at the
-//! index, with its own count, or `.None`. A map's holds its header and, at
-//! creation, the table's written, live and rebuild counts; its code
-//! returns the first live entry from the one passed in, with its number
-//! (`rt:map_step`, `map.rs`).
+//! std's `map_steps` (`crates/hd_wasm_linear/DESIGN.md` §23.19): the
+//! step closure of `Map.iter()`'s `MapEntries`. The cursor keeps its own
+//! position and passes it in. Its environment holds the map's header and
+//! creation-time written, live and rebuild counts. The code checks those
+//! counts and returns the first live entry at or after the given number
+//! (`rt:map_step`, `map.rs`). List cursors are ordinary std code.
 
 use hd_base::StageResult;
 use hd_types::{Prim, TyData};
@@ -18,7 +13,7 @@ use super::Em;
 use crate::layout::{Mem, Part, fields_walk, payload_mem};
 use crate::map::{GROWN, LIVE, USED};
 use crate::module::{HEAP, Ins, Sym, mem};
-use crate::rt::{Helper, LIST_LEN, OptVal};
+use crate::rt::{Helper, OptVal};
 use crate::unsupported;
 
 /// Pushes one `i32` field of an iterator environment, given the local
@@ -92,20 +87,6 @@ impl Em<'_, '_, '_> {
         self.f.get(env);
         // The new environment arrives with its count.
         self.store_owned(i)
-    }
-
-    /// `list_steps` of list `list`: the cursor's step closure.
-    pub(super) fn list_iter(&mut self, i: u32, list: u32) -> StageResult<()> {
-        let (et, elem) = self.elem(self.ty_of(list))?;
-        let (opt, results) = self.opt_of(et)?;
-        let len = |em: &mut Self, h: u32| {
-            em.f.get(h);
-            em.f.op(I::I32Load(mem(HEAP, 0, 2)));
-            em.f.op(I::I32Load(mem(HEAP, LIST_LEN, 2)));
-            Ok(())
-        };
-        let code = Helper::ListStep { elem, opt, results };
-        self.iter_env(i, list, &[&len], code)
     }
 
     /// `map_steps` of map `map`: the cursor's step closure over its
