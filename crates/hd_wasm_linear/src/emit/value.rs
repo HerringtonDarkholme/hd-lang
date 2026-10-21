@@ -502,14 +502,42 @@ impl Em<'_, '_, '_> {
             return unsupported("a payload field the enum does not have");
         };
         let boxed = matches!(self.kind(t), Kind::Boxed);
-        for p in at {
+        let transfer = self.counting
+            && matches!(self.kind(t), Kind::Value)
+            && !hd_mono::is_open(self.pool(), t)
+            && !self.moves.loans.contains(&a)
+            && !self.moves.loans.contains(&i)
+            && self.counted(t).is_some()
+            && self.moves.payloads.contains_key(&i);
+        for &p in &at {
             if boxed {
                 self.load(&|em: &mut Self| em.comp(a, 0), 0, m.leaves[p])?;
             } else {
                 self.comp(a, p)?;
             }
         }
-        self.store(i)
+        if !transfer {
+            return self.store(i);
+        }
+        self.store_owned(i)?;
+        let plan = &self.moves.payloads[&i];
+        let whole = plan.last
+            && positions[variant as usize].len() == plan.fields.len()
+            && plan.fields.iter().all(|(p, _)| {
+                !self.moves.loans.contains(p)
+                    && !matches!(self.calls.get(p), Some(hd_mono::Target::Open(_)))
+            });
+        let ls = self.slot(a)?;
+        if whole {
+            for l in ls {
+                self.f.zero(l);
+            }
+        } else {
+            for p in at {
+                self.f.zero(ls[p]);
+            }
+        }
+        Ok(())
     }
 
     /// A new value of variant `variant` of `i`'s enum type with the payload

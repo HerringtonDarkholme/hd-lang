@@ -3,7 +3,7 @@
 # expected: no count operations; a payload bound from a call's result moves
 # out of it, with no retain of the payload and no release of the whole result
 # (json: every `?` and Result match in the decoder).
-# tracked by #669
+# tracked by #679
 fn parse(text: string) -> Result[string, string]:
     if text.len() > 3:
         .Ok(text)

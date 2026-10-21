@@ -54,6 +54,8 @@ pub(super) struct Moves {
     /// drops the ones whose local lives in a cell or whose value is open
     /// before adding the rest to [`Moves::loans`].
     pub span: HashSet<u32>,
+    /// Fields owned by one consuming match or propagation decision.
+    pub payloads: HashMap<u32, PayloadMove>,
 }
 
 /// The block structure of a body: each instruction's block and position,
@@ -205,6 +207,162 @@ fn uses(b: &Body, i: usize) -> Vec<u32> {
     out
 }
 
+/// An enum field extracted once within one consuming match. Earlier
+/// extractions of the same variant dominate this one; the emitter can
+/// clear the whole temporary only when they cover every field and no
+/// later tag/payload read can run on this path.
+pub(super) struct PayloadMove {
+    pub fields: Vec<(u32, u32)>,
+    pub last: bool,
+}
+
+type ArmReads = HashMap<u32, (usize, (u32, usize))>;
+
+/// Matches and the tag switches that implement propagation consume their
+/// own temporary, never a value also used outside their decision region.
+/// Repeated field extractions and loops conservatively keep their counts.
+fn match_payloads(
+    b: &Body,
+    sub: u32,
+    tree: &Tree,
+    users: &HashMap<u32, Vec<u32>>,
+    access: &HashMap<usize, Vec<u32>>,
+) -> (HashMap<u32, PayloadMove>, ArmReads) {
+    let inside = |root: u32, i: u32| {
+        root == i
+            || tree
+                .path(b, i)
+                .is_some_and(|p| p.iter().any(|(k, _)| tree.owner[*k as usize] == root))
+    };
+    let cyclic = |root: u32, i: u32| {
+        root != i
+            && tree.path(b, i).is_none_or(|p| {
+                p.iter()
+                    .map(|(k, _)| tree.owner[*k as usize])
+                    .take_while(|&owner| owner != root)
+                    .any(|owner| owner != NONE && b.tags[owner as usize] == Tag::Loop)
+            })
+    };
+    let before = |a: u32, c: u32| {
+        tree.dominates(b, a, c) || (b.tags[a as usize] == Tag::SwitchTag && inside(a, c))
+    };
+    let exclusive = |a: u32, c: u32| {
+        let (Some(ap), Some(cp)) = (tree.path(b, a), tree.path(b, c)) else {
+            return false;
+        };
+        ap.iter().any(|&(ak, _)| {
+            let owner = tree.owner[ak as usize];
+            owner != NONE
+                && matches!(
+                    b.tags[owner as usize],
+                    Tag::If | Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr
+                )
+                && cp
+                    .iter()
+                    .any(|&(ck, _)| ck != ak && tree.owner[ck as usize] == owner)
+        })
+    };
+    let payload = |i: u32| match b.tags[i as usize] {
+        Tag::Payload => {
+            let r = b.record(b.data[i as usize][1]);
+            (r.len() == 2).then(|| (r[0], r[1]))
+        }
+        Tag::Unwrap => Some((1, 0)),
+        _ => None,
+    };
+    let mut out = HashMap::default();
+    let mut reads = ArmReads::default();
+    let cleanup = defers(b, sub);
+    for (&source, us) in users {
+        let Some(&root) = us.iter().find(|&&r| {
+            matches!(b.tags[r as usize], Tag::Match | Tag::SwitchTag)
+                && us.iter().all(|&u| {
+                    (u == r
+                        || matches!(
+                            b.tags[u as usize],
+                            Tag::Payload | Tag::Unwrap | Tag::SwitchTag
+                        ))
+                        && inside(r, u)
+                        && !cyclic(r, u)
+                })
+        }) else {
+            continue;
+        };
+        // The source is made before this region, at the same loop
+        // frequency. A decision inside a loop must not drain a temporary
+        // that was computed only once outside that loop.
+        if !tree.dominates(b, source, root)
+            || tree.path(b, root).is_none_or(|path| {
+                path.iter().any(|(k, _)| {
+                    let owner = tree.owner[*k as usize];
+                    owner != NONE && b.tags[owner as usize] == Tag::Loop && !inside(owner, source)
+                })
+            })
+        {
+            continue;
+        }
+        let fields: Vec<_> = us
+            .iter()
+            .filter_map(|&i| payload(i).map(|key| (i, key)))
+            .collect();
+        let unique: Vec<_> = fields
+            .iter()
+            .filter(|(_, key)| fields.iter().filter(|(_, other)| other == key).count() == 1)
+            .copied()
+            .collect();
+        for &(i, (variant, _)) in &unique {
+            let prior = unique
+                .iter()
+                .filter(|(p, (v, _))| *v == variant && (*p == i || before(*p, i)))
+                .map(|(p, (_, field))| (*p, *field))
+                .collect();
+            let last = us
+                .iter()
+                .all(|&u| u == root || u == i || before(u, i) || exclusive(u, i));
+            out.insert(
+                i,
+                PayloadMove {
+                    fields: prior,
+                    last,
+                },
+            );
+
+            // A pattern binding read once in its chosen arm can pass its
+            // own count to that read. Keep the enclosing cleanup: a failed
+            // guard may have assigned it without ever entering this arm.
+            let Some([set]) = users.get(&i).map(Vec::as_slice) else {
+                continue;
+            };
+            if cleanup
+                || b.tags[*set as usize] != Tag::LocalSet
+                || b.tags[root as usize] != Tag::Match
+            {
+                continue;
+            }
+            let l = b.data[*set as usize][0] as usize;
+            let Some(xs) = access.get(&l).filter(|xs| xs.len() == 2) else {
+                continue;
+            };
+            let Some(&get) = xs.iter().find(|&&x| b.tags[x as usize] == Tag::LocalGet) else {
+                continue;
+            };
+            let arms = &b.record(b.data[root as usize][1])[1..];
+            if !cyclic(root, get)
+                && arms.iter().any(|&arm| {
+                    tree.path(b, get)
+                        .is_some_and(|p| p.iter().any(|&(k, _)| k == arm))
+                })
+            {
+                // This is the read's arm statement, not the outer drop's
+                // position, so take_local does not skip the guard fallback's
+                // cleanup. It still zeroes the local on the taking path.
+                reads.insert(get, (l, tree.parent[get as usize]));
+            }
+        }
+    }
+    (out, reads)
+}
+
 /// The releases of sub-body `sub`'s values and locals at their last uses,
 /// and the uses that may move a count instead ([`Moves`]). `entry` are the
 /// locals that hold a value from the prologue: the parameters, and a
@@ -244,6 +402,8 @@ pub(super) fn plan(b: &Body, sub: u32, entry: &[usize]) -> (Drops, Moves) {
             _ => {}
         }
     }
+    let (payloads, arm_reads) = match_payloads(b, sub, &tree, &users, &access);
+    moves.payloads = payloads;
     // Values: the last statement of the defining block that holds a use.
     for (i, &s) in subs.iter().enumerate() {
         if s != sub || b.tags[i] == Tag::Block {
@@ -325,6 +485,9 @@ pub(super) fn plan(b: &Body, sub: u32, entry: &[usize]) -> (Drops, Moves) {
     }
     (moves.loans, moves.loan_locals) = loans(b, sub, &tree, &drops, &users);
     moves.span = span_loans(b, sub, &tree, &drops, &users);
+    for (get, last) in arm_reads {
+        moves.last_access.entry(get).or_insert(last);
+    }
     (drops, moves)
 }
 
@@ -779,4 +942,62 @@ pub(super) fn parameter_loans(
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The same decision inside a loop may drain a value made on each
+    /// iteration, but must never drain a value made once before the loop.
+    #[test]
+    fn matched_source_must_be_recomputed_on_each_loop_iteration() {
+        fn record(b: &mut Body, words: &[u32]) -> u32 {
+            let at = u32::try_from(b.extra.len()).unwrap();
+            b.extra.push(u32::try_from(words.len()).unwrap());
+            b.extra.extend_from_slice(words);
+            at
+        }
+        fn inst(b: &mut Body, tag: Tag, a: u32, w: u32) -> u32 {
+            let i = u32::try_from(b.tags.len()).unwrap();
+            b.tags.push(tag);
+            b.data.push([a, w]);
+            b.ty.push(hd_types::Ty::VOID);
+            b.syn.push(hd_base::NodeIdx::NONE);
+            i
+        }
+        for each_iteration in [false, true] {
+            let mut b = Body::new(hd_base::DefId::from_raw(0), hd_tir::ir::BodyKind::Fn);
+            let empty = record(&mut b, &[]);
+            let source = inst(&mut b, Tag::NewVariant, 0, empty);
+            let field = record(&mut b, &[0, 0]);
+            let payload = inst(&mut b, Tag::Payload, source, field);
+            let taken = record(&mut b, &[payload]);
+            let then = inst(&mut b, Tag::Block, taken, payload);
+            let other = inst(&mut b, Tag::Block, empty, NONE);
+            let choices = record(&mut b, &[0, then, other]);
+            let decision = inst(&mut b, Tag::SwitchTag, source, choices);
+            let iterations = if each_iteration {
+                vec![source, decision]
+            } else {
+                vec![decision]
+            };
+            let iterations = record(&mut b, &iterations);
+            let body = inst(&mut b, Tag::Block, iterations, NONE);
+            let looping = inst(&mut b, Tag::Loop, body, NONE);
+            let top = if each_iteration {
+                vec![looping]
+            } else {
+                vec![source, looping]
+            };
+            let top = record(&mut b, &top);
+            let root = inst(&mut b, Tag::Block, top, NONE);
+            b.sub_root.push(root);
+            b.sub_parent.push(hd_base::SubId::NONE);
+            b.sub_flags.push(0);
+            b.sub_params.push(hd_base::Range32::default());
+            let (_, moves) = plan(&b, 0, &[]);
+            assert_eq!(moves.payloads.contains_key(&payload), each_iteration);
+        }
+    }
 }

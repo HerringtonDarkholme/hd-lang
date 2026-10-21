@@ -1,0 +1,23 @@
+# test: a moved payload stays alive across a pending arm body
+# Spec 06 Match Expressions: flow.match.guard.result, flow.match.body.
+# Spec 11 Suspension: req.suspend.bang.point.
+# fixture-runtime-profile: pending-write
+# expect-stdout: pending 42!
+# expect-stdout: kept pending 42!
+
+enum Message:
+    Word(text: string)
+    Empty
+
+fn message(seed: string) -> Message:
+    .Word(seed + "!")
+
+fn keep!(text: string) -> string $ Console:
+    _ := $.use(Console).write_line!(text)
+    text
+
+pub fn main!() -> void $ Console:
+    kept := match message("pending 42"):
+        .Word(text) => keep!(text)
+        .Empty => "empty"
+    println("kept $kept")

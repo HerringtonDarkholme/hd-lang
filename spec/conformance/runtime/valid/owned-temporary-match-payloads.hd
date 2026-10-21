@@ -1,0 +1,143 @@
+# test: moving matched temporary payloads preserves aliases, guards, partial bindings, loops, and propagation
+# Spec 04 Value Types: types.value.copy.
+# Spec 06 Match Expressions: flow.match.subject, flow.match.guard.result, flow.match.body.
+# expect: test
+
+enum Packet:
+    Pair(left: string, right: string)
+    Single(word: string)
+    Empty
+
+fn packet(kind: usize, seed: string) -> Packet:
+    if kind == 0:
+        .Pair(seed + "L", seed + "R")
+    else if kind == 1:
+        .Single(seed + "S")
+    else:
+        .Empty
+
+fn partial(kind: usize, seed: string) -> string:
+    match packet(kind, seed):
+        .Pair(left, _) => left
+        .Single(word) => word
+        .Empty => "empty"
+
+fn both(seed: string) -> string:
+    match packet(0, seed):
+        .Pair(left, right) => right + left
+        .Single(word) => word
+        .Empty => "empty"
+
+fn guarded(seed: string) -> string:
+    match packet(0, seed):
+        .Pair(left, right) if left.len() == 0 => right
+        .Pair(left, right) => left + right
+        .Single(word) => word
+        .Empty => "empty"
+
+fn rejected_guard(seed: string) -> string:
+    match packet(1, seed):
+        .Single(word) if word.len() == 0 => word
+        _ => "rejected"
+
+fn result(seed: string, ok: bool) -> Result[string, string]:
+    if ok: .Ok(seed + "ok") else: .Err(seed + "err")
+
+fn propagate(seed: string, ok: bool) -> Result[string, string]:
+    word := result(seed, ok)?
+    .Ok(word + "!")
+
+fn optional(seed: string, ok: bool) -> string?:
+    if ok: .Some(seed + "some") else: .None
+
+fn propagate_optional(seed: string, ok: bool) -> string?:
+    word := optional(seed, ok)?
+    .Some(word + "!")
+
+enum Inner:
+    Word(word: string)
+    Empty
+
+enum Outer:
+    Nested(inner: Inner)
+    Empty
+
+fn nested(seed: string) -> Outer:
+    .Nested(.Word(seed + "nested"))
+
+fn nested_word(seed: string) -> string:
+    match nested(seed):
+        .Nested(.Word(word)) => word
+        .Nested(.Empty) => "inner empty"
+        .Empty => "outer empty"
+
+enum Recursive:
+    Leaf(word: string)
+    Pair(left: &Recursive, right: &Recursive)
+
+fn recursive(seed: string) -> &Recursive:
+    &Recursive.Pair(&Recursive.Leaf(seed + "left"), &Recursive.Leaf(seed + "right"))
+
+fn left_word(value: &Recursive) -> string:
+    match value:
+        .Leaf(word) => word
+        .Pair(left, _) => left_word(left)
+
+tests:
+    use std.testing.assert_equal
+
+    it("both fields move and an unbound field still cleans up"):
+        seed := "seed 42"
+        assert_equal(both(seed), "seed 42Rseed 42L", reason="two independently owned fields")
+        assert_equal(partial(0, seed), "seed 42L", reason="the unused right field is released")
+        assert_equal(partial(1, seed), "seed 42S", reason="one-field variant")
+        assert_equal(partial(2, seed), "empty", reason="no payload")
+
+    it("a failed guard can reuse extracted fields in a later arm"):
+        assert_equal(guarded("guard 7"), "guard 7Lguard 7R", reason="the second pair arm still sees both fields")
+        assert_equal(rejected_guard("guard 8"), "rejected", reason="the failed guard's binding still cleans up")
+
+    it("named values and their aliases stay intact"):
+        saved := packet(0, "alias 9")
+        alias := saved
+        first := match saved:
+            .Pair(left, _) => left
+            .Single(word) => word
+            .Empty => ""
+        second := match alias:
+            .Pair(_, right) => right
+            .Single(word) => word
+            .Empty => ""
+        assert_equal(first, "alias 9L", reason="the first match sees the left field")
+        assert_equal(second, "alias 9R", reason="the copy still sees the right field")
+
+    it("loop iterations do not consume a later iteration's payload"):
+        let total: usize = 0
+        for i in 0..100:
+            total = total + partial(i % 3, "loop").len()
+        assert_equal(total, 500, reason="each variant contributes five bytes")
+
+    it("a value prepared outside a loop remains available on every iteration"):
+        prepared := result("prepared ", true)
+        let total: usize = 0
+        for i in 0..20:
+            word := match prepared:
+                .Ok(word) => word
+                .Err(error) => error
+            total = total + word.len() + i * 0
+        assert_equal(total, 220, reason="twenty reads of the unchanged prepared value")
+
+    it("Result and optional propagation move success and failure payloads"):
+        assert_equal(propagate("result ", true), .Ok("result ok!"), reason="success payload")
+        assert_equal(propagate("result ", false), .Err("result err"), reason="early-returned failure payload")
+        assert_equal(propagate_optional("option ", true), .Some("option some!"), reason="Some payload")
+        assert_equal(propagate_optional("option ", false), .None, reason="None has no payload")
+
+    it("nested patterns transfer the selected inner field"):
+        assert_equal(nested_word("inner "), "inner nested", reason="nested value enum payload")
+
+    it("referenced recursive values keep their aliases"):
+        original := recursive("boxed ")
+        copy := original
+        assert_equal(left_word(original), "boxed left", reason="the original is readable")
+        assert_equal(left_word(copy), "boxed left", reason="the shared referenced value is not drained")
