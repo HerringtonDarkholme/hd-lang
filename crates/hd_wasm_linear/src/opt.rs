@@ -1177,22 +1177,61 @@ pub fn count_pairs(f: &mut Func, retain: Hash128) -> bool {
             _ => None,
         }
     }
-    fn arguments(body: &[Ins], at: usize, n: usize) -> Option<Vec<(usize, u32)>> {
-        let mut args = Vec::new();
+    struct Arguments {
+        // A tee chain leaves the same value in every named local. Keep
+        // those assignments: removing the consuming count call changes
+        // only its final tee into a set, consuming the producer's value.
+        locals: Vec<Vec<u32>>,
+        gets: Vec<usize>,
+        tee: Option<usize>,
+    }
+    fn arguments(body: &[Ins], at: usize, n: usize) -> Option<Arguments> {
+        let mut locals = Vec::new();
+        let mut gets = Vec::new();
         for (i, ins) in body[..at].iter().enumerate().rev() {
             match ins {
                 Ins::Anchor(_) => continue,
-                Ins::Op(I::LocalGet(l)) => args.push((i, *l)),
+                Ins::Op(I::LocalGet(l)) => {
+                    locals.push(vec![*l]);
+                    gets.push(i);
+                }
+                // The single argument's producer can be arbitrary; the
+                // tees themselves prove its aliases without looking
+                // through the producer or any other call.
+                Ins::Op(I::LocalTee(_)) if n == 1 => {
+                    let mut aliases = Vec::new();
+                    for ins in body[..=i].iter().rev() {
+                        match ins {
+                            Ins::Anchor(_) => {}
+                            Ins::Op(I::LocalTee(l)) => aliases.push(*l),
+                            Ins::Op(I::LocalGet(l)) => {
+                                aliases.push(*l);
+                                break;
+                            }
+                            _ => break,
+                        }
+                    }
+                    return Some(Arguments {
+                        locals: vec![aliases],
+                        gets: Vec::new(),
+                        tee: Some(i),
+                    });
+                }
                 _ => return None,
             }
-            if args.len() == n {
-                args.reverse();
-                return Some(args);
+            if locals.len() == n {
+                locals.reverse();
+                return Some(Arguments {
+                    locals,
+                    gets,
+                    tee: None,
+                });
             }
         }
         None
     }
     let mut gone = std::collections::BTreeSet::new();
+    let mut sets = std::collections::BTreeSet::new();
     for (i, ins) in f.body.iter().enumerate() {
         if gone.contains(&i) {
             continue;
@@ -1214,10 +1253,15 @@ pub fn count_pairs(f: &mut Func, retain: Hash128) -> bool {
                 if other == key
                     && width == n
                     && let Some(end) = arguments(&f.body, j, n)
-                    && args.iter().map(|(_, l)| l).eq(end.iter().map(|(_, l)| l))
+                    && args
+                        .locals
+                        .iter()
+                        .zip(&end.locals)
+                        .all(|(a, b)| a.iter().any(|l| b.contains(l)))
                 {
                     gone.extend([i, j]);
-                    gone.extend(args.iter().chain(&end).map(|(at, _)| *at));
+                    gone.extend(args.gets.iter().chain(&end.gets).copied());
+                    sets.extend(args.tee.into_iter().chain(end.tee));
                 }
                 break;
             }
@@ -1240,7 +1284,8 @@ pub fn count_pairs(f: &mut Func, retain: Hash128) -> bool {
                     | I::I32Or
                     | I::I32Xor,
                 ) => {}
-                Ins::Op(I::LocalSet(l) | I::LocalTee(l)) if !args.iter().any(|(_, a)| a == l) => {}
+                Ins::Op(I::LocalSet(l) | I::LocalTee(l))
+                    if !args.locals.iter().any(|a| a.contains(l)) => {}
                 _ => break,
             }
         }
@@ -1257,7 +1302,10 @@ pub fn count_pairs(f: &mut Func, retain: Hash128) -> bool {
                 None
             } else {
                 origins.copy(i..i + 1);
-                Some(ins)
+                Some(match ins {
+                    Ins::Op(I::LocalTee(l)) if sets.contains(&i) => Ins::Op(I::LocalSet(l)),
+                    _ => ins,
+                })
             }
         })
         .collect();
@@ -1752,6 +1800,91 @@ mod origin_tests {
             assert!(s.iter().all(|i| (10..=13).contains(i)));
         }
     }
+    #[test]
+    fn count_pairs_keep_tee_assignments_and_their_origins() {
+        let retain = Hash128(7);
+        // The producer's call and both alias definitions must survive.
+        // Cancellation may use either alias, or the source of a tee.
+        for source in [Ins::Call(Sym::Inst(Hash128(8))), Ins::Op(I::LocalGet(0))] {
+            for released in 1..=2 {
+                let f = run(
+                    tracked(
+                        1,
+                        2,
+                        vec![
+                            source.clone(),
+                            Ins::Op(I::LocalTee(1)),
+                            Ins::Anchor(0),
+                            Ins::Op(I::LocalTee(2)),
+                            Ins::Call(Sym::Inst(retain)),
+                            Ins::Op(I::LocalGet(released)),
+                            Ins::Call(Sym::Helper(Helper::ReleaseRef)),
+                            Ins::Op(I::LocalGet(1)),
+                            Ins::Op(I::LocalGet(2)),
+                        ],
+                    ),
+                    |f| {
+                        assert!(count_pairs(f, retain));
+                    },
+                );
+                assert!(matches!(f.body[0], Ins::Call(_) | Ins::Op(I::LocalGet(0))));
+                assert!(matches!(f.body[1], Ins::Op(I::LocalTee(1))));
+                assert!(matches!(f.body[3], Ins::Op(I::LocalSet(2))));
+                assert_eq!(spans(&f), [10, 11, 12, 13, 17, 18]);
+            }
+        }
+        // A release may also define an alias; keep that assignment.
+        let f = run(
+            tracked(
+                1,
+                1,
+                vec![
+                    Ins::Op(I::LocalGet(0)),
+                    Ins::Call(Sym::Helper(Helper::RetainKnown)),
+                    Ins::Op(I::LocalGet(0)),
+                    Ins::Op(I::LocalTee(1)),
+                    Ins::Call(Sym::Helper(Helper::ReleaseKnown)),
+                    Ins::Op(I::LocalGet(1)),
+                ],
+            ),
+            |f| {
+                assert!(count_pairs(f, retain));
+            },
+        );
+        assert!(matches!(f.body[1], Ins::Op(I::LocalSet(1))));
+        assert_eq!(spans(&f), [12, 13, 15]);
+    }
+
+    #[test]
+    fn tee_count_pairs_stop_at_overwrites_calls_and_control_flow() {
+        let retain = Hash128(7);
+        for barrier in [
+            vec![Ins::Op(I::I32Const(0)), Ins::Op(I::LocalSet(1))],
+            vec![
+                Ins::Op(I::LocalGet(0)),
+                Ins::Op(I::LocalTee(2)),
+                Ins::Op(I::Drop),
+            ],
+            vec![Ins::Call(Sym::Inst(Hash128(8)))],
+            vec![Ins::Op(I::Block(BlockType::Empty)), Ins::Op(I::End)],
+        ] {
+            let mut body = vec![
+                Ins::Op(I::LocalGet(0)),
+                Ins::Op(I::LocalTee(1)),
+                Ins::Op(I::LocalTee(2)),
+                Ins::Call(Sym::Inst(retain)),
+            ];
+            body.extend(barrier);
+            body.extend([
+                Ins::Op(I::LocalGet(1)),
+                Ins::Call(Sym::Helper(Helper::ReleaseRef)),
+            ]);
+            run(tracked(1, 2, body), |f| {
+                assert!(!count_pairs(f, retain));
+            });
+        }
+    }
+
     fn releases(f: &Func) -> usize {
         f.body
             .iter()

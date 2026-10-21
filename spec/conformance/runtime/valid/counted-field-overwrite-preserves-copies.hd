@@ -1,0 +1,26 @@
+# test: overwriting a counted field in a copied struct preserves the old copy and replacement value
+# Spec 04 Value Types: types.value.copy, types.value.field-write.
+# expect: test
+
+struct Text:
+    value: string
+
+fn replace(value: Text, next: string) -> Text:
+    let mut copy = value
+    copy.value = next
+    copy
+
+tests:
+    use std.testing.assert_equal
+
+    it("a copied field can be replaced while both strings remain shared"):
+        for i in 0..1000:
+            original := Text { value: "left:$i" }
+            alias := original
+            replacement := "right:$i"
+            result := replace(original, replacement)
+            assert_equal(alias.value, "left:$i", reason="the old copy keeps its field")
+            assert_equal(result.value, replacement, reason="the new copy owns the replacement")
+            assert_equal(replacement, "right:$i", reason="the caller still owns the replacement")
+            same := replace(alias, alias.value)
+            assert_equal(same.value, alias.value, reason="the old and new field may share one string")
