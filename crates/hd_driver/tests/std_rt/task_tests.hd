@@ -24,6 +24,13 @@ fn guarded!(log: &mut List[string], n: i32) -> string:
         log.push(label(n))
     step!(n)
 
+fn number!(n: i32) -> i32:
+    n
+
+fn nested!(n: i32) -> i32:
+    let (a, b) = all!(number(n), number(n + 1))
+    a + b
+
 tests:
     use std.testing.{assert, it}
 
@@ -69,3 +76,12 @@ tests:
         # Checked frees quarantine blocks; only the normal allocator reuses them.
         if released() == 0:
             assert(pages() == start, "each frame is freed")
+
+    it("nested runtime ownership graphs preserve results during reuse"):
+        let total = +0
+        let winners = +0
+        for round in 0..2000:
+            let (a, b) = all!(nested(round), nested(round + 1))
+            total += a + b
+            winners += race!(number(round), number(round + 1))
+        assert(total == 8004000 && winners == 1999000, "all and race preserve their owned results")

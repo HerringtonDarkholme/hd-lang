@@ -158,6 +158,11 @@ pub enum Global {
     /// The wake table: its address and its capacity in handles.
     WakeTab,
     WakeCap,
+    /// Weak waker registry: raw table, capacity, used slots, free head.
+    NodeTab,
+    NodeCap,
+    NodeLen,
+    NodeFree,
     /// The enclosing all! node and child bit while a child is polled.
     Waker,
     WakeBit,
@@ -192,6 +197,10 @@ impl Global {
             | Global::Owner
             | Global::WakeTab
             | Global::WakeCap
+            | Global::NodeTab
+            | Global::NodeCap
+            | Global::NodeLen
+            | Global::NodeFree
             | Global::Waker
             | Global::WakeBit
             | Global::AllPolls
@@ -534,6 +543,8 @@ pub struct Module {
     pub inline_counts: bool,
     /// Some emitted object has a constant small allocation class.
     pub fixed_allocations: bool,
+    /// Reachable all! nodes use generation-checked weak waker targets.
+    pub wakers: bool,
     /// With origins: what each static data address holds, for
     /// development tools ([`crate::StaticData`]).
     pub static_labels: BTreeMap<u32, crate::StaticData>,
@@ -767,7 +778,10 @@ impl Module {
         self.fixed_allocations = seen
             .iter()
             .any(|s| matches!(s, Sym::Helper(crate::rt::Helper::NewFixed { .. })));
-        if self.fixed_allocations {
+        self.wakers = seen
+            .iter()
+            .any(|s| matches!(s, Sym::Helper(crate::rt::Helper::WakerNew)));
+        if self.fixed_allocations || self.wakers {
             self.funcs.retain(|s, _| !matches!(s, Sym::Helper(_)));
         }
         if let Some(r) = self.runtime

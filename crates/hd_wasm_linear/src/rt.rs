@@ -502,6 +502,10 @@ pub enum Helper {
     /// `(mask) -> node`; `(node)` updates its enclosing waker.
     WakerNew,
     WakerParent,
+    /// Weak registry allocation, lookup and node release glue.
+    WakerSlot,
+    WakerLive,
+    WakerDrop,
     /// `(head slot, parent, bit)`: adds a distinct waiter; `(head)` notifies it.
     WakeLink,
     WakeNotify,
@@ -881,6 +885,24 @@ fn checked_poll(poll: &Helper, reinit: &[Hash128], m: &Module) -> Func {
     if !m.acyclic {
         f.helper(Helper::Collect);
     }
+    // Nodes invalidate their weak slots during teardown/collection, so
+    // keep the registry until both have completed.
+    if m.wakers {
+        f.global_get(Global::NodeTab);
+        f.op(Instruction::If(BlockType::Empty));
+        f.global_get(Global::NodeTab);
+        f.call(Sym::Inst(r.acyclic.free));
+        for g in [
+            Global::NodeTab,
+            Global::NodeCap,
+            Global::NodeLen,
+            Global::NodeFree,
+        ] {
+            f.i32(0);
+            f.global_set(g);
+        }
+        f.op(Instruction::End);
+    }
     f.i32(0);
     f.call(Sym::Inst(c.audit));
     for k in reinit {
@@ -1166,6 +1188,9 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         | Helper::WakeSignal
         | Helper::WakerNew
         | Helper::WakerParent
+        | Helper::WakerSlot
+        | Helper::WakerLive
+        | Helper::WakerDrop
         | Helper::WakeLink
         | Helper::WakeNotify
         | Helper::HostCold { .. }

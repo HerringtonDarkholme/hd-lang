@@ -71,6 +71,40 @@ A body need not materialize a saved frame until it actually waits.
 
 The host drives pending roots through poll and wake entry points.
 
+Runtime-created ownership points down the active task graph; waiter links
+back toward enclosing work are weak. User values may still create cycles
+through explicit references, captures or providers (§23.28).
+
+| Link | Ownership | Lifetime |
+| --- | --- | --- |
+| root driver -> root frame | owned count | released when ready or cancelled |
+| frame -> active child/cleanup, saved arguments/captures/providers/context | owned counts | stable saved slots are released on exit/drop |
+| all frame -> children, results and waker node | owned counts | frame owns these until completion/cancellation |
+| race frame -> task list and kept winner | owned counts | list owns child values; result stays until cleanup settles |
+| using/cancel wrapper -> cleanup child and saved values | owned counts | a shared cleanup can outlive an individual awaiter |
+| current Waker global -> active enclosing node | borrowed address | the active polling frame owns it; restored after the child poll |
+| node/host registration -> waiter edge head; edge -> next edge | owned storage | release storage on completion, abort or node drop |
+| waiter edge -> enclosing node | weak slot + generation | resolve through registry before reading the target |
+| registry row -> node | weak address | cleared before node release drops edge storage |
+
+A node is still 12 payload bytes: edge head at 0, registry slot at 4,
+ready bits at 8. A waiter edge is 16 bytes: slot, generation, owned next
+edge, bits. Registry rows are 12 raw bytes: address, generation, free-list
+index. Reusing a slot changes its generation. At `u32::MAX` the slot is
+retired, never wrapped. A stale target is ignored, or its edge storage is
+reused when registering another waiter; distinct live awaiters stay in
+the list. Only edge-list storage owns a count, never its target.
+
+The registry stays valid throughout teardown and collection. Checked
+shutdown frees it afterward, before allocation audit. In normal runs its
+reusable slots track peak concurrent nodes, plus any exhausted slots.
+The linker derives the waker feature from reachable helpers, including
+cached functions. A module with no node constructor links no registry or
+waiter traversal; ordinary host completions still use their own handle
+generations and wake table. The direct weak-handle test in `task.rs`
+exercises stale-slot reuse, multiple awaiters, registry growth and
+exhausted generations.
+
 ### 14.5 `all!` And `race!`
 
 Generated task frames own their children and retain the results they need.
@@ -903,10 +937,11 @@ counted frames in memory 1 (`emit/susp.rs`, `task.rs`).
   set (#630). While a child is polled, host leaves register its node and
   bit. A host completion sets that bit and follows the node's enclosing
   links, so nested `all!` points wake the appropriate outer child.
-  Shared cancellation cleanups retain every distinct waiter, merging
-  bits for a shared node. Registrations compare full handle generations
-  and release their counted links on completion or abort; stale wakes
-  cannot follow a freed link. Completing or cancelling an `all!` releases
+  Shared cancellation cleanups keep every distinct live waiter, merging
+  bits for the same node generation. Registrations compare full host
+  handle generations; waiter targets separately use the weak node slots
+  of §14.4. Completion/abort releases edge storage, without retaining or
+  releasing enclosing target nodes. A stale wake never reads a freed node. Completing or cancelling an `all!` releases
   its node, and frame drop/trace glue handles a node saved while pending.
   Dev builds export the `i32` global `hd.all_polls`: 30 separately woken
   children take exactly 60 child polls. `race!` is §14.5's frame over the

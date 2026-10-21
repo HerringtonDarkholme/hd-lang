@@ -1,0 +1,31 @@
+# test: nested all and race cancellation preserves wakeups across node-slot reuse
+# Spec 11 Standard Combinators: req.combinator.all-typing, req.combinator.race-losers-disposed.
+# fixture-runtime-profile: pending-gate
+# expect-empty-stdout: true
+use std.task.{all, race}
+use std.testing.assert_equal
+
+pub trait Gate:
+    fn wait!(self) -> void
+
+fn blocked!(calls: &mut i32) -> i32 $ Gate:
+    defer:
+        *calls += 1
+    $.use(Gate).wait!()
+    -1
+
+fn ready!(value: i32) -> i32:
+    value
+
+fn nested!(calls: &mut i32, seed: i32) -> i32 $ Gate:
+    let (a, b) = all!(race(blocked(calls), ready(seed)), race(blocked(calls), ready(seed + 1)))
+    a + b
+
+pub fn main!() -> void $ Gate:
+    let mut calls: i32 = 0
+    let total: i32 = 0
+    for round in 0..32:
+        let (a, b) = all!(nested(&mut calls, round), nested(&mut calls, round + 1))
+        total += a + b
+    assert_equal(total, 2112, reason="every nested winner reaches its enclosing waiter")
+    assert_equal(calls, 128, reason="every started loser runs its defer exactly once")
