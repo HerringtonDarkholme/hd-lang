@@ -1801,15 +1801,12 @@ impl Em<'_, '_, '_> {
             // The condition block's instructions, then its `bool` tail.
             Tag::Guard => {
                 let r = self.rec(bw);
-                let [list, tail] = self.b.data[a as usize];
                 let c = self.f.local(Val::I32);
                 self.entered(a, |em| {
-                    for x in em.rec(list) {
-                        if em.b.tags[x as usize] != Tag::Block {
-                            em.inst(x)?;
-                        }
-                    }
-                    em.push(tail)?;
+                    // Conditions own temporaries like every other block:
+                    // resume at the pending statement and run its drops.
+                    em.block_into(a, Some(a))?;
+                    em.push(a)?;
                     em.f.set(c);
                     Ok(())
                 })?;

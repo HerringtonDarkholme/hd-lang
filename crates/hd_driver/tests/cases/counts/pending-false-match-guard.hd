@@ -1,0 +1,21 @@
+# @dump: counts
+# expected: every guarded binding is released after its last executed use
+
+enum Message:
+    Word(text: string)
+    Empty
+
+fn message(seed: string) -> Message:
+    .Word(seed + "!")
+
+fn reject!(text: string) -> bool $ Console:
+    _ := $.use(Console).write_line!(text)
+    false
+
+pub fn main!() -> void $ Console:
+    # subject
+    kept := match message("pending 42"):
+        .Word(text) if reject!(text) => "unexpected"
+        .Word(text) => text
+        .Empty => "empty"
+    println("kept $kept")
