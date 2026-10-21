@@ -384,14 +384,12 @@ earlier than a file-system-stamped `written_at`, git's racy-clean rule),
 so a run hashes only changed files; a last-run record in the same file
 naming each folder's and module's keys from the previous run, so a miss
 reads only what changed; `depfiles` entries for fetched dependencies.
-`store::ManifestRecord` defines the per-file record; nothing uses it.
 
 ### 5.6 Verify Mode
 
 Planned, not built: `HD_CACHE_VERIFY=1` turning every cache hit into a
 recompute and a byte comparison, with a mismatch an internal error that
-names the entry kind and key. `store::verify_entry` compares two encoded
-entries section by section; nothing calls it yet.
+names the entry kind and key.
 
 ### 5.7 Eviction And The Size Cap
 

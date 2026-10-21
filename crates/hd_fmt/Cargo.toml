@@ -6,7 +6,6 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-hd_base = { path = "../hd_base" }
 hd_diag = { path = "../hd_diag" }
 hd_syntax = { path = "../hd_syntax" }
 

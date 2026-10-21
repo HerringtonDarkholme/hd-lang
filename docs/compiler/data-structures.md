@@ -559,16 +559,6 @@ columns `err_node` and `err_code`.
   and truncated to a checkpoint after a failed attempt. The tree is built
   from the events in one pass after parsing.
 
-**Wire format.** `GreenTree::to_wire` writes one little-endian buffer:
-magic `HDST`, format 1, flags, a table of 16 section offsets, then
-8-byte aligned sections: token kinds, starts and ends, line-first bits,
-line starts, UTF-16 line starts (for JavaScript columns), line flags,
-comments, node kinds, first and last tokens, subtree lengths, layout
-positions, errors and the source.
-
-Planned, not built: a generated JavaScript decoder over this buffer for
-the playground, with one view class per node kind.
-
 ### 3.14 The Header Skeleton And The Item Index
 
 **The skeleton** is the header pass's output for one file,
@@ -821,8 +811,6 @@ Planned, not built: a stat manifest in `build/.hd/manifest`, one record
 per file (path, size, `mtime_ns`, `ctime_ns`, inode, source hash, api
 text hash, use paths, role), read whole at start, so a warm run hashes
 only files whose stat changed. It would also hold the last run's keys.
-`hd_cache::store::ManifestRecord` defines the record; nothing reads or
-writes it.
 
 #### 3.20.4 Entry Sections By Kind
 

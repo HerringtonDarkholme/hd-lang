@@ -822,11 +822,7 @@ impl FolderIface {
             .get(&(module.to_owned(), name))
             .and_then(|&i| self.exports.get(i))
     }
-    /// The exported names of one module, in name order.
-    #[must_use]
-    pub fn exports_of(&self, module: &str) -> Vec<&Export> {
-        self.exports.iter().filter(|e| e.module == module).collect()
-    }
+
     /// Whether `module` declares `name` without `pub`.
     #[must_use]
     pub fn is_private(&self, module: &str, name: Symbol) -> bool {

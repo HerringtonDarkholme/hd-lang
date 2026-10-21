@@ -1,16 +1,14 @@
 #![forbid(unsafe_code)]
-//! `hd_testkit` (dev only): the determinism matrix, the edit-script fuzzer
-//! and the differential harness (`docs/compiler/testing-the-compiler.md` §8.1, §8.2). The
-//! matrix runs one build under several executors (serial orders and the
-//! pool) and compares bytes; the fuzzer and the harness are not written yet.
+//! `hd_testkit` (dev only): the determinism matrix
+//! (`docs/compiler/testing-the-compiler.md` §8.1). It runs one build under
+//! several executors (serial orders and the pool) and compares bytes.
 //! `known_failures` reads the root `KNOWN_FAILURES.tsv` for the conformance
 //! tiers. `stages` runs the stage fixtures under each crate's
-//! `tests/stages/` (#660).
+//! `tests/cases/` (#675).
 
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 
-use hd_base::{NotImplemented, Stage, StageResult};
 use hd_driver::Executor;
 use hd_sched::SerialOrder;
 
@@ -134,14 +132,6 @@ pub fn determinism_matrix(build: &dyn Fn(Executor) -> Vec<u8>) -> Result<(), Str
         }
     }
     Ok(())
-}
-
-/// The edit-script fuzzer of §8.2.
-pub fn edit_script_fuzz(_seed: u64) -> StageResult<()> {
-    Err(NotImplemented::new(
-        Stage::PackageResult,
-        "edit-script fuzzer",
-    ))
 }
 
 #[cfg(test)]

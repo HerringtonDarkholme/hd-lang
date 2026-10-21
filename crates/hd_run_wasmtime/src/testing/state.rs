@@ -78,10 +78,7 @@ impl State {
     pub fn current_row(&self) -> u32 {
         self.lock().row
     }
-    #[must_use]
-    pub fn timeout_ms(&self) -> Option<i64> {
-        self.lock().timeout
-    }
+
     #[must_use]
     pub fn ended(&self) -> bool {
         self.lock().ended

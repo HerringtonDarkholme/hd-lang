@@ -61,8 +61,8 @@ reaches the header findings it decides; a body edit in a template's
 module rechecks only the modules that derive its template, and none when
 no template reads the body.
 
-Planned, not built: the edit-script fuzzer (`hd_testkit::edit_script_fuzz`
-is a stub). It applies random edits to a generated or fixture package.
+Planned, not built: the edit-script fuzzer applies random edits to a
+generated or fixture package.
 After each edit it runs an incremental check and a clean check with an
 empty `HD_CACHE`, and compares their outputs and entries byte for byte.
 The edit vocabulary:

@@ -223,9 +223,6 @@ pub struct NodeRef<'t> { tree: &'t GreenTree, index: NodeIdx }
 - **No red tree and no incremental reparse.** A whole file reparses
   quickly. An editor tier can add them later.
 - About 14 bytes per node.
-- **Wire form.** `GreenTree::to_wire` writes tokens, tree columns,
-  comments and line starts as little-endian sections behind an `HDST`
-  header. Nothing reads it yet.
 - **`dyn` types.** `dyn` followed by a trait path, its arguments and
   bindings is a `DYN_TYPE` node, as in `dyn Supplier[Item = i32]`. A bare
   trait name in type position parses as a named type: only resolution
@@ -234,9 +231,8 @@ pub struct NodeRef<'t> { tree: &'t GreenTree, index: NodeIdx }
 - **No GADT forms.** A variant has no result-type annotation.
 
 Planned, not built: views generated from one grammar file for Rust and
-JavaScript, and a JavaScript decoder of the wire form, so tools outside
-the checker (formatter, `hd doc`, the playground) read the tree through
-named views instead of raw columns.
+JavaScript, so tools outside the checker (formatter, `hd doc`, the
+playground) read the tree through named views instead of raw columns.
 
 ### 4.5 Header Extraction And The API Text Hash
 

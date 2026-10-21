@@ -56,25 +56,6 @@ pub fn key(plain: Hash128, known: &[(u32, Hash128)], defaults: &[(u32, Value)]) 
     h.finish()
 }
 
-/// The original TIR hash is ID-independent. Rewrites only replace control
-/// instructions with scopes or empty blocks, whose operands are local
-/// instruction/record offsets, so hashing their changes introduces no run IDs.
-#[must_use]
-pub fn body_key(original: &Body, folded: &Body, original_hash: Hash128) -> Hash128 {
-    let mut h = StableHasher::new("default-body");
-    h.hash(original_hash);
-    for i in 0..folded.len() {
-        if original.tags[i] != folded.tags[i] || original.data[i] != folded.data[i] {
-            debug_assert!(matches!(folded.tags[i], Tag::Scope | Tag::Block));
-            h.u32(u32::try_from(i).expect("insts"));
-            h.u8(folded.tags[i] as u8);
-            h.u32(folded.data[i][0]);
-            h.u32(folded.data[i][1]);
-        }
-    }
-    h.finish()
-}
-
 /// A default must consist entirely of constants and transparent coercions.
 /// Returning a constant after a call or a write is deliberately not enough.
 #[must_use]

@@ -1,12 +1,10 @@
 //! The `CacheStore` interface, entry kinds, entry framing, the memory
-//! store, the stat manifest record and the eviction plan (`crates/hd_cache/DESIGN.md` §5.2,
-//! §5.4, §5.5, §5.7, §5.8; `docs/compiler/data-structures.md` §3.20). The disk store is in
+//! store and the eviction plan (`crates/hd_cache/DESIGN.md` §5.2,
+//! §5.4, §5.7, §5.8; `docs/compiler/data-structures.md` §3.20). The disk store is in
 //! `disk.rs`.
 
-use hd_base::HashMap;
+use hd_base::{Hash128, HashMap};
 use std::sync::{Arc, Mutex};
-
-use hd_base::{Hash128, NotImplemented, Stage, StageResult};
 
 /// Entry kinds (§5.2). `Code` exists only inside packs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -355,31 +353,6 @@ pub fn decode_entry(bytes: &[u8]) -> Result<(EntryHeader, Sections<'_>), EntryEr
     Ok((h, out))
 }
 
-/// One stat manifest record (§5.5; `docs/compiler/data-structures.md` §3.20), 88 bytes on disk.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ManifestRecord {
-    pub path: String,
-    pub size: u64,
-    pub mtime_ns: i64,
-    pub ctime_ns: i64,
-    pub inode: u64,
-    pub source_hash: Hash128,
-    pub api_text_hash: Hash128,
-    pub uses: Vec<String>,
-    pub role: u8,
-}
-
-impl ManifestRecord {
-    /// A file is unchanged when its stat fields all match (§5.5).
-    #[must_use]
-    pub fn same_stat(&self, size: u64, mtime_ns: i64, ctime_ns: i64, inode: u64) -> bool {
-        self.size == size
-            && self.mtime_ns == mtime_ns
-            && self.ctime_ns == ctime_ns
-            && self.inode == inode
-    }
-}
-
 /// The eviction shard of a key: its first byte (§5.7, 256 shards).
 #[must_use]
 pub fn shard_of(key: Hash128) -> u8 {
@@ -417,15 +390,6 @@ pub fn plan_eviction(entries: &[EntryStat], budget: u64) -> Vec<EntryStat> {
         out.push(e);
     }
     out
-}
-
-/// Verify mode (§5.6): recompute an entry and compare it with the stored one.
-pub fn verify_entry(stored: &[u8], recomputed: &[u8]) -> StageResult<bool> {
-    let (a, sa) = decode_entry(stored)
-        .map_err(|e| NotImplemented::bug(Stage::PackageResult, format!("verify: {e:?}")))?;
-    let (b, sb) = decode_entry(recomputed)
-        .map_err(|e| NotImplemented::bug(Stage::PackageResult, format!("verify: {e:?}")))?;
-    Ok(a.key == b.key && sa.len() == sb.len() && sa.iter().zip(&sb).all(|(x, y)| x.1 == y.1))
 }
 
 #[cfg(test)]

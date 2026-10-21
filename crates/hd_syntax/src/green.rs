@@ -261,94 +261,6 @@ impl GreenTree {
     pub fn reconstruct(&self, tokens: &TokenBuf, source: &str) -> String {
         tokens.reconstruct(source)
     }
-
-    #[must_use]
-    pub fn to_wire(&self, tokens: &TokenBuf, source: &str) -> Vec<u8> {
-        const SECTIONS: usize = 16;
-        let mut output = vec![0_u8; 8 + SECTIONS * 4];
-        output[0..4].copy_from_slice(b"HDST");
-        output[4..6].copy_from_slice(&1_u16.to_le_bytes());
-        output[6..8].copy_from_slice(&1_u16.to_le_bytes());
-        let mut offsets = Vec::with_capacity(SECTIONS);
-        let mut section = |bytes: &[u8]| {
-            while !output.len().is_multiple_of(8) {
-                output.push(0);
-            }
-            offsets.push(as_u32(output.len()));
-            output.extend_from_slice(bytes);
-        };
-        section(
-            &tokens
-                .kind
-                .iter()
-                .map(|kind| *kind as u8)
-                .collect::<Vec<_>>(),
-        );
-        section(&u32_bytes(&tokens.start));
-        section(&u32_bytes(&tokens.end));
-        section(&u32_bytes(&tokens.line_first));
-        section(&u32_bytes(&tokens.line_start));
-        let utf16 = utf16_line_starts(source, &tokens.line_start);
-        section(&u32_bytes(&utf16));
-        section(
-            &tokens
-                .line_flags
-                .iter()
-                .map(|flags| flags.0)
-                .collect::<Vec<_>>(),
-        );
-        let comments: Vec<u32> = tokens
-            .com_start
-            .iter()
-            .zip(&tokens.com_end)
-            .zip(&tokens.com_kind)
-            .flat_map(|((&start, &end), &kind)| [start, end, kind as u32])
-            .collect();
-        section(&u32_bytes(&comments));
-        section(&u16_bytes(
-            &self
-                .kind
-                .iter()
-                .map(|kind| *kind as u16)
-                .collect::<Vec<_>>(),
-        ));
-        section(&u32_bytes(
-            &self
-                .first_token
-                .iter()
-                .map(|token| token.raw())
-                .collect::<Vec<_>>(),
-        ));
-        section(&u32_bytes(
-            &self
-                .last_token
-                .iter()
-                .map(|token| token.raw())
-                .collect::<Vec<_>>(),
-        ));
-        section(&u32_bytes(&self.subtree_len));
-        let layouts: Vec<u32> = self
-            .layout_at
-            .iter()
-            .zip(&self.layout_kind)
-            .flat_map(|(&at, &kind)| [at.raw(), kind as u32])
-            .collect();
-        section(&u32_bytes(&layouts));
-        let errors: Vec<u32> = self
-            .err_node
-            .iter()
-            .zip(&self.err_code)
-            .flat_map(|(&node, &code)| [node.raw(), code as u32])
-            .collect();
-        section(&u32_bytes(&errors));
-        section(source.as_bytes());
-        section(&[]);
-        for (index, offset) in offsets.into_iter().enumerate() {
-            let start = 8 + index * 4;
-            output[start..start + 4].copy_from_slice(&offset.to_le_bytes());
-        }
-        output
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -688,23 +600,6 @@ impl SyntaxKind {
                 | Self::RequirementRow
         )
     }
-
-    /// The kinds of the `statement` production inside a block.
-    #[must_use]
-    pub fn is_statement(self) -> bool {
-        matches!(
-            self,
-            Self::LetStmt
-                | Self::DiscardStmt
-                | Self::AssignmentStmt
-                | Self::ReturnStmt
-                | Self::BreakStmt
-                | Self::ContinueStmt
-                | Self::DeferStmt
-                | Self::UsingStmt
-                | Self::ExprStmt
-        )
-    }
 }
 
 /// Any named declaration: function, data, enum, trait, type, or impl.
@@ -758,11 +653,6 @@ impl<'t> Decl<'t> {
 }
 
 impl<'t> FnDecl<'t> {
-    #[must_use]
-    pub fn name_token(self, tokens: &TokenBuf) -> Option<TokenIdx> {
-        self.0.name(tokens)
-    }
-
     #[must_use]
     pub fn generics(self) -> Option<GenericParameterList<'t>> {
         self.0.children().find_map(GenericParameterList::cast)
@@ -841,16 +731,6 @@ impl<'t> IfExpr<'t> {
     #[must_use]
     pub fn condition(self) -> Option<NodeRef<'t>> {
         self.0.children().next()
-    }
-
-    #[must_use]
-    pub fn then_block(self) -> Option<Block<'t>> {
-        self.0.children().find_map(Block::cast)
-    }
-
-    #[must_use]
-    pub fn else_clause(self) -> Option<ElseClause<'t>> {
-        self.0.children().find_map(ElseClause::cast)
     }
 }
 
@@ -955,27 +835,6 @@ pub(crate) fn build(
         tree.err_code.push(code);
     }
     tree
-}
-
-fn utf16_line_starts(source: &str, starts: &[u32]) -> Vec<u32> {
-    starts
-        .iter()
-        .map(|&start| as_u32(source[..start as usize].encode_utf16().count()))
-        .collect()
-}
-
-fn u32_bytes(values: &[u32]) -> Vec<u8> {
-    values
-        .iter()
-        .flat_map(|value| value.to_le_bytes())
-        .collect()
-}
-
-fn u16_bytes(values: &[u16]) -> Vec<u8> {
-    values
-        .iter()
-        .flat_map(|value| value.to_le_bytes())
-        .collect()
 }
 
 fn as_u32(value: usize) -> u32 {
