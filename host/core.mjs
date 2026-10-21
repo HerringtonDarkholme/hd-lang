@@ -41,6 +41,7 @@
 //   in one growing set of instances, records a journal of its host calls
 //   at the import call sites, and rebuilds itself from a journal
 //   (journal.mjs), as `hd_run_wasmtime`'s session does.
+import { cycleReport } from "./checked-report.mjs";
 import { shortest, fixed, lower, upper, parse } from "./float.mjs";
 import { HttpError, METHODS } from "./gen/abi.mjs";
 import {
@@ -785,6 +786,8 @@ export function createCoreHost(sink, env = {}, layer = null) {
     } catch (e) {
       flush();
       if (e instanceof EndCase) {
+        const report = cycleReport(env.module, instance);
+        if (report !== null) sink.err(report);
         return { status: 0, trapped: false, ended: true };
       }
       if (e instanceof HostContract) {
@@ -823,6 +826,8 @@ export function createCoreHost(sink, env = {}, layer = null) {
     }
     // A trap's panic as the host recorded it, or null.
     const panic = trapped && st.panic !== null ? panicOfReport(st.panic) : null;
+    const report = cycleReport(env.module, instance);
+    if (report !== null) sink.err(report);
     return { status, trapped, ended, frames, panic, cancelled: cancelled && !trapped };
   };
 

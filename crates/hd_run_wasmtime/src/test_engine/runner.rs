@@ -82,6 +82,7 @@ impl NativeBodyRunner {
             &format!("hd.test.{}", self.case.test),
         )
         .map_err(|error| format!("{error:?}"))?;
+        instance.report.clone_from(&self.prepared.report);
         instance.close_on_end = false;
         Ok(instance)
     }

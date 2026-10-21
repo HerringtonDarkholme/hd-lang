@@ -152,13 +152,15 @@ impl WasmtimeEngine {
             }
             Err(error) => return Err(StartError::Engine(error.to_string())),
         };
-        WasmtimeInstance::from_instance(
+        let mut run = WasmtimeInstance::from_instance(
             store,
             Arc::clone(&self.engine),
             instance,
             "hd.init",
             "hd.poll",
-        )
+        )?;
+        run.report.clone_from(&m.1);
+        Ok(run)
     }
 }
 
@@ -224,7 +226,10 @@ pub(crate) fn new_store(
 
 /// A compiled module. The artifact is shared: loading identical bytes
 /// returns the same compilation (see `cache`).
-pub struct Module(pub(crate) Arc<wasmtime::Module>);
+pub struct Module(
+    pub(crate) Arc<wasmtime::Module>,
+    pub(crate) Option<crate::checked_report::Report>,
+);
 
 impl Engine for WasmtimeEngine {
     type Module = Module;
@@ -240,7 +245,7 @@ impl Engine for WasmtimeEngine {
         shared
             .cache
             .get_or_compile(&shared.engine, wasm)
-            .map(Module)
+            .map(|module| Module(module, crate::checked_report::Report::read(wasm)))
             .map_err(|e| LoadError::Engine(format!("{e:#}")))
     }
     fn instantiate(&self, m: &Module, host: &HostSetup) -> Result<Box<dyn Instance>, StartError> {

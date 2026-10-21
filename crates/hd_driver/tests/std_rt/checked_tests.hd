@@ -5,10 +5,22 @@
 # `STD_RT_TESTS`). Each case reads only the blocks it allocates itself.
 use std.rt.alloc.{block_of}
 use std.rt.checked.{allocate, free, live, release, retain}
-use std.rt.memory.{load_u32, load_u8, store_u32}
+use std.rt.memory.{load_u32, load_u8, load_u64, store_u32}
+use std.rt.checked_report.{collected, pointer}
+use std.rt.cycle.{collect, suspect, track, visit}
 
 POISON := 0xdededede
 FRESH := 0xa5a5a5a5
+
+fn trace_link(block: usize) -> void:
+    _ := visit(usize(load_u32(block + 8)))
+
+fn unexpected_release(address: usize) -> void:
+    panic("a white-only test graph has no outgoing release")
+
+fn free_collected(block: usize) -> void:
+    collected(block)
+    free(block)
 
 tests:
     use std.testing.{assert, it}
@@ -49,3 +61,30 @@ tests:
         free(a)
         retain(16)
         assert(release(16) == 0, "static data has no count")
+
+    it("collected white blocks increment their descriptor counters"):
+        a := allocate(32)
+        b := allocate(32)
+        store_u32(a, 1)
+        store_u32(b, 1)
+        store_u32(a + 4, 0x80000001)
+        store_u32(b + 4, 0x80000002)
+        track(a)
+        track(b)
+        store_u32(a + 8, u32(b + 8))
+        store_u32(b + 8, u32(a + 8))
+        suspect(a)
+        suspect(b)
+        collect(trace_link, unexpected_release, free_collected)
+        assert(load_u64(pointer() + 8) == 1, "the first descriptor was freed once")
+        assert(load_u64(pointer() + 16) == 1, "the second descriptor was freed once")
+
+    it("a deferred zero-count candidate does not increment cycle counters"):
+        block := allocate(32)
+        store_u32(block, 1)
+        store_u32(block + 4, 0x80000001)
+        track(block)
+        suspect(block)
+        free(block)
+        collect(trace_link, unexpected_release, free_collected)
+        assert(pointer() == 0, "the zero-count sweep never allocates a counter array")

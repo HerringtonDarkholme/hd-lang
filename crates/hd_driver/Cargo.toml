@@ -11,6 +11,7 @@ description = "The one driver: the task graph of one compile run over the caller
 # driver is serial only, which is what the browser build uses.
 threads = ["hd_sched/threads"]
 default = ["threads"]
+checked-report = ["hd_wasm_linear/checked-report"]
 # Runs the tests that compare against the wasmtime engine. A dev-dependency
 # cannot be optional, so the test-only `hd_run_wasmtime` is an optional
 # dependency; the library itself never uses it.

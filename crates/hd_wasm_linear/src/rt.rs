@@ -729,6 +729,11 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
             if bang {
                 m.export("hd.wake", Sym::Helper(Helper::WakeMark));
             }
+            #[cfg(feature = "checked-report")]
+            if let Some(c) = m.runtime.and_then(|r| r.checked) {
+                m.export("hd.cycles.pointer", Sym::Inst(c.pointer));
+                m.export("hd.cycles.length", Sym::Inst(c.length));
+            }
             return Ok(());
         }
         Entry::Inputs(inputs) => {
@@ -776,6 +781,11 @@ pub fn entry(input: &Input<'_>, m: &mut Module) -> StageResult<()> {
     if let Some(c) = m.runtime.and_then(|r| r.checked) {
         m.export("hd.retained", Sym::Inst(c.retained));
         m.export("hd.released", Sym::Inst(c.released));
+        #[cfg(feature = "checked-report")]
+        {
+            m.export("hd.cycles.pointer", Sym::Inst(c.pointer));
+            m.export("hd.cycles.length", Sym::Inst(c.length));
+        }
     }
     if m.frames.contains_key(&key) {
         m.export("hd.wake", Sym::Helper(Helper::WakeMark));
@@ -1204,7 +1214,8 @@ fn write_str(f: &mut Func, s: u32) {
 
 /// Builds helper `h`; it may ask `m` for more helpers and static data.
 pub fn helper(h: &Helper, m: &mut Module) -> Func {
-    match h {
+    #[cfg_attr(not(feature = "checked-report"), allow(unused_mut))]
+    let mut f = match h {
         Helper::RefViewsAbsent => {
             let mut f = Func::new("rt:ref_views_absent", vec![], vec![Val::I32]);
             f.i32(0);
@@ -1403,6 +1414,11 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         Helper::CycleFree => {
             let mut f = Func::new("rt:cycle_free", vec![Val::I32; 3], vec![]);
+            #[cfg(feature = "checked-report")]
+            if let Some(c) = m.runtime.and_then(|r| r.checked) {
+                f.get(1);
+                f.call(Sym::Inst(c.collected));
+            }
             free_object(&mut f, m, 1);
             f
         }
@@ -1618,7 +1634,14 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             }
             f
         }
+    };
+    #[cfg(feature = "checked-report")]
+    match h {
+        Helper::ListBuf { .. } | Helper::MapTable { .. } => checked_kind(&mut f, m, 5),
+        Helper::ListHeader { .. } | Helper::ListHeaderAs => checked_kind(&mut f, m, 6),
+        _ => {}
     }
+    f
 }
 
 /// [`Helper::Alloc`]: a bump allocation from `HeapTop` up to `HeapEnd`,
@@ -3538,5 +3561,17 @@ fn ref_field_helper(h: &Helper, m: &Module) -> Func {
             f
         }
         _ => unreachable!("a field reference helper"),
+    }
+}
+
+/// Gives this allocation its checked descriptor kind. No instruction is
+/// added in unchecked builds; the linker aliases the same release glue.
+#[cfg(feature = "checked-report")]
+pub(crate) fn checked_kind(f: &mut Func, m: &Module, kind: u8) {
+    if m.runtime.is_none_or(|r| r.checked.is_none()) {
+        return;
+    }
+    if let Some(i) = f.body.windows(3).rposition(|w| matches!(w, [Ins::TableSlot(_), Ins::Op(Instruction::I32Const(c)), Ins::Op(Instruction::I32Add)] if c.cast_unsigned() == 1 || c.cast_unsigned() == CYCLIC + 1)) && let Ins::TableSlot(s) = &f.body[i] {
+        f.body[i] = Ins::Descriptor(s.clone(), kind);
     }
 }

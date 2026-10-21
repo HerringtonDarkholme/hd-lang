@@ -37,6 +37,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { entryCancel } from "./core.mjs";
+import { cycleReport } from "./checked-report.mjs";
 import { createHost } from "./node.mjs";
 import { providers } from "./profiles.mjs";
 
@@ -159,6 +160,7 @@ async function runEntry(header, wasm, stdinText) {
       writeFileSync(path, stdinText);
       stdinFd = openSync(path, "r");
     }
+    const module = await WebAssembly.compile(wasm);
     host = createHost(
       {
         out: (text) => {
@@ -169,6 +171,7 @@ async function runEntry(header, wasm, stdinText) {
         },
       },
       {
+        module,
         args: header.args ?? [],
         program: "",
         grants: {},
@@ -176,9 +179,15 @@ async function runEntry(header, wasm, stdinText) {
         stdin: stdinFd,
       },
     );
-    const { instance } = await WebAssembly.instantiate(wasm, host.imports);
+    const instance = await WebAssembly.instantiate(module, host.imports);
     if (header.scenario) {
       const status = await runScenario(header, host, instance);
+      // Cancellation uses host.run, which already reports. The other
+      // scenarios drive exports directly and report once here.
+      if (header.scenario !== "cancellation-cleanup") {
+        const report = cycleReport(module, instance);
+        if (report !== null) stderrStr += report;
+      }
       return { status, stdoutStr, stderrStr };
     }
     const { status } = await host.run(instance, "hd.init", "hd.poll");

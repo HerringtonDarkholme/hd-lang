@@ -192,8 +192,11 @@ pub const RUNTIME_FNS: [&str; 9] = [
 /// The checked runtime (`crates/hd_wasm_linear/DESIGN.md` §23.24): the same nine
 /// functions over the allocator, then the two the exit audit calls and the
 /// two count totals the entry exports.
+#[cfg(not(feature = "checked-report"))]
 pub const CHECKED_MODULE: &str = "std.rt.checked";
-pub const CHECKED_FNS: [&str; 13] = [
+#[cfg(feature = "checked-report")]
+pub const CHECKED_MODULE: &str = "std.rt.checked_report";
+pub const CHECKED_FNS: &[&str] = &[
     "allocate",
     "free",
     "retain",
@@ -207,6 +210,12 @@ pub const CHECKED_FNS: [&str; 13] = [
     "audit",
     "retained",
     "released",
+    #[cfg(feature = "checked-report")]
+    "collected",
+    #[cfg(feature = "checked-report")]
+    "pointer",
+    #[cfg(feature = "checked-report")]
+    "length",
 ];
 
 /// The cycle collector (`crates/hd_wasm_linear/DESIGN.md` §23.28), which both
@@ -227,7 +236,7 @@ pub const fn runtime_module(checked: bool) -> &'static str {
 /// The names of [`runtime_module`]'s functions that emitted code calls.
 #[must_use]
 pub const fn runtime_fns(checked: bool) -> &'static [&'static str] {
-    if checked { &CHECKED_FNS } else { &RUNTIME_FNS }
+    if checked { CHECKED_FNS } else { &RUNTIME_FNS }
 }
 
 /// Every runtime function that emitted code calls, as `(module, name)`:
@@ -239,7 +248,15 @@ pub fn runtime_items(checked: bool) -> Vec<(&'static str, &'static str)> {
     let module = runtime_module(checked);
     runtime_fns(checked)
         .iter()
-        .map(|n| (module, *n))
+        .map(|n| {
+            #[cfg(feature = "checked-report")]
+            let module = if checked && !matches!(*n, "collected" | "pointer" | "length") {
+                "std.rt.checked"
+            } else {
+                module
+            };
+            (module, *n)
+        })
         .chain(CYCLE_FNS.iter().map(|n| (CYCLE_MODULE, *n)))
         .chain([
             (RUNTIME_MODULE, "metadata"),
@@ -312,6 +329,12 @@ pub struct Checked {
     pub audit: Hash128,
     pub retained: Hash128,
     pub released: Hash128,
+    #[cfg(feature = "checked-report")]
+    pub collected: Hash128,
+    #[cfg(feature = "checked-report")]
+    pub pointer: Hash128,
+    #[cfg(feature = "checked-report")]
+    pub length: Hash128,
 }
 
 impl Runtime {
@@ -324,14 +347,20 @@ impl Runtime {
         let (counts, rest) = keys.split_first_chunk::<9>()?;
         let (checked, rest) = match rest.len() {
             n if n == CYCLE_FNS.len() => (None, rest),
-            n if n == CYCLE_FNS.len() + 4 => {
-                let (c, rest) = rest.split_first_chunk::<4>()?;
+            n if n == CYCLE_FNS.len() + CHECKED_FNS.len() - 9 => {
+                let (c, rest) = rest.split_at(CHECKED_FNS.len() - 9);
                 (
                     Some(Checked {
                         live: c[0],
                         audit: c[1],
                         retained: c[2],
                         released: c[3],
+                        #[cfg(feature = "checked-report")]
+                        collected: c[4],
+                        #[cfg(feature = "checked-report")]
+                        pointer: c[5],
+                        #[cfg(feature = "checked-report")]
+                        length: c[6],
                     }),
                     rest,
                 )

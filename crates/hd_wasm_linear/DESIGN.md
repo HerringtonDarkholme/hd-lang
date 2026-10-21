@@ -196,20 +196,19 @@ the slot's start:
 | Offset | Size | Field |
 | --- | --- | --- |
 | 0 | 4 | the count: 32-bit, non-atomic, with no overflow check on wasm32 (REFCOUNT_RUNTIME.md §4.4) |
-| 4 | 4 | the descriptor word: bits 0 to 29 the release glue's function-table slot plus one (0 for none); bit 30 set while the object is a cycle candidate, bit 31 when its type is cycle-capable (§23.28) |
+| 4 | 4 | the descriptor word: bits 0 to 24 the release glue's function-table slot plus one (0 for none), bits 25 to 29 the allocator class; bit 30 set while the object is a cycle candidate, bit 31 when its type is cycle-capable (§23.28) |
 | 8 | the payload's size | the payload: the fields, or a buffer's header and elements |
 | the block's last 4 bytes | 4 | the collector word, for a cycle-capable type only: the color and the frame flag (REFCOUNT_RUNTIME.md §7.2, §23.28) |
 
 - A reference to a whole object is the payload's address, slot + 8, so
   its fields read at constant offsets with no lookup; the header is at
   `address - 8`.
-- **The type descriptor** is a static record that the descriptor number
-  indexes: the release function's and the trace function's function-table
-  indices (0 for none), the payload size and the slot's size class, and
-  flags (cycle-capable, buffer). It is what lets the last reference be an
-  interior one: when `&mut packet.status` dies last, the page table finds
-  the slot and the descriptor says to release a whole `Packet`
-  (REFCOUNT_RUNTIME.md §2).
+- **The descriptor word** identifies shared release glue, not a nominal
+  type record. Its low 25 bits are the glue's table slot plus one; five
+  bits carry an allocator class, and the top two are collector flags.
+  The allocator supplies the block size. An interior reference finds its
+  block through the page table, then runs that block's glue. Types with
+  identical layouts may share the descriptor and have no stored type name.
 - **Immortal objects.** A literal or constant object starts at count
   2^31, and lives in a static page anyway; a program never releases more
   references than it made, so it never reaches zero.
@@ -1252,6 +1251,34 @@ is unchanged.
   runtime can reach it.
 - **The collector** (§23.28) runs after the teardown and before the
   audit, so a cycle the bindings held is freed first.
+- **Collected-cycle totals (#714).** The CLI enables the `checked-report`
+  Cargo feature of the driver and backend. In checked builds only,
+  `CycleFree` calls `std.rt.checked_report.collected`, which increments a
+  raw `u64` array by descriptor ID. `cycle.freeing_cycles()` distinguishes
+  actual white-block frees from the initial zero-count sweep. The ordinary
+  collector algorithm is unchanged. The array grows by doubling and holds
+  no counted links; like collector work arrays, its raw storage is outside
+  the leak audit.
+- **Host-side kinds.** A checked descriptor gets a distinct table slot for
+  each release-glue/kind pair, pointing at the same release function.
+  Closures, shared local cells, frames, waker/all/race nodes, list/map
+  buffers and headers stay distinct even when their layouts share glue.
+  Reference roots represent objects, not capture cells. Other user values
+  fall back to objects because shared layout glue retains no nominal name.
+  The `hd.cycles` custom section is version byte 1 followed by records
+  `(descriptor ID: little-endian u32, kind: u8)`, where kinds 0 through 6
+  mean object, closure, cell, frame, node, buffer and header. Descriptor IDs
+  are table slots plus one. The host reads the counter array through
+  `hd.cycles.pointer` and `hd.cycles.length` and the exported `hd.heap`,
+  aggregates it using that metadata, and prints one `cycles freed:` line
+  on stderr when a drive ends. No kind names or formatting code enter the
+  guest. Totals are cumulative within an instance; fresh instances start
+  at zero. Invalid report metadata is ignored by both hosts.
+- **The feature boundary.** Without `checked-report`, compiler-side
+  descriptor aliases, metadata and report exports are absent. The web
+  embedding excludes both checked runtime source modules, since the
+  playground compiles only unchecked programs. Unchecked modules preserve
+  their existing descriptors and bytes even with the CLI feature enabled.
 - **The sweep.** `HD_CONFORMANCE_CHECKED=1` builds every
   case of the conformance runner in checked mode, so each must pass with
   its counts audited.

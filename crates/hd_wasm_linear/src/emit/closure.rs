@@ -221,6 +221,12 @@ impl Em<'_, '_, '_> {
         let (m, walk) = self.cell_mem(l)?;
         let cyclic = self.cyclic_holding(&[self.cell_ty(l)]);
         let at = self.object(&m, walk.as_ref(), cyclic);
+        #[cfg(feature = "checked-report")]
+        if self.input.runtime.is_some_and(|r| r.checked.is_some())
+            && cell_locals(self.b, &[]).contains_key(&l)
+        {
+            crate::rt::checked_kind(&mut self.f, self.m, 2);
+        }
         let part = Part {
             first: 0,
             count: m.leaves.len(),
@@ -370,6 +376,8 @@ impl Em<'_, '_, '_> {
         // value type alone cannot describe that mutable reference edge.
         let cyclic = caps.iter().any(|(_, shared)| *shared) || self.cyclic_holding(&tys);
         let at = self.object(&m, walk.as_ref(), cyclic);
+        #[cfg(feature = "checked-report")]
+        crate::rt::checked_kind(&mut self.f, self.m, 1);
         for (s, p) in srcs.iter().zip(&parts) {
             self.store_part(at, &m, *p, s)?;
         }

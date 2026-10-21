@@ -42,6 +42,7 @@ pub(crate) struct Inner {
 pub struct TestEngine(Arc<Inner>);
 
 pub(crate) struct Compiled {
+    report: Option<crate::checked_report::Report>,
     pub(crate) module: Arc<wasmtime::Module>,
     pub(crate) engine: Arc<Inner>,
     pub(crate) prepared: Mutex<HashMap<TestHostKind, InstancePre<Host>>>,
@@ -52,6 +53,7 @@ pub struct TestModule(pub(crate) Arc<Compiled>);
 
 #[derive(Clone)]
 pub struct PreparedTest {
+    pub(crate) report: Option<crate::checked_report::Report>,
     pub(crate) engine: Arc<Inner>,
     pub(crate) pre: InstancePre<Host>,
 }
@@ -105,6 +107,7 @@ impl TestEngine {
             .get_or_compile(&self.0.engine, wasm)
             .map_err(|error| format!("{error:#}"))?;
         Ok(TestModule(Arc::new(Compiled {
+            report: crate::checked_report::Report::read(wasm),
             module,
             engine: Arc::clone(&self.0),
             prepared: Mutex::default(),
@@ -133,6 +136,7 @@ impl TestEngine {
             pre
         };
         Ok(PreparedTest {
+            report: module.0.report.clone(),
             engine: Arc::clone(&self.0),
             pre,
         })

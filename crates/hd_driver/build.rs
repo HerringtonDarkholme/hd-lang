@@ -40,6 +40,8 @@ fn main() {
     // `hd doc`. Both copies are written, and `STD_FILES` names the one this
     // target embeds: a cargo feature would be unified across the workspace
     // and strip the native `hd` too, while the target is per build.
+    let web =
+        std::env::var("CARGO_CFG_TARGET_FAMILY").is_ok_and(|f| f.split(',').any(|f| f == "wasm"));
     let mut code = String::new();
     for (name, dir, strip) in [
         (
@@ -59,6 +61,9 @@ fn main() {
         );
         let stripped = Path::new(&out).join(dir);
         for (rel, abs) in &files {
+            if web && matches!(rel.as_str(), "rt/checked.hd" | "rt/checked_report.hd") {
+                continue;
+            }
             let text = std::fs::read_to_string(abs).unwrap_or_default();
             let dest = stripped.join(rel);
             if let Some(dir) = dest.parent() {
@@ -73,8 +78,6 @@ fn main() {
         }
         code.push_str("];\n");
     }
-    let web =
-        std::env::var("CARGO_CFG_TARGET_FAMILY").is_ok_and(|f| f.split(',').any(|f| f == "wasm"));
     let chosen = if web {
         "STD_FILES_WITHOUT_DOCS"
     } else {

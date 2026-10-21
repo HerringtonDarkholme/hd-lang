@@ -6,6 +6,9 @@ license.workspace = true
 rust-version.workspace = true
 description = "The linear-memory backend: reference-counted values in Wasm linear memory, emitted from TIR and collection output"
 
+[features]
+checked-report = []
+
 [dependencies]
 hd_base = { path = "../hd_base" }
 hd_types = { path = "../hd_types" }

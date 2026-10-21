@@ -24,6 +24,7 @@ pub struct WasmtimeInstance {
     /// Store owns Wasmtime's internal Engine clone, not this outer Arc; an
     /// embedding may drop `WasmtimeEngine` while its instance is still running.
     engine: Arc<wasmtime::Engine>,
+    pub(crate) report: Option<crate::checked_report::Report>,
     init: Option<TypedFunc<(), ()>>,
     instance: Option<wasmtime::Instance>,
     poll: Option<TypedFunc<i32, i32>>,
@@ -75,6 +76,7 @@ impl WasmtimeInstance {
         Self {
             store,
             engine,
+            report: None,
             init: None,
             instance: None,
             poll: None,
@@ -235,6 +237,12 @@ impl WasmtimeInstance {
     }
 
     fn finish(&mut self, event: Control) -> Outcome {
+        if let Some(report) = &self.report
+            && let Some(instance) = self.instance
+            && let Some(text) = report.summary(instance, &mut self.store)
+        {
+            self.store.data_mut().err(&text);
+        }
         let o = self
             .store
             .data_mut()

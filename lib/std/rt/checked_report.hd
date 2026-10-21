@@ -1,0 +1,31 @@
+# Optional checked-cycle measurement. The browser embeds neither this
+# module nor checked.hd. Descriptors and their names belong to the host.
+pub use std.rt.checked.{allocate, free, retain, release, retain_known, release_known, free_acyclic, release_acyclic, release_known_acyclic, live, audit, retained, released}
+use std.rt.alloc.{alloc, free_block}
+use std.rt.cycle.freeing_cycles
+use std.rt.memory.{copy, fill, load_u32, load_u64, store_u64}
+
+let counts: usize = 0
+let slots: usize = 0
+
+# A raw u64 array indexed by descriptor id. It holds no counted references.
+pub fn collected(block: usize) -> void:
+    if !freeing_cycles():
+        return
+    id := usize(load_u32(block + 4)) & 0x1ffffff
+    if id >= slots:
+        let capacity: usize = if slots == 0: 16 else: slots * 2
+        while id >= capacity:
+            capacity = capacity * 2
+        bigger := alloc(capacity * 8)
+        fill(bigger, 0, capacity * 8)
+        if counts != 0:
+            copy(bigger, counts, slots * 8)
+            free_block(counts)
+        counts = bigger
+        slots = capacity
+    at := counts + id * 8
+    store_u64(at, load_u64(at) + 1)
+
+pub fn pointer() -> usize: counts
+pub fn length() -> usize: slots

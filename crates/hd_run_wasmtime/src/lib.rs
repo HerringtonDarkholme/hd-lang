@@ -31,6 +31,7 @@
 pub mod abi;
 mod cache;
 mod cancel;
+mod checked_report;
 mod code_cache;
 mod codec;
 mod console;

@@ -458,6 +458,8 @@ fn forward(f: &mut Func, np: u32) -> bool {
                 | Ins::TableSlot(_)
                 | Ins::VTable(_)
         );
+        #[cfg(feature = "checked-report")]
+        let pure = pure || matches!(p, Ins::Descriptor(..));
         if !pure || t < np || reads[t as usize] != 1 || writes[t as usize] != 1 {
             k += 1;
             continue;
@@ -763,6 +765,8 @@ fn store_after(b: &[Ins], at: usize, arity: &Arity) -> Option<usize> {
 fn effect(i: &Ins, arity: &Arity) -> Option<(usize, usize)> {
     Some(match i {
         Ins::GlobalGet(_) | Ins::TableSlot(_) | Ins::VTable(_) => (0, 1),
+        #[cfg(feature = "checked-report")]
+        Ins::Descriptor(..) => (0, 1),
         Ins::Anchor(_) => (0, 0),
         Ins::GlobalSet(_) => (1, 0),
         Ins::Call(s) => match s {

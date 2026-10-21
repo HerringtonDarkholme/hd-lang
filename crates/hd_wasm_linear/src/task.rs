@@ -209,7 +209,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::WakeSignal => wake_signal(),
         Helper::WakerNew => waker_new(),
         Helper::WakerParent => waker_parent(),
-        Helper::WakeLink => wake_link(),
+        Helper::WakeLink => wake_link(m),
         Helper::WakeNotify => wake_notify(),
         Helper::HostCold {
             module,
@@ -303,6 +303,16 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             | Helper::OpenFrame { part: 1, .. }
     ) {
         guard_frame(&mut f);
+    }
+    #[cfg(feature = "checked-report")]
+    match h {
+        Helper::WakerNew | Helper::Race { part: 0, .. } => crate::rt::checked_kind(&mut f, m, 4),
+        Helper::Frame(_)
+        | Helper::HostCold { .. }
+        | Helper::CleanupCold
+        | Helper::PendingCold { .. }
+        | Helper::OpenFrame { part: 0, .. } => crate::rt::checked_kind(&mut f, m, 3),
+        _ => {}
     }
     f
 }
@@ -574,7 +584,9 @@ fn wake_signal() -> Func {
 /// A shared cancellation cleanup can have several awaiters. Edges keep
 /// every distinct enclosing node, merging child bits for the same node.
 /// Their layout is parent, next edge, bits; all links own counts.
-fn wake_link() -> Func {
+fn wake_link(m: &Module) -> Func {
+    #[cfg(not(feature = "checked-report"))]
+    let _ = m;
     let mut f = Func::new("rt:wake_link", vec![Val::I32; 3], vec![]);
     let edge = f.local(Val::I32);
     f.get(1);
@@ -631,6 +643,8 @@ fn wake_link() -> Func {
     f.op(Instruction::I32Add);
     f.helper(Helper::New);
     f.set(edge);
+    #[cfg(feature = "checked-report")]
+    crate::rt::checked_kind(&mut f, m, 4);
     f.get(1);
     f.helper(Helper::RetainAny);
     // The previous head's count moves into the new edge.

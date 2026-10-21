@@ -215,6 +215,9 @@ pub enum Ins {
     GlobalSet(Global),
     /// `i32.const` of the function's slot in the function table.
     TableSlot(Sym),
+    /// A checked descriptor alias: a distinct slot, the same release glue.
+    #[cfg(feature = "checked-report")]
+    Descriptor(Sym, u8),
     /// `call_indirect` through the function table, at this signature.
     CallIndirect(Vec<Val>, Vec<Val>),
     /// `i32.const` of a static vtable's address ([`Module::vtable`]).
@@ -553,6 +556,10 @@ pub struct Stored {
 /// a descriptor word with [`CYCLIC`], which `rt::push_desc` pushes as a
 /// constant right after its glue's table slot.
 fn cyclic_desc(f: &Func) -> bool {
+    #[cfg(feature = "checked-report")]
+    if f.body.windows(2).any(|w| matches!(w, [Ins::Descriptor(_, _), Ins::Op(Instruction::I32Const(c))] if c.cast_unsigned() & CYCLIC != 0)) {
+        return true;
+    }
     f.body.windows(2).any(|w| {
         matches!(
             w,
@@ -718,6 +725,8 @@ impl Module {
             for i in &f.body {
                 match i {
                     Ins::Call(c) | Ins::TableSlot(c) => work.push(c.clone()),
+                    #[cfg(feature = "checked-report")]
+                    Ins::Descriptor(c, _) => work.push(c.clone()),
                     Ins::VTable(k) => work.extend(self.vtables[*k].0.iter().cloned()),
                     _ => {}
                 }
@@ -896,6 +905,8 @@ impl Module {
             slot_of.insert(s.clone(), k);
             Ok(k)
         };
+        #[cfg(feature = "checked-report")]
+        let mut descriptors: BTreeMap<(Sym, u8), u32> = BTreeMap::new();
         // Vtables follow the data, one `i32` slot index each.
         while !self.data.len().is_multiple_of(4) {
             self.data.push(0);
@@ -1043,7 +1054,26 @@ impl Module {
                     )),
                     Ins::GlobalGet(g) => body.instruction(&Instruction::GlobalGet(gindex[g])),
                     Ins::GlobalSet(g) => body.instruction(&Instruction::GlobalSet(gindex[g])),
+                    #[cfg(feature = "checked-report")]
+                    Ins::Descriptor(t, kind) => {
+                        let k = descriptor_slot(t, *kind, &index, &mut slots, &mut descriptors)?;
+                        body.instruction(&Instruction::I32Const(k.cast_signed()))
+                    }
                     Ins::TableSlot(t) => {
+                        #[cfg(feature = "checked-report")]
+                        let descriptor = self.runtime.is_some_and(|r| r.checked.is_some())
+                            && matches!(f.body.get(position + 1), Some(Ins::Op(Instruction::I32Const(c))) if c.cast_unsigned() == 1 || c.cast_unsigned() == CYCLIC + 1)
+                            && matches!(
+                                f.body.get(position + 2),
+                                Some(Ins::Op(Instruction::I32Add))
+                            );
+                        #[cfg(feature = "checked-report")]
+                        let k = if descriptor {
+                            descriptor_slot(t, 0, &index, &mut slots, &mut descriptors)?
+                        } else {
+                            slot(t, &mut slots)?
+                        };
+                        #[cfg(not(feature = "checked-report"))]
                         let k = slot(t, &mut slots)?;
                         if k >= GLUE {
                             return crate::unsupported(
@@ -1211,6 +1241,10 @@ impl Module {
             exports.export("hd.all_polls", ExportKind::Global, *index);
         }
         exports.export("hd.x", ExportKind::Memory, BUF);
+        #[cfg(feature = "checked-report")]
+        if self.runtime.is_some_and(|r| r.checked.is_some()) {
+            exports.export("hd.heap", ExportKind::Memory, HEAP);
+        }
         let mut data = DataSection::new();
         if !self.data.is_empty() {
             data.active(
@@ -1252,6 +1286,18 @@ impl Module {
             let mut name_sec = NameSection::new();
             name_sec.functions(&names);
             module.section(&name_sec);
+        }
+        #[cfg(feature = "checked-report")]
+        if self.runtime.is_some_and(|r| r.checked.is_some()) {
+            let mut data = vec![1];
+            for ((_, kind), slot) in &descriptors {
+                data.extend_from_slice(&(slot + 1).to_le_bytes());
+                data.push(*kind);
+            }
+            module.section(&wasm_encoder::CustomSection {
+                name: "hd.cycles".into(),
+                data: data.into(),
+            });
         }
         Ok(crate::MappedModule {
             wasm: module.finish(),
@@ -1323,5 +1369,54 @@ fn compact_names(own: &[(u32, String)]) -> wasm_encoder::CustomSection<'static> 
     wasm_encoder::CustomSection {
         name: "hd.names".into(),
         data: data.into(),
+    }
+}
+
+#[cfg(feature = "checked-report")]
+fn descriptor_slot(
+    s: &Sym,
+    kind: u8,
+    index: &BTreeMap<Sym, u32>,
+    slots: &mut Vec<u32>,
+    ids: &mut BTreeMap<(Sym, u8), u32>,
+) -> StageResult<u32> {
+    let key = (s.clone(), kind);
+    if let Some(k) = ids.get(&key) {
+        return Ok(*k);
+    }
+    let f = *index
+        .get(s)
+        .ok_or_else(|| NotImplemented::bug(Stage::Link, "undefined descriptor glue"))?;
+    let k = u32::try_from(slots.len()).expect("descriptor table");
+    if k >= GLUE {
+        return crate::unsupported("a descriptor table exceeding the glue field");
+    }
+    slots.push(f);
+    ids.insert(key, k);
+    Ok(k)
+}
+
+#[cfg(all(test, feature = "checked-report"))]
+mod checked_descriptor_tests {
+    use super::*;
+    #[test]
+    fn kinds_alias_one_release_function_in_distinct_slots() {
+        let glue = Sym::Inst(Hash128(1));
+        let index = BTreeMap::from([(glue.clone(), 7)]);
+        let mut slots = Vec::new();
+        let mut ids = BTreeMap::new();
+        assert_eq!(
+            descriptor_slot(&glue, 1, &index, &mut slots, &mut ids).unwrap(),
+            0
+        );
+        assert_eq!(
+            descriptor_slot(&glue, 2, &index, &mut slots, &mut ids).unwrap(),
+            1
+        );
+        assert_eq!(
+            descriptor_slot(&glue, 1, &index, &mut slots, &mut ids).unwrap(),
+            0
+        );
+        assert_eq!(slots, [7, 7]);
     }
 }

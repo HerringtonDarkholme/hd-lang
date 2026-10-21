@@ -213,7 +213,10 @@ if (isMainThread) {
     {
       module: workerData.module,
       config: workerData.config,
-      createHost,
+      createHost: (sink, env) => {
+        env.module = workerData.module;
+        return createHost(sink, env);
+      },
       files: nodeFiles,
       notify: (message) => parentPort.postMessage(message),
       emit: (record) =>

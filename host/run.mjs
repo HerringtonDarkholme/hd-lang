@@ -151,8 +151,12 @@ async function runHere(
   readLine = undefined,
   cancel = null,
 ) {
+  // The unsupervised path may receive bytes; retain the compiled module
+  // so checked reports can read its custom metadata too.
+  module = module instanceof WebAssembly.Module ? module : await WebAssembly.compile(module);
   const profile = config.profile ? await import("./profiles.mjs") : null;
   const host = createHost(sink, {
+    module,
     args,
     program: config.program ?? "",
     grants: config.grants ?? {},
