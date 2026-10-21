@@ -102,27 +102,28 @@ what the spec names as intrinsic or what only it can build.
 
 ### 23.1 Where The Pieces Live
 
-| Piece | Where | Job (REFCOUNT_RUNTIME.md §10.2) |
-| --- | --- | --- |
-| this record | `crates/hd_wasm_linear/DESIGN.md` §23 | 1 |
-| the backend: layouts, emission from TIR, the module's link, the runtime pieces it generates | the crate `crates/hd_wasm_linear` | 2, 3 and on |
-| `layout.rs` | a type's linear layout: its Wasm values, its size and alignment in memory, its field offsets (§23.3) | 3, 6 |
-| `emit.rs` | one instance's TIR body to one Wasm function | 3 and on |
-| `rt.rs` | generated runtime pieces: the entry wrapper, panic stubs, the exchange-buffer copies, the host provider stubs, object headers and release glue, and the bump allocation that host frames still use; the wake table later | 3 and on |
-| `lib.rs` | `build`: the whole program's module from collection's output, with no per-instance code cache yet | 2, 3 |
-| code generation | `hd_wasm_linear` is the sole code generator; commands have no backend-selection flag | 2 |
-| conformance | both tiers build every case with the linear backend; `HD_CONFORMANCE_CHECKED=1` builds them in checked mode | 2 |
-| memory intrinsics: load, store, grow, copy, fill | the privileged std module `std.rt.memory`: plain hd declarations whose bodies are `@intrinsic` | 4 |
-| the allocator | hd in `std.rt.alloc`, over `std.rt.memory` | 5 |
-| counts | `retain` and `release` in `std.rt.alloc`, called by emitted code, with release glue that `rt.rs` generates per layout | 8 |
-| lists | `emit/list.rs` for the list kernels, and `rt.rs` for the header, the buffer, its release glue and the change that makes a buffer a list's own (§23.17) | 9 |
-| maps | `emit/map.rs` for the map kernels, and `map.rs` for the table: its probe, put, growth, release glue and the change that makes a table a map's own (§23.18) | 10 |
-| closures and `dyn` | `emit/closure.rs` for environments, cells and calls of function values, `emit/dyn_value.rs` for trait values and their vtables, `emit/iter.rs` for collection iterators (§23.19) | 11 |
-| references, cleanup scopes, releases at last use | `emit/refs.rs` for references as addresses, `emit/live.rs` for each value's and local's last use, `emit/scope.rs` for the `defer` exit ladder, `emit/list.rs` for element references' pins (§23.20) | 12 |
-| host codecs | `boundary.rs`: each boundary type's encoder and decoder over the exchange buffer, and the host method slots that call them (§23.23) | 14 |
-| checked mode | `std.rt.checked`, the counts and the allocator with their checks, and `rt.rs`'s audit at an entry's end, with checked allocation/count auditing enabled (§23.24) | 16 |
-| iterative release | hd in a further `std.rt` module, called by emitted code | 19 |
-| the cycle collector | hd in `std.rt.cycle`, called by emitted code, which runs each object's release glue as its trace (§23.28) | 21 |
+| Piece | Where |
+| --- | --- |
+| this record | `crates/hd_wasm_linear/DESIGN.md` §23 |
+| the backend: layouts, emission from TIR, the module's link, the runtime pieces it generates | the crate `crates/hd_wasm_linear` |
+| `layout.rs` | a type's linear layout: its Wasm values, its size and alignment in memory, its field offsets (§23.3) |
+| `emit.rs` | one instance's TIR body to one Wasm function |
+| `rt.rs` | generated runtime pieces: the entry wrapper, panic stubs, the exchange-buffer copies, the host provider stubs, object headers and iterative release glue |
+| `task.rs` | frame constructors, waker nodes, polling and cancellation kernels (§23.21) |
+| `lib.rs` | `build`: the whole program's module from collection's output |
+| code generation | `hd_wasm_linear` is the sole code generator; commands have no backend-selection flag |
+| conformance | both tiers build every case with the linear backend; `HD_CONFORMANCE_CHECKED=1` builds them in checked mode |
+| memory intrinsics: load, store, grow, copy, fill | the privileged std module `std.rt.memory`: plain hd declarations whose bodies are `@intrinsic` |
+| the allocator | hd in `std.rt.alloc`, over `std.rt.memory` |
+| counts | `retain` and `release` in `std.rt.alloc`, called by emitted code, with release glue that `rt.rs` generates per layout |
+| lists | `emit/list.rs` for the list kernels, and `rt.rs` for the header, the buffer, its release glue and the change that makes a buffer a list's own (§23.17) |
+| maps | `emit/map.rs` for the map kernels, and `map.rs` for the table: its probe, put, growth, release glue and the change that makes a table a map's own (§23.18) |
+| closures and `dyn` | `emit/closure.rs` for environments, cells and calls of function values, `emit/dyn_value.rs` for trait values and their vtables, `emit/iter.rs` for collection iterators (§23.19) |
+| references, cleanup scopes, releases at last use | `emit/refs.rs` for references as addresses, `emit/live.rs` for each value's and local's last use, `emit/scope.rs` for the `defer` exit ladder, `emit/list.rs` for element references' pins (§23.20) |
+| host codecs | `boundary.rs`: each boundary type's encoder and decoder over the exchange buffer, and the host method slots that call them (§23.23) |
+| checked mode | `std.rt.checked`, the counts and the allocator with their checks, and `rt.rs`'s audit at an entry's end, with checked allocation/count auditing enabled (§23.24) |
+| iterative release | `rt.rs::release_ref`: nested releases enqueue through `ReleaseHead`, and the outer release drains the queue |
+| the cycle collector | hd in `std.rt.cycle`, called by emitted code, which runs each object's release glue as its trace (§23.28) |
 
 `std.rt` modules are privileged: only std modules may import them, so the
 runtime can change its representation without breaking a program.
@@ -249,7 +250,7 @@ memory.
 
 ### 23.6 The Allocator's Geometry
 
-The allocator is hd in `std.rt.alloc` (job 5), REFCOUNT_RUNTIME.md §6's
+The allocator is hd in `std.rt.alloc`, REFCOUNT_RUNTIME.md §6's
 `sc` grown into a real allocator:
 
 - **Size classes**, 20 of them, sizes in bytes including the header: 16
@@ -355,56 +356,25 @@ be the buffer's address and save one object per list.
 - **Sections.** `hd.lines`, `hd.positions` and `name`
   (§15.5, §15.9) map panic frames to source locations.
 
-### 23.10 What The Jobs Build On This
+### 23.10 Runtime Component Boundaries
 
-| Job | Adds |
-| --- | --- |
-| 2 | the switch, an empty module that runs, the linear conformance mode and its pass list |
-| 3 | both memories, the static data segment, globals, the entry wrapper, integer code and panics: hello and integer programs run |
-| 4 | `std.rt.memory`'s intrinsics, with spec rules and hd tests on the linear backend |
-| 5 | `std.rt.alloc`: size classes, pages, the page table, large runs, with hd tests |
-| 6 to 15 | values inline, strings, counts and release glue, lists, maps, closures and `dyn`, references, frames, the host codecs, each adding rows to `LINEAR_PASSES.tsv` |
+The implementation units are listed in §23.1. Conformance fixtures live
+in `spec/conformance/`, with runtime-unit fixtures in
+`crates/hd_driver/tests/std_rt/`. The root `KNOWN_FAILURES.tsv` records
+issue-backed exceptions; there is no per-backend rollout pass list.
 
-### 23.11 What Job 3 Lowers
-
-Job 3 runs hello and the integer programs. What it builds, and where it
-stops short of the layout above:
+### 23.11 Scalar Instruction Emission
 
 - **Values in locals.** Each TIR instruction's value gets fresh Wasm
   locals of its layout, a TIR local owns the locals of its own, and a
   constant is an immediate. Wasm's structured control does the rest: a
   `Match` is one block per arm around its decision tree, whose `ToArm`
   branches out to its arm.
-- **Layouts so far.** Scalars, `string` as `(address, length)`, a trait
-  value as `(data, vtable)` and a suspension as its frame's address. An
-  enum or a `T?` is its tag, then every variant's payload values in
-  declaration order: no slot sharing yet, which job 6 adds with the
-  layouts in memory. Data, tuples, lists, maps and function values are
-  refused, naming their job.
 - **Integer code** follows §13.15 of
   crates/hd_mono/DESIGN.md: the same checks, the same wrapping in a
   release build, the same panic messages.
-- **Bump allocation.** A string that interpolation or integer text
-  builds is allocated in memory 1 by the helper `rt:alloc` from the
-  global `HeapTop`, 8-aligned after static data, and never freed.
-  Emitted code moves to the std allocator of job 5 when its blocks are
-  counted and freed (jobs 7 and 8).
-- **The host's providers.** The entry passes each row key's host
-  provider as data 0 and a static vtable of host stubs. A stub's cold
-  call is a 20-byte frame: its poll slot, its state, the host handle and
-  the text argument. `block_on` polls the frame through its slot and
-  waits in `hd:rt.block` while it is pending. While only one host call
-  is pending at a time, the completion the host reports is that call's;
-  the wake table comes with the frames of job 13. Only host methods that
-  take one string and answer tags (`Console.write_line!`) are built.
-- **Not yet.** No `hd.lines` or `hd.positions` section, so a panic
-  report names no frames; no `hd.wake` or `hd.cancel`; no test or
-  scenario entry.
 
-### 23.12 What Job 4 Adds
-
-Job 4 gives std the heap: the memory intrinsics, and the test programs
-that run their hd tests.
+### 23.12 Memory Intrinsics And Runtime Tests
 
 - **`std.rt.memory`.** spec/lang/10-modules.md "Memory Intrinsics": plain
   hd declarations in `lib/std/rt/memory.hd` whose bodies are
@@ -423,23 +393,14 @@ that run their hd tests.
   functions whatever the program uses. No module of folder `std` may use
   a runtime module, or the two folders would form a cycle; emitted code
   calls the runtime by name instead.
-- **Bump allocation beside `grow`.** `rt:alloc` keeps the end of its own
-  pages in the global `HeapEnd`. An allocation that does not fit grows
-  fresh pages and starts on them, so it never writes a page that `grow`
-  gave std (`module.rt.memory.grow.owner`).
-- **Test programs.** The linear backend builds `hd.init.N` and
-  `hd.test.N` as §15.4 describes, each case's poll an entry poll of its
-  own. A test case is a suspending function; a root that only the entry
-  calls, `main` or a case, is built as a plain function, since until job
-  13 any suspension point in it is refused, and a body that never
-  suspends ends on its first poll.
+- **Test programs.** Tests export `hd.init.N` and `hd.test.N`; each
+  case uses its own entry poll and the suspension protocol (§23.21).
 - **The hd tests.** `crates/hd_driver/tests/std_rt/` holds std's own hd
   tests of its runtime modules. The conformance runner adds each file to
   std's sources and runs its cases on the linear backend, on the engines
-  of its mode (`STD_RT_TESTS`). The wasmtime test pool allows two
-  memories per module for it.
+  of its mode (`STD_RT_TESTS`).
 
-### 23.13 What Job 5 Adds
+### 23.13 Allocator Integration
 
 - **`std.rt.alloc`.** `lib/std/rt/alloc.hd` is the allocator of §23.5 and
   §23.6 in hd over `std.rt.memory`: `alloc(size)`, `free(address)`,
@@ -448,9 +409,9 @@ that run their hd tests.
   address and capacity, how many pages the table knows, and the lowest
   page that may be free. The first `alloc` grows a page for the table and
   marks every page before it static.
-- **Pages it does not own.** The heap can grow under it, through `grow`
-  or the bump allocation of §23.11, so each time it grows it marks the
-  pages grown since as static, and it never hands them out.
+- **Pages it does not own.** The heap can grow under it through `grow`.
+  Each time it grows, it marks pages grown since as static and never
+  hands them out.
 - **Runs.** A run is taken first fit from the lowest page that may be
   free, by scanning the table for free entries; a freed run's entries
   become free, so neighbors coalesce with no merge step. The scan costs
@@ -458,26 +419,14 @@ that run their hd tests.
   a later speed-up.
 - **Division.** Issue #643 replaces the class-size division with the
   reciprocal table of §23.5; see §23.30.
-- **Not wired in yet.** Emitted code still allocates through `rt:alloc`,
-  which never frees, until blocks are counted (jobs 7 and 8). So no
-  program links `std.rt.alloc` today, and hello is unchanged.
-- **Tests and throughput.** `crates/hd_driver/tests/std_rt/alloc_tests.hd`
-  drives allocation, free, reuse, interior lookup, large runs and their
-  coalescing, and pages another part of the program grew, on both
-  engines. A loop of 2 million `alloc(32)` and `free` pairs, and 2,000
-  chains of 1,000 blocks of 8 classes freed in reverse, cost about 30 ns
-  per pair on Node and 30 to 40 ns on wasmtime, in the dev and the
-  optimized pipelines alike, with the checked arithmetic of a test
-  build. The study's Rust `sc` spends about 7 ns per binary-trees node,
-  allocation, initialization, traversal and free together
-  (REFCOUNT_RUNTIME.md §3.2), so hd's allocator is about 4 times slower
-  for now. The table move past 16,320 pages, almost 1 GiB of heap, has no
-  test: it needs a heap that large.
+- **Tests.** `crates/hd_driver/tests/std_rt/alloc_tests.hd` exercises
+  allocation, free, reuse, interior lookup, large-run coalescing, and
+  pages another part of the program grew, on both engines.
 
-### 23.14 What Job 6 Adds
+### 23.14 Inline Aggregate Layouts
 
-Job 6 lays out structs, tuples, enums and data values (§23.3), in
-`layout.rs`, and lowers their instructions in `emit/value.rs`.
+Aggregate layouts come from `layout.rs` (§23.3); `emit/value.rs`
+lowers their instructions.
 
 - **One walk, two forms.** `layout::mem` gives a type's values as leaves,
   in the order its locals hold them, each with its offset and width in
@@ -495,36 +444,15 @@ Job 6 lays out structs, tuples, enums and data values (§23.3), in
   the variant's fields at their packed offsets as the table first said:
   that way a load or a store of an enum needs no branch on its tag. A
   narrow payload field costs its slot's 4 bytes.
-- **Data values** are the address of an object: an 8-byte header, which
-  counting fills (job 8), then the payload, the fields at their offsets.
-  A literal allocates it with `rt:alloc`, a field read loads, a field
-  write stores, a copy-update allocates a copy, and `is` compares
-  addresses. A data type without fields is one static object.
-- **Self-recursive enums** are the address of a cell holding the enum's
-  value; the checker refuses recursion by value today
-  (`recursive-value-type`), so only an enum with a projection in a value
-  position reaches it (`hd_mono::layout::recursive_enums`).
-- **Shared generic instances.** Collection gives one instance to every
-  unbounded argument in the
-  class `REF` (A1, crates/hd_mono/DESIGN.md §13.2). That class is
-  one address, which is right for data values and boxed enums. Structs,
-  enums and tuples with inline layouts cannot use that address-only
-  representation, so a call that would pass one to
-  such an instance, or get one back, is refused
-  (`layout::shares_as_address`). Collection keyed by this backend's
-  layouts lifts that; it is a change to `hd_mono`, not made here.
-- **Not yet.** `T?` of a data value is still an enum, its tag and the
-  address, not the address with 0 as `.None`. Integer `**`, float `**`
-  and `%`, and float text are still refused.
 
-### 23.15 What Job 7 Adds
+### 23.15 String Emission And Host Primitives
 
-Job 7 lowers strings (§23.7) in `emit/text.rs`, over runtime helpers in
-`rt.rs`.
+String operations are emitted by `emit/text.rs` and runtime helpers
+(§23.7).
 
 - **Three kinds of view.** A literal's bytes are static data. A built
   string's bytes are a string buffer, `rt:str`: an 8-byte header, which
-  counting fills (job 8), then the bytes; the view's address is the
+  reference counting uses, then the bytes; the view's address is the
   payload's. Every empty string is the one static empty value, address
   `EMPTY` (the first static address) and length 0: an interpolation or a
   concatenation with no bytes, an empty slice and an empty host result all
@@ -543,80 +471,44 @@ Job 7 lowers strings (§23.7) in `emit/text.rs`, over runtime helpers in
   codec, its LEB128 length then its bytes, and the import answers the
   encoding's length, so the bytes are what follows the prefix. One
   primitive takes at most one string, since the buffer holds one.
-- **Leaks.** Until counting (job 8) no buffer is freed: every built
-  string lives until the program exits, as every data object does.
-- **Not yet.** `char` text builds a `List[u8]` (std's `scalar_text`), and
-  `StringBuilder` is a reference to lists, so both wait for lists (job 9,
-  §23.17) and references (job 12). So does every `assert_equal`, whose report is
-  `debug`'s, over a `&mut DebugWriter` of lists and `dyn Any`: most string
-  fixtures check with it, so the job's fixture prints instead.
 
-### 23.16 What Job 8 Adds
+### 23.16 Counted Values And Cleanup
 
-Job 8 gives every object its header (§23.4) and counts naively: one more
-count at every copy into a place, one less at every place's end. Correct
-before fast; elision is jobs 17 and 18. The counting is in
-`emit/count.rs`, the glue in `rt.rs`.
+`emit/count.rs` inserts ownership operations, with release glue in
+`rt.rs`. Count elision and loans are described in §23.25 and §23.31.
 
-- **Std's allocator, linked.** For this backend the driver roots
-  `std.rt.alloc`'s `alloc`, `free`, `retain` and `release`, and runs that
-  module's inits first in every init group, so its top-level bindings are
-  set before any allocation. The link keeps only what the exports reach,
-  so a program that never allocates or counts links none of them.
-  `rt:new` takes a block for a header and a payload and sets the count to
-  1. Host call frames still come from the bump pointer (`rt:alloc`), so
-  they are never freed until frames are counted (job 13).
-- **The header.** The count, then the descriptor word: the table slot of
-  the payload's release glue plus one, or 0 when the payload holds no
-  counted reference. That is the release function of §23.4's descriptor
-  record without the record, since nothing reads its other fields yet;
-  it becomes the record's number when tracing (job 20) or the collector
-  needs one.
+- **Runtime roots.** The driver collects the runtime functions and runs
+  their initializers before allocation. Linking retains only reachable
+  code. `rt:new` initializes the counted header and payload (§23.4).
+- **The header.** The count and descriptor word follow §23.4. Release
+  glue is shared by layout; allocator and collector flags occupy the
+  remaining descriptor bits.
 - **Counts through any address.** `retain` and `release` find the block
   through the page table (§23.5), so a string's view and a slice count
   their buffer, and static data, which is in no block, is never counted:
   literals, the empty string and fieldless data objects need no check.
   `release` hands back the block at its last count; `rt:release_ref` then
   calls the descriptor's glue on the payload and frees the block.
-- **Which values count.** A type's walk (`layout::walk`) lists the values
-  that are counted addresses: a string's address, a data value, a boxed
-  enum's cell and a shared instance's reference, through structs, tuples
-  and enum payloads, an enum's by its tag. Retain and release glue
-  (`rt:retain`, `rt:release`) follow the walk, one function per layout;
-  `rt:drop` loads an object's payload and releases its fields. A
-  suspension and a trait value are not counted yet (jobs 11 and 13).
-- **Places.** Each instruction's value owns one count: its store retains
-  a copy, while a call's result, a new object and a new string arrive
-  with theirs. A TIR local, a global and a data field retain what is
-  stored and release what it held. A new object retains the fields its
-  construction copied in. A parameter is borrowed from the caller, so the
-  callee retains it on entry. A store inside a loop releases the value
-  the place held from the last iteration, after counting the new one.
+- **Which values count.** A type's `layout::walk` identifies counted
+  addresses through inline structs, tuples and enum payloads. Glue
+  retains or releases those fields. Closure environments, owning trait
+  values and suspension frames follow the same ownership model.
+- **Places.** Copying into owned storage keeps the stored value alive;
+  overwriting releases its previous value. Call and parameter ownership
+  follow the ABI and loans (§23.25, §23.31), rather than retaining every
+  parameter or every instruction value unconditionally.
 - **One exit.** A function that holds a counted value runs its body in a
   block: a return stores its result, with a count for the caller, and
   branches out; after the block, every place it owns is released. A
   place never stored holds zeros, which release as nothing.
 - **Bounded memory.** `crates/hd_driver/tests/std_rt/count_tests.hd`
-  builds a million short strings, 300 chains of 1,000 data nodes with a
-  string each, and 300,000 enum payloads, each in a loop, and checks the
-  heap's size: 4 pages each time, the static page, the page table and one
-  page for each of two size classes. Without the frees the first case
-  needs about 50 MB.
-- **Size.** hello (`println(42)`, whose text is a counted string) links
-  the allocator and the counts: 1,777 to 10,607 bytes in the dev profile
-  and 7,417 in release. The allocator's hd is about 8.5 KB of that in the
-  dev profile, far over §10.1's estimate of 0.8 to 1.2 KB: this backend
-  emits each TIR value into fresh locals and checks every integer
-  operation. That is where to cut first.
-- **Not yet.** Release is recursive, so a very long chain can exhaust the
-  stack until iterative release (job 19). Lists, maps, closures and
-  references count when they land (jobs 9 to 12).
+  repeatedly builds strings, chains of nodes and enum payloads, checking
+  that the heap stays bounded.
 
-### 23.17 What Job 9 Adds
+### 23.17 List Operations
 
-Job 9 lowers lists (§23.7), in `emit/list.rs` with their glue in
-`rt.rs`. Each change implements collection value and element-reference
-semantics (§15.2), using the buffer's count for copy-on-write.
+List kernels live in `emit/list.rs`, with buffer/header glue in
+`rt.rs`; changes preserve collection value semantics (§23.7).
 
 - **Literals.** A literal sizes its buffer exactly for its items and its
   spreads (`expr.list.spread.insert`), stores each item, copies each
@@ -648,10 +540,8 @@ semantics (§15.2), using the buffer's count for copy-on-write.
   shares the buffer.
 - **Pins.** `ListPin` and `ListUnpin` count the header's pins, and a
   `push` into a pinned list panics `collection-pinned`. Element
-  references are closures over the header and the index, so no fixture
-  reaches them before closures (job 11) and references (job 12); a
-  pinned buffer may be copied under its references, which reach their
-  slot through the header.
+  references use the typed views of §23.20, preserving the header and
+  the referenced slot when a buffer is copied.
 - **Indexing.** An index is checked against the length before it is
   narrowed: a 64-bit index past 4 GiB is `index-out-of-bounds`, never
   wrapped.
@@ -661,21 +551,11 @@ semantics (§15.2), using the buffer's count for copy-on-write.
   builds lists of strings and lists of structs holding lists, and copies
   and changes a list, each in a loop, and checks that the heap does not
   grow after a warm-up.
-- **Size.** hello holds no list: 10,607 bytes in the dev profile, as
-  after job 8. A program that uses lists links the list glue, one
-  function per element layout for its buffer, release, copy and change.
-  The web compiler uses this same code generator.
 
-- **Not yet.** List iterators (`iter()`) hold a closure, and std's
-  shrinking primitive `list_truncate`, so `pop`, `insert`, `remove_at`
-  and `clear`, takes `&mut List[T]`: they wait for closures (job 11) and
-  references (job 12), as do `assert_equal` and `debug`, which write
-  through `&mut DebugWriter`. Job 11 lowers all of them (§23.19).
+### 23.18 Map Operations
 
-### 23.18 What Job 10 Adds
-
-Job 10 lowers maps (§23.7), in `emit/map.rs` with their glue in
-`map.rs`. Each operation implements collection value semantics (§15.2;
+Map kernels live in `emit/map.rs`, with table glue in `map.rs` (§23.7).
+Each operation implements collection value semantics (§15.2;
 `crates/hd_mono/DESIGN.md` §13.12), using the table's count for copy-on-write.
 
 - **The table.** A map is a list's kind of header over one counted
@@ -725,15 +605,12 @@ Job 10 lowers maps (§23.7), in `emit/map.rs` with their glue in
 - **Why glue, not hd.** The table's code depends on the entry's layout,
   which only the backend knows: std has no size or layout of a type
   parameter over `std.rt.memory`, as for list buffers.
-- **Not yet.** `Map.iter()` and the methods built on it (`keys`,
-  `values`, `entries`, printing) hold a closure, and wait for job 11.
 
-### 23.19 What Job 11 Adds
+### 23.19 Closure And Trait Values
 
-Job 11 lowers closures, function values and trait values (§23.8): the
-environments in `emit/closure.rs`, trait values and their vtables in
-`emit/dyn_value.rs`, and the collection iterators that hold a closure in
-`emit/iter.rs`.
+Closure environments and function-value calls are in `emit/closure.rs`.
+Trait values and vtables use `emit/dyn_value.rs`; map cursor closures use
+`emit/iter.rs` (§23.8).
 
 - **Function values.** `(code, environment)`: the function-table slot of
   the code instance and the address of a counted environment, 0 when
@@ -809,27 +686,11 @@ environments in `emit/closure.rs`, trait values and their vtables in
   and its closures, dispatches through boxed and widened trait values,
   and makes closures and trait values in a loop, checking that the heap
   does not grow after a warm-up.
-- **Trace.** No glue traces yet: the collector (jobs 20 and 21) adds a
-  trace entry to the same descriptors that release, so neither an
-  environment nor a box needs a second word for it.
-- **Size.** hello holds no closure and no trait value beyond its host
-  provider: 10,635 bytes in the dev profile (10,607 after job 8) and
-  7,445 in release.
-- **Not yet.** A generic method called through a trait value needs the
-  erased method ABI (crates/hd_mono/DESIGN.md §13.5.1), which §23.27
-  adds. A function with row parameters, which takes its rows' providers
-  as one context value (crates/hd_mono/DESIGN.md §12.4), and so
-  `$.Context` values and a
-  `$.with` of one, are refused, as is a coercion of a function value
-  whose row changes, which needs an adapter that passes the providers
-  its code takes. Suspending function values and closures wait for job
-  13.
 
-### 23.20 What Job 12 Adds
+### 23.20 Reference Addresses And Typed Views
 
-Job 12 lowers references in today's language, cleanup scopes, and
-element references whose copies own their list's pin (OBJECT_MODEL_TIER1.md
-§6.3; issue #556).
+References use addresses and typed views; cleanup scopes and element
+references preserve their owners and pins (OBJECT_MODEL_TIER1.md §6.3).
 
 - **References as addresses** (issue #587). The checker names each
   reference's place in the TIR (`RefPlace`: a local, a top-level
@@ -919,8 +780,8 @@ element references whose copies own their list's pin (OBJECT_MODEL_TIER1.md
   `continue` or `return` that leaves the body stores its exit's code and
   branches to the scope's end, which runs the registered suites last in,
   first out, as a forbidden context, then takes the exit again through
-  the next scope out. A suite that suspends (`using`'s `dispose!`) waits
-  for job 13.
+  the next scope out. A suite that suspends (`using`'s `dispose!`) uses the
+  cleanup state machine (§23.21).
 - **Releases at last use.** A reference is released after its last use,
   not at the end of its block (§6.3 rule 5), so a counted value can no
   longer wait for the function's exit (§23.16). `emit/live.rs` finds,
@@ -960,27 +821,19 @@ element references whose copies own their list's pin (OBJECT_MODEL_TIER1.md
   through references to locals and elements, checks that a pin ends with
   its reference's last use, and takes references to locals and elements
   in a loop, checking that the heap does not grow after a warm-up.
-- **Size.** hello: 10,719 bytes in the dev profile (10,635 after job 11)
-  and 7,529 in release, the releases at last use in the code it links,
-  before references became addresses.
 - **Host providers behind references.** A key whose trait has a `&self`
   or `&mut self` method, as `Console` has since `write_line!` takes
   `&mut self`, gets its host provider behind a reference (`req.ref.host.reference-values`):
   the entry's poll builds the host trait value, no data beside the
   vtable of host stubs, and calls the driver's `std.rt.host_provider`
   instance at `dyn K`, whose result it installs as the provider. So
-  `println` reaches the host through a `&mut dyn Console`. With the
-  reference's closures and identity this cost hello 12,014 bytes in the
-  dev profile and 8,824 in release. Since references are addresses, the result is the host trait
-  value itself (a reference to a trait value is that trait value), and
+  `println` reaches the host through a `&mut dyn Console`. The reference is the host trait
+  value itself (a reference to a trait value has that representation), and
   `host_provider` allocates nothing.
-- **Not yet.** Issue #556's three escape cases pass here. The
-  release points are statement-granular and per body: a reference passed
-  to a call is held by the caller's place until the statement ends.
 
-### 23.21 What Job 13 Adds
+### 23.21 Suspension Frames And Wakers
 
-Job 13 lowers suspending code: §14's state machine, waker, entry driver
+Suspending code uses §14's state machine, waker, entry driver
 and cancellation (docs/future-work/CANCELLATION_AND_CLEANUP.md) over
 counted frames in memory 1 (`emit/susp.rs`, `task.rs`).
 
@@ -1070,12 +923,6 @@ counted frames in memory 1 (`emit/susp.rs`, `task.rs`).
 - **Bounded memory.** `crates/hd_driver/tests/std_rt/task_tests.hd` makes
   cold frames, `all!`, `race!`, `cancel!` and `block_on` frames in a
   loop, and checks that the heap does not grow after a warm-up.
-- **Size.** hello: 11,463 bytes in the dev profile and 8,273 in release.
-  A `main` that never suspends links no task runtime.
-- **Not yet.** Calls whose row parameters carry keys. Erased generic
-  methods (job 11). Host methods with structured arguments or results,
-  and a profile trait's methods with arguments, came with job 14
-  (§23.23).
 
 ### 23.22 Code Size: The Local Cleanup And The Allocator
 
@@ -1117,10 +964,7 @@ REFCOUNT_RUNTIME.md (`opt.rs`, `lib/std/rt/alloc.hd`).
   retain and release change nothing. A program that allocates nothing
   links no allocator: a `main` that only computes and panics with a
   literal is 656 bytes.
-- **Size.** `std.rt.alloc` linked: 7,861 bytes of code before, 1,587
-  after. hello (`println(42)`): 12,758 bytes in the dev profile before
-  and 9,568 in release; 6,010 in both after. `println("hello")` is 5,988 bytes.
-- **Not yet.** hello still links the allocator. Its literal is no
+- **Remaining allocation.** hello still links the allocator. Its literal is no
   longer the reason, nor, since references are addresses (§23.20), the
   `&mut dyn Console` that `println` reaches the Console through, which
   is now the host trait value itself. The host call's frame is a counted
@@ -1129,12 +973,12 @@ REFCOUNT_RUNTIME.md (`opt.rs`, `lib/std/rt/alloc.hd`).
   nothing would take formatting into the exchange buffer. That is a
   design question for the owner.
 
-### 23.23 What Job 14 Adds
+### 23.23 Host Value Codecs
 
-Job 14 (issue #595) lowers every host method of the ABI table, the test
-runner's host traits, host handles and a runtime profile's own traits,
-so programs that use `fs`, `process`, `host`, `sys`, `net`, `http`,
-`time` and `random` run on this backend (`boundary.rs`).
+Host value codecs implement the ABI table, test-runner traits, host
+handles and runtime-profile traits, so programs that use `fs`, `process`,
+`host`, `sys`, `net`, `http`, `time` and `random` run on this backend
+(`boundary.rs`).
 
 - **One wire format, generated in the module.** The host contract stays
   crates/hd_run_wasmtime/DESIGN.md §17: the exchange buffer is memory 0,
@@ -1142,8 +986,9 @@ so programs that use `fs`, `process`, `host`, `sys`, `net`, `http`,
   §17.4 encoding. This backend generates the encoders and decoders over
   its own layouts, so `host/*.mjs` and the wasmtime host share one
   exchange-buffer contract, and the
-  heap (memory 1) stays private to the module. The alternative, host
-  codecs that read the heap's layouts, would need the host to know each
+  ordinary boundary methods never read the heap (memory 1). Checked
+  reports inspect its exported counters separately (§23.24). The alternative,
+  host codecs that read the heap's layouts, would need the host to know each
   type's offsets and slot sharing (§23.3) and to allocate counted
   objects for its results, which means calling back into the module
   during an import (§17.3 forbids nested calls); it would also tie the
@@ -1199,9 +1044,6 @@ so programs that use `fs`, `process`, `host`, `sys`, `net`, `http`,
   method crosses in the buffer, so a `u8` result of 300 is the
   `host-contract` panic (`module.profile.host-result.contract-panic`)
   and a NaN, an infinity or `-0.0` keeps its bits.
-- **Size.** hello (`println(42)`, dev): 5,046 bytes here before and
-  after. A program links only the codecs
-  of the types its host methods cross.
 - **Checked by** `tests::every_runtime_helper_validates`, which builds
   a host call and a handle's leaf over a record of every kind of boundary
   type and validates the module, and by the runtime fixtures of the
@@ -1209,23 +1051,20 @@ so programs that use `fs`, `process`, `host`, `sys`, `net`, `http`,
   `ConsoleInput.read_line` in `LINEAR_PASSES.tsv`. Programs over the
   real `fs`, `process`, `env`, `args`, `sys`, `clock`, `random`, `net`
   (loopback TCP and UDP) and `http` (a local server) hosts print the
-  same output on both backends.
-- **Not yet.** These modules are untested on the wasmtime host while it
-  is parked (job 15). It reads and writes the same wire format, so job
-  15 should need no codecs of its own.
+  same output on both engines.
 
-### 23.24 What Job 16 Adds
+### 23.24 Checked Builds
 
-Job 16 (issue #594) is checked mode: the linear backend built to find
-its own counting bugs. `Packages::checked` selects it internally;
+Checked builds audit the backend's allocation and reference counting.
+`Packages::checked` selects it internally;
 `HD_CONFORMANCE_CHECKED=1` selects it in conformance runs. A normal build
 is unchanged.
 
 - **The checked runtime.** The driver roots `std.rt.checked`
   (`lib/std/rt/checked.hd`) in place of `std.rt.alloc`'s counts, so
   emitted code calls its `allocate`, `free`, `retain` and `release` by
-  key, as it calls the plain ones (§23.16). Nothing else in the module
-  changes.
+  key, as it calls the plain ones (§23.16). Optional host-side reporting
+  also adds the descriptor metadata described below.
 - **Poison, and no reuse.** A new block is filled with `0xa5` bytes, so
   a read before its constructor's store finds no zeros. A freed block is
   filled with `0xde` bytes and never goes back to the allocator, so a
@@ -1286,24 +1125,11 @@ is unchanged.
   its counts audited.
   `crates/hd_driver/tests/std_rt/checked_tests.hd` tests the runtime's
   poison, its reuse rule and its counts.
-- **Size.** hello (`println(42)`, dev): 5,463 bytes on `linear` before
-  and after, and 7,297 with the checked runtime.
-- **What the first sweep found.** A point's cancellation branch kept
-  its cancelled child in the frame's child slot, and a `using` binding's
-  `dispose!` that waited overwrote that slot, so the child frame leaked
-  (15 cases, most with `race!` or `timeout`). The branch now lets the
-  child go before the exit ladders. Eight listed cases still leak, all
-  reference cycles, which wait for the collector (job 21): rings of
-  `&mut` nodes, and a recursive local function, whose environment holds
-  the cell that holds the function. §23.28 collects them now.
 
-### 23.25 What Job 17 Adds
+### 23.25 Count Elision
 
-Job 17 (issue #596) is the first round of count elision
-(docs/future-work/REFCOUNT_RUNTIME.md §4.3): a parameter is passed as its
-type says, and a count moves instead of being copied where a value is
-consumed at its only use. A program's behaviour does not change; only
-where its counts are taken does (`emit/count.rs`, `emit/live.rs`).
+Count elision uses ownership and last-use facts in `emit/count.rs` and
+`emit/live.rs`; the source behavior stays the same.
 
 - **Parameters by their type** (`layout::Pass`). A plain function, one
   that does not suspend, takes a value parameter `T` as its own copy:
@@ -1355,24 +1181,11 @@ where its counts are taken does (`emit/count.rs`, `emit/live.rs`).
   lends, or that two operands of one call read, has more than one use and
   keeps its count. A borrowed argument is an instruction value that keeps
   its own count until its statement has ended, so the referent outlives
-  the call. `HD_CONFORMANCE_CHECKED=1` passes every
-  case in the job's recorded linear suite but the eight cycles that wait for the
-  collector (§23.24), with every count audited and no freed block
-  touched.
-- **Counts.** `std.rt.checked` now totals the counts it adds and takes,
-  and a checked entry exports them as `hd.retained` and `hd.released`.
-  Over the 21 single-file tour programs of `website/tour/`, the retains
-  executed went from 1,203 to 477 and the releases from 1,446 to 720.
-  Over hello, the four `examples/dogfood` programs, three bench and
-  example programs and ten conformance programs, retains went from 15,465
-  to 9,940 and releases from 16,890 to 11,365. `calc.hd`: 3,084 retains
-  to 2,072; `textstats.hd`: 6,803 to 4,623; hello: 5 to 2. Every program
-  printed the same output before and after.
-- **Size.** hello (`println(42)`, dev): 5,457 bytes on `linear` before,
-  5,418 after; 7,350 with the checked runtime,
-  whose count totals cost 132 bytes. Programs shrink by about 1 to 10 per
-  cent, as most entry retains and many copies go.
-- **Round two** (job 18, issue #641). An immutable field or local read
+  the call. Checked runtime fixtures audit counts and frees, including cycles
+  (§23.28).
+- **Counts.** `std.rt.checked` totals retains and releases; a checked
+  entry exports them as `hd.retained` and `hd.released`.
+- **Immutable reads.** An immutable field or local read
   borrows its representation when its unaliased, unchanged source's
   existing lifetime strictly contains every use. List and map loop
   elements borrow from the checker's private snapshot, including when
@@ -1385,17 +1198,6 @@ where its counts are taken does (`emit/count.rs`, `emit/live.rs`).
   lose a retain and its matching release on unchanged locals. A freeing
   call, memory operation, operand-local write or control-flow edge ends
   that proof. Retains alone cannot free the original owner.
-- **Round-two counts.** The checked builds of all 25 current tour
-  programs execute 522 retains and 776 releases before this round,
-  365 and 619 after (30.1% and 20.2% fewer). Four benchmark programs
-  execute 521,033 retains and 522,061 releases before, 441,031 and
-  442,059 after. These are `bench/math`, `bench/tokenizer`, the runtime
-  StringBuilder benchmark at its original 40,000 iterations, and the
-  runtime string-concatenation benchmark scaled from 40,000 to 1,000
-  iterations to bound checked quarantine memory. StringBuilder alone
-  falls from 520,016/520,026 to 440,014/440,024; the other three are
-  unchanged. Legacy benchmark sources that no longer type-check are
-  excluded. Every measured program has identical output and status.
 - **Conservative cases.** General alias bindings, mutable data/reference
   projections, copied collection headers and erased reads that can make
   a fresh box keep their counts. A sub-body with deferred cleanup keeps
@@ -1456,11 +1258,6 @@ whose row changes and `$.Context` values on the linear backend
   target has row parameters. A method with row parameters of its own
   has an erased body like any generic method (§23.27): a call at its open
   row is an open instruction.
-- **Size.** hello (`println("hello")`, release): 4,977 bytes on
-  `linear` before and after; a program that calls no function value and
-  no function with row parameters links neither context helper.
-- **Not yet.** A method with type parameters of its own called through
-  a trait value needs the erased method ABI, which §23.27 adds.
 
 ### 23.27 Erased Generic Methods
 
@@ -1557,15 +1354,15 @@ same erased bodies, thunks and witness fields.
 
 ### 23.28 The Cycle Collector
 
-Issue #618 (job 21) reclaims reference cycles on the linear backend by
-synchronous trial deletion (Bacon and Rajan, ECOOP 2001), as
+The backend reclaims reference cycles by synchronous trial deletion
+(Bacon and Rajan, ECOOP 2001), as
 docs/future-work/REFCOUNT_RUNTIME.md §7 plans. The collector is hd in
 `std.rt.cycle` (`lib/std/rt/cycle.hd`); the backend adds what only it can
 build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
 `CycleFree` and `Opaque`, and `cycle.rs`'s per-type analysis).
 
 - **What takes part.** An object whose type can be on a cycle, which
-  the backend decides when it emits the allocation (`cycle.rs`, job 20,
+  the backend decides when it emits the allocation (`cycle.rs`,
   issue #642) and records as bit 31 (`CYCLIC`) of the descriptor word
   (§23.4). Strings and other objects without glue hold nothing and never
   take part. A frame is tagged (`Helper::Opaque`, from
@@ -1573,9 +1370,8 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   `ACTIVE` or `RUNNING` is set, its saved slots may be stale: what it
   holds counts as held from outside, and its candidate stays buffered
   until an idle collection. An idle frame participates like any other object.
-- **The collector word** sits in the last 4 bytes of the block, not right
-  after the payload as §23.4 first planned: nothing records a payload's
-  size, while the allocator knows each block's. `rt:new` asks for 4 more
+- **The collector word** sits in the last 4 bytes of the block; the
+  allocator supplies its size. `rt:new` asks for 4 more
   bytes when the descriptor has `CYCLIC` and has std's `track` zero the
   word; any other object has no collector word. Its low 2 bits are the
   color (black, gray, white) and bit 2 marks a frame. Only a collection
@@ -1671,7 +1467,7 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   `std_rt/cycle_tests.hd` drops 400,000 argument/capture frame cycles and
   checks reuse in the normal allocator; checked mode quarantines freed
   blocks and checks their counts instead.
-- **Cycle capability** (job 20, issue #642; REFCOUNT_RUNTIME.md §7.1).
+- **Cycle capability** (issue #642; REFCOUNT_RUNTIME.md §7.1).
   An object can be on a cycle only if what it holds reaches, through
   counted references, a value that can hold the object again.
   `cycle::object` (a list's header and buffers, a map's table, a data
@@ -1700,18 +1496,9 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   always take part. A host call's leaf frame takes part as `holding` says
   of its arguments' types. A list copy (`rt:list_copy`) takes part as its
   original does, read from the original's descriptor at run time.
-- **What it saves** (`bench/study/run.mjs`, hd on V8 only, same machine,
-  load 9 to 13 before and 5 to 9 after, so the ratios are approximate):
-  nbody 60,803 ms to 33,322; binary-trees 65,452 to 44,953; closures
-  16,673 to 11,713; json 89,904 to 56,779. `List[f64]`, `List[Body]`,
-  iterator environments and closures that capture values no longer touch
-  the collector; binary-trees' `&Node` cells still take part, as a
-  reference may close a cycle, but a release of one already in the
-  buffer returns without reading its collector word. hello (`println(42)`,
-  release) grows from 9,882 bytes to 9,985: `visit` is now called from
-  `rt:release_ref`, behind the `Tracing` check. `std_rt/cycle_tests.hd`
-  checks that sharing and dropping lists of `f64` and of a struct and a
-  closure leaves no candidate, while a dropped ring does.
+- **Coverage.** `crates/hd_driver/tests/std_rt/cycle_tests.hd` checks that
+  sharing and dropping value-only lists and closures creates no cycle
+  candidate, while a dropped ring of references does.
 - **No collector when nothing takes part** (issue #649). The driver roots
   both sets of the runtime's frees and releases: with collector hooks
   (`free`, `release`, `release_known`) and without (`std.rt.alloc`'s
@@ -1724,12 +1511,8 @@ build (`rt.rs`'s `Helper::Collect`, `CycleTrace`, `CycleRelease`,
   asks for no collector word and never collects, `rt:release_ref` has no
   `Tracing` check, and neither the entry's poll nor checked mode's
   shutdown collects. The init of `std.rt.cycle` is skipped too, unless
-  code still calls the collector directly, as std's own tests do. So
-  `std.rt.cycle` is not linked: hello (release) goes from 11,346 bytes to
-  7,183 for `println(42)` and from 11,247 to 7,084 for `println("hello")`.
-  Before #618 (and at #618 itself) these were 3,725 and 3,569, because
-  hello then allocated nothing. Its host call's leaf frame now needs the
-  allocator and the wake table. `CYCLE_FNS` are still rooted, since
+  code still calls the collector directly, as std's own tests do.
+  `CYCLE_FNS` are still rooted, since
   collection runs before any allocation is emitted; only the link drops
   them. `tests/all/cycle_linking.rs` checks that a program of lists and
   closures links no `std.rt.cycle` and calls `release_acyclic`, while a
@@ -1791,7 +1574,6 @@ signatures before encoding, as clang's and Rust's wasm32 `byval` and
   original owner may die, without copying or retaining other fields.
   A boxed reference view reads that field from the getter's box and
   releases the box, without materializing the parent in value locals.
-
 
 ### 23.30 Known Block Starts
 

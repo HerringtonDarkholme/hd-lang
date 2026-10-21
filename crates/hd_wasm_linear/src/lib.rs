@@ -438,8 +438,8 @@ fn link(input: &Input<'_>, track_origins: bool) -> StageResult<MappedModule> {
         }
     }
     address_globals(input, &mut m)?;
-    for (slot, id) in input.order.iter().enumerate() {
-        let f = emit::instance(input, &mut m, slot, *id)?;
+    for id in input.order {
+        let f = emit::instance(input, &mut m, *id)?;
         m.define(Sym::Inst(input.collected.table.key[id.idx()]), f);
     }
     rt::entry(input, &mut m)?;

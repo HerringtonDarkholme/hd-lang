@@ -41,8 +41,8 @@ mod susp;
 mod text;
 mod value;
 
-/// The function of instance `id`, at `slot` in content order.
-pub fn instance(input: &Input<'_>, m: &mut Module, _slot: usize, id: InstId) -> StageResult<Func> {
+/// The function of instance `id`; the module assigns its final index.
+pub fn instance(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Func> {
     let t = &input.collected.table;
     let item = t.item[id.idx()];
     let args = t.args[id.idx()];
