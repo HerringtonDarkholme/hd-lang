@@ -60,8 +60,9 @@ const FIXTURE = join(root, "spec", "conformance", "runtime", "valid", "println-c
 // known-null release pass took it to 5.2106 MB, so the raw gate is
 // 5.25 MB (owner approval, 2026-10-21).
 // #700 dictionary-compresses browser std text: 5,251,687 -> 5,069,426
-// raw and 1,729,530 -> 1,722,848 gzip. Keep modest headroom after the cut.
-const RAW_LIMIT = 5_100_000;
+// raw and 1,729,530 -> 1,722,848 gzip. Owner 2026-10-21: the raw size is
+// not a useful limit; only the download (gzip) size is gated. Raw is still
+// printed for reference.
 const GZIP_LIMIT = 1_750_000;
 const RAW_FLOOR = 2e6;
 
@@ -163,7 +164,6 @@ const early = compile(exports, encodeReplOutcome(9, OUTCOME.joined));
 assert.equal(early.status, STATUS.malformed);
 console.log(`repl: session program ${built} B, first input cold ${firstMs.toFixed(0)} ms`);
 
-assert.ok(raw <= RAW_LIMIT, `raw ${formatBytes(raw)} is over ${formatBytes(RAW_LIMIT)}`);
 assert.ok(gzip <= GZIP_LIMIT, `gzip ${formatBytes(gzip)} is over ${formatBytes(GZIP_LIMIT)}`);
 assert.ok(
   raw >= RAW_FLOOR,
