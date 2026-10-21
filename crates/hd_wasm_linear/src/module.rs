@@ -245,6 +245,11 @@ pub struct Func {
     pub origin_item: Option<String>,
     pub origin_root: Option<u32>,
     pub origins_before_opt: Vec<Option<u32>>,
+    /// With origins: each local's development name, by index, as
+    /// [`crate::FunctionOrigins::locals`] reports it.
+    pub local_names: Option<BTreeMap<u32, String>>,
+    /// With origins: the static data addresses the body pushes.
+    pub statics: Option<BTreeSet<u32>>,
     /// A complete relocation-free body, including locals and the final end.
     pub raw: Option<Vec<u8>>,
     /// The TIR instruction whose code is being written, when it has a
@@ -280,6 +285,27 @@ impl Func {
             Val::F64 => Instruction::F64Const(0.0.into()),
         });
         self.set(l);
+    }
+
+    /// Names local `l` for development tools, when they are tracked.
+    pub fn name_local(&mut self, l: u32, name: impl Into<String>) {
+        if let Some(names) = &mut self.local_names {
+            names.insert(l, name.into());
+        }
+    }
+
+    /// Records that the body pushes `at` as a static data address, when
+    /// development tools track it.
+    pub fn mark_static(&mut self, at: u32) {
+        if let Some(statics) = &mut self.statics {
+            statics.insert(at);
+        }
+    }
+
+    /// Pushes static data address `at`.
+    pub fn static_addr(&mut self, at: u32) {
+        self.mark_static(at);
+        self.u32(at);
     }
 
     /// A fresh local of type `v`: its index.
@@ -422,6 +448,12 @@ pub struct Module {
     /// Whether [`Module::finish`] inlines the count fast paths
     /// ([`crate::Input::inline_counts`]).
     pub inline_counts: bool,
+    /// With origins: what each static data address holds, for
+    /// development tools ([`crate::StaticData`]).
+    pub static_labels: BTreeMap<u32, crate::StaticData>,
+    /// With origins: each top-level binding's or once-cell's path, by its
+    /// path hash, which names its globals.
+    pub storage_names: BTreeMap<Hash128, String>,
 }
 
 /// Stored values and their counted-reference walk (§23.24), with a static
@@ -489,7 +521,19 @@ impl Module {
         let at = STATIC_BASE + u32::try_from(self.data.len()).expect("static data");
         self.data.extend_from_slice(bytes);
         self.data_at.insert(bytes.to_vec(), at);
+        if self.track_origins {
+            self.static_labels
+                .insert(at, crate::StaticData::Bytes(bytes.to_vec()));
+        }
         at
+    }
+
+    /// Names static data address `at` for development tools.
+    pub fn label_static(&mut self, at: u32, label: &str) {
+        if self.track_origins {
+            self.static_labels
+                .insert(at, crate::StaticData::Named(label.to_owned()));
+        }
     }
 
     /// The heap address of `size` new zero bytes of static data, aligned
@@ -844,12 +888,45 @@ impl Module {
                     offset: u32::try_from(body.byte_len()).expect("offset"),
                     origin: f.origin_root,
                 });
+                let names = f.local_names.as_ref();
+                let locals = (0..f.params.len() + f.locals.len())
+                    .map(|l| names.and_then(|n| n.get(&u32::try_from(l).expect("locals")).cloned()))
+                    .collect();
+                let mut statics: BTreeMap<u32, crate::StaticData> = BTreeMap::new();
+                for at in f.statics.iter().flatten() {
+                    let label = match (*at, self.static_labels.get(at)) {
+                        (_, Some(l)) => l.clone(),
+                        (EMPTY, None) => crate::StaticData::Named("\"\"".to_owned()),
+                        (_, None) => continue,
+                    };
+                    statics.insert(*at, label);
+                }
+                let mut globals_named: BTreeMap<u32, String> = BTreeMap::new();
+                for i in &f.body {
+                    match i {
+                        Ins::VTable(k) => {
+                            let slots = self.vtables[*k]
+                                .0
+                                .iter()
+                                .map(|s| index.get(s).copied().ok_or_else(|| undefined(s)))
+                                .collect::<StageResult<_>>()?;
+                            statics.insert(vtable_at[*k], crate::StaticData::VTable(slots));
+                        }
+                        Ins::GlobalGet(g) | Ins::GlobalSet(g) => {
+                            globals_named.insert(gindex[g], global_name(g, &self.storage_names));
+                        }
+                        _ => {}
+                    }
+                }
                 mapped_functions.push(crate::FunctionOrigins {
                     index: index[s],
                     name: own.last().expect("function name").1.clone(),
                     item: f.origin_item.clone(),
                     before_opt: f.origins_before_opt.clone(),
                     instructions: mapped_instructions,
+                    locals,
+                    statics: statics.into_iter().collect(),
+                    globals: globals_named.into_iter().collect(),
                 });
             }
             body.instruction(&Instruction::End);
@@ -995,6 +1072,28 @@ impl Module {
             functions: mapped_functions,
         })
     }
+}
+
+/// A global's name for development tools: a top-level binding's or
+/// once-cell's path, with the value's index after the first, or the
+/// runtime global's own name in snake case (`heap_top`).
+fn global_name(g: &Global, storage: &BTreeMap<Hash128, String>) -> String {
+    if let Global::Storage(h, k, _) = g {
+        let path = storage.get(h).map_or("binding", String::as_str);
+        return if *k == 0 {
+            path.to_owned()
+        } else {
+            format!("{path}.{k}")
+        };
+    }
+    let mut out = String::new();
+    for (k, c) in format!("{g:?}").chars().enumerate() {
+        if c.is_ascii_uppercase() && k > 0 {
+            out.push('_');
+        }
+        out.push(c.to_ascii_lowercase());
+    }
+    out
 }
 
 /// The `hd.lines` section (`crates/hd_wasm_linear/DESIGN.md` §15.9), as the Wasm

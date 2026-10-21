@@ -45,7 +45,7 @@ use hd_types::solver::{
     UniverseImpls, folder_table,
 };
 use hd_types::{InternPool, Ty, TyData, TyList};
-pub use hd_wasm_linear::{FunctionOrigins, InstructionOrigin};
+pub use hd_wasm_linear::{FunctionOrigins, InstructionOrigin, StaticData};
 
 pub mod bench;
 mod dbg;

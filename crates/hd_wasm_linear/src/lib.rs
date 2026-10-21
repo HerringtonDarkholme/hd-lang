@@ -30,7 +30,7 @@ use hd_tir::ir::Body;
 use hd_types::{InternPool, Ty};
 
 pub use module::Sym;
-pub use origins::{FunctionOrigins, InstructionOrigin, MappedModule};
+pub use origins::{FunctionOrigins, InstructionOrigin, MappedModule, StaticData};
 pub use rt::Helper;
 
 /// A1's shared reference-storage class on this backend: data and boxed
@@ -425,6 +425,7 @@ fn address_globals(input: &Input<'_>, m: &mut module::Module) -> StageResult<()>
             }
             let lay = layout::mem(input.pool, input.env, Ty(p.y))?;
             let at = m.static_slot(lay.size, lay.align.max(4));
+            m.label_static(at, &(input.path)(DefId::from_raw(p.x)));
             m.addressed.insert(h, at);
         }
     }

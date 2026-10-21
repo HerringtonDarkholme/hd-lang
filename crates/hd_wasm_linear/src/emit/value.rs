@@ -156,7 +156,10 @@ impl Em<'_, '_, '_> {
     /// The address of the one static object of every data type without
     /// fields: a header and no payload.
     fn empty_object(&mut self) -> u32 {
-        self.m.static_bytes(&[0; HEADER as usize], 8) + HEADER
+        let at = self.m.static_bytes(&[0; HEADER as usize], 8) + HEADER;
+        self.m.label_static(at, "empty-object");
+        self.f.mark_static(at);
+        at
     }
 
     /// `NewData`: a struct pushes its fields' values; a data value stores

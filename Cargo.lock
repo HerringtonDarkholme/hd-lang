@@ -879,6 +879,8 @@ dependencies = [
  "hd_project",
  "hd_sched",
  "hd_syntax",
+ "wasmparser 0.261.0",
+ "wasmprinter 0.261.0",
 ]
 
 [[package]]
@@ -905,6 +907,7 @@ dependencies = [
  "hd_base",
  "hd_host_abi",
  "hd_mono",
+ "hd_testkit",
  "hd_tir",
  "hd_types",
  "wasm-encoder 0.261.0",

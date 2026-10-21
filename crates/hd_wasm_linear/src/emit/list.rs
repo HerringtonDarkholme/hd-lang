@@ -224,7 +224,7 @@ impl Em<'_, '_, '_> {
         let is_spread = |k: usize| spreads.iter().any(|s| *s as usize == k);
         if items.is_empty() {
             let at = empty_buffer(self.m);
-            self.f.u32(at);
+            self.f.static_addr(at);
         } else {
             let n = self.f.local(Val::I32);
             self.f
@@ -652,7 +652,7 @@ impl Em<'_, '_, '_> {
         let b = self.buffer(h);
         let at = empty_buffer(self.m);
         self.f.get(h);
-        self.f.u32(at);
+        self.f.static_addr(at);
         self.f.op(I::I32Store(mem(HEAP, 0, 2)));
         self.f.get(b);
         self.f.helper(Helper::ReleaseRef);

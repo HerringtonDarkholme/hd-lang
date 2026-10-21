@@ -437,7 +437,7 @@ impl Em<'_, '_, '_> {
         self.f.op(I::Drop);
         self.f.op(I::Drop);
         let at = self.m.static_bytes(want.as_bytes(), 1);
-        self.f.u32(at);
+        self.f.static_addr(at);
         self.f.u32(u32::try_from(want.len()).expect("type name"));
         self.f.helper(Helper::StrEq);
         let same = self.f.local(Val::I32);

@@ -858,6 +858,13 @@ pub(crate) fn renumber(f: &mut Func) {
             _ => {}
         }
     }
+    if let Some(names) = &mut f.local_names {
+        *names = std::mem::take(names)
+            .into_iter()
+            .filter(|(l, _)| (*l as usize).checked_sub(np).is_none_or(|at| used[at]))
+            .map(|(l, n)| (to(l), n))
+            .collect();
+    }
     f.locals = kept;
 }
 

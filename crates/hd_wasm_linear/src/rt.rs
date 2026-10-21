@@ -638,7 +638,9 @@ pub const CTX_VTABLE: u64 = 20;
 pub fn empty_buffer(m: &mut Module) -> u32 {
     let mut bytes = [0u8; 24];
     bytes[0] = 2;
-    m.static_bytes(&bytes, 8) + HEADER
+    let at = m.static_bytes(&bytes, 8) + HEADER;
+    m.label_static(at, "empty-buffer");
+    at
 }
 
 /// How a host primitive's argument crosses: a string, or a scalar as

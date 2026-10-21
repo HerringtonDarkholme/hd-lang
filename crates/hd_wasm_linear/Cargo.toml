@@ -15,6 +15,7 @@ hd_host_abi = { path = "../hd_host_abi" }
 wasm-encoder = { version = "0.261.0", default-features = false, features = ["std"] }
 
 [dev-dependencies]
+hd_testkit = { path = "../hd_testkit" }
 wasmparser = { version = "0.261.0", default-features = false, features = ["std", "validate", "features"] }
 
 [lints]

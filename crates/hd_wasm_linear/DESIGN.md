@@ -1865,6 +1865,18 @@ anchors and panic reporting keep their behavior.
   `end`. Zero-width call anchors have no encoded instruction entry. Raw
   compiler-generated helper bodies have no instruction-origin table.
   Mapping does not require dense anchors and cannot interrupt a peephole.
+- **Names (#662).** A mapped function also names what its code refers to
+  by index, for the stage fixtures' `wat` view. Each Wasm local is named
+  by its TIR local (`$N`, or `$N.K` for the `K`th value of a local of
+  several), by the role of a parameter that is no TIR local (`frame`,
+  `env`, `ctx`, `witness`, `providerN`, `providerN.vtable`, and `args`
+  for a wide signature's frame address), or not at all for a temporary.
+  Local renumbering (rule 11 of `opt.rs`) and wide-signature lowering
+  carry the names to the final indices. Each static data address a body
+  pushes is listed with what it holds: bytes, a vtable's slot functions,
+  or a name (`empty-object`, `empty-buffer`, `""`, a top-level binding's
+  slot). Each global the body names comes with its binding's path, or
+  the runtime's name for it. The tables change no byte of the module.
 
 ### 23.34 Development Fixture Retention
 

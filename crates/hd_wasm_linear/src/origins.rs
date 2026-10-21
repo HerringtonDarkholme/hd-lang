@@ -20,6 +20,27 @@ pub struct FunctionOrigins {
     pub before_opt: Vec<Option<u32>>,
     /// One entry per encoded instruction, including the final implicit `end`.
     pub instructions: Vec<InstructionOrigin>,
+    /// Each Wasm local's name, by index, parameters first: TIR local `N`
+    /// as `$N` (`$N.K` for its `K`th value when it has several), a role
+    /// (`frame`, `env`, `ctx`, `witness`, `providerN`, `providerN.vtable`,
+    /// `args`), or `None` for a temporary.
+    pub locals: Vec<Option<String>>,
+    /// Each static data address the body pushes, with what it holds.
+    pub statics: Vec<(u32, StaticData)>,
+    /// Each global the body names: its index and its name.
+    pub globals: Vec<(u32, String)>,
+}
+
+/// What a static data address holds.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum StaticData {
+    /// Bytes, such as a string literal's.
+    Bytes(Vec<u8>),
+    /// A named object: `empty-object`, `empty-buffer`, `""`, or the path
+    /// of the top-level binding a static slot holds.
+    Named(String),
+    /// A vtable: the function index of each slot.
+    VTable(Vec<u32>),
 }
 
 /// One encoded instruction's offset and originating TIR instruction.

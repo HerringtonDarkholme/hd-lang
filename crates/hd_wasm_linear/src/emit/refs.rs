@@ -176,7 +176,7 @@ impl Em<'_, '_, '_> {
                     return unsupported("a top-level binding without its static slot");
                 };
                 let x = self.f.local(Val::I32);
-                self.f.u32(at);
+                self.f.static_addr(at);
                 self.f.set(x);
                 (Base::At(x), self.sub(Ty(p.y)))
             }
@@ -437,7 +437,7 @@ impl Em<'_, '_, '_> {
     pub(super) fn slot_get(&mut self, i: u32, at: u32) -> StageResult<()> {
         let m = mem_of(self.pool(), self.env(), self.ty(i))?;
         for leaf in &m.leaves {
-            self.f.u32(at);
+            self.f.static_addr(at);
             self.f.op(leaf.load(0));
         }
         self.store(i)
@@ -457,7 +457,7 @@ impl Em<'_, '_, '_> {
             self.note_stored(h, t, Some((at, m.leaves.clone())))?;
         }
         let a = self.f.local(Val::I32);
-        self.f.u32(at);
+        self.f.static_addr(at);
         self.f.set(a);
         let old: Vec<u32> = m.leaves.iter().map(|l| self.f.local(l.val)).collect();
         if counted && !self.take(v) {

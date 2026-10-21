@@ -120,8 +120,9 @@ The edit vocabulary:
 Issue #657 chose, and #660 built, topic files of small cases whose
 expected outputs are views of one compiler stage. `hd_testkit::stages`
 runs them; each stage crate's test runs its own `tests/stages/*.stage`.
-The lexer and the parser are in `crates/hd_syntax/tests/stages/`, and the
-checker in `crates/hd_check/tests/stages/`.
+The lexer and the parser are in `crates/hd_syntax/tests/stages/`, the
+checker in `crates/hd_check/tests/stages/`, and the emitter in
+`crates/hd_wasm_linear/tests/stages/`.
 
 - **A file is one topic.** It starts with `-- context --` and the hd that
   every case uses. Each case is `-- case: NAME --`, its hd, then one
@@ -144,7 +145,20 @@ checker in `crates/hd_check/tests/stages/`.
     the subject, using `Positions::span`. The locals they name come first,
     with their names and types, and `Prim` and `Intrinsic` operations print
     by name.
-  - Later issues add `wat`, `counts` and `layout` (#661 to #664).
+  - `wat` (#662) builds the case as a program from its `main` and shows,
+    per function of the case, the Wasm instructions whose origin
+    (`Packages::instruction_origins`, #661) lies inside the subject. The
+    excerpt is normalized so it reads by eye and does not move when
+    unrelated code changes. Functions, globals and static data print by
+    name (`call rt:retain_known`, `global.get calls`, `i32.const &"hi"`),
+    and the case's own module path, an instance's `#0` and a helper's
+    module-order `#k` go. Locals print by source name or role (`bodies`,
+    `b.1` for a local's second value, `ctx`), and temporaries as `t0`,
+    `t1`, ... in the order the excerpt names them. Types print by
+    signature, the heap memory goes unnamed, and labels go, while branch
+    depths stay. Until #663 a case defines a `main` that calls its
+    functions, so they are emitted.
+  - Later issues add `counts` and `layout` (#664).
   - Execution stays in conformance: a view never replaces a runtime
     assertion.
 - **Blessing.** `HD_BLESS=1` rewrites every expected block in place. A

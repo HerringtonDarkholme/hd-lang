@@ -8,7 +8,8 @@
 //! - `-- context --` and the hd that every case in the file uses;
 //! - for each case, `-- case: NAME --`, the case's hd, then one block per
 //!   view, `-- VIEW --` followed by the expected output (`tokens`, `tree`,
-//!   `tir`, and `tir-flags`, which adds each local's flags).
+//!   `tir`, `tir-flags`, which adds each local's flags, and `wat`, the
+//!   normalized Wasm of the subject, `wat.rs`).
 //!
 //! A case's program is the context followed by the case. Its subject is
 //! marked by a comment, so the case stays valid hd for `hd fmt` and
@@ -31,6 +32,9 @@ use std::path::{Path, PathBuf};
 
 use hd_driver::{Executor, Goal, Host, NoClock, PositionPool, build};
 use hd_sched::SerialOrder;
+
+mod wat;
+pub use wat::wat;
 
 /// One case of a fixture file.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -410,6 +414,7 @@ pub fn view(view: &str, p: &Program) -> Option<String> {
         "tree" => tree(p),
         "tir" => tir(p),
         "tir-flags" => tir_with(p, true),
+        "wat" => wat(p),
         _ => return None,
     })
 }

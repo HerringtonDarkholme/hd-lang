@@ -14,6 +14,8 @@ hd_driver = { path = "../hd_driver" }
 hd_project = { path = "../hd_project" }
 hd_sched = { path = "../hd_sched" }
 hd_syntax = { path = "../hd_syntax" }
+wasmparser = { version = "0.261.0", default-features = false, features = ["std", "validate", "features"] }
+wasmprinter = { version = "0.261.0", default-features = false }
 
 [lints]
 workspace = true

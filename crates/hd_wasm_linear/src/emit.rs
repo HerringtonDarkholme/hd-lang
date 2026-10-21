@@ -10,6 +10,8 @@
 //! around a loop. Integer arithmetic follows §13.15 of
 //! `crates/hd_mono/DESIGN.md`, including its panic checks.
 
+use std::collections::{BTreeMap, BTreeSet};
+
 use hd_base::{DefId, Hash128, HashMap, InstId, StageResult};
 use hd_mono::{ProgramEnv, Sub, Target, TargetKind, subst};
 use hd_tir::ir::{
@@ -214,6 +216,27 @@ fn body_func<'a>(
         em.f.origin_item = Some((input.path)(b.item));
         em.f.origin_root = Some(b.sub_root[sub as usize]);
         em.f.origin_at = em.f.origin_root;
+        em.f.local_names = Some(BTreeMap::new());
+        em.f.statics = Some(BTreeSet::new());
+        // The parameters that are no TIR local, by their role.
+        let mut at = 0;
+        if suspending {
+            em.f.name_local(susp::FRAME, "frame");
+            at += 1;
+        }
+        if closure.is_some() {
+            em.f.name_local(at, "env");
+        }
+        if let Some(w) = witness {
+            em.f.name_local(w, "witness");
+        }
+        for (n, (_, [data, vtable])) in em.providers.clone().into_iter().enumerate() {
+            em.f.name_local(data, format!("provider{n}"));
+            em.f.name_local(vtable, format!("provider{n}.vtable"));
+        }
+        if let Some(c) = ctx {
+            em.f.name_local(c, "ctx");
+        }
     }
     let key = own.key;
     let once = match (sub, own.sub, b.kind) {
@@ -227,6 +250,10 @@ fn body_func<'a>(
         fact,
     });
     if let Some(cell) = &once {
+        if em.m.track_origins {
+            let name = format!("{}#once", (input.path)(item));
+            em.m.storage_names.insert(key, name);
+        }
         cell.enter(&mut em, ret)?;
     }
     if suspending {
@@ -363,6 +390,21 @@ fn body_func<'a>(
     if let Some(cell) = &once {
         cell.leave(&mut em, ret)?;
     }
+    if em.f.local_names.is_some() {
+        let mut named: Vec<(usize, Vec<u32>)> =
+            em.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
+        named.sort_unstable();
+        for (l, ls) in named {
+            for (k, w) in ls.iter().enumerate() {
+                let name = if ls.len() == 1 {
+                    format!("${l}")
+                } else {
+                    format!("${l}.{k}")
+                };
+                em.f.name_local(*w, name);
+            }
+        }
+    }
     if !suspending {
         return Ok(em.f);
     }
@@ -451,7 +493,7 @@ impl OnceCell<'_> {
         let flag = self.global(self.results.len());
         if let Some(label) = self.fact {
             let at = em.m.static_bytes(label.as_bytes(), 1);
-            em.f.u32(at);
+            em.f.static_addr(at);
             em.f.u32(u32::try_from(label.len()).expect("fact label"));
             em.f.helper(Helper::ToBuf);
             em.f.call(Self::fact_import());
@@ -1112,6 +1154,7 @@ impl Em<'_, '_, '_> {
             } else {
                 self.m.static_bytes(text.as_bytes(), 1)
             };
+            self.f.mark_static(at);
             let len = u32::try_from(text.len()).expect("string constant");
             return Ok(vec![
                 vec![I::I32Const(at.cast_signed())],
@@ -1743,9 +1786,14 @@ impl Em<'_, '_, '_> {
     }
 
     /// The path hash of a `GlobalGet` or `GlobalSet` binding.
-    fn global_hash(&self, a: u32) -> hd_base::Hash128 {
+    fn global_hash(&mut self, a: u32) -> hd_base::Hash128 {
         let def = DefId::from_raw(self.rec(a)[0]);
-        self.env().path_hash(def)
+        let h = self.env().path_hash(def);
+        if self.m.track_origins {
+            let path = (self.input.path)(def);
+            self.m.storage_names.entry(h).or_insert(path);
+        }
+        h
     }
 
     /// `$.with(K: v, ...) body` (`req.with.*`): each pair's value is the
@@ -2212,7 +2260,7 @@ impl Em<'_, '_, '_> {
                 self.f.helper(Helper::ToBuf);
                 self.f.call(out.clone());
                 let nl = self.m.static_bytes(b"\n", 1);
-                self.f.u32(nl);
+                self.f.static_addr(nl);
                 self.f.i32(1);
                 self.f.helper(Helper::ToBuf);
                 self.f.call(out);
@@ -2472,6 +2520,8 @@ impl Em<'_, '_, '_> {
             "to_string" if t == Ty::BOOL => {
                 let yes = self.m.static_bytes(b"true", 1);
                 let no = self.m.static_bytes(b"false", 1);
+                self.f.mark_static(yes);
+                self.f.mark_static(no);
                 for (a, b) in [(yes, no), (4, 5)] {
                     self.f.u32(a);
                     self.f.u32(b);

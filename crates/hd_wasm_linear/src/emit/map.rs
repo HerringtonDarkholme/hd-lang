@@ -187,7 +187,7 @@ impl Em<'_, '_, '_> {
         let (kt, vt, e) = self.entry(self.ty(i))?;
         if items.is_empty() {
             let at = empty_buffer(self.m);
-            self.f.u32(at);
+            self.f.static_addr(at);
             self.f.helper(Helper::ListHeader { cyclic: e.cyclic });
             return self.store_owned(i);
         }
