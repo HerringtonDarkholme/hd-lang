@@ -52,9 +52,12 @@ pub const CYCLIC: u32 = 1 << 31;
 /// The descriptor word's bit that marks an object in the collector's
 /// candidate buffer, which `std.rt.cycle` sets and clears.
 pub const BUFFERED: u32 = 1 << 30;
-/// The descriptor word's bits that name the release glue: its table slot
-/// plus one, 0 for none.
-pub const GLUE: u32 = BUFFERED - 1;
+/// First bit of the constant allocator class in the descriptor word.
+pub const CLASS_SHIFT: u32 = 25;
+/// Five descriptor bits carry a constant allocator class (zero is unknown).
+pub const CLASS_MASK: u32 = 31 << CLASS_SHIFT;
+/// The descriptor's release glue: its table slot plus one, zero for none.
+pub const GLUE: u32 = (1 << CLASS_SHIFT) - 1;
 
 /// A function: an instance by key, a runtime helper, or a host import.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -526,6 +529,8 @@ pub struct Module {
     /// Whether [`Module::finish`] inlines the count fast paths
     /// ([`crate::Input::inline_counts`]).
     pub inline_counts: bool,
+    /// Some emitted object has a constant small allocation class.
+    pub fixed_allocations: bool,
     /// With origins: what each static data address holds, for
     /// development tools ([`crate::StaticData`]).
     pub static_labels: BTreeMap<u32, crate::StaticData>,
@@ -700,11 +705,20 @@ impl Module {
                 .unwrap_or_default();
         }
         let seen = self.reached();
+        let cyclic = self
+            .funcs
+            .iter()
+            .any(|(s, f)| seen.contains(s) && cyclic_desc(f));
+        // Read the linked helper feature, including functions reused from
+        // the code cache, rather than mutable state from fresh emission.
+        self.fixed_allocations = seen
+            .iter()
+            .any(|s| matches!(s, Sym::Helper(crate::rt::Helper::NewFixed { .. })));
+        if self.fixed_allocations {
+            self.funcs.retain(|s, _| !matches!(s, Sym::Helper(_)));
+        }
         if let Some(r) = self.runtime
-            && !self
-                .funcs
-                .iter()
-                .any(|(s, f)| seen.contains(s) && cyclic_desc(f))
+            && !cyclic
         {
             // No allocation takes part in cycle collection: build the
             // helpers again over the runtime's releases without hooks.
@@ -987,6 +1001,11 @@ impl Module {
                     Ins::GlobalSet(g) => body.instruction(&Instruction::GlobalSet(gindex[g])),
                     Ins::TableSlot(t) => {
                         let k = slot(t, &mut slots)?;
+                        if k >= GLUE {
+                            return crate::unsupported(
+                                "a function table exceeding the descriptor glue field",
+                            );
+                        }
                         body.instruction(&Instruction::I32Const(k.cast_signed()))
                     }
                     Ins::CallIndirect(p, r) => body.instruction(&Instruction::CallIndirect {

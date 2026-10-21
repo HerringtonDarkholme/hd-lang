@@ -232,7 +232,7 @@ pub const fn runtime_fns(checked: bool) -> &'static [&'static str] {
 
 /// Every runtime function that emitted code calls, as `(module, name)`:
 /// [`runtime_fns`] of [`runtime_module`], then the collector's
-/// [`CYCLE_FNS`], then the allocator's `block_of` for reference views.
+/// [`CYCLE_FNS`], then the allocator metadata/class paths and `block_of`.
 /// [`Runtime::from_keys`] reads their keys in this order.
 #[must_use]
 pub fn runtime_items(checked: bool) -> Vec<(&'static str, &'static str)> {
@@ -241,7 +241,12 @@ pub fn runtime_items(checked: bool) -> Vec<(&'static str, &'static str)> {
         .iter()
         .map(|n| (module, *n))
         .chain(CYCLE_FNS.iter().map(|n| (CYCLE_MODULE, *n)))
-        .chain([(RUNTIME_MODULE, "block_of")])
+        .chain([
+            (RUNTIME_MODULE, "metadata"),
+            (RUNTIME_MODULE, "alloc_class"),
+            (RUNTIME_MODULE, "free_class"),
+            (RUNTIME_MODULE, "block_of"),
+        ])
         .collect()
 }
 
@@ -260,6 +265,15 @@ pub struct Runtime {
     pub cycle: Cycle,
     pub acyclic: Acyclic,
     pub checked: Option<Checked>,
+    /// Private constant-class allocator entry points, unused by checked code.
+    pub small: SmallAlloc,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SmallAlloc {
+    pub metadata: Hash128,
+    pub alloc: Hash128,
+    pub free: Hash128,
 }
 
 /// The runtime's free and releases without collector hooks, which a
@@ -306,7 +320,7 @@ impl Runtime {
     #[must_use]
     pub fn from_keys(keys: &[Option<Hash128>]) -> Option<Runtime> {
         let keys: Vec<Hash128> = keys.iter().copied().collect::<Option<_>>()?;
-        let (block_of, keys) = keys.split_last()?;
+        let (keys, [metadata, alloc_class, free_class, block_of]) = keys.split_last_chunk::<4>()?;
         let (counts, rest) = keys.split_first_chunk::<9>()?;
         let (checked, rest) = match rest.len() {
             n if n == CYCLE_FNS.len() => (None, rest),
@@ -346,6 +360,11 @@ impl Runtime {
             retain_known,
             release_known,
             block_of: *block_of,
+            small: SmallAlloc {
+                metadata: *metadata,
+                alloc: *alloc_class,
+                free: *free_class,
+            },
             cycle: Cycle {
                 collect,
                 due,

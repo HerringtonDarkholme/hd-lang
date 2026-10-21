@@ -1,0 +1,109 @@
+# test: fixed-size reference allocations preserve values and aliases across page boundaries and reuse
+# Spec 13 Identity: ref.identity.same-place, ref.identity.copies.
+# Spec 04 Value Types: types.value.copy.
+# expect: test
+
+struct Tiny:
+    value: i64
+
+struct P1:
+    left: Tiny
+    right: Tiny
+
+struct P2:
+    left: P1
+    right: P1
+
+struct P3:
+    left: P2
+    right: P2
+
+struct P4:
+    left: P3
+    right: P3
+
+struct P5:
+    left: P4
+    right: P4
+
+struct P6:
+    left: P5
+    right: P5
+
+struct P7:
+    left: P6
+    right: P6
+
+struct P8:
+    left: P7
+    right: P7
+
+struct Near:
+    a: P7
+    b: P6
+    c: P5
+    d: P4
+    e: P3
+    f: P2
+    g: P1
+    h: Tiny
+
+fn build(seed: i64) -> P7:
+    p0 := Tiny { value: seed }
+    p1 := P1 { left: p0, right: p0 }
+    p2 := P2 { left: p1, right: p1 }
+    p3 := P3 { left: p2, right: p2 }
+    p4 := P4 { left: p3, right: p3 }
+    p5 := P5 { left: p4, right: p4 }
+    p6 := P6 { left: p5, right: p5 }
+    p7 := P7 { left: p6, right: p6 }
+    p7
+
+fn near(seed: i64) -> &Near:
+    p7 := build(seed)
+    p6 := p7.left
+    p5 := p6.left
+    p4 := p5.left
+    p3 := p4.left
+    p2 := p3.left
+    p1 := p2.left
+    p0 := p1.left
+    &Near { a: p7, b: p6, c: p5, d: p4, e: p3, f: p2, g: p1, h: p0 }
+
+fn large(seed: i64) -> &P8:
+    &P8 { left: build(seed), right: build(seed + 1) }
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("small blocks cross pages and are reused without changing live aliases"):
+        for round in 0..4:
+            let mut tiny: List[&Tiny] = []
+            let mut pairs: List[&P1] = []
+            for i in 0..5000:
+                value := i64(i + round)
+                tiny.push(&Tiny { value: value })
+                pairs.push(&P1 { left: Tiny { value: value }, right: Tiny { value: -value } })
+            for i in 0..5000:
+                assert_equal(tiny[i].value, i64(i + round), reason="the small class keeps its contents")
+                assert_equal(pairs[i].right.value, -i64(i + round), reason="the next class keeps its contents")
+            alias := tiny[0]
+            assert(alias is tiny[0], reason="a live reference preserves its identity")
+            assert(!(tiny[0] is tiny[1]), reason="distinct live allocations never share a slot")
+
+    it("the largest small class preserves all of its copied fields"):
+        for round in 0..3:
+            let mut values: List[&Near] = []
+            for i in 0..40:
+                values.push(near(i64(i + round)))
+            for i in 0..40:
+                assert_equal(values[i].h.value, i64(i + round), reason="the field at the end of the payload")
+                assert_equal(values[i].a.left.left.left.left.left.left.left.value, i64(i + round), reason="the field at the start of the payload")
+
+    it("a fixed payload over the small limit still uses the large-run path"):
+        for round in 0..3:
+            let mut values: List[&P8] = []
+            for i in 0..40:
+                values.push(large(i64(i + round)))
+            for i in 0..40:
+                assert_equal(values[i].right.left.left.left.left.left.left.left.value, i64(i + round + 1), reason="the second half of the large payload")

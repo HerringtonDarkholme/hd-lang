@@ -214,6 +214,18 @@ pub enum Helper {
     /// one, or 0 when its payload holds no counted reference. The address
     /// is its payload's.
     New,
+    /// The same ABI as New, with a statically known payload size and cycle bit.
+    NewFixed {
+        size: u32,
+        cyclic: bool,
+    },
+    /// A known small class, with page-list maintenance on the std slow path.
+    AllocClass {
+        class: u32,
+        bytes: u32,
+    },
+    /// Free an object using its descriptor class when available.
+    FreeClass,
     /// `(len) -> address`: a new string buffer (§23.7) of `len` bytes, a
     /// counted object with nothing to release in it.
     Str,
@@ -1391,10 +1403,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         Helper::CycleFree => {
             let mut f = Func::new("rt:cycle_free", vec![Val::I32; 3], vec![]);
-            if let Some(r) = m.runtime {
-                f.get(1);
-                f.call(Sym::Inst(r.free));
-            }
+            free_object(&mut f, m, 1);
             f
         }
         Helper::Panic(msg) => {
@@ -1465,7 +1474,10 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         Helper::Alloc => alloc(),
         Helper::StrEq => str_eq(),
-        Helper::New => new_object(m),
+        Helper::New => new_object(m, None),
+        Helper::NewFixed { size, cyclic } => new_object(m, Some((*size, *cyclic))),
+        Helper::AllocClass { class, bytes } => alloc_class(m, *class, *bytes),
+        Helper::FreeClass => free_class(m),
         Helper::Str => {
             let mut f = Func::new("rt:str", vec![Val::I32], vec![Val::I32]);
             f.get(0);
@@ -2069,10 +2081,230 @@ pub(crate) fn push_desc(f: &mut Func, glue: Option<Sym>, cyclic: bool) {
 }
 
 /// Pushes the release glue's table slot plus one from the descriptor word
-/// on the stack, without the collector's bits.
+/// on the stack, without the collector and allocation-class bits.
 pub(crate) fn glue_of(f: &mut Func) {
     f.u32(GLUE);
     f.op(Instruction::I32And);
+}
+
+/// The allocator's twenty small classes, including the object's header and
+/// its optional collector word. Zero/large objects keep the ordinary path.
+fn small_class(size: u32) -> Option<(u32, u32)> {
+    const BYTES: [u32; 20] = [
+        16, 32, 48, 64, 80, 96, 112, 128, 160, 208, 256, 320, 400, 512, 640, 800, 1024, 1280, 1600,
+        2048,
+    ];
+    BYTES.into_iter().enumerate().find_map(|(i, bytes)| {
+        (size <= bytes).then(|| (u32::try_from(i + 1).expect("size class"), bytes))
+    })
+}
+
+/// The allocation total is in the copied allocator metadata prefix.
+fn note_allocation(f: &mut Func, m: &Module, table: u32) {
+    let next = f.local(Val::I32);
+    f.get(table);
+    f.op(Instruction::I32Load(mem(HEAP, 244, 2)));
+    f.i32(1);
+    f.op(Instruction::I32Add);
+    f.set(next);
+    if !m.release {
+        f.get(next);
+        f.op(Instruction::I32Eqz);
+        f.op(Instruction::If(BlockType::Empty));
+        f.helper(Helper::Panic("integer-overflow: integer overflow".into()));
+        f.op(Instruction::End);
+    }
+    f.get(table);
+    f.get(next);
+    f.op(Instruction::I32Store(mem(HEAP, 244, 2)));
+}
+
+fn allocated_slot(f: &mut Func, page: u32, slot: u32) {
+    f.get(page);
+    f.get(page);
+    f.op(Instruction::I32Load16U(mem(HEAP, 12, 1)));
+    f.i32(1);
+    f.op(Instruction::I32Add);
+    f.op(Instruction::I32Store16(mem(HEAP, 12, 1)));
+    f.get(slot);
+    f.op(Instruction::Return);
+}
+
+/// Pop a free slot or bump within the head page when it remains non-full.
+/// The last available slot, a missing page/table, and page-list maintenance
+/// stay in std. There is no call between reading metadata and updating it.
+fn alloc_class(m: &Module, class: u32, bytes: u32) -> Func {
+    let mut f = Func::new(
+        format!("rt:alloc_class/{class}"),
+        vec![Val::I32],
+        vec![Val::I32],
+    );
+    let Some(r) = m.runtime else {
+        f.get(0);
+        f.helper(Helper::Alloc);
+        return f;
+    };
+    if r.checked.is_some() {
+        f.get(0);
+        f.call(Sym::Inst(r.alloc));
+        return f;
+    }
+    let (table, page, slot, next, bump) = (
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+    );
+    f.call(Sym::Inst(r.small.metadata));
+    f.set(table);
+    f.get(table);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(table);
+    f.op(Instruction::I32Load(mem(HEAP, u64::from(class * 4), 2)));
+    f.set(page);
+    f.get(page);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(page);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.set(slot);
+    f.get(page);
+    f.op(Instruction::I32Load16U(mem(HEAP, 14, 1)));
+    f.i32(4);
+    f.op(Instruction::I32Shl);
+    f.set(bump);
+    f.get(slot);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(slot);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.set(next);
+    f.get(next);
+    f.get(bump);
+    f.u32(65536 - bytes);
+    f.op(Instruction::I32LeU);
+    f.op(Instruction::I32Or);
+    f.op(Instruction::If(BlockType::Empty));
+    note_allocation(&mut f, m, table);
+    f.get(page);
+    f.get(next);
+    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    allocated_slot(&mut f, page, slot);
+    f.op(Instruction::End);
+    f.op(Instruction::Else);
+    f.get(bump);
+    f.u32(65536 - 2 * bytes);
+    f.op(Instruction::I32LeU);
+    f.op(Instruction::If(BlockType::Empty));
+    note_allocation(&mut f, m, table);
+    f.get(page);
+    f.get(bump);
+    f.u32(bytes);
+    f.op(Instruction::I32Add);
+    f.i32(4);
+    f.op(Instruction::I32ShrU);
+    f.op(Instruction::I32Store16(mem(HEAP, 14, 1)));
+    f.get(page);
+    f.get(bump);
+    f.op(Instruction::I32Add);
+    f.set(slot);
+    allocated_slot(&mut f, page, slot);
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+    f.get(0);
+    f.u32(class);
+    f.call(Sym::Inst(r.small.alloc));
+    f
+}
+
+/// A live block on its class's head page needs only a free-list push and
+/// live decrement. Empty head pages remain cached. Other pages use std's
+/// known-class slow path; buffered candidates keep the collector's free.
+fn free_class(m: &Module) -> Func {
+    let mut f = Func::new("rt:free_class", vec![Val::I32], vec![]);
+    let Some(r) = m.runtime else {
+        return f;
+    };
+    if r.checked.is_some() || !m.fixed_allocations {
+        f.get(0);
+        f.call(Sym::Inst(r.free));
+        return f;
+    }
+    let (desc, class, table, page) = (
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+    );
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+    f.set(desc);
+    f.get(desc);
+    f.u32(crate::module::CLASS_MASK);
+    f.op(Instruction::I32And);
+    f.u32(crate::module::CLASS_SHIFT);
+    f.op(Instruction::I32ShrU);
+    f.set(class);
+    f.get(class);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::I32Eqz);
+    f.get(desc);
+    f.u32(crate::module::BUFFERED);
+    f.op(Instruction::I32And);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::I32And);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(0);
+    f.i32(-65536);
+    f.op(Instruction::I32And);
+    f.set(page);
+    f.call(Sym::Inst(r.small.metadata));
+    f.set(table);
+    f.get(table);
+    f.get(class);
+    f.i32(2);
+    f.op(Instruction::I32Shl);
+    f.op(Instruction::I32Add);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.get(page);
+    f.op(Instruction::I32Eq);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(0);
+    f.get(page);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    f.get(page);
+    f.get(0);
+    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    f.get(page);
+    f.get(page);
+    f.op(Instruction::I32Load16U(mem(HEAP, 12, 1)));
+    f.i32(1);
+    f.op(Instruction::I32Sub);
+    f.op(Instruction::I32Store16(mem(HEAP, 12, 1)));
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
+    f.get(0);
+    f.get(class);
+    f.call(Sym::Inst(r.small.free));
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
+    f.get(0);
+    f.call(Sym::Inst(r.free));
+    f
+}
+
+fn free_object(f: &mut Func, m: &Module, block: u32) {
+    let Some(r) = m.runtime else {
+        return;
+    };
+    f.get(block);
+    if m.fixed_allocations && r.checked.is_none() {
+        f.helper(Helper::FreeClass);
+    } else {
+        f.call(Sym::Inst(r.free));
+    }
 }
 
 /// [`Helper::New`]: a block of the header and the payload from std's
@@ -2082,8 +2314,23 @@ pub(crate) fn glue_of(f: &mut Func) {
 /// is full, and an object whose descriptor has [`CYCLIC`] takes part in
 /// collections: its block has room for the collector word at its end,
 /// which std's `track` zeroes (§23.28).
-fn new_object(m: &Module) -> Func {
-    let mut f = Func::new("rt:new", vec![Val::I32, Val::I32], vec![Val::I32]);
+fn new_object(m: &Module, fixed: Option<(u32, bool)>) -> Func {
+    let small = fixed.and_then(|(size, cyclic)| {
+        m.runtime.filter(|r| r.checked.is_none())?;
+        let bytes = size
+            .checked_add(HEADER)?
+            .checked_add(if cyclic && !m.acyclic {
+                crate::module::CYCLE_WORD
+            } else {
+                0
+            })?;
+        small_class(bytes)
+    });
+    let name = small.map_or_else(
+        || "rt:new".into(),
+        |(class, _)| format!("rt:new/class-{class}"),
+    );
+    let mut f = Func::new(name, vec![Val::I32, Val::I32], vec![Val::I32]);
     let block = f.local(Val::I32);
     let cycles = m.runtime.filter(|_| !m.acyclic);
     if let Some(r) = cycles {
@@ -2105,7 +2352,11 @@ fn new_object(m: &Module) -> Func {
                 f.op(Instruction::I32Mul);
                 f.op(Instruction::I32Add);
             }
-            f.call(Sym::Inst(r.alloc));
+            if let Some((class, bytes)) = small {
+                f.helper(Helper::AllocClass { class, bytes });
+            } else {
+                f.call(Sym::Inst(r.alloc));
+            }
         }
         None => f.helper(Helper::Alloc),
     }
@@ -2115,6 +2366,10 @@ fn new_object(m: &Module) -> Func {
     f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
     f.get(block);
     f.get(1);
+    if let Some((class, _)) = small {
+        f.u32(class << crate::module::CLASS_SHIFT);
+        f.op(Instruction::I32Or);
+    }
     f.op(Instruction::I32Store(mem(HEAP, 4, 2)));
     if let Some(r) = cycles {
         f.get(1);
@@ -2214,8 +2469,7 @@ fn release_ref(m: &Module, known: bool) -> Func {
     f.op(Instruction::I32Sub);
     f.call_indirect(vec![Val::I32], vec![]);
     f.op(Instruction::End);
-    f.get(block);
-    f.call(Sym::Inst(r.free));
+    free_object(&mut f, m, block);
     f.op(Instruction::Br(0));
     f.op(Instruction::End);
     f.op(Instruction::End);

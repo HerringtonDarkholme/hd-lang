@@ -122,7 +122,7 @@ fn total(counter: Counter) -> i64:
 >   block
 >     i32.const 16
 >     i32.const 0
->     call rt:new
+>     call rt:new/class-2
 >     local.tee t0
 >     local.get counter.at
 >     i64.store

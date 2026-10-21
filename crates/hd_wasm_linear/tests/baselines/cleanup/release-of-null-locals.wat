@@ -35,7 +35,7 @@ fn make(depth: i32) -> &Node:
 >       i32.const 0
 >       i32.const -2147483647
 >       i32.add
->       call rt:new
+>       call rt:new/class-2
 >       local.tee t0
 >       i32.const 0
 >       i32.store8
@@ -93,7 +93,7 @@ fn make(depth: i32) -> &Node:
 >       i32.const 0
 >       i32.const -2147483647
 >       i32.add
->       call rt:new
+>       call rt:new/class-2
 >       local.tee t12
 >       local.get t11
 >       i32.store8

@@ -5,7 +5,7 @@ waits
   if
     i32.const 8
     i32.const 0
-    call rt:new
+    call rt:new/class-1
     local.tee t0
     local.get t1
     i64.store

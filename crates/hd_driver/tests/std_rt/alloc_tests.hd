@@ -3,7 +3,7 @@
 # as `std.rt.alloc_tests` and runs its cases on the linear backend
 # (crates/hd_driver/tests/conformance.rs, `STD_RT_TESTS`). Each case runs
 # in an instance of its own, so each starts with a fresh heap.
-use std.rt.alloc.{alloc, block_of, block_size, free, release, release_known, retain, retain_known}
+use std.rt.alloc.{alloc, alloc_class, allocated, block_bytes, block_of, block_size, free, free_class, release, release_known, retain, retain_known}
 use std.rt.cycle.{collect, pending, track}
 use std.rt.memory.{grow, load_u32, store_u32, store_u8}
 
@@ -190,3 +190,34 @@ tests:
         collect(unexpected_trace, unexpected_release, free)
         assert(pending() == before, "the collection frees it and empties its entry")
         assert(alloc(64) == block, "its block is reused")
+
+    it("constant classes agree with block classification and allocation totals"):
+        let sizes: List[usize] = [16, 32, 48, 64, 80, 96, 112, 128, 160, 208, 256, 320, 400, 512, 640, 800, 1024, 1280, 1600, 2048]
+        for i in 0..sizes.len():
+            bytes := sizes[i]
+            before := allocated()
+            first := alloc_class(bytes - 1, i + 1)
+            assert(allocated() == before + 1, "the class path records exactly one allocation")
+            assert(block_bytes(first) == bytes, "the supplied class matches the page table")
+            assert(block_of(first + bytes - 1) == first, "the entire class belongs to the block")
+            free_class(first, i + 1)
+            second := alloc_class(bytes, i + 1)
+            assert(second == first, "the freed slot is reused")
+            free_class(second, i + 1)
+
+    it("constant-class slow paths restore full pages and retire empty non-head pages"):
+        let mut slots: List[usize] = []
+        for i in 0..32:
+            slots.push(alloc_class(2048, 20))
+        first := slots[0]
+        second_page := slots[31]
+        assert(first / PAGE != second_page / PAGE, "the 32nd slot crosses a page boundary")
+        free_class(first, 20)
+        assert(alloc_class(2048, 20) == first, "freeing a full page restores it to the class")
+        for i in 0..31:
+            free_class(slots[i], 20)
+        free_class(second_page, 20)
+        assert(block_of(second_page) == 0, "an empty non-head page returns to the pool")
+        again := alloc_class(2048, 20)
+        assert(again / PAGE == first / PAGE, "the empty head page stays cached")
+        free_class(again, 20)

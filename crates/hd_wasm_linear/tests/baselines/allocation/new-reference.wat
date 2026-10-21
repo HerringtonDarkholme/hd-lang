@@ -19,7 +19,7 @@ fn leaf() -> &Node:
 >     i32.const 0
 >     i32.const -2147483647
 >     i32.add
->     call rt:new
+>     call rt:new/class-2
 >     local.tee t0
 >     i32.const 0
 >     i32.store8

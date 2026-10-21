@@ -39,6 +39,10 @@ LOW := 0x3fffffff
 CYCLIC := 0x80000000
 BUFFERED := 0x40000000
 
+# The allocation total occupies bytes 244..247 of the copied metadata prefix.
+# The backend's constant-class fast path increments this word too.
+GIVEN := 244
+
 # The page table's address, 0 until the first allocation.
 let table: usize = 0
 # How many pages the table has entries for.
@@ -48,14 +52,12 @@ let capacity: usize = 0
 let known: usize = 0
 # No page below this one is free.
 let hint: usize = 0
-# How many blocks `alloc` has given.
-let given: usize = 0
 
 ## Allocates a block of at least `size` bytes and gives its address, which is a multiple of 16; its bytes are not zeroed.
 pub fn alloc(size: usize) -> usize:
-    given = given + 1
     if table == 0:
         start()
+    store_u32(table + GIVEN, load_u32(table + GIVEN) + 1)
     if size > 2048:
         count := (size + PAGE - 1) / PAGE
         first := take(count)
@@ -91,9 +93,47 @@ pub fn alloc(size: usize) -> usize:
         store_u32(page + 4, 0)
     slot
 
+# Compiler-private ABI: class is the known size class of size, or zero for
+# an ordinary allocation. Table relocation preserves the whole prefix.
+pub fn alloc_class(size: usize, class: usize) -> usize:
+    if class == 0:
+        return alloc(size)
+    if table == 0:
+        start()
+    store_u32(table + GIVEN, load_u32(table + GIVEN) + 1)
+    let page = head(class)
+    if page == 0:
+        page = take(1) * PAGE
+        set(page / PAGE, u32(SMALL + class))
+        fill(page, 0, 14)
+        store_u16(page + 14, 1)
+        set_head(class, page)
+    free := usize(load_u32(page))
+    let slot = free
+    if free != 0:
+        store_u32(page, load_u32(free))
+    else:
+        bump := usize(load_u16(page + 14)) * 16
+        slot = page + bump
+        store_u16(page + 14, u16((bump + class_bytes(class)) / 16))
+    store_u16(page + 12, load_u16(page + 12) + 1)
+    if full(page, class):
+        # A page that fills is its list's head, the page it took from.
+        next := usize(load_u32(page + 4))
+        set_head(class, next)
+        if next != 0:
+            store_u32(next + 8, 0)
+        store_u32(page + 4, 0)
+    slot
+
+# Zero before the first allocation; callers never cache this across an
+# allocation or collection, since growing the table can relocate it.
+pub fn metadata() -> usize:
+    table
+
 ## How many blocks `alloc` has given since the program began, so a test can see that some code allocates nothing.
 pub fn allocated() -> usize:
-    given
+    if table == 0: 0 else: usize(load_u32(table + GIVEN))
 
 ## Frees the block at `address`, which `alloc` gave and which is not yet freed; a counted object that is a cycle candidate is left to the collector's next sweep (`std.rt.cycle.keep`).
 pub fn free(address: usize) -> void:
@@ -131,6 +171,35 @@ pub fn free_block(address: usize) -> void:
             if next != 0:
                 store_u32(next + 8, u32(page))
             set_head(class, page)
+
+# Compiler-private ABI: address is a live block of class, with no buffered
+# candidate bit. The backend handles the head-page case inline.
+pub fn free_class(address: usize, class: usize) -> void:
+    if class == 0:
+        free_block(address)
+        return
+    page_number := address / PAGE
+    page := page_number * PAGE
+    was_full := full(page, class)
+    store_u32(address, load_u32(page))
+    store_u32(page, u32(address))
+    live := load_u16(page + 12) - 1
+    store_u16(page + 12, live)
+    # An empty page returns to the pool unless it heads its class's
+    # list, so a class that frees its last block and allocates again
+    # keeps its page.
+    if live == 0 && head(class) != page:
+        if !was_full:
+            unlink(page, class)
+        set(page_number, 0)
+        lower_hint(page_number)
+    else if was_full:
+        next := head(class)
+        store_u32(page + 4, u32(next))
+        store_u32(page + 8, 0)
+        if next != 0:
+            store_u32(next + 8, u32(page))
+        set_head(class, page)
 
 ## The address of the block that holds `address`, a block's own address or one inside it; 0 for an address in static data or in no block.
 pub fn block_of(address: usize) -> usize:
