@@ -1144,6 +1144,15 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
+    /// The value of `r` when it is a constant of one `i64`.
+    fn const_i64(&self, r: u32) -> Option<i64> {
+        if r == NONE || Ref(r).as_inst().is_some() {
+            return None;
+        }
+        let (ty, bits) = self.b.consts[(r & !Ref::CONST_BIT) as usize];
+        matches!(self.vals(self.sub(ty)).ok()?.as_slice(), [Val::I64]).then(|| bits.cast_signed())
+    }
+
     /// The value of `r` when it is a constant of one `i32`.
     fn const_u32(&self, r: u32) -> Option<u32> {
         if r == NONE || Ref(r).as_inst().is_some() {
@@ -3037,6 +3046,43 @@ impl Em<'_, '_, '_> {
                 I::I32DivU
             } else {
                 I::I32RemU
+            });
+            return Ok(());
+        }
+        // A remainder's magnitude is below its divisor's, so it always
+        // fits the operand width (`types.arith.min-remainder`): the native
+        // operation at that width, with only the zero check, which a
+        // nonzero constant divisor makes unnecessary.
+        if op == PrimOp::Rem {
+            let wide = bits == 64;
+            let nonzero = if wide {
+                self.const_i64(ops[1]).is_some_and(|c| c != 0)
+            } else {
+                self.const_u32(ops[1]).is_some_and(|c| c != 0)
+            };
+            self.comp(ops[0], 0)?;
+            if nonzero {
+                self.comp(ops[1], 0)?;
+            } else {
+                let y = self.f.local(if wide { Val::I64 } else { Val::I32 });
+                self.comp(ops[1], 0)?;
+                self.f.set(y);
+                self.f.get(y);
+                self.f.op(if wide {
+                    Instruction::I64Eqz
+                } else {
+                    Instruction::I32Eqz
+                });
+                self.f.op(Instruction::If(BlockType::Empty));
+                self.panic("integer-division-by-zero: division by zero");
+                self.f.op(Instruction::End);
+                self.f.get(y);
+            }
+            self.f.op(match (wide, signed) {
+                (true, true) => I::I64RemS,
+                (true, false) => I::I64RemU,
+                (false, true) => I::I32RemS,
+                (false, false) => I::I32RemU,
             });
             return Ok(());
         }

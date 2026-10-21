@@ -5,6 +5,7 @@
 //! new view of the same bytes; nothing is copied.
 
 use hd_base::StageResult;
+use hd_tir::ir::Ref;
 use hd_types::{Ty, TyData};
 use wasm_encoder::{BlockType, Instruction as I};
 
@@ -51,7 +52,15 @@ impl Em<'_, '_, '_> {
             self.f.op(I::I32Add);
         }
         self.f.set(len);
-        self.new_text(len, at);
+        // Literal text among the parts already gives the result bytes, so
+        // its length is never 0 and no empty test is needed.
+        if self.fixed_len(parts) > 0 {
+            self.f.get(len);
+            self.f.helper(Helper::Str);
+            self.f.set(at);
+        } else {
+            self.new_text(len, at);
+        }
         self.f.get(at);
         self.f.set(to);
         for p in parts {
@@ -71,6 +80,28 @@ impl Em<'_, '_, '_> {
         self.f.get(len);
         // A new buffer arrives with its count.
         self.store_owned(i)
+    }
+
+    /// The total length the constant parts of `parts` guarantee: every
+    /// part's length is non-negative, so a literal part's bytes are a lower
+    /// bound for the whole.
+    fn fixed_len(&self, parts: &[u32]) -> usize {
+        parts
+            .iter()
+            .fold(0usize, |n, p| n.saturating_add(self.const_len(*p)))
+    }
+
+    /// The length of constant string `r`, or 0 for any other part.
+    fn const_len(&self, r: u32) -> usize {
+        if Ref(r).as_inst().is_some() {
+            return 0;
+        }
+        let (ty, bits) = self.b.consts[(r & !Ref::CONST_BIT) as usize];
+        let stripped = hd_mono::layout::strip_newtype(self.pool(), self.env(), self.sub(ty));
+        if stripped != Ty::STRING {
+            return 0;
+        }
+        self.b.strings[usize::try_from(bits).expect("string constant")].len()
     }
 
     /// Sets local `at` to the address of a new buffer of the `len` bytes in

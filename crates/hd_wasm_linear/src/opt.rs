@@ -18,11 +18,12 @@
 //! 6. `if A; local.set x else B; local.set x end; local.get x`, where
 //!    those are `x`'s only writes and that get its only read and neither
 //!    arm branches to the `if` itself, is `if (result T) A else B end`;
-//! 7. constants fold: a nonzero constant's zero check goes, `+ a ± b` is
-//!    one addition, `x == 0` is `i32.eqz`, a test of `x != 0` is a test
-//!    of `x`, a multiplication, quotient or remainder by a power of two is
-//!    a shift or a mask, and a constant added to a load's or store's
-//!    address is its offset;
+//! 7. constants fold: a nonzero constant's zero check goes, two constants
+//!    joined by `+`, `-` or `*` are one constant, adding 0 on either side
+//!    goes, `+ a ± b` is one addition, `x == 0` is `i32.eqz`, a test of
+//!    `x != 0` is a test of `x`, a multiplication, quotient or remainder by
+//!    a power of two is a shift or a mask, and a constant added to a load's
+//!    or store's address is its offset;
 //! 8. `local.set a; R; local.set b; local.get a; local.get b`, where
 //!    those are `a`'s and `b`'s only writes and reads and `R` is a
 //!    straight-line run that pushes one value over what it found, is
@@ -278,6 +279,33 @@ fn fold(f: &mut Func) -> bool {
             continue;
         }
         match (at(0), at(1), at(2), at(3)) {
+            // Two constants joined by `+`, `-` or `*` are one constant
+            // (`i32` wraps either way).
+            (
+                Some(Ins::Op(I::I32Const(a))),
+                Some(Ins::Op(I::I32Const(b))),
+                Some(Ins::Op(op @ (I::I32Add | I::I32Sub | I::I32Mul))),
+                _,
+            ) => {
+                let c = match op {
+                    I::I32Add => a.wrapping_add(*b),
+                    I::I32Sub => a.wrapping_sub(*b),
+                    _ => a.wrapping_mul(*b),
+                };
+                out.push(Ins::Op(I::I32Const(c)));
+                k += 3;
+                changed = true;
+            }
+            // Adding 0 goes, on either side.
+            (Some(Ins::Op(I::I32Const(0))), Some(Ins::Op(I::I32Add)), ..) => {
+                k += 2;
+                changed = true;
+            }
+            (Some(Ins::Op(I::I32Const(0))), v, Some(Ins::Op(I::I32Add)), _) if push(v) => {
+                out.push(v.expect("a push").clone());
+                k += 3;
+                changed = true;
+            }
             // `+ a ± b` is one addition, of `a ± b` (`i32` wraps either way).
             (
                 Some(Ins::Op(I::I32Const(a))),

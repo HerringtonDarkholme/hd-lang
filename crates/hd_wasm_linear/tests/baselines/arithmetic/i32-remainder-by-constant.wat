@@ -8,30 +8,6 @@ fn wrap(x: i32) -> i32:
     x % 1_000_003
 > wrap
 >   local.get x
->   i64.extend_i32_s
->   local.set t0
 >   i32.const 1000003
->   i64.extend_i32_s
->   local.tee t1
->   i64.eqz
->   if
->     call rt:panic'1
->     unreachable
->   end
->   local.get t0
->   local.get t1
->   i64.rem_s
->   local.tee t2
->   i64.const 2147483647
->   i64.gt_s
->   local.get t2
->   i64.const -2147483648
->   i64.lt_s
->   i32.or
->   if
->     call rt:panic'2
->     unreachable
->   end
->   local.get t2
->   i32.wrap_i64
+>   i32.rem_s
 >   end

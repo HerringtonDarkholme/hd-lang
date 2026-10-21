@@ -27,10 +27,6 @@ fn first(xs: &List[i32]) -> i32:
 >       call rt:panic
 >     end
 >     local.get t2
->     i32.const 0
->     i32.const 4
->     i32.mul
->     i32.add
 >     i32.load offset=8
 >     local.set t3
 >   end

@@ -16,19 +16,11 @@ fn label(name: string) -> string:
 >     local.set name.0
 >     i32.const 0
 >     local.set name.1
->     i32.const 0
 >     i32.const 3
->     i32.add
 >     local.get t0
 >     i32.add
 >     local.tee t2
->     i32.eqz
->     if (result i32)
->       i32.const 16
->     else
->       local.get t2
->       call rt:str
->     end
+>     call rt:str
 >     local.tee t3
 >     local.tee t4
 >     i32.const &"id "

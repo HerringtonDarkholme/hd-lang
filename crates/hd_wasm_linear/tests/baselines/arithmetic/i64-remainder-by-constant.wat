@@ -7,16 +7,7 @@ fn even(n: i64) -> bool:
     n % 2 == 0
 > even
 >   local.get n
->   local.set t0
 >   i64.const 2
->   local.tee t1
->   i64.eqz
->   if
->     call rt:panic
->     unreachable
->   end
->   local.get t0
->   local.get t1
 >   i64.rem_s
 >   i64.const 0
 >   i64.eq
