@@ -1,7 +1,10 @@
 std/iter/Iterator.take (Fn)
   local $0 self: Self [param read]
-  local $1 count: usize [param read]
-  %0 = LocalGet $0 : Self
-  %1 = LocalGet $1 : usize
-  %2 = NewData [%0 %1] : Take[Self, T]
-  %3 = Block %2 : Take[Self, T]
+  local $1 $serial: i64 [assigned]
+  local $2 count: usize [param read]
+  %0 = Call std/core/ref_serial[] () : i64
+  %1 = LocalSet $1 %0 : ()
+  %2 = LocalGet $0 : Self
+  %3 = LocalGet $2 : usize
+  %4 = NewData [%2 %3] : Take[Self, T]
+  %5 = Block %4 : Take[Self, T]

@@ -1,0 +1,33 @@
+# test: list cursor values retain their source place and copy counted elements independently
+# Spec std/iter: std-iter.cursor.list.
+# Spec 06 Iteration Protocols: flow.for.iterator.copy-preserves-source.
+# expect: test
+
+use std.iter.ListIter
+
+fn returned() -> ListIter[string]:
+    let items = ["first", "second"]
+    items.iter()
+
+tests:
+    use std.testing.assert_equal
+
+    it("a returned cursor keeps a local list alive"):
+        let mut cursor = returned()
+        assert_equal(cursor.next(), .Some("first"), reason="the source survives its function")
+        assert_equal(cursor.next(), .Some("second"), reason="the next string stays alive")
+        assert_equal(cursor.next(), .None, reason="the returned cursor exhausts normally")
+
+    it("cursor copies advance independently and follow the same source place"):
+        let mut items = [["one"], ["two"]]
+        snapshot := items
+        let mut left = items.iter()
+        let mut right = left
+        assert_equal(left.next(), .Some(["one"]), reason="the first cursor advances")
+        items[1] = ["changed"]
+        assert_equal(left.next(), .Some(["changed"]), reason="the source's COW replacement is visible")
+        assert_equal(right.next(), .Some(["one"]), reason="the copy kept its own position")
+        assert_equal(right.next(), .Some(["changed"]), reason="both cursors keep the same source place")
+        assert_equal(snapshot, [["one"], ["two"]], reason="the independent collection value stays unchanged")
+        assert_equal(left.next(), .None, reason="the first cursor is exhausted")
+        assert_equal(right.next(), .None, reason="the second cursor is exhausted")

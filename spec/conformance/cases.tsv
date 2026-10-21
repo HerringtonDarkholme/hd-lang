@@ -22,6 +22,7 @@ runtime/valid/partial-equality-dispatch.hd	runtime	accept	lang/05-expressions.md
 runtime/valid/partial-ordering-dispatch.hd	runtime	accept	lang/09-traits.md#comparison-traits
 runtime/valid/structural-equality.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
 runtime/valid/structural-ordering.hd	runtime	accept	lang/05-expressions.md#unary-and-binary-operators
+runtime/valid/list-cursor-retains-source-and-counted-values.hd	runtime	accept	std/iter.md#r-std-iter.cursor.list
 runtime/valid/list-iterator.hd	runtime	accept	lang/06-control-flow.md#for-loops
 runtime/valid/map-iterator.hd	runtime	accept	lang/06-control-flow.md#for-loops
 runtime/panic/map-iterator-invalidated.hd	runtime	panic:iterator-invalidated	lang/06-control-flow.md#for-loops

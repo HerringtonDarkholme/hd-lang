@@ -433,17 +433,9 @@ pub trait Iterable[T]:
 # or advances a referenced cursor directly (spec/lang/06-control-flow.md#r-flow.for.iterator.iterable-not-implied,
 # spec/lang/06-control-flow.md#r-flow.for.iterator.owned-source).
 
-# The built-in list and map cursors call a step closure the compiler
-# builds over the collection itself, not a copy, so they read an element
-# replaced after `iter` and panic `iterator-invalidated` once the collection
-# changed length (spec/lang/06-control-flow.md#iterator-invalidation). The
-# position is the cursor's own field, so a copy of a cursor advances on its
-# own and still reads the same collection.
-# `list_steps(items)(i)` is element `i`, or `.None` past the end.
-@intrinsic("list_steps")
-fn list_steps[T](items: List[T]) -> fn(usize) -> T?:
-    panic("intrinsic")
-
+# A list cursor holds its source place and length; a map cursor keeps a
+# step closure. Both track their own position and check invalidation even
+# after exhaustion (spec/lang/06-control-flow.md#iterator-invalidation).
 # `map_steps(entries)(at)` is the first entry from entry number `at` on,
 # with its number, or `.None` past the last.
 @intrinsic("map_steps")
@@ -453,16 +445,19 @@ fn map_steps[K < Eq & Hash, V](entries: Map[K, V]) -> fn(usize) -> (usize, (K, V
 ## The cursor of a list's `iter`: its elements in order.
 ## See [std-iter.cursor.list](../../spec/std/iter.md#r-std-iter.cursor.list).
 pub struct ListIter[T]:
-    step: fn(usize) -> T?
+    items: &List[T]
+    len: usize
     at: usize
 
 impl[T] Iterator[T] for ListIter[T]:
     fn next(&mut self) -> T?:
-        match (self.step)(self.at):
-            .Some(item) =>
-                self.at = self.at + 1
-                .Some(item)
-            .None => .None
+        if self.items.len() != self.len:
+            panic_with("iterator-invalidated", "list changed during iteration")
+        if self.at >= self.len:
+            return .None
+        item := self.items[self.at]
+        self.at = self.at + 1
+        .Some(item)
 
 ## The cursor of a map's `iter`: its `(key, value)` entries in iteration order.
 ## See [std-iter.cursor.map](../../spec/std/iter.md#r-std-iter.cursor.map).
@@ -481,9 +476,13 @@ impl[K < Eq & Hash, V] Iterator[(K, V)] for MapEntries[K, V]:
 impl[T] Iterable[T] for List[T]:
     type IntoIter = ListIter[T]
     fn iter(self) -> ListIter[T]:
-        ListIter { step: list_steps(self), at: 0 }
+        ListIter { items: &self, len: self.len(), at: 0 }
 
 impl[K < Eq & Hash, V] Iterable[(K, V)] for Map[K, V]:
     type IntoIter = MapEntries[K, V]
     fn iter(self) -> MapEntries[K, V]:
         MapEntries { step: map_steps(self), at: 0 }
+
+@intrinsic("panic")
+fn panic_with(category: string, message: string) -> void:
+    panic("intrinsic")

@@ -111,6 +111,11 @@ has `--backend wasm-gc`, running the same sources at the same sizes
 compile there (no `Iterator` trait), so it has no GC-era number. The
 owner's RC target is hd V8 at most 1.2x the Wasm GC era.
 
+The table below records the run before [#712](https://github.com/HerringtonDarkholme/hd-lang/issues/712).
+That std change replaces `List.iter`'s step closure with direct indexing.
+Later `closures` / Wasm GC ratios include this std change: the GC-era run
+used closure stepping. Judge #712 with paired hd before/after measurements.
+
 | Program | Input | hd V8 | hd wasmtime | Node | Go | Python | Wasm GC era hd V8 | hd / Wasm GC | Meets 1.2x? |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
 | spectral_norm | n 2000 | 252 | 497 | 303 | 216 | 13,072 | 508 | 0.50 | yes |
