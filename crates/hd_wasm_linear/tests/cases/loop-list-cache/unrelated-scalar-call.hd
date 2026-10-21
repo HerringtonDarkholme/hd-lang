@@ -1,0 +1,11 @@
+# @dump: wat
+# @build: v8 release
+# expected: an unescaped local list can keep its buffer and length across a scalar call.
+fn value(i: usize) -> usize: i + 10
+
+fn write(n: usize) -> List[usize]:
+    let mut xs: List[usize] = [0, 0, 0]
+    # subject
+    for i in 0..n:
+        xs[i] = value(i)
+    xs

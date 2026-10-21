@@ -1,0 +1,66 @@
+# test: physical loop projections preserve copy-on-write and zero iterations
+# Spec 04 Collection Values: types.coll.value.
+# expect-stdout: 10 11 12; copy 1 2 3; empty 4
+
+fn fill(xs: &mut List[i32], n: usize) -> void:
+    for i in 0..n:
+        xs[i] = i32(i) + 10
+
+fn countdown(xs: &mut List[i32], start: usize) -> void:
+    let i = start
+    while i != 0:
+        i = i - 1
+        xs[i] = i32(i) + 30
+
+fn negative_range(xs: &mut List[i32]) -> void:
+    for i in -3..0:
+        xs[usize(i + 3)] = i + 40
+
+fn read_after_other_resize(read: &List[i32], write: &mut List[i32]) -> i32:
+    let total = +0
+    for i in 0..3:
+        write.push(i32(i) + 10)
+        total = total + read[3 + i]
+    total
+
+fn read_before_other_write(read: &List[i32], write: &mut List[i32]) -> i32:
+    let total = +0
+    for i in 0..3:
+        total = total + read[0]
+        write[0] = i32(i) + 10
+    total
+
+fn copy_from_other(read: &List[i32], write: &mut List[i32]) -> List[i32]:
+    let last: List[i32] = []
+    for i in 0..3:
+        last = *read
+        write[i] = i32(i)
+    last
+
+pub fn main() -> void $ Console:
+    let mut xs = [+1, +2, +3]
+    copy := xs
+    fill(&mut xs, 3)
+    let mut empty: List[i32] = [+4]
+    fill(&mut empty, 0)
+    let mut counted = [+0, +0, +0]
+    countdown(&mut counted, 3)
+    if counted[0] != 30 || counted[1] != 31 || counted[2] != 32:
+        panic("the first loop test lost its initialized counter")
+    negative_range(&mut counted)
+    if counted[0] != 37 || counted[1] != 38 || counted[2] != 39:
+        panic("the first loop test lost its negative start")
+    let resized = &mut [+1, +2, +3]
+    if read_after_other_resize(resized, resized) != 33:
+        panic("another parameter may resize the same list")
+    let written = &mut [+1, +2, +3]
+    let old: List[i32] = *written
+    if read_before_other_write(written, written) != 22:
+        panic("another parameter may replace the cached buffer")
+    if old[0] != 1:
+        panic("the independent value copy was changed")
+    let copied = &mut [+8, +8, +8]
+    last := copy_from_other(copied, copied)
+    if last[2] != 8 || copied[2] != 2:
+        panic("a copy through another parameter must still trigger COW")
+    println("${xs[0]} ${xs[1]} ${xs[2]}; copy ${copy[0]} ${copy[1]} ${copy[2]}; empty ${empty[0]}")

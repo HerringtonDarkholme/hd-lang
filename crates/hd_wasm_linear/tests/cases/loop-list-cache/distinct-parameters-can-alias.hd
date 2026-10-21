@@ -1,0 +1,10 @@
+# @dump: wat
+# @build: v8 release
+# expected: distinct reference parameters may alias; the read reloads the buffer and length after the push.
+fn read_after_resize(read: &List[usize], write: &mut List[usize]) -> usize:
+    let total = 0
+    # subject
+    for i in 0..3:
+        write.push(i)
+        total = total + read[3 + i]
+    total

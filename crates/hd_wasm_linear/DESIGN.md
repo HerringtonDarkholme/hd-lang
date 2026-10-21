@@ -1849,6 +1849,19 @@ header, so they do not invalidate a borrowed header read.
   this cache, except scalar square root and the constant reference serial.
   The link enables it only in a module with no reachable view constructor:
   a view's getter could otherwise create a buffer owner implicitly.
+- **Loop projections.** Issue #710 proves stable list headers within one
+  loop, including its nested control blocks. Uncounted-element lists keep
+  their buffer and length in locals, and guaranteed writes check uniqueness
+  before that loop. A duplicated scalar entry test keeps empty loops from
+  allocating a COW copy; conditional writes keep the old path.
+  Copies, reaching calls, reassignment, pinning and suspension reject the
+  proof. Unescaped local lists may cross unrelated calls; parameters and
+  escaped headers also reject unknown calls that could use external aliases.
+  Mutations through other reference parameters reject a projection too,
+  since references can denote the same list without sharing a local name.
+  The existing no-view link fact enables these projections without a
+  runtime change flag. View modules retain their ordinary reads and writes,
+  and bounds checks still use the cached length. No callee summary is used.
 - **Conservative boundaries.** Deferred scopes, mutable reference bindings,
   shared cells and effectful read intervals keep their ownership. Copies
   that escape a loan still take their own counts. The fixtures cover

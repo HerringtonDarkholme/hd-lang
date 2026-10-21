@@ -146,12 +146,38 @@ impl Tree {
                 .path(b, j)
                 .is_some_and(|path| path.iter().any(|&(k, q)| k == blk && q > p))
     }
+
+    /// Whether `i` belongs to this loop, including its nested control
+    /// blocks but excluding separately invoked closure bodies.
+    pub(super) fn in_loop(&self, b: &Body, i: u32, loop_inst: u32) -> bool {
+        self.path(b, i).is_some_and(|path| {
+            path.iter()
+                .any(|(blk, _)| self.owner[*blk as usize] == loop_inst)
+        })
+    }
+
+    /// A write guaranteed on an entered iteration: no intervening
+    /// conditional or inner loop may skip it. `guard` is the loop test.
+    pub(super) fn iteration_write(&self, b: &Body, i: u32, loop_inst: u32, guard: u32) -> bool {
+        self.path(b, i).is_some_and(|path| {
+            for (blk, _) in path {
+                let owner = self.owner[blk as usize];
+                if owner == loop_inst {
+                    return true;
+                }
+                if owner != NONE && owner != guard && b.tags[owner as usize] != Tag::Scope {
+                    return false;
+                }
+            }
+            false
+        })
+    }
 }
 
 /// The instruction values instruction `i` reads: TIR's own list where it
 /// has one, else every operand word that names an instruction, an
 /// over-approximation that only ever delays a release.
-fn uses(b: &Body, i: usize) -> Vec<u32> {
+pub(super) fn uses(b: &Body, i: usize) -> Vec<u32> {
     let [a, w] = b.data[i];
     let tag = b.tags[i];
     // A block's record is its statements; only its tail is a use.

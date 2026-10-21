@@ -1,0 +1,100 @@
+# test: loop list projections preserve COW, aliases and empty iterations
+# Spec 04 Collection Values: types.coll.value.
+# Spec 13 References: ref.place.alias.
+# expect: test
+
+fn fill(xs: &mut List[i32], end: usize) -> void:
+    for i in 0..end:
+        xs[i] = i32(i) + 10
+
+fn grow(xs: &mut List[i32]) -> void:
+    xs.push(+99)
+
+fn fill_with_alias_call(xs: &mut List[i32]) -> void:
+    for i in 0..3:
+        grow(xs)
+        xs[i] = i32(i)
+
+fn scalar(i: usize) -> i32: i32(i) + 20
+
+fn fill_local() -> List[i32]:
+    let mut xs: List[i32] = [+0, +0, +0]
+    for i in 0..3:
+        xs[i] = scalar(i)
+    xs
+
+fn snapshots(xs: &mut List[i32]) -> List[List[i32]]:
+    let mut saved: List[List[i32]] = []
+    for i in 0..3:
+        let snapshot: List[i32] = *xs
+        saved.push(snapshot)
+        xs[i] = i32(i)
+    saved
+
+let shared = &mut [+1, +2, +3]
+
+fn grow_global() -> void:
+    shared.push(+9)
+
+fn through_external_alias(xs: &mut List[i32]) -> void:
+    for i in 0..3:
+        grow_global()
+        xs[i] = i32(i)
+
+fn countdown(xs: &mut List[i32], start: usize) -> void:
+    let i = start
+    while i != 0:
+        i = i - 1
+        xs[i] = i32(i) + 30
+
+fn negative_range(xs: &mut List[i32]) -> void:
+    for i in -3..0:
+        xs[usize(i + 3)] = i + 40
+
+tests:
+    use std.testing.assert_equal
+
+    it("a shared buffer separates once before repeated writes"):
+        let mut xs = [+1, +2, +3]
+        copy := xs
+        fill(&mut xs, 3)
+        assert_equal(xs, [+10, +11, +12], reason="the loop writes its list")
+        assert_equal(copy, [+1, +2, +3], reason="the earlier value copy stays unchanged")
+
+    it("a zero-iteration loop keeps its list and sharing"):
+        let mut xs = [+1, +2, +3]
+        copy := xs
+        fill(&mut xs, 0)
+        xs[0] = +7
+        assert_equal(xs, [+7, +2, +3], reason="the list remains writable")
+        assert_equal(copy, [+1, +2, +3], reason="the earlier copy remains independent")
+
+    it("a call receiving the list may change its buffer and length"):
+        let mut xs = [+9, +9, +9]
+        fill_with_alias_call(&mut xs)
+        assert_equal(xs, [+0, +1, +2, +99, +99, +99], reason="each access uses the current buffer")
+
+    it("a scalar call cannot reach an unescaped local list"):
+        assert_equal(fill_local(), [+20, +21, +22], reason="the local list remains stable across scalar calls")
+
+    it("a new owner inside the loop keeps per-access COW"):
+        let mut xs = [+9, +9, +9]
+        saved := snapshots(&mut xs)
+        assert_equal(saved, [[+9, +9, +9], [+0, +9, +9], [+0, +1, +9]], reason="each copy keeps its original elements")
+        assert_equal(xs, [+0, +1, +2], reason="only the active list is changed")
+
+    it("a call with no arguments may reach a parameter through a global"):
+        through_external_alias(shared)
+        let actual: List[i32] = *shared
+        assert_equal(actual, [+0, +1, +2, +9, +9, +9], reason="external aliases disable speculative projections")
+
+
+    it("the first loop test reads initialized nonzero locals"):
+        let mut xs = [+0, +0, +0]
+        countdown(&mut xs, 3)
+        assert_equal(xs, [+30, +31, +32], reason="the loop begins with its actual counter value")
+
+    it("a signed range uses its original negative start"):
+        let mut xs = [+0, +0, +0]
+        negative_range(&mut xs)
+        assert_equal(xs, [+37, +38, +39], reason="a true negative range enters its cached interval")

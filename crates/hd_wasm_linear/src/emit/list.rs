@@ -20,7 +20,383 @@ use crate::module::{HEAP, Ins, Sym, Val, mem};
 use crate::rt::{Elem, Helper, LIST_ELEMS, LIST_LEN, LIST_OWN, empty_buffer};
 use crate::unsupported;
 
+/// A stable list header, directly in a local or behind a reference local.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct ListRoot {
+    local: u32,
+    indirect: bool,
+}
+
+/// Borrowed physical projections for one proven loop interval.
+#[derive(Clone, Copy)]
+pub(super) struct ListCache {
+    header: u32,
+    buffer: u32,
+    len: u32,
+}
+
 impl Em<'_, '_, '_> {
+    fn list_root(&self, r: u32) -> Option<ListRoot> {
+        let i = Ref(r).as_inst()?.0 as usize;
+        let TyData::Adt { def, .. } =
+            self.pool()
+                .get(strip(self.pool(), self.env(), self.ty_of(r)))
+        else {
+            return None;
+        };
+        if self.env().std_kind(def) != hd_mono::layout::StdKind::List {
+            return None;
+        }
+        let [a, _] = self.b.data[i];
+        match self.b.tags[i] {
+            Tag::LocalGet => Some(ListRoot {
+                local: a,
+                indirect: false,
+            }),
+            Tag::RefRead
+                if Ref(a).as_inst().is_some() && self.b.tags[a as usize] == Tag::LocalGet =>
+            {
+                Some(ListRoot {
+                    local: self.b.data[a as usize][0],
+                    indirect: true,
+                })
+            }
+            Tag::Coerce => self.list_root(a),
+            _ => None,
+        }
+    }
+
+    /// Reaching aliases, including provider operands. Scalar observations
+    /// of the list are not aliases of its header.
+    fn list_aliases(&self, root: ListRoot) -> Vec<bool> {
+        let mut locals = vec![false; self.b.local_ty.len()];
+        locals[root.local as usize] = true;
+        let mut values = vec![false; self.b.len()];
+        loop {
+            let mut changed = false;
+            for i in 0..self.b.len() {
+                let [a, w] = self.b.data[i];
+                let aliases = super::live::uses(self.b, i)
+                    .iter()
+                    .any(|r| values[*r as usize]);
+                if self.b.tags[i] == Tag::LocalSet
+                    && values.get(w as usize) == Some(&true)
+                    && !locals[a as usize]
+                {
+                    locals[a as usize] = true;
+                    changed = true;
+                }
+                let reaches = match self.b.tags[i] {
+                    Tag::LocalGet => locals[a as usize],
+                    Tag::RefPlace => self.b.place(i).is_some_and(|p| {
+                        matches!(
+                            p.kind,
+                            hd_tir::ir::place_root::LOCAL | hd_tir::ir::place_root::DEREF
+                        ) && locals[p.x as usize]
+                    }),
+                    Tag::RefRead | Tag::Coerce => values.get(a as usize) == Some(&true),
+                    _ => {
+                        aliases
+                            && self
+                                .counted(self.ty(u32::try_from(i).expect("insts")))
+                                .is_some()
+                    }
+                };
+                if reaches && !values[i] {
+                    values[i] = true;
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        values
+    }
+
+    fn scalar_loop_test(&self, i: u32, budget: &mut usize) -> bool {
+        if *budget == 0 {
+            return false;
+        }
+        *budget -= 1;
+        let [a, w] = self.b.data[i as usize];
+        if self.counted(self.ty(i)).is_some() {
+            return false;
+        }
+        match self.b.tags[i as usize] {
+            Tag::LocalGet => !self.is_cell(a as usize),
+            Tag::Prim | Tag::Field | Tag::Coerce => true,
+            Tag::And | Tag::Or => self.scalar_loop_test(w, budget),
+            Tag::Block => self
+                .rec(a)
+                .into_iter()
+                .filter(|x| self.b.tags[*x as usize] != Tag::Block)
+                .all(|x| self.scalar_loop_test(x, budget)),
+            _ => false,
+        }
+    }
+
+    /// A canonical loop test, before its body. Duplicating this scalar
+    /// prefix lets an empty loop avoid the hoisted COW allocation.
+    fn list_loop_guard(&self, loop_inst: u32, body: u32) -> Option<(Vec<u32>, u32, bool)> {
+        let is_break = |blk: u32| {
+            if blk == hd_tir::ir::NONE || self.b.tags[blk as usize] != Tag::Block {
+                return false;
+            }
+            let mut items = self
+                .b
+                .record(self.b.data[blk as usize][0])
+                .iter()
+                .copied()
+                .filter(|x| self.b.tags[*x as usize] != Tag::Block);
+            let Some(item) = items.next() else {
+                return false;
+            };
+            items.next().is_none()
+                && self.b.tags[item as usize] == Tag::Break
+                && self
+                    .b
+                    .label_inst
+                    .get(self.b.data[item as usize][0] as usize)
+                    == Some(&loop_inst)
+        };
+        let mut prefix = Vec::new();
+        let mut budget = self.b.len();
+        for x in self.rec(self.b.data[body as usize][0]) {
+            if self.b.tags[x as usize] == Tag::Block {
+                continue;
+            }
+            if self.b.tags[x as usize] == Tag::If {
+                let branches = self.rec(self.b.data[x as usize][1]);
+                let first = is_break(branches[0]);
+                let second = branches.get(1).is_some_and(|b| is_break(*b));
+                return (first != second).then_some((prefix, x, first));
+            }
+            if !self.scalar_loop_test(x, &mut budget) {
+                return None;
+            }
+            prefix.push(x);
+        }
+        None
+    }
+
+    /// This body's proof never consults a callee. Unescaped locals may
+    /// cross unrelated calls; parameters and escaped headers also reject
+    /// unknown calls that could reach them through an external alias.
+    fn list_loop_safe(&self, root: ListRoot, body: &[u32], aliases: &[bool]) -> bool {
+        if self.is_cell(root.local as usize) {
+            return false;
+        }
+        let external = root.indirect
+            || self.b.local_flags[root.local as usize] & hd_tir::ir::local_flags::PARAM != 0
+            || (0..self.b.len()).any(|i| {
+                aliases[i]
+                    && matches!(
+                        self.b.tags[i],
+                        Tag::RefPlace | Tag::Call | Tag::CallValue | Tag::CallDyn
+                    )
+            });
+        for &x in body {
+            let i = x as usize;
+            let [a, w] = self.b.data[i];
+            let reaches = super::live::uses(self.b, i)
+                .iter()
+                .any(|r| aliases[*r as usize]);
+            if self.calls.contains_key(&x)
+                || matches!(
+                    self.b.tags[i],
+                    Tag::Call | Tag::CallValue | Tag::CallDyn | Tag::CallHost | Tag::DefaultCall
+                )
+            {
+                if reaches {
+                    return false;
+                }
+                let known_scalar = self.calls.get(&x).is_some_and(|target| {
+                    let hd_mono::Target::Call(call) = target else {
+                        return false;
+                    };
+                    match &call.kind {
+                        hd_mono::TargetKind::Intrinsic(key) => {
+                            matches!(key.as_str(), "sqrt" | "ref_serial")
+                        }
+                        hd_mono::TargetKind::Builtin { self_ty, .. } => {
+                            matches!(self.pool().get(*self_ty), TyData::Prim(p) if p.is_float())
+                                && (self.input.path)(call.item).rsplit(['.', '/']).next()
+                                    == Some("sqrt")
+                        }
+                        hd_mono::TargetKind::Instance => false,
+                    }
+                });
+                if external && !known_scalar {
+                    return false;
+                }
+                continue;
+            }
+            match self.b.tags[i] {
+                Tag::LocalSet if a == root.local || aliases.get(w as usize) == Some(&true) => {
+                    return false;
+                }
+                Tag::LocalSet
+                    if external
+                        && self
+                            .counted(self.sub(self.b.local_ty[a as usize]))
+                            .is_some() =>
+                {
+                    return false;
+                }
+                Tag::GlobalGet if external => return false,
+                Tag::RefWrite | Tag::FieldSet | Tag::GlobalSet if external => return false,
+                Tag::Coerce
+                | Tag::NewData
+                | Tag::CopyData
+                | Tag::NewTuple
+                | Tag::NewVariant
+                | Tag::NewList
+                | Tag::NewMap
+                | Tag::Interp
+                    if external && self.counted(self.ty(x)).is_some() =>
+                {
+                    return false;
+                }
+                Tag::Await
+                | Tag::AwaitValue
+                | Tag::AwaitAll
+                | Tag::AwaitRace
+                | Tag::Scope
+                | Tag::Defer
+                | Tag::Hook
+                | Tag::Closure => return false,
+                Tag::Intrinsic if external && !reaches => match IntrinsicOp::from_u32(a) {
+                    Some(IntrinsicOp::ListLen) => {}
+                    Some(IntrinsicOp::ListIndex) if self.counted(self.ty(x)).is_none() => {}
+                    Some(IntrinsicOp::ValueCopy)
+                        if coll_leaves(self.pool(), self.env(), self.ty(x)).is_empty() => {}
+                    // Distinct reference parameters can denote the same
+                    // list. A mutation through either may replace its buffer.
+                    _ => return false,
+                },
+                Tag::Intrinsic if reaches => match IntrinsicOp::from_u32(a) {
+                    Some(
+                        IntrinsicOp::ListLen
+                        | IntrinsicOp::ListIndex
+                        | IntrinsicOp::ListSet
+                        | IntrinsicOp::ListFieldSet
+                        | IntrinsicOp::ListIndexMut,
+                    ) => {}
+                    _ => return false,
+                },
+                Tag::LocalGet | Tag::RefRead | Tag::Field | Tag::Block => {}
+                _ if reaches => return false,
+                _ => {}
+            }
+        }
+        true
+    }
+
+    pub(super) fn begin_list_loop(
+        &mut self,
+        loop_inst: u32,
+        block: u32,
+    ) -> StageResult<Vec<ListRoot>> {
+        if self.susp.is_some() {
+            return Ok(Vec::new());
+        }
+        let tree = super::live::Tree::new(self.b);
+        let body: Vec<u32> = (0..self.b.len())
+            .map(|i| u32::try_from(i).expect("insts"))
+            .filter(|x| tree.in_loop(self.b, *x, loop_inst))
+            .collect();
+        let guard = self.list_loop_guard(loop_inst, block);
+        let mut candidates: Vec<(ListRoot, Elem, bool, bool)> = Vec::new();
+        for &x in &body {
+            if self.b.tags[x as usize] != Tag::Intrinsic {
+                continue;
+            }
+            let [op, record] = self.b.data[x as usize];
+            let write = match IntrinsicOp::from_u32(op) {
+                Some(IntrinsicOp::ListLen | IntrinsicOp::ListIndex) => false,
+                Some(
+                    IntrinsicOp::ListSet | IntrinsicOp::ListFieldSet | IntrinsicOp::ListIndexMut,
+                ) => true,
+                _ => continue,
+            };
+            let Some(list) = self.b.record(record).first().copied() else {
+                continue;
+            };
+            let Some(root) = self.list_root(list) else {
+                continue;
+            };
+            if self.list_caches.iter().any(|(key, _)| *key == root) {
+                continue;
+            }
+            let (_, elem) = self.elem(self.ty_of(list))?;
+            if elem.walk.is_some() {
+                continue;
+            }
+            let definite = guard
+                .as_ref()
+                .is_some_and(|(_, g, _)| tree.iteration_write(self.b, x, loop_inst, *g));
+            if let Some((_, _, writes, guaranteed)) =
+                candidates.iter_mut().find(|(r, ..)| *r == root)
+            {
+                *writes |= write;
+                *guaranteed |= write && definite;
+            } else {
+                candidates.push((root, elem, write, write && definite));
+            }
+        }
+        candidates.retain(|(root, _, write, definite)| {
+            (!write || *definite) && self.list_loop_safe(*root, &body, &self.list_aliases(*root))
+        });
+        if candidates.is_empty() {
+            return Ok(Vec::new());
+        }
+        self.f.helper(Helper::RefViewsAbsent);
+        self.f.op(I::If(BlockType::Empty));
+        if let Some((prefix, test, invert)) = &guard {
+            for &x in prefix {
+                self.inst(x)?;
+            }
+            self.push(self.b.data[*test as usize][0])?;
+            if *invert {
+                self.f.op(I::I32Eqz);
+            }
+            self.f.op(I::If(BlockType::Empty));
+        }
+        let mut roots = Vec::new();
+        for (root, elem, write, _) in candidates {
+            let local = self.local_value(root.local)?[0];
+            self.f.get(local);
+            if root.indirect {
+                self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+            }
+            let header = self.f.local(Val::I32);
+            self.f.set(header);
+            if write {
+                self.unique(header, &elem, false);
+            }
+            let buffer = self.buffer(header);
+            let len = self.f.local(Val::I32);
+            self.f.get(buffer);
+            self.f.op(I::I32Load(mem(HEAP, LIST_LEN, 2)));
+            self.f.set(len);
+            self.list_caches.push((
+                root,
+                ListCache {
+                    header,
+                    buffer,
+                    len,
+                },
+            ));
+            roots.push(root);
+        }
+        if guard.is_some() {
+            self.f.op(I::End);
+        }
+        self.f.op(I::End);
+        Ok(roots)
+    }
+
     /// The element type of list type `t` and its layout for the glue.
     pub(super) fn elem(&self, t: Ty) -> StageResult<(Ty, Elem)> {
         if self.input.runtime.is_none() {
@@ -46,7 +422,26 @@ impl Em<'_, '_, '_> {
     /// A local holding list value `r`'s header.
     pub(super) fn header(&mut self, r: u32) -> StageResult<u32> {
         let h = self.f.local(Val::I32);
-        self.list_addr(r)?;
+        let cache = self
+            .list_root(r)
+            .and_then(|root| {
+                self.list_caches
+                    .iter()
+                    .find(|(key, _)| *key == root)
+                    .map(|(_, cache)| cache)
+            })
+            .copied();
+        if let Some(cache) = cache {
+            self.f.helper(Helper::RefViewsAbsent);
+            self.f.op(I::If(BlockType::Result(Val::I32.wasm())));
+            self.f.get(cache.header);
+            self.f.op(I::Else);
+            self.list_addr(r)?;
+            self.f.op(I::End);
+            self.cached_headers.push((h, cache));
+        } else {
+            self.list_addr(r)?;
+        }
         self.f.set(h);
         Ok(h)
     }
@@ -59,10 +454,46 @@ impl Em<'_, '_, '_> {
     /// A local holding the buffer of the list header in local `h`.
     fn buffer(&mut self, h: u32) -> u32 {
         let b = self.f.local(Val::I32);
-        self.f.get(h);
-        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+        if let Some(cache) = self
+            .cached_headers
+            .iter()
+            .find(|(key, _)| *key == h)
+            .map(|(_, cache)| *cache)
+        {
+            self.f.helper(Helper::RefViewsAbsent);
+            self.f.op(I::If(BlockType::Result(Val::I32.wasm())));
+            self.f.get(cache.buffer);
+            self.f.op(I::Else);
+            self.f.get(h);
+            self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+            self.f.op(I::End);
+            self.cached_buffers.push((b, cache.len));
+        } else {
+            self.f.get(h);
+            self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+        }
         self.f.set(b);
         b
+    }
+
+    fn buffer_len(&mut self, b: u32) {
+        if let Some(len) = self
+            .cached_buffers
+            .iter()
+            .find(|(key, _)| *key == b)
+            .map(|(_, len)| *len)
+        {
+            self.f.helper(Helper::RefViewsAbsent);
+            self.f.op(I::If(BlockType::Result(Val::I32.wasm())));
+            self.f.get(len);
+            self.f.op(I::Else);
+            self.f.get(b);
+            self.f.op(I::I32Load(mem(HEAP, LIST_LEN, 2)));
+            self.f.op(I::End);
+        } else {
+            self.f.get(b);
+            self.f.op(I::I32Load(mem(HEAP, LIST_LEN, 2)));
+        }
     }
 
     /// A local holding index `r`, checked against the length of the
@@ -75,8 +506,7 @@ impl Em<'_, '_, '_> {
         self.comp(r, 0)?;
         self.f.set(w);
         self.f.get(w);
-        self.f.get(b);
-        self.f.op(I::I32Load(mem(HEAP, LIST_LEN, 2)));
+        self.buffer_len(b);
         if wide {
             self.f.op(I::I64ExtendI32U);
             self.f.op(I::I64GeU);
@@ -309,9 +739,9 @@ impl Em<'_, '_, '_> {
     /// `ListLen`.
     pub(super) fn list_len(&mut self, i: u32, list: u32) -> StageResult<()> {
         self.elem(self.ty_of(list))?;
-        self.list_addr(list)?;
-        self.f.op(I::I32Load(mem(HEAP, 0, 2)));
-        self.f.op(I::I32Load(mem(HEAP, LIST_LEN, 2)));
+        let h = self.header(list)?;
+        let b = self.buffer(h);
+        self.buffer_len(b);
         self.store(i)
     }
 
@@ -445,6 +875,26 @@ impl Em<'_, '_, '_> {
     }
 
     fn invariant_unique(&mut self, list: u32, h: u32, e: &Elem) {
+        if self
+            .list_root(list)
+            .and_then(|root| {
+                self.list_caches
+                    .iter()
+                    .find(|(key, _)| *key == root)
+                    .map(|(_, cache)| cache)
+            })
+            .is_some()
+        {
+            // The plan includes every write in this interval, so any
+            // cached root used here already ran its uniqueness check.
+            self.f.helper(Helper::RefViewsAbsent);
+            self.f.op(I::If(BlockType::Empty));
+            self.f.op(I::Else);
+            self.unique(h, e, false);
+            self.f.op(I::End);
+            return;
+        }
+
         let safe = if self.loops > 0 && e.walk.is_none() {
             self.unique_body.unwrap_or_else(|| {
                 let safe = self.cannot_share_buffers();

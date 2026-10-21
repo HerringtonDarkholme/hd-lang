@@ -1,0 +1,25 @@
+# test: loop list caches retain erased reference view forwarding
+# Spec 13 References: ref.place.alias.
+# expect: test
+
+fn fill(xs: &mut List[i32], end: usize) -> void:
+    for i in 0..end:
+        xs[i] = i32(i) + 10
+
+trait Factory:
+    fn make[T](self, value: T) -> &mut T:
+        let mut local = value
+        &mut local
+
+struct Maker: pass
+impl Factory for Maker
+
+tests:
+    use std.testing.assert_equal
+
+    it("erased views keep their original read and write path"):
+        let factory: &dyn Factory = &Maker {}
+        xs := factory.make([+1, +2, +3])
+        fill(xs, 3)
+        let actual: List[i32] = *xs
+        assert_equal(actual, [+10, +11, +12], reason="a representation view forwards the field writes")

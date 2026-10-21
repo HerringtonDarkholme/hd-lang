@@ -946,6 +946,10 @@ struct Em<'i, 'a, 'm> {
     /// that cannot create another buffer owner.
     unique_once: HashMap<usize, u32>,
     unique_body: Option<bool>,
+    /// Loop-local physical list projections, invalidated at the loop's exit.
+    list_caches: Vec<(list::ListRoot, list::ListCache)>,
+    cached_headers: Vec<(u32, list::ListCache)>,
+    cached_buffers: Vec<(u32, u32)>,
     /// The releases planned after a statement that a move at that
     /// statement made empty ([`Em::take`], [`Em::take_local`]); a jump
     /// out of the block still releases the place, which may hold a value
@@ -1045,6 +1049,9 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             precomputed_fields: hd_base::HashSet::default(),
             unique_once: HashMap::default(),
             unique_body: None,
+            list_caches: Vec::new(),
+            cached_headers: Vec::new(),
+            cached_buffers: Vec::new(),
             skip: hd_base::HashSet::default(),
             borrowed: hd_base::HashSet::default(),
             emitting: Vec::new(),
@@ -1588,6 +1595,7 @@ impl Em<'_, '_, '_> {
             }
             Tag::Loop => {
                 self.slot(i)?;
+                let caches = self.begin_list_loop(i, a)?;
                 self.open(Ctl::Brk(i));
                 self.f.op(Instruction::Loop(BlockType::Empty));
                 self.ctl.push(Ctl::Cont(i));
@@ -1597,6 +1605,9 @@ impl Em<'_, '_, '_> {
                 self.f.op(Instruction::Br(0));
                 self.close();
                 self.close();
+                for root in caches {
+                    self.list_caches.retain(|(key, _)| *key != root);
+                }
             }
             Tag::Break | Tag::Continue => {
                 let Some(&target) = self.b.label_inst.get(a as usize) else {

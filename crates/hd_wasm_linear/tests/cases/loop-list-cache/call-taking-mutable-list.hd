@@ -1,0 +1,11 @@
+# @dump: wat
+# @build: v8 release
+# expected: a call reaching xs keeps per-access uniqueness and buffer/length loads.
+fn grow(xs: &mut List[usize]) -> void:
+    xs.push(99)
+
+fn write(xs: &mut List[usize], n: usize) -> void:
+    # subject
+    for i in 0..n:
+        grow(xs)
+        xs[i] = i
