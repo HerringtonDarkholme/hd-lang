@@ -17,14 +17,16 @@
 //!   a local's binding statement, a temporary's instruction. The rest of
 //!   the exit (the closing `end`, the result) comes from the whole body.
 //! - A global prints by its binding's path or the runtime's name for it,
-//!   static data by what it holds (`&"text"`, `&empty-buffer`, `&vtable[..]`),
-//!   and a type by its signature.
-//! - Memory 1, the heap, goes unnamed; the exchange buffer is `buf` and
-//!   the shadow stack `stack`. Labels go; branch depths stay.
+//!   static data by its address with a comment saying what it holds,
+//!   and a type by its WAT signature.
+//! - Memories are `buf`, `heap` and `stack`. Labels go; branch depths stay.
 //! - Two different things that would print alike take `'1`, `'2`, ... in
 //!   the order the view first names them.
+//! - The excerpt is a WAT module with only referenced imports. Source
+//!   lines and omitted code are comments; control delimiters remain so
+//!   a filtered body parses without pretending it validates.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
 use hd_driver::{
@@ -78,7 +80,7 @@ pub fn wat_for(p: &Program, at: Build) -> String {
             module: "main".into(),
         },
     );
-    let mut out = super::Dump::new(p);
+    let mut out = String::from("(module\n");
     if let Some(wasm) = &built.wasm {
         let module = Module::read(wasm);
         let mut storage = String::new();
@@ -96,21 +98,23 @@ pub fn wat_for(p: &Program, at: Build) -> String {
                 continue;
             };
             let start = module.bodies[&f.index];
-            let kept: Instructions = f
+            let instructions: Vec<_> = f
                 .instructions
                 .iter()
-                .filter_map(|ins| {
-                    let (file, lo, hi) = ins.origin.and_then(|o| positions.span(item, o))?;
-                    if file != "main.hd" || !p.inside(lo as usize, hi as usize) {
-                        return None;
-                    }
+                .map(|ins| {
+                    let source = ins
+                        .origin
+                        .and_then(|o| positions.span(item, o))
+                        .filter(|(file, _, _)| *file == "main.hd")
+                        .map(|(_, lo, hi)| (lo as usize, hi as usize));
                     let at = start + u64::from(ins.offset);
-                    Some((
-                        lo as usize,
+                    (
+                        source,
                         tokens(lines.get(&at).map_or("?", String::as_str), f, &module),
-                    ))
+                    )
                 })
                 .collect();
+            let kept = focused(p, instructions);
             if !kept.is_empty() {
                 excerpts.push((f, kept));
             }
@@ -136,6 +140,76 @@ pub fn wat_for(p: &Program, at: Build) -> String {
                 }
             }
         }
+        let defined: BTreeSet<_> = excerpts.iter().map(|(f, _)| f.index).collect();
+        let mut globals = Names::default();
+        let mut memories = BTreeSet::new();
+        let mut tables = BTreeSet::new();
+        for (f, kept) in &excerpts {
+            for t in kept.iter().flat_map(|(_, ts)| ts) {
+                match t {
+                    Tok::Global(g) => {
+                        let name = f
+                            .globals
+                            .iter()
+                            .find(|(k, _)| k == g)
+                            .map_or_else(|| format!("global{g}"), |(_, n)| short_name(n));
+                        globals.see(*g, name);
+                    }
+                    Tok::Memory(m) => {
+                        memories.insert(*m);
+                    }
+                    Tok::Table(t) => {
+                        tables.insert(*t);
+                    }
+                    _ => {}
+                }
+            }
+        }
+        for (k, _) in &funcs.seen {
+            if !defined.contains(k) {
+                let name = funcs.name(*k);
+                let _ = writeln!(
+                    out,
+                    "  (import \"fixture\" {name:?} (func {}{}))",
+                    id(&name),
+                    module.signature(module.function_types[*k as usize])
+                );
+            }
+        }
+        for (k, _) in &globals.seen {
+            let name = globals.name(*k);
+            let ty = &module.globals[*k as usize];
+            let ty = if ty.mutable {
+                format!("(mut {})", ty.content_type)
+            } else {
+                ty.content_type.to_string()
+            };
+            let _ = writeln!(
+                out,
+                "  (import \"fixture\" {name:?} (global {} {ty}))",
+                id(&name)
+            );
+        }
+        for k in memories {
+            let ty = &module.memories[k as usize];
+            let max = ty.maximum.map_or(String::new(), |n| format!(" {n}"));
+            let width = if ty.memory64 { " i64" } else { "" };
+            let shared = if ty.shared { " shared" } else { "" };
+            let name = memory_name(k);
+            let _ = writeln!(
+                out,
+                "  (import \"fixture\" {name:?} (memory ${name}{width} {}{max}{shared}))",
+                ty.initial
+            );
+        }
+        for k in tables {
+            let ty = &module.tables[k as usize];
+            let _ = writeln!(
+                out,
+                "  (import \"fixture\" \"table{k}\" (table $table{k} {} {}))",
+                ty.initial, ty.element_type
+            );
+        }
         for (f, kept) in &excerpts {
             let tir = f
                 .item
@@ -148,19 +222,45 @@ pub fn wat_for(p: &Program, at: Build) -> String {
                     locals.see(*l);
                 }
             }
-            out.at(kept
+            let ty = &module.types[module.function_types[f.index as usize] as usize];
+            let _ = write!(out, "  (func {}", id(&funcs.name(f.index)));
+            for (i, t) in ty.params().iter().enumerate() {
+                let i = u32::try_from(i).expect("local index");
+                locals.see(i);
+                let _ = write!(out, " (param {} {t})", id(&locals.names.name(i)));
+            }
+            results(&mut out, ty.results());
+            let mut declared: Vec<_> = locals
+                .names
+                .seen
                 .iter()
-                .map(|(lo, _)| *lo)
-                .min()
-                .expect("kept instructions"));
-            let _ = writeln!(out, "{}", funcs.name(f.index));
+                .map(|(k, _)| *k)
+                .filter(|k| (*k as usize) >= ty.params().len())
+                .collect();
+            declared.sort_unstable();
+            for l in declared {
+                let _ = write!(
+                    out,
+                    " (local {} {})",
+                    id(&locals.names.name(l)),
+                    module.locals[&f.index][l as usize]
+                );
+            }
+            out.push('\n');
             let mut depth = 0usize;
+            let mut source = None;
             for (lo, toks) in kept {
-                out.at(*lo);
+                if let Some(lo) = lo {
+                    let line = p.text[..*lo].bytes().filter(|b| *b == b'\n').count();
+                    if source != Some(line) {
+                        let text = p.text.lines().nth(line).unwrap_or_default();
+                        let _ = writeln!(out, "    ;; {} | {text}", line + 1);
+                        source = Some(line);
+                    }
+                }
                 let first = toks.first();
                 let closes = matches!(first, Some(Tok::Text(w)) if w == "end" || w == "else");
-                let opens = matches!(first, Some(Tok::Text(w))
-                    if w == "block" || w == "loop" || w == "if" || w == "else");
+                let opens = matches!(first, Some(Tok::Text(w)) if w == "block" || w == "loop" || w == "if" || w == "else");
                 if closes {
                     depth = depth.saturating_sub(1);
                 }
@@ -168,33 +268,124 @@ pub fn wat_for(p: &Program, at: Build) -> String {
                     .iter()
                     .map(|t| match t {
                         Tok::Text(w) => w.clone(),
-                        Tok::Func(k) => funcs.name(*k),
-                        Tok::Local(l) => locals.names.name(*l),
+                        Tok::Func(k) => id(&funcs.name(*k)),
+                        Tok::Local(l) => id(&locals.names.name(*l)),
+                        Tok::Global(g) => id(&globals.name(*g)),
+                        Tok::Memory(m) => format!("${}", memory_name(*m)),
+                        Tok::Table(t) => format!("$table{t}"),
                     })
                     .collect();
-                let _ = writeln!(out, "  {}{}", "  ".repeat(depth), words.join(" "));
+                let _ = writeln!(out, "    {}{}", "  ".repeat(depth), words.join(" "));
                 if opens {
                     depth += 1;
                 }
             }
+            out.push_str("  )\n");
         }
         if excerpts.is_empty() {
-            out.push_str("(no code from the subject)\n");
-            // Why a generic function's code is missing: no instance.
+            out.push_str("  ;; no code from the subject\n");
             for note in &built.fixture_notes {
-                let _ = writeln!(out, "{}", note.replace("app.main.", ""));
+                let _ = writeln!(out, "  ;; {}", note.replace("app.main.", ""));
             }
         }
     }
-    let rendered = built.render();
-    if !rendered.trim().is_empty() {
-        out.at(p.text.len());
-        let _ = writeln!(out, "{}", rendered.trim_end());
+    for line in built.render().lines() {
+        let _ = writeln!(out, "  ;; {line}");
     }
-    out.finish()
+    out.push_str(")\n");
+    out
 }
 
-type Instructions = Vec<(usize, Vec<Tok>)>;
+type Instructions = Vec<(Option<usize>, Vec<Tok>)>;
+type SourceInstructions = Vec<(Option<(usize, usize)>, Vec<Tok>)>;
+
+/// Keep the subject's instructions, plus only the control delimiters
+/// needed to parse the excerpt. Omitted runs are comments, not code.
+fn focused(p: &Program, code: SourceInstructions) -> Instructions {
+    let mut keep: Vec<bool> = code
+        .iter()
+        .map(|(span, _)| span.is_some_and(|(lo, hi)| p.inside(lo, hi)))
+        .collect();
+    let subject = keep.clone();
+    let mut stack = Vec::new();
+    let mut function_end = None;
+    for (i, (_, ts)) in code.iter().enumerate() {
+        let op = ts.first().and_then(|t| {
+            if let Tok::Text(w) = t {
+                Some(w.as_str())
+            } else {
+                None
+            }
+        });
+        match op {
+            Some("block" | "loop" | "if") => stack.push((i, None)),
+            Some("else") => {
+                stack.last_mut().expect("an if").1 = Some(i);
+            }
+            Some("end") => {
+                if let Some((start, otherwise)) = stack.pop() {
+                    if keep[start..=i].iter().any(|k| *k) {
+                        keep[start] = true;
+                        keep[i] = true;
+                        if let Some(otherwise) = otherwise {
+                            keep[otherwise] = true;
+                        }
+                    }
+                } else {
+                    // The implicit function end becomes the func's `)`.
+                    keep[i] = false;
+                    function_end = Some(i);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    let mut omitted = false;
+    for (i, ((span, ts), keep)) in code.into_iter().zip(keep).enumerate() {
+        if function_end == Some(i) {
+            continue;
+        }
+        if keep {
+            out.push((span.filter(|_| subject[i]).map(|(lo, _)| lo), ts));
+            omitted = false;
+        } else if !omitted {
+            out.push((None, vec![Tok::Text(";; ...".into())]));
+            omitted = true;
+        }
+    }
+    if out
+        .iter()
+        .all(|(_, ts)| matches!(ts.first(), Some(Tok::Text(w)) if w == ";; ..."))
+    {
+        out.clear();
+    }
+    out
+}
+
+/// WAT supports quoted identifiers for source names containing spaces,
+/// brackets or Unicode; ordinary identifier characters stay unquoted.
+fn id(name: &str) -> String {
+    if !name.is_empty()
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"!#$%&'*+-./:<=>?@\\^_`|~".contains(&b))
+    {
+        format!("${name}")
+    } else {
+        format!("${name:?}")
+    }
+}
+
+fn results(out: &mut String, types: &[wasmparser::ValType]) {
+    if !types.is_empty() {
+        out.push_str(" (result");
+        for ty in types {
+            let _ = write!(out, " {ty}");
+        }
+        out.push(')');
+    }
+}
 
 /// One word of a printed instruction: text, or a function or local that
 /// is named once the whole view is known.
@@ -202,6 +393,9 @@ enum Tok {
     Text(String),
     Func(u32),
     Local(u32),
+    Global(u32),
+    Memory(u32),
+    Table(u32),
 }
 
 /// The words of `line`, one instruction as the printer wrote it with
@@ -234,12 +428,7 @@ fn tokens(line: &str, f: &FunctionOrigins, module: &Module) -> Vec<Tok> {
         }
         ("global.get" | "global.set", [g]) if num(g).is_some() => {
             let g = num(g).unwrap_or_default();
-            let name = f
-                .globals
-                .iter()
-                .find(|(k, _)| *k == g)
-                .map_or_else(|| format!("global{g}"), |(_, n)| short_name(n));
-            out.push(Tok::Text(name));
+            out.push(Tok::Global(g));
             return out;
         }
         ("call" | "return_call" | "ref.func", [k]) if num(k).is_some() => {
@@ -249,7 +438,8 @@ fn tokens(line: &str, f: &FunctionOrigins, module: &Module) -> Vec<Tok> {
         ("i32.const", [c]) => {
             let at = c.parse::<i32>().ok().map(i32::cast_unsigned);
             if let Some((_, data)) = f.statics.iter().find(|(a, _)| Some(*a) == at) {
-                out.push(Tok::Text(format!("&{}", static_label(data, module))));
+                out.push(Tok::Text((*c).to_owned()));
+                out.push(Tok::Text(format!(";; &{}", static_label(data, module))));
                 return out;
             }
         }
@@ -257,16 +447,26 @@ fn tokens(line: &str, f: &FunctionOrigins, module: &Module) -> Vec<Tok> {
     }
     let mut rest = rest.iter().peekable();
     if memory {
-        match rest.peek().and_then(|w| num(w)) {
-            Some(1) => {
+        let m = rest.peek().and_then(|w| num(w)).map_or(0, |m| {
+            rest.next();
+            m
+        });
+        out.push(Tok::Memory(m));
+    } else if op.starts_with("memory.") {
+        let count = if op == "memory.copy" { 2 } else { 1 };
+        for _ in 0..count {
+            let m = rest.peek().and_then(|w| num(w)).map_or(0, |m| {
                 rest.next();
-            }
-            Some(m) => {
-                rest.next();
-                out.push(Tok::Text(memory_name(m).to_owned()));
-            }
-            None => out.push(Tok::Text(memory_name(0).to_owned())),
+                m
+            });
+            out.push(Tok::Memory(m));
         }
+    } else if op == "call_indirect" || op == "return_call_indirect" {
+        let t = rest.peek().and_then(|w| num(w)).map_or(0, |t| {
+            rest.next();
+            t
+        });
+        out.push(Tok::Table(t));
     }
     let rest: Vec<&str> = rest.copied().collect();
     let mut k = 0;
@@ -278,7 +478,7 @@ fn tokens(line: &str, f: &FunctionOrigins, module: &Module) -> Vec<Tok> {
                 .and_then(|w| w.strip_suffix(')'))
                 .and_then(num)
         {
-            out.push(Tok::Text(module.signature(t)));
+            out.push(Tok::Text(module.signature(t).trim().to_owned()));
             k += 2;
             continue;
         }
@@ -291,6 +491,7 @@ fn tokens(line: &str, f: &FunctionOrigins, module: &Module) -> Vec<Tok> {
 fn memory_name(m: u32) -> &'static str {
     match m {
         0 => "buf",
+        1 => "heap",
         2 => "stack",
         _ => "memory?",
     }
@@ -483,7 +684,12 @@ struct Module {
     /// Each function's name, from the `name` section, by index.
     names: BTreeMap<u32, String>,
     /// Each function type's signature, by type index.
-    types: Vec<String>,
+    types: Vec<wasmparser::FuncType>,
+    function_types: Vec<u32>,
+    locals: BTreeMap<u32, Vec<wasmparser::ValType>>,
+    globals: Vec<wasmparser::GlobalType>,
+    memories: Vec<wasmparser::MemoryType>,
+    tables: Vec<wasmparser::TableType>,
 }
 
 impl Module {
@@ -492,6 +698,11 @@ impl Module {
             bodies: BTreeMap::new(),
             names: BTreeMap::new(),
             types: Vec::new(),
+            function_types: Vec::new(),
+            locals: BTreeMap::new(),
+            globals: Vec::new(),
+            memories: Vec::new(),
+            tables: Vec::new(),
         };
         let mut imported = 0u32;
         let mut defined = 0u32;
@@ -500,30 +711,58 @@ impl Module {
                 wasmparser::Payload::TypeSection(types) => {
                     for ty in types.into_iter_err_on_gc_types() {
                         let ty = ty.expect("a function type");
-                        let list = |ts: &[wasmparser::ValType]| {
-                            let ts: Vec<String> = ts.iter().map(ToString::to_string).collect();
-                            format!("({})", ts.join(" "))
-                        };
-                        module.types.push(format!(
-                            "{} -> {}",
-                            list(ty.params()),
-                            list(ty.results())
-                        ));
+                        module.types.push(ty);
                     }
                 }
                 wasmparser::Payload::ImportSection(imports) => {
                     for import in imports.into_imports() {
                         let import = import.expect("an import");
-                        if matches!(import.ty, wasmparser::TypeRef::Func(_)) {
-                            module
-                                .names
-                                .insert(imported, format!("{}/{}", import.module, import.name));
-                            imported += 1;
+                        match import.ty {
+                            wasmparser::TypeRef::Func(t) => {
+                                module
+                                    .names
+                                    .insert(imported, format!("{}/{}", import.module, import.name));
+                                module.function_types.push(t);
+                                imported += 1;
+                            }
+                            wasmparser::TypeRef::Global(t) => module.globals.push(t),
+                            wasmparser::TypeRef::Memory(t) => module.memories.push(t),
+                            wasmparser::TypeRef::Table(t) => module.tables.push(t),
+                            _ => {}
                         }
                     }
                 }
+                wasmparser::Payload::FunctionSection(functions) => {
+                    module
+                        .function_types
+                        .extend(functions.into_iter().map(|t| t.expect("function type")));
+                }
+                wasmparser::Payload::GlobalSection(globals) => {
+                    module
+                        .globals
+                        .extend(globals.into_iter().map(|g| g.expect("global").ty));
+                }
+                wasmparser::Payload::MemorySection(memories) => {
+                    module
+                        .memories
+                        .extend(memories.into_iter().map(|m| m.expect("memory")));
+                }
+                wasmparser::Payload::TableSection(tables) => {
+                    module
+                        .tables
+                        .extend(tables.into_iter().map(|t| t.expect("table").ty));
+                }
                 wasmparser::Payload::CodeSectionEntry(body) => {
-                    module.bodies.insert(imported + defined, body.range().start);
+                    let index = imported + defined;
+                    module.bodies.insert(index, body.range().start);
+                    let mut locals = module.types[module.function_types[index as usize] as usize]
+                        .params()
+                        .to_vec();
+                    for local in body.get_locals_reader().expect("locals") {
+                        let (n, ty) = local.expect("local type");
+                        locals.extend(std::iter::repeat_n(ty, n as usize));
+                    }
+                    module.locals.insert(index, locals);
                     defined += 1;
                 }
                 wasmparser::Payload::CustomSection(c) => {
@@ -551,10 +790,17 @@ impl Module {
     }
 
     fn signature(&self, t: u32) -> String {
-        self.types
-            .get(t as usize)
-            .cloned()
-            .unwrap_or_else(|| format!("type{t}"))
+        let ty = &self.types[t as usize];
+        let mut out = String::new();
+        if !ty.params().is_empty() {
+            out.push_str(" (param");
+            for p in ty.params() {
+                let _ = write!(out, " {p}");
+            }
+            out.push(')');
+        }
+        results(&mut out, ty.results());
+        out
     }
 }
 
