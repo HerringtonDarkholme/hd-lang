@@ -122,12 +122,6 @@ fn self_in_a_parameter_is_unavailable_on_a_dyn_value() {
 }
 
 #[test]
-fn self_in_a_result_is_unavailable_on_a_dyn_value() {
-    let main = dyn_call("s.twin()");
-    assert_eq!(codes_of(&main), vec![Code::DynMemberUnavailable]);
-}
-
-#[test]
 fn self_in_a_list_is_unavailable_on_a_dyn_value() {
     let main = dyn_call("s.pair()");
     assert_eq!(codes_of(&main), vec![Code::DynMemberUnavailable]);

@@ -218,29 +218,6 @@ pub fn main() -> void $ Console:
     );
 }
 
-/// A plain `T` is not a `T??`: injection adds one layer only, at every
-/// site (`types.option.nest.accept`, `types.assign.optional`).
-#[test]
-fn a_plain_value_is_not_a_nested_optional() {
-    let sites = [
-        "let nested: i32?? = 1",
-        "let n: i32 = 1\n    let nested: i32?? = n",
-        "let n: i32 = 1\n    take(n)",
-        "let n: i32 = 1\n    let mut nested: i32?? = .None\n    nested = n",
-    ];
-    for site in sites {
-        let main =
-            format!("fn take(v: i32??) -> void:\n    pass\n\npub fn main() -> void:\n    {site}\n");
-        let found = codes(&main);
-        assert!(
-            found.iter().all(|c| *c == Code::TypeMismatch) && !found.is_empty(),
-            "{site}: {found:?}"
-        );
-    }
-    let ret = "fn give(n: i32) -> i32??:\n    n\n\npub fn main() -> void:\n    pass\n";
-    assert_eq!(codes(ret), vec![Code::TypeMismatch]);
-}
-
 /// A nested optional is not an optional of fewer layers, and a value of
 /// two layers fewer does not inject (`types.assign.optional`).
 #[test]

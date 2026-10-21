@@ -1,0 +1,7 @@
+# @dump: tir
+# Migrated from #658 sample: self_in_a_result_is_unavailable_on_a_dyn_value (#684).
+trait Shape:
+    fn twin(self) -> Self
+
+fn use_it(s: &dyn Shape) -> void:
+    s.twin()

@@ -35,14 +35,6 @@ fn codes(main: &str) -> Vec<Code> {
 const DISK: &str = "@error(\"disk full\")\nstruct DiskError:\n    free: i64\n\n";
 
 #[test]
-fn valid_forms_are_clean() {
-    let src = format!(
-        "{DISK}@error\nenum SaveError[E]:\n    @error(\"cannot save\")\n    Write(@from error: DiskError)\n    @error(transparent)\n    Wrap(@source inner: E)\n    @error(\"two\")\n    Pair(a: string, @source b: DiskError)\n    @error(\"opt\")\n    Opt(@source c: DiskError?)\n"
-    );
-    assert_eq!(codes(&src), vec![]);
-}
-
-#[test]
 fn transparent_data_type_is_clean() {
     let src = format!("{DISK}@error(transparent)\nstruct Wrap:\n    @from\n    inner: DiskError\n");
     assert_eq!(codes(&src), vec![]);

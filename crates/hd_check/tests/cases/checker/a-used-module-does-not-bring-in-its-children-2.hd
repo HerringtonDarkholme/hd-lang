@@ -1,0 +1,5 @@
+# @dump: tir
+# Migrated from #658 sample: a_used_module_does_not_bring_in_its_children (#684).
+use std.testing.arbitrary
+
+fn f(x: arbitrary.With[i32]) -> i32: 0

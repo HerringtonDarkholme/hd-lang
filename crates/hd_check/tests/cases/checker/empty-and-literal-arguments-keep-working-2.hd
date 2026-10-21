@@ -1,0 +1,13 @@
+# @dump: tir
+# Migrated from #658 sample: empty_and_literal_arguments_keep_working (#684).
+pub trait Db
+
+fn db_handler() -> void $ Db:
+    pass
+
+fn run_all[$R](xs: List[fn() -> void $ R]) -> void $ R:
+    for x in xs:
+        x()
+
+pub fn wire() -> void:
+    run_all([db_handler])

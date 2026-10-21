@@ -141,27 +141,6 @@ pub fn main() -> void $ Console:
     assert_eq!(output_of("default-width", &main), "1021\n21\n");
 }
 
-/// `expr.op.left-literal.no-fit`: with only `Mul[i64] for Money`, no width
-/// of `3` lets `3 * price` check, and neither does `i64(3) * price`. Each
-/// is one `type-mismatch`.
-#[test]
-fn no_fit_is_one_type_mismatch() {
-    let literal = format!(
-        "{MONEY_RIGHT}
-fn triple(price: Money) -> Money:
-    3 * price
-"
-    );
-    assert_eq!(codes_of(&literal), vec![Code::TypeMismatch]);
-    let converted = format!(
-        "{MONEY_RIGHT}
-fn triple(price: Money) -> Money:
-    i64(3) * price
-"
-    );
-    assert_eq!(codes_of(&converted), vec![Code::TypeMismatch]);
-}
-
 /// The right operand of `price * 3` is checked against `i64` in
 /// `Mul[i64]` (`expr.op.left-dispatch.example`).
 #[test]

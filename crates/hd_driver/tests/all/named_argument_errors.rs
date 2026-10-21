@@ -64,9 +64,3 @@ fn unknown_named_argument() {
     let c = codes("fn f() -> i32: resize(640, depth=480)\n");
     assert_eq!(c, vec![Code::UnknownNamedArgument]);
 }
-
-#[test]
-fn plain_arity_error() {
-    let c = codes("fn f() -> i32: resize(640)\n");
-    assert_eq!(c, vec![Code::ArgumentCount]);
-}

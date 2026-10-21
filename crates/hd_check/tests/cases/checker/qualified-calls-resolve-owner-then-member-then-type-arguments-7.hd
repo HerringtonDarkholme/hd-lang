@@ -1,0 +1,10 @@
+# @dump: tir
+# Migrated from #658 sample: qualified_calls_resolve_owner_then_member_then_type_arguments (#684).
+struct Box[T]:
+    value: T
+
+impl[T] Box[T]:
+    fn make[V](value: V) -> Box[V]: Box { value: value }
+
+fn run() -> Box[string]:
+    Box::[i32]::make::[string]("x")

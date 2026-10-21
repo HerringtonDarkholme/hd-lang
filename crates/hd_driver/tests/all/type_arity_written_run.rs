@@ -84,30 +84,6 @@ pub fn main() -> void $ Console:
 }
 
 #[test]
-fn an_associated_function_path_takes_the_substituted_default() {
-    let head = "\
-struct Cell[T, U = List[T]]:
-    first: T
-    rest: U
-
-impl[T, U] Cell[T, U]:
-    fn first_of(a: U) -> U: a
-    fn gather[A, B = List[A]](a: A) -> B: panic(\"x\")
-
-";
-    for bad in [
-        "fn f() -> i32:\n    Cell::[i32]::first_of(\"s\")\n    0",
-        "fn f() -> i32:\n    x := Cell::[i32]::gather::[string](\"s\")\n    x.len()\n    x + 1\n    0",
-    ] {
-        let codes = codes_of(&format!("{head}{bad}\n"));
-        assert!(
-            !codes.is_empty() && codes.iter().all(|c| *c == Code::TypeMismatch),
-            "{bad}: {codes:?}"
-        );
-    }
-}
-
-#[test]
 fn an_argument_and_the_default_filled_from_it_report_one_bound_error() {
     let signature = "\
 struct Plain:

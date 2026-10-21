@@ -126,30 +126,6 @@ pub fn forward[$Q](xs: List[fn() -> void $ Q]) -> void:
     );
 }
 
-/// An empty handler row needs nothing; a list literal still takes the
-/// least solution of its elements.
-#[test]
-fn empty_and_literal_arguments_keep_working() {
-    assert_clean(
-        "\
-fn quiet() -> void:
-    pass
-
-pub fn wire(handlers: List[fn() -> void]) -> void:
-    run_all(handlers)
-    run_all([quiet])
-    run_all([])
-",
-    );
-    assert_codes(
-        "\
-pub fn wire() -> void:
-    run_all([db_handler])
-",
-        &[Code::MissingRequirement],
-    );
-}
-
 /// The same solution inside a map, an optional, a tuple, a data generic
 /// and a list of lists.
 #[test]

@@ -1,0 +1,6 @@
+# @dump: tir
+# Migrated from #658 sample: qualified_calls_resolve_owner_then_member_then_type_arguments (#684).
+use std.inspect.{Inspectable, TypeId}
+
+fn run[T < Inspectable]() -> TypeId:
+    TypeId::of::[T]()

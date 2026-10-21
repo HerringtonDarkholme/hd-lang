@@ -126,16 +126,6 @@ fn independent_errors_in_two_items_both_report() {
 }
 
 #[test]
-fn a_later_statement_in_the_same_body_still_reports() {
-    let source =
-        "fn f(a: bool, b: bool) -> i32:\n    if a and b:\n        pass\n    y := [1 2]\n    y\n";
-    assert_eq!(
-        diagnostics_by_line(source),
-        ["2: syntax-error", "4: syntax-error"]
-    );
-}
-
-#[test]
 fn stray_indentation_reports_once_and_its_later_lines_report_their_own() {
     let source = "fn f() -> i32:\n    x := +1\n        .0\n        y := (1 2)\n    x\n";
     assert_eq!(

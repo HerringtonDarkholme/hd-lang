@@ -110,19 +110,6 @@ fn a_qualified_call_resolves_the_ambiguity() {
     accepts(&[("main.hd", &src)]);
 }
 
-#[test]
-fn a_bound_narrows_the_choice_to_its_trait() {
-    let src = main_with(
-        "fn pick[T < Left](x: T) -> i32:
-    x.label()
-
-fn both(user: User) -> i32:
-    pick(user)
-",
-    );
-    accepts(&[("main.hd", &src)]);
-}
-
 const SHELF: &str = "\
 pub trait Tagged:
     fn tag(self) -> i32

@@ -1,0 +1,13 @@
+# @dump: tir
+# Migrated from #658 sample: an_associated_function_path_takes_the_substituted_default (#684).
+struct Cell[T, U = List[T]]:
+    first: T
+    rest: U
+
+impl[T, U] Cell[T, U]:
+    fn first_of(a: U) -> U: a
+    fn gather[A, B = List[A]](a: A) -> B: panic("x")
+
+fn f() -> i32:
+    Cell::[i32]::first_of("s")
+    0

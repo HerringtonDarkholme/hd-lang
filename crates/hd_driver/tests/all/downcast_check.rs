@@ -65,29 +65,6 @@ pub fn main() -> void:
 }
 
 #[test]
-fn downcast_with_type_arguments_on_dyn_error() {
-    let src = "use std.error.Error
-
-struct DiskError:
-    device: string
-
-impl Display for DiskError:
-    fn to_string(self) -> string: \"disk\"
-
-impl Error for DiskError
-
-fn device_of(error: &dyn Error) -> string:
-    match error.downcast_ref::[DiskError]():
-        .Some(found) => found.device
-        .None => \"none\"
-
-pub fn main() -> void:
-    pass
-";
-    assert_eq!(codes(src), Vec::<Code>::new());
-}
-
-#[test]
 fn downcast_mut_with_type_arguments_on_a_bounded_parameter() {
     let src = "use std.inspect.Inspectable
 

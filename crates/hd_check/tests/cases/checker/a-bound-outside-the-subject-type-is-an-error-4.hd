@@ -1,0 +1,6 @@
+# @dump: tir
+# Migrated from #658 sample: a_bound_outside_the_subject_type_is_an_error (#684).
+fn f(n: u8) -> i32:
+    match n:
+        300 => 0
+        _ => 1

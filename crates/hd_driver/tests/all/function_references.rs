@@ -165,27 +165,6 @@ fn made() -> void:
     }
 }
 
-/// `counter::bump` is a closure over the method call that captures the
-/// receiver, evaluated once; its type drops the receiver.
-#[test]
-fn a_bound_reference_is_a_closure_over_the_receiver() {
-    let src = format!(
-        "{COUNTER}
-fn bumper(counter: &mut Counter) -> fn(i32) -> void:
-    counter::bump
-"
-    );
-    let out = analyze(&src, &["app/main/bumper"]);
-    assert!(!out.diags.has_errors(), "{}", out.render());
-    let closure = line_of(&out, "app/main/bumper", "Closure");
-    assert!(closure.ends_with(": fn(i32) -> ()"), "{closure}");
-    let call = line_of(&out, "app/main/bumper", "Call");
-    assert!(call.contains("bump"), "{call}");
-    let text = &out.tir_text["app/main/bumper"];
-    assert!(text.contains("$receiver"), "{text}");
-    assert!(!text.contains("ItemRef"), "{text}");
-}
-
 /// The errors of spec 07's Method References and Generic Function
 /// Values.
 #[test]

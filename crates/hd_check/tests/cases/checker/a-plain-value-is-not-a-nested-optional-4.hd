@@ -1,0 +1,9 @@
+# @dump: tir
+# Migrated from #658 sample: a_plain_value_is_not_a_nested_optional (#684).
+fn take(v: i32??) -> void:
+    pass
+
+pub fn main() -> void:
+    let n: i32 = 1
+    let mut nested: i32?? = .None
+    nested = n

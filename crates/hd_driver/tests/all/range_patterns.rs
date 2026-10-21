@@ -102,21 +102,6 @@ fn a_non_integer_subject_is_a_type_mismatch() {
 }
 
 #[test]
-fn a_bound_outside_the_subject_type_is_an_error() {
-    let wide = "fn f(n: u8) -> i32:\n    match n:\n        0..=300 => 0\n";
-    assert_eq!(codes_of(wide), vec![Code::IntegerLiteralRange]);
-    let open = "fn f(n: u8) -> i32:\n    match n:\n        300.. => 0\n        _ => 1\n";
-    assert_eq!(codes_of(open), vec![Code::IntegerLiteralRange]);
-    let negative = "fn f(n: u8) -> i32:\n    match n:\n        ..=-1 => 0\n        _ => 1\n";
-    assert_eq!(codes_of(negative), vec![Code::IntegerLiteralRange]);
-    // A literal pattern is checked the same way (`types.literal.int-range`).
-    let literal = "fn f(n: u8) -> i32:\n    match n:\n        300 => 0\n        _ => 1\n";
-    assert_eq!(codes_of(literal), vec![Code::IntegerLiteralRange]);
-    let signed = "fn f(n: i8) -> i32:\n    match n:\n        -129.. => 0\n";
-    assert_eq!(codes_of(signed), vec![Code::IntegerLiteralRange]);
-}
-
-#[test]
 fn the_full_range_is_a_range_full_value() {
     let src = "use std.ops.RangeFull\n\nfn f() -> RangeFull:\n    ..\n";
     assert_eq!(codes_of(src), vec![]);

@@ -1,0 +1,8 @@
+# @dump: tir
+# Migrated from #658 sample: an_outer_mut_target_is_one_error_and_its_body_is_left_out (#684).
+struct Counter:
+    value: i32
+
+trait Marker
+
+impl Marker for mut Counter

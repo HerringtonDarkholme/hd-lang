@@ -222,34 +222,6 @@ pub fn main() -> void:
 }
 
 #[test]
-fn a_private_own_member_beside_a_promoted_one_conflicts() {
-    let src = "\
-struct Base:
-    pub id: i32
-
-struct Record:
-    Base
-    id: i32
-
-pub fn main() -> void:
-    pass
-";
-    assert_eq!(errors(src), vec![Code::AmbiguousPromotedMember]);
-    let hidden = "\
-struct Base:
-    pub id: i32
-
-struct Record:
-    Base
-    pub id: i32
-
-pub fn main() -> void:
-    pass
-";
-    assert_eq!(errors(hidden), Vec::<Code>::new());
-}
-
-#[test]
 fn a_trait_method_beside_a_promoted_method_is_ambiguous() {
     let src = "\
 trait Describe:

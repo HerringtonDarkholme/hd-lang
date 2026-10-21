@@ -88,53 +88,6 @@ impl[T] Show for T by Structure:
 }
 
 #[test]
-fn derive_over_member_without_trait_reports_once_naming_it() {
-    let src = "use std.ops.Default
-
-struct Secret:
-    value: i32
-
-@derive(Default)
-struct Vault:
-    secret: Secret
-    count: i32
-
-pub fn main() -> void:
-    pass
-";
-    let out = analyze(src);
-    assert_eq!(
-        codes(&out),
-        vec![Code::MemberNotDerivable],
-        "{}",
-        out.render()
-    );
-    let msgs = messages(&out);
-    assert!(msgs[0].contains("`secret`"), "{msgs:?}");
-}
-
-#[test]
-fn derive_over_valid_members_is_clean() {
-    let src = "use std.ops.Default
-
-@derive(Default)
-struct Inner:
-    value: i32
-
-@derive(Default)
-struct Vault:
-    inner: Inner
-    count: i32
-    name: string
-
-pub fn main() -> void:
-    pass
-";
-    let out = analyze(src);
-    assert_eq!(codes(&out), Vec::<Code>::new(), "{}", out.render());
-}
-
-#[test]
 fn a_declared_default_exempts_its_member_from_default() {
     let src = "use std.ops.Default
 

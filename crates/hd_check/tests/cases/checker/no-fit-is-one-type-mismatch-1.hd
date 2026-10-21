@@ -1,0 +1,14 @@
+# @dump: tir
+# Migrated from #658 sample: no_fit_is_one_type_mismatch (#684).
+use std.ops.Mul
+
+struct Money:
+    cents: i64
+
+impl Mul[i64] for Money:
+    type Out = Money
+    fn mul(self, rhs: i64) -> Money:
+        Money { cents: self.cents * rhs }
+
+fn triple(price: Money) -> Money:
+    3 * price

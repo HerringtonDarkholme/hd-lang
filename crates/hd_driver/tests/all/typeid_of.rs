@@ -68,26 +68,6 @@ struct User:
     name: string
 ";
 
-/// The owner is a type, a generic type at written arguments, a trait value
-/// or a parameter; the member's own arguments follow.
-#[test]
-fn qualified_calls_resolve_owner_then_member_then_type_arguments() {
-    let cases = [
-        "fn run() -> TypeId:\n    TypeId::of::[User]()\n",
-        "fn run() -> TypeId:\n    TypeId::of::[List[User]]()\n",
-        "fn run[T < Inspectable]() -> TypeId:\n    TypeId::of::[T]()\n",
-        "fn run() -> i32:\n    Box::pick::[i32](3)\n",
-        "fn run() -> i32:\n    Box::[string]::pick::[i32](3)\n",
-        "fn run() -> Box[i64]:\n    Box::make::[i64](3)\n",
-        "fn run() -> Box[string]:\n    Box::[i32]::make::[string](\"x\")\n",
-        "fn run() -> string:\n    string::made::[string](\"x\")\n",
-    ];
-    for c in cases {
-        let src = format!("{DECLS}\n{c}");
-        assert_eq!(errors(&src), vec![], "{c}");
-    }
-}
-
 /// A trailing slot is inferred from the value arguments
 /// (fn.generic.explicit.trailing).
 #[test]

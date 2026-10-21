@@ -150,27 +150,6 @@ fn the_standard_numeric_families_stay_valid() {
     );
 }
 
-// trait.target.no-mut
-
-#[test]
-fn an_outer_mut_target_is_one_error_and_its_body_is_left_out() {
-    rejects_main(
-        "struct Counter:\n    value: i32\n\nimpl mut Counter:\n    fn reset(&mut self) -> void:\n        self.value = 0\n        missing_name\n",
-        Code::MutableImplTarget,
-    );
-    rejects_main(
-        "struct Counter:\n    value: i32\n\ntrait Marker\n\nimpl Marker for mut Counter\n",
-        Code::MutableImplTarget,
-    );
-}
-
-#[test]
-fn a_mut_inside_the_head_is_valid() {
-    accepts_main(
-        "struct User:\n    name: string\n\nstruct Shelf:\n    n: i32\n\ntrait Store[T]\n\nimpl Store[User] for Shelf\nimpl Store[mut Suspend[User]] for Shelf\n",
-    );
-}
-
 // trait.own.orphan, trait.own.inherent
 
 #[test]
@@ -473,13 +452,6 @@ fn a_generic_tuple_impl_overlaps_the_tuple_template() {
         ),
         Code::OverlappingImpl,
     );
-}
-
-#[test]
-fn the_tuple_template_beside_non_tuple_impls_is_valid() {
-    accepts_main(&format!(
-        "{TUPLE_TEMPLATE}struct Pair:\n    a: i64\n\nimpl Encode for Pair:\n    fn encode(self) -> string:\n        \"pair\"\n\nimpl Encode for List[i64]:\n    fn encode(self) -> string:\n        \"list\"\n"
-    ));
 }
 
 #[test]

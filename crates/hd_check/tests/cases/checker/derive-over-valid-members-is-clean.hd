@@ -1,0 +1,16 @@
+# @dump: tir
+# Migrated from #658 sample: derive_over_valid_members_is_clean (#684).
+use std.ops.Default
+
+@derive(Default)
+struct Inner:
+    value: i32
+
+@derive(Default)
+struct Vault:
+    inner: Inner
+    count: i32
+    name: string
+
+pub fn main() -> void:
+    pass

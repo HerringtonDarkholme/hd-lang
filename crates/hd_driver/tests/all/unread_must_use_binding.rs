@@ -63,18 +63,3 @@ fn read_or_discarded_bindings_are_fine() {
 fn plain_unused_binding_stays_a_warning() {
     assert_eq!(check("    x := +1"), [Code::UnusedLocalBinding]);
 }
-
-#[test]
-fn unread_result_and_optional_bindings_stay_warnings() {
-    for line in [
-        "    r := res()",
-        "    let r = res()",
-        "    o := opt()",
-        "    let o = opt()",
-    ] {
-        assert_eq!(check(line), [Code::UnusedLocalBinding], "{line}");
-    }
-    for line in ["    _r := res()", "    _o := opt()"] {
-        assert!(check(line).is_empty(), "{line}");
-    }
-}

@@ -1,0 +1,10 @@
+# @dump: tir
+# Migrated from #658 sample: qualified_calls_resolve_owner_then_member_then_type_arguments (#684).
+trait Maker:
+    fn made[V](value: V) -> V
+
+impl Maker for string:
+    fn made[V](value: V) -> V: value
+
+fn run() -> string:
+    string::made::[string]("x")

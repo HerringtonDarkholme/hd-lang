@@ -1,0 +1,16 @@
+# @dump: tir
+# Migrated from #658 sample: valid_forms_are_clean (#684).
+@error("disk full")
+struct DiskError:
+    free: i64
+
+@error
+enum SaveError[E]:
+    @error("cannot save")
+    Write(@from error: DiskError)
+    @error(transparent)
+    Wrap(@source inner: E)
+    @error("two")
+    Pair(a: string, @source b: DiskError)
+    @error("opt")
+    Opt(@source c: DiskError?)

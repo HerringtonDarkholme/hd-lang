@@ -10,7 +10,6 @@ use std::process::Command;
 
 use hd_testkit::Scratch;
 
-use hd_diag::Code;
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
 use hd_project::MemorySources;
 use hd_sched::SerialOrder;
@@ -56,16 +55,6 @@ fn output_of(name: &str, main: &str) -> String {
         String::from_utf8_lossy(&ran.stderr)
     );
     String::from_utf8(ran.stdout).expect("UTF-8")
-}
-
-/// The diagnostic codes of a program that must not build.
-fn codes_of(main: &str) -> Vec<Code> {
-    let out = built(main, &Goal::Analyze);
-    out.diags
-        .content_order()
-        .into_iter()
-        .map(|i| out.diags.code[i])
-        .collect()
 }
 
 #[test]
@@ -143,29 +132,6 @@ pub fn main() -> void $ Console:
     println(inner(.Open))
 ";
     assert_eq!(output_of("nested", main), "11\n-1\n8\n106\n8\n0\n");
-}
-
-#[test]
-fn exhaustiveness_sees_the_named_literal() {
-    let missing = "\
-enum Shape:
-    Rect(width: i32, height: bool)
-
-fn f(shape: Shape) -> i32:
-    match shape:
-        .Rect(w, height = true) => w
-";
-    assert_eq!(codes_of(missing), vec![Code::NonexhaustiveMatch]);
-    let covered = "\
-enum Shape:
-    Rect(width: i32, height: bool)
-
-fn f(shape: Shape) -> i32:
-    match shape:
-        .Rect(w, height = true) => w
-        .Rect(_, height = false) => 0
-";
-    assert_eq!(codes_of(covered), vec![]);
 }
 
 #[test]

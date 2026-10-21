@@ -1,0 +1,9 @@
+# @dump: tir
+# Migrated from #658 sample: exhaustiveness_sees_the_named_literal (#684).
+enum Shape:
+    Rect(width: i32, height: bool)
+
+fn f(shape: Shape) -> i32:
+    match shape:
+        .Rect(w, height = true) => w
+        .Rect(_, height = false) => 0

@@ -1,0 +1,9 @@
+# @dump: tir
+# Migrated from #658 sample: an_outer_mut_target_is_one_error_and_its_body_is_left_out (#684).
+struct Counter:
+    value: i32
+
+impl mut Counter:
+    fn reset(&mut self) -> void:
+        self.value = 0
+        missing_name

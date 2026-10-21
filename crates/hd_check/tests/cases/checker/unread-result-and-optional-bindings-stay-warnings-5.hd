@@ -1,0 +1,7 @@
+# @dump: tir
+# Migrated from #658 sample: unread_result_and_optional_bindings_stay_warnings (#684).
+fn res() -> Result[i32, string]: .Ok(1)
+fn opt() -> i32?: 1
+
+pub fn main() -> void:
+    _r := res()

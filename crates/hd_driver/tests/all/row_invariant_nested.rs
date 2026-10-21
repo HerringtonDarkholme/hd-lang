@@ -60,31 +60,6 @@ fn assert_mismatch(body: &str) {
     assert_eq!(out.diags.code, vec![Code::TypeMismatch], "{}", out.render());
 }
 
-/// A function value widens at an argument, an assignment, a declared
-/// binding, a return and a field (`req.row.subsume.sites`).
-#[test]
-fn a_function_value_still_widens() {
-    assert_clean(
-        "\
-fn take(f: fn() -> void $ Db + Clock) -> void:
-    pass
-
-fn give() -> (fn() -> void $ Db + Clock):
-    narrow
-
-fn wire() -> void:
-    take(narrow)
-    let wide: fn() -> void $ Db + Clock = narrow
-    let slot: fn() -> void $ Db + Clock = other
-    slot = narrow
-    _ := Slot { handler: narrow }
-    _ := give()
-    take(wide)
-    take(slot)
-",
-    );
-}
-
 /// The explicit copy builds a wider list from a narrower one.
 #[test]
 fn a_spread_copy_builds_the_wider_list() {

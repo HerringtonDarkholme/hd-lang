@@ -1,0 +1,11 @@
+# @dump: tir
+# Migrated from #658 sample: a_private_own_member_beside_a_promoted_one_conflicts (#684).
+struct Base:
+    pub id: i32
+
+struct Record:
+    Base
+    id: i32
+
+pub fn main() -> void:
+    pass

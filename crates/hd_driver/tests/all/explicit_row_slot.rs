@@ -52,14 +52,6 @@ fn bare_key_in_row_slot_is_one_error() {
 }
 
 #[test]
-fn bare_trait_key_in_row_slot_is_one_kind_error() {
-    let main = format!(
-        "{PRELUDE}\nfn run() -> void $ Log:\n    provide_log::[Log](quiet)\n\npub fn main() -> void:\n    pass\n"
-    );
-    assert_eq!(codes(&main), vec![Code::GenericKindMismatch]);
-}
-
-#[test]
 fn dollar_forms_in_row_slot_stay_clean() {
     for call in ["provide_log::[$ Log](quiet)", "provide_log::[$()](quiet)"] {
         let main = format!(

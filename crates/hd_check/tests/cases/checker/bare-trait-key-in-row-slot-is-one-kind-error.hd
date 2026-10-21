@@ -1,0 +1,14 @@
+# @dump: tir
+# Migrated from #658 sample: bare_trait_key_in_row_slot_is_one_kind_error (#684).
+trait Log
+
+fn provide_log[$R](callback: fn() -> void $ R + Log) -> void $ R:
+    pass
+
+fn quiet() -> void: pass
+
+fn run() -> void $ Log:
+    provide_log::[Log](quiet)
+
+pub fn main() -> void:
+    pass

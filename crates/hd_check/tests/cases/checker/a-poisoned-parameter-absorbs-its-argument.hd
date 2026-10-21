@@ -1,0 +1,5 @@
+# @dump: tir
+# Migrated from #658 sample: a_poisoned_parameter_absorbs_its_argument (#684).
+fn f(a: Nope) -> i32: 1
+
+fn h() -> i32: f([])

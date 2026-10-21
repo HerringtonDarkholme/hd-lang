@@ -1,0 +1,7 @@
+# @dump: tree
+# Migrated from #658 sample: a_later_statement_in_the_same_body_still_reports (#684).
+fn f(a: bool, b: bool) -> i32:
+    if a and b:
+        pass
+    y := [1 2]
+    y

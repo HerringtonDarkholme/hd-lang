@@ -1,0 +1,12 @@
+# @dump: tir
+# Migrated from #658 sample: a_bound_reference_is_a_closure_over_the_receiver (#684).
+struct Counter:
+    value: i32
+
+impl Counter:
+    fn bump(&mut self, by: i32) -> void:
+        self.value = self.value + by
+
+# subject
+fn bumper(counter: &mut Counter) -> fn(i32) -> void:
+    counter::bump

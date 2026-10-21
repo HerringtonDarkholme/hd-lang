@@ -1,0 +1,14 @@
+# @dump: tir
+# Migrated from #658 sample: derive_over_member_without_trait_reports_once_naming_it (#684).
+use std.ops.Default
+
+struct Secret:
+    value: i32
+
+@derive(Default)
+struct Vault:
+    secret: Secret
+    count: i32
+
+pub fn main() -> void:
+    pass

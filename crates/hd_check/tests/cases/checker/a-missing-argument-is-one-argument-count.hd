@@ -1,0 +1,5 @@
+# @dump: tir
+# Migrated from #658 sample: plain_arity_error (#684).
+fn resize(width: i32, height: i32) -> i32: width * height
+
+fn f() -> i32: resize(640)

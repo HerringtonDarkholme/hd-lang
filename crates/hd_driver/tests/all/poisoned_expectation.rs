@@ -89,12 +89,6 @@ fn a_generic_call_reports_only_the_first_error() {
 }
 
 #[test]
-fn a_poisoned_parameter_absorbs_its_argument() {
-    let src = format!("{HEAD}fn f(a: Nope) -> i32: 1\n\nfn h() -> i32: f([])\n");
-    assert_eq!(codes_of(&src), vec![Code::UnknownType]);
-}
-
-#[test]
 fn an_unrelated_unsolved_type_in_the_same_body_still_reports() {
     for ret in ["Nope", "Both[i32]"] {
         let src = format!("{HEAD}fn h() -> {ret}:\n    y := []\n    5\n");

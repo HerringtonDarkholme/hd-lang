@@ -1,0 +1,19 @@
+# @dump: tir
+# Migrated from #658 sample: downcast_with_type_arguments_on_dyn_error (#684).
+use std.error.Error
+
+struct DiskError:
+    device: string
+
+impl Display for DiskError:
+    fn to_string(self) -> string: "disk"
+
+impl Error for DiskError
+
+fn device_of(error: &dyn Error) -> string:
+    match error.downcast_ref::[DiskError]():
+        .Some(found) => found.device
+        .None => "none"
+
+pub fn main() -> void:
+    pass

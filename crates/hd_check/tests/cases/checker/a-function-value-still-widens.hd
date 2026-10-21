@@ -1,0 +1,30 @@
+# @dump: tir
+# Migrated from #658 sample: a_function_value_still_widens (#684).
+trait Db
+
+trait Clock
+
+fn narrow() -> void $ Db:
+    pass
+
+fn other() -> void $ Db:
+    pass
+
+struct Slot:
+    handler: fn() -> void $ Db + Clock
+
+fn take(f: fn() -> void $ Db + Clock) -> void:
+    pass
+
+fn give() -> (fn() -> void $ Db + Clock):
+    narrow
+
+fn wire() -> void:
+    take(narrow)
+    let wide: fn() -> void $ Db + Clock = narrow
+    let slot: fn() -> void $ Db + Clock = other
+    slot = narrow
+    _ := Slot { handler: narrow }
+    _ := give()
+    take(wide)
+    take(slot)

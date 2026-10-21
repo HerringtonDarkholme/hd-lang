@@ -1573,24 +1573,6 @@ fn a_written_type_has_no_extra_arguments() {
     );
 }
 
-/// A `use` of a module does not bring in its child modules
-/// (`module.path.no-std-child-import`).
-#[test]
-fn a_used_module_does_not_bring_in_its_children() {
-    assert_eq!(
-        item_codes("use std.cmp\n\nfn f(x: cmp.Ordering) -> i32: 0"),
-        []
-    );
-    assert_eq!(
-        item_codes("use std.testing.arbitrary\n\nfn f(x: arbitrary.With[i32]) -> i32: 0"),
-        []
-    );
-    assert_eq!(
-        item_codes("use std.testing\n\nfn f(x: testing.arbitrary.With) -> i32: 0"),
-        [Code::UnknownImport]
-    );
-}
-
 /// A leading-dot variant with an expected enum type, or beside an
 /// operand that gives one, checks clean (`types.option.none-context`,
 /// `types.result.ok-context`, `expr.eq.contextual-operand`).

@@ -1,0 +1,41 @@
+# @dump: tir
+# Migrated from #658 sample: the_tuple_template_beside_non_tuple_impls_is_valid (#684).
+use std.function.Tuple
+use std.structure.{Structure, Field, Variant, Walker}
+
+trait Encode:
+    fn encode(self) -> string
+
+impl Encode for i64:
+    fn encode(self) -> string:
+        "$self"
+
+struct Encoder:
+    out: string
+
+impl[S] Walker[S] for Encoder:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F < Encode](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.out = self.out + value.encode() + ";"
+        .Ok(())
+
+impl[T < Tuple] Encode for T by Structure:
+    fn encode(self) -> string:
+        let mut w = Encoder { out: "" }
+        _ := Structure::walk(self, &mut w)
+        w.out
+
+struct Pair:
+    a: i64
+
+impl Encode for Pair:
+    fn encode(self) -> string:
+        "pair"
+
+impl Encode for List[i64]:
+    fn encode(self) -> string:
+        "list"
