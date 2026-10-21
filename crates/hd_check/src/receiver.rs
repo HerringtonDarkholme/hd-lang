@@ -209,7 +209,7 @@ impl Ck<'_, '_> {
         let inner = self.strip_mut(place.ty);
 
         let rt = pool.intern_ty(&TyData::Ref { inner, mutable });
-        let r = self.make_ref(&place, inner, mutable, rt, base);
+        let r = self.make_ref(&place, mutable, rt, base);
         Ok((r, place.ty))
     }
 
@@ -338,7 +338,7 @@ impl Ck<'_, '_> {
             mutable: false,
         });
         let place = self.new_object_place(recv, rt, n);
-        self.make_ref(&place, inner, false, rty, n)
+        self.make_ref(&place, false, rty, n)
     }
 
     /// Calls may mutably address a temporary. Bound method references keep

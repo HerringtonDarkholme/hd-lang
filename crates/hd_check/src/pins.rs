@@ -511,7 +511,7 @@ impl Ck<'_, '_> {
         let inner = self.strip_mut(self.infer.resolve(self.pool(), vt));
         let rt = self.pool().intern_ty(&TyData::Ref { inner, mutable });
         let item = if ok {
-            self.make_ref(&place, inner, mutable, rt, src)
+            self.make_ref(&place, mutable, rt, src)
         } else {
             self.b.emit(Tag::Poison, NONE, NONE, rt, src.index())
         };

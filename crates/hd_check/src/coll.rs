@@ -134,7 +134,7 @@ impl Ck<'_, '_> {
             Tag::NewList | Tag::NewMap | Tag::NewData | Tag::CopyData | Tag::NewVariant => true,
             Tag::NewTuple | Tag::Closure | Tag::Interp | Tag::Prim => true,
             Tag::Call | Tag::CallDyn | Tag::DefaultCall => true,
-            Tag::CallValue | Tag::RefPlace | Tag::RefDyn | Tag::RefIdentity => true,
+            Tag::CallValue | Tag::RefPlace | Tag::Ref | Tag::RefDyn | Tag::RefIdentity => true,
             Tag::Intrinsic => matches!(
                 IntrinsicOp::from_u32(data[0]),
                 Some(IntrinsicOp::ValueCopy | IntrinsicOp::Item)
@@ -378,7 +378,9 @@ impl Ck<'_, '_> {
             | Tag::AwaitAll
             | Tag::AwaitRace
             | Tag::FieldSet
-            | Tag::GlobalSet => true,
+            | Tag::GlobalSet
+            | Tag::RefWrite
+            | Tag::Store => true,
             Tag::LocalSet => body.data[i][0] == local.raw(),
             Tag::Intrinsic => matches!(
                 IntrinsicOp::from_u32(body.data[i][0]),

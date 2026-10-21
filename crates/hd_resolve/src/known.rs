@@ -22,12 +22,6 @@ pub struct KnownItems {
     /// The data type a reference type lowers to for the backend
     /// (`hd_resolve::seed`, `crates/hd_wasm_linear/DESIGN.md` §15.2 "References").
     pub ref_cell: DefId,
-    /// The fieldless data type whose one value is the identity base of a
-    /// reference to a local, a new object or a top-level binding.
-    pub ref_root: DefId,
-    /// The intrinsic that numbers locals and new objects for reference
-    /// identity (`crates/hd_wasm_linear/DESIGN.md` §15.2 "References").
-    pub ref_serial: DefId,
     // std.function
     pub function_module: PathId,
     pub tuple: DefId,
@@ -179,8 +173,6 @@ impl KnownItems {
             list: item("std.core", "List"),
             map: item("std.core", "Map"),
             ref_cell: item("std.core", "Ref"),
-            ref_root: item("std.core", "RefRoot"),
-            ref_serial: item("std.core", "ref_serial"),
             function_module: module("std.function"),
             tuple,
             structure,

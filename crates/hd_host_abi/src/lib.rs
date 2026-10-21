@@ -559,7 +559,6 @@ pub enum Lowering {
 /// `std.testing.assert_equal`, `entry_write` to `std.rt`,
 /// `type_id_of` to `std.inspect`, the two reference recovery keys to
 /// inherent methods in `std.inspect` and `std.error`,
-/// `ref_serial` to the compiler-supplied `std.core.ref_serial`,
 /// `ref_identity` to `std.cmp.identity_of`, which the checker lowers, and
 /// the `mem_` keys to the runtime module `std.rt.memory`, which only the
 /// linear backend lowers (`crates/hd_wasm_linear/DESIGN.md` §23.12).
@@ -600,7 +599,6 @@ pub static INTRINSICS: &[(&str, Lowering)] = &[
     ("repl_write", Lowering::Compiler),
     ("dbg_show", Lowering::Compiler),
     ("map_hash_seed", Lowering::Compiler),
-    ("ref_serial", Lowering::Compiler),
     ("ref_identity", Lowering::Compiler),
     ("format_int", Lowering::Compiler),
     ("mem_pages", Lowering::Compiler),

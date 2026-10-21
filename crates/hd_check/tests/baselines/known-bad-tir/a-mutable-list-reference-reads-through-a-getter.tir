@@ -2,9 +2,6 @@
 app/main/read
   local $0 items: Ref[mut List[T]] [param read]
   %0 = LocalGet $0 : Ref[mut List[T]]
-  %1 = Field %0 .0 : fn() -> List[T]
-  %2 = CallValue %1 [] : List[T]
-  %3 = Block %2 : List[T]
-  %4 = RefRead %0 %3 : List[T]
-  %5 = Intrinsic ListLen [%4] : usize
-  %6 = Block %5 : usize
+  %1 = RefRead %0 - : List[T]
+  %2 = Intrinsic ListLen [%1] : usize
+  %3 = Block %2 : usize

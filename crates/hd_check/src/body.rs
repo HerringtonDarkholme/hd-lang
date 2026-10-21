@@ -40,11 +40,6 @@ pub struct BodyCx<'a> {
     /// The methods of the closure by name, built on first use and shared
     /// with the module's forked contexts ([`crate::fork`]).
     pub methods: std::cell::OnceCell<std::sync::Arc<crate::MethodIndex>>,
-    /// The names that some `&` or `&mut` in the module's file takes a
-    /// reference to, built on first use: a local of one of these names
-    /// draws a serial number when it is declared, for reference identity
-    /// (`crate::refs`).
-    pub ref_names: std::cell::OnceCell<HashSet<Symbol>>,
     /// The module's top-level bindings and its bodies' init facts.
     pub init: std::cell::RefCell<crate::init::ModuleInit>,
     /// The module's private callables with omitted result types (M1).
@@ -266,10 +261,6 @@ pub(crate) struct Ck<'a, 'c> {
     /// (`types.bind.let-mut-primitive-unused`).
     pub ref_taken: Vec<LocalId>,
     pub prim_let_mut: Vec<(LocalId, hd_base::NodeIdx, LetMutKind)>,
-    /// Per local whose name `BodyCx::ref_names` holds, the local holding
-    /// its serial number (`crate::refs`), and whether its declaration
-    /// has drawn it yet.
-    pub ref_serials: HashMap<LocalId, (LocalId, bool)>,
     pub self_ty: Option<Ty>,
     /// The available keys: the body's row, then closures and `$.with`
     /// blocks, innermost last.
@@ -567,7 +558,6 @@ pub(crate) fn new_ck<'a, 'c>(
         arg_copies: Vec::new(),
         unowned: Vec::new(),
         ref_taken: Vec::new(),
-        ref_serials: HashMap::default(),
         prim_let_mut: Vec::new(),
         self_ty: None,
         rows: vec![
@@ -1050,7 +1040,6 @@ fn fn_body_steps(
         let ty = ck.norm_ty(ty);
         let l = ck.b.local(ty, name, local_flags::PARAM, node.index());
         ck.scopes[0].insert(name, l);
-        ck.draw_ref_serial(l, node.index());
     }
     ck.mark_mut_params(node);
     let params: Vec<LocalId> = ck.mut_params.clone();
@@ -1440,6 +1429,22 @@ impl Ck<'_, '_> {
         if self.local_generics.contains_key(&l) {
             return self.local_generic_value(l, &[], n);
         }
+        if !self.note_read(l, depth, n) {
+            return self.poison_value(n);
+        }
+        let t = self.b.local_ty(l);
+        if self.pool().has_poison(t) {
+            self.read_poison_name = true;
+        }
+        (self.b.get(l, t, n.index()), t)
+    }
+
+    /// The checks and marks of a read of local `l`, declared at scope
+    /// depth `depth`, without its value: a reference to a place the local
+    /// starts reads it this way (`refs.rs`, `make_ref`). The local is
+    /// captured into every open closure it crosses. `false` when the read
+    /// is an error.
+    pub(crate) fn note_read(&mut self, l: LocalId, depth: usize, n: NodeRef<'_>) -> bool {
         // `fn.default.later-parameter`: a default names a parameter at or
         // after its own.
         if self.b.body_mut().local_flags[l.idx()] & local_flags::NOT_YET != 0 {
@@ -1447,7 +1452,7 @@ impl Ck<'_, '_> {
             let msg =
                 format!("`{name}` is a later parameter, so it is not visible in this default");
             self.err(Code::BindingNotYetVisible, n, &msg);
-            return self.poison_value(n);
+            return false;
         }
         // `names.definite.reject`: reported once per binding.
         if self.uninit_remove(l) {
@@ -1468,11 +1473,7 @@ impl Ck<'_, '_> {
         if captured {
             self.add_flags(l, local_flags::CAPTURED);
         }
-        let t = self.b.local_ty(l);
-        if self.pool().has_poison(t) {
-            self.read_poison_name = true;
-        }
-        (self.b.get(l, t, n.index()), t)
+        true
     }
 
     /// Records an assignment to a local, from inside a closure or not.
@@ -1555,7 +1556,6 @@ impl Ck<'_, '_> {
         let l = self.b.local(t, name, local_flags::ASSIGNED, at.index());
         self.scopes.last_mut().expect("scope").insert(name, l);
         self.user_locals.push(l);
-        self.reserve_ref_serial(l, at.index());
         l
     }
 
@@ -1608,7 +1608,6 @@ impl Ck<'_, '_> {
             v
         };
         self.b.set(l, v, syn);
-        self.draw_ref_serial(l, syn);
     }
 
     pub(crate) fn coerce(

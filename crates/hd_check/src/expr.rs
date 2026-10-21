@@ -3814,10 +3814,6 @@ impl Ck<'_, '_> {
         self.suspends.push(suspends);
         let saved_loops = std::mem::take(&mut self.loops);
         let blk = self.b.open_block();
-        // A parameter is declared on each call (`crate::refs`).
-        for &p in &params {
-            self.draw_ref_serial(p, n.index());
-        }
         self.mut_param_copies(&params, n.index());
         let e = parts.body;
         let (tail, _) = if e.kind() == SyntaxKind::Block {

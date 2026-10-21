@@ -705,9 +705,8 @@ Trait values and vtables use `emit/dyn_value.rs`; map cursor closures use
   with the target's and unboxes on a match.
 - **Identity.** `is` compares the first counted address: a data value's,
   a list's or a map's header, a trait value's data; two references
-  compare their identity fields (§15.2). A trait value that boxed a value
-  compares its boxes (`ref.identity.same-place`). `ref_serial` is a
-  global counter.
+  compare their addresses (§23.20). A trait value that boxed a value
+  compares its boxes (`ref.identity.same-place`).
 - **Providers.** `$.with(K: v) body` makes `v` the provider of `K` in the
   body, borrowing `v`'s locals, whose count lasts to the function's
   exit. (`Guard`, a match guard's condition block and its two branches,
@@ -735,14 +734,11 @@ References use addresses and typed views; cleanup scopes and element
 references preserve their owners and pins (OBJECT_MODEL_TIER1.md §6.3).
 
 - **References as addresses** (issue #587). The checker names each
-  reference's place in the TIR (`RefPlace`: a local, a top-level
+  reference's place in the TIR (`Ref` of a place: a local, a top-level
   binding, a place through another reference, a data object's field or a
-  list element, then a struct field path) and each read, write and
-  identity through one (`RefRead`, `RefWrite`, `RefIdentity`), each
-  owning the block of its checker-generated closure form (§15.2,
-  "References"). The driver strips those blocks from the bodies of a
-  linear build before collection (`hd_tir::ir::strip_closure_forms`), so
-  their closures, cells and `ref_serial` calls never reach this backend.
+  list element, then a struct field path; `docs/compiler/tir-v2.md`)
+  and each read, write and identity through one (`RefRead`, `RefWrite`,
+  `RefIdentity`), with no closure form (stage 1 of TIR v2 removed them).
   Here `std.core.Ref[T]` is one address (`layout::Kind::Ref`,
   `emit/refs.rs`), the thin form of §23.5:
   - a local some reference refers to lives in a cell

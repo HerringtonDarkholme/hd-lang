@@ -738,14 +738,14 @@ body with suspension rows (`src/wire.rs`), so no body writes them today.
 **References**
 
 A reference names its place, so the RC backend lowers
-it to the place's address (`crates/hd_wasm_linear/DESIGN.md` §23.20). Each
-instruction also owns, as its last operand, the `Block` of its closure
-form: the `std.core.Ref[T]` object of a `get` and a `set` closure over
-the place and the place's identity, or a call of one of them. This is
-an intermediate checker representation (§15.2 there, "References").
-The RC backend's bodies arrive without
-it (`strip_closure_forms`), so its closures, the locals they capture and
-the instances they call are not there.
+it to the place's address (`crates/hd_wasm_linear/DESIGN.md` §23.20). The
+checker makes references with `Ref` (Places, below); `RefPlace`, which
+named a place in a record of its own, has no producer since stage 1 of
+TIR v2 (commit 4). The block operands below once held the
+instructions' closure forms (a `std.core.Ref[T]` object of a `get` and
+a `set` closure, and calls of them); the checker now writes `NONE`
+there, except `RefDyn`'s address form, and `strip_closure_forms` has
+nothing left to remove.
 
 | Tag | Operands | Type rule |
 | --- | --- | --- |
@@ -756,8 +756,9 @@ the instances they call are not there.
 | `RefIdentity` | a: reference, b: closure-form `Block` | std's `RefIdentity` (`identity_of`) |
 
 **Places** ([docs/compiler/tir-v2.md](../../docs/compiler/tir-v2.md#reads-stores-and-references)).
-Nothing produces these yet: stage 1 of TIR v2 moves references and
-writes onto them, commit by commit.
+Stage 1 of TIR v2 moves references and writes onto these, commit by
+commit: the checker makes every reference with `Ref`; `Read` and
+`Store` have no producer yet.
 
 | Tag | Operands | Type rule |
 | --- | --- | --- |

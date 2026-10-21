@@ -8,19 +8,16 @@
 //! A conversion is a `RefDyn`. With interior addresses, a trait value
 //! reference is the trait value whose payload is the source reference
 //! (`Coercion::RefToTraitValue`), as Rust's `&dyn Tr` is a pointer and a
-//! vtable. In the checker's intermediate closure form, it is an ordinary
-//! `std.core.Ref[dyn Tr]` (`crates/hd_wasm_linear/DESIGN.md` §15.2, "Trait value
-//! references"): its `get` returns that trait value, and its identity
-//! fields are the source reference's, so `is` compares the places.
+//! vtable, which the `RefDyn`'s block makes.
 
 use hd_base::{DefId, NodeIdx, TokenIdx};
 use hd_diag::{Code, FixSafety};
 use hd_resolve::ItemData;
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{Callee, Coercion, NONE, Ref, Tag, TirSink, local_flags};
-use hd_types::{Prim, Ty, TyData, VarKind};
+use hd_types::{Ty, TyData, VarKind};
 
-use crate::body::{Ck, ExpectPosition, OpenSub, supertrait_args};
+use crate::body::{Ck, ExpectPosition, supertrait_args};
 
 impl Ck<'_, '_> {
     /// `(tv, mutable)` when `t` is a trait value reference `&dyn Tr` or
@@ -252,8 +249,6 @@ impl Ck<'_, '_> {
     }
 
     /// A newly copied provider has the ordinary dyn-reference address form.
-    /// Its GC form reuses shared getter/setter code and retains the concrete
-    /// object's identity, so downcasting and `is` still name that same object.
     fn shared_provider_ref(
         &mut self,
         source: Ref,
@@ -267,39 +262,11 @@ impl Ck<'_, '_> {
         let addr = self.b.open_block();
         let value = self.dyn_ref_value(source, source_ty, key, Coercion::RefToTraitValue, syn);
         let addr = self.b.close_block(addr, Some(value), key, syn);
-        let form = self.b.open_block();
-        let value = self.dyn_ref_value(source, source_ty, key, Coercion::RefToTraitValue, syn);
-        let (wrapper, _) = self.shared_provider_object(value, key, n);
-        let get_ty = pool.intern_ty(&TyData::Fn {
-            params: pool.list(&[]),
-            result: key,
-            row: hd_types::RowId::EMPTY,
-            suspends: false,
-            inputs: hd_types::Inputs::Fixed,
-        });
-        let set_ty = pool.intern_ty(&TyData::Fn {
-            params: pool.list(&[key]),
-            result: Ty::VOID,
-            row: hd_types::RowId::EMPTY,
-            suspends: false,
-            inputs: hd_types::Inputs::Fixed,
-        });
-        let get = self.b.emit(Tag::Field, wrapper.0, 0, get_ty, syn);
-        let set = self.b.emit(Tag::Field, wrapper.0, 1, set_ty, syn);
-        let any = self.any_ty();
-        let base = self.b.emit(Tag::Field, source.0, 2, any, syn);
-        let serial = self
-            .b
-            .emit(Tag::Field, source.0, 3, Ty::prim(Prim::I64), syn);
-        let path = self.b.emit(Tag::Field, source.0, 4, Ty::STRING, syn);
         let rt = pool.intern_ty(&TyData::Ref {
             inner: key,
             mutable,
         });
-        let rec = self.b.refs_record(&[get, set, base, serial, path]);
-        let value = self.b.emit(Tag::NewData, NONE, rec, rt, syn);
-        let form = self.b.close_block(form, Some(value), rt, syn);
-        self.b.emit(Tag::RefDyn, addr.0, form.0, rt, syn)
+        self.b.emit(Tag::RefDyn, addr.0, NONE, rt, syn)
     }
 
     /// Every requirement key yields a trait value reference; permission
@@ -336,11 +303,9 @@ impl Ck<'_, '_> {
     }
 
     /// The trait value reference for the source reference `src` of type
-    /// `src_ty`: a `RefDyn` whose address form is the trait value that
+    /// `src_ty`: a `RefDyn` whose block makes the trait value that
     /// converts `src` with `kind` (`RefToTraitValue`, or `Supertrait` on
-    /// the trait value `src` refers to), and whose closure form is a new
-    /// `std.core.Ref[tv]` whose `get` makes that trait value, whose `set`
-    /// is never called, and whose identity is `src`'s.
+    /// the trait value `src` refers to).
     pub(crate) fn build_dyn_ref(
         &mut self,
         src: Ref,
@@ -359,56 +324,11 @@ impl Ck<'_, '_> {
         let (s, _) = self.read_local(l, d, n);
         let v = self.dyn_ref_value(s, src_ty, tv, kind, syn);
         let addr = self.b.close_block(addr, Some(v), tv, syn);
-        let form = self.b.open_block();
-        let get_ty = pool.intern_ty(&TyData::Fn {
-            params: pool.list(&[]),
-            result: tv,
-            row: hd_types::RowId::EMPTY,
-            suspends: false,
-            inputs: hd_types::Inputs::Fixed,
-        });
-        let set_ty = pool.intern_ty(&TyData::Fn {
-            params: pool.list(&[tv]),
-            result: Ty::VOID,
-            row: hd_types::RowId::EMPTY,
-            suspends: false,
-            inputs: hd_types::Inputs::Fixed,
-        });
-        let mark = self.b.open_sub(&[]);
-        self.subs.push(OpenSub {
-            mark,
-            depth: self.scopes.len(),
-        });
-        let blk = self.b.open_block();
-        let (s, _) = self.read_local(l, d, n);
-        let v = self.dyn_ref_value(s, src_ty, tv, kind, syn);
-        let root = self.b.close_block(blk, Some(v), tv, syn);
-        self.subs.pop();
-        let get = self.b.close_sub(mark, root, get_ty, syn);
-        // A trait value reference is never written whole (`*r = v` is
-        // `trait.dyn.ref.no-store`), so its `set` is unreachable.
-        let sym = self.cx.names.syms.intern("$value");
-        let param = self.b.local(tv, sym, local_flags::PARAM, syn);
-        let mark = self.b.open_sub(&[param]);
-        self.subs.push(OpenSub {
-            mark,
-            depth: self.scopes.len(),
-        });
-        let blk = self.b.open_block();
-        self.b.emit(Tag::Unreachable, NONE, NONE, Ty::NEVER, syn);
-        let root = self.b.close_block(blk, None, Ty::VOID, syn);
-        self.subs.pop();
-        let set = self.b.close_sub(mark, root, set_ty, syn);
-        let (s, _) = self.read_local(l, d, n);
-        let any = self.any_ty();
-        let base = self.b.emit(Tag::Field, s.0, 2, any, syn);
-        let serial = self.b.emit(Tag::Field, s.0, 3, Ty::prim(Prim::I64), syn);
-        let key = self.b.emit(Tag::Field, s.0, 4, Ty::STRING, syn);
+        // The closure form this replaced captured the held source; the
+        // flag stays as it left it (`refs.rs`, `ref_reads`).
+        self.add_flags(l, local_flags::CAPTURED);
         let rt = pool.intern_ty(&TyData::Ref { inner: tv, mutable });
-        let rec = self.b.refs_record(&[get, set, base, serial, key]);
-        let r = self.b.emit(Tag::NewData, NONE, rec, rt, syn);
-        let form = self.b.close_block(form, Some(r), rt, syn);
-        self.b.emit(Tag::RefDyn, addr.0, form.0, rt, syn)
+        self.b.emit(Tag::RefDyn, addr.0, NONE, rt, syn)
     }
 
     /// The trait value `tv` that the trait value reference made from the

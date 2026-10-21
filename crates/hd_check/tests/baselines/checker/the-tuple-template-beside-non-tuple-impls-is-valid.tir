@@ -35,59 +35,21 @@ impl[S] Walker[S] for Encoder:
 >   local $0 self: Ref[mut Encoder] [param read]
 >   local $2 value: F [param read]
 >   local $3 $ref: Ref[mut Encoder] [read assigned captured]
->   local $4 $value: string [param]
 >   %0 = LocalGet $0 : Ref[mut Encoder]
->   %1 = Field %0 .0 : fn() -> Encoder
->   %2 = CallValue %1 [] : Encoder
->   %3 = Block %2 : Encoder
->   %5 = LocalGet $0 : Ref[mut Encoder]
->   %6 = Field %5 .0 : fn() -> Encoder
->   %7 = CallValue %6 [] : Encoder
->   %8 = Block %7 : Encoder
->   %9 = RefRead %5 %8 : Encoder
->   %10 = Field %9 .out : string
->   %11 = LocalGet $2 : F
->   %12 = Call app/main/Encode.encode for F [] via Bound (%11) : string
->   %13 = Intrinsic StrConcat [%10 %12] : string
->   %14 = Intrinsic StrConcat [%13 ";"] : string
->   %15 = LocalSet $3 %0 : ()
->   %16 = LocalGet $3 : Ref[mut Encoder]
->   %17 = Field %16 .0 : fn() -> Encoder
->   %18 = CallValue %17 [] : Encoder
->   %19 = Block %18 : Encoder
->   %20 = RefRead %16 %19 : Encoder
->   %21 = Field %20 .out : string
->   %22 = Block %21 : string
->   %23 = Closure #1 [%0 %1] : fn() -> string
->   %24 = LocalGet $4 : string
->   %25 = LocalGet $3 : Ref[mut Encoder]
->   %26 = Field %25 .0 : fn() -> Encoder
->   %27 = CallValue %26 [] : Encoder
->   %28 = Block %27 : Encoder
->   %29 = RefRead %25 %28 : Encoder
->   %30 = CopyData %29 [.out = %24] : Encoder
->   %31 = LocalGet $3 : Ref[mut Encoder]
->   %32 = Field %31 .1 : fn(Encoder) -> ()
->   %33 = CallValue %32 [%30] : ()
->   %34 = Block - : ()
->   %35 = RefWrite [%31 %30] %34 : ()
->   %36 = Block - : ()
->   %37 = Closure #2 [%1 %1] : fn(string) -> ()
->   %38 = LocalGet $3 : Ref[mut Encoder]
->   %39 = Field %38 .2 : Any
->   %40 = Field %38 .3 : i64
->   %41 = Field %38 .4 : string
->   %42 = Intrinsic StrConcat [%41 ".0"] : string
->   %43 = NewData [%23 %37 %39 %40 %42] : Ref[mut string]
->   %44 = Block %43 : Ref[mut string]
->   %45 = RefPlace [%2 %3 - %0] %44 : Ref[mut string]
->   %46 = Field %45 .1 : fn(string) -> ()
->   %47 = CallValue %46 [%14] : ()
->   %48 = Block - : ()
->   %49 = RefWrite [%45 %14] %48 : ()
->   %51 = Block %50 : Result[(), never]
+>   %1 = RefRead %0 - : Encoder
+>   %2 = LocalGet $0 : Ref[mut Encoder]
+>   %3 = RefRead %2 - : Encoder
+>   %4 = Field %3 .out : string
+>   %5 = LocalGet $2 : F
+>   %6 = Call app/main/Encode.encode for F [] via Bound (%5) : string
+>   %7 = Intrinsic StrConcat [%4 %6] : string
+>   %8 = Intrinsic StrConcat [%7 ";"] : string
+>   %9 = LocalSet $3 %0 : ()
+>   %10 = Ref mut [*$3 .out] : Ref[mut string]
+>   %11 = RefWrite [%10 %8] - : ()
+>   %13 = Block %12 : Result[(), never]
         .Ok(())
->   %50 = NewVariant #0 [-] : Result[(), never]
+>   %12 = NewVariant #0 [-] : Result[(), never]
 
 impl[T < Tuple] Encode for T by Structure:
     fn encode(self) -> string:
@@ -95,32 +57,16 @@ impl[T < Tuple] Encode for T by Structure:
 > app/main/impl [ T < Tuple ] Encode for T by Structure.encode
 >   local $0 self: T [param read]
 >   local $1 w: Encoder [read assigned captured captured-assigned]
->   local $2 $serial: i64 [read assigned]
->   local $3 $value: Encoder [param]
 >   %0 = NewData [""] : Encoder
 >   %1 = LocalSet $1 %0 : ()
->   %2 = Call std/core/ref_serial[] () : i64
->   %3 = LocalSet $2 %2 : ()
->   %21 = Block %20 : string
+>   %7 = Block %6 : string
         _ := Structure::walk(self, &mut w)
->   %4 = LocalGet $0 : T
->   %5 = LocalGet $1 : Encoder
->   %6 = Block %5 : Encoder
->   %7 = Closure #1 [%0 %1] : fn() -> Encoder
->   %8 = LocalGet $3 : Encoder
->   %9 = LocalSet $1 %8 : ()
->   %10 = Block - : ()
->   %11 = Closure #2 [%1 %1] : fn(Encoder) -> ()
->   %12 = NewData [] : RefRoot
->   %13 = Coerce %12 [ToTraitValue -] : Any
->   %14 = LocalGet $2 : i64
->   %15 = NewData [%7 %11 %13 %14 ""] : Ref[mut Encoder]
->   %16 = Block %15 : Ref[mut Encoder]
->   %17 = RefPlace [%0 %1 -] %16 : Ref[mut Encoder]
->   %18 = Call std/structure/Structure.walk for T [Encoder] via Bound (%4, %17) : Result[(), never]
+>   %2 = LocalGet $0 : T
+>   %3 = Ref mut [$1] : Ref[mut Encoder]
+>   %4 = Call std/structure/Structure.walk for T [Encoder] via Bound (%2, %3) : Result[(), never]
         w.out
->   %19 = LocalGet $1 : Encoder
->   %20 = Field %19 .out : string
+>   %5 = LocalGet $1 : Encoder
+>   %6 = Field %5 .out : string
 
 struct Pair:
     a: i64

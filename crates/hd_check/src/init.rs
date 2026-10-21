@@ -587,6 +587,17 @@ fn init_steps(
     Ok((body, per_stmt))
 }
 
+/// What a read of a top-level binding by name found
+/// ([`Ck::global_read`]).
+pub(crate) enum GlobalRead {
+    /// No top-level binding this body sees: the name is something else.
+    Other,
+    /// The read is an error, reported.
+    Error,
+    /// The binding and its type.
+    Binding(DefId, Ty),
+}
+
 impl Ck<'_, '_> {
     /// The bindings that may be uninitialized after `cond` is true and
     /// after it is false; one state for both when `cond` is not a
@@ -1151,6 +1162,20 @@ impl Ck<'_, '_> {
 
     /// A top-level binding read from any body of the module.
     pub(crate) fn global_get(&mut self, name: Symbol, n: NodeRef<'_>) -> Option<(Ref, Ty)> {
+        match self.global_read(name, n) {
+            GlobalRead::Other => None,
+            GlobalRead::Error => Some(self.poison_value(n)),
+            GlobalRead::Binding(def, ty) => {
+                let a = self.b.refs_record(&[Ref(def.raw())]);
+                Some((self.b.emit(Tag::GlobalGet, a, NONE, ty, n.index()), ty))
+            }
+        }
+    }
+
+    /// The checks and facts of a read of the top-level binding `name`,
+    /// without its value: [`Self::global_get`]'s, and a reference's to
+    /// a place the binding starts (`refs.rs`, `make_ref`).
+    pub(crate) fn global_read(&mut self, name: Symbol, n: NodeRef<'_>) -> GlobalRead {
         let (own, earlier) = {
             let init = self.cx.init.borrow();
             (
@@ -1173,7 +1198,7 @@ impl Ck<'_, '_> {
                 self.cx.names.text(name)
             );
             self.err(Code::TopLevelReadBeforeInitialization, n, &msg);
-            return Some(self.poison_value(n));
+            return GlobalRead::Error;
         }
         // A body checked on demand for an earlier statement names a binding
         // no statement has declared yet. Its read is a fact of the body,
@@ -1193,11 +1218,11 @@ impl Ck<'_, '_> {
                     self.fact_read(def);
                     self.cx.results.borrow_mut().note_poisoned_read();
                 }
-                return Some(self.poison_value(n));
+                return GlobalRead::Error;
             }
         }
         if own.is_none() && earlier.is_none() {
-            return None;
+            return GlobalRead::Other;
         }
         // A template body names no top-level binding
         // (`module.package.template-private.no-binding`).
@@ -1207,19 +1232,20 @@ impl Ck<'_, '_> {
                 self.cx.names.text(name)
             );
             self.err(Code::TemplateNamesBinding, n, &msg);
-            return Some(self.poison_value(n));
+            return GlobalRead::Error;
         }
         let Some(g) = own else {
             // An earlier REPL input's binding (`cli.repl.declarations.bindings`)
             // is initialized already: any statement or body sees it, and
             // reading it orders nothing in this module's initialization.
-            let g = earlier?;
-            let a = self.b.refs_record(&[Ref(g.def.raw())]);
-            return Some((self.b.emit(Tag::GlobalGet, a, NONE, g.ty, n.index()), g.ty));
+            return match earlier {
+                Some(g) => GlobalRead::Binding(g.def, g.ty),
+                None => GlobalRead::Other,
+            };
         };
         // Inside the init body, a binding is visible from its statement on.
         if self.module_init.is_some() && g.stmt >= self.init_stmt {
-            return None;
+            return GlobalRead::Other;
         }
         // `names.exec.not-before`: a function declared before the binding
         // does not see it, though it runs later.
@@ -1229,7 +1255,7 @@ impl Ck<'_, '_> {
                 self.cx.names.text(name)
             );
             self.err(Code::BindingNotYetVisible, n, &msg);
-            return Some(self.poison_value(n));
+            return GlobalRead::Error;
         }
         // Read by a body M1 checks while the top level is being checked,
         // a binding whose type is still open holds the init body's
@@ -1240,7 +1266,7 @@ impl Ck<'_, '_> {
                 self.cx.names.text(name)
             );
             self.err(Code::CannotInferType, n, &msg);
-            return Some(self.poison_value(n));
+            return GlobalRead::Error;
         }
         self.fact_read(g.def);
         // A binding whose initializer or pattern reported an error has a
@@ -1249,8 +1275,7 @@ impl Ck<'_, '_> {
         if self.pool().has_poison(g.ty) {
             self.read_poison_name = true;
         }
-        let a = self.b.refs_record(&[Ref(g.def.raw())]);
-        Some((self.b.emit(Tag::GlobalGet, a, NONE, g.ty, n.index()), g.ty))
+        GlobalRead::Binding(g.def, g.ty)
     }
 
     /// Records a call or reference of a same-module function. A call of a

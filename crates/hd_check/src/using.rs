@@ -105,7 +105,7 @@ impl Ck<'_, '_> {
                 inner,
                 mutable: true,
             });
-            (self.make_ref(&place, inner, true, rty, s), t)
+            (self.make_ref(&place, true, rty, s), t)
         } else {
             let v = self.b.get(l, t, s.index());
             if let Some(passed) = self.pass_reference_receiver(v, t, "dispose", at)? {

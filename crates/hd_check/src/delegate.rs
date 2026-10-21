@@ -187,7 +187,7 @@ impl Forwarder<'_> {
                     );
                 };
                 let rt = pool.intern_ty(&TyData::Ref { inner: ft, mutable });
-                refs.push(ck.make_ref(&place, ft, mutable, rt, node));
+                refs.push(ck.make_ref(&place, mutable, rt, node));
             } else {
                 let Some((idx, ft)) = ck.field_of(st, part_name) else {
                     return crate::body::unsupported(

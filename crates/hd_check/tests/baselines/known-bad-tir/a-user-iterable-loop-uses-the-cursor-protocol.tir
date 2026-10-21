@@ -2,35 +2,22 @@
 app/main/visit
   local $0 items: Bag [param read]
   local $1 $ref: ListIter[i32] [read assigned captured captured-assigned]
-  local $2 $value: ListIter[i32] [param]
-  local $3 $iter: Ref[mut ListIter[i32]] [assigned]
-  local $4 _item: i32 [assigned]
+  local $2 $iter: Ref[mut ListIter[i32]] [assigned]
+  local $3 _item: i32 [assigned]
   %0 = LocalGet $0 : Bag
   %1 = Call std/iter/Iterable.iter for Bag [i32] via Impl (%0) : ListIter[i32]
   %2 = LocalSet $1 %1 : ()
-  %3 = LocalGet $1 : ListIter[i32]
-  %4 = Block %3 : ListIter[i32]
-  %5 = Closure #1 [%0 %1] : fn() -> ListIter[i32]
-  %6 = LocalGet $2 : ListIter[i32]
-  %7 = LocalSet $1 %6 : ()
-  %8 = Block - : ()
-  %9 = Closure #2 [%1 %1] : fn(ListIter[i32]) -> ()
-  %10 = NewData [] : RefRoot
-  %11 = Coerce %10 [ToTraitValue -] : Any
-  %12 = Call std/core/ref_serial[] () : i64
-  %13 = NewData [%5 %9 %11 %12 ""] : Ref[mut ListIter[i32]]
-  %14 = Block %13 : Ref[mut ListIter[i32]]
-  %15 = RefPlace [%0 %1 -] %14 : Ref[mut ListIter[i32]]
-  %16 = LocalSet $3 %15 : ()
-  %17 = LocalGet $3 : Ref[mut ListIter[i32]]
-  %18 = Call std/iter/Iterator.next for ListIter[i32] [i32] via Impl (%17) : i32?
+  %3 = Ref mut [$1] : Ref[mut ListIter[i32]]
+  %4 = LocalSet $2 %3 : ()
+  %5 = LocalGet $2 : Ref[mut ListIter[i32]]
+  %6 = Call std/iter/Iterator.next for ListIter[i32] [i32] via Impl (%5) : i32?
+  %7 = Block - : ()
+  %8 = Break L0 - : never
+  %9 = Block - : ()
+  %10 = Unwrap %6 : i32
+  %11 = LocalSet $3 %10 : ()
+  %17 = Block - : never
+  %18 = Match %6 [%17 %7 %9] : ()
   %19 = Block - : ()
-  %20 = Break L0 - : never
+  %20 = Loop %19 - : ()
   %21 = Block - : ()
-  %22 = Unwrap %18 : i32
-  %23 = LocalSet $4 %22 : ()
-  %29 = Block - : never
-  %30 = Match %18 [%29 %19 %21] : ()
-  %31 = Block - : ()
-  %32 = Loop %31 - : ()
-  %33 = Block - : ()

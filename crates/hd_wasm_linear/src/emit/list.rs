@@ -232,9 +232,7 @@ impl Em<'_, '_, '_> {
                         return false;
                     };
                     match &call.kind {
-                        hd_mono::TargetKind::Intrinsic(key) => {
-                            matches!(key.as_str(), "sqrt" | "ref_serial")
-                        }
+                        hd_mono::TargetKind::Intrinsic(key) => key == "sqrt",
                         hd_mono::TargetKind::Builtin { self_ty, .. } => {
                             matches!(self.pool().get(*self_ty), TyData::Prim(p) if p.is_float())
                                 && (self.input.path)(call.item).rsplit(['.', '/']).next()
@@ -815,9 +813,7 @@ impl Em<'_, '_, '_> {
                     return false;
                 };
                 let sqrt = match &call.kind {
-                    hd_mono::TargetKind::Intrinsic(key) => {
-                        matches!(key.as_str(), "sqrt" | "ref_serial")
-                    }
+                    hd_mono::TargetKind::Intrinsic(key) => key == "sqrt",
                     hd_mono::TargetKind::Builtin { self_ty, .. } => {
                         matches!(self.pool().get(*self_ty), TyData::Prim(p) if p.is_float())
                             && (self.input.path)(call.item).rsplit(['.', '/']).next()

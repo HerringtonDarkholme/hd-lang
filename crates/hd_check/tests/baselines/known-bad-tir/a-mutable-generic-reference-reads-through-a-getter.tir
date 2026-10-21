@@ -2,9 +2,6 @@
 app/main/read
   local $0 value: Ref[mut T] [param read]
   %0 = LocalGet $0 : Ref[mut T]
-  %1 = Field %0 .0 : fn() -> T
-  %2 = CallValue %1 [] : T
+  %1 = RefRead %0 - : T
+  %2 = Intrinsic ValueCopy [%1] : T
   %3 = Block %2 : T
-  %4 = RefRead %0 %3 : T
-  %5 = Intrinsic ValueCopy [%4] : T
-  %6 = Block %5 : T

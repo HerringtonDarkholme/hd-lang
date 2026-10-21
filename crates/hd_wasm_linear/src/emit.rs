@@ -2353,13 +2353,6 @@ impl Em<'_, '_, '_> {
                 self.release_open(header);
                 Ok(())
             }
-            // The serial number of a local some reference refers to, which
-            // only a reference's closure form reads (`crates/hd_wasm_linear/DESIGN.md`
-            // §15.2): here a reference is its address, so it is 0.
-            "ref_serial" => {
-                self.f.op(I::I64Const(0));
-                self.store(i)
-            }
             // std's map cursor step closure (`emit/iter.rs`).
             "map_steps" => self.map_iter(i, args[0]),
             "bytes_len" => {

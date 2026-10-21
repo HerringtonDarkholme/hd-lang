@@ -4,41 +4,31 @@
 //! method calls, and the read-only rules (`&mut T` converts to `&T`;
 //! reads keep declared field types, and `&T` protects its immediate referent).
 //!
-//! The TIR names the place (`RefPlace`) and each read, write and identity
-//! through a reference (`RefRead`, `RefWrite`, `RefIdentity`), so a
-//! RC backend lowers a reference to the place's
-//! address (`crates/hd_wasm_linear/DESIGN.md` §23.20). Each of those instructions
-//! owns the block of its intermediate closure form
-//! (`crates/hd_wasm_linear/DESIGN.md` §15.2, "References"): a reference is a
-//! `std.core.Ref[T]` object holding two closures, `get` and `set`, that
-//! read and replace the referenced place.
-//! `&x` on a local makes closures that capture `x`, so the backend keeps
-//! `x` in a shared cell; `&e` on any other value binds it to a fresh local
-//! that only the closures hold, which is the new object. The RC backend
-//! strips these closure forms before emission (`strip_closure_forms`). A legacy
-//! setter rebuilds a struct field path; ordinary field writes through a
-//! reference use that path's `RefPlace` and `RefWrite` directly (`value.rs`).
-//! The checker lowers `&T` and `&mut T` to one type,
-//! `Ref[T]`, when it finishes a body (`Types::lower_refs`), so the
-//! layout pass recognizes the reference carrier and `&mut T` to `&T` costs nothing.
+//! A reference is a `Ref` of its place (`docs/compiler/tir-v2.md`,
+//! "`&` and `&mut`"), which the backend lowers to the place's address
+//! (`crates/hd_wasm_linear/DESIGN.md` §23.20); a read, write and identity
+//! through one are `RefRead`, `RefWrite` and `RefIdentity`. `&x` on a
+//! local is `Ref [$x]`, so the backend keeps `x` in a cell; `&e` on any
+//! other value binds it to a fresh local, which is the new object. A
+//! field write through a reference is a `Ref` of the field's place and a
+//! `RefWrite` through it (`value.rs`). The checker lowers `&T` and
+//! `&mut T` to one type, `Ref[T]`, when it finishes a body
+//! (`Types::lower_refs`), so the layout pass recognizes the reference
+//! carrier and `&mut T` to `&T` costs nothing.
 //!
-//! Identity (`ref.identity.*`): a `Ref` also holds the place's identity,
-//! which `r is s` compares field by field in the backend. A local some `&` in the file
-//! may name draws a serial number from the `ref_serial` intrinsic where it
-//! is declared, so two references to one execution of its declaration
-//! share it; a new object draws one per evaluation. A data field's place
-//! is named by its data object; a top-level binding's by its path.
+//! Identity (`ref.identity.*`): two references are the same place when
+//! they hold the same address, which `r is s` and `identity_of` compare
+//! in the backend.
 
 use hd_base::{DefId, LocalId, NodeIdx, StageResult, Symbol};
 use hd_diag::{Code, FixSafety, Severity};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{
-    Callee, Coercion, IntrinsicOp, NONE, PrimOp, Providers, Ref, Tag, TirSink, local_flags,
-    place_root,
+    Coercion, IntrinsicOp, NONE, Place as TirPlace, PlaceRoot, Proj, Ref, Tag, TirSink, local_flags,
 };
-use hd_types::{Prim, RowId, Ty, TyData, TyList};
+use hd_types::{Ty, TyData};
 
-use crate::body::{Ck, ExpectPosition, LetMutKind, OpenSub, unsupported};
+use crate::body::{Ck, ExpectPosition, LetMutKind, unsupported};
 
 /// Where a referenced place starts.
 #[derive(Clone, Copy)]
@@ -251,21 +241,13 @@ impl Ck<'_, '_> {
     }
 
     /// Reads through the reference `r` of type `rt` (`*r`, or an automatic
-    /// dereference): a `RefRead`, whose closure form calls its `get`
-    /// closure.
+    /// dereference): a `RefRead`.
     pub(crate) fn emit_deref(&mut self, r: Ref, rt: Ty, at: NodeIdx) -> (Ref, Ty) {
-        let pool = self.pool();
         let Some((inner, mutable)) = self.ref_of(rt) else {
             return (r, rt);
         };
-        let get = pool.intern_ty(&fn_ty(pool, &[], inner));
         let t = self.deref_ty(inner, mutable);
-        let blk = self.b.open_block();
-        let f = self.b.emit(Tag::Field, r.0, 0, get, at);
-        let rec = self.b.refs_record(&[]);
-        let v = self.b.emit(Tag::CallValue, f.0, rec, t, at);
-        let form = self.b.close_block(blk, Some(v), t, at);
-        (self.b.emit(Tag::RefRead, r.0, form.0, t, at), t)
+        (self.b.emit(Tag::RefRead, r.0, NONE, t, at), t)
     }
 
     /// The value `r` of type `t` as an index base (`ref.read.index.declared`):
@@ -283,22 +265,14 @@ impl Ck<'_, '_> {
     }
 
     /// Replaces the value the reference `r` of type `rt` refers to with
-    /// `v` (`*r = v`): a `RefWrite`, whose closure form calls its `set`
-    /// closure.
+    /// `v` (`*r = v`): a `RefWrite`.
     pub(crate) fn emit_ref_store(&mut self, r: Ref, rt: Ty, v: Ref, at: NodeIdx) {
-        let pool = self.pool();
         let Some((inner, _)) = self.ref_of(rt) else {
             return;
         };
-        let set = pool.intern_ty(&fn_ty(pool, &[inner], Ty::VOID));
         let v = self.retype(v, inner, at);
-        let blk = self.b.open_block();
-        let f = self.b.emit(Tag::Field, r.0, 1, set, at);
-        let rec = self.b.refs_record(&[v]);
-        self.b.emit(Tag::CallValue, f.0, rec, Ty::VOID, at);
-        let form = self.b.close_block(blk, None, Ty::VOID, at);
         let rec = self.b.refs_record(&[r, v]);
-        self.b.emit(Tag::RefWrite, rec, form.0, Ty::VOID, at);
+        self.b.emit(Tag::RefWrite, rec, NONE, Ty::VOID, at);
     }
 
     /// `v` with the type `to`, which differs from `v`'s at most in views
@@ -389,14 +363,13 @@ impl Ck<'_, '_> {
         };
         let inner = self.strip_mut(self.infer.resolve(pool, place.ty));
         let rt = pool.intern_ty(&TyData::Ref { inner, mutable });
-        let r = self.make_ref(&place, inner, mutable, rt, n);
+        let r = self.make_ref(&place, mutable, rt, n);
         Ok((r, rt))
     }
 
     /// Writes a field path of an already evaluated reference. The RHS
     /// is already evaluated too; the reference keeps the original place,
-    /// and only this field is replaced. `make_ref`'s legacy setter still
-    /// uses `store_place`, which terminates in the ordinary root store.
+    /// and only this field is replaced.
     pub(crate) fn store_ref_field(
         &mut self,
         r: Ref,
@@ -417,7 +390,7 @@ impl Ck<'_, '_> {
             inner,
             mutable: true,
         });
-        let target = self.make_ref(&place, inner, true, field_ref, n);
+        let target = self.make_ref(&place, true, field_ref, n);
         self.emit_ref_store(target, field_ref, v, n.index());
     }
 
@@ -440,7 +413,7 @@ impl Ck<'_, '_> {
         let pool = self.pool();
         let inner = self.strip_mut(t);
         let rt = pool.intern_ty(&TyData::Ref { inner, mutable });
-        (self.make_ref(&place, inner, mutable, rt, n), rt)
+        (self.make_ref(&place, mutable, rt, n), rt)
     }
 
     fn ref_poison(&mut self, n: NodeRef<'_>) -> (Ref, Ty) {
@@ -907,327 +880,76 @@ impl Ck<'_, '_> {
         self.index_kind(lt).map_or(Ty::POISON, |(.., vt)| vt)
     }
 
-    /// Stores `v` of type `vt` into the place `p`: a root is replaced; a
-    /// struct field is stored by rebuilding each struct on the path and
-    /// replacing the root (`types.value.write-once`).
-    fn store_place(&mut self, p: &Place, v: Ref, n: NodeRef<'_>) {
-        let at = n.index();
-        let Some((&(last, _), init)) = p.path.split_last() else {
-            self.store_root(p.root, v, n);
-            return;
-        };
-        let (root, _) = self.read_root(p.root, n);
-        let mut vals = vec![root];
-        for &(i, ty) in init {
-            let prev = vals[vals.len() - 1];
-            vals.push(self.b.emit(Tag::Field, prev.0, i, ty, at));
-        }
-        let mut new = v;
-        let mut field = last;
-        for (k, val) in vals.iter().enumerate().rev() {
-            let ty = self.b.ty_of(*val);
-            let rec = self.b.refs_record(&[Ref(field), new]);
-            new = self.b.emit(Tag::CopyData, val.0, rec, ty, at);
-            if k > 0 {
-                field = init[k - 1].0;
+    /// The reference to the place `p`: a `Ref` of the place
+    /// (`docs/compiler/tir-v2.md`, "`&` and `&mut`"), the address the
+    /// backend makes of it. An element's index, which a local holds, is
+    /// read for the place's element projection.
+    pub(crate) fn make_ref(&mut self, p: &Place, mutable: bool, rt: Ty, n: NodeRef<'_>) -> Ref {
+        self.ref_reads(p, mutable, n);
+        let mut proj = Vec::with_capacity(p.path.len() + 2);
+        let root = match p.root {
+            Root::Local(l, _) => PlaceRoot::Local(l),
+            Root::Global(_, def, ty) => PlaceRoot::Global(def, ty),
+            Root::Deref(l, _, _) => {
+                proj.push(Proj::Deref);
+                PlaceRoot::Local(l)
             }
-        }
-        self.store_root(p.root, new, n);
-    }
-
-    fn store_root(&mut self, root: Root, v: Ref, n: NodeRef<'_>) {
-        let at = n.index();
-        match root {
-            Root::Local(l, d) => {
-                self.note_write(l, d);
-                let lt = self.b.local_ty(l);
-                let v = self.retype(v, lt, at);
-                self.b.set(l, v, at);
+            Root::DataField(l, _, idx, _, _) => {
+                proj.extend([Proj::Deref, Proj::Field(idx)]);
+                PlaceRoot::Local(l)
             }
-            Root::Global(_, def, ty) => {
-                let v = self.retype(v, ty, at);
-                let a = self.b.refs_record(&[Ref(def.raw())]);
-                self.b.emit(Tag::GlobalSet, a, v.0, Ty::VOID, at);
-            }
-            Root::Deref(l, d, rt) => {
-                let (r, _) = self.read_local(l, d, n);
-                self.emit_ref_store(r, rt, v, at);
-            }
-            Root::DataField(l, d, idx, ft, _) => {
-                let (o, _) = self.read_local(l, d, n);
-                let v = self.retype(v, ft, at);
-                let rec = self.b.refs_record(&[Ref(idx), v]);
-                self.b.emit(Tag::FieldSet, o.0, rec, Ty::VOID, at);
-            }
-            Root::Elem(_, buf, bd, idx, id, lt) => {
-                let et = self.elem_ty(lt);
-                let (l, _) = self.read_local(buf, bd, n);
+            Root::Elem(_, buf, _, idx, id, _) => {
                 let (i, _) = self.read_local(idx, id, n);
-                let v = self.retype(v, et, at);
-                let rec = self.b.refs_record(&[l, i, v]);
-                let op = IntrinsicOp::ListSet as u32;
-                self.b.emit(Tag::Intrinsic, op, rec, Ty::VOID, at);
+                self.add_flags(idx, local_flags::CAPTURED);
+                proj.push(Proj::Elem(i));
+                PlaceRoot::Local(buf)
             }
-        }
-    }
-
-    /// The reference to the place `p`: a `RefPlace` naming the place,
-    /// whose closure form is a `Ref[T]` object whose `get` closure reads
-    /// the place and whose `set` closure replaces it. A read-only
-    /// reference's `set` is never called.
-    pub(crate) fn make_ref(
-        &mut self,
-        p: &Place,
-        inner: Ty,
-        mutable: bool,
-        rt: Ty,
-        n: NodeRef<'_>,
-    ) -> Ref {
-        let pool = self.pool();
-        let syn = n.index();
-        let get_ty = pool.intern_ty(&fn_ty(pool, &[], inner));
-        let set_ty = pool.intern_ty(&fn_ty(pool, &[inner], Ty::VOID));
-        let place = self.place_record(p);
-        let form = self.b.open_block();
-        // `get`: reads the place.
-        let mark = self.b.open_sub(&[]);
-        self.subs.push(OpenSub {
-            mark,
-            depth: self.scopes.len(),
-        });
-        let blk = self.b.open_block();
-        let (v, _) = self.read_place(p, n);
-        let v = self.retype(v, inner, syn);
-        let root = self.b.close_block(blk, Some(v), inner, syn);
-        self.subs.pop();
-        let get = self.b.close_sub(mark, root, get_ty, syn);
-        // `set`: replaces it.
-        let sym = self.cx.names.syms.intern("$value");
-        let param = self.b.local(inner, sym, local_flags::PARAM, syn);
-        let mark = self.b.open_sub(&[param]);
-        self.subs.push(OpenSub {
-            mark,
-            depth: self.scopes.len(),
-        });
-        let blk = self.b.open_block();
-        if mutable {
-            let v = self.b.get(param, inner, syn);
-            self.store_place(p, v, n);
-        } else {
-            self.b.emit(Tag::Unreachable, NONE, NONE, Ty::NEVER, syn);
-        }
-        let root = self.b.close_block(blk, None, Ty::VOID, syn);
-        self.subs.pop();
-        let set = self.b.close_sub(mark, root, set_ty, syn);
-        let (base, serial, key) = self.place_identity(p, n);
-        let rec = self.b.refs_record(&[get, set, base, serial, key]);
-        let r = self.b.emit(Tag::NewData, NONE, rec, rt, syn);
-        let form = self.b.close_block(form, Some(r), rt, syn);
-        self.b.emit(Tag::RefPlace, place, form.0, rt, syn)
-    }
-
-    /// The `RefPlace` record of the place `p` (`place_root`).
-    fn place_record(&mut self, p: &Place) -> u32 {
-        let (kind, x, y) = match p.root {
-            Root::Local(l, _) => (place_root::LOCAL, l.raw(), NONE),
-            Root::Global(_, def, ty) => (place_root::GLOBAL, def.raw(), ty.0),
-            Root::Deref(l, _, _) => (place_root::DEREF, l.raw(), NONE),
-            Root::DataField(l, _, idx, _, _) => (place_root::DATA_FIELD, l.raw(), idx),
-            Root::Elem(_, buf, _, idx, _, _) => (place_root::ELEM, buf.raw(), idx.raw()),
         };
-        let mut words = vec![kind, x, y];
-        words.extend(p.path.iter().map(|(idx, _)| *idx));
-        self.b.words_record(&words)
+        proj.extend(p.path.iter().map(|(idx, _)| Proj::Field(*idx)));
+        let word = self.b.place(&TirPlace { root, proj });
+        self.b
+            .emit(Tag::Ref, word, u32::from(mutable), rt, n.index())
     }
 
-    /// The type of a reference's identity base, `dyn Any`.
-    pub(crate) fn any_ty(&self) -> Ty {
-        self.pool().intern_ty(&TyData::TraitValue {
-            def: self.cx.names.known.any,
-            args: TyList::EMPTY,
-            bindings: vec![],
-        })
-    }
-
-    /// The identity of the place `p`, evaluated where the reference is
-    /// taken (`ref.identity.same-place`): the data object that holds it as
-    /// `dyn Any` (`RefRoot`'s one value when no data object does), the
-    /// serial number of its local or new object (0 for a top-level binding
-    /// or a data field), and the path of fields from there.
-    fn place_identity(&mut self, p: &Place, n: NodeRef<'_>) -> (Ref, Ref, Ref) {
-        let at = n.index();
-        let i64_ty = Ty::prim(Prim::I64);
-        let mut suffix = String::new();
-        for (idx, _) in &p.path {
-            suffix.push('.');
-            suffix.push_str(&idx.to_string());
-        }
+    /// The reads and writes of the locals and top-level binding that the
+    /// place `p` starts from, as the reference's former closure form made
+    /// them (its `get` read the place, a `&mut`'s `set` replaced it): the
+    /// checks of a read, a capture into each open closure the reference
+    /// is in, and the local flags. The flags stay as that form left them,
+    /// `CAPTURED` and, for a `&mut` to a local, `CAPTURED_ASSIGNED`,
+    /// since capture modes, collection copies and the backend's loans read
+    /// them (stage 2 moves those decisions into the ownership passes).
+    fn ref_reads(&mut self, p: &Place, mutable: bool, n: NodeRef<'_>) {
+        let read = |ck: &mut Self, l: LocalId, d: usize| {
+            if ck.note_read(l, d, n) {
+                ck.add_flags(l, local_flags::CAPTURED);
+            }
+        };
         match p.root {
             Root::Local(l, d) => {
-                let base = self.root_base(n);
-                let serial = match self.ref_serials.get(&l).copied() {
-                    Some((sl, _)) => self.read_local(sl, d, n).0,
-                    None => self.new_ref_serial(at),
-                };
-                (base, serial, self.b.const_str(&suffix))
-            }
-            Root::Global(_, def, _) => {
-                let base = self.root_base(n);
-                let serial = self.b.const_value(i64_ty, 0);
-                let key = format!("g:{}{suffix}", self.cx.names.path(def));
-                (base, serial, self.b.const_str(&key))
-            }
-            Root::Deref(l, d, _) => {
-                let (r, _) = self.read_local(l, d, n);
-                let any = self.any_ty();
-                let base = self.b.emit(Tag::Field, r.0, 2, any, at);
-                let serial = self.b.emit(Tag::Field, r.0, 3, i64_ty, at);
-                let mut key = self.b.emit(Tag::Field, r.0, 4, Ty::STRING, at);
-                if !suffix.is_empty() {
-                    let tail = self.b.const_str(&suffix);
-                    let rec = self.b.refs_record(&[key, tail]);
-                    key = self.b.emit(
-                        Tag::Intrinsic,
-                        IntrinsicOp::StrConcat as u32,
-                        rec,
-                        Ty::STRING,
-                        at,
+                read(self, l, d);
+                if mutable {
+                    self.add_flags(
+                        l,
+                        local_flags::CAPTURED
+                            | local_flags::CAPTURED_ASSIGNED
+                            | local_flags::ASSIGNED,
                     );
                 }
-                (base, serial, key)
             }
-            Root::DataField(l, d, idx, _, dt) => {
-                let (o, _) = self.read_local(l, d, n);
-                let any = self.any_ty();
-                let o = self.retype(o, self.strip_mut(dt), at);
-                let base = self.coerce(
-                    o,
-                    self.strip_mut(dt),
-                    any,
-                    n,
-                    "reference",
-                    ExpectPosition::General,
-                );
-                let serial = self.b.const_value(i64_ty, 0);
-                (base, serial, self.b.const_str(&format!("f{idx}{suffix}")))
+            Root::Global(s, _, _) => {
+                let _ = self.global_read(s, n);
             }
-            // A slot: the pinned list's header, the index, and `[]` with
-            // the field path (`ref.elem.identity`).
-            Root::Elem(_, buf, bd, idx, id, lt) => {
-                let (l, _) = self.read_local(buf, bd, n);
-                let any = self.any_ty();
-                let base = self.coerce(l, lt, any, n, "reference", ExpectPosition::General);
-                let (i, _) = self.read_local(idx, id, n);
-                let serial = self.b.prim(PrimOp::Conv as u32, &[i], i64_ty, at);
-                (base, serial, self.b.const_str(&format!("[]{suffix}")))
-            }
+            Root::Deref(l, d, _) | Root::DataField(l, d, ..) => read(self, l, d),
+            Root::Elem(_, buf, bd, ..) => read(self, buf, bd),
         }
     }
 
     /// The identity of the reference `r` as a value of std's
-    /// `RefIdentity` (`ty`), whose fields are the reference's identity
-    /// fields in order: what std's `identity_of` returns.
+    /// `RefIdentity` (`ty`), what std's `identity_of` returns: the backend
+    /// makes it from the reference's address.
     pub(crate) fn ref_identity_value(&mut self, r: Ref, ty: Ty, n: NodeRef<'_>) -> Ref {
-        let at = n.index();
-        let blk = self.b.open_block();
-        let any = self.any_ty();
-        // Keep the whole place identity in the erased reference. This avoids
-        // exposing the backend's internal bare identity descriptor to std.
-        let rt = self.b.ty_of(r);
-        let base = self.build_dyn_ref(r, rt, any, false, Coercion::RefToTraitValue, n);
-        let serial = self.b.emit(Tag::Field, r.0, 3, Ty::prim(Prim::I64), at);
-        let key = self.b.emit(Tag::Field, r.0, 4, Ty::STRING, at);
-        let rec = self.b.refs_record(&[base, serial, key]);
-        let v = self.b.emit(Tag::NewData, NONE, rec, ty, at);
-        let form = self.b.close_block(blk, Some(v), ty, at);
-        self.b.emit(Tag::RefIdentity, r.0, form.0, ty, at)
-    }
-
-    /// `RefRoot`'s one value as `dyn Any`: the identity base of a place no
-    /// data object holds.
-    fn root_base(&mut self, n: NodeRef<'_>) -> Ref {
-        let pool = self.pool();
-        let root_ty = pool.intern_ty(&TyData::Adt {
-            def: self.cx.names.known.ref_root,
-            args: TyList::EMPTY,
-        });
-        let rec = self.b.refs_record(&[]);
-        let v = self.b.emit(Tag::NewData, NONE, rec, root_ty, n.index());
-        let any = self.any_ty();
-        self.coerce(v, root_ty, any, n, "reference", ExpectPosition::General)
-    }
-
-    /// A fresh serial number (`ref_serial`).
-    fn new_ref_serial(&mut self, at: NodeIdx) -> Ref {
-        let c = Callee::Item {
-            def: self.cx.names.known.ref_serial,
-            targs: TyList::EMPTY,
-        };
-        self.b
-            .call(&c, &[], Providers::None, Ty::prim(Prim::I64), at)
-    }
-
-    /// The names some `&` or `&mut` in the module's file refers to through
-    /// a chain of fields (`&x`, `&mut x.pos.y`): a local of one of these
-    /// names draws a serial number where it is declared.
-    fn ref_names(&self) -> &hd_base::HashSet<Symbol> {
-        self.cx.ref_names.get_or_init(|| {
-            let tree = &self.cx.src.parse.tree;
-            let mut names = hd_base::HashSet::default();
-            for i in 0..tree.len() {
-                let node = tree.node(NodeIdx::from_raw(u32::try_from(i).expect("nodes")));
-                if node.kind() != SyntaxKind::RefExpr {
-                    continue;
-                }
-                let mut e = node.children().next();
-                while let Some(x) = e {
-                    match x.kind() {
-                        SyntaxKind::ParenExpr | SyntaxKind::FieldExpr => e = x.children().next(),
-                        SyntaxKind::NameExpr => {
-                            names.insert(self.sym_of(x));
-                            break;
-                        }
-                        _ => break,
-                    }
-                }
-            }
-            names
-        })
-    }
-
-    /// Names the local that will hold the serial number of the local `l`
-    /// when some `&` in the file names it: from here on, a reference to
-    /// `l` reads that local, which `l`'s declaration fills
-    /// ([`Self::draw_ref_serial`]). A pattern's binding is named before
-    /// the arm that uses it is checked, and stored after, in the decision
-    /// that runs first.
-    pub(crate) fn reserve_ref_serial(&mut self, l: LocalId, at: NodeIdx) {
-        if self.ref_serials.contains_key(&l) {
-            return;
-        }
-        let name = self.b.body_mut().local_name[l.idx()];
-        if !self.ref_names().contains(&name) {
-            return;
-        }
-        let sym = self.cx.names.syms.intern("$serial");
-        let sl = self
-            .b
-            .local(Ty::prim(Prim::I64), sym, local_flags::ASSIGNED, at);
-        self.ref_serials.insert(l, (sl, false));
-    }
-
-    /// Draws the serial number of the local `l` where it is declared: its
-    /// first store, or a parameter's entry (`ref.identity.places`), when
-    /// some `&` in the file names it. Each execution of the declaration
-    /// draws a new one, as each makes a new place.
-    pub(crate) fn draw_ref_serial(&mut self, l: LocalId, at: NodeIdx) {
-        self.reserve_ref_serial(l, at);
-        let Some(&(sl, false)) = self.ref_serials.get(&l) else {
-            return;
-        };
-        let v = self.new_ref_serial(at);
-        self.b.set(sl, v, at);
-        self.ref_serials.insert(l, (sl, true));
+        self.b.emit(Tag::RefIdentity, r.0, NONE, ty, n.index())
     }
 
     /// `r is s` where an operand is a reference (`ref.identity.*`): both
@@ -1420,16 +1142,5 @@ impl Ck<'_, '_> {
         hd_tir::ir::map_body_types(self.b.body_mut(), &|t| pool.lower_refs(cell, t), &|l| {
             pool.lower_refs_list(cell, l)
         });
-    }
-}
-
-/// The type `fn(params) -> result` with no requirements.
-fn fn_ty(pool: hd_types::Types<'_>, params: &[Ty], result: Ty) -> TyData {
-    TyData::Fn {
-        params: pool.list(params),
-        result,
-        row: RowId::EMPTY,
-        suspends: false,
-        inputs: hd_types::Inputs::Fixed,
     }
 }

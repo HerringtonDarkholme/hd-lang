@@ -1076,6 +1076,28 @@ audit on the commits that touch the emitter).
    `Ref`; identity, serials and `RefRoot` go; `RefIdentity` and `RefDyn`
    lose their blocks; the driver stops stripping. TIR baselines shrink;
    wat and counts baselines stay identical.
+   As built: `RefRead` and `RefWrite` lose their closure forms here too
+   (their `get` and `set` closures no longer exist, and the driver no
+   longer strips), so commits 5 and 6 only change the tags. `make_ref`
+   reads an element's index from its hidden local with a `LocalGet`
+   for the element projection (the hidden local goes when commit 8
+   rewrites `pins.rs`). The closure form's reads also checked the
+   locals and top-level binding the place starts from and set their
+   flags; `make_ref` keeps those effects (`Ck::note_read`, the part of
+   `read_local` that makes no value, and `Ck::global_read`, the part of
+   `global_get`), including the `CAPTURED` flag and a `&mut` local's
+   `CAPTURED_ASSIGNED`, because capture modes, collection copies and
+   the backend's loans read them; stage 2 revisits them. `store_place`
+   and `store_root` go here, since the `set` closure was their last
+   user. The seeded `std.core.RefRoot` and `std.core.ref_serial` go
+   with their host ABI row and the emitter's lowering. The checker's
+   `later_arg_change` counted the getter call of a read through a
+   reference as a possible change of an earlier argument's local; it
+   now counts `RefWrite` and `Store` instead, so a read no longer
+   forces a list copy (`Sha256.finish_plain`). Across the runtime
+   conformance modules the code then differs only in the serial
+   locals' frame and closure-environment slots, that copy, and the
+   order and numbering of functions, types and static data.
 5. **Reads through references.** `emit_deref` emits `Read`, and field
    steps through a dereference extend the place. `RefRead` has no
    producer.

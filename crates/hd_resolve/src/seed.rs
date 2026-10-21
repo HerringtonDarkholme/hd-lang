@@ -132,31 +132,13 @@ pub fn items(names: &Names<'_>, module: &str) -> Vec<Item> {
             if let Some(p) = out.last_mut() {
                 p.intrinsic = Some(sym(names, "panic_message"));
             }
-            // The checker's intermediate closure form of `&T` and `&mut T`
-            // (`crates/hd_wasm_linear/DESIGN.md` §15.2, "References"): a closure
-            // that reads the referenced place and one that replaces it,
-            // then the place's identity, which `is` compares: the data
-            // object that holds the place (`RefRoot`'s one value for every
-            // other place), the serial number of the local or new object
-            // (0 for a top-level binding or a data field), and the path of
-            // fields from there.
-            // Not visible to programs; `hd_types::Types::lower_refs` names it.
-            // RC emission strips the closure blocks and uses counted place addresses.
-            let root = names.item(module, "RefRoot");
-            out.push(Item::new(
-                root,
-                sym(names, "RefRoot"),
-                false,
-                ItemData::Data(vec![]),
-            ));
-            let mut serial = Item::new(
-                names.item(module, "ref_serial"),
-                sym(names, "ref_serial"),
-                false,
-                ItemData::Fn(FnSig::simple(vec![], vec![], Ty::prim(Prim::I64))),
-            );
-            serial.intrinsic = Some(sym(names, "ref_serial"));
-            out.push(serial);
+            // The data type `&T` and `&mut T` lower to when the checker
+            // finishes a body (`hd_types::Types::lower_refs`), which the
+            // backend recognizes as the reference carrier: a reference is
+            // its place's address (`crates/hd_wasm_linear/DESIGN.md` §23.20),
+            // so no field is read. The fields are the former closure form's
+            // (`docs/compiler/tir-v2.md`, stage 1).
+            // Not visible to programs.
             let cell = names.item(module, "Ref");
             let t = param(names, cell, 0);
             let fn_ty = |params: &[Ty], result: Ty| {

@@ -4966,7 +4966,6 @@ impl Run<'_> {
             global: &self.memo,
             solver: &solver,
             methods: std::cell::OnceCell::new(),
-            ref_names: std::cell::OnceCell::new(),
             init: std::cell::RefCell::new(hd_check::init::ModuleInit::after(
                 self.earlier_bindings(m),
                 self.declared_by(m),
@@ -6375,7 +6374,6 @@ impl Run<'_> {
             global: &self.memo,
             solver: &TableSolver,
             methods: std::cell::OnceCell::new(),
-            ref_names: std::cell::OnceCell::new(),
             init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
             results: std::cell::RefCell::default(),
             dbg_refs: std::cell::RefCell::default(),
@@ -6442,7 +6440,6 @@ impl Run<'_> {
             global: &memo,
             solver: &TableSolver,
             methods: std::cell::OnceCell::new(),
-            ref_names: std::cell::OnceCell::new(),
             init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
             results: std::cell::RefCell::default(),
             dbg_refs: std::cell::RefCell::default(),
@@ -7164,14 +7161,6 @@ impl Run<'_> {
                     && dbg::suppress(&mut body, &self.names())
                 {
                     hash = dbg::key(hash);
-                }
-                // The linear backend lowers references as addresses, so
-                // their closure forms never reach it
-                // (`crates/hd_wasm_linear/DESIGN.md` §23.20).
-                if hd_tir::ir::strip_closure_forms(&mut body) {
-                    let mut key = hd_base::StableHasher::new("ref-addresses");
-                    key.hash(hash);
-                    hash = key.finish();
                 }
                 let mut c = lock(&self.counters);
                 c.bodies_decoded += 1;
