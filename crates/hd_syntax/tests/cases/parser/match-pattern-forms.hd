@@ -1,0 +1,22 @@
+# @dump: tree
+# Migrated from trees/pattern-forms.hd; parser coverage only.
+# subject
+fn patterns(value: Shape, pair: (i32, i32), n: i32) -> i32:
+    match value:
+        _ => 0
+        -1 => 1
+        "text" => 2
+        'c' => 3
+        true => 4
+        .Circle(r) => r
+        Shape.Rect(w, height=h) => w * h
+        geo.Shape.Empty => 0
+        Point { x, y: 0 } => x
+        (a, b, rest...) => a
+        (only...,) => 0
+        () => 0
+        ..=-1 => 5
+        1..10 => 6
+        100.. => 7
+        Bare(inner) => inner
+        other if other > 3 => other

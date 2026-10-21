@@ -1,0 +1,5 @@
+# @dump: tree
+# Migrated from trees/default-type-parameters.hd; parser coverage only.
+# subject
+fn pick[T, I < Supplier[Item = T] = Constant](source: I, width: usize = +0) -> T:
+    source.get()

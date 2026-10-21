@@ -1,0 +1,4 @@
+# @dump: tree
+# Migrated from trees/declarations.hd; parser coverage only.
+# subject
+limit := 80

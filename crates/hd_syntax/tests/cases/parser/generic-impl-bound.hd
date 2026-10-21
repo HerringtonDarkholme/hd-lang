@@ -1,0 +1,5 @@
+# @dump: tree
+# Migrated from trees/generics-and-less-than.hd; parser coverage only.
+# subject
+impl[T < Clear] Reset for Holder[T]:
+    fn reset(&mut self) -> void: self.value.clear()

@@ -1,0 +1,6 @@
+# @dump: tree
+# Migrated from trees/declarations.hd; parser coverage only.
+# subject
+impl User by Structure:
+    name = field("name")
+    Self += derive_all()

@@ -1,0 +1,7 @@
+# @dump: tree
+# Migrated from trees/declarations.hd; parser coverage only.
+# subject
+enum Status(code: i32 = 200):
+    Ok -> Status(200)
+    @rename("gone")
+    Missing(path: string, @rename("why") reason: string)

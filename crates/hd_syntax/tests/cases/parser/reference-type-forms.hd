@@ -1,0 +1,5 @@
+# @dump: tree
+# Migrated from trees/references.hd; parser coverage only.
+# subject
+fn types(a: &T, b: &mut T, c: List[&mut T], d: Option[&T], e: &T?, f: fn(&T) -> &mut T, g: &(&T)) -> &Box[T]:
+    pass

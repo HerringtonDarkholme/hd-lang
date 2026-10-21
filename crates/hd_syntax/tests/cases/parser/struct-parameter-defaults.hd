@@ -1,0 +1,5 @@
+# @dump: tree
+# Migrated from trees/default-type-parameters.hd; parser coverage only.
+# subject
+struct Table[+K < Hash, V = string, $R = $()]:
+    pub rows: Map[K, V] = {}

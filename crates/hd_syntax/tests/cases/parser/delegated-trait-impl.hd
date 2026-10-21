@@ -1,0 +1,6 @@
+# @dump: tree
+# Migrated from trees/declarations.hd; parser coverage only.
+# subject
+impl Shape for Point by Base:
+    type Unit = i32
+    fn area(self) -> i32: self.x * self.y

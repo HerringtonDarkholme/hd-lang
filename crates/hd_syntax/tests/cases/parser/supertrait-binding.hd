@@ -1,0 +1,5 @@
+# @dump: tree
+# Migrated from trees/generics-and-less-than.hd; parser coverage only.
+# subject
+trait Numeric < Add[Out = Self] & Copy:
+    fn zero() -> Self

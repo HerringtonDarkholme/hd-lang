@@ -1,0 +1,7 @@
+# @dump: tree
+# Migrated from trees/closures-in-arguments.hd; parser coverage only.
+# subject
+fn apply_all(xs: List[i32]) -> void:
+    choice(fn(a):
+        println(a)
+    , fn(b): println(b))

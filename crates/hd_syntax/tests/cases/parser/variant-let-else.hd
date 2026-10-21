@@ -1,0 +1,5 @@
+# @dump: tree
+# Migrated from trees/pattern-forms.hd; parser coverage only.
+# subject
+fn patterns(value: Shape, pair: (i32, i32), n: i32) -> i32:
+    let .Some(first) = find(n) else: return 0

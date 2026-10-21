@@ -7,5 +7,4 @@ mod fixits;
 mod fuzz;
 mod legacy_syntax;
 mod messages;
-mod snapshots;
 mod stages;

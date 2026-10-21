@@ -1,0 +1,9 @@
+# @dump: tree
+# Migrated from trees/closures-in-arguments.hd; parser coverage only.
+# subject
+fn apply_all(xs: List[i32]) -> void:
+    run(fn!() -> i32 $ Log:
+        twice := fn(x: i32) -> i32:
+            x * 2
+        twice(21)
+    )

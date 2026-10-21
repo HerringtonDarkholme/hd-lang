@@ -1,0 +1,8 @@
+# @dump: tree
+# Migrated from trees/declarations.hd; parser coverage only.
+@derive(Debug, Eq)
+pub struct Point:
+    ## The horizontal position.
+    pub x: i32
+    y: i32 = 0
+    Base

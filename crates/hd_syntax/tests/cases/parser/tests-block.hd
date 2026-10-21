@@ -1,0 +1,8 @@
+# @dump: tree
+# Migrated from trees/declarations.hd; parser coverage only.
+# subject
+tests:
+    use std.testing.assert_equal
+
+    it("adds"):
+        assert_equal(1 + 1, 2)

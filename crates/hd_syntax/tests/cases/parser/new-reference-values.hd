@@ -1,0 +1,6 @@
+# @dump: tree
+# Migrated from trees/references.hd; parser coverage only.
+# subject
+fn places(r: &mut Point, items: List[Point], i: i32):
+    u := &mut Point { x: 1, y: 2 }
+    v := &Box::[i32] { value: 1 }

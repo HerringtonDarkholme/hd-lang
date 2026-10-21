@@ -1,0 +1,5 @@
+# @dump: tree
+# Migrated from trees/declarations.hd; parser coverage only.
+use std.text.{split as cut, join}
+pub use pkg.geo.{Point}
+use dep.json.decode as parse

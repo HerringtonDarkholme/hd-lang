@@ -1,0 +1,7 @@
+# @dump: tree
+# Migrated from trees/declarations.hd; parser coverage only.
+# subject
+trait Shape < Named:
+    type Unit
+    fn area(self) -> i32
+    fn scaled(self, by: i32) -> i32: self.area() * by

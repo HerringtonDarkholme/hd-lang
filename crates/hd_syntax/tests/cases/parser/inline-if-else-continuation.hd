@@ -1,0 +1,6 @@
+# @dump: tree
+# Migrated from trees/layout-continuations.hd; parser coverage only.
+# subject
+fn chain(raw: string, flag: bool) -> i32:
+    pair := (if flag: +1
+     else: +2)

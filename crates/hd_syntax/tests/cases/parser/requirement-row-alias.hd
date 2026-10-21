@@ -1,0 +1,4 @@
+# @dump: tree
+# Migrated from trees/type-forms.hd; parser coverage only.
+# subject
+type AppRow = $ Db + Cache

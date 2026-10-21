@@ -1,0 +1,7 @@
+# @dump: tree
+# Migrated from trees/generics-and-less-than.hd; parser coverage only.
+# subject
+fn below[T < Ord & Hash, $R](value: T, limit: i32) -> bool $ R:
+    if value < limit::[i32]() && first::[T](xs) < value:
+        true
+    Add::[i32]::add(1, 2) < Box::[i32] { value: 1 }.value

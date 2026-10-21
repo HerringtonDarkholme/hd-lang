@@ -1,0 +1,6 @@
+# @dump: tree
+# Migrated from trees/default-type-parameters.hd; parser coverage only.
+# subject
+pub trait Add[Rhs = Self]:
+    type Out
+    fn add(self, other: Rhs) -> Self::Out

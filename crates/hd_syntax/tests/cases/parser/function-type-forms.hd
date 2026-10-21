@@ -1,0 +1,15 @@
+# @dump: tree
+# Migrated from trees/type-forms.hd; parser coverage only.
+fn forms(
+    a: geo.Point,
+    b: dyn Supplier[Item = i32]?,
+    c: mut List[string],
+    d: (i32, (string,), ()),
+    e: (fn() -> i32)?,
+    f: fn!(i32, List[i32]...) -> i32 $ Log + Store[Item = User],
+    g: I::Item,
+    h: $.Context[$ Log + Clock],
+    i: Fn[(), void, $()],
+    j: (List[i32]...,),
+) -> (fn() -> i32 $ Log) $ Clock:
+    fn() -> i32 $ Log: 1
