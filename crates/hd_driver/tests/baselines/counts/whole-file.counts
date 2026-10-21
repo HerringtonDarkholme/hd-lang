@@ -5,16 +5,8 @@ fn first(text: string) -> (string, string):
     (text, text)
 > app/main/first
 >   retain string
->   release string
->   release string
->   release (string, string) [0.0, 1.0]
->   release string
 
 fn second(text: string) -> (string, string):
     (text, text)
 > app/main/second
 >   retain string
->   release string
->   release string
->   release (string, string) [0.0, 1.0]
->   release string

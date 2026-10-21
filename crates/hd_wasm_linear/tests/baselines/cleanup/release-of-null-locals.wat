@@ -31,8 +31,6 @@ fn make(depth: i32) -> &Node:
 >     i32.const 0
 >     local.set t3
 >   end
->   local.get t3
->   call rt:release_ref'2
 >   local.get t17
 >   end
         &Node { left: .None, right: .None }
@@ -53,31 +51,14 @@ fn make(depth: i32) -> &Node:
 >       local.get t0
 >       i32.const 0
 >       i32.store offset=12
->       local.get t1
->       call rt:release_ref'1
 >       local.get t0
 >       local.tee t1
 >       local.tee t2
 >       call retain
 >       local.get t1
->       call rt:release_ref'1
+>       call rt:release_ref
 >       i32.const 0
 >       local.set t1
->   i32.const 0
->   i32.const 0
->   call rt:release'1
->   i32.const 0
->   i32.const 0
->   call rt:release'1
->   i32.const 0
->   i32.const 0
->   i32.const 0
->   i32.const 0
->   call rt:release'2
->   local.get t2
->   call rt:release_ref'2
->   local.get t1
->   call rt:release_ref'1
     else:
         &Node { left: .Some(make(depth - 1)), right: .Some(make(depth - 1)) }
 >       local.get depth
@@ -135,8 +116,6 @@ fn make(depth: i32) -> &Node:
 >       local.get t14
 >       local.get t10
 >       i32.store offset=12
->       local.get t15
->       call rt:release_ref'1
 >       local.get t14
 >       local.set t15
 >       i32.const 0
@@ -151,25 +130,6 @@ fn make(depth: i32) -> &Node:
 >       local.tee t16
 >       call retain
 >       local.get t15
->       call rt:release_ref'1
+>       call rt:release_ref
 >       i32.const 0
 >       local.set t15
->   local.get t4
->   call rt:release_ref'2
->   local.get t6
->   local.get t5
->   call rt:release'1
->   local.get t7
->   call rt:release_ref'2
->   local.get t9
->   local.get t8
->   call rt:release'1
->   local.get t13
->   local.get t12
->   local.get t11
->   local.get t10
->   call rt:release'2
->   local.get t16
->   call rt:release_ref'2
->   local.get t15
->   call rt:release_ref'1

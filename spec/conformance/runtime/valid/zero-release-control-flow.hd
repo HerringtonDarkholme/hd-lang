@@ -1,0 +1,64 @@
+# test: counted values survive branch joins, loop backedges, and recursive cleanup
+# Spec 04 Value Types: types.value.copy.
+# expect: test
+
+struct Tree:
+    word: string
+    left: (&Tree)?
+    right: (&Tree)?
+
+fn tree(depth: i32, word: string) -> &Tree:
+    if depth == 0:
+        &Tree { word: word, left: .None, right: .None }
+    else:
+        &Tree {
+            word: word,
+            left: .Some(tree(depth - 1, word)),
+            right: .Some(tree(depth - 1, word)),
+        }
+
+fn nodes(root: &Tree) -> usize:
+    left := match root.left:
+        .Some(child) => nodes(child)
+        .None => 0
+    right := match root.right:
+        .Some(child) => nodes(child)
+        .None => 0
+    1 + left + right
+
+fn suffix(flag: bool, text: string) -> string:
+    let result = ""
+    if flag:
+        result = text + "!"
+    else:
+        result = text + "?"
+    result
+
+fn repeated() -> List[string]:
+    let mut saved: List[string] = []
+    let current = ""
+    for i in 0..100:
+        current = suffix(i % 2 == 0, "$i")
+        if i < 2 || i == 99:
+            saved.push(current)
+    saved.push(current)
+    saved
+
+tests:
+    use std.testing.assert_equal
+
+    it("both branch results keep their dynamic string"):
+        seed := "root 42"
+        assert_equal(suffix(true, seed), "root 42!", reason="then arm")
+        assert_equal(suffix(false, seed), "root 42?", reason="else arm")
+        assert_equal(seed, "root 42", reason="the caller still owns its value")
+
+    it("later loop iterations retain their old and new values correctly"):
+        assert_equal(repeated(), ["0!", "1?", "99?", "99?"], reason="backedges and retained copies")
+
+    it("recursive optional fields clean up zero and live branches separately"):
+        seed := suffix(true, "node 7")
+        root := tree(6, seed)
+        assert_equal(nodes(root), 127, reason="both recursive branches remain live")
+        assert_equal(root.word, "node 7!", reason="shared counted payload")
+        assert_equal(seed, "node 7!", reason="the original payload remains live")

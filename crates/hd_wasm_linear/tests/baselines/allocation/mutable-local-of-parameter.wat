@@ -129,19 +129,13 @@ fn total(counter: Counter) -> i64:
 >     local.get t0
 >     local.get counter.end
 >     i64.store offset=8
->     local.get cursor
->     call rt:release_ref'1
 >     local.get t0
 >     local.set cursor
->     local.set t5
+>     local.set t4
 >   end
->   local.get cursor
->   call rt:release_ref'1
->   local.get t5
+>   local.get t4
 >   end
     let sum: i64 = 0
->     i64.const 0
->     local.set sum
     while true:
 >     block
 >       loop
@@ -151,23 +145,19 @@ fn total(counter: Counter) -> i64:
 >       end
 >     end
 >     local.get cursor
->     call rt:release_ref'1
+>     call rt:release_ref'2
 >     i32.const 0
 >     local.set cursor
         match cursor.next():
 >           local.get cursor
->           local.get t1
->           local.set t2
 >           local.tee t1
 >           call retain
->           local.get t2
->           call rt:release_ref'2
 >           local.get t1
 >           call impl Counter.next
+>           local.set t2
 >           local.set t3
->           local.set t4
 >           local.get t1
->           call rt:release_ref'2
+>           call rt:release_ref'1
 >           i32.const 0
 >           local.set t1
 >           block
@@ -177,20 +167,14 @@ fn total(counter: Counter) -> i64:
 >               end
 >               br 1
 >             end
->             local.get t1
->             call rt:release_ref'2
->             i32.const 0
->             local.set t1
 >             br 0
 >           end
->   local.get t1
->   call rt:release_ref'2
             .Some(value) => sum = sum + value
->                 local.get t4
+>                 local.get t3
 >                 i32.const 1
 >                 i32.eq
 >                 if
->                   local.get t3
+>                   local.get t2
 >                   local.set value
 >                   br 1
 >                 else
@@ -200,7 +184,7 @@ fn total(counter: Counter) -> i64:
 >               i64.add
 >               local.set sum
             .None => break
->                   local.get t4
+>                   local.get t3
 >                   i32.eqz
 >                   br_if 2
 >                   unreachable

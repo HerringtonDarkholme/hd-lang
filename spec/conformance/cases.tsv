@@ -3686,3 +3686,4 @@ runtime/panic/i64-remainder-by-zero.hd	runtime	panic:integer-division-by-zero	la
 runtime/valid/owned-temporary-collection-loops.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot
 parse/valid/inline-conditions-and-headers.hd	parse	accept	lang/02-grammar.md
 parse/valid/declaration-defaults-and-bindings.hd	parse	accept	lang/02-grammar.md
+runtime/valid/zero-release-control-flow.hd	runtime	accept	lang/04-type-system.md#value-types

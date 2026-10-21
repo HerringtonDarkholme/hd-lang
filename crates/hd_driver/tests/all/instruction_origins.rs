@@ -269,7 +269,9 @@ fn instruction_origins_cover_wide_erased_and_suspending_bodies() {
 
 #[test]
 fn instruction_origins_put_scope_exit_releases_on_the_scope() {
-    let source = "fn length(value: string) -> usize:\n    text := \"$value!\"\n    text.len()\n\npub fn main() -> void $ Console:\n    println(length(\"work\"))\n";
+    // The interpolation's moved/zeroed slots need no exit release. The unused
+    // owned parameter stays live until the scope exits and must be released.
+    let source = "fn length(value: string, unused: string) -> usize:\n    text := \"$value!\"\n    text.len()\n\npub fn main() -> void $ Console:\n    println(length(\"work\", \"still owned\"))\n";
     let output = compile(
         &MemoryStore::default(),
         source,
