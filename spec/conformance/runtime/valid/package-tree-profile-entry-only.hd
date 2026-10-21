@@ -1,0 +1,10 @@
+# test: a profile-only package-tree fixture runs its ordinary entry under that profile
+# Spec 10 Entry Points: module.entry.definition, module.entry.row.
+# fixture-package-tree: entry-only-program/src/main.hd
+# fixture-runtime-profile: pending-write
+# expect-stdout: 45
+
+use pkg.helper.answer
+
+pub fn main() -> void $ Console:
+    println(answer())

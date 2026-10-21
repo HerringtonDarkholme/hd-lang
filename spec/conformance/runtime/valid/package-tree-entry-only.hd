@@ -1,0 +1,9 @@
+# test: an entry-only package-tree fixture runs its ordinary entry without a runtime scenario
+# Spec 10 Entry Points: module.entry.definition, module.entry.row.
+# fixture-package-tree: entry-only-program/src/main.hd
+# expect-stdout: 45
+
+use pkg.helper.answer
+
+pub fn main() -> void $ Console:
+    println(answer())

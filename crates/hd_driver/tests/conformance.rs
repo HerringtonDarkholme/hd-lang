@@ -612,14 +612,15 @@ fn pending_first_poll(text: &str) -> bool {
     directive(text, "fixture-runtime-scenario") == Some(PENDING_FIRST_POLL)
 }
 
-fn has_runtime_harness(text: &str) -> bool {
+fn has_runtime_harness(fixture: &Fixture) -> bool {
+    let text = &fixture.text;
     text.lines()
         .any(|line| line.starts_with("tests:") || line.starts_with("## "))
         || directive(text, "fixture-runtime-profile").is_some()
         || replacing_scenario(text)
         || directive(text, "fixture-runtime-pending-function").is_some()
         || directive(text, "fixture-test-layout").is_some()
-        || directive(text, "fixture-package-tree").is_some()
+        || tree_tests_harness(fixture)
 }
 
 /// The README's Standard Output: each `# expect-stdout: TEXT` line, or
@@ -1278,7 +1279,6 @@ fn profile_entry(text: &str) -> bool {
             "fixture-runtime-scenario",
             "fixture-runtime-pending-function",
             "fixture-test-layout",
-            "fixture-package-tree",
         ]
         .iter()
         .all(|name| directive(text, name).is_none())
@@ -1560,7 +1560,7 @@ fn runtime_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usi
             .text
             .lines()
             .any(|line| line.starts_with("tests:") || line.starts_with("## "));
-    if has_runtime_harness(&fixture.text) && !profile_entry(&fixture.text) && !ordinary_pending {
+    if has_runtime_harness(fixture) && !profile_entry(&fixture.text) && !ordinary_pending {
         let verdict = if tree_tests_harness(fixture) {
             tree_tests_case(case, fixture, store, serial)
         } else if plain_tests(&fixture.text) {
@@ -1634,10 +1634,12 @@ fn entry_verdict(
 /// entry with `Goal::Scenario` and drives the scenario's own steps on
 /// both engines, then judges the drive like an entry run.
 fn scenario_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usize) -> Verdict {
-    let scenario = directive(&fixture.text, "fixture-runtime-scenario");
+    let Some(scenario) = directive(&fixture.text, "fixture-runtime-scenario") else {
+        return Verdict::Fail("missing-runtime-scenario".to_owned());
+    };
     // `pending-first-poll` with test cases runs under the test hosts,
     // which take no runtime profile.
-    if scenario == Some("pending-first-poll") {
+    if scenario == "pending-first-poll" {
         return Verdict::Unsupported("RunCase".to_owned());
     }
     let hold = match scenario {
@@ -1645,11 +1647,11 @@ fn scenario_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: us
         // root itself keeps it pending with no call running beneath it.
         // `reentrant-poll` leaves that frame active, so the next
         // same-driver poll reports re-entry.
-        Some("competing-drivers") => Some(ScenarioHold {
+        "competing-drivers" => Some(ScenarioHold {
             func: "main".to_owned(),
             active: false,
         }),
-        Some("reentrant-poll") => Some(ScenarioHold {
+        "reentrant-poll" => Some(ScenarioHold {
             func: "main".to_owned(),
             active: true,
         }),
@@ -1683,7 +1685,6 @@ fn scenario_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: us
         return Verdict::Unsupported("Link".to_owned());
     };
     let profile = directive(&fixture.text, "fixture-runtime-profile");
-    let scenario = scenario.unwrap_or("cancellation-cleanup");
     let run = match scenario_run(case, runnable.modules(wasm), serial, profile, scenario) {
         Ok(run) => run,
         Err(error) => return Verdict::Crash(error.to_string()),
