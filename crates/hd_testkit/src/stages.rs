@@ -561,6 +561,7 @@ fn run_cases(dir: &Path, views: &dyn Fn(&str, &Program) -> Option<String>, bless
     files.sort();
     assert!(!files.is_empty(), "no `.hd` cases in {}", dir.display());
     let baseline_root = dir.parent().expect("tests directory").join("baselines");
+    let mut expected_baselines = std::collections::BTreeSet::new();
     let mut failures = Vec::new();
     for path in files {
         let text =
@@ -596,6 +597,7 @@ fn run_cases(dir: &Path, views: &dyn Fn(&str, &Program) -> Option<String>, bless
                 relative.to_string_lossy().replace('\\', "/")
             );
             let baseline = baseline_root.join(relative).with_extension(dump);
+            expected_baselines.insert(baseline.clone());
             if bless {
                 std::fs::create_dir_all(baseline.parent().expect("baseline directory"))
                     .expect("create baseline directory");
@@ -613,6 +615,29 @@ fn run_cases(dir: &Path, views: &dyn Fn(&str, &Program) -> Option<String>, bless
                         "{}: {error}; rerun with HD_BLESS=1 to create this baseline",
                         baseline.display()
                     )),
+                }
+            }
+        }
+    }
+    // A baseline whose case or dump is gone: blessing deletes it.
+    let mut stack = vec![baseline_root];
+    while let Some(dir) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries {
+            let path = entry.expect("directory entry").path();
+            if path.is_dir() {
+                stack.push(path);
+            } else if !expected_baselines.contains(&path) {
+                if bless {
+                    std::fs::remove_file(&path)
+                        .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+                } else {
+                    failures.push(format!(
+                        "{} has no case or dump; rerun with HD_BLESS=1 to delete it",
+                        path.display()
+                    ));
                 }
             }
         }
@@ -704,6 +729,12 @@ mod tests {
         assert_eq!(std::fs::read_to_string(&source).unwrap(), input);
         std::fs::write(&baseline, "stale\n").unwrap();
         assert!(std::panic::catch_unwind(|| super::run_cases(&dir, &fake, false)).is_err());
+        super::run_cases(&dir, &fake, true);
+        let orphan = root.join("baselines/topic/gone.tokens");
+        std::fs::write(&orphan, "orphan\n").unwrap();
+        assert!(std::panic::catch_unwind(|| super::run_cases(&dir, &fake, false)).is_err());
+        super::run_cases(&dir, &fake, true);
+        assert!(!orphan.exists());
     }
     #[test]
     fn virtual_modules_reach_every_compiler_view_without_leaking_their_spans() {

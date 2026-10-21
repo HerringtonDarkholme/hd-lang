@@ -93,7 +93,8 @@ are the point. Never snapshot a whole module.
   `cargo test -p hd_syntax --test all stages::`). A mismatch prints a line
   diff (`-` baseline, `+` actual); a missing baseline gives a blessing hint.
 - Bless: `HD_BLESS=1 cargo test -p <crate> --test stages` overwrites the
-  baselines, leaving source cases untouched. A separate case file selects
+  baselines and deletes those whose case or dump is gone (a plain run
+  fails on them), leaving source cases untouched. A separate case file selects
   a different build, so one baseline has one build. **Read the baseline
   diff before committing**: it is the review of what the compiler now emits. A blessed regression is a bug
   you just recorded as correct.
