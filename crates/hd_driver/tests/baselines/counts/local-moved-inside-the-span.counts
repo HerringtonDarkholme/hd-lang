@@ -2,6 +2,3 @@
 app/main/last
   retain &app.main.Box
   release &app.main.Box
-  release &app.main.Box
-  release &app.main.Box
-  release app.main.Holder

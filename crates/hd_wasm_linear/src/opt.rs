@@ -35,7 +35,9 @@
 //!     pushes a local, a global or a constant that `X` cannot change, is
 //!     `P; X`;
 //! 11. a local no instruction names is not declared, and the others are
-//!     numbered again in order.
+//!     numbered again in order;
+//! 12. a release of zero and a redundant store of zero go when forward
+//!     local facts prove them zero on every path, including loop backedges.
 //!
 //! Across functions, [`constants`] reads a top-level binding that only
 //! its init writes, with a constant, as that constant.
@@ -176,11 +178,265 @@ pub fn locals(f: &mut Func, arity: &Arity) {
         changed |= shapes(f, np);
         changed |= fold(f);
         changed |= schedule(f, np, arity);
-        if !changed {
+        if !changed && !zero_releases(f) {
             break;
         }
     }
     renumber(f);
+}
+
+/// Local zero facts at structured control-flow edges. Branches meet by
+/// intersection; loop backedges participate in the same fixed point.
+enum ZeroEdges {
+    Next,
+    Exit,
+    Jump(usize),
+    Either(usize, usize),
+    Table(Vec<usize>),
+}
+
+impl ZeroEdges {
+    fn each(&self, next: usize, mut visit: impl FnMut(usize)) {
+        match self {
+            Self::Next => visit(next),
+            Self::Exit => {}
+            Self::Jump(to) => visit(*to),
+            Self::Either(a, b) => {
+                visit(*a);
+                visit(*b);
+            }
+            Self::Table(targets) => targets.iter().copied().for_each(visit),
+        }
+    }
+}
+
+/// The CFG of the control instructions the linear backend emits. Unknown
+/// exception/reference branches conservatively leave a function unchanged.
+fn zero_edges(body: &[Ins]) -> Option<Vec<ZeroEdges>> {
+    let mut ends = vec![body.len(); body.len()];
+    let mut other = vec![None; body.len()];
+    let mut labels = Vec::new();
+    for (at, ins) in body.iter().enumerate() {
+        match ins {
+            Ins::Op(I::Block(_) | I::Loop(_) | I::If(_)) => labels.push(at),
+            Ins::Op(I::Else) => other[*labels.last()?] = Some(at),
+            Ins::Op(I::End) => {
+                if let Some(open) = labels.pop() {
+                    ends[open] = at;
+                }
+            }
+            Ins::Op(
+                I::TryTable(..)
+                | I::Try(_)
+                | I::Catch(_)
+                | I::CatchAll
+                | I::Delegate(_)
+                | I::Rethrow(_)
+                | I::Throw(_)
+                | I::ThrowRef
+                | I::BrOnNull(_)
+                | I::BrOnNonNull(_)
+                | I::BrOnCast { .. }
+                | I::BrOnCastFail { .. }
+                | I::BrOnCastDescEq { .. }
+                | I::BrOnCastDescEqFail { .. },
+            ) => return None,
+            _ => {}
+        }
+    }
+    if !labels.is_empty() {
+        return None;
+    }
+    let mut edges = Vec::with_capacity(body.len());
+    for (at, ins) in body.iter().enumerate() {
+        let target = |depth: u32, labels: &[usize]| {
+            let Some(pos) = labels.len().checked_sub(depth as usize + 1) else {
+                return body.len(); // The implicit function label.
+            };
+            let open = labels[pos];
+            if matches!(body[open], Ins::Op(I::Loop(_))) {
+                open + 1
+            } else {
+                ends[open] + 1
+            }
+        };
+        let edge = match ins {
+            Ins::Op(I::Block(_) | I::Loop(_)) => {
+                labels.push(at);
+                ZeroEdges::Next
+            }
+            Ins::Op(I::If(_)) => {
+                labels.push(at);
+                ZeroEdges::Either(at + 1, other[at].map_or(ends[at] + 1, |e| e + 1))
+            }
+            Ins::Op(I::Else) => ZeroEdges::Jump(ends[*labels.last()?] + 1),
+            Ins::Op(I::End) => {
+                labels.pop();
+                ZeroEdges::Next
+            }
+            Ins::Op(I::Br(depth)) => ZeroEdges::Jump(target(*depth, &labels)),
+            Ins::Op(I::BrIf(depth)) => ZeroEdges::Either(at + 1, target(*depth, &labels)),
+            Ins::Op(I::BrTable(table, default)) => ZeroEdges::Table(
+                table
+                    .iter()
+                    .chain([default])
+                    .map(|d| target(*d, &labels))
+                    .collect(),
+            ),
+            Ins::Op(
+                I::Return
+                | I::Unreachable
+                | I::ReturnCall(_)
+                | I::ReturnCallRef(_)
+                | I::ReturnCallIndirect { .. },
+            ) => ZeroEdges::Exit,
+            _ => ZeroEdges::Next,
+        };
+        edges.push(edge);
+    }
+    Some(edges)
+}
+
+fn zero_local(known: &[u64], local: u32) -> bool {
+    known[local as usize / 64] & (1 << (local % 64)) != 0
+}
+
+fn set_zero(known: &mut [u64], local: u32, zero: bool) {
+    let word = &mut known[local as usize / 64];
+    let bit = 1 << (local % 64);
+    if zero {
+        *word |= bit;
+    } else {
+        *word &= !bit;
+    }
+}
+
+/// A pure push of zero bits; every other expression remains unknown.
+fn pushes_zero(ins: &Ins, known: &[u64]) -> bool {
+    match ins {
+        Ins::Op(I::I32Const(0) | I::I64Const(0)) => true,
+        Ins::Op(I::F32Const(v)) => v.bits() == 0,
+        Ins::Op(I::F64Const(v)) => v.bits() == 0,
+        Ins::Op(I::LocalGet(l)) => zero_local(known, *l),
+        _ => false,
+    }
+}
+
+/// Deletes only release arguments/calls and stores proved redundant on
+/// every incoming path. Local facts use packed bits to bound per-body memory.
+fn zero_releases(f: &mut Func) -> bool {
+    let release_width = |ins: &Ins| match ins {
+        Ins::Call(Sym::Helper(Helper::ReleaseRef | Helper::ReleaseKnown)) => Some(1),
+        Ins::Call(Sym::Helper(Helper::Release { vals, .. })) => Some(vals.len()),
+        _ => None,
+    };
+    if !f.body.iter().any(|i| release_width(i).is_some()) {
+        return false;
+    }
+    let Some(edges) = zero_edges(&f.body) else {
+        return false;
+    };
+    let n = f.params.len() + f.locals.len();
+    let mut entry = vec![0u64; n.div_ceil(64)];
+    for l in f.params.len()..n {
+        set_zero(&mut entry, u32::try_from(l).expect("locals"), true);
+    }
+    let mut facts: Vec<Option<Vec<u64>>> = vec![None; f.body.len()];
+    let Some(first) = facts.first_mut() else {
+        return false;
+    };
+    *first = Some(entry);
+    let mut pending = std::collections::VecDeque::from([0]);
+    let mut queued = vec![false; f.body.len()];
+    queued[0] = true;
+    while let Some(at) = pending.pop_front() {
+        queued[at] = false;
+        let mut after = facts[at].as_ref().expect("reachable").clone();
+        match &f.body[at] {
+            Ins::Op(I::LocalSet(l) | I::LocalTee(l)) => {
+                let zero = at.checked_sub(1).is_some_and(|p| {
+                    pushes_zero(&f.body[p], &after)
+                        || matches!(f.body[p], Ins::Op(I::LocalTee(t)) if zero_local(&after, t))
+                });
+                set_zero(&mut after, *l, zero);
+            }
+            Ins::LoadAll => after.fill(0), // A suspended frame may contain any values.
+            _ => {}
+        }
+        edges[at].each(at + 1, |to| {
+            if to >= facts.len() {
+                return;
+            }
+            let changed = if let Some(before) = &mut facts[to] {
+                let mut changed = false;
+                for (a, b) in before.iter_mut().zip(&after) {
+                    let meet = *a & *b;
+                    changed |= meet != *a;
+                    *a = meet;
+                }
+                changed
+            } else {
+                facts[to] = Some(after.clone());
+                true
+            };
+            if changed && !queued[to] {
+                pending.push_back(to);
+                queued[to] = true;
+            }
+        });
+    }
+    let mut gone = vec![false; f.body.len()];
+    for (at, ins) in f.body.iter().enumerate() {
+        let Some(known) = &facts[at] else {
+            continue;
+        };
+        if let Some(n) = release_width(ins) {
+            let mut args = Vec::new();
+            for p in (0..at).rev() {
+                if matches!(f.body[p], Ins::Anchor(_)) {
+                    continue;
+                }
+                if args.len() == n || !pushes_zero(&f.body[p], known) {
+                    break;
+                }
+                args.push(p);
+            }
+            if args.len() == n {
+                gone[at] = true;
+                for p in args {
+                    gone[p] = true;
+                }
+            }
+        } else if let Ins::Op(I::LocalSet(l) | I::LocalTee(l)) = ins
+            && zero_local(known, *l)
+            && at
+                .checked_sub(1)
+                .is_some_and(|p| pushes_zero(&f.body[p], known))
+        {
+            gone[at] = true;
+            if matches!(ins, Ins::Op(I::LocalSet(_))) {
+                gone[at - 1] = true;
+            }
+        }
+    }
+    if !gone.iter().any(|g| *g) {
+        return false;
+    }
+    let mut origins = Remap::new(f.origins.as_deref());
+    f.body = std::mem::take(&mut f.body)
+        .into_iter()
+        .enumerate()
+        .filter_map(|(at, ins)| {
+            if gone[at] {
+                None
+            } else {
+                origins.copy(at..at + 1);
+                Some(ins)
+            }
+        })
+        .collect();
+    origins.finish(f);
+    true
 }
 
 /// Rule 4: moves each copy into a local read once to its read.
@@ -1495,5 +1751,209 @@ mod origin_tests {
             assert!(s.contains(&11) && s.contains(&13));
             assert!(s.iter().all(|i| (10..=13).contains(i)));
         }
+    }
+    fn releases(f: &Func) -> usize {
+        f.body
+            .iter()
+            .filter(|i| {
+                matches!(
+                    i,
+                    Ins::Call(Sym::Helper(
+                        Helper::ReleaseRef | Helper::ReleaseKnown | Helper::Release { .. }
+                    ))
+                )
+            })
+            .count()
+    }
+
+    #[test]
+    fn zero_facts_remove_initial_and_moved_slots_but_keep_live_values() {
+        let f = tracked(
+            1,
+            2,
+            vec![
+                Ins::Op(I::LocalGet(1)),
+                Ins::Call(Sym::Helper(Helper::ReleaseRef)),
+                Ins::Op(I::I32Const(0)),
+                Ins::Call(Sym::Helper(Helper::ReleaseKnown)),
+                Ins::Op(I::LocalGet(0)),
+                Ins::Call(Sym::Helper(Helper::ReleaseRef)),
+                Ins::Op(I::I32Const(7)),
+                Ins::Op(I::LocalSet(2)),
+                Ins::Op(I::LocalGet(2)),
+                Ins::Call(Sym::Helper(Helper::ReleaseRef)),
+                Ins::Op(I::I32Const(0)),
+                Ins::Op(I::LocalSet(2)),
+                Ins::Op(I::LocalGet(2)),
+                Ins::Call(Sym::Helper(Helper::ReleaseRef)),
+                Ins::Op(I::I32Const(0)),
+                Ins::Op(I::LocalSet(2)),
+            ],
+        );
+        let f = run(f, |f| {
+            zero_releases(f);
+        });
+        assert_eq!(releases(&f), 2);
+        assert_eq!(
+            f.body
+                .iter()
+                .filter(|i| matches!(i, Ins::Op(I::LocalSet(2))))
+                .count(),
+            2
+        );
+    }
+
+    #[test]
+    fn zero_facts_meet_both_if_arms_and_exclude_returned_paths() {
+        let branch = |live: bool| {
+            tracked(
+                2,
+                1,
+                vec![
+                    Ins::Op(I::LocalGet(0)),
+                    Ins::Op(I::If(BlockType::Empty)),
+                    Ins::Op(if live { I::LocalGet(1) } else { I::I32Const(0) }),
+                    Ins::Op(I::LocalSet(2)),
+                    Ins::Op(I::Else),
+                    Ins::Op(I::I32Const(0)),
+                    Ins::Op(I::LocalSet(2)),
+                    Ins::Op(I::End),
+                    Ins::Op(I::LocalGet(2)),
+                    Ins::Call(Sym::Helper(Helper::ReleaseRef)),
+                ],
+            )
+        };
+        assert_eq!(
+            releases(&run(branch(false), |f| {
+                zero_releases(f);
+            })),
+            0
+        );
+        assert_eq!(
+            releases(&run(branch(true), |f| {
+                zero_releases(f);
+            })),
+            1
+        );
+        let mut exits = branch(true);
+        exits.body.insert(4, Ins::Op(I::Return));
+        exits.origins = Some(vec![Some(17); exits.body.len()]);
+        assert_eq!(
+            releases(&run(exits, |f| {
+                zero_releases(f);
+            })),
+            0
+        );
+    }
+
+    #[test]
+    fn zero_facts_include_loop_backedges_and_branch_table_exits() {
+        let loop_body = |reset: bool| {
+            let mut body = vec![
+                Ins::Op(I::Loop(BlockType::Empty)),
+                Ins::Op(I::LocalGet(1)),
+                Ins::Call(Sym::Helper(Helper::ReleaseRef)),
+                Ins::Op(I::LocalGet(0)),
+                Ins::Op(I::LocalSet(1)),
+            ];
+            if reset {
+                body.extend([Ins::Op(I::I32Const(0)), Ins::Op(I::LocalSet(1))]);
+            }
+            body.extend([
+                Ins::Op(I::LocalGet(0)),
+                Ins::Op(I::BrIf(0)),
+                Ins::Op(I::End),
+            ]);
+            tracked(1, 1, body)
+        };
+        assert_eq!(
+            releases(&run(loop_body(false), |f| {
+                zero_releases(f);
+            })),
+            1
+        );
+        assert_eq!(
+            releases(&run(loop_body(true), |f| {
+                zero_releases(f);
+            })),
+            0
+        );
+        let table = tracked(
+            1,
+            1,
+            vec![
+                Ins::Op(I::Block(BlockType::Empty)),
+                Ins::Op(I::Block(BlockType::Empty)),
+                Ins::Op(I::LocalGet(0)),
+                Ins::Op(I::BrTable(vec![0].into(), 1)),
+                Ins::Op(I::End),
+                Ins::Op(I::I32Const(7)),
+                Ins::Op(I::LocalSet(1)),
+                Ins::Op(I::End),
+                Ins::Op(I::LocalGet(1)),
+                Ins::Call(Sym::Helper(Helper::ReleaseRef)),
+            ],
+        );
+        assert_eq!(
+            releases(&run(table, |f| {
+                zero_releases(f);
+            })),
+            1
+        );
+    }
+
+    #[test]
+    fn zero_facts_respect_frame_loads_and_preserve_source_origins() {
+        let loaded = tracked(
+            0,
+            1,
+            vec![
+                Ins::LoadAll,
+                Ins::Op(I::LocalGet(0)),
+                Ins::Call(Sym::Helper(Helper::ReleaseRef)),
+            ],
+        );
+        assert_eq!(
+            releases(&run(loaded, |f| {
+                zero_releases(f);
+            })),
+            1
+        );
+        let f = tracked(
+            1,
+            0,
+            vec![
+                Ins::Op(I::I32Const(0)),
+                Ins::Anchor(99),
+                Ins::Call(Sym::Helper(Helper::ReleaseRef)),
+                Ins::Op(I::LocalGet(0)),
+                Ins::Call(Sym::Helper(Helper::ReleaseRef)),
+            ],
+        );
+        let f = run(f, |f| {
+            zero_releases(f);
+        });
+        assert_eq!(spans(&f), [11, 13, 14]);
+        let value = tracked(
+            0,
+            2,
+            vec![
+                Ins::Op(I::LocalGet(0)),
+                Ins::Op(I::LocalGet(1)),
+                Ins::Call(Sym::Helper(Helper::Release {
+                    vals: vec![Val::I32, Val::I32],
+                    walk: crate::layout::Walk::Switch(
+                        0,
+                        vec![None, Some(crate::layout::Walk::Ref(1))],
+                    ),
+                })),
+            ],
+        );
+        assert_eq!(
+            releases(&run(value, |f| {
+                zero_releases(f);
+            })),
+            0
+        );
     }
 }

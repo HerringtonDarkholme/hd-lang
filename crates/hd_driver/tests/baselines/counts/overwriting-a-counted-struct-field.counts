@@ -3,6 +3,3 @@ app/main/replace
   retain app.main.Text [value.0]
   release app.main.Text [value.0]
   release app.main.Text [value.0]
-  release app.main.Text [value.0]
-  release string
-  release app.main.Text [value.0]
