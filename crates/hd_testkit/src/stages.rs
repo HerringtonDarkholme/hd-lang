@@ -8,9 +8,9 @@
 //! - `-- context --` and the hd that every case in the file uses;
 //! - for each case, `-- case: NAME --`, the case's hd, then one block per
 //!   view, `-- VIEW --` followed by the expected output (`tokens`, `tree`,
-//!   `tir`, `tir-flags`, which adds each local's flags, and `wat`, the
-//!   normalized Wasm of the subject, `wat.rs`). A header may name a build
-//!   after the view, `-- wat (wasmtime, release) --` ([`Build`]).
+//!   `tir`, `tir-flags` (local flags), `wat` (normalized Wasm), `layout`
+//!   (concrete struct fields), or `counts` (retain/release/free operations).
+//!   A header may name a build, as `-- wat (wasmtime, release) --` ([`Build`]).
 //!
 //! A case's program is the context followed by the case. Its subject is
 //! marked by a comment, so the case stays valid hd for `hd fmt` and
@@ -27,6 +27,10 @@
 //! rewrites every view block in place. A case without view blocks gets
 //! the views of the case before it, so adding a case is pasting its code
 //! and blessing.
+
+mod counts;
+mod inspection;
+mod layout;
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -422,6 +426,8 @@ pub fn view(view: &str, p: &Program) -> Option<String> {
         None => (view, Build::default()),
     };
     Some(match name {
+        "layout" => layout::view(p, build),
+        "counts" => counts::view(p, build),
         "tokens" if build == Build::default() => tokens(p),
         "tree" if build == Build::default() => tree(p),
         "tir" if build == Build::default() => tir(p),

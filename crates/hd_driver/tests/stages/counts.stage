@@ -1,0 +1,138 @@
+# Only surviving count/free operations inside the subject; source type labels.
+-- context --
+struct Text:
+    value: string
+
+fn context_copy(value: string) -> (string, string):
+    (value, value)
+-- case: unused owned parameter cleanup --
+# subject
+fn first(left: string, _right: string) -> string:
+    left
+-- counts --
+app/main/first
+  release string
+  release string
+  release string
+-- case: returning two copies retains the shared string --
+fn twice(value: string) -> (string, string):
+    # subject
+    (value, value)
+-- counts --
+app/main/twice
+  retain string
+  release string
+  release string
+  release (string, string) [0.0, 1.0]
+  release string
+-- case: assignment in a loop releases the previous string --
+fn last(items: List[string]) -> string:
+    let result = ""
+    for value in items:
+        # subject
+        result = value
+    result
+-- counts --
+app/main/last
+  retain string
+  release string
+-- case: overwriting a counted struct field --
+fn replace(value: Text, next: string) -> Text:
+    let mut copy = value
+    # subject
+    copy.value = next
+    copy
+-- counts --
+app/main/replace
+  retain app.main.Text [value.0]
+  release app.main.Text [value.0]
+  retain app.main.Text [value.0]
+  release app.main.Text [value.0]
+  release app.main.Text [value.0]
+  release app.main.Text [value.0]
+  release string
+  release app.main.Text [value.0]
+  release app.main.Text [value.0]
+-- case: replacing a list element --
+fn replace(items: &mut List[string], next: string) -> void:
+    # subject
+    items[0] = next
+-- counts --
+app/main/replace
+  release string
+  release string
+  release string
+-- case: returning a counted struct --
+fn twice(value: Text) -> (Text, Text):
+    # subject
+    (value, value)
+-- counts --
+app/main/twice
+  retain app.main.Text [value.0]
+  release app.main.Text [value.0]
+  release app.main.Text [value.0]
+  release (app.main.Text, app.main.Text) [0.value.0, 1.value.0]
+  release app.main.Text [value.0]
+-- case: a scalar subject excludes the context function's counts --
+fn add(left: i32, right: i32) -> i32:
+    # subject
+    left + right
+-- counts --
+no count operations
+-- case: a marked copy excludes another copy in the same body --
+fn copies(value: string) -> ((string, string), (string, string)):
+    first := (value, value)
+    # subject
+    second := (value, value)
+    (first, second)
+-- counts --
+app/main/copies
+  retain string
+  release (string, string) [0.0, 1.0]
+  release string
+  release string
+  release (string, string) [0.0, 1.0]
+  release (string, string) [0.0, 1.0]
+-- case: returning a list twice exposes header counts --
+fn twice(items: List[i32]) -> (List[i32], List[i32]):
+    # subject
+    (items, items)
+-- counts --
+app/main/twice
+  retain List[i32]
+  retain List[i32]
+  retain List[i32]
+  release List[i32]
+  release List[i32]
+  release List[i32]
+  release List[i32]
+  release (List[i32], List[i32]) [0, 1]
+  release List[i32]
+  release counted reference
+  release counted reference
+-- counts (wasmtime) --
+app/main/twice
+  retain List[i32]
+  retain List[i32]
+  retain List[i32]
+  release List[i32]
+  release List[i32]
+  release List[i32]
+  release List[i32]
+  release (List[i32], List[i32]) [0, 1]
+  release List[i32]
+  release counted reference
+  release counted reference
+-- counts (wasmtime, release) --
+app/main/twice
+  retain List[i32]
+  retain List[i32]
+  retain List[i32]
+  release List[i32]
+  release List[i32]
+  release List[i32]
+  release List[i32]
+  release (List[i32], List[i32]) [0, 1]
+  release List[i32]
+  release counted reference
+  release counted reference

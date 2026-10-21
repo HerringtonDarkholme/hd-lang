@@ -1901,3 +1901,36 @@ exports are synthesized. Ordinary builds still prune from their exports.
 The driver exposes this only through the development `Goal::Fixture`
 API, with sorted notes for generic definitions lacking an instantiation;
 there is no CLI flag or language rule (#663).
+
+### 23.35 Layout And Count Development Views
+
+The fixture driver exposes concrete struct declarations through
+`views::inspect_layout`. It uses emission's `mem`, field parts, counted
+walk and cycle analysis. Field names come from `ProgramEnv::data_field_names`;
+counted-leaf paths and count labels reuse #673's `layout::value_paths`. Field paths are source names; nested offsets and
+counted-leaf offsets are bytes from the value's base. Conditional leaves
+mark enum/option payloads; the cycle bit uses `cycle::object` for that type.
+Generic declarations without a concrete declared type are not layout roots.
+
+Mapped functions also expose final count/free operations. Typed counting
+sequences carry a type label in their source-map metadata. Internally,
+extra origin tokens follow the body's real TIR instruction range and map
+back to that instruction and label. Existing rewrites copy those opaque
+tokens, so the view needs no new optimizer instruction or Wasm anchor.
+Public pre-optimization and final maps always resolve back to real TIR
+instructions; the tokens never enter Wasm or source-span consumers.
+
+Only surviving count/free calls are reported. An inlined count fast path
+and its fallback share one operation label, rather than appearing twice.
+Direct runtime calls without a typed counting sequence use a runtime
+object label (`block` or `counted reference`). Labels describe the counted
+value's type, not dynamic invocation counts or whether a nullable/static
+pointer takes the helper's no-op branch.
+
+`hd_testkit::stages` adds exact `layout` and `counts` views. Layout filters
+source declarations; counts filters final operations with #661's source
+spans, excluding std/helper bodies and context outside the subject. Topic
+files in `hd_driver/tests/stages` cover padding, nested/List fields,
+conditional counted leaves, cycle capability, parameters, returns, loops,
+field writes. A backend encoding regression covers direct frees. The WAT
+view remains a separate topic/tool (#664).

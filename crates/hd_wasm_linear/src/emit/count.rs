@@ -228,6 +228,25 @@ impl Em<'_, '_, '_> {
     /// Calls `on` for the value in locals `ls` of type `t`: one count more
     /// (`retain`) or less on each of its counted references.
     pub(super) fn count_locals(&mut self, ls: &[u32], t: Ty, retain: bool) -> StageResult<()> {
+        let start = self.f.body.len();
+        let result = self.count_locals_inner(ls, t, retain);
+        if result.is_ok() && self.f.origins.is_some() {
+            let subject = crate::views::count_subject(self.pool(), self.env(), t);
+            self.f.note_count(
+                start,
+                u32::try_from(self.b.tags.len()).expect("TIR instructions"),
+                if retain {
+                    crate::views::CountAction::Retain
+                } else {
+                    crate::views::CountAction::Release
+                },
+                &subject,
+            );
+        }
+        result
+    }
+
+    fn count_locals_inner(&mut self, ls: &[u32], t: Ty, retain: bool) -> StageResult<()> {
         let Some(w) = self.counted(t) else {
             return Ok(());
         };

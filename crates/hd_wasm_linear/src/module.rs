@@ -253,6 +253,9 @@ pub struct Func {
     pub origin_args: Vec<String>,
     /// With origins: the static data addresses the body pushes.
     pub statics: Option<BTreeSet<u32>>,
+    count_origin_base: Option<u32>,
+    count_origins: Vec<crate::views::CountOrigin>,
+    count_sites: u32,
     /// A complete relocation-free body, including locals and the final end.
     pub raw: Option<Vec<u8>>,
     /// The TIR instruction whose code is being written, when it has a
@@ -271,6 +274,61 @@ impl Func {
             params,
             results,
             ..Func::default()
+        }
+    }
+
+    pub fn set_origin_source_len(&mut self, len: usize) {
+        self.count_origin_base = Some(u32::try_from(len).expect("TIR instructions"));
+    }
+
+    pub fn source_origin(&self, origin: Option<u32>) -> Option<u32> {
+        origin.map(|o| self.count_origin(o).map_or(o, |n| n.origin))
+    }
+
+    fn count_origin(&self, origin: u32) -> Option<&crate::views::CountOrigin> {
+        self.count_origins
+            .get(origin.checked_sub(self.count_origin_base?)? as usize)
+    }
+
+    /// Annotates just emitted count code using opaque source-map tokens. A
+    /// merged/expanded instruction keeps its label through the origin remapper.
+    pub fn note_count(
+        &mut self,
+        start: usize,
+        source_len: u32,
+        action: crate::views::CountAction,
+        subject: &str,
+    ) {
+        if self.origins.is_none() || start == self.body.len() {
+            return;
+        }
+        let base = *self.count_origin_base.get_or_insert(source_len);
+        assert_eq!(base, source_len);
+        let site = self.count_sites;
+        self.count_sites += 1;
+        let mut tokens = BTreeMap::new();
+        for k in start..self.body.len() {
+            let Some(original) = self.source_origin(self.origins.as_ref().expect("mapped")[k])
+            else {
+                continue;
+            };
+            assert!(
+                original < base,
+                "real source instruction precedes metadata tokens"
+            );
+            let token = *tokens.entry(original).or_insert_with(|| {
+                let token = base
+                    .checked_add(u32::try_from(self.count_origins.len()).expect("origin notes"))
+                    .expect("origin token");
+                self.count_origins.push(crate::views::CountOrigin {
+                    origin: original,
+                    site,
+                    action,
+                    subject: subject.to_owned(),
+                });
+                token
+            });
+            self.origins.as_mut().expect("mapped")[k] = Some(token);
         }
     }
 
@@ -322,7 +380,24 @@ impl Func {
             assert_eq!(origins.len(), self.body.len());
             origins.push(self.origin_at);
         }
+        let action = if self.origins.is_some() {
+            match &ins {
+                Ins::Call(s) => crate::views::count_action(s, None),
+                _ => None,
+            }
+        } else {
+            None
+        };
+        let start = self.body.len();
         self.body.push(ins);
+        // Label raw emitter helper calls too. Typed counting overwrites this
+        // fallback with its source type; inlining preserves the same site.
+        if let (Some(action), Some(base), Some(origin)) =
+            (action, self.count_origin_base, self.origin_at)
+            && self.count_origin(origin).is_none()
+        {
+            self.note_count(start, base, action, "counted reference");
+        }
     }
 
     pub fn drain(&mut self, range: std::ops::Range<usize>) {
@@ -616,8 +691,13 @@ impl Module {
     }
 
     pub fn finish_with_origins(mut self) -> StageResult<crate::MappedModule> {
+        let original_runtime = self.runtime;
         for f in self.funcs.values_mut() {
-            f.origins_before_opt = f.origins.clone().unwrap_or_default();
+            f.origins_before_opt = f
+                .origins
+                .as_ref()
+                .map(|os| os.iter().map(|o| f.source_origin(*o)).collect())
+                .unwrap_or_default();
         }
         let seen = self.reached();
         if let Some(r) = self.runtime
@@ -840,14 +920,52 @@ impl Module {
             }
             let mut body = Function::new_with_locals_types(f.locals.iter().map(|v| v.wasm()));
             let mut mapped_instructions = Vec::new();
+            let mut mapped_counts = Vec::new();
+            let mut count_sites = BTreeSet::new();
             let mut at = None;
             let mut rows: Vec<(u32, u32)> = Vec::new();
             for (position, i) in f.body.iter().enumerate() {
                 if self.track_origins && !matches!(i, Ins::Anchor(_)) {
                     mapped_instructions.push(crate::InstructionOrigin {
                         offset: u32::try_from(body.byte_len()).expect("offset"),
-                        origin: f.origins.as_ref().and_then(|o| o[position]),
+                        origin: f.source_origin(f.origins.as_ref().and_then(|o| o[position])),
                     });
+                }
+                if self.track_origins {
+                    let origin = f.origins.as_ref().and_then(|o| o[position]);
+                    let note = origin.and_then(|o| f.count_origin(o));
+                    let action = match i {
+                        Ins::Call(s) => crate::views::count_action(s, self.runtime.as_ref())
+                            .or_else(|| crate::views::count_action(s, original_runtime.as_ref())),
+                        // A Wasmtime count fast path expands into a header
+                        // store plus a slow-path call. They are one source
+                        // operation and share the same count-site token.
+                        Ins::Op(Instruction::I32Store(m))
+                            if self.inline_counts && m.offset == 0 =>
+                        {
+                            note.map(|n| n.action)
+                        }
+                        _ => None,
+                    };
+                    if let Some(action) = action
+                        && note.is_none_or(|n| count_sites.insert(n.site))
+                    {
+                        mapped_counts.push(crate::views::CountOperation {
+                            offset: u32::try_from(body.byte_len()).expect("offset"),
+                            origin: f.source_origin(origin),
+                            action,
+                            subject: note.map_or_else(
+                                || {
+                                    if action == crate::views::CountAction::Free {
+                                        "block".to_owned()
+                                    } else {
+                                        "counted reference".to_owned()
+                                    }
+                                },
+                                |n| n.subject.clone(),
+                            ),
+                        });
+                    }
                 }
                 // A call at a new anchor starts a row: its offset in the
                 // body, locals included, and the anchor.
@@ -927,6 +1045,7 @@ impl Module {
                     item: f.origin_item.clone(),
                     type_args: f.origin_args.clone(),
                     before_opt: f.origins_before_opt.clone(),
+                    counts: mapped_counts,
                     instructions: mapped_instructions,
                     locals,
                     statics: statics.into_iter().collect(),

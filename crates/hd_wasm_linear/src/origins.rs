@@ -21,6 +21,8 @@ pub struct FunctionOrigins {
     pub type_args: Vec<String>,
     /// Origins before module optimization/lowering, for pass regression checks.
     pub before_opt: Vec<Option<u32>>,
+    /// Count/free operations that survived optimization, with source type labels.
+    pub counts: Vec<crate::views::CountOperation>,
     /// One entry per encoded instruction, including the final implicit `end`.
     pub instructions: Vec<InstructionOrigin>,
     /// Each Wasm local's name, by index, parameters first: TIR local `N`

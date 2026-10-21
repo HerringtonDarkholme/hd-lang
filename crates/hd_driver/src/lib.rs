@@ -45,6 +45,9 @@ use hd_types::solver::{
     UniverseImpls, folder_table,
 };
 use hd_types::{InternPool, Ty, TyData, TyList};
+pub use hd_wasm_linear::views::{
+    CountAction, CountOperation, CountedLeaf, FieldLayout, TypeLayout,
+};
 pub use hd_wasm_linear::{FunctionOrigins, InstructionOrigin, StaticData};
 
 pub mod bench;
@@ -410,6 +413,16 @@ pub fn test_programs(
     out
 }
 
+/// A concrete fixture type and the source declaration the view filters.
+#[derive(Clone, Debug)]
+pub struct FixtureLayout {
+    pub item: String,
+    pub file: String,
+    pub lo: u32,
+    pub hi: u32,
+    pub layout: hd_wasm_linear::views::TypeLayout,
+}
+
 /// The result of a run.
 pub struct Output {
     pub wasm: Option<Vec<u8>>,
@@ -451,6 +464,8 @@ pub struct Output {
     pub tir_text: std::collections::BTreeMap<String, String>,
     /// Deterministic development fixture notes, separate from language diagnostics.
     pub fixture_notes: Vec<String>,
+    /// Actual backend layouts of a development fixture's concrete struct declarations.
+    pub fixture_layouts: Vec<FixtureLayout>,
     /// A test run's selected cases, in content order.
     pub tests: Vec<TestCase>,
     /// Items in the run's global `InternPool` at the end (a size counter).
@@ -1169,6 +1184,7 @@ struct Run<'a> {
     program: OnceLock<ProgramTables>,
     collect: OnceLock<CollectOut>,
     fixture_notes: OnceLock<Vec<String>>,
+    fixture_layouts: OnceLock<Vec<FixtureLayout>>,
     wasm: OnceLock<Vec<u8>>,
     map_instructions: bool,
     instruction_origins: OnceLock<Vec<FunctionOrigins>>,
@@ -1551,6 +1567,7 @@ pub fn build_packages(
         program: OnceLock::new(),
         collect: OnceLock::new(),
         fixture_notes: OnceLock::new(),
+        fixture_layouts: OnceLock::new(),
         wasm: OnceLock::new(),
         map_instructions: packages.instruction_origins,
         instruction_origins: OnceLock::new(),
@@ -1731,6 +1748,7 @@ pub fn build_packages(
         scopes,
         tir_text: std::mem::take(&mut *lock(&run.tir_text)),
         fixture_notes: run.fixture_notes.get().cloned().unwrap_or_default(),
+        fixture_layouts: run.fixture_layouts.get().cloned().unwrap_or_default(),
         pool_items: run.pool.len(),
         memo: run.memo.stats(),
         session_added,
@@ -7641,6 +7659,44 @@ impl Run<'_> {
             impls: Impls::Owned(&view),
             sealed: self.known.sealed(),
         };
+        let mut layouts = Vec::new();
+        for (m, data) in self
+            .table
+            .modules
+            .iter()
+            .enumerate()
+            .filter(|(_, m)| m.path == module)
+        {
+            let src = self.src(m);
+            for head in hd_resolve::heads(&names, &src, module, false) {
+                let Some(item) = p.items.get(&head.def) else {
+                    continue;
+                };
+                if !matches!(item.data, ItemData::Data(_)) || !item.generics.is_empty() {
+                    continue;
+                }
+                let ty = self.pool.intern_ty(&TyData::Adt {
+                    def: head.def,
+                    args: TyList::EMPTY,
+                });
+                let Some(layout) = self.stage(
+                    Stage::Collect,
+                    hd_wasm_linear::views::inspect_layout(&self.pool, &env, ty),
+                ) else {
+                    return;
+                };
+                let span = src.span(head.node);
+                layouts.push(FixtureLayout {
+                    item: names.path(head.def),
+                    file: self.table.files[data.file.idx()].clone(),
+                    lo: span.lo,
+                    hi: span.hi,
+                    layout,
+                });
+            }
+        }
+        layouts.sort_by(|a, b| a.item.cmp(&b.item));
+        let _ = self.fixture_layouts.set(layouts);
         let mut definitions: Vec<DefId> = p
             .items
             .values()

@@ -22,6 +22,7 @@ mod pow;
 mod rem;
 mod rt;
 mod task;
+pub mod views;
 mod wide;
 
 use hd_base::{DefId, Hash128, InstId, NotImplemented, Stage, StageResult};
