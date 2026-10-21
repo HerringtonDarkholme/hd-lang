@@ -296,7 +296,7 @@ impl Em<'_, '_, '_> {
             return unsupported("a closure without its code instance");
         };
         let caps = captures(self.b, i as usize);
-        self.f.body.push(Ins::TableSlot(Sym::Inst(key)));
+        self.f.push(Ins::TableSlot(Sym::Inst(key)));
         if caps.is_empty() {
             self.f.i32(0);
             return self.store_owned(i);

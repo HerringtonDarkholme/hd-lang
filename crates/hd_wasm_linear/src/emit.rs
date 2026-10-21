@@ -107,6 +107,7 @@ fn body_func<'a>(
     };
     let cells = closure::cell_locals(b, &ref_roots(input, b, item, args, suspending));
     let mut em = Em::new(input, m, b, (item, args), targets, cells);
+    em.origin_root = b.sub_root[sub as usize];
     let mut params = Vec::new();
     // A suspending body takes its frame first (`susp::FRAME`).
     if suspending {
@@ -208,6 +209,12 @@ fn body_func<'a>(
         params.clone(),
         fres,
     );
+    if em.m.track_origins {
+        em.f.origins = Some(Vec::new());
+        em.f.origin_item = Some((input.path)(b.item));
+        em.f.origin_root = Some(b.sub_root[sub as usize]);
+        em.f.origin_at = em.f.origin_root;
+    }
     let key = own.key;
     let once = match (sub, own.sub, b.kind) {
         (0, Sub::Body(_), BodyKind::Fact) => Some(Some(b.label.as_ref())),
@@ -268,7 +275,7 @@ fn body_func<'a>(
     if suspending {
         em.f.get(susp::FRAME);
         em.f.op(Instruction::If(BlockType::Empty));
-        em.f.body.push(crate::module::Ins::LoadAll);
+        em.f.push(crate::module::Ins::LoadAll);
         em.f.get(susp::FRAME);
         em.f.op(Instruction::I32Load(mem(HEAP, crate::task::F_STATE, 2)));
         em.f.set(em.susp.as_ref().map_or(0, |s| s.pc));
@@ -830,6 +837,7 @@ struct Em<'i, 'a, 'm> {
     m: &'m mut Module,
     b: &'a Body,
     item: DefId,
+    origin_root: u32,
     args: TyList,
     calls: &'i HashMap<u32, Target>,
     f: Func,
@@ -908,6 +916,24 @@ struct Em<'i, 'a, 'm> {
 }
 
 impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
+    fn annotate_func(&self, f: &mut Func) {
+        if self.m.track_origins {
+            f.origins = Some(Vec::new());
+            f.origin_item = Some((self.input.path)(self.b.item));
+            f.origin_root = Some(self.origin_root);
+            f.origin_at = f.origin_root;
+        }
+    }
+
+    fn inherit_origin_source(&mut self) {
+        if self.m.track_origins {
+            self.f.origins = Some(Vec::new());
+            self.f.origin_item = Some((self.input.path)(self.b.item));
+            self.f.origin_root = Some(self.origin_root);
+            self.f.origin_at = self.f.origin_root;
+        }
+    }
+
     /// An emitter of `b`'s instance of `item` at `args`, with no function
     /// yet.
     fn new(
@@ -923,6 +949,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             m,
             b,
             item,
+            origin_root: b.sub_root[0],
             args,
             calls,
             f: Func::default(),
@@ -1242,14 +1269,17 @@ impl Em<'_, '_, '_> {
         // writes, for a panic's frames (`crates/hd_wasm_linear/DESIGN.md` §15.9);
         // the enclosing anchor holds again after it.
         let outer = self.f.at;
+        let origin_outer = self.f.origin_at;
         if self.anchored(i) {
             self.f.at = Some(i);
+            self.f.origin_at = Some(i);
         }
         self.emitting.push(i);
         let r = self.inst_body(i);
         self.emitting.pop();
         self.f.at = outer;
         self.settle(i);
+        self.f.origin_at = origin_outer;
         r
     }
 
@@ -1669,7 +1699,7 @@ impl Em<'_, '_, '_> {
                 let Some(Target::Closure(key)) = self.calls.get(&i).cloned() else {
                     return unsupported("a function reference without its adapter");
                 };
-                self.f.body.push(Ins::TableSlot(Sym::Inst(key)));
+                self.f.push(Ins::TableSlot(Sym::Inst(key)));
                 self.f.i32(0);
                 self.store_owned(i)?;
             }
@@ -1968,7 +1998,7 @@ impl Em<'_, '_, '_> {
             self.push(*r)?;
         }
         if let Some(o) = &open {
-            self.f.body.push(Ins::VTable(o.witness));
+            self.f.push(Ins::VTable(o.witness));
             params.push(Val::I32);
         }
         let c = if takes_ctx {

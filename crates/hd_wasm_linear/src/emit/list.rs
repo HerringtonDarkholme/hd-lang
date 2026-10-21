@@ -680,7 +680,6 @@ impl Em<'_, '_, '_> {
         self.unique(h, &e, false);
         self.f.get(h);
         self.f
-            .body
             .push(Ins::TableSlot(Sym::Helper(Helper::ListClone { elem: e })));
         self.f.i32(1);
         self.f.op(I::I32Add);

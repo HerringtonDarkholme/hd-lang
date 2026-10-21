@@ -1836,3 +1836,32 @@ store, and removes the scaffolding that a folded view test left.
   `runtime/valid/list-reads-see-every-change.hd`. The second reads lists
   after pushes, element writes, calls that change the list through a
   reference, and copies.
+
+### 23.33 Instruction Origins For Development Views
+
+Issue #661 keeps source attribution outside the instruction stream.
+`build_with_origins` returns the module bytes and an off-band function map;
+ordinary `build` keeps returning only the same bytes. Mapping adds no
+instruction, anchor or Wasm section. The existing call-only `hd.lines`
+anchors and panic reporting keep their behavior.
+
+- **Origins.** An emitted body's parallel table names its TIR instruction
+  at each instruction index. The item path identifies the source body;
+  the driver or harness resolves its syntax node to a source span. A
+  source-less generated helper has no item or origin. Frame setup and
+  function exit use the body's scope origin. Scope-exit releases use the
+  scope they end, including an early exit through several scopes. Last-use
+  cleanup follows the statement containing that last use instead.
+- **Rewrites.** Unchanged and moved instructions keep their own origins.
+  A merge takes the first available origin among the instructions it
+  combines. An expansion copies the replaced instruction's origin to
+  every resulting instruction. Deleted code has no resulting entries.
+  Constant propagation from another function keeps the read's use site.
+  Each optimizer, wide-value and suspension rewrite maintains the table
+  with its instruction changes; the metadata never affects matching.
+- **Final offsets.** A mapped function records its pre-optimization origin
+  table and each final encoded instruction's body-relative byte offset,
+  including local declarations in that offset and the implicit final
+  `end`. Zero-width call anchors have no encoded instruction entry. Raw
+  compiler-generated helper bodies have no instruction-origin table.
+  Mapping does not require dense anchors and cannot interrupt a peephole.

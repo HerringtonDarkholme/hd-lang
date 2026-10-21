@@ -925,7 +925,7 @@ fn teardown(m: &Module) -> Func {
 pub fn host_providers(f: &mut Func, providers: &[(usize, Option<Hash128>)]) {
     for (v, by_ref) in providers {
         f.i32(0);
-        f.body.push(Ins::VTable(*v));
+        f.push(Ins::VTable(*v));
         if let Some(k) = by_ref {
             f.call(Sym::Inst(*k));
         }
@@ -2052,7 +2052,7 @@ fn fields_glue(name: &str, leaves: &[Leaf], walk: &Walk, on: &dyn Fn(&mut Func))
 pub(crate) fn push_desc(f: &mut Func, glue: Option<Sym>, cyclic: bool) {
     match glue {
         Some(g) => {
-            f.body.push(Ins::TableSlot(g));
+            f.push(Ins::TableSlot(g));
             f.u32(if cyclic { CYCLIC + 1 } else { 1 });
             f.op(Instruction::I32Add);
         }
@@ -2130,7 +2130,7 @@ fn collect(m: &Module) -> Func {
         return f;
     };
     for h in [Helper::CycleTrace, Helper::CycleRelease, Helper::CycleFree] {
-        f.body.push(Ins::TableSlot(Sym::Helper(h)));
+        f.push(Ins::TableSlot(Sym::Helper(h)));
         f.i32(0);
     }
     f.call(Sym::Inst(r.cycle.collect));
@@ -2948,8 +2948,7 @@ fn ref_load_inner(f: &mut Func, at: u32, value: &RefLayout, owned: Option<u32>) 
     f.get(at);
     f.get(at);
     f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
-    f.body
-        .push(Ins::CallIndirect(vec![Val::I32], vec![Val::I32]));
+    f.push(Ins::CallIndirect(vec![Val::I32], vec![Val::I32]));
     f.set(boxed);
     ref_unbox_into(f, boxed, value, &ls);
     f.op(Instruction::Else);
@@ -2984,7 +2983,7 @@ pub(crate) fn ref_store(f: &mut Func, at: u32, ls: &[u32], value: &RefLayout) {
     f.get(boxed);
     f.get(at);
     f.op(Instruction::I32Load(mem(HEAP, 8, 2)));
-    f.body.push(Ins::CallIndirect(vec![Val::I32; 2], vec![]));
+    f.push(Ins::CallIndirect(vec![Val::I32; 2], vec![]));
     f.op(Instruction::Else);
     let old: Vec<u32> = value.leaves.iter().map(|l| f.local(l.val)).collect();
     for (leaf, o) in value.leaves.iter().zip(&old) {
@@ -3041,8 +3040,7 @@ fn ref_helper(h: &Helper, m: &Module) -> Func {
             f.get(block);
             f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
             glue_of(&mut f);
-            f.body
-                .push(Ins::TableSlot(Sym::Helper(Helper::RefViewDrop)));
+            f.push(Ins::TableSlot(Sym::Helper(Helper::RefViewDrop)));
             f.i32(1);
             f.op(Instruction::I32Add);
             f.op(Instruction::I32Eq);
@@ -3125,12 +3123,12 @@ fn ref_helper(h: &Helper, m: &Module) -> Func {
             f.get(0);
             f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
             f.get(at);
-            f.body.push(Ins::TableSlot(Sym::Helper(Helper::RefGet {
+            f.push(Ins::TableSlot(Sym::Helper(Helper::RefGet {
                 source: source.clone(),
             })));
             f.op(Instruction::I32Store(mem(HEAP, 4, 2)));
             f.get(at);
-            f.body.push(Ins::TableSlot(Sym::Helper(Helper::RefSet {
+            f.push(Ins::TableSlot(Sym::Helper(Helper::RefSet {
                 source: source.clone(),
             })));
             f.op(Instruction::I32Store(mem(HEAP, 8, 2)));
@@ -3240,7 +3238,7 @@ fn ref_field_helper(h: &Helper, m: &Module) -> Func {
                 ),
             ] {
                 f.get(at);
-                f.body.push(Ins::TableSlot(Sym::Helper(helper)));
+                f.push(Ins::TableSlot(Sym::Helper(helper)));
                 f.op(Instruction::I32Store(mem(HEAP, slot, 2)));
             }
             f.get(at);

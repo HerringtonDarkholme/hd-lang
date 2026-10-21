@@ -239,6 +239,12 @@ pub struct Func {
     /// A body materializes a value wider than the direct-value bound.
     pub stack_values: bool,
     pub body: Vec<Ins>,
+    /// Parallel to `body`, enabled only for development source mapping.
+    pub origins: Option<Vec<Option<u32>>>,
+    pub origin_at: Option<u32>,
+    pub origin_item: Option<String>,
+    pub origin_root: Option<u32>,
+    pub origins_before_opt: Vec<Option<u32>>,
     /// A complete relocation-free body, including locals and the final end.
     pub raw: Option<Vec<u8>>,
     /// The TIR instruction whose code is being written, when it has a
@@ -282,19 +288,41 @@ impl Func {
         u32::try_from(self.params.len() + self.locals.len() - 1).expect("locals")
     }
 
+    pub fn push(&mut self, ins: Ins) {
+        if let Some(origins) = &mut self.origins {
+            assert_eq!(origins.len(), self.body.len());
+            origins.push(self.origin_at);
+        }
+        self.body.push(ins);
+    }
+
+    pub fn drain(&mut self, range: std::ops::Range<usize>) {
+        if let Some(origins) = &mut self.origins {
+            origins.drain(range.clone());
+        }
+        self.body.drain(range);
+    }
+
+    pub fn remove(&mut self, index: usize) {
+        if let Some(origins) = &mut self.origins {
+            origins.remove(index);
+        }
+        self.body.remove(index);
+    }
+
     pub fn op(&mut self, i: Instruction<'static>) {
-        self.body.push(Ins::Op(i));
+        self.push(Ins::Op(i));
     }
 
     pub fn call(&mut self, s: Sym) {
         self.anchor();
-        self.body.push(Ins::Call(s));
+        self.push(Ins::Call(s));
     }
 
     /// `call_indirect` through the function table, at this signature.
     pub fn call_indirect(&mut self, params: Vec<Val>, results: Vec<Val>) {
         self.anchor();
-        self.body.push(Ins::CallIndirect(params, results));
+        self.push(Ins::CallIndirect(params, results));
     }
 
     /// Writes [`Ins::Anchor`] before a call whose anchor is new.
@@ -302,7 +330,7 @@ impl Func {
         if let Some(at) = self.at
             && self.anchored != self.at
         {
-            self.body.push(Ins::Anchor(at));
+            self.push(Ins::Anchor(at));
             self.anchored = self.at;
         }
     }
@@ -329,11 +357,11 @@ impl Func {
     }
 
     pub fn global_get(&mut self, g: Global) {
-        self.body.push(Ins::GlobalGet(g));
+        self.push(Ins::GlobalGet(g));
     }
 
     pub fn global_set(&mut self, g: Global) {
-        self.body.push(Ins::GlobalSet(g));
+        self.push(Ins::GlobalSet(g));
     }
 }
 
@@ -351,6 +379,7 @@ pub const fn mem(memory: u32, offset: u64, align: u32) -> wasm_encoder::MemArg {
 /// The module under construction.
 #[derive(Default)]
 pub struct Module {
+    pub track_origins: bool,
     /// Defined functions by symbol. A helper is defined when
     /// [`Module::finish`] finds a body naming it.
     funcs: BTreeMap<Sym, Func>,
@@ -517,7 +546,14 @@ impl Module {
 
     /// Builds the reachable helpers, numbers every function and encodes
     /// the module.
-    pub fn finish(mut self) -> StageResult<Vec<u8>> {
+    pub fn finish(self) -> StageResult<Vec<u8>> {
+        self.finish_with_origins().map(|mapped| mapped.wasm)
+    }
+
+    pub fn finish_with_origins(mut self) -> StageResult<crate::MappedModule> {
+        for f in self.funcs.values_mut() {
+            f.origins_before_opt = f.origins.clone().unwrap_or_default();
+        }
         let seen = self.reached();
         if let Some(r) = self.runtime
             && !self
@@ -554,7 +590,10 @@ impl Module {
             .any(|s| matches!(s, Sym::Helper(crate::rt::Helper::RefView { .. })));
         for f in self.funcs.values_mut() {
             let body = std::mem::take(&mut f.body);
-            for ins in body {
+            let origins = f.origins.as_mut().map(std::mem::take);
+            let outer = f.origin_at;
+            for (position, ins) in body.into_iter().enumerate() {
+                f.origin_at = origins.as_ref().and_then(|o| o[position]);
                 match ins {
                     Ins::Call(Sym::Helper(crate::rt::Helper::RefIsView)) if physical => {
                         f.op(Instruction::Drop);
@@ -563,9 +602,10 @@ impl Module {
                     Ins::Call(Sym::Helper(crate::rt::Helper::RefViewsAbsent)) => {
                         f.i32(i32::from(physical));
                     }
-                    ins => f.body.push(ins),
+                    ins => f.push(ins),
                 }
             }
+            f.origin_at = outer;
         }
         self.reach();
         crate::opt::constants(&mut self.funcs);
@@ -677,6 +717,7 @@ impl Module {
             .map(|(k, g)| (g.clone(), u32::try_from(k).expect("globals")))
             .collect();
 
+        let mut mapped_functions = Vec::new();
         let mut types = TypeSection::new();
         let mut type_of: BTreeMap<(Vec<Val>, Vec<Val>), u32> = BTreeMap::new();
         let mut ty = |params: &[Val], results: &[Val], types: &mut TypeSection| {
@@ -733,9 +774,16 @@ impl Module {
                 continue;
             }
             let mut body = Function::new_with_locals_types(f.locals.iter().map(|v| v.wasm()));
+            let mut mapped_instructions = Vec::new();
             let mut at = None;
             let mut rows: Vec<(u32, u32)> = Vec::new();
-            for i in &f.body {
+            for (position, i) in f.body.iter().enumerate() {
+                if self.track_origins && !matches!(i, Ins::Anchor(_)) {
+                    mapped_instructions.push(crate::InstructionOrigin {
+                        offset: u32::try_from(body.byte_len()).expect("offset"),
+                        origin: f.origins.as_ref().and_then(|o| o[position]),
+                    });
+                }
                 // A call at a new anchor starts a row: its offset in the
                 // body, locals included, and the anchor.
                 if let (Ins::Call(_) | Ins::CallIndirect(..), Some(a)) = (i, at)
@@ -772,6 +820,19 @@ impl Module {
                         ));
                     }
                 };
+            }
+            if self.track_origins {
+                mapped_instructions.push(crate::InstructionOrigin {
+                    offset: u32::try_from(body.byte_len()).expect("offset"),
+                    origin: f.origin_root,
+                });
+                mapped_functions.push(crate::FunctionOrigins {
+                    index: index[s],
+                    name: own.last().expect("function name").1.clone(),
+                    item: f.origin_item.clone(),
+                    before_opt: f.origins_before_opt.clone(),
+                    instructions: mapped_instructions,
+                });
             }
             body.instruction(&Instruction::End);
             code.function(&body);
@@ -911,7 +972,10 @@ impl Module {
             name_sec.functions(&names);
             module.section(&name_sec);
         }
-        Ok(module.finish())
+        Ok(crate::MappedModule {
+            wasm: module.finish(),
+            functions: mapped_functions,
+        })
     }
 }
 

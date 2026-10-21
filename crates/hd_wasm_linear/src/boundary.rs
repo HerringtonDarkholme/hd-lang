@@ -1449,7 +1449,7 @@ pub fn dec(b: &LTy, m: &mut Module) -> Func {
             f.get(number);
             f.op(I::I32Store(mem(HEAP, 0, 2)));
             f.get(data);
-            f.body.push(Ins::VTable(h.vtable));
+            f.push(Ins::VTable(h.vtable));
             if let Some(wrap) = h.wrap {
                 // The reference arrives with a count of its own; the box's
                 // first goes. `wrap` owns its argument (`layout::Pass`),

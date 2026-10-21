@@ -141,9 +141,12 @@ fn storage(f: &mut Func) -> StageResult<bool> {
             Ins::GlobalSet(Global::Stack),
         ]);
     };
+    let mut origins = crate::origins::Remap::new(f.origins.as_deref());
+    origins.repeat(f.origin_root, out.len());
     let body = std::mem::take(&mut f.body);
     let mut depth = 0;
-    for ins in body {
+    for (position, ins) in body.into_iter().enumerate() {
+        let output_start = out.len();
         match ins {
             Ins::Op(I::LocalGet(l)) if (np..end).contains(&l) => {
                 out.push(Ins::Op(I::LocalGet(base)));
@@ -216,9 +219,13 @@ fn storage(f: &mut Func) -> StageResult<bool> {
             }
             _ => out.push(ins),
         }
+        origins.merged(position..position + 1, out.len() - output_start);
     }
+    let output_start = out.len();
     restore(&mut out);
+    origins.repeat(f.origin_root, out.len() - output_start);
     f.body = out;
+    origins.finish(f);
     crate::opt::renumber(f);
     Ok(true)
 }
@@ -320,6 +327,7 @@ fn callee(f: &mut Func) -> StageResult<()> {
     f.params = np;
     f.results = nr;
     f.locals = locals;
+    let mut origins = crate::origins::Remap::new(f.origins.as_deref());
     let body = std::mem::take(&mut f.body);
     let mut out = Vec::with_capacity(body.len() + 3 * params.len());
     if wp {
@@ -329,19 +337,25 @@ fn callee(f: &mut Func) -> StageResult<()> {
             out.push(Ins::Op(I::LocalSet(1 + u32::try_from(k).expect("params"))));
         }
     }
+    origins.repeat(f.origin_root, out.len());
     let mut scratch = Scratch::default();
-    for i in body {
+    for (position, i) in body.into_iter().enumerate() {
+        let output_start = out.len();
         if wr && matches!(i, Ins::Op(I::Return)) {
             scratch.reset();
             spill(f, &mut scratch, &results, base, &mut out);
         }
         out.push(i);
+        origins.merged(position..position + 1, out.len() - output_start);
     }
+    let output_start = out.len();
     if wr {
         scratch.reset();
         spill(f, &mut scratch, &results, base, &mut out);
     }
+    origins.repeat(f.origin_root, out.len() - output_start);
     f.body = out;
+    origins.finish(f);
     Ok(())
 }
 
@@ -381,15 +395,18 @@ fn calls(f: &mut Func, sig: &BTreeMap<Sym, (Vec<Val>, Vec<Val>)>) -> StageResult
     if !needs {
         return Ok(false);
     }
+    let mut origins = crate::origins::Remap::new(f.origins.as_deref());
     let body = std::mem::take(&mut f.body);
     let mut out = Vec::with_capacity(body.len());
     let mut scratch = Scratch::default();
-    for i in body {
+    for (position, i) in body.into_iter().enumerate() {
+        let output_start = out.len();
         let (params, results) = match &i {
             Ins::Call(s) if sig.contains_key(s) => sig[s].clone(),
             Ins::CallIndirect(p, r) if wide(p, r) => (p.clone(), r.clone()),
             _ => {
                 out.push(i);
+                origins.copy(position..position + 1);
                 continue;
             }
         };
@@ -429,8 +446,10 @@ fn calls(f: &mut Func, sig: &BTreeMap<Sym, (Vec<Val>, Vec<Val>)>) -> StageResult
         out.push(Ins::Op(I::I32Const(size)));
         out.push(Ins::Op(I::I32Add));
         out.push(Ins::GlobalSet(Global::Stack));
+        origins.merged(position..position + 1, out.len() - output_start);
     }
     f.body = out;
+    origins.finish(f);
     Ok(true)
 }
 
@@ -438,6 +457,58 @@ fn calls(f: &mut Func, sig: &BTreeMap<Sym, (Vec<Val>, Vec<Val>)>) -> StageResult
 mod tests {
     use super::*;
     use crate::module::Module;
+
+    #[test]
+    fn wide_expansions_preserve_origins_without_changing_instructions() {
+        let mut f = Func::new("storage", vec![], vec![Val::I32]);
+        f.locals = vec![Val::I32; WIDTH + 1];
+        f.stack_values = true;
+        f.origin_root = Some(99);
+        f.body = vec![
+            Ins::Op(I::I32Const(7)),
+            Ins::Op(I::LocalSet(0)),
+            Ins::Op(I::LocalGet(0)),
+        ];
+        f.origins = Some(vec![Some(10), Some(11), Some(12)]);
+        let mut plain = f.clone();
+        plain.origins = None;
+        storage(&mut plain).unwrap();
+        storage(&mut f).unwrap();
+        assert_eq!(format!("{:?}", f.body), format!("{:?}", plain.body));
+        let expected = [
+            vec![Some(99); 9],
+            vec![Some(10)],
+            vec![Some(11); 4],
+            vec![Some(12); 2],
+            vec![Some(99); 4],
+        ]
+        .concat();
+        assert_eq!(f.origins.as_ref().unwrap(), &expected);
+        assert_eq!(f.body.len(), expected.len());
+
+        let mut f = Func::new("callee", vec![Val::I32; WIDTH + 1], vec![]);
+        f.origin_root = Some(99);
+        f.body = vec![
+            Ins::Op(I::LocalGet(u32::try_from(WIDTH).unwrap())),
+            Ins::Op(I::Drop),
+        ];
+        f.origins = Some(vec![Some(10), Some(11)]);
+        callee(&mut f).unwrap();
+        let spans = f.origins.as_ref().unwrap();
+        assert_eq!(spans.len(), f.body.len());
+        assert!(spans[..3 * (WIDTH + 1)].iter().all(|s| *s == Some(99)));
+        assert_eq!(&spans[3 * (WIDTH + 1)..], [Some(10), Some(11)]);
+
+        let target = Sym::Inst(hd_base::Hash128(7));
+        let mut f = Func::new("caller", vec![], vec![]);
+        f.body = vec![Ins::Call(target.clone())];
+        f.origins = Some(vec![Some(17)]);
+        let sig = BTreeMap::from([(target, (vec![Val::I32; WIDTH + 1], vec![]))]);
+        calls(&mut f, &sig).unwrap();
+        assert_eq!(f.origins.as_ref().unwrap().len(), f.body.len());
+        assert!(f.origins.unwrap().iter().all(|s| *s == Some(17)));
+    }
+
     use hd_base::Hash128;
     use std::io::Write;
 

@@ -462,7 +462,16 @@ impl Em<'_, '_, '_> {
         };
         // A place whose count moved at this statement holds nothing.
         ds.retain(|d| !self.skip.contains(&((blk, p), *d)));
-        self.release_drops(&ds)
+        let outer = self.f.origin_at;
+        self.f.origin_at = self
+            .rec(self.b.data[blk as usize][0])
+            .get(p)
+            .copied()
+            .filter(|&i| self.anchored(i))
+            .or(outer);
+        let result = self.release_drops(&ds);
+        self.f.origin_at = outer;
+        result
     }
 
     /// Releases and zeroes each of `ds`' places that holds a counted value.
@@ -540,7 +549,11 @@ impl Em<'_, '_, '_> {
                 .collect();
             ls.sort_unstable();
             ds.extend(ls.into_iter().map(super::live::Drop::Local));
-            self.release_drops(&ds)?;
+            let outer = self.f.origin_at;
+            self.f.origin_at = Some(blk);
+            let result = self.release_drops(&ds);
+            self.f.origin_at = outer;
+            result?;
         }
         Ok(())
     }
@@ -564,6 +577,14 @@ impl Em<'_, '_, '_> {
     /// Releases every place the function owns: each counted instruction
     /// value and TIR local, a parameter's too.
     pub(super) fn release_all(&mut self) -> StageResult<()> {
+        let outer = self.f.origin_at;
+        self.f.origin_at = self.f.origin_root;
+        let result = self.release_all_inner();
+        self.f.origin_at = outer;
+        result
+    }
+
+    fn release_all_inner(&mut self) -> StageResult<()> {
         let mut vals: Vec<(u32, Vec<u32>)> =
             self.vals.iter().map(|(k, v)| (*k, v.clone())).collect();
         vals.sort_unstable();

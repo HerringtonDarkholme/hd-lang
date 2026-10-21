@@ -273,6 +273,7 @@ impl Program {
     /// The packages around the root, as the driver takes them.
     pub fn packages(&self) -> Packages<'_> {
         Packages {
+            instruction_origins: false,
             checked: false,
             requires: self.requires.clone(),
             deps: self

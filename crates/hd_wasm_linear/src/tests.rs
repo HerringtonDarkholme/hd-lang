@@ -82,7 +82,7 @@ fn wide_signatures_pass_through_the_shadow_stack() {
             f.i32(i32::try_from(k).expect("k"));
         }
         if indirect {
-            f.body.push(crate::module::Ins::TableSlot(wide.clone()));
+            f.push(crate::module::Ins::TableSlot(wide.clone()));
             f.call_indirect(vals.clone(), vals.clone());
         } else {
             f.call(wide.clone());
@@ -304,4 +304,76 @@ fn every_boundary_type() -> LTy {
         })),
         opt,
     ])
+}
+
+#[test]
+fn instruction_origins_do_not_change_bytes_and_offsets_match_operators() {
+    use crate::module::Ins;
+    for helper in [Helper::RefIsView, Helper::RefViewsAbsent] {
+        let make = |tracked: bool| {
+            let mut m = Module::default();
+            m.track_origins = tracked;
+            let mut f = Func::new("mapped", vec![Val::I32], vec![Val::I32]);
+            if tracked {
+                f.origins = Some(Vec::new());
+                f.origin_item = Some("app/main/mapped".into());
+                f.origin_root = Some(99);
+            }
+            if helper == Helper::RefIsView {
+                f.origin_at = Some(10);
+                f.get(0);
+            }
+            f.origin_at = Some(11);
+            f.push(Ins::Call(Sym::Helper(helper.clone())));
+            m.define(Sym::Inst(Hash128(7)), f);
+            m.export("mapped", Sym::Inst(Hash128(7)));
+            m
+        };
+        let plain = make(false).finish().expect("ordinary module");
+        let mapped = make(true).finish_with_origins().expect("mapped module");
+        assert_eq!(plain, mapped.wasm);
+        validate(&mapped.wasm);
+        let mut index = 0;
+        for payload in wasmparser::Parser::new(0).parse_all(&mapped.wasm) {
+            match payload.unwrap() {
+                wasmparser::Payload::ImportSection(imports) => {
+                    for import in imports.into_imports() {
+                        if matches!(import.unwrap().ty, wasmparser::TypeRef::Func(_)) {
+                            index += 1;
+                        }
+                    }
+                }
+                wasmparser::Payload::CodeSectionEntry(body) => {
+                    let source = mapped
+                        .functions
+                        .iter()
+                        .find(|f| f.index == index)
+                        .expect("function map");
+                    let start = body.range().start;
+                    let mut reader = body.get_operators_reader().unwrap();
+                    let mut offsets = Vec::new();
+                    while !reader.eof() {
+                        offsets.push(u32::try_from(reader.original_position() - start).unwrap());
+                        reader.read().unwrap();
+                    }
+                    assert_eq!(
+                        offsets,
+                        source
+                            .instructions
+                            .iter()
+                            .map(|i| i.offset)
+                            .collect::<Vec<_>>()
+                    );
+                    assert_eq!(source.before_opt.last(), Some(&Some(11)));
+                    assert_eq!(
+                        source.instructions.first().unwrap().origin,
+                        Some(if helper == Helper::RefIsView { 10 } else { 11 })
+                    );
+                    assert_eq!(source.instructions.last().unwrap().origin, Some(99));
+                    index += 1;
+                }
+                _ => {}
+            }
+        }
+    }
 }

@@ -88,6 +88,7 @@ mod init_cycle_run;
 mod initialization_implicit_run;
 mod inspectable_types;
 mod instantiation_depth;
+mod instruction_origins;
 mod int_widths_run;
 mod intrinsic_methods;
 mod item_names;

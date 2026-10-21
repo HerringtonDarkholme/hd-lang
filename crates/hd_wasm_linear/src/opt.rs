@@ -45,6 +45,7 @@ use hd_base::Hash128;
 use wasm_encoder::Instruction as I;
 
 use crate::module::{Func, Global, Ins, Sym};
+use crate::origins::Remap;
 use crate::rt::Helper;
 
 /// Reads each top-level binding that one instruction writes, a constant
@@ -100,7 +101,7 @@ pub fn constants(funcs: &mut BTreeMap<Sym, Func>) {
         ks.sort_unstable();
         if let Some(f) = funcs.get_mut(&s) {
             for k in ks.into_iter().rev() {
-                f.body.drain(k - 1..=k);
+                f.drain(k - 1..k + 1);
             }
         }
     }
@@ -122,6 +123,7 @@ pub fn locals(f: &mut Func, arity: &Arity) {
     loop {
         let (reads, writes) = counts(f);
         let mut out: Vec<Ins> = Vec::with_capacity(f.body.len());
+        let mut origins = Remap::new(f.origins.as_deref());
         let mut changed = false;
         let mut k = 0;
         while k < f.body.len() {
@@ -133,23 +135,26 @@ pub fn locals(f: &mut Func, arity: &Arity) {
                         changed = true;
                     } else {
                         out.push(Ins::Op(I::LocalTee(*u)));
+                        origins.merged(k..k + 2, 1);
                         changed = true;
                     }
                     k += 2;
                 }
                 (Ins::Op(I::LocalSet(t)), _) if reads[*t as usize] == 0 => {
                     changed = true;
-                    match out.last() {
-                        Some(Ins::Op(
-                            I::LocalGet(_)
-                            | I::I32Const(_)
-                            | I::I64Const(_)
-                            | I::F32Const(_)
-                            | I::F64Const(_),
-                        )) => {
-                            out.pop();
-                        }
-                        _ => out.push(Ins::Op(I::Drop)),
+                    if let Some(Ins::Op(
+                        I::LocalGet(_)
+                        | I::I32Const(_)
+                        | I::I64Const(_)
+                        | I::F32Const(_)
+                        | I::F64Const(_),
+                    )) = out.last()
+                    {
+                        out.pop();
+                        origins.pop();
+                    } else {
+                        out.push(Ins::Op(I::Drop));
+                        origins.copy(k..k + 1);
                     }
                     k += 1;
                 }
@@ -159,11 +164,13 @@ pub fn locals(f: &mut Func, arity: &Arity) {
                 }
                 (other, _) => {
                     out.push(other.clone());
+                    origins.copy(k..k + 1);
                     k += 1;
                 }
             }
         }
         f.body = out;
+        origins.finish(f);
         changed |= forward(f, np);
         changed |= shapes(f, np);
         changed |= fold(f);
@@ -211,7 +218,10 @@ fn forward(f: &mut Func, np: u32) -> bool {
         }
         if let Some(j) = found {
             f.body[j] = p;
-            f.body.drain(k..k + 2);
+            if let Some(origins) = &mut f.origins {
+                origins[j] = origins[k].or(origins[k + 1]).or(origins[j]);
+            }
+            f.drain(k..k + 2);
             changed = true;
         } else {
             k += 1;
@@ -222,6 +232,7 @@ fn forward(f: &mut Func, np: u32) -> bool {
 
 /// Rule 7: folds the constants of each window of instructions.
 fn fold(f: &mut Func) -> bool {
+    let mut origins = Remap::new(f.origins.as_deref());
     let b = std::mem::take(&mut f.body);
     let mut out: Vec<Ins> = Vec::with_capacity(b.len());
     let mut changed = false;
@@ -245,6 +256,8 @@ fn fold(f: &mut Func) -> bool {
         )
     };
     while k < b.len() {
+        let from = k;
+        let output_start = out.len();
         let at = |j: usize| b.get(k + j);
         // `c; local.tee t; i32.eqz; if ... end` of a nonzero `c`, with no
         // `else`: the test never holds.
@@ -261,6 +274,7 @@ fn fold(f: &mut Func) -> bool {
             out.push(Ins::Op(I::LocalSet(*t)));
             k = end + 1;
             changed = true;
+            origins.merged(from..k, out.len() - output_start);
             continue;
         }
         match (at(0), at(1), at(2), at(3)) {
@@ -335,8 +349,10 @@ fn fold(f: &mut Func) -> bool {
                 k += 1;
             }
         }
+        origins.merged(from..k, out.len() - output_start);
     }
     f.body = out;
+    origins.finish(f);
     changed
 }
 
@@ -378,7 +394,13 @@ fn schedule(f: &mut Func, np: u32, arity: &Arity) -> bool {
                 body.push(p.clone());
                 body.extend_from_slice(&b[s..q]);
                 body.extend_from_slice(&b[q + 3..]);
+                let mut origins = Remap::new(f.origins.as_deref());
+                origins.copy(0..s);
+                origins.copy(q + 1..q + 2);
+                origins.copy(s..q);
+                origins.copy(q + 3..b.len());
                 f.body = body;
+                origins.finish(f);
                 changed = true;
                 continue 'outer;
             }
@@ -410,9 +432,15 @@ fn schedule(f: &mut Func, np: u32, arity: &Arity) -> bool {
         };
         if let Some((t, i)) = replace {
             f.body[t] = i;
+            if let Some(origins) = &mut f.origins {
+                origins[t] = gone
+                    .iter()
+                    .chain(std::iter::once(&t))
+                    .find_map(|&i| origins[i]);
+            }
         }
         for k in gone.into_iter().rev() {
-            f.body.remove(k);
+            f.remove(k);
         }
         changed = true;
     }
@@ -596,15 +624,16 @@ fn with_offset(i: &I<'static>, by: u32) -> Option<I<'static>> {
 /// Rules 5 and 6: rewrites each `if` of those shapes.
 fn shapes(f: &mut Func, np: u32) -> bool {
     let mut changed = false;
-    while let Some(next) = shape_once(f, np) {
+    while let Some((next, origins)) = shape_once(f, np) {
         f.body = next;
+        origins.finish(f);
         changed = true;
     }
     changed
 }
 
 /// The body after the first rewrite by rule 5 or 6, if there is one.
-fn shape_once(f: &Func, np: u32) -> Option<Vec<Ins>> {
+fn shape_once(f: &Func, np: u32) -> Option<(Vec<Ins>, Remap)> {
     let (reads, writes) = counts(f);
     let b = &f.body;
     for (s, e, n) in ifs(b) {
@@ -623,7 +652,7 @@ fn shape_once(f: &Func, np: u32) -> Option<Vec<Ins>> {
             (other.clone(), then.clone(), true),
             (then.clone(), other.clone(), false),
         ] {
-            if let Some(d) = lone_br(exit)
+            if let Some(d) = lone_br(exit.clone())
                 && !targets_self(&b[keep.clone()])
             {
                 let mut out = b[..s].to_vec();
@@ -631,9 +660,15 @@ fn shape_once(f: &Func, np: u32) -> Option<Vec<Ins>> {
                     out.push(Ins::Op(I::I32Eqz));
                 }
                 out.push(Ins::Op(I::BrIf(d - 1)));
+                let mut origins = Remap::new(f.origins.as_deref());
+                origins.copy(0..s);
+                let origin = origins.first(s..s + 1).or_else(|| origins.first(exit));
+                origins.repeat(origin, usize::from(negate) + 1);
+                origins.copy(keep.clone());
+                origins.copy(n + 1..b.len());
                 out.extend(lowered(&b[keep]));
                 out.extend_from_slice(&b[n + 1..]);
-                return Some(out);
+                return Some((out, origins));
             }
         }
         // Rule 6.
@@ -658,7 +693,19 @@ fn shape_once(f: &Func, np: u32) -> Option<Vec<Ins>> {
             out.extend_from_slice(&b[e + 1..n - 1]);
             out.push(Ins::Op(I::End));
             out.extend_from_slice(&b[n + 2..]);
-            return Some(out);
+            let mut origins = Remap::new(f.origins.as_deref());
+            origins.copy(0..s);
+            let origin = origins
+                .first(s..s + 1)
+                .or_else(|| origins.first(e - 1..e))
+                .or_else(|| origins.first(n - 1..n))
+                .or_else(|| origins.first(n + 1..n + 2));
+            origins.repeat(origin, 1);
+            origins.copy(s + 1..e - 1);
+            origins.copy(e..n - 1);
+            origins.copy(n..n + 1);
+            origins.copy(n + 2..b.len());
+            return Some((out, origins));
         }
     }
     None
@@ -910,11 +957,20 @@ pub fn count_pairs(f: &mut Func, retain: Hash128) -> bool {
     if gone.is_empty() {
         return false;
     }
+    let mut origins = Remap::new(f.origins.as_deref());
     f.body = std::mem::take(&mut f.body)
         .into_iter()
         .enumerate()
-        .filter_map(|(i, ins)| (!gone.contains(&i)).then_some(ins))
+        .filter_map(|(i, ins)| {
+            if gone.contains(&i) {
+                None
+            } else {
+                origins.copy(i..i + 1);
+                Some(ins)
+            }
+        })
         .collect();
+    origins.finish(f);
     true
 }
 
@@ -958,14 +1014,22 @@ pub fn fold_constant_branches(f: &mut Func) -> bool {
             };
             let then = i + 2..els.unwrap_or(end);
             let other = els.map_or(end..end, |e| e + 1..end);
-            let arm: Vec<Ins> = f.body[if c != 0 { then } else { other }].to_vec();
+            let selected = if c != 0 { then } else { other };
+            let arm: Vec<Ins> = f.body[selected.clone()].to_vec();
+            let mut origins = Remap::new(f.origins.as_deref());
+            origins.copy(0..i);
             let mut out: Vec<Ins> = Vec::new();
             if !(arm.is_empty() && matches!(bt, BlockType::Empty)) {
                 out.push(Ins::Op(I::Block(bt)));
                 out.extend(arm);
                 out.push(Ins::Op(I::End));
+                origins.merged(i..i + 2, 1);
+                origins.copy(selected);
+                origins.copy(end..end + 1);
             }
+            origins.copy(end + 1..f.body.len());
             f.body.splice(i..=end, out);
+            origins.finish(f);
             again = true;
         }
         // Locals that only ever hold 0.
@@ -986,21 +1050,32 @@ pub fn fold_constant_branches(f: &mut Func) -> bool {
                     if *l >= np32 && zero[(*l - np32) as usize])
             })
         {
+            let mut origins = Remap::new(f.origins.as_deref());
             let body = std::mem::take(&mut f.body);
-            for ins in body {
+            f.origins.as_mut().map(Vec::clear);
+            for (position, ins) in body.into_iter().enumerate() {
                 match ins {
                     Ins::Op(I::LocalGet(l)) if l >= np32 && zero[(l - np32) as usize] => {
                         f.op(I::I32Const(0));
+                        origins.copy(position..position + 1);
                     }
                     // Every write stores a constant 0 just pushed: a set
                     // takes it back, and a tee leaves it.
                     Ins::Op(I::LocalSet(l)) if l >= np32 && zero[(l - np32) as usize] => {
                         f.body.pop();
+                        if let Some(spans) = &mut f.origins {
+                            spans.pop();
+                        }
+                        origins.pop();
                     }
                     Ins::Op(I::LocalTee(l)) if l >= np32 && zero[(l - np32) as usize] => {}
-                    other => f.body.push(other),
+                    other => {
+                        f.push(other);
+                        origins.copy(position..position + 1);
+                    }
                 }
             }
+            origins.finish(f);
             again = true;
         }
         if !again {
@@ -1032,6 +1107,8 @@ pub fn inline_counts(f: &mut Func, acyclic: bool) -> bool {
     }
     let (t, b, c) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
     let body = std::mem::take(&mut f.body);
+    let origins = f.origins.as_mut().map(std::mem::take);
+    let outer = f.origin_at;
     // Leaves the header's address in `b` and its count in `c`, branching
     // out of the enclosing block for null.
     let header = |f: &mut Func| {
@@ -1047,7 +1124,8 @@ pub fn inline_counts(f: &mut Func, acyclic: bool) -> bool {
         f.op(I::I32Load(mem(HEAP, 0, 2)));
         f.op(I::LocalTee(c));
     };
-    for ins in body {
+    for (position, ins) in body.into_iter().enumerate() {
+        f.origin_at = origins.as_ref().and_then(|o| o[position]);
         match ins {
             Ins::Call(Sym::Helper(Helper::RetainKnown)) => {
                 header(f);
@@ -1065,7 +1143,7 @@ pub fn inline_counts(f: &mut Func, acyclic: bool) -> bool {
                 f.i32(1);
                 f.op(I::I32GtU);
                 if !acyclic {
-                    f.body.push(Ins::GlobalGet(Global::Tracing));
+                    f.push(Ins::GlobalGet(Global::Tracing));
                     f.op(I::I32Eqz);
                     f.op(I::I32And);
                     f.get(b);
@@ -1086,18 +1164,301 @@ pub fn inline_counts(f: &mut Func, acyclic: bool) -> bool {
                 // 0, and `visit` must still see the reference.
                 f.get(c);
                 if !acyclic {
-                    f.body.push(Ins::GlobalGet(Global::Tracing));
+                    f.push(Ins::GlobalGet(Global::Tracing));
                     f.op(I::I32Or);
                 }
                 f.op(I::If(BlockType::Empty));
                 f.get(t);
-                f.body.push(Ins::Call(Sym::Helper(Helper::ReleaseKnown)));
+                f.push(Ins::Call(Sym::Helper(Helper::ReleaseKnown)));
                 f.op(I::End);
                 f.op(I::End);
                 f.op(I::End);
             }
-            other => f.body.push(other),
+            other => f.push(other),
         }
     }
+    f.origin_at = outer;
     true
+}
+
+#[cfg(test)]
+mod origin_tests {
+    use super::*;
+    use crate::module::{HEAP, Val, mem};
+    use wasm_encoder::BlockType;
+
+    fn tracked(params: usize, locals: usize, body: Vec<Ins>) -> Func {
+        let mut f = Func::new("origins", vec![Val::I32; params], vec![]);
+        f.locals = vec![Val::I32; locals];
+        f.origins = Some(
+            (0..body.len())
+                .map(|i| Some(10 + u32::try_from(i).unwrap()))
+                .collect(),
+        );
+        f.body = body;
+        f
+    }
+
+    fn run(mut f: Func, pass: impl Fn(&mut Func)) -> Func {
+        let mut plain = f.clone();
+        plain.origins = None;
+        pass(&mut plain);
+        pass(&mut f);
+        assert_eq!(format!("{:?}", f.body), format!("{:?}", plain.body));
+        assert_eq!(f.origins.as_ref().unwrap().len(), f.body.len());
+        f
+    }
+
+    fn spans(f: &Func) -> Vec<u32> {
+        f.origins
+            .as_ref()
+            .unwrap()
+            .iter()
+            .map(|s| s.expect("retained source"))
+            .collect()
+    }
+
+    #[test]
+    fn origins_follow_local_cleanup_forwarding_and_scheduling() {
+        let op = Ins::Op;
+        let f = run(
+            tracked(
+                1,
+                1,
+                vec![op(I::LocalGet(0)), op(I::LocalSet(1)), op(I::LocalGet(1))],
+            ),
+            |f| locals(f, &Arity::new()),
+        );
+        assert_eq!(spans(&f), [10]);
+        let f = run(
+            tracked(0, 1, vec![op(I::I32Const(7)), op(I::LocalSet(0))]),
+            |f| locals(f, &Arity::new()),
+        );
+        assert!(spans(&f).is_empty());
+        let f = run(
+            tracked(0, 1, vec![op(I::I32Const(7)), op(I::LocalTee(0))]),
+            |f| locals(f, &Arity::new()),
+        );
+        assert_eq!(spans(&f), [10]);
+        let f = run(
+            tracked(
+                0,
+                1,
+                vec![
+                    op(I::I32Const(1)),
+                    op(I::LocalSet(0)),
+                    op(I::I32Const(2)),
+                    op(I::LocalSet(0)),
+                    op(I::LocalGet(0)),
+                    op(I::LocalGet(0)),
+                    op(I::I32Add),
+                ],
+            ),
+            |f| locals(f, &Arity::new()),
+        );
+        assert!(
+            f.body
+                .iter()
+                .zip(f.origins.as_ref().unwrap())
+                .any(|(i, s)| matches!(i, Ins::Op(I::LocalTee(_))) && *s == Some(13))
+        );
+        let f = run(
+            tracked(
+                1,
+                1,
+                vec![
+                    op(I::LocalGet(0)),
+                    op(I::LocalSet(1)),
+                    op(I::I32Const(2)),
+                    op(I::Drop),
+                    op(I::LocalGet(1)),
+                ],
+            ),
+            |f| {
+                assert!(forward(f, 1));
+            },
+        );
+        assert_eq!(spans(&f), [12, 13, 10]);
+        let f = run(
+            tracked(
+                1,
+                0,
+                vec![
+                    op(I::LocalGet(0)),
+                    op(I::I32Const(4)),
+                    op(I::I32Add),
+                    op(I::I32Const(9)),
+                    op(I::I32Store(mem(HEAP, 0, 2))),
+                ],
+            ),
+            |f| {
+                assert!(schedule(f, 1, &Arity::new()));
+            },
+        );
+        assert_eq!(spans(&f), [10, 13, 11]);
+        let f = run(
+            tracked(
+                0,
+                2,
+                vec![
+                    op(I::I32Const(1)),
+                    op(I::LocalSet(0)),
+                    op(I::I32Const(2)),
+                    op(I::LocalSet(1)),
+                    op(I::LocalGet(0)),
+                    op(I::LocalGet(1)),
+                    op(I::I32Add),
+                ],
+            ),
+            |f| {
+                assert!(schedule(f, 0, &Arity::new()));
+            },
+        );
+        // Rule 10 takes precedence here, moving the second value before its producer.
+        assert_eq!(spans(&f), [10, 11, 14, 12, 16]);
+        let f = run(
+            tracked(
+                0,
+                1,
+                vec![
+                    op(I::I32Const(3)),
+                    op(I::LocalSet(0)),
+                    op(I::I32Const(5)),
+                    op(I::LocalGet(0)),
+                    op(I::I32Sub),
+                ],
+            ),
+            |f| {
+                assert!(schedule(f, 0, &Arity::new()));
+            },
+        );
+        assert_eq!(spans(&f), [12, 10, 14]);
+    }
+
+    #[test]
+    fn origins_follow_folds_and_both_control_shapes() {
+        let op = Ins::Op;
+        let mut f = tracked(
+            1,
+            0,
+            vec![op(I::LocalGet(0)), op(I::I32Const(0)), op(I::I32Eq)],
+        );
+        f.origins.as_mut().unwrap()[1] = None;
+        let f = run(f, |f| {
+            assert!(fold(f));
+        });
+        assert_eq!(spans(&f), [10, 12]);
+        let f = run(
+            tracked(
+                1,
+                0,
+                vec![
+                    op(I::LocalGet(0)),
+                    op(I::If(BlockType::Empty)),
+                    op(I::I32Const(7)),
+                    op(I::Drop),
+                    op(I::Else),
+                    op(I::Br(1)),
+                    op(I::End),
+                ],
+            ),
+            |f| {
+                assert!(shapes(f, 1));
+            },
+        );
+        assert_eq!(spans(&f), [10, 11, 11, 12, 13]);
+        let f = run(
+            tracked(
+                1,
+                1,
+                vec![
+                    op(I::LocalGet(0)),
+                    op(I::If(BlockType::Empty)),
+                    op(I::I32Const(7)),
+                    op(I::LocalSet(1)),
+                    op(I::Else),
+                    op(I::I32Const(8)),
+                    op(I::LocalSet(1)),
+                    op(I::End),
+                    op(I::LocalGet(1)),
+                ],
+            ),
+            |f| {
+                assert!(shapes(f, 1));
+            },
+        );
+        assert_eq!(spans(&f), [10, 11, 12, 14, 15, 17]);
+        let f = run(
+            tracked(
+                0,
+                0,
+                vec![
+                    op(I::I32Const(0)),
+                    op(I::If(BlockType::Empty)),
+                    op(I::I32Const(10)),
+                    op(I::Drop),
+                    op(I::Else),
+                    op(I::I32Const(20)),
+                    op(I::Drop),
+                    op(I::End),
+                ],
+            ),
+            |f| {
+                assert!(fold_constant_branches(f));
+            },
+        );
+        assert_eq!(spans(&f), [10, 15, 16, 17]);
+        let f = run(
+            tracked(
+                0,
+                1,
+                vec![op(I::I32Const(0)), op(I::LocalSet(0)), op(I::LocalGet(0))],
+            ),
+            |f| {
+                assert!(fold_constant_branches(f));
+            },
+        );
+        assert_eq!(spans(&f), [12]);
+    }
+
+    #[test]
+    fn origins_follow_count_deletion_and_fast_path_expansion() {
+        let retain = Hash128(7);
+        let f = run(
+            tracked(
+                1,
+                0,
+                vec![
+                    Ins::Op(I::LocalGet(0)),
+                    Ins::Call(Sym::Inst(retain)),
+                    Ins::Op(I::LocalGet(0)),
+                    Ins::Call(Sym::Helper(Helper::ReleaseRef)),
+                ],
+            ),
+            |f| {
+                assert!(count_pairs(f, retain));
+            },
+        );
+        assert!(spans(&f).is_empty());
+        for acyclic in [false, true] {
+            let f = run(
+                tracked(
+                    1,
+                    0,
+                    vec![
+                        Ins::Op(I::LocalGet(0)),
+                        Ins::Call(Sym::Helper(Helper::RetainKnown)),
+                        Ins::Op(I::LocalGet(0)),
+                        Ins::Call(Sym::Helper(Helper::ReleaseKnown)),
+                    ],
+                ),
+                |f| {
+                    assert!(inline_counts(f, acyclic));
+                },
+            );
+            let s = spans(&f);
+            assert!(s.contains(&11) && s.contains(&13));
+            assert!(s.iter().all(|i| (10..=13).contains(i)));
+        }
+    }
 }

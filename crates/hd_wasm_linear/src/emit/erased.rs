@@ -125,6 +125,7 @@ pub(super) fn thunk(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResul
         .map(|c| (c.0 as usize, u32::MAX))
         .collect();
     let mut em = Em::new(input, m, b, (item, args), calls, shared_cells);
+    em.origin_root = at;
     let mut params = Vec::new();
     let mut ops = Vec::new();
     for r in thunk_operands(b, at) {
@@ -168,6 +169,7 @@ pub(super) fn thunk(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResul
         params,
         results.clone(),
     );
+    em.inherit_origin_source();
     em.counting = em.counts_anything();
     if em.counting {
         em.ret = results.iter().map(|v| em.f.local(*v)).collect();

@@ -17,6 +17,7 @@ mod layout;
 mod map;
 mod module;
 mod opt;
+mod origins;
 mod pow;
 mod rem;
 mod rt;
@@ -29,6 +30,7 @@ use hd_tir::ir::Body;
 use hd_types::{InternPool, Ty};
 
 pub use module::Sym;
+pub use origins::{FunctionOrigins, InstructionOrigin, MappedModule};
 pub use rt::Helper;
 
 /// A1's shared reference-storage class on this backend: data and boxed
@@ -358,12 +360,18 @@ impl Runtime {
 /// backend does not lower yet.
 pub fn build(input: &Input<'_>) -> StageResult<Vec<u8>> {
     // Every layout and walk the link asks for is computed once.
-    layout::cached(|| link(input))
+    layout::cached(|| link(input, false)).map(|mapped| mapped.wasm)
 }
 
-/// [`build`]'s link, with the layout cache in place.
-fn link(input: &Input<'_>) -> StageResult<Vec<u8>> {
+/// Builds the same module bytes as [`build`], with instruction origins separately.
+pub fn build_with_origins(input: &Input<'_>) -> StageResult<MappedModule> {
+    layout::cached(|| link(input, true))
+}
+
+/// Both entry points run this link with the same layout cache.
+fn link(input: &Input<'_>, track_origins: bool) -> StageResult<MappedModule> {
     let mut m = module::Module::default();
+    m.track_origins = track_origins;
     m.runtime = input.runtime;
     m.release = input.release;
     m.inline_counts = input.inline_counts;
@@ -380,7 +388,14 @@ fn link(input: &Input<'_>) -> StageResult<Vec<u8>> {
         m.define(Sym::Inst(input.collected.table.key[id.idx()]), f);
     }
     rt::entry(input, &mut m)?;
-    m.finish()
+    if track_origins {
+        m.finish_with_origins()
+    } else {
+        m.finish().map(|wasm| MappedModule {
+            wasm,
+            functions: Vec::new(),
+        })
+    }
 }
 
 /// Gives each top-level binding that some reference refers to a static

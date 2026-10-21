@@ -321,7 +321,7 @@ impl Em<'_, '_, '_> {
     /// count the frame takes: saves every local and returns the frame.
     fn suspend(&mut self, k: u32, child: u32) -> StageResult<()> {
         self.materialize()?;
-        self.f.body.push(Ins::SaveAll);
+        self.f.push(Ins::SaveAll);
         self.f.get(FRAME);
         self.f.get(child);
         self.f.op(I::I32Store(mem(HEAP, F_CHILD, 2)));
@@ -1021,7 +1021,10 @@ pub(super) fn load_op(v: Val, at: u32) -> I<'static> {
 /// and loads of its save area `area`.
 pub(super) fn expand(f: &mut crate::module::Func, area: &[(u32, u32, Val)]) {
     let body = std::mem::take(&mut f.body);
-    for ins in body {
+    let origins = f.origins.as_mut().map(std::mem::take);
+    let outer = f.origin_at;
+    for (position, ins) in body.into_iter().enumerate() {
+        f.origin_at = origins.as_ref().and_then(|o| o[position]);
         match ins {
             Ins::SaveAll => {
                 for &(l, at, v) in area {
@@ -1035,9 +1038,10 @@ pub(super) fn expand(f: &mut crate::module::Func, area: &[(u32, u32, Val)]) {
                     f.set(l);
                 }
             }
-            other => f.body.push(other),
+            other => f.push(other),
         }
     }
+    f.origin_at = outer;
 }
 
 impl Em<'_, '_, '_> {
@@ -1135,6 +1139,7 @@ pub(super) fn finish(
     // The release glue: the places the body owns while it waits, unless
     // it has left, then the child.
     em.f = crate::module::Func::new(format!("{name}.drop"), vec![Val::I32], vec![]);
+    em.inherit_origin_source();
     em.counting = em.input.runtime.is_some();
     if em.counting {
         em.f.get(FRAME);
@@ -1253,6 +1258,7 @@ pub(super) fn finish(
     // the providers, with a count of each counted argument.
     let cold_params: Vec<Val> = params[1..].to_vec();
     em.f = crate::module::Func::new(name.clone(), cold_params.clone(), vec![Val::I32]);
+    em.inherit_origin_source();
     let fr = em.f.local(Val::I32);
     em.f.helper(Helper::Frame(key));
     em.f.set(fr);
@@ -1315,6 +1321,7 @@ pub(super) fn finish(
     let mut pres = vec![Val::I32];
     pres.extend(results.iter().copied());
     let mut f = crate::module::Func::new(format!("{name}.poll"), vec![Val::I32], pres);
+    em.annotate_func(&mut f);
     let tmp: Vec<u32> = results.iter().map(|v| f.local(*v)).collect();
     let nf = f.local(Val::I32);
     let pending = |f: &mut crate::module::Func| {
@@ -1356,6 +1363,7 @@ pub(super) fn finish(
     // The cancel (§14.6): a frame that never started is only marked; a
     // started one unwinds until its body leaves by its cancellation.
     em.f = crate::module::Func::new(format!("{name}.cancel"), vec![Val::I32], vec![]);
+    em.inherit_origin_source();
     let seen = em.f.local(Val::I32);
     let tmp: Vec<u32> = results.iter().map(|v| em.f.local(*v)).collect();
     let back = em.f.local(Val::I32);
@@ -1458,4 +1466,22 @@ fn set_flags(f: &mut crate::module::Func, bits: i32, on: bool) {
         f.op(I::I32And);
     }
     f.op(I::I32Store(mem(HEAP, F_FLAGS, 2)));
+}
+
+#[cfg(test)]
+mod origin_tests {
+    use super::*;
+    #[test]
+    fn frame_expansion_keeps_each_save_and_load_origin() {
+        let mut f = crate::module::Func::new("frame", vec![Val::I32], vec![]);
+        f.locals.push(Val::I32);
+        f.body = vec![Ins::SaveAll, Ins::LoadAll];
+        f.origins = Some(vec![Some(10), Some(20)]);
+        expand(&mut f, &[(1, 32, Val::I32)]);
+        assert_eq!(
+            f.origins.unwrap(),
+            [Some(10), Some(10), Some(10), Some(20), Some(20), Some(20)]
+        );
+        assert_eq!(f.body.len(), 6);
+    }
 }

@@ -45,6 +45,7 @@ use hd_types::solver::{
     UniverseImpls, folder_table,
 };
 use hd_types::{InternPool, Ty, TyData, TyList};
+pub use hd_wasm_linear::{FunctionOrigins, InstructionOrigin};
 
 pub mod bench;
 mod dbg;
@@ -407,6 +408,8 @@ pub fn test_programs(
 /// The result of a run.
 pub struct Output {
     pub wasm: Option<Vec<u8>>,
+    /// Off-band instruction origins, when `Packages::instruction_origins` is enabled.
+    pub instruction_origins: Vec<FunctionOrigins>,
     pub diags: DiagBuf,
     /// Package-relative file paths, indexed by a diagnostic's `FileId`.
     pub files: Vec<String>,
@@ -1157,6 +1160,8 @@ struct Run<'a> {
     program: OnceLock<ProgramTables>,
     collect: OnceLock<CollectOut>,
     wasm: OnceLock<Vec<u8>>,
+    map_instructions: bool,
+    instruction_origins: OnceLock<Vec<FunctionOrigins>>,
     /// The session this run links one more module of ([`Packages::session`]).
     session: Option<&'a Session>,
     /// What this run's module adds to that session ([`Output::session_added`]).
@@ -1224,6 +1229,9 @@ pub struct Dependency<'a> {
 /// The packages around a build's root package.
 #[derive(Default)]
 pub struct Packages<'a> {
+    /// Development tooling: emit instruction origins without changing module bytes.
+    /// Mapped builds bypass the linked-byte cache; checked bodies may still be cached.
+    pub instruction_origins: bool,
     /// The root's requirements: each dependency name, as source writes it
     /// after `dep.`, and its package index: 0 is the root, `i + 1` is
     /// `deps[i]`.
@@ -1530,6 +1538,8 @@ pub fn build_packages(
         program: OnceLock::new(),
         collect: OnceLock::new(),
         wasm: OnceLock::new(),
+        map_instructions: packages.instruction_origins,
+        instruction_origins: OnceLock::new(),
         session: packages.session,
         session_added: OnceLock::new(),
         input_entries: Mutex::default(),
@@ -1678,6 +1688,7 @@ pub fn build_packages(
     Output {
         tests: cases,
         wasm,
+        instruction_origins: run.instruction_origins.get().cloned().unwrap_or_default(),
         diags,
         files: run.table.files.clone(),
         texts: run.texts.clone(),
@@ -7241,7 +7252,8 @@ impl Run<'_> {
             &modules,
         );
         // A session module's link depends on the session: it is not cached.
-        if self.session.is_none()
+        if !self.map_instructions
+            && self.session.is_none()
             && let Some(sections) = self.lookup(EntryKind::Link, pkey)
             && let Some(w) = sections.first()
         {
@@ -8106,10 +8118,20 @@ impl Run<'_> {
             inline_counts: self.inline_counts,
             host_refs: &c.host_refs,
         };
-        let Some(wasm) = self.stage(Stage::Link, hd_wasm_linear::build(&input)) else {
+        let built = if self.map_instructions {
+            hd_wasm_linear::build_with_origins(&input).map(|mapped| {
+                let _ = self.instruction_origins.set(mapped.functions);
+                mapped.wasm
+            })
+        } else {
+            hd_wasm_linear::build(&input)
+        };
+        let Some(wasm) = self.stage(Stage::Link, built) else {
             return;
         };
-        self.put(EntryKind::Link, c.prog_key, &[&wasm]);
+        if !self.map_instructions {
+            self.put(EntryKind::Link, c.prog_key, &[&wasm]);
+        }
         let _ = self.wasm.set(wasm);
     }
 }

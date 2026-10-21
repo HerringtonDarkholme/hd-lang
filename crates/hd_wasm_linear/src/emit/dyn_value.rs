@@ -110,7 +110,7 @@ impl Em<'_, '_, '_> {
                 Some(&[])
             };
             let vt = self.vtable_of(&table, leaves, from)?;
-            self.f.body.push(Ins::VTable(vt));
+            self.f.push(Ins::VTable(vt));
             return self.store(i);
         }
         let src = self.slot_src(a, from, false)?;
@@ -127,7 +127,7 @@ impl Em<'_, '_, '_> {
         self.retain_fields(at, &m, w.as_ref());
         let vt = self.vtable_of(&table, Some(&m.leaves), from)?;
         self.f.get(at);
-        self.f.body.push(Ins::VTable(vt));
+        self.f.push(Ins::VTable(vt));
         // A new box arrives with its count.
         self.store_owned(i)
     }

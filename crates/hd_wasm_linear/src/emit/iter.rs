@@ -88,7 +88,7 @@ impl Em<'_, '_, '_> {
             store(self, &m, *p, &|em| v(em, h))?;
         }
         self.retain_fields(env, &m, walk.as_ref());
-        self.f.body.push(Ins::TableSlot(Sym::Helper(code)));
+        self.f.push(Ins::TableSlot(Sym::Helper(code)));
         self.f.get(env);
         // The new environment arrives with its count.
         self.store_owned(i)

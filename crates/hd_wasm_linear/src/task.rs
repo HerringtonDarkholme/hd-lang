@@ -313,6 +313,9 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
 /// Results already on the Wasm stack are left in place by the stores.
 pub(crate) fn guard_frame(f: &mut Func) {
     let body = std::mem::take(&mut f.body);
+    let origins = f.origins.as_mut().map(std::mem::take);
+    let outer = f.origin_at;
+    f.origin_at = f.origin_root;
     let previous = f.local(Val::I32);
     f.get(0);
     f.op(Instruction::If(BlockType::Empty));
@@ -336,13 +339,16 @@ pub(crate) fn guard_frame(f: &mut Func) {
         f.op(Instruction::I32Store(mem(HEAP, F_FLAGS, 2)));
         f.op(Instruction::End);
     };
-    for ins in body {
+    for (position, ins) in body.into_iter().enumerate() {
+        f.origin_at = origins.as_ref().and_then(|o| o[position]);
         if matches!(ins, Ins::Op(Instruction::Return)) {
             restore(f);
         }
-        f.body.push(ins);
+        f.push(ins);
     }
+    f.origin_at = f.origin_root;
     restore(f);
+    f.origin_at = outer;
 }
 
 /// Adds `by` to the `abandon()` depth.
@@ -362,10 +368,10 @@ fn frame(key: Hash128, m: &Module) -> Func {
     // part in cycle collection (§23.28).
     let at = new_zeroed(&mut f, size, Some(Sym::Part(key, Part::Drop)), true);
     f.get(at);
-    f.body.push(Ins::TableSlot(Sym::Part(key, Part::Poll)));
+    f.push(Ins::TableSlot(Sym::Part(key, Part::Poll)));
     f.op(Instruction::I32Store(mem(HEAP, F_POLL, 2)));
     f.get(at);
-    f.body.push(Ins::TableSlot(Sym::Part(key, Part::Cancel)));
+    f.push(Ins::TableSlot(Sym::Part(key, Part::Cancel)));
     f.op(Instruction::I32Store(mem(HEAP, F_CANCEL, 2)));
     f.get(at);
     f
@@ -603,7 +609,7 @@ fn wake_link() -> Func {
     f.op(Instruction::End);
     f.op(Instruction::End);
     f.i32(12);
-    f.body.push(Ins::TableSlot(Sym::Helper(Helper::DropFields {
+    f.push(Ins::TableSlot(Sym::Helper(Helper::DropFields {
         leaves: vec![
             Leaf {
                 offset: 0,
@@ -676,7 +682,7 @@ fn waker_new() -> Func {
     let mut f = Func::new("rt:waker_new", vec![Val::I32], vec![Val::I32]);
     let node = f.local(Val::I32);
     f.i32(12);
-    f.body.push(Ins::TableSlot(Sym::Helper(Helper::DropFields {
+    f.push(Ins::TableSlot(Sym::Helper(Helper::DropFields {
         leaves: vec![Leaf {
             offset: 0,
             val: Val::I32,
@@ -890,10 +896,10 @@ fn host_cold(module: &str, method: &str, args: &[HostArg], area: &Elem, res: &Ho
         res: res.clone(),
     });
     f.get(fr);
-    f.body.push(Ins::TableSlot(poll));
+    f.push(Ins::TableSlot(poll));
     f.op(Instruction::I32Store(mem(HEAP, F_POLL, 2)));
     f.get(fr);
-    f.body.push(Ins::TableSlot(Sym::Helper(Helper::HostCancel)));
+    f.push(Ins::TableSlot(Sym::Helper(Helper::HostCancel)));
     f.op(Instruction::I32Store(mem(HEAP, F_CANCEL, 2)));
     f.get(fr);
     f.i32(-1);
@@ -913,7 +919,7 @@ fn host_cold(module: &str, method: &str, args: &[HostArg], area: &Elem, res: &Ho
         f.helper(Helper::CopyElems { elem: area.clone() });
     } else if let Some(w) = &area.walk {
         crate::rt::walk_code(&mut f, w, &|f, k| f.get(k + 1), &|f| {
-            f.body.push(Ins::Call(Sym::Helper(Helper::RetainAny)));
+            f.push(Ins::Call(Sym::Helper(Helper::RetainAny)));
         });
     }
     f.get(fr);
@@ -1208,12 +1214,10 @@ fn cleanup_cold() -> Func {
     let mut f = Func::new("rt:cleanup_cold", vec![Val::I32], vec![Val::I32]);
     let fr = new_zeroed(&mut f, F_SAVED, Some(Sym::Helper(Helper::ChildDrop)), true);
     f.get(fr);
-    f.body
-        .push(Ins::TableSlot(Sym::Helper(Helper::CleanupPoll)));
+    f.push(Ins::TableSlot(Sym::Helper(Helper::CleanupPoll)));
     f.op(Instruction::I32Store(mem(HEAP, F_POLL, 2)));
     f.get(fr);
-    f.body
-        .push(Ins::TableSlot(Sym::Helper(Helper::CleanupCancel)));
+    f.push(Ins::TableSlot(Sym::Helper(Helper::CleanupCancel)));
     f.op(Instruction::I32Store(mem(HEAP, F_CANCEL, 2)));
     f.get(fr);
     f.get(0);
@@ -1318,13 +1322,12 @@ fn pending_cold(results: &[Val]) -> Func {
     let mut f = Func::new("rt:pending_cold", vec![], vec![Val::I32]);
     let fr = new_zeroed(&mut f, F_SAVED, None, false);
     f.get(fr);
-    f.body.push(Ins::TableSlot(Sym::Helper(Helper::PendingPoll {
+    f.push(Ins::TableSlot(Sym::Helper(Helper::PendingPoll {
         results: results.to_vec(),
     })));
     f.op(Instruction::I32Store(mem(HEAP, F_POLL, 2)));
     f.get(fr);
-    f.body
-        .push(Ins::TableSlot(Sym::Helper(Helper::PendingCancel)));
+    f.push(Ins::TableSlot(Sym::Helper(Helper::PendingCancel)));
     f.op(Instruction::I32Store(mem(HEAP, F_CANCEL, 2)));
     f.get(fr);
     f
@@ -1380,10 +1383,10 @@ fn race_cold(results: &[Val], walk: Option<&Walk>) -> Func {
         walk: walk.cloned(),
     };
     f.get(fr);
-    f.body.push(Ins::TableSlot(Sym::Helper(h(1))));
+    f.push(Ins::TableSlot(Sym::Helper(h(1))));
     f.op(Instruction::I32Store(mem(HEAP, F_POLL, 2)));
     f.get(fr);
-    f.body.push(Ins::TableSlot(Sym::Helper(h(2))));
+    f.push(Ins::TableSlot(Sym::Helper(h(2))));
     f.op(Instruction::I32Store(mem(HEAP, F_CANCEL, 2)));
     f.get(fr);
     f.get(0);
@@ -1613,7 +1616,7 @@ fn open_cold(
     let mut f = Func::new("rt:open_cold", vec![Val::I32], vec![Val::I32]);
     let fr = new_zeroed(&mut f, F_SAVED, Some(Sym::Helper(Helper::ChildDrop)), true);
     f.get(fr);
-    f.body.push(Ins::TableSlot(Sym::Helper(Helper::OpenFrame {
+    f.push(Ins::TableSlot(Sym::Helper(Helper::OpenFrame {
         part: 1,
         reference: reference.cloned(),
         leaves: leaves.to_vec(),
@@ -1622,8 +1625,7 @@ fn open_cold(
     })));
     f.op(Instruction::I32Store(mem(HEAP, F_POLL, 2)));
     f.get(fr);
-    f.body
-        .push(Ins::TableSlot(Sym::Helper(Helper::CleanupCancel)));
+    f.push(Ins::TableSlot(Sym::Helper(Helper::CleanupCancel)));
     f.op(Instruction::I32Store(mem(HEAP, F_CANCEL, 2)));
     f.get(fr);
     f.get(0);
@@ -1705,4 +1707,32 @@ fn open_poll(
         f.get(*x);
     }
     f
+}
+
+#[cfg(test)]
+mod origin_tests {
+    use super::*;
+    #[test]
+    fn frame_guard_uses_scope_for_setup_and_return_for_early_exit() {
+        let mut f = Func::new("guarded", vec![Val::I32], vec![]);
+        f.body = vec![Ins::Op(Instruction::Return)];
+        f.origins = Some(vec![Some(10)]);
+        f.origin_root = Some(99);
+        let mut plain = f.clone();
+        plain.origins = None;
+        guard_frame(&mut plain);
+        guard_frame(&mut f);
+        assert_eq!(format!("{:?}", f.body), format!("{:?}", plain.body));
+        let spans = f.origins.as_ref().unwrap();
+        assert_eq!(spans.len(), f.body.len());
+        assert_eq!(spans.first(), Some(&Some(99)));
+        assert_eq!(spans.last(), Some(&Some(99)));
+        assert!(
+            f.body
+                .iter()
+                .zip(spans)
+                .any(|(i, s)| matches!(i, Ins::Op(Instruction::Return)) && *s == Some(10))
+        );
+        assert!(spans.iter().all(|s| matches!(s, Some(10 | 99))));
+    }
 }
