@@ -776,6 +776,11 @@ release, made explicit.
    its drop (rule 3) ends the pin at its last use, which is the rule
    `pins.rs` implements today at statement granularity with flags and
    a `defer` per pin.
+7. **Header copies** (commit 13a). A list or map value that a store, a
+   result, an argument or a capture would leave held by two places, one
+   of which a change may reach in place, gets a `ValueCopy`: the
+   checker's collection copies (`coll.rs`), decided from the changes
+   rules 5 and 6 find (commit 13a's note has the rule).
 
 Why it is sound: every owned value and local is dropped exactly once on
 every path. On the normal path, by the drop after the last use; on a
@@ -935,7 +940,7 @@ stage 2 lands one pass per commit.
 | #679 matching an owned temporary moves its payload (`match_payloads`) | move rule 3 | — |
 | #701 `&x` at the last access takes the cell's count (`Em::take_cell`) | move rule 4 | — |
 | #710 hoisted uniqueness and buffer loads | hoisting | — |
-| checker `coll_copy`, `return_copy`, `loop_binding_copy` (`ValueCopy`) | insertion's `copy` of a list or map value is the header copy (`rt:list_copy`) in stages 1 and 2, a buffer retain in stage 3 | a change through one holder never reaches another |
+| checker `coll_copy`, `return_copy`, `loop_binding_copy` (`ValueCopy`) | insertion's rule 7 (`own/copies.rs`, commit 13a): a `ValueCopy` where a header that may change in place would be held by two places, the checker's rule decided by the pass; a buffer retain in stage 3 | a change through one holder never reaches another |
 | checker `pins.rs` statement-granular unpin, pin flags and defer | insertion rule 6 | `collection-pinned` still panics while a reference lives |
 
 The counts every stage-2 commit must keep are the `counts` baselines
@@ -2357,8 +2362,8 @@ is worth deciding only if they are hot.
     same runs, so no change beyond noise: these programs take no element
     reference and change few elements.
     **Left for later commits (12b).**
-    - **The copies** (`ValueCopy`, above): commit 13, after the owner's
-      choice.
+    - **The copies** (`ValueCopy`, above): commit 13a, the owner's model
+      3 (insertion takes over the checker's rule).
     - **A loop over element references checks per step**: its `IsUnique`
       and `Pin` run at each step, where the old path pinned once, since
       hoisting takes no loop that pins. Commit 13 measures it (no
@@ -2373,8 +2378,199 @@ is worth deciding only if they are hot.
       (`ref.elem.place`), left for commit 13 to raise.
 13. Parity: every counts baseline at or below today, conformance and
     the checked-mode audit green on the new path; the switch flips.
+    Split in two: 13a moves the checker's collection copies into
+    insertion (the owner's model 3 on #728); 13b is parity and the switch.
+    **13a as built.** In new mode the checker writes no `ValueCopy`
+    (`coll_copy`, `copy_into_local`, `mut_param_copies`, `value_arg`,
+    `capture_copies` and `loop_binding_copy` return at once when
+    `BodyCx::own_passes` is on); insertion writes the same intrinsic, by
+    its new rule 7 (`own/copies.rs`). Off, the checker's TIR is the old
+    path's, byte for byte.
+    - **The checker's rule** (`coll.rs`, old path). A list or map value is
+      a header over a buffer; a change in place makes the buffer the
+      header's own and changes it through the header, so every holder of
+      that header sees the change, and a holder of a copy (a new header
+      over the same buffer) does not. The checker keeps a header that may
+      change in place to one holder: a value whose type may hold a list or
+      a map (`may_hold_coll`: a list, a map, a struct holding one in a
+      field at any depth, a type parameter; a tuple, an enum or an
+      optional shares, as no change reaches its members in place) that no
+      instruction just made (`is_fresh`: a literal, a construction, a
+      call's result, a copy) gets a `ValueCopy` when it goes into a place
+      that may change in place, or comes out of one into a place that
+      outlives the read:
+      1. stored into a `let` or `:=` binding (`copy_into_local`), unless
+         neither the binding nor the binding it is read from is `let mut`
+         (a tuple element or a payload counts as such a read);
+      2. returned (`return_copy`), unless it is the function's own `let
+         mut` local, no parameter and captured by nothing, which the
+         return moves out;
+      3. stored through a reference (`*r = v`, `r.f = v`), held in a new
+         object for `&v`, or the source of a struct update (`coll_copy`);
+      4. a `mut` parameter, on entry (`mut_param_copies`);
+      5. a value argument whose place something besides the caller may
+         change while the callee runs (`value_arg`): a mutable global, a
+         read through a reference, a `let mut` local a closure or a `&mut`
+         reaches, or one a later argument changes; copied right after the
+         argument, before its siblings; a list or map receiver passes as
+         is;
+      6. before a closure is made, a parameter or a binding that took one
+         as is that it captures (`capture_copies`);
+      7. a loop's element binding a closure captures (`loop_binding_copy`).
+      A value stored into an element, a field, a payload or a tuple member
+      is copied by the emitter's store glue on both paths (`slot_src`,
+      `hd_wasm_linear/DESIGN.md` §23.17), not by the checker.
+    - **Rule 7, as insertion states it.** The pass replaces the checker's
+      syntax facts (`let mut`, `copy_locals`, the open loops and closures)
+      by its own: a **changing** local is one whose header a change
+      reaches in place, the root of a place rules 5 and 6 make unique or
+      pin (through no dereference), of a value read from one, or of a
+      `&mut` reference (to its storage, or into its list's buffer); it is
+      **aliased** when that change can run while a callee runs: through
+      such a reference, or inside a closure that captures it. A **fixed
+      source** is a read of a place rooted at a local that is not changing,
+      or a part of a fresh value. A value that may hold a list or a map
+      (`OwnCx::header_copy`, the checker's `may_hold_coll` from the
+      program's tables) and that is not fresh gets a `ValueCopy` for:
+      1. a store into a whole local that is changing, or of a value whose
+         source is not fixed; a map value read for a change
+         (`MapIndexMut`), which the change must reach, never;
+      2. the function's result (a `Return`, the function's root tail),
+         unless it is a read of its own local (no parameter, captured by
+         nothing) whose every stored value is fresh;
+      3. a store through a dereference, and a struct update's source;
+      4. a value argument whose source is a global, a dereference, an
+         aliased local, or a local a later argument changes (a change site
+         between the argument's read and the call), but an in-place
+         argument (`Pass::InPlace`) and a list or map receiver
+         (`OwnCx::receiver`);
+      5. a changing parameter, on entry, but a `mut self` view of a
+         collection (`OwnCx::in_place_view`): read, copied, stored back;
+      6. a local a closure captures by value that may share its header (a
+         parameter with no entry copy, or a local some value was stored
+         into with no copy: a binding of a fixed source, a loop's element):
+         read, copied, stored back before the closure is made.
+    - **The same instruction, not a new statement.** The header copy is
+      the `ValueCopy` intrinsic the checker wrote: a value that consumes
+      nothing and makes a fresh header, which every later pass already
+      reads as one (borrow's fresh stores, hoisting's copies, the
+      verifier's balance), hd_mono outlines for an open value, and the
+      backend lowers (`rt:list_copy`, a struct's copy of each list). A new
+      ownership statement would be the same operation under another name,
+      and stage 3, where a list's value is its buffer, turns it into a
+      buffer retain either way.
+    - **Placement.** A copy stands right before its use, after every
+      other edit there (`splice::Tables::insert_late`), as the checker's
+      did, and the value's own use ends at the copy, so its `Drop` stands
+      between the copy and the use and a borrow of it spans nothing more;
+      the use consumes the copy or lends it (then a `Drop` follows the
+      use's statement). An argument's copy stands right after the
+      argument, so a later argument's change cannot reach it, and a
+      `Break`, `Continue`, `Return` or `ToArm` between drops it (a new
+      jump item, `EDIT_BIT`). The entry and capture copies are `Read copy`,
+      `ValueCopy`, `Drop`, `Store` back, the shape insertion made of the
+      checker's.
+    - **Sources.** A read's source is the local it is rooted at (through
+      values it reads parts of), a global, a dereference, or a part of a
+      fresh value; a map's `MapIndex`, `MapGet` and `MapSlotEntry` read
+      what the map's table holds, so their source is the map's; a
+      `MapIndexMut` is the map's value the change must reach.
+    - **Where it decides less than the checker.** Three of the checker's
+      copies are no copy under the pass's facts, each with its proof:
+      - *a binding that is not changing, of a fixed source*: the checker
+        copied into every `let mut` binding; the pass copies only into a
+        local a change reaches in place, so a `let mut` that is only
+        replaced whole shares a fixed source's header, and its result is
+        copied instead where it leaves the function (2), as for any
+        sharing local;
+      - *a header that moves*: into a local that is not changing, a read
+        of a local of the body's own at its last access, outside any loop
+        and cleanup suite, that holds a header no other place holds (no
+        parameter, captured, referenced or shared by a binding; every
+        stored value fresh or copied) moves the header with no copy, and
+        the new holder owns it alone (a comprehension's accumulator into
+        its binding, which the checker read as a fixed local and did not
+        copy either, but whose binding then copied at the result);
+      - *a binding that shares safely*: a local stored once, captured and
+        referenced by nothing, read only in its store's block after the
+        store, by uses that are no call's argument (a callee may keep a
+        reference to its parameter in its result, as `List.iter` does) and
+        no block's value, shares its source's header when nothing that may
+        change it in place stands between the store and the last use (for
+        a local of the body no closure or reference reaches, a change of
+        it; for anything else, a call or any change). A read of it stands
+        for its source in later decisions (`link`). `SnapEnd`'s first
+        operand reads nothing (the backend ignores it), so the source a
+        `for` loop keeps in `$orig` shares the list, as the checker's
+        compiler local did.
+      And two it makes that the checker did not:
+      - *a match binding of a source not fixed*: the checker copied only
+        into the bindings a `let` names; insertion copies into any local
+        it cannot prove safe (a binding read by a call's argument or
+        outside its store's block, as a guard is). A binding of a map's
+        list that a push then changes in place kept seeing the push on the
+        old path (a defect of the old path,
+        `own/a-match-binding-of-a-changing-map-value-copies.hd`, and the
+        new path's `tests/all/header_copies_run.rs`; a conformance case
+        lands with the switch, since the old path fails it);
+      - *an argument of an aliased local through a desugared call* (an
+        `Index` call `m[k]` on a local a `&mut` reaches): the checker's
+        index desugaring skipped `value_arg`; insertion treats every call
+        alike.
+    - **`verify_owned`** (`header_copies`): a value that may hold a list or
+      a map stored into a whole changing local is fresh (a copy included)
+      or a map value read for a change, and a changing parameter, but a
+      `mut self` view of a collection, is first read in its sub-body to be
+      copied and stored back. The changing locals are recomputed from the
+      output's own `IsUnique`s, `Pin`s and `&mut` references.
+    - **`OwnCx`** gains three signature and layout facts: `header_copy`
+      (whether a type may hold a list or a map, the checker's
+      `may_hold_coll` from the program's tables, and the copy's type
+      without its `mut` view), `in_place_view` and `receiver`.
+    Old path: every conformance module byte-identical to main, dev and
+    optimized pipelines. New path: all conformance cases pass, dev and
+    optimized pipelines, checked and not. Static header copy sites (the
+    `ValueCopy`s in the bodies the passes' output names), count sites and
+    module bytes, old path, new path before this commit (main), after:
+    over the 771 runtime conformance programs with a `main` (`app`
+    bodies), copies 152, 152, 120 (results 64, 64, 46; stores into a
+    binding 44, 44, 22; arguments 34, 34, 38; stores through a reference
+    7; struct updates 3), retains 27,913, 27,444, 27,401, releases 57,465,
+    53,198, 53,124, bytes 20,193,656, 20,105,427, 20,098,823; over the
+    bench/study programs (every body), copies 63, 63, 57 (results 11, 11,
+    8; stores into a binding 33, 33, 30; arguments 17; stores through a
+    reference 2), retains 935, 823, 822, releases 1,599, 1,601, 1,595,
+    bytes 313,616, 308,939, 308,572; its `rt:list_unique` call sites stay
+    at 170 (25 in `app` functions; 171 and 25 on the old path). Five
+    argument copies are new, one is gone. The new ones are desugared
+    `Index` calls, which the checker's `value_arg` skipped: four `m[k]` on
+    a local that a `&mut m` reaches elsewhere in the body
+    (`a-tuple-key-stores-through-index-set`, after `fill(&mut m, 7)`
+    returns; the whole-body aliasing below), and one `r[k]` through a
+    `&mut` reference (`index-set-through-reference`). Run time, V8, optimized pipeline, release profile,
+    median of nine alternating runs (ms, two series), old path, new
+    before, new after: list-sort 763 and 765, 629 and 620, 618 and 619;
+    micro sort 56 and 55, 54 and 53, 56 and 54; sieve 239 and 237, 234
+    and 232, 234 and 232; fannkuch 97 and 96, 95 and 94, 93 and 94; nbody
+    115 and 117, 100 and 100, 98 and 100; spectral-norm 185 and 182, 186
+    and 185, 184 and 184; every output the same. The pass over the
+    bench/study builds (1,263 bodies, 42,213 instructions, release
+    profile, three runs): rule 7 takes 0.053 to 0.055 µs and 0.044
+    allocations per instruction, a quarter of insertion's 0.22 µs (0.82
+    allocations), about borrow's 0.062 µs.
+    **Left for later commits (13a).**
+
+    | Left | Why | Removed by |
+    | --- | --- | --- |
+    | The emitter's `slot_src` copies: a value stored into an element, a field, a payload or a construction's member (§23.17) | Both paths share the emitter's store glue; moving it changes the old path's modules | Commit 14, with the old path |
+    | The match-binding conformance case (a match binding of a map's list sees a later `m["a"].push(3)`) | The old path fails it; until the switch, only the new path's `own/` fixture and `tests/all/header_copies_run.rs` hold it | Commit 13b, with the switch |
+    | Whole-body aliasing: a local a `&mut` reference or a capturing closure reaches anywhere is aliased at every argument read | The checker's `copy_locals` is whole-body too; a flow-sensitive fact saves copies only before or after the reference lives | Commit 13b, if parity needs it |
 14. Delete the old path: `live.rs`, `count.rs`'s decisions, the
-    loan and cache code, `ValueCopy`, `ListPin`, `ListUnpin`; update
+    loan and cache code, the checker's copies (`coll.rs`'s `coll_copy`,
+    `return_copy`, `copy_into_local`, `mut_param_copies`, `value_arg`,
+    `capture_copies`, `loop_binding_copy`), `ListPin`, `ListUnpin`; the
+    `ValueCopy` intrinsic stays as insertion's header copy (13a) until
+    stage 3 makes a list's value its buffer; update
     `hd_wasm_linear/DESIGN.md` §23.16, §23.20, §23.25, §23.31, §23.36.
 
 ## The inliner

@@ -1,0 +1,9 @@
+# @dump: own
+# Header copies: `xs.pop()` changes `xs` after the first argument read it,
+# so that argument gets a header of its own right after it is read, before
+# the pop (`expr.call.order`).
+fn before(items: List[i64], removed: i64?) -> usize: items.len()
+
+fn first(mut xs: List[i64]) -> usize:
+    # subject
+    before(xs, xs.pop())

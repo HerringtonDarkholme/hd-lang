@@ -97,7 +97,134 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     borrow_spans(&cx, &mut errs);
     binding_locals(&cx, own, &mut errs);
     Balance::new(b, own).walk(&mut errs);
+    header_copies(b, own, &mut errs);
     errs
+}
+
+/// Insertion's rule 7 (`crate::own::copies`): a header that may change in
+/// place is held by one place. A local is changing when an `IsUnique` or a
+/// `Pin` names a place rooted at it through no dereference, or a value
+/// read from one, or a `&mut` reference takes its storage or a place in
+/// its list. Then a value of a type that may hold a list or a map, stored
+/// into a whole changing local, is fresh (a copy included) or a map value
+/// read for a change; and a changing parameter, but a `mut self` view of a
+/// collection, is first read in its sub-body to be copied and stored
+/// back.
+fn header_copies(b: &Body, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
+    use crate::own::copies::{Src, changed_local, is_fresh, place_root, sources, through_deref};
+    let n = b.len();
+    let mut changing = vec![false; b.local_ty.len()];
+    let mut mark = |l: Option<u32>| {
+        if let Some(c) = l.and_then(|l| changing.get_mut(l as usize)) {
+            *c = true;
+        }
+    };
+    for i in 0..n {
+        let [a, w] = b.data[i];
+        let named = match b.tags[i] {
+            Tag::IsUnique | Tag::Pin => true,
+            Tag::Ref => w & super::ref_word::MUT != 0,
+            _ => false,
+        };
+        if !named || through_deref(b, a) {
+            continue;
+        }
+        if a & place::BARE_LOCAL != 0 {
+            mark(Some(a & !place::BARE_LOCAL));
+            continue;
+        }
+        match place_root(b, a) {
+            Some(((place::ROOT_LOCAL, l), _)) => mark(Some(l)),
+            Some(((place::ROOT_VALUE, v), _)) => mark(changed_local(b, v)),
+            _ => {}
+        }
+    }
+    let mut src = Vec::new();
+    sources(b, &mut src);
+    for i in 0..n {
+        let Some((l, true)) = b.stored_local(i) else {
+            continue;
+        };
+        let Some(v) = Ref(b.data[i][1]).as_inst().map(|v| v.0 as usize) else {
+            continue;
+        };
+        if v >= n || is_fresh(b, v) || cx.header_copy(b.ty[v]).is_none() {
+            continue;
+        }
+        if changing[l.idx()] && src[v] != Src::Handle {
+            err(
+                errs,
+                u32_of(i),
+                format!(
+                    "a store into ${} shares the header of %{v}, which may change in place",
+                    l.raw()
+                ),
+            );
+        }
+    }
+    // Changing parameters: the first access in their sub-body reads the
+    // value a copy stores back.
+    let subs = b.inst_subs();
+    let mut first: Vec<u32> = vec![NONE; b.local_ty.len()];
+    let mut second: Vec<u32> = vec![NONE; b.local_ty.len()];
+    let mut params = vec![NONE; b.local_ty.len()];
+    for (s, r) in b.sub_params.iter().enumerate().skip(1) {
+        for k in 0..r.len {
+            if let Some(&l) = b.extra.get((r.start + 1 + k) as usize)
+                && let Some(p) = params.get_mut(l as usize)
+            {
+                *p = u32_of(s);
+            }
+        }
+    }
+    for (l, p) in params.iter_mut().enumerate() {
+        if *p == NONE && b.local_flags[l] & super::local_flags::PARAM != 0 {
+            *p = 0;
+        }
+    }
+    for (i, &sub) in subs.iter().enumerate() {
+        if !matches!(b.tags[i], Tag::Read | Tag::Store | Tag::Ref) {
+            continue;
+        }
+        let Some((l, _)) = local_root(b, b.data[i][0]) else {
+            continue;
+        };
+        if params[l] != sub {
+            continue;
+        }
+        if first[l] == NONE {
+            first[l] = u32_of(i);
+        } else if second[l] == NONE {
+            second[l] = u32_of(i);
+        }
+    }
+    for l in 0..b.local_ty.len() {
+        let ty = b.local_ty[l];
+        if params[l] == NONE || !changing[l] || cx.in_place_view(ty) || cx.header_copy(ty).is_none()
+        {
+            continue;
+        }
+        let (r, st) = (first[l] as usize, second[l] as usize);
+        let copied = r < n
+            && st < n
+            && b.local_read(r).is_some_and(|x| x.idx() == l)
+            && b.stored_local(st) == Some((super::LocalId::from_raw(u32_of(l)), true))
+            && Ref(b.data[st][1]).as_inst().is_some_and(|c| {
+                let c = c.0 as usize;
+                c < n
+                    && b.tags[c] == Tag::Intrinsic
+                    && super::IntrinsicOp::from_u32(b.data[c][0])
+                        == Some(super::IntrinsicOp::ValueCopy)
+                    && b.record(b.data[c][1]).first() == Some(&u32_of(r))
+            });
+        if !copied {
+            err(
+                errs,
+                if r < n { u32_of(r) } else { 0 },
+                format!("changing parameter ${l} is not copied on entry"),
+            );
+        }
+    }
 }
 
 fn err(errs: &mut Vec<VerifyError>, inst: u32, what: String) {

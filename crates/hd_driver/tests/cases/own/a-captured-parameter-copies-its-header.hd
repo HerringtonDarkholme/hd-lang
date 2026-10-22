@@ -1,0 +1,7 @@
+# @dump: own
+# Header copies: a closure that captures a parameter by value keeps it past
+# the call, while the caller may change its own list, so the parameter is
+# copied and stored back before the closure is made.
+fn later(items: List[i64]) -> fn() -> usize:
+    # subject
+    fn() -> usize: items.len()

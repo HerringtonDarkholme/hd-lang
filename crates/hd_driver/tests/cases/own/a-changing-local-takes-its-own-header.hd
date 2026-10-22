@@ -1,0 +1,14 @@
+# @dump: own
+# Header copies (insertion's rule 7): `grown` changes in place (a push),
+# so the list stored into it gets a header of its own (`ValueCopy`); `seen`
+# changes nothing and reads a parameter nothing changes, so it shares the
+# header. The result is `grown`, the function's own local that holds no
+# shared header, so it moves out with no copy.
+fn grow(items: List[i64]) -> List[i64]:
+    # subject
+    if items.len() > 0:
+        let mut grown = items
+        seen := items
+        grown.push(seen[0])
+        return grown
+    []

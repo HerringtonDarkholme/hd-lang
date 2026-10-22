@@ -44,6 +44,7 @@ mod function_references;
 mod generic_inference_join;
 mod generic_local_fn_run;
 mod generics_determinism;
+mod header_copies_run;
 mod header_goals;
 mod impl_targets;
 mod impl_universe;

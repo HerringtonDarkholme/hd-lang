@@ -177,7 +177,9 @@ impl Ck<'_, '_> {
     /// itself when it holds no collection or was just made, else its
     /// `ValueCopy`.
     pub(crate) fn coll_copy(&mut self, v: Ref, t: Ty, at: hd_base::NodeIdx) -> Ref {
-        if v.0 == NONE || !self.may_hold_coll(t) || self.is_fresh(v) {
+        // On the ownership passes' path insertion makes the copies
+        // (`docs/compiler/tir-v2.md`, stage 2 commit 13a).
+        if self.cx.own_passes || v.0 == NONE || !self.may_hold_coll(t) || self.is_fresh(v) {
             return v;
         }
         let rec = self.b.refs_record(&[v]);
@@ -217,7 +219,7 @@ impl Ck<'_, '_> {
     /// of `copy_locals`, and a binding that never changes takes a fixed
     /// local's value as is.
     pub(crate) fn copy_into_local(&mut self, l: LocalId, v: Ref, at: hd_base::NodeIdx) -> Ref {
-        if !self.copy_locals.contains(&l) || v.0 == NONE {
+        if self.cx.own_passes || !self.copy_locals.contains(&l) || v.0 == NONE {
             return v;
         }
         let lt = self.b.local_ty(l);
@@ -241,6 +243,9 @@ impl Ck<'_, '_> {
     /// collections (`fn.param.mut.copy`): the callee changes its own copy
     /// of the caller's value.
     pub(crate) fn mut_param_copies(&mut self, params: &[LocalId], at: hd_base::NodeIdx) {
+        if self.cx.own_passes {
+            return;
+        }
         for &l in params {
             if !self.mut_params.contains(&l) {
                 continue;
@@ -285,7 +290,8 @@ impl Ck<'_, '_> {
         at: NodeIdx,
         pending: &mut Option<ValueArg>,
     ) -> Ref {
-        if r.0 == NONE
+        if self.cx.own_passes
+            || r.0 == NONE
             || !self.may_hold_coll(self.strip_mut(self.b.ty_of(r)))
             || self.is_fresh(r)
             || matches!(self.arg_root(r), ArgRoot::Fixed)
@@ -306,6 +312,9 @@ impl Ck<'_, '_> {
     fn value_arg_at(&mut self, r: Ref, param: Ty, at: NodeIdx, early: Option<Slot>) -> Ref {
         if r.0 == NONE {
             return r;
+        }
+        if self.cx.own_passes {
+            return self.fill_arg_copy(r, false, early, at);
         }
         let t = self.strip_mut(self.b.ty_of(r));
         if self.ref_of(param).is_some()
@@ -568,6 +577,9 @@ impl Ck<'_, '_> {
     /// local an enclosing closure captures was copied when that closure
     /// was made.
     pub(crate) fn capture_copies(&mut self, mark: SubMark, at: NodeIdx) {
+        if self.cx.own_passes {
+            return;
+        }
         let outer = self.subs.last().map(|s| s.mark);
         for l in self.b.open_captures(mark) {
             let flags = self.b.body_mut().local_flags[l.idx()];
@@ -600,6 +612,9 @@ impl Ck<'_, '_> {
         item_ty: Ty,
         at: NodeIdx,
     ) -> Ref {
+        if self.cx.own_passes {
+            return item;
+        }
         let captured = binds
             .iter()
             .any(|(_, l)| self.b.body_mut().local_flags[l.idx()] & local_flags::CAPTURED != 0);

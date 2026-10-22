@@ -113,10 +113,13 @@ suite that takes element references is no cleanup scope; a `for` over
 element references holds no pin of its own), and `mark_write_path`
 leaves an element read a read (it still turns a map value's read into
 `MapIndexMut`, which a `&mut self` call on a map value holds in a local
-where no pass follows it). The collection copies (`ValueCopy`, `coll.rs`) stay in
-both forms: a copy of a list
-or a map is a new header over its buffer, which the passes' `copy` read
-is not (docs/compiler/tir-v2.md, stage 2 commit 12b). The driver keys
+where no pass follows it). On, the checker also writes no collection
+copy (`ValueCopy`; commit 13a): `coll_copy`, `copy_into_local`,
+`mut_param_copies`, `value_arg`, `capture_copies` and
+`loop_binding_copy` return at once, and insertion's rule 7
+(crates/hd_tir/src/own/copies.rs) makes the header copies from the
+passes' own facts, where a header that may change in place would be held
+by two places. Off, they copy as before (`coll.rs`). The driver keys
 every cached artifact on the switch (its toolchain key), so a body
 checked for one path never serves the other.
 

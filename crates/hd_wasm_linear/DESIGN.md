@@ -344,8 +344,9 @@ The allocator is hd in `std.rt.alloc`, REFCOUNT_RUNTIME.md §6's
 Why a header, and not the buffer's address as the value: the TIR changes
 a list through its value, not through the place that holds it (`push`,
 an element store and `ListIndexMut` take the list as an operand), and
-the checker lets places share one list value where nothing can change it
-in place (`ValueCopy`, §15.2, "Collection values"). So the change must
+the checker (on the ownership passes' path, insertion's rule 7) lets
+places share one list value where nothing can change it in place
+(`ValueCopy`, §15.2, "Collection values"). So the change must
 reach every holder of that value,
 while the buffer underneath may move when it grows or is copied, except
 while pinned: an element reference is an address in the buffer, so a
@@ -595,7 +596,9 @@ String operations are emitted by `emit/text.rs` and runtime helpers
   owned body has no `ListPin`, `ListUnpin` or `ListIndexMut`: on this
   path the checker writes element references as plain `Ref`s, which the
   passes pin, and element reads as plain `Read`s (docs/compiler/tir-v2.md,
-  stage 2 commit 12b); those intrinsics are the old path's. A `move` read takes the
+  stage 2 commit 12b); those intrinsics are the old path's. Its header
+  copies (`ValueCopy`, lowered as below, §23.17) are insertion's
+  (`hd_tir::own` rule 7, stage 2 commit 13a), not the checker's. A `move` read takes the
   place's count and zeroes what it read: a local's or a whole value's
   locals, or the part of a local or a value laid out in its locals
   (`Em::part_slots`: struct, tuple and newtype fields and enum payload

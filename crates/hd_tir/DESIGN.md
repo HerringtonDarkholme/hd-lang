@@ -1160,7 +1160,15 @@ body built elsewhere, such as a generated structure method, gets
     keeps), references, writes, pins or suspends over it, and no call
     may write unless it is a whole local no closure captures; a covered
     one names a hoisted one's place inside that one's loop; the stable
-    list rows name loops and such places, in order.
+    list rows name loops and such places, in order. A header that may
+    change in place is held by one place (insertion's rule 7): with a
+    local changing when an `IsUnique` or a `Pin` names a place rooted
+    at it, or a value read from one, or a `&mut` reference takes its
+    storage or a place in its list, a value that may hold a list or a
+    map stored into a whole changing local is fresh (a copy included) or
+    a map value read for a change; and a changing parameter (not a `mut
+    self` view of a collection) is first read to be copied and stored
+    back.
 - **8.** Every call writes `Providers::None` today, and codegen reads
   providers from the callee's signature. So the check rejects a
   `Pending` form after `finish`, and pairs whose count is not the
@@ -1212,7 +1220,26 @@ body built elsewhere, such as a generated structure method, gets
   map value, an in-place argument) and before each read such a change
   goes through, of every list on that read's path, and an `IsUnique` and
   a `Pin` of each list on an element reference's path (the checker
-  writes no pin of its own on this path);
+  writes no pin of its own on this path), and the header copies
+  (`own/copies.rs`, rule 7, commit 13a; the checker writes none on this
+  path): a `ValueCopy` of a value that may hold a list or a map
+  (`OwnCx::header_copy`) and that no instruction just made, where a
+  header that may change in place would otherwise be held by two places:
+  a store into a whole local that a change reaches in place (a changing
+  local), or of a value whose source is not a read of a local no change
+  reaches (a changing local's, a global's, a dereference's, a block's),
+  but a header that moves out of a dying local that held it alone, and a
+  binding stored once and read, in its store's block, only before
+  anything can change its source in place (a read of it then stands for
+  its source); the function's result, but its own local's that holds no
+  shared header; a store through a dereference and a struct update's
+  source; a value argument whose source may change while the callee runs (an
+  aliased local, a dereference, a global, a local a later argument
+  changes), copied right after it; a changing parameter on entry; a
+  local a closure captures by value that may share its header. A map
+  value read for a change (`MapIndexMut`) is never copied, and a `mut
+  self` view of a collection (`OwnCx::in_place_view`) or a list or map
+  receiver (`OwnCx::receiver`) is passed as is;
   then borrow (`own/borrow.rs`): a `copy` read whose value only lends,
   over a span no write of what it reads, call that may reach it or
   suspension point crosses, becomes a `borrow` and loses its `Drop`s
@@ -1242,7 +1269,8 @@ body built elsewhere, such as a generated structure method, gets
   one more rebuild at the end, renumbering it (`own/splice.rs`). They
   read the body and `OwnCx` (counted types, parameter modes, how a body
   receives its own parameters, `may_write`, the in-place parts of a
-  type) only.
+  type, which types a header copy copies, in-place views and receivers)
+  only.
   `own::operands` names each value operand of an instruction with its
   role (lent, consumed, a call argument, a block tail, a drop), and
   `own::consumers` each value's consumer by insertion's rule; the

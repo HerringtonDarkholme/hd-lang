@@ -29,7 +29,14 @@ pub(crate) struct Edit {
     data: [u32; 2],
     ty: Ty,
     syn: NodeIdx,
+    /// Stands after the other edits before the same position, right
+    /// before the statement (a header copy before its use).
+    late: bool,
 }
+
+/// An edit's order among the edits before one position: its number, or
+/// after every other for a late one.
+const LATE: u32 = 1 << 31;
 
 /// The edits of one body, and the scratch of their splicing, reused.
 #[derive(Default)]
@@ -81,9 +88,31 @@ impl Tables {
             data,
             ty,
             syn,
+            late: false,
         });
         self.cancelled.push(false);
         u32::try_from(self.edits.len() - 1).expect("edits")
+    }
+
+    /// Records a new instruction that stands right before statement `pos`
+    /// of block `blk`, after every other edit there.
+    pub(crate) fn insert_late(
+        &mut self,
+        blk: u32,
+        pos: u32,
+        tag: Tag,
+        data: [u32; 2],
+        ty: Ty,
+        syn: NodeIdx,
+    ) -> u32 {
+        let e = self.insert(blk, pos, tag, data, ty, syn);
+        self.edits[e as usize].late = true;
+        e
+    }
+
+    /// Edit `e`'s order among the edits before its position.
+    fn rank(&self, e: usize) -> u32 {
+        u32_of(e) | if self.edits[e].late { LATE } else { 0 }
     }
 
     /// How many instructions are recorded.
@@ -164,7 +193,8 @@ impl Pending {
         for i in 0..n {
             let (a, z) = (self.row_start[i] as usize, self.row_start[i + 1] as usize);
             if z - a > 1 {
-                self.row[a..z].sort_by_key(|&e| (edits.edits[e as usize].pos, e));
+                self.row[a..z]
+                    .sort_by_key(|&e| (edits.edits[e as usize].pos, edits.rank(e as usize)));
             }
         }
     }
@@ -227,7 +257,7 @@ pub(crate) fn apply(b: &mut Body, t: &mut Tables) -> Result<(), String> {
                 None => t.start[ed.blk as usize],
             },
         };
-        t.anchor.push((at, u32_of(e)));
+        t.anchor.push((at, t.rank(e)));
     }
     t.anchor.sort_unstable();
     // Append the new instructions, numbered n.. in the old numbering.
@@ -241,7 +271,7 @@ pub(crate) fn apply(b: &mut Body, t: &mut Tables) -> Result<(), String> {
     t.per_block.clear();
     for (e, ed) in t.edits.iter().enumerate() {
         if !t.cancelled[e] {
-            t.per_block.push((ed.blk, ed.pos, u32_of(e)));
+            t.per_block.push((ed.blk, ed.pos, t.rank(e)));
         }
     }
     t.per_block.sort_unstable();
@@ -267,7 +297,7 @@ pub(crate) fn apply(b: &mut Body, t: &mut Tables) -> Result<(), String> {
         for p in 0..len {
             let m = b.extra[rec + 1 + p];
             while y < end && t.per_block[y].1 as usize == p {
-                t.words.push(u32_of(n) + t.per_block[y].2);
+                t.words.push(u32_of(n) + (t.per_block[y].2 & !LATE));
                 y += 1;
             }
             if !t.dead.get(m as usize).copied().unwrap_or(false) {
@@ -275,7 +305,7 @@ pub(crate) fn apply(b: &mut Body, t: &mut Tables) -> Result<(), String> {
             }
         }
         while y < end {
-            t.words.push(u32_of(n) + t.per_block[y].2);
+            t.words.push(u32_of(n) + (t.per_block[y].2 & !LATE));
             y += 1;
         }
         let at = u32_of(b.extra.len());
@@ -296,7 +326,7 @@ pub(crate) fn apply(b: &mut Body, t: &mut Tables) -> Result<(), String> {
     let mut a = 0;
     for i in 0..n {
         while a < t.anchor.len() && t.anchor[a].0 as usize == i {
-            t.order.push(u32_of(n) + t.anchor[a].1);
+            t.order.push(u32_of(n) + (t.anchor[a].1 & !LATE));
             a += 1;
         }
         if !t.dead[i] {
@@ -304,7 +334,7 @@ pub(crate) fn apply(b: &mut Body, t: &mut Tables) -> Result<(), String> {
         }
     }
     while a < t.anchor.len() {
-        t.order.push(u32_of(n) + t.anchor[a].1);
+        t.order.push(u32_of(n) + (t.anchor[a].1 & !LATE));
         a += 1;
     }
     t.new_of.clear();

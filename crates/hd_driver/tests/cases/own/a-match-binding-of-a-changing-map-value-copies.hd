@@ -1,0 +1,12 @@
+# @dump: own
+# Header copies: `xs` binds the list a map entry holds, and the push then
+# changes that list in place, so the binding gets a header of its own.
+# The old path's checker copied only into `let` bindings, so there the
+# binding saw the push (stage 2 commit 13a).
+fn kept(mut m: Map[string, List[i64]]) -> usize:
+    # subject
+    match m.get("a"):
+        .Some(xs) =>
+            m["a"].push(3)
+            xs.len()
+        .None => 0

@@ -3450,6 +3450,15 @@ mod tests {
         fn received(&self, _: hd_base::DefId, _: usize, _: usize) -> crate::own::Pass {
             crate::own::Pass::Owned
         }
+        fn header_copy(&self, _: Ty) -> Option<crate::own::HeaderCopy> {
+            None
+        }
+        fn in_place_view(&self, _: Ty) -> bool {
+            false
+        }
+        fn receiver(&self, _: &Callee, _: usize, _: usize) -> bool {
+            false
+        }
     }
 
     /// Invariant 22: the checker's TIR has no ownership: no decided read

@@ -31,6 +31,7 @@ runtime/valid/cli-positional-fact.hd	runtime	accept	std/cli.md#positional-field-
 runtime/valid/cli-short-fact.hd	runtime	accept	std/cli.md#short-field-facts
 runtime/valid/net-connect-deadline.hd	runtime	accept	std/net.md#net-trait
 runtime/valid/net-connect-timeout-ready-tie.hd	runtime	accept	std/task.md#result-timeouts
+runtime/valid/collection-values-shared-where-nothing-changes.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/net-free-helpers.hd	runtime	accept	std/net.md#free-helpers
 runtime/valid/recursive-closure-pending-self-environment.hd	runtime	accept	lang/07-functions.md#recursion
 runtime/valid/recursive-closure-self-environment.hd	runtime	accept	lang/07-functions.md#recursion
