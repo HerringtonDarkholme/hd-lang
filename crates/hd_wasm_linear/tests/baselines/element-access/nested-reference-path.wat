@@ -39,6 +39,7 @@
         i32.ge_u
         if
           call $rt:panic
+          unreachable
         end
         local.get $t4
         call $rt:list_unique'1
@@ -55,6 +56,7 @@
         i32.ge_u
         if
           call $rt:panic
+          unreachable
         end
         local.get $t6
         call $rt:list_unique'1
@@ -90,6 +92,7 @@
         i32.ge_u
         if
           call $rt:panic
+          unreachable
         end
         local.get $t8
         call $rt:list_unique'2

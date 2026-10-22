@@ -44,6 +44,7 @@
           call $rt:list_pinned
           if
             call $rt:panic'1
+            unreachable
           end
           local.get $t6
           call $rt:list_unique
@@ -93,6 +94,7 @@
           i32.ge_u
           if
             call $rt:panic'2
+            unreachable
           end
           local.get $t14
           local.get $t15

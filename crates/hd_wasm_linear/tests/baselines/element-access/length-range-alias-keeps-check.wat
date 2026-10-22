@@ -67,6 +67,7 @@
           i32.ge_u
           if
             call $rt:panic
+            unreachable
           end
           local.get $t5
           local.get $t8

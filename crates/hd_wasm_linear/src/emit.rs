@@ -2441,7 +2441,6 @@ impl Em<'_, '_, '_> {
             "panic_message" => {
                 self.push(args[0])?;
                 self.f.helper(Helper::PanicStr);
-                self.f.op(Instruction::Unreachable);
                 Ok(())
             }
             // std's `panic_with(category, message)`.
@@ -2449,7 +2448,6 @@ impl Em<'_, '_, '_> {
                 self.push(args[0])?;
                 self.push(args[1])?;
                 self.f.helper(Helper::PanicWith);
-                self.f.op(Instruction::Unreachable);
                 Ok(())
             }
             // std's `format_int[N < Integer](value: N)`.
@@ -2905,7 +2903,6 @@ impl Em<'_, '_, '_> {
 
     fn panic(&mut self, msg: &str) {
         self.f.helper(Helper::Panic(msg.to_owned()));
-        self.f.op(Instruction::Unreachable);
     }
 
     fn prim(&mut self, i: u32, op: u32, rec: u32) -> StageResult<()> {

@@ -455,7 +455,14 @@ impl Func {
     }
 
     pub fn helper(&mut self, h: Helper) {
+        // A panic helper never returns: say so at the call site, so the
+        // engine need not treat the call as returning and keep state live
+        // across it (#165).
+        let diverges = matches!(h, Helper::Panic(_) | Helper::PanicStr | Helper::PanicWith);
         self.call(Sym::Helper(h));
+        if diverges {
+            self.op(Instruction::Unreachable);
+        }
     }
 
     pub fn i32(&mut self, v: i32) {

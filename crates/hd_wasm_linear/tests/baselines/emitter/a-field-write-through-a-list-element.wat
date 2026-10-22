@@ -29,6 +29,7 @@
       i32.ge_u
       if
         call $rt:panic
+        unreachable
       end
       local.get $t4
       call $rt:list_unique
