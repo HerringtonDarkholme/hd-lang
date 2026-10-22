@@ -70,7 +70,7 @@ const EXPECTED = {
   string_build: "18388890\n",
   json: "451121 3011000\n",
   dyn_iter:
-    "dyn 666665333334\nin-place 666665333334\nloop 666665333334\nrange 666665333334\ndyn-short 65340000\nin-place-short 65340000\n",
+    "dyn 66666653333334\nin-place 66666653333334\nloop 66666653333334\nrange 66666653333334\ndyn-short 653400000\nin-place-short 653400000\n",
 };
 
 const PROGS = [
@@ -131,8 +131,8 @@ const SMALL = {
   string_build: [["N := 1_500_000", "N := 30_000"]],
   json: [["N := 6_000", "N := 4_000"]],
   dyn_iter: [
-    ["N := 1_000_000i64", "N := 100_000i64"],
-    ["CALLS := 10_000", "CALLS := 1_000"],
+    ["N := 10_000_000i64", "N := 100_000i64"],
+    ["CALLS := 100_000", "CALLS := 1_000"],
   ],
 };
 

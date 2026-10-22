@@ -5,8 +5,8 @@
 use std.console.eprintln
 use std.time.{Clock, elapsed, monotonic}
 
-N := 1_000_000i64
-CALLS := 10_000
+N := 10_000_000i64
+CALLS := 100_000
 SHORT := 100i64
 
 struct Counter:

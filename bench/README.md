@@ -131,6 +131,62 @@ fresh-process measurement. Harness tests verify reuse of one compiled
 module with distinct instances and reset mutable globals, and refuse
 output or status failures beyond the discarded preflight.
 
+### Returned Iterator Cost, 2026-10-22
+
+Issue #634, commit base `6278705a6`, Apple M3 Max, Node v24.19.0 / V8
+13.6.233.17-node.51, wasmtime 49.0.2, Go 1.24.1. The machine was shared;
+observed one-minute load ranged from 4 to 30. Each callback sums `x * 2`
+for `x` in `0..10_000_000` where `x % 3 != 0`, using optimized hd programs.
+Times are the best of three in-program calls, excluding process startup
+and compilation; these are distinct from the runner's process-wall table.
+All six checksums matched exactly on Node, wasmtime and Go.
+
+| Variant | hd Node, ms | ns/element | hd wasmtime, ms | ns/element | Go, ms | ns/element |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| returned `&mut dyn Iterator[i64]` | 143 | 14.3 | 289 | 28.9 | 34 | 3.4 |
+| same concrete chain in place | 72 | 7.2 | 161 | 16.1 | 28 | 2.8 |
+| plain `while` loop | 5 | 0.5 | 10 | 1.0 | 9 | 0.9 |
+| range adapter chain | 83 | 8.3 | 175 | 17.5 | | |
+| returned chain, 100k calls of 100 elements | 155 | 15.5 | 303 | 30.3 | 42 | 4.2 |
+| in-place chain, 100k calls of 100 elements | 79 | 7.9 | 173 | 17.3 | 27 | 2.7 |
+
+The Go range-labelled case reuses its interface pipeline, so it is not a
+separate range-adapter comparison. Long-case checksums are
+`66666653333334`; the short-chain aggregate is `653400000`.
+
+Allocation probes use a scratch Wasm wrapper around `hd.poll` to return
+`std.rt.alloc`'s existing block counter (heap memory 1, metadata offset
+244). They preserve the original poll and guest output, refuse totals
+that cannot fit the status channel, and run on both actual engines.
+No runtime or compiler source is modified. The helper checks exact output,
+unknown layouts, nonlinear counts, and the overflow guard:
+
+```sh
+node bench/study/run.mjs --hd target/debug/hd --only dyn_iter --no-refs --runs 1
+go build -o target/dyn-iter-go bench/study/go/dyn_iter.go
+target/dyn-iter-go
+python3 bench/study/iterator-alloc.py target/debug/hd
+```
+
+| Variant | blocks per call, Node | blocks per call, wasmtime | per element |
+| --- | ---: | ---: | ---: |
+| returned trait-value chain | 2 | 2 | 0 |
+| concrete chain in place | 1 | 1 | 0 |
+| plain loop | 0 | 0 | 0 |
+
+These are slopes across one, two and eight calls, at both 100 and 100,000
+elements. Fixed probe/entry overhead is nine blocks for either chain and
+eight for the loop; it is excluded from the per-call numbers. Both input
+lengths give identical slopes. Erasure adds one block per chain, rather
+than per element.
+
+**Recommendation:** keep the interface-return model for now. Erasure is
+now a material 1.99x on Node and 1.80x on wasmtime, but the concrete chain
+still costs 14–16x the loop. Opaque return syntax could remove roughly
+half the measured chain time while leaving that larger gap. Profile the
+remaining adapter/dispatch cost through existing mechanisms before adding
+`impl Trait`; per-element allocation is not the cause shown here.
+
 ### Results, 2026-10-21, after the RC optimization round
 
 Commit `f7549b935`, Apple M3 Max, Node v24.19.0, Go 1.24.1, CPython
