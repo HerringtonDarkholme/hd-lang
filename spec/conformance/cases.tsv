@@ -2822,9 +2822,10 @@ runtime/valid/row-slot-empty.hd	runtime	accept	lang/11-requirements-and-suspensi
 typing/invalid/row-slot-bare-context.hd	type	reject:generic-kind-mismatch	lang/11-requirements-and-suspension.md#r-req.context.dollar
 typing/invalid/row-slot-bare-function-type.hd	type	reject:generic-kind-mismatch	lang/07-functions.md#r-fn.type.ctor.row.dollar
 typing/invalid/row-slot-bare-explicit-argument.hd	type	reject:generic-kind-mismatch	lang/07-functions.md#r-fn.generic.explicit.row-dollar
+runtime/valid/process-output-ok.hd	runtime	accept	std/process.md#r-std-process.output.ok
 runtime/valid/process-scripted-provider.hd	runtime	accept	lang/10-modules.md#r-module.process.not-found-program
 runtime/valid/process-error-results.hd	runtime	accept	lang/10-modules.md#r-module.process.nonzero-ok
-runtime/valid/process-command-defaults.hd	runtime	accept	lang/10-modules.md#r-module.process.output-defaults
+runtime/valid/process-command-defaults.hd	runtime	accept	lang/10-modules.md#r-module.process.named-output-defaults
 typing/invalid/hd-run-requires-process.hd	type	reject:missing-requirement	std/testing.md#r-std-testing.hd-run.row
 runtime/valid/unit-pattern-void-success.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.unit.irrefutable
 typing/invalid/unit-pattern-non-void.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.match.unit.type
@@ -2890,8 +2891,8 @@ runtime/valid/buffer-console.hd	runtime	accept	std/console.md#r-std-console.buff
 runtime/valid/buffer-console-error-lines.hd	runtime	accept	std/console.md#r-std-console.buffer.error-output
 runtime/valid/scripted-input.hd	runtime	accept	std/console.md#r-std-console.scripted.read
 runtime/valid/process-error-display.hd	runtime	accept	std/process.md#r-std-process.error.display.other
-runtime/valid/process-exit-data-eq.hd	runtime	accept	std/process.md#r-std-process.output.eq
-runtime/valid/scripted-process.hd	runtime	accept	std/process.md#r-std-process.scripted.answer
+runtime/valid/process-exit-data-eq.hd	runtime	accept	std/process.md#r-std-process.output.eq-program
+runtime/valid/scripted-process.hd	runtime	accept	std/process.md#r-std-process.scripted.answer-program
 runtime/valid/process-scripted-received.hd	runtime	accept	std/process.md#r-std-process.scripted.received-ref
 runtime/valid/range-eq.hd	runtime	accept	std/ops.md#r-std-ops.range.eq.range
 runtime/valid/list-access-building.hd	runtime	accept	std/collections.md#list-access-and-building

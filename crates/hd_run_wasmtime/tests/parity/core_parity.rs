@@ -703,7 +703,13 @@ fn process_binary_input_lossy_outputs_status_and_missing_program() {
         "hd:Process",
         "run",
         process_args("node", &["-e", script], &[0, 255, 195, 169]),
-        Enc::default().leb(0).str("\0�é").str("�\0é").leb(46).0,
+        Enc::default()
+            .leb(0)
+            .str("\0�é")
+            .str("�\0é")
+            .leb(46)
+            .str("node")
+            .0,
     );
     p.call_waiting(
         "hd:Process",
@@ -734,6 +740,7 @@ fn process_drains_both_pipes_while_child_waits_for_large_input() {
             .str(&out)
             .str(&"B".repeat(70_000))
             .leb(0)
+            .str("node")
             .0,
     );
     assert_program(&scratch, p, vec![], || {});
@@ -751,7 +758,13 @@ fn process_child_closing_stdin_retains_output_and_status() {
             &["-c", "exec 0<&-; printf out; printf err >&2; exit 7"],
             &vec![42; 262_144],
         ),
-        Enc::default().leb(0).str("out").str("err").leb(14).0,
+        Enc::default()
+            .leb(0)
+            .str("out")
+            .str("err")
+            .leb(14)
+            .str("/bin/sh")
+            .0,
     );
     assert_native_program(p);
 }
@@ -768,7 +781,13 @@ fn process_unread_stdin_is_dropped_and_returns_ok() {
         "hd:Process",
         "run",
         process_args("head", &["-n", "1"], "line\n".repeat(200_000).as_bytes()),
-        Enc::default().leb(0).str("line\n").str("").leb(0).0,
+        Enc::default()
+            .leb(0)
+            .str("line\n")
+            .str("")
+            .leb(0)
+            .str("head")
+            .0,
     );
     // The child closes its stdin, keeps running, and prints afterwards.
     p.call_waiting(
@@ -779,7 +798,13 @@ fn process_unread_stdin_is_dropped_and_returns_ok() {
             &["-c", "exec 0<&-; sleep 0.2; printf late; exit 3"],
             &vec![42; 1_000_000],
         ),
-        Enc::default().leb(0).str("late").str("").leb(6).0,
+        Enc::default()
+            .leb(0)
+            .str("late")
+            .str("")
+            .leb(6)
+            .str("/bin/sh")
+            .0,
     );
     // A missing program is still NotFound, with input given.
     p.call_waiting(
@@ -834,7 +859,7 @@ fn process_scope_is_exact_and_refusal_precedes_lookup() {
         "hd:Process",
         "run",
         process_args("node", &["-e", "process.stdout.write('ok')"], b""),
-        Enc::default().leb(0).str("ok").str("").leb(0).0,
+        Enc::default().leb(0).str("ok").str("").leb(0).str("node").0,
     );
     p.call_waiting(
         "hd:Process",
@@ -888,13 +913,14 @@ fn process_child_sees_its_environment_and_directory() {
             .str("second|kept|child-dir")
             .str("")
             .leb(0)
+            .str("node")
             .0,
     );
     p.call_waiting(
         "hd:Process",
         "run",
         process_command("node", &["-e", env_only], &[], None, b""),
-        Enc::default().leb(0).str("|").str("").leb(0).0,
+        Enc::default().leb(0).str("|").str("").leb(0).str("node").0,
     );
     p.call_waiting(
         "hd:Process",
@@ -924,7 +950,7 @@ fn process_signal_status_and_permission_denied() {
         "hd:Process",
         "run",
         process_args("node", &["-e", "process.kill(process.pid,'SIGTERM')"], b""),
-        Enc::default().leb(0).str("").str("").leb(286).0,
+        Enc::default().leb(0).str("").str("").leb(286).str("node").0,
     );
     p.call_waiting(
         "hd:Process",
@@ -958,7 +984,8 @@ fn process_executable_without_shebang_uses_rust_standard_spawning_behavior() {
             .leb(0)
             .str(&String::from_utf8_lossy(&output.stdout))
             .str(&String::from_utf8_lossy(&output.stderr))
-            .leb(u64::try_from(output.status.code().unwrap_or(128)).unwrap() * 2),
+            .leb(u64::try_from(output.status.code().unwrap_or(128)).unwrap() * 2)
+            .str(path(&script)),
         Err(error) => Enc::default()
             .leb(1)
             .leb(3)

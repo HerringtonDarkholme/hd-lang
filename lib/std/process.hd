@@ -34,19 +34,35 @@ impl[T < Termination, E < Error] Termination for Result[T, E]:
             .Err(_) => ExitCode(1)
 
 # The host capability to start a program (spec/lang/10-modules.md#processes).
-## What `run!` returns for a started program: its output and exit status; the fields default to `""`, `""`, and 0.
-## See [module.process.ok-output](../../spec/lang/10-modules.md#r-module.process.ok-output).
+## What `run!` returns for a started program: its output, exit status, and program name.
+## See [module.process.named-output](../../spec/lang/10-modules.md#r-module.process.named-output).
 @derive(Debug, Eq)
 pub struct ProcessOutput:
     ## The text the program wrote to standard output.
-    ## See [module.process.ok-output](../../spec/lang/10-modules.md#r-module.process.ok-output).
+    ## See [module.process.named-output](../../spec/lang/10-modules.md#r-module.process.named-output).
     pub stdout: string = ""
     ## The text the program wrote to standard error.
-    ## See [module.process.ok-output](../../spec/lang/10-modules.md#r-module.process.ok-output).
+    ## See [module.process.named-output](../../spec/lang/10-modules.md#r-module.process.named-output).
     pub stderr: string = ""
     ## The status the program exited with; non-zero is still an ordinary `.Ok`.
     ## See [module.process.nonzero-ok](../../spec/lang/10-modules.md#r-module.process.nonzero-ok).
     pub status: i32 = 0
+    ## The program named by the command, or empty for a literal without one.
+    ## See [module.process.output-program](../../spec/lang/10-modules.md#r-module.process.output-program).
+    pub program: string = ""
+
+impl ProcessOutput:
+    ## Returns the complete output on zero status, or Exited carrying it on nonzero status.
+    ## See [std-process.output.ok](../../spec/std/process.md#r-std-process.output.ok).
+    pub fn ok(self) -> Result[ProcessOutput, ProcessError]:
+        if self.status == 0: .Ok(self) else: .Err(.Exited(self))
+
+# Standard line splitting keeps only the final stderr line in the message.
+fn exited_message(output: ProcessOutput) -> string:
+    name := if output.program == "": "program" else: "program ${output.program}"
+    line := output.stderr.lines().last().unwrap_or("")
+    suffix := if line == "": "" else: ": ${line}"
+    "${name} exited with status ${output.status}${suffix}"
 
 # Why a program did not start (r-module.process.decl-struct). A program that
 # started and exited non-zero is `.Ok` (r-module.process.nonzero-ok).
@@ -63,8 +79,8 @@ pub enum ProcessError:
     NotGranted
     @error("$message")
     Other(message: string)
-    @error("program exited with status ${status}: ${stderr}")
-    Exited(status: i32, stderr: string)
+    @error("${exited_message(output)}")
+    Exited(output: ProcessOutput)
 
 ## A program to start with its arguments, environment, working directory, and standard input. `run!` starts it.
 ## See [module.process.decl-struct](../../spec/lang/10-modules.md#r-module.process.decl-struct).
@@ -134,6 +150,12 @@ impl Command:
         process := $.use(Process)
         process.run!(self)
 
+## Runs a command and rejects a nonzero exit while preserving its complete output.
+## See [std-process.helper.run-checked](../../spec/std/process.md#r-std-process.helper.run-checked).
+pub fn run!(command: Command) -> Result[ProcessOutput, ProcessError] $ Process:
+    output := command.run!()?
+    output.ok()
+
 # Answers each program with the results scripted for it
 # (r-std-process.scripted.decl).
 ## The deterministic `Process` provider: it answers each program from queued results and records each command, with no host access.
@@ -165,7 +187,7 @@ impl ScriptedProcess:
         self.seen
 
 # Records the command and serves the queued answer
-# (r-std-process.scripted.answer, r-std-process.scripted.unqueued).
+# (r-std-process.scripted.answer-program, r-std-process.scripted.unqueued).
 impl Process for ScriptedProcess:
     fn run!(&mut self, command: Command) -> Result[ProcessOutput, ProcessError]:
         self.seen.push(command)
@@ -174,7 +196,12 @@ impl Process for ScriptedProcess:
             .Some(queued) =>
                 done := self.served.get_or(program, 0)
                 self.served[program] = done + 1
-                queued[if done < queued.len(): done else: queued.len() - 1]
+                match queued[if done < queued.len(): done else: queued.len() - 1]:
+                    .Ok(output) =>
+                        let mut named = output
+                        named.program = program
+                        .Ok(named)
+                    .Err(error) => .Err(error)
             .None => .Err(.NotFound(program))
 
 # The text of each variant (r-std-process.error.display.other and its rows).

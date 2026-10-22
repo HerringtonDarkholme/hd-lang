@@ -1101,13 +1101,14 @@ pub struct ProcessOutput:
     pub stdout: string = ""
     pub stderr: string = ""
     pub status: i32 = 0
+    pub program: string = ""
 
 pub enum ProcessError:
     NotFound(program: string)
     PermissionDenied(program: string)
     NotGranted
     Other(message: string)
-    Exited(status: i32, stderr: string)
+    Exited(output: ProcessOutput)
 
 pub trait Process:
     fn run!(&mut self, command: Command) -> Result[ProcessOutput, ProcessError]
@@ -1119,8 +1120,8 @@ pub trait Process:
 4. r[module.process.env] The program starts with the environment of the program that calls `run!`, then each pair of `command.env`, in order: a later pair for a name replaces an earlier one.
 5. r[module.process.current-dir] The program starts in `command.current_dir` when it is `.Some`, a relative path being from the working directory of the program that calls `run!`, and in that working directory when it is `.None`. A directory that does not exist gives `.Err(ProcessError.Other(message))`, with a message that names the directory.
 6. r[module.process.stdin] The program reads `command.stdin` from its standard input, and finds the end of its input after it.
-7. r[module.process.ok-output] When the program starts, `run!` returns `.Ok` of a `ProcessOutput`. It holds the text the program wrote to standard output and to standard error, and the status it exited with.
-8. r[module.process.output-defaults] The fields `stdout` and `stderr` of a `ProcessOutput` default to `""`, and `status` to 0.
+7. r[module.process.named-output] When the program starts, `run!` returns `.Ok` of a `ProcessOutput` holding its stdout, stderr, exit status, and program name.
+8. r[module.process.named-output-defaults] The fields `stdout`, `stderr`, and `program` of a `ProcessOutput` default to `""`, and `status` to 0.
 9. r[module.process.nonzero-ok] A non-zero exit status is still an ordinary `.Ok` result; the caller reads it from `status`.
 10. r[module.process.not-found-program] `run!` returns `.Err(ProcessError.NotFound(program))` when its provider has no program named `program`.
 11. r[module.process.denied] It returns `.Err(ProcessError.PermissionDenied(program))` when the program exists but the operating system does not allow starting it.
@@ -1129,6 +1130,7 @@ pub trait Process:
 14. r[module.process.error-traits] `ProcessError` implements `Eq`, `Debug`, `Display`, and [`Error`](09-traits.md#error-trait).
 15. r[module.process.mut-ref] `run!` takes `&mut self`, so `Process` is a mutable requirement trait, as `Console` is, `$.use(Process)` is a `&mut dyn Process`, and a provider may record what it runs.
 16. r[module.process.names] `Process`, `Command`, `ProcessOutput`, and `ProcessError` are not prelude names; code imports them from `std.process`.
+17. r[module.process.output-program] A provider fills `ProcessOutput.program` from the command's `program` field.
 
 A scripted provider answers each program from a table:
 
@@ -1141,7 +1143,10 @@ struct ScriptedProcess:
 impl Process for ScriptedProcess:
     fn run!(&mut self, command: Command) -> Result[ProcessOutput, ProcessError]:
         match self.outputs.get(command.program):
-            .Some(output) => .Ok(output)
+            .Some(output) =>
+                let mut named = output
+                named.program = command.program
+                .Ok(named)
             .None => .Err(.NotFound(command.program))
 
 fn version!() -> string $ Process:
@@ -1157,7 +1162,8 @@ fn version!() -> string $ Process:
 > The run-time grant that `NotGranted` reports is CLI tier
 > ([Capability Grants](../cli/command-line.md#capability-grants)).
 
-> **Note.** No provider returns `Exited` from `run!`.
+> **Note.** Hosts keep a nonzero status as output data. The explicit
+> check and checked free helper are in [Process](../std/process.md#checking-output).
 > The builder methods of `Command`, the `Display` text of each
 > `ProcessError` variant, and the stdlib provider `ScriptedProcess` are
 > stdlib tier: [Process](../std/process.md) in `std.process`.

@@ -1,5 +1,5 @@
 # test: a Command literal names only the program, and a ProcessOutput literal names only the fields it sets
-# Spec 10 Processes: module.process.decl-struct, module.process.output-defaults, module.process.args-no-shell,
+# Spec 10 Processes: module.process.decl-struct, module.process.named-output-defaults, module.process.args-no-shell,
 # module.process.env, module.process.current-dir, module.process.stdin, module.process.names.
 # expect: test
 use std.process.{Command, ProcessOutput}
@@ -22,6 +22,7 @@ tests:
 
     it("a ProcessOutput literal defaults to empty text and status 0"):
         output := ProcessOutput {}
+        assert_equal(output.program, "", reason="program defaults to empty text")
         assert_equal(output.stdout, "", reason="stdout")
         assert_equal(output.stderr, "", reason="stderr")
         assert_equal(output.status, 0, reason="status")

@@ -1,5 +1,5 @@
 # test: a scripted Process provider answers each program, and run! returns .Err(.NotFound(program)) for an unknown one
-# Spec 10 Processes: module.process.decl-struct, module.process.not-found-program, module.process.ok-output, module.process.mut-ref, module.process.names.
+# Spec 10 Processes: module.process.decl-struct, module.process.not-found-program, module.process.named-output, module.process.mut-ref, module.process.names.
 # expect: test
 use std.process.{Command, Process, ProcessError, ProcessOutput}
 struct ScriptedProcess:

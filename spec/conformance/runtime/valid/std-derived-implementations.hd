@@ -41,14 +41,14 @@ tests:
         assert_equal(debug(CleanupEnd.Abandoned), "CleanupEnd.Abandoned", reason="cleanup variant")
         assert_equal(debug(DecodeError.InvalidLength(3)), "DecodeError.InvalidLength(position=3)", reason="named payload")
         assert_equal(debug(CliError.InvalidValue("n", "bad")), "CliError.InvalidValue(name=\"n\", reason=\"bad\")", reason="two named fields")
-        assert_equal(debug(ProcessError.Exited(+2, "bad")), "ProcessError.Exited(status=2, stderr=\"bad\")", reason="exit status is a field")
+        assert_equal(debug(ProcessError.Exited(ProcessOutput { status: 2, stderr: "bad", program: "tool" })), "ProcessError.Exited(output=ProcessOutput { stdout: \"\", stderr: \"bad\", status: 2, program: \"tool\" })", reason="exit status is a field")
         assert_equal(debug(Json.Array([.Bool(true)])), "Json.Array(items=[Json.Bool(value=true)])", reason="recursive enum")
 
     it("error derivations preserve messages and absent causes"):
         assert_equal(DecodeError.InvalidPadding(2).to_string(), "invalid padding at position 2", reason="position template")
         assert_equal(HostError.InvalidValue("PORT", "bad").to_string(), "invalid value for PORT: bad", reason="two interpolations")
         assert_equal(NetError.Other("raw").to_string(), "raw", reason="forwarded text")
-        assert_equal(ProcessError.Exited(+2, "bad").to_string(), "program exited with status 2: bad", reason="signed status")
+        assert_equal(ProcessError.Exited(ProcessOutput { status: 2, stderr: "bad", program: "tool" }).to_string(), "program tool exited with status 2: bad", reason="signed status")
         assert_equal(ParseTimeError.Inexact(4).to_string(), "not a whole number of milliseconds at position 4", reason="time error")
         assert(DecodeError.InvalidLength(3).cause().is_none(), reason="plain errors have no cause")
 

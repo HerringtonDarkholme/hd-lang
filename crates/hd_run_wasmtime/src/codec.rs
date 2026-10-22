@@ -394,6 +394,17 @@ mod tests {
             },
             &[1, b't', 0, 3, 1, 1],
         );
+        round_trip(
+            &crate::abi::ProcessError::Exited {
+                output: crate::abi::ProcessOutput {
+                    stdout: "o".into(),
+                    stderr: "e".into(),
+                    status: 7,
+                    program: "tool".into(),
+                },
+            },
+            &[4, 1, b'o', 1, b'e', 14, 4, b't', b'o', b'o', b'l'],
+        );
         round_trip(&NetError::Closed, &[5]);
         let err = EntryKind::dec(&mut Dec::new(&[3])).expect_err("no fourth kind");
         assert_eq!(err.to_string(), "an argument does not decode");

@@ -794,7 +794,12 @@ function processProvider({ grant, env, left }) {
     // std-process.child.signal: a child ended by a signal reports 128 plus
     // the signal number.
     const status = r.status ?? 128 + (osConstants.signals[r.signal] ?? 0);
-    return Ok({ stdout: r.stdout.toString("utf8"), stderr: r.stderr.toString("utf8"), status });
+    return Ok({
+      stdout: r.stdout.toString("utf8"),
+      stderr: r.stderr.toString("utf8"),
+      status,
+      program: name,
+    });
   };
   return { run };
 }

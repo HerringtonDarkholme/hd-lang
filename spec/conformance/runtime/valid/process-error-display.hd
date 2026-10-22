@@ -1,5 +1,5 @@
 # test: ProcessError displays each variant's text, compares by variant and argument, and converts into the erased Error
-# Spec std/process Process Errors: std-process.error.display.not-found-named, std-process.error.display.permission-named, std-process.error.display.other, std-process.error.equal, std-process.error.debug-fields, std-process.error.error.
+# Spec std/process Process Errors: std-process.error.display.not-found-named, std-process.error.display.permission-named, std-process.error.display.other, std-process.error.equal, std-process.error.debug-output-fields, std-process.error.error.
 # expect: test
 use std.process.ProcessError
 use std.error.Error

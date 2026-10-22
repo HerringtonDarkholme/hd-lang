@@ -35,15 +35,15 @@ fn explain(error: ProcessError) -> string:
 | r[std-process.error.display.permission-named] Permission | `PermissionDenied(program)` | `permission denied: PROGRAM` |
 | r[std-process.error.display.not-granted.plain] Not granted | `NotGranted` | `program not granted` |
 | r[std-process.error.display.other] Other | `Other(message)` | `message`, as written |
-| r[std-process.error.display.exited] Exited | `Exited(status, stderr)` | `program exited with status STATUS: STDERR` |
+| r[std-process.error.display.exited-output] Exited | `Exited(output)` | `program PROGRAM exited with status STATUS`, with the stderr suffix below |
 
-1. r[std-process.error.debug-fields] Its `Debug` writes the qualified variant and its argument, as `ProcessError.NotFound(program="git")` and `ProcessError.Other(message="x")`, `ProcessError.Exited(status=2, stderr="boom")`, and `NotGranted` alone, by [`std-format.debug.std-types.calls`](format.md#r-std-format.debug.std-types.calls).
+1. r[std-process.error.debug-output-fields] Its `Debug` writes the qualified variant and its argument, as `ProcessError.NotFound(program="git")` and `ProcessError.Other(message="x")`, `ProcessError.Exited(output=ProcessOutput { stdout: "", stderr: "boom", status: 2, program: "git" })`, and `NotGranted` alone, by [`std-format.debug.std-types.calls`](format.md#r-std-format.debug.std-types.calls).
 2. r[std-process.error.equal] Two `ProcessError` values are equal when they are the same variant and their arguments, if any, are equal.
 3. r[std-process.error.error] `ProcessError` implements `std.error.Error`, as [Standard Error Types](error.md#standard-error-types) requires.
 
-> **Why.** `Exited` is added after `Other`, so the host's variant tags
-> keep their numbers. The host never returns it, and nothing in
-> `std.process` produces it yet. The host's message is the whole text of
+> **Why.** `Exited` follows `Other`, so the host's variant tags keep their
+> numbers. Hosts report every completed status as data; `ok()` performs
+> the explicit check and retains the complete output. The host's message is the whole text of
 > `Other`, as `FsError` keeps it. `NotFound` and `PermissionDenied` name the program, as
 > `FsError.NotFound(path)` names its path, so a message such as
 > `program not found: git` needs no caller to add the name.
@@ -64,8 +64,24 @@ fn same(left: ExitCode, right: ExitCode) -> bool:
 ```
 
 1. r[std-process.exit-code.eq] `ExitCode` implements `Eq`; two codes are equal when their `u8` values are.
-2. r[std-process.output.eq] `ProcessOutput` implements `Eq`; two outputs are equal when `stdout`, `stderr`, and `status` are each equal.
+2. r[std-process.output.eq-program] `ProcessOutput` implements `Eq`; two outputs are equal when `stdout`, `stderr`, `status`, and `program` are each equal.
 3. r[std-process.debug-text] `ExitCode` and `ProcessOutput` implement `Debug`, by [`std-format.debug.std-types`](format.md#r-std-format.debug.std-types). An `ExitCode` writes its constructor call, as `ExitCode(0)`.
+
+## Checking Output
+
+1. r[std-process.output.ok] `ProcessOutput.ok(self) -> Result[ProcessOutput, ProcessError]` returns `.Ok(self)` when `status` is zero.
+2. r[std-process.output.ok-nonzero] For a nonzero status, it returns `.Err(ProcessError.Exited(self))` with every output field preserved.
+3. r[std-process.error.exited-output] `ProcessError.Exited(output: ProcessOutput)` carries the complete output whose explicit check failed.
+4. r[std-process.error.exited-last-line] Its `Display` appends `: LINE` when the last line of `output.stderr.lines()` is nonempty.
+5. r[std-process.error.exited-empty-line] When that last line is empty or absent, the `Display` text has no stderr suffix.
+6. r[std-process.error.exited-unnamed] An empty `output.program` omits `PROGRAM` and its following space from the message.
+7. r[std-process.error.exited-no-args] The message never adds command arguments.
+8. r[std-process.helper.run-checked] `pub fn run!(command: Command) -> Result[ProcessOutput, ProcessError] $ Process` calls the command's neutral `run!` and then checks its output with `ok()`.
+9. r[std-process.helper.start-error] A provider's `.Err` passes through the free `run!` unchanged.
+
+> **Why.** A status-neutral method lets a caller inspect an expected status
+> directly. The explicit check and free helper retain failed output without
+> storing command arguments in the error.
 
 ## Command
 
@@ -133,10 +149,14 @@ tests:
 1. r[std-process.scripted.decl] `std.process` declares `ScriptedProcess`, which implements `Process` and `Debug`, with private fields. Code imports it, as in `use std.process.ScriptedProcess`.
 2. r[std-process.scripted.empty-ref] `ScriptedProcess::new() -> &mut ScriptedProcess` returns a new object holding a provider with no replies and no recorded commands. Installing it as `Process=process` shares the object, so the test reads back what the code under test ran.
 3. r[std-process.scripted.reply-ref] `reply(&mut self, program: string, result: Result[ProcessOutput, ProcessError]) -> void` queues `result` as an answer for `program`, after the answers already queued for it.
-4. r[std-process.scripted.answer] `run!(command)` records `command`, then returns the first answer queued for `command.program` that no earlier run of that program has taken. When every queued answer is taken, it returns the last one again. The arguments, environment, directory, and standard input of `command` do not change the answer.
-5. r[std-process.scripted.unqueued] For a program that has no queued answer, `run!` returns `.Err(ProcessError.NotFound(program))`.
-6. r[std-process.scripted.received-ref] `received(&self) -> List[Command]` returns every command that `run!` received, in order, including those answered with `NotFound`.
-7. r[std-process.scripted.no-host] A `ScriptedProcess` starts no host program.
+4. r[std-process.scripted.answer-program] `run!(command)` records `command` before serving its answer.
+5. r[std-process.scripted.next-answer] It returns the first answer queued for `command.program` that no earlier run of that program has taken.
+6. r[std-process.scripted.repeat-last] When every queued answer is taken, it returns the last one again.
+7. r[std-process.scripted.command-independent] The arguments, environment, directory, and stdin do not change the selected answer.
+8. r[std-process.scripted.output-program] An `.Ok` output has `program` set to the command's program before it is returned.
+9. r[std-process.scripted.unqueued] For a program that has no queued answer, `run!` returns `.Err(ProcessError.NotFound(program))`.
+10. r[std-process.scripted.received-ref] `received(&self) -> List[Command]` returns every command that `run!` received, in order, including those answered with `NotFound`.
+11. r[std-process.scripted.no-host] A `ScriptedProcess` starts no host program.
 
 > **Why.** Every host capability trait has a deterministic provider
 > beside it, so a test never touches the host. A queue per program with a

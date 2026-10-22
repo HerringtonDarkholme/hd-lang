@@ -134,6 +134,7 @@ pub(crate) fn finish(ran: Ran) -> Enc {
             stdout: String::from_utf8_lossy(&out).into_owned(),
             stderr: String::from_utf8_lossy(&err).into_owned(),
             status,
+            program: ran.name,
         })),
         Err(err) => failed(match crate::runtime::native_io::error_kind(&err) {
             io::ErrorKind::NotFound => ProcessError::NotFound { program: ran.name },

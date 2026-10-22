@@ -231,5 +231,6 @@ fix-private-main-clash	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fi
 fix-private-main-unsafe	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix.edit,cli.json.fix.offsets,cli.fix.command,cli.fix.safe,cli.fix.status
 fix-discarded-debug	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix.edit,cli.json.fix.offsets,cli.fix.command,cli.fix.safe,cli.fix.status
 trait-reference-messages	cli.json.commands,cli.json.lines.build,cli.json.diagnostic,cli.json.diagnostic.fields,cli.json.diagnostic.fixes
+process-output-ok	cli.test.process,cli.host.default-profile.granted
 test-hd-run-command	cli.test.builds-executables,cli.test.process,cli.test.process.tasks
 http-timeout-composition	cli.host.default-profile.granted

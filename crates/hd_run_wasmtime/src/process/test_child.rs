@@ -171,7 +171,7 @@ fn run(
         host.env_overlay = child.env;
         host.environment = Some(TestEnvironment {
             cwd: child.cwd,
-            program: name,
+            program: name.clone(),
             children: Vec::new(),
         });
         // A named child uses the ordinary Process provider, not test names.
@@ -196,6 +196,7 @@ fn run(
             stdout: String::from_utf8_lossy(&out.take()).into_owned(),
             stderr: String::from_utf8_lossy(&err.take()).into_owned(),
             status,
+            program: name.clone(),
         })
     };
     let encoded = encode(&match result {

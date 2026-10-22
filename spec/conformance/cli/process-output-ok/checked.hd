@@ -1,0 +1,6 @@
+use std.process.{Command, Process, ProcessError, run}
+
+pub fn main!() -> Result[void, ProcessError] $ Process:
+    command := Command::new("node").args(["-e", "process.stdout.write('kept stdout\\n');process.stderr.write('first stderr\\nlast stderr\\n');process.exitCode=7", "--", "--token=secret"])
+    _ := run!(*command)?
+    .Ok(())

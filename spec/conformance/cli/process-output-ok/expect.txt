@@ -1,0 +1,6 @@
+run: hd test --format json
+stdout-json: [{"kind":"test","name":"neutral child output can be explicitly checked without losing data","outcome":"passed"},{"kind":"summary","errors":0,"passed":1,"failed":0,"status":0}]
+run: hd checked.hd
+exit: 1
+stdout-json: []
+stderr: program node exited with status 7: last stderr

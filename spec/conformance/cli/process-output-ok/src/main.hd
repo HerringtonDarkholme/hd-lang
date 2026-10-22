@@ -1,0 +1,8 @@
+use std.console.eprintln
+use std.process.ExitCode
+
+pub fn main() -> ExitCode $ Console:
+    println("kept stdout")
+    eprintln("first stderr")
+    eprintln("last stderr")
+    ExitCode(7)

@@ -119,17 +119,18 @@ export const NetError = variants({
   Closed: {},
   Other: { message: str },
 });
+export const ProcessOutput = data({
+  stdout: str,
+  stderr: str,
+  status: signed,
+  program: str,
+});
 export const ProcessError = variants({
   NotFound: { program: str },
   PermissionDenied: { program: str },
   NotGranted: {},
   Other: { message: str },
-  Exited: { status: signed, stderr: str },
-});
-export const ProcessOutput = data({
-  stdout: str,
-  stderr: str,
-  status: signed,
+  Exited: { output: ProcessOutput },
 });
 export const PropertyCase = data({
   example: option(unsigned),

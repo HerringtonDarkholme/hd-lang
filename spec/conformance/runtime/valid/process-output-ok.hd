@@ -1,0 +1,45 @@
+# test: process output is neutral until explicitly checked, with complete failed output
+# Spec std/process: std-process.output.ok, std-process.output.ok-nonzero, std-process.helper.run-checked, std-process.error.exited-last-line.
+use std.process.{Command, Process, ProcessError, ProcessOutput, ScriptedProcess, run}
+use std.testing.{assert, assert_equal}
+
+tests:
+    it("zero status keeps every output field"):
+        output := ProcessOutput { program: "tool", stdout: "out", stderr: "warning", status: 0 }
+        assert_equal(output.ok(), .Ok(output), reason="the complete successful output")
+
+    it("builder run is neutral, the provider names the program, and ok keeps the failure"):
+        process := ScriptedProcess::new()
+        scripted := ProcessOutput { stdout: "out", stderr: "first\nlast\n", status: 7, program: "ignored-script-name" }
+        process.reply("tool", .Ok(scripted))
+        command := Command::new("tool").arg("--token=secret")
+        $.with(Process=process):
+            output := command.run!().expect("a nonzero exit is still output")
+            assert_equal(output.program, "tool", reason="the provider records the requested program")
+            assert_equal(output.status, 7, reason="builder run is neutral")
+            match output.ok():
+                .Err(.Exited(failed)) =>
+                    assert_equal(failed, output, reason="all fields survive the explicit check")
+                    message := ProcessError.Exited(failed).to_string()
+                    assert_equal(message, "program tool exited with status 7: last", reason="only the final stderr line")
+                    assert(!message.contains("first"), reason="earlier stderr lines are omitted")
+                    assert(!message.contains("secret"), reason="arguments are omitted")
+                _ => panic("the output check should reject status 7")
+        assert_equal(scripted.program, "ignored-script-name", reason="serving a reply does not change the caller's value")
+        assert_equal(process.received(), [*command], reason="the neutral provider still sees the whole command")
+
+    it("free run is checked and preserves start errors"):
+        process := ScriptedProcess::new()
+        process.reply("tool", .Ok(ProcessOutput { stdout: "kept", stderr: "detail", status: 2 }))
+        process.reply("good", .Ok(ProcessOutput { stdout: "ok" }))
+        $.with(Process=process):
+            assert_equal(run!(*Command::new("tool")), .Err(ProcessError.Exited(ProcessOutput { stdout: "kept", stderr: "detail", status: 2, program: "tool" })), reason="free run rejects a nonzero exit")
+            assert_equal(run!(*Command::new("good")), .Ok(ProcessOutput { stdout: "ok", program: "good" }), reason="free run accepts zero")
+            assert_equal(run!(*Command::new("missing")), .Err(ProcessError.NotFound(program="missing")), reason="start errors pass through")
+
+    it("empty stderr and unnamed literal outputs have useful messages"):
+        assert_equal(ProcessError.Exited(ProcessOutput { status: -1 }).to_string(), "program exited with status -1", reason="literal outputs need no invented program")
+        assert_equal(ProcessError.Exited(ProcessOutput { status: 3, program: "tool", stderr: "first\n\n" }).to_string(), "program tool exited with status 3", reason="an empty final line adds no suffix")
+
+    it("output equality includes the program name"):
+        assert(ProcessOutput { program: "left" } != ProcessOutput { program: "right" }, reason="program is part of the output")

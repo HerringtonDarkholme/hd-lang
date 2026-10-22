@@ -1,0 +1,14 @@
+use std.process.{Command, ProcessError, run}
+use std.testing.{assert, assert_equal}
+
+it("neutral child output can be explicitly checked without losing data"):
+    command := Command::new("status-child").arg("--token=secret")
+    output := command.run!().expect("nonzero is neutral")
+    assert_equal(output.program, "status-child", reason="the real provider fills the program name")
+    assert_equal(output.status, 7, reason="the child's status")
+    assert_equal(output.stdout, "kept stdout\n", reason="stdout retained")
+    assert_equal(output.stderr, "first stderr\nlast stderr\n", reason="all stderr retained")
+    assert_equal(run!(*command), .Err(ProcessError.Exited(output)), reason="the free helper checks the same output")
+    message := ProcessError.Exited(output).to_string()
+    assert_equal(message, "program status-child exited with status 7: last stderr", reason="the program, status and final stderr line")
+    assert(!message.contains("secret"), reason="arguments are not rendered")

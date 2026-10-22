@@ -1,5 +1,5 @@
 # test: ExitCode and ProcessOutput implement Eq field by field
-# Spec std/process Exit Data: std-process.exit-code.eq, std-process.output.eq.
+# Spec std/process Exit Data: std-process.exit-code.eq, std-process.output.eq-program.
 # expect: test
 use std.process.{ExitCode, ProcessOutput}
 fn clean(output: ProcessOutput) -> bool:

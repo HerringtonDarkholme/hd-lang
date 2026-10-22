@@ -344,7 +344,7 @@ The structured values of the ABI table, byte by byte:
 | `Result[T, E]` | `0` and the `T`, or `1` and the `E` |
 | `FsError` | the variant index (`NotFound` 0, `PermissionDenied` 1, `NotGranted` 2, `AlreadyExists` 3, `NotADirectory` 4, `IsADirectory` 5, `InvalidUtf8` 6, `Other` 7), then its path, or `Other`'s message |
 | `ConsoleError` | `0` (`Closed`) |
-| `ProcessOutput` | stdout, stderr, then the status, zigzag |
+| `ProcessOutput` | stdout, stderr, the status (zigzag), then the program name |
 | `ProcessError` | the variant index (`NotFound` 0, `PermissionDenied` 1, `NotGranted` 2, `Other` 3), then the program of `NotFound` and `PermissionDenied`, or `Other`'s message |
 | `HostError` | the variant index (`NotGranted` 0, `Unsupported` 1), then its name |
 | `Request` | its method's index (`Get` 0 to `Options` 6, then `Other` 7 and its name), its URL, query pairs and header pairs (each a count, then each name and value), its body, and its `usize` redirect limit |

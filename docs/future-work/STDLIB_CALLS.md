@@ -728,7 +728,7 @@ its own issue.
 - **A free helper for every host-trait method** in `std.fs` and
   `std.process`, as `read_text!` already has: `list_dir!`, `stat!`,
   `read_bytes!`, `append_text!`, `exists!`, and
-  `std.process.run!(program, args, stdin = "")`. Applied in #365:
+  `std.process.run!(command)`. Applied in #365:
   `exists!` returns `Result[bool, FsError]`, built on `stat!`, whose `.None`
   already means missing; the error is for a failed check, as Rust's
   `try_exists` and Go's `os.Stat` keep it. `create_dir_all!`, `remove!`,
@@ -736,11 +736,12 @@ its own issue.
   A child that exits or closes its stdin before reading all of `stdin`
   drops the rest and the call still returns `.Ok` (`std-process.stdin.unread`,
   #401; Go's `exec` does the same).
-  `std.process.output!(program, args) -> Result[string, ProcessError]`
-  (#379) returns stdout on status 0 and `.Err(ProcessError.Exited(status,
-  stderr))` otherwise. The variant is added after `Other` and is produced
-  only in std, so the host codec and its tags are unchanged
-  (`std-process.helper.output`, `std-process.error.display.exited`).
+  `Command.run!` returns output for every completed status. An explicit
+  `ProcessOutput.ok()` or free `std.process.run!(command)` checks it and
+  returns `ProcessError.Exited(output)` for a nonzero status. The complete
+  output carries the program name, stdout, stderr and status; the error's
+  message names the program, status and final stderr line, never arguments
+  (`std-process.helper.run-checked`, `std-process.error.display.exited-output`).
 - **One-off errors.** `std.error.message(text) -> dyn Error` and
   `Option.context(text) -> Result[T, dyn Error]`. Applied in #366.
 - **Directory walking.** `std.fs.walk!(root)` and `glob!(pattern)`. Applied
