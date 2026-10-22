@@ -3,7 +3,7 @@
 # std-fs.glob.star, std-fs.glob.one, std-fs.glob.class, std-fs.glob.deep,
 # std-fs.glob.deep-last, std-fs.glob.directories, std-fs.glob.relative,
 # std-fs.glob.absolute, std-fs.glob.result, std-fs.glob.none,
-# std-fs.glob.symlinks, std-fs.glob.row, and std-fs.memory.current-dir.
+# std-fs.glob.symlinks, std-fs.glob.row, and std-fs.memory.normalized-root-directory.
 # expect: test
 use std.fs.{Entry, EntryKind, FsError, FsRead, FsWrite, MemoryFs, glob, walk}
 use std.path.Path

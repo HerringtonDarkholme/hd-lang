@@ -319,15 +319,28 @@ fn glob_component_matches(pieces: List[GlobPiece], name: string) -> bool:
     true
 
 # The deterministic file system (spec/std/fs.md#memory-file-system). A
-# file's key is its path's text, as written. A directory is a key that
+# file's key omits empty and dot components, preserving a leading slash.
+# A directory is a key that
 # `create_dir_all!` made, or the text before a `/` in another key
-# (r-std-fs.memory.dirs); `.` is the root (r-std-fs.memory.current-dir).
+# (r-std-fs.memory.dirs); `.` is the root (r-std-fs.memory.normalized-root-directory).
 ## The deterministic `FsRead` and `FsWrite` provider: a file system in memory for unit tests.
 ## See [std-fs.memory.decl](../../spec/std/fs.md#r-std-fs.memory.decl).
 @derive(Debug)
 pub struct MemoryFs:
     files: Map[string, List[u8]]
     dirs: List[string]
+
+# Lexical keys only: no host access, symlinks or parent-component resolution.
+fn memory_key(path: Path) -> string:
+    text := "${path}"
+    let mut parts: List[string] = []
+    for part in text.split("/"):
+        if part != "" && part != ".":
+            parts.push(part)
+    key := parts.join("/")
+    if text.starts_with("/"):
+        return "/${key}"
+    if key == "": "." else: key
 
 impl MemoryFs:
     # A new object, so the providers installed from it and the test share
@@ -342,9 +355,9 @@ impl MemoryFs:
 
     # A made directory, or a prefix of a file or a made directory.
     fn dir_at(&self, key: string) -> bool:
-        if key == ".":
+        if key == "." || key == "/":
             return true
-        under := "${key}/"
+        under := if key == "/": "/" else: "${key}/"
         for made in self.dirs:
             if made == key || made.starts_with(under):
                 return true
@@ -368,7 +381,7 @@ impl MemoryFs:
 
     # The error, if any, of writing a file at `path`.
     fn write_error(&self, path: Path) -> FsError?:
-        key := "${path}"
+        key := memory_key(path)
         if self.dir_at(key):
             return .Some(FsError.IsADirectory(path=path))
         if self.file_above(key):
@@ -377,7 +390,7 @@ impl MemoryFs:
 
 impl FsRead for MemoryFs:
     fn read_bytes!(self, path: Path) -> Result[List[u8], FsError]:
-        key := "${path}"
+        key := memory_key(path)
         match self.file_at(key):
             .Some(bytes) => .Ok(bytes)
             .None => if self.dir_at(key): .Err(FsError.IsADirectory(path=path)) else: .Err(FsError.NotFound(path=path))
@@ -389,15 +402,15 @@ impl FsRead for MemoryFs:
             .Err(_) => .Err(FsError.InvalidUtf8(path=path))
 
     # The entries directly inside, ordered by their paths' text
-    # (r-std-fs.memory.list-order).
+    # (r-std-fs.memory.normalized-list-order).
     fn list_dir!(self, path: Path) -> Result[List[Entry], FsError]:
-        key := "${path}"
+        key := memory_key(path)
         match self.file_at(key):
             .Some(_) => return .Err(FsError.NotADirectory(path=path))
             .None => pass
         if !self.dir_at(key):
             return .Err(FsError.NotFound(path=path))
-        under := if key == ".": "" else: "${key}/"
+        under := if key == ".": "" else if key == "/": "/" else: "${key}/"
         let mut names: List[string] = []
         for made in self.dirs:
             match made.strip_prefix(under):
@@ -410,8 +423,8 @@ impl FsRead for MemoryFs:
         let mut entries: List[Entry] = []
         let mut seen: Map[string, bool] = {}
         for name in names.sorted_by(fn(a: string, b: string) -> Ordering: a.cmp(b)):
-            # A file written as "./x" has the name "." here, which is no entry.
-            if name == ".":
+            # The root itself is not one of its children.
+            if name == "." || name == "":
                 continue
             match seen.get(name):
                 .Some(_) => pass
@@ -423,7 +436,7 @@ impl FsRead for MemoryFs:
         .Ok(entries)
 
     fn stat!(self, path: Path) -> Result[Entry?, FsError]:
-        key := "${path}"
+        key := memory_key(path)
         match self.file_at(key):
             .Some(bytes) => .Ok(.Some(Entry { path: path, kind: EntryKind.File, size: u64(bytes.len()) }))
             .None => if self.dir_at(key): .Ok(.Some(Entry { path: path, kind: EntryKind.Directory, size: 0 })) else: .Ok(.None)
@@ -433,7 +446,7 @@ impl FsWrite for MemoryFs:
         match self.write_error(path):
             .Some(error) => return .Err(error)
             .None => pass
-        self.files["${path}"] = bytes
+        self.files[memory_key(path)] = bytes
         .Ok(())
 
     fn write_text!(&mut self, path: Path, text: string) -> Result[void, FsError]:
@@ -443,7 +456,7 @@ impl FsWrite for MemoryFs:
         match self.write_error(path):
             .Some(error) => return .Err(error)
             .None => pass
-        key := "${path}"
+        key := memory_key(path)
         let mut joined: List[u8] = []
         match self.file_at(key):
             .Some(old) =>
@@ -456,7 +469,7 @@ impl FsWrite for MemoryFs:
         .Ok(())
 
     fn create_dir_all!(&mut self, path: Path) -> Result[void, FsError]:
-        key := "${path}"
+        key := memory_key(path)
         match self.file_at(key):
             .Some(_) => return .Err(FsError.NotADirectory(path=path))
             .None => pass
@@ -479,7 +492,7 @@ impl FsWrite for MemoryFs:
         .Ok(())
 
     fn remove!(&mut self, path: Path) -> Result[void, FsError]:
-        key := "${path}"
+        key := memory_key(path)
         match self.file_at(key):
             .Some(_) =>
                 _ := self.files.remove(key)
@@ -499,8 +512,8 @@ impl FsWrite for MemoryFs:
     # Moves the file or directory at `from`, with every key under it
     # (r-std-fs.memory.rename).
     fn rename!(&mut self, from: Path, to: Path) -> Result[void, FsError]:
-        source := "${from}"
-        target := "${to}"
+        source := memory_key(from)
+        target := memory_key(to)
         if !self.dir_at(source):
             match self.file_at(source):
                 .Some(bytes) =>

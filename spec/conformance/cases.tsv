@@ -4795,3 +4795,4 @@ typing/invalid/num-parse-free-function-removed.hd	type	reject:unknown-import	std
 typing/invalid/error-chain-free-function-removed.hd	type	reject:unknown-import	std/error.md#r-std-error.chain.method-only
 typing/invalid/error-context-private-type.hd	type	reject:private-import	std/error.md#r-std-error.context.private-wrapper
 typing/invalid/error-context-private-field.hd	type	reject:unknown-field	std/error.md#r-std-error.context.private-wrapper
+runtime/valid/memory-fs-normalized-keys.hd	runtime	accept	std/fs.md#r-std-fs.memory.normalized-keys

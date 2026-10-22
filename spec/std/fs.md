@@ -244,14 +244,19 @@ tests:
 
 1. r[std-fs.memory.decl] `std.fs` declares `MemoryFs`, which implements `FsRead` and `FsWrite`, with private fields. Code imports it, as in `use std.fs.MemoryFs`.
 2. r[std-fs.memory.new-ref] `MemoryFs::new() -> &mut MemoryFs` returns a new object holding a file system with no files and no directories. `MemoryFs` is a struct used behind that reference: installing it as `FsRead=files, FsWrite=files` makes both providers refer to the one object, so a test reads back through `files` what the code under test wrote.
-3. r[std-fs.memory.keys] A `MemoryFs` names an entry by its path's text, as written, so `Path("a.txt")` and `Path("./a.txt")` are different files.
-4. r[std-fs.memory.dirs] A directory exists when `create_dir_all!` made it, or when its path is the text before a `/` in the path of a file. So writing a file makes the directories above it.
-5. r[std-fs.memory.create-dir-all] `create_dir_all!` records `path` and every directory above it, so each stays after the entries inside it are removed.
-6. r[std-fs.memory.entry] A file's `Entry` has the kind `File` and its length in bytes. A directory's has the kind `Directory` and the size 0. No entry is a `Symlink`.
-7. r[std-fs.memory.list-order] `list_dir!` returns the entries directly inside the directory, in the byte order of their path text. Each entry's path is the directory's path, `/`, and the entry's name.
-8. r[std-fs.memory.current-dir] The path `.` names the root directory: it always exists, `stat!` returns a `Directory` entry for it, and `list_dir!(Path("."))` lists the entries whose keys have no `/`, each with a path that is just its name, as in `a.md`. So a relative pattern such as `glob!("*.md")` finds files written at the top.
-9. r[std-fs.memory.rename] `rename!` of a directory moves every entry under it as well.
-10. r[std-fs.memory.no-host] A `MemoryFs` never reads or changes the host's file system.
+3. r[std-fs.memory.normalized-keys] Every `MemoryFs` operation drops empty and `.` components from its path keys, so `./a.txt` and `a.txt` name one entry.
+4. r[std-fs.memory.rooted-keys] A normalized key keeps a leading `/` when the supplied path starts with `/`.
+5. r[std-fs.memory.literal-parent] Normalization leaves `..` components unchanged, without resolving parent directories.
+6. r[std-fs.memory.normalized-root] A relative path with no remaining components names `.`, and an absolute one names `/`.
+7. r[std-fs.memory.supplied-errors] Errors retain the caller's supplied path, including its original spelling.
+8. r[std-fs.memory.dirs] A directory exists when `create_dir_all!` made it, or when its path is the text before a `/` in the path of a file. So writing a file makes the directories above it.
+9. r[std-fs.memory.create-dir-all] `create_dir_all!` records `path` and every directory above it, so each stays after the entries inside it are removed.
+10. r[std-fs.memory.entry] A file's `Entry` has the kind `File` and its length in bytes. A directory's has the kind `Directory` and the size 0. No entry is a `Symlink`.
+11. r[std-fs.memory.normalized-list-order] `list_dir!` returns the entries directly inside the directory, in the byte order of their path text. The returned entry paths use normalized keys.
+12. r[std-fs.memory.normalized-root-directory] The roots `.` and `/` always exist, and `stat!` returns a `Directory` entry for either.
+13. r[std-fs.memory.relative-root-list] `list_dir!(Path("."))` lists direct relative children with bare paths, such as `a.md`.
+14. r[std-fs.memory.rename] `rename!` of a directory moves every entry under it as well.
+15. r[std-fs.memory.no-host] A `MemoryFs` never reads or changes the host's file system.
 
 Its failures are these, and it reports no other. Each error holds the
 path that fails, which for a rename is `to` unless `from` is missing:

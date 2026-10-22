@@ -1,7 +1,7 @@
 # test: walk! lists every entry below a root, depth first, each directory in path order
 # Spec std/fs Walking And Globbing: std-fs.walk.decl, std-fs.walk.entries,
 # std-fs.walk.order, std-fs.walk.symlinks, std-fs.walk.empty,
-# std-fs.walk.error, std-fs.walk.row, and std-fs.memory.current-dir.
+# std-fs.walk.error, std-fs.walk.row, and std-fs.memory.normalized-root-directory.
 # expect: test
 use std.fs.{Entry, EntryKind, FsError, FsRead, FsWrite, MemoryFs, list_dir, stat, walk}
 use std.path.Path
