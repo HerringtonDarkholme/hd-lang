@@ -3066,6 +3066,8 @@ typing/valid/std-derivation-types-debug.hd	type	accept	std/format.md#r-std-forma
 runtime/valid/encoding-hex-vectors.hd	runtime	accept	std/encoding.md#r-std-encoding.hex.encode.digits
 runtime/valid/encoding-base64-vectors.hd	runtime	accept	std/encoding.md#r-std-encoding.base64.decode.value
 runtime/valid/encoding-decode-errors.hd	runtime	accept	std/encoding.md#r-std-encoding.base64.decode.order
+runtime/valid/encoding-properties.hd	runtime	accept	std/encoding.md#r-std-encoding.base64.decode.value
+runtime/valid/digest-sha256-properties.hd	runtime	accept	std/digest.md#r-std-digest.sha256.update-ref
 runtime/valid/digest-sha256-vectors.hd	runtime	accept	std/digest.md#r-std-digest.sha256.fips
 runtime/valid/digest-sha256-long.hd	runtime	accept	std/digest.md#r-std-digest.sha256.fips
 runtime/valid/digest-eq.hd	runtime	accept	std/digest.md#r-std-digest.digest.eq.constant-time
@@ -4269,6 +4271,7 @@ runtime/panic/num-pow-overflow-i64.hd	runtime	panic:integer-overflow	std/num.md#
 runtime/panic/num-pow-overflow-u64.hd	runtime	panic:integer-overflow	std/num.md#r-std-num.pow.overflow
 runtime/valid/num-float-round.hd	runtime	accept	std/num.md#r-std-num.float-round.round
 runtime/valid/num-float-sqrt.hd	runtime	accept	std/num.md#r-std-num.float-sqrt
+runtime/valid/number-text-properties.hd	runtime	accept	std/num.md#r-std-num.parse.float64-round-trip
 typing/invalid/power-type-parameter-unbounded.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.power.type-parameter
 runtime/valid/power-type-parameter-bound.hd	runtime	accept	lang/05-expressions.md#r-expr.power.type-parameter
 runtime/valid/tuple-rest-only-empty.hd	runtime	accept	lang/05-expressions.md#r-expr.tuple.rest.collect

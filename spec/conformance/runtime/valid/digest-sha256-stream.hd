@@ -82,10 +82,3 @@ tests:
     it("the one-shot digest is the streaming digest"):
         bytes := counting(200)
         assert(sha256(bytes) == Sha256::new().update(bytes).finish(), reason="same digest")
-
-    it("the NIST million-a vector"):
-        hasher := Sha256::new()
-        thousand := repeated(97, 1000)
-        for _ in 0..1000:
-            hasher.update(thousand)
-        assert_equal(hasher.finish().to_hex(), "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0", reason="one million a")

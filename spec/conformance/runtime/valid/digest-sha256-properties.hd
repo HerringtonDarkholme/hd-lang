@@ -1,0 +1,75 @@
+# test: SHA-256 preserves bytes across random chunk splits and FIPS boundary vectors
+# Spec std/digest SHA-256: std-digest.sha256.fips, std-digest.sha256.length,
+# std-digest.sha256.update-ref, std-digest.sha256.finish, std-digest.sha256.oneshot.
+use std.digest.{Sha256, sha256}
+use std.testing.{Choices, assert_equal, it_each, it_prop_with}
+
+fn random_chunks(c: &mut Choices) -> List[List[u8]]:
+    c.list(12, fn(inner: &mut Choices) -> List[u8]:
+        inner.list(96, fn(draw: &mut Choices) -> u8: draw.int(0..=255))
+    )
+
+# Reference model for the streaming operation: concatenate the supplied bytes
+# in order, then hash the single complete message. NIST vectors below check
+# the hash independently of the streaming/one-shot equivalence property.
+fn concatenate(chunks: List[List[u8]]) -> List[u8]:
+    let mut bytes: List[u8] = []
+    for chunk in chunks:
+        for byte in chunk:
+            bytes.push(byte)
+    bytes
+
+fn slice(bytes: List[u8], from: usize, to: usize) -> List[u8]:
+    let mut part: List[u8] = []
+    for index in from..to:
+        part.push(bytes[index])
+    part
+
+fn repeated(byte: u8, count: usize) -> List[u8]:
+    let mut bytes: List[u8] = []
+    for _ in 0..count:
+        bytes.push(byte)
+    bytes
+
+tests:
+    it_prop_with("random chunk splits preserve the complete message", gen=random_chunks, cases=100, prop=fn!(chunks: List[List[u8]]):
+        expected := sha256(concatenate(chunks))
+        hasher := Sha256::new()
+        hasher.update([])
+        for chunk in chunks:
+            hasher.update(chunk)
+            hasher.update([])
+        assert_equal(hasher.finish().bytes, expected.bytes, reason="the reference concatenates every byte before hashing")
+        assert_equal(hasher.finish().bytes, expected.bytes, reason="finish does not consume or alter the message")
+    )
+
+    it_each("padding and block boundaries", [usize(0), 1, 55, 56, 57, 63, 64, 65, 119, 120, 127, 128, 129], body=fn!(size: usize):
+        bytes := [for index in 0..size => u8(index * 7 + 3)]
+        expected := sha256(bytes)
+        hasher := Sha256::new()
+        for byte in bytes:
+            hasher.update([byte])
+        assert_equal(hasher.finish().bytes, expected.bytes, reason="one-byte chunks cross padding and compression boundaries")
+        half := size / 2
+        prefix := slice(bytes, 0, half)
+        suffix := slice(bytes, half, size)
+        split := Sha256::new().update(prefix)
+        assert_equal(split.finish().bytes, sha256(prefix).bytes, reason="an intermediate finish preserves the prefix")
+        split.update(suffix)
+        assert_equal(split.finish().bytes, expected.bytes, reason="a finished prefix can accept the rest of the message")
+    )
+
+    it_each("NIST SHA-256 vectors", [
+        ("empty", [], usize(1), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"),
+        ("abc", [97u8, 98, 99], usize(1), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"),
+        ("448 bits", "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq".to_utf8(), usize(1), "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1"),
+        ("million a", repeated(97, 1000), usize(1000), "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0"),
+    ], body=fn!(row: (string, List[u8], usize, string)):
+        hasher := Sha256::new()
+        for _ in 0..row._2:
+            hasher.update(row._1)
+        assert_equal(hasher.finish().to_hex(), row._3, reason=row._0)
+        assert_equal(hasher.finish().bytes.len(), 32, reason="every vector produces 32 bytes")
+        if row._2 == 1:
+            assert_equal(sha256(row._1).to_hex(), row._3, reason="the one-shot function also matches the independent vector")
+    )
