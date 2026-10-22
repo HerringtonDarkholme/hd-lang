@@ -27,13 +27,13 @@ const headerPairs = (text) =>
     });
 
 // Sends one request with the browser: `{ method, url, headers, body,
-// timeout }`, with `body` a `Uint8Array` and `timeout` milliseconds or
+// redirects, timeout }`, with `body` a `Uint8Array` and `timeout` milliseconds or
 // `null`. The answer is the Node client's shape (http.mjs): `{ status,
 // headers, body }`, or `{ error, text }` with an `HttpError` variant name. A
 // URL of another origin is `NotGranted(host)`
 // (std-http.playground.other-origin), and a request the browser refuses is
 // `Connect` (std-http.playground.refused).
-export function browserSend({ method, url, headers, body, timeout }) {
+export function browserSend({ method, url, headers, body, redirects, timeout }) {
   let parsed;
   try {
     if (!isAsciiUrl(url)) return { error: "InvalidUrl", text: url };
@@ -54,6 +54,11 @@ export function browserSend({ method, url, headers, body, timeout }) {
   const ownHost = own?.hostname.replace(/^\[(.*)\]$/, "$1").toLowerCase();
   if (host !== ownHost || parsed.protocol !== own?.protocol || parsed.port !== own?.port) {
     return { error: "NotGranted", text: host };
+  }
+  // XMLHttpRequest follows redirects automatically; do not silently turn a
+  // caller's raw-response request into a followed response.
+  if (redirects === 0) {
+    return { error: "Other", text: "the browser host cannot stop redirects" };
   }
   const xhr = new XMLHttpRequest();
   try {

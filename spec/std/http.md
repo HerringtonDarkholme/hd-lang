@@ -80,7 +80,7 @@ For example, `Request::get(url).query("page", 2).header("Accept", "text/plain").
 11. r[std-http.request.query-url] Sending appends the encoded query before any fragment, using `?` without an existing query and `&` within one.
 12. r[std-http.request.query-separator] Within an existing query, no extra separator is inserted after a trailing `?` or `&`.
 13. r[std-http.request.send-copy] Sending leaves the builder unchanged, so sending it again encodes its query once again from the original fields.
-14. r[std-http.send.zero-redirects] With `redirects` zero, a host provider returns the first response without following or validating its `Location`.
+14. r[std-http.send.zero-redirects-supported] With `redirects` zero, Node and Wasmtime providers return the first response without following or validating its `Location`.
 
 The provider's default timeout still applies; `std.task.timeout!` can impose a shorter bound around a send.
 
@@ -255,7 +255,7 @@ tests:
 ## Playground
 
 The playground runs a program in a browser. Its `Http` provider calls the
-browser's `fetch`:
+browser's HTTP facilities:
 
 ```text
 use std.http.{Http, HttpError, get}
@@ -272,6 +272,7 @@ fn ping!(url: string) -> string $ Http:
 2. r[std-http.playground.other-origin] A request to another origin returns `.Err(HttpError.NotGranted(host))`.
 3. r[std-http.playground.refused] A request that the browser refuses, for a network failure or by CORS, returns `.Err(HttpError.Connect(message))`.
 4. r[std-http.playground.unbound] The playground binds no `Process`, `Sys`, or `Net` provider.
+5. r[std-http.playground.zero-redirects-error] A granted browser request with `redirects: 0` returns `.Err(HttpError.Other("the browser host cannot stop redirects"))` before sending.
 
 > **Why.** A browser can't tell a CORS refusal from a network failure, so
 > neither can the provider. The playground needs no grant table: the

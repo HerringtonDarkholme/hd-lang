@@ -323,6 +323,37 @@ test("Http reaches the page's own origin through the browser, and no other", asy
   );
 });
 
+test("Http rejects disabled redirects before constructing a browser request", async () => {
+  let constructed = 0;
+  class UnexpectedRequest {
+    constructor() {
+      constructed += 1;
+      throw new Error("redirects(0) must not reach XMLHttpRequest");
+    }
+  }
+  const globals = globalThis as Record<string, unknown>;
+  globals.location = { origin: "http://127.0.0.1:8123" };
+  globals.XMLHttpRequest = UnexpectedRequest;
+  try {
+    const source = [
+      "use std.http.{Http, Request}",
+      "",
+      "pub fn main!() -> void $ Console + Http:",
+      '    match Request::get("http://127.0.0.1:8123/redirect").redirects(0).send!():',
+      "        .Err(.Other(message)) => println(message)",
+      '        .Ok(_) => println("unexpected response")',
+      '        .Err(error) => println("$error")',
+    ].join("\n");
+    const result = await run(single(source), "run");
+    assert.equal(result.status, "ok", result.summary);
+    assert.deepEqual(result.stdout, ["the browser host cannot stop redirects"]);
+    assert.equal(constructed, 0, "no browser request is constructed or sent");
+  } finally {
+    delete globals.location;
+    delete globals.XMLHttpRequest;
+  }
+});
+
 test("a two-file project with a package use compiles and runs", async () => {
   const project = {
     files: {
