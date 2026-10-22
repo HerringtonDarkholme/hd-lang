@@ -677,6 +677,38 @@ pub trait OwnCx {
 These are signature and layout facts, never another body's, so the
 passes stay per function.
 
+### Data layout of the passes
+
+The passes follow the body's own layout: flat columns indexed by `u32`
+instruction and local numbers, no pointers between nodes.
+
+- **Dense tables, reused.** Per-instruction and per-local facts are
+  `Vec`s indexed by `Inst` or `LocalId`, owned by one `OwnScratch` that
+  the driver keeps for the whole run and clears per body. A pass
+  allocates nothing per instruction and uses no hash map: every key it
+  has is a dense index.
+- **Bit sets for dataflow.** Liveness, "moved" and "borrowed" are bit
+  sets over locals and values, kept at block boundaries and branch
+  targets only, in one flat `points x words` array. Inside a block the
+  pass carries one working set forward or backward.
+- **One linear walk per pass.** Each pass walks the columns once (twice
+  for a fixed point across loops, bounded by the loop depth). No pass
+  restarts from the top after an edit.
+- **Edits in side tables.** A pass records its results in side columns
+  (read modes in the data word, `exit_drops`, a `gone` bit set, an
+  insertion list of `(before Inst, statement)`), and the body is
+  rebuilt once at the end of the pipeline with every `Drop`, `IsUnique`
+  and `Pin` spliced in. Instructions are never inserted one at a time.
+- **Measured.** Each stage 2 commit reports time and allocations per
+  pass on the bench/study programs and on std, beside the count and
+  instruction totals. The whole pipeline should stay well under the
+  checker's own time per body (about 1.2 us per TIR instruction today).
+
+These are the rules the compile-time audit of 2026-10-21 found broken
+elsewhere: the backend's peepholes restart and clone after each edit,
+and its instruction type is 288 bytes, which makes `Module::finish`
+about half data movement on json.
+
 ### Should the checker mark move, copy and borrow?
 
 **No.** The checker emits every read as `use`, and the passes choose
