@@ -763,13 +763,13 @@ test("Test runs the test cases of _test.hd modules", async () => {
 test("a suspending main! reports its Result", async () => {
   const outcome = async (body: string): Promise<string[]> => {
     const result = await run(
-      single(`pub fn main!() -> Result[void, string]:\n    ${body}\n`),
+      single(`use std.error.{Error, message}\n\npub fn main!() -> Result[void, &dyn Error]:\n    ${body}\n`),
       "run",
     );
     return [result.status, result.summary, ...result.stdout];
   };
   assert.deepEqual(await outcome(".Ok(())"), ["ok", "exited normally"]);
-  assert.deepEqual(await outcome('.Err("boom")'), ["failure", "main exited with code 1", "boom"]);
+  assert.deepEqual(await outcome('.Err(message("boom"))'), ["failure", "main exited with code 1", "boom"]);
 });
 
 test("Test runs the test cases of a file without main", async () => {
