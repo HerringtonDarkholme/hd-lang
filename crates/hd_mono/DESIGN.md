@@ -198,7 +198,7 @@ instance.
 | TIR | Wasm |
 | --- | --- |
 | a value instruction | a Wasm local (or several, for a `multi` layout, §15.1) when used more than once or across a block; otherwise left on the operand stack |
-| `LocalGet`, `LocalSet` | `local.get`, `local.set`; a `Shared` captured local is a cell, a one-field struct |
+| `LocalGet`, a `Store` into a whole local | `local.get`, `local.set`; a `Shared` captured local is a cell, a one-field struct |
 | `Block`, `If`, `Loop` | `block`, `if`, `loop`; `Break` and `Continue` become `br` |
 | `Scope` with `Defer` | the exit ladder below |
 | `Match` and its switches | `br_table` on a tag or a dense range; a binary search of `if`s for a sparse range of more than 8 cases; length then the viewed bytes for strings; each arm once, in nested blocks that leaves branch to |
@@ -212,7 +212,7 @@ instance.
 | `ItemRef` | a function reference value, built as §13.11's adapter: a `Closure` struct whose code is the adapter instance |
 | `CallHost` | an import call with the exchange-buffer codecs (§17.2) |
 | `Closure` | a struct of the closure's environment: `Copy` and `Move` captures as fields, `Shared` ones as their cells; a closure with no capture is a constant global |
-| `CopyData` | evaluate the source once, then the replacements in source order (spec: the spread is first); allocate a new value of the source's exact type; read every non-replaced field from the source, an embedded field included (a struct value is an immutable object, so sharing it is its copy, crates/hd_wasm_linear/DESIGN.md §15.2); store the replacements. A field the checker read at the spread (`expr.update.copy-time`) arrives as a replacement |
+| `CopyStruct` | evaluate the source once, then the replacements in source order (spec: the spread is first); allocate a new value of the source's exact type; read every non-replaced field from the source, an embedded field included (a struct value is an immutable object, so sharing it is its copy, crates/hd_wasm_linear/DESIGN.md §15.2); store the replacements. A field the checker read at the spread (`expr.update.copy-time`) arrives as a replacement |
 | `NewList` with spreads | a builder seeded with the fixed-element count: evaluate each element and spread operand once, in order, appending values and `array.copy`ing spread lists; one exact-size array at the end, then the `{len, data}` struct |
 | `NewTuple` with a rest operand | the fixed elements as usual, plus the rest-list operand as the tuple's rest field |
 | `Coerce` | option wrap: a tag set or nothing (§15.2); to a trait value: a pair with a constant vtable; `Supertrait`: the payload unchanged and `struct.get` of the parent's vtable field from the child's vtable (§13.5); readonly view, variance and row subsumption: nothing (§12.4) |

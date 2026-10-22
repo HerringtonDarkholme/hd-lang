@@ -154,7 +154,7 @@ impl Em<'_, '_, '_> {
             .iter()
             .enumerate()
             .filter_map(|(i, tag)| {
-                if !matches!(tag, Tag::RefRead | Tag::Read | Tag::Field) {
+                if !matches!(tag, Tag::Read | Tag::Field) {
                     return None;
                 }
                 let i = u32::try_from(i).expect("insts");
@@ -204,7 +204,7 @@ impl Em<'_, '_, '_> {
                     continue;
                 }
             }
-            if matches!(self.b.tags[i as usize], Tag::RefPlace | Tag::Ref)
+            if matches!(self.b.tags[i as usize], Tag::Ref)
                 && self.ref_target(self.ty(i)).is_some_and(|(_, fat)| fat)
             {
                 continue;
@@ -530,7 +530,7 @@ impl Em<'_, '_, '_> {
         true
     }
 
-    /// Whether `RefPlace` or `Ref` `i`, the address of cell local `l`'s cell with no
+    /// Whether `Ref` `i`, the address of cell local `l`'s cell with no
     /// field path, is the local's last access and takes the cell's count
     /// (`live::Moves::last_access`, `crates/hd_wasm_linear/DESIGN.md`
     /// §23.20): the reference stores the address as owned, the caller
@@ -764,7 +764,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// The origin of each TIR local's exit release, when origins are
-    /// tracked: the first `LocalSet` (or whole-local `Store`) with a source
+    /// tracked: the first `Store` into the whole local with a source
     /// position that binds it. A parameter has none, and its release
     /// stays at the root.
     fn exit_origins(&self) -> hd_base::HashMap<usize, u32> {

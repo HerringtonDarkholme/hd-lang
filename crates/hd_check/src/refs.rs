@@ -797,7 +797,7 @@ impl Ck<'_, '_> {
         let builtin = self.index_kind(bt);
         let (kr, kt) = self.index_key_value(*key, builtin)?;
         match builtin {
-            Some((get @ (IntrinsicOp::ListIndex | IntrinsicOp::MapIndex), _, bkt, vt))
+            Some((get @ (IntrinsicOp::ListIndex | IntrinsicOp::MapIndex), bkt, vt))
                 if get == IntrinsicOp::MapIndex || !self.is_range_ty(kt) =>
             {
                 let kr = self.index_key((kr, kt), *key, bkt);

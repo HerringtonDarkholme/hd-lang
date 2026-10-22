@@ -22,7 +22,7 @@ fn total(xs: &List[i32]) -> i32:
 >   %4 = Store [$2] 0:i32 : ()
     for i in 0..n:
 >   %5 = LocalGet $1 : usize
->   %6 = NewData [0:usize %5 0:bool] : Range[usize]
+>   %6 = NewStruct [0:usize %5 0:bool] : Range[usize]
 >   %7 = Field %6 .start : usize
 >   %8 = Store [$3] %7 : ()
 >   %9 = Field %6 .end : usize

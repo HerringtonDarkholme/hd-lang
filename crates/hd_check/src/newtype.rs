@@ -165,7 +165,7 @@ impl Conversion {
             // The newtype's value, as its constructor builds it.
             let fresh = pool.intern_ty(&TyData::Mut(t));
             let rec = ck.b.refs_record(&[r]);
-            let made = ck.b.emit(Tag::NewData, NONE, rec, fresh, at);
+            let made = ck.b.emit(Tag::NewStruct, NONE, rec, fresh, at);
             return Ok(ck.coerce(
                 made,
                 fresh,

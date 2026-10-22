@@ -55,7 +55,7 @@ impl Em<'_, '_, '_> {
                 local: a,
                 indirect: false,
             }),
-            Tag::RefRead | Tag::Read => match super::live::read_through(self.b, i)? {
+            Tag::Read => match super::live::read_through(self.b, i)? {
                 (Through::Value(r), true)
                     if Ref(r).as_inst().is_some() && self.b.tags[r as usize] == Tag::LocalGet =>
                 {
@@ -99,13 +99,11 @@ impl Em<'_, '_, '_> {
                     Tag::LocalGet => locals[a as usize],
                     // A reference to the list local's own place, or to
                     // what the reference it holds refers to.
-                    Tag::RefPlace | Tag::Ref => {
-                        self.spot(u32::try_from(i).expect("insts")).is_ok_and(|s| {
-                            matches!(s.head, Head::Direct | Head::Deref)
-                                && matches!(s.start, Start::Local(l) if locals[l as usize])
-                        })
-                    }
-                    Tag::RefRead | Tag::Read => match super::live::read_through(self.b, i) {
+                    Tag::Ref => self.spot(u32::try_from(i).expect("insts")).is_ok_and(|s| {
+                        matches!(s.head, Head::Direct | Head::Deref)
+                            && matches!(s.start, Start::Local(l) if locals[l as usize])
+                    }),
+                    Tag::Read => match super::live::read_through(self.b, i) {
                         Some((Through::Value(r), _)) => values.get(r as usize) == Some(&true),
                         Some((Through::Local(l), _)) => locals[l],
                         None => false,
@@ -224,7 +222,7 @@ impl Em<'_, '_, '_> {
                 Tag::Field => {
                     let base = self.range_source(a, sets, tree);
                     let Some(bi) = Ref(base).as_inst() else { break };
-                    if self.b.tags[bi.0 as usize] != Tag::NewData {
+                    if self.b.tags[bi.0 as usize] != Tag::NewStruct {
                         break;
                     }
                     let Some(&value) = self.b.record(self.b.data[bi.0 as usize][1]).get(w as usize)
@@ -403,7 +401,7 @@ impl Em<'_, '_, '_> {
                 aliases[i]
                     && matches!(
                         self.b.tags[i],
-                        Tag::RefPlace | Tag::Ref | Tag::Call | Tag::CallValue | Tag::CallDyn
+                        Tag::Ref | Tag::Call | Tag::CallValue | Tag::CallDyn
                     )
             });
         for &x in body {
@@ -442,14 +440,14 @@ impl Em<'_, '_, '_> {
             }
             let store = super::live::local_store(self.b, i);
             match self.b.tags[i] {
-                Tag::LocalSet | Tag::Store
+                Tag::Store
                     if store.is_some_and(|(l, v)| {
                         l == root.local as usize || aliases.get(v as usize) == Some(&true)
                     }) =>
                 {
                     return false;
                 }
-                Tag::LocalSet | Tag::Store
+                Tag::Store
                     if external
                         && store.is_some_and(|(l, _)| {
                             self.counted(self.sub(self.b.local_ty[l])).is_some()
@@ -458,7 +456,6 @@ impl Em<'_, '_, '_> {
                     return false;
                 }
                 Tag::GlobalGet if external => return false,
-                Tag::RefWrite | Tag::FieldSet | Tag::GlobalSet if external => return false,
                 // An element store writes through its list, as the
                 // intrinsics that change one in place do.
                 Tag::Store if super::live::elem_store_list(self.b, i).is_some() => {
@@ -468,8 +465,8 @@ impl Em<'_, '_, '_> {
                 }
                 Tag::Store if external && store.is_none() => return false,
                 Tag::Coerce
-                | Tag::NewData
-                | Tag::CopyData
+                | Tag::NewStruct
+                | Tag::CopyStruct
                 | Tag::NewTuple
                 | Tag::NewVariant
                 | Tag::NewList
@@ -502,7 +499,7 @@ impl Em<'_, '_, '_> {
                     ) => {}
                     _ => return false,
                 },
-                Tag::LocalGet | Tag::RefRead | Tag::Read | Tag::Field | Tag::Block => {}
+                Tag::LocalGet | Tag::Read | Tag::Field | Tag::Block => {}
                 _ if reaches => return false,
                 _ => {}
             }
@@ -804,8 +801,8 @@ impl Em<'_, '_, '_> {
         match self.b.tags[i] {
             Tag::NewList
             | Tag::NewMap
-            | Tag::NewData
-            | Tag::CopyData
+            | Tag::NewStruct
+            | Tag::CopyStruct
             | Tag::NewVariant
             | Tag::NewTuple
             | Tag::Closure
@@ -1056,9 +1053,6 @@ impl Em<'_, '_, '_> {
             }
             match tag {
                 Tag::GlobalGet
-                | Tag::GlobalSet
-                | Tag::RefWrite
-                | Tag::FieldSet
                 | Tag::CallValue
                 | Tag::CallDyn
                 | Tag::CallHost
@@ -1079,9 +1073,8 @@ impl Em<'_, '_, '_> {
                         return false;
                     }
                 }
-                // Any store but one into a local, as `LocalSet`; a field
-                // store into a local of a counted type as the copy-update
-                // it replaces.
+                // Any store but one into a whole local; a field store into
+                // a local of a counted type too.
                 Tag::Store
                     if super::live::local_store(self.b, i).is_none()
                         && super::live::local_part_store(self.b, i).is_none_or(|(l, _)| {
@@ -1091,8 +1084,8 @@ impl Em<'_, '_, '_> {
                     return false;
                 }
                 Tag::Call if !self.calls.contains_key(&x) => return false,
-                Tag::NewData
-                | Tag::CopyData
+                Tag::NewStruct
+                | Tag::CopyStruct
                 | Tag::NewTuple
                 | Tag::NewVariant
                 | Tag::NewList
@@ -1160,10 +1153,7 @@ impl Em<'_, '_, '_> {
         };
         let root = safe
             .then(|| {
-                if !matches!(
-                    self.b.tags.get(list as usize),
-                    Some(Tag::RefRead | Tag::Read)
-                ) {
+                if !matches!(self.b.tags.get(list as usize), Some(Tag::Read)) {
                     return None;
                 }
                 let mut l = match super::live::read_through(self.b, list as usize)? {

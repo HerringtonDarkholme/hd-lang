@@ -1,5 +1,5 @@
 //! Copy-update helpers (spec 05 "Copy-Update Expressions", spec 08
-//! "Copy-Update Literals"; `crates/hd_tir/DESIGN.md` `CopyData`). A copy
+//! "Copy-Update Literals"; `crates/hd_tir/DESIGN.md` `CopyStruct`). A copy
 //! reads every field the literal does not replace; the copied fields are
 //! read when the spread is evaluated if an explicit field expression may
 //! run code (`expr.update.copy-time`).
@@ -65,7 +65,7 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// A `CopyData` replacement record: a `(field, value)` pair for each
+    /// A `CopyStruct` replacement record: a `(field, value)` pair for each
     /// value set in `vals`.
     pub(crate) fn copy_record(&mut self, vals: &[Ref]) -> u32 {
         let mut words = Vec::new();

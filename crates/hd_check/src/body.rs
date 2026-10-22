@@ -3890,7 +3890,7 @@ impl Ck<'_, '_> {
                     return Ok(());
                 }
                 let builtin = self.index_kind(bt);
-                let Some((op_get, op_set, kt, vt)) = builtin else {
+                let Some((op_get, kt, vt)) = builtin else {
                     // No place: a `&mut` reference stores through what it
                     // refers to.
                     if let Some(recv) = self.stored_through(br, bt, "index_set", *base) {
@@ -3935,8 +3935,13 @@ impl Ck<'_, '_> {
                     self.b.emit(Tag::Store, word, v.0, Ty::VOID, s.index());
                 } else {
                     let rec = self.b.refs_record(&[br, kr, v]);
-                    self.b
-                        .emit(Tag::Intrinsic, op_set as u32, rec, Ty::VOID, s.index());
+                    self.b.emit(
+                        Tag::Intrinsic,
+                        IntrinsicOp::MapSet as u32,
+                        rec,
+                        Ty::VOID,
+                        s.index(),
+                    );
                 }
             }
             SyntaxKind::CallExpr => self.call_place(*lhs, *rhs, compound, s)?,

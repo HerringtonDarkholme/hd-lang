@@ -280,7 +280,7 @@ fn fact_list_steps(
     };
     let list = ck.b.emit(Tag::NewList, marks, rec, items_ty, at.index());
     let rec = ck.b.refs_record(&[list]);
-    let value = ck.b.emit(Tag::NewData, NONE, rec, facts_ty, at.index());
+    let value = ck.b.emit(Tag::NewStruct, NONE, rec, facts_ty, at.index());
     let root = ck.b.close_block(blk, Some(value), facts_ty, at.index());
     let mut body = ck.finish_body(root)?;
     body.kind = BodyKind::Fact;
@@ -706,7 +706,7 @@ impl Ck<'_, '_> {
             let rec = self.b.refs_record(&[]);
             let list = self.b.emit(Tag::NewList, NONE, rec, items_ty, n.index());
             let rec = self.b.refs_record(&[list]);
-            let value = self.b.emit(Tag::NewData, NONE, rec, facts_ty, n.index());
+            let value = self.b.emit(Tag::NewStruct, NONE, rec, facts_ty, n.index());
             return Ok((value, facts_ty));
         }
         let body = self.cx.names.member(def, PathKind::Hidden, "facts");

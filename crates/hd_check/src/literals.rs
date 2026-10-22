@@ -340,7 +340,7 @@ impl Ck<'_, '_> {
             args: pool.list(&[elem]),
         });
         let rec = self.b.refs_record(&[raw_parts, vals]);
-        Ok((self.b.emit(Tag::NewData, NONE, rec, tt, n.index()), tt))
+        Ok((self.b.emit(Tag::NewStruct, NONE, rec, tt, n.index()), tt))
     }
 
     /// A prefixed string `x"..."`: a call of the prefix function `x`.

@@ -9,7 +9,7 @@ impl[T] Box[T]:
 > app/main/impl [ T ] Box [ T ].make
 >   local $0 value: V [param read]
 >   %0 = LocalGet $0 : V
->   %1 = NewData [%0] : Box[V]
+>   %1 = NewStruct [%0] : Box[V]
 >   %2 = Block %1 : Box[V]
 
 fn run() -> Box[i64]:

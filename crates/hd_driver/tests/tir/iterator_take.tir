@@ -3,5 +3,5 @@ std/iter/Iterator.take (Fn)
   local $1 count: usize [param read]
   %0 = LocalGet $0 : Self
   %1 = LocalGet $1 : usize
-  %2 = NewData [%0 %1] : Take[Self, T]
+  %2 = NewStruct [%0 %1] : Take[Self, T]
   %3 = Block %2 : Take[Self, T]

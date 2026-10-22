@@ -5,5 +5,5 @@ labels
 caps
 modes
 extra
-%0 = LocalSet 0 1 : 0 @-
+%0 = Store 2147483648 1 : 0 @-
 %1 = Poison - - : 4 @-

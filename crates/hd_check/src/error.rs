@@ -168,7 +168,7 @@ impl Target<'_, '_> {
                     ck.b.emit(Tag::NewVariant, index, rec, ret, at.index())
                 } else {
                     let fresh = cx.names.pool.intern_ty(&TyData::Mut(ret));
-                    let r = ck.b.emit(Tag::NewData, NONE, rec, fresh, at.index());
+                    let r = ck.b.emit(Tag::NewStruct, NONE, rec, fresh, at.index());
                     ck.coerce(r, fresh, ret, at, "a conversion", ExpectPosition::General)
                 }
             }

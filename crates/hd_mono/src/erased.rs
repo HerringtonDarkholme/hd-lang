@@ -286,7 +286,6 @@ pub fn open_insts(
         // callee is still collected and lowered below.
         match tag {
             Tag::LocalGet
-            | Tag::LocalSet
             | Tag::Block
             | Tag::Scope
             | Tag::Defer
@@ -301,17 +300,14 @@ pub fn open_insts(
             | Tag::ToArm
             | Tag::Hole
             | Tag::Poison => continue,
-            // A reference instruction stays too: its closure form's
+            // A reference conversion stays too: its address form's
             // instructions are outlined one by one, as they were before
             // the instruction wrapped them.
-            Tag::RefPlace | Tag::RefRead | Tag::RefWrite | Tag::RefDyn | Tag::RefIdentity => {
-                continue;
-            }
-            // A `Ref` stays as `RefPlace` does; a `Read` or `Store` of a
-            // bare local stays as `LocalGet` and `LocalSet` do, and one of
-            // the whole place a reference refers to (`[*r]`) as `RefRead`
-            // and `RefWrite` do: the backend reads and writes it through
-            // an erased reference's view.
+            Tag::RefDyn | Tag::RefIdentity => continue,
+            // A `Ref` stays; a `Read` or `Store` of a bare local stays as
+            // `LocalGet` does, and one of the whole place a reference
+            // refers to (`[*r]`) too: the backend reads and writes it
+            // through an erased reference's view.
             Tag::Ref => continue,
             Tag::Read | Tag::Store
                 if b.data[i][0] & hd_tir::ir::place::BARE_LOCAL != 0

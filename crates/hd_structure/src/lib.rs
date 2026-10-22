@@ -597,7 +597,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         }
         let rec = self.b.refs_record(&refs);
         let t = self.fresh(self.adt(def, args));
-        Ok(self.b.emit(Tag::NewData, NONE, rec, t, SYN))
+        Ok(self.b.emit(Tag::NewStruct, NONE, rec, t, SYN))
     }
 
     fn str_(&mut self, s: &str) -> Ref {
@@ -1299,7 +1299,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         Ok(match v.shape {
             Shape::Data => {
                 let t = self.fresh(s);
-                self.b.emit(Tag::NewData, NONE, rec, t, SYN)
+                self.b.emit(Tag::NewStruct, NONE, rec, t, SYN)
             }
             Shape::Tuple => self.b.emit(Tag::NewTuple, NONE, rec, s, SYN),
             Shape::Enum => self.b.emit(Tag::NewVariant, v.index, rec, s, SYN),

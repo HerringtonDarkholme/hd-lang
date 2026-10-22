@@ -304,15 +304,7 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
             // A field by its name, under the type of the value it reads.
             ops.push(value(names, b, a));
             ops.push(type_of(b, a).map_or_else(|| format!(".{w}"), |t| field(fields, t, w)));
-        } else if tag == Tag::FieldSet {
-            let r = b.record(w);
-            ops.push(value(names, b, a));
-            if let (Some(&k), Some(t)) = (r.first(), type_of(b, a)) {
-                ops.push(field(fields, t, k));
-            }
-            let vals: Vec<String> = r.iter().skip(1).map(|x| value(names, b, *x)).collect();
-            ops.push(format!("[{}]", vals.join(" ")));
-        } else if tag == Tag::CopyData {
+        } else if tag == Tag::CopyStruct {
             // `base` with each replaced field `.name = value`.
             ops.push(value(names, b, a));
             let t = type_of(b, a);
@@ -379,7 +371,7 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
                             ops.push("[..]".into());
                         } else if tag == Tag::Coerce {
                             ops.push(coercion(names, b, word));
-                        } else if matches!(tag, Tag::SwitchTag | Tag::Payload | Tag::FieldSet) {
+                        } else if matches!(tag, Tag::SwitchTag | Tag::Payload) {
                             // Variant and field numbers stay numbers.
                             let r = b.record(word);
                             let vals: Vec<String> = r

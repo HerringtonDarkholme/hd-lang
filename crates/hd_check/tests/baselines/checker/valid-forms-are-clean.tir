@@ -44,7 +44,7 @@ enum SaveError[E]:
 >   %5 = LocalGet $2 : Ref[DiskError]
 >   %6 = Coerce %5 [RefToTraitValue -] : Error
 >   %7 = Block %6 : Error
->   %8 = RefDyn %7 - : Ref[Error]
+>   %8 = RefDyn %7 : Ref[Error]
 >   %9 = Coerce %8 [WrapSome -] : Ref[Error]?
     @error(transparent)
 >   %4 = Block %3 : string
@@ -80,7 +80,7 @@ enum SaveError[E]:
 >   %20 = LocalGet $4 : Ref[DiskError]
 >   %21 = Coerce %20 [RefToTraitValue -] : Error
 >   %22 = Block %21 : Error
->   %23 = RefDyn %22 - : Ref[Error]
+>   %23 = RefDyn %22 : Ref[Error]
 >   %24 = Coerce %23 [WrapSome -] : Ref[Error]?
     @error("opt")
     Opt(@source c: DiskError?)
@@ -93,7 +93,7 @@ enum SaveError[E]:
 >   %32 = LocalGet $6 : Ref[DiskError]
 >   %33 = Coerce %32 [RefToTraitValue -] : Error
 >   %34 = Block %33 : Error
->   %35 = RefDyn %34 - : Ref[Error]
+>   %35 = RefDyn %34 : Ref[Error]
 >   %36 = Coerce %35 [WrapSome -] : Ref[Error]?
 >   %37 = Block %36 : Ref[Error]?
 >   %38 = NewVariant #0 [] : Ref[Error]?

@@ -539,7 +539,7 @@ in `src/ir.rs`, so every encoding goes through it.
   label row is written once when the target closes.
 - **Values are instructions.** An instruction's result is its value, used
   by later instructions through a `Ref`. Mutable user bindings are locals
-  read with `LocalGet` and written with `LocalSet`.
+  read with `LocalGet` and written with a `Store` of their place.
 - **Constants are `Ref`s, not instructions.** A `Ref` with bit 31 set
   names a row in that body's `consts` table: the constant's type and 64
   value bits; a `string` constant's bits index `strings`. There is no
@@ -589,9 +589,7 @@ Notation: `a` and `b` are the two data words; `[...]` is a record in
 | Tag | Operands | Type rule |
 | --- | --- | --- |
 | `LocalGet` | a: local | the local's type, without its outer `mut` when the binding is readonly |
-| `LocalSet` | a: local, b: value | `void`; the value's type equals the local's |
 | `GlobalGet` | a: `[binding DefId]` | the binding's type |
-| `GlobalSet` | a: `[binding DefId]`, b: value | `void`; only in init bodies and for mutable top-level bindings |
 | `ItemRef` | a: `[item DefId]`, b: `[type arguments]` | the item's function type, instantiated (functions, variant constructors, unbound method references, receiver first). The type arguments are the owner's, then the item's own: an inherent member's impl arguments; a trait member's `Self`, then the trait's arguments. A bound reference `value::name` is no `ItemRef`: it is a `Closure` whose body calls the method on a captured local holding the receiver (`hd_check/src/fnref.rs`) |
 | `ProviderGet` | a: `[key type]` | the key's provider type (`$.use(K)`) |
 | `Hole` | a: expected type | the expected type; only in a module with errors |
@@ -724,41 +722,35 @@ body with suspension rows (`src/wire.rs`), so no body writes them today.
 
 | Tag | Operands | Type rule |
 | --- | --- | --- |
-| `NewData` | b: `[field values]` in declaration order | the struct type in `ty` |
-| `CopyData` | a: source, b: `[(field, value)]` replacements | the source's type. Copy-update literals, and a field write through a struct value, which rebuilds each struct on the path; every field not replaced is read from the source ([`expr.update.copy-fields`](../../spec/lang/05-expressions.md#r-expr.update.copy-fields)) |
+| `NewStruct` | b: `[field values]` in declaration order | the struct type in `ty`, or a compiler-supplied data object's type |
+| `CopyStruct` | a: source, b: `[(field, value)]` replacements | the source's type. Copy-update literals only: every field not replaced is read from the source ([`expr.update.copy-fields`](../../spec/lang/05-expressions.md#r-expr.update.copy-fields)); a field write is a `Store` |
 | `NewVariant` | a: variant declaration index, b: `[payload values]` | the enum type in `ty` |
 | `NewTuple` | a: rest-list operand or `NONE` (tuple spread), b: `[elements]` | the tuple type; with a rest operand, its rest element |
 | `NewList` | a: `[spread positions]` or `NONE`, b: `[elements]` | `List[T]` |
 | `NewMap` | b: `[key, value pairs]` | `Map[K, V]` |
 | `Field` | a: base, b: field index (embedded fields included) | the field's type, with the base's access |
-| `FieldSet` | a: base, b: `[field, value]` | `void`; the base is mutable |
 | `TupleGet` | a: base, b: index | the element's type |
 | `Closure` | a: sub-body, b: captures as a `CaptureId` range | the closure's function type. Each capture's mode, in the `cap_mode` column, is `Copy` (no side writes it after the capture), `Move` (only the closure uses it afterward) or `Shared` (both may) |
 
 **References**
 
-A reference names its place, so the RC backend lowers
-it to the place's address (`crates/hd_wasm_linear/DESIGN.md` §23.20). The
-checker makes references with `Ref` (Places, below); `RefPlace`, which
-named a place in a record of its own, has no producer since stage 1 of
-TIR v2 (commit 4). The block operands below once held the
-instructions' closure forms (a `std.core.Ref[T]` object of a `get` and
-a `set` closure, and calls of them); the checker now writes `NONE`
-there, except `RefDyn`'s address form, and `strip_closure_forms` has
-nothing left to remove.
+A reference names its place, so the RC backend lowers it to the
+place's address (`crates/hd_wasm_linear/DESIGN.md` §23.20). The checker
+makes references with `Ref`, reads through them with `Read` and writes
+through them with `Store` (Places, below). Two reference instructions
+remain:
 
 | Tag | Operands | Type rule |
 | --- | --- | --- |
-| `RefPlace` | a: `[root kind, x, y, field...]` (`place_root`: a local; a top-level binding and its type; a local holding a reference; a local holding a data value and the field; a local holding a pinned list and a local holding the index), b: closure-form `Block` | the reference type. `&place` and `&mut place`, and a new object, whose place is the local the checker holds it in |
-| `RefRead` | a: reference, b: closure-form `Block` | the referenced value's read type (`*r`, an automatic dereference) |
-| `RefWrite` | a: `[reference, value]`, b: closure-form `Block` | `void` (`*r = v`) |
-| `RefDyn` | a: address-form `Block`, the trait value the source reference converts to, b: closure-form `Block` | the trait value reference (`trait.dyn.ref.share`, `trait.dyn.ref.widen`) |
-| `RefIdentity` | a: reference, b: closure-form `Block` | std's `RefIdentity` (`identity_of`) |
+| `RefDyn` | a: address-form `Block`, the trait value the source reference converts to | the trait value reference (`trait.dyn.ref.share`, `trait.dyn.ref.widen`) |
+| `RefIdentity` | a: reference | std's `RefIdentity` (`identity_of`) |
 
 **Places** ([docs/compiler/tir-v2.md](../../docs/compiler/tir-v2.md#reads-stores-and-references)).
-Stage 1 of TIR v2 moves references and writes onto these, commit by
-commit: the checker makes every reference with `Ref`; `Read` and
-`Store` have no producer yet.
+After stage 1 of TIR v2 every reference is a `Ref`, every read through
+a reference a `Read`, and every write a `Store`: of a whole local
+(`[$l]`), a top-level binding (`[@g]`), a struct field of either, a
+data object's field (`[*%o .k]`), a place through a reference
+(`[*%r .x]`) or a list element (`[%xs [%i] .x]`).
 
 | Tag | Operands | Type rule |
 | --- | --- | --- |
@@ -808,7 +800,7 @@ record). Ordinary cleanup and cancellation therefore share one source.
 | `Payload` | a: a value switched to a variant, b: `[variant declaration index, field]` | the payload field's type |
 | `Unwrap` | a: an `Option` value switched to `.Some` | the inner type |
 | `Guard` | a: condition `Block`, b: `[arm, fail Block]` | `never`; the fail block continues with the remaining rows |
-| `ToArm` | a: arm number | `never`; the leaf has already bound the arm's locals with `LocalSet` |
+| `ToArm` | a: arm number | `never`; the leaf has already bound the arm's locals with `Store`s |
 
 The checker emits each arm's `Block` while it checks the arm, then builds
 the decision tree after exhaustiveness and emits it as these switch
@@ -817,8 +809,8 @@ instructions. Shared arms appear once.
 **Wire-visible identities.** `NewVariant`, `SwitchTag` and `Payload`
 identify a variant by its declaration index within the enum, not by
 `DefId`; the enclosing value or result type identifies the enum. The run
-IDs used by `ProviderGet`, `ItemRef`, `GlobalGet`, `GlobalSet`,
-`DefaultCall`, `With`, `ContextNew` and calls live in their `extra`
+IDs used by `ProviderGet`, `ItemRef`, `GlobalGet`, a global place
+root, `DefaultCall`, `With`, `ContextNew` and calls live in their `extra`
 records. The two data words hold only record offsets, values or
 declaration indices, because the wire writer remaps typed words in
 `extra` (`id_words`, `src/wire.rs`) and never guesses whether a data word
@@ -832,16 +824,16 @@ is a run ID.
 | `"x $y"` | `Interp` |
 | string prefixes, literal suffixes (`10ms`) | `Call` of the resolved prefix or suffix function |
 | `x[i]`, `x[i] = v` | `Call` of the resolved index or set method |
-| `x += y`, and the other compound assignments | the place's operands evaluated once (their `Ref`s used twice), `Prim` or a trait `Call`, then `LocalSet`, `FieldSet` or a set `Call` |
+| `x += y`, and the other compound assignments | the place's operands evaluated once (their `Ref`s used twice), `Prim` or a trait `Call`, then a `Store` of the place or a set `Call` |
 | `a ** b` on integers | a `Prim` integer-power operation: checked multiplication in the base's result type (`expr.power.checked`, `expr.power.int.*`); float `**` is the IEEE `pow` hook (`expr.power.float.pow`) |
 | `a ** b` otherwise | the trait `Call` |
 | `a..`, `..b` range patterns | bound comparisons in the decision tree (`n >= a`, `n < b`), no range value built (`flow.match.range.from`, `flow.match.range.to`, `flow.match.range.no-bind`) |
-| `..` full-range expression | `RangeFull {}`: a `NewData` of the fieldless struct (`expr.range.form.full`) |
+| `..` full-range expression | `RangeFull {}`: a `NewStruct` of the fieldless struct (`expr.range.form.full`) |
 | `(a, rest...)` tuple pattern | the `Match` decision tree, with the rest subpattern binding the trailing elements as a `List` (`flow.match.spread.rest`, `flow.match.spread.cover`) |
 | `p = e` through a call (`count() = 1`) | the callee evaluated to a place, then the store, in `expr.assign.order.call` order, with the evaluate-once machinery of compound assignment (`expr.assign.target`, `expr.assign.order`) |
 | `Variant(pos, named=…)` mixed construction | checked by call conventions (positionals first), then `NewVariant` with payloads in order (`data.enum.construct.call`) |
 | `(1, 2, 3, 4)` against `(usize, usize, List[i32]...)` | `NewTuple` with fixed elements plus the rest list as its rest operand, checked against the rest type (`types.tuple.rest.*`) |
-| `T { ...base, f: e, ... }` | `base` evaluated first, then a `Field` read of each copied field when an explicit field expression may run code (`expr.update.copy-time`), then the explicit field expressions in source order, then `CopyData(base, [(f, e), ...])` with those reads among the replacements (copy-update; one spread max, first) |
+| `T { ...base, f: e, ... }` | `base` evaluated first, then a `Field` read of each copied field when an explicit field expression may run code (`expr.update.copy-time`), then the explicit field expressions in source order, then `CopyStruct(base, [(f, e), ...])` with those reads among the replacements (copy-update; one spread max, first) |
 | `[a, xs..., b]` | `NewList` whose first operand records the spread positions; each element evaluated once, in order |
 | `(a, xs...)` | `NewTuple` with fixed elements `[a]` and the `xs` operand (a `List[T]`) as rest |
 | `f(xs...)` at a vararg | the `xs` value itself as the vararg's collected value |
@@ -854,7 +846,7 @@ is a run ID.
 | `for` over a built-in list or map | a counted `Loop` over indexed element/live-entry intrinsics; `SnapBegin`/`SnapEnd` keep a snapshot of a borrowed source, while a fresh source is owned by the loop |
 | any other `for` | a `Block`: the `iter` `Call`, then a `Loop` around the `next` `Call` and a `Match` on its `Option` |
 | `let p = e else: ...`, `x is p` | `Match` with two arms |
-| `x := e`, `let p = e` | a new local and `LocalSet`, or a `Match` for a pattern |
+| `x := e`, `let p = e` | a new local and a `Store` of it, or a `Match` for a pattern |
 | `Order(x)` newtype call | nothing: the newtype is erased, so construction and unwrapping change no value (`types.newtype.construct`, `types.newtype.construct-ref`, `types.newtype.construct-value`) |
 | a type parameter in a type (`T?`) | nothing: the name resolves to the in-scope parameter (`names.type-param.local`) and types erase |
 | `$.with`, `$.use`, `$.context` | `With`, `ProviderGet`, `ContextNew` |
@@ -970,8 +962,8 @@ The verifier checks each of these:
 3. After `finish`, every type is global. `Hole` and `Poison` occur only
    in a module with errors, which D2 does not lower.
 4. **Every operand's type equals the type its position expects**: call
-   arguments equal the substituted parameter types, a `LocalSet` value
-   equals the local's type, a `Return` value equals the body's result, a
+   arguments equal the substituted parameter types, a value stored into
+   a bare local equals the local's type, a `Return` value equals the body's result, a
    `Break` value equals its target's type. Coercions are explicit, so any
    mismatch is a checker bug.
 5. `Break` and `Continue` labels name a `Loop` or `Block` that encloses
@@ -1027,8 +1019,8 @@ body built elsewhere, such as a generated structure method, gets
     is reported at the folder, outside the body that reads its poisoned
     name. It fires when neither the module nor the run so far reported
     an error.
-  - 4: only a `LocalSet` value or a `Store` value into a bare local
-    against its local, and a `Break` value
+  - 4: only a `Store` value into a bare local against its local, and a
+    `Break` value
     against its target, and not in a module with errors
     (`finish_tolerating`).
   - 5: only that labels exist and are written.

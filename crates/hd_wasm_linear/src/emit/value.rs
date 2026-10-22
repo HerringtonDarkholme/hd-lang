@@ -175,7 +175,7 @@ impl Em<'_, '_, '_> {
         at
     }
 
-    /// `NewData`: a struct pushes its fields' values; a data value stores
+    /// `NewStruct`: a struct pushes its fields' values; a data value stores
     /// them in a new object; a newtype is its one value.
     pub(super) fn new_data(&mut self, i: u32, bw: u32) -> StageResult<()> {
         let fields = self.rec(bw);
@@ -264,7 +264,7 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// `CopyData`: a copy of `a` with the fields of the `(field, value)`
+    /// `CopyStruct`: a copy of `a` with the fields of the `(field, value)`
     /// pairs `bw` replaced; a data value's copy is a new object.
     pub(super) fn copy_data(&mut self, i: u32, a: u32, bw: u32) -> StageResult<()> {
         let words = self.rec(bw);
@@ -402,9 +402,8 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
-    /// `FieldSet`, or a `Store` into a data field: a store into field
-    /// `idx` of the data value at `obj`. The checker writes a struct's
-    /// field as a copy-update of the place, never as a store.
+    /// A `Store` into a data field (`[*%o .k]`): a store into field `idx`
+    /// of the data value at `obj`.
     pub(super) fn field_set(&mut self, obj: Start, idx: u32, v: u32) -> StageResult<()> {
         if v != NONE && self.diverges(v) {
             self.f.op(I::Unreachable);

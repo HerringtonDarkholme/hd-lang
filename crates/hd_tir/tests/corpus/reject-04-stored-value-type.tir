@@ -6,4 +6,4 @@ caps
 modes
 extra
 const 6 0
-%0 = LocalSet 0 2147483648 : 0 @-
+%0 = Store 2147483648 2147483648 : 0 @-

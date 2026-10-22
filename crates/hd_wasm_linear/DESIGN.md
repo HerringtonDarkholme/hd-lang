@@ -1745,17 +1745,17 @@ header, so they do not invalidate a borrowed header read.
 Issue #655 makes `bodies[i].vx = e`, on a list of value structs, one
 store, and removes the scaffolding that a folded view test left.
 
-- **One field store.** The checker lowers a write into a field path of
-  a list element (`xs[i].p.x = v`) as the TIR intrinsic `ListFieldSet`
-  `(list, index, value, f1, ..., fk)`, with the field indices as `i32`
-  constants. It used to read the element (`ListIndexMut`), rebuild each
-  struct on the path (`CopyData`) and store the whole element back
-  (`ListSet`). The emitter (`list_field_set`) checks the index, makes
-  the buffer unique as `ListIndexMut` does, and stores only the field's
+- **One field store.** A write into a field path of a list element
+  (`xs[i].p.x = v`) is one `Store [%xs [%i] .p .x] v` (TIR v2 stage 1;
+  #655 first made it an intrinsic). It used to read the element
+  (`ListIndexMut`), rebuild each struct on the path and store the whole
+  element back. The emitter (`elem_store`) checks the index, makes the
+  buffer unique as `ListIndexMut` does, and stores only the field's
   values at their offsets. A field with counted references releases its
   old value after the new one is counted. Reads already load only the
-  projected field (§23.31). Other place roots (locals, globals, data
-  fields, references) keep the functional update.
+  projected field (§23.31). A field of a local, a top-level binding, a
+  data object or a referenced value is stored in place the same way
+  (`emit/refs.rs`).
 - **Constant branches** (`opt::fold_constant_branches`, after `opt::constants`).
   An `if` whose condition is an `i32` constant becomes a `block` of the
   arm that runs, which keeps every branch depth inside it. An `if` with
@@ -1797,7 +1797,8 @@ anchors and panic reporting keep their behavior.
   function exit use the body's scope origin, except the exit's releases:
   each uses where its place began, so a statement's excerpt shows the
   exit releases of what it bound (#673). A TIR local's release uses its
-  first positioned binding (`LocalSet`), an instruction value's its own
+  first positioned binding (a `Store` into the whole local), an
+  instruction value's its own
   instruction; a parameter's stays at the body's. An early exit's
   releases use the scope they end, including an exit through several
   scopes. Last-use cleanup follows the statement containing that last
@@ -1895,12 +1896,12 @@ own count keeps the value alive (`live::span_loans`).
   statement of an enclosing loop) keeps the count.
 - **The rule.** The read borrows when nothing in the span can drop or
   replace `l`:
-  1. No `RefPlace` starts from `l` and no closure captures it, and `l`
+  1. No `Ref` starts from `l` and no closure captures it, and `l`
      lives in no cell. Then no call, global or write through a reference
      reaches `l`; only the body's own instructions change it. A call that
      receives `&mut l` therefore always keeps the read's count.
-  2. No `LocalSet` of `l` stands in the span. It is the one instruction
-     that replaces `l`, and it releases the old value.
+  2. No `Store` into all of `l` stands in the span. It is the one
+     instruction that replaces `l`, and it releases the old value.
   3. `l`'s planned release (§23.20) is in a block around `k`, or in `k` at
      or after the span's last statement. That release, or the move of
      `l`'s count into its last read just before it, is the only other

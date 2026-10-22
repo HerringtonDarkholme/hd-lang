@@ -10,12 +10,10 @@
 //!
 //! One resolver serves every place (`docs/compiler/tir-v2.md`, "The
 //! emitter after each stage"): the places of `Ref`, `Read` and `Store`
-//! (`hd_tir::ir::Place`), and those the older `RefPlace`, `RefRead` and
-//! `RefWrite` name, which reach this backend without their closure forms
-//! (`hd_tir::ir::strip_closure_forms`). Each is read as a [`Spot`].
+//! (`hd_tir::ir::Place`). Each is read as a [`Spot`].
 
 use hd_base::{DefId, StageResult};
-use hd_tir::ir::{NONE, Place, PlaceRoot, Proj, Tag, place_root};
+use hd_tir::ir::{NONE, Place, PlaceRoot, Proj, Tag};
 use hd_types::{Ty, TyData};
 use wasm_encoder::Instruction as I;
 
@@ -44,20 +42,13 @@ pub(super) enum Start {
 /// What a place projects from its root before its struct fields, as
 /// stage 1 lowers it: nothing, a dereference of a reference, a field of a
 /// data object (a dereference of the object, then the field), or a list
-/// element at an index.
+/// element at an index value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Head {
     Direct,
     Deref,
     Data(u32),
-    Elem(Index),
-}
-
-/// Where an element's index is: a TIR local (`RefPlace`) or a value.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum Index {
-    Local(u32),
-    Value(u32),
+    Elem(u32),
 }
 
 /// A place as the resolver reads it: its root, its head, then the struct
@@ -182,50 +173,15 @@ impl Em<'_, '_, '_> {
         Ok((ft, part))
     }
 
-    /// The place of `Ref`, `Read`, `Store`, `RefPlace`, `RefRead` or
-    /// `RefWrite` instruction `i`, as the resolver reads it. A `RefRead`
-    /// or `RefWrite` reads or writes through its reference value.
+    /// The place of `Ref`, `Read` or `Store` instruction `i`, as the
+    /// resolver reads it.
     pub(super) fn spot(&self, i: u32) -> StageResult<Spot> {
-        let a = self.b.data[i as usize][0];
-        match self.b.tags[i as usize] {
-            Tag::RefPlace => {
-                let Some(p) = self.b.place(i as usize) else {
-                    return unsupported("a reference without its place");
-                };
-                let (start, head) = match p.kind {
-                    place_root::LOCAL => (Start::Local(p.x), Head::Direct),
-                    place_root::GLOBAL => {
-                        (Start::Global(DefId::from_raw(p.x), Ty(p.y)), Head::Direct)
-                    }
-                    place_root::DEREF => (Start::Local(p.x), Head::Deref),
-                    place_root::DATA_FIELD => (Start::Local(p.x), Head::Data(p.y)),
-                    place_root::ELEM => (Start::Local(p.x), Head::Elem(Index::Local(p.y))),
-                    _ => return unsupported("a place of an unknown kind"),
-                };
-                Ok(Spot {
-                    start,
-                    head,
-                    path: p.path.to_vec(),
-                })
-            }
-            Tag::RefRead => Ok(Spot {
-                start: Start::Value(a),
-                head: Head::Deref,
-                path: vec![],
-            }),
-            Tag::RefWrite => match self.b.record(a) {
-                [r, _] => Ok(Spot {
-                    start: Start::Value(*r),
-                    head: Head::Deref,
-                    path: vec![],
-                }),
-                _ => unsupported("a write through a reference without its operands"),
-            },
-            Tag::Ref | Tag::Read | Tag::Store => match self.b.decode_place(a) {
-                Some(p) => self.spot_of(&p),
-                None => unsupported("a malformed place"),
-            },
-            _ => unsupported("a place of an instruction that has none"),
+        if !matches!(self.b.tags[i as usize], Tag::Ref | Tag::Read | Tag::Store) {
+            return unsupported("a place of an instruction that has none");
+        }
+        match self.b.decode_place(self.b.data[i as usize][0]) {
+            Some(p) => self.spot_of(&p),
+            None => unsupported("a malformed place"),
         }
     }
 
@@ -243,7 +199,7 @@ impl Em<'_, '_, '_> {
         let (head, rest) = match p.proj.as_slice() {
             [Proj::Deref, Proj::Field(k), rest @ ..] if data => (Head::Data(*k), rest),
             [Proj::Deref, rest @ ..] => (Head::Deref, rest),
-            [Proj::Elem(r), rest @ ..] => (Head::Elem(Index::Value(r.0)), rest),
+            [Proj::Elem(r), rest @ ..] => (Head::Elem(r.0), rest),
             rest => (Head::Direct, rest),
         };
         let mut path = Vec::with_capacity(rest.len());
@@ -327,7 +283,7 @@ impl Em<'_, '_, '_> {
         ))
     }
 
-    /// `Ref` or `RefPlace` `i`: the place's address, or the trait value
+    /// `Ref` `i`: the place's address, or the trait value
     /// there for a reference to a trait value, with a count of its own.
     pub(super) fn place_ref(&mut self, i: u32) -> StageResult<()> {
         let s = self.spot(i)?;
@@ -383,13 +339,9 @@ impl Em<'_, '_, '_> {
                 let o = self.start_values(st)?[0];
                 (Base::At(self.offset_local(o, off)), ft)
             }
-            (st, Head::Elem(index)) => {
+            (st, Head::Elem(ix)) => {
                 let (et, e) = self.elem(self.start_ty(st))?;
                 let h = self.start_values(st)?[0];
-                let ix = match index {
-                    Index::Local(y) => Some(self.local_value(y)?[0]),
-                    Index::Value(_) => None,
-                };
                 let at = self.f.local(Val::I32);
                 self.f.get(h);
                 self.f.op(I::I32Load(mem(HEAP, 0, 2)));
@@ -398,13 +350,7 @@ impl Em<'_, '_, '_> {
                 if e.size == 0 {
                     self.f.u32(u32::try_from(LIST_LEN).expect("offset"));
                 } else {
-                    match (ix, index) {
-                        (Some(l), _) => self.f.get(l),
-                        (None, Index::Value(v)) => self.comp(v, 0)?,
-                        (None, Index::Local(_)) => {
-                            return unsupported("an element index without its local");
-                        }
-                    }
+                    self.comp(ix, 0)?;
                     self.f.u32(e.size);
                     self.f.op(I::I32Mul);
                     self.f.op(I::I32Add);
@@ -543,7 +489,7 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
-    /// `Read` or `RefRead` `i`: the value at a place through a reference,
+    /// `Read` `i`: the value at a place through a reference,
     /// a copy with its own count; a reference to a trait value is that
     /// value. Stage 1 reads a place only through a dereference; a field
     /// path after it reads only that field.
@@ -679,7 +625,7 @@ impl Em<'_, '_, '_> {
         }
     }
 
-    /// `Store` or `RefWrite` `i`: replaces the value at a place, which
+    /// `Store` `i`: replaces the value at a place, which
     /// takes a count of the new value before the old one's is released.
     /// Stage 1 lowers a store through a dereference, into a data
     /// object's field or a struct field in it, into a local or top-level
@@ -687,11 +633,7 @@ impl Em<'_, '_, '_> {
     /// element or a struct field of it ([`Em::elem_store`]).
     pub(super) fn place_store(&mut self, i: u32) -> StageResult<()> {
         let s = self.spot(i)?;
-        let [a, w] = self.b.data[i as usize];
-        let v = match self.b.tags[i as usize] {
-            Tag::RefWrite => self.b.record(a).get(1).copied().unwrap_or(NONE),
-            _ => w,
-        };
+        let v = self.b.data[i as usize][1];
         match (s.start, s.head, s.path.is_empty()) {
             (_, Head::Deref, true) => self.deref_write(s.start, v),
             (_, Head::Deref, false) => self.deref_field_write(s.start, &s.path, v),
@@ -703,9 +645,7 @@ impl Em<'_, '_, '_> {
             (Start::Global(def, t), Head::Direct, false) => {
                 self.global_field_store(def, t, &s.path, v)
             }
-            (Start::Value(list), Head::Elem(Index::Value(ix)), _) => {
-                self.elem_store(list, ix, &s.path, v)
-            }
+            (Start::Value(list), Head::Elem(ix), _) => self.elem_store(list, ix, &s.path, v),
             _ => unsupported("a store into a place that is not writable"),
         }
     }
@@ -981,8 +921,8 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
-    /// The static slot of the top-level binding a `GlobalGet` or
-    /// `GlobalSet` names, when some reference refers to it.
+    /// The static slot of the top-level binding a `GlobalGet` names, when
+    /// some reference refers to it.
     pub(super) fn global_slot(&self, a: u32) -> Option<u32> {
         self.def_slot(DefId::from_raw(*self.b.record(a).first()?))
     }

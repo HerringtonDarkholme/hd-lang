@@ -339,7 +339,7 @@ impl Ck<'_, '_> {
                 self.map_value_ref_fix(e);
                 Ok(None)
             }
-            Some((IntrinsicOp::ListIndex, _, kt, vt)) => {
+            Some((IntrinsicOp::ListIndex, kt, vt)) => {
                 let (kr, ktt) = self.index_key_value(*key, builtin)?;
                 if self.is_range_ty(ktt) {
                     self.not_yet_index(e);
@@ -446,7 +446,7 @@ impl Ck<'_, '_> {
         let (lr, lt) = self.deref_index_base(lr, lt, operand.index());
         let builtin = self.index_kind(lt);
         let vt = match builtin {
-            Some((IntrinsicOp::ListIndex, _, _, vt)) => vt,
+            Some((IntrinsicOp::ListIndex, _, vt)) => vt,
             Some((IntrinsicOp::MapIndex, ..)) => {
                 self.commit(cp);
                 self.err(

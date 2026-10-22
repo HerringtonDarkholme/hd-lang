@@ -860,8 +860,8 @@ pub(crate) fn callee_params(
         .collect()
 }
 
-/// Whether some `LocalSet` of body `b`, or `Store` into it or a field of
-/// it, writes local `l`.
+/// Whether some `Store` of body `b` into local `l` or a field of it
+/// writes it.
 fn written(b: &Body, l: usize) -> bool {
     (0..b.len()).any(|i| live::local_part_store(b, i).is_some_and(|(x, _)| x == l))
 }
@@ -1423,14 +1423,11 @@ impl Em<'_, '_, '_> {
                     self.store(i)?;
                 }
             }
-            Tag::LocalSet => self.local_set(i, a, bw)?,
             Tag::GlobalGet if let Some(at) = self.global_slot(a) => self.slot_get(i, at)?,
-            Tag::GlobalSet => self.global_set(DefId::from_raw(self.rec(a)[0]), bw)?,
-            // Places (`emit/refs.rs`): the old reference tags share the
-            // resolver with `Ref`, `Read` and `Store`.
-            Tag::RefPlace | Tag::Ref => self.place_ref(i)?,
-            Tag::RefRead | Tag::Read => self.place_read(i)?,
-            Tag::RefWrite | Tag::Store => self.place_store(i)?,
+            // Places (`emit/refs.rs`).
+            Tag::Ref => self.place_ref(i)?,
+            Tag::Read => self.place_read(i)?,
+            Tag::Store => self.place_store(i)?,
             // The address form is the trait value its block makes.
             Tag::RefDyn => self.block_into(a, Some(i))?,
             Tag::RefIdentity => self.ref_identity(i, a)?,
@@ -1692,13 +1689,9 @@ impl Em<'_, '_, '_> {
                 }
             }
             Tag::Hook => {}
-            Tag::NewData => self.new_data(i, bw)?,
-            Tag::CopyData => self.copy_data(i, a, bw)?,
+            Tag::NewStruct => self.new_data(i, bw)?,
+            Tag::CopyStruct => self.copy_data(i, a, bw)?,
             Tag::Field => self.field(i, a, bw)?,
-            Tag::FieldSet => {
-                let r = self.rec(bw);
-                self.field_set(refs::Start::Value(a), r[0], r[1])?;
-            }
             Tag::NewTuple => {
                 // The rest list, if any, is the last member.
                 let mut members = self.rec(bw);
@@ -1771,7 +1764,7 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// `LocalSet`, or a `Store` into a whole local: TIR local `l` takes
+    /// A `Store` into a whole local: TIR local `l` takes
     /// value `v` (`NONE` for an empty initialization). A cell takes it in
     /// memory; any other local takes a count of the new value and drops
     /// the old one's, except a binding that borrows ([`live::Moves::loan_locals`]).
@@ -1812,7 +1805,7 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// `GlobalSet`, or a `Store` into a whole top-level binding: `def`
+    /// A `Store` into a whole top-level binding: `def`
     /// takes value `v`, in its static slot when some reference refers to
     /// it, else in its Wasm globals.
     fn global_set(&mut self, def: DefId, v: u32) -> StageResult<()> {
@@ -1847,7 +1840,7 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// The path hash of a `GlobalGet` or `GlobalSet` binding.
+    /// The path hash of a `GlobalGet` binding.
     fn global_hash(&mut self, a: u32) -> hd_base::Hash128 {
         self.def_hash(DefId::from_raw(self.rec(a)[0]))
     }

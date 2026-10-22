@@ -131,10 +131,10 @@ impl Ck<'_, '_> {
             (body.tags[i.0 as usize], body.data[i.0 as usize])
         };
         match tag {
-            Tag::NewList | Tag::NewMap | Tag::NewData | Tag::CopyData | Tag::NewVariant => true,
+            Tag::NewList | Tag::NewMap | Tag::NewStruct | Tag::CopyStruct | Tag::NewVariant => true,
             Tag::NewTuple | Tag::Closure | Tag::Interp | Tag::Prim => true,
             Tag::Call | Tag::CallDyn | Tag::DefaultCall => true,
-            Tag::CallValue | Tag::RefPlace | Tag::Ref | Tag::RefDyn | Tag::RefIdentity => true,
+            Tag::CallValue | Tag::Ref | Tag::RefDyn | Tag::RefIdentity => true,
             Tag::Intrinsic => matches!(
                 IntrinsicOp::from_u32(data[0]),
                 Some(IntrinsicOp::ValueCopy | IntrinsicOp::Item)
@@ -376,14 +376,10 @@ impl Ck<'_, '_> {
             | Tag::Await
             | Tag::AwaitValue
             | Tag::AwaitAll
-            | Tag::AwaitRace
-            | Tag::FieldSet
-            | Tag::GlobalSet
-            | Tag::RefWrite => true,
+            | Tag::AwaitRace => true,
             // A store into another local, or a field of one, leaves this
             // one as it is.
             Tag::Store => body.stored_local(i).is_none_or(|(l, _)| l == local),
-            Tag::LocalSet => body.data[i][0] == local.raw(),
             Tag::Intrinsic => matches!(
                 IntrinsicOp::from_u32(body.data[i][0]),
                 Some(

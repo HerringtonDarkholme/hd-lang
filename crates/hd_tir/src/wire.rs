@@ -102,7 +102,7 @@ fn tag_id_words(b: &Body, i: usize) -> StageResult<Vec<IdWord>> {
         Tag::Await => return id_words_call(b, a as usize + 1),
         // `ProviderGet` and `ItemRef` keep their IDs in one-word records.
         Tag::ProviderGet => vec![IdWord::Ty(a as usize + 1)],
-        Tag::GlobalGet | Tag::GlobalSet => vec![IdWord::Def(a as usize + 1)],
+        Tag::GlobalGet => vec![IdWord::Def(a as usize + 1)],
         // `With` and `ContextNew`: (key type, provider) pairs.
         Tag::With | Tag::ContextNew => {
             let n = b.extra.get(a as usize).copied().unwrap_or(0) as usize;
@@ -118,15 +118,10 @@ fn tag_id_words(b: &Body, i: usize) -> StageResult<Vec<IdWord>> {
             IdWord::Def(a as usize + 1),
             IdWord::List(b.data[i][1] as usize + 1),
         ],
-        // A top-level binding's place: `[GLOBAL, item, type, field...]`.
-        Tag::RefPlace if b.extra.get(a as usize + 1) == Some(&crate::ir::place_root::GLOBAL) => {
-            vec![IdWord::Def(a as usize + 2), IdWord::Ty(a as usize + 3)]
-        }
-        Tag::RefPlace | Tag::RefRead | Tag::RefWrite | Tag::RefDyn | Tag::RefIdentity => vec![],
+        Tag::RefDyn | Tag::RefIdentity => vec![],
         // A global root's IDs are the place's ([`place_id_words`]).
         Tag::Read | Tag::Store | Tag::Ref => vec![],
         Tag::LocalGet
-        | Tag::LocalSet
         | Tag::Prim
         | Tag::CallHost
         | Tag::CallValue
@@ -134,14 +129,13 @@ fn tag_id_words(b: &Body, i: usize) -> StageResult<Vec<IdWord>> {
         | Tag::AwaitAll
         | Tag::AwaitRace
         | Tag::Intrinsic
-        | Tag::NewData
-        | Tag::CopyData
+        | Tag::NewStruct
+        | Tag::CopyStruct
         | Tag::NewVariant
         | Tag::NewTuple
         | Tag::NewList
         | Tag::NewMap
         | Tag::Field
-        | Tag::FieldSet
         | Tag::TupleGet
         | Tag::Closure
         | Tag::Interp

@@ -479,13 +479,9 @@ fn address_globals(input: &Input<'_>, m: &mut module::Module) -> StageResult<()>
 }
 
 /// The top-level binding, with its type, that reference `i` of body `b`
-/// starts its place from: a `RefPlace` or `Ref` with a global root.
+/// starts its place from: a `Ref` with a global root.
 fn referenced_global(b: &hd_tir::ir::Body, i: usize) -> Option<(DefId, Ty)> {
     match b.tags[i] {
-        hd_tir::ir::Tag::RefPlace => b
-            .place(i)
-            .filter(|p| p.kind == hd_tir::ir::place_root::GLOBAL)
-            .map(|p| (DefId::from_raw(p.x), Ty(p.y))),
         hd_tir::ir::Tag::Ref => match b.decode_place(b.data[i][0])?.root {
             hd_tir::ir::PlaceRoot::Global(def, ty) => Some((def, ty)),
             _ => None,

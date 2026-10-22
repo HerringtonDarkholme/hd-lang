@@ -90,9 +90,7 @@ pub enum Op {
 tags! {
     // values, locals and globals
     LocalGet: Local, None;
-    LocalSet: Local, Value;
     GlobalGet: Meta, None;
-    GlobalSet: Meta, Value;
     ItemRef: Meta, Record;
     ProviderGet: Meta, None;
     Hole: Meta, None;
@@ -117,27 +115,22 @@ tags! {
     AwaitRace: Value, None;
     Hook: Meta, Meta;
     // data and closures
-    NewData: None, Values;
-    CopyData: Value, Record;
+    NewStruct: None, Values;
+    CopyStruct: Value, Record;
     NewVariant: Meta, Values;
     NewTuple: Value, Values;
     NewList: Record, Record;
     NewMap: None, Values;
     Field: Value, Meta;
-    FieldSet: Value, Record;
     TupleGet: Value, Meta;
     Closure: Meta, Record;
-    // references (`crates/hd_tir/DESIGN.md` §4.13.11, "References"): each
-    // owns, as its last operand, the block that builds or uses the
-    // `std.core.Ref` closure form, which only a backend without interior
-    // addresses lowers
-    RefPlace: Record, Block;
-    RefRead: Value, Block;
-    RefWrite: Values, Block;
-    RefDyn: Block, Block;
-    RefIdentity: Value, Block;
+    // references (`crates/hd_tir/DESIGN.md` §4.13.11, "References"): a
+    // reference converted to a trait value reference, which its block
+    // builds, and a reference's identity
+    RefDyn: Block, None;
+    RefIdentity: Value, None;
     // places (`crates/hd_tir/DESIGN.md` §4.13.11, "Places"): a is a place
-    // word; no producer yet (`docs/compiler/tir-v2.md`, stage 1)
+    // word
     Read: Place, Meta;
     Store: Place, Value;
     Ref: Place, Meta;
@@ -240,7 +233,6 @@ pub enum IntrinsicOp {
     ListLen,
     ListPush,
     ListIndex,
-    ListSet,
     MapLen,
     MapGet,
     MapRemove,
@@ -291,21 +283,13 @@ pub enum IntrinsicOp {
     /// `(list)`: releases one pin of `ListPin` after the reference's last
     /// use (`ref.elem.release`).
     ListUnpin,
-    /// `(list, index, value, f1, ..., fk)`: stores `value` into field
-    /// `fk` of field `fk-1` ... of field `f1` of the list's element at
-    /// `index`, a value struct's field path (`xs[i].p.x = v`), after
-    /// `ListIndexMut`'s bounds check and uniqueness: the one field changes
-    /// in place, and the rest of the element is neither read nor written.
-    /// Each `f` is a field index as an `i32` constant.
-    ListFieldSet,
 }
 
 impl IntrinsicOp {
-    pub const ALL: [IntrinsicOp; 24] = [
+    pub const ALL: [IntrinsicOp; 22] = [
         IntrinsicOp::ListLen,
         IntrinsicOp::ListPush,
         IntrinsicOp::ListIndex,
-        IntrinsicOp::ListSet,
         IntrinsicOp::MapLen,
         IntrinsicOp::MapGet,
         IntrinsicOp::MapRemove,
@@ -325,7 +309,6 @@ impl IntrinsicOp {
         IntrinsicOp::SnapEnd,
         IntrinsicOp::ListPin,
         IntrinsicOp::ListUnpin,
-        IntrinsicOp::ListFieldSet,
     ];
     #[must_use]
     pub fn from_u32(v: u32) -> Option<Self> {
@@ -479,34 +462,6 @@ pub enum CaptureMode {
     Copy,
     Move,
     Shared,
-}
-
-/// The root kinds of a `RefPlace` record, its first word. The record is
-/// `[kind, x, y, field...]`: where the place starts, then the struct
-/// field indices read from there in order. A root that is a value names
-/// the local the checker holds it in, so the reference reads nothing
-/// that its closure form does not.
-pub mod place_root {
-    /// `x` the local; `y` unused.
-    pub const LOCAL: u32 = 0;
-    /// `x` a top-level binding's item, `y` its type.
-    pub const GLOBAL: u32 = 1;
-    /// `x` a local holding a reference: the place it refers to.
-    pub const DEREF: u32 = 2;
-    /// `x` a local holding a data value, `y` the field's index.
-    pub const DATA_FIELD: u32 = 3;
-    /// `x` a local holding the list `ListPin` pinned, `y` a local holding
-    /// the element's index, which `ListPin` checked.
-    pub const ELEM: u32 = 4;
-}
-
-/// A `RefPlace` record decoded (`place_root`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct PlaceRec<'a> {
-    pub kind: u32,
-    pub x: u32,
-    pub y: u32,
-    pub path: &'a [u32],
 }
 
 /// The place encoding (`docs/compiler/tir-v2.md`, "Encoding, wire format
@@ -933,7 +888,7 @@ impl Body {
         let [a, w] = self.data[i];
         let one = |v: u32| if v == NONE { vec![] } else { vec![v] };
         Some(match self.tags[i] {
-            Tag::Prim | Tag::NewData | Tag::NewVariant | Tag::NewMap | Tag::DefaultCall => {
+            Tag::Prim | Tag::NewStruct | Tag::NewVariant | Tag::NewMap | Tag::DefaultCall => {
                 self.record(w).to_vec()
             }
             // The last three words are the call's providers.
@@ -945,9 +900,7 @@ impl Body {
             Tag::Intrinsic | Tag::Interp => self.record(w).to_vec(),
             Tag::Is => [one(a), one(w)].concat(),
             Tag::Coerce | Tag::Field | Tag::TupleGet | Tag::Unwrap | Tag::Payload => one(a),
-            Tag::GlobalSet => one(w),
-            Tag::FieldSet => [one(a), self.record(w).get(1..2).unwrap_or(&[]).to_vec()].concat(),
-            Tag::CopyData => {
+            Tag::CopyStruct => {
                 let pairs = self.record(w).iter().skip(1).step_by(2).copied();
                 one(a).into_iter().chain(pairs).collect()
             }
@@ -956,59 +909,6 @@ impl Body {
             Tag::GlobalGet | Tag::ProviderGet | Tag::ItemRef => vec![],
             Tag::Read | Tag::Ref => self.place_values(a),
             Tag::Store => [self.place_values(a), one(w)].concat(),
-            _ => return None,
-        })
-    }
-
-    /// The place of `RefPlace` instruction `i`.
-    #[must_use]
-    pub fn place(&self, i: usize) -> Option<PlaceRec<'_>> {
-        if self.tags[i] != Tag::RefPlace {
-            return None;
-        }
-        match self.record(self.data[i][0]) {
-            [kind, x, y, path @ ..] => Some(PlaceRec {
-                kind: *kind,
-                x: *x,
-                y: *y,
-                path,
-            }),
-            _ => None,
-        }
-    }
-
-    /// The locals the place of `RefPlace` instruction `i` reads.
-    #[must_use]
-    pub fn place_locals(&self, i: usize) -> Vec<u32> {
-        match self.place(i) {
-            Some(PlaceRec {
-                kind: place_root::LOCAL | place_root::DEREF | place_root::DATA_FIELD,
-                x,
-                ..
-            }) => vec![x],
-            Some(PlaceRec {
-                kind: place_root::ELEM,
-                x,
-                y,
-                ..
-            }) => vec![x, y],
-            _ => vec![],
-        }
-    }
-
-    /// The value operands of reference instruction `i` outside its
-    /// closure-form block, which a backend that lowers the reference
-    /// itself reads: none for a `RefPlace` (its locals are
-    /// [`Self::place_locals`]) or a `RefDyn` (its block). `None` for any
-    /// other instruction.
-    #[must_use]
-    pub fn ref_operands(&self, i: usize) -> Option<Vec<u32>> {
-        let a = self.data[i][0];
-        Some(match self.tags[i] {
-            Tag::RefPlace | Tag::RefDyn => vec![],
-            Tag::RefRead | Tag::RefIdentity if a != NONE => vec![a],
-            Tag::RefRead | Tag::RefIdentity => vec![],
-            Tag::RefWrite => self.record(a).to_vec(),
             _ => return None,
         })
     }
@@ -1759,10 +1659,6 @@ pub fn map_body_types(b: &mut Body, ty: &dyn Fn(Ty) -> Ty, list: &dyn Fn(TyList)
                 let at = w as usize + 4;
                 b.extra[at] = list(TyList(b.extra[at])).0;
             }
-            Tag::RefPlace if b.extra.get(a as usize + 1) == Some(&place_root::GLOBAL) => {
-                let at = a as usize + 3;
-                b.extra[at] = ty(Ty(b.extra[at])).0;
-            }
             _ => {}
         }
     }
@@ -1792,75 +1688,6 @@ pub fn global_place_types(b: &Body) -> Vec<usize> {
     out.sort_unstable();
     out.dedup();
     out
-}
-
-/// Removes the closure form of every reference instruction (`RefPlace`,
-/// `RefRead`, `RefWrite`, `RefDyn`, `RefIdentity`) for a backend that
-/// lowers references as addresses: each instruction of the form's block,
-/// of the blocks they own and of the closures they make becomes an
-/// `Unreachable` of type `never` that nothing reads, each such block a
-/// block of no statements, and the reference instruction owns no block
-/// any more. Whether anything was removed.
-pub fn strip_closure_forms(b: &mut Body) -> bool {
-    let is_ref = |t: Tag| {
-        matches!(
-            t,
-            Tag::RefPlace | Tag::RefRead | Tag::RefWrite | Tag::RefDyn | Tag::RefIdentity
-        )
-    };
-    let mut dead = vec![false; b.len()];
-    let mut seen = vec![false; b.len()];
-    let mut work: Vec<u32> = Vec::new();
-    for i in 0..b.len() {
-        if is_ref(b.tags[i]) && b.data[i][1] != NONE {
-            work.push(b.data[i][1]);
-        }
-    }
-    if work.is_empty() {
-        return false;
-    }
-    while let Some(blk) = work.pop() {
-        let Some(s) = seen.get_mut(blk as usize) else {
-            continue;
-        };
-        if *s || b.tags[blk as usize] != Tag::Block {
-            continue;
-        }
-        *s = true;
-        dead[blk as usize] = true;
-        for &c in b.record(b.data[blk as usize][0]) {
-            let c = c as usize;
-            if c >= b.len() {
-                continue;
-            }
-            dead[c] = true;
-            work.extend(owned_blocks(b, c));
-            if b.tags[c] == Tag::Closure
-                && !b.is_instantiation(c)
-                && let Some(&root) = b.sub_root.get(b.data[c][0] as usize)
-            {
-                work.push(root);
-            }
-        }
-    }
-    // A dead block stays a block, of no statements, so the live block
-    // that lists it still skips it as a block it does not run.
-    let empty = u32::try_from(b.extra.len()).expect("extra");
-    b.extra.push(0);
-    for (i, &d) in dead.iter().enumerate() {
-        if d {
-            b.data[i] = if b.tags[i] == Tag::Block {
-                [empty, NONE]
-            } else {
-                b.tags[i] = Tag::Unreachable;
-                [NONE, NONE]
-            };
-            b.ty[i] = Ty::NEVER;
-        } else if is_ref(b.tags[i]) {
-            b.data[i][1] = NONE;
-        }
-    }
-    true
 }
 
 /// The blocks instruction `i` owns through its operands: a block
@@ -2008,7 +1835,6 @@ pub fn verify(b: &Body) -> Vec<VerifyError> {
         // stored value against its local, a `break` value against its
         // target. `never` goes anywhere, and poison follows an error.
         let want = match tag {
-            Tag::LocalSet => b.local_ty.get(a as usize).copied(),
             Tag::Store if a & place::BARE_LOCAL != 0 => {
                 b.local_ty.get((a & !place::BARE_LOCAL) as usize).copied()
             }
@@ -2621,8 +2447,8 @@ mod tests {
         let mut b = sample();
         assert!(verify(&b).is_empty());
         let ret = b.tags.iter().position(|t| *t == Tag::Return).expect("ret");
-        b.data[0][1] = u32::try_from(ret).expect("i");
-        b.tags[0] = Tag::LocalSet;
+        b.data[0] = [super::place::BARE_LOCAL, u32::try_from(ret).expect("i")];
+        b.tags[0] = Tag::Store;
         assert!(verify(&b).iter().any(|e| e.invariant == 1));
         let mut b = sample();
         let root = b.sub_root[0] as usize;
@@ -3133,7 +2959,7 @@ mod tests {
         assert!(with(Tag::Store, &value(vec![Proj::Deref, Proj::Field(0)]), k.0).is_empty());
         let local = "[$0 .1]".parse().expect("place");
         assert!(with(Tag::Store, &local, k.0).is_empty());
-        // A stored value against a bare local's type, as for `LocalSet`.
+        // A stored value against a bare local's type.
         let mut b = sample();
         b.tags.push(Tag::Store);
         b.data.push([super::place::BARE_LOCAL, k.0]);
@@ -3162,7 +2988,7 @@ mod tests {
         let root = b.close_block(blk, Some(one), Ty::I32, NodeIdx::NONE);
         let body = b.finish(root, &[]).expect("ok");
         assert_eq!(body.len(), 1);
-        assert_eq!(Tag::ALL.len(), 64);
+        assert_eq!(Tag::ALL.len(), 58);
         assert!(
             Tag::ALL
                 .iter()

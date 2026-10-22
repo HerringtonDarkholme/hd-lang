@@ -54,7 +54,7 @@ fn wire() -> void:
     _ := Slot { handler: narrow }
 >   %12 = ItemRef #37 [..] : fn() -> ()
 >   %13 = Coerce %12 [RowSubsume -] : fn() -> ()
->   %14 = NewData [%13] : Slot
+>   %14 = NewStruct [%13] : Slot
     _ := give()
 >   %15 = Call app/main/give[] () : fn() -> ()
     take(wide)

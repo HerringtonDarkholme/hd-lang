@@ -1853,9 +1853,10 @@ impl Ck<'_, '_> {
         Ok((Ref(NONE), Ty::NEVER))
     }
 
-    /// The built-in index operations of a receiver type: get, set, key
-    /// type, value type.
-    pub(crate) fn index_kind(&mut self, t: Ty) -> Option<(IntrinsicOp, IntrinsicOp, Ty, Ty)> {
+    /// The built-in index operation of a receiver type, its key type and
+    /// its value type. A list element is written as a `Store` of its
+    /// place and a map value with `MapSet`.
+    pub(crate) fn index_kind(&mut self, t: Ty) -> Option<(IntrinsicOp, Ty, Ty)> {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
         let t = match pool.get(t) {
@@ -1864,7 +1865,6 @@ impl Ck<'_, '_> {
         };
         if t == Ty::STRING {
             return Some((
-                IntrinsicOp::StrIndex,
                 IntrinsicOp::StrIndex,
                 Ty::prim(Prim::Usize),
                 Ty::prim(Prim::U8),
@@ -1878,16 +1878,10 @@ impl Ck<'_, '_> {
         match def {
             d if d == known.list => Some((
                 IntrinsicOp::ListIndex,
-                IntrinsicOp::ListSet,
                 Ty::prim(Prim::Usize),
                 *argv.first()?,
             )),
-            d if d == known.map => Some((
-                IntrinsicOp::MapIndex,
-                IntrinsicOp::MapSet,
-                *argv.first()?,
-                *argv.get(1)?,
-            )),
+            d if d == known.map => Some((IntrinsicOp::MapIndex, *argv.first()?, *argv.get(1)?)),
             _ => None,
         }
     }
@@ -1914,7 +1908,7 @@ impl Ck<'_, '_> {
     pub(crate) fn index_of_value(
         &mut self,
         (br, bt): (Ref, Ty),
-        builtin: Option<(IntrinsicOp, IntrinsicOp, Ty, Ty)>,
+        builtin: Option<(IntrinsicOp, Ty, Ty)>,
         (kr, kt): (Ref, Ty),
         (key, n): (NodeRef<'_>, NodeRef<'_>),
     ) -> StageResult<(Ref, Ty)> {
@@ -1922,7 +1916,7 @@ impl Ck<'_, '_> {
         // `expr.index.slice.call`: a list or string indexed by a range
         // type is the call of `Index`; every other built-in index reads
         // by its key type.
-        if let Some((get, _, bkt, vt)) = builtin
+        if let Some((get, bkt, vt)) = builtin
             && !(get != IntrinsicOp::MapIndex && self.is_range_ty(kt))
         {
             let kr = self.index_key((kr, kt), *key, bkt);
@@ -1959,9 +1953,9 @@ impl Ck<'_, '_> {
     pub(crate) fn index_key_value(
         &mut self,
         key: NodeRef<'_>,
-        builtin: Option<(IntrinsicOp, IntrinsicOp, Ty, Ty)>,
+        builtin: Option<(IntrinsicOp, Ty, Ty)>,
     ) -> StageResult<(Ref, Ty)> {
-        let want = builtin.map(|(get, _, kt, _)| {
+        let want = builtin.map(|(get, kt, _)| {
             if key.kind() == SyntaxKind::RangeExpr && get != IntrinsicOp::MapIndex {
                 let known = self.cx.names.known;
                 self.pool().intern_ty(&TyData::Adt {
@@ -2517,10 +2511,10 @@ impl Ck<'_, '_> {
             // The fields the update keeps are copied out of the source
             // struct (`types.coll.value`).
             let sr = self.coll_copy(sr, self.strip_mut(st), at.index());
-            return Ok((self.b.emit(Tag::CopyData, sr.0, rec, ty, at.index()), ty));
+            return Ok((self.b.emit(Tag::CopyStruct, sr.0, rec, ty, at.index()), ty));
         }
         let rec = self.b.refs_record(&vals);
-        Ok((self.b.emit(Tag::NewData, NONE, rec, ty, n.index()), ty))
+        Ok((self.b.emit(Tag::NewStruct, NONE, rec, ty, n.index()), ty))
     }
 
     /// The identifier segments of a name or field-path expression.
@@ -3149,7 +3143,7 @@ impl Ck<'_, '_> {
         // Its one top-of-loop comparison proves that incrementing fits.
         let exclusive = sr.as_inst().is_some_and(|i| {
             let b = self.b.body_mut();
-            if b.tags[i.0 as usize] != Tag::NewData {
+            if b.tags[i.0 as usize] != Tag::NewStruct {
                 return false;
             }
             b.record(b.data[i.0 as usize][1])
@@ -4077,7 +4071,7 @@ impl Ck<'_, '_> {
                     args: pool.list(&[]),
                 });
                 let rec = self.b.refs_record(&[]);
-                return Ok((self.b.emit(Tag::NewData, NONE, rec, t, n.index()), t));
+                return Ok((self.b.emit(Tag::NewStruct, NONE, rec, t, n.index()), t));
             }
             _ => return unsupported("a range with more than two bounds"),
         };
@@ -4120,7 +4114,7 @@ impl Ck<'_, '_> {
             args: pool.list(&[et]),
         });
         let rec = self.b.refs_record(&refs);
-        Ok((self.b.emit(Tag::NewData, NONE, rec, t, n.index()), t))
+        Ok((self.b.emit(Tag::NewStruct, NONE, rec, t, n.index()), t))
     }
 
     /// The entries of `$.with(...)` or `$.context(...)` in source order

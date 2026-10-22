@@ -174,40 +174,19 @@ impl Tree {
     }
 }
 
-/// `LocalSet` `i`, or a `Store` into a whole local: the local and the
-/// value it takes.
+/// A `Store` `i` into a whole local: the local and the value it takes.
 pub(super) fn local_store(b: &Body, i: usize) -> Option<(usize, u32)> {
-    let [a, w] = b.data[i];
-    match b.tags[i] {
-        Tag::LocalSet => Some((a as usize, w)),
-        Tag::Store => match b.decode_place(a)? {
-            p if p.proj.is_empty() => match p.root {
-                PlaceRoot::Local(l) => Some((l.idx(), w)),
-                _ => None,
-            },
-            _ => None,
-        },
-        _ => None,
+    match b.stored_local(i)? {
+        (l, true) => Some((l.idx(), b.data[i][1])),
+        (_, false) => None,
     }
 }
 
-/// `LocalSet` `i`, or a `Store` into a local or a struct field of it
-/// (`[$l]`, `[$l .x .y]`): the local and the value stored. A field store
-/// replaces part of the local, as a `LocalSet` replaces all of it.
+/// A `Store` `i` into a local or a struct field of it (`[$l]`,
+/// `[$l .x .y]`): the local and the value stored. A field store replaces
+/// part of the local, as a whole store replaces all of it.
 pub(super) fn local_part_store(b: &Body, i: usize) -> Option<(usize, u32)> {
-    if let Some(whole) = local_store(b, i) {
-        return Some(whole);
-    }
-    if b.tags[i] != Tag::Store {
-        return None;
-    }
-    let p = b.decode_place(b.data[i][0])?;
-    match p.root {
-        PlaceRoot::Local(l) if p.proj.iter().all(|s| matches!(s, Proj::Field(_))) => {
-            Some((l.idx(), b.data[i][1]))
-        }
-        _ => None,
-    }
+    b.stored_local(i).map(|(l, _)| (l.idx(), b.data[i][1]))
 }
 
 /// The list value whose element `Store` `i` writes (`[%xs [%i] ..]`), as
@@ -224,7 +203,7 @@ pub(super) fn elem_store_list(b: &Body, i: usize) -> Option<u32> {
 }
 
 /// The local at the root of the place of `Ref`, `Read` or `Store` `i`:
-/// an access of that local, as a `LocalGet` or `LocalSet` is.
+/// an access of that local, as a `LocalGet` is.
 pub(super) fn place_local(b: &Body, i: usize) -> Option<usize> {
     if !matches!(b.tags[i], Tag::Ref | Tag::Read | Tag::Store) {
         return None;
@@ -235,12 +214,10 @@ pub(super) fn place_local(b: &Body, i: usize) -> Option<usize> {
     }
 }
 
-/// The locals a reference instruction's place starts from, which the
-/// reference reaches: a `RefPlace`'s ([`Body::place_locals`]), or a
-/// `Ref`'s root local. An element index of a `Ref` is a value.
+/// The local a reference instruction's place starts from, which the
+/// reference reaches: a `Ref`'s root local. An element index is a value.
 pub(super) fn ref_locals(b: &Body, i: usize) -> Vec<u32> {
     match b.tags[i] {
-        Tag::RefPlace => b.place_locals(i),
         Tag::Ref => place_local(b, i)
             .map(|l| u32::try_from(l).expect("locals"))
             .into_iter()
@@ -250,23 +227,14 @@ pub(super) fn ref_locals(b: &Body, i: usize) -> Vec<u32> {
 }
 
 /// The local whose own place reference `i` names, `&x` or `&x.f`: a
-/// `RefPlace` rooted at a local, or a `Ref` rooted at one with only field
-/// projections.
+/// `Ref` rooted at a local with only field projections.
 pub(super) fn ref_local(b: &Body, i: usize) -> Option<usize> {
-    match b.tags[i] {
-        Tag::RefPlace => b
-            .place(i)
-            .filter(|p| p.kind == hd_tir::ir::place_root::LOCAL)
-            .map(|p| p.x as usize),
-        Tag::Ref => {
-            let p = b.decode_place(b.data[i][0])?;
-            match p.root {
-                PlaceRoot::Local(l) if p.proj.iter().all(|s| matches!(s, Proj::Field(_))) => {
-                    Some(l.idx())
-                }
-                _ => None,
-            }
-        }
+    if b.tags[i] != Tag::Ref {
+        return None;
+    }
+    let p = b.decode_place(b.data[i][0])?;
+    match p.root {
+        PlaceRoot::Local(l) if p.proj.iter().all(|s| matches!(s, Proj::Field(_))) => Some(l.idx()),
         _ => None,
     }
 }
@@ -280,11 +248,10 @@ pub(super) enum Through {
     Value(u32),
 }
 
-/// What `RefRead` `i`, or a `Read` whose place starts with a dereference,
-/// reads through, and whether it reads the whole referenced value.
+/// What a `Read` `i` whose place starts with a dereference reads
+/// through, and whether it reads the whole referenced value.
 pub(super) fn read_through(b: &Body, i: usize) -> Option<(Through, bool)> {
     match b.tags[i] {
-        Tag::RefRead => Some((Through::Value(b.data[i][0]), true)),
         Tag::Read => {
             let p = b.decode_place(b.data[i][0])?;
             if p.proj.first() != Some(&Proj::Deref) {
@@ -529,14 +496,8 @@ pub(super) fn plan(b: &Body, sub: u32, entry: &[usize]) -> (Drops, Moves) {
             users.entry(r).or_default().push(x);
         }
         match b.tags[i] {
-            Tag::LocalGet | Tag::LocalSet => {
+            Tag::LocalGet => {
                 access.entry(b.data[i][0] as usize).or_default().push(x);
-            }
-            // A reference reads the locals its place starts from.
-            Tag::RefPlace => {
-                for l in b.place_locals(i) {
-                    access.entry(l as usize).or_default().push(x);
-                }
             }
             // A place's root local is an access.
             Tag::Ref | Tag::Read | Tag::Store => {
@@ -569,7 +530,7 @@ pub(super) fn plan(b: &Body, sub: u32, entry: &[usize]) -> (Drops, Moves) {
         let mut last = def;
         let mut ok = true;
         let us = users.get(&x).map_or(&[][..], Vec::as_slice);
-        if us.is_empty() && matches!(b.tags[i], Tag::RefRead | Tag::Read) {
+        if us.is_empty() && matches!(b.tags[i], Tag::Read) {
             moves.unused_reads.insert(x);
         }
         if let [u] = *us {
@@ -667,12 +628,12 @@ fn defers(b: &Body, sub: u32) -> bool {
 /// holds a use of the read, with every block those statements run. The
 /// read borrows when:
 ///
-/// 1. No reference or closure reaches `l`: no `RefPlace` or `Ref` starts
+/// 1. No reference or closure reaches `l`: no `Ref` starts
 ///    from it and no closure captures it. Then a call, a write through a
 ///    reference or a global cannot reach `l`, and only this body's own
 ///    instructions change it. (Emission also refuses a local that lives in
 ///    a cell, and an open value, whose thunk may make a fresh box.)
-/// 2. No `LocalSet` of `l`, or `Store` into all of it ([`local_store`]),
+/// 2. No `Store` into all of `l` ([`local_store`])
 ///    stands in the span: that is the only instruction that replaces `l`,
 ///    and it releases the old value.
 /// 3. `l`'s planned release ([`plan`]) is not inside the span: it is in a
@@ -707,7 +668,7 @@ fn span_loans(
     for (i, &of) in subs.iter().enumerate() {
         let x = u32::try_from(i).expect("insts");
         match b.tags[i] {
-            Tag::RefPlace | Tag::Ref => {
+            Tag::Ref => {
                 reached.extend(ref_locals(b, i).into_iter().map(|l| l as usize));
             }
             Tag::Closure => {
@@ -897,7 +858,7 @@ fn loans(
                     accesses.entry(l).or_default().push(x);
                 }
             }
-            Tag::RefPlace | Tag::Ref => {
+            Tag::Ref => {
                 escapes.extend(ref_locals(b, i).into_iter().map(|l| l as usize));
             }
             Tag::Closure => {
@@ -1091,18 +1052,14 @@ pub(super) fn field_spans(b: &Body, fields: &[u32], roots: &HashSet<usize>) -> V
                 | Tag::CallDyn
                 | Tag::CallHost
                 | Tag::DefaultCall
-                | Tag::RefWrite
-                | Tag::FieldSet
-                | Tag::GlobalSet
                 | Tag::Closure
                 | Tag::Defer
                 | Tag::Scope
                 | Tag::Hook => false,
                 t if super::susp::is_point(t) => false,
-                Tag::LocalSet => !roots.contains(&(b.data[i][0] as usize)),
-                // A store into a local, whole or a field of it, is a
-                // `LocalSet`; any other store, through a reference among
-                // them, may replace the field, as `RefWrite` does.
+                // A store into a local, whole or a field of it, replaces
+                // only that local; any other store, through a reference
+                // among them, may replace the field.
                 Tag::Store => local_part_store(b, i).is_some_and(|(l, _)| !roots.contains(&l)),
                 Tag::Intrinsic => matches!(
                     IntrinsicOp::from_u32(b.data[i][0]),
@@ -1151,9 +1108,6 @@ pub(super) fn parameter_loans(
         }
         match b.tags[x as usize] {
             Tag::LocalGet => parameters.contains(&(b.data[x as usize][0] as usize)),
-            Tag::RefPlace => b.place(x as usize).is_some_and(|p| {
-                p.kind == hd_tir::ir::place_root::DEREF && parameters.contains(&(p.x as usize))
-            }),
             // A place through such a reference, held by a local or read
             // from one (`[*%r ..]` where `%r` reads it).
             Tag::Ref => b.decode_place(b.data[x as usize][0]).is_some_and(|p| {
@@ -1192,12 +1146,12 @@ pub(super) fn parameter_loans(
         }
         // This is an address inside a caller-owned place, even if a call
         // changes the value stored there. Views retain their owned fallback.
-        if matches!(b.tags[i], Tag::RefPlace | Tag::Ref) && root(b, x, parameters, refs) {
+        if matches!(b.tags[i], Tag::Ref) && root(b, x, parameters, refs) {
             out.insert(x);
             continue;
         }
         if !match b.tags[i] {
-            Tag::RefRead | Tag::Read => match read_through(b, i) {
+            Tag::Read => match read_through(b, i) {
                 Some((Through::Value(source), _)) => {
                     root(b, source, parameters, refs)
                         && (b.tags[source as usize] == Tag::LocalGet || out.contains(&source))
@@ -1211,7 +1165,7 @@ pub(super) fn parameter_loans(
             Tag::Field => {
                 let base = b.data[i][0];
                 Ref(base).as_inst().is_some()
-                    && matches!(b.tags[base as usize], Tag::RefRead | Tag::Read)
+                    && matches!(b.tags[base as usize], Tag::Read)
                     && out.contains(&base)
             }
             _ => false,
@@ -1247,16 +1201,14 @@ pub(super) fn parameter_loans(
                     | Tag::Payload
                     | Tag::Unwrap
                     | Tag::Prim
-                    | Tag::NewData
-                    | Tag::CopyData
+                    | Tag::NewStruct
+                    | Tag::CopyStruct
                     | Tag::NewTuple
                     | Tag::NewVariant
                     | Tag::Coerce
-                    | Tag::RefRead
-                    | Tag::RefPlace
                     | Tag::Read
                     | Tag::Ref => true,
-                    Tag::LocalSet | Tag::Store if local_store(b, j).is_some() => {
+                    Tag::Store if local_store(b, j).is_some() => {
                         us.contains(&u32::try_from(j).expect("insts")) && tree.parent[j].1 == end
                     }
                     Tag::Store if headers.contains(&x) && elem_store_list(b, j).is_some() => true,
@@ -1290,10 +1242,9 @@ mod tests {
     use super::*;
 
     /// A body of one local: a store into it, a reference to it, a read
-    /// and a write through that reference, then a read of the local; with
-    /// the reference tags (`old`) or with places.
-    fn reference_body(old: bool) -> Body {
-        use hd_tir::ir::{Place, place_root};
+    /// and a write through that reference, then a read of the local.
+    fn reference_body() -> Body {
+        use hd_tir::ir::Place;
         fn record(b: &mut Body, words: &[u32]) -> u32 {
             let at = u32::try_from(b.extra.len()).unwrap();
             b.extra.push(u32::try_from(words.len()).unwrap());
@@ -1324,25 +1275,16 @@ mod tests {
         let none = record(&mut b, &[]);
         let value = inst(&mut b, Tag::NewTuple, NONE, none);
         let mut list = vec![value];
-        if old {
-            list.push(inst(&mut b, Tag::LocalSet, 0, value));
-            let at = record(&mut b, &[place_root::LOCAL, 0, NONE]);
-            let r = inst(&mut b, Tag::RefPlace, at, NONE);
-            let read = inst(&mut b, Tag::RefRead, r, NONE);
-            let pair = record(&mut b, &[r, value]);
-            list.extend([r, read, inst(&mut b, Tag::RefWrite, pair, NONE)]);
-        } else {
-            let at = place(&mut b, &local);
-            list.push(inst(&mut b, Tag::Store, at, value));
-            let r = inst(&mut b, Tag::Ref, at, 1);
-            let through = Place {
-                root: PlaceRoot::Value(Ref(r)),
-                proj: vec![Proj::Deref],
-            };
-            let at = place(&mut b, &through);
-            let read = inst(&mut b, Tag::Read, at, 0);
-            list.extend([r, read, inst(&mut b, Tag::Store, at, value)]);
-        }
+        let at = place(&mut b, &local);
+        list.push(inst(&mut b, Tag::Store, at, value));
+        let r = inst(&mut b, Tag::Ref, at, 1);
+        let through = Place {
+            root: PlaceRoot::Value(Ref(r)),
+            proj: vec![Proj::Deref],
+        };
+        let at = place(&mut b, &through);
+        let read = inst(&mut b, Tag::Read, at, 0);
+        list.extend([r, read, inst(&mut b, Tag::Store, at, value)]);
         list.push(inst(&mut b, Tag::LocalGet, 0, NONE));
         let list = record(&mut b, &list);
         let root = inst(&mut b, Tag::Block, list, NONE);
@@ -1353,26 +1295,19 @@ mod tests {
         b
     }
 
-    /// `Ref`, `Read` and `Store` plan as `RefPlace`, `RefRead`, `RefWrite`
-    /// and `LocalSet` do (`docs/compiler/tir-v2.md`, stage 1 commit 3):
-    /// the same releases, the same unused read, the same last accesses.
+    /// The place helpers name the locals of `Ref`, `Read` and `Store`: a
+    /// store into the whole local, the reference's root, and a read and
+    /// a write through the reference, which reach no local.
     #[test]
-    fn places_plan_as_the_reference_tags() {
-        let (old, new) = (reference_body(true), reference_body(false));
-        let ((old_drops, old_moves), (new_drops, new_moves)) =
-            (plan(&old, 0, &[]), plan(&new, 0, &[]));
-        assert_eq!(old_drops, new_drops);
-        assert_eq!(old_moves.unused_reads, new_moves.unused_reads);
-        assert_eq!(old_moves.sole, new_moves.sole);
-        assert_eq!(old_moves.last_access, new_moves.last_access);
-        assert_eq!(old_moves.loans, new_moves.loans);
-        assert_eq!(old_moves.span, new_moves.span);
+    fn places_name_their_locals() {
+        let new = reference_body();
         assert_eq!(local_store(&new, 1), Some((0, 0)));
         assert_eq!(place_local(&new, 1), Some(0));
         assert_eq!(ref_local(&new, 2), Some(0));
         assert_eq!(ref_locals(&new, 2), [0]);
         assert_eq!(read_through(&new, 3), Some((Through::Value(2), true)));
         assert_eq!(place_local(&new, 4), None);
+        assert_eq!(local_part_store(&new, 4), None);
     }
 
     /// The same decision inside a loop may drain a value made on each

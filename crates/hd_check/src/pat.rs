@@ -58,7 +58,7 @@ enum Cell<'t> {
     Some(Option<NodeRef<'t>>),
 }
 
-/// A row of a decision matrix: a cell per column, the `LocalSet`s its
+/// A row of a decision matrix: a cell per column, the stores its
 /// bindings need at its leaf, and its index in the [`Row`]s.
 #[derive(Clone)]
 struct DRow<'t> {
@@ -92,7 +92,7 @@ fn done(rows: &[Row<'_>], r: &DRow<'_>) -> bool {
     rows[r.row].guard.is_none() && r.cells.iter().all(|c| matches!(c, Cell::Wild))
 }
 
-/// Records the `LocalSet` of the local that the pattern node `at` binds.
+/// Records the store into the local that the pattern node `at` binds.
 fn bind(row: &Row<'_>, sets: &mut Vec<(LocalId, Ref, NodeIdx)>, at: NodeIdx, v: Ref) {
     if let Some(&(_, l)) = row.binds.iter().find(|(n, _)| *n == at) {
         sets.push((l, v, at));
@@ -1222,7 +1222,7 @@ impl Ck<'_, '_> {
     }
 
     /// Turns the cells of `r` that test nothing into `Wild`, recording the
-    /// `LocalSet` of each name they bind.
+    /// store into each name they bind.
     fn settle(&self, row: &Row<'_>, occs: &[(Ref, Ty)], r: &mut DRow<'_>) {
         for (j, c) in r.cells.iter_mut().enumerate() {
             let Cell::Pat(p) = *c else { continue };

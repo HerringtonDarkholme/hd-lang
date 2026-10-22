@@ -412,7 +412,7 @@ impl Ck<'_, '_> {
                 let t = self.ctor(def, &[])?;
                 let rec = self.b.refs_record(&[]);
                 return Ok(Some((
-                    self.b.emit(Tag::NewData, NONE, rec, t, n.index()),
+                    self.b.emit(Tag::NewStruct, NONE, rec, t, n.index()),
                     t,
                 )));
             }
@@ -2043,7 +2043,7 @@ impl Ck<'_, '_> {
                     t
                 };
                 let rec = self.b.refs_record(&[r]);
-                Ok((self.b.emit(Tag::NewData, NONE, rec, t, n.index()), t))
+                Ok((self.b.emit(Tag::NewStruct, NONE, rec, t, n.index()), t))
             }
             ItemData::Data(_) | ItemData::Enum { .. } | ItemData::Alias(_) => {
                 let to = self.ctor(def, explicit)?;

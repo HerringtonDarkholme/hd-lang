@@ -52,7 +52,7 @@ impl[T < Tuple] Encode for T by Structure:
 > app/main/impl [ T < Tuple ] Encode for T by Structure.encode
 >   local $0 self: T [param read]
 >   local $1 w: Encoder [read assigned captured captured-assigned]
->   %0 = NewData [""] : Encoder
+>   %0 = NewStruct [""] : Encoder
 >   %1 = Store [$1] %0 : ()
 >   %7 = Block %6 : string
         _ := Structure::walk(self, &mut w)

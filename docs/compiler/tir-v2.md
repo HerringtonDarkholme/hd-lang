@@ -1,7 +1,8 @@
 # TIR v2: Places And Explicit Ownership
 
-Status: detailed design, 2026-10-21, for issue #667. Nothing here is in
-the specification or the compiler yet; the owner approves before any
+Status: detailed design, 2026-10-21, for issue #667. Stage 1 is
+implemented (#718; its as-built notes are under [Commits](#commits));
+stages 2 and 3 are not, and the owner approves each before its
 implementation. The owner chose Direction 3 of
 [tir-v2-directions.md](tir-v2-directions.md), which stays as the record
 of the alternatives. This document is the full design of that direction:
@@ -124,7 +125,8 @@ crates/hd_tir/DESIGN.md §4.13.11:
   `Interp`, `Closure` with its capture columns, `Await`, `AwaitValue`,
   `AwaitAll`, `AwaitRace`, `Hook`, `With`, `ProviderGet`, `ContextNew`,
   `ContextFor`, and `Coerce` with its thirteen kinds.
-- **Constructions and the rest.** `NewData`, `NewVariant`, `NewTuple`,
+- **Constructions and the rest.** `NewStruct` (named `NewData` before
+  stage 1's last commit), `NewVariant`, `NewTuple`,
   `NewList`, `NewMap`, `ItemRef`, `Is`, `Hole` and `Poison`.
 
 ### Places
@@ -226,7 +228,7 @@ Tags by stage. "Gone" means no producer and no tag.
 | plain reads | `LocalGet`, `GlobalGet`, `Field`, `TupleGet`, `Payload`, `Unwrap` stay | gone: `Read` with a local, global, field or variant projection | same |
 | plain writes | `LocalSet`, `GlobalSet`, `FieldSet` gone: `Store` | same | same |
 | references | `RefPlace`, `RefRead`, `RefWrite` gone; `RefDyn` and `RefIdentity` lose their closure-form blocks | same | same |
-| data | `CopyData` stays only for copy-update literals | `CopyData` gone: `NewData` of field reads | same |
+| data | `CopyData` stays only for copy-update literals, renamed `CopyStruct` (and `NewData` `NewStruct`) | `CopyStruct` gone: `NewStruct` of field reads | same |
 | ownership | none | `Drop`, `IsUnique`, `Pin`; `FlagSet` and `FlagClear` reserved | same |
 | loops | `ForRange`, `ForList`, `ForMap` gone (no producer today) | same | one `for` lowering through `Iterable` |
 | intrinsics | 22: `ListSet` and `ListFieldSet` gone | 17: `ValueCopy`, `ListPin`, `ListUnpin`, `ListIndex`, `ListIndexMut` gone | memory primitives only |
@@ -1251,6 +1253,24 @@ audit on the commits that touch the emitter).
     resolver entry points; update `hd_tir/DESIGN.md` §4.13.11,
     `hd_wasm_linear/DESIGN.md` §23.20 and §23.32, and
     `docs/compiler/lowering-catalog.md`.
+    As built: `LocalSet`, `GlobalSet`, `FieldSet`, `RefPlace`,
+    `RefRead` and `RefWrite` go, with `place_root`, `PlaceRec`,
+    `Body::place`, `Body::place_locals`, `Body::ref_operands` and
+    `strip_closure_forms`; `RefDyn` and `RefIdentity` lose their unused
+    block operand. With the three `For*` tags #716 deleted, that is the
+    nine of [TIR changes](#tir-changes); the catalog has 58 tags. The
+    `ListSet` and `ListFieldSet` intrinsics go (22 remain), and
+    `index_kind` names only a collection's read operation: a list
+    element is stored as a place, a map value with `MapSet`. `NewData`
+    is `NewStruct` (it also builds a compiler-supplied data object) and
+    `CopyData`, which copy-update literals still produce, `CopyStruct`.
+    The emitter's resolver reads only places: its `Spot` comes from a
+    place word, an element index is always a value, and `Store` no
+    longer has a reference-record form. `live.rs`'s `local_store` and
+    `local_part_store` read `Body::stored_local`. `lowering-catalog.md`
+    named none of the deleted forms. The `tir` baselines print
+    `NewStruct` and `CopyStruct`; every module is identical to commit
+    9's. Stage 1 is done.
 
 An eleventh commit is possible but not needed: stop lowering `&T` to
 the `std.core.Ref[T]` data type in the checker's finish
@@ -1332,7 +1352,7 @@ then the old path is deleted.
 `Field`, `TupleGet`, `Payload`, `Unwrap` and `ListIndex` go, with the
 variant projection added. `Drop`, `IsUnique`, `Pin`; the reserved
 `FlagSet`, `FlagClear`; read modes; `exit_drops`; the empty `regions`
-column; `CopyData` lowered to `NewData` of field reads; `ListIndexMut`
+column; `CopyStruct` lowered to `NewStruct` of field reads; `ListIndexMut`
 becomes an `IsUnique` of the list and a `Read` of the element.
 Invariants 3 and 4.
 
