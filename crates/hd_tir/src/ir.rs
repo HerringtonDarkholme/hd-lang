@@ -633,12 +633,17 @@ impl Place {
     }
 
     /// Whether a `Store` or a mutable `Ref` may reach the place: a local
-    /// or global root, or a dereference among the projections. A value
-    /// root is never written in place.
+    /// or global root, or a dereference or an element among the
+    /// projections. An element is a slot of the buffer a list header
+    /// names, as a dereference is what a reference names. A value root
+    /// is never written in place.
     #[must_use]
     pub fn writable(&self) -> bool {
         matches!(self.root, PlaceRoot::Local(_) | PlaceRoot::Global(..))
-            || self.proj.contains(&Proj::Deref)
+            || self
+                .proj
+                .iter()
+                .any(|p| matches!(p, Proj::Deref | Proj::Elem(_)))
     }
 }
 
@@ -2953,6 +2958,8 @@ mod tests {
         );
         let value: super::Place = "[%3 .0]".parse().expect("place");
         assert!(!value.writable());
+        let element: super::Place = "[%3 [%4] .0]".parse().expect("place");
+        assert!(element.writable());
     }
 
     #[test]

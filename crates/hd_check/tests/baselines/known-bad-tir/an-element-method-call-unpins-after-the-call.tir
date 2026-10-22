@@ -3,16 +3,13 @@ app/main/speed
   local $0 items: Ref[mut List[Body]] [param read]
   local $1 index: usize [param read]
   local $2 $pinned: List[Body] [read assigned captured]
-  local $3 $ref: usize [read assigned captured]
   %0 = LocalGet $0 : Ref[mut List[Body]]
   %1 = Read [*%0] : List[Body]
   %2 = LocalGet $1 : usize
   %3 = Intrinsic ListPin [%1 %2] : List[Body]
   %4 = LocalSet $2 %3 : ()
-  %5 = LocalSet $3 %2 : ()
-  %6 = LocalGet $3 : usize
-  %7 = Ref [$2 [%6]] : Ref[Body]
-  %8 = Call app/main/impl Body.speed[] (%7) : f64
-  %9 = LocalGet $2 : List[Body]
-  %10 = Intrinsic ListUnpin [%9] : ()
-  %11 = Block %8 : f64
+  %5 = Ref [$2 [%2]] : Ref[Body]
+  %6 = Call app/main/impl Body.speed[] (%5) : f64
+  %7 = LocalGet $2 : List[Body]
+  %8 = Intrinsic ListUnpin [%7] : ()
+  %9 = Block %6 : f64

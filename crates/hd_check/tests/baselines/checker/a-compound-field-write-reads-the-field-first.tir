@@ -8,5 +8,5 @@ app/main/speed_up
   %3 = Intrinsic ListIndex [%1 %2] : Body
   %4 = Field %3 .vx : f64
   %5 = Prim Add [%4 1.0:f64] : f64
-  %6 = Intrinsic ListFieldSet [%1 %2 %5] .vx : ()
+  %6 = Store [%1 [%2] .vx] %5 : ()
   %7 = Block - : ()

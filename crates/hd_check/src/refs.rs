@@ -48,11 +48,11 @@ pub(crate) enum Root {
     /// A field of the data value `o`, `[*%o .k]`: the field's index, the
     /// field's type, and the data value's type.
     DataField(Ref, u32, Ty, Ty),
-    /// A slot of a list's buffer (`ref.elem.place`): the list as the
-    /// source read it (for the writable check), the local holding the
-    /// pinned list and its depth, the local holding the index and its
-    /// depth, and the list's value type.
-    Elem(Ref, LocalId, usize, LocalId, usize, Ty),
+    /// A slot of a list's buffer (`ref.elem.place`), `[$pinned [%i]]`:
+    /// the list as the source read it (for the writable check), the local
+    /// holding the pinned list and its depth, the index value, and the
+    /// list's value type.
+    Elem(Ref, LocalId, usize, Ref, Ty),
     /// A list element that a write names, `xs[i]`, which no reference
     /// pins: the list value, the index value, the list's type, and the
     /// index expression.
@@ -879,7 +879,7 @@ impl Ck<'_, '_> {
                 }
             }
             // `ref.elem.writable`: as an element store needs.
-            Root::Elem(list, _, _, _, _, lt) | Root::Slot(list, _, lt, _) => {
+            Root::Elem(list, _, _, _, lt) | Root::Slot(list, _, lt, _) => {
                 self.coll_change(list, lt, "a `&mut` element reference", at)
             }
             // A reference names no map value (`elem_operand`).
@@ -1037,10 +1037,9 @@ impl Ck<'_, '_> {
                 (self.b.emit(Tag::Intrinsic, op, rec, et, n.index()), et)
             }
             Root::MapValue(v, _) => (v, self.b.ty_of(v)),
-            Root::Elem(_, buf, bd, idx, id, lt) => {
+            Root::Elem(_, buf, bd, i, lt) => {
                 let et = self.elem_ty(lt);
                 let (l, _) = self.read_local(buf, bd, n);
-                let (i, _) = self.read_local(idx, id, n);
                 let rec = self.b.refs_record(&[l, i]);
                 let op = IntrinsicOp::ListIndex as u32;
                 (self.b.emit(Tag::Intrinsic, op, rec, et, n.index()), et)
@@ -1077,9 +1076,7 @@ impl Ck<'_, '_> {
                 PlaceRoot::Value(list)
             }
             Root::MapValue(v, _) => PlaceRoot::Value(v),
-            Root::Elem(_, buf, _, idx, id, _) => {
-                let (i, _) = self.read_local(idx, id, n);
-                self.add_flags(idx, local_flags::CAPTURED);
+            Root::Elem(_, buf, _, i, _) => {
                 proj.push(Proj::Elem(i));
                 PlaceRoot::Local(buf)
             }

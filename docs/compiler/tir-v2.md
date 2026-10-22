@@ -310,7 +310,8 @@ to 23 in `crates/hd_tir/DESIGN.md` §4.13.11's list:
    index precedes its user; a frame root occurs only in tier 2.
 2. **Stores and mutable references reach writable places.** A `Store`
    or a `Ref` with `b = 1` has a local or global root, or a dereference
-   in its projections. A value root is never written in place.
+   or an element in its projections (an element is a slot of the buffer
+   a list header names). A value root is never written in place.
 3. **Checker output has no ownership.** Before the passes every `Read`
    has mode `use` and there is no `Drop`, `IsUnique`, `Pin` or
    `exit_drops` row.
@@ -1200,6 +1201,26 @@ audit on the commits that touch the emitter).
    An element field write stays `ListFieldSet` until commit 8.
 8. **Element writes.** `xs[i] = v` and `xs[i].p.x = v` are `Store`s with
    an element projection; `ListSet` and `ListFieldSet` have no producer.
+   As built: the root is the list value the checker evaluated before
+   the right-hand side, as `ListSet` took it: `xs[i] = v` is
+   `Store [%l [%i]] v` and `bodies[i].x = v` through `&mut List[Body]`
+   is `%1 = Read [*%0]`, `Store [%1 [%2] .x] %15`, so the header the
+   write goes through is the one the target named, and loop caches,
+   uniqueness and pins find the list as they did. Invariant 2 counts an
+   element as it counts a dereference: a list header names its buffer,
+   so the store changes the buffer, never the value `%l`. Stage 2 folds
+   the read into the place (`[*$0 [%2] .x]`), as it folds `LocalGet`
+   into reads. The emitter's element store (`elem_store`) is
+   `list_set` and `list_field_set` made one: the bounds check, the
+   uniqueness check, the count of the new value before the old one's
+   release, `collection-pinned` only for a length change. `list.rs`
+   (loop caches and their safety proof, the buffer-sharing proof) and
+   `parameter_loans` treat a `Store` with an element projection as
+   they treated those intrinsics (`live::elem_store_list`). `&xs[i]` is
+   `Ref [$pinned [%i]]` with the index value, so the hidden index
+   local goes. `index_kind` still names `ListSet` as a list's set
+   operation, which nothing emits; commit 10 removes it with the
+   intrinsics.
 9. **Plain stores.** `LocalSet`, `GlobalSet` and `FieldSet` become
    `Store`; the emitter's helper `local_store(i)` keeps `live.rs`'s
    matches readable.

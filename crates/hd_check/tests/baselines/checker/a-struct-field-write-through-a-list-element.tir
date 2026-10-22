@@ -19,5 +19,5 @@ app/main/step
   %13 = Field %12 .vx : f64
   %14 = Prim Mul [%8 %13] : f64
   %15 = Prim Add [%7 %14] : f64
-  %16 = Intrinsic ListFieldSet [%1 %2 %15] .x : ()
+  %16 = Store [%1 [%2] .x] %15 : ()
   %17 = Block - : ()

@@ -11,7 +11,7 @@
 //! the other fields keep their values and no struct on the path is
 //! rebuilt. A field through a reference is `Store [*%r .b .x] v`, a field
 //! of a data value `Store [*%o .b .x] v`, a top-level binding's
-//! `Store [@g .b .x] v`. A list element's field is stored in place.
+//! `Store [@g .b .x] v`, a list element's `Store [%xs [%i] .b .x] v`.
 
 use hd_base::{DefId, LocalId, StageResult};
 use hd_diag::Code;
@@ -177,8 +177,8 @@ impl Ck<'_, '_> {
     }
 
     /// Stores `v` into the struct field that ends the path of `place`:
-    /// one `Store` of the place. A list element's field is stored in
-    /// place too (#655).
+    /// one `Store` of the place; a list element's field is stored in the
+    /// list's buffer, where the element is (#655).
     fn store_field(&mut self, place: &Place, v: Ref, s: NodeRef<'_>) {
         let at = s.index();
         let fields = place.path.iter().map(|&(k, _)| Proj::Field(k));
@@ -191,16 +191,11 @@ impl Ck<'_, '_> {
                 self.store_ref_field(r, &place.path, v, s);
                 return;
             }
-            Root::Slot(list, index, ..) => {
-                let mut rec = vec![list, index, v];
-                for &(i, _) in &place.path {
-                    rec.push(self.b.const_value(Ty::I32, u64::from(i)));
-                }
-                let rec = self.b.refs_record(&rec);
-                let op = hd_tir::ir::IntrinsicOp::ListFieldSet as u32;
-                self.b.emit(Tag::Intrinsic, op, rec, Ty::VOID, at);
-                return;
-            }
+            // `[%xs [%i] .p .x]`: the field of the list's slot.
+            Root::Slot(list, index, ..) => (
+                PlaceRoot::Value(list),
+                std::iter::once(Proj::Elem(index)).chain(fields).collect(),
+            ),
             Root::Local(l, d) => {
                 self.note_write(l, d);
                 if self.mut_params.contains(&l) {

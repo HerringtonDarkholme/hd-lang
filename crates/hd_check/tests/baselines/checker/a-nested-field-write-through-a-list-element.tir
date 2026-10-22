@@ -5,5 +5,5 @@ app/main/nudge
   %0 = LocalGet $0 : Ref[mut List[Pos]]
   %1 = Read [*%0] : List[Pos]
   %2 = LocalGet $1 : usize
-  %3 = Intrinsic ListFieldSet [%1 %2 0.5:f64] .at.vx : ()
+  %3 = Store [%1 [%2] .at .vx] 0.5:f64 : ()
   %4 = Block - : ()

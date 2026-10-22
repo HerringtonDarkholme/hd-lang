@@ -3921,9 +3921,20 @@ impl Ck<'_, '_> {
                         self.compound(k, cur, vt, *rhs, s)?
                     }
                 };
-                let rec = self.b.refs_record(&[br, kr, v]);
-                self.b
-                    .emit(Tag::Intrinsic, op_set as u32, rec, Ty::VOID, s.index());
+                // A list element is a place of the list's buffer:
+                // `Store [%xs [%i]] v` (`docs/compiler/tir-v2.md`, "Element
+                // reads and writes"); a map value is no place.
+                if op_get == IntrinsicOp::ListIndex {
+                    let word = self.b.place(&hd_tir::ir::Place {
+                        root: hd_tir::ir::PlaceRoot::Value(br),
+                        proj: vec![hd_tir::ir::Proj::Elem(kr)],
+                    });
+                    self.b.emit(Tag::Store, word, v.0, Ty::VOID, s.index());
+                } else {
+                    let rec = self.b.refs_record(&[br, kr, v]);
+                    self.b
+                        .emit(Tag::Intrinsic, op_set as u32, rec, Ty::VOID, s.index());
+                }
             }
             SyntaxKind::CallExpr => self.call_place(*lhs, *rhs, compound, s)?,
             // `grammar.stmt.assign-place`: any other left side is no place.

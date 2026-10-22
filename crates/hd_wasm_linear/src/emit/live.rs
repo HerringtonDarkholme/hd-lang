@@ -210,6 +210,19 @@ pub(super) fn local_part_store(b: &Body, i: usize) -> Option<(usize, u32)> {
     }
 }
 
+/// The list value whose element `Store` `i` writes (`[%xs [%i] ..]`), as
+/// an element store intrinsic names its list.
+pub(super) fn elem_store_list(b: &Body, i: usize) -> Option<u32> {
+    if b.tags[i] != Tag::Store {
+        return None;
+    }
+    let p = b.decode_place(b.data[i][0])?;
+    match (p.root, p.proj.first()) {
+        (PlaceRoot::Value(r), Some(Proj::Elem(_))) => Some(r.0),
+        _ => None,
+    }
+}
+
 /// The local at the root of the place of `Ref`, `Read` or `Store` `i`:
 /// an access of that local, as a `LocalGet` or `LocalSet` is.
 pub(super) fn place_local(b: &Body, i: usize) -> Option<usize> {
@@ -1243,16 +1256,12 @@ pub(super) fn parameter_loans(
                     Tag::LocalSet | Tag::Store if local_store(b, j).is_some() => {
                         us.contains(&u32::try_from(j).expect("insts")) && tree.parent[j].1 == end
                     }
+                    Tag::Store if headers.contains(&x) && elem_store_list(b, j).is_some() => true,
                     Tag::Intrinsic
                         if headers.contains(&x)
                             && matches!(
                                 IntrinsicOp::from_u32(b.data[j][0]),
-                                Some(
-                                    IntrinsicOp::ListSet
-                                        | IntrinsicOp::ListFieldSet
-                                        | IntrinsicOp::ListIndexMut
-                                        | IntrinsicOp::ListPush
-                                )
+                                Some(IntrinsicOp::ListIndexMut | IntrinsicOp::ListPush)
                             ) =>
                     {
                         true

@@ -4,8 +4,7 @@ app/main/borrow
   local $1 index: usize [param read]
   local $2 $pinned: List[Body] [read assigned captured]
   local $3 $pin: bool [assigned]
-  local $4 $ref: usize [read assigned captured]
-  local $5 element: Ref[Body] [:= read assigned]
+  local $4 element: Ref[Body] [:= read assigned]
   %0 = LocalGet $0 : Ref[mut List[Body]]
   %1 = Read [*%0] : List[Body]
   %2 = LocalGet $1 : usize
@@ -21,7 +20,5 @@ app/main/borrow
   %12 = If %6 [%10 %11] : ()
   %13 = Block - : ()
   %14 = Defer #13 : ()
-  %15 = LocalSet $4 %2 : ()
-  %16 = LocalGet $4 : usize
-  %17 = Ref [$2 [%16]] : Ref[Body]
-  %18 = LocalSet $5 %17 : ()
+  %15 = Ref [$2 [%2]] : Ref[Body]
+  %16 = LocalSet $4 %15 : ()

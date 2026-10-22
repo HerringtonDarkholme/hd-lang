@@ -349,9 +349,8 @@ impl Ck<'_, '_> {
                 let lt = self.strip_mut(self.infer.resolve(self.pool(), bt));
                 self.pin_for_call = for_call;
                 let (buf, d) = self.pin_list(br, lt, Some(kr), owner, e);
-                let (idx, id) = self.hold(kr, Ty::prim(Prim::Usize), e);
                 Ok(Some(crate::refs::Operand::Place(Place {
-                    root: Root::Elem(br, buf, d, idx, id, lt),
+                    root: Root::Elem(br, buf, d, kr, lt),
                     path: vec![],
                     ty: vt,
                 })))
@@ -494,8 +493,8 @@ impl Ck<'_, '_> {
         let tb = self.b.open_block();
         self.loops.push((lp, result));
         self.scopes.push(hd_base::HashMap::default());
-        let p = self.b.get(pos_l, us, at);
-        let (idx, id) = self.hold(p, us, src);
+        // The step's index, read before the position moves on.
+        let index = self.b.get(pos_l, us, at);
         let p = self.b.get(pos_l, us, at);
         let one = self.b.const_value(us, 1);
         let next = self
@@ -503,7 +502,7 @@ impl Ck<'_, '_> {
             .prim(hd_tir::ir::PrimOp::Add as u32, &[p, one], us, at);
         self.set_local(pos_l, next, at);
         let place = Place {
-            root: Root::Elem(lr, buf, d, idx, id, lt),
+            root: Root::Elem(lr, buf, d, index, lt),
             path: vec![],
             ty: vt,
         };

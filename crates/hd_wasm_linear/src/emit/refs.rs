@@ -682,9 +682,9 @@ impl Em<'_, '_, '_> {
     /// `Store` or `RefWrite` `i`: replaces the value at a place, which
     /// takes a count of the new value before the old one's is released.
     /// Stage 1 lowers a store through a dereference, into a data
-    /// object's field or a struct field in it, and into a local or
-    /// top-level binding, whole or a struct field of it; a list element
-    /// comes with its producer (`docs/compiler/tir-v2.md`, commit 8).
+    /// object's field or a struct field in it, into a local or top-level
+    /// binding, whole or a struct field of it, and into a list value's
+    /// element or a struct field of it ([`Em::elem_store`]).
     pub(super) fn place_store(&mut self, i: u32) -> StageResult<()> {
         let s = self.spot(i)?;
         let [a, w] = self.b.data[i as usize];
@@ -703,9 +703,10 @@ impl Em<'_, '_, '_> {
             (Start::Global(def, t), Head::Direct, false) => {
                 self.global_field_store(def, t, &s.path, v)
             }
-            _ => unsupported(
-                "a store into a list element or a value's own place, which stage 1 lowers in a later commit",
-            ),
+            (Start::Value(list), Head::Elem(Index::Value(ix)), _) => {
+                self.elem_store(list, ix, &s.path, v)
+            }
+            _ => unsupported("a store into a place that is not writable"),
         }
     }
 

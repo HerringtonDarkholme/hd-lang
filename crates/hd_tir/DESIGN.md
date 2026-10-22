@@ -1008,8 +1008,9 @@ The verifier checks each of these:
     local of the body, a value root and each element index precede the
     user and are visible there, and a frame root occurs only in tier 2.
 21. A `Store` or a mutable `Ref` reaches a writable place: a local or
-    global root, or a dereference among its projections. A value root
-    is never written in place.
+    global root, or a dereference or an element among its projections
+    (an element is a slot of the buffer a list header names). A value
+    root is never written in place.
 
 Implementation differs: `verify` checks invariants 1 to 15, 17, 20 and
 21 (`CHECKED_INVARIANTS`), several in part. The checker's facts come in

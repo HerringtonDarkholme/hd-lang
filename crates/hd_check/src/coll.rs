@@ -386,8 +386,6 @@ impl Ck<'_, '_> {
                 IntrinsicOp::from_u32(body.data[i][0]),
                 Some(
                     IntrinsicOp::ListPush
-                        | IntrinsicOp::ListSet
-                        | IntrinsicOp::ListFieldSet
                         | IntrinsicOp::MapRemove
                         | IntrinsicOp::MapSet
                         | IntrinsicOp::ListIndexMut

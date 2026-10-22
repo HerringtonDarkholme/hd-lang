@@ -342,38 +342,6 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
         } else if tag == Tag::Block {
             // A block's result; its instructions are the lines above.
             ops.push(value(names, b, w));
-        } else if tag == Tag::Intrinsic
-            && hd_tir::ir::IntrinsicOp::from_u32(a) == Some(hd_tir::ir::IntrinsicOp::ListFieldSet)
-        {
-            // `(list, index, value, f1, ..., fk)`: the element's field path.
-            let r = b.record(w);
-            ops.push("ListFieldSet".to_owned());
-            let vals: Vec<String> = r.iter().take(3).map(|x| value(names, b, *x)).collect();
-            let mut at =
-                r.first()
-                    .and_then(|&l| type_of(b, l))
-                    .and_then(|t| match names.pool.get(t) {
-                        hd_types::TyData::Adt { args, .. } => {
-                            names.pool.list_items(args).first().copied()
-                        }
-                        _ => None,
-                    });
-            let mut path = String::new();
-            for &f in r.iter().skip(3) {
-                let k = b
-                    .consts
-                    .get((f & !Ref::CONST_BIT) as usize)
-                    .map_or(0, |c| c.1);
-                let k = u32::try_from(k).unwrap_or(u32::MAX);
-                match at {
-                    Some(t) => path.push_str(&field(fields, t, k)),
-                    None => {
-                        let _ = write!(path, ".{k}");
-                    }
-                }
-                at = at.and_then(|t| fields(t, k)).map(|(_, ft)| ft);
-            }
-            ops.push(format!("[{}] {path}", vals.join(" ")));
         } else {
             for (side, (word, op)) in [(a, tag.operands().0), (w, tag.operands().1)]
                 .into_iter()

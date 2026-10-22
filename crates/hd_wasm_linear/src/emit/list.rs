@@ -457,6 +457,13 @@ impl Em<'_, '_, '_> {
                 }
                 Tag::GlobalGet if external => return false,
                 Tag::RefWrite | Tag::FieldSet | Tag::GlobalSet if external => return false,
+                // An element store writes through its list, as the
+                // intrinsics that change one in place do.
+                Tag::Store if super::live::elem_store_list(self.b, i).is_some() => {
+                    if external && !reaches {
+                        return false;
+                    }
+                }
                 Tag::Store if external && store.is_none() => return false,
                 Tag::Coerce
                 | Tag::NewData
@@ -489,11 +496,7 @@ impl Em<'_, '_, '_> {
                 },
                 Tag::Intrinsic if reaches => match IntrinsicOp::from_u32(a) {
                     Some(
-                        IntrinsicOp::ListLen
-                        | IntrinsicOp::ListIndex
-                        | IntrinsicOp::ListSet
-                        | IntrinsicOp::ListFieldSet
-                        | IntrinsicOp::ListIndexMut,
+                        IntrinsicOp::ListLen | IntrinsicOp::ListIndex | IntrinsicOp::ListIndexMut,
                     ) => {}
                     _ => return false,
                 },
@@ -525,19 +528,24 @@ impl Em<'_, '_, '_> {
         }
         let mut candidates: Vec<(ListRoot, Elem, bool, bool)> = Vec::new();
         for &x in &body {
-            if self.b.tags[x as usize] != Tag::Intrinsic {
-                continue;
-            }
-            let [op, record] = self.b.data[x as usize];
-            let write = match IntrinsicOp::from_u32(op) {
-                Some(IntrinsicOp::ListLen | IntrinsicOp::ListIndex) => false,
-                Some(
-                    IntrinsicOp::ListSet | IntrinsicOp::ListFieldSet | IntrinsicOp::ListIndexMut,
-                ) => true,
-                _ => continue,
-            };
-            let Some(list) = self.b.record(record).first().copied() else {
-                continue;
+            // An element store writes the list its place starts from.
+            let (list, write) = if let Some(list) = super::live::elem_store_list(self.b, x as usize)
+            {
+                (list, true)
+            } else {
+                if self.b.tags[x as usize] != Tag::Intrinsic {
+                    continue;
+                }
+                let [op, record] = self.b.data[x as usize];
+                let write = match IntrinsicOp::from_u32(op) {
+                    Some(IntrinsicOp::ListLen | IntrinsicOp::ListIndex) => false,
+                    Some(IntrinsicOp::ListIndexMut) => true,
+                    _ => continue,
+                };
+                let Some(list) = self.b.record(record).first().copied() else {
+                    continue;
+                };
+                (list, write)
             };
             let Some(root) = self.list_root(list) else {
                 continue;
@@ -1061,6 +1069,14 @@ impl Em<'_, '_, '_> {
                 | Tag::Scope
                 | Tag::Defer
                 | Tag::Closure => return false,
+                Tag::Store if let Some(list) = super::live::elem_store_list(self.b, i) => {
+                    if !self
+                        .elem(self.ty_of(list))
+                        .is_ok_and(|(_, e)| e.walk.is_none())
+                    {
+                        return false;
+                    }
+                }
                 // Any store but one into a local, as `LocalSet`; a field
                 // store into a local of a counted type as the copy-update
                 // it replaces.
@@ -1088,11 +1104,7 @@ impl Em<'_, '_, '_> {
                     let [op, record] = self.b.data[i];
                     match IntrinsicOp::from_u32(op) {
                         Some(IntrinsicOp::ListLen | IntrinsicOp::ListIndex) => {}
-                        Some(
-                            IntrinsicOp::ListSet
-                            | IntrinsicOp::ListFieldSet
-                            | IntrinsicOp::ListIndexMut,
-                        ) => {
+                        Some(IntrinsicOp::ListIndexMut) => {
                             let Some(&list) = self.b.record(record).first() else {
                                 return false;
                             };
@@ -1199,59 +1211,45 @@ impl Em<'_, '_, '_> {
         self.f.op(I::End);
     }
 
-    /// `ListSet`: the element's old value is released after the new one
-    /// is counted.
-    pub(super) fn list_set(&mut self, args: &[u32]) -> StageResult<()> {
-        let (et, e) = self.elem(self.ty_of(args[0]))?;
-        let h = self.header(args[0])?;
-        let b = self.buffer(h);
-        let ix = self.index(b, args[1])?;
-        self.invariant_unique(args[0], h, &e);
-        let b = self.buffer(h);
-        let at = self.slot_at(b, ix, e.size);
-        let s = self.slot_src(args[2], et, false)?;
-        self.retain_src(&s, et)?;
-        if e.walk.is_some() {
-            let old: Vec<u32> = e.leaves.iter().map(|l| self.f.local(l.val)).collect();
-            for (l, o) in e.leaves.iter().zip(&old) {
-                self.f.get(at);
-                self.f.op(l.load(LIST_ELEMS));
-                self.f.set(*o);
-            }
-            self.release_locals(&old, et)?;
-        }
-        self.store_elem(at, &e, &s)
-    }
-
-    /// `ListFieldSet`: stores a value into one field of an element, at the
-    /// field's offset, after the bounds check and the uniqueness check:
-    /// the field's old value is released after the new one is counted, and
-    /// no other field is read or written (#655).
-    pub(super) fn list_field_set(&mut self, args: &[u32]) -> StageResult<()> {
-        let (et, e) = self.elem(self.ty_of(args[0]))?;
-        // The field's values among the element's, and the field's type.
+    /// A `Store` into element `ix` of the list value `list`, or into the
+    /// struct field `path` reaches in it (`[%xs [%i] .p .x]`): after the
+    /// bounds check and the uniqueness check, the place's old value is
+    /// released after the new one is counted, and no other field is read
+    /// or written (#655). A pin does not stop it: the length stays.
+    pub(super) fn elem_store(
+        &mut self,
+        list: u32,
+        ix: u32,
+        path: &[u32],
+        v: u32,
+    ) -> StageResult<()> {
+        let (et, e) = self.elem(self.ty_of(list))?;
+        // The place's values among the element's, and its type.
         let (mut first, mut count, mut ft) = (0, e.leaves.len(), et);
-        for &f in &args[3..] {
-            let r = f & !Ref::CONST_BIT;
-            let k = usize::try_from(self.b.consts[r as usize].1).expect("field");
+        for &k in path {
             let (_, parts) = crate::layout::struct_mem(self.pool(), self.env(), ft)?;
-            let Some(part) = parts.get(k) else {
+            let Some(part) = parts.get(k as usize) else {
                 return unsupported("a field store past the struct's fields");
             };
             first += part.first;
             count = part.count;
-            ft = self.struct_fields(ft)[k];
+            ft = self.struct_fields(ft)[k as usize];
         }
-        let leaves = e.leaves[first..first + count].to_vec();
-        let h = self.header(args[0])?;
+        let h = self.header(list)?;
         let b = self.buffer(h);
-        let ix = self.index(b, args[1])?;
-        self.invariant_unique(args[0], h, &e);
+        let ix = self.index(b, ix)?;
+        self.invariant_unique(list, h, &e);
         let b = self.buffer(h);
         let at = self.slot_at(b, ix, e.size);
-        let s = self.slot_src(args[2], ft, false)?;
+        let s = self.slot_src(v, ft, false)?;
         self.retain_src(&s, ft)?;
-        if self.counted(ft).is_some() {
+        let leaves = e.leaves[first..first + count].to_vec();
+        let counted = if path.is_empty() {
+            e.walk.is_some()
+        } else {
+            self.counted(ft).is_some()
+        };
+        if counted {
             let old: Vec<u32> = leaves.iter().map(|l| self.f.local(l.val)).collect();
             for (l, o) in leaves.iter().zip(&old) {
                 self.f.get(at);
