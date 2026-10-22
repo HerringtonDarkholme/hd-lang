@@ -79,6 +79,21 @@ pub trait Net:
 > A restarted server rebinds its address at once on every host, without
 > an option that would let a second socket take the port on Windows.
 
+## Free Helpers
+
+The free helpers call the `Net` provider that covers the call.
+For example, `lookup!("example.test")` starts a lookup without an explicit
+`$.use(Net)` expression.
+
+1. r[std-net.helper.lookup.decl] `std.net` declares `pub fn lookup!(host: string) -> Result[List[string], NetError] $ Net`.
+2. r[std-net.helper.lookup.forward] `lookup!(host)` returns `$.use(Net).lookup!(host)` without changing the result.
+3. r[std-net.helper.connect.decl] `std.net` declares `pub fn connect!(host: string, port: u16) -> Result[&mut dyn TcpStream, NetError] $ Net`.
+4. r[std-net.helper.connect.forward] `connect!(host, port)` returns `$.use(Net).connect!(host, port)` without changing the result.
+5. r[std-net.helper.listen.decl] `std.net` declares `pub fn listen!(host: string, port: u16) -> Result[&mut dyn TcpListener, NetError] $ Net`.
+6. r[std-net.helper.listen.forward] `listen!(host, port)` returns `$.use(Net).listen!(host, port)` without changing the result.
+7. r[std-net.helper.bind-udp.decl] `std.net` declares `pub fn bind_udp!(host: string, port: u16) -> Result[&mut dyn UdpSocket, NetError] $ Net`.
+8. r[std-net.helper.bind-udp.forward] `bind_udp!(host, port)` returns `$.use(Net).bind_udp!(host, port)` without changing the result.
+
 ## Socket Handles
 
 A stream, a listener, and a UDP socket are closable handles, which a

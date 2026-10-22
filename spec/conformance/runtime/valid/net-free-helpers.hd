@@ -1,0 +1,59 @@
+# test: net free helpers forward successes, handles, errors and arguments
+# expect: test
+use std.net.{Datagram, Net, ScriptedListener, ScriptedNet, ScriptedStream, ScriptedUdp, bind_udp, connect, listen, lookup}
+use std.testing.assert_equal
+
+tests:
+    it("lookup preserves address order and errors"):
+        net := ScriptedNet::new()
+        net.add_host("shop", ["127.0.0.2", "127.0.0.1"])
+        $.with(Net=net):
+            assert_equal(lookup!("shop"), .Ok(["127.0.0.2", "127.0.0.1"]), reason="address order")
+            assert_equal(lookup!("missing"), .Err(.Dns("missing")), reason="lookup failure")
+        assert_equal(net.requested(), ["shop", "missing"], reason="each lookup forwarded once")
+
+    it("connect returns the scripted stream and preserves errors"):
+        stream := ScriptedStream::new([])
+        net := ScriptedNet::new()
+        net.add_connection("shop:80", stream)
+        net.fail_connection("blocked:4", .Timeout)
+        $.with(Net=net):
+            match connect!("shop", 80):
+                .Ok(connection) => assert_equal(connection.write!("ping".to_utf8()), .Ok(()), reason="write completed")
+                .Err(_) => panic("the scripted connection")
+            match connect!("blocked", 4):
+                .Err(error) => assert_equal(error, .Timeout, reason="connect failure")
+                .Ok(_) => panic("the scripted failure")
+        assert_equal(stream.written(), "ping".to_utf8(), reason="the same stream")
+        assert_equal(net.requested(), ["shop:80", "blocked:4"], reason="host and port forwarded once")
+
+    it("listen returns the scripted listener and preserves errors"):
+        stream := ScriptedStream::new([])
+        listener := ScriptedListener::new([stream])
+        net := ScriptedNet::new()
+        net.add_listener("local:9000", listener)
+        $.with(Net=net):
+            match listen!("local", 9000):
+                .Ok(server) => match server.accept!():
+                    .Ok(connection) => assert_equal(connection.write!([7]), .Ok(()), reason="accepted stream")
+                    .Err(_) => panic("the scripted accept")
+                .Err(_) => panic("the scripted listener")
+            match listen!("absent", 5):
+                .Err(error) => assert_equal(error, .Refused("absent:5"), reason="listen failure")
+                .Ok(_) => panic("the missing listener")
+        assert_equal(stream.written(), [7], reason="the accepted stream")
+        assert_equal(net.requested(), ["local:9000", "absent:5"], reason="host and port forwarded once")
+
+    it("bind_udp returns the scripted socket and preserves errors"):
+        socket := ScriptedUdp::new([])
+        net := ScriptedNet::new()
+        net.add_udp("local:9001", socket)
+        $.with(Net=net):
+            match bind_udp!("local", 9001):
+                .Ok(datagrams) => assert_equal(datagrams.send_to!("out", 9, [1]), .Ok(()), reason="send completed")
+                .Err(_) => panic("the scripted socket")
+            match bind_udp!("absent", 6):
+                .Err(error) => assert_equal(error, .Refused("absent:6"), reason="bind failure")
+                .Ok(_) => panic("the missing socket")
+        assert_equal(socket.sent(), [Datagram { bytes: [1], host: "out", port: 9 }], reason="the same socket")
+        assert_equal(net.requested(), ["local:9001", "absent:6"], reason="host and port forwarded once")

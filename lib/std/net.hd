@@ -39,6 +39,26 @@ pub trait Net:
     fn listen!(&mut self, host: string, port: u16) -> Result[&mut dyn TcpListener, NetError]
     fn bind_udp!(&mut self, host: string, port: u16) -> Result[&mut dyn UdpSocket, NetError]
 
+## Resolves `host` through the covering `Net` provider.
+## See [std-net.helper.lookup.decl](../../spec/std/net.md#r-std-net.helper.lookup.decl).
+pub fn lookup!(host: string) -> Result[List[string], NetError] $ Net:
+    $.use(Net).lookup!(host)
+
+## Connects through the covering `Net` provider.
+## See [std-net.helper.connect.decl](../../spec/std/net.md#r-std-net.helper.connect.decl).
+pub fn connect!(host: string, port: u16) -> Result[&mut dyn TcpStream, NetError] $ Net:
+    $.use(Net).connect!(host, port)
+
+## Listens through the covering `Net` provider.
+## See [std-net.helper.listen.decl](../../spec/std/net.md#r-std-net.helper.listen.decl).
+pub fn listen!(host: string, port: u16) -> Result[&mut dyn TcpListener, NetError] $ Net:
+    $.use(Net).listen!(host, port)
+
+## Binds a UDP socket through the covering `Net` provider.
+## See [std-net.helper.bind-udp.decl](../../spec/std/net.md#r-std-net.helper.bind-udp.decl).
+pub fn bind_udp!(host: string, port: u16) -> Result[&mut dyn UdpSocket, NetError] $ Net:
+    $.use(Net).bind_udp!(host, port)
+
 ## A TCP stream: a closable handle that a `using` binding disposes.
 ## See [std-net.handles.decl-ref](../../spec/std/net.md#r-std-net.handles.decl-ref).
 pub trait TcpStream < Disposable:

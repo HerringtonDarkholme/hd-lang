@@ -1,0 +1,5 @@
+# test: a public caller of a free net helper must provide Net
+use std.net.{NetError, lookup}
+
+pub fn addresses!() -> Result[List[string], NetError]:
+    lookup!("example.test")  # diagnostic: missing-requirement
