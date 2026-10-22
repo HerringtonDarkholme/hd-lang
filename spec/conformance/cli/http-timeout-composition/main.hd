@@ -1,4 +1,4 @@
-use std.http.{Http, Request}
+use std.http.{Http, HttpError, Request}
 use std.process.{Command, Process}
 use std.task.with_timeout
 use std.time.{Clock, ms}
@@ -9,4 +9,8 @@ pub fn main!() -> void $ Console + Http + Process + Clock:
         .Err(_) => panic("the loopback fixture server did not start")
     result := with_timeout!(100ms):
         Request::get("http://127.0.0.1:$port/").send!()
-    println(result.is_err())
+    # Only a timeout passes; a refused or failed request must not.
+    println(match result:
+        .Err(HttpError.Timeout) => "timed out"
+        .Err(other) => "other error: $other"
+        .Ok(response) => "answered ${response.status}")

@@ -1,4 +1,4 @@
 # The surrounding timeout must expire before a one-second HTTP response.
 # Node's synchronous HTTP provider is tracked by KNOWN_FAILURES.tsv #726.
 run: hd main.hd
-stdout: true
+stdout: timed out
