@@ -1432,10 +1432,10 @@ fn all_sends_two_requests_at_the_same_time() {
         for input in HTTP_INPUTS {
             assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
         }
-        let request = format!("Request {{ url: \"{url}\", timeout: .Some(s(10)) }}");
+        let request = format!("Request {{ url: \"{url}\" }}");
         assert_eq!(
             repl.input(&format!(
-                "use std.http.{{Request, send}}\nuse std.time.s\nfn timed!() -> string $ Http:\n    match send!({request}):\n        .Ok(r) => \"status ${{r.status}}\"\n        .Err(e) => \"${{e}}\"\n"
+                "use std.http.{{Request, send}}\nfn timed!() -> string $ Http:\n    match send!({request}):\n        .Ok(r) => \"status ${{r.status}}\"\n        .Err(e) => \"${{e}}\"\n"
             )),
             Outcome::Exit(0),
             "{}",

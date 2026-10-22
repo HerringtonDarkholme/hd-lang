@@ -1,6 +1,6 @@
 use std::io::Read;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use hd_run::Grants;
 use ureq::http::{HeaderName, HeaderValue};
@@ -20,21 +20,18 @@ pub(crate) struct Request {
     pub(crate) url: String,
     headers: Headers,
     body: Vec<u8>,
-    timeout: i64,
+    redirects: usize,
 }
 
 impl Request {
-    pub(crate) fn timeout(&self) -> Duration {
-        Duration::from_millis(u64::try_from(self.timeout).unwrap_or(0))
-    }
-
     pub(crate) fn decode(bytes: &[u8]) -> wasmtime::Result<Self> {
         let abi::Request {
             method,
             url,
             headers,
             body,
-            timeout,
+            query: _,
+            redirects,
         } = Wire::dec(&mut Dec::new(bytes))?;
         let method = match method {
             Method::Get => "GET".into(),
@@ -51,7 +48,7 @@ impl Request {
             url,
             headers,
             body,
-            timeout: timeout.map_or(30_000, |d| d.millis),
+            redirects,
         })
     }
 }
@@ -83,7 +80,7 @@ pub(crate) fn send(
     deadline: Option<Instant>,
     cancel: &Cancel,
 ) -> Result<Response, HttpError> {
-    for redirects in 0..=10 {
+    for redirects in 0..=request.redirects {
         let url = granted_url(&request.url, grants)?;
         if deadline.is_some_and(|deadline| Instant::now() >= deadline) {
             return Err(HttpError::Timeout);
@@ -94,7 +91,10 @@ pub(crate) fn send(
             .iter()
             .find(|(name, _)| name.eq_ignore_ascii_case("location"))
             .map(|(_, value)| value.as_str());
-        if !matches!(got.status, 301 | 302 | 303 | 307 | 308) || location.is_none() {
+        if request.redirects == 0
+            || !matches!(got.status, 301 | 302 | 303 | 307 | 308)
+            || location.is_none()
+        {
             return Ok(Response {
                 url: request.url,
                 ..got
@@ -116,7 +116,7 @@ pub(crate) fn send(
             });
         }
         request.url = next;
-        if redirects == 10 {
+        if redirects == request.redirects {
             return Err(HttpError::TooManyRedirects { url: request.url });
         }
         if got.status == 303 || (matches!(got.status, 301 | 302) && request.method == "POST") {
@@ -124,7 +124,7 @@ pub(crate) fn send(
             request.body.clear();
         }
     }
-    unreachable!("the eleventh redirect returns above")
+    unreachable!("exceeding the redirect limit returns above")
 }
 
 fn once(
@@ -331,10 +331,10 @@ mod tests {
 
     #[test]
     fn request_codec_and_errors_use_the_node_variant_order() {
-        let wire = request("HEAD", "http://127.0.0.1/", &vec![], b"body", -1);
+        let wire = request("HEAD", "http://127.0.0.1/", &vec![], b"body", 7);
         let r = Request::decode(wire.done()).unwrap();
         assert_eq!(r.method, "HEAD");
-        assert_eq!(r.timeout, -1);
+        assert_eq!(r.redirects, 7);
         assert_eq!(r.body, b"body");
         assert!(Request::decode(&[128]).is_err());
         assert_eq!(encode(Err(HttpError::Timeout)).done(), [1, 5]);
@@ -381,7 +381,7 @@ mod tests {
     }
 
     #[test]
-    fn invalid_urls_and_denials_precede_timeout_and_header_validation() {
+    fn invalid_urls_and_denials_precede_header_validation() {
         let deny = Grants {
             limits: vec![("Http".into(), Limit::Deny)],
         };
@@ -390,19 +390,17 @@ mod tests {
             "http://127.0.0.1:1/",
             &vec![("bad name".into(), "\0".into())],
             &[],
-            0,
+            10,
         );
         let result = send(r.done(), &deny);
         let mut expected = Enc::default();
         expected.leb(1).leb(0).str("127.0.0.1");
         assert_eq!(result.done(), expected.done());
-        let r = request("GET", "relative", &vec![], &[], 0);
+        let r = request("GET", "relative", &vec![], &[], 10);
         let result = send(r.done(), &deny);
         let mut expected = Enc::default();
         expected.leb(1).leb(1).str("relative");
         assert_eq!(result.done(), expected.done());
-        let r = request("GET", "http://127.0.0.1:1/", &vec![], &[], 0);
-        assert_eq!(send(r.done(), &Grants::default()).done(), [1, 5]);
     }
 
     /// `std-http.url.valid`, `.non-ascii`, `.grant`, `.no-normalize`.
@@ -412,7 +410,7 @@ mod tests {
             limits: vec![("Http".into(), Limit::Deny)],
         };
         let denied = |url: &str| {
-            let r = request("GET", url, &vec![], &[], 1000);
+            let r = request("GET", url, &vec![], &[], 10);
             send(r.done(), &deny).done().to_vec()
         };
         let encoded = |variant: u64, text: &str| {
@@ -430,9 +428,12 @@ mod tests {
         let only = Grants {
             limits: vec![("Http".into(), Limit::Entries(vec!["Example.COM".into()]))],
         };
-        let r = request("GET", "http://EXAMPLE.com:1/", &vec![], &[], 0);
-        assert_eq!(send(r.done(), &only).done(), [1, 5]);
-        let r = request("GET", "http://example.org:1/", &vec![], &[], 0);
+        let r = request("GET", "http://EXAMPLE.com:1/", &vec![], &[], 10);
+        assert!(matches!(
+            super::super::client::start(r.done(), &only).unwrap(),
+            super::super::client::Start::Run(_)
+        ));
+        let r = request("GET", "http://example.org:1/", &vec![], &[], 10);
         assert_eq!(send(r.done(), &only).done(), encoded(0, "example.org"));
     }
 
@@ -461,7 +462,7 @@ mod tests {
     #[test]
     fn a_relative_location_joins_by_rfc_3986_and_drops_dot_segments() {
         let (url, server) = redirecting(b"../d/./e?y#frag");
-        let r = request("GET", &url, &vec![], &[], 2000);
+        let r = request("GET", &url, &vec![], &[], 10);
         assert_eq!(send(r.done(), &Grants::default()).done()[0], 0);
         let wire = String::from_utf8(server.join().unwrap()).unwrap();
         assert!(wire.starts_with("GET /a/b/c?x HTTP/1.1\r\n"), "{wire}");
@@ -476,7 +477,7 @@ mod tests {
             (&b"http://[bad/"[..], 7),
         ] {
             let (url, server) = redirecting(location);
-            let r = request("GET", &url, &vec![], &[], 2000);
+            let r = request("GET", &url, &vec![], &[], 10);
             let encoded = send(r.done(), &Grants::default());
             let mut d = Dec::new(encoded.done());
             assert_eq!(d.leb().unwrap(), 1);
@@ -495,7 +496,7 @@ mod tests {
                 .into_iter()
                 .map(|(n, v)| (n.into(), v.into()))
                 .collect();
-            let r = request(method, &url, &headers, body, 1000);
+            let r = request(method, &url, &headers, body, 10);
             assert_eq!(send(r.done(), &Grants::default()).done()[0], 0);
             let authority = url["http://".len()..]
                 .split('/')
@@ -554,7 +555,7 @@ mod tests {
         let grant = Grants {
             limits: vec![("Http".into(), Limit::Entries(vec![address.to_string()]))],
         };
-        let r = request("GET", &format!("http://{address}/"), &vec![], &[], 1000);
+        let r = request("GET", &format!("http://{address}/"), &vec![], &[], 10);
         let encoded = send(r.done(), &grant);
         let mut expected = Enc::default();
         expected.leb(1).leb(0).str("127.0.0.1");

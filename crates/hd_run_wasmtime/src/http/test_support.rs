@@ -58,12 +58,12 @@ pub(crate) fn request(
     url: &str,
     headers: &Headers,
     body: &[u8],
-    timeout: i64,
+    redirects: usize,
 ) -> Enc {
     let mut e = Enc::default();
-    e.leb(7).str(method).str(url);
+    e.leb(7).str(method).str(url).leb(0);
     headers.enc(&mut e);
-    e.bytes(body).leb(1).zz(timeout);
+    e.bytes(body).leb(redirects as u64);
     e
 }
 

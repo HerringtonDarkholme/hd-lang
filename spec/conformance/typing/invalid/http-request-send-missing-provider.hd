@@ -1,0 +1,5 @@
+# test: a public Request.send! caller must name Http
+use std.http.{HttpError, Request, Response}
+
+pub fn fetch!() -> Result[Response, HttpError]:
+    Request::get("https://example.test/").send!()  # diagnostic: missing-requirement

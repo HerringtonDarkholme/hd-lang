@@ -3,12 +3,12 @@
 # `HttpError`, and the deterministic provider `ScriptedHttp` (spec/std/http.md). The default
 # profile binds a host `Http` that checks the command's `--cap Http=` grant
 # (src/commands/http-host.ts).
-use std.time.Duration
+use std.text.StringBuilder
 use std.json.{JsonError, decode}
 use std.serde.Deserialize
 
 ## An HTTP method: a standard one, or `Other(name)`.
-## See [std-http.types.decl-struct](../../spec/std/http.md#r-std-http.types.decl-struct).
+## See [std-http.types.request-builder](../../spec/std/http.md#r-std-http.types.request-builder).
 @derive(Debug, Eq)
 pub enum Method:
     Get
@@ -20,34 +20,116 @@ pub enum Method:
     Options
     Other(name: string)
 
-# A request (r-std-http.types.decl-struct). Only `url` has no default
-# (r-std-http.request.defaults).
+# A request (r-std-http.types.request-builder). Only `url` has no default
+# (r-std-http.request.builder-defaults).
 ## An HTTP request; only `url` has no default.
-## See [std-http.types.decl-struct](../../spec/std/http.md#r-std-http.types.decl-struct).
+## See [std-http.types.request-builder](../../spec/std/http.md#r-std-http.types.request-builder).
 @derive(Debug, Eq)
 pub struct Request:
     ## The request's method; `Get` by default.
-    ## See [std-http.request.defaults](../../spec/std/http.md#r-std-http.request.defaults).
+    ## See [std-http.request.builder-defaults](../../spec/std/http.md#r-std-http.request.builder-defaults).
     pub method: Method = Method.Get
     ## The request's URL, the one field without a default.
-    ## See [std-http.request.defaults](../../spec/std/http.md#r-std-http.request.defaults).
+    ## See [std-http.request.builder-defaults](../../spec/std/http.md#r-std-http.request.builder-defaults).
     pub url: string
+    ## Query pairs appended to the URL when this request is sent.
+    ## See [std-http.request.query](../../spec/std/http.md#r-std-http.request.query).
+    pub query: List[(string, string)] = []
     ## The request's headers as name and value pairs; a repeated name keeps every value, in order.
     ## See [std-http.headers.pairs](../../spec/std/http.md#r-std-http.headers.pairs).
     pub headers: List[(string, string)] = []
     ## The request's whole body; there is no streaming body.
     ## See [std-http.bodies](../../spec/std/http.md#r-std-http.bodies).
     pub body: List[u8] = []
-    ## The request's timeout, or the provider's default for `.None`.
-    ## See [std-http.request.defaults](../../spec/std/http.md#r-std-http.request.defaults).
-    pub timeout: Duration? = .None
+    ## The maximum number of redirects to follow; zero returns the redirect response.
+    ## See [std-http.request.redirects](../../spec/std/http.md#r-std-http.request.redirects).
+    pub redirects: usize = 10
+
+impl Request:
+    ## Returns a GET request for `url` with the default fields.
+    ## See [std-http.request.get](../../spec/std/http.md#r-std-http.request.get).
+    pub fn get(url: string) -> &mut Request:
+        Request::new(.Get, url)
+
+    ## Returns a POST request for `url` with the default fields.
+    ## See [std-http.request.post](../../spec/std/http.md#r-std-http.request.post).
+    pub fn post(url: string) -> &mut Request:
+        Request::new(.Post, url)
+
+    ## Returns a request with `method`, `url`, and the other default fields.
+    ## See [std-http.request.new](../../spec/std/http.md#r-std-http.request.new).
+    pub fn new(method: Method, url: string) -> &mut Request:
+        &mut Request { method: method, url: url }
+
+    ## Appends a header and returns this builder.
+    ## See [std-http.request.header](../../spec/std/http.md#r-std-http.request.header).
+    pub fn header(&mut self, name: string, value: string) -> &mut Request:
+        self.headers.push((name, value))
+        self
+
+    ## Appends an unencoded query pair and returns this builder.
+    ## See [std-http.request.query](../../spec/std/http.md#r-std-http.request.query).
+    pub fn query[T < Display](&mut self, name: string, value: T) -> &mut Request:
+        self.query.push((name, "$value"))
+        self
+
+    ## Replaces the body and returns this builder.
+    ## See [std-http.request.body](../../spec/std/http.md#r-std-http.request.body).
+    pub fn body(&mut self, bytes: List[u8]) -> &mut Request:
+        self.body = bytes
+        self
+
+    ## Sets the redirect limit and returns this builder.
+    ## See [std-http.request.redirects](../../spec/std/http.md#r-std-http.request.redirects).
+    pub fn redirects(&mut self, count: usize) -> &mut Request:
+        self.redirects = count
+        self
+
+    ## Sends a copy through the covering Http provider, encoding query pairs once.
+    ## See [std-http.request.send](../../spec/std/http.md#r-std-http.request.send).
+    pub fn send!(self) -> Result[Response, HttpError] $ Http:
+        let mut request = self
+        request.url = query_url(self.url, self.query)
+        $.use(Http).send!(request)
+
+fn query_url(url: string, pairs: List[(string, string)]) -> string:
+    if pairs.is_empty():
+        return url
+    let (base, fragment) = url.split_once("#").unwrap_or((url, ""))
+    out := StringBuilder::new()
+    out.push(base)
+    let separator = if !base.contains("?"): "?" else if base.ends_with("?") || base.ends_with("&"): "" else: "&"
+    for (name, value) in pairs:
+        out.push(separator)
+        encode_query(out, name)
+        out.push("=")
+        encode_query(out, value)
+        separator = "&"
+    if url.contains("#"):
+        out.push("#")
+        out.push(fragment)
+    out.build()
+
+fn encode_query(out: &mut StringBuilder, text: string) -> void:
+    digits := "0123456789ABCDEF"
+    let index = 0
+    for byte in text.to_utf8():
+        if (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || (byte >= 48 && byte <= 57) || byte == 45 || byte == 46 || byte == 95 || byte == 126:
+            out.push(text.slice(index, index + 1))
+        else:
+            out.push("%")
+            high := usize(byte / 16)
+            low := usize(byte % 16)
+            out.push(digits.slice(high, high + 1))
+            out.push(digits.slice(low, low + 1))
+        index += 1
 
 ## A whole HTTP response.
-## See [std-http.types.decl-struct](../../spec/std/http.md#r-std-http.types.decl-struct).
+## See [std-http.types.request-builder](../../spec/std/http.md#r-std-http.types.request-builder).
 @derive(Debug, Eq)
 pub struct Response:
     ## The response's status code.
-    ## See [std-http.types.decl-struct](../../spec/std/http.md#r-std-http.types.decl-struct).
+    ## See [std-http.types.request-builder](../../spec/std/http.md#r-std-http.types.request-builder).
     pub status: u16
     ## The response's headers as name and value pairs.
     ## See [std-http.headers.pairs](../../spec/std/http.md#r-std-http.headers.pairs).
@@ -130,12 +212,11 @@ pub trait Http:
     fn send!(&mut self, request: Request) -> Result[Response, HttpError]
 
 # Sends `request` through the covering `Http` provider
-# (r-std-http.helper.send).
+# (r-std-http.helper.send-builder).
 ## Sends `request` on the `Http` provider that covers the call.
-## See [std-http.helper.send](../../spec/std/http.md#r-std-http.helper.send).
+## See [std-http.helper.send-builder](../../spec/std/http.md#r-std-http.helper.send-builder).
 pub fn send!(request: Request) -> Result[Response, HttpError] $ Http:
-    client := $.use(Http)
-    client.send!(request)
+    request.send!()
 
 # Sends a `Get` of `url` (r-std-http.helper.get).
 ## Sends a `Get` of `url` on the `Http` provider that covers the call.

@@ -124,9 +124,10 @@ export const PropertyCase = data({
 export const Request = data({
   method: Method,
   url: str,
+  query: list(tuple(str, str)),
   headers: list(tuple(str, str)),
   body: bytes,
-  timeout: option(Duration),
+  redirects: unsigned,
 });
 export const Response = data({
   status: unsigned,

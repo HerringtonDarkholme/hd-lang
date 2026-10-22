@@ -567,7 +567,6 @@ fn http_server() -> u16 {
 
 const HTTP_PROGRAM: &str = "use std.http.{Http, HttpError, Method, Request, Response, get, send}
 use std.host.{Args, args}
-use std.time.ms
 
 fn show!(r: Result[Response, HttpError]) -> string:
     match r:
@@ -578,9 +577,9 @@ pub fn main!() -> void $ Console + Http + Args:
     base := args()[0]
     println(show!(get!(\"${base}/ok\")))
     println(show!(get!(\"${base}/redirect\")))
+    println(show!(Request::get(\"${base}/redirect\").redirects(0).send!()))
     println(show!(get!(\"${base}/nothing\")))
     println(show!(get!(\"${base}/loop\")))
-    println(show!(send!(Request { url: \"${base}/slow\", timeout: .Some(100ms) })))
     println(show!(send!(Request { method: Method.Post, url: \"${base}/echo\", headers: [(\"Content-Type\", \"text/plain\")], body: \"abc\".to_utf8() })))
     println(show!(get!(\"http://example.com/\")))
     println(show!(get!(\"ftp://127.0.0.1/\")))
@@ -600,24 +599,42 @@ fn http_sends_requests_inside_the_grant() {
     let dir = work("host-http");
     write(&dir.join("main.hd"), HTTP_PROGRAM);
     let base = format!("http://127.0.0.1:{port}");
-    let out = run(&dir, &["--cap", "Http=127.0.0.1", "main.hd", "--", &base]);
-    assert_eq!(text(&out.stderr), "");
-    assert_eq!(
-        text(&out.stdout),
-        format!(
-            "200 hello Option.Some(\"a=1\") 4\n\
+    let engines = [
+        "node",
+        #[cfg(feature = "wasmtime")]
+        "wasmtime",
+    ];
+    for engine in engines {
+        let out = run(
+            &dir,
+            &[
+                "--engine",
+                engine,
+                "--cap",
+                "Http=127.0.0.1",
+                "main.hd",
+                "--",
+                &base,
+            ],
+        );
+        assert_eq!(text(&out.stderr), "");
+        assert_eq!(
+            text(&out.stdout),
+            format!(
+                "200 hello Option.Some(\"a=1\") 4\n\
              200 hello Option.Some(\"a=1\") 4\n\
+             302  Option.None 3\n\
              404 missing Option.None 2\n\
              HttpError.TooManyRedirects(url=\"{base}/loop\")\n\
-             HttpError.Timeout\n\
              201 got abc Option.None 2\n\
              HttpError.NotGranted(host=\"example.com\")\n\
              HttpError.InvalidUrl(url=\"ftp://127.0.0.1/\")\n\
              HttpError.InvalidUrl(url=\"http://bücher.example/\")\n\
              HttpError.NotGranted(host=\"xn--bcher-kva.example\")\n"
-        )
-    );
-    assert!(out.status.success());
+            )
+        );
+        assert!(out.status.success(), "{engine}: {}", text(&out.stderr));
+    }
     // A grant for another port of the host covers none of these requests.
     let other = run(
         &dir,

@@ -11,25 +11,18 @@ fn request(
     url: &str,
     headers: &[(&str, &str)],
     body: &[u8],
-    timeout: Option<i64>,
+    redirects: Option<u64>,
 ) -> Vec<u8> {
     let mut e = Enc::default().leb(method);
     if method == 7 {
         e = e.str("CUSTOM");
     }
-    e = e.str(url).leb(headers.len() as u64);
+    e = e.str(url).leb(0).leb(headers.len() as u64);
     for (name, value) in headers {
         e = e.str(name).str(value);
     }
     e = e.bytes(body);
-    e = match timeout {
-        Some(ms) => e.leb(1).leb(if ms < 0 {
-            ms.unsigned_abs() * 2 - 1
-        } else {
-            ms.unsigned_abs() * 2
-        }),
-        None => e.leb(0),
-    };
+    e = e.leb(redirects.unwrap_or(10));
     e.0
 }
 
@@ -508,7 +501,39 @@ fn http_exactly_ten_redirects_reach_the_successful_response() {
 }
 
 #[test]
-fn http_invalid_urls_and_zero_or_negative_timeout() {
+fn http_redirect_limits_control_following() {
+    let scratch = Scratch::new();
+    let server = HttpFixture::new(|_| {
+        (
+            raw(302, &[("Location", "/never"), ("Content-Length", "0")], b""),
+            Duration::ZERO,
+        )
+    });
+    let url = server.url("/first");
+    let mut p = Program::new();
+    p.call_waiting(
+        "hd:Http",
+        "send",
+        request(0, &url, &[], b"", Some(0)),
+        response(
+            302,
+            &[("Location", "/never"), ("Content-Length", "0")],
+            b"",
+            &url,
+        ),
+    );
+    p.call_waiting(
+        "hd:Http",
+        "send",
+        request(0, &url, &[], b"", Some(1)),
+        error(6, &server.url("/never")),
+    );
+    assert_program(&scratch, p, vec![], || {});
+    assert_eq!(server.seen.lock().unwrap().len(), 6);
+}
+
+#[test]
+fn http_invalid_urls() {
     let scratch = Scratch::new();
     let mut p = Program::new();
     for url in [
@@ -527,159 +552,7 @@ fn http_invalid_urls_and_zero_or_negative_timeout() {
             error(1, url),
         );
     }
-    for timeout in [0, -1] {
-        p.call_waiting(
-            "hd:Http",
-            "send",
-            request(0, "http://127.0.0.1:9/", &[], b"", Some(timeout)),
-            error(5, ""),
-        );
-    }
     assert_program(&scratch, p, vec![], || {});
-}
-
-#[test]
-fn http_delayed_response_times_out() {
-    let scratch = Scratch::new();
-    let server = HttpFixture::new(|_| {
-        (
-            raw(200, &[("Content-Length", "0")], b""),
-            Duration::from_millis(150),
-        )
-    });
-    let mut p = Program::new();
-    p.call_waiting(
-        "hd:Http",
-        "send",
-        request(0, &server.url("/slow"), &[], b"", Some(30)),
-        error(5, ""),
-    );
-    assert_program(&scratch, p, vec![], || {});
-}
-
-#[test]
-fn http_timeout_budget_is_shared_across_redirect_hops() {
-    let scratch = Scratch::new();
-    // Generous margins under load: each hop (2 s) fits well within the 3 s
-    // whole-request budget (1 s margin), while their sum (4 s) exceeds it by
-    // 1 s. Previously 1.2 s delays with a 2 s budget left only a 400 ms
-    // margin for the second hop, so a late timeout under load could return
-    // Ok instead of Timeout. The test still proves the budget is shared:
-    // resetting per hop would succeed.
-    let target = HttpFixture::new(|_| {
-        (
-            raw(200, &[("Content-Length", "0")], b""),
-            Duration::from_secs(2),
-        )
-    });
-    let destination = target.url("/final");
-    let from = HttpFixture::new(move |_| {
-        (
-            raw(
-                302,
-                &[("Location", &destination), ("Content-Length", "0")],
-                b"",
-            ),
-            Duration::from_secs(2),
-        )
-    });
-    let mut p = Program::new();
-    // Each individual response fits within 3 s, but their cumulative delay
-    // exceeds it. Resetting the timeout at the redirect would return Ok.
-    p.call_waiting(
-        "hd:Http",
-        "send",
-        request(0, &from.url("/start"), &[], b"", Some(3000)),
-        error(5, ""),
-    );
-    assert_program(
-        &scratch,
-        p,
-        vec![(
-            "Http",
-            Limit::Entries(vec![
-                format!("127.0.0.1:{}", from.port()),
-                format!("127.0.0.1:{}", target.port()),
-            ]),
-        )],
-        || {},
-    );
-    // Prove both engines reached the delayed second hop rather than timing
-    // out before the redirect was followed.
-    assert_eq!(
-        from.seen
-            .lock()
-            .unwrap()
-            .iter()
-            .map(|r| r.target.as_str())
-            .collect::<Vec<_>>(),
-        ["/start", "/start"]
-    );
-    assert_eq!(
-        target
-            .seen
-            .lock()
-            .unwrap()
-            .iter()
-            .map(|r| r.target.as_str())
-            .collect::<Vec<_>>(),
-        ["/final", "/final"]
-    );
-}
-
-#[test]
-fn http_timeout_still_applies_after_response_headers_arrive() {
-    use std::io::{Read, Write};
-    use std::sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
-    };
-    let scratch = Scratch::new();
-    let headers_sent = Arc::new(AtomicUsize::new(0));
-    let recorded = headers_sent.clone();
-    let server = TcpFixture::new(move |mut peer| {
-        let mut request = Vec::new();
-        while !request.windows(4).any(|bytes| bytes == b"\r\n\r\n") {
-            let mut bytes = [0; 1024];
-            let count = peer.read(&mut bytes).unwrap();
-            assert_ne!(count, 0, "request headers arrive before the peer closes");
-            request.extend_from_slice(&bytes[..count]);
-            assert!(request.len() <= 65_536, "bounded fixture request headers");
-        }
-        peer.write_all(b"HTTP/1.1 200 Test\r\nContent-Length: 4\r\n\r\n")
-            .unwrap();
-        recorded.fetch_add(1, Ordering::SeqCst);
-        // Generous margin under load: headers arrive immediately, the body
-        // follows 3 s later, and the 2 s request timeout fires 1 s before the
-        // body. Previously 2.2 s vs 1.5 s left only 700 ms, so a late timeout
-        // under load could observe the body and return Ok. The serial fixture
-        // still satisfies 3 s < 2*2 s, so the second engine's headers (delayed
-        // by the first handler's sleep) arrive ~1 s after its start, well
-        // before its 2 s timeout.
-        std::thread::sleep(Duration::from_secs(3));
-        // Both clients must close before the body completes. BrokenPipe is
-        // expected; the fixture always returns and drops its peer.
-        let _ = peer.write_all(b"late");
-    });
-    let mut p = Program::new();
-    p.call_waiting(
-        "hd:Http",
-        "send",
-        request(
-            0,
-            &format!("http://{}/body", server.address),
-            &[],
-            b"",
-            Some(2000),
-        ),
-        error(5, ""),
-    );
-    assert_program(&scratch, p, vec![], || {});
-    assert_eq!(
-        headers_sent.load(Ordering::SeqCst),
-        2,
-        "both engines received a complete response header before the delayed body"
-    );
 }
 
 #[test]
@@ -739,8 +612,9 @@ fn http_invalid_method_and_headers_keep_exact_validation_errors() {
         .str("bad method")
         .str(url)
         .leb(0)
-        .bytes(b"")
         .leb(0)
+        .bytes(b"")
+        .leb(10)
         .0;
     let mut p = Program::new();
     p.call_waiting(
@@ -1014,7 +888,7 @@ fn http_two_instances_send_at_the_same_time() {
     p.call_waiting(
         "hd:Http",
         "send",
-        request(0, &url, &[], b"", Some(10_000)),
+        request(0, &url, &[], b"", None),
         response(200, &[("Content-Length", "0")], b"", &url),
     );
     let (wasm, expected) = p.finish(7);

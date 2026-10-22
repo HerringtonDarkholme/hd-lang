@@ -5,19 +5,16 @@ on Sonnet, and Haiku probes usability and the compiler's error messages;
 the Model column says which wrote the row. The rule is in
 [AGENTS.md](../../AGENTS.md#writing-hd-code-model-choice-and-a-feedback-log).
 This log is used to audit compiler diagnostics and documentation.
-
 Append one row per mistake. The columns are:
 - **Kind:** `syntax`, `type`, `api`, or `semantic`.
 - **Helped?:** `yes`, `partly`, or `no`. Did the message alone lead to the
   fix?
 - **Wrote** and **Fix:** keep them short; a single line of code where
   possible.
-
 Rows whose task ends in "(paper)" come from a written trial that no
 compiler ran: they were checked only with a syntax checker, which
 reported a code and no message. "Compiler said" then gives that code, or
 says that the check covered syntax only.
-
 | Date | Task | Kind | Wrote | Compiler said (verbatim) | Helped? | Fix | Model |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | 2026-09-29 | iterator bench | api | `let iter1 = ClosureIter{...}; let iter2 = iter1.filter(...)` with methods taking `mut self` | `mutable-receiver-required: method 'filter' requires mutable access to ClosureIter` | partly | Need to make iterators mutable: `let iter1: mut ClosureIter = ...` or chain in one expression | haiku |
@@ -458,5 +455,6 @@ says that the check covered syntax only.
 | 2026-10-21 | Muse #707 value-tree benchmark preflight | semantic | Tried the issue's `enum Tree: Leaf; Node(left: Tree, right: Tree)` as the value-tree benchmark. | the enum `Tree` holds itself through the payload field `left`; a value cannot contain itself, so hold it through a reference (`&`), an optional reference, or a collection | yes | Confirmed `data.enum.no-recursion` and asked on #707; the owner approved a legal collection-backed tree with its different allocation shape reported. | GPT-6 |
 | 2026-10-21 | #712 direct list cursor | API | `items := &self.items; items.len()` with `items: &&List[T]` | no method `len` on &List[T] | no | Dereference the extra layer explicitly: `(*items).len()` | Codex (GPT-6) |
 | 2026-10-21 | #712 direct list cursor | type | `items[at]` with `items: &&List[T]` | &&List[T] has no `Index` implementation for this key | yes | Read through the extra reference before indexing: `(*items)[at]` | Codex (GPT-6) |
-
 | 2026-10-22 | #456 Command integration fixture | type | `output := hd_run!(command)` after `command := Command::new("runner")...` | `in argument: expected Command, found &mut Command` (`type-mismatch`) | yes | `hd_run!(*command)` copies the builder value for the `Command` parameter. | GPT-6 (Muse, full capacity) |
+| 2026-10-22 | #445 Request query builder | syntax | `(base, fragment) := url.split_once("#").unwrap_or((url, ""))` | `':=' binds one name; a pattern before it needs 'let', as in 'let (a, b) = pair'` (`missing-let`) | yes | `let (base, fragment) = ...`; correction was already made during the first build and rebuilding picked it up. | GPT-6 (Muse, full capacity) |
+| 2026-10-22 | #445 Request query builder | semantic | Chose no separator whenever the pre-fragment URL ended in `&`, including a path without `?`. | No compiler diagnostic; code review found the URL-shaping error. | no | Only reuse a trailing `&` within an existing query; added a `path&?new=...` regression. | GPT-6 (Muse, full capacity) |

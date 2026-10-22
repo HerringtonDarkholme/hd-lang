@@ -22,8 +22,6 @@ tier ([Host Capabilities](../cli/command-line.md#host-capabilities)).
 A request and a response are plain struct values:
 
 ```text
-use std.time.Duration
-
 pub enum Method:
     Get
     Head
@@ -37,9 +35,10 @@ pub enum Method:
 pub struct Request:
     pub method: Method = Method.Get
     pub url: string
+    pub query: List[(string, string)] = []
     pub headers: List[(string, string)] = []
     pub body: List[u8] = []
-    pub timeout: Duration? = .None
+    pub redirects: usize = 10
 
 pub struct Response:
     pub status: u16
@@ -48,9 +47,9 @@ pub struct Response:
     pub url: string = ""
 ```
 
-1. r[std-http.types.decl-struct] `std.http` declares `Method`, `Request`, and `Response` as above. `Request` and `Response` are struct values: a copy is independent of the value it was copied from. Code imports them, as in `use std.http.{Request, Response}`.
+1. r[std-http.types.request-builder] `std.http` declares `Method`, `Request`, and `Response` as above.
 2. r[std-http.types.traits] `Method`, `Request`, and `Response` implement `Eq` and `Debug`.
-3. r[std-http.request.defaults] A `Request` that gives only `url` is a `Get` with no headers, an empty body, and the provider's default timeout.
+3. r[std-http.request.builder-defaults] A `Request` that gives only `url` defaults to `Get`, empty query and header lists, an empty body, and ten redirects.
 4. r[std-http.request.default-timeout] A provider that sends requests to a host has a default timeout of 30 seconds.
 5. r[std-http.headers.pairs] Headers are a list of name and value pairs, so a repeated header such as `Set-Cookie` keeps every value, in order.
 6. r[std-http.headers.case] Header names compare ignoring ASCII case, so a provider may change the case of a response header's name.
@@ -59,6 +58,29 @@ pub struct Response:
 9. r[std-http.response.text] `Response` has the method `text(self) -> string`. It decodes the body as UTF-8, with U+FFFD for each byte sequence that is not valid UTF-8.
 10. r[std-http.response.url] `Response.url` is the URL of the last request, after every redirect. `ScriptedHttp` sets it to the request's URL, and a response built by hand has `""` unless it names one.
 11. r[std-http.method.eq.variant-payload] Two `Method` values compare equal only when their variants and corresponding payloads are equal.
+12. r[std-http.types.value-copy] A `Request` or `Response` copy is independent of the value it was copied from.
+
+## Request Builder
+
+A request builder accumulates fields before its terminal `send!` call.
+For example, `Request::get(url).query("page", 2).header("Accept", "text/plain").send!()` sends a GET with an encoded page number.
+
+1. r[std-http.request.new] `Request::new(method: Method, url: string) -> &mut Request` returns a new request with those fields and the other defaults.
+2. r[std-http.request.get] `Request::get(url: string) -> &mut Request` returns `Request::new(.Get, url)`.
+3. r[std-http.request.post] `Request::post(url: string) -> &mut Request` returns `Request::new(.Post, url)`.
+4. r[std-http.request.header] `header(&mut self, name: string, value: string) -> &mut Request` appends the header pair and returns the same builder.
+5. r[std-http.request.query] `query[T < Display](&mut self, name: string, value: T) -> &mut Request` appends `(name, "$value")` and returns the same builder.
+6. r[std-http.request.body] `body(&mut self, bytes: List[u8]) -> &mut Request` replaces the body and returns the same builder.
+7. r[std-http.request.redirects] `redirects(&mut self, count: usize) -> &mut Request` sets the redirect limit and returns the same builder.
+8. r[std-http.request.send] `send!(self) -> Result[Response, HttpError] $ Http` sends a copy with its encoded URL through the covering `Http` provider.
+9. r[std-http.request.query-encoding] Query names and values encode their UTF-8 bytes with uppercase percent escapes, keeping only RFC 3986 unreserved bytes.
+10. r[std-http.request.query-order] Encoding preserves query pair order and repeated names, joining each encoded name and value with `=` and pairs with `&`.
+11. r[std-http.request.query-url] Sending appends the encoded query before any fragment, using `?` without an existing query and `&` within one.
+12. r[std-http.request.query-separator] Within an existing query, no extra separator is inserted after a trailing `?` or `&`.
+13. r[std-http.request.send-copy] Sending leaves the builder unchanged, so sending it again encodes its query once again from the original fields.
+14. r[std-http.send.zero-redirects] With `redirects` zero, a host provider returns the first response without following or validating its `Location`.
+
+The provider's default timeout still applies; `std.task.timeout!` can impose a shorter bound around a send.
 
 ## URLs
 
@@ -109,7 +131,7 @@ pub enum HttpError:
 | r[std-http.error.connect] Connect | `Connect(message)` | no connection was made, or it failed before the whole response arrived |
 | r[std-http.error.tls] TLS | `Tls(message)` | the TLS handshake or a certificate check failed |
 | r[std-http.error.timeout] Timeout | `Timeout` | the request took longer than its timeout |
-| r[std-http.error.redirects] Redirects | `TooManyRedirects(url)` | the response redirected more than 10 times; `url` is the last target |
+| r[std-http.error.redirect-limit] Redirects | `TooManyRedirects(url)` | the response exceeded a positive `Request.redirects` limit; `url` is the last target |
 | r[std-http.error.other] Other | `Other(message)` | any other failure, with the provider's message |
 | r[std-http.error.status] Status | `Status(status, url)` | `Response.ok` found a status outside 200 to 299; `url` is the response's `url` |
 | r[std-http.error.json] JSON | `Json(error)` | `Response.json` could not decode the body; `error` is the `std.json.JsonError` |
@@ -136,14 +158,14 @@ fn latest_release!(repo: string) -> Result[string, HttpError] $ Http:
 1. r[std-http.trait.decl-ref] `std.http` declares the host capability trait `Http`, with the one method `fn send!(&mut self, request: Request) -> Result[Response, HttpError]`. Code imports it, as in `use std.http.Http`.
 2. r[std-http.send] `send!(request)` sends `request`, and completes with the whole response.
 3. r[std-http.send.status] Every status, 404 and 500 included, is an `.Ok` response, and the caller reads it from `status`.
-4. r[std-http.send.redirect] `send!` follows up to 10 redirects.
-5. r[std-http.send.timeout] A `timeout` of `.None` means the provider's default. A request that takes longer than its timeout completes with `.Err(HttpError.Timeout)`.
+4. r[std-http.send.redirect-limit] `send!` follows at most `Request.redirects` redirects.
+5. r[std-http.send.provider-timeout] A host request exceeding the provider's default timeout completes with `.Err(HttpError.Timeout)`.
 6. r[std-http.send.timeout.whole] A timeout covers the whole request, every redirect included.
 7. r[std-http.send.cancel] Cancelling the suspension of `send!` aborts the request, by [`req.cancel.external-abort`](../lang/11-requirements-and-suspension.md#r-req.cancel.external-abort).
 8. r[std-http.send.cancel.close] Aborting a request closes its connection.
 9. r[std-http.send.mut-ref.reference-values] `send!` takes `&mut self`, so `Http` is a mutable requirement trait, `$.use(Http)` is a `&mut dyn Http` by [`req.ref.use.reference-values`](../lang/11-requirements-and-suspension.md#r-req.ref.use.reference-values), and a provider may record what it sends.
 10. r[std-http.bodies] A body is a whole list of bytes. `std.http` has no streaming body.
-11. r[std-http.helper.send] `std.http` declares `pub fn send!(request: Request) -> Result[Response, HttpError] $ Http`, which calls `send!(request)` on the `Http` provider that covers the call.
+11. r[std-http.helper.send-builder] `std.http` declares `pub fn send!(request: Request) -> Result[Response, HttpError] $ Http`, which calls `request.send!()`.
 12. r[std-http.helper.get] `std.http` declares `pub fn get!(url: string) -> Result[Response, HttpError] $ Http`, which sends `Request { url: url }` the same way.
 
 > **Why.** A status is data about a request that worked, as with `fetch`

@@ -347,7 +347,7 @@ The structured values of the ABI table, byte by byte:
 | `ProcessOutput` | stdout, stderr, then the status, zigzag |
 | `ProcessError` | the variant index (`NotFound` 0, `PermissionDenied` 1, `NotGranted` 2, `Other` 3), then the program of `NotFound` and `PermissionDenied`, or `Other`'s message |
 | `SysError` | the variant index (`NotGranted` 0, `Unsupported` 1), then its name |
-| `Request` | its method's index (`Get` 0 to `Options` 6, then `Other` 7 and its name), its URL, its header pairs (a count, then each name and value), its body, and its timeout as a `Duration?` (a `Duration` is its milliseconds, zigzag) |
+| `Request` | its method's index (`Get` 0 to `Options` 6, then `Other` 7 and its name), its URL, query pairs and header pairs (each a count, then each name and value), its body, and its `usize` redirect limit |
 | `Response` | its status, its header pairs, its body |
 | `NetError` | the variant index (`NotGranted` 0, `InvalidAddress` 1, `Dns` 2, `Refused` 3, `Timeout` 4, `Closed` 5, `Other` 6), then its text, except `Timeout` and `Closed`, which have none; a handle's method returns it too |
 | `Datagram` | its bytes, its host, its port |

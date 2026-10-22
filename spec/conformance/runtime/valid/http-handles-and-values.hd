@@ -1,5 +1,5 @@
 # test: Request and Response are struct values, ScriptedHttp::new returns a handle the test and the installed provider share, and a program's struct with a &mut self send! serves as an Http fake
-# Spec std/http: std-http.types.decl-struct, std-http.trait.decl-ref, std-http.send.mut-ref.reference-values, std-http.scripted.new-ref, std-http.scripted.sent-ref.
+# Spec std/http: std-http.types.request-builder, std-http.trait.decl-ref, std-http.send.mut-ref.reference-values, std-http.scripted.new-ref, std-http.scripted.sent-ref.
 # expect: test
 use std.http.{Http, HttpError, Request, Response, ScriptedHttp, get, send}
 

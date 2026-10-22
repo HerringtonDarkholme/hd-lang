@@ -1,0 +1,4 @@
+# test: Request has no timeout field
+use std.http.Request
+
+request := Request { url: "https://example.test/", timeout: 0 }  # diagnostic: unknown-field

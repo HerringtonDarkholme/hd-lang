@@ -511,7 +511,7 @@ function testRunnerProvider({ env, st, files }) {
 }
 
 // `hd:Http` over `send`, a client that takes `{ method, url, headers,
-// body, timeout }` (`timeout` milliseconds or `null`) and answers
+// body, redirects }` and answers
 // `{ status, headers, body, url }`, or `{ error, text }` with an `HttpError`
 // variant's name and text: http.mjs's thread on Node, `browserSend` in the
 // browser (std-http.send.*).
@@ -519,8 +519,13 @@ export function httpProvider(send) {
   return {
     send: (r) => {
       const method = r.method.tag === "Other" ? r.method.name : r.method.tag.toUpperCase();
-      const timeout = r.timeout === null ? null : Number(r.timeout.millis);
-      const a = send({ method, url: r.url, headers: r.headers, body: r.body, timeout });
+      const a = send({
+        method,
+        url: r.url,
+        headers: r.headers,
+        body: r.body,
+        redirects: r.redirects,
+      });
       return a.error ? Err(variant(HttpError, a.error, a.text)) : Ok(a);
     },
   };

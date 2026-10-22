@@ -1,0 +1,36 @@
+# test: Request builders append headers and query pairs and encode only when sending
+# expect: test
+use std.http.{Http, Method, Request, Response, ScriptedHttp}
+use std.testing.assert_equal
+
+tests:
+    it("constructs defaults, appends setters, replaces body and shares the builder"):
+        request := Request::get("https://example.test/")
+        alias := request.header("X-One", "1").header("X-One", "2").body([1]).body([2, 3]).redirects(0)
+        assert_equal(alias is request, true, reason="setters return the builder")
+        assert_equal(*request, Request { url: "https://example.test/", headers: [("X-One", "1"), ("X-One", "2")], body: [2, 3], redirects: 0 }, reason="fields and defaults")
+        assert_equal(Request::post("p").method, .Post, reason="POST constructor")
+        assert_equal(Request::new(.Other("CUSTOM"), "p").method, .Other("CUSTOM"), reason="explicit method")
+
+    it("sends encoded pairs once on each send and preserves the builder"):
+        url := "https://example.test/?page=2&x%20y=%2B%2F%25%C3%A9&x%20y=&=v&safe=AZaz09-._~"
+        http := ScriptedHttp::new({url: Response { status: 302, headers: [], body: [] }})
+        request := Request::get("https://example.test/").query("page", 2).query("x y", "+/%é").query("x y", "").query("", "v").query("safe", "AZaz09-._~").header("X-One", "1").redirects(0)
+        $.with(Http=http):
+            assert_equal(request.send!().is_ok(), true, reason="encoded URL matches")
+            assert_equal(request.send!().is_ok(), true, reason="second send matches")
+        assert_equal(http.sent().len(), 2, reason="two requests")
+        assert_equal(http.sent()[0].url, url, reason="encoded URL")
+        assert_equal(http.sent()[1].url, url, reason="no double encoding")
+        assert_equal(http.sent()[0].headers, [("X-One", "1")], reason="header forwarded")
+        assert_equal(http.sent()[0].redirects, 0, reason="limit forwarded")
+        assert_equal(request.url, "https://example.test/", reason="original URL retained")
+        assert_equal(request.query[0], ("page", "2"), reason="Display converted at insertion")
+
+    it("keeps existing query and fragment and handles empty separators"):
+        http := ScriptedHttp::new({"https://example.test/?old=%2F&new=%3F#frag": Response { status: 200, headers: [], body: [] }, "https://example.test/?new=%3F#frag": Response { status: 200, headers: [], body: [] }, "https://example.test/path&?new=%3F": Response { status: 200, headers: [], body: [] }})
+        $.with(Http=http):
+            assert_equal(Request::get("https://example.test/?old=%2F#frag").query("new", "?").send!().is_ok(), true, reason="existing query")
+            assert_equal(Request::get("https://example.test/?#frag").query("new", "?").send!().is_ok(), true, reason="empty query")
+            assert_equal(Request::get("https://example.test/?old=%2F&#frag").query("new", "?").send!().is_ok(), true, reason="existing trailing separator")
+            assert_equal(Request::get("https://example.test/path&").query("new", "?").send!().is_ok(), true, reason="ampersand in the path is not a query separator")

@@ -674,26 +674,29 @@ impl Wire for PropertyCase {
 pub struct Request {
     pub method: Method,
     pub url: String,
+    pub query: Vec<(String, String)>,
     pub headers: Vec<(String, String)>,
     pub body: Vec<u8>,
-    pub timeout: Option<Duration>,
+    pub redirects: usize,
 }
 
 impl Wire for Request {
     fn enc(&self, e: &mut Enc) {
         self.method.enc(e);
         self.url.enc(e);
+        self.query.enc(e);
         self.headers.enc(e);
         self.body.enc(e);
-        self.timeout.enc(e);
+        self.redirects.enc(e);
     }
     fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
         Ok(Self {
             method: Wire::dec(d)?,
             url: Wire::dec(d)?,
+            query: Wire::dec(d)?,
             headers: Wire::dec(d)?,
             body: Wire::dec(d)?,
-            timeout: Wire::dec(d)?,
+            redirects: Wire::dec(d)?,
         })
     }
 }

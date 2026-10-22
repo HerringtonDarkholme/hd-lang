@@ -1,6 +1,6 @@
 //! `Http.send!`: `.start` decodes the
 //! request and checks its URL and grant on the program thread, and a
-//! refusal, or a timeout of zero or less, returns at once. Otherwise the
+//! refusal returns at once. Otherwise the
 //! request runs as one task on the `hd-io` runtime, which sends it on the
 //! runtime's blocking pool (ureq blocks) and delivers the response or the
 //! failure for `.finish` to encode.
@@ -10,7 +10,7 @@
 //! its thread drops the socket, and the server reads the end of the
 //! connection (`std-http.send.cancel.close`).
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use hd_run::Grants;
 
@@ -45,17 +45,14 @@ pub(crate) struct Job {
 pub(crate) type Sent = Result<Result<Response, HttpError>, String>;
 
 /// `send.start`'s checks, in the Node host's order: the URL and its
-/// grant, then the timeout.
+/// grant, then starts the provider's default whole-request timeout.
 pub(crate) fn start(bytes: &[u8], grants: &Grants) -> wasmtime::Result<Start> {
     let started = Instant::now();
     let request = Request::decode(bytes)?;
     if let Err(failure) = granted_url(&request.url, grants) {
         return Ok(Start::Ready(encode(Err(failure))));
     }
-    let timeout = request.timeout();
-    if timeout.is_zero() {
-        return Ok(Start::Ready(encode(Err(HttpError::Timeout))));
-    }
+    let timeout = Duration::from_secs(30);
     Ok(Start::Run(Job {
         request,
         grants: grants.clone(),
@@ -134,8 +131,17 @@ mod tests {
         }
     }
 
+    // Exercise the internal provider deadline without reintroducing a Request field.
+    fn send_in(bytes: &[u8], budget: Duration) -> crate::codec::Enc {
+        let mut job = job(bytes);
+        job.deadline = Instant::now().checked_add(budget);
+        let mut reactor = Reactor::new(None);
+        let h = offload(&mut reactor, job);
+        super::finish(finished(&mut reactor, h)).unwrap()
+    }
+
     #[test]
-    fn the_request_timeout_covers_waiting_for_the_response() {
+    fn the_provider_deadline_covers_waiting_for_the_response() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap();
         let (release, receive) = mpsc::channel();
@@ -144,9 +150,9 @@ mod tests {
             read_request(&mut stream);
             let _ = receive.recv_timeout(Duration::from_secs(2));
         });
-        let r = request("GET", &format!("http://{address}/"), &vec![], &[], 200);
+        let r = request("GET", &format!("http://{address}/"), &vec![], &[], 10);
         let started = Instant::now();
-        let encoded = send(r.done(), &Grants::default());
+        let encoded = send_in(r.done(), Duration::from_millis(200));
         let elapsed = started.elapsed();
         let _ = release.send(());
         server.join().unwrap();
@@ -155,7 +161,7 @@ mod tests {
     }
 
     #[test]
-    fn the_request_timeout_covers_the_tls_handshake() {
+    fn the_provider_deadline_covers_the_tls_handshake() {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let address = listener.local_addr().unwrap();
         let (release, released) = mpsc::channel();
@@ -168,9 +174,9 @@ mod tests {
             assert_eq!(stream.read(&mut first).unwrap(), 1);
             let _ = released.recv_timeout(Duration::from_secs(2));
         });
-        let r = request("GET", &format!("https://{address}/"), &vec![], &[], 300);
+        let r = request("GET", &format!("https://{address}/"), &vec![], &[], 10);
         let started = Instant::now();
-        let encoded = send(r.done(), &Grants::default());
+        let encoded = send_in(r.done(), Duration::from_millis(300));
         let elapsed = started.elapsed();
         let _ = release.send(());
         server.join().unwrap();
@@ -235,13 +241,7 @@ mod tests {
                 (ended, started.elapsed())
             });
             let scheme = if tls { "https" } else { "http" };
-            let r = request(
-                "GET",
-                &format!("{scheme}://{address}/"),
-                &vec![],
-                &[],
-                30_000,
-            );
+            let r = request("GET", &format!("{scheme}://{address}/"), &vec![], &[], 10);
             let mut reactor = Reactor::new(None);
             let h = offload(&mut reactor, job(r.done()));
             arrived.recv_timeout(Duration::from_secs(5)).unwrap();
@@ -271,7 +271,7 @@ mod tests {
         let target = TcpListener::bind("127.0.0.1:0").unwrap();
         target.set_nonblocking(true).unwrap();
         let url = format!("http://{}/", target.local_addr().unwrap());
-        let r = request("GET", &url, &vec![], &[], 1000);
+        let r = request("GET", &url, &vec![], &[], 10);
         let cancel = Cancel::default();
         cancel.cancel();
         let result = send_blocking(
@@ -306,7 +306,7 @@ mod tests {
                     .unwrap();
             }
         });
-        let r = request("GET", &format!("http://{address}/"), &vec![], &[], 10_000);
+        let r = request("GET", &format!("http://{address}/"), &vec![], &[], 10);
         let mut reactor = Reactor::new(None);
         let first = offload(&mut reactor, job(r.done()));
         let second = offload(&mut reactor, job(r.done()));
@@ -322,7 +322,7 @@ mod tests {
     #[test]
     fn client_keeps_status_headers_bytes_and_does_not_decode_gzip() {
         let (url, server) = server(b"HTTP/1.1 500 Error\r\nX-A: first\r\nx-B: \xe9\r\nX-A: second\r\nContent-Encoding: gzip\r\nContent-Length: 3\r\n\r\n\xff\0z".to_vec());
-        let r = request("GET", &url, &vec![], &[], 1000);
+        let r = request("GET", &url, &vec![], &[], 10);
         let encoded = send(r.done(), &Grants::default());
         let (status, headers, body) = response(encoded.done());
         assert_eq!(status, 500);
@@ -354,7 +354,7 @@ mod tests {
                 ("X-Two".into(), "two".into()),
                 ("X-One".into(), "three".into()),
             ];
-            let r = request(method, &url, &headers, b"request-body", 1000);
+            let r = request(method, &url, &headers, b"request-body", 10);
             let encoded = send(r.done(), &Grants::default());
             assert_eq!(response(encoded.done()).0, 200);
             let wire = String::from_utf8(server.join().unwrap()).unwrap();
@@ -378,7 +378,7 @@ mod tests {
     fn a_malformed_response_header_is_a_connect_error() {
         let (url, server) =
             server(b"HTTP/1.1 200 OK\r\nBad Header: value\r\nContent-Length: 0\r\n\r\n".to_vec());
-        let r = request("GET", &url, &vec![], &[], 1000);
+        let r = request("GET", &url, &vec![], &[], 10);
         let encoded = send(r.done(), &Grants::default());
         let mut d = crate::codec::Dec::new(encoded.done());
         assert_eq!(d.leb().unwrap(), 1);

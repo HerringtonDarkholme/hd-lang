@@ -8,8 +8,8 @@
 // - The grant covers a request by its URL's host and port
 //   (cli.cap.scope.host, .host.forms), and each redirect target as a new
 //   request (cli.cap.scope.redirect).
-// - Up to 10 redirects are followed; the 11th is `TooManyRedirects` with
-//   its target (std-http.send.redirect). A 303, or a 301 or 302 of a
+// - Up to the request's redirect limit are followed; the next is `TooManyRedirects` with
+//   its target (std-http.send.redirect-limit). A 303, or a 301 or 302 of a
 //   `POST`, continues as a `GET` without a body, as `fetch` does.
 // - Every status is a response (std-http.send.status). Headers keep their
 //   repeats (std-http.headers.pairs); a name arrives in lowercase, and the
@@ -18,16 +18,15 @@
 //   (std-http.bodies). The response's `url` is the last request's URL
 //   (std-http.response.url).
 // - A request that takes longer than its timeout, or 30 s by default, is
-//   `Timeout` (std-http.send.timeout).
+//   `Timeout` (std-http.send.provider-timeout).
 import http from "node:http";
 import https from "node:https";
 import { isAsciiUrl, writtenHost } from "./core.mjs";
 import { workerData } from "node:worker_threads";
 import { createGrant } from "./node.mjs";
 
-// The provider's default timeout (std-http.request.defaults).
+// The provider's default timeout (std-http.request.default-timeout).
 const DEFAULT_TIMEOUT_MS = 30_000;
-const REDIRECTS = 10;
 
 const err = (variant, text = null) => ({ error: variant, text });
 
@@ -55,12 +54,7 @@ const failure = (e, host) => {
   // A fatal TLS alert from the peer, such as `unknown_ca`, surfaces as
   // `EPROTO` with OpenSSL's text (`tlsv1 alert unknown ca`).
   const alert = code === "EPROTO" && /\b(tls|ssl)/i.test(String(e.message));
-  if (
-    TLS_CODES.has(code) ||
-    code.startsWith("ERR_TLS") ||
-    code.startsWith("ERR_SSL") ||
-    alert
-  ) {
+  if (TLS_CODES.has(code) || code.startsWith("ERR_TLS") || code.startsWith("ERR_SSL") || alert) {
     return err("Tls", String(e.message));
   }
   return err("Connect", String(e?.message ?? e));
@@ -137,7 +131,7 @@ async function send(r) {
   const grant = createGrant(r.grants);
   let { method, url, body } = r;
   let written = url;
-  const deadline = Date.now() + (r.timeout ?? DEFAULT_TIMEOUT_MS);
+  const deadline = Date.now() + DEFAULT_TIMEOUT_MS;
   for (let redirects = 0; ; redirects++) {
     let u;
     try {
@@ -152,7 +146,12 @@ async function send(r) {
     if (!grant.coversHost("Http", host, port)) return err("NotGranted", host);
     const got = await once(u, host, method, r.headers, body, deadline - Date.now());
     const location = got.headers?.find(([n]) => n.toLowerCase() === "location")?.[1];
-    if (got.error || ![301, 302, 303, 307, 308].includes(got.status) || location === undefined) {
+    if (
+      got.error ||
+      r.redirects === 0 ||
+      ![301, 302, 303, 307, 308].includes(got.status) ||
+      location === undefined
+    ) {
       return got.error ? got : { ...got, url };
     }
     // A Location outside printable ASCII is no RFC 3986 URL.
@@ -163,7 +162,7 @@ async function send(r) {
     if (/^([a-z][a-z0-9+.-]*:)?\/\//i.test(location)) {
       written = /^\/\//.test(location) ? `${u.protocol}${location}` : location;
     }
-    if (redirects === REDIRECTS) return err("TooManyRedirects", url);
+    if (redirects === r.redirects) return err("TooManyRedirects", url);
     if (got.status === 303 || ((got.status === 301 || got.status === 302) && method === "POST")) {
       method = "GET";
       body = new Uint8Array(0);

@@ -4786,3 +4786,6 @@ typing/invalid/nested-optional-layers-never-drop-or-double-drop.hd	type	reject:t
 typing/invalid/nested-optional-layers-never-drop-or-double-double.hd	type	reject:type-mismatch	lang/04-type-system.md#optional-types
 typing/invalid/nested-optional-a-plain-value-and-a-nested-optional-have-no-common-type.hd	type	reject:no-common-type	lang/04-type-system.md#r-types.lct.optional.one-layer
 runtime/valid/hd-run-command-forwarding.hd	runtime	accept	std/testing.md#running-executables
+runtime/valid/http-request-builder.hd	runtime	accept	std/http.md#request-builder
+typing/invalid/http-request-timeout-removed.hd	type	reject:unknown-field	std/http.md#r-std-http.types.request-builder
+typing/invalid/http-request-send-missing-provider.hd	type	reject:missing-requirement	std/http.md#r-std-http.request.send
