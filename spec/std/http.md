@@ -349,3 +349,8 @@ fn status_of(url: string) -> string $ Http:
 
 See also: [Capability Grants](../cli/command-line.md#capability-grants),
 [Process](process.md), [Time](time.md#duration).
+
+
+## Timeout Conversion
+
+1. r[std-http.error.from-timed-out] `HttpError` implements `std.convert.From[std.task.TimedOut]`, converting every deadline error to `.Timeout`.

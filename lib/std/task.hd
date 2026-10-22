@@ -5,6 +5,7 @@
 # signature (r-req.combinator.all-typing).
 use std.task.all
 use std.error.Error
+use std.convert.From
 use std.ops.Disposable
 use std.time.{Clock, Duration, Instant, sleep}
 
@@ -201,6 +202,13 @@ pub fn timeout![T, $R](limit: Duration, cleanup: Duration? = .None, work: fn!() 
     match end:
         .Done(value) => .Ok(value)
         .Expired => .Err(TimedOut { limit: limit, cleanup: job.cancel!() })
+
+## Returns the work's Result directly, converting a timeout into its error type.
+## See [std-task.with-timeout.decl](../../spec/std/task.md#r-std-task.with-timeout.decl).
+pub fn with_timeout![T, E < From[TimedOut], $R](limit: Duration, cleanup: Duration? = .None, work: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R + Clock:
+    match timeout!(limit, cleanup=cleanup, work=work):
+        .Ok(result) => result
+        .Err(error) => .Err(E::from(error))
 
 # Which child of `timeout!`'s race completed first.
 enum TimeoutEnd[T]:

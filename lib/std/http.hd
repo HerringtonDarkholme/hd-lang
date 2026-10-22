@@ -3,6 +3,8 @@
 # `HttpError`, and the deterministic provider `ScriptedHttp` (spec/std/http.md). The default
 # profile binds a host `Http` that checks the command's `--cap Http=` grant
 # (src/commands/http-host.ts).
+use std.convert.From
+use std.task.TimedOut
 use std.text.StringBuilder
 use std.json.{JsonError, decode, encode}
 use std.serde.{Deserialize, Serialize, Serializer}
@@ -402,6 +404,11 @@ pub enum HttpError:
     Status(response: Response)
     @error("invalid JSON in the response: ${error}")
     Json(error: JsonError)
+
+# A composed deadline has the same error as the operation it bounds.
+impl From[TimedOut] for HttpError:
+    fn from(error: TimedOut) -> HttpError:
+        .Timeout
 
 impl HttpError:
     ## Whether a timeout, connection failure or retryable status may succeed on retry.

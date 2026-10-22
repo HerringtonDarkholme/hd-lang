@@ -3,6 +3,8 @@
 # deterministic providers ScriptedNet, ScriptedStream, ScriptedListener,
 # and ScriptedUdp. Sockets are traits, so declaring them is plain hd; a
 # live socket provider that opens real connections is host-bound.
+use std.convert.From
+use std.task.TimedOut
 use std.format.DebugWriter
 use std.ops.Disposable
 use std.time.Duration
@@ -30,6 +32,11 @@ pub enum NetError:
 # A socket is a handle behind a trait value reference, `&mut dyn
 # TcpStream` (r-std-net.handles.decl-ref): each copy of the reference
 # reaches the one socket.
+# A composed deadline has the same error as the operation it bounds.
+impl From[TimedOut] for NetError:
+    fn from(error: TimedOut) -> NetError:
+        .Timeout
+
 ## The host capability trait: DNS lookup, TCP, and UDP.
 ## See [std-net.trait.decl-ref](../../spec/std/net.md#r-std-net.trait.decl-ref).
 pub trait Net:

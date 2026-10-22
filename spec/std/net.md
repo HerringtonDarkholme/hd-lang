@@ -460,3 +460,8 @@ tests:
 
 See also: [Http](http.md), [Capability Grants](../cli/command-line.md#capability-grants),
 [Unit Test Providers](testing.md#unit-test-providers).
+
+
+## Timeout Conversion
+
+1. r[std-net.error.from-timed-out] `NetError` implements `std.convert.From[std.task.TimedOut]`, converting every deadline error to `.Timeout`.

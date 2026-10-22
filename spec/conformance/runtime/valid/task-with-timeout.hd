@@ -1,0 +1,73 @@
+# expect-stdout: flat timeouts
+# test: Result deadlines stay flat, map timeout errors and compose with retry
+# Spec std/task Result Timeouts: std-task.with-timeout.decl, .completed, .expired, .cleanup.
+use std.convert.From
+use std.http.{Http, HttpError, Request, Response, ScriptedHttp}
+use std.net.NetError
+use std.task.{Backoff, TimedOut, retry, with_timeout}
+use std.testing.assert_equal
+use std.time.{Clock, ManualClock, Timestamp, sleep}
+
+# Capture the host clock before installing the manual deadline clock.
+# The wait stays pending until the manual deadline cancels it.
+fn wait!() -> void $ Clock:
+    sleep!(60s)
+
+struct DelayedHttp:
+    wait: mut Suspend[void]
+    attempts: &mut List[usize]
+
+impl Http for DelayedHttp:
+    fn send!(&mut self, request: Request) -> Result[Response, HttpError]:
+        self.attempts.push(1)
+        if self.attempts.len() == 1:
+            let mut pending = self.wait
+            pending!()
+        .Ok(Response { status: 201, url: request.url })
+
+pub fn main!() -> void $ Console + Clock:
+    let slow: mut Suspend[void] = wait()
+    let nested: mut Suspend[void] = wait()
+    let retried: mut Suspend[void] = wait()
+    clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+    http := ScriptedHttp::new()
+    http.reply("https://example.test/", .Ok(Response { status: 204 }))
+    http.reply("https://offline.test/", .Err(.Connect("offline")))
+    $.with(Clock=clock, Http=http):
+        let fast: Result[Response, HttpError] = with_timeout!(1s):
+            Request::get("https://example.test/").send!()
+        assert_equal(fast.expect("ready response").status, 204, reason="the Result contains the response directly")
+        let failed: Result[Response, HttpError] = with_timeout!(1s):
+            Request::get("https://offline.test/").send!()
+        assert_equal(failed, .Err(.Connect("offline")), reason="work errors pass through unchanged")
+    assert_equal(clock.now().unix_milliseconds(), 0i64, reason="ready work wins without advancing the deadline")
+
+    let mut attempts: List[usize] = []
+    provider := &mut DelayedHttp { wait: slow, attempts: &mut attempts }
+    $.with(Clock=clock, Http=provider):
+        let timed: Result[Response, HttpError] = with_timeout!(1s):
+            Request::get("https://slow.test/").send!()
+        assert_equal(timed, .Err(.Timeout), reason="a deadline converts to the work error")
+    assert_equal(attempts.len(), 1, reason="the timed-out attempt started once")
+    assert_equal(clock.now().unix_milliseconds(), 1000i64, reason="only manual time elapsed")
+
+    let mut nested_attempts: List[usize] = []
+    nested_provider := &mut DelayedHttp { wait: nested, attempts: &mut nested_attempts }
+    $.with(Clock=clock, Http=nested_provider):
+        let result: Result[Response, HttpError] = with_timeout!(10s):
+            with_timeout!(1s):
+                Request::get("https://nested.test/").send!()
+        assert_equal(result, .Err(.Timeout), reason="nested deadlines retain one Result layer")
+    assert_equal(clock.now().unix_milliseconds(), 2000i64, reason="the outer deadline does not run after its work completes")
+
+    let mut retry_attempts: List[usize] = []
+    retry_provider := &mut DelayedHttp { wait: retried, attempts: &mut retry_attempts }
+    $.with(Clock=clock, Http=retry_provider):
+        let result: Result[Response, HttpError] = retry!(Backoff { attempts: 2, initial: 0ms }, when=fn(error: HttpError): error.is_transient()):
+            with_timeout!(1s):
+                Request::get("https://retry.test/").send!()
+        assert_equal(result.expect("retry response").status, 201, reason="the second send succeeds")
+    assert_equal(retry_attempts.len(), 2, reason="the transient timeout was retried")
+    assert_equal(clock.now().unix_milliseconds(), 3000i64, reason="the zero-delay retry adds no wait")
+    assert_equal(NetError::from(TimedOut { limit: 1s, cleanup: .Abandoned }), .Timeout, reason="network errors accept composed deadlines too")
+    println("flat timeouts")

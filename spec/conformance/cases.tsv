@@ -4829,3 +4829,6 @@ runtime/valid/test-prelude-test-module-assertions.hd	runtime	accept	lang/10-modu
 runtime/valid/test-prelude-integration-assertions.hd	runtime	accept	lang/10-modules.md#r-module.prelude.test-assertions
 typing/invalid/test-prelude-shadow-assert.hd	type	reject:prelude-name-shadow	lang/10-modules.md#r-module.prelude.no-shadow
 typing/invalid/test-prelude-shadow-assert-equal.hd	type	reject:prelude-name-shadow	lang/10-modules.md#r-module.prelude.no-shadow
+runtime/valid/task-with-timeout.hd	runtime	accept	std/task.md#r-std-task.with-timeout.decl
+runtime/valid/with-timeout-cleanup-zero.hd	runtime	accept	std/task.md#r-std-task.with-timeout.cleanup
+typing/invalid/with-timeout-missing-conversion.hd	type	reject:unsatisfied-trait-bound	std/task.md#r-std-task.with-timeout.bound

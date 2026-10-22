@@ -7,7 +7,7 @@ ordinary hd over the language tier:
 
 - the `retry!` combinator and its `Backoff` policy;
 - the `all_list!` combinator;
-- the `timeout!` combinator and its `TimedOut` error;
+- the `timeout!` and `with_timeout!` combinators and their `TimedOut` error;
 - the `map_all!` combinator;
 - the `CleanupEnd` enum, which `cancel!()` returns;
 - the `BlockOn` enum, which `block_on` returns.
@@ -409,3 +409,25 @@ nothing can cancel it.
 
 See also: [Driving A Stored Suspension](../lang/11-requirements-and-suspension.md#driving-a-stored-suspension),
 [Cleanup End](#cleanup-end).
+
+
+## Result Timeouts
+
+`with_timeout!` composes a deadline with Result-returning work while
+keeping the operation's own error type:
+
+```text
+pub fn with_timeout![T, E < From[TimedOut], $R](limit: Duration, cleanup: Duration? = .None, work: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R + Clock
+```
+
+1. r[std-task.with-timeout.decl] `std.task` declares `with_timeout!` with the signature above.
+2. r[std-task.with-timeout.bound] The work's error type implements `std.convert.From[TimedOut]`. Error: `unsatisfied-trait-bound`.
+3. r[std-task.with-timeout.completed] When the work completes first, `with_timeout!` returns its Result unchanged.
+4. r[std-task.with-timeout.expired] When the deadline wins, `with_timeout!` converts the `TimedOut` through `E::from` and returns `.Err` of that value.
+5. r[std-task.with-timeout.cleanup] `with_timeout!` uses `timeout!` with the same limit, cleanup bound, and work.
+6. r[std-task.with-timeout.flat] Nesting `with_timeout!` preserves the work's Result type.
+7. r[std-task.with-timeout.clock] `with_timeout!` requires `Clock` in addition to the work's requirement row.
+
+> **Why.** `timeout!` still accepts any work and keeps its deadline error
+> separate. Result-returning work opts into a conversion explicitly, so
+> retries and nested deadlines keep one statically typed error channel.

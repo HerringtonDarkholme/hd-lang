@@ -1,0 +1,9 @@
+# Spec std/task Result Timeouts: std-task.with-timeout.bound.
+use std.task.with_timeout
+use std.time.Clock
+
+fn work!() -> Result[i32, string]:
+    .Err("offline")
+
+pub fn bad!() -> Result[i32, string] $ Clock:
+    with_timeout!(1s, work=work)  # diagnostic: unsatisfied-trait-bound
