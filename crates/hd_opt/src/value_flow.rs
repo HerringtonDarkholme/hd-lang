@@ -7,7 +7,8 @@ use hd_tir::ir::{Body, Tag};
 /// What `devirt_known` and `closure_spec` read of a body's data flow
 /// (options A1 and A2 of `crates/hd_opt/DESIGN.md` (known closure calls)).
 pub struct ValueFlow {
-    /// Per local: how many `LocalSet`s write it, and the last one's value.
+    /// Per local: how many `Store`s write it or a field of it, and the last
+    /// one's value (`u32::MAX` for a field's).
     sets: Vec<(u32, u32)>,
     /// Each instruction's sub-body (`Body::inst_subs`).
     subs: Vec<u32>,
@@ -28,11 +29,11 @@ impl ValueFlow {
     pub fn new(body: &Body) -> Self {
         use hd_tir::ir::local_flags::PARAM;
         let mut sets: Vec<(u32, u32)> = vec![(0, u32::MAX); body.local_flags.len()];
-        for (i, tag) in body.tags.iter().enumerate() {
-            if *tag == Tag::LocalSet
-                && let Some(s) = sets.get_mut(body.data[i][0] as usize)
+        for i in 0..body.len() {
+            if let Some((l, whole)) = body.stored_local(i)
+                && let Some(s) = sets.get_mut(l.idx())
             {
-                *s = (s.0 + 1, body.data[i][1]);
+                *s = (s.0 + 1, if whole { body.data[i][1] } else { u32::MAX });
             }
         }
         let mut in_sub = vec![false; body.local_flags.len()];
@@ -113,7 +114,7 @@ impl ValueFlow {
 
     /// The `Closure` or `ItemRef` instruction whose value the operand
     /// `word` of instruction `at` is, made in `at`'s sub-body: the operand
-    /// itself, or a local whose only write is one `LocalSet` of it, not a
+    /// itself, or a local whose only write is one `Store` of it, not a
     /// parameter and never written through `mut` or from a closure. It has
     /// the operand's type. A closure made in an enclosing sub-body does not
     /// count: its key there may be under other type arguments than this

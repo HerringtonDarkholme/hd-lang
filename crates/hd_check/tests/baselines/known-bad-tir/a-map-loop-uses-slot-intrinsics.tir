@@ -9,22 +9,22 @@ app/main/visit
   local $6 _key: string [assigned]
   local $7 _value: i32 [assigned]
   %0 = LocalGet $0 : Map[string, i32]
-  %1 = LocalSet $1 %0 : ()
+  %1 = Store [$1] %0 : ()
   %2 = LocalGet $1 : Map[string, i32]
   %3 = Intrinsic SnapBegin [%2] : Map[string, i32]
-  %4 = LocalSet $2 %3 : ()
+  %4 = Store [$2] %3 : ()
   %5 = LocalGet $2 : Map[string, i32]
   %6 = Intrinsic MapLen [%5] : usize
-  %7 = LocalSet $3 %6 : ()
+  %7 = Store [$3] %6 : ()
   %8 = LocalGet $2 : Map[string, i32]
   %9 = Intrinsic MapSlots [%8] : usize
-  %10 = LocalSet $5 %9 : ()
-  %11 = LocalSet $4 0:usize : ()
+  %10 = Store [$5] %9 : ()
+  %11 = Store [$4] 0:usize : ()
   %12 = LocalGet $2 : Map[string, i32]
   %13 = LocalGet $4 : usize
   %14 = LocalGet $5 : usize
   %15 = Intrinsic MapSlotNext [%12 %13 %14] : usize
-  %16 = LocalSet $4 %15 : ()
+  %16 = Store [$4] %15 : ()
   %17 = LocalGet $4 : usize
   %18 = LocalGet $5 : usize
   %19 = Prim Lt [%17 %18] : bool
@@ -33,12 +33,12 @@ app/main/visit
   %22 = Intrinsic MapSlotEntry [%20 %21] : (string, i32)
   %23 = LocalGet $4 : usize
   %24 = Prim Add [%23 1:usize] : usize
-  %25 = LocalSet $4 %24 : ()
+  %25 = Store [$4] %24 : ()
   %26 = Block - : ()
   %27 = TupleGet %22 .0 : string
   %28 = TupleGet %22 .1 : i32
-  %29 = LocalSet $6 %27 : ()
-  %30 = LocalSet $7 %28 : ()
+  %29 = Store [$6] %27 : ()
+  %30 = Store [$7] %28 : ()
   %32 = Block - : never
   %33 = Match %22 [%32 %26] : ()
   %34 = Block - : ()

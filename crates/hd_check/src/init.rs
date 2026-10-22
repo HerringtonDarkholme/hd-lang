@@ -12,7 +12,7 @@ use hd_diag::{Code, DiagBuf};
 use hd_resolve::{ImplKind, ItemData};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::Body;
-use hd_tir::ir::{BodyKind, NONE, Ref, Tag, TirSink};
+use hd_tir::ir::{BodyKind, NONE, Place, PlaceRoot, Ref, Tag, TirSink};
 use hd_types::lookup::OWN_TABLE;
 use hd_types::solver::{Evidence, PlanStep};
 use hd_types::{RowData, RowId, Ty};
@@ -599,6 +599,15 @@ pub(crate) enum GlobalRead {
 }
 
 impl Ck<'_, '_> {
+    /// `Store [@def] v`: top-level binding `def`, of type `ty`, takes `v`.
+    pub(crate) fn store_global(&mut self, def: DefId, ty: Ty, v: Ref, at: NodeIdx) {
+        let word = self.b.place(&Place {
+            root: PlaceRoot::Global(def, ty),
+            proj: vec![],
+        });
+        self.b.emit(Tag::Store, word, v.0, Ty::VOID, at);
+    }
+
     /// The bindings that may be uninitialized after `cond` is true and
     /// after it is false; one state for both when `cond` is not a
     /// short-circuit chain.
@@ -828,8 +837,7 @@ impl Ck<'_, '_> {
                     mutable: self.mut_locals.contains(&l),
                 },
             );
-            let a = self.b.refs_record(&[Ref(def.raw())]);
-            self.b.emit(Tag::GlobalSet, a, v.0, Ty::VOID, s.index());
+            self.store_global(def, t, v, s.index());
         }
         Ok(())
     }
@@ -922,8 +930,7 @@ impl Ck<'_, '_> {
                 mutable,
             },
         );
-        let a = self.b.refs_record(&[Ref(def.raw())]);
-        self.b.emit(Tag::GlobalSet, a, r.0, Ty::VOID, s.index());
+        self.store_global(def, t, r, s.index());
         Ok((def, t))
     }
 
@@ -980,8 +987,7 @@ impl Ck<'_, '_> {
             for (f, r) in shared.iter().zip(vals) {
                 let fname = self.cx.names.text(f.name).to_owned();
                 let g = shared_global(&self.cx.names, var.def, &fname);
-                let a = self.b.refs_record(&[Ref(g.raw())]);
-                self.b.emit(Tag::GlobalSet, a, r.0, Ty::VOID, sd.index());
+                self.store_global(g, f.ty, r, sd.index());
             }
         }
         Ok(())

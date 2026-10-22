@@ -3689,7 +3689,7 @@ impl Ck<'_, '_> {
                 if self.find_local(name).is_none()
                     && let Some(crate::init::InputBinding { def, ty, short, .. }) = global
                 {
-                    // A mutable top-level binding (`GlobalSet`).
+                    // A mutable top-level binding: `Store [@def] v`.
                     if short {
                         let msg = format!(
                             "`{}` is bound with `:=`; use `let` to reassign it",
@@ -3702,8 +3702,7 @@ impl Ck<'_, '_> {
                     }
                     let (r, t) = self.expr(*rhs, Some(ty))?;
                     let v = self.coerce(r, t, ty, *rhs, "assignment", ExpectPosition::General);
-                    let a = self.b.refs_record(&[Ref(def.raw())]);
-                    self.b.emit(Tag::GlobalSet, a, v.0, Ty::VOID, s.index());
+                    self.store_global(def, ty, v, s.index());
                     return Ok(());
                 }
                 let Some((l, depth)) = self.find_local(name) else {
@@ -3845,8 +3844,12 @@ impl Ck<'_, '_> {
                         self.compound(k, cur, ft, *rhs, s)?
                     }
                 };
-                let rec = self.b.refs_record(&[Ref(idx), v]);
-                self.b.emit(Tag::FieldSet, br.0, rec, Ty::VOID, s.index());
+                // A data value's field: `Store [*%o .k] v`.
+                let word = self.b.place(&hd_tir::ir::Place {
+                    root: hd_tir::ir::PlaceRoot::Value(br),
+                    proj: vec![hd_tir::ir::Proj::Deref, hd_tir::ir::Proj::Field(idx)],
+                });
+                self.b.emit(Tag::Store, word, v.0, Ty::VOID, s.index());
             }
             SyntaxKind::IndexExpr => {
                 let ik: Vec<NodeRef<'_>> = lhs.children().collect();
@@ -4562,6 +4565,12 @@ impl Ck<'_, '_> {
             };
             let l = TyList(self.b.body_mut().extra[list_at]);
             self.b.body_mut().extra[list_at] = self.zonk_list(l).0;
+        }
+        // A global place root's type: an init stores its bindings before
+        // their types are settled.
+        for at in hd_tir::ir::global_place_types(self.b.body_mut()) {
+            let t = Ty(self.b.body_mut().extra[at]);
+            self.b.body_mut().extra[at] = self.zonk(t).0;
         }
         if !self.diags.has_errors()
             && !self.cx.results.borrow().has_errors()

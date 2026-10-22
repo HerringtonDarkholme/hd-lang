@@ -4,7 +4,7 @@ app/main/bumper
   local $1 $receiver: Ref[mut Counter] [read assigned captured]
   local $2 $0: i32 [param]
   %0 = LocalGet $0 : Ref[mut Counter]
-  %1 = LocalSet $1 %0 : ()
+  %1 = Store [$1] %0 : ()
   %2 = LocalGet $1 : Ref[mut Counter]
   %3 = LocalGet $2 : i32
   %4 = Call app/main/impl Counter.bump[] (%2, %3) : ()

@@ -7,7 +7,7 @@ app/main/speed
   %1 = Read [*%0] : List[Body]
   %2 = LocalGet $1 : usize
   %3 = Intrinsic ListPin [%1 %2] : List[Body]
-  %4 = LocalSet $2 %3 : ()
+  %4 = Store [$2] %3 : ()
   %5 = Ref [$2 [%2]] : Ref[Body]
   %6 = Call app/main/impl Body.speed[] (%5) : f64
   %7 = LocalGet $2 : List[Body]

@@ -8,16 +8,16 @@ app/main/visit
   local $5 $end: usize [assigned]
   local $6 _item: i32 [assigned]
   %0 = LocalGet $0 : List[i32]
-  %1 = LocalSet $1 %0 : ()
+  %1 = Store [$1] %0 : ()
   %2 = LocalGet $1 : List[i32]
   %3 = Intrinsic SnapBegin [%2] : List[i32]
-  %4 = LocalSet $2 %3 : ()
+  %4 = Store [$2] %3 : ()
   %5 = LocalGet $2 : List[i32]
   %6 = Intrinsic ListLen [%5] : usize
-  %7 = LocalSet $3 %6 : ()
+  %7 = Store [$3] %6 : ()
   %8 = LocalGet $3 : usize
-  %9 = LocalSet $5 %8 : ()
-  %10 = LocalSet $4 0:usize : ()
+  %9 = Store [$5] %8 : ()
+  %10 = Store [$4] 0:usize : ()
   %11 = LocalGet $4 : usize
   %12 = LocalGet $5 : usize
   %13 = Prim Lt [%11 %12] : bool
@@ -26,9 +26,9 @@ app/main/visit
   %16 = Intrinsic ListIndex [%14 %15] : i32
   %17 = LocalGet $4 : usize
   %18 = Prim Add [%17 1:usize] : usize
-  %19 = LocalSet $4 %18 : ()
+  %19 = Store [$4] %18 : ()
   %20 = Block - : ()
-  %21 = LocalSet $6 %16 : ()
+  %21 = Store [$6] %16 : ()
   %23 = Block - : never
   %24 = Match %16 [%23 %20] : ()
   %25 = Block - : ()

@@ -15,5 +15,5 @@ pub fn main() -> void:
 > app/main/main
 >   local $0 _o: i32? [:= assigned]
 >   %0 = Call app/main/opt[] () : i32?
->   %1 = LocalSet $0 %0 : ()
+>   %1 = Store [$0] %0 : ()
 >   %2 = Block - : ()

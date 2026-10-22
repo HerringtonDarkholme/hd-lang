@@ -11,7 +11,7 @@ fn second(value: i32) -> i32:
 >   local $0 value: i32 [param read]
 >   local $1 copy: i32 [:= read assigned]
 >   %0 = LocalGet $0 : i32
->   %1 = LocalSet $1 %0 : ()
+>   %1 = Store [$1] %0 : ()
 >   %4 = Block %3 : i32
     copy + 2
 >   %2 = LocalGet $1 : i32

@@ -377,13 +377,19 @@ pub fn open_insts(
         if tag == Tag::Await || b.value_operands(i).is_none() {
             return err(&format!("an open `{}` in an erased body", tag.name()));
         }
-        // A thunk gets values, not the body's locals: only a place rooted
-        // at a value is outlined.
-        if matches!(tag, Tag::Read | Tag::Store)
-            && !matches!(b.decode_place(a).map(|p| p.root), Some(PlaceRoot::Value(_)))
-        {
+        // A thunk gets values: a place rooted at a value is outlined, a
+        // store into a top-level binding's place too, and a store into a
+        // field of a local takes the local's value and returns its new
+        // value ([`outlined_store_local`]). A `Read` rooted elsewhere has
+        // no producer.
+        let outlined = match b.decode_place(a).map(|p| p.root) {
+            Some(PlaceRoot::Value(_)) => true,
+            Some(PlaceRoot::Global(..)) => tag == Tag::Store,
+            _ => outlined_store_local(b, u32::try_from(i).expect("insts")).is_some(),
+        };
+        if matches!(tag, Tag::Read | Tag::Store) && !outlined {
             return err(&format!(
-                "an open `{}` of a local's or a global's place in an erased body",
+                "an open `{}` of a local's place in an erased body",
                 tag.name()
             ));
         }
@@ -408,11 +414,29 @@ pub fn thunk_operands(b: &Body, i: u32) -> Vec<u32> {
         .collect()
 }
 
+/// The local whose struct field `Store` `i` writes (`[$l .x ..]`), when
+/// the store is outlined: its thunk takes the local's value as a capture
+/// and returns that value with the field replaced, and the erased body
+/// stores it into the whole local, since a thunk has no access to the
+/// body's locals. A store into a whole local stays in the body.
+#[must_use]
+pub fn outlined_store_local(b: &Body, i: u32) -> Option<u32> {
+    match b.stored_local(i as usize)? {
+        (l, false) => Some(l.raw()),
+        (_, true) => None,
+    }
+}
+
 /// The locals a closure construction captures, with whether each crosses
-/// as its shared cell. They are thunk operands after [`thunk_operands`],
-/// since a closure record names locals rather than instruction values.
+/// as its shared cell, or the local an outlined store writes a field of
+/// ([`outlined_store_local`]), which crosses as its value. They are thunk
+/// operands after [`thunk_operands`], since a closure record and a place
+/// name locals rather than instruction values.
 #[must_use]
 pub fn thunk_capture_locals(b: &Body, i: u32) -> Vec<(u32, bool)> {
+    if let Some(l) = outlined_store_local(b, i) {
+        return vec![(l, false)];
+    }
     if b.tags[i as usize] != Tag::Closure {
         return Vec::new();
     }

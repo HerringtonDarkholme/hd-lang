@@ -19,16 +19,16 @@ fn run_all[$R](xs: List[fn() -> void $ R]) -> void $ R:
 >   local $5 $end: usize [assigned]
 >   local $6 x: fn() -> () [read assigned]
 >   %0 = LocalGet $0 : List[fn() -> ()]
->   %1 = LocalSet $1 %0 : ()
+>   %1 = Store [$1] %0 : ()
 >   %2 = LocalGet $1 : List[fn() -> ()]
 >   %3 = Intrinsic SnapBegin [%2] : List[fn() -> ()]
->   %4 = LocalSet $2 %3 : ()
+>   %4 = Store [$2] %3 : ()
 >   %5 = LocalGet $2 : List[fn() -> ()]
 >   %6 = Intrinsic ListLen [%5] : usize
->   %7 = LocalSet $3 %6 : ()
+>   %7 = Store [$3] %6 : ()
 >   %8 = LocalGet $3 : usize
->   %9 = LocalSet $5 %8 : ()
->   %10 = LocalSet $4 0:usize : ()
+>   %9 = Store [$5] %8 : ()
+>   %10 = Store [$4] 0:usize : ()
 >   %11 = LocalGet $4 : usize
 >   %12 = LocalGet $5 : usize
 >   %13 = Prim Lt [%11 %12] : bool
@@ -37,9 +37,9 @@ fn run_all[$R](xs: List[fn() -> void $ R]) -> void $ R:
 >   %16 = Intrinsic ListIndex [%14 %15] : fn() -> ()
 >   %17 = LocalGet $4 : usize
 >   %18 = Prim Add [%17 1:usize] : usize
->   %19 = LocalSet $4 %18 : ()
+>   %19 = Store [$4] %18 : ()
 >   %22 = Block - : ()
->   %23 = LocalSet $6 %16 : ()
+>   %23 = Store [$6] %16 : ()
 >   %25 = Block - : never
 >   %26 = Match %16 [%25 %22] : ()
 >   %27 = Block - : ()

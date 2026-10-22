@@ -159,11 +159,12 @@ pub fn specialize(body: &Body, defaults: &[(u32, Value)]) -> Option<Body> {
     let mut locals = vec![None; body.local_ty.len()];
     let mut writes = vec![0; locals.len()];
     let mut assigned = vec![NONE; locals.len()];
-    for (i, tag) in body.tags.iter().enumerate() {
-        if *tag == Tag::LocalSet {
-            let [l, v] = body.data[i];
-            writes[l as usize] += 1;
-            assigned[l as usize] = v;
+    // A store into a field of a local writes it too, with no value of
+    // the whole local.
+    for i in 0..body.len() {
+        if let Some((l, whole)) = body.stored_local(i) {
+            writes[l.idx()] += 1;
+            assigned[l.idx()] = if whole { body.data[i][1] } else { NONE };
         }
     }
     let params = params(body);

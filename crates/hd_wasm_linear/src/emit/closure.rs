@@ -295,13 +295,12 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
-    /// `LocalSet` of a cell's local. Its declaration makes a new cell, the
-    /// last one's (from an earlier loop iteration) released; any other
-    /// store writes the cell, counting the new value before it releases
-    /// the old. `NONE` stores zeros: a recursive local function's name,
-    /// declared before its closure exists.
+    /// A `Store` into the whole of a cell's local. Its declaration makes a
+    /// new cell, the last one's (from an earlier loop iteration) released;
+    /// any other store writes the cell, counting the new value before it
+    /// releases the old. `NONE` stores zeros: a recursive local function's
+    /// name, declared before its closure exists.
     pub(super) fn cell_set(&mut self, i: u32, l: usize, v: u32) -> StageResult<()> {
-        let t = self.cell_ty(l);
         // The value in the cell's layout, with the count the cell takes.
         let src = if v == NONE {
             self.zero_src(l)?
@@ -322,6 +321,14 @@ impl Em<'_, '_, '_> {
             self.f.set(c);
             return Ok(());
         }
+        self.cell_put(l, &src)
+    }
+
+    /// Replaces the value in local `l`'s cell with the values `src`
+    /// pushes, in the cell's layout and with the count the cell takes,
+    /// then releases the old one.
+    pub(super) fn cell_put(&mut self, l: usize, src: &Src) -> StageResult<()> {
+        let t = self.cell_ty(l);
         let c = self.cell_of(l)?;
         let (m, walk) = self.cell_mem(l)?;
         let old: Vec<u32> = m.leaves.iter().map(|x| self.f.local(x.val)).collect();
@@ -340,7 +347,7 @@ impl Em<'_, '_, '_> {
                 count: m.leaves.len(),
                 offset: 0,
             },
-            &src,
+            src,
         )?;
         if walk.is_some() {
             self.release_locals(&old, t)?;

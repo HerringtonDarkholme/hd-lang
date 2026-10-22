@@ -15,6 +15,6 @@ pub fn main() -> void:
 > app/main/main
 >   local $0 r: Result[i32, string] [:= assigned]
 >   %0 = Call app/main/res[] () : Result[i32, string]
->   %1 = LocalSet $0 %0 : ()
+>   %1 = Store [$0] %0 : ()
 >   %2 = Block - : ()
 > warning: main.hd:188..189: unused-local-binding: `r` is never read; name it `_r` to keep it

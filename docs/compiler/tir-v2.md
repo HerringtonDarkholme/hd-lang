@@ -1224,6 +1224,28 @@ audit on the commits that touch the emitter).
 9. **Plain stores.** `LocalSet`, `GlobalSet` and `FieldSet` become
    `Store`; the emitter's helper `local_store(i)` keeps `live.rs`'s
    matches readable.
+   As built: `TirSink::set` emits `Store [$l] v`, a top-level binding's
+   store is `Store [@g] v` (`Ck::store_global`) and a data value's field
+   store `Store [*%o .k] v`. The checker's finish settles a global
+   root's type as it settles the types in records, since an init stores
+   its bindings before their types are known. `Body::stored_local(i)`
+   names the local a `Store` writes in place (all of it, or a struct
+   field path) for the readers outside the emitter: `check_receiver`,
+   `later_arg_change` (a store into another local or a field of one no
+   longer forces an argument copy, as `LocalSet` did not),
+   `hd_mono`'s default specialization and `hd_opt`'s `value_flow`,
+   which count a field store as a write with no known value. `live.rs`
+   `field_spans` and `list.rs` `range_indices` read stores through the
+   same helpers. In an erased body, an open store into a field of a
+   local is outlined (`hd_mono::outlined_store_local`): the thunk takes
+   the local's value as a capture, stores the field at concrete types
+   and returns the new value, which the body stores into the whole local
+   (or its cell); an open store into a top-level binding is outlined as
+   `GlobalSet` was. In a concrete instance, a field store into a cell
+   that keeps its erased view copies the value out, changes the field
+   and stores it back. Both were refused since commit 7
+   (`runtime/valid/erased-local-field-store`). Every conformance module
+   is byte-identical to commit 8's; TIR baselines print `Store [$l]`.
 10. **Delete and document.** Remove the tags and intrinsics with no
     producer, `strip_closure_forms`, `place_root`, `PlaceRec`, the old
     resolver entry points; update `hd_tir/DESIGN.md` §4.13.11,

@@ -4,4 +4,4 @@ app/main/copy
   local $1 copied: Record [read assigned]
   %0 = LocalGet $0 : Record
   %1 = Intrinsic ValueCopy [%0] : Record
-  %2 = LocalSet $1 %1 : ()
+  %2 = Store [$1] %1 : ()

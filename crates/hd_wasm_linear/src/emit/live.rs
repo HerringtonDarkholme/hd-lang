@@ -1006,10 +1006,10 @@ pub(super) fn field_spans(b: &Body, fields: &[u32], roots: &HashSet<usize>) -> V
         for r in uses(b, i) {
             users.entry(r).or_default().push(x);
         }
-        match b.tags[i] {
-            Tag::LocalSet => sets.entry(b.data[i][0] as usize).or_default().push(x),
-            Tag::LocalGet => gets.entry(b.data[i][0] as usize).or_default().push(x),
-            _ => {}
+        if let Some((l, _)) = local_part_store(b, i) {
+            sets.entry(l).or_default().push(x);
+        } else if b.tags[i] == Tag::LocalGet {
+            gets.entry(b.data[i][0] as usize).or_default().push(x);
         }
     }
     let mut spans = Vec::new();
@@ -1040,15 +1040,18 @@ pub(super) fn field_spans(b: &Body, fields: &[u32], roots: &HashSet<usize>) -> V
                             pending.push(u);
                         }
                     }
-                    Tag::LocalSet => {
-                        let l = a as usize;
+                    // The source stored into a whole local.
+                    _ if let Some((l, v)) = local_store(b, i)
+                        && v == source =>
+                    {
+                        let local = u32::try_from(l).expect("locals");
                         if sets.get(&l).is_none_or(|ss| ss.len() != 1)
                             || b.local_flags[l]
                                 & (local_flags::MUTATED
                                     | local_flags::CAPTURED
                                     | local_flags::CAPTURED_ASSIGNED)
                                 != 0
-                            || (0..b.len()).any(|j| ref_locals(b, j).contains(&a))
+                            || (0..b.len()).any(|j| ref_locals(b, j).contains(&local))
                         {
                             continue;
                         }

@@ -467,8 +467,8 @@ impl Collected {
 
 pub use erased::{
     Witnesses, declared_row_keys, erased_args, has_row_params, is_open, open_insts, open_param,
-    open_row, own_count, row_args_open, row_is_open, row_param_keys, rowless, thunk_capture_locals,
-    thunk_operands, witness_args, witness_family,
+    open_row, outlined_store_local, own_count, row_args_open, row_is_open, row_param_keys, rowless,
+    thunk_capture_locals, thunk_operands, witness_args, witness_family,
 };
 pub use layout::InstanceTable;
 

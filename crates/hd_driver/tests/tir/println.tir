@@ -4,14 +4,14 @@ std/console/println (Fn)
   local $2 call: mut Suspend[Result[(), ConsoleError]] [read assigned]
   %0 = ProviderGet #0 : Console
   %1 = Coerce %0 [ProviderAsRef -] : Ref[mut Console]
-  %2 = LocalSet $1 %1 : ()
+  %2 = Store [$1] %1 : ()
   %3 = LocalGet $1 : Ref[mut Console]
   %4 = Read [*%3] : mut Console
   %5 = LocalGet $0 : T
   %6 = Call std/format/Display.to_string for T [] via Bound (%5) : string
   %7 = Interp [%6] : string
   %8 = Call std/console/Console.write_line for Console [] via TraitValue (%4, %7) : mut Suspend[Result[(), ConsoleError]]
-  %9 = LocalSet $2 %8 : ()
+  %9 = Store [$2] %8 : ()
   %10 = LocalGet $2 : mut Suspend[Result[(), ConsoleError]]
   %11 = Call std/task/block_on[Result[(), ConsoleError]] (%10) : BlockOn[Result[(), ConsoleError]]
   %12 = Block - : ()

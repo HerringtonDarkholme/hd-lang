@@ -28,7 +28,7 @@ fn device_of(error: &dyn Error) -> string:
 >   %3 = Read [*%2 .device] : string
 >   %4 = Block %3 : string
 >   %6 = Unwrap %1 : Ref[DiskError]
->   %7 = LocalSet $1 %6 : ()
+>   %7 = Store [$1] %6 : ()
 >   %9 = Block - : never
 >   %15 = Block - : never
 >   %16 = SwitchTag %1 [#1 %9 %15] : never

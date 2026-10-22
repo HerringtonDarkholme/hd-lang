@@ -722,9 +722,13 @@ impl Em<'_, '_, '_> {
         let (ft, part) = self.fold_path(t, path)?;
         if self.is_cell(l as usize) {
             if self.cell_converts(l as usize) {
-                return unsupported(
-                    "a field store into a local an erased body converts in its cell",
-                );
+                // The cell holds the erased view: its value, copied out,
+                // changed and stored back whole.
+                let ls = self.cell_read(l as usize)?;
+                self.retain_locals(&ls, t)?;
+                self.part_store(&ls[part.first..part.first + part.count], ft, v)?;
+                let src = self.cell_src(l as usize, Src::Locals(ls))?;
+                return self.cell_put(l as usize, &src);
             }
             let m = mem_of(self.pool(), self.env(), t)?;
             let c = self.cell_of(l as usize)?;
@@ -732,15 +736,48 @@ impl Em<'_, '_, '_> {
             return self.store_leaves(c, &leaves, ft, v);
         }
         let dst = self.local(l)?[part.first..part.first + part.count].to_vec();
+        self.part_store(&dst, ft, v)
+    }
+
+    /// Stores `v`, of type `ft`, in the Wasm locals `dst` that hold a
+    /// value's part: they take a count of the new value (a copy of each
+    /// collection a place holds) before the old one's is released.
+    fn part_store(&mut self, dst: &[u32], ft: Ty, v: u32) -> StageResult<()> {
         let s = self.slot_src(v, ft, false)?;
         if self.counted(ft).is_some() {
             self.retain_src(&s, ft)?;
-            self.release_locals(&dst, ft)?;
+            self.release_locals(dst, ft)?;
         }
         for k in 0..dst.len() {
             self.src(&s, k)?;
         }
         for x in dst.iter().rev() {
+            self.f.set(*x);
+        }
+        Ok(())
+    }
+
+    /// Outlined `Store` `i` into a struct field of TIR local `l` in an
+    /// erased body (`hd_mono::outlined_store_local`): its thunk `k`
+    /// returns the local's new value, with a count of its own, which
+    /// replaces the old one whole.
+    pub(super) fn open_local_store(&mut self, i: u32, k: u32, l: u32) -> StageResult<()> {
+        self.open_call(i, k)?;
+        let t = self.sub(self.b.local_ty[l as usize]);
+        let new: Vec<u32> = self.vals(t)?.into_iter().map(|x| self.f.local(x)).collect();
+        for x in new.iter().rev() {
+            self.f.set(*x);
+        }
+        if self.is_cell(l as usize) {
+            let src = self.cell_src(l as usize, Src::Locals(new))?;
+            return self.cell_put(l as usize, &src);
+        }
+        let ls = self.local(l)?;
+        if self.counted(t).is_some() {
+            self.release_locals(&ls, t)?;
+        }
+        for (x, n) in ls.iter().zip(&new) {
+            self.f.get(*n);
             self.f.set(*x);
         }
         Ok(())

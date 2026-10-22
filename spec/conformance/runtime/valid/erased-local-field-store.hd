@@ -1,0 +1,31 @@
+# test: an erased generic method writes a field of a local whose type is open
+# Spec 04 Type System: types.value.writable-forms; Spec 09 Dynamic Safety: trait.dyn.safe.method-type-param.
+# expect-stdout: 2 1 y x v u w z
+struct Pair[T]:
+    a: T
+    b: T
+
+trait Maker:
+    fn swap[T](self, x: T, y: T) -> Pair[T]:
+        let mut p = Pair { a: x, b: y }
+        p.a = y
+        p.b = x
+        p
+
+    fn shared[T](self, x: T, y: T) -> Pair[T]:
+        let mut p = Pair { a: x, b: x }
+        first := fn() -> T: p.a
+        p.a = y
+        _ := first()
+        p
+
+struct M: pass
+impl Maker for M
+
+pub fn main() -> void $ Console:
+    let m: &dyn Maker = &M {}
+    n := m.swap(+1, +2)
+    s := m.swap("x", "y")
+    c := m.shared("u", "v")
+    d := M {}.shared("z", "w")
+    println("${n.a} ${n.b} ${s.a} ${s.b} ${c.a} ${c.b} ${d.a} ${d.b}")

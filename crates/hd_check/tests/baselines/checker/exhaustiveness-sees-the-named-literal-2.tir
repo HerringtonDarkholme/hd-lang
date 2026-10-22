@@ -19,7 +19,7 @@ fn f(shape: Shape) -> i32:
 >   %4 = Payload %0 [#0 #0] : i32
 >   %5 = Payload %0 [#0 #1] : bool
 >   %6 = Prim Eq [%5 1:bool] : bool
->   %7 = LocalSet $1 %4 : ()
+>   %7 = Store [$1] %4 : ()
 >   %9 = Block - : never
 >   %16 = Block - : never
 >   %17 = If %6 [%9 %16] : never

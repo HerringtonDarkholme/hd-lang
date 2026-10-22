@@ -1066,6 +1066,24 @@ impl Body {
             .unwrap_or_default()
     }
 
+    /// The local `Store` `i` writes in place, and whether it replaces all
+    /// of it: a place rooted at a local whose projections are all struct
+    /// fields (`[$l]`, `[$l .x .y]`). `None` for any other instruction or
+    /// place.
+    #[must_use]
+    pub fn stored_local(&self, i: usize) -> Option<(LocalId, bool)> {
+        if self.tags[i] != Tag::Store {
+            return None;
+        }
+        let p = self.decode_place(self.data[i][0])?;
+        match p.root {
+            PlaceRoot::Local(l) if p.proj.iter().all(|s| matches!(s, Proj::Field(_))) => {
+                Some((l, p.proj.is_empty()))
+            }
+            _ => None,
+        }
+    }
+
     #[must_use]
     pub fn len(&self) -> usize {
         self.tags.len()
@@ -1366,7 +1384,8 @@ impl TirSink for TirBuilder {
         self.push(Tag::LocalGet, l.raw(), NONE, ty, syn)
     }
     fn set(&mut self, l: LocalId, v: Ref, syn: NodeIdx) {
-        self.push(Tag::LocalSet, l.raw(), v.0, Ty::VOID, syn);
+        let word = self.place(&Place::local(l));
+        self.push(Tag::Store, word, v.0, Ty::VOID, syn);
     }
     fn prim(&mut self, op: u32, args: &[Ref], ty: Ty, syn: NodeIdx) -> Ref {
         let r = self.record(&Self::refs(args));
@@ -1756,7 +1775,8 @@ pub fn map_body_types(b: &mut Body, ty: &dyn Fn(Ty) -> Ty, list: &dyn Fn(TyList)
 
 /// The `extra` positions of the type words of global place roots, each
 /// once, though instructions share a record ([`place`]).
-fn global_place_types(b: &Body) -> Vec<usize> {
+#[must_use]
+pub fn global_place_types(b: &Body) -> Vec<usize> {
     let mut out: Vec<usize> = (0..b.len())
         .flat_map(|i| {
             let (oa, ob) = b.tags[i].operands();

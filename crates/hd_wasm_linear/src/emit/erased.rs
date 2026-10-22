@@ -35,8 +35,9 @@
 use hd_base::{DefId, Hash128, InstId, StageResult};
 use hd_mono::layout::CanonMemo;
 use hd_mono::{
-    INFO, Target, declared_row_keys, erased_args, has_row_params, is_open, open_param, own_count,
-    subst, thunk_capture_locals, thunk_operands, witness_args, witness_family,
+    INFO, Target, declared_row_keys, erased_args, has_row_params, is_open, open_param,
+    outlined_store_local, own_count, subst, thunk_capture_locals, thunk_operands, witness_args,
+    witness_family,
 };
 use hd_tir::ir::{Callee, NONE, Ref, Tag};
 use hd_types::{Ty, TyList};
@@ -159,7 +160,9 @@ pub(super) fn thunk(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResul
     }
     em.open_base = em.providers.len();
     let switch = b.tags[at as usize] == Tag::SwitchTag;
-    let rty = se(b.ty[at as usize]);
+    // An outlined store returns its local's new value.
+    let stored = outlined_store_local(b, at);
+    let rty = se(stored.map_or(b.ty[at as usize], |l| b.local_ty[l as usize]));
     let results = if switch {
         vec![Val::I32]
     } else {
@@ -216,12 +219,19 @@ pub(super) fn thunk(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResul
     } else {
         em.inst(at)?;
         em.write_back(backs)?;
-        match em.vals.get(&at).cloned() {
+        let (value, ct) = match stored {
+            Some(l) => (
+                em.locals.get(&(l as usize)).cloned(),
+                em.sub(b.local_ty[l as usize]),
+            ),
+            None => (em.vals.get(&at).cloned(), em.ty(at)),
+        };
+        match value {
             None => Vec::new(),
             Some(_) if em.diverges(at) => Vec::new(),
-            Some(ls) if is_open(pool, rty) => vec![em.erase(&ls, rty, em.ty(at), false)?],
+            Some(ls) if is_open(pool, rty) => vec![em.erase(&ls, rty, ct, false)?],
             Some(ls) => {
-                em.retain_locals(&ls, em.ty(at))?;
+                em.retain_locals(&ls, ct)?;
                 ls
             }
         }
@@ -273,8 +283,12 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// Open instruction `i`, its thunk `k`'s result stored as its own.
+    /// Open instruction `i`, its thunk `k`'s result stored as its own; an
+    /// outlined store's result is its local's new value.
     pub(super) fn open_inst(&mut self, i: u32, k: u32) -> StageResult<()> {
+        if let Some(l) = outlined_store_local(self.b, i) {
+            return self.open_local_store(i, k, l);
+        }
         self.open_call(i, k)?;
         if self.diverges(i) {
             self.f.op(I::Unreachable);
@@ -339,6 +353,8 @@ impl Em<'_, '_, '_> {
         };
         let results = if self.b.tags[i as usize] == Tag::SwitchTag {
             vec![Val::I32]
+        } else if let Some(l) = outlined_store_local(self.b, i) {
+            self.vals(self.sub(self.b.local_ty[l as usize]))?
         } else {
             self.vals(self.ty(i))?
         };

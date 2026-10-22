@@ -38,9 +38,9 @@ enum SaveError[E]:
     Write(@from error: DiskError)
 >   %0 = LocalGet $0 : SaveError[error Error for SaveError#0]
 >   %1 = Payload %0 [#0 #0] : DiskError
->   %2 = LocalSet $1 %1 : ()
+>   %2 = Store [$1] %1 : ()
 >   %3 = Ref [$1] : Ref[DiskError]
->   %4 = LocalSet $2 %3 : ()
+>   %4 = Store [$2] %3 : ()
 >   %5 = LocalGet $2 : Ref[DiskError]
 >   %6 = Coerce %5 [RefToTraitValue -] : Error
 >   %7 = Block %6 : Error
@@ -74,9 +74,9 @@ enum SaveError[E]:
     Pair(a: string, @source b: DiskError)
 >   %15 = LocalGet $0 : SaveError[error Error for SaveError#0]
 >   %16 = Payload %15 [#2 #1] : DiskError
->   %17 = LocalSet $3 %16 : ()
+>   %17 = Store [$3] %16 : ()
 >   %18 = Ref [$3] : Ref[DiskError]
->   %19 = LocalSet $4 %18 : ()
+>   %19 = Store [$4] %18 : ()
 >   %20 = LocalGet $4 : Ref[DiskError]
 >   %21 = Coerce %20 [RefToTraitValue -] : Error
 >   %22 = Block %21 : Error
@@ -87,9 +87,9 @@ enum SaveError[E]:
 >   %26 = LocalGet $0 : SaveError[error Error for SaveError#0]
 >   %27 = Payload %26 [#3 #0] : DiskError?
 >   %28 = Unwrap %27 : DiskError
->   %29 = LocalSet $5 %28 : ()
+>   %29 = Store [$5] %28 : ()
 >   %30 = Ref [$5] : Ref[DiskError]
->   %31 = LocalSet $6 %30 : ()
+>   %31 = Store [$6] %30 : ()
 >   %32 = LocalGet $6 : Ref[DiskError]
 >   %33 = Coerce %32 [RefToTraitValue -] : Error
 >   %34 = Block %33 : Error

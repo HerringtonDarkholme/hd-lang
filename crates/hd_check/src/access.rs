@@ -4,6 +4,7 @@
 //! permission rules are checked here, at bindings, coercions, field
 //! reads and mutations.
 
+use hd_base::LocalId;
 use hd_diag::Code;
 use hd_resolve::ItemData;
 use hd_syntax::NodeRef;
@@ -179,8 +180,9 @@ impl Ck<'_, '_> {
             if body.local_flags[local as usize] & hd_tir::ir::local_flags::PARAM != 0 {
                 return None;
             }
-            let value = body.tags.iter().zip(&body.data).find_map(|(tag, data)| {
-                (*tag == Tag::LocalSet && data[0] == local).then_some(Ref(data[1]))
+            let value = (0..body.len()).find_map(|j| {
+                (body.stored_local(j) == Some((LocalId::from_raw(local), true)))
+                    .then_some(Ref(body.data[j][1]))
             })?;
             let weakened = value.as_inst()?.0 as usize;
             if body.tags[weakened] != Tag::Coerce

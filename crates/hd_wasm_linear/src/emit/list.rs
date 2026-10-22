@@ -9,7 +9,7 @@
 //! a nested write never reaches another list.
 
 use hd_base::StageResult;
-use hd_tir::ir::{Coercion, IntrinsicOp, PrimOp, Ref, Tag};
+use hd_tir::ir::{Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag};
 use hd_types::{Ty, TyData};
 use wasm_encoder::{BlockType, Instruction as I};
 
@@ -248,11 +248,13 @@ impl Em<'_, '_, '_> {
         tree: &super::live::Tree,
         body: &[u32],
     ) -> Vec<u32> {
+        // Every store into a local or a field of it, with the value of a
+        // store into all of it (`NONE` for a field's).
         let mut sets = vec![Vec::new(); self.b.local_ty.len()];
-        for (i, tag) in self.b.tags.iter().enumerate() {
-            if *tag == Tag::LocalSet {
-                let [local, value] = self.b.data[i];
-                sets[local as usize].push((u32::try_from(i).expect("insts"), value));
+        for i in 0..self.b.len() {
+            if let Some((local, whole)) = self.b.stored_local(i) {
+                let value = if whole { self.b.data[i][1] } else { NONE };
+                sets[local.idx()].push((u32::try_from(i).expect("insts"), value));
             }
         }
         let cond = self.b.data[test as usize][0];

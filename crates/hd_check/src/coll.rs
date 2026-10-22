@@ -379,8 +379,10 @@ impl Ck<'_, '_> {
             | Tag::AwaitRace
             | Tag::FieldSet
             | Tag::GlobalSet
-            | Tag::RefWrite
-            | Tag::Store => true,
+            | Tag::RefWrite => true,
+            // A store into another local, or a field of one, leaves this
+            // one as it is.
+            Tag::Store => body.stored_local(i).is_none_or(|(l, _)| l == local),
             Tag::LocalSet => body.data[i][0] == local.raw(),
             Tag::Intrinsic => matches!(
                 IntrinsicOp::from_u32(body.data[i][0]),
