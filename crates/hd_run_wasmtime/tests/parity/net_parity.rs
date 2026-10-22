@@ -1138,3 +1138,98 @@ fn local_address_of_port_zero_reports_the_port_the_system_picked() {
     assert_eq!(lines.lines().nth(3), Some("0105"));
     assert_eq!(lines.lines().nth(7), Some("0105"));
 }
+
+// No Net operation runs during the pause: peer traffic must be queued
+// before the first zero-bound probe, rather than priming it with a read.
+fn pause_for_queued_input(p: &mut Program) {
+    p.abi_call_with("hd:Clock", "sleep", &[Scalar::I64(50)], None, true, vec![]);
+}
+
+#[test]
+fn zero_bound_tcp_read_returns_peer_bytes_queued_before_the_probe() {
+    let scratch = Scratch::new();
+    let server = TcpFixture::new(|mut peer| {
+        peer.write_all(b"ping").unwrap();
+        let mut rest = Vec::new();
+        peer.read_to_end(&mut rest).unwrap();
+        assert!(rest.is_empty());
+    });
+    let mut p = Program::new();
+    open(
+        &mut p,
+        "connect",
+        "127.0.0.1",
+        server.address.port(),
+        vec![0, 1],
+    );
+    set_timeout(&mut p, "TcpStream", 1, Some(0));
+    pause_for_queued_input(&mut p);
+    handle(
+        &mut p,
+        "TcpStream.read",
+        &[1, 8],
+        None,
+        vec![0, 4, b'p', b'i', b'n', b'g'],
+    );
+    handle(&mut p, "TcpStream.close", &[1], None, vec![0]);
+    assert_program(&scratch, p, vec![], || {});
+}
+
+#[test]
+fn zero_bound_udp_receive_returns_peer_datagram_queued_before_the_probe() {
+    let scratch = Scratch::new();
+    let peer = UdpFixture::new();
+    let mut p = Program::new();
+    open(&mut p, "bind_udp", "127.0.0.1", 0, vec![0, 1]);
+    send(&mut p, "127.0.0.1", peer.address.port(), b"ping", vec![0]);
+    set_timeout(&mut p, "UdpSocket", 1, Some(0));
+    pause_for_queued_input(&mut p);
+    handle(
+        &mut p,
+        "UdpSocket.receive",
+        &[1, 8],
+        None,
+        datagram(b"ping", peer.address.port()),
+    );
+    handle(&mut p, "UdpSocket.close", &[1], None, vec![0]);
+    assert_program(&scratch, p, vec![], || {});
+}
+
+#[test]
+fn zero_bound_accept_returns_peer_connection_queued_before_the_probe() {
+    let scratch = Scratch::new();
+    let address = TcpListener::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap();
+    let mut p = Program::new();
+    open(&mut p, "listen", "127.0.0.1", address.port(), vec![0, 1]);
+    set_timeout(&mut p, "TcpListener", 1, Some(0));
+    pause_for_queued_input(&mut p);
+    handle(&mut p, "TcpListener.accept", &[1], None, vec![0, 2]);
+    handle(&mut p, "TcpStream.close", &[2], None, vec![0]);
+    handle(&mut p, "TcpListener.close", &[1], None, vec![0]);
+    let peers = Mutex::new(Vec::new());
+    assert_program(&scratch, p, vec![], || {
+        peers.lock().unwrap().push(std::thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(20);
+            loop {
+                assert!(Instant::now() < deadline, "the guest listener starts");
+                let Ok(mut peer) = TcpStream::connect_timeout(&address, Duration::from_millis(50))
+                else {
+                    std::thread::sleep(Duration::from_millis(5));
+                    continue;
+                };
+                peer.set_read_timeout(Some(Duration::from_secs(10)))
+                    .unwrap();
+                let mut rest = Vec::new();
+                if peer.read_to_end(&mut rest).is_ok() && rest.is_empty() {
+                    break;
+                }
+            }
+        }));
+    });
+    for peer in peers.into_inner().unwrap() {
+        peer.join().unwrap();
+    }
+}

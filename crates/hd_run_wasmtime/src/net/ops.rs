@@ -315,16 +315,16 @@ pub(crate) fn ended(end: End) -> Result<Vec<u8>, NetError> {
 
 /// `wait` bounded by `bound`: past it, `now` answers from what the socket
 /// already holds.
-async fn within<T>(
+async fn within<T, F: Future<Output = Result<T, NetError>>>(
     bound: Option<Duration>,
     wait: impl Future<Output = Result<T, NetError>>,
-    now: impl FnOnce() -> Result<T, NetError>,
+    now: impl FnOnce() -> F,
 ) -> Result<T, NetError> {
     match bound {
         None => wait.await,
         Some(bound) => match tokio::time::timeout(bound, wait).await {
             Ok(result) => result,
-            Err(_) => now(),
+            Err(_) => now().await,
         },
     }
 }
@@ -337,12 +337,30 @@ fn would_block(error: &io::Error) -> bool {
     )
 }
 
+/// Give the driver a turn to observe input already queued in the kernel,
+/// then poll readiness once. A zero bound must not wait for future input,
+/// and the following tracked probe must still re-arm Mio on `WouldBlock`.
+async fn observe_readiness<T>(readiness: impl Future<Output = io::Result<T>>) -> io::Result<()> {
+    tokio::task::yield_now().await;
+    let mut readiness = std::pin::pin!(readiness);
+    std::future::poll_fn(|context| {
+        Poll::Ready(match readiness.as_mut().poll(context) {
+            Poll::Ready(Err(error)) => Err(error),
+            Poll::Ready(Ok(_)) | Poll::Pending => Ok(()),
+        })
+    })
+    .await
+}
+
 /// A bounded read whose bound ended: the bytes or the end the kernel
 /// already holds, or `Timeout`.
-fn read_now(stream: &Stream, max: usize) -> Result<Vec<u8>, NetError> {
+async fn read_now(stream: &Stream, max: usize) -> Result<Vec<u8>, NetError> {
     if let Some(end) = stream.state().end.clone() {
         return ended(end);
     }
+    observe_readiness(stream.socket.ready(tokio::io::Interest::READABLE))
+        .await
+        .map_err(|error| stream_failed(stream, &error, "read"))?;
     let mut bytes = vec![0; max.min(CHUNK)];
     match stream.socket.try_read(&mut bytes) {
         Ok(0) => {
@@ -368,7 +386,8 @@ async fn accept(listener: &tokio::net::TcpListener) -> Result<Got, NetError> {
 
 /// A bounded accept whose bound ended: a connection already queued, or
 /// `Timeout`.
-fn accept_now(listener: &tokio::net::TcpListener) -> Result<Got, NetError> {
+async fn accept_now(listener: &tokio::net::TcpListener) -> Result<Got, NetError> {
+    tokio::task::yield_now().await;
     let mut context = Context::from_waker(Waker::noop());
     let accepted = match listener.poll_accept(&mut context) {
         Poll::Ready(result) => result.map(|(socket, _)| socket),
@@ -462,11 +481,14 @@ async fn receive(socket: &Udp) -> Result<(Vec<u8>, SocketAddr), NetError> {
     }
 }
 
-/// A bounded receive whose bound ended: a datagram whose readiness is
-/// already reported, or `Timeout`. Keep the operation inside Tokio/Mio:
+/// A bounded receive whose bound ended: observe queued input, then take a
+/// datagram or return `Timeout`. Keep the operation inside Tokio/Mio:
 /// Windows must re-arm readiness after `WouldBlock`, including after a
 /// previous receive timed out. Raw socket reads bypass that bookkeeping.
-fn receive_now(socket: &Udp) -> Result<(Vec<u8>, SocketAddr), NetError> {
+async fn receive_now(socket: &Udp) -> Result<(Vec<u8>, SocketAddr), NetError> {
+    observe_readiness(socket.socket.ready(tokio::io::Interest::READABLE))
+        .await
+        .map_err(|error| socket_error(&error, "recvmsg", None, "", 0))?;
     let mut bytes = vec![0; CHUNK];
     match socket.socket.try_recv_from(&mut bytes) {
         Ok((n, peer)) => {
@@ -525,5 +547,69 @@ mod tests {
             ),
             error => panic!("unexpected error {error:?}"),
         }
+    }
+}
+
+#[cfg(test)]
+mod queued_tests {
+    use super::{Got, accept_now, read_now, receive_now};
+    use crate::net::socket::{Bound, Stream, bind};
+    use crate::net::test_support::runtime;
+    use std::io::Write;
+    use std::net::{TcpListener, TcpStream, UdpSocket};
+    use std::time::Duration;
+
+    #[test]
+    fn queued_tcp_bytes_are_visible_before_the_driver_observes_readiness() {
+        let runtime = runtime();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let mut peer = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let (socket, _) = listener.accept().unwrap();
+        socket.set_nonblocking(true).unwrap();
+        let stream = {
+            let _enter = runtime.enter();
+            Stream::new(tokio::net::TcpStream::from_std(socket).unwrap())
+        };
+        peer.write_all(b"queued").unwrap();
+        std::thread::sleep(Duration::from_millis(50));
+        // The single-thread runtime has not run since registration.
+        let got = runtime.block_on(read_now(&stream, 8)).unwrap();
+        assert_eq!(got, b"queued");
+    }
+
+    #[test]
+    fn queued_udp_datagram_is_visible_before_the_driver_observes_readiness() {
+        let runtime = runtime();
+        let socket = {
+            let _enter = runtime.enter();
+            let Bound::Udp(socket) = bind(true, "127.0.0.1:0".parse().unwrap()).unwrap() else {
+                panic!("UDP socket")
+            };
+            socket
+        };
+        let peer = UdpSocket::bind("127.0.0.1:0").unwrap();
+        peer.send_to(b"queued", socket.socket.local_addr().unwrap())
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(50));
+        let (got, address) = runtime.block_on(receive_now(&socket)).unwrap();
+        assert_eq!(got, b"queued");
+        assert_eq!(address, peer.local_addr().unwrap());
+    }
+
+    #[test]
+    fn queued_connection_is_visible_before_the_driver_observes_readiness() {
+        let runtime = runtime();
+        let listener = {
+            let _enter = runtime.enter();
+            let Bound::Listener(socket) = bind(false, "127.0.0.1:0".parse().unwrap()).unwrap()
+            else {
+                panic!("listener")
+            };
+            socket
+        };
+        let _peer = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        std::thread::sleep(Duration::from_millis(50));
+        let got = runtime.block_on(accept_now(&listener)).unwrap();
+        assert!(matches!(got, Got::Opened(_)));
     }
 }
