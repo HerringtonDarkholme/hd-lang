@@ -27,7 +27,7 @@ tests:
         assert_equal(debug(Reverse { value: +4 }), "Reverse { value: 4 }", reason="generic field")
         assert_equal(debug(Annotate { kinds: [.Fn, .Data] }), "Annotate { kinds: [Target.Fn, Target.Data] }", reason="annotation values")
         assert_equal(debug(Arg { name: "out" }), "Arg { name: \"out\", kind: ArgKind.Option, short: Option.None, help: \"\", required: false, choices: [], repeated: false }", reason="declaration defaults")
-        assert_equal(debug(ErrorReport { message: "top", causes: ["root"] }), "ErrorReport { message: \"top\", causes: [\"root\"] }", reason="report fields")
+        assert_equal(debug(ErrorReport { message: "top", sources: ["root"] }), "ErrorReport { message: \"top\", sources: [\"root\"] }", reason="report fields")
         assert_equal(debug(Entry { path: Path("a"), kind: .File, size: 3 }), "Entry { path: Path(\"a\"), kind: EntryKind.File, size: 3, modified: Option.None }", reason="custom newtype Debug stays wrapped")
         assert_equal(debug(ScriptedArgs::new("tool", ["x"])), "ScriptedArgs { program: \"tool\", values: [\"x\"] }", reason="provider fields")
         assert_equal(debug(Datagram { bytes: [1u8], host: "h", port: 80 }), "Datagram { bytes: [1], host: \"h\", port: 80 }", reason="network data")
@@ -44,13 +44,13 @@ tests:
         assert_equal(debug(ProcessError.Exited(ProcessOutput { status: 2, stderr: "bad", program: "tool" })), "ProcessError.Exited(output=ProcessOutput { stdout: \"\", stderr: \"bad\", status: 2, program: \"tool\" })", reason="exit status is a field")
         assert_equal(debug(Json.Array([.Bool(true)])), "Json.Array(items=[Json.Bool(value=true)])", reason="recursive enum")
 
-    it("error derivations preserve messages and absent causes"):
+    it("error derivations preserve messages and absent sources"):
         assert_equal(DecodeError.InvalidPadding(2).to_string(), "invalid padding at position 2", reason="position template")
         assert_equal(HostError.InvalidValue("PORT", "bad").to_string(), "invalid value for PORT: bad", reason="two interpolations")
         assert_equal(NetError.Other("raw").to_string(), "raw", reason="forwarded text")
         assert_equal(ProcessError.Exited(ProcessOutput { status: 2, stderr: "bad", program: "tool" }).to_string(), "program tool exited with status 2: bad", reason="signed status")
         assert_equal(ParseTimeError.Inexact(4).to_string(), "not a whole number of milliseconds at position 4", reason="time error")
-        assert(DecodeError.InvalidLength(3).cause().is_none(), reason="plain errors have no cause")
+        assert(DecodeError.InvalidLength(3).source().is_none(), reason="plain errors have no source")
 
     it("structural equality retains fields and variants"):
         assert(ArgKind.Flag != ArgKind.Option, reason="variant identity")

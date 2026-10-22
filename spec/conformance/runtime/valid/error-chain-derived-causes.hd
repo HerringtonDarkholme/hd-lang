@@ -1,5 +1,5 @@
-# test: chain and report_of follow the causes of derived errors: an absent optional source ends the chain, and a transparent variant is not listed twice
-# Spec std/error Cause Chain: std-error.chain.method-order, std-error.chain.end, std-error.report.cause-texts, std-error.report.display;
+# test: chain and report_of follow the sources of derived errors: an absent optional source ends the chain, and a transparent variant is not listed twice
+# Spec std/error Cause Chain: std-error.chain.source-order, std-error.chain.source-end, std-error.report.source-texts, std-error.report.display-sources;
 # 14 Error Derivation: annot.error.cause.optional, annot.error.form.variant-transparent.
 use std.error.{Error, ErrorReport, report_of}
 @error("disk full")
@@ -30,19 +30,19 @@ tests:
     use std.testing.assert_equal
 
     it("an absent optional source ends the chain"):
-        assert_equal(texts(&RepoError.Write("a.txt", .None)), ["cannot write a.txt"], reason="no cause")
+        assert_equal(texts(&RepoError.Write("a.txt", .None)), ["cannot write a.txt"], reason="no source")
 
     it("a transparent variant skips its member"):
         failure := SyncError { repo: RepoError.Disk(DiskError { free: 0 }) }
         assert_equal(texts(&failure), ["sync failed", "disk full"], reason="the member is not listed twice")
 
-    it("an erased error reports its causes"):
+    it("an erased error reports its sources"):
         match load():
             .Ok(_) => assert_equal(0, 1, reason="load fails")
             .Err(error) =>
                 report := report_of(error)
                 assert_equal(report.message, "cannot write a.txt", reason="message")
-                assert_equal(report.causes, ["disk full"], reason="causes")
+                assert_equal(report.sources, ["disk full"], reason="sources")
 
     it("an empty report displays its message alone"):
-        assert_equal(ErrorReport { message: "m", causes: [] }.to_string(), "m", reason="no caused-by line")
+        assert_equal(ErrorReport { message: "m", sources: [] }.to_string(), "m", reason="no source line")

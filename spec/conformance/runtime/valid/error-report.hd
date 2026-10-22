@@ -1,5 +1,5 @@
-# test: report_of snapshots an error's message and its causes' messages, and the report displays as an entry point prints it
-# Spec std/error Error Reports: std-error.report.of.reference-values, std-error.report.display (task #221).
+# test: report_of snapshots an error's message and its sources' messages, and the report displays as an entry point prints it
+# Spec std/error Error Reports: std-error.report.of.reference-values, std-error.report.display-sources (task #221).
 use std.error.{ErrorReport, report_of}
 @error("disk full")
 struct DiskError:
@@ -18,20 +18,20 @@ enum SyncError:
 tests:
     use std.testing.assert_equal
 
-    it("report_of keeps the message and each cause"):
+    it("report_of keeps the message and each source"):
         report := report_of(&SyncError.Save(SaveError.Write("notes.txt", DiskError { free: 0 })))
         assert_equal(report.message, "sync failed", reason="the error's own message")
-        assert_equal(report.causes, ["cannot save notes.txt", "disk full"], reason="the causes, outermost first")
+        assert_equal(report.sources, ["cannot save notes.txt", "disk full"], reason="the sources, outermost first")
 
-    it("a report displays one caused-by line per cause"):
+    it("a report displays one source line per source"):
         report := report_of(&SyncError.Save(SaveError.Write("notes.txt", DiskError { free: 0 })))
-        assert_equal(report.to_string(), "sync failed\ncaused by: cannot save notes.txt\ncaused by: disk full", reason="the entry-point text")
+        assert_equal(report.to_string(), "sync failed\nsource: cannot save notes.txt\nsource: disk full", reason="the entry-point text")
 
-    it("an error without a cause has no caused-by line"):
+    it("an error without a source has no source line"):
         report := report_of(&DiskError { free: 0 })
-        assert_equal(report.causes.len(), 0, reason="no causes")
+        assert_equal(report.sources.len(), 0, reason="no sources")
         assert_equal(report.to_string(), "disk full", reason="the message alone")
 
     it("a report is a plain value"):
-        built := ErrorReport { message: "failed", causes: ["timeout"] }
-        assert_equal(built.to_string(), "failed\ncaused by: timeout", reason="built by hand")
+        built := ErrorReport { message: "failed", sources: ["timeout"] }
+        assert_equal(built.to_string(), "failed\nsource: timeout", reason="built by hand")

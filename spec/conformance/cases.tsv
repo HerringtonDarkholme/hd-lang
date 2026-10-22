@@ -79,6 +79,8 @@ typing/invalid/cli-command-payload-without-cli.hd	type	reject:member-not-derivab
 typing/invalid/cli-field-without-impl.hd	type	reject:member-not-derivable	std/cli.md#r-std-cli.typed.bounds
 typing/invalid/cli-positional-without-cli.hd	type	reject:unsatisfied-trait-bound	std/cli.md#r-std-cli.positional.bound
 typing/invalid/cli-short-without-cli.hd	type	reject:unsatisfied-trait-bound	std/cli.md#r-std-cli.short.bound
+typing/invalid/error-cause-method-removed.hd	type	reject:unknown-method	lang/03-names-and-scopes.md#r-names.method-lookup.unknown
+typing/invalid/error-causes-field-removed.hd	type	reject:unknown-field	std/error.md#r-std-error.report.sources-struct
 typing/invalid/error-markers-argument-forms-are-rejected-once-8.hd	type	reject:invalid-error-marker	lang/14-annotations.md#error-types
 typing/invalid/error-markers-cause-without-error-is-an-unmet-bound-20.hd	type	reject:unsatisfied-trait-bound	lang/14-annotations.md#error-types
 typing/invalid/error-markers-from-type-parameter-is-by-resolution-not-spelling-17.hd	type	reject:invalid-error-marker	lang/14-annotations.md#error-types
@@ -3038,7 +3040,7 @@ runtime/valid/memory-fs-copy.hd	runtime	accept	std/fs.md#r-std-fs.copy.bytes
 runtime/valid/memory-fs-handle-shared.hd	runtime	accept	std/fs.md#r-std-fs.memory.new-ref
 runtime/valid/memory-fs-directories.hd	runtime	accept	std/fs.md#r-std-fs.memory.dirs
 runtime/valid/memory-fs-modified.hd	runtime	accept	std/fs.md#r-std-fs.memory.set-modified
-runtime/valid/error-chain.hd	runtime	accept	std/error.md#r-std-error.chain.method-order
+runtime/valid/error-chain.hd	runtime	accept	std/error.md#r-std-error.chain.source-order
 runtime/valid/error-message-values.hd	runtime	accept	std/error.md#r-std-error.std-types.string-message
 runtime/valid/error-report.hd	runtime	accept	std/error.md#r-std-error.report.of.reference-values
 runtime/valid/duration-arithmetic.hd	runtime	accept	std/time.md#duration-arithmetic
@@ -3496,7 +3498,7 @@ runtime/valid/property-generators-scalars.hd	runtime	accept	std/testing.md#r-std
 runtime/valid/property-generators-collections.hd	runtime	accept	std/testing.md#r-std-testing.choices.list-max-ref
 runtime/valid/map-key-types.hd	runtime	accept	lang/04-type-system.md#r-types.map-key.builtin-hash
 runtime/valid/derived-equality-generic.hd	runtime	accept	std/cmp.md#r-std-cmp.derive.eq.eq
-runtime/valid/error-chain-derived-causes.hd	runtime	accept	std/error.md#r-std-error.chain.end
+runtime/valid/error-chain-derived-causes.hd	runtime	accept	std/error.md#r-std-error.chain.source-end
 typing/invalid/use-alias-original-name-unbound.hd	type	reject:unknown-name	lang/03-names-and-scopes.md#r-names.use.introduces
 typing/valid/relative-shared-test-module.hd	type	accept	lang/10-modules.md#r-module.relative.test-root.current
 typing/invalid/relative-shared-test-above-test-root.hd	type	reject:unknown-module	lang/10-modules.md#r-module.relative.above-test-root
@@ -4300,7 +4302,7 @@ typing/valid/polymorphic-recursion-non-growing.hd	type	accept	lang/04-type-syste
 typing/invalid/display-only-entry-error.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.entry.termination.result
 runtime/valid/entry-exit-code-map.hd	runtime	accept	lang/10-modules.md#r-module.entry.termination.err-one
 typing/valid/entry-exit-code-map.hd	type	accept	lang/10-modules.md#exit-status
-runtime/valid/error-report-value-copy.hd	runtime	accept	std/error.md#r-std-error.report.decl-struct
+runtime/valid/error-report-value-copy.hd	runtime	accept	std/error.md#r-std-error.report.sources-struct
 runtime/valid/time-parse-error-one-type.hd	runtime	accept	std/time.md#r-std-time.parse-error.declared
 runtime/valid/duration-serde-text.hd	runtime	accept	std/time.md#r-std-time.serde.duration-text-read
 runtime/valid/time-parse-trait.hd	runtime	accept	std/time.md#r-std-time.rfc3339.parse

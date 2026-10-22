@@ -1,4 +1,4 @@
-# test: @error messages, causes, From conversions, and transparent forwarding at run time
+# test: @error messages, sources, From conversions, and transparent forwarding at run time
 # Spec 14 Error Types: annot.error.intrinsic, annot.error.name,
 # annot.error.type, annot.error.generates, annot.error.ordinary,
 # annot.error.form.enum, annot.error.form.variant-message,
@@ -9,11 +9,11 @@
 # annot.error.message.unnamed, annot.error.message.shared,
 # annot.error.message.data, annot.error.message.eval,
 # annot.error.message.absent.
-# Error Causes: annot.error.cause.reference-result, annot.error.cause.member,
+# Error Sources: annot.error.source.reference-result, annot.error.cause.member,
 # annot.error.cause.explicit. Error Conversions: annot.error.from.generate,
 # annot.error.from.data, annot.error.from.unmarked. Transparent Errors:
-# annot.error.transparent.display, annot.error.transparent.cause.
-# A message interpolates members, a variant without one shows its name, cause
+# annot.error.transparent.display, annot.error.transparent.source.
+# A message interpolates members, a variant without one shows its name, source
 # returns the @from or @source member, and a transparent error forwards both.
 # $_0 names an unnamed payload member even beside unnamed shared data.
 use std.error.Error
@@ -50,9 +50,9 @@ struct PublicError:
     @from
     repr: LoadError
 
-fn cause_text(error: &dyn Error) -> string:
-    match error.cause():
-        .Some(cause) => cause.to_string()
+fn source_text(error: &dyn Error) -> string:
+    match error.source():
+        .Some(source) => source.to_string()
         .None => "none"
 
 fn parse(text: string) -> Result[i64, YamlError]:
@@ -69,12 +69,12 @@ fn publish(text: string) -> Result[i64, PublicError]:
 fn load_text(result: Result[i64, LoadError]) -> string:
     match result:
         .Ok(_) => "ok"
-        .Err(error) => error.to_string() + " / " + cause_text(&error)
+        .Err(error) => error.to_string() + " / " + source_text(&error)
 
 fn publish_text(result: Result[i64, PublicError]) -> string:
     match result:
         .Ok(_) => "ok"
-        .Err(error) => error.to_string() + " / " + cause_text(&error)
+        .Err(error) => error.to_string() + " / " + source_text(&error)
 
 tests:
     use std.testing.assert_equal
@@ -92,26 +92,26 @@ tests:
     it("a variant without a message displays as its variant name"):
         assert_equal(FsError.Busy.to_string(), "Busy", reason="the variant name")
 
-    it("a variant without @from or @source has no cause"):
-        assert_equal(cause_text(&FsError.Busy), "none", reason="no automatic cause")
+    it("a variant without @from or @source has no source"):
+        assert_equal(source_text(&FsError.Busy), "none", reason="no automatic source")
 
-    it("a @source member is the cause"):
-        assert_equal(cause_text(&LoadError.Read("c.txt", FsError.Busy)), "Busy", reason="the source")
+    it("a @source member is the source"):
+        assert_equal(source_text(&LoadError.Read("c.txt", FsError.Busy)), "Busy", reason="the source")
 
-    it("an optional @source member gives a cause only when present"):
-        assert_equal(cause_text(&LoadError.Open("c.txt", .None)), "none", reason="an absent cause")
-        assert_equal(cause_text(&LoadError.Open("c.txt", FsError.Busy)), "Busy", reason="a present cause")
+    it("an optional @source member gives a source only when present"):
+        assert_equal(source_text(&LoadError.Open("c.txt", .None)), "none", reason="an absent source")
+        assert_equal(source_text(&LoadError.Open("c.txt", FsError.Busy)), "Busy", reason="a present source")
 
-    it("? converts through the generated From, and @from marks the cause"):
+    it("? converts through the generated From, and @from marks the source"):
         assert_equal(load_text(load("")), "bad config / bad yaml at line 3", reason="From[YamlError]")
         assert_equal(load_text(load("x")), "ok", reason="no error")
 
-    it("a transparent variant forwards its message and its payload's cause"):
+    it("a transparent variant forwards its message and its payload's source"):
         let wrapped: LoadError = LoadError.Fs(FsError.NotFound("d.txt"))
         assert_equal(wrapped.to_string(), "not found: d.txt", reason="the payload's message")
-        assert_equal(cause_text(&wrapped), "none", reason="the payload's own cause")
+        assert_equal(source_text(&wrapped), "none", reason="the payload's own source")
 
     it("a transparent data type forwards to its field and converts with From"):
         assert_equal(publish_text(publish("")), "bad config / bad yaml at line 3", reason="From[LoadError]")
         let public: PublicError = PublicError { repr: LoadError.Read("e.txt", FsError.Busy) }
-        assert_equal(cause_text(&public), "Busy", reason="the field's cause")
+        assert_equal(source_text(&public), "Busy", reason="the field's source")

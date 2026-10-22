@@ -1,5 +1,5 @@
-# test: Result[T, Error] holds any Error, ? reaches it by assignability, and the default cause is .None
-# Spec 09 Error Trait: trait.error.module, trait.error.import, trait.error.reference-cause; Erased Errors: trait.error.erased.reference-values, trait.error.result.reference-values.
+# test: Result[T, Error] holds any Error, ? reaches it by assignability, and the default source is .None
+# Spec 09 Error Trait: trait.error.module, trait.error.import, trait.error.reference-source; Erased Errors: trait.error.erased.reference-values, trait.error.result.reference-values.
 use std.error.Error
 enum FsError:
     NotFound(path: string)
@@ -48,8 +48,8 @@ tests:
         assert_equal(message(load_port("app.conf")), "port 80", reason="no error")
         assert_equal(message(load_port("other.conf")), "not found: other.conf", reason="an FsError")
 
-    it("the default cause is .None"):
+    it("the default source is .None"):
         let error: &dyn Error = &ParseError.BadLine(3)
-        match error.cause():
-            .Some(_) => assert(false, reason="no cause was given")
-            .None => assert(true, reason="the default cause")
+        match error.source():
+            .Some(_) => assert(false, reason="no source was given")
+            .None => assert(true, reason="the default source")

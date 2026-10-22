@@ -1,0 +1,7 @@
+# test: ErrorReport exposes sources rather than the removed causes field
+# Spec std/error Error Reports: std-error.report.sources-struct.
+use std.error.ErrorReport
+
+pub fn old_field() -> void:
+    report := ErrorReport { message: "failure", sources: [] }
+    _ := report.causes  # diagnostic: unknown-field

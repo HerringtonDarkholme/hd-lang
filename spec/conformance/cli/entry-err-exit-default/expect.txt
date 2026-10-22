@@ -1,6 +1,6 @@
 # An error returned from `main` exits with status 1 and reports on
 # standard error (module.entry.termination.err-one,
-# module.entry.err-to-stderr).
+# module.entry.err-sources-to-stderr).
 run: hd default.hd
 exit: 1
 stderr: failed

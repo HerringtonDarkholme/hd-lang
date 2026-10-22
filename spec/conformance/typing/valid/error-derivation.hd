@@ -1,6 +1,6 @@
 # test: @error derives Display, Error, and From for enums and data types
 # Spec 14 Error Derivation: the forms, messages with named and unnamed members,
-# @source causes (optional too), @from conversions used by ?, transparent errors,
+# @source sources (optional too), @from conversions used by ?, transparent errors,
 # generated bounds, and markers that bindings named error, from, or source do not change.
 use std.error.Error
 

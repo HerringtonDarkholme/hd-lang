@@ -1,5 +1,5 @@
 # std.error: the error trait `Error` (spec/lang/09-traits.md#error-trait),
-# its cause chain, the boundary-safe `ErrorReport`, and error context with
+# its source chain, the boundary-safe `ErrorReport`, and error context with
 # `Result.context` (spec/std/error.md).
 # `Error` is not a prelude name (module.prelude.from-error). It extends
 # `Inspectable`, so its users need not import it
@@ -7,12 +7,12 @@
 use std.inspect.Inspectable
 use std.format.DebugWriter
 
-## The standard error trait: a displayable, inspectable failure that may name its cause.
+## The standard error trait: a displayable, inspectable failure that may name its source.
 ## See [trait.error.module](../../spec/lang/09-traits.md#r-trait.error.module).
 pub trait Error < Display & Inspectable:
-    fn cause(self) -> (&dyn Error)?: .None
+    fn source(self) -> (&dyn Error)?: .None
 
-# The cause-chain helpers are inherent methods of `dyn Error`
+# The source-chain helpers are inherent methods of `dyn Error`
 # (spec/lang/09-traits.md#r-trait.own.dyn-inherent.form): every error value
 # reaches them, and no implementation can override them (spec/lang/09-traits.md#r-trait.error.dyn-methods.reference-values).
 impl dyn Error:
@@ -24,27 +24,27 @@ impl dyn Error:
     @intrinsic("downcast_mut")
     pub fn downcast_mut[T < Inspectable](&mut self) -> (&mut T)?: panic("intrinsic")
 
-    ## Returns this error first, then its `cause`, then that error's cause, and so on.
+    ## Returns this error first, then its `source`, then that error's source, and so on.
     ## See [std-error.chain.reference-method](../../spec/std/error.md#r-std-error.chain.reference-method).
     pub fn chain(&self) -> List[&dyn Error]:
         let mut errors: List[&dyn Error] = [self]
-        let next = self.cause()
+        let next = self.source()
         while true:
-            cause := match next:
-                .Some(cause) => cause
+            source := match next:
+                .Some(source) => source
                 .None => return errors
-            errors.push(cause)
-            next = cause.cause()
+            errors.push(source)
+            next = source.source()
 
     # The last error of `self.chain()` (r-std-error.root-cause.method-chain).
-    ## Returns the last error of the cause chain.
+    ## Returns the last error of the source chain.
     ## See [std-error.root-cause.method-chain](../../spec/std/error.md#r-std-error.root-cause.method-chain).
     pub fn root_cause(&self) -> &dyn Error:
         errors := self.chain()
         errors[errors.len() - 1]
 
     # Recover a reference to the first matching error, then copy its value.
-    ## Returns the first error of the cause chain whose type is `T`.
+    ## Returns the first error of the source chain whose type is `T`.
     ## See [std-error.find.method-chain-first](../../spec/std/error.md#r-std-error.find.method-chain-first).
     pub fn find[T < Error](&self) -> T?:
         for error in self.chain():
@@ -53,43 +53,43 @@ impl dyn Error:
                 .None => pass
         .None
 
-# A snapshot of an error's message and the messages of its causes
-# (r-std-error.report.decl-struct). Its fields are boundary-safe.
-## A boundary-safe report of an error: its message and the messages of its causes.
-## See [std-error.report.decl-struct](../../spec/std/error.md#r-std-error.report.decl-struct).
+# A snapshot of an error's message and the messages of its sources
+# (r-std-error.report.sources-struct). Its fields are boundary-safe.
+## A boundary-safe report of an error: its message and the messages of its sources.
+## See [std-error.report.sources-struct](../../spec/std/error.md#r-std-error.report.sources-struct).
 @derive(Debug)
 pub struct ErrorReport:
     ## The error's own message.
     ## See [std-error.report.message](../../spec/std/error.md#r-std-error.report.message).
     pub message: string
-    ## The messages of the error's causes, in chain order.
-    ## See [std-error.report.cause-texts](../../spec/std/error.md#r-std-error.report.cause-texts).
-    pub causes: List[string]
+    ## The messages of the error's sources, in chain order.
+    ## See [std-error.report.source-texts](../../spec/std/error.md#r-std-error.report.source-texts).
+    pub sources: List[string]
 
-# The text an entry point prints for an `.Err` (r-std-error.report.display):
-# the message, then one `caused by: ` line per cause.
-# Keep handwritten Display: join the message and causes with the report separator.
+# The text an entry point prints for an `.Err` (r-std-error.report.display-sources):
+# the message, then one `source: ` line per source.
+# Keep handwritten Display: join the message and sources with the report separator.
 impl Display for ErrorReport:
     fn to_string(self) -> string:
         let mut lines: List[string] = [self.message]
-        for cause in self.causes:
-            lines.push(cause)
-        lines.join("\ncaused by: ")
+        for source in self.sources:
+            lines.push(source)
+        lines.join("\nsource: ")
 
-# The `Display` text of the error and of each cause that `chain` yields
+# The `Display` text of the error and of each source that `chain` yields
 # after it (r-std-error.report.of.reference-values).
-## Builds the boundary-safe report of `error`: its message, and its causes' messages.
+## Builds the boundary-safe report of `error`: its message, and its sources' messages.
 ## See [std-error.report.of.reference-values](../../spec/std/error.md#r-std-error.report.of.reference-values).
 pub fn report_of(error: &dyn Error) -> ErrorReport:
-    let mut causes: List[string] = []
-    let next = error.cause()
+    let mut sources: List[string] = []
+    let next = error.source()
     while true:
-        cause := match next:
-            .Some(cause) => cause
+        source := match next:
+            .Some(source) => source
             .None => break
-        causes.push(cause.to_string())
-        next = cause.cause()
-    ErrorReport { message: error.to_string(), causes: causes }
+        sources.push(source.to_string())
+        next = source.source()
+    ErrorReport { message: error.to_string(), sources: sources }
 
 # The report the host writes to standard error when an entry point returns
 # `.Err(error)` and the error's type implements `Error`
@@ -99,21 +99,21 @@ fn entry_report(error: &dyn Error) -> string:
     report_of(error).to_string()
 
 # The error that `context` wraps around an `.Err`: its text is the message,
-# and its cause is the wrapped error (r-std-error.context.private-wrapper).
-## An error that adds a context message over its cause.
+# and its source is the wrapped error (r-std-error.context.private-wrapper).
+## An error that adds a context message over its source.
 ## See [std-error.context.private-wrapper](../../spec/std/error.md#r-std-error.context.private-wrapper).
 struct ContextError:
     message: string
     error: &dyn Error
 
-# Keep handwritten Display: retain the existing Error.cause implementation and original reference.
+# Keep handwritten Display: retain the existing Error.source implementation and original reference.
 impl Display for ContextError:
     fn to_string(self) -> string:
         self.message
 
-# Keep handwritten Error: return the original erased cause reference without wrapping it.
+# Keep handwritten Error: return the original erased source reference without wrapping it.
 impl Error for ContextError:
-    fn cause(self) -> (&dyn Error)?:
+    fn source(self) -> (&dyn Error)?:
         .Some(self.error)
 
 # The error that `message` returns: only a text (r-std-error.message.reference-struct).
@@ -121,7 +121,7 @@ impl Error for ContextError:
 struct MessageError:
     text: string
 
-## Makes an error whose `Display` text is `text` and that has no cause.
+## Makes an error whose `Display` text is `text` and that has no source.
 ## See [std-error.message.reference](../../spec/std/error.md#r-std-error.message.reference).
 pub fn message(text: string) -> &dyn Error:
     &MessageError { text: text }
@@ -150,8 +150,8 @@ impl[T] T?:
             .None => .Err(message(text))
 
 # The private wrapper keeps its existing Debug implementation: the erased
-# cause has no Debug, so its Display text stands in for it.
-# Keep handwritten Debug: display the erased cause, which need not implement Debug.
+# source has no Debug, so its Display text stands in for it.
+# Keep handwritten Debug: display the erased source, which need not implement Debug.
 impl Debug for ContextError:
     fn debug(self, out: &mut DebugWriter) -> void:
-        out.debug_struct("ContextError").field("message", self.message).field("cause", self.error.to_string()).finish()
+        out.debug_struct("ContextError").field("message", self.message).field("source", self.error.to_string()).finish()

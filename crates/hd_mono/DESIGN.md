@@ -1635,7 +1635,7 @@ this variant's message or wrap that payload — and `Display`/`Error`/
 - `Error::cause`: a match returning the `@from`/`@source` member, or
   `.None` without one (`annot.error.cause.*`); an `E?` source matches
   `None`/`Some`; a transparent member returns its own `cause`
-  (`annot.error.transparent.cause`). The cause member's type must
+  (`annot.error.transparent.source`). The cause member's type must
   implement `Error`, checked as any bound
   (`annot.error.cause.type`).
 - `From[P]::from` per `@from` member: construct the variant (or the

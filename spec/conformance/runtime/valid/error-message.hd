@@ -1,5 +1,5 @@
 # test: message makes a one-off error, and Option.context turns a .None into one
-# Spec std/error One-Off Errors: std-error.message.display, std-error.message.cause, std-error.message.reference-result; std/option Optional Context: std-option.context.some, std-option.context.none-reference.
+# Spec std/error One-Off Errors: std-error.message.display, std-error.message.source, std-error.message.reference-result; std/option Optional Context: std-option.context.some, std-option.context.none-reference.
 use std.error.{Error, message, report_of}
 
 fn parse_port(text: string) -> Result[i32, &dyn Error]:
@@ -14,10 +14,10 @@ fn first_word(words: List[string]) -> Result[string, &dyn Error]:
 tests:
     use std.testing.{assert, assert_equal}
 
-    it("message displays as its text and has no cause"):
+    it("message displays as its text and has no source"):
         failure := message("disk full")
         assert_equal(failure.to_string(), "disk full", reason="the text as is")
-        assert_equal(failure.chain().len(), 1, reason="no cause")
+        assert_equal(failure.chain().len(), 1, reason="no source")
         assert_equal(report_of(failure).to_string(), "disk full", reason="one line")
 
     it("? carries a message error out of a function"):
@@ -38,4 +38,4 @@ tests:
             .Ok(_) => assert(false, reason="there is no word")
             .Err(failure) =>
                 assert_equal(failure.to_string(), "no words", reason="the text")
-                assert_equal(failure.chain().len(), 1, reason="no cause")
+                assert_equal(failure.chain().len(), 1, reason="no source")

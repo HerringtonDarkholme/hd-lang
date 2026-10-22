@@ -1,6 +1,6 @@
 # An error that reaches `main` through `?` into `dyn Error` writes its
 # report to standard error, and the program exits with status 1
-# (module.entry.err-to-stderr, module.entry.termination.err-one,
+# (module.entry.err-sources-to-stderr, module.entry.termination.err-one,
 # module.entry.err-dynamic.reference-values).
 run: hd dyn.hd
 exit: 1

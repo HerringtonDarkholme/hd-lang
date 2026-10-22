@@ -72,4 +72,4 @@ tests:
             .Err(error) =>
                 report := report_of(error)
                 assert_equal(report.message, "reading the count", reason="the context message")
-                assert_equal(report.causes.len(), 1, reason="one cause")
+                assert_equal(report.sources.len(), 1, reason="one source")

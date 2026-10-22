@@ -46,7 +46,7 @@ pub fn save(free: i64) -> Result[void, SaveError]:
     if free > 0: .Ok(()) else: .Err(SaveError.Write(\"notes.txt\", DiskError { free: free }))
 ";
 
-/// `expr.try.test.with-try.reference-values`, `module.testing.err-runner-report`: a body that uses
+/// `expr.try.test.with-try.reference-values`, `module.testing.err-runner-source-report`: a body that uses
 /// `?` returns `Result[void, dyn Error]`. `.Ok(())` passes; an `.Err` fails,
 /// and the runner prints the error and its cause chain in its own report on
 /// standard output, for an `it` body and an `it_each` row alike.
@@ -78,11 +78,11 @@ tests:
         "\
 FAIL src/lib.hd:20: saves on a full disk
     cannot save notes.txt
-    caused by: disk full
+    source: disk full
     repro: hd test src/lib.hd --filter \"saves on a full disk\"
 FAIL src/lib.hd:24: saves each[1]
     cannot save notes.txt
-    caused by: disk full
+    source: disk full
     repro: hd test src/lib.hd --filter \"saves each[1]\"
 test result: FAILED. 2 passed; 2 failed; 0 ignored
 "
@@ -96,7 +96,7 @@ test result: FAILED. 2 passed; 2 failed; 0 ignored
     assert_eq!(
         text(&out.stdout),
         "\
-{\"kind\":\"test\",\"name\":\"saves on a full disk\",\"outcome\":\"failed\",\"message\":\"cannot save notes.txt\\ncaused by: disk full\"}
+{\"kind\":\"test\",\"name\":\"saves on a full disk\",\"outcome\":\"failed\",\"message\":\"cannot save notes.txt\\nsource: disk full\"}
 {\"kind\":\"summary\",\"errors\":0,\"warnings\":0,\"passed\":0,\"failed\":1,\"ignored\":0,\"status\":1}
 "
     );

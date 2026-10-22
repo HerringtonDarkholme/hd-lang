@@ -70,7 +70,7 @@ pub struct ErrorShape<'t> {
 
 impl ErrorShape<'_> {
     /// Whether any variant has a cause: a cause member, or a transparent
-    /// member's own. Without one, the generated `Error` writes no `cause`
+    /// member's own. Without one, the generated `Error` writes no `source`
     /// and keeps the trait's default `.None` (`annot.error.cause.explicit`).
     #[must_use]
     pub fn has_cause(&self) -> bool {
@@ -134,7 +134,7 @@ impl Generated {
     pub fn method(self) -> &'static str {
         match self {
             Generated::Display => "to_string",
-            Generated::Error => "cause",
+            Generated::Error => "source",
             Generated::From { .. } => "from",
         }
     }

@@ -1,4 +1,4 @@
-# test: find walks the cause chain in order and returns the first error of the target type, an equal enum or struct value, or .None
+# test: find walks the source chain in order and returns the first error of the target type, an equal enum or struct value, or .None
 # Spec std/error Root Cause And Find: std-error.find.method-chain-first, std-error.find.copied-value, std-error.find.struct-copy.
 use std.error.Error
 @error
@@ -31,7 +31,7 @@ tests:
     it("finds an error two levels down"):
         let failure: &dyn Error = &AppError.Start(ConfigError.Load("app", FsError.NotFound("app.toml")))
         match failure.find::[FsError]():
-            .Some(found) => assert_equal(found.to_string(), "not found: app.toml", reason="the innermost cause")
+            .Some(found) => assert_equal(found.to_string(), "not found: app.toml", reason="the innermost source")
             .None => assert(false, reason="FsError is in the chain")
 
     it("returns the first match, starting with the error itself"):

@@ -525,7 +525,7 @@ The standard library declares the standard error trait `Error` in
 4. r[trait.error.complete] `impl Error for FsError` is complete when the enum `FsError` implements `Display`, because the compiler supplies `Inspectable` for it.
 5. r[trait.error.not-inspectable] An `impl Error` whose target is not inspectable, such as a type declared in a block suite, is an error. Error: `missing-supertrait-implementation`.
 6. r[trait.error.value-types] A value type may implement `Error`, as an enum or a newtype over `string` does.
-7. r[trait.error.reference-cause] `Error` declares `fn cause(self) -> (&dyn Error)?`, which returns the error that caused this one. Its default returns `.None`.
+7. r[trait.error.reference-source] `Error` declares `fn source(self) -> (&dyn Error)?`, which returns the error that caused this one. Its default returns `.None`.
 8. r[trait.error.dyn-methods.reference-values] `std.error` gives `&dyn Error` the inherent methods `chain`, `root_cause`, and `find[T < Error]`, in an `impl dyn Error:` block beside the trait.
 9. r[trait.error.dyn-methods.not-members] They are not members of `Error`, so an implementation of `Error` cannot declare or override them.
 10. r[trait.error.dyn-methods.reference-receiver] They take shared reference receivers, as in `let erased: &dyn Error = &failure; erased.find::[FsError]()`.

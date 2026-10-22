@@ -1522,7 +1522,7 @@ tests:
 13. r[module.testing.passes] A test case passes when its body completes, its result holds no `.Err`, and `report()` on its result returns `ExitCode(0)`.
 14. r[module.testing.fail-cases] It fails when its result holds an `.Err`, when `report()` returns another code, or when its body panics, including by a failed assertion. A case of `it_each` or `it_prop` follows the same rules.
 15. r[module.testing.cancelled] It also fails when its body turns out cancelled, once the body's cleanup has ended, as a cancelled entry ends by [`req.entry.cancelled`](11-requirements-and-suspension.md#r-req.entry.cancelled).
-16. r[module.testing.err-runner-report] When the result holds an `.Err`, the runner reports the error and its cause chain, rendered as [Entry Results](#entry-results) describes. The report is the runner's own text or JSON report on standard output, and [`module.entry.err-to-stderr`](#r-module.entry.err-to-stderr) does not apply.
+16. r[module.testing.err-runner-source-report] When the result holds an `.Err`, the runner reports the error and its cause chain, rendered as [Entry Results](#entry-results) describes. The report is the runner's own text or JSON report on standard output, and [`module.entry.err-sources-to-stderr`](#r-module.entry.err-sources-to-stderr) does not apply.
 17. r[module.testing.expect-panic-fail] With `expect_panic`, the test case instead fails when its body completes or panics with another category.
 
 ```text
@@ -2041,8 +2041,8 @@ See also: [Mutable Providers](11-requirements-and-suspension.md#mutable-provider
 2. r[module.entry.err-host-prints] When the result holds an `.Err`, the host prints that error by the rules below before it exits.
 3. r[module.entry.err-dynamic.termination] `Result[T, &dyn Error]` is a valid entry result when `T < Termination`, since erased `Error` satisfies `E < Error`.
 4. r[module.entry.err-render-chain] The host prints the error's `Display` text. Then it prints each cause that the standard-library `chain` yields after it.
-5. r[module.entry.err-render-chain.line] Each cause is printed on its own line as `caused by: ` followed by the cause's `Display` text.
-6. r[module.entry.err-to-stderr] When an entry point returns `.Err(e)`, the host writes the text and `caused by: ` lines of `e` to standard error. Then it exits with the status that `report()` returns, as [Exit Status](#exit-status) describes.
+5. r[module.entry.err-render-chain.source-line] Each source is printed on its own line as `source: ` followed by the source's `Display` text.
+6. r[module.entry.err-sources-to-stderr] When an entry point returns `.Err(e)`, the host writes the text and `source: ` lines of `e` to standard error. Then it exits with the status that `report()` returns, as [Exit Status](#exit-status) describes.
 7. r[module.entry.panic] A panic exits with a distinct nonzero status selected by the runtime profile and poisons the program instance.
 
 ```text

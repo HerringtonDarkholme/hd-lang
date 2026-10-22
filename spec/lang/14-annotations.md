@@ -1993,7 +1993,7 @@ status code, so `Missing` has no `_0` in scope.
 
 ### Error Causes
 
-1. r[annot.error.cause.reference-result] The generated `Error.cause` returns a shared reference to the cause member, or `.None` when it has none.
+1. r[annot.error.source.reference-result] The generated `Error.source` returns a shared reference to the cause member, or `.None` when it has none.
 2. r[annot.error.cause.member] A variant's or struct's cause member is its `@from` or `@source` member.
 3. r[annot.error.cause.explicit] A variant or struct without `@from` or `@source` has no cause. There is no automatic cause and no field-name convention.
 4. r[annot.error.cause.one] A variant or struct has at most one `@from` or `@source` member. A second one is an error, reported on that member. Error: `invalid-error-marker`.
@@ -2050,7 +2050,7 @@ enum AppError[E]:
 ### Transparent Errors
 
 1. r[annot.error.transparent.display] A transparent variant or struct displays as its one member displays.
-2. r[annot.error.transparent.cause] Its `cause` returns that member's own `cause`, so a chain does not repeat the inner message.
+2. r[annot.error.transparent.source] Its `source` returns that member's own `source`, so a chain does not repeat the inner message.
 3. r[annot.error.transparent.type] The member's type must implement `Error`. Error: `unsatisfied-trait-bound`.
 
 ```text
@@ -2068,7 +2068,7 @@ pub struct PublicError:
 `PublicError` hides `RepoError` behind a stable public type, and `?`
 converts a `RepoError` into it.
 
-> **Note.** Because a transparent value's `cause` skips the inner error,
+> **Note.** Because a transparent value's `source` skips the inner error,
 > `find::[Inner]()` does not see that inner error itself, as in Rust.
 
 ### Generated Error Bounds
@@ -2076,7 +2076,7 @@ converts a `RepoError` into it.
 1. r[annot.error.bound.display] For a generic error type, the generated `Display` gets `P < Display` for some type parameters. That is each `P` that is the type of an interpolated member or a transparent member.
 2. r[annot.error.bound.error] The generated `Error` gets `P < Error` for each type parameter `P` that is the type of a `@from` or `@source` member.
 3. r[annot.error.bound.display-carried] The generated `Display` gives no bound to a type parameter that is only carried.
-4. r[annot.error.bound.transparent] The generated `Error` gets `P < Error` for each type parameter `P` that is the type of a transparent member, so its `cause` can forward.
+4. r[annot.error.bound.transparent-source] The generated `Error` gets `P < Error` for each type parameter `P` that is the type of a transparent member, so its `source` can forward.
 5. r[annot.error.bound.carried] The generated `Error` gets `P < Inspectable` for each type parameter `P` that is only carried. Such a `P` is the type of no interpolated, transparent, `@from`, or `@source` member.
 6. r[annot.error.bound.interpolated] The generated `Error` gets `P < Display & Inspectable` for each type parameter `P` that only interpolated members have as their type. That is, an interpolated member has the type `P`, and no transparent, `@from`, or `@source` member does.
 

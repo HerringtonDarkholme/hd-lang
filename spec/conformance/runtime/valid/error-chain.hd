@@ -1,5 +1,5 @@
-# test: chain yields the error itself, then each cause in order, until a cause is .None
-# Spec std/error Cause Chain: std-error.chain.method-order (task #221).
+# test: chain yields the error itself, then each source in order, until a source is .None
+# Spec std/error Cause Chain: std-error.chain.source-order (task #221).
 use std.error.Error
 @error("disk full")
 struct DiskError:
@@ -21,13 +21,13 @@ fn messages(errors: List[&dyn Error]) -> List[string]:
 tests:
     use std.testing.assert_equal
 
-    it("a two-level cause chain"):
+    it("a two-level source chain"):
         failure := SyncError.Save(SaveError.Write("notes.txt", DiskError { free: 0 }))
         let error: &dyn Error = &failure
         errors := error.chain()
-        assert_equal(errors.len(), 3, reason="the error and its two causes")
+        assert_equal(errors.len(), 3, reason="the error and its two sources")
         assert_equal(messages(errors), ["sync failed", "cannot save notes.txt", "disk full"], reason="outermost first")
 
-    it("an error without a cause"):
+    it("an error without a source"):
         let error: &dyn Error = &DiskError { free: 0 }
         assert_equal(messages(error.chain()), ["disk full"], reason="only the error itself")

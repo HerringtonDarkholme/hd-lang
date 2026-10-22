@@ -1,5 +1,5 @@
-# test: a variant with two cause members
-# Spec 14 Error Causes: annot.error.cause.one is reported on the second cause member.
+# test: a variant with two source members
+# Spec 14 Error Sources: annot.error.cause.one is reported on the second source member.
 
 @error("disk full")
 struct DiskError:
@@ -7,5 +7,5 @@ struct DiskError:
 
 @error
 enum SaveError:
-    @error("two causes")
+    @error("two sources")
     Both(@source first: DiskError, @source second: DiskError)  # diagnostic: invalid-error-marker

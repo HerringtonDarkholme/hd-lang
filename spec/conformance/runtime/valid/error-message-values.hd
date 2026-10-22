@@ -19,14 +19,14 @@ tests:
             .Ok(_) => assert_equal(true, false, reason="expected an error")
             .Err(error) =>
                 assert_equal(error.to_string(), "disk full", reason="displays as the text")
-                assert_equal(report_of(error).causes.len(), 0, reason="no cause")
+                assert_equal(report_of(error).sources.len(), 0, reason="no source")
 
     it("context accepts an explicit message error"):
         let failed: Result[i32, &dyn Error] = .Err(message("disk full"))
         match failed.context("saving"):
             .Ok(_) => assert_equal(true, false, reason="expected an error")
             .Err(error) =>
-                assert_equal(report_of(error).to_string(), "saving\ncaused by: disk full", reason="the explicit message is the cause")
+                assert_equal(report_of(error).to_string(), "saving\nsource: disk full", reason="the explicit message is the source")
 
     it("ordinary string-valued Result errors remain values"):
         let failed: Result[i32, string] = .Err("plain text")

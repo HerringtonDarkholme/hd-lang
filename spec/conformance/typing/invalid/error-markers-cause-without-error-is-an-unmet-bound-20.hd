@@ -1,4 +1,4 @@
-# test: cause without error is an unmet bound
+# test: source without error is an unmet bound
 @error
 enum E:
     @error("bad")

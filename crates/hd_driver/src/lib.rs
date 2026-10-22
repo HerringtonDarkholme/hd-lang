@@ -111,7 +111,7 @@ fn embedded_std() -> &'static EmbeddedStd {
 /// `std.rt`: the hd the compiler roots after an entry point or a test case
 /// returns (module.entry.exit-report, module.testing.passes): the status
 /// `report()` gives, after an `.Err`'s report on standard error
-/// (module.entry.err-to-stderr). The driver picks one by the result type:
+/// (module.entry.err-sources-to-stderr). The driver picks one by the result type:
 /// `entry_status` for any `Termination`, `entry_status_error` for a
 /// `Result` whose error type implements `Error` and `entry_status_dyn_ref`
 /// for the erased `dyn Error`; the last two print the cause chain

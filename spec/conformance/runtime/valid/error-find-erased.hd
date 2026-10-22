@@ -24,4 +24,4 @@ tests:
     it("find through an erased Error"):
         match load():
             .Ok(_) => assert(false, reason="load fails")
-            .Err(failure) => assert_equal(free_space(failure), .Some(7), reason="the cause, recovered")
+            .Err(failure) => assert_equal(free_space(failure), .Some(7), reason="the source, recovered")

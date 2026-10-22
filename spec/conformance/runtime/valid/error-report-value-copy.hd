@@ -1,5 +1,5 @@
 # test: ErrorReport is a value: changing a copy's fields leaves the report it was copied from as it was
-# Spec std/error Error Reports: std-error.report.decl-struct, std-error.report.of.reference-values, std-error.report.message.
+# Spec std/error Error Reports: std-error.report.sources-struct, std-error.report.of.reference-values, std-error.report.message.
 # expect-stdout: disk full 0 changed 1
 use std.error.{message, report_of}
 
@@ -7,5 +7,5 @@ pub fn main() -> void $ Console:
     let mut report = report_of(message("disk full"))
     kept := report
     report.message = "changed"
-    report.causes.push("more")
-    println("${kept.message} ${kept.causes.len()} ${report.message} ${report.causes.len()}")
+    report.sources.push("more")
+    println("${kept.message} ${kept.sources.len()} ${report.message} ${report.sources.len()}")

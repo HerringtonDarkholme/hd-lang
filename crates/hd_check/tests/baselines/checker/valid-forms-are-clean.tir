@@ -11,7 +11,7 @@ struct DiskError:
 > app/main/error Display for SaveError.to_string
 >   local $0 self: SaveError[error Display for SaveError#0] [param]
 >   %15 = Block %14 : string
-> app/main/error Error for SaveError.cause
+> app/main/error Error for SaveError.source
 >   local $0 self: SaveError[error Error for SaveError#0] [param]
 >   local $1 $ref: DiskError [read assigned captured captured-assigned]
 >   local $2 $ref: Ref[DiskError] [read assigned captured]
@@ -61,7 +61,7 @@ enum SaveError[E]:
 >   %3 = Call std/format/Display.to_string for error Display for SaveError#0 [] via Bound (%2) : string
 >   %11 = Read [$0] : SaveError[error Error for SaveError#0]
 >   %12 = Read [%11 as #1 .0] : error Error for SaveError#0
->   %13 = Call std/error/Error.cause for error Error for SaveError#0 [] via Bound (%12) : Ref[Error]?
+>   %13 = Call std/error/Error.source for error Error for SaveError#0 [] via Bound (%12) : Ref[Error]?
     @error("two")
 >   %5 = Block "two" : string
 >   %6 = Block "opt" : string

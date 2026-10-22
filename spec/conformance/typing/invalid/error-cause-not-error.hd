@@ -1,5 +1,5 @@
 # test: a @source member whose type does not implement Error
-# Spec 14 Error Causes: annot.error.cause.type, as for any unmet bound.
+# Spec 14 Error Sources: annot.error.cause.type, as for any unmet bound.
 
 @error
 enum SaveError:

@@ -818,10 +818,10 @@ const EXAMPLE_RUNS: Readonly<Record<string, readonly string[]>> = {
     "exited normally",
     "listening on 8080",
     "starting the server",
-    "caused by: missing key 'port'",
+    "source: missing key 'port'",
     "starting the server",
-    "caused by: port 'eighty' is not a number",
-    "caused by: invalid digit at position 0",
+    "source: port 'eighty' is not a number",
+    "source: invalid digit at position 0",
   ],
   exhaustive: [
     "ok",

@@ -6,9 +6,9 @@ This chapter defines the part of `std.error` that `lib/std` writes in
 ordinary hd over the language tier:
 
 - the inherent methods `chain`, `root_cause`, and `find` of `&dyn Error`,
-  which list and search an error's causes;
+  which list and search an error's sources;
 - the type `ErrorReport` and the helper `report_of`, which snapshot an
-  error's message and its causes' messages;
+  error's message and its sources' messages;
 - the function `message`, which makes an error from a text;
 - the method `context` of `Result[T, E]`, which wraps errors with a message;
 - which std error types implement `Error`.
@@ -17,15 +17,15 @@ The language tier keeps what the compiler knows by name:
 
 | Item | Why it stays in the language tier |
 | --- | --- |
-| the trait `Error`, its member `cause`, and the `impl dyn Error:` block that holds `chain`, `root_cause`, and `find` | [Error Trait](../lang/09-traits.md#error-trait); the compiler generates implementations of it |
-| `@error`, `@from`, `@source`, and transparent errors | [Error Derivation](../lang/14-annotations.md#error-derivation), a compiler intrinsic that defines `cause` ([Error Causes](../lang/14-annotations.md#error-causes)) |
+| the trait `Error`, its member `source`, and the `impl dyn Error:` block that holds `chain`, `root_cause`, and `find` | [Error Trait](../lang/09-traits.md#error-trait); the compiler generates implementations of it |
+| `@error`, `@from`, `@source`, and transparent errors | [Error Derivation](../lang/14-annotations.md#error-derivation), a compiler intrinsic that defines `source` ([Error Causes](../lang/14-annotations.md#error-causes)) |
 | the erased `&dyn Error` and `?` into it | [Erased Errors](../lang/09-traits.md#erased-errors) and [Propagation](../lang/05-expressions.md#propagation) |
 | what an entry point prints for an `.Err` | [Entry Results](../lang/10-modules.md#entry-results), which the host follows |
 | which values cross a registered boundary | [Boundary-Safe Values](../lang/10-modules.md#boundary-safe-values) |
 
 ## Cause Chain
 
-`chain` lists an error, then its cause, then that cause's cause. It is an
+`chain` lists an error, then its source, then that source's source. It is an
 inherent method of `&dyn Error`:
 
 ```text
@@ -50,20 +50,20 @@ returns `["cannot save notes.txt", "disk full"]`.
 
 1. r[std-error.chain.reference-method] `std.error` declares `pub fn chain(&self) -> List[&dyn Error]` in its `impl dyn Error:` block, so `e.chain()` lists the causes of an `&dyn Error` reference `e`.
 2. r[std-error.chain.method-only] `std.error` exports no free `chain` function.
-3. r[std-error.chain.method-order] `error.chain()` returns `error` first, then the error that its `cause` returns, then that error's cause, and so on.
-4. r[std-error.chain.end] The list ends with the first error whose `cause` returns `.None`.
+3. r[std-error.chain.source-order] `error.chain()` returns `error` first, then the error that its `source` returns, then that error's source, and so on.
+4. r[std-error.chain.source-end] The list ends with the first error whose `source` returns `.None`.
 
-> **Note.** The list is never empty. A transparent error's `cause` skips
-> its member, as [`annot.error.transparent.cause`](../lang/14-annotations.md#r-annot.error.transparent.cause)
+> **Note.** The list is never empty. A transparent error's `source` skips
+> its member, as [`annot.error.transparent.source`](../lang/14-annotations.md#r-annot.error.transparent.source)
 > states, so `chain` never lists that member itself.
 
-> **Note.** `chain` stops only at `.None`. A hand-written `cause` that
+> **Note.** `chain` stops only at `.None`. A hand-written `source` that
 > leads back to an earlier error makes `chain` run forever.
 
 > **Why.** [Entry Results](../lang/10-modules.md#entry-results) prints an
-> error and then each cause that `chain` yields after it. One list that
+> error and then each source that `chain` yields after it. One list that
 > starts with the error itself serves both that rule and code that walks
-> the causes.
+> the sources.
 
 ## Root Cause And Find
 
@@ -116,7 +116,7 @@ fn code(failure: &dyn Error) -> i32?:
 ## Error Reports
 
 An `ErrorReport` is a boundary-safe snapshot of an error's message and the
-messages of its causes:
+messages of its sources:
 
 ```text
 use std.error.{ErrorReport, report_of}
@@ -132,16 +132,16 @@ enum SyncError:
 
 fn summary() -> string:
     report := report_of(SyncError.Save(DiskError { free: 0 }))
-    report.to_string()  # "sync failed\ncaused by: disk full"
+    report.to_string()  # "sync failed\nsource: disk full"
 ```
 
-1. r[std-error.report.decl-struct] `std.error` declares the struct `ErrorReport`, a value with the public fields `message: string` and `causes: List[string]`, and no other fields. Copying a report copies both fields.
+1. r[std-error.report.sources-struct] `std.error` declares the struct `ErrorReport`, a value with the public fields `message: string` and `sources: List[string]`, and no other fields. Copying a report copies both fields.
 2. r[std-error.report.import] Code imports both names, as in `use std.error.{ErrorReport, report_of}`.
 3. r[std-error.report.boundary-safe] Both fields are boundary-safe, so `ErrorReport` is boundary-safe by [`module.boundary.allowed`](../lang/10-modules.md#r-module.boundary.allowed).
 4. r[std-error.report.of.reference-values] `std.error` declares `pub fn report_of(error: &dyn Error) -> ErrorReport`.
 5. r[std-error.report.message] The report's `message` is the `Display` text of `error`.
-6. r[std-error.report.cause-texts] Its `causes` holds the `Display` text of each successive cause, starting with `error.cause()`.
-7. r[std-error.report.display] `ErrorReport` implements `Display`. Its text is `message`, then, for each element of `causes`, a line feed, `caused by: `, and that element.
+6. r[std-error.report.source-texts] Its `sources` holds the `Display` text of each successive source, starting with `error.source()`.
+7. r[std-error.report.display-sources] `ErrorReport` implements `Display`. Its text is `message`, then, for each element of `sources`, a line feed, `source: `, and that element.
 8. r[std-error.report.entry-text] So for an error `e` whose type implements `Error`, `report_of(e).to_string()` holds the lines that [Entry Results](../lang/10-modules.md#entry-results) prints for `.Err(e)`, joined by line feeds.
 
 > **Note.** A report holds only text. It keeps no error value, so code
@@ -149,7 +149,7 @@ fn summary() -> string:
 
 > **Why.** An erased `&dyn Error` never crosses a registered boundary
 > ([`module.boundary.erased-error`](../lang/10-modules.md#r-module.boundary.erased-error)).
-> A report keeps the message and the causes apart, so a receiver can show
+> A report keeps the message and the sources apart, so a receiver can show
 > the first line alone or the whole chain.
 
 ## One-Off Errors
@@ -171,7 +171,7 @@ For `parse_port("")`, the error displays as `empty port`.
 1. r[std-error.message.reference] `std.error` declares `pub fn message(text: string) -> &dyn Error`. Code imports it, as in `use std.error.message`.
 2. r[std-error.message.reference-struct] The returned reference points to a private struct, whose type code cannot name or match on.
 3. r[std-error.message.display] The error displays as `text`, unchanged.
-4. r[std-error.message.cause] Its `cause` returns `.None`, so `chain` lists only that error.
+4. r[std-error.message.source] Its `source` returns `.None`, so `chain` lists only that error.
 5. r[std-error.message.reference-result] `.Err(message(text))` is a valid result of a function returning `Result[T, &dyn Error]`.
 
 > **Why.** An ad hoc failure otherwise needs a struct, a `Display`
@@ -199,7 +199,7 @@ fn load() -> Result[string, &dyn Error]:
 fn summary() -> string:
     match load():
         .Ok(text) => text
-        .Err(failure) => report_of(failure).to_string()  # "loading config\ncaused by: not found: app.toml"
+        .Err(failure) => report_of(failure).to_string()  # "loading config\nsource: not found: app.toml"
 ```
 
 1. r[std-error.context.reference-result] `std.error` declares the inherent method `pub fn context(self, message: string) -> Result[T, &dyn Error]` on `Result[T, E]` for every `E < Error`.
@@ -209,13 +209,13 @@ fn summary() -> string:
 5. r[std-error.context.private-wrapper] The wrapper is a private struct with private fields, whose type code outside `std.error` cannot name.
 6. r[std-error.context.wrapper-traits] The wrapper implements `Display` and `Error`.
 7. r[std-error.context.wrapper-display] The wrapper displays as its message.
-8. r[std-error.context.reference-cause] Its `cause` returns `.Some` of the shared reference to the wrapped error.
+8. r[std-error.context.reference-source] Its `source` returns `.Some` of the shared reference to the wrapped error.
 9. r[std-error.context.method-chain] `error.chain()` lists the wrapper first, then the wrapped error and its causes.
-10. r[std-error.context.report-chain] `report_of` gives the context message, then one `caused by:` line per cause.
+10. r[std-error.context.report-sources] `report_of` gives the context message, then one `source:` line per source.
 
 > **Why.** Code that propagates with `?` often knows what it was doing
 > but not why the call failed. `context` records the first, keeps the
-> second as the cause, and leaves `chain` and `report_of` unchanged.
+> second as the source, and leaves `chain` and `report_of` unchanged.
 
 ## Standard Error Types
 
@@ -250,7 +250,7 @@ fn width(text: string) -> Result[i32, &dyn Error]:
 | `NetError` | `std.net` |
 
 1. r[std-error.std-types.impl.reference-values] Each type in the table above implements `Error`. So `?` converts it into a `Result[T, &dyn Error]`, by [`trait.error.result.reference-values`](../lang/09-traits.md#r-trait.error.result.reference-values), and `context` accepts it.
-2. r[std-error.std-types.cause] Their `cause` is the default `.None`.
+2. r[std-error.std-types.source] Their `source` is the default `.None`.
 3. r[std-error.std-types.display] Each keeps the `Display` text its chapter defines.
 4. r[std-error.std-types.string-no-impl] The language type `string` does not implement `Error`.
 5. r[std-error.std-types.string-message] A text error is constructed explicitly with `message(text)`.

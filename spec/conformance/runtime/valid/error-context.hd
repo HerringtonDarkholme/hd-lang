@@ -1,5 +1,5 @@
 # test: context wraps an .Err in a ContextError whose message comes first in chain and report_of, and passes .Ok through
-# Spec std/error Error Context: std-error.context.ok, std-error.context.erased-wrapper, std-error.context.wrapper-display, std-error.context.reference-cause, std-error.context.method-chain (ERR-CONTEXT; task #223).
+# Spec std/error Error Context: std-error.context.ok, std-error.context.erased-wrapper, std-error.context.wrapper-display, std-error.context.reference-source, std-error.context.method-chain (ERR-CONTEXT; task #223).
 use std.error.{Error, report_of}
 @error("not found: $path")
 struct NotFound:
@@ -17,14 +17,14 @@ fn load(path: string) -> Result[string, &dyn Error]:
 tests:
     use std.testing.{assert, assert_equal}
 
-    it("an .Err gets the message, with the error as its cause"):
+    it("an .Err gets the message, with the error as its source"):
         match load("app.toml"):
             .Ok(_) => assert(false, reason="the read fails")
             .Err(failure) =>
                 assert_equal(failure.to_string(), "loading config", reason="the context displays as its message")
-                assert_equal(failure.find::[NotFound]().map(fn(error): error.path), .Some("app.toml"), reason="the original cause remains recoverable")
-                assert_equal(failure.chain().map(fn(error): error.to_string()), ["loading config", "not found: app.toml"], reason="the context, then the cause")
-                assert_equal(report_of(failure).to_string(), "loading config\ncaused by: not found: app.toml", reason="the context first")
+                assert_equal(failure.find::[NotFound]().map(fn(error): error.path), .Some("app.toml"), reason="the original source remains recoverable")
+                assert_equal(failure.chain().map(fn(error): error.to_string()), ["loading config", "not found: app.toml"], reason="the context, then the source")
+                assert_equal(report_of(failure).to_string(), "loading config\nsource: not found: app.toml", reason="the context first")
 
     it("an .Ok passes through"):
         match load("other.toml"):
@@ -35,5 +35,5 @@ tests:
         match read("app.toml").context("loading config").context("starting app"):
             .Ok(_) => assert(false, reason="the read fails")
             .Err(failure) =>
-                assert_equal(failure.chain().map(fn(error): error.to_string()), ["starting app", "loading config", "not found: app.toml"], reason="both wrappers and the concrete cause")
-                assert_equal(report_of(failure).to_string(), "starting app\ncaused by: loading config\ncaused by: not found: app.toml", reason="generic reference-bound forwarding")
+                assert_equal(failure.chain().map(fn(error): error.to_string()), ["starting app", "loading config", "not found: app.toml"], reason="both wrappers and the concrete source")
+                assert_equal(report_of(failure).to_string(), "starting app\nsource: loading config\nsource: not found: app.toml", reason="generic reference-bound forwarding")

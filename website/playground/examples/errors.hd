@@ -5,8 +5,8 @@ fn start(config: string) -> Result[string, &dyn Error]:
 
 # For "port = eighty", `report_of(e)` prints:
 #   starting the server
-#   caused by: port 'eighty' is not a number
-#   caused by: invalid digit at position 0
+#   source: port 'eighty' is not a number
+#   source: invalid digit at position 0
 
 tests:
     use std.testing.{assert, assert_equal}

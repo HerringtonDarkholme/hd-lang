@@ -349,7 +349,7 @@ impl Target<'_, '_> {
             let t = own(f.ty);
             let r = self.read(ck, p, vi, 0, t);
             let error = ck.cx.names.known.error;
-            let (c, ct) = ck.trait_call(error, "cause", r, t, &[], node)?;
+            let (c, ct) = ck.trait_call(error, "source", r, t, &[], node)?;
             return Ok(ck.coerce(c, ct, ret, node, "a cause", ExpectPosition::General));
         }
         let Some(c) = v.cause() else {

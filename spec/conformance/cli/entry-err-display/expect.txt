@@ -1,6 +1,6 @@
 # The host writes an entry point's `.Err` report to standard error and
-# exits with status 1 (module.entry.err-to-stderr). A `string` error
-# implements `Error`, so it prints as a report with no causes
+# exits with status 1 (module.entry.err-sources-to-stderr). A `string` error
+# implements `Error`, so it prints as a report with no sources
 # (std-error.std-types.string). Standard output keeps only the
 # program's own output.
 run: hd display.hd

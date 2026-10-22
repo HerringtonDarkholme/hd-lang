@@ -45,8 +45,8 @@ fn read_port(config: string) -> Result[i32, ConfigError]:
 ```output
 listening on 8080
 starting the server
-caused by: no 'port' line
+source: no 'port' line
 starting the server
-caused by: port 'eighty' is not a number
-caused by: invalid digit at position 0
+source: port 'eighty' is not a number
+source: invalid digit at position 0
 ```
