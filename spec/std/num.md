@@ -2,8 +2,7 @@
 
 Status: standard library specification draft.
 
-This chapter defines the part of `std.num` that `lib/std` writes in
-ordinary hd over the language tier:
+This chapter defines the numeric APIs of `std.num`:
 
 - the checked, wrapping, and saturating integer methods, which make
   overflow explicit;
@@ -81,6 +80,11 @@ fn next_ticket(counter: i32) -> i32:
 
 1. r[std-num.wrapping.result] A value wrapped to `N` is the low bits of its two's-complement form, read as `N`, as an integer cast reads them by [`types.cast.wrap`](../lang/04-type-system.md#r-types.cast.wrap).
 2. r[std-num.wrapping.no-panic] A wrapping method never panics. So the largest `i32` plus one, wrapped, is the smallest `i32`, and the smallest `i64` times `-1`, wrapped, is the smallest `i64`.
+
+> **Note.** The compiler supplies intrinsic bodies for wrapping arithmetic
+> and integer bounds. Each wrapping operation uses one native arithmetic
+> instruction, with canonicalization for a narrow result; each bound is a
+> width-correct constant.
 
 ## Saturating Arithmetic
 

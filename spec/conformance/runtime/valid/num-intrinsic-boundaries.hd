@@ -1,0 +1,70 @@
+# test: wrapping arithmetic and bounds keep every integer width canonical in generic calls
+# Spec std/num: std-num.methods.every-width, std-num.wrapping.result, std-num.checked.add, std-num.checked.sub (issue #604).
+use std.num.Integer
+use std.testing.assert
+
+fn check_bounds[N < Integer](low: N, high: N) -> void:
+    zero := N::zero()
+    one := N::one()
+    two := one.wrapping_add(one)
+    all_ones := zero.wrapping_sub(one)
+    assert(high.wrapping_add(one) == low, reason="wrapping add crosses the upper bound")
+    assert(low.wrapping_sub(one) == high, reason="wrapping sub crosses the lower bound")
+    assert(high.checked_add(one).is_none(), reason="checked add rejects the upper bound")
+    assert(low.checked_sub(one).is_none(), reason="checked sub rejects the lower bound")
+    assert(high.checked_add(zero) == .Some(high), reason="the maximum remains in range")
+    assert(low.checked_sub(zero) == .Some(low), reason="the minimum remains in range")
+    assert(low.checked_div(zero).is_none(), reason="division by zero is checked")
+    assert(high.saturating_add(one) == high, reason="saturation uses the maximum constant")
+    assert(low.saturating_sub(one) == low, reason="saturation uses the minimum constant")
+    assert(high.wrapping_mul(two) == zero.wrapping_sub(two), reason="multiplication keeps the low bits")
+    assert(high.wrapping_mul(high) == one, reason="the maximum squared wraps to one")
+    assert(low.wrapping_mul(all_ones) == low, reason="minimum times all ones keeps its bits")
+    if low < zero:
+        assert(low.checked_div(all_ones).is_none(), reason="signed minimum over minus one is checked")
+
+tests:
+    it("i8 generic boundaries"):
+        let low: i8 = -128
+        let high: i8 = 127
+        check_bounds(low, high)
+
+    it("i16 generic boundaries"):
+        let low: i16 = -32768
+        let high: i16 = 32767
+        check_bounds(low, high)
+
+    it("i32 generic boundaries"):
+        let low: i32 = -2147483648
+        let high: i32 = 2147483647
+        check_bounds(low, high)
+
+    it("i64 generic boundaries"):
+        let low: i64 = -9223372036854775808
+        let high: i64 = 9223372036854775807
+        check_bounds(low, high)
+
+    it("u8 generic boundaries"):
+        let low: u8 = 0
+        let high: u8 = 255
+        check_bounds(low, high)
+
+    it("u16 generic boundaries"):
+        let low: u16 = 0
+        let high: u16 = 65535
+        check_bounds(low, high)
+
+    it("u32 generic boundaries"):
+        let low: u32 = 0
+        let high: u32 = 4294967295
+        check_bounds(low, high)
+
+    it("u64 generic boundaries"):
+        let low: u64 = 0
+        let high: u64 = 18446744073709551615
+        check_bounds(low, high)
+
+    it("usize generic boundaries"):
+        let low: usize = 0
+        let high: usize = 4294967295
+        check_bounds(low, high)

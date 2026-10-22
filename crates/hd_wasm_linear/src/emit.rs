@@ -2474,6 +2474,51 @@ impl Em<'_, '_, '_> {
                 self.f.helper(Helper::PanicWith);
                 Ok(())
             }
+            // Explicit wrapping arithmetic uses the native operation even
+            // in checked builds, with the usual sub-word canonical form.
+            "int_wrapping_add" | "int_wrapping_sub" | "int_wrapping_mul" => {
+                let (bits, signed, float) = self.num(self.ty_of(args[0]));
+                if float {
+                    return unsupported("wrapping arithmetic of a float");
+                }
+                let op = match key {
+                    "int_wrapping_add" => PrimOp::Add,
+                    "int_wrapping_sub" => PrimOp::Sub,
+                    _ => PrimOp::Mul,
+                };
+                self.wrapping(op, args, bits, signed)?;
+                self.store(i)
+            }
+            // Bounds need no operand or bit loop: the result's type fixes
+            // their width and signedness, including 32-bit `usize`.
+            "int_min" | "int_max" => {
+                let (bits, signed, float) = self.num(self.ty_of(i));
+                if float {
+                    return unsupported("integer bounds of a float");
+                }
+                let minimum = key == "int_min";
+                if bits == 64 {
+                    let value = match (minimum, signed) {
+                        (true, true) => i64::MIN,
+                        (true, false) => 0,
+                        (false, true) => i64::MAX,
+                        (false, false) => -1,
+                    };
+                    self.f.op(I::I64Const(value));
+                } else {
+                    let value = match (minimum, signed, bits) {
+                        (true, false, _) => 0,
+                        (true, true, 32) => i32::MIN,
+                        (true, true, _) => -(1i32 << (bits - 1)),
+                        (false, true, 32) => i32::MAX,
+                        (false, false, 32) => -1,
+                        (false, true, _) => width_mask(bits - 1),
+                        (false, false, _) => width_mask(bits),
+                    };
+                    self.f.i32(value);
+                }
+                self.store(i)
+            }
             // std's `format_int[N < Integer](value: N)`.
             "format_int" => {
                 let t = self.ty_of(args[0]);
