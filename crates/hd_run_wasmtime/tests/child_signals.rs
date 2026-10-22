@@ -51,8 +51,13 @@ fn main() {
         .bytes(b"")
         .0;
     for _ in 0..CHILDREN {
-        // Ok, empty stdout and stderr, status 0.
-        p.call_waiting("hd:Process", "run", &run_true, vec![0, 0, 0, 0]);
+        // Ok, empty stdout and stderr, status 0, program "true".
+        p.call_waiting(
+            "hd:Process",
+            "run",
+            &run_true,
+            vec![0, 0, 0, 0, 4, b't', b'r', b'u', b'e'],
+        );
     }
     let (wasm, expected) = p.finish(7);
     let setup = HostSetup {
