@@ -1645,38 +1645,84 @@ fn a_fifo_read_with_a_writer_reads_everything_in_a_session() {
 #[cfg(unix)]
 #[test]
 fn a_stop_during_a_fifo_read_cancels_the_input() {
+    use rustix::fs::{Mode, OFlags, open};
+    use rustix::io::Errno;
+    use std::sync::mpsc;
     use std::time::{Duration, Instant};
+
     let fifo = Fifo::new("stop-fifo");
-    with_session(|session, io| {
-        let stopper = session.stopper();
-        let mut repl = repl(session);
-        for input in FS_INPUTS {
-            assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
-        }
-        let built = repl.build(&format!("x := slurp!({})\n", hd_path(&fifo.0)));
-        let stopping = {
-            let stopper = stopper.clone();
-            std::thread::spawn(move || {
-                let until = Instant::now() + Duration::from_secs(10);
-                while !stopper.waiting() && Instant::now() < until {
-                    std::thread::sleep(Duration::from_millis(1));
+    let path = fifo.0.clone();
+    let (completed, completion) = mpsc::sync_channel(1);
+    // with_session joins its scoped thread. Keep that join off the test
+    // thread so even a broken stop/wake path fails within a bounded wait.
+    let session_thread = std::thread::spawn(move || {
+        let result = std::panic::catch_unwind(|| {
+            with_session(|session, io| {
+                let stopper = session.stopper();
+                let mut repl = repl(session);
+                for input in FS_INPUTS {
+                    assert_eq!(repl.input(input), Outcome::Exit(0), "{}", text(&io.err));
                 }
-                stopper.stop();
-            })
-        };
-        let started = Instant::now();
-        let outcome = repl.run(built);
-        let took = started.elapsed();
-        stopping.join().expect("the stopping thread");
-        assert_eq!(outcome, Outcome::Exit(3));
-        assert_eq!(text(&io.err), "cancelled\n");
-        assert!(
-            took < Duration::from_secs(10),
-            "the cancel waited: {took:?}"
-        );
-        assert!(!repl.session.pending(), "the read is still pending");
+                let built = repl.build(&format!("x := slurp!({})\n", hd_path(&path)));
+                let (finished, finish) = mpsc::sync_channel(1);
+                let stopping = std::thread::spawn(move || {
+                    let until = Instant::now() + Duration::from_secs(10);
+                    // NONBLOCK succeeds only when a reader has opened (or
+                    // is opening) the FIFO. A parked reactor alone does not
+                    // prove the offloaded read has started.
+                    let writer = loop {
+                        match open(
+                            &path,
+                            OFlags::WRONLY | OFlags::NONBLOCK | OFlags::CLOEXEC,
+                            Mode::empty(),
+                        ) {
+                            Ok(writer) => break writer,
+                            Err(Errno::NXIO | Errno::INTR) if Instant::now() < until => {
+                                std::thread::sleep(Duration::from_millis(1));
+                            }
+                            Err(error) => panic!("FIFO reader did not open: {error}"),
+                        }
+                    };
+                    while !stopper.waiting() && Instant::now() < until {
+                        std::thread::sleep(Duration::from_millis(1));
+                    }
+                    let waiting = stopper.waiting();
+                    stopper.stop();
+                    // Keep the writer open so EOF cannot win the race with
+                    // cancellation. On failure, release it after five seconds
+                    // so the abandoned blocking read can still finish.
+                    let cancelled = finish.recv_timeout(Duration::from_secs(5)).is_ok();
+                    drop(writer);
+                    (waiting, cancelled)
+                });
+                let started = Instant::now();
+                let outcome = repl.run(built);
+                let took = started.elapsed();
+                let _ = finished.send(());
+                let (waiting, cancelled) = stopping.join().expect("the stopping thread");
+                assert!(waiting, "the session did not wait on the FIFO read");
+                assert!(
+                    cancelled,
+                    "the read ended only after releasing the FIFO writer"
+                );
+                assert_eq!(outcome, Outcome::Exit(3));
+                assert_eq!(text(&io.err), "cancelled\n");
+                assert!(
+                    took < Duration::from_secs(10),
+                    "the cancel waited: {took:?}"
+                );
+                assert!(!repl.session.pending(), "the read is still pending");
+            });
+        });
+        let _ = completed.send(result);
     });
-    fifo.write(b"");
+    let result = completion
+        .recv_timeout(Duration::from_secs(30))
+        .expect("FIFO cancellation test did not finish within 30 seconds");
+    session_thread.join().expect("the session supervisor");
+    if let Err(panic) = result {
+        std::panic::resume_unwind(panic);
+    }
 }
 
 /// `cli.repl.host.once`: a rebuilt session serves a FIFO read from its
