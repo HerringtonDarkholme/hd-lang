@@ -159,12 +159,16 @@ impl InferTable {
     #[must_use]
     pub fn shallow(&self, pool: Types<'_>, t: Ty) -> Ty {
         let mut t = t;
-        while let TyData::Infer(v) = pool.get(t) {
-            match self.binding[self.root(v.raw()) as usize] {
+        // Global types cannot hold inference variables. Check the local
+        // bit again after each binding, so its global result is not decoded.
+        while t.is_local()
+            && let TyData::Infer(v) = pool.get(t)
+        {
+            let root = self.root(v.raw());
+            match self.binding[root as usize] {
                 Some(b) => t = b,
-                None => {
-                    return pool.intern_ty(&TyData::Infer(InferVar::from_raw(self.root(v.raw()))));
-                }
+                None if root == v.raw() => return t,
+                None => return pool.intern_ty(&TyData::Infer(InferVar::from_raw(root))),
             }
         }
         t
@@ -606,6 +610,104 @@ impl InferTable {
 mod tests {
     use super::{InferTable, UnifyError, VarKind};
     use crate::pool::{Inputs, InternPool, LocalPool, RowId, Ty, TyData, Types};
+
+    #[test]
+    fn shallow_preserves_global_types_without_a_local_pool() {
+        let gp = InternPool::new();
+        let p = gp.types();
+        let trait_value = p.intern_ty(&TyData::TraitValue {
+            def: hd_base::DefId::from_raw(7),
+            args: p.list(&[Ty::I32, Ty::BOOL]),
+            bindings: vec![(hd_base::DefId::from_raw(8), Ty::STRING)],
+        });
+        let function = p.intern_ty(&TyData::Fn {
+            params: p.list(&[trait_value]),
+            result: Ty::STRING,
+            row: RowId::EMPTY,
+            suspends: false,
+            inputs: Inputs::Fixed,
+        });
+        let param = p.intern_ty(&TyData::Param(crate::ParamRef {
+            owner: hd_base::DefId::from_raw(9),
+            index: 0,
+        }));
+        let table = InferTable::default();
+        for ty in [
+            Ty::I32,
+            Ty::NEVER,
+            Ty::POISON,
+            Ty::VOID,
+            trait_value,
+            function,
+            param,
+            p.intern_ty(&TyData::Canon(0)),
+        ] {
+            assert!(!ty.is_local());
+            assert_eq!(table.shallow(p, ty), ty);
+        }
+    }
+
+    #[test]
+    fn shallow_canonicalizes_unbound_classes_and_follows_global_bindings() {
+        let (gp, lp) = (InternPool::new(), LocalPool::new());
+        let p = Types::with_local(&gp, &lp);
+        let mut table = InferTable::default();
+        let a = table.fresh(p, VarKind::General);
+        let b = table.fresh(p, VarKind::General);
+        let alias = table.fresh(p, VarKind::General);
+        assert_eq!(table.shallow(p, a), a);
+        table.unify(p, a, b).expect("join classes");
+        table.alias(p, alias, a);
+        let root = table.shallow(p, a);
+        assert_eq!(table.shallow(p, b), root);
+        assert_eq!(table.shallow(p, alias), root);
+        let before = lp.len();
+        assert_eq!(table.shallow(p, root), root);
+        assert_eq!(lp.len(), before);
+        let snap = table.snapshot();
+        let global = p.intern_ty(&TyData::Option(Ty::I32));
+        table.unify(p, b, global).expect("bind class");
+        assert!(!global.is_local());
+        for ty in [a, b, alias] {
+            assert_eq!(table.shallow(p, ty), global);
+        }
+        table.rebind(p, a, Ty::STRING);
+        assert_eq!(table.shallow(p, alias), Ty::STRING);
+        table.rollback(snap);
+        for ty in [a, b, alias] {
+            assert_eq!(table.shallow(p, ty), root);
+        }
+    }
+
+    #[test]
+    fn shallow_stops_at_local_composites_even_after_their_variables_bind() {
+        let (gp, lp) = (InternPool::new(), LocalPool::new());
+        let p = Types::with_local(&gp, &lp);
+        let mut table = InferTable::default();
+        let a = table.fresh(p, VarKind::General);
+        let b = table.fresh(p, VarKind::General);
+        let nested = p.intern_ty(&TyData::TraitValue {
+            def: hd_base::DefId::from_raw(7),
+            args: p.list(&[b]),
+            bindings: vec![(hd_base::DefId::from_raw(8), b)],
+        });
+        assert!(nested.is_local());
+        table.alias(p, a, nested);
+        assert_eq!(table.shallow(p, a), nested);
+        assert_eq!(table.shallow(p, nested), nested);
+        table.unify(p, b, Ty::I32).expect("bind nested variable");
+        assert_eq!(table.shallow(p, a), nested);
+        let resolved = table.resolve(p, a);
+        assert!(!resolved.is_local());
+        assert_eq!(
+            p.get(resolved),
+            TyData::TraitValue {
+                def: hd_base::DefId::from_raw(7),
+                args: p.list(&[Ty::I32]),
+                bindings: vec![(hd_base::DefId::from_raw(8), Ty::I32)],
+            }
+        );
+    }
 
     /// `Fn[?A, i32, $()]` against a function type of any arity solves
     /// `?A` as that type's inputs tuple; against a different result or a
