@@ -4,11 +4,12 @@
 //! blob carries them through entry-local tables.
 
 use hd_base::HashMap;
-use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 
 use crate::known::KnownItems;
 use hd_base::wire::{Reader, Writer};
-use hd_base::{DefId, Hash128, PathId, StableHasher, StageResult, Symbol};
+use hd_base::{AppendVec, DefId, FolderId, Hash128, PathId, StableHasher, StageResult, Symbol};
 use hd_intern::{PathKind, PathTable, ShardedInterner};
 use hd_types::solver::{
     Declarations, HeadKey, ImplOrigin, ImplTable, PlanStep, SealedTraits, TypeDecl,
@@ -618,22 +619,101 @@ pub fn std_import_hint<'a>(
     }
 }
 
+/// A run's dense interface-item directory. Each folder registers its index
+/// once, after attaching metadata and before publishing its frozen interface.
+/// Registration reads no item records. Rows may grow while other folders are
+/// being checked; published rows are atomic and readers never take the writer
+/// lock. Each lookup still restricts access to its own interface closure.
+#[derive(Default)]
+pub struct IfaceIndex {
+    rows: AppendVec<AtomicU64>,
+    writer: Mutex<()>,
+}
+
+impl IfaceIndex {
+    const MISSING: u64 = u64::MAX;
+    const AMBIGUOUS: u64 = u64::MAX - 1;
+
+    /// Adds one frozen folder's `(DefId, item slot)` index. The driver calls
+    /// this before publishing the interface's `Arc`, on cache hits and misses.
+    /// `FolderId::NONE` is not a folder. Re-registering the same index is inert.
+    pub fn insert(&self, folder: FolderId, iface: &FolderIface) {
+        assert!(folder.get().is_some(), "an interface has a folder");
+        let Some(last) = iface
+            .by_def
+            .keys()
+            .filter_map(|d| d.get())
+            .map(DefId::raw)
+            .max()
+        else {
+            return;
+        };
+        let _writer = self.writer.lock().expect("interface index");
+        while self.rows.len() <= last {
+            self.rows.push(AtomicU64::new(Self::MISSING));
+        }
+        for (&def, &slot) in &iface.by_def {
+            if def.get().is_none() {
+                continue;
+            }
+            let value = (u64::from(folder.raw()) << 32)
+                | u64::from(u32::try_from(slot).expect("interface item slot"));
+            let row = self.rows.get(def.raw()).expect("interface index row");
+            let old = row.load(Ordering::Relaxed);
+            row.store(
+                if old == Self::MISSING || old == value {
+                    value
+                } else {
+                    // A malformed/recovery interface may repeat an identity
+                    // in another folder. Keep the old ordered search for that
+                    // identity alone, including fallback after a bad record.
+                    Self::AMBIGUOUS
+                },
+                Ordering::Release,
+            );
+        }
+    }
+
+    fn location(&self, def: DefId) -> u64 {
+        self.rows
+            .get(def.raw())
+            .map_or(Self::MISSING, |row| row.load(Ordering::Acquire))
+    }
+}
+
 /// Finds items by `DefId` across one module's own items and the
 /// interfaces of its closure.
 pub struct Lookup<'a> {
     pub own: &'a [Item],
     pub own_index: HashMap<DefId, usize>,
     pub ifaces: Vec<&'a FolderIface>,
+    index: &'a IfaceIndex,
+    by_folder: Vec<Option<&'a FolderIface>>,
 }
 
 impl<'a> Lookup<'a> {
     #[must_use]
-    pub fn new(own: &'a [Item], ifaces: Vec<&'a FolderIface>) -> Self {
+    pub fn new(
+        own: &'a [Item],
+        ifaces: impl IntoIterator<Item = (FolderId, &'a FolderIface)>,
+        index: &'a IfaceIndex,
+    ) -> Self {
         let own_index = own.iter().enumerate().map(|(i, it)| (it.def, i)).collect();
+        let mut visible = Vec::new();
+        let mut by_folder = Vec::new();
+        for (folder, iface) in ifaces {
+            if by_folder.len() <= folder.idx() {
+                by_folder.resize(folder.idx() + 1, None);
+            }
+            by_folder[folder.idx()] = Some(iface);
+            visible.push(iface);
+        }
         Self {
             own,
             own_index,
-            ifaces,
+            ifaces: visible,
+            index,
+            by_folder,
         }
     }
     #[must_use]
@@ -641,7 +721,17 @@ impl<'a> Lookup<'a> {
         if let Some(&i) = self.own_index.get(&d) {
             return self.own.get(i);
         }
-        self.ifaces.iter().find_map(|f| f.item(d))
+        match self.index.location(d) {
+            IfaceIndex::AMBIGUOUS => self.ifaces.iter().find_map(|f| f.item(d)),
+            IfaceIndex::MISSING if d == DefId::NONE => self.ifaces.iter().find_map(|f| f.item(d)),
+            IfaceIndex::MISSING => None,
+            location => {
+                let folder = usize::try_from(location >> 32).expect("interface folder");
+                let slot =
+                    usize::try_from(location & u64::from(u32::MAX)).expect("interface item slot");
+                self.by_folder.get(folder)?.as_ref()?.items.get(slot)
+            }
+        }
     }
     /// Failed trait declarations whose target still needs error recovery.
     #[must_use]
@@ -2105,6 +2195,174 @@ mod tests {
     };
     use hd_intern::{PathTable, ShardedInterner};
     use hd_types::{InternPool, ParamRef, TyData};
+
+    fn indexed_item(def: hd_base::DefId, name: u32) -> Item {
+        Item::new(
+            def,
+            hd_base::Symbol::from_raw(name),
+            true,
+            ItemData::Data(Vec::new()),
+        )
+    }
+
+    fn indexed_folder(folder: &str, items: super::Items) -> super::FolderIface {
+        super::folder_iface(
+            folder,
+            items,
+            Vec::new(),
+            std::sync::Arc::from(&b""[..]),
+            None,
+            &[],
+            Vec::new(),
+        )
+    }
+
+    #[test]
+    fn lookup_keeps_own_precedence_and_restricts_sparse_ids_to_visible_folders() {
+        use hd_base::{DefId, FolderId};
+        let shared = DefId::from_raw(3);
+        let distant = DefId::from_raw(257);
+        let first = indexed_folder("first", super::Items::new(vec![indexed_item(shared, 1)]));
+        let later = indexed_folder("later", super::Items::new(vec![indexed_item(distant, 2)]));
+        let index = super::IfaceIndex::default();
+        index.insert(FolderId::from_raw(2), &first);
+        let visible = [(FolderId::from_raw(2), &first)];
+        let lookup = super::Lookup::new(&[], visible, &index);
+        assert!(std::ptr::eq(
+            lookup.item(shared).unwrap(),
+            first.item(shared).unwrap()
+        ));
+        assert!(
+            lookup.item(distant).is_none(),
+            "a pending folder has no row"
+        );
+        // A later folder may publish while an older lookup is being used.
+        // Its new rows must not become visible in that lookup's closure.
+        std::thread::scope(|scope| {
+            let reader = scope.spawn(|| {
+                for _ in 0..100 {
+                    assert!(lookup.item(shared).is_some());
+                    assert!(lookup.item(distant).is_none());
+                }
+            });
+            index.insert(FolderId::from_raw(7), &later);
+            reader.join().unwrap();
+        });
+        assert!(lookup.item(distant).is_none(), "outside the closure");
+        assert!(lookup.item(DefId::from_raw(256)).is_none(), "a sparse hole");
+        assert!(
+            lookup.item(DefId::from_raw(u32::MAX - 1)).is_none(),
+            "foreign id"
+        );
+        assert!(lookup.item(DefId::NONE).is_none());
+        let own = vec![indexed_item(shared, 3), indexed_item(shared, 4)];
+        let lookup = super::Lookup::new(
+            &own,
+            [
+                (FolderId::from_raw(2), &first),
+                (FolderId::from_raw(7), &later),
+            ],
+            &index,
+        );
+        assert!(
+            std::ptr::eq(lookup.item(shared).unwrap(), own.get(1).unwrap()),
+            "last own item wins"
+        );
+        assert!(std::ptr::eq(
+            lookup.item(distant).unwrap(),
+            later.item(distant).unwrap()
+        ));
+    }
+
+    #[test]
+    fn lookup_preserves_folder_order_and_bad_record_fallback_for_duplicate_ids() {
+        use hd_base::{DefId, FolderId};
+        let shared = DefId::from_raw(3);
+        let first = indexed_folder("first", super::Items::new(vec![indexed_item(shared, 1)]));
+        let second = indexed_folder(
+            "second",
+            super::Items::new(vec![indexed_item(shared, 2), indexed_item(shared, 3)]),
+        );
+        let missing = indexed_folder(
+            "missing",
+            super::Items::with_source(vec![shared], vec![super::NOT_IMPL], None),
+        );
+        let index = super::IfaceIndex::default();
+        // Registration order cannot decide a lookup's duplicate precedence.
+        index.insert(FolderId::from_raw(4), &second);
+        index.insert(FolderId::from_raw(1), &first);
+        index.insert(FolderId::from_raw(7), &missing);
+        let lookup = super::Lookup::new(
+            &[],
+            [
+                (FolderId::from_raw(1), &first),
+                (FolderId::from_raw(4), &second),
+            ],
+            &index,
+        );
+        assert!(std::ptr::eq(
+            lookup.item(shared).unwrap(),
+            first.item(shared).unwrap()
+        ));
+        let lookup = super::Lookup::new(
+            &[],
+            [
+                (FolderId::from_raw(7), &missing),
+                (FolderId::from_raw(4), &second),
+            ],
+            &index,
+        );
+        assert!(std::ptr::eq(
+            lookup.item(shared).unwrap(),
+            second.items.get(1).unwrap()
+        ));
+    }
+
+    #[test]
+    fn lookup_directory_keeps_interface_records_lazy() {
+        use hd_base::FolderId;
+        let (pool, paths, syms) = (
+            InternPool::new(),
+            PathTable::new(),
+            ShardedInterner::default(),
+        );
+        let known = crate::KnownItems::new(&paths);
+        let names = Names {
+            pool: &pool,
+            paths: &paths,
+            syms: &syms,
+            known: &known,
+        };
+        let items: Vec<Item> = (0..3)
+            .map(|i| {
+                let name = format!("item{i}");
+                Item::new(
+                    names.item("app", &name),
+                    syms.intern(&name),
+                    true,
+                    ItemData::Data(Vec::new()),
+                )
+            })
+            .collect();
+        let blob = encode_items(&names, &items, &[]).unwrap();
+        let (lazy, _) = decode_lazy(&names, std::sync::Arc::from(blob)).unwrap();
+        let iface = indexed_folder("app", lazy);
+        let index = super::IfaceIndex::default();
+        index.insert(FolderId::from_raw(0), &iface);
+        let lookup = super::Lookup::new(&[], [(FolderId::from_raw(0), &iface)], &index);
+        assert_eq!(
+            iface.items.decoded(),
+            0,
+            "directory construction reads only indexes"
+        );
+        assert_eq!(lookup.item(items[1].def), Some(&items[1]));
+        assert_eq!(lookup.item(items[1].def), Some(&items[1]));
+        assert_eq!(
+            iface.items.decoded(),
+            1,
+            "only the selected record decodes, once"
+        );
+    }
 
     #[test]
     fn docs_round_trip_outside_the_semantic_blob() {

@@ -35,6 +35,7 @@ use hd_intern::{PathTable, ShardedInterner};
 use hd_mono::layout::{LayoutEnv, StdKind};
 use hd_mono::{Collected, JsonItems, ProgramEnv};
 use hd_project::{FolderGraph, MemorySources, ModuleTable, PackageIn, Role, Scope, SourceSet};
+use hd_resolve::iface::IfaceIndex;
 use hd_resolve::{FolderIface, Item, ItemData, Items, Lookup, ModOut, Names, Src};
 use hd_sched::{ExtTask, SerialOrder, SerialScheduler, Spawn, TaskGraph, TaskId, TaskKind};
 use hd_syntax::{HeaderKind, Parse, parse, skim};
@@ -1192,6 +1193,7 @@ struct Run<'a> {
     parse: Vec<OnceLock<Parse>>,
     graph: OnceLock<GraphOut>,
     iface: Vec<OnceLock<Option<Arc<FolderIface>>>>,
+    iface_index: IfaceIndex,
     prep: Vec<OnceLock<Option<PrepOut>>>,
     /// Per module that declares a derivation template: its items and scope,
     /// lowered once per run for the opt-ins that instantiate it.
@@ -1644,6 +1646,7 @@ pub fn build_packages(
         parse: (0..n).map(|_| OnceLock::new()).collect(),
         graph: OnceLock::new(),
         iface: (0..nf).map(|_| OnceLock::new()).collect(),
+        iface_index: IfaceIndex::default(),
         prep: (0..n).map(|_| OnceLock::new()).collect(),
         template_mods: (0..n).map(|_| OnceLock::new()).collect(),
         folder_templates: (0..nf).map(|_| OnceLock::new()).collect(),
@@ -3201,6 +3204,7 @@ impl Run<'_> {
         lock(&self.diags).append(&diags);
         self.note_iface(&folder.path, &iface, true);
         lock(&self.report).ok(Stage::FolderIface);
+        self.iface_index.insert(folder.id, &iface);
         let _ = self.iface[fi].set(Some(Arc::new(iface)));
     }
 
@@ -3451,6 +3455,7 @@ impl Run<'_> {
         self.emit_iface_diags(fi, &diags);
         self.note_iface(&folder.path, &iface, false);
         lock(&self.report).ok(Stage::FolderIface);
+        self.iface_index.insert(folder.id, &iface);
         let _ = self.iface[fi].set(Some(Arc::new(iface)));
         Some(mentions)
     }
@@ -3983,7 +3988,11 @@ impl Run<'_> {
         hd_resolve::use_diags(&cx, &mods, &mut found_uses);
         let uses = encode_iface_diags(&self.anchored_diags(fi, &found_uses));
         lock(&self.diags).append(&found_uses);
-        let lookup = Lookup::new(&[], all.iter().map(AsRef::as_ref).collect());
+        let lookup = Lookup::new(
+            &[],
+            closure.iter().copied().zip(all.iter().map(AsRef::as_ref)),
+            &self.iface_index,
+        );
         let (folders, universe, extra) = self.closure_impls(&closure);
         let arity = |d: DefId| lookup.item(d).map_or(0, |i| i.generics.len());
         let impls = ImplView {
@@ -5014,8 +5023,10 @@ impl Run<'_> {
         };
         let module = &self.table.modules[m];
         let closure = self.module_closure(m);
-        let ifaces: Vec<Arc<FolderIface>> =
-            closure.iter().filter_map(|f| self.iface_of(*f)).collect();
+        let (iface_folders, ifaces): (Vec<_>, Vec<Arc<FolderIface>>) = closure
+            .iter()
+            .filter_map(|&f| self.iface_of(f).map(|iface| (f, iface)))
+            .unzip();
         // A REPL input also sees `src/lib.hd`'s private items
         // (`cli.repl.package.lib`), which no interface carries.
         // Only an input whose session holds the library asks: its closure
@@ -5031,7 +5042,13 @@ impl Run<'_> {
             Some(lib) => prep.items.iter().chain(&lib.private).cloned().collect(),
             None => std::borrow::Cow::Borrowed(&prep.items),
         };
-        let lookup = Lookup::new(&own, ifaces.iter().map(AsRef::as_ref).collect());
+        let lookup = Lookup::new(
+            &own,
+            iface_folders
+                .into_iter()
+                .zip(ifaces.iter().map(AsRef::as_ref)),
+            &self.iface_index,
+        );
         let names = self.names();
         // A rendered body's fields by name (`hd_check::render`).
         let field_names = |t: Ty, k: u32| -> Option<(String, Ty)> {
@@ -6470,8 +6487,10 @@ impl Run<'_> {
                 closure.push(fo);
             }
         }
-        let ifaces: Vec<Arc<FolderIface>> =
-            closure.iter().filter_map(|fo| self.iface_of(*fo)).collect();
+        let (iface_folders, ifaces): (Vec<_>, Vec<Arc<FolderIface>>) = closure
+            .iter()
+            .filter_map(|&f| self.iface_of(f).map(|iface| (f, iface)))
+            .unzip();
         let lib = if self.with_lib(tm) {
             self.lib_scope().map_or(&[][..], |l| l.private.as_slice())
         } else {
@@ -6484,7 +6503,13 @@ impl Run<'_> {
             .chain(lib.iter().filter(|i| !held.contains(&i.def)))
             .cloned()
             .collect();
-        let lookup = Lookup::new(&items, ifaces.iter().map(AsRef::as_ref).collect());
+        let lookup = Lookup::new(
+            &items,
+            iface_folders
+                .into_iter()
+                .zip(ifaces.iter().map(AsRef::as_ref)),
+            &self.iface_index,
+        );
         let (folders, universe, extra) = self.closure_impls(&closure);
         let arity = |d: DefId| lookup.item(d).map_or(0, |i| i.generics.len());
         let view = ImplView {
@@ -6542,9 +6567,17 @@ impl Run<'_> {
             })
             .as_ref()?;
         let closure = self.closure(self.table.modules[tm].folder);
-        let ifaces: Vec<Arc<FolderIface>> =
-            closure.iter().filter_map(|f| self.iface_of(*f)).collect();
-        let lookup = Lookup::new(&tmod.items, ifaces.iter().map(AsRef::as_ref).collect());
+        let (iface_folders, ifaces): (Vec<_>, Vec<Arc<FolderIface>>) = closure
+            .iter()
+            .filter_map(|&f| self.iface_of(f).map(|iface| (f, iface)))
+            .unzip();
+        let lookup = Lookup::new(
+            &tmod.items,
+            iface_folders
+                .into_iter()
+                .zip(ifaces.iter().map(AsRef::as_ref)),
+            &self.iface_index,
+        );
         let own_impls: Vec<&Item> = tmod
             .items
             .iter()
