@@ -22,7 +22,9 @@
 //!   `structure handle V M`), which the traversals call. Its body has kind
 //!   `Handle`, so codegen builds the handle once per owner instance, on
 //!   the first call, and every later call returns that same value
-//!   (`annot.handle.constants`). A `Facts` value is a call of the facts
+//!   (`annot.handle.constants`). Build's variant and member directories
+//!   use those same once-cell bodies and reuse the handles' information.
+//!   A `Facts` value is a call of the facts
 //!   body that the checker wrote for its slot, or empty, so a member's
 //!   facts are read when its handle is first built (`annot.fact.eval.lazy`).
 //! - **A tuple type, at codegen** ([`supplied`]): the trait solver's
@@ -30,9 +32,9 @@
 //!   and collection asks for one method's body at that tuple type
 //!   ([`tuple_target`], `annot.tuple.*`). The body is the trait method's
 //!   instance at the tuple, keyed by the tuple type like any instance. A
-//!   tuple has no implementation to hold hidden methods, so its handles are
-//!   built where the traversal passes them, at each pass. A tuple member
-//!   has no facts (`annot.tuple.members`), so this costs allocations only.
+//!   tuple uses supplied hidden factories keyed by the exact tuple type,
+//!   shared by every traversal. Their `Handle` bodies cache the handles,
+//!   witnesses and metadata directories just like named derivations.
 //!
 //! The handles and information values are values of `std.structure`'s
 //! declarations (`lib/std/structure.hd`), built field by field; their
@@ -318,26 +320,60 @@ pub fn derivation(cx: &Cx<'_, '_>, target: &Target, owner: DefId) -> StageResult
             }
         }
     }
-    // Each handle's own body, which builds the handle once per instance
-    // (`BodyKind::Handle`).
-    for h in handles {
-        let mut g = Gen::new(cx, target.ty, h.def, Handles::Methods(owner));
+    let helpers = handle_bodies(cx, target, Handles::Methods(owner), handles)?;
+    out.items.extend(helpers.items);
+    out.bodies.extend(helpers.bodies);
+    Ok(out)
+}
+
+/// A requested supplied method and the cached metadata factories it calls.
+pub struct Supplied {
+    pub body: Body,
+    pub helpers: Generated,
+}
+
+/// The factories requested by a traversal, including directory dependencies.
+fn handle_bodies(
+    cx: &Cx<'_, '_>,
+    target: &Target,
+    mode: Handles,
+    mut handles: Vec<Handle>,
+) -> StageResult<Generated> {
+    let names = cx.names;
+    let owner = mode.owner(names);
+    let mut out = Generated::default();
+    // Each handle or metadata directory has its own once-cell body.
+    // Directory factories can request field/variant factories, so drain
+    // the deduplicated worklist to include their dependencies too.
+    let mut next = 0;
+    while let Some(h) = handles.get(next).copied() {
+        next += 1;
+        let mut g = Gen::new(cx, target.ty, h.def, mode);
         g.b = TirBuilder::new(h.def, BodyKind::Handle);
         let blk = g.b.open_block();
-        let v = &target.vars[h.var];
-        let x = match h.mem {
-            None => g.new_variant_handle(v)?,
-            Some(k) => g.new_field_handle(v, &v.members[k], h.f)?,
+        let x = match h.kind {
+            HandleKind::Variant => g.new_variant_handle(&target.vars[h.var])?,
+            HandleKind::Field(k) => {
+                let v = &target.vars[h.var];
+                g.new_field_handle(v, &v.members[k], h.f)?
+            }
+            HandleKind::Members => g.new_members(&target.vars[h.var])?,
+            HandleKind::Choices => g.new_choices(&target.vars),
         };
         let root = g.b.close_block(blk, Some(x), h.ty, SYN);
-        let (body, _) = g.finish(root)?;
+        let (body, wanted) = g.finish(root)?;
+        for h in wanted {
+            if !handles.contains(&h) {
+                handles.push(h);
+            }
+        }
         out.items.push(Item::new(
             h.def,
             names.syms.intern("handle"),
             false,
             ItemData::Method {
                 owner,
-                sig: FnSig::simple(Vec::new(), Vec::new(), h.ty),
+                sig: FnSig::simple(Vec::new(), Vec::new(), helper_ret(cx, mode, h)),
                 has_body: true,
             },
         ));
@@ -346,14 +382,33 @@ pub fn derivation(cx: &Cx<'_, '_>, target: &Target, owner: DefId) -> StageResult
     Ok(out)
 }
 
+/// A supplied factory's signature is independent of the concrete tuple.
+/// Its instance arguments are [tuple] or [tuple, field type].
+fn helper_ret(cx: &Cx<'_, '_>, mode: Handles, h: Handle) -> Ty {
+    if matches!(mode, Handles::Methods(_)) {
+        return h.ty;
+    }
+    let names = cx.names;
+    let g = Gen::new(cx, param(names, h.def, 0), h.def, mode);
+    match h.kind {
+        HandleKind::Variant => g.adt(g.std("Variant"), &[g.target]),
+        HandleKind::Field(_) => g.adt(names.known.field, &[g.target, param(names, h.def, 1)]),
+        HandleKind::Members => g.adt(g.std("Members"), &[g.target]),
+        HandleKind::Choices => {
+            let variant = g.adt(g.std("Variant"), &[g.target]);
+            g.fresh(g.adt(names.known.list, &[variant]))
+        }
+    }
+}
+
 /// The body of `Structure`'s method `method` at `target`, a type the
 /// compiler supplies `Structure` for (a tuple, `crates/hd_mono/DESIGN.md` §13.6). The body
 /// belongs to the trait method itself: its signature is the trait's with
 /// `Self` replaced by the target, and the method's own parameters stay the
 /// trait method's, so an instance's arguments are `[target, own...]`.
-/// Handles are built where the traversal passes them. `None` for a method
-/// the generator does not write.
-pub fn supplied(cx: &Cx<'_, '_>, target: &Target, method: DefId) -> StageResult<Option<Body>> {
+/// Handles and directories use cached factories shared by every traversal.
+/// `None` for a method the generator does not write.
+pub fn supplied(cx: &Cx<'_, '_>, target: &Target, method: DefId) -> StageResult<Option<Supplied>> {
     let names = cx.names;
     let st = names.known.structure;
     let Some((name, _, trait_sig)) = structure_methods(cx)?.into_iter().find(|m| m.1 == method)
@@ -363,8 +418,13 @@ pub fn supplied(cx: &Cx<'_, '_>, target: &Target, method: DefId) -> StageResult<
     let sig = subst_sig(names, &trait_sig, &|p: ParamRef| {
         (p.owner == st && p.index == 0).then_some(target.ty)
     });
-    let g = Gen::new(cx, target.ty, method, Handles::Inline);
-    Ok(method_body(g, target, &name, &sig)?.map(|(body, _)| body))
+    let mode = Handles::Supplied;
+    let g = Gen::new(cx, target.ty, method, mode);
+    let Some((body, handles)) = method_body(g, target, &name, &sig)? else {
+        return Ok(None);
+    };
+    let helpers = handle_bodies(cx, target, mode, handles)?;
+    Ok(Some(Supplied { body, helpers }))
 }
 
 /// A type parameter of `owner`.
@@ -410,8 +470,17 @@ enum Handles {
     /// Calls of the hidden handle methods of the `Structure`'s owner,
     /// whose bodies the derivation adds once.
     Methods(DefId),
-    /// Built in place: the target has no implementation to hold them.
-    Inline,
+    /// Supplied tuple factories, instantiated at the exact tuple type.
+    Supplied,
+}
+
+impl Handles {
+    fn owner(self, names: &Names<'_>) -> DefId {
+        match self {
+            Self::Methods(owner) => owner,
+            Self::Supplied => hidden_method(names, names.known.structure, "tuple"),
+        }
+    }
 }
 
 /// One generated body under construction.
@@ -431,11 +500,17 @@ struct Gen<'a, 'n> {
 /// owner instance, so every walker and every traversal gets the same
 /// value.
 #[derive(Clone, Copy, PartialEq)]
+enum HandleKind {
+    Variant,
+    Field(usize),
+    Members,
+    Choices,
+}
+
+#[derive(Clone, Copy, PartialEq)]
 struct Handle {
     var: usize,
-    /// The member's index in the variant, or `None` for the variant's
-    /// handle.
-    mem: Option<usize>,
+    kind: HandleKind,
     /// The handle's `F`: the member's read or declared type.
     f: Ty,
     def: DefId,
@@ -459,10 +534,18 @@ impl<'a, 'n> Gen<'a, 'n> {
     /// A call of the owner's handle method for `h`.
     fn handle_call(&mut self, owner: DefId, h: Handle) -> Ref {
         let pool = self.names.pool;
-        let n = self.cx.items.item(owner).map_or(0, |i| i.generics.len());
-        let own: Vec<Ty> = (0..n)
-            .map(|i| param(self.names, owner, u16::try_from(i).unwrap_or(u16::MAX)))
-            .collect();
+        let own: Vec<Ty> = match self.handles {
+            Handles::Methods(_) => {
+                let n = self.cx.items.item(owner).map_or(0, |i| i.generics.len());
+                (0..n)
+                    .map(|i| param(self.names, owner, u16::try_from(i).unwrap_or(u16::MAX)))
+                    .collect()
+            }
+            Handles::Supplied => match h.kind {
+                HandleKind::Field(_) => vec![self.target, h.f],
+                _ => vec![self.target],
+            },
+        };
         if !self.wanted.contains(&h) {
             self.wanted.push(h);
         }
@@ -479,32 +562,28 @@ impl<'a, 'n> Gen<'a, 'n> {
     }
 
     /// The handle `Variant[S]` of `v`.
-    fn variant_handle(&mut self, v: &Var) -> StageResult<Ref> {
-        let Handles::Methods(owner) = self.handles else {
-            return self.new_variant_handle(v);
-        };
+    fn variant_handle(&mut self, v: &Var) -> Ref {
+        let owner = self.handles.owner(self.names);
         // A variant's index is its place in the variant list.
         let var = v.index as usize;
         let ty = self.adt(self.std("Variant"), &[self.target]);
         let def = hidden_method(self.names, owner, &format!("handle {}", v.index));
-        Ok(self.handle_call(
+        self.handle_call(
             owner,
             Handle {
                 var,
-                mem: None,
+                kind: HandleKind::Variant,
                 f: Ty::VOID,
                 def,
                 ty,
             },
-        ))
+        )
     }
 
     /// The handle `Field[S, F]` of member `m` of `v`; a declared-type
     /// handle of a `mut` member is its own.
-    fn field_handle(&mut self, v: &Var, m: &Mem, f: Ty) -> StageResult<Ref> {
-        let Handles::Methods(owner) = self.handles else {
-            return self.new_field_handle(v, m, f);
-        };
+    fn field_handle(&mut self, v: &Var, m: &Mem, f: Ty) -> Ref {
+        let owner = self.handles.owner(self.names);
         // A member's position is its place in the variant's members.
         let (var, mem) = (v.index as usize, m.position as usize);
         let ty = self.adt(self.names.known.field, &[self.target, f]);
@@ -518,16 +597,80 @@ impl<'a, 'n> Gen<'a, 'n> {
             owner,
             &format!("handle {} {}{declared}", v.index, m.position),
         );
-        Ok(self.handle_call(
+        self.handle_call(
             owner,
             Handle {
                 var,
-                mem: Some(mem),
+                kind: HandleKind::Field(mem),
                 f,
                 def,
                 ty,
             },
-        ))
+        )
+    }
+
+    /// The chosen variant's immutable member directory, shared by builds.
+    fn members(&mut self, v: &Var) -> Ref {
+        let owner = self.handles.owner(self.names);
+        let ty = self.adt(self.std("Members"), &[self.target]);
+        let def = hidden_method(self.names, owner, &format!("members {}", v.index));
+        self.handle_call(
+            owner,
+            Handle {
+                var: v.index as usize,
+                kind: HandleKind::Members,
+                f: Ty::VOID,
+                def,
+                ty,
+            },
+        )
+    }
+
+    fn new_members(&mut self, v: &Var) -> StageResult<Ref> {
+        let mut infos = Vec::new();
+        let member_t = self.adt(self.std("Member"), &[]);
+        for m in v.members.iter().filter(|m| !m.omitted) {
+            let handle = self.field_handle(v, m, m.ty);
+            let field = self.names.known.field;
+            let info = self.std_field(handle, field, "info", member_t)?;
+            infos.push(info);
+        }
+        let rec = self.b.refs_record(&infos);
+        let lt = self.fresh(self.adt(self.names.known.list, &[member_t]));
+        let infos = self.b.emit(Tag::NewList, NONE, rec, lt, SYN);
+        let s = self.target;
+        let any = self.closure(&[s], Ty::BOOL, |g, _| Ok(g.bool_(true)))?;
+        let def = self.std("Members");
+        self.new_data(def, &[s], &[("infos", infos), ("hd_type", any)])
+    }
+
+    /// One variant directory per derived type, rather than per build.
+    fn choices(&mut self) -> Ref {
+        let owner = self.handles.owner(self.names);
+        let vt = self.adt(self.std("Variant"), &[self.target]);
+        let ty = self.fresh(self.adt(self.names.known.list, &[vt]));
+        let def = hidden_method(self.names, owner, "choices");
+        self.handle_call(
+            owner,
+            Handle {
+                var: 0,
+                kind: HandleKind::Choices,
+                f: Ty::VOID,
+                def,
+                ty,
+            },
+        )
+    }
+
+    fn new_choices(&mut self, vars: &[Var]) -> Ref {
+        let mut handles = Vec::new();
+        for v in vars {
+            handles.push(self.variant_handle(v));
+        }
+        let vt = self.adt(self.std("Variant"), &[self.target]);
+        let ty = self.fresh(self.adt(self.names.known.list, &[vt]));
+        let rec = self.b.refs_record(&handles);
+        self.b.emit(Tag::NewList, NONE, rec, ty, SYN)
     }
 
     fn std(&self, name: &str) -> DefId {
@@ -1138,12 +1281,12 @@ impl<'a, 'n> Gen<'a, 'n> {
         value: Option<Ref>,
         ret: Ty,
     ) -> StageResult<()> {
-        let h = self.variant_handle(v)?;
+        let h = self.variant_handle(v);
         let r = self.protocol_call(trait_, "variant", w, &[], &[h])?;
         self.try_void(r, ret)?;
         for m in v.members.iter().filter(|m| !m.omitted) {
             let f = strip_mut(self.names, m.ty);
-            let h = self.field_handle(v, m, f)?;
+            let h = self.field_handle(v, m, f);
             let mut args = vec![h];
             let (method, targ) = match value {
                 Some(s) => {
@@ -1272,16 +1415,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         let s = self.target;
         let walked: Vec<&Mem> = v.members.iter().filter(|m| !m.omitted).collect();
         let member_t = self.adt(self.std("Member"), &[]);
-        let mut infos = Vec::new();
-        for m in &walked {
-            infos.push(self.member_info(v, m)?);
-        }
-        let rec = self.b.refs_record(&infos);
-        let lt = self.fresh(self.adt(names.known.list, &[member_t]));
-        let infos = self.b.emit(Tag::NewList, NONE, rec, lt, SYN);
-        let any = self.closure(&[s], Ty::BOOL, |g, _| Ok(g.bool_(true)))?;
-        let members_def = self.std("Members");
-        let members = self.new_data(members_def, &[s], &[("infos", infos), ("hd_type", any)])?;
+        let members = self.members(v);
         let slots: Vec<LocalId> = walked
             .iter()
             .map(|m| {
@@ -1330,7 +1464,7 @@ impl<'a, 'n> Gen<'a, 'n> {
             let got = self.b.payload(cur, 1, 0, m.ty, SYN);
             let some = self.b.close_block(sb, Some(got), m.ty, SYN);
             let nb = self.b.open_block();
-            let h = self.field_handle(v, m, m.ty)?;
+            let h = self.field_handle(v, m, m.ty);
             let r = self.protocol_call(source, "missing", src, &[m.ty], &[h])?;
             let x = self.try_value(r, ret)?;
             let none = self.b.close_block(nb, Some(x), m.ty, SYN);
@@ -1369,7 +1503,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         let pool = self.names.pool;
         let tb = self.b.open_block();
         let ot = pool.intern_ty(&TyData::Option(m.ty));
-        let h = self.field_handle(v, m, m.ty)?;
+        let h = self.field_handle(v, m, m.ty);
         let prev = self.b.get(slots[0], ot, SYN);
         let r = self.protocol_call(self.names.known.source, "member", src, &[m.ty], &[h, prev])?;
         let x = self.try_value(r, ret)?;
@@ -1392,17 +1526,9 @@ impl<'a, 'n> Gen<'a, 'n> {
             return self.cx.unsupported("a `build` signature");
         };
         let names = self.names;
-        let s = self.target;
         let ret = sig.ret;
         let blk = self.b.open_block();
-        let mut hs = Vec::new();
-        for v in vars {
-            hs.push(self.variant_handle(v)?);
-        }
-        let vt = self.adt(self.std("Variant"), &[s]);
-        let lt = self.fresh(self.adt(names.known.list, &[vt]));
-        let rec = self.b.refs_record(&hs);
-        let choices = self.b.emit(Tag::NewList, NONE, rec, lt, SYN);
+        let choices = self.choices();
         let r = self.protocol_call(names.known.source, "variant", src, &[], &[choices])?;
         let chosen = self.try_value(r, ret)?;
         let value = match vars {

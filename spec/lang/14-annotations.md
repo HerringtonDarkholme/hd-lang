@@ -1553,6 +1553,7 @@ variant of a derivation's target.
 13. r[annot.handle.fact.pattern.written] `D` may be written with its type arguments, as in `h.fact::[Fallback[F]]()`. They must be the arguments that the match infers. Error: `type-mismatch`.
 14. r[annot.handle.fact.exact] It finds only a fact whose type is exactly `D[A]`.
 15. r[annot.handle.fact.key] The type parameters that `D[A]` mentions follow [`annot.structure.find-key`](#r-annot.structure.find-key), except the handle's own `F`, which needs no runtime identity. Error: `unsatisfied-trait-bound`.
+16. r[annot.handle.shared-target] Traversals using the same `Structure` at the same concrete target type share its constant handles.
 
 ```text
 struct Counter:

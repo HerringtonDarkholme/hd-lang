@@ -707,6 +707,9 @@ struct CheckOut {
 /// The program as `Collect` decoded it.
 struct ProgramTables {
     items: HashMap<DefId, Item>,
+    /// Supplied tuple factories have no checked declaration. Their generic
+    /// return templates serve collection and emission; bodies live in Collected.
+    supplied_rets: Mutex<HashMap<DefId, Ty>>,
     bodies: Bodies,
     /// Where each impl's row lives: its folder's table.
     impl_rows: HashMap<DefId, ImplRef>,
@@ -7201,6 +7204,7 @@ impl Run<'_> {
         let (universe, extra) = self.universes.intern(&members);
         let _ = self.program.set(ProgramTables {
             items,
+            supplied_rets: Mutex::new(HashMap::default()),
             bodies: Bodies {
                 all: bodies,
                 bad: std::sync::atomic::AtomicBool::new(false),
@@ -9668,6 +9672,9 @@ impl ProgramEnv for Env<'_> {
             .unwrap_or_default()
     }
     fn ret(&self, def: DefId) -> Option<Ty> {
+        if let Some(&ty) = lock(&self.p.supplied_rets).get(&def) {
+            return Some(ty);
+        }
         if let Some(b) = self.default_body(def) {
             return b.sub_root.first().map(|&r| b.ty[r as usize]);
         }
@@ -9914,7 +9921,7 @@ impl ProgramEnv for Env<'_> {
     fn decls(&self) -> &dyn Declarations {
         self
     }
-    fn supplied_body(&self, method: DefId, self_ty: Ty) -> StageResult<Option<Body>> {
+    fn supplied_body(&self, method: DefId, self_ty: Ty) -> StageResult<Option<Vec<Body>>> {
         // A tuple's `Structure` (`crates/hd_mono/DESIGN.md` §13.6): the derivation
         // generator over the tuple's member list.
         let names = self.run.names();
@@ -9926,10 +9933,31 @@ impl ProgramEnv for Env<'_> {
             items: self.p,
             stage: Stage::Collect,
         };
-        match hd_structure::supplied(&cx, &target, method)? {
-            Some(body) => self.owned_generated(body).map(Some),
-            None => Ok(None),
+        let Some(generated) = hd_structure::supplied(&cx, &target, method)? else {
+            return Ok(None);
+        };
+        // Register signatures before ownership processing any body; generated
+        // callers can refer to factories from the same family.
+        {
+            let mut rets = lock(&self.p.supplied_rets);
+            for item in &generated.helpers.items {
+                if let Some(sig) = item.sig() {
+                    let ret = self.low(sig.ret);
+                    if let Some(old) = rets.insert(item.def, ret) {
+                        debug_assert_eq!(
+                            old, ret,
+                            "a supplied factory's return template is stable"
+                        );
+                    }
+                }
+            }
         }
+        let mut bodies = Vec::with_capacity(1 + generated.helpers.bodies.len());
+        bodies.push(self.owned_generated(generated.body)?);
+        for body in generated.helpers.bodies {
+            bodies.push(self.owned_generated(body)?);
+        }
+        Ok(Some(bodies))
     }
     fn map_key_items(&self) -> Option<(DefId, DefId, DefId)> {
         // `Eq`'s method names `Self` in its parameter, so it has no vtable

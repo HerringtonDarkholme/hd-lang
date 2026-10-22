@@ -2791,6 +2791,7 @@ typing/invalid/generic-inference-variance-conflict.hd	type	reject:type-mismatch	
 typing/invalid/generic-inference-optional-conflict.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.generic.infer.join.other-conflict
 runtime/valid/structure-self-ref-omitted.hd	runtime	accept	lang/14-annotations.md#r-annot.self-ref.variant.omitted
 runtime/valid/list-map-key.hd	runtime	accept	lang/04-type-system.md#r-types.map-key.builtin-hash
+runtime/valid/tuple-handle-instances.hd	runtime	accept	lang/14-annotations.md#r-annot.handle.shared-target
 runtime/valid/tuple-rest-map-key.hd	runtime	accept	std/hash.md#r-std-hash.tuple.rest-list
 typing/invalid/list-float-map-key.hd	type	reject:unsatisfied-trait-bound	std/hash.md#r-std-hash.list.not-element
 runtime/valid/derived-default-data.hd	runtime	accept	std/ops.md#r-std-ops.default.derive.data.type-default

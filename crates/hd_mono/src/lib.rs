@@ -146,7 +146,8 @@ pub trait ProgramEnv: LayoutEnv {
     /// method's with `Self` replaced, so its instance's arguments are the
     /// self type, then the trait's and the method's own. `None` when
     /// emission lowers the method itself (`crates/hd_check/DESIGN.md` (trait solver) §3.9).
-    fn supplied_body(&self, method: DefId, self_ty: Ty) -> StageResult<Option<Body>>;
+    /// The requested body first, followed by the cached helper bodies it calls.
+    fn supplied_body(&self, method: DefId, self_ty: Ty) -> StageResult<Option<Vec<Body>>>;
     /// The body of one of the `dbg` functions the compiler supplies per
     /// concrete argument (`dbg_show[ty]`, `dbg[args]`; spec/lang/10-modules.md
     /// "Debug Printing"). `debug`: `ty` implements `Debug`.
@@ -1700,6 +1701,23 @@ impl Cx<'_> {
                 kind: TargetKind::Intrinsic(key),
             });
         }
+        // A supplied tuple traversal calls its cached factory directly. Its
+        // exact first argument selects the generated body; never A1-erase it.
+        if self
+            .pool
+            .list_items(args)
+            .first()
+            .is_some_and(|&self_ty| self.out.supplied.contains_key(&(def, self_ty)))
+        {
+            let key = self.push(def, Sub::Body(0), args, args, parent)?;
+            return Ok(CallTarget {
+                key,
+                item: def,
+                args,
+                ret: subst(self.pool, self.env, def, args, ret),
+                kind: TargetKind::Instance,
+            });
+        }
         // A body-less inherent method is an intrinsic method of std
         // (`trait.impl.intrinsic`), such as `f64.sqrt`: the backend lowers
         // it per self type, the impl's head under the call's arguments.
@@ -2011,10 +2029,17 @@ impl Cx<'_> {
     ) -> StageResult<Option<CallTarget>> {
         let key = (method, self_ty);
         if !self.out.supplied.contains_key(&key) {
-            let Some(body) = self.env.supplied_body(method, self_ty)? else {
+            let Some(bodies) = self.env.supplied_body(method, self_ty)? else {
                 return Ok(None);
             };
-            self.out.supplied.insert(key, Arc::new(body));
+            // Register the whole family before any body is scanned: directories
+            // call field/variant factories, which also have no source body.
+            for body in bodies {
+                self.out
+                    .supplied
+                    .entry((body.item, self_ty))
+                    .or_insert_with(|| Arc::new(body));
+            }
         }
         let args = self.pool.list(&[&[self_ty], targs].concat());
         let key = self.push(method, Sub::Body(0), args, args, parent)?;

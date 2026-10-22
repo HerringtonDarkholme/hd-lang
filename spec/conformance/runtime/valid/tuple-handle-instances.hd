@@ -1,0 +1,127 @@
+# test: tuple traversals preserve exact owner types and member positions across walkers and generic instances
+# Spec 14 Handles and Tuple Structure: annot.handle.shared-target, annot.template.tuple.instance,
+# annot.tuple.members, annot.tuple.rest, annot.tuple.build, annot.structure.protocol-ref.
+use std.function.Tuple
+use std.structure.{Structure, Field, Variant, Members, Key, Walker, Describer, Source}
+
+trait Sample:
+    fn render(self) -> string
+    fn seed(start: usize) -> Self
+    fn layout() -> string
+
+impl Sample for i32:
+    fn render(self) -> string: "$self"
+    fn seed(start: usize) -> i32: i32(start)
+    fn layout() -> string: "i32"
+
+impl Sample for string:
+    fn render(self) -> string: "'$self'"
+    fn seed(start: usize) -> string: "s$start"
+    fn layout() -> string: "string"
+
+impl[T < Sample] Sample for List[T]:
+    fn render(self) -> string:
+        parts := [for value in self => value.render()]
+        "[${parts.join(",")}]"
+    fn seed(start: usize) -> List[T]: [T::seed(start), T::seed(start + 1)]
+    fn layout() -> string: "List[${T::layout()}]"
+
+struct Trace[S]:
+    original: S
+    parts: List[string]
+
+impl[S] Walker[S] for Trace[S]:
+    type Error = never
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]: .Ok(())
+    fn member[F < Sample](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        if value.render() != h.get(self.original).render():
+            panic("the field getter must read the visited position")
+        self.parts.push("${h.info.name}=${value.render()}")
+        .Ok(())
+
+struct Count:
+    members: usize
+
+impl[S] Walker[S] for Count:
+    type Error = never
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]: .Ok(())
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.members += 1
+        .Ok(())
+
+struct Layout:
+    parts: List[string]
+
+impl[S] Describer[S] for Layout:
+    type Error = never
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]: .Ok(())
+    fn member[F < Sample](&mut self, h: Field[S, F]) -> Result[void, never]:
+        self.parts.push("${h.info.name}:${F::layout()}")
+        .Ok(())
+
+struct Seeds:
+    start: usize
+    at: usize
+
+impl[S] Source[S] for Seeds:
+    type Error = never
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], never]:
+        .Ok(choices[0])
+    fn next(&mut self, members: Members[S]) -> Result[Key[S]?, never]:
+        key := members.at(self.at)
+        self.at += 1
+        .Ok(key)
+    fn member[F < Sample](&mut self, h: Field[S, F], previous: F?) -> Result[F, never]:
+        .Ok(F::seed(self.start + h.info.position))
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, never]:
+        panic("the source provides every member")
+
+impl[T < Tuple] Sample for T by Structure:
+    fn render(self) -> string:
+        let mut trace = Trace { original: self, parts: [] }
+        _ := Structure::walk(self, &mut trace)
+        let mut count = Count { members: 0 }
+        _ := Structure::walk(self, &mut count)
+        if count.members != trace.parts.len():
+            panic("different walkers must visit the same members")
+        "(${trace.parts.join(";")})"
+    fn seed(start: usize) -> T:
+        let mut source = Seeds { start: start, at: 0 }
+        match T::build(&mut source):
+            .Ok(value) => value
+            .Err(_) => panic("the source never fails")
+    fn layout() -> string:
+        let mut describer = Layout { parts: [] }
+        _ := T::describe(&mut describer)
+        "(${describer.parts.join(",")})"
+
+fn inspect[T < Sample](value: T) -> string:
+    "${T::layout()} ${value.render()}"
+
+fn make[T < Sample](start: usize) -> T:
+    T::seed(start)
+
+tests:
+    use std.testing.assert_equal
+
+    it("same-arity tuples keep their member types and repeated positions"):
+        let left: (i32, string, i32) = (1, "a", 2)
+        let right: (string, i32, string) = ("b", 3, "c")
+        assert_equal(inspect(left), "(_0:i32,_1:string,_2:i32) (_0=1;_1='a';_2=2)", reason="i32 appears at two different positions")
+        assert_equal(inspect(right), "(_0:string,_1:i32,_2:string) (_0='b';_1=3;_2='c')", reason="the same arity has a different owner type")
+        let again: (i32, string, i32) = (4, "d", 5)
+        assert_equal(inspect(again), "(_0:i32,_1:string,_2:i32) (_0=4;_1='d';_2=5)", reason="later traversals read the current value")
+
+    it("generic build and describe use the matching tuple instance"):
+        left := make::[(i32, string, i32)](10)
+        right := make::[(string, i32, string)](20)
+        assert_equal(inspect(left), "(_0:i32,_1:string,_2:i32) (_0=10;_1='s11';_2=12)", reason="build uses each member's position and type")
+        assert_equal(inspect(right), "(_0:string,_1:i32,_2:string) (_0='s20';_1=21;_2='s22')", reason="another generic instance has its own handles")
+
+    it("nested and rest tuples retain their separate traversal shapes"):
+        let value: (i32, (string, i32), List[i32]...) = (7, ("inside", 8), 9, 10)
+        assert_equal(inspect(value), "(_0:i32,_1:(_0:string,_1:i32),_2:List[i32]) (_0=7;_1=(_0='inside';_1=8);_2=[9,10])", reason="nested tuples and a rest list are distinct members")
+        built := make::[(i32, (string, i32), List[i32]...)](10)
+        assert_equal(built._0, 10, reason="the fixed member is built at position zero")
+        assert_equal(built._1, ("s11", +12), reason="the nested tuple builds its own positions")
+        assert_equal(built._2, [+12, 13], reason="the rest member is supplied as one list")

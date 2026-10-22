@@ -52,7 +52,7 @@ enum Kind {
 pub fn show_body(cx: &Cx<'_, '_>, item: DefId, ty: Ty, debug: bool) -> StageResult<Body> {
     let names = cx.names;
     let pool = names.pool;
-    let mut g = Gen::new(cx, ty, item, Handles::Inline);
+    let mut g = Gen::new(cx, ty, item, Handles::Supplied);
     g.b = TirBuilder::new(item, BodyKind::Fn);
     let out_ty = pool.intern_ty(&TyData::Ref {
         inner: g.format_ty("DebugWriter", &[]),
@@ -84,7 +84,7 @@ pub fn values_body(cx: &Cx<'_, '_>, item: DefId, args: Ty) -> StageResult<Body> 
         return cx.unsupported("a `dbg` whose arguments are not a plain tuple");
     };
     let elems = pool.list_items(elems).to_vec();
-    let mut g = Gen::new(cx, args, item, Handles::Inline);
+    let mut g = Gen::new(cx, args, item, Handles::Supplied);
     g.b = TirBuilder::new(item, BodyKind::Fn);
     let values = g.b.local(
         args,
