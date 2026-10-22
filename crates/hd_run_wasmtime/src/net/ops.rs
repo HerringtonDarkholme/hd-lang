@@ -8,17 +8,17 @@
 //! A handle's timeout bounds its `read`, `accept` and `receive` with a
 //! tokio timer of host time (`std-net.timeout.host-time`). When the timer
 //! ends first, the wait is dropped, so it took nothing, and one
-//! non-blocking call on the socket itself returns what the kernel already
-//! holds, or `Timeout` (`std-net.timeout.error`). That call skips tokio's
-//! readiness, which may not have seen the bytes yet, so a zero timeout
-//! returns the buffered bytes, as on Node (`std-net.timeout.zero`).
+//! non-blocking tracked socket operation returns buffered input or
+//! `Timeout` (`std-net.timeout.error`). These probes keep Tokio/Mio's
+//! readiness bookkeeping: bypassing it with raw socket reads can leave a
+//! Windows socket unable to report its next arrival.
 
-use std::io::{self, Read};
+use std::io;
 use std::net::{Ipv6Addr, Shutdown, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 
-use socket2::SockRef;
+use std::task::{Context, Poll, Waker};
 
 use super::CHUNK;
 use super::client::NetError;
@@ -344,7 +344,7 @@ fn read_now(stream: &Stream, max: usize) -> Result<Vec<u8>, NetError> {
         return ended(end);
     }
     let mut bytes = vec![0; max.min(CHUNK)];
-    match (&*SockRef::from(&stream.socket)).read(&mut bytes) {
+    match stream.socket.try_read(&mut bytes) {
         Ok(0) => {
             let end = stream.state().end.get_or_insert(End::Eof).clone();
             ended(end)
@@ -369,10 +369,11 @@ async fn accept(listener: &tokio::net::TcpListener) -> Result<Got, NetError> {
 /// A bounded accept whose bound ended: a connection already queued, or
 /// `Timeout`.
 fn accept_now(listener: &tokio::net::TcpListener) -> Result<Got, NetError> {
-    let accepted = SockRef::from(listener).accept().and_then(|(socket, _)| {
-        socket.set_nonblocking(true)?;
-        tokio::net::TcpStream::from_std(socket.into())
-    });
+    let mut context = Context::from_waker(Waker::noop());
+    let accepted = match listener.poll_accept(&mut context) {
+        Poll::Ready(result) => result.map(|(socket, _)| socket),
+        Poll::Pending => return Err(NetError::Timeout),
+    };
     match accepted {
         Ok(socket) => Ok(Got::Opened(Opened::Stream(Stream::new(socket)))),
         Err(error) if would_block(&error) => Err(NetError::Timeout),
@@ -461,28 +462,20 @@ async fn receive(socket: &Udp) -> Result<(Vec<u8>, SocketAddr), NetError> {
     }
 }
 
-/// A bounded receive whose bound ended: a datagram already queued, with
-/// its sender, or `Timeout`. The sender is peeked first, so the datagram
-/// stays queued until the read takes it whole.
+/// A bounded receive whose bound ended: a datagram whose readiness is
+/// already reported, or `Timeout`. Keep the operation inside Tokio/Mio:
+/// Windows must re-arm readiness after `WouldBlock`, including after a
+/// previous receive timed out. Raw socket reads bypass that bookkeeping.
 fn receive_now(socket: &Udp) -> Result<(Vec<u8>, SocketAddr), NetError> {
-    let raw = SockRef::from(&socket.socket);
-    let failed = |error: &io::Error| {
-        if would_block(error) {
-            NetError::Timeout
-        } else {
-            socket_error(error, "recvmsg", None, "", 0)
-        }
-    };
-    let peer = raw.peek_sender().map_err(|e| failed(&e))?;
-    let Some(peer) = peer.as_socket() else {
-        return Err(NetError::Other {
-            message: "a datagram from an address that is not IP".into(),
-        });
-    };
     let mut bytes = vec![0; CHUNK];
-    let n = (&*raw).read(&mut bytes).map_err(|e| failed(&e))?;
-    bytes.truncate(n);
-    Ok((bytes, peer))
+    match socket.socket.try_recv_from(&mut bytes) {
+        Ok((n, peer)) => {
+            bytes.truncate(n);
+            Ok((bytes, peer))
+        }
+        Err(error) if would_block(&error) => Err(NetError::Timeout),
+        Err(error) => Err(socket_error(&error, "recvmsg", None, "", 0)),
+    }
 }
 
 #[cfg(test)]

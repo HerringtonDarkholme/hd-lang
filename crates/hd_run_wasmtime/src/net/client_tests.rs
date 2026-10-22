@@ -719,3 +719,113 @@ fn listen_reuses_a_time_wait_port_and_refuses_a_live_one() {
     assert_ne!(again, listener);
     net.client.stop();
 }
+
+fn timeout(net: &mut Net, kind: &str, handle: i64, millis: i64) {
+    let mut args = Enc::default();
+    args.leb(1).zz(millis);
+    assert_eq!(
+        net.call(
+            &format!("{kind}.set_timeout"),
+            &[handle],
+            args.done(),
+            &Grants::default(),
+        )
+        .unwrap()
+        .done(),
+        &[0],
+    );
+}
+
+#[test]
+fn expired_udp_receive_rearms_the_next_datagram() {
+    let peer = UdpSocket::bind("127.0.0.1:0").unwrap();
+    let mut net = Net::new();
+    let handle = net.opened("bind_udp", 0);
+    let address = match net.client.handles.get(&handle) {
+        Some(Entry::Udp(socket)) => socket.socket.local_addr().unwrap(),
+        _ => panic!("a udp handle"),
+    };
+    for byte in 0..8 {
+        timeout(&mut net, "UdpSocket", handle, 0);
+        assert_eq!(
+            net.call("UdpSocket.receive", &[handle, 8], &[], &Grants::default())
+                .unwrap()
+                .done(),
+            &[1, 4],
+        );
+        timeout(&mut net, "UdpSocket", handle, 10_000);
+        let waiting = pending(
+            net.start("UdpSocket.receive", &[handle, 8], &[], &Grants::default())
+                .unwrap(),
+        );
+        peer.send_to(&[byte], address).unwrap();
+        net.wait_for(waiting);
+        let result = net.finish(waiting);
+        let mut decoded = Dec::new(result.done());
+        assert_eq!(decoded.leb().unwrap(), 0);
+        assert_eq!(decoded.bytes().unwrap(), &[byte]);
+        assert_eq!(decoded.str().unwrap(), "127.0.0.1");
+        assert_eq!(
+            decoded.leb().unwrap(),
+            u64::from(peer.local_addr().unwrap().port())
+        );
+    }
+}
+
+#[test]
+fn expired_tcp_read_rearms_the_next_bytes() {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let mut net = Net::new();
+    let handle = net.opened("connect", listener.local_addr().unwrap().port());
+    let (mut peer, _) = listener.accept().unwrap();
+    for byte in 0..8 {
+        timeout(&mut net, "TcpStream", handle, 0);
+        assert_eq!(
+            net.call("TcpStream.read", &[handle, 1], &[], &Grants::default())
+                .unwrap()
+                .done(),
+            &[1, 4],
+        );
+        timeout(&mut net, "TcpStream", handle, 10_000);
+        let waiting = pending(read(&mut net, handle, 1));
+        peer.write_all(&[byte]).unwrap();
+        net.wait_for(waiting);
+        assert_eq!(net.finish(waiting).done(), &[0, 1, byte]);
+    }
+}
+
+#[test]
+fn expired_accept_rearms_the_next_connection() {
+    let mut net = Net::new();
+    let handle = net.opened("listen", 0);
+    let address = match net.client.handles.get(&handle) {
+        Some(Entry::Listener(listener)) => listener.local_addr().unwrap(),
+        _ => panic!("a listener handle"),
+    };
+    for _ in 0..8 {
+        timeout(&mut net, "TcpListener", handle, 0);
+        assert_eq!(
+            net.call("TcpListener.accept", &[handle], &[], &Grants::default())
+                .unwrap()
+                .done(),
+            &[1, 4],
+        );
+        timeout(&mut net, "TcpListener", handle, 10_000);
+        let waiting = pending(
+            net.start("TcpListener.accept", &[handle], &[], &Grants::default())
+                .unwrap(),
+        );
+        let _peer = TcpStream::connect(address).unwrap();
+        net.wait_for(waiting);
+        let result = net.finish(waiting);
+        let mut decoded = Dec::new(result.done());
+        assert_eq!(decoded.leb().unwrap(), 0);
+        let stream = i64::try_from(decoded.leb().unwrap()).unwrap();
+        assert_eq!(
+            net.call("TcpStream.close", &[stream], &[], &Grants::default())
+                .unwrap()
+                .done(),
+            &[0],
+        );
+    }
+}

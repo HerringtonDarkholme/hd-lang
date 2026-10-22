@@ -16,6 +16,9 @@ if (process.argv[2] === "serve") {
   setTimeout(() => server.close(), 10_000).unref();
 } else {
   const child = fork(fileURLToPath(import.meta.url), ["serve"], {
+    // Windows libuv otherwise puts this child in a kill-on-parent-exit Job.
+    // unref/disconnect close handles; detached gives the server its own lifetime.
+    detached: true,
     stdio: ["ignore", "ignore", "ignore", "ipc"],
   });
   child.once("message", (port) => {
