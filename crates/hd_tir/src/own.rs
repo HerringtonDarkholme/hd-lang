@@ -617,6 +617,9 @@ mod tests {
                 {
                     line.push_str(&format!(" {m:?}").to_lowercase());
                 }
+                if tag == Tag::Ref && b.data[i][1] & crate::ir::ref_word::TAKES != 0 {
+                    line.push_str(" take");
+                }
                 let _ = write!(line, " {p}");
                 if tag == Tag::Store {
                     let _ = write!(line, " %{}", b.data[i][1]);
@@ -1161,5 +1164,60 @@ mod tests {
         assert!(text.contains("exit 0 $1\n"), "{text}");
         assert!(!text.contains("exit 0 $0"), "{text}");
         assert!(text.contains("unwind %8 %6\nunwind %8 %7\n"), "{text}");
+    }
+
+    /// Move's rule 4: a `Ref` of a celled local at its last access takes
+    /// the local's count, but not in a sub-body that holds a suspension
+    /// point, whose frame saves the cell's local at each point: there the
+    /// reference counts and the local keeps its drop.
+    #[test]
+    fn a_reference_takes_its_cell_only_outside_a_suspending_body() {
+        let n = NodeIdx::from_raw(1);
+        let body = |suspend: bool| {
+            passes(
+                move |b| {
+                    let x = local(b, 0);
+                    let s = call(b, 7, &[], Ty::STRING);
+                    b.set(x, s, n);
+                    let word = b.place(&format!("[${}]", x.raw()).parse().expect("place"));
+                    let r = b.emit(Tag::Ref, word, 0, Ty::STRING, n);
+                    let c = call(b, 8, &[r], Ty::VOID);
+                    if suspend {
+                        b.body_mut().tags[c.0 as usize] = Tag::Await;
+                    }
+                    None
+                },
+                Ty::VOID,
+            )
+        };
+        let plain = body(false);
+        let suspending = body(true);
+        assert!(plain.contains("Ref take [$0]"), "{plain}");
+        assert!(!plain.contains("Drop [$0]"), "{plain}");
+        assert!(!suspending.contains("take"), "{suspending}");
+        assert!(suspending.contains("Drop [$0]"), "{suspending}");
+        // The verifier refuses a take that a suspension point follows.
+        let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let blk = b.open_block();
+        let x = local(&mut b, 0);
+        let s = call(&mut b, 7, &[], Ty::STRING);
+        b.set(x, s, n);
+        let word = b.place(&format!("[${}]", x.raw()).parse().expect("place"));
+        let r = b.emit(Tag::Ref, word, 0, Ty::STRING, n);
+        call(&mut b, 8, &[r], Ty::VOID);
+        let root = b.close_block(blk, None, Ty::VOID, n);
+        let mut body = b.finish(root, &[]).expect("verifies");
+        run(&mut body, &Cx, &mut OwnScratch::default()).expect("passes");
+        assert!(verify_owned(&body, &Cx).is_empty());
+        let at = (0..body.len())
+            .rev()
+            .find(|&i| body.tags[i] == Tag::Call)
+            .expect("call");
+        body.tags[at] = Tag::Await;
+        let errs = verify_owned(&body, &Cx);
+        assert!(
+            errs.iter().any(|e| e.what.contains("takes a cell's count")),
+            "{errs:?}"
+        );
     }
 }

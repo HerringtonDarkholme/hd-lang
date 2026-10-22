@@ -24,8 +24,9 @@
 //! 4. **References at last access.** A `Ref` of a whole local that lives
 //!    in a cell, after which no path reaches the local, takes the local's
 //!    count of the cell (`ref_word::TAKES`); the local's `Drop` right after
-//!    it goes. Not in a suspending body, whose frame saves the cell's
-//!    local at each point.
+//!    it goes. Not in a sub-body that holds a suspension point (an
+//!    `Await`, as known-null's points), whose frame saves the cell's local
+//!    at each point.
 //!
 //! "No path reads it again" is a backward liveness walk over the
 //! structured control flow of each sub-body, with one bit per candidate
@@ -44,7 +45,7 @@ use hd_types::Ty;
 
 use super::splice::for_blocks;
 use super::{Operand, OwnCx, Role, Tri, operands, splice, tracked};
-use crate::ir::{Body, CaptureMode, NONE, ReadMode, Ref, Tag, place};
+use crate::ir::{Body, CaptureMode, NONE, ReadMode, Ref, Tag, is_suspension, place};
 
 /// A decision of [`Tables::decide`].
 const UNSEEN: u8 = 0;
@@ -74,6 +75,11 @@ pub(crate) struct Tables {
     /// pass's), or `NONE`; and whether the body owns it (its exit row).
     pub(super) holds: Vec<u32>,
     owns: Vec<bool>,
+    /// Per sub-body: whether it holds a suspension point (known-null's
+    /// points, `is_suspension`).
+    susp_sub: Vec<bool>,
+    /// Per instruction: the sub-body it is the root block of, or `NONE`.
+    root_sub: Vec<u32>,
     /// Each instruction's label, as a target of `Break` and `Continue`.
     label_of: Vec<u32>,
     /// Per label, the arena offset of the state a `Break` and a
@@ -415,15 +421,19 @@ fn candidates(b: &Body, cx: &dyn OwnCx, t: &mut Tables) -> bool {
         t.owns[l.idx()] = true;
     }
     // A suspending body's frame saves a cell's local at each point, and a
-    // resume enters blocks in the middle: its cells keep their counts.
-    let suspends = !b.susp.is_empty();
+    // resume enters blocks in the middle: its cells keep their counts. A
+    // sub-body suspends when it holds a suspension point, the instructions
+    // known-null gives unwind sets (`is_suspension`); an owned local's
+    // sub-body is its exit row's.
+    suspending_subs(b, t);
+    for &(s, l) in &b.exit_drops {
+        if t.susp_sub[s.idx()] && t.addr[l.idx()] {
+            t.keep_l[l.idx()] = true;
+        }
+    }
     let mut k = 0u32;
     for l in 0..b.local_ty.len() {
-        let counted = if t.addr[l] {
-            !suspends
-        } else {
-            cx.counted(b.local_ty[l]) != Tri::No
-        };
+        let counted = t.addr[l] || cx.counted(b.local_ty[l]) != Tri::No;
         if !t.keep_l[l] && t.owns[l] && counted {
             t.lnum[l] = k;
             k += 1;
@@ -446,6 +456,32 @@ fn candidates(b: &Body, cx: &dyn OwnCx, t: &mut Tables) -> bool {
     }
     t.words = (k as usize).div_ceil(64);
     k > 0
+}
+
+/// Marks each sub-body that holds a suspension point: from each point,
+/// up through the blocks that hold it (`t.blk`) to a sub-body's root (a
+/// closure's root is listed in its parent's block too, so the climb stops
+/// at the first root).
+fn suspending_subs(b: &Body, t: &mut Tables) {
+    fill(&mut t.susp_sub, b.sub_root.len(), false);
+    fill(&mut t.root_sub, b.len(), NONE);
+    for (s, &r) in b.sub_root.iter().enumerate() {
+        if let Some(x) = t.root_sub.get_mut(r as usize) {
+            *x = u32_of(s);
+        }
+    }
+    for i in 0..b.len() {
+        if !is_suspension(b.tags[i]) {
+            continue;
+        }
+        let mut x = i;
+        while t.root_sub[x] == NONE && t.blk[x] != NONE {
+            x = t.blk[x] as usize;
+        }
+        if let Some(s) = t.susp_sub.get_mut(t.root_sub[x] as usize) {
+            *s = true;
+        }
+    }
 }
 
 /// Marks every local and value the blocks on `t.stack` touch, with every

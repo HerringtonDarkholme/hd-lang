@@ -31,6 +31,8 @@
 //! - the exit set's rows are sorted, once each, and name a sub-body and a
 //!   local of the body; the unwind set's are sorted, once each, and name a
 //!   suspension point and a value;
+//! - no `Ref` takes its local's count of a cell in a sub-body that holds
+//!   a suspension point ([`takes_outside_suspension`]);
 //! - nothing tier 2 reserves: no `FlagSet`, `FlagClear` or `regions` row.
 //!
 //! The walks follow the body's layout: dense tables indexed by instruction,
@@ -81,6 +83,7 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
         addressed: &addressed,
     };
     decided(b, &mut errs);
+    takes_outside_suspension(b, &mut errs);
     Empties::new(&cx).walk(&mut errs);
     borrow_spans(&cx, &mut errs);
     binding_locals(&cx, own, &mut errs);
@@ -98,6 +101,34 @@ fn err(errs: &mut Vec<VerifyError>, inst: u32, what: String) {
 
 fn u32_of(i: usize) -> u32 {
     u32::try_from(i).expect("insts")
+}
+
+/// No `Ref` takes its local's count of a cell in a sub-body that holds a
+/// suspension point: the frame saves the cell's local at each point, and
+/// a resume enters blocks in the middle (move's rule 4).
+fn takes_outside_suspension(b: &Body, errs: &mut Vec<VerifyError>) {
+    let takes = |i: usize| b.tags[i] == Tag::Ref && b.data[i][1] & super::ref_word::TAKES != 0;
+    if !(0..b.len()).any(takes) {
+        return;
+    }
+    let subs = b.inst_subs();
+    let mut suspends = vec![false; b.sub_root.len()];
+    for (i, &tag) in b.tags.iter().enumerate() {
+        if is_suspension(tag)
+            && let Some(s) = suspends.get_mut(subs[i] as usize)
+        {
+            *s = true;
+        }
+    }
+    for i in (0..b.len()).filter(|&i| takes(i)) {
+        if suspends.get(subs[i] as usize) == Some(&true) {
+            err(
+                errs,
+                u32_of(i),
+                "a `Ref` takes a cell's count in a sub-body with a suspension point".into(),
+            );
+        }
+    }
 }
 
 /// The modes, the exit set and the tier-2 reservations.

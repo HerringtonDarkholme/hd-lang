@@ -2034,6 +2034,15 @@ is worth deciding only if they are hot.
      instance releases it at the exit where the old path moved it into
      the callee.
 11. Hoisting and the stable-list table.
+   **First, a fix to commit 7.** Move's rule 4 decided "not in a
+   suspending body" by `Body::susp`, rows that only the IR text parser
+   writes, so a `Ref` before an `Await` took its local's count of the
+   cell (`own/a-suspension-point-unwinds-what-it-holds.hd`). A sub-body
+   now suspends when it holds a suspension point, the instructions
+   known-null gives unwind sets (`is_suspension`), and a celled local of
+   such a sub-body (its exit row's) is no move candidate
+   (`moves::suspending_subs`). `verify_owned` refuses a taking `Ref` in a
+   sub-body with a suspension point. No other pass read `Body::susp`.
 12. The checker stops inserting copies and pin bookkeeping.
 13. Parity: every counts baseline at or below today, conformance and
     the checked-mode audit green on the new path; the switch flips.

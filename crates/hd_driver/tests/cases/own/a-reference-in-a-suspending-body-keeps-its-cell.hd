@@ -1,0 +1,23 @@
+# @dump: own
+# Move's rule 4 stops at a suspension point: in `run`, which awaits, the
+# `Ref` of `c` at its last access counts the cell (no `take`) and `c`'s
+# own `Drop` stays, since the frame saves the cell's local at the `Await`
+# and a resume enters the body in the middle. `fresh`, which does not
+# suspend, takes the cell's count and drops nothing.
+struct Counter:
+    hits: i32
+    name: string
+
+fn bump!(c: &mut Counter) -> void:
+    c.hits = c.hits + 1
+
+fn tick(c: &mut Counter) -> void:
+    c.hits = c.hits + 1
+
+fn run!() -> void:
+    let mut c = Counter { hits: +0, name: "a" }
+    bump!(&mut c)
+
+fn fresh() -> void:
+    let mut c = Counter { hits: +0, name: "a" }
+    tick(&mut c)

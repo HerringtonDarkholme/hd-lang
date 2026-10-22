@@ -10,9 +10,10 @@ app/main/run
   %12 = Drop [%9] : ()
   %13 = Drop [%10] : ()
   %14 = Store [$5] %11 : ()
-  %15 = Ref take [$5] : Ref[string]
-  %16 = Await app/main/greet[] (%15) : usize
-  %17 = Drop [%15] : ()
-  %18 = Store [$6] %16 : ()
+  %15 = Ref [$5] : Ref[string]
+  %16 = Drop [$5] : ()
+  %17 = Await app/main/greet[] (%15) : usize
+  %18 = Drop [%15] : ()
+  %19 = Store [$6] %17 : ()
   exit sub 0 drops [$0 $1 $3]
-  unwind %16 drops [%15]
+  unwind %17 drops [%15]
