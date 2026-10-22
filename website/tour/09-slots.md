@@ -10,9 +10,10 @@ the elements, loop over `&mut players`: each step binds a writable reference to
 the element's slot. While such a reference lives, the list may not grow, shrink,
 or move its elements, because the reference would point at moved memory. A
 `push` in the loop's body panics with `collection-pinned`, and replacing or
-sorting elements is still fine. The same holds for `&mut players[0]`, and a
-reference is released after its last use. `bonus` takes `&mut List[Player]` so
-that it changes the caller's list, not a copy.
+sorting elements is still fine. `&mut players[0]` passed to a call holds the
+list still for that call only, and no name may keep it: write
+`players[0].score += 1` instead. `bonus` takes `&mut List[Player]` so that it
+changes the caller's list, not a copy.
 
 ```hd
 fn bonus(players: &mut List[Player], points: i32) -> void:
@@ -29,8 +30,7 @@ fn leader(players: List[Player]) -> Player:
 pub fn main() -> void $ Console:
     let mut players = [Player { name: "ada", score: 10 }, Player { name: "grace", score: 12 }]
     bonus(&mut players, 5)
-    top := &mut players[0]  # ← a reference to the first slot
-    top.score += 1
+    players[0].score += 1  # ← the element is a place
     best := leader(players)
     println("${best.name}: ${best.score}")
     println(players[0].score)

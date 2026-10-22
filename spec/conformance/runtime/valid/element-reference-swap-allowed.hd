@@ -1,14 +1,17 @@
 # test: swapping two elements of a pinned list is allowed, and each reference sees the element now in its slot
 # Spec 13 Element References: ref.elem.pinned.allowed, ref.elem.slot.
+fn swap_then_read(names: &mut List[string], left: &string, right: &string) -> string:
+    held := names[0]
+    names[0] = names[1]
+    names[1] = held
+    "${*left} ${*right}"
+
+fn swapped(names: &mut List[string]) -> string:
+    swap_then_read(names, &names[0], &names[1])
+
 tests:
     use std.testing.assert_equal
 
     it("a swap moves elements between slots, not references"):
         let mut names = ["ada", "lin"]
-        left := &names[0]
-        right := &names[1]
-        held := names[0]
-        names[0] = names[1]
-        names[1] = held
-        assert_equal(*left, "lin", reason="slot 0 holds the other element")
-        assert_equal(*right, "ada", reason="slot 1 too")
+        assert_equal(swapped(&mut names), "lin ada", reason="each slot holds the other element")

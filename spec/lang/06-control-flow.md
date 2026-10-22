@@ -366,10 +366,13 @@ fn raised(prices: List[i32]) -> List[i32]:
 
 1. r[flow.for.ref] `for p in &mut xs`, where `xs` is a list, binds the pattern to a `&mut T` [element reference](13-values-and-references.md#element-references) to each slot of `xs` in order, and `for p in &xs` to a `&T` one.
 2. r[flow.for.ref.slots] `xs` is evaluated once. The loop visits the slots from 0 up to the list's length when the loop began.
-3. r[flow.for.ref.pin] The loop pins `xs` from its start until it ends or is left, as an element reference does ([`ref.elem.pin`](13-values-and-references.md#r-ref.elem.pin)), so a change of the list's length in its body panics. Panic: `collection-pinned`.
-4. r[flow.for.ref.writable] `for p in &mut xs` needs `xs` in a writable place, as `&mut xs[i]` does. Error: `not-writable`.
-5. r[flow.for.ref.map] A map value is no place, so a loop over `&m` or `&mut m` with a map `m` is an error. Error: `map-value-not-addressable`.
-6. r[flow.for.ref.through] `xs` may be a reference to a list: `for p in &mut r` and `for p in &r` loop over the slots of the list `r` refers to, as if `*r` were the place. Through `&T`, `for p in &mut r` is an error. Error: `not-writable`.
+3. r[flow.for.ref.access] The loop is one access to `xs`, as an element reference's call is ([`ref.elem.access`](13-values-and-references.md#r-ref.elem.access)). It begins when the loop begins and ends when the loop ends or is left.
+4. r[flow.for.ref.conflict] When `xs` is [unaliased](13-values-and-references.md#r-ref.elem.unaliased), the body may name `xs`, or a place that holds it, only through the loop binding. Naming it any other way is an error. Error: `conflicting-access`.
+5. r[flow.for.ref.pinned] The loop pins `xs` while it runs, as an access does, so any other change of the list's length, through a reference or a call, panics. Panic: `collection-pinned`.
+6. r[flow.for.ref.binding] The loop binding refers to its slot for one step. The body may read and write through it and pass it as an argument. Binding it to another name, storing it, capturing it in a closure, or returning it is an error. Error: `element-reference-outlives-call`.
+7. r[flow.for.ref.writable] `for p in &mut xs` needs `xs` in a writable place, as `&mut xs[i]` does. Error: `not-writable`.
+8. r[flow.for.ref.map] A loop over element references takes a list, so a loop over `&m` or `&mut m` with a map `m` is an error. Error: `map-value-not-addressable`.
+9. r[flow.for.ref.through] `xs` may be a reference to a list: `for p in &mut r` and `for p in &r` loop over the slots of the list `r` refers to, as if `*r` were the place. Through `&T`, `for p in &mut r` is an error. Error: `not-writable`.
 
 ```text
 fn invalid(prices: Map[string, i32]) -> void:
@@ -378,11 +381,17 @@ fn invalid(prices: Map[string, i32]) -> void:
         *x = 0
     for price in &prices:  # error: map-value-not-addressable
         pass
+    let mut scores = [+1, 2]
+    for score in &mut scores:
+        scores.push(*score)  # error: conflicting-access
+    let mut kept: List[&i32] = []
+    for score in &scores:
+        kept.push(score)  # error: element-reference-outlives-call
 ```
 
 > **Why.** A loop that changes each element in place needs a place per
-> step. The pin keeps a body from growing the list under the loop, so the
-> loop never skips or repeats a slot.
+> step. Keeping the length still keeps the body from growing the list
+> under the loop, so the loop never skips or repeats a slot.
 
 ### Range Iteration
 

@@ -2287,7 +2287,7 @@ is worth deciding only if they are hot.
       rooted at; each step's reference gets an `IsUnique` and a `Pin`, and
       the step's binding, dropped after the step's `Match`, holds the pin
       to the end of the step. No code of the body runs between steps, so
-      the list is pinned wherever the body runs (`flow.for.ref.pin`;
+      the list is pinned wherever the body runs (`flow.for.ref.access`;
       `own/a-loop-over-element-references-pins-each-step.hd`). The double
       `IsUnique` and `Pin` of commit 6 are gone.
     - **Write marks.** `mark_write_path` leaves an element read a read. It

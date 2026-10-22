@@ -1,10 +1,12 @@
 # test: indexing through a reference to a list reads, stores and refers to the referenced list's elements
-# Spec 13 Reading Through A Reference: ref.read.index.declared; Writing Through A Reference: ref.write.index; Element References: ref.elem.through.
+# Spec 13 Reading Through A Reference: ref.read.index.declared; Writing Through A Reference: ref.write.index; Element References: ref.elem.through-reference.
+fn set(target: &mut i32, value: i32) -> void:
+    *target = value
+
 fn fill(r: &mut List[i32]) -> void:
     r[0] = 7
     r[2] += 10
-    slot := &mut r[1]
-    *slot = 8
+    set(&mut r[1], 8)
 
 fn first(r: &List[i32]) -> i32:
     r[0]
@@ -21,11 +23,10 @@ tests:
         xs := [+4, 5]
         assert_equal(first(&xs), 4, reason="r[0] reads xs[0]")
 
-    it("an element reference through a reference pins the referenced list"):
+    it("an element reference through a reference refers into the referenced list"):
         let mut xs = [+1, 2]
         r := &mut xs
-        e := &mut r[1]
-        *e = 20
+        set(&mut r[1], 20)
         assert_equal(xs, [+1, 20], reason="the slot of xs changed")
         xs.push(3)
-        assert_equal(xs.len(), 3, reason="the pin ended after the last use of e")
+        assert_equal(xs.len(), 3, reason="the access ended with the call")

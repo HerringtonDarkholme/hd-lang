@@ -45,9 +45,13 @@ extent of each borrow, and placement.
 **Dependencies.** Tier 2 builds on tier 1 as settled: global `&mut`
 gets no exclusivity check (section 6.4); `List`, `Map` and `string` are
 copy-on-write values whose nested write paths, such as `m[k].push(x)`,
-write in place (section 6.1); an element reference pins its list, which
-tier 2 turns into a compile-time freeze for scoped borrows of locals;
-`==` between references is an error; and the new semantics run on Wasm
+write in place (section 6.1); tier 1 has no long-lived element
+references, only call-scoped ones
+([Call-Scoped Access](../../spec/lang/13-values-and-references.md#call-scoped-access)),
+and tier 2 adds scoped element references, frozen statically; an entry
+API may come with tier 2 lifetimes, as an ordinary std API with a written
+lifetime, never with a global lifetime; `==` between references is an
+error; and the new semantics run on Wasm
 GC emulation first (section 16). From
 [REFCOUNT_RUNTIME.md](REFCOUNT_RUNTIME.md): interior references are
 plain addresses whose object is found through the page table; the

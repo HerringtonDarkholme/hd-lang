@@ -1,28 +1,28 @@
-# test: a write through an element reference changes the list's slot, a field of an element, and an element of an inner list
+# test: a write through an element reference argument changes the list's slot, a field of an element, and an element of an inner list
 # Spec 13 Element References: ref.elem.place, ref.elem.slot.
 struct Point:
     x: i32
     y: i32
+
+fn set(target: &mut i32, value: i32) -> i32:
+    *target = value
+    *target
 
 tests:
     use std.testing.assert_equal
 
     it("a write through &mut xs[i] changes xs[i]"):
         let mut xs = [+1, 2, 3]
-        r := &mut xs[1]
-        *r = 9
+        assert_equal(set(&mut xs[1], 9), 9, reason="the reference reads its slot")
         assert_equal(xs, [+1, 9, 3], reason="the slot changed")
-        assert_equal(*r, 9, reason="the reference reads its slot")
 
     it("a field path through an element names the field in its slot"):
         let mut points = [Point { x: 1, y: 2 }, Point { x: 3, y: 4 }]
-        x := &mut points[1].x
-        *x = 30
+        set(&mut points[1].x, 30)
         assert_equal(points[1].x, 30, reason="the element's field changed")
         assert_equal(points[1].y, 4, reason="its other field is unchanged")
 
     it("an element of an inner list is a slot of the inner list"):
         let mut grid = [[+1, 2], [3, 4]]
-        cell := &mut grid[1][0]
-        *cell += 30
+        set(&mut grid[1][0], 33)
         assert_equal(grid, [[+1, 2], [33, 4]], reason="the inner list changed in place")

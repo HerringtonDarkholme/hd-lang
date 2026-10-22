@@ -1,5 +1,5 @@
 # test: leaving an element reference loop by break, continue or return releases its pin
-# Spec 06 Element Reference Loops: flow.for.ref.pin; Spec 13 Element References: ref.elem.release.exit.
+# Spec 06 Element Reference Loops: flow.for.ref.access.
 fn first_over(xs: &mut List[i32], limit: i32) -> i32:
     for x in &mut *xs:
         if *x > limit:

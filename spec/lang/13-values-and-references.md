@@ -53,7 +53,7 @@ A reference expression is a prefix operator and its operand. `&e` and `&mut e` m
 
 ```hd
 fn demo(r: &mut Point, items: List[Point], i: i32) -> void:
-    view := &items[i]
+    inspect(&items[i])
     edit := &mut r.x
     copy := *r
     *r = Point { x: 1, y: 2 }
@@ -81,7 +81,7 @@ The prefix `&` and `&mut` bind like the prefix `!` and the unary `-`. The prefix
 
 ```hd
 fn precedence(r: &mut Point, items: List[Point], i: i32, a: i32, b: i32) -> void:
-    one := &items[i].x  # &(items[i].x)
+    inspect(&items[i].x)  # inspect(&(items[i].x))
     two := *r.x         # *(r.x)
     three := (*r).x     # a field of the value
     four := a & &b      # bitwise and of a with a reference
@@ -139,7 +139,7 @@ fn demo() -> void:
 
 1. r[ref.place.forms] Locals and parameters of any binding form, and top-level bindings, are places for `&` and `&mut`. A struct field of a place and a value reached through a reference are places too.
 2. r[ref.place.through] `*r` with a reference `r` is a place, and so is a field read through `r`, such as `r.x`. The reference `r` is evaluated once, when the reference to the place is taken.
-3. r[ref.place.map-value] A map value is no place, so `&m[k]` and `&mut m[k]` are errors, as [`types.coll.map-value.ref`](04-type-system.md#r-types.coll.map-value.ref) states. Error: `map-value-not-addressable`.
+3. r[ref.place.element] A list element and a map value are places too. A reference to one is an [element reference](#element-references), which lives for one call.
 4. r[ref.expr.place] `&e` and `&mut e` on a place refer to that place. A later write to the place, through any path, is seen through the reference.
 5. r[ref.expr.allocate] `&e` and `&mut e` on any other expression evaluate `e` and refer to a new object that holds the value. Each evaluation makes a new object.
 6. r[ref.expr.allocate.writable] A new object is writable, so `&mut T { ... }` and `&mut make()` are valid.
@@ -401,55 +401,107 @@ See also: [Derived Implementations](09-traits.md#derived-implementations),
 
 ## Element References
 
-`&xs[i]` and `&mut xs[i]` refer to the slot `i` of the list `xs`, as Go's `&s[i]` does. Taking one pins the list: until the reference's last use, the list's length cannot change.
+`&xs[i]` and `&mut xs[i]` refer to the slot `i` of the list `xs`, and `&m[k]` and `&mut m[k]` to the value of the key `k` in the map `m`. An element reference lives for one call: it is passed to the call, and no name keeps it.
 
 ```hd
 struct Player:
     name: string
     score: i32
 
-fn reward(players: List[Player]) -> List[Player]:
+fn reward(player: &mut Player, points: i32) -> void:
+    player.score += points
+
+fn rewarded(players: List[Player], best: usize) -> List[Player]:
     let mut out = players
-    best := &mut out[0]
-    best.score += 10  # changes out[0]
-    out.push(Player { name: "new", score: 0 })  # after best's last use: no pin
+    reward(&mut out[best], 10)  # changes out[best] during the call
+    out[best].score += 1        # the element is a place without a reference too
+    out.push(Player { name: "new", score: 0 })  # the call's access has ended
     out
 ```
 
 1. r[ref.elem.place] `&xs[i]` and `&mut xs[i]`, where `xs` is a list, are **element references**: they refer to the slot `i` of the list. A struct field read from the element extends the place, as in `&mut xs[i].pos`, and an element of an inner list is a slot of that list, as in `&mut grid[r][c]`.
-2. r[ref.elem.index] The index is evaluated and checked once, when the reference is taken. An index that is not less than the list's length is a checked runtime panic. Panic: `index-out-of-bounds`.
-3. r[ref.elem.slot] An element reference names a slot, never the value in it. A read through it sees whatever value its slot holds, and a write replaces that value. After elements move between slots, as a sort or a swap moves them, it sees the element in its slot.
-4. r[ref.elem.writable] `&mut xs[i]` needs `xs` in a writable place, as an element store does ([`types.coll.writable.store`](04-type-system.md#r-types.coll.writable.store)). Its fix-it makes the binding writable. Error: `not-writable`.
-5. r[ref.elem.writable.shared] `&xs[i]` needs no writable place, so it may refer into a `:=` list or a value parameter.
-6. r[ref.elem.through] `xs` may be a reference to a list: `&r[i]` and `&mut r[i]` refer to the slot `i` of the list `r` refers to, and pin that list. Through `&T`, `&mut r[i]` is an error. Error: `not-writable`.
-7. r[ref.elem.pin] Taking an element reference makes the list's elements its own, shared with no copy, and **pins** the list until the reference is released.
-8. r[ref.elem.pinned] While a list is pinned, an operation that changes its length is a checked runtime panic: `push`, `insert`, `remove_at`, and a `pop` or a `clear` that removes an element. Panic: `collection-pinned`.
-9. r[ref.elem.pinned.allowed] Replacing an element keeps the length, so it is allowed while the list is pinned: an element store, a write through an element reference, and a sort or a swap written with element stores.
-10. r[ref.elem.copy] Copying a pinned list gives a list with elements of its own. A change to the copy never reaches a reference into the original, and a write through such a reference never reaches the copy.
-11. r[ref.elem.replace] Assigning a whole list to the pinned list's place, as in `xs = []`, is allowed. The old references keep the old elements and no longer refer into `xs`.
-12. r[ref.elem.release] A pin is released after the reference's last use, not at the end of its block. A list that several element references pin stays pinned until each is released.
-13. r[ref.elem.release.binding] An element reference that initializes a simple binding, as in `r := &mut xs[i]`, is last used by the last statement of the binding's suite that names the binding, inside a closure or an interpolation included.
-14. r[ref.elem.release.statement] Any other element reference, such as an argument, is last used by the statement that takes it.
-15. r[ref.elem.release.exit] Leaving a suite, through `return`, `break`, `continue`, or `?`, releases the pins of the element references taken in it.
-16. r[ref.elem.release.copies] A copy of an element reference that outlives those statements keeps the list pinned while the copy lives: one stored in a field or a list, returned, or captured by a closure that runs later.
-17. r[ref.elem.identity] Two element references refer to the same place when they refer to the same slot of the same list's elements and read the same struct fields from it.
+2. r[ref.elem.map] `&m[k]` and `&mut m[k]`, where `m` is a map, are element references too: they refer to the value of the key `k` in `m`. Each rule of this section holds for them, with the key in place of the index.
+3. r[ref.elem.index] The index is evaluated and checked once, when the reference is taken. An index that is not less than the list's length is a checked runtime panic. Panic: `index-out-of-bounds`.
+4. r[ref.elem.map.key] A key that the map does not hold is a checked runtime panic when the reference is taken, as a read of `m[k]` is. Panic: `index-out-of-bounds`.
+5. r[ref.elem.slot] An element reference names a slot, never the value in it. A read through it sees whatever value its slot holds, and a write replaces that value. After elements move between slots, as a sort or a swap moves them, it sees the element in its slot.
+6. r[ref.elem.writable] `&mut xs[i]` needs `xs` in a writable place, as an element store does ([`types.coll.writable.store`](04-type-system.md#r-types.coll.writable.store)). Its fix-it makes the binding writable. Error: `not-writable`.
+7. r[ref.elem.writable.shared] `&xs[i]` needs no writable place, so it may refer into a `:=` list or a value parameter.
+8. r[ref.elem.through-reference] `xs` may be a reference to a list: `&r[i]` and `&mut r[i]` refer to the slot `i` of the list `r` refers to. Through `&T`, `&mut r[i]` is an error. Error: `not-writable`.
+9. r[ref.elem.copy] Copying a pinned list gives a list with elements of its own. A change to the copy never reaches a reference into the original, and a write through such a reference never reaches the copy.
+10. r[ref.elem.replace] Assigning a whole list to the pinned list's place, as in `xs = []`, is allowed. The old references keep the old elements and no longer refer into `xs`.
+11. r[ref.elem.identity] Two element references refer to the same place when they refer to the same slot of the same list's elements and read the same struct fields from it.
 
 ```text
-fn invalid() -> i32:
+fn bump(score: &mut i32) -> void:
+    *score += 1
+
+fn invalid() -> void:
     xs := [+1, 2]
-    r := &mut xs[0]  # error: not-writable
-    *r
+    bump(&mut xs[0])  # error: not-writable
 ```
 
 > **Why.** A list grows by moving its elements. Go keeps the old array
 > alive, so a write through an old pointer silently stops reaching the
-> slice; the pin forbids the move instead, as Java's collections forbid
-> a change under a live iterator. A handle to one value that survives a
-> sort or a growth is a reference stored in the list, `List[&mut Player]`,
+> slice. A reference that lives for one call never sees the list move.
+> Code that keeps an element between calls keeps its index. A handle that
+> survives a sort is a reference stored in the list, `List[&mut Player]`,
 > or an ID.
 
+### Call-Scoped Access
+
+An element reference is an argument of one call, and the collection's
+length holds still until that call returns.
+
+```text
+fn bump(score: &mut i32) -> void:
+    *score += 1
+
+fn record(scores: &mut List[i32], score: &mut i32) -> void:
+    scores.push(*score)
+
+fn demo() -> void:
+    let mut scores = [+1, 2]
+    bump(&mut scores[0])                 # valid: the access ends with the call
+    record(&mut scores, &mut scores[0])  # error: conflicting-access
+    best := &mut scores[1]               # error: element-reference-outlives-call
+```
+
+1. r[ref.elem.call] An element reference may be written only as an argument of a function or method call, or as the receiver of a method call.
+2. r[ref.elem.access] The reference's **access** to its collection begins when the reference is taken and ends when the call returns.
+3. r[ref.elem.kept] Any other use of an element reference is an error: binding it to a name, assigning it, storing it in a field, an element, or a payload, and returning it. Error: `element-reference-outlives-call`.
+4. r[ref.elem.kept.fix] The diagnostic's fix-it keeps the index instead: each use of the reference names the element again, as `xs[i]`.
+5. r[ref.elem.access.length] While an access lasts, nothing may change the collection's length. Reads of the collection, and writes to its elements, the referenced one included, stay valid.
+6. r[ref.elem.unaliased] A collection is **unaliased** when it is a local binding or a value parameter, or a struct field or element reached from one through no reference, and no escaping closure captures that binding.
+7. r[ref.elem.escaping] A closure is **escaping** when it is passed as an argument, returned, stored in a field, an element, a payload, or a top-level binding, or captured by an escaping closure.
+8. r[ref.elem.conflict] During an access to an unaliased collection, another argument or the receiver of the same call that may change the collection's length is an error. Error: `conflicting-access`.
+9. r[ref.elem.access.pin] Every access **pins** its collection while it lasts, so a length change that no rule rejects at compile time panics.
+10. r[ref.elem.pinned] While a list is pinned, an operation that changes its length is a checked runtime panic: `push`, `insert`, `remove_at`, and a `pop` or a `clear` that removes an element. Panic: `collection-pinned`.
+11. r[ref.elem.pinned.map] While a map is pinned, a store of a key it does not hold and a `remove` of a key it holds are checked runtime panics. Panic: `collection-pinned`.
+12. r[ref.elem.pinned.allowed] Replacing an element keeps the length, so it is allowed while the list is pinned: an element store, a write through an element reference, and a sort or a swap written with element stores.
+13. r[ref.elem.pinned.end] A collection that several accesses pin stays pinned until each has ended.
+14. r[ref.elem.callee-copy] A callee may keep a copy of a reference parameter after it returns, as any reference may outlive its block ([`ref.place.lifetime`](#r-ref.place.lifetime)). A kept copy of an element reference pins its collection while the copy lives.
+
+An argument may change the collection's length when it does one of the
+following to the collection, or to a place that holds it:
+
+| Rule | The argument or receiver | Example |
+| --- | --- | --- |
+| r[ref.elem.conflict.reference] Reference | takes `&mut` of it | `record(&mut scores, &mut scores[0])` |
+| r[ref.elem.conflict.method] Method call | calls a `&mut self` method on it | `place(&mut scores[0], scores.remove_at(1))` |
+
+> **Note.** An implementation may omit a pin where it can prove that no
+> reference reaches the collection and that no callee keeps the element
+> reference.
+
+> **Why.** This is Swift's Law of Exclusivity, narrowed to length. A
+> conflict is caught at compile time where every path to the collection
+> is in view, and by the pin where a reference or a global may reach it.
+> Writes to other elements cannot move the referenced slot, so they stay
+> legal.
+
 See also: [Element Reference Loops](06-control-flow.md#element-reference-loops),
-[Collection Values](04-type-system.md#collection-values).
+[Collection Values](04-type-system.md#collection-values),
+[Map Values](04-type-system.md#map-values).
 
 ## Captured References
 
@@ -483,7 +535,7 @@ See also: [Copied And Shared Captures](07-functions.md#copied-and-shared-capture
 
 ## Not Yet Checked
 
-1. r[ref.check.not-yet-non-list-elements] Two forms are errors until later jobs define them. They are a reference to a tuple element, as in `&pair._0`, and a reference to an index result that is no list element, such as a slice `&xs[1..3]` or a user `Index` call. Error: `references-not-yet-checked`.
+1. r[ref.check.not-yet-tuple-and-index] Two forms are errors until later jobs define them. One is a reference to a tuple element, as in `&pair._0`. The other is a reference to an index result that is neither a list element nor a map value, such as a slice `&xs[1..3]` or a user `Index` call. Error: `references-not-yet-checked`.
 2. r[ref.check.formatter] `hd fmt` formats a file that writes references. It keeps each reference token as written, `&mut` included, and a second run changes nothing.
 
 ```text

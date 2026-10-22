@@ -1,5 +1,5 @@
 # test: a &mut self or &self call on a list element takes the element's address, also through a reference to the list
-# Spec 07 Reference Receivers: fn.method.auto-address.element.
+# Spec 07 Reference Receivers: fn.method.auto-address.collection-element.
 struct Counter:
     n: i32
 

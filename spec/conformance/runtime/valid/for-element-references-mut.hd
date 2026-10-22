@@ -1,5 +1,5 @@
 # test: for p in &mut xs binds a writable reference to each element in turn
-# Spec 06 Element Reference Loops: flow.for.ref, flow.for.ref.pin.
+# Spec 06 Element Reference Loops: flow.for.ref, flow.for.ref.access.
 tests:
     use std.testing.assert_equal
 

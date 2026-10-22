@@ -1,0 +1,24 @@
+# test: during an element reference's call, other arguments may read the list and refer to its other elements
+# Spec 13 Call-Scoped Access: ref.elem.access.length.
+fn swap(left: &mut i32, right: &mut i32) -> void:
+    held := *left
+    *left = *right
+    *right = held
+
+fn add_all(target: &mut i32, other: i32, count: usize) -> void:
+    *target += other
+    if count == 2:
+        *target += 2
+
+tests:
+    use std.testing.assert_equal
+
+    it("two element references into one list in one call"):
+        let mut scores = [+1, 2]
+        swap(&mut scores[0], &mut scores[1])
+        assert_equal(scores, [+2, 1], reason="each call writes another element")
+
+    it("reads of the list beside an element reference"):
+        let mut scores = [+1, 2]
+        add_all(&mut scores[0], scores[1], scores.len())
+        assert_equal(scores, [+5, 2], reason="the reads keep the length")

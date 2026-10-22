@@ -1,1 +1,20 @@
 path	issue	engine	reason
+runtime/panic/map-element-reference-insert-panics.hd	#494		map values are not places yet: &mut m[k] is map-value-not-addressable
+runtime/valid/element-reference-aliasing.hd	#494		a list copied as an argument beside an element reference into it shares the referenced elements
+runtime/valid/element-reference-copy-independent.hd	#494		a list copied as an argument beside an element reference into it shares the referenced elements
+runtime/valid/element-reference-nested-copy-independent.hd	#494		a list copied as an argument beside an element reference into it shares the referenced elements
+runtime/valid/map-value-element-reference.hd	#494		map values are not places yet: &m[k] and &mut m[k] are map-value-not-addressable
+runtime/valid/map-value-field-write.hd	#494		map values are not places yet: m[k].x = v is map-value-not-addressable
+runtime/valid/map-value-receiver-auto-address.hd	#494		a &mut self call on a map value changes a copy, not the value in the map
+typing/invalid/element-access-conflict-map.hd	#494		map values are not places yet, and conflicting-access is not checked
+typing/invalid/element-access-conflict-method.hd	#494		conflicting-access is not checked
+typing/invalid/element-access-conflict-receiver.hd	#494		conflicting-access is not checked
+typing/invalid/element-access-conflict-reference.hd	#494		conflicting-access is not checked
+typing/invalid/element-reference-binding.hd	#494		element references bound to names are accepted
+typing/invalid/element-reference-field-store.hd	#494		element references stored in fields are accepted
+typing/invalid/element-reference-let-binding.hd	#494		element references bound to names are accepted
+typing/invalid/element-reference-return.hd	#494		returned element references are accepted
+typing/invalid/for-element-references-capture.hd	#494		closures capturing an element reference loop binding are accepted
+typing/invalid/for-element-references-push-conflict.hd	#494		conflicting-access is not checked; the push panics collection-pinned at run time
+typing/invalid/for-element-references-store.hd	#494		element reference loop bindings stored in a list are accepted
+typing/invalid/map-value-reference.hd	#494		map values are not places yet: &m[k] is map-value-not-addressable

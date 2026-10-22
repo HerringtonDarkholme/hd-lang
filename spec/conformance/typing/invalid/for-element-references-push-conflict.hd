@@ -1,0 +1,6 @@
+# test: the body of an element reference loop over an unaliased list may not name the list except through the loop binding
+# Spec 06 Element Reference Loops: flow.for.ref.conflict.
+fn demo() -> void:
+    let mut scores = [+1, 2]
+    for score in &mut scores:
+        scores.push(*score)  # diagnostic: conflicting-access

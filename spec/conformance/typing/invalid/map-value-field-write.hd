@@ -1,9 +1,0 @@
-# test: a field write through a map value is an error, since a map value is no place
-# Spec 04 Collection Values: types.coll.map-value.field.
-struct Stock:
-    count: i32
-
-fn restock(shelves: Map[string, Stock]) -> Map[string, Stock]:
-    let mut copy = shelves
-    copy["apple"].count = 5  # diagnostic: map-value-not-addressable
-    copy

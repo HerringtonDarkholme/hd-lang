@@ -1,0 +1,17 @@
+# test: a &mut self call on a map value takes the value's address, so the method changes the value in the map
+# Spec 07 Reference Receivers: fn.method.auto-address.collection-element.
+struct Counter:
+    n: i32
+
+impl Counter:
+    fn bump(&mut self) -> i32:
+        self.n += 1
+        self.n
+
+tests:
+    use std.testing.assert_equal
+
+    it("a &mut self call changes the value where it is stored"):
+        let mut counters: Map[string, Counter] = {"hits": Counter { n: 0 }}
+        assert_equal(counters["hits"].bump(), 1, reason="the call returns the new count")
+        assert_equal(counters["hits"].n, 1, reason="the value itself changed")

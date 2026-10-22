@@ -1,5 +1,5 @@
 # test: elements of a writable list and fields of a writable struct change in place, and a copy taken before is unchanged
-# Spec 04 Collection Values: types.coll.element-place, types.coll.nested; Writable Places: types.value.writable-forms.
+# Spec 04 Collection Values: types.coll.element-place, types.coll.nested; Writable Places: types.value.writable-places.
 struct Member:
     name: string
     tags: List[string]

@@ -1,6 +1,6 @@
 # test: a struct method's mut self and a mut parameter are the callee's own changeable copy, so the caller's value is unchanged unless the copy is returned and kept
 # Spec 07 Parameters: fn.param.mut, fn.param.mut.copy, fn.param.mut.reassign. Spec 07 Methods And Receivers: fn.method.mut-self-struct.
-# Spec 08 Struct Declarations: data.struct.receiver-forms, data.struct.mut-self. Spec 04 Writable Places: types.value.writable-forms, types.value.reassign-binding.
+# Spec 08 Struct Declarations: data.struct.receiver-forms, data.struct.mut-self. Spec 04 Writable Places: types.value.writable-places, types.value.reassign-binding.
 # expect-stdout: true 1
 # expect-stdout: 2 ann
 # expect-stdout: 1 ann

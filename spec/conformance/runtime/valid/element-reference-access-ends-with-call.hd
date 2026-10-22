@@ -1,0 +1,21 @@
+# test: an element reference's access ends when its call returns, so the list may grow in the next statement
+# Spec 13 Call-Scoped Access: ref.elem.access, ref.elem.call.
+fn set(target: &mut i32, value: i32) -> void:
+    *target = value
+
+tests:
+    use std.testing.assert_equal
+
+    it("a push after the call does not panic"):
+        let mut xs = [+1, 2, 3]
+        set(&mut xs[0], 10)
+        xs.push(4)
+        assert_equal(xs, [+10, 2, 3, 4], reason="the push ran after the call's access")
+
+    it("each call takes its own access"):
+        let mut xs = [+1, 2]
+        set(&mut xs[1], 20)
+        xs.push(3)
+        set(&mut xs[2], 30)
+        xs.push(4)
+        assert_equal(xs, [+1, 20, 30, 4], reason="every access ended with its call")

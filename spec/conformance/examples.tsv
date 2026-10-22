@@ -176,7 +176,7 @@ lang/04-type-system.md	46	accept	typing/valid/let-pattern-mut.hd
 lang/04-type-system.md	47	mixed	typing/invalid/uninhabited-binding.hd
 lang/04-type-system.md	48	accept	typing/valid/collection-value-tagged.hd
 lang/04-type-system.md	49	mixed	typing/invalid/list-push-short-binding.hd|typing/invalid/list-store-plain-let.hd|typing/invalid/collection-identity.hd
-lang/04-type-system.md	50	mixed	typing/invalid/map-value-field-write.hd|typing/invalid/map-value-reference.hd
+lang/04-type-system.md	50	mixed	runtime/valid/map-value-field-write.hd|typing/invalid/map-value-reference.hd
 lang/04-type-system.md	51	accept	typing/valid/generic-mutual-bounds.hd
 lang/04-type-system.md	52	mixed	typing/invalid/written-type-too-many-arguments.hd
 lang/04-type-system.md	53	mixed	typing/invalid/generic-inference-numeric-widening.hd|typing/invalid/generic-inference-trait-value.hd
@@ -298,7 +298,7 @@ lang/06-control-flow.md	8	accept	runtime/valid/user-defined-iterator-trait.hd
 lang/06-control-flow.md	9	accept	typing/valid/for-over-mut-iterator.hd|runtime/valid/iterator-single-pass.hd
 lang/06-control-flow.md	10	mixed	typing/valid/readonly-iterator-in-comprehension.hd|typing/invalid/for-over-non-iterable.hd|typing/invalid/iterator-step-private.hd|typing/invalid/for-over-string.hd|typing/invalid/readonly-iterator-iterable-bound.hd
 lang/06-control-flow.md	11	accept	runtime/valid/for-snapshot-doubled.hd
-lang/06-control-flow.md	12	mixed	typing/invalid/for-element-references-mut-short-binding.hd|typing/invalid/for-element-references-map.hd
+lang/06-control-flow.md	12	mixed	typing/invalid/for-element-references-mut-short-binding.hd|typing/invalid/for-element-references-map.hd|typing/invalid/for-element-references-push-conflict.hd|typing/invalid/for-element-references-store.hd
 lang/06-control-flow.md	13	accept	runtime/valid/range-iteration.hd
 lang/06-control-flow.md	14	mixed	typing/invalid/range-to-not-iterable.hd|typing/invalid/range-full-not-iterable.hd|typing/invalid/for-float-range.hd
 lang/06-control-flow.md	15	accept	typing/valid/control-flow.hd
@@ -645,7 +645,8 @@ lang/13-values-and-references.md	7	mixed	typing/invalid/reference-deref-write-sh
 lang/13-values-and-references.md	8	mixed	typing/invalid/reference-identity-different-types.hd|typing/invalid/reference-identity-value-operand.hd
 lang/13-values-and-references.md	9	mixed	typing/invalid/reference-equality.hd|typing/invalid/reference-inequality.hd
 lang/13-values-and-references.md	10	mixed	typing/invalid/element-reference-mut-short-binding.hd
-lang/13-values-and-references.md	11	mixed	typing/invalid/reference-slice-not-checked.hd|typing/invalid/reference-tuple-element-not-checked.hd
+lang/13-values-and-references.md	11	mixed	typing/invalid/element-access-conflict-reference.hd|typing/invalid/element-reference-binding.hd
+lang/13-values-and-references.md	12	mixed	typing/invalid/reference-slice-not-checked.hd|typing/invalid/reference-tuple-element-not-checked.hd
 lang/14-annotations.md	1	accept	typing/valid/decorator-targets.hd
 lang/14-annotations.md	2	mixed	typing/invalid/derive-before-function.hd|typing/invalid/derive-before-trait.hd|typing/invalid/duplicate-function-fact.hd
 lang/14-annotations.md	3	accept	runtime/valid/bare-marker-decorator.hd

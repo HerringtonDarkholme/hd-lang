@@ -1,5 +1,5 @@
 # test: an erased generic method writes a field of a local whose type is open
-# Spec 04 Type System: types.value.writable-forms; Spec 09 Dynamic Safety: trait.dyn.safe.method-type-param.
+# Spec 04 Type System: types.value.writable-places; Spec 09 Dynamic Safety: trait.dyn.safe.method-type-param.
 # expect-stdout: 2 1 y x v u w z
 struct Pair[T]:
     a: T

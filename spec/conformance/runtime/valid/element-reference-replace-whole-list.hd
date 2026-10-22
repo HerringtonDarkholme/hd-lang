@@ -1,13 +1,18 @@
 # test: replacing the whole list while it is pinned is allowed, and the old reference keeps the old elements
 # Spec 13 Element References: ref.elem.replace.
+fn replace_then_write(list: &mut List[i32], old: &mut i32) -> i32:
+    *list = []
+    list.push(5)
+    *old = 20
+    *old
+
+fn replaced(list: &mut List[i32]) -> i32:
+    replace_then_write(list, &mut list[1])
+
 tests:
     use std.testing.assert_equal
 
-    it("xs = [] leaves the reference on the old buffer"):
+    it("xs = [] leaves the reference on the old elements"):
         let mut xs = [+1, 2, 3]
-        r := &mut xs[1]
-        xs = []
-        xs.push(5)
-        *r = 20
+        assert_equal(replaced(&mut xs), 20, reason="the old reference still reads and writes its slot")
         assert_equal(xs, [+5], reason="the new list is untouched by the old reference")
-        assert_equal(*r, 20, reason="the old reference still reads and writes its slot")

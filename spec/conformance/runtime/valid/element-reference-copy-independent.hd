@@ -3,24 +3,29 @@
 struct Bag:
     items: List[i32]
 
+fn change_copy(target: &mut i32, original: List[i32]) -> List[i32]:
+    let mut copy = original
+    copy[0] = 100
+    copy.push(4)
+    copy.push(*target)
+    *target = 7
+    copy
+
+fn write_after_copy(target: &mut i32, before: Bag) -> Bag:
+    *target = 11
+    before
+
 tests:
     use std.testing.assert_equal
 
     it("a copied list changes on its own"):
         let mut xs = [+1, 2, 3]
-        r := &mut xs[0]
-        let mut copy = xs
-        copy[0] = 100
-        copy.push(4)
-        assert_equal(*r, 1, reason="the reference sees its own list")
-        *r = 7
-        assert_equal(copy[0], 100, reason="a write through the reference does not reach the copy")
-        assert_equal(xs[0], 7, reason="it reaches the list it was taken from")
+        copy := change_copy(&mut xs[0], xs)
+        assert_equal(copy, [+100, 2, 3, 4, 1], reason="the reference read its own list, and its write missed the copy")
+        assert_equal(xs[0], 7, reason="the write reaches the list it was taken from")
 
     it("a struct holding a pinned list copies the list too"):
         let mut bag = Bag { items: [+1, 2] }
-        r := &mut bag.items[0]
-        before := bag
-        *r = 11
+        before := write_after_copy(&mut bag.items[0], bag)
         assert_equal(bag.items[0], 11, reason="the bag's list changed")
-        assert_equal(before.items[0], 1, reason="the copy taken before is unchanged")
+        assert_equal(before.items[0], 1, reason="the copy passed beside the reference is unchanged")

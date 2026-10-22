@@ -1,0 +1,25 @@
+# test: &m[k] and &mut m[k] are element references that a call may take, and a write through one changes the map's value
+# Spec 13 Element References: ref.elem.map.
+struct Stock:
+    count: i32
+
+fn restock(stock: &mut Stock, amount: i32) -> void:
+    stock.count += amount
+
+fn count(stock: &Stock) -> i32:
+    stock.count
+
+tests:
+    use std.testing.assert_equal
+
+    it("a call writes the value through &mut m[k]"):
+        let mut shelves: Map[string, Stock] = {"apple": Stock { count: 1 }, "pear": Stock { count: 2 }}
+        restock(&mut shelves["apple"], 10)
+        assert_equal(shelves["apple"].count, 11, reason="the value changed in the map")
+        assert_equal(count(&shelves["pear"]), 2, reason="a read-only reference reads the value")
+
+    it("the map may grow after the call"):
+        let mut shelves: Map[string, Stock] = {"apple": Stock { count: 1 }}
+        restock(&mut shelves["apple"], 1)
+        shelves["fig"] = Stock { count: 0 }
+        assert_equal(shelves.len(), 2, reason="the access ended with the call")

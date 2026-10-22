@@ -1,0 +1,5 @@
+# test: binding a read-only element reference to a let name is an error too
+# Spec 13 Call-Scoped Access: ref.elem.kept.
+fn first(scores: List[i32]) -> i32:
+    let view = &scores[0]  # diagnostic: element-reference-outlives-call
+    *view

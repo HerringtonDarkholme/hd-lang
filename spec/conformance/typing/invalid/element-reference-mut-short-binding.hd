@@ -1,6 +1,8 @@
 # test: &mut xs[i] needs a writable list, as an element store does
 # Spec 13 Element References: ref.elem.writable.
-fn invalid() -> i32:
+fn bump(score: &mut i32) -> void:
+    *score += 1
+
+fn invalid() -> void:
     xs := [+1, 2]
-    r := &mut xs[0]  # diagnostic: not-writable
-    *r
+    bump(&mut xs[0])  # diagnostic: not-writable

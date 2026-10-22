@@ -1,0 +1,12 @@
+# test: another argument that takes &mut of the list during an element reference's call is a conflicting access
+# Spec 13 Call-Scoped Access: ref.elem.conflict, ref.elem.conflict.reference.
+fn bump(score: &mut i32) -> void:
+    *score += 1
+
+fn record(scores: &mut List[i32], score: &mut i32) -> void:
+    scores.push(*score)
+
+fn demo() -> void:
+    let mut scores = [+1, 2]
+    bump(&mut scores[0])
+    record(&mut scores, &mut scores[0])  # diagnostic: conflicting-access

@@ -1,4 +1,4 @@
-# Spec 04 Writable Places: types.value.write.other-value, for a call result.
+# Spec 04 Writable Places: types.value.write.other-holder, for a call result.
 struct Point:
     x: i32
     y: i32

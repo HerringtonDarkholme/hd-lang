@@ -1,0 +1,11 @@
+# test: another argument that takes &mut of the map during the call of a reference to one of its values is a conflicting access
+# Spec 13 Element References: ref.elem.map; Call-Scoped Access: ref.elem.conflict.
+struct Stock:
+    count: i32
+
+fn move_stock(stock: &mut Stock, shelves: &mut Map[string, Stock]) -> void:
+    shelves["pear"] = Stock { count: stock.count }
+
+fn demo() -> void:
+    let mut shelves: Map[string, Stock] = {"apple": Stock { count: 1 }}
+    move_stock(&mut shelves["apple"], &mut shelves)  # diagnostic: conflicting-access

@@ -1,9 +1,0 @@
-# test: an element reference captured by a closure keeps its list pinned until the closure's last use
-# Spec 13 Element References: ref.elem.release.copies.
-tests:
-    it("a later closure call holds a live copy of the element reference"):
-        let mut xs = [+1, 2]
-        r := &mut xs[0]
-        later := fn() -> void: *r = 10
-        xs.push(3)  # panic: collection-pinned
-        later()

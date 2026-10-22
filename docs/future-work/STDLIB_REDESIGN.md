@@ -1874,7 +1874,7 @@ more:
 
 ## std.collections
 
-**Verdict: meets the bar, with one swap and two cost fixes.** The names
+**Verdict: meets the bar, with one removal and two cost fixes.** The names
 are Rust's `Vec`, `VecDeque`, `HashSet` and `BinaryHeap`, with Python's
 `Counter.most_common`. Two calls force a cost that no implementation can
 remove, and one name is a second spelling.
@@ -1884,9 +1884,6 @@ impl[T] List[T]:
     pub fn chunks(self, size: usize) -> List[ListView[T]]                     # was List[List[T]]
     pub fn windows(self, size: usize) -> List[ListView[T]]                    # was List[List[T]]
     pub fn flat_map[U, I < Iterable[U]](self, transform: fn(T) -> I) -> List[U]   # was fn(T) -> List[U]
-
-impl[K < Eq & Hash, V] Map[K, V]:
-    pub fn get_or_insert(mut self, key: K, value: V) -> V                     # new; replaces get_or
 
 impl[T] FromIterator[T] for Deque[T]                                          # new impls, no new names
 impl[T < Ord] FromIterator[T] for Heap[T]                                     # heapify in O(n)
@@ -1901,10 +1898,11 @@ impl[T < Ord] FromIterator[T] for Heap[T]                                     # 
   iterable (see std.iter), `flat_map` also keeps the `.Some` results,
   which is `filter_map` with no new name.
 - Removed: `Map.get_or(key, fallback)`. It is `get(key).unwrap_or(fallback)`.
-- Added: `get_or_insert`, Python's `setdefault` and Rust's
-  `entry(key).or_insert(value)`. It returns the stored value, so
-  `index.get_or_insert(word, Set::new()).insert(doc)` is one probe, where
-  today it is a `get`, a `match` and a store.
+- Not added: `get_or_insert`, an entry API or a default subscript. A
+  group-by is `if !m.contains_key(k): m[k] = v`, then `m[k].insert(x)`, since
+  a map value is a place
+  ([`types.coll.map-value.place`](../../spec/lang/04-type-system.md#r-types.coll.map-value.place));
+  #683 fuses its probes in the compiler.
 - Not proposed: set algebra, which is a `filter` over `contains`; an
   in-place `sort`, since `sorted` costs one copy beside an O(n log n)
   sort; a sorted map.
@@ -2201,7 +2199,7 @@ pub fn main!() -> Result[void, dyn Error] $ Console + Http + Clock:
 
 **2. A log report**: typed lines with the bad ones dropped, a setting
 layered from a flag, a variable and a default, an index built with
-`get_or_insert`, and spikes found over sliding windows.
+`contains_key` and a store, and spikes found over sliding windows.
 
 ```text
 use std.cli.{Cli, positional}
@@ -2243,10 +2241,12 @@ pub fn main!() -> Result[void, dyn Error] $ Console + Args + Env + FsRead:
     if hits.is_empty():
         return .Err(message("no request lines in ${report.log}"))
 
-    let paths: mut Map[string, mut Set[string]] = {}
+    let mut paths: Map[string, Set[string]] = {}
     for hit in hits:
-        paths.get_or_insert(hit.user, Set::new()).insert(hit.path)
-    ranked := paths.entries().sorted_by_key(fn(entry: (string, mut Set[string])) -> usize: entry._1.len()).reversed()
+        if !paths.contains_key(hit.user):
+            paths[hit.user] = Set::new()
+        paths[hit.user].insert(hit.path)
+    ranked := paths.entries().sorted_by_key(fn(entry: (string, Set[string])) -> usize: entry._1.len()).reversed()
     for (user, seen) in ranked.take(report.top):
         println("$user visited ${seen.len()} distinct paths")
 
@@ -2329,7 +2329,7 @@ file, `std.error`. "Before" is `lib/std` at `9c418be27`.
 
 | Module | Before | After | Removed | Added |
 | --- | --- | --- | --- | --- |
-| `std.collections` | 72 | 72 | `Map.get_or` | `Map.get_or_insert` |
+| `std.collections` | 72 | 71 | `Map.get_or` | none |
 | `std.iter` | 23 | 23 | none | none (the `T?` impl is not a name) |
 | `std.option` | 7 | 8 | none | `or` |
 | `std.result` | 9 | 9 | none | none |

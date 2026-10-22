@@ -1,8 +1,13 @@
-# test: a push while an element reference is live panics with collection-pinned
-# Spec 13 Element References: ref.elem.pinned.
+# test: push through a &mut parameter during an element reference's call panics with collection-pinned
+# Spec 13 Call-Scoped Access: ref.elem.access.pin, ref.elem.pinned.
+fn change(list: &mut List[i32], first: &mut i32) -> void:
+    list.push(4)  # panic: collection-pinned
+    *first = 5
+
+fn through(list: &mut List[i32]) -> void:
+    change(list, &mut list[2])
+
 tests:
     it("push changes the length of a pinned list"):
         let mut xs = [+1, 2, 3]
-        r := &mut xs[0]
-        xs.push(4)  # panic: collection-pinned
-        *r = 5
+        through(&mut xs)

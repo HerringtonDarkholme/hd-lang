@@ -57,16 +57,6 @@ tests:
         assert_equal(point.y, 30, reason="the field changed")
         assert_equal(point.x, 1, reason="and nothing else")
 
-    it("a captured reference to a list element writes the slot"):
-        let mut points: List[Point] = [Point { x: 1, y: 1 }, Point { x: 2, y: 2 }]
-        let mut steps: List[fn() -> void] = []
-        for point in &mut points:
-            steps.push(fn() -> void: point.x = point.x + 10)
-        steps[0]()
-        steps[1]()
-        steps[1]()
-        assert_equal(points[0].x + points[1].x, 33, reason="each closure writes its own slot")
-
     it("a captured let variable that holds a reference is shared like any variable"):
         let mut left = Point { x: 1, y: 0 }
         let mut right = Point { x: 2, y: 0 }

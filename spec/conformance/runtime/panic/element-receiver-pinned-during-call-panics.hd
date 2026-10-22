@@ -1,5 +1,5 @@
-# test: a call on a list element pins the list until it returns, so a push through another reference panics
-# Spec 07 Reference Receivers: fn.method.auto-address.element.
+# test: a call on a list element pins the list until it returns, so a push through a reference that the call cannot see panics
+# Spec 07 Reference Receivers: fn.method.auto-address.collection-element.
 struct Item:
     n: i32
 

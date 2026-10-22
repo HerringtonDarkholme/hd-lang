@@ -1,0 +1,8 @@
+# test: storing the binding of an element reference loop in a list is an error
+# Spec 06 Element Reference Loops: flow.for.ref.binding.
+fn demo() -> usize:
+    scores := [+1, 2]
+    let mut kept: List[&i32] = []
+    for score in &scores:
+        kept.push(score)  # diagnostic: element-reference-outlives-call
+    kept.len()

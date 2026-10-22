@@ -1093,7 +1093,7 @@ fn demo() -> f64:
 8. r[fn.method.auto-address.place-writable] When a `&mut self` call addresses a place, that place must be [writable](04-type-system.md#writable-places). Error: `not-writable`.
 9. r[fn.method.auto-address.fix] The fix-it writes `let mut` for a `let` or `:=` binding, `mut` before a parameter name, and `&mut self` for a `self` receiver.
 10. r[fn.method.auto-address.shared-reference] A `&mut self` call through a `&T` reference is an error. Error: `not-writable`.
-11. r[fn.method.auto-address.element] A list element is a place for the call, as in `bodies[i].shift(d)`, also through a reference to the list, as in `r[i].shift(d)`. The call takes an element reference ([Element References](13-values-and-references.md#element-references)) that pins the list from before the arguments are evaluated until the call returns. A `&mut self` call needs the list in a writable place, as `&mut xs[i]` does.
+11. r[fn.method.auto-address.collection-element] A list element or a map value is a place for the call, as in `bodies[i].shift(d)` and `teams[name].rename(n)`, also through a reference to the collection, as in `r[i].shift(d)`. The call takes an element reference ([Element References](13-values-and-references.md#element-references)) whose access lasts from before the arguments are evaluated until the call returns. A `&mut self` call needs the collection in a writable place, as `&mut xs[i]` does.
 12. r[fn.method.self-struct-write] Writing a field of `self` in a struct's `self` method is an error, with a fix-it that takes `&mut self`. Error: `non-reassignable-parameter-binding`.
 
 ```text

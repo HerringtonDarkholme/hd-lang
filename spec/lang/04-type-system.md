@@ -1082,7 +1082,7 @@ fn same(a: Point, b: Point) -> bool:
 
 A field of a struct value changes in place only through a writable place.
 
-1. r[types.value.writable-forms] A place is **writable** when it is a `let mut` binding, local or top-level, a `mut` parameter, or `mut self`. A value reached through a `&mut` reference is writable too. So are a struct field of a writable place and an element of a list in a writable place.
+1. r[types.value.writable-places] A place is **writable** when it is a `let mut` binding, local or top-level, a `mut` parameter, or `mut self`. A value reached through a `&mut` reference is writable too. So are a struct field of a writable place, an element of a list in a writable place, and a value of a map in a writable place.
 2. r[types.value.let-mut] `let mut name = value` with a struct value is valid, with or without a struct annotation, and makes `name` writable.
 3. r[types.value.field-write] Assigning a struct field, with `=` or a compound assignment, requires the struct to be in a writable place.
 4. r[types.value.write-once] The assignment changes that place alone, since no other place shares its value.
@@ -1096,8 +1096,7 @@ by what holds the struct:
 | r[types.value.write.short] Short binding | a `:=` or `using` binding | `non-reassignable-binding` |
 | r[types.value.write.plain-param] Parameter | a value parameter or `self` that is not `mut` | `non-reassignable-parameter-binding` |
 | r[types.value.write.let] Plain `let` | a `let` binding without `mut` | `not-writable` |
-| r[types.value.write.other-value] Other value | a call result, an element of a list that is no writable place, an unwrapped value, or a pattern binding | `not-writable` |
-| r[types.value.write.map-value] Map value | a value of a map, which is no place, as [`types.coll.map-value.field`](#r-types.coll.map-value.field) states | `map-value-not-addressable` |
+| r[types.value.write.other-holder] Other value | a call result, an element of a list or a value of a map that is no writable place, an unwrapped value, or a pattern binding | `not-writable` |
 | r[types.value.write.shared-ref] Read-only reference | a value reached through a `&T` reference | `not-writable` |
 
 ```text
@@ -1244,7 +1243,7 @@ fn tagged(names: List[string]) -> List[string]:
 2. r[types.coll.copy-on-write] A copy shares its source's elements until one of the two changes. That change first copies the changed side's elements, once.
 3. r[types.coll.no-identity] A list or a map has no identity. `List` and `Map` implement `AnyVal`, so `is` with one is an error. Error: `identity-requires-references`.
 4. r[types.coll.let-mut] `let mut name = value` with a list or map value is valid, with no annotation or a `List[T]` or `Map[K, V]` one, and makes `name` writable.
-5. r[types.coll.writable] Changing a list or a map needs a writable place, as a struct field write does ([`types.value.writable-forms`](#r-types.value.writable-forms)). A change is a call of a changing method such as `push`, or an element store.
+5. r[types.coll.writable] Changing a list or a map needs a writable place, as a struct field write does ([`types.value.writable-places`](#r-types.value.writable-places)). A change is a call of a changing method such as `push`, or an element store.
 6. r[types.coll.writable.call] A changing method called on a list or a map that is no writable place is an error. Its fix-it makes the binding writable. Error: `not-writable`.
 7. r[types.coll.writable.store] An element store into such a list or map, or a field write through its element, is an error with the same fix-it. Error: `not-writable`.
 8. r[types.coll.element-place] An element of a list in a writable place is a writable place. So `xs[i] = v`, `xs[i].x = v`, and `xs[i].push(v)` change `xs` in place.
@@ -1273,11 +1272,12 @@ fn same(left: List[i32], right: List[i32]) -> bool:
 
 ### Map Values
 
-A map value is no place, since a map moves its values when it grows.
+A value of a map is a place, as an element of a list is.
 
 1. r[types.coll.map-value] `m[k] = v` and `m[k] op= v` replace a map value. A changing method called on one, such as `m[k].push(x)`, changes it in place.
-2. r[types.coll.map-value.field] A field write through a map value, as `m[k].x = v`, is an error. Its fix-it reads the value, changes it, and stores it back. Error: `map-value-not-addressable`.
-3. r[types.coll.map-value.ref] `&m[k]` and `&mut m[k]` are errors. Their fix-it copies the value into a `let mut` and refers to that. Error: `map-value-not-addressable`.
+2. r[types.coll.map-value.place] A value of a map in a writable place is a writable place. So `m[k].x = v` and `m[k].x += 1` change the value in place, as `xs[i].x = v` changes a list element.
+3. r[types.coll.map-value.missing] A field write or a changing method call through `m[k]`, when the map holds no equal key, is a checked runtime panic, as a read of `m[k]` is. Panic: `index-out-of-bounds`.
+4. r[types.coll.map-value.reference] `&m[k]` and `&mut m[k]` are element references, which live for one call, as [Element References](13-values-and-references.md#element-references) states.
 
 ```text
 struct Stock:
@@ -1285,11 +1285,11 @@ struct Stock:
 
 fn restock(shelves: Map[string, Stock]) -> Map[string, Stock]:
     let mut copy = shelves
-    copy["apple"].count = 5  # error: map-value-not-addressable
+    copy["apple"].count = 5  # changes the value in place
     copy
 
 fn count(shelves: Map[string, Stock]) -> i32:
-    found := &shelves["apple"]  # error: map-value-not-addressable
+    found := &shelves["apple"]  # error: element-reference-outlives-call
     found.count
 ```
 

@@ -4,8 +4,20 @@ struct Holder:
     items: List[i32]
     at: &mut i32
 
-fn read_after(xs: List[i32], poke: fn() -> void) -> i32:
-    poke()
+fn set(target: &mut i32, value: i32) -> void:
+    *target = value
+
+fn write_then_read(target: &mut i32, seen: &i32) -> i32:
+    *target = 8
+    *seen
+
+fn snapshot_then_write(target: &mut i32, snapshot: fn() -> List[i32]) -> List[i32]:
+    copy := snapshot()
+    *target = 9
+    copy
+
+fn write_then_read_copy(xs: List[i32], target: &mut i32) -> i32:
+    *target = 6
     xs[0]
 
 tests:
@@ -14,17 +26,13 @@ tests:
     it("a copy taken before the reference keeps its value"):
         let mut xs = [+1, 2]
         before := xs
-        r := &mut xs[0]
-        *r = 5
+        set(&mut xs[0], 5)
         assert_equal(before[0], 1, reason="the copy is unchanged")
         assert_equal(xs[0], 5, reason="the write reaches the list it was taken from")
 
     it("a shared and a mutable reference to one slot see one value"):
         let mut xs = [+1, 2]
-        w := &mut xs[1]
-        r := &xs[1]
-        *w = 8
-        assert_equal(*r, 8, reason="the read sees the write")
+        assert_equal(write_then_read(&mut xs[1], &xs[1]), 8, reason="the read sees the write")
 
     it("a copied struct copies its list and keeps its reference's target"):
         let mut n = +3
@@ -35,20 +43,17 @@ tests:
         assert_equal(copy.items.len(), 2, reason="the copy's list is its own")
         assert_equal(*copy.at, 4, reason="both references name n")
 
-    it("a copy at the list's last use does not see later writes through the reference"):
+    it("a copy made during the access does not see later writes through the reference"):
         let mut xs = [+1, 2]
-        r := &mut xs[0]
-        last := xs
-        *r = 9
+        last := snapshot_then_write(&mut xs[0], fn() -> List[i32]: xs)
         assert_equal(last[0], 1, reason="the copy is a value of its own")
-        assert_equal(*r, 9, reason="the reference sees its write")
+        assert_equal(xs[0], 9, reason="the reference wrote its slot")
 
-    it("a pinned list passed by value keeps its value while a callback writes through the reference"):
+    it("a list passed by value beside a reference into it keeps its value"):
         let mut xs = [+1, 2]
-        r := &mut xs[0]
-        seen := read_after(xs, fn() -> void: *r = 6)
+        seen := write_then_read_copy(xs, &mut xs[0])
         assert_equal(seen, 1, reason="the parameter is the value passed")
-        assert_equal(xs[0], 6, reason="the callback wrote the list it referred to")
+        assert_equal(xs[0], 6, reason="the reference wrote the list it referred to")
 
     it("a copy and a change of an element in a loop stay apart"):
         let mut xs = [0, 0, 0]

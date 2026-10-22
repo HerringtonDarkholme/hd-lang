@@ -1,19 +1,24 @@
 # test: sorting a pinned list by element stores is allowed, and the reference then sees the element that moved into its slot
 # Spec 13 Element References: ref.elem.slot, ref.elem.pinned.allowed.
+fn sort_then_read(list: &mut List[i32], first: &i32) -> i32:
+    let i: usize = 1
+    while i < list.len():
+        let j: usize = i
+        while j > 0 && list[j - 1] > list[j]:
+            moved := list[j]
+            list[j] = list[j - 1]
+            list[j - 1] = moved
+            j = j - 1
+        i = i + 1
+    *first
+
+fn sorted_first(list: &mut List[i32]) -> i32:
+    sort_then_read(list, &list[0])
+
 tests:
     use std.testing.assert_equal
 
     it("the reference names the slot, not the element"):
         let mut xs = [+3, 1, 2]
-        first := &xs[0]
-        let i: usize = 1
-        while i < xs.len():
-            let j: usize = i
-            while j > 0 && xs[j - 1] > xs[j]:
-                moved := xs[j]
-                xs[j] = xs[j - 1]
-                xs[j - 1] = moved
-                j = j - 1
-            i = i + 1
+        assert_equal(sorted_first(&mut xs), 1, reason="slot 0 now holds the smallest element")
         assert_equal(xs, [+1, 2, 3], reason="the sort ran while the list was pinned")
-        assert_equal(*first, 1, reason="slot 0 now holds the smallest element")

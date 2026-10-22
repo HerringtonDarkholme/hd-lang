@@ -1,0 +1,8 @@
+# test: another argument that calls a &mut self method on the list during an element reference's call is a conflicting access
+# Spec 13 Call-Scoped Access: ref.elem.conflict, ref.elem.conflict.method.
+fn place(target: &mut i32, value: i32) -> void:
+    *target = value
+
+fn demo() -> void:
+    let mut scores = [+1, 2]
+    place(&mut scores[0], scores.remove_at(1))  # diagnostic: conflicting-access
