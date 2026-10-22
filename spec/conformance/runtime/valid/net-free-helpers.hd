@@ -10,7 +10,7 @@ tests:
         $.with(Net=net):
             assert_equal(lookup!("shop"), .Ok(["127.0.0.2", "127.0.0.1"]), reason="address order")
             assert_equal(lookup!("missing"), .Err(.Dns("missing")), reason="lookup failure")
-        assert_equal(net.requested(), ["shop", "missing"], reason="each lookup forwarded once")
+        assert_equal(net.received(), ["shop", "missing"], reason="each lookup forwarded once")
 
     it("connect returns the scripted stream and preserves errors"):
         stream := ScriptedStream::new([])
@@ -25,7 +25,7 @@ tests:
                 .Err(error) => assert_equal(error, .Timeout, reason="connect failure")
                 .Ok(_) => panic("the scripted failure")
         assert_equal(stream.written(), "ping".to_utf8(), reason="the same stream")
-        assert_equal(net.requested(), ["shop:80", "blocked:4"], reason="host and port forwarded once")
+        assert_equal(net.received(), ["shop:80", "blocked:4"], reason="host and port forwarded once")
 
     it("listen returns the scripted listener and preserves errors"):
         stream := ScriptedStream::new([])
@@ -42,7 +42,7 @@ tests:
                 .Err(error) => assert_equal(error, .Refused("absent:5"), reason="listen failure")
                 .Ok(_) => panic("the missing listener")
         assert_equal(stream.written(), [7], reason="the accepted stream")
-        assert_equal(net.requested(), ["local:9000", "absent:5"], reason="host and port forwarded once")
+        assert_equal(net.received(), ["local:9000", "absent:5"], reason="host and port forwarded once")
 
     it("bind_udp returns the scripted socket and preserves errors"):
         socket := ScriptedUdp::new([])
@@ -56,4 +56,4 @@ tests:
                 .Err(error) => assert_equal(error, .Refused("absent:6"), reason="bind failure")
                 .Ok(_) => panic("the missing socket")
         assert_equal(socket.sent(), [Datagram { bytes: [1], host: "out", port: 9 }], reason="the same socket")
-        assert_equal(net.requested(), ["local:9001", "absent:6"], reason="host and port forwarded once")
+        assert_equal(net.received(), ["local:9001", "absent:6"], reason="host and port forwarded once")

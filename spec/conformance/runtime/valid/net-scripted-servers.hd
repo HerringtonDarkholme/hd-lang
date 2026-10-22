@@ -1,7 +1,7 @@
 # test: ScriptedNet answers listen! and bind_udp! with scripted handles that accept, receive, and record in order
 # Spec std/net Scripted Net: std-net.scripted.accept, std-net.scripted.udp, std-net.scripted.queue, std-net.scripted.refused, std-net.scripted.closed-error.
 # Also covers std-net.scripted.decl, std-net.scripted.new-ref,
-# std-net.scripted.setup-ref, std-net.scripted.requested,
+# std-net.scripted.setup-ref, std-net.scripted.received,
 # std-net.scripted.read, std-net.scripted.eof, std-net.scripted.write,
 # std-net.datagram.traits, and std-net.handles.closed.
 # expect: test
@@ -113,7 +113,7 @@ tests:
         net.add_connection("db.local:5432", ScriptedStream::new([]))
         $.with(Net=net):
             assert_equal(connect_with_retry!("db.local", 5432, 3), .Ok(()), reason="second try works")
-        assert_equal(net.requested().len(), 2, reason="two connects")
+        assert_equal(net.received().len(), 2, reason="two connects")
 
     it("runs out of scripted connections with Refused"):
         net := ScriptedNet::new()
@@ -150,4 +150,4 @@ tests:
                 .Ok(_) => panic("nothing scripted")
                 .Err(error) => assert_equal(error, NetError.Refused("0.0.0.0:8"), reason="no listener entry")
         assert_equal(socket.is_closed(), true, reason="the test sees it")
-        assert_equal(net.requested(), ["0.0.0.0:5000", "0.0.0.0:5000", "0.0.0.0:8"], reason="every call")
+        assert_equal(net.received(), ["0.0.0.0:5000", "0.0.0.0:5000", "0.0.0.0:8"], reason="every call")

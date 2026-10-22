@@ -321,7 +321,7 @@ tests:
             assert_equal(lookup_value!("answer"), .Ok("VALUE 42"), reason="reply")
         assert_equal(stream.written(), "GET answer\n".to_utf8(), reason="the command")
         assert_equal(stream.is_closed(), true, reason="closed")
-        assert_equal(net.requested(), ["cache.local:6379"], reason="one connect")
+        assert_equal(net.received(), ["cache.local:6379"], reason="one connect")
 
     it("reports a failed read"):
         stream := ScriptedStream::failing([], NetError.Other("connection reset"))
@@ -355,7 +355,7 @@ tests:
 4. r[std-net.scripted.queue] The connections and failures added for one address are one queue, and each `connect!` of the address takes the next entry. Each `listen!` or `bind_udp!` likewise takes the next handle added for its address.
 5. r[std-net.scripted.lookup-unknown] `lookup!` of a host that no `add_host` names returns `.Err(NetError.Dns(host))`.
 6. r[std-net.scripted.refused] `connect!`, `listen!`, or `bind_udp!` of an address with no entry, or with an emptied queue, returns `.Err(NetError.Refused(address))`.
-7. r[std-net.scripted.requested] `requested(&self) -> List[string]` returns the address of every `lookup!`, `connect!`, `connect_timeout!`, `listen!`, and `bind_udp!` call, in order, the failed ones included. A lookup records the host alone.
+7. r[std-net.scripted.received] `received(&self) -> List[string]` returns the address of every `lookup!`, `connect!`, `connect_timeout!`, `listen!`, and `bind_udp!` call, in order, the failed ones included. A lookup records the host alone.
 8. r[std-net.scripted.read] A `ScriptedStream` returns the chunks of `reads` in order, one per `read!`.
 9. r[std-net.scripted.read-max] A `read!(max)` returns at most `max` bytes of the front chunk, and keeps the rest at the front for the next `read!`.
 10. r[std-net.scripted.eof] An empty chunk is the peer's close: that `read!` and every later one return an empty list.
@@ -438,7 +438,7 @@ tests:
         net.add_connection("db.local:5432", ScriptedStream::new([]))
         $.with(Net=net):
             assert_equal(connect_with_retry!("db.local", 5432, 3), .Ok(()), reason="second try works")
-        assert_equal(net.requested().len(), 2, reason="two connects")
+        assert_equal(net.received().len(), 2, reason="two connects")
 
     it("answers a ping with a scripted datagram"):
         socket := ScriptedUdp::new([Datagram { bytes: "pong".to_utf8(), host: "10.0.0.7", port: 9000 }])

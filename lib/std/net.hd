@@ -431,8 +431,8 @@ impl ScriptedNet:
             .None => self.sockets[address] = [socket]
 
     ## The address of every call, in order, the failed ones included; a lookup records the host alone.
-    ## See [std-net.scripted.requested](../../spec/std/net.md#r-std-net.scripted.requested).
-    pub fn requested(&self) -> List[string]:
+    ## See [std-net.scripted.received](../../spec/std/net.md#r-std-net.scripted.received).
+    pub fn received(&self) -> List[string]:
         self.calls
 
     ## The timeout of each `connect_timeout!` call, in order.

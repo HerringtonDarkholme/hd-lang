@@ -2,7 +2,7 @@
 # Spec std/net Scripted Net: std-net.scripted.new-ref, std-net.scripted.setup-ref, std-net.scripted.read, std-net.scripted.read-max, std-net.scripted.eof, std-net.scripted.exhausted, std-net.scripted.write, std-net.scripted.failing.
 # Also covers std-net.scripted.decl, std-net.scripted.queue,
 # std-net.scripted.lookup-unknown, std-net.scripted.refused,
-# std-net.scripted.requested, std-net.scripted.closed-error,
+# std-net.scripted.received, std-net.scripted.closed-error,
 # std-net.scripted.no-host, std-net.provider.scripted, and
 # std-net.handles.closed.
 # expect: test
@@ -54,7 +54,7 @@ tests:
             assert_equal(lookup_value!("answer"), .Ok("VALUE 42"), reason="reply")
         assert_equal(stream.written(), "GET answer\n".to_utf8(), reason="the command")
         assert_equal(stream.is_closed(), true, reason="closed")
-        assert_equal(net.requested(), ["cache.local:6379"], reason="one connect")
+        assert_equal(net.received(), ["cache.local:6379"], reason="one connect")
 
     it("reports a failed read"):
         stream := ScriptedStream::failing([], NetError.Other("connection reset"))
@@ -121,7 +121,7 @@ tests:
             match client.connect!("other.local", 1):
                 .Ok(_) => panic("nothing scripted")
                 .Err(error) => assert_equal(error, NetError.Refused("other.local:1"), reason="no entry")
-        assert_equal(net.requested().len(), 4, reason="the failed calls are recorded too")
+        assert_equal(net.received().len(), 4, reason="the failed calls are recorded too")
 
     it("answers a scripted lookup and fails an unknown host with Dns"):
         net := ScriptedNet::new()
@@ -131,4 +131,4 @@ tests:
             assert_equal(client.lookup!("cache.local"), .Ok(["10.0.0.5", "10.0.0.6"]), reason="the scripted addresses")
             assert_equal(client.lookup!("nowhere.local"), .Err(NetError.Dns("nowhere.local")), reason="an unknown host")
             assert_equal(client.connect!("cache.local", 80).is_err(), true, reason="a socket call")
-        assert_equal(net.requested(), ["cache.local", "nowhere.local", "cache.local:80"], reason="a lookup records the host alone")
+        assert_equal(net.received(), ["cache.local", "nowhere.local", "cache.local:80"], reason="a lookup records the host alone")
