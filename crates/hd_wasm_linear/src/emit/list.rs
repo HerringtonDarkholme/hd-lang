@@ -1039,6 +1039,16 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
+    /// The element type of list type `t` and a local holding the address
+    /// of its slot `ix` in the buffer of the header in local `h`, the index
+    /// checked against the length.
+    pub(super) fn elem_slot(&mut self, h: u32, t: Ty, ix: u32) -> StageResult<(Ty, u32)> {
+        let (et, e) = self.elem(t)?;
+        let b = self.buffer(h);
+        let ix = self.index(b, ix)?;
+        Ok((et, self.slot_at(b, ix, e.size)))
+    }
+
     /// Makes the buffer of the list header in local `h` its own.
     fn unique(&mut self, h: u32, e: &Elem, push: bool) {
         self.f.get(h);
@@ -1245,10 +1255,13 @@ impl Em<'_, '_, '_> {
             ft = self.struct_fields(ft)[k as usize];
         }
         let h = self.header(list)?;
-        let b = self.buffer(h);
+        let mut b = self.buffer(h);
         let ix = self.index(b, ix)?;
-        self.invariant_unique(list, h, &e);
-        let b = self.buffer(h);
+        // An owned body's `IsUnique` came before the store.
+        if !self.unique_explicit {
+            self.invariant_unique(list, h, &e);
+            b = self.buffer(h);
+        }
         let at = self.slot_at(b, ix, e.size);
         let s = self.slot_src(v, ft, false)?;
         self.retain_src(&s, ft)?;
@@ -1294,7 +1307,14 @@ impl Em<'_, '_, '_> {
             "collection-pinned: list length changed while pinned".into(),
         ));
         self.f.op(I::End);
-        self.unique(h, &e, true);
+        if self.unique_explicit {
+            // The passes' `IsUnique` made the buffer the list's own; only
+            // a full one moves (`rt:list_grow`).
+            self.f.get(h);
+            self.f.helper(Helper::ListGrow { elem: e.clone() });
+        } else {
+            self.unique(h, &e, true);
+        }
         let b = self.buffer(h);
         let n = self.f.local(Val::I32);
         self.f.get(b);
@@ -1382,7 +1402,10 @@ impl Em<'_, '_, '_> {
             let b = self.buffer(h);
             self.index(b, ix)?;
         }
-        self.unique(h, &e, false);
+        // An owned body's `IsUnique` came before the pin.
+        if !self.unique_explicit {
+            self.unique(h, &e, false);
+        }
         self.pin_owner(h, self.ty_of(args[0]))?;
         let b = self.buffer(h);
         self.f.get(b);

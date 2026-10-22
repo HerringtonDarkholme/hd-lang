@@ -123,6 +123,7 @@ fn body_func<'a>(
             return unsupported("a body the ownership passes did not run on");
         }
         em.owned = true;
+        em.unique_explicit = true;
         em.sub_id = sub;
         em.own_consumers()?;
     }
@@ -1039,6 +1040,11 @@ struct Em<'i, 'a, 'm> {
     /// and the value is released after it ([`Em::release_untaken`]).
     consumer: Vec<u32>,
     own_ops: Vec<hd_tir::own::Operand>,
+    /// Whether the body holds the ownership passes' `IsUnique`s, before
+    /// every change of a collection place (an owned body, or a thunk of
+    /// one): then the intrinsics and the element store check no
+    /// uniqueness of their own.
+    unique_explicit: bool,
 }
 
 impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
@@ -1121,6 +1127,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             sub_id: 0,
             consumer: Vec::new(),
             own_ops: Vec::new(),
+            unique_explicit: false,
         };
         em.projs = (0..b.len()).map(|i| em.projected(i)).collect();
         em
@@ -1551,8 +1558,8 @@ impl Em<'_, '_, '_> {
             // The ownership passes' statements, in an owned body
             // (`count.rs`); the checker's TIR has none (invariant 22).
             Tag::Drop if self.owned => self.own_drop(i)?,
-            Tag::IsUnique if self.owned => self.own_unique(i)?,
-            Tag::Pin if self.owned => self.own_pin(i)?,
+            Tag::IsUnique if self.unique_explicit => self.own_unique(i)?,
+            Tag::Pin if self.unique_explicit => self.own_pin(i)?,
             Tag::Drop | Tag::IsUnique | Tag::Pin | Tag::FlagSet | Tag::FlagClear => {
                 return unsupported(format!(
                     "an ownership statement `{}` the backend does not lower here",

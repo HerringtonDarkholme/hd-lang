@@ -757,7 +757,11 @@ object, and `[%v as .V .k]` of a payload. `Body::read_step` names the
 step of such a read. A list element is `Read [%xs [%i]]`, a slot of the
 buffer of the list header `%xs` (`Body::element_read`); there is no
 element intrinsic, and a read a change then goes through is still the
-`ListIndexMut` intrinsic. A `Store` writes a whole local
+`ListIndexMut` intrinsic, which the checker rewrites the read into when
+it meets the change (`mark_write_path`): only it sees every change a
+read leads to, a `mut self` receiver being a plain argument. The
+ownership passes read it back as an element `Read` after an `IsUnique`
+of the list. A `Store` writes a whole local
 (`[$l]`), a top-level binding (`[@g]`), a struct field of either, a
 data object's field (`[*%o .k]`), a place through a reference
 (`[*%r .x]`) or a list element (`[%xs [%i] .x]`).
@@ -768,8 +772,9 @@ data object's field (`[*%o .k]`), a place through a reference
 | `Store` | a: place, b: value | `void`; replaces the value at the place. The place is writable (invariant 21) |
 | `Ref` | a: place, b: `0` shared or `1` mutable | `&T` or `&mut T`: the place's address. A mutable one's place is writable (invariant 21) |
 
-`value_operands` of these is the place's value root and element indices
-(then a `Store`'s value); a local or global root is no value.
+`value_operands` of these, and of `IsUnique` and `Pin`, is the place's
+value root and element indices (then a `Store`'s value); a local or
+global root is no value.
 
 **Ownership** ([docs/compiler/tir-v2.md](../../docs/compiler/tir-v2.md#ownership-statements)).
 The ownership passes write these after decoding; the checker never does
@@ -1136,8 +1141,11 @@ body built elsewhere, such as a generated structure method, gets
   on (`Packages::own_passes`), once per body, before collection reads
   it; their output never reaches the entry. Built so far: field reads
   of a whole local's read folded into reads of the local's field place
-  (`own/fold.rs`), then insertion (`own/insert.rs`), spliced into the
-  body in one renumbering rebuild (`own/splice.rs`). They read the body
+  (`own/fold.rs`), then insertion (`own/insert.rs`): copies, drops and
+  the exit set, an `IsUnique` before each change of a collection place
+  (with `ListIndexMut` read back as an element `Read`), and an
+  `IsUnique` and a `Pin` of each list on an element reference's path;
+  spliced into the body in one renumbering rebuild (`own/splice.rs`). They read the body
   and `OwnCx` (counted types, parameter modes, `may_write`) only.
   `own::operands` names each value operand of an instruction with its
   role (lent, consumed, a call argument, a block tail, a drop), and

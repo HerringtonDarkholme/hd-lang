@@ -60,6 +60,13 @@ pub(super) struct Spot {
     pub path: Vec<u32>,
 }
 
+/// Where [`Em::place_header`]'s current step's value is: in Wasm locals,
+/// or in memory at a local's address plus an offset.
+enum Here {
+    Vals(Vec<u32>),
+    Mem(u32, u32),
+}
+
 impl Em<'_, '_, '_> {
     /// Read just a sole field consumer at the original read's position.
     /// In particular, do not defer a view read until after its source drops.
@@ -287,6 +294,70 @@ impl Em<'_, '_, '_> {
                 offset,
             },
         ))
+    }
+
+    /// The list or map header at the place `word` of an `IsUnique` or a
+    /// `Pin`, in a local, with the collection's type: the root's value
+    /// (a local's, loaded from its cell when it has one, or an
+    /// instruction's), then each struct field and element on the path, an
+    /// element bounds-checked. Nothing takes a count. Insertion names no
+    /// place through a dereference or a variant, nor a top-level binding's:
+    /// a change through a reference reads the collection first until the
+    /// checker roots places (`docs/compiler/tir-v2.md`, stage 2 commit 12).
+    pub(super) fn place_header(&mut self, word: u32) -> StageResult<(u32, Ty)> {
+        let Some(p) = self.b.decode_place(word) else {
+            return unsupported("a malformed place");
+        };
+        let (mut here, mut ty) = match p.root {
+            PlaceRoot::Local(l) => (
+                Here::Vals(self.local_value(l.raw())?),
+                self.start_ty(Start::Local(l.raw())),
+            ),
+            PlaceRoot::Value(r) if r.as_inst().is_some() => {
+                (Here::Vals(self.local_value_of(r.0)?), self.ty_of(r.0))
+            }
+            _ => {
+                return unsupported(
+                    "an `IsUnique` or `Pin` of a top-level binding's place or a constant",
+                );
+            }
+        };
+        let header = |em: &mut Self, here: Here| match here {
+            Here::Vals(ls) => ls[0],
+            Here::Mem(at, off) => {
+                let h = em.f.local(Val::I32);
+                em.f.get(at);
+                em.f.op(I::I32Load(mem(HEAP, u64::from(off), 2)));
+                em.f.set(h);
+                h
+            }
+        };
+        for step in &p.proj {
+            match *step {
+                Proj::Field(k) => {
+                    let (ft, part) = self.path_step(ty, k)?;
+                    here = match here {
+                        Here::Vals(ls) => {
+                            Here::Vals(ls[part.first..part.first + part.count].to_vec())
+                        }
+                        Here::Mem(at, off) => Here::Mem(at, off + part.offset),
+                    };
+                    ty = ft;
+                }
+                Proj::Elem(ix) => {
+                    let h = header(self, here);
+                    let (et, at) = self.elem_slot(h, ty, ix.0)?;
+                    here = Here::Mem(at, LIST_ELEMS);
+                    ty = et;
+                }
+                Proj::Deref | Proj::Variant(_) => {
+                    return unsupported(
+                        "an `IsUnique` or `Pin` of a place through a dereference or a variant",
+                    );
+                }
+            }
+        }
+        Ok((header(self, here), ty))
     }
 
     /// `Ref` `i`: the place's address, or the trait value

@@ -1626,6 +1626,58 @@ is worth deciding only if they are hot.
    (commits 6 and 12).
 6. Insertion's uniqueness and pins; the intrinsics stop checking for
    themselves on the new path.
+   As built: insertion's rules 5 and 6 (`own/insert.rs`). An `IsUnique`
+   stands before every change of a collection place: a `Store` through
+   an element projection (one per list on its path, outermost first),
+   and `ListPush`, `MapSet`, `MapRemove`, `MapIndexMut` and the
+   checker's `ListPin`, of their collection operand. Each checker
+   `ListIndexMut [%xs %i]` becomes `Read [%xs [%i]]` after an
+   `IsUnique [%xs]`, so no `ListIndexMut` reaches the new path's
+   emitter. A `Ref` of an element place gets an `IsUnique` and a `Pin`
+   of each list on its path, outermost first; the reference holds a
+   count of the buffer, so its `Drop` from rule 2 or 3 ends the pin.
+   The backend lowers both for a local or value root followed by struct
+   fields and elements, bounds-checked (`Em::place_header`); that is
+   every place insertion names while the checker reads a collection
+   before changing it through a reference. In an owned body and its
+   erased thunks (`Em::unique_explicit`) the element store, `MapSet`,
+   `MapRemove`, `MapIndexMut` and `ListPin` check no uniqueness, and
+   `ListPush` only grows a full buffer (`rt:list_grow`). `IsUnique` and
+   `Pin` are value operands (`Body::value_operands`), so an erased body
+   outlines one over an open collection. An `IsUnique` of a map picks
+   `rt:map_unique` by the map's two type arguments; commit 5's lowering,
+   which never ran, gave a map `rt:list_unique`. Old path: every
+   conformance module byte-identical, dev and optimized pipelines. New
+   path: all conformance cases pass, dev and optimized, checked and
+   not, but commit 5's one checked count bound in `count_tests.hd`.
+   Over the bench/study programs the passes write 220 `IsUnique`s, one
+   for each change the old path's intrinsics checked; as Wasm call sites
+   `rt:list_unique` goes from 19 to 45 and `rt:map_unique` stays at 6,
+   with 21 `rt:list_grow`s, since the old path's loop checks run once
+   per loop (#710's `unique_once` and caches) and insertion's run per
+   change until hoisting (commit 11). No program there takes an element
+   reference, so neither path pins. A new runtime case,
+   `element-reference-aliasing.hd`, covers the aliasing cases above that
+   no case did (1, 4, 6, 7, 8 and a loop form of 10).
+   **Left for later commits.** The checker still writes `ListIndexMut`
+   by rewriting an element read in place (`mark_write_path`), since it
+   alone sees every change a read leads to: `xs[i].bump()` for a
+   `mut self` method is a plain `Call` with an owned argument, which no
+   pass can tell from a copy, and the old path, which must stay
+   byte-identical, reads the mark for its uniqueness. Removing the
+   rewrite needs the passes to know such receivers, a signature fact
+   `OwnCx` does not have (an owner decision), and the old path gone
+   (commit 14). The checker's `ListPin` still makes the pin of a `for`
+   over element references and its `ListUnpin`s end it, so an element
+   reference is made unique and pinned twice; the second `IsUnique` and
+   `Pin` change nothing at run time, and commit 12 deletes the first.
+   Two checks stay outside the passes: std's `list_truncate` (`pop`,
+   `insert`, `remove_at`, `clear`) changes the list behind a reference
+   inside the callee, where no pass sees the change, until stage 3 makes
+   it std code; and a loop cache's check before the loop (§23.31) guards
+   the buffer address the loop keeps, until hoisting's table replaces
+   the caches (commit 11). Aliasing case 9 (`a[i] = f()` where `f` replaces `a`) waits
+   for its spec rule.
 7. Move.
 8. Borrow.
 9. Pair cancellation.

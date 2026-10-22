@@ -952,50 +952,25 @@ impl Em<'_, '_, '_> {
         }
     }
 
-    /// The collection header at the place of `IsUnique` or `Pin` `i`, in
-    /// a local, and the collection's type: a local's or a value's. The
-    /// uniqueness and pin rules of insertion write these with their first
-    /// producer, the next commit, which lowers the places it writes.
-    fn own_header(&mut self, i: u32) -> StageResult<(u32, Ty)> {
-        let word = self.b.data[i as usize][0];
-        if word & hd_tir::ir::place::BARE_LOCAL != 0 {
-            let l = word & !hd_tir::ir::place::BARE_LOCAL;
-            let t = self.sub(self.b.local_ty[l as usize]);
-            let h = self.local_value(l)?[0];
-            return Ok((h, t));
-        }
-        match self.b.decode_place(word) {
-            Some(hd_tir::ir::Place {
-                root: hd_tir::ir::PlaceRoot::Value(r),
-                proj,
-            }) if proj.is_empty() && r.as_inst().is_some() => {
-                let h = self.f.local(crate::module::Val::I32);
-                self.comp(r.0, 0)?;
-                self.f.set(h);
-                Ok((h, self.ty_of(r.0)))
-            }
-            _ => crate::unsupported("an `IsUnique` or `Pin` of a place through a projection"),
-        }
-    }
-
     /// `IsUnique` `i`: the list's or map's buffer made the place's own
     /// (`rt:list_unique`, `rt:map_unique`).
     pub(super) fn own_unique(&mut self, i: u32) -> StageResult<()> {
-        let (h, t) = self.own_header(i)?;
+        let (h, t) = self.place_header(self.b.data[i as usize][0])?;
         if self.input.runtime.is_none() {
             return Ok(());
         }
-        if let Ok((_, e)) = self.elem(t) {
+        // A map's type has its key and value types; a list's, one.
+        if let Ok((_, _, e)) = self.entry(t) {
             self.f.get(h);
-            self.f.helper(Helper::ListUnique {
-                elem: e,
-                push: false,
-            });
+            self.f.helper(Helper::MapUnique { entry: e });
             return Ok(());
         }
-        let (_, _, e) = self.entry(t)?;
+        let (_, e) = self.elem(t)?;
         self.f.get(h);
-        self.f.helper(Helper::MapUnique { entry: e });
+        self.f.helper(Helper::ListUnique {
+            elem: e,
+            push: false,
+        });
         Ok(())
     }
 
@@ -1003,7 +978,7 @@ impl Em<'_, '_, '_> {
     /// element references hold counts of the buffer: `ListPin` without
     /// the count of its own, which the reference holds (§23.20).
     pub(super) fn own_pin(&mut self, i: u32) -> StageResult<()> {
-        let (h, t) = self.own_header(i)?;
+        let (h, t) = self.place_header(self.b.data[i as usize][0])?;
         if self.input.runtime.is_none() {
             return Ok(());
         }

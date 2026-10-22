@@ -25,7 +25,18 @@
 //!    drop after the scope covers the normal path and the exit set the
 //!    jump's.
 //!
-//! Rules 5 and 6 (uniqueness and pins) are the next commit.
+//! 5. **Uniqueness.** Every in-place change of a collection place gets an
+//!    `IsUnique` of that place just before it: a `Store` through an element
+//!    projection (each list on its path, outermost first), `ListPush`,
+//!    `MapSet`, `MapRemove`, `MapIndexMut` and `ListPin`, of their
+//!    collection operand. A read of an element that a change then goes
+//!    through, which the checker marks `ListIndexMut` (`xs[i].push(v)`),
+//!    becomes a `Read` of the element place, with an `IsUnique` of the list
+//!    before it. The backend's intrinsics then check nothing themselves.
+//! 6. **Pins.** A `Ref` of an element place gets an `IsUnique` and a `Pin`
+//!    of each list on its path, outermost first. The reference holds a
+//!    count of the buffer, so the pin ends with the reference's drop (rule
+//!    2 or 3); nothing else releases it.
 //!
 //! Why it is sound: on every path an owned value is consumed by its one
 //! use or dropped once, after its last use or before a jump that leaves
@@ -38,7 +49,7 @@ use hd_types::Ty;
 
 use super::splice::for_blocks;
 use super::{Loc, Operand, OwnCx, OwnScratch, Role, Tri, consumes, operands, splice, tracked};
-use crate::ir::{Body, CaptureMode, NONE, ReadMode, Ref, Tag, local_flags, place};
+use crate::ir::{Body, CaptureMode, IntrinsicOp, NONE, ReadMode, Ref, Tag, local_flags, place};
 
 /// A place a jump may need to drop: a value or a local (bit 31 set),
 /// homed in block `blk`, live from statement `first` (a value's
@@ -96,6 +107,12 @@ pub(crate) struct Tables {
     value_stamp: Vec<u32>,
     stack: Vec<u32>,
     exits: Vec<(SubId, LocalId)>,
+    /// Per instruction: an element read that a change goes through (rule
+    /// 5), the checker's `ListIndexMut`.
+    changed: Vec<bool>,
+    /// The element projections of one place: the `extra` position of each
+    /// element word.
+    elems: Vec<u32>,
 }
 
 fn fill<T: Clone>(v: &mut Vec<T>, n: usize, x: T) {
@@ -120,6 +137,8 @@ impl Tables {
         fill(&mut self.item_start, n + 1, 0);
         fill(&mut self.local_stamp, locals, NONE);
         fill(&mut self.value_stamp, n, NONE);
+        fill(&mut self.changed, n, false);
+        self.elems.clear();
         self.uses.clear();
         self.ops.clear();
         self.chain.clear();
@@ -260,6 +279,7 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Res
     let edits = &mut scratch.splice;
     edits.clear();
     t.reset(n, b.local_ty.len());
+    changed_elements(b, t);
     structure(b, t);
     for i in 0..n {
         t.tracked[i] = tracked(b, cx, i);
@@ -268,6 +288,7 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Res
     values(b, cx, t, edits)?;
     locals(b, cx, t, edits);
     jumps(b, t, edits);
+    uniqueness(b, t, edits);
     for i in 0..n {
         if b.tags[i] == Tag::Read && b.data[i][1] == ReadMode::Use as u32 {
             b.data[i][1] = ReadMode::Copy as u32;
@@ -746,4 +767,116 @@ fn mark_suites(b: &Body, t: &mut Tables, scope: u32, stamp: u32) {
         }
     }
     t.ops = ops;
+}
+
+/// Rule 5's marked reads: each `ListIndexMut [%xs %i]` becomes the element
+/// read it stands for, `Read [%xs [%i]]`, marked as one a change goes
+/// through. The checker writes the intrinsic because only it sees every
+/// change a read leads to (a `mut self` receiver is a plain argument).
+fn changed_elements(b: &mut Body, t: &mut Tables) {
+    for i in 0..b.len() {
+        let [op, rec] = b.data[i];
+        if b.tags[i] != Tag::Intrinsic
+            || IntrinsicOp::from_u32(op) != Some(IntrinsicOp::ListIndexMut)
+        {
+            continue;
+        }
+        let &[list, index] = b.record(rec) else {
+            continue;
+        };
+        let at = u32_of(b.extra.len());
+        b.extra
+            .extend([4, place::ROOT_VALUE, list, place::PROJ_ELEM, index]);
+        b.tags[i] = Tag::Read;
+        b.data[i] = [at, ReadMode::Use as u32];
+        t.changed[i] = true;
+    }
+}
+
+/// Rules 5 and 6: an `IsUnique` before each in-place change of a list or
+/// map place, and a `Pin` after it before each element reference.
+fn uniqueness(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables) {
+    for i in 0..b.len() {
+        if t.blk[i] == NONE {
+            continue;
+        }
+        let [a, w] = b.data[i];
+        let (blk, pos, syn) = (t.blk[i], t.pos[i], b.syn[i]);
+        match b.tags[i] {
+            Tag::Store | Tag::Ref => {
+                let pin = b.tags[i] == Tag::Ref;
+                path_lists(b, t, a);
+                for k in 0..t.elems.len() {
+                    let word = prefix(b, a, t.elems[k]);
+                    edits.insert(blk, pos, Tag::IsUnique, [word, NONE], Ty::VOID, syn);
+                    if pin {
+                        edits.insert(blk, pos, Tag::Pin, [word, NONE], Ty::VOID, syn);
+                    }
+                }
+            }
+            Tag::Read if t.changed[i] => {
+                path_lists(b, t, a);
+                if let Some(&last) = t.elems.last() {
+                    let word = prefix(b, a, last);
+                    edits.insert(blk, pos, Tag::IsUnique, [word, NONE], Ty::VOID, syn);
+                }
+            }
+            Tag::Intrinsic
+                if matches!(
+                    IntrinsicOp::from_u32(a),
+                    Some(
+                        IntrinsicOp::ListPush
+                            | IntrinsicOp::MapSet
+                            | IntrinsicOp::MapRemove
+                            | IntrinsicOp::MapIndexMut
+                            | IntrinsicOp::ListPin
+                    )
+                ) =>
+            {
+                let Some(&coll) = b.record(w).first() else {
+                    continue;
+                };
+                if Ref(coll).as_inst().is_none() {
+                    continue;
+                }
+                let word = value_place(b, coll);
+                edits.insert(blk, pos, Tag::IsUnique, [word, NONE], Ty::VOID, syn);
+            }
+            _ => {}
+        }
+    }
+}
+
+/// The `extra` positions of the element projections of the place at
+/// `word`, outermost first, into `t.elems`.
+fn path_lists(b: &Body, t: &mut Tables, word: u32) {
+    t.elems.clear();
+    if word & place::BARE_LOCAL != 0 {
+        return;
+    }
+    let elems = &mut t.elems;
+    super::place_words(b, word, |_, at| {
+        if let Loc::Extra(x) = at
+            && b.extra[x as usize - 1] == place::PROJ_ELEM
+        {
+            elems.push(x - 1);
+        }
+    });
+}
+
+/// A place of the root and the projections of the place at `word` before
+/// the projection word at `end`: the list an element projection indexes.
+fn prefix(b: &mut Body, word: u32, end: u32) -> u32 {
+    let rec = word + 1;
+    let roots = match b.extra[rec as usize] {
+        place::ROOT_GLOBAL => 3,
+        _ => 2,
+    };
+    if b.extra[rec as usize] == place::ROOT_LOCAL && end == rec + roots {
+        return b.extra[rec as usize + 1] | place::BARE_LOCAL;
+    }
+    let at = u32_of(b.extra.len());
+    b.extra.push(end - rec);
+    b.extra.extend_from_within(rec as usize..end as usize);
+    at
 }

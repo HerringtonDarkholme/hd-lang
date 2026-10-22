@@ -314,6 +314,11 @@ pub enum Helper {
         elem: Elem,
         push: bool,
     },
+    /// `(list)`: moves the list's full buffer, its own already (an owned
+    /// body's `IsUnique` made it so), to one with room for a `push`.
+    ListGrow {
+        elem: Elem,
+    },
     /// `(capacity) -> table`: a new, empty map table (`map.rs`) with room
     /// for `capacity` entries laid out as `entry`, its index cleared.
     MapTable {
@@ -1492,6 +1497,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::CtxNew => ctx_new(),
         Helper::CopyElems { elem } => copy_elems(elem, m),
         Helper::ListUnique { elem, push } => list_unique(elem, *push, m),
+        Helper::ListGrow { elem } => list_grow(elem, m),
         Helper::MapTable { entry } => map::table(entry),
         Helper::DropEntries { entry } => map::drop_entries(entry),
         Helper::MapHash { key, ops } => map::hash(key, ops),
@@ -2958,6 +2964,59 @@ fn list_unique(elem: &Elem, push: bool, m: &Module) -> Func {
         f.call(Sym::Inst(r.free));
     }
     f.op(Instruction::End);
+    f.get(0);
+    f.get(nb);
+    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    f.op(Instruction::End);
+    f
+}
+
+/// [`Helper::ListGrow`]: a full buffer moves to one of twice its length
+/// plus 4, and its old block is freed with no release, since its elements
+/// moved. The list owns the buffer: no other holder shares it.
+fn list_grow(elem: &Elem, m: &Module) -> Func {
+    let mut f = Func::new("rt:list_grow", vec![Val::I32], vec![]);
+    let (b, n, nb) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.set(b);
+    f.get(b);
+    f.op(Instruction::I32Load(mem(HEAP, LIST_LEN, 2)));
+    f.set(n);
+    f.get(n);
+    f.get(b);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.op(Instruction::I32Eq);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(n);
+    f.i32(2);
+    f.op(Instruction::I32Mul);
+    f.i32(4);
+    f.op(Instruction::I32Add);
+    f.helper(Helper::ListBuf { elem: elem.clone() });
+    f.set(nb);
+    f.get(nb);
+    f.get(n);
+    f.op(Instruction::I32Store(mem(HEAP, LIST_LEN, 2)));
+    f.get(nb);
+    f.u32(LIST_ELEMS);
+    f.op(Instruction::I32Add);
+    f.get(b);
+    f.u32(LIST_ELEMS);
+    f.op(Instruction::I32Add);
+    f.get(n);
+    f.u32(elem.size);
+    f.op(Instruction::I32Mul);
+    f.op(Instruction::MemoryCopy {
+        src_mem: HEAP,
+        dst_mem: HEAP,
+    });
+    if let Some(r) = m.runtime {
+        f.get(b);
+        f.u32(HEADER);
+        f.op(Instruction::I32Sub);
+        f.call(Sym::Inst(r.free));
+    }
     f.get(0);
     f.get(nb);
     f.op(Instruction::I32Store(mem(HEAP, 0, 2)));

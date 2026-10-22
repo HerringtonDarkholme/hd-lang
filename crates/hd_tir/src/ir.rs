@@ -910,7 +910,8 @@ impl Body {
     /// values and own no block, label or local (an erased body outlines
     /// such an instruction, `crates/hd_mono/DESIGN.md` §13.5.1), in the order emission
     /// reads them; constants included. `None` for any other instruction.
-    /// For `Read`, `Store` and `Ref`, the values their place reads (a
+    /// For `Read`, `Store`, `Ref`, `IsUnique` and `Pin`, the values their
+    /// place reads (a
     /// value root, then each element index), then a `Store`'s value; a
     /// local or global root is no value and is not listed.
     #[must_use]
@@ -937,7 +938,7 @@ impl Body {
             Tag::NewTuple => [self.record(w).to_vec(), one(a)].concat(),
             Tag::NewList if a == NONE => self.record(w).to_vec(),
             Tag::ProviderGet | Tag::ItemRef => vec![],
-            Tag::Read | Tag::Ref => self.place_values(a),
+            Tag::Read | Tag::Ref | Tag::IsUnique | Tag::Pin => self.place_values(a),
             Tag::Store => [self.place_values(a), one(w)].concat(),
             _ => return None,
         })

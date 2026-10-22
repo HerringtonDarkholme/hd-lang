@@ -1,0 +1,16 @@
+# @dump: own
+# Insertion's uniqueness: an `IsUnique` of the collection before each
+# change of it. A push into an element reads the element (the checker's
+# `ListIndexMut`) after an `IsUnique` of the outer list; an element store
+# makes its list unique; a map put and a write through a map value make
+# the map unique.
+struct Bag:
+    count: i32
+    items: List[i32]
+
+fn change(mut rows: List[List[i32]], mut bags: List[Bag], mut m: Map[string, List[i32]], i: usize) -> void:
+    rows[i].push(1)
+    bags[i].count = 2
+    bags[i].items.push(3)
+    m["a"] = []
+    m["a"].push(4)

@@ -10,7 +10,8 @@
 //! whole local's read are folded into reads of the local's field places
 //! (`fold`), the naive, correct ownership
 //! of `crates/hd_wasm_linear/DESIGN.md` §23.16 with releases at last use
-//! (§23.20), made explicit. Borrow, move, pair cancellation, known-null
+//! (§23.20), made explicit, with an `IsUnique` before each change of a
+//! collection place and the pins of element references. Borrow, move, pair cancellation, known-null
 //! and hoisting are later commits of stage 2; each only weakens or deletes
 //! what insertion writes, so the pipeline is correct after any prefix.
 //!
@@ -526,8 +527,10 @@ mod tests {
         for i in 0..b.len() {
             let tag = b.tags[i];
             let mut line = format!("%{i} {}", tag.name());
-            if matches!(tag, Tag::Read | Tag::Drop | Tag::Store | Tag::Ref)
-                && let Some(p) = b.decode_place(b.data[i][0])
+            if matches!(
+                tag,
+                Tag::Read | Tag::Drop | Tag::Store | Tag::Ref | Tag::IsUnique | Tag::Pin
+            ) && let Some(p) = b.decode_place(b.data[i][0])
             {
                 if tag == Tag::Read
                     && let Some(m) = ReadMode::from_u32(b.data[i][1])
@@ -651,6 +654,56 @@ mod tests {
     fn a_tail_moves_into_its_block() {
         let text = passes(|b| Some(call(b, 7, &[], Ty::STRING)), Ty::STRING);
         assert_eq!(text, "%0 Call\n%1 Block [%0] -> %0\n");
+    }
+
+    /// Rules 5 and 6: an `IsUnique` of the collection before each change
+    /// of it (a push, an element store, each list on the path outermost
+    /// first), the checker's `ListIndexMut` read as its element place after
+    /// an `IsUnique` of the list, and an `IsUnique` and a `Pin` of the list
+    /// before an element reference.
+    #[test]
+    fn changes_make_their_collection_unique_and_element_references_pin_it() {
+        use crate::ir::IntrinsicOp;
+        let n = NodeIdx::from_raw(1);
+        let us = Ty::prim(hd_types::Prim::Usize);
+        let text = passes(
+            |b| {
+                let xs = b.local(us, Symbol::from_raw(0), local_flags::PARAM, n);
+                let list = call(b, 6, &[], us);
+                let i = call(b, 6, &[], us);
+                let rec = b.refs_record(&[list, i]);
+                let e = b.emit(Tag::Intrinsic, IntrinsicOp::ListIndexMut as u32, rec, us, n);
+                let rec = b.refs_record(&[e, i]);
+                b.emit(
+                    Tag::Intrinsic,
+                    IntrinsicOp::ListPush as u32,
+                    rec,
+                    Ty::VOID,
+                    n,
+                );
+                let word = b.place(
+                    &format!("[%{} [%{}] .0 [%{}]]", list.0, i.0, i.0)
+                        .parse()
+                        .expect("place"),
+                );
+                b.emit(Tag::Store, word, i.0, Ty::VOID, n);
+                let word = b.place(
+                    &format!("[${} [%{}]]", xs.raw(), i.0)
+                        .parse()
+                        .expect("place"),
+                );
+                b.emit(Tag::Ref, word, 1, us, n);
+                None
+            },
+            Ty::VOID,
+        );
+        assert_eq!(
+            text,
+            "%0 Call\n%1 Call\n%2 IsUnique [%0]\n%3 Read copy [%0 [%1]]\n%4 IsUnique [%3]\n\
+             %5 Intrinsic %3 %1\n%6 IsUnique [%0]\n%7 IsUnique [%0 [%1] .0]\n\
+             %8 Store [%0 [%1] .0 [%1]] %1\n%9 IsUnique [$0]\n%10 Pin [$0]\n%11 Ref [$0 [%1]]\n\
+             %12 Drop [$0]\n%13 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8 %9 %10 %11 %12]\nexit 0 $0\n"
+        );
     }
 
     /// The verifier catches a value never dropped, one dropped twice and

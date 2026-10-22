@@ -265,10 +265,13 @@ impl Em<'_, '_, '_> {
         let (kt, vt, e) = self.entry(self.ty_of(args[0]))?;
         let ops = self.key_ops(i, kt, &e.key_vals())?;
         let m = self.header(args[0])?;
-        if matches!(
-            op,
-            IntrinsicOp::MapSet | IntrinsicOp::MapRemove | IntrinsicOp::MapIndexMut
-        ) {
+        // An owned body's `IsUnique` came before the change.
+        if !self.unique_explicit
+            && matches!(
+                op,
+                IntrinsicOp::MapSet | IntrinsicOp::MapRemove | IntrinsicOp::MapIndexMut
+            )
+        {
             self.f.get(m);
             self.f.helper(Helper::MapUnique { entry: e.clone() });
         }

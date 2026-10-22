@@ -553,11 +553,23 @@ String operations are emitted by `emit/text.rs` and runtime helpers
   takes a count (`push_args`, as before); a parameter its caller lends
   takes one on entry, since the body owns its parameters; and a
   cancelled suspension point, an edge the TIR does not have, releases
-  what the body holds there (`release_unwound`). `IsUnique` and `Pin` of
-  a local or a value lower to `rt:list_unique` or `rt:map_unique` and to
-  `ListPin`'s owner word without its count; a `move` or `borrow` read
-  lowers for a plain local read only, and a `Drop` of a projection not
-  at all, until the passes that write them.
+  what the body holds there (`release_unwound`). `IsUnique` lowers to
+  `rt:list_unique` or `rt:map_unique`, and `Pin` to `ListPin`'s owner
+  word without its count, of the header at their place: a local's or a
+  value's, then struct fields and elements, bounds-checked
+  (`Em::place_header`). Since the passes put an `IsUnique` before every
+  change of a collection place, an owned body's intrinsics and its thunks'
+  (`Em::unique_explicit`) check no uniqueness themselves: an element
+  store, `MapSet`, `MapRemove`, `MapIndexMut` and `ListPin` skip it, and
+  `ListPush` only moves a full buffer (`rt:list_grow`). Two checks stay:
+  std's `list_truncate` (`pop`, `insert`, ...) changes the list behind
+  its reference, where no pass sees the change; and a loop cache's check
+  before the loop (§23.31, #710), whose buffer address the loop keeps,
+  until hoisting's table replaces the caches. The checker's `ListPin`
+  keeps its owner word and its count, the pin of a `for` over element
+  references, until the checker stops pinning. A `move` or `borrow` read lowers for a
+  plain local read only, and a `Drop` of a projection not at all, until
+  the passes that write them.
 
 ### 23.17 List Operations
 

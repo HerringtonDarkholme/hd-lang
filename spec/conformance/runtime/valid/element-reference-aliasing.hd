@@ -1,0 +1,61 @@
+# test: element references, copies and changes of one list never reach another list value
+# Spec 13 Element References: ref.elem.copy, ref.elem.slot.
+struct Holder:
+    items: List[i32]
+    at: &mut i32
+
+fn read_after(xs: List[i32], poke: fn() -> void) -> i32:
+    poke()
+    xs[0]
+
+tests:
+    use std.testing.assert_equal
+
+    it("a copy taken before the reference keeps its value"):
+        let mut xs = [+1, 2]
+        before := xs
+        r := &mut xs[0]
+        *r = 5
+        assert_equal(before[0], 1, reason="the copy is unchanged")
+        assert_equal(xs[0], 5, reason="the write reaches the list it was taken from")
+
+    it("a shared and a mutable reference to one slot see one value"):
+        let mut xs = [+1, 2]
+        w := &mut xs[1]
+        r := &xs[1]
+        *w = 8
+        assert_equal(*r, 8, reason="the read sees the write")
+
+    it("a copied struct copies its list and keeps its reference's target"):
+        let mut n = +3
+        let mut held = Holder { items: [+1, 2], at: &mut n }
+        copy := held
+        held.items.push(3)
+        *held.at = 4
+        assert_equal(copy.items.len(), 2, reason="the copy's list is its own")
+        assert_equal(*copy.at, 4, reason="both references name n")
+
+    it("a copy at the list's last use does not see later writes through the reference"):
+        let mut xs = [+1, 2]
+        r := &mut xs[0]
+        last := xs
+        *r = 9
+        assert_equal(last[0], 1, reason="the copy is a value of its own")
+        assert_equal(*r, 9, reason="the reference sees its write")
+
+    it("a pinned list passed by value keeps its value while a callback writes through the reference"):
+        let mut xs = [+1, 2]
+        r := &mut xs[0]
+        seen := read_after(xs, fn() -> void: *r = 6)
+        assert_equal(seen, 1, reason="the parameter is the value passed")
+        assert_equal(xs[0], 6, reason="the callback wrote the list it referred to")
+
+    it("a copy and a change of an element in a loop stay apart"):
+        let mut xs = [0, 0, 0]
+        let mut copies: List[List[usize]] = []
+        for i in 0..3:
+            copies.push(xs)
+            xs[i] = i + 1
+        assert_equal(copies[0], [0, 0, 0], reason="each copy keeps the list as it was")
+        assert_equal(copies[2], [1, 2, 0], reason="the last copy saw two writes")
+        assert_equal(xs, [1, 2, 3], reason="the list has every write")
