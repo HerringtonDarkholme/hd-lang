@@ -1352,3 +1352,27 @@ fn aborted_pending_connects_release_their_operations_before_a_ready_connect() {
     handle(&mut p, "TcpStream.close", &[1], None, vec![0]);
     assert_program(&scratch, p, vec![], || {});
 }
+
+/// The platform host CI jobs run Cargo, so keep the deterministic Node-only
+/// callback-order regression in this target as well as the JS host tests.
+#[test]
+fn node_zero_bound_accept_observes_kernel_input_before_callback_dispatch() {
+    let test = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/node.test.mjs");
+    let output = std::process::Command::new("node")
+        .args([
+            "--test",
+            "--test-reporter=tap",
+            "--test-name-pattern=^zero-bound accept sees a kernel-queued peer before its JS callback$",
+        ])
+        .arg(test)
+        .output()
+        .expect("Node host regression starts");
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        output.status.success(),
+        "Node kernel-queued regression failed:\n{stdout}{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(stdout.lines().any(|line| line == "# tests 1"), "{stdout}");
+    assert!(stdout.lines().any(|line| line == "# pass 1"), "{stdout}");
+}
