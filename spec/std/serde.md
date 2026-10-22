@@ -129,6 +129,20 @@ impl Deserialize for Session by Structure:
 > [`derivation-line-drift`](../lang/14-annotations.md#r-annot.line.drift)
 > warning.
 
+### Member Names
+
+A member's **wire name** is its name in a document format.
+For example, `@rename("total")` on `total_cents: i64` uses the key `total`.
+
+1. r[std-serde.rename.fact] `std.serde` exports the field fact `Rename` with the public field `name: string`.
+2. r[std-serde.rename.constructor] `rename(name: string) -> Rename` constructs a fact with that name.
+3. r[std-serde.rename.wire-name] A document member's wire name is its `Rename.name` when present, and its source member name otherwise.
+4. r[std-serde.rename.metadata] `Member.name` retains the source member name, and document formats read `Rename` from `Member.facts`.
+
+> **Why.** Document names belong to the serialization view; preserving the
+> source name lets other adapters, such as environment readers, name fields
+> independently.
+
 ## Standard Implementations
 
 `std.serde` implements both traits for these types:

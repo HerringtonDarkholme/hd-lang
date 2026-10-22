@@ -494,7 +494,7 @@ impl Deserializer for OldReader:
         .Err(JsonError.UnknownVariant(self.path, name))
 
     # A member reads the value of its key; a missing key is absent
-    # (r-std-json.derive.from-json.member).
+    # (r-std-json.derive.from-json.member-wire-name).
     fn member(&mut self, m: Member) -> Result[void, JsonError]:
         frame := self.top()
         self.path = "${frame.base}.${m.name}"

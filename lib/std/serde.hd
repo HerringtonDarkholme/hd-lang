@@ -5,10 +5,22 @@
 # (spec/std/json.md#typed-json) and the host boundary
 # (spec/lang/10-modules.md#r-module.boundary.out). The standard
 # implementations and the templates are spec/std/serde.md.
+use std.annotation.annotate
 use std.collections.Set
 use std.function.Tuple
 use std.hash.Hash
 use std.structure.{Structure, Walker, Describer, Source, Variant, VariantInfo, Field, Member, Members, Key, Facts}
+
+## A named member's document name, independent of its hd field name.
+## See [std-serde.rename.fact](../../spec/std/serde.md#r-std-serde.rename.fact).
+@annotate(.Field)
+pub struct Rename:
+    pub name: string
+
+## Names a member on the document wire.
+## See [std-serde.rename.constructor](../../spec/std/serde.md#r-std-serde.rename.constructor).
+pub fn rename(name: string) -> Rename:
+    Rename { name: name }
 
 # A value that opts in to be written by every format
 # (r-annot.serde.definition).

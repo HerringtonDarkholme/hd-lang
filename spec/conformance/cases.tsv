@@ -3062,7 +3062,7 @@ runtime/valid/json-pretty.hd	runtime	accept	std/json.md#r-std-json.pretty.layout
 runtime/valid/json-suite.hd	runtime	accept	std/json.md#r-std-json.parse.grammar
 runtime/valid/json-float-text.hd	runtime	accept	std/json.md#r-std-json.parse.number.float-via-parse
 runtime/valid/json-number-grammar.hd	runtime	accept	std/json.md#r-std-json.parse.number.grammar
-runtime/valid/json-typed-round-trip.hd	runtime	accept	std/json.md#r-std-json.derive.to-json.data
+runtime/valid/json-typed-round-trip.hd	runtime	accept	std/json.md#r-std-json.derive.to-json.data-wire-names
 runtime/valid/key-assoc-function-a-dyn-value-of-a-trait-with-an-associated-function-calls-its-other-members.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.key.binding
 runtime/valid/key-assoc-function-a-key-trait-of-associated-functions-only-has-an-empty-vtable.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.key.binding
 runtime/valid/key-assoc-function-a-key-trait-with-an-associated-function-provides-its-other-members.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.key.binding
@@ -3079,6 +3079,7 @@ typing/invalid/key-assoc-function-an-associated-function-through-a-key-is-unavai
 typing/invalid/serde-derive-member-not-serialize.hd	type	reject:member-not-derivable	lang/14-annotations.md#r-annot.serde.members.error
 typing/invalid/serde-map-key-not-string.hd	type	reject:unsatisfied-trait-bound	std/serde.md#r-std-serde.std.map-keys
 runtime/valid/json-serde-private-round-trip.hd	runtime	accept	std/json.md#r-std-json.derive.to-json.private
+runtime/valid/serde-rename.hd	runtime	accept	std/serde.md#member-names
 runtime/valid/serde-derive-call-order.hd	runtime	accept	std/serde.md#r-std-serde.derive.serialize.order
 runtime/valid/time-serde-forms.hd	runtime	accept	std/time.md#r-std-time.serde.text-form
 runtime/valid/boundary-derived-round-trip.hd	runtime	accept	lang/10-modules.md#r-module.boundary.in
@@ -3642,7 +3643,7 @@ runtime/valid/serde-variant-member-facts.hd	runtime	accept	std/serde.md#r-std-se
 runtime/valid/serde-writer-first-error.hd	runtime	accept	std/serde.md#r-std-serde.model.errors
 runtime/valid/serde-struct-ref-receivers.hd	runtime	accept	std/serde.md#r-std-serde.model.ref-receivers
 typing/invalid/serializer-mut-self-receiver.hd	type	reject:trait-method-signature	std/serde.md#r-std-serde.model.ref-receivers
-runtime/valid/json-typed-members.hd	runtime	accept	std/json.md#r-std-json.derive.to-json.embedded
+runtime/valid/json-typed-members.hd	runtime	accept	std/json.md#r-std-json.derive.to-json.embedded-wire-name
 runtime/valid/json-typed-missing-key-uses-default.hd	runtime	accept	std/json.md#r-std-json.derive.from-json.default
 runtime/valid/json-pointer.hd	runtime	accept	std/json.md#r-std-json.pointer
 runtime/valid/json-number-accessors.hd	runtime	accept	std/json.md#r-std-json.value.accessors.i64

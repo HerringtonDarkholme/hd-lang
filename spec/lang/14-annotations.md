@@ -1743,6 +1743,10 @@ struct Account:
 > Per-format overriding is open, in
 > [Serialization Formats](../../docs/future-work/OPEN_ISSUES.md#serialization-formats).
 
+> **Note.** Document member names may be configured by the ordinary
+> [`std.serde.Rename` field fact](../std/serde.md#member-names).
+> It adds no language annotation form.
+
 See also: [Boundary Encoding](10-modules.md#boundary-encoding),
 [Serde](../std/serde.md), [Typed JSON](../std/json.md#typed-json).
 

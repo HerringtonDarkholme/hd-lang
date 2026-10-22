@@ -99,6 +99,8 @@ For example, `Request::get(url).query("page", 2).header("Accept", "text/plain").
 28. r[std-http.request.typed-body-builder] Both typed body setters return the same builder.
 29. r[std-http.request.form-unsupported] A root scalar, list, or enum, or a nested record, map, list, or payload-bearing enum panics. Panic: `explicit-panic`.
 30. r[std-http.request.form-member-message] The unsupported-form panic message names the offending member, or `$` for the root.
+31. r[std-http.request.form-wire-name] A form record member uses its serde wire name, including a `Rename` fact, as its field name.
+
 
 > **Why.** Typed values share their serialization implementation across
 > JSON and forms. Flat form fields match ordinary HTML submissions; nested

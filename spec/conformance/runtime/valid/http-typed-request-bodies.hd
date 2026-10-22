@@ -2,7 +2,7 @@
 # Spec std/http Request Builder: std-http.request.json-serialize, std-http.request.form-serialize.
 use std.http.{Request, Response}
 use std.json.encode
-use std.serde.{Serialize, Serializer}
+use std.serde.{Serialize, Serializer, rename}
 use std.testing.assert_equal
 
 @derive(Serialize)
@@ -40,6 +40,11 @@ impl Serialize for Once:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         self.calls.push(1)
         out.text("once")
+
+@derive(Serialize)
+struct RenamedForm:
+    @rename("wire-name")
+    source_name: string
 
 tests:
     it("json replaces the body, encodes once, and shares the builder"):
@@ -80,3 +85,7 @@ tests:
         let empty: Map[string, string] = {}
         request.form(empty)
         assert_equal(request.body, [], reason="an empty map writes no pairs")
+
+    it("form names honor the format-neutral rename fact"):
+        request := Request::post("https://example.test/").form(RenamedForm { source_name: "yes" })
+        assert_equal(request.body, "wire-name=yes".to_utf8(), reason="renamed form key")

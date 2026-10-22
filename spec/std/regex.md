@@ -353,7 +353,7 @@ its `Deserialize` implementation. `pattern.decode::[Hit](line)` combines
 4. r[std-regex.decode.no-match] When no match exists, `Regex.decode` returns `.Err(RegexError.NoMatch)`.
 5. r[std-regex.decode.reuse] `Captures.decode` decodes its existing groups without another search.
 6. r[std-regex.decode.root] The decoded root must be a record; other roots return `WrongType` with group `"0"`.
-7. r[std-regex.decode.members] Each record member reads the capture group with the same name.
+7. r[std-regex.decode.members-wire-name] Each record member reads the capture group with its serde wire name, including a `Rename` fact.
 8. r[std-regex.decode.missing-name] A member without a named group returns `.Err(RegexError.MissingGroup(name))`.
 9. r[std-regex.decode.optional] A `T?` member is `.None` when its named group took no part in the match.
 10. r[std-regex.decode.required] A required member whose named group took no part returns `.Err(RegexError.MissingGroup(name))`.

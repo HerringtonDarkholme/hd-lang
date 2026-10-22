@@ -642,11 +642,11 @@ enum Shape:
 | `Shape.Point(4, 5)` | `{"Point":{"_0":4,"_1":5}}` |
 | `Shape.Empty` | `"Empty"` |
 
-1. r[std-json.derive.to-json.data] A struct gives an `Object` with one key per member that the derivation walks, in declaration order. The key is the member's name, and its value is the member's `Json`.
+1. r[std-json.derive.to-json.data-wire-names] A struct gives an `Object` with one key per member that the derivation walks, in declaration order. The key is its [wire name](serde.md#member-names), and its value is the member's `Json`.
 2. r[std-json.derive.to-json.enum] A variant with members gives an `Object` with one key, the variant's name. Its value is the `Object` of the variant's members, as for a struct.
 3. r[std-json.derive.to-json.unit] A variant with no member in this derivation gives the `Text` of its name.
-4. r[std-json.derive.to-json.positional] A positional member's key is its member name: `_0`, `_1`, and so on.
-5. r[std-json.derive.to-json.embedded] An embedded member is one key, named by its type's final name, whose value is the part's `Json`. It is not flattened.
+4. r[std-json.derive.to-json.positional-wire-name] A positional member's key is its wire name, defaulting to `_0`, `_1`, and so on.
+5. r[std-json.derive.to-json.embedded-wire-name] An embedded member is one key using its wire name, defaulting to its type's final name, with the part's `Json` as value.
 6. r[std-json.derive.to-json.shared] Shared constructor data is not a member, so it is not written.
 7. r[std-json.derive.to-json.private] A private member is written like any other, since the opt-in covers it.
 
@@ -673,7 +673,7 @@ JSON reads the form that it writes for a derived `Serialize`:
 
 1. r[std-json.derive.from-json.inverse] A derived `Deserialize` reads the form that a derived `Serialize` writes for the same type.
 2. r[std-json.derive.from-json.data] A struct reads an `Object`. Any other value is a `WrongType`.
-3. r[std-json.derive.from-json.member] It reads each member that the derivation builds, in declaration order, from the value of the member's key. The first error ends the read, with the segment `.name` of the member.
+3. r[std-json.derive.from-json.member-wire-name] It reads each built member in declaration order from its wire key, ending on the first error with that wire name's path segment.
 4. r[std-json.derive.from-json.unknown] A key that names no member is ignored.
 5. r[std-json.derive.from-json.missing] A missing key reads as `null`: the member's type reads `Json.Null`. When that read fails, the error is a `MissingField` at the path of the missing key.
 6. r[std-json.derive.from-json.default] A missing key of a member that declares a default gives that default, and the member is not read, so it is never a `MissingField`. The serde reader reports the key absent through [`is_absent`](serde.md#r-std-serde.read.absent).

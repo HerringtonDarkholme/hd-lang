@@ -1,7 +1,7 @@
 # test: regex named groups decode records through Deserialize, including optional groups and decode errors
 # expect: test
 use std.regex.{Regex, RegexError}
-use std.serde.Deserialize
+use std.serde.{Deserialize, rename}
 use std.text.r
 use std.testing.assert_equal
 
@@ -72,6 +72,11 @@ fn float32_error(text: string) -> RegexError?:
         .Ok(_) => .None
         .Err(error) => .Some(error)
 
+@derive(Deserialize)
+struct RenamedCapture:
+    @rename("wire")
+    source_name: u8
+
 tests:
     it("decodes access-log Hit records, optional referrers and skips malformed lines"):
         pattern := re(r"^(?P<ip>\S+) \S+ \S+ \[[^\]]+\] \"(?P<method>[A-Z]+) (?P<path>\S+) [^\"]*\" (?P<status>\d{3}) (?P<bytes>\d+) (?P<seconds>\d+\.\d+)(?: \"(?P<referrer>[^\"]*)\")?$")
@@ -134,3 +139,8 @@ tests:
         assert_equal("${RegexError.NoMatch}", "the regex did not match", reason="no match text")
         assert_equal("${RegexError.MissingGroup("value")}", "missing regex group value", reason="missing group text")
         assert_equal("${RegexError.WrongType("value", "u8")}", "cannot decode regex group value as u8", reason="wrong type text")
+
+    it("capture lookup and errors honor format-neutral rename"):
+        assert_equal(re("^(?P<wire>.*)$").decode::[RenamedCapture]("7").map(fn(found): found.source_name), .Ok(7), reason="wire group")
+        assert_equal(re("^(?P<source_name>.*)$").decode::[RenamedCapture]("7").map(fn(found): found.source_name), .Err(.MissingGroup("wire")), reason="source name is not the wire name")
+        assert_equal(re("^(?P<wire>.*)$").decode::[RenamedCapture]("bad").map(fn(found): found.source_name), .Err(.WrongType("wire", "u8")), reason="error names the group")

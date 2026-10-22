@@ -1,0 +1,70 @@
+# test: a serde rename changes document names while preserving hd member names and ordinary keys
+# Spec std/serde Member Names: std-serde.rename.fact, std-serde.rename.constructor, std-serde.rename.wire-name, std-serde.rename.metadata.
+use std.json.{JsonError, decode, encode, encode_pretty, from_json, parse, to_json}
+use std.serde.{Serialize, Deserialize, Rename, rename}
+use std.structure.{Structure, Field, Variant, Walker}
+
+@derive(Serialize, Deserialize)
+struct Invoice:
+    @rename("wireTotal")
+    total_cents: i64
+    label: string
+    @rename("")
+    empty_key: string = "default"
+
+struct PerView:
+    source_name: i32
+
+impl Serialize for PerView by Structure:
+    source_name = [rename("wireName")]
+
+impl Deserialize for PerView by Structure:
+    source_name = [rename("wireName")]
+
+trait SourceNames:
+    fn names(self) -> List[(string, string)]
+
+struct Names:
+    items: List[(string, string)]
+
+impl[S] Walker[S] for Names:
+    type Error = never
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]: .Ok(())
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.items.push((h.info.name, h.fact::[Rename]().map(fn(fact): fact.name).unwrap_or("(none)")))
+        .Ok(())
+
+impl[T] SourceNames for T by Structure:
+    fn names(self) -> List[(string, string)]:
+        let mut names = Names { items: [] }
+        _ := Structure::walk(self, &mut names)
+        names.items
+
+impl SourceNames for Invoice by Structure
+
+tests:
+    use std.testing.assert_equal
+
+    it("all JSON writers and readers use the renamed key including empty names"):
+        value := Invoice { total_cents: 42, label: "bill", empty_key: "empty" }
+        text := "{\"wireTotal\":42,\"label\":\"bill\",\"\":\"empty\"}"
+        assert_equal(encode(value), text, reason="streaming writer")
+        assert_equal(to_json(value), parse(text).expect("JSON"), reason="tree writer")
+        assert_equal(decode::[Invoice](text).expect("direct reader").total_cents, 42, reason="renamed source member still accessible")
+        assert_equal(from_json::[Invoice](parse(text).expect("JSON")).expect("tree reader").empty_key, "empty", reason="empty key is a real name")
+        pretty := encode_pretty(value)
+        assert_equal(decode::[Invoice](pretty).map(fn(back): encode(back)), .Ok(text), reason="pretty text uses the same names")
+
+    it("defaults and errors refer to the wire key"):
+        assert_equal(decode::[Invoice]("{\"wireTotal\":9,\"label\":\"x\"}").expect("default").empty_key, "default", reason="renamed field default still applies")
+        assert_equal(decode::[Invoice]("{\"total_cents\":9,\"label\":\"x\"}").map(fn(back): back.total_cents), .Err(JsonError.MissingField("$.wireTotal")), reason="source name does not replace the wire key")
+        assert_equal(decode::[Invoice]("{\"wireTotal\":\"bad\",\"label\":\"x\"}").map(fn(back): back.total_cents), .Err(JsonError.WrongType("$.wireTotal", "i64")), reason="direct error path")
+        assert_equal(from_json::[Invoice](parse("{\"wireTotal\":\"bad\",\"label\":\"x\"}").expect("JSON")).map(fn(back): back.total_cents), .Err(JsonError.WrongType("$.wireTotal", "i64")), reason="tree error path")
+
+    it("per-derivation facts configure both directions"):
+        assert_equal(encode(PerView { source_name: 7 }), "{\"wireName\":7}", reason="Serialize view")
+        assert_equal(decode::[PerView]("{\"wireName\":7}").expect("Deserialize view").source_name, +7, reason="Deserialize view")
+
+    it("member metadata keeps source names for independent adapters"):
+        value := Invoice { total_cents: 1, label: "x" }
+        assert_equal(value.names(), [("total_cents", "wireTotal"), ("label", "(none)"), ("empty_key", "")], reason="facts do not overwrite Member.name")

@@ -4,7 +4,7 @@
 use std.format.DebugWriter
 use std.iter.ListIter
 use std.error.Error
-use std.serde.{Serialize, Deserialize, Serializer, Deserializer, ValueKind}
+use std.serde.{Serialize, Deserialize, Serializer, Deserializer, ValueKind, Rename}
 use std.structure.{VariantInfo, Member, Facts}
 
 # One JSON value (r-std-json.value.decl). An object keeps its members in
@@ -1139,7 +1139,7 @@ struct OpenFrame:
 
 # Builds the `Json` of one value. The items of every open container sit on
 # one stack, `values`, each beside its key in `keys`; closing a container
-# replaces its items with its value (r-std-json.derive.to-json.data).
+# replaces its items with its value (r-std-json.derive.to-json.data-wire-names).
 struct JsonWriter:
     pub result: Json
     pub pending: string
@@ -1225,7 +1225,8 @@ impl Serializer for JsonWriter:
         self.open(2, v.name, v.of_data)
 
     fn member(&mut self, m: Member) -> Result[void, never]:
-        self.pending = m.name
+        name := m.facts.find::[Rename]().map(fn(fact): fact.name).unwrap_or(m.name)
+        self.pending = name
         .Ok(())
 
     # A data type is an object; a variant with no member is its name, and
@@ -1516,7 +1517,8 @@ impl Serializer for TextWriter:
         self.open(if v.of_data: FrameKind.Record else: FrameKind.Tagged, v.name)
 
     fn member(&mut self, m: Member) -> Result[void, Irregular]:
-        self.name_next(m.name)
+        name := m.facts.find::[Rename]().map(fn(fact): fact.name).unwrap_or(m.name)
+        self.name_next(name)
 
     fn end_variant(&mut self) -> Result[void, Irregular]:
         self.close(FrameKind.Record)
@@ -1865,19 +1867,20 @@ impl Deserializer for JsonReader:
         .Err(JsonError.UnknownVariant(self.path_to(self.depth), name))
 
     # A member reads the value of its key; a missing key is absent
-    # (r-std-json.derive.from-json.member). A list or a map has no members.
+    # (r-std-json.derive.from-json.member-wire-name). A list or a map has no members.
     fn member(&mut self, m: Member) -> Result[void, JsonError]:
+        name := m.facts.find::[Rename]().map(fn(fact): fact.name).unwrap_or(m.name)
         last := self.top()
         base := self.bases[last]
         match self.kinds[last]:
-            .Record => self.find_member(last, m.name)
+            .Record => self.find_member(last, name)
             .Tagged =>
                 self.step_key(base - 1, self.variants[last])
-                self.find_member(last, m.name)
+                self.find_member(last, name)
             _ =>
                 self.value = Json.Null
                 self.present = false
-        self.step_key(base, m.name)
+        self.step_key(base, name)
         self.depth = base + 1
         .Ok(())
 
@@ -2230,6 +2233,7 @@ impl Deserializer for TextReader:
         .Err(JsonError.UnknownVariant(self.path_to(self.depth), name))
 
     fn member(&mut self, m: Member) -> Result[void, JsonError]:
+        name := m.facts.find::[Rename]().map(fn(fact): fact.name).unwrap_or(m.name)
         frame := self.top()
         let found: usize? = .None
         let record = true
@@ -2239,19 +2243,19 @@ impl Deserializer for TextReader:
             _ => record = false
         if record:
             let slot = frame.next
-            if slot >= frame.key_count || frame.keys[slot] != m.name:
+            if slot >= frame.key_count || frame.keys[slot] != name:
                 if frame.key_count > 16:
-                    slot = frame.positions.get(m.name).unwrap_or(frame.key_count)
+                    slot = frame.positions.get(name).unwrap_or(frame.key_count)
                 else:
                     slot = 0
-                    while slot < frame.key_count && frame.keys[slot] != m.name:
+                    while slot < frame.key_count && frame.keys[slot] != name:
                         slot = slot + 1
             if slot < frame.key_count:
                 found = .Some(frame.offsets[slot])
                 frame.next = slot + 1
         self.present = found.is_some()
         self.at = found.unwrap_or(0)
-        self.step_key(frame.base, m.name)
+        self.step_key(frame.base, name)
         self.depth = frame.base + 1
         .Ok(())
 
