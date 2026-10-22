@@ -1,6 +1,6 @@
 ---
 name: compiler-tests
-description: Test the hd compiler with stage fixtures and benchmarks - write a focused .hd case, pick the view that shows one topic (tokens, tree, tir, wat, counts, layout), bless and review generated baselines, record bad emitted code with an expected note, and measure performance with bench/study (about 300 ms per program, --quick, hd-only before/after). Use when adding or changing a compiler test, checking what a stage emits for some code, or measuring a perf change.
+description: Test the hd compiler with stage fixtures and benchmarks - write a focused .hd case, pick the view that shows one topic (tokens, tree, tir, own, wat, counts, layout), bless and review generated baselines, record bad emitted code with an expected note, and measure performance with bench/study (about 300 ms per program, --quick, hd-only before/after). Use when adding or changing a compiler test, checking what a stage emits for some code, or measuring a perf change.
 ---
 
 # Test The hd Compiler
@@ -32,8 +32,8 @@ Design record: issues #657 and #675,
 | `crates/<crate>/tests/baselines/<topic>/<name>.<view>` | its generated output, one file per view |
 
 The crate is the stage whose view the case uses: `hd_syntax` (tokens,
-tree), `hd_check` (tir), `hd_wasm_linear` (wat), `hd_driver` (counts,
-layout). The harness is `crates/hd_testkit/src/stages.rs`; every crate
+tree), `hd_check` (tir), `hd_wasm_linear` (wat), `hd_driver` (own,
+counts, layout). The harness is `crates/hd_testkit/src/stages.rs`; every crate
 runs its cases with `cargo test -p <crate> --test stages` (`hd_syntax`:
 `cargo test -p hd_syntax --test all stages::`). Cases are discovered
 recursively; no generated output belongs in a source case. A baseline
@@ -79,6 +79,7 @@ fn place(bodies: &mut List[Body], i: usize, x: f64) -> void:
 | `tokens` | each token's kind and text |
 | `tree` | the largest syntax nodes inside the subject |
 | `tir` | the subject's TIR instructions, locals by name, type and flags (`[param read]`), fields by name |
+| `own` | the subject's TIR after the ownership passes: read modes (`Read copy [$1]`), `Drop`, `IsUnique` and `Pin` statements, and the body's exit set |
 | `wat` | the Wasm instructions that came from the subject: calls by name (`rt:retain_known`, `identity[i32]`, `println`), locals by source name or field path (`bodies`, `b.vx`), temporaries `t0`, `t1`... |
 | `counts` | only the retains, releases and frees inside the subject, with what they count |
 | `layout` | a type's fields, offsets, sizes, counted parts and cycle-capable bit |

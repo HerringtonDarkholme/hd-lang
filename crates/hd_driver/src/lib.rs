@@ -231,9 +231,11 @@ type ForkedBody = (StageResult<Body>, DiagBuf, hd_check::fork::BodyLeft);
 
 /// What the caller supplies.
 pub struct Host<'a> {
-    /// Item paths whose checked bodies the output renders (golden tests);
-    /// a path ending in `*` renders every body whose path starts with what
-    /// precedes it (`app/*`, the stage fixtures of `hd_testkit::stages`).
+    /// Item paths whose checked bodies the output renders (golden tests),
+    /// and, when collection reads them, the bodies after the ownership
+    /// passes ([`Output::own_text`]); a path ending in `*` renders every
+    /// body whose path starts with what precedes it (`app/*`, the stage
+    /// fixtures of `hd_testkit::stages`).
     pub render_tir: &'a [&'a str],
     pub sources: &'a dyn SourceSet,
     pub store: &'a dyn CacheStore,
@@ -413,6 +415,16 @@ pub fn test_programs(
     out
 }
 
+/// A body as collection reads it, after the ownership passes
+/// (`docs/compiler/tir-v2.md`, "Where and when the passes run"): its
+/// readable text (`hd_check::render`) and each instruction's syntax node,
+/// which the `own` fixture view places it by.
+#[derive(Clone, Debug)]
+pub struct OwnText {
+    pub text: String,
+    pub syn: Vec<hd_base::NodeIdx>,
+}
+
 /// A concrete fixture type and the source declaration the view filters.
 #[derive(Clone, Debug)]
 pub struct FixtureLayout {
@@ -462,6 +474,9 @@ pub struct Output {
     pub scopes: Vec<(String, Vec<(String, hd_resolve::Named)>)>,
     /// Readable TIR of the bodies a `Host::render_tir` named, by item path.
     pub tir_text: std::collections::BTreeMap<String, String>,
+    /// The bodies a `Host::render_tir` named that collection read, after
+    /// the ownership passes, by item path.
+    pub own_text: std::collections::BTreeMap<String, OwnText>,
     /// Deterministic development fixture notes, separate from language diagnostics.
     pub fixture_notes: Vec<String>,
     /// Actual backend layouts of a development fixture's concrete struct declarations.
@@ -1226,6 +1241,7 @@ struct Run<'a> {
     report: Mutex<PipelineReport>,
     counters: Mutex<Counters>,
     tir_text: Mutex<std::collections::BTreeMap<String, String>>,
+    own_text: Mutex<std::collections::BTreeMap<String, OwnText>>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -1590,6 +1606,7 @@ pub fn build_packages(
         }),
         counters: Mutex::new(Counters::default()),
         tir_text: Mutex::new(std::collections::BTreeMap::new()),
+        own_text: Mutex::new(std::collections::BTreeMap::new()),
         table,
     };
     lock(&run.report).ok(Stage::Discover);
@@ -1747,6 +1764,7 @@ pub fn build_packages(
         ifaces,
         scopes,
         tir_text: std::mem::take(&mut *lock(&run.tir_text)),
+        own_text: std::mem::take(&mut *lock(&run.own_text)),
         fixture_notes: run.fixture_notes.get().cloned().unwrap_or_default(),
         fixture_layouts: run.fixture_layouts.get().cloned().unwrap_or_default(),
         pool_items: run.pool.len(),
@@ -7146,7 +7164,54 @@ impl Run<'_> {
                 .bad
                 .store(true, std::sync::atomic::Ordering::Relaxed);
         }
+        if !self.host.render_tir.is_empty()
+            && let Some((body, _)) = out
+        {
+            self.render_own(p, def, body);
+        }
         out
+    }
+
+    /// The `own` fixture view's text of body `def` when `Host::render_tir`
+    /// names it ([`Output::own_text`]), once: the body as collection reads
+    /// it, after the ownership passes.
+    fn render_own(&self, p: &ProgramTables, def: DefId, body: &Body) {
+        let names = self.names();
+        let path = names.path(def);
+        if !self.renders_tir(&path) || lock(&self.own_text).contains_key(&path) {
+            return;
+        }
+        // A field by name, its type as the program's bodies hold it, with
+        // references lowered.
+        let fields = |t: Ty, k: u32| -> Option<(String, Ty)> {
+            let pool = names.pool;
+            let t = match pool.get(t) {
+                TyData::Mut(inner) => inner,
+                _ => t,
+            };
+            let TyData::Adt { def, args } = pool.get(t) else {
+                return None;
+            };
+            let ItemData::Data(fs) = &p.items.get(&def)?.data else {
+                return None;
+            };
+            let f = fs.get(k as usize)?;
+            let argv = pool.list_items(args);
+            let ft = pool.subst(f.ty, &|q: hd_types::ParamRef| {
+                (q.owner == def)
+                    .then(|| argv.get(q.index as usize).copied())
+                    .flatten()
+            });
+            Some((
+                names.text(f.name).to_owned(),
+                pool.lower_refs(self.known.ref_cell, ft),
+            ))
+        };
+        let own = OwnText {
+            text: hd_check::render(&names, body, &fields),
+            syn: body.syn.clone(),
+        };
+        lock(&self.own_text).insert(path, own);
     }
 
     /// A body, decoding its wire bytes on first use.

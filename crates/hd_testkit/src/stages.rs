@@ -7,6 +7,7 @@
 mod counts;
 mod inspection;
 mod layout;
+mod own;
 mod wat;
 pub use wat::{wat, wat_for};
 
@@ -101,7 +102,7 @@ pub fn parse(text: &str) -> Result<Case, String> {
                     for view in value.split_whitespace() {
                         if !matches!(
                             view,
-                            "tokens" | "tree" | "tir" | "wat" | "counts" | "layout"
+                            "tokens" | "tree" | "tir" | "own" | "wat" | "counts" | "layout"
                         ) {
                             return Err(format!("unknown dump `{view}`"));
                         }
@@ -439,6 +440,7 @@ pub fn view(name: &str, build: Build, p: &Program) -> Option<String> {
         "tokens" => tokens(p),
         "tree" => tree(p),
         "tir" => tir(p),
+        "own" => own::view(p, build),
         "wat" => wat_for(p, build),
         _ => return None,
     })
@@ -731,10 +733,10 @@ mod tests {
     }
     #[test]
     fn virtual_modules_reach_every_compiler_view_without_leaking_their_spans() {
-        let case = parse("# @dump: tir wat counts layout\n# @file: main.hd\nuse pkg.other.answer\n\nfn result() -> i32: answer()\n\n# @file: other.hd\npub fn answer() -> i32: +42\n").unwrap();
+        let case = parse("# @dump: tir own wat counts layout\n# @file: main.hd\nuse pkg.other.answer\n\nfn result() -> i32: answer()\n\n# @file: other.hd\npub fn answer() -> i32: +42\n").unwrap();
         let built = super::inspection::build(&case.program, true, case.build);
         assert!(!built.diags.has_errors(), "{}", built.render());
-        for view in ["tir", "wat", "counts", "layout"] {
+        for view in ["tir", "own", "wat", "counts", "layout"] {
             let out = super::view(view, case.build, &case.program).unwrap();
             assert!(out.contains("fn result()"), "{view}: {out}");
             assert!(!out.contains("pub fn answer()"), "{view}: {out}");

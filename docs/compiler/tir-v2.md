@@ -1506,6 +1506,41 @@ is worth deciding only if they are hot.
    pipelines; only six `tir` baselines change, one line each.
 4. Ownership tags, modes, `exit_drops`, `regions`, invariants 3 and 4,
    and the `own` fixture view.
+   As built: `Drop`, `IsUnique`, `Pin` and the reserved `FlagSet` and
+   `FlagClear`, each a place in a and `void` (57 tags; 56 once
+   `CopyStruct` goes). Read modes were already `Read`'s data word b
+   (`ReadMode`), where the checker writes `use`. `Body::exit_drops`
+   (rows of a sub-body and a local, sorted) and `Body::regions` (empty)
+   are columns that the printer and parser carry and that the wire
+   refuses, as it refuses the ownership statements, so pass output never
+   reaches a `check` entry; `hd_check::render` prints a body's exit set.
+   Invariant 3 is invariant 22 of `verify`, which every body the checker
+   finishes passes. Invariant 4 is invariant 23 of `verify_owned`
+   (`crates/hd_tir/src/ir/owned.rs`), the verifier of a body after the
+   passes: every read's mode decided; no read after a move or drop of an
+   overlapping place on any path (a forward walk of the structured
+   control flow, joined by union, around loops to a fixed point); no
+   borrow live across an overlapping write or a suspension point (its
+   span an instruction range through block tails, coercions and `Break`
+   values, widened to a loop that holds a use but not the read); an exit
+   set in order; nothing tier 2 reserves. The walks keep dense tables and
+   bit sets, no hash maps. **Not yet**: invariant 4's first clause, that
+   every owned value has one consumer or one `Drop` on each path. Whether
+   a use consumes depends on the callee's parameter modes (`OwnCx::pass`)
+   and on whether its type holds a counted leaf (`OwnCx::counted`), and
+   which tags consume is what insertion defines; both arrive in commit 5,
+   which adds the clause and runs `verify_owned` after the passes in
+   checked and debug builds, its first caller outside the tests. The
+   `own` view (`@dump: own`, `hd_testkit`'s `stages/own.rs`) renders each
+   body collection reads (`Run::body_of`, `Output::own_text`) and keeps
+   the instructions inside the subject by each instruction's own syntax
+   node (`Positions::node_span`), so it stays right when the passes
+   renumber a body. Until commit 5 runs the passes it shows the decoded
+   checker TIR, every mode `use`. Its two cases
+   (`crates/hd_driver/tests/cases/own/`) dump `own` beside `counts`. What
+   lowers the statements comes with the path that emits from them in
+   commit 5: the emitter, where they are `unsupported` until then, and
+   hd_mono's erased-body outlining. No emitted module changes.
 5. `hd_tir::own` skeleton, `OwnCx` in the driver, and the switch; the
    new path emits from insertion's output (copies and drops).
 6. Insertion's uniqueness and pins; the intrinsics stop checking for

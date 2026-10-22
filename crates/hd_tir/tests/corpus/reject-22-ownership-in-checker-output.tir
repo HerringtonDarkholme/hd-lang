@@ -1,0 +1,8 @@
+# expect: reject 22
+body 1 Fn
+local 4 0 - 32
+labels
+caps
+modes
+extra
+%0 = Drop 2147483648 - : 4 @-

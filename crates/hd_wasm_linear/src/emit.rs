@@ -1462,6 +1462,14 @@ impl Em<'_, '_, '_> {
             Tag::Read if let Some((list, index)) = self.b.element_read(i as usize) => {
                 self.list_index(i, &[list, index], false)?;
             }
+            // The ownership passes' statements: the checker's TIR, which
+            // this emitter lowers, has none (invariant 22).
+            Tag::Drop | Tag::IsUnique | Tag::Pin | Tag::FlagSet | Tag::FlagClear => {
+                return unsupported(format!(
+                    "an ownership statement `{}` in the checker's TIR",
+                    self.b.tags[i as usize].name()
+                ));
+            }
             // Places (`emit/refs.rs`).
             Tag::Ref => self.place_ref(i)?,
             Tag::Read => self.place_read(i)?,

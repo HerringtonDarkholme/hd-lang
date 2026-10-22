@@ -1,0 +1,13 @@
+# expect: reject 23
+body 1 Fn
+local 4 0 - 32
+sub 4 0 1 - 0
+labels
+caps
+modes
+extra 4 0 1 2 3
+%0 = Read 2147483648 2 : 4 @-
+%1 = Read 2147483648 1 : 4 @-
+%2 = FlagSet 2147483648 - : 4 @-
+%3 = FlagClear 2147483648 - : 4 @-
+%4 = Block 0 - : 4 @-

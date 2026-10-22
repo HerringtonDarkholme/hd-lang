@@ -519,6 +519,8 @@ pub struct Body {
     pub strings: Vec<Box<str>>,         // string constants' text
     pub label: Box<str>,                // what a Fact body is attached to, for panics
     pub fallback: Vec<[u32; 2]>,        // overflow checks on a literal's usize default; outside the hash
+    pub exit_drops: Vec<(SubId, LocalId)>, // the ownership passes' exit set; never on the wire
+    pub regions: Vec<(u32, u32)>,       // tier 2's lifetime regions (reserved): empty
 }
 pub struct Inst(pub u32);
 pub struct Ref(pub u32);   // bit 31 clear: an Inst's value; set: a row in this body's consts
@@ -769,6 +771,22 @@ data object's field (`[*%o .k]`), a place through a reference
 `value_operands` of these is the place's value root and element indices
 (then a `Store`'s value); a local or global root is no value.
 
+**Ownership** ([docs/compiler/tir-v2.md](../../docs/compiler/tir-v2.md#ownership-statements)).
+The ownership passes write these after decoding; the checker never does
+(invariant 22), and the wire refuses them. Each has a place in a and
+nothing in b, and its type is `void`.
+
+| Tag | Meaning |
+| --- | --- |
+| `Drop` | releases the value at the place and leaves it empty; a drop of an empty place does nothing |
+| `IsUnique` | makes the buffer of the list or map at the place its own, copying it when another holder shares it |
+| `Pin` | after an `IsUnique` of the same list place, marks its header as its buffer's one owner while element references hold counts of the buffer |
+| `FlagSet`, `FlagClear` | tier 2 only (reserved; invariant 23 rejects them): set and clear a borrow flag next to a pin |
+
+A body's one exit per sub-body drops the locals of its exit set,
+`exit_drops`: rows of a sub-body and a local, sorted, which the passes
+write. `regions` is tier 2's (reserved) and stays empty.
+
 **Providers**
 
 | Tag | Operands | Type rule |
@@ -1012,9 +1030,20 @@ The verifier checks each of these:
     global root, or a dereference or an element among its projections
     (an element is a slot of the buffer a list header names). A value
     root is never written in place.
+22. **The checker's TIR has no ownership**: every `Read` has mode `use`,
+    and there is no `Drop`, `IsUnique`, `Pin`, `FlagSet` or `FlagClear`,
+    no `exit_drops` row and no `regions` row.
+23. **After the ownership passes, ownership balances**: every owned
+    value has exactly one consumer or one `Drop` on each path; no `Read`
+    of a place follows its `move` on any path without a `Store` in
+    between; no `borrow` value is live across a write to an overlapping
+    place or a suspension point. Every `Read` has a decided mode, the exit
+    set names locals of the body, sorted, and nothing tier 2 reserves
+    occurs.
 
-Implementation differs: `verify` checks invariants 1 to 15, 17, 20 and
-21 (`CHECKED_INVARIANTS`), several in part. The checker's facts come in
+Implementation differs: `verify` checks invariants 1 to 15, 17 and 20
+to 22 (`CHECKED_INVARIANTS`), several in part, and `verify_owned` the
+same with 23 in place of 22, for a body after the ownership passes. The checker's facts come in
 through `VerifyCx`: `verify_in` and `TirBuilder::finish_in` take them,
 and the checker's own `finish` passes them for each body it checks. A
 body built elsewhere, such as a generated structure method, gets
@@ -1039,6 +1068,18 @@ body built elsewhere, such as a generated structure method, gets
   - 12: only that the row exists.
   - 15: only the operands, for a `DefaultCall` passed to a `Call` or
     `Await`.
+  - 23 (`src/ir/owned.rs`): a `Read` or `IsUnique` or `Pin` after a
+    `move` read or a `Drop` of an overlapping place, joined over every
+    path and to a fixed point around loops, with a `Store` that covers
+    the place refilling it; a `borrow` read's span as a range of
+    instructions from the read to the last its value reaches, through
+    block tails, coercions and `Break` values, widened to a whole loop
+    that holds a use but not the read. Places overlap as
+    docs/compiler/tir-v2.md's "Places" says, with no types: two roots
+    overlap only when one goes behind a reference or into a buffer and
+    the other is where a reference can reach. Not checked: that every
+    owned value has one consumer or one `Drop`, since which uses consume
+    depends on `OwnCx`'s parameter modes and counted types.
 - **8.** Every call writes `Providers::None` today, and codegen reads
   providers from the callee's signature. So the check rejects a
   `Pending` form after `finish`, and pairs whose count is not the
@@ -1100,6 +1141,9 @@ with its per-item interface hash), for code keys.
   tag, and a tag whose words are not mapped is refused with a structured
   error, never written with run IDs. `map_ids` rewrites a decoded body
   into another run's IDs.
+- **Checker output only.** The ownership passes run after decoding, so
+  the wire refuses their output: an ownership statement, and an
+  `exit_drops` or `regions` row, are structured errors.
 - **The TIR hash** (`tir_hash`) is the hash of the hashed prefix. Because
   tables are per body, it is a function of that body alone, the same on
   every run and thread count. A module pays for this stability by

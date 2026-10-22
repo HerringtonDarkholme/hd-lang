@@ -1,0 +1,8 @@
+# @dump: own counts
+# The ownership passes' view of a list local read at its last use, beside
+# the emitter's counts: insertion copies the read and drops the local after
+# it; move turns the copy into a move and deletes the drop.
+fn last(xs: List[i32]) -> List[i32]:
+    ys := xs
+    # subject
+    ys

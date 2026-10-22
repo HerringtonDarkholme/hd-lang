@@ -4,7 +4,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use hd_base::DefId;
-use hd_tir::ir::{CHECKED_INVARIANTS, Callee, Tag, VerifyCx, parse, print, verify, verify_in};
+use hd_tir::ir::{
+    CHECKED_INVARIANTS, Callee, Tag, VerifyCx, parse, print, verify, verify_in, verify_owned,
+};
 use hd_types::Ty;
 
 /// The checker's facts the rejection cases assume: type 77 is an enum of
@@ -30,6 +32,8 @@ impl VerifyCx for CorpusFacts {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Expect {
     Ok,
+    /// A body after the ownership passes (`verify_owned`).
+    Owned,
     Reject(u8),
 }
 
@@ -43,6 +47,9 @@ fn expectation(header: &str) -> Expect {
         .unwrap_or_else(|| panic!("missing expectation header: {header}"));
     if value == "ok" {
         return Expect::Ok;
+    }
+    if value == "owned" {
+        return Expect::Owned;
     }
     let invariant = value
         .strip_prefix("reject ")
@@ -85,9 +92,19 @@ fn text_corpus_round_trips_and_verifies() {
                 assert!(errors.is_empty(), "{}: {errors:?}", path.display());
                 valid_tags.extend(body.tags.iter().copied());
             }
+            Expect::Owned => {
+                let errors = verify_owned(&body);
+                assert!(errors.is_empty(), "{}: {errors:?}", path.display());
+                valid_tags.extend(body.tags.iter().copied());
+            }
             Expect::Reject(invariant) => {
-                // A rejection case may need the checker's facts.
-                let errors = verify_in(&body, &CorpusFacts);
+                // A rejection case may need the checker's facts; invariant
+                // 23 holds after the ownership passes.
+                let errors = if invariant == 23 {
+                    verify_owned(&body)
+                } else {
+                    verify_in(&body, &CorpusFacts)
+                };
                 let actual: BTreeSet<u8> = errors.iter().map(|error| error.invariant).collect();
                 assert_eq!(actual, BTreeSet::from([invariant]), "{}", path.display());
                 rejected_tags.extend(body.tags.iter().copied());
@@ -98,7 +115,7 @@ fn text_corpus_round_trips_and_verifies() {
 
     let missing: Vec<&str> = Tag::ALL
         .iter()
-        .filter(|tag| **tag != Tag::Hole && !valid_tags.contains(tag))
+        .filter(|tag| !reserved(**tag) && !valid_tags.contains(tag))
         .map(|tag| tag.name())
         .collect();
     assert!(missing.is_empty(), "valid corpus misses tags: {missing:?}");
@@ -106,9 +123,19 @@ fn text_corpus_round_trips_and_verifies() {
         rejected_tags.contains(&Tag::Hole),
         "the reserved Hole tag needs its invariant-14 case"
     );
+    assert!(
+        rejected_tags.contains(&Tag::FlagSet) && rejected_tags.contains(&Tag::FlagClear),
+        "the tier-2 flag tags need their invariant-23 case"
+    );
     assert_eq!(
         rejected_invariants,
         CHECKED_INVARIANTS.iter().copied().collect(),
         "the corpus needs one rejection per checked verifier invariant"
     );
+}
+
+/// Tags no valid body holds: a reserved slot (invariant 14), and tier 2's
+/// borrow flags (invariant 23).
+fn reserved(tag: Tag) -> bool {
+    matches!(tag, Tag::Hole | Tag::FlagSet | Tag::FlagClear)
 }

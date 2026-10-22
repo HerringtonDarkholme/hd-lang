@@ -120,6 +120,15 @@ fn tag_id_words(b: &Body, i: usize) -> StageResult<Vec<IdWord>> {
         Tag::RefDyn | Tag::RefIdentity => vec![],
         // A global root's IDs are the place's ([`place_id_words`]).
         Tag::Read | Tag::Store | Tag::Ref => vec![],
+        // The ownership passes run after decoding, so their statements
+        // never reach the wire (`docs/compiler/tir-v2.md`, "Encoding, wire
+        // format and caching").
+        Tag::Drop | Tag::IsUnique | Tag::Pin | Tag::FlagSet | Tag::FlagClear => {
+            return Err(NotImplemented::bug(
+                Stage::ModuleFinish,
+                format!("wire form of the ownership statement {}", b.tags[i].name()),
+            ));
+        }
         Tag::Prim
         | Tag::CallHost
         | Tag::CallValue
@@ -246,6 +255,14 @@ pub fn write_body(
         return Err(NotImplemented::new(
             Stage::ModuleFinish,
             "wire form of suspension rows",
+        ));
+    }
+    // The exit set is the ownership passes' output, which runs after
+    // decoding; lifetime regions are tier 2's.
+    if !b.exit_drops.is_empty() || !b.regions.is_empty() {
+        return Err(NotImplemented::bug(
+            Stage::ModuleFinish,
+            "wire form of exit drops or lifetime regions",
         ));
     }
     let mut w = Writer::default();

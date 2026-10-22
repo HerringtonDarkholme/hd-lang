@@ -133,7 +133,7 @@ fn duplicate(text: string) -> (string, string):
     (text, text)
 ```
 
-`@dump` lists one or more of `tokens`, `tree`, `tir`, `wat`,
+`@dump` lists one or more of `tokens`, `tree`, `tir`, `own`, `wat`,
 `counts`, or `layout`. `@build` is optional: engine targets are `v8`
 (the default), `wasmtime`, and `browser`; levels are `dev` (the default)
 and `release` (the optimized pipeline and release profile). A separate
@@ -172,6 +172,13 @@ The views keep their stage's evidence:
   a child's span.
 - `tir`: checked instructions and the locals they use, by body, filtered
   with `Positions::span`; each local shows its flags (`[param read]`).
+- `own`: each body collection reads, as the ownership passes leave it
+  (`docs/compiler/tir-v2.md`, "Where and when the passes run"): its
+  instructions with their read modes and ownership statements, filtered
+  by each instruction's own syntax node (`Positions::node_span`), the
+  locals they use, and the body's exit set. Built with `Goal::Fixture`,
+  as `wat` is; until the passes exist it shows the checker's TIR as
+  collection decodes it.
 - `wat`: normalized Wasm for the functions a case defines, emitted with
   `Goal::Fixture` without requiring `main`. Generic functions need a
   concrete call. Per-instruction origins preserve source attribution.

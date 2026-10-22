@@ -399,5 +399,17 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
             ty(names, b.ty[i])
         );
     }
+    // The ownership passes' exit set, per sub-body (`Body::exit_drops`).
+    for s in 0..b.sub_root.len() {
+        let locals: Vec<String> = b
+            .exit_drops
+            .iter()
+            .filter(|(sub, _)| sub.idx() == s)
+            .map(|(_, l)| format!("${}", l.raw()))
+            .collect();
+        if !locals.is_empty() {
+            let _ = writeln!(o, "  exit sub {s} drops [{}]", locals.join(" "));
+        }
+    }
     o
 }

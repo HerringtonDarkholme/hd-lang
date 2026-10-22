@@ -152,8 +152,17 @@ impl Positions {
     #[must_use]
     pub fn span(&self, item: &str, inst: u32) -> Option<(&str, u32, u32)> {
         let (_, source) = self.module_of(item)?;
+        let node = *source.module()?.bodies.get(item)?.syn.get(inst as usize)?;
+        self.node_span(item, node)
+    }
+
+    /// The file and byte span of syntax node `node` of the module that
+    /// holds the item with stable path `item`: where an instruction of a
+    /// body rewritten after checking stands, by its own `syn` column.
+    #[must_use]
+    pub fn node_span(&self, item: &str, node: NodeIdx) -> Option<(&str, u32, u32)> {
+        let (_, source) = self.module_of(item)?;
         let module = source.module()?;
-        let node = *module.bodies.get(item)?.syn.get(inst as usize)?;
         if node == NodeIdx::NONE || node.idx() >= module.parse.tree.len() {
             return None;
         }

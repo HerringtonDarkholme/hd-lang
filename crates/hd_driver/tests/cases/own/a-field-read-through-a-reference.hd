@@ -1,0 +1,11 @@
+# @dump: own counts
+# The ownership passes' view of a field read through a reference
+# parameter, beside the emitter's counts: borrow keeps the read off the
+# counts while nothing in its span may write the referent.
+struct Named:
+    name: string
+    size: i32
+
+fn label(n: &Named) -> string:
+    # subject
+    n.name + "!"

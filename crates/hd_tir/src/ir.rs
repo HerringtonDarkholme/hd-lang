@@ -13,6 +13,9 @@ use hd_base::{
 };
 use hd_types::{Ty, TyList};
 
+mod owned;
+pub use owned::verify_owned;
+
 pub const NONE: u32 = u32::MAX;
 
 /// An instruction index in its body.
@@ -129,6 +132,14 @@ tags! {
     Read: Place, Meta;
     Store: Place, Value;
     Ref: Place, Meta;
+    // ownership (`docs/compiler/tir-v2.md`, "Ownership statements"): the
+    // ownership passes write these after decoding, never the checker; a
+    // is a place word. `FlagSet` and `FlagClear` are reserved for tier 2.
+    Drop: Place, None;
+    IsUnique: Place, None;
+    Pin: Place, None;
+    FlagSet: Place, None;
+    FlagClear: Place, None;
     // providers
     With: Record, Block;
     ContextNew: Record, None;
@@ -790,6 +801,17 @@ pub struct Body {
     /// none (`flow.panic.report.fallback`). Sorted by instruction. A
     /// location-like column, outside the hash: it changes no code.
     pub fallback: Vec<[u32; 2]>,
+    /// The ownership passes' exit set (`docs/compiler/tir-v2.md`,
+    /// "Ownership statements"): per row, a sub-body and an owned local of
+    /// it that may still hold a value at the sub-body's one exit, which
+    /// drops it. Sorted, each row once. A pass output: empty in the
+    /// checker's TIR (invariant 22), never written to the wire.
+    pub exit_drops: Vec<(SubId, LocalId)>,
+    /// Lifetime regions of borrows, per row an instruction and its region,
+    /// sorted (`docs/compiler/tir-v2.md`, "Encoding, wire format and
+    /// caching"): reserved for tier 2, so empty in tier 1 (invariants 22
+    /// and 23).
+    pub regions: Vec<(u32, u32)>,
 }
 
 impl Body {
@@ -819,6 +841,8 @@ impl Body {
             strings: vec![],
             label: "".into(),
             fallback: vec![],
+            exit_drops: vec![],
+            regions: vec![],
         }
     }
 
@@ -1604,10 +1628,11 @@ impl VerifyError {
 
 /// Invariants this verifier checks, some in part (`crates/hd_tir/DESIGN.md`
 /// §4.13.11, "Implementation differs"). Of them, 8, 11, 13 and 17 need
-/// the checker's facts ([`VerifyCx`], [`verify_in`]), and 3's `Hole` and
-/// `Poison` half the module's errors ([`poison_sites`]).
+/// the checker's facts ([`VerifyCx`], [`verify_in`]), 3's `Hole` and
+/// `Poison` half the module's errors ([`poison_sites`]), and 23 holds
+/// after the ownership passes ([`verify_owned`]) where 22 holds before.
 pub const CHECKED_INVARIANTS: &[u8] = &[
-    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 20, 21,
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 20, 21, 22, 23,
 ];
 
 /// What the verifier reads from the checker for the invariants a body
@@ -1815,7 +1840,7 @@ pub fn global_place_types(b: &Body) -> Vec<usize> {
 
 /// The blocks instruction `i` owns through its operands: a block
 /// operand, a block list, a switch's two arms, or a `Defer`'s suite.
-fn owned_blocks(b: &Body, i: usize) -> Vec<u32> {
+pub(crate) fn owned_blocks(b: &Body, i: usize) -> Vec<u32> {
     let [a, w] = b.data[i];
     let tag = b.tags[i];
     let mut out = Vec::new();
@@ -1887,9 +1912,54 @@ pub fn defer_suite_violations(b: &Body, suite: u32) -> Vec<u32> {
     out
 }
 
-/// Verifies a body (§4.13.11 "Invariants").
+/// Verifies the checker's TIR of a body (§4.13.11 "Invariants"): the
+/// structural invariants, and 22, that it has no ownership yet. A body
+/// after the ownership passes is verified with [`verify_owned`].
 #[must_use]
 pub fn verify(b: &Body) -> Vec<VerifyError> {
+    let mut errs = verify_structure(b);
+    no_ownership(b, &mut errs);
+    errs
+}
+
+/// Invariant 22: the checker's TIR has no ownership
+/// (`docs/compiler/tir-v2.md`, "Invariants" 3): every `Read` has mode
+/// `use`, and there is no ownership statement, exit set row or lifetime
+/// region row.
+fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
+    for (i, (&tag, &[_, w])) in b.tags.iter().zip(&b.data).enumerate() {
+        let what = match tag {
+            Tag::Read if w != ReadMode::Use as u32 => match ReadMode::from_u32(w) {
+                Some(m) => format!("a `Read` of mode {m:?} before the ownership passes"),
+                None => format!("a `Read` of unknown mode {w}"),
+            },
+            Tag::Drop | Tag::IsUnique | Tag::Pin | Tag::FlagSet | Tag::FlagClear => {
+                format!("an ownership statement `{}` before the passes", tag.name())
+            }
+            _ => continue,
+        };
+        errs.push(VerifyError {
+            invariant: 22,
+            inst: u32::try_from(i).expect("i"),
+            what,
+        });
+    }
+    if !b.exit_drops.is_empty() || !b.regions.is_empty() {
+        errs.push(VerifyError {
+            invariant: 22,
+            inst: NONE,
+            what: format!(
+                "{} exit drop and {} region rows before the ownership passes",
+                b.exit_drops.len(),
+                b.regions.len()
+            ),
+        });
+    }
+}
+
+/// The invariants of every body, before or after the ownership passes:
+/// all of [`CHECKED_INVARIANTS`] but 22 and 23.
+pub(crate) fn verify_structure(b: &Body) -> Vec<VerifyError> {
     let mut errs = Vec::new();
     let n = u32::try_from(b.len()).expect("insts");
     let mut owner = vec![NONE; b.len()];
@@ -2140,7 +2210,7 @@ fn call_args(b: &Body, i: usize) -> &[u32] {
     &r[..r.len().saturating_sub(3)]
 }
 
-fn is_suspension(tag: Tag) -> bool {
+pub(crate) fn is_suspension(tag: Tag) -> bool {
     matches!(
         tag,
         Tag::Await | Tag::AwaitValue | Tag::AwaitAll | Tag::AwaitRace
@@ -2345,6 +2415,12 @@ pub fn print(b: &Body) -> String {
     for [inst, local] in &b.fallback {
         let _ = writeln!(o, "fallback {inst} {local}");
     }
+    for (sub, local) in &b.exit_drops {
+        let _ = writeln!(o, "exitdrop {} {}", sub.raw(), local.raw());
+    }
+    for (inst, region) in &b.regions {
+        let _ = writeln!(o, "region {inst} {region}");
+    }
     for (t, bits) in &b.consts {
         let _ = writeln!(o, "const {} {bits}", t.0);
     }
@@ -2484,6 +2560,21 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
                 }
                 b.fallback.push([v[0], v[1]]);
             }
+            "exitdrop" => {
+                let v = nums(1)?;
+                if v.len() != 2 {
+                    return Err(e("exitdrop needs 2 fields".into()));
+                }
+                b.exit_drops
+                    .push((SubId::from_raw(v[0]), LocalId::from_raw(v[1])));
+            }
+            "region" => {
+                let v = nums(1)?;
+                if v.len() != 2 {
+                    return Err(e("region needs 2 fields".into()));
+                }
+                b.regions.push((v[0], v[1]));
+            }
             "const" => {
                 let t = word(f.get(1).copied().unwrap_or("")).map_err(e)?;
                 let bits: u64 = f
@@ -2520,7 +2611,7 @@ mod tests {
         BodyKind, Callee, CaptureMode, ChoiceKind, Coercion, NONE, Providers, SuspRow, Tag,
         TirBuilder, TirSink, VerifyCx, parse, print, verify, verify_in,
     };
-    use hd_base::{DefId, LocalId, NodeIdx, Range32, Symbol};
+    use hd_base::{DefId, LocalId, NodeIdx, Range32, SubId, Symbol};
     use hd_types::{Ty, TyList};
 
     fn sample() -> super::Body {
@@ -3180,6 +3271,156 @@ mod tests {
         assert!(invariants(&b).contains(&4));
     }
 
+    /// A body as the ownership passes leave it, built by `f` inside one
+    /// root block of a body with a parameter `$0` and a local `$1`, both
+    /// `i32`; invariant 22 is tolerated, since it holds only before the
+    /// passes.
+    fn owned_body(f: impl FnOnce(&mut TirBuilder, NodeIdx)) -> super::Body {
+        use super::local_flags::PARAM;
+        let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let n = NodeIdx::from_raw(1);
+        let blk = b.open_block();
+        let _x = b.local(Ty::I32, Symbol::from_raw(0), PARAM, n);
+        let _y = b.local(Ty::I32, Symbol::from_raw(1), 0, n);
+        f(&mut b, n);
+        let root = b.close_block(blk, None, Ty::VOID, n);
+        b.finish_tolerating(root, &[], &[22])
+            .expect("structurally valid")
+    }
+
+    fn read(b: &mut TirBuilder, place: &str, mode: super::ReadMode, n: NodeIdx) -> super::Ref {
+        let word = b.place(&place.parse().expect("place"));
+        b.emit(Tag::Read, word, mode as u32, Ty::I32, n)
+    }
+
+    fn statement(b: &mut TirBuilder, tag: Tag, place: &str, n: NodeIdx) {
+        let word = b.place(&place.parse().expect("place"));
+        b.emit(tag, word, NONE, Ty::VOID, n);
+    }
+
+    fn findings(errs: &[super::VerifyError]) -> Vec<(u8, u32)> {
+        errs.iter().map(|e| (e.invariant, e.inst)).collect()
+    }
+
+    /// Invariant 22: the checker's TIR has no ownership: no decided read
+    /// mode, no ownership statement, no exit set or region row.
+    #[test]
+    fn checker_output_has_no_ownership() {
+        use super::{ReadMode, verify};
+        let body = owned_body(|b, n| {
+            read(b, "[$0]", ReadMode::Copy, n);
+            statement(b, Tag::Drop, "[$0]", n);
+            read(b, "[$1]", ReadMode::Use, n);
+        });
+        assert_eq!(findings(&verify(&body)), [(22, 0), (22, 1)]);
+        let mut rows = owned_body(|_, _| {});
+        assert!(verify(&rows).is_empty());
+        rows.exit_drops
+            .push((SubId::from_raw(0), LocalId::from_raw(1)));
+        assert_eq!(findings(&verify(&rows)), [(22, NONE)]);
+    }
+
+    /// The new statements and columns print and parse back.
+    #[test]
+    fn ownership_statements_and_columns_round_trip() {
+        use super::ReadMode;
+        let mut body = owned_body(|b, n| {
+            read(b, "[$0]", ReadMode::Borrow, n);
+            statement(b, Tag::IsUnique, "[$1]", n);
+            statement(b, Tag::Pin, "[$1]", n);
+            statement(b, Tag::Drop, "[$0]", n);
+        });
+        body.exit_drops
+            .push((SubId::from_raw(0), LocalId::from_raw(1)));
+        body.regions.push((0, 3));
+        assert_eq!(parse(&print(&body)).expect("parses"), body);
+    }
+
+    /// Invariant 23: no read of a place after its move or drop on any
+    /// path without a store that refills it, a loop's next round
+    /// included.
+    #[test]
+    fn verifier_rejects_reads_after_a_move() {
+        use super::{ReadMode, verify_owned};
+        let moved = owned_body(|b, n| {
+            read(b, "[$0]", ReadMode::Move, n);
+            read(b, "[$0]", ReadMode::Copy, n);
+        });
+        assert_eq!(findings(&verify_owned(&moved)), [(23, 1)]);
+        let refilled = owned_body(|b, n| {
+            let v = read(b, "[$0]", ReadMode::Move, n);
+            let at = b.place(&"[$0]".parse().expect("place"));
+            b.emit(Tag::Store, at, v.0, Ty::VOID, n);
+            read(b, "[$0]", ReadMode::Copy, n);
+            statement(b, Tag::Drop, "[$0]", n);
+            statement(b, Tag::Drop, "[$0]", n);
+        });
+        assert!(verify_owned(&refilled).is_empty());
+        let in_a_loop = owned_body(|b, n| {
+            let lp = b.open_loop();
+            let body = b.open_block();
+            read(b, "[$0]", ReadMode::Copy, n);
+            read(b, "[$0]", ReadMode::Move, n);
+            let yes = b.const_value(Ty::BOOL, 1);
+            let tb = b.open_block();
+            b.emit(Tag::Break, lp.0.raw(), NONE, Ty::NEVER, n);
+            let then = b.close_block(tb, None, Ty::VOID, n);
+            let eb = b.open_block();
+            let els = b.close_block(eb, None, Ty::VOID, n);
+            let arms = b.refs_record(&[then, els]);
+            b.emit(Tag::If, yes.0, arms, Ty::VOID, n);
+            let body = b.close_block(body, None, Ty::VOID, n);
+            b.close_loop(lp, body, Ty::VOID, n);
+        });
+        // The next round copies, then moves again, what this one moved.
+        assert_eq!(findings(&verify_owned(&in_a_loop)), [(23, 0), (23, 1)]);
+    }
+
+    /// Invariant 23: a borrow lives across no write to an overlapping place
+    /// before its value's last use.
+    #[test]
+    fn verifier_rejects_a_borrow_across_a_write() {
+        use super::{PrimOp, ReadMode, verify_owned};
+        let across = |at: &'static str| {
+            owned_body(move |b, n| {
+                let v = read(b, "[$0]", ReadMode::Borrow, n);
+                let one = b.const_value(Ty::I32, 1);
+                let place = b.place(&at.parse().expect("place"));
+                b.emit(Tag::Store, place, one.0, Ty::VOID, n);
+                b.prim(PrimOp::Add as u32, &[v, one], Ty::I32, n);
+            })
+        };
+        assert_eq!(findings(&verify_owned(&across("[$0]"))), [(23, 0)]);
+        assert!(verify_owned(&across("[$1]")).is_empty());
+        let after = owned_body(|b, n| {
+            let v = read(b, "[$0]", ReadMode::Borrow, n);
+            let one = b.const_value(Ty::I32, 1);
+            b.prim(PrimOp::Add as u32, &[v, one], Ty::I32, n);
+            statement(b, Tag::Drop, "[$0]", n);
+        });
+        assert!(verify_owned(&after).is_empty());
+    }
+
+    /// Invariant 23: nothing tier 2 reserves, a decided mode for every
+    /// read, and an exit set in order.
+    #[test]
+    fn verifier_rejects_tier_two_and_undecided_ownership() {
+        use super::{ReadMode, verify_owned};
+        let mut body = owned_body(|b, n| {
+            read(b, "[$0]", ReadMode::Use, n);
+            statement(b, Tag::FlagSet, "[$0]", n);
+        });
+        body.regions.push((0, 0));
+        body.exit_drops = vec![
+            (SubId::from_raw(0), LocalId::from_raw(1)),
+            (SubId::from_raw(0), LocalId::from_raw(0)),
+        ];
+        assert_eq!(
+            findings(&verify_owned(&body)),
+            [(23, 0), (23, 1), (23, NONE), (23, NONE)]
+        );
+    }
+
     #[test]
     fn rollback_restores_columns_and_every_tag_has_a_schema() {
         let mut b = TirBuilder::new(DefId::from_raw(1), BodyKind::Init);
@@ -3199,7 +3440,7 @@ mod tests {
         let root = b.close_block(blk, Some(one), Ty::I32, NodeIdx::NONE);
         let body = b.finish(root, &[]).expect("ok");
         assert_eq!(body.len(), 1);
-        assert_eq!(Tag::ALL.len(), 52);
+        assert_eq!(Tag::ALL.len(), 57);
         assert!(
             Tag::ALL
                 .iter()
