@@ -1202,36 +1202,50 @@ fn zero_bound_accept_returns_peer_connection_queued_before_the_probe() {
         .unwrap()
         .local_addr()
         .unwrap();
+    // The old guest-only 50 ms sleep did not establish that the peer
+    // thread had connected. A separate control stream acknowledges an
+    // actual completed connect before the guest probes its listener.
+    let control = TcpFixture::new(move |mut control| {
+        let mut go = [0; 2];
+        control.read_exact(&mut go).unwrap();
+        assert_eq!(&go, b"go");
+        let _queued = TcpStream::connect_timeout(&address, Duration::from_secs(10)).unwrap();
+        control.write_all(b"q").unwrap();
+        // Keep the queued peer alive until the guest closes its accepted
+        // stream and the control connection; no timer decides readiness.
+        let mut rest = Vec::new();
+        control.read_to_end(&mut rest).unwrap();
+        assert!(rest.is_empty());
+    });
     let mut p = Program::new();
     open(&mut p, "listen", "127.0.0.1", address.port(), vec![0, 1]);
     set_timeout(&mut p, "TcpListener", 1, Some(0));
-    pause_for_queued_input(&mut p);
-    handle(&mut p, "TcpListener.accept", &[1], None, vec![0, 2]);
+    open(
+        &mut p,
+        "connect",
+        "127.0.0.1",
+        control.address.port(),
+        vec![0, 2],
+    );
+    handle(
+        &mut p,
+        "TcpStream.write",
+        &[2],
+        Some(&Enc::default().bytes(b"go").0),
+        vec![0],
+    );
+    handle(
+        &mut p,
+        "TcpStream.read",
+        &[2, 1],
+        None,
+        Enc::default().leb(0).bytes(b"q").0,
+    );
+    handle(&mut p, "TcpListener.accept", &[1], None, vec![0, 3]);
+    handle(&mut p, "TcpStream.close", &[3], None, vec![0]);
     handle(&mut p, "TcpStream.close", &[2], None, vec![0]);
     handle(&mut p, "TcpListener.close", &[1], None, vec![0]);
-    let peers = Mutex::new(Vec::new());
-    assert_program(&scratch, p, vec![], || {
-        peers.lock().unwrap().push(std::thread::spawn(move || {
-            let deadline = Instant::now() + Duration::from_secs(20);
-            loop {
-                assert!(Instant::now() < deadline, "the guest listener starts");
-                let Ok(mut peer) = TcpStream::connect_timeout(&address, Duration::from_millis(50))
-                else {
-                    std::thread::sleep(Duration::from_millis(5));
-                    continue;
-                };
-                peer.set_read_timeout(Some(Duration::from_secs(10)))
-                    .unwrap();
-                let mut rest = Vec::new();
-                if peer.read_to_end(&mut rest).is_ok() && rest.is_empty() {
-                    break;
-                }
-            }
-        }));
-    });
-    for peer in peers.into_inner().unwrap() {
-        peer.join().unwrap();
-    }
+    assert_program(&scratch, p, vec![], || {});
 }
 
 /// A composed deadline must be able to poll while connect is still waiting
