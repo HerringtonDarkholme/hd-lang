@@ -4806,3 +4806,4 @@ typing/invalid/http-client-send-missing-provider.hd	type	reject:missing-requirem
 runtime/valid/iterator-flat-map-iterable.hd	runtime	accept	std/iter.md#r-std-iter.adapter.flat-map.owned-iterable
 runtime/valid/task-retry-policy.hd	runtime	accept	std/task.md#retry-with-backoff
 typing/invalid/task-retry-zero-delay-needs-clock.hd	type	reject:missing-requirement	std/task.md#r-std-task.retry.policy.clock
+runtime/valid/list-flat-map-iterable.hd	runtime	accept	std/collections.md#r-std-collections.helper.flat-map.iterable-owned

@@ -268,8 +268,8 @@ impl[T] List[T]:
         .None
 
     ## Applies `transform` to each element and concatenates the results, in order.
-    ## See [std-collections.helper.flat-map](../../spec/std/collections.md#r-std-collections.helper.flat-map).
-    pub fn flat_map[U](self, transform: fn(T) -> List[U]) -> List[U]:
+    ## See [std-collections.helper.flat-map.iterable-owned](../../spec/std/collections.md#r-std-collections.helper.flat-map.iterable-owned).
+    pub fn flat_map[U, I < Iterable[U]](self, transform: fn(T) -> I) -> List[U]:
         let mut flat: List[U] = []
         for item in self:
             for part in transform(item):

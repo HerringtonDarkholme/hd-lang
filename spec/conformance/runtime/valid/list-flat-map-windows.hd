@@ -1,5 +1,5 @@
 # test: flat_map joins lists in order, and windows gives overlapping runs or [] for a short list
-# Spec std/collections List Helpers: std-collections.helper.flat-map, std-collections.helper.windows.views, std-collections.helper.windows.short.
+# Spec std/collections List Helpers: std-collections.helper.flat-map.iterable-owned, std-collections.helper.windows.views, std-collections.helper.windows.short.
 use std.collections.ListView
 fn steps(readings: List[i32]) -> List[List[i32]]:
     readings.windows(2).map(fn(window: ListView[i32]) -> List[i32]: window.to_list())

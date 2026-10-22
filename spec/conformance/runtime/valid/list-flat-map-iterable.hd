@@ -1,0 +1,61 @@
+# test: List.flat_map accepts optional and custom Iterable results while retaining List callers
+# Spec std/collections List Helpers: std-collections.helper.flat-map.iterable-owned.
+# expect: test
+
+@derive(Debug, Eq)
+struct Hit:
+    text: string
+
+fn parse(line: string) -> Hit?:
+    if line.starts_with("hit:"):
+        .Some(Hit { text: line })
+    else:
+        .None
+
+struct Repeat:
+    value: i32
+    count: usize
+
+struct RepeatIter:
+    value: i32
+    left: usize
+
+impl Iterator[i32] for RepeatIter:
+    fn next(&mut self) -> i32?:
+        if self.left == 0:
+            return .None
+        self.left -= 1
+        .Some(self.value)
+
+impl Iterable[i32] for Repeat:
+    type IntoIter = RepeatIter
+    fn iter(self) -> RepeatIter:
+        RepeatIter { value: self.value, left: self.count }
+
+tests:
+    use std.testing.assert_equal
+
+    it("optional parsing keeps only hits without one list per line"):
+        lines := ["miss", "hit:a", "", "hit:b"]
+        hits := lines.flat_map(parse)
+        assert_equal(hits, [Hit { text: "hit:a" }, Hit { text: "hit:b" }], reason="Some payloads in source order")
+        assert_equal(["miss", ""].flat_map(parse).len(), 0, reason="all None")
+        let empty: List[string] = []
+        assert_equal(empty.flat_map(parse).len(), 0, reason="empty source")
+        assert_equal(lines.len(), 4, reason="source unchanged")
+
+    it("custom Iterable results need no intermediate list"):
+        assert_equal([+0, 2, 1, 3].flat_map(fn(n: i32) -> Repeat: Repeat { value: n, count: usize(n) }), [+2, 2, 1, 3, 3, 3], reason="custom iteration order and empty result")
+
+    it("existing List callbacks retain their order and empty parts"):
+        assert_equal([+1, 2].flat_map(fn(n: i32) -> List[i32]: [n, n * 10]), [+1, 10, 2, 20], reason="old List callback")
+        assert_equal([+1, 2].flat_map(fn(n: i32) -> List[i32]: []), [], reason="empty lists")
+
+    it("callbacks run exactly once in source order"):
+        let mut visited: List[i32] = []
+        actual := [+3, 0, 2].flat_map(fn(n: i32) -> Repeat:
+            visited.push(n)
+            Repeat { value: n, count: usize(n) }
+        )
+        assert_equal(visited, [+3, 0, 2], reason="one callback per source item")
+        assert_equal(actual, [+3, 3, 3, 2, 2], reason="all items collected")
