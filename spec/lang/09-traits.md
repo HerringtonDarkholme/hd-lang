@@ -278,7 +278,15 @@ The standard library also defines `Hash` and `Hasher` in `std.hash`:
 ```text
 trait Hasher:
     fn write(&mut self, bytes: List[u8]) -> void
+    fn write_u8(&mut self, value: u8) -> void
+    fn write_u16(&mut self, value: u16) -> void
+    fn write_u32(&mut self, value: u32) -> void
     fn write_u64(&mut self, value: u64) -> void
+    fn write_usize(&mut self, value: usize) -> void
+    fn write_i8(&mut self, value: i8) -> void
+    fn write_i16(&mut self, value: i16) -> void
+    fn write_i32(&mut self, value: i32) -> void
+    fn write_i64(&mut self, value: i64) -> void
     fn write_str(&mut self, text: string) -> void
 
 trait Hash:
@@ -289,8 +297,12 @@ trait Hash:
 2. r[trait.hash.map-key] A map key must implement both `Eq` and `Hash`.
 3. r[trait.hash.not-inferred] Neither trait is inferred for user-defined structs or enums, including payload-free enums.
 4. r[trait.hash.unverified] The compiler does not verify any relationship between their implementations.
-5. r[trait.hash.hasher-methods] `write` is the only required method of `Hasher`. `write_u64` and `write_str` have default bodies over `write`: `write_u64(value)` calls `write` with the eight bytes of `value`, least significant first, and `write_str(text)` calls `write` with the UTF-8 bytes of `text` and no length. An implementation may override either to hash the same bytes without building a list, and it must give the same result as the default.
-6. r[trait.hash.ref-receiver] `Hasher`'s methods take `&mut self`, and `Hash.hash` receives its hasher as `&mut dyn Hasher`. So a struct that implements `Hasher` changes in place through a bound and through a trait value reference, and its caller reads the changed state afterwards.
+5. r[trait.hash.write-required] `write` is the only required method of `Hasher`.
+6. r[trait.hash.typed-methods] `Hasher` supplies default methods `write_u8`, `write_u16`, `write_u32`, `write_u64`, `write_usize`, `write_i8`, `write_i16`, `write_i32`, `write_i64` and `write_str` over `write`.
+7. r[trait.hash.typed-bytes] Each integer method writes the value's bytes least significant first, using two's-complement representation for signed values. Widths are one byte for `i8` and `u8`, two for `i16` and `u16`, four for `i32`, `u32` and `usize`, and eight for `i64` and `u64`.
+8. r[trait.hash.string-bytes] `write_str(text)` writes the UTF-8 bytes of `text`, with no length.
+9. r[trait.hash.override-equivalent] An implementation may override a typed method, but it must give the same result as writing the specified bytes through `write`.
+10. r[trait.hash.ref-receiver] `Hasher`'s methods take `&mut self`, and `Hash.hash` receives its hasher as `&mut dyn Hasher`. So a struct that implements `Hasher` changes in place through a bound and through a trait value reference, and its caller reads the changed state afterwards.
 
 > **Note.** A key that holds a reference can still change through another
 > reference to the same place, potentially leaving its map entry unreachable.

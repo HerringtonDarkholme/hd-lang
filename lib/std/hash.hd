@@ -14,13 +14,53 @@ use std.structure.{Structure, Walker, Variant, Field}
 pub trait Hasher:
     fn write(&mut self, bytes: List[u8]) -> void
 
-    ## Writes `value` as its eight little-endian bytes, as `write` would.
-    ## See [trait.hash.hasher-methods](../../spec/lang/09-traits.md#r-trait.hash.hasher-methods).
+    ## Writes the byte `value`.
+    ## See [trait.hash.typed-methods](../../spec/lang/09-traits.md#r-trait.hash.typed-methods).
+    fn write_u8(&mut self, value: u8) -> void:
+        self.write([value])
+
+    ## Writes the 2 little-endian bytes of `value`.
+    ## See [trait.hash.typed-methods](../../spec/lang/09-traits.md#r-trait.hash.typed-methods).
+    fn write_u16(&mut self, value: u16) -> void:
+        self.write(unsigned_bytes(u64(value), 2))
+
+    ## Writes the 4 little-endian bytes of `value`.
+    ## See [trait.hash.typed-methods](../../spec/lang/09-traits.md#r-trait.hash.typed-methods).
+    fn write_u32(&mut self, value: u32) -> void:
+        self.write(unsigned_bytes(u64(value), 4))
+
+    ## Writes the 8 little-endian bytes of `value`.
+    ## See [trait.hash.typed-methods](../../spec/lang/09-traits.md#r-trait.hash.typed-methods).
     fn write_u64(&mut self, value: u64) -> void:
         self.write(unsigned_bytes(value, 8))
 
+    ## Writes the 4 little-endian bytes of `value`.
+    ## See [trait.hash.typed-methods](../../spec/lang/09-traits.md#r-trait.hash.typed-methods).
+    fn write_usize(&mut self, value: usize) -> void:
+        self.write(unsigned_bytes(u64(value), 4))
+
+    ## Writes the two's-complement bytes of `value` at its width.
+    ## See [trait.hash.typed-methods](../../spec/lang/09-traits.md#r-trait.hash.typed-methods).
+    fn write_i8(&mut self, value: i8) -> void:
+        self.write_u8(u8(value))
+
+    ## Writes the two's-complement bytes of `value` at its width.
+    ## See [trait.hash.typed-methods](../../spec/lang/09-traits.md#r-trait.hash.typed-methods).
+    fn write_i16(&mut self, value: i16) -> void:
+        self.write_u16(u16(value))
+
+    ## Writes the two's-complement bytes of `value` at its width.
+    ## See [trait.hash.typed-methods](../../spec/lang/09-traits.md#r-trait.hash.typed-methods).
+    fn write_i32(&mut self, value: i32) -> void:
+        self.write_u32(u32(value))
+
+    ## Writes the two's-complement bytes of `value` at its width.
+    ## See [trait.hash.typed-methods](../../spec/lang/09-traits.md#r-trait.hash.typed-methods).
+    fn write_i64(&mut self, value: i64) -> void:
+        self.write_u64(u64(value))
+
     ## Writes the UTF-8 bytes of `text`, with no length, as `write` would.
-    ## See [trait.hash.hasher-methods](../../spec/lang/09-traits.md#r-trait.hash.hasher-methods).
+    ## See [trait.hash.typed-methods](../../spec/lang/09-traits.md#r-trait.hash.typed-methods).
     fn write_str(&mut self, text: string) -> void:
         self.write(text.to_utf8())
 
@@ -45,9 +85,9 @@ impl Hash for char:
 impl[T < Hash] Hash for T?:
     fn hash(self, state: &mut dyn Hasher) -> void:
         match self:
-            .None => state.write([0])
+            .None => state.write_u8(0)
             .Some(value) =>
-                state.write([1])
+                state.write_u8(1)
                 value.hash(state)
 
 # Keep handwritten Hash: delegate through the reference; structural derivation is for its referent.
@@ -67,10 +107,10 @@ impl[T < Hash, E < Hash] Hash for Result[T, E]:
     fn hash(self, state: &mut dyn Hasher) -> void:
         match self:
             .Ok(value) =>
-                state.write([0])
+                state.write_u8(0)
                 value.hash(state)
             .Err(error) =>
-                state.write([1])
+                state.write_u8(1)
                 error.hash(state)
 
 # Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
@@ -79,47 +119,47 @@ impl Hash for bool:
         let byte: u8 = 0
         if self:
             byte = 1
-        state.write([byte])
+        state.write_u8(byte)
 
 # Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for i8:
     fn hash(self, state: &mut dyn Hasher) -> void:
-        state.write(signed_bytes(i64(self), 1))
+        state.write_i8(self)
 
 # Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for i16:
     fn hash(self, state: &mut dyn Hasher) -> void:
-        state.write(signed_bytes(i64(self), 2))
+        state.write_i16(self)
 
 # Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for i32:
     fn hash(self, state: &mut dyn Hasher) -> void:
-        state.write(signed_bytes(i64(self), 4))
+        state.write_i32(self)
 
 # Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for i64:
     fn hash(self, state: &mut dyn Hasher) -> void:
-        state.write_u64(u64(self))
+        state.write_i64(self)
 
 # Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for u8:
     fn hash(self, state: &mut dyn Hasher) -> void:
-        state.write([self])
+        state.write_u8(self)
 
 # Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for u16:
     fn hash(self, state: &mut dyn Hasher) -> void:
-        state.write(unsigned_bytes(u64(self), 2))
+        state.write_u16(self)
 
 # Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for u32:
     fn hash(self, state: &mut dyn Hasher) -> void:
-        state.write(unsigned_bytes(u64(self), 4))
+        state.write_u32(self)
 
 # Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for usize:
     fn hash(self, state: &mut dyn Hasher) -> void:
-        state.write(unsigned_bytes(u64(self), 4))
+        state.write_usize(self)
 
 # Keep handwritten Hash: implement the builtin scalar protocol, which has no derivable declaration.
 impl Hash for u64:
@@ -134,17 +174,6 @@ impl[T < Hash] Hash for List[T]:
         state.write_u64(u64(self.len()))
         for item in self:
             item.hash(state)
-
-# The low `count` bytes of a two's-complement value, least significant first.
-fn signed_bytes(value: i64, count: usize) -> List[u8]:
-    let mut bytes: List[u8] = []
-    let rest = value
-    let index: usize = 0
-    while index < count:
-        bytes.push(u8(rest & 255))
-        rest = rest >> 8
-        index = index + 1
-    bytes
 
 fn unsigned_bytes(value: u64, count: usize) -> List[u8]:
     let mut bytes: List[u8] = []
@@ -195,6 +224,17 @@ fn fnv_mix(state: u64, byte: u8) -> u64:
 
 # Each method mixes into a local and stores the state once, so a write
 # through the reference happens once per call, not once per byte.
+impl DefaultHasher:
+    fn write_integer(&mut self, value: u64, width: usize) -> void:
+        let state = self.state
+        let rest = value
+        let index: usize = 0
+        while index < width:
+            state = fnv_mix(state, u8(rest & 255))
+            rest = rest >> 8
+            index = index + 1
+        self.state = state
+
 impl Hasher for DefaultHasher:
     fn write(&mut self, bytes: List[u8]) -> void:
         let state = self.state
@@ -202,16 +242,32 @@ impl Hasher for DefaultHasher:
             state = fnv_mix(state, byte)
         self.state = state
 
-    # The eight bytes, least significant first, without a list.
+    fn write_u8(&mut self, value: u8) -> void:
+        self.write_integer(u64(value), 1)
+
+    fn write_u16(&mut self, value: u16) -> void:
+        self.write_integer(u64(value), 2)
+
+    fn write_u32(&mut self, value: u32) -> void:
+        self.write_integer(u64(value), 4)
+
     fn write_u64(&mut self, value: u64) -> void:
-        let state = self.state
-        let rest = value
-        let index: usize = 0
-        while index < 8:
-            state = fnv_mix(state, u8(rest & 255))
-            rest = rest >> 8
-            index = index + 1
-        self.state = state
+        self.write_integer(value, 8)
+
+    fn write_usize(&mut self, value: usize) -> void:
+        self.write_integer(u64(value), 4)
+
+    fn write_i8(&mut self, value: i8) -> void:
+        self.write_integer(u64(u8(value)), 1)
+
+    fn write_i16(&mut self, value: i16) -> void:
+        self.write_integer(u64(u16(value)), 2)
+
+    fn write_i32(&mut self, value: i32) -> void:
+        self.write_integer(u64(u32(value)), 4)
+
+    fn write_i64(&mut self, value: i64) -> void:
+        self.write_integer(u64(value), 8)
 
     # The string's bytes, read in place.
     fn write_str(&mut self, text: string) -> void:
@@ -302,6 +358,22 @@ impl BucketHasher:
         v1 := seed >> 32
         BucketHasher { v0: v0, v1: v1, v2: v0 ^ 1819895653, v3: v1 ^ 1952801890, word: 0, count: 0 }
 
+    fn write_integer(&mut self, value: u64, width: usize) -> void:
+        let h = *self
+        let word = h.word
+        let count = h.count
+        let rest = value
+        let index: usize = 0
+        while index < width:
+            word = word | ((rest & 255) << ((count & 3) * 8))
+            count += 1
+            if count & 3 == 0:
+                h = h.absorb(word)
+                word = 0
+            rest = rest >> 8
+            index += 1
+        *self = BucketHasher { v0: h.v0, v1: h.v1, v2: h.v2, v3: h.v3, word: word, count: count }
+
     # The lanes after one full message word, with the word emptied.
     fn absorb(self, m: u64) -> BucketHasher:
         lanes := sip_round(self.v0, self.v1, self.v2, self.v3 ^ m)
@@ -350,6 +422,48 @@ impl Hasher for BucketHasher:
             if count & 3 == 0:
                 h = h.absorb(word)
                 word = 0
+        *self = BucketHasher { v0: h.v0, v1: h.v1, v2: h.v2, v3: h.v3, word: word, count: count }
+
+    fn write_u8(&mut self, value: u8) -> void:
+        self.write_integer(u64(value), 1)
+
+    fn write_u16(&mut self, value: u16) -> void:
+        self.write_integer(u64(value), 2)
+
+    fn write_u32(&mut self, value: u32) -> void:
+        self.write_integer(u64(value), 4)
+
+    fn write_u64(&mut self, value: u64) -> void:
+        self.write_integer(value, 8)
+
+    fn write_usize(&mut self, value: usize) -> void:
+        self.write_integer(u64(value), 4)
+
+    fn write_i8(&mut self, value: i8) -> void:
+        self.write_integer(u64(u8(value)), 1)
+
+    fn write_i16(&mut self, value: i16) -> void:
+        self.write_integer(u64(u16(value)), 2)
+
+    fn write_i32(&mut self, value: i32) -> void:
+        self.write_integer(u64(u32(value)), 4)
+
+    fn write_i64(&mut self, value: i64) -> void:
+        self.write_integer(u64(value), 8)
+
+    fn write_str(&mut self, text: string) -> void:
+        let h = *self
+        let word = h.word
+        let count = h.count
+        let index: usize = 0
+        size := bytes_len(text)
+        while index < size:
+            word = word | (u64(bytes_at(text, index)) << ((count & 3) * 8))
+            count += 1
+            if count & 3 == 0:
+                h = h.absorb(word)
+                word = 0
+            index += 1
         *self = BucketHasher { v0: h.v0, v1: h.v1, v2: h.v2, v3: h.v3, word: word, count: count }
 
 # The bucket hash of a key that is not an integer or a string: its `Hash`

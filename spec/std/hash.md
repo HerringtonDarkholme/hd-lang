@@ -100,7 +100,7 @@ fn digest() -> u64:
 | r[std-hash.bytes.result] `Result[T, E]` | `.Ok(value)` or `.Err(error)` | the tag byte `0`, then the bytes of `value`, for `.Ok`; the tag byte `1`, then the bytes of `error`, for `.Err` |
 
 1. r[std-hash.bytes.sequence] Each standard implementation of `Hash` writes exactly the bytes of the table above, so `hash_of` of a value is the same in every implementation.
-2. r[std-hash.bytes.methods] An implementation may write a `u64` or a string's bytes through `write_u64` or `write_str` instead of `write`, since those write the same bytes ([`trait.hash.hasher-methods`](../lang/09-traits.md#r-trait.hash.hasher-methods)).
+2. r[std-hash.bytes.typed-methods] A standard `Hash` implementation may write integer bytes or a string's bytes through the corresponding [typed `Hasher` method](../lang/09-traits.md#r-trait.hash.typed-methods), since it writes the same byte sequence as `write`.
 3. r[std-hash.bytes.derive-enum] A derived `Hash` on an enum writes the variant's zero-based index as a `u32`, before the members that [`std-hash.derive.hash.enum`](#r-std-hash.derive.hash.enum) lists.
 4. r[std-hash.bytes.derive-data] A derived `Hash` on a struct writes no tag, only the bytes of its members in the order of [`std-hash.derive.hash.data`](#r-std-hash.derive.hash.data).
 
@@ -141,7 +141,7 @@ fn bucket(key: string) -> u64:
 3. r[std-hash.default.new-ref] `DefaultHasher::new() -> &mut DefaultHasher` returns a new object, a hasher whose state is the offset basis. Copies of the reference share it, so `value.hash(hasher)` changes the state that `hasher.finish()` then returns.
 4. r[std-hash.default.write] `DefaultHasher` implements `Hasher`. Its `write(bytes)` processes each byte in order, so two writes give the state of one write of both byte lists joined.
 5. r[std-hash.default.finish] `finish(self) -> u64` returns the state and does not change it.
-6. r[std-hash.default.write-methods] `DefaultHasher` overrides `write_u64` and `write_str` ([`trait.hash.hasher-methods`](../lang/09-traits.md#r-trait.hash.hasher-methods)). Each gives the state that `write` of the same bytes gives, without building a list.
+6. r[std-hash.default.typed-writes] `DefaultHasher` overrides every [typed `Hasher` method](../lang/09-traits.md#r-trait.hash.typed-methods) to process the specified bytes without building a list.
 7. r[std-hash.default.fixed] The algorithm has no seed and no key, so the same bytes give the same result in every run, every program, and every implementation.
 8. r[std-hash.hash-of] `hash_of[T < Hash](value: T) -> u64` calls `value.hash` on a new `DefaultHasher` and returns its `finish()`.
 9. r[std-hash.map.bucket-hash] The hash by which the built-in `Map` buckets its keys is an implementation detail. It need not be `hash_of`, and it may differ between runs.

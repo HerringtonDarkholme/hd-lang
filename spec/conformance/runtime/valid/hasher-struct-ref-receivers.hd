@@ -1,5 +1,5 @@
 # test: a struct hasher with &mut self methods changes in place through a bound, through &mut dyn Hasher, and under Hash.hash
-# Spec 09 Hashing: trait.hash.ref-receiver, trait.hash.hasher-methods.
+# Spec 09 Hashing: trait.hash.ref-receiver, trait.hash.typed-methods.
 # expect-stdout: 11 7
 # expect-stdout: 2 195
 # expect-stdout: 13 103
