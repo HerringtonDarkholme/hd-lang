@@ -65,6 +65,39 @@ because they are inside the module that declares the private field.
 A trait exposing `&self` getters can provide the same read-only interface.
 The rules are in [Reading Through A Reference](../../spec/lang/13-values-and-references.md#reading-through-a-reference).
 
+## Reusing A Builder
+
+`Command`, `ArgParser`, `Request` and `Client` use mutable builders.
+Their constructors return `&mut T`; each configuration method changes that
+object and returns the same reference. Chains may be stored or returned.
+
+Assigning `alias := base` shares the builder. To derive independent
+configurations, copy its value into separate `let mut` variables before
+adding settings:
+
+```hd
+use std.process.Command
+
+pub fn main() -> void $ Console:
+    base := Command::new("git").args(["-C", "repo"])
+    let mut status = *base
+    status.arg("status")
+    let mut log = *base
+    log.arg("log")
+    println(status.args.join(" "))
+    println(log.args.join(" "))
+    println(base.args.join(" "))
+```
+
+```output
+-C repo status
+-C repo log
+-C repo
+```
+
+Here `status` and `log` each start with a copy of `*base`; appending their
+arguments leaves `base` unchanged.
+
 ## Reading Configuration As JSON
 
 A service's config file is the first thing that breaks in production, and
