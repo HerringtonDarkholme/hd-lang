@@ -407,8 +407,9 @@ fn rotate(items: List[i32]) -> List[i32]:
 | iteration | `Iterable[T]` |
 | equality | `Eq` when `T < Eq` |
 | `Debug` | when `T < Debug` |
+| `collect` | `FromIterator[T]` |
 
-1. r[std-collections.deque.decl] `std.collections` declares `Deque[T]` with private fields, the surface in the table above, and no other method or trait implementation. Code imports it, as in `use std.collections.Deque`.
+1. r[std-collections.deque.collect-surface] `std.collections` declares `Deque[T]` with private fields, the surface in the table above, and no other method or trait implementation. Code imports it, as in `use std.collections.Deque`.
 2. r[std-collections.deque.order] A deque holds a sequence of elements from its front to its back. `new` returns an empty deque.
 3. r[std-collections.deque.len] `len` returns the number of elements, and `is_empty` is true exactly when that number is 0.
 4. r[std-collections.deque.push] `push_front(value)` adds `value` before the front, and `push_back(value)` adds it after the back.
@@ -419,6 +420,7 @@ fn rotate(items: List[i32]) -> List[i32]:
 9. r[std-collections.deque.cursor] A deque's cursor type is `DequeIter[T]`, which `std.collections` declares with private fields.
 10. r[std-collections.deque.snapshot] Iterating a deque walks the deque as it was when `iter` was called. A push or a pop while the loop runs changes the deque but not the loop, and never panics, as [`flow.for.snapshot`](../lang/06-control-flow.md#r-flow.for.snapshot) states for a list.
 11. r[std-collections.deque.eq] Two deques are equal when they have the same length and equal elements in the same order from the front, as two lists are.
+12. r[std-collections.deque.collect] A deque implements `FromIterator[T]`, collecting every element in source order.
 
 ```text
 use std.collections.Deque
@@ -471,8 +473,9 @@ fn smallest(items: List[i32]) -> i32?:
 | `peek` | `peek(self) -> T?` |
 | `to_sorted_list` | `to_sorted_list(self) -> List[T]` |
 | `Debug` | when `T < Debug` |
+| `collect` | `FromIterator[T]` |
 
-1. r[std-collections.heap.decl] `std.collections` declares `Heap[T < Ord]` with private fields, the surface in the table above, and no other method or trait implementation. Code imports it, as in `use std.collections.Heap`.
+1. r[std-collections.heap.collect-surface] `std.collections` declares `Heap[T < Ord]` with private fields, the surface in the table above, and no other method or trait implementation. Code imports it, as in `use std.collections.Heap`.
 2. r[std-collections.heap.len] `new` returns an empty heap. `len` returns the number of elements, and `is_empty` is true exactly when that number is 0.
 3. r[std-collections.heap.push] `push(value)` adds `value` to the heap.
 4. r[std-collections.heap.pop] `pop` removes a largest element by `Ord` and returns it in `.Some`. On an empty heap, it returns `.None`.
@@ -480,6 +483,8 @@ fn smallest(items: List[i32]) -> i32?:
 6. r[std-collections.heap.ties] When several elements are equal by `cmp`, which of them `pop` and `peek` return is not specified.
 7. r[std-collections.heap.sorted] `to_sorted_list` returns a new list of every element in ascending order by `Ord`, and leaves the heap unchanged.
 8. r[std-collections.heap.min] `std` has no separate min-heap: a `Heap[Reverse[T]]` pops the smallest `T` first, by [`std-cmp.reverse.order`](cmp.md#r-std-cmp.reverse.order).
+9. r[std-collections.heap.collect] A heap implements `FromIterator[T]`, collecting every element into a max-heap.
+10. r[std-collections.heap.collect.linear] Heapification of `n` collected elements performs O(n) comparisons, by sifting non-leaves from the bottom up.
 
 > **Note.** `lib/std` keeps the elements in a `List[T?]` in heap order,
 > so `push` and `pop` take logarithmic time and `peek` constant time.

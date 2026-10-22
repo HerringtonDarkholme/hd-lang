@@ -1,0 +1,90 @@
+# test: collect builds a front-to-back deque or a bottom-up max-heap
+# Spec std/collections Deque and Heap: std-collections.deque.collect-surface, std-collections.deque.collect, std-collections.heap.collect-surface, std-collections.heap.collect, std-collections.heap.collect.linear.
+# expect: test
+use std.collections.{Deque, Heap}
+use std.cmp.Reverse
+
+struct Counter:
+    comparisons: usize
+
+struct Counted:
+    value: i32
+    counter: &mut Counter
+
+impl Eq for Counted:
+    fn eq(self, other: Counted) -> bool:
+        self.value == other.value
+
+impl PartialOrd for Counted:
+    fn partial_cmp(self, other: Counted) -> Ordering?:
+        .Some(self.cmp(other))
+
+impl Ord for Counted:
+    fn cmp(self, other: Counted) -> Ordering:
+        self.counter.comparisons += 1
+        self.value.cmp(other.value)
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("a collected deque keeps order and supports wrapping and growth"):
+        let mut queue = [+1, 2, 3, 4].iter().collect::[Deque[i32]]()
+        assert_equal(queue.iter().collect(), [+1, 2, 3, 4], reason="source order")
+        assert_equal(queue.pop_front(), .Some(1), reason="front")
+        queue.push_back(5)
+        queue.push_front(0)
+        assert_equal(queue.iter().collect(), [+0, 2, 3, 4, 5], reason="wrap then grow")
+        assert_equal(queue.pop_back(), .Some(5), reason="back")
+        queue.push_back(6)
+        assert_equal(queue.iter().collect(), [+0, 2, 3, 4, 6], reason="write after pop")
+
+    it("empty and single-item collections work at both ends"):
+        let empty: List[i32] = []
+        let mut queue = empty.iter().collect::[Deque[i32]]()
+        assert(queue.is_empty(), reason="empty deque")
+        queue.push_front(7)
+        assert_equal(queue.pop_back(), .Some(7), reason="empty deque can grow")
+        let mut heap = empty.iter().collect::[Heap[i32]]()
+        assert_equal(heap.pop(), .None, reason="empty heap")
+        heap.push(8)
+        assert_equal(heap.pop(), .Some(8), reason="empty heap can grow")
+        let mut single = [+9].iter().collect::[Heap[i32]]()
+        assert_equal(single.pop(), .Some(9), reason="singleton heap")
+        assert_equal(single.pop(), .None, reason="singleton exhausted")
+
+    it("heap collection preserves duplicates and pops in descending order"):
+        let mut source = [+3, -4, 9, 3, 0, 8, 9].iter()
+        let mut heap = source.by_ref().collect::[Heap[i32]]()
+        assert_equal(source.next(), .None, reason="by_ref drains the original owned cursor")
+        assert_equal(heap.len(), 7, reason="every item")
+        assert_equal(heap.peek(), .Some(9), reason="largest first")
+        copy := heap
+        let mut popped: List[i32] = []
+        while true:
+            match heap.pop():
+                .Some(item) => popped.push(item)
+                .None => break
+        assert_equal(popped, [+9, 9, 8, 3, 3, 0, -4], reason="descending with duplicates")
+        assert_equal(copy.len(), 7, reason="heap is a value")
+        assert_equal(copy.to_sorted_list(), [-4i32, 0, 3, 3, 8, 9, 9], reason="copy unchanged")
+        heap.push(2)
+        heap.push(4)
+        assert_equal(heap.pop(), .Some(4), reason="push after full drain")
+
+    it("a Reverse heap pops smallest first"):
+        let mut heap = [+4, 1, 3, 1].iter().map(fn(n: i32) -> Reverse[i32]: Reverse { value: n }).collect::[Heap[Reverse[i32]]]()
+        let mut popped: List[i32] = []
+        while true:
+            match heap.pop():
+                .Some(item) => popped.push(item.value)
+                .None => break
+        assert_equal(popped, [+1, 1, 3, 4], reason="Reverse ordering")
+
+    it("heapification uses linear comparisons even for ascending inputs"):
+        for size in [31, 64, 127, 1024]:
+            counter := &mut Counter { comparisons: 0 }
+            values := (0..size).iter().map(fn(n: usize) -> Counted: Counted { value: i32(n), counter: counter })
+            let mut heap = values.collect::[Heap[Counted]]()
+            assert_equal(heap.len(), size, reason="all items collected")
+            assert(counter.comparisons <= 2 * size, reason="bottom-up construction, not repeated push")
+            assert_equal(heap.pop().map(fn(n: Counted) -> i32: n.value), .Some(i32(size - 1)), reason="heapified maximum")

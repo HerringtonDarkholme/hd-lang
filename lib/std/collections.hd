@@ -559,7 +559,7 @@ impl[T] Iterator[T] for ListViewIter[T]:
 # A deque is a value: a copy shares `slots` until either side changes, as a
 # list does (r-std-collections.struct.value).
 ## A double-ended queue: pushes and pops at both ends, in amortized constant time.
-## See [std-collections.deque.decl](../../spec/std/collections.md#r-std-collections.deque.decl).
+## See [std-collections.deque.collect-surface](../../spec/std/collections.md#r-std-collections.deque.collect-surface).
 pub struct Deque[T]:
     slots: List[T?]
     head: usize
@@ -676,6 +676,19 @@ impl[T] Iterator[T] for DequeIter[T]:
             return .None
         self.at = self.at + 1
         self.deque.get(self.at - 1)
+
+# Collect directly into the ring buffer, in front-to-back order.
+# See r-std-collections.deque.collect.
+impl[T] FromIterator[T] for Deque[T]:
+    fn from_iter[I < Iterator[T]](items: I) -> Deque[T]:
+        let mut cursor = items
+        let mut queue: Deque[T] = Deque::new()
+        while true:
+            match cursor.next():
+                .Some(item) => queue.slots.push(.Some(item))
+                .None => break
+        queue.count = queue.slots.len()
+        queue
 
 # Equal lengths and equal elements front to back, as `List`'s `Eq`
 # (r-std-collections.deque.eq); the ring layout does not matter.
@@ -803,7 +816,7 @@ impl[T < Eq & Hash & Debug] Debug for Set[T]:
 # at least as large as the two at `2 * i + 1` and `2 * i + 2`. Every later
 # slot is `.None`, since the prototype has no `List.pop` yet.
 ## A max-heap: `pop` and `peek` see a largest element.
-## See [std-collections.heap.decl](../../spec/std/collections.md#r-std-collections.heap.decl).
+## See [std-collections.heap.collect-surface](../../spec/std/collections.md#r-std-collections.heap.collect-surface).
 pub struct Heap[T < Ord]:
     items: List[T?]
     count: usize
@@ -851,16 +864,19 @@ impl[T < Ord] Heap[T]:
         self.items[0] = self.items[last]
         self.items[last] = .None
         self.count = last
-        let parent: usize = 0
-        while true:
+        self.sift_down(0)
+        top
+
+    # Restore heap order below a parent whose child subtrees are heaps.
+    fn sift_down(&mut self, start: usize) -> void:
+        let parent = start
+        while parent < self.count / 2:
             left := 2 * parent + 1
-            if left >= self.count:
-                return top
             let larger = left
             if left + 1 < self.count && self.less(left, left + 1):
                 larger = left + 1
             if !self.less(parent, larger):
-                return top
+                return
             self.swap(parent, larger)
             parent = larger
 
@@ -897,6 +913,23 @@ impl[T < Ord] Heap[T]:
         held := self.items[left]
         self.items[left] = self.items[right]
         self.items[right] = held
+
+# Build in linear comparisons by sifting each non-leaf bottom-up.
+# See r-std-collections.heap.collect, r-std-collections.heap.collect.linear.
+impl[T < Ord] FromIterator[T] for Heap[T]:
+    fn from_iter[I < Iterator[T]](items: I) -> Heap[T]:
+        let mut cursor = items
+        let mut heap: Heap[T] = Heap::new()
+        while true:
+            match cursor.next():
+                .Some(item) => heap.items.push(.Some(item))
+                .None => break
+        heap.count = heap.items.len()
+        let parent = heap.count / 2
+        while parent > 0:
+            parent = parent - 1
+            heap.sift_down(parent)
+        heap
 
 # The elements in heap order, which the spec leaves unspecified
 # (r-std-format.debug.std-types.sequences).
