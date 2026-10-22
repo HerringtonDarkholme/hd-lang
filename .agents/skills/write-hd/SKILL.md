@@ -427,7 +427,7 @@ pub fn main() -> void $ Console:
 ```
 
 An integration test in `tests/NAME.hd` has top-level `it(...)` cases and
-no `tests:` block; `hd_run!("NAME")` runs the built program
+no `tests:` block; `hd_run!(Command::new("NAME"))` runs the built program
 ([tour: packages](../../../website/tour/14-packages.md)). A doc test is an
 `hd` fence inside a `##` doc comment, with its own `use` lines.
 
