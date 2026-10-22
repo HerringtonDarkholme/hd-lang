@@ -154,10 +154,10 @@ impl[S] Source[S] for Filler[S]:
     fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], never]:
         .Ok(choices[0])
 
-    fn next(&mut self, members: Members[S]) -> Result[Key[S], never]:
+    fn next(&mut self, members: Members[S]) -> Result[Key[S]?, never]:
         n := members.infos.len()
         if self.at >= n:
-            return .Ok(members.end())
+            return .Ok(.None)
         info := members.infos[n - 1 - self.at]
         self.at = self.at + 1
         .Ok(members.at(info.position))

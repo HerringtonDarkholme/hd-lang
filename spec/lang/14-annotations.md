@@ -700,7 +700,7 @@ pub trait Structure:
 
 pub struct Member:
     pub name: string
-    pub position: i32
+    pub position: usize
     pub facts: Facts
     pub doc: string?
     pub embedded: bool
@@ -709,7 +709,7 @@ pub struct Member:
 
 pub struct VariantInfo:
     pub name: string
-    pub index: i32
+    pub index: usize
     pub facts: Facts
     pub doc: string?
     pub of_data: bool
@@ -740,13 +740,11 @@ pub struct Members[S]:
     pub infos: List[Member]
 
 impl[S] Members[S]:
-    pub fn end(self) -> Key[S]: pass
-    pub fn at(self, position: i32) -> Key[S]: pass
-    pub fn find(self, matches: fn(Member) -> bool) -> Key[S]: pass
+    pub fn at(self, position: usize) -> Key[S]?: pass
+    pub fn find(self, matches: fn(Member) -> bool) -> Key[S]?: pass
 
 pub struct Key[S]:
     pub info: Member
-    pub is_end: bool
 
 pub trait Walker[S]:
     type Error
@@ -762,7 +760,7 @@ pub trait Describer[S]:
 pub trait Source[S]:
     type Error
     fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], Self::Error]
-    fn next(&mut self, members: Members[S]) -> Result[Key[S], Self::Error]
+    fn next(&mut self, members: Members[S]) -> Result[Key[S]?, Self::Error]
     fn member[F](&mut self, h: Field[S, F], previous: F?) -> Result[F, Self::Error]
     fn missing[F](&mut self, h: Field[S, F]) -> Result[F, Self::Error]
 ```
@@ -773,10 +771,13 @@ pub trait Source[S]:
 4. r[annot.structure.find-copy] `facts.find::[F]()` copies the first fact of concrete type `F` through `downcast_ref`, or returns `.None`.
 5. r[annot.structure.find-exact] `find` compares exact concrete runtime identities, without conversions.
 6. r[annot.structure.find-key] Each type parameter that `F` mentions must be bounded by `Inspectable`, whose evidence supplies its runtime identity to the lookup. Without that bound, the call is an error. Error: `unsatisfied-trait-bound`.
-7. r[annot.structure.members-api] `members.end()` is the end key. `members.at(position)` is the key of the member at that position, and `members.find(matches)` is the key of the first member that `matches` accepts. Each returns the end key when no member fits.
-8. r[annot.structure.no-names] The names of `Members`, `Key`, and the handle methods are fixed by these declarations. Further helpers over them are standard-library design, outside this specification.
-9. r[annot.structure.self-ref-enum] `std.structure` also declares the enum `SelfRef`, whose three values [Self References](#self-references) defines.
-10. r[annot.structure.self-ref-field] The compiler computes the `self_ref` field of every `Member` and `VariantInfo` value it supplies.
+7. r[annot.structure.members.at-option] `members.at(position: usize)` returns `.Some(key)` for the member at that position.
+8. r[annot.structure.members.find-option] `members.find(matches)` returns `.Some(key)` for the first member that `matches` accepts.
+9. r[annot.structure.members.lookup-none] Either lookup returns `.None` when no member fits.
+10. r[annot.structure.members.key-entry] A `Key[S]` represents a found member and carries its `Member` information.
+11. r[annot.structure.lookup-names] The names of `Members`, `Key`, and the handle methods are fixed by these declarations. Further helpers over them are standard-library design, outside this specification.
+12. r[annot.structure.self-ref-enum] `std.structure` also declares the enum `SelfRef`, whose three values [Self References](#self-references) defines.
+13. r[annot.structure.self-ref-field] The compiler computes the `self_ref` field of every `Member` and `VariantInfo` value it supplies.
 
 ```text
 use std.inspect.Inspectable
@@ -1355,9 +1356,9 @@ fn demo() -> List[string]:
 #### Build
 
 1. r[annot.build.variant] Generated `build` first calls `s.variant(choices)` once, with every variant in declaration order. A struct offers its one variant.
-2. r[annot.build.next] It then calls `s.next(members)` with the chosen variant's members, repeatedly, until the source returns the end key.
+2. r[annot.build.next-option] It then calls `s.next(members)` with the chosen variant's members, repeatedly, until the source returns `.Ok(.None)`.
 3. r[annot.build.member] For each member key, it calls `s.member(h, previous)`, where `previous` is the value already read for that member, or `.None`.
-4. r[annot.build.missing] After the end key, it calls `s.missing(h)` once for each member that the source never named.
+4. r[annot.build.missing-after-none] After `.Ok(.None)`, it calls `s.missing(h)` once for each member that the source never named.
 5. r[annot.build.construct] It then constructs the chosen variant from one local per member, and returns it.
 6. r[annot.build.errors] The first `.Err` from a source method ends the build and is returned. Generated code never creates an error value of its own.
 7. r[annot.build.foreign-key] A key that does not name one of the chosen variant's members is a checked runtime panic with category `structure-variant-mismatch`.
@@ -1385,6 +1386,8 @@ fn demo() -> Config:
 6. r[annot.variant.data-facts] That variant's `facts` is empty: a template reads the type-level facts once, through `T::facts()`.
 7. r[annot.variant.shared-pairs] `shared` holds the variant's shared constructor data as `(name, value)` pairs. An unnamed shared parameter is named `_0`, `_1`, and so on.
 8. r[annot.variant.shared.no-handle] Shared constructor data is never a member: it is never passed as a handle.
+9. r[annot.member.position-usize] `Member.position` has type `usize`.
+10. r[annot.variant.index-usize] `VariantInfo.index` has type `usize`.
 
 ```hd
 use std.structure.{Describer, Field, Structure, Variant}

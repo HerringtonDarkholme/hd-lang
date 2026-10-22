@@ -15,9 +15,9 @@ run: hd test --filter shrink --seed 5
 exit: 1
 stdout: PANIC src/lib.hd:20: fresh shrink
 stdout:     panic: assertion-failed: the smallest failure is three
-stdout:     <std>/testing.hd:625 std.testing.assert
+stdout:     <std>/testing.hd:626 std.testing.assert
 stdout:     src/lib.hd:23 test "fresh shrink"
-stdout:     <std>/testing.hd:588 std.testing.prop_with_case
+stdout:     <std>/testing.hd:589 std.testing.prop_with_case
 stdout:     src/lib.hd:20 test "fresh shrink"
 stdout:     input: 3
 stdout:     repro: hd test src/lib.hd --filter "fresh shrink" --seed 5

@@ -54,7 +54,7 @@ use hd_tir::ir::{
     BodyKind, Callee, ChoiceKind, Coercion, NONE, Providers, Ref, Tag, TirBuilder, TirSink,
     VerifyError, local_flags,
 };
-use hd_types::{InternPool, ParamRef, Ty, TyData, TyList};
+use hd_types::{InternPool, ParamRef, Prim, Ty, TyData, TyList};
 
 /// Where the generator reads declarations: `std.structure`'s data types
 /// and protocol traits, `Structure` itself, `std.ops.panic_with`.
@@ -604,8 +604,8 @@ impl<'a, 'n> Gen<'a, 'n> {
         self.b.const_str(s)
     }
 
-    fn i32_(&mut self, n: u32) -> Ref {
-        self.b.const_value(Ty::I32, u64::from(n))
+    fn usize_(&mut self, n: u32) -> Ref {
+        self.b.const_value(Ty::prim(Prim::Usize), u64::from(n))
     }
 
     fn bool_(&mut self, v: bool) -> Ref {
@@ -832,7 +832,7 @@ impl<'a, 'n> Gen<'a, 'n> {
     fn variant_info(&mut self, v: &Var) -> StageResult<Ref> {
         let vi = self.std("VariantInfo");
         let name = self.str_(&v.name);
-        let index = self.i32_(v.index);
+        let index = self.usize_(v.index);
         let facts = self.facts_value(v.facts)?;
         let dt = self.field_ty(vi, "doc", &[])?;
         let doc = self.unit_variant(0, dt);
@@ -882,7 +882,7 @@ impl<'a, 'n> Gen<'a, 'n> {
     fn member_info(&mut self, m: &Mem) -> StageResult<Ref> {
         let mi = self.std("Member");
         let name = self.str_(&m.name);
-        let position = self.i32_(m.position);
+        let position = self.usize_(m.position);
         let facts = self.facts_value(m.facts)?;
         let dt = self.field_ty(mi, "doc", &[])?;
         let doc = self.unit_variant(0, dt);
@@ -1229,9 +1229,9 @@ impl<'a, 'n> Gen<'a, 'n> {
         Ok(self.b.emit(Tag::DefaultCall, a, bw, t, SYN))
     }
 
-    /// Builds variant `v` from the source `src` (`annot.build.next` to
-    /// `annot.build.construct`, `annot.tuple.build`): `next` until the end
-    /// key, `member` per key with the value read so far, `missing` per
+    /// Builds variant `v` from the source `src` (`annot.build.next-option` to
+    /// `annot.build.construct`, `annot.tuple.build`): `next` until
+    /// `.None`, `member` per key with the value read so far, `missing` per
     /// member never named, then the value from one local per member.
     fn build_variant(&mut self, v: &Var, src: (LocalId, Ty), ret: Ty) -> StageResult<Ref> {
         let names = self.names;
@@ -1268,16 +1268,18 @@ impl<'a, 'n> Gen<'a, 'n> {
         let lp = self.b.open_loop();
         let lb = self.b.open_block();
         let r = self.protocol_call(source, "next", src, &[], &[members])?;
-        let key = self.try_value(r, ret)?;
+        let key_option = self.try_value(r, ret)?;
         let key_def = self.std("Key");
-        let end = self.std_field(key, key_def, "is_end", Ty::BOOL)?;
-        let tb = self.b.open_block();
+        let key_ty = self.adt(key_def, &[s]);
+        let nb = self.b.open_block();
         self.b.emit(Tag::Break, lp.0.raw(), NONE, Ty::NEVER, SYN);
-        let then = self.b.close_block(tb, None, Ty::NEVER, SYN);
-        let rec = self.b.refs_record(&[then, Ref(NONE)]);
-        self.b.emit(Tag::If, end.0, rec, Ty::VOID, SYN);
+        let none = self.b.close_block(nb, None, Ty::NEVER, SYN);
+        let sb = self.b.open_block();
+        let key = self.b.payload(key_option, 1, 0, key_ty, SYN);
+        let some = self.b.close_block(sb, Some(key), key_ty, SYN);
+        let key = self.switch_tag(key_option, 0, none, some, key_ty);
         let info = self.std_field(key, key_def, "info", member_t)?;
-        let pos = self.std_field(info, self.std("Member"), "position", Ty::I32)?;
+        let pos = self.std_field(info, self.std("Member"), "position", Ty::prim(Prim::Usize))?;
         self.read_key(v, &walked, &slots, pos, src, ret)?;
         let body = self.b.close_block(lb, None, Ty::VOID, SYN);
         self.b.close_loop(lp, body, Ty::VOID, SYN);
@@ -1376,7 +1378,12 @@ impl<'a, 'n> Gen<'a, 'n> {
             _ => {
                 let vi = self.adt(self.std("VariantInfo"), &[]);
                 let info = self.std_field(chosen, self.std("Variant"), "info", vi)?;
-                let index = self.std_field(info, self.std("VariantInfo"), "index", Ty::I32)?;
+                let index = self.std_field(
+                    info,
+                    self.std("VariantInfo"),
+                    "index",
+                    Ty::prim(Prim::Usize),
+                )?;
                 self.build_choice(vars, index, src, ret)?
             }
         };

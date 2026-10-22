@@ -1,0 +1,74 @@
+# test: member lookups and Source.next use optional keys with usize metadata
+# Spec 14: annot.structure.members.at-option, annot.structure.members.find-option, annot.structure.members.lookup-none, annot.build.next-option, annot.member.position-usize, annot.variant.index-usize.
+use std.structure.{Field, Key, Member, Members, Source, Structure, Variant}
+use std.testing.{assert, assert_equal}
+
+struct Sparse[S]:
+    pub ended: bool
+    pub reads: usize
+    pub missing: usize
+
+impl[S] Source[S] for Sparse[S]:
+    type Error = string
+
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], string]:
+        let index: usize = choices[0].info.index
+        assert_equal(index, 0, reason="variant indices are usize")
+        .Ok(choices[0])
+
+    fn next(&mut self, members: Members[S]) -> Result[Key[S]?, string]:
+        if self.ended:
+            return .Ok(.None)
+        self.ended = true
+        assert(members.at(999).is_none(), reason="an absent position is None")
+        assert(members.find(fn(info: Member): info.name == "absent").is_none(), reason="an absent name is None")
+        found := members.find(fn(info: Member): info.name == "right")
+        match found:
+            .Some(key) =>
+                let position: usize = key.info.position
+                assert_equal(position, 1, reason="member positions are usize")
+                assert_equal(members.at(position).expect("present position").info.name, "right", reason="lookup by position finds the same member")
+            .None => pass
+        .Ok(found)
+
+    fn member[F](&mut self, h: Field[S, F], previous: F?) -> Result[F, string]:
+        self.reads += 1
+        match h.default():
+            .Some(value) => .Ok(value)
+            .None => .Err("no member default")
+
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, string]:
+        self.missing += 1
+        match h.default():
+            .Some(value) => .Ok(value)
+            .None => .Err("no missing default")
+
+trait Built:
+    fn built() -> (Self, usize, usize)
+
+impl[T] Built for T by Structure:
+    fn built() -> (T, usize, usize):
+        let mut source = Sparse::[T] { ended: false, reads: 0, missing: 0 }
+        value := T::build(&mut source).expect("the source builds from declared defaults")
+        (value, source.reads, source.missing)
+
+@derive(Built)
+struct Pair:
+    left: i32 = 7
+    right: i32 = 9
+
+@derive(Built)
+struct Empty: pass
+
+tests:
+    it("None ends a handwritten source and fills only unnamed members"):
+        result := Pair::built()
+        assert_equal(result._0.left, 7, reason="missing reads the left default")
+        assert_equal(result._0.right, 9, reason="the selected member supplies the right default")
+        assert_equal(result._1, 1, reason="one Some key calls member once")
+        assert_equal(result._2, 1, reason="None starts missing for the remaining member")
+
+    it("None also ends an empty structure"):
+        result := Empty::built()
+        assert_equal(result._1, 0, reason="no member exists")
+        assert_equal(result._2, 0, reason="no member is missing")

@@ -366,26 +366,27 @@ impl[S] Source[S] for ArbitrarySource[S]:
     # type has no finite value (r-std-testing.arbitrary.derive.no-finite,
     # .no-finite.data).
     fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], NoFiniteValue]:
-        let simplest = -1
+        let simplest: usize? = .None
         for v in choices:
-            if simplest < 0:
+            if simplest.is_none():
                 match v.info.self_ref:
                     .Required => pass
-                    _ => simplest = v.info.index
-        if simplest < 0:
-            return .Err(NoFiniteValue {})
-        let mut ordered: List[Variant[S]] = [choices[usize(simplest)]]
+                    _ => simplest = .Some(v.info.index)
+        first := match simplest:
+            .Some(index) => index
+            .None => return .Err(NoFiniteValue {})
+        let mut ordered: List[Variant[S]] = [choices[first]]
         for v in choices:
-            if v.info.index != simplest:
+            if v.info.index != first:
                 ordered.push(v)
         if ordered.len() == 1:
             return .Ok(ordered[0])
         .Ok(ordered[self.c.int(0..=ordered.len() - 1)])
 
     # The members in declaration order, each once.
-    fn next(&mut self, members: Members[S]) -> Result[Key[S], NoFiniteValue]:
+    fn next(&mut self, members: Members[S]) -> Result[Key[S]?, NoFiniteValue]:
         if self.at >= members.infos.len():
-            return .Ok(members.end())
+            return .Ok(.None)
         info := members.infos[self.at]
         self.at = self.at + 1
         .Ok(members.at(info.position))

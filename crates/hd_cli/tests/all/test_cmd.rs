@@ -37,7 +37,7 @@ fn text(b: &[u8]) -> String {
 const ALL: &str = "\
 PANIC cart.hd:50: sums a discount wrong
     panic: assertion-failed: ten less two: actual 8, expected 7
-    <std>/testing.hd:633 std.testing.check_equal
+    <std>/testing.hd:634 std.testing.check_equal
     cart.hd:51 test \"sums a discount wrong\"
     repro: hd test cart.hd --filter \"sums a discount wrong\"
 PANIC cart.hd:53: finds the cheapest of none
@@ -51,7 +51,7 @@ FAIL cart.hd:59: expects a panic that never comes
 IGNORED cart.hd:62: waits for a slow price service (needs the price service)
 PANIC cart.hd:65: adds two and two
     panic: assertion-failed: two and two make five
-    <std>/testing.hd:625 std.testing.assert
+    <std>/testing.hd:626 std.testing.assert
     cart.hd:66 test \"adds two and two\"
     repro: hd test cart.hd --filter \"adds two and two\"
 FAIL cart.hd:68: parses quantities

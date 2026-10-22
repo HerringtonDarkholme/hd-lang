@@ -350,7 +350,7 @@ impl[T] Ord for T by Structure:
 
 # Reads a value's variant index, then stops.
 struct VariantIndex[S]:
-    pub index: i32
+    pub index: usize
 
 impl[S] Walker[S] for VariantIndex[S]:
     type Error = bool
@@ -369,7 +369,7 @@ impl[S] Walker[S] for VariantIndex[S]:
 # Holds the order once it is decided, and stops the walk.
 struct PartialOrderWalker[S]:
     pub other: S
-    pub other_index: i32
+    pub other_index: usize
     pub result: Ordering?
 
 impl[S] Walker[S] for PartialOrderWalker[S]:
@@ -404,7 +404,7 @@ impl[S] Walker[S] for PartialOrderWalker[S]:
 
 struct OrderWalker[S]:
     pub other: S
-    pub other_index: i32
+    pub other_index: usize
     pub result: Ordering
 
 impl[S] Walker[S] for OrderWalker[S]:

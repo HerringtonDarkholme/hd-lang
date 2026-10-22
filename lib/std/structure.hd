@@ -42,7 +42,7 @@ pub struct Member:
     pub name: string
     ## The member's position in its type.
     ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
-    pub position: i32
+    pub position: usize
     ## The member's facts.
     ## See [annot.structure.reference-facts](../../spec/lang/14-annotations.md#r-annot.structure.reference-facts).
     pub facts: Facts
@@ -68,7 +68,7 @@ pub struct VariantInfo:
     pub name: string
     ## The variant's index in its enum.
     ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
-    pub index: i32
+    pub index: usize
     ## The variant's facts.
     ## See [annot.structure.reference-facts](../../spec/lang/14-annotations.md#r-annot.structure.reference-facts).
     pub facts: Facts
@@ -133,7 +133,7 @@ impl[HdS, HdF] Field[HdS, HdF]:
         self.info.facts.find::[HdM]()
 
 # The handle of a member with no facts, doc comment, or default.
-fn hd__plain_field[HdS, HdF](name: string, position: i32, positional: bool, self_ref: SelfRef, get: fn(HdS) -> HdF, witness: &dyn Inspectable) -> Field[HdS, HdF]:
+fn hd__plain_field[HdS, HdF](name: string, position: usize, positional: bool, self_ref: SelfRef, get: fn(HdS) -> HdF, witness: &dyn Inspectable) -> Field[HdS, HdF]:
     Field::[HdS, HdF] { info: Member { name: name, position: position, facts: Facts { items: [] }, doc: .None, embedded: false, positional: positional, self_ref: self_ref }, hd_get: get, hd_has_default: false, hd_default: hd__no_default::[HdF], hd_witness: witness }
 
 fn hd__no_default[HdF]() -> HdF?:
@@ -153,50 +153,40 @@ impl[HdS] Variant[HdS]:
     pub fn holds(self, s: HdS) -> bool:
         (self.hd_holds)(s)
 
-## The answer of a `Members` lookup: the found member's information, or the end key when nothing fits.
-## See [annot.structure.members-api](../../spec/lang/14-annotations.md#r-annot.structure.members-api).
+## A found member's key, carrying its information and target type.
+## See [annot.structure.members.key-entry](../../spec/lang/14-annotations.md#r-annot.structure.members.key-entry).
 pub struct Key[HdS]:
     pub info: Member
-    ## True when the lookup matched no member.
-    ## See [annot.structure.members-api](../../spec/lang/14-annotations.md#r-annot.structure.members-api).
-    pub is_end: bool
     hd_type: fn(HdS) -> bool
 
 ## The members of the type being derived, which a template looks up by position or by a match.
-## See [annot.structure.members-api](../../spec/lang/14-annotations.md#r-annot.structure.members-api).
+## See [annot.structure.members.at-option](../../spec/lang/14-annotations.md#r-annot.structure.members.at-option).
 pub struct Members[HdS]:
     ## The members' information, in order.
-    ## See [annot.structure.members-api](../../spec/lang/14-annotations.md#r-annot.structure.members-api).
+    ## See [annot.structure.members.at-option](../../spec/lang/14-annotations.md#r-annot.structure.members.at-option).
     pub infos: List[Member]
     hd_type: fn(HdS) -> bool
 
 impl[HdS] Members[HdS]:
-    ## The end key: the lookup matched no member.
-    ## See [annot.structure.members-api](../../spec/lang/14-annotations.md#r-annot.structure.members-api).
-    pub fn end(self) -> Key[HdS]:
-        Key { info: Member { name: "", position: -1, facts: Facts { items: [] }, doc: .None, embedded: false, positional: false, self_ref: SelfRef.Absent }, is_end: true, hd_type: self.hd_type }
-
-    ## The key of the member at `position`, or the end key.
-    ## See [annot.structure.members-api](../../spec/lang/14-annotations.md#r-annot.structure.members-api).
-    pub fn at(self, position: i32) -> Key[HdS]:
-        # A type's members are listed by position, so the member at
-        # `position` is most often the info at that index.
-        if position >= 0 && usize(position) < self.infos.len():
-            info := self.infos[usize(position)]
+    ## The key of the member at `position`, or `.None`.
+    ## See [annot.structure.members.at-option](../../spec/lang/14-annotations.md#r-annot.structure.members.at-option).
+    pub fn at(self, position: usize) -> Key[HdS]?:
+        if position < self.infos.len():
+            info := self.infos[position]
             if info.position == position:
-                return Key { info: info, is_end: false, hd_type: self.hd_type }
+                return .Some(Key { info: info, hd_type: self.hd_type })
         for info in self.infos:
             if info.position == position:
-                return Key { info: info, is_end: false, hd_type: self.hd_type }
-        self.end()
+                return .Some(Key { info: info, hd_type: self.hd_type })
+        .None
 
-    ## The key of the first member that `matches` accepts, or the end key.
-    ## See [annot.structure.members-api](../../spec/lang/14-annotations.md#r-annot.structure.members-api).
-    pub fn find(self, matches: fn(Member) -> bool) -> Key[HdS]:
+    ## The key of the first member that `matches` accepts, or `.None`.
+    ## See [annot.structure.members.find-option](../../spec/lang/14-annotations.md#r-annot.structure.members.find-option).
+    pub fn find(self, matches: fn(Member) -> bool) -> Key[HdS]?:
         for info in self.infos:
             if matches(info):
-                return Key { info: info, is_end: false, hd_type: self.hd_type }
-        self.end()
+                return .Some(Key { info: info, hd_type: self.hd_type })
+        .None
 
 # Generated `walk` calls `rest` for a rest member; the default calls
 # `member` with the list (annot.walk.rest, annot.walk.rest.default).
@@ -224,6 +214,6 @@ pub trait Describer[S]:
 pub trait Source[S]:
     type Error
     fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], Self::Error]
-    fn next(&mut self, members: Members[S]) -> Result[Key[S], Self::Error]
+    fn next(&mut self, members: Members[S]) -> Result[Key[S]?, Self::Error]
     fn member[F](&mut self, h: Field[S, F], previous: F?) -> Result[F, Self::Error]
     fn missing[F](&mut self, h: Field[S, F]) -> Result[F, Self::Error]

@@ -37,9 +37,9 @@ impl[S] Source[S] for Partial[S]:
         .Ok(choices[0])
 
     # Names the member at position 1 once, then ends.
-    fn next(&mut self, members: Members[S]) -> Result[Key[S], string]:
+    fn next(&mut self, members: Members[S]) -> Result[Key[S]?, string]:
         if self.named:
-            return .Ok(members.end())
+            return .Ok(.None)
         self.named = true
         self.log.push("next")
         .Ok(members.at(1))

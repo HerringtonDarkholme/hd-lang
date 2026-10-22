@@ -146,9 +146,9 @@ impl[S, R < Deserializer] Source[S] for DeserializeSource[S, R]:
         .Ok(choices[index])
 
     # Every member, in declaration order.
-    fn next(&mut self, members: Members[S]) -> Result[Key[S], R::Error]:
+    fn next(&mut self, members: Members[S]) -> Result[Key[S]?, R::Error]:
         if self.at >= members.infos.len():
-            return .Ok(members.end())
+            return .Ok(.None)
         info := members.infos[self.at]
         self.at = self.at + 1
         .Ok(members.at(info.position))
@@ -494,9 +494,9 @@ impl[S, R < Deserializer] Source[S] for TupleReader[S, R]:
     fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], R::Error]:
         .Ok(choices[0])
 
-    fn next(&mut self, members: Members[S]) -> Result[Key[S], R::Error]:
+    fn next(&mut self, members: Members[S]) -> Result[Key[S]?, R::Error]:
         if self.at >= members.infos.len():
-            return .Ok(members.end())
+            return .Ok(.None)
         info := members.infos[self.at]
         self.at = self.at + 1
         .Ok(members.at(info.position))

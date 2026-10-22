@@ -1,8 +1,8 @@
 # test: a derived build whose source names no member fills every member from its declared default
-# Spec 14 Walk, Describe, And Build: annot.build.missing; after the end key,
+# Spec 14 Walk, Describe, And Build: annot.build.missing-after-none; after `.None`,
 # build calls missing once per member, and the source reads the default.
 # Also annot.build.construct. The std.structure Module:
-# annot.structure.members-api. Handles: annot.handle.member-type,
+# annot.structure.members.at-option. Handles: annot.handle.member-type,
 # annot.handle.default.
 use std.structure.{Structure, Field, Variant, Members, Key, Source}
 trait Defaults:
@@ -16,8 +16,8 @@ impl[S] Source[S] for DefaultSource:
     fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], string]:
         .Ok(choices[choices.len() - 1])
 
-    fn next(&mut self, members: Members[S]) -> Result[Key[S], string]:
-        .Ok(members.end())
+    fn next(&mut self, members: Members[S]) -> Result[Key[S]?, string]:
+        .Ok(.None)
 
     fn member[F](&mut self, h: Field[S, F], previous: F?) -> Result[F, string]:
         .Err("no input")

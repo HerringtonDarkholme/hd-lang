@@ -2533,6 +2533,7 @@ runtime/valid/structure-self-ref.hd	runtime	accept	lang/14-annotations.md#r-anno
 typing/invalid/derived-arbitrary-function-member.hd	type	reject:member-not-derivable	std/testing.md#r-std-testing.arbitrary.derive.not-derivable
 typing/invalid/derived-arbitrary-tuned-member-not-arbitrary.hd	type	reject:member-not-derivable	std/testing.md#r-std-testing.arbitrary.derive.member-bound
 runtime/valid/structure-name.hd	runtime	accept	lang/14-annotations.md#r-annot.structure.name
+runtime/valid/structure-optional-keys.hd	runtime	accept	lang/14-annotations.md#r-annot.build.next-option
 runtime/valid/structure-protocol-ref.hd	runtime	accept	lang/14-annotations.md#r-annot.structure.protocol-ref
 runtime/valid/structure-self-ref-enum.hd	runtime	accept	lang/14-annotations.md#r-annot.self-ref.needs.enum
 runtime/valid/structure-self-ref-type-arguments.hd	runtime	accept	lang/14-annotations.md#r-annot.self-ref.enclosing.arguments
@@ -3427,7 +3428,7 @@ typing/invalid/empty-list-let-without-annotation.hd	type	reject:cannot-infer-typ
 typing/valid/nested-data-argument-from-field-type.hd	type	accept	lang/04-type-system.md#r-types.generic.infer
 typing/invalid/empty-literal-generic-field-unsolved.hd	type	reject:cannot-infer-type	lang/04-type-system.md#r-types.generic.default.unsolved
 runtime/valid/typed-derivation-embedded-generic-walk.hd	runtime	accept	lang/14-annotations.md#r-annot.member.embedded
-runtime/valid/typed-derivation-build-defaults.hd	runtime	accept	lang/14-annotations.md#r-annot.build.missing
+runtime/valid/typed-derivation-build-defaults.hd	runtime	accept	lang/14-annotations.md#r-annot.build.missing-after-none
 runtime/valid/derived-equality-members.hd	runtime	accept	std/cmp.md#r-std-cmp.derive.eq.compare-fields
 runtime/valid/derived-debug-newtype.hd	runtime	accept	lang/09-traits.md#r-trait.derive.newtype.templated
 typing/valid/test-runner-every-registration-form.hd	type	accept	std/testing.md#r-std-testing.runner.body-property

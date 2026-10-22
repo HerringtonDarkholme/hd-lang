@@ -11,8 +11,8 @@ impl[S] Source[S] for Recorder:
     fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], string]:
         .Ok(choices[0])
 
-    fn next(&mut self, members: Members[S]) -> Result[Key[S], string]:
-        .Ok(members.end())
+    fn next(&mut self, members: Members[S]) -> Result[Key[S]?, string]:
+        .Ok(.None)
 
     fn member[F](&mut self, h: Field[S, F], previous: F?) -> Result[F, string]:
         .Err("no input")
