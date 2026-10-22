@@ -1,0 +1,14 @@
+# test: a literal converts to a trait value at its default type
+trait Gauge:
+    fn level(self) -> f64
+
+impl Gauge for f64:
+    fn level(self) -> f64:
+        self
+
+fn f() -> f64:
+    let g: &dyn Gauge = &0.5
+    g.level()
+
+pub fn main() -> void:
+    pass

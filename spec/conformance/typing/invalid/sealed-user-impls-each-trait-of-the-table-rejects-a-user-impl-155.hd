@@ -1,0 +1,6 @@
+# test: each trait of the table rejects a user impl
+use std.function.Tuple
+
+struct Handle: pass
+
+impl Tuple for Handle  # diagnostic: sealed-trait-implementation

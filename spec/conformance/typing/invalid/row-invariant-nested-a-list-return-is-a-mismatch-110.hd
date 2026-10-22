@@ -1,0 +1,22 @@
+# test: a list return is a mismatch
+trait Db
+
+trait Clock
+
+fn narrow() -> void $ Db:
+    pass
+
+fn other() -> void $ Db:
+    pass
+
+struct Holder[T]:
+    item: T
+
+struct View[+T]:
+    item: T
+
+struct Slot:
+    handler: fn() -> void $ Db + Clock
+
+fn wide(handlers: List[fn() -> void $ Db]) -> List[fn() -> void $ Db + Clock]:
+    handlers  # diagnostic: type-mismatch

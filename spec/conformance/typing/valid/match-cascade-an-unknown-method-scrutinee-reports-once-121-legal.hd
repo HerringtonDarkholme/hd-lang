@@ -1,0 +1,9 @@
+# test: an unknown method scrutinee reports once
+fn run(v: i32) -> i32:
+    let item: i32? = .Some(v)
+    match item:
+        .Some(n) => n
+        .None => 0
+
+pub fn main() -> void:
+    pass

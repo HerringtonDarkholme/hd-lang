@@ -1,0 +1,44 @@
+# test: two occurrences that agree solve once
+pub trait Db
+
+pub trait Clock
+
+fn db_handler() -> void $ Db:
+    pass
+
+fn db_clock_handler() -> void $ Db + Clock:
+    pass
+
+pub struct Holder[T]:
+    item: T
+
+fn run_all[$R](xs: List[fn() -> void $ R]) -> void $ R:
+    for x in xs:
+        x()
+
+fn run_map[$R](xs: Map[string, fn() -> void $ R]) -> void $ R:
+    pass
+
+fn run_option[$R](f: (fn() -> void $ R)?) -> void $ R:
+    pass
+
+fn run_pair[$R](p: (i32, fn() -> void $ R)) -> void $ R:
+    pass
+
+fn run_holder[$R](h: Holder[fn() -> void $ R]) -> void $ R:
+    pass
+
+fn run_two[$R](a: List[fn() -> void $ R], b: List[fn() -> void $ R]) -> void $ R:
+    pass
+
+fn run_both[$R](a: List[fn() -> void $ R], b: Map[string, fn() -> void $ R]) -> void $ R:
+    pass
+
+fn run_without_clock[$R](xs: List[fn() -> void $ R + Clock]) -> void $ R:
+    pass
+
+fn run_deep[$R](xs: List[List[fn() -> void $ R]]) -> void $ R:
+    pass
+
+pub fn wire(a: List[fn() -> void $ Db], b: Map[string, fn() -> void $ Db]) -> void:
+    run_both(a, b)  # diagnostic: missing-requirement

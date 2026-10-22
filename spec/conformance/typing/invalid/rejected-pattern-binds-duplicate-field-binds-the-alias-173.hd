@@ -1,0 +1,10 @@
+# test: duplicate field binds the alias
+struct User:
+    name: string
+
+fn f(user: User) -> string:
+    match user:
+        User { name, name: alias } => alias  # diagnostic: duplicate-data-pattern-field
+
+pub fn main() -> void $ Console:
+    println(1)

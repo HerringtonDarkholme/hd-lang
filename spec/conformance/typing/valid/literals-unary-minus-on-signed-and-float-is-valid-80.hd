@@ -1,0 +1,6 @@
+# test: unary minus on signed and float is valid
+fn f() -> i8:
+    -(-128 + 1)
+
+pub fn main() -> void:
+    pass

@@ -477,6 +477,11 @@ of a package in the named role. That package depends on every package under
   members with a public field `id` and a public inherent method `label`,
   and the public function `make_draft`.
 
+- [`dep.markers`](packages/markers/lib.hd) has an empty root module; its
+  [`marks`](packages/markers/marks.hd) module publicly re-exports
+  `std.ops.num_suffix` and `std.ops.str_prefix`, so marker identity can be
+  checked through a qualified dependency name.
+
 Package files are not cases. They have no row in `cases.tsv`, carry no
 directives, and are never judged on their own.
 

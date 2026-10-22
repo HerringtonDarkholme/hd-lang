@@ -125,12 +125,6 @@ fn growth_through_a_bound_stops_at_the_depth_limit() {
     assert!(text.contains("33 deep, past the limit of 32"), "{text}");
 }
 
-#[test]
-fn a_check_reports_no_depth_error() {
-    let checked = run(BOUND_GROWTH, &Goal::Analyze);
-    assert!(!checked.diags.has_errors(), "{}", checked.render());
-}
-
 /// Each round pairs the receiver with itself: the instance at depth `d`
 /// has a tree of 2^d leaves, but only `d + 1` distinct types.
 const DOUBLING: &str = "\

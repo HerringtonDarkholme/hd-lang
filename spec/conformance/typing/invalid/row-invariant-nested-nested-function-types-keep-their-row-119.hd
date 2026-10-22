@@ -1,0 +1,25 @@
+# test: nested function types keep their row
+trait Db
+
+trait Clock
+
+fn narrow() -> void $ Db:
+    pass
+
+fn other() -> void $ Db:
+    pass
+
+struct Holder[T]:
+    item: T
+
+struct View[+T]:
+    item: T
+
+struct Slot:
+    handler: fn() -> void $ Db + Clock
+
+fn serve_all(groups: List[List[fn() -> void $ Db + Clock]]) -> void:
+    pass
+
+fn wire(groups: List[List[fn() -> void $ Db]]) -> void:
+    serve_all(groups)  # diagnostic: type-mismatch

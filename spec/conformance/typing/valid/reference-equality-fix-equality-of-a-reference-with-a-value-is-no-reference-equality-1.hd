@@ -1,0 +1,6 @@
+# test: equality of a reference with a value is no reference equality
+fn same(a: &i32, b: i32) -> bool:
+    *a == b
+
+pub fn main() -> void:
+    ()

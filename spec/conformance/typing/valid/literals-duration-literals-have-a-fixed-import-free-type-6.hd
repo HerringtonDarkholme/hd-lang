@@ -1,0 +1,6 @@
+# test: duration literals have a fixed import free type
+fn delay():
+    _ := 153722867280912min
+
+pub fn main() -> void:
+    pass

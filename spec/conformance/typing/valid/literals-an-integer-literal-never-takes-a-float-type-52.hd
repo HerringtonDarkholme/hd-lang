@@ -1,0 +1,7 @@
+# test: an integer literal never takes a float type
+fn f() -> f64:
+    let r: f64 = 1.0
+    r * 2.0
+
+pub fn main() -> void:
+    pass

@@ -1,0 +1,6 @@
+# test: each trait of the table rejects a user impl
+use std.num.Integer
+
+struct Handle: pass
+
+impl Integer for Handle  # diagnostic: sealed-trait-implementation

@@ -1,0 +1,10 @@
+# test: a numeric suffix marker resolves by qualified name
+# fixture-package-role: library
+use dep.markers as pkg
+@pkg.marks.num_suffix
+fn kb(count: i32) -> i32:
+    count
+
+fn delay() -> i32: 250kb
+pub fn main() -> void:
+    pass

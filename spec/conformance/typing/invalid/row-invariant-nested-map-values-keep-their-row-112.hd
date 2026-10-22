@@ -1,0 +1,25 @@
+# test: map values keep their row
+trait Db
+
+trait Clock
+
+fn narrow() -> void $ Db:
+    pass
+
+fn other() -> void $ Db:
+    pass
+
+struct Holder[T]:
+    item: T
+
+struct View[+T]:
+    item: T
+
+struct Slot:
+    handler: fn() -> void $ Db + Clock
+
+fn serve_all(routes: Map[string, fn() -> void $ Db + Clock]) -> void:
+    pass
+
+fn wire(routes: Map[string, fn() -> void $ Db]) -> void:
+    serve_all(routes)  # diagnostic: type-mismatch

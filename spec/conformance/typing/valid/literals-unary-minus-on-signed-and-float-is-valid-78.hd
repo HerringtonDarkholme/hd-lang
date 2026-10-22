@@ -1,0 +1,7 @@
+# test: unary minus on signed and float is valid
+fn f() -> i32:
+    let x: i32 = -(2 + 2)
+    x
+
+pub fn main() -> void:
+    pass

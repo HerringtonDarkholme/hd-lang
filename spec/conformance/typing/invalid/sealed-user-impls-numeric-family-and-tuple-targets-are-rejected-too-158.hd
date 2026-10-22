@@ -1,0 +1,4 @@
+# test: numeric family and tuple targets are rejected too
+use std.num.{Integer, Num}
+
+impl[N < Integer] Num for N  # diagnostic: sealed-trait-implementation

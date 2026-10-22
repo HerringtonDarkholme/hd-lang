@@ -1,0 +1,25 @@
+# test: data generics and tuples keep their row
+trait Db
+
+trait Clock
+
+fn narrow() -> void $ Db:
+    pass
+
+fn other() -> void $ Db:
+    pass
+
+struct Holder[T]:
+    item: T
+
+struct View[+T]:
+    item: T
+
+struct Slot:
+    handler: fn() -> void $ Db + Clock
+
+fn pair(p: (i32, fn() -> void $ Db + Clock)) -> void:
+    pass
+
+fn wire(p: (i32, fn() -> void $ Db)) -> void:
+    pair(p)  # diagnostic: type-mismatch

@@ -1,0 +1,15 @@
+# test: a suffixed literal calls its suffix function
+use std.ops.num_suffix
+
+struct Millis:
+    count: i64
+
+@num_suffix
+fn ticks(count: i64) -> Millis:
+    Millis { count: count }
+
+fn delay() -> Millis:
+    250ticks
+
+pub fn main() -> void:
+    pass

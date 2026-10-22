@@ -1,0 +1,4 @@
+# test: numeric family and tuple targets are rejected too
+use std.inspect.Inspectable
+
+impl Inspectable for (i32, string)  # diagnostic: sealed-trait-implementation

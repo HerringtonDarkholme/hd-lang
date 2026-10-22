@@ -1,0 +1,4 @@
+# test: float literal in range is accepted
+pub fn main() -> void:
+    let b: f64 = -1.7976931348623157e308
+    pass

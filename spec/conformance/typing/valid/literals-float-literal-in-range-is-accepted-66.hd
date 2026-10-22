@@ -1,0 +1,4 @@
+# test: float literal in range is accepted
+pub fn main() -> void:
+    let d: f32 = 3.4028234663852886e38
+    pass

@@ -1,0 +1,6 @@
+# test: a signed literal under power checks and evaluates
+fn f(x: i32) -> i32:
+    x + -2 ** 2
+
+pub fn main() -> void:
+    pass

@@ -1,0 +1,10 @@
+# test: a string prefix marker resolves by qualified name
+use std.ops.str_prefix as prefix
+use std.ops.Template
+@prefix
+fn sql(t: Template[i32]) -> i32:
+    1
+
+fn find() -> i32: sql"select"
+pub fn main() -> void:
+    pass

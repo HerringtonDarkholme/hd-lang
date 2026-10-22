@@ -93,9 +93,3 @@ fn each_fix_compares_places_or_values_and_checks_clean() {
         }
     }
 }
-
-#[test]
-fn equality_of_a_reference_with_a_value_is_no_reference_equality() {
-    let src = "fn same(a: &i32, b: i32) -> bool:\n    *a == b\n\npub fn main() -> void:\n    ()\n";
-    assert_eq!(codes(src), Vec::<Code>::new());
-}

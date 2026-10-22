@@ -1,0 +1,7 @@
+# test: an integer literal never takes a float type
+fn f() -> f64:
+    let r = 0.5 * 2  # diagnostic: type-mismatch
+    r
+
+pub fn main() -> void:
+    pass

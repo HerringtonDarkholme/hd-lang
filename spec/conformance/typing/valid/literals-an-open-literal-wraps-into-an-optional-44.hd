@@ -1,0 +1,6 @@
+# test: an open literal wraps into an optional
+fn f(flag: bool) -> i32?:
+    if flag: 40 else: .None
+
+pub fn main() -> void:
+    pass

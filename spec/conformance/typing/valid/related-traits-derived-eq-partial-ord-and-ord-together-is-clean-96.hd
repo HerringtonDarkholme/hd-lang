@@ -1,0 +1,4 @@
+# test: derived eq partial ord and ord together is clean
+@derive(Eq, PartialOrd, Ord)
+struct Key:
+    name: string

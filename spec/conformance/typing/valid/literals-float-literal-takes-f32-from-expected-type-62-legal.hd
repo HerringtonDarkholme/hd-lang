@@ -1,0 +1,6 @@
+# test: float literal takes f32 from expected type
+fn give() -> f32:
+    -1e30
+
+pub fn main() -> void:
+    pass

@@ -1,0 +1,25 @@
+# test: a list argument with a narrower row is a mismatch
+trait Db
+
+trait Clock
+
+fn narrow() -> void $ Db:
+    pass
+
+fn other() -> void $ Db:
+    pass
+
+struct Holder[T]:
+    item: T
+
+struct View[+T]:
+    item: T
+
+struct Slot:
+    handler: fn() -> void $ Db + Clock
+
+fn serve_all(handlers: List[fn() -> void $ Db + Clock]) -> void:
+    pass
+
+fn wire(handlers: List[fn() -> void $ Db]) -> void:
+    serve_all(handlers)  # diagnostic: type-mismatch

@@ -1,0 +1,6 @@
+# test: each trait of the table rejects a user impl
+use std.structure.Structure
+
+struct Handle: pass
+
+impl Structure for Handle  # diagnostic: sealed-trait-implementation

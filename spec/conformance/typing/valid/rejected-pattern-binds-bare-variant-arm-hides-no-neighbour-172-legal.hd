@@ -1,0 +1,12 @@
+# test: bare variant arm hides no neighbour
+enum Flag:
+    On(value: i32)
+    Off
+
+fn f(flag: Flag) -> i32:
+    match flag:
+        .On(_) => 1
+        .Off => 0
+
+pub fn main() -> void $ Console:
+    println(1)

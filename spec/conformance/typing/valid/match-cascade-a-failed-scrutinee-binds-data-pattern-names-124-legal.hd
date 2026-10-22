@@ -1,0 +1,11 @@
+# test: a failed scrutinee binds data pattern names
+struct Point:
+    x: i32
+    y: i32
+
+fn run(missing: Point) -> i32:
+    match missing:
+        Point { x, y } => x + y
+
+pub fn main() -> void:
+    pass

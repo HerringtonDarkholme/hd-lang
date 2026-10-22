@@ -1,0 +1,4 @@
+# test: float literal in range is accepted
+pub fn main() -> void:
+    h := 1e300
+    pass

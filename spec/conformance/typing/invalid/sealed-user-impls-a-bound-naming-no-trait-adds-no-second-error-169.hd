@@ -1,0 +1,2 @@
+# test: a bound naming no trait adds no second error
+fn same[T < Reference](left: T, right: T) -> bool: left == right  # diagnostic: unknown-trait

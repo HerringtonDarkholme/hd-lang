@@ -1,0 +1,50 @@
+# test: a spread copy builds the wider list
+trait Db
+
+trait Clock
+
+fn narrow() -> void $ Db:
+    pass
+
+fn other() -> void $ Db:
+    pass
+
+struct Holder[T]:
+    item: T
+
+struct View[+T]:
+    item: T
+
+struct Slot:
+    handler: fn() -> void $ Db + Clock
+
+fn serve_all_104(handlers: List[fn() -> void $ Db + Clock]) -> void:
+    pass
+
+fn wire_104() -> void:
+    narrows := [narrow, other]
+    let wide: List[fn() -> void $ Db + Clock] = [narrows...]
+    serve_all_104(wide)
+    serve_all_104([narrows...])
+    serve_all_104([narrow, other])
+
+fn serve_all_105(handlers: List[fn() -> void $ Db]) -> void:
+    pass
+
+fn wire_105(handlers: List[fn() -> void $ Db]) -> void:
+    serve_all_105(handlers)
+    serve_all_105([narrow])
+    let keep: List[fn() -> void $ Db] = handlers
+    serve_all_105(keep)
+
+fn serve_all_113(routes: Map[string, fn() -> void $ Db + Clock]) -> void:
+    pass
+
+fn wire_113() -> void:
+    serve_all_113({"a": narrow})
+
+fn maybe_115(f: (fn() -> void $ Db + Clock)?) -> void:
+    pass
+
+fn wire_115() -> void:
+    maybe_115(narrow)

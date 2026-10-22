@@ -1,0 +1,6 @@
+# test: duration literals have a fixed import free type
+fn delay():
+    _ := 9223372036854776s  # diagnostic: integer-literal-range
+
+pub fn main() -> void:
+    pass

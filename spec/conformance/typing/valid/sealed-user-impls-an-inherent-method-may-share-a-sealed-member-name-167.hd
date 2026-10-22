@@ -1,0 +1,8 @@
+# test: an inherent method may share a sealed member name
+use std.inspect.TypeId
+
+struct User:
+    name: string
+
+impl User:
+    fn runtime_type(self) -> string: self.name

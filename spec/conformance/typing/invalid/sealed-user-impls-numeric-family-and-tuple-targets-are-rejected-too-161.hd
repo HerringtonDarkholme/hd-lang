@@ -1,0 +1,6 @@
+# test: numeric family and tuple targets are rejected too
+use std.core.AnyRef
+use std.function.Tuple
+use std.structure.Structure
+
+impl[T < Tuple] AnyRef for T by Structure  # diagnostic: sealed-trait-implementation

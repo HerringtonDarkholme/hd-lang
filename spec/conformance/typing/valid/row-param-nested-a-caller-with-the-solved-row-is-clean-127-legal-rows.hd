@@ -1,0 +1,71 @@
+# test: a caller with the solved row is clean
+pub trait Db
+
+pub trait Clock
+
+fn db_handler() -> void $ Db:
+    pass
+
+fn db_clock_handler() -> void $ Db + Clock:
+    pass
+
+pub struct Holder[T]:
+    item: T
+
+fn run_all[$R](xs: List[fn() -> void $ R]) -> void $ R:
+    for x in xs:
+        x()
+
+fn run_map[$R](xs: Map[string, fn() -> void $ R]) -> void $ R:
+    pass
+
+fn run_option[$R](f: (fn() -> void $ R)?) -> void $ R:
+    pass
+
+fn run_pair[$R](p: (i32, fn() -> void $ R)) -> void $ R:
+    pass
+
+fn run_holder[$R](h: Holder[fn() -> void $ R]) -> void $ R:
+    pass
+
+fn run_two[$R](a: List[fn() -> void $ R], b: List[fn() -> void $ R]) -> void $ R:
+    pass
+
+fn run_both[$R](a: List[fn() -> void $ R], b: Map[string, fn() -> void $ R]) -> void $ R:
+    pass
+
+fn run_without_clock[$R](xs: List[fn() -> void $ R + Clock]) -> void $ R:
+    pass
+
+fn run_deep[$R](xs: List[List[fn() -> void $ R]]) -> void $ R:
+    pass
+
+pub fn wire_127(handlers: List[fn() -> void $ Db]) -> void $ Db:
+    run_all(handlers)
+
+pub fn wider_127(handlers: List[fn() -> void $ Db]) -> void $ Db + Clock:
+    run_all(handlers)
+
+pub fn forward_128[$Q](xs: List[fn() -> void $ Q]) -> void $ Q:
+    run_all(xs)
+
+pub fn wire_131(routes: Map[string, fn() -> void $ Db]) -> void $ Db:
+    run_map(routes)
+
+pub fn wire_133(f: (fn() -> void $ Db)?) -> void $ Db:
+    run_option(f)
+
+pub fn wire_135(p: (i32, fn() -> void $ Db)) -> void $ Db:
+    run_pair(p)
+
+pub fn wire_137(h: Holder[fn() -> void $ Db]) -> void $ Db:
+    run_holder(h)
+
+pub fn wire_139(xs: List[List[fn() -> void $ Db]]) -> void $ Db:
+    run_deep(xs)
+
+pub fn wire_140(a: List[fn() -> void $ Db], b: List[fn() -> void $ Db]) -> void $ Db:
+    run_two(a, b)
+
+pub fn wire_144(xs: List[fn() -> void $ Db + Clock]) -> void $ Db:
+    run_without_clock(xs)

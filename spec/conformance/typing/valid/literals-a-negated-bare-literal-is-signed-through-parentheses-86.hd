@@ -1,0 +1,6 @@
+# test: a negated bare literal is signed through parentheses
+fn f(x: i32) -> i32:
+    x + -(5)
+
+pub fn main() -> void:
+    pass

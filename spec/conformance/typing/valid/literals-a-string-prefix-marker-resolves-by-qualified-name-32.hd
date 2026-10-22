@@ -1,0 +1,11 @@
+# test: a string prefix marker resolves by qualified name
+# fixture-package-role: library
+use std.ops.Template
+use dep.markers as pkg
+@pkg.marks.str_prefix
+fn sql(t: Template[i32]) -> i32:
+    1
+
+fn find() -> i32: sql"select"
+pub fn main() -> void:
+    pass

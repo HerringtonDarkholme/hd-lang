@@ -1,0 +1,17 @@
+# test: a check reports no depth error
+trait Grow:
+    fn grow(self, depth: i32) -> i32
+
+struct Box[T]:
+    value: T
+
+impl[T] Grow for Box[T]:
+    fn grow(self, depth: i32) -> i32:
+        if depth == 0: return depth
+        deeper(Box { value: self }, depth - 1)
+
+fn deeper[G < Grow](value: G, depth: i32) -> i32:
+    value.grow(depth)
+
+pub fn main() -> void:
+    _ := deeper(Box { value: +1 }, +3)

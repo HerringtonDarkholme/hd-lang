@@ -1,0 +1,16 @@
+# test: a prefixed string calls its prefix function
+use std.ops.{Template, str_prefix}
+
+struct Query:
+    text: List[string]
+    params: List[i32]
+
+@str_prefix
+fn sql(t: Template[i32]) -> Query:
+    Query { text: t.raw_parts, params: t.values }
+
+fn by_id(id: i32) -> Query:
+    sql"select * from users where id = $id"
+
+pub fn main() -> void:
+    pass

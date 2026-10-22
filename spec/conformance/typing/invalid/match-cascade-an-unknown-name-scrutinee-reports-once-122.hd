@@ -1,0 +1,8 @@
+# test: an unknown name scrutinee reports once
+fn run() -> i32:
+    match missing:  # diagnostic: unknown-name
+        .Some(n) => n + 1
+        .None => 0
+
+pub fn main() -> void:
+    pass

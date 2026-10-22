@@ -1,0 +1,25 @@
+# test: a list field is a mismatch
+trait Db
+
+trait Clock
+
+fn narrow() -> void $ Db:
+    pass
+
+fn other() -> void $ Db:
+    pass
+
+struct Holder[T]:
+    item: T
+
+struct View[+T]:
+    item: T
+
+struct Slot:
+    handler: fn() -> void $ Db + Clock
+
+struct Server:
+    handlers: List[fn() -> void $ Db + Clock]
+
+fn wire(handlers: List[fn() -> void $ Db]) -> Server:
+    Server { handlers: handlers }  # diagnostic: type-mismatch

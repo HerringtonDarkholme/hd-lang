@@ -1,0 +1,8 @@
+# test: derived hash beside hand written eq is one error
+@derive(Hash)  # diagnostic: mixed-derived-law
+struct Key:
+    name: string
+
+impl Eq for Key:
+    fn eq(self, other: Key) -> bool:
+        self.name == other.name

@@ -1,0 +1,5 @@
+# test: a poll context parameter is still allowed
+pub fn main() -> void $ Console:
+    println("x")
+
+fn take(_c: PollContext) -> void: pass

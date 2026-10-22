@@ -1,0 +1,8 @@
+# test: correct pattern binds with its type
+fn f(o: i32?) -> i32:
+    match o:
+        .Some(number) => number
+        .None => 0
+
+pub fn main() -> void $ Console:
+    println(1)

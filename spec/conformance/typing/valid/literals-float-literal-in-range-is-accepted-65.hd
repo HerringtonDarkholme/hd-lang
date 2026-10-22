@@ -1,0 +1,4 @@
+# test: float literal in range is accepted
+pub fn main() -> void:
+    let c: f64 = 1e-999
+    pass

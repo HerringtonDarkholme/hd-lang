@@ -1,0 +1,8 @@
+# test: derived eq beside hand written display is clean
+@derive(Eq)
+struct Key:
+    name: string
+
+impl Display for Key:
+    fn to_string(self) -> string:
+        self.name

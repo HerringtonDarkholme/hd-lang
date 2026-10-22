@@ -1,0 +1,27 @@
+# test: a list assignment and binding are mismatches
+trait Db
+
+trait Clock
+
+fn narrow() -> void $ Db:
+    pass
+
+fn other() -> void $ Db:
+    pass
+
+struct Holder[T]:
+    item: T
+
+struct View[+T]:
+    item: T
+
+struct Slot:
+    handler: fn() -> void $ Db + Clock
+
+fn serve_all(handlers: List[fn() -> void $ Db + Clock]) -> void:
+    pass
+
+fn wire(handlers: List[fn() -> void $ Db]) -> void:
+    let wide: List[fn() -> void $ Db + Clock] = [narrow]
+    wide = handlers  # diagnostic: type-mismatch
+    serve_all(wide)

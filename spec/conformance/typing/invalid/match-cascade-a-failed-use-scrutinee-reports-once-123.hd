@@ -1,0 +1,11 @@
+# test: a failed use scrutinee reports once
+# fixture-package-tree: match-cascade-missing-import/src/main.hd
+use pkg.nowhere.thing  # diagnostic: unknown-module
+
+fn run() -> i32:
+    match thing:
+        .Some(n) => n
+        .None => 0
+
+pub fn main() -> void:
+    pass

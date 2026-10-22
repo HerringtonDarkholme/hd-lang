@@ -1,0 +1,4 @@
+# test: float literal in range is accepted
+pub fn main() -> void:
+    let f: f32 = 1e-60
+    pass

@@ -130,12 +130,6 @@ fn spacing_between_header_tokens_does_not_matter() {
 }
 
 #[test]
-fn a_suspending_private_main_warns() {
-    let out = run("fn main!() -> void:\n    pass\n", &Goal::Analyze);
-    assert!(codes(&out).contains(&"private-main"), "{}", out.render());
-}
-
-#[test]
 fn public_main_is_still_the_entry() {
     let program = run(
         "pub fn main() -> void:\n    pass\n",

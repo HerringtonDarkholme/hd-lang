@@ -1,0 +1,25 @@
+# test: an optional function keeps its row
+trait Db
+
+trait Clock
+
+fn narrow() -> void $ Db:
+    pass
+
+fn other() -> void $ Db:
+    pass
+
+struct Holder[T]:
+    item: T
+
+struct View[+T]:
+    item: T
+
+struct Slot:
+    handler: fn() -> void $ Db + Clock
+
+fn maybe(f: (fn() -> void $ Db + Clock)?) -> void:
+    pass
+
+fn wire(f: (fn() -> void $ Db)?) -> void:
+    maybe(f)  # diagnostic: type-mismatch

@@ -1,0 +1,10 @@
+# test: unknown variant field binds its value
+enum Choice:
+    Pair(left: i32, right: i32)
+
+fn f(choice: Choice) -> i32:
+    match choice:
+        Choice.Pair(missing=value, right=other) => value  # diagnostic: unknown-field
+
+pub fn main() -> void $ Console:
+    println(1)
