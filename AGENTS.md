@@ -84,9 +84,10 @@ quotes its `Summary:` line in its report.
 
 When a task is **writing hd programs**, pick the model by what the code is
 for:
-- **Real implementation runs on Sonnet.** Code that must be correct uses
-  at least Sonnet: the standard library in `lib/std`, examples, playground
-  examples, sample apps, and hd test files.
+- **Real implementation runs on a full-capacity model.** Code that must
+  be correct uses Sonnet or a stronger model (another vendor's
+  full-capacity model counts): the standard library in `lib/std`,
+  examples, playground examples, sample apps, and hd test files.
 - **Haiku is a probe.** A Haiku agent writes hd to show how a weak model
   copes with the language, and above all whether the compiler's error
   messages lead it to the fix. Its code is evidence, not a deliverable.
