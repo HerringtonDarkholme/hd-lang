@@ -66,6 +66,13 @@ pub trait CacheStore: Sync {
     fn get(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>>;
     fn put(&self, kind: EntryKind, key: &Hash128, bytes: &[u8]);
     fn touch(&self, kind: EntryKind, key: &Hash128);
+    /// Publishes one run's pending entries. A store may share publication
+    /// work; other implementations preserve the individual put order.
+    fn put_many(&self, entries: &[(EntryKind, Hash128, Arc<[u8]>)]) {
+        for (kind, key, bytes) in entries {
+            self.put(*kind, key, bytes);
+        }
+    }
 }
 
 type Entries = Mutex<HashMap<(EntryKind, Hash128), Arc<[u8]>>>;
@@ -183,11 +190,13 @@ impl<S: CacheStore> DeferredStore<S> {
 
     /// Writes the waiting entries to the inner store, in write order.
     pub fn publish(&self) {
-        for (kind, key) in self.waiting.drain_new() {
-            if let Some(bytes) = self.waiting.get(kind, &key) {
-                self.inner.put(kind, &key, &bytes);
-            }
-        }
+        let entries = self
+            .waiting
+            .drain_new()
+            .into_iter()
+            .filter_map(|(kind, key)| self.waiting.get(kind, &key).map(|bytes| (kind, key, bytes)))
+            .collect::<Vec<_>>();
+        self.inner.put_many(&entries);
     }
 }
 

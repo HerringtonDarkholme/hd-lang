@@ -308,46 +308,76 @@ part of the key, not as a check after a miss.
 
 ```text
 obj/
-  <kind>/<2 hex>/<32 hex>     one file per key; the 2 hex digits (the key's top byte) name the shard
-  stats                       the shard-size ledger (§5.7)
+  pack-v1/
+    <32 hex>.pending          unpublished pack, exclusively leased by its writer
+    <32 hex>.pack             immutable concatenated HDCE frames
+    index                     sorted logical-key directory, atomically replaced
+    lock                      stable publication/GC writer lock
+  clpack/<2 hex>/<32 hex>      private native code, with the existing owner checks
+  stats                       legacy/private shard ledger (§5.7)
 ```
 
-- **Entry header** (64 bytes, little-endian): magic `HDCE`, kind, layout
-  version, the key, the toolchain key, payload length, a checksum of the
-  payload (the low half of its xxh3-128), the section count and flags.
-  A section table of 16-byte rows (kind, flags, rows, offset) follows,
-  then the payloads, each with a length prefix
-  ([docs/compiler/data-structures.md §3.20](../../docs/compiler/data-structures.md#320-cache-entries-and-the-manifest)).
-  A reader checks the magic, kind, length and checksum, and the driver
-  checks the key, toolchain and layout. Any mismatch is a miss.
-- **Publish:** write to a temporary file next to the final path (named
-  by the process ID), then rename it over the final path. There is no
-  `fsync`: a crash can lose a recent entry, and a torn one fails its
-  checksum and is a miss. A cache entry is never the only copy of
-  anything, so durability is not worth a sync per entry. Entries are
-  immutable, and two writers of one key write the same bytes, so a lost
-  race costs only the duplicate work.
-- **No locks on reads.** Readers read whole files. Writers never modify
-  a file in place.
-- **Dedup across processes** is not coordinated: two processes that miss
-  the same key both compute it.
-- **Write failures** (read-only or full disk) produce one warning and the
-  run continues uncached. A cache never makes a check fail.
-- **Print, then publish.** Diagnostics are printed as soon as the last
-  task that can add one finishes. Publishing runs on one I/O thread that
-  drains a queue of finished entries, so output never waits for a
-  publish. Implementation differs: there is no I/O thread. `hd check`,
-  `hd build`, `hd run` and `hd test` hold a run's entries in memory
-  (`DeferredStore`) and publish them on the main thread after the
-  report, so the report never waits for a publish, but the process exit
-  still does.
-- The layout version lives in every entry header and in
-  `toolchain_key`, not in an `obj/LAYOUT` file; a layout change misses
-  instead of misreading, with nothing extra to read.
-- A corrupt entry is a miss but is not deleted; eviction removes it like
-  any old entry, which is equal and needs no delete on the read path.
+- **Logical framing is unchanged.** Each range in a data pack is one complete
+  HDCE frame: the same 64-byte header, 16-byte section rows, length-prefixed
+  payloads and checksum as before. The driver still checks kind, key,
+  toolchain and layout; `LAYOUT_VERSION` remains 19. Pack IDs and offsets are
+  storage addresses, never semantic cache keys. The storage namespace and
+  its `HDPACK01` magic version the container independently.
+- **One pending batch, one pack.** `DeferredStore` retains a command's writes
+  in memory, and its reads see those waiting entries. After reporting, it
+  sends the pending batch to `CacheStore::put_many`. `DiskStore` writes one
+  data pack; the default batch implementation preserves individual put order
+  for memory/browser stores. Explicit publishes can create more than one
+  pack in a command. A same-key update, including Graph coherence rows,
+  replaces that key's index location; keys are not assumed insert-only.
+- **Lease, then publish.** Under the stable writer lock, create a unique
+  `.pending` file and take its exclusive file lock. Release the writer lock
+  while writing the frame bytes. Reacquire it, reload the latest index and
+  merge the pending locations and use marks. While still excluding GC,
+  release the file lease, rename to `.pack`, then write a temporary index
+  and rename it over `index`. Thus every indexed pack is complete and
+  unlocked before a reader can observe it. No `fsync` is needed for derived
+  data: a crash can lose an entry; invalid framing is a miss.
+- **Readers take no publication or lease lock.** A command loads one index
+  snapshot and reads only the addressed frame ranges. A process-local mutex
+  protects that snapshot and cached file cursors; it is not shared with
+  other processes. At most 64 open pack handles are cached. A concurrent
+  replacement or eviction leaves an older reader whole frame bytes or a
+  miss, never a partial publication.
+- **Index encoding and limits.** The 32-byte little-endian header is magic
+  `HDPACK01`, row count (`u32`), reserved zero flags (`u32`) and the 128-bit
+  `StableHasher("cache-storage-index-v1", rows)` checksum. Sorted unique
+  58-byte rows hold kind (`u16`), key (`u128`), pack ID (`u128`), offset,
+  length and last-use Unix seconds (three `u64`s). The index is limited to
+  64 MiB before allocation; every row's kind, ordering, arithmetic and
+  checksum are checked. A frame read is limited to 64 MiB and to the opened
+  pack's bounds. Decoded row storage is bounded by that index limit;
+  compaction streams payload ranges instead of collecting a whole pack in
+  memory. Oversized persistence fails with the normal cache warning while
+  compilation continues.
+- **Crash recovery and GC races.** GC uses the same writer lock and tries a
+  pending/orphan pack's file lock before deleting it. It cannot observe a
+  newly created but not yet leased file because creation and locking share
+  that writer lock. A live lease is retained; process death releases it,
+  so no age heuristic delays orphan recovery. A corrupt index reads as
+  misses and is replaced under the writer lock on the next write/GC; active
+  leases remain protected. Missing or truncated packs/ranges are misses.
+  Recognized stale temporary indexes are reclaimable because their writer
+  also holds the stable lock. Foreign filenames and symbolic links stay.
+- **Write failures** warn once and disable further puts for that command;
+  the build still succeeds. If GC cannot write, it reports the physical
+  bytes it could not remove rather than pretending the packed cache is
+  empty. Deduplication of compilation across processes is not coordinated.
+- **Private native code is separate.** Clpack keeps its loose paths, owner,
+  regular-file identity, single-link and mode-0600 checks. The new data
+  index cannot name a Clpack entry. Ordinary loose records belong to the
+  retired storage layout; GC retires them once `pack-v1` exists. Old
+  binaries racing that cleanup still see ordinary cache misses.
 
-**Code packs.** Code is stored in one `codepack` per folder group, so a
+**Planned logical code packs.** These are distinct from physical data packs.
+Current producers write Parse, Check, Iface, Graph, Depfiles and Link; the
+older Codepack/Packhint emit-and-collect plan below is not implemented.
+Code is stored in one `codepack` per folder group, so a
 build reads and publishes tens of files instead of one per instance.
 - **The key** is the group's code keys in content order
   (`codepack_key`). Two programs that use the same instances of a
@@ -371,13 +401,14 @@ which wasmtime's `unsafe` deserialization rules out today
 by function instead, one `clpack` per module
 (docs/compiler/engines-and-test-runner.md §18.2).
 
-#### 5.4.1 Packing Experiment (#751, 2026-10-22)
+#### 5.4.1 Historical Packing Experiment (#751, 2026-10-22)
 
-**Outcome.** Recommend immutable per-run packs with a shared index (A) for a
-production follow-up. They beat the loose-file control in store time on both
-workloads. Keep the production loose-file store in this design-only change;
-the temporary prototype establishes useful headroom, not a production-ready
-format or a large-cache result. The owner ruled out per-module packs (B):
+**Historical outcome.** Recommended immutable per-run packs with a shared
+index (A) for the production follow-up measured in §5.4.2. The experiment
+beat the loose-file control in store time on both workloads. That design-only
+commit kept the production loose-file store; the temporary prototype
+established useful headroom, not a production-ready format or a large-cache
+result. The owner ruled out per-module packs (B):
 `CacheStore` has no module provenance, and Iface/Graph/Link do not describe
 module records. Loose files (C) are the control A must beat. This follows the
 [measurement-first decision](https://github.com/HerringtonDarkholme/hd-lang/issues/751#issuecomment-6349274346).
@@ -527,6 +558,124 @@ three source files in `finally`. The production loose-store source is
 unchanged. This note supersedes the issue's historical syscall estimate as
 current evidence; it does not authorize a production layout switch.
 
+#### 5.4.2 Production Packs (#792, 2026-10-22)
+
+**Outcome.** The owner-approved A layout is now the ordinary disk store,
+with the lease, validation, bounded reads and shared-cap protocols above.
+The preceding experiment is historical; its one-hour orphan heuristic is
+not the production recovery rule. Logical framing and keys are unchanged.
+
+**Method.** Base `84db1696aabf783406e8dbdc4d03ad79caee92ce`, macOS arm64.
+Frozen release compilers build the same fixed JSON and nbody packages with
+`hd build --release --jobs 1 --engine node`. Each of two cohorts has 15
+samples per program, state and binary, alternating program and binary
+order. Cold includes std in an empty scratch cache; edit appends one unused
+function; no-edit preserves the edited file and cache. One cohort uses
+plain compilers for whole-process results; the other instruments both
+versions for store attribution with the same non-overlapping scopes as
+§5.4.1. The before compiler is the base's loose store, not the prototype.
+All observer changes were restored byte for byte before validation.
+
+Plain compiler medians, ms:
+
+| Program/state | Loose CPU | Packed CPU | Loose process wall | Packed process wall |
+| --- | ---: | ---: | ---: | ---: |
+| JSON cold | 362.293 | 341.333 | 370.316 | 348.510 |
+| JSON edit | 202.652 | 197.643 | 209.221 | 204.001 |
+| JSON no-edit | 50.606 | 46.912 | 54.356 | 50.388 |
+| nbody cold | 209.499 | 185.604 | 219.263 | 196.144 |
+| nbody edit | 46.539 | 42.317 | 51.420 | 47.389 |
+| nbody no-edit | 24.175 | 21.224 | 27.379 | 24.262 |
+
+Instrumented store medians, ms; shares are medians of per-build
+store-wall/process-wall ratios. These are synchronous wall scopes, not CPU
+or syscall-only attribution. Nested timers are not added to store totals.
+
+| Program/state | Loose store | Packed store | Loose share | Packed share | Packed index load | Packed merge | Packed GC |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| JSON cold | 31.042 | 2.959 | 8.06% | 0.83% | 0.056 | 0.361 | 0.184 |
+| JSON edit | 5.573 | 2.119 | 2.65% | 1.04% | 0.113 | 0.433 | 0.165 |
+| JSON no-edit | 4.174 | 1.464 | 7.05% | 2.74% | 0.083 | 0 | 0.215 |
+| nbody cold | 29.347 | 3.074 | 13.45% | 1.42% | 0.060 | 0.369 | 0.186 |
+| nbody edit | 5.441 | 2.083 | 10.45% | 4.20% | 0.113 | 0.396 | 0.159 |
+| nbody no-edit | 3.890 | 1.385 | 13.58% | 5.38% | 0.079 | 0 | 0.187 |
+
+In every sample, deferred get/put counts are 138/103 cold, 141/6 edit,
+and 142/0 no-edit; disk get counts are 98, 140 and 142. Flush and settlement
+each run once, with no explicit touch calls. Packed cold/edit flushes write
+one batch and merge once; an empty no-edit batch writes no pack or index.
+Index loads total three cold/edit (lookup, publication, GC), two no-edit;
+GC runs once and normal study builds perform no compaction. Merge includes
+lock acquisition, its nested index load and atomic save. GC includes its
+own nested load, scans and recency work before process exit.
+
+Shared-machine scheduling remains visible: plain JSON cold wall ranges
+366.719–650.954 ms loose and 339.950–631.486 ms packed; instrumented ranges
+are 361.902–1,207.429 and 349.750–1,032.942 ms. No own builds/tests overlap
+timing; another lane's single-thread measurement was active, with load
+falling from about 11.5 to 9.2. Small whole-process differences are not a
+universal speed guarantee. RSS medians/ranges are retained in the raw data;
+this change does not establish a memory reduction. Plain JSON cold system
+CPU falls 37.857→16.348 ms, nbody cold 31.214→9.926 ms.
+
+**Files and bytes.** Both programs retain 103 logical frames cold, 109 after
+edit. Loose storage has 104/110 regular files including its stats ledger;
+packed storage has 3/4 (one/two packs, index, zero-length stable lock).
+No-edit adds no files. File lengths, not allocated blocks:
+
+| Program/state | Loose bytes | Packed bytes |
+| --- | ---: | ---: |
+| JSON cold | 6,404,992 | 6,408,934 |
+| JSON edit | 6,620,675 | 6,624,965 |
+| nbody cold | 6,228,603 | 6,232,545 |
+| nbody edit | 6,268,001 | 6,272,291 |
+
+The index adds bytes; packing removes per-entry file operations.
+
+**Growth and pressure.** A release probe creates 1,000 historical packs and
+1,000 index rows through the real store. Fifteen alternating first-load and
+same-key replacement probes measure median index load 0.079 ms
+(0.070–0.107), publication merge 0.391 ms (0.313–0.523). Merge includes
+locking, reload and save; bulk pack writing is outside it. Explicit GC to
+16,384 bytes leaves 14,726 from 65,036 bytes in 56.463 ms; these single-entry
+packs need deletion rather than compaction. A second probe retains those
+1,000 historical entries, adds 100 entries in a shared pack and replaces
+half. GC compacts 130,832→110,832 bytes under a 114,688-byte cap without
+evicting any of the 1,100 live entries. One streaming compaction takes
+0.786 ms inside 12.477 ms total GC, including index work and directory
+scans. These growth/GC measurements are single-cache experiments, not a
+claim about arbitrary large-cache contention.
+
+**Validation.** All 360 paired measurement outputs and 45 existing Wasm
+probe outputs match byte for byte, with no baseline failures or regressions.
+The actual decoder validates extracted frame ranges in both cohorts: for
+both programs, every cold/edit comparison matches 103/109 complete bodies
+and 425/447 section metadata/payloads literally. HDCE layout remains 19;
+only normal build-ID-derived header key/toolchain fields differ. No payload
+normalization or fixture blessing is used.
+
+Focused checks pass: 25 disk tests (plus the ignored subprocess helper
+actually invoked by its parent crash test), five store tests, seven CLI GC
+tests, 20 driver cache/interface/session tests, all 65 unchanged stage cases,
+five native private-code-cache tests, and web compiler build/smoke. The 40
+selected conformance cases pass on both engines in dev and optimized
+pipelines: 26 runtime cases each, zero output/status differences; 61/61 dev
+and 55/55 optimized test outcome matches. Rust formatting, default and
+native host/CLI clippy, and Windows-MSVC `hd_cache` cross-clippy pass with
+warnings denied. The open-handle regression has a Windows branch that
+withholds delete sharing and verifies later reclamation; its Windows
+runtime execution belongs to normal CI, not a claimed local Windows pass.
+No full suites were run.
+
+Raw evidence under the isolated worktree's `target/`:
+`muse-792-plain-1792702188140307000/` and
+`muse-792-timed-1792702217003936000/` (samples, summaries, immutable snapshots,
+extracted frames and eight decoder comparisons), and
+`muse-792-output-compare/` (45 existing probes). Growth/compaction logs are
+`/private/tmp/muse-792-release-{growth,compaction}.log`; focused gate logs
+are `/private/tmp/muse-792-*.log`. Temporary observers and measurement
+scripts are `/private/tmp/muse-792-{build-timed,measure}.py`.
+
 ### 5.5 The Stat Manifest And Change Detection
 
 Every run lists and reads every source file of the root package and
@@ -552,31 +701,40 @@ names the entry kind and key.
 The disk store caps `obj/` at 10 GiB by default, evicting
 least-recently-used entries (`cli.cache.obj.cap`, `cli.cache.obj.evict`).
 
-- **Use marks.** A hit sets the entry's mtime to now if it is more than
-  an hour old (Go's rule), so the mtime is the last use to within an
-  hour, at most one write per entry per hour.
-- **Approximate LRU, per shard.** Exact LRU needs a full scan, and a
-  full scan of a 10 GB cache does not fit in a user command. So eviction
-  follows ccache: 256 shards named by a key's top byte, across every kind
-  directory. Each shard's budget is the cap divided by 256, and LRU holds
-  within a shard.
-- **Size accounting.** `obj/stats` holds 256 approximate shard sizes and
-  the next shard to rescan. When a used store is dropped, it adds the
-  bytes it published per shard under a short lock of that file.
-- **Automatic eviction.** On drop, a used store rescans one shard in
-  round-robin order (drift correction, every shard once per 256 runs),
-  then cleans the shards over budget and the shards of unknown size:
-  oldest first, ties by kind and key, down to 90% of the budget. It
-  stops starting shards after 20 ms (`EVICT_BOUND`); later commands
-  clean the rest.
-- **`hd cache gc`** cleans every shard now, with no time bound, and
-  prints the bytes before and after.
+- **Entry recency.** A packed entry's last-use timestamp is refreshed when
+  over an hour old and merged at publication/settlement, at most one index
+  update per entry per hour. Compaction preserves every surviving entry's
+  age; pack age never substitutes for entry recency. Eviction orders live
+  entries by age, ties by kind and key, down to 90% when the live set exceeds
+  its available cap. Dead records/orphan bytes alone do not evict a live set
+  that already fits.
+- **Physical accounting.** Final pack files, including dead/unindexed
+  records, and the index count toward the compiled-data cap. Pending leased
+  writes, the zero-length lock and the small legacy stats ledger are not
+  committed entries, as with the old temporary publish files. Unindexed
+  final packs and dead pending files are reclaimed by lease-aware GC.
+- **Compaction.** A referenced pack over 25% dead, or needing space under
+  the physical cap, is copied by live frame range into a new leased pack.
+  Commit the new locations before removing the old file. An older reader
+  can retain the old descriptor; Windows may postpone deletion until that
+  descriptor closes, and later GC retries it. Index loading and directory
+  scans are included in a command's settlement work.
+- **Private/legacy accounting.** `obj/stats` still tracks 256 approximate
+  shard sizes and a drift cursor. Its scans retire ordinary loose files;
+  Clpack entries retain their existing per-shard mtime LRU. Automatic
+  packed cleanup subtracts known legacy bytes from the shared cap. Explicit
+  `hd cache gc` scans both namespaces and uses exact remaining legacy bytes
+  as the packed budget; the two stores do not each get a fresh 10 GiB.
+- **Automatic eviction.** Drop shares one soft 20 ms budget between legacy
+  scanning and packed cleanup. The first shard/pack operation completes
+  even when scanning exhausted the budget; subsequent commands continue
+  reclamation. Scanning and a single large compaction can exceed that soft
+  budget. Publication and compaction serialize writers; readers take no
+  cross-process lock. `hd cache gc` has no time limit and prints physical
+  bytes before/after, subject to outstanding readers preventing deletion.
 - **The cap** comes from `HD_CACHE_MAX_SIZE` (bytes, with `K`, `M`, `G`
-  suffixes).
-- **Safety.** Eviction deletes only regular files at
-  `<kind>/<shard>/<32 hex>` whose name parses as a key of that shard,
-  follows no symbolic link, and never touches `pkg/`. A file another
-  process removed first, or one in use on Windows, is skipped.
+  suffixes). GC follows no links, removes only recognized managed names,
+  and never touches fetched versions in `pkg/`.
 
 ### 5.8 The Browser `CacheStore`
 
@@ -585,6 +743,9 @@ pub trait CacheStore: Sync {
     fn get(&self, kind: EntryKind, key: &Hash128) -> Option<Arc<[u8]>>;  // synchronous
     fn put(&self, kind: EntryKind, key: &Hash128, bytes: &[u8]);
     fn touch(&self, kind: EntryKind, key: &Hash128);
+    fn put_many(&self, entries: &[(EntryKind, Hash128, Arc<[u8]>)]) {
+        for (kind, key, bytes) in entries { self.put(*kind, key, bytes); }
+    }
 }
 pub struct MemoryStore { entries: Mutex<HashMap<(EntryKind, Hash128), Arc<[u8]>>>, new: Mutex<Vec<..>> }
 pub struct OverlayStore<'a> { inner: &'a dyn CacheStore, memory: MemoryStore }  // a REPL session's

@@ -3,11 +3,13 @@
 //! commands, least-recently-used order, `hd cache gc` inside and outside a
 //! package, fetched versions left alone, and evicted entries read as misses.
 
-use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, SystemTime};
 
+use hd_base::{Hash128, StableHasher};
+use hd_cache::{CacheStore, DiskStore, EntryKind};
 use hd_testkit::Scratch;
 
 fn scratch(name: &str) -> Scratch {
@@ -51,59 +53,129 @@ fn hd(cwd: &Path, cache: &Path, cap: Option<&str>, args: &[&str]) -> Ran {
     }
 }
 
-/// One compiled entry on disk.
+/// One logical compiled entry. Its identity survives pack compaction.
 struct Entry {
-    path: PathBuf,
-    shard: String,
+    kind: EntryKind,
+    key: Hash128,
+    pack: PathBuf,
     bytes: u64,
     modified: SystemTime,
 }
 
-/// Every compiled entry under `obj`: `<kind>/<shard>/<32 hex>`.
-fn entries(obj: &Path) -> Vec<Entry> {
-    let mut out = Vec::new();
-    let dirs = |p: &Path| -> Vec<PathBuf> {
-        std::fs::read_dir(p)
-            .map(|r| {
-                r.flatten()
-                    .map(|e| e.path())
-                    .filter(|p| p.is_dir())
-                    .collect()
-            })
-            .unwrap_or_default()
-    };
-    for kind in dirs(obj) {
-        for shard in dirs(&kind) {
-            for e in std::fs::read_dir(&shard).expect("shard").flatten() {
-                let name = e.file_name().to_string_lossy().into_owned();
-                if name.len() != 32 || !name.bytes().all(|b| b.is_ascii_hexdigit()) {
-                    continue;
-                }
-                let meta = e.metadata().expect("entry");
-                out.push(Entry {
-                    path: e.path(),
-                    shard: name[..2].to_owned(),
-                    bytes: meta.len(),
-                    modified: meta.modified().expect("mtime"),
-                });
-            }
-        }
+impl Entry {
+    fn identity(&self) -> (EntryKind, Hash128) {
+        (self.kind, self.key)
     }
-    out
 }
 
+const INDEX_HEADER: usize = 32;
+const INDEX_ROW: usize = 58;
+
+fn checksum_index(bytes: &mut [u8]) {
+    let mut hash = StableHasher::new("cache-storage-index-v1");
+    hash.bytes(&bytes[INDEX_HEADER..]);
+    bytes[16..INDEX_HEADER].copy_from_slice(&hash.finish().0.to_le_bytes());
+}
+
+fn read_index(obj: &Path) -> Option<Vec<u8>> {
+    let path = obj.join("pack-v1/index");
+    let bytes = match std::fs::read(&path) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return None,
+        Err(error) => panic!("{}: {error}", path.display()),
+    };
+    assert!(bytes.len() >= INDEX_HEADER);
+    assert_eq!(&bytes[..8], b"HDPACK01");
+    let count = u32::from_le_bytes(bytes[8..12].try_into().unwrap());
+    assert_eq!(
+        bytes.len(),
+        INDEX_HEADER + usize::try_from(count).unwrap() * INDEX_ROW
+    );
+    let mut checked = bytes.clone();
+    checksum_index(&mut checked);
+    assert_eq!(
+        &checked[16..INDEX_HEADER],
+        &bytes[16..INDEX_HEADER],
+        "index checksum"
+    );
+    Some(bytes)
+}
+
+/// Read the logical directory and verify every indexed range exists in a
+/// physical pack. Merely enumerating loose files would silently test none.
+fn entries(obj: &Path) -> Vec<Entry> {
+    let Some(index) = read_index(obj) else {
+        return Vec::new();
+    };
+    index[INDEX_HEADER..]
+        .chunks_exact(INDEX_ROW)
+        .map(|row| {
+            let kind = u16::from_le_bytes(row[..2].try_into().unwrap());
+            let kind = EntryKind::ALL
+                .into_iter()
+                .find(|&k| k as u16 == kind)
+                .unwrap();
+            let key = Hash128(u128::from_le_bytes(row[2..18].try_into().unwrap()));
+            let pack = u128::from_le_bytes(row[18..34].try_into().unwrap());
+            let offset = u64::from_le_bytes(row[34..42].try_into().unwrap());
+            let bytes = u64::from_le_bytes(row[42..50].try_into().unwrap());
+            let used = u64::from_le_bytes(row[50..58].try_into().unwrap());
+            let pack = obj.join(format!("pack-v1/{pack:032x}.pack"));
+            assert!(
+                offset.checked_add(bytes).unwrap() <= pack.metadata().expect("indexed pack").len()
+            );
+            Entry {
+                kind,
+                key,
+                pack,
+                bytes,
+                modified: SystemTime::UNIX_EPOCH + Duration::from_secs(used),
+            }
+        })
+        .collect()
+}
+
+/// Physical compiled bytes, including index and obsolete pack records;
+/// leases, the publication lock and the legacy stats ledger are not entries.
 fn total(obj: &Path) -> u64 {
-    entries(obj).iter().map(|e| e.bytes).sum()
+    std::fs::read_dir(obj.join("pack-v1"))
+        .into_iter()
+        .flatten()
+        .map(|entry| {
+            let entry = entry.expect("pack directory entry");
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if entry.file_type().expect("pack type").is_file()
+                && (name == "index"
+                    || name.strip_suffix(".pack").is_some_and(|id| {
+                        id.len() == 32 && id.bytes().all(|b| b.is_ascii_hexdigit())
+                    }))
+            {
+                entry.metadata().expect("pack size").len()
+            } else {
+                0
+            }
+        })
+        .sum()
 }
 
-fn set_age(path: &Path, days: u64) {
-    let t = SystemTime::now() - Duration::from_secs(days * 86_400);
-    std::fs::OpenOptions::new()
-        .write(true)
-        .open(path)
-        .expect("entry")
-        .set_modified(t)
-        .expect("mtime");
+fn set_age(obj: &Path, entry: &Entry, days: u64) {
+    let time = SystemTime::now() - Duration::from_secs(days * 86_400);
+    let seconds = time
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let mut index = read_index(obj).expect("index");
+    let row = index[INDEX_HEADER..]
+        .chunks_exact_mut(INDEX_ROW)
+        .find(|row| {
+            u16::from_le_bytes(row[..2].try_into().unwrap()) == entry.kind as u16
+                && u128::from_le_bytes(row[2..18].try_into().unwrap()) == entry.key.0
+        })
+        .expect("logical entry");
+    row[50..58].copy_from_slice(&seconds.to_le_bytes());
+    checksum_index(&mut index);
+    std::fs::write(obj.join("pack-v1/index"), index).expect("age index entry");
 }
 
 fn recent(e: &Entry) -> bool {
@@ -227,9 +299,10 @@ fn a_recently_hit_entry_outlives_older_ones() {
     let obj = cache.join("obj");
     let r = hd(&pkg, &cache, None, &["check"]);
     assert_eq!(r.code, Some(0), "{}", r.err);
-    let first: Vec<PathBuf> = entries(&obj).into_iter().map(|e| e.path).collect();
-    for e in &first {
-        set_age(e, 10);
+    let initial = entries(&obj);
+    let first: Vec<_> = initial.iter().map(Entry::identity).collect();
+    for entry in &initial {
+        set_age(&obj, entry, 10);
     }
     // An edit leaves the old entries of `tax` unused; the rest are hits,
     // which mark their entries used.
@@ -244,49 +317,56 @@ fn a_recently_hit_entry_outlives_older_ones() {
     let (used, unused): (Vec<&Entry>, Vec<&Entry>) = all.iter().partition(|e| recent(e));
     assert!(!unused.is_empty());
     // The hits are entries of the first run that are recent again.
-    assert!(used.iter().any(|e| first.contains(&e.path)));
-    // A filler of one shard's budget, three days old, in every shard: so
-    // each shard evicts its 10-day-old entries, then its filler, and keeps
-    // what the last run used.
-    let mut per_shard: BTreeMap<&str, u64> = BTreeMap::new();
-    for e in &used {
-        *per_shard.entry(&e.shard).or_default() += e.bytes;
-    }
-    let budget = per_shard.values().max().copied().unwrap_or(0) * 2 + 1024;
-    let mut fillers = Vec::new();
-    for shard in all
-        .iter()
-        .map(|e| e.shard.as_str())
-        .collect::<std::collections::BTreeSet<_>>()
+    assert!(used.iter().any(|e| first.contains(&e.identity())));
+    // The cap fits every recently used logical entry and its index rows,
+    // but neither the ten-day-old entries nor a three-day-old filler.
+    let kept_bytes = used.iter().map(|e| e.bytes).sum::<u64>()
+        + u64::try_from(INDEX_HEADER + used.len() * INDEX_ROW).unwrap();
+    let filler = (EntryKind::Check, Hash128(u128::MAX));
+    assert!(!all.iter().any(|entry| entry.identity() == filler));
     {
-        let path = obj
-            .join("check")
-            .join(shard)
-            .join(format!("{shard}{}", "f".repeat(30)));
-        std::fs::create_dir_all(path.parent().expect("dir")).expect("dir");
-        std::fs::write(&path, vec![0u8; usize::try_from(budget).expect("size")]).expect("filler");
-        set_age(&path, 3);
-        fillers.push(path);
+        let store = DiskStore::new(obj.clone());
+        store.put(
+            filler.0,
+            &filler.1,
+            &vec![0; usize::try_from(kept_bytes + 1024).unwrap()],
+        );
     }
-    let cap = (budget * 256).to_string();
+    let fillers = entries(&obj)
+        .into_iter()
+        .filter(|e| e.identity() == filler)
+        .collect::<Vec<_>>();
+    assert_eq!(fillers.len(), 1);
+    for entry in &fillers {
+        set_age(&obj, entry, 3);
+    }
+    let cap = (kept_bytes.div_ceil(9) * 10).to_string();
     let r = hd(&pkg, &cache, Some(&cap), &["cache", "gc"]);
     assert_eq!(r.code, Some(0), "{}", r.err);
-    for e in &used {
+    let survivors = entries(&obj)
+        .into_iter()
+        .map(|e| e.identity())
+        .collect::<Vec<_>>();
+    for entry in &used {
         assert!(
-            e.path.exists(),
-            "a used entry was evicted: {}",
-            e.path.display()
+            survivors.contains(&entry.identity()),
+            "a used entry was evicted: {:?}",
+            entry.identity()
         );
     }
-    for e in &unused {
+    for entry in &unused {
         assert!(
-            !e.path.exists(),
-            "an unused entry stayed: {}",
-            e.path.display()
+            !survivors.contains(&entry.identity()),
+            "an unused entry stayed: {:?}",
+            entry.identity()
         );
     }
-    for f in &fillers {
-        assert!(!f.exists(), "a filler stayed: {}", f.display());
+    for entry in &fillers {
+        assert!(
+            !survivors.contains(&entry.identity()),
+            "a filler stayed: {:?}",
+            entry.identity()
+        );
     }
     // Everything the check reads survived, so it checks no module again.
     let r = hd(&pkg, &cache, None, &["check", "--format", "json"]);
@@ -301,10 +381,15 @@ fn evicted_and_vanished_entries_read_as_misses() {
     let obj = cache.join("obj");
     let first = hd(&pkg, &cache, None, &["check", "--format", "json"]);
     assert_eq!(first.code, Some(0), "{}", first.err);
-    // Every other entry disappears, as if another process evicted it.
-    for (i, e) in entries(&obj).iter().enumerate() {
+    // Alternate packs disappear, as if another process evicted their
+    // entries. Multiple index rows can address the same immutable file.
+    let packs = entries(&obj)
+        .into_iter()
+        .map(|e| e.pack)
+        .collect::<BTreeSet<_>>();
+    for (i, pack) in packs.iter().enumerate() {
         if i % 2 == 0 {
-            std::fs::remove_file(&e.path).expect("remove");
+            std::fs::remove_file(pack).expect("remove");
         }
     }
     let second = hd(&pkg, &cache, None, &["check", "--format", "json"]);
@@ -319,9 +404,13 @@ fn evicted_and_vanished_entries_read_as_misses() {
     };
     assert_eq!(summary(&first), summary(&second));
     // An entry cut short is a miss too.
-    for e in entries(&obj) {
-        let bytes = std::fs::read(&e.path).expect("entry");
-        std::fs::write(&e.path, &bytes[..bytes.len() / 2]).expect("truncate");
+    let packs = entries(&obj)
+        .into_iter()
+        .map(|e| e.pack)
+        .collect::<BTreeSet<_>>();
+    for pack in packs {
+        let bytes = std::fs::read(&pack).expect("entry");
+        std::fs::write(pack, &bytes[..bytes.len() / 2]).expect("truncate");
     }
     let third = hd(&pkg, &cache, None, &["check", "--format", "json"]);
     assert_eq!(third.code, Some(0), "{}", third.err);
