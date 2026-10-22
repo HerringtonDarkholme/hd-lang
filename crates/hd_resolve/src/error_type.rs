@@ -124,7 +124,7 @@ impl Generated {
     /// The implementation's `DefId` for the error type `ty`.
     #[must_use]
     pub fn def(self, names: &Names<'_>, ty: DefId) -> DefId {
-        let module = names.module(&names.module_of(ty));
+        let module = names.module_node(ty);
         let seg = self.segment(names.display_name(ty));
         DefId::from_raw(names.paths.intern(module, PathKind::Impl, &seg).raw())
     }

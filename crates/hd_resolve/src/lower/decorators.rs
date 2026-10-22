@@ -7,7 +7,7 @@
 
 use hd_base::HashMap;
 
-use hd_base::{DefId, Span};
+use hd_base::{DefId, PathId, Span};
 use hd_diag::{Code, DiagMark, FixSafety, Severity};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_types::{Ty, TyData};
@@ -53,7 +53,7 @@ fn kind_bit(name: &str) -> Option<u16> {
 /// its member lines, and the impl's span.
 type DriftBlock = (
     DefId,
-    String,
+    PathId,
     DefId,
     String,
     String,
@@ -547,15 +547,9 @@ impl Lower<'_, '_, '_> {
                 .any(|t| self.src.tkind(t) == Some(TokenKind::KwPass))
     }
 
-    /// The first segment of the dotted path of the module that declares
-    /// `d`: the package (`Names::module`).
-    fn package_of(&self, d: DefId) -> String {
-        self.names
-            .module_of(d)
-            .split('.')
-            .next()
-            .unwrap_or("")
-            .to_owned()
+    /// The package node declaring `d`, without rendering its module.
+    fn package_of(&self, d: DefId) -> PathId {
+        self.names.package_node(d)
     }
 
     /// One member line's drift signature (`annot.line.drift`): the member

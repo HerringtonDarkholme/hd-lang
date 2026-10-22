@@ -27,6 +27,7 @@ pub(crate) fn suppress(body: &mut Body, names: &Names<'_>) -> bool {
     // here stays silent even if it is later called in the root package.
     let done = names.item("std.format", "dbg_done");
     let mut changed = false;
+    let format_module = names.module("std.format");
     for i in 0..body.tags.len() {
         let [a, b] = body.data[i];
         if body.tags[i] == Tag::ItemRef && body.record(a) == [dbg.raw()] {
@@ -45,7 +46,7 @@ pub(crate) fn suppress(body: &mut Body, names: &Names<'_>) -> bool {
             changed = true;
             continue;
         }
-        if names.module_of(def) != "std.format" {
+        if names.module_node(def) != format_module {
             continue;
         }
         match names.display_name(def) {

@@ -95,7 +95,11 @@ impl Names<'_> {
     /// The dotted path of the module that declares `d` (`std.format`).
     #[must_use]
     pub fn module_of(&self, d: DefId) -> String {
-        let mut p = self.module_node(d);
+        self.module_text(self.module_node(d))
+    }
+    /// Dotted text at a display or serialization boundary. Hot lookups keep IDs.
+    #[must_use]
+    pub fn module_text(&self, mut p: PathId) -> String {
         let mut segs = Vec::new();
         while p.get().is_some() {
             segs.push(self.paths.segment(p).to_owned());
@@ -115,6 +119,15 @@ impl Names<'_> {
     #[must_use]
     pub fn module_node(&self, d: DefId) -> PathId {
         self.paths.def_module(PathId::from_raw(d.raw()))
+    }
+    /// The package node declaring an item, without rendering its module.
+    #[must_use]
+    pub fn package_node(&self, d: DefId) -> PathId {
+        let mut p = self.module_node(d);
+        while p.get().is_some() && self.paths.kind(p) != PathKind::Package {
+            p = self.paths.parent(p);
+        }
+        p
     }
     /// The stable path of an item, for messages and relocations.
     #[must_use]

@@ -22,7 +22,9 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use hd_base::wire::{Reader, Writer};
 pub use hd_base::{BuildProfile, EngineTarget, OptLevel};
-use hd_base::{DefId, FileId, FolderId, Hash128, ModuleId, NotImplemented, Span, StageResult};
+use hd_base::{
+    DefId, FileId, FolderId, Hash128, ModuleId, NotImplemented, PathId, Span, StageResult,
+};
 use hd_cache::{
     CacheStore, EntryKind, FileApi, MemoryStore, check_key, hdr_key, iface_key, init_key,
     parse_key, prog_key, reads_key, toolchain_key,
@@ -1146,6 +1148,9 @@ struct Run<'a> {
     /// path ([`Packages::profile`]).
     profile: Vec<String>,
     table: ModuleTable,
+    /// The run's module trie nodes mapped to project rows. Never cast between
+    /// `PathId` and `ModuleId`: the tables have unrelated insertion orders.
+    module_nodes: HashMap<PathId, ModuleId>,
     texts: Vec<Arc<str>>,
     pool: InternPool,
     paths: PathTable,
@@ -1593,6 +1598,23 @@ pub fn build_packages(
     ));
     let paths = PathTable::new();
     let known = hd_resolve::KnownItems::new(&paths);
+    let module_nodes = table
+        .modules
+        .iter()
+        .enumerate()
+        .map(|(i, module)| {
+            let mut segments = module.path.split('.');
+            let mut node = paths.intern(
+                PathId::NONE,
+                hd_intern::PathKind::Package,
+                segments.next().unwrap_or(""),
+            );
+            for segment in segments {
+                node = paths.intern(node, hd_intern::PathKind::Module, segment);
+            }
+            (node, ModuleId::from_raw(u32_of(i)))
+        })
+        .collect();
     let profile = packages.profile.clone().unwrap_or_else(|| {
         hd_host_abi::TABLE
             .iter()
@@ -1686,6 +1708,7 @@ pub fn build_packages(
         tir_text: Mutex::new(std::collections::BTreeMap::new()),
         own_text: Mutex::new(std::collections::BTreeMap::new()),
         table,
+        module_nodes,
     };
     lock(&run.report).ok(Stage::Discover);
     for cycle in &folder_cycles {
@@ -2416,8 +2439,7 @@ impl Run<'_> {
         let span = deep
             .at
             .and_then(|(item, node)| {
-                let module = self.names().module_of(item);
-                let m = self.table.modules.iter().position(|x| x.path == module)?;
+                let m = self.item_module(item)?.idx();
                 let src = self.src(m);
                 Some(src.span(src.parse.tree.node(node)))
             })
@@ -2431,6 +2453,24 @@ impl Run<'_> {
 
     fn blocked(&self, s: Stage) {
         lock(&self.report).blocked(s);
+    }
+
+    fn item_module(&self, item: DefId) -> Option<ModuleId> {
+        self.module_nodes
+            .get(&self.names().module_node(item))
+            .copied()
+    }
+
+    fn item_folder(&self, item: DefId) -> Option<FolderId> {
+        self.item_module(item)
+            .map(|m| self.table.modules[m.idx()].folder)
+    }
+
+    fn item_module_text(&self, item: DefId) -> std::borrow::Cow<'_, str> {
+        self.item_module(item).map_or_else(
+            || std::borrow::Cow::Owned(self.names().module_text(self.names().module_node(item))),
+            |m| std::borrow::Cow::Borrowed(self.table.modules[m.idx()].path.as_str()),
+        )
     }
 
     fn lookup(&self, kind: EntryKind, key: Hash128) -> Option<Vec<CacheSection>> {
@@ -2887,10 +2927,9 @@ impl Run<'_> {
         items: impl IntoIterator<Item = &'a Item>,
         exports: &[hd_resolve::Export],
     ) -> Option<Vec<(String, Hash128)>> {
-        let names = self.names();
         let mut folders = std::collections::BTreeSet::new();
         for d in hd_resolve::mentioned_defs(&self.pool, items, exports) {
-            if let Some(f) = self.table.folder_of_module(&names.module_of(d))
+            if let Some(f) = self.item_folder(d)
                 && f != fid
             {
                 folders.insert(f.raw());
@@ -3865,7 +3904,7 @@ impl Run<'_> {
     /// file: resolved from the interface's declaration-relative anchors
     /// against this run's parse. Falls back to the start of the module file.
     fn item_span(&self, d: DefId, slot: u32) -> Span {
-        let Some(mid) = self.table.module(&self.names().module_of(d)) else {
+        let Some(mid) = self.item_module(d) else {
             return Span {
                 file: FileId::from_raw(u32::MAX),
                 lo: 0,
@@ -4341,7 +4380,7 @@ impl Run<'_> {
                 .iter()
                 .find_map(|i| i.spans.get(&(d, 0)))
                 .map_or((0, 0, 0), |(_, a)| (a.decl, a.member, a.tok));
-            let mut module = names.module_of(d);
+            let mut module = self.item_module_text(d).into_owned();
             if let Some(n) = inputs.get(module.as_str())
                 && let Some(stem) = module.strip_suffix(&n.to_string())
             {
@@ -4801,7 +4840,6 @@ impl Run<'_> {
         for &c in closure {
             let iface = self.iface_of(c)?;
             let templates = self.folder_templates[c.idx()].get_or_init(|| {
-                let names = self.names();
                 // From the item index: only a template's record is read (#213).
                 let items = &iface.items;
                 let mut ts: Vec<FolderTemplate> = (0..items.len())
@@ -4812,7 +4850,7 @@ impl Run<'_> {
                             hd_resolve::ImplKind::TupleTemplate => false,
                             _ => return None,
                         };
-                        let p = names.module_of(*items.defs().get(i)?);
+                        let p = self.item_module_text(*items.defs().get(i)?).into_owned();
                         if p.starts_with("std.") {
                             return None;
                         }
@@ -5664,8 +5702,7 @@ impl Run<'_> {
         lock(&self.report).ok(Stage::Body);
         let inferred = hd_check::results::inferred(&cx);
         let folder = module.folder;
-        let same_folder =
-            |d: DefId| self.table.folder_of_module(&names.module_of(d)) == Some(folder);
+        let same_folder = |d: DefId| self.item_folder(d) == Some(folder);
         let summary = hd_check::init::summary(&cx, init_facts, &same_folder);
         let dbg = cx.dbg_refs.take();
         // A REPL input's interface carries its bindings for later inputs.
@@ -6056,7 +6093,7 @@ impl Run<'_> {
                 }
                 continue;
             };
-            let Some(tm) = self.table.module(&names.module_of(template)) else {
+            let Some(tm) = self.item_module(template) else {
                 continue;
             };
             let block = heads.iter().find(|h| h.def == it.def).map(|h| h.node);
@@ -6223,11 +6260,7 @@ impl Run<'_> {
         {
             return;
         }
-        let Some(dm) = self
-            .table
-            .module(&names.module_of(data))
-            .map(hd_base::ModuleId::idx)
-        else {
+        let Some(dm) = self.item_module(data).map(hd_base::ModuleId::idx) else {
             return;
         };
         let Some(mut prior) = self
@@ -6258,10 +6291,7 @@ impl Run<'_> {
             })
             .filter(|it| it.def != h.def);
         if let Some(block) = block
-            && let Some(bm) = self
-                .table
-                .module(&names.module_of(block.def))
-                .map(hd_base::ModuleId::idx)
+            && let Some(bm) = self.item_module(block.def).map(hd_base::ModuleId::idx)
             && bm != dm
         {
             let layer = |bcx: &BodyCx<'_>, bheads: &[hd_resolve::Head<'_>]| {
@@ -6312,14 +6342,7 @@ impl Run<'_> {
         let Some((trait_, data)) = cx.lookup.item(h.def).and_then(block_of) else {
             return;
         };
-        let package = |d: DefId| {
-            names
-                .module_of(d)
-                .split('.')
-                .next()
-                .unwrap_or("")
-                .to_owned()
-        };
+        let package = |d: DefId| names.package_node(d);
         let same = |it: &Item| {
             block_of(it).is_some_and(|(t, d)| d == data && package(t) == package(trait_))
         };
@@ -6332,11 +6355,7 @@ impl Run<'_> {
             .chain(cx.lookup.ifaces.iter().flat_map(|f| &f.items))
             .filter(|it| same(it) && cx.session.contains(&names.module_node(it.def)))
         {
-            let Some(bm) = self
-                .table
-                .module(&names.module_of(it.def))
-                .map(hd_base::ModuleId::idx)
-            else {
+            let Some(bm) = self.item_module(it.def).map(hd_base::ModuleId::idx) else {
                 continue;
             };
             if bm == m {
@@ -6410,7 +6429,7 @@ impl Run<'_> {
         derived: &mut Derived,
     ) -> Option<FactBodies> {
         let names = self.names();
-        let dm = self.table.module(&names.module_of(data))?.idx();
+        let dm = self.item_module(data)?.idx();
         let base = self
             .in_module(m, dm, (&[], impls.own), |dcx, dheads| {
                 declaration_bodies(dcx, dheads, data, derived)
@@ -6431,7 +6450,7 @@ impl Run<'_> {
         let Some(block) = block else {
             return Some(base);
         };
-        let bm = self.table.module(&names.module_of(block.def))?.idx();
+        let bm = self.item_module(block.def)?.idx();
         if bm == dm {
             return Some(base);
         }
@@ -6558,7 +6577,7 @@ impl Run<'_> {
     /// plan.
     fn compute_tuple_plan(&self, template: DefId) -> Option<Arc<[MemberStep]>> {
         let names = self.names();
-        let tm = self.table.module(&names.module_of(template))?.idx();
+        let tm = self.item_module(template)?.idx();
         let tmod = self.template_mods[tm]
             .get_or_init(|| {
                 self.lower_module(tm, Stage::Body, &mut DiagBuf::default())
@@ -7895,6 +7914,7 @@ impl Run<'_> {
     /// executable: no Termination conversion or host providers are installed.
     fn collect_fixture(&self, sp: &dyn Spawn, p: &ProgramTables, pkey: Hash128, module: &str) {
         let names = self.names();
+        let module_node = names.module(module);
         let folders = self.program_folders();
         let arity = p.arity();
         let view = self.program_view(p, &folders, &arity);
@@ -7947,7 +7967,7 @@ impl Run<'_> {
             .values()
             .filter_map(|item| {
                 (item.sig().is_some()
-                    && names.module_of(item.def) == module
+                    && names.module_node(item.def) == module_node
                     && self
                         .body_of(p, item.def)
                         .is_some_and(|b| b.0.kind == hd_tir::ir::BodyKind::Fn))
@@ -8049,7 +8069,7 @@ impl Run<'_> {
             .item
             .iter()
             .enumerate()
-            .filter(|(_, d)| names.module_of(**d) == module)
+            .filter(|(_, d)| names.module_node(**d) == module_node)
             .map(|(i, _)| collected.table.key[i])
             .collect();
         let order = collected.table.content_order();
@@ -8550,14 +8570,21 @@ impl Run<'_> {
                 inits: inits.clone(),
                 runtime_inits: {
                     let table = &c.collected.table;
+                    let runtime = names.module("std.rt");
                     inits
                         .iter()
                         .flatten()
                         .copied()
                         .filter(|k| {
                             table.key.iter().position(|x| x == k).is_some_and(|i| {
-                                let module = names.module_of(table.item[i]);
-                                module == "std.rt" || module.starts_with("std.rt.")
+                                let mut module = names.module_node(table.item[i]);
+                                while module.get().is_some() {
+                                    if module == runtime {
+                                        return true;
+                                    }
+                                    module = names.paths.parent(module);
+                                }
+                                false
                             })
                         })
                         .collect()
@@ -8645,6 +8672,16 @@ impl TuplePlans for Run<'_> {
 }
 
 impl hd_resolve::World for Run<'_> {
+    fn module_path_node(&self, module: PathId) -> Option<&str> {
+        self.module_nodes
+            .get(&module)
+            .map(|m| self.table.modules[m.idx()].path.as_str())
+    }
+    fn module_folder_node(&self, _names: &Names<'_>, module: PathId) -> Option<u32> {
+        self.module_nodes
+            .get(&module)
+            .map(|m| self.table.modules[m.idx()].folder.raw())
+    }
     fn module_folder(&self, module: &str) -> Option<u32> {
         self.table.folder_of_module(module).map(FolderId::raw)
     }
@@ -9978,10 +10015,10 @@ impl ProgramEnv for Env<'_> {
     }
     fn type_name(&self, def: DefId) -> String {
         let names = self.run.names();
-        let (module, name) = (names.module_of(def), names.display_name(def));
+        let (module, name) = (self.run.item_module_text(def), names.display_name(def));
         if hd_resolve::PRELUDE
             .iter()
-            .any(|(m, ns)| *m == module && ns.contains(&name))
+            .any(|(m, ns)| *m == module.as_ref() && ns.contains(&name))
         {
             return name.to_owned();
         }
@@ -9993,10 +10030,10 @@ impl ProgramEnv for Env<'_> {
     }
     fn printed_name(&self, def: DefId) -> String {
         let names = self.run.names();
-        let (module, name) = (names.module_of(def), names.display_name(def));
+        let (module, name) = (self.run.item_module_text(def), names.display_name(def));
         if hd_resolve::PRELUDE
             .iter()
-            .any(|(m, ns)| *m == module && ns.contains(&name))
+            .any(|(m, ns)| *m == module.as_ref() && ns.contains(&name))
         {
             return name.to_owned();
         }

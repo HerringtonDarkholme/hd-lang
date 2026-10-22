@@ -91,6 +91,19 @@ pub fn prelude_modules() -> Vec<&'static str> {
 /// interfaces of other folders.
 pub trait World {
     fn module_folder(&self, module: &str) -> Option<u32>;
+    /// Dotted text already owned by the world, when it indexes module nodes.
+    fn module_path_node(&self, _module: PathId) -> Option<&str> {
+        None
+    }
+    /// A known module's folder without rendering a dotted path. Small worlds
+    /// may keep the text-only implementation; the project driver indexes nodes.
+    fn module_folder_node(&self, names: &Names<'_>, module: PathId) -> Option<u32> {
+        if let Some(text) = self.module_path_node(module) {
+            self.module_folder(text)
+        } else {
+            self.module_folder(&names.module_text(module))
+        }
+    }
     /// Whether a `use` may name the module: it exists and is not its own
     /// program (`module.path.main-no-use`).
     fn usable(&self, module: &str) -> bool;
@@ -166,6 +179,17 @@ impl<'a> Recorded<'a> {
 }
 
 impl World for Recorded<'_> {
+    fn module_path_node(&self, module: PathId) -> Option<&str> {
+        self.world.module_path_node(module)
+    }
+    fn module_folder_node(&self, names: &Names<'_>, module: PathId) -> Option<u32> {
+        if let Some(text) = self.world.module_path_node(module) {
+            self.module(text);
+        } else {
+            self.module(&names.module_text(module));
+        }
+        self.world.module_folder_node(names, module)
+    }
     fn module_folder(&self, module: &str) -> Option<u32> {
         self.module(module);
         self.world.module_folder(module)
@@ -774,15 +798,19 @@ type Res = Result<(DefId, HeadKind), Code>;
 struct Resolver<'a, 'b> {
     cx: &'b Cx<'a>,
     frozen: Option<Arc<FolderIface>>,
-    own: HashMap<(String, Symbol), (DefId, HeadKind, bool)>,
+    // Module identity is the package/module trie node, never an item node or
+    // an hd_project::ModuleTable row. Text is shared only at World/blob boundaries.
+    module_keys: HashMap<Arc<str>, PathId>,
+    module_paths: HashMap<PathId, Arc<str>>,
+    own: HashMap<(PathId, Symbol), (DefId, HeadKind, bool)>,
     /// The `struct` declarations of the modules being lowered.
     struct_defs: HashSet<DefId>,
-    pub_uses: HashMap<(String, Symbol), (String, Symbol)>,
-    memo: RefCell<HashMap<(String, Symbol), Res>>,
-    visiting: RefCell<HashSet<(String, Symbol)>>,
+    pub_uses: HashMap<(PathId, Symbol), (PathId, Symbol)>,
+    memo: RefCell<HashMap<(PathId, Symbol), Res>>,
+    visiting: RefCell<HashSet<(PathId, Symbol)>>,
     /// Re-export loops already reported, each as its cycle's sorted nodes,
     /// so a loop is one error (`module.pub-use.chain.loop`).
-    loops_reported: RefCell<HashSet<Vec<(String, Symbol)>>>,
+    loops_reported: RefCell<HashSet<Vec<(PathId, Symbol)>>>,
     /// Associated type names of this folder's traits, from their heads.
     trait_assoc: HashMap<DefId, Vec<Symbol>>,
     /// The declared variance markers of the folder's own declarations.
@@ -820,6 +848,21 @@ struct Resolver<'a, 'b> {
 }
 
 impl Resolver<'_, '_> {
+    fn intern_module(&mut self, path: &str) -> PathId {
+        if let Some(&module) = self.module_keys.get(path) {
+            return module;
+        }
+        let module = self.cx.names.module(path);
+        let text: Arc<str> = path.into();
+        self.module_keys.insert(Arc::clone(&text), module);
+        self.module_paths.insert(module, text);
+        module
+    }
+
+    fn module_text(&self, module: PathId) -> &str {
+        &self.module_paths[&module]
+    }
+
     fn module_exists(&self, module: &str) -> bool {
         self.cx.world.usable(module)
     }
@@ -859,7 +902,12 @@ impl Resolver<'_, '_> {
         if let Some(i) = &self.frozen {
             return frozen(i);
         }
-        let key = (module.to_owned(), name);
+        // An unfrozen folder normally supplies every module. If a caller
+        // supplies a subset, preserve its previous absent-head lookup result.
+        let Some(&module) = self.module_keys.get(module) else {
+            return Err(Code::UnknownImport);
+        };
+        let key = (module, name);
         if let Some(r) = self.memo.borrow().get(&key) {
             return *r;
         }
@@ -870,10 +918,10 @@ impl Resolver<'_, '_> {
                 Err(Code::PrivateImport)
             }
         } else if let Some((m, n)) = self.pub_uses.get(&key) {
-            if !self.visiting.borrow_mut().insert(key.clone()) {
+            if !self.visiting.borrow_mut().insert(key) {
                 return Err(Code::ReExportLoop);
             }
-            let r = self.export(m, *n);
+            let r = self.export(self.module_text(*m), *n);
             self.visiting.borrow_mut().remove(&key);
             r
         } else {
@@ -893,21 +941,21 @@ impl Resolver<'_, '_> {
     /// returns to a link it passed (`module.pub-use.chain.loop`): the
     /// cycle's nodes in a canonical order, whatever link the walk starts
     /// from.
-    fn export_cycle(&self, key: &(String, Symbol)) -> Option<Vec<(String, Symbol)>> {
-        let mut at = key.clone();
-        let mut seen: HashMap<(String, Symbol), usize> = HashMap::default();
-        let mut chain: Vec<(String, Symbol)> = Vec::new();
+    fn export_cycle(&self, key: (PathId, Symbol)) -> Option<Vec<(PathId, Symbol)>> {
+        let mut at = key;
+        let mut seen: HashMap<(PathId, Symbol), usize> = HashMap::default();
+        let mut chain: Vec<(PathId, Symbol)> = Vec::new();
         while chain.len() <= self.pub_uses.len() {
             if let Some(&start) = seen.get(&at) {
                 let mut cycle = chain[start..].to_vec();
                 cycle.sort_by(|a, b| {
-                    (a.0.as_str(), self.cx.names.text(a.1))
-                        .cmp(&(b.0.as_str(), self.cx.names.text(b.1)))
+                    (self.module_text(a.0), self.cx.names.text(a.1))
+                        .cmp(&(self.module_text(b.0), self.cx.names.text(b.1)))
                 });
                 return Some(cycle);
             }
-            seen.insert(at.clone(), chain.len());
-            let next = self.pub_uses.get(&at)?.clone();
+            seen.insert(at, chain.len());
+            let next = *self.pub_uses.get(&at)?;
             chain.push(at);
             at = next;
         }
@@ -921,8 +969,11 @@ impl Resolver<'_, '_> {
         if !self.is_own_folder(module) {
             return;
         }
-        let key = (module.to_owned(), name);
-        let fresh = match self.export_cycle(&key) {
+        let cycle = self
+            .module_keys
+            .get(module)
+            .and_then(|&module| self.export_cycle((module, name)));
+        let fresh = match cycle {
             Some(cycle) => self.loops_reported.borrow_mut().insert(cycle),
             // No cycle in this folder's chain: report, as before.
             None => true,
@@ -943,8 +994,8 @@ impl Resolver<'_, '_> {
         if let Some(i) = self.seeds.get(&d) {
             return Some(i.clone());
         }
-        let module = self.cx.names.module_of(d);
-        let f = self.cx.world.module_folder(&module)?;
+        let module = self.cx.names.module_node(d);
+        let f = self.cx.world.module_folder_node(&self.cx.names, module)?;
         let iface = if f == self.cx.folder {
             self.frozen.clone()?
         } else {
@@ -1003,14 +1054,18 @@ impl Resolver<'_, '_> {
         if let Some(i) = self.seeds.get(&def) {
             return fill(&i.generics);
         }
-        let module = self.cx.names.module_of(def);
-        let iface = self.cx.world.module_folder(&module).and_then(|f| {
-            if f == self.cx.folder {
-                self.frozen.clone()
-            } else {
-                self.cx.world.iface(f)
-            }
-        });
+        let module = self.cx.names.module_node(def);
+        let iface = self
+            .cx
+            .world
+            .module_folder_node(&self.cx.names, module)
+            .and_then(|f| {
+                if f == self.cx.folder {
+                    self.frozen.clone()
+                } else {
+                    self.cx.world.iface(f)
+                }
+            });
         match iface.as_ref().and_then(|i| i.item(def)) {
             Some(item) => fill(&item.generics),
             None => (args.to_vec(), None, None),
@@ -1606,9 +1661,9 @@ impl Lower<'_, '_, '_> {
         let world = self.r.cx.world;
         // Core shares std's root folder and its public export index.
         // Prelude has child modules, so its own folder is only re-exports.
-        let core = self.names.module_of(self.names.known.list);
+        let core = self.names.module_node(self.names.known.list);
         world
-            .module_folder(&core)
+            .module_folder_node(&self.names, core)
             .and_then(|folder| world.iface(folder))
             .map_or_else(String::new, |iface| {
                 crate::iface::std_import_hint(&self.names, &iface.exports, name)
@@ -4775,18 +4830,23 @@ pub fn impl_placement(
     if package == "std" {
         return None;
     }
-    let ctor_module = |t: Ty| -> Option<String> {
+    let module = names.module(module);
+    let session: Vec<PathId> = session.iter().map(|m| names.module(m)).collect();
+    let package = names.package_node(DefId::from_raw(module.raw()));
+    let ctor_module = |t: Ty| -> Option<PathId> {
         let t = match pool.get(t) {
             TyData::Mut(i) => i,
             _ => t,
         };
         match pool.get(t) {
-            TyData::Adt { def, .. } | TyData::TraitValue { def, .. } => Some(names.module_of(def)),
+            TyData::Adt { def, .. } | TyData::TraitValue { def, .. } => {
+                Some(names.module_node(def))
+            }
             TyData::Prim(_)
             | TyData::Tuple { .. }
             | TyData::Option(_)
             | TyData::Fn { .. }
-            | TyData::Ref { .. } => Some("std.core".to_owned()),
+            | TyData::Ref { .. } => Some(names.module("std.core")),
             _ => None,
         }
     };
@@ -4802,7 +4862,7 @@ pub fn impl_placement(
         if !kind.is_impl() {
             return None;
         }
-        owners.push(names.module_of(trait_));
+        owners.push(names.module_node(trait_));
         owners.extend(ctor_module(self_ty));
         owners.extend(
             pool.list_items(trait_args)
@@ -4811,10 +4871,12 @@ pub fn impl_placement(
                 .filter_map(ctor_module),
         );
     }
-    if owners.iter().any(|o| o == module || session.contains(o)) {
+    if owners.iter().any(|o| *o == module || session.contains(o)) {
         return None;
     }
-    let local = owners.iter().any(|o| o.split('.').next() == Some(package));
+    let local = owners
+        .iter()
+        .any(|o| names.package_node(DefId::from_raw(o.raw())) == package);
     Some(if local {
         Code::NonlocalImpl
     } else {
@@ -5396,7 +5458,7 @@ fn session_targets(
         }
         let Some(iface) =
             r.cx.world
-                .module_folder(&names.module_of(def))
+                .module_folder_node(names, names.module_node(def))
                 .and_then(|f| r.cx.world.iface(f))
         else {
             continue;
@@ -5493,6 +5555,8 @@ fn resolver<'a, 'b>(
     let mut r = Resolver {
         cx,
         frozen,
+        module_keys: HashMap::default(),
+        module_paths: HashMap::default(),
         own: HashMap::default(),
         struct_defs: HashSet::default(),
         pub_uses: HashMap::default(),
@@ -5518,6 +5582,7 @@ fn resolver<'a, 'b>(
             .collect(),
     };
     for (m, hs) in mods.iter().zip(all_heads) {
+        let module = r.intern_module(&m.path);
         for h in hs {
             if h.kind == HeadKind::Impl {
                 continue;
@@ -5525,7 +5590,7 @@ fn resolver<'a, 'b>(
             // A local declaration is no module member (`names.local-type.static`),
             // and no other module sees a test item (`names.tests.inside-only`).
             if h.local.is_none() && h.test.is_none() {
-                r.own.entry((m.path.clone(), h.name)).or_insert((
+                r.own.entry((module, h.name)).or_insert((
                     h.def,
                     h.kind,
                     h.public || m.session.is_some(),
@@ -5575,7 +5640,7 @@ fn resolver<'a, 'b>(
         for s in &m.seeds {
             if let Some(k) = s.kind() {
                 r.own
-                    .entry((m.path.clone(), s.name))
+                    .entry((module, s.name))
                     .or_insert((s.def, k, s.public));
                 r.seeds.insert(s.def, s.clone());
                 if let (ItemData::Alias(t), HeadKind::Alias) = (&s.data, k) {
@@ -5590,9 +5655,11 @@ fn resolver<'a, 'b>(
         }
     }
     for (m, us) in mods.iter().zip(all_uses) {
+        let from = r.module_keys[m.path.as_str()];
         for u in us {
             for (local, module, name) in reexports(&r, m, u) {
-                r.pub_uses.insert((m.path.clone(), local), (module, name));
+                let target = r.intern_module(&module);
+                r.pub_uses.insert((from, local), (target, name));
             }
         }
     }
@@ -5795,17 +5862,18 @@ pub fn build_folder(
         decls::check(&r, mods, &all_heads, &out.modules, diags);
         let mut seen = HashSet::default();
         for (m, us) in mods.iter().zip(&all_uses) {
+            let module = r.module_keys[m.path.as_str()];
             let mut publics: Vec<Symbol> = r
                 .own
                 .iter()
-                .filter(|((mp, _), (_, _, p))| mp == &m.path && *p)
+                .filter(|((mp, _), (_, _, p))| *mp == module && *p)
                 .map(|((_, n), _)| *n)
                 .collect();
             for u in us {
                 publics.extend(reexports(&r, m, u).into_iter().map(|(local, _, _)| local));
             }
             for name in publics {
-                if !seen.insert((m.path.clone(), name)) {
+                if !seen.insert((module, name)) {
                     continue;
                 }
                 match r.export(&m.path, name) {
@@ -5863,7 +5931,7 @@ pub fn build_folder(
             .own
             .iter()
             .filter(|(_, (_, _, public))| !public)
-            .map(|(key, _)| key.clone())
+            .map(|(&(module, name), _)| (r.module_text(module).to_owned(), name))
             .collect();
         out.private_names
             .sort_by(|a, b| (a.0.as_str(), names.text(a.1)).cmp(&(b.0.as_str(), names.text(b.1))));
@@ -6290,5 +6358,171 @@ mod prelude_tests {
             include_str!("../../../lib/std/prelude/testing.hd"),
             TEST_PRELUDE,
         );
+    }
+}
+
+#[cfg(test)]
+mod module_key_tests {
+    use super::{Cx, Recorded, Resolver, World, resolver};
+    use crate::{FolderIface, HeadKind, KnownItems, Names};
+    use hd_base::{DefId, PathId};
+    use hd_diag::Code;
+    use hd_intern::{PathTable, ShardedInterner};
+    use hd_types::InternPool;
+    use std::sync::Arc;
+
+    struct Modules;
+
+    impl World for Modules {
+        fn module_folder(&self, module: &str) -> Option<u32> {
+            match module {
+                "app" | "app.a" | "app.z" => Some(0),
+                "dep.mod" => Some(1),
+                _ => None,
+            }
+        }
+
+        fn usable(&self, module: &str) -> bool {
+            self.module_folder(module).is_some()
+        }
+
+        fn test_only(&self, _module: &str) -> bool {
+            false
+        }
+
+        fn iface(&self, _folder: u32) -> Option<Arc<FolderIface>> {
+            None
+        }
+    }
+
+    fn with_resolver(test: impl FnOnce(&mut Resolver<'_, '_>)) {
+        let pool = InternPool::new();
+        let paths = PathTable::new();
+        let syms = ShardedInterner::default();
+        let known = KnownItems::new(&paths);
+        let names = Names {
+            pool: &pool,
+            paths: &paths,
+            syms: &syms,
+            known: &known,
+        };
+        let cx = Cx {
+            names,
+            folder: 0,
+            world: &Modules,
+        };
+        test(&mut resolver(&cx, &[], &[], &[], None));
+    }
+
+    #[test]
+    fn declaring_module_and_package_keep_distinct_identity() {
+        with_resolver(|r| {
+            let names = &r.cx.names;
+            let a = names.item("first.deep.mod", "Same");
+            let b = names.item("second.deep.mod", "Same");
+            let member = names.member(
+                names.local_scope(a, 1),
+                hd_intern::PathKind::Member,
+                "field",
+            );
+            assert_eq!(names.module_node(member), names.module_node(a));
+            assert_ne!(names.module_node(a), names.module_node(b));
+            assert_eq!(names.package_node(member), names.module("first"));
+            assert_ne!(names.package_node(a), names.package_node(b));
+            assert_eq!(
+                names.module_text(names.module_node(member)),
+                "first.deep.mod"
+            );
+            assert_eq!(names.module_of(member), "first.deep.mod");
+            assert_eq!(names.module_text(PathId::NONE), "");
+        });
+    }
+
+    #[test]
+    fn node_lookup_keeps_text_worlds_and_recorded_reads() {
+        with_resolver(|r| {
+            struct Indexed {
+                app: PathId,
+            }
+            impl World for Indexed {
+                fn module_folder(&self, _: &str) -> Option<u32> {
+                    panic!("node lookup must not fall back to text");
+                }
+                fn module_path_node(&self, node: PathId) -> Option<&str> {
+                    (node == self.app).then_some("app.a")
+                }
+                fn module_folder_node(&self, _: &Names<'_>, node: PathId) -> Option<u32> {
+                    (node == self.app).then_some(0)
+                }
+                fn usable(&self, _: &str) -> bool {
+                    true
+                }
+                fn test_only(&self, _: &str) -> bool {
+                    false
+                }
+                fn iface(&self, _: u32) -> Option<Arc<FolderIface>> {
+                    None
+                }
+            }
+            let names = &r.cx.names;
+            let app = names.module("app.a");
+            let missing = names.module("missing");
+            assert_eq!(Modules.module_folder_node(names, app), Some(0));
+            assert_eq!(Modules.module_folder_node(names, missing), None);
+            let world = Indexed { app };
+            let recorded = Recorded::new(&world);
+            assert_eq!(recorded.module_folder_node(names, app), Some(0));
+            assert_eq!(recorded.module_folder_node(names, app), Some(0));
+            assert_eq!(recorded.reads().modules, vec!["app.a"]);
+            recorded.hold_reads(true);
+            assert_eq!(recorded.module_folder_node(names, missing), None);
+            assert_eq!(recorded.reads().modules, vec!["app.a"]);
+            recorded.hold_reads(false);
+            assert_eq!(recorded.module_folder_node(names, missing), None);
+            assert_eq!(recorded.reads().modules, vec!["app.a", "missing"]);
+        });
+    }
+
+    #[test]
+    fn keys_preserve_module_identity_and_export_failures() {
+        with_resolver(|r| {
+            let z = r.intern_module("app.z");
+            let a = r.intern_module("app.a");
+            assert_eq!(r.intern_module("app.z"), z);
+            assert_ne!(a, z);
+            assert_eq!(r.module_text(a), "app.a");
+            assert_eq!(r.module_keys.len(), 2);
+            let name = r.cx.names.syms.intern("visible");
+            let def = r.cx.names.item("app.a", "visible");
+            r.own.insert((a, name), (def, HeadKind::Fn, true));
+            r.pub_uses.insert((z, name), (a, name));
+            assert_eq!(r.export("app.z", name), Ok((def, HeadKind::Fn)));
+            let hidden = r.cx.names.syms.intern("hidden");
+            r.own
+                .insert((a, hidden), (DefId::NONE, HeadKind::Fn, false));
+            assert_eq!(r.export("app.a", hidden), Err(Code::PrivateImport));
+            assert_eq!(r.export("app.z", hidden), Err(Code::UnknownImport));
+            assert_eq!(r.export("app", hidden), Err(Code::UnknownImport));
+            assert_eq!(r.export("missing", hidden), Err(Code::UnknownModule));
+            assert_eq!(r.export("dep.mod", hidden), Err(Code::UnknownModule));
+        });
+    }
+
+    #[test]
+    fn cycle_keys_are_canonical_by_text_not_intern_order() {
+        with_resolver(|r| {
+            let z = r.intern_module("app.z");
+            let a = r.intern_module("app.a");
+            let name = r.cx.names.syms.intern("value");
+            let ka = (a, name);
+            let kz = (z, name);
+            r.pub_uses.insert(ka, kz);
+            r.pub_uses.insert(kz, ka);
+            assert_eq!(r.export_cycle(kz), Some(vec![ka, kz]));
+            assert_eq!(r.export_cycle(ka), Some(vec![ka, kz]));
+            assert_eq!(r.export("app.z", name), Err(Code::ReExportLoop));
+            assert!(r.visiting.borrow().is_empty());
+            assert_ne!(a, PathId::NONE);
+        });
     }
 }
