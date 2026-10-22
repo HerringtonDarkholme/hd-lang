@@ -17,6 +17,14 @@ enum Priority:
 struct Measurement:
     value: f64
 
+@derive(Eq, PartialOrd, Ord)
+struct Empty: pass
+
+@derive(Eq, PartialOrd)
+enum Mixed:
+    Fixed(value: i32)
+    Floating(value: f64)
+
 fn total[T < Ord](left: T, right: T) -> string:
     match left.cmp(right):
         .Less => "less"
@@ -40,3 +48,15 @@ tests:
         assert(Measurement { value: 1.0 } < Measurement { value: 2.0 }, reason="ordered values")
         assert(!(Measurement { value: 0.0 / 0.0 } < Measurement { value: 2.0 }), reason="NaN is unordered")
         assert_equal(Measurement { value: 0.0 / 0.0 }.partial_cmp(Measurement { value: 2.0 }), .None, reason="partial_cmp gives .None")
+
+    it("empty structs and tuple comparisons keep their ordering"):
+        assert_equal(Empty {}.cmp(Empty {}), .Equal, reason="zero fields")
+        assert_equal(Empty {}.partial_cmp(Empty {}), .Some(.Equal), reason="empty partial order")
+        assert_equal((+1, "a").cmp((+1, "b")), .Less, reason="tuple fields")
+        assert_equal((+2, "a").partial_cmp((+1, "z")), .Some(.Greater), reason="tuple first field")
+
+    it("different variants order without comparing NaN payloads"):
+        nan := 0.0 / 0.0
+        assert_equal(Mixed.Fixed(99).partial_cmp(Mixed.Floating(nan)), .Some(.Less), reason="declaration order wins")
+        assert_equal(Mixed.Floating(nan).partial_cmp(Mixed.Fixed(99)), .Some(.Greater), reason="reverse variant order")
+        assert_equal(Mixed.Floating(nan).partial_cmp(Mixed.Floating(1.0)), .None, reason="same variant compares its payload")
