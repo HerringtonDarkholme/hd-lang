@@ -1417,9 +1417,10 @@ fn cache_sections(
     }
     sections
         .into_iter()
-        .map(|(section, payload)| {
-            let start = usize::try_from(section.offset).ok()?.checked_add(4)?;
+        .map(|(_, payload)| {
+            let start = payload.as_ptr().addr().checked_sub(bytes.as_ptr().addr())?;
             let end = start.checked_add(payload.len())?;
+            bytes.get(start..end)?;
             Some(CacheSection {
                 bytes: Arc::clone(bytes),
                 range: start..end,
