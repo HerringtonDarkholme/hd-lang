@@ -124,6 +124,57 @@ fn encode_query(out: &mut StringBuilder, text: string) -> void:
             out.push(digits.slice(low, low + 1))
         index += 1
 
+## Shared base URL and default headers for HTTP requests.
+## See [std-http.client.http-only](../../spec/std/http.md#r-std-http.client.http-only).
+pub struct Client:
+    base: string
+    headers: List[(string, string)]
+
+impl Client:
+    ## Returns a client without a base URL or default headers.
+    ## See [std-http.client.new-empty](../../spec/std/http.md#r-std-http.client.new-empty).
+    pub fn new() -> &mut Client:
+        &mut Client { base: "", headers: [] }
+
+    ## Sets the base URL and returns this client.
+    ## See [std-http.client.base-url](../../spec/std/http.md#r-std-http.client.base-url).
+    pub fn base_url(&mut self, url: string) -> &mut Client:
+        self.base = url
+        self
+
+    ## Appends a default header and returns this client.
+    ## See [std-http.client.default-header](../../spec/std/http.md#r-std-http.client.default-header).
+    pub fn header(&mut self, name: string, value: string) -> &mut Client:
+        self.headers.push((name, value))
+        self
+
+    ## Sends with the base URL and defaults, requiring only Http.
+    ## See [std-http.client.send-http-only](../../spec/std/http.md#r-std-http.client.send-http-only).
+    pub fn send!(&mut self, request: Request) -> Result[Response, HttpError] $ Http:
+        let mut headers = request.headers
+        for (name, value) in self.headers:
+            let present = false
+            for (key, _) in request.headers:
+                if ascii_case_equal(key, name):
+                    present = true
+                    break
+            if !present:
+                headers.push((name, value))
+        Request { ...request, url: client_url(self.base, request.url), headers: headers }.send!()
+
+fn client_url(base: string, url: string) -> string:
+    if base.is_empty() || !url.starts_with("/"):
+        return url
+    match base.split_once("://"):
+        .Some((scheme, rest)) =>
+            if url.starts_with("//"):
+                return "$scheme:$url"
+            authority := rest.split_once("/").map(fn(pair): pair._0).unwrap_or(rest)
+            without_query := authority.split_once("?").map(fn(pair): pair._0).unwrap_or(authority)
+            host := without_query.split_once("#").map(fn(pair): pair._0).unwrap_or(without_query)
+            "$scheme://$host$url"
+        .None => "$base$url"
+
 ## A whole HTTP response.
 ## See [std-http.types.builder-response-defaults](../../spec/std/http.md#r-std-http.types.builder-response-defaults).
 @derive(Debug, Eq)

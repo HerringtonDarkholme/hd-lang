@@ -1,0 +1,5 @@
+# test: Client has no timeout setter; callers compose timeout! explicitly
+use std.http.Client
+
+pub fn main() -> void:
+    Client::new().timeout(1s)  # diagnostic: unknown-method

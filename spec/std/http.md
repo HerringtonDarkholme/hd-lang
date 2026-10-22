@@ -84,6 +84,24 @@ For example, `Request::get(url).query("page", 2).header("Accept", "text/plain").
 
 The provider's default timeout still applies; `std.task.timeout!` can impose a shorter bound around a send.
 
+## Client
+
+A client shares a base URL and default headers across requests. A caller
+adds a deadline by composing `std.task.timeout!` around `client.send!`.
+
+1. r[std-http.client.http-only] `std.http` exports the struct `Client` with private fields.
+2. r[std-http.client.new-empty] `Client::new() -> &mut Client` returns a new client without a base URL or default headers.
+3. r[std-http.client.base-url] `base_url(&mut self, url: string) -> &mut Client` replaces the base URL and returns the same client.
+4. r[std-http.client.default-header] `header(&mut self, name: string, value: string) -> &mut Client` appends a default header pair and returns the same client.
+5. r[std-http.client.send-http-only] `send!(&mut self, request: Request) -> Result[Response, HttpError] $ Http` sends through the covering `Http` provider.
+6. r[std-http.client.resolve-root-url] A request URL starting with `/` resolves against the configured base URL.
+7. r[std-http.client.absolute-url] An absolute request URL is used unchanged.
+8. r[std-http.client.merge-defaults] Sending adds every default header whose name the request does not name, ignoring ASCII case.
+9. r[std-http.client.default-hosts] Default headers apply to every host the client calls.
+10. r[std-http.client.request-unchanged] Sending leaves the supplied request unchanged.
+11. r[std-http.client.raw-response] Sending returns the provider's response or error without checking the response status.
+12. r[std-http.client.external-timeout] `Client` has no timeout setter; a deadline uses `std.task.timeout!` around the send.
+
 ## URLs
 
 A request URL is an RFC 3986 URL, so its host is plain ASCII:

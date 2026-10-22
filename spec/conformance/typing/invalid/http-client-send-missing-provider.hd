@@ -1,0 +1,5 @@
+# test: Client.send! still requires Http
+use std.http.{Client, HttpError, Request, Response}
+
+pub fn send!() -> Result[Response, HttpError]:
+    Client::new().send!(Request { url: "https://example.test/" })  # diagnostic: missing-requirement
