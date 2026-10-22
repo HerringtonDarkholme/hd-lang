@@ -35,8 +35,8 @@ app/main/visit
   %24 = Prim Add [%23 1:usize] : usize
   %25 = Store [$4] %24 : ()
   %26 = Block - : ()
-  %27 = TupleGet %22 .0 : string
-  %28 = TupleGet %22 .1 : i32
+  %27 = Read [%22 .0] : string
+  %28 = Read [%22 .1] : i32
   %29 = Store [$6] %27 : ()
   %30 = Store [$7] %28 : ()
   %32 = Block - : never

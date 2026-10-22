@@ -366,7 +366,7 @@ impl Em<'_, '_, '_> {
         self.store_owned(i)
     }
 
-    /// `Field`: field `idx` of `a`, picked from a struct's values or loaded
+    /// A field read: field `idx` of `a`, picked from a struct's values or loaded
     /// from a data value's object.
     pub(super) fn field(&mut self, i: u32, a: u32, idx: u32) -> StageResult<()> {
         if self.precomputed_fields.contains(&i) {
@@ -451,7 +451,7 @@ impl Em<'_, '_, '_> {
             .collect()
     }
 
-    /// `TupleGet`: element `idx`'s values.
+    /// A tuple element read: element `idx`'s values.
     pub(super) fn tuple_get(&mut self, i: u32, a: u32, idx: u32) -> StageResult<()> {
         let (_, parts) = struct_mem(self.pool(), self.env(), self.ty_of(a))?;
         let Some(p) = parts.get(idx as usize).copied() else {
@@ -503,7 +503,7 @@ impl Em<'_, '_, '_> {
         self.comp(a, 0)
     }
 
-    /// `Payload`: field `field` of variant `variant` of enum value `a`.
+    /// A payload read: field `field` of variant `variant` of enum value `a`.
     pub(super) fn payload(&mut self, i: u32, a: u32, variant: u32, field: u32) -> StageResult<()> {
         let t = self.ty_of(a);
         let (m, positions) = self.flat(t)?;

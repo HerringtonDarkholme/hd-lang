@@ -7,10 +7,21 @@
 use hd_diag::Code;
 use hd_resolve::ItemData;
 use hd_syntax::NodeRef;
-use hd_tir::ir::{Coercion, Ref, Tag};
+use hd_tir::ir::{Coercion, Ref, Step, Tag};
 use hd_types::{Ty, TyData, VarKind};
 
 use crate::body::Ck;
+
+/// A projection read ([`Ck::projection`]) and the value it reads from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Projection {
+    /// A field of a struct, newtype or data value.
+    Field(Ref),
+    /// An element of a tuple.
+    Element(Ref),
+    /// A field of an enum value's payload.
+    Payload(Ref),
+}
 
 impl Ck<'_, '_> {
     /// Whether a type is a composite reference type that has a readonly
@@ -80,6 +91,55 @@ impl Ck<'_, '_> {
             TyData::Adt { def, .. } => self.is_struct_def(def),
             _ => false,
         }
+    }
+
+    /// Whether `t` is a data type, `mut` or not: a value of it is the
+    /// address of an object whose payload holds its fields, so a field
+    /// read dereferences it (`Read [*%o .k]`).
+    pub(crate) fn is_data_object_ty(&self, t: Ty) -> bool {
+        let pool = self.pool();
+        match pool.get(self.strip_mut(t)) {
+            TyData::Adt { def, .. } => {
+                self.cx.lookup.item(def).is_some_and(|i| {
+                    !i.is_struct && matches!(i.data, hd_resolve::ItemData::Data(_))
+                })
+            }
+            _ => false,
+        }
+    }
+
+    /// Field `k`, of type `ft`, of the value `base`: `Read [%base .k]` of
+    /// a struct, newtype or tuple value, `Read [*%base .k]` of a data
+    /// value, whose fields live in its object.
+    pub(crate) fn field_value(&mut self, base: Ref, k: u32, ft: Ty, at: hd_base::NodeIdx) -> Ref {
+        if self.is_data_object_ty(self.b.ty_of(base)) {
+            self.b.data_field(base, k, ft, at)
+        } else {
+            self.b.field(base, k, ft, at)
+        }
+    }
+
+    /// What the projection read `r` reads, and from which value: a field
+    /// of a struct, newtype or data value (`[%v .k]`, `[*%o .k]`), an
+    /// element of a tuple (`[%v .k]`), or a payload field
+    /// (`[%v as .V .k]`). `None` for any other value, a read through a
+    /// reference among them.
+    pub(crate) fn projection(&mut self, r: Ref) -> Option<Projection> {
+        let i = r.as_inst()?.0 as usize;
+        let (base, step) = self.b.body_mut().read_step(i)?;
+        let base = Ref(base);
+        let bt = self.b.ty_of(base);
+        Some(match step {
+            Step::Field(_)
+                if matches!(self.pool().get(self.strip_mut(bt)), TyData::Tuple { .. }) =>
+            {
+                Projection::Element(base)
+            }
+            Step::Field(_) => Projection::Field(base),
+            Step::DerefField(_) if self.is_data_object_ty(bt) => Projection::Field(base),
+            Step::DerefField(_) => return None,
+            Step::Variant(..) => Projection::Payload(base),
+        })
     }
 
     /// Whether `let mut` may bind a value of type `t`: mutable access, or

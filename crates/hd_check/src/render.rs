@@ -300,10 +300,6 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
             let n = args.len().saturating_sub(3);
             let vals: Vec<String> = args[..n].iter().map(|x| value(names, b, *x)).collect();
             ops.push(format!("({})", vals.join(", ")));
-        } else if tag == Tag::Field || tag == Tag::TupleGet {
-            // A field by its name, under the type of the value it reads.
-            ops.push(value(names, b, a));
-            ops.push(type_of(b, a).map_or_else(|| format!(".{w}"), |t| field(fields, t, w)));
         } else if tag == Tag::CopyStruct {
             // `base` with each replaced field `.name = value`.
             ops.push(value(names, b, a));
@@ -370,18 +366,14 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
                             ops.push("[..]".into());
                         } else if tag == Tag::Coerce {
                             ops.push(coercion(names, b, word));
-                        } else if matches!(tag, Tag::SwitchTag | Tag::Payload) {
-                            // Variant and field numbers stay numbers.
+                        } else if tag == Tag::SwitchTag {
+                            // Variant numbers stay numbers.
                             let r = b.record(word);
                             let vals: Vec<String> = r
                                 .iter()
                                 .enumerate()
                                 .map(|(k, x)| {
-                                    let number = match tag {
-                                        Tag::SwitchTag => k % 2 == 0 && k + 1 < r.len(),
-                                        Tag::Payload => true,
-                                        _ => k == 0,
-                                    };
+                                    let number = k % 2 == 0 && k + 1 < r.len();
                                     if number {
                                         format!("#{x}")
                                     } else {

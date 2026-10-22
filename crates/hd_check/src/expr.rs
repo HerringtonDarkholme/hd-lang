@@ -1814,7 +1814,7 @@ impl Ck<'_, '_> {
                 return Ok((Ref(NONE), Ty::NEVER));
             };
             let idx = u32::try_from(i).unwrap_or(0);
-            return Ok((self.b.emit(Tag::TupleGet, r.0, idx, t, n.index()), t));
+            return Ok((self.b.field(r, idx, t, n.index()), t));
         }
         let (r, bt) = self.promote_base(r, bt, &name, n);
         if let Some((idx, ft)) = self.field_of(bt, &name) {
@@ -3159,11 +3159,11 @@ impl Ck<'_, '_> {
         let cur_l = self.b.local(et, cur_s, ASSIGNED, at);
         let end_l = self.b.local(et, end_s, ASSIGNED, at);
         let inc_l = self.b.local(Ty::BOOL, inc_s, ASSIGNED, at);
-        let start = self.b.emit(Tag::Field, sr.0, 0, et, at);
+        let start = self.b.field(sr, 0, et, at);
         self.set_local(cur_l, start, at);
-        let end = self.b.emit(Tag::Field, sr.0, 1, et, at);
+        let end = self.b.field(sr, 1, et, at);
         self.set_local(end_l, end, at);
-        let inc = self.b.emit(Tag::Field, sr.0, 2, Ty::BOOL, at);
+        let inc = self.b.field(sr, 2, Ty::BOOL, at);
         self.set_local(inc_l, inc, at);
         let lt = PrimOp::Lt as u32;
         let lp = self.b.open_loop();
@@ -3949,7 +3949,7 @@ impl Ck<'_, '_> {
         match (pool.get(t), pool.get(ret)) {
             (TyData::Option(inner), TyData::Option(_)) => {
                 let ok_b = self.b.open_block();
-                let v = self.b.emit(Tag::Unwrap, r.0, NONE, inner, n.index());
+                let v = self.b.payload(r, 1, 0, inner, n.index());
                 let ok = self.b.close_block(ok_b, Some(v), inner, n.index());
                 let none_b = self.b.open_block();
                 let empty = self.b_empty_rec();
@@ -3969,12 +3969,10 @@ impl Ck<'_, '_> {
                 let a2 = pool.list_items(a2);
                 let (okt, et, ret_e) = (a1[0], a1[1], a2[1]);
                 let ok_b = self.b.open_block();
-                let pr = self.b.refs_record(&[Ref(0), Ref(0)]);
-                let v = self.b.emit(Tag::Payload, r.0, pr, okt, n.index());
+                let v = self.b.payload(r, 0, 0, okt, n.index());
                 let ok = self.b.close_block(ok_b, Some(v), okt, n.index());
                 let err_b = self.b.open_block();
-                let pr = self.b.refs_record(&[Ref(1), Ref(0)]);
-                let ev = self.b.emit(Tag::Payload, r.0, pr, et, n.index());
+                let ev = self.b.payload(r, 1, 0, et, n.index());
                 let ev = if self.can_unify(et, ret_e) {
                     self.expect(et, ret_e, *e, "error", ExpectPosition::General);
                     ev

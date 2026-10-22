@@ -15,7 +15,7 @@ impl Left for User:
 > app/main/impl Left for User.label
 >   local $0 self: User [param read]
 >   %0 = Read [$0] : User
->   %1 = Field %0 .value : i32
+>   %1 = Read [%0 .value] : i32
 >   %2 = Block %1 : i32
 
 impl Right for User:
@@ -23,7 +23,7 @@ impl Right for User:
 > app/main/impl Right for User.label
 >   local $0 self: User [param read]
 >   %0 = Read [$0] : User
->   %1 = Field %0 .value : i32
+>   %1 = Read [%0 .value] : i32
 >   %2 = Prim Add [%1 100:i32] : i32
 >   %3 = Block %2 : i32
 

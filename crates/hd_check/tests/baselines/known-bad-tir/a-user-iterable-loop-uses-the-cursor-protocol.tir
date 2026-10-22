@@ -14,7 +14,7 @@ app/main/visit
   %7 = Block - : ()
   %8 = Break L0 - : never
   %9 = Block - : ()
-  %10 = Unwrap %6 : i32
+  %10 = Read [%6 as #1 .0] : i32
   %11 = Store [$3] %10 : ()
   %17 = Block - : never
   %18 = Match %6 [%17 %7 %9] : ()

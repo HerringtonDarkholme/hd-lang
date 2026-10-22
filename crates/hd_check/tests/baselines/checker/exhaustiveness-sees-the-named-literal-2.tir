@@ -16,8 +16,8 @@ fn f(shape: Shape) -> i32:
         .Rect(w, height = true) => w
 >   %1 = Read [$1] : i32
 >   %2 = Block %1 : i32
->   %4 = Payload %0 [#0 #0] : i32
->   %5 = Payload %0 [#0 #1] : bool
+>   %4 = Read [%0 as #0 .0] : i32
+>   %5 = Read [%0 as #0 .1] : bool
 >   %6 = Prim Eq [%5 1:bool] : bool
 >   %7 = Store [$1] %4 : ()
 >   %9 = Block - : never

@@ -29,7 +29,7 @@ fn value(node: &Node) -> i64:
 >   %5 = Read [$2] : Ref[Node]
 >   %6 = Read [*%5 .value] : i64
 >   %7 = Block %6 : i64
->   %10 = Unwrap %3 : Ref[Node]
+>   %10 = Read [%3 as #1 .0] : Ref[Node]
 >   %11 = Store [$2] %10 : ()
 >   %13 = Block - : never
 >   %15 = Block - : never

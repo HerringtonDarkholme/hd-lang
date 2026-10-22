@@ -1,7 +1,7 @@
 //! Patterns, `let`, `match` and exhaustiveness (`crates/hd_check/DESIGN.md` (type checking) §7;
 //! `crates/hd_tir/DESIGN.md` "Matching"). The checker declares each arm's
 //! bindings, emits the arm blocks, then a decision block of `SwitchTag`,
-//! `If`, `Payload`, `Unwrap`, `Guard` and `ToArm`: a decision tree over
+//! `If`, payload reads (`Read [%v as .V .k]`), `Guard` and `ToArm`: a decision tree over
 //! the pattern matrix, where each test runs once on a path and each
 //! outcome keeps the rows, in order, that may still match. Exhaustiveness
 //! is Maranget's usefulness test over the arm patterns.
@@ -1282,7 +1282,7 @@ impl Ck<'_, '_> {
     }
 
     /// Replaces tuple column `j` by a column per member that some row
-    /// tests or binds, read once with `TupleGet`.
+    /// tests or binds, read once with a `Read` of the element.
     fn expand_tuple<'t>(
         &mut self,
         occs: &[(Ref, Ty)],
@@ -1305,13 +1305,9 @@ impl Ck<'_, '_> {
                 continue;
             };
             let et = members.get(k).copied().unwrap_or(Ty::POISON);
-            let g = self.b.emit(
-                Tag::TupleGet,
-                v.0,
-                u32::try_from(k).unwrap_or(0),
-                et,
-                s.index(),
-            );
+            let g = self
+                .b
+                .field(v, u32::try_from(k).unwrap_or(0), et, s.index());
             cols.push((k, (g, et)));
         }
         let occs = splice(occs, j, cols.iter().map(|c| c.1));
@@ -1330,7 +1326,7 @@ impl Ck<'_, '_> {
     }
 
     /// Replaces data column `j` by a column per field that some row tests
-    /// or binds, read once with `Field`; a shorthand field binds it.
+    /// or binds, read once with a `Read` of the field; a shorthand field binds it.
     fn expand_data<'t>(
         &mut self,
         rows: &[Row<'t>],
@@ -1360,7 +1356,7 @@ impl Ck<'_, '_> {
             if cols.iter().any(|c| c.0 == idx) || sub.is_some_and(|s| !reads(s)) {
                 continue;
             }
-            let g = self.b.emit(Tag::Field, v.0, idx, ft, f.index());
+            let g = self.field_value(v, idx, ft, f.index());
             cols.push((idx, (g, ft)));
         }
         let occs = splice(occs, j, cols.iter().map(|c| c.1));
@@ -1473,12 +1469,10 @@ impl Ck<'_, '_> {
                 continue;
             };
             let g = if is_option {
-                self.b.emit(Tag::Unwrap, v.0, NONE, ft, s.index())
+                self.b.payload(v, 1, 0, ft, s.index())
             } else {
-                let rec = self
-                    .b
-                    .refs_record(&[Ref(idx), Ref(u32::try_from(f).unwrap_or(0))]);
-                self.b.emit(Tag::Payload, v.0, rec, ft, s.index())
+                let k = u32::try_from(f).unwrap_or(0);
+                self.b.payload(v, idx, k, ft, s.index())
             };
             cols.push((f, (g, ft)));
         }

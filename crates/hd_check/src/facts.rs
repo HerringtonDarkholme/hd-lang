@@ -220,7 +220,7 @@ fn fact_list_steps(
                 let earlier = ck.b.refs_record(&[]);
                 let call =
                     ck.b.emit(Tag::DefaultCall, a, earlier, facts_ty, at.index());
-                let items = ck.b.emit(Tag::Field, call.0, 0, items_ty, at.index());
+                let items = ck.field_value(call, 0, items_ty, at.index());
                 spreads.push(u32::try_from(refs.len()).unwrap_or(0));
                 refs.push(items);
                 continue;

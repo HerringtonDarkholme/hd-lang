@@ -9,7 +9,7 @@
 //! a nested write never reaches another list.
 
 use hd_base::StageResult;
-use hd_tir::ir::{Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag};
+use hd_tir::ir::{Coercion, IntrinsicOp, NONE, PrimOp, Ref, Step, Tag};
 use hd_types::{Ty, TyData};
 use wasm_encoder::{BlockType, Instruction as I};
 
@@ -55,7 +55,7 @@ impl Em<'_, '_, '_> {
                 local: l.raw(),
                 indirect: false,
             }),
-            Tag::Read => match super::live::read_through(self.b, i)? {
+            Tag::Read => match self.read_through(i)? {
                 (Through::Value(r), true) if let Some(l) = super::live::read_local(self.b, r) => {
                     Some(ListRoot {
                         local: u32::try_from(l).expect("locals"),
@@ -101,7 +101,7 @@ impl Em<'_, '_, '_> {
                         matches!(s.head, Head::Direct | Head::Deref)
                             && matches!(s.start, Start::Local(l) if locals[l as usize])
                     }),
-                    Tag::Read => match super::live::read_through(self.b, i) {
+                    Tag::Read if self.projection(i).is_none() => match self.read_through(i) {
                         Some((Through::Value(r), _)) => values.get(r as usize) == Some(&true),
                         Some((Through::Local(l), _)) => locals[l],
                         None => false,
@@ -137,7 +137,15 @@ impl Em<'_, '_, '_> {
         }
         match self.b.tags[i as usize] {
             Tag::Read if let Some(l) = self.b.local_read(i as usize) => !self.is_cell(l.idx()),
-            Tag::Prim | Tag::Field | Tag::Coerce => true,
+            Tag::Read
+                if matches!(
+                    self.projection(i as usize),
+                    Some((_, super::live::Projected::Field))
+                ) =>
+            {
+                true
+            }
+            Tag::Prim | Tag::Coerce => true,
             Tag::And | Tag::Or => self.scalar_loop_test(w, budget),
             Tag::Block => self
                 .rec(a)
@@ -218,13 +226,18 @@ impl Em<'_, '_, '_> {
                 Tag::Coerce if self.b.record(w).first() == Some(&(Coercion::Identity as u32)) => {
                     r = a;
                 }
-                Tag::Field => {
-                    let base = self.range_source(a, sets, tree);
+                Tag::Read
+                    if let Some((from, super::live::Projected::Field)) =
+                        self.projection(i.0 as usize)
+                        && let Some((_, Step::Field(k) | Step::DerefField(k))) =
+                            self.b.read_step(i.0 as usize) =>
+                {
+                    let base = self.range_source(from, sets, tree);
                     let Some(bi) = Ref(base).as_inst() else { break };
                     if self.b.tags[bi.0 as usize] != Tag::NewStruct {
                         break;
                     }
-                    let Some(&value) = self.b.record(self.b.data[bi.0 as usize][1]).get(w as usize)
+                    let Some(&value) = self.b.record(self.b.data[bi.0 as usize][1]).get(k as usize)
                     else {
                         break;
                     };
@@ -494,7 +507,17 @@ impl Em<'_, '_, '_> {
                     ) => {}
                     _ => return false,
                 },
-                Tag::Read | Tag::Field | Tag::Block => {}
+                // A tuple element or a payload is checked as any other
+                // value that reaches the list.
+                Tag::Read
+                    if reaches
+                        && self
+                            .projection(i)
+                            .is_some_and(|(_, p)| p != super::live::Projected::Field) =>
+                {
+                    return false;
+                }
+                Tag::Read | Tag::Block => {}
                 _ if reaches => return false,
                 _ => {}
             }
@@ -1151,7 +1174,7 @@ impl Em<'_, '_, '_> {
                 if !matches!(self.b.tags.get(list as usize), Some(Tag::Read)) {
                     return None;
                 }
-                let mut l = match super::live::read_through(self.b, list as usize)? {
+                let mut l = match self.read_through(list as usize)? {
                     (Through::Value(r), true) => super::live::read_local(self.b, r)?,
                     (Through::Local(l), true) => l,
                     _ => return None,

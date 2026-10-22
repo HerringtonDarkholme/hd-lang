@@ -61,7 +61,7 @@ impl[T < Tuple] Encode for T by Structure:
 >   %4 = Call std/structure/Structure.walk for T [Encoder] via Bound (%2, %3) : Result[(), never]
         w.out
 >   %5 = Read [$1] : Encoder
->   %6 = Field %5 .out : string
+>   %6 = Read [%5 .out] : string
 
 struct Pair:
     a: i64

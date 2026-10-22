@@ -3840,7 +3840,7 @@ impl Ck<'_, '_> {
                         self.coerce(r, t, ft, *rhs, "assignment", ExpectPosition::General)
                     }
                     Some(k) => {
-                        let cur = self.b.emit(Tag::Field, br.0, idx, ft, lhs.index());
+                        let cur = self.field_value(br, idx, ft, lhs.index());
                         self.compound(k, cur, ft, *rhs, s)?
                     }
                 };

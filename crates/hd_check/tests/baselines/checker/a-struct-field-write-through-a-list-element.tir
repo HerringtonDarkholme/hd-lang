@@ -10,13 +10,13 @@ app/main/step
   %4 = Read [*%3] : List[Body]
   %5 = Read [$1] : usize
   %6 = Intrinsic ListIndex [%4 %5] : Body
-  %7 = Field %6 .x : f64
+  %7 = Read [%6 .x] : f64
   %8 = Read [$2] : f64
   %9 = Read [$0] : Ref[mut List[Body]]
   %10 = Read [*%9] : List[Body]
   %11 = Read [$1] : usize
   %12 = Intrinsic ListIndex [%10 %11] : Body
-  %13 = Field %12 .vx : f64
+  %13 = Read [%12 .vx] : f64
   %14 = Prim Mul [%8 %13] : f64
   %15 = Prim Add [%7 %14] : f64
   %16 = Store [%1 [%2] .x] %15 : ()

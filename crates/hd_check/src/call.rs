@@ -795,7 +795,7 @@ impl Ck<'_, '_> {
         } else {
             to
         };
-        Some((self.b.emit(Tag::Field, r.0, 0, result, n.index()), result))
+        Some((self.b.field(r, 0, result, n.index()), result))
     }
 
     /// A call of the data type, enum or alias `name`, which expands to
@@ -855,7 +855,7 @@ impl Ck<'_, '_> {
             && self.cast_numeric(inner)
             && self.cast_numeric(to)
         {
-            let v = self.b.emit(Tag::Field, r.0, 0, inner, n.index());
+            let v = self.b.field(r, 0, inner, n.index());
             return Ok((self.b.prim(PrimOp::Conv as u32, &[v], to, n.index()), to));
         }
         // Only a numeric-to-numeric call is a cast (`types.cast.nonnumeric`);
@@ -1140,7 +1140,7 @@ impl Ck<'_, '_> {
                     .enumerate()
                 {
                     let idx = u32::try_from(k).unwrap_or(0);
-                    refs.push(self.b.emit(Tag::TupleGet, r.0, idx, et, spread.index()));
+                    refs.push(self.b.field(r, idx, et, spread.index()));
                 }
                 Ok(Some(refs))
             }
@@ -1710,13 +1710,13 @@ impl Ck<'_, '_> {
                 }
                 for (k, (&et, &i)) in elems.iter().zip(&free).enumerate() {
                     let idx = u32::try_from(k).unwrap_or(0);
-                    let g = self.b.emit(Tag::TupleGet, r.0, idx, et, e.index());
+                    let g = self.b.field(r, idx, et, e.index());
                     let w = self.normalize_deep(tys[i])?;
                     slots[i] = Some(self.coerce(g, et, w, e, "argument", ExpectPosition::General));
                 }
                 if let Some(rest) = rest {
                     let idx = u32::try_from(elems.len()).unwrap_or(0);
-                    let g = self.b.emit(Tag::TupleGet, r.0, idx, rest, e.index());
+                    let g = self.b.field(r, idx, rest, e.index());
                     let w = self.normalize_deep(tys[nfixed])?;
                     slots[nfixed] =
                         Some(self.coerce(g, rest, w, e, "argument", ExpectPosition::General));
@@ -4824,9 +4824,7 @@ impl Ck<'_, '_> {
             _ => Ty::POISON,
         };
         let some = self.b.open_block();
-        let d = self
-            .b
-            .emit(Tag::Unwrap, timeout.0, NONE, duration, n.index());
+        let d = self.b.payload(timeout, 1, 0, duration, n.index());
         let c = Callee::Item {
             def: self.cx.names.item("std.testing", "case_timeout"),
             targs: TyList::EMPTY,

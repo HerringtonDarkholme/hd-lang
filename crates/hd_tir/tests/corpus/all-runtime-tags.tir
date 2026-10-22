@@ -2,7 +2,7 @@
 body 1 Fn
 local 4 0 - 32
 sub 0 0 0 - 0
-labels 37
+labels 35
 caps
 modes
 extra 0
@@ -34,32 +34,28 @@ const 4 0
 %24 = NewTuple - 0 : 4 @-
 %25 = NewList - 0 : 4 @-
 %26 = NewMap - 0 : 4 @-
-%27 = Field 2147483648 0 : 4 @-
-%28 = TupleGet 2147483648 0 : 4 @-
-%29 = Closure 0 0 : 4 @-
-%30 = With 0 0 : 4 @-
-%31 = ContextNew 0 - : 4 @-
-%32 = ContextFor 0 - : 4 @-
-%33 = Block 0 2147483648 : 4 @-
-%34 = Scope 0 0 : 4 @-
-%35 = Defer 0 - : 4 @-
-%36 = If 2147483648 0 : 4 @-
-%37 = Loop 0 0 : 4 @-
-%38 = Break 0 2147483648 : 4 @-
-%39 = Continue 0 - : 4 @-
-%40 = Return 2147483648 - : 4 @-
-%41 = Unreachable - - : 4 @-
-%42 = Match 2147483648 0 : 4 @-
-%43 = SwitchTag 2147483648 0 : 4 @-
-%44 = SwitchInt 2147483648 0 : 4 @-
-%45 = SwitchChar 2147483648 0 : 4 @-
-%46 = SwitchStr 2147483648 0 : 4 @-
-%47 = Payload 2147483648 0 : 4 @-
-%48 = Unwrap 2147483648 - : 4 @-
-%49 = Guard 0 0 : 4 @-
-%50 = ToArm 0 - : 4 @-
-%51 = RefDyn 0 - : 4 @-
-%52 = RefIdentity 2147483648 - : 4 @-
-%53 = Read 2147483648 0 : 4 @-
-%54 = Store 2147483648 2147483648 : 4 @-
-%55 = Ref 2147483648 1 : 4 @-
+%27 = Closure 0 0 : 4 @-
+%28 = With 0 0 : 4 @-
+%29 = ContextNew 0 - : 4 @-
+%30 = ContextFor 0 - : 4 @-
+%31 = Block 0 2147483648 : 4 @-
+%32 = Scope 0 0 : 4 @-
+%33 = Defer 0 - : 4 @-
+%34 = If 2147483648 0 : 4 @-
+%35 = Loop 0 0 : 4 @-
+%36 = Break 0 2147483648 : 4 @-
+%37 = Continue 0 - : 4 @-
+%38 = Return 2147483648 - : 4 @-
+%39 = Unreachable - - : 4 @-
+%40 = Match 2147483648 0 : 4 @-
+%41 = SwitchTag 2147483648 0 : 4 @-
+%42 = SwitchInt 2147483648 0 : 4 @-
+%43 = SwitchChar 2147483648 0 : 4 @-
+%44 = SwitchStr 2147483648 0 : 4 @-
+%45 = Guard 0 0 : 4 @-
+%46 = ToArm 0 - : 4 @-
+%47 = RefDyn 0 - : 4 @-
+%48 = RefIdentity 2147483648 - : 4 @-
+%49 = Read 2147483648 0 : 4 @-
+%50 = Store 2147483648 2147483648 : 4 @-
+%51 = Ref 2147483648 1 : 4 @-

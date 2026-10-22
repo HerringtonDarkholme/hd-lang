@@ -155,7 +155,7 @@ fn body_func<'a>(
         entry.extend(closure::captures(b, ci).into_iter().map(|(l, _)| l));
         entry.extend(closure::self_local(b, ci));
     }
-    (em.drops, em.moves) = live::plan(b, u32::from(sub), &entry);
+    (em.drops, em.moves) = live::plan(b, u32::from(sub), &entry, &em.projs);
     em.prepare_loans();
     // A plain function takes its parameters by the conventions of
     // `layout::Pass` (§23.25); a suspending one's cold constructor counts
@@ -941,6 +941,9 @@ struct Em<'i, 'a, 'm> {
     drops: live::Drops,
     /// Where counts may move instead of being copied (`live.rs`).
     moves: live::Moves,
+    /// What each projection read reads, by its base value's type
+    /// ([`Em::projected`]), for the analyses of `live.rs`.
+    projs: Vec<live::Projected>,
     /// A loan owns a temporary only when its source is an erased view.
     view_loans: HashMap<u32, u32>,
     /// A sole field consumer computed directly by its memory read.
@@ -1026,7 +1029,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
         calls: &'i HashMap<u32, Target>,
         shared: HashMap<usize, u32>,
     ) -> Self {
-        Em {
+        let mut em = Em {
             input,
             m,
             b,
@@ -1050,6 +1053,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             defer_flags: HashMap::default(),
             drops: live::Drops::default(),
             moves: live::Moves::default(),
+            projs: Vec::new(),
             view_loans: HashMap::default(),
             precomputed_fields: hd_base::HashSet::default(),
             unique_once: HashMap::default(),
@@ -1070,7 +1074,9 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             entry_cells: hd_base::HashSet::default(),
             tree: None,
             ops: None,
-        }
+        };
+        em.projs = (0..b.len()).map(|i| em.projected(i)).collect();
+        em
     }
 }
 
@@ -1105,6 +1111,46 @@ impl Em<'_, '_, '_> {
     }
 
     /// The type of value `r`, substituted; `NONE` is the unit value.
+    /// What projection read `i` reads ([`live::Projected`]): by the type
+    /// of the value it projects from, a struct's, newtype's or data
+    /// object's field, a tuple's element, or a payload field. A read
+    /// through a reference, `[*%r .k]`, is none.
+    fn projected(&self, i: usize) -> live::Projected {
+        use hd_tir::ir::Step;
+        let Some((base, step)) = self.b.read_step(i) else {
+            return live::Projected::None;
+        };
+        let bt = self.ty_of(base);
+        match step {
+            Step::Field(_) if self.tuple(bt) => live::Projected::Element,
+            Step::Field(_) => live::Projected::Field,
+            Step::DerefField(_) if matches!(self.kind(bt), crate::layout::Kind::Data(_)) => {
+                live::Projected::Field
+            }
+            Step::DerefField(_) => live::Projected::None,
+            Step::Variant(..) => live::Projected::Payload,
+        }
+    }
+
+    /// Whether `t` is a tuple type, `mut` or not.
+    fn tuple(&self, t: Ty) -> bool {
+        matches!(
+            self.pool()
+                .get(crate::layout::strip(self.pool(), self.env(), t)),
+            TyData::Tuple { .. }
+        )
+    }
+
+    /// The value projection read `i` reads from, and what it reads.
+    fn projection(&self, i: usize) -> Option<(u32, live::Projected)> {
+        live::projection(self.b, i, &self.projs)
+    }
+
+    /// [`live::read_through`] of instruction `i`.
+    fn read_through(&self, i: usize) -> Option<(live::Through, bool)> {
+        live::read_through(self.b, i, &self.projs)
+    }
+
     fn ty_of(&self, r: u32) -> Ty {
         if r == NONE {
             return Ty::VOID;
@@ -1407,6 +1453,11 @@ impl Em<'_, '_, '_> {
             Tag::Read if let Some(def) = self.b.global_read(i as usize) => {
                 self.global_read(i, def)?;
             }
+            // A projection read: a field, a tuple element or a payload
+            // field of a value, or a data object's field.
+            Tag::Read if let Some((base, p)) = self.projection(i as usize) => {
+                self.projection_read(i, base, p)?;
+            }
             // Places (`emit/refs.rs`).
             Tag::Ref => self.place_ref(i)?,
             Tag::Read => self.place_read(i)?,
@@ -1610,11 +1661,6 @@ impl Em<'_, '_, '_> {
                 }
                 self.close();
             }
-            Tag::Payload => {
-                let r = self.rec(bw);
-                self.payload(i, a, r[0], r[1])?;
-            }
-            Tag::Unwrap => self.payload(i, a, 1, 0)?,
             Tag::NewVariant => {
                 let tys = crate::layout::variants(self.pool(), self.env(), self.ty(i))
                     .and_then(|vs| vs.get(a as usize).cloned())
@@ -1666,7 +1712,6 @@ impl Em<'_, '_, '_> {
             Tag::Hook => {}
             Tag::NewStruct => self.new_data(i, bw)?,
             Tag::CopyStruct => self.copy_data(i, a, bw)?,
-            Tag::Field => self.field(i, a, bw)?,
             Tag::NewTuple => {
                 // The rest list, if any, is the last member.
                 let mut members = self.rec(bw);
@@ -1690,7 +1735,6 @@ impl Em<'_, '_, '_> {
                 }
                 self.store_owned(i)?;
             }
-            Tag::TupleGet => self.tuple_get(i, a, bw)?,
             Tag::Is => self.is(i, a, bw)?,
             Tag::NewList => self.new_list(i, a, bw)?,
             Tag::NewMap => self.new_map(i, bw)?,
@@ -1842,6 +1886,28 @@ impl Em<'_, '_, '_> {
             Ok(())
         } else {
             self.store(i)
+        }
+    }
+
+    /// Projection read `i` of `base` ([`live::Projected`]): a struct's,
+    /// newtype's or data object's field, a tuple's element, or a field of
+    /// a payload.
+    fn projection_read(&mut self, i: u32, base: u32, p: live::Projected) -> StageResult<()> {
+        use hd_tir::ir::Step;
+        let Some((_, step)) = self.b.read_step(i as usize) else {
+            return unsupported("a projection read without its step");
+        };
+        let data = matches!(self.kind(self.ty_of(base)), crate::layout::Kind::Data(_));
+        match (p, step) {
+            (live::Projected::Field, Step::Field(_)) if data => {
+                unsupported("a data object's field read without its dereference")
+            }
+            (live::Projected::Field, Step::Field(k) | Step::DerefField(k)) => {
+                self.field(i, base, k)
+            }
+            (live::Projected::Element, Step::Field(k)) => self.tuple_get(i, base, k),
+            (live::Projected::Payload, Step::Variant(v, k)) => self.payload(i, base, v, k),
+            _ => unsupported("a projection read of the wrong kind of value"),
         }
     }
 

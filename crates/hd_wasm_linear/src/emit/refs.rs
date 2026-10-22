@@ -68,8 +68,11 @@ impl Em<'_, '_, '_> {
             return Ok(None);
         };
         let parent = self.ty(read);
-        if self.b.tags[field as usize] != hd_tir::ir::Tag::Field
-            || self.b.data[field as usize][0] != read
+        let Some((base, hd_tir::ir::Step::Field(k))) = self.b.read_step(field as usize) else {
+            return Ok(None);
+        };
+        if base != read
+            || self.projection(field as usize).map(|p| p.1) != Some(super::live::Projected::Field)
             || self.calls.contains_key(&field)
             || hd_mono::is_open(self.pool(), parent)
             || hd_mono::is_open(self.pool(), self.ty(field))
@@ -79,10 +82,7 @@ impl Em<'_, '_, '_> {
             return Ok(None);
         }
         let (_, parts) = struct_mem(self.pool(), self.env(), parent)?;
-        Ok(parts
-            .get(self.b.data[field as usize][1] as usize)
-            .copied()
-            .map(|part| (field, part)))
+        Ok(parts.get(k as usize).copied().map(|part| (field, part)))
     }
 
     pub(super) fn ref_layout(&self, ty: Ty) -> StageResult<RefLayout> {
@@ -497,7 +497,7 @@ impl Em<'_, '_, '_> {
         let s = self.spot(i)?;
         if s.head != Head::Deref {
             return unsupported(
-                "a read of a place with no dereference, which a plain local read and `Field` read",
+                "a read of a place with no dereference that is no plain or projection read",
             );
         }
         let Some((target, fat)) = self.ref_target(self.start_ty(s.start)) else {

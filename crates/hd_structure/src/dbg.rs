@@ -97,13 +97,7 @@ pub fn values_body(cx: &Cx<'_, '_>, item: DefId, args: Ty) -> StageResult<Body> 
     for (k, e) in elems.iter().enumerate() {
         let e = strip_mut(names, *e);
         let tuple = g.b.get(values, args, SYN);
-        let v = g.b.emit(
-            Tag::TupleGet,
-            tuple.0,
-            u32::try_from(k).unwrap_or(0),
-            e,
-            SYN,
-        );
+        let v = g.b.field(tuple, u32::try_from(k).unwrap_or(0), e, SYN);
         let prefix = g.b.const_str("");
         let show = g.show_ref(e);
         g.b.call(
@@ -328,7 +322,7 @@ impl Gen<'_, '_> {
                 let close = ("tuple_close", &count[..]);
                 let read = |g: &mut Self, k: usize| {
                     let t = strip_mut(g.names, elems[k]);
-                    g.b.emit(Tag::TupleGet, v.0, u32::try_from(k).unwrap_or(0), t, SYN)
+                    g.b.field(v, u32::try_from(k).unwrap_or(0), t, SYN)
                 };
                 self.opened(out, None, &items, &read, close)?;
             }

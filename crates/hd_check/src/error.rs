@@ -232,10 +232,9 @@ impl Target<'_, '_> {
         let field = u32::try_from(j).unwrap_or(u32::MAX);
         if self.shape.is_enum {
             let index = u32::try_from(vi).unwrap_or(u32::MAX);
-            let rec = ck.b.refs_record(&[Ref(index), Ref(field)]);
-            ck.b.emit(Tag::Payload, v.0, rec, t, at)
+            ck.b.payload(v, index, field, t, at)
         } else {
-            ck.b.emit(Tag::Field, v.0, field, t, at)
+            ck.field_value(v, field, t, at)
         }
     }
 
@@ -380,7 +379,7 @@ impl Target<'_, '_> {
         // (`annot.error.cause.optional`).
         if let TyData::Option(inner) = pool.get(t) {
             let tb = ck.b.open_block();
-            let u = ck.b.emit(Tag::Unwrap, r.0, NONE, inner, node.index());
+            let u = ck.b.payload(r, 1, 0, inner, node.index());
             let (u, inner) = ck.new_object_ref(u, inner, false, node);
             let d = ck.coerce(u, inner, erased, node, "a cause", ExpectPosition::General);
             let s = ck.coerce(d, erased, ret, node, "a cause", ExpectPosition::General);

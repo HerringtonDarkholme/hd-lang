@@ -159,7 +159,7 @@ impl Conversion {
             ));
         }
         if self.is_unwrap(f, t) {
-            return Ok(ck.b.emit(Tag::Field, r.0, 0, to, at));
+            return Ok(ck.b.field(r, 0, to, at));
         }
         if self.is_wrap(f, t) {
             // The newtype's value, as its constructor builds it.
@@ -179,7 +179,7 @@ impl Conversion {
         match (pool.get(f), pool.get(t)) {
             (TyData::Option(a), TyData::Option(b)) => {
                 let tb = ck.b.open_block();
-                let u = ck.b.emit(Tag::Unwrap, r.0, NONE, a, at);
+                let u = ck.b.payload(r, 1, 0, a, at);
                 let c = self.apply(ck, u, (a, b), node)?;
                 let rec = ck.b.refs_record(&[c]);
                 let some = ck.b.emit(Tag::NewVariant, 1, rec, t, at);
@@ -194,15 +194,13 @@ impl Conversion {
             (TyData::Adt { def, args: a }, TyData::Adt { args: b, .. }) if def == known.result => {
                 let (a, b) = (pool.list_items(a), pool.list_items(b));
                 let ob = ck.b.open_block();
-                let pr = ck.b.refs_record(&[Ref(0), Ref(0)]);
-                let v = ck.b.emit(Tag::Payload, r.0, pr, a[0], at);
+                let v = ck.b.payload(r, 0, 0, a[0], at);
                 let c = self.apply(ck, v, (a[0], b[0]), node)?;
                 let rec = ck.b.refs_record(&[c]);
                 let okv = ck.b.emit(Tag::NewVariant, 0, rec, t, at);
                 let ok = ck.b.close_block(ob, Some(okv), t, at);
                 let eb = ck.b.open_block();
-                let pr = ck.b.refs_record(&[Ref(1), Ref(0)]);
-                let e = ck.b.emit(Tag::Payload, r.0, pr, a[1], at);
+                let e = ck.b.payload(r, 1, 0, a[1], at);
                 let rec = ck.b.refs_record(&[e]);
                 let errv = ck.b.emit(Tag::NewVariant, 1, rec, t, at);
                 let err = ck.b.close_block(eb, Some(errv), t, at);

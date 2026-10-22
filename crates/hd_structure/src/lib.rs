@@ -787,13 +787,20 @@ impl<'a, 'n> Gen<'a, 'n> {
     /// enum value that holds `v`.
     fn read(&mut self, s: Ref, v: &Var, m: &Mem, t: Ty) -> Ref {
         match v.shape {
-            Shape::Data => self.b.emit(Tag::Field, s.0, m.field, t, SYN),
-            Shape::Tuple => self.b.emit(Tag::TupleGet, s.0, m.field, t, SYN),
-            Shape::Enum => {
-                let rec = self.b.refs_record(&[Ref(v.index), Ref(m.field)]);
-                self.b.emit(Tag::Payload, s.0, rec, t, SYN)
-            }
+            Shape::Data if self.data_object(v.def) => self.b.data_field(s, m.field, t, SYN),
+            Shape::Data | Shape::Tuple => self.b.field(s, m.field, t, SYN),
+            Shape::Enum => self.b.payload(s, v.index, m.field, t, SYN),
         }
+    }
+
+    /// Whether `def` is a data type that is no struct: a value of it is
+    /// the address of an object whose payload holds its fields, so a field
+    /// read dereferences it (`Read [*%o .k]`).
+    fn data_object(&self, def: DefId) -> bool {
+        self.cx
+            .items
+            .item(def)
+            .is_some_and(|i| !i.is_struct && matches!(i.data, ItemData::Data(_)))
     }
 
     /// `SwitchTag s [#index then else]` of type `t`.
@@ -1035,8 +1042,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         let ob = self.b.open_block();
         let ok = self.b.close_block(ob, None, Ty::VOID, SYN);
         let eb = self.b.open_block();
-        let rec = self.b.refs_record(&[Ref(1), Ref(0)]);
-        let e = self.b.emit(Tag::Payload, r.0, rec, err, SYN);
+        let e = self.b.payload(r, 1, 0, err, SYN);
         let rec = self.b.refs_record(&[e]);
         let v = self.b.emit(Tag::NewVariant, 1, rec, ret, SYN);
         self.b.emit(Tag::Return, v.0, NONE, Ty::NEVER, SYN);
@@ -1176,12 +1182,10 @@ impl<'a, 'n> Gen<'a, 'n> {
     fn try_value(&mut self, r: Ref, ret: Ty) -> StageResult<Ref> {
         let (ok_t, err) = self.result_args(r)?;
         let ob = self.b.open_block();
-        let rec = self.b.refs_record(&[Ref(0), Ref(0)]);
-        let v = self.b.emit(Tag::Payload, r.0, rec, ok_t, SYN);
+        let v = self.b.payload(r, 0, 0, ok_t, SYN);
         let ok = self.b.close_block(ob, Some(v), ok_t, SYN);
         let eb = self.b.open_block();
-        let rec = self.b.refs_record(&[Ref(1), Ref(0)]);
-        let e = self.b.emit(Tag::Payload, r.0, rec, err, SYN);
+        let e = self.b.payload(r, 1, 0, err, SYN);
         let rec = self.b.refs_record(&[e]);
         let v = self.b.emit(Tag::NewVariant, 1, rec, ret, SYN);
         self.b.emit(Tag::Return, v.0, NONE, Ty::NEVER, SYN);
@@ -1198,7 +1202,11 @@ impl<'a, 'n> Gen<'a, 'n> {
                 .unsupported(format!("the `std.structure` field `{name}`"));
         };
         let k = u32::try_from(k).unwrap_or(0);
-        Ok(self.b.emit(Tag::Field, v.0, k, t, SYN))
+        Ok(if self.data_object(def) {
+            self.b.data_field(v, k, t, SYN)
+        } else {
+            self.b.field(v, k, t, SYN)
+        })
     }
 
     /// `SwitchInt v [#value then else]` of type `t`.
@@ -1285,7 +1293,7 @@ impl<'a, 'n> Gen<'a, 'n> {
             let ot = pool.intern_ty(&TyData::Option(m.ty));
             let cur = self.b.get(slot, ot, SYN);
             let sb = self.b.open_block();
-            let got = self.b.emit(Tag::Unwrap, cur.0, NONE, m.ty, SYN);
+            let got = self.b.payload(cur, 1, 0, m.ty, SYN);
             let some = self.b.close_block(sb, Some(got), m.ty, SYN);
             let nb = self.b.open_block();
             let h = self.field_handle(v, m, m.ty)?;

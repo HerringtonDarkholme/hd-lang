@@ -244,13 +244,9 @@ impl Ck<'_, '_> {
         let mut last = None;
         for (k, e) in elems.iter().enumerate() {
             let e = self.strip_mut(*e);
-            let v = self.b.emit(
-                Tag::TupleGet,
-                tuple.0,
-                u32::try_from(k).unwrap_or(0),
-                e,
-                n.index(),
-            );
+            let v = self
+                .b
+                .field(tuple, u32::try_from(k).unwrap_or(0), e, n.index());
             let head = self.b.const_str(&prefix);
             let show = self.dbg_show_ref(e, n);
             last = Some(self.dbg_support("dbg_bare_one", &[e], &[head, v, show], Ty::VOID, n));

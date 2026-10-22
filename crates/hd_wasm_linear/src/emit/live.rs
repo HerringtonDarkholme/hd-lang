@@ -12,7 +12,7 @@
 //! decision's value read in an arm) keeps its count to the exit.
 
 use hd_base::{HashMap, HashSet};
-use hd_tir::ir::{Body, IntrinsicOp, NONE, Op, PlaceRoot, Proj, Ref, Tag, local_flags};
+use hd_tir::ir::{Body, IntrinsicOp, NONE, Op, PlaceRoot, Proj, Ref, Step, Tag, local_flags};
 
 /// What to release after a statement.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -249,6 +249,33 @@ pub(super) fn ref_local(b: &Body, i: usize) -> Option<usize> {
     }
 }
 
+/// What a projection read of one step from a value reads, by the type
+/// of that value (`Em::projected`): one fact per instruction, in a table
+/// indexed by instruction. A read through a reference is `None`, though
+/// `Read [*%r .k]` has the shape of a data object's field.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) enum Projected {
+    /// No projection read.
+    #[default]
+    None,
+    /// A field of a struct, newtype or data value (`[%v .k]`,
+    /// `[*%o .k]`).
+    Field,
+    /// An element of a tuple (`[%v .k]`).
+    Element,
+    /// A field of an enum value's payload (`[%v as .V .k]`).
+    Payload,
+}
+
+/// The value projection read `i` reads from, and what it reads
+/// ([`Projected`]); `None` for any other instruction.
+pub(super) fn projection(b: &Body, i: usize, projs: &[Projected]) -> Option<(u32, Projected)> {
+    match projs.get(i).copied().unwrap_or_default() {
+        Projected::None => None,
+        p => b.read_step(i).map(|(v, _)| (v, p)),
+    }
+}
+
 /// What a read through a reference reads through.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Through {
@@ -259,10 +286,11 @@ pub(super) enum Through {
 }
 
 /// What a `Read` `i` whose place starts with a dereference reads
-/// through, and whether it reads the whole referenced value.
-pub(super) fn read_through(b: &Body, i: usize) -> Option<(Through, bool)> {
+/// through, and whether it reads the whole referenced value. A data
+/// object's field ([`Projected`]) is no read through a reference.
+pub(super) fn read_through(b: &Body, i: usize, projs: &[Projected]) -> Option<(Through, bool)> {
     match b.tags[i] {
-        Tag::Read => {
+        Tag::Read if projection(b, i, projs).is_none() => {
             let p = b.decode_place(b.data[i][0])?;
             if p.proj.first() != Some(&Proj::Deref) {
                 return None;
@@ -386,12 +414,8 @@ fn match_payloads(
                     .any(|&(ck, _)| ck != ak && tree.owner[ck as usize] == owner)
         })
     };
-    let payload = |i: u32| match b.tags[i as usize] {
-        Tag::Payload => {
-            let r = b.record(b.data[i as usize][1]);
-            (r.len() == 2).then(|| (r[0], r[1]))
-        }
-        Tag::Unwrap => Some((1, 0)),
+    let payload = |i: u32| match b.read_step(i as usize) {
+        Some((_, Step::Variant(v, f))) => Some((v, f)),
         _ => None,
     };
     let mut out = HashMap::default();
@@ -401,11 +425,7 @@ fn match_payloads(
         let Some(&root) = us.iter().find(|&&r| {
             matches!(b.tags[r as usize], Tag::Match | Tag::SwitchTag)
                 && us.iter().all(|&u| {
-                    (u == r
-                        || matches!(
-                            b.tags[u as usize],
-                            Tag::Payload | Tag::Unwrap | Tag::SwitchTag
-                        ))
+                    (u == r || payload(u).is_some() || b.tags[u as usize] == Tag::SwitchTag)
                         && inside(r, u)
                         && !cyclic(r, u)
                 })
@@ -490,7 +510,7 @@ fn match_payloads(
 /// and the uses that may move a count instead ([`Moves`]). `entry` are the
 /// locals that hold a value from the prologue: the parameters, and a
 /// closure's captures.
-pub(super) fn plan(b: &Body, sub: u32, entry: &[usize]) -> (Drops, Moves) {
+pub(super) fn plan(b: &Body, sub: u32, entry: &[usize], projs: &[Projected]) -> (Drops, Moves) {
     let tree = Tree::new(b);
     let subs = b.inst_subs();
     let mut drops = Drops::default();
@@ -538,11 +558,7 @@ pub(super) fn plan(b: &Body, sub: u32, entry: &[usize]) -> (Drops, Moves) {
         let mut last = def;
         let mut ok = true;
         let us = users.get(&x).map_or(&[][..], Vec::as_slice);
-        if us.is_empty()
-            && b.tags[i] == Tag::Read
-            && b.local_read(i).is_none()
-            && b.global_read(i).is_none()
-        {
+        if us.is_empty() && read_through(b, i, projs).is_some() {
             moves.unused_reads.insert(x);
         }
         if let [u] = *us {
@@ -609,7 +625,7 @@ pub(super) fn plan(b: &Body, sub: u32, entry: &[usize]) -> (Drops, Moves) {
         }
         drops.entry((blk, last)).or_default().push(Drop::Local(l));
     }
-    (moves.loans, moves.loan_locals) = loans(b, sub, &tree, &drops, &users);
+    (moves.loans, moves.loan_locals) = loans(b, sub, &tree, &drops, &users, projs);
     moves.span = span_loans(b, sub, &tree, &drops, &users);
     for (get, last) in arm_reads {
         moves.last_access.entry(get).or_insert(last);
@@ -766,6 +782,7 @@ fn loans(
     tree: &Tree,
     drops: &Drops,
     users: &HashMap<u32, Vec<u32>>,
+    projs: &[Projected],
 ) -> (HashSet<u32>, HashMap<usize, u32>) {
     fn source(
         b: &Body,
@@ -773,7 +790,7 @@ fn loans(
         stable: &HashSet<usize>,
         bound: &HashMap<usize, usize>,
         sets: &HashMap<usize, Vec<u32>>,
-        depth: usize,
+        (depth, projs): (usize, &[Projected]),
     ) -> Option<usize> {
         if depth > 32 || x == NONE || Ref(x).as_inst().is_none() {
             return None;
@@ -787,11 +804,18 @@ fn loans(
                     .copied()
                     .or_else(|| stable.contains(&l).then_some(l));
             }
-            Tag::Field | Tag::TupleGet | Tag::Payload | Tag::Unwrap => a,
+            Tag::Read if let Some((v, _)) = projection(b, x as usize, projs) => v,
             Tag::Intrinsic => match IntrinsicOp::from_u32(a) {
                 Some(IntrinsicOp::ValueCopy) => *b.record(w).first()?,
                 Some(IntrinsicOp::ListIndex | IntrinsicOp::MapSlotEntry) => {
-                    let root = source(b, *b.record(w).first()?, stable, bound, sets, depth + 1)?;
+                    let root = source(
+                        b,
+                        *b.record(w).first()?,
+                        stable,
+                        bound,
+                        sets,
+                        (depth + 1, projs),
+                    )?;
                     let [init] = sets.get(&root)?.as_slice() else {
                         return None;
                     };
@@ -809,21 +833,22 @@ fn loans(
             },
             _ => return None,
         };
-        source(b, next, stable, bound, sets, depth + 1)
+        source(b, next, stable, bound, sets, (depth + 1, projs))
     }
-    fn loop_read(b: &Body, x: u32, depth: usize) -> bool {
+    fn loop_read(b: &Body, x: u32, depth: usize, projs: &[Projected]) -> bool {
         if depth > 32 || x == NONE || Ref(x).as_inst().is_none() {
             return false;
         }
         let [a, w] = b.data[x as usize];
         match b.tags[x as usize] {
-            Tag::Field | Tag::TupleGet | Tag::Payload | Tag::Unwrap => loop_read(b, a, depth + 1),
+            Tag::Read => projection(b, x as usize, projs)
+                .is_some_and(|(v, _)| loop_read(b, v, depth + 1, projs)),
             Tag::Intrinsic => match IntrinsicOp::from_u32(a) {
                 Some(IntrinsicOp::ListIndex | IntrinsicOp::MapSlotEntry) => true,
                 Some(IntrinsicOp::ValueCopy) => b
                     .record(w)
                     .first()
-                    .is_some_and(|r| loop_read(b, *r, depth + 1)),
+                    .is_some_and(|r| loop_read(b, *r, depth + 1, projs)),
                 _ => false,
             },
             _ => false,
@@ -922,10 +947,10 @@ fn loans(
         let [v] = values.as_slice() else {
             continue;
         };
-        if !stable.contains(&l) || !loop_read(b, *v, 0) {
+        if !stable.contains(&l) || !loop_read(b, *v, 0, projs) {
             continue;
         }
-        if let Some(root) = source(b, *v, &stable, &empty, &sets, 0)
+        if let Some(root) = source(b, *v, &stable, &empty, &sets, (0, projs))
             && root != l
             && held(root, &accesses[&l])
         {
@@ -942,7 +967,7 @@ fn loans(
             continue;
         }
         let x = u32::try_from(i).expect("insts");
-        if let Some(root) = source(b, x, &stable, &bound, &sets, 0)
+        if let Some(root) = source(b, x, &stable, &bound, &sets, (0, projs))
             && users
                 .get(&x)
                 .is_some_and(|us| !us.is_empty() && held(root, us))
@@ -965,7 +990,12 @@ pub(super) struct FieldSpan {
 /// is free of calls, reference stores, suspension and root replacement.
 /// Follow pattern bindings to their last use, rather than stopping at the
 /// scrutinee's test. Owned consumers still take their own count.
-pub(super) fn field_spans(b: &Body, fields: &[u32], roots: &HashSet<usize>) -> Vec<FieldSpan> {
+pub(super) fn field_spans(
+    b: &Body,
+    fields: &[u32],
+    roots: &HashSet<usize>,
+    projs: &[Projected],
+) -> Vec<FieldSpan> {
     if fields.is_empty() || b.tags.iter().any(|t| matches!(t, Tag::Defer | Tag::Scope)) {
         return Vec::new();
     }
@@ -1005,9 +1035,8 @@ pub(super) fn field_spans(b: &Body, fields: &[u32], roots: &HashSet<usize>) -> V
             for &u in users.get(&source).into_iter().flatten() {
                 touched.insert(u);
                 let i = u as usize;
-                let [a, _] = b.data[i];
                 match b.tags[i] {
-                    Tag::Field | Tag::TupleGet | Tag::Payload | Tag::Unwrap if a == source => {
+                    Tag::Read if projection(b, i, projs).is_some_and(|(v, _)| v == source) => {
                         if span.reads.insert(u) {
                             pending.push(u);
                         }
@@ -1112,6 +1141,7 @@ pub(super) fn parameter_loans(
     parameters: &HashSet<usize>,
     refs: &HashSet<usize>,
     headers: &HashSet<u32>,
+    projs: &[Projected],
 ) -> HashSet<u32> {
     fn root(b: &Body, x: u32, parameters: &HashSet<usize>, refs: &HashSet<usize>) -> bool {
         if x == NONE || Ref(x).as_inst().is_none() {
@@ -1161,7 +1191,16 @@ pub(super) fn parameter_loans(
             continue;
         }
         if !match b.tags[i] {
-            Tag::Read => match read_through(b, i) {
+            // A field of such a read stays in the caller-owned place over
+            // the same kind of interval; emission keeps it only where the
+            // read loads that one field (`Em::prepare_parameter_loans`).
+            Tag::Read if let Some((base, Projected::Field)) = projection(b, i, projs) => {
+                Ref(base).as_inst().is_some()
+                    && matches!(b.tags[base as usize], Tag::Read)
+                    && read_local(b, base).is_none()
+                    && out.contains(&base)
+            }
+            Tag::Read => match read_through(b, i, projs) {
                 Some((Through::Value(source), _)) => {
                     root(b, source, parameters, refs)
                         && (read_local(b, source).is_some() || out.contains(&source))
@@ -1169,16 +1208,6 @@ pub(super) fn parameter_loans(
                 Some((Through::Local(l), _)) => refs.contains(&l),
                 None => false,
             },
-            // A field of such a read stays in the caller-owned place over
-            // the same kind of interval; emission keeps it only where the
-            // read loads that one field (`Em::prepare_parameter_loans`).
-            Tag::Field => {
-                let base = b.data[i][0];
-                Ref(base).as_inst().is_some()
-                    && matches!(b.tags[base as usize], Tag::Read)
-                    && read_local(b, base).is_none()
-                    && out.contains(&base)
-            }
             _ => false,
         } {
             continue;
@@ -1206,11 +1235,7 @@ pub(super) fn parameter_loans(
                     // Stripped reference closure forms leave empty blocks
                     // in the containing statement list; they do not run.
                     Tag::Block => b.data[j][1] == NONE && b.record(b.data[j][0]).is_empty(),
-                    Tag::Field
-                    | Tag::TupleGet
-                    | Tag::Payload
-                    | Tag::Unwrap
-                    | Tag::Prim
+                    Tag::Prim
                     | Tag::NewStruct
                     | Tag::CopyStruct
                     | Tag::NewTuple
@@ -1315,7 +1340,7 @@ mod tests {
         assert_eq!(place_local(&new, 1), Some(0));
         assert_eq!(ref_local(&new, 2), Some(0));
         assert_eq!(ref_locals(&new, 2), [0]);
-        assert_eq!(read_through(&new, 3), Some((Through::Value(2), true)));
+        assert_eq!(read_through(&new, 3, &[]), Some((Through::Value(2), true)));
         assert_eq!(place_local(&new, 4), None);
         assert_eq!(local_part_store(&new, 4), None);
     }
@@ -1342,8 +1367,16 @@ mod tests {
             let mut b = Body::new(hd_base::DefId::from_raw(0), hd_tir::ir::BodyKind::Fn);
             let empty = record(&mut b, &[]);
             let source = inst(&mut b, Tag::NewVariant, 0, empty);
-            let field = record(&mut b, &[0, 0]);
-            let payload = inst(&mut b, Tag::Payload, source, field);
+            let field = record(
+                &mut b,
+                &[
+                    hd_tir::ir::place::ROOT_VALUE,
+                    source,
+                    hd_tir::ir::place::PROJ_VARIANT,
+                    hd_tir::ir::place::PROJ_FIELD,
+                ],
+            );
+            let payload = inst(&mut b, Tag::Read, field, 0);
             let taken = record(&mut b, &[payload]);
             let then = inst(&mut b, Tag::Block, taken, payload);
             let other = inst(&mut b, Tag::Block, empty, NONE);
@@ -1368,7 +1401,9 @@ mod tests {
             b.sub_parent.push(hd_base::SubId::NONE);
             b.sub_flags.push(0);
             b.sub_params.push(hd_base::Range32::default());
-            let (_, moves) = plan(&b, 0, &[]);
+            let mut projs = vec![Projected::None; b.len()];
+            projs[payload as usize] = Projected::Payload;
+            let (_, moves) = plan(&b, 0, &[], &projs);
             assert_eq!(moves.payloads.contains_key(&payload), each_iteration);
         }
     }

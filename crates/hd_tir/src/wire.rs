@@ -133,8 +133,6 @@ fn tag_id_words(b: &Body, i: usize) -> StageResult<Vec<IdWord>> {
         | Tag::NewTuple
         | Tag::NewList
         | Tag::NewMap
-        | Tag::Field
-        | Tag::TupleGet
         | Tag::Closure
         | Tag::Interp
         | Tag::Coerce
@@ -154,8 +152,6 @@ fn tag_id_words(b: &Body, i: usize) -> StageResult<Vec<IdWord>> {
         | Tag::SwitchInt
         | Tag::SwitchChar
         | Tag::SwitchStr
-        | Tag::Payload
-        | Tag::Unwrap
         | Tag::Guard
         | Tag::ToArm
         | Tag::Unreachable

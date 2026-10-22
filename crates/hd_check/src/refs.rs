@@ -299,7 +299,8 @@ impl Ck<'_, '_> {
     /// Field `idx`, of type `ft`, of the struct value `base`. When `base`
     /// is a `Read` through a reference that nothing uses yet (the last
     /// instruction), the field extends its place, so `p.x` through `&Point`
-    /// is one `Read [*%r .x]` that loads only `x`; else a `Field`.
+    /// is one `Read [*%r .x]` that loads only `x`; else a read of the
+    /// field ([`Ck::field_value`]).
     pub(crate) fn field_read(&mut self, base: Ref, idx: u32, ft: Ty, at: NodeIdx) -> Ref {
         let last = base
             .as_inst()
@@ -332,7 +333,7 @@ impl Ck<'_, '_> {
             body.ty[i] = ft;
             return base;
         }
-        self.b.emit(Tag::Field, base.0, idx, ft, at)
+        self.field_value(base, idx, ft, at)
     }
 
     /// The value `r` of type `t` as an index base (`ref.read.index.declared`):
@@ -768,7 +769,7 @@ impl Ck<'_, '_> {
                 self.check_field_visible(t, name, e);
                 if self.is_struct_ty(t) {
                     // A field of a struct that is no place: a value.
-                    let v = self.b.emit(Tag::Field, r.0, idx, ft, e.index());
+                    let v = self.b.field(r, idx, ft, e.index());
                     return Ok(Some(Operand::Value(v, ft)));
                 }
                 let ft = self.field_access(t, name, ft);
@@ -1026,9 +1027,7 @@ impl Ck<'_, '_> {
                 .global_get(s, n)
                 .unwrap_or_else(|| (self.b.read_global(def, ty, n.index()), ty)),
             Root::Deref(r, rt) => self.emit_deref(r, rt, n.index()),
-            Root::DataField(o, idx, ft, _) => {
-                (self.b.emit(Tag::Field, o.0, idx, ft, n.index()), ft)
-            }
+            Root::DataField(o, idx, ft, _) => (self.b.data_field(o, idx, ft, n.index()), ft),
             Root::Slot(list, index, lt, _) => {
                 let et = self.elem_ty(lt);
                 let rec = self.b.refs_record(&[list, index]);

@@ -1447,6 +1447,28 @@ is worth deciding only if they are hot.
    (`HD_CONFORMANCE_WASM_DIGEST=check`); only `tir` baselines change.
 2. `Read` for field, tuple and payload reads, with the variant
    projection (`Field`, `TupleGet`, `Payload`, `Unwrap`).
+   As built: one read for each old instruction, rooted at the value it
+   projected from: a struct, newtype or tuple field is `Read [%v .k]`
+   (`TirBuilder::field`), a compiler-supplied data object's field
+   `Read [*%o .k]` (`TirBuilder::data_field`, the place `Store` already
+   wrote), and a payload field `Read [%v as .V .k]`
+   (`TirBuilder::payload`; an `Option`'s `.Some` value is
+   `[%v as .1 .0]`). The checker picks the data form by the base's type
+   (`Ck::field_value`, `is_data_object_ty`), and so does `hd_structure`.
+   The four tags go (52 tags). `Body::read_step` decodes such a read's
+   one step without allocating. A place cannot tell a struct field from
+   a tuple element, or a data object's field from a field through a
+   reference (`[*%r .k]`), so the readers that told the old tags apart
+   ask the base's type: the checker through `Ck::projection`, the
+   emitter through one per-body table, `Em::projs` (`live::Projected`),
+   which `live.rs` reads where it has no types. The emitter lowers each
+   to the old code (`Em::projection_read`). A read rooted at a local or
+   a reference value is not folded (`[$l .x]`, `[*%r .x .y]`): the
+   loans and moves key on the plain read, so folding waits for the
+   passes. A field read now has a record in `extra` (4 words; 5 for a
+   data object's field or a payload field, where `Payload` had 3).
+   Every conformance module is byte-identical to commit 1's; only `tir`
+   baselines change.
 3. `Read` for element reads (`ListIndex`).
 4. Ownership tags, modes, `exit_drops`, `regions`, invariants 3 and 4,
    and the `own` fixture view.

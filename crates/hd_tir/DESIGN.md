@@ -289,13 +289,13 @@ there are `type-mismatch`, since the arity is unknown. A spread of a
 value of unknown arity before fixed parameters is `type-mismatch` too,
 since `Args` is not the type of those inputs. When unifying the operand
 solves the inputs as a tuple, the spread fills each parameter with one
-`TupleGet`, as for any tuple. Otherwise the checker emits `CallValue f,
+read of its element (`Read [%t .k]`), as for any tuple. Otherwise the checker emits `CallValue f,
 [args]`: one argument, the inputs tuple, under a callee whose TIR type
 keeps the third form. Instantiation substitutes a tuple for every
 `Args`, so the callee's instance type has one parameter per element. The
 emitter sees the third form on the callee's unsubstituted type and
-passes the tuple's elements as the arguments, read as `TupleGet` reads
-them, boxed tuple or not. There is no runtime machinery and no new TIR
+passes the tuple's elements as the arguments, read as an element read
+reads them, boxed tuple or not. There is no runtime machinery and no new TIR
 instruction.
 
 #### 4.13.8 Exhaustiveness
@@ -729,8 +729,6 @@ body with suspension rows (`src/wire.rs`), so no body writes them today.
 | `NewTuple` | a: rest-list operand or `NONE` (tuple spread), b: `[elements]` | the tuple type; with a rest operand, its rest element |
 | `NewList` | a: `[spread positions]` or `NONE`, b: `[elements]` | `List[T]` |
 | `NewMap` | b: `[key, value pairs]` | `Map[K, V]` |
-| `Field` | a: base, b: field index (embedded fields included) | the field's type, with the base's access |
-| `TupleGet` | a: base, b: index | the element's type |
 | `Closure` | a: sub-body, b: captures as a `CaptureId` range | the closure's function type. Each capture's mode, in the `cap_mode` column, is `Copy` (no side writes it after the capture), `Move` (only the closure uses it afterward) or `Shared` (both may) |
 
 **References**
@@ -750,7 +748,11 @@ remain:
 After stage 1 of TIR v2 every reference is a `Ref`, every read through
 a reference a `Read`, and every write a `Store`; stage 2 makes every
 plain read of a local or a top-level binding a `Read` too (`[$l]`,
-`[@g]`, mode `use`). A `Store` writes a whole local
+`[@g]`, mode `use`), and every read of a field: `[%v .k]` of a struct,
+newtype or tuple value (embedded fields included; the base's access
+carries to the field's type), `[*%o .k]` of a compiler-supplied data
+object, and `[%v as .V .k]` of a payload. `Body::read_step` names the
+step of such a read. A `Store` writes a whole local
 (`[$l]`), a top-level binding (`[@g]`), a struct field of either, a
 data object's field (`[*%o .k]`), a place through a reference
 (`[*%r .x]`) or a list element (`[%xs [%i] .x]`).
@@ -800,19 +802,21 @@ record). Ordinary cleanup and cancellation therefore share one source.
 | `SwitchTag` | a: an enum or `Option` value, b: `[(variant declaration index, Block) cases, default Block or NONE]` | `never`: inside a decision tree, every path ends in `ToArm` or `Unreachable` |
 | `SwitchInt`, `SwitchChar` | a: value, b: `[(constant or range, Block) cases, default]` | as `SwitchTag` |
 | `SwitchStr` | a: value, b: `[(constant, Block) cases, default]` | as `SwitchTag` |
-| `Payload` | a: a value switched to a variant, b: `[variant declaration index, field]` | the payload field's type |
-| `Unwrap` | a: an `Option` value switched to `.Some` | the inner type |
 | `Guard` | a: condition `Block`, b: `[arm, fail Block]` | `never`; the fail block continues with the remaining rows |
 | `ToArm` | a: arm number | `never`; the leaf has already bound the arm's locals with `Store`s |
 
 The checker emits each arm's `Block` while it checks the arm, then builds
 the decision tree after exhaustiveness and emits it as these switch
-instructions. Shared arms appear once.
+instructions. Shared arms appear once. A payload field of a value
+switched to a variant is a `Read` of the variant projection,
+`[%v as .V .k]`, of the payload field's type; an `Option`'s `.Some`
+value is `[%v as .1 .0]`.
 
-**Wire-visible identities.** `NewVariant`, `SwitchTag` and `Payload`
-identify a variant by its declaration index within the enum, not by
+**Wire-visible identities.** `NewVariant`, `SwitchTag` and a variant
+projection identify a variant by its declaration index within the enum, not by
 `DefId`; the enclosing value or result type identifies the enum. The run
-IDs used by `ProviderGet`, `ItemRef`, a global place root, `DefaultCall`, `With`, `ContextNew` and calls live in their `extra`
+IDs used by `ProviderGet`, `ItemRef`, a global place root,
+`DefaultCall`, `With`, `ContextNew` and calls live in their `extra`
 records. The two data words hold only record offsets, values or
 declaration indices, because the wire writer remaps typed words in
 `extra` (`id_words`, `src/wire.rs`) and never guesses whether a data word
@@ -835,12 +839,12 @@ is a run ID.
 | `p = e` through a call (`count() = 1`) | the callee evaluated to a place, then the store, in `expr.assign.order.call` order, with the evaluate-once machinery of compound assignment (`expr.assign.target`, `expr.assign.order`) |
 | `Variant(pos, named=…)` mixed construction | checked by call conventions (positionals first), then `NewVariant` with payloads in order (`data.enum.construct.call`) |
 | `(1, 2, 3, 4)` against `(usize, usize, List[i32]...)` | `NewTuple` with fixed elements plus the rest list as its rest operand, checked against the rest type (`types.tuple.rest.*`) |
-| `T { ...base, f: e, ... }` | `base` evaluated first, then a `Field` read of each copied field when an explicit field expression may run code (`expr.update.copy-time`), then the explicit field expressions in source order, then `CopyStruct(base, [(f, e), ...])` with those reads among the replacements (copy-update; one spread max, first) |
+| `T { ...base, f: e, ... }` | `base` evaluated first, then a read of each copied field when an explicit field expression may run code (`expr.update.copy-time`), then the explicit field expressions in source order, then `CopyStruct(base, [(f, e), ...])` with those reads among the replacements (copy-update; one spread max, first) |
 | `[a, xs..., b]` | `NewList` whose first operand records the spread positions; each element evaluated once, in order |
 | `(a, xs...)` | `NewTuple` with fixed elements `[a]` and the `xs` operand (a `List[T]`) as rest |
 | `f(xs...)` at a vararg | the `xs` value itself as the vararg's collected value |
 | `f(a, b, xs...)` after a tuple vararg's arguments | `a`, `b` as ordinary arguments, `xs` as the rest-element list |
-| `f(xs...)` before fixed parameters | `xs` evaluated once into a temp, then ordinary arguments: `TupleGet`s for the fixed inputs, the rest list for a `List[T]` vararg |
+| `f(xs...)` before fixed parameters | `xs` evaluated once into a temp, then ordinary arguments: element reads for the fixed inputs, the rest list for a `List[T]` vararg |
 | `[for x in xs if c => e]`, map comprehensions | a `Block`: an empty `NewList` or `NewMap`, a loop, a push `Call` |
 | `e?` | `SwitchTag` on the `Result` or `Option`; the failing leaf converts the error with the resolved `From` call and `Return`s |
 | `while c: body` | `Loop` whose body is `If c then body else Break` |

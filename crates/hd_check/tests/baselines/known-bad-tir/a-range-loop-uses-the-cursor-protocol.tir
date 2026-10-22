@@ -7,11 +7,11 @@ app/main/visit
   local $4 _item: i32 [assigned]
   %0 = Read [$0] : i32
   %1 = NewStruct [0:i32 %0 0:bool] : Range[i32]
-  %2 = Field %1 .start : i32
+  %2 = Read [%1 .start] : i32
   %3 = Store [$1] %2 : ()
-  %4 = Field %1 .end : i32
+  %4 = Read [%1 .end] : i32
   %5 = Store [$2] %4 : ()
-  %6 = Field %1 .inclusive : bool
+  %6 = Read [%1 .inclusive] : bool
   %7 = Store [$3] %6 : ()
   %8 = Read [$1] : i32
   %9 = Read [$2] : i32

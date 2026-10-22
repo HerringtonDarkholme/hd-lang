@@ -6,7 +6,7 @@ app/main/speed_up
   %1 = Read [*%0] : List[Body]
   %2 = Read [$1] : usize
   %3 = Intrinsic ListIndex [%1 %2] : Body
-  %4 = Field %3 .vx : f64
+  %4 = Read [%3 .vx] : f64
   %5 = Prim Add [%4 1.0:f64] : f64
   %6 = Store [%1 [%2] .vx] %5 : ()
   %7 = Block - : ()

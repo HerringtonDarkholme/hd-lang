@@ -49,8 +49,8 @@ impl Em<'_, '_, '_> {
                         .get(&l)
                         .is_none_or(|v| valid(em, *v, depth + 1))
                 }
-                Tag::Field | Tag::TupleGet | Tag::Payload | Tag::Unwrap => {
-                    matches!(em.kind(em.ty_of(a)), Kind::Value) && valid(em, a, depth + 1)
+                Tag::Read if let Some((base, _)) = em.projection(i as usize) => {
+                    matches!(em.kind(em.ty_of(base)), Kind::Value) && valid(em, base, depth + 1)
                 }
                 Tag::Intrinsic => {
                     let Some(&base) = em.b.record(w).first() else {
@@ -157,10 +157,14 @@ impl Em<'_, '_, '_> {
             .enumerate()
             .filter_map(|(i, tag)| {
                 // A list header read through a place or a field; a plain
-                // local or global read is no such read.
-                if !matches!(tag, Tag::Read | Tag::Field)
+                // local or global read, a tuple element and a payload are
+                // no such read.
+                if *tag != Tag::Read
                     || self.b.local_read(i).is_some()
                     || self.b.global_read(i).is_some()
+                    || self
+                        .projection(i)
+                        .is_some_and(|(_, p)| p != super::live::Projected::Field)
                 {
                     return None;
                 }
@@ -182,9 +186,10 @@ impl Em<'_, '_, '_> {
             .copied()
             .filter(|&l| matches!(self.kind(self.sub(self.b.local_ty[l])), Kind::Ref { .. }))
             .collect();
-        let mut reads: Vec<u32> = super::live::parameter_loans(self.b, &roots, &refs, &headers)
-            .into_iter()
-            .collect();
+        let mut reads: Vec<u32> =
+            super::live::parameter_loans(self.b, &roots, &refs, &headers, &self.projs)
+                .into_iter()
+                .collect();
         reads.sort_unstable();
         for i in reads {
             // Erased thunks can construct a fresh owned representation.
@@ -193,8 +198,7 @@ impl Em<'_, '_, '_> {
             {
                 continue;
             }
-            if let Some((super::live::Through::Value(source), _)) =
-                super::live::read_through(self.b, i as usize)
+            if let Some((super::live::Through::Value(source), _)) = self.read_through(i as usize)
                 && !self.moves.loans.contains(&source)
             {
                 continue;
@@ -203,13 +207,11 @@ impl Em<'_, '_, '_> {
             // that one field ([`Em::projected_field`]): a view's branch
             // then owns the field ([`Em::own_view_field`]), and the
             // physical branch reads it in place.
-            if self.b.tags[i as usize] == Tag::Field {
-                let base = self.b.data[i as usize][0];
-                if !self.moves.loans.contains(&base)
-                    || !matches!(self.projected_field(base), Ok(Some((f, _))) if f == i)
-                {
-                    continue;
-                }
+            if let Some((base, super::live::Projected::Field)) = self.projection(i as usize)
+                && (!self.moves.loans.contains(&base)
+                    || !matches!(self.projected_field(base), Ok(Some((f, _))) if f == i))
+            {
+                continue;
             }
             if matches!(self.b.tags[i as usize], Tag::Ref)
                 && self.ref_target(self.ty(i)).is_some_and(|(_, fat)| fat)
@@ -225,24 +227,22 @@ impl Em<'_, '_, '_> {
         // Match spans have a separate, typed plan: `Moves::span` still
         // contains only plain local reads. Validate physical projection
         // before treating a field or its pattern bindings as loans. A
-        // field is a `Field` that a borrowed whole read loads alone, or a
+        // field is a field read that a borrowed whole read loads alone, or a
         // `Read [*%r .f]` through a borrowed reference value, which loads
         // only its field.
         let fields: Vec<u32> = (0..self.b.len())
             .filter_map(|i| {
                 let x = u32::try_from(i).expect("insts");
-                let base = self.b.data[i][0];
                 let projected = match self.b.tags[i] {
-                    Tag::Field => {
+                    Tag::Read
+                        if let Some((base, super::live::Projected::Field)) = self.projection(i) =>
+                    {
                         Ref(base).as_inst().is_some()
-                            && matches!(
-                                super::live::read_through(self.b, base as usize),
-                                Some((_, true))
-                            )
+                            && matches!(self.read_through(base as usize), Some((_, true)))
                             && self.moves.loans.contains(&base)
                             && matches!(self.projected_field(base), Ok(Some((f, _))) if f == x)
                     }
-                    Tag::Read => match super::live::read_through(self.b, i) {
+                    Tag::Read => match self.read_through(i) {
                         Some((super::live::Through::Value(source), false)) => {
                             self.moves.loans.contains(&source)
                                 && !hd_mono::is_open(self.pool(), self.ty_of(source))
@@ -261,7 +261,7 @@ impl Em<'_, '_, '_> {
                 .then_some(x)
             })
             .collect();
-        for span in super::live::field_spans(self.b, &fields, &roots) {
+        for span in super::live::field_spans(self.b, &fields, &roots, &self.projs) {
             let field = span.field;
             if span
                 .reads

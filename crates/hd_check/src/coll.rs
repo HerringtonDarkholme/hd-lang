@@ -26,6 +26,7 @@ use hd_syntax::NodeRef;
 use hd_tir::ir::{Coercion, IntrinsicOp, NONE, Ref, Slot, SubMark, Tag, TirSink, local_flags};
 use hd_types::{Ty, TyData};
 
+use crate::access::Projection;
 use crate::body::Ck;
 
 /// A value argument read from a writable local whose copy waits for the
@@ -155,11 +156,16 @@ impl Ck<'_, '_> {
             let body = self.b.body_mut();
             (body.tags[i.0 as usize], body.data[i.0 as usize])
         };
+        // An element of a tuple or a payload is no place, so nothing
+        // changes the collection it holds in place.
+        if matches!(
+            self.projection(r),
+            Some(Projection::Element(_) | Projection::Payload(_))
+        ) {
+            return true;
+        }
         match tag {
             Tag::Coerce => self.reads_fixed_local(Ref(data[0])),
-            // An element of a tuple or a payload is no place, so nothing
-            // changes the collection it holds in place.
-            Tag::TupleGet | Tag::Payload | Tag::Unwrap => true,
             Tag::Read if let Some(l) = self.b.body_mut().local_read(i.0 as usize) => {
                 !self.mut_locals.contains(&l)
             }
@@ -459,15 +465,19 @@ impl Ck<'_, '_> {
                 let body = self.b.body_mut();
                 (body.tags[i.0 as usize], body.data[i.0 as usize])
             };
-            match tag {
-                Tag::Coerce => cur = Ref(data[0]),
-                Tag::Field => {
-                    let base = Ref(data[0]);
+            match self.projection(cur) {
+                Some(Projection::Field(base)) => {
                     if !self.is_struct_ty(self.b.ty_of(base)) {
                         return ArgRoot::Shared;
                     }
                     cur = base;
+                    continue;
                 }
+                Some(Projection::Element(_) | Projection::Payload(_)) => return ArgRoot::Fixed,
+                None => {}
+            }
+            match tag {
+                Tag::Coerce => cur = Ref(data[0]),
                 Tag::Intrinsic => {
                     if !matches!(
                         IntrinsicOp::from_u32(data[0]),
@@ -501,7 +511,6 @@ impl Ck<'_, '_> {
                 Tag::Read => {
                     return ArgRoot::Shared;
                 }
-                Tag::TupleGet | Tag::Payload | Tag::Unwrap => return ArgRoot::Fixed,
                 _ => return ArgRoot::Fixed,
             }
         }
@@ -602,7 +611,7 @@ impl Ck<'_, '_> {
             let mut parts = Vec::new();
             for (k, et) in tys.into_iter().enumerate() {
                 let idx = u32::try_from(k).unwrap_or(0);
-                let g = self.b.emit(Tag::TupleGet, item.0, idx, et, at);
+                let g = self.b.field(item, idx, et, at);
                 parts.push(if self.may_hold_coll(et) {
                     self.value_copy(g, et, at)
                 } else {
@@ -632,9 +641,12 @@ impl Ck<'_, '_> {
                 let body = self.b.body_mut();
                 (body.tags[i.0 as usize], body.data[i.0 as usize])
             };
+            if let Some(Projection::Field(base)) = self.projection(cur) {
+                cur = base;
+                continue;
+            }
             match tag {
                 Tag::Coerce => cur = Ref(data[0]),
-                Tag::Field => cur = Ref(data[0]),
                 Tag::Intrinsic => {
                     let mutated = match IntrinsicOp::from_u32(data[0]) {
                         Some(IntrinsicOp::ListIndex | IntrinsicOp::ListIndexMut) => {
@@ -680,17 +692,17 @@ impl Ck<'_, '_> {
                 let body = self.b.body_mut();
                 (body.tags[i.0 as usize], body.data[i.0 as usize])
             };
+            if let Some(Projection::Field(inner)) = self.projection(cur) {
+                let it = self.b.ty_of(inner);
+                // A struct field is part of its struct's place.
+                if !self.is_struct_ty(it) {
+                    return self.is_struct_ty(ct) && self.has_mut_access(it);
+                }
+                cur = inner;
+                continue;
+            }
             match tag {
                 Tag::Coerce => cur = Ref(data[0]),
-                Tag::Field => {
-                    let inner = Ref(data[0]);
-                    let it = self.b.ty_of(inner);
-                    // A struct field is part of its struct's place.
-                    if !self.is_struct_ty(it) {
-                        return self.is_struct_ty(ct) && self.has_mut_access(it);
-                    }
-                    cur = inner;
-                }
                 Tag::Read if let Some(l) = self.b.body_mut().local_read(i.0 as usize) => {
                     return self.mut_locals.contains(&l);
                 }
@@ -734,8 +746,12 @@ impl Ck<'_, '_> {
                 let body = self.b.body_mut();
                 (body.tags[i.0 as usize], body.data[i.0 as usize])
             };
+            if let Some(Projection::Field(base)) = self.projection(cur) {
+                cur = base;
+                continue;
+            }
             match tag {
-                Tag::Coerce | Tag::Field => cur = Ref(data[0]),
+                Tag::Coerce => cur = Ref(data[0]),
                 Tag::Intrinsic => cur = Ref(*self.b.body_mut().record(data[1]).first()?),
                 Tag::Read => {
                     let (src, m, _) = self.read_through(cur)?;
@@ -757,8 +773,12 @@ impl Ck<'_, '_> {
                 let body = self.b.body_mut();
                 (body.tags[i.0 as usize], body.data[i.0 as usize])
             };
+            if let Some(Projection::Field(base)) = self.projection(cur) {
+                cur = base;
+                continue;
+            }
             match tag {
-                Tag::Coerce | Tag::Field => cur = Ref(data[0]),
+                Tag::Coerce => cur = Ref(data[0]),
                 Tag::Intrinsic => cur = Ref(*self.b.body_mut().record(data[1]).first()?),
                 Tag::Read => return self.b.body_mut().local_read(i.0 as usize),
                 _ => return None,

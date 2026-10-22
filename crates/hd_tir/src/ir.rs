@@ -118,8 +118,6 @@ tags! {
     NewTuple: Value, Values;
     NewList: Record, Record;
     NewMap: None, Values;
-    Field: Value, Meta;
-    TupleGet: Value, Meta;
     Closure: Meta, Record;
     // references (`crates/hd_tir/DESIGN.md` §4.13.11, "References"): a
     // reference converted to a trait value reference, which its block
@@ -151,8 +149,6 @@ tags! {
     SwitchInt: Value, Record;
     SwitchChar: Value, Record;
     SwitchStr: Value, Record;
-    Payload: Value, Record;
-    Unwrap: Value, None;
     Guard: Block, Blocks;
     ToArm: Meta, None;
 }
@@ -678,6 +674,18 @@ impl std::str::FromStr for Place {
     }
 }
 
+/// The one step of a value projection read ([`Body::read_step`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Step {
+    /// `[%v .k]`: field or element `k` of the value.
+    Field(u32),
+    /// `[*%v .k]`: field `k` of what the value names: a data object's
+    /// payload, or a reference's referent.
+    DerefField(u32),
+    /// `[%v as .V .k]`: field `k` of variant `V`'s payload.
+    Variant(u32, u32),
+}
+
 /// How a `Read` reads its place (its `Meta` word b;
 /// `docs/compiler/tir-v2.md`, "Read modes"). The checker writes `Use`;
 /// the ownership passes (stage 2) replace it.
@@ -896,7 +904,7 @@ impl Body {
             Tag::CallValue => [one(a), self.record(w).to_vec()].concat(),
             Tag::Intrinsic | Tag::Interp => self.record(w).to_vec(),
             Tag::Is => [one(a), one(w)].concat(),
-            Tag::Coerce | Tag::Field | Tag::TupleGet | Tag::Unwrap | Tag::Payload => one(a),
+            Tag::Coerce => one(a),
             Tag::CopyStruct => {
                 let pairs = self.record(w).iter().skip(1).step_by(2).copied();
                 one(a).into_iter().chain(pairs).collect()
@@ -988,6 +996,34 @@ impl Body {
         let word = self.data[i][0];
         (self.tags[i] == Tag::Read && word & place::BARE_LOCAL != 0)
             .then(|| LocalId::from_raw(word & !place::BARE_LOCAL))
+    }
+
+    /// The value projection read `i` projects from and its one step: a
+    /// `Read` of a value root followed by one field, a dereference and one
+    /// field, or a variant and one of its fields. These are the reads of a
+    /// struct field or tuple element (`[%v .k]`), of a data object's field
+    /// or a referent's (`[*%v .k]`), and of a payload (`[%v as .V .k]`).
+    /// It decodes the record in place. `None` for any other instruction or
+    /// place.
+    #[must_use]
+    pub fn read_step(&self, i: usize) -> Option<(u32, Step)> {
+        use place::{
+            BARE_LOCAL, PROJ_DEREF, PROJ_FIELD, PROJ_INDEX, PROJ_KIND, PROJ_VARIANT, ROOT_VALUE,
+        };
+        let word = self.data[i][0];
+        if self.tags[i] != Tag::Read || word & BARE_LOCAL != 0 {
+            return None;
+        }
+        let at = word as usize;
+        let field = |w: u32| (w & PROJ_KIND == PROJ_FIELD).then_some(w & PROJ_INDEX);
+        match *self.extra.get(at..)? {
+            [3, ROOT_VALUE, v, w, ..] => Some((v, Step::Field(field(w)?))),
+            [4, ROOT_VALUE, v, PROJ_DEREF, w, ..] => Some((v, Step::DerefField(field(w)?))),
+            [4, ROOT_VALUE, v, x, w, ..] if x & PROJ_KIND == PROJ_VARIANT => {
+                Some((v, Step::Variant(x & PROJ_INDEX, field(w)?)))
+            }
+            _ => None,
+        }
     }
 
     /// The top-level binding a plain global read `i` reads: a `Read` of
@@ -1166,6 +1202,37 @@ impl TirBuilder {
             root: PlaceRoot::Global(def, ty),
             proj: vec![],
         });
+        self.push(Tag::Read, word, ReadMode::Use as u32, ty, syn)
+    }
+
+    /// `Read [%base .k]`: field `k` of a struct, newtype or tuple value,
+    /// mode `use`.
+    pub fn field(&mut self, base: Ref, k: u32, ty: Ty, syn: NodeIdx) -> Ref {
+        let word = self.record(&[place::ROOT_VALUE, base.0, place::PROJ_FIELD | k]);
+        self.push(Tag::Read, word, ReadMode::Use as u32, ty, syn)
+    }
+
+    /// `Read [*%base .k]`: field `k` of the data object `base` names,
+    /// mode `use`.
+    pub fn data_field(&mut self, base: Ref, k: u32, ty: Ty, syn: NodeIdx) -> Ref {
+        let word = self.record(&[
+            place::ROOT_VALUE,
+            base.0,
+            place::PROJ_DEREF,
+            place::PROJ_FIELD | k,
+        ]);
+        self.push(Tag::Read, word, ReadMode::Use as u32, ty, syn)
+    }
+
+    /// `Read [%base as .variant .k]`: field `k` of the payload of enum
+    /// value `base`, known to hold `variant`, mode `use`.
+    pub fn payload(&mut self, base: Ref, variant: u32, k: u32, ty: Ty, syn: NodeIdx) -> Ref {
+        let word = self.record(&[
+            place::ROOT_VALUE,
+            base.0,
+            place::PROJ_VARIANT | variant,
+            place::PROJ_FIELD | k,
+        ]);
         self.push(Tag::Read, word, ReadMode::Use as u32, ty, syn)
     }
 
@@ -2953,6 +3020,39 @@ mod tests {
         );
     }
 
+    /// A struct field, a data object's field and a payload field are reads
+    /// of one projection step from a value, which `read_step` names.
+    #[test]
+    fn projection_reads_name_their_step() {
+        use super::Step;
+        let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let n = NodeIdx::from_raw(1);
+        let blk = b.open_block();
+        let v = b.const_value(Ty::I32, 7);
+        let f = b.field(v, 2, Ty::I32, n);
+        let d = b.data_field(f, 1, Ty::I32, n);
+        let p = b.payload(d, 1, 0, Ty::I32, n);
+        let whole = b.place(&"[*%2]".parse().expect("place"));
+        let r = b.emit(Tag::Read, whole, 0, Ty::I32, n);
+        let root = b.close_block(blk, Some(r), Ty::I32, n);
+        let body = b.finish(root, &[]).expect("verifies");
+        assert_eq!(parse(&print(&body)).expect("parses"), body);
+        let shown = |r: super::Ref| {
+            let i = r.0 as usize;
+            body.decode_place(body.data[i][0])
+                .expect("place")
+                .to_string()
+        };
+        assert_eq!(shown(f), "[%c0 .2]");
+        assert_eq!(shown(d), "[*%0 .1]");
+        assert_eq!(shown(p), "[%1 as .1 .0]");
+        assert_eq!(body.read_step(0), Some((v.0, Step::Field(2))));
+        assert_eq!(body.read_step(1), Some((0, Step::DerefField(1))));
+        assert_eq!(body.read_step(2), Some((1, Step::Variant(1, 0))));
+        assert_eq!(body.read_step(3), None);
+        assert_eq!(body.value_operands(2), Some(vec![1]));
+    }
+
     #[test]
     fn place_tags_verify_print_and_name_their_values() {
         let b = place_sample();
@@ -3053,7 +3153,7 @@ mod tests {
         let root = b.close_block(blk, Some(one), Ty::I32, NodeIdx::NONE);
         let body = b.finish(root, &[]).expect("ok");
         assert_eq!(body.len(), 1);
-        assert_eq!(Tag::ALL.len(), 56);
+        assert_eq!(Tag::ALL.len(), 52);
         assert!(
             Tag::ALL
                 .iter()

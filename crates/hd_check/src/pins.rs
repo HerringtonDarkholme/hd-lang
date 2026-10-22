@@ -376,8 +376,12 @@ impl Ck<'_, '_> {
                 let body = self.b.body_mut();
                 (body.tags[i.0 as usize], body.data[i.0 as usize])
             };
+            if let Some(crate::access::Projection::Field(base)) = self.projection(cur) {
+                cur = base;
+                continue;
+            }
             match tag {
-                Tag::Coerce | Tag::Field => cur = Ref(data[0]),
+                Tag::Coerce => cur = Ref(data[0]),
                 Tag::Intrinsic
                     if matches!(
                         IntrinsicOp::from_u32(data[0]),

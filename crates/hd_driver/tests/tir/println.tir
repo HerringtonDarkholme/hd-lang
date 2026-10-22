@@ -19,7 +19,7 @@ std/console/println (Fn)
   %14 = Block - : never
   %15 = Block - : ()
   %16 = Block - : ()
-  %17 = Payload %11 [#0 #0] : Result[(), ConsoleError]
+  %17 = Read [%11 as #0 .0] : Result[(), ConsoleError]
   %18 = ToArm #0 : never
   %19 = Block - : never
   %20 = ToArm #1 : never
