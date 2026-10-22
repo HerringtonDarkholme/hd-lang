@@ -20,3 +20,39 @@ tests:
         assert_equal(["b", "a"].sorted(), ["a", "b"], reason="strings")
         let empty: List[i32] = []
         assert_equal(empty.sorted().len(), 0, reason="an empty list")
+
+    it("preserves equal-key record order across short-run boundaries"):
+        for size in [0, 1, 2, 15, 16, 17, 31, 32, 33, 63, 64, 65, 257]:
+            let mut tasks: List[Task] = []
+            for index in 0..size:
+                tasks.push(Task { name: "$index", hours: i32((index * 7) % 5) })
+            let mut expected: List[string] = []
+            for hours in 0..5:
+                for task in tasks:
+                    if task.hours == i32(hours):
+                        expected.push(task.name)
+            by_compare := tasks.sorted_by(fn(a: Task, b: Task) -> Ordering: a.hours.cmp(b.hours))
+            by_key := tasks.sorted_by_key(fn(task: Task) -> i32: task.hours)
+            assert_equal(names(by_compare), expected, reason="stable comparator order through every merge pass")
+            assert_equal(names(by_key), expected, reason="stable cached-key order")
+            assert_equal(names(tasks), (0..size).iter().map(fn(index: usize) -> string: "$index").collect(), reason="input record order unchanged")
+
+    it("handles sorted, reversed and all-equal inputs without sharing writes"):
+        for size in [0, 1, 16, 17, 32, 33, 127, 128]:
+            ascending := (0..size).iter().map(fn(index: usize) -> i32: i32(index)).collect::[List[i32]]()
+            descending := ascending.reversed()
+            assert_equal(ascending.sorted(), ascending, reason="already sorted")
+            assert_equal(descending.sorted(), ascending, reason="reversed input")
+            assert_equal(descending.sorted_by(fn(a: i32, b: i32) -> Ordering: .Equal), descending, reason="equal comparator preserves original order")
+        let mut input = [+3, 1, 2]
+        let mut output = input.sorted()
+        output[0] = 99
+        input[0] = 42
+        assert_equal(input, [+42, 1, 2], reason="input receives only its own writes")
+        assert_equal(output, [+99, 2, 3], reason="output receives only its own writes")
+        let mut singleton = [+7]
+        let mut copy = singleton.sorted()
+        copy[0] = 8
+        singleton[0] = 9
+        assert_equal(copy, [+8], reason="singleton output is also a value")
+        assert_equal(singleton, [+9], reason="singleton input is also a value")

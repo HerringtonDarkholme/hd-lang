@@ -143,37 +143,67 @@ impl[T] List[T]:
             backwards.push(self[index])
         backwards
 
-    # A stable merge sort: equal items keep their order.
+    # Stable insertion-sorted runs, merged with one reusable scratch list.
     ## Returns a new list in ascending order by `compare`. The sort is stable.
     ## See [std-collections.access.sorted-by](../../spec/std/collections.md#r-std-collections.access.sorted-by).
     pub fn sorted_by(self, compare: fn(T, T) -> Ordering) -> List[T]:
-        if self.len() <= 1:
-            return self.filter(fn(item: T) -> bool: true)
-        let middle = self.len() / 2
-        let mut left: List[T] = []
-        let mut right: List[T] = []
-        let index: usize = 0
-        while index < self.len():
-            if index < middle: left.push(self[index]) else: right.push(self[index])
-            index = index + 1
-        let sorted_left = left.sorted_by(compare)
-        let sorted_right = right.sorted_by(compare)
-        let mut merged: List[T] = []
-        let at_left: usize = 0
-        let at_right: usize = 0
-        while at_left < sorted_left.len() || at_right < sorted_right.len():
-            let take_right = at_left >= sorted_left.len()
-            if !take_right && at_right < sorted_right.len():
-                take_right = match compare(sorted_right[at_right], sorted_left[at_left]):
-                    .Less => true
-                    _ => false
-            if take_right:
-                merged.push(sorted_right[at_right])
-                at_right = at_right + 1
-            else:
-                merged.push(sorted_left[at_left])
-                at_left = at_left + 1
-        merged
+        size := self.len()
+        if size <= 1:
+            return self
+        run := 16
+        let mut sorted = self
+        let start: usize = 0
+        while start < size:
+            end := start + (if run < size - start: run else: size - start)
+            let index = start + 1
+            while index < end:
+                value := sorted[index]
+                let hole = index
+                while hole > start:
+                    match compare(value, sorted[hole - 1]):
+                        .Less => pass
+                        _ => break
+                    sorted[hole] = sorted[hole - 1]
+                    hole -= 1
+                if hole != index:
+                    sorted[hole] = value
+                index += 1
+            start = end
+        if size <= run:
+            return sorted
+        # Copy-on-write provides the output and scratch storage; each pass
+        # overwrites every slot before swapping the two lists for reuse.
+        let mut scratch = self
+        let width = run
+        while width < size:
+            start = 0
+            while start < size:
+                middle := start + (if width < size - start: width else: size - start)
+                end := middle + (if width < size - middle: width else: size - middle)
+                let left = start
+                let right = middle
+                let out = start
+                while out < end:
+                    let take_right = left == middle
+                    if !take_right && right < end:
+                        take_right = match compare(sorted[right], sorted[left]):
+                            .Less => true
+                            _ => false
+                    if take_right:
+                        scratch[out] = sorted[right]
+                        right += 1
+                    else:
+                        scratch[out] = sorted[left]
+                        left += 1
+                    out += 1
+                start = end
+            previous := sorted
+            sorted = scratch
+            scratch = previous
+            if width >= size - width:
+                break
+            width *= 2
+        sorted
 
     # Consecutive pieces of `size` items; the last may be shorter.
     ## Returns read-only views in consecutive pieces of `size` elements; only the last may be shorter.
