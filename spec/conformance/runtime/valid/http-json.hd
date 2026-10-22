@@ -1,8 +1,8 @@
 # test: Response.json decodes the body into a type, a Post request sends a JSON body with its header, and a bad body is a Json error
 # Spec std/http Status And JSON: std-http.response.json, std-http.error.json, std-http.error.json.text.
-# Also covers std-http.error.decl, std-http.error.traits, std-http.scripted.sent-ref.
+# Also covers std-http.error.decl-retained-response, std-http.error.traits, std-http.scripted.sent-ref.
 # expect: test
-use std.http.{Http, HttpError, Method, Request, Response, ScriptedHttp, send}
+use std.http.{Http, HttpError, Method, Request, Response, ScriptedHttp}
 use std.json.{JsonError, encode}
 use std.serde.{Deserialize, Serialize}
 
@@ -17,7 +17,7 @@ struct Created:
 
 fn create!(name: string) -> Result[Created, HttpError] $ Http:
     body := encode(NewUser { name: name }).to_utf8()
-    response := send!(Request { method: Method.Post, url: "https://example.com/users", headers: [("Content-Type", "application/json")], body: body })?
+    response := Request { method: Method.Post, url: "https://example.com/users", headers: [("Content-Type", "application/json")], body: body }.send!()?
     response.ok()?.json::[Created]()
 
 tests:
@@ -50,7 +50,7 @@ tests:
         $.with(Http=http):
             assert_equal(create!("Ada").is_err(), true, reason="500 is an error")
             match create!("Ada"):
-                .Err(.Status(status, url)) => assert_equal((status, url), (500, "https://example.com/users"), reason="the status")
+                .Err(.Status(response)) => assert_equal((response.status, response.url), (500, "https://example.com/users"), reason="the status")
                 _ => assert_equal(true, false, reason="a Status error")
 
     it("json alone ignores the status"):

@@ -1,7 +1,7 @@
 # test: Request and Response are struct values, ScriptedHttp::new returns a handle the test and the installed provider share, and a program's struct with a &mut self send! serves as an Http fake
-# Spec std/http: std-http.types.request-builder, std-http.trait.decl-ref, std-http.send.mut-ref.reference-values, std-http.scripted.new-ref, std-http.scripted.sent-ref.
+# Spec std/http: std-http.types.builder-response-defaults, std-http.trait.decl-ref, std-http.send.mut-ref.reference-values, std-http.scripted.new-ref, std-http.scripted.sent-ref.
 # expect: test
-use std.http.{Http, HttpError, Request, Response, ScriptedHttp, get, send}
+use std.http.{Http, HttpError, Request, Response, ScriptedHttp, get}
 
 struct Counting:
     seen: i32
@@ -34,7 +34,7 @@ tests:
         $.with(Http=http):
             _ := get!("https://example.com/")
         $.with(Http=http):
-            _ := send!(Request { url: "https://example.com/missing" })
+            _ := Request::get("https://example.com/missing").send!()
         assert_equal(http.sent().len(), 2, reason="both scopes recorded on the one object")
         assert_equal(http.sent()[1].url, "https://example.com/missing", reason="the unanswered request too")
 

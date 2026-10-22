@@ -3819,7 +3819,7 @@ runtime/valid/http-method-variant-equality.hd	runtime	accept	std/http.md#r-std-h
 runtime/valid/http-scripted-provider.hd	runtime	accept	std/http.md#scripted-http
 runtime/valid/http-handles-and-values.hd	runtime	accept	std/http.md#r-std-http.scripted.new-ref
 runtime/valid/http-scripted-unknown-url.hd	runtime	accept	std/http.md#r-std-http.scripted.unknown
-runtime/valid/http-status-as-error.hd	runtime	accept	std/http.md#r-std-http.response.ok
+runtime/valid/http-status-as-error.hd	runtime	accept	std/http.md#r-std-http.response.ok.retained-error
 runtime/valid/http-json.hd	runtime	accept	std/http.md#r-std-http.response.json
 runtime/valid/map-sys.hd	runtime	accept	std/sys.md#map-sys
 runtime/valid/net-own-provider.hd	runtime	accept	std/net.md#net-providers
@@ -4787,7 +4787,7 @@ typing/invalid/nested-optional-layers-never-drop-or-double-double.hd	type	reject
 typing/invalid/nested-optional-a-plain-value-and-a-nested-optional-have-no-common-type.hd	type	reject:no-common-type	lang/04-type-system.md#r-types.lct.optional.one-layer
 runtime/valid/hd-run-command-forwarding.hd	runtime	accept	std/testing.md#running-executables
 runtime/valid/http-request-builder.hd	runtime	accept	std/http.md#request-builder
-typing/invalid/http-request-timeout-removed.hd	type	reject:unknown-field	std/http.md#r-std-http.types.request-builder
+typing/invalid/http-request-timeout-removed.hd	type	reject:unknown-field	std/http.md#r-std-http.types.builder-response-defaults
 typing/invalid/http-request-send-missing-provider.hd	type	reject:missing-requirement	std/http.md#r-std-http.request.send
 runtime/valid/regex-decode.hd	runtime	accept	std/regex.md#typed-decoding
 typing/invalid/regex-decode-requires-deserialize.hd	type	reject:unsatisfied-trait-bound	std/regex.md#r-std-regex.decode.regex
@@ -4796,3 +4796,4 @@ typing/invalid/error-chain-free-function-removed.hd	type	reject:unknown-import	s
 typing/invalid/error-context-private-type.hd	type	reject:private-import	std/error.md#r-std-error.context.private-wrapper
 typing/invalid/error-context-private-field.hd	type	reject:unknown-field	std/error.md#r-std-error.context.private-wrapper
 runtime/valid/memory-fs-normalized-keys.hd	runtime	accept	std/fs.md#r-std-fs.memory.normalized-keys
+typing/invalid/http-free-send-removed.hd	type	reject:unknown-import	std/http.md#r-std-http.helper.only-get

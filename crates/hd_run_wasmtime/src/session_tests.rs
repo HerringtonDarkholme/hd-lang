@@ -1435,7 +1435,7 @@ fn all_sends_two_requests_at_the_same_time() {
         let request = format!("Request {{ url: \"{url}\" }}");
         assert_eq!(
             repl.input(&format!(
-                "use std.http.{{Request, send}}\nfn timed!() -> string $ Http:\n    match send!({request}):\n        .Ok(r) => \"status ${{r.status}}\"\n        .Err(e) => \"${{e}}\"\n"
+                "use std.http.Request\nfn timed!() -> string $ Http:\n    match {request}.send!():\n        .Ok(r) => \"status ${{r.status}}\"\n        .Err(e) => \"${{e}}\"\n"
             )),
             Outcome::Exit(0),
             "{}",

@@ -5,10 +5,10 @@ Status: standard library specification draft.
 This chapter defines `std.http`, which `lib/std` writes in ordinary hd
 over the language tier:
 
-- the host capability trait `Http`, and the helpers `send!` and `get!`;
+- the host capability trait `Http`, and the free helper `get!`;
 - the struct values `Request` and `Response`, and the enums `Method` and
   `HttpError`;
-- a status outside 200 to 299 as an error, and the JSON calls;
+- status checking, retained error responses, and the JSON calls;
 - which request URLs are valid;
 - `ScriptedHttp`, the deterministic provider of `Http`;
 - what the playground binds for `Http`, and how a `block_on` call waits
@@ -42,12 +42,12 @@ pub struct Request:
 
 pub struct Response:
     pub status: u16
-    pub headers: List[(string, string)]
-    pub body: List[u8]
+    pub headers: List[(string, string)] = []
+    pub body: List[u8] = []
     pub url: string = ""
 ```
 
-1. r[std-http.types.request-builder] `std.http` declares `Method`, `Request`, and `Response` as above.
+1. r[std-http.types.builder-response-defaults] `std.http` declares `Method`, `Request`, and `Response` as above.
 2. r[std-http.types.traits] `Method`, `Request`, and `Response` implement `Eq` and `Debug`.
 3. r[std-http.request.builder-defaults] A `Request` that gives only `url` defaults to `Get`, empty query and header lists, an empty body, and ten redirects.
 4. r[std-http.request.default-timeout] A provider that sends requests to a host has a default timeout of 30 seconds.
@@ -59,6 +59,8 @@ pub struct Response:
 10. r[std-http.response.url] `Response.url` is the URL of the last request, after every redirect. `ScriptedHttp` sets it to the request's URL, and a response built by hand has `""` unless it names one.
 11. r[std-http.method.eq.variant-payload] Two `Method` values compare equal only when their variants and corresponding payloads are equal.
 12. r[std-http.types.value-copy] A `Request` or `Response` copy is independent of the value it was copied from.
+
+13. r[std-http.response.omitted-lists] A response's omitted `headers` and `body` fields default to empty lists.
 
 ## Request Builder
 
@@ -116,11 +118,11 @@ pub enum HttpError:
     Timeout
     TooManyRedirects(url: string)
     Other(message: string)
-    Status(status: u16, url: string)
+    Status(response: Response)
     Json(error: JsonError)
 ```
 
-1. r[std-http.error.decl] `std.http` declares `HttpError` as above. Code imports it, as in `use std.http.HttpError`.
+1. r[std-http.error.decl-retained-response] `std.http` declares `HttpError` as above. Code imports it, as in `use std.http.HttpError`.
 2. r[std-http.error.traits] `HttpError` implements `Eq`, `Debug`, `Display`, and `std.error.Error`.
 
 | Rule | Variant | Means |
@@ -133,12 +135,17 @@ pub enum HttpError:
 | r[std-http.error.timeout] Timeout | `Timeout` | the request took longer than its timeout |
 | r[std-http.error.redirect-limit] Redirects | `TooManyRedirects(url)` | the response exceeded a positive `Request.redirects` limit; `url` is the last target |
 | r[std-http.error.other] Other | `Other(message)` | any other failure, with the provider's message |
-| r[std-http.error.status] Status | `Status(status, url)` | `Response.ok` found a status outside 200 to 299; `url` is the response's `url` |
+| r[std-http.error.status-response-value] Status | `Status(response)` | `Response.ok` found a status from 400 to 599, retaining the whole response |
 | r[std-http.error.json] JSON | `Json(error)` | `Response.json` could not decode the body; `error` is the `std.json.JsonError` |
 
 3. r[std-http.error.not-granted.plain] The `Display` text of `NotGranted(host)` is `http access to HOST is not granted`, with the host for `HOST`.
-4. r[std-http.error.status.text] The `Display` text of `Status(status, url)` is `HTTP status STATUS for URL`, with the status and the URL, for every URL, an empty one included.
-5. r[std-http.error.json.text] The `Display` text of `Json(error)` is `invalid JSON in the response: ERROR`, with the `Display` text of `error`.
+4. r[std-http.error.status.safe-response-text] `Status(response)` displays `HTTP status STATUS for URL`, with the response status and its URL before any query or fragment.
+5. r[std-http.error.status.no-response-secrets] The status error's `Display` text contains no response body or header values.
+6. r[std-http.error.json.text] The `Display` text of `Json(error)` is `invalid JSON in the response: ERROR`, with the `Display` text of `error`.
+
+7. r[std-http.error.transient-kinds] `HttpError.is_transient(self) -> bool` returns true for `Timeout` and `Connect` errors.
+8. r[std-http.error.transient-status-codes] A `Status` error is transient for 408, 429, 500, 502, 503, and 504.
+9. r[std-http.error.permanent-kinds] `is_transient` returns false for every other error.
 
 ## Sending
 
@@ -165,8 +172,8 @@ fn latest_release!(repo: string) -> Result[string, HttpError] $ Http:
 8. r[std-http.send.cancel.close] Aborting a request closes its connection.
 9. r[std-http.send.mut-ref.reference-values] `send!` takes `&mut self`, so `Http` is a mutable requirement trait, `$.use(Http)` is a `&mut dyn Http` by [`req.ref.use.reference-values`](../lang/11-requirements-and-suspension.md#r-req.ref.use.reference-values), and a provider may record what it sends.
 10. r[std-http.bodies] A body is a whole list of bytes. `std.http` has no streaming body.
-11. r[std-http.helper.send-builder] `std.http` declares `pub fn send!(request: Request) -> Result[Response, HttpError] $ Http`, which calls `request.send!()`.
-12. r[std-http.helper.get] `std.http` declares `pub fn get!(url: string) -> Result[Response, HttpError] $ Http`, which sends `Request { url: url }` the same way.
+11. r[std-http.helper.get.checked-response] `get!(url: string) -> Result[Response, HttpError] $ Http` returns `Request::get(url).send!()?.ok()`.
+12. r[std-http.helper.only-get] `get!` is the only free HTTP request helper; `send!`, `get_text!`, and `post_json!` are not exported.
 
 > **Why.** A status is data about a request that worked, as with `fetch`
 > and Go, and as a non-zero exit status is for `Process`. Header pairs
@@ -174,11 +181,11 @@ fn latest_release!(repo: string) -> Result[string, HttpError] $ Http:
 
 ## Status And JSON
 
-A status outside 200 to 299 is an error only when the code asks for it,
-with `ok`:
+`Response.ok()` checks 400–599 while preserving the whole response in the
+error; the free `get!` calls it automatically:
 
 ```text
-use std.http.{Http, HttpError, Method, Request, get, send}
+use std.http.{Http, HttpError, Method, Request, get}
 use std.json.encode
 use std.serde.{Deserialize, Serialize}
 
@@ -191,20 +198,21 @@ struct Created:
     id: i64
 
 fn notes!() -> Result[string, HttpError] $ Http:
-    .Ok(get!("https://example.com/notes.txt")?.ok()?.text())   # a 404 is .Err(HttpError.Status(404, url))
+    .Ok(get!("https://example.com/notes.txt")?.text())   # a 404 is .Err(HttpError.Status(response))
 
 fn create!(name: string) -> Result[Created, HttpError] $ Http:
     body := encode(NewUser { name: name }).to_utf8()
     request := Request { method: Method.Post, url: "https://example.com/users", headers: [("Content-Type", "application/json")], body: body }
-    send!(request)?.ok()?.json::[Created]()                    # a bad body is .Err(HttpError.Json(error))
+    request.send!()?.ok()?.json::[Created]()                    # a bad body is .Err(HttpError.Json(error))
 ```
 
-1. r[std-http.response.ok] `Response` has the method `ok(self) -> Result[Response, HttpError]`. It returns `.Ok(self)` for a `status` from 200 to 299, and `.Err(HttpError.Status(status, url))` for any other, with the response's `status` and `url`.
+1. r[std-http.response.ok.retained-error] `Response.ok(self) -> Result[Response, HttpError]` returns `.Err(HttpError.Status(self))` for status 400–599 and `.Ok(self)` otherwise.
 2. r[std-http.response.json] `Response` has the method `json::[T < Deserialize](self) -> Result[T, HttpError]`. It decodes `self.text()` with `std.json.decode::[T]`, and returns `.Err(HttpError.Json(error))` for the `JsonError` it fails with. It does not look at `status`.
 
-> **Why.** Code must not read a 404 page as the text. `send!` stays
-> status-neutral ([`std-http.send.status`](#r-std-http.send.status)); `ok`
-> is the opt-in, as reqwest's `error_for_status` is.
+> **Why.** Builder and provider `send!` calls keep every status available
+> ([`std-http.send.status`](#r-std-http.send.status)). `Response.ok()` checks
+> explicitly, as reqwest's `error_for_status` does; the free `get!` checks by default.
+> Retaining the response lets a caller decode an API's error body.
 
 ## Scripted Http
 

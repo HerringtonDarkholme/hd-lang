@@ -270,7 +270,7 @@ test("Http reaches the page's own origin through the browser, and no other", asy
   globals.XMLHttpRequest = FakeRequest;
   try {
     const source = [
-      "use std.http.{Http, HttpError, Method, Request, get, send}",
+      "use std.http.{Http, HttpError, Method, Request, get}",
       "",
       "fn ping!(url: string) -> string $ Http:",
       "    match get!(url):",
@@ -285,7 +285,7 @@ test("Http reaches the page's own origin through the browser, and no other", asy
       '    println(ping!("http://127.0.0.1:8123/cors"))',
       '    println(ping!("https://example.com/"))',
       '    println(ping!("http://127.0.0.1:9999/"))',
-      '    match send!(Request { method: Method.Post, url: "http://127.0.0.1:8123/echo", headers: [("X-Tag", "a")], body: "hi".to_utf8() }):',
+      '    match Request { method: Method.Post, url: "http://127.0.0.1:8123/echo", headers: [("X-Tag", "a")], body: "hi".to_utf8() }.send!():',
       "        .Ok(response) => println(response.text())",
       '        .Err(error) => println("${error}")',
     ].join("\n");
@@ -293,7 +293,7 @@ test("Http reaches the page's own origin through the browser, and no other", asy
     assert.equal(result.status, "ok", result.summary);
     assert.deepEqual(result.stdout, [
       "status 200 | text/plain",
-      "status 404 | text/plain",
+      "HTTP status 404 for http://127.0.0.1:8123/missing",
       "the browser refused the request",
       "the playground grants no example.com",
       "the playground grants no 127.0.0.1",

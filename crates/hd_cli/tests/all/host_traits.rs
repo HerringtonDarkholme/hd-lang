@@ -564,12 +564,13 @@ fn http_server() -> u16 {
     port
 }
 
-const HTTP_PROGRAM: &str = "use std.http.{Http, HttpError, Method, Request, Response, get, send}
+const HTTP_PROGRAM: &str = "use std.http.{Http, HttpError, Method, Request, Response, get}
 use std.host.{Args, args}
 
 fn show!(r: Result[Response, HttpError]) -> string:
     match r:
         .Ok(response) => \"${response.status} ${response.text()} ${debug(response.header(\"SET-COOKIE\"))} ${response.headers.len()}\"
+        .Err(.Status(response)) => \"status error ${response.status} ${response.text()}\"
         .Err(e) => \"${debug(e)}\"
 
 pub fn main!() -> void $ Console + Http + Args:
@@ -579,7 +580,7 @@ pub fn main!() -> void $ Console + Http + Args:
     println(show!(Request::get(\"${base}/redirect\").redirects(0).send!()))
     println(show!(get!(\"${base}/nothing\")))
     println(show!(get!(\"${base}/loop\")))
-    println(show!(send!(Request { method: Method.Post, url: \"${base}/echo\", headers: [(\"Content-Type\", \"text/plain\")], body: \"abc\".to_utf8() })))
+    println(show!(Request { method: Method.Post, url: \"${base}/echo\", headers: [(\"Content-Type\", \"text/plain\")], body: \"abc\".to_utf8() }.send!()))
     println(show!(get!(\"http://example.com/\")))
     println(show!(get!(\"ftp://127.0.0.1/\")))
     println(show!(get!(\"http://bücher.example/\")))
@@ -623,7 +624,7 @@ fn http_sends_requests_inside_the_grant() {
                 "200 hello Option.Some(\"a=1\") 4\n\
              200 hello Option.Some(\"a=1\") 4\n\
              302  Option.None 3\n\
-             404 missing Option.None 2\n\
+             status error 404 missing\n\
              HttpError.TooManyRedirects(url=\"{base}/loop\")\n\
              201 got abc Option.None 2\n\
              HttpError.NotGranted(host=\"example.com\")\n\
@@ -837,7 +838,7 @@ fn http_requests_carry_a_host_header() {
     let dir = work("host-http-host");
     write(
         &dir.join("main.hd"),
-        "use std.http.{Http, Request, get, send}
+        "use std.http.{Http, Request, get}
 use std.host.{Args, args}
 
 pub fn main!() -> void $ Console + Http + Args:
@@ -845,7 +846,7 @@ pub fn main!() -> void $ Console + Http + Args:
     match get!(\"${base}/host\"):
         .Ok(r) => println(r.text())
         .Err(e) => println(debug(e))
-    match send!(Request { url: \"${base}/host\", headers: [(\"Host\", \"example.test\")] }):
+    match Request { url: \"${base}/host\", headers: [(\"Host\", \"example.test\")] }.send!():
         .Ok(r) => println(r.text())
         .Err(e) => println(debug(e))
 ",

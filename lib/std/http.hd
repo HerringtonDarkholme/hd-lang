@@ -1,4 +1,4 @@
-# std.http: the host capability trait `Http`, its helpers `send!` and `get!`,
+# std.http: the host capability trait `Http`, its free helper `get!`,
 # the struct values `Request` and `Response`, `Method`,
 # `HttpError`, and the deterministic provider `ScriptedHttp` (spec/std/http.md). The default
 # profile binds a host `Http` that checks the command's `--cap Http=` grant
@@ -8,7 +8,7 @@ use std.json.{JsonError, decode}
 use std.serde.Deserialize
 
 ## An HTTP method: a standard one, or `Other(name)`.
-## See [std-http.types.request-builder](../../spec/std/http.md#r-std-http.types.request-builder).
+## See [std-http.types.builder-response-defaults](../../spec/std/http.md#r-std-http.types.builder-response-defaults).
 @derive(Debug, Eq)
 pub enum Method:
     Get
@@ -20,10 +20,10 @@ pub enum Method:
     Options
     Other(name: string)
 
-# A request (r-std-http.types.request-builder). Only `url` has no default
+# A request (r-std-http.types.builder-response-defaults). Only `url` has no default
 # (r-std-http.request.builder-defaults).
 ## An HTTP request; only `url` has no default.
-## See [std-http.types.request-builder](../../spec/std/http.md#r-std-http.types.request-builder).
+## See [std-http.types.builder-response-defaults](../../spec/std/http.md#r-std-http.types.builder-response-defaults).
 @derive(Debug, Eq)
 pub struct Request:
     ## The request's method; `Get` by default.
@@ -125,18 +125,18 @@ fn encode_query(out: &mut StringBuilder, text: string) -> void:
         index += 1
 
 ## A whole HTTP response.
-## See [std-http.types.request-builder](../../spec/std/http.md#r-std-http.types.request-builder).
+## See [std-http.types.builder-response-defaults](../../spec/std/http.md#r-std-http.types.builder-response-defaults).
 @derive(Debug, Eq)
 pub struct Response:
     ## The response's status code.
-    ## See [std-http.types.request-builder](../../spec/std/http.md#r-std-http.types.request-builder).
+    ## See [std-http.types.builder-response-defaults](../../spec/std/http.md#r-std-http.types.builder-response-defaults).
     pub status: u16
     ## The response's headers as name and value pairs.
     ## See [std-http.headers.pairs](../../spec/std/http.md#r-std-http.headers.pairs).
-    pub headers: List[(string, string)]
+    pub headers: List[(string, string)] = []
     ## The response's whole body.
     ## See [std-http.bodies](../../spec/std/http.md#r-std-http.bodies).
-    pub body: List[u8]
+    pub body: List[u8] = []
     ## The URL that answered, after every redirect; `""` for a response built by hand.
     ## See [std-http.response.url](../../spec/std/http.md#r-std-http.response.url).
     pub url: string = ""
@@ -161,15 +161,13 @@ impl Response:
             .Ok(text) => text
             .Err(_) => lossy_text(self.body)
 
-    # The response itself for a status from 200 to 299, else
-    # `HttpError.Status` (r-std-http.response.ok).
-    ## `.Ok(self)` for a status from 200 to 299, else `.Err(HttpError.Status(status, url))`.
-    ## See [std-http.response.ok](../../spec/std/http.md#r-std-http.response.ok).
+    ## Checks 400–599 and retains the whole response when it failed.
+    ## See [std-http.response.ok.retained-error](../../spec/std/http.md#r-std-http.response.ok.retained-error).
     pub fn ok(self) -> Result[Response, HttpError]:
-        if self.status >= 200 && self.status <= 299:
-            .Ok(self)
+        if self.status >= 400 && self.status <= 599:
+            .Err(.Status(self))
         else:
-            .Err(.Status(self.status, self.url))
+            .Ok(self)
 
     # The body's text decoded as JSON into `T` (r-std-http.response.json).
     ## Decodes the body text as JSON into `T`; a failure is `.Err(HttpError.Json(error))`.
@@ -180,7 +178,7 @@ impl Response:
             .Err(error) => .Err(.Json(error))
 
 ## Why a request failed: invalid URL, DNS, connect, TLS, timeout, too many redirects, not granted, or another reason.
-## See [std-http.error.decl](../../spec/std/http.md#r-std-http.error.decl).
+## See [std-http.error.decl-retained-response](../../spec/std/http.md#r-std-http.error.decl-retained-response).
 @error
 @derive(Debug, Eq)
 pub enum HttpError:
@@ -200,10 +198,27 @@ pub enum HttpError:
     TooManyRedirects(url: string)
     @error("$message")
     Other(message: string)
-    @error("HTTP status ${status} for ${url}")
-    Status(status: u16, url: string)
+    @error("HTTP status ${response.status} for ${status_url(response.url)}")
+    Status(response: Response)
     @error("invalid JSON in the response: ${error}")
     Json(error: JsonError)
+
+impl HttpError:
+    ## Whether a timeout, connection failure or retryable status may succeed on retry.
+    ## See [std-http.error.transient-kinds](../../spec/std/http.md#r-std-http.error.transient-kinds).
+    pub fn is_transient(self) -> bool:
+        match self:
+            .Timeout => true
+            .Connect(_) => true
+            .Status(response) =>
+                status := response.status
+                status == 408 || status == 429 || status == 500 || status == 502 || status == 503 || status == 504
+            _ => false
+
+# Status diagnostics show the URL without exposing query or fragment data.
+fn status_url(url: string) -> string:
+    without_query := url.split_once("?").map(fn(parts): parts._0).unwrap_or(url)
+    without_query.split_once("#").map(fn(parts): parts._0).unwrap_or(without_query)
 
 # The host capability to send a request (r-std-http.trait.decl-ref).
 ## The host capability to send an HTTP request and complete with the whole response.
@@ -211,18 +226,10 @@ pub enum HttpError:
 pub trait Http:
     fn send!(&mut self, request: Request) -> Result[Response, HttpError]
 
-# Sends `request` through the covering `Http` provider
-# (r-std-http.helper.send-builder).
-## Sends `request` on the `Http` provider that covers the call.
-## See [std-http.helper.send-builder](../../spec/std/http.md#r-std-http.helper.send-builder).
-pub fn send!(request: Request) -> Result[Response, HttpError] $ Http:
-    request.send!()
-
-# Sends a `Get` of `url` (r-std-http.helper.get).
-## Sends a `Get` of `url` on the `Http` provider that covers the call.
-## See [std-http.helper.get](../../spec/std/http.md#r-std-http.helper.get).
+## Sends a GET and checks its response for a 400–599 failure.
+## See [std-http.helper.get.checked-response](../../spec/std/http.md#r-std-http.helper.get.checked-response).
 pub fn get!(url: string) -> Result[Response, HttpError] $ Http:
-    send!(Request { url: url })
+    Request::get(url).send!()?.ok()
 
 # The deterministic `Http` (spec/std/http.md#scripted-http): it answers a
 # URL by its exact text, and records every request it receives.

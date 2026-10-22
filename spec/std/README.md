@@ -198,7 +198,7 @@ file of its own.
 | [`fs.md`](fs.md) | `std.fs` | `std-fs` | the host traits `FsRead` and `FsWrite`, `FsError`, `Entry`, the helpers `read_text!` and `write_text!`, and the provider `MemoryFs` |
 | [`path.md`](path.md) | `std.path` | `std-path` | the `Path` newtype |
 | [`process.md`](process.md) | `std.process` | `std-process` | the `Display` text of `ProcessError`; `Eq` and `Debug` for `ExitCode` and `ProcessOutput`; the provider `ScriptedProcess`; child process inheritance, signal status, and cancellation |
-| [`http.md`](http.md) | `std.http` | `std-http` | the host trait `Http`, `send!` and `get!`, `Request`, `Response`, `Method`, `HttpError`, the provider `ScriptedHttp`, and the playground's `Http` |
+| [`http.md`](http.md) | `std.http` | `std-http` | the host trait `Http`, request sending and checked `get!`, `Request`, `Response`, `Method`, `HttpError`, the provider `ScriptedHttp`, and the playground's `Http` |
 | [`net.md`](net.md) | `std.net` | `std-net` | the host trait `Net` for DNS lookup, TCP, and UDP; the handles `TcpStream`, `TcpListener`, and `UdpSocket`; `Datagram` and `NetError` |
 | [`sys.md`](sys.md) | `std.sys` | `std-sys` | the host trait `Sys`, `SysError`, and the provider `ScriptedSys` |
 | [`random.md`](random.md) | `std.random` | `std-random` | the host trait `Random`, the provider `SeededRandom`, and the seeded generator `Rng` with `rng` |
