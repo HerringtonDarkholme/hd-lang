@@ -572,7 +572,7 @@ String operations are emitted by `emit/text.rs` and runtime helpers
   place as a rooted one, below). Since the passes put an `IsUnique` before every
   change of a collection place, an owned body's intrinsics and its thunks'
   (`Em::unique_explicit`) check no uniqueness themselves: an element
-  store, `MapSet`, `MapRemove`, `MapIndexMut` and `ListPin` skip it, and
+  store, `MapSet`, `MapRemove` and `MapIndexMut` skip it, and
   `ListPush` only moves a full buffer (`rt:list_grow`). One check stays:
   std's `list_truncate` (`pop`, `insert`, ...) changes the list behind
   its reference, where no pass sees the change. A hoisted `IsUnique`
@@ -591,10 +591,11 @@ String operations are emitted by `emit/text.rs` and runtime helpers
   local's list or the list a reference local refers to, with no counted
   leaf in its elements, keeps its header, buffer and length in locals for
   the loop where no view is reachable, with no check of its own and none
-  of #710's analysis (`list_loop_safe`, candidates, definite writes). The
-  checker's `ListPin`
-  keeps its owner word and its count, the pin of a `for` over element
-  references, until the checker stops pinning. A `move` read takes the
+  of #710's analysis (`list_loop_safe`, candidates, definite writes). An
+  owned body has no `ListPin`, `ListUnpin` or `ListIndexMut`: on this
+  path the checker writes element references as plain `Ref`s, which the
+  passes pin, and element reads as plain `Read`s (docs/compiler/tir-v2.md,
+  stage 2 commit 12b); those intrinsics are the old path's. A `move` read takes the
   place's count and zeroes what it read: a local's or a whole value's
   locals, or the part of a local or a value laid out in its locals
   (`Em::part_slots`: struct, tuple and newtype fields and enum payload
@@ -973,8 +974,13 @@ references preserve their owners and pins (OBJECT_MODEL_TIER1.md §6.3).
   uses the same collection-copy glue, so it cannot hide an exposed child
   behind a shared outer buffer. Lists of scalar or reference elements
   gain no exposure bit: their ordinary pin/count fast path is unchanged.
-  `ListPin`'s own count lasts until the checker's `ListUnpin`; each
-  copy of an element reference holds its own, so a reference stored in
+  `ListPin`'s own count lasts until the checker's `ListUnpin`. On the
+  ownership passes' path (§23.16, "Owned bodies") the passes write this:
+  an `IsUnique` and a `Pin` of each list on the reference's path,
+  outermost first, where `Pin` sets the owner word (its exposure bit
+  included) with no count, so an ancestor is exposed and never pinned,
+  and the reference's own count of the innermost buffer is the pin. Each
+  copy of an element reference holds its own count, so a reference stored in
   a field, returned, or captured by a closure called later keeps the
   list pinned until that copy's last use. Two references to one slot
   share its address (`ref.elem.identity`). A trait value of a value

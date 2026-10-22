@@ -1,8 +1,7 @@
 # @dump: own
 # Insertion's pins: before a reference to an element, an `IsUnique` and a
-# `Pin` of the list it points into, after the checker's own `ListPin`
-# (until the checker stops pinning, commit 12 of stage 2). The
-# reference's drop ends the pin; nothing else releases it.
+# `Pin` of the list it points into. The checker writes only the `Ref`, and
+# the reference's drop ends the pin; nothing else releases it.
 fn bump(mut xs: List[i32], i: usize) -> void:
     r := &mut xs[i]
     *r = *r + 1

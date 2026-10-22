@@ -1,0 +1,10 @@
+# @dump: own
+# A `for` over element references takes no pin of its own: each step's
+# reference gets an `IsUnique` and a `Pin` of the list, and the step's
+# binding holds it to the end of the step, so a length change anywhere in
+# the body panics `collection-pinned`. The outer list is exposed once,
+# before the inner list is read.
+fn bump_all(mut grid: List[List[i64]], i: usize) -> void:
+    # subject
+    for x in &mut grid[i]:
+        *x += 1

@@ -256,13 +256,7 @@ fn hoisted(b: &Body, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
             let xi = x as usize;
             let tag = b.tags[xi];
             let [a, xw] = b.data[xi];
-            let what = if is_suspension(tag)
-                || tag == Tag::Pin
-                || (tag == Tag::Intrinsic
-                    && matches!(
-                        super::IntrinsicOp::from_u32(a),
-                        Some(super::IntrinsicOp::ListPin | super::IntrinsicOp::ListUnpin)
-                    )) {
+            let what = if is_suspension(tag) || tag == Tag::Pin {
                 Some("pins or suspends")
             } else if !whole && hoist::writes(b, cx, xi) {
                 Some("calls what may write")

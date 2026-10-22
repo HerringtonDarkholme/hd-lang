@@ -48,11 +48,13 @@ pub(crate) enum Root {
     /// A field of the data value `o`, `[*%o .k]`: the field's index, the
     /// field's type, and the data value's type.
     DataField(Ref, u32, Ty, Ty),
-    /// A slot of a list's buffer (`ref.elem.place`), `[$pinned [%i]]`:
-    /// the list as the source read it (for the writable check), the local
-    /// holding the pinned list and its depth, the index value, and the
-    /// list's value type.
-    Elem(Ref, LocalId, usize, Ref, Ty),
+    /// A slot of a list's buffer (`ref.elem.place`): the list as the
+    /// source read it (for the writable check), the local holding the
+    /// pinned list and its depth, the index value, and the list's value
+    /// type. The place is `[$pinned [%i]]`; on the ownership passes' path,
+    /// where insertion pins the list (`docs/compiler/tir-v2.md`, stage 2
+    /// commit 12b), there is no pinned local and it is `[%xs [%i]]`.
+    Elem(Ref, Option<(LocalId, usize)>, Ref, Ty),
     /// A list element that a write names, `xs[i]`, which no reference
     /// pins: the list value, the index value, the list's type, and the
     /// index expression.
@@ -879,7 +881,7 @@ impl Ck<'_, '_> {
                 }
             }
             // `ref.elem.writable`: as an element store needs.
-            Root::Elem(list, _, _, _, lt) | Root::Slot(list, _, lt, _) => {
+            Root::Elem(list, _, _, lt) | Root::Slot(list, _, lt, _) => {
                 self.coll_change(list, lt, "a `&mut` element reference", at)
             }
             // A reference names no map value (`elem_operand`).
@@ -1032,9 +1034,12 @@ impl Ck<'_, '_> {
                 (self.b.element(list, index, et, n.index()), et)
             }
             Root::MapValue(v, _) => (v, self.b.ty_of(v)),
-            Root::Elem(_, buf, bd, i, lt) => {
+            Root::Elem(list, pinned, i, lt) => {
                 let et = self.elem_ty(lt);
-                let (l, _) = self.read_local(buf, bd, n);
+                let l = match pinned {
+                    Some((buf, bd)) => self.read_local(buf, bd, n).0,
+                    None => list,
+                };
                 (self.b.element(l, i, et, n.index()), et)
             }
         }
@@ -1069,9 +1074,12 @@ impl Ck<'_, '_> {
                 PlaceRoot::Value(list)
             }
             Root::MapValue(v, _) => PlaceRoot::Value(v),
-            Root::Elem(_, buf, _, i, _) => {
+            Root::Elem(list, pinned, i, _) => {
                 proj.push(Proj::Elem(i));
-                PlaceRoot::Local(buf)
+                match pinned {
+                    Some((buf, _)) => PlaceRoot::Local(buf),
+                    None => PlaceRoot::Value(list),
+                }
             }
         };
         proj.extend(p.path.iter().map(|(idx, _)| Proj::Field(*idx)));
@@ -1111,7 +1119,8 @@ impl Ck<'_, '_> {
             }
             // A value root was read when it was evaluated.
             Root::Deref(..) | Root::DataField(..) | Root::Slot(..) | Root::MapValue(..) => {}
-            Root::Elem(_, buf, bd, ..) => read(self, buf, bd),
+            Root::Elem(_, Some((buf, bd)), ..) => read(self, buf, bd),
+            Root::Elem(_, None, ..) => {}
         }
     }
 

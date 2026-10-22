@@ -435,7 +435,7 @@ impl Ck<'_, '_> {
                     false
                 }
             }
-            Root::Elem(list, _, _, _, lt) | Root::Slot(list, _, lt, _) => {
+            Root::Elem(list, _, _, lt) | Root::Slot(list, _, lt, _) => {
                 self.coll_change(list, lt, "this call", at)
             }
             Root::MapValue(..) => false,

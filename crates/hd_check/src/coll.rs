@@ -635,6 +635,11 @@ impl Ck<'_, '_> {
     /// base) reaches only the collections on its path: each element or
     /// map value read on it becomes `ListIndexMut` or `MapIndexMut`, which
     /// makes that collection's buffer its own first (`types.coll.nested`).
+    /// On the ownership passes' path an element read stays a read:
+    /// insertion makes each list on a change's path unique from the reads
+    /// the change goes through (`docs/compiler/tir-v2.md`, stage 2 commit
+    /// 12b). A map value read is still marked, since a `&mut self` call on
+    /// one holds it in a local first, where no pass follows it.
     pub(crate) fn mark_write_path(&mut self, r: Ref) {
         let mut cur = r;
         for _ in 0..64 {
@@ -654,6 +659,10 @@ impl Ck<'_, '_> {
             // instruction shares it, and a rollback of a later checkpoint
             // cannot drop it.
             if let Some((list, index)) = self.element_of(cur) {
+                if self.cx.own_passes {
+                    cur = list;
+                    continue;
+                }
                 let body = self.b.body_mut();
                 let at = body.data[i.0 as usize][0];
                 body.extra[at as usize..at as usize + 3].copy_from_slice(&[2, list.0, index.0]);

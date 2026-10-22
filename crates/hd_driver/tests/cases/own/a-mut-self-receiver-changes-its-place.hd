@@ -1,0 +1,16 @@
+# @dump: own
+# A `mut self` receiver of a list changes the caller's list in place: the
+# call's argument is in place (`OwnCx::pass`), so insertion makes the outer
+# list unique before the element is read and the element before the call,
+# as it does for a push.
+trait Bump:
+    fn bump(mut self) -> usize
+
+impl Bump for List[i64]:
+    fn bump(mut self) -> usize:
+        self.push(1)
+        self.len()
+
+fn grow(mut grid: List[List[i64]], i: usize) -> usize:
+    # subject
+    grid[i].bump()

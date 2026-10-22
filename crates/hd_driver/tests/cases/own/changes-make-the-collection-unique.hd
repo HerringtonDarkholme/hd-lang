@@ -1,7 +1,7 @@
 # @dump: own
 # Insertion's uniqueness: an `IsUnique` of the collection before each
-# change of it. A push into an element reads the element (the checker's
-# `ListIndexMut`) after an `IsUnique` of the outer list; an element store
+# change of it. A push into an element goes through the element's read,
+# which comes after an `IsUnique` of the outer list; an element store
 # makes its list unique; a map put and a write through a map value make
 # the map unique.
 struct Bag:

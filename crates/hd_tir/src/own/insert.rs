@@ -27,16 +27,23 @@
 //!
 //! 5. **Uniqueness.** Every in-place change of a collection place gets an
 //!    `IsUnique` of that place just before it: a `Store` through an element
-//!    projection (each list on its path, outermost first), `ListPush`,
-//!    `MapSet`, `MapRemove`, `MapIndexMut` and `ListPin`, of their
-//!    collection operand. A read of an element that a change then goes
-//!    through, which the checker marks `ListIndexMut` (`xs[i].push(v)`),
-//!    becomes a `Read` of the element place, with an `IsUnique` of the list
-//!    before it. The backend's intrinsics then check nothing themselves.
+//!    projection (each list on its path, outermost first), and `ListPush`,
+//!    `MapSet`, `MapRemove`, `MapIndexMut` and an in-place argument
+//!    ([`super::Pass::InPlace`], a `mut self` receiver of a collection), of
+//!    their collection operand. A change goes through the reads its place
+//!    or operand was made from (`xs[i].push(v)` pushes to the element that
+//!    `Read [$xs [%i]]` read): each list on such a read's path gets an
+//!    `IsUnique` before that read, outermost first, so the read sees the
+//!    buffer the change will reach; the walk stops at a read through a
+//!    dereference, whose change reaches the referent. The backend's
+//!    intrinsics then check nothing themselves.
 //! 6. **Pins.** A `Ref` of an element place gets an `IsUnique` and a `Pin`
-//!    of each list on its path, outermost first. The reference holds a
-//!    count of the buffer, so the pin ends with the reference's drop (rule
-//!    2 or 3); nothing else releases it.
+//!    of each list on its path, and of each list on the path of a read its
+//!    root was made from, outermost first. The reference holds a count of
+//!    the buffer, so the pin ends with the reference's drop (rule 2 or 3);
+//!    nothing else releases it. A `for` over element references pins its
+//!    list this way at each step, from the step's reference to the end of
+//!    the step, where its binding is dropped.
 //!
 //! Why it is sound: on every path an owned value is consumed by its one
 //! use or dropped once, after its last use or before a jump that leaves
@@ -48,7 +55,9 @@ use hd_base::{LocalId, NodeIdx, SubId};
 use hd_types::Ty;
 
 use super::splice::for_blocks;
-use super::{Loc, Operand, OwnCx, OwnScratch, Role, Tri, consumes, operands, splice, tracked};
+use super::{
+    Loc, Operand, OwnCx, OwnScratch, Pass, Role, Tri, consumes, operands, splice, tracked,
+};
 use crate::ir::{Body, CaptureMode, IntrinsicOp, NONE, ReadMode, Ref, Tag, local_flags, place};
 
 /// A place a jump may need to drop: a value or a local (bit 31 set),
@@ -107,9 +116,10 @@ pub(crate) struct Tables {
     value_stamp: Vec<u32>,
     stack: Vec<u32>,
     exits: Vec<(SubId, LocalId)>,
-    /// Per instruction: an element read that a change goes through (rule
-    /// 5), the checker's `ListIndexMut`.
-    changed: Vec<bool>,
+    /// Per read a change goes through (rules 5 and 6): whether the lists
+    /// on its path have their `IsUnique` before it (bit 1) and their `Pin`
+    /// (bit 2), so a read two changes go through gets them once.
+    walked: Vec<u8>,
     /// The element projections of one place: the `extra` position of each
     /// element word.
     elems: Vec<u32>,
@@ -137,7 +147,7 @@ impl Tables {
         fill(&mut self.item_start, n + 1, 0);
         fill(&mut self.local_stamp, locals, NONE);
         fill(&mut self.value_stamp, n, NONE);
-        fill(&mut self.changed, n, false);
+        fill(&mut self.walked, n, 0);
         self.elems.clear();
         self.uses.clear();
         self.ops.clear();
@@ -262,6 +272,16 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Res
             Tag::Drop | Tag::IsUnique | Tag::Pin | Tag::FlagSet | Tag::FlagClear => {
                 return Err(format!("an ownership statement `{}` at %{i}", tag.name()));
             }
+            // The old path's marks and pins, which the checker writes only
+            // when its TIR feeds that path (`BodyCx::own_passes` off).
+            Tag::Intrinsic
+                if matches!(
+                    IntrinsicOp::from_u32(b.data[i][0]),
+                    Some(IntrinsicOp::ListIndexMut | IntrinsicOp::ListPin | IntrinsicOp::ListUnpin)
+                ) =>
+            {
+                return Err(format!("the old path's intrinsic at %{i}"));
+            }
             Tag::Call | Tag::Await => {
                 let r = b.record(b.data[i][1]);
                 if r.len() < 3 || r[r.len() - 3] > 2 {
@@ -279,7 +299,6 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Res
     let edits = &mut scratch.splice;
     edits.clear();
     t.reset(n, b.local_ty.len());
-    changed_elements(b, t);
     structure(b, t);
     for i in 0..n {
         t.tracked[i] = tracked(b, cx, i);
@@ -288,7 +307,7 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Res
     values(b, cx, t, edits)?;
     locals(b, cx, t, edits);
     jumps(b, t, edits);
-    uniqueness(b, t, edits);
+    uniqueness(b, cx, t, edits);
     for i in 0..n {
         if b.tags[i] == Tag::Read && b.data[i][1] == ReadMode::Use as u32 {
             b.data[i][1] = ReadMode::Copy as u32;
@@ -772,33 +791,11 @@ fn mark_suites(b: &Body, t: &mut Tables, scope: u32, stamp: u32) {
     t.ops = ops;
 }
 
-/// Rule 5's marked reads: each `ListIndexMut [%xs %i]` becomes the element
-/// read it stands for, `Read [%xs [%i]]`, marked as one a change goes
-/// through. The checker writes the intrinsic because only it sees every
-/// change a read leads to (a `mut self` receiver is a plain argument).
-fn changed_elements(b: &mut Body, t: &mut Tables) {
-    for i in 0..b.len() {
-        let [op, rec] = b.data[i];
-        if b.tags[i] != Tag::Intrinsic
-            || IntrinsicOp::from_u32(op) != Some(IntrinsicOp::ListIndexMut)
-        {
-            continue;
-        }
-        let &[list, index] = b.record(rec) else {
-            continue;
-        };
-        let at = u32_of(b.extra.len());
-        b.extra
-            .extend([4, place::ROOT_VALUE, list, place::PROJ_ELEM, index]);
-        b.tags[i] = Tag::Read;
-        b.data[i] = [at, ReadMode::Use as u32];
-        t.changed[i] = true;
-    }
-}
-
 /// Rules 5 and 6: an `IsUnique` before each in-place change of a list or
-/// map place, and a `Pin` after it before each element reference.
-fn uniqueness(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables) {
+/// map place, and a `Pin` after it before each element reference; and the
+/// same for the lists on the path of each read the change goes through,
+/// before that read.
+fn uniqueness(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables) {
     for i in 0..b.len() {
         if t.blk[i] == NONE {
             continue;
@@ -808,7 +805,7 @@ fn uniqueness(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables) {
         match b.tags[i] {
             Tag::Store | Tag::Ref => {
                 let pin = b.tags[i] == Tag::Ref;
-                path_lists(b, t, a);
+                let deref = path_lists(b, t, a);
                 for k in 0..t.elems.len() {
                     let word = prefix(b, a, t.elems[k]);
                     edits.insert(blk, pos, Tag::IsUnique, [word, 0], Ty::VOID, syn);
@@ -816,12 +813,10 @@ fn uniqueness(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables) {
                         edits.insert(blk, pos, Tag::Pin, [word, NONE], Ty::VOID, syn);
                     }
                 }
-            }
-            Tag::Read if t.changed[i] => {
-                path_lists(b, t, a);
-                if let Some(&last) = t.elems.last() {
-                    let word = prefix(b, a, last);
-                    edits.insert(blk, pos, Tag::IsUnique, [word, 0], Ty::VOID, syn);
+                // A change through a dereference reaches the referent, not
+                // the reads the reference came from.
+                if !deref && let Some(root) = value_root(b, a) {
+                    through(b, t, edits, root, pin);
                 }
             }
             Tag::Intrinsic
@@ -832,7 +827,6 @@ fn uniqueness(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables) {
                             | IntrinsicOp::MapSet
                             | IntrinsicOp::MapRemove
                             | IntrinsicOp::MapIndexMut
-                            | IntrinsicOp::ListPin
                     )
                 ) =>
             {
@@ -842,29 +836,115 @@ fn uniqueness(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables) {
                 if Ref(coll).as_inst().is_none() {
                     continue;
                 }
+                through(b, t, edits, coll, false);
                 let word = value_place(b, coll);
                 edits.insert(blk, pos, Tag::IsUnique, [word, 0], Ty::VOID, syn);
+            }
+            Tag::Call | Tag::Await => {
+                let Some(callee) = crate::ir::Callee::from_words(b.record(a)) else {
+                    continue;
+                };
+                let n = b.record(w).len().saturating_sub(3);
+                for k in 0..n {
+                    let arg = b.record(w)[k];
+                    if Ref(arg).as_inst().is_none() || cx.pass(&callee, k, n) != Pass::InPlace {
+                        continue;
+                    }
+                    through(b, t, edits, arg, false);
+                    let word = value_place(b, arg);
+                    edits.insert(blk, pos, Tag::IsUnique, [word, 0], Ty::VOID, syn);
+                }
             }
             _ => {}
         }
     }
 }
 
+/// The value a place word is rooted at, if it is rooted at one.
+fn value_root(b: &Body, word: u32) -> Option<u32> {
+    if word & place::BARE_LOCAL != 0 {
+        return None;
+    }
+    match b.extra.get(word as usize + 1..word as usize + 3)? {
+        [place::ROOT_VALUE, v] if Ref(*v).as_inst().is_some() => Some(*v),
+        _ => None,
+    }
+}
+
+/// The reads a change through value `v` goes through, from `v` back to
+/// a read of a local, a global, a dereference or no read at all: for each,
+/// an `IsUnique` (and a `Pin`, for a reference) of every list on its path,
+/// outermost first, before the read. A coercion passes its value on, and
+/// a read of a field of a value goes on to that value. A `MapIndexMut` on
+/// the way is a change of its own, which rule 5 makes unique where it
+/// stands.
+fn through(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables, v: u32, pin: bool) {
+    let mut cur = v;
+    for _ in 0..64 {
+        let Some(at) = Ref(cur).as_inst() else {
+            return;
+        };
+        let i = at.0 as usize;
+        match b.tags[i] {
+            Tag::Coerce => cur = b.data[i][0],
+            Tag::Read if t.blk[i] != NONE => {
+                let word = b.data[i][0];
+                let deref = path_lists(b, t, word);
+                let need = if pin { 3 } else { 1 };
+                let done = t.walked[i];
+                if done & need != need {
+                    let (blk, pos, syn) = (t.blk[i], t.pos[i], b.syn[i]);
+                    for k in 0..t.elems.len() {
+                        let place = prefix(b, word, t.elems[k]);
+                        if done & 1 == 0 {
+                            edits.insert(blk, pos, Tag::IsUnique, [place, 0], Ty::VOID, syn);
+                        }
+                        if pin && done & 2 == 0 {
+                            edits.insert(blk, pos, Tag::Pin, [place, NONE], Ty::VOID, syn);
+                        }
+                    }
+                    t.walked[i] = done | need;
+                }
+                match value_root(b, word) {
+                    Some(root) if !deref => cur = root,
+                    _ => return,
+                }
+            }
+            _ => return,
+        }
+    }
+}
+
 /// The `extra` positions of the element projections of the place at
-/// `word`, outermost first, into `t.elems`.
-fn path_lists(b: &Body, t: &mut Tables, word: u32) {
+/// `word`, outermost first, into `t.elems`. Whether the place has a
+/// dereference.
+fn path_lists(b: &Body, t: &mut Tables, word: u32) -> bool {
     t.elems.clear();
     if word & place::BARE_LOCAL != 0 {
-        return;
+        return false;
     }
-    let elems = &mut t.elems;
-    super::place_words(b, word, |_, at| {
-        if let Loc::Extra(x) = at
-            && b.extra[x as usize - 1] == place::PROJ_ELEM
-        {
-            elems.push(x - 1);
+    let rec = word + 1;
+    let end = rec + b.extra[word as usize];
+    let mut x = rec
+        + match b.extra[rec as usize] {
+            place::ROOT_GLOBAL => 3,
+            _ => 2,
+        };
+    let mut deref = false;
+    while x < end {
+        match b.extra[x as usize] & place::PROJ_KIND {
+            place::PROJ_ELEM => {
+                t.elems.push(x);
+                x += 2;
+            }
+            place::PROJ_DEREF => {
+                deref = true;
+                x += 1;
+            }
+            _ => x += 1,
         }
-    });
+    }
+    deref
 }
 
 /// A place of the root and the projections of the place at `word` before

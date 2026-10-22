@@ -2270,6 +2270,107 @@ is worth deciding only if they are hot.
       commit 13 measures whether parity needs it.
     - The checker's copies (`ValueCopy`), `ListPin`/`ListUnpin` and
       `mark_write_path` stay in both modes (12b).
+    **12b as built.** With the switch on, the checker leaves the pins and
+    the element write marks to the passes; off, its TIR is the old path's,
+    byte for byte.
+    - **Pins.** An element reference is a `Ref` of the element place and
+      nothing else (`refs::Root::Elem` holds no pinned local): no
+      `ListPin`, `$pinned` local, `$pin` flag, `Defer` or `ListUnpin`, no
+      call pins, and a suite that takes element references is no cleanup
+      scope. Insertion's rule 6 pins the list. A `for` over element
+      references reads its list once, as a value each step's `Ref` is
+      rooted at; each step's reference gets an `IsUnique` and a `Pin`, and
+      the step's binding, dropped after the step's `Match`, holds the pin
+      to the end of the step. No code of the body runs between steps, so
+      the list is pinned wherever the body runs (`flow.for.ref.pin`;
+      `own/a-loop-over-element-references-pins-each-step.hd`). The double
+      `IsUnique` and `Pin` of commit 6 are gone.
+    - **Write marks.** `mark_write_path` leaves an element read a read. It
+      still turns a map value's read into `MapIndexMut`, an intrinsic that
+      stays to stage 3: a `&mut self` call on a map value holds the value in
+      a local first (`Ck::fit_receiver`), where no pass follows it.
+      Insertion's rule 5 follows each change back through the reads it goes
+      through (`insert::through`): from the collection operand of a push, a
+      map store, a removal or a `MapIndexMut`, from an in-place argument,
+      and from the value root of a `Store` or `Ref` place, through
+      coercions and value-rooted reads up to a read of a local, a global or
+      a dereference, it puts before each read an `IsUnique` (for a `Ref`,
+      and a `Pin`) of every list on that read's path, outermost first, once
+      per read. So `xs[i].push(v)` is `IsUnique [$xs]`, `%e = Read [$xs
+      [%i]]`, `IsUnique [%e]`, the push.
+    - **In-place arguments** (the owner's decision of 2026-10-22 on #728):
+      `own::Pass::InPlace`, which `OwnCx::pass` answers from the declared
+      parameter type (`Env::in_place`): the `mut` view of a list or a map,
+      as a `mut self` receiver of one has; for a trait method's `mut Self`,
+      when the call's receiver type is a list or a map. The argument is not
+      consumed, as for `Lent` (the backend still counts it for a callee
+      instance that owns it, `push_args`), and rule 5 puts an `IsUnique` of
+      the places it reads before them and one of the argument before the
+      call, so `grid[i].bump()` changes `grid[i]` with no copy
+      (`own/a-mut-self-receiver-changes-its-place.hd`).
+    - **Removed new-path code**: insertion's reading of `ListIndexMut`
+      (`changed_elements`) and its `IsUnique` before `ListPin`; hoisting's
+      and the verifier's `ListPin`/`ListUnpin` checks; the emitter's
+      `ListPin` branch for owned bodies. Insertion refuses `ListIndexMut`,
+      `ListPin` and `ListUnpin`, which only the old path's TIR has.
+    - **Not done: the copies.** The checker still writes `ValueCopy` on
+      both paths. It is no count: it makes a new list or map header over the
+      same buffer, and that is what keeps a change through one holder from
+      reaching another (`types.coll.value`). The passes' `copy` read is a
+      count of the same header (commits 5 to 11 built it so, against the
+      plan's "a list header copy in stages 1 and 2"), and two of their own
+      rules need it to be: a change through a read value (`IsUnique [%e]`
+      and the push above, an in-place argument) must reach the place the
+      value was read from. With the checker's copies off on the new path,
+      47 conformance cases and std's `list_tests.hd` fail ("the push changed
+      ys only"). Moving the copies into the passes is a model choice for the
+      owner: a `copy` whose value a consumer keeps makes a new header and
+      a lent one shares it (the plan's model; a header allocation for each
+      owned list argument still live after the call, where the checker
+      shares), or `IsUnique` makes the header unique too and writes it back
+      (stage 3's model early; it needs every change to read its place after
+      the check, which the intrinsics' value operands do not), or insertion
+      takes over the checker's rule (copy into a place that may change in
+      place). Commit 13 does it once the owner picks; commit 14 then deletes
+      the intrinsic as planned.
+    Old path: every conformance module byte-identical to main, dev and
+    optimized pipelines. New path: all conformance cases pass, dev and
+    optimized pipelines, checked and not. Static count sites and module
+    bytes, old path, new path before this commit, after: over the 771
+    runtime conformance programs with a `main`, retains 27,913, 27,446,
+    27,444, releases 57,465, 53,201, 53,198, bytes 20,193,656, 20,105,610,
+    20,105,427; over the bench/study programs retains 935, 823, 823,
+    releases 1,599, 1,601, 1,601, bytes 313,616, 308,939, 308,939. In the
+    `app` functions of those conformance programs the passes' output held
+    329 `IsUnique`s, one `Pin`, one `ListPin` and two `ListUnpin`s before,
+    328, one, none and none after; bench/study takes no element reference
+    and its `rt:list_unique` call sites stay at 170 (25 in `app`
+    functions; 171 and 25 on the old path). Run time, V8, optimized
+    pipeline, release profile, median of nine alternating runs (ms; a
+    loaded machine, two series), old path, new before, new after: list-sort
+    768 and 795, 619 and 646, 610 and 644; micro sort 58 and 58, 55 and 55,
+    58 and 54; sieve 249 and 248, 247 and 248, 244 and 244; fannkuch 98 and
+    100, 96 and 96, 96 and 96; nbody 124 and 120, 101 and 103, 101 and 100;
+    spectral-norm 189 and 187, 188 and 192, 189 and 202. The checker's
+    `Body` stage over the bench/study builds, cold, nine rounds: new mode
+    939 ms before and 911 after, against the old mode's 899 and 871 in the
+    same runs, so no change beyond noise: these programs take no element
+    reference and change few elements.
+    **Left for later commits (12b).**
+    - **The copies** (`ValueCopy`, above): commit 13, after the owner's
+      choice.
+    - **A loop over element references checks per step**: its `IsUnique`
+      and `Pin` run at each step, where the old path pinned once, since
+      hoisting takes no loop that pins. Commit 13 measures it (no
+      bench/study program has such a loop) and hoists the pair if parity
+      needs it.
+    - **A list holding references is pinned by a reference through it**:
+      `&mut refs[i].x`, whose place lies in what `refs[i]` refers to, still
+      gets an `IsUnique` and a `Pin` of `refs` (rule 6 counts every element
+      step on the path), and so does the old path's `ListPin`; a push to
+      `refs` panics `collection-pinned` on both paths while the reference
+      lives. Whether such a reference pins is an open spec question
+      (`ref.elem.place`), left for commit 13 to raise.
 13. Parity: every counts baseline at or below today, conformance and
     the checked-mode audit green on the new path; the switch flips.
 14. Delete the old path: `live.rs`, `count.rs`'s decisions, the

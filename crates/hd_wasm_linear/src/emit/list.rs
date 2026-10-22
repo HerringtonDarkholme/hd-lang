@@ -1594,10 +1594,9 @@ impl Em<'_, '_, '_> {
             let b = self.buffer(h);
             self.index(b, ix)?;
         }
-        // An owned body's `IsUnique` came before the pin.
-        if !self.unique_explicit {
-            self.unique(h, &e, false);
-        }
+        // Only the old path pins this way: an owned body's element
+        // references are pinned by the passes' `IsUnique` and `Pin`.
+        self.unique(h, &e, false);
         self.pin_owner(h, self.ty_of(args[0]))?;
         let b = self.buffer(h);
         self.f.get(b);

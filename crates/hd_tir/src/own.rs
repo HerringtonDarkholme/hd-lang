@@ -72,6 +72,13 @@ pub enum Pass {
     /// keeps), or a parameter whose mode depends on the instance: the
     /// caller keeps its value.
     Lent,
+    /// A parameter that changes its argument's collection in place: a
+    /// `mut self` receiver of a list or a map, whose declared type is the
+    /// `mut` view, so `xs[i].bump()` changes the element `xs[i]`. The
+    /// caller keeps the value, as for `Lent`, and insertion makes the
+    /// place the argument reads unique before the call (rule 5), as it
+    /// does before a push.
+    InPlace,
 }
 
 /// The facts the passes read besides the body (`docs/compiler/tir-v2.md`,
@@ -81,9 +88,9 @@ pub trait OwnCx {
     /// Whether a value of `ty` holds a counted leaf.
     fn counted(&self, ty: Ty) -> Tri;
     /// How argument `k` of `n` of a `Call` or `Await` of `callee` is
-    /// passed. `Lent` whenever it is not certainly `Owned`: a lent
-    /// argument the callee's instance owns takes a count at the call
-    /// (`layout::Pass` in the backend).
+    /// passed. `Lent` whenever it is not certainly `Owned` or `InPlace`:
+    /// a lent or in-place argument the callee's instance owns takes a count
+    /// at the call (`layout::Pass` in the backend).
     fn pass(&self, callee: &Callee, k: usize, n: usize) -> Pass;
     /// [`OwnCx::pass`] for a `CallValue` of a value of function type
     /// `fn_ty`.
@@ -555,7 +562,8 @@ mod tests {
     use hd_types::{Ty, TyList};
 
     /// `string` is counted; callee 9 takes its argument as a value
-    /// parameter, callee 8 by reference.
+    /// parameter, callee 8 by reference, callee 5 in place (a `mut self`
+    /// receiver of a collection).
     struct Cx;
 
     impl super::OwnCx for Cx {
@@ -565,6 +573,7 @@ mod tests {
         fn pass(&self, callee: &Callee, _: usize, _: usize) -> Pass {
             match callee {
                 Callee::Item { def, .. } if *def == DefId::from_raw(9) => Pass::Owned,
+                Callee::Item { def, .. } if *def == DefId::from_raw(5) => Pass::InPlace,
                 _ => Pass::Lent,
             }
         }
@@ -815,11 +824,12 @@ mod tests {
 
     /// Rules 5 and 6: an `IsUnique` of the collection before each change
     /// of it (a push, an element store, each list on the path outermost
-    /// first), the checker's `ListIndexMut` read as its element place after
-    /// an `IsUnique` of the list, and an `IsUnique` and a `Pin` of the list
-    /// before an element reference. The element reference addresses the
-    /// buffer, not the local, so the local (of a type with no counted
-    /// leaf here) takes no cell and no drop.
+    /// first, an in-place argument), an `IsUnique` of the list an element
+    /// read indexes before the read when a change goes through the element,
+    /// and an `IsUnique` and a `Pin` of the list before an element
+    /// reference. The element reference addresses the buffer, not the
+    /// local, so the local (of a type with no counted leaf here) takes no
+    /// cell and no drop.
     #[test]
     fn changes_make_their_collection_unique_and_element_references_pin_it() {
         use crate::ir::IntrinsicOp;
@@ -830,8 +840,7 @@ mod tests {
                 let xs = b.local(us, Symbol::from_raw(0), local_flags::PARAM, n);
                 let list = call(b, 6, &[], us);
                 let i = call(b, 6, &[], us);
-                let rec = b.refs_record(&[list, i]);
-                let e = b.emit(Tag::Intrinsic, IntrinsicOp::ListIndexMut as u32, rec, us, n);
+                let e = b.element(list, i, us, n);
                 let rec = b.refs_record(&[e, i]);
                 b.emit(
                     Tag::Intrinsic,
@@ -852,6 +861,8 @@ mod tests {
                         .expect("place"),
                 );
                 b.emit(Tag::Ref, word, 1, us, n);
+                let e = b.element(list, i, us, n);
+                call(b, 5, &[e], Ty::VOID);
                 None
             },
             Ty::VOID,
@@ -861,7 +872,8 @@ mod tests {
             "%0 Call\n%1 Call\n%2 IsUnique [%0]\n%3 Read copy [%0 [%1]]\n%4 IsUnique [%3]\n\
              %5 Intrinsic %3 %1\n%6 IsUnique [%0]\n%7 IsUnique [%0 [%1] .0]\n\
              %8 Store [%0 [%1] .0 [%1]] %1\n%9 IsUnique [$0]\n%10 Pin [$0]\n%11 Ref [$0 [%1]]\n\
-             %12 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8 %9 %10 %11]\n"
+             %12 IsUnique [%0]\n%13 Read copy [%0 [%1]]\n%14 IsUnique [%13]\n%15 Call %13\n\
+             %16 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8 %9 %10 %11 %12 %13 %14 %15]\n"
         );
     }
 

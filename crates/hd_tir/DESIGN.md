@@ -758,12 +758,14 @@ carries to the field's type), `[*%o .k]` of a compiler-supplied data
 object, and `[%v as .V .k]` of a payload. `Body::read_step` names the
 step of such a read. A list element is `Read [%xs [%i]]`, a slot of the
 buffer of the list header `%xs` (`Body::element_read`); there is no
-element intrinsic, and a read a change then goes through is still the
-`ListIndexMut` intrinsic, which the checker rewrites the read into when
-it meets the change (`mark_write_path`): only it sees every change a
-read leads to, a `mut self` receiver being a plain argument. The
-ownership passes read it back as an element `Read` after an `IsUnique`
-of the list. A `Store` writes a whole local
+element intrinsic. On the old path a read a change then goes through is
+still the `ListIndexMut` intrinsic, which the checker rewrites the read
+into when it meets the change (`mark_write_path`). On the ownership
+passes' path it stays a `Read`: insertion follows each change back
+through the reads it goes through (`own/insert.rs`, rule 5), and a
+`mut self` receiver of a collection is an in-place argument
+(`own::Pass::InPlace`, a signature fact `OwnCx::pass` gives). A `Store`
+writes a whole local
 (`[$l]`), a top-level binding (`[@g]`), a struct field of either, a
 data object's field (`[*%o .k]`), a place through a reference
 (`[*%r .x]`) or a list element (`[%xs [%i] .x]`).
@@ -1206,8 +1208,11 @@ body built elsewhere, such as a generated structure method, gets
   checker roots at their local on this path (above). Built so far:
   insertion (`own/insert.rs`): copies, drops and
   the exit set, an `IsUnique` before each change of a collection place
-  (with `ListIndexMut` read back as an element `Read`), and an
-  `IsUnique` and a `Pin` of each list on an element reference's path;
+  (an element store, a push, a map store or removal, a write through a
+  map value, an in-place argument) and before each read such a change
+  goes through, of every list on that read's path, and an `IsUnique` and
+  a `Pin` of each list on an element reference's path (the checker
+  writes no pin of its own on this path);
   then borrow (`own/borrow.rs`): a `copy` read whose value only lends,
   over a span no write of what it reads, call that may reach it or
   suspension point crosses, becomes a `borrow` and loses its `Drop`s

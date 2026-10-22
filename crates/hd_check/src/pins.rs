@@ -31,6 +31,12 @@
 //! field or a list, returned, captured by a closure that outlives the
 //! statement) is released with the binding's last use on this backend
 //! (`crates/hd_wasm_linear/DESIGN.md` §15.2, "Element references").
+//!
+//! All of this is the old path's. On the ownership passes' path
+//! (`BodyCx::own_passes`; `docs/compiler/tir-v2.md`, stage 2 commit 12b)
+//! an element reference is a `Ref` of the element place and nothing else:
+//! the passes make the list unique and pin it before the reference, and
+//! the reference's drop at its last use ends the pin.
 
 use hd_base::{LocalId, NodeIdx, StageResult, Symbol};
 use hd_diag::Code;
@@ -348,10 +354,18 @@ impl Ck<'_, '_> {
                 }
                 let kr = self.index_key((kr, ktt), *key, kt);
                 let lt = self.strip_mut(self.infer.resolve(self.pool(), bt));
-                self.pin_for_call = for_call;
-                let (buf, d) = self.pin_list(br, lt, Some(kr), owner, e);
+                let pinned = if self.cx.own_passes {
+                    // Insertion pins the list before the reference
+                    // (`docs/compiler/tir-v2.md`, stage 2 commit 12b); a
+                    // map value on the path is still marked.
+                    self.mark_write_path(br);
+                    None
+                } else {
+                    self.pin_for_call = for_call;
+                    Some(self.pin_list(br, lt, Some(kr), owner, e))
+                };
                 Ok(Some(crate::refs::Operand::Place(Place {
-                    root: Root::Elem(br, buf, d, kr, lt),
+                    root: Root::Elem(br, pinned, kr, lt),
                     path: vec![],
                     ty: vt,
                 })))
@@ -474,14 +488,25 @@ impl Ck<'_, '_> {
         let us = Ty::prim(Prim::Usize);
         let lt = self.strip_mut(self.infer.resolve(self.pool(), lt));
         let result = loop_else.map(|(_, t)| t);
-        let (buf, d) = self.pin_list(lr, lt, None, None, src);
+        // On the ownership passes' path each step's reference pins the list
+        // (insertion's rule 6), from the step's start to its end, where the
+        // reference's binding is dropped: the loop holds no pin of its own.
+        let pinned = if self.cx.own_passes {
+            self.mark_write_path(lr);
+            None
+        } else {
+            Some(self.pin_list(lr, lt, None, None, src))
+        };
         let len_l = self
             .b
             .local(us, self.cx.names.syms.intern("$len"), ASSIGNED, at);
         let pos_l = self
             .b
             .local(us, self.cx.names.syms.intern("$pos"), ASSIGNED, at);
-        let c = self.b.get(buf, lt, at);
+        let c = match pinned {
+            Some((buf, _)) => self.b.get(buf, lt, at),
+            None => lr,
+        };
         let rec = self.b.refs_record(&[c]);
         let n = self
             .b
@@ -507,7 +532,7 @@ impl Ck<'_, '_> {
             .prim(hd_tir::ir::PrimOp::Add as u32, &[p, one], us, at);
         self.set_local(pos_l, next, at);
         let place = Place {
-            root: Root::Elem(lr, buf, d, index, lt),
+            root: Root::Elem(lr, pinned, index, lt),
             path: vec![],
             ty: vt,
         };

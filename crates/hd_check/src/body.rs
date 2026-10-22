@@ -2700,8 +2700,9 @@ impl Ck<'_, '_> {
         // A suite with `defer` is a cleanup scope (`flow.defer.scopes`):
         // a `Scope` over its statements, whose suites are its `Defer`s. So
         // is a suite that takes pins for element references, which every
-        // exit releases (`crate::pins`).
-        let pins = Self::suite_takes_pins(block);
+        // exit releases (`crate::pins`); on the ownership passes' path the
+        // references' drops end the pins, so no suite holds any.
+        let pins = !self.cx.own_passes && Self::suite_takes_pins(block);
         if pins {
             self.open_pin_frame(block);
         }

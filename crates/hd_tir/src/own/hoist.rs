@@ -403,8 +403,8 @@ impl Tables {
     }
 
     /// Whether a read's value is kept by a use (rule 2's copy): stored,
-    /// passed owned or as an argument, a block's value, coerced, or copied,
-    /// snapshot or pinned by an intrinsic.
+    /// passed owned or as an argument, a block's value, coerced, or copied
+    /// or snapshot by an intrinsic.
     fn kept(&self, b: &Body, r: u32) -> bool {
         self.uses(r).iter().any(|&(u, role)| keeps(b, u, role))
     }
@@ -422,8 +422,6 @@ pub(crate) fn keeps(b: &Body, user: u32, role: Role) -> bool {
                     IntrinsicOp::ValueCopy
                         | IntrinsicOp::SnapBegin
                         | IntrinsicOp::SnapEnd
-                        | IntrinsicOp::ListPin
-                        | IntrinsicOp::ListUnpin
                         | IntrinsicOp::Item
                 )
             ))
@@ -431,7 +429,7 @@ pub(crate) fn keeps(b: &Body, user: u32, role: Role) -> bool {
 
 /// Whether a use by `user` in role `role` makes another holder of the
 /// very header it uses (a store, an owned argument, a block's value, a
-/// coercion), or pins it or hands it to std code: then the header may be
+/// coercion), or hands it to std code: then the header may be
 /// reached from outside the loop. A copy or a snapshot makes a header of
 /// its own, which matters only inside the loop ([`keeps`]).
 fn aliases(b: &Body, user: u32, role: Role) -> bool {
@@ -887,14 +885,7 @@ fn place_word(b: &mut Body, t: &Tables, c: &Cand) -> u32 {
 /// Checks one instruction of the loop (`x`, or `NONE` for a pending edit)
 /// against every candidate (rules 2 and 3).
 fn check(b: &Body, cx: &dyn OwnCx, t: &mut Tables, x: u32, tag: Tag, [a, w]: [u32; 2]) {
-    if is_suspension(tag)
-        || tag == Tag::Pin
-        || (tag == Tag::Intrinsic
-            && matches!(
-                IntrinsicOp::from_u32(a),
-                Some(IntrinsicOp::ListPin | IntrinsicOp::ListUnpin)
-            ))
-    {
+    if is_suspension(tag) || tag == Tag::Pin {
         for c in &mut t.cands {
             c.ok = false;
         }
