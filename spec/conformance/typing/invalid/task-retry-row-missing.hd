@@ -1,13 +1,12 @@
 # test: a retry! call requires its attempt's row, so a caller whose explicit row lacks Console is missing-requirement
-# Spec std/task Retry: std-task.combinator.retry.decl-when (owner decision RETRY-row, batch 33, 2026-10-01).
-use std.task.retry
+# Spec std/task Retry: std-task.retry.policy.decl (owner decision RETRY-row, batch 33, 2026-10-01).
+use std.task.{Backoff, retry}
+use std.time.Clock
 
 fn ask!() -> Result[string, string] $ Console:
     println("asking")
     .Ok("ready")
 
 fn connect!() -> Result[string, string] $ Clock:
-    retry!(2):  # diagnostic: missing-requirement
+    retry!(Backoff { attempts: 2, initial: 0ms }):  # diagnostic: missing-requirement
         ask!()
-
-trait Clock

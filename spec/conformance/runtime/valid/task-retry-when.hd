@@ -1,13 +1,14 @@
-# test: retry! and retry_with! stop at an error that when rejects, and retry every error without when
-# Spec std/task Retry: std-task.combinator.retry.when, .when-default, and .when-plain; Retry With Backoff: std-task.retry-with.when (issue #369).
-use std.task.{Backoff, retry, retry_with}
-use std.time.{Clock, Duration, Instant, Timestamp, ms}
+# test: retry! stops at an error that when rejects, and retries every error without when
+# Spec std/task Retry: std-task.combinator.retry.when, std-task.retry.policy.when-default, and std-task.combinator.retry.when-plain; Retry With Backoff: std-task.retry.policy.when-sleep (issue #369).
+use std.task.{Backoff, retry}
+use std.time.{Clock, ManualClock, Timestamp}
+use std.time.{Duration, Instant, ms}
 
 fn is_busy(error: string) -> bool:
     error == "busy"
 
-fn connect!(replies: &mut List[Result[string, string]]) -> Result[string, string]:
-    retry!(5, when=is_busy):
+fn connect!(replies: &mut List[Result[string, string]]) -> Result[string, string] $ Clock:
+    retry!(Backoff { attempts: 5, initial: 0ms }, when=is_busy):
         replies.remove_at(0)
 
 struct RecordingClock:
@@ -43,35 +44,45 @@ tests:
     use std.testing.assert_equal
 
     it("retries while when is true and returns the first .Ok"):
-        let mut replies: List[Result[string, string]] = [.Err("busy"), .Err("busy"), .Ok("ready")]
-        assert_equal(connect!(&mut replies), .Ok("ready"), reason="two busy errors, then ready")
+        manual := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        $.with(Clock=manual):
+            let mut replies: List[Result[string, string]] = [.Err("busy"), .Err("busy"), .Ok("ready")]
+            assert_equal(connect!(&mut replies), .Ok("ready"), reason="two busy errors, then ready")
 
     it("returns an error that when rejects without another call"):
-        let mut replies: List[Result[string, string]] = [.Err("busy"), .Err("refused"), .Ok("ready")]
-        assert_equal(connect!(&mut replies), .Err("refused"), reason="the second error is rejected")
-        assert_equal(replies.len(), 1, reason="no third call")
+        manual := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        $.with(Clock=manual):
+            let mut replies: List[Result[string, string]] = [.Err("busy"), .Err("refused"), .Ok("ready")]
+            assert_equal(connect!(&mut replies), .Err("refused"), reason="the second error is rejected")
+            assert_equal(replies.len(), 1, reason="no third call")
 
     it("asks when once for each error, and not for an .Ok"):
-        server := &mut Server { errors: ["busy", "busy"], calls: 0, asked: [] }
-        result := retry!(5, when=fn(error: string): judge(server, error)):
-            ask!(server)
-        assert_equal(result, .Ok("ready"), reason="the third call succeeds")
-        assert_equal(server.asked, ["busy", "busy"], reason="one question for each .Err")
+        manual := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        $.with(Clock=manual):
+            server := &mut Server { errors: ["busy", "busy"], calls: 0, asked: [] }
+            result := retry!(Backoff { attempts: 5, initial: 0ms }, when=fn(error: string): judge(server, error)):
+                ask!(server)
+            assert_equal(result, .Ok("ready"), reason="the third call succeeds")
+            assert_equal(server.asked, ["busy", "busy"], reason="one question for each .Err")
 
     it("retries every error when when is omitted"):
-        server := &mut Server { errors: ["a", "b", "c"], calls: 0, asked: [] }
-        result := retry!(3):
-            ask!(server)
-        assert_equal(result, .Err("c"), reason="three calls, the last error")
-        assert_equal(server.calls, 3, reason="every error was retried")
-
-    it("retry_with! does not sleep before a call that when rejects"):
-        let mut clock = RecordingClock { slept: [] }
-        server := &mut Server { errors: ["busy", "refused", "busy"], calls: 0, asked: [] }
-        policy := Backoff { attempts: 5, initial: 100ms, factor: 2, max: 1000ms }
-        $.with(Clock=&mut clock):
-            result := retry_with!(policy, when=is_busy):
+        manual := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        $.with(Clock=manual):
+            server := &mut Server { errors: ["a", "b", "c"], calls: 0, asked: [] }
+            result := retry!(Backoff { attempts: 3, initial: 0ms }):
                 ask!(server)
-            assert_equal(result, .Err("refused"), reason="the second error is rejected")
-        assert_equal(server.calls, 2, reason="no third call")
-        assert_equal(clock.slept, [100], reason="one delay, before the second call only")
+            assert_equal(result, .Err("c"), reason="three calls, the last error")
+            assert_equal(server.calls, 3, reason="every error was retried")
+
+    it("retry! does not sleep before a call that when rejects"):
+        manual := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        $.with(Clock=manual):
+            let mut clock = RecordingClock { slept: [] }
+            server := &mut Server { errors: ["busy", "refused", "busy"], calls: 0, asked: [] }
+            policy := Backoff { attempts: 5, initial: 100ms, factor: 2, max: 1000ms }
+            $.with(Clock=&mut clock):
+                result := retry!(policy, when=is_busy):
+                    ask!(server)
+                assert_equal(result, .Err("refused"), reason="the second error is rejected")
+            assert_equal(server.calls, 2, reason="no third call")
+            assert_equal(clock.slept, [100], reason="one delay, before the second call only")

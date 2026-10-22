@@ -1,0 +1,6 @@
+# test: zero-delay retries still require Clock
+# Spec std/task Retry: std-task.retry.policy.clock.
+use std.task.{Backoff, retry}
+fn connect!() -> Result[void, string] $ Console:
+    retry!(Backoff { initial: 0ms }):  # diagnostic: missing-requirement
+        .Ok(())

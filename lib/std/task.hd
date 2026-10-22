@@ -121,54 +121,40 @@ fn all_list_from![T, $R](tasks: List[fn!() -> T $ R], start: usize, results: &mu
     let (value, _) = all!(task(), all_list_from(tasks, start + 1, results))
     results.push(value)
 
-# Calls `attempt` one call after another until it returns `.Ok` or an
-# `.Err` that `when` rejects, at most `times` times, and returns the last
-# result. A `times` below 1 counts as 1 (spec/std/task.md#retry). The
-# attempt's row `R` is the call's row. `when` defaults to retrying every
-# error (r-std-task.combinator.retry.when-default).
-## Calls `attempt` until it succeeds, hits an error `when` rejects, or runs out of tries, and returns the last outcome.
-## See [std-task.combinator.retry.loop](../../spec/std/task.md#r-std-task.combinator.retry.loop).
-pub fn retry![T, E, $R](times: usize, when: fn(E) -> bool = fn(error: E): true, attempt: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R:
-    let result = attempt!()
-    let tries: usize = 1
-    while tries < times && should_retry(result, when):
-        result = attempt!()
-        tries = tries + 1
-    result
-
 # Whether `result` is an `.Err` that `when` accepts.
 fn should_retry[T, E](result: Result[T, E], when: fn(E) -> bool) -> bool:
     match result:
         .Ok(_) => false
         .Err(error) => when(error)
 
-# The retry policy of `retry_with!` (spec/std/task.md#retry-with-backoff):
-# how many calls, the first delay, the multiplier, and the cap.
 ## How many times to try, how long to wait, and the wait's cap.
-## See [std-task.backoff.decl-value](../../spec/std/task.md#r-std-task.backoff.decl-value).
+## See [std-task.backoff.decl.defaults](../../spec/std/task.md#r-std-task.backoff.decl.defaults).
 @derive(Eq)
 pub struct Backoff:
-    pub attempts: usize
-    pub initial: Duration
-    pub factor: i32
-    pub max: Duration
+    pub attempts: usize = 3
+    pub initial: Duration = 100ms
+    pub factor: u32 = 2
+    pub max: Duration = 10s
 
-# As `retry!`, but waits on the covering `Clock` between attempts with a
-# growing delay (spec/std/task.md#retry-with-backoff). The attempt's row
-# `R` is the call's row; the `Clock` row is the sleep's.
-## Retries with growing delays, and returns the last outcome.
-## See [std-task.retry-with.decl-when](../../spec/std/task.md#r-std-task.retry-with.decl-when).
-pub fn retry_with![T, E, $R](backoff: Backoff, when: fn(E) -> bool = fn(error: E): true, attempt: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R + Clock:
+## Retries with the policy's delays until success, a rejected error, or the final attempt.
+## See [std-task.retry.policy.decl](../../spec/std/task.md#r-std-task.retry.policy.decl).
+pub fn retry![T, E, $R](policy: Backoff, when: fn(E) -> bool = fn(error: E): true, attempt: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R + Clock:
     let result = attempt!()
     let tries: usize = 1
-    let delay = backoff.initial
-    while tries < backoff.attempts && should_retry(result, when):
+    let delay = if policy.initial > policy.max: policy.max else: policy.initial
+    while tries < policy.attempts && should_retry(result, when):
         clock := $.use(Clock)
         clock.sleep!(delay)
         result = attempt!()
         tries = tries + 1
-        grown := Duration::milliseconds(delay.as_milliseconds() * i64(backoff.factor))
-        delay = if grown > backoff.max: backoff.max else: grown
+        factor := i64(policy.factor)
+        cap := policy.max.as_milliseconds()
+        millis := delay.as_milliseconds()
+        # Check the cap before multiplying, including a factor of zero.
+        delay = if factor != 0 && millis > cap / factor:
+            policy.max
+        else:
+            Duration::milliseconds(millis * factor)
     result
 
 # The error of `timeout!` when the limit passes first, with how the work's

@@ -1,11 +1,12 @@
 # test: retry! passes its attempt's requirement row on to the caller, so an attempt may require Console
-# Spec std/task Retry: std-task.combinator.retry.decl-when (owner decision RETRY-row, batch 33, 2026-10-01).
-use std.task.retry
+# Spec std/task Retry: std-task.retry.policy.decl (owner decision RETRY-row, batch 33, 2026-10-01).
+use std.task.{Backoff, retry}
+use std.time.Clock
 
 fn ask!() -> Result[string, string] $ Console:
     println("asking")
     .Ok("ready")
 
-fn connect!() -> Result[string, string] $ Console:
-    retry!(2):
+fn connect!() -> Result[string, string] $ Console + Clock:
+    retry!(Backoff { attempts: 2, initial: 0ms }):
         ask!()

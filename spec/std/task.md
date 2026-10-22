@@ -5,8 +5,7 @@ Status: standard library specification draft.
 This chapter defines the part of `std.task` that `lib/std` writes in
 ordinary hd over the language tier:
 
-- the `retry!` combinator;
-- the `Backoff` policy and the `retry_with!` combinator;
+- the `retry!` combinator and its `Backoff` policy;
 - the `all_list!` combinator;
 - the `timeout!` combinator and its `TimedOut` error;
 - the `map_all!` combinator;
@@ -23,20 +22,22 @@ polling combinators `all!` and `race!`, which are compiler intrinsics
 that `when` rejects, or runs out of tries:
 
 ```text
-pub fn retry![T, E, $R](times: usize, when: fn(E) -> bool = fn(error: E): true, attempt: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R
+pub fn retry![T, E, $R](policy: Backoff, when: fn(E) -> bool = fn(error: E): true, attempt: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R + Clock
 ```
 
-1. r[std-task.combinator.retry.decl-when] `std.task` declares `retry!` with the signature above, whose `times` is a `usize` and whose `when` has a default, as an ordinary `fn!` function, not an intrinsic. Code imports it with `use std.task.retry`.
-2. r[std-task.combinator.retry.loop] `retry!` calls `attempt` at most `times` times, one call after another, and returns the first `.Ok` result without another call.
-3. r[std-task.combinator.retry.last-error] When every one of the `times` calls returns `.Err`, `retry!` returns the last `.Err`.
-4. r[std-task.combinator.retry.zero-once] A `times` of 0 counts as 1, so `retry!` calls `attempt` once and returns its result.
+1. r[std-task.retry.policy.decl] `std.task` declares the ordinary `retry!` function with the signature above.
+2. r[std-task.retry.policy.loop] `retry!` calls `attempt` sequentially at most `policy.attempts` times, returning the first `.Ok` without another call.
+3. r[std-task.retry.policy.last-error] When every attempt returns `.Err`, `retry!` returns the last error.
+4. r[std-task.retry.policy.zero-once] An `attempts` of 0 counts as 1, so `retry!` always calls `attempt` at least once.
 5. r[std-task.combinator.retry.when] After a call that returns `.Err(error)`, `retry!` makes another call only when `when(error)` is `true`. When it is `false`, `retry!` returns that `.Err` at once.
-6. r[std-task.combinator.retry.when-default] A call without `when` retries every `.Err`, so `when` is `fn(error: E): true`. Code passes `when` by name, as in `retry!(3, when=is_busy)`.
+6. r[std-task.retry.policy.when-default] Omitting `when` retries every error, using `fn(error: E): true`.
 7. r[std-task.combinator.retry.when-plain] `when` is an ordinary function: it takes the error and does not suspend, and it runs at most once for each `.Err`.
-8. r[std-task.combinator.retry.cancel] Cancellation follows the ordinary rules of [Cancellation](../lang/11-requirements-and-suspension.md#cancellation), since `retry!` is a loop of bang calls. Cancelling it cancels the active attempt, and no further attempt starts.
+8. r[std-task.retry.policy.cancel] Cancelling `retry!` cancels the active attempt or sleep and starts no further attempt.
+9. r[std-task.retry.policy.clock] Every `retry!` call requires `Clock`, including a policy whose `initial` is `0ms`.
 
 ```text
-use std.task.retry
+use std.task.{Backoff, retry}
+use std.time.Clock
 
 struct Server:
     busy_for: i32
@@ -47,23 +48,24 @@ fn ask!(server: &mut Server) -> Result[string, string]:
         return .Err("busy")
     .Ok("ready")
 
-fn connect!(server: &mut Server) -> Result[string, string]:
-    retry!(3):
+fn connect!(server: &mut Server) -> Result[string, string] $ Clock:
+    retry!(Backoff { initial: 0ms }):
         ask!(server)
 ```
 
 With `busy_for` at 2, `connect!` returns `.Ok("ready")` on the third call.
 With `busy_for` at 3, it returns `.Err("busy")` after three calls.
-With `times` at 0, `retry!` would make one call.
+With `attempts` at 0, `retry!` would make one call.
 
 ```text
-use std.task.retry
+use std.task.{Backoff, retry}
+use std.time.Clock
 
 fn is_busy(error: string) -> bool:
     error == "busy"
 
-fn connect!(replies: &mut List[Result[string, string]]) -> Result[string, string]:
-    retry!(5, when=is_busy):
+fn connect!(replies: &mut List[Result[string, string]]) -> Result[string, string] $ Clock:
+    retry!(Backoff { attempts: 5, initial: 0ms }, when=is_busy):
         replies.remove_at(0)
 ```
 
@@ -73,11 +75,11 @@ call never starts.
 
 The row parameter `R` lets an attempt require providers. An attempt that
 calls `println` has the row `Console`, and that `retry!` call then
-requires `Console` too.
+requires `Console` and `Clock`.
 
 > **Why.** A retry over a `fn!` attempt is a loop that `lib/std` can write
-> in plain hd, so it needs no compiler support. It has no delay between
-> attempts, so it needs no clock. A `times` of 0 still makes one attempt,
+> in plain hd, so it needs no compiler support. One policy configures immediate and
+> delayed attempts, both using `Clock`. An `attempts` of 0 still makes one attempt,
 > because with no attempt there is no `Result` to return.
 
 See also: [Standard Combinators](../lang/11-requirements-and-suspension.md#standard-combinators),
@@ -85,31 +87,25 @@ See also: [Standard Combinators](../lang/11-requirements-and-suspension.md#stand
 
 ## Retry With Backoff
 
-`retry_with!` retries as `retry!` does, with the same `when` predicate,
-and waits on the `Clock` between attempts:
+`Backoff` configures `retry!`'s attempt count and delays:
 
 ```text
 pub struct Backoff:
-    pub attempts: usize
-    pub initial: Duration
-    pub factor: i32
-    pub max: Duration
-
-pub fn retry_with![T, E, $R](backoff: Backoff, when: fn(E) -> bool = fn(error: E): true, attempt: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R + Clock
+    pub attempts: usize = 3
+    pub initial: Duration = 100ms
+    pub factor: u32 = 2
+    pub max: Duration = 10s
 ```
 
-1. r[std-task.backoff.decl-value] `std.task` declares the struct `Backoff` with the four public fields above, where `attempts` is a `usize`. A `Backoff` is a value: a copy is independent of the policy it was copied from. `Backoff` implements `Eq`.
-2. r[std-task.retry-with.decl-when] `std.task` declares `retry_with!` with the signature above, as an ordinary `fn!` function. Code imports both, as in `use std.task.{Backoff, retry_with}`.
-3. r[std-task.retry-with.loop] `retry_with!` calls `attempt` at most `backoff.attempts` times, one call after another, and returns the first `.Ok` result without another call.
-4. r[std-task.retry-with.last-error] When every call returns `.Err`, `retry_with!` returns the last `.Err`.
-5. r[std-task.retry-with.zero-once] An `attempts` of 0 counts as 1, as for `retry!`.
-6. r[std-task.retry-with.sleep] Between two calls, `retry_with!` calls `sleep!` on the `Clock` provider that covers it. It does not sleep after the last call.
-7. r[std-task.retry-with.delay] The first delay is `initial`. Each later delay is the one before it times `factor`, and a delay above `max` is `max` instead.
-8. r[std-task.retry-with.when] `retry_with!` applies `when` as [`std-task.combinator.retry.when`](#r-std-task.combinator.retry.when), [`.when-default`](#r-std-task.combinator.retry.when-default), and [`.when-plain`](#r-std-task.combinator.retry.when-plain) state, and sleeps only before a call that `when` allowed.
-9. r[std-task.retry-with.cancel] Cancellation follows [`std-task.combinator.retry.cancel`](#r-std-task.combinator.retry.cancel): cancelling `retry_with!` cancels the active attempt or sleep, and nothing further starts.
+1. r[std-task.backoff.decl.defaults] `std.task` declares `Backoff` with the four public fields, types and defaults above.
+2. r[std-task.backoff.value-copy] A `Backoff` is a value whose copy is independent of the original.
+3. r[std-task.backoff.eq] `Backoff` implements `Eq` by comparing all four fields.
+4. r[std-task.retry.policy.sleep] Between attempts, `retry!` calls the covering `Clock.sleep!`, with no sleep after the final attempt.
+5. r[std-task.retry.policy.delay.capped] The first delay is `initial` and later delays multiply the previous delay by `factor`, each capped at `max` without overflow.
+6. r[std-task.retry.policy.when-sleep] `retry!` sleeps only before another attempt that `when` allowed.
 
 ```text
-use std.task.{Backoff, retry_with}
+use std.task.{Backoff, retry}
 use std.time.{Clock, ms, s}
 
 struct Server:
@@ -123,7 +119,7 @@ fn ask!(server: &mut Server) -> Result[string, string]:
 
 fn connect!(server: &mut Server) -> Result[string, string] $ Clock:
     policy := Backoff { attempts: 5, initial: 100ms, factor: 2, max: 5s }
-    retry_with!(policy):
+    retry!(policy):
         ask!(server)
 ```
 
@@ -307,7 +303,7 @@ pub fn map_all![T, U, $R](items: List[T], limit: usize, work: fn!(T) -> U $ R) -
 3. r[std-task.map-all.start-order] `work` is called once for each item. Calls start in item order: no call starts before the call for every earlier item has started.
 4. r[std-task.map-all.limit] At most `limit` calls of `work` are in flight at once. A call is in flight from its start until it completes.
 5. r[std-task.map-all.window] When one call completes and an item has not started, the next item in order starts, so the number in flight stays at `limit` until the items run out.
-6. r[std-task.map-all.limit-zero] A `limit` of 0 counts as 1, so the calls run one after another, as `retry!` counts a `times` of 0.
+6. r[std-task.map-all.limit-zero.attempts] A `limit` of 0 counts as 1, so the calls run one after another, as `retry!` counts an `attempts` of 0.
 7. r[std-task.map-all.empty] An empty `items` gives an empty list and calls `work` never.
 8. r[std-task.map-all.like-all] Scheduling, cancellation, failure, and panics follow the rules of `all!`: a panic in one call propagates, and cancelling `map_all!` cancels every call in flight and starts no more ([`req.combinator.cancel-children`](../lang/11-requirements-and-suspension.md#r-req.combinator.cancel-children)).
 

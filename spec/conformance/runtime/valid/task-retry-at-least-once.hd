@@ -1,7 +1,8 @@
-# test: retry! with a times of 0 calls its attempt once and returns that result
-# Spec std/task Retry: std-task.combinator.retry.zero-once (owner decision RETRY-zero, batch 33, 2026-10-01;
-# times is a usize since spec pass 89).
-use std.task.retry
+# test: retry! with an attempts of 0 calls its attempt once and returns that result
+# Spec std/task Retry: std-task.retry.policy.zero-once (owner decision RETRY-zero, batch 33, 2026-10-01;
+# attempts is a usize).
+use std.task.{Backoff, retry}
+use std.time.{Clock, ManualClock, Timestamp}
 struct Server:
     busy_for: i32
     calls: i32
@@ -13,19 +14,23 @@ fn ask!(server: &mut Server) -> Result[string, string]:
         return .Err("busy ${server.calls}")
     .Ok("ready")
 
-fn connect!(server: &mut Server, times: usize) -> Result[string, string]:
-    retry!(times):
+fn connect!(server: &mut Server, times: usize) -> Result[string, string] $ Clock:
+    retry!(Backoff { attempts: times, initial: 0ms }):
         ask!(server)
 
 tests:
     use std.testing.assert_equal
 
     it("zero tries makes one call"):
-        let mut server = &mut Server { busy_for: 5, calls: 0 }
-        assert_equal(connect!(server, 0), .Err("busy 1"), reason="the one error is returned")
-        assert_equal(server.calls, 1, reason="exactly one call")
+        manual := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        $.with(Clock=manual):
+            let mut server = &mut Server { busy_for: 5, calls: 0 }
+            assert_equal(connect!(server, 0), .Err("busy 1"), reason="the one error is returned")
+            assert_equal(server.calls, 1, reason="exactly one call")
 
     it("one try makes one call"):
-        let mut server = &mut Server { busy_for: 0, calls: 0 }
-        assert_equal(connect!(server, 1), .Ok("ready"), reason="the one call succeeds")
-        assert_equal(server.calls, 1, reason="exactly one call")
+        manual := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        $.with(Clock=manual):
+            let mut server = &mut Server { busy_for: 0, calls: 0 }
+            assert_equal(connect!(server, 1), .Ok("ready"), reason="the one call succeeds")
+            assert_equal(server.calls, 1, reason="exactly one call")
