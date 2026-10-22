@@ -25,7 +25,7 @@ pub fn main() -> void $ Console:
 
 # ── plumbing ──
 use std.error.{Error, report_of}
-use std.num.{ParseNumberError, parse_i32}
+use std.num.{ParseNumberError}
 
 @error
 enum ConfigError:
@@ -38,7 +38,7 @@ fn read_port(config: string) -> Result[i32, ConfigError]:
     match config.split_once("="):
         .Some((key, value)) if key.trim() == "port" =>
             text := value.trim()
-            parse_i32(text).map_err(fn(error: ParseNumberError) -> ConfigError: ConfigError.BadPort(text, error))
+            text.parse::[i32]().map_err(fn(error: ParseNumberError) -> ConfigError: ConfigError.BadPort(text, error))
         _ => .Err(ConfigError.MissingPort)
 ```
 

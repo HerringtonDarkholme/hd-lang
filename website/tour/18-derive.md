@@ -31,7 +31,6 @@ tests:
 # try: `0 - cents` overflows there, so `print` works in `i64`.
 
 # ── plumbing ──
-use std.num.parse_i32
 use std.testing.{Arbitrary, assert_equal, it_prop}
 
 fn print(price: Price) -> string:
@@ -49,7 +48,7 @@ fn parse(text: string) -> Price?:
     let .Some((whole, fraction)) = body.split_once(".") else: return .None
     if fraction.len() != 2:
         return .None
-    wide := i64(parse_i32(whole).ok()?) * 100 + i64(parse_i32(fraction).ok()?)
+    wide := i64(whole.parse::[i32]().ok()?) * 100 + i64(fraction.parse::[i32]().ok()?)
     cents := if negative: 0 - wide else: wide
     if cents < -2147483648 || cents > 2147483647:
         .None

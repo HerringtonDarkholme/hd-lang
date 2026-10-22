@@ -1,6 +1,6 @@
-# test: Parse for every number type matches the parse_ functions and reads each type's range
-# Spec std/num Parse Impls: std-num.parse.trait-impls, std-num.parse.trait-integer, std-num.parse.trait-same, std-num.parse.trait-narrow, std-num.parse.trait-f64, std-num.parse.trait-f32 (task #372).
-use std.num.{ParseNumberError, parse_f64, parse_i32, parse_i64, parse_u32, parse_u64, parse_usize}
+# test: Parse for every number type reads the numeric grammar and each type's range
+# Spec std/num Parse Impls: std-num.parse.trait-impls, std-num.parse.integer-grammar, std-num.parse.trait-narrow, std-num.parse.float64, std-num.parse.float32 (task #372).
+use std.num.{ParseNumberError}
 
 fn byte(text: string) -> Result[u8, ParseNumberError]:
     text.parse::[u8]()
@@ -33,18 +33,18 @@ tests:
         assert_equal(byte("200"), .Ok(u8(200)), reason="in range")
         assert_equal(byte("2000"), .Err(ParseNumberError.OutOfRange), reason="out of range")
 
-    it("the grammar and errors are the functions'"):
+    it("the grammar reports concrete parse errors"):
         assert_equal("".parse::[i8](), .Err(ParseNumberError.Empty), reason="empty")
         assert_equal("-".parse::[i16](), .Err(ParseNumberError.InvalidDigit(1)), reason="lone sign")
         assert_equal("1_0".parse::[i32](), .Err(ParseNumberError.InvalidDigit(1)), reason="separator")
         assert_equal("-1".parse::[u8](), .Err(ParseNumberError.InvalidDigit(0)), reason="unsigned minus")
         assert_equal("-1".parse::[u64](), .Err(ParseNumberError.InvalidDigit(0)), reason="u64 minus")
         assert_equal("0x10".parse::[usize](), .Err(ParseNumberError.InvalidDigit(1)), reason="radix")
-        assert_equal("12ab".parse::[i32](), parse_i32("12ab"), reason="i32 same")
-        assert_equal("99999999999999999999".parse::[i64](), parse_i64("99999999999999999999"), reason="i64 same")
-        assert_equal("4x".parse::[u32](), parse_u32("4x"), reason="u32 same")
-        assert_equal("4x".parse::[u64](), parse_u64("4x"), reason="u64 same")
-        assert_equal("4x".parse::[usize](), parse_usize("4x"), reason="usize same")
+        assert_equal("12ab".parse::[i32](), .Err(ParseNumberError.InvalidDigit(2)), reason="i32 error")
+        assert_equal("99999999999999999999".parse::[i64](), .Err(ParseNumberError.OutOfRange), reason="i64 error")
+        assert_equal("4x".parse::[u32](), .Err(ParseNumberError.InvalidDigit(1)), reason="u32 error")
+        assert_equal("4x".parse::[u64](), .Err(ParseNumberError.InvalidDigit(1)), reason="u64 error")
+        assert_equal("4x".parse::[usize](), .Err(ParseNumberError.InvalidDigit(1)), reason="usize error")
 
     it("the float impls read the float grammar"):
         assert_equal("1.5".parse::[f64](), .Ok(1.5), reason="f64")
@@ -53,7 +53,7 @@ tests:
         assert_equal("0.1".parse::[f32](), .Ok(f32(0.1)), reason="f32 rounds")
         assert_equal("".parse::[f32](), .Err(ParseNumberError.Empty), reason="f32 empty")
         assert_equal("1.5x".parse::[f32](), .Err(ParseNumberError.InvalidDigit(3)), reason="f32 invalid")
-        assert_equal("1x".parse::[f64](), parse_f64("1x"), reason="f64 same")
+        assert_equal("1x".parse::[f64](), .Err(ParseNumberError.InvalidDigit(1)), reason="f64 error")
         match "inf".parse::[f64]():
             .Ok(value) => assert_equal(value > 1.0e300, true, reason="infinity")
             .Err(_) => assert_equal(true, false, reason="inf must parse")

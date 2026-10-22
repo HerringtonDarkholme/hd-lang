@@ -1,5 +1,4 @@
 use std.text.StringBuilder
-use std.num.parse_f64
 use std.console.eprintln
 use std.error.Error
 
@@ -7,7 +6,7 @@ fn builder(value: StringBuilder) -> void: pass
 fn errors[T < Error](value: T) -> void: pass
 
 fn helpers() -> void $ Console:
-    _number := parse_f64("1.5")
+    _number := "1.5".parse::[f64]()
     eprintln("hello")
 
 fn collection() -> void:

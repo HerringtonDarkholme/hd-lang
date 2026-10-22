@@ -1,6 +1,6 @@
 # test: the byte-reading integer and float parsers give the results of the one-character-string readers they replaced
-# Spec std/num Integer Parsing: std-num.parse.grammar, std-num.parse.invalid-digit-byte, std-num.parse.end-of-text-bytes, std-num.parse.out-of-range, std-num.parse.unsigned; Float Parsing: std-num.parse-f64.invalid-digit-byte (issue 358).
-use std.num.{parse_f64, parse_i32, parse_i64, parse_u32, parse_u64, parse_usize, ParseNumberError}
+# Spec std/num Integer Parsing: std-num.parse.grammar, std-num.parse.invalid-digit-byte, std-num.parse.end-of-text-bytes, std-num.parse.out-of-range, std-num.parse.unsigned-type-grammar; Float Parsing: std-num.parse-f64.invalid-digit-byte (issue 358).
+use std.num.{ParseNumberError}
 use std.testing.{assert_equal, Choices, it_prop_with}
 
 # The old readers: the text as a list of one-character strings, each tested
@@ -146,18 +146,18 @@ fn old_usize(text: string) -> Result[usize, ParseNumberError]:
 # One line of output per reader, so a failure shows the text and the reader.
 fn disagreement(text: string) -> string:
     checks := [
-        ("i32", show(parse_i32(text)), show(old_i32(text))),
-        ("i64", show(parse_i64(text)), show(old_i64(text))),
-        ("u32", show(parse_u32(text)), show(old_u32(text))),
-        ("u64", show(parse_u64(text)), show(old_u64(text))),
-        ("usize", show(parse_usize(text)), show(old_usize(text))),
+        ("i32", show(text.parse::[i32]()), show(old_i32(text))),
+        ("i64", show(text.parse::[i64]()), show(old_i64(text))),
+        ("u32", show(text.parse::[u32]()), show(old_u32(text))),
+        ("u64", show(text.parse::[u64]()), show(old_u64(text))),
+        ("usize", show(text.parse::[usize]()), show(old_usize(text))),
     ]
     for (name, now, before) in checks:
         if now != before:
             return "$name: new $now, old $before"
     expected := old_float_error(text)
     let actual: ParseNumberError? = .None
-    match parse_f64(text):
+    match text.parse::[f64]():
         .Ok(_) => pass
         .Err(error) => actual = .Some(error)
     if expected != actual:

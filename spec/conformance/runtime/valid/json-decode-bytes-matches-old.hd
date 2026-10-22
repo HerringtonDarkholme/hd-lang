@@ -1,7 +1,6 @@
 # test: parse on the input's bytes and from_json with lazy paths give the same values and the same errors as the parser and reader they replaced
-# Spec std/json Parse, Strings, Numbers, Parse Errors, Objects, Decode Errors, Derived Deserialize: std-json.parse, std-json.parse.string.escapes, std-json.parse.string.surrogates, std-json.parse.string.lone-surrogate, std-json.parse.number.integer, std-json.parse.number.out-of-range, std-json.parse.depth, std-json.parse.object.duplicate-last, std-json.parse.error-order, std-json.object.set-ref, std-json.error.path, std-json.derive.from-json.missing, std-json.derive.from-json.unknown-variant, std-json.std.item-path, std-json.from-json (issue 360).
+# Spec std/json Parse, Strings, Numbers, Parse Errors, Objects, Decode Errors, Derived Deserialize: std-json.parse, std-json.parse.string.escapes, std-json.parse.string.surrogates, std-json.parse.string.lone-surrogate, std-json.parse.number.integer, std-json.parse.number.nonfinite-parse-result, std-json.parse.depth, std-json.parse.object.duplicate-last, std-json.parse.error-order, std-json.object.set-ref, std-json.error.path, std-json.derive.from-json.missing, std-json.derive.from-json.unknown-variant, std-json.std.item-path, std-json.from-json (issue 360).
 use std.json.{parse, from_json, decode, Json, JsonObject, JsonError, Number}
-use std.num.parse_f64
 use std.serde.{Deserialize, Deserializer, ValueKind}
 use std.structure.{Member, VariantInfo, Facts, SelfRef}
 use std.testing.{assert_equal, Choices, it_prop_with}
@@ -217,7 +216,7 @@ fn u64_max() -> u64:
 # The number that starts at `start`: `-`? then `0` or a nonzero digit and
 # digits. An integer in the i64 or u64 range is exact; `-0` is the float
 # -0.0, as in serde_json. A fraction, an exponent, or an integer past both
-# ranges is the float that `parse_f64` gives (r-std-json.parse.number.float).
+# ranges is the float that `f64` parsing gives (r-std-json.parse.number.float-via-parse).
 fn parse_number(bytes: List[u8], start: usize) -> Result[&Parsed, JsonError]:
     size := bytes.len()
     let index = start
@@ -271,16 +270,16 @@ fn parse_number(bytes: List[u8], start: usize) -> Result[&Parsed, JsonError]:
 
 # The float of the number text from `start` up to `end`, which the caller
 # has read to the end of its grammar; past the f64 range it is a
-# `NumberOutOfRange` at `start` (r-std-json.parse.number.out-of-range).
+# `NumberOutOfRange` at `start` (r-std-json.parse.number.nonfinite-parse-result).
 fn float_number(bytes: List[u8], start: usize, end: usize) -> Result[&Parsed, JsonError]:
     let mut digits: List[u8] = []
     let index = start
     while index < end:
         digits.push(bytes[index])
         index = index + 1
-    value := match parse_f64(old_bytes_text(digits)):
+    value := match string::parse::[f64](old_bytes_text(digits)):
         .Ok(found) => found
-        .Err(_) => panic("std.json: a JSON number is parse_f64 text")
+        .Err(_) => panic("std.json: a JSON number is valid f64 text")
     match Number::from_f64(value):
         .Some(number) => .Ok(&mut Parsed { value: Json.Number(number), end: end })
         .None => .Err(JsonError.NumberOutOfRange(start))

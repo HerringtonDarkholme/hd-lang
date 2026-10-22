@@ -45,9 +45,6 @@ stdout-json: [{"kind":"diagnostic","code":"unknown-method","message":"no method 
 run: hd check --format json optional.hd
 exit: 101
 stdout-json: [{"kind":"diagnostic","code":"unknown-method","message":"no method `unwrap` on string?; use `expect(message)` or `unwrap_or(fallback)`","line":2,"column":5,"fixes":[],"file":"optional.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
-run: hd check --format json parse.hd
-exit: 101
-stdout-json: [{"kind":"diagnostic","code":"unknown-name","message":"`parse_f64` is not defined; add `use std.num.parse_f64`","line":2,"column":5,"fixes":[],"file":"parse.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]
 run: hd check --format json print.hd
 exit: 101
 stdout-json: [{"kind":"diagnostic","code":"unknown-name","message":"`print` is not defined; did you mean `println`?","line":2,"column":5,"fixes":[],"file":"print.hd"},{"kind":"summary","errors":1,"warnings":0,"status":101}]

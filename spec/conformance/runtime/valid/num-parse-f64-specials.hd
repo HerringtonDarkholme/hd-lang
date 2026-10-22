@@ -1,16 +1,15 @@
 # test: parse_f64 reads nan, inf, and infinity in either case, with a sign, without the host hook
 # Spec std/num Float Parsing: std-num.parse-f64.special, .special-value, .round-trip, and .hook (owner decision PARSE-F64-GRAMMAR, 2026-10-03).
-use std.num.parse_f64
 fn infinity() -> f64:
     1.0 / 0.0
 
 fn parses_to_nan(source: string) -> bool:
-    match parse_f64(source):
+    match source.parse::[f64]():
         .Ok(value) => value.is_nan()
         .Err(_) => false
 
 fn parses_to(source: string, expected: f64) -> bool:
-    match parse_f64(source):
+    match source.parse::[f64]():
         .Ok(value) => value == expected
         .Err(_) => false
 

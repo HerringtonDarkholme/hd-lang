@@ -2976,7 +2976,7 @@ runtime/valid/num-parse-integers.hd	runtime	accept	std/num.md#r-std-num.parse.gr
 runtime/valid/num-parse-f64-errors.hd	runtime	accept	std/num.md#r-std-num.parse-f64.invalid-digit-byte
 runtime/valid/num-parse-f64-values.hd	runtime	accept	std/num.md#r-std-num.parse-f64.decimal-value
 runtime/valid/num-parse-f64-specials.hd	runtime	accept	std/num.md#r-std-num.parse-f64.special-value
-runtime/valid/num-parse-f64-round-trip.hd	runtime	accept	std/num.md#r-std-num.parse-f64.round-trip
+runtime/valid/num-parse-f64-round-trip.hd	runtime	accept	std/num.md#r-std-num.parse.float64-round-trip
 runtime/valid/option-tests-conversions.hd	runtime	accept	std/option.md#variant-tests-and-conversions
 runtime/panic/option-expect-none.hd	runtime	panic:explicit-panic	std/option.md#r-std-option.expect.panic
 runtime/panic/power-an-overflowing-integer-power-panics-01.hd	runtime	panic:integer-overflow	lang/05-expressions.md#r-expr.power.checked
@@ -3056,7 +3056,7 @@ runtime/valid/json-object-remove.hd	runtime	accept	std/json.md#r-std-json.object
 runtime/valid/json-object-value-copy.hd	runtime	accept	std/json.md#r-std-json.object.value
 runtime/valid/json-pretty.hd	runtime	accept	std/json.md#r-std-json.pretty.layout
 runtime/valid/json-suite.hd	runtime	accept	std/json.md#r-std-json.parse.grammar
-runtime/valid/json-float-text.hd	runtime	accept	std/json.md#r-std-json.parse.number.float
+runtime/valid/json-float-text.hd	runtime	accept	std/json.md#r-std-json.parse.number.float-via-parse
 runtime/valid/json-number-grammar.hd	runtime	accept	std/json.md#r-std-json.parse.number.grammar
 runtime/valid/json-typed-round-trip.hd	runtime	accept	std/json.md#r-std-json.derive.to-json.data
 runtime/valid/key-assoc-function-a-dyn-value-of-a-trait-with-an-associated-function-calls-its-other-members.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.key.binding
@@ -3564,7 +3564,7 @@ runtime/valid/dbg-without-requirement.hd	runtime	accept	lang/10-modules.md#r-mod
 typing/invalid/dbg-void-binding.hd	type	reject:type-mismatch	lang/10-modules.md#r-module.dbg.signature
 typing/warnings/unused-debug-text.hd	type	warn:unused-debug-text	lang/10-modules.md#r-module.dbg.debug-hint
 runtime/valid/debug-source-text.hd	runtime	accept	std/format.md#r-std-format.debug.source
-runtime/valid/num-parse-unsigned.hd	runtime	accept	std/num.md#r-std-num.parse.unsigned
+runtime/valid/num-parse-unsigned.hd	runtime	accept	std/num.md#r-std-num.parse.unsigned-type-grammar
 runtime/valid/num-radix-text.hd	runtime	accept	std/num.md#r-std-num.radix.round-trip
 runtime/valid/num-parse-byte-reader-matches-scalar-reader.hd	runtime	accept	std/num.md#r-std-num.parse.invalid-digit-byte
 runtime/valid/num-rotate.hd	runtime	accept	std/num.md#rotation
@@ -4792,3 +4792,4 @@ typing/invalid/http-request-timeout-removed.hd	type	reject:unknown-field	std/htt
 typing/invalid/http-request-send-missing-provider.hd	type	reject:missing-requirement	std/http.md#r-std-http.request.send
 runtime/valid/regex-decode.hd	runtime	accept	std/regex.md#typed-decoding
 typing/invalid/regex-decode-requires-deserialize.hd	type	reject:unsatisfied-trait-bound	std/regex.md#r-std-regex.decode.regex
+typing/invalid/num-parse-free-function-removed.hd	type	reject:unknown-import	std/num.md#parse-impls

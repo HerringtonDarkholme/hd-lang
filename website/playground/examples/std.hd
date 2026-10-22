@@ -1,6 +1,6 @@
 # Messy input, no crashes: a bad row is a `.None` you handle.
 fn score(line: string) -> i32?:
-    match parse_i32(line.split(" ")[1]):
+    match (line.split(" ")[1]).parse::[i32]():
         .Ok(n) => .Some(n)  # ← the number, or...
         .Err(_) => .None  # ← ...a value to handle
 
@@ -12,7 +12,6 @@ tests:
         assert_equal(score("bob x"), .None, reason="bad row")
 
 # ── plumbing ──────────
-use std.num.parse_i32
 
 pub fn main() -> void $ Console:
     let mut names: List[string] = []

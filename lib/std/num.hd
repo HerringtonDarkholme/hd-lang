@@ -124,7 +124,7 @@ impl Float for f32
 impl Float for f64
 
 ## Why number parsing failed: `Empty`, `InvalidDigit(position)`, or `OutOfRange`.
-## See [std-num.parse.import](../../spec/std/num.md#r-std-num.parse.import).
+## See [std-num.parse.error-import](../../spec/std/num.md#r-std-num.parse.error-import).
 @derive(Debug, Eq)
 @error
 pub enum ParseNumberError:
@@ -724,18 +724,6 @@ impl f32:
 # Parsing accepts an optional `+` or `-` and then decimal digits only.
 # Every scalar before the first invalid one is ASCII, so the scalar index
 # that `InvalidDigit` reports is also its byte offset (Strings STR10).
-## Reads `text` as a base-ten `i32`, or the first error.
-## See [std-num.parse.i32](../../spec/std/num.md#r-std-num.parse.i32).
-pub fn parse_i32(text: string) -> Result[i32, ParseNumberError]:
-    match parse_integer(text, -2147483648, 2147483647):
-        .Ok(value) => .Ok(i32(value))
-        .Err(error) => .Err(error)
-
-## Reads `text` as a base-ten `i64`, or the first error.
-## See [std-num.parse.i64](../../spec/std/num.md#r-std-num.parse.i64).
-pub fn parse_i64(text: string) -> Result[i64, ParseNumberError]:
-    parse_integer(text, -i64_max() - 1, i64_max())
-
 # Reads the digits toward the sign, so the minimum value parses. Each step
 # checks the bound first, so the arithmetic stays inside `low` to `high`.
 # It reads the text's UTF-8 bytes: a non-ASCII byte is no digit, and every
@@ -768,29 +756,9 @@ fn parse_integer(text: string, low: i64, high: i64) -> Result[i64, ParseNumberEr
         index = index + 1
     .Ok(value)
 
-# Unsigned parsing (r-std-num.parse.unsigned): the signed grammar without
+# Unsigned parsing (r-std-num.parse.unsigned-type-grammar): the signed grammar without
 # `-`, which is an invalid digit at position 0. A `u64` holds every result,
 # so one reader serves every width.
-## Reads `text` as a base-ten `u32`, or the first error.
-## See [std-num.parse.u32](../../spec/std/num.md#r-std-num.parse.u32).
-pub fn parse_u32(text: string) -> Result[u32, ParseNumberError]:
-    match parse_unsigned(text, 4294967295):
-        .Ok(value) => .Ok(u32(value))
-        .Err(error) => .Err(error)
-
-## Reads `text` as a base-ten `u64`, or the first error.
-## See [std-num.parse.u64](../../spec/std/num.md#r-std-num.parse.u64).
-pub fn parse_u64(text: string) -> Result[u64, ParseNumberError]:
-    parse_unsigned(text, 18446744073709551615)
-
-# `usize` has the target's width, 32 bits on Wasm32 (r-std-num.parse.usize-range).
-## Reads `text` as a base-ten `usize`, or the first error.
-## See [std-num.parse.usize](../../spec/std/num.md#r-std-num.parse.usize).
-pub fn parse_usize(text: string) -> Result[usize, ParseNumberError]:
-    match parse_unsigned(text, 4294967295):
-        .Ok(value) => .Ok(usize(value))
-        .Err(error) => .Err(error)
-
 fn parse_unsigned(text: string, high: u64) -> Result[u64, ParseNumberError]:
     size := text.len()
     if size == 0:
@@ -833,13 +801,15 @@ impl Parse for i32:
     type Error = ParseNumberError
 
     fn parse(text: string) -> Result[i32, ParseNumberError]:
-        parse_i32(text)
+        match parse_integer(text, -2147483648, 2147483647):
+            .Ok(value) => .Ok(i32(value))
+            .Err(error) => .Err(error)
 
 impl Parse for i64:
     type Error = ParseNumberError
 
     fn parse(text: string) -> Result[i64, ParseNumberError]:
-        parse_i64(text)
+        parse_integer(text, -i64_max() - 1, i64_max())
 
 impl Parse for u8:
     type Error = ParseNumberError
@@ -861,33 +831,38 @@ impl Parse for u32:
     type Error = ParseNumberError
 
     fn parse(text: string) -> Result[u32, ParseNumberError]:
-        parse_u32(text)
+        match parse_unsigned(text, 4294967295):
+            .Ok(value) => .Ok(u32(value))
+            .Err(error) => .Err(error)
 
 impl Parse for u64:
     type Error = ParseNumberError
 
     fn parse(text: string) -> Result[u64, ParseNumberError]:
-        parse_u64(text)
+        parse_unsigned(text, 18446744073709551615)
 
+# `usize` has the target's width, 32 bits on Wasm32 (r-std-num.parse.usize-type-range).
 impl Parse for usize:
     type Error = ParseNumberError
 
     fn parse(text: string) -> Result[usize, ParseNumberError]:
-        parse_usize(text)
+        match parse_unsigned(text, 4294967295):
+            .Ok(value) => .Ok(usize(value))
+            .Err(error) => .Err(error)
 
 impl Parse for f64:
     type Error = ParseNumberError
 
     fn parse(text: string) -> Result[f64, ParseNumberError]:
-        parse_f64(text)
+        read_float64(text)
 
-# The `f32` is the `f64` that `parse_f64` reads, rounded to `f32`
-# (r-std-num.parse.trait-f32).
+# The `f32` is the `f64` that `f64.parse` reads, rounded to `f32`
+# (r-std-num.parse.float32).
 impl Parse for f32:
     type Error = ParseNumberError
 
     fn parse(text: string) -> Result[f32, ParseNumberError]:
-        match parse_f64(text):
+        match read_float64(text):
             .Ok(value) => .Ok(f32(value))
             .Err(error) => .Err(error)
 
@@ -896,9 +871,7 @@ impl Parse for f32:
 # and `infinity` are read here, so every error and its position are std's.
 # The host hook only rounds an unsigned decimal number, and has no error
 # signal (r-std-num.parse-f64.hook.total).
-## Reads `text` as an `f64`, or the first error.
-## See [std-num.parse-f64](../../spec/std/num.md#r-std-num.parse-f64).
-pub fn parse_f64(text: string) -> Result[f64, ParseNumberError]:
+fn read_float64(text: string) -> Result[f64, ParseNumberError]:
     size := text.len()
     if size == 0:
         return .Err(ParseNumberError.Empty)
@@ -919,7 +892,7 @@ pub fn parse_f64(text: string) -> Result[f64, ParseNumberError]:
             .Some(position) => return .Err(ParseNumberError.InvalidDigit(position))
             .None => pass
         # The sign is one ASCII byte, so the unsigned text starts at byte 1.
-        magnitude = host_parse_f64(if start == 0: text else: text.slice(1, size))
+        magnitude = round_decimal(if start == 0: text else: text.slice(1, size))
     if negative: .Ok(-magnitude) else: .Ok(magnitude)
 
 # Where the bytes of `text` from `start` first break a decimal number
@@ -978,7 +951,7 @@ fn after_digits(text: string, at: usize) -> usize:
 # even: positive infinity past the range and `0.0` below it. Callers pass
 # only text in the grammar (spec/std/README.md#standard-library-primitives).
 @intrinsic("parse_f64")
-fn host_parse_f64(text: string) -> f64:
+fn round_decimal(text: string) -> f64:
     panic("intrinsic")
 
 # The bit casts between a float and the unsigned integer of its width: one

@@ -276,14 +276,13 @@ by number or name; it runs in linear time, so a hostile log line cannot
 stall the scan. The exact rules are in [Regex](../../spec/std/regex.md):
 
 ```hd
-use std.num.parse_i32
 use std.regex.Regex
 use std.text.r
 fn status_of(line: string) -> i32?:
     match Regex::new(r"\"[A-Z]+ /[^ ]*\" (\d\d\d)"):
         .Ok(pattern) =>
             match pattern.captures(line):
-                .Some(found) => found.get(1).map(fn(m): parse_i32(m.text).expect("digits"))
+                .Some(found) => found.get(1).map(fn(m): m.text.parse::[i32]().expect("digits"))
                 .None => .None
         .Err(_) => .None
 

@@ -4,7 +4,6 @@
 use std.format.DebugWriter
 use std.iter.ListIter
 use std.error.Error
-use std.num.parse_f64
 use std.serde.{Serialize, Deserialize, Serializer, Deserializer, ValueKind}
 use std.structure.{VariantInfo, Member, Facts}
 
@@ -890,8 +889,8 @@ impl Parser:
     # The number that starts at `at`: `-`? then `0` or a nonzero digit and
     # digits. An integer in the i64 or u64 range is exact; `-0` is the float
     # -0.0, as in serde_json. A fraction, an exponent, or an integer past
-    # both ranges is the float that `parse_f64` gives
-    # (r-std-json.parse.number.float).
+    # both ranges is the float that `f64` parsing gives
+    # (r-std-json.parse.number.float-via-parse).
     fn number(&mut self) -> Result[Json, JsonError]:
         text := self.text
         size := self.size
@@ -987,11 +986,12 @@ fn u64_max() -> u64:
 
 # The float of the number text from `start` up to `end`, which the caller
 # has read to the end of its grammar; past the f64 range it is a
-# `NumberOutOfRange` at `start` (r-std-json.parse.number.out-of-range).
+# `NumberOutOfRange` at `start` (r-std-json.parse.number.nonfinite-parse-result).
 fn float_number(text: string, start: usize, end: usize) -> Result[Json, JsonError]:
-    value := match parse_f64(bytes_slice(text, start, end)):
+    # Name the string method explicitly beside this module's JSON parse entry.
+    value := match string::parse::[f64](bytes_slice(text, start, end)):
         .Ok(found) => found
-        .Err(_) => panic("std.json: a JSON number is parse_f64 text")
+        .Err(_) => panic("std.json: a JSON number is valid f64 text")
     match Number::from_f64(value):
         .Some(number) => .Ok(Json.Number(number))
         .None => .Err(JsonError.NumberOutOfRange(start))

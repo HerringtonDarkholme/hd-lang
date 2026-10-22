@@ -693,10 +693,9 @@ fn http_reaches_a_granted_host_from_an_integration_test() {
 
 const NET_PROGRAM: &str = "use std.net.{Net, NetError}
 use std.host.{Args, args}
-use std.num.parse_u32
 
 fn port(i: usize) -> u16 $ Args:
-    match parse_u32(args()[i]):
+    match (args()[i]).parse::[u32]():
         .Ok(p) => u16(p)
         .Err(_) => 0
 

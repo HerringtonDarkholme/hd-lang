@@ -2,7 +2,6 @@
 # trait Sys, its error, and the map-backed ScriptedSys provider. A live
 # provider that reads the host system is host-bound; this file holds only
 # the declarations and ScriptedSys, which never touches the host.
-use std.num.parse_u32
 
 ## The error of a system read.
 ## See [std-sys.error.decl](../../spec/std/sys.md#system-reads).
@@ -51,7 +50,7 @@ impl Sys for ScriptedSys:
 
     fn cpu_count(self) -> Result[u32, SysError]:
         match self.values.get("cpu_count"):
-            .Some(text) => match parse_u32(text):
+            .Some(text) => match text.parse::[u32]():
                 .Ok(count) => .Ok(count)
                 .Err(_) => .Err(SysError.Unsupported("cpu_count"))
             .None => .Err(SysError.Unsupported("cpu_count"))

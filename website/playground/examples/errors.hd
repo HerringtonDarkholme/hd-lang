@@ -18,7 +18,7 @@ tests:
 
 # ── plumbing ──────────
 use std.error.{Error, report_of}
-use std.num.{ParseNumberError, parse_i32}
+use std.num.{ParseNumberError}
 @error
 enum ConfigError:
     @error("missing key '$key'")
@@ -37,7 +37,7 @@ fn lookup(config: string, key: string) -> Result[string, ConfigError]:
 
 fn port(config: string) -> Result[i32, ConfigError]:
     text := lookup(config, "port")?
-    match parse_i32(text):
+    match text.parse::[i32]():
         .Ok(n) => .Ok(n)
         .Err(e) => .Err(ConfigError.BadPort(text, e))
 

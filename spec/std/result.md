@@ -26,7 +26,7 @@ The language tier keeps what the compiler knows by name
 `std.result` gives every `Result[T, E]` these methods:
 
 ```text
-use std.num.{parse_i32, ParseNumberError}
+use std.num.{ParseNumberError}
 
 enum ConfigError:
     Missing
@@ -38,7 +38,7 @@ fn setting(settings: Map[string, string], key: string) -> Result[string, ConfigE
         .None => .Err(ConfigError.Missing)
 
 fn number(text: string) -> Result[i32, ConfigError]:
-    parse_i32(text).map_err(ConfigError.Number)
+    text.parse::[i32]().map_err(ConfigError.Number)
 
 fn port(settings: Map[string, string]) -> i32:
     setting(settings, "port").and_then(number).unwrap_or(8080)
@@ -57,7 +57,7 @@ fn port(settings: Map[string, string]) -> i32:
 5. r[std-result.methods.non-suspending] No method suspends. Each `transform` callback is a plain function type with the empty row.
 
 ```text
-use std.num.{parse_i32, ParseNumberError}
+use std.num.{ParseNumberError}
 
 enum ConfigError:
     Missing
@@ -69,7 +69,7 @@ fn setting(settings: Map[string, string], key: string) -> Result[string, ConfigE
         .None => .Err(ConfigError.Missing)
 
 fn parsed(text: string) -> Result[i32, ParseNumberError]:
-    parse_i32(text)
+    text.parse::[i32]()
 
 fn port(settings: Map[string, string]) -> Result[i32, ConfigError]:
     setting(settings, "port").and_then(parsed)  # error: type-mismatch
@@ -92,10 +92,10 @@ fn port(settings: Map[string, string]) -> Result[i32, ConfigError]:
 value of `.Some`:
 
 ```text
-use std.num.{parse_i32, ParseNumberError}
+use std.num.{ParseNumberError}
 
 fn doubled(text: string) -> Result[i32, ParseNumberError]:
-    parse_i32(text).map(fn(value: i32) -> i32: value * 2)
+    text.parse::[i32]().map(fn(value: i32) -> i32: value * 2)
 ```
 
 | Rule | Method | Result |
@@ -116,16 +116,15 @@ fn doubled(text: string) -> Result[i32, ParseNumberError]:
 variant, or turn it into a value:
 
 ```text
-use std.num.parse_i32
 
 fn port(text: string) -> i32?:
-    parse_i32(text).ok()
+    text.parse::[i32]().ok()
 
 fn invalid(text: string) -> bool:
-    parse_i32(text).is_err()
+    text.parse::[i32]().is_err()
 
 fn configured_port(text: string) -> i32:
-    parse_i32(text).expect("the configured port is a number")
+    text.parse::[i32]().expect("the configured port is a number")
 ```
 
 | Rule | Method | Result |

@@ -17,10 +17,9 @@ ordinary hd over the language tier:
 - `abs` on the signed integers and the floats, and `pow` on the integers;
 - `trunc`, `floor`, `ceil`, and `round` on the floats;
 - `sqrt` on the floats, an intrinsic method;
-- integer parsing: `parse_i32`, `parse_i64`, `parse_u32`, `parse_u64`,
-  `parse_usize`, and `ParseNumberError`;
+- integer parsing through `Parse`, with `ParseNumberError`;
 - radix text: `to_radix` and `parse_radix` on the integers;
-- float parsing: `parse_f64`;
+- float parsing through `Parse`;
 - fixed-point float text: `to_fixed` on `f64`.
 
 The language tier keeps what the compiler knows by name:
@@ -260,14 +259,13 @@ In this section, `F` is `f32` or `f64`.
 
 ## Integer Parsing
 
-`parse_i32` and `parse_i64` read a decimal integer from text, and
-`parse_u32`, `parse_u64`, and `parse_usize` read an unsigned one:
+`text.parse::[T]()` reads a decimal integer of type `T` from text:
 
 ```text
-use std.num.{parse_i32, ParseNumberError}
+use std.num.{ParseNumberError}
 
 fn port(text: string) -> i32:
-    match parse_i32(text):
+    match text.parse::[i32]():
         .Ok(value) => value
         .Err(ParseNumberError.OutOfRange) => 65535
         .Err(_) => 8080
@@ -282,15 +280,7 @@ pub enum ParseNumberError:
     OutOfRange
 ```
 
-| Rule | Function |
-| --- | --- |
-| r[std-num.parse.i32] `parse_i32` | `pub fn parse_i32(text: string) -> Result[i32, ParseNumberError]` |
-| r[std-num.parse.i64] `parse_i64` | `pub fn parse_i64(text: string) -> Result[i64, ParseNumberError]` |
-| r[std-num.parse.u32] `parse_u32` | `pub fn parse_u32(text: string) -> Result[u32, ParseNumberError]` |
-| r[std-num.parse.u64] `parse_u64` | `pub fn parse_u64(text: string) -> Result[u64, ParseNumberError]` |
-| r[std-num.parse.usize] `parse_usize` | `pub fn parse_usize(text: string) -> Result[usize, ParseNumberError]` |
-
-1. r[std-num.parse.import] `std.num` declares `ParseNumberError`, `parse_i32`, `parse_i64`, `parse_u32`, `parse_u64`, and `parse_usize`. None is a prelude name; code imports them, as in `use std.num.parse_i32`.
+1. r[std-num.parse.error-import] `std.num` declares `ParseNumberError`; code imports it from that module.
 2. r[std-num.parse.grammar] The accepted text is an optional `+` or `-`, then one or more decimal digits `0` to `9`, and nothing else.
 3. r[std-num.parse.no-literal-syntax] So whitespace, `_` separators, radix prefixes such as `0x`, and type suffixes are not accepted.
 4. r[std-num.parse.value] Accepted text gives `.Ok` of its digits read in base ten, negated after a `-`.
@@ -300,11 +290,11 @@ pub enum ParseNumberError:
 8. r[std-num.parse.end-of-text-bytes] Text that ends where the grammar needs a digit gives `InvalidDigit` at the text's length in bytes, so a lone `-` or `+` gives `InvalidDigit(1)`.
 9. r[std-num.parse.out-of-range] A digit that takes the value read so far out of the result type's range gives `.Err(ParseNumberError.OutOfRange)`.
 10. r[std-num.parse.error-traits] `ParseNumberError` implements `Eq` and `Display`.
-11. r[std-num.parse.unsigned] The unsigned functions read the same grammar without the `-`: an optional `+`, then one or more digits. Every other rule above holds for them, with the result type's range.
+11. r[std-num.parse.unsigned-type-grammar] Unsigned integer types read the same grammar without the `-`: an optional `+`, then one or more digits. Every other rule above holds for them, with the result type's range.
 12. r[std-num.parse.unsigned.minus] A `-` at the start of the text is an invalid digit, so `"-1"`, `"-0"`, and `"-"` give `.Err(ParseNumberError.InvalidDigit(0))`.
-13. r[std-num.parse.usize-range] `parse_usize` reads the range of `usize`, whose width is the target's by [`types.usize.width`](../lang/04-type-system.md#r-types.usize.width). On Wasm32 it accepts the text that `parse_u32` accepts.
+13. r[std-num.parse.usize-type-range] `usize` parsing uses the target width by [`types.usize.width`](../lang/04-type-system.md#r-types.usize.width); on Wasm32 its range matches `u32`.
 
-| Text | `parse_i32` gives |
+| Text | `text.parse::[i32]()` gives |
 | --- | --- |
 | `"42"`, `"+42"`, `"042"` | `.Ok(42)` |
 | `"-2147483648"` | `.Ok` of the smallest `i32` |
@@ -314,7 +304,7 @@ pub enum ParseNumberError:
 | `"1_000"`, `"0x10"` | `.Err(InvalidDigit(1))` |
 | `"2147483648"`, `"99999999999x"` | `.Err(OutOfRange)` |
 
-| Text | `parse_u32` gives |
+| Text | `text.parse::[u32]()` gives |
 | --- | --- |
 | `"42"`, `"+42"` | `.Ok(42)` |
 | `"4294967295"` | `.Ok` of the largest `u32` |
@@ -341,11 +331,10 @@ fn byte(text: string) -> Result[u8, ParseNumberError]:
 ```
 
 1. r[std-num.parse.trait-impls] `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `usize`, `f32`, and `f64` each implement `Parse` with `Error` set to `ParseNumberError`.
-2. r[std-num.parse.trait-integer] An integer type's `parse` reads the grammar of `parse_i32` for a signed type, and of `parse_u32` for an unsigned one, within that type's range. Its errors and positions are the ones those functions give.
-3. r[std-num.parse.trait-same] For `i32`, `i64`, `u32`, `u64`, and `usize`, `parse(text)` returns what the `parse_` function of that type returns for `text`.
-4. r[std-num.parse.trait-narrow] For `i8`, `i16`, `u8`, and `u16`, a value past the type's range gives `.Err(ParseNumberError.OutOfRange)`, so `"256".parse::[u8]()` and `"-129".parse::[i8]()` fail.
-5. r[std-num.parse.trait-f64] `f64`'s `parse(text)` returns what `parse_f64(text)` returns.
-6. r[std-num.parse.trait-f32] `f32`'s `parse(text)` reads the same grammar, so its errors are `parse_f64`'s, and gives the `f64` value that `parse_f64` returns, rounded to `f32`.
+2. r[std-num.parse.integer-grammar] Integer `Parse` implementations read the signed or unsigned grammar above within their type's range, with the errors and positions defined there.
+3. r[std-num.parse.trait-narrow] For `i8`, `i16`, `u8`, and `u16`, a value past the type's range gives `.Err(ParseNumberError.OutOfRange)`, so `"256".parse::[u8]()` and `"-129".parse::[i8]()` fail.
+4. r[std-num.parse.float64] `f64` parsing reads the grammar and values defined by [Float Parsing](#float-parsing).
+5. r[std-num.parse.float32] `f32` parsing reads the `f64` grammar and errors, then rounds the resulting value to `f32`.
 
 > **Why.** The text of a number is the same whatever the type that reads
 > it, so each width reuses one grammar. Rust parses `f32` text directly, so
@@ -399,23 +388,16 @@ fn mode(text: string) -> Result[u32, ParseNumberError]:
 
 ## Float Parsing
 
-`parse_f64` reads a decimal number, or one of the words `nan`, `inf`, and
-`infinity`, as an `f64`:
+`text.parse::[f64]()` reads a decimal number, or one of the words `nan`,
+`inf`, and `infinity`:
 
 ```text
-use std.num.parse_f64
-
 fn ratio(text: string) -> f64:
-    match parse_f64(text):
+    match text.parse::[f64]():
         .Ok(value) => value
         .Err(_) => 0.0
 ```
 
-| Rule | Function |
-| --- | --- |
-| r[std-num.parse-f64] `parse_f64` | `pub fn parse_f64(text: string) -> Result[f64, ParseNumberError]` |
-
-1. r[std-num.parse-f64.import] `std.num` declares `parse_f64`. It is not a prelude name; code imports it, as in `use std.num.parse_f64`.
 2. r[std-num.parse-f64.float-grammar] The accepted text is an optional `+` or `-`, then a decimal number or a special word.
 3. r[std-num.parse-f64.decimal] A decimal number is digits, then optionally `.` and more digits, then an optional exponent. Either side of the `.` may be empty, but not both.
 4. r[std-num.parse-f64.exponent] An exponent is `e` or `E`, an optional `+` or `-`, and one or more digits.
@@ -428,12 +410,12 @@ fn ratio(text: string) -> f64:
 11. r[std-num.parse-f64.empty] Empty text gives `.Err(ParseNumberError.Empty)`.
 12. r[std-num.parse-f64.invalid-digit-byte] Other text is read from left to right. The first character that no continuation of the grammar allows gives `.Err(ParseNumberError.InvalidDigit(position))`, with its byte offset into the text.
 13. r[std-num.parse-f64.text-end] Text that ends before the grammar is complete gives `InvalidDigit` at the text's length in characters. So a lone `-` gives `InvalidDigit(1)` and `in` gives `InvalidDigit(2)`.
-14. r[std-num.parse-f64.no-out-of-range] `parse_f64` never gives `OutOfRange`.
-15. r[std-num.parse-f64.round-trip] For every `f64` value `x`, `parse_f64(x.to_string())` gives `.Ok` of `x`: the same value with the same sign, or a NaN when `x` is a NaN.
+14. r[std-num.parse.float64-no-out-of-range] `f64` parsing never gives `OutOfRange`.
+15. r[std-num.parse.float64-round-trip] For every `f64` value `x`, `x.to_string().parse::[f64]()` gives `.Ok` of `x`: the same value with the same sign, or a NaN when `x` is a NaN.
 16. r[std-num.parse-f64.hook] `lib/std` checks the grammar and reads the sign and the special words itself. It calls the primitive only with an unsigned decimal number.
 17. r[std-num.parse-f64.hook.total] The primitive has no error or refusal signal, so `lib/std` gives its value as returned, an infinity or a zero included.
 
-| Text | `parse_f64` gives |
+| Text | `text.parse::[f64]()` gives |
 | --- | --- |
 | `"1.5"`, `"+1.5"`, `"15e-1"`, `"15E-1"` | `.Ok(1.5)` |
 | `".5"`, `"-.5"` | `.Ok(0.5)`, `.Ok(-0.5)` |
@@ -446,7 +428,7 @@ fn ratio(text: string) -> f64:
 | `"inf"`, `"Infinity"`, `"+INF"` | `.Ok` of positive infinity |
 | `"-inf"`, `"-Infinity"` | `.Ok` of negative infinity |
 
-| Text | `parse_f64` gives |
+| Text | `text.parse::[f64]()` gives |
 | --- | --- |
 | `""` | `.Err(Empty)` |
 | `" 1.5"`, `"e5"` | `.Err(InvalidDigit(0))` |
@@ -464,7 +446,7 @@ fn ratio(text: string) -> f64:
 > arithmetic, so the host supplies it, as it supplies `format_f64`.
 
 > **Note.** `std.json` checks its own grammar, that of RFC 8259, before it
-> calls `parse_f64`. So JSON text still rejects `NaN`, `+1`, `.5`, and
+> calls `text.parse::[f64]()`. So JSON text still rejects `NaN`, `+1`, `.5`, and
 > `5.`, by [`std-json.parse.number.grammar`](json.md#r-std-json.parse.number.grammar).
 
 See also: [Strings](../lang/04-type-system.md#strings), [Result](result.md), [JSON Numbers](json.md#number-syntax).

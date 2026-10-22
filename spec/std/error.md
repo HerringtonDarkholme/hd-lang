@@ -233,14 +233,13 @@ Every std error type implements `Error`, so `?` and `context` accept it:
 
 ```text
 use std.error.Error
-use std.num.parse_i32
 
 fn count(text: string) -> Result[i32, &dyn Error]:
-    value := parse_i32(text)?
+    value := text.parse::[i32]()?
     .Ok(value)
 
 fn width(text: string) -> Result[i32, &dyn Error]:
-    parse_i32(text).context("reading the width")
+    text.parse::[i32]().context("reading the width")
 ```
 
 | Type | Module |

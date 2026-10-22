@@ -871,11 +871,11 @@ tests:
 fn parse_f64_through_programs() {
     all_pass(
         "parse",
-        r#"use std.num.{parse_f64, ParseNumberError}
+        r#"use std.num.{ParseNumberError}
 use std.testing.assert_equal
 
 fn bits(text: string) -> string:
-    match parse_f64(text):
+    match text.parse::[f64]():
         .Ok(value) => "${value}"
         .Err(.InvalidDigit(position)) => "invalid ${position}"
         .Err(_) => "error"

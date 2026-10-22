@@ -220,7 +220,6 @@ so it is a statement, not a wrapper.
 ## Structs, Enums, Match, Errors
 
 ```hd
-use std.num.parse_i32
 
 struct Item:
     name: string
@@ -248,7 +247,7 @@ fn describe(status: Status) -> string:
         .Refunded(cents, reason) => "refunded $cents: $reason"
 
 fn quantity(text: string) -> Result[i32, OrderError]:
-    match parse_i32(text):
+    match text.parse::[i32]():
         .Ok(n) => .Ok(n)
         .Err(_) => .Err(OrderError.BadQuantity(text))
 
@@ -444,7 +443,7 @@ is imported:
 | read input, stderr, test console | `std.console.{ConsoleInput, read_line, eprintln, MemoryConsole}` |
 | program arguments, environment | `std.host.{Args, args, Env, env}` |
 | files and paths | `std.fs.{FsRead, FsWrite, FsError, read_text, write_text}`, `std.path.Path` |
-| parse numbers | `std.num.{parse_i32, parse_i64, parse_usize, parse_f64}` |
+| parse numbers | `text.parse::[i32]()` and other numeric types; errors: `std.num.ParseNumberError` |
 | `min`, `max`, `clamp`, `Ordering` helpers | `std.cmp` |
 | `Set`, `Deque`, `Heap`, `counts` | `std.collections` |
 | clock, durations, sleeping | `std.time.{Clock, now, sleep, ManualClock, ms, s}` |

@@ -1,6 +1,6 @@
 # test: parse_u32, parse_u64, and parse_usize read an optional plus and digits, and reject a minus as an invalid digit
-# Spec std/num Integer Parsing: std-num.parse.u32, .u64, .usize, std-num.parse.unsigned, std-num.parse.unsigned.minus, std-num.parse.usize-range.
-use std.num.{parse_u32, parse_u64, parse_usize, ParseNumberError}
+# Spec std/num Integer Parsing: std-num.parse.trait-impls, std-num.parse.unsigned-type-grammar, std-num.parse.unsigned.minus, std-num.parse.usize-type-range.
+use std.num.{ParseNumberError}
 fn describe[T < Display](result: Result[T, ParseNumberError]) -> string:
     match result:
         .Ok(value) => "ok $value"
@@ -12,29 +12,29 @@ tests:
     use std.testing.assert_equal
 
     it("accepted text"):
-        assert_equal(describe(parse_u32("42")), "ok 42", reason="digits")
-        assert_equal(describe(parse_u32("+42")), "ok 42", reason="a plus sign")
-        assert_equal(describe(parse_u32("007")), "ok 7", reason="leading zeros")
-        assert_equal(describe(parse_u32("4294967295")), "ok 4294967295", reason="the u32 maximum")
-        assert_equal(describe(parse_u64("18446744073709551615")), "ok 18446744073709551615", reason="the u64 maximum")
-        assert_equal(describe(parse_usize("7")), "ok 7", reason="a usize")
-        assert_equal(describe(parse_usize("4294967295")), "ok 4294967295", reason="the usize maximum on Wasm32")
+        assert_equal(describe("42".parse::[u32]()), "ok 42", reason="digits")
+        assert_equal(describe("+42".parse::[u32]()), "ok 42", reason="a plus sign")
+        assert_equal(describe("007".parse::[u32]()), "ok 7", reason="leading zeros")
+        assert_equal(describe("4294967295".parse::[u32]()), "ok 4294967295", reason="the u32 maximum")
+        assert_equal(describe("18446744073709551615".parse::[u64]()), "ok 18446744073709551615", reason="the u64 maximum")
+        assert_equal(describe("7".parse::[usize]()), "ok 7", reason="a usize")
+        assert_equal(describe("4294967295".parse::[usize]()), "ok 4294967295", reason="the usize maximum on Wasm32")
 
     it("a minus is an invalid digit"):
-        assert_equal(describe(parse_u32("-1")), "invalid digit at 0", reason="a negative number")
-        assert_equal(describe(parse_u32("-0")), "invalid digit at 0", reason="a negative zero")
-        assert_equal(describe(parse_u32("-")), "invalid digit at 0", reason="a lone minus")
-        assert_equal(describe(parse_u64("-5")), "invalid digit at 0", reason="u64 too")
-        assert_equal(describe(parse_usize("-5")), "invalid digit at 0", reason="usize too")
+        assert_equal(describe("-1".parse::[u32]()), "invalid digit at 0", reason="a negative number")
+        assert_equal(describe("-0".parse::[u32]()), "invalid digit at 0", reason="a negative zero")
+        assert_equal(describe("-".parse::[u32]()), "invalid digit at 0", reason="a lone minus")
+        assert_equal(describe("-5".parse::[u64]()), "invalid digit at 0", reason="u64 too")
+        assert_equal(describe("-5".parse::[usize]()), "invalid digit at 0", reason="usize too")
 
     it("other errors"):
-        assert_equal(describe(parse_u32("")), "empty", reason="empty text")
-        assert_equal(describe(parse_u32("+")), "invalid digit at 1", reason="a lone plus ends where a digit is needed")
-        assert_equal(describe(parse_u32(" 1")), "invalid digit at 0", reason="whitespace")
-        assert_equal(describe(parse_u32("1_000")), "invalid digit at 1", reason="a separator")
-        assert_equal(describe(parse_u32("0x10")), "invalid digit at 1", reason="a radix prefix")
-        assert_equal(describe(parse_u32("4294967296")), "out of range", reason="past the u32 maximum")
-        assert_equal(describe(parse_u32("99999999999x")), "out of range", reason="the first error wins")
-        assert_equal(describe(parse_u32("12x99999999999")), "invalid digit at 2", reason="the first error wins")
-        assert_equal(describe(parse_u64("18446744073709551616")), "out of range", reason="past the u64 maximum")
-        assert_equal(describe(parse_usize("4294967296")), "out of range", reason="usize is 32 bits on Wasm32")
+        assert_equal(describe("".parse::[u32]()), "empty", reason="empty text")
+        assert_equal(describe("+".parse::[u32]()), "invalid digit at 1", reason="a lone plus ends where a digit is needed")
+        assert_equal(describe(" 1".parse::[u32]()), "invalid digit at 0", reason="whitespace")
+        assert_equal(describe("1_000".parse::[u32]()), "invalid digit at 1", reason="a separator")
+        assert_equal(describe("0x10".parse::[u32]()), "invalid digit at 1", reason="a radix prefix")
+        assert_equal(describe("4294967296".parse::[u32]()), "out of range", reason="past the u32 maximum")
+        assert_equal(describe("99999999999x".parse::[u32]()), "out of range", reason="the first error wins")
+        assert_equal(describe("12x99999999999".parse::[u32]()), "invalid digit at 2", reason="the first error wins")
+        assert_equal(describe("18446744073709551616".parse::[u64]()), "out of range", reason="past the u64 maximum")
+        assert_equal(describe("4294967296".parse::[usize]()), "out of range", reason="usize is 32 bits on Wasm32")

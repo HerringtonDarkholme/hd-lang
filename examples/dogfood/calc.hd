@@ -1,7 +1,6 @@
 # calc: tokenizer, recursive-descent parser into an enum, and an evaluator.
 # Shows recursive links through `&`, exhaustive match, Result with `?`, a mutable
 # parser cursor, and unit tests.
-use std.num.parse_i32
 use std.testing.{Arbitrary, assert, assert_equal, it_prop}
 
 enum Token:
@@ -62,7 +61,7 @@ fn tokenize(src: string) -> Result[List[Spanned], CalcError]:
             while i < chars.len() && chars[i].is_ascii_digit():
                 text = text + chars[i].to_string()
                 i = i + 1
-            match parse_i32(text):
+            match text.parse::[i32]():
                 .Ok(n) => out.push(Spanned { token: .Num(n), pos: start })
                 .Err(_) => return .Err(CalcError.BadNumber(start))
         else:

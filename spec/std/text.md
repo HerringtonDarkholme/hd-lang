@@ -251,7 +251,7 @@ pub enum ParseCharError:
 > **Why.** `Parse` is Rust's `FromStr`: one trait gives `std.cli` and
 > `std.host` a typed read without a function per type, and a user type
 > can join it. An impl reads the whole text so that the same text means the
-> same value everywhere, as `parse_i32` does.
+> same value everywhere, as numeric `Parse` does.
 
 ## Raw Text Prefix
 

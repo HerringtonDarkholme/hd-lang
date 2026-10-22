@@ -3,17 +3,17 @@
 use std.error.{Error, report_of}
 use std.fs.FsError
 use std.json.{Json, parse}
-use std.num.{ParseNumberError, parse_i32}
+use std.num.{ParseNumberError}
 use std.path.Path
 use std.net.NetError
 use std.time.Timestamp
 
 fn count(text: string) -> Result[i32, &dyn Error]:
-    value := parse_i32(text)?
+    value := text.parse::[i32]()?
     .Ok(value)
 
 fn width(text: string) -> Result[i32, &dyn Error]:
-    parse_i32(text).context("reading the width")
+    text.parse::[i32]().context("reading the width")
 
 fn document(text: string) -> Result[Json, &dyn Error]:
     value := parse(text)?
@@ -67,7 +67,7 @@ tests:
         assert_equal(message(socket()), "the socket is closed", reason="NetError")
 
     it("wraps with context"):
-        match parse_i32("x").context("reading the count"):
+        match string::parse::[i32]("x").context("reading the count"):
             .Ok(_) => assert(false, reason="the text is not a number")
             .Err(error) =>
                 report := report_of(error)

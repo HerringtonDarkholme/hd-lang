@@ -330,8 +330,7 @@ pub fn main() -> void $ Console + Env:
 fn float_text_and_case_mapping() {
     let dir = program(
         "floats",
-        "use std.num.parse_f64
-
+        "
 pub fn main() -> void $ Console:
     let tenth: f32 = 0.1
     let third: f32 = 0.33333334
@@ -352,10 +351,10 @@ pub fn main() -> void $ Console:
     println(1e21.to_fixed(1))
     println(\"Stra\u{df}e \u{3a3}A\u{3a3}\".upper())
     println(\"\u{3a3}A\u{3a3} \u{130}\".lower())
-    match parse_f64(\"9007199254740993\"):
+    match \"9007199254740993\".parse::[f64]():
         .Ok(v) => println(v)
         .Err(_) => println(\"error\")
-    match parse_f64(\"2.4703282292062328e-324\"):
+    match \"2.4703282292062328e-324\".parse::[f64]():
         .Ok(v) => println(v)
         .Err(_) => println(\"error\")
 ",

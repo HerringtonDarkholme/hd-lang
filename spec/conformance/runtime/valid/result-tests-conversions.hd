@@ -1,14 +1,13 @@
 # test: Result ok, err, is_ok, is_err, and expect test the variant or turn it into a value
 # Spec std/result Variant Tests And Conversions: std-result.ok, std-result.err, std-result.is-ok, std-result.is-err, std-result.expect (batch 68, STD-HELPERS-KEEP; task #219).
-use std.num.parse_i32
 fn port(text: string) -> i32?:
-    parse_i32(text).ok()
+    text.parse::[i32]().ok()
 
 fn invalid(text: string) -> bool:
-    parse_i32(text).is_err()
+    text.parse::[i32]().is_err()
 
 fn configured_port(text: string) -> i32:
-    parse_i32(text).expect("the configured port is a number")
+    text.parse::[i32]().expect("the configured port is a number")
 
 tests:
     use std.testing.{assert, assert_equal}
@@ -23,7 +22,7 @@ tests:
 
     it("is_ok and is_err test the variant"):
         assert(invalid("x") && !invalid("1"), reason="is_err")
-        assert(parse_i32("1").is_ok() && !parse_i32("x").is_ok(), reason="is_ok")
+        assert("1".parse::[i32]().is_ok() && !"x".parse::[i32]().is_ok(), reason="is_ok")
 
     it("expect unwraps Ok"):
         assert_equal(configured_port("443"), 443, reason="Ok")

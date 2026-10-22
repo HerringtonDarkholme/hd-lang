@@ -1,0 +1,2 @@
+# test: number parsing is exposed through Parse rather than a free function
+use std.num.parse_f64  # diagnostic: unknown-import

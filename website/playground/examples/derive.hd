@@ -16,7 +16,6 @@ tests:
 # try: `0 - cents` overflows there, so `print` works in `i64`.
 
 # ── plumbing ──────────
-use std.num.parse_i32
 use std.testing.{Arbitrary, assert_equal, it_prop}
 
 fn pad(n: i64) -> string:
@@ -39,10 +38,10 @@ fn parse(text: string) -> Money?:
         .Some((whole, frac)) =>
             if frac.len() != 2:
                 return .None
-            match parse_i32(whole):
+            match whole.parse::[i32]():
                 .Err(_) => .None
                 .Ok(w) =>
-                    match parse_i32(frac):
+                    match frac.parse::[i32]():
                         .Err(_) => .None
                         .Ok(f) =>
                             wide := i64(w) * 100 + i64(f)
