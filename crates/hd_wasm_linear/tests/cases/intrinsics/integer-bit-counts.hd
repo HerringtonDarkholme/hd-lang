@@ -1,0 +1,38 @@
+# @dump: wat
+# expected: direct popcnt/clz/ctz, width-correct narrow counts, and u32 results without bit loops (#760).
+
+fn i8_count_ones(value: i8) -> u32:
+    value.count_ones()
+
+fn i8_leading_zeros(value: i8) -> u32:
+    value.leading_zeros()
+
+fn i8_trailing_zeros(value: i8) -> u32:
+    value.trailing_zeros()
+
+fn u16_count_ones(value: u16) -> u32:
+    value.count_ones()
+
+fn u16_leading_zeros(value: u16) -> u32:
+    value.leading_zeros()
+
+fn u16_trailing_zeros(value: u16) -> u32:
+    value.trailing_zeros()
+
+fn u32_count_ones(value: u32) -> u32:
+    value.count_ones()
+
+fn u32_leading_zeros(value: u32) -> u32:
+    value.leading_zeros()
+
+fn u32_trailing_zeros(value: u32) -> u32:
+    value.trailing_zeros()
+
+fn u64_count_ones(value: u64) -> u32:
+    value.count_ones()
+
+fn u64_leading_zeros(value: u64) -> u32:
+    value.leading_zeros()
+
+fn u64_trailing_zeros(value: u64) -> u32:
+    value.trailing_zeros()

@@ -1,0 +1,81 @@
+# test: generic bit counts ignore sign extension and preserve the declared width at zero and boundaries
+# Spec std/num Bit Counts: std-num.bits.count-ones-u32, std-num.bits.leading-zeros-u32, std-num.bits.signed, std-num.bits.trailing-zeros-u32, std-num.bits.trailing-zero-width (issue #760).
+use std.num.Integer
+use std.testing.assert_equal
+
+fn check_bits[N < Integer](low: N, high: N, width: u32) -> void:
+    zero := N::zero()
+    one := N::one()
+    all_ones := ~zero
+    top := one << (width - 1)
+    below_top := all_ones ^ top
+    let count: u32 = zero.count_ones()
+    let zeros: u32 = zero.leading_zeros()
+    assert_equal(count, 0, reason="zero has no one bits")
+    assert_equal(zeros, width, reason="zero has the declared number of leading zeros")
+    assert_equal(one.count_ones(), 1, reason="one has one one bit")
+    assert_equal(one.leading_zeros(), width - 1, reason="one is the least significant bit")
+    assert_equal(all_ones.count_ones(), width, reason="ones stop at the declared width")
+    assert_equal(all_ones.leading_zeros(), 0, reason="all ones include the top bit")
+    assert_equal(top.count_ones(), 1, reason="only the top bit is set")
+    assert_equal(top.leading_zeros(), 0, reason="the top bit has no leading zeros")
+    assert_equal(below_top.count_ones(), width - 1, reason="every bit below the top")
+    assert_equal(below_top.leading_zeros(), 1, reason="only the top bit is clear")
+    sparse := one | (one << 2)
+    assert_equal(sparse.count_ones(), 2, reason="two nonadjacent low bits")
+    assert_equal(sparse.leading_zeros(), width - 3, reason="the highest sparse bit")
+    let trailing: u32 = zero.trailing_zeros()
+    assert_equal(trailing, width, reason="zero has the declared number of trailing zeros")
+    assert_equal(one.trailing_zeros(), 0, reason="one has no trailing zeros")
+    assert_equal(low.trailing_zeros(), if low == zero: width else: width - 1, reason="the minimum is zero or the sign bit")
+    assert_equal(high.trailing_zeros(), 0, reason="every maximum is odd")
+    assert_equal(top.trailing_zeros(), width - 1, reason="only the top bit is set")
+    assert_equal(all_ones.trailing_zeros(), 0, reason="all ones include the low bit")
+    assert_equal(below_top.trailing_zeros(), 0, reason="the low bit remains set")
+    assert_equal((one << 3).trailing_zeros(), 3, reason="three low zero bits")
+
+tests:
+    it("i8 bit counts"):
+        let low: i8 = -128
+        let high: i8 = 127
+        check_bits(low, high, 8)
+
+    it("u8 bit counts"):
+        let low: u8 = 0
+        let high: u8 = 255
+        check_bits(low, high, 8)
+
+    it("i16 bit counts"):
+        let low: i16 = -32768
+        let high: i16 = 32767
+        check_bits(low, high, 16)
+
+    it("u16 bit counts"):
+        let low: u16 = 0
+        let high: u16 = 65535
+        check_bits(low, high, 16)
+
+    it("i32 bit counts"):
+        let low: i32 = -2147483648
+        let high: i32 = 2147483647
+        check_bits(low, high, 32)
+
+    it("u32 bit counts"):
+        let low: u32 = 0
+        let high: u32 = 4294967295
+        check_bits(low, high, 32)
+
+    it("i64 bit counts"):
+        let low: i64 = -9223372036854775808
+        let high: i64 = 9223372036854775807
+        check_bits(low, high, 64)
+
+    it("u64 bit counts"):
+        let low: u64 = 0
+        let high: u64 = 18446744073709551615
+        check_bits(low, high, 64)
+
+    it("usize bit counts"):
+        let low: usize = 0
+        let high: usize = 4294967295
+        check_bits(low, high, 32)

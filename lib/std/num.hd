@@ -222,27 +222,21 @@ impl[N < Integer] N:
 
     ## The number of one bits in the value.
     ## See [std-num.bits.count-ones-u32](../../spec/std/num.md#r-std-num.bits.count-ones-u32).
+    @intrinsic("int_count_ones")
     pub fn count_ones(self) -> u32:
-        zero := N::zero()
-        let count: u32 = 0
-        let bit = N::one()
-        while bit != zero:
-            if (self & bit) != zero:
-                count = count + 1
-            bit = bit << 1
-        count
+        panic("intrinsic")
 
-    # Read from the low bit up: a set bit resets the count of zeros above it.
     ## The number of zero bits before the value's first one bit.
     ## See [std-num.bits.leading-zeros-u32](../../spec/std/num.md#r-std-num.bits.leading-zeros-u32).
+    @intrinsic("int_leading_zeros")
     pub fn leading_zeros(self) -> u32:
-        zero := N::zero()
-        let zeros: u32 = 0
-        let bit = N::one()
-        while bit != zero:
-            zeros = if (self & bit) != zero: 0 else: zeros + 1
-            bit = bit << 1
-        zeros
+        panic("intrinsic")
+
+    ## The number of zero bits after the value's last one bit, or its width for zero.
+    ## See [std-num.bits.trailing-zeros-u32](../../spec/std/num.md#r-std-num.bits.trailing-zeros-u32).
+    @intrinsic("int_trailing_zeros")
+    pub fn trailing_zeros(self) -> u32:
+        panic("intrinsic")
 
 # Rotation moves the bits of the fixed-width form around the ends
 # (r-std-num.rotate.left). The count is taken modulo the bit width, and the

@@ -891,7 +891,7 @@ std/num.md	3	accept	runtime/valid/num-saturating.hd
 std/num.md	4	accept	runtime/valid/num-abs-diff.hd
 std/num.md	5	mixed	typing/invalid/num-abs-diff-unsigned.hd
 std/num.md	6	accept	runtime/valid/num-integer-u64.hd
-std/num.md	7	accept	runtime/valid/num-bit-counts.hd
+std/num.md	7	accept	runtime/valid/num-bit-counts.hd|runtime/valid/num-bit-count-widths.hd
 std/num.md	8	accept	runtime/valid/num-is-finite.hd|runtime/valid/num-is-nan.hd
 std/num.md	9	accept	runtime/valid/num-float-bits.hd
 std/num.md	10	accept	runtime/valid/num-float-total-cmp.hd

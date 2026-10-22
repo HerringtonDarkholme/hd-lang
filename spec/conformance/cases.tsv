@@ -3029,6 +3029,7 @@ runtime/valid/num-every-width.hd	runtime	accept	std/num.md#r-std-num.methods.eve
 runtime/valid/num-wrapping-mul.hd	runtime	accept	std/num.md#r-std-num.wrapping.mul
 runtime/valid/num-intrinsic-boundaries.hd	runtime	accept	std/num.md#r-std-num.methods.every-width
 runtime/valid/num-bit-counts.hd	runtime	accept	std/num.md#bit-counts
+runtime/valid/num-bit-count-widths.hd	runtime	accept	std/num.md#r-std-num.bits.trailing-zeros-u32
 runtime/valid/num-is-finite.hd	runtime	accept	std/num.md#r-std-num.is-finite
 runtime/valid/num-float-bits.hd	runtime	accept	std/num.md#r-std-num.float-bits.to
 runtime/valid/num-float-total-cmp.hd	runtime	accept	std/num.md#r-std-num.float-total-cmp.order

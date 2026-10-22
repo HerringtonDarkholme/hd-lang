@@ -2519,6 +2519,49 @@ impl Em<'_, '_, '_> {
                 }
                 self.store(i)
             }
+            // Count only the declared width, not a narrow signed value's
+            // sign extension; every public count result is `u32`.
+            "int_count_ones" | "int_leading_zeros" | "int_trailing_zeros" => {
+                let (bits, signed, float) = self.num(self.ty_of(args[0]));
+                if float {
+                    return unsupported("integer bit count of a float");
+                }
+                self.push(args[0])?;
+                let ones = key == "int_count_ones";
+                let trailing = key == "int_trailing_zeros";
+                if bits == 64 {
+                    self.f.op(if ones {
+                        I::I64Popcnt
+                    } else if trailing {
+                        I::I64Ctz
+                    } else {
+                        I::I64Clz
+                    });
+                    self.f.op(I::I32WrapI64);
+                } else {
+                    if bits < 32 && trailing {
+                        // The sentinel makes zero count to its declared
+                        // width; high sign bits cannot affect trailing zeros.
+                        self.f.i32(1i32 << bits);
+                        self.f.op(I::I32Or);
+                    } else if bits < 32 && signed {
+                        self.f.i32(width_mask(bits));
+                        self.f.op(I::I32And);
+                    }
+                    self.f.op(if ones {
+                        I::I32Popcnt
+                    } else if trailing {
+                        I::I32Ctz
+                    } else {
+                        I::I32Clz
+                    });
+                    if !ones && !trailing && bits < 32 {
+                        self.f.i32(i32::from(32 - bits));
+                        self.f.op(I::I32Sub);
+                    }
+                }
+                self.store(i)
+            }
             // std's `format_int[N < Integer](value: N)`.
             "format_int" => {
                 let t = self.ty_of(args[0]);

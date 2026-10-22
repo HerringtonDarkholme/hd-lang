@@ -8,7 +8,7 @@ This chapter defines the numeric APIs of `std.num`:
   overflow explicit;
 - `abs_diff`, the distance between two integers;
 - `to_u64` and `from_u64`, the conversions of `Integer` to and from `u64`;
-- the bit counts `count_ones` and `leading_zeros`;
+- the bit counts `count_ones`, `leading_zeros`, and `trailing_zeros`;
 - the rotations `rotate_left` and `rotate_right`;
 - `is_nan` and `is_finite` on `f32` and `f64`;
 - `total_cmp`, the total order of floats;
@@ -180,6 +180,13 @@ fn bit_length(value: u32) -> u32:
 
 fn drop_flagged(value: u64, flags: u8) -> u64:
     value >> flags.count_ones()  # a u32 shift count, no cast
+
+fn low_bit(value: u64) -> u32:
+    value.trailing_zeros()  # 8 has three trailing zeros.
+
+fn zero_width() -> u32:
+    let zero: u16 = 0
+    zero.trailing_zeros()  # 16, the type's bit width.
 ```
 
 | Rule | Method | Result |
@@ -189,6 +196,12 @@ fn drop_flagged(value: u64, flags: u8) -> u64:
 
 1. r[std-num.bits.signed] A signed value counts its two's-complement bits, so `-1` as `i8` has 8 ones, and a negative value has no leading zeros.
 2. r[std-num.bits.no-panic] A bit count never panics.
+3. r[std-num.bits.trailing-zeros-u32] `trailing_zeros(self) -> u32` returns the number of zero bits below the lowest one bit of its integer receiver.
+4. r[std-num.bits.trailing-zero-width] For a zero value, `trailing_zeros` returns the bit width of its integer type.
+
+> **Note.** The compiler supplies intrinsic bit-count bodies using Wasm
+> population-count, leading-zero and trailing-zero instructions. Narrow
+> counts use the declared width, and every result is `u32`.
 
 > **Why.** `u32` is an accepted shift-count type
 > ([`expr.op.std.shift-unsigned`](../lang/05-expressions.md#r-expr.op.std.shift-unsigned)),
