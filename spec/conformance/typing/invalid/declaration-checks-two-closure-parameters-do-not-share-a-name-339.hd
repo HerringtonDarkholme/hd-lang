@@ -1,0 +1,4 @@
+# test: declaration checks two closure parameters do not share a name
+fn work() -> i32:
+    f := fn(a: i32, a: i32) -> i32: a  # diagnostic: duplicate-binding
+    f(1, 2)

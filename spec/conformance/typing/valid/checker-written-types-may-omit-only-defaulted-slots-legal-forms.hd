@@ -1,0 +1,16 @@
+# test: checker written types may omit only defaulted slots
+struct Pair[A, B = A]:
+    first: A
+    second: B
+trait Same[Other = Self]:
+    fn same(self, other: Other) -> bool
+trait Repo[T]:
+    fn find(self, id: string) -> T?
+
+fn case_127(p: Pair[i32, i64]) -> void: pass
+
+fn case_128(p: Pair[i32]) -> void: pass
+
+fn case_129(r: &dyn Repo[i32]) -> void: pass
+
+fn case_130() -> void $ Repo[i32]: pass

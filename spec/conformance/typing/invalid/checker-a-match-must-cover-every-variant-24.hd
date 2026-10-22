@@ -1,0 +1,12 @@
+# test: checker a match must cover every variant
+enum Color:
+    Red
+    Green
+
+fn f(c: Color?) -> i32:
+    match c:  # diagnostic: nonexhaustive-match
+        .Some(.Red) => 1
+        .None => 0
+
+pub fn main() -> void $ Console:
+    println(f(.None))

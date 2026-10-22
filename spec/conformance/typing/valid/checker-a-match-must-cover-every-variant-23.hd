@@ -1,0 +1,14 @@
+# test: checker a match must cover every variant
+enum Color:
+    Red
+    Green
+    Blue
+
+fn code(c: Color) -> i32:
+    match c:
+        .Red => 1
+        .Green => 2
+        .Blue => 3
+
+pub fn main() -> void $ Console:
+    println(code(.Red))

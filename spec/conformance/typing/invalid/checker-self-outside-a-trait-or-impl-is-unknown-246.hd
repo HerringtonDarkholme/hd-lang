@@ -1,0 +1,3 @@
+# test: checker self outside a trait or impl is unknown
+fn g(x: Self) -> i32:  # diagnostic: unknown-type
+    1

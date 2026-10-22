@@ -1,0 +1,7 @@
+# test: declaration checks two method parameters do not share a name
+struct Box:
+    value: i32
+
+impl Box:
+    pub fn add(self, n: i32, n: i32) -> i32:  # diagnostic: duplicate-binding
+        n

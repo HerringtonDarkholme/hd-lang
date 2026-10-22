@@ -1,0 +1,4 @@
+# test: declaration checks two closure parameters do not share a name
+fn work() -> i32:
+    f := fn(a: i32, b: i32) -> i32: a + b
+    f(1, 2)

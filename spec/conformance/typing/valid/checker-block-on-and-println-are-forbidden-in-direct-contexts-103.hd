@@ -1,0 +1,16 @@
+# test: checker block on and println are forbidden in direct contexts
+use std.task.block_on
+
+fn ready!() -> i32: 42
+struct Tag:
+    name: string
+fn tag_of[T](source: T) -> Tag: Tag { name: "t" }
+fn done[T](end: T) -> i32: 1
+fn text!() -> string: "t"
+
+@tag_of("a")
+struct D:
+    id: i32
+
+pub fn main() -> void:
+    pass

@@ -1,0 +1,7 @@
+# test: declaration checks a tests block declares each name once
+tests:
+    fn sample() -> i32: 1
+    fn other() -> i32: 2
+
+    it("uses the sample"):
+        pass

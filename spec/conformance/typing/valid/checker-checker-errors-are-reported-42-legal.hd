@@ -1,0 +1,6 @@
+# test: checker checker errors are reported
+fn f(a: i32, b: i32) -> i32:
+    a + b
+
+pub fn main() -> void $ Console:
+    println(f(1, b = 2))

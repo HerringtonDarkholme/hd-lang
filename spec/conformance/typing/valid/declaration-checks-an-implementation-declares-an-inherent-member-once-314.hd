@@ -1,0 +1,6 @@
+# test: declaration checks an implementation declares an inherent member once
+struct User: pass
+
+impl User:
+    fn name(self) -> string: "first"
+    fn title(self) -> string: "second"

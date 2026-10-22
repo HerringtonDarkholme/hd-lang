@@ -1,0 +1,15 @@
+# test: declaration checks the depth limit counts generic embedding
+struct Stamp:
+    at: i32
+
+struct Tag:
+    Stamp
+    label: string
+
+struct Box[T]:
+    Tag
+    value: T
+
+struct Order:
+    note: string
+    Box[i32]

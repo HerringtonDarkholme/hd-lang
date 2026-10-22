@@ -1,0 +1,7 @@
+# test: declaration checks an embedded field names a data type
+struct JobStatus:
+    label: string
+
+struct Job:
+    JobStatus
+    id: string

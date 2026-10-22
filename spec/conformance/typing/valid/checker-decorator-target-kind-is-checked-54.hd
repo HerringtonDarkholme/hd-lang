@@ -1,0 +1,16 @@
+# test: checker decorator target kind is checked
+use std.annotation.annotate
+
+@annotate(.Field)
+struct MaxLen:
+    value: i32
+
+fn max_len(value: i32) -> MaxLen:
+    MaxLen { value: value }
+
+struct Profile:
+    @max_len(80)
+    name: string
+
+pub fn main() -> void:
+    pass

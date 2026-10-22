@@ -1,0 +1,5 @@
+# test: checker defaults must not be followed by a required parameter
+enum Status(code: i32 = 0, phrase: string = ""):
+    Unknown -> Status(phrase="u")
+pub fn main() -> void:
+    pass

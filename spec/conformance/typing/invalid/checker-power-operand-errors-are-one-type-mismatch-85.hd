@@ -1,0 +1,4 @@
+# test: checker power operand errors are one type mismatch
+fn f(b: f64) -> f64: b ** 2  # diagnostic: type-mismatch
+pub fn main() -> void:
+    pass

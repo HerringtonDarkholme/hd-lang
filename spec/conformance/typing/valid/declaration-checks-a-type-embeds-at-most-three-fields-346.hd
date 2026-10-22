@@ -1,0 +1,18 @@
+# test: declaration checks a type embeds at most three fields
+struct Created:
+    created_at: i32
+
+struct Updated:
+    updated_at: i32
+
+struct Owned:
+    owner: string
+
+struct Tagged:
+    tag: string
+
+struct Post:
+    Created
+    Updated
+    Owned
+    title: string

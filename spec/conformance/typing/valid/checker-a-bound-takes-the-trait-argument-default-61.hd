@@ -1,0 +1,17 @@
+# test: checker a bound takes the trait argument default
+use std.ops.Add
+
+struct Money:
+    cents: i64
+
+impl Add for Money:
+    type Out = Money
+    fn add(self, rhs: Money) -> Money:
+        Money { cents: self.cents + rhs.cents }
+
+fn twice[T < Add[Out = T]](x: T) -> T:
+    x + x
+
+pub fn main() -> void:
+    _m := twice(Money { cents: 2 })
+    pass

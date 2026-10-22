@@ -1,0 +1,14 @@
+# test: checker top level bindings are read in order
+struct Box:
+    value: i32
+trait Reader:
+    fn read(self) -> i32
+fn via_bound[T < Reader](value: T) -> i32:
+    value.read()
+later := +5
+impl Reader for Box:
+    fn read(self) -> i32:
+        later
+bounded := via_bound(Box { value: 2 })
+pub fn main() -> void:
+    pass

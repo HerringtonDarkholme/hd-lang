@@ -1,0 +1,3 @@
+# test: checker self outside a trait or impl is unknown
+struct P:
+    s: string

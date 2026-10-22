@@ -1,0 +1,16 @@
+# test: annotation member names direct members self and variants stay silent
+use std.structure.Structure
+
+struct User:
+    name: string
+
+impl User by Structure:
+    Self += []
+    name = []
+
+enum Reply:
+    Sent(id: i64)
+    Busy
+
+impl Reply by Structure:
+    Busy = []

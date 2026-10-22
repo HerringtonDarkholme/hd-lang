@@ -1,0 +1,4 @@
+# test: declaration checks data field names are unique
+struct Invoice:
+    number: string
+    total: i64

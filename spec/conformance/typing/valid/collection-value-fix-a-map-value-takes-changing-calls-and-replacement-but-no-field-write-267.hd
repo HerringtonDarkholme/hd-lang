@@ -1,0 +1,12 @@
+# test: collection value fix a map value takes changing calls and replacement but no field write
+struct Point:
+    x: i32
+    y: i32
+
+fn f() -> usize:
+    let mut m: Map[string, List[i32]] = {}
+    m["a"] = []
+    m["a"].push(1)
+    let mut n: Map[string, i32] = {"k": 1}
+    n["k"] += 1
+    m["a"].len()

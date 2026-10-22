@@ -1,0 +1,7 @@
+# test: declaration checks a cycle through a generic type is a cycle
+struct Holder:
+    id: string
+
+struct Wrapper[T]:
+    Holder
+    value: T

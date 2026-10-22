@@ -1,0 +1,7 @@
+# test: declaration checks an unknown shorthand suppresses the missing field error
+struct Point:
+    x: i32
+    y: i32
+
+fn fixed(x: i32, y: i32) -> Point:
+    Point { x, y }

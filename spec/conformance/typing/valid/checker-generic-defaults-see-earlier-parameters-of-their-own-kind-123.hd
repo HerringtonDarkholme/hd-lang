@@ -1,0 +1,5 @@
+# test: checker generic defaults see earlier parameters of their own kind
+struct Box[T = i32]:
+    value: T
+pub fn main() -> void:
+    pass

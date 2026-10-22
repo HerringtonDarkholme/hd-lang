@@ -1,0 +1,7 @@
+# test: declaration checks a cycle is reported once in its first declared type
+struct Node:
+    id: string
+
+struct Edge:
+    Node
+    weight: i32

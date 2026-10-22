@@ -1,0 +1,12 @@
+# test: bare trait body explicit type argument is one error
+trait Factory:
+    fn create() -> Self
+
+struct Box[T]:
+    value: T
+
+fn id[T](x: T) -> T: x
+
+pub fn main() -> void:
+    a := id::[Factory](panic("x"))  # diagnostic: trait-used-as-type
+    _ := a

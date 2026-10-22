@@ -1,0 +1,9 @@
+# test: checker inferred result of a late read reports once
+x := inferred()  # diagnostic: top-level-read-before-initialization
+offset := +1
+
+fn inferred():
+    offset * 2
+
+pub fn main() -> void:
+    pass

@@ -1,0 +1,9 @@
+# test: checker skipped bindings are not initialized
+fn f(flag: bool) -> string:
+    if flag && (name := "Ada") != "":
+        pass
+    else:
+        return name  # diagnostic: possibly-uninitialized-binding
+    "x"
+pub fn main() -> void:
+    pass

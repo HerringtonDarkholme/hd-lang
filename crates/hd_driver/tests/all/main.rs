@@ -3,26 +3,21 @@
 //! `conformance.rs` stays a separate target (CI runs it on its own).
 
 mod all_wakes;
-mod ambiguous_row_fit;
-mod annotation_member_names;
 mod assoc_call_qualified;
 mod assoc_types;
 mod assoc_validation;
 mod bare_trait_body;
 mod block_decorator;
 mod by_structure_import;
-mod caret_is_xor;
 mod checker;
 mod closure_parameter_annotation;
 mod coherence_scale;
 mod collection_value_fix;
-mod combinator_call_forms;
 mod competing_drivers;
 mod constant_defaults;
 mod context_values;
 mod cycle_linking;
 mod dbg_release;
-mod declaration_checks;
 mod decorator_misplaced;
 mod default_args_run;
 mod derivation_line_drift;
@@ -31,7 +26,6 @@ mod derive_run;
 mod derived_bound_unmet;
 mod derived_default_declared;
 mod diagnostic_messages;
-mod downcast_check;
 mod duplicate_facts;
 mod dyn_ref_value_fix;
 mod enclosing_bounds;

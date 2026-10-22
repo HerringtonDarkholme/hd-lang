@@ -1,0 +1,18 @@
+# test: ambiguous row fit explicit arguments disambiguate
+trait Repo[T]:
+    fn number(self) -> i32
+
+struct User: pass
+struct Post: pass
+
+struct Job[A, B]:
+    callback: fn() -> i32 $ Repo[A] + Repo[B]
+
+fn read_both() -> i32 $ Repo[User] + Repo[Post]:
+    0
+
+fn schedule() -> void:
+    _ := Job::[User, Post] { callback: read_both }
+
+pub fn main() -> void:
+    pass

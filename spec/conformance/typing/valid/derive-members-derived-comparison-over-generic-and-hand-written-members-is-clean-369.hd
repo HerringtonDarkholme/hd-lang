@@ -1,0 +1,18 @@
+# test: derive members derived comparison over generic and hand written members is clean
+@derive(Eq)
+struct Box[T]:
+    value: T
+
+struct Token:
+    id: i32
+
+impl Eq for Token:
+    fn eq(self, other: Token) -> bool:
+        self.id == other.id
+
+@derive(Eq)
+struct Holder:
+    token: Token
+
+@derive(Eq, Hash)
+type Mile(i32)

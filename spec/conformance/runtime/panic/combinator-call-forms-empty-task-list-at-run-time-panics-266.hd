@@ -1,0 +1,10 @@
+# test: combinator call forms empty task list at run time panics
+use std.task.{all, race}
+
+fn one!() -> i32: 1
+
+fn two!() -> i32: 2
+
+pub fn main!() -> void $ Console:
+    let none: List[mut Suspend[i32]] = []
+    println(race!(none...))  # panic: explicit-panic

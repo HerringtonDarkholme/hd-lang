@@ -1,0 +1,15 @@
+# test: declaration checks an embedding chain is at most three deep
+struct Stamp:
+    at: i32
+
+struct Audit:
+    Stamp
+    by: string
+
+struct Record:
+    Audit
+    id: string
+
+struct Page:
+    Record
+    title: string

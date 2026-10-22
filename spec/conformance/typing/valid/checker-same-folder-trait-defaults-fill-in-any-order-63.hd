@@ -1,0 +1,25 @@
+# test: checker same folder trait defaults fill in any order
+# fixture-package-tree: checker-trait-defaults/src/main.hd
+use pkg.zz.{Same, Convert}
+
+struct Money:
+    cents: i64
+
+impl Same for Money:
+    fn same(self, other: Money) -> bool:
+        self.cents == other.cents
+
+impl Convert[i64] for Money:
+    fn convert(self, a: i64) -> i64:
+        self.cents + a
+
+fn check[T < Same](left: T, right: T) -> bool:
+    left.same(right)
+
+fn plus[T < Convert[i64]](x: T) -> i64:
+    x.convert(1)
+
+pub fn main() -> void:
+    _a := check(Money { cents: 1 }, Money { cents: 1 })
+    _b := plus(Money { cents: 1 })
+    pass

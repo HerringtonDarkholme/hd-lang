@@ -1,0 +1,13 @@
+# test: checker written types may omit only defaulted slots
+struct Pair[A, B = A]:
+    first: A
+    second: B
+trait Same[Other = Self]:
+    fn same(self, other: Other) -> bool
+trait Repo[T]:
+    fn find(self, id: string) -> T?
+
+fn f(p: Pair) -> void: pass  # diagnostic: partial-generic-arguments
+
+pub fn main() -> void:
+    pass

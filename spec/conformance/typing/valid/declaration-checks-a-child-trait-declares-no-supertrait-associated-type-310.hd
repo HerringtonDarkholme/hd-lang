@@ -1,0 +1,6 @@
+# test: declaration checks a child trait declares no supertrait associated type
+trait Feed:
+    type Item
+
+trait PriceFeed < Feed:
+    type Price

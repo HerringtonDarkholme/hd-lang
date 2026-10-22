@@ -1,0 +1,32 @@
+# test: bare trait body nested in tuple and option is one error
+trait Factory:
+    fn create() -> Self
+
+struct Box[T]:
+    value: T
+
+fn id[T](x: T) -> T: x
+
+fn body_8() -> void:
+    let a: (&dyn Factory, i32) = panic("x")
+    _ := a
+
+fn body_9() -> void:
+    let a: Box[&dyn Factory] = panic("x")
+    _ := a
+
+fn body_10() -> void:
+    f := fn(x: &dyn Factory) -> i32: 1
+    _ := f
+
+fn body_11() -> void:
+    f := fn(x: i32) -> &dyn Factory: panic("x")
+    _ := f
+
+fn body_12() -> void:
+    a := id::[&dyn Factory](panic("x"))
+    _ := a
+
+fn body_13() -> void:
+    fn local(p: &dyn Factory) -> void: pass
+    local(panic("x"))

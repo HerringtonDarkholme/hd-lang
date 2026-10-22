@@ -1,0 +1,9 @@
+# test: checker supertraits form no cycle
+trait A:
+    fn a(self) -> void
+
+trait B < A:
+    fn b(self) -> void
+
+pub fn main() -> void:
+    pass

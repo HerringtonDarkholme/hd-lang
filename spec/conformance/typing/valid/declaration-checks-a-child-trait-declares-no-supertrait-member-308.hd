@@ -1,0 +1,9 @@
+# test: declaration checks a child trait declares no supertrait member
+trait Greeter:
+    fn greet(self) -> string
+
+trait Polite < Greeter:
+    fn thank(self) -> string
+
+trait Loud < Polite:
+    fn shout(self) -> string

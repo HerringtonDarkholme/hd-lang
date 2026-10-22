@@ -1,0 +1,4 @@
+# test: declaration checks a payload parameter does not repeat a shared one
+enum Status(code: i32):
+    Ok -> Status(200)
+    Moved(target: i32) -> Status(301)

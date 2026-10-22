@@ -1,0 +1,6 @@
+# test: declaration checks a supertrait is listed once
+trait Parent
+
+trait Other
+
+trait Twice < Parent & Other

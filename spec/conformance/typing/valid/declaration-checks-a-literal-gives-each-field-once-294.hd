@@ -1,0 +1,7 @@
+# test: declaration checks a literal gives each field once
+struct User:
+    name: string
+
+user := User {
+    name: "Ada",
+}

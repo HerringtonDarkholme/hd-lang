@@ -1,0 +1,6 @@
+# test: checker duplicate literal arms are unreachable
+fn f(p: (string, i32)) -> i32:
+    match p:
+        ("a", _) => 1
+        ("b", 2) => 2
+        _ => 3

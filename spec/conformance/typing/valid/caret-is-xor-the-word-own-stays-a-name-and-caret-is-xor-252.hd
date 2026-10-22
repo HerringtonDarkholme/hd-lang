@@ -1,0 +1,15 @@
+# test: caret is xor the word own stays a name and caret is xor
+struct File:
+    fd: i32
+
+pub fn main() -> void:
+    pass
+
+fn twice(own: i32) -> i32:
+    let mine = own
+    own + mine
+
+fn xor(a: i32, b: i32) -> i32:
+    let c = a ^ b
+    c ^= a
+    c

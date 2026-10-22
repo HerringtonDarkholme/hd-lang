@@ -1,0 +1,7 @@
+# test: checker checker errors are reported
+fn f(t: (i32, i32)) -> i32:
+    let (a, b) = t
+    a
+
+pub fn main() -> void $ Console:
+    println(f((1, 2)))

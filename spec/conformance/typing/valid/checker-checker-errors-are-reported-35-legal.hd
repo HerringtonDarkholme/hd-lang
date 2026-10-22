@@ -1,0 +1,4 @@
+# test: checker checker errors are reported
+pub fn main() -> void $ Console:
+    let v: Result[i32, string] = .Ok(1)
+    println(1)

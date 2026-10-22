@@ -1,0 +1,17 @@
+# test: checker pattern bindings are read in order
+struct Point:
+    x: i32
+    y: i32
+fn find() -> i32?:
+    .Some(+4)
+let (a, (b, _)) = (+1, (+2, +3))
+let Point { x, y: far } = Point { x: +5, y: +6 }
+let .Some(found) = find() else:
+    panic("none")
+fn total() -> i32:
+    a + b + x + far + found
+sum := total()
+later := a + far
+
+pub fn main() -> void:
+    pass

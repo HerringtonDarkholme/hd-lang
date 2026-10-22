@@ -1,0 +1,7 @@
+# test: checker integer literals take their default types
+pub fn main() -> void:
+    x := 3
+    y := +3
+    z := -1
+    let w: usize = z  # diagnostic: type-mismatch
+    pass

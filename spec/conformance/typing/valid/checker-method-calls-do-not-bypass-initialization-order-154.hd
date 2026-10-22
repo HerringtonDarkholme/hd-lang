@@ -1,0 +1,28 @@
+# test: checker method calls do not bypass initialization order
+offset := +1
+use std.ops.{Add}
+struct Meter:
+    scale: i32
+struct Holder[T]:
+    value: T
+trait Reads:
+    fn reads(self) -> i32:
+        offset
+impl Meter:
+    fn read(self) -> i32:
+        self.scale + offset
+    fn zero() -> Meter:
+        Meter { scale: offset }
+impl[T] Holder[T]:
+    fn get(self) -> i32:
+        offset
+impl Add for Meter:
+    type Out = Meter
+    fn add(self, other: Meter) -> Meter:
+        Meter { scale: self.scale + other.scale + offset }
+impl Reads for Meter
+made := Meter { scale: +2 }
+reading := made.reads()
+
+pub fn main() -> void:
+    pass

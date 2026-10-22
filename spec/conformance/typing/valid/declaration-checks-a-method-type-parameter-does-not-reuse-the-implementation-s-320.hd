@@ -1,0 +1,7 @@
+# test: declaration checks a method type parameter does not reuse the implementation s
+struct Box[+T]:
+    value: T
+
+impl[T] Box[T]:
+    pub fn echo[U](self, value: U) -> U:
+        value

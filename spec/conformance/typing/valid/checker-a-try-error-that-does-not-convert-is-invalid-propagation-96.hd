@@ -1,0 +1,29 @@
+# test: checker a try error that does not convert is invalid propagation
+use std.error.Error
+use std.convert.From
+
+struct Parse:
+    text: string
+
+impl Display for Parse:
+    fn to_string(self) -> string: self.text
+
+impl Error for Parse
+
+struct Wrapped:
+    parse: Parse
+
+impl From[Parse] for Wrapped:
+    fn from(value: Parse) -> Wrapped: Wrapped { parse: value }
+
+fn parse() -> Result[i32, Parse]:
+    .Err(Parse { text: "x" })
+
+fn word() -> Result[i32, i64]:
+    .Err(1)
+
+fn f() -> Result[i32, Wrapped]:
+    .Ok(parse()?)
+
+pub fn main() -> void:
+    pass

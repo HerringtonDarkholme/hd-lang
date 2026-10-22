@@ -1,0 +1,11 @@
+# test: checker a closed join site takes a later value as any type does
+fn first(xs: List[i32]) -> Option[i32]:
+    xs.get(0)
+
+fn pick(xs: List[i32]) -> Option[i32]:
+    let x = if xs.len() > 0: first(xs) else: first(xs)
+    x = +3
+    x
+
+pub fn main() -> void $ Console:
+    println(pick([+1]).unwrap_or(+0))

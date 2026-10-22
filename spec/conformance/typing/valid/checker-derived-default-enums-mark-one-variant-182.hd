@@ -1,0 +1,8 @@
+# test: checker derived default enums mark one variant
+use std.ops.{Default, default}
+enum Mode:
+    Fast
+    Slow
+
+pub fn main() -> void:
+    pass

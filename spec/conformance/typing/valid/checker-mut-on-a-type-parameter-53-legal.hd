@@ -1,0 +1,10 @@
+# test: checker mut on a type parameter
+struct Feed[T]:
+    latest: T
+
+impl[T] Feed[T]:
+    pub fn swap(self, other: T) -> void:
+        pass
+
+pub fn main() -> void:
+    pass

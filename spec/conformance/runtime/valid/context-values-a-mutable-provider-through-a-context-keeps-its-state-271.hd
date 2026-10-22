@@ -1,0 +1,30 @@
+# test: context values a mutable provider through a context keeps its state
+# expect-stdout: 2
+# expect-stdout: 3
+trait Counter:
+    fn count(&self) -> i32
+    fn bump(&mut self) -> void
+
+struct Memory:
+    value: i32
+
+impl Counter for Memory:
+    fn count(&self) -> i32: self.value
+
+    fn bump(&mut self) -> void:
+        self.value = self.value + 1
+
+fn tick() -> i32 $ Counter:
+    $.use(Counter).bump()
+    $.use(Counter).count()
+
+fn counters() -> $.Context[$ Counter]:
+    $.context(Counter=&mut Memory { value: 0 })
+
+pub fn main() -> void $ Console:
+    ctx := counters()
+    $.with(ctx...):
+        _ := tick()
+        println(tick())
+    $.with(ctx...):
+        println(tick())

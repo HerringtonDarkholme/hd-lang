@@ -1,0 +1,14 @@
+# test: checker pattern bindings are read in order
+struct Point:
+    x: i32
+    y: i32
+fn find() -> i32?:
+    .Some(+4)
+early := found  # diagnostic: top-level-read-before-initialization
+let (a, (b, _)) = (+1, (+2, +3))
+let Point { x, y: far } = Point { x: +5, y: +6 }
+let .Some(found) = find() else:
+    panic("none")
+
+pub fn main() -> void:
+    pass

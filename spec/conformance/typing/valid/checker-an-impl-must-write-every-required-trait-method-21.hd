@@ -1,0 +1,11 @@
+# test: checker an impl must write every required trait method
+trait Named:
+    fn name(self) -> string:
+        "named"
+
+struct User: pass
+
+impl Named for User
+
+pub fn main() -> void $ Console:
+    println(1)

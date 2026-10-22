@@ -1,0 +1,23 @@
+# test: checker implementation heads are well formed
+use std.function.Fn
+
+trait Marker
+trait Log:
+    fn write(self, text: string) -> void
+trait Holder[T]:
+    fn get(self) -> T
+trait Store:
+    type Item
+    fn first(self) -> Self::Item
+trait Summary:
+    fn summary(self) -> string
+struct User:
+    name: string
+struct Feed[I]:
+    items: I
+type Person = User
+
+impl Marker for List[&dyn Display]
+
+pub fn main() -> void:
+    pass

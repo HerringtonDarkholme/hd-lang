@@ -1,0 +1,7 @@
+# test: declaration checks a shorthand field counts as given
+struct Coordinate:
+    lat: i32
+    lon: i32
+
+fn pin(lat: i32, lon: i32) -> Coordinate:
+    Coordinate { lat, lon }

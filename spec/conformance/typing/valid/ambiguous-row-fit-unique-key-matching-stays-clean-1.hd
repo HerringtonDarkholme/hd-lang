@@ -1,0 +1,17 @@
+# test: ambiguous row fit unique key matching stays clean
+trait Repo[T]:
+    fn number(self) -> i32
+
+struct User: pass
+
+struct Box[A]:
+    callback: fn() -> i32 $ Repo[A]
+
+fn read_user() -> i32 $ Repo[User]:
+    0
+
+fn schedule() -> void:
+    _ := Box { callback: read_user }
+
+pub fn main() -> void:
+    pass

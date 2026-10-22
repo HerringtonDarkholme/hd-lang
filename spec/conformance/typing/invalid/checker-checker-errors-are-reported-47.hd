@@ -1,0 +1,7 @@
+# test: checker checker errors are reported
+fn f(t: (i32, i32)) -> i32:
+    let (a, a) = t  # diagnostic: duplicate-binding
+    a
+
+pub fn main() -> void $ Console:
+    println(f((1, 2)))

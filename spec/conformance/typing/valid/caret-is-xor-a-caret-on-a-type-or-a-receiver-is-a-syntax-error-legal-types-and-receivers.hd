@@ -1,0 +1,12 @@
+# test: caret is xor a caret on a type or a receiver is a syntax error
+struct File:
+    fd: i32
+
+fn fill(f: &mut File) -> void: pass
+
+fn make(f: File) -> void:
+    let v: File = f
+
+impl File:
+    fn peek(self) -> i32: 0
+    fn reset(&mut self) -> void: pass

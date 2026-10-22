@@ -1,0 +1,4 @@
+# test: checker generic arguments and parameters have a kind
+trait Handler[$R]  # diagnostic: generic-kind-mismatch
+pub fn main() -> void:
+    pass

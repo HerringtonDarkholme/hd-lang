@@ -1,0 +1,7 @@
+# test: checker foreign loop hint does not reject a defined loop
+fn loop(body: fn() -> void) -> void:
+    body()
+
+pub fn main() -> void:
+    loop:
+        pass

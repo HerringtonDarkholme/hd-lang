@@ -1,0 +1,14 @@
+# test: checker contextual variants with an expected type are clean
+fn case_241(c: bool) -> i32?:
+    if c: 1 else: .None
+
+fn case_242() -> List[i32?]:
+    [1, .None]
+
+fn case_243(o: i32?) -> i32:
+    match o:
+        .Some(p) => p
+        .None => 0
+
+fn case_244(o: i32?) -> bool:
+    .None == o

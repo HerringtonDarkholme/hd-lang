@@ -1,0 +1,37 @@
+# test: context values a later entry wins over a spread
+# expect-stdout: over,log:base
+# expect-stdout: base
+# expect-stdout: explicit
+# expect-stdout: over,log:base
+pub trait Tag:
+    fn name(self) -> string
+
+pub trait Log:
+    fn tag(self) -> string
+
+struct Named:
+    label: string
+
+impl Tag for Named:
+    fn name(self) -> string: self.label
+
+impl Log for Named:
+    fn tag(self) -> string: "log:" + self.label
+
+fn current() -> string $ Tag:
+    $.use(Tag).name()
+
+fn both() -> string $ Tag + Log:
+    $.use(Tag).name() + "," + $.use(Log).tag()
+
+pub fn main() -> void $ Console:
+    base := $.context(Tag=Named { label: "base" }, Log=Named { label: "base" })
+    over := $.context(base..., Tag=Named { label: "over" })
+    $.with(over...):
+        println(both())
+    $.with(Tag=Named { label: "explicit" }, base...):
+        println(current())
+    $.with(base..., Tag=Named { label: "explicit" }):
+        println(current())
+    $.with(base..., over...):
+        println(both())

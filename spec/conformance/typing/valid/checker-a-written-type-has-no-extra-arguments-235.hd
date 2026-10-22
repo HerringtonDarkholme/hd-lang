@@ -1,0 +1,4 @@
+# test: checker a written type has no extra arguments
+fn f(names: List[string]) -> i32: 0
+pub fn main() -> void:
+    pass

@@ -1,0 +1,22 @@
+# test: checker skipped bindings are not initialized
+fn case_169(flag: bool) -> string:
+    if flag && (name := "Ada") != "":
+        name
+    else:
+        "none"
+
+fn case_170(args: List[string]) -> string:
+    if args.len() < 2 || (name := args[1]) == "":
+        return "usage"
+    "hello $name"
+
+fn case_171() -> i32:
+    if (size := 3) > 0:
+        size
+    else:
+        size
+
+fn case_172(flag: bool) -> string:
+    if !(flag && (name := "x") != ""):
+        return "no"
+    name

@@ -1,0 +1,4 @@
+# test: checker a rejected power is an error value
+fn f(e: i32) -> f64: 2 ** e  # diagnostic: type-mismatch
+pub fn main() -> void:
+    pass

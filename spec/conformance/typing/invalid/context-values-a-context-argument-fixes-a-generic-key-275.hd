@@ -1,0 +1,16 @@
+# test: context values a context argument fixes a generic key
+trait Repo[T]
+
+trait Log
+
+struct Ints: pass
+
+impl Repo[i32] for Ints
+
+impl Log for Ints
+
+fn take[T](ctx: $.Context[$ Repo[T]]) -> void:
+    pass
+
+fn run() -> void:
+    take($.context(Repo[i32]=Ints {}, Log=Ints {}))  # diagnostic: type-mismatch

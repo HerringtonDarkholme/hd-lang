@@ -1,0 +1,5 @@
+# test: declaration checks variant names are unique
+enum Color:
+    Red
+    Green
+    Blue

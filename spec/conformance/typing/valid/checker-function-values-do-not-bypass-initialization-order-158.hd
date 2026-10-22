@@ -1,0 +1,17 @@
+# test: checker function values do not bypass initialization order
+struct Meter:
+    scale: i32
+fn run(f: fn() -> i32) -> i32:
+    f()
+fn run_with(f: fn(Meter) -> i32, m: Meter) -> i32:
+    f(m)
+offset := +1
+fn helper() -> i32:
+    offset
+impl Meter:
+    fn read(self) -> i32:
+        self.scale + offset
+got := run(helper)
+
+pub fn main() -> void:
+    pass

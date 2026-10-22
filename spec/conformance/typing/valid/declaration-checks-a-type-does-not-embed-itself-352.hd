@@ -1,0 +1,7 @@
+# test: declaration checks a type does not embed itself
+struct Leaf:
+    id: string
+
+struct Loop:
+    Leaf
+    id: string

@@ -1,0 +1,4 @@
+# test: checker a vararg must be the last parameter
+fn f(first: i32, values...: List[i32]) -> i32: first
+pub fn main() -> void:
+    pass

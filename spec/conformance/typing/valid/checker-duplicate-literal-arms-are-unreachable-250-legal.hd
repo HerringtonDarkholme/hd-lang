@@ -1,0 +1,6 @@
+# test: checker duplicate literal arms are unreachable
+fn f(x: f64) -> i32:
+    match x:
+        1.5 => 1
+        2.5 => 2
+        _ => 3

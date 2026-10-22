@@ -1,0 +1,9 @@
+# test: checker restarted joins keep skipped bindings
+fn f(flag: bool, found: i32?) -> (i32?, i32):
+    r := if flag && (n := 3) > 0:
+        n
+    else:
+        found
+    (r, n)  # diagnostic: possibly-uninitialized-binding
+pub fn main() -> void:
+    pass

@@ -1,0 +1,4 @@
+# test: declaration checks a closure parameter does not reuse a type parameter
+fn work[T](value: T) -> i32:
+    f := fn(n: i32) -> i32: n
+    f(1)

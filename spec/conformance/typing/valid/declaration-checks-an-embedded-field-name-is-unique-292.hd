@@ -1,0 +1,10 @@
+# test: declaration checks an embedded field name is unique
+struct Box[T]:
+    value: T
+
+struct Tag:
+    label: string
+
+struct Storage:
+    Box[i32]
+    Tag

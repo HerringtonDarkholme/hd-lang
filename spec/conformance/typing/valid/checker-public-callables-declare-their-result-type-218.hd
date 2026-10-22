@@ -1,0 +1,11 @@
+# test: checker public callables declare their result type
+trait Sized:
+    fn size(self) -> i32
+struct Box:
+    width: i32
+
+impl Sized for Box:
+    fn size(self) -> i32: self.width
+
+pub fn main() -> void:
+    pass

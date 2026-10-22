@@ -103,20 +103,3 @@ fn each_fix_makes_the_program_check_clean() {
         assert_eq!(codes(&diags(&out)), Vec::<Code>::new(), "{body}: {out}");
     }
 }
-
-#[test]
-fn a_map_value_takes_changing_calls_and_replacement_but_no_field_write() {
-    let accepted = "\
-fn f() -> usize:
-    let mut m: Map[string, List[i32]] = {}
-    m[\"a\"] = []
-    m[\"a\"].push(1)
-    let mut n: Map[string, i32] = {\"k\": 1}
-    n[\"k\"] += 1
-    m[\"a\"].len()
-";
-    assert_eq!(
-        codes(&diags(&format!("{PRELUDE}{accepted}"))),
-        Vec::<Code>::new()
-    );
-}

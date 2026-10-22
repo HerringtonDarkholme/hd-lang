@@ -1,0 +1,12 @@
+# test: bare trait body nested in tuple and option is one error
+trait Factory:
+    fn create() -> Self
+
+struct Box[T]:
+    value: T
+
+fn id[T](x: T) -> T: x
+
+pub fn main() -> void:
+    let a: (Factory, i32) = panic("x")  # diagnostic: trait-used-as-type
+    _ := a

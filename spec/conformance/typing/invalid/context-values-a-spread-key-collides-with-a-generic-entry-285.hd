@@ -1,0 +1,10 @@
+# test: context values a spread key collides with a generic entry
+trait Repo[T]
+
+struct User: pass
+struct Post: pass
+
+fn choose[T, U](first: &dyn Repo[T], second: &dyn Repo[U]) -> void:
+    base := $.context(Repo[T]=first)
+    $.with(base..., Repo[U]=second):  # diagnostic: generic-requirement-key-collision
+        pass

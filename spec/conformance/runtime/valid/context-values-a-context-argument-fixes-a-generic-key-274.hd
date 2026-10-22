@@ -1,0 +1,23 @@
+# test: context values a context argument fixes a generic key
+# expect-stdout: 5
+# expect-stdout: five
+trait Repo[T]:
+    fn get(self) -> T
+
+struct Ints: pass
+
+impl Repo[i32] for Ints:
+    fn get(self) -> i32: 5
+
+struct Words: pass
+
+impl Repo[string] for Words:
+    fn get(self) -> string: "five"
+
+fn fetch[T](ctx: $.Context[$ Repo[T]]) -> T:
+    $.with(ctx...):
+        $.use(Repo[T]).get()
+
+pub fn main() -> void $ Console:
+    println(fetch($.context(Repo[i32]=Ints {})))
+    println(fetch($.context(Repo[string]=Words {})))

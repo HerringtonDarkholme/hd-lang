@@ -1,0 +1,5 @@
+pub trait Same[Other = Self]:
+    fn same(self, other: Other) -> bool
+
+pub trait Convert[A, B = A]:
+    fn convert(self, a: A) -> B

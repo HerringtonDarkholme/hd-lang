@@ -1,0 +1,30 @@
+# test: context values the empty context installs nothing
+# expect-stdout: outer
+pub trait Tag:
+    fn name(self) -> string
+
+pub trait Log:
+    fn tag(self) -> string
+
+struct Named:
+    label: string
+
+impl Tag for Named:
+    fn name(self) -> string: self.label
+
+impl Log for Named:
+    fn tag(self) -> string: "log:" + self.label
+
+fn current() -> string $ Tag:
+    $.use(Tag).name()
+
+fn both() -> string $ Tag + Log:
+    $.use(Tag).name() + "," + $.use(Log).tag()
+
+fn none() -> $.Context[$()]:
+    $.context()
+
+pub fn main() -> void $ Console:
+    $.with(Tag=Named { label: "outer" }):
+        $.with(none()...):
+            println(current())

@@ -1,0 +1,12 @@
+# test: checker defaults must not be followed by a required parameter
+fn case_111(a: i32 = 1, b: i32 = 2) -> i32: a + b
+
+fn case_112(a: i32, b: i32 = 2) -> i32: a + b
+
+fn case_113(a: i32 = 1, rest...: List[i32]) -> i32: a
+
+fn case_114(a: i32 = 1, body: fn() -> void) -> i32: a
+
+fn case_115[A = i32, B = i64](v: A) -> A: v
+
+fn case_116[A, B = i64](v: A) -> A: v

@@ -1,0 +1,3 @@
+# test: declaration checks two trait method parameters do not share a name
+trait Tr:
+    fn m(self, n: i32, m: i32) -> i32

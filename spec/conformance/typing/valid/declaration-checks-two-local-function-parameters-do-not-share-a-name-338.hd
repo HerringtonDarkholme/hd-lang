@@ -1,0 +1,5 @@
+# test: declaration checks two local function parameters do not share a name
+fn work() -> i32:
+    fn inner(a: i32, b: i32) -> i32:
+        a + b
+    inner(1, 2)

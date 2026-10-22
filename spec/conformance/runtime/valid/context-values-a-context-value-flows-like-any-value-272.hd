@@ -1,0 +1,39 @@
+# test: context values a context value flows like any value
+# expect-stdout: held
+# expect-stdout: listed
+# expect-stdout: held!
+pub trait Tag:
+    fn name(self) -> string
+
+pub trait Log:
+    fn tag(self) -> string
+
+struct Named:
+    label: string
+
+impl Tag for Named:
+    fn name(self) -> string: self.label
+
+impl Log for Named:
+    fn tag(self) -> string: "log:" + self.label
+
+fn current() -> string $ Tag:
+    $.use(Tag).name()
+
+fn both() -> string $ Tag + Log:
+    $.use(Tag).name() + "," + $.use(Log).tag()
+
+struct Holder:
+    ctx: $.Context[$ Tag]
+
+fn run(job: fn() -> string $ Tag) -> string $ Tag:
+    job()
+
+pub fn main() -> void $ Console:
+    holder := Holder { ctx: $.context(Tag=Named { label: "held" }) }
+    all := [holder.ctx, $.context(Tag=Named { label: "listed" })]
+    for ctx in all:
+        $.with(ctx...):
+            println(run(current))
+    $.with(holder.ctx...):
+        println(run(fn(): $.use(Tag).name() + "!"))

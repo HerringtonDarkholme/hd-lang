@@ -1,0 +1,10 @@
+# test: downcast check an unknown method with type arguments on a trait value is one error
+use std.inspect.Inspectable
+
+fn name_of(value: &dyn Inspectable) -> string:
+    match value.nothing::[fn() -> string]():  # diagnostic: unknown-method
+        .Some(_) => "x"
+        .None => "x"
+
+pub fn main() -> void:
+    pass

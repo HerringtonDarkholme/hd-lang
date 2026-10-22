@@ -1,0 +1,4 @@
+# test: checker power operand errors are one type mismatch
+fn f(c: char) -> char: c ** 2  # diagnostic: type-mismatch
+pub fn main() -> void:
+    pass

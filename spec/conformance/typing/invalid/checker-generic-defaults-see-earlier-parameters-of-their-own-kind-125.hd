@@ -1,0 +1,4 @@
+# test: checker generic defaults see earlier parameters of their own kind
+fn f[A = A](v: A) -> A: v  # diagnostic: binding-not-yet-visible
+pub fn main() -> void:
+    pass

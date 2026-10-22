@@ -1,0 +1,5 @@
+# test: declaration checks a local function parameter does not reuse a type parameter
+fn work[T](value: T) -> i32:
+    fn inner(T: i32) -> i32:  # diagnostic: duplicate-binding
+        T
+    inner(1)

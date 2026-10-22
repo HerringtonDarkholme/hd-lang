@@ -1,0 +1,33 @@
+# test: context values a spread context serves suspending calls
+# expect-stdout: async
+# expect-stdout: asyncasync
+pub trait Tag:
+    fn name(self) -> string
+
+pub trait Log:
+    fn tag(self) -> string
+
+struct Named:
+    label: string
+
+impl Tag for Named:
+    fn name(self) -> string: self.label
+
+impl Log for Named:
+    fn tag(self) -> string: "log:" + self.label
+
+fn current() -> string $ Tag:
+    $.use(Tag).name()
+
+fn both() -> string $ Tag + Log:
+    $.use(Tag).name() + "," + $.use(Log).tag()
+
+fn load!() -> string $ Tag:
+    $.use(Tag).name()
+
+pub fn main!() -> void $ Console:
+    ctx := $.context(Tag=Named { label: "async" })
+    $.with(ctx...):
+        let pending: mut Suspend[string] = load()
+        println(pending!())
+        println(load!() + current())

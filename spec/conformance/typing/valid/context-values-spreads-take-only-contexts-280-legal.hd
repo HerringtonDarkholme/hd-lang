@@ -1,0 +1,24 @@
+# test: context values spreads take only contexts
+pub trait Tag:
+    fn name(self) -> string
+
+pub trait Log:
+    fn tag(self) -> string
+
+struct Named:
+    label: string
+
+impl Tag for Named:
+    fn name(self) -> string: self.label
+
+impl Log for Named:
+    fn tag(self) -> string: "log:" + self.label
+
+fn current() -> string $ Tag:
+    $.use(Tag).name()
+
+fn both() -> string $ Tag + Log:
+    $.use(Tag).name() + "," + $.use(Log).tag()
+
+fn run() -> void:
+    _ := $.context(Tag=Named { label: "ok" })

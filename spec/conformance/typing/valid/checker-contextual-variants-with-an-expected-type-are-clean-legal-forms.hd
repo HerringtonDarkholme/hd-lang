@@ -1,0 +1,10 @@
+# test: checker contextual variants with an expected type are clean
+fn case_237() -> i32?:
+    let v: i32? = .None
+    v
+
+fn case_238() -> i32?:
+    .Some(1)
+
+fn case_239() -> Result[i32, string]:
+    .Ok(1)

@@ -1,0 +1,27 @@
+# test: context values trait values serve as context providers
+# expect-stdout: 71
+trait Clock:
+    fn now(self) -> i32
+
+trait Backup < Clock:
+    fn label(self) -> i32
+
+struct Fixed: pass
+
+impl Clock for Fixed:
+    fn now(self) -> i32: 7
+
+impl Backup for Fixed:
+    fn label(self) -> i32: 1
+
+fn make() -> $.Context[$ Clock + Backup] $ Backup:
+    $.context(Clock=$.use(Backup), Backup=$.use(Backup))
+
+fn read() -> i32 $ Clock + Backup:
+    $.use(Clock).now() * 10 + $.use(Backup).label()
+
+pub fn main() -> void $ Console:
+    $.with(Backup=Fixed {}):
+        ctx := make()
+        $.with(ctx...):
+            println(read())

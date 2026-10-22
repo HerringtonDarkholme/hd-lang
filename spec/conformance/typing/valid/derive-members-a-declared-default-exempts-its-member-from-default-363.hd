@@ -1,0 +1,13 @@
+# test: derive members a declared default exempts its member from default
+use std.ops.Default
+
+struct Secret:
+    value: i32
+
+@derive(Default)
+struct Vault:
+    secret: Secret = Secret { value: 7 }
+    count: i32
+
+pub fn main() -> void:
+    pass

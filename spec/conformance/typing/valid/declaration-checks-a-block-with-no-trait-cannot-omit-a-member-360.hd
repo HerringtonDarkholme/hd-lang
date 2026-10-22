@@ -1,0 +1,12 @@
+# test: declaration checks a block with no trait cannot omit a member
+use std.structure.Structure
+
+struct Token:
+    text: string = ""
+
+struct Account:
+    id: i64
+    token: Token = Token {}
+
+impl Account by Structure:
+    token = []

@@ -1,0 +1,9 @@
+# test: caret is xor a caret on a type or a receiver is a syntax error
+struct File:
+    fd: i32
+
+pub fn main() -> void:
+    pass
+
+impl File:
+    fn reset(^&mut self) -> void: pass  # diagnostic: syntax-error

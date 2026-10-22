@@ -1,0 +1,43 @@
+# test: checker an impl body calls its siblings through a projection binding
+trait Show:
+    fn show(self) -> i32
+
+impl Show for i32:
+    fn show(self) -> i32:
+        self
+
+impl[T < Show] Show for List[T]:
+    fn show(self) -> i32:
+        0
+
+trait Sink:
+    type Error
+    fn put(&mut self, n: i32) -> Result[void, Self::Error]
+
+trait Walk:
+    type Error
+    fn one(&mut self) -> Result[void, Self::Error]
+    fn item[F < Show](&mut self, value: F) -> Result[void, Self::Error]
+    fn two(&mut self) -> Result[void, Self::Error]
+    fn three[T < Show](&mut self, v: List[T]) -> Result[void, Self::Error]
+
+struct W[K < Sink]:
+    pub out: K
+
+impl[K < Sink] Walk for W[K]:
+    type Error = K::Error
+
+    fn one(&mut self) -> Result[void, K::Error]:
+        self.out.put(1)
+
+    fn item[F < Show](&mut self, value: F) -> Result[void, K::Error]:
+        self.out.put(value.show())
+
+    fn two(&mut self) -> Result[void, K::Error]:
+        self.one()
+
+    fn three[T < Show](&mut self, v: List[T]) -> Result[void, K::Error]:
+        self.item(v)
+
+pub fn main() -> void $ Console:
+    println(1)

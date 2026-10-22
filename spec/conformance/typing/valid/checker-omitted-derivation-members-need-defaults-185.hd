@@ -1,0 +1,44 @@
+# test: checker omitted derivation members need defaults
+use std.structure.{Structure, Field, Variant, Walker}
+
+trait Show:
+    fn show(self) -> string
+
+impl Show for i64:
+    fn show(self) -> string:
+        "$self"
+
+struct Shower:
+    out: string
+
+impl[S] Walker[S] for Shower:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F < Show](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.out = self.out + value.show() + ";"
+        .Ok(())
+
+impl[T] Show for T by Structure:
+    fn show(self) -> string:
+        let mut w = Shower { out: "" }
+        _ := Structure::walk(self, &mut w)
+        w.out
+
+struct Token:
+    value: string
+
+struct Audit:
+    at: i64
+
+struct Account:
+    id: i64
+    token: Token = Token { value: "" }
+
+impl Show for Account by Structure:
+    token = pass
+
+pub fn main() -> void:
+    pass

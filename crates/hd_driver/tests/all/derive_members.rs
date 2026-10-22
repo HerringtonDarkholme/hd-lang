@@ -88,25 +88,6 @@ impl[T] Show for T by Structure:
 }
 
 #[test]
-fn a_declared_default_exempts_its_member_from_default() {
-    let src = "use std.ops.Default
-
-struct Secret:
-    value: i32
-
-@derive(Default)
-struct Vault:
-    secret: Secret = Secret { value: 7 }
-    count: i32
-
-pub fn main() -> void:
-    pass
-";
-    let out = analyze(src);
-    assert_eq!(codes(&out), Vec::<Code>::new(), "{}", out.render());
-}
-
-#[test]
 fn walker_written_in_place() {
     let src = show_lib("Shower { out: \"\" }")
         + "
@@ -188,19 +169,6 @@ impl Show for Bad by Structure:
     assert!(msgs[1].contains("`cache`"), "{msgs:?}");
 }
 
-#[test]
-fn generic_target_meets_the_bound_through_its_derived_bound() {
-    let src = show_lib("shower()")
-        + "
-@derive(Show)
-struct Box[T]:
-    value: T
-    count: i64
-";
-    let out = analyze(&src);
-    assert_eq!(codes(&out), Vec::<Code>::new(), "{}", out.render());
-}
-
 /// The template lives in another folder of the package; editing only its
 /// helper's body reaches the deriving module's check.
 #[test]
@@ -240,131 +208,4 @@ pub fn main() -> void:
     src.insert("lib/show.hd", &lib("shower()"));
     let strict = build_with(&src, &store);
     assert_eq!(messages(&strict).len(), 1, "{}", strict.render());
-}
-
-/// The line (1-based) of the first diagnostic of `code`.
-fn line_of(out: &Output, src: &str, code: Code) -> Option<usize> {
-    let i = out
-        .diags
-        .content_order()
-        .into_iter()
-        .find(|&i| out.diags.code[i] == code)?;
-    let lo = out.diags.primary[i].lo as usize;
-    Some(src[..lo].matches('\n').count() + 1)
-}
-
-#[test]
-fn derived_hash_field_without_hash_is_reported_at_the_field() {
-    let src = "struct Opaque: pass
-
-@derive(Eq, Hash)
-struct Key:
-    value: Opaque
-";
-    let out = analyze(src);
-    // The field misses Eq and Hash: one error at the field.
-    assert_eq!(
-        codes(&out),
-        vec![Code::DeriveFieldMissingTrait],
-        "{}",
-        out.render()
-    );
-    assert_eq!(line_of(&out, src, Code::DeriveFieldMissingTrait), Some(5));
-}
-
-#[test]
-fn derived_total_order_over_a_float_is_reported_at_the_field() {
-    let src = "@derive(Eq, PartialOrd, Ord)
-struct Measurement:
-    value: f64
-";
-    let out = analyze(src);
-    assert_eq!(
-        codes(&out),
-        vec![Code::DeriveFieldMissingTrait],
-        "{}",
-        out.render()
-    );
-    assert_eq!(line_of(&out, src, Code::DeriveFieldMissingTrait), Some(3));
-}
-
-#[test]
-fn derived_eq_enum_payload_without_eq_is_reported_at_the_payload() {
-    let src = "struct Socket:
-    port: i32
-
-@derive(Eq)
-enum Endpoint:
-    Local(path: string)
-    Remote(socket: Socket)
-";
-    let out = analyze(src);
-    assert_eq!(
-        codes(&out),
-        vec![Code::DeriveFieldMissingTrait],
-        "{}",
-        out.render()
-    );
-    assert_eq!(line_of(&out, src, Code::DeriveFieldMissingTrait), Some(7));
-}
-
-#[test]
-fn derived_newtype_base_without_the_trait_is_reported_at_the_base() {
-    let src = "struct Opaque: pass
-
-@derive(Eq)
-type Wrapped(Opaque)
-";
-    let out = analyze(src);
-    assert_eq!(
-        codes(&out),
-        vec![Code::DeriveFieldMissingTrait],
-        "{}",
-        out.render()
-    );
-    assert_eq!(line_of(&out, src, Code::DeriveFieldMissingTrait), Some(4));
-}
-
-#[test]
-fn derived_comparison_over_generic_and_hand_written_members_is_clean() {
-    let src = "@derive(Eq)
-struct Box[T]:
-    value: T
-
-struct Token:
-    id: i32
-
-impl Eq for Token:
-    fn eq(self, other: Token) -> bool:
-        self.id == other.id
-
-@derive(Eq)
-struct Holder:
-    token: Token
-
-@derive(Eq, Hash)
-type Mile(i32)
-";
-    let out = analyze(src);
-    assert_eq!(codes(&out), Vec::<Code>::new(), "{}", out.render());
-}
-
-#[test]
-fn derive_of_other_traits_still_reports_member_not_derivable() {
-    let src = "use std.ops.Default
-
-struct Secret:
-    value: i32
-
-@derive(Default)
-struct Vault:
-    secret: Secret
-";
-    let out = analyze(src);
-    assert_eq!(
-        codes(&out),
-        vec![Code::MemberNotDerivable],
-        "{}",
-        out.render()
-    );
 }
