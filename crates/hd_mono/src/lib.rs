@@ -3242,7 +3242,7 @@ fn pinned(
 }
 
 fn note_data(pool: &InternPool, env: &dyn ProgramEnv, t: Ty, out: &mut BTreeSet<DefIdOrd>) {
-    if let TyData::Adt { def, .. } = pool.get(t)
+    if let Some((def, _)) = pool.adt(t)
         && env.data_fields(def).is_some()
         && out.insert(DefIdOrd(env.path_hash(def), def.raw()))
     {

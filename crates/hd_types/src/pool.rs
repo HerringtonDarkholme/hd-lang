@@ -765,6 +765,16 @@ impl InternPool {
     pub fn get(&self, t: Ty) -> TyData {
         self.types().get(t)
     }
+    /// [`Types::adt`].
+    #[must_use]
+    pub fn adt(&self, t: Ty) -> Option<(DefId, TyList)> {
+        self.types().adt(t)
+    }
+    /// [`Types::trait_value`].
+    #[must_use]
+    pub fn trait_value(&self, t: Ty) -> Option<(DefId, TyList)> {
+        self.types().trait_value(t)
+    }
     #[must_use]
     pub fn has_infer(&self, t: Ty) -> bool {
         self.types().has_infer(t)
@@ -1036,6 +1046,29 @@ impl<'a> Types<'a> {
                 rest: None,
             }),
         }
+    }
+
+    /// An ADT's definition and argument-list identity.
+    #[must_use]
+    pub fn adt(self, t: Ty) -> Option<(DefId, TyList)> {
+        let (c, i) = self.at(t.0);
+        if c.tag[i] != PoolTag::Adt {
+            return None;
+        }
+        let off = c.data[i];
+        Some((DefId::from_raw(c.extra[off]), TyList(c.extra[off + 1])))
+    }
+
+    /// A trait value's trait and argument-list identity, without allocating
+    /// associated bindings. Callers that need bindings still use `get`.
+    #[must_use]
+    pub fn trait_value(self, t: Ty) -> Option<(DefId, TyList)> {
+        let (c, i) = self.at(t.0);
+        if c.tag[i] != PoolTag::TraitValue {
+            return None;
+        }
+        let off = c.data[i];
+        Some((DefId::from_raw(c.extra[off]), TyList(c.extra[off + 1])))
     }
 
     /// Decodes a type (§3.4 `TyView`).
@@ -1659,6 +1692,151 @@ pub fn with_assoc_args(pool: Types<'_>, t: Ty, trait_: DefId, args: TyList) -> T
 mod tests {
     use super::{Inputs, InternPool, LocalPool, Prim, RowData, RowId, Ty, TyData, TyList, Types};
     use hd_base::DefId;
+
+    #[test]
+    fn head_readers_preserve_arguments_and_associated_bindings() {
+        let g = InternPool::new();
+        let local = LocalPool::new();
+        let p = Types::with_local(&g, &local);
+        let var = p.intern_ty(&TyData::Infer(hd_base::InferVar::from_raw(3)));
+        let def = DefId::from_raw(7);
+        let assoc = DefId::from_raw(9);
+        for inner in [Ty::I32, var] {
+            let args = p.list(&[inner]);
+            let adt_form = TyData::Adt { def, args };
+            let trait_form = TyData::TraitValue {
+                def,
+                args,
+                bindings: vec![(assoc, inner)],
+            };
+            let adt = p.intern_ty(&adt_form);
+            let value = p.intern_ty(&trait_form);
+            assert_eq!(adt.is_local(), inner.is_local());
+            assert_eq!(value.is_local(), inner.is_local());
+            assert_eq!(p.adt(adt), Some((def, args)));
+            assert_eq!(p.trait_value(adt), None);
+            assert_eq!(p.trait_value(value), Some((def, args)));
+            assert_eq!(p.adt(value), None);
+            if !inner.is_local() {
+                assert_eq!(g.adt(adt), Some((def, args)));
+                assert_eq!(g.trait_value(value), Some((def, args)));
+            }
+            assert_eq!(p.list_items(args), &[inner]);
+            assert_eq!(p.get(adt), adt_form);
+            assert_eq!(p.get(value), trait_form, "associated bindings are retained");
+        }
+        // A local binding can make the record local while its arguments stay global.
+        let args = p.list(&[Ty::I32]);
+        let form = TyData::TraitValue {
+            def,
+            args,
+            bindings: vec![(assoc, var)],
+        };
+        let value = p.intern_ty(&form);
+        assert!(value.is_local() && !Ty(args.0).is_local());
+        assert_eq!(p.trait_value(value), Some((def, args)));
+        assert_eq!(p.list_items(args), &[Ty::I32]);
+        assert_eq!(p.get(value), form, "local associated binding is retained");
+    }
+
+    #[test]
+    fn head_readers_do_not_unwrap_other_type_forms() {
+        let g = InternPool::new();
+        let p = g.types();
+        let def = DefId::from_raw(7);
+        let args = p.list(&[Ty::I32]);
+        let adt = p.intern_ty(&TyData::Adt { def, args });
+        let value = p.intern_ty(&TyData::TraitValue {
+            def,
+            args,
+            bindings: vec![],
+        });
+        for inner in [adt, value] {
+            for form in [
+                TyData::Mut(inner),
+                TyData::Ref {
+                    inner,
+                    mutable: false,
+                },
+                TyData::Ref {
+                    inner,
+                    mutable: true,
+                },
+                TyData::Option(inner),
+                TyData::Tuple {
+                    elems: args,
+                    rest: None,
+                },
+                TyData::Tuple {
+                    elems: args,
+                    rest: Some(inner),
+                },
+            ] {
+                let t = p.intern_ty(&form);
+                assert_eq!(p.adt(t), None);
+                assert_eq!(p.trait_value(t), None);
+            }
+        }
+        for t in [Ty::I32, Ty::NEVER, Ty::POISON, Ty::VOID] {
+            assert_eq!(p.adt(t), None);
+            assert_eq!(p.trait_value(t), None);
+        }
+    }
+
+    #[test]
+    fn head_readers_reject_foreign_body_even_for_a_wrong_tag() {
+        let g = InternPool::new();
+        let local = LocalPool::new();
+        // Avoid an incidental four-bit stamp collision with concurrent tests.
+        let other = loop {
+            let candidate = LocalPool::new();
+            if candidate.generation != local.generation {
+                break candidate;
+            }
+        };
+        let p = Types::with_local(&g, &local);
+        let t = p.intern_ty(&TyData::Infer(hd_base::InferVar::from_raw(3)));
+        let foreign = Types::with_local(&g, &other);
+        let other_var = foreign.intern_ty(&TyData::Infer(hd_base::InferVar::from_raw(3)));
+        assert_eq!(t.0 & super::LOCAL_ROW, other_var.0 & super::LOCAL_ROW);
+        assert_ne!(t, other_var, "the bodies have distinct generations");
+        let rejects = |read: &dyn Fn(), why: &str| {
+            let panic = std::panic::catch_unwind(std::panic::AssertUnwindSafe(read))
+                .expect_err("a body-local type must be read only in its body");
+            let message = panic
+                .downcast_ref::<String>()
+                .map(String::as_str)
+                .or_else(|| panic.downcast_ref::<&str>().copied())
+                .expect("ownership panic has a string message");
+            assert!(message.contains(why), "unexpected panic: {message}");
+        };
+        let another = "a body-local type read in another body";
+        rejects(
+            &|| {
+                let _ = foreign.adt(t);
+            },
+            another,
+        );
+        rejects(
+            &|| {
+                let _ = foreign.trait_value(t);
+            },
+            another,
+        );
+        let outside = "a body-local type read outside its body";
+        rejects(
+            &|| {
+                let _ = g.types().adt(t);
+            },
+            outside,
+        );
+        rejects(
+            &|| {
+                let _ = g.types().trait_value(t);
+            },
+            outside,
+        );
+    }
 
     #[test]
     fn preseeded_constants() {

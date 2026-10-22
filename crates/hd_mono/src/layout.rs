@@ -96,7 +96,7 @@ pub fn inline_map_key(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> bool {
 /// identity stays nominal; only layouts strip.
 #[must_use]
 pub fn strip_newtype(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> Ty {
-    let TyData::Adt { mut def, mut args } = pool.get(t) else {
+    let Some((mut def, mut args)) = pool.adt(t) else {
         return t;
     };
     let Some(mut base) = env.newtype_base(def) else {
@@ -107,17 +107,13 @@ pub fn strip_newtype(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> Ty {
     // far above real nesting, without stopping valid repeated wrappers
     // such as `Foo[Foo[i32]]` at a repeated declaration.
     for _ in 0..1_000 {
-        let argv = pool.list_items(args);
+        let substitutions = pool.list_items(args);
         t = pool.subst(base, &|p: ParamRef| {
             (p.owner == def)
-                .then(|| argv.get(usize::from(p.index)).copied())
+                .then(|| substitutions.get(usize::from(p.index)).copied())
                 .flatten()
         });
-        let TyData::Adt {
-            def: next_def,
-            args: next_args,
-        } = pool.get(t)
-        else {
+        let Some((next_def, next_args)) = pool.adt(t) else {
             break;
         };
         let Some(next_base) = env.newtype_base(next_def) else {

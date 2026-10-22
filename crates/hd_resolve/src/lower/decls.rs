@@ -191,7 +191,7 @@ impl Folder<'_, '_> {
         let mut visited = HashSet::from_iter([owner]);
         let mut todo = supers.to_vec();
         while let Some(s) = todo.pop() {
-            let TyData::TraitValue { def, .. } = pool.get(s) else {
+            let Some((def, _)) = pool.trait_value(s) else {
                 continue;
             };
             if !visited.insert(def) {

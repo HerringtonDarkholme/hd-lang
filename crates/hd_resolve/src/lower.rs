@@ -1839,10 +1839,7 @@ impl Lower<'_, '_, '_> {
     }
 
     fn trait_of(&self, t: Ty) -> Option<DefId> {
-        match self.names.pool.get(t) {
-            TyData::TraitValue { def, .. } => Some(def),
-            _ => None,
-        }
+        self.names.pool.trait_value(t).map(|(def, _)| def)
     }
 
     fn row(&mut self, n: Option<NodeRef<'_>>, gn: &Gen) -> RowId {
@@ -2568,10 +2565,11 @@ impl Lower<'_, '_, '_> {
                     // `Structure` is named only inside a template, never as
                     // a parameter bound (`annot.structure.named-positions`).
                     if self.r.frozen.is_none()
-                        && matches!(
-                            self.names.pool.get(bound),
-                            TyData::TraitValue { def, .. } if def == self.names.known.structure
-                        )
+                        && self
+                            .names
+                            .pool
+                            .trait_value(bound)
+                            .is_some_and(|(def, _)| def == self.names.known.structure)
                     {
                         self.diags.error(
                             Code::StructureOutsideTemplate,
@@ -2604,10 +2602,7 @@ impl Lower<'_, '_, '_> {
             if !row && let Some(slot) = gn.tys[start..].iter_mut().find(|(s, _, _)| *s == g.name) {
                 slot.2 = bounds
                     .iter()
-                    .filter_map(|b| match self.names.pool.get(*b) {
-                        TyData::TraitValue { def, args, .. } => Some((def, args)),
-                        _ => None,
-                    })
+                    .filter_map(|b| self.names.pool.trait_value(*b))
                     .collect();
             }
             if let Some((_, t, _)) = gn.tys[start..].iter().find(|(s, _, _)| *s == g.name) {
@@ -4668,10 +4663,8 @@ fn supertrait_cycles(
                 .get(&h.def)
                 .into_iter()
                 .flatten()
-                .filter_map(|t| match pool.get(*t) {
-                    TyData::TraitValue { def, .. } => index.get(&def).copied(),
-                    _ => None,
-                })
+                .filter_map(|t| pool.trait_value(*t))
+                .filter_map(|(def, _)| index.get(&def).copied())
                 .collect()
         })
         .collect();
