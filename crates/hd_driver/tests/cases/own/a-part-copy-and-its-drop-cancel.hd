@@ -1,0 +1,23 @@
+# @dump: own counts
+# Pair cancellation: a part read whose base is read again later copies
+# (move's liveness is per base), and the base's drop releases that part
+# afterwards. With nothing in between that touches the part, the copy
+# moves and the drop goes. In `.Square(n, k)` the decision tree reads `n`
+# before `k`; the move of `k` leaves a drop of `n`, which goes with the
+# copy of `n`: no count operation on either field (the `counts` view
+# builds the old path).
+enum Shape:
+    Circle(r: string)
+    Square(n: string, k: string)
+
+fn make(i: i32) -> Shape:
+    if i > 0:
+        .Square("a${i}", "b")
+    else:
+        .Circle("c")
+
+fn describe(i: i32) -> string:
+    # subject
+    match make(i):
+        .Square(n, k) => n + k
+        .Circle(r) => r

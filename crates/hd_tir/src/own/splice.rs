@@ -40,6 +40,9 @@ pub(crate) struct Tables {
     /// (block, statement): statements to delete, which nothing uses (a
     /// `Drop` the move pass makes unneeded).
     removed: Vec<(u32, u32)>,
+    /// Per edit: withdrawn by a later pass before the splice (a `Drop`
+    /// that pair cancellation deletes), so it is never spliced in.
+    cancelled: Vec<bool>,
     dead: Vec<bool>,
     blocks: Vec<u32>,
     start: Vec<u32>,
@@ -57,6 +60,7 @@ impl Tables {
         self.edits.clear();
         self.rewrites.clear();
         self.removed.clear();
+        self.cancelled.clear();
     }
 
     /// Records a new instruction before position `pos` of block `blk`, and
@@ -78,7 +82,29 @@ impl Tables {
             ty,
             syn,
         });
+        self.cancelled.push(false);
         u32::try_from(self.edits.len() - 1).expect("edits")
+    }
+
+    /// How many instructions are recorded.
+    pub(crate) fn len(&self) -> usize {
+        self.edits.len()
+    }
+
+    /// Edit `e`'s block, position, tag, data words and source node.
+    pub(crate) fn get(&self, e: u32) -> (u32, u32, Tag, [u32; 2], NodeIdx) {
+        let ed = &self.edits[e as usize];
+        (ed.blk, ed.pos, ed.tag, ed.data, ed.syn)
+    }
+
+    /// The statements deleted so far, as (block, statement).
+    pub(crate) fn removed(&self) -> &[(u32, u32)] {
+        &self.removed
+    }
+
+    /// Withdraws edit `e`, which no operand names.
+    pub(crate) fn cancel(&mut self, e: u32) {
+        self.cancelled[e as usize] = true;
     }
 
     /// Points operand `at` of instruction `inst` at edit `edit`'s value.
@@ -132,6 +158,9 @@ pub(crate) fn apply(b: &mut Body, t: &mut Tables) -> Result<(), String> {
     // statement it precedes, or after a block's last statement.
     t.anchor.clear();
     for (e, ed) in t.edits.iter().enumerate() {
+        if t.cancelled[e] {
+            continue;
+        }
         let members = b.record(b.data[ed.blk as usize][0]);
         let at = match members.get(ed.pos as usize) {
             Some(&m) => t.start[m as usize],
@@ -153,7 +182,9 @@ pub(crate) fn apply(b: &mut Body, t: &mut Tables) -> Result<(), String> {
     // The blocks that gain or lose members get new records.
     t.per_block.clear();
     for (e, ed) in t.edits.iter().enumerate() {
-        t.per_block.push((ed.blk, ed.pos, u32_of(e)));
+        if !t.cancelled[e] {
+            t.per_block.push((ed.blk, ed.pos, u32_of(e)));
+        }
     }
     t.per_block.sort_unstable();
     t.blocks.clear();

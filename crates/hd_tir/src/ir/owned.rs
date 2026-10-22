@@ -1032,6 +1032,15 @@ struct Balance<'a> {
     /// Each local's number among the locals, all of them.
     words: usize,
     lwords: usize,
+    /// The parts of values that `move` reads and `Drop`s take: each
+    /// instruction's slot (a distinct place of one value), or `NONE`; the
+    /// slots of each value, in compressed rows, with a place word of each.
+    /// The walk keeps a bit per slot after the locals' bits, so a value
+    /// taken in parts is owned until its parts cover every counted leaf.
+    slot_of: Vec<u32>,
+    slot_start: Vec<u32>,
+    slot_word: Vec<u32>,
+    pwords: usize,
     /// Each block's owner, a cleanup scope owning its suites; whether an
     /// instruction is a sub-body's root; the innermost loop whose body
     /// holds each instruction.
@@ -1142,12 +1151,18 @@ impl<'a> Balance<'a> {
                 *x = true;
             }
         }
+        let (slot_of, slot_start, slot_word) = part_slots(b);
+        let pwords = slot_word.len().div_ceil(64);
         Balance {
             b,
             cx,
             num,
             words: (k as usize).div_ceil(64),
             lwords: b.local_ty.len().div_ceil(64),
+            slot_of,
+            slot_start,
+            slot_word,
+            pwords,
             owner,
             is_root,
             loop_of,
@@ -1179,7 +1194,7 @@ impl<'a> Balance<'a> {
                     *x = true;
                 }
             }
-            let mut st = vec![0; 3 * self.words + self.lwords];
+            let mut st = vec![0; 3 * self.words + self.lwords + self.pwords];
             // An entry local outside the exit set is a lent parameter the
             // body does not own.
             for l in entry_locals(self.b, s) {
@@ -1274,10 +1289,9 @@ impl<'a> Balance<'a> {
                 && op.at == crate::own::Loc::Extra(a + 2)
             {
                 if part {
-                    // A part move leaves the rest owned, unless the rest
-                    // holds nothing counted; a part drop ends it.
-                    let rest = b.tags[x as usize] == Tag::Read && rest_counted(b, self.cx, v, a);
-                    self.part(x, v, rest, st);
+                    // The parts taken so far leave the rest owned, unless
+                    // they cover every counted leaf.
+                    self.part(x, v, st);
                 } else {
                     self.used(x, v, true, st);
                 }
@@ -1337,13 +1351,26 @@ impl<'a> Balance<'a> {
             self.put(st, 0, k, true);
             self.put(st, 1, k, false);
             self.put(st, 2, k, false);
+            // A value computed again has none of its parts taken.
+            for s in self.slot_start[x as usize]..self.slot_start[x as usize + 1] {
+                self.put_slot(st, s, false);
+            }
+        }
+    }
+
+    fn put_slot(&self, st: &mut Set, s: u32, on: bool) {
+        let w = 3 * self.words + self.lwords + (s / 64) as usize;
+        if on {
+            st[w] |= 1 << (s % 64);
+        } else {
+            st[w] &= !(1 << (s % 64));
         }
     }
 
     /// Instruction `x` takes a part of value `v`: an error after its
     /// consumer or its drop, unless only parts went before. The value stays
-    /// owned when `rest` holds a count, until a drop takes it.
-    fn part(&mut self, x: u32, v: u32, rest: bool, st: &mut Set) {
+    /// owned while the parts taken on the path leave a counted leaf.
+    fn part(&mut self, x: u32, v: u32, st: &mut Set) {
         let k = self.num[v as usize];
         if k == NONE {
             return;
@@ -1354,6 +1381,17 @@ impl<'a> Balance<'a> {
                 format!("%{x} takes a part of %{v} after its consumer or its drop"),
             );
         }
+        let s = self.slot_of[x as usize];
+        if s != NONE {
+            self.put_slot(st, s, true);
+        }
+        let (from, to) = (self.slot_start[v as usize], self.slot_start[v as usize + 1]);
+        let base = 3 * self.words + self.lwords;
+        let taken: Vec<u32> = (from..to)
+            .filter(|&s| st[base + (s / 64) as usize] & (1 << (s % 64)) != 0)
+            .map(|s| self.slot_word[s as usize])
+            .collect();
+        let rest = rest_counted(self.b, self.cx, v, &taken);
         self.put(st, 0, k, rest);
         self.put(st, 1, k, true);
         self.put(st, 2, k, true);
@@ -1600,7 +1638,7 @@ impl<'a> Balance<'a> {
         let body = b.data[x as usize][0];
         let label = self.label_of[x as usize] as usize;
         let mut head = st;
-        let rounds = 3 * self.words * 64 + self.lwords * 64 + 2;
+        let rounds = 3 * self.words * 64 + self.lwords * 64 + self.pwords * 64 + 2;
         for _ in 0..rounds {
             if let Some(t) = self.brk.get_mut(label) {
                 *t = None;
@@ -1664,37 +1702,120 @@ fn value_root(b: &Body, word: u32) -> Option<(u32, bool)> {
     }
 }
 
-/// Whether value `v`, whose part at the place `word` a `move` read took,
-/// still holds a counted leaf beside it: a counted field beside the path
-/// at some step, or a step whose type's parts `cx` does not give.
-fn rest_counted(b: &Body, cx: &dyn OwnCx, v: u32, word: u32) -> bool {
-    let Some(p) = b.decode_place(word) else {
-        return true;
+/// The part takes of values (a `move` read or a `Drop` of a part): each
+/// instruction's slot, one per distinct place of a value; each value's
+/// slots, in compressed rows by value; and a place word of each slot.
+fn part_slots(b: &Body) -> (Vec<u32>, Vec<u32>, Vec<u32>) {
+    let n = b.len();
+    let mut takes: Vec<(u32, u32)> = Vec::new();
+    for i in 0..n {
+        let [a, w] = b.data[i];
+        let take = match b.tags[i] {
+            Tag::Read => w == ReadMode::Move as u32,
+            Tag::Drop => true,
+            _ => false,
+        };
+        if take && let Some((v, true)) = value_root(b, a) {
+            takes.push((v, u32_of(i)));
+        }
+    }
+    let rec = |x: u32| {
+        let at = b.data[x as usize][0] as usize;
+        let len = b.extra[at] as usize;
+        &b.extra[at + 1..=at + len]
     };
-    let mut ty = b.ty[v as usize];
-    let mut parts = Vec::new();
-    let mut k = 0;
-    while k < p.proj.len() {
-        let (variant, field, next) = match (p.proj[k], p.proj.get(k + 1)) {
-            (Proj::Variant(vr), Some(&Proj::Field(f))) => (Some(vr), f, k + 2),
-            (Proj::Field(f), _) => (None, f, k + 1),
+    takes.sort_by(|p, q| p.0.cmp(&q.0).then_with(|| rec(p.1).cmp(rec(q.1))));
+    let mut slot_of = vec![NONE; n];
+    let mut slot_start = vec![0u32; n + 1];
+    let mut slot_word = Vec::new();
+    for (k, &(v, x)) in takes.iter().enumerate() {
+        let fresh = k == 0 || takes[k - 1].0 != v || rec(takes[k - 1].1) != rec(x);
+        if fresh {
+            slot_word.push(b.data[x as usize][0]);
+            slot_start[v as usize + 1] += 1;
+        }
+        slot_of[x as usize] = u32_of(slot_word.len() - 1);
+    }
+    for v in 0..n {
+        slot_start[v + 1] += slot_start[v];
+    }
+    (slot_of, slot_start, slot_word)
+}
+
+/// Whether value `v`, whose parts at the places `taken` (place words) a
+/// `move` read or a `Drop` took, still holds a counted leaf beside them: a
+/// counted field that no taken place covers, or a step whose type's parts
+/// `cx` does not give.
+fn rest_counted(b: &Body, cx: &dyn OwnCx, v: u32, taken: &[u32]) -> bool {
+    let paths: Vec<Vec<Proj>> = taken
+        .iter()
+        .filter_map(|&w| b.decode_place(w).map(|p| p.proj))
+        .collect();
+    if paths.len() != taken.len() {
+        return true;
+    }
+    let all: Vec<&[Proj]> = paths.iter().map(Vec::as_slice).collect();
+    uncovered(cx, b.ty[v as usize], &all, 0, &mut Vec::new())
+}
+
+/// Whether a value of type `ty` at depth `depth` of the places `paths`
+/// holds a counted leaf that none of them covers.
+fn uncovered(
+    cx: &dyn OwnCx,
+    ty: hd_types::Ty,
+    paths: &[&[Proj]],
+    depth: usize,
+    parts: &mut Vec<hd_types::Ty>,
+) -> bool {
+    if paths.is_empty() {
+        return cx.counted(ty) != crate::own::Tri::No;
+    }
+    if paths.iter().any(|p| p.len() == depth) {
+        return false;
+    }
+    // One variant per group: a value is one variant on a path.
+    let mut variants: Vec<Option<u32>> = Vec::new();
+    for p in paths {
+        let v = match p[depth] {
+            Proj::Variant(vr) => Some(vr),
+            Proj::Field(_) => None,
             _ => return true,
         };
-        if !cx.parts(ty, variant, &mut parts) {
-            return true;
+        if !variants.contains(&v) {
+            variants.push(v);
         }
-        let Some(&t) = parts.get(field as usize) else {
-            return true;
-        };
-        if parts
+    }
+    for variant in variants {
+        let step = depth + usize::from(variant.is_some());
+        let group: Vec<&[Proj]> = paths
             .iter()
-            .enumerate()
-            .any(|(j, &pt)| j != field as usize && cx.counted(pt) != crate::own::Tri::No)
-        {
+            .copied()
+            .filter(|p| match (variant, p[depth]) {
+                (Some(vr), Proj::Variant(x)) => vr == x,
+                (None, Proj::Field(_)) => true,
+                _ => false,
+            })
+            .collect();
+        if group.iter().any(|p| p.len() == step) {
+            continue;
+        }
+        if !cx.parts(ty, variant, parts) {
             return true;
         }
-        ty = t;
-        k = next;
+        let fields = parts.clone();
+        for (j, &ft) in fields.iter().enumerate() {
+            if cx.counted(ft) == crate::own::Tri::No {
+                continue;
+            }
+            let sub: Vec<&[Proj]> = group
+                .iter()
+                .copied()
+                .filter(|p| p.get(step) == Some(&Proj::Field(u32_of(j))))
+                .collect();
+            if sub.is_empty() || uncovered(cx, ft, &sub, step + 1, parts) {
+                return true;
+            }
+        }
     }
     false
 }

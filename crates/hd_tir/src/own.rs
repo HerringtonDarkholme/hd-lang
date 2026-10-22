@@ -15,11 +15,14 @@
 //! (`borrow`), which turns a `copy` whose value can live on its place's
 //! count into a `borrow` and deletes its `Drop`s; then **move** (`moves`),
 //! which turns a `copy` that no path reads after into a `move` and deletes
-//! the `Drop` it leaves with nothing to release. Pair cancellation,
-//! known-null and hoisting are later commits of stage 2; each only weakens
-//! or deletes what insertion writes, so the pipeline is correct after any
-//! prefix. Insertion rebuilds the body once ([`splice`]); borrow and move
-//! record their edits for one more rebuild at the end.
+//! the `Drop` it leaves with nothing to release; then **pair
+//! cancellation** (`pairs`), which turns a `copy` of a part whose base's
+//! `Drop` follows with nothing in between that touches the part into a
+//! `move`, and deletes or splits that drop. Known-null and hoisting are
+//! later commits of stage 2; each only weakens or deletes what insertion
+//! writes, so the pipeline is correct after any prefix. Insertion rebuilds
+//! the body once ([`splice`]); borrow, move and pair cancellation record
+//! their edits for one more rebuild at the end.
 //!
 //! The passes read the body and [`OwnCx`], signature and layout facts the
 //! driver gives; never another body. They follow "Data layout of the
@@ -29,12 +32,13 @@
 
 use hd_types::Ty;
 
-use crate::ir::{Body, Callee, NONE, Op, Ref, Tag, place};
+use crate::ir::{Body, Callee, IntrinsicOp, NONE, Op, Ref, Tag, place};
 
 mod borrow;
 mod fold;
 mod insert;
 mod moves;
+mod pairs;
 mod splice;
 
 /// Whether a type holds a counted leaf.
@@ -54,8 +58,10 @@ pub enum Pass {
     /// call consumes it.
     Owned,
     /// A reference parameter, a suspending callee's argument (its cold
-    /// constructor counts what it keeps), or a parameter whose mode
-    /// depends on the instance: the caller keeps its value.
+    /// constructor counts what it keeps), an `@intrinsic` callee's
+    /// argument (the backend lowers the call in place and counts what it
+    /// keeps), or a parameter whose mode depends on the instance: the
+    /// caller keeps its value.
     Lent,
 }
 
@@ -102,8 +108,9 @@ pub enum Role {
     /// The use reads the value and keeps nothing: an operand of `Prim`, a
     /// place's root or element index, a borrowed argument.
     Lend,
-    /// The use takes the value's count: a stored value, a construction
-    /// part, a `Return` or `Break` value.
+    /// The use takes the value's count: a stored value (a list push's and
+    /// a map store's too), a construction part, a `Return` or `Break`
+    /// value.
     Consume,
     /// Argument `k` of a call, which consumes it when its parameter is a
     /// value parameter ([`OwnCx::pass`]).
@@ -243,7 +250,24 @@ pub fn operands(b: &Body, i: usize, out: &mut Vec<Operand>) {
                         values(b, word, &mut |v, at| push(out, v, Role::Lend, at));
                     }
                     Op::Record if word != NONE && matches!(tag, Tag::Intrinsic | Tag::Interp) => {
-                        values(b, word, &mut |v, at| push(out, v, Role::Lend, at));
+                        // The value a list push or a map store puts in
+                        // the collection, which keeps it: a store.
+                        let stored = match IntrinsicOp::from_u32(a) {
+                            _ if tag != Tag::Intrinsic => NONE,
+                            Some(IntrinsicOp::ListPush) => 1,
+                            Some(IntrinsicOp::MapSet) => 2,
+                            _ => NONE,
+                        };
+                        let mut k = 0;
+                        values(b, word, &mut |v, at| {
+                            let role = if k == stored {
+                                Role::Consume
+                            } else {
+                                Role::Lend
+                            };
+                            k += 1;
+                            push(out, v, role, at);
+                        });
                     }
                     _ => {}
                 }
@@ -483,19 +507,27 @@ pub struct OwnScratch {
     pub(crate) fold: fold::Tables,
     pub(crate) insert: insert::Tables,
     pub(crate) moves: moves::Tables,
+    pub(crate) pairs: pairs::Tables,
     pub(crate) splice: splice::Tables,
 }
 
 /// Runs the ownership passes over every sub-body of `b`, in order: place
-/// folding ([`fold`]), insertion, borrow, then move. Borrow and move
-/// record their deletions and insertions in one set of edits, applied once
-/// at the end. A body the passes cannot handle is refused, with what
+/// folding ([`fold`]), insertion, borrow, move, then pair cancellation.
+/// The last three record their deletions and insertions in one set of
+/// edits, applied once at the end. A body the passes cannot handle is refused, with what
 /// stopped them.
 pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(), String> {
     fold::run(b, cx, &mut scratch.fold);
     insert::run(b, cx, scratch)?;
     borrow::run(b, cx, &mut scratch.borrow, &mut scratch.splice);
     moves::run(b, cx, &mut scratch.moves, &mut scratch.splice);
+    pairs::run(
+        b,
+        cx,
+        &mut scratch.moves,
+        &mut scratch.pairs,
+        &mut scratch.splice,
+    );
     splice::apply(b, &mut scratch.splice)
 }
 
@@ -868,6 +900,33 @@ mod tests {
         assert!(text.contains("Read copy [*%"), "{text}");
         assert!(!text.contains("Drop [$1]"), "{text}");
         assert!(!text.contains("exit 0 $1"), "{text}");
+    }
+
+    /// Pair cancellation: a part read of a temporary that is read again
+    /// later copies under move's per-base liveness; with nothing touching
+    /// that part before the base's drop, the copy moves. The test facts
+    /// lay no type out in place, so the drop stays whole and releases what
+    /// the moves left.
+    #[test]
+    fn a_part_copy_before_the_drop_of_its_base_moves() {
+        let n = NodeIdx::from_raw(1);
+        let text = passes(
+            |b| {
+                let s = call(b, 7, &[], Ty::STRING);
+                for k in 0..2 {
+                    let word = b.place(&format!("[%{} .{k}]", s.0).parse().expect("place"));
+                    let part = b.emit(Tag::Read, word, ReadMode::Use as u32, Ty::STRING, n);
+                    call(b, 9, &[part], Ty::VOID);
+                }
+                None
+            },
+            Ty::VOID,
+        );
+        assert_eq!(
+            text,
+            "%0 Call\n%1 Read move [%0 .0]\n%2 Call %1\n%3 Read move [%0 .1]\n%4 Drop [%0]\n\
+             %5 Call %3\n%6 Block [%0 %1 %2 %3 %4 %5]\n"
+        );
     }
 
     /// The verifier rejects a borrow whose place a store replaces while the

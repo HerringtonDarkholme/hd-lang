@@ -1852,6 +1852,98 @@ is worth deciding only if they are hot.
    parameter's exit row, since the backend reads a parameter outside the
    exit set as unowned.
 9. Pair cancellation.
+   As built: `own/pairs.rs`, after move, its edits joining borrow's and
+   move's for the pipeline's second and last rebuild. It takes the case
+   move leaves: a `copy` of a part `p` of a base move's candidates name
+   (an owned local no reference, closure or cleanup suite reaches, or an
+   owned temporary a `copy` reads a part of), whose base is read again
+   later. It pairs with the first later instruction of its block that
+   touches `p` or all of the base, when that is a `Drop` of `p` or of a
+   place holding `p`, with only a straight line in between (no statement
+   that runs a block, jumps, never completes or suspends), and nothing
+   between touching `p`, all of the base, or a borrow that lives on it;
+   for a temporary, nothing but other parts' moves and drops (the
+   verifier's rule for a value taken in parts). The copy moves; a drop of
+   `p` goes; a drop of a larger place becomes drops of the parts beside
+   the path (move's `rest`, which now starts at the drop's place), or
+   stays whole when a step is not laid out in place, releasing what the
+   move left. So in `.Square(n, k)` the copy of `n` and the drop of `n`
+   that the move of `k` left cancel
+   (`own/a-part-copy-and-its-drop-cancel.hd`), and `[p.left, p.right]`
+   takes both fields of a parameter with no count
+   (`own/a-field-copy-and-its-drop-cancel.hd`). The plan's own example,
+   a copy into a temporary dropped at the end of its statement while the
+   place outlives it, is borrow's as built (commit 8): every such copy
+   whose span holds no write of its place, no call that reaches it and no
+   suspension point already borrows, which is this check and more; a
+   count over the bench/study bodies found 29 copies dropped in a
+   straight line with no call, write or uniqueness check between, and in
+   each the drop of the copy's root stands between (a borrow's kept drop,
+   below, a celled local's or a list header copy's), which no rule may
+   cross.
+   - **Data layout.** One backward walk over each block's statements and
+     the edits pending in it (a deleted statement is gone, a new `Drop`
+     stands at its position), keeping per candidate base (move's bits)
+     the nearest later touch of all of it and of each first-level part:
+     dense tables, stamped per straight line, no hash map. A touch counts
+     at its first-level part, so a later touch of another part below the
+     same first-level part ends a pair, as an overlap would. It costs
+     0.025 us per instruction and 40 allocations over the bench/study
+     programs (tables growing on the first bodies).
+   - **`verify_owned`** tracks the parts taken of each value (a slot per
+     distinct part place a move or a drop takes, a bit each on the walk):
+     a value taken in parts stays owned until the parts taken on the path
+     cover every counted leaf. It replaces "a part drop ends it", which
+     reported a leak when two parts of one value moved.
+   - **Not built: a `Ref` that counts a cell** (the plan's parenthesis).
+     Cancelling it needs a `Ref` that takes no count: a new `ref_word`
+     bit, its lowering (the cell's address, uncounted, except where an
+     instance makes the reference a fresh view or a trait value, whose
+     drop must then stay, as borrow's kept drops), and the verifier's
+     borrow rule for references. The old path counts these references
+     too, so they are no part of the gap; no stage 2 commit plans them,
+     so they need their own issue after parity (commit 13).
+   **Beyond the plan:** measuring the release gap found three places
+   where the passes and the new path's emitter disagreed, each a count
+   pair the passes could not see:
+   - **List pushes and map stores consume their value** (`own::operands`:
+     `ListPush`'s element, `MapSet`'s value). Insertion had them lend, so
+     a pushed value took a retain inside the intrinsic and a `Drop` after
+     it; the old path moves it in (§23.25, "a list or map store").
+   - **An `@intrinsic` callee lends every argument** (`OwnCx::pass`). The
+     backend lowers such a call in place and counts what it keeps
+     (`Em::intrinsic`); a parameter declared a value made each argument a
+     copy that the emitter released after the call (`bytes_at` in a loop:
+     a retain and a release per byte).
+   - **No release after an instruction that never completes**
+     (`Em::release_untaken`). A `Return` or `Break` moves its value out
+     and zeroes it; the release the emitter wrote after it was dead code,
+     one release site per return of a counted value.
+   Old path: every conformance module byte-identical to main, dev and
+   optimized pipelines. New path: all conformance cases pass, dev and
+   optimized pipelines, checked and not. Static count sites over the 769
+   runtime conformance programs with a `main`: 27,489 retains and 59,420
+   releases before this commit, 26,515 and 57,545 with the three fixes,
+   26,447 and 57,477 with pair cancellation, against the old path's
+   26,839 and 56,174 (module bytes 19.97 MB, 19.91 MB, 19.91 MB against
+   19.88 MB); over the bench/study programs 955 and 1,883, then 822 and
+   1,591, then 819 and 1,588, against 918 and 1,579. Rebased on main
+   (771 programs): 28,111 and 60,510 before, 27,031 and 58,517 after,
+   against 27,489 and 57,253 (20.13 MB, 20.07 MB, 20.05 MB). #722 holds on the
+   new path: nbody's `advance` and a focused loop of f64 element-field
+   stores through `&mut List` take no count. #681 does not: the callee's
+   `Read copy [$0]` of `self` and the caller's `Drop` of the result are in
+   two bodies, as [The known-bad cases](#the-known-bad-cases) says.
+   **Left for later commits.** Release sites stay 2.3% above the old
+   path's over conformance (0.6% over bench/study), most of it in
+   suspending bodies: the new path's glue for a cancelled suspension point
+   (`release_unwound`) releases everything the body holds at each `Await`
+   (487 release sites at `Await`s in `task-with-timeout`, whose excess
+   over the old path is 612), which commit 13's parity must share or
+   remove. The rest are commit 7's whole drops of generic bases after a
+   part moves, and commit 8's kept drops of borrows through a reference,
+   whose drop ends before the copies read through them (`Read copy
+   [%16 [%17]]` after `Drop [%16]`), so those copies cannot borrow.
 10. Known-null.
 11. Hoisting and the stable-list table.
 12. The checker stops inserting copies and pin bookkeeping.

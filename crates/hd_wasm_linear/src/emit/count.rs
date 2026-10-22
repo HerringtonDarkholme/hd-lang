@@ -981,8 +981,14 @@ impl Em<'_, '_, '_> {
 
     /// After owned instruction `i`: each value it consumes whose count its
     /// lowering did not move in (it took a count of its own, or lent the
-    /// value to a callee that borrows it) is released and zeroed.
+    /// value to a callee that borrows it) is released and zeroed. Not after
+    /// an instruction that never completes (a `Return`, a `Break`, a call
+    /// that panics), where no code runs: a jump's value moved out with it
+    /// ([`Em::take`] then zeroed it, so a release would only be dead code).
     pub(super) fn release_untaken(&mut self, i: u32) -> StageResult<()> {
+        if self.ty(i) == Ty::NEVER {
+            return Ok(());
+        }
         let mut ops = std::mem::take(&mut self.own_ops);
         hd_tir::own::operands(self.b, i as usize, &mut ops);
         let mut result = Ok(());

@@ -58,21 +58,21 @@ const TAKE: u8 = 3;
 #[derive(Default)]
 pub(crate) struct Tables {
     /// Each instruction's block and position in it, or `NONE`.
-    blk: Vec<u32>,
-    pos: Vec<u32>,
+    pub(super) blk: Vec<u32>,
+    pub(super) pos: Vec<u32>,
     /// Each local's and each value's bit among the candidates, or `NONE`.
-    lnum: Vec<u32>,
-    vnum: Vec<u32>,
+    pub(super) lnum: Vec<u32>,
+    pub(super) vnum: Vec<u32>,
     /// Locals and values that stay out: locals a closure shares, binding
     /// locals, which own nothing, and the places a cleanup suite touches.
     keep_l: Vec<bool>,
     keep_v: Vec<bool>,
     /// Locals a `Ref` addresses, which live in a cell: no read of one
     /// moves, and only a `Ref` of the whole local takes its count.
-    addr: Vec<bool>,
+    pub(super) addr: Vec<bool>,
     /// Per local: the `borrow` read a binding local holds (the borrow
     /// pass's), or `NONE`; and whether the body owns it (its exit row).
-    holds: Vec<u32>,
+    pub(super) holds: Vec<u32>,
     owns: Vec<bool>,
     /// Each instruction's label, as a target of `Break` and `Continue`.
     label_of: Vec<u32>,
@@ -85,7 +85,7 @@ pub(crate) struct Tables {
     /// The liveness states, `words` words each, allocated and freed last
     /// in, first out.
     arena: Vec<u64>,
-    words: usize,
+    pub(super) words: usize,
     /// Per instruction: [`MOVE`] or [`KEEP`] for a candidate read the walk
     /// reached, from the state after it.
     decide: Vec<u8>,
@@ -98,7 +98,7 @@ pub(crate) struct Tables {
     ops: Vec<Operand>,
     stack: Vec<u32>,
     parts: Vec<Ty>,
-    drops: Vec<u32>,
+    pub(super) drops: Vec<u32>,
     /// Each instruction's first instruction: its own index, or the first
     /// of the blocks it runs, which precede it.
     first: Vec<u32>,
@@ -120,7 +120,7 @@ fn u32_of(i: usize) -> u32 {
 
 /// What a place word starts at.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Root {
+pub(super) enum Root {
     Local(u32),
     Value(u32),
     Other,
@@ -128,7 +128,7 @@ enum Root {
 
 /// The root of the place at `word`, and the `extra` range of its
 /// projection words (empty for a bare local).
-fn root_of(b: &Body, word: u32) -> (Root, u32, u32) {
+pub(super) fn root_of(b: &Body, word: u32) -> (Root, u32, u32) {
     if word & place::BARE_LOCAL != 0 {
         return (Root::Local(word & !place::BARE_LOCAL), 0, 0);
     }
@@ -148,7 +148,7 @@ fn root_of(b: &Body, word: u32) -> (Root, u32, u32) {
 
 /// Whether the projection words `from..to` are all field and variant
 /// steps, which name a part of the value at the root itself.
-fn in_place(b: &Body, from: u32, to: u32) -> bool {
+pub(super) fn in_place(b: &Body, from: u32, to: u32) -> bool {
     b.extra[from as usize..to as usize].iter().all(|&w| {
         let kind = w & place::PROJ_KIND;
         kind == place::PROJ_FIELD || kind == place::PROJ_VARIANT
@@ -226,7 +226,7 @@ impl Tables {
     }
 
     /// [`deps`] over these tables.
-    fn deps(&self, b: &Body, v: u32, f: &mut impl FnMut(u32)) {
+    pub(super) fn deps(&self, b: &Body, v: u32, f: &mut impl FnMut(u32)) {
         deps(b, &self.lnum, &self.vnum, &self.holds, v, f);
     }
 
@@ -880,7 +880,7 @@ fn apply(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Table
             Root::Value(v) => b.ty[v as usize],
             Root::Other => continue,
         };
-        if rest(b, cx, t, base, from, to) {
+        if rest(b, cx, t, base, (from, from, to)) {
             let (blk, pos, syn) = (t.blk[d as usize], t.pos[d as usize], b.syn[d as usize]);
             edits.remove(blk, d);
             for k in 0..t.drops.len() {
@@ -1061,7 +1061,7 @@ fn sink_block(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, v: u32, blk: u32) ->
                     }
                 } else if w == ReadMode::Move as u32 {
                     let base = b.ty[v as usize];
-                    if rest(b, cx, t, base, from, to) {
+                    if rest(b, cx, t, base, (from, from, to)) {
                         for k in 0..t.drops.len() {
                             t.sink_ins.push((blk, end, t.drops[k]));
                         }
@@ -1136,10 +1136,16 @@ fn take(b: &mut Body, t: &Tables, edits: &mut splice::Tables, i: usize) {
 
 /// The drops of what a base of type `base` holds besides the part at the
 /// projection words `from..to` of its place, into `t.drops` as new place
-/// records: each counted field beside the path at each step. False when a
-/// step's type is not laid out in place in every instance
-/// ([`OwnCx::parts`]).
-fn rest(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, base: Ty, from: u32, to: u32) -> bool {
+/// records: each counted field beside the path at each step from the
+/// step at word `start` on (`from` for all of them). False when a step's
+/// type is not laid out in place in every instance ([`OwnCx::parts`]).
+pub(super) fn rest(
+    b: &mut Body,
+    cx: &dyn OwnCx,
+    t: &mut Tables,
+    base: Ty,
+    (from, start, to): (u32, u32, u32),
+) -> bool {
     t.drops.clear();
     let head = from - 2;
     let mut ty = base;
@@ -1161,7 +1167,7 @@ fn rest(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, base: Ty, from: u32, to: u
             return false;
         };
         for k in 0..t.parts.len() {
-            if u32_of(k) == field || cx.counted(t.parts[k]) == Tri::No {
+            if x < start || u32_of(k) == field || cx.counted(t.parts[k]) == Tri::No {
                 continue;
             }
             // `[root path-so-far (as v) .k]`

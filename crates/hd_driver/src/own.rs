@@ -118,8 +118,10 @@ impl Env<'_> {
             return Pass::Lent;
         };
         // A suspending callee's cold constructor counts what its frame
-        // keeps; its callers lend every argument.
-        if sig.suspends || sig.params.len() != n {
+        // keeps; its callers lend every argument. So does a call of an
+        // `@intrinsic` function, which the backend lowers in place and
+        // which counts whatever it keeps itself (`Em::intrinsic`).
+        if sig.suspends || sig.params.len() != n || self.intrinsic(def).is_some() {
             return Pass::Lent;
         }
         // The declared type decides, unsubstituted: substituting would read

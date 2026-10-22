@@ -549,7 +549,12 @@ String operations are emitted by `emit/text.rs` and runtime helpers
   a jump's releases runs. The glue is the old glue. What emission still
   adds is glue for what the generic body cannot see: a consumer whose
   lowering cannot move a count in takes one and the value is released
-  after it (`release_untaken`); a lent argument a callee instance owns
+  after it (`release_untaken`), unless the consumer never completes (a
+  `Return`, a `Break`, a call that panics), after which no code runs; a
+  list push and a map store move their value in, as a `Store` does (the
+  passes count them as consumers); an `@intrinsic` call is lowered in
+  place and lends every argument, so the passes pass them lent
+  (`OwnCx::pass`); a lent argument a callee instance owns
   takes a count (`push_args`, as before); a parameter its caller lends
   takes one on entry when the body owns it (its sub-body's exit set
   lists it), while one the borrow pass left unowned takes none, and an

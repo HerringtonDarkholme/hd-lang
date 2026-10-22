@@ -1,0 +1,14 @@
+# @dump: own counts
+# Pair cancellation on a local: `p.left` is read while `p` is read again
+# later, so move leaves it a copy; `p.right` moves at the last read, and
+# move splits the parameter's drop into a drop of `left`. Nothing touches
+# `left` between the copy and that drop, so the copy moves and the drop
+# goes: building the list takes both strings without a count (the
+# `counts` view shows the old path's two retains and one release).
+struct Pair:
+    left: string
+    right: string
+
+fn both(p: Pair) -> List[string]:
+    # subject
+    [p.left, p.right]

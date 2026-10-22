@@ -15,7 +15,7 @@ app/main/collect
   %11 = Drop [%9] : ()
   %12 = Store [$3] %10 : ()
   %13 = Read borrow [$2] : List[string]
-  %14 = Read borrow [$3] : string
+  %14 = Read move [$3] : string
   %15 = IsUnique [%13] : ()
   %16 = Intrinsic ListPush [%13 %14] : ()
   %17 = Read copy [$4] : i32
