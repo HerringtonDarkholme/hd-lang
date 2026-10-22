@@ -1,0 +1,29 @@
+# test: a trait value needs the other type to convert
+struct User:
+    name: string
+
+struct Order:
+    total: i32
+
+struct Box[T]:
+    item: T
+
+enum Color:
+    Red
+    Green
+
+trait Named:
+    fn label(self) -> string
+
+trait Entity < Named
+
+trait Handle < AnyRef
+
+impl Named for User:
+    fn label(self) -> string: self.name
+
+impl Entity for User:
+    pass
+
+fn f[T < AnyRef](a: &T, user: &User) -> bool:
+    a is user  # diagnostic: incompatible-identity-operands

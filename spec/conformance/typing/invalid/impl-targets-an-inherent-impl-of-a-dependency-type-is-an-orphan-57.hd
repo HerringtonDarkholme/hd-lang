@@ -1,0 +1,6 @@
+# test: an inherent impl of a dependency type is an orphan
+# fixture-package-role: library
+use dep.models.User
+
+impl User:  # diagnostic: orphan-impl
+    fn size(self) -> i32: 1

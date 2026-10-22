@@ -1,0 +1,10 @@
+# test: inferred result with marker stays clean
+struct Handler[-T]:
+    handle: fn(T) -> void
+
+impl[T] Handler[T]:
+    fn get_handle(self):
+        self.handle
+
+pub fn main() -> void:
+    pass

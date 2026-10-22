@@ -1,0 +1,6 @@
+# test: a dyn inherent impl in another package is an orphan
+# fixture-package-role: library
+use dep.members.Tagged
+
+impl dyn Tagged:  # diagnostic: orphan-impl
+    fn double(self) -> string: self.tag() + self.tag()

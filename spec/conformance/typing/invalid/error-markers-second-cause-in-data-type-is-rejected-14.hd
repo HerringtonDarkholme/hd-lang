@@ -1,0 +1,11 @@
+# test: second cause in data type is rejected
+@error("disk full")
+struct DiskError:
+    free: i64
+
+@error("x")
+struct D:
+    @source
+    a: DiskError
+    @source  # diagnostic: invalid-error-marker
+    b: DiskError

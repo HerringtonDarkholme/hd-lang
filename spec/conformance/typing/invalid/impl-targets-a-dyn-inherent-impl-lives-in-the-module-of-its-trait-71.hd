@@ -1,0 +1,7 @@
+# test: a dyn inherent impl lives in the module of its trait
+# fixture-package-tree: migrate-71-impl-placement/src/beta.hd
+use pkg.alpha.Shape
+
+impl dyn Shape:  # diagnostic: nonlocal-impl
+    fn double(self) -> f64:
+        missing_name

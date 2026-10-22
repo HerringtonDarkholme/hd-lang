@@ -1,0 +1,2 @@
+pub struct Money:
+    pub cents: i64

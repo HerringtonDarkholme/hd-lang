@@ -1,0 +1,28 @@
+# test: a derivation template is no bare parameter target
+use std.structure.{Structure, Field, Variant, Walker}
+
+trait Encode:
+    fn encode(self) -> string
+
+impl Encode for i64:
+    fn encode(self) -> string:
+        "$self"
+
+struct Sink:
+    n: i32
+
+impl[S] Walker[S] for Sink:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.n = self.n + 1
+        .Ok(())
+
+impl[T] Encode for T by Structure:
+    fn encode(self) -> string:
+        let mut w = Sink { n: 0 }
+        _ := Structure::walk(self, &mut w)
+        ""

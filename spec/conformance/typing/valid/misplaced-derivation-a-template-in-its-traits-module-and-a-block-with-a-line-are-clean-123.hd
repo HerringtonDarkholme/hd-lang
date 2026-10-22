@@ -1,0 +1,35 @@
+# test: a template in its traits module and a block with a line are clean
+use std.structure.{Structure, Field, Variant, Walker}
+
+pub trait Show:
+    fn show(self) -> string
+
+impl Show for i64:
+    fn show(self) -> string:
+        "$self"
+
+struct Shower:
+    out: string
+
+impl[S] Walker[S] for Shower:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F < Show](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.out = self.out + value.show() + ";"
+        .Ok(())
+
+impl[T] Show for T by Structure:
+    fn show(self) -> string:
+        let mut w = Shower { out: "" }
+        _ := Structure::walk(self, &mut w)
+        w.out
+
+struct Point:
+    x: i64
+    y: i64
+
+impl Show for Point by Structure:
+    x = []

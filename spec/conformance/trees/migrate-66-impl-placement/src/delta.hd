@@ -1,0 +1,8 @@
+use pkg.gamma.Named
+
+pub struct Part:
+    pub n: i32
+
+impl Named for Part:
+    fn name(self) -> string:
+        "p"

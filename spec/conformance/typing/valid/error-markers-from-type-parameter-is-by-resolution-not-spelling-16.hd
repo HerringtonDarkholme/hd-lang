@@ -1,0 +1,11 @@
+# test: from type parameter is by resolution not spelling
+@error("disk full")
+struct DiskError:
+    free: i64
+
+@error
+enum App[E]:
+    @error("inner")
+    Inner(@from error: DiskError)
+    @error("list")
+    Items(@source items: E?)

@@ -1,0 +1,4 @@
+# test: wrong target stays target kind
+@error(opaque)  # diagnostic: decorator-target-kind
+fn tool() -> string:
+    "hammer"

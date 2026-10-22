@@ -1,0 +1,7 @@
+# test: a trait less block outside its targets module is misplaced
+# fixture-package-tree: migrate-128-impl-placement/src/main.hd
+use pkg.lib.shapes.Point
+use std.structure.Structure
+
+impl Point by Structure:  # diagnostic: misplaced-derivation
+    x = []

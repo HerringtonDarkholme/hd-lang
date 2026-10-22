@@ -1,0 +1,7 @@
+# test: an inherent impl outside the module of its type is nonlocal
+# fixture-package-tree: migrate-69-impl-placement/src/beta.hd
+use pkg.alpha.Person
+
+impl Person:  # diagnostic: nonlocal-impl
+    fn shout(self) -> string:
+        missing_name

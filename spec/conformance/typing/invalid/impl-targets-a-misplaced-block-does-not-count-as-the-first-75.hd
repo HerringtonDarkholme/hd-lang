@@ -1,0 +1,6 @@
+# test: a misplaced block does not count as the first
+# fixture-package-tree: migrate-75-impl-placement/src/beta.hd
+use std.structure.Structure
+use pkg.alpha.Item
+
+impl Item by Structure  # diagnostic: misplaced-derivation

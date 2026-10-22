@@ -1,0 +1,31 @@
+# test: transparent requires exactly one member
+@error("leaf")
+struct Leaf:
+    code: i32
+
+@error(transparent)
+struct Single:
+    @from
+    inner: Leaf
+
+@error
+enum Good:
+    @error(transparent)
+    Wrapped(@from error: Leaf)
+    @error("empty")
+    Empty
+    @error("pair")
+    Pair(a: i32, b: i32)
+    @error("source")
+    Report(@source error: Leaf)
+
+@error("data")
+struct OneSource:
+    @source
+    a: Leaf
+    b: Leaf
+
+@error("concrete")
+struct Generic[E]:
+    @from
+    inner: Leaf

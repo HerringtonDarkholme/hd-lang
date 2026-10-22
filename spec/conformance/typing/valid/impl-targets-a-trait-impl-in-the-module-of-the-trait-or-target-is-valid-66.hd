@@ -1,0 +1,4 @@
+# test: a trait impl in the module of the trait or target is valid
+# fixture-package-tree: migrate-66-impl-placement/src/gamma.hd
+pub trait Named:
+    fn name(self) -> string

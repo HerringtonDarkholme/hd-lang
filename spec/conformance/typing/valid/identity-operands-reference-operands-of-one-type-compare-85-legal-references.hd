@@ -1,0 +1,57 @@
+# test: reference operands of one type compare
+struct User:
+    name: string
+
+struct Order:
+    total: i32
+
+struct Box[T]:
+    item: T
+
+enum Color:
+    Red
+    Green
+
+trait Named:
+    fn label(self) -> string
+
+trait Entity < Named
+
+trait Handle < AnyRef
+
+impl Named for User:
+    fn label(self) -> string: self.name
+
+impl Entity for User:
+    pass
+
+fn struct_refs(a: &User, b: &User) -> bool:
+    a is b
+
+fn generic_struct(a: &Box[i32], b: &Box[i32]) -> bool:
+    a is b
+
+fn negated(a: &User, b: &User) -> bool:
+    !(a is b)
+
+fn mixed_refs(a: &User, b: &mut User) -> bool:
+    a is b
+
+fn inner(a: &Box[&mut User], b: &Box[&User]) -> bool:
+    b.item is a.item
+
+fn same_trait(a: &dyn Named, b: &dyn Named) -> bool:
+    a is b
+
+fn same[T < AnyRef](a: T, b: T) -> bool:
+    a is b
+
+fn against_any[T < AnyRef](a: &T, b: &dyn Any) -> bool:
+    let erased: &dyn Any = a
+    erased is b
+
+fn through_trait[T < Handle](a: T, b: T) -> bool:
+    a is b
+
+fn diverges(a: &User) -> bool:
+    a is panic("stop")

@@ -1,0 +1,6 @@
+# test: the standard numeric families stay valid
+fn main_sum(a: i32, b: i32) -> i32:
+    a + b * 2 - (a % 3)
+
+fn flip(a: u8) -> u8:
+    a & 1

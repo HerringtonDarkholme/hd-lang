@@ -1,0 +1,8 @@
+pub trait Greeter:
+    fn greet(self) -> string
+
+pub struct Person:
+    pub name: string
+
+pub struct Money:
+    pub cents: i64

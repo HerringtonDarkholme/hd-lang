@@ -1,0 +1,7 @@
+# test: a trait impl outside the module of the trait or target is nonlocal
+# fixture-package-tree: migrate-64-impl-placement/src/beta.hd
+use pkg.alpha.{Greeter, Person}
+
+impl Greeter for Person:  # diagnostic: nonlocal-impl
+    fn greet(self) -> string:
+        missing_name

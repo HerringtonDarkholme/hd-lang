@@ -1,0 +1,18 @@
+# test: a constructor target over a parameter is valid
+trait Describe:
+    fn describe(self) -> string
+
+struct Box[T]:
+    value: T
+
+impl[T] Describe for Box[T]:
+    fn describe(self) -> string:
+        "box"
+
+impl[T] Describe for T?:
+    fn describe(self) -> string:
+        "maybe"
+
+impl[T] Describe for List[T]:
+    fn describe(self) -> string:
+        "list"

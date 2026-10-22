@@ -1,0 +1,13 @@
+# test: a missing argument follows the call rules
+use std.annotation.facts_of
+
+@"label"
+fn tagged() -> void:
+    pass
+
+fn plain() -> void:
+    pass
+
+value := facts_of()  # diagnostic: argument-count
+pub fn main() -> void:
+    pass

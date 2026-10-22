@@ -1,0 +1,9 @@
+# test: a trait less block with member lines is clean
+use std.structure.Structure
+
+struct Box[T]:
+    item: T
+
+impl[T] Box[T] by Structure:
+    item += []
+    Self += []

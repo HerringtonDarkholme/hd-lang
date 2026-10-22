@@ -1,0 +1,7 @@
+# test: a dyn inherent impl lives in the module of its trait
+pub trait Shape:
+    fn area(self) -> f64
+
+impl dyn Shape:
+    fn double(self) -> f64:
+        self.area() * 2.0

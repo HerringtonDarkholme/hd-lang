@@ -1,0 +1,9 @@
+# test: a dependency trait for a local type is valid
+# fixture-package-role: library
+use dep.members.Tagged
+
+struct Local:
+    n: i32
+
+impl Tagged for Local:
+    fn tag(self) -> string: "local"

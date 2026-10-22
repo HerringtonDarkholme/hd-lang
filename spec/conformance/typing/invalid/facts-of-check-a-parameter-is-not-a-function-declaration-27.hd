@@ -1,0 +1,14 @@
+# test: a parameter is not a function declaration
+use std.annotation.facts_of
+
+@"label"
+fn tagged() -> void:
+    pass
+
+fn plain() -> void:
+    pass
+
+fn read(handler: fn() -> void) -> void:
+    _ := facts_of(handler)  # diagnostic: invalid-facts-of-target
+pub fn main() -> void:
+    pass

@@ -1,0 +1,9 @@
+# test: transparent data type is clean
+@error("disk full")
+struct DiskError:
+    free: i64
+
+@error(transparent)
+struct Wrap:
+    @from
+    inner: DiskError

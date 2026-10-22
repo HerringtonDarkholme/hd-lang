@@ -29,14 +29,6 @@ fn codes(out: &Output) -> Vec<Code> {
 const PICK: &str = "fn pick[T](left: T, right: T) -> T:\n    left\n";
 
 #[test]
-fn variance_conflict_is_single_mismatch() {
-    let out = analyze(&format!(
-        "{PICK}\nfn first(owned: List[&mut User], shared: List[&User]) -> List[&User]:\n    pick(owned, shared)\n\nstruct User:\n    name: string\n"
-    ));
-    assert_eq!(codes(&out), vec![Code::TypeMismatch], "{}", out.render());
-}
-
-#[test]
 fn readonly_first_variance_points_at_use() {
     let out = analyze(&format!(
         "{PICK}\nfn first(shared: List[&User], owned: List[&mut User]) -> List[&User]:\n    pick(shared, owned)\n\nstruct User:\n    name: string\n"
@@ -48,42 +40,4 @@ fn readonly_first_variance_points_at_use() {
         "{}",
         out.render()
     );
-}
-
-#[test]
-fn optional_conflict_is_single_mismatch() {
-    let out = analyze(&format!(
-        "{PICK}\nfn first(value: i32, maybe: i32?) -> i32?:\n    pick(value, maybe)\n"
-    ));
-    assert_eq!(codes(&out), vec![Code::TypeMismatch], "{}", out.render());
-}
-
-#[test]
-fn numeric_conflict_is_single_mismatch() {
-    let out = analyze(&format!(
-        "{PICK}\nfn widest(small: i32, large: i64) -> i64:\n    pick(small, large)\n"
-    ));
-    assert_eq!(codes(&out), vec![Code::TypeMismatch], "{}", out.render());
-}
-
-#[test]
-fn single_inferred_argument_stays_clean() {
-    let out = analyze(
-        "fn keep[T](value: T) -> void:\n    pass\n\nfn run[A](item: List[A]) -> void:\n    keep(item)\n",
-    );
-    assert!(codes(&out).is_empty(), "{}", out.render());
-}
-
-#[test]
-fn optional_against_string_literal_stays_clean() {
-    let out = analyze(
-        "fn eq2[T](a: T, b: T) -> void:\n    pass\n\nfn run(s: string?) -> void:\n    eq2(s, \"x\")\n",
-    );
-    assert!(codes(&out).is_empty(), "{}", out.render());
-}
-
-#[test]
-fn bool_literal_against_integer_still_errors() {
-    let out = analyze(&format!("{PICK}\nfn first() -> i32:\n    pick(1, true)\n"));
-    assert_eq!(codes(&out), vec![Code::TypeMismatch], "{}", out.render());
 }

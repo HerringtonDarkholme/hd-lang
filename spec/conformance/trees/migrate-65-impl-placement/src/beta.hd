@@ -1,0 +1,8 @@
+use pkg.alpha.Greeter
+
+struct Local:
+    n: i32
+
+impl Greeter for Local:
+    fn greet(self) -> string:
+        "hi"

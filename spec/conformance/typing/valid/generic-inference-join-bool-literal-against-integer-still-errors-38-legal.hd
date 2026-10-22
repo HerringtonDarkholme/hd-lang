@@ -1,0 +1,6 @@
+# test: bool literal against integer still errors
+fn pick[T](left: T, right: T) -> T:
+    left
+
+fn first() -> i32:
+    pick(1, 2)

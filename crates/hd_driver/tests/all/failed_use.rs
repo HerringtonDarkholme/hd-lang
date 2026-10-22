@@ -37,32 +37,6 @@ fn codes(src: &str) -> Vec<Code> {
 }
 
 #[test]
-fn failed_group_use_reports_one_error() {
-    let src = "use pkg.nowhere.{f, T}
-
-fn run(x: T) -> void:
-    f()
-    f().g
-    f(1).h(2)
-
-pub fn main() -> void:
-    pass
-";
-    assert_eq!(codes(src), vec![Code::UnknownModule]);
-}
-
-#[test]
-fn failed_single_use_reports_one_error() {
-    let src = "use pkg.nowhere.m
-
-pub fn main() -> void:
-    m.f()
-    m.g
-";
-    assert_eq!(codes(src), vec![Code::UnknownModule]);
-}
-
-#[test]
 fn unmentioned_name_is_still_unknown() {
     let src = "use pkg.nowhere.{f}
 

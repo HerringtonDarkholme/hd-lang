@@ -1,0 +1,7 @@
+# test: a tuple impl of a trait without a template is valid
+trait Mark:
+    fn mark(self) -> string
+
+impl Mark for (i64, i64):
+    fn mark(self) -> string:
+        "pair"

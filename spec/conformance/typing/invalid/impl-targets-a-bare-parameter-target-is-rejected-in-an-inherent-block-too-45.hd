@@ -1,0 +1,4 @@
+# test: a bare parameter target is rejected in an inherent block too
+impl[T] T:  # diagnostic: bare-parameter-impl-target
+    fn twice(self) -> i32:
+        1

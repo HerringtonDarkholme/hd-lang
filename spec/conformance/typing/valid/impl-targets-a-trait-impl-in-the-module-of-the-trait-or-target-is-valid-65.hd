@@ -1,0 +1,10 @@
+# test: a trait impl in the module of the trait or target is valid
+# fixture-package-tree: migrate-65-impl-placement/src/alpha.hd
+pub trait Greeter:
+    fn greet(self) -> string
+
+pub struct Person:
+    pub name: string
+
+pub struct Money:
+    pub cents: i64

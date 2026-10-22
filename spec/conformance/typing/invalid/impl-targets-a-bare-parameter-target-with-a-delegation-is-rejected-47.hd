@@ -1,0 +1,8 @@
+# test: a bare parameter target with a delegation is rejected
+trait Describe:
+    fn describe(self) -> string
+
+struct Inner:
+    n: i32
+
+impl[T] Describe for T by inner  # diagnostic: bare-parameter-impl-target

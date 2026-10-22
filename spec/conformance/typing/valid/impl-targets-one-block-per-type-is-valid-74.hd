@@ -1,0 +1,21 @@
+# test: one block per type is valid
+use std.structure.Structure
+
+struct Tag:
+    text: string
+
+fn tag(text: string) -> Tag:
+    Tag { text: text }
+
+struct User:
+    name: string
+    email: string
+
+struct Group:
+    title: string
+
+impl User by Structure:
+    name += [tag("n")]
+
+impl Group by Structure:
+    title += [tag("t")]

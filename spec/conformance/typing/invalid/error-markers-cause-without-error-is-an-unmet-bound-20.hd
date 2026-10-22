@@ -1,0 +1,5 @@
+# test: cause without error is an unmet bound
+@error
+enum E:
+    @error("bad")
+    Path(@source reason: i64?)  # diagnostic: unsatisfied-trait-bound

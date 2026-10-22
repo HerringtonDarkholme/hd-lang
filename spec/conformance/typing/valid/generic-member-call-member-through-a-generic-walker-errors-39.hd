@@ -1,0 +1,17 @@
+# test: member through a generic walker errors
+use std.structure.{Field, Variant, Walker}
+
+struct Prober:
+    out: string
+
+impl[S] Walker[S] for Prober:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        .Ok(())
+
+fn forward[S](w: &mut Prober, h: Field[S, i64], value: i64) -> void:
+    _ := w.member(h, value)

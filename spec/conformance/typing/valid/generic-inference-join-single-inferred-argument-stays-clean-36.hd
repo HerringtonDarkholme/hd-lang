@@ -1,0 +1,6 @@
+# test: single inferred argument stays clean
+fn keep[T](value: T) -> void:
+    pass
+
+fn run[A](item: List[A]) -> void:
+    keep(item)

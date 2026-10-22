@@ -1,0 +1,14 @@
+# test: an inherent impl on a local type is valid
+struct Counter:
+    value: i32
+
+impl Counter:
+    fn bump(self) -> i32:
+        self.value + 1
+
+impl[T] Box[T]:
+    fn get(self) -> T:
+        self.value
+
+struct Box[T]:
+    value: T

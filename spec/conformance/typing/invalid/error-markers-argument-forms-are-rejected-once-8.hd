@@ -1,0 +1,5 @@
+# test: argument forms are rejected once
+@error
+enum E:
+    @error()  # diagnostic: invalid-error-marker
+    Full

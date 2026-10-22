@@ -1,0 +1,19 @@
+use std.structure.Structure
+
+struct Tag:
+    text: string
+
+fn tag(text: string) -> Tag:
+    Tag { text: text }
+
+struct User:
+    name: string
+    email: string
+
+struct Group:
+    title: string
+
+pub struct Item:
+    pub name: string
+
+impl Item by Structure

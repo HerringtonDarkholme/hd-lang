@@ -1,0 +1,8 @@
+# test: a renamed trait less header is clean
+use std.structure.Structure
+
+struct Box[T]:
+    item: T
+
+impl[U] Box[U] by Structure:
+    item += []

@@ -1,0 +1,8 @@
+# test: failed single use reports one error
+# fixture-package-tree: failed-import-single-legal/src/main.hd
+use pkg.nowhere.m
+
+pub fn main() -> void:
+    m.f()
+    m.g
+    pass

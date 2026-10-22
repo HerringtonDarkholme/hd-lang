@@ -1,0 +1,6 @@
+# test: a dependency trait for a dependency type is an orphan
+# fixture-package-role: library
+use dep.members.{Inner, Tagged}
+
+impl Tagged for Inner:  # diagnostic: orphan-impl
+    fn tag(self) -> string: "inner"

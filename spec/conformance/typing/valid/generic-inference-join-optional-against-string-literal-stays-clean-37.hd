@@ -1,0 +1,6 @@
+# test: optional against string literal stays clean
+fn eq2[T](a: T, b: T) -> void:
+    pass
+
+fn run(s: string?) -> void:
+    eq2(s, "x")

@@ -1,0 +1,7 @@
+# test: a bare parameter target is one error and its body is left out
+trait Describe:
+    fn describe(self) -> string
+
+impl[T < Display] Describe for T:  # diagnostic: bare-parameter-impl-target
+    fn describe(self) -> string:
+        missing_name

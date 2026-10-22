@@ -1,0 +1,29 @@
+# test: an unbounded type parameter has no identity
+struct User:
+    name: string
+
+struct Order:
+    total: i32
+
+struct Box[T]:
+    item: T
+
+enum Color:
+    Red
+    Green
+
+trait Named:
+    fn label(self) -> string
+
+trait Entity < Named
+
+trait Handle < AnyRef
+
+impl Named for User:
+    fn label(self) -> string: self.name
+
+impl Entity for User:
+    pass
+
+fn f[T < Named](a: T, b: T) -> bool:
+    a is b  # diagnostic: identity-requires-references
