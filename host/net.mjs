@@ -11,7 +11,8 @@
 // and `receive!` with a timer, cleared when the wait completes: a wait it
 // ends is `Timeout`, takes nothing, and leaves every arrival for the next
 // call (std-net.timeout.error). A zero or negative timeout returns what
-// already arrived and otherwise ends at once (std-net.timeout.zero).
+// already arrived after a non-waiting I/O poll, and otherwise ends at
+// once (std-net.timeout.zero).
 // `connect_timeout!` bounds a connect the same way.
 //
 // An outcome is `{ ok }`, `{ error: [variant, text] }` for a `NetError`,
@@ -23,6 +24,7 @@
 import dgram from "node:dgram";
 import { promises as dns } from "node:dns";
 import net from "node:net";
+import { setImmediate as nextCheck } from "node:timers/promises";
 import { workerData } from "node:worker_threads";
 import { validHost } from "./node.mjs";
 
@@ -83,7 +85,15 @@ class Inbox {
   // `TIMED_OUT` once `ms` milliseconds pass first (`null`: no bound).
   async next(ms = null) {
     const ready = () => this.items.length || this.end !== null;
-    if (ms !== null && ms <= 0 && !ready()) return TIMED_OUT;
+    if (ms !== null && ms <= 0 && !ready()) {
+      // The kernel may have input whose libuv callback has not run yet.
+      // A check callback can be in this same loop iteration; the second
+      // check guarantees an intervening non-waiting I/O poll. Neither
+      // pass waits for future input or adds a wall-clock grace period.
+      await nextCheck();
+      await nextCheck();
+      if (!ready()) return TIMED_OUT;
+    }
     let late = false;
     const timer =
       ms === null
@@ -324,7 +334,9 @@ const ops = {
   },
 };
 
-const run = async (r) => {
+// Shared with worker callback-order regressions; this is the same
+// dispatcher the message transport below calls.
+export const run = async (r) => {
   if (r.handle === undefined) return ops[r.op](r);
   const h = handles.get(r.handle);
   if (h === undefined) return { unknown: true };

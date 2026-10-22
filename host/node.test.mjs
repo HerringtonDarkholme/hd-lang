@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import net from "node:net";
+import { once } from "node:events";
 import { MessageChannel, receiveMessageOnPort, Worker } from "node:worker_threads";
 import { createCoreHost, pendingOperation } from "./core.mjs";
 import { Ok } from "./wire.mjs";
@@ -278,23 +279,25 @@ test("the async entry driver polls external readiness before waking the guest", 
   }
 });
 
-function netWorker(t) {
+function netWorker(t, options = {}) {
   const { port1, port2 } = new MessageChannel();
   const flag = new Int32Array(new SharedArrayBuffer(4));
-  const worker = new Worker(new URL("./net.mjs", import.meta.url), {
-    workerData: { port: port2, flag },
+  const worker = new Worker(options.url ?? new URL("./net.mjs", import.meta.url), {
+    workerData: { port: port2, flag, ...options.data },
     transferList: [port2],
   });
   t.after(async () => {
     port1.close();
     await worker.terminate();
   });
-  return (request) => {
+  const call = (request) => {
     Atomics.store(flag, 0, 0);
     port1.postMessage(request);
     assert.notEqual(Atomics.wait(flag, 0, 0, 5000), "timed-out", "worker control reply");
     return receiveMessageOnPort(port1).message;
   };
+  call.worker = worker;
+  return call;
 }
 
 async function loopback(t) {
@@ -347,3 +350,55 @@ test("worker result transfers one ready stream and close releases it", async (t)
   call({ op: "close", handle: result.ok });
   assert.equal(call({ op: "open" }).ok.stream, 0);
 });
+
+// The peer completes its kernel connect while the worker cannot run any
+// network callback. Invoke accept in that same callback on resume, so the
+// regression cannot pass merely because message dispatch happened later.
+test(
+  "zero-bound accept sees a kernel-queued peer before its JS callback",
+  { timeout: 10000 },
+  async (t) => {
+    const barrier = new Int32Array(new SharedArrayBuffer(8));
+    const script = `
+    import { parentPort, workerData } from "node:worker_threads";
+    import { run } from ${JSON.stringify(new URL("./net.mjs", import.meta.url).href)};
+    parentPort.on("message", async ({ handle }) => {
+      const barrier = workerData.barrier;
+      Atomics.store(barrier, 0, 1);
+      Atomics.notify(barrier, 0);
+      Atomics.wait(barrier, 1, 0);
+      parentPort.postMessage(await run({ op: "accept", handle }));
+    });
+  `;
+    const call = netWorker(t, {
+      url: new URL("data:text/javascript," + encodeURIComponent(script)),
+      data: { barrier },
+    });
+    const { ok: listener } = call({
+      op: "listen",
+      host: "127.0.0.1",
+      port: 0,
+      address: "loopback",
+    });
+    call({ op: "set_timeout", handle: listener, timeout: 0 });
+    const {
+      ok: [, port],
+    } = call({ op: "local_address", handle: listener });
+    const outcome = once(call.worker, "message");
+    call.worker.postMessage({ handle: listener });
+    assert.notEqual(
+      Atomics.wait(barrier, 0, 0, 5000),
+      "timed-out",
+      "worker entered the callback barrier",
+    );
+    const peer = net.connect({ host: "127.0.0.1", port });
+    t.after(() => peer.destroy());
+    await once(peer, "connect");
+    Atomics.store(barrier, 1, 1);
+    Atomics.notify(barrier, 1);
+    const [result] = await outcome;
+    assert.equal(typeof result.ok, "number", JSON.stringify(result));
+    call({ op: "close", handle: result.ok });
+    call({ op: "close", handle: listener });
+  },
+);
