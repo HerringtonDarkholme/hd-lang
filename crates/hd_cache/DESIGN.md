@@ -371,6 +371,162 @@ which wasmtime's `unsafe` deserialization rules out today
 by function instead, one `clpack` per module
 (docs/compiler/engines-and-test-runner.md §18.2).
 
+#### 5.4.1 Packing Experiment (#751, 2026-10-22)
+
+**Outcome.** Recommend immutable per-run packs with a shared index (A) for a
+production follow-up. They beat the loose-file control in store time on both
+workloads. Keep the production loose-file store in this design-only change;
+the temporary prototype establishes useful headroom, not a production-ready
+format or a large-cache result. The owner ruled out per-module packs (B):
+`CacheStore` has no module provenance, and Iface/Graph/Link do not describe
+module records. Loose files (C) are the control A must beat. This follows the
+[measurement-first decision](https://github.com/HerringtonDarkholme/hd-lang/issues/751#issuecomment-6349274346).
+
+**Method.** Base `f64b9a814da07e32ca8fa39a1e663c4be5d3e911`, macOS arm64,
+release compiler, `hd build --release --jobs 1 --engine node`, separately on
+`bench/study/json.hd` and `nbody.hd` copied into fixed scratch packages. Cold
+means an empty `HD_CACHE`, including std; edit appends one unused function;
+no-edit reuses that cache and leaves the edited file untouched. Each cohort
+has 15 samples per program, state and binary, alternating program and binary
+order. Child process wall and CPU use `monotonic_ns` and `wait4`. The first
+cohort pairs unmodified and instrumented loose stores; the second pairs an
+instrumented loose control and the instrumented packed prototype. All
+instrumentation and prototype Rust changes were restored byte for byte and
+are absent from this commit.
+
+Timers aggregate call counts and elapsed wall time in memory and print once
+at CLI exit. Store time sums the non-overlapping deferred get, deferred put,
+deferred touch, deferred flush and disk settlement scopes. Nested disk
+get/put, index load/merge and GC timings explain that total; they are not
+added again. With one job this measures synchronous store work, including
+queued-byte copies, flush and eviction before process exit. It is **not** a
+syscall-only percentage or CPU attribution. Observer output and process
+startup are outside those scopes. The old 7.6%/14.5% syscall shares from
+`b4c5768e3` are not the current measurement.
+
+**Current loose-store attribution.** Medians in ms; share is the median of
+per-build store-wall/process-wall ratios, not a ratio of the two medians.
+
+| Program/state | Plain process wall | Instrumented process wall | Store wall | Store share |
+| --- | ---: | ---: | ---: | ---: |
+| JSON cold | 425.510 | 414.889 | 37.148 | 8.66% |
+| JSON edit | 229.395 | 235.818 | 6.374 | 2.85% |
+| JSON no-edit | 58.110 | 56.959 | 4.947 | 8.16% |
+| nbody cold | 254.523 | 234.333 | 35.417 | 15.13% |
+| nbody edit | 55.333 | 53.870 | 6.514 | 11.85% |
+| nbody no-edit | 30.684 | 30.188 | 4.742 | 16.03% |
+
+Both programs have the following exact counts in all 15 samples. Each state
+flushes once and settles once; neither calls touch. Deferred gets can hit
+waiting entries, so disk get counts differ.
+
+| State | Deferred get | Deferred put | Disk get | Disk put |
+| --- | ---: | ---: | ---: | ---: |
+| Cold | 138 | 103 | 98 | 103 |
+| Edit | 141 | 6 | 140 | 6 |
+| No-edit | 142 | 0 | 142 | 0 |
+
+Cold JSON flush/settlement medians are 29.726/7.214 ms; nbody
+27.989/6.977 ms. No-edit disk reads take 4.585/4.519 ms respectively.
+These counts find no duplicate queued puts in these workloads. Moving writes
+after diagnostics is already what `DeferredStore` does. JSON edit is below
+the owner's roughly 5% threshold, but its no-edit state and both nbody warm
+states exceed it, so the owner-authorized A experiment applies.
+
+**Measured A.** One immutable pack contains the pending complete HDCE frames.
+A shared sorted index maps `(kind,key)` to `(pack,offset,length,last-use)`;
+it is loaded once for lookups. Each process caches opened pack handles and
+reads individual frame ranges into the existing entry-sized `Arc<[u8]>`.
+Flush materializes the deferred batch in both A and the loose control;
+only A publishes it as one pack. Pack writes finish before the stable
+index-writer lock is taken. Under that lock, publication reloads the latest
+index, replaces same-key locations, writes a temporary index and renames it.
+Readers take no publication lock. A cache race or missing pack remains a
+miss. Native private Clpack entries keep their existing separate storage.
+
+GC tracks recency per entry, never by pack age. The prototype scans physical
+packs on settlement, merges hour-old use marks, evicts by entry age under a
+small cap, and compacts live records when a pack is over 25% dead or the cap
+requires reclamation. Compaction preserves the original entry ages. Its
+index merge, directory scans and automatic GC all run inside the measured
+process; none is moved to an untimed worker. Empty warm flushes write no
+pack or index. Normal study builds do not reach the compaction threshold.
+
+| Program/state | Loose CPU | A CPU | Loose process wall | A process wall | Loose store wall | A store wall |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| JSON cold | 384.233 | 359.753 | 404.912 | 375.550 | 31.396 | 2.853 |
+| JSON edit | 212.840 | 210.997 | 218.616 | 216.673 | 6.052 | 2.206 |
+| JSON no-edit | 51.634 | 50.203 | 54.725 | 54.455 | 4.330 | 1.548 |
+| nbody cold | 221.047 | 192.513 | 239.834 | 202.737 | 31.352 | 3.692 |
+| nbody edit | 49.435 | 45.218 | 56.078 | 51.148 | 6.130 | 2.086 |
+| nbody no-edit | 25.446 | 22.523 | 30.071 | 25.858 | 4.327 | 1.435 |
+
+A's nested index and maintenance wall totals per build, medians in ms:
+
+| Program/state | Index load | Index merge | GC/settlement |
+| --- | ---: | ---: | ---: |
+| JSON cold | 0.130 | 0.238 | 0.229 |
+| JSON edit | 0.108 | 0.311 | 0.124 |
+| JSON no-edit | 0.071 | 0 | 0.169 |
+| nbody cold | 0.056 | 0.237 | 0.155 |
+| nbody edit | 0.104 | 0.312 | 0.131 |
+| nbody no-edit | 0.077 | 0 | 0.168 |
+
+There are three index loads per cold/edit build (lookup, publication merge,
+GC), two per no-edit build, one publication merge per cold/edit build and
+none per no-edit build. Index-load time includes missing-index probes.
+Merge time includes lock acquisition, the nested reload and index writing;
+GC time also includes its nested reload. These columns overlap.
+
+**Files and bytes.** Both programs have 103 logical objects cold and 109
+after the edit; the no-edit build adds nothing. Loose storage has 104/110
+regular files including its 2,064-byte stats ledger. A has 3/4: one/two
+packs, the index and the stable lock file. JSON cold uses 6,405,407 loose
+bytes versus 6,409,325 packed bytes; edit 6,621,505 versus 6,625,771. nbody
+uses 6,228,603 versus 6,232,521 cold and 6,268,001 versus 6,272,267 after
+edit. These are file lengths, not allocated disk blocks. Packing reduces
+file operations, not payload size: the index adds bytes.
+
+**Validation and limits.** All 180 outputs in each cohort match their paired
+binary byte for byte (360 builds total). Extracting A's indexed frame ranges
+and validating with the actual `hd_cache::decode_entry` finds all 103 cold
+and 109 edited entry bodies and all 425/447 section payloads literally
+identical to the loose control, for both programs. HDCE layout remains 19;
+header keys/toolchain hashes differ normally because compiler source affects
+the build ID. There is no payload normalization. Two focused scratch tests
+also pass: same-key Graph replacement, concurrent independent publishers,
+truncated-pack misses, entry-level LRU, age-preserving compaction and a
+5,000-byte physical cap. No production code or fixture changed; full suites
+were not run for this design note.
+
+Shared-machine scheduling is visible: cohort-two JSON cold wall spans
+370–1,083 ms for loose and 353–1,295 ms for A. The small JSON edit/no-edit
+whole-process differences are not a robust speed claim. Store attribution
+and the cold/nbody results justify investigating A, not extrapolating a
+universal percentage. Initial load was about 22 for attribution and 29 for
+A/control, falling to about 20; no own builds/tests overlapped timing.
+
+Before production adoption, measure index growth and many historical packs,
+contention and crash recovery, age updates and compaction under pressure,
+and Windows open-handle/deletion behavior. The prototype serializes GC and
+compaction with index publication, which can lengthen writer lock holds.
+Unindexed orphan packs younger than an hour are retained so GC cannot delete
+an active writer's unpublished pack; a production lease/recovery protocol
+must make explicit GC and cap accounting sound in that case. Index
+validation, bounded memory, corruption recovery and write-failure warnings
+also need production hardening. A separate storage namespace is required;
+packing alone does not justify changing semantic keys or HDCE framing.
+
+Raw evidence, under the isolated worktree's `target/`:
+`muse-751-store-1792697209532455000/` (attribution) and
+`muse-751-pack-compare-1792697543256597000/` (A/control, samples, summaries,
+first-trial immutable cache snapshots, extracted frames and decoder reports).
+Temporary observers and prototype builders are
+`/private/tmp/muse-751-build-{instrumented,prototype}.py`; they restore the
+three source files in `finally`. The production loose-store source is
+unchanged. This note supersedes the issue's historical syscall estimate as
+current evidence; it does not authorize a production layout switch.
+
 ### 5.5 The Stat Manifest And Change Detection
 
 Every run lists and reads every source file of the root package and
