@@ -73,14 +73,15 @@ Each study program's input is tuned so hd on V8 runs about 300 ms
 long enough that start-up and noise are small, short enough to run
 often. The input is a constant at the top of each source, identical in
 the hd, JavaScript, Go and Python versions. Times are integer
-milliseconds, the median of 5 runs after a warm-up run (Python: 3 runs,
-no warm-up). `--quick` measures hd on V8 only, 3 runs, no references.
+milliseconds, the median of 5 fresh-process runs after one discarded
+preflight process. The discarded process does not warm the measured Wasm
+modules: each measured process has fresh V8 tier state. `--quick` measures hd on V8 only, 3 runs, no references.
 `--backend B` passes `--backend B` to `hd build`.
 
 Each hd program is built with `hd build --release --engine E` and run on
 Node through `host/run.mjs` and on wasmtime as `hd FILE.wasm --engine
-wasmtime`, which includes Cranelift's compile. Every output is checked
-against its reference first. Times are process wall time, so start-up is
+wasmtime`, which includes Cranelift's compile. Every process output, including the discarded preflight, is checked
+against the expected stdout and must exit successfully. Times are process wall time, so start-up is
 in them: see the empty program's row. Python references use plain CPython
 (`python3`), with no NumPy; a missing interpreter prints a skip note.
 `--python-only` checks the study's fixed expected stdout and measures each
@@ -95,6 +96,40 @@ so PATH is an `hd` built with two local edits: `Program::packages` in
 `crates/hd_cli/src/disk.rs` sets `checked` when `HD_BENCH_CHECKED` is set,
 and `retained()` and `released()` in `lib/std/rt/checked.hd` put
 `allocated()` and `pages()` in the high 32 bits of their results.
+
+### Fresh Processes And Warm Modules
+
+An optional Node measurement compiles each Wasm module once, runs three
+unmeasured activations, then measures fresh hosts and instances of that
+same module in one process:
+
+```sh
+node bench/study/run.mjs --quick --only mandelbrot --warm-module
+node --test bench/study/run.test.mjs
+```
+
+The extra table labels fresh-process wall time and warm-module activation
+time separately, with sample counts and the Node/V8 versions. The original
+wall-time table, references, timing flags and `results.json` rows stay;
+`warmModule` adds the optional measurement to each row. Warm-module time
+includes host creation, instantiation, `hd.init`/`hd.poll` and host cleanup;
+it excludes Wasm compilation and Node process startup. Module code and its
+V8 tier state are shared; mutable Wasm globals, memory and host state belong
+to each new instance. Warm-up and measured activations must all produce
+exactly the expected stdout and exit successfully.
+
+A focused run on 2026-10-22, Node v24.19.0 / V8 13.6.233.17-node.51:
+
+| Program | fresh-process wall, ms | samples | warm-module activation, ms | samples | discarded activations |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| mandelbrot | 317 | 3 | 97 | 3 | 3 |
+
+Every activation produced `778803` followed by a newline. The machine was
+shared (load 6–21); these numbers illustrate different measurement scopes,
+not a compiler speed change. The existing wall-time column remains a
+fresh-process measurement. Harness tests verify reuse of one compiled
+module with distinct instances and reset mutable globals, and refuse
+output or status failures beyond the discarded preflight.
 
 ### Results, 2026-10-21, after the RC optimization round
 

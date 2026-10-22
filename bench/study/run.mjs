@@ -6,17 +6,20 @@
 // through host/run.mjs and on wasmtime as `hd FILE.wasm --engine wasmtime`
 // (Cranelift compile included, as `hd run` pays it), and checked against
 // its reference's output. JavaScript (Node) and Go references run the same
-// way; Python references use python3, three runs without a warm-up. Every time is process wall time,
+// way; Python references use python3. The existing wall-time table uses process wall time,
 // the median of the measured runs, in integer milliseconds;
 // peak RSS is the largest `/usr/bin/time -l` saw.
 //
 // Usage: node bench/study/run.mjs [--runs N] [--only a,b] [--engines node,wasmtime]
 //                                 [--hd PATH] [--work DIR] [--no-refs] [--python-only]
-//                                 [--backend B] [--quick]
+//                                 [--backend B] [--quick] [--warm-module]
 //
 // Each study program's input is tuned so hd on V8 takes about 300 ms
 // (https://matklad.github.io/2026/10/05/benchmark-milliseconds.html); times
-// are integer milliseconds, the median of 5 runs after a warm-up run.
+// are integer milliseconds, the median of 5 fresh-process runs after a discarded
+// preflight process. That preflight does not warm any measured Wasm module.
+// `--warm-module` additionally compiles once on Node, discards three activations,
+// then measures fresh hosts and instances of that same module in this process.
 // `--quick` is hd on V8 only, no references, 3 runs. `--backend B` passes
 // `--backend B` to `hd build` (the Wasm GC era CLI has `--backend wasm-gc`).
 //        node bench/study/run.mjs --checked PATH [--only a,b] [--work DIR]
@@ -32,6 +35,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createHost } from "../../host/node.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, "..", "..");
@@ -143,17 +147,21 @@ function parseArgs(argv) {
     else if (a === "--work") opts.work = resolve(argv[++i]);
     else if (a === "--checked") opts.checked = resolve(argv[++i]);
     else if (a === "--no-refs") opts.refs = false;
+    else if (a === "--warm-module") opts.warmModule = true;
     else if (a === "--backend") opts.backend = argv[++i];
     else if (a === "--quick") {
       opts.quick = true;
       opts.runs = 3;
       opts.engines = ["node"];
       opts.refs = false;
-    }
-    else if (a === "--python-only") opts.pythonOnly = true;
+    } else if (a === "--python-only") opts.pythonOnly = true;
     else throw new Error(`unknown flag ${a}`);
   }
   if (opts.quick && argv.includes("--runs")) opts.runs = Number(argv[argv.indexOf("--runs") + 1]);
+  if (!Number.isInteger(opts.runs) || opts.runs < 1)
+    throw new Error("--runs must be a positive integer");
+  if (opts.warmModule && (opts.checked || opts.pythonOnly || !opts.engines.includes("node")))
+    throw new Error("--warm-module requires the Node engine and ordinary timing mode");
   opts.hd ??= join(REPO, "target", "release", "hd");
   opts.work ??= join(REPO, "target", "bench-study");
   return opts;
@@ -184,26 +192,72 @@ const median = (xs) => {
 };
 
 /**
- * Median wall ms and peak RSS over `runs` runs after a warm-up. A first run
+ * Median fresh-process wall ms and peak RSS after a discarded preflight. A first run
  * over 20 s counts as measured, and one over 60 s is the only run.
- * Python-only mode disables the warm-up and requests exactly one run.
+ * Python-only mode disables the discarded preflight and requests exactly one run.
  */
-function measure(argv, runs, expect, warmup = true) {
+export function measure(argv, runs, expect, preflight = true) {
   const first = timed(argv);
-  if (first.status !== 0) return { error: `exit ${first.status}: ${first.err.slice(-400)}` };
-  if (expect !== undefined && first.out !== expect)
-    return { error: `output ${JSON.stringify(first.out.slice(0, 200))}` };
-  const samples = !warmup || first.ms > 20_000 ? [first] : [];
+  const expected = expect ?? first.out;
+  const failure = validate(first, expected);
+  if (failure) return { error: failure };
+  const samples = !preflight || first.ms > 20_000 ? [first] : [];
   const want = first.ms > 60_000 ? 1 : runs;
-  while (samples.length < want) samples.push(timed(argv));
+  while (samples.length < want) {
+    const sample = timed(argv);
+    const failure = validate(sample, expected);
+    if (failure) return { error: failure };
+    samples.push(sample);
+  }
   return {
-    runs: samples.length,
-    ms: median(samples.map((s) => s.ms)),
-    spread: Math.max(...samples.map((s) => s.ms)) - Math.min(...samples.map((s) => s.ms)),
+    ...summarize(samples),
     rssMb: Math.max(...samples.map((s) => s.rssMb ?? 0)),
     out: first.out,
     err: first.err,
   };
+}
+
+function validate(sample, expected) {
+  if (sample.status !== 0) return `exit ${sample.status}: ${sample.err.slice(-400)}`;
+  if (sample.out !== expected) return `output ${JSON.stringify(sample.out.slice(0, 200))}`;
+  return null;
+}
+
+function summarize(samples) {
+  return {
+    runs: samples.length,
+    ms: median(samples.map((s) => s.ms)),
+    spread: Math.max(...samples.map((s) => s.ms)) - Math.min(...samples.map((s) => s.ms)),
+  };
+}
+
+/** One compiled module; fresh host and instance for every discarded/measured activation.
+ * Includes host creation, instantiation, init/poll and close; excludes compilation.
+ * Every activation must match the expected stdout and succeed, including warm-ups.
+ */
+export async function measureWarmModule(module, runs, expect, warmups = 3) {
+  const samples = [];
+  for (let i = 0; i < warmups + runs; i++) {
+    const out = [];
+    const err = [];
+    const start = performance.now();
+    const host = createHost(
+      { out: (text) => out.push(text), err: (text) => err.push(text) },
+      { module },
+    );
+    let status;
+    try {
+      const instance = await WebAssembly.instantiate(module, host.imports);
+      ({ status } = await host.run(instance, "hd.init", "hd.poll"));
+    } finally {
+      host.close();
+    }
+    const sample = { ms: performance.now() - start, status, out: out.join(""), err: err.join("") };
+    const failure = validate(sample, expect);
+    if (failure) return { error: failure };
+    if (i >= warmups) samples.push(sample);
+  }
+  return { ...summarize(samples), warmups, outputValidation: "exact stdout, every activation" };
 }
 
 /** Builds `source` as package NAME in WORK/pkgs; returns the release Wasm path. */
@@ -214,11 +268,15 @@ function build(hd, work, name, source, engine, env = process.env, backend = unde
   mkdirSync(join(dir, "src"), { recursive: true });
   writeFileSync(join(dir, "hd.toml"), `[package]\nname = "${flat}"\n`);
   writeFileSync(join(dir, "src", "main.hd"), source);
-  execFileSync(hd, ["build", "--release", "--engine", engine, ...(backend ? ["--backend", backend] : [])], {
-    cwd: dir,
-    env: { ...env, HD_CACHE: join(work, "cache") },
-    stdio: ["ignore", "ignore", "inherit"],
-  });
+  execFileSync(
+    hd,
+    ["build", "--release", "--engine", engine, ...(backend ? ["--backend", backend] : [])],
+    {
+      cwd: dir,
+      env: { ...env, HD_CACHE: join(work, "cache") },
+      stdio: ["ignore", "ignore", "inherit"],
+    },
+  );
   return join(dir, "build", "release", `${flat}.wasm`);
 }
 
@@ -273,7 +331,7 @@ process.argv = [process.argv[0], runner, ...process.argv.slice(2)];
 await import("file://" + runner);
 `;
 
-function main() {
+async function main() {
   const startedAt = performance.now();
   const opts = parseArgs(process.argv.slice(2));
   let list = cases();
@@ -324,12 +382,19 @@ function main() {
       const argv =
         engine === "node" ? ["node", RUNNER, wasm] : [opts.hd, wasm, "--engine", "wasmtime"];
       row[engine] = measure(argv, opts.runs, expect);
+      if (engine === "node" && opts.warmModule && !row.node.error) {
+        const module = await WebAssembly.compile(readFileSync(wasm));
+        row.warmModule = await measureWarmModule(module, opts.runs, expect ?? row.node.out);
+      }
     }
     console.error(JSON.stringify(row, (k, v) => (k === "out" || k === "err" ? undefined : v)));
   }
   writeFileSync(join(opts.work, "results.json"), JSON.stringify(rows, null, 1));
   const cell = (m) => (m ? (m.error ? "fail" : Math.round(m.ms).toString()) : "");
   const rss = (m) => (m && !m.error ? Math.round(m.rssMb).toString() : "");
+  console.log(
+    `Node ${process.version}; V8 ${process.versions.v8}. Process-wall samples each start a fresh process; a discarded preflight is not module warm-up.`,
+  );
   console.log(
     "| Program | hd, V8 | hd, wasmtime | Node | Go | py | hd/Node | hd/Go | RSS MB: hd V8, wasmtime, Node, Go, py |",
   );
@@ -343,6 +408,19 @@ function main() {
   for (const r of rows)
     for (const k of ["node", "wasmtime", "js", "go", "py"])
       if (r[k]?.error) console.log(`- ${r.name} ${k}: ${r[k].error}`);
+  if (opts.warmModule) {
+    console.log("\nNode/V8 timings, ms (median):");
+    console.log(
+      "| Program | fresh-process wall | samples | warm-module activation | samples | discarded activations | output validation |",
+    );
+    console.log("| --- | ---: | ---: | ---: | ---: | ---: | --- |");
+    for (const r of rows) {
+      console.log(
+        `| ${r.name} | ${cell(r.node)} | ${r.node?.runs ?? ""} | ${cell(r.warmModule)} | ${r.warmModule?.runs ?? ""} | ${r.warmModule?.warmups ?? ""} | ${r.warmModule && !r.warmModule.error ? "exact stdout, every sample" : "failed"} |`,
+      );
+      if (r.warmModule?.error) console.log(`- ${r.name} warm-module: ${r.warmModule.error}`);
+    }
+  }
   const dyn = rows.find((r) => r.name === "dyn_iter");
   if (dyn)
     for (const k of ["node", "wasmtime", "go", "py"])
@@ -354,9 +432,16 @@ function main() {
             .join("; ")}`,
         );
   console.log(`\nTotal ${Math.round((performance.now() - startedAt) / 1000)} s.`);
-  if (rows.some((r) => ["node", "wasmtime", "js", "go", "py"].some((k) => r[k]?.error)))
+  if (
+    rows.some((r) => ["node", "wasmtime", "js", "go", "py", "warmModule"].some((k) => r[k]?.error))
+  )
     process.exitCode = 1;
 }
 
-if (existsSync(RUNNER)) main();
-else throw new Error(`no ${RUNNER}`);
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  if (!existsSync(RUNNER)) throw new Error(`no ${RUNNER}`);
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}
