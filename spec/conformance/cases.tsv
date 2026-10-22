@@ -3079,6 +3079,7 @@ typing/invalid/key-assoc-function-an-associated-function-through-a-key-is-unavai
 typing/invalid/serde-derive-member-not-serialize.hd	type	reject:member-not-derivable	lang/14-annotations.md#r-annot.serde.members.error
 typing/invalid/serde-map-key-not-string.hd	type	reject:unsatisfied-trait-bound	std/serde.md#r-std-serde.std.map-keys
 runtime/valid/json-serde-private-round-trip.hd	runtime	accept	std/json.md#r-std-json.derive.to-json.private
+runtime/valid/serde-rename-all.hd	runtime	accept	std/serde.md#member-names
 runtime/valid/serde-rename.hd	runtime	accept	std/serde.md#member-names
 runtime/valid/serde-derive-call-order.hd	runtime	accept	std/serde.md#r-std-serde.derive.serialize.included-order
 runtime/valid/time-serde-forms.hd	runtime	accept	std/time.md#r-std-time.serde.text-form

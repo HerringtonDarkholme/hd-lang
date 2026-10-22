@@ -373,6 +373,7 @@ tests:
         assert_equal(encode(&mut Wide { count: 3, repeat_at: 2, back: 2 }), "{\"k0\":2,\"k1\":1}", reason="the last value at the first place")
 
     it("walks that derived code never makes encode as the tree defines them"):
+        assert_equal(encode(steps([Step.Field("loose"), Step.Int(7)])), "7", reason="a member outside a container still follows the tree fallback")
         assert_equal(encode(steps([])), "null", reason="no value")
         assert_equal(encode(steps([Step.Int(1), Step.Int(2)])), "2", reason="the last top-level value")
         assert_equal(encode(steps([Step.BeginMap, Step.Key("a"), Step.Int(1), Step.Int(2), Step.EndMap])), "{\"a\":2}", reason="a stale key")

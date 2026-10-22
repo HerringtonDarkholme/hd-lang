@@ -7,7 +7,7 @@ use std.convert.From
 use std.task.TimedOut
 use std.text.StringBuilder
 use std.json.{JsonError, decode, encode}
-use std.serde.{Deserialize, Serialize, Serializer, Rename}
+use std.serde.{Deserialize, Serialize, Serializer, member_name}
 use std.structure.{Facts, VariantInfo, Member}
 
 ## An HTTP method: a standard one, or `Other(name)`.
@@ -164,6 +164,7 @@ struct FormWriter:
     pub tagged: bool
     pub tag: string
     pub written: bool
+    pub facts: Facts = Facts { items: [] }
 
 impl FormWriter:
     fn new() -> &mut FormWriter:
@@ -252,6 +253,7 @@ impl Serializer for FormWriter:
             if !v.of_data:
                 self.unsupported()
             self.started = true
+            self.facts = facts
         else:
             if v.of_data || self.map || self.finished || !self.keyed || self.tagged:
                 self.unsupported()
@@ -262,7 +264,7 @@ impl Serializer for FormWriter:
     fn member(&mut self, m: Member) -> Result[void, never]:
         if self.tagged || self.repeated || self.keyed || self.finished:
             self.unsupported()
-        self.name = m.facts.find::[Rename]().map(fn(fact): fact.name).unwrap_or(m.name)
+        self.name = member_name(m, self.facts)
         self.keyed = true
         .Ok(())
 

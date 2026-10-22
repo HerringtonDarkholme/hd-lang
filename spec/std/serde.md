@@ -136,8 +136,31 @@ For example, `@rename("total")` on `total_cents: i64` uses the key `total`.
 
 1. r[std-serde.rename.fact] `std.serde` exports the field fact `Rename` with the public field `name: string`.
 2. r[std-serde.rename.constructor] `rename(name: string) -> Rename` constructs a fact with that name.
-3. r[std-serde.rename.wire-name] A document member's wire name is its `Rename.name` when present, and its source member name otherwise.
+3. r[std-serde.member-name.precedence] A member's wire name uses its `Rename.name` first, its container's `RenameAll` style second, and its source name otherwise.
 4. r[std-serde.rename.metadata] `Member.name` retains the source member name, and document formats read `Rename` from `Member.facts`.
+
+5. r[std-serde.member-name.helper] `member_name(member: Member, container: Facts) -> string` returns that member's wire name.
+6. r[std-serde.member-name.formats] Standard serializers and deserializers use `member_name` for document or capture-group names.
+7. r[std-serde.rename-all.styles] `RenameCase` is an `Eq` and `Debug` enum with the eight style variants in the table.
+8. r[std-serde.rename-all.fact] `RenameAll` is a data-type and enum fact with the public field `style: RenameCase`.
+9. r[std-serde.rename-all.constructor] `rename_all(style: RenameCase) -> RenameAll` constructs the fact.
+10. r[std-serde.rename-all.conversion] Style conversion follows the table, applying ASCII case changes to a member's written name.
+11. r[std-serde.rename-all.container] A standard format's container facts are the current record's or enum's per-derivation facts supplied to `begin_variant`.
+12. r[std-serde.rename-all.map-keys] A `RenameAll` style does not change string map keys.
+
+| `RenameCase` variant | Style | Conversion | `order_id` becomes |
+| --- | --- | --- | --- |
+| `Lowercase` | `lowercase` | Keep the name | `order_id` |
+| `Uppercase` | `UPPERCASE` | Uppercase ASCII letters | `ORDER_ID` |
+| `PascalCase` | `PascalCase` | Remove underscores and uppercase each word's first character in ASCII | `OrderId` |
+| `CamelCase` | `camelCase` | PascalCase, then lowercase its first character in ASCII | `orderId` |
+| `SnakeCase` | `snake_case` | Keep the name | `order_id` |
+| `ScreamingSnakeCase` | `SCREAMING_SNAKE_CASE` | Uppercase ASCII letters | `ORDER_ID` |
+| `KebabCase` | `kebab-case` | Replace underscores with hyphens | `order-id` |
+| `ScreamingKebabCase` | `SCREAMING-KEBAB-CASE` | Uppercase ASCII letters and replace underscores with hyphens | `ORDER-ID` |
+
+For example, `@rename_all(.CamelCase)` on `OrderPaid` gives the member
+`order_id` the wire name `orderId`; a field's explicit `@rename` wins.
 
 > **Why.** Document names belong to the serialization view; preserving the
 > source name lets other adapters, such as environment readers, name fields

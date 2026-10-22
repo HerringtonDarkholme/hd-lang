@@ -1,5 +1,5 @@
 # test: a serde rename changes document names while preserving hd member names and ordinary keys
-# Spec std/serde Member Names: std-serde.rename.fact, std-serde.rename.constructor, std-serde.rename.wire-name, std-serde.rename.metadata.
+# Spec std/serde Member Names: std-serde.rename.fact, std-serde.rename.constructor, std-serde.member-name.precedence, std-serde.rename.metadata.
 use std.json.{JsonError, decode, encode, encode_pretty, from_json, parse, to_json}
 use std.serde.{Serialize, Deserialize, Rename, rename}
 use std.structure.{Structure, Field, Variant, Walker}

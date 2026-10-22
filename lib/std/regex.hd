@@ -7,7 +7,7 @@
 # lets a search start threads only where a match could start and jump over
 # the text between.
 use std.format.DebugWriter
-use std.serde.{Deserialize, Deserializer, ValueKind, Rename}
+use std.serde.{Deserialize, Deserializer, ValueKind, member_name}
 use std.structure.{Facts, Member, VariantInfo}
 
 # A compiled pattern (r-std-regex.regex.decl-struct). `names[i]` is the name of
@@ -251,6 +251,7 @@ struct CaptureReader:
     current: Match? = .None
     record: bool = false
     variant: bool = false
+    facts: Facts = Facts { items: [] }
 
 impl CaptureReader:
     fn group_text(&mut self, expected: string) -> Result[string, RegexError]:
@@ -312,6 +313,7 @@ impl Deserializer for CaptureReader:
         if !self.record:
             if choices.len() == 1 && choices[0].of_data:
                 self.record = true
+                self.facts = facts
                 return .Ok(0)
             return .Err(self.invalid("record"))
         if choices.len() == 1 && choices[0].of_data:
@@ -326,7 +328,7 @@ impl Deserializer for CaptureReader:
         .Err(self.invalid("variant"))
 
     fn member(&mut self, m: Member) -> Result[void, RegexError]:
-        name := m.facts.find::[Rename]().map(fn(fact): fact.name).unwrap_or(m.name)
+        name := member_name(m, self.facts)
         if self.variant:
             return .Err(self.invalid("payload-free variant"))
         self.group = name

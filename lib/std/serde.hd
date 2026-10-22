@@ -6,6 +6,7 @@
 # (spec/lang/10-modules.md#r-module.boundary.out). The standard
 # implementations and the templates are spec/std/serde.md.
 use std.annotation.annotate
+use std.text.StringBuilder
 use std.collections.Set
 use std.function.Tuple
 use std.hash.Hash
@@ -42,6 +43,79 @@ pub struct Skip: pass
 ## See [std-serde.skip.constructor](../../spec/std/serde.md#r-std-serde.skip.constructor).
 pub fn skip() -> Skip:
     Skip {}
+
+## The eight document member-name styles.
+## See [std-serde.rename-all.styles](../../spec/std/serde.md#r-std-serde.rename-all.styles).
+@derive(Debug, Eq)
+pub enum RenameCase:
+    Lowercase
+    Uppercase
+    PascalCase
+    CamelCase
+    SnakeCase
+    ScreamingSnakeCase
+    KebabCase
+    ScreamingKebabCase
+
+## The default naming style for a record's or enum's members.
+## See [std-serde.rename-all.fact](../../spec/std/serde.md#r-std-serde.rename-all.fact).
+@annotate(.Data, .Enum)
+pub struct RenameAll:
+    pub style: RenameCase
+
+## Configures the default document member-name style.
+## See [std-serde.rename-all.constructor](../../spec/std/serde.md#r-std-serde.rename-all.constructor).
+pub fn rename_all(style: RenameCase) -> RenameAll:
+    RenameAll { style: style }
+
+## Resolves a wire name: member rename, then container rename_all, then source name.
+## See [std-serde.member-name.precedence](../../spec/std/serde.md#r-std-serde.member-name.precedence).
+pub fn member_name(member: Member, container: Facts) -> string:
+    match member.facts.find::[Rename]():
+        .Some(fact) => return fact.name
+        .None => pass
+    match container.find::[RenameAll]():
+        .Some(fact) => case_name(member.name, fact.style)
+        .None => member.name
+
+fn case_name(name: string, style: RenameCase) -> string:
+    match style:
+        .Lowercase => name
+        .SnakeCase => name
+        .Uppercase => uppercase_name(name)
+        .ScreamingSnakeCase => uppercase_name(name)
+        .KebabCase => name.replace("_", "-")
+        .ScreamingKebabCase => uppercase_name(name).replace("_", "-")
+        .PascalCase => joined_name(name, false)
+        .CamelCase => joined_name(name, true)
+
+fn uppercase_name(name: string) -> string:
+    let mut bytes = name.to_utf8()
+    let changed = false
+    for at in 0..bytes.len():
+        byte := bytes[at]
+        if byte >= 97 && byte <= 122:
+            bytes[at] = byte - 32
+            changed = true
+    if !changed:
+        return name
+    string::from_utf8(bytes).expect("ASCII case preserves UTF-8")
+
+fn joined_name(name: string, camel: bool) -> string:
+    out := StringBuilder::new()
+    let word_start = true
+    let first = true
+    for character in name.chars():
+        if character == '_':
+            word_start = true
+            continue
+        let text = character.to_string()
+        if word_start && text.len() == 1:
+            text = if camel && first: text.lower() else: text.upper()
+        out.push(text)
+        word_start = false
+        first = false
+    out.build()
 
 # A value that opts in to be written by every format
 # (r-annot.serde.definition).
