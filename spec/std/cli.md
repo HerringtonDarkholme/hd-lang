@@ -70,7 +70,7 @@ A subcommand has its own argument declarations, as in `ArgParser::new("notes").c
 5. r[std-cli.command.lookup] The first plain argument names a command through one indexed lookup.
 6. r[std-cli.command.scope] The child parses only arguments after its name, with its own declarations; global options are read before the command.
 7. r[std-cli.command.unknown] An undeclared command name returns `CliError.UnknownCommand(text)` with the supplied name as `text`.
-8. r[std-cli.command.missing] A parser with commands returns `CliError.MissingCommand` when no command was selected.
+8. r[std-cli.command.missing-required] A parser with required commands returns `CliError.MissingCommand` when no command was selected.
 9. r[std-cli.command.end-scope] An outer `--` makes its following command name plain, but does not disable option parsing within the selected child.
 10. r[std-cli.command.cost] Delegation should pass the original input and its offset without copying the remaining arguments at each nesting level.
 
@@ -317,7 +317,7 @@ fn compression() -> u8:
 12. r[std-cli.typed.scalar-errors] A refused scalar returns `InvalidValue(name, reason)`, with its argument name and the parse error's `Display` text.
 13. r[std-cli.typed.containers] `Option[T]` and `List[T]` implement `Cli` when `T` implements `Cli`.
 14. r[std-cli.typed.optional] An absent optional field reads `.None`, unless its field default applies.
-15. r[std-cli.typed.list] A list field declares a repeatable argument and reads every occurrence in input order, or `[]` when absent.
+15. r[std-cli.typed.list-values] For value-taking or flag declarations, a list reads every occurrence in order, or `[]` when absent.
 16. r[std-cli.typed.flag-list] A `List[bool]` flag field reads one `true` per occurrence.
 17. r[std-cli.typed.view] Each list element is read through a constant-time one-value `Parsed` view over shared storage.
 18. r[std-cli.typed.bounds] Every field of a derived record must implement `Cli`, checked at the derive.
@@ -415,6 +415,51 @@ fn files() -> Files:
 > **Why.** A rest list must be last among positional declarations, so later
 > fields cannot become unreachable. Option declarations may follow it.
 
+### Typed Subcommands
+
+An enum with payload variants derives a set of subcommands.
+
+```text
+use std.cli.Cli
+
+@derive(Cli)
+struct BuildOptions:
+    out: string = "site"
+
+@derive(Cli)
+enum Command:
+    Build(BuildOptions)
+    Stop
+
+@derive(Cli)
+struct Notes:
+    command: Command
+
+fn notes() -> Notes:
+    Notes::parse(["build", "--out", "public"]).expect("valid command")
+```
+
+1. r[std-cli.typed-commands.derive] When any variant carries a payload, the enum's variants declare subcommands rather than option choices.
+2. r[std-cli.typed-commands.names] Subcommand names are the kebab-case variant names.
+3. r[std-cli.typed-commands.shape] Each variant must be unit or carry exactly one unnamed `Cli` payload.
+4. r[std-cli.typed-commands.payload-bound] Each payload type must implement `Cli`, checked at the derive.
+5. r[std-cli.typed-commands.payload] A selected command delegates declaration and reading to its payload's root CLI parser.
+6. r[std-cli.typed-commands.unit] A selected unit command constructs its unit variant without reading a payload.
+7. r[std-cli.typed-commands.scope] Global options precede the command name; arguments after it belong to the selected child's parser.
+8. r[std-cli.typed-commands.required] A command field without a default is required unless its type is optional.
+9. r[std-cli.typed-commands.optional] An absent `Command?` reads `.None`.
+10. r[std-cli.typed-commands.default] An absent defaulted command field reads its default; a selected command overrides that default.
+11. r[std-cli.typed-commands.nested] A command's payload may declare another command at the next level.
+12. r[std-cli.typed-commands.shape-error] An unsupported payload shape returns `InvalidValue` when parsing, with a reason naming the declared variant.
+13. r[std-cli.typed-commands.one-field] Multiple command fields at one level return `InvalidValue` naming both fields when parsing.
+14. r[std-cli.typed-commands.no-repeated] A repeated command field, including one inside a wrapper, returns `InvalidValue` naming that field when parsing.
+15. r[std-cli.typed-commands.help-scope] Child help uses the full command path, beginning with the `Args` program name for `parse_args`.
+16. r[std-cli.typed-commands.optional-usage] An optional or defaulted command's usage term is `[<command>]`.
+
+> **Why.** Each level selects one command and delegates its remaining
+> input, without implicitly flattening records. Repeated commands would
+> need a delimiter separating their child arguments.
+
 ## Usage Text
 
 `usage` returns the help text. For the `ArgParser` above, with one more flag
@@ -434,7 +479,7 @@ options:
 ```
 
 1. r[std-cli.usage.parser] `pub fn usage(&self) -> string` returns the lines below, joined by `\n`, with no final line break.
-2. r[std-cli.usage.help-line] The usage line names the program, `[options]`, and either `<command>` or the declared positional terms.
+2. r[std-cli.usage.command-terms] The usage line names the program, `[options]`, and any command or positional terms.
 3. r[std-cli.usage.positional-term] A positional is `<name>` when required, and `[<name>]` otherwise.
 4. r[std-cli.usage.arguments] When a positional is declared, an empty line and the line `arguments:` follow, then one entry per positional, in declaration order. A positional's term is its name.
 5. r[std-cli.usage.options-help-last] An empty line and `options:` precede user-declared flags and options in declaration order, followed by automatic help.

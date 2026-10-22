@@ -1,0 +1,8 @@
+# test: a typed command payload must implement Cli at the derive
+# Spec std/cli: std-cli.typed-commands.payload-bound.
+use std.cli.Cli
+struct Opaque:
+    value: u8
+@derive(Cli) # diagnostic: member-not-derivable
+enum Command:
+    Broken(Opaque)

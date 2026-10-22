@@ -23,6 +23,7 @@ runtime/panic/cli-short-positional-conflict.hd	runtime	panic:explicit-panic	std/
 runtime/panic/slicing-a-string-slice-inside-a-scalar-panics.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#slicing
 runtime/panic/slicing-an-inclusive-end-at-the-length-panics.hd	runtime	panic:index-out-of-bounds	lang/05-expressions.md#slicing
 runtime/valid/cli-derived-records.hd	runtime	accept	std/cli.md#typed-records
+runtime/valid/cli-derived-subcommands.hd	runtime	accept	std/cli.md#typed-subcommands
 runtime/valid/cli-enum-values.hd	runtime	accept	std/cli.md#enum-value-sets
 runtime/valid/cli-positional-fact.hd	runtime	accept	std/cli.md#positional-field-facts
 runtime/valid/cli-short-fact.hd	runtime	accept	std/cli.md#short-field-facts
@@ -71,6 +72,7 @@ runtime/valid/tuple-rest-a-tuple-expression-collects-or-spreads-into-the-rest.hd
 runtime/valid/tuple-rest-selection-reads-fixed-elements-and-the-rest-list.hd	runtime	accept	lang/05-expressions.md#r-expr.tuple.select-underscore
 runtime/valid/tuple-rest-unnamed-shared-enum-parameters-select-as-underscore-members.hd	runtime	accept	lang/08-data-and-enums.md#r-data.shared.underscore-field
 runtime/valid/tuple-template-bounds-tuples-of-hashable-members-are-map-keys-and-display-13.hd	runtime	accept	lang/09-traits.md#derived-tuple-implementations
+typing/invalid/cli-command-payload-without-cli.hd	type	reject:member-not-derivable	std/cli.md#r-std-cli.typed-commands.payload-bound
 typing/invalid/cli-field-without-impl.hd	type	reject:member-not-derivable	std/cli.md#r-std-cli.typed.bounds
 typing/invalid/cli-positional-without-cli.hd	type	reject:unsatisfied-trait-bound	std/cli.md#r-std-cli.positional.bound
 typing/invalid/cli-short-without-cli.hd	type	reject:unsatisfied-trait-bound	std/cli.md#r-std-cli.short.bound

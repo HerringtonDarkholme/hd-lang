@@ -1,5 +1,5 @@
 # test: the usage text lists the positionals, then the flags and options, with each help in one column
-# Spec std/cli Usage Text: std-cli.usage.parser, std-cli.usage.help-line, std-cli.usage.arguments, std-cli.usage.options-help-last, std-cli.usage.term, std-cli.usage.entry-choices, std-cli.usage.no-description, std-cli.usage.automatic-help, std-cli.error.help-stop (task #242).
+# Spec std/cli Usage Text: std-cli.usage.parser, std-cli.usage.command-terms, std-cli.usage.arguments, std-cli.usage.options-help-last, std-cli.usage.term, std-cli.usage.entry-choices, std-cli.usage.no-description, std-cli.usage.automatic-help, std-cli.error.help-stop (task #242).
 use std.cli.{Arg, ArgParser, CliError}
 fn tool() -> &mut ArgParser:
     ArgParser::new("count").arg(Arg { name: "verbose", kind: .Flag, short: 'v', help: "print each file" }).arg(Arg { name: "out", kind: .Option, short: 'o', help: "write the total here" }).arg(Arg { name: "dry-run", kind: .Flag, short: .None, help: "" }).arg(Arg { name: "pattern", kind: .Positional, required: true, help: "the files to count" })

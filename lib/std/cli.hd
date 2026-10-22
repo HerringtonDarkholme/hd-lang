@@ -38,6 +38,8 @@ pub struct ArgParser:
     positional_slots: List[usize]
     commands: Map[string, ArgParser]
     declaration_error: CliError? = .None
+    command_required: bool = true
+    command_field: string? = .None
 
 impl ArgParser:
     pub fn new(program: string, about: string = "") -> &mut ArgParser:
@@ -77,6 +79,15 @@ impl ArgParser:
         if self.commands.get(name).is_some(): panic("std.cli: command $name declared twice")
         self.commands[name] = parser
         self
+
+    # Typed parsers take Args.program at the root and retain that scope in
+    # every command's help, including commands nested in payload records.
+    fn set_program(&mut self, program: string) -> void:
+        self.program = program
+        for (name, child) in self.commands:
+            let mut scoped = child
+            scoped.set_program("$program $name")
+            self.commands[name] = scoped
 
     pub fn parse(&self, arguments: List[string]) -> Result[Parsed, CliError]:
         self.parse_from(arguments, 0)
@@ -144,13 +155,13 @@ impl ArgParser:
                             return .Err(CliError.MissingValue(option.name))
                         store_value(option, arguments[index], &mut values, &mut histories)?
                         index = index + 1
-        if self.commands.len() > 0 && selected.is_empty(): return .Err(CliError.MissingCommand)
+        if self.commands.len() > 0 && self.command_required && selected.is_empty(): return .Err(CliError.MissingCommand)
         for arg in self.declarations:
             if arg.required:
                 present := if arg.kind == .Flag: flags.get(arg.name).unwrap_or(false) else: values.get(arg.name).is_some()
                 if !present:
                     return .Err(CliError.MissingArgument(argument_name(arg)))
-        .Ok(Parsed { present_flags: flags, option_values: values, value_histories: histories, position_values: positionals, selected_command: selected, flag_counts: flag_counts })
+        .Ok(Parsed { present_flags: flags, option_values: values, value_histories: histories, position_values: positionals, selected_command: selected, flag_counts: flag_counts, command_field: self.command_field })
 
     pub fn parse_args(&self) -> Result[Parsed, CliError] $ Args:
         self.parse($.use(Args).list())
@@ -159,7 +170,8 @@ impl ArgParser:
         text := StringBuilder::new().push("usage: ").push(self.program)
         if self.options.len() > 0:
             text.push(" [options]")
-        if self.commands.len() > 0: text.push(" <command>")
+        if self.commands.len() > 0:
+            text.push(if self.command_required: " <command>" else: " [<command>]")
         for slot in self.positional_slots:
             arg := self.declarations[slot]
             text.push(" ")
@@ -239,6 +251,7 @@ pub struct Parsed:
     flag_counts: Map[string, usize] = {}
     one_name: string? = .None
     one_index: usize = 0
+    command_field: string? = .None
 
 impl Parsed:
     ## The selected command and a copy of its parsed arguments, when present.
@@ -283,7 +296,9 @@ impl Parsed:
     # One field's presence and an O(1) view of one repeated value; the
     # source maps stay shared and every public list accessor returns a copy.
     fn has(self, name: string) -> bool:
-        self.flag(name) || self.value(name).is_some()
+        if self.one_name.is_some() && self.one_name != .Some(name):
+            return false
+        self.flag(name) || self.value(name).is_some() || (self.command_field == .Some(name) && !self.selected_command.is_empty())
 
     fn count(self, name: string) -> usize:
         if self.one_name.is_some():
@@ -393,7 +408,7 @@ pub trait Cli:
     fn parse_args() -> Result[Self, CliError] $ Args:
         parser := Self::parser()
         host := $.use(Args)
-        parser.program = host.program()
+        parser.set_program(host.program())
         Self::read(parser.parse(host.list())?, Arg { name: "", required: true })
 
 ## A field's short option spelling; its long name stays unchanged.
@@ -421,16 +436,31 @@ impl[T] Cli for T by Structure:
     fn declare(parser: &mut ArgParser, arg: Arg) -> void:
         if arg.name.is_empty():
             parser.program = cli_name(T::name())
-        let mut describer = CliDescriber::[T] { parser: parser, arg: arg, record: false, choices: [], payload: false }
+        let mut describer = CliDescriber::[T] { parser: parser, arg: arg, record: false, choices: [], payload: false, commands: [], current: .None, variant_name: "", members: 0, valid_shape: true }
         _ := T::describe(&mut describer)
         if !describer.record:
             if describer.payload:
-                parser.declaration_error = .Some(.InvalidValue(arg.name, "this Cli derive needs a record or a payload-free enum"))
+                describer.finish_variant()
+                binding := scalar_arg(arg).name
+                if arg.repeated:
+                    parser.declaration_error = .Some(.InvalidValue(binding, "a subcommand field cannot be repeated"))
+                    return
+                match parser.command_field:
+                    .Some(previous) =>
+                        if previous != binding:
+                            parser.declaration_error = .Some(.InvalidValue(binding, "command fields `$previous` and `$binding` cannot share a parser"))
+                            return
+                    .None => pass
+                parser.command_field = .Some(binding)
+                parser.command_required = arg.required
+                for (name, child) in describer.commands:
+                    child.set_program("${parser.program} $name")
+                    _ := parser.command(name, *child)
             else:
                 declare_scalar(parser, Arg { ...arg, choices: describer.choices }, cli_name(T::name()))
 
     fn read(parsed: Parsed, arg: Arg) -> Result[T, CliError]:
-        let mut source = CliSource::[T] { parsed: parsed, arg: arg, at: 0 }
+        let mut source = CliSource::[T] { parsed: parsed, arg: arg, at: 0, command_payload: false }
         T::build(&mut source)
 
 struct CliDescriber[S]:
@@ -439,17 +469,36 @@ struct CliDescriber[S]:
     pub record: bool
     pub choices: List[string]
     pub payload: bool
+    pub commands: List[(string, &mut ArgParser)]
+    pub current: Option[&mut ArgParser]
+    pub variant_name: string
+    pub members: usize
+    pub valid_shape: bool
+
+impl[S] CliDescriber[S]:
+    fn finish_variant(&mut self) -> void:
+        if !self.valid_shape && self.parser.declaration_error.is_none():
+            name := cli_name(self.variant_name)
+            self.parser.declaration_error = .Some(.InvalidValue(name, "subcommand variant `${self.variant_name}` must be unit or have exactly one unnamed Cli payload"))
 
 impl[S] Describer[S] for CliDescriber[S]:
     type Error = never
 
     fn variant(&mut self, variant: Variant[S]) -> Result[void, never]:
+        self.finish_variant()
         self.record = variant.info.of_data
         if self.record:
             if !self.arg.name.is_empty() && self.parser.declaration_error.is_none():
                 self.parser.declaration_error = .Some(.InvalidValue(self.arg.name, "record field `${self.arg.name}` is not supported; subcommands are an enum"))
         else:
-            self.choices.push(cli_name(variant.info.name))
+            name := cli_name(variant.info.name)
+            self.choices.push(name)
+            child := ArgParser::new(name)
+            self.commands.push((name, child))
+            self.current = .Some(child)
+            self.variant_name = variant.info.name
+            self.members = 0
+            self.valid_shape = true
         .Ok(())
 
     fn member[F < Cli](&mut self, field: Field[S, F]) -> Result[void, never]:
@@ -458,12 +507,18 @@ impl[S] Describer[S] for CliDescriber[S]:
                 F::declare(self.parser, cli_arg(field))
         else:
             self.payload = true
+            self.members += 1
+            if self.members == 1 && field.info.positional:
+                F::declare(self.current.expect("a command parser"), Arg { name: "", required: true })
+            else:
+                self.valid_shape = false
         .Ok(())
 
 struct CliSource[S]:
     pub parsed: Parsed
     pub arg: Arg
     pub at: usize
+    pub command_payload: bool
 
 impl[S] Source[S] for CliSource[S]:
     type Error = CliError
@@ -472,6 +527,16 @@ impl[S] Source[S] for CliSource[S]:
         if choices.len() == 1 && choices[0].info.of_data:
             return .Ok(choices[0])
         arg := scalar_arg(self.arg)
+        if self.parsed.command_field == .Some(arg.name):
+            let (name, child) = match self.parsed.command():
+                .Some(command) => command
+                .None => return .Err(.MissingCommand)
+            for choice in choices:
+                if cli_name(choice.info.name) == name:
+                    self.parsed = child
+                    self.command_payload = true
+                    return .Ok(choice)
+            return .Err(.UnknownCommand(name))
         value := match self.parsed.value(arg.name):
             .Some(value) => value
             .None => return .Err(.MissingArgument(argument_name(arg)))
@@ -491,6 +556,8 @@ impl[S] Source[S] for CliSource[S]:
         .Ok(members.at(info.position))
 
     fn member[F < Cli](&mut self, field: Field[S, F], previous: F?) -> Result[F, CliError]:
+        if self.command_payload:
+            return F::read(self.parsed, Arg { name: "", required: true })
         arg := cli_arg(field)
         if field.has_default() && !self.parsed.has(arg.name):
             return .Ok(field.default().expect("a declared default"))
