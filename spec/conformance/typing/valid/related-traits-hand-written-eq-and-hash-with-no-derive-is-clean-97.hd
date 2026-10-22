@@ -1,4 +1,6 @@
 # test: hand written eq and hash with no derive is clean
+use std.hash.Hasher
+
 struct Key:
     name: string
 

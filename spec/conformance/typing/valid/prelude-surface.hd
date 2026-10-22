@@ -1,4 +1,6 @@
-# Spec 10 Prelude: module.prelude.in-scope, module.prelude.panic, module.prelude.println, module.prelude.collections.
+# Spec 10 Prelude: module.prelude.standard-surface, module.prelude.panic, module.prelude.println, module.prelude.collections.
+use std.hash.Hasher
+
 struct Label:
     value: string
 

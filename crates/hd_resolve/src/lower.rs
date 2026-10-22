@@ -48,15 +48,15 @@ pub const PRELUDE: &[(&str, &[&str])] = &[
     ),
     ("std.format", &["Display", "Debug", "debug", "dbg"]),
     ("std.cmp", &["Eq", "PartialOrd", "Ord", "Ordering"]),
-    ("std.hash", &["Hash", "Hasher"]),
+    ("std.hash", &["Hash"]),
     ("std.iter", &["Iterator", "Iterable"]),
     ("std.console", &["Console", "ConsoleError", "println"]),
-    ("std.task", &["Suspend", "Poll", "PollContext", "Waker"]),
+    ("std.task", &["Suspend"]),
 ];
 
-/// The prelude names of test code (`module.prelude.test-only`): bound only
+/// The prelude names of test code (`module.prelude.test-assertions`): bound only
 /// in test code, but no declaration of a module may take their place.
-const TEST_PRELUDE: &[(&str, &[&str])] = &[("std.testing", &["it"])];
+const TEST_PRELUDE: &[(&str, &[&str])] = &[("std.testing", &["it", "assert", "assert_equal"])];
 
 /// Whether `name` is a prelude name (`module.prelude.no-shadow`).
 #[must_use]
@@ -71,7 +71,7 @@ pub fn is_test_prelude_name(name: &str) -> bool {
 }
 
 /// The declaration that a prelude name of test code names
-/// (`module.prelude.test-only`): the callee of an unbound `it` in test code.
+/// (`module.prelude.test-assertions`): an unbound registration or assertion in test code.
 #[must_use]
 pub fn test_prelude_item(names: &Names<'_>, name: &str) -> Option<DefId> {
     TEST_PRELUDE
@@ -1446,7 +1446,11 @@ fn prelude(
     diags: &mut DiagBuf,
 ) {
     let names = &r.cx.names;
-    for (module, list) in PRELUDE {
+    let test_module = r.cx.world.test_only(&m.path);
+    for (module, list) in PRELUDE
+        .iter()
+        .chain(TEST_PRELUDE.iter().filter(|_| test_module))
+    {
         if !r.module_exists(module) {
             continue;
         }
@@ -1481,9 +1485,12 @@ fn prelude(
             }
         }
     }
-    // The test names are not bound here, yet a declaration of the module
-    // cannot take one (`module.prelude.no-shadow`). The module that
-    // declares them is the prelude's source.
+    // Whole test modules have their test names bound above. An ordinary
+    // module does not bind them, yet its declarations cannot take one
+    // (`module.prelude.no-shadow`). Their declaring module is the source.
+    if test_module {
+        return;
+    }
     for (module, list) in TEST_PRELUDE {
         if m.path == *module {
             continue;
@@ -6145,4 +6152,62 @@ pub fn body_nodes<'t>(
         }
     }
     out
+}
+
+#[cfg(test)]
+mod prelude_tests {
+    use super::{PRELUDE, Src, TEST_PRELUDE, use_decls};
+
+    fn assert_exports(text: &str, table: &[(&str, &[&str])]) {
+        let parsed = hd_syntax::parse(text.as_bytes());
+        assert!(parsed.is_ok(), "{:?}", parsed.diagnostics);
+        let src = Src {
+            parse: &parsed,
+            text,
+            file: hd_base::FileId::from_raw(0),
+        };
+        let mut exports = Vec::new();
+        for declaration in use_decls(&src, &hd_project::UseRoots::default()) {
+            if !declaration.public {
+                continue;
+            }
+            assert!(declaration.root_error.is_none());
+            assert!(declaration.alias.is_none());
+            let mut path = declaration.path;
+            if let Some(group) = declaration.group {
+                let module = path.join(".");
+                for name in group {
+                    assert!(name.alias.is_none());
+                    exports.push((module.clone(), name.name));
+                }
+            } else {
+                let name = path.pop().expect("an exported name");
+                exports.push((path.join("."), name));
+            }
+        }
+        let mut expected: Vec<_> = table
+            .iter()
+            .flat_map(|(module, names)| {
+                names
+                    .iter()
+                    .map(|name| ((*module).to_owned(), (*name).to_owned()))
+            })
+            .collect();
+        exports.sort();
+        expected.sort();
+        assert_eq!(exports, expected);
+    }
+
+    #[test]
+    fn ordinary_prelude_matches_its_hd_exports() {
+        assert_exports(include_str!("../../../lib/std/prelude.hd"), PRELUDE);
+    }
+
+    #[test]
+    fn test_prelude_matches_its_hd_exports() {
+        assert_exports(
+            include_str!("../../../lib/std/prelude/testing.hd"),
+            TEST_PRELUDE,
+        );
+    }
 }

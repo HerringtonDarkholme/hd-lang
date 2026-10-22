@@ -1,5 +1,7 @@
 # test: a use that names the prelude's own declaration is allowed
 # Spec 10 Prelude: module.prelude.same-use (owner decision PRELUDE-REIMPORT).
+use std.hash.Hasher
+
 use std.hash.Hash
 use std.format.{Display}
 

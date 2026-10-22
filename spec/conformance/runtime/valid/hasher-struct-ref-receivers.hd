@@ -4,6 +4,8 @@
 # expect-stdout: 2 195
 # expect-stdout: 13 103
 # expect-stdout: 24 14
+use std.hash.Hasher
+
 struct Tally:
     count: usize
     sum: u64

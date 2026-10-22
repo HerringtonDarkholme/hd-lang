@@ -54,7 +54,7 @@ impl Num for Count
 /// (`req.protocol.builtin`).
 #[test]
 fn an_impl_of_suspend_is_an_unknown_trait() {
-    let main = "struct Handle: pass\n\nimpl Suspend[i32] for Handle:\n    fn poll(&mut self, context: PollContext) -> Poll[i32]: Poll.Ready(1)\n    fn cancel(&mut self) -> void: pass\n";
+    let main = "use std.task.{Poll, PollContext}\n\nstruct Handle: pass\n\nimpl Suspend[i32] for Handle:\n    fn poll(&mut self, context: PollContext) -> Poll[i32]: Poll.Ready(1)\n    fn cancel(&mut self) -> void: pass\n";
     let out = analyze(main);
     assert_eq!(codes(main), vec![Code::UnknownTrait], "{}", out.render());
     assert!(out.render().contains("built-in type"), "{}", out.render());

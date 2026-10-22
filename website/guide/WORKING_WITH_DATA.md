@@ -93,8 +93,6 @@ fn load(text: string) -> Result[Config, JsonError]:
     decode::[Config](text)
 
 tests:
-    use std.testing.assert_equal
-
     it("reads a nested config"):
         text := "{\"name\": \"shop\", \"limits\": {\"retries\": 3, \"timeout_ms\": 250}}"
         match load(text):
@@ -225,8 +223,6 @@ impl Store for FakeStore:
         "fake-$key"
 
 tests:
-    use std.testing.{assert_equal, it}
-
     it("loads all three at once"):
         $.with(Store=&FakeStore { tag: "t" }):
             assert_equal(load_page!(), ("fake-user", "fake-orders", "fake-profile"), reason="all three")
@@ -254,8 +250,6 @@ fn read_report!(name: string) -> string $ FsRead:
     read_text!(Path("reports/$name.txt")).expect("the report exists")
 
 tests:
-    use std.testing.{assert_equal, it}
-
     it("writes and reads back a report"):
         fs := MemoryFs::new()
         $.with(FsWrite=fs, FsRead=fs):
@@ -296,8 +290,6 @@ fn errors_by_status(lines: List[string]) -> Map[i32, usize]:
     counts
 
 tests:
-    use std.testing.{assert_equal, it}
-
     it("counts server errors by status"):
         lines := ["\"GET /ok\" 200", "\"POST /x\" 500", "\"GET /y\" 502", "\"GET /z\" 500"]
         assert_equal(errors_by_status(lines).get(500), .Some(2), reason="two 500s")
@@ -359,8 +351,6 @@ pub fn main() -> void $ Console:
         println(register("Ada", "ada@example.com"))
 
 tests:
-    use std.testing.assert_equal
-
     it("registers with test adapters"):
         $.with(Mailer=&OutboxMailer { label: "test" }, Repo=&MemoryRepo { namespace: "case" }):
             assert_equal(register("Ada", "ada@example.com"), "memory:case:Ada; outbox:test:ada@example.com", reason="the installed fakes")
@@ -425,7 +415,7 @@ pub fn render(name: string, total: i32, at: Timestamp) -> string:
 
 ```text
 use std.process.Command
-use std.testing.{assert_equal, hd_run, snapshot_file, temp_dir}
+use std.testing.{hd_run, snapshot_file, temp_dir}
 use std.time.Timestamp
 use pkg.report.render
 
@@ -600,8 +590,6 @@ fn sample() -> List[Item]:
      Item { name: "cheese", price: 8, tags: ["dairy", "fresh"] }]
 
 tests:
-    use std.testing.{assert_equal, it}
-
     it("groups by tag and sorts by price"):
         items := sample()
         by_tag := items.group_by(fn(item: Item) -> string: item.tags[0])
@@ -641,8 +629,6 @@ fn elapsed(start: Instant, end: Instant) -> Duration:
     end.since(start)
 
 tests:
-    use std.testing.{assert_equal, it}
-
     it("reads and writes RFC 3339 text"):
         at := "2026-10-06T12:00:00Z".parse::[Timestamp]().expect("valid")
         assert_equal(at.to_rfc3339(), "2026-10-06T12:00:00Z", reason="round trip")
@@ -680,8 +666,6 @@ fn banner(text: string) -> string:
     out.build()
 
 tests:
-    use std.testing.{assert_equal, it}
-
     it("joins and builds"):
         assert_equal(csv_row(["a", "b", "c"]), "a,b,c", reason="joined")
         assert_equal(banner("SALE"), "==== SALE ====", reason="built")

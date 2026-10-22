@@ -1,6 +1,8 @@
 # test: strings and lists write a u64 length first, tuples write only their elements, optionals a tag byte
 # Spec std Hash, Bytes Written: std-hash.bytes.string, std-hash.bytes.list,
 # std-hash.bytes.tuple, std-hash.bytes.optional (batch 65, HASH-BYTES).
+use std.hash.Hasher
+
 struct Recorder:
     bytes: List[u8]
 

@@ -1,0 +1,6 @@
+# Spec 10 Prelude: module.prelude.test-assertions.
+# test: test assertions need no imports
+tests:
+    it("assertions are supplied by the test prelude"):
+        assert(true, reason="the test prelude supplies assert")
+        assert_equal(+2 + +3, +5, reason="the test prelude supplies assert_equal")

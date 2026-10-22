@@ -263,8 +263,6 @@ pub fn main!() -> Result[void, ConsoleError] $ Console:
     .Ok(())
 
 tests:
-    use std.testing.assert_equal
-
     it("stamps with the fixed clock"):
         $.with(Clock=&FixedClock { at: 1 }):
             assert_equal(stamp("go"), "1: go", reason="uses the provider")
@@ -288,14 +286,14 @@ These names need no `use` in any module ([Prelude](../../spec/lang/10-modules.md
 | Kind | Names |
 | --- | --- |
 | Types | `bool`, `i8` to `i64`, `u8` to `u64`, `usize`, `f32`, `f64`, `char`, `string`, `void`, `never`, `List`, `Map`, `Any`, `AnyVal`, `AnyRef`, `Option`, `Result` |
-| Traits | `Display`, `Debug`, `Eq`, `PartialOrd`, `Ord`, `Hash`, `Hasher`, `Iterator`, `Iterable` |
-| Other types | `Ordering`, `Console`, `ConsoleError`, `Suspend`, `Poll`, `PollContext`, `Waker` |
+| Traits | `Display`, `Debug`, `Eq`, `PartialOrd`, `Ord`, `Hash`, `Iterator`, `Iterable` |
+| Other types | `Ordering`, `Console`, `ConsoleError`, `Suspend` |
 | Functions | `println`, `panic`, `debug`, `dbg` |
-| Tests only | `it` |
+| Tests only | `it`, `assert`, `assert_equal` |
 
 Everything else is imported: `From`, `Error`, `Inspectable`, `block_on`,
-`assert_equal`, `ConsoleInput`, `read_line`, and the `fs`, `time`, and `text`
-helpers. `@derive`, `@error`, and the other intrinsic annotations need no
+`Hasher`, `Poll`, `PollContext`, `Waker`, `ConsoleInput`, `read_line`, and
+the `fs`, `time`, and `text` helpers. `@derive`, `@error`, and the other intrinsic annotations need no
 import.
 
 ## Common String Methods

@@ -1,6 +1,8 @@
 # test: write_u64 and write_str default to write over the same bytes, DefaultHasher overrides them, hash_of values are unchanged
 # Spec std Hash, Bytes Written and Hasher methods: trait.hash.hasher-methods,
 # std-hash.default.write-methods, std-hash.bytes.sequence.
+use std.hash.Hasher
+
 use std.hash.{DefaultHasher, hash_of}
 
 struct Recorder:

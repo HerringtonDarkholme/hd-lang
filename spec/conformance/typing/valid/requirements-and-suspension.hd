@@ -12,6 +12,8 @@
 # req.suspend.type.plain-call, req.suspend.type.bang, req.bang.suffix,
 # req.bang.not-negation, req.bang.driver-forms,
 # req.bang.requirements-not-suspending.
+use std.task.Waker
+
 trait Database:
     fn get_user!(self, id: string) -> Result[User?, DbError]
 

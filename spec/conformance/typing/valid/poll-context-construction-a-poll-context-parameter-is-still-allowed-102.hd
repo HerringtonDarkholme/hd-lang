@@ -1,4 +1,6 @@
 # test: a poll context parameter is still allowed
+use std.task.PollContext
+
 pub fn main() -> void $ Console:
     println("x")
 

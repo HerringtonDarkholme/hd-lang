@@ -1,0 +1,5 @@
+# fixture-test-layout: integration
+# Spec 10 Prelude: module.prelude.test-assertions.
+it("assertions are implicit in integration code"):
+    assert(true, reason="implicit assertion")
+    assert_equal(+1, +1, reason="implicit equality")

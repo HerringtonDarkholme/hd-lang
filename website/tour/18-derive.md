@@ -31,7 +31,7 @@ tests:
 # try: `0 - cents` overflows there, so `print` works in `i64`.
 
 # ── plumbing ──
-use std.testing.{Arbitrary, assert_equal, it_prop}
+use std.testing.{Arbitrary, it_prop}
 
 fn print(price: Price) -> string:
     sign := if price.cents < 0: "-" else: ""

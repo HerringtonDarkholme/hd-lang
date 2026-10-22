@@ -21,8 +21,6 @@ pub fn remind_unpaid(invoices: List[Invoice]) -> void $ Console:  # ← its whol
             println("Reminder: invoice ${invoice.id} is due")
 
 tests:
-    use std.testing.assert_equal
-
     it("reminds only the unpaid invoices"):
         console := MemoryConsole::new()
         $.with(Console=console):  # ← a recording console, for this block only

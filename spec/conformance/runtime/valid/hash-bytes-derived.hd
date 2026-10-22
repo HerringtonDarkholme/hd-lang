@@ -1,5 +1,7 @@
 # test: a derived Hash writes an enum's variant index as a u32, then the members in declaration order
 # Spec std Hash, Bytes Written: std-hash.bytes.derive-enum, std-hash.bytes.derive-data (batch 65, HASH-BYTES).
+use std.hash.Hasher
+
 struct Recorder:
     bytes: List[u8]
 

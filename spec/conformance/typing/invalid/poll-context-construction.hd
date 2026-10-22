@@ -1,4 +1,6 @@
 # test: PollContext has a private field, so constructing one in user code is private-member
 # Spec 11 Poll Context: req.poll-context.construction.
+use std.task.PollContext
+
 fn make() -> PollContext:
     PollContext {}  # diagnostic: private-member

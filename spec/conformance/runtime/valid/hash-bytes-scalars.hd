@@ -1,6 +1,8 @@
 # test: integers, bool, and char write their fixed-width little-endian bytes to the Hasher
 # Spec std Hash, Bytes Written: std-hash.bytes.integer, std-hash.bytes.bool,
 # std-hash.bytes.char (batch 65, HASH-BYTES).
+use std.hash.Hasher
+
 struct Recorder:
     bytes: List[u8]
 

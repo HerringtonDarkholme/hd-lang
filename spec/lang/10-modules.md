@@ -733,16 +733,16 @@ every module has:
 | `std.core` | `never`, `bool`, `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `usize`, `f32`, `f64`, `char`, `string`, `void`, `List`, `Map`, `Any`, `AnyVal`, `AnyRef`, `Option`, `Result`, `panic` |
 | `std.format` | `Display`, `Debug`, `debug`, `dbg` |
 | `std.cmp` | `Eq`, `PartialOrd`, `Ord`, `Ordering` |
-| `std.hash` | `Hash`, `Hasher` |
+| `std.hash` | `Hash` |
 | `std.iter` | `Iterator`, `Iterable` |
 | `std.console` | `Console`, `ConsoleError`, `println` |
-| `std.testing` | `it` |
-| `std.task` | `Suspend`, `Poll`, `PollContext`, `Waker` |
+| `std.testing` | `it`, `assert`, `assert_equal` |
+| `std.task` | `Suspend` |
 
 1. r[module.prelude.iterator-trait] The prelude name `Iterator` names the cursor trait `std.iter.Iterator[T]`.
 
-1. r[module.prelude.in-scope] Every module implicitly has the public standard-library names in the table in scope, but for the `std.testing` row.
-2. r[module.prelude.test-only] The names of the `std.testing` row are in scope only in [test code](#r-module.test.code): `tests:` blocks, test modules, and integration test modules.
+1. r[module.prelude.standard-surface] Every module implicitly has the public standard-library names in the table in scope, but for the `std.testing` row.
+2. r[module.prelude.test-assertions] The names `it`, `assert`, and `assert_equal` are implicitly in scope only in [test code](#r-module.test.code): `tests:` blocks, test modules, and integration test modules.
 3. r[module.prelude.test-only.outside] Outside test code, such a name is unknown, as an undeclared name is. Error: `unknown-name`.
 4. r[module.prelude.fixed-uses] The prelude is equivalent to fixed `use` declarations.
 5. r[module.prelude.no-authority] The prelude does not create ambient host authority.
@@ -768,27 +768,28 @@ fn helper() -> void:
         pass
 ```
 
-> **Why.** Only test code registers test cases, so only test code needs
-> `it`. A program built without its test code then never reaches
-> `std.testing` through the prelude.
+> **Why.** Test code registers cases and checks assertions without
+> repeated imports. A program built without its test code never reaches
+> `std.testing` through the prelude. Implementer names stay explicit imports.
 
 ### Standard Names Outside The Prelude
 
 1. r[module.prelude.imported] Standard traits outside this table are imported.
-2. r[module.prelude.from-error] The conversion trait `std.convert.From` and the error trait `std.error.Error` are not prelude names.
-3. r[module.prelude.own-from-error] A module may therefore declare its own `From` or `Error`.
-4. r[module.prelude.question-from] Postfix `?` still finds the standard `From` without an import.
-5. r[module.prelude.inspect-reference-api] Likewise `std.inspect` declares `Inspectable` and `TypeId`, which code imports, as in `use std.inspect.{Inspectable, TypeId}`.
-6. r[module.prelude.error-inspectable] `std.error.Error` extends `Inspectable` without its users importing it.
-7. r[module.prelude.function-items] `std.function` declares the function type constructors `Fn` and `SuspendFn` and the marker trait `Tuple`, which code imports where it writes them, as in `use std.function.{Fn, Tuple}`.
-8. r[module.prelude.function-sugar] The function type sugar `fn(...) -> T` needs no import.
-9. r[module.prelude.annotation-targets] `std.annotation` also declares `Target`, `Annotate`, and `annotate`, which code imports to limit a fact type's [target kinds](14-annotations.md#target-kinds), as in `use std.annotation.annotate`.
-10. r[module.prelude.ops-literal-markers] `std.ops` declares `NumSuffix`, `num_suffix`, `StrPrefix`, `str_prefix`, and `Template`, which code imports to declare a literal function, as in `use std.ops.num_suffix` or `use std.ops.{Template, str_prefix}`.
-11. r[module.prelude.no-literal-fn] The prelude supplies no literal suffix and no string prefix.
-12. r[module.prelude.ops-operator-traits] `std.ops` also declares the [operator traits](05-expressions.md#operator-traits), and `Index` and `IndexSet`. Code imports one to name it, as in `use std.ops.Add`; operator syntax needs no import.
-13. r[module.prelude.ops-call-traits] `std.ops` also declares `Apply` and `Update`, the traits of [callable values](05-expressions.md#callable-values). Code imports one to name it; `v()` and `v() = x` need no import.
-14. r[module.prelude.num] `std.num` declares the [numeric traits](09-traits.md#numeric-traits) `Num`, `Integer`, and `Float`, which code imports, as in `use std.num.Num`.
-15. r[module.prelude.ops-disposable] `std.ops` also declares `Disposable`, the trait of [using bindings](06-control-flow.md#using-bindings). Code imports it to name it, as in `use std.ops.Disposable`; a `using` binding needs no import.
+2. r[module.prelude.implementer-imports] `Hasher` from `std.hash` and `Poll`, `PollContext`, and `Waker` from `std.task` require explicit imports.
+3. r[module.prelude.from-error] The conversion trait `std.convert.From` and the error trait `std.error.Error` are not prelude names.
+4. r[module.prelude.own-from-error] A module may therefore declare its own `From` or `Error`.
+5. r[module.prelude.question-from] Postfix `?` still finds the standard `From` without an import.
+6. r[module.prelude.inspect-reference-api] Likewise `std.inspect` declares `Inspectable` and `TypeId`, which code imports, as in `use std.inspect.{Inspectable, TypeId}`.
+7. r[module.prelude.error-inspectable] `std.error.Error` extends `Inspectable` without its users importing it.
+8. r[module.prelude.function-items] `std.function` declares the function type constructors `Fn` and `SuspendFn` and the marker trait `Tuple`, which code imports where it writes them, as in `use std.function.{Fn, Tuple}`.
+9. r[module.prelude.function-sugar] The function type sugar `fn(...) -> T` needs no import.
+10. r[module.prelude.annotation-targets] `std.annotation` also declares `Target`, `Annotate`, and `annotate`, which code imports to limit a fact type's [target kinds](14-annotations.md#target-kinds), as in `use std.annotation.annotate`.
+11. r[module.prelude.ops-literal-markers] `std.ops` declares `NumSuffix`, `num_suffix`, `StrPrefix`, `str_prefix`, and `Template`, which code imports to declare a literal function, as in `use std.ops.num_suffix` or `use std.ops.{Template, str_prefix}`.
+12. r[module.prelude.no-literal-fn] The prelude supplies no literal suffix and no string prefix.
+13. r[module.prelude.ops-operator-traits] `std.ops` also declares the [operator traits](05-expressions.md#operator-traits), and `Index` and `IndexSet`. Code imports one to name it, as in `use std.ops.Add`; operator syntax needs no import.
+14. r[module.prelude.ops-call-traits] `std.ops` also declares `Apply` and `Update`, the traits of [callable values](05-expressions.md#callable-values). Code imports one to name it; `v()` and `v() = x` need no import.
+15. r[module.prelude.num] `std.num` declares the [numeric traits](09-traits.md#numeric-traits) `Num`, `Integer`, and `Float`, which code imports, as in `use std.num.Num`.
+16. r[module.prelude.ops-disposable] `std.ops` also declares `Disposable`, the trait of [using bindings](06-control-flow.md#using-bindings). Code imports it to name it, as in `use std.ops.Disposable`; a `using` binding needs no import.
 
 ```hd
 use std.cmp.Eq

@@ -356,7 +356,7 @@ A provider is a trait value, so it is written `&mut fake` (or
 `&StdoutMailer {}` for a new object).
 A public function's row may name only public traits. Tests live in one
 `tests:` block at the end of the file; each `it("name"):` is a case, and
-assertions come from `std.testing` with a required `reason=`.
+`assert` and `assert_equal` are in scope there, with a required `reason=`.
 
 ```hd
 pub trait Mailer:
@@ -380,8 +380,6 @@ pub fn main() -> void $ Console:
         println("sent $count")
 
 tests:
-    use std.testing.{assert, assert_equal}
-
     struct FakeMailer:
         sent: List[string]
 
@@ -434,7 +432,8 @@ no `tests:` block; `hd_run!(Command::new("NAME"))` runs the built program
 
 No `use` needed: the primitive types, `string`, `List`, `Map`, `Option`,
 `Result`, `Display`, `Debug`, `Eq`, `Ord`, `Hash`, `Iterator`, `Console`,
-`ConsoleError`, `println`, `panic`, `debug`, `dbg`, and `it` in tests
+`ConsoleError`, `println`, `panic`, `debug`, `dbg`, and `it`, `assert`,
+`assert_equal` in tests
 ([full list](../../../spec/lang/10-modules.md#prelude)). Everything else
 is imported:
 
@@ -451,7 +450,9 @@ is imported:
 | JSON | `std.json.{decode, encode, parse}`, `std.serde.{Serialize, Deserialize}` |
 | operator traits | `std.ops.{Add, Sub, Mul, Index}` |
 | errors | `std.error.{Error, report_of}`, `std.convert.From` |
-| assertions, test helpers | `std.testing.{assert, assert_equal, it_each, it_prop, hd_run}` |
+| test helpers | `std.testing.{it_each, it_prop, hd_run}` |
+| implement hashing | `std.hash.Hasher` |
+| suspension protocol types | `std.task.{Poll, PollContext, Waker}` |
 
 Import a bang function by its plain name (`read_text`) and call it with
 the bang (`read_text!(...)`). String methods are in

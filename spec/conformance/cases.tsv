@@ -4817,3 +4817,15 @@ runtime/panic/http-form-nested-map.hd	runtime	panic:explicit-panic	std/http.md#r
 runtime/panic/http-form-nested-list.hd	runtime	panic:explicit-panic	std/http.md#r-std-http.request.form-unsupported
 runtime/panic/http-form-payload-enum.hd	runtime	panic:explicit-panic	std/http.md#r-std-http.request.form-unsupported
 runtime/panic/http-form-map-number.hd	runtime	panic:explicit-panic	std/http.md#r-std-http.request.form-unsupported
+runtime/valid/test-prelude-assertions.hd	runtime	accept	lang/10-modules.md#r-module.prelude.test-assertions
+runtime/valid/test-prelude-redundant-use.hd	runtime	accept	lang/10-modules.md#r-module.prelude.same-use
+typing/invalid/prelude-explicit-hasher.hd	type	reject:unknown-name	lang/10-modules.md#r-module.prelude.implementer-imports
+typing/invalid/prelude-explicit-poll.hd	type	reject:unknown-name	lang/10-modules.md#r-module.prelude.implementer-imports
+typing/invalid/prelude-explicit-poll-context.hd	type	reject:unknown-name	lang/10-modules.md#r-module.prelude.implementer-imports
+typing/invalid/prelude-explicit-waker.hd	type	reject:unknown-name	lang/10-modules.md#r-module.prelude.implementer-imports
+typing/invalid/test-prelude-assert-outside.hd	type	reject:unknown-name	lang/10-modules.md#r-module.prelude.test-only.outside
+typing/invalid/test-prelude-assert-equal-outside.hd	type	reject:unknown-name	lang/10-modules.md#r-module.prelude.test-only.outside
+runtime/valid/test-prelude-test-module-assertions.hd	runtime	accept	lang/10-modules.md#r-module.prelude.test-assertions
+runtime/valid/test-prelude-integration-assertions.hd	runtime	accept	lang/10-modules.md#r-module.prelude.test-assertions
+typing/invalid/test-prelude-shadow-assert.hd	type	reject:prelude-name-shadow	lang/10-modules.md#r-module.prelude.no-shadow
+typing/invalid/test-prelude-shadow-assert-equal.hd	type	reject:prelude-name-shadow	lang/10-modules.md#r-module.prelude.no-shadow

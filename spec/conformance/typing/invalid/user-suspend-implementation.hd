@@ -1,4 +1,6 @@
 # Spec 11 Suspend[T] Protocol: req.protocol.builtin.
+use std.task.{Poll, PollContext}
+
 struct Replay: pass
 
 impl Suspend[i32] for Replay:  # diagnostic: unknown-trait

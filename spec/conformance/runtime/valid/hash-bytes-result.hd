@@ -1,5 +1,7 @@
 # test: a result writes a tag byte, 0 for .Ok and 1 for .Err, then its payload, and may be a map key
 # Spec std Hash, Bytes Written: std-hash.bytes.result; Result Hashing: std-hash.result.impl.
+use std.hash.Hasher
+
 struct Recorder:
     bytes: List[u8]
 

@@ -1,0 +1,2 @@
+# Spec 10 Prelude: module.prelude.no-shadow.
+fn assert() -> void: pass  # diagnostic: prelude-name-shadow

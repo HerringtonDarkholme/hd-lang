@@ -1,6 +1,8 @@
 # test: .hash calls the standard Hash implementations directly, with a user Hasher passed as `&mut`
 # expect: test
-# Spec 04 Map Key Types: types.map-key.builtin-hash; Hash is a prelude trait (module.prelude.in-scope).
+# Spec 04 Map Key Types: types.map-key.builtin-hash; Hash is a prelude trait (module.prelude.standard-surface).
+use std.hash.Hasher
+
 struct Bytes:
     items: List[u8]
 

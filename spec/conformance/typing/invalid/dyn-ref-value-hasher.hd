@@ -1,4 +1,6 @@
 # Spec 09 Trait Value References: trait.dyn.ref.written. A recorder hasher passed to `Hash.hash` by value, where `&mut dyn Hasher` is expected; `&mut recorder` was meant.
+use std.hash.Hasher
+
 struct Recorder:
     bytes: List[u8]
 

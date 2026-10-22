@@ -1,5 +1,7 @@
+use std.cmp.max
+
 pub fn double(count: i32) -> i32:
-    count * 2
+    max(count, count) * 2
 
 tests:
     use std.testing.assert_equal

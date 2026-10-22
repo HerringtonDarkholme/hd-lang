@@ -1,5 +1,5 @@
-# std.hash: `Hash` and `Hasher` (spec/lang/09-traits.md#hashing), both prelude
-# names. The standard implementations write the bytes that
+# std.hash: `Hash` and `Hasher` (spec/lang/09-traits.md#hashing). Only
+# `Hash` is a prelude name. The standard implementations write the bytes that
 # spec/std/hash.md#bytes-written gives: an integer its little-endian bytes
 # at its own width, a `bool` one byte, a `char` its scalar as a `u32`, a
 # string or a list its length as a `u64` and then its contents, and an

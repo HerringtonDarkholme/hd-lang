@@ -1,5 +1,7 @@
 # test: a user package cannot implement a standard trait for a standard data type
 # Spec 09 Implementation Ownership: trait.own.rule, trait.own.orphan.
+use std.hash.Hasher
+
 use std.inspect.TypeId
 
 impl Hash for TypeId:  # diagnostic: orphan-impl

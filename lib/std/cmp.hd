@@ -2,6 +2,7 @@
 # `PartialOrd`, `Ord`, and `Ordering` are prelude names, declared here
 # (spec/lang/09-traits.md#comparison-traits).
 use std.function.Tuple
+use std.hash.Hasher
 use std.num.{Num, Integer}
 use std.structure.{Structure, Walker, Variant, Field}
 

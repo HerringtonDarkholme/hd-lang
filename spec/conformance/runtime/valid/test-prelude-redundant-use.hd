@@ -1,0 +1,7 @@
+# Spec 10 Prelude: module.prelude.same-use.
+# test: an explicit assertion import repeats the test prelude legally
+tests:
+    use std.testing.assert_equal
+
+    it("a redundant assertion import is legal"):
+        assert_equal("same", "same", reason="the import names the same declaration")
