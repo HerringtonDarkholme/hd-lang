@@ -12,7 +12,7 @@ fn read_error!(files: &MemoryFs, path: Path) -> FsError?:
         .Err(error) => .Some(error)
 
 tests:
-    use std.testing.assert
+    use std.testing.{assert, assert_equal}
 
     it("copies in memory"):
         let mut files = MemoryFs::new()
@@ -35,3 +35,37 @@ tests:
         match read_error!(files, missing):
             .Some(error) => assert(error == FsError.NotFound(path=missing), reason="the supplied missing path")
             .None => assert(false, reason="the file is missing")
+
+    it("appends preserve earlier byte snapshots and copied file systems"):
+        files := MemoryFs::new()
+        _ := files.write_bytes!(Path("file"), [65, 66])
+        bytes := files.read_bytes!(Path("file")).expect("read")
+        let mut snapshot = *files
+        _ := files.append_text!(Path("./file"), "C")
+        assert_equal(bytes, [65, 66], reason="previous read is a value snapshot")
+        assert_equal(snapshot.read_text!(Path("file")), .Ok("AB"), reason="copied file system is independent")
+        _ := snapshot.append_text!(Path("file"), "D")
+        assert_equal(files.read_text!(Path("file")), .Ok("ABC"), reason="original grows independently")
+        assert_equal(snapshot.read_text!(Path("file")), .Ok("ABD"), reason="copied file system grows independently")
+
+    it("appends preserve copied files and renamed bytes"):
+        files := MemoryFs::new()
+        _ := files.write_bytes!(Path("source"), [0, 255])
+        _ := files.copy!(Path("source"), Path("copy"))
+        _ := files.append_text!(Path("source"), "λ")
+        assert_equal(files.read_bytes!(Path("source")), .Ok([0, 255, 206, 187]), reason="arbitrary prefix and UTF-8 suffix")
+        assert_equal(files.read_bytes!(Path("copy")), .Ok([0, 255]), reason="copied bytes are independent")
+        _ := files.rename!(Path("source"), Path("renamed"))
+        _ := files.append_text!(Path("renamed"), "!")
+        assert_equal(files.read_bytes!(Path("renamed")), .Ok([0, 255, 206, 187, 33]), reason="append after rename")
+
+    it("repeated appends keep normalized paths and empty writes"):
+        files := MemoryFs::new()
+        let index: usize = 0
+        while index < 128:
+            _ := files.append_text!(Path("dir//./file"), "λ")
+            index += 1
+        _ := files.append_text!(Path("dir/file"), "")
+        assert_equal(files.read_text!(Path("./dir/file")), .Ok("λ".repeat(128)), reason="same normalized file")
+        _ := files.append_text!(Path("empty"), "")
+        assert_equal(files.read_bytes!(Path("empty")), .Ok([]), reason="empty append creates an empty file")

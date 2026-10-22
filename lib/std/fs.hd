@@ -503,12 +503,11 @@ impl FsWrite for MemoryFs:
             .Some(error) => return .Err(error)
             .None => pass
         key := memory_key(path)
-        let mut joined: List[u8] = []
-        match self.file_at(key):
-            .Some(old) =>
-                for byte in old:
-                    joined.push(byte)
-            .None => pass
+        # Take the stored value before extending it, so an unshared buffer
+        # can grow in place. Existing read/copy snapshots still force COW.
+        let mut joined: List[u8] = match self.files.remove(key):
+            .Some(old) => old
+            .None => []
         for byte in text.to_utf8():
             joined.push(byte)
         self.files[key] = joined
