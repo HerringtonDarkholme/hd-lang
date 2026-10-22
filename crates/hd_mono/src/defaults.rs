@@ -89,7 +89,7 @@ fn value(body: &Body, word: u32, locals: &[Option<Value>], depth: usize) -> Opti
     let [a, b] = *body.data.get(i)?;
     match body.tags[i] {
         Tag::Block => value(body, b, locals, depth + 1),
-        Tag::LocalGet => locals.get(a as usize).copied().flatten(),
+        Tag::Read => locals.get(body.local_read(i)?.idx()).copied().flatten(),
         Tag::NewVariant if body.record(b).is_empty() => Some(Value::Variant(a)),
         Tag::Coerce if transparent(body, i) => value(body, a, locals, depth + 1),
         Tag::Prim => {
@@ -132,7 +132,8 @@ fn arm(body: &Body, block: u32, locals: &[Option<Value>], depth: usize) -> Optio
         let i = i as usize;
         let [a, b] = body.data[i];
         match body.tags[i] {
-            Tag::Block | Tag::LocalGet => {}
+            Tag::Block => {}
+            Tag::Read if body.local_read(i).is_some() => {}
             Tag::ToArm => return Some(a),
             Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar => {
                 let val = value(body, a, locals, 0)?;

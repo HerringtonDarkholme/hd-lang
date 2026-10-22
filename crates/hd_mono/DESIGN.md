@@ -198,7 +198,7 @@ instance.
 | TIR | Wasm |
 | --- | --- |
 | a value instruction | a Wasm local (or several, for a `multi` layout, §15.1) when used more than once or across a block; otherwise left on the operand stack |
-| `LocalGet`, a `Store` into a whole local | `local.get`, `local.set`; a `Shared` captured local is a cell, a one-field struct |
+| `Read [$l]` and a `Store` of a whole local | `local.get`, `local.set`; a `Shared` captured local is a cell, a one-field struct |
 | `Block`, `If`, `Loop` | `block`, `if`, `loop`; `Break` and `Continue` become `br` |
 | `Scope` with `Defer` | the exit ladder below |
 | `Match` and its switches | `br_table` on a tag or a dense range; a binary search of `if`s for a sparse range of more than 8 cases; length then the viewed bytes for strings; each arm once, in nested blocks that leaves branch to |

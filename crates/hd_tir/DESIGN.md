@@ -539,7 +539,7 @@ in `src/ir.rs`, so every encoding goes through it.
   label row is written once when the target closes.
 - **Values are instructions.** An instruction's result is its value, used
   by later instructions through a `Ref`. Mutable user bindings are locals
-  read with `LocalGet` and written with a `Store` of their place.
+  read with a `Read` and written with a `Store` of their place.
 - **Constants are `Ref`s, not instructions.** A `Ref` with bit 31 set
   names a row in that body's `consts` table: the constant's type and 64
   value bits; a `string` constant's bits index `strings`. There is no
@@ -584,12 +584,13 @@ and a `hole` side table (typed-hole candidates).
 Notation: `a` and `b` are the two data words; `[...]` is a record in
 `extra`. "Join" is the arms' common type by the spec's join rules.
 
-**Values, locals and globals**
+**Values.** A local and a top-level binding are read with `Read`
+(below): `Read [$l]`, whose place word is the bare local and has no
+record, has the local's type, without its outer `mut` when the binding
+is readonly; `Read [@g]` has the binding's type.
 
 | Tag | Operands | Type rule |
 | --- | --- | --- |
-| `LocalGet` | a: local | the local's type, without its outer `mut` when the binding is readonly |
-| `GlobalGet` | a: `[binding DefId]` | the binding's type |
 | `ItemRef` | a: `[item DefId]`, b: `[type arguments]` | the item's function type, instantiated (functions, variant constructors, unbound method references, receiver first). The type arguments are the owner's, then the item's own: an inherent member's impl arguments; a trait member's `Self`, then the trait's arguments. A bound reference `value::name` is no `ItemRef`: it is a `Closure` whose body calls the method on a captured local holding the receiver (`hd_check/src/fnref.rs`) |
 | `ProviderGet` | a: `[key type]` | the key's provider type (`$.use(K)`) |
 | `Hole` | a: expected type | the expected type; only in a module with errors |
@@ -747,7 +748,9 @@ remain:
 
 **Places** ([docs/compiler/tir-v2.md](../../docs/compiler/tir-v2.md#reads-stores-and-references)).
 After stage 1 of TIR v2 every reference is a `Ref`, every read through
-a reference a `Read`, and every write a `Store`: of a whole local
+a reference a `Read`, and every write a `Store`; stage 2 makes every
+plain read of a local or a top-level binding a `Read` too (`[$l]`,
+`[@g]`, mode `use`). A `Store` writes a whole local
 (`[$l]`), a top-level binding (`[@g]`), a struct field of either, a
 data object's field (`[*%o .k]`), a place through a reference
 (`[*%r .x]`) or a list element (`[%xs [%i] .x]`).
@@ -809,8 +812,7 @@ instructions. Shared arms appear once.
 **Wire-visible identities.** `NewVariant`, `SwitchTag` and `Payload`
 identify a variant by its declaration index within the enum, not by
 `DefId`; the enclosing value or result type identifies the enum. The run
-IDs used by `ProviderGet`, `ItemRef`, `GlobalGet`, a global place
-root, `DefaultCall`, `With`, `ContextNew` and calls live in their `extra`
+IDs used by `ProviderGet`, `ItemRef`, a global place root, `DefaultCall`, `With`, `ContextNew` and calls live in their `extra`
 records. The two data words hold only record offsets, values or
 declaration indices, because the wire writer remaps typed words in
 `extra` (`id_words`, `src/wire.rs`) and never guesses whether a data word

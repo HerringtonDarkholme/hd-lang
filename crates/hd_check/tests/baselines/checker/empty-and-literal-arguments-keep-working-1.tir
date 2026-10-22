@@ -18,24 +18,24 @@ fn run_all[$R](xs: List[fn() -> void $ R]) -> void $ R:
 >   local $4 $pos: usize [assigned]
 >   local $5 $end: usize [assigned]
 >   local $6 x: fn() -> () [read assigned]
->   %0 = LocalGet $0 : List[fn() -> ()]
+>   %0 = Read [$0] : List[fn() -> ()]
 >   %1 = Store [$1] %0 : ()
->   %2 = LocalGet $1 : List[fn() -> ()]
+>   %2 = Read [$1] : List[fn() -> ()]
 >   %3 = Intrinsic SnapBegin [%2] : List[fn() -> ()]
 >   %4 = Store [$2] %3 : ()
->   %5 = LocalGet $2 : List[fn() -> ()]
+>   %5 = Read [$2] : List[fn() -> ()]
 >   %6 = Intrinsic ListLen [%5] : usize
 >   %7 = Store [$3] %6 : ()
->   %8 = LocalGet $3 : usize
+>   %8 = Read [$3] : usize
 >   %9 = Store [$5] %8 : ()
 >   %10 = Store [$4] 0:usize : ()
->   %11 = LocalGet $4 : usize
->   %12 = LocalGet $5 : usize
+>   %11 = Read [$4] : usize
+>   %12 = Read [$5] : usize
 >   %13 = Prim Lt [%11 %12] : bool
->   %14 = LocalGet $2 : List[fn() -> ()]
->   %15 = LocalGet $4 : usize
+>   %14 = Read [$2] : List[fn() -> ()]
+>   %15 = Read [$4] : usize
 >   %16 = Intrinsic ListIndex [%14 %15] : fn() -> ()
->   %17 = LocalGet $4 : usize
+>   %17 = Read [$4] : usize
 >   %18 = Prim Add [%17 1:usize] : usize
 >   %19 = Store [$4] %18 : ()
 >   %22 = Block - : ()
@@ -48,12 +48,12 @@ fn run_all[$R](xs: List[fn() -> void $ R]) -> void $ R:
 >   %30 = If %13 [%27 %29] : ()
 >   %31 = Block - : ()
 >   %32 = Loop %31 - : ()
->   %33 = LocalGet $1 : List[fn() -> ()]
->   %34 = LocalGet $2 : List[fn() -> ()]
+>   %33 = Read [$1] : List[fn() -> ()]
+>   %34 = Read [$2] : List[fn() -> ()]
 >   %35 = Intrinsic SnapEnd [%33 %34] : ()
 >   %36 = Block - : ()
         x()
->   %20 = LocalGet $6 : fn() -> ()
+>   %20 = Read [$6] : fn() -> ()
 >   %21 = CallValue %20 [] : ()
 
 fn quiet() -> void:
@@ -65,7 +65,7 @@ pub fn wire(handlers: List[fn() -> void]) -> void:
     run_all(handlers)
 > app/main/wire
 >   local $0 handlers: List[fn() -> ()] [param read]
->   %0 = LocalGet $0 : List[fn() -> ()]
+>   %0 = Read [$0] : List[fn() -> ()]
 >   %1 = Call app/main/run_all[$()] (%0) : ()
 >   %7 = Block - : ()
     run_all([quiet])

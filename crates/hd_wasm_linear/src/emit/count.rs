@@ -39,8 +39,8 @@ impl Em<'_, '_, '_> {
             }
             let [a, w] = em.b.data[i as usize];
             match em.b.tags[i as usize] {
-                Tag::LocalGet => {
-                    let l = a as usize;
+                Tag::Read if let Some(l) = em.b.local_read(i as usize) => {
+                    let l = l.idx();
                     if em.is_cell(l) || !matches!(em.kind(em.sub(em.b.local_ty[l])), Kind::Value) {
                         return false;
                     }
@@ -95,7 +95,7 @@ impl Em<'_, '_, '_> {
             .iter()
             .copied()
             .filter(|&i| {
-                let l = self.b.data[i as usize][0] as usize;
+                let l = self.b.local_read(i as usize).expect("a local read").idx();
                 !self.is_cell(l)
                     && !self.moves.loan_locals.contains_key(&l)
                     && !hd_mono::is_open(self.pool(), self.ty(i))
@@ -134,8 +134,10 @@ impl Em<'_, '_, '_> {
                         != 0
                     || *source == NONE
                     || Ref(*source).as_inst().is_none()
-                    || self.b.tags[*source as usize] != Tag::LocalGet
-                    || !roots.contains(&(self.b.data[*source as usize][0] as usize))
+                    || !self
+                        .b
+                        .local_read(*source as usize)
+                        .is_some_and(|r| roots.contains(&r.idx()))
                     || !matches!(self.kind(self.sub(self.b.local_ty[l])), Kind::Ref { .. })
                 {
                     continue;
@@ -154,7 +156,12 @@ impl Em<'_, '_, '_> {
             .iter()
             .enumerate()
             .filter_map(|(i, tag)| {
-                if !matches!(tag, Tag::Read | Tag::Field) {
+                // A list header read through a place or a field; a plain
+                // local or global read is no such read.
+                if !matches!(tag, Tag::Read | Tag::Field)
+                    || self.b.local_read(i).is_some()
+                    || self.b.global_read(i).is_some()
+                {
                     return None;
                 }
                 let i = u32::try_from(i).expect("insts");
@@ -210,13 +217,13 @@ impl Em<'_, '_, '_> {
                 continue;
             }
             self.moves.loans.insert(i);
-            if self.b.tags[i as usize] != Tag::LocalGet {
+            if self.b.local_read(i as usize).is_none() {
                 let flag = self.f.local(crate::module::Val::I32);
                 self.view_loans.insert(i, flag);
             }
         }
         // Match spans have a separate, typed plan: `Moves::span` still
-        // contains only LocalGet instructions. Validate physical projection
+        // contains only plain local reads. Validate physical projection
         // before treating a field or its pattern bindings as loans. A
         // field is a `Field` that a borrowed whole read loads alone, or a
         // `Read [*%r .f]` through a borrowed reference value, which loads
@@ -507,7 +514,7 @@ impl Em<'_, '_, '_> {
         true
     }
 
-    /// Whether `LocalGet` `i` of local `l` is the local's last access and
+    /// Whether `Read [$l]` `i` of local `l` is the local's last access and
     /// takes its count (`live::Moves::last_access`): the local's release
     /// after that statement goes, and the caller zeroes its locals. A
     /// borrowed parameter has no count to give, and a cell is shared.
@@ -544,7 +551,7 @@ impl Em<'_, '_, '_> {
     /// reference and not the declaration makes the loop statement the
     /// last access, not the reference), and the planned release is the
     /// only other point that drops the local's count. So the count moves
-    /// as a `LocalGet`'s does at its last access ([`Em::take_local`]).
+    /// as a plain local read's does at its last access ([`Em::take_local`]).
     ///
     /// Kept out, each taking a count of its own as before:
     /// - a cell a closure shares (a capture in this body, or this closure

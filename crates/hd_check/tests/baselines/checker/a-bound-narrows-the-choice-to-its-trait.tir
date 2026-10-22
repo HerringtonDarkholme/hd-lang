@@ -14,7 +14,7 @@ impl Left for User:
     fn label(self) -> i32: self.value
 > app/main/impl Left for User.label
 >   local $0 self: User [param read]
->   %0 = LocalGet $0 : User
+>   %0 = Read [$0] : User
 >   %1 = Field %0 .value : i32
 >   %2 = Block %1 : i32
 
@@ -22,7 +22,7 @@ impl Right for User:
     fn label(self) -> i32: self.value + 100
 > app/main/impl Right for User.label
 >   local $0 self: User [param read]
->   %0 = LocalGet $0 : User
+>   %0 = Read [$0] : User
 >   %1 = Field %0 .value : i32
 >   %2 = Prim Add [%1 100:i32] : i32
 >   %3 = Block %2 : i32
@@ -31,7 +31,7 @@ fn pick[T < Left](x: T) -> i32:
     x.label()
 > app/main/pick
 >   local $0 x: T [param read]
->   %0 = LocalGet $0 : T
+>   %0 = Read [$0] : T
 >   %1 = Call app/main/Left.label for T [] via Bound (%0) : i32
 >   %2 = Block %1 : i32
 
@@ -39,6 +39,6 @@ fn both(user: User) -> i32:
     pick(user)
 > app/main/both
 >   local $0 user: User [param read]
->   %0 = LocalGet $0 : User
+>   %0 = Read [$0] : User
 >   %1 = Call app/main/pick[User] (%0) : i32
 >   %2 = Block %1 : i32

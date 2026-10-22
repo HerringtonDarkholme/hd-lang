@@ -22,26 +22,26 @@ struct DiskError:
 >   %50 = Block %49 : Ref[Error]?
 > app/main/error From 0.0 for SaveError.from
 >   local $0 value: DiskError [param]
->   %0 = LocalGet $0 : DiskError
+>   %0 = Read [$0] : DiskError
 >   %1 = NewVariant #0 [%0] : SaveError[error From 0.0 for SaveError#0]
 >   %2 = Block %1 : SaveError[error From 0.0 for SaveError#0]
 enum SaveError[E]:
     @error("cannot save")
 >   %0 = Block "cannot save" : string
 >   %12 = Block %11 : string
->   %13 = LocalGet $0 : SaveError[error Display for SaveError#0]
+>   %13 = Read [$0] : SaveError[error Display for SaveError#0]
 >   %14 = SwitchTag %13 [#0 %0 %12] : string
 >   %10 = Block %9 : Ref[Error]?
 >   %47 = Block %46 : Ref[Error]?
->   %48 = LocalGet $0 : SaveError[error Error for SaveError#0]
+>   %48 = Read [$0] : SaveError[error Error for SaveError#0]
 >   %49 = SwitchTag %48 [#0 %10 %47] : Ref[Error]?
     Write(@from error: DiskError)
->   %0 = LocalGet $0 : SaveError[error Error for SaveError#0]
+>   %0 = Read [$0] : SaveError[error Error for SaveError#0]
 >   %1 = Payload %0 [#0 #0] : DiskError
 >   %2 = Store [$1] %1 : ()
 >   %3 = Ref [$1] : Ref[DiskError]
 >   %4 = Store [$2] %3 : ()
->   %5 = LocalGet $2 : Ref[DiskError]
+>   %5 = Read [$2] : Ref[DiskError]
 >   %6 = Coerce %5 [RefToTraitValue -] : Error
 >   %7 = Block %6 : Error
 >   %8 = RefDyn %7 : Ref[Error]
@@ -49,48 +49,48 @@ enum SaveError[E]:
     @error(transparent)
 >   %4 = Block %3 : string
 >   %9 = Block %8 : string
->   %10 = LocalGet $0 : SaveError[error Display for SaveError#0]
+>   %10 = Read [$0] : SaveError[error Display for SaveError#0]
 >   %11 = SwitchTag %10 [#1 %4 %9] : string
 >   %14 = Block %13 : Ref[Error]?
 >   %44 = Block %43 : Ref[Error]?
->   %45 = LocalGet $0 : SaveError[error Error for SaveError#0]
+>   %45 = Read [$0] : SaveError[error Error for SaveError#0]
 >   %46 = SwitchTag %45 [#1 %14 %44] : Ref[Error]?
     Wrap(@source inner: E)
->   %1 = LocalGet $0 : SaveError[error Display for SaveError#0]
+>   %1 = Read [$0] : SaveError[error Display for SaveError#0]
 >   %2 = Payload %1 [#1 #0] : error Display for SaveError#0
 >   %3 = Call std/format/Display.to_string for error Display for SaveError#0 [] via Bound (%2) : string
->   %11 = LocalGet $0 : SaveError[error Error for SaveError#0]
+>   %11 = Read [$0] : SaveError[error Error for SaveError#0]
 >   %12 = Payload %11 [#1 #0] : error Error for SaveError#0
 >   %13 = Call std/error/Error.cause for error Error for SaveError#0 [] via Bound (%12) : Ref[Error]?
     @error("two")
 >   %5 = Block "two" : string
 >   %6 = Block "opt" : string
->   %7 = LocalGet $0 : SaveError[error Display for SaveError#0]
+>   %7 = Read [$0] : SaveError[error Display for SaveError#0]
 >   %8 = SwitchTag %7 [#2 %5 %6] : string
 >   %25 = Block %24 : Ref[Error]?
 >   %41 = Block %40 : Ref[Error]?
->   %42 = LocalGet $0 : SaveError[error Error for SaveError#0]
+>   %42 = Read [$0] : SaveError[error Error for SaveError#0]
 >   %43 = SwitchTag %42 [#2 %25 %41] : Ref[Error]?
     Pair(a: string, @source b: DiskError)
->   %15 = LocalGet $0 : SaveError[error Error for SaveError#0]
+>   %15 = Read [$0] : SaveError[error Error for SaveError#0]
 >   %16 = Payload %15 [#2 #1] : DiskError
 >   %17 = Store [$3] %16 : ()
 >   %18 = Ref [$3] : Ref[DiskError]
 >   %19 = Store [$4] %18 : ()
->   %20 = LocalGet $4 : Ref[DiskError]
+>   %20 = Read [$4] : Ref[DiskError]
 >   %21 = Coerce %20 [RefToTraitValue -] : Error
 >   %22 = Block %21 : Error
 >   %23 = RefDyn %22 : Ref[Error]
 >   %24 = Coerce %23 [WrapSome -] : Ref[Error]?
     @error("opt")
     Opt(@source c: DiskError?)
->   %26 = LocalGet $0 : SaveError[error Error for SaveError#0]
+>   %26 = Read [$0] : SaveError[error Error for SaveError#0]
 >   %27 = Payload %26 [#3 #0] : DiskError?
 >   %28 = Unwrap %27 : DiskError
 >   %29 = Store [$5] %28 : ()
 >   %30 = Ref [$5] : Ref[DiskError]
 >   %31 = Store [$6] %30 : ()
->   %32 = LocalGet $6 : Ref[DiskError]
+>   %32 = Read [$6] : Ref[DiskError]
 >   %33 = Coerce %32 [RefToTraitValue -] : Error
 >   %34 = Block %33 : Error
 >   %35 = RefDyn %34 : Ref[Error]

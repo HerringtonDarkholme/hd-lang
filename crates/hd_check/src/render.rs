@@ -343,7 +343,6 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
                     Op::None => {}
                     Op::Value | Op::Block => ops.push(value(names, b, word)),
                     Op::Label => ops.push(format!("L{word}")),
-                    Op::Local => ops.push(format!("${word}")),
                     Op::Place => ops.push(place(names, b, word, fields)),
                     // A `Prim`'s or an `Intrinsic`'s operation by name.
                     Op::Meta

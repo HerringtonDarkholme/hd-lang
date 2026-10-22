@@ -1022,10 +1022,9 @@ impl Ck<'_, '_> {
     fn read_root(&mut self, root: Root, n: NodeRef<'_>) -> (Ref, Ty) {
         match root {
             Root::Local(l, d) => self.read_local(l, d, n),
-            Root::Global(s, def, ty) => self.global_get(s, n).unwrap_or_else(|| {
-                let a = self.b.refs_record(&[Ref(def.raw())]);
-                (self.b.emit(Tag::GlobalGet, a, NONE, ty, n.index()), ty)
-            }),
+            Root::Global(s, def, ty) => self
+                .global_get(s, n)
+                .unwrap_or_else(|| (self.b.read_global(def, ty, n.index()), ty)),
             Root::Deref(r, rt) => self.emit_deref(r, rt, n.index()),
             Root::DataField(o, idx, ft, _) => {
                 (self.b.emit(Tag::Field, o.0, idx, ft, n.index()), ft)

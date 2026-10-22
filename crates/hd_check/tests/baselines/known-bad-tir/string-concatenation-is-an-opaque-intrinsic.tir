@@ -2,7 +2,7 @@
 app/main/concat
   local $0 left: string [param read]
   local $1 right: string [param read]
-  %0 = LocalGet $0 : string
-  %1 = LocalGet $1 : string
+  %0 = Read [$0] : string
+  %1 = Read [$1] : string
   %2 = Intrinsic StrConcat [%0 %1] : string
   %3 = Block %2 : string

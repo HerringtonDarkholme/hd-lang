@@ -9,12 +9,12 @@ fn f(shape: Shape) -> i32:
 > app/main/f
 >   local $0 shape: Shape [param read]
 >   local $1 w: i32 [read assigned]
->   %0 = LocalGet $0 : Shape
+>   %0 = Read [$0] : Shape
 >   %22 = Block - : never
 >   %23 = Match %0 [%22 %2 %3] : i32
 >   %24 = Block %23 : i32
         .Rect(w, height = true) => w
->   %1 = LocalGet $1 : i32
+>   %1 = Read [$1] : i32
 >   %2 = Block %1 : i32
 >   %4 = Payload %0 [#0 #0] : i32
 >   %5 = Payload %0 [#0 #1] : bool

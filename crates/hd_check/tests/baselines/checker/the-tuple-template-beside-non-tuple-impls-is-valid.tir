@@ -12,7 +12,7 @@ impl Encode for i64:
         "$self"
 > app/main/impl Encode for i64.encode
 >   local $0 self: i64 [param read]
->   %0 = LocalGet $0 : i64
+>   %0 = Read [$0] : i64
 >   %1 = Call std/format/Display.to_string for i64 [] via Impl (%0) : string
 >   %2 = Interp [%1] : string
 >   %3 = Block %2 : string
@@ -34,10 +34,10 @@ impl[S] Walker[S] for Encoder:
 > app/main/impl [ S ] Walker [ S ] for Encoder.member
 >   local $0 self: Ref[mut Encoder] [param read]
 >   local $2 value: F [param read]
->   %0 = LocalGet $0 : Ref[mut Encoder]
->   %1 = LocalGet $0 : Ref[mut Encoder]
+>   %0 = Read [$0] : Ref[mut Encoder]
+>   %1 = Read [$0] : Ref[mut Encoder]
 >   %2 = Read [*%1 .out] : string
->   %3 = LocalGet $2 : F
+>   %3 = Read [$2] : F
 >   %4 = Call app/main/Encode.encode for F [] via Bound (%3) : string
 >   %5 = Intrinsic StrConcat [%2 %4] : string
 >   %6 = Intrinsic StrConcat [%5 ";"] : string
@@ -56,11 +56,11 @@ impl[T < Tuple] Encode for T by Structure:
 >   %1 = Store [$1] %0 : ()
 >   %7 = Block %6 : string
         _ := Structure::walk(self, &mut w)
->   %2 = LocalGet $0 : T
+>   %2 = Read [$0] : T
 >   %3 = Ref mut [$1] : Ref[mut Encoder]
 >   %4 = Call std/structure/Structure.walk for T [Encoder] via Bound (%2, %3) : Result[(), never]
         w.out
->   %5 = LocalGet $1 : Encoder
+>   %5 = Read [$1] : Encoder
 >   %6 = Field %5 .out : string
 
 struct Pair:

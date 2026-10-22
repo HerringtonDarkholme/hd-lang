@@ -693,8 +693,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         let mut pairs = Vec::new();
         for f in &v.shared {
             let name = self.str_(&f.name);
-            let rec = self.b.refs_record(&[Ref(f.global.raw())]);
-            let x = self.b.emit(Tag::GlobalGet, rec, NONE, f.ty, SYN);
+            let x = self.b.read_global(f.global, f.ty, SYN);
             let TyData::Ref { inner, .. } = pool.get(value_t) else {
                 return self
                     .cx

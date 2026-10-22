@@ -8,7 +8,7 @@ impl[T] Box[T]:
     fn make[V](value: V) -> Box[V]: Box { value: value }
 > app/main/impl [ T ] Box [ T ].make
 >   local $0 value: V [param read]
->   %0 = LocalGet $0 : V
+>   %0 = Read [$0] : V
 >   %1 = NewStruct [%0] : Box[V]
 >   %2 = Block %1 : Box[V]
 

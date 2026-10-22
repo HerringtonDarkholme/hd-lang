@@ -1399,31 +1399,14 @@ impl Em<'_, '_, '_> {
             return self.open_inst(i, k);
         }
         match self.b.tags[i as usize] {
-            Tag::LocalGet if self.is_cell(a as usize) => self.cell_get(i, a as usize)?,
-            Tag::LocalGet => {
-                let ls = self.local(a)?;
-                if let Some((field, part)) = self.projected_field(i)? {
-                    for l in &ls[part.first..part.first + part.count] {
-                        self.f.get(*l);
-                    }
-                    self.store(field)?;
-                    self.precomputed_fields.insert(field);
-                    return Ok(());
-                }
-                for l in &ls {
-                    self.f.get(*l);
-                }
-                // At the local's last read its count moves to the value.
-                if self.take_local(i, a as usize) {
-                    self.store_owned(i)?;
-                    for l in ls {
-                        self.f.zero(l);
-                    }
-                } else {
-                    self.store(i)?;
-                }
+            // A plain local read, `Read [$l]`.
+            Tag::Read if let Some(l) = self.b.local_read(i as usize) => {
+                self.local_read(i, l.idx())?;
             }
-            Tag::GlobalGet if let Some(at) = self.global_slot(a) => self.slot_get(i, at)?,
+            // A plain read of a top-level binding, `Read [@g]`.
+            Tag::Read if let Some(def) = self.b.global_read(i as usize) => {
+                self.global_read(i, def)?;
+            }
             // Places (`emit/refs.rs`).
             Tag::Ref => self.place_ref(i)?,
             Tag::Read => self.place_read(i)?,
@@ -1431,14 +1414,6 @@ impl Em<'_, '_, '_> {
             // The address form is the trait value its block makes.
             Tag::RefDyn => self.block_into(a, Some(i))?,
             Tag::RefIdentity => self.ref_identity(i, a)?,
-            Tag::GlobalGet => {
-                let h = self.global_hash(a);
-                for (k, v) in self.vals(self.ty(i))?.into_iter().enumerate() {
-                    self.f
-                        .global_get(Global::Storage(h, u32::try_from(k).expect("k"), v));
-                }
-                self.store(i)?;
-            }
             Tag::Prim => self.prim(i, a, bw)?,
             Tag::And | Tag::Or => {
                 let r = self.slot(i)?[0];
@@ -1840,9 +1815,48 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// The path hash of a `GlobalGet` binding.
-    fn global_hash(&mut self, a: u32) -> hd_base::Hash128 {
-        self.def_hash(DefId::from_raw(self.rec(a)[0]))
+    /// `Read [$l]` `i`: local `l`'s values, from its cell or its Wasm
+    /// locals. At the local's last read its count moves to the value; a
+    /// read whose sole use is one field of it loads only that field.
+    fn local_read(&mut self, i: u32, l: usize) -> StageResult<()> {
+        if self.is_cell(l) {
+            return self.cell_get(i, l);
+        }
+        let ls = self.local(u32::try_from(l).expect("locals"))?;
+        if let Some((field, part)) = self.projected_field(i)? {
+            for l in &ls[part.first..part.first + part.count] {
+                self.f.get(*l);
+            }
+            self.store(field)?;
+            self.precomputed_fields.insert(field);
+            return Ok(());
+        }
+        for l in &ls {
+            self.f.get(*l);
+        }
+        if self.take_local(i, l) {
+            self.store_owned(i)?;
+            for l in ls {
+                self.f.zero(l);
+            }
+            Ok(())
+        } else {
+            self.store(i)
+        }
+    }
+
+    /// `Read [@def]` `i`: the binding's static slot when a reference
+    /// refers to it, else its Wasm globals.
+    fn global_read(&mut self, i: u32, def: DefId) -> StageResult<()> {
+        if let Some(at) = self.def_slot(def) {
+            return self.slot_get(i, at);
+        }
+        let h = self.def_hash(def);
+        for (k, v) in self.vals(self.ty(i))?.into_iter().enumerate() {
+            self.f
+                .global_get(Global::Storage(h, u32::try_from(k).expect("k"), v));
+        }
+        self.store(i)
     }
 
     /// The storage hash of top-level binding `def`, named for development

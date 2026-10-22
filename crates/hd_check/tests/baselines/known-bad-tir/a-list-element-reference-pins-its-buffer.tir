@@ -5,14 +5,14 @@ app/main/borrow
   local $2 $pinned: List[Body] [read assigned captured]
   local $3 $pin: bool [assigned]
   local $4 element: Ref[Body] [:= read assigned]
-  %0 = LocalGet $0 : Ref[mut List[Body]]
+  %0 = Read [$0] : Ref[mut List[Body]]
   %1 = Read [*%0] : List[Body]
-  %2 = LocalGet $1 : usize
+  %2 = Read [$1] : usize
   %3 = Intrinsic ListPin [%1 %2] : List[Body]
   %4 = Store [$2] %3 : ()
   %5 = Store [$3] 1:bool : ()
-  %6 = LocalGet $3 : bool
-  %7 = LocalGet $2 : List[Body]
+  %6 = Read [$3] : bool
+  %7 = Read [$2] : List[Body]
   %8 = Intrinsic ListUnpin [%7] : ()
   %9 = Store [$3] 0:bool : ()
   %10 = Block - : ()

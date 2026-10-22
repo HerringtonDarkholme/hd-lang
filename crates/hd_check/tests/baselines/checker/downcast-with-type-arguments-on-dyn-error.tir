@@ -18,13 +18,13 @@ fn device_of(error: &dyn Error) -> string:
 > app/main/device_of
 >   local $0 error: Ref[Error] [param read]
 >   local $1 found: Ref[DiskError] [read assigned]
->   %0 = LocalGet $0 : Ref[Error]
+>   %0 = Read [$0] : Ref[Error]
 >   %1 = Call std/error/impl dyn Error.downcast_ref[DiskError] (%0) : Ref[DiskError]?
 >   %17 = Block - : never
 >   %18 = Match %1 [%17 %4 %5] : string
 >   %19 = Block %18 : string
         .Some(found) => found.device
->   %2 = LocalGet $1 : Ref[DiskError]
+>   %2 = Read [$1] : Ref[DiskError]
 >   %3 = Read [*%2 .device] : string
 >   %4 = Block %3 : string
 >   %6 = Unwrap %1 : Ref[DiskError]

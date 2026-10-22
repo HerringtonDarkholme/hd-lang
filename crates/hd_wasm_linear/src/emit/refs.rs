@@ -497,7 +497,7 @@ impl Em<'_, '_, '_> {
         let s = self.spot(i)?;
         if s.head != Head::Deref {
             return unsupported(
-                "a read of a place with no dereference, which stage 1 reads with `LocalGet` and `Field`",
+                "a read of a place with no dereference, which a plain local read and `Field` read",
             );
         }
         let Some((target, fat)) = self.ref_target(self.start_ty(s.start)) else {
@@ -921,19 +921,13 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
-    /// The static slot of the top-level binding a `GlobalGet` names, when
-    /// some reference refers to it.
-    pub(super) fn global_slot(&self, a: u32) -> Option<u32> {
-        self.def_slot(DefId::from_raw(*self.b.record(a).first()?))
-    }
-
     /// The static slot of top-level binding `def`, when some reference
     /// refers to it.
     pub(super) fn def_slot(&self, def: DefId) -> Option<u32> {
         self.m.addressed.get(&self.env().path_hash(def)).copied()
     }
 
-    /// `GlobalGet` `i` of a binding in static slot `at`.
+    /// `Read [@g]` `i` of a binding in static slot `at`.
     pub(super) fn slot_get(&mut self, i: u32, at: u32) -> StageResult<()> {
         let m = mem_of(self.pool(), self.env(), self.ty(i))?;
         for leaf in &m.leaves {

@@ -287,7 +287,7 @@ impl Em<'_, '_, '_> {
         Ok(ls)
     }
 
-    /// `LocalGet` of a cell's local: its values, a copy with its own count.
+    /// A plain read of a cell's local, `Read [$l]`: its values, a copy with its own count.
     pub(super) fn cell_get(&mut self, i: u32, l: usize) -> StageResult<()> {
         for x in self.cell_read(l)? {
             self.f.get(x);

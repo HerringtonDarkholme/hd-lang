@@ -795,7 +795,7 @@ references preserve their owners and pins (OBJECT_MODEL_TIER1.md §6.3).
 - **A reference at its local's last access** (issue #701). `&x`, the
   address of cell local `x`'s cell with no field path, takes the local's
   count of the cell where it is `x`'s last access (`live::Moves::last_access`,
-  `Em::take_cell`), as a `LocalGet` there takes the local's count of its
+  `Em::take_cell`), as a plain local read (`Read [$l]`) there takes the local's count of its
   value (§23.25). The reference is stored as owned, the local is zeroed,
   and the release planned after that statement goes. This is sound
   because the local owns one count of its cell, from the declaration that
@@ -1217,7 +1217,7 @@ Count elision uses ownership and last-use facts in `emit/count.rs` and
   or a global's or a cell's store, a field write, a write through a
   reference, a list or map store, a return, a `break` value
   (`Em::take`). A block's tail used only as the block's value moves into
-  it (`Em::take_tail`). A `LocalGet` that is its local's last access, the
+  it (`Em::take_tail`). A plain local read (`Read [$l]`) that is its local's last access, the
   read after which the local was to be released, takes the local's count
   instead of one of its own (`Em::take_local`). A borrowed parameter has
   no count to give, and a cell is shared, so neither moves.
@@ -1628,7 +1628,7 @@ signatures before encoding, as clang's and Rust's wasm32 `byval` and
   reserve their argument/result frames below this frame. A resumed
   suspension restores its saved values into its fresh shadow frame.
 - **Projection** reads only a sole field consumer at the original
-  LocalGet or whole `Read [*r]` position; a read through a reference
+  plain local read (`Read [$l]`) or whole `Read [*r]` position; a read through a reference
   with a field path, `Read [*r .f]`, loads only that field by itself,
   and a match over it borrows it as such a consumer does. It retains
   the selected field before the original owner may die, without copying
@@ -1889,7 +1889,7 @@ every use (§23.25 round two) or a parameter the caller keeps (§23.31).
 The read takes no count and its last use releases nothing; the local's
 own count keeps the value alive (`live::span_loans`).
 
-- **The span.** A `LocalGet` of local `l` stands at statement `s` of
+- **The span.** A plain read `Read [$l]` of local `l` stands at statement `s` of
   block `k`. Its span is the statements of `k` after `s` up to the last
   one that holds a use of the read, with every block they run. A use
   outside `k`'s later statements (a block's tail, a use in an earlier

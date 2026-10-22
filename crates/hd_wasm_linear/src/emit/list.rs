@@ -51,16 +51,14 @@ impl Em<'_, '_, '_> {
         }
         let [a, _] = self.b.data[i];
         match self.b.tags[i] {
-            Tag::LocalGet => Some(ListRoot {
-                local: a,
+            Tag::Read if let Some(l) = self.b.local_read(i) => Some(ListRoot {
+                local: l.raw(),
                 indirect: false,
             }),
             Tag::Read => match super::live::read_through(self.b, i)? {
-                (Through::Value(r), true)
-                    if Ref(r).as_inst().is_some() && self.b.tags[r as usize] == Tag::LocalGet =>
-                {
+                (Through::Value(r), true) if let Some(l) = super::live::read_local(self.b, r) => {
                     Some(ListRoot {
-                        local: self.b.data[r as usize][0],
+                        local: u32::try_from(l).expect("locals"),
                         indirect: true,
                     })
                 }
@@ -96,7 +94,7 @@ impl Em<'_, '_, '_> {
                     changed = true;
                 }
                 let reaches = match self.b.tags[i] {
-                    Tag::LocalGet => locals[a as usize],
+                    Tag::Read if let Some(l) = self.b.local_read(i) => locals[l.idx()],
                     // A reference to the list local's own place, or to
                     // what the reference it holds refers to.
                     Tag::Ref => self.spot(u32::try_from(i).expect("insts")).is_ok_and(|s| {
@@ -138,7 +136,7 @@ impl Em<'_, '_, '_> {
             return false;
         }
         match self.b.tags[i as usize] {
-            Tag::LocalGet => !self.is_cell(a as usize),
+            Tag::Read if let Some(l) = self.b.local_read(i as usize) => !self.is_cell(l.idx()),
             Tag::Prim | Tag::Field | Tag::Coerce => true,
             Tag::And | Tag::Or => self.scalar_loop_test(w, budget),
             Tag::Block => self
@@ -201,14 +199,15 @@ impl Em<'_, '_, '_> {
             let Some(i) = Ref(r).as_inst() else { break };
             let [a, w] = self.b.data[i.0 as usize];
             match self.b.tags[i.0 as usize] {
-                Tag::LocalGet
-                    if !self.is_cell(a as usize)
-                        && self.b.local_flags[a as usize]
+                Tag::Read
+                    if let Some(l) = super::live::read_local(self.b, r)
+                        && !self.is_cell(l)
+                        && self.b.local_flags[l]
                             & (hd_tir::ir::local_flags::CAPTURED
                                 | hd_tir::ir::local_flags::CAPTURED_ASSIGNED)
                             == 0 =>
                 {
-                    let [(set, value)] = sets[a as usize].as_slice() else {
+                    let [(set, value)] = sets[l].as_slice() else {
                         break;
                     };
                     if !tree.dominates(self.b, *set, r) {
@@ -264,26 +263,26 @@ impl Em<'_, '_, '_> {
         }
         let args = self.b.record(self.b.data[cond as usize][1]);
         let [cur, end] = args else { return Vec::new() };
-        if Ref(*cur).as_inst().is_none()
-            || Ref(*end).as_inst().is_none()
-            || self.b.tags[*cur as usize] != Tag::LocalGet
-            || self.b.tags[*end as usize] != Tag::LocalGet
-            || self.ty_of(*cur) != Ty::prim(hd_types::Prim::Usize)
+        let (Some(current), Some(bound)) = (
+            super::live::read_local(self.b, *cur),
+            super::live::read_local(self.b, *end),
+        ) else {
+            return Vec::new();
+        };
+        if self.ty_of(*cur) != Ty::prim(hd_types::Prim::Usize)
             || self.ty_of(*end) != Ty::prim(hd_types::Prim::Usize)
         {
             return Vec::new();
         }
-        let current = self.b.data[*cur as usize][0];
-        let bound = self.b.data[*end as usize][0];
-        if self.is_cell(current as usize)
-            || self.is_cell(bound as usize)
-            || [current, bound].iter().any(|l| {
-                self.b.local_flags[*l as usize] & hd_tir::ir::local_flags::CAPTURED_ASSIGNED != 0
-            })
+        if self.is_cell(current)
+            || self.is_cell(bound)
+            || [current, bound]
+                .iter()
+                .any(|l| self.b.local_flags[*l] & hd_tir::ir::local_flags::CAPTURED_ASSIGNED != 0)
         {
             return Vec::new();
         }
-        let [a, b] = sets[current as usize].as_slice() else {
+        let [a, b] = sets[current].as_slice() else {
             return Vec::new();
         };
         let (init, step) = if tree.in_loop(self.b, a.0, loop_inst) {
@@ -305,14 +304,12 @@ impl Em<'_, '_, '_> {
         let [before, one] = add else {
             return Vec::new();
         };
-        if Ref(*before).as_inst().is_none()
-            || self.b.tags[*before as usize] != Tag::LocalGet
-            || self.b.data[*before as usize][0] != current
+        if super::live::read_local(self.b, *before) != Some(current)
             || self.const_u32(*one) != Some(1)
         {
             return Vec::new();
         }
-        let [(bound_set, value)] = sets[bound as usize].as_slice() else {
+        let [(bound_set, value)] = sets[bound].as_slice() else {
             return Vec::new();
         };
         if !tree.dominates(self.b, *bound_set, loop_inst) {
@@ -378,9 +375,7 @@ impl Em<'_, '_, '_> {
                     return false;
                 }
                 let index = self.range_source(*index, &sets, tree);
-                Ref(index).as_inst().is_some()
-                    && self.b.tags[index as usize] == Tag::LocalGet
-                    && self.b.data[index as usize][0] == current
+                super::live::read_local(self.b, index) == Some(current)
                     && tree.dominates(self.b, cond, index)
                     && tree.dominates(self.b, index, step.0)
                     && tree.dominates(self.b, index, x)
@@ -455,7 +450,7 @@ impl Em<'_, '_, '_> {
                 {
                     return false;
                 }
-                Tag::GlobalGet if external => return false,
+                Tag::Read if external && self.b.global_read(i).is_some() => return false,
                 // An element store writes through its list, as the
                 // intrinsics that change one in place do.
                 Tag::Store if super::live::elem_store_list(self.b, i).is_some() => {
@@ -499,7 +494,7 @@ impl Em<'_, '_, '_> {
                     ) => {}
                     _ => return false,
                 },
-                Tag::LocalGet | Tag::Read | Tag::Field | Tag::Block => {}
+                Tag::Read | Tag::Field | Tag::Block => {}
                 _ if reaches => return false,
                 _ => {}
             }
@@ -1052,8 +1047,8 @@ impl Em<'_, '_, '_> {
                 }
             }
             match tag {
-                Tag::GlobalGet
-                | Tag::CallValue
+                Tag::Read if self.b.global_read(i).is_some() => return false,
+                Tag::CallValue
                 | Tag::CallDyn
                 | Tag::CallHost
                 | Tag::DefaultCall
@@ -1157,15 +1152,7 @@ impl Em<'_, '_, '_> {
                     return None;
                 }
                 let mut l = match super::live::read_through(self.b, list as usize)? {
-                    (Through::Value(r), true) => {
-                        if r == hd_tir::ir::NONE
-                            || Ref(r).as_inst().is_none()
-                            || self.b.tags[r as usize] != Tag::LocalGet
-                        {
-                            return None;
-                        }
-                        self.b.data[r as usize][0] as usize
-                    }
+                    (Through::Value(r), true) => super::live::read_local(self.b, r)?,
                     (Through::Local(l), true) => l,
                     _ => return None,
                 };
@@ -1174,10 +1161,7 @@ impl Em<'_, '_, '_> {
                         return Some(l);
                     }
                     let &source = self.moves.loan_locals.get(&l)?;
-                    if self.b.tags[source as usize] != Tag::LocalGet {
-                        return None;
-                    }
-                    l = self.b.data[source as usize][0] as usize;
+                    l = super::live::read_local(self.b, source)?;
                 }
                 None
             })

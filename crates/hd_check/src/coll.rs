@@ -160,8 +160,7 @@ impl Ck<'_, '_> {
             // An element of a tuple or a payload is no place, so nothing
             // changes the collection it holds in place.
             Tag::TupleGet | Tag::Payload | Tag::Unwrap => true,
-            Tag::LocalGet => {
-                let l = LocalId::from_raw(data[0]);
+            Tag::Read if let Some(l) = self.b.body_mut().local_read(i.0 as usize) => {
                 !self.mut_locals.contains(&l)
             }
             _ => false,
@@ -193,8 +192,7 @@ impl Ck<'_, '_> {
             };
             match tag {
                 Tag::Coerce => cur = Ref(data[0]),
-                Tag::LocalGet => {
-                    let l = LocalId::from_raw(data[0]);
+                Tag::Read if let Some(l) = self.b.body_mut().local_read(i.0 as usize) => {
                     let flags = self.b.body_mut().local_flags[l.idx()];
                     let own = flags & (local_flags::PARAM | local_flags::CAPTURED) == 0
                         && self.mut_locals.contains(&l);
@@ -442,6 +440,14 @@ impl Ck<'_, '_> {
             || self.b.body_mut().local_flags[l.idx()] & local_flags::CAPTURED_ASSIGNED != 0
     }
 
+    /// Whether top-level binding `def` is a `let mut` binding, of this
+    /// module's init or an earlier one.
+    fn global_mutable(&self, def: hd_base::DefId) -> bool {
+        let init = self.cx.init.borrow();
+        init.globals.values().any(|g| g.def == def && g.mutable)
+            || init.earlier.values().any(|g| g.def == def && g.mutable)
+    }
+
     /// The place the value argument `r` reads.
     fn arg_root(&mut self, r: Ref) -> ArgRoot {
         let mut cur = r;
@@ -479,27 +485,14 @@ impl Ck<'_, '_> {
                     };
                     cur = Ref(base);
                 }
-                Tag::LocalGet => {
-                    let l = LocalId::from_raw(data[0]);
+                Tag::Read if let Some(l) = self.b.body_mut().local_read(i.0 as usize) => {
                     if self.mut_locals.contains(&l) {
                         return ArgRoot::Local(l);
                     }
                     return ArgRoot::Fixed;
                 }
-                Tag::GlobalGet => {
-                    let Some(&def) = self.b.body_mut().record(data[0]).first() else {
-                        return ArgRoot::Fixed;
-                    };
-                    let init = self.cx.init.borrow();
-                    let mutable = init
-                        .globals
-                        .values()
-                        .any(|g| g.def.raw() == def && g.mutable)
-                        || init
-                            .earlier
-                            .values()
-                            .any(|g| g.def.raw() == def && g.mutable);
-                    return if mutable {
+                Tag::Read if let Some(def) = self.b.body_mut().global_read(i.0 as usize) => {
+                    return if self.global_mutable(def) {
                         ArgRoot::Shared
                     } else {
                         ArgRoot::Fixed
@@ -698,6 +691,12 @@ impl Ck<'_, '_> {
                     }
                     cur = inner;
                 }
+                Tag::Read if let Some(l) = self.b.body_mut().local_read(i.0 as usize) => {
+                    return self.mut_locals.contains(&l);
+                }
+                Tag::Read if let Some(def) = self.b.body_mut().global_read(i.0 as usize) => {
+                    return self.global_mutable(def);
+                }
                 Tag::Read => {
                     return self.read_through(cur).is_some_and(|(_, m, _)| m);
                 }
@@ -718,24 +717,6 @@ impl Ck<'_, '_> {
                         return false;
                     };
                     cur = Ref(c);
-                }
-                Tag::LocalGet => {
-                    let l = LocalId::from_raw(data[0]);
-                    return self.mut_locals.contains(&l);
-                }
-                Tag::GlobalGet => {
-                    let Some(&def) = self.b.body_mut().record(data[0]).first() else {
-                        return false;
-                    };
-                    let init = self.cx.init.borrow();
-                    return init
-                        .globals
-                        .values()
-                        .any(|g| g.def.raw() == def && g.mutable)
-                        || init
-                            .earlier
-                            .values()
-                            .any(|g| g.def.raw() == def && g.mutable);
                 }
                 _ => return false,
             }
@@ -779,7 +760,7 @@ impl Ck<'_, '_> {
             match tag {
                 Tag::Coerce | Tag::Field => cur = Ref(data[0]),
                 Tag::Intrinsic => cur = Ref(*self.b.body_mut().record(data[1]).first()?),
-                Tag::LocalGet => return Some(LocalId::from_raw(data[0])),
+                Tag::Read => return self.b.body_mut().local_read(i.0 as usize),
                 _ => return None,
             }
         }
@@ -834,7 +815,7 @@ impl Ck<'_, '_> {
         let param = flags & local_flags::PARAM != 0;
         let direct = recv
             .as_inst()
-            .is_some_and(|i| self.b.body_mut().tags[i.0 as usize] == Tag::LocalGet);
+            .is_some_and(|i| self.b.body_mut().local_read(i.0 as usize).is_some());
         let msg = if !direct {
             format!(
                 "{what} changes a {shown} inside `{binding}`, but `{binding}` is not writable; bind it with `let mut`"

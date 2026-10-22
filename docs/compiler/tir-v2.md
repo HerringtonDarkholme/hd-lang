@@ -1428,6 +1428,23 @@ is worth deciding only if they are hot.
 **Commits**, one hour each:
 
 1. `Read` for plain local and global reads (`LocalGet`, `GlobalGet`).
+   As built: `TirSink::get` emits `Read [$l]` (the bare-local place
+   word, no record) and `TirBuilder::read_global` emits `Read [@g]`,
+   both mode `use`; the two tags and `Op::Local` go (56 tags).
+   `Body::local_read` and `Body::global_read` name what such a read
+   reads, and every reader that matched the old tags matches them
+   instead: the checker's place walkers (`coll.rs`, `access.rs`, the
+   fallback column), `hd_mono`'s default specialization and erased
+   bodies (an open `Read [@g]` is outlined as `GlobalGet` was),
+   `hd_opt`'s `value_flow`, and the emitter (`Em::local_read`,
+   `Em::global_read`, `live.rs`, `count.rs`, `list.rs`). Where a reader
+   treated every `Read` as a read through a reference (unused reads,
+   list headers, a field of a borrowed parameter read), a plain read is
+   kept out, as the old tags were. A dereference rooted at a local's
+   read stays `Read [*%r]` with `%r = Read [$l]`; folding it into
+   `[*$l]` changes what the loans key on and waits for the passes.
+   Every conformance module is byte-identical to the stage 1 result
+   (`HD_CONFORMANCE_WASM_DIGEST=check`); only `tir` baselines change.
 2. `Read` for field, tuple and payload reads, with the variant
    projection (`Field`, `TupleGet`, `Payload`, `Unwrap`).
 3. `Read` for element reads (`ListIndex`).

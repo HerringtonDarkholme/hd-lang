@@ -7,24 +7,24 @@ app/main/visit
   local $4 $pos: usize [assigned]
   local $5 $end: usize [assigned]
   local $6 _item: i32 [assigned]
-  %0 = LocalGet $0 : List[i32]
+  %0 = Read [$0] : List[i32]
   %1 = Store [$1] %0 : ()
-  %2 = LocalGet $1 : List[i32]
+  %2 = Read [$1] : List[i32]
   %3 = Intrinsic SnapBegin [%2] : List[i32]
   %4 = Store [$2] %3 : ()
-  %5 = LocalGet $2 : List[i32]
+  %5 = Read [$2] : List[i32]
   %6 = Intrinsic ListLen [%5] : usize
   %7 = Store [$3] %6 : ()
-  %8 = LocalGet $3 : usize
+  %8 = Read [$3] : usize
   %9 = Store [$5] %8 : ()
   %10 = Store [$4] 0:usize : ()
-  %11 = LocalGet $4 : usize
-  %12 = LocalGet $5 : usize
+  %11 = Read [$4] : usize
+  %12 = Read [$5] : usize
   %13 = Prim Lt [%11 %12] : bool
-  %14 = LocalGet $2 : List[i32]
-  %15 = LocalGet $4 : usize
+  %14 = Read [$2] : List[i32]
+  %15 = Read [$4] : usize
   %16 = Intrinsic ListIndex [%14 %15] : i32
-  %17 = LocalGet $4 : usize
+  %17 = Read [$4] : usize
   %18 = Prim Add [%17 1:usize] : usize
   %19 = Store [$4] %18 : ()
   %20 = Block - : ()
@@ -37,7 +37,7 @@ app/main/visit
   %28 = If %13 [%25 %27] : ()
   %29 = Block - : ()
   %30 = Loop %29 - : ()
-  %31 = LocalGet $1 : List[i32]
-  %32 = LocalGet $2 : List[i32]
+  %31 = Read [$1] : List[i32]
+  %32 = Read [$2] : List[i32]
   %33 = Intrinsic SnapEnd [%31 %32] : ()
   %34 = Block - : ()

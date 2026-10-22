@@ -8,7 +8,7 @@ impl[T] Box[T]:
     fn pick[V](value: V) -> V: value
 > app/main/impl [ T ] Box [ T ].pick
 >   local $0 value: V [param read]
->   %0 = LocalGet $0 : V
+>   %0 = Read [$0] : V
 >   %1 = Intrinsic ValueCopy [%0] : V
 >   %2 = Block %1 : V
 

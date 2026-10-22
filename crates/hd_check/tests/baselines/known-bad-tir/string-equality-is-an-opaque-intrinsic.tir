@@ -2,7 +2,7 @@
 app/main/equal
   local $0 left: string [param read]
   local $1 right: string [param read]
-  %0 = LocalGet $0 : string
-  %1 = LocalGet $1 : string
+  %0 = Read [$0] : string
+  %1 = Read [$1] : string
   %2 = Intrinsic StrEq [%0 %1] : bool
   %3 = Block %2 : bool

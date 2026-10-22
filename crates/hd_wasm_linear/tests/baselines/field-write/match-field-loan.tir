@@ -12,11 +12,11 @@ fn value(node: &Node) -> i64:
 >   local $0 node: Ref[Node] [param read]
 >   local $1 alias: Ref[Node] [:= read assigned]
 >   local $2 left: Ref[Node] [read assigned]
->   %0 = LocalGet $0 : Ref[Node]
+>   %0 = Read [$0] : Ref[Node]
 >   %1 = Store [$1] %0 : ()
 >   %21 = Block %20 : i64
     match alias.left:
->   %2 = LocalGet $1 : Ref[Node]
+>   %2 = Read [$1] : Ref[Node]
 >   %3 = Read [*%2 .left] : Ref[Node]?
 >   %19 = Block - : never
 >   %20 = Match %3 [%19 %4 %7] : i64
@@ -26,7 +26,7 @@ fn value(node: &Node) -> i64:
 >   %17 = Block - : never
 >   %18 = SwitchTag %3 [#0 %9 %17] : never
         .Some(left) => left.value
->   %5 = LocalGet $2 : Ref[Node]
+>   %5 = Read [$2] : Ref[Node]
 >   %6 = Read [*%5 .value] : i64
 >   %7 = Block %6 : i64
 >   %10 = Unwrap %3 : Ref[Node]

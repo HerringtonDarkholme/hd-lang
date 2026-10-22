@@ -285,8 +285,7 @@ pub fn open_insts(
         // An await stays in the erased body's own state machine; its
         // callee is still collected and lowered below.
         match tag {
-            Tag::LocalGet
-            | Tag::Block
+            Tag::Block
             | Tag::Scope
             | Tag::Defer
             | Tag::If
@@ -304,10 +303,10 @@ pub fn open_insts(
             // instructions are outlined one by one, as they were before
             // the instruction wrapped them.
             Tag::RefDyn | Tag::RefIdentity => continue,
-            // A `Ref` stays; a `Read` or `Store` of a bare local stays as
-            // `LocalGet` does, and one of the whole place a reference
-            // refers to (`[*r]`) too: the backend reads and writes it
-            // through an erased reference's view.
+            // A `Ref` stays; a `Read` or `Store` of a bare local stays,
+            // and one of the whole place a reference refers to (`[*r]`)
+            // too: the backend reads and writes it through an erased
+            // reference's view.
             Tag::Ref => continue,
             Tag::Read | Tag::Store
                 if b.data[i][0] & hd_tir::ir::place::BARE_LOCAL != 0
@@ -374,13 +373,13 @@ pub fn open_insts(
             return err(&format!("an open `{}` in an erased body", tag.name()));
         }
         // A thunk gets values: a place rooted at a value is outlined, a
-        // store into a top-level binding's place too, and a store into a
-        // field of a local takes the local's value and returns its new
-        // value ([`outlined_store_local`]). A `Read` rooted elsewhere has
-        // no producer.
+        // top-level binding's place too when the store or read takes all
+        // of it, and a store into a field of a local takes the local's
+        // value and returns its new value ([`outlined_store_local`]). A
+        // `Read` rooted elsewhere has no producer.
         let outlined = match b.decode_place(a).map(|p| p.root) {
             Some(PlaceRoot::Value(_)) => true,
-            Some(PlaceRoot::Global(..)) => tag == Tag::Store,
+            Some(PlaceRoot::Global(..)) => tag == Tag::Store || b.global_read(i).is_some(),
             _ => outlined_store_local(b, u32::try_from(i).expect("insts")).is_some(),
         };
         if matches!(tag, Tag::Read | Tag::Store) && !outlined {

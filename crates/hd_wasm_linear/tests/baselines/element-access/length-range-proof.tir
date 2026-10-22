@@ -13,7 +13,7 @@ fn total(xs: &List[i32]) -> i32:
 >   local $4 $end: usize [assigned]
 >   local $5 $incl: bool [assigned]
 >   local $6 i: usize [read assigned]
->   %0 = LocalGet $0 : Ref[List[i32]]
+>   %0 = Read [$0] : Ref[List[i32]]
 >   %1 = Read [*%0] : List[i32]
 >   %2 = Intrinsic ListLen [%1] : usize
 >   %3 = Store [$1] %2 : ()
@@ -21,7 +21,7 @@ fn total(xs: &List[i32]) -> i32:
     let sum = +0
 >   %4 = Store [$2] 0:i32 : ()
     for i in 0..n:
->   %5 = LocalGet $1 : usize
+>   %5 = Read [$1] : usize
 >   %6 = NewStruct [0:usize %5 0:bool] : Range[usize]
 >   %7 = Field %6 .start : usize
 >   %8 = Store [$3] %7 : ()
@@ -29,12 +29,12 @@ fn total(xs: &List[i32]) -> i32:
 >   %10 = Store [$4] %9 : ()
 >   %11 = Field %6 .inclusive : bool
 >   %12 = Store [$5] %11 : ()
->   %13 = LocalGet $3 : usize
->   %14 = LocalGet $4 : usize
+>   %13 = Read [$3] : usize
+>   %14 = Read [$4] : usize
 >   %15 = Prim Lt [%13 %14] : bool
->   %16 = LocalGet $3 : usize
+>   %16 = Read [$3] : usize
 >   %17 = Store [$6] %16 : ()
->   %18 = LocalGet $3 : usize
+>   %18 = Read [$3] : usize
 >   %19 = Prim Add [%18 1:usize] : usize
 >   %20 = Store [$3] %19 : ()
 >   %28 = Block - : ()
@@ -44,12 +44,12 @@ fn total(xs: &List[i32]) -> i32:
 >   %32 = Block - : ()
 >   %33 = Loop %32 - : ()
         sum += xs[i]
->   %21 = LocalGet $2 : i32
->   %22 = LocalGet $0 : Ref[List[i32]]
+>   %21 = Read [$2] : i32
+>   %22 = Read [$0] : Ref[List[i32]]
 >   %23 = Read [*%22] : List[i32]
->   %24 = LocalGet $6 : usize
+>   %24 = Read [$6] : usize
 >   %25 = Intrinsic ListIndex [%23 %24] : i32
 >   %26 = Prim Add [%21 %25] : i32
 >   %27 = Store [$2] %26 : ()
     sum
->   %34 = LocalGet $2 : i32
+>   %34 = Read [$2] : i32

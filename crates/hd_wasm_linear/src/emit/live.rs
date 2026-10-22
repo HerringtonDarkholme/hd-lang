@@ -40,7 +40,7 @@ pub(super) struct Moves {
     /// take the value's count. With the use, the statement after which the
     /// value's release was planned.
     pub sole: HashMap<u32, (u32, (u32, usize))>,
-    /// Each `LocalGet`, and each reference to a local's own place
+    /// Each plain local read, and each reference to a local's own place
     /// ([`ref_local`]), that is its local's last access: the statement after which the local is
     /// released ([`plan`]), so the value it makes can take the local's
     /// count instead of a count of its own (`Em::take_local`,
@@ -174,6 +174,16 @@ impl Tree {
     }
 }
 
+/// The local that value `r` reads when it is a plain local read,
+/// `Read [$l]`; `None` for a constant or any other instruction.
+pub(super) fn read_local(b: &Body, r: u32) -> Option<usize> {
+    let i = Ref(r).as_inst()?.0 as usize;
+    (i < b.len())
+        .then(|| b.local_read(i))
+        .flatten()
+        .map(hd_base::LocalId::idx)
+}
+
 /// A `Store` `i` into a whole local: the local and the value it takes.
 pub(super) fn local_store(b: &Body, i: usize) -> Option<(usize, u32)> {
     match b.stored_local(i)? {
@@ -203,7 +213,7 @@ pub(super) fn elem_store_list(b: &Body, i: usize) -> Option<u32> {
 }
 
 /// The local at the root of the place of `Ref`, `Read` or `Store` `i`:
-/// an access of that local, as a `LocalGet` is.
+/// an access of that local, as a plain local read `[$l]` is.
 pub(super) fn place_local(b: &Body, i: usize) -> Option<usize> {
     if !matches!(b.tags[i], Tag::Ref | Tag::Read | Tag::Store) {
         return None;
@@ -456,7 +466,7 @@ fn match_payloads(
             let Some(xs) = access.get(&l).filter(|xs| xs.len() == 2) else {
                 continue;
             };
-            let Some(&get) = xs.iter().find(|&&x| b.tags[x as usize] == Tag::LocalGet) else {
+            let Some(&get) = xs.iter().find(|&&x| b.local_read(x as usize).is_some()) else {
                 continue;
             };
             let arms = &b.record(b.data[root as usize][1])[1..];
@@ -496,10 +506,8 @@ pub(super) fn plan(b: &Body, sub: u32, entry: &[usize]) -> (Drops, Moves) {
             users.entry(r).or_default().push(x);
         }
         match b.tags[i] {
-            Tag::LocalGet => {
-                access.entry(b.data[i][0] as usize).or_default().push(x);
-            }
-            // A place's root local is an access.
+            // A place's root local is an access, a plain local read's
+            // among them.
             Tag::Ref | Tag::Read | Tag::Store => {
                 if let Some(l) = place_local(b, i) {
                     access.entry(l).or_default().push(x);
@@ -530,7 +538,11 @@ pub(super) fn plan(b: &Body, sub: u32, entry: &[usize]) -> (Drops, Moves) {
         let mut last = def;
         let mut ok = true;
         let us = users.get(&x).map_or(&[][..], Vec::as_slice);
-        if us.is_empty() && matches!(b.tags[i], Tag::Read) {
+        if us.is_empty()
+            && b.tags[i] == Tag::Read
+            && b.local_read(i).is_none()
+            && b.global_read(i).is_none()
+        {
             moves.unused_reads.insert(x);
         }
         if let [u] = *us {
@@ -591,7 +603,7 @@ pub(super) fn plan(b: &Body, sub: u32, entry: &[usize]) -> (Drops, Moves) {
         // reference whose place is the local: nothing else in it, or
         // after it, reaches the local.
         if let Some(&x) = xs.iter().find(|&&x| tree.parent[x as usize] == (blk, last))
-            && (b.tags[x as usize] == Tag::LocalGet || ref_local(b, x as usize) == Some(l))
+            && (b.local_read(x as usize).is_some() || ref_local(b, x as usize) == Some(l))
         {
             moves.last_access.insert(x, (l, (blk, last)));
         }
@@ -623,7 +635,7 @@ fn defers(b: &Body, sub: u32) -> bool {
 /// when nothing between the read and its last use can drop or replace the
 /// local.
 ///
-/// The read is a `LocalGet` of local `l` at statement `s` of block `k`.
+/// The read is a `Read [$l]` of local `l` at statement `s` of block `k`.
 /// Its span is the statements of `k` after `s` up to the last one that
 /// holds a use of the read, with every block those statements run. The
 /// read borrows when:
@@ -704,11 +716,13 @@ fn span_loans(
             .map(|(_, p)| p)
     };
     for (i, &of) in subs.iter().enumerate() {
-        if of != sub || b.tags[i] != Tag::LocalGet {
+        if of != sub {
             continue;
         }
+        let Some(l) = b.local_read(i).map(hd_base::LocalId::idx) else {
+            continue;
+        };
         let x = u32::try_from(i).expect("insts");
-        let l = b.data[i][0] as usize;
         let (k, s) = tree.parent[i];
         if k == NONE || reached.contains(&l) {
             continue;
@@ -766,8 +780,8 @@ fn loans(
         }
         let [a, w] = b.data[x as usize];
         let next = match b.tags[x as usize] {
-            Tag::LocalGet => {
-                let l = a as usize;
+            Tag::Read if let Some(l) = b.local_read(x as usize) => {
+                let l = l.idx();
                 return bound
                     .get(&l)
                     .copied()
@@ -848,11 +862,8 @@ fn loans(
             continue;
         }
         match b.tags[i] {
-            Tag::LocalGet => {
-                accesses.entry(b.data[i][0] as usize).or_default().push(x);
-            }
-            // A read or store through the reference a local holds reads
-            // the local, as a `LocalGet` of it would.
+            // A plain read of a local, and a read or store through the
+            // reference a local holds, read the local.
             Tag::Read | Tag::Store => {
                 if let Some(l) = place_local(b, i) {
                     accesses.entry(l).or_default().push(x);
@@ -969,8 +980,8 @@ pub(super) fn field_spans(b: &Body, fields: &[u32], roots: &HashSet<usize>) -> V
         }
         if let Some((l, _)) = local_part_store(b, i) {
             sets.entry(l).or_default().push(x);
-        } else if b.tags[i] == Tag::LocalGet {
-            gets.entry(b.data[i][0] as usize).or_default().push(x);
+        } else if let Some(l) = b.local_read(i) {
+            gets.entry(l.idx()).or_default().push(x);
         }
     }
     let mut spans = Vec::new();
@@ -1107,17 +1118,16 @@ pub(super) fn parameter_loans(
             return false;
         }
         match b.tags[x as usize] {
-            Tag::LocalGet => parameters.contains(&(b.data[x as usize][0] as usize)),
+            Tag::Read => read_local(b, x).is_some_and(|l| parameters.contains(&l)),
             // A place through such a reference, held by a local or read
             // from one (`[*%r ..]` where `%r` reads it).
             Tag::Ref => b.decode_place(b.data[x as usize][0]).is_some_and(|p| {
                 p.proj.first() == Some(&Proj::Deref)
                     && match p.root {
                         PlaceRoot::Local(l) => refs.contains(&l.idx()),
-                        PlaceRoot::Value(r) => r.as_inst().is_some_and(|r| {
-                            b.tags[r.0 as usize] == Tag::LocalGet
-                                && refs.contains(&(b.data[r.0 as usize][0] as usize))
-                        }),
+                        PlaceRoot::Value(r) => {
+                            read_local(b, r.0).is_some_and(|l| refs.contains(&l))
+                        }
                         _ => false,
                     }
             }),
@@ -1140,7 +1150,7 @@ pub(super) fn parameter_loans(
     let mut out = HashSet::default();
     for i in 0..b.len() {
         let x = u32::try_from(i).expect("insts");
-        if b.tags[i] == Tag::LocalGet && root(b, x, parameters, refs) {
+        if b.local_read(i).is_some() && root(b, x, parameters, refs) {
             out.insert(x);
             continue;
         }
@@ -1154,7 +1164,7 @@ pub(super) fn parameter_loans(
             Tag::Read => match read_through(b, i) {
                 Some((Through::Value(source), _)) => {
                     root(b, source, parameters, refs)
-                        && (b.tags[source as usize] == Tag::LocalGet || out.contains(&source))
+                        && (read_local(b, source).is_some() || out.contains(&source))
                 }
                 Some((Through::Local(l), _)) => refs.contains(&l),
                 None => false,
@@ -1166,6 +1176,7 @@ pub(super) fn parameter_loans(
                 let base = b.data[i][0];
                 Ref(base).as_inst().is_some()
                     && matches!(b.tags[base as usize], Tag::Read)
+                    && read_local(b, base).is_none()
                     && out.contains(&base)
             }
             _ => false,
@@ -1195,8 +1206,7 @@ pub(super) fn parameter_loans(
                     // Stripped reference closure forms leave empty blocks
                     // in the containing statement list; they do not run.
                     Tag::Block => b.data[j][1] == NONE && b.record(b.data[j][0]).is_empty(),
-                    Tag::LocalGet
-                    | Tag::Field
+                    Tag::Field
                     | Tag::TupleGet
                     | Tag::Payload
                     | Tag::Unwrap
@@ -1285,7 +1295,7 @@ mod tests {
         let at = place(&mut b, &through);
         let read = inst(&mut b, Tag::Read, at, 0);
         list.extend([r, read, inst(&mut b, Tag::Store, at, value)]);
-        list.push(inst(&mut b, Tag::LocalGet, 0, NONE));
+        list.push(inst(&mut b, Tag::Read, hd_tir::ir::place::BARE_LOCAL, 0));
         let list = record(&mut b, &list);
         let root = inst(&mut b, Tag::Block, list, NONE);
         b.sub_root.push(root);

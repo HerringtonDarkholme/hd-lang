@@ -79,7 +79,6 @@ pub enum Op {
     Value,
     Block,
     Label,
-    Local,
     Meta,
     Values,
     Blocks,
@@ -88,9 +87,7 @@ pub enum Op {
 }
 
 tags! {
-    // values, locals and globals
-    LocalGet: Local, None;
-    GlobalGet: Meta, None;
+    // values: a local or a top-level binding is read with `Read`
     ItemRef: Meta, Record;
     ProviderGet: Meta, None;
     Hole: Meta, None;
@@ -906,7 +903,7 @@ impl Body {
             }
             Tag::NewTuple => [self.record(w).to_vec(), one(a)].concat(),
             Tag::NewList if a == NONE => self.record(w).to_vec(),
-            Tag::GlobalGet | Tag::ProviderGet | Tag::ItemRef => vec![],
+            Tag::ProviderGet | Tag::ItemRef => vec![],
             Tag::Read | Tag::Ref => self.place_values(a),
             Tag::Store => [self.place_values(a), one(w)].concat(),
             _ => return None,
@@ -980,6 +977,30 @@ impl Body {
             PlaceRoot::Local(l) if p.proj.iter().all(|s| matches!(s, Proj::Field(_))) => {
                 Some((l, p.proj.is_empty()))
             }
+            _ => None,
+        }
+    }
+
+    /// The local a plain local read `i` reads: a `Read` of a bare local,
+    /// `[$n]`, in any mode. `None` for any other instruction.
+    #[must_use]
+    pub fn local_read(&self, i: usize) -> Option<LocalId> {
+        let word = self.data[i][0];
+        (self.tags[i] == Tag::Read && word & place::BARE_LOCAL != 0)
+            .then(|| LocalId::from_raw(word & !place::BARE_LOCAL))
+    }
+
+    /// The top-level binding a plain global read `i` reads: a `Read` of
+    /// a global root with no projection, `[@g]`. `None` for any other
+    /// instruction.
+    #[must_use]
+    pub fn global_read(&self, i: usize) -> Option<DefId> {
+        let word = self.data[i][0];
+        if self.tags[i] != Tag::Read || word & place::BARE_LOCAL != 0 {
+            return None;
+        }
+        match self.extra.get(word as usize..word as usize + 4)? {
+            [3, place::ROOT_GLOBAL, d, _] => Some(DefId::from_raw(*d)),
             _ => None,
         }
     }
@@ -1138,6 +1159,16 @@ impl TirBuilder {
         self.record(&words)
     }
 
+    /// `Read [@def]`: top-level binding `def`, of type `ty`, read whole
+    /// with mode `use`.
+    pub fn read_global(&mut self, def: DefId, ty: Ty, syn: NodeIdx) -> Ref {
+        let word = self.place(&Place {
+            root: PlaceRoot::Global(def, ty),
+            proj: vec![],
+        });
+        self.push(Tag::Read, word, ReadMode::Use as u32, ty, syn)
+    }
+
     /// The body so far (for the checker's final type pass).
     pub fn body_mut(&mut self) -> &mut Body {
         &mut self.body
@@ -1281,7 +1312,8 @@ impl TirSink for TirBuilder {
         l
     }
     fn get(&mut self, l: LocalId, ty: Ty, syn: NodeIdx) -> Ref {
-        self.push(Tag::LocalGet, l.raw(), NONE, ty, syn)
+        let word = self.place(&Place::local(l));
+        self.push(Tag::Read, word, ReadMode::Use as u32, ty, syn)
     }
     fn set(&mut self, l: LocalId, v: Ref, syn: NodeIdx) {
         let word = self.place(&Place::local(l));
@@ -1802,9 +1834,6 @@ pub fn verify(b: &Body) -> Vec<VerifyError> {
                 }
                 Op::Label if (word as usize) >= b.label_inst.len() => {
                     errs.push(err(5, "unknown label".into()));
-                }
-                Op::Local if (word as usize) >= b.local_ty.len() => {
-                    errs.push(err(1, "unknown local".into()));
                 }
                 Op::Place => errs.extend(place_errors(b, i, word)),
                 _ => {}
@@ -2400,7 +2429,7 @@ mod tests {
         BodyKind, Callee, CaptureMode, ChoiceKind, Coercion, NONE, Providers, SuspRow, Tag,
         TirBuilder, TirSink, VerifyCx, parse, print, verify, verify_in,
     };
-    use hd_base::{DefId, NodeIdx, Range32, Symbol};
+    use hd_base::{DefId, LocalId, NodeIdx, Range32, Symbol};
     use hd_types::{Ty, TyList};
 
     fn sample() -> super::Body {
@@ -2894,6 +2923,36 @@ mod tests {
         b.finish(root, &[]).expect("verifies")
     }
 
+    /// A top-level binding is read with `Read [@g]`: a place record with a
+    /// global root and its type, which the type map reaches once.
+    #[test]
+    fn global_reads_are_reads_of_a_global_root() {
+        let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let n = NodeIdx::from_raw(1);
+        let blk = b.open_block();
+        let g = b.read_global(DefId::from_raw(9), Ty::I32, n);
+        let root = b.close_block(blk, Some(g), Ty::I32, n);
+        let mut body = b.finish(root, &[]).expect("verifies");
+        assert_eq!(body.global_read(0), Some(DefId::from_raw(9)));
+        assert_eq!(body.local_read(0), None);
+        assert_eq!(
+            body.decode_place(body.data[0][0])
+                .expect("place")
+                .to_string(),
+            format!("[@9:{}]", Ty::I32.0)
+        );
+        assert_eq!(parse(&print(&body)).expect("parses"), body);
+        super::map_body_types(
+            &mut body,
+            &|t| if t == Ty::I32 { Ty(77) } else { t },
+            &|l| l,
+        );
+        assert_eq!(
+            body.decode_place(body.data[0][0]).expect("place").root,
+            super::PlaceRoot::Global(DefId::from_raw(9), Ty(77))
+        );
+    }
+
     #[test]
     fn place_tags_verify_print_and_name_their_values() {
         let b = place_sample();
@@ -2920,13 +2979,19 @@ mod tests {
             shown,
             [
                 "Read [*$0 .0] [] 0".to_owned(),
+                "Read [$1] [] 0".to_owned(),
                 "Store [*$0 .0] [2]".to_owned(),
                 format!("Store [$2] [{}]", c(0)),
                 "Ref [$2] [] 1".to_owned(),
                 "Store [$3] [5]".to_owned(),
+                "Read [$3] [] 0".to_owned(),
                 format!("Store [*%7] [7, {}]", c(1)),
             ]
         );
+        // A plain local read is a `Read` of the bare local, with no record.
+        assert_eq!(b.local_read(1), Some(LocalId::from_raw(1)));
+        assert_eq!(b.local_read(0), None);
+        assert_eq!(b.global_read(1), None);
         // The read and the store of `self.x` share one record.
         let x = |t: Tag| b.tags.iter().position(|x| *x == t).map(|i| b.data[i][0]);
         assert_eq!(x(Tag::Read), x(Tag::Store));
@@ -2988,7 +3053,7 @@ mod tests {
         let root = b.close_block(blk, Some(one), Ty::I32, NodeIdx::NONE);
         let body = b.finish(root, &[]).expect("ok");
         assert_eq!(body.len(), 1);
-        assert_eq!(Tag::ALL.len(), 58);
+        assert_eq!(Tag::ALL.len(), 56);
         assert!(
             Tag::ALL
                 .iter()

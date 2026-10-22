@@ -887,8 +887,7 @@ impl Ck<'_, '_> {
         let (r, t) = match chain {
             Some((inner_pat, inner_rhs)) => {
                 let (def, ty) = self.top_binding(s, inner_pat, None, inner_rhs)?;
-                let a = self.b.refs_record(&[Ref(def.raw())]);
-                (self.b.emit(Tag::GlobalGet, a, NONE, ty, rhs.index()), ty)
+                (self.b.read_global(def, ty, rhs.index()), ty)
             }
             None => self.expr(rhs, annot)?,
         };
@@ -1147,10 +1146,7 @@ impl Ck<'_, '_> {
     }
 
     fn shared_chain(&mut self, r: Ref, globals: &[DefId], k: usize, ft: Ty, n: NodeRef<'_>) -> Ref {
-        let get = |ck: &mut Self, g: DefId| {
-            let a = ck.b.refs_record(&[Ref(g.raw())]);
-            ck.b.emit(Tag::GlobalGet, a, NONE, ft, n.index())
-        };
+        let get = |ck: &mut Self, g: DefId| ck.b.read_global(g, ft, n.index());
         if k + 1 >= globals.len() {
             return get(self, globals[k]);
         }
@@ -1171,10 +1167,7 @@ impl Ck<'_, '_> {
         match self.global_read(name, n) {
             GlobalRead::Other => None,
             GlobalRead::Error => Some(self.poison_value(n)),
-            GlobalRead::Binding(def, ty) => {
-                let a = self.b.refs_record(&[Ref(def.raw())]);
-                Some((self.b.emit(Tag::GlobalGet, a, NONE, ty, n.index()), ty))
-            }
+            GlobalRead::Binding(def, ty) => Some((self.b.read_global(def, ty, n.index()), ty)),
         }
     }
 

@@ -286,8 +286,7 @@ impl Target<'_, '_> {
                             continue;
                         }
                         let g = crate::init::shared_global(names, vdef, &name);
-                        let rec = ck.b.refs_record(&[Ref(g.raw())]);
-                        let r = ck.b.emit(Tag::GlobalGet, rec, NONE, f.ty, msg.index());
+                        let r = ck.b.read_global(g, f.ty, msg.index());
                         let l = ck.b.local(f.ty, f.name, local_flags::ASSIGNED, msg.index());
                         ck.set_local(l, r, msg.index());
                         scope.insert(f.name, l);

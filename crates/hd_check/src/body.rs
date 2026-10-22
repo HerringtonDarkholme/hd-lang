@@ -4298,8 +4298,8 @@ impl Ck<'_, '_> {
             }
             let read = fell_operands
                 .iter()
-                .find(|r| body.tags[**r] == Tag::LocalGet)
-                .map_or(0, |r| body.data[*r][0] + 1);
+                .find_map(|r| body.local_read(*r))
+                .map_or(0, |l| l.raw() + 1);
             rows.push([u32::try_from(i).expect("instructions"), read]);
         }
         body.fallback = rows;

@@ -125,8 +125,8 @@ impl ValueFlow {
         let inst = |word: u32| hd_tir::ir::Ref(word).as_inst().map(|x| x.0 as usize);
         let operand = inst(word)?;
         let mut made = operand;
-        if body.tags[made] == Tag::LocalGet {
-            let l = body.data[made][0] as usize;
+        if let Some(l) = body.local_read(made) {
+            let l = l.idx();
             let flags = body.local_flags.get(l).copied().unwrap_or(PARAM);
             let &(1, value) = self.sets.get(l)? else {
                 return None;
@@ -143,16 +143,13 @@ impl ValueFlow {
     }
 
     /// The index of the item parameter that operand `word` reads, when it
-    /// is a `LocalGet` of a parameter nothing writes: in sub-body 0, or in a
+    /// is a read of a parameter nothing writes (`Read [$n]`): in sub-body 0, or in a
     /// sub-body that captures it.
     #[must_use]
     pub fn param(&self, body: &Body, word: u32) -> Option<u32> {
         use hd_tir::ir::local_flags::{ASSIGNED, CAPTURED_ASSIGNED, MUTATED};
         let g = hd_tir::ir::Ref(word).as_inst()?.0 as usize;
-        if body.tags[g] != Tag::LocalGet {
-            return None;
-        }
-        let l = body.data[g][0];
+        let l = body.local_read(g)?.raw();
         let p = self.params.iter().position(|&x| x == l)?;
         let flags = body.local_flags[l as usize];
         let written = self.sets.get(l as usize).is_some_and(|s| s.0 != 0);

@@ -4,7 +4,6 @@
 //! permission rules are checked here, at bindings, coercions, field
 //! reads and mutations.
 
-use hd_base::LocalId;
 use hd_diag::Code;
 use hd_resolve::ItemData;
 use hd_syntax::NodeRef;
@@ -173,16 +172,12 @@ impl Ck<'_, '_> {
         }
         let binding = recv.as_inst().and_then(|i| {
             let body = self.b.body_mut();
-            if body.tags[i.0 as usize] != Tag::LocalGet {
-                return None;
-            }
-            let local = body.data[i.0 as usize][0];
-            if body.local_flags[local as usize] & hd_tir::ir::local_flags::PARAM != 0 {
+            let local = body.local_read(i.0 as usize)?;
+            if body.local_flags[local.idx()] & hd_tir::ir::local_flags::PARAM != 0 {
                 return None;
             }
             let value = (0..body.len()).find_map(|j| {
-                (body.stored_local(j) == Some((LocalId::from_raw(local), true)))
-                    .then_some(Ref(body.data[j][1]))
+                (body.stored_local(j) == Some((local, true))).then_some(Ref(body.data[j][1]))
             })?;
             let weakened = value.as_inst()?.0 as usize;
             if body.tags[weakened] != Tag::Coerce
@@ -191,7 +186,7 @@ impl Ck<'_, '_> {
                 return None;
             }
             let value = Ref(body.data[weakened][0]);
-            Some((body.local_name[local as usize], value))
+            Some((body.local_name[local.idx()], value))
         });
         let shown = self.show(rt);
         let hint = match binding {

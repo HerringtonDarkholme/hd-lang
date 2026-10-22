@@ -102,7 +102,6 @@ fn tag_id_words(b: &Body, i: usize) -> StageResult<Vec<IdWord>> {
         Tag::Await => return id_words_call(b, a as usize + 1),
         // `ProviderGet` and `ItemRef` keep their IDs in one-word records.
         Tag::ProviderGet => vec![IdWord::Ty(a as usize + 1)],
-        Tag::GlobalGet => vec![IdWord::Def(a as usize + 1)],
         // `With` and `ContextNew`: (key type, provider) pairs.
         Tag::With | Tag::ContextNew => {
             let n = b.extra.get(a as usize).copied().unwrap_or(0) as usize;
@@ -121,8 +120,7 @@ fn tag_id_words(b: &Body, i: usize) -> StageResult<Vec<IdWord>> {
         Tag::RefDyn | Tag::RefIdentity => vec![],
         // A global root's IDs are the place's ([`place_id_words`]).
         Tag::Read | Tag::Store | Tag::Ref => vec![],
-        Tag::LocalGet
-        | Tag::Prim
+        Tag::Prim
         | Tag::CallHost
         | Tag::CallValue
         | Tag::AwaitValue
