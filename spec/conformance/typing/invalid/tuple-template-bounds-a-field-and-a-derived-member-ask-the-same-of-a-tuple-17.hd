@@ -1,0 +1,3 @@
+# test: a field and a derived member ask the same of a tuple
+struct Holder:
+    pub m: Map[(i32, f64), i32]  # diagnostic: unsatisfied-trait-bound

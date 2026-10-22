@@ -1,0 +1,12 @@
+# test: unrelated trait values stay a type mismatch
+trait Animal:
+    fn name(self) -> string
+
+trait Cat:
+    fn meow(self) -> string
+
+fn widen(items: List[&dyn Dog]) -> List[&dyn Cat]:
+    items  # diagnostic: type-mismatch
+
+trait Dog:
+    fn bark(self) -> string

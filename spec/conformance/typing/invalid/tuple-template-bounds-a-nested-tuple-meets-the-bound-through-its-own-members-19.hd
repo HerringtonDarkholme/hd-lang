@@ -1,0 +1,2 @@
+# test: a nested tuple meets the bound through its own members
+let m: Map[(i32, (string, f64)), string] = {}  # diagnostic: unsatisfied-trait-bound

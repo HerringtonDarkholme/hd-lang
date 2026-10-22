@@ -1,0 +1,4 @@
+# test: a field and a derived member ask the same of a tuple
+@derive(Eq, Hash)
+struct Keyed:
+    pair: (i32, i64)

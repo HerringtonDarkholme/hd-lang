@@ -1,0 +1,3 @@
+# test: a rest element meets the bound by its items or its list
+fn f(m: Map[(i32, List[i32]...), i32]) -> usize:
+    m.len()

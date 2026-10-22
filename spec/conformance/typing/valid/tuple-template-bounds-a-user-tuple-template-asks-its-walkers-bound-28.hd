@@ -1,0 +1,6 @@
+# test: a user tuple template asks its walkers bound
+# fixture-package-tree: migrate-698-28/src/main.hd
+use pkg.show.{Show}
+
+fn both(pair: (i64, (i64, i64))) -> string:
+    pair.show()

@@ -1,0 +1,13 @@
+pub trait Db
+
+pub trait Cache
+
+pub trait Log
+
+pub type Web = $ WebRow
+
+pub type WebRow = $ AppRow + Log
+
+pub type AppRow = $ Db + Cache
+
+pub type WithLog[$R] = $ R + Log

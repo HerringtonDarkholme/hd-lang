@@ -1,0 +1,8 @@
+pub trait Db
+
+pub trait Cache
+
+pub type AppRow = $ Db + Cache
+
+pub fn pass_on(ctx: $.Context[$ AppRow]) -> $.Context[$ Cache + Db]:
+    ctx

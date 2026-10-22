@@ -1,0 +1,5 @@
+# test: function parameter from a trait value
+fn show(value: &dyn Display) -> void: ()
+
+fn narrow() -> fn(&i32) -> void:
+    show  # diagnostic: variance-representation-change

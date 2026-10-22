@@ -1,0 +1,8 @@
+# test: non void tail is one error
+fn g() -> i32: 1
+
+fn f() -> void:
+    42  # diagnostic: type-mismatch
+
+pub fn main() -> void:
+    pass

@@ -1,0 +1,6 @@
+# test: void and diverging tails stay clean
+fn f() -> void:
+    return
+
+pub fn main() -> void:
+    pass

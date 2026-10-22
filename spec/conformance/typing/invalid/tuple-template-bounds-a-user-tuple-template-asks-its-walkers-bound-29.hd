@@ -1,0 +1,9 @@
+# test: a user tuple template asks its walkers bound
+# fixture-package-tree: migrate-698-29/src/main.hd
+use pkg.show.{Show}
+
+fn needs[T < Show](t: T) -> string:
+    t.show()
+
+fn both(pair: (i64, string)) -> string:
+    needs(pair)  # diagnostic: unsatisfied-trait-bound

@@ -1,0 +1,27 @@
+# test: tuples of hashable members are map keys and display
+# expect-stdout: 2
+# expect-stdout: 3
+# expect-stdout: 1
+# expect-stdout: (1, two, (true, 2.5))
+@derive(Eq, Hash)
+struct Id:
+    value: string
+
+fn count[K < Eq & Hash](k: K) -> usize:
+    let mut m: Map[(K, i32), string] = {}
+    m[(k, +1)] = "a"
+    m[(k, +1)] = "b"
+    m.len()
+
+pub fn main() -> void $ Console:
+    let mut m: Map[(i32, (string, bool)), string] = {}
+    m[(+1, ("a", true))] = "x"
+    m[(+1, ("a", true))] = "y"
+    m[(+2, ("a", true))] = "z"
+    println(m.len())
+    let mut ids: Map[(Id, char), i32] = {}
+    ids[(Id { value: "k" }, 'c')] = +3
+    println(ids[(Id { value: "k" }, 'c')])
+    println(count("q"))
+    let t = (+1, "two", (true, 2.5))
+    println("$t")

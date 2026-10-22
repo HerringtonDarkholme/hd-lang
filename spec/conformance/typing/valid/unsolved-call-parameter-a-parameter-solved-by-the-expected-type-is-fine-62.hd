@@ -1,0 +1,26 @@
+# test: a parameter solved by the expected type is fine
+fn make[T]() -> T:
+    panic("no")
+
+fn missing[T]() -> i32:
+    1
+
+fn dflt[T = i32]() -> i32:
+    1
+
+fn ident[T](v: T) -> T:
+    v
+
+fn once[A, B](f: fn(A) -> B) -> i32:
+    1
+
+struct Reader:
+    id: i32
+
+impl Reader:
+    fn size[T](self) -> i32:
+        self.id
+
+pub fn main() -> void:
+    let x: i32 = make()
+    _ := x

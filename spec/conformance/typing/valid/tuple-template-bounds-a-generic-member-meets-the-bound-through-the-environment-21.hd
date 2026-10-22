@@ -1,0 +1,4 @@
+# test: a generic member meets the bound through the environment
+fn keyed[T < Eq & Hash](t: T) -> usize:
+    let m: Map[(T, i32), string] = {}
+    m.len()

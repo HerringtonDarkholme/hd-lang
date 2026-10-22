@@ -1,0 +1,16 @@
+# test: recursion through a reference or a list is accepted
+enum Expr:
+    Num(n: i64)
+    Add(left: &Expr, right: &Expr)
+
+enum Tree:
+    Leaf
+    Node(children: List[Tree])
+
+struct Cell:
+    value: i64
+    next: &Cell?
+
+enum Link:
+    End
+    More(next: &mut Link)

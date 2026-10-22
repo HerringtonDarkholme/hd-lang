@@ -1,0 +1,7 @@
+# test: valid rest and vararg forms stay clean
+use std.function.Tuple
+
+fn count[Args < Tuple](values...: Args) -> i32: 0
+
+pub fn main() -> void:
+    pass

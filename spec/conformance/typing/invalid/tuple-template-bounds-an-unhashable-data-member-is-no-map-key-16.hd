@@ -1,0 +1,5 @@
+# test: an unhashable data member is no map key
+struct Secret:
+    value: i32
+
+let m: Map[(Secret, i32), string] = {}  # diagnostic: unsatisfied-trait-bound

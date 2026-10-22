@@ -1,0 +1,8 @@
+# test: parenthesized field call is accepted
+struct Button:
+    on_click: fn(i32) -> i32
+
+fn double(x: i32) -> i32: x * 2
+
+fn run(button: Button) -> i32:
+    (button.on_click)(41)

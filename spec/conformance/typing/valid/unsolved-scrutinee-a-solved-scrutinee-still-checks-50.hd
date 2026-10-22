@@ -1,0 +1,9 @@
+# test: a solved scrutinee still checks
+fn make[T]() -> T:
+    panic("no")
+
+fn main() -> void $ Console:
+    let v: i32? = make()
+    match v:
+        .Some(x) => println(x)
+        .None => println(0)

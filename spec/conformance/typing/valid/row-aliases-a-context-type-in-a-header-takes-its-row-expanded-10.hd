@@ -1,0 +1,6 @@
+# test: a context type in a header takes its row expanded
+# fixture-package-tree: migrate-698-10/src/main.hd
+use pkg.lib.ctx.{AppRow, Db, Cache, pass_on}
+
+fn again(ctx: $.Context[$ Db + Cache]) -> $.Context[$ AppRow]:
+    pass_on(ctx)

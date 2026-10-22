@@ -7,11 +7,6 @@
 //! two spellings of one row give one interface; and a missing key names
 //! the row as written and its expanded keys.
 
-use std::path::Path;
-use std::process::Command;
-
-use hd_testkit::Scratch;
-
 use hd_cache::MemoryStore;
 use hd_diag::Code;
 use hd_driver::{Executor, Goal, Host, NoClock, Output, build};
@@ -45,128 +40,6 @@ fn codes(out: &Output) -> Vec<Code> {
     out.diags.code.clone()
 }
 
-/// The standard output of a one-file program that must build and succeed.
-fn output_of(name: &str, main: &str) -> String {
-    let goal = Goal::Program {
-        entry: "main".into(),
-    };
-    let out = run(
-        &MemoryStore::default(),
-        &sources(&[("main.hd", main)]),
-        &goal,
-    );
-    assert!(out.diags.is_empty(), "{name}: {}", out.render());
-    let wasm = out.wasm.expect("wasm");
-    let path = Scratch::unmade(
-        env!("CARGO_TARGET_TMPDIR"),
-        &format!("row-alias-{name}.wasm"),
-    );
-    std::fs::write(&path, wasm).expect("write wasm");
-    let ran = Command::new("node")
-        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../host/run.mjs"))
-        .arg(&path)
-        .output()
-        .expect("node");
-    let _ = std::fs::remove_file(&path);
-    assert!(
-        ran.status.success(),
-        "{name}: {}",
-        String::from_utf8_lossy(&ran.stderr)
-    );
-    String::from_utf8(ran.stdout).expect("UTF-8")
-}
-
-/// A header row names a row alias declared after it; the alias stands for
-/// its keys, so a caller that spells the keys out calls it, and the
-/// providers reach the body (`req.row.alias.expand`).
-#[test]
-fn a_row_alias_in_a_header_expands_to_its_keys() {
-    let main = "\
-fn describe() -> string $ AppRow + Clock:
-    \"${$.use(Db).name()} ${$.use(Clock).now()}\"
-
-fn spelled() -> string $ Clock + Db:
-    describe()
-
-type AppRow = $ Db
-
-trait Db:
-    fn name(self) -> string
-
-trait Clock:
-    fn now(self) -> i32
-
-struct MemoryDb: pass
-
-impl Db for MemoryDb:
-    fn name(self) -> string: \"db\"
-
-struct FixedClock: pass
-
-impl Clock for FixedClock:
-    fn now(self) -> i32: 3
-
-pub fn main() -> void $ Console:
-    $.with(Db=MemoryDb {}, Clock=FixedClock {}):
-        println(spelled())
-";
-    assert_eq!(output_of("expand", main), "db 3\n");
-}
-
-/// Aliases nest, in any declaration order and across the modules of a
-/// folder, and flatten into one set; a generic row alias extends a row
-/// parameter (`req.row.alias.nested`, `req.row.alias.generic.use`).
-#[test]
-fn nested_and_generic_aliases_flatten_into_one_row() {
-    let keys = "\
-pub trait Db
-
-pub trait Cache
-
-pub trait Log
-
-pub type Web = $ WebRow
-
-pub type WebRow = $ AppRow + Log
-
-pub type AppRow = $ Db + Cache
-
-pub type WithLog[$R] = $ R + Log
-";
-    let main = "\
-use pkg.keys.{Db, Cache, Log, Web, WithLog}
-
-fn serve() -> void $ Web + Db:
-    pass
-
-fn run() -> void $ Log + Cache + Db:
-    serve()
-
-fn logged[$R](job: fn() -> void $ R) -> void $ WithLog[$ R]:
-    job()
-
-fn quiet() -> void $ Db:
-    pass
-
-fn outer() -> void $ Db + Log:
-    logged(quiet)
-";
-    let out = check(&[("keys.hd", keys), ("main.hd", main)]);
-    assert!(out.diags.is_empty(), "{}", out.render());
-    // Dropping a key the alias brings in is a missing requirement.
-    let short = main.replace(
-        "fn run() -> void $ Log + Cache + Db:",
-        "fn run() -> void $ Log + Db:",
-    );
-    let out = check(&[("keys.hd", keys), ("main.hd", &short)]);
-    assert_eq!(
-        codes(&out),
-        vec![Code::MissingRequirement],
-        "{}",
-        out.render()
-    );
-}
-
 /// Three aliases that expand to one another, declared out of order across
 /// two modules, are one cycle: one `alias-cycle`, on the cycle's first
 /// declaration in the source (`types.alias.cycle.reported`), and no
@@ -197,48 +70,6 @@ pub type Middle = $ Front
     let rendered = out.render();
     assert!(rendered.contains("a.hd:"), "{rendered}");
     assert!(rendered.contains("`Front` expands to itself"), "{rendered}");
-}
-
-/// `$.Context[...]` in a header takes its row expanded, so two spellings
-/// are one type, across a folder's interface too; a row parameter in its
-/// row is `row-parameter-in-context` (`req.context.dollar`,
-/// `req.row.param.context`).
-#[test]
-fn a_context_type_in_a_header_takes_its_row_expanded() {
-    let lib = "\
-pub trait Db
-
-pub trait Cache
-
-pub type AppRow = $ Db + Cache
-
-pub fn pass_on(ctx: $.Context[$ AppRow]) -> $.Context[$ Cache + Db]:
-    ctx
-";
-    let main = "\
-use pkg.lib.ctx.{AppRow, Db, Cache, pass_on}
-
-fn again(ctx: $.Context[$ Db + Cache]) -> $.Context[$ AppRow]:
-    pass_on(ctx)
-";
-    let out = check(&[("lib/ctx.hd", lib), ("main.hd", main)]);
-    assert!(out.diags.is_empty(), "{}", out.render());
-    let other = main.replace("-> $.Context[$ AppRow]:", "-> $.Context[$ Db]:");
-    let out = check(&[("lib/ctx.hd", lib), ("main.hd", &other)]);
-    assert_eq!(codes(&out), vec![Code::TypeMismatch], "{}", out.render());
-    let param = "\
-trait Db
-
-fn run[$R](ctx: $.Context[$ R + Db]) -> void:
-    pass
-";
-    let out = check(&[("main.hd", param)]);
-    assert_eq!(
-        codes(&out),
-        vec![Code::RowParameterInContext],
-        "{}",
-        out.render()
-    );
 }
 
 /// A header row written through an alias and the same row spelled out

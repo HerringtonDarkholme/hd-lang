@@ -1,0 +1,14 @@
+# test: a rest element meets the bound by its items or its list
+use std.ops.Default
+
+struct Secret:
+    value: i32
+
+fn fresh[T < Default]() -> T:
+    T::default()
+
+fn hidden() -> (i32, List[Secret]...):
+    fresh()
+
+fn fixed() -> (Secret, List[i32]...):
+    fresh()  # diagnostic: unsatisfied-trait-bound

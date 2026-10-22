@@ -1,0 +1,15 @@
+# test: shallow bounds prove
+trait Marker
+
+struct Box[T]:
+    value: T
+
+impl Marker for i32
+
+impl[T < Marker] Marker for Box[T]
+
+fn need[T < Marker](value: T) -> void:
+    pass
+
+fn deep(value: Box[Box[i32]]) -> void:
+    need(value)

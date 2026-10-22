@@ -1,0 +1,6 @@
+# test: inferred result stays clean
+fn f():
+    42
+
+pub fn main() -> void:
+    pass

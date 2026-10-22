@@ -1,0 +1,5 @@
+# test: unrelated function result stays a type mismatch
+fn count() -> i32: 1
+
+fn erase() -> fn() -> string:
+    fn() -> string: count().to_string()

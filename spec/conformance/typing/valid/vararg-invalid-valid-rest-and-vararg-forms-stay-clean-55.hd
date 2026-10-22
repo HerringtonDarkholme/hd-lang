@@ -1,0 +1,5 @@
+# test: valid rest and vararg forms stay clean
+fn first(values...: (i32, string)) -> i32: 0
+
+pub fn main() -> void:
+    pass

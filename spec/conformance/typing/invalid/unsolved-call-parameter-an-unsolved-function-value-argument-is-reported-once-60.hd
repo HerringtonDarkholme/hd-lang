@@ -1,0 +1,25 @@
+# test: an unsolved function value argument is reported once
+fn make[T]() -> T:
+    panic("no")
+
+fn missing[T]() -> i32:
+    1
+
+fn dflt[T = i32]() -> i32:
+    1
+
+fn ident[T](v: T) -> T:
+    v
+
+fn once[A, B](f: fn(A) -> B) -> i32:
+    1
+
+struct Reader:
+    id: i32
+
+impl Reader:
+    fn size[T](self) -> i32:
+        self.id
+
+pub fn main() -> void:
+    _ := once(ident)  # diagnostic: cannot-infer-type

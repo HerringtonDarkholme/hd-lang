@@ -107,16 +107,3 @@ fn each_fix_writes_a_reference_and_checks_clean() {
         assert_eq!(codes(&out), Vec::<Code>::new(), "{decl}: {out}");
     }
 }
-
-#[test]
-fn recursion_through_a_reference_or_a_list_is_accepted() {
-    for decl in [
-        "enum Expr:\n    Num(n: i64)\n    Add(left: &Expr, right: &Expr)\n",
-        "enum Tree:\n    Leaf\n    Node(children: List[Tree])\n",
-        "struct Cell:\n    value: i64\n    next: &Cell?\n",
-        "enum Link:\n    End\n    More(next: &mut Link)\n",
-    ] {
-        let src = format!("{decl}{MAIN}");
-        assert_eq!(codes(&src), Vec::<Code>::new(), "{src}");
-    }
-}

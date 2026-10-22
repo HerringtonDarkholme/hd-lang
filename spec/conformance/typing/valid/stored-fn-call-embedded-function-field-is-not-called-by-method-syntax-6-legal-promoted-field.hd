@@ -1,0 +1,9 @@
+# test: embedded function field is not called by method syntax
+struct Base:
+    pub run: fn() -> i32
+
+struct Job:
+    Base
+
+fn good(job: Job) -> i32:
+    (job.run)()

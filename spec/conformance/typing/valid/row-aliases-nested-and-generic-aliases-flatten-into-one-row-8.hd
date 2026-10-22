@@ -1,0 +1,18 @@
+# test: nested and generic aliases flatten into one row
+# fixture-package-tree: migrate-698-8/src/main.hd
+use pkg.keys.{Db, Cache, Log, Web, WithLog}
+
+fn serve() -> void $ Web + Db:
+    pass
+
+fn run() -> void $ Log + Cache + Db:
+    serve()
+
+fn logged[$R](job: fn() -> void $ R) -> void $ WithLog[$ R]:
+    job()
+
+fn quiet() -> void $ Db:
+    pass
+
+fn outer() -> void $ Db + Log:
+    logged(quiet)

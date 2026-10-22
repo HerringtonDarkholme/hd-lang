@@ -1,0 +1,6 @@
+# test: an unsolved data literal parameter is reported
+struct Batch[T]:
+    items: List[T]
+
+pub fn main() -> void:
+    _ := Batch::[i32] { items: [] }

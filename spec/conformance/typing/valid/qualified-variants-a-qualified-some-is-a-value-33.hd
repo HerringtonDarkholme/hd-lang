@@ -1,0 +1,15 @@
+# test: a qualified some is a value
+fn present(value: i32) -> i32?:
+    Option.Some(value)
+
+fn absent() -> Option[i32]:
+    Option.None
+
+fn bound() -> i32:
+    let x: Option[i32] = Option.Some(3)
+    match x:
+        .Some(n) => n
+        .None => 0
+
+pub fn main() -> void:
+    pass

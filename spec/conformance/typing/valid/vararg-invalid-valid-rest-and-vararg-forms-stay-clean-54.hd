@@ -1,0 +1,5 @@
+# test: valid rest and vararg forms stay clean
+fn sum(values...: List[i32]) -> i32: 0
+
+pub fn main() -> void:
+    pass

@@ -1,0 +1,8 @@
+# test: an unsolved let else scrutinee reports once
+fn make[T]() -> T:
+    panic("no")
+
+fn main() -> void $ Console:
+    let .Some(y) = make() else:  # diagnostic: cannot-infer-type
+        return
+    println(y)

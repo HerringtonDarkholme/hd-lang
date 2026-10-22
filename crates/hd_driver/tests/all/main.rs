@@ -70,7 +70,6 @@ mod method_bound_unmet;
 mod method_choice;
 mod mixed_signedness;
 mod module_case_collision;
-mod named_argument_errors;
 mod nonnumeric_cast;
 mod numeric_widen_fix;
 mod operator_fn_left_exact;
@@ -85,7 +84,6 @@ mod private_type_leak;
 mod profile_handles;
 mod promotion;
 mod provider_keys_run;
-mod qualified_variants;
 mod range_bound_numeric;
 mod range_patterns;
 mod receiver_fix;
@@ -119,7 +117,6 @@ mod test_runner_registration_rows;
 mod tests_block_impls;
 mod tests_block_shape;
 mod trailing_blocks;
-mod trait_resolution_depth;
 mod trials;
 mod tuple_structure;
 mod tuple_template_bounds;
@@ -131,12 +128,7 @@ mod unreachable_code;
 mod unread_facts;
 mod unread_must_use_binding;
 mod unsigned_comparison;
-mod unsolved_call_parameter;
-mod unsolved_scrutinee;
-mod vararg_invalid;
-mod variance_representation;
 mod variant_binding_names;
-mod void_final;
 
 /// One content-addressed store shared by every test that only checks what
 /// a build produces: std compiles once for the process.
