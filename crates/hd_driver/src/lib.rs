@@ -1384,6 +1384,50 @@ pub struct Session {
     inputs: BTreeMap<u32, InputEntries>,
 }
 
+/// A validated cache payload that retains the store's backing allocation.
+#[derive(Clone, Debug)]
+struct CacheSection {
+    bytes: Arc<[u8]>,
+    range: std::ops::Range<usize>,
+}
+
+impl std::ops::Deref for CacheSection {
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        &self.bytes[self.range.clone()]
+    }
+}
+
+impl AsRef<[u8]> for CacheSection {
+    fn as_ref(&self) -> &[u8] {
+        self
+    }
+}
+
+/// Validate the framing once, then retain ranges instead of copying payloads.
+fn cache_sections(
+    bytes: &Arc<[u8]>,
+    key: Hash128,
+    toolchain: Hash128,
+) -> Option<Vec<CacheSection>> {
+    let (header, sections) = hd_cache::decode_entry(bytes).ok()?;
+    if header.key != key || header.toolchain != toolchain || header.layout != LAYOUT {
+        return None;
+    }
+    sections
+        .into_iter()
+        .map(|(section, payload)| {
+            let start = usize::try_from(section.offset).ok()?.checked_add(4)?;
+            let end = start.checked_add(payload.len())?;
+            Some(CacheSection {
+                bytes: Arc::clone(bytes),
+                range: start..end,
+            })
+        })
+        .collect()
+}
+
 /// The sections of a REPL input's `iface`, header `graph` and `check`
 /// entries, as its build read or wrote them ([`Session::inputs`]). An
 /// input's entries never change in its session: its text, `src/lib.hd`
@@ -2385,13 +2429,12 @@ impl Run<'_> {
         lock(&self.report).blocked(s);
     }
 
-    fn lookup(&self, kind: EntryKind, key: Hash128) -> Option<Vec<Vec<u8>>> {
-        let bytes = self.host.store.get(kind, &key);
-        let sections = bytes.as_deref().and_then(|b| {
-            let (h, s) = hd_cache::decode_entry(b).ok()?;
-            (h.key == key && h.toolchain == self.toolchain && h.layout == LAYOUT)
-                .then(|| s.into_iter().map(|(_, p)| p.to_vec()).collect::<Vec<_>>())
-        });
+    fn lookup(&self, kind: EntryKind, key: Hash128) -> Option<Vec<CacheSection>> {
+        let sections = self
+            .host
+            .store
+            .get(kind, &key)
+            .and_then(|bytes| cache_sections(&bytes, key, self.toolchain));
         let mut c = lock(&self.counters);
         *if sections.is_some() {
             c.hits.entry(kind.as_str())
@@ -2989,7 +3032,11 @@ impl Run<'_> {
             && let Some(mentions) = self.iface_hit(fi, &sections, None)
         {
             let m = folder.modules[0].idx();
-            self.keep_input(m, |e| &mut e.iface, || sections);
+            self.keep_input(
+                m,
+                |e| &mut e.iface,
+                || sections.iter().map(|section| section.to_vec()).collect(),
+            );
             self.keep_input(m, |e| &mut e.mentions, || mentions);
             return;
         }
@@ -3347,35 +3394,37 @@ impl Run<'_> {
     fn iface_hit(
         &self,
         fi: usize,
-        sections: &[Vec<u8>],
+        sections: &[impl AsRef<[u8]>],
         mentions: Option<&[(String, Hash128)]>,
     ) -> Option<Vec<(String, Hash128)>> {
         let folder = &self.table.folders[fi];
         let names = self.names();
-        let (blob, dsec) = (sections.first()?, sections.get(1)?);
-        let blob: Arc<[u8]> = Arc::from(blob.as_slice());
+        let (blob, dsec) = (sections.first()?.as_ref(), sections.get(1)?.as_ref());
+        let blob: Arc<[u8]> = Arc::from(blob);
         // Each item record decodes on first use (#213).
         let (mut items, exports) = hd_resolve::decode_lazy(&names, blob.clone())?;
-        items.attach_docs(sections.get(8)?)?;
+        items.attach_docs(sections.get(8)?.as_ref())?;
         let (Some(diags), Some(rows), Some(private), Some(looped), Some(module_uses)) = (
             decode_iface_diags(dsec),
-            sections.get(2).and_then(|b| hd_resolve::anchor::decode(b)),
+            sections
+                .get(2)
+                .and_then(|b| hd_resolve::anchor::decode(b.as_ref())),
             sections
                 .get(3)
-                .and_then(|b| hd_resolve::decode_private_names(&names, b)),
+                .and_then(|b| hd_resolve::decode_private_names(&names, b.as_ref())),
             sections
                 .get(4)
-                .and_then(|b| hd_resolve::decode_private_names(&names, b)),
+                .and_then(|b| hd_resolve::decode_private_names(&names, b.as_ref())),
             sections
                 .get(5)
-                .and_then(|b| hd_resolve::decode_module_uses(b)),
+                .and_then(|b| hd_resolve::decode_module_uses(b.as_ref())),
         ) else {
             return None;
         };
         let mentions = match mentions {
             Some(m) => m.to_vec(),
             None => match sections.get(7) {
-                Some(b) => self.mentioned(b)?,
+                Some(b) => self.mentioned(b.as_ref())?,
                 None => self.mentions(folder.id, &items, &exports)?,
             },
         };
@@ -3383,7 +3432,7 @@ impl Run<'_> {
         // it has any: sixteen bytes, or none.
         let api_blob = sections
             .get(6)
-            .and_then(|b| <[u8; 16]>::try_from(b.as_slice()).ok())
+            .and_then(|b| <[u8; 16]>::try_from(b.as_ref()).ok())
             .map(|b| Hash128(u128::from_le_bytes(b)));
         let mut iface = hd_resolve::folder_iface(
             &folder.path,
@@ -3397,7 +3446,7 @@ impl Run<'_> {
         iface.spans = spans_of(&iface.items, &rows);
         iface.private_names = private.into_iter().collect();
         iface.loop_names = looped.into_iter().collect();
-        iface.names_hash = names_hash(sections.get(3)?, sections.get(4)?);
+        iface.names_hash = names_hash(sections.get(3)?.as_ref(), sections.get(4)?.as_ref());
         self.emit_iface_diags(fi, &diags);
         self.note_iface(&folder.path, &iface, false);
         lock(&self.report).ok(Stage::FolderIface);
@@ -3909,7 +3958,11 @@ impl Run<'_> {
             lock(&self.report).ok(Stage::HeaderCheck);
             self.emit_iface_diags(fi, &uses);
             self.emit_findings(&found);
-            self.keep_input(folder.modules[0].idx(), |e| &mut e.header, || sections);
+            self.keep_input(
+                folder.modules[0].idx(),
+                |e| &mut e.header,
+                || sections.iter().map(|section| section.to_vec()).collect(),
+            );
             return;
         }
         self.computed(Stage::HeaderCheck);
@@ -6934,14 +6987,23 @@ impl Run<'_> {
     }
 
     /// Reads diagnostics and the meta section; the rest waits for `Collect`.
-    fn read_check(&self, m: usize, sections: &[Vec<u8>], entry: Arc<[u8]>) {
-        self.keep_input(m, |e| &mut e.check, || sections.to_vec());
+    fn read_check(&self, m: usize, sections: &[impl AsRef<[u8]>], entry: Arc<[u8]>) {
+        self.keep_input(
+            m,
+            |e| &mut e.check,
+            || {
+                sections
+                    .iter()
+                    .map(|section| section.as_ref().to_vec())
+                    .collect()
+            },
+        );
         let (Some(d), Some(meta)) = (sections.first(), sections.get(1)) else {
             let _ = self.check[m].set(None);
             return;
         };
         let lines = self.lines(m);
-        let mut r = Reader::new(d);
+        let mut r = Reader::new(d.as_ref());
         let mut buf = DiagBuf::default();
         for _ in 0..r.count() {
             let code = Code::from_name(r.str()).unwrap_or(Code::Unsupported);
@@ -6990,12 +7052,12 @@ impl Run<'_> {
         lock(&self.diags).append(&buf);
         let regs = sections
             .get(4)
-            .map(|b| decode_regs(&mut Reader::new(b), &lines))
+            .map(|b| decode_regs(&mut Reader::new(b.as_ref()), &lines))
             .unwrap_or_default();
         let _ = self.regs[m].set(regs);
         let mut dbg = Vec::new();
         if let Some(b) = sections.get(6) {
-            let mut r = Reader::new(b);
+            let mut r = Reader::new(b.as_ref());
             for _ in 0..r.count() {
                 let (lo, hi) = (lines.read(&mut r), lines.read(&mut r));
                 let call = r.u8() != 0;
@@ -7008,17 +7070,17 @@ impl Run<'_> {
         }
         let _ = self.dbg_refs[m].set(dbg);
         if let Some(b) = sections.get(9) {
-            let bindings = decode_bindings(b, &self.names()).unwrap_or_default();
+            let bindings = decode_bindings(b.as_ref(), &self.names()).unwrap_or_default();
             let _ = self.input_bindings[m].set(bindings);
         }
         let Some(generic_edges) = sections
             .get(8)
-            .and_then(|b| decode_generic_edges(b, &lines, FileId::from_raw(u32_of(m))))
+            .and_then(|b| decode_generic_edges(b.as_ref(), &lines, FileId::from_raw(u32_of(m))))
         else {
             let _ = self.check[m].set(None);
             return;
         };
-        let content = Reader::new(meta).hash();
+        let content = Reader::new(meta.as_ref()).hash();
         let _ = self.check[m].set(Some(CheckOut {
             entry,
             content,
@@ -7471,7 +7533,7 @@ impl Run<'_> {
             && let Some(w) = sections.first()
         {
             lock(&self.report).ok(Stage::Collect);
-            let _ = self.wasm.set(w.clone());
+            let _ = self.wasm.set(w.to_vec());
             return;
         }
         let Some(p) = self.program() else {
@@ -8878,15 +8940,15 @@ fn encode_graph(parts: &[Vec<u8>]) -> Vec<Vec<u8>> {
 
 /// Reads what [`encode_graph`] wrote as `n` parts; an empty part is no
 /// bytes.
-fn decode_graph(sections: &[Vec<u8>], n: usize) -> Option<Vec<Vec<u8>>> {
-    let mut r = Reader::new(sections.first()?);
+fn decode_graph(sections: &[impl AsRef<[u8]>], n: usize) -> Option<Vec<Vec<u8>>> {
+    let mut r = Reader::new(sections.first()?.as_ref());
     if r.u32() as usize != n {
         return None;
     }
     let parts = (0..n)
         .map(|_| match r.u32() as usize {
             0 => Some(Vec::new()),
-            i => sections.get(i).cloned(),
+            i => sections.get(i).map(|section| section.as_ref().to_vec()),
         })
         .collect::<Option<Vec<_>>>()?;
     r.ok().then_some(parts)
@@ -9388,11 +9450,11 @@ fn decode_iface_diags(b: &[u8]) -> Option<IfaceDiags> {
 
 /// Sections are kept joined (length-prefixed) as one `Arc`, so a slot
 /// holds one allocation per module.
-fn join_sections(sections: &[Vec<u8>]) -> Vec<u8> {
+fn join_sections(sections: &[impl AsRef<[u8]>]) -> Vec<u8> {
     let mut w = Writer::default();
     w.len_of(sections);
     for s in sections {
-        w.blob(s);
+        w.blob(s.as_ref());
     }
     w.bytes
 }
@@ -10172,4 +10234,38 @@ fn declaration_bodies<'t>(
         hd_check::structure::fact_bodies(cx, (data, ""), (&facts, node), None).ok()?;
     derived.bodies.extend(bodies);
     Some(b)
+}
+
+#[cfg(test)]
+mod cache_section_tests {
+    use super::{Arc, EntryKind, Hash128, LAYOUT, cache_sections};
+
+    #[test]
+    fn cached_payloads_share_the_loaded_entry_and_keep_it_alive() {
+        let key = Hash128(17);
+        let toolchain = Hash128(29);
+        let encoded = hd_cache::encode_entry(
+            EntryKind::Graph,
+            LAYOUT,
+            key,
+            toolchain,
+            0,
+            &[(0, 0, b"first"), (1, 0, b""), (2, 0, b"third")],
+        );
+        let entry: Arc<[u8]> = Arc::from(encoded);
+        let retained = Arc::downgrade(&entry);
+        let sections = cache_sections(&entry, key, toolchain).expect("valid entry");
+        assert_eq!(sections.len(), 3);
+        for section in &sections {
+            assert!(Arc::ptr_eq(&section.bytes, &entry));
+        }
+        assert_eq!(sections[0].as_ref(), b"first");
+        assert_eq!(sections[1].as_ref(), b"");
+        assert_eq!(sections[2].as_ref(), b"third");
+        drop(entry);
+        assert!(retained.upgrade().is_some());
+        assert_eq!(sections[2].as_ref(), b"third");
+        drop(sections);
+        assert!(retained.upgrade().is_none());
+    }
 }
