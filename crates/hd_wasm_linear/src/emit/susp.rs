@@ -486,6 +486,7 @@ impl Em<'_, '_, '_> {
         // The ladders run as fresh code.
         self.f.i32(0);
         self.f.set(pc);
+        self.cancel_from = i;
         self.exit(Exit::Cancel)?;
         self.close();
         Ok(())
@@ -1087,7 +1088,7 @@ impl Em<'_, '_, '_> {
         if self.counting {
             // An owned body's exit releases only its exit set.
             if self.owned {
-                self.release_unwound()?;
+                self.release_unwound(self.cancel_from)?;
             }
             for l in self.ret.clone() {
                 self.f.zero(l);

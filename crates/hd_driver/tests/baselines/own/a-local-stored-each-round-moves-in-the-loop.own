@@ -28,4 +28,4 @@ app/main/collect
   %24 = Block - : ()
   %25 = Loop %24 - : ()
   %26 = Drop [$3] : ()
-  exit sub 0 drops [$0 $2 $3]
+  exit sub 0 drops [$0]

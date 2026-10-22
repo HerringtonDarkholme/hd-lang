@@ -12,4 +12,4 @@ app/main/twice
   %7 = Block - : never
   %8 = SwitchTag %1 [#0 %3 %7] : string
   %9 = Store [$1] %8 : ()
-  exit sub 0 drops [$0 $1]
+  exit sub 0 drops [$0]

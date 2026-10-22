@@ -56,4 +56,4 @@ fn bump(mut xs: List[i32], i: usize) -> void:
 >   %35 = Block - : ()
 >   %36 = Block - : ()
 >   %37 = If %30 [%35 %36] : ()
->   exit sub 0 drops [$0 $2 $4]
+>   exit sub 0 drops [$0 $2]

@@ -561,7 +561,10 @@ String operations are emitted by `emit/text.rs` and runtime helpers
   instance that receives it owned (a type parameter's) releases it at
   the exit (`Em::unowned_params`); and a
   cancelled suspension point, an edge the TIR does not have, releases
-  what the body holds there (`release_unwound`). `IsUnique` lowers to
+  the values the known-null pass lists for it (`Body::unwind_drops`;
+  from a cleanup scope's ladder, those of every point inside the scope)
+  and then leaves through the exit, whose exit set holds every local
+  that may hold a value at a suspension point (`release_unwound`). `IsUnique` lowers to
   `rt:list_unique` or `rt:map_unique`, and `Pin` to `ListPin`'s owner
   word without its count, of the header at their place: a local's or a
   value's, then struct fields and elements, bounds-checked

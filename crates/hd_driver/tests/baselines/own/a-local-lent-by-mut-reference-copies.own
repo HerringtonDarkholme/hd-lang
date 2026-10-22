@@ -9,4 +9,3 @@ app/main/lent
   %6 = Read copy [%2 [%4]] : string
   %7 = Drop [%2] : ()
   %8 = Store [$2] %6 : ()
-  exit sub 0 drops [$1 $2]

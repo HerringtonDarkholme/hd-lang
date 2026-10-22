@@ -28,6 +28,4 @@ app/main/describe
   %24 = Match %1 [%23 %5 %7] : string
   %25 = Drop [$1] : ()
   %26 = Drop [$2] : ()
-  %27 = Drop [$3] : ()
-  %28 = Block %24 : string
-  exit sub 0 drops [$1 $2 $3]
+  %27 = Block %24 : string

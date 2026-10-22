@@ -26,9 +26,10 @@
 //! (`push_args`), a parameter the caller lends takes one on entry when the
 //! body owns it (its exit set lists it), one the passes left unowned that
 //! an instance receives owned is released at the exit, and a cancelled
-//! suspension point releases what the body holds there
-//! ([`Em::release_unwound`]). A `borrow` read takes no count, and a local
-//! a borrow is stored into holds none ([`Em::prepare_own_loans`]).
+//! suspension point releases the values the passes' unwind set lists for
+//! it, before the exit releases the exit set ([`Em::release_unwound`]). A
+//! `borrow` read takes no count, and a local a borrow is stored into holds
+//! none ([`Em::prepare_own_loans`]).
 
 use hd_base::StageResult;
 use hd_tir::ir::{IntrinsicOp, NONE, Ref, Tag};
@@ -1113,26 +1114,28 @@ impl Em<'_, '_, '_> {
     }
 
     /// The release on a cancelled suspension point's way out of an owned
-    /// body: the cancel edge is no TIR jump, so the values and locals the
-    /// body holds there are released (and zeroed) here, before its exit
-    /// releases its exit set (as nothing).
-    pub(super) fn release_unwound(&mut self) -> StageResult<()> {
-        let mut vals: Vec<(u32, Vec<u32>)> =
-            self.vals.iter().map(|(k, v)| (*k, v.clone())).collect();
-        vals.sort_unstable();
-        for (i, ls) in vals {
-            if !self.moves.loans.contains(&i) && self.counted(self.ty(i)).is_some() {
-                self.release_locals(&ls, self.ty(i))?;
-                for l in ls {
-                    self.f.zero(l);
-                }
+    /// body: the cancel edge is no TIR jump, so the values the passes list
+    /// for the points it may come from (`Body::unwind_drops`: the point
+    /// itself, or every point inside the cleanup scope `from` whose ladder
+    /// takes it) are released (and zeroed) here. The exit then releases
+    /// the exit set, which holds every local that may hold a value at a
+    /// suspension point.
+    pub(super) fn release_unwound(&mut self, from: u32) -> StageResult<()> {
+        let (Some((lo, hi)), Some(s)) = (self.range(from), self.susp.as_ref()) else {
+            return Ok(());
+        };
+        let rows = &self.b.unwind_drops;
+        let mut vals: Vec<u32> = Vec::new();
+        for (&p, &k) in &s.states {
+            if (lo..=hi).contains(&k) {
+                let at = rows.partition_point(|r| r.0 < p);
+                vals.extend(rows[at..].iter().take_while(|r| r.0 == p).map(|r| r.1));
             }
         }
-        let mut locals: Vec<(usize, Vec<u32>)> =
-            self.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
-        locals.sort_unstable();
-        for (l, _) in locals {
-            self.release_drops(&[super::live::Drop::Local(l)])?;
+        vals.sort_unstable();
+        vals.dedup();
+        for v in vals {
+            self.release_drops(&[super::live::Drop::Val(v)])?;
         }
         Ok(())
     }

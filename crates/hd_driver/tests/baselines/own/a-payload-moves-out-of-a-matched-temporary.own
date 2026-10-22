@@ -21,7 +21,5 @@ app/main/describe
   %18 = SwitchTag %1 [#0 %9 %17] : never
   %19 = Block - : never
   %20 = Match %1 [%19 %3 %5] : string
-  %21 = Drop [$1] : ()
-  %22 = Drop [$2] : ()
-  %23 = Block %20 : string
-  exit sub 0 drops [$0 $1 $2]
+  %21 = Block %20 : string
+  exit sub 0 drops [$0]

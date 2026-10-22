@@ -154,6 +154,9 @@ impl Em<'_, '_, '_> {
             self.f.op(I::I32Eq);
             self.f.op(I::If(BlockType::Empty));
             self.ctl.push(Ctl::Plain);
+            if e == Exit::Cancel {
+                self.cancel_from = i;
+            }
             self.exit(e)?;
             self.close();
         }

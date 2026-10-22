@@ -7,4 +7,4 @@ app/main/first_long
   %24 = Break L0 - : never
   %25 = Block - : never
   %26 = If %23 [%25 -] : ()
-  exit sub 0 drops [$0 $2 $3]
+  exit sub 0 drops [$0]

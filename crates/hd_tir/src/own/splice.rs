@@ -97,14 +97,14 @@ impl Tables {
         (ed.blk, ed.pos, ed.tag, ed.data, ed.syn)
     }
 
-    /// The statements deleted so far, as (block, statement).
-    pub(crate) fn removed(&self) -> &[(u32, u32)] {
-        &self.removed
-    }
-
     /// Withdraws edit `e`, which no operand names.
     pub(crate) fn cancel(&mut self, e: u32) {
         self.cancelled[e as usize] = true;
+    }
+
+    /// Whether edit `e` was withdrawn.
+    pub(crate) fn is_cancelled(&self, e: u32) -> bool {
+        self.cancelled[e as usize]
     }
 
     /// Points operand `at` of instruction `inst` at edit `edit`'s value.
@@ -115,6 +115,64 @@ impl Tables {
     /// Deletes statement `inst` of block `blk`, which no instruction uses.
     pub(crate) fn remove(&mut self, blk: u32, inst: u32) {
         self.removed.push((blk, inst));
+    }
+}
+
+/// The blocks as the pending edits leave them, for a pass that walks the
+/// body before the splice: each deleted statement marked, and each block's
+/// edits that still stand, by position, in recording order.
+#[derive(Default)]
+pub(crate) struct Pending {
+    /// Per instruction: a statement an earlier pass deleted.
+    pub(crate) dead: Vec<bool>,
+    /// Each block's edits (by block instruction), in `row`.
+    row_start: Vec<u32>,
+    row: Vec<u32>,
+    fill: Vec<u32>,
+}
+
+impl Pending {
+    /// Reads `edits` over a body of `n` instructions.
+    pub(crate) fn build(&mut self, n: usize, edits: &Tables) {
+        self.dead.clear();
+        self.dead.resize(n, false);
+        for &(_, x) in &edits.removed {
+            self.dead[x as usize] = true;
+        }
+        self.row_start.clear();
+        self.row_start.resize(n + 1, 0);
+        let live = |e: usize| !edits.cancelled[e];
+        for (e, ed) in edits.edits.iter().enumerate() {
+            if live(e) {
+                self.row_start[ed.blk as usize + 1] += 1;
+            }
+        }
+        for i in 0..n {
+            self.row_start[i + 1] += self.row_start[i];
+        }
+        self.row.clear();
+        self.row.resize(self.row_start[n] as usize, 0);
+        self.fill.clear();
+        self.fill.extend_from_slice(&self.row_start[..n]);
+        for (e, ed) in edits.edits.iter().enumerate() {
+            if live(e) {
+                let at = &mut self.fill[ed.blk as usize];
+                self.row[*at as usize] = u32_of(e);
+                *at += 1;
+            }
+        }
+        for i in 0..n {
+            let (a, z) = (self.row_start[i] as usize, self.row_start[i + 1] as usize);
+            if z - a > 1 {
+                self.row[a..z].sort_by_key(|&e| (edits.edits[e as usize].pos, e));
+            }
+        }
+    }
+
+    /// The standing edits of block `blk`, by position.
+    pub(crate) fn of(&self, blk: u32) -> &[u32] {
+        let b = blk as usize;
+        &self.row[self.row_start[b] as usize..self.row_start[b + 1] as usize]
     }
 }
 
@@ -413,6 +471,11 @@ fn renumber(b: &mut Body, t: &mut Tables) -> Result<(), String> {
     }
     for row in &mut b.regions {
         row.0 = map(t, row.0);
+    }
+    // Both words name instructions no edit deletes (a suspension point and
+    // a value), and the splice keeps their order.
+    for row in &mut b.unwind_drops {
+        *row = (map(t, row.0), map(t, row.1));
     }
     Ok(())
 }

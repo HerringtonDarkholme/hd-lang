@@ -1945,6 +1945,94 @@ is worth deciding only if they are hot.
    whose drop ends before the copies read through them (`Read copy
    [%16 [%17]]` after `Drop [%16]`), so those copies cannot borrow.
 10. Known-null.
+   As built: `own/known.rs`, after pair cancellation, its deletions
+   joining the other passes' edits for the pipeline's second and last
+   rebuild. One forward walk per sub-body over the structured control
+   flow, as the pending edits leave it (`splice::Pending`, which pair
+   cancellation now shares: a deleted statement gone, a new `Drop` in
+   its place), tracks one bit per owned local (an exit row's) and per
+   owned value (and per `borrow` read with a kept drop): whether it may
+   hold a count. A place is empty before its first store, after a
+   `move` or a `Drop` of all of it, after the use that consumes it, and
+   once the parts taken of it on the path cover every counted leaf (a
+   bit per distinct part place, the verifier's rule over scratch stacks,
+   `OwnCx::parts`); a store or a definition fills it. States join by
+   union at branch and arm ends and at labels, and a loop's head runs to
+   a fixed point; states live in one arena, last in, first out. A place a
+   cleanup suite touches is never empty to the walk, since a suite runs
+   at its scope's exits, which the walk does not follow.
+   - **Rule 1**: a `Drop` (an instruction or a pending edit) whose root
+     may hold a count on no path that reaches it goes: the drops after
+     locals moved on every branch, every arm or every round (commit 7's
+     leftover; `own/a-payload-moves-out-of-a-matched-temporary.hd`,
+     `own/a-part-copy-and-its-drop-cancel.hd`).
+   - **Rule 3**: a local empty at every way out of its sub-body leaves
+     the exit set: each `Return`, the root's end, and each suspension
+     point. A parameter's and a capture's rows stay (commit 8: the
+     backend reads a parameter outside the exit set as unowned).
+   - **The unwind set** (not in the plan): `Body::unwind_drops`, rows
+     of a suspension point and a value that may hold a count there, a
+     pass output the printer and parser carry and the wire refuses. The
+     backend's `release_unwound` releases those values, for the point it
+     cancels at or, from a cleanup scope's ladder, for every point inside
+     the scope (`Em::cancel_from`), and no longer releases every value
+     and local the body has: the cancel path leaves through the exit,
+     whose exit set already holds every local that may hold a value at a
+     suspension point (rule 3 counts the points as ways out). In
+     `task-with-timeout`'s `main`, the unwind sets hold one to five
+     values per point, and `main` has 342 release sites against the old
+     path's 441 (671 before this commit).
+   - **`verify_owned`**: at each suspension point, every owned value has
+     an unwind row and every owned local that may hold a value has an
+     exit row; the unwind rows are sorted, once each, and name a
+     suspension point. Taking parts of a local now empties it once they
+     cover every counted leaf, as for a value, so the exit-row check
+     agrees with the pass (`std/json`'s `end_list` moves `closed._2` and
+     drops the rest).
+   It costs 0.06 us per instruction over the bench/study programs, and
+   1,180 allocations over their 1,261 bodies (tables growing, once per
+   run); the rebuilds stay at two.
+   Old path: every conformance module byte-identical to main, dev and
+   optimized pipelines. New path: all conformance cases pass, dev and
+   optimized pipelines, checked and not. Static count sites over the 771
+   runtime conformance programs with a `main` (on main at db25a6415):
+   27,388 retains and 58,714 releases before this commit, 27,388 and
+   53,398 after, against the old path's 27,914 and 57,467 (module bytes
+   20.21 MB, 20.14 MB, against 20.19 MB); over the bench/study programs
+   831 and 1,620 before and after (311,751 and 311,744 bytes), against
+   935 and 1,599: outside suspending bodies the backend's Wasm zero facts
+   (`opt::zero_releases`) already deleted the releases of these drops on
+   both paths.
+   **Not built.** The plan's rules 2, 4 and 5 change no count gap:
+   - rule 2, a `Store` into a certainly empty place as an initialization,
+     needs a mark the IR does not have (a `Store`'s two words are its
+     place and its value), and outside suspending bodies the Wasm zero
+     facts already delete the release of the old value on both paths;
+   - rule 4, a `move` with no zeroing, also needs a mark (a read mode),
+     and removes zero stores, not counts;
+   - rule 5, cells made before use (#678), needs a "certainly full"
+     state besides "may hold" and a fact per use; `Em::cell_made` reads
+     `live::Tree` on both paths today. Commit 14, which deletes
+     `live.rs`, must move it onto known-null's facts; rules 2 and 4 need
+     their own issue after parity (commit 13).
+   **Left for later commits.** Releases are now 7.1% below the old
+   path's over conformance, but 151 programs keep 1,577 release sites
+   above it (the others are 5,646 below), and bench/study 21:
+   - **Drops before early returns.** A value held across `?`s is dropped
+     before each `Return`, one release site each, where the old path
+     releases once at its shared exit. Derived `Structure` walks
+     (`HttpError.structure walk`: 20 drops of the matched value per
+     instance against 2 releases) and `build`s read their by-value
+     parameter whole into the match's scrutinee, which moves, since the
+     parameter's own `Drop` follows the read and so borrow cannot keep
+     it on the parameter. Sharing those releases at the exit is commit
+     13's parity.
+   - **Generic bodies** (`std/cmp`'s `EqualWalker.member`, `Iterator.sum`,
+     `std/format`): commit 7's whole drops of generic bases and commit
+     8's kept drops of borrows through a reference, and a type
+     parameter's by-value argument, which `OwnCx::pass` lends, so the
+     instance releases it at the exit where the old path moved it into
+     the callee.
 11. Hoisting and the stable-list table.
 12. The checker stops inserting copies and pin bookkeeping.
 13. Parity: every counts baseline at or below today, conformance and

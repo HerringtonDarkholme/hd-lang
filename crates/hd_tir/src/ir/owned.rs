@@ -25,8 +25,12 @@
 //!   dropped, moved out of or addressed; a counted parameter outside the
 //!   exit set, which the body does not own, is also never stored into;
 //!   neither is in the exit set ([`binding_locals`]);
+//! - at each suspension point, whose cancellation leaves through the
+//!   exit, every owned value has a row in the unwind set and every owned
+//!   local that may hold a value is in the exit set ([`Balance`]);
 //! - the exit set's rows are sorted, once each, and name a sub-body and a
-//!   local of the body;
+//!   local of the body; the unwind set's are sorted, once each, and name a
+//!   suspension point and a value;
 //! - nothing tier 2 reserves: no `FlagSet`, `FlagClear` or `regions` row.
 //!
 //! The walks follow the body's layout: dense tables indexed by instruction,
@@ -131,6 +135,21 @@ fn decided(b: &Body, errs: &mut Vec<VerifyError>) {
         let key = |(s, l): (hd_base::SubId, hd_base::LocalId)| (s.raw(), l.raw());
         if k > 0 && key(b.exit_drops[k - 1]) >= key((sub, local)) {
             err(errs, NONE, format!("exit drop row {k} is out of order"));
+        }
+    }
+    for (k, &(at, v)) in b.unwind_drops.iter().enumerate() {
+        let point = b.tags.get(at as usize).is_some_and(|&t| is_suspension(t));
+        if !point || v as usize >= b.len() {
+            err(
+                errs,
+                at,
+                format!(
+                    "unwind drop row {k} names %{v} at %{at}, which is no value at a suspension point"
+                ),
+            );
+        }
+        if k > 0 && b.unwind_drops[k - 1] >= (at, v) {
+            err(errs, at, format!("unwind drop row {k} is out of order"));
         }
     }
 }
@@ -1327,11 +1346,23 @@ impl<'a> Balance<'a> {
             }
         };
         match b.tags[x as usize] {
-            // A local a borrow is stored into holds no count.
+            // A local a borrow is stored into holds no count. A store
+            // refills what parts were taken.
             Tag::Store if !is_borrow(b, w) => {
                 if let Some(l) = local(a) {
                     self.set_full(st, l, true);
+                    let key = b.len() + l;
+                    for s in self.slot_start[key]..self.slot_start[key + 1] {
+                        self.put_slot(st, s, false);
+                    }
                 }
+            }
+            // A `move` read or a `Drop` of a part of a local takes it.
+            Tag::Read | Tag::Drop
+                if (b.tags[x as usize] == Tag::Drop || w == ReadMode::Move as u32)
+                    && let Some((l, true)) = local_root(b, a) =>
+            {
+                self.local_part(x, l, st);
             }
             Tag::Drop if a & place::BARE_LOCAL != 0 => {
                 self.set_full(st, (a & !place::BARE_LOCAL) as usize, false);
@@ -1345,6 +1376,9 @@ impl<'a> Balance<'a> {
                 }
             }
             _ => {}
+        }
+        if is_suspension(b.tags[x as usize]) {
+            self.at_point(x, st);
         }
         let k = self.num[x as usize];
         if k != NONE {
@@ -1391,10 +1425,29 @@ impl<'a> Balance<'a> {
             .filter(|&s| st[base + (s / 64) as usize] & (1 << (s % 64)) != 0)
             .map(|s| self.slot_word[s as usize])
             .collect();
-        let rest = rest_counted(self.b, self.cx, v, &taken);
+        let rest = rest_counted(self.b, self.cx, self.b.ty[v as usize], &taken);
         self.put(st, 0, k, rest);
         self.put(st, 1, k, true);
         self.put(st, 2, k, true);
+    }
+
+    /// Instruction `x` takes a part of local `l`: the local is empty once
+    /// the parts taken on the path cover every counted leaf.
+    fn local_part(&mut self, x: u32, l: usize, st: &mut Set) {
+        let s = self.slot_of[x as usize];
+        if s == NONE {
+            return;
+        }
+        self.put_slot(st, s, true);
+        let key = self.b.len() + l;
+        let base = 3 * self.words + self.lwords;
+        let taken: Vec<u32> = (self.slot_start[key]..self.slot_start[key + 1])
+            .filter(|&s| st[base + (s / 64) as usize] & (1 << (s % 64)) != 0)
+            .map(|s| self.slot_word[s as usize])
+            .collect();
+        if !rest_counted(self.b, self.cx, self.b.local_ty[l], &taken) {
+            self.set_full(st, l, false);
+        }
     }
 
     /// Block `blk`'s tail, taken by the block's value when its owner uses
@@ -1440,6 +1493,38 @@ impl<'a> Balance<'a> {
                     format!("local ${l} may hold a value at the exit, which does not drop it"),
                 );
                 break;
+            }
+        }
+    }
+
+    /// Suspension point `x`, whose cancellation leaves through the exit:
+    /// every value owned there has a row in the unwind set, which releases
+    /// it, and every local that may hold a value is in the exit set.
+    fn at_point(&mut self, x: u32, st: &Set) {
+        let rows = &self.b.unwind_drops;
+        let at = rows.partition_point(|r| r.0 < x);
+        let mut row = rows[at..].iter().take_while(|r| r.0 == x).map(|r| r.1);
+        let mut next = row.next();
+        for v in 0..self.num.len() {
+            let k = self.num[v];
+            while next.is_some_and(|w| (w as usize) < v) {
+                next = row.next();
+            }
+            if k != NONE && self.bit(st, 0, k) && next != Some(u32_of(v)) {
+                let what =
+                    format!("%{v} is owned at suspension point %{x}, whose unwind set lacks it");
+                self.err(x, what);
+                return;
+            }
+        }
+        for l in 0..self.b.local_ty.len() {
+            let w = 3 * self.words + l / 64;
+            if st[w] & (1 << (l % 64)) != 0 && !self.exit[l] {
+                self.err(
+                    x,
+                    format!("local ${l} may hold a value at suspension point %{x}, and the exit does not drop it"),
+                );
+                return;
             }
         }
     }
@@ -1685,6 +1770,20 @@ impl<'a> Balance<'a> {
     }
 }
 
+/// The local at the root of the place at `word`, and whether the place is
+/// a part of it; `None` for a place with another root.
+fn local_root(b: &Body, word: u32) -> Option<(usize, bool)> {
+    if word & place::BARE_LOCAL != 0 {
+        return Some(((word & !place::BARE_LOCAL) as usize, false));
+    }
+    let at = word as usize;
+    let n = *b.extra.get(at)?;
+    match b.extra.get(at + 1..at + 3)? {
+        &[place::ROOT_LOCAL, l] if (l as usize) < b.local_ty.len() => Some((l as usize, n > 2)),
+        _ => None,
+    }
+}
+
 /// The instruction value at the root of the place at `word`, and whether
 /// the place is a part of it (a projection follows); `None` for a place
 /// with another root.
@@ -1715,8 +1814,13 @@ fn part_slots(b: &Body) -> (Vec<u32>, Vec<u32>, Vec<u32>) {
             Tag::Drop => true,
             _ => false,
         };
-        if take && let Some((v, true)) = value_root(b, a) {
+        if !take {
+            continue;
+        }
+        if let Some((v, true)) = value_root(b, a) {
             takes.push((v, u32_of(i)));
+        } else if let Some((l, true)) = local_root(b, a) {
+            takes.push((u32_of(n + l), u32_of(i)));
         }
     }
     let rec = |x: u32| {
@@ -1726,7 +1830,8 @@ fn part_slots(b: &Body) -> (Vec<u32>, Vec<u32>, Vec<u32>) {
     };
     takes.sort_by(|p, q| p.0.cmp(&q.0).then_with(|| rec(p.1).cmp(rec(q.1))));
     let mut slot_of = vec![NONE; n];
-    let mut slot_start = vec![0u32; n + 1];
+    let keys = n + b.local_ty.len();
+    let mut slot_start = vec![0u32; keys + 1];
     let mut slot_word = Vec::new();
     for (k, &(v, x)) in takes.iter().enumerate() {
         let fresh = k == 0 || takes[k - 1].0 != v || rec(takes[k - 1].1) != rec(x);
@@ -1736,7 +1841,7 @@ fn part_slots(b: &Body) -> (Vec<u32>, Vec<u32>, Vec<u32>) {
         }
         slot_of[x as usize] = u32_of(slot_word.len() - 1);
     }
-    for v in 0..n {
+    for v in 0..keys {
         slot_start[v + 1] += slot_start[v];
     }
     (slot_of, slot_start, slot_word)
@@ -1746,7 +1851,7 @@ fn part_slots(b: &Body) -> (Vec<u32>, Vec<u32>, Vec<u32>) {
 /// `move` read or a `Drop` took, still holds a counted leaf beside them: a
 /// counted field that no taken place covers, or a step whose type's parts
 /// `cx` does not give.
-fn rest_counted(b: &Body, cx: &dyn OwnCx, v: u32, taken: &[u32]) -> bool {
+fn rest_counted(b: &Body, cx: &dyn OwnCx, ty: hd_types::Ty, taken: &[u32]) -> bool {
     let paths: Vec<Vec<Proj>> = taken
         .iter()
         .filter_map(|&w| b.decode_place(w).map(|p| p.proj))
@@ -1755,7 +1860,7 @@ fn rest_counted(b: &Body, cx: &dyn OwnCx, v: u32, taken: &[u32]) -> bool {
         return true;
     }
     let all: Vec<&[Proj]> = paths.iter().map(Vec::as_slice).collect();
-    uncovered(cx, b.ty[v as usize], &all, 0, &mut Vec::new())
+    uncovered(cx, ty, &all, 0, &mut Vec::new())
 }
 
 /// Whether a value of type `ty` at depth `depth` of the places `paths`

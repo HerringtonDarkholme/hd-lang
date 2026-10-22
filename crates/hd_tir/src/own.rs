@@ -18,10 +18,13 @@
 //! the `Drop` it leaves with nothing to release; then **pair
 //! cancellation** (`pairs`), which turns a `copy` of a part whose base's
 //! `Drop` follows with nothing in between that touches the part into a
-//! `move`, and deletes or splits that drop. Known-null and hoisting are
-//! later commits of stage 2; each only weakens or deletes what insertion
-//! writes, so the pipeline is correct after any prefix. Insertion rebuilds
-//! the body once ([`splice`]); borrow, move and pair cancellation record
+//! `move`, and deletes or splits that drop; then **known-null** (`known`),
+//! which deletes the `Drop`s no path reaches with a count, drops the exit
+//! rows of locals empty at every way out, and writes each suspension
+//! point's unwind set. Hoisting is a later commit of stage 2; each pass
+//! only weakens or deletes what insertion writes, so the pipeline is
+//! correct after any prefix. Insertion rebuilds the body once
+//! ([`splice`]); borrow, move, pair cancellation and known-null record
 //! their edits for one more rebuild at the end.
 //!
 //! The passes read the body and [`OwnCx`], signature and layout facts the
@@ -37,6 +40,7 @@ use crate::ir::{Body, Callee, IntrinsicOp, NONE, Op, Ref, Tag, place};
 mod borrow;
 mod fold;
 mod insert;
+mod known;
 mod moves;
 mod pairs;
 mod splice;
@@ -506,16 +510,17 @@ pub struct OwnScratch {
     pub(crate) borrow: borrow::Tables,
     pub(crate) fold: fold::Tables,
     pub(crate) insert: insert::Tables,
+    pub(crate) known: known::Tables,
     pub(crate) moves: moves::Tables,
     pub(crate) pairs: pairs::Tables,
     pub(crate) splice: splice::Tables,
 }
 
 /// Runs the ownership passes over every sub-body of `b`, in order: place
-/// folding ([`fold`]), insertion, borrow, move, then pair cancellation.
-/// The last three record their deletions and insertions in one set of
-/// edits, applied once at the end. A body the passes cannot handle is refused, with what
-/// stopped them.
+/// folding ([`fold`]), insertion, borrow, move, pair cancellation, then
+/// known-null. The last four record their deletions and insertions in one
+/// set of edits, applied once at the end. A body the passes cannot handle
+/// is refused, with what stopped them.
 pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(), String> {
     fold::run(b, cx, &mut scratch.fold);
     insert::run(b, cx, scratch)?;
@@ -528,6 +533,7 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
         &mut scratch.pairs,
         &mut scratch.splice,
     );
+    known::run(b, cx, &mut scratch.known, &mut scratch.splice);
     splice::apply(b, &mut scratch.splice)
 }
 
@@ -637,6 +643,9 @@ mod tests {
         for (s, l) in &b.exit_drops {
             let _ = writeln!(out, "exit {} ${}", s.raw(), l.raw());
         }
+        for (at, v) in &b.unwind_drops {
+            let _ = writeln!(out, "unwind %{at} %{v}");
+        }
         out
     }
 
@@ -666,9 +675,10 @@ mod tests {
 
     /// A local read twice: insertion copies both reads and drops the local
     /// after its last access, the second read; move turns that read into a
-    /// move and deletes the drop. The parameter likewise. Both stay in the
-    /// exit set. (A block lists the blocks its statements run; they are not
-    /// statements.)
+    /// move and deletes the drop. The parameter likewise. The local, empty
+    /// at the exit, leaves the exit set (known-null); the parameter stays,
+    /// since the backend reads a parameter outside it as unowned. (A block
+    /// lists the blocks its statements run; they are not statements.)
     #[test]
     fn a_local_read_at_its_last_access_moves_and_its_drop_goes() {
         let text = passes(
@@ -690,7 +700,7 @@ mod tests {
             text,
             "%0 Call\n%1 Store [$1] %0\n%2 Read copy [$1]\n%3 Call %2\n%4 Read move [$1]\n\
              %5 Read move [$0]\n%6 Call %4 %5\n%7 Drop [%4]\n%8 Drop [%5]\n\
-             %9 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8]\nexit 0 $0\nexit 0 $1\n"
+             %9 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8]\nexit 0 $0\n"
         );
     }
 
@@ -837,7 +847,8 @@ mod tests {
     /// Borrow: a local read that only lends, with no write of the local
     /// before its value's last use, borrows, and its drop goes. A read whose
     /// local a store replaces before its value's last use cannot borrow; as
-    /// nothing reads the old value after it, it moves instead.
+    /// nothing reads the old value after it, it moves instead. Empty at the
+    /// exit after its last read moves, the local leaves the exit set.
     #[test]
     fn a_lent_read_borrows_unless_its_place_is_written_in_its_span() {
         let n = NodeIdx::from_raw(1);
@@ -862,7 +873,7 @@ mod tests {
             text,
             "%0 Call\n%1 Store [$0] %0\n%2 Read borrow [$0]\n%3 Call %2\n%4 Read move [$0]\n\
              %5 Call\n%6 Store [$0] %5\n%7 Call %4\n%8 Drop [%4]\n%9 Read move [$0]\n%10 Call %9\n\
-             %11 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8 %9 %10]\nexit 0 $0\n"
+             %11 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8 %9 %10]\n"
         );
     }
 
@@ -1043,5 +1054,112 @@ mod tests {
                 .iter()
                 .any(|e| e.what.contains("after its consumer or its drop"))
         );
+    }
+
+    /// Known-null: a local moved on every branch of an `If` is empty after
+    /// it, so the drop move left there goes; a local moved on one branch
+    /// keeps it. Both are empty at the exit, so neither has an exit row.
+    #[test]
+    fn a_drop_after_branches_that_all_move_goes() {
+        let n = NodeIdx::from_raw(1);
+        let text = passes(
+            |b| {
+                let x = local(b, 0);
+                let y = local(b, 0);
+                let s = call(b, 7, &[], Ty::STRING);
+                b.set(x, s, n);
+                let t = call(b, 7, &[], Ty::STRING);
+                b.set(y, t, n);
+                let c = call(b, 6, &[], Ty::BOOL);
+                let then = b.open_block();
+                let r = b.get(x, Ty::STRING, n);
+                call(b, 9, &[r], Ty::VOID);
+                let r = b.get(y, Ty::STRING, n);
+                call(b, 9, &[r], Ty::VOID);
+                let then = b.close_block(then, None, Ty::VOID, n);
+                let els = b.open_block();
+                let r = b.get(x, Ty::STRING, n);
+                call(b, 9, &[r], Ty::VOID);
+                let els = b.close_block(els, None, Ty::VOID, n);
+                let arms = b.refs_record(&[then, els]);
+                b.emit(Tag::If, c.0, arms, Ty::VOID, n);
+                None
+            },
+            Ty::VOID,
+        );
+        assert_eq!(
+            text,
+            "%0 Call\n%1 Store [$0] %0\n%2 Call\n%3 Store [$1] %2\n%4 Call\n%5 Read move [$0]\n\
+             %6 Call %5\n%7 Read move [$1]\n%8 Call %7\n%9 Block [%5 %6 %7 %8]\n\
+             %10 Read move [$0]\n%11 Call %10\n%12 Block [%10 %11]\n%13 If %4\n%14 Drop [$1]\n\
+             %15 Block [%0 %1 %2 %3 %4 %9 %12 %13 %14]\n"
+        );
+    }
+
+    /// Known-null in a loop: a local stored and moved on each round is
+    /// empty at the loop's head and after it, so the drop after the loop
+    /// and its exit row go.
+    #[test]
+    fn a_drop_after_a_loop_that_moves_each_round_goes() {
+        let n = NodeIdx::from_raw(1);
+        let text = passes(
+            |b| {
+                let x = local(b, 0);
+                let s = call(b, 7, &[], Ty::STRING);
+                b.set(x, s, n);
+                let lp = b.open_loop();
+                let body = b.open_block();
+                let r = b.get(x, Ty::STRING, n);
+                call(b, 9, &[r], Ty::VOID);
+                let c = call(b, 6, &[], Ty::BOOL);
+                let then = b.open_block();
+                b.emit(Tag::Break, lp.0.raw(), NONE, Ty::NEVER, n);
+                let then = b.close_block(then, None, Ty::NEVER, n);
+                let arms = b.refs_record(&[then]);
+                b.emit(Tag::If, c.0, arms, Ty::VOID, n);
+                let t = call(b, 7, &[], Ty::STRING);
+                b.set(x, t, n);
+                let body = b.close_block(body, None, Ty::VOID, n);
+                b.close_loop(lp, body, Ty::VOID, n);
+                None
+            },
+            Ty::VOID,
+        );
+        assert!(!text.contains("Drop [$0]"), "{text}");
+        assert!(!text.contains("exit 0 $0"), "{text}");
+    }
+
+    /// Known-null at a suspension point: its unwind set lists the values
+    /// that may hold a count there, a lent argument and a value consumed
+    /// after it, and a local that may hold a value there keeps its exit
+    /// row although it is empty at the exit itself; a local moved before
+    /// it leaves the exit set.
+    #[test]
+    fn a_suspension_point_unwinds_what_it_holds() {
+        let n = NodeIdx::from_raw(1);
+        let text = passes(
+            |b| {
+                let x = local(b, 0);
+                let y = local(b, 0);
+                let s = call(b, 7, &[], Ty::STRING);
+                b.set(x, s, n);
+                let r = b.get(x, Ty::STRING, n);
+                call(b, 9, &[r], Ty::VOID);
+                let s = call(b, 7, &[], Ty::STRING);
+                b.set(y, s, n);
+                let a = call(b, 7, &[], Ty::STRING);
+                let t = call(b, 7, &[], Ty::STRING);
+                let aw = call(b, 8, &[a], Ty::VOID);
+                b.body_mut().tags[aw.0 as usize] = Tag::Await;
+                call(b, 9, &[t], Ty::VOID);
+                let r = b.get(y, Ty::STRING, n);
+                call(b, 9, &[r], Ty::VOID);
+                None
+            },
+            Ty::VOID,
+        );
+        assert!(text.contains("exit 0 $1\n"), "{text}");
+        assert!(!text.contains("exit 0 $0"), "{text}");
+        assert!(text.contains("unwind %8 %6\nunwind %8 %7\n"), "{text}");
     }
 }

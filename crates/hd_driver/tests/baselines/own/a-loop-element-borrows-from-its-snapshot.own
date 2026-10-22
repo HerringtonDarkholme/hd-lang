@@ -58,4 +58,4 @@ app/main/count
   %51 = Intrinsic SnapEnd [%49 %50] : ()
   %52 = Drop [%49] : ()
   %53 = Drop [%50] : ()
-  exit sub 0 drops [$0 $2 $3]
+  exit sub 0 drops [$0]

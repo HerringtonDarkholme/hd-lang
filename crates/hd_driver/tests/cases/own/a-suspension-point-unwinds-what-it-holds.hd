@@ -1,0 +1,18 @@
+# @dump: own
+# Known-null at a suspension point: a cancellation there leaves through
+# the exit, so `kept`, read after the point, keeps its exit row, while
+# `done`, moved into `size` before it, leaves the exit set. The point's
+# unwind set lists the values that may hold a count there: the reference
+# to the joined name it lends to the call, which a cancellation must
+# release.
+fn greet!(name: &string) -> usize: name.len()
+
+fn size(text: string) -> usize: text.len()
+
+fn run!(first: string, last: string) -> usize:
+    let done = first + "!"
+    let kept = last + "?"
+    let n = size(done)
+    # subject
+    let m = greet!(&(first + last))
+    n + kept.len() + m

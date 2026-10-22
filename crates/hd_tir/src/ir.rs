@@ -818,6 +818,14 @@ pub struct Body {
     /// drops it. Sorted, each row once. A pass output: empty in the
     /// checker's TIR (invariant 22), never written to the wire.
     pub exit_drops: Vec<(SubId, LocalId)>,
+    /// The ownership passes' unwind set (`docs/compiler/tir-v2.md`,
+    /// "Known-null"): per row, a suspension point and an owned value that
+    /// may still hold a count there, which the point's cancellation, a way
+    /// out the body has no jump for, releases. The exit releases the exit
+    /// set on that way out too, so the locals need no rows. Sorted, each
+    /// row once. A pass output: empty in the checker's TIR (invariant 22),
+    /// never written to the wire.
+    pub unwind_drops: Vec<(u32, u32)>,
     /// Lifetime regions of borrows, per row an instruction and its region,
     /// sorted (`docs/compiler/tir-v2.md`, "Encoding, wire format and
     /// caching"): reserved for tier 2, so empty in tier 1 (invariants 22
@@ -853,6 +861,7 @@ impl Body {
             label: "".into(),
             fallback: vec![],
             exit_drops: vec![],
+            unwind_drops: vec![],
             regions: vec![],
         }
     }
@@ -1975,13 +1984,14 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
             what,
         });
     }
-    if !b.exit_drops.is_empty() || !b.regions.is_empty() {
+    if !b.exit_drops.is_empty() || !b.unwind_drops.is_empty() || !b.regions.is_empty() {
         errs.push(VerifyError {
             invariant: 22,
             inst: NONE,
             what: format!(
-                "{} exit drop and {} region rows before the ownership passes",
+                "{} exit drop, {} unwind drop and {} region rows before the ownership passes",
                 b.exit_drops.len(),
+                b.unwind_drops.len(),
                 b.regions.len()
             ),
         });
@@ -2449,6 +2459,9 @@ pub fn print(b: &Body) -> String {
     for (sub, local) in &b.exit_drops {
         let _ = writeln!(o, "exitdrop {} {}", sub.raw(), local.raw());
     }
+    for (inst, value) in &b.unwind_drops {
+        let _ = writeln!(o, "unwinddrop {inst} {value}");
+    }
     for (inst, region) in &b.regions {
         let _ = writeln!(o, "region {inst} {region}");
     }
@@ -2598,6 +2611,13 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
                 }
                 b.exit_drops
                     .push((SubId::from_raw(v[0]), LocalId::from_raw(v[1])));
+            }
+            "unwinddrop" => {
+                let v = nums(1)?;
+                if v.len() != 2 {
+                    return Err(e("unwinddrop needs 2 fields".into()));
+                }
+                b.unwind_drops.push((v[0], v[1]));
             }
             "region" => {
                 let v = nums(1)?;
@@ -3364,7 +3384,7 @@ mod tests {
     }
 
     /// Invariant 22: the checker's TIR has no ownership: no decided read
-    /// mode, no ownership statement, no exit set or region row.
+    /// mode, no ownership statement, no exit set, unwind set or region row.
     #[test]
     fn checker_output_has_no_ownership() {
         use super::{ReadMode, verify};
@@ -3378,6 +3398,9 @@ mod tests {
         assert!(verify(&rows).is_empty());
         rows.exit_drops
             .push((SubId::from_raw(0), LocalId::from_raw(1)));
+        assert_eq!(findings(&verify(&rows)), [(22, NONE)]);
+        rows.exit_drops.clear();
+        rows.unwind_drops.push((0, 0));
         assert_eq!(findings(&verify(&rows)), [(22, NONE)]);
     }
 
@@ -3393,6 +3416,7 @@ mod tests {
         });
         body.exit_drops
             .push((SubId::from_raw(0), LocalId::from_raw(1)));
+        body.unwind_drops.push((2, 0));
         body.regions.push((0, 3));
         assert_eq!(parse(&print(&body)).expect("parses"), body);
     }

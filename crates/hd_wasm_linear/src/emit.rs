@@ -1034,6 +1034,10 @@ struct Em<'i, 'a, 'm> {
     /// How many `using` dispose suites that wait the instruction being
     /// emitted is inside: their points are shielded (`susp.rs`).
     shield: u32,
+    /// The suspension point, or the cleanup scope whose ladder, an
+    /// `Exit::Cancel` being taken leaves from: an owned body releases the
+    /// unwind rows of the points it holds ([`Em::release_unwound`]).
+    cancel_from: u32,
     /// The locals of the collection copies that operands were stored as
     /// (`list.rs`, `copy_src`), each owning one count until the exit.
     temps: Vec<u32>,
@@ -1141,6 +1145,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             blocks: Vec::new(),
             susp: None,
             shield: 0,
+            cancel_from: NONE,
             temps: Vec::new(),
             cells: shared,
             entry_cells: hd_base::HashSet::default(),

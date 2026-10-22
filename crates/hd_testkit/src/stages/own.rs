@@ -7,8 +7,9 @@ use hd_sched::SerialOrder;
 /// build reads, as the ownership passes leave it
 /// (`docs/compiler/tir-v2.md`, "Where and when the passes run"): the
 /// instructions whose source lies inside the subject, by each
-/// instruction's own syntax node, the locals they name and the body's exit
-/// set, after the body's path; then the build's diagnostics.
+/// instruction's own syntax node, the locals they name, the body's exit
+/// set and the unwind sets of the suspension points shown, after the
+/// body's path; then the build's diagnostics.
 pub(super) fn view(p: &super::Program, at: super::Build) -> String {
     let built = build(p, at);
     let mut pool = hd_driver::PositionPool::default();
@@ -50,13 +51,26 @@ pub(super) fn view(p: &super::Program, at: super::Build) -> String {
             }
         }
         let last = lines.iter().map(|(lo, _)| *lo).max().unwrap_or(first);
-        for (lo, l) in lines {
+        let shown: Vec<&str> = lines.iter().map(|&(_, l)| l).collect();
+        for &(lo, l) in &lines {
             out.at(lo);
             let _ = writeln!(out, "  {l}");
         }
         out.at(last);
         for exit in own.text.lines().filter(|l| l.trim().starts_with("exit ")) {
             let _ = writeln!(out, "  {}", exit.trim());
+        }
+        // The unwind sets of the suspension points shown.
+        for unwind in own.text.lines().map(str::trim) {
+            let Some(point) = unwind
+                .strip_prefix("unwind ")
+                .and_then(|r| r.split(' ').next())
+            else {
+                continue;
+            };
+            if shown.iter().any(|&l| l.split(' ').next() == Some(point)) {
+                let _ = writeln!(out, "  {unwind}");
+            }
         }
     }
     if out.flat.is_empty() && !built.diags.has_errors() {

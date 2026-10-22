@@ -520,6 +520,7 @@ pub struct Body {
     pub label: Box<str>,                // what a Fact body is attached to, for panics
     pub fallback: Vec<[u32; 2]>,        // overflow checks on a literal's usize default; outside the hash
     pub exit_drops: Vec<(SubId, LocalId)>, // the ownership passes' exit set; never on the wire
+    pub unwind_drops: Vec<(u32, u32)>,  // the ownership passes' unwind set: (suspension point, value); never on the wire
     pub regions: Vec<(u32, u32)>,       // tier 2's lifetime regions (reserved): empty
 }
 pub struct Inst(pub u32);
@@ -790,7 +791,12 @@ nothing in b, and its type is `void`.
 
 A body's one exit per sub-body drops the locals of its exit set,
 `exit_drops`: rows of a sub-body and a local, sorted, which the passes
-write. `regions` is tier 2's (reserved) and stays empty.
+write. A suspension point's cancellation, a way out no TIR jump spells,
+releases the values of its unwind set, `unwind_drops`: rows of a
+suspension point and a value, sorted, which the known-null pass
+writes; it then leaves through the exit, so the exit set holds every
+local that may hold a value at a suspension point. `regions` is tier
+2's (reserved) and stays empty.
 
 **Providers**
 
@@ -1037,7 +1043,8 @@ The verifier checks each of these:
     root is never written in place.
 22. **The checker's TIR has no ownership**: every `Read` has mode `use`,
     no `Ref` takes a count, and there is no `Drop`, `IsUnique`, `Pin`,
-    `FlagSet` or `FlagClear`, no `exit_drops` row and no `regions` row.
+    `FlagSet` or `FlagClear`, no `exit_drops`, `unwind_drops` or
+    `regions` row.
 23. **After the ownership passes, ownership balances**: every owned
     value has exactly one consumer or one `Drop` on each path; no `Read`
     of a place follows its `move` on any path without a `Store` in
@@ -1099,13 +1106,15 @@ body built elsewhere, such as a generated structure method, gets
     consumer or `Drop`, owned locals that may hold a value), joined by
     union: a use or a `Drop` after a value's consumer or drop on some
     path, a value still owned where its sub-body ends or where a loop
-    that computes it goes round, and a local that may hold a value at
-    the exit outside the exit set are errors. A `move` read of a whole
-    value consumes it; a `move` read or a `Drop` of a part of one takes
-    that part, which a fourth bit set records: more parts, or a `Drop`
-    of what is left, may follow, and nothing else. That the parts cover
-    every counted leaf is not checked; the move pass writes the drops of
-    the rest from `OwnCx::parts`. A `Ref` that takes its local's count
+    that computes it goes round, a local that may hold a value at the
+    exit outside the exit set, and at a suspension point an owned value
+    outside its unwind set or such a local are errors. A `move` read of
+    a whole value consumes it; a `move` read or a `Drop` of a part of a
+    value or a local takes that part, which a fourth bit set records
+    (one bit per distinct part place): more parts, or a `Drop` of what
+    is left, may follow, and nothing else, and once the parts taken on
+    the path cover every counted leaf (`OwnCx::parts`) the value or the
+    local is empty. A `Ref` that takes its local's count
     empties the local, as a `move` read of it does. Which uses consume is
     `own::operands` and `own::consumes`, with `OwnCx`'s parameter modes
     and counted types; `verify_owned` takes the same `OwnCx` as the
@@ -1169,8 +1178,15 @@ body built elsewhere, such as a generated structure method, gets
   `copy` that no path reads after into a `move` (a `Ref` of a whole
   celled local into a taking one), deletes the `Drop` that follows it
   in its block, and splits a base's drop into its other parts' when a
-  part moves; a use of a borrow keeps what it lives on live. Insertion
-  rebuilds the body once, and borrow and move record their edits for
+  part moves; a use of a borrow keeps what it lives on live; then pair
+  cancellation (`own/pairs.rs`): a `copy` of a part whose base's `Drop`
+  follows in a straight line moves and the drop goes or splits; then
+  known-null (`own/known.rs`): a forward walk of which owned locals and
+  values may hold a count deletes the `Drop`s no path reaches with one,
+  removes the exit rows of locals empty at every way out (a `Return`,
+  the root's end, a suspension point; never a parameter's or a
+  capture's), and writes each suspension point's unwind set. Insertion
+  rebuilds the body once, and the other passes record their edits for
   one more rebuild at the end, renumbering it (`own/splice.rs`). They
   read the body and `OwnCx` (counted types, parameter modes, how a body
   receives its own parameters, `may_write`, the in-place parts of a
@@ -1202,7 +1218,7 @@ with its per-item interface hash), for code keys.
   into another run's IDs.
 - **Checker output only.** The ownership passes run after decoding, so
   the wire refuses their output: an ownership statement, and an
-  `exit_drops` or `regions` row, are structured errors. A taking `Ref`
+  `exit_drops`, `unwind_drops` or `regions` row, are structured errors. A taking `Ref`
   comes only with its local's exit row.
 - **The TIR hash** (`tir_hash`) is the hash of the hashed prefix. Because
   tables are per body, it is a function of that body alone, the same on

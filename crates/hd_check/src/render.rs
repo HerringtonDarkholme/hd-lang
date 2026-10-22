@@ -419,5 +419,16 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
             let _ = writeln!(o, "  exit sub {s} drops [{}]", locals.join(" "));
         }
     }
+    // The ownership passes' unwind set, per suspension point
+    // (`Body::unwind_drops`).
+    let mut rows = b.unwind_drops.iter().peekable();
+    while let Some(&(at, v)) = rows.next() {
+        let mut values = vec![format!("%{v}")];
+        while let Some(&&(_, v)) = rows.peek().filter(|r| r.0 == at) {
+            values.push(format!("%{v}"));
+            rows.next();
+        }
+        let _ = writeln!(o, "  unwind %{at} drops [{}]", values.join(" "));
+    }
     o
 }

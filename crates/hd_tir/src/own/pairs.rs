@@ -69,11 +69,8 @@ const EMPTY: Slot = Slot {
 /// Pair cancellation's dense tables, reused across bodies.
 #[derive(Default)]
 pub(crate) struct Tables {
-    /// Per instruction: a statement an earlier pass deleted.
-    dead: Vec<bool>,
-    /// Each block's edits (by block instruction), by position.
-    row_start: Vec<u32>,
-    row: Vec<u32>,
+    /// The blocks as the borrow and move passes' edits leave them.
+    pending: splice::Pending,
     /// Per candidate base (the move pass's bit): its first-level parts'
     /// slots in `acc` (`off`, `width` of them), its whole slot, and the
     /// nearest touch that takes no part (a temporary's).
@@ -165,37 +162,8 @@ pub(crate) fn run(
         return;
     }
     let n = b.len();
-    t.dead.clear();
-    t.dead.resize(n, false);
-    for &(_, x) in edits.removed() {
-        t.dead[x as usize] = true;
-    }
-    // Each block's edits, by position, in recording order.
     let k = edits.len();
-    t.row_start.clear();
-    t.row_start.resize(n + 1, 0);
-    for e in 0..k {
-        let (blk, ..) = edits.get(u32_of(e));
-        t.row_start[blk as usize + 1] += 1;
-    }
-    for i in 0..n {
-        t.row_start[i + 1] += t.row_start[i];
-    }
-    t.row.clear();
-    t.row.resize(k, 0);
-    t.bits.clear();
-    t.bits.extend_from_slice(&t.row_start[..n]);
-    for e in 0..k {
-        let (blk, ..) = edits.get(u32_of(e));
-        t.row[t.bits[blk as usize] as usize] = u32_of(e);
-        t.bits[blk as usize] += 1;
-    }
-    for i in 0..n {
-        let (a, z) = (t.row_start[i] as usize, t.row_start[i + 1] as usize);
-        if z - a > 1 {
-            t.row[a..z].sort_by_key(|&e| (edits.get(e).1, e));
-        }
-    }
+    t.pending.build(n, edits);
     // The first-level parts any place names of each candidate base.
     t.width.clear();
     t.width.resize(bits, 0);
@@ -272,22 +240,18 @@ fn block(
     let n = u32_of(b.len());
     let rec = b.data[blk as usize][0] as usize;
     let len = b.extra[rec] as usize;
-    let (r0, r1) = (
-        t.row_start[blk as usize] as usize,
-        t.row_start[blk as usize + 1] as usize,
-    );
-    let mut y = r1;
+    let mut y = t.pending.of(blk).len();
     for p in (0..=len).rev() {
         if p < len {
             let m = b.extra[rec + 1 + p];
-            if !t.dead[m as usize] {
+            if !t.pending.dead[m as usize] {
                 statement(b, cx, mt, t, edits, m);
             }
         }
         // The edits before position `p`, backward.
-        while y > r0 && edits.get(t.row[y - 1]).1 as usize >= p {
+        while y > 0 && edits.get(t.pending.of(blk)[y - 1]).1 as usize >= p {
             y -= 1;
-            let e = t.row[y];
+            let e = t.pending.of(blk)[y];
             if edits.get(e).1 as usize == p {
                 edit(b, mt, t, edits, e, n);
             }

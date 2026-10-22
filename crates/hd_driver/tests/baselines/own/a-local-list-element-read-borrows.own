@@ -10,5 +10,4 @@ app/main/total
   %48 = Call std/text/impl string.len[] (%47) : usize
   %49 = Prim Add [%44 %48] : usize
   %50 = Store [$6] %49 : ()
-  exit sub 0 drops [$1]
 warning: main.hd:227..228: unused-local-binding: `i` is never read; name it `_i` to keep it
