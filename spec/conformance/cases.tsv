@@ -3224,6 +3224,7 @@ runtime/panic/cli-duplicate-option.hd	runtime	panic:explicit-panic	std/cli.md#r-
 runtime/valid/regex-literals-escapes.hd	runtime	accept	std/regex.md#literals-and-escapes
 runtime/valid/regex-classes.hd	runtime	accept	std/regex.md#classes
 runtime/valid/regex-anchors-groups.hd	runtime	accept	std/regex.md#anchors-groups-and-alternation
+runtime/valid/regex-model-properties.hd	runtime	accept	std/regex.md#r-std-regex.find.leftmost
 runtime/valid/regex-repetition.hd	runtime	accept	std/regex.md#repetition
 runtime/valid/regex-leftmost-first.hd	runtime	accept	std/regex.md#searching
 runtime/valid/regex-linear-time.hd	runtime	accept	std/regex.md#time-bound
