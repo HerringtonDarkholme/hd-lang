@@ -410,7 +410,7 @@ fn files() -> Files:
 7. r[std-cli.positional.rest] A repeated positional, including a typed `List[T]` field, consumes the remaining plain arguments in order.
 8. r[std-cli.positional.rest-values] `values(name)` returns every value of a repeated positional, and `value(name)` returns its last value.
 9. r[std-cli.positional.rest-last] Declaring a positional after a repeated positional panics with a message naming both fields. Panic: `explicit-panic`.
-10. r[std-cli.positional.short-conflict] A positional retains the builder's refusal of short spellings. Panic: `explicit-panic`.
+10. r[std-cli.positional.value-short-conflict] A positional value argument retains the builder's refusal of short spellings. Panic: `explicit-panic`.
 
 > **Why.** A rest list must be last among positional declarations, so later
 > fields cannot become unreachable. Option declarations may follow it.
@@ -455,6 +455,7 @@ fn notes() -> Notes:
 14. r[std-cli.typed-commands.no-repeated] A repeated command field, including one inside a wrapper, returns `InvalidValue` naming that field when parsing.
 15. r[std-cli.typed-commands.help-scope] Child help uses the full command path, beginning with the `Args` program name for `parse_args`.
 16. r[std-cli.typed-commands.optional-usage] An optional or defaulted command's usage term is `[<command>]`.
+17. r[std-cli.typed-commands.no-field-facts] A command field carrying `Short` or `Positional` returns `InvalidValue` naming the field when parsing.
 
 > **Why.** Each level selects one command and delegates its remaining
 > input, without implicitly flattening records. Repeated commands would

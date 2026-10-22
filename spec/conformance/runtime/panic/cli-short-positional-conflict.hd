@@ -1,5 +1,5 @@
 # test: Short and Positional cannot configure the same CLI field
-# Spec std/cli: std-cli.positional.short-conflict.
+# Spec std/cli: std-cli.positional.value-short-conflict.
 use std.cli.{Cli, short, positional}
 @derive(Cli)
 struct Config:

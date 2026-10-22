@@ -1,0 +1,73 @@
+# test: subcommand fields reject Short and Positional instead of ignoring them
+# Spec std/cli: std-cli.typed-commands.no-field-facts, std-cli.positional.value-short-conflict.
+use std.cli.{Cli, short, positional}
+
+@derive(Cli)
+struct Options:
+    value: string = "x"
+
+@derive(Cli)
+enum Command:
+    Run(Options)
+    Stop
+
+@derive(Cli)
+struct ShortCommand:
+    @short('c')
+    action: Command
+
+@derive(Cli)
+struct PositionalCommand:
+    @positional
+    operation: Command
+
+@derive(Cli)
+struct BothFacts:
+    @short('b')
+    @positional
+    both: Command
+
+@derive(Cli)
+struct OptionalCommand:
+    @short('o')
+    optional: Command?
+
+@derive(Cli)
+type Wrapped(Command)
+
+@derive(Cli)
+struct WrappedCommand:
+    @positional
+    wrapped: Wrapped
+
+tests:
+    use std.testing.assert_equal
+
+    it("Short is refused with the actual field name"):
+        match ShortCommand::parse(["stop"]):
+            .Err(.InvalidValue(name, reason)) =>
+                assert_equal(name, "action", reason="source field")
+                assert_equal(reason, "subcommand field `action` cannot have a short option", reason="named refusal")
+            _ => panic("expected Short refusal")
+
+    it("Positional is refused with the actual field name"):
+        match PositionalCommand::parse(["stop"]):
+            .Err(.InvalidValue(name, reason)) =>
+                assert_equal(name, "operation", reason="source field")
+                assert_equal(reason, "subcommand field `operation` cannot be a positional value", reason="named refusal")
+            _ => panic("expected Positional refusal")
+
+    it("both facts are refused deterministically rather than ignored"):
+        match BothFacts::parse([]):
+            .Err(.InvalidValue(name, reason)) =>
+                assert_equal(name, "both", reason="source field")
+                assert_equal(reason, "subcommand field `both` cannot have a short option", reason="first refusal")
+            _ => panic("expected both-facts refusal")
+
+    it("optional and newtype wrappers retain the fact refusal"):
+        match OptionalCommand::parse([]):
+            .Err(.InvalidValue(name, _)) => assert_equal(name, "optional", reason="optional wrapper")
+            _ => panic("expected optional Short refusal")
+        match WrappedCommand::parse([]):
+            .Err(.InvalidValue(name, _)) => assert_equal(name, "wrapped", reason="newtype wrapper")
+            _ => panic("expected wrapped Positional refusal")

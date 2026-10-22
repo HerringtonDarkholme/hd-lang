@@ -442,6 +442,12 @@ impl[T] Cli for T by Structure:
             if describer.payload:
                 describer.finish_variant()
                 binding := scalar_arg(arg).name
+                if arg.short.is_some():
+                    parser.declaration_error = .Some(.InvalidValue(binding, "subcommand field `$binding` cannot have a short option"))
+                    return
+                if arg.kind == .Positional:
+                    parser.declaration_error = .Some(.InvalidValue(binding, "subcommand field `$binding` cannot be a positional value"))
+                    return
                 if arg.repeated:
                     parser.declaration_error = .Some(.InvalidValue(binding, "a subcommand field cannot be repeated"))
                     return
