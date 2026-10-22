@@ -10,7 +10,7 @@ use hd_base::HashMap;
 use std::fmt::Write as _;
 use std::sync::Mutex;
 
-use hd_base::{AppendVec, DefId, Hash128, ModuleId, PathId, StableHasher};
+use hd_base::{AppendVec, DefId, Hash128, PathId, StableHasher, Symbol};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -50,16 +50,17 @@ pub struct ImplSeg {
 
 const SHARDS: usize = 16;
 
-type PathIndex = Mutex<HashMap<(u32, PathKind, Box<str>), PathId>>;
+type PathIndex = Mutex<HashMap<(PathId, PathKind, Symbol), PathId>>;
 
 /// The trie. Columns are append-only, so a reader indexes without a lock;
 /// the shards guard only the dedup index.
 pub struct PathTable {
     parent: AppendVec<PathId>,
-    seg: AppendVec<Box<str>>,
+    seg: AppendVec<Symbol>,
+    symbols: ShardedInterner,
     kind: AppendVec<PathKind>,
     hash: AppendVec<Hash128>,
-    def_module: AppendVec<ModuleId>,
+    def_module: AppendVec<PathId>,
     append: Mutex<()>,
     /// The names declared type and row parameters are written with, by
     /// owner and position, for messages (the trie holds no parameter nodes).
@@ -72,6 +73,7 @@ impl Default for PathTable {
         Self {
             parent: AppendVec::new(),
             seg: AppendVec::new(),
+            symbols: ShardedInterner::default(),
             kind: AppendVec::new(),
             hash: AppendVec::new(),
             def_module: AppendVec::new(),
@@ -88,26 +90,54 @@ impl PathTable {
         Self::default()
     }
 
+    /// The shard depends only on the compact key, not the path's stable hash.
+    fn shard(parent: PathId, kind: PathKind, symbol: Symbol) -> usize {
+        (parent.raw() as usize)
+            .wrapping_mul(31)
+            .wrapping_add((kind as usize).wrapping_mul(17))
+            .wrapping_add(symbol.raw() as usize)
+            % SHARDS
+    }
+
+    /// Finds an existing node without adding a path or a segment symbol.
+    #[must_use]
+    pub fn find(&self, parent: PathId, kind: PathKind, seg: &str) -> Option<PathId> {
+        let symbol = self.symbols.find(seg)?;
+        self.index[Self::shard(parent, kind, symbol)]
+            .lock()
+            .expect("path shard")
+            .get(&(parent, kind, symbol))
+            .copied()
+    }
+
     /// Interns one node under `parent` (`PathId::NONE` for a package root).
     pub fn intern(&self, parent: PathId, kind: PathKind, seg: &str) -> PathId {
+        // No symbol lock remains held when acquiring a path shard.
+        let symbol = self.symbols.intern(seg);
+        let key = (parent, kind, symbol);
+        let mut idx = self.index[Self::shard(parent, kind, symbol)]
+            .lock()
+            .expect("path shard");
+        if let Some(&id) = idx.get(&key) {
+            return id;
+        }
         let mut h = StableHasher::new("path");
         h.hash(parent.get().map_or(Hash128(0), |p| self.hash(p)));
         h.u8(kind as u8);
         h.str(seg);
         let hash = h.finish();
-        let shard = usize::try_from(hash.0 % SHARDS as u128).expect("shard");
-        let key = (parent.raw(), kind, Box::<str>::from(seg));
-        let mut idx = self.index[shard].lock().expect("path shard");
-        if let Some(&id) = idx.get(&key) {
-            return id;
-        }
         let _g = self.append.lock().expect("path append");
         let row = self.parent.push(parent);
-        self.seg.push(seg.into());
+        let id = PathId::from_raw(row);
+        self.seg.push(symbol);
         self.kind.push(kind);
         self.hash.push(hash);
-        self.def_module.push(ModuleId::NONE);
-        let id = PathId::from_raw(row);
+        self.def_module
+            .push(if matches!(kind, PathKind::Package | PathKind::Module) {
+                id
+            } else {
+                self.def_module(parent)
+            });
         idx.insert(key, id);
         id
     }
@@ -150,11 +180,12 @@ impl PathTable {
     }
     #[must_use]
     pub fn segment(&self, id: PathId) -> &str {
-        &self.seg[id.raw()]
+        self.symbols.resolve(self.seg[id.raw()])
     }
     #[must_use]
-    pub fn def_module(&self, id: PathId) -> ModuleId {
-        self.def_module[id.raw()]
+    pub fn def_module(&self, id: PathId) -> PathId {
+        id.get()
+            .map_or(PathId::NONE, |id| self.def_module[id.raw()])
     }
     #[must_use]
     pub fn len(&self) -> u32 {
@@ -228,9 +259,23 @@ impl Default for ShardedInterner {
 }
 
 impl ShardedInterner {
+    fn shard(s: &str) -> usize {
+        usize::try_from(hd_base::hash128(s.as_bytes()).0 % SHARDS as u128).expect("shard")
+    }
+
+    /// Finds an existing symbol without inserting text on a miss.
+    #[must_use]
+    pub fn find(&self, s: &str) -> Option<Symbol> {
+        self.index[Self::shard(s)]
+            .lock()
+            .expect("symbol shard")
+            .get(s)
+            .copied()
+            .map(Symbol::from_raw)
+    }
+
     pub fn intern(&self, s: &str) -> hd_base::Symbol {
-        let shard =
-            usize::try_from(hd_base::hash128(s.as_bytes()).0 % SHARDS as u128).expect("shard");
+        let shard = Self::shard(s);
         let mut idx = self.index[shard].lock().expect("symbol shard");
         if let Some(&id) = idx.get(s) {
             return hd_base::Symbol::from_raw(id);
@@ -277,6 +322,48 @@ mod tests {
             t2.hash(PathId::from_raw(a2.raw())),
             "the hash is content, not ID"
         );
+    }
+
+    #[test]
+    fn finding_paths_never_inserts_paths_or_symbols() {
+        let t = PathTable::new();
+        let package = t.intern(PathId::NONE, PathKind::Package, "app");
+        let module = t.intern(package, PathKind::Module, "data");
+        let item = t.intern(module, PathKind::Item, "Record");
+        let count = (t.len(), t.symbols.len());
+        assert_eq!(t.find(module, PathKind::Item, "Record"), Some(item));
+        assert_eq!(t.find(module, PathKind::Item, "unknown"), None);
+        assert_eq!(t.find(module, PathKind::Member, "Record"), None);
+        assert_eq!(t.find(package, PathKind::Item, "Record"), None);
+        assert_eq!((t.len(), t.symbols.len()), count);
+        assert_eq!(t.intern(module, PathKind::Item, "Record"), item);
+        assert_eq!((t.len(), t.symbols.len()), count);
+    }
+
+    #[test]
+    fn declaring_module_is_the_nearest_module_or_package_node() {
+        let t = PathTable::new();
+        let package = t.intern(PathId::NONE, PathKind::Package, "app");
+        let module = t.intern(package, PathKind::Module, "data");
+        assert_eq!(t.def_module(PathId::NONE), PathId::NONE);
+        assert_eq!(t.def_module(package), package);
+        assert_eq!(t.def_module(module), module);
+        let root_item = t.intern(package, PathKind::Item, "root");
+        assert_eq!(t.def_module(root_item), package);
+        let mut parent = module;
+        for kind in [
+            PathKind::Item,
+            PathKind::Impl,
+            PathKind::Hidden,
+            PathKind::Variant,
+            PathKind::Member,
+        ] {
+            parent = t.intern(parent, kind, "nested");
+            assert_eq!(t.def_module(parent), module);
+        }
+        let nested_module = t.intern(module, PathKind::Module, "child");
+        let nested_item = t.intern(nested_module, PathKind::Item, "Record");
+        assert_eq!(t.def_module(nested_item), nested_module);
     }
 
     #[test]

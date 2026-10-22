@@ -43,32 +43,36 @@ pub struct Names<'a> {
 }
 
 impl Names<'_> {
+    /// Most names already exist; only declaration or generated-name misses insert.
+    fn path_node(&self, parent: PathId, kind: PathKind, segment: &str) -> PathId {
+        self.paths
+            .find(parent, kind, segment)
+            .unwrap_or_else(|| self.paths.intern(parent, kind, segment))
+    }
+
     /// The trie node of a dotted module path (`app.geo.shapes`): the first
     /// segment is the package.
     #[must_use]
     pub fn module(&self, module: &str) -> PathId {
         let mut segs = module.split('.');
-        let mut p = self
-            .paths
-            .intern(PathId::NONE, PathKind::Package, segs.next().unwrap_or(""));
+        let package = segs.next().unwrap_or("");
+        let mut p = self.path_node(PathId::NONE, PathKind::Package, package);
         for s in segs {
-            p = self.paths.intern(p, PathKind::Module, s);
+            p = self.path_node(p, PathKind::Module, s);
         }
         p
     }
     #[must_use]
     pub fn item(&self, module: &str, name: &str) -> DefId {
         DefId::from_raw(
-            self.paths
-                .intern(self.module(module), PathKind::Item, name)
+            self.path_node(self.module(module), PathKind::Item, name)
                 .raw(),
         )
     }
     #[must_use]
     pub fn member(&self, owner: DefId, kind: PathKind, name: &str) -> DefId {
         DefId::from_raw(
-            self.paths
-                .intern(PathId::from_raw(owner.raw()), kind, name)
+            self.path_node(PathId::from_raw(owner.raw()), kind, name)
                 .raw(),
         )
     }
@@ -90,12 +94,7 @@ impl Names<'_> {
     /// The dotted path of the module that declares `d` (`std.format`).
     #[must_use]
     pub fn module_of(&self, d: DefId) -> String {
-        let mut p = PathId::from_raw(d.raw());
-        while p.get().is_some()
-            && !matches!(self.paths.kind(p), PathKind::Module | PathKind::Package)
-        {
-            p = self.paths.parent(p);
-        }
+        let mut p = self.module_node(d);
         let mut segs = Vec::new();
         while p.get().is_some() {
             segs.push(self.paths.segment(p).to_owned());
@@ -114,13 +113,7 @@ impl Names<'_> {
     /// or package ancestor.
     #[must_use]
     pub fn module_node(&self, d: DefId) -> PathId {
-        let mut p = PathId::from_raw(d.raw());
-        while p.get().is_some()
-            && !matches!(self.paths.kind(p), PathKind::Module | PathKind::Package)
-        {
-            p = self.paths.parent(p);
-        }
-        p
+        self.paths.def_module(PathId::from_raw(d.raw()))
     }
     /// The stable path of an item, for messages and relocations.
     #[must_use]
