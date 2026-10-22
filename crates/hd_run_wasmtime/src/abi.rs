@@ -263,6 +263,7 @@ pub enum HostError {
     Unsupported { name: String },
     Other { message: String },
     InvalidValue { name: String, reason: String },
+    Missing { name: String },
 }
 
 impl Wire for HostError {
@@ -285,10 +286,14 @@ impl Wire for HostError {
                 name.enc(e);
                 reason.enc(e);
             }
+            Self::Missing { name } => {
+                e.leb(4);
+                name.enc(e);
+            }
         }
     }
     fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
-        Ok(match d.tag(4)? {
+        Ok(match d.tag(5)? {
             0 => Self::NotGranted {
                 subject: Wire::dec(d)?,
             },
@@ -298,9 +303,12 @@ impl Wire for HostError {
             2 => Self::Other {
                 message: Wire::dec(d)?,
             },
-            _ => Self::InvalidValue {
+            3 => Self::InvalidValue {
                 name: Wire::dec(d)?,
                 reason: Wire::dec(d)?,
+            },
+            _ => Self::Missing {
+                name: Wire::dec(d)?,
             },
         })
     }

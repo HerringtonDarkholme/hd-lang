@@ -288,7 +288,7 @@ fn decode_error() -> wasmtime::Error {
 #[cfg(test)]
 mod tests {
     use super::{Dec, Enc, Handle, Wire, encode};
-    use crate::abi::{Entry, EntryKind, FsError, NetError, Path};
+    use crate::abi::{Entry, EntryKind, FsError, HostError, NetError, Path};
 
     fn round_trip<T: Wire + PartialEq + std::fmt::Debug>(value: &T, bytes: &[u8]) {
         assert_eq!(encode(value).done(), bytes, "{value:?}");
@@ -404,6 +404,19 @@ mod tests {
                 },
             },
             &[4, 1, b'o', 1, b'e', 14, 4, b't', b'o', b'o', b'l'],
+        );
+        round_trip(
+            &HostError::InvalidValue {
+                name: "PORT".into(),
+                reason: "bad".into(),
+            },
+            &[3, 4, b'P', b'O', b'R', b'T', 3, b'b', b'a', b'd'],
+        );
+        round_trip(
+            &HostError::Missing {
+                name: "PORT".into(),
+            },
+            &[4, 4, b'P', b'O', b'R', b'T'],
         );
         round_trip(&NetError::Closed, &[5]);
         let err = EntryKind::dec(&mut Dec::new(&[3])).expect_err("no fourth kind");

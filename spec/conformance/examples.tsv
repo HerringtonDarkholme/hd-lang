@@ -837,8 +837,9 @@ std/host.md	1	type-fragment	-
 std/host.md	2	type-fragment	-
 std/host.md	3	accept	runtime/valid/host-env-as.hd
 std/host.md	4	type-fragment	-
-std/host.md	5	accept	runtime/valid/host-args-env.hd
-std/host.md	6	accept	runtime/valid/map-args-env.hd
+std/host.md	5	accept	runtime/valid/env-decode-record.hd
+std/host.md	6	accept	runtime/valid/host-args-env.hd
+std/host.md	7	accept	runtime/valid/map-args-env.hd
 std/fs.md	1	type-fragment	-
 std/fs.md	2	type-fragment	-
 std/fs.md	3	type-fragment	-
@@ -868,8 +869,8 @@ std/net.md	6	accept	runtime/valid/net-local-address.hd
 std/net.md	7	accept	runtime/valid/net-own-provider.hd
 std/net.md	8	accept	runtime/valid/net-scripted-stream.hd
 std/net.md	9	accept	runtime/valid/net-scripted-servers.hd
-std/host.md	7	type-fragment	-
-std/host.md	8	accept	runtime/valid/map-sys.hd
+std/host.md	8	type-fragment	-
+std/host.md	9	accept	runtime/valid/map-sys.hd
 std/random.md	1	type-fragment	-
 std/random.md	2	accept	typing/valid/random-trait.hd
 std/random.md	3	accept	runtime/valid/seeded-random.hd

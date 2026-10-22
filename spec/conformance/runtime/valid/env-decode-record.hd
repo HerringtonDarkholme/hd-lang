@@ -1,0 +1,81 @@
+# test: env_decode reads only declared environment names through Deserialize
+# Spec std/host Environment: std-host.env-decode.decl, std-host.env-decode.field-name,
+# std-host.env-decode.override-name, std-host.env-decode.names-independent,
+# std-host.env-decode.unset-null, std-host.env-decode.optional, std-host.env-decode.default,
+# std-host.env-decode.scalar, std-host.env-decode.list-separator, std-host.env-decode.list-no-trim,
+# std-host.env-decode.list-empty, std-host.env-decode.custom-deserialize, std-host.env-decode.declared-reads.
+use std.host.{Env, HostError, ScriptedEnv, env_decode, env_name}
+use std.serde.{Deserialize, Deserializer, rename}
+
+struct Token:
+    text: string
+
+impl Deserialize for Token:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[Token, R::Error]:
+        text := input.text("token")?
+        .Ok(Token { text: text.upper() })
+
+@derive(Deserialize)
+struct Config:
+    deploy_token: string
+    @env_name("REGIONS")
+    @rename("jsonRegions")
+    region_names: List[string]
+    @rename("wirePort")
+    listen_port: u16 = 8080
+    workers: i32 = -1
+    enabled: bool = false
+    ratio: f64 = 0.5
+    optional_label: string?
+    fallback_regions: List[string] = ["backup"]
+    token: Token
+
+# A forwarding API needs only Deserialize, without an Inspectable bound.
+fn forwarded[T < Deserialize]() -> Result[T, HostError] $ Env:
+    env_decode::[T]()
+
+struct DeclaredEnv:
+    values: Map[string, string]
+
+impl Env for DeclaredEnv:
+    fn get(self, name: string) -> string?:
+        if !["DEPLOY_TOKEN", "REGIONS", "LISTEN_PORT", "WORKERS", "ENABLED", "RATIO", "OPTIONAL_LABEL", "FALLBACK_REGIONS", "TOKEN"].contains(name):
+            panic("unexpected environment name: $name")
+        self.values.get(name)
+    fn names(self) -> List[string]:
+        panic("env_decode must not enumerate environment names")
+
+tests:
+    use std.testing.assert_equal
+
+    it("uppercase and EnvName are independent of serde rename"):
+        vars := ScriptedEnv::new({"DEPLOY_TOKEN": "demo", "REGIONS": "eu, us,,ap ", "LISTEN_PORT": "9000", "WORKERS": "-3", "ENABLED": "true", "RATIO": "1.25", "OPTIONAL_LABEL": "", "FALLBACK_REGIONS": "primary,secondary", "TOKEN": "mixed", "jsonRegions": "wrong", "wirePort": "wrong"})
+        $.with(Env=&vars):
+            config := forwarded::[Config]().expect("typed configuration")
+            assert_equal(config.deploy_token, "demo", reason="the declared member name becomes uppercase")
+            assert_equal(config.region_names, ["eu", " us", "", "ap "], reason="EnvName replaces the name and comma items are not trimmed")
+            assert_equal(config.listen_port, 9000, reason="serde rename does not change the environment name")
+            assert_equal(config.workers, -3, reason="signed integers go through Deserialize")
+            assert_equal(config.enabled, true, reason="bool goes through Deserialize")
+            assert_equal(config.ratio, 1.25, reason="float goes through Deserialize")
+            assert_equal(config.optional_label, .Some(""), reason="an explicitly empty scalar is present")
+            assert_equal(config.fallback_regions, ["primary", "secondary"], reason="a present list replaces its declared default")
+            assert_equal(config.token.text, "MIXED", reason="a custom Deserialize reads the field without another trait")
+
+    it("unset fields use defaults and None while an empty list is present"):
+        vars := ScriptedEnv::new({"DEPLOY_TOKEN": "demo", "REGIONS": "", "TOKEN": "local"})
+        $.with(Env=&vars):
+            config := env_decode::[Config]().expect("defaulted configuration")
+            assert_equal(config.region_names, [], reason="an explicitly empty variable is an empty list")
+            assert_equal(config.listen_port, 8080, reason="an absent numeric member takes its declared default")
+            assert_equal(config.workers, -1, reason="an absent signed member takes its declared default")
+            assert_equal(config.enabled, false, reason="an absent bool takes its declared default")
+            assert_equal(config.ratio, 0.5, reason="an absent float takes its declared default")
+            assert_equal(config.optional_label, .None, reason="an unset optional member is None")
+            assert_equal(config.fallback_regions, ["backup"], reason="an absent list takes its declared default")
+
+    it("only declared variables are queried and names is never called"):
+        vars := DeclaredEnv { values: {"DEPLOY_TOKEN": "demo", "REGIONS": "one", "TOKEN": "guarded", "UNRELATED": "ignored"} }
+        $.with(Env=&vars):
+            config := env_decode::[Config]().expect("declared reads only")
+            assert_equal(config.token.text, "GUARDED", reason="decoding succeeds without enumeration or unrelated reads")

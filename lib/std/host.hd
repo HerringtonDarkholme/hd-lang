@@ -4,6 +4,9 @@
 # The default profile binds host `Args`, `Env`, and `Sys`
 # (src/commands/default-profile.ts).
 use std.error.Error
+use std.annotation.annotate
+use std.serde.{Deserialize, Deserializer, ValueKind}
+use std.structure.{Facts, Member, VariantInfo}
 use std.text.Parse
 
 ## The host capability to read the process's arguments.
@@ -41,8 +44,145 @@ pub fn env_as[T < Parse[Error = E], E < Display](name: string) -> Result[T?, Hos
         .Ok(value) => .Ok(.Some(value))
         .Err(error) => .Err(HostError.InvalidValue(name, error.to_string()))
 
+## The environment variable name used when deserializing this field.
+## See [std-host.env-decode.name-fact](../../spec/std/host.md#r-std-host.env-decode.name-fact).
+@annotate(.Field)
+@derive(Debug)
+pub struct EnvName:
+    pub name: string
+
+## Overrides the environment variable name for one field.
+## See [std-host.env-decode.name-constructor](../../spec/std/host.md#r-std-host.env-decode.name-constructor).
+pub fn env_name(name: string) -> EnvName:
+    EnvName { name: name }
+
+## Reads a record from its declared environment variables through Deserialize.
+## See [std-host.env-decode.decl](../../spec/std/host.md#r-std-host.env-decode.decl).
+pub fn env_decode[T < Deserialize]() -> Result[T, HostError] $ Env:
+    let mut reader = EnvReader { vars: $.use(Env) }
+    T::deserialize(&mut reader)
+
+# A flat environment format: root record, named members, and scalar text
+# or a comma-separated list for each member. The default Deserialize source
+# supplies declared defaults after is_absent reports an unset variable.
+struct EnvReader:
+    vars: &dyn Env
+    record: bool = false
+    positioned: bool = false
+    name: string = ""
+    current: string? = .None
+    items: List[string] = []
+    at: usize = 0
+    in_list: bool = false
+
+impl EnvReader:
+    fn root_error(&self) -> HostError:
+        .Other("env_decode needs a struct with named fields")
+
+    fn read_text(&mut self, expected: string) -> Result[string, HostError]:
+        if !self.record || !self.positioned:
+            return .Err(self.root_error())
+        match self.current:
+            .Some(text) => .Ok(text)
+            .None => .Err(HostError.Missing(self.name))
+
+    fn parse[T < Parse[Error = E], E < Display](&mut self, expected: string) -> Result[T, HostError]:
+        text := self.read_text(expected)?
+        match T::parse(text):
+            .Ok(value) => .Ok(value)
+            .Err(error) => .Err(HostError.InvalidValue(self.name, error.to_string()))
+
+impl Deserializer for EnvReader:
+    type Error = HostError
+
+    fn peek(&mut self) -> Result[ValueKind, HostError]:
+        if !self.record || !self.positioned:
+            return .Err(self.root_error())
+        .Ok(if self.current.is_some(): .Text else: .Null)
+
+    fn is_null(&mut self) -> Result[bool, HostError]:
+        if !self.record || !self.positioned:
+            return .Err(self.root_error())
+        .Ok(self.current.is_none())
+
+    fn is_absent(&mut self) -> bool:
+        self.current.is_none()
+
+    fn bool(&mut self, expected: string) -> Result[bool, HostError]:
+        self.parse::[bool](expected)
+
+    fn int(&mut self, expected: string) -> Result[i64, HostError]:
+        self.parse::[i64](expected)
+
+    fn uint(&mut self, expected: string) -> Result[u64, HostError]:
+        self.parse::[u64](expected)
+
+    fn float(&mut self, expected: string) -> Result[f64, HostError]:
+        self.parse::[f64](expected)
+
+    fn text(&mut self, expected: string) -> Result[string, HostError]:
+        self.read_text(expected)
+
+    fn begin_list(&mut self) -> Result[void, HostError]:
+        if self.in_list:
+            return .Err(self.invalid("a scalar list item"))
+        text := self.read_text("list")?
+        self.items = if text == "": [] else: text.split(",")
+        self.at = 0
+        self.in_list = true
+        .Ok(())
+
+    fn next_item(&mut self) -> Result[bool, HostError]:
+        if !self.in_list:
+            return .Err(self.invalid("list"))
+        if self.at >= self.items.len():
+            self.in_list = false
+            return .Ok(false)
+        self.current = .Some(self.items[self.at])
+        self.at += 1
+        .Ok(true)
+
+    fn begin_map(&mut self) -> Result[void, HostError]:
+        .Err(self.invalid("a scalar or list"))
+
+    fn next_key(&mut self) -> Result[string?, HostError]:
+        .Err(self.invalid("a scalar or list"))
+
+    fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, HostError]:
+        if self.record:
+            return .Err(self.invalid("a scalar or list"))
+        if choices.len() != 1 || !choices[0].of_data || choices[0].name == "":
+            return .Err(self.root_error())
+        self.record = true
+        .Ok(0)
+
+    fn member(&mut self, m: Member) -> Result[void, HostError]:
+        if m.positional:
+            return .Err(self.root_error())
+        self.name = match m.facts.find::[EnvName]():
+            .Some(fact) => fact.name
+            .None => m.name.upper()
+        if self.name == "":
+            return .Err(HostError.InvalidValue(m.name, "empty environment name"))
+        self.positioned = true
+        self.current = self.vars.get(self.name)
+        self.items = []
+        self.at = 0
+        self.in_list = false
+        .Ok(())
+
+    fn end_variant(&mut self) -> Result[void, HostError]:
+        .Ok(())
+
+    fn invalid(&mut self, expected: string) -> HostError:
+        if !self.record || !self.positioned:
+            return self.root_error()
+        if self.current.is_none():
+            return .Missing(self.name)
+        .InvalidValue(self.name, "expected $expected")
+
 ## Why a host read failed, including a variable that could not be parsed.
-## See [std-host.error.decl](../../spec/std/host.md#r-std-host.error.decl).
+## See [std-host.error.typed-env-decl](../../spec/std/host.md#r-std-host.error.typed-env-decl).
 @error
 @derive(Debug, Eq)
 pub enum HostError:
@@ -54,6 +194,8 @@ pub enum HostError:
     Other(message: string)
     @error("invalid value for ${name}: ${reason}")
     InvalidValue(name: string, reason: string)
+    @error("missing environment variable $name")
+    Missing(name: string)
 
 # The deterministic `Args` (spec/std/host.md#map-providers):
 # it returns the program name and the arguments it was made with.

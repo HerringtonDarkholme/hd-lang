@@ -71,6 +71,7 @@ export const HostError = variants({
   Unsupported: { name: str },
   Other: { message: str },
   InvalidValue: { name: str, reason: str },
+  Missing: { name: str },
 });
 export const Response = data({
   status: unsigned,

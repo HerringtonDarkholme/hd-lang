@@ -128,7 +128,8 @@
       { "name": "NotGranted", "fields": [{ "name": "subject", "type": "string" }] },
       { "name": "Unsupported", "fields": [{ "name": "name", "type": "string" }] },
       { "name": "Other", "fields": [{ "name": "message", "type": "string" }] },
-      { "name": "InvalidValue", "fields": [{ "name": "name", "type": "string" }, { "name": "reason", "type": "string" }] }
+      { "name": "InvalidValue", "fields": [{ "name": "name", "type": "string" }, { "name": "reason", "type": "string" }] },
+      { "name": "Missing", "fields": [{ "name": "name", "type": "string" }] }
     ] },
     "HttpError": { "kind": "enum", "module": "lib/std/http.hd", "generics": [], "variants": [
       { "name": "NotGranted", "fields": [{ "name": "host", "type": "string" }] },

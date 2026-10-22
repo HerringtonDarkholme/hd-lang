@@ -1,0 +1,90 @@
+# test: env_decode reports missing or invalid variables and refuses non-record roots
+# Spec std/host Environment: std-host.env-decode.record-root, std-host.env-decode.root-error,
+# std-host.env-decode.empty-name, std-host.env-decode.missing, std-host.env-decode.invalid-value,
+# std-host.error.missing-display.
+use std.host.{Env, HostError, ScriptedEnv, env_decode, env_name}
+use std.serde.Deserialize
+
+@derive(Deserialize)
+struct Amount:
+    amount: i32
+
+@derive(Deserialize)
+struct Items:
+    items: List[string]
+
+@derive(Deserialize)
+struct Flag:
+    enabled: bool
+
+@derive(Deserialize)
+struct Count:
+    count: u8
+
+@derive(Deserialize)
+struct BadName:
+    @env_name("")
+    deploy_token: string
+
+@derive(Deserialize)
+enum Mode:
+    Fast
+    Slow
+
+fn failure[T < Deserialize](values: Map[string, string]) -> HostError:
+    vars := ScriptedEnv::new(values)
+    $.with(Env=&vars):
+        match env_decode::[T]():
+            .Err(error) => error
+            .Ok(_) => panic("decoding should fail")
+
+struct NoReadsEnv: pass
+
+impl Env for NoReadsEnv:
+    fn get(self, name: string) -> string?:
+        panic("the refused root or empty name must not read a variable")
+    fn names(self) -> List[string]:
+        panic("env_decode must not enumerate environment names")
+
+fn without_reads[T < Deserialize]() -> HostError:
+    $.with(Env=&NoReadsEnv {}):
+        match env_decode::[T]():
+            .Err(error) => error
+            .Ok(_) => panic("decoding should fail before reading variables")
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("absent required scalar and list members name the variable"):
+        assert_equal(failure::[Amount]({}), HostError.Missing("AMOUNT"), reason="required scalar")
+        error := failure::[Items]({})
+        assert_equal(error, HostError.Missing("ITEMS"), reason="an absent required list does not become empty")
+        assert_equal("$error", "missing environment variable ITEMS", reason="the shared error names the missing variable")
+
+    it("invalid bool and numeric values name the variable and give a reason"):
+        match failure::[Flag]({"ENABLED": "perhaps"}):
+            .InvalidValue(name, reason) =>
+                assert_equal(name, "ENABLED", reason="invalid bool variable")
+                assert(!reason.is_empty(), reason="bool refusal includes its reason")
+            _ => panic("expected InvalidValue for the bool")
+        match failure::[Count]({"COUNT": "many"}):
+            .InvalidValue(name, reason) =>
+                assert_equal(name, "COUNT", reason="invalid numeric variable")
+                assert(!reason.is_empty(), reason="numeric refusal includes its reason")
+            _ => panic("expected InvalidValue for the number")
+        match failure::[Count]({"COUNT": "256"}):
+            .InvalidValue(name, reason) =>
+                assert_equal(name, "COUNT", reason="out-of-range numeric variable")
+                assert(!reason.is_empty(), reason="the scalar's Deserialize can refuse the parsed number")
+            _ => panic("expected InvalidValue for the out-of-range number")
+
+    it("scalar list map enum and tuple roots are refused before environment reads"):
+        expected := HostError.Other("env_decode needs a struct with named fields")
+        assert_equal(without_reads::[i32](), expected, reason="scalar root")
+        assert_equal(without_reads::[List[string]](), expected, reason="list root")
+        assert_equal(without_reads::[Map[string, string]](), expected, reason="map root")
+        assert_equal(without_reads::[Mode](), expected, reason="enum root")
+        assert_equal(without_reads::[(i32, string)](), expected, reason="tuple root")
+
+    it("an empty EnvName names the field and is rejected before Env.get"):
+        assert_equal(without_reads::[BadName](), HostError.InvalidValue("deploy_token", "empty environment name"), reason="the field name identifies the bad override without reading an empty variable")

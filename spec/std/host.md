@@ -6,7 +6,7 @@ This chapter defines `std.host`, which `lib/std` writes in ordinary hd
 over the language tier:
 
 - the host capability traits `Args`, `Env`, and `Sys`;
-- the helpers `args`, `env`, and `env_as`, and the shared `HostError`;
+- the helpers `args`, `env`, `env_as`, and `env_decode`, and the shared `HostError`;
 - `ScriptedArgs`, `ScriptedEnv`, and `ScriptedSys`, their deterministic providers;
 - what every host operation does while it waits, when it is cancelled,
   and with the data it holds.
@@ -66,13 +66,14 @@ pub enum HostError:
     Unsupported(name: string)
     Other(message: string)
     InvalidValue(name: string, reason: string)
+    Missing(name: string)
 ```
 
 1. r[std-host.env-as.shared-error-signature] `std.host` declares `pub fn env_as[T < Parse[Error = E], E < Display](name: string) -> Result[T?, HostError] $ Env`. The call names the type, as in `env_as::[usize]("WORKERS")`.
 2. r[std-host.env-as.unset] When `env(name)` is `.None`, `env_as` returns `.Ok(.None)`.
 3. r[std-host.env-as.present] When `env(name)` is `.Some(text)` and `T::parse(text)` returns `.Ok(value)`, `env_as` returns `.Ok(.Some(value))`.
 4. r[std-host.env-as.invalid-host-error] When `T::parse(text)` returns `.Err(error)`, `env_as` returns `.Err(HostError.InvalidValue(name, reason))`. `reason` is the `Display` text of `error`.
-5. r[std-host.error.decl] `std.host` declares `HostError` with the four variants above.
+5. r[std-host.error.typed-env-decl] `std.host` declares `HostError` with the five variants above.
 6. r[std-host.env-as.plain] `env_as` is a plain call, like `env`.
 7. r[std-host.error.traits] `HostError` implements `Eq`, `Debug`, `Display`, and `Error`.
 8. r[std-host.error.invalid-value-display] `InvalidValue(name, reason)` displays `invalid value for NAME: REASON`.
@@ -84,6 +85,51 @@ pub enum HostError:
 > `os.LookupEnv` reports it apart from an empty value. A set variable that
 > does not parse is a mistake the program should show, so it is an error
 > that names the variable, as `strconv` errors name the text.
+
+### Typed Records
+
+`env_decode` reads a record through the existing
+[`Deserialize`](serde.md#reading) protocol.
+
+```text
+use std.host.{Env, HostError, env_decode}
+use std.serde.Deserialize
+
+@derive(Deserialize)
+struct Config:
+    listen_port: u16 = 8080
+    optional_label: string?
+
+fn config() -> Result[Config, HostError] $ Env:
+    env_decode::[Config]()
+```
+
+1. r[std-host.env-decode.decl] `std.host` declares `pub fn env_decode[T < Deserialize]() -> Result[T, HostError] $ Env`.
+2. r[std-host.env-decode.record-root] The root value must be a struct with named fields.
+3. r[std-host.env-decode.root-error] A non-record root returns `HostError.Other("env_decode needs a struct with named fields")`.
+4. r[std-host.env-decode.field-name] Each field's environment name defaults to its source name converted to uppercase.
+5. r[std-host.env-decode.name-fact] `std.host` declares the non-generic field fact `EnvName` with the public field `name: string`.
+6. r[std-host.env-decode.name-constructor] `std.host` declares `pub fn env_name(name: string) -> EnvName`, which returns `EnvName { name: name }`.
+7. r[std-host.env-decode.override-name] A field's `EnvName.name`, written as `@env_name("REGIONS")`, replaces its default environment name.
+8. r[std-host.env-decode.names-independent] Environment names are independent of serde's document-name facts.
+9. r[std-host.env-decode.empty-name] An empty `EnvName.name` returns `HostError.InvalidValue(field, "empty environment name")`, where `field` is the source field name.
+10. r[std-host.env-decode.empty-name-no-read] An empty `EnvName.name` must be rejected before reading that environment variable.
+11. r[std-host.env-decode.declared-reads] Decoding reads only the fields' selected names through `Env.get`, without calling `Env.names`.
+12. r[std-host.env-decode.unset-null] An unset variable is an absent, null value to the deserializer.
+13. r[std-host.env-decode.optional] Without a declared default, an unset variable for an optional field becomes `.None`.
+14. r[std-host.env-decode.default] A field whose variable is unset uses its declared default when one is present.
+15. r[std-host.env-decode.missing] An absent required field without a declared default returns `HostError.Missing(name)`, including when the field is a list.
+16. r[std-host.env-decode.scalar] Scalar text is read through the deserializer's `bool`, `int`, `uint`, `float`, and `text` methods.
+17. r[std-host.env-decode.list-separator] A list field splits its variable's text on commas.
+18. r[std-host.env-decode.list-no-trim] Splitting a list does not trim its items.
+19. r[std-host.env-decode.list-empty] An explicitly empty variable for a list decodes as `[]`.
+20. r[std-host.env-decode.invalid-value] A refused variable value returns `HostError.InvalidValue(name, reason)`, naming the variable and the refusal reason.
+21. r[std-host.env-decode.custom-deserialize] A field's custom `Deserialize` implementation reads through the same environment deserializer.
+22. r[std-host.env-decode.plain] `env_decode` is a plain call.
+23. r[std-host.error.missing-display] `Missing(name)` displays `missing environment variable NAME`.
+
+> **Why.** Environment and document formats share typed deserialization,
+> while separate field facts keep environment variable names independent.
 
 ## Plain Reads
 

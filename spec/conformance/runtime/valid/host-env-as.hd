@@ -1,5 +1,5 @@
 # test: env_as reads a variable as a Parse type: unset is none, unreadable is an error that names it
-# Spec std/host Typed Variables: std-host.env-as.shared-error-signature, std-host.env-as.unset, std-host.env-as.present, std-host.env-as.invalid-host-error, std-host.error.decl, std-host.env-as.plain (task #372).
+# Spec std/host Typed Variables: std-host.env-as.shared-error-signature, std-host.env-as.unset, std-host.env-as.present, std-host.env-as.invalid-host-error, std-host.error.typed-env-decl, std-host.env-as.plain (task #372).
 use std.host.{Env, HostError, ScriptedEnv, env_as}
 
 fn workers() -> Result[usize, HostError] $ Env:

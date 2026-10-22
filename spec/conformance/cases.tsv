@@ -4250,6 +4250,8 @@ runtime/valid/text-parse-trait.hd	runtime	accept	std/text.md#r-std-text.parse.tr
 runtime/valid/num-parse-trait.hd	runtime	accept	std/num.md#r-std-num.parse.trait-impls
 runtime/valid/cli-value-as.hd	runtime	accept	std/cli.md#r-std-cli.parsed.value-as
 runtime/valid/cli-parsed-value-copy.hd	runtime	accept	std/cli.md#r-std-cli.parsed.private
+runtime/valid/env-decode-errors.hd	runtime	accept	std/host.md#r-std-host.env-decode.decl
+runtime/valid/env-decode-record.hd	runtime	accept	std/host.md#r-std-host.env-decode.decl
 runtime/valid/host-env-as.hd	runtime	accept	std/host.md#r-std-host.env-as.shared-error-signature
 runtime/valid/num-abs.hd	runtime	accept	std/num.md#r-std-num.abs.value
 runtime/panic/num-abs-min-i8.hd	runtime	panic:integer-overflow	std/num.md#r-std-num.abs.min
@@ -4841,7 +4843,7 @@ runtime/valid/iterator-flat-map-iterable.hd	runtime	accept	std/iter.md#r-std-ite
 runtime/valid/task-retry-policy.hd	runtime	accept	std/task.md#retry-with-backoff
 typing/invalid/task-retry-zero-delay-needs-clock.hd	type	reject:missing-requirement	std/task.md#r-std-task.retry.policy.clock
 runtime/valid/list-flat-map-iterable.hd	runtime	accept	std/collections.md#r-std-collections.helper.flat-map.iterable-owned
-runtime/valid/host-shared-error.hd	runtime	accept	std/host.md#r-std-host.error.decl
+runtime/valid/host-shared-error.hd	runtime	accept	std/host.md#r-std-host.error.typed-env-decl
 runtime/valid/http-typed-request-bodies.hd	runtime	accept	std/http.md#r-std-http.request.form-serialize
 runtime/panic/http-form-root-scalar.hd	runtime	panic:explicit-panic	std/http.md#r-std-http.request.form-unsupported
 runtime/panic/http-form-root-list.hd	runtime	panic:explicit-panic	std/http.md#r-std-http.request.form-unsupported
