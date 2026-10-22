@@ -1,0 +1,70 @@
+# test: payload-free enums are CLI choices and compose with records, wrappers and newtypes
+# Spec std/cli: std-cli.enum-values.derive, std-cli.enum-values.names, std-cli.enum-values.invalid, std-cli.enum-values.help, std-cli.enum-values.composition.
+use std.cli.{Cli, CliError, Arg, ArgParser}
+
+@derive(Cli, Eq, Debug)
+enum Format:
+    Json
+    Markdown
+
+@derive(Cli, Eq, Debug)
+enum SortKey:
+    Date
+    Total
+
+@derive(Cli, Eq, Debug)
+enum Style:
+    CompactJson
+    PlainText
+
+@derive(Cli, Eq, Debug)
+type OutputFormat(Format)
+
+@derive(Cli, Eq, Debug)
+struct Report:
+    format: Format
+    sort: SortKey = .Date
+    alternatives: List[Format]
+    fallback: Format?
+    wrapped: OutputFormat = OutputFormat(.Json)
+
+tests:
+    use std.testing.assert_equal
+
+    it("scenario seven reads Format and SortKey values with a default"):
+        report := Report::parse(["--format", "markdown"]).expect("valid format")
+        assert_equal(report.format, .Markdown, reason="selected enum")
+        assert_equal(report.sort, .Date, reason="declared default")
+        assert_equal(report.alternatives, [], reason="absent list")
+        assert_equal(report.fallback, .None, reason="absent option")
+        report2 := Report::parse(["--format=json", "--sort", "total", "--alternatives", "markdown", "--alternatives=json", "--fallback", "json", "--wrapped", "markdown"]).expect("composed choices")
+        assert_equal(report2.sort, .Total, reason="second enum")
+        assert_equal(report2.alternatives, [.Markdown, .Json], reason="ordered repetitions")
+        assert_equal(report2.fallback, .Some(.Json), reason="optional enum")
+        assert_equal(report2.wrapped, OutputFormat(.Markdown), reason="newtype through enum")
+
+    it("html and case mismatches name the field and list allowed values"):
+        assert_equal(Report::parse(["--format", "html"]), .Err(CliError.InvalidValue("format", "expected json or markdown, got html")), reason="closed value set")
+        assert_equal(Report::parse(["--format", "Json"]), .Err(CliError.InvalidValue("format", "expected json or markdown, got Json")), reason="kebab names only")
+        assert_equal(Report::parse(["--format", "json", "--sort", "size"]), .Err(CliError.InvalidValue("sort", "expected date or total, got size")), reason="second option")
+        assert_equal(Report::parse(["--format", "json", "--alternatives", "html"]), .Err(CliError.InvalidValue("alternatives", "expected json or markdown, got html")), reason="repeated enum is validated")
+        assert_equal(Report::parse([]), .Err(CliError.MissingArgument("--format")), reason="required enum")
+
+    it("help lists choices in declaration order"):
+        usage := Report::parser().usage()
+        assert_equal(usage.contains("--format <value>"), true, reason="takes a value")
+        assert_equal(usage.contains("[choices: json, markdown]"), true, reason="format choices")
+        assert_equal(usage.contains("[choices: date, total]"), true, reason="sort choices")
+        match Report::parse(["--help"]):
+            .Err(.Help(text)) => assert_equal(text, usage, reason="ordinary help path")
+            _ => panic("expected help")
+
+    it("root enum and newtype choices use kebab-case variant names"):
+        assert_equal(Style::parse(["compact-json"]), .Ok(Style.CompactJson), reason="PascalCase to kebab-case")
+        assert_equal(Style::parse(["plain-text"]), .Ok(Style.PlainText), reason="other choice")
+        assert_equal(Format::parse(["json"]), .Ok(Format.Json), reason="root enum")
+        assert_equal(OutputFormat::parse(["markdown"]), .Ok(OutputFormat(.Markdown)), reason="root newtype")
+
+    it("read also validates choices when called over a manual parser"):
+        parsed := ArgParser::new("manual").arg(Arg { name: "style" }).parse(["--style", "other"]).expect("raw text")
+        assert_equal(Style::read(parsed, Arg { name: "style" }), .Err(CliError.InvalidValue("style", "expected compact-json or plain-text, got other")), reason="reader cannot manufacture a variant")

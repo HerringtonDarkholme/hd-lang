@@ -959,6 +959,7 @@ std/cli.md	6	accept	runtime/valid/cli-error-exit.hd
 std/cli.md	7	type-fragment	-
 std/cli.md	8	accept	runtime/valid/cli-value-as.hd
 std/cli.md	9	accept	runtime/valid/cli-derived-records.hd
+std/cli.md	10	accept	runtime/valid/cli-enum-values.hd
 std/regex.md	1	accept	runtime/valid/regex-literals-escapes.hd
 std/regex.md	2	accept	runtime/valid/regex-anchors-groups.hd
 std/regex.md	3	accept	runtime/valid/regex-literals-escapes.hd

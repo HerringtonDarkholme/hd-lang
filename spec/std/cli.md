@@ -327,6 +327,36 @@ fn compression() -> u8:
 > **Why.** The typed layer reuses the builder's argument grammar and errors.
 > Records do not implicitly flatten or become subcommands.
 
+### Enum Value Sets
+
+A payload-free enum derives a closed set of CLI values.
+
+```text
+use std.cli.Cli
+
+@derive(Cli)
+enum Format:
+    Json
+    Markdown
+
+@derive(Cli)
+struct Report:
+    format: Format
+
+fn report() -> Report:
+    Report::parse(["--format", "json"]).expect("valid format")
+```
+
+1. r[std-cli.enum-values.derive] `@derive(Cli)` on a payload-free enum reads the selected variant from one argument value.
+2. r[std-cli.enum-values.names] Accepted values are the kebab-case variant names, matched exactly.
+3. r[std-cli.enum-values.invalid] An unknown value returns `InvalidValue(name, reason)`, with `reason` equal to `expected CHOICES, got VALUE`.
+4. r[std-cli.enum-values.choice-order] `CHOICES` joins the kebab-case names in declaration order with ` or `.
+5. r[std-cli.enum-values.help] The generated argument's `choices` contains those names, so ordinary usage text lists them.
+6. r[std-cli.enum-values.composition] Enum values compose with record defaults, `Option`, `List`, and newtypes derived through the enum.
+
+> **Why.** The value set uses the builder's existing choice validation and
+> help layout, while `Source` returns the actual enum variant.
+
 ## Usage Text
 
 `usage` returns the help text. For the `ArgParser` above, with one more flag

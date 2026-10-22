@@ -389,38 +389,50 @@ pub trait Cli:
 
 impl[T] Cli for T by Structure:
     fn declare(parser: &mut ArgParser, arg: Arg) -> void:
-        if !arg.name.is_empty():
-            if parser.declaration_error.is_none():
-                parser.declaration_error = .Some(.InvalidValue(arg.name, "record field `${arg.name}` is not supported; subcommands are an enum"))
-            return
-        parser.program = cli_name(T::name())
-        let mut describer = CliDescriber::[T] { parser: parser, record: false }
+        if arg.name.is_empty():
+            parser.program = cli_name(T::name())
+        let mut describer = CliDescriber::[T] { parser: parser, arg: arg, record: false, choices: [], payload: false }
         _ := T::describe(&mut describer)
         if !describer.record:
-            parser.declaration_error = .Some(.InvalidValue("root", "this Cli derive needs a record"))
+            if describer.payload:
+                parser.declaration_error = .Some(.InvalidValue(arg.name, "this Cli derive needs a record or a payload-free enum"))
+            else:
+                declare_scalar(parser, Arg { ...arg, choices: describer.choices }, cli_name(T::name()))
 
     fn read(parsed: Parsed, arg: Arg) -> Result[T, CliError]:
-        let mut source = CliSource::[T] { parsed: parsed, at: 0 }
+        let mut source = CliSource::[T] { parsed: parsed, arg: arg, at: 0 }
         T::build(&mut source)
 
 struct CliDescriber[S]:
     pub parser: &mut ArgParser
+    pub arg: Arg
     pub record: bool
+    pub choices: List[string]
+    pub payload: bool
 
 impl[S] Describer[S] for CliDescriber[S]:
     type Error = never
 
     fn variant(&mut self, variant: Variant[S]) -> Result[void, never]:
         self.record = variant.info.of_data
+        if self.record:
+            if !self.arg.name.is_empty() && self.parser.declaration_error.is_none():
+                self.parser.declaration_error = .Some(.InvalidValue(self.arg.name, "record field `${self.arg.name}` is not supported; subcommands are an enum"))
+        else:
+            self.choices.push(cli_name(variant.info.name))
         .Ok(())
 
     fn member[F < Cli](&mut self, field: Field[S, F]) -> Result[void, never]:
         if self.record:
-            F::declare(self.parser, cli_arg(field))
+            if self.arg.name.is_empty():
+                F::declare(self.parser, cli_arg(field))
+        else:
+            self.payload = true
         .Ok(())
 
 struct CliSource[S]:
     pub parsed: Parsed
+    pub arg: Arg
     pub at: usize
 
 impl[S] Source[S] for CliSource[S]:
@@ -429,7 +441,17 @@ impl[S] Source[S] for CliSource[S]:
     fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], CliError]:
         if choices.len() == 1 && choices[0].info.of_data:
             return .Ok(choices[0])
-        .Err(.InvalidValue("root", "this Cli derive needs a record"))
+        arg := scalar_arg(self.arg)
+        value := match self.parsed.value(arg.name):
+            .Some(value) => value
+            .None => return .Err(.MissingArgument(argument_name(arg)))
+        let mut names: List[string] = []
+        for choice in choices:
+            name := cli_name(choice.info.name)
+            if name == value:
+                return .Ok(choice)
+            names.push(name)
+        .Err(.InvalidValue(arg.name, "expected ${names.join(" or ")}, got $value"))
 
     fn next(&mut self, members: Members[S]) -> Result[Key[S]?, CliError]:
         if self.at >= members.infos.len():
