@@ -363,10 +363,28 @@ moment: 6.6 ms for a 2M-node tree with `sc` and 16.7 ms with
 `dlmalloc`, about 3 to 8 ns per object. A recursive release also
 overflows the Wasm stack on a long linked list. So release glue for a recursive type is
 iterative, as CPython's "trashcan" and the list variant measured here
-are: it takes the tail while it holds the only reference and loops. A
-bound on the work per release (freeing the rest lazily at the next
-allocations) can cap pauses later if a program needs it; nothing
-measured here asks for it.
+are: it takes the tail while it holds the only reference and loops.
+
+Deferring that work is not a free bound on pauses, for three reasons.
+Freeing a fixed number of objects per allocation does not bound memory
+(Boehm, POPL 2004): pacing has to be by bytes, and then allocation pays
+in proportion to size. In hd, counts are observable: a late decrement
+keeps a list pinned past its reference's last use (`ref.elem.release`),
+so a later `push` panics `collection-pinned`, and a count left high
+makes `rt:list_unique` copy a buffer that was in fact unique. And a
+deferred free saves no work; it only moves it.
+
+A helper thread could free a dead structure's unshared subgraph (count
+1, referenced only from the dead object) while the program keeps its
+non-atomic counts, as Redis's lazy free does for large values. It needs
+shared memory, a settle step before every point the runtime reads a
+count (pins, copy-on-write, `memory.grow`, the leak audit), and it
+excludes cycle-capable types and any type a `Weak[T]` can name, since a
+weak upgrade reaches an object whose count the helper has not yet
+lowered. The measured pause (6.6 ms for 2M nodes) does not ask for any
+of this; a server benchmark of p99 latency on other connections while
+a big value drops, and while a big map grows, would be the evidence to
+reopen it.
 
 ## 5. Interior References
 
