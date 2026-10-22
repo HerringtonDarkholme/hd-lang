@@ -6,6 +6,9 @@ use std.host.Args
 use std.text.{Parse, StringBuilder}
 use std.process.ExitCode
 use std.console.eprintln
+use std.structure.{Structure, Describer, Source, Variant, Field, Members, Key}
+use std.path.Path
+use std.time.Duration
 
 @derive(Eq)
 pub enum ArgKind:
@@ -33,6 +36,7 @@ pub struct ArgParser:
     names: Map[string, bool]
     positional_slots: List[usize]
     commands: Map[string, ArgParser]
+    declaration_error: CliError? = .None
 
 impl ArgParser:
     pub fn new(program: string, about: string = "") -> &mut ArgParser:
@@ -74,7 +78,11 @@ impl ArgParser:
 
     # Pass the input and its offset without copying the tail at every level.
     fn parse_from(&self, arguments: List[string], start: usize) -> Result[Parsed, CliError]:
+        match self.declaration_error:
+            .Some(error) => return .Err(error)
+            .None => pass
         let mut flags: Map[string, bool] = {}
+        let mut flag_counts: Map[string, usize] = {}
         let mut values: Map[string, string] = {}
         let mut histories: Map[string, &mut List[string]] = {}
         let mut positionals: List[string] = []
@@ -117,6 +125,8 @@ impl ArgParser:
                 if attached.is_some():
                     return .Err(CliError.UnexpectedValue(option.name))
                 flags[option.name] = true
+                if option.repeated:
+                    flag_counts[option.name] = flag_counts.get(option.name).unwrap_or(0) + 1
             else:
                 match attached:
                     .Some(value) => store_value(option, value, &mut values, &mut histories)?
@@ -131,7 +141,7 @@ impl ArgParser:
                 present := if arg.kind == .Flag: flags.get(arg.name).unwrap_or(false) else: values.get(arg.name).is_some()
                 if !present:
                     return .Err(CliError.MissingArgument(argument_name(arg)))
-        .Ok(Parsed { present_flags: flags, option_values: values, value_histories: histories, position_values: positionals, selected_command: selected })
+        .Ok(Parsed { present_flags: flags, option_values: values, value_histories: histories, position_values: positionals, selected_command: selected, flag_counts: flag_counts })
 
     pub fn parse_args(&self) -> Result[Parsed, CliError] $ Args:
         self.parse($.use(Args).list())
@@ -217,6 +227,9 @@ pub struct Parsed:
     value_histories: Map[string, &mut List[string]]
     position_values: List[string]
     selected_command: List[(string, Parsed)]
+    flag_counts: Map[string, usize] = {}
+    one_name: string? = .None
+    one_index: usize = 0
 
 impl Parsed:
     ## The selected command and a copy of its parsed arguments, when present.
@@ -228,15 +241,29 @@ impl Parsed:
     ## True when the flag `name` was present.
     ## See [std-cli.parsed.flag-presence](../../spec/std/cli.md#r-std-cli.parsed.flag-presence).
     pub fn flag(self, name: string) -> bool:
+        if self.one_name.is_some() && self.one_name != .Some(name):
+            return false
         self.present_flags.get(name).unwrap_or(false)
 
     ## The value of the option `name`, in `.Some`, or `.None` when it was absent.
     ## See [std-cli.parsed.named-value](../../spec/std/cli.md#r-std-cli.parsed.named-value).
     pub fn value(self, name: string) -> string?:
+        match self.one_name:
+            .Some(selected) =>
+                if name != selected:
+                    return .None
+                match self.value_histories.get(name):
+                    .Some(values) => return values.get(self.one_index)
+                    .None =>
+                        if self.one_index > 0:
+                            return .None
+            .None => pass
         self.option_values.get(name)
 
     ## A copy of every value of the named option or positional, in argument order.
     pub fn values(self, name: string) -> List[string]:
+        if self.one_name.is_some():
+            return self.value(name).map(fn(value): [value]).unwrap_or([])
         match self.value_histories.get(name):
             .Some(buffer) => *buffer
             .None =>
@@ -244,11 +271,31 @@ impl Parsed:
                     .Some(value) => [value]
                     .None => []
 
+    # One field's presence and an O(1) view of one repeated value; the
+    # source maps stay shared and every public list accessor returns a copy.
+    fn has(self, name: string) -> bool:
+        self.flag(name) || self.value(name).is_some()
+
+    fn count(self, name: string) -> usize:
+        if self.one_name.is_some():
+            return if self.has(name): 1 else: 0
+        match self.value_histories.get(name):
+            .Some(values) => return values.len()
+            .None => pass
+        match self.flag_counts.get(name):
+            .Some(count) => return count
+            .None => pass
+        if self.has(name): 1 else: 0
+
+    fn nth(self, name: string, index: usize) -> Parsed:
+        at := if self.one_name == .Some(name): self.one_index + index else: index
+        Parsed { ...self, one_name: .Some(name), one_index: at }
+
     # `value` read as a `T` (r-std-cli.parsed.value-as).
     ## The value of the option `name` read as a `T`: `.None` when absent, an error naming the option when unreadable.
     ## See [std-cli.parsed.value-as](../../spec/std/cli.md#r-std-cli.parsed.value-as).
     pub fn value_as[T < Parse[Error = E], E < Display](self, name: string) -> Result[T?, CliError]:
-        text := match self.option_values.get(name):
+        text := match self.value(name):
             .Some(found) => found
             .None => return .Ok(.None)
         match T::parse(text):
@@ -318,3 +365,259 @@ impl Debug for ArgKind:
             .Flag => out.debug_tuple("ArgKind.Flag").finish()
             .Option => out.debug_tuple("ArgKind.Option").finish()
             .Positional => out.debug_tuple("ArgKind.Positional").finish()
+
+## A type read from command-line declarations and parsed values.
+## See [std-cli.typed.trait](../../spec/std/cli.md#r-std-cli.typed.trait).
+pub trait Cli:
+    fn declare(parser: &mut ArgParser, arg: Arg) -> void
+    fn read(parsed: Parsed, arg: Arg) -> Result[Self, CliError]
+
+    fn parser() -> &mut ArgParser:
+        parser := ArgParser::new("")
+        Self::declare(parser, Arg { name: "", required: true })
+        parser
+
+    fn parse(arguments: List[string]) -> Result[Self, CliError]:
+        parser := Self::parser()
+        Self::read(parser.parse(arguments)?, Arg { name: "", required: true })
+
+    fn parse_args() -> Result[Self, CliError] $ Args:
+        parser := Self::parser()
+        host := $.use(Args)
+        parser.program = host.program()
+        Self::read(parser.parse(host.list())?, Arg { name: "", required: true })
+
+impl[T] Cli for T by Structure:
+    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+        if !arg.name.is_empty():
+            if parser.declaration_error.is_none():
+                parser.declaration_error = .Some(.InvalidValue(arg.name, "record field `${arg.name}` is not supported; subcommands are an enum"))
+            return
+        parser.program = cli_name(T::name())
+        let mut describer = CliDescriber::[T] { parser: parser, record: false }
+        _ := T::describe(&mut describer)
+        if !describer.record:
+            parser.declaration_error = .Some(.InvalidValue("root", "this Cli derive needs a record"))
+
+    fn read(parsed: Parsed, arg: Arg) -> Result[T, CliError]:
+        let mut source = CliSource::[T] { parsed: parsed, at: 0 }
+        T::build(&mut source)
+
+struct CliDescriber[S]:
+    pub parser: &mut ArgParser
+    pub record: bool
+
+impl[S] Describer[S] for CliDescriber[S]:
+    type Error = never
+
+    fn variant(&mut self, variant: Variant[S]) -> Result[void, never]:
+        self.record = variant.info.of_data
+        .Ok(())
+
+    fn member[F < Cli](&mut self, field: Field[S, F]) -> Result[void, never]:
+        if self.record:
+            F::declare(self.parser, cli_arg(field))
+        .Ok(())
+
+struct CliSource[S]:
+    pub parsed: Parsed
+    pub at: usize
+
+impl[S] Source[S] for CliSource[S]:
+    type Error = CliError
+
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], CliError]:
+        if choices.len() == 1 && choices[0].info.of_data:
+            return .Ok(choices[0])
+        .Err(.InvalidValue("root", "this Cli derive needs a record"))
+
+    fn next(&mut self, members: Members[S]) -> Result[Key[S]?, CliError]:
+        if self.at >= members.infos.len():
+            return .Ok(.None)
+        info := members.infos[self.at]
+        self.at += 1
+        .Ok(members.at(info.position))
+
+    fn member[F < Cli](&mut self, field: Field[S, F], previous: F?) -> Result[F, CliError]:
+        arg := cli_arg(field)
+        if field.has_default() && !self.parsed.has(arg.name):
+            return .Ok(field.default().expect("a declared default"))
+        F::read(self.parsed, arg)
+
+    fn missing[F](&mut self, field: Field[S, F]) -> Result[F, CliError]:
+        panic("std.cli: the source names every member")
+
+fn cli_arg[S, F](field: Field[S, F]) -> Arg:
+    Arg { name: cli_name(field.info.name), required: !field.has_default() }
+
+fn cli_name(name: string) -> string:
+    out := StringBuilder::new()
+    let first = true
+    for character in name.chars():
+        text := character.to_string()
+        if character == '_':
+            out.push("-")
+        else if text.len() == 1 && text >= "A" && text <= "Z":
+            if !first:
+                out.push("-")
+            out.push(text.lower())
+        else:
+            out.push(text)
+        first = false
+    out.build()
+
+fn scalar_arg(arg: Arg) -> Arg:
+    if arg.name.is_empty():
+        return Arg { ...arg, name: "value", kind: .Positional }
+    if arg.kind == .Positional:
+        return arg
+    Arg { ...arg, kind: .Option }
+
+fn declare_scalar(parser: &mut ArgParser, arg: Arg, name: string) -> void:
+    if arg.name.is_empty():
+        parser.program = name
+    _ := parser.arg(scalar_arg(arg))
+
+fn read_scalar[T < Parse[Error = E], E < Display](parsed: Parsed, arg: Arg) -> Result[T, CliError]:
+    declared := scalar_arg(arg)
+    match parsed.value_as::[T](declared.name)?:
+        .Some(value) => .Ok(value)
+        .None => .Err(.MissingArgument(argument_name(declared)))
+
+impl Cli for bool:
+    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+        if arg.name.is_empty() || arg.kind == .Positional:
+            declare_scalar(parser, arg, "bool")
+        else:
+            _ := parser.arg(Arg { ...arg, kind: .Flag, required: false })
+
+    fn read(parsed: Parsed, arg: Arg) -> Result[bool, CliError]:
+        if arg.name.is_empty() || arg.kind == .Positional:
+            return read_scalar::[bool](parsed, arg)
+        .Ok(parsed.flag(arg.name))
+
+impl[T < Cli] Cli for T?:
+    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+        T::declare(parser, Arg { ...arg, required: false })
+
+    fn read(parsed: Parsed, arg: Arg) -> Result[T?, CliError]:
+        name := scalar_arg(arg).name
+        if !parsed.has(name):
+            return .Ok(.None)
+        .Ok(.Some(T::read(parsed, arg)?))
+
+impl[T < Cli] Cli for List[T]:
+    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+        T::declare(parser, Arg { ...arg, repeated: true, required: false })
+
+    fn read(parsed: Parsed, arg: Arg) -> Result[List[T], CliError]:
+        name := scalar_arg(arg).name
+        let mut values: List[T] = []
+        for index in 0..parsed.count(name):
+            values.push(T::read(parsed.nth(name, index), arg)?)
+        .Ok(values)
+
+impl Cli for string:
+    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+        declare_scalar(parser, arg, "string")
+
+    fn read(parsed: Parsed, arg: Arg) -> Result[string, CliError]:
+        read_scalar::[string](parsed, arg)
+
+impl Cli for char:
+    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+        declare_scalar(parser, arg, "char")
+
+    fn read(parsed: Parsed, arg: Arg) -> Result[char, CliError]:
+        read_scalar::[char](parsed, arg)
+
+impl Cli for i8:
+    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+        declare_scalar(parser, arg, "i8")
+
+    fn read(parsed: Parsed, arg: Arg) -> Result[i8, CliError]:
+        read_scalar::[i8](parsed, arg)
+
+impl Cli for i16:
+    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+        declare_scalar(parser, arg, "i16")
+
+    fn read(parsed: Parsed, arg: Arg) -> Result[i16, CliError]:
+        read_scalar::[i16](parsed, arg)
+
+impl Cli for i32:
+    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+        declare_scalar(parser, arg, "i32")
+
+    fn read(parsed: Parsed, arg: Arg) -> Result[i32, CliError]:
+        read_scalar::[i32](parsed, arg)
+
+impl Cli for i64:
+    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+        declare_scalar(parser, arg, "i64")
+
+    fn read(parsed: Parsed, arg: Arg) -> Result[i64, CliError]:
+        read_scalar::[i64](parsed, arg)
+
+impl Cli for u8:
+    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+        declare_scalar(parser, arg, "u8")
+
+    fn read(parsed: Parsed, arg: Arg) -> Result[u8, CliError]:
+        read_scalar::[u8](parsed, arg)
+
+impl Cli for u16:
+    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+        declare_scalar(parser, arg, "u16")
+
+    fn read(parsed: Parsed, arg: Arg) -> Result[u16, CliError]:
+        read_scalar::[u16](parsed, arg)
+
+impl Cli for u32:
+    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+        declare_scalar(parser, arg, "u32")
+
+    fn read(parsed: Parsed, arg: Arg) -> Result[u32, CliError]:
+        read_scalar::[u32](parsed, arg)
+
+impl Cli for u64:
+    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+        declare_scalar(parser, arg, "u64")
+
+    fn read(parsed: Parsed, arg: Arg) -> Result[u64, CliError]:
+        read_scalar::[u64](parsed, arg)
+
+impl Cli for usize:
+    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+        declare_scalar(parser, arg, "usize")
+
+    fn read(parsed: Parsed, arg: Arg) -> Result[usize, CliError]:
+        read_scalar::[usize](parsed, arg)
+
+impl Cli for f32:
+    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+        declare_scalar(parser, arg, "f32")
+
+    fn read(parsed: Parsed, arg: Arg) -> Result[f32, CliError]:
+        read_scalar::[f32](parsed, arg)
+
+impl Cli for f64:
+    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+        declare_scalar(parser, arg, "f64")
+
+    fn read(parsed: Parsed, arg: Arg) -> Result[f64, CliError]:
+        read_scalar::[f64](parsed, arg)
+
+impl Cli for Path:
+    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+        declare_scalar(parser, arg, "Path")
+
+    fn read(parsed: Parsed, arg: Arg) -> Result[Path, CliError]:
+        read_scalar::[Path](parsed, arg)
+
+impl Cli for Duration:
+    fn declare(parser: &mut ArgParser, arg: Arg) -> void:
+        declare_scalar(parser, arg, "Duration")
+
+    fn read(parsed: Parsed, arg: Arg) -> Result[Duration, CliError]:
+        read_scalar::[Duration](parsed, arg)

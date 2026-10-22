@@ -267,6 +267,66 @@ fn max_lines(args: List[string]) -> Result[usize, CliError]:
 > type for every `T`. An absent option is `.None`, the same as `value`,
 > so `unwrap_or` supplies a default.
 
+## Typed Records
+
+The **`Cli` trait** reads typed command-line values over `ArgParser`.
+
+```text
+use std.cli.Cli
+
+@derive(Cli)
+struct Pack:
+    verbose: bool
+    level: u8 = 6
+    exclude: List[string]
+    limit: u32?
+
+fn compression() -> u8:
+    Pack::parse(["--level", "9"]).expect("valid arguments").level
+```
+
+1. r[std-cli.typed.trait] `Cli` declares the methods below.
+
+| Method | Signature |
+| --- | --- |
+| Declaration | `fn declare(parser: &mut ArgParser, arg: Arg) -> void` |
+| Reading | `fn read(parsed: Parsed, arg: Arg) -> Result[Self, CliError]` |
+| Parser | `fn parser() -> &mut ArgParser` |
+| Pure parsing | `fn parse(arguments: List[string]) -> Result[Self, CliError]` |
+| Host parsing | `fn parse_args() -> Result[Self, CliError] $ Args` |
+
+2. r[std-cli.typed.parser] The default `parser` creates a parser and calls `Self::declare` with an empty name and `required: true`.
+3. r[std-cli.typed.parse] The default `parse` parses its arguments with `Self::parser()`, then calls `Self::read` with the root declaration.
+4. r[std-cli.typed.parse-args] The default `parse_args` uses the covering `Args` provider's program name and argument list.
+5. r[std-cli.typed.requirements] `parse` is pure, and `parse_args` requires only `Args`.
+6. r[std-cli.typed.derive] `@derive(Cli)` on a record declares its fields through `Describer` and builds the result through `Source`.
+7. r[std-cli.typed.fields] Record fields become arguments with kebab-case names in declaration order.
+8. r[std-cli.typed.defaults] An absent field with a declared default uses that default.
+9. r[std-cli.typed.required] An absent required scalar returns `MissingArgument("--name")`, using its kebab-case name.
+10. r[std-cli.typed.bool] A named `bool` field declares a flag and reads false when absent, unless its field default applies.
+11. r[std-cli.typed.scalars] The scalar types below implement `Cli` through their `Parse` implementations.
+
+| Types |
+| --- |
+| `string`, `char` |
+| `i8`, `i16`, `i32`, `i64` |
+| `u8`, `u16`, `u32`, `u64`, `usize` |
+| `f32`, `f64` |
+| `Path`, `Duration` |
+
+12. r[std-cli.typed.scalar-errors] A refused scalar returns `InvalidValue(name, reason)`, with its argument name and the parse error's `Display` text.
+13. r[std-cli.typed.containers] `Option[T]` and `List[T]` implement `Cli` when `T` implements `Cli`.
+14. r[std-cli.typed.optional] An absent optional field reads `.None`, unless its field default applies.
+15. r[std-cli.typed.list] A list field declares a repeatable argument and reads every occurrence in input order, or `[]` when absent.
+16. r[std-cli.typed.flag-list] A `List[bool]` flag field reads one `true` per occurrence.
+17. r[std-cli.typed.view] Each list element is read through a constant-time one-value `Parsed` view over shared storage.
+18. r[std-cli.typed.bounds] Every field of a derived record must implement `Cli`, checked at the derive.
+19. r[std-cli.typed.newtype] A newtype derives `Cli` through its base type.
+20. r[std-cli.typed.nested-record] Parsing a record-typed field returns `InvalidValue` naming the field and explaining that subcommands are an enum.
+
+> **Why.** The typed layer reuses the builder's argument grammar and errors.
+> Records do not implicitly flatten or become subcommands.
+
 ## Usage Text
 
 `usage` returns the help text. For the `ArgParser` above, with one more flag

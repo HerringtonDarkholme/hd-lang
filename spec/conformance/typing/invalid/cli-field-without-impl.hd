@@ -1,0 +1,8 @@
+# test: a derived Cli requires each field type to implement Cli
+# Spec std/cli: std-cli.typed.bounds.
+use std.cli.Cli
+struct Opaque:
+    value: u8
+@derive(Cli) # diagnostic: member-not-derivable
+struct Tool:
+    opaque: Opaque

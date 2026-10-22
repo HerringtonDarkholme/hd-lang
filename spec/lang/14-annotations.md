@@ -1654,6 +1654,9 @@ fn same(a: Box[i32], b: Box[i32]) -> bool:
 > walker's strengthened bound asks for more, that bound is the obligation
 > checked at the opt-in, and the diagnostic names it.
 
+> **Note.** The stdlib's [typed CLI records](../std/cli.md#typed-records)
+> use the same strengthened member bounds to require `Cli` at a derive.
+
 See also: [`trait.derive.bounds`](09-traits.md#r-trait.derive.bounds),
 [Derived Newtypes](09-traits.md#derived-newtypes).
 
