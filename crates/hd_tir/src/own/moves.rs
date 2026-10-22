@@ -63,13 +63,17 @@ pub(crate) struct Tables {
     /// Each local's and each value's bit among the candidates, or `NONE`.
     lnum: Vec<u32>,
     vnum: Vec<u32>,
-    /// Locals and values that stay out: locals a closure shares, and the
-    /// places a cleanup suite or a `borrow` touches.
+    /// Locals and values that stay out: locals a closure shares, binding
+    /// locals, which own nothing, and the places a cleanup suite touches.
     keep_l: Vec<bool>,
     keep_v: Vec<bool>,
     /// Locals a `Ref` addresses, which live in a cell: no read of one
     /// moves, and only a `Ref` of the whole local takes its count.
     addr: Vec<bool>,
+    /// Per local: the `borrow` read a binding local holds (the borrow
+    /// pass's), or `NONE`; and whether the body owns it (its exit row).
+    holds: Vec<u32>,
+    owns: Vec<bool>,
     /// Each instruction's label, as a target of `Break` and `Continue`.
     label_of: Vec<u32>,
     /// Per label, the arena offset of the state a `Break` and a
@@ -160,6 +164,8 @@ impl Tables {
         fill(&mut self.keep_l, locals, false);
         fill(&mut self.keep_v, n, false);
         fill(&mut self.addr, locals, false);
+        fill(&mut self.holds, locals, NONE);
+        fill(&mut self.owns, locals, false);
         fill(&mut self.label_of, n, NONE);
         fill(&mut self.brk, labels, NONE);
         fill(&mut self.cont, labels, NONE);
@@ -219,6 +225,21 @@ impl Tables {
         self.arena[at + (bit / 64) as usize] & (1 << (bit % 64)) != 0
     }
 
+    /// [`deps`] over these tables.
+    fn deps(&self, b: &Body, v: u32, f: &mut impl FnMut(u32)) {
+        deps(b, &self.lnum, &self.vnum, &self.holds, v, f);
+    }
+
+    /// [`deps`] of what the place at `word` reads through its root: the
+    /// read a binding local at the root holds.
+    fn place_deps(&self, b: &Body, word: u32, f: &mut impl FnMut(u32)) {
+        if let (Root::Local(l), _, _) = root_of(b, word)
+            && self.holds[l as usize] != NONE
+        {
+            self.deps(b, self.holds[l as usize], f);
+        }
+    }
+
     /// The candidate bit of the root of place `word`, if it has one.
     fn bit(&self, b: &Body, word: u32) -> Option<u32> {
         let x = match root_of(b, word).0 {
@@ -246,10 +267,46 @@ impl Tables {
     }
 }
 
+/// Calls `f` with the bit of each candidate a use of value `v` keeps live
+/// besides `v` itself: a `borrow` read lives on its place, so a use of it
+/// uses the place's root too, and what that root's value lives on in turn
+/// (a borrowed value, a binding local's read). `lnum`, `vnum` and `holds`
+/// are [`Tables`]'.
+fn deps(b: &Body, lnum: &[u32], vnum: &[u32], holds: &[u32], v: u32, f: &mut impl FnMut(u32)) {
+    let mut x = v;
+    for _ in 0..16 {
+        let i = x as usize;
+        if i >= b.len() || b.tags[i] != Tag::Read || b.data[i][1] != ReadMode::Borrow as u32 {
+            return;
+        }
+        match root_of(b, b.data[i][0]).0 {
+            Root::Local(l) => {
+                let li = l as usize;
+                if lnum[li] != NONE {
+                    f(lnum[li]);
+                }
+                if holds[li] == NONE {
+                    return;
+                }
+                x = holds[li];
+            }
+            Root::Value(u) => {
+                if vnum[u as usize] != NONE {
+                    f(vnum[u as usize]);
+                }
+                x = u;
+            }
+            Root::Other => return,
+        }
+    }
+}
+
 /// Runs the move pass over every sub-body of `b`.
+/// The edits go to `edits` beside the borrow pass's, which still stand in
+/// the body: it reads a deleted `Drop` of a borrowed value or of a binding
+/// local as a statement that touches no candidate.
 pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables) {
     let n = b.len();
-    edits.clear();
     t.reset(n, b.local_ty.len(), b.label_inst.len());
     structure(b, t);
     if !candidates(b, cx, t) {
@@ -306,8 +363,9 @@ fn structure(b: &Body, t: &mut Tables) {
 }
 
 /// Numbers the candidates: the counted locals no reference, shared
-/// capture, cleanup suite or borrow reaches, and the tracked values a
-/// `copy` read reads a part of, or all of, in place. Whether there is any.
+/// capture or cleanup suite reaches and that hold no borrowed value, and
+/// the tracked values a `copy` read reads a part of, or all of, in place.
+/// Whether there is any.
 fn candidates(b: &Body, cx: &dyn OwnCx, t: &mut Tables) -> bool {
     let n = b.len();
     for i in 0..n {
@@ -318,15 +376,20 @@ fn candidates(b: &Body, cx: &dyn OwnCx, t: &mut Tables) -> bool {
                     t.addr[l as usize] = true;
                 }
             }
-            Tag::Read if w == ReadMode::Borrow as u32 => match root_of(b, a).0 {
-                Root::Local(l) => t.keep_l[l as usize] = true,
-                Root::Value(v) => {
-                    if let Some(k) = t.keep_v.get_mut(v as usize) {
-                        *k = true;
-                    }
+            // A binding local holds a borrowed value: it owns no count.
+            Tag::Store
+                if Ref(w).as_inst().is_some()
+                    && (w as usize) < n
+                    && b.tags[w as usize] == Tag::Read
+                    && b.data[w as usize][1] == ReadMode::Borrow as u32 =>
+            {
+                if let (Root::Local(l), from, to) = root_of(b, a)
+                    && from == to
+                {
+                    t.keep_l[l as usize] = true;
+                    t.holds[l as usize] = w;
                 }
-                Root::Other => {}
-            },
+            }
             Tag::Scope if w != NONE => {
                 let suites = b.record(w);
                 t.stack.clear();
@@ -346,6 +409,11 @@ fn candidates(b: &Body, cx: &dyn OwnCx, t: &mut Tables) -> bool {
             t.keep_l[l.idx()] = true;
         }
     }
+    // A local the body owns is in the exit set; the others (a binding
+    // local, a lent parameter, the borrow pass's) hold no count to move.
+    for &(_, l) in &b.exit_drops {
+        t.owns[l.idx()] = true;
+    }
     // A suspending body's frame saves a cell's local at each point, and a
     // resume enters blocks in the middle: its cells keep their counts.
     let suspends = !b.susp.is_empty();
@@ -356,7 +424,7 @@ fn candidates(b: &Body, cx: &dyn OwnCx, t: &mut Tables) -> bool {
         } else {
             cx.counted(b.local_ty[l]) != Tri::No
         };
-        if !t.keep_l[l] && counted {
+        if !t.keep_l[l] && t.owns[l] && counted {
             t.lnum[l] = k;
             k += 1;
         }
@@ -447,6 +515,15 @@ fn touches(b: &Body, t: &mut Tables) {
                     {
                         hit(t, t.lnum[l as usize]);
                     }
+                    if b.tags[i] != Tag::Drop {
+                        let mut bits = std::mem::take(&mut t.stack);
+                        bits.clear();
+                        t.place_deps(b, b.data[i][0], &mut |bit| bits.push(bit));
+                        for &bit in &bits {
+                            hit(t, bit);
+                        }
+                        t.stack = bits;
+                    }
                 }
                 Tag::Closure => {
                     let rec = b.record(b.data[i][1]);
@@ -464,6 +541,15 @@ fn touches(b: &Body, t: &mut Tables) {
                 let bit = t.vnum[op.value as usize];
                 if bit != NONE {
                     hit(t, bit);
+                }
+                if op.role != Role::Dropped {
+                    let mut bits = std::mem::take(&mut t.stack);
+                    bits.clear();
+                    t.deps(b, op.value, &mut |bit| bits.push(bit));
+                    for &bit in &bits {
+                        hit(t, bit);
+                    }
+                    t.stack = bits;
                 }
             }
         }
@@ -487,7 +573,7 @@ fn block(b: &Body, t: &mut Tables, blk: u32, live: usize) {
     // The tail is taken at the block's end.
     let tail = b.data[blk as usize][1];
     if tail != NONE && Ref(tail).as_inst().is_some() {
-        gen_value(t, live, tail);
+        gen_value(b, t, live, tail);
     }
     let rec = b.data[blk as usize][0] as usize;
     let len = b.extra[rec] as usize;
@@ -505,12 +591,23 @@ fn block(b: &Body, t: &mut Tables, blk: u32, live: usize) {
     }
 }
 
-fn gen_value(t: &mut Tables, live: usize, v: u32) {
+/// A use of value `v`: it and what it lives on ([`Tables::deps`]).
+fn gen_value(b: &Body, t: &mut Tables, live: usize, v: u32) {
     if let Some(&bit) = t.vnum.get(v as usize)
         && bit != NONE
     {
         t.set(live, bit, true);
     }
+    let Tables {
+        lnum,
+        vnum,
+        holds,
+        arena,
+        ..
+    } = t;
+    deps(b, lnum, vnum, holds, v, &mut |bit| {
+        arena[live + (bit / 64) as usize] |= 1 << (bit % 64);
+    });
 }
 
 /// The value operands of `x`, which it reads before it runs any block.
@@ -519,7 +616,7 @@ fn gen_operands(b: &Body, t: &mut Tables, x: u32, live: usize) {
     operands(b, x as usize, &mut ops);
     for op in &ops {
         if op.role != Role::Dropped && op.role != Role::Tail {
-            gen_value(t, live, op.value);
+            gen_value(b, t, live, op.value);
         }
     }
     t.ops = ops;
@@ -535,6 +632,21 @@ fn inst(b: &Body, t: &mut Tables, x: u32, live: usize) {
     }
     match b.tags[i] {
         Tag::Read | Tag::Ref | Tag::IsUnique | Tag::Pin => {
+            // A read through a binding local reads what its read lives on.
+            let Tables {
+                lnum,
+                vnum,
+                holds,
+                arena,
+                ..
+            } = t;
+            if let (Root::Local(l), _, _) = root_of(b, a)
+                && holds[l as usize] != NONE
+            {
+                deps(b, lnum, vnum, holds, holds[l as usize], &mut |bit| {
+                    arena[live + (bit / 64) as usize] |= 1 << (bit % 64);
+                });
+            }
             if let Some(bit) = t.bit(b, a) {
                 let (root, from, to) = root_of(b, a);
                 let addr = matches!(root, Root::Local(l) if t.addr[l as usize]);

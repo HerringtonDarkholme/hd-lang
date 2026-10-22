@@ -1076,10 +1076,18 @@ body built elsewhere, such as a generated structure method, gets
   - 23 (`src/ir/owned.rs`): a `Read` or `IsUnique` or `Pin` after a
     `move` read or a `Drop` of an overlapping place, joined over every
     path and to a fixed point around loops, with a `Store` that covers
-    the place refilling it; a `borrow` read's span as a range of
-    instructions from the read to the last its value reaches, through
-    block tails, coercions and `Break` values, widened to a whole loop
-    that holds a use but not the read. Places overlap as
+    the place refilling it; a `borrow` value live (a backward liveness
+    walk over the structured control flow, one bit per borrow, loops to a
+    fixed point) at a write of an overlapping place or a suspension
+    point, where a use of a value is a use of each borrow it lives on (a
+    `borrow` read rooted at a borrow, a read of a binding local), a
+    control instruction reads its operands before its blocks run, a
+    borrow's own `Drop` is no use, and a write through the borrow's own
+    value (into its list's buffer, behind its reference) keeps it; a
+    binding local (a `Store` of a borrow) stored with an owned value,
+    dropped, moved out of, addressed or in the exit set, and a counted
+    parameter outside the exit set (one the body does not own) stored
+    into, dropped, moved out of or addressed. Places overlap as
     docs/compiler/tir-v2.md's "Places" says, with no types: two roots
     overlap only when one goes behind a reference or into a buffer and
     the other is where a reference can reach; a `Drop` of a whole local
@@ -1151,14 +1159,22 @@ body built elsewhere, such as a generated structure method, gets
   the exit set, an `IsUnique` before each change of a collection place
   (with `ListIndexMut` read back as an element `Read`), and an
   `IsUnique` and a `Pin` of each list on an element reference's path;
-  then move (`own/moves.rs`): a backward liveness walk turns each
+  then borrow (`own/borrow.rs`): a `copy` read whose value only lends,
+  over a span no write of what it reads, call that may reach it or
+  suspension point crosses, becomes a `borrow` and loses its `Drop`s
+  (one an instance may make fresh keeps them); a local stored once with
+  such a read holds a borrow and owns nothing, and so does a lent
+  parameter the body never stores (both leave the exit set); then move
+  (`own/moves.rs`): a backward liveness walk turns each
   `copy` that no path reads after into a `move` (a `Ref` of a whole
   celled local into a taking one), deletes the `Drop` that follows it
   in its block, and splits a base's drop into its other parts' when a
-  part moves. Each of the two passes that adds or deletes statements
-  rebuilds the body once, renumbering it (`own/splice.rs`). They read
-  the body and `OwnCx` (counted types, parameter modes, `may_write`,
-  the in-place parts of a type) only.
+  part moves; a use of a borrow keeps what it lives on live. Insertion
+  rebuilds the body once, and borrow and move record their edits for
+  one more rebuild at the end, renumbering it (`own/splice.rs`). They
+  read the body and `OwnCx` (counted types, parameter modes, how a body
+  receives its own parameters, `may_write`, the in-place parts of a
+  type) only.
   `own::operands` names each value operand of an instruction with its
   role (lent, consumed, a call argument, a block tail, a drop), and
   `own::consumers` each value's consumer by insertion's rule; the

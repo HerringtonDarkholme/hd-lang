@@ -51,6 +51,9 @@ impl hd_tir::own::OwnCx for NoCounts {
         out.clear();
         false
     }
+    fn received(&self, _: hd_base::DefId, _: usize, _: usize) -> hd_tir::own::Pass {
+        hd_tir::own::Pass::Owned
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

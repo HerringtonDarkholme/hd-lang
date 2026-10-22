@@ -1,0 +1,12 @@
+# @dump: own counts
+# Borrow's boundary: `&mut xs` lets `pick` reach the local, so no read of
+# it borrows; the read for the index copies.
+fn pick(out: &mut List[string]) -> usize:
+    *out = ["y"]
+    0
+
+fn lent(n: usize) -> usize:
+    let mut xs: List[string] = ["x"]
+    # subject
+    s := xs[pick(&mut xs)]
+    s.len() + xs.len()

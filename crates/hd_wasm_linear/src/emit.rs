@@ -349,8 +349,25 @@ fn body_func<'a>(
             // cell below.
             if plocals.contains(l) {
                 let t = em.sub(b.local_ty[*l]);
+                // A lent parameter the passes leave unowned is outside the
+                // exit set: the body takes no count of it, and releases at
+                // its exit the count an instance that owns it receives.
+                let unowned = em.owned
+                    && by_type
+                    && !b
+                        .exit_drops
+                        .iter()
+                        .any(|&(s, x)| u32::from(sub) == s.raw() && x.idx() == *l);
                 if by_type {
                     match em.pass(t) {
+                        Pass::Owned(_) if unowned => {
+                            em.unowned_params.push(*l);
+                            continue;
+                        }
+                        Pass::Borrowed if unowned => {
+                            em.borrowed.insert(*l);
+                            continue;
+                        }
                         // Its count arrives with it.
                         Pass::Uncounted | Pass::Owned(_) => continue,
                         // A borrowed read the body never writes and no
@@ -396,7 +413,9 @@ fn body_func<'a>(
     if em.counting {
         em.open(Ctl::Exit);
     }
-    if !em.owned {
+    if em.owned {
+        em.prepare_own_loans();
+    } else {
         em.prepare_parameter_loans();
     }
     let root = b.sub_root[sub as usize];
@@ -978,6 +997,9 @@ struct Em<'i, 'a, 'm> {
     projs: Vec<live::Projected>,
     /// A loan owns a temporary only when its source is an erased view.
     view_loans: HashMap<u32, u32>,
+    /// In an owned body: the lent parameters the passes left unowned that
+    /// this instance takes owned (`count.rs`): its exit releases them.
+    unowned_params: Vec<usize>,
     /// A sole field consumer computed directly by its memory read.
     precomputed_fields: hd_base::HashSet<u32>,
     /// Lazy uniqueness checks for invariant parameter headers in a body
@@ -1104,6 +1126,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             moves: live::Moves::default(),
             projs: Vec::new(),
             view_loans: HashMap::default(),
+            unowned_params: Vec::new(),
             precomputed_fields: hd_base::HashSet::default(),
             unique_once: HashMap::default(),
             unique_body: None,
@@ -1550,12 +1573,6 @@ impl Em<'_, '_, '_> {
                 if self.owned
                     && bw == hd_tir::ir::ReadMode::Move as u32
                     && self.own_move_part(i)? => {}
-            // Only plain local reads borrow so far: the borrow pass, which
-            // writes the others, lowers them (`docs/compiler/tir-v2.md`,
-            // stage 2's commit 8).
-            Tag::Read if self.owned && bw == hd_tir::ir::ReadMode::Borrow as u32 => {
-                return unsupported("a `borrow` read of a place that is no local");
-            }
             // A plain read of a top-level binding, `Read [@g]`.
             Tag::Read if let Some(def) = self.b.global_read(i as usize) => {
                 self.global_read(i, def)?;

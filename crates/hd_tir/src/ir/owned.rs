@@ -18,7 +18,13 @@
 //!   `Drop` on any path without a `Store` in between that refills it;
 //! - no `borrow` value is live across a write to an overlapping place (a
 //!   `Store`, a `Drop`, a `move` read, an `IsUnique` or a mutable `Ref`)
-//!   or a suspension point;
+//!   or a suspension point, where a borrow is live while anything that
+//!   lives on it is ([`borrow_spans`]);
+//! - a local the body does not own holds no count: a binding local, which
+//!   a `borrow` value is stored into, takes only borrows and is never
+//!   dropped, moved out of or addressed; a counted parameter outside the
+//!   exit set, which the body does not own, is also never stored into;
+//!   neither is in the exit set ([`binding_locals`]);
 //! - the exit set's rows are sorted, once each, and name a sub-body and a
 //!   local of the body;
 //! - nothing tier 2 reserves: no `FlagSet`, `FlagClear` or `regions` row.
@@ -73,6 +79,7 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     decided(b, &mut errs);
     Empties::new(&cx).walk(&mut errs);
     borrow_spans(&cx, &mut errs);
+    binding_locals(&cx, own, &mut errs);
     Balance::new(b, own).walk(&mut errs);
     errs
 }
@@ -575,216 +582,433 @@ impl<'a> Empties<'a> {
     }
 }
 
-/// The value operands instruction `i` reads, for liveness: the schema's
-/// value words and value records, a place's values, a call's providers,
-/// and `With`'s and `ContextNew`'s provider values.
-fn uses(b: &Body, i: usize, out: &mut Vec<u32>) {
-    out.clear();
-    let [a, w] = b.data[i];
-    let tag = b.tags[i];
-    if let Some(v) = b.value_operands(i) {
-        out.extend(v);
-        // `[..., kind, x, n]`: key and value pairs at `x` (1), or a
-        // context value (2).
-        if tag == Tag::Call
-            && let [.., kind, x, n] = *b.record(w)
-        {
-            match kind {
-                1 => out.extend(b.extra.iter().skip(x as usize).take(n as usize)),
-                2 => out.push(x),
-                _ => {}
+/// Whether `v` is a `borrow` read's value.
+fn is_borrow(b: &Body, v: u32) -> bool {
+    Ref(v).as_inst().is_some()
+        && (v as usize) < b.len()
+        && b.tags[v as usize] == Tag::Read
+        && b.data[v as usize][1] == ReadMode::Borrow as u32
+}
+
+/// The locals the body does not own (`docs/compiler/tir-v2.md`,
+/// "Borrow"). A binding local: a `Store` of a `borrow` read goes into all
+/// of it, so it holds borrowed values only: every store into it stores
+/// one, nothing drops it, moves out of it or addresses it, and it is in no
+/// exit set. A lent parameter: a counted parameter outside the exit set,
+/// which nothing stores into, drops, moves out of or addresses either.
+fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
+    let b = cx.b;
+    let mut binding = vec![false; b.local_ty.len()];
+    let mut lent = vec![false; b.local_ty.len()];
+    let mut any = false;
+    if !b.sub_root.is_empty() {
+        let mut exit = vec![false; b.local_ty.len()];
+        for &(sub, l) in &b.exit_drops {
+            if sub.idx() == 0 {
+                exit[l.idx()] = true;
             }
         }
-    } else if matches!(tag, Tag::With | Tag::ContextNew) {
-        out.extend(b.record(a).iter().skip(1).step_by(2));
-    } else {
-        for (word, op) in [(a, tag.operands().0), (w, tag.operands().1)] {
-            match op {
-                Op::Value => out.push(word),
-                Op::Values if word != NONE => out.extend_from_slice(b.record(word)),
-                Op::Place => out.extend(b.place_values(word)),
-                Op::Record
-                    if word != NONE && matches!(tag, Tag::CallDyn | Tag::Await | Tag::NewList) =>
-                {
-                    out.extend_from_slice(b.record(word));
-                }
-                _ => {}
+        for l in entry_locals(b, 0) {
+            if !exit[l] && own.counted(b.local_ty[l]) != crate::own::Tri::No {
+                lent[l] = true;
+                any = true;
             }
         }
     }
-    out.retain(|&r| r != NONE && Ref(r).as_inst().is_some() && (r as usize) < b.len());
+    for i in 0..b.len() {
+        if b.tags[i] != Tag::Store || !is_borrow(b, b.data[i][1]) {
+            continue;
+        }
+        match &cx.places[i] {
+            Some(Place {
+                root: PlaceRoot::Local(l),
+                proj,
+            }) if proj.is_empty() => {
+                binding[l.idx()] = true;
+                any = true;
+            }
+            _ => err(
+                errs,
+                u32_of(i),
+                "a `borrow` value stored into a place that is no whole local".into(),
+            ),
+        }
+    }
+    if !any {
+        return;
+    }
+    for i in 0..b.len() {
+        let Some(Place {
+            root: PlaceRoot::Local(l),
+            ..
+        }) = &cx.places[i]
+        else {
+            continue;
+        };
+        if !binding[l.idx()] && !lent[l.idx()] {
+            continue;
+        }
+        let what = match b.tags[i] {
+            Tag::Store if lent[l.idx()] => "a store into",
+            Tag::Store if !is_borrow(b, b.data[i][1]) => "an owned value stored into",
+            Tag::Drop => "a `Drop` of",
+            Tag::Read if b.data[i][1] == ReadMode::Move as u32 => "a `move` out of",
+            Tag::Ref => "a reference to",
+            _ => continue,
+        };
+        err(
+            errs,
+            u32_of(i),
+            format!("{what} ${}, which the body does not own", l.raw()),
+        );
+    }
+    for &(_, l) in &b.exit_drops {
+        if binding.get(l.idx()).copied().unwrap_or(false) {
+            err(
+                errs,
+                NONE,
+                format!("${} holds a borrowed value but is in the exit set", l.raw()),
+            );
+        }
+    }
 }
 
-/// The borrow walk. A `borrow` read's span runs from the read to the last
-/// instruction its value reaches: a use, or the uses of a value that
-/// carries it on (a block's tail and the instruction that owns the block,
-/// a coercion, a `Break` value and its target), and all of a loop that
-/// holds a use but not the read. No write to an overlapping place and no
-/// suspension point may stand in the span. Instructions are in evaluation
-/// order within a block, and a block's instructions precede the
-/// instruction that runs it, so the span is a range of instructions; a
-/// range over branches the value never takes is a stricter check.
+/// The borrow walk: no `borrow` value is live across a write to a place
+/// overlapping its own (a `Store`, a `Drop`, an `IsUnique`, a `move` read,
+/// a mutable `Ref`) or across a suspension point. "Live" is a backward
+/// liveness walk over the structured control flow of each sub-body, one
+/// bit per borrow, with the states of `Break` and `Continue` targets and
+/// match arms kept while their targets are walked, and each loop run to a
+/// fixed point. A use of a value is a use of every borrow it lives on: a
+/// `borrow` read rooted at a borrow, and a read of a binding local, whose
+/// store holds a borrow, live on that borrow. A control instruction reads
+/// its operands before it runs its blocks, so a match's scrutinee is not
+/// live in its arms unless they use it.
 fn borrow_spans(cx: &Cx<'_>, errs: &mut Vec<VerifyError>) {
     let b = cx.b;
     let n = b.len();
-    let borrows = (0..n).any(|i| b.tags[i] == Tag::Read && b.data[i][1] == ReadMode::Borrow as u32);
-    if !borrows {
+    let mut bit = vec![NONE; n];
+    let mut at = Vec::new();
+    for (i, x) in bit.iter_mut().enumerate() {
+        if is_borrow(b, u32_of(i)) {
+            *x = u32_of(at.len());
+            at.push(u32_of(i));
+        }
+    }
+    if at.is_empty() {
         return;
     }
-    // Each instruction's parent: the block that lists it, or the
-    // instruction that owns it as a block operand; and the innermost loop
-    // whose body holds it, with that loop's depth.
-    let mut parent = vec![NONE; n];
+    // The borrow each binding local holds.
+    let mut holds = vec![NONE; b.local_ty.len()];
     for i in 0..n {
-        if b.tags[i] == Tag::Block {
-            for &c in b.record(b.data[i][0]) {
-                if let Some(p) = parent.get_mut(c as usize) {
-                    *p = u32_of(i);
-                }
-            }
-        }
-        for blk in owned_blocks(b, i) {
-            if let Some(p) = parent.get_mut(blk as usize) {
-                *p = u32_of(i);
-            }
-        }
-    }
-    for &r in &b.sub_root {
-        if let Some(p) = parent.get_mut(r as usize) {
-            *p = NONE;
-        }
-    }
-    let mut inner = vec![NONE; n];
-    let mut depth = vec![0u32; n];
-    for i in (0..n).rev() {
-        let p = parent[i];
-        if p == NONE || p as usize >= n {
-            continue;
-        }
-        // A loop's body repeats; its else block runs once.
-        if b.tags[p as usize] == Tag::Loop && b.data[p as usize][0] == u32_of(i) {
-            inner[i] = p;
-            depth[i] = depth[p as usize] + 1;
-        } else {
-            inner[i] = inner[p as usize];
-            depth[i] = depth[p as usize];
-        }
-    }
-    // Uses in compressed rows: `users[start[v]..start[v + 1]]` read `v`.
-    let mut buf = Vec::new();
-    let mut count = vec![0u32; n + 1];
-    for i in 0..n {
-        uses(b, i, &mut buf);
-        for &v in &buf {
-            count[v as usize] += 1;
-        }
-    }
-    let mut start = vec![0u32; n + 1];
-    for v in 0..n {
-        start[v + 1] = start[v] + count[v];
-    }
-    let mut fill = start.clone();
-    let mut users = vec![0u32; start[n] as usize];
-    for i in 0..n {
-        uses(b, i, &mut buf);
-        for &v in &buf {
-            users[fill[v as usize] as usize] = u32_of(i);
-            fill[v as usize] += 1;
-        }
-    }
-    // What carries a value on: a block's owner, a `Break`'s target.
-    let mut carrier = vec![NONE; n];
-    for (i, c) in carrier.iter_mut().enumerate() {
-        if b.tags[i] == Tag::Block && parent[i] != NONE && b.tags[parent[i] as usize] != Tag::Block
+        if b.tags[i] == Tag::Store
+            && is_borrow(b, b.data[i][1])
+            && let Some(Place {
+                root: PlaceRoot::Local(l),
+                proj,
+            }) = &cx.places[i]
+            && proj.is_empty()
         {
-            *c = parent[i];
-        }
-        if b.tags[i] == Tag::Break && b.data[i][1] != NONE {
-            *c = b
-                .label_inst
-                .get(b.data[i][0] as usize)
-                .copied()
-                .unwrap_or(NONE);
+            holds[l.idx()] = b.data[i][1];
         }
     }
-    let forwards = |u: usize, v: u32| match b.tags[u] {
-        Tag::Block => b.data[u][1] == v,
-        Tag::Coerce => b.data[u][0] == v,
-        Tag::Break => b.data[u][1] == v,
-        _ => false,
-    };
-    // The outermost loop around `u` that does not hold `v`'s definition:
-    // the loops around a visible value's definition are the outer ones of
-    // those around its use, and a loop instruction's depth counts the
-    // loops around it.
-    let around = |u: usize, v: usize| {
-        if depth[u] <= depth[v] {
-            return NONE;
+    let mut label_of = vec![NONE; n];
+    for (l, &t) in b.label_inst.iter().enumerate() {
+        if let Some(x) = label_of.get_mut(t as usize) {
+            *x = u32_of(l);
         }
-        let mut l = inner[u];
-        while l != NONE && depth[l as usize] > depth[v] {
-            l = inner[l as usize];
-        }
-        l
+    }
+    let mut walk = Live {
+        cx,
+        bit,
+        at,
+        holds,
+        label_of,
+        brk: vec![None; b.label_inst.len()],
+        cont: vec![None; b.label_inst.len()],
+        arms: Vec::new(),
+        ops: Vec::new(),
+        reported: vec![false; n],
+        errs: Vec::new(),
     };
-    let later = |a: u32, c: u32| {
-        if a == NONE || (c != NONE && c > a) {
-            c
-        } else {
-            a
+    let words = walk.at.len().div_ceil(64);
+    for &root in &b.sub_root {
+        if (root as usize) < n {
+            let mut live = vec![0u64; words];
+            walk.block(root, &mut live);
         }
-    };
-    // The last instruction each value reaches, from the last value back.
-    let mut last = vec![NONE; n];
-    for v in (0..n).rev() {
-        let mut end = NONE;
-        for &u in &users[start[v] as usize..start[v + 1] as usize] {
-            end = later(later(end, u), around(u as usize, v));
-            if forwards(u as usize, u32_of(v)) {
-                let c = carrier[u as usize];
-                end = later(end, last[u as usize]);
-                if c != NONE {
-                    end = later(later(end, c), last[c as usize]);
+    }
+    errs.append(&mut walk.errs);
+}
+
+/// The borrow walk's state ([`borrow_spans`]).
+struct Live<'a> {
+    cx: &'a Cx<'a>,
+    /// Each borrow's bit, or `NONE`, and each bit's borrow.
+    bit: Vec<u32>,
+    at: Vec<u32>,
+    holds: Vec<u32>,
+    label_of: Vec<u32>,
+    /// While a target is walked: the state after it, for a `Break`, and at
+    /// a loop's head, for a `Continue`.
+    brk: Vec<Option<Set>>,
+    cont: Vec<Option<Set>>,
+    /// The open matches' arm entry states.
+    arms: Vec<Vec<Set>>,
+    ops: Vec<crate::own::Operand>,
+    reported: Vec<bool>,
+    errs: Vec<VerifyError>,
+}
+
+impl Live<'_> {
+    fn is_block(&self, x: u32) -> bool {
+        self.cx.b.tags.get(x as usize) == Some(&Tag::Block)
+    }
+
+    /// A use of value `v`: it, and every borrow it lives on.
+    fn uses(&self, live: &mut Set, v: u32) {
+        let b = self.cx.b;
+        let mut x = v;
+        for _ in 0..b.len() {
+            let Some(&k) = self.bit.get(x as usize) else {
+                return;
+            };
+            if k == NONE {
+                return;
+            }
+            live[(k / 64) as usize] |= 1 << (k % 64);
+            match self.cx.places[x as usize].as_ref().map(|p| p.root) {
+                Some(PlaceRoot::Value(r)) if (r.0 as usize) < b.len() => x = r.0,
+                Some(PlaceRoot::Local(l)) if self.holds[l.idx()] != NONE => {
+                    x = self.holds[l.idx()];
                 }
+                _ => return,
             }
         }
-        last[v] = end;
     }
-    let subs = b.inst_subs();
-    for r in 0..n {
-        if b.tags[r] != Tag::Read || b.data[r][1] != ReadMode::Borrow as u32 {
-            continue;
+
+    /// Block `blk` backward: `live` after it becomes `live` at its start.
+    fn block(&mut self, blk: u32, live: &mut Set) {
+        if !self.is_block(blk) {
+            return;
         }
-        let (Some(p), end) = (&cx.places[r], last[r]) else {
-            continue;
+        let b = self.cx.b;
+        let label = self.label_of[blk as usize];
+        let saved = (label != NONE).then(|| self.brk[label as usize].replace(live.clone()));
+        let tail = b.data[blk as usize][1];
+        if tail != NONE && Ref(tail).as_inst().is_some() {
+            self.uses(live, tail);
+        }
+        let members = b.record(b.data[blk as usize][0]).to_vec();
+        for &x in members.iter().rev() {
+            if b.tags[x as usize] != Tag::Block {
+                self.inst(x, live);
+            }
+        }
+        if let Some(old) = saved {
+            self.brk[label as usize] = old;
+        }
+    }
+
+    fn union(to: &mut Set, from: &Set) -> bool {
+        let mut grew = false;
+        for (w, v) in to.iter_mut().zip(from) {
+            grew |= v & !*w != 0;
+            *w |= v;
+        }
+        grew
+    }
+
+    /// Instruction `x` backward.
+    fn inst(&mut self, x: u32, live: &mut Set) {
+        let b = self.cx.b;
+        let i = x as usize;
+        let [a, w] = b.data[i];
+        if self.bit[i] != NONE {
+            let k = self.bit[i];
+            live[(k / 64) as usize] &= !(1 << (k % 64));
+        }
+        let tag = b.tags[i];
+        let writes = match tag {
+            Tag::Store | Tag::Drop | Tag::IsUnique => true,
+            Tag::Read => w == ReadMode::Move as u32,
+            Tag::Ref => w & super::ref_word::MUT != 0,
+            _ => false,
         };
-        if end == NONE {
-            continue;
+        // A write through a borrow's own value (into the buffer its list
+        // header names, or the referent its reference names) keeps that
+        // value as it is.
+        if writes && let Some(q) = &self.cx.places[i] {
+            self.check(x, live, |r, p| {
+                q.root != PlaceRoot::Value(Ref(r)) && self.cx.overlap(p, q)
+            });
         }
-        for j in r + 1..=end as usize {
-            if subs[j] != subs[r] {
+        match tag {
+            Tag::If => {
+                let r = b.record(w);
+                let (then, els) = (r.first().copied(), r.get(1).copied());
+                let mut other = live.clone();
+                if let Some(t) = then {
+                    self.block(t, &mut other);
+                }
+                if let Some(e) = els {
+                    self.block(e, live);
+                }
+                Self::union(live, &other);
+            }
+            Tag::And | Tag::Or => {
+                let mut right = live.clone();
+                self.block(w, &mut right);
+                Self::union(live, &right);
+            }
+            Tag::With => self.block(w, live),
+            Tag::RefDyn | Tag::Scope => self.block(a, live),
+            Tag::Loop => self.repeat(x, live),
+            Tag::Match => self.decide(x, live),
+            Tag::SwitchTag | Tag::SwitchInt | Tag::SwitchChar | Tag::SwitchStr => {
+                let r = b.record(w).to_vec();
+                let (cases, default) = r.split_at(r.len().saturating_sub(1));
+                let mut acc = vec![0; live.len()];
+                for &blk in cases.iter().skip(1).step_by(2).chain(default) {
+                    let mut s = live.clone();
+                    self.block(blk, &mut s);
+                    Self::union(&mut acc, &s);
+                }
+                *live = acc;
+            }
+            Tag::Guard => {
+                let mut acc = vec![0; live.len()];
+                for &blk in b.record(w) {
+                    let mut s = live.clone();
+                    self.block(blk, &mut s);
+                    Self::union(&mut acc, &s);
+                }
+                *live = acc;
+                self.block(a, live);
+            }
+            Tag::ToArm => {
+                match self.arms.last().and_then(|arms| arms.get(a as usize)) {
+                    Some(s) => live.clone_from(s),
+                    None => live.fill(0),
+                }
+                return;
+            }
+            Tag::Break => match self.brk.get(a as usize) {
+                Some(Some(s)) => live.clone_from(s),
+                _ => live.fill(0),
+            },
+            Tag::Continue => match self.cont.get(a as usize) {
+                Some(Some(s)) => live.clone_from(s),
+                _ => live.fill(0),
+            },
+            Tag::Return | Tag::Unreachable => live.fill(0),
+            _ => {}
+        }
+        let mut ops = std::mem::take(&mut self.ops);
+        operands(b, i, &mut ops);
+        // A borrow's own `Drop` releases only a value an instance made
+        // fresh, which lives on nothing: no use.
+        for op in &ops {
+            if op.role != Role::Tail && op.role != Role::Dropped {
+                self.uses(live, op.value);
+            }
+        }
+        self.ops = ops;
+        // A read through a binding local reads the borrow it holds.
+        if let Some(Place {
+            root: PlaceRoot::Local(l),
+            ..
+        }) = &self.cx.places[i]
+            && self.holds[l.idx()] != NONE
+        {
+            self.uses(live, self.holds[l.idx()]);
+        }
+        if is_suspension(tag) {
+            self.check(x, live, |_, _| true);
+        }
+    }
+
+    /// An error at `x` for the first live borrow whose place `hit` names.
+    fn check(&mut self, x: u32, live: &Set, hit: impl Fn(u32, &Place) -> bool) {
+        if self.reported[x as usize] {
+            return;
+        }
+        for (k, &r) in self.at.iter().enumerate() {
+            if live[k / 64] & (1 << (k % 64)) == 0 || r == x {
                 continue;
             }
-            let tag = b.tags[j];
-            let writes = match tag {
-                Tag::Store | Tag::Drop | Tag::IsUnique => true,
-                Tag::Read => b.data[j][1] == ReadMode::Move as u32,
-                Tag::Ref => b.data[j][1] & super::ref_word::MUT != 0,
-                _ => false,
+            let Some(p) = &self.cx.places[r as usize] else {
+                continue;
             };
-            let hit = if writes {
-                cx.places[j].as_ref().is_some_and(|q| cx.overlap(p, q))
-            } else {
-                is_suspension(tag)
-            };
-            if hit {
-                err(
-                    errs,
-                    u32_of(r),
-                    format!("a borrow of {p} lives across `{}` at %{j}", tag.name()),
+            if hit(r, p) {
+                self.reported[x as usize] = true;
+                let what = format!(
+                    "a borrow of {p} lives across `{}` at %{x}",
+                    self.cx.b.tags[x as usize].name()
                 );
+                err(&mut self.errs, r, what);
+                return;
+            }
+        }
+    }
+
+    /// Loop `x` backward, from its head to a fixed point.
+    fn repeat(&mut self, x: u32, live: &mut Set) {
+        let b = self.cx.b;
+        let [body, els] = b.data[x as usize];
+        let label = self.label_of[x as usize];
+        let after = live.clone();
+        let mut head = vec![0; live.len()];
+        if els != NONE && self.is_block(els) {
+            head.clone_from(&after);
+            self.block(els, &mut head);
+        }
+        let saved = (label != NONE).then(|| {
+            (
+                self.brk[label as usize].replace(after.clone()),
+                self.cont[label as usize].take(),
+            )
+        });
+        for _ in 0..=self.at.len() + 1 {
+            if label != NONE {
+                self.cont[label as usize] = Some(head.clone());
+            }
+            let mut end = head.clone();
+            self.block(body, &mut end);
+            if !Self::union(&mut head, &end) {
                 break;
             }
+        }
+        if let Some((bs, cs)) = saved {
+            self.brk[label as usize] = bs;
+            self.cont[label as usize] = cs;
+        }
+        *live = head;
+    }
+
+    /// Match `x` backward: each arm from after the match, then the decision
+    /// tree from the arms' entry states.
+    fn decide(&mut self, x: u32, live: &mut Set) {
+        let b = self.cx.b;
+        let r = b.record(b.data[x as usize][1]).to_vec();
+        let Some((&decision, arms)) = r.split_first() else {
+            return;
+        };
+        let label = self.label_of[x as usize];
+        let saved = (label != NONE).then(|| self.brk[label as usize].replace(live.clone()));
+        let mut entries = Vec::with_capacity(arms.len());
+        for &arm in arms {
+            let mut s = live.clone();
+            self.block(arm, &mut s);
+            entries.push(s);
+        }
+        self.arms.push(entries);
+        let mut tree = vec![0; live.len()];
+        self.block(decision, &mut tree);
+        self.arms.pop();
+        *live = tree;
+        if let Some(old) = saved {
+            self.brk[label as usize] = old;
         }
     }
 }
@@ -956,8 +1180,12 @@ impl<'a> Balance<'a> {
                 }
             }
             let mut st = vec![0; 3 * self.words + self.lwords];
+            // An entry local outside the exit set is a lent parameter the
+            // body does not own.
             for l in entry_locals(self.b, s) {
-                self.set_full(&mut st, l, true);
+                if self.exit[l] {
+                    self.set_full(&mut st, l, true);
+                }
             }
             if let Some(mut end) = self.block(root, st) {
                 self.tail(root, &mut end);
@@ -1085,7 +1313,8 @@ impl<'a> Balance<'a> {
             }
         };
         match b.tags[x as usize] {
-            Tag::Store => {
+            // A local a borrow is stored into holds no count.
+            Tag::Store if !is_borrow(b, w) => {
                 if let Some(l) = local(a) {
                     self.set_full(st, l, true);
                 }

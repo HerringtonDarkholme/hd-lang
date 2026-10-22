@@ -23,9 +23,12 @@
 //! body cannot see: a consumer that cannot move a count in takes one of its
 //! own and the value is released after it ([`Em::release_untaken`]), an
 //! argument a callee instance owns but the passes lent takes a count
-//! (`push_args`), a parameter the caller lends takes one on entry, since
-//! the body owns its parameters, and a cancelled suspension point
-//! releases what the body holds there ([`Em::release_unwound`]).
+//! (`push_args`), a parameter the caller lends takes one on entry when the
+//! body owns it (its exit set lists it), one the passes left unowned that
+//! an instance receives owned is released at the exit, and a cancelled
+//! suspension point releases what the body holds there
+//! ([`Em::release_unwound`]). A `borrow` read takes no count, and a local
+//! a borrow is stored into holds none ([`Em::prepare_own_loans`]).
 
 use hd_base::StageResult;
 use hd_tir::ir::{IntrinsicOp, NONE, Ref, Tag};
@@ -296,6 +299,77 @@ impl Em<'_, '_, '_> {
             self.view_loans
                 .entry(field)
                 .or_insert_with(|| self.f.local(crate::module::Val::I32));
+        }
+    }
+
+    /// An owned body's `borrow` reads and binding locals
+    /// (`docs/compiler/tir-v2.md`, "Borrow"): a borrow takes no count, so
+    /// it joins [`Moves::loans`](super::live::Moves), and its read lowers
+    /// as a copy's would with no count. One that an erased body's thunk
+    /// makes is that thunk's fresh value, with its count, which the
+    /// read's `Drop` (the pass keeps it) releases. One through a reference
+    /// takes no count on a physical place; a view's getter makes a fresh
+    /// value there, which a flag ([`Em::view_loans`]) marks for the read's
+    /// `Drop`. A local the passes store a borrow into holds no count
+    /// ([`Moves::loan_locals`](super::live::Moves)): its stores count
+    /// nothing and release nothing.
+    pub(super) fn prepare_own_loans(&mut self) {
+        use hd_tir::ir::{ReadMode, place};
+        for i in 0..self.b.len() {
+            let [a, w] = self.b.data[i];
+            let x = u32::try_from(i).expect("insts");
+            let borrow = |r: u32| {
+                Ref(r).as_inst().is_some()
+                    && (r as usize) < self.b.len()
+                    && self.b.tags[r as usize] == Tag::Read
+                    && self.b.data[r as usize][1] == ReadMode::Borrow as u32
+            };
+            match self.b.tags[i] {
+                Tag::Read if borrow(x) => {
+                    if matches!(self.calls.get(&x), Some(hd_mono::Target::Open(_))) {
+                        continue;
+                    }
+                    self.moves.loans.insert(x);
+                    if a & place::BARE_LOCAL != 0 {
+                        continue;
+                    }
+                    // `[*%r ...]` through a reference that may be a view.
+                    let start = match self.b.extra.get(a as usize + 1..a as usize + 4) {
+                        Some(&[place::ROOT_VALUE, r, step])
+                            if step & place::PROJ_KIND == place::PROJ_DEREF =>
+                        {
+                            Some(self.ty_of(r))
+                        }
+                        Some(&[place::ROOT_LOCAL, l, step])
+                            if step & place::PROJ_KIND == place::PROJ_DEREF =>
+                        {
+                            Some(self.sub(self.b.local_ty[l as usize]))
+                        }
+                        _ => None,
+                    };
+                    if start
+                        .and_then(|t| self.ref_target(t))
+                        .is_some_and(|(_, fat)| !fat)
+                    {
+                        let flag = self.f.local(crate::module::Val::I32);
+                        self.view_loans.insert(x, flag);
+                    }
+                }
+                Tag::Store if borrow(w) => {
+                    let l = if a & place::BARE_LOCAL != 0 {
+                        Some(a & !place::BARE_LOCAL)
+                    } else {
+                        match self.b.extra.get(a as usize..a as usize + 3) {
+                            Some(&[2, place::ROOT_LOCAL, l]) => Some(l),
+                            _ => None,
+                        }
+                    };
+                    if let Some(l) = l {
+                        self.moves.loan_locals.insert(l as usize, w);
+                    }
+                }
+                _ => {}
+            }
         }
     }
 
@@ -831,6 +905,11 @@ impl Em<'_, '_, '_> {
                 }
                 if let Some(ls) = self.locals.get(&l.idx()).cloned() {
                     self.count_local(l.idx(), &ls, false)?;
+                }
+            }
+            for l in self.unowned_params.clone() {
+                if let Some(ls) = self.locals.get(&l).cloned() {
+                    self.count_local(l, &ls, false)?;
                 }
             }
             for tmp in self.temps.clone() {

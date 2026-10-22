@@ -89,6 +89,16 @@ impl OwnCx for Env<'_> {
         }
     }
 
+    fn received(&self, item: DefId, k: usize, n: usize) -> Pass {
+        let Some(sig) = self.sig(item) else {
+            return Pass::Owned;
+        };
+        if sig.suspends || sig.params.len() != n {
+            return Pass::Owned;
+        }
+        self.value_parameter(self.low(sig.params[k].1))
+    }
+
     fn parts(&self, ty: Ty, variant: Option<u32>, out: &mut Vec<Ty>) -> bool {
         let types = self.run.pool.types();
         if types.has_param(ty) || types.has_assoc(ty) {

@@ -1,0 +1,13 @@
+# @dump: own counts
+# Borrow: `self` is a reference the caller keeps alive for the call, so
+# the read of the reference and the read of the list field through it
+# borrow while no call that may write stands between them and their last
+# use. The field read keeps its drop: through a view, a getter makes the
+# list fresh, and the drop releases it there.
+struct Log:
+    lines: List[string]
+
+impl Log:
+    fn add(&mut self, line: string) -> void:
+        # subject
+        self.lines.push(line)

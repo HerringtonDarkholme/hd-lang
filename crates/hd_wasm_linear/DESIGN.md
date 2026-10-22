@@ -551,7 +551,10 @@ String operations are emitted by `emit/text.rs` and runtime helpers
   lowering cannot move a count in takes one and the value is released
   after it (`release_untaken`); a lent argument a callee instance owns
   takes a count (`push_args`, as before); a parameter its caller lends
-  takes one on entry, since the body owns its parameters; and a
+  takes one on entry when the body owns it (its sub-body's exit set
+  lists it), while one the borrow pass left unowned takes none, and an
+  instance that receives it owned (a type parameter's) releases it at
+  the exit (`Em::unowned_params`); and a
   cancelled suspension point, an edge the TIR does not have, releases
   what the body holds there (`release_unwound`). `IsUnique` lowers to
   `rt:list_unique` or `rt:map_unique`, and `Pin` to `ListPin`'s owner
@@ -578,8 +581,15 @@ String operations are emitted by `emit/text.rs` and runtime helpers
   `Ref` that takes its local's count (move's rule 4) is the cell's
   address with that count, and zeroes the local; where the reference is
   no cell's address (a trait value's, an open cell's view) it counts as
-  any reference and the local is released after it. A `borrow` read
-  lowers for a plain local read only, until the borrow pass.
+  any reference and the local is released after it. A `borrow` read of
+  any place takes no count (`Em::prepare_own_loans`: it joins
+  `Moves::loans`) and lowers as a copy's read would; one an erased
+  body's thunk makes is that thunk's owned value, which the read's kept
+  `Drop` releases, and one through a thin reference has a flag
+  (`Em::view_loans`) that a view's getter sets for the fresh value it
+  makes and that the read's kept `Drop` tests. A local a borrow is
+  stored into (a binding local) holds no count (`Moves::loan_locals`):
+  its stores count and release nothing.
 
 ### 23.17 List Operations
 

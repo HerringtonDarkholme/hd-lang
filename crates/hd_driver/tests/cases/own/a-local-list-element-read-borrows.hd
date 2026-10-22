@@ -1,0 +1,12 @@
+# @dump: own counts
+# Borrow: the reads of a local list for an element read, and of the
+# element, borrow: nothing writes the list until the sum is stored.
+fn total(n: usize) -> usize:
+    let mut xs: List[string] = []
+    for i in 0..n:
+        xs.push("x")
+    let sum: usize = 0
+    for i in 0..n:
+        # subject
+        sum = sum + xs[i].len()
+    sum

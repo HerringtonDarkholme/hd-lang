@@ -3358,6 +3358,9 @@ mod tests {
             out.clear();
             false
         }
+        fn received(&self, _: hd_base::DefId, _: usize, _: usize) -> crate::own::Pass {
+            crate::own::Pass::Owned
+        }
     }
 
     /// Invariant 22: the checker's TIR has no ownership: no decided read

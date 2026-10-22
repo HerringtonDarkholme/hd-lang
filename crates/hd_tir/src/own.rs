@@ -11,13 +11,15 @@
 //! (`fold`), the naive, correct ownership
 //! of `crates/hd_wasm_linear/DESIGN.md` §23.16 with releases at last use
 //! (§23.20), made explicit, with an `IsUnique` before each change of a
-//! collection place and the pins of element references; then **move**
-//! (`moves`), which turns a `copy` that no path reads after into a
-//! `move` and deletes the `Drop` it leaves with nothing to release.
-//! Borrow, pair cancellation, known-null and hoisting are later commits of
-//! stage 2; each only weakens or deletes what insertion writes, so the
-//! pipeline is correct after any prefix. Each pass that adds or deletes
-//! statements rebuilds the body once at its end ([`splice`]).
+//! collection place and the pins of element references; then **borrow**
+//! (`borrow`), which turns a `copy` whose value can live on its place's
+//! count into a `borrow` and deletes its `Drop`s; then **move** (`moves`),
+//! which turns a `copy` that no path reads after into a `move` and deletes
+//! the `Drop` it leaves with nothing to release. Pair cancellation,
+//! known-null and hoisting are later commits of stage 2; each only weakens
+//! or deletes what insertion writes, so the pipeline is correct after any
+//! prefix. Insertion rebuilds the body once ([`splice`]); borrow and move
+//! record their edits for one more rebuild at the end.
 //!
 //! The passes read the body and [`OwnCx`], signature and layout facts the
 //! driver gives; never another body. They follow "Data layout of the
@@ -29,6 +31,7 @@ use hd_types::Ty;
 
 use crate::ir::{Body, Callee, NONE, Op, Ref, Tag, place};
 
+mod borrow;
 mod fold;
 mod insert;
 mod moves;
@@ -71,8 +74,8 @@ pub trait OwnCx {
     /// `fn_ty`.
     fn pass_value(&self, fn_ty: Ty, k: usize, n: usize) -> Pass;
     /// Whether a call of `callee` may reach memory outside its arguments:
-    /// false only for the few std functions known pure. Insertion does not
-    /// read it; the borrow and hoisting passes will.
+    /// false only for the few std functions known pure. The borrow pass
+    /// reads it; hoisting will.
     fn may_write(&self, callee: &Callee) -> bool;
     /// The parts of a value of `ty` that is laid out in place in every
     /// instance, into `out`: the field types of a struct, a tuple or a
@@ -83,6 +86,14 @@ pub trait OwnCx {
     /// value is one counted view in an erased instance. The move pass
     /// splits a base's `Drop` into its other parts' only when this holds.
     fn parts(&self, ty: Ty, variant: Option<u32>, out: &mut Vec<Ty>) -> bool;
+    /// How the body of `item` receives its own parameter `k` of `n`:
+    /// `Lent` when its caller keeps the argument alive for the call, so the
+    /// body need not own it ([`OwnCx::pass`]'s `Lent`, for a function that
+    /// does not suspend); `Owned` for a value parameter, for every
+    /// parameter of a suspending function, whose frame holds a count of
+    /// each, and for a body that is no function's. The borrow pass leaves
+    /// a lent parameter the body never stores unowned.
+    fn received(&self, item: hd_base::DefId, k: usize, n: usize) -> Pass;
 }
 
 /// How an instruction uses one of its value operands.
@@ -313,10 +324,14 @@ pub(crate) fn owner_takes_tail(b: &Body, owner: u32, blk: u32) -> bool {
 
 /// Whether instruction `i`'s value is one the passes track: an owned
 /// value that may hold a counted leaf. A block's value is its owner's, and
-/// a statement has none; a switch has one outside a decision tree.
+/// a statement has none; a switch has one outside a decision tree. A
+/// `borrow` read owns no count.
 pub(crate) fn tracked(b: &Body, cx: &dyn OwnCx, i: usize) -> bool {
     let t = b.ty[i];
     if t == Ty::VOID || t == Ty::NEVER || t == Ty::POISON {
+        return false;
+    }
+    if b.tags[i] == Tag::Read && b.data[i][1] == crate::ir::ReadMode::Borrow as u32 {
         return false;
     }
     if matches!(
@@ -464,6 +479,7 @@ pub fn consumers(b: &Body, cx: &dyn OwnCx, out: &mut Vec<u32>) {
 /// the whole run (`docs/compiler/tir-v2.md`, "Data layout of the passes").
 #[derive(Default)]
 pub struct OwnScratch {
+    pub(crate) borrow: borrow::Tables,
     pub(crate) fold: fold::Tables,
     pub(crate) insert: insert::Tables,
     pub(crate) moves: moves::Tables,
@@ -471,11 +487,14 @@ pub struct OwnScratch {
 }
 
 /// Runs the ownership passes over every sub-body of `b`, in order: place
-/// folding ([`fold`]), insertion, then move. A body the passes cannot
-/// handle is refused, with what stopped them.
+/// folding ([`fold`]), insertion, borrow, then move. Borrow and move
+/// record their deletions and insertions in one set of edits, applied once
+/// at the end. A body the passes cannot handle is refused, with what
+/// stopped them.
 pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(), String> {
     fold::run(b, cx, &mut scratch.fold);
     insert::run(b, cx, scratch)?;
+    borrow::run(b, cx, &mut scratch.borrow, &mut scratch.splice);
     moves::run(b, cx, &mut scratch.moves, &mut scratch.splice);
     splice::apply(b, &mut scratch.splice)
 }
@@ -514,6 +533,9 @@ mod tests {
         }
         fn parts(&self, _: Ty, _: Option<u32>, _: &mut Vec<Ty>) -> bool {
             false
+        }
+        fn received(&self, _: DefId, _: usize, _: usize) -> Pass {
+            Pass::Owned
         }
     }
 
@@ -691,8 +713,10 @@ mod tests {
     }
 
     /// Liveness around a loop: a local stored before the loop and read in
-    /// it is read again on the next round, so its read copies; a local
-    /// stored again in every round before its read moves there.
+    /// it is read again on the next round, so its read does not move, and
+    /// since it is only lent and nothing in the loop writes the local, it
+    /// borrows; a local stored again in every round before its read moves
+    /// there.
     #[test]
     fn a_read_in_a_loop_moves_only_when_each_round_stores_first() {
         let text = passes(
@@ -716,7 +740,7 @@ mod tests {
             },
             Ty::VOID,
         );
-        assert!(text.contains("Read copy [$0]"), "{text}");
+        assert!(text.contains("Read borrow [$0]"), "{text}");
         assert!(text.contains("Read move [$1]"), "{text}");
         assert!(!text.contains("Drop [$1]\n%"), "{text}");
     }
@@ -775,6 +799,119 @@ mod tests {
              %5 Intrinsic %3 %1\n%6 IsUnique [%0]\n%7 IsUnique [%0 [%1] .0]\n\
              %8 Store [%0 [%1] .0 [%1]] %1\n%9 IsUnique [$0]\n%10 Pin [$0]\n%11 Ref [$0 [%1]]\n\
              %12 Drop [$0]\n%13 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8 %9 %10 %11 %12]\nexit 0 $0\n"
+        );
+    }
+
+    /// Borrow: a local read that only lends, with no write of the local
+    /// before its value's last use, borrows, and its drop goes. A read whose
+    /// local a store replaces before its value's last use cannot borrow; as
+    /// nothing reads the old value after it, it moves instead.
+    #[test]
+    fn a_lent_read_borrows_unless_its_place_is_written_in_its_span() {
+        let n = NodeIdx::from_raw(1);
+        let text = passes(
+            |b| {
+                let x = local(b, 0);
+                let s = call(b, 7, &[], Ty::STRING);
+                b.set(x, s, n);
+                let r1 = b.get(x, Ty::STRING, n);
+                call(b, 8, &[r1], Ty::VOID);
+                let r2 = b.get(x, Ty::STRING, n);
+                let t = call(b, 7, &[], Ty::STRING);
+                b.set(x, t, n);
+                call(b, 8, &[r2], Ty::VOID);
+                let r3 = b.get(x, Ty::STRING, n);
+                call(b, 9, &[r3], Ty::VOID);
+                None
+            },
+            Ty::VOID,
+        );
+        assert_eq!(
+            text,
+            "%0 Call\n%1 Store [$0] %0\n%2 Read borrow [$0]\n%3 Call %2\n%4 Read move [$0]\n\
+             %5 Call\n%6 Store [$0] %5\n%7 Call %4\n%8 Drop [%4]\n%9 Read move [$0]\n%10 Call %9\n\
+             %11 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8 %9 %10]\nexit 0 $0\n"
+        );
+    }
+
+    /// Borrow's binding local: an element read stored into a local that is
+    /// stored once and only lent borrows, so the local holds a borrowed
+    /// value: its drop goes and it leaves the exit set. A read behind a
+    /// reference that a call may write keeps its copy.
+    #[test]
+    fn a_binding_local_holds_a_borrow_and_a_call_ends_a_heap_borrow() {
+        let n = NodeIdx::from_raw(1);
+        let us = Ty::prim(hd_types::Prim::Usize);
+        let text = passes(
+            |b| {
+                let list = b.local(us, Symbol::from_raw(0), 0, n);
+                let item = local(b, 0);
+                let l = call(b, 6, &[], us);
+                b.set(list, l, n);
+                let h = b.get(list, us, n);
+                let i = call(b, 6, &[], us);
+                let word = b.place(&format!("[%{} [%{}]]", h.0, i.0).parse().expect("place"));
+                let e = b.emit(Tag::Read, word, ReadMode::Use as u32, Ty::STRING, n);
+                b.set(item, e, n);
+                let r = b.get(item, Ty::STRING, n);
+                call(b, 8, &[r], Ty::VOID);
+                let o = call(b, 6, &[], us);
+                let word = b.place(&format!("[*%{} .0]", o.0).parse().expect("place"));
+                let f = b.emit(Tag::Read, word, ReadMode::Use as u32, Ty::STRING, n);
+                call(b, 8, &[f], Ty::VOID);
+                None
+            },
+            Ty::VOID,
+        );
+        assert!(text.contains("Read borrow [%2 [%3]]"), "{text}");
+        assert!(text.contains("Read borrow [$1]"), "{text}");
+        assert!(text.contains("Read copy [*%"), "{text}");
+        assert!(!text.contains("Drop [$1]"), "{text}");
+        assert!(!text.contains("exit 0 $1"), "{text}");
+    }
+
+    /// The verifier rejects a borrow whose place a store replaces while the
+    /// borrowed value lives.
+    #[test]
+    fn the_verifier_rejects_a_borrow_across_a_store_of_its_place() {
+        let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let blk = b.open_block();
+        let n = NodeIdx::from_raw(1);
+        let x = local(&mut b, 0);
+        let s = call(&mut b, 7, &[], Ty::STRING);
+        b.set(x, s, n);
+        let r = b.emit(
+            Tag::Read,
+            x.raw() | crate::ir::place::BARE_LOCAL,
+            ReadMode::Borrow as u32,
+            Ty::STRING,
+            n,
+        );
+        let t = call(&mut b, 7, &[], Ty::STRING);
+        b.emit(
+            Tag::Store,
+            x.raw() | crate::ir::place::BARE_LOCAL,
+            t.0,
+            Ty::VOID,
+            n,
+        );
+        call(&mut b, 8, &[r], Ty::VOID);
+        b.emit(
+            Tag::Drop,
+            x.raw() | crate::ir::place::BARE_LOCAL,
+            NONE,
+            Ty::VOID,
+            n,
+        );
+        let root = b.close_block(blk, None, Ty::VOID, n);
+        let mut body = b.finish_tolerating(root, &[], &[22]).expect("valid");
+        body.exit_drops.push((hd_base::SubId::from_raw(0), x));
+        assert!(
+            verify_owned(&body, &Cx)
+                .iter()
+                .any(|e| e.what.contains("lives across `Store`")),
+            "{:?}",
+            verify_owned(&body, &Cx)
         );
     }
 
