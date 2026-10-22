@@ -1,9 +1,9 @@
 // The default profile's HTTP client (std-http.send.*): a worker thread
 // that `node.mjs` starts on a program's first `Http.send!`. The program's
-// thread posts each request on `port` and waits on `flag`; this thread
-// makes the request with `node:http` or `node:https`, posts the outcome
-// back, and wakes it. So a request finishes inside its `.start` call, as a
-// `Process.run!` does, and `block_on` never waits on the event loop.
+// thread exchanges short start/poll/abort messages on `port` and `flag`.
+// This thread owns each request and its response body until completion;
+// the guest can poll its clock while it waits, and abort destroys the
+// request across every redirect or while its body is still arriving.
 //
 // - The grant covers a request by its URL's host and port
 //   (cli.cap.scope.host, .host.forms), and each redirect target as a new
@@ -17,7 +17,7 @@
 //   appearance (std-http.headers.case, .order). The body is whole
 //   (std-http.bodies). The response's `url` is the last request's URL
 //   (std-http.response.url).
-// - A request that takes longer than its timeout, or 30 s by default, is
+// - A request that takes longer than the provider's 30 s bound is
 //   `Timeout` (std-http.send.provider-timeout).
 import http from "node:http";
 import https from "node:https";
@@ -61,18 +61,25 @@ const failure = (e, host) => {
 };
 
 // One request without redirects, within `ms` milliseconds.
-const once = (url, host, method, headers, body, ms) =>
+const once = (url, host, method, headers, body, ms, signal) =>
   new Promise((done) => {
     if (ms <= 0) {
       done(err("Timeout"));
       return;
     }
+    if (signal.aborted) {
+      done(err("Other", "request cancelled"));
+      return;
+    }
     const lib = url.protocol === "https:" ? https : http;
     let settled = false;
+    let timer = null;
+    const aborted = () => settle(err("Other", "request cancelled"));
     const settle = (r) => {
       if (!settled) {
         settled = true;
         clearTimeout(timer);
+        signal.removeEventListener("abort", aborted);
         done(r);
       }
     };
@@ -98,15 +105,17 @@ const once = (url, host, method, headers, body, ms) =>
       method,
       headers: all.flat(),
       agent: false,
+      signal,
     });
     // Node 24 silently drops response headers past 1000 pairs; a request
     // option does not lift that, the property does (0 is no limit).
     // std-http.headers.pairs keeps every pair.
     req.maxHeadersCount = 0;
-    const timer = setTimeout(() => {
+    timer = setTimeout(() => {
       settle(err("Timeout"));
       req.destroy();
     }, ms);
+    signal.addEventListener("abort", aborted, { once: true });
     req.on("error", (e) => settle(failure(e, host)));
     req.on("response", (res) => {
       const chunks = [];
@@ -127,12 +136,13 @@ const once = (url, host, method, headers, body, ms) =>
   });
 
 // A request and its redirects, as the program's grant allows them.
-async function send(r) {
+async function send(r, signal) {
   const grant = createGrant(r.grants);
   let { method, url, body } = r;
   let written = url;
   const deadline = Date.now() + DEFAULT_TIMEOUT_MS;
   for (let redirects = 0; ; redirects++) {
+    if (signal.aborted) return err("Other", "request cancelled");
     let u;
     try {
       if (!isAsciiUrl(url)) return err("InvalidUrl", url);
@@ -144,7 +154,7 @@ async function send(r) {
     const host = writtenHost(written);
     const port = u.port ? Number(u.port) : u.protocol === "https:" ? 443 : 80;
     if (!grant.coversHost("Http", host, port)) return err("NotGranted", host);
-    const got = await once(u, host, method, r.headers, body, deadline - Date.now());
+    const got = await once(u, host, method, r.headers, body, deadline - Date.now(), signal);
     const location = got.headers?.find(([n]) => n.toLowerCase() === "location")?.[1];
     if (
       got.error ||
@@ -170,11 +180,48 @@ async function send(r) {
   }
 }
 
+// Replies go only to control calls; asynchronous completion never posts
+// an unsolicited message that could become another operation's reply.
+const operations = new Map();
+let nextOperation = 1;
+const run = (r) => {
+  switch (r.op) {
+    case "start": {
+      const operation = nextOperation++;
+      const controller = new AbortController();
+      const state = { controller, result: null };
+      operations.set(operation, state);
+      const complete = (result) => {
+        if (operations.get(operation) === state) state.result = result;
+      };
+      send(r, controller.signal).then(complete, (error) =>
+        complete(err("Other", String(error?.message ?? error))),
+      );
+      return { ok: operation };
+    }
+    case "poll": {
+      const state = operations.get(r.operation);
+      if (state === undefined) throw new Error("unknown HTTP operation");
+      if (state.result === null) return { pending: true };
+      operations.delete(r.operation);
+      return state.result;
+    }
+    case "abort":
+      operations.get(r.operation)?.controller.abort();
+      operations.delete(r.operation);
+      return { ok: null };
+    case "open":
+      return { ok: operations.size };
+    default:
+      throw new Error("unknown HTTP control call");
+  }
+};
+
 const { port, flag } = workerData;
-port.on("message", async (r) => {
+port.on("message", (r) => {
   let out;
   try {
-    out = await send(r);
+    out = run(r);
   } catch (e) {
     out = err("Other", String(e?.message ?? e));
   }

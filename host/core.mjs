@@ -548,7 +548,13 @@ export function httpProvider(send) {
         body: r.body,
         redirects: r.redirects,
       });
-      return a.error ? Err(variant(HttpError, a.error, a.text)) : Ok(a);
+      const result = (answer) =>
+        answer.error ? Err(variant(HttpError, answer.error, answer.text)) : Ok(answer);
+      // Node's worker can keep the request pending; browsers still answer
+      // synchronously here. Encode the result only after readiness wins.
+      return a instanceof Later
+        ? new Later(a.at, () => result(a.done()), a.poll, a.abort)
+        : result(a);
     },
   };
 }

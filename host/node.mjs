@@ -300,9 +300,24 @@ export function exitPast(workers, status = 0, statusFile = null) {
   }
 }
 
-// HTTP requests hold nothing open, so one client serves every instance.
-const httpClient = syncClient("http.mjs");
-const httpSend = (request, left) => httpClient.call(request, left);
+// Start/poll/abort are short worker control calls. The response body stays
+// in the worker until complete; the guest can race its clock meanwhile.
+const httpSend = (client, request) => {
+  const { ok: operation } = client.call({ ...request, op: "start" });
+  let result = null;
+  const poll = () => {
+    const outcome = client.call({ op: "poll", operation });
+    if (outcome.pending) return false;
+    result = outcome;
+    return true;
+  };
+  if (poll()) return result;
+  return pendingOperation(
+    poll,
+    () => result,
+    () => client.cancel({ op: "abort", operation }),
+  );
+};
 
 // Reads standard input one line at a time, synchronously
 // (cli.host.default-profile.input-closed): the line without its ending,
@@ -871,6 +886,7 @@ const nodeLayer = {
     // `Net` and its socket handles (spec/std/net.md) on a client thread of
     // this instance's own, which holds its sockets; `close` stops it.
     const net = syncClient("net.mjs");
+    const http = syncClient("http.mjs");
     // The program's output reaches its stream before it waits on the host
     // (std-console.host.visible-text): a run stopped in a wait loses none. Each
     // client call and child process asks `waiting()` first.
@@ -878,19 +894,22 @@ const nodeLayer = {
       flush();
       return left();
     };
-    const netClient = {
-      call: (request) => net.call(request, waiting),
-      // Cancellation owns no I/O wait. It still releases a socket after
+    const client = (worker) => ({
+      call: (request) => worker.call(request, waiting),
+      // Cancellation owns no I/O wait. It still releases resources after
       // the program deadline expired, and never starts a replacement worker.
-      cancel: (request) => (net.started() ? net.call(request, () => EXIT_GRACE_MS) : { ok: null }),
-    };
+      cancel: (request) =>
+        worker.started() ? worker.call(request, () => EXIT_GRACE_MS) : { ok: null },
+    });
+    const netClient = client(net);
+    const httpClient = client(http);
     const grants = env.grants ?? {};
     const testRunner = testRunnerProvider({ env, st });
     return {
       traits: {
         "hd:ConsoleInput": consoleInputProvider({ env, flush }),
         "hd:Sys": sysProvider({ grant }),
-        "hd:Http": httpProvider((request) => httpSend({ ...request, grants }, waiting)),
+        "hd:Http": httpProvider((request) => httpSend(httpClient, { ...request, grants })),
         "hd:Net": netProvider({ grant, netClient }),
         "hd:Env": envProvider({ grant, sink, st, flush }),
         ...fsProviders({ grant, flush }),
@@ -912,6 +931,7 @@ const nodeLayer = {
       // sockets.
       close: () => {
         net.stop();
+        http.stop();
         if (st.ownTemp) {
           try {
             rmSync(st.ownTemp, { recursive: true, force: true });

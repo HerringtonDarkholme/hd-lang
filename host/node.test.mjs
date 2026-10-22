@@ -4,12 +4,14 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import net from "node:net";
+import http from "node:http";
 import { once } from "node:events";
 import { MessageChannel, receiveMessageOnPort, Worker } from "node:worker_threads";
-import { createCoreHost, pendingOperation } from "./core.mjs";
-import { Ok } from "./wire.mjs";
+import { createCoreHost, httpProvider, pendingOperation } from "./core.mjs";
+import { Enc, Ok } from "./wire.mjs";
+import { METHODS } from "./gen/abi.mjs";
 
-import { cgroupCpuCount } from "./node.mjs";
+import { cgroupCpuCount, createHost } from "./node.mjs";
 
 function fixture(t, files) {
   const root = mkdtempSync(join(tmpdir(), "hd-cgroup-"));
@@ -402,3 +404,203 @@ test(
     call({ op: "close", handle: listener });
   },
 );
+
+// #726: the HTTP worker owns a request until its final body or abort.
+async function httpLoopback(t, handler) {
+  const sockets = new Set();
+  const server = http.createServer(handler);
+  server.on("connection", (socket) => {
+    sockets.add(socket);
+    socket.on("error", () => {});
+    socket.once("close", () => sockets.delete(socket));
+  });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  t.after(() => {
+    for (const socket of sockets) socket.destroy();
+    server.close();
+  });
+  return `http://127.0.0.1:${server.address().port}`;
+}
+
+function httpWorker(t) {
+  const call = netWorker(t, { url: new URL("./http.mjs", import.meta.url) });
+  const start = (url, options = {}) => {
+    const result = call({
+      op: "start",
+      method: "GET",
+      url,
+      headers: [],
+      body: new Uint8Array(),
+      redirects: 5,
+      grants: {},
+      ...options,
+    });
+    assert.equal(typeof result.ok, "number", "start returns an operation without waiting for HTTP");
+    return result.ok;
+  };
+  const result = async (operation) => {
+    let answer;
+    await t.waitFor(
+      () => {
+        answer = call({ op: "poll", operation });
+        assert.notEqual(answer.pending, true, "the HTTP operation is ready");
+      },
+      { interval: 1, timeout: 5000 },
+    );
+    return answer;
+  };
+  return { call, start, result };
+}
+
+for (const phase of ["headers", "body", "redirect"]) {
+  test(`HTTP abort closes a request waiting for ${phase}`, { timeout: 10000 }, async (t) => {
+    let seen;
+    const received = new Promise((resolve) => {
+      seen = resolve;
+    });
+    const paths = [];
+    const url = await httpLoopback(t, (request, response) => {
+      paths.push(request.url);
+      if (phase === "redirect" && request.url === "/") {
+        response.writeHead(302, { Location: "/slow" });
+        response.end();
+        return;
+      }
+      if (phase === "body") {
+        response.writeHead(200, { "Content-Type": "text/plain" });
+        response.write("unfinished body");
+      }
+      seen(request);
+    });
+    const { call, start } = httpWorker(t);
+    const operation = start(url);
+    const request = await received;
+    assert.deepEqual(call({ op: "poll", operation }), { pending: true });
+    const closed = once(request.socket, "close");
+    assert.deepEqual(call({ op: "abort", operation }), { ok: null });
+    await closed;
+    assert.deepEqual(call({ op: "open" }), { ok: 0 });
+    assert.deepEqual(call({ op: "abort", operation }), { ok: null }, "abort is idempotent");
+    assert.deepEqual(paths, phase === "redirect" ? ["/", "/slow"] : ["/"]);
+  });
+}
+
+test(
+  "HTTP operations complete independently and abort never posts a stray reply",
+  { timeout: 10000 },
+  async (t) => {
+    let slow;
+    const received = new Promise((resolve) => {
+      slow = resolve;
+    });
+    const url = await httpLoopback(t, (request, response) => {
+      if (request.url === "/slow") {
+        slow(request);
+        return;
+      }
+      response.writeHead(201, ["X-Repeat", "one", "X-Repeat", "two"]);
+      response.end(request.url);
+    });
+    const { call, start, result } = httpWorker(t);
+    const pending = start(`${url}/slow`);
+    const request = await received;
+    const fast = start(`${url}/fast`);
+    const closed = once(request.socket, "close");
+    call({ op: "abort", operation: pending });
+    await closed;
+    const answer = await result(fast);
+    assert.equal(answer.status, 201, JSON.stringify(answer));
+    assert.equal(new TextDecoder().decode(answer.body), "/fast");
+    assert.equal(answer.url, `${url}/fast`);
+    assert.deepEqual(
+      answer.headers.filter(([name]) => name === "x-repeat"),
+      [
+        ["x-repeat", "one"],
+        ["x-repeat", "two"],
+      ],
+    );
+    assert.deepEqual(call({ op: "open" }), { ok: 0 });
+    const next = await result(start(`${url}/next`));
+    assert.equal(
+      new TextDecoder().decode(next.body),
+      "/next",
+      "the next reply belongs to its request",
+    );
+    assert.deepEqual(call({ op: "open" }), { ok: 0 });
+  },
+);
+
+test("HTTP grant and URL errors finish before any network wait", async (t) => {
+  const { call, start } = httpWorker(t);
+  const invalid = start("not a URL");
+  assert.deepEqual(call({ op: "poll", operation: invalid }), {
+    error: "InvalidUrl",
+    text: "not a URL",
+  });
+  const denied = start("http://127.0.0.1:1/", { grants: { Http: false } });
+  assert.deepEqual(call({ op: "poll", operation: denied }), {
+    error: "NotGranted",
+    text: "127.0.0.1",
+  });
+  assert.deepEqual(call({ op: "open" }), { ok: 0 });
+});
+
+for (const mode of ["expired deadline", "host close"]) {
+  test(`the real Node host aborts pending HTTP after ${mode}`, { timeout: 10000 }, async (t) => {
+    let seen;
+    const received = new Promise((resolve) => {
+      seen = resolve;
+    });
+    const url = await httpLoopback(t, (request) => {
+      seen(request);
+    });
+    const host = createHost({ out() {}, err() {} });
+    t.after(() => host.close());
+    const memory = new WebAssembly.Memory({ initial: 1 });
+    host.prime({ exports: { "hd.x": memory } });
+    const encoded = new Enc();
+    METHODS["hd:Http"].send.params[0].enc(encoded, {
+      method: { tag: "Get" },
+      url,
+      query: [],
+      headers: [],
+      body: new Uint8Array(),
+      redirects: 5,
+    });
+    new Uint8Array(memory.buffer).set(encoded.done());
+    const [status, operation] = host.imports["hd:Http"]["send.start"](encoded.len);
+    assert.equal(status, 1, "send stays pending while the server has not replied");
+    const request = await received;
+    const closed = once(request.socket, "close");
+    if (mode === "expired deadline") {
+      host.core.st.deadline = performance.now() - 1;
+      host.imports["hd:rt"].abort(operation);
+    } else {
+      host.close();
+    }
+    await closed;
+    assert.equal(host.core.st.ops.size, 0);
+  });
+}
+
+test("the shared HTTP adapter preserves synchronous browser-style answers", () => {
+  const request = {
+    method: { tag: "Other", name: "PROPFIND" },
+    url: "https://example.test/",
+    headers: [["X-Request", "one"]],
+    body: Uint8Array.of(1, 2),
+    redirects: 2,
+  };
+  const response = { status: 207, headers: [], body: Uint8Array.of(3), url: request.url };
+  const provider = httpProvider((sent) => {
+    assert.deepEqual(sent, { ...request, method: "PROPFIND" });
+    return response;
+  });
+  assert.deepEqual(provider.send(request), Ok(response));
+  const failed = httpProvider(() => ({ error: "Timeout" })).send(request);
+  assert.equal(failed.ok, false);
+  assert.equal(failed.error.tag, "Timeout");
+});
