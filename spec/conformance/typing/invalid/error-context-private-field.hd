@@ -1,0 +1,8 @@
+# test: an erased context error exposes no wrapper fields
+use std.error.Error
+
+fn message_field() -> string:
+    let failed: Result[i32, string] = .Err("cause")
+    match failed.context("context"):
+        .Ok(_) => "unexpected"
+        .Err(error) => error.message  # diagnostic: unknown-field

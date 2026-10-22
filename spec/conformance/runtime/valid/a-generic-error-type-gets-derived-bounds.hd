@@ -1,5 +1,5 @@
 # test: a generic error type gets derived bounds
-# Rules: std-error.chain.order; Spec 14 Error Derivation: annot.error.cause.member.
+# Rules: std-error.chain.method-order; Spec 14 Error Derivation: annot.error.cause.member.
 # expect-stdout: task build failed
 # expect-stdout: 2
 # expect-stdout: task build failed
@@ -7,7 +7,7 @@
 # expect-stdout: got 7
 # expect-stdout: got x
 # expect-stdout: 1
-use std.error.{Error, chain}
+use std.error.Error
 
 @error("disk full")
 struct DiskError:
@@ -32,7 +32,8 @@ enum Named[T]:
     Got(value: T)
 
 fn depth[E < Error](error: E) -> usize:
-    chain(&error).len()
+    let failure: &dyn Error = &error
+    failure.chain().len()
 
 fn show[T < Display](value: Named[T]) -> string:
     value.to_string()

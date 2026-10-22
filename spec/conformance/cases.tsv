@@ -3015,7 +3015,7 @@ runtime/valid/map-args-env.hd	runtime	accept	std/host.md#map-providers
 runtime/valid/memory-fs.hd	runtime	accept	std/fs.md#memory-file-system
 runtime/valid/memory-fs-handle-shared.hd	runtime	accept	std/fs.md#r-std-fs.memory.new-ref
 runtime/valid/memory-fs-directories.hd	runtime	accept	std/fs.md#r-std-fs.memory.dirs
-runtime/valid/error-chain.hd	runtime	accept	std/error.md#r-std-error.chain.order
+runtime/valid/error-chain.hd	runtime	accept	std/error.md#r-std-error.chain.method-order
 runtime/valid/error-report.hd	runtime	accept	std/error.md#r-std-error.report.of.reference-values
 runtime/valid/duration-arithmetic.hd	runtime	accept	std/time.md#duration-arithmetic
 runtime/panic/duration-add-overflow.hd	runtime	panic:integer-overflow	std/time.md#r-std-time.duration.add-overflow
@@ -3024,13 +3024,13 @@ runtime/panic/duration-negative-count.hd	runtime	panic:explicit-panic	std/time.m
 runtime/valid/duration-sub.hd	runtime	accept	std/time.md#r-std-time.duration.checked-sub
 typing/invalid/duration-negation.hd	type	reject:type-mismatch	std/time.md#r-std-time.duration.no-neg
 runtime/valid/duration-display.hd	runtime	accept	std/time.md#duration-display
-runtime/valid/error-find.hd	runtime	accept	std/error.md#r-std-error.find.first
-runtime/valid/error-root-cause.hd	runtime	accept	std/error.md#r-std-error.root-cause.reference
-runtime/valid/error-find-erased.hd	runtime	accept	std/error.md#r-std-error.find.first
+runtime/valid/error-find.hd	runtime	accept	std/error.md#r-std-error.find.method-chain-first
+runtime/valid/error-root-cause.hd	runtime	accept	std/error.md#r-std-error.root-cause.method-chain
+runtime/valid/error-find-erased.hd	runtime	accept	std/error.md#r-std-error.find.method-chain-first
 runtime/valid/error-find-trait-value.hd	runtime	accept	std/error.md#r-std-error.find.concrete-exact
 typing/invalid/error-find-non-error.hd	type	reject:unsatisfied-trait-bound	std/error.md#r-std-error.find.bound
 runtime/valid/error-context-generic-reference.hd	runtime	accept	lang/09-traits.md#r-trait.error.inherent-recovery.reference-values
-runtime/valid/error-context.hd	runtime	accept	std/error.md#r-std-error.context.reference-wrapper
+runtime/valid/error-context.hd	runtime	accept	std/error.md#r-std-error.context.erased-wrapper
 typing/valid/dynamic-safety-implied-anyref.hd	type	accept	lang/09-traits.md#r-trait.dyn.safe.method-type-param
 runtime/valid/std-derived-implementations.hd	runtime	accept	std/format.md#r-std-format.debug.std-types
 typing/valid/std-types-debug.hd	type	accept	std/format.md#r-std-format.debug.std-types
@@ -3115,7 +3115,6 @@ runtime/valid/utf8-truncated.hd	runtime	accept	std/text.md#r-std-text.utf8.error
 runtime/valid/utf8-overlong.hd	runtime	accept	std/text.md#r-std-text.utf8.well-formed
 runtime/valid/utf8-error-traits.hd	runtime	accept	std/text.md#r-std-text.utf8.error.traits
 runtime/valid/time-unix-milliseconds.hd	runtime	accept	std/time.md#r-std-time.timestamp.unix-milliseconds
-runtime/valid/context-error-debug.hd	runtime	accept	std/error.md#r-std-error.context.debug
 runtime/valid/debug-builders-behind-ref.hd	runtime	accept	std/format.md#r-std-format.debug.builder.types-ref
 runtime/valid/string-split-once.hd	runtime	accept	std/text.md#r-std-text.split-once
 runtime/valid/string-split-whitespace.hd	runtime	accept	std/text.md#r-std-text.split-whitespace
@@ -4793,3 +4792,6 @@ typing/invalid/http-request-send-missing-provider.hd	type	reject:missing-require
 runtime/valid/regex-decode.hd	runtime	accept	std/regex.md#typed-decoding
 typing/invalid/regex-decode-requires-deserialize.hd	type	reject:unsatisfied-trait-bound	std/regex.md#r-std-regex.decode.regex
 typing/invalid/num-parse-free-function-removed.hd	type	reject:unknown-import	std/num.md#parse-impls
+typing/invalid/error-chain-free-function-removed.hd	type	reject:unknown-import	std/error.md#r-std-error.chain.method-only
+typing/invalid/error-context-private-type.hd	type	reject:private-import	std/error.md#r-std-error.context.private-wrapper
+typing/invalid/error-context-private-field.hd	type	reject:unknown-field	std/error.md#r-std-error.context.private-wrapper

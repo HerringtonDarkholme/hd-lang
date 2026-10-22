@@ -6,12 +6,11 @@ This chapter defines the part of `std.error` that `lib/std` writes in
 ordinary hd over the language tier:
 
 - the inherent methods `chain`, `root_cause`, and `find` of `&dyn Error`,
-  and the free function `chain`, which list and search an error's causes;
+  which list and search an error's causes;
 - the type `ErrorReport` and the helper `report_of`, which snapshot an
   error's message and its causes' messages;
 - the function `message`, which makes an error from a text;
-- the method `context` of `Result[T, E]` and the type `ContextError` it
-  wraps an error in;
+- the method `context` of `Result[T, E]`, which wraps errors with a message;
 - which std error types implement `Error`.
 
 The language tier keeps what the compiler knows by name:
@@ -27,10 +26,10 @@ The language tier keeps what the compiler knows by name:
 ## Cause Chain
 
 `chain` lists an error, then its cause, then that cause's cause. It is an
-inherent method of `&dyn Error`, and also a free function:
+inherent method of `&dyn Error`:
 
 ```text
-use std.error.{Error, chain}
+use std.error.Error
 
 @error("disk full")
 struct DiskError:
@@ -42,17 +41,17 @@ enum SaveError:
     Write(path: string, @source error: DiskError)
 
 fn messages(failure: SaveError) -> List[string]:
-    chain(&failure).map(fn(error: &dyn Error) -> string: error.to_string())
+    let error: &dyn Error = &failure
+    error.chain().map(fn(error: &dyn Error) -> string: error.to_string())
 ```
 
 For `SaveError.Write("notes.txt", DiskError { free: 0 })`, `messages`
 returns `["cannot save notes.txt", "disk full"]`.
 
 1. r[std-error.chain.reference-method] `std.error` declares `pub fn chain(&self) -> List[&dyn Error]` in its `impl dyn Error:` block, so `e.chain()` lists the causes of an `&dyn Error` reference `e`.
-2. r[std-error.chain.reference-function] `std.error` also declares the free function `pub fn chain(error: &dyn Error) -> List[&dyn Error]`, which returns `error.chain()`. Code imports it, as in `use std.error.chain`.
-3. r[std-error.chain.order] `chain(error)` returns `error` first, then the error that its `cause` returns, then that error's cause, and so on.
+2. r[std-error.chain.method-only] `std.error` exports no free `chain` function.
+3. r[std-error.chain.method-order] `error.chain()` returns `error` first, then the error that its `cause` returns, then that error's cause, and so on.
 4. r[std-error.chain.end] The list ends with the first error whose `cause` returns `.None`.
-5. r[std-error.chain.reference-argument] The argument is a shared reference to an error, erased as `&dyn Error`.
 
 > **Note.** The list is never empty. A transparent error's `cause` skips
 > its member, as [`annot.error.transparent.cause`](../lang/14-annotations.md#r-annot.error.transparent.cause)
@@ -95,9 +94,9 @@ fn free_space(failure: &dyn Error) -> i64?:
 For `SaveError.Write("notes.txt", DiskError { free: 0 })`, `innermost`
 returns `"disk full"`, and `free_space` returns `.Some(0)`.
 
-1. r[std-error.root-cause.reference] `e.root_cause()` returns the last shared error reference of `chain(e)`, including `e` itself when it has no cause.
+1. r[std-error.root-cause.method-chain] `e.root_cause()` returns the last shared error reference of `e.chain()`, including `e` itself when it has no cause.
 2. r[std-error.dyn-reference-receiver.reference-values] `chain`, `root_cause`, and `find` are inherent methods of `&dyn Error`, by [`trait.error.dyn-methods.reference-values`](../lang/09-traits.md#r-trait.error.dyn-methods.reference-values). Their receivers have type `&dyn Error`; a concrete error reference converts before the call.
-3. r[std-error.find.first] `e.find::[T]()` returns `.Some` of the first error of `chain(e)`, in order, whose recorded type is `T`, and `.None` when no error does.
+3. r[std-error.find.method-chain-first] `e.find::[T]()` returns `.Some` of the first error of `e.chain()`, in order, whose recorded type is `T`, and `.None` when no error does.
 4. r[std-error.find.copied-value] The found error is copied through the reference returned by `downcast_ref::[T]()`.
 5. r[std-error.find.struct-copy] For a struct target, the returned value is an independent copy of that struct.
 6. r[std-error.find.concrete-exact] The target is a concrete error type and matches exactly, without a supertrait search.
@@ -206,22 +205,13 @@ fn summary() -> string:
 1. r[std-error.context.reference-result] `std.error` declares the inherent method `pub fn context(self, message: string) -> Result[T, &dyn Error]` on `Result[T, E]` for every `E < Error`.
 2. r[std-error.context.no-use] Calling `context` needs no `use`, by [`trait.own.inherent.std.no-use`](../lang/09-traits.md#r-trait.own.inherent.std.no-use).
 3. r[std-error.context.ok] `.Ok(value).context(message)` returns `.Ok(value)`.
-4. r[std-error.context.reference-wrapper] `.Err(error).context(message)` returns `.Err` of a shared reference to a `ContextError` wrapping `&error` with that message.
-5. r[std-error.context.type-struct] `std.error` declares the struct `ContextError`, a value with private fields, which implements `Display` and `Error`. Code imports it, as in `use std.error.ContextError`.
-6. r[std-error.context.display] A `ContextError` displays as its message.
-7. r[std-error.context.reference-cause] Its `cause` returns `.Some` of the shared reference to the wrapped error.
-8. r[std-error.context.chain] So `chain` lists the `ContextError` first, then the wrapped error and its causes, and `report_of` gives the message, then one `caused by:` line per cause.
-9. r[std-error.context.debug] `ContextError` implements `Debug`. It calls `out.debug_struct("ContextError")`, then `.field("message", m)` and `.field("cause", c)`, then `.finish()`.
-10. r[std-error.context.debug.fields] There `m` is its message, and `c` is the `Display` text of the wrapped error, as a `string`.
-
-> **Note.** In the compact layout, the `ContextError` of the example
-> above shows as
-> `ContextError { message: "loading config", cause: "not found: app.toml" }`.
-> Like all `debug` text, that layout is not portable.
-
-> **Why.** The wrapped error is an erased `&dyn Error`, which has no `Debug`.
-> Its `Display` text is the one description every cause has, so a test
-> that compares a `ContextError` can still show both parts.
+4. r[std-error.context.erased-wrapper] `.Err(error).context(message)` returns `.Err` of a shared reference to a wrapper containing `&error` and that message.
+5. r[std-error.context.private-wrapper] The wrapper is a private struct with private fields, whose type code outside `std.error` cannot name.
+6. r[std-error.context.wrapper-traits] The wrapper implements `Display` and `Error`.
+7. r[std-error.context.wrapper-display] The wrapper displays as its message.
+8. r[std-error.context.reference-cause] Its `cause` returns `.Some` of the shared reference to the wrapped error.
+9. r[std-error.context.method-chain] `error.chain()` lists the wrapper first, then the wrapped error and its causes.
+10. r[std-error.context.report-chain] `report_of` gives the context message, then one `caused by:` line per cause.
 
 > **Why.** Code that propagates with `?` often knows what it was doing
 > but not why the call failed. `context` records the first, keeps the

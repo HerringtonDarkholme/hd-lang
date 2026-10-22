@@ -52,10 +52,8 @@ std.random.Rng	std/random.md#rng
 std.random.rng	std/random.md#rng
 std.testing.PropertyCase	std/testing.md#runner-capabilities
 std.num.ParseNumberError	std/num.md#integer-parsing
-std.error.chain	std/error.md#cause-chain
 std.error.ErrorReport	std/error.md#error-reports
 std.error.report_of	std/error.md#error-reports
-std.error.ContextError	std/error.md#error-context
 std.encoding	std/encoding.md#hex
 std.digest	std/digest.md#sha-256
 std.json.Json	std/json.md#json-values
