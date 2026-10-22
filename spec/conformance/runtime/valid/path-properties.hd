@@ -1,0 +1,241 @@
+# test: path operations agree with a byte-scanned component reference
+# Spec std/path: std-path.ops.components, std-path.join.absolute,
+# std-path.join.separator, std-path.parent.value, std-path.file-name.value,
+# std-path.extension.value, std-path.extension.empty, std-path.file-stem.value,
+# std-path.with-extension.value, std-path.with-extension.trailing,
+# std-path.with-extension.verbatim, std-path.with-extension.dotfile.
+use std.path.Path
+use std.testing.{assert_equal, it_each, it_prop}
+
+struct Piece:
+    start: usize
+    text: string
+
+# Scan the raw bytes for separators, keeping spans into the original UTF-8
+# text. This does not use Path, split, take, or last from the implementation.
+fn keep_piece(parts: &mut List[Piece], text: string, start: usize, end: usize, absolute: bool) -> void:
+    piece := text.slice(start, end)
+    if piece == "" || (piece == "." && (absolute || parts.len() > 0)):
+        return
+    parts.push(Piece { start: start, text: piece })
+
+fn reference_parts(text: string) -> List[Piece]:
+    let mut parts: List[Piece] = []
+    let start: usize = 0
+    let offset: usize = 0
+    for byte in text.bytes():
+        if byte == 47:
+            keep_piece(&mut parts, text, start, offset, text.starts_with("/"))
+            start = offset + 1
+        offset += 1
+    keep_piece(&mut parts, text, start, text.len(), text.starts_with("/"))
+    parts
+
+fn reference_render(parts: List[Piece], count: usize, absolute: bool) -> string:
+    let result = if absolute: "/" else: ""
+    for index in 0..count:
+        if index > 0:
+            result += "/"
+        result += parts[index].text
+    result
+
+fn reference_parent(text: string) -> string?:
+    parts := reference_parts(text)
+    if parts.len() == 0:
+        return .None
+    .Some(reference_render(parts, parts.len() - 1, text.starts_with("/")))
+
+fn reference_file(text: string) -> Piece?:
+    parts := reference_parts(text)
+    if parts.len() == 0:
+        return .None
+    found := parts[parts.len() - 1]
+    if found.text == "." || found.text == "..":
+        .None
+    else:
+        .Some(found)
+
+fn reference_name(text: string) -> string?:
+    match reference_file(text):
+        .Some(piece) => .Some(piece.text)
+        .None => .None
+
+fn extension_dot(name: string) -> usize?:
+    let last: usize? = .None
+    let offset: usize = 0
+    for byte in name.bytes():
+        if byte == 46 && offset > 0:
+            last = .Some(offset)
+        offset += 1
+    last
+
+fn reference_extension(text: string) -> string?:
+    match reference_name(text):
+        .Some(name) =>
+            match extension_dot(name):
+                .Some(dot) => .Some(name.slice(dot + 1, name.len()))
+                .None => .None
+        .None => .None
+
+fn stem_of_name(name: string) -> string:
+    match extension_dot(name):
+        .Some(dot) => name.slice(0, dot)
+        .None => name
+
+fn reference_stem(text: string) -> string?:
+    match reference_name(text):
+        .Some(name) => .Some(stem_of_name(name))
+        .None => .None
+
+fn reference_with_extension(text: string, extension: string) -> string:
+    match reference_file(text):
+        .Some(piece) =>
+            suffix := if extension == "": "" else: "." + extension
+            text.slice(0, piece.start) + stem_of_name(piece.text) + suffix
+        .None => text
+
+fn reference_join(base: string, part: string) -> string:
+    if part.starts_with("/"):
+        return part
+    if base == "" || base.ends_with("/"):
+        base + part
+    else:
+        base + "/" + part
+
+fn verify_model(text: string, extension: string) -> void:
+    path := Path(text)
+    let expected_parent: Path? = .None
+    match reference_parent(text):
+        .Some(value) => expected_parent = .Some(Path(value))
+        .None => pass
+    assert_equal(path.parent(), expected_parent, reason="parent agrees with independently scanned components")
+    assert_equal(path.file_name(), reference_name(text), reason="file name agrees with the component model")
+    assert_equal(path.extension(), reference_extension(text), reason="extension agrees with the final non-leading dot")
+    assert_equal(path.file_stem(), reference_stem(text), reason="stem agrees with the byte-span model")
+    assert_equal(string(path.with_extension(extension)), reference_with_extension(text, extension), reason="replacement preserves the raw prefix and removes trailing separators")
+
+fn structured_path(bytes: List[u8]) -> string:
+    tokens := ["", "/", ".", "..", "a", "b", "x.y", ".bashrc", "λ", "a.", "//", "/."]
+    let result = ""
+    for byte in bytes:
+        result += tokens[usize(byte) % tokens.len()]
+    result
+
+struct PathCase:
+    text: string
+    parent: string?
+    name: string?
+    stem: string?
+    extension: string?
+    replacement: string
+    changed: string
+
+struct JoinCase:
+    base: string
+    part: string
+    result: string
+
+tests:
+    it_prop("arbitrary path text matches the component reference", cases=100, prop=fn!(text: string):
+        verify_model(text, "txt")
+        verify_model(text, "")
+    )
+
+    it_prop("structured separators and dots match the component reference", cases=100, prop=fn!(bytes: List[u8]):
+        verify_model(structured_path(bytes), ".new")
+        verify_model(structured_path(bytes), "δ")
+    )
+
+    it_prop("joining one relative component then taking parent returns the canonical base", cases=100, prop=fn!(bytes: List[u8]):
+        raw := structured_path(bytes)
+        parts := reference_parts(raw)
+        base := reference_render(parts, parts.len(), raw.starts_with("/"))
+        child := "leaf${bytes.len()}"
+        joined := Path(base).join(child)
+        assert_equal(string(joined), reference_join(base, child), reason="join agrees with plain text assembly")
+        assert_equal(joined.parent(), .Some(Path(base)), reason="the child is one component and the base is canonical")
+    )
+
+    it_prop("file stem and optional extension reconstruct the file name", cases=100, prop=fn!(bytes: List[u8]):
+        text := structured_path(bytes)
+        path := Path(text)
+        verify_model(text, "new")
+        match path.file_name():
+            .Some(name) =>
+                stem := path.file_stem().expect("a file name has a stem")
+                rebuilt := match path.extension():
+                    .Some(extension) => stem + "." + extension
+                    .None => stem
+                assert_equal(rebuilt, name, reason="Some empty extension retains a final dot")
+            .None =>
+                assert_equal(path.file_stem(), .None, reason="no file name means no stem")
+                assert_equal(path.extension(), .None, reason="no file name means no extension")
+    )
+
+    it_prop("replacing with a plain nonempty extension returns that extension", cases=100, prop=fn!(bytes: List[u8]):
+        text := structured_path(bytes)
+        extension := "ext${bytes.len()}"
+        changed := Path(text).with_extension(extension)
+        assert_equal(string(changed), reference_with_extension(text, extension), reason="replacement agrees with the raw-span reference")
+        match reference_name(text):
+            .Some(_) => assert_equal(changed.extension(), .Some(extension), reason="the new extension has neither dots nor separators")
+            .None => assert_equal(changed, Path(text), reason="a path without a file name is unchanged")
+    )
+
+    it_each("adversarial paths follow the explicit component and extension rules", rows=[
+        PathCase { text: "", parent: .None, name: .None, stem: .None, extension: .None, replacement: "txt", changed: "" },
+        PathCase { text: ".", parent: .Some(""), name: .None, stem: .None, extension: .None, replacement: "txt", changed: "." },
+        PathCase { text: "..", parent: .Some(""), name: .None, stem: .None, extension: .None, replacement: "txt", changed: ".." },
+        PathCase { text: "/", parent: .None, name: .None, stem: .None, extension: .None, replacement: "txt", changed: "/" },
+        PathCase { text: "//", parent: .None, name: .None, stem: .None, extension: .None, replacement: "txt", changed: "//" },
+        PathCase { text: "a", parent: .Some(""), name: .Some("a"), stem: .Some("a"), extension: .None, replacement: "txt", changed: "a.txt" },
+        PathCase { text: "/a", parent: .Some("/"), name: .Some("a"), stem: .Some("a"), extension: .None, replacement: "txt", changed: "/a.txt" },
+        PathCase { text: "a/", parent: .Some(""), name: .Some("a"), stem: .Some("a"), extension: .None, replacement: "txt", changed: "a.txt" },
+        PathCase { text: "./a", parent: .Some("."), name: .Some("a"), stem: .Some("a"), extension: .None, replacement: "txt", changed: "./a.txt" },
+        PathCase { text: "/a/./b/", parent: .Some("/a"), name: .Some("b"), stem: .Some("b"), extension: .None, replacement: "txt", changed: "/a/./b.txt" },
+        PathCase { text: "a/..", parent: .Some("a"), name: .None, stem: .None, extension: .None, replacement: "txt", changed: "a/.." },
+        PathCase { text: "a/../", parent: .Some("a"), name: .None, stem: .None, extension: .None, replacement: "txt", changed: "a/../" },
+        PathCase { text: "a/.", parent: .Some(""), name: .Some("a"), stem: .Some("a"), extension: .None, replacement: "txt", changed: "a.txt" },
+        PathCase { text: "./", parent: .Some(""), name: .None, stem: .None, extension: .None, replacement: "txt", changed: "./" },
+        PathCase { text: ".bashrc", parent: .Some(""), name: .Some(".bashrc"), stem: .Some(".bashrc"), extension: .None, replacement: "txt", changed: ".bashrc.txt" },
+        PathCase { text: "a.tar.gz", parent: .Some(""), name: .Some("a.tar.gz"), stem: .Some("a.tar"), extension: .Some("gz"), replacement: "zip", changed: "a.tar.zip" },
+        PathCase { text: "a.", parent: .Some(""), name: .Some("a."), stem: .Some("a"), extension: .Some(""), replacement: "txt", changed: "a.txt" },
+        PathCase { text: ".a.", parent: .Some(""), name: .Some(".a."), stem: .Some(".a"), extension: .Some(""), replacement: "txt", changed: ".a.txt" },
+        PathCase { text: "..hidden", parent: .Some(""), name: .Some("..hidden"), stem: .Some("."), extension: .Some("hidden"), replacement: "txt", changed: "..txt" },
+        PathCase { text: "a.txt", parent: .Some(""), name: .Some("a.txt"), stem: .Some("a"), extension: .Some("txt"), replacement: "", changed: "a" },
+        PathCase { text: "a/", parent: .Some(""), name: .Some("a"), stem: .Some("a"), extension: .None, replacement: ".x", changed: "a..x" },
+        PathCase { text: "a//b.txt/./", parent: .Some("a"), name: .Some("b.txt"), stem: .Some("b"), extension: .Some("txt"), replacement: "md", changed: "a//b.md" },
+        PathCase { text: "λ/δ.tar.gz/", parent: .Some("λ"), name: .Some("δ.tar.gz"), stem: .Some("δ.tar"), extension: .Some("gz"), replacement: "β", changed: "λ/δ.tar.β" },
+        PathCase { text: "a\\b.txt", parent: .Some(""), name: .Some("a\\b.txt"), stem: .Some("a\\b"), extension: .Some("txt"), replacement: "x", changed: "a\\b.x" },
+        PathCase { text: "///a//./b//", parent: .Some("/a"), name: .Some("b"), stem: .Some("b"), extension: .None, replacement: "x", changed: "///a//./b.x" }
+    ], body=fn!(row: PathCase):
+        path := Path(row.text)
+        let expected_parent: Path? = .None
+        match row.parent:
+            .Some(value) => expected_parent = .Some(Path(value))
+            .None => pass
+        assert_equal(path.parent(), expected_parent, reason="explicit parent")
+        assert_equal(path.file_name(), row.name, reason="explicit file name")
+        assert_equal(path.file_stem(), row.stem, reason="explicit stem")
+        assert_equal(path.extension(), row.extension, reason="explicit extension")
+        assert_equal(string(path.with_extension(row.replacement)), row.changed, reason="explicit replacement")
+        verify_model(row.text, row.replacement)
+    )
+
+    it_each("join is textual and an absolute right hand side replaces the base", rows=[
+        JoinCase { base: "", part: "", result: "" },
+        JoinCase { base: "", part: "b", result: "b" },
+        JoinCase { base: "a", part: "b", result: "a/b" },
+        JoinCase { base: "a/", part: "b", result: "a/b" },
+        JoinCase { base: "a", part: "", result: "a/" },
+        JoinCase { base: "a", part: "/b", result: "/b" },
+        JoinCase { base: "a", part: "../b", result: "a/../b" },
+        JoinCase { base: "/", part: "b", result: "/b" },
+        JoinCase { base: ".", part: "b", result: "./b" },
+        JoinCase { base: "a//", part: "./b", result: "a//./b" },
+        JoinCase { base: "a", part: "//b", result: "//b" },
+        JoinCase { base: "λ", part: "δ", result: "λ/δ" }
+    ], body=fn!(row: JoinCase):
+        assert_equal(string(Path(row.base).join(row.part)), row.result, reason="explicit textual join")
+        assert_equal(string(Path(row.base).join(row.part)), reference_join(row.base, row.part), reason="join reference")
+    )

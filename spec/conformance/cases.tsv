@@ -3033,6 +3033,7 @@ typing/invalid/num-bit-count-u32.hd	type	reject:mixed-signedness	std/num.md#r-st
 runtime/valid/seeded-random.hd	runtime	accept	std/random.md#seeded-random
 runtime/valid/manual-clock.hd	runtime	accept	std/time.md#manual-clock
 runtime/valid/manual-clock-handle-shared.hd	runtime	accept	std/time.md#r-std-time.manual.new-ref
+runtime/valid/time-properties.hd	runtime	accept	std/time.md#r-std-time.duration.parse
 runtime/valid/time-values-copy.hd	runtime	accept	std/time.md#r-std-time.date.decl-struct
 runtime/valid/map-args-env.hd	runtime	accept	std/host.md#map-providers
 runtime/valid/memory-fs.hd	runtime	accept	std/fs.md#memory-file-system
@@ -3598,6 +3599,7 @@ runtime/valid/num-radix-text.hd	runtime	accept	std/num.md#r-std-num.radix.round-
 runtime/valid/num-parse-byte-reader-matches-scalar-reader.hd	runtime	accept	std/num.md#r-std-num.parse.invalid-digit-byte
 runtime/valid/num-rotate.hd	runtime	accept	std/num.md#rotation
 runtime/valid/path-operations.hd	runtime	accept	std/path.md#path-operations
+runtime/valid/path-properties.hd	runtime	accept	std/path.md#r-std-path.join
 runtime/valid/path-stem-with-extension.hd	runtime	accept	std/path.md#path-operations
 runtime/valid/path-parse.hd	runtime	accept	std/path.md#paths
 runtime/valid/iterator-list-sum.hd	runtime	accept	std/iter.md#r-std-iter.adapter.sum.numeric-target
