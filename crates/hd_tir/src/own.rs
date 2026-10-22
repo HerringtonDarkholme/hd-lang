@@ -11,9 +11,13 @@
 //! (`fold`), the naive, correct ownership
 //! of `crates/hd_wasm_linear/DESIGN.md` §23.16 with releases at last use
 //! (§23.20), made explicit, with an `IsUnique` before each change of a
-//! collection place and the pins of element references. Borrow, move, pair cancellation, known-null
-//! and hoisting are later commits of stage 2; each only weakens or deletes
-//! what insertion writes, so the pipeline is correct after any prefix.
+//! collection place and the pins of element references; then **move**
+//! (`moves`), which turns a `copy` that no path reads after into a
+//! `move` and deletes the `Drop` it leaves with nothing to release.
+//! Borrow, pair cancellation, known-null and hoisting are later commits of
+//! stage 2; each only weakens or deletes what insertion writes, so the
+//! pipeline is correct after any prefix. Each pass that adds or deletes
+//! statements rebuilds the body once at its end ([`splice`]).
 //!
 //! The passes read the body and [`OwnCx`], signature and layout facts the
 //! driver gives; never another body. They follow "Data layout of the
@@ -27,6 +31,7 @@ use crate::ir::{Body, Callee, NONE, Op, Ref, Tag, place};
 
 mod fold;
 mod insert;
+mod moves;
 mod splice;
 
 /// Whether a type holds a counted leaf.
@@ -69,6 +74,15 @@ pub trait OwnCx {
     /// false only for the few std functions known pure. Insertion does not
     /// read it; the borrow and hoisting passes will.
     fn may_write(&self, callee: &Callee) -> bool;
+    /// The parts of a value of `ty` that is laid out in place in every
+    /// instance, into `out`: the field types of a struct, a tuple or a
+    /// newtype (`variant` `None`), or of variant `variant` of an enum that
+    /// does not contain itself. False for any other type: a scalar, a
+    /// string, a collection, a reference, a data type, a recursive enum,
+    /// and a type that names a type parameter or an associated type, whose
+    /// value is one counted view in an erased instance. The move pass
+    /// splits a base's `Drop` into its other parts' only when this holds.
+    fn parts(&self, ty: Ty, variant: Option<u32>, out: &mut Vec<Ty>) -> bool;
 }
 
 /// How an instruction uses one of its value operands.
@@ -452,15 +466,18 @@ pub fn consumers(b: &Body, cx: &dyn OwnCx, out: &mut Vec<u32>) {
 pub struct OwnScratch {
     pub(crate) fold: fold::Tables,
     pub(crate) insert: insert::Tables,
+    pub(crate) moves: moves::Tables,
     pub(crate) splice: splice::Tables,
 }
 
 /// Runs the ownership passes over every sub-body of `b`, in order: place
-/// folding ([`fold`]), then insertion, the only pass so far. A body the
-/// passes cannot handle is refused, with what stopped them.
+/// folding ([`fold`]), insertion, then move. A body the passes cannot
+/// handle is refused, with what stopped them.
 pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(), String> {
     fold::run(b, cx, &mut scratch.fold);
-    insert::run(b, cx, scratch)
+    insert::run(b, cx, scratch)?;
+    moves::run(b, cx, &mut scratch.moves, &mut scratch.splice);
+    splice::apply(b, &mut scratch.splice)
 }
 
 #[cfg(test)]
@@ -494,6 +511,9 @@ mod tests {
         }
         fn may_write(&self, _: &Callee) -> bool {
             true
+        }
+        fn parts(&self, _: Ty, _: Option<u32>, _: &mut Vec<Ty>) -> bool {
+            false
         }
     }
 
@@ -590,12 +610,13 @@ mod tests {
         );
     }
 
-    /// A local read twice: both reads copy, and the local is dropped after
-    /// its last access, the read itself, and listed in the exit set; the
-    /// parameter likewise. (A block lists the blocks its statements run;
-    /// they are not statements.)
+    /// A local read twice: insertion copies both reads and drops the local
+    /// after its last access, the second read; move turns that read into a
+    /// move and deletes the drop. The parameter likewise. Both stay in the
+    /// exit set. (A block lists the blocks its statements run; they are not
+    /// statements.)
     #[test]
-    fn locals_are_dropped_after_their_last_access_and_listed_at_the_exit() {
+    fn a_local_read_at_its_last_access_moves_and_its_drop_goes() {
         let text = passes(
             |b| {
                 let p = local(b, local_flags::PARAM);
@@ -613,9 +634,9 @@ mod tests {
         );
         assert_eq!(
             text,
-            "%0 Call\n%1 Store [$1] %0\n%2 Read copy [$1]\n%3 Call %2\n%4 Read copy [$1]\n\
-             %5 Drop [$1]\n%6 Read copy [$0]\n%7 Drop [$0]\n%8 Call %4 %6\n%9 Drop [%4]\n\
-             %10 Drop [%6]\n%11 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8 %9 %10]\nexit 0 $0\nexit 0 $1\n"
+            "%0 Call\n%1 Store [$1] %0\n%2 Read copy [$1]\n%3 Call %2\n%4 Read move [$1]\n\
+             %5 Read move [$0]\n%6 Call %4 %5\n%7 Drop [%4]\n%8 Drop [%5]\n\
+             %9 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8]\nexit 0 $0\nexit 0 $1\n"
         );
     }
 
@@ -647,6 +668,57 @@ mod tests {
              %6 Call %3\n%7 Drop [%3]\n%8 Block [%1 %2 %3 %4 %5 %6 %7]\n%9 Loop\n%10 Drop [%0]\n\
              %11 Block [%0 %8 %9 %10]\n"
         );
+    }
+
+    /// Rule 2: a value lent once and then consumed gets a copy for its
+    /// consumer and a drop after it; the copy is the value's last use and
+    /// its drop follows, so the copy moves and the drop goes.
+    #[test]
+    fn a_copy_of_a_value_at_its_last_use_moves() {
+        let text = passes(
+            |b| {
+                let s = call(b, 7, &[], Ty::STRING);
+                call(b, 8, &[s], Ty::VOID);
+                call(b, 9, &[s], Ty::VOID);
+                None
+            },
+            Ty::VOID,
+        );
+        assert_eq!(
+            text,
+            "%0 Call\n%1 Call %0\n%2 Read move [%0]\n%3 Call %2\n%4 Block [%0 %1 %2 %3]\n"
+        );
+    }
+
+    /// Liveness around a loop: a local stored before the loop and read in
+    /// it is read again on the next round, so its read copies; a local
+    /// stored again in every round before its read moves there.
+    #[test]
+    fn a_read_in_a_loop_moves_only_when_each_round_stores_first() {
+        let text = passes(
+            |b| {
+                let n = NodeIdx::from_raw(1);
+                let kept = local(b, 0);
+                let fresh = local(b, 0);
+                let s = call(b, 7, &[], Ty::STRING);
+                b.set(kept, s, n);
+                let lp = b.open_loop();
+                let body = b.open_block();
+                let r = b.get(kept, Ty::STRING, n);
+                call(b, 8, &[r], Ty::VOID);
+                let t = call(b, 7, &[], Ty::STRING);
+                b.set(fresh, t, n);
+                let r = b.get(fresh, Ty::STRING, n);
+                call(b, 9, &[r], Ty::VOID);
+                let body = b.close_block(body, None, Ty::VOID, n);
+                b.close_loop(lp, body, Ty::VOID, n);
+                None
+            },
+            Ty::VOID,
+        );
+        assert!(text.contains("Read copy [$0]"), "{text}");
+        assert!(text.contains("Read move [$1]"), "{text}");
+        assert!(!text.contains("Drop [$1]\n%"), "{text}");
     }
 
     /// The result of a body moves out as its root block's tail.
@@ -703,6 +775,35 @@ mod tests {
              %5 Intrinsic %3 %1\n%6 IsUnique [%0]\n%7 IsUnique [%0 [%1] .0]\n\
              %8 Store [%0 [%1] .0 [%1]] %1\n%9 IsUnique [$0]\n%10 Pin [$0]\n%11 Ref [$0 [%1]]\n\
              %12 Drop [$0]\n%13 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8 %9 %10 %11 %12]\nexit 0 $0\n"
+        );
+    }
+
+    /// A part taken by a move read lets more parts or a drop of the rest
+    /// follow, and nothing else: the verifier accepts a drop of the whole
+    /// after it, and rejects a use.
+    #[test]
+    fn the_verifier_lets_only_the_rest_follow_a_part_move() {
+        let build = |use_after: bool| {
+            let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+            let blk = b.open_block();
+            let s = call(&mut b, 7, &[], Ty::STRING);
+            let n = NodeIdx::from_raw(1);
+            let word = b.place(&format!("[%{} .0]", s.0).parse().expect("place"));
+            let part = b.emit(Tag::Read, word, ReadMode::Move as u32, Ty::STRING, n);
+            call(&mut b, 9, &[part], Ty::VOID);
+            if use_after {
+                call(&mut b, 8, &[s], Ty::VOID);
+            }
+            let word = b.place(&format!("[%{}]", s.0).parse().expect("place"));
+            b.emit(Tag::Drop, word, NONE, Ty::VOID, n);
+            let root = b.close_block(blk, None, Ty::VOID, n);
+            b.finish_tolerating(root, &[], &[22]).expect("valid")
+        };
+        assert!(verify_owned(&build(false), &Cx).is_empty());
+        assert!(
+            verify_owned(&build(true), &Cx)
+                .iter()
+                .any(|e| e.what.contains("after its consumer or its drop"))
         );
     }
 

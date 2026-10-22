@@ -685,7 +685,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// Releases and zeroes each of `ds`' places that holds a counted value.
-    fn release_drops(&mut self, ds: &[super::live::Drop]) -> StageResult<()> {
+    pub(super) fn release_drops(&mut self, ds: &[super::live::Drop]) -> StageResult<()> {
         for &d in ds {
             let ls = match d {
                 super::live::Drop::Val(x) => {
@@ -946,9 +946,10 @@ impl Em<'_, '_, '_> {
             }) if proj.is_empty() && r.as_inst().is_some() => {
                 self.release_drops(&[super::live::Drop::Val(r.0)])
             }
-            // The move pass writes the drops of a value's other fields
-            // (`docs/compiler/tir-v2.md`, "Move" rule 3), and lowers them.
-            _ => crate::unsupported("a `Drop` of a projection"),
+            // The rest of a base the move pass moved a part out of
+            // (`docs/compiler/tir-v2.md`, "Move" rule 3).
+            Some(p) => self.own_drop_part(&p),
+            None => crate::unsupported("a malformed place"),
         }
     }
 
@@ -1011,8 +1012,10 @@ impl Em<'_, '_, '_> {
             Some(ReadMode::Copy) => self.store(i),
             Some(ReadMode::Move) => {
                 self.store_owned(i)?;
-                for x in ls {
-                    self.f.zero(x);
+                if self.counted(self.ty(i)).is_some() {
+                    for x in ls {
+                        self.f.zero(x);
+                    }
                 }
                 Ok(())
             }

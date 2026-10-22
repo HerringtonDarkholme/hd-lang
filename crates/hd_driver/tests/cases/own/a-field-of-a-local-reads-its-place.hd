@@ -1,7 +1,8 @@
 # @dump: own counts
 # Place folding before insertion: a field read of a struct local reads
-# the local's field place, `[$0 .0]`, so the copy is of that one string,
-# not of the whole value.
+# the local's field place, `[$0 .0]`, so the read takes that one string,
+# not the whole value. It is the local's last access, so it moves, and
+# the local's drop becomes a drop of its other field.
 struct Pair:
     left: string
     right: string

@@ -1528,12 +1528,33 @@ impl Em<'_, '_, '_> {
             Tag::Read if let Some(l) = self.b.local_read(i as usize) => {
                 self.local_read(i, l.idx())?;
             }
-            // Only plain local reads move or borrow so far: the move pass
-            // and the borrow pass, which write the others, lower them with
-            // their first writer (`docs/compiler/tir-v2.md`, stage 2's
-            // commits 7 and 8).
-            Tag::Read if self.owned && bw != hd_tir::ir::ReadMode::Copy as u32 => {
-                return unsupported("a `move` or `borrow` read of a place that is no local");
+            // A move of a whole value, `Read move [%v]`: its count, and
+            // zeros left in its locals.
+            Tag::Read
+                if self.owned
+                    && bw == hd_tir::ir::ReadMode::Move as u32
+                    && let Some(r) = self.b.value_read(i as usize) =>
+            {
+                self.push(r)?;
+                self.store_owned(i)?;
+                if self.counted(self.ty_of(r)).is_some() {
+                    for l in self.slot(r)? {
+                        self.f.zero(l);
+                    }
+                }
+            }
+            // A move of a part of a local or a value laid out in its
+            // locals; any other part is read as a copy below, and the
+            // root's drop releases the rest.
+            Tag::Read
+                if self.owned
+                    && bw == hd_tir::ir::ReadMode::Move as u32
+                    && self.own_move_part(i)? => {}
+            // Only plain local reads borrow so far: the borrow pass, which
+            // writes the others, lowers them (`docs/compiler/tir-v2.md`,
+            // stage 2's commit 8).
+            Tag::Read if self.owned && bw == hd_tir::ir::ReadMode::Borrow as u32 => {
+                return unsupported("a `borrow` read of a place that is no local");
             }
             // A plain read of a top-level binding, `Read [@g]`.
             Tag::Read if let Some(def) = self.b.global_read(i as usize) => {

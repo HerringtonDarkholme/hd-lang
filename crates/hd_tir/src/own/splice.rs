@@ -1,8 +1,8 @@
-//! The one rebuild of a body after the passes (`docs/compiler/tir-v2.md`,
-//! "Data layout of the passes"): the passes record new instructions as
-//! edits, each to stand in a block before a position, and operand
-//! rewrites that point a use at one of them; [`apply`] splices every edit
-//! in at once.
+//! The rebuild of a body after a pass (`docs/compiler/tir-v2.md`, "Data
+//! layout of the passes"): a pass records new instructions as edits, each
+//! to stand in a block before a position, operand rewrites that point a
+//! use at one of them, and the statements it deletes; [`apply`] splices
+//! every edit in and drops every deleted statement at once.
 //!
 //! A body keeps its instructions in evaluation order, with a block's
 //! members and an instruction's blocks before the block or instruction
@@ -37,6 +37,11 @@ pub(crate) struct Tables {
     edits: Vec<Edit>,
     /// (instruction, operand position, edit): the operand names the edit.
     rewrites: Vec<(u32, Loc, u32)>,
+    /// (block, statement): statements to delete, which nothing uses (a
+    /// `Drop` the move pass makes unneeded).
+    removed: Vec<(u32, u32)>,
+    dead: Vec<bool>,
+    blocks: Vec<u32>,
     start: Vec<u32>,
     anchor: Vec<(u32, u32)>,
     order: Vec<u32>,
@@ -51,6 +56,7 @@ impl Tables {
     pub(crate) fn clear(&mut self) {
         self.edits.clear();
         self.rewrites.clear();
+        self.removed.clear();
     }
 
     /// Records a new instruction before position `pos` of block `blk`, and
@@ -79,6 +85,11 @@ impl Tables {
     pub(crate) fn rewrite(&mut self, inst: u32, at: Loc, edit: u32) {
         self.rewrites.push((inst, at, edit));
     }
+
+    /// Deletes statement `inst` of block `blk`, which no instruction uses.
+    pub(crate) fn remove(&mut self, blk: u32, inst: u32) {
+        self.removed.push((blk, inst));
+    }
 }
 
 fn u32_of(i: usize) -> u32 {
@@ -87,11 +98,16 @@ fn u32_of(i: usize) -> u32 {
 
 /// Splices the edits into `b` and renumbers it.
 pub(crate) fn apply(b: &mut Body, t: &mut Tables) -> Result<(), String> {
-    if t.edits.is_empty() {
+    if t.edits.is_empty() && t.removed.is_empty() {
         return Ok(());
     }
     let n = b.len();
     let k = t.edits.len();
+    t.dead.clear();
+    t.dead.resize(n, false);
+    for &(_, x) in &t.removed {
+        t.dead[x as usize] = true;
+    }
     // Each instruction's first instruction: its own index, or the first
     // of the blocks it runs (which precede it).
     t.start.clear();
@@ -134,28 +150,40 @@ pub(crate) fn apply(b: &mut Body, t: &mut Tables) -> Result<(), String> {
         b.ty.push(ed.ty);
         b.syn.push(ed.syn);
     }
-    // The blocks that gain members get new records.
+    // The blocks that gain or lose members get new records.
     t.per_block.clear();
     for (e, ed) in t.edits.iter().enumerate() {
         t.per_block.push((ed.blk, ed.pos, u32_of(e)));
     }
     t.per_block.sort_unstable();
+    t.blocks.clear();
+    t.blocks.extend(t.edits.iter().map(|ed| ed.blk));
+    t.blocks.extend(t.removed.iter().map(|&(blk, _)| blk));
+    t.blocks.sort_unstable();
+    t.blocks.dedup();
     let mut x = 0;
-    while x < t.per_block.len() {
-        let blk = t.per_block[x].0;
+    for z in 0..t.blocks.len() {
+        let blk = t.blocks[z];
+        while x < t.per_block.len() && t.per_block[x].0 < blk {
+            x += 1;
+        }
         let mut end = x;
         while end < t.per_block.len() && t.per_block[end].0 == blk {
             end += 1;
         }
         t.words.clear();
-        let members = b.record(b.data[blk as usize][0]).to_vec();
+        let rec = b.data[blk as usize][0] as usize;
+        let len = b.extra[rec] as usize;
         let mut y = x;
-        for (p, &m) in members.iter().enumerate() {
+        for p in 0..len {
+            let m = b.extra[rec + 1 + p];
             while y < end && t.per_block[y].1 as usize == p {
                 t.words.push(u32_of(n) + t.per_block[y].2);
                 y += 1;
             }
-            t.words.push(m);
+            if !t.dead.get(m as usize).copied().unwrap_or(false) {
+                t.words.push(m);
+            }
         }
         while y < end {
             t.words.push(u32_of(n) + t.per_block[y].2);
@@ -182,7 +210,9 @@ pub(crate) fn apply(b: &mut Body, t: &mut Tables) -> Result<(), String> {
             t.order.push(u32_of(n) + t.anchor[a].1);
             a += 1;
         }
-        t.order.push(u32_of(i));
+        if !t.dead[i] {
+            t.order.push(u32_of(i));
+        }
     }
     while a < t.anchor.len() {
         t.order.push(u32_of(n) + t.anchor[a].1);

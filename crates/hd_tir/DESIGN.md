@@ -770,7 +770,7 @@ data object's field (`[*%o .k]`), a place through a reference
 | --- | --- | --- |
 | `Read` | a: place, b: `ReadMode` (`Use` from the checker; `Copy`, `Move` or `Borrow` after the ownership passes) | the place's type; the value at the place |
 | `Store` | a: place, b: value | `void`; replaces the value at the place. The place is writable (invariant 21) |
-| `Ref` | a: place, b: `0` shared or `1` mutable | `&T` or `&mut T`: the place's address. A mutable one's place is writable (invariant 21) |
+| `Ref` | a: place, b: `0` shared or `1` mutable (`ref_word::MUT`), plus `2` (`ref_word::TAKES`) after the move pass | `&T` or `&mut T`: the place's address. A mutable one's place is writable (invariant 21). A taking one, of a whole local in a cell at its last access, takes the local's count of the cell and leaves the local empty |
 
 `value_operands` of these, and of `IsUnique` and `Pin`, is the place's
 value root and element indices (then a `Store`'s value); a local or
@@ -1036,8 +1036,8 @@ The verifier checks each of these:
     (an element is a slot of the buffer a list header names). A value
     root is never written in place.
 22. **The checker's TIR has no ownership**: every `Read` has mode `use`,
-    and there is no `Drop`, `IsUnique`, `Pin`, `FlagSet` or `FlagClear`,
-    no `exit_drops` row and no `regions` row.
+    no `Ref` takes a count, and there is no `Drop`, `IsUnique`, `Pin`,
+    `FlagSet` or `FlagClear`, no `exit_drops` row and no `regions` row.
 23. **After the ownership passes, ownership balances**: every owned
     value has exactly one consumer or one `Drop` on each path; no `Read`
     of a place follows its `move` on any path without a `Store` in
@@ -1092,7 +1092,13 @@ body built elsewhere, such as a generated structure method, gets
     union: a use or a `Drop` after a value's consumer or drop on some
     path, a value still owned where its sub-body ends or where a loop
     that computes it goes round, and a local that may hold a value at
-    the exit outside the exit set are errors. Which uses consume is
+    the exit outside the exit set are errors. A `move` read of a whole
+    value consumes it; a `move` read or a `Drop` of a part of one takes
+    that part, which a fourth bit set records: more parts, or a `Drop`
+    of what is left, may follow, and nothing else. That the parts cover
+    every counted leaf is not checked; the move pass writes the drops of
+    the rest from `OwnCx::parts`. A `Ref` that takes its local's count
+    empties the local, as a `move` read of it does. Which uses consume is
     `own::operands` and `own::consumes`, with `OwnCx`'s parameter modes
     and counted types; `verify_owned` takes the same `OwnCx` as the
     passes.
@@ -1145,8 +1151,14 @@ body built elsewhere, such as a generated structure method, gets
   the exit set, an `IsUnique` before each change of a collection place
   (with `ListIndexMut` read back as an element `Read`), and an
   `IsUnique` and a `Pin` of each list on an element reference's path;
-  spliced into the body in one renumbering rebuild (`own/splice.rs`). They read the body
-  and `OwnCx` (counted types, parameter modes, `may_write`) only.
+  then move (`own/moves.rs`): a backward liveness walk turns each
+  `copy` that no path reads after into a `move` (a `Ref` of a whole
+  celled local into a taking one), deletes the `Drop` that follows it
+  in its block, and splits a base's drop into its other parts' when a
+  part moves. Each of the two passes that adds or deletes statements
+  rebuilds the body once, renumbering it (`own/splice.rs`). They read
+  the body and `OwnCx` (counted types, parameter modes, `may_write`,
+  the in-place parts of a type) only.
   `own::operands` names each value operand of an instruction with its
   role (lent, consumed, a call argument, a block tail, a drop), and
   `own::consumers` each value's consumer by insertion's rule; the
@@ -1174,7 +1186,8 @@ with its per-item interface hash), for code keys.
   into another run's IDs.
 - **Checker output only.** The ownership passes run after decoding, so
   the wire refuses their output: an ownership statement, and an
-  `exit_drops` or `regions` row, are structured errors.
+  `exit_drops` or `regions` row, are structured errors. A taking `Ref`
+  comes only with its local's exit row.
 - **The TIR hash** (`tir_hash`) is the hash of the hashed prefix. Because
   tables are per body, it is a function of that body alone, the same on
   every run and thread count. A module pays for this stability by

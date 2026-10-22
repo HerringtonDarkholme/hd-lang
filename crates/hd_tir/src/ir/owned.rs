@@ -11,7 +11,9 @@
 //!   again, and an owned local that may hold a value at its sub-body's
 //!   exit is in the exit set ([`Balance`]). Which uses consume is
 //!   `crate::own::operands` with the callees' parameter modes and the
-//!   types' counted leaves from [`OwnCx`];
+//!   types' counted leaves from [`OwnCx`]. A `move` read of a whole value
+//!   consumes it; a `move` read or a `Drop` of a part of one takes that
+//!   part, after which only more parts or a `Drop` of the rest may follow;
 //! - no `Read`, `IsUnique` or `Pin` of a place follows its `move` or its
 //!   `Drop` on any path without a `Store` in between that refills it;
 //! - no `borrow` value is live across a write to an overlapping place (a
@@ -239,6 +241,7 @@ impl<'a> Empties<'a> {
         for (i, slot) in id.iter_mut().enumerate() {
             let empties = match b.tags[i] {
                 Tag::Read => b.data[i][1] == ReadMode::Move as u32,
+                Tag::Ref => b.data[i][1] & super::ref_word::TAKES != 0,
                 Tag::Drop => true,
                 _ => false,
             };
@@ -532,11 +535,12 @@ impl<'a> Empties<'a> {
     }
 
     /// Whether emptying `p` at `e` empties what `q` reads. A `Drop` of a
-    /// whole local releases the local's own hold on its value: a local
-    /// that a reference or a closure reaches lives in a cell, whose
-    /// holders keep it, so only a read of the local itself sees it empty.
+    /// whole local, or a `Ref` that takes its count, ends the local's own
+    /// hold on its value: a local that a reference or a closure reaches
+    /// lives in a cell, whose holders keep it, so only a read of the local
+    /// itself sees it empty.
     fn empties(&self, e: u32, p: &Place, q: &Place) -> bool {
-        if self.cx.b.tags[e as usize] == Tag::Drop
+        if matches!(self.cx.b.tags[e as usize], Tag::Drop | Tag::Ref)
             && matches!(p.root, PlaceRoot::Local(_))
             && p.proj.is_empty()
         {
@@ -765,7 +769,7 @@ fn borrow_spans(cx: &Cx<'_>, errs: &mut Vec<VerifyError>) {
             let writes = match tag {
                 Tag::Store | Tag::Drop | Tag::IsUnique => true,
                 Tag::Read => b.data[j][1] == ReadMode::Move as u32,
-                Tag::Ref => b.data[j][1] == 1,
+                Tag::Ref => b.data[j][1] & super::ref_word::MUT != 0,
                 _ => false,
             };
             let hit = if writes {
@@ -951,7 +955,7 @@ impl<'a> Balance<'a> {
                     *x = true;
                 }
             }
-            let mut st = vec![0; 2 * self.words + self.lwords];
+            let mut st = vec![0; 3 * self.words + self.lwords];
             for l in entry_locals(self.b, s) {
                 self.set_full(&mut st, l, true);
             }
@@ -990,7 +994,7 @@ impl<'a> Balance<'a> {
         if !self.owned.get(l).copied().unwrap_or(false) {
             return;
         }
-        let w = 2 * self.words + l / 64;
+        let w = 3 * self.words + l / 64;
         if let Some(x) = st.get_mut(w) {
             if on {
                 *x |= 1 << (l % 64);
@@ -1018,20 +1022,49 @@ impl<'a> Balance<'a> {
 
     /// The uses of instruction `x`'s operands, its effect on locals, then
     /// its own value.
+    ///
+    /// A `move` read of a whole value `[%v]` consumes it. A `move` read
+    /// or a `Drop` of a part of a value (`[%v as .1 .0]`) takes that part:
+    /// the value is then **taken in parts** (set 2), so further parts may
+    /// go and a `Drop` of the whole may release what is left, but nothing
+    /// may use it.
     fn uses(&mut self, x: u32, st: &mut Set) {
         let b = self.b;
+        let [a, w] = b.data[x as usize];
+        // The value at the root of a move read's or a drop's place, and
+        // whether the place is a part of it.
+        let taken = match b.tags[x as usize] {
+            Tag::Read if w == ReadMode::Move as u32 => value_root(b, a),
+            Tag::Drop => value_root(b, a).filter(|&(_, part)| part),
+            _ => None,
+        };
         let mut ops = std::mem::take(&mut self.ops);
         operands(b, x as usize, &mut ops);
         for op in &ops {
+            if let Some((v, part)) = taken
+                && op.value == v
+                && op.at == crate::own::Loc::Extra(a + 2)
+            {
+                if part {
+                    // A part move leaves the rest owned, unless the rest
+                    // holds nothing counted; a part drop ends it.
+                    let rest = b.tags[x as usize] == Tag::Read && rest_counted(b, self.cx, v, a);
+                    self.part(x, v, rest, st);
+                } else {
+                    self.used(x, v, true, st);
+                }
+                continue;
+            }
             match op.role {
                 Role::Dropped => {
                     let k = self.num[op.value as usize];
                     if k != NONE {
-                        if self.bit(st, 1, k) {
+                        if self.bit(st, 1, k) && !self.bit(st, 2, k) {
                             self.err(x, format!("%{x} drops %{} twice", op.value));
                         }
                         self.put(st, 0, k, false);
                         self.put(st, 1, k, true);
+                        self.put(st, 2, k, false);
                     }
                 }
                 Role::Tail => {}
@@ -1042,7 +1075,6 @@ impl<'a> Balance<'a> {
             }
         }
         self.ops = ops;
-        let [a, w] = b.data[x as usize];
         let local = |word: u32| -> Option<usize> {
             if word & place::BARE_LOCAL != 0 {
                 return Some((word & !place::BARE_LOCAL) as usize);
@@ -1064,13 +1096,38 @@ impl<'a> Balance<'a> {
             Tag::Read if a & place::BARE_LOCAL != 0 && w == ReadMode::Move as u32 => {
                 self.set_full(st, (a & !place::BARE_LOCAL) as usize, false);
             }
+            Tag::Ref if w & super::ref_word::TAKES != 0 => {
+                if let Some(l) = local(a) {
+                    self.set_full(st, l, false);
+                }
+            }
             _ => {}
         }
         let k = self.num[x as usize];
         if k != NONE {
             self.put(st, 0, k, true);
             self.put(st, 1, k, false);
+            self.put(st, 2, k, false);
         }
+    }
+
+    /// Instruction `x` takes a part of value `v`: an error after its
+    /// consumer or its drop, unless only parts went before. The value stays
+    /// owned when `rest` holds a count, until a drop takes it.
+    fn part(&mut self, x: u32, v: u32, rest: bool, st: &mut Set) {
+        let k = self.num[v as usize];
+        if k == NONE {
+            return;
+        }
+        if self.bit(st, 1, k) && !self.bit(st, 2, k) {
+            self.err(
+                x,
+                format!("%{x} takes a part of %{v} after its consumer or its drop"),
+            );
+        }
+        self.put(st, 0, k, rest);
+        self.put(st, 1, k, true);
+        self.put(st, 2, k, true);
     }
 
     /// Block `blk`'s tail, taken by the block's value when its owner uses
@@ -1109,7 +1166,7 @@ impl<'a> Balance<'a> {
             }
         }
         for l in 0..self.b.local_ty.len() {
-            let w = 2 * self.words + l / 64;
+            let w = 3 * self.words + l / 64;
             if st[w] & (1 << (l % 64)) != 0 && !self.exit[l] {
                 self.err(
                     x,
@@ -1302,6 +1359,7 @@ impl<'a> Balance<'a> {
         if k != NONE {
             self.put(&mut st, 0, k, true);
             self.put(&mut st, 1, k, false);
+            self.put(&mut st, 2, k, false);
         }
         Some(st)
     }
@@ -1313,7 +1371,7 @@ impl<'a> Balance<'a> {
         let body = b.data[x as usize][0];
         let label = self.label_of[x as usize] as usize;
         let mut head = st;
-        let rounds = 2 * self.words * 64 + self.lwords * 64 + 2;
+        let rounds = 3 * self.words * 64 + self.lwords * 64 + 2;
         for _ in 0..rounds {
             if let Some(t) = self.brk.get_mut(label) {
                 *t = None;
@@ -1358,6 +1416,58 @@ impl<'a> Balance<'a> {
         }
         out
     }
+}
+
+/// The instruction value at the root of the place at `word`, and whether
+/// the place is a part of it (a projection follows); `None` for a place
+/// with another root.
+fn value_root(b: &Body, word: u32) -> Option<(u32, bool)> {
+    if word & place::BARE_LOCAL != 0 {
+        return None;
+    }
+    let at = word as usize;
+    let n = *b.extra.get(at)?;
+    match b.extra.get(at + 1..at + 3)? {
+        &[place::ROOT_VALUE, v] if Ref(v).as_inst().is_some() && (v as usize) < b.len() => {
+            Some((v, n > 2))
+        }
+        _ => None,
+    }
+}
+
+/// Whether value `v`, whose part at the place `word` a `move` read took,
+/// still holds a counted leaf beside it: a counted field beside the path
+/// at some step, or a step whose type's parts `cx` does not give.
+fn rest_counted(b: &Body, cx: &dyn OwnCx, v: u32, word: u32) -> bool {
+    let Some(p) = b.decode_place(word) else {
+        return true;
+    };
+    let mut ty = b.ty[v as usize];
+    let mut parts = Vec::new();
+    let mut k = 0;
+    while k < p.proj.len() {
+        let (variant, field, next) = match (p.proj[k], p.proj.get(k + 1)) {
+            (Proj::Variant(vr), Some(&Proj::Field(f))) => (Some(vr), f, k + 2),
+            (Proj::Field(f), _) => (None, f, k + 1),
+            _ => return true,
+        };
+        if !cx.parts(ty, variant, &mut parts) {
+            return true;
+        }
+        let Some(&t) = parts.get(field as usize) else {
+            return true;
+        };
+        if parts
+            .iter()
+            .enumerate()
+            .any(|(j, &pt)| j != field as usize && cx.counted(pt) != crate::own::Tri::No)
+        {
+            return true;
+        }
+        ty = t;
+        k = next;
+    }
+    false
 }
 
 /// The locals of sub-body `s` that hold a value on entry: its parameters,

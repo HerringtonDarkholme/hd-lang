@@ -28,7 +28,7 @@ mod wide;
 use hd_base::{DefId, Hash128, InstId, NotImplemented, Stage, StageResult};
 use hd_mono::{Collected, ProgramEnv};
 use hd_tir::ir::Body;
-use hd_types::{InternPool, Ty};
+use hd_types::{InternPool, Ty, TyData};
 
 pub use module::Sym;
 pub use origins::{FunctionOrigins, InstructionOrigin, MappedModule, StaticData};
@@ -56,6 +56,72 @@ pub fn counted_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
 #[must_use]
 pub fn reference_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
     matches!(layout::kind(pool, env, ty), layout::Kind::Ref { .. })
+}
+
+/// The parts of a value of `ty`, which names no parameter, laid out in
+/// this backend's locals (`layout::Kind::Value`), into `out`: a newtype's
+/// one field, a struct's fields, a tuple's members, or the payload of
+/// variant `variant` of an enum that does not contain itself. False for
+/// any other type, whose parts no `move` or `Drop` can take one by one:
+/// a scalar, a string, a list, a map, a trait or function value, a
+/// reference, a data value, a recursive enum. The ownership passes'
+/// `OwnCx::parts`.
+pub fn in_place_parts(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    ty: Ty,
+    variant: Option<u32>,
+    out: &mut Vec<Ty>,
+) -> bool {
+    out.clear();
+    let mut t = ty;
+    while let TyData::Mut(inner) = pool.get(t) {
+        t = inner;
+    }
+    if let TyData::Adt { def, args } = pool.get(t)
+        && env.newtype_base(def).is_some()
+    {
+        let Some(&base) = env.data_fields(def).unwrap_or_default().first() else {
+            return false;
+        };
+        if variant.is_some() {
+            return false;
+        }
+        out.push(hd_mono::subst(pool, env, def, args, base));
+        return true;
+    }
+    if !matches!(layout::kind(pool, env, t), layout::Kind::Value) {
+        return false;
+    }
+    let s = layout::strip(pool, env, t);
+    if let TyData::Tuple { .. } = pool.get(s) {
+        out.extend(layout::tuple_members(pool, s));
+        return variant.is_none();
+    }
+    if let Some(vs) = layout::variants(pool, env, s) {
+        let Some(fs) = variant.and_then(|v| vs.get(v as usize)) else {
+            return false;
+        };
+        out.extend(fs);
+        return true;
+    }
+    match pool.get(s) {
+        TyData::Adt { def, args }
+            if variant.is_none()
+                && env.std_kind(def) == hd_mono::layout::StdKind::Other
+                && env.is_struct(def) =>
+        {
+            let Some(fs) = env.data_fields(def) else {
+                return false;
+            };
+            out.extend(
+                fs.into_iter()
+                    .map(|f| hd_mono::subst(pool, env, def, args, f)),
+            );
+            true
+        }
+        _ => false,
+    }
 }
 
 /// `ty` with newtypes erased and `mut` dropped, as the layouts read it

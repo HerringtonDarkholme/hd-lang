@@ -88,6 +88,15 @@ impl OwnCx for Env<'_> {
             Callee::TraitMethod { .. } => true,
         }
     }
+
+    fn parts(&self, ty: Ty, variant: Option<u32>, out: &mut Vec<Ty>) -> bool {
+        let types = self.run.pool.types();
+        if types.has_param(ty) || types.has_assoc(ty) {
+            out.clear();
+            return false;
+        }
+        hd_wasm_linear::in_place_parts(&self.run.pool, self, ty, variant, out)
+    }
 }
 
 impl Env<'_> {

@@ -296,6 +296,117 @@ impl Em<'_, '_, '_> {
         ))
     }
 
+    /// The part at projection `proj` of a value of type `t` laid out in
+    /// its locals: the part's type and which of the value's locals hold
+    /// it, through struct and tuple fields, a newtype's one field and an
+    /// enum's payload fields (`as .v .f`). `None` when a step leaves the
+    /// locals: a boxed enum, a data value, an open value, a dereference,
+    /// an element.
+    pub(super) fn part_slots(&self, t: Ty, proj: &[Proj]) -> StageResult<Option<(Ty, Vec<usize>)>> {
+        let mut slots: Vec<usize> = (0..self.vals(t)?.len()).collect();
+        let mut ty = t;
+        let mut k = 0;
+        while k < proj.len() {
+            // A newtype's one field is all of it, whatever it holds.
+            let whole = self.newtype(ty) && proj[k] == Proj::Field(0);
+            if hd_mono::is_open(self.pool(), ty) || !(whole || matches!(self.kind(ty), Kind::Value))
+            {
+                return Ok(None);
+            }
+            match proj[k] {
+                Proj::Field(f) => {
+                    let (ft, part) = self.path_step(ty, f)?;
+                    slots = slots[part.first..part.first + part.count].to_vec();
+                    ty = ft;
+                    k += 1;
+                }
+                Proj::Variant(v) => {
+                    let Some(&Proj::Field(f)) = proj.get(k + 1) else {
+                        return Ok(None);
+                    };
+                    let (_, positions) = self.flat(ty)?;
+                    let tys =
+                        crate::layout::variants(self.pool(), self.env(), ty).unwrap_or_default();
+                    let (Some(at), Some(&ft)) = (
+                        positions.get(v as usize).and_then(|fs| fs.get(f as usize)),
+                        tys.get(v as usize).and_then(|fs| fs.get(f as usize)),
+                    ) else {
+                        return unsupported("a payload field the enum does not have");
+                    };
+                    slots = at.iter().map(|&p| slots[p]).collect();
+                    ty = ft;
+                    k += 2;
+                }
+                Proj::Deref | Proj::Elem(_) => return Ok(None),
+            }
+        }
+        Ok(Some((ty, slots)))
+    }
+
+    /// The locals of place `p`'s root, when the root's value lives in
+    /// them (a local in no cell, or an instruction's value), and its type.
+    fn root_locals(&mut self, p: &Place) -> StageResult<Option<(Ty, Vec<u32>)>> {
+        match p.root {
+            PlaceRoot::Local(l) if !self.is_cell(l.idx()) => Ok(Some((
+                self.start_ty(Start::Local(l.raw())),
+                self.local(l.raw())?,
+            ))),
+            PlaceRoot::Value(r) if r.as_inst().is_some() => match self.vals.get(&r.0) {
+                Some(ls) => Ok(Some((self.ty_of(r.0), ls.clone()))),
+                None => unsupported("a value its instruction did not compute"),
+            },
+            _ => Ok(None),
+        }
+    }
+
+    /// `Read move` `i` of an owned body whose place is a part of a local
+    /// or a value laid out in the root's locals (`[$l .a]`,
+    /// `[%v as .1 .0]`): the part's locals with their counts, and zeros
+    /// left in their place. False, emitting nothing, when the part is not
+    /// in the root's locals at this instance (a boxed enum's payload, an
+    /// open value's part), where the read is emitted as a copy and the
+    /// root's `Drop`, which the move pass keeps for such a root, releases
+    /// the whole.
+    pub(super) fn own_move_part(&mut self, i: u32) -> StageResult<bool> {
+        let Some(p) = self.b.decode_place(self.b.data[i as usize][0]) else {
+            return unsupported("a malformed place");
+        };
+        let Some((t, ls)) = self.root_locals(&p)? else {
+            return Ok(false);
+        };
+        let Some((pt, slots)) = self.part_slots(t, &p.proj)? else {
+            return Ok(false);
+        };
+        for &k in &slots {
+            self.f.get(ls[k]);
+        }
+        self.store_owned(i)?;
+        if self.counted(pt).is_some() {
+            for &k in &slots {
+                self.f.zero(ls[k]);
+            }
+        }
+        Ok(true)
+    }
+
+    /// `Drop` `i` of a part of a local or a value (`[$l .b]`,
+    /// `[%v as .1 .1]`), which the move pass writes for the rest of a base
+    /// it moved a part out of: the part's release, and zeros in its place.
+    pub(super) fn own_drop_part(&mut self, p: &Place) -> StageResult<()> {
+        let Some((t, ls)) = self.root_locals(p)? else {
+            return unsupported("a `Drop` of a part of a place whose root is in no locals");
+        };
+        let Some((pt, slots)) = self.part_slots(t, &p.proj)? else {
+            return unsupported("a `Drop` of a part that is not laid out in its root's locals");
+        };
+        let part: Vec<u32> = slots.iter().map(|&k| ls[k]).collect();
+        self.release_locals(&part, pt)?;
+        for l in part {
+            self.f.zero(l);
+        }
+        Ok(())
+    }
+
     /// The list or map header at the place `word` of an `IsUnique` or a
     /// `Pin`, in a local, with the collection's type: the root's value
     /// (a local's, loaded from its cell when it has one, or an
@@ -363,6 +474,37 @@ impl Em<'_, '_, '_> {
     /// `Ref` `i`: the place's address, or the trait value
     /// there for a reference to a trait value, with a count of its own.
     pub(super) fn place_ref(&mut self, i: u32) -> StageResult<()> {
+        // A reference the move pass marked to take its local's count of
+        // the cell (`docs/compiler/tir-v2.md`, "Move" rule 4): the cell's
+        // address, owned, and the local left empty. Where the reference
+        // is no cell's address at this instance (a trait value's, an open
+        // cell's view), it takes a count of its own and the local's count
+        // is released here, as the `Drop` the pass deleted did.
+        if self.owned && self.b.data[i as usize][1] & hd_tir::ir::ref_word::TAKES != 0 {
+            let s = self.spot(i)?;
+            let (Start::Local(x), Head::Direct, true) = (s.start, s.head, s.path.is_empty()) else {
+                return unsupported("a reference that takes the count of no whole local");
+            };
+            let fat = self.ref_target(self.ty(i)).is_some_and(|(_, f)| f);
+            let cell = self.is_cell(x as usize);
+            let view = cell
+                && self.cell_converts(x as usize)
+                && self.ref_layout(self.start_ty(s.start))?.boxed;
+            if cell && !fat && !view {
+                let at = self.cell_of(x as usize)?;
+                self.f.get(at);
+                self.store_owned(i)?;
+                self.f.zero(at);
+                return Ok(());
+            }
+            self.counted_ref(i)?;
+            return self.release_drops(&[super::live::Drop::Local(x as usize)]);
+        }
+        self.counted_ref(i)
+    }
+
+    /// `Ref` `i`: the address of its place, with a count of its own.
+    fn counted_ref(&mut self, i: u32) -> StageResult<()> {
         let s = self.spot(i)?;
         let Some((_, fat)) = self.ref_target(self.ty(i)) else {
             return unsupported("a reference whose type is no reference");

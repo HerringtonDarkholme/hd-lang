@@ -1,0 +1,13 @@
+# @dump: own
+# Move's rule 4: `&mut` of a local at its last access takes the local's
+# count of its cell (`Ref take mut`), and the local's drop after it goes.
+struct Counter:
+    hits: i32
+    name: string
+
+fn bump(c: &mut Counter) -> void:
+    c.hits = c.hits + 1
+
+fn fresh() -> void:
+    let mut c = Counter { hits: +0, name: "a" }
+    bump(&mut c)

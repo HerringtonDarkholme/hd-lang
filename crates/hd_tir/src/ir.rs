@@ -698,6 +698,17 @@ pub enum Step {
     Variant(u32, u32),
 }
 
+/// The data word b of a `Ref` (`docs/compiler/tir-v2.md`, "Reads, stores
+/// and references").
+pub mod ref_word {
+    /// `&mut`; clear for `&`.
+    pub const MUT: u32 = 1;
+    /// Set by the move pass ("Move" rule 4): a `Ref` of a whole local at
+    /// its last access takes the local's count of its cell, and leaves the
+    /// local empty. The checker never sets it (invariant 22).
+    pub const TAKES: u32 = 2;
+}
+
 /// How a `Read` reads its place (its `Meta` word b;
 /// `docs/compiler/tir-v2.md`, "Read modes"). The checker writes `Use`;
 /// the ownership passes (stage 2) replace it.
@@ -1941,8 +1952,8 @@ pub fn verify(b: &Body) -> Vec<VerifyError> {
 
 /// Invariant 22: the checker's TIR has no ownership
 /// (`docs/compiler/tir-v2.md`, "Invariants" 3): every `Read` has mode
-/// `use`, and there is no ownership statement, exit set row or lifetime
-/// region row.
+/// `use`, no `Ref` takes a count, and there is no ownership statement,
+/// exit set row or lifetime region row.
 fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
     for (i, (&tag, &[_, w])) in b.tags.iter().zip(&b.data).enumerate() {
         let what = match tag {
@@ -1952,6 +1963,9 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
             },
             Tag::Drop | Tag::IsUnique | Tag::Pin | Tag::FlagSet | Tag::FlagClear => {
                 format!("an ownership statement `{}` before the passes", tag.name())
+            }
+            Tag::Ref if w & ref_word::TAKES != 0 => {
+                "a `Ref` that takes its local's count before the passes".to_owned()
             }
             _ => continue,
         };
@@ -2071,7 +2085,7 @@ pub(crate) fn verify_structure(b: &Body) -> Vec<VerifyError> {
         }
         // Invariant 21: a `Store` or a mutable `Ref` reaches a writable
         // place. A malformed place is invariant 20's.
-        if (tag == Tag::Store || (tag == Tag::Ref && w == 1))
+        if (tag == Tag::Store || (tag == Tag::Ref && w & ref_word::MUT != 0))
             && let Some(p) = b.decode_place(a)
             && !p.writable()
         {
@@ -3339,6 +3353,10 @@ mod tests {
         }
         fn may_write(&self, _: &Callee) -> bool {
             true
+        }
+        fn parts(&self, _: Ty, _: Option<u32>, out: &mut Vec<Ty>) -> bool {
+            out.clear();
+            false
         }
     }
 

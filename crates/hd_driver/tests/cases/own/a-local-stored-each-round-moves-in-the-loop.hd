@@ -1,0 +1,15 @@
+# @dump: own
+# Liveness across a loop: `line` is stored again before every read, so
+# its read in the loop moves; `prefix`, read every round, copies, and
+# moves only at its last read after the loop.
+fn collect(prefix: string, n: i32) -> List[string]:
+    let mut out: List[string] = []
+    let line = ""
+    let i = +0
+    # subject
+    while i < n:
+        line = prefix + i.to_string()
+        out.push(line)
+        i = i + 1
+    out.push(prefix)
+    out

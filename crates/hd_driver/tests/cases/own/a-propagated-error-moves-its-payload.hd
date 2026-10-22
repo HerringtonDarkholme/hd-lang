@@ -1,0 +1,15 @@
+# @dump: own
+# `?` reads the payload of the call's result in each arm of its tag
+# switch, at the result's last use, so both reads move. On the error
+# path the result's drop before the return follows the read in its block:
+# the error variant has no other counted field, so the drop goes.
+fn parse(text: string) -> Result[string, string]:
+    if text.len() > 0:
+        .Ok(text)
+    else:
+        .Err("empty")
+
+fn twice(text: string) -> Result[string, string]:
+    # subject
+    word := parse(text)?
+    .Ok(word + word)

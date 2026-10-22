@@ -567,9 +567,19 @@ String operations are emitted by `emit/text.rs` and runtime helpers
   before the loop (§23.31, #710), whose buffer address the loop keeps,
   until hoisting's table replaces the caches. The checker's `ListPin`
   keeps its owner word and its count, the pin of a `for` over element
-  references, until the checker stops pinning. A `move` or `borrow` read lowers for a
-  plain local read only, and a `Drop` of a projection not at all, until
-  the passes that write them.
+  references, until the checker stops pinning. A `move` read takes the
+  place's count and zeroes what it read: a local's or a whole value's
+  locals, or the part of a local or a value laid out in its locals
+  (`Em::part_slots`: struct, tuple and newtype fields and enum payload
+  fields), whose locals a `Drop` of that part releases and zeroes too
+  (`Em::own_drop_part`). A part at no such place at this instance, a
+  boxed enum's payload or an open value's part, is read as a copy; the
+  move pass then keeps the root's whole `Drop`, which releases it. A
+  `Ref` that takes its local's count (move's rule 4) is the cell's
+  address with that count, and zeroes the local; where the reference is
+  no cell's address (a trait value's, an open cell's view) it counts as
+  any reference and the local is released after it. A `borrow` read
+  lowers for a plain local read only, until the borrow pass.
 
 ### 23.17 List Operations
 

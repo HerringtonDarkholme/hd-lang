@@ -47,6 +47,10 @@ impl hd_tir::own::OwnCx for NoCounts {
     fn may_write(&self, _: &Callee) -> bool {
         true
     }
+    fn parts(&self, _: Ty, _: Option<u32>, out: &mut Vec<Ty>) -> bool {
+        out.clear();
+        false
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -1679,6 +1679,90 @@ is worth deciding only if they are hot.
    the caches (commit 11). Aliasing case 9 (`a[i] = f()` where `f` replaces `a`) waits
    for its spec rule.
 7. Move.
+   As built: `own/moves.rs`, after insertion. One backward liveness walk
+   per sub-body over the structured control flow, one bit per candidate
+   local and temporary, states at block boundaries, labels and loop heads
+   in one reused arena, each loop to a fixed point, decides every `copy`
+   read: when no path reads its root again, the read moves. A `Drop` is
+   no read (a moved place is zero, so a drop of it releases nothing), and
+   a `Store` into all of a local ends its life. The candidates are the
+   counted locals that no closure shares, no cleanup suite touches and no
+   `borrow` reads, and the tracked temporaries a `copy` reads in place.
+   - **Locals** (rule 1): `[$l]` and a field place of one (`[$l .a]`)
+     move, and the local's `Drop` right after the read goes. This covers
+     more than the plan's statement-level rule: a last read in one
+     branch, a pattern binding read in its arm, and a read in a loop that
+     stores the local again each round move too; their later drops stay,
+     releasing nothing, until known-null (commit 10) deletes them.
+   - **Temporaries** (rule 2): a whole `copy [%v]` moves when `%v`'s
+     drop follows it in its block, and the drop goes. The copy becomes a
+     `move` of the temporary rather than the temporary itself: the counts
+     are the same, and `own::consumers` keeps its one-use rule.
+   - **Partial moves** (rule 3): a `copy` of a field or payload field of a
+     local or a temporary at the base's last use moves. When the base's
+     drop follows in the block, it becomes drops of the base's other
+     counted fields, or nothing. A temporary whose last uses are inside
+     the `If`, switch or match right before its drop has the drop sunk
+     into that statement's paths (`moves::sink`): at the end of each path
+     that completes, and before each `ToArm` of a decision tree, a drop of
+     what that path's last move left, or of the whole temporary where no
+     move took a part; a whole copy at a path's end moves, and a match's
+     drops of the temporary before jumps in its arms go. So `?` and a
+     match on a call's result lose the temporary's drop. Sinking is done
+     only where it adds no drop, and never through a guard, a loop or a
+     nested match. Splitting a drop needs the base laid out in place in
+     every instance, a new `OwnCx` fact, `parts`
+     (`hd_wasm_linear::in_place_parts`: a newtype's field, a struct's or a
+     tuple's fields, a non-recursive enum's payload). A type naming a
+     parameter has none, since an erased instance holds its value as one
+     counted view, so a generic base keeps its whole drop, which releases
+     what the move left.
+   - **References** (rule 4): a `Ref` of a whole celled local at its last
+     access takes the local's count of the cell (`ref_word::TAKES`, a bit
+     of `Ref`'s word, which invariant 22 refuses before the passes), and
+     the local's drop right after it goes; not in a suspending body.
+   - **The backend** lowers a `move` of every place a move names: a local
+     or a whole value, or a part of either laid out in its locals
+     (`Em::part_slots`), zeroing what it took only for a counted
+     instance. A part at no such place at an instance (a boxed enum's
+     payload, an open value's part in a thunk) is read as a copy, and the
+     whole drop the pass kept for such a base releases it. A `Drop` of a
+     part releases and zeroes that part (`Em::own_drop_part`). A taking
+     `Ref` is the cell's address with the local's count; where the
+     reference is no cell's address (a trait value's, an open cell's
+     view) it counts as before and the local is released after it.
+   - **`verify_owned`**: a `move` of a whole value consumes it; a move or
+     a drop of a part takes that part, after which only more parts or a
+     drop of the rest may follow, and the value stays owned while the
+     rest holds a count (`OwnCx::parts` again); a taking `Ref` empties its
+     local.
+   - **Splicing**: `splice::apply` also deletes statements, and move
+     rebuilds the body once more after insertion's rebuild. The plan's
+     single rebuild at the end of the pipeline would make move read
+     insertion's drops from side tables; a rebuild per pass that edits
+     costs one linear pass and keeps each pass a walk of a real body.
+   Old path: every conformance module byte-identical to main, dev and
+   optimized pipelines. New path: all conformance cases pass, dev and
+   optimized, checked and not, but commit 5's checked count bound in
+   `count_tests.hd`, now 12,000 retains against 20,000 before move.
+   Static count sites over the 768 runtime conformance programs with a
+   `main`: 52,747 retains and 85,119 releases with insertion alone,
+   39,800 and 77,230 with move, against the old path's 26,211 and 55,111
+   (module bytes 21.34 MB, 20.34 MB, 19.72 MB); over the bench/study
+   programs 2,509 and 3,324, then 1,949 and 3,019, against 818 and 1,430.
+   Most of the rest are reads the old path borrows (commit 8). Move costs
+   0.07 us per instruction with its rebuild, against insertion's 0.2, and
+   allocates only per body (its rebuild's columns).
+   **Left for later commits.** A part read of a base read again later
+   copies, since liveness is per local and per temporary, not per field:
+   in `.Square(n, k)` only `k` moves, and the copy of `n` and its drop
+   are pair cancellation's (commit 9). The drops of moved locals after
+   branches and loops stay until known-null (commit 10). Every read that
+   could borrow still copies (commit 8). A generic base keeps its whole
+   drop after a part moves out of it; splitting it would need `parts` to
+   know which type parameters an erased instance leaves open, a fact no
+   stage 2 commit plans. That drop releases only what the move left, so
+   what it costs is the release glue's tests, not a count.
 8. Borrow.
 9. Pair cancellation.
 10. Known-null.

@@ -319,7 +319,15 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
             // `Ref mut [$0]`, `Read [*$0 .x]`; a read mode other than the
             // checker's `use` before the place, as `Read copy [$1]`.
             let mode = match tag {
-                Tag::Ref if w == 1 => Some("mut".to_owned()),
+                Tag::Ref => match (
+                    w & hd_tir::ir::ref_word::TAKES != 0,
+                    w & hd_tir::ir::ref_word::MUT != 0,
+                ) {
+                    (true, true) => Some("take mut".to_owned()),
+                    (true, false) => Some("take".to_owned()),
+                    (false, true) => Some("mut".to_owned()),
+                    (false, false) => None,
+                },
                 Tag::Read => hd_tir::ir::ReadMode::from_u32(w)
                     .filter(|m| *m != hd_tir::ir::ReadMode::Use)
                     .map(|m| format!("{m:?}").to_lowercase()),

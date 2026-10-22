@@ -1,0 +1,18 @@
+# @dump: own
+# Move's partial moves in a match: the decision tree reads each payload
+# out of the matched temporary at its last use, so the read moves; the
+# pattern binding, read once in its arm, moves too. The temporary's drop
+# after the match goes into the decision tree's paths, where each payload
+# move left nothing to drop. The bindings' drops after the match stay: on
+# the paths that moved, they drop an empty place, which releases nothing.
+fn lookup(key: string) -> Result[string, string]:
+    if key.len() > 3:
+        .Ok(key)
+    else:
+        .Err("short")
+
+fn describe(key: string) -> string:
+    # subject
+    match lookup(key):
+        .Ok(found) => found
+        .Err(reason) => reason
