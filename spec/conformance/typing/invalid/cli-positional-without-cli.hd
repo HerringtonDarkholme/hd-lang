@@ -1,0 +1,8 @@
+# test: a typed Positional fact requires a CLI-readable field
+# Spec std/cli: std-cli.positional.bound.
+use std.cli.positional
+struct Opaque:
+    value: u8
+struct Config:
+    @positional # diagnostic: unsatisfied-trait-bound
+    opaque: Opaque

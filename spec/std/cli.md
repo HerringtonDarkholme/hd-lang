@@ -51,7 +51,7 @@ pub struct Arg:
 7. r[std-cli.parser.positional-order] Positionals fill declarations in order and are required only when their `required` field is true.
 8. r[std-cli.parser.indexed] Declaration and parsing should take linear time in declaration and argument counts, using indexed option lookup and in-place appends.
 9. r[std-cli.parser.choices] `choices` limits supplied values when nonempty; an empty list allows any value.
-10. r[std-cli.parser.repeated] `repeated` permits multiple occurrences of a value-taking option when true; its default is false.
+10. r[std-cli.parser.repeated-values] `repeated: true` permits repeated value-taking options and positional rest values; its default is false.
 11. r[std-cli.parser.help] Every parser declares the value-free flag `help`, with short form `h` and description `Print this help.`.
 
 > **Why.** A builder needs no fact types and no derivation, and it reads
@@ -381,6 +381,39 @@ fn verbose() -> bool:
 
 > **Why.** The fact configures the existing builder argument, so both
 > spellings share its typed value, presence, repetition policy, and errors.
+
+### Positional Field Facts
+
+A `Positional` fact reads a typed field from plain arguments.
+
+```text
+use std.cli.{Cli, positional}
+use std.path.Path
+
+@derive(Cli)
+struct Files:
+    @positional
+    input: Path
+    @positional
+    extras: List[string]
+
+fn files() -> Files:
+    Files::parse(["notes.txt", "other.txt"]).expect("valid paths")
+```
+
+1. r[std-cli.positional.fact] `Positional[F < Cli]` is a typed field fact with no fields.
+2. r[std-cli.positional.constructor] `positional[F < Cli]() -> Positional[F]` constructs that fact.
+3. r[std-cli.positional.bound] A `Positional` fact requires its field type to implement `Cli`.
+4. r[std-cli.positional.order] Marked fields declare positional arguments in field declaration order.
+5. r[std-cli.positional.defaults] Positional fields retain their type's parsing, declared defaults, optional absence, and empty-list behavior.
+6. r[std-cli.positional.required] An absent required positional returns `MissingArgument("<name>")`, using its kebab-case field name.
+7. r[std-cli.positional.rest] A repeated positional, including a typed `List[T]` field, consumes the remaining plain arguments in order.
+8. r[std-cli.positional.rest-values] `values(name)` returns every value of a repeated positional, and `value(name)` returns its last value.
+9. r[std-cli.positional.rest-last] Declaring a positional after a repeated positional panics with a message naming both fields. Panic: `explicit-panic`.
+10. r[std-cli.positional.short-conflict] A positional retains the builder's refusal of short spellings. Panic: `explicit-panic`.
+
+> **Why.** A rest list must be last among positional declarations, so later
+> fields cannot become unreachable. Option declarations may follow it.
 
 ## Usage Text
 

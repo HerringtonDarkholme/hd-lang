@@ -52,6 +52,10 @@ impl ArgParser:
             if self.commands.len() > 0: panic("std.cli: a parser with commands takes no positionals")
             if arg.short.is_some():
                 panic("std.cli: a positional has no short option")
+            if !self.positional_slots.is_empty():
+                previous := self.declarations[self.positional_slots[self.positional_slots.len() - 1]]
+                if previous.repeated:
+                    panic("std.cli: positional ${arg.name} cannot follow repeated positional ${previous.name}")
             self.positional_slots.push(index)
         else:
             long := "--${arg.name}"
@@ -105,6 +109,10 @@ impl ArgParser:
                 if positionals.len() < self.positional_slots.len():
                     slot := self.positional_slots[positionals.len()]
                     store_value(self.declarations[slot], argument, &mut values, &mut histories)?
+                else if !self.positional_slots.is_empty():
+                    slot := self.positional_slots[self.positional_slots.len() - 1]
+                    if self.declarations[slot].repeated:
+                        store_value(self.declarations[slot], argument, &mut values, &mut histories)?
                 positionals.push(argument)
                 continue
             if argument == "--":
@@ -399,6 +407,16 @@ pub struct Short[F < Cli]:
 pub fn short[F < Cli](letter: char) -> Short[F]:
     Short::[F] { letter: letter }
 
+## Marks a CLI-readable field as positional.
+## See [std-cli.positional.fact](../../spec/std/cli.md#r-std-cli.positional.fact).
+@annotate::[F](.Field)
+pub struct Positional[F < Cli]: pass
+
+## Declares a positional field, in declaration order.
+## See [std-cli.positional.constructor](../../spec/std/cli.md#r-std-cli.positional.constructor).
+pub fn positional[F < Cli]() -> Positional[F]:
+    Positional::[F] {}
+
 impl[T] Cli for T by Structure:
     fn declare(parser: &mut ArgParser, arg: Arg) -> void:
         if arg.name.is_empty():
@@ -482,7 +500,8 @@ impl[S] Source[S] for CliSource[S]:
         panic("std.cli: the source names every member")
 
 fn cli_arg[S, F < Cli](field: Field[S, F]) -> Arg:
-    Arg { name: cli_name(field.info.name), required: !field.has_default(), short: field.fact::[Short[F]]().map(fn(fact): fact.letter) }
+    kind := if field.fact::[Positional[F]]().is_some(): ArgKind.Positional else: ArgKind.Option
+    Arg { name: cli_name(field.info.name), required: !field.has_default(), kind: kind, short: field.fact::[Short[F]]().map(fn(fact): fact.letter) }
 
 fn cli_name(name: string) -> string:
     out := StringBuilder::new()

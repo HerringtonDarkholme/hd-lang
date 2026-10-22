@@ -1657,6 +1657,7 @@ fn same(a: Box[i32], b: Box[i32]) -> bool:
 > **Note.** The stdlib's [typed CLI records](../std/cli.md#typed-records)
 > use the same strengthened member bounds to require `Cli` at a derive.
 > Their typed `Short[F < Cli]` field fact also requires a CLI-readable field.
+> The typed `Positional[F < Cli]` field fact has the same bound.
 
 See also: [`trait.derive.bounds`](09-traits.md#r-trait.derive.bounds),
 [Derived Newtypes](09-traits.md#derived-newtypes).

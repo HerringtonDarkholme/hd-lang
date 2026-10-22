@@ -1,0 +1,11 @@
+# test: a positional after a rest list is a declaration error naming both fields
+# Spec std/cli: std-cli.positional.rest-last.
+use std.cli.{Cli, positional}
+@derive(Cli)
+struct Config:
+    @positional
+    files: List[string]
+    @positional
+    output: string
+pub fn main() -> void:
+    _ := Config::parser() # panic: explicit-panic
