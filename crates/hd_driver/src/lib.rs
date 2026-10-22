@@ -3079,6 +3079,7 @@ impl Run<'_> {
                 }
             }
         };
+        let docs = hd_resolve::encode_docs(&items);
         let hsec = api_blob.map_or_else(Vec::new, |h| h.0.to_le_bytes().to_vec());
         let idiags = self.anchored_diags(fi, &diags);
         let dsec = encode_iface_diags(&idiags);
@@ -3107,7 +3108,9 @@ impl Run<'_> {
         self.put(
             EntryKind::Iface,
             key,
-            &[&blob, &dsec, &asec, &psec, &lsec, &usec, &hsec, &msec],
+            &[
+                &blob, &dsec, &asec, &psec, &lsec, &usec, &hsec, &msec, &docs,
+            ],
         );
         self.keep_input(
             folder.modules[0].idx(),
@@ -3122,6 +3125,7 @@ impl Run<'_> {
                     usec.clone(),
                     hsec,
                     msec,
+                    docs,
                 ]
             },
         );
@@ -3270,13 +3274,43 @@ impl Run<'_> {
                 api_text_hash: self.skim_of(m.idx()).file.api_text_hash,
             })
             .collect();
-        reads_key(
+        let semantic = reads_key(
             self.toolchain,
             self.package_key_of(folder.package),
             &folder.path,
             &apis,
             self.roots_hash(fi),
-        )
+        );
+        let mut key = hd_base::StableHasher::new("iface-own-docs-v1");
+        key.hash(semantic);
+        for m in &folder.modules {
+            key.hash(self.doc_hash(m.idx()));
+        }
+        key.finish()
+    }
+
+    /// Only attached documentation affects generated metadata. Plain comments
+    /// keep the existing cache reuse; these docs never enter dependency keys.
+    fn doc_hash(&self, m: usize) -> Hash128 {
+        let text = &self.texts[m];
+        let mut key = hd_base::StableHasher::new("own-docs-v1");
+        if text.contains("##") {
+            let lexed = hd_syntax::lex(text.as_bytes());
+            let toks = &lexed.tokens;
+            for (i, kind) in toks.com_kind.iter().enumerate() {
+                if *kind != hd_syntax::CommentKind::Doc {
+                    continue;
+                }
+                let token = toks.start.partition_point(|start| *start < toks.com_end[i]);
+                let doc =
+                    hd_syntax::doc_text(text, toks, hd_base::TokenIdx::from_raw(u32_of(token)));
+                if !doc.is_empty() {
+                    key.u32(u32_of(token));
+                    key.str(&doc);
+                }
+            }
+        }
+        key.finish()
     }
 
     /// The hash of the use roots of folder `fi`'s modules (`UseRoots`):
@@ -3318,7 +3352,8 @@ impl Run<'_> {
         let (blob, dsec) = (sections.first()?, sections.get(1)?);
         let blob: Arc<[u8]> = Arc::from(blob.as_slice());
         // Each item record decodes on first use (#213).
-        let (items, exports) = hd_resolve::decode_lazy(&names, blob.clone())?;
+        let (mut items, exports) = hd_resolve::decode_lazy(&names, blob.clone())?;
+        items.attach_docs(sections.get(8)?)?;
         let (Some(diags), Some(rows), Some(private), Some(looped), Some(module_uses)) = (
             decode_iface_diags(dsec),
             sections.get(2).and_then(|b| hd_resolve::anchor::decode(b)),

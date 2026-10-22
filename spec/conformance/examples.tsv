@@ -963,6 +963,7 @@ std/cli.md	10	accept	runtime/valid/cli-enum-values.hd
 std/cli.md	11	accept	runtime/valid/cli-short-fact.hd
 std/cli.md	12	accept	runtime/valid/cli-positional-fact.hd
 std/cli.md	13	accept	runtime/valid/cli-derived-subcommands.hd
+std/cli.md	14	accept	runtime/valid/cli-documentation-help.hd
 std/regex.md	1	accept	runtime/valid/regex-literals-escapes.hd
 std/regex.md	2	accept	runtime/valid/regex-anchors-groups.hd
 std/regex.md	3	accept	runtime/valid/regex-literals-escapes.hd

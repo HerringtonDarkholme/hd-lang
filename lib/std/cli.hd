@@ -436,7 +436,7 @@ impl[T] Cli for T by Structure:
     fn declare(parser: &mut ArgParser, arg: Arg) -> void:
         if arg.name.is_empty():
             parser.program = cli_name(T::name())
-        let mut describer = CliDescriber::[T] { parser: parser, arg: arg, record: false, choices: [], payload: false, commands: [], current: .None, variant_name: "", members: 0, valid_shape: true }
+        let mut describer = CliDescriber::[T] { parser: parser, arg: arg, record: false, choices: [], choice_help: [], payload: false, commands: [], current: .None, variant_name: "", members: 0, valid_shape: true }
         _ := T::describe(&mut describer)
         if !describer.record:
             if describer.payload:
@@ -463,7 +463,11 @@ impl[T] Cli for T by Structure:
                     child.set_program("${parser.program} $name")
                     _ := parser.command(name, *child)
             else:
-                declare_scalar(parser, Arg { ...arg, choices: describer.choices }, cli_name(T::name()))
+                let help = arg.help
+                if !describer.choice_help.is_empty():
+                    if help != "": help += "\n"
+                    help += describer.choice_help.join("\n")
+                declare_scalar(parser, Arg { ...arg, help: help, choices: describer.choices }, cli_name(T::name()))
 
     fn read(parsed: Parsed, arg: Arg) -> Result[T, CliError]:
         let mut source = CliSource::[T] { parsed: parsed, arg: arg, at: 0, command_payload: false }
@@ -474,6 +478,7 @@ struct CliDescriber[S]:
     pub arg: Arg
     pub record: bool
     pub choices: List[string]
+    pub choice_help: List[string]
     pub payload: bool
     pub commands: List[(string, &mut ArgParser)]
     pub current: Option[&mut ArgParser]
@@ -493,13 +498,23 @@ impl[S] Describer[S] for CliDescriber[S]:
     fn variant(&mut self, variant: Variant[S]) -> Result[void, never]:
         self.finish_variant()
         self.record = variant.info.of_data
+        if self.arg.name.is_empty() && (self.record || self.choices.is_empty()):
+            match variant.info.type_doc:
+                .Some(doc) =>
+                    if self.parser.about == "": self.parser.about = doc
+                    else if self.parser.about != doc: self.parser.about += "\n\n$doc"
+                .None => pass
         if self.record:
             if !self.arg.name.is_empty() && self.parser.declaration_error.is_none():
                 self.parser.declaration_error = .Some(.InvalidValue(self.arg.name, "record field `${self.arg.name}` is not supported; subcommands are an enum"))
         else:
             name := cli_name(variant.info.name)
             self.choices.push(name)
+            match variant.info.doc:
+                .Some(doc) => self.choice_help.push("    $name: $doc")
+                .None => pass
             child := ArgParser::new(name)
+            child.about = variant.info.doc.unwrap_or("")
             self.commands.push((name, child))
             self.current = .Some(child)
             self.variant_name = variant.info.name
@@ -574,7 +589,7 @@ impl[S] Source[S] for CliSource[S]:
 
 fn cli_arg[S, F < Cli](field: Field[S, F]) -> Arg:
     kind := if field.fact::[Positional[F]]().is_some(): ArgKind.Positional else: ArgKind.Option
-    Arg { name: cli_name(field.info.name), required: !field.has_default(), kind: kind, short: field.fact::[Short[F]]().map(fn(fact): fact.letter) }
+    Arg { name: cli_name(field.info.name), help: field.info.doc.unwrap_or(""), required: !field.has_default(), kind: kind, short: field.fact::[Short[F]]().map(fn(fact): fact.letter) }
 
 fn cli_name(name: string) -> string:
     out := StringBuilder::new()

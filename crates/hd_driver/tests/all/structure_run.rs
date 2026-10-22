@@ -115,3 +115,64 @@ pub fn main() -> void $ Console:
         assert_eq!(again.wasm, out.wasm);
     }
 }
+
+#[test]
+fn a_doc_edit_updates_metadata_without_rechecking_a_dependent() {
+    let store = MemoryStore::default();
+    let main = "\
+use pkg.shapes.options.Pack
+use std.cli.Cli
+
+pub fn main() -> void $ Console:
+    match Pack::parse([\"--help\"]):
+        .Err(.Help(text)) => println(text)
+        _ => panic(\"expected help\")
+";
+    let options = |about: &str, field: &str| {
+        format!(
+            "\
+use std.cli.Cli
+
+## {about}
+@derive(Cli)
+pub struct Pack:
+    ## {field}
+    pub verbose: bool
+"
+        )
+    };
+    let first = options("First about.", "First field.");
+    let a = build_with(&store, &[("main.hd", main), ("shapes/options.hd", &first)]);
+    let output = run(&a, "docs-first");
+    assert!(output.contains("First about."), "{output}");
+    assert!(output.contains("First field."), "{output}");
+    let second = options("Changed about.", "Changed field.");
+    let b = build_with(&store, &[("main.hd", main), ("shapes/options.hd", &second)]);
+    assert_eq!(a.counters.deep_hashes, b.counters.deep_hashes);
+    assert_eq!(
+        a.counters.check_keys["app.main"],
+        b.counters.check_keys["app.main"]
+    );
+    assert!(!b.counters.modules_checked.contains(&"app.main".to_owned()));
+    assert!(
+        b.counters
+            .modules_checked
+            .contains(&"app.shapes.options".to_owned())
+    );
+    let output = run(&b, "docs-changed");
+    assert!(output.contains("Changed about."), "{output}");
+    assert!(output.contains("Changed field."), "{output}");
+    assert!(
+        !output.contains("First about.") && !output.contains("First field."),
+        "{output}"
+    );
+    let warm = build_with(&store, &[("main.hd", main), ("shapes/options.hd", &second)]);
+    assert_eq!(warm.wasm, b.wasm);
+    assert!(
+        !warm
+            .counters
+            .modules_checked
+            .iter()
+            .any(|m| m.starts_with("app."))
+    );
+}

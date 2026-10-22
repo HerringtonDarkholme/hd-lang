@@ -1,0 +1,97 @@
+# test: derived CLI help reads attached type, field, choice and command documentation
+# Spec std/cli: std-cli.typed-help.type-doc, std-cli.typed-help.field-doc, std-cli.typed-help.variant-doc, std-cli.typed-help.current-command.
+# fixture-package-tree: doc-tests/src/typed_cli_help.hd
+use std.cli.{Cli, short, positional}
+
+## Pack archives for distribution.
+@derive(Cli)
+struct Pack:
+    ## Print detailed progress.
+    @short('v')
+    verbose: bool
+    ## Select the archive format.
+    format: Format = .Json
+    ## Read files from this path.
+    @positional
+    input: string = "."
+
+## Choose an output format.
+@derive(Cli)
+enum Format:
+    ## Preserve structured data.
+    Json
+    ## Write readable prose.
+    Markdown
+    Raw
+
+## Build the selected archive.
+@derive(Cli)
+struct Build:
+    ## Set the output file.
+    output: string = "archive"
+
+## Manage remote archives.
+@derive(Cli)
+enum Remote:
+    ## Publish an archive.
+    Publish(Build)
+    ## Remove a remote archive.
+    Remove
+
+## Operate on archives.
+@derive(Cli)
+enum Command:
+    ## Create a local archive.
+    Build(Build)
+    ## Work with a remote archive.
+    Remote(Remote)
+    ## Remove local artifacts.
+    Clean
+
+fn help[T < Cli](arguments: List[string]) -> string:
+    match T::parse(arguments):
+        .Err(.Help(text)) => text
+        _ => panic("expected current-command help")
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("record help includes the attached type and field docs"):
+        text := help::[Pack](["--help"])
+        assert(text.contains("Pack archives for distribution."), reason="type doc")
+        assert(text.contains("Print detailed progress."), reason="short flag doc")
+        assert(text.contains("Read files from this path."), reason="positional doc")
+        assert(text.contains("Select the archive format."), reason="choice field doc")
+        assert_equal(help::[Pack](["-h"]), text, reason="both help spellings")
+
+    it("unit choices include their own documentation"):
+        text := help::[Pack](["--help"])
+        assert(text.contains("json: Preserve structured data."), reason="JSON variant doc")
+        assert(text.contains("markdown: Write readable prose."), reason="Markdown variant doc")
+        assert(text.contains("[choices: json, markdown, raw]"), reason="undocumented choice retained")
+        assert(!text.contains("Choose an output format."), reason="field type does not replace parent about")
+        assert(help::[Format](["-h"]).contains("Choose an output format."), reason="root enum about")
+
+    it("subcommand help has variant and payload docs with its own options"):
+        root := help::[Command](["--help"])
+        assert(root.contains("Operate on archives."), reason="enum type doc")
+        assert(root.contains("Create a local archive."), reason="command listing doc")
+        text := help::[Command](["build", "--help"])
+        assert(text.contains("Create a local archive."), reason="selected command doc")
+        assert(text.contains("Build the selected archive."), reason="payload type doc")
+        assert(text.contains("Set the output file."), reason="payload field doc")
+        assert(!text.contains("Remove local artifacts."), reason="sibling docs stay outside child help")
+        assert(!text.contains("Operate on archives."), reason="parent about stays outside child help")
+
+    it("nested and unit command help stop in their selected scope"):
+        remote := help::[Command](["remote", "-h"])
+        assert(remote.contains("Work with a remote archive."), reason="command variant doc")
+        assert(remote.contains("Manage remote archives."), reason="enum payload type doc")
+        text := help::[Command](["remote", "publish", "-h"])
+        assert(text.contains("usage: command remote publish"), reason="full nested path")
+        assert(text.contains("Publish an archive."), reason="nested variant doc")
+        assert(text.contains("Set the output file."), reason="nested payload help")
+        assert(!text.contains("Work with a remote archive."), reason="ancestor doc stays scoped")
+        clean := help::[Command](["clean", "--help"])
+        assert(clean.contains("Remove local artifacts."), reason="unit command doc")
+        assert(!clean.contains("Set the output file."), reason="no sibling options")

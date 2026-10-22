@@ -25,6 +25,7 @@ runtime/panic/slicing-an-inclusive-end-at-the-length-panics.hd	runtime	panic:ind
 runtime/valid/cli-command-facts.hd	runtime	accept	std/cli.md#r-std-cli.typed-commands.no-field-facts
 runtime/valid/cli-derived-records.hd	runtime	accept	std/cli.md#typed-records
 runtime/valid/cli-derived-subcommands.hd	runtime	accept	std/cli.md#typed-subcommands
+runtime/valid/cli-documentation-help.hd	runtime	accept	std/cli.md#r-std-cli.typed-help.type-doc
 runtime/valid/cli-enum-values.hd	runtime	accept	std/cli.md#enum-value-sets
 runtime/valid/cli-positional-fact.hd	runtime	accept	std/cli.md#positional-field-facts
 runtime/valid/cli-short-fact.hd	runtime	accept	std/cli.md#short-field-facts
@@ -48,6 +49,7 @@ runtime/valid/structure-a-generic-owner-has-one-handle-per-instantiation.hd	runt
 runtime/valid/structure-a-tuple-target-walks-through-the-same-generator.hd	runtime	accept	lang/14-annotations.md#walk
 runtime/valid/structure-build-fills-the-members-the-source-never-names.hd	runtime	accept	lang/14-annotations.md#build
 runtime/valid/structure-describe-lists-every-variant-without-a-value.hd	runtime	accept	lang/14-annotations.md#describe
+runtime/valid/structure-documentation.hd	runtime	accept	lang/14-annotations.md#r-annot.variant.type-documentation
 runtime/valid/structure-every-traversal-passes-the-same-handle-instances.hd	runtime	accept	std/json.md#r-std-json.encode
 runtime/valid/structure-facts-arrive-in-source-order-per-derivation.hd	runtime	accept	lang/14-annotations.md#facts
 runtime/valid/structure-member-facts-run-once-when-the-handle-is-first-built.hd	runtime	accept	lang/14-annotations.md#r-annot.fact.eval.lazy

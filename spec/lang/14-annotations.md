@@ -712,6 +712,7 @@ pub struct VariantInfo:
     pub index: usize
     pub facts: Facts
     pub doc: string?
+    pub type_doc: string? = .None
     pub of_data: bool
     pub shared: List[(string, &dyn Any)]
     pub self_ref: SelfRef
@@ -1381,13 +1382,18 @@ fn demo() -> Config:
 1. r[annot.member.info] Each member has a `Member` value: its name, its zero-based position within its variant, its facts, its doc comment, and the `embedded` and `positional` flags.
 2. r[annot.member.embedded] An embedded field is one member, named by its embedded type's final name, with `embedded` true.
 3. r[annot.member.positional] An unnamed payload parameter is a member named `_0`, `_1`, and so on, by position, with `positional` true.
-4. r[annot.variant.info] Each variant has a `VariantInfo` value: its name, its zero-based index, its facts, its doc comment, `of_data`, and `shared`.
+4. r[annot.variant.documented-info] Each variant has a `VariantInfo` value: its name, zero-based index, facts, variant doc, `type_doc`, `of_data`, and `shared`.
 5. r[annot.variant.data] A struct's one variant has `of_data` true, and its name and doc comment are the type's.
 6. r[annot.variant.data-facts] That variant's `facts` is empty: a template reads the type-level facts once, through `T::facts()`.
 7. r[annot.variant.shared-pairs] `shared` holds the variant's shared constructor data as `(name, value)` pairs. An unnamed shared parameter is named `_0`, `_1`, and so on.
 8. r[annot.variant.shared.no-handle] Shared constructor data is never a member: it is never passed as a handle.
 9. r[annot.member.position-usize] `Member.position` has type `usize`.
 10. r[annot.variant.index-usize] `VariantInfo.index` has type `usize`.
+11. r[annot.member.documentation] `Member.doc` is the attached declaration documentation normalized by [`lex.doc.attach`](01-lexical-structure.md#r-lex.doc.attach), or `.None` when absent.
+12. r[annot.variant.documentation] `VariantInfo.doc` is the variant's attached declaration documentation, or `.None` when absent.
+13. r[annot.variant.type-documentation] Every variant of a declared type carries that type's attached documentation in `type_doc`, or `.None` when absent.
+14. r[annot.variant.type-documentation-same] Every variant of the same type carries the same `type_doc`.
+15. r[annot.variant.type-documentation-default] A manually constructed `VariantInfo` defaults `type_doc` to `.None`.
 
 ```hd
 use std.structure.{Describer, Field, Structure, Variant}
@@ -1454,6 +1460,7 @@ fn show(t: (i32, i32, List[i32]...)) -> string:
 6. r[annot.tuple.self-ref] Every member of a tuple and its variant have `self_ref` `.Absent`, since a tuple type has no declaration to refer to.
 7. r[annot.tuple.no-default] No member of a tuple has a default.
 8. r[annot.tuple.build] Generated `build` constructs the tuple from one value per member. The rest member's list becomes the rest element's items.
+9. r[annot.tuple.no-type-documentation] A tuple's variant has `type_doc` `.None`.
 
 > **Why.** One `List` member keeps a rest tuple's `Structure` the same
 > size for every value, as its type is. A walker that needs the items one

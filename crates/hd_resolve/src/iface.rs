@@ -427,6 +427,9 @@ pub enum ItemData {
     Newtype(Ty),
 }
 
+/// Attached documentation, keyed by the relative declaration path.
+pub type ItemDocs = Vec<(Vec<String>, String)>;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Item {
     pub def: DefId,
@@ -454,6 +457,9 @@ pub struct Item {
     /// A `struct` declaration: `ItemData::Data` fields, a value type
     /// without identity (`data.struct.value`).
     pub is_struct: bool,
+    /// Attached declaration docs, keyed by relative variant/member names;
+    /// an empty path is the type itself. Stored outside semantic blobs.
+    pub docs: ItemDocs,
     pub data: ItemData,
 }
 
@@ -476,6 +482,7 @@ impl Item {
             has_facts: false,
             fact_pattern: None,
             is_struct: false,
+            docs: Vec::new(),
             data,
         }
     }
@@ -1239,8 +1246,28 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
         has_facts,
         fact_pattern,
         is_struct,
+        docs: Vec::new(),
         data,
     })
+}
+
+/// Documentation is an auxiliary entry section: never part of API, head,
+/// coherence or deep hashes, even when its text changes generated bodies.
+#[must_use]
+pub fn encode_docs(items: &[Item]) -> Vec<u8> {
+    let mut w = Writer::default();
+    w.len_of(items);
+    for item in items {
+        w.len_of(&item.docs);
+        for (path, text) in &item.docs {
+            w.len_of(path);
+            for segment in path {
+                w.str(segment);
+            }
+            w.str(text);
+        }
+    }
+    w.bytes
 }
 
 /// Encodes items and exports: entry-local tables, then the records. The
@@ -1375,6 +1402,7 @@ pub fn decode_lazy(names: &Names<'_>, bytes: Arc<[u8]>) -> Option<(Items, Vec<Ex
         tables: t,
         base,
         offsets,
+        docs: Vec::new(),
     });
     Some((Items::with_source(defs, tags, source), exports))
 }
@@ -1387,6 +1415,7 @@ struct Source {
     tables: Tables,
     base: usize,
     offsets: Vec<u32>,
+    docs: Vec<ItemDocs>,
 }
 
 /// A folder interface's items, by position: each decoded from the blob on
@@ -1459,9 +1488,42 @@ impl Items {
                 let at = src.base + *src.offsets.get(i)? as usize;
                 self.decoded
                     .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                get_item(&mut Reader::new(src.bytes.get(at..)?), &src.tables)
+                let mut item = get_item(&mut Reader::new(src.bytes.get(at..)?), &src.tables)?;
+                item.docs = src.docs.get(i).cloned().unwrap_or_default();
+                Some(item)
             })
             .as_ref()
+    }
+
+    /// Attaches the auxiliary doc section without changing semantic hashes.
+    /// This must run before any lazy item is read.
+    pub fn attach_docs(&mut self, bytes: &[u8]) -> Option<()> {
+        let mut r = Reader::new(bytes);
+        let count = r.count();
+        if count != self.len() {
+            return None;
+        }
+        let mut rows = Vec::with_capacity(count);
+        for _ in 0..count {
+            let mut docs = Vec::new();
+            for _ in 0..r.count() {
+                let path = (0..r.count()).map(|_| r.str().to_owned()).collect();
+                docs.push((path, r.str().to_owned()));
+            }
+            rows.push(docs);
+        }
+        if !r.ok() || !r.at_end() {
+            return None;
+        }
+        for (slot, docs) in self.slots.iter_mut().zip(&rows) {
+            if let Some(Some(item)) = slot.get_mut() {
+                item.docs.clone_from(docs);
+            }
+        }
+        if let Some(src) = &mut self.source {
+            src.docs = rows;
+        }
+        Some(())
     }
 
     /// Item `i`'s impl kind, and whether it is an inherent block, read
@@ -2050,6 +2112,44 @@ mod tests {
     };
     use hd_intern::{PathTable, ShardedInterner};
     use hd_types::{InternPool, ParamRef, TyData};
+
+    #[test]
+    fn docs_round_trip_outside_the_semantic_blob() {
+        let (pool, paths, syms) = (
+            InternPool::new(),
+            PathTable::new(),
+            ShardedInterner::default(),
+        );
+        let known = crate::KnownItems::new(&paths);
+        let names = Names {
+            pool: &pool,
+            paths: &paths,
+            syms: &syms,
+            known: &known,
+        };
+        let mut item = Item::new(
+            names.item("app", "Record"),
+            syms.intern("Record"),
+            true,
+            ItemData::Data(vec![]),
+        );
+        let plain = encode_items(&names, &[item.clone()], &[]).expect("semantic blob");
+        item.docs = vec![
+            (vec![], "Type docs.".into()),
+            (vec!["field".into()], "Field docs.".into()),
+        ];
+        let blob = encode_items(&names, &[item.clone()], &[]).expect("semantic blob");
+        assert_eq!(blob, plain, "docs never alter API or coherence hashes");
+        let docs = super::encode_docs(&[item.clone()]);
+        let (mut lazy, _) = decode_lazy(&names, std::sync::Arc::from(blob)).expect("decode");
+        lazy.attach_docs(&docs).expect("auxiliary docs");
+        assert_eq!(lazy.decoded(), 0, "attaching docs preserves lazy items");
+        assert_eq!(lazy.get(0), Some(&item));
+        assert!(
+            lazy.attach_docs(&docs[..docs.len() - 1]).is_none(),
+            "truncated metadata is a miss"
+        );
+    }
 
     #[test]
     fn items_round_trip_into_a_fresh_run() {

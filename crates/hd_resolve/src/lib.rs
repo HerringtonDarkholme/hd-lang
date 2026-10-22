@@ -28,10 +28,10 @@ pub use header::Universe;
 pub use iface::{
     Export, Field, FnSig, FolderIface, Generic, HeadKind, ImplKind, Item, ItemData, Items, Lookup,
     LookupDecls, Names, TraitData, Variant, declares_assoc_function, declares_ref_receiver,
-    decode_items, decode_lazy, decode_module_uses, decode_private_names, deep_hash, encode_items,
-    encode_module_uses, encode_private_names, fill_trait_args, fill_type_args, folder_iface,
-    impl_table, interface_items, mentioned_defs, private_impl_items, show_ty, show_ty_in,
-    show_ty_rows_in,
+    decode_items, decode_lazy, decode_module_uses, decode_private_names, deep_hash, encode_docs,
+    encode_items, encode_module_uses, encode_private_names, fill_trait_args, fill_type_args,
+    folder_iface, impl_table, interface_items, mentioned_defs, private_impl_items, show_ty,
+    show_ty_in, show_ty_rows_in,
 };
 pub use known::KnownItems;
 pub use lower::{

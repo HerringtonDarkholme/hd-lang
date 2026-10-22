@@ -75,6 +75,8 @@ pub struct VariantInfo:
     ## The variant's doc comment, in `.Some`, or `.None`.
     ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
     pub doc: string?
+    ## The owning type's documentation, identical for all its variants.
+    pub type_doc: string? = .None
     ## Whether the variant belongs to a data type.
     ## See [annot.structure.decl](../../spec/lang/14-annotations.md#r-annot.structure.decl).
     pub of_data: bool

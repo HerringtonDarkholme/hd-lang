@@ -461,6 +461,36 @@ fn notes() -> Notes:
 > input, without implicitly flattening records. Repeated commands would
 > need a delimiter separating their child arguments.
 
+### Documentation In Typed Help
+
+Typed CLI help uses the declaration documentation carried by `std.structure`.
+
+```text
+use std.cli.Cli
+
+## Pack archives for distribution.
+@derive(Cli)
+struct Pack:
+    ## Print detailed progress.
+    verbose: bool
+
+fn pack_help() -> string:
+    match Pack::parse(["--help"]):
+        .Err(.Help(text)) => text
+        _ => panic("expected help")
+```
+
+1. r[std-cli.typed-help.type-doc] A root derived CLI uses its type's `VariantInfo.type_doc` as the parser's about text.
+2. r[std-cli.typed-help.field-doc] A derived record argument uses its `Member.doc` as argument help.
+3. r[std-cli.typed-help.variant-doc] Unit-enum choice descriptions and subcommand descriptions use their variants' `VariantInfo.doc`.
+4. r[std-cli.typed-help.choice-lines] Documented choices add declaration-ordered `name: description` lines to argument help, after any field documentation.
+5. r[std-cli.typed-help.payload-doc] A subcommand's help includes its variant documentation followed by its payload type documentation, when both exist and differ.
+6. r[std-cli.typed-help.current-command] `-h` and `--help` return `CliError.Help` for the current command, including only that scope's about text and argument declarations.
+7. r[std-cli.typed-help.absent-doc] Absent documentation adds no description.
+
+> **Why.** Help reads the same declaration metadata as every other derivation,
+> and preserves the command parser's existing scope boundaries.
+
 ## Usage Text
 
 `usage` returns the help text. For the `ArgParser` above, with one more flag

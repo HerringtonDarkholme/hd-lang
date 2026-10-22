@@ -4234,6 +4234,66 @@ impl Lower<'_, '_, '_> {
                 out.push(it);
             }
         }
+        if let Some(item) = out.iter_mut().rev().find(|item| item.def == h.def) {
+            self.declaration_docs(n, &mut item.docs, &[]);
+        }
+    }
+
+    /// Attached docs use the same normalization and decorator handling as `hd_doc`.
+    fn declaration_docs(
+        &self,
+        node: NodeRef<'_>,
+        out: &mut Vec<(Vec<String>, String)>,
+        path: &[String],
+    ) {
+        let first = node.first_token();
+        let head = node.direct_tokens().next().unwrap_or(first);
+        let mut parts = vec![hd_syntax::doc_text(
+            self.src.text,
+            &self.src.parse.tokens,
+            first,
+        )];
+        if head != first {
+            parts.push(hd_syntax::doc_text(
+                self.src.text,
+                &self.src.parse.tokens,
+                head,
+            ));
+        }
+        parts.retain(|part| !part.is_empty());
+        let text = parts.join("\n");
+        if !text.is_empty() {
+            out.push((path.to_vec(), text));
+        }
+        for holder in node
+            .children()
+            .filter(|n| matches!(n.kind(), SyntaxKind::Block | SyntaxKind::ParameterList))
+        {
+            for (index, child) in holder.children().enumerate() {
+                if !matches!(
+                    child.kind(),
+                    SyntaxKind::DataField
+                        | SyntaxKind::Parameter
+                        | SyntaxKind::EmbeddedField
+                        | SyntaxKind::EnumVariant
+                ) {
+                    continue;
+                }
+                let name = if child.kind() == SyntaxKind::EmbeddedField {
+                    Src::type_child(child)
+                        .map(|t| self.segments(t))
+                        .and_then(|s| s.last().map(|x| x.0.clone()))
+                        .unwrap_or_default()
+                } else {
+                    child
+                        .name(&self.src.parse.tokens)
+                        .map_or_else(|| index.to_string(), |t| self.src.text(t).to_owned())
+                };
+                let mut next = path.to_vec();
+                next.push(name);
+                self.declaration_docs(child, out, &next);
+            }
+        }
     }
 
     /// A transparent alias (`types.alias.same`), or a row alias, whose

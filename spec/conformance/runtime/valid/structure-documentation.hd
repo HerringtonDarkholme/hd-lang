@@ -1,0 +1,84 @@
+# test: structure metadata carries attached declaration docs and one shared type_doc
+# Spec annotations: annot.member.documentation, annot.variant.type-documentation, annot.variant.documentation.
+# fixture-package-tree: doc-tests/src/structure_metadata.hd
+use std.function.Tuple
+use std.structure.{Structure, Describer, Field, Variant}
+
+struct Docs:
+    pub types: List[string?]
+    pub variants: List[string?]
+    pub members: List[string?]
+
+impl[S] Describer[S] for Docs:
+    type Error = never
+    fn variant(&mut self, value: Variant[S]) -> Result[void, never]:
+        self.types.push(value.info.type_doc)
+        self.variants.push(value.info.doc)
+        .Ok(())
+    fn member[F](&mut self, field: Field[S, F]) -> Result[void, never]:
+        self.members.push(field.info.doc)
+        .Ok(())
+
+trait Documentation:
+    fn docs() -> Docs
+
+impl[T] Documentation for T by Structure:
+    fn docs() -> Docs:
+        let mut result = Docs { types: [], variants: [], members: [] }
+        _ := T::describe(&mut result)
+        result
+
+impl[T < Tuple] Documentation for T by Structure:
+    fn docs() -> Docs:
+        let mut result = Docs { types: [], variants: [], members: [] }
+        _ := T::describe(&mut result)
+        result
+
+type Pair = (string, bool)
+
+struct Inner:
+    value: string
+
+## Record first line.
+@derive(Documentation)
+## Record second line.
+struct Record:
+    ## Field first line.
+    ## Field second line.
+    value: string
+    bare: bool
+    ## Embedded declaration.
+    Inner
+
+## Enumeration documentation.
+@derive(Documentation)
+enum Choice:
+    ## First variant.
+    First
+    ## Payload variant.
+    Second(
+        ## Payload field.
+        text: string
+    )
+    Bare
+
+tests:
+    use std.testing.assert_equal
+
+    it("record docs join across decorators and preserve normalized lines"):
+        docs := Record::docs()
+        assert_equal(docs.types, [.Some("Record first line.\nRecord second line.")], reason="record type doc")
+        assert_equal(docs.variants, docs.types, reason="record variant has its type doc")
+        assert_equal(docs.members, [.Some("Field first line.\nField second line."), .None, .Some("Embedded declaration.")], reason="field docs and absence")
+
+    it("all enum variants carry the same type doc and their own variant docs"):
+        docs := Choice::docs()
+        assert_equal(docs.types, [.Some("Enumeration documentation."), .Some("Enumeration documentation."), .Some("Enumeration documentation.")], reason="same type doc on all variants")
+        assert_equal(docs.variants, [.Some("First variant."), .Some("Payload variant."), .None], reason="own variant docs")
+        assert_equal(docs.members, [.Some("Payload field.")], reason="payload field doc")
+
+    it("tuple metadata has neither type nor member documentation"):
+        docs := Pair::docs()
+        assert_equal(docs.types, [.None], reason="tuple has no declaration")
+        assert_equal(docs.variants, [.None], reason="tuple variant has no declaration")
+        assert_equal(docs.members, [.None, .None], reason="tuple elements have no declarations")

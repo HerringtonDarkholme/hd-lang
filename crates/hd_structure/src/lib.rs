@@ -39,8 +39,8 @@
 //! hidden fields (`hd_get`, `hd_holds`, `hd_default`) are closures over the
 //! target. The witness field, which no std body reads, holds the member's
 //! information as a `dyn Inspectable`. A variant's shared constructor
-//! data is read from the globals that hold it. Doc comments are not
-//! carried: `doc` is `.None`.
+//! data is read from the globals that hold it. Declaration documentation
+//! comes from the resolver's auxiliary item docs, outside semantic hashes.
 
 mod dbg;
 
@@ -828,14 +828,46 @@ impl<'a, 'n> Gen<'a, 'n> {
         self.b.emit(Tag::Unreachable, NONE, NONE, Ty::NEVER, SYN)
     }
 
+    fn doc_value(&mut self, v: &Var, member: Option<&Mem>, type_doc: bool) -> StageResult<Ref> {
+        let names = self.names;
+        let mut path = Vec::new();
+        let owner = if v.shape == Shape::Enum {
+            let p = hd_base::PathId::from_raw(v.def.raw());
+            if !type_doc {
+                path.push(names.paths.segment(p).to_owned());
+            }
+            DefId::from_raw(names.paths.parent(p).raw())
+        } else {
+            v.def
+        };
+        if let Some(m) = member {
+            path.push(m.declared.clone());
+        }
+        let text = self
+            .cx
+            .items
+            .item(owner)
+            .and_then(|i| i.docs.iter().find(|(p, _)| *p == path))
+            .map(|(_, text)| text.clone());
+        let ty = self.field_ty(self.std("Member"), "doc", &[])?;
+        Ok(match text {
+            Some(text) => {
+                let value = self.str_(&text);
+                let rec = self.b.refs_record(&[value]);
+                self.b.emit(Tag::NewVariant, 1, rec, ty, SYN)
+            }
+            None => self.unit_variant(0, ty),
+        })
+    }
+
     /// `VariantInfo` of `v`.
     fn variant_info(&mut self, v: &Var) -> StageResult<Ref> {
         let vi = self.std("VariantInfo");
         let name = self.str_(&v.name);
         let index = self.usize_(v.index);
         let facts = self.facts_value(v.facts)?;
-        let dt = self.field_ty(vi, "doc", &[])?;
-        let doc = self.unit_variant(0, dt);
+        let doc = self.doc_value(v, None, false)?;
+        let type_doc = self.doc_value(v, None, true)?;
         let of_data = self.bool_(v.of_data());
         let shared = self.shared_pairs(v)?;
         let self_ref = self.self_ref(v.self_ref);
@@ -847,6 +879,7 @@ impl<'a, 'n> Gen<'a, 'n> {
                 ("index", index),
                 ("facts", facts),
                 ("doc", doc),
+                ("type_doc", type_doc),
                 ("of_data", of_data),
                 ("shared", shared),
                 ("self_ref", self_ref),
@@ -879,13 +912,12 @@ impl<'a, 'n> Gen<'a, 'n> {
     }
 
     /// `Member` of `m`.
-    fn member_info(&mut self, m: &Mem) -> StageResult<Ref> {
+    fn member_info(&mut self, v: &Var, m: &Mem) -> StageResult<Ref> {
         let mi = self.std("Member");
         let name = self.str_(&m.name);
         let position = self.usize_(m.position);
         let facts = self.facts_value(m.facts)?;
-        let dt = self.field_ty(mi, "doc", &[])?;
-        let doc = self.unit_variant(0, dt);
+        let doc = self.doc_value(v, Some(m), false)?;
         let embedded = self.bool_(m.embedded);
         let positional = self.bool_(m.positional);
         let self_ref = self.self_ref(m.self_ref);
@@ -909,7 +941,7 @@ impl<'a, 'n> Gen<'a, 'n> {
     /// `structure-variant-mismatch` on another variant; `default` runs
     /// the member's declared default.
     fn new_field_handle(&mut self, v: &Var, m: &Mem, f: Ty) -> StageResult<Ref> {
-        let info = self.member_info(m)?;
+        let info = self.member_info(v, m)?;
         let s = self.target;
         let get = self.closure(&[s], f, |g, ps| {
             let x = g.b.get(ps[0], s, SYN);
@@ -1242,7 +1274,7 @@ impl<'a, 'n> Gen<'a, 'n> {
         let member_t = self.adt(self.std("Member"), &[]);
         let mut infos = Vec::new();
         for m in &walked {
-            infos.push(self.member_info(m)?);
+            infos.push(self.member_info(v, m)?);
         }
         let rec = self.b.refs_record(&infos);
         let lt = self.fresh(self.adt(names.known.list, &[member_t]));
