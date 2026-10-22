@@ -709,7 +709,7 @@ struct CheckOut {
 
 /// The program as `Collect` decoded it.
 struct ProgramTables {
-    items: HashMap<DefId, Item>,
+    items: ProgramItems,
     /// Supplied tuple factories have no checked declaration. Their generic
     /// return templates serve collection and emission; bodies live in Collected.
     supplied_rets: Mutex<HashMap<DefId, Ty>>,
@@ -731,6 +731,101 @@ struct ProgramTables {
     /// The program's self-recursive enums (`hd_mono::layout::recursive_enums`),
     /// found once on the first layout that asks.
     recursive_enums: OnceLock<hd_base::HashSet<DefId>>,
+}
+
+/// The items collected for one program. Declaration IDs share the run's path table,
+/// so holes include module paths and declarations outside this program.
+/// Missing slots use `u32::MAX`; the payload stays dense without one Item
+/// allocation (or optional Item-sized hole) for every path.
+#[derive(Default)]
+struct ProgramItems {
+    slots: Vec<u32>,
+    values: Vec<Item>,
+}
+
+impl ProgramItems {
+    fn get(&self, def: DefId) -> Option<&Item> {
+        self.values
+            .get(*self.slots.get(def.raw() as usize)? as usize)
+    }
+
+    fn values(&self) -> std::slice::Iter<'_, Item> {
+        self.values.iter()
+    }
+
+    /// A checked declaration replaces an earlier version of that item.
+    fn insert(&mut self, item: Item) {
+        assert!(item.def.get().is_some(), "program item has a declaration");
+        let def = item.def.raw() as usize;
+        if self.slots.len() <= def {
+            self.slots.resize(def + 1, u32::MAX);
+        }
+        let slot = &mut self.slots[def];
+        if *slot == u32::MAX {
+            *slot = u32_of(self.values.len());
+            self.values.push(item);
+        } else {
+            self.values[*slot as usize] = item;
+        }
+    }
+
+    /// Folder interfaces fill gaps without replacing checked declarations.
+    fn insert_if_absent(&mut self, item: &Item) {
+        if self.get(item.def).is_none() {
+            self.insert(item.clone());
+        }
+    }
+}
+
+#[cfg(test)]
+mod program_items_tests {
+    use super::{DefId, Item, ItemData, ProgramItems};
+    use hd_base::Symbol;
+
+    fn item(raw: u32, public: bool) -> Item {
+        Item::new(
+            DefId::from_raw(raw),
+            Symbol::from_raw(raw),
+            public,
+            ItemData::Data(Vec::new()),
+        )
+    }
+
+    #[test]
+    fn sparse_and_unknown_declarations_are_absent() {
+        let mut items = ProgramItems::default();
+        assert!(items.get(DefId::NONE).is_none());
+        assert!(items.get(DefId::from_raw(0)).is_none());
+        items.insert(item(37, true));
+        items.insert(item(2, false));
+        assert_eq!(items.get(DefId::from_raw(37)), Some(&item(37, true)));
+        assert_eq!(items.get(DefId::from_raw(2)), Some(&item(2, false)));
+        for raw in [0, 1, 3, 36, 38, u32::MAX - 1, u32::MAX] {
+            assert!(items.get(DefId::from_raw(raw)).is_none());
+        }
+        assert_eq!(items.slots.len(), 38);
+        assert_eq!(items.values().count(), 2);
+    }
+
+    #[test]
+    fn checks_replace_while_interfaces_only_fill_gaps() {
+        let mut items = ProgramItems::default();
+        items.insert_if_absent(&item(11, false));
+        items.insert(item(11, true));
+        items.insert_if_absent(&item(11, false));
+        items.insert(item(4, false));
+        items.insert_if_absent(&item(4, true));
+        items.insert_if_absent(&item(19, true));
+        assert_eq!(items.get(DefId::from_raw(11)), Some(&item(11, true)));
+        assert_eq!(items.get(DefId::from_raw(4)), Some(&item(4, false)));
+        assert_eq!(items.get(DefId::from_raw(19)), Some(&item(19, true)));
+        assert_eq!(items.values().count(), 3);
+        assert_eq!(
+            items.values().map(|i| i.def.raw()).collect::<Vec<_>>(),
+            [11, 4, 19]
+        );
+        assert_eq!(items.slots[11], 0);
+    }
 }
 
 /// The program's TIR bodies ([`Run::body_of`]), by item. Each is decoded
@@ -7211,7 +7306,7 @@ impl Run<'_> {
             return Some(p);
         }
         let names = self.names();
-        let mut items = HashMap::default();
+        let mut items = ProgramItems::default();
         let mut bodies: HashMap<Hash128, LazyBody> = HashMap::default();
         let mut test_role_impls = Vec::new();
         for m in 0..self.table.modules.len() {
@@ -7230,7 +7325,7 @@ impl Run<'_> {
                 if test_role && matches!(it.data, ItemData::Impl { .. }) {
                     test_role_impls.push(it.def);
                 }
-                items.insert(it.def, it);
+                items.insert(it);
             }
             // An earlier REPL input's bodies yield to this build's.
             let kept = self.is_kept(m);
@@ -7250,7 +7345,7 @@ impl Run<'_> {
         for f in 0..self.table.folders.len() {
             if let Some(i) = self.iface_of(FolderId::from_raw(u32_of(f))) {
                 for it in &i.items {
-                    items.entry(it.def).or_insert_with(|| it.clone());
+                    items.insert_if_absent(it);
                 }
             }
         }
@@ -7279,7 +7374,7 @@ impl Run<'_> {
         let test_impls: Vec<&Item> = test_role_impls
             .iter()
             .filter(|d| !impl_rows.contains_key(*d))
-            .filter_map(|d| items.get(d))
+            .filter_map(|d| items.get(*d))
             .collect();
         let test_impls = hd_resolve::impl_table(&names, &test_impls);
         for (row, d) in test_impls.def.iter().enumerate() {
@@ -7386,7 +7481,7 @@ impl Run<'_> {
             let TyData::Adt { def, args } = pool.get(t) else {
                 return None;
             };
-            let ItemData::Data(fs) = &p.items.get(&def)?.data else {
+            let ItemData::Data(fs) = &p.items.get(def)?.data else {
                 return None;
             };
             let f = fs.get(k as usize)?;
@@ -7934,7 +8029,7 @@ impl Run<'_> {
         {
             let src = self.src(m);
             for head in hd_resolve::heads(&names, &src, module, false) {
-                let Some(item) = p.items.get(&head.def) else {
+                let Some(item) = p.items.get(head.def) else {
                     continue;
                 };
                 if !matches!(item.data, ItemData::Data(_)) || !item.generics.is_empty() {
@@ -7976,7 +8071,11 @@ impl Run<'_> {
             .collect();
         definitions.sort_by_key(|d| names.path(*d));
         let generic = |d: DefId| {
-            p.items[&d].sig().is_some_and(|s| !s.generics.is_empty())
+            p.items
+                .get(d)
+                .expect("fixture definition")
+                .sig()
+                .is_some_and(|s| !s.generics.is_empty())
                 || env.parent(d).is_some_and(|(_, n)| n != 0)
         };
         let mut roots: Vec<(DefId, TyList)> = definitions
@@ -9573,7 +9672,7 @@ struct Env<'r> {
 impl ProgramTables {
     /// A trait's number of arguments, for owner lookup.
     fn arity(&self) -> impl Fn(DefId) -> usize + '_ {
-        |d| self.items.get(&d).map_or(0, |i| i.generics.len())
+        |d| self.items.get(d).map_or(0, |i| i.generics.len())
     }
 }
 
@@ -9591,7 +9690,7 @@ impl LayoutEnv for Env<'_> {
         }
     }
     fn enum_variants(&self, def: DefId, args: TyList) -> Option<Vec<Vec<Ty>>> {
-        match &self.p.items.get(&def)?.data {
+        match &self.p.items.get(def)?.data {
             ItemData::Enum { variants, .. } => Some(
                 variants
                     .iter()
@@ -9609,7 +9708,7 @@ impl LayoutEnv for Env<'_> {
         }
     }
     fn enum_declared(&self, def: DefId) -> Option<Vec<Vec<Ty>>> {
-        match &self.p.items.get(&def)?.data {
+        match &self.p.items.get(def)?.data {
             ItemData::Enum { variants, .. } => Some(
                 variants
                     .iter()
@@ -9626,9 +9725,9 @@ impl LayoutEnv for Env<'_> {
                 let mut enums: Vec<DefId> = self
                     .p
                     .items
-                    .iter()
-                    .filter(|(_, i)| matches!(i.data, ItemData::Enum { .. }))
-                    .map(|(d, _)| *d)
+                    .values()
+                    .filter(|i| matches!(i.data, ItemData::Enum { .. }))
+                    .map(|i| i.def)
                     .collect();
                 enums.sort_unstable_by_key(|d| d.raw());
                 hd_mono::layout::recursive_enums(&self.run.pool, self, &enums)
@@ -9636,7 +9735,7 @@ impl LayoutEnv for Env<'_> {
             .contains(&def)
     }
     fn newtype_base(&self, def: DefId) -> Option<Ty> {
-        match &self.p.items.get(&def)?.data {
+        match &self.p.items.get(def)?.data {
             ItemData::Newtype(inner) => Some(self.low(*inner)),
             _ => None,
         }
@@ -9645,7 +9744,7 @@ impl LayoutEnv for Env<'_> {
 
 impl Env<'_> {
     fn sig(&self, def: DefId) -> Option<&hd_resolve::FnSig> {
-        self.p.items.get(&def)?.sig()
+        self.p.items.get(def)?.sig()
     }
 
     /// A declared type as the backend reads it: each reference type
@@ -9863,10 +9962,10 @@ impl ProgramEnv for Env<'_> {
         hd_mono::key_order(pool, &|d| names.path_hash(d), keys)
     }
     fn parent(&self, def: DefId) -> Option<(DefId, usize)> {
-        let ItemData::Method { owner, .. } = &self.p.items.get(&def)?.data else {
+        let ItemData::Method { owner, .. } = &self.p.items.get(def)?.data else {
             return None;
         };
-        let o = self.p.items.get(owner)?;
+        let o = self.p.items.get(*owner)?;
         match &o.data {
             // A data type or enum owns its declaration `Structure`'s
             // hidden methods (`crates/hd_mono/DESIGN.md` §12.3).
@@ -9889,7 +9988,7 @@ impl ProgramEnv for Env<'_> {
         def
     }
     fn impl_head(&self, impl_: DefId) -> Option<(Ty, TyList, usize)> {
-        let it = self.p.items.get(&impl_)?;
+        let it = self.p.items.get(impl_)?;
         match &it.data {
             ItemData::Impl {
                 self_ty,
@@ -9912,7 +10011,7 @@ impl ProgramEnv for Env<'_> {
         self.run.known.suspend
     }
     fn is_derived_newtype_impl(&self, impl_: DefId) -> bool {
-        let Some(it) = self.p.items.get(&impl_) else {
+        let Some(it) = self.p.items.get(impl_) else {
             return false;
         };
         let ItemData::Impl { self_ty, kind, .. } = &it.data else {
@@ -9921,15 +10020,15 @@ impl ProgramEnv for Env<'_> {
         if *kind != hd_resolve::ImplKind::Derived {
             return false;
         }
-        matches!(self.run.pool.get(*self_ty), TyData::Adt { def, .. } if self.p.items.get(&def).is_some_and(|i| matches!(i.data, ItemData::Newtype(_))))
+        matches!(self.run.pool.get(*self_ty), TyData::Adt { def, .. } if self.p.items.get(def).is_some_and(|i| matches!(i.data, ItemData::Newtype(_))))
     }
     fn impl_method(&self, impl_: DefId, method: DefId) -> Option<DefId> {
-        let item = self.p.items.get(&method)?;
+        let item = self.p.items.get(method)?;
         let ItemData::Method { .. } = &item.data else {
             return None;
         };
         let name = item.name;
-        match &self.p.items.get(&impl_)?.data {
+        match &self.p.items.get(impl_)?.data {
             ItemData::Impl { methods, .. } => {
                 methods.iter().find(|(n, _)| *n == name).map(|(_, d)| *d)
             }
@@ -9937,7 +10036,7 @@ impl ProgramEnv for Env<'_> {
         }
     }
     fn trait_methods(&self, trait_: DefId) -> Vec<DefId> {
-        match self.p.items.get(&trait_).map(|i| &i.data) {
+        match self.p.items.get(trait_).map(|i| &i.data) {
             // A method the compiler lowers at each call (`Inspectable`'s
             // `downcast`) has no slot, nor has an associated function: it
             // has no receiver to dispatch on, so it is unavailable on a
@@ -9950,7 +10049,7 @@ impl ProgramEnv for Env<'_> {
                 .iter()
                 .map(|m| m.1)
                 .filter(|m| {
-                    self.p.items.get(m).is_none_or(|i| {
+                    self.p.items.get(*m).is_none_or(|i| {
                         i.intrinsic.is_none() && self.takes_self(i) && !self.names_self(i, trait_)
                     })
                 })
@@ -9959,16 +10058,16 @@ impl ProgramEnv for Env<'_> {
         }
     }
     fn trait_arity(&self, trait_: DefId) -> usize {
-        self.p.items.get(&trait_).map_or(0, |i| i.generics.len())
+        self.p.items.get(trait_).map_or(0, |i| i.generics.len())
     }
     fn trait_assocs(&self, trait_: DefId) -> Vec<DefId> {
-        match self.p.items.get(&trait_).map(|i| &i.data) {
+        match self.p.items.get(trait_).map(|i| &i.data) {
             Some(ItemData::Trait(t)) => t.assoc.iter().map(|a| a.1).collect(),
             _ => Vec::new(),
         }
     }
     fn intrinsic(&self, def: DefId) -> Option<String> {
-        let k = self.p.items.get(&def)?.intrinsic?;
+        let k = self.p.items.get(def)?.intrinsic?;
         Some(self.run.syms.resolve(k).to_owned())
     }
     fn json_items(&self) -> Option<JsonItems> {
@@ -9985,7 +10084,7 @@ impl ProgramEnv for Env<'_> {
         })
     }
     fn data_fields(&self, def: DefId) -> Option<Vec<Ty>> {
-        match &self.p.items.get(&def)?.data {
+        match &self.p.items.get(def)?.data {
             ItemData::Data(fs) => Some(fs.iter().map(|f| self.low(f.ty)).collect()),
             // A newtype is a data value of its one inner value.
             ItemData::Newtype(inner) => Some(vec![self.low(*inner)]),
@@ -9993,7 +10092,7 @@ impl ProgramEnv for Env<'_> {
         }
     }
     fn data_field_names(&self, def: DefId) -> Option<Vec<String>> {
-        match &self.p.items.get(&def)?.data {
+        match &self.p.items.get(def)?.data {
             ItemData::Data(fs) => {
                 let names = self.run.names();
                 Some(fs.iter().map(|f| names.text(f.name).to_owned()).collect())
@@ -10002,12 +10101,12 @@ impl ProgramEnv for Env<'_> {
         }
     }
     fn is_struct(&self, def: DefId) -> bool {
-        self.p.items.get(&def).is_some_and(|i| i.is_struct)
+        self.p.items.get(def).is_some_and(|i| i.is_struct)
     }
     fn has_private_field(&self, def: DefId) -> bool {
         self.p
             .items
-            .get(&def)
+            .get(def)
             .is_some_and(|i| matches!(&i.data, ItemData::Data(fs) if fs.iter().any(|f| !f.public)))
     }
     fn path_hash(&self, def: DefId) -> Hash128 {
@@ -10096,7 +10195,7 @@ impl ProgramEnv for Env<'_> {
         // `Eq`'s method names `Self` in its parameter, so it has no vtable
         // slot; the map lowering reads it from the declaration.
         let eq = self.run.known.eq;
-        let Some(ItemData::Trait(t)) = self.p.items.get(&eq).map(|i| &i.data) else {
+        let Some(ItemData::Trait(t)) = self.p.items.get(eq).map(|i| &i.data) else {
             return None;
         };
         let method = t.methods.first()?.1;
@@ -10134,7 +10233,7 @@ impl ProgramEnv for Env<'_> {
 
 impl hd_structure::Items for ProgramTables {
     fn item(&self, def: DefId) -> Option<&Item> {
-        self.items.get(&def)
+        self.items.get(def)
     }
 }
 
@@ -10145,17 +10244,17 @@ impl Declarations for Env<'_> {
     fn type_decl(&self, def: DefId) -> TypeDecl {
         self.p
             .items
-            .get(&def)
+            .get(def)
             .map_or(TypeDecl::Data, Item::type_decl)
     }
     fn supertraits(&self, trait_: DefId) -> &[Ty] {
-        self.p.items.get(&trait_).map_or(&[], Item::supertraits)
+        self.p.items.get(trait_).map_or(&[], Item::supertraits)
     }
     fn has_unavailable_member(&self, trait_: DefId) -> bool {
-        hd_resolve::declares_assoc_function(self.run.names().syms, |d| self.p.items.get(&d), trait_)
+        hd_resolve::declares_assoc_function(self.run.names().syms, |d| self.p.items.get(d), trait_)
             || hd_resolve::declares_ref_receiver(
                 self.run.names().syms,
-                |d| self.p.items.get(&d),
+                |d| self.p.items.get(d),
                 &self.run.pool,
                 trait_,
             )
