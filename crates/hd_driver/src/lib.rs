@@ -2603,7 +2603,14 @@ impl Run<'_> {
     }
 
     fn skim_now(&self, m: usize) -> SkimOut {
-        let file = self.files.get(&self.table, m, &self.texts[m]);
+        // Unread REPL modules have placeholder text, not a different
+        // version of their file. Keep its skim local: FileSkims::finish
+        // must publish the real embedded text for every unread std file.
+        let file = if self.reached.as_ref().is_some_and(|reached| !reached[m]) {
+            Arc::new(skims::FileSkim::of(&self.texts[m]))
+        } else {
+            self.files.get(&self.table, m, &self.texts[m])
+        };
         skim_module(&self.table, m, &self.texts[m], file, self.session_uses(m))
     }
 
@@ -10410,6 +10417,71 @@ fn declaration_bodies<'t>(
 #[cfg(test)]
 mod cache_section_tests {
     use super::{Arc, EntryKind, Hash128, LAYOUT, cache_sections};
+
+    #[test]
+    fn a_partial_repl_build_publishes_complete_std_skims() {
+        use hd_cache::{CacheStore, MemoryStore};
+        use hd_project::MemorySources;
+
+        let compile = |store: &MemoryStore, sources: &MemorySources, goal: super::Goal| {
+            let host = super::Host {
+                render_tir: &[],
+                sources,
+                store,
+                clock: &super::NoClock,
+                executor: super::Executor::Serial(hd_sched::SerialOrder::Priority),
+            };
+            let out = super::build_packages(&host, "shop", &super::Packages::default(), &goal);
+            assert!(out.diags.is_empty(), "{}", out.render());
+            assert!(out.wasm.is_some(), "the program builds");
+        };
+        let std_pack = |store: &MemoryStore| {
+            let keys: Vec<_> = store
+                .drain_new()
+                .into_iter()
+                .filter(|(kind, _)| *kind == EntryKind::Depfiles)
+                .collect();
+            assert_eq!(keys.len(), 1, "a cold build publishes the std skim pack");
+            store.get(keys[0].0, &keys[0].1).expect("published pack")
+        };
+
+        let full = MemoryStore::default();
+        let mut program = MemorySources::default();
+        program.insert("main.hd", "pub fn main() -> void: pass\n");
+        compile(
+            &full,
+            &program,
+            super::Goal::Program {
+                entry: "main".into(),
+            },
+        );
+        let expected = std_pack(&full);
+
+        let partial = MemoryStore::default();
+        let mut repl = MemorySources::default();
+        repl.insert(&hd_project::repl_file(1), "+1\n");
+        compile(&partial, &repl, super::Goal::ReplInput { input: 1 });
+        let actual = std_pack(&partial);
+        assert!(
+            actual == expected,
+            "the same embedded std has one skim pack, including files the REPL never reads"
+        );
+
+        // A later test build shares the std pack with the partial build.
+        let mut tests = MemorySources::default();
+        tests.insert(
+            "tests/one.hd",
+            "it(\"one\"):\n    assert_equal(+1, +1, reason=\"one\")\n",
+        );
+        compile(
+            &partial,
+            &tests,
+            super::Goal::Tests {
+                module: None,
+                filter: None,
+            },
+        );
+    }
 
     #[test]
     fn cached_payloads_share_the_loaded_entry_and_keep_it_alive() {
