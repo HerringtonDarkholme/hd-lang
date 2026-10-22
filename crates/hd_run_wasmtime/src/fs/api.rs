@@ -173,9 +173,10 @@ fn same_file(left: &cap_std::fs::Metadata, right: &cap_std::fs::Metadata) -> boo
     }
     #[cfg(windows)]
     {
+        // Both values come from `File::metadata`, so the volume serial
+        // number and file index are present.
         use cap_fs_ext::MetadataExt;
-        let left = left.volume_serial_number().zip(left.file_index());
-        left.is_some() && left == right.volume_serial_number().zip(right.file_index())
+        left.dev() == right.dev() && left.ino() == right.ino()
     }
     #[cfg(not(any(unix, windows)))]
     {

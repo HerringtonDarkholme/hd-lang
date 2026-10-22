@@ -5,7 +5,7 @@ use std::time::Instant;
 
 use hd_run::Grants;
 
-use crate::codec::{Enc, Wire};
+use crate::codec::Enc;
 
 use super::api::{call, call_until};
 
@@ -94,8 +94,11 @@ pub(crate) fn assert_time_limit(result: wasmtime::Result<Enc>) {
 }
 
 /// The modification timestamp appended to an Entry, from the same
-/// filesystem metadata as the provider, without changing the file.
+/// filesystem metadata as the provider, without changing the file. Its
+/// callers are symlink tests, which run on Unix only.
+#[cfg(unix)]
 pub(crate) fn modified(e: &mut Enc, path: impl AsRef<std::path::Path>) {
+    use crate::codec::Wire;
     let time = fs::symlink_metadata(path).unwrap().modified().unwrap();
     let millis = i64::try_from(
         time.duration_since(std::time::UNIX_EPOCH)
