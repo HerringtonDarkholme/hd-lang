@@ -1,0 +1,217 @@
+# test: text operations agree with naive byte and scalar models on UTF-8 inputs
+# Spec std/text: std-text.string.split, std-text.string.replace, std-text.more.find,
+# std-text.string.trim, std-text.more.trim-ends, std-text.utf8.round-trip,
+# std-text.utf8.well-formed, std-text.builder.build; module.string.chars.
+use std.text.{StringBuilder, Utf8Error}
+use std.testing.{Choices, assert_equal, it_each, it_prop_with}
+
+# Unicode PropList-18.0.0 White_Space, verified independently of std.text:
+# Source: https://www.unicode.org/Public/18.0.0/ucd/PropList.txt
+fn white_space() -> List[char]:
+    ['\u{9}', '\u{A}', '\u{B}', '\u{C}', '\u{D}', ' ', '\u{85}', '\u{A0}', '\u{1680}', '\u{2000}', '\u{2001}', '\u{2002}', '\u{2003}', '\u{2004}', '\u{2005}', '\u{2006}', '\u{2007}', '\u{2008}', '\u{2009}', '\u{200A}', '\u{2028}', '\u{2029}', '\u{202F}', '\u{205F}', '\u{3000}']
+
+fn scalar(c: &mut Choices) -> char:
+    c.choose(['a', 'b', ',', '|', '\u{0}', '\u{E9}', '\u{3C0}', '\u{4E2D}', '\u{1F600}', '\u{10FFFF}', '\u{301}', '\u{200B}', '\u{200D}', '\u{FEFF}', white_space()...])
+
+fn text_of(chars: List[char]) -> string:
+    let text = ""
+    for c in chars:
+        text = text + "$c"
+    text
+
+fn char_slice(chars: List[char], from: usize, to: usize) -> List[char]:
+    let mut found: List[char] = []
+    for index in from..to:
+        found.push(chars[index])
+    found
+
+@derive(Debug)
+struct TextCase:
+    chars: List[char]
+    needle: List[char]
+    replacement: List[char]
+
+fn text_cases(c: &mut Choices) -> TextCase:
+    chars := c.list(48, scalar)
+    let needle = c.list(5, scalar)
+    if !chars.is_empty() && c.bool():
+        let start: usize = c.int(0..chars.len())
+        let end: usize = c.int(start..=chars.len())
+        needle = char_slice(chars, start, end)
+    TextCase { chars: chars, needle: needle, replacement: c.list(5, scalar) }
+
+fn builder_cases(c: &mut Choices) -> List[List[char]]:
+    c.list(12, fn(inner: &mut Choices) -> List[char]: inner.list(12, scalar))
+
+# Straight byte-by-byte search; no production find, split, replace or matcher.
+fn find_from(bytes: List[u8], needle: List[u8], start: usize) -> usize?:
+    if needle.is_empty(): return .Some(start)
+    if needle.len() > bytes.len(): return .None
+    let at = start
+    while at <= bytes.len() - needle.len():
+        let matches = true
+        for offset in 0..needle.len():
+            if bytes[at + offset] != needle[offset]:
+                matches = false
+                break
+        if matches: return .Some(at)
+        at += 1
+    .None
+
+fn joined(parts: List[string], separator: string) -> string:
+    let text = ""
+    let first = true
+    for part in parts:
+        if !first: text = text + separator
+        text = text + part
+        first = false
+    text
+
+fn split_model(text: string, separator: string) -> List[string]:
+    bytes := text.to_utf8()
+    needle := separator.to_utf8()
+    let mut parts: List[string] = []
+    let start: usize = 0
+    while true:
+        match find_from(bytes, needle, start):
+            .Some(at) =>
+                parts.push(text.slice(start, at))
+                start = at + needle.len()
+            .None => break
+    parts.push(text.slice(start, bytes.len()))
+    parts
+
+fn scalar_width(lead: u8) -> usize:
+    if lead < 128: 1 else if lead < 224: 2 else if lead < 240: 3 else: 4
+
+fn replace_model(text: string, old: string, replacement: string) -> string:
+    if !old.is_empty(): return joined(split_model(text, old), replacement)
+    bytes := text.to_utf8()
+    let found = replacement
+    let at: usize = 0
+    while at < bytes.len():
+        end := at + scalar_width(bytes[at])
+        found = found + text.slice(at, end) + replacement
+        at = end
+    found
+
+fn left_edge(chars: List[char]) -> usize:
+    let at: usize = 0
+    while at < chars.len() && white_space().contains(chars[at]):
+        at += 1
+    at
+
+fn right_edge(chars: List[char]) -> usize:
+    let at = chars.len()
+    while at > 0 && white_space().contains(chars[at - 1]):
+        at -= 1
+    at
+
+# A small UTF-8 state machine counts completed code points from bytes,
+# independently of the production chars iterator.
+fn scalar_count(bytes: List[u8]) -> usize:
+    let count: usize = 0
+    let remaining: usize = 0
+    for byte in bytes:
+        if remaining == 0:
+            remaining = scalar_width(byte)
+        remaining -= 1
+        if remaining == 0: count += 1
+    assert_equal(remaining, 0, reason="the generated text ends on a scalar boundary")
+    count
+
+tests:
+    it_prop_with("split and join preserve nonempty separators", gen=text_cases, cases=100, prop=fn!(case: TextCase):
+        text := text_of(case.chars)
+        raw := text_of(case.needle)
+        separator := if raw.is_empty(): "\u{1F600}" else: raw
+        expected := split_model(text, separator)
+        assert_equal(text.split(separator), expected, reason="split matches the independent byte scan")
+        assert_equal(text.split(separator).join(separator), text, reason="join restores every separator and empty piece")
+        assert_equal(joined(expected, separator), text, reason="the reference concatenation restores the input too")
+    )
+
+    it_prop_with("replace is identity and matches nonoverlapping scans", gen=text_cases, cases=100, prop=fn!(case: TextCase):
+        text := text_of(case.chars)
+        old := text_of(case.needle)
+        replacement := text_of(case.replacement)
+        assert_equal(text.replace(old, old), text, reason="replacing a pattern by itself changes nothing")
+        assert_equal(text.replace(old, replacement), replace_model(text, old, replacement), reason="the model scans left to right and advances past each match")
+    )
+
+    it_prop_with("find returns the first matching byte offset", gen=text_cases, cases=100, prop=fn!(case: TextCase):
+        text := text_of(case.chars)
+        needle := text_of(case.needle)
+        assert_equal(text.find(needle), find_from(text.to_utf8(), needle.to_utf8(), 0), reason="the naive scan includes an empty needle at byte zero")
+    )
+
+    it_prop_with("trim agrees with independent Unicode scalar edges", gen=text_cases, cases=100, prop=fn!(case: TextCase):
+        text := text_of(case.chars)
+        left := left_edge(case.chars)
+        right := right_edge(case.chars)
+        expected := if left >= right: "" else: text_of(char_slice(case.chars, left, right))
+        assert_equal(text.trim(), expected, reason="only Unicode White_Space scalars are removed")
+        assert_equal(text.trim_start(), text_of(char_slice(case.chars, left, case.chars.len())), reason="start trimming preserves the right edge")
+        assert_equal(text.trim_end(), text_of(char_slice(case.chars, 0, right)), reason="end trimming preserves the left edge")
+        assert_equal(text.trim(), text.trim_start().trim_end(), reason="the two one-sided operations compose")
+    )
+
+    it_prop_with("chars count and UTF-8 round trips preserve scalars", gen=text_cases, cases=100, prop=fn!(case: TextCase):
+        text := text_of(case.chars)
+        bytes := text.to_utf8()
+        assert_equal(text.chars().count(), scalar_count(bytes), reason="count matches the independent byte state machine")
+        assert_equal(text.chars().collect::[List[char]](), case.chars, reason="the generated scalars return in order, including combining marks")
+        assert_equal(text.chars().count(), case.chars.len(), reason="scalar count is distinct from byte or grapheme count")
+        assert_equal(string::from_utf8(bytes), .Ok(text), reason="well-formed generated bytes round trip")
+    )
+
+    it_prop_with("StringBuilder mixed pieces match concatenation", gen=builder_cases, cases=100, prop=fn!(chunks: List[List[char]]):
+        builder := StringBuilder::new()
+        let expected = ""
+        let index: usize = 0
+        for chunk in chunks:
+            piece := text_of(chunk)
+            if index % 2 == 0:
+                builder.push(piece)
+            else:
+                for c in chunk: builder.push_char(c)
+            expected = expected + piece
+            assert_equal(builder.build(), expected, reason="build reads the complete prefix without consuming it")
+            index += 1
+        kept := builder.build()
+        builder.push("z")
+        assert_equal(kept, expected, reason="a previous result remains an independent string")
+        assert_equal(builder.build(), expected + "z", reason="the builder accepts more text after build")
+    )
+
+    it_each("UTF-8 and empty split boundaries", [
+        ("", ",", [""]), ("", "", []), ("\u{E9}\u{1F600}\u{4E2D}", "\u{1F600}", ["\u{E9}", "\u{4E2D}"]),
+        ("\u{1F600}\u{E9}\u{1F600}", "\u{1F600}", ["", "\u{E9}", ""]), ("a\u{E9}a\u{E9}", "\u{E9}", ["a", "a", ""]),
+        ("abc", "longer separator", ["abc"]), ("aaaaa", "aa", ["", "", "a"]), ("\u{E9}\u{1F600}", "", ["\u{E9}", "\u{1F600}"]),
+    ], body=fn!(row: (string, string, List[string])):
+        assert_equal(row._0.split(row._1), row._2, reason="empty pieces and scalar boundaries are explicit")
+        assert_equal(row._0.find(row._1), find_from(row._0.to_utf8(), row._1.to_utf8(), 0), reason="find reports bytes even around multibyte scalars")
+    )
+
+    it_each("overlapping and empty replacement patterns", [
+        ("aaa", "aa", "b", "ba"), ("aaaa", "aa", "b", "bb"), ("", "", "-", "-"),
+        ("\u{E9}\u{1F600}", "", "|", "|\u{E9}|\u{1F600}|"), ("\u{1F600}\u{1F600}\u{1F600}", "\u{1F600}\u{1F600}", "X", "X\u{1F600}"),
+        ("a\u{E9}a\u{E9}", "\u{E9}", "", "aa"), ("abc", "abcdef", "x", "abc"),
+    ], body=fn!(row: (string, string, string, string)):
+        assert_equal(row._0.replace(row._1, row._2), row._3, reason="matches do not overlap and empty patterns use scalar boundaries")
+    )
+
+    it_each("every Unicode White_Space scalar trims at both ends", white_space(), body=fn!(c: char):
+        assert_equal("${c}\u{E9}\u{1F600}${c}".trim(), "\u{E9}\u{1F600}", reason="the independent Unicode property lists this scalar")
+    )
+
+    it_each("truncated overlong surrogate and invalid UTF-8", [
+        ([194u8], Utf8Error.Truncated(0)), ([226u8, 0x82], Utf8Error.Truncated(0)), ([240u8, 0x9F, 0x98], Utf8Error.Truncated(0)),
+        ([192u8, 0xAF], Utf8Error.InvalidSequence(0)), ([224u8, 0x80, 0x80], Utf8Error.InvalidSequence(0)), ([240u8, 0x80, 0x80, 0x80], Utf8Error.InvalidSequence(0)),
+        ([237u8, 0xA0, 0x80], Utf8Error.InvalidSequence(0)), ([237u8, 0xBF, 0xBF], Utf8Error.InvalidSequence(0)),
+        ([244u8, 0x90, 0x80, 0x80], Utf8Error.InvalidSequence(0)), ([245u8, 0x80, 0x80, 0x80], Utf8Error.InvalidSequence(0)),
+        ([128u8], Utf8Error.InvalidSequence(0)), ([226u8, 0x41], Utf8Error.InvalidSequence(0)),
+        ([97u8, 0xF0, 0x9F], Utf8Error.Truncated(1)), ([195u8, 0xA9, 0xED, 0xA0, 0x80], Utf8Error.InvalidSequence(2)),
+    ], body=fn!(row: (List[u8], Utf8Error)):
+        assert_equal(string::from_utf8(row._0), .Err(row._1), reason="the first malformed sequence determines the category and byte position")
+    )

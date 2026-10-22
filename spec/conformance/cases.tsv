@@ -4254,6 +4254,7 @@ runtime/valid/duration-parse.hd	runtime	accept	std/time.md#r-std-time.duration.p
 runtime/valid/duration-parse-errors.hd	runtime	accept	std/time.md#r-std-time.duration.parse-error.order
 runtime/valid/time-iso8601-format.hd	runtime	accept	std/time.md#r-std-time.format
 runtime/valid/text-parse-trait.hd	runtime	accept	std/text.md#r-std-text.parse.trait
+runtime/valid/text-properties.hd	runtime	accept	std/text.md#r-std-text.string.split
 runtime/valid/num-parse-trait.hd	runtime	accept	std/num.md#r-std-num.parse.trait-impls
 runtime/valid/cli-value-as.hd	runtime	accept	std/cli.md#r-std-cli.parsed.value-as
 runtime/valid/cli-parsed-value-copy.hd	runtime	accept	std/cli.md#r-std-cli.parsed.private
