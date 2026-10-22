@@ -4839,3 +4839,4 @@ typing/invalid/with-timeout-missing-conversion.hd	type	reject:unsatisfied-trait-
 runtime/valid/console-raw-writes.hd	runtime	accept	std/console.md#printing-without-a-newline
 runtime/valid/print-provider-cancels-write.hd	runtime	accept	std/console.md#r-std-console.print.cancelled
 runtime/panic/print-console-other-error.hd	runtime	panic:explicit-panic	std/console.md#r-std-console.print.error
+runtime/valid/debug-string-runs.hd	runtime	accept	std/format.md#r-std-format.debug.source

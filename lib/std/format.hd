@@ -545,17 +545,26 @@ impl Debug for char:
 # Keep handwritten Debug: implement the builtin scalar protocol, which has no derivable declaration.
 impl Debug for string:
     fn debug(self, out: &mut DebugWriter) -> void:
-        out.write("\"" + escape_text(out.cut(self), '"') + "\"")
+        out.write("\"" + escape_text(out.cut(self)) + "\"")
 
-# A string's or char's text as it is written between the quotes of an hd
-# literal (spec/lang/01-lexical-structure.md#r-lex.escape.simple), so that
-# the printed value pastes back as hd code. `quote` is the literal's own
-# delimiter; a `$` is escaped only in a string, where it could start an
-# interpolation.
-fn escape_text(text: string, quote: char) -> string:
+# Preserve runs of ordinary string text as slices; allocate fragments only
+# for source escapes (r-std-format.debug.source.string). Character literals
+# use escape_char directly with their own quote delimiter.
+fn escape_text(text: string) -> string:
     let mut pieces: List[string] = []
-    for each in text.chars():
-        pieces.push(escape_char(each, quote))
+    let start: usize = 0
+    for (at, each) in text.char_indices():
+        scalar := char_scalar(each)
+        if each == '"' || each == '\\' || each == '$' || scalar < 32 || scalar == 127:
+            if start < at:
+                pieces.push(text.slice(start, at))
+            pieces.push(escape_char(each, '"'))
+            # Every escaped character above is one ASCII byte.
+            start = at + 1
+    if start == 0:
+        return text
+    if start < text.len():
+        pieces.push(text.slice(start, text.len()))
     pieces.join("")
 
 fn escape_char(each: char, quote: char) -> string:
