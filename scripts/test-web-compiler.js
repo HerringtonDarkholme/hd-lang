@@ -62,8 +62,9 @@ const FIXTURE = join(root, "spec", "conformance", "runtime", "valid", "println-c
 // Owner 2026-10-21: the raw size is not a useful limit; only the download
 // (gzip) size is gated. Raw is still printed for reference. (#700's
 // dictionary compression of std text saved raw bytes but only 6.7 KB of
-// download, so it was reverted.)
-const GZIP_LIMIT = 1_750_000;
+// download, so it was reverted.) Owner 2026-10-21: the gzip ceiling is
+// 2 MB (1.746 MB at b4c5768e3, as stdlib work lands).
+const GZIP_LIMIT = 2_000_000;
 const RAW_FLOOR = 2e6;
 
 /** Compiles `request` and times the call. */
