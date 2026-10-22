@@ -1,7 +1,7 @@
 # test: hex_encode writes lowercase digits, and hex_decode reads the RFC 4648 section 10 vectors in either case
 # Spec std/encoding Hex: std-encoding.hex.encode.digits, std-encoding.hex.decode.case (ENCODING-SURFACE; task #224).
 # Also covers std-encoding.hex.encode and std-encoding.hex.decode.
-use std.encoding.{hex_decode, hex_encode}
+use std.encoding.{hex_decode, hex_encode, DecodeError}
 fn bytes_of(text: string) -> List[u8]:
     text.bytes().collect()
 
@@ -36,3 +36,30 @@ tests:
         assert_equal(key("666F6F626172"), bytes_of("foobar"), reason="foobar")
         assert_equal(key("666f6F"), bytes_of("foo"), reason="mixed case")
         assert_equal(hex_decode("000f10abff"), .Ok([0, 15, 16, 171, 255]), reason="round trip")
+
+    it("round-trips every byte and long inputs in either case"):
+        let mut bytes: List[u8] = []
+        let code: usize = 0
+        while code < 256:
+            bytes.push(u8(code))
+            code += 1
+        encoded := hex_encode(bytes)
+        assert_equal(encoded.len(), 512, reason="two digits per byte")
+        assert_equal(encoded.slice(0, 8), "00010203", reason="low values")
+        assert_equal(encoded.slice(504, 512), "fcfdfeff", reason="high values")
+        assert_equal(hex_decode(encoded), .Ok(bytes), reason="all byte values")
+        assert_equal(hex_decode(encoded.upper()), .Ok(bytes), reason="uppercase")
+        let mut long_bytes: List[u8] = []
+        let repetition: usize = 0
+        while repetition < 32:
+            for byte in bytes:
+                long_bytes.push(byte)
+            repetition += 1
+        assert_equal(hex_decode(encoded.repeat(32)), .Ok(long_bytes), reason="long input")
+
+    it("checks byte length before the first invalid digit"):
+        prefix := "00".repeat(1024)
+        assert_equal(hex_decode(prefix + "λ"), .Err(DecodeError.InvalidCharacter(prefix.len())), reason="first non-ASCII byte")
+        assert_equal(hex_decode(prefix + "0λ"), .Err(DecodeError.InvalidLength(prefix.len() + 3)), reason="odd byte length wins")
+        assert_equal(hex_decode(prefix + "0g"), .Err(DecodeError.InvalidCharacter(prefix.len() + 1)), reason="low digit position")
+        assert_equal(hex_decode(prefix + "g0"), .Err(DecodeError.InvalidCharacter(prefix.len())), reason="high digit position")

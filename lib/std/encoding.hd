@@ -21,31 +21,34 @@ pub enum DecodeError:
 ## The bytes as lowercase hex text, two digits per byte.
 ## See [std-encoding.hex.encode](../../spec/std/encoding.md#r-std-encoding.hex.encode).
 pub fn hex_encode(bytes: List[u8]) -> string:
-    let mut codes: List[u8] = []
-    for byte in bytes:
-        codes.push(hex_symbol(byte >> 4))
-        codes.push(hex_symbol(byte & 15))
-    ascii_text(codes)
+    let mut codes: List[u8] = zeroes(bytes.len() * 2)
+    let index: usize = 0
+    while index < bytes.len():
+        byte := bytes[index]
+        codes[index * 2] = hex_symbol(byte >> 4)
+        codes[index * 2 + 1] = hex_symbol(byte & 15)
+        index += 1
+    # Every written byte is an ASCII hex digit.
+    string_from_bytes(codes)
 
 # Either case; the length is checked first, then each character from the
 # left (r-std-encoding.hex.decode.order).
 ## Reads hex text into bytes, or returns the first error.
 ## See [std-encoding.hex.decode](../../spec/std/encoding.md#r-std-encoding.hex.decode).
 pub fn hex_decode(text: string) -> Result[List[u8], DecodeError]:
-    codes := ascii_codes(text)
-    size := codes.len()
+    size := bytes_len(text)
     if size % 2 != 0:
         return .Err(DecodeError.InvalidLength(size))
-    let mut bytes: List[u8] = []
+    let mut bytes: List[u8] = zeroes(size / 2)
     let index: usize = 0
     while index < size:
-        high := hex_value(codes[index])
+        high := hex_value(i32(bytes_at(text, index)))
         if high < 0:
             return .Err(DecodeError.InvalidCharacter(index))
-        low := hex_value(codes[index + 1])
+        low := hex_value(i32(bytes_at(text, index + 1)))
         if low < 0:
             return .Err(DecodeError.InvalidCharacter(index + 1))
-        bytes.push(u8(high * 16 + low))
+        bytes[index / 2] = u8(high * 16 + low)
         index = index + 2
     .Ok(bytes)
 
@@ -197,28 +200,12 @@ fn hex_value(code: i32) -> i32:
     else:
         -1
 
-# One entry per byte: its code when it is ASCII, and -1 for each byte of
-# any other character, so a list index is a byte offset.
-fn ascii_codes(text: string) -> List[i32]:
-    let mut codes: List[i32] = []
-    for byte in text.bytes():
-        if byte < 128:
-            codes.push(i32(byte))
-        else:
-            codes.push(-1)
-    codes
-
 # A list of `count` zero bytes, written once by index.
 fn zeroes(count: usize) -> List[u8]:
     let mut values: List[u8] = []
     while values.len() < count:
         values.push(0)
     values
-
-fn ascii_text(codes: List[u8]) -> string:
-    match string::from_utf8(codes):
-        .Ok(text) => text
-        .Err(_) => panic("std.encoding: ASCII codes are valid UTF-8")
 
 # Primitives: the string's bytes read in place, and a string made of bytes
 # that the caller has checked are UTF-8.
