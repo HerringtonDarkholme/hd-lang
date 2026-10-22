@@ -3141,7 +3141,7 @@ runtime/valid/iterator-skip-take-while.hd	runtime	accept	std/iter.md#r-std-iter.
 runtime/valid/iterator-zip-iterable.hd	runtime	accept	std/iter.md#r-std-iter.adapter.zip-iterable.order
 runtime/valid/iterator-chain-iterable.hd	runtime	accept	std/iter.md#r-std-iter.adapter.chain-iterable.order
 typing/invalid/iterator-chain-iterator-arg.hd	type	reject:unsatisfied-trait-bound	std/iter.md#r-std-iter.adapter.iterable-arg.iterator-bound
-runtime/valid/iterator-flat-map.hd	runtime	accept	std/iter.md#r-std-iter.adapter.flat-map.value
+runtime/valid/iterator-flat-map.hd	runtime	accept	std/iter.md#r-std-iter.adapter.flat-map.owned-iterable
 runtime/valid/iterator-search-count.hd	runtime	accept	std/iter.md#r-std-iter.adapter.stop-early.owned
 typing/invalid/iterator-any-callback-row.hd	type	reject:type-mismatch	std/iter.md#r-std-iter.adapter.callback-row.more
 runtime/panic/println-console-closed.hd	runtime	panic:explicit-panic	lang/10-modules.md#r-module.console.println-error
@@ -4803,3 +4803,4 @@ typing/invalid/http-scripted-sent-removed.hd	type	reject:unknown-method	std/http
 runtime/valid/http-client.hd	runtime	accept	std/http.md#client
 typing/invalid/http-client-timeout-removed.hd	type	reject:unknown-method	std/http.md#r-std-http.client.external-timeout
 typing/invalid/http-client-send-missing-provider.hd	type	reject:missing-requirement	std/http.md#r-std-http.client.send-http-only
+runtime/valid/iterator-flat-map-iterable.hd	runtime	accept	std/iter.md#r-std-iter.adapter.flat-map.owned-iterable

@@ -44,6 +44,15 @@ fn evens(values: List[i32]) -> List[i32]:
 2. r[std-iter.cursor.map] `std.iter` declares `MapEntries[K < Eq & Hash, V]`, whose `next` yields the map's entries as `(K, V)` tuples in the map's iteration order.
 3. r[std-iter.cursor.private] Both have private fields, so only `iter` makes one, and both follow [Iterator Invalidation](../lang/06-control-flow.md#iterator-invalidation).
 
+## Optional Cursors
+
+Option iterates without building a list for its payload.
+
+1. r[std-iter.option.iterable-cursor] `Option[T]` implements `Iterable[T]`, with `std.option.OptionIter[T]` as its `IntoIter`.
+2. r[std-iter.option.cursor.some] A `.Some(value)` cursor yields `value` once, then `.None` on every later call.
+3. r[std-iter.option.cursor.none] A `.None` cursor yields `.None` on every call.
+4. r[std-iter.option.cursor.independent] Each `iter` call returns an independent cursor and leaves the optional unchanged.
+
 ## Iterator Factory
 
 `from_fn` wraps a step closure in the concrete `FromFn[T]` cursor.
@@ -78,7 +87,7 @@ fn first_evens(values: List[i32]) -> List[(usize, i32)]:
 6. r[std-iter.adapter.take-while.value] The `take_while` default method has signature `fn take_while(self, keep: fn(T) -> bool) -> TakeWhile[Self, T]`.
 7. r[std-iter.adapter.zip.value] The `zip` default method has signature `fn zip[U, J < Iterable[U]](self, other: J) -> Zip[Self, T, U]`.
 8. r[std-iter.adapter.chain.value] The `chain` default method has signature `fn chain[J < Iterable[T]](self, other: J) -> Chain[Self, T]`.
-9. r[std-iter.adapter.flat-map.value] The `flat_map` default method has signature `fn flat_map[U](self, transform: fn(T) -> List[U]) -> FlatMap[Self, T, U]`.
+9. r[std-iter.adapter.flat-map.owned-iterable] The `flat_map` default method has signature `fn flat_map[U, J < Iterable[U]](self, transform: fn(T) -> J) -> FlatMap[Self, T, U, J]`.
 
 1. r[std-iter.adapter.trait-defaults] Adapters are default methods of the prelude `Iterator[T]` trait and require no import.
 2. r[std-iter.adapter.lazy] Calling `filter`, `take`, or `enumerate` does not advance `self`.
@@ -155,7 +164,7 @@ fn has_blank(lines: List[string]) -> bool:
 | `take_while` | `fn take_while(self, keep: fn(T) -> bool) -> TakeWhile[Self, T]` | a new iterator over the items of `self` before the first one for which `keep` returns `false` |
 | `zip` | `fn zip[U, J < Iterable[U]](self, other: J) -> Zip[Self, T, U]` | a new iterator over pairs of the items of `self` and `other` at the same position, which ends when either ends |
 | `chain` | `fn chain[J < Iterable[T]](self, other: J) -> Chain[Self, T]` | a new iterator over the items of `self`, then those of `other` |
-| `flat_map` | `fn flat_map[U](self, transform: fn(T) -> List[U]) -> FlatMap[Self, T, U]` | a new iterator over the elements of each list that `transform(item)` returns, in order |
+| `flat_map` | `fn flat_map[U, J < Iterable[U]](self, transform: fn(T) -> J) -> FlatMap[Self, T, U, J]` | a new iterator over the items of each iterable that `transform(item)` returns, in order |
 | r[std-iter.adapter.any.value] `any` | `fn any(self, test: fn(T) -> bool) -> bool` | whether `test` returns `true` for some remaining item of `self` |
 | r[std-iter.adapter.all.value] `all` | `fn all(self, test: fn(T) -> bool) -> bool` | whether `test` returns `true` for every remaining item of `self` |
 | r[std-iter.adapter.find.value] `find` | `fn find(self, test: fn(T) -> bool) -> T?` | the first remaining item of `self` for which `test` returns `true`, or `.None` |
@@ -177,6 +186,9 @@ fn has_blank(lines: List[string]) -> bool:
 13. r[std-iter.sum.numeric-overflow] An integer numeric sum outside the range of `T` panics, as `+` does. Panic: `integer-overflow`.
 14. r[std-iter.sum.owned-drain] The numeric sum implementation advances its owned cursor until `next` returns `.None`.
 15. r[std-iter.sum.target-bound] `sum` requires a result type implementing `Sum[T]`. Error: `unsatisfied-trait-bound`.
+
+16. r[std-iter.adapter.flat-map.open-once] `flat_map` calls `iter()` once on each transformed result, only when that result is reached.
+17. r[std-iter.adapter.flat-map.drain-inner] It drains that cursor before transforming the next source item, skipping empty results.
 
 ```text
 fn joined(first: List[i32], rest: &mut dyn Iterator[i32]) -> List[i32]:

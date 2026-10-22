@@ -1,6 +1,22 @@
 # std.option: inherent methods on `T?` (spec/std/option.md).
 # `map` is the std method of spec/std/iter.md#list-and-optional-map.
 
+## A cursor yielding an optional's payload once, if present.
+## See [std-iter.option.iterable-cursor](../../spec/std/iter.md#r-std-iter.option.iterable-cursor).
+pub struct OptionIter[T]:
+    value: T?
+
+impl[T] Iterator[T] for OptionIter[T]:
+    fn next(&mut self) -> T?:
+        value := self.value
+        self.value = .None
+        value
+
+impl[T] Iterable[T] for T?:
+    type IntoIter = OptionIter[T]
+    fn iter(self) -> OptionIter[T]:
+        OptionIter { value: self }
+
 impl[T] T?:
     ## `.Some` of `transform(value)` for a `.Some`, and `.None` for a `.None`.
     ## See [std-iter.method.map](../../spec/std/iter.md#r-std-iter.method.map).

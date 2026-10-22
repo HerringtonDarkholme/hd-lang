@@ -1,0 +1,86 @@
+# test: Option is iterable, and flat_map drains any Iterable lazily without a list per result
+# Spec std/iter More Adapters: std-iter.adapter.flat-map.owned-iterable, std-iter.adapter.flat-map.open-once, std-iter.option.iterable-cursor, std-iter.option.cursor.none, std-iter.option.cursor.independent.
+# expect: test
+
+use std.iter.ListIter
+
+struct Counter:
+    opened: usize
+
+struct Batch:
+    items: List[i32]
+    counter: &mut Counter
+
+impl Iterable[i32] for Batch:
+    type IntoIter = ListIter[i32]
+    fn iter(self) -> ListIter[i32]:
+        self.counter.opened += 1
+        self.items.iter()
+
+fn even(n: i32) -> i32?:
+    if n % 2 == 0: .Some(n) else: .None
+
+tests:
+    use std.testing.assert_equal
+
+    it("flat_map keeps Some payloads and drops None results"):
+        assert_equal([+1, 2, 3, 4].iter().flat_map(even).collect(), [+2, 4], reason="optional results")
+        assert_equal([+1, 3].iter().flat_map(even).collect(), [], reason="all None")
+        let empty: List[i32] = []
+        assert_equal(empty.iter().flat_map(even).collect(), [], reason="empty source")
+
+    it("the erased iterator method also accepts optional results"):
+        let mut cursor = [+1, 2, 3, 4].iter()
+        let source: &mut dyn Iterator[i32] = &mut cursor
+        assert_equal(source.flat_map(even).collect(), [+2, 4], reason="erased adapter")
+        assert_equal(cursor.next(), .None, reason="borrowed source drained")
+
+    it("a copied adapter owns its inner cursor progress"):
+        let mut original = [+1, 2].iter().flat_map(fn(n: i32): [n, n * 10])
+        assert_equal(original.next(), .Some(1), reason="partially read inner cursor")
+        let mut copied = original
+        assert_equal(copied.next(), .Some(10), reason="copy's next inner item")
+        assert_equal(original.next(), .Some(10), reason="original's independent inner position")
+        assert_equal(copied.collect(), [+2, 20], reason="copy drains its source")
+        assert_equal(original.collect(), [+2, 20], reason="original drains its source")
+
+    it("for and comprehensions see zero or one optional item"):
+        let mut seen: List[i32] = []
+        let yes: i32? = .Some(7)
+        let no: i32? = .None
+        for n in yes:
+            seen.push(n)
+        for n in no:
+            seen.push(n)
+        assert_equal(seen, [+7], reason="Some once, None never")
+        assert_equal([for n in yes => n * 2], [+14], reason="optional comprehension")
+        assert_equal([for n in no => n * 2], [], reason="None comprehension")
+
+    it("optional iterators are independent and exhausted after one payload"):
+        let value: i32? = .Some(8)
+        let mut first = value.iter()
+        let mut second = value.iter()
+        assert_equal(first.next(), .Some(8), reason="first payload")
+        assert_equal(first.next(), .None, reason="first exhausted")
+        assert_equal(first.next(), .None, reason="still exhausted")
+        assert_equal(second.next(), .Some(8), reason="independent cursor")
+        let nested: i32?? = .Some(.None)
+        assert_equal(nested.iter().collect(), [.None], reason="Some(None) is one item")
+
+    it("a custom Iterable is opened once and exhausted before the next result"):
+        counter := &mut Counter { opened: 0 }
+        let transformed: usize = 0
+        let mut flat = [+0, 2, 1].iter().flat_map(fn(n: i32) -> Batch:
+            transformed += 1
+            Batch { items: if n == 0: [] else: [n, n * 10], counter: counter }
+        )
+        assert_equal(transformed, 0, reason="lazy transform")
+        assert_equal(counter.opened, 0, reason="lazy iter")
+        assert_equal(flat.next(), .Some(2), reason="skip empty result")
+        assert_equal(transformed, 2, reason="only reached source items")
+        assert_equal(counter.opened, 2, reason="one iter call per result")
+        assert_equal(flat.next(), .Some(20), reason="continue the same inner iterator")
+        assert_equal(counter.opened, 2, reason="no restart")
+        assert_equal(flat.collect(), [+1, 10], reason="remaining results in order")
+        assert_equal(transformed, 3, reason="one transform per source item")
+        assert_equal(counter.opened, 3, reason="one iter per transformed value")

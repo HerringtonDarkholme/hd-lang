@@ -38,8 +38,8 @@ pub trait Iterator[T]:
     fn chain[J < Iterable[T]](self, other: J) -> Chain[Self, T]:
         Chain { source: self, rest: &mut other.iter(), first: true }
 
-    fn flat_map[U](self, transform: fn(T) -> List[U]) -> FlatMap[Self, T, U]:
-        FlatMap { source: self, transform: transform, part: [], at: 0 }
+    fn flat_map[U, J < Iterable[U]](self, transform: fn(T) -> J) -> FlatMap[Self, T, U, J]:
+        FlatMap { source: self, transform: transform, part: .None }
 
     # Stops at the first item that passes, leaving the rest unread.
     ## True when `test` accepts an item; it stops at the first one.
@@ -194,8 +194,8 @@ impl[T] dyn Iterator[T]:
     pub fn chain[J < Iterable[T]](&mut self, other: J) -> Chain[DynIterator[T], T]:
         DynIterator { source: self }.chain::[J](other)
 
-    pub fn flat_map[U](&mut self, transform: fn(T) -> List[U]) -> FlatMap[DynIterator[T], T, U]:
-        DynIterator { source: self }.flat_map::[U](transform)
+    pub fn flat_map[U, J < Iterable[U]](&mut self, transform: fn(T) -> J) -> FlatMap[DynIterator[T], T, U, J]:
+        DynIterator { source: self }.flat_map::[U, J](transform)
 
     pub fn any(&mut self, test: fn(T) -> bool) -> bool:
         DynIterator { source: self }.any(test)
@@ -328,22 +328,26 @@ impl[I < Iterator[T], T] Iterator[T] for Chain[I, T]:
                 .None => self.first = false
         self.rest.next()
 
-pub struct FlatMap[I < Iterator[T], T, U]:
+pub struct FlatMap[I < Iterator[T], T, U, J < Iterable[U]]:
     source: I
-    transform: fn(T) -> List[U]
-    part: List[U]
-    at: usize
+    transform: fn(T) -> J
+    part: J::IntoIter?
 
-impl[I < Iterator[T], T, U] Iterator[U] for FlatMap[I, T, U]:
+impl[I < Iterator[T], T, U, J < Iterable[U]] Iterator[U] for FlatMap[I, T, U, J]:
     fn next(&mut self) -> U?:
-        while self.at >= self.part.len():
+        while true:
+            match self.part:
+                .Some(cursor) =>
+                    let mut inner = cursor
+                    found := inner.next()
+                    self.part = if found.is_some(): .Some(inner) else: .None
+                    if found.is_some():
+                        return found
+                .None => pass
             item := match self.source.next():
                 .Some(found) => found
                 .None => return .None
-            self.part = (self.transform)(item)
-            self.at = 0
-        self.at += 1
-        .Some(self.part[self.at - 1])
+            self.part = .Some((self.transform)(item).iter())
 
 # A collection built from the items of an iterator. It is not a prelude name.
 ## What `collect` builds: a target that gathers items of `T`.
