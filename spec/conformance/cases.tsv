@@ -1518,6 +1518,7 @@ runtime/panic/map-rebuild-invalidates-iterator.hd	runtime	panic:iterator-invalid
 runtime/panic/exhausted-map-iterator-invalidated-by-rebuild.hd	runtime	panic:iterator-invalidated	lang/06-control-flow.md#r-flow.for.invalidate.map-rebuild
 runtime/valid/list-copy-iterator-unaffected.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/iterator-shape-versus-value-changes.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot.change
+runtime/valid/map-properties.hd	runtime	accept	std/collections.md#r-std-collections.map.entries
 runtime/valid/map-remove-absent-key.hd	runtime	accept	lang/10-modules.md#prelude
 runtime/valid/defaults-reference-earlier-parameters.hd	runtime	accept	lang/07-functions.md#default-values
 typing/invalid/default-later-parameter-earlier-twin.hd	type	reject:binding-not-yet-visible	lang/07-functions.md#default-values
@@ -4238,6 +4239,7 @@ runtime/valid/fs-glob-errors.hd	runtime	accept	std/fs.md#r-std-fs.glob.error
 runtime/valid/list-by-key-dedup.hd	runtime	accept	std/collections.md#r-std-collections.helper.by-key.first
 runtime/valid/map-entries-most-common.hd	runtime	accept	std/collections.md#r-std-collections.map.most-common.ties
 runtime/valid/set-collect.hd	runtime	accept	std/collections.md#r-std-collections.set.collect
+runtime/valid/set-properties.hd	runtime	accept	std/collections.md#set
 runtime/valid/string-rfind-splitn.hd	runtime	accept	std/text.md#r-std-text.rfind.empty
 runtime/valid/task-retry-when.hd	runtime	accept	std/task.md#r-std-task.combinator.retry.when
 runtime/valid/task-timeout.hd	runtime	accept	std/task.md#r-std-task.timeout.race
@@ -4841,6 +4843,7 @@ typing/invalid/error-context-private-field.hd	type	reject:unknown-field	std/erro
 runtime/valid/memory-fs-normalized-keys.hd	runtime	accept	std/fs.md#r-std-fs.memory.normalized-keys
 typing/invalid/http-free-send-removed.hd	type	reject:unknown-import	std/http.md#r-std-http.helper.only-get
 runtime/valid/deque-heap-collect.hd	runtime	accept	std/collections.md#r-std-collections.heap.collect.linear
+runtime/valid/deque-heap-properties.hd	runtime	accept	std/collections.md#deque
 runtime/valid/http-scripted-replies.hd	runtime	accept	std/http.md#r-std-http.scripted.queue-order
 typing/invalid/http-scripted-sent-removed.hd	type	reject:unknown-method	std/http.md#r-std-http.scripted.received-ref
 runtime/valid/http-client-cookies.hd	runtime	accept	std/http.md#client

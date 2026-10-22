@@ -1,0 +1,236 @@
+# test: map operation sequences agree with a list model and replay deterministically
+# Spec lang/04-type-system: types.map.eq-hash, types.map.order.deterministic,
+# types.map.order.unspecified, types.map.replace.in-place, types.map.semantics.
+# Spec std/collections: std-collections.map.contains-key, std-collections.map.keys.order,
+# std-collections.map.values, std-collections.map.snapshot, std-collections.map.entries.
+use std.hash.Hasher
+use std.testing.{Arbitrary, Choices, assert, assert_equal, it_each, it_prop}
+
+# Every distinct key feeds exactly the same byte to the bucket hasher.
+@derive(Debug)
+struct CollisionKey:
+    id: i32
+
+impl Eq for CollisionKey:
+    fn eq(self, other: CollisionKey) -> bool:
+        self.id == other.id
+
+impl Hash for CollisionKey:
+    fn hash(self, state: &mut dyn Hasher) -> void:
+        state.write_u8(0)
+
+@derive(Debug)
+enum Operation:
+    Put(key: i32, value: i32)
+    Remove(key: i32)
+    Read(key: i32)
+    Reinsert(key: i32, value: i32)
+
+impl Arbitrary for Operation:
+    fn arbitrary(c: &mut Choices) -> Operation:
+        key := c.int(i32(-16)..=i32(16))
+        value := c.int(i32(-10000)..=i32(10000))
+        match c.int(usize(0)..=usize(3)):
+            0 => .Put(key, value)
+            1 => .Remove(key)
+            2 => .Read(key)
+            _ => .Reinsert(key, value)
+
+@derive(Debug)
+struct Script:
+    ops: List[Operation]
+
+impl Arbitrary for Script:
+    fn arbitrary(c: &mut Choices) -> Script:
+        Script { ops: c.list(96, fn(inner: &mut Choices) -> Operation: Operation::arbitrary(inner)) }
+
+# The oracle has no map, hashing or bucket storage. It scans a list for
+# lookups, replaces a pair in place, and reconstructs the list for removal.
+fn model_get(model: List[(i32, i32)], key: i32) -> i32?:
+    for pair in model:
+        if pair._0 == key:
+            return .Some(pair._1)
+    .None
+
+fn model_put(model: &mut List[(i32, i32)], key: i32, value: i32) -> void:
+    for index in 0..model.len():
+        if model[index]._0 == key:
+            model[index] = (key, value)
+            return
+    model.push((key, value))
+
+fn model_remove(model: &mut List[(i32, i32)], key: i32) -> i32?:
+    let found: i32? = .None
+    let mut kept: List[(i32, i32)] = []
+    for pair in *model:
+        if pair._0 == key:
+            found = .Some(pair._1)
+        else:
+            kept.push(pair)
+    *model = kept
+    found
+
+fn apply_model(model: &mut List[(i32, i32)], op: Operation) -> i32?:
+    match op:
+        .Put(key, value) =>
+            model_put(model, key, value)
+            .None
+        .Remove(key) => model_remove(model, key)
+        .Read(key) => model_get(*model, key)
+        .Reinsert(key, value) =>
+            _ := model_remove(model, key)
+            model_put(model, key, value)
+            .None
+
+fn apply_map(values: &mut Map[CollisionKey, i32], op: Operation) -> i32?:
+    match op:
+        .Put(key, value) =>
+            values[CollisionKey { id: key }] = value
+            .None
+        .Remove(key) => values.remove(CollisionKey { id: key })
+        .Read(key) => values.get(CollisionKey { id: key })
+        .Reinsert(key, value) =>
+            _ := values.remove(CollisionKey { id: key })
+            values[CollisionKey { id: key }] = value
+            .None
+
+fn snapshot(values: Map[CollisionKey, i32]) -> List[(i32, i32)]:
+    let mut pairs: List[(i32, i32)] = []
+    for (key, value) in values:
+        pairs.push((key.id, value))
+    pairs
+
+fn key_ids(values: Map[CollisionKey, i32]) -> List[i32]:
+    [for key in values.keys() => key.id]
+
+fn check_map(values: Map[CollisionKey, i32], model: List[(i32, i32)]) -> void:
+    actual := snapshot(values)
+    assert_equal(values.len(), model.len(), reason="map length matches the reference pairs")
+    assert_equal(values.is_empty(), model.is_empty(), reason="map emptiness matches the reference")
+    assert_equal(actual.len(), model.len(), reason="iteration visits exactly one slot per reference key")
+    for expected in model:
+        key := CollisionKey { id: expected._0 }
+        assert_equal(values.get(key), .Some(expected._1), reason="each reference key is reachable with its current value")
+        assert(values.contains_key(key), reason="each reference key is present")
+        let occurrences: usize = 0
+        for found in actual:
+            if found._0 == expected._0:
+                occurrences += 1
+                assert_equal(found._1, expected._1, reason="iteration has the current value")
+        assert_equal(occurrences, 1, reason="iteration never duplicates or omits a key")
+    for found in actual:
+        assert_equal(model_get(model, found._0), .Some(found._1), reason="iteration contains no foreign key or value")
+    for key in i32(-16)..i32(17):
+        expected := model_get(model, key)
+        assert_equal(values.get(CollisionKey { id: key }), expected, reason="lookup agrees for present and absent colliding keys")
+        assert_equal(values.contains_key(CollisionKey { id: key }), expected.is_some(), reason="membership agrees for present and absent keys")
+    assert_equal(values.values(), [for pair in actual => pair._1], reason="values follows actual iteration order")
+    assert_equal(key_ids(values), [for pair in actual => pair._0], reason="keys follows actual iteration order")
+    entries := values.entries()
+    assert_equal(entries.len(), actual.len(), reason="entries is a complete snapshot")
+    for index in 0..entries.len():
+        assert_equal((entries[index]._0.id, entries[index]._1), actual[index], reason="entries follows actual iteration order")
+
+fn exercise(script: Script) -> void:
+    let mut actual: Map[CollisionKey, i32] = {}
+    let mut replay: Map[CollisionKey, i32] = {}
+    let mut model: List[(i32, i32)] = []
+    check_map(actual, model)
+    for op in script.ops:
+        before := key_ids(actual)
+        replacing := match op:
+            .Put(key, _) => model_get(model, key).is_some()
+            _ => false
+        expected := apply_model(&mut model, op)
+        assert_equal(apply_map(&mut actual, op), expected, reason="operation result matches the reference")
+        assert_equal(apply_map(&mut replay, op), expected, reason="replaying the same operation returns the same result")
+        check_map(actual, model)
+        assert_equal(snapshot(actual), snapshot(replay), reason="the same operations and data replay the same iteration order")
+        if replacing:
+            assert_equal(key_ids(actual), before, reason="replacement does not change the map's existing order")
+
+fn colliding_growth(size: usize) -> void:
+    let mut actual: Map[CollisionKey, i32] = {}
+    let mut model: List[(i32, i32)] = []
+    for index in 0..size:
+        key := i32(index)
+        actual[CollisionKey { id: key }] = key * 3 + 7
+        model_put(&mut model, key, key * 3 + 7)
+    check_map(actual, model)
+    before := key_ids(actual)
+    for index in 0..size:
+        key := i32(index)
+        actual[CollisionKey { id: key }] = key * 5 - 1
+        model_put(&mut model, key, key * 5 - 1)
+    assert_equal(key_ids(actual), before, reason="overwriting every colliding key preserves order")
+    check_map(actual, model)
+    for index in 0..size:
+        if index % 2 == 0:
+            key := i32(index)
+            assert_equal(actual.remove(CollisionKey { id: key }), model_remove(&mut model, key), reason="removing alternate collision-chain entries")
+    check_map(actual, model)
+    for index in 0..size:
+        if index % 2 == 0:
+            key := i32(index)
+            actual[CollisionKey { id: key }] = -key - 9
+            model_put(&mut model, key, -key - 9)
+    check_map(actual, model)
+
+# A large non-colliding-key churn case separately exercises tombstones and
+# rebuilds without a quadratic reference scan or any timing assertion.
+fn removal_churn(size: usize) -> void:
+    let mut actual: Map[i32, i32] = {}
+    for index in 0..size:
+        key := i32(index)
+        actual[key] = key * 3 + 7
+    assert_equal(actual.len(), size, reason="the initial population")
+    for index in 0..size:
+        key := i32(index)
+        assert_equal(actual.remove(key), .Some(key * 3 + 7), reason="every removal returns its own stored value")
+    assert_equal(actual.len(), 0, reason="all old entries are gone")
+    assert_equal(actual.entries(), [], reason="removed entries never appear in iteration")
+    assert_equal(actual.remove(0), .None, reason="a second removal is absent")
+    for index in 0..size:
+        key := i32(size + index)
+        actual[key] = key * 3 + 7
+    assert_equal(actual.len(), size, reason="new inserts fill the emptied map")
+    let mut seen: List[bool] = [for _ in 0..size => false]
+    for (key, value) in actual:
+        assert(key >= i32(size) && key < i32(size * 2), reason="only the new key range is present")
+        offset := usize(key) - size
+        assert(!seen[offset], reason="each new key is visited once")
+        seen[offset] = true
+        assert_equal(value, key * 3 + 7, reason="each new key has its own value")
+    for index in 0..size:
+        assert(seen[index], reason="no new key is omitted")
+        assert_equal(actual.get(i32(size + index)), .Some(i32(size + index) * 3 + 7), reason="each new key is reachable")
+        assert_equal(actual.get(i32(index)), .None, reason="an old removed key stays absent")
+    actual[0] = 42
+    assert_equal(actual.get(0), .Some(42), reason="an old key can be reinserted after the churn")
+    before := actual.keys()
+    actual[0] = 43
+    assert_equal(actual.keys(), before, reason="replacement after a rebuild retains order")
+    assert_equal(actual.get(0), .Some(43), reason="replacement after a rebuild has the new value")
+
+tests:
+    it_prop("colliding map operation sequences follow the list model and replay", cases=100, prop=fn!(script: Script):
+        exercise(script)
+    )
+
+    it_each("empty missing overwrite and remove-reinsert sequences", [
+        Script { ops: [] },
+        Script { ops: [.Read(0), .Remove(0)] },
+        Script { ops: [.Put(1, 10), .Put(1, 20), .Read(1), .Remove(1), .Read(1), .Remove(1)] },
+        Script { ops: [.Put(1, 10), .Put(2, 20), .Put(3, 30), .Remove(2), .Read(3), .Reinsert(2, 200), .Read(2), .Read(9)] },
+        Script { ops: [.Reinsert(-1, 4), .Reinsert(-1, 5), .Put(0, 6), .Remove(0), .Put(0, 7)] },
+    ], body=fn!(script: Script):
+        exercise(script)
+    )
+
+    it_each("colliding keys survive growth overwrite removal and reinsertion", [usize(0), 1, 2, 7, 8, 9, 15, 16, 17, 31, 32, 33, 63, 64, 65, 127, 128, 129, 257], body=fn!(size: usize):
+        colliding_growth(size)
+    )
+
+    it_each("all removals followed by fresh inserts", [usize(0), 1, 31, 10000], body=fn!(size: usize):
+        removal_churn(size)
+    )
