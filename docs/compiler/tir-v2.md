@@ -1494,13 +1494,15 @@ index loop.
 ## Stage 3
 
 Stage 3 shrinks the intrinsics to memory primitives. It starts only
-after the inliner lands and the ownership passes are measured.
+after the inliner lands and the ownership passes are measured. The
+inliner itself is decided once stage 2 is measured.
 
 - **Typed memory primitives** in a privileged std module: a pointer type
   over `T` with `size_of[T]`, `read`, `write` and `offset`, counted like
   `T`, next to today's untyped `std.rt.memory` loads and stores. This is
-  a language-tier intrinsic family; its signatures are plain hd
-  declarations, and only their bodies are the compiler's.
+  a language-tier intrinsic family, approved by the owner on 2026-10-21;
+  its signatures are plain hd declarations, and only their bodies are
+  the compiler's.
 - **Lists in std.** A `List[T]` is the address of a counted buffer
   holding capacity, length and the elements; the header object goes,
   saving an allocation per list and a load per access. `len` is a field
