@@ -1,5 +1,5 @@
 # test: a struct Serializer and a struct Deserializer with &mut self methods serve derived Serialize and Deserialize through &mut, and their fields hold the calls afterwards
-# Spec std/serde Data Model, Derived Implementations: std-serde.model.ref-receivers, std-serde.derive.serialize.order, std-serde.derive.deserialize.order.
+# Spec std/serde Data Model, Derived Implementations: std-serde.model.ref-receivers, std-serde.derive.serialize.included-order, std-serde.derive.deserialize.order.
 # expect-stdout: 6 variant:Point member:x int:3 member:y int:-4 end-variant
 # expect-stdout: 10 list:2 int:1 text:a end-list
 # expect-stdout: 9 -9 x y 2

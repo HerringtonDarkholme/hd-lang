@@ -1714,7 +1714,7 @@ struct Session:
 ```
 
 1. r[annot.serde.definition] A type opts into serialization when it implements `std.serde.Serialize`, and into deserialization when it implements `std.serde.Deserialize`.
-2. r[annot.serde.private] The opt-in covers private members. A derived `serialize` writes every member that its derivation walks, and a derived `deserialize` builds every member, as [`annot.structure.private`](#r-annot.structure.private) allows.
+2. r[annot.serde.private-library-view] The opt-in covers private members, as [`annot.structure.private`](#r-annot.structure.private) allows.
 3. r[annot.serde.derivable] `std.serde` declares the [template](#templates) of each trait. So `@derive(Serialize)`, `@derive(Deserialize)`, and a derivation block for either trait are valid.
 4. r[annot.serde.members] Every member that a derived `Serialize` walks must implement `Serialize`, and every member that a derived `Deserialize` builds must implement `Deserialize`.
 5. r[annot.serde.members.error] A member that does not is an error, reported at the opt-in and naming the member. Error: `member-not-derivable`.

@@ -1,0 +1,8 @@
+# test: the skip_none constructor cannot mark a non-optional member
+# Spec std/serde Absent Optional Members: std-serde.skip-none.constructor.
+use std.serde.{Serialize, skip_none}
+
+@derive(Serialize)
+struct Record:
+    @skip_none()  # diagnostic: type-mismatch
+    value: i32

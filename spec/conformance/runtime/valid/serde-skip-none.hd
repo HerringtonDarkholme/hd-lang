@@ -1,0 +1,64 @@
+# test: skip_none omits only an absent outer optional and leaves ordinary nulls and present optional payloads intact
+# Spec std/serde Absent Optional Members: std-serde.skip-none.fact, std-serde.skip-none.constructor, std-serde.skip-none.omit, std-serde.skip-none.present, std-serde.skip-none.read.
+use std.serde.{Serialize, Deserialize, skip_none}
+use std.json.{decode, encode, from_json, parse, to_json}
+use std.http.Request
+use std.structure.Structure
+
+@derive(Serialize, Deserialize)
+struct Record:
+    @skip_none()
+    optional: i32?
+    ordinary: i32?
+    @skip_none()
+    nested: Option[i32?]
+
+@derive(Serialize, Deserialize)
+struct Generic[T]:
+    @skip_none()
+    value: T?
+
+struct PerView:
+    value: string?
+
+impl Serialize for PerView by Structure:
+    value = [skip_none()]
+
+@derive(Serialize, Deserialize)
+enum Choice:
+    Payload(@skip_none() value: i32?)
+
+tests:
+    use std.testing.assert_equal
+
+    it("an absent field is omitted while an ordinary None stays null"):
+        value := Record { optional: .None, ordinary: .None, nested: .None }
+        assert_equal(encode(value), "{\"ordinary\":null}", reason="text writer")
+        assert_equal(to_json(value), parse("{\"ordinary\":null}").expect("JSON"), reason="tree writer")
+        back := decode::[Record]("{\"ordinary\":null}").expect("direct reader")
+        assert_equal(back.optional, .None, reason="absent optional decodes normally")
+        assert_equal(back.nested, .None, reason="absent outer optional")
+        assert_equal(from_json::[Record](parse("{\"ordinary\":null}").expect("JSON")).expect("tree reader").optional, .None, reason="tree reader unchanged")
+
+    it("Some of None is present and writes null rather than being omitted"):
+        value := Record { optional: .Some(7), ordinary: .None, nested: .Some(.None) }
+        text := "{\"optional\":7,\"ordinary\":null,\"nested\":null}"
+        assert_equal(encode(value), text, reason="only the outer optional is tested")
+        assert_equal(to_json(value), parse(text).expect("JSON"), reason="tree writer keeps the present member")
+
+    it("typed facts work for generic and per-derivation optional members"):
+        let absent: Generic[string] = Generic { value: .None }
+        let present: Generic[string] = Generic { value: .Some("yes") }
+        assert_equal(encode(absent), "{}", reason="generic absent")
+        assert_equal(encode(present), "{\"value\":\"yes\"}", reason="generic present")
+        assert_equal(encode(PerView { value: .None }), "{}", reason="per-view absent")
+        assert_equal(encode(PerView { value: .Some("yes") }), "{\"value\":\"yes\"}", reason="per-view present")
+
+    it("HTTP form serialization still includes a present optional"):
+        assert_equal(Request::post("https://example.test/").form(PerView { value: .Some("yes") }).body, "value=yes".to_utf8(), reason="shared serde walker feeds the form")
+        assert_equal(Request::post("https://example.test/").form(PerView { value: .None }).body, [], reason="shared walker omits the absent member")
+
+    it("an enum uses its unit form when every payload member is omitted"):
+        assert_equal(encode(Choice.Payload(.None)), "\"Payload\"", reason="empty serialized payload")
+        assert_equal(encode(Choice.Payload(.Some(9))), "{\"Payload\":{\"value\":9}}", reason="present payload remains an object")
+        assert_equal(decode::[Choice]("\"Payload\"").map(fn(value): encode(value)), .Ok("\"Payload\""), reason="normal optional decoding reads the omitted member")

@@ -3062,12 +3062,12 @@ runtime/valid/json-pretty.hd	runtime	accept	std/json.md#r-std-json.pretty.layout
 runtime/valid/json-suite.hd	runtime	accept	std/json.md#r-std-json.parse.grammar
 runtime/valid/json-float-text.hd	runtime	accept	std/json.md#r-std-json.parse.number.float-via-parse
 runtime/valid/json-number-grammar.hd	runtime	accept	std/json.md#r-std-json.parse.number.grammar
-runtime/valid/json-typed-round-trip.hd	runtime	accept	std/json.md#r-std-json.derive.to-json.data-wire-names
+runtime/valid/json-typed-round-trip.hd	runtime	accept	std/json.md#r-std-json.derive.to-json.data-included-members
 runtime/valid/key-assoc-function-a-dyn-value-of-a-trait-with-an-associated-function-calls-its-other-members.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.key.binding
 runtime/valid/key-assoc-function-a-key-trait-of-associated-functions-only-has-an-empty-vtable.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.key.binding
 runtime/valid/key-assoc-function-a-key-trait-with-an-associated-function-provides-its-other-members.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.key.binding
 runtime/valid/key-assoc-function-a-key-trait-with-an-associated-type-and-an-associated-function-runs.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.key.binding
-runtime/valid/json-typed-enum.hd	runtime	accept	std/json.md#r-std-json.derive.to-json.enum
+runtime/valid/json-typed-enum.hd	runtime	accept	std/json.md#r-std-json.derive.to-json.enum-included-members
 runtime/valid/json-typed-optional.hd	runtime	accept	std/json.md#r-std-json.derive.from-json.missing
 runtime/valid/json-typed-primitives.hd	runtime	accept	std/json.md#r-std-json.std.integer
 runtime/valid/json-typed-errors.hd	runtime	accept	std/json.md#r-std-json.error.path
@@ -3080,7 +3080,7 @@ typing/invalid/serde-derive-member-not-serialize.hd	type	reject:member-not-deriv
 typing/invalid/serde-map-key-not-string.hd	type	reject:unsatisfied-trait-bound	std/serde.md#r-std-serde.std.map-keys
 runtime/valid/json-serde-private-round-trip.hd	runtime	accept	std/json.md#r-std-json.derive.to-json.private
 runtime/valid/serde-rename.hd	runtime	accept	std/serde.md#member-names
-runtime/valid/serde-derive-call-order.hd	runtime	accept	std/serde.md#r-std-serde.derive.serialize.order
+runtime/valid/serde-derive-call-order.hd	runtime	accept	std/serde.md#r-std-serde.derive.serialize.included-order
 runtime/valid/time-serde-forms.hd	runtime	accept	std/time.md#r-std-time.serde.text-form
 runtime/valid/boundary-derived-round-trip.hd	runtime	accept	lang/10-modules.md#r-module.boundary.in
 typing/invalid/boundary-private-field-no-traits.hd	type	reject:boundary-private-field	lang/10-modules.md#r-module.boundary.error
@@ -3635,6 +3635,8 @@ typing/invalid/contextual-variant-as-function-value.hd	type	reject:missing-conte
 runtime/valid/contextual-variant-after-same-line-if.hd	runtime	accept	lang/01-lexical-structure.md#r-lex.dot.statement-indent
 typing/invalid/match-arm-misses-expected-type.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.match.result.least-common
 typing/invalid/if-branch-misses-expected-type.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.if.value.least-common
+runtime/valid/serde-skip-none.hd	runtime	accept	std/serde.md#absent-optional-members
+typing/invalid/serde-skip-none-non-optional.hd	type	reject:type-mismatch	std/serde.md#r-std-serde.skip-none.constructor
 runtime/valid/serde-std-writes.hd	runtime	accept	std/serde.md#r-std-serde.model.one-value
 runtime/valid/serde-std-reads.hd	runtime	accept	std/serde.md#r-std-serde.read.scalar
 runtime/valid/serde-set-tuple.hd	runtime	accept	std/serde.md#r-std-serde.std.tuple

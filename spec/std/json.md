@@ -642,9 +642,9 @@ enum Shape:
 | `Shape.Point(4, 5)` | `{"Point":{"_0":4,"_1":5}}` |
 | `Shape.Empty` | `"Empty"` |
 
-1. r[std-json.derive.to-json.data-wire-names] A struct gives an `Object` with one key per member that the derivation walks, in declaration order. The key is its [wire name](serde.md#member-names), and its value is the member's `Json`.
-2. r[std-json.derive.to-json.enum] A variant with members gives an `Object` with one key, the variant's name. Its value is the `Object` of the variant's members, as for a struct.
-3. r[std-json.derive.to-json.unit] A variant with no member in this derivation gives the `Text` of its name.
+1. r[std-json.derive.to-json.data-included-members] A struct gives an `Object` with one key per included member that the derivation walks, in declaration order. The key is its [wire name](serde.md#member-names), and its value is the member's `Json`.
+2. r[std-json.derive.to-json.enum-included-members] A variant with included members gives an `Object` with one key, the variant's name. Its value is the `Object` of the variant's members, as for a struct.
+3. r[std-json.derive.to-json.unit-included-members] A variant with no included member for this value gives the `Text` of its name.
 4. r[std-json.derive.to-json.positional-wire-name] A positional member's key is its wire name, defaulting to `_0`, `_1`, and so on.
 5. r[std-json.derive.to-json.embedded-wire-name] An embedded member is one key using its wire name, defaulting to its type's final name, with the part's `Json` as value.
 6. r[std-json.derive.to-json.shared] Shared constructor data is not a member, so it is not written.

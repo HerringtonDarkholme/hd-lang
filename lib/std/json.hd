@@ -1139,7 +1139,7 @@ struct OpenFrame:
 
 # Builds the `Json` of one value. The items of every open container sit on
 # one stack, `values`, each beside its key in `keys`; closing a container
-# replaces its items with its value (r-std-json.derive.to-json.data-wire-names).
+# replaces its items with its value (r-std-json.derive.to-json.data-included-members).
 struct JsonWriter:
     pub result: Json
     pub pending: string
@@ -1230,7 +1230,7 @@ impl Serializer for JsonWriter:
         .Ok(())
 
     # A data type is an object; a variant with no member is its name, and
-    # any other variant `{"Variant": {...}}` (r-std-json.derive.to-json.enum).
+    # any other variant `{"Variant": {...}}` (r-std-json.derive.to-json.enum-included-members).
     fn end_variant(&mut self) -> Result[void, never]:
         closed := self.close()
         frame := closed._0
@@ -1418,7 +1418,7 @@ impl TextWriter:
 
     # Ends the innermost frame, which must be of `kind`; `Record` also ends
     # a `Tagged` frame. A variant with no member is its name
-    # (r-std-json.derive.to-json.unit).
+    # (r-std-json.derive.to-json.unit-included-members).
     fn close(&mut self, kind: FrameKind) -> Result[void, Irregular]:
         if !self.regular:
             return .Err(Irregular.Walk)

@@ -98,7 +98,7 @@ writer or reader with a value's members. For the `Session` of
 | `Session { user: "ada", token: "t", expires_at: 9 }` | `begin_variant`, `member` for `user`, `text("ada")`, `member` for `token`, `text("t")`, `member` for `expires_at`, `int(9)`, `end_variant()` |
 
 1. r[std-serde.derive.serialize.template] `std.serde` declares the template of `Serialize`, which `@derive(Serialize)` instantiates.
-2. r[std-serde.derive.serialize.order] Derived `serialize` calls `begin_variant` for the value's variant first. Then, for each walked member in declaration order, it calls `member(m)` and the member's own `serialize`. Last, it calls `end_variant()`.
+2. r[std-serde.derive.serialize.included-order] Derived `serialize` calls `begin_variant`, then `member(m)` and `serialize` for each included walked member in declaration order, then `end_variant()`.
 3. r[std-serde.derive.deserialize.template] `std.serde` declares the template of `Deserialize`, which `@derive(Deserialize)` instantiates.
 4. r[std-serde.derive.deserialize.order] Derived `deserialize` calls `begin_variant` with every variant first. Then, for each built member in declaration order, it calls `member(m)` and the member type's `deserialize`. Last, it calls `end_variant()`.
 5. r[std-serde.derive.deserialize.default] For a member that declares a default, derived `deserialize` asks `is_absent()` after `member(m)`. When it is `true`, the member gets its declared default, and its type's `deserialize` is not called.
@@ -142,6 +142,22 @@ For example, `@rename("total")` on `total_cents: i64` uses the key `total`.
 > **Why.** Document names belong to the serialization view; preserving the
 > source name lets other adapters, such as environment readers, name fields
 > independently.
+
+### Absent Optional Members
+
+The typed `SkipNone` fact omits an optional member only when it is absent.
+For example, `@skip_none()` on `note: string?` omits the key for `.None`.
+
+1. r[std-serde.skip-none.fact] `std.serde` exports the member-typed field fact `SkipNone[F]` for the field type `F`.
+2. r[std-serde.skip-none.constructor] `skip_none[T]() -> SkipNone[T?]` constructs the fact for an optional field, checked by [`annot.typed-fact.check`](../lang/14-annotations.md#r-annot.typed-fact.check).
+3. r[std-serde.skip-none.omit] Derived serialization omits a member marked by `skip_none()` when its value is `.None`, without calling its serializer or the format's `member`.
+4. r[std-serde.skip-none.present] A marked `.Some(value)` is written normally, including `.Some(.None)` as a present member whose value is null.
+5. r[std-serde.skip-none.read] `SkipNone` does not change deserialization, so absent keys follow the ordinary optional and declared-default rules.
+6. r[std-serde.skip-none.ordinary] An unmarked optional member still writes `.None` as null.
+
+> **Why.** The fact's optional predicate runs before the format sees the
+> member, so every serializer receives the same view without confusing a
+> present value that serializes as null with an absent optional.
 
 ## Standard Implementations
 

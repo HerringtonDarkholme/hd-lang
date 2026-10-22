@@ -22,6 +22,17 @@ pub struct Rename:
 pub fn rename(name: string) -> Rename:
     Rename { name: name }
 
+## Omits an optional member when it is None.
+## See [std-serde.skip-none.fact](../../spec/std/serde.md#r-std-serde.skip-none.fact).
+@annotate::[F](.Field)
+pub struct SkipNone[F]:
+    absent: fn(F) -> bool
+
+## Marks an optional member for omission when absent.
+## See [std-serde.skip-none.constructor](../../spec/std/serde.md#r-std-serde.skip-none.constructor).
+pub fn skip_none[T]() -> SkipNone[T?]:
+    SkipNone::[T?] { absent: fn(value: T?) -> bool: value.is_none() }
+
 # A value that opts in to be written by every format
 # (r-annot.serde.definition).
 ## A type that can write itself to a `Serializer`; the compiler knows it for the boundary rule.
@@ -100,8 +111,8 @@ pub trait Deserializer:
 # The templates (spec/std/serde.md#derived-implementations).
 
 # Derived `Serialize`: `begin_variant`, then `member` and the member's own
-# `serialize` for each walked member, then `end_variant`
-# (r-std-serde.derive.serialize.order).
+# `serialize` for each included walked member, then `end_variant`
+# (r-std-serde.derive.serialize.included-order).
 impl[T] Serialize for T by Structure:
     fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
         let mut walker = SerializeWalker::[T, W] { out: out, facts: T::facts() }
@@ -126,6 +137,11 @@ impl[S, W < Serializer] Walker[S] for SerializeWalker[S, W]:
         self.member(h, items)
 
     fn member[F < Serialize](&mut self, h: Field[S, F], value: F) -> Result[void, W::Error]:
+        match h.fact::[SkipNone[F]]():
+            .Some(fact) =>
+                if (fact.absent)(value):
+                    return .Ok(())
+            .None => pass
         self.out.member(h.info)?
         value.serialize(self.out)
 
