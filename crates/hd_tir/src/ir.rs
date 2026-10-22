@@ -219,13 +219,14 @@ impl PrimOp {
 /// Language-tier built-in operations (the `Meta` word of an `Intrinsic`
 /// instruction): the built-in methods and indexing of `List`, `Map` and
 /// `string` (spec/lang/10-modules.md#built-in-methods), whose std bodies
-/// are written in terms of themselves.
+/// are written in terms of themselves. A list element is no intrinsic:
+/// it is read and written as a place, `[%xs [%i]]`
+/// ([`Body::element_read`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[repr(u32)]
 pub enum IntrinsicOp {
     ListLen,
     ListPush,
-    ListIndex,
     MapLen,
     MapGet,
     MapRemove,
@@ -253,9 +254,10 @@ pub enum IntrinsicOp {
     /// when another owner still holds it (`crates/hd_wasm_linear/DESIGN.md`
     /// §23.20, "Collections").
     ValueCopy,
-    /// `(list, index) -> element`: `ListIndex` for a write through the
-    /// element (`xs[i].push(v)`, `xs[i].x = v`): the list's buffer is made
-    /// unique first, so the write reaches only this list.
+    /// `(list, index) -> element`: an element read (`Read [%xs [%i]]`)
+    /// for a write through the element (`xs[i].push(v)`, `xs[i].x = v`):
+    /// the list's buffer is made unique first, so the write reaches only
+    /// this list.
     ListIndexMut,
     /// `(map, key) -> value`: `MapIndex` for a write through the value
     /// (`m[k].push(v)`), with the map's buffer made unique first.
@@ -279,10 +281,9 @@ pub enum IntrinsicOp {
 }
 
 impl IntrinsicOp {
-    pub const ALL: [IntrinsicOp; 22] = [
+    pub const ALL: [IntrinsicOp; 21] = [
         IntrinsicOp::ListLen,
         IntrinsicOp::ListPush,
-        IntrinsicOp::ListIndex,
         IntrinsicOp::MapLen,
         IntrinsicOp::MapGet,
         IntrinsicOp::MapRemove,
@@ -1026,6 +1027,22 @@ impl Body {
         }
     }
 
+    /// The list value and the index value element read `i` reads: a
+    /// `Read` of a value root with one element projection, `[%l [%i]]`,
+    /// a slot of the buffer of the list header `%l`. It decodes the record
+    /// in place. `None` for any other instruction or place.
+    #[must_use]
+    pub fn element_read(&self, i: usize) -> Option<(u32, u32)> {
+        let word = self.data[i][0];
+        if self.tags[i] != Tag::Read || word & place::BARE_LOCAL != 0 {
+            return None;
+        }
+        match *self.extra.get(word as usize..)? {
+            [4, place::ROOT_VALUE, list, place::PROJ_ELEM, index, ..] => Some((list, index)),
+            _ => None,
+        }
+    }
+
     /// The top-level binding a plain global read `i` reads: a `Read` of
     /// a global root with no projection, `[@g]`. `None` for any other
     /// instruction.
@@ -1233,6 +1250,13 @@ impl TirBuilder {
             place::PROJ_VARIANT | variant,
             place::PROJ_FIELD | k,
         ]);
+        self.push(Tag::Read, word, ReadMode::Use as u32, ty, syn)
+    }
+
+    /// `Read [%list [%index]]`: the element at `index` of the list header
+    /// `list`, bounds-checked, mode `use`.
+    pub fn element(&mut self, list: Ref, index: Ref, ty: Ty, syn: NodeIdx) -> Ref {
+        let word = self.record(&[place::ROOT_VALUE, list.0, place::PROJ_ELEM, index.0]);
         self.push(Tag::Read, word, ReadMode::Use as u32, ty, syn)
     }
 
@@ -3051,6 +3075,28 @@ mod tests {
         assert_eq!(body.read_step(2), Some((1, Step::Variant(1, 0))));
         assert_eq!(body.read_step(3), None);
         assert_eq!(body.value_operands(2), Some(vec![1]));
+    }
+
+    /// A list element is a read of an element place rooted at the list
+    /// value, which `element_read` names; it is no projection step.
+    #[test]
+    fn element_reads_name_their_list_and_index() {
+        let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let n = NodeIdx::from_raw(1);
+        let blk = b.open_block();
+        let xs = b.const_value(Ty::I32, 7);
+        let k = b.const_value(Ty::I32, 0);
+        let e = b.element(xs, k, Ty::I32, n);
+        let f = b.field(e, 0, Ty::I32, n);
+        let root = b.close_block(blk, Some(f), Ty::I32, n);
+        let body = b.finish(root, &[]).expect("verifies");
+        assert_eq!(parse(&print(&body)).expect("parses"), body);
+        let place = body.decode_place(body.data[0][0]).expect("place");
+        assert_eq!(place.to_string(), "[%c0 [%c1]]");
+        assert_eq!(body.element_read(0), Some((xs.0, k.0)));
+        assert_eq!(body.read_step(0), None);
+        assert_eq!(body.element_read(1), None);
+        assert_eq!(body.value_operands(0), Some(vec![xs.0, k.0]));
     }
 
     #[test]

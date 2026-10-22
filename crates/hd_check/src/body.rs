@@ -26,6 +26,8 @@ use hd_types::solver::{
 };
 use hd_types::{InferTable, ParamRef, RowId, Ty, TyData, TyList, VarKind};
 
+use crate::expr::Indexed;
+
 /// What a body sees: the run's tables, its module's scope, the items of
 /// its closure and its view of the impls (owner tables and its impl
 /// universe, `crates/hd_check/DESIGN.md` (trait solver) §3.2).
@@ -3901,7 +3903,7 @@ impl Ck<'_, '_> {
                 let (kr, key_ty) = self.index_key_value(*key, builtin)?;
                 // `expr.index.slice.no-store`: no range type stores into a
                 // list.
-                if op_get != IntrinsicOp::MapIndex && self.is_range_ty(key_ty) {
+                if op_get != Indexed::Map && self.is_range_ty(key_ty) {
                     self.err(
                         Code::InvalidAssignmentTarget,
                         *lhs,
@@ -3917,17 +3919,14 @@ impl Ck<'_, '_> {
                         self.coerce(r, t, vt, *rhs, "assignment", ExpectPosition::General)
                     }
                     Some(k) => {
-                        let rec = self.b.refs_record(&[br, kr]);
-                        let cur = self
-                            .b
-                            .emit(Tag::Intrinsic, op_get as u32, rec, vt, lhs.index());
+                        let cur = self.index_read(op_get, (br, kr), vt, lhs.index());
                         self.compound(k, cur, vt, *rhs, s)?
                     }
                 };
                 // A list element is a place of the list's buffer:
                 // `Store [%xs [%i]] v` (`docs/compiler/tir-v2.md`, "Element
                 // reads and writes"); a map value is no place.
-                if op_get == IntrinsicOp::ListIndex {
+                if op_get == Indexed::List {
                     let word = self.b.place(&hd_tir::ir::Place {
                         root: hd_tir::ir::PlaceRoot::Value(br),
                         proj: vec![hd_tir::ir::Proj::Elem(kr)],

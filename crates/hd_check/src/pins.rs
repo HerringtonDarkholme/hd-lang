@@ -39,6 +39,7 @@ use hd_tir::ir::{IntrinsicOp, NONE, Ref, Tag, TirSink, local_flags};
 use hd_types::{Prim, Ty, TyData};
 
 use crate::body::Ck;
+use crate::expr::Indexed;
 use crate::refs::{Place, Root};
 
 /// A suite whose statements may take pins: the block, the open closures
@@ -330,7 +331,7 @@ impl Ck<'_, '_> {
         match builtin {
             // `types.coll.map-value.ref`: a map value moves when the map
             // rehashes, so it is no place to refer to.
-            Some((IntrinsicOp::MapIndex, ..)) => {
+            Some((Indexed::Map, ..)) => {
                 self.err(
                     Code::MapValueNotAddressable,
                     e,
@@ -339,7 +340,7 @@ impl Ck<'_, '_> {
                 self.map_value_ref_fix(e);
                 Ok(None)
             }
-            Some((IntrinsicOp::ListIndex, kt, vt)) => {
+            Some((Indexed::List, kt, vt)) => {
                 let (kr, ktt) = self.index_key_value(*key, builtin)?;
                 if self.is_range_ty(ktt) {
                     self.not_yet_index(e);
@@ -450,8 +451,8 @@ impl Ck<'_, '_> {
         let (lr, lt) = self.deref_index_base(lr, lt, operand.index());
         let builtin = self.index_kind(lt);
         let vt = match builtin {
-            Some((IntrinsicOp::ListIndex, _, vt)) => vt,
-            Some((IntrinsicOp::MapIndex, ..)) => {
+            Some((Indexed::List, _, vt)) => vt,
+            Some((Indexed::Map, ..)) => {
                 self.commit(cp);
                 self.err(
                     Code::MapValueNotAddressable,

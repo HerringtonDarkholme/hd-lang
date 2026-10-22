@@ -752,7 +752,10 @@ plain read of a local or a top-level binding a `Read` too (`[$l]`,
 newtype or tuple value (embedded fields included; the base's access
 carries to the field's type), `[*%o .k]` of a compiler-supplied data
 object, and `[%v as .V .k]` of a payload. `Body::read_step` names the
-step of such a read. A `Store` writes a whole local
+step of such a read. A list element is `Read [%xs [%i]]`, a slot of the
+buffer of the list header `%xs` (`Body::element_read`); there is no
+element intrinsic, and a read a change then goes through is still the
+`ListIndexMut` intrinsic. A `Store` writes a whole local
 (`[$l]`), a top-level binding (`[@g]`), a struct field of either, a
 data object's field (`[*%o .k]`), a place through a reference
 (`[*%r .x]`) or a list element (`[%xs [%i] .x]`).
@@ -849,7 +852,7 @@ is a run ID.
 | `e?` | `SwitchTag` on the `Result` or `Option`; the failing leaf converts the error with the resolved `From` call and `Return`s |
 | `while c: body` | `Loop` whose body is `If c then body else Break` |
 | `for` over a std numeric range | a counting `Loop` with cursor/end/inclusive locals and ordinary tests and assignments; the cursor advances before the body, and the inclusive endpoint clears its flag instead of overflowing |
-| `for` over a built-in list or map | a counted `Loop` over indexed element/live-entry intrinsics; `SnapBegin`/`SnapEnd` keep a snapshot of a borrowed source, while a fresh source is owned by the loop |
+| `for` over a built-in list or map | a counted `Loop` over element reads (`Read [%s [%p]]`) or the live-entry intrinsic; `SnapBegin`/`SnapEnd` keep a snapshot of a borrowed source, while a fresh source is owned by the loop |
 | any other `for` | a `Block`: the `iter` `Call`, then a `Loop` around the `next` `Call` and a `Match` on its `Option` |
 | `let p = e else: ...`, `x is p` | `Match` with two arms |
 | `x := e`, `let p = e` | a new local and a `Store` of it, or a `Match` for a pattern |

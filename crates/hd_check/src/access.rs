@@ -142,6 +142,14 @@ impl Ck<'_, '_> {
         })
     }
 
+    /// The list and the index an element read `r` reads,
+    /// `Read [%xs [%i]]` ([`hd_tir::ir::Body::element_read`]).
+    pub(crate) fn element_of(&mut self, r: Ref) -> Option<(Ref, Ref)> {
+        let i = r.as_inst()?.0 as usize;
+        let (list, index) = self.b.body_mut().element_read(i)?;
+        Some((Ref(list), Ref(index)))
+    }
+
     /// Whether `let mut` may bind a value of type `t`: mutable access, or
     /// an optional of a `mut Suspend[T]` payload or of a type that is not
     /// composite.

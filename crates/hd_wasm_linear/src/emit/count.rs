@@ -52,6 +52,9 @@ impl Em<'_, '_, '_> {
                 Tag::Read if let Some((base, _)) = em.projection(i as usize) => {
                     matches!(em.kind(em.ty_of(base)), Kind::Value) && valid(em, base, depth + 1)
                 }
+                Tag::Read if let Some((list, _)) = em.b.element_read(i as usize) => {
+                    em.moves.loans.contains(&i) && valid(em, list, depth + 1)
+                }
                 Tag::Intrinsic => {
                     let Some(&base) = em.b.record(w).first() else {
                         return false;
@@ -61,7 +64,7 @@ impl Em<'_, '_, '_> {
                             coll_leaves(em.pool(), em.env(), em.ty(i)).is_empty()
                                 && valid(em, base, depth + 1)
                         }
-                        Some(IntrinsicOp::ListIndex | IntrinsicOp::MapSlotEntry) => {
+                        Some(IntrinsicOp::MapSlotEntry) => {
                             em.moves.loans.contains(&i) && valid(em, base, depth + 1)
                         }
                         _ => false,
@@ -157,11 +160,12 @@ impl Em<'_, '_, '_> {
             .enumerate()
             .filter_map(|(i, tag)| {
                 // A list header read through a place or a field; a plain
-                // local or global read, a tuple element and a payload are
-                // no such read.
+                // local or global read, a list element, a tuple element and
+                // a payload are no such read.
                 if *tag != Tag::Read
                     || self.b.local_read(i).is_some()
                     || self.b.global_read(i).is_some()
+                    || self.b.element_read(i).is_some()
                     || self
                         .projection(i)
                         .is_some_and(|(_, p)| p != super::live::Projected::Field)

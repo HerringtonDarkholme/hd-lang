@@ -101,11 +101,15 @@ impl Em<'_, '_, '_> {
                         matches!(s.head, Head::Direct | Head::Deref)
                             && matches!(s.start, Start::Local(l) if locals[l as usize])
                     }),
-                    Tag::Read if self.projection(i).is_none() => match self.read_through(i) {
-                        Some((Through::Value(r), _)) => values.get(r as usize) == Some(&true),
-                        Some((Through::Local(l), _)) => locals[l],
-                        None => false,
-                    },
+                    Tag::Read
+                        if self.projection(i).is_none() && self.b.element_read(i).is_none() =>
+                    {
+                        match self.read_through(i) {
+                            Some((Through::Value(r), _)) => values.get(r as usize) == Some(&true),
+                            Some((Through::Local(l), _)) => locals[l],
+                            None => false,
+                        }
+                    }
                     Tag::Coerce => values.get(a as usize) == Some(&true),
                     _ => {
                         aliases
@@ -375,19 +379,15 @@ impl Em<'_, '_, '_> {
         body.iter()
             .copied()
             .filter(|&x| {
-                if self.b.tags[x as usize] != Tag::Intrinsic
-                    || self.b.data[x as usize][0] != IntrinsicOp::ListIndex as u32
+                let Some((list, index)) = self.b.element_read(x as usize) else {
+                    return false;
+                };
+                if self.list_root(list) != Some(root)
+                    || self.ty_of(index) != Ty::prim(hd_types::Prim::Usize)
                 {
                     return false;
                 }
-                let access = self.b.record(self.b.data[x as usize][1]);
-                let [list, index] = access else { return false };
-                if self.list_root(*list) != Some(root)
-                    || self.ty_of(*index) != Ty::prim(hd_types::Prim::Usize)
-                {
-                    return false;
-                }
-                let index = self.range_source(*index, &sets, tree);
+                let index = self.range_source(index, &sets, tree);
                 super::live::read_local(self.b, index) == Some(current)
                     && tree.dominates(self.b, cond, index)
                     && tree.dominates(self.b, index, step.0)
@@ -492,9 +492,18 @@ impl Em<'_, '_, '_> {
                 | Tag::Defer
                 | Tag::Hook
                 | Tag::Closure => return false,
+                // An element read is checked as the intrinsics that read
+                // a list are.
+                Tag::Read
+                    if external
+                        && !reaches
+                        && self.b.element_read(i).is_some()
+                        && self.counted(self.ty(x)).is_some() =>
+                {
+                    return false;
+                }
                 Tag::Intrinsic if external && !reaches => match IntrinsicOp::from_u32(a) {
                     Some(IntrinsicOp::ListLen) => {}
-                    Some(IntrinsicOp::ListIndex) if self.counted(self.ty(x)).is_none() => {}
                     Some(IntrinsicOp::ValueCopy)
                         if coll_leaves(self.pool(), self.env(), self.ty(x)).is_empty() => {}
                     // Distinct reference parameters can denote the same
@@ -502,9 +511,7 @@ impl Em<'_, '_, '_> {
                     _ => return false,
                 },
                 Tag::Intrinsic if reaches => match IntrinsicOp::from_u32(a) {
-                    Some(
-                        IntrinsicOp::ListLen | IntrinsicOp::ListIndex | IntrinsicOp::ListIndexMut,
-                    ) => {}
+                    Some(IntrinsicOp::ListLen | IntrinsicOp::ListIndexMut) => {}
                     _ => return false,
                 },
                 // A tuple element or a payload is checked as any other
@@ -549,13 +556,15 @@ impl Em<'_, '_, '_> {
             let (list, write) = if let Some(list) = super::live::elem_store_list(self.b, x as usize)
             {
                 (list, true)
+            } else if let Some((list, _)) = self.b.element_read(x as usize) {
+                (list, false)
             } else {
                 if self.b.tags[x as usize] != Tag::Intrinsic {
                     continue;
                 }
                 let [op, record] = self.b.data[x as usize];
                 let write = match IntrinsicOp::from_u32(op) {
-                    Some(IntrinsicOp::ListLen | IntrinsicOp::ListIndex) => false,
+                    Some(IntrinsicOp::ListLen) => false,
                     Some(IntrinsicOp::ListIndexMut) => true,
                     _ => continue,
                 };
@@ -986,8 +995,9 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
-    /// `ListIndex`, and `ListIndexMut`, which first makes the buffer the
-    /// list's own so that a write through the element reaches only it.
+    /// An element read, `Read [%xs [%i]]`, and `ListIndexMut`, which
+    /// first makes the buffer the list's own so that a write through the
+    /// element reaches only it. `args` are the list and the index.
     pub(super) fn list_index(&mut self, i: u32, args: &[u32], write: bool) -> StageResult<()> {
         let (_, e) = self.elem(self.ty_of(args[0]))?;
         let h = self.header(args[0])?;
@@ -1116,7 +1126,7 @@ impl Em<'_, '_, '_> {
                 Tag::Intrinsic => {
                     let [op, record] = self.b.data[i];
                     match IntrinsicOp::from_u32(op) {
-                        Some(IntrinsicOp::ListLen | IntrinsicOp::ListIndex) => {}
+                        Some(IntrinsicOp::ListLen) => {}
                         Some(IntrinsicOp::ListIndexMut) => {
                             let Some(&list) = self.b.record(record).first() else {
                                 return false;

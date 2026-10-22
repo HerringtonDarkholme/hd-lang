@@ -263,9 +263,7 @@ impl Conversion {
         let tb = ck.b.open_block();
         let s = ck.b.get(src_l, list_from, at);
         let i = ck.b.get(i_l, usize_ty, at);
-        let rec = ck.b.refs_record(&[s, i]);
-        let item =
-            ck.b.emit(Tag::Intrinsic, IntrinsicOp::ListIndex as u32, rec, from, at);
+        let item = ck.b.element(s, i, from, at);
         let c = self.apply(ck, item, (from, to), node)?;
         let o = ck.b.get(out_l, out_ty, at);
         let rec = ck.b.refs_record(&[o, c]);

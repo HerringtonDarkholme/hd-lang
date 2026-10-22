@@ -28,6 +28,17 @@ enum PowerBase {
     Poison,
 }
 
+/// What a built-in index reads ([`Ck::index_kind`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Indexed {
+    /// A list's element: a place of the list's buffer, `[%xs [%i]]`.
+    List,
+    /// A map's value, which is no place: `MapIndex`.
+    Map,
+    /// A string's byte: `StrIndex`.
+    Str,
+}
+
 /// Decodes a string piece's text: escapes, and `$name` references.
 pub(crate) enum Piece {
     Text(String),
@@ -1853,10 +1864,10 @@ impl Ck<'_, '_> {
         Ok((Ref(NONE), Ty::NEVER))
     }
 
-    /// The built-in index operation of a receiver type, its key type and
-    /// its value type. A list element is written as a `Store` of its
-    /// place and a map value with `MapSet`.
-    pub(crate) fn index_kind(&mut self, t: Ty) -> Option<(IntrinsicOp, Ty, Ty)> {
+    /// The built-in index of a receiver type, its key type and its value
+    /// type. A list element is read and written as a place, a map value
+    /// is read with `MapIndex` and written with `MapSet`.
+    pub(crate) fn index_kind(&mut self, t: Ty) -> Option<(Indexed, Ty, Ty)> {
         let pool = self.pool();
         let t = self.infer.resolve(pool, t);
         let t = match pool.get(t) {
@@ -1864,11 +1875,7 @@ impl Ck<'_, '_> {
             _ => t,
         };
         if t == Ty::STRING {
-            return Some((
-                IntrinsicOp::StrIndex,
-                Ty::prim(Prim::Usize),
-                Ty::prim(Prim::U8),
-            ));
+            return Some((Indexed::Str, Ty::prim(Prim::Usize), Ty::prim(Prim::U8)));
         }
         let TyData::Adt { def, args } = pool.get(t) else {
             return None;
@@ -1876,14 +1883,30 @@ impl Ck<'_, '_> {
         let argv = pool.list_items(args);
         let known = self.cx.names.known;
         match def {
-            d if d == known.list => Some((
-                IntrinsicOp::ListIndex,
-                Ty::prim(Prim::Usize),
-                *argv.first()?,
-            )),
-            d if d == known.map => Some((IntrinsicOp::MapIndex, *argv.first()?, *argv.get(1)?)),
+            d if d == known.list => Some((Indexed::List, Ty::prim(Prim::Usize), *argv.first()?)),
+            d if d == known.map => Some((Indexed::Map, *argv.first()?, *argv.get(1)?)),
             _ => None,
         }
+    }
+
+    /// The read of built-in index `get` of `base` at the key `key`, of
+    /// value type `vt`: a list's element place, `Read [%base [%key]]`
+    /// (`docs/compiler/tir-v2.md`, "Element reads and writes"), or the
+    /// `MapIndex` or `StrIndex` intrinsic.
+    pub(crate) fn index_read(
+        &mut self,
+        get: Indexed,
+        (base, key): (Ref, Ref),
+        vt: Ty,
+        at: hd_base::NodeIdx,
+    ) -> Ref {
+        let op = match get {
+            Indexed::List => return self.b.element(base, key, vt, at),
+            Indexed::Map => IntrinsicOp::MapIndex,
+            Indexed::Str => IntrinsicOp::StrIndex,
+        };
+        let rec = self.b.refs_record(&[base, key]);
+        self.b.emit(Tag::Intrinsic, op as u32, rec, vt, at)
     }
 
     fn index_expr(&mut self, n: NodeRef<'_>, kids: &[NodeRef<'_>]) -> StageResult<(Ref, Ty)> {
@@ -1908,7 +1931,7 @@ impl Ck<'_, '_> {
     pub(crate) fn index_of_value(
         &mut self,
         (br, bt): (Ref, Ty),
-        builtin: Option<(IntrinsicOp, Ty, Ty)>,
+        builtin: Option<(Indexed, Ty, Ty)>,
         (kr, kt): (Ref, Ty),
         (key, n): (NodeRef<'_>, NodeRef<'_>),
     ) -> StageResult<(Ref, Ty)> {
@@ -1917,14 +1940,10 @@ impl Ck<'_, '_> {
         // type is the call of `Index`; every other built-in index reads
         // by its key type.
         if let Some((get, bkt, vt)) = builtin
-            && !(get != IntrinsicOp::MapIndex && self.is_range_ty(kt))
+            && !(get != Indexed::Map && self.is_range_ty(kt))
         {
             let kr = self.index_key((kr, kt), *key, bkt);
-            let rec = self.b.refs_record(&[br, kr]);
-            return Ok((
-                self.b.emit(Tag::Intrinsic, get as u32, rec, vt, n.index()),
-                vt,
-            ));
+            return Ok((self.index_read(get, (br, kr), vt, n.index()), vt));
         }
         let index = self.cx.names.known.index;
         self.tuple_key_choice(index, bt, kt)?;
@@ -1953,10 +1972,10 @@ impl Ck<'_, '_> {
     pub(crate) fn index_key_value(
         &mut self,
         key: NodeRef<'_>,
-        builtin: Option<(IntrinsicOp, Ty, Ty)>,
+        builtin: Option<(Indexed, Ty, Ty)>,
     ) -> StageResult<(Ref, Ty)> {
         let want = builtin.map(|(get, kt, _)| {
-            if key.kind() == SyntaxKind::RangeExpr && get != IntrinsicOp::MapIndex {
+            if key.kind() == SyntaxKind::RangeExpr && get != Indexed::Map {
                 let known = self.cx.names.known;
                 self.pool().intern_ty(&TyData::Adt {
                     def: known.range,
@@ -3281,10 +3300,10 @@ impl Ck<'_, '_> {
         let pos_l = self.b.local(us, pos_s, ASSIGNED, at);
         let end_l = self.b.local(us, end_s, ASSIGNED, at);
         let c = self.b.get(src_l, st, at);
-        let (len_op, read_op) = if map {
-            (IntrinsicOp::MapLen, IntrinsicOp::MapSlotEntry)
+        let len_op = if map {
+            IntrinsicOp::MapLen
         } else {
-            (IntrinsicOp::ListLen, IntrinsicOp::ListIndex)
+            IntrinsicOp::ListLen
         };
         let n = intr(self, len_op, &[c], us);
         self.set_local(len_l, n, at);
@@ -3317,7 +3336,12 @@ impl Ck<'_, '_> {
         self.loops.push((lp, result));
         self.scopes.push(HashMap::default());
         let (c, p) = (self.b.get(src_l, st, at), self.b.get(pos_l, us, at));
-        let item = intr(self, read_op, &[c, p], item_ty);
+        // A map's live entry, or a list's element place `[%c [%p]]`.
+        let item = if map {
+            intr(self, IntrinsicOp::MapSlotEntry, &[c, p], item_ty)
+        } else {
+            self.b.element(c, p, item_ty, at)
+        };
         let p = self.b.get(pos_l, us, at);
         let one = self.b.const_value(us, 1);
         let next = self.b.prim(PrimOp::Add as u32, &[p, one], us, at);

@@ -476,14 +476,18 @@ impl Ck<'_, '_> {
                 Some(Projection::Element(_) | Projection::Payload(_)) => return ArgRoot::Fixed,
                 None => {}
             }
+            // An element is part of its list's place.
+            if let Some((list, _)) = self.element_of(cur) {
+                cur = list;
+                continue;
+            }
             match tag {
                 Tag::Coerce => cur = Ref(data[0]),
                 Tag::Intrinsic => {
                     if !matches!(
                         IntrinsicOp::from_u32(data[0]),
                         Some(
-                            IntrinsicOp::ListIndex
-                                | IntrinsicOp::ListIndexMut
+                            IntrinsicOp::ListIndexMut
                                 | IntrinsicOp::MapIndex
                                 | IntrinsicOp::MapIndexMut
                         )
@@ -645,13 +649,24 @@ impl Ck<'_, '_> {
                 cur = base;
                 continue;
             }
+            // The element read's own place record, `[4, value, %xs, elem,
+            // %i]`, becomes the intrinsic's `[2, %xs, %i]` in place: no
+            // instruction shares it, and a rollback of a later checkpoint
+            // cannot drop it.
+            if let Some((list, index)) = self.element_of(cur) {
+                let body = self.b.body_mut();
+                let at = body.data[i.0 as usize][0];
+                body.extra[at as usize..at as usize + 3].copy_from_slice(&[2, list.0, index.0]);
+                body.tags[i.0 as usize] = Tag::Intrinsic;
+                body.data[i.0 as usize] = [IntrinsicOp::ListIndexMut as u32, at];
+                cur = list;
+                continue;
+            }
             match tag {
                 Tag::Coerce => cur = Ref(data[0]),
                 Tag::Intrinsic => {
                     let mutated = match IntrinsicOp::from_u32(data[0]) {
-                        Some(IntrinsicOp::ListIndex | IntrinsicOp::ListIndexMut) => {
-                            IntrinsicOp::ListIndexMut
-                        }
+                        Some(IntrinsicOp::ListIndexMut) => IntrinsicOp::ListIndexMut,
                         Some(IntrinsicOp::MapIndex | IntrinsicOp::MapIndexMut) => {
                             IntrinsicOp::MapIndexMut
                         }
@@ -701,6 +716,10 @@ impl Ck<'_, '_> {
                 cur = inner;
                 continue;
             }
+            if let Some((list, _)) = self.element_of(cur) {
+                cur = list;
+                continue;
+            }
             match tag {
                 Tag::Coerce => cur = Ref(data[0]),
                 Tag::Read if let Some(l) = self.b.body_mut().local_read(i.0 as usize) => {
@@ -716,8 +735,7 @@ impl Ck<'_, '_> {
                     if !matches!(
                         IntrinsicOp::from_u32(data[0]),
                         Some(
-                            IntrinsicOp::ListIndex
-                                | IntrinsicOp::ListIndexMut
+                            IntrinsicOp::ListIndexMut
                                 | IntrinsicOp::MapIndex
                                 | IntrinsicOp::MapIndexMut
                         )
@@ -750,6 +768,10 @@ impl Ck<'_, '_> {
                 cur = base;
                 continue;
             }
+            if let Some((list, _)) = self.element_of(cur) {
+                cur = list;
+                continue;
+            }
             match tag {
                 Tag::Coerce => cur = Ref(data[0]),
                 Tag::Intrinsic => cur = Ref(*self.b.body_mut().record(data[1]).first()?),
@@ -775,6 +797,10 @@ impl Ck<'_, '_> {
             };
             if let Some(Projection::Field(base)) = self.projection(cur) {
                 cur = base;
+                continue;
+            }
+            if let Some((list, _)) = self.element_of(cur) {
+                cur = list;
                 continue;
             }
             match tag {

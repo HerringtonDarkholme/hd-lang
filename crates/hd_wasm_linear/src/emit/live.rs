@@ -805,29 +805,14 @@ fn loans(
                     .or_else(|| stable.contains(&l).then_some(l));
             }
             Tag::Read if let Some((v, _)) = projection(b, x as usize, projs) => v,
+            Tag::Read if let Some((list, _)) = b.element_read(x as usize) => {
+                return snapshot_source(b, list, stable, bound, sets, (depth, projs));
+            }
             Tag::Intrinsic => match IntrinsicOp::from_u32(a) {
                 Some(IntrinsicOp::ValueCopy) => *b.record(w).first()?,
-                Some(IntrinsicOp::ListIndex | IntrinsicOp::MapSlotEntry) => {
-                    let root = source(
-                        b,
-                        *b.record(w).first()?,
-                        stable,
-                        bound,
-                        sets,
-                        (depth + 1, projs),
-                    )?;
-                    let [init] = sets.get(&root)?.as_slice() else {
-                        return None;
-                    };
-                    // The checker's private loop snapshot owns its buffer
-                    // until SnapEnd; user code cannot mutate that header.
-                    if b.tags[*init as usize] == Tag::Intrinsic
-                        && IntrinsicOp::from_u32(b.data[*init as usize][0])
-                            == Some(IntrinsicOp::SnapBegin)
-                    {
-                        return Some(root);
-                    }
-                    return None;
+                Some(IntrinsicOp::MapSlotEntry) => {
+                    let map = *b.record(w).first()?;
+                    return snapshot_source(b, map, stable, bound, sets, (depth, projs));
                 }
                 _ => return None,
             },
@@ -835,16 +820,37 @@ fn loans(
         };
         source(b, next, stable, bound, sets, (depth + 1, projs))
     }
+    /// The source of collection `c` that a list element or a map entry
+    /// is read from, when it is the checker's private loop snapshot.
+    fn snapshot_source(
+        b: &Body,
+        c: u32,
+        stable: &HashSet<usize>,
+        bound: &HashMap<usize, usize>,
+        sets: &HashMap<usize, Vec<u32>>,
+        (depth, projs): (usize, &[Projected]),
+    ) -> Option<usize> {
+        let root = source(b, c, stable, bound, sets, (depth + 1, projs))?;
+        let [init] = sets.get(&root)?.as_slice() else {
+            return None;
+        };
+        // The checker's private loop snapshot owns its buffer until
+        // SnapEnd; user code cannot mutate that header.
+        (b.tags[*init as usize] == Tag::Intrinsic
+            && IntrinsicOp::from_u32(b.data[*init as usize][0]) == Some(IntrinsicOp::SnapBegin))
+        .then_some(root)
+    }
     fn loop_read(b: &Body, x: u32, depth: usize, projs: &[Projected]) -> bool {
         if depth > 32 || x == NONE || Ref(x).as_inst().is_none() {
             return false;
         }
         let [a, w] = b.data[x as usize];
         match b.tags[x as usize] {
+            Tag::Read if b.element_read(x as usize).is_some() => true,
             Tag::Read => projection(b, x as usize, projs)
                 .is_some_and(|(v, _)| loop_read(b, v, depth + 1, projs)),
             Tag::Intrinsic => match IntrinsicOp::from_u32(a) {
-                Some(IntrinsicOp::ListIndex | IntrinsicOp::MapSlotEntry) => true,
+                Some(IntrinsicOp::MapSlotEntry) => true,
                 Some(IntrinsicOp::ValueCopy) => b
                     .record(w)
                     .first()
@@ -1103,7 +1109,7 @@ pub(super) fn field_spans(
                 Tag::Store => local_part_store(b, i).is_some_and(|(l, _)| !roots.contains(&l)),
                 Tag::Intrinsic => matches!(
                     IntrinsicOp::from_u32(b.data[i][0]),
-                    Some(IntrinsicOp::ValueCopy | IntrinsicOp::ListLen | IntrinsicOp::ListIndex)
+                    Some(IntrinsicOp::ValueCopy | IntrinsicOp::ListLen)
                 ),
                 _ => true,
             }
@@ -1258,9 +1264,7 @@ pub(super) fn parameter_loans(
                     }
                     Tag::Intrinsic => matches!(
                         IntrinsicOp::from_u32(b.data[j][0]),
-                        Some(
-                            IntrinsicOp::ListLen | IntrinsicOp::ListIndex | IntrinsicOp::ValueCopy
-                        )
+                        Some(IntrinsicOp::ListLen | IntrinsicOp::ValueCopy)
                     ),
                     _ => false,
                 }

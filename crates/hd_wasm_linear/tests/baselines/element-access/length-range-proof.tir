@@ -48,7 +48,7 @@ fn total(xs: &List[i32]) -> i32:
 >   %22 = Read [$0] : Ref[List[i32]]
 >   %23 = Read [*%22] : List[i32]
 >   %24 = Read [$6] : usize
->   %25 = Intrinsic ListIndex [%23 %24] : i32
+>   %25 = Read [%23 [%24]] : i32
 >   %26 = Prim Add [%21 %25] : i32
 >   %27 = Store [$2] %26 : ()
     sum

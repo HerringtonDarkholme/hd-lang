@@ -23,7 +23,7 @@ app/main/visit
   %13 = Prim Lt [%11 %12] : bool
   %14 = Read [$2] : List[i32]
   %15 = Read [$4] : usize
-  %16 = Intrinsic ListIndex [%14 %15] : i32
+  %16 = Read [%14 [%15]] : i32
   %17 = Read [$4] : usize
   %18 = Prim Add [%17 1:usize] : usize
   %19 = Store [$4] %18 : ()

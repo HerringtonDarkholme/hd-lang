@@ -1458,6 +1458,10 @@ impl Em<'_, '_, '_> {
             Tag::Read if let Some((base, p)) = self.projection(i as usize) => {
                 self.projection_read(i, base, p)?;
             }
+            // An element read, `Read [%xs [%i]]` (`emit/list.rs`).
+            Tag::Read if let Some((list, index)) = self.b.element_read(i as usize) => {
+                self.list_index(i, &[list, index], false)?;
+            }
             // Places (`emit/refs.rs`).
             Tag::Ref => self.place_ref(i)?,
             Tag::Read => self.place_read(i)?,
@@ -1676,7 +1680,6 @@ impl Em<'_, '_, '_> {
                 let args = self.rec(bw);
                 match op {
                     Some(IntrinsicOp::ListLen) => self.list_len(i, args[0])?,
-                    Some(IntrinsicOp::ListIndex) => self.list_index(i, &args, false)?,
                     Some(IntrinsicOp::ListIndexMut) => self.list_index(i, &args, true)?,
                     Some(IntrinsicOp::ListPush) => self.list_push(&args)?,
                     Some(IntrinsicOp::ValueCopy) => self.value_copy(i, args[0])?,

@@ -28,12 +28,12 @@ use hd_base::{DefId, LocalId, NodeIdx, StageResult, Symbol};
 use hd_diag::{Code, FixSafety, Severity};
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
 use hd_tir::ir::{
-    Coercion, IntrinsicOp, NONE, Place as TirPlace, PlaceRoot, Proj, ReadMode, Ref, Tag, TirSink,
-    local_flags,
+    Coercion, NONE, Place as TirPlace, PlaceRoot, Proj, ReadMode, Ref, Tag, TirSink, local_flags,
 };
 use hd_types::{Ty, TyData};
 
 use crate::body::{Ck, ExpectPosition, LetMutKind, unsupported};
+use crate::expr::Indexed;
 
 /// Where a place starts (`docs/compiler/tir-v2.md`, "Places").
 #[derive(Clone, Copy)]
@@ -798,13 +798,12 @@ impl Ck<'_, '_> {
         let builtin = self.index_kind(bt);
         let (kr, kt) = self.index_key_value(*key, builtin)?;
         match builtin {
-            Some((get @ (IntrinsicOp::ListIndex | IntrinsicOp::MapIndex), bkt, vt))
-                if get == IntrinsicOp::MapIndex || !self.is_range_ty(kt) =>
+            Some((get @ (Indexed::List | Indexed::Map), bkt, vt))
+                if get == Indexed::Map || !self.is_range_ty(kt) =>
             {
                 let kr = self.index_key((kr, kt), *key, bkt);
-                let root = if get == IntrinsicOp::MapIndex {
-                    let rec = self.b.refs_record(&[br, kr]);
-                    let v = self.b.emit(Tag::Intrinsic, get as u32, rec, vt, e.index());
+                let root = if get == Indexed::Map {
+                    let v = self.index_read(get, (br, kr), vt, e.index());
                     Root::MapValue(v, e.index())
                 } else {
                     Root::Slot(br, kr, bt, e.index())
@@ -1030,17 +1029,13 @@ impl Ck<'_, '_> {
             Root::DataField(o, idx, ft, _) => (self.b.data_field(o, idx, ft, n.index()), ft),
             Root::Slot(list, index, lt, _) => {
                 let et = self.elem_ty(lt);
-                let rec = self.b.refs_record(&[list, index]);
-                let op = IntrinsicOp::ListIndex as u32;
-                (self.b.emit(Tag::Intrinsic, op, rec, et, n.index()), et)
+                (self.b.element(list, index, et, n.index()), et)
             }
             Root::MapValue(v, _) => (v, self.b.ty_of(v)),
             Root::Elem(_, buf, bd, i, lt) => {
                 let et = self.elem_ty(lt);
                 let (l, _) = self.read_local(buf, bd, n);
-                let rec = self.b.refs_record(&[l, i]);
-                let op = IntrinsicOp::ListIndex as u32;
-                (self.b.emit(Tag::Intrinsic, op, rec, et, n.index()), et)
+                (self.b.element(l, i, et, n.index()), et)
             }
         }
     }

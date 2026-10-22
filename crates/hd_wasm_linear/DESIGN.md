@@ -1966,7 +1966,7 @@ between the length observation and loop entry. Thus a pop in that
 prelude invalidates the fact too. Unknown calls and possibly aliased
 mutations keep the normal check.
 
-Proven ListIndex instruction IDs live only in emitter state; TIR tags,
+Proven element read (`Read [%xs [%i]]`) instruction IDs live only in emitter state; TIR tags,
 operands and arities do not change. Their physical reads calculate the
 element address directly. Typed views use the ordinary checked path,
 selected by the same RefViewsAbsent guard as cached list projections;

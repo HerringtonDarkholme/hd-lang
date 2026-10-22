@@ -1470,6 +1470,40 @@ is worth deciding only if they are hot.
    Every conformance module is byte-identical to commit 1's; only `tir`
    baselines change.
 3. `Read` for element reads (`ListIndex`).
+   As built: every element read is `Read [%h [%i]]`
+   (`TirBuilder::element`), rooted at the list header value read before
+   it, as element stores already are: an index expression
+   (`Ck::index_read`), a compound element assignment, the list `for`
+   loop's element, the read of an element place (`Root::Slot`,
+   `Root::Elem`) and a list newtype conversion's loop.
+   `IntrinsicOp::ListIndex` goes (21 intrinsics), and the checker names a
+   built-in index by its own `Indexed` (list, map, string) instead.
+   `Body::element_read` decodes such a read without allocating. Every
+   reader that matched the intrinsic matches the read: the checker's place
+   walkers step from an element to its list (`Ck::element_of`), and
+   `mark_write_path` turns an element read that a change goes through into
+   `ListIndexMut` in place, rewriting its five-word place record as the
+   intrinsic's three-word record, so no new record is made that a
+   rollback could drop. `ListIndexMut` stays until insertion's `IsUnique`
+   replaces its uniqueness check (commits 6 and 12). The emitter lowers the
+   read as before (`list_index`), and `live.rs`, `count.rs` and `list.rs`
+   treat it where they treated the intrinsic: a loop element's loan
+   (`loans::source`, `loop_read`, `prepare_loans`), the range proof and
+   the loop caches, which find it by its place, and the list header
+   loans and the list alias walk, which keep it out of the arms for
+   reads through a reference. **Not rooted at the local**: `xs[i]` on a
+   local is `Read [$l]` then `Read [%h [%i]]`, not `Read [$l [%i]]`;
+   through `&List` it is `Read [*%r]` then `Read [%h [%i]]`, not
+   `[*$r [%i]]`; element stores keep their separately read header too.
+   The emitter's moves and loans key on that header read (the loop
+   snapshot's source in `live::loans`, the header local's
+   `Moves::last_access`, `list_root`, the range proof), and `list_index`
+   takes the header as a value. A rooted read drops the header read and
+   changes what those see, so its modules would not be byte-identical.
+   Rooting waits with the other place folding for commit 12, when the
+   checker stops inserting copies, and commit 13 checks it. Every
+   conformance module is byte-identical to commit 2's, dev and optimized
+   pipelines; only six `tir` baselines change, one line each.
 4. Ownership tags, modes, `exit_drops`, `regions`, invariants 3 and 4,
    and the `own` fixture view.
 5. `hd_tir::own` skeleton, `OwnCx` in the driver, and the switch; the
