@@ -96,23 +96,36 @@ pub fn inline_map_key(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> bool {
 /// identity stays nominal; only layouts strip.
 #[must_use]
 pub fn strip_newtype(pool: &InternPool, env: &dyn LayoutEnv, t: Ty) -> Ty {
+    let TyData::Adt { mut def, mut args } = pool.get(t) else {
+        return t;
+    };
+    let Some(mut base) = env.newtype_base(def) else {
+        return t;
+    };
     let mut t = t;
-    // A newtype cycle has no values, so collection never lays one out;
-    // the guard keeps a pathological declaration from hanging layout.
-    let mut seen = HashSet::default();
-    while let TyData::Adt { def, args } = pool.get(t) {
-        if !seen.insert(def) {
-            break;
-        }
-        let Some(base) = env.newtype_base(def) else {
-            break;
-        };
+    // Cyclic newtype declarations have no values. Bound their traversal
+    // far above real nesting, without stopping valid repeated wrappers
+    // such as `Foo[Foo[i32]]` at a repeated declaration.
+    for _ in 0..1_000 {
         let argv = pool.list_items(args);
         t = pool.subst(base, &|p: ParamRef| {
             (p.owner == def)
                 .then(|| argv.get(usize::from(p.index)).copied())
                 .flatten()
         });
+        let TyData::Adt {
+            def: next_def,
+            args: next_args,
+        } = pool.get(t)
+        else {
+            break;
+        };
+        let Some(next_base) = env.newtype_base(next_def) else {
+            break;
+        };
+        def = next_def;
+        args = next_args;
+        base = next_base;
     }
     t
 }
@@ -963,7 +976,7 @@ impl InstanceTable {
 mod tests {
     use super::{
         A1Class, CanonMemo, InstanceTable, KeyArg, LayoutClass, LayoutEnv, StdKind, Sub, ValType,
-        a1_class, instance_key, known_key, layout_of,
+        a1_class, inline_map_key, instance_key, known_key, layout_of, strip_newtype,
     };
     use hd_base::{DefId, Hash128, InstId};
     use hd_types::{InternPool, Ty, TyData, TyList};
@@ -989,6 +1002,76 @@ mod tests {
         fn newtype_base(&self, _: DefId) -> Option<Ty> {
             None
         }
+    }
+
+    struct Newtypes(Vec<(DefId, Ty)>);
+    impl LayoutEnv for Newtypes {
+        fn enum_variants(&self, _: DefId, _: TyList) -> Option<Vec<Vec<Ty>>> {
+            None
+        }
+        fn enum_declared(&self, _: DefId) -> Option<Vec<Vec<Ty>>> {
+            None
+        }
+        fn recursive_enum(&self, _: DefId) -> bool {
+            false
+        }
+        fn std_kind(&self, _: DefId) -> StdKind {
+            StdKind::Other
+        }
+        fn newtype_base(&self, def: DefId) -> Option<Ty> {
+            self.0.iter().find(|(d, _)| *d == def).map(|(_, t)| *t)
+        }
+    }
+
+    #[test]
+    fn strip_newtype_preserves_non_newtypes() {
+        let p = InternPool::new();
+        let ordinary = p.intern_ty(&TyData::Adt {
+            def: DefId::from_raw(1),
+            args: TyList::EMPTY,
+        });
+        for t in [Ty::I32, Ty::STRING, ordinary] {
+            assert_eq!(strip_newtype(&p, &Env, t), t);
+        }
+    }
+
+    #[test]
+    fn strip_newtype_fully_strips_repeated_generic_wrappers() {
+        let p = InternPool::new();
+        let def = DefId::from_raw(1);
+        let base = p.intern_ty(&TyData::Param(hd_types::ParamRef {
+            owner: def,
+            index: 0,
+        }));
+        let env = Newtypes(vec![(def, base)]);
+        for scalar in [Ty::I32, Ty::STRING] {
+            let mut wrapped = scalar;
+            for _ in 0..32 {
+                wrapped = p.intern_ty(&TyData::Adt {
+                    def,
+                    args: p.list(&[wrapped]),
+                });
+            }
+            assert_eq!(strip_newtype(&p, &env, wrapped), scalar);
+            assert!(inline_map_key(&p, &env, wrapped));
+            assert_eq!(layout_of(&p, &env, wrapped), layout_of(&p, &env, scalar));
+        }
+    }
+
+    #[test]
+    fn strip_newtype_bounds_cyclic_declarations() {
+        let p = InternPool::new();
+        let adt = |raw| {
+            p.intern_ty(&TyData::Adt {
+                def: DefId::from_raw(raw),
+                args: TyList::EMPTY,
+            })
+        };
+        let (a, b) = (adt(1), adt(2));
+        let direct = Newtypes(vec![(DefId::from_raw(1), a)]);
+        assert_eq!(strip_newtype(&p, &direct, a), a);
+        let mutual = Newtypes(vec![(DefId::from_raw(1), b), (DefId::from_raw(2), a)]);
+        assert_eq!(strip_newtype(&p, &mutual, a), a);
     }
 
     /// Declared enums for `recursive_enums`, by raw id.

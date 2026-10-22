@@ -1,0 +1,31 @@
+# test: repeated generic newtype wrappers erase fully for map keys and list elements
+# Spec lang/09-traits.md: trait.derive.newtype.base, trait.derive.newtype.templated.
+# Spec lang/04-type-system.md: types.newtype.construct-value, types.newtype.map-key.
+
+@derive(Eq, Hash, Debug)
+type Foo[T](T)
+
+tests:
+    use std.testing.assert_equal
+
+    it("nested same-newtype map keys hash and compare through every wrapper"):
+        let mut values: Map[Foo[Foo[i32]], string] = {}
+        values[Foo(Foo(+1))] = "one"
+        values[Foo(Foo(+2))] = "two"
+        assert_equal(values.len(), 2, reason="distinct nested keys")
+        assert_equal(values.get(Foo(Foo(+1))), .Some("one"), reason="equal fresh nested key")
+        assert_equal(values.get(Foo(Foo(+2))), .Some("two"), reason="second nested key")
+        values[Foo(Foo(+1))] = "updated"
+        assert_equal(values.len(), 2, reason="equal nested key replaces its value")
+        assert_equal(values.get(Foo(Foo(+1))), .Some("updated"), reason="replacement survives hashing")
+        assert_equal(values.get(Foo(Foo(+3))), .None, reason="missing nested key")
+
+    it("nested same-newtype list elements retain their values and forward debug"):
+        let mut values: List[Foo[Foo[i32]]] = [Foo(Foo(+1)), Foo(Foo(+2))]
+        values.push(Foo(Foo(+3)))
+        assert_equal(values.len(), 3, reason="list element layout")
+        assert_equal(values[0] == Foo(Foo(+1)), true, reason="first element")
+        assert_equal(values[1] == Foo(Foo(+2)), true, reason="second element")
+        assert_equal(values[2] == Foo(Foo(+3)), true, reason="appended element")
+        assert_equal(debug(values[0]), "1", reason="derived debug forwards through both wrappers")
+        assert_equal(debug(values), "[1, 2, 3]", reason="list debug layout")
