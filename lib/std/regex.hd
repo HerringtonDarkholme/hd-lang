@@ -1686,9 +1686,10 @@ fn reference_at(template: Pattern, at: usize) -> Found?:
             .Some(Found { reference: Reference.Index(digits.value), next: digits.next })
 
 # `template` with each reference replaced by the text it names
-# (r-std-regex.replace.expand).
+# (r-std-regex.replace.expand). Join pieces once instead of repeatedly
+# copying the already-expanded prefix for each reference.
 fn expand(template: Pattern, groups: Captures) -> string:
-    let out = ""
+    let mut pieces: List[string] = []
     let literal: usize = 0
     let at: usize = 0
     while at < template.chars.len():
@@ -1698,10 +1699,14 @@ fn expand(template: Pattern, groups: Captures) -> string:
         match reference_at(template, at):
             .None => at = at + 1
             .Some(found) =>
-                out = out + template.piece(literal, at) + reference_text(found.reference, groups)
+                if literal < at:
+                    pieces.push(template.piece(literal, at))
+                pieces.push(reference_text(found.reference, groups))
                 at = found.next
                 literal = at
-    out + template.piece(literal, template.chars.len())
+    if literal < template.chars.len():
+        pieces.push(template.piece(literal, template.chars.len()))
+    pieces.join("")
 
 fn reference_text(reference: Reference, groups: Captures) -> string:
     match reference:

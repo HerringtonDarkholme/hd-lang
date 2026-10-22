@@ -46,3 +46,15 @@ tests:
     it("empty matches"):
         assert_equal(swap("x*", "abc", "-"), "-a-b-c-", reason="an empty match at each position")
         assert_equal(swap("a*", "baaac", "-"), "-b-c-", reason="the empty match after aaa is dropped")
+
+    it("many references preserve Unicode and literal boundaries"):
+        pattern := Regex::new("(?<item>界)").expect("compiles")
+        template := "<λ\${item}>".repeat(128)
+        expected := "<λ界>".repeat(128)
+        assert_equal(pattern.replace("界", template), expected, reason="one long expansion")
+        assert_equal(pattern.replace_all("界界", template), expected + expected, reason="two independent expansions")
+
+    it("many absent groups and dollar references retain exact text"):
+        template := "[$2]$$\${1}2\${missing}".repeat(128)
+        assert_equal(swap("(a)|(b)", "a", template), "[]\$a2".repeat(128), reason="absent and literal pieces")
+        assert_equal(swap("(a)", "a", "λ界😀".repeat(128)), "λ界😀".repeat(128), reason="long literal replacement")
