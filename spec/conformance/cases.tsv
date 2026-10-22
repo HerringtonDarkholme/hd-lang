@@ -3817,8 +3817,8 @@ typing/valid/trait-qualified-declaring-trait.hd	type	accept	lang/09-traits.md#r-
 typing/valid/trait-qualified-call-generic-receiver.hd	type	accept	lang/09-traits.md#r-trait.qualified.receiver
 runtime/valid/http-method-variant-equality.hd	runtime	accept	std/http.md#r-std-http.method.eq.variant-payload
 runtime/valid/http-scripted-provider.hd	runtime	accept	std/http.md#scripted-http
-runtime/valid/http-handles-and-values.hd	runtime	accept	std/http.md#r-std-http.scripted.new-ref
-runtime/valid/http-scripted-unknown-url.hd	runtime	accept	std/http.md#r-std-http.scripted.unknown
+runtime/valid/http-handles-and-values.hd	runtime	accept	std/http.md#r-std-http.scripted.new-empty
+runtime/valid/http-scripted-unknown-url.hd	runtime	accept	std/http.md#r-std-http.scripted.missing-reply
 runtime/valid/http-status-as-error.hd	runtime	accept	std/http.md#r-std-http.response.ok.retained-error
 runtime/valid/http-json.hd	runtime	accept	std/http.md#r-std-http.response.json
 runtime/valid/map-sys.hd	runtime	accept	std/sys.md#map-sys
@@ -4798,3 +4798,5 @@ typing/invalid/error-context-private-field.hd	type	reject:unknown-field	std/erro
 runtime/valid/memory-fs-normalized-keys.hd	runtime	accept	std/fs.md#r-std-fs.memory.normalized-keys
 typing/invalid/http-free-send-removed.hd	type	reject:unknown-import	std/http.md#r-std-http.helper.only-get
 runtime/valid/deque-heap-collect.hd	runtime	accept	std/collections.md#r-std-collections.heap.collect.linear
+runtime/valid/http-scripted-replies.hd	runtime	accept	std/http.md#r-std-http.scripted.queue-order
+typing/invalid/http-scripted-sent-removed.hd	type	reject:unknown-method	std/http.md#r-std-http.scripted.received-ref

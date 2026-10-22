@@ -1,5 +1,5 @@
 # test: Request and Response are struct values, ScriptedHttp::new returns a handle the test and the installed provider share, and a program's struct with a &mut self send! serves as an Http fake
-# Spec std/http: std-http.types.builder-response-defaults, std-http.trait.decl-ref, std-http.send.mut-ref.reference-values, std-http.scripted.new-ref, std-http.scripted.sent-ref.
+# Spec std/http: std-http.types.builder-response-defaults, std-http.trait.decl-ref, std-http.send.mut-ref.reference-values, std-http.scripted.new-empty, std-http.scripted.received-ref.
 # expect: test
 use std.http.{Http, HttpError, Request, Response, ScriptedHttp, get}
 
@@ -30,13 +30,14 @@ tests:
         assert_equal(response.status, 200, reason="the original keeps its status")
 
     it("the scripted provider is one object"):
-        http := ScriptedHttp::new({"https://example.com/": Response { status: 204, headers: [], body: [] }})
+        http := ScriptedHttp::new()
+        http.reply("https://example.com/", .Ok(Response { status: 204, headers: [], body: [] }))
         $.with(Http=http):
             _ := get!("https://example.com/")
         $.with(Http=http):
             _ := Request::get("https://example.com/missing").send!()
-        assert_equal(http.sent().len(), 2, reason="both scopes recorded on the one object")
-        assert_equal(http.sent()[1].url, "https://example.com/missing", reason="the unanswered request too")
+        assert_equal(http.received().len(), 2, reason="both scopes recorded on the one object")
+        assert_equal(http.received()[1].url, "https://example.com/missing", reason="the unanswered request too")
 
     it("a struct fake counts through &mut"):
         let mut fake = Counting { seen: 0 }

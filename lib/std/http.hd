@@ -231,32 +231,50 @@ pub trait Http:
 pub fn get!(url: string) -> Result[Response, HttpError] $ Http:
     Request::get(url).send!()?.ok()
 
-# The deterministic `Http` (spec/std/http.md#scripted-http): it answers a
-# URL by its exact text, and records every request it receives.
-## The deterministic `Http` provider: it answers each URL from a table and records what it sent, with no host access.
+# Each URL owns one mutable queue, so appending a reply does not copy its
+# earlier replies. The cursor stops after the last consumed result.
+@derive(Debug)
+struct HttpReplies:
+    items: List[Result[Response, HttpError]]
+    next: usize
+
+## A deterministic Http provider with queued replies and a log of received requests.
 ## See [std-http.scripted.decl](../../spec/std/http.md#r-std-http.scripted.decl).
 @derive(Debug)
 pub struct ScriptedHttp:
-    responses: Map[string, Response]
+    responses: Map[string, &mut HttpReplies]
     requests: List[Request]
 
 impl ScriptedHttp:
-    ## Returns the provider that answers each URL with `responses`' entry for it.
-    ## See [std-http.scripted.new-ref](../../spec/std/http.md#r-std-http.scripted.new-ref).
-    pub fn new(responses: Map[string, Response]) -> &mut ScriptedHttp:
-        &mut ScriptedHttp { responses: responses, requests: [] }
+    ## Returns a new provider with no replies or received requests.
+    ## See [std-http.scripted.new-empty](../../spec/std/http.md#r-std-http.scripted.new-empty).
+    pub fn new() -> &mut ScriptedHttp:
+        &mut ScriptedHttp { responses: {}, requests: [] }
 
-    # Every request received, in order (r-std-http.scripted.sent-ref).
-    ## The requests the provider sent, in order.
-    ## See [std-http.scripted.sent-ref](../../spec/std/http.md#r-std-http.scripted.sent-ref).
-    pub fn sent(&self) -> List[Request]:
+    ## Appends a result to this URL's reply queue.
+    ## See [std-http.scripted.reply](../../spec/std/http.md#r-std-http.scripted.reply).
+    pub fn reply(&mut self, url: string, result: Result[Response, HttpError]) -> void:
+        match self.responses.get(url):
+            .Some(replies) => replies.items.push(result)
+            .None => self.responses[url] = &mut HttpReplies { items: [result], next: 0 }
+
+    ## The received requests in order, including requests without a reply.
+    ## See [std-http.scripted.received-ref](../../spec/std/http.md#r-std-http.scripted.received-ref).
+    pub fn received(&self) -> List[Request]:
         self.requests
 
 impl Http for ScriptedHttp:
     fn send!(&mut self, request: Request) -> Result[Response, HttpError]:
         self.requests.push(request)
         match self.responses.get(request.url):
-            .Some(response) => .Ok(Response { status: response.status, headers: response.headers, body: response.body, url: request.url })
+            .Some(replies) =>
+                index := if replies.next < replies.items.len(): replies.next else: replies.items.len() - 1
+                result := replies.items[index]
+                if replies.next < replies.items.len():
+                    replies.next += 1
+                match result:
+                    .Ok(response) => .Ok(Response { ...response, url: request.url })
+                    .Err(error) => .Err(error)
             .None => .Err(.Connect("ScriptedHttp has no response for ${request.url}"))
 
 fn ascii_case_equal(left: string, right: string) -> bool:

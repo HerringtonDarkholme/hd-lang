@@ -220,7 +220,7 @@ word says how the provider answers:
 
 | Prefix | The provider | Providers |
 | --- | --- | --- |
-| `Scripted` | answers from data the test gives it up front | `ScriptedInput`, `ScriptedProcess`, `ScriptedHttp`, `ScriptedNet`, `ScriptedStream`, `ScriptedListener`, `ScriptedUdp`, `ScriptedArgs`, `ScriptedEnv`, `ScriptedSys` |
+| `Scripted` | answers from data the test supplies | `ScriptedInput`, `ScriptedProcess`, `ScriptedHttp`, `ScriptedNet`, `ScriptedStream`, `ScriptedListener`, `ScriptedUdp`, `ScriptedArgs`, `ScriptedEnv`, `ScriptedSys` |
 | `Memory` | keeps its state in memory, as a real host would | `MemoryFs`, `MemoryConsole` |
 | `Manual` | holds a state that the test advances | `ManualClock` |
 | `Seeded` | draws from a generator that a seed starts | `SeededRandom` |

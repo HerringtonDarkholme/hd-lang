@@ -1,5 +1,5 @@
 # test: ScriptedHttp answers a URL by its exact text, whatever the method, and records every request in order
-# Spec std/http Scripted Http: std-http.scripted.new-ref, std-http.scripted.send, std-http.scripted.sent-ref, std-http.send.status, std-http.helper.get.checked-response, std-http.response.text.
+# Spec std/http Scripted Http: std-http.scripted.new-empty, std-http.scripted.raw-status, std-http.scripted.received-ref, std-http.send.status, std-http.helper.get.checked-response, std-http.response.text.
 # Also covers std-http.types.builder-response-defaults, std-http.types.traits,
 # std-http.request.builder-defaults, std-http.headers.pairs,
 # std-http.error.decl-retained-response, std-http.error.traits, std-http.error.other,
@@ -23,22 +23,25 @@ tests:
     use std.testing.assert_equal
 
     it("reads the scripted status"):
-        let mut http = ScriptedHttp::new({"https://example.com/": Response { status: 204, headers: [], body: [] }})
+        let mut http = ScriptedHttp::new()
+        http.reply("https://example.com/", .Ok(Response { status: 204, headers: [], body: [] }))
         $.with(Http=http):
             assert_equal(status!("https://example.com/"), 204, reason="scripted")
-        assert_equal(http.sent().len(), 1, reason="one request")
+        assert_equal(http.received().len(), 1, reason="one request")
 
     it("a 404 is an ordinary response"):
-        let mut http = ScriptedHttp::new({"https://api.github.com/repos/hd/hd/releases/latest": Response { status: 404, headers: [], body: [] }})
+        let mut http = ScriptedHttp::new()
+        http.reply("https://api.github.com/repos/hd/hd/releases/latest", .Ok(Response { status: 404, headers: [], body: [] }))
         $.with(Http=http):
             assert_equal(latest_release!("hd/hd"), .Err(HttpError.Other("status 404")), reason="the status is data")
 
     it("answers whatever the method, and records each request"):
-        let mut http = ScriptedHttp::new({"https://example.com/": Response { status: 200, headers: [], body: [104, 105] }})
+        let mut http = ScriptedHttp::new()
+        http.reply("https://example.com/", .Ok(Response { status: 200, headers: [], body: [104, 105] }))
         posted := Request { method: Method.Post, url: "https://example.com/", body: [1] }
         $.with(Http=http):
             match posted.send!():
                 .Ok(response) => assert_equal(response.text(), "hi", reason="the scripted body")
                 .Err(_) => assert_equal(true, false, reason="a scripted URL answers")
             assert_equal(status!("https://example.com/"), 200, reason="a GET too")
-        assert_equal(http.sent(), [posted, Request { url: "https://example.com/" }], reason="in order")
+        assert_equal(http.received(), [posted, Request { url: "https://example.com/" }], reason="in order")

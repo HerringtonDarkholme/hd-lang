@@ -216,8 +216,8 @@ fn create!(name: string) -> Result[Created, HttpError] $ Http:
 
 ## Scripted Http
 
-`ScriptedHttp` is the deterministic `Http` provider. It answers each URL
-from a table, and records every request:
+`ScriptedHttp` is the deterministic `Http` provider. It consumes replies queued
+for each URL, and records every request:
 
 ```text
 use std.http.{Http, Response, ScriptedHttp, get}
@@ -230,18 +230,24 @@ tests:
     use std.testing.assert_equal
 
     it("reads the scripted status"):
-        http := ScriptedHttp::new({"https://example.com/": Response { status: 204, headers: [], body: [] }})
+        http := ScriptedHttp::new()
+        http.reply("https://example.com/", .Ok(Response { status: 204, headers: [], body: [] }))
         $.with(Http=http):
             assert_equal(status!("https://example.com/"), 204, reason="scripted")
-        assert_equal(http.sent().len(), 1, reason="one request")
+        assert_equal(http.received().len(), 1, reason="one request")
 ```
 
 1. r[std-http.scripted.decl] `std.http` declares `ScriptedHttp`, which implements `Http` and `Debug`, with private fields. Code imports it, as in `use std.http.ScriptedHttp`.
-2. r[std-http.scripted.new-ref] `ScriptedHttp::new(responses: Map[string, Response]) -> &mut ScriptedHttp` returns a new object holding a provider that answers each URL in `responses`. Installing it as `Http=http` shares the object, so the test reads back what was sent.
-3. r[std-http.scripted.send] `send!(request)` returns `.Ok` of the response that `responses` holds for `request.url`, matched by its exact text, whatever the method, with `url` set to `request.url`.
-4. r[std-http.scripted.unknown] For a URL that `responses` lacks, `send!` returns `.Err(HttpError.Connect(message))`, and `message` is `ScriptedHttp has no response for URL`, with the URL.
-5. r[std-http.scripted.sent-ref] `sent(&self) -> List[Request]` returns every request that the provider received, in order, the unanswered ones included.
-6. r[std-http.scripted.no-host] A `ScriptedHttp` opens no connection.
+2. r[std-http.scripted.new-empty] `ScriptedHttp::new() -> &mut ScriptedHttp` returns a new provider with no replies and no received requests.
+3. r[std-http.scripted.reply] `reply(&mut self, url: string, result: Result[Response, HttpError]) -> void` appends a result for that URL.
+4. r[std-http.scripted.key-text] Replies match the complete request URL exactly, after query encoding, whatever the request method.
+5. r[std-http.scripted.queue-order] Sends consume queued results in insertion order, independently for each URL.
+6. r[std-http.scripted.repeat-last] After a URL's queued results have been consumed, further sends repeat its last result.
+7. r[std-http.scripted.transport-errors] A queued `.Err` is returned unchanged.
+8. r[std-http.scripted.raw-status] Every status of a queued successful response is returned as `.Ok`, without a status check.
+9. r[std-http.scripted.missing-reply] A URL without a reply returns `.Err(HttpError.Connect("ScriptedHttp has no response for URL"))`, substituting its full URL.
+10. r[std-http.scripted.received-ref] `received(&self) -> List[Request]` returns all received requests in order, including those answered with errors or lacking a reply.
+11. r[std-http.scripted.no-host] A `ScriptedHttp` opens no connection.
 
 > **Why.** An unknown URL is an error that names it, not a 404. So a
 > route that a test forgot never hides behind a valid status.

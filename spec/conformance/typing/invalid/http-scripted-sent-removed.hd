@@ -1,0 +1,6 @@
+# test: received replaces the old ScriptedHttp.sent getter
+use std.http.ScriptedHttp
+
+pub fn old_name() -> void:
+    http := ScriptedHttp::new()
+    _ := http.sent()  # diagnostic: unknown-method

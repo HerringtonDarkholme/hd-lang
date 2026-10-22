@@ -14,7 +14,8 @@ tests:
     it("free get preserves the complete API error response"):
         url := "https://example.test/users?token=secret#private"
         response := Response { status: 404, headers: [("X-Trace", "private-header")], body: "{\"message\":\"unknown user\"}".to_utf8() }
-        http := ScriptedHttp::new({url: response})
+        http := ScriptedHttp::new()
+        http.reply(url, .Ok(response))
         $.with(Http=http):
             match get!(url):
                 .Err(.Status(found)) =>
@@ -26,7 +27,9 @@ tests:
                 _ => assert(false, reason="free get checks 404")
 
     it("builder sending leaves 301 and 404 available as responses"):
-        http := ScriptedHttp::new({"https://example.test/redirect": Response { status: 301 }, "https://example.test/missing": Response { status: 404 }})
+        http := ScriptedHttp::new()
+        http.reply("https://example.test/redirect", .Ok(Response { status: 301 }))
+        http.reply("https://example.test/missing", .Ok(Response { status: 404 }))
         $.with(Http=http):
             assert_equal(Request::get("https://example.test/redirect").redirects(0).send!().expect("raw redirect").status, 301, reason="redirects disabled")
             assert_equal(Request::get("https://example.test/missing").send!().expect("raw 404").status, 404, reason="builder is status-neutral")
@@ -57,7 +60,8 @@ tests:
         assert_equal(HttpError.Status(Response { status: 404, url: "https://example.test/x#private?secret" }).to_string(), "HTTP status 404 for https://example.test/x", reason="query marker inside a fragment")
 
     it("successful free get uses empty response defaults"):
-        http := ScriptedHttp::new({"https://example.test/": Response { status: 200 }})
+        http := ScriptedHttp::new()
+        http.reply("https://example.test/", .Ok(Response { status: 200 }))
         $.with(Http=http):
             response := get!("https://example.test/").expect("successful response")
             assert_equal(response.status, 200, reason="success")
