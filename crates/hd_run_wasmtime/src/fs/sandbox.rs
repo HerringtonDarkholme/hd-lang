@@ -294,6 +294,15 @@ impl Place {
     /// The file opened for reading, or for writing (created, and truncated
     /// unless `append`).
     pub(crate) fn open(&self, write: bool, append: bool) -> io::Result<std::fs::File> {
+        self.open_options(write, append, true)
+    }
+
+    /// Open a copy destination without truncating a possible source alias.
+    pub(crate) fn open_copy_target(&self) -> io::Result<std::fs::File> {
+        self.open_options(true, false, false)
+    }
+
+    fn open_options(&self, write: bool, append: bool, truncate: bool) -> io::Result<std::fs::File> {
         match self {
             Place::Ambient(path) => {
                 let mut options = std::fs::OpenOptions::new();
@@ -301,7 +310,7 @@ impl Place {
                     options
                         .write(true)
                         .create(true)
-                        .truncate(!append)
+                        .truncate(truncate && !append)
                         .append(append);
                 } else {
                     options.read(true);
@@ -325,7 +334,7 @@ impl Place {
                     options
                         .write(true)
                         .create(true)
-                        .truncate(!append)
+                        .truncate(truncate && !append)
                         .append(append);
                 } else {
                     options.read(true);

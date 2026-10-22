@@ -1,0 +1,35 @@
+# test: copy! copies bytes without a guest read helper and preserves endpoint errors
+# Spec std/fs: std-fs.copy.bytes, std-fs.copy.replace, std-fs.memory.copy, std-fs.helper.copy.
+use std.fs.{FsError, FsRead, FsWrite, MemoryFs, copy}
+use std.path.Path
+use std.testing.assert_equal
+
+tests:
+    it("copies arbitrary bytes, replaces the whole target, and keeps independent files"):
+        files := MemoryFs::new()
+        _ := files.write_bytes!(Path("source"), [0, 255, 10])
+        _ := files.write_bytes!(Path("target"), [1, 2, 3, 4, 5])
+        $.with(FsWrite=files):
+            assert_equal(copy!(Path("source"), Path("target")), .Ok(()), reason="the helper needs only FsWrite")
+        assert_equal(files.read_bytes!(Path("target")), .Ok([0, 255, 10]), reason="binary bytes replace the whole target")
+        _ := files.write_bytes!(Path("source"), [8])
+        assert_equal(files.read_bytes!(Path("target")), .Ok([0, 255, 10]), reason="copy is independent of later source writes")
+        _ := files.copy!(Path("target"), Path("./target"))
+        assert_equal(files.read_bytes!(Path("target")), .Ok([0, 255, 10]), reason="copying onto an alias keeps the bytes")
+
+    it("missing and directory sources name the source and do not change the target"):
+        files := MemoryFs::new()
+        _ := files.write_text!(Path("target"), "keep")
+        assert_equal(files.copy!(Path("./absent"), Path("target")), .Err(FsError.NotFound(path=Path("./absent"))), reason="the missing source keeps its spelling")
+        _ := files.create_dir_all!(Path("dir"))
+        assert_equal(files.copy!(Path("dir"), Path("target")), .Err(FsError.IsADirectory(path=Path("dir"))), reason="a source directory is not a file")
+        assert_equal(files.read_text!(Path("target")), .Ok("keep"), reason="failed reads do not replace the target")
+
+    it("destination failures name the destination"):
+        files := MemoryFs::new()
+        _ := files.write_text!(Path("source"), "value")
+        _ := files.create_dir_all!(Path("dir"))
+        assert_equal(files.copy!(Path("source"), Path("./dir")), .Err(FsError.IsADirectory(path=Path("./dir"))), reason="directory destination")
+        assert_equal(files.copy!(Path("source"), Path("source/child")), .Err(FsError.NotADirectory(path=Path("source/child"))), reason="destination below a file")
+        assert_equal(files.copy!(Path("source"), Path("new/deep/file")), .Ok(()), reason="MemoryFs keeps its implicit directory behavior")
+        assert_equal(files.read_text!(Path("new/deep/file")), .Ok("value"), reason="a missing destination is created")

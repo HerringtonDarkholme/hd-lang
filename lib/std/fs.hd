@@ -60,8 +60,8 @@ pub trait FsRead:
     fn list_dir!(self, path: Path) -> Result[List[Entry], FsError]
     fn stat!(self, path: Path) -> Result[Entry?, FsError]
 
-## The host capability to change the file system: `write_bytes!`, `write_text!`, `append_text!`, `create_dir_all!`, `remove!`, and `rename!`.
-## See [std-fs.write.decl](../../spec/std/fs.md#r-std-fs.write.decl).
+## The host capability to change the file system: `write_bytes!`, `write_text!`, `append_text!`, `create_dir_all!`, `remove!`, `rename!`, and `copy!`.
+## See [std-fs.write.copy-decl](../../spec/std/fs.md#r-std-fs.write.copy-decl).
 pub trait FsWrite:
     fn write_bytes!(&mut self, path: Path, bytes: List[u8]) -> Result[void, FsError]
     fn write_text!(&mut self, path: Path, text: string) -> Result[void, FsError]
@@ -69,6 +69,7 @@ pub trait FsWrite:
     fn create_dir_all!(&mut self, path: Path) -> Result[void, FsError]
     fn remove!(&mut self, path: Path) -> Result[void, FsError]
     fn rename!(&mut self, from: Path, to: Path) -> Result[void, FsError]
+    fn copy!(&mut self, from: Path, to: Path) -> Result[void, FsError]
 
 # Reads a file through the covering `FsRead` provider
 # (spec/std/fs.md#r-std-fs.helper.read-text).
@@ -84,6 +85,12 @@ pub fn read_text!(path: Path) -> Result[string, FsError] $ FsRead:
 pub fn write_text!(path: Path, text: string) -> Result[void, FsError] $ FsWrite:
     files := $.use(FsWrite)
     files.write_text!(path, text)
+
+## Copies a file through the covering provider without reading its bytes into the program.
+## See [std-fs.helper.copy](../../spec/std/fs.md#r-std-fs.helper.copy).
+pub fn copy!(from: Path, to: Path) -> Result[void, FsError] $ FsWrite:
+    files := $.use(FsWrite)
+    files.copy!(from, to)
 
 # The remaining helpers each call the covering provider's method of the
 # same name (spec/std/fs.md#r-std-fs.helper.read-bytes and its rows).
@@ -475,6 +482,10 @@ impl FsRead for MemoryFs:
             .None => if self.dir_at(key): .Ok(.Some(Entry { path: path, kind: EntryKind.Directory, size: 0, modified: self.modified.get(key) })) else: .Ok(.None)
 
 impl FsWrite for MemoryFs:
+    fn copy!(&mut self, from: Path, to: Path) -> Result[void, FsError]:
+        bytes := self.read_bytes!(from)?
+        self.write_bytes!(to, bytes)
+
     fn write_bytes!(&mut self, path: Path, bytes: List[u8]) -> Result[void, FsError]:
         match self.write_error(path):
             .Some(error) => return .Err(error)

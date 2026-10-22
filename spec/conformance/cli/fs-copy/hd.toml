@@ -1,0 +1,6 @@
+[package]
+name = "fs-copy"
+
+[capabilities]
+FsRead = ["in/", "out/"]
+FsWrite = ["out/"]

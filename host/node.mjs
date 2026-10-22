@@ -10,6 +10,9 @@
 
 import {
   appendFileSync,
+  closeSync,
+  copyFileSync,
+  openSync,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -596,7 +599,13 @@ function fsProviders({ grant, flush }) {
         const { run, create = false } = typeof op === "function" ? { run: op } : op;
         const provider = (...args) => {
           const ps = args.filter((_, i) => m.resource === "path" && m.params[i] === Path);
-          const refused = ps.find((p) => !grant.coversPath(module.slice("hd:".length), p));
+          const refused = ps.find(
+            (p, i) =>
+              !grant.coversPath(
+                name === "copy" && i === 0 ? "FsRead" : module.slice("hd:".length),
+                p,
+              ),
+          );
           if (refused !== undefined) return fsErr(refusedPath(refused), "NotGranted");
           for (const p of create ? [] : ps) {
             const missing = beforeDotDot(p);
@@ -670,6 +679,17 @@ function fsProviders({ grant, flush }) {
       },
       // cli.cap.scope.rename: the grant covers both paths.
       rename: (from, to) => Ok(renameSync(from, to)),
+      copy: (from, to) => {
+        // Validate the source as a read before attributing destination errors.
+        try {
+          if (opening(from, () => statSync(from)).isDirectory()) return fsErr(from, "IsADirectory");
+          closeSync(opening(from, () => openSync(from, "r")));
+        } catch (err) {
+          return fsFail(from, err);
+        }
+        if (existsSync(to) && statSync(to).isDirectory()) return fsErr(to, "IsADirectory");
+        return Ok(opening(to, () => copyFileSync(from, to)));
+      },
     }),
   };
 }

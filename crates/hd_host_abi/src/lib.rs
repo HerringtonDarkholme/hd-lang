@@ -211,6 +211,13 @@ pub static TABLE: &[HostTrait] = &[
                 Wait::May,
                 Some(ResourceArg::Path),
             ),
+            m(
+                "copy",
+                &[B("Path"), B("Path")],
+                B("Result[void, FsError]"),
+                Wait::May,
+                Some(ResourceArg::Path),
+            ),
         ],
     },
     HostTrait {

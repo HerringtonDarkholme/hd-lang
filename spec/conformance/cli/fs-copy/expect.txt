@@ -1,0 +1,5 @@
+run: hd run
+stdout: copied
+file: out/copied.txt
+no-file: out/refused.txt
+no-file: leak.txt

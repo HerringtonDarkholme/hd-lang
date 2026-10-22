@@ -1,0 +1,21 @@
+use std.fs.{FsError, FsRead, FsWrite, copy, read_text, write_text}
+use std.path.Path
+use std.testing.assert_equal
+
+pub fn main!() -> Result[void, FsError] $ Console + FsRead + FsWrite:
+    source := Path("in/source.txt")
+    target := Path("out/copied.txt")
+    write_text!(target, "old content longer than the source")?
+    copy!(source, target)?
+    assert_equal(read_text!(target)?, read_text!(source)?, reason="real host copies the full content and truncates the old suffix")
+    copy!(target, Path("out/./copied.txt"))?
+    assert_equal(read_text!(target)?, read_text!(source)?, reason="a source alias is not truncated")
+    assert_equal(copy!(Path("in/missing"), target), .Err(FsError.NotFound(path=Path("in/missing"))), reason="missing source")
+    assert_equal(copy!(Path("in"), target), .Err(FsError.IsADirectory(path=Path("in"))), reason="source directory")
+    assert_equal(copy!(source, Path("out")), .Err(FsError.IsADirectory(path=Path("out"))), reason="destination directory")
+    assert_equal(copy!(source, Path("out/copied.txt/child")), .Err(FsError.NotADirectory(path=Path("out/copied.txt/child"))), reason="destination under a file")
+    assert_equal(copy!(Path("secret/source.txt"), Path("out/refused.txt")), .Err(FsError.NotGranted(path=Path("secret/source.txt"))), reason="FsWrite cannot authorize the source read")
+    assert_equal(copy!(source, Path("leak.txt")), .Err(FsError.NotGranted(path=Path("leak.txt"))), reason="the destination requires its own write grant")
+    assert_equal(read_text!(target)?, read_text!(source)?, reason="failures preserve the copied file")
+    println("copied")
+    .Ok(())

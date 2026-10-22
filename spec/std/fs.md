@@ -83,9 +83,10 @@ pub trait FsWrite:
     fn create_dir_all!(&mut self, path: Path) -> Result[void, FsError]
     fn remove!(&mut self, path: Path) -> Result[void, FsError]
     fn rename!(&mut self, from: Path, to: Path) -> Result[void, FsError]
+    fn copy!(&mut self, from: Path, to: Path) -> Result[void, FsError]
 ```
 
-1. r[std-fs.write.decl] `std.fs` declares the host capability trait `FsWrite` with the methods above. Code imports it, as in `use std.fs.FsWrite`.
+1. r[std-fs.write.copy-decl] `std.fs` declares the host capability trait `FsWrite` with the methods above. Code imports it, as in `use std.fs.FsWrite`.
 2. r[std-fs.write.replace] `write_bytes!` and `write_text!` create the file at `path`, or replace its whole content.
 3. r[std-fs.write.append] `append_text!` adds `text` at the end of the file at `path`, and creates the file when there is none.
 4. r[std-fs.write.create-dir-all] `create_dir_all!` creates the directory at `path` and every missing directory above it.
@@ -93,6 +94,26 @@ pub trait FsWrite:
 6. r[std-fs.write.rename] `rename!` moves the entry at `from` to `to`.
 7. r[std-fs.write.mut-ref.reference-values] Each `FsWrite` method takes `&mut self`, so `FsWrite` is a mutable requirement trait and `$.use(FsWrite)` is a `&mut dyn FsWrite`, by [`req.ref.use.reference-values`](../lang/11-requirements-and-suspension.md#r-req.ref.use.reference-values). Each `FsRead` method takes `self`, so `FsRead` is a readonly one, and a reference installed as its provider reads the place it refers to, by [`req.ref.share.reference-values`](../lang/11-requirements-and-suspension.md#r-req.ref.share.reference-values).
 8. r[std-fs.cancel.write] Cancelling the suspension of `write_bytes!`, `write_text!`, or `append_text!` may leave a partial file at `path`.
+
+## Copying Files
+
+1. r[std-fs.copy.bytes] `FsWrite.copy!(from: Path, to: Path) -> Result[void, FsError]` copies the source file's bytes to the destination.
+2. r[std-fs.copy.replace] Copying creates a missing destination file or replaces its entire content.
+3. r[std-fs.copy.host] A host provider copies inside the host, without transferring the file's bytes into the program.
+4. r[std-fs.copy.read-grant] The host checks the source against the `FsRead` grant, as for `read_bytes!`.
+5. r[std-fs.copy.write-grant] The host checks the destination against the `FsWrite` grant, as for `write_bytes!`.
+6. r[std-fs.copy.refused] A refused endpoint returns `NotGranted` naming that endpoint, before copying any bytes.
+7. r[std-fs.copy.source-missing] A missing source returns `NotFound(from)`.
+8. r[std-fs.copy.source-directory] A directory source returns `IsADirectory(from)`.
+9. r[std-fs.copy.destination-directory] A destination directory returns `IsADirectory(to)`.
+10. r[std-fs.copy.destination-parent-file] A destination below a file returns `NotADirectory(to)`.
+11. r[std-fs.copy.alias] Copying a file to another path for the same file succeeds without changing its bytes.
+12. r[std-fs.memory.copy] `MemoryFs.copy!` reads the source bytes and writes them to the destination with its existing read and write errors.
+13. r[std-fs.helper.copy] `pub fn copy!(from: Path, to: Path) -> Result[void, FsError] $ FsWrite` calls `copy!(from, to)` on the covering `FsWrite` provider.
+
+> **Why.** Copying is one host operation: a program need not read bytes
+> only to send them straight back. Separate source and destination grants
+> preserve the authority of the corresponding read and write operations.
 
 ## Suspension
 

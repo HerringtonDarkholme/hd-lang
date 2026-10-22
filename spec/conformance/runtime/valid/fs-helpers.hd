@@ -3,7 +3,7 @@
 # Also covers std-fs.types.entry-metadata, std-fs.error.one-enum,
 # std-fs.error.other, std-fs.error.traits, std-fs.read.decl,
 # std-fs.read.bytes, std-fs.read.text, std-fs.read.list-dir,
-# std-fs.read.stat, std-fs.write.decl, std-fs.write.replace,
+# std-fs.read.stat, std-fs.write.copy-decl, std-fs.write.replace,
 # std-fs.write.append, std-fs.write.create-dir-all,
 # std-fs.write.remove, std-fs.write.rename, std-fs.write.mut-ref.reference-values,
 # std-fs.suspends, and std-fs.helper.suspends.
@@ -28,6 +28,9 @@ impl FsRead for MapFs:
         .Ok(.None)
 
 impl FsWrite for MapFs:
+    fn copy!(&mut self, from: Path, to: Path) -> Result[void, FsError]:
+        self.write_text!(to, self.read_text!(from)?)
+
     fn write_bytes!(&mut self, path: Path, bytes: List[u8]) -> Result[void, FsError]:
         .Err(FsError.Other(message="bytes"))
 

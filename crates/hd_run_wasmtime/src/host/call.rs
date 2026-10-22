@@ -63,7 +63,8 @@ fn host(
         | Id::FsWriteAppendText
         | Id::FsWriteCreateDirAll
         | Id::FsWriteRemove
-        | Id::FsWriteRename => fs::call(method, finish, caller, params),
+        | Id::FsWriteRename
+        | Id::FsWriteCopy => fs::call(method, finish, caller, params),
         Id::ProcessRun => process::call(method, finish, caller, params),
         Id::HttpSend => http::call(method, finish, caller, params),
         Id::NetLookup

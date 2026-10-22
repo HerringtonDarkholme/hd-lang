@@ -66,8 +66,71 @@ impl Job {
             .unwrap_or_else(|| error_text("the file operation ran past a deadline"))
     }
 
+    fn copy(&self, deadline: Option<Instant>) -> Option<Enc> {
+        let to = self.to_place.as_ref()?;
+        let path = self.to.as_deref()?;
+        let failed = |shown: &str, err: Failure| match err {
+            Failure::Deadline => None,
+            Failure::NotGranted => Some(not_granted_at(shown, &self.cwd, true)),
+            err => Some(failure(shown, "copy", &self.path, &err)),
+        };
+        let source = match open(&self.place, false, false, deadline) {
+            Ok(file) => cap_std::fs::File::from_std(file),
+            Err(err) => return failed(&self.path, err),
+        };
+        let source_meta = match source.metadata() {
+            Ok(metadata) if !metadata.is_dir() => metadata,
+            Ok(_) => {
+                return failed(
+                    &self.path,
+                    Failure::new("read", io::ErrorKind::IsADirectory.into()),
+                );
+            }
+            Err(err) => return failed(&self.path, Failure::new("fstat", err)),
+        };
+        check_deadline(deadline).ok()?;
+        let target = match to.open_copy_target() {
+            Ok(file) => cap_std::fs::File::from_std(file),
+            Err(err) => {
+                let err = if to.metadata().is_ok_and(|st| st.dir) {
+                    io::ErrorKind::IsADirectory.into()
+                } else {
+                    super::sandbox::below_a_file(to, err)
+                };
+                return failed(path, Failure::new("open", err));
+            }
+        };
+        let target_meta = match target.metadata() {
+            Ok(metadata) if !metadata.is_dir() => metadata,
+            Ok(_) => {
+                return failed(
+                    path,
+                    Failure::new("write", io::ErrorKind::IsADirectory.into()),
+                );
+            }
+            Err(err) => return failed(path, Failure::new("fstat", err)),
+        };
+        // Compare opened identities before truncation: aliases and hard links
+        // must not destroy the file they are copying from.
+        if !same_file(&source_meta, &target_meta) {
+            let mut source = source.into_std();
+            let mut target = target.into_std();
+            if let Err(err) = target
+                .set_len(0)
+                .and_then(|()| io::copy(&mut source, &mut target).map(|_| ()))
+            {
+                return failed(path, Failure::new("copy", err));
+            }
+        }
+        check_deadline(deadline).ok()?;
+        Some(ok(()))
+    }
+
     /// The encoded result, or `None` once the deadline passed.
     fn execute(&self, deadline: Option<Instant>, sandbox: Option<&Sandbox>) -> Option<Enc> {
+        if self.method == "copy" {
+            return self.copy(deadline);
+        }
         let result = run(
             &self.method,
             &self.path,
@@ -101,6 +164,26 @@ impl Job {
     }
 }
 
+/// Identity of opened files, including aliases across independently scoped grants.
+fn same_file(left: &cap_std::fs::Metadata, right: &cap_std::fs::Metadata) -> bool {
+    #[cfg(unix)]
+    {
+        use cap_std::fs::MetadataExt;
+        left.dev() == right.dev() && left.ino() == right.ino()
+    }
+    #[cfg(windows)]
+    {
+        use cap_fs_ext::MetadataExt;
+        let left = left.volume_serial_number().zip(left.file_index());
+        left.is_some() && left == right.volume_serial_number().zip(right.file_index())
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        let _ = (left, right);
+        false
+    }
+}
+
 /// The error a `.start` that cannot offload returns.
 pub(crate) fn not_run(error: &str) -> Enc {
     error_text(error)
@@ -129,7 +212,7 @@ pub(crate) fn start(
     check_deadline(deadline).map_err(|_| crate::host::Stop::TimeLimit)?;
     let mut d = Dec::new(bytes);
     let abi::Path(path) = Wire::dec(&mut d)?;
-    let to = if method == "rename" {
+    let to = if matches!(method, "rename" | "copy") {
         let abi::Path(to) = Wire::dec(&mut d)?;
         Some(to)
     } else {
@@ -143,15 +226,16 @@ pub(crate) fn start(
     } else {
         None
     };
-    for p in std::iter::once(&path).chain(to.iter()) {
-        if !grants.covers_path(key, Path::new(p), cwd) {
+    let source_key = if method == "copy" { "FsRead" } else { key };
+    for (p, resource) in std::iter::once((&path, source_key)).chain(to.iter().map(|p| (p, key))) {
+        if !grants.covers_path(resource, Path::new(p), cwd) {
             return Ok(Start::Ready(not_granted_at(p, cwd, true)));
         }
     }
     // Reject NUL before OS access, after checking the grant.
     for (p, name) in std::iter::once((
         &path,
-        if method == "rename" {
+        if matches!(method, "rename" | "copy") {
             "source path"
         } else {
             "path"
@@ -168,18 +252,20 @@ pub(crate) fn start(
     // `stat`, `remove` and `rename` act on a final symbolic link itself.
     let follow = !matches!(method, "stat" | "remove" | "rename");
     let create = method == "create_dir_all";
-    let place_of = |p: &str| sandbox.place(grants, key, &at(cwd, p), follow, create);
-    let Some(place) = place_of(&path) else {
+    let place_of =
+        |p: &str, resource: &str| sandbox.place(grants, resource, &at(cwd, p), follow, create);
+    let Some(place) = place_of(&path, source_key) else {
         return Ok(Start::Ready(not_granted_at(&path, cwd, follow)));
     };
     let to_place = match &to {
-        Some(p) => match place_of(p) {
+        Some(p) => match place_of(p, key) {
             Some(place) => Some(place),
             None => return Ok(Start::Ready(not_granted_at(p, cwd, follow))),
         },
         None => None,
     };
-    let special = OPENING.contains(&method) && place.is_special();
+    let special = (OPENING.contains(&method) || method == "copy") && place.is_special()
+        || method == "copy" && to_place.as_ref().is_some_and(Place::is_special);
     let job = Job {
         method: method.to_owned(),
         path,
@@ -415,6 +501,114 @@ mod tests {
     use hd_run::{Grants, Limit};
     use std::fs;
     use std::time::Instant;
+
+    #[test]
+    fn copy_uses_independent_endpoint_grants_and_preserves_opened_aliases() {
+        let dir = TempDir::new();
+        let source = dir.0.join("source");
+        let target = dir.0.join("target");
+        fs::write(&source, [0, 255, 10]).unwrap();
+        fs::write(&target, b"an old longer destination").unwrap();
+        let entries = |path: &std::path::Path| {
+            Limit::Entries(vec![
+                hd_run::resolve_path(path).to_string_lossy().into_owned(),
+            ])
+        };
+        let mut grants = Grants {
+            limits: vec![
+                ("FsRead".into(), entries(&source)),
+                ("FsWrite".into(), entries(&target)),
+            ],
+        };
+        let invoke = |grants: &Grants| {
+            let mut args = Enc::default();
+            args.str("source").str("target");
+            call_until_at("FsWrite", "copy", args.done(), grants, None, &dir.0)
+                .unwrap()
+                .done()
+                .to_vec()
+        };
+        assert_eq!(invoke(&grants), [0]);
+        assert_eq!(fs::read(&target).unwrap(), [0, 255, 10]);
+        grants.limits[0].1 = Limit::Deny;
+        assert_eq!(invoke(&grants), error("source", 2).done());
+        grants.limits[0].1 = entries(&source);
+        grants.limits[1].1 = Limit::Deny;
+        assert_eq!(invoke(&grants), error("target", 2).done());
+        assert_eq!(fs::read(&target).unwrap(), [0, 255, 10]);
+        fs::remove_file(&target).unwrap();
+        fs::hard_link(&source, &target).unwrap();
+        grants.limits[1].1 = entries(&target);
+        assert_eq!(invoke(&grants), [0]);
+        assert_eq!(fs::read(&source).unwrap(), [0, 255, 10]);
+        assert_eq!(fs::read(&target).unwrap(), [0, 255, 10]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn copy_refuses_final_links_replaced_after_scoped_resolution() {
+        use super::{Job, Sandbox};
+        use std::os::unix::fs::symlink;
+        let dir = TempDir::new();
+        for name in ["source", "target", "outside"] {
+            fs::write(dir.0.join(name), name).unwrap();
+        }
+        let source = dir.0.join("source");
+        let target = dir.0.join("target");
+        let outside = dir.0.join("outside");
+        let grants = Grants {
+            limits: vec![
+                (
+                    "FsRead".into(),
+                    Limit::Entries(vec![
+                        hd_run::resolve_path(&source).to_string_lossy().into_owned(),
+                    ]),
+                ),
+                (
+                    "FsWrite".into(),
+                    Limit::Entries(vec![
+                        hd_run::resolve_path(&target).to_string_lossy().into_owned(),
+                    ]),
+                ),
+            ],
+        };
+        let sandbox = Sandbox::default();
+        let job = || {
+            Box::new(Job {
+                method: "copy".into(),
+                path: "source".into(),
+                to: Some("target".into()),
+                place: sandbox
+                    .place(&grants, "FsRead", &source, true, false)
+                    .unwrap(),
+                to_place: Some(
+                    sandbox
+                        .place(&grants, "FsWrite", &target, true, false)
+                        .unwrap(),
+                ),
+                payload: None,
+                cwd: dir.0.clone(),
+            })
+        };
+        let pending = job();
+        fs::remove_file(&source).unwrap();
+        symlink(&outside, &source).unwrap();
+        let encoded = pending.run_blocking();
+        let mut decoded = Dec::new(encoded.done());
+        assert_eq!(decoded.leb().unwrap(), 1);
+        assert_eq!(decoded.leb().unwrap(), 2); // NotGranted
+        assert_eq!(fs::read(&target).unwrap(), b"target");
+        fs::remove_file(&source).unwrap();
+        fs::write(&source, b"source").unwrap();
+        let pending = job();
+        fs::remove_file(&target).unwrap();
+        symlink(&outside, &target).unwrap();
+        let encoded = pending.run_blocking();
+        let mut decoded = Dec::new(encoded.done());
+        assert_eq!(decoded.leb().unwrap(), 1);
+        assert_eq!(decoded.leb().unwrap(), 2);
+        assert_eq!(fs::read(&outside).unwrap(), b"outside");
+    }
 
     #[test]
     fn concurrent_case_directories_do_not_change_process_cwd() {

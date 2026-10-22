@@ -3013,6 +3013,7 @@ runtime/valid/manual-clock-handle-shared.hd	runtime	accept	std/time.md#r-std-tim
 runtime/valid/time-values-copy.hd	runtime	accept	std/time.md#r-std-time.date.decl-struct
 runtime/valid/map-args-env.hd	runtime	accept	std/host.md#map-providers
 runtime/valid/memory-fs.hd	runtime	accept	std/fs.md#memory-file-system
+runtime/valid/memory-fs-copy.hd	runtime	accept	std/fs.md#r-std-fs.copy.bytes
 runtime/valid/memory-fs-handle-shared.hd	runtime	accept	std/fs.md#r-std-fs.memory.new-ref
 runtime/valid/memory-fs-directories.hd	runtime	accept	std/fs.md#r-std-fs.memory.dirs
 runtime/valid/memory-fs-modified.hd	runtime	accept	std/fs.md#r-std-fs.memory.set-modified

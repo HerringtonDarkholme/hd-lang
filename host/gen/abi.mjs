@@ -266,6 +266,12 @@ export const METHODS = {
       params: [Path, Path],
       result: result(unit, FsError),
     },
+    copy: {
+      wait: "may",
+      resource: "path",
+      params: [Path, Path],
+      result: result(unit, FsError),
+    },
   },
   "hd:Random": {
     next_u64: {
