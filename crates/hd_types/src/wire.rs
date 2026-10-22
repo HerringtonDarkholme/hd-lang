@@ -20,13 +20,14 @@ pub struct TableWriter<'a> {
     pool: &'a InternPool,
     paths: &'a PathTable,
     syms: &'a ShardedInterner,
-    path_rows: Vec<(u32, u8, String)>,
+    path_rows: Vec<(u32, PathId)>,
     path_index: HashMap<PathId, u32>,
-    ty_rows: Vec<(u8, Vec<u32>)>,
+    ty_rows: Vec<(u8, std::ops::Range<usize>)>,
+    ty_words: Vec<u32>,
     ty_index: HashMap<u32, u32>,
     list_index: HashMap<u32, u32>,
     row_index: HashMap<u32, u32>,
-    sym_rows: Vec<String>,
+    sym_rows: Vec<Symbol>,
     sym_index: HashMap<Symbol, u32>,
 }
 
@@ -65,6 +66,7 @@ impl<'a> TableWriter<'a> {
             path_rows: Vec::new(),
             path_index: HashMap::default(),
             ty_rows: Vec::new(),
+            ty_words: Vec::new(),
             ty_index: HashMap::default(),
             list_index: HashMap::default(),
             row_index: HashMap::default(),
@@ -82,11 +84,7 @@ impl<'a> TableWriter<'a> {
         }
         let parent = self.path(self.paths.parent(p));
         let row = u32::try_from(self.path_rows.len()).expect("paths");
-        self.path_rows.push((
-            parent,
-            self.paths.kind(p) as u8,
-            self.paths.segment(p).to_owned(),
-        ));
+        self.path_rows.push((parent, p));
         self.path_index.insert(p, row);
         row
     }
@@ -100,12 +98,27 @@ impl<'a> TableWriter<'a> {
             return r;
         }
         let row = u32::try_from(self.sym_rows.len()).expect("symbols");
-        self.sym_rows.push(self.syms.resolve(s).to_owned());
+        self.sym_rows.push(s);
         self.sym_index.insert(s, row);
         row
     }
 
-    fn row(&mut self, tag: u8, words: Vec<u32>) -> u32 {
+    fn row(&mut self, tag: u8, words: &[u32]) -> u32 {
+        let start = self.ty_words.len();
+        self.ty_words.extend_from_slice(words);
+        self.finish_row(tag, start..self.ty_words.len())
+    }
+
+    /// Reserve the parent's words before recursive calls append child rows.
+    /// Only the range is kept across recursion; Vec growth cannot invalidate it.
+    fn reserve_words(&mut self, len: usize) -> std::ops::Range<usize> {
+        let start = self.ty_words.len();
+        self.ty_words.resize(start + len, 0);
+        start..start + len
+    }
+
+    /// Assign the row ID after its dependencies, regardless of word storage order.
+    fn finish_row(&mut self, tag: u8, words: std::ops::Range<usize>) -> u32 {
         let row = u32::try_from(self.ty_rows.len()).expect("types");
         self.ty_rows.push((tag, words));
         row
@@ -115,11 +128,12 @@ impl<'a> TableWriter<'a> {
         if let Some(&r) = self.list_index.get(&l.0) {
             return Ok(r);
         }
-        let mut words = Vec::new();
-        for t in self.pool.list_items(l).iter().copied() {
-            words.push(self.ty(t)?);
+        let words = self.reserve_words(self.pool.list_items(l).len());
+        for (index, t) in self.pool.list_items(l).iter().copied().enumerate() {
+            let row = self.ty(t)?;
+            self.ty_words[words.start + index] = row;
         }
-        let row = self.row(tag::LIST, words);
+        let row = self.finish_row(tag::LIST, words);
         self.list_index.insert(l.0, row);
         Ok(row)
     }
@@ -152,15 +166,21 @@ impl<'a> TableWriter<'a> {
                 p.index,
             )
         });
-        let mut words = vec![u32::try_from(d.keys.len()).expect("row keys")];
+        let words = self.reserve_words(1 + d.keys.len() + 2 * d.params.len());
+        self.ty_words[words.start] = u32::try_from(d.keys.len()).expect("row keys");
+        let mut at = words.start + 1;
         for k in &d.keys {
-            words.push(self.ty(*k)?);
+            let row = self.ty(*k)?;
+            self.ty_words[at] = row;
+            at += 1;
         }
         for p in &d.params {
-            words.push(self.def(p.owner));
-            words.push(u32::from(p.index));
+            let owner = self.def(p.owner);
+            self.ty_words[at] = owner;
+            self.ty_words[at + 1] = u32::from(p.index);
+            at += 2;
         }
-        let row = self.row(tag::ROW, words);
+        let row = self.finish_row(tag::ROW, words);
         self.row_index.insert(r.0, row);
         Ok(row)
     }
@@ -169,72 +189,103 @@ impl<'a> TableWriter<'a> {
         if let Some(&r) = self.ty_index.get(&t.0) {
             return Ok(r);
         }
-        let (tag, words) = match self.pool.get(t) {
-            TyData::Prim(p) => (tag::PRIM, vec![p as u32]),
-            TyData::Never => (tag::NEVER, vec![]),
-            TyData::Poison => (tag::POISON, vec![]),
-            TyData::Adt { def, args } => (tag::ADT, vec![self.def(def), self.list(args)?]),
-            TyData::Tuple { elems, rest: None } => (tag::TUPLE, vec![self.list(elems)?]),
+        let row = match self.pool.get(t) {
+            TyData::Prim(p) => self.row(tag::PRIM, &[p as u32]),
+            TyData::Never => self.row(tag::NEVER, &[]),
+            TyData::Poison => self.row(tag::POISON, &[]),
+            TyData::Adt { def, args } => {
+                let words = [self.def(def), self.list(args)?];
+                self.row(tag::ADT, &words)
+            }
+            TyData::Tuple { elems, rest: None } => {
+                let elems = self.list(elems)?;
+                self.row(tag::TUPLE, &[elems])
+            }
             TyData::Tuple {
                 elems,
                 rest: Some(r),
-            } => (tag::TUPLE_REST, vec![self.list(elems)?, self.ty(r)?]),
-            TyData::Option(i) => (tag::OPTION, vec![self.ty(i)?]),
-            TyData::Param(p) => (tag::PARAM, vec![self.def(p.owner), u32::from(p.index)]),
-            TyData::Mut(i) => (tag::MUT, vec![self.ty(i)?]),
-            TyData::Ref { inner, mutable } => (
-                if mutable { tag::REF_MUT } else { tag::REF },
-                vec![self.ty(inner)?],
-            ),
+            } => {
+                let words = [self.list(elems)?, self.ty(r)?];
+                self.row(tag::TUPLE_REST, &words)
+            }
+            TyData::Option(i) => {
+                let inner = self.ty(i)?;
+                self.row(tag::OPTION, &[inner])
+            }
+            TyData::Param(p) => {
+                let owner = self.def(p.owner);
+                self.row(tag::PARAM, &[owner, u32::from(p.index)])
+            }
+            TyData::Mut(i) => {
+                let inner = self.ty(i)?;
+                self.row(tag::MUT, &[inner])
+            }
+            TyData::Ref { inner, mutable } => {
+                let inner = self.ty(inner)?;
+                self.row(if mutable { tag::REF_MUT } else { tag::REF }, &[inner])
+            }
             TyData::Fn {
                 params,
                 result,
                 row,
                 suspends,
                 inputs,
-            } => (
-                tag::FN,
-                vec![
+            } => {
+                let words = [
                     self.list(params)?,
                     self.ty(result)?,
                     self.row_id(row)?,
                     inputs.word(suspends),
-                ],
-            ),
+                ];
+                self.row(tag::FN, &words)
+            }
             TyData::TraitValue {
                 def,
                 args,
                 bindings,
             } => {
-                let mut w = vec![self.def(def), self.list(args)?];
+                let words = self.reserve_words(2 + 2 * bindings.len());
+                let def = self.def(def);
+                let args = self.list(args)?;
+                self.ty_words[words.start] = def;
+                self.ty_words[words.start + 1] = args;
                 let mut bindings = bindings;
                 let paths = self.paths;
                 bindings.sort_by_cached_key(|(d, _)| {
                     paths.display(PathId::from_raw(d.raw())).to_string()
                 });
-                for (d, b) in bindings {
-                    w.push(self.def(d));
-                    w.push(self.ty(b)?);
+                for (index, (d, b)) in bindings.into_iter().enumerate() {
+                    let def = self.def(d);
+                    let ty = self.ty(b)?;
+                    let at = words.start + 2 + 2 * index;
+                    self.ty_words[at] = def;
+                    self.ty_words[at + 1] = ty;
                 }
-                (tag::TRAIT_VALUE, w)
+                self.finish_row(tag::TRAIT_VALUE, words)
             }
             TyData::Assoc {
                 assoc,
                 trait_,
                 self_ty,
                 args,
-            } => (
-                tag::ASSOC,
-                vec![
+            } => {
+                let words = [
                     self.def(assoc),
                     self.def(trait_),
                     self.ty(self_ty)?,
                     self.list(args)?,
-                ],
-            ),
-            TyData::Canon(i) => (tag::CANON, vec![u32::from(i)]),
-            TyData::Row(r) => (tag::ROW_TY, vec![self.row_id(r)?]),
-            TyData::Context(r) => (tag::CONTEXT, vec![self.row_id(r)?]),
+                ];
+                self.row(tag::ASSOC, &words)
+            }
+            TyData::Canon(i) => self.row(tag::CANON, &[u32::from(i)]),
+            TyData::Row(r) => {
+                let row = self.row_id(r)?;
+                self.row(tag::ROW_TY, &[row])
+            }
+            TyData::Context(r) => {
+                let row = self.row_id(r)?;
+                self.row(tag::CONTEXT, &[row])
+            }
             other @ TyData::Infer(_) => {
                 return Err(NotImplemented::new(
                     Stage::ModuleFinish,
@@ -242,7 +293,6 @@ impl<'a> TableWriter<'a> {
                 ));
             }
         };
-        let row = self.row(tag, words);
         self.ty_index.insert(t.0, row);
         Ok(row)
     }
@@ -250,17 +300,18 @@ impl<'a> TableWriter<'a> {
     /// Writes the tables: paths, symbols, then type rows.
     pub fn write(&self, w: &mut Writer) {
         w.len_of(&self.path_rows);
-        for (parent, kind, seg) in &self.path_rows {
+        for (parent, path) in &self.path_rows {
             w.u32(*parent);
-            w.u8(*kind);
-            w.str(seg);
+            w.u8(self.paths.kind(*path) as u8);
+            w.str(self.paths.segment(*path));
         }
         w.len_of(&self.sym_rows);
         for s in &self.sym_rows {
-            w.str(s);
+            w.str(self.syms.resolve(*s));
         }
         w.len_of(&self.ty_rows);
-        for (t, words) in &self.ty_rows {
+        for (t, range) in &self.ty_rows {
+            let words = &self.ty_words[range.clone()];
             w.u8(*t);
             w.len_of(words);
             for x in words {
@@ -487,6 +538,140 @@ mod tests {
     #[test]
     fn row_bytes_ignore_interning_order() {
         assert_eq!(row_bytes(false), row_bytes(true));
+    }
+
+    #[test]
+    fn nested_rows_keep_the_existing_wire_bytes() {
+        use crate::pool::{Inputs, RowParamRef, TyList};
+        use hd_base::{DefId, PathId};
+        use hd_intern::PathKind;
+
+        let (pool, paths, syms) = (
+            InternPool::new(),
+            PathTable::new(),
+            ShardedInterner::default(),
+        );
+        let point = paths.item("app", "geo", "Point");
+        let bound = paths.item("app", "geo", "Bound");
+        let member = |name| {
+            DefId::from_raw(
+                paths
+                    .intern(PathId::from_raw(bound.raw()), PathKind::Member, name)
+                    .raw(),
+            )
+        };
+        let (zulu, alpha) = (member("Zulu"), member("Alpha"));
+        let symbol = syms.intern("noteλ");
+        let optional = pool.intern_ty(&TyData::Option(Ty::I32));
+        let adt = pool.intern_ty(&TyData::Adt {
+            def: point,
+            args: pool.list(&[optional, Ty::BOOL]),
+        });
+        let row = pool.row(&RowData {
+            keys: vec![Ty::BOOL, Ty::I32],
+            params: vec![RowParamRef {
+                owner: point,
+                index: 2,
+            }],
+        });
+        let result = pool.intern_ty(&TyData::Tuple {
+            elems: pool.list(&[Ty::I32]),
+            rest: Some(adt),
+        });
+        let function = pool.intern_ty(&TyData::Fn {
+            params: pool.list(&[adt, optional]),
+            result,
+            row,
+            suspends: true,
+            inputs: Inputs::Fixed,
+        });
+        let trait_value = pool.intern_ty(&TyData::TraitValue {
+            def: bound,
+            args: TyList::EMPTY,
+            bindings: vec![(zulu, Ty::BOOL), (alpha, optional)],
+        });
+        let mut tables = TableWriter::new(&pool, &paths, &syms);
+        assert_eq!(tables.sym(symbol), 0);
+        assert_eq!(tables.ty(adt).expect("adt"), 4);
+        assert_eq!(tables.row_id(row).expect("row"), 5);
+        assert_eq!(tables.ty(function).expect("function"), 9);
+        assert_eq!(tables.ty(trait_value).expect("trait"), 11);
+        let mut actual = Writer::default();
+        tables.write(&mut actual);
+
+        // Hand-specified legacy format: path records, symbols, then tagged
+        // length-prefixed type words. No in-run ID or flat storage offset is written.
+        let mut expected = Writer::default();
+        expected.u32(6);
+        for (parent, kind, segment) in [
+            (u32::MAX, 0, "app"),
+            (0, 1, "geo"),
+            (1, 2, "Point"),
+            (1, 2, "Bound"),
+            (3, 3, "Alpha"),
+            (3, 3, "Zulu"),
+        ] {
+            expected.u32(parent);
+            expected.u8(kind);
+            expected.str(segment);
+        }
+        expected.u32(1);
+        expected.str("noteλ");
+        let rows: &[(u8, &[u32])] = &[
+            (0, &[2]),                  // i32
+            (5, &[0]),                  // i32?
+            (0, &[11]),                 // bool
+            (9, &[1, 2]),               // type list
+            (3, &[2, 3]),               // Point[i32?, bool]
+            (14, &[2, 0, 2, 2, 2]),     // sorted keys and row parameter
+            (9, &[4, 1]),               // function inputs
+            (9, &[0]),                  // tuple's fixed prefix
+            (11, &[7, 4]),              // tuple with a rest
+            (8, &[6, 8, 5, 1]),         // suspending function
+            (9, &[]),                   // empty trait arguments
+            (12, &[3, 10, 4, 1, 5, 2]), // bindings sorted Alpha, Zulu
+        ];
+        expected.len_of(rows);
+        for (tag, words) in rows {
+            expected.u8(*tag);
+            expected.len_of(words);
+            for word in *words {
+                expected.u32(*word);
+            }
+        }
+        assert_eq!(actual.bytes, expected.bytes);
+
+        let (pool2, paths2, syms2) = (
+            InternPool::new(),
+            PathTable::new(),
+            ShardedInterner::default(),
+        );
+        paths2.item("other", "primed", "Different");
+        syms2.intern("other");
+        let mut reader = Reader::new(&actual.bytes);
+        let decoded = Tables::read(&mut reader, &pool2, &paths2, &syms2).expect("tables");
+        assert!(reader.ok() && reader.at_end());
+        assert_eq!(syms2.resolve(decoded.sym(0).expect("symbol")), "noteλ");
+        let TyData::Fn {
+            row: decoded_row, ..
+        } = pool2.get(decoded.ty(9).expect("function"))
+        else {
+            panic!("function row");
+        };
+        let mut rewritten = TableWriter::new(&pool2, &paths2, &syms2);
+        rewritten.sym(decoded.sym(0).expect("symbol"));
+        rewritten.ty(decoded.ty(4).expect("adt")).expect("adt");
+        rewritten.row_id(decoded_row).expect("row");
+        rewritten
+            .ty(decoded.ty(9).expect("function"))
+            .expect("function");
+        rewritten.ty(decoded.ty(11).expect("trait")).expect("trait");
+        let mut output = Writer::default();
+        rewritten.write(&mut output);
+        assert_eq!(
+            output.bytes, actual.bytes,
+            "fresh IDs retain the exact format"
+        );
     }
 
     #[test]
