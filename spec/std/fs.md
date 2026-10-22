@@ -38,17 +38,21 @@ pub struct Entry:
     pub path: Path
     pub kind: EntryKind
     pub size: u64
+    pub modified: Timestamp? = .None
 ```
 
-1. r[std-fs.error.decl-struct] `std.fs` declares `FsError`, `EntryKind`, and `Entry` as above. `Entry` is a struct value: a copy is independent of the entry it was copied from. Code imports them, as in `use std.fs.{Entry, FsError}`.
+1. r[std-fs.types.entry-metadata] `std.fs` declares `FsError`, `EntryKind`, and `Entry` as above. `Entry` is a struct value: a copy is independent of the entry it was copied from. Code imports them, as in `use std.fs.{Entry, FsError}`.
 2. r[std-fs.error.one-enum] Every method of `FsRead` and `FsWrite` reports its failure as an `FsError`.
 3. r[std-fs.error.other] `Other` holds a failure that no other variant names, with the host's message, or the message of a std call such as an invalid [glob](#walking-and-globbing) pattern.
 4. r[std-fs.error.traits] `FsError`, `EntryKind`, and `Entry` implement `Eq`, and `FsError` implements `Display`.
 5. r[std-fs.entry.size] An `Entry`'s `size` is the file's length in bytes.
-6. r[std-fs.error.not-granted] `NotGranted(path)` reports that the program's capability grant does not cover `path`, by [Partial Deny](../cli/command-line.md#partial-deny).
-7. r[std-fs.error.permission-denied] `PermissionDenied(path)` reports that the operating system refused the access.
-8. r[std-fs.error.not-granted.plain] The `Display` text of `NotGranted(path)` is `access to PATH is not granted`, with the path for `PATH`.
-9. r[std-fs.error.eq.variant-payload] Two `FsError` values compare equal only when their variants and corresponding payloads are equal.
+6. r[std-fs.entry.modified] `Entry.modified` is the entry's modification time as a `Timestamp?`, defaulting to `.None`.
+7. r[std-fs.entry.modified-host] Host providers fill `modified` from filesystem metadata when its time is available and representable as a `Timestamp`.
+8. r[std-fs.entry.modified-unknown] A provider that cannot report the modification time returns `.None` for that field.
+9. r[std-fs.error.not-granted] `NotGranted(path)` reports that the program's capability grant does not cover `path`, by [Partial Deny](../cli/command-line.md#partial-deny).
+10. r[std-fs.error.permission-denied] `PermissionDenied(path)` reports that the operating system refused the access.
+11. r[std-fs.error.not-granted.plain] The `Display` text of `NotGranted(path)` is `access to PATH is not granted`, with the path for `PATH`.
+12. r[std-fs.error.eq.variant-payload] Two `FsError` values compare equal only when their variants and corresponding payloads are equal.
 
 > **Why.** `NotGranted` and `PermissionDenied` have different fixes: a
 > flag or an `hd.toml` entry for the first, file modes for the second.
@@ -274,3 +278,18 @@ path that fails, which for a rename is `to` unless `from` is missing:
 > serves tests the same way.
 
 See also: [Path](path.md), [Mutable Providers](../lang/11-requirements-and-suspension.md#mutable-providers).
+
+## Scripted Modification Times
+
+`MemoryFs` records only the times a test supplies; it has no clock.
+
+1. r[std-fs.memory.modified-none] A `MemoryFs` entry has `modified` equal to `.None` until its time is scripted.
+2. r[std-fs.memory.set-modified] `set_modified(&mut self, path: Path, time: Timestamp) -> Result[void, FsError]` sets an existing file's or directory's modification time.
+3. r[std-fs.memory.modified-missing] Setting a time on a missing path returns `.Err(FsError.NotFound(path))` with the supplied path.
+4. r[std-fs.memory.modified-write] A successful `write_bytes!`, `write_text!`, or `append_text!` clears that entry's scripted time to `.None`.
+5. r[std-fs.memory.modified-rename] Renaming an entry moves its scripted time, including the times of descendants moved with a directory.
+6. r[std-fs.memory.modified-remove] Removing an entry removes its scripted time.
+
+> **Why.** A test can script deterministic ordering without reading a
+> clock. After a write, retaining an old scripted time could hide stale
+> metadata, so the new time is unknown until the test supplies it again.

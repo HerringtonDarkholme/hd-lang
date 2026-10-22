@@ -233,6 +233,7 @@ fn a_planted_link_to_outside_is_refused() {
     );
     let mut link = Enc::default();
     link.leb(0).leb(1).str("granted/near").leb(2).leb(9);
+    super::test_support::modified(&mut link, dir.0.join("granted/near"));
     assert_eq!(call("stat", "granted/near", None).done(), link.done());
     assert_eq!(call("remove", "granted/near", None).done(), &[0]);
     assert!(dir.0.join("granted/sub/a.txt").exists());

@@ -216,10 +216,15 @@ const beforeDotDot = (path) => {
   }
   return undefined;
 };
-// An `Entry`: path, kind, size.
+// An `Entry`: path, kind, size, and an optional Unix-millisecond timestamp.
 const entry = (path, st) => {
   const kind = st.isSymbolicLink() ? "Symlink" : st.isDirectory() ? "Directory" : "File";
-  return { path, kind: { tag: kind }, size: kind === "Directory" ? 0 : st.size };
+  const millis = typeof st.mtimeNs === "bigint" ? st.mtimeNs / 1_000_000n : null;
+  const modified =
+    millis === null || millis < -9_223_372_036_854_775_808n || millis > 9_223_372_036_854_775_807n
+      ? null
+      : { millis };
+  return { path, kind: { tag: kind }, size: kind === "Directory" ? 0n : st.size, modified };
 };
 
 // A client thread running `file` (`http.mjs`, `net.mjs`), started on its
@@ -628,7 +633,7 @@ function fsProviders({ grant, flush }) {
         const found = [];
         for (const n of names) {
           try {
-            found.push(entry(under + n, lstatSync(under + n)));
+            found.push(entry(under + n, lstatSync(under + n, { bigint: true })));
           } catch {
             // Gone since the listing.
           }
@@ -638,7 +643,7 @@ function fsProviders({ grant, flush }) {
       stat: (p) => {
         let st;
         try {
-          st = lstatSync(p);
+          st = lstatSync(p, { bigint: true });
         } catch (err) {
           if (err.code === "ENOENT" || err.code === "ENOTDIR") return Ok(null);
           throw err;

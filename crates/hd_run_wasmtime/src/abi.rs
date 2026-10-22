@@ -108,6 +108,7 @@ pub struct Entry {
     pub path: Path,
     pub kind: EntryKind,
     pub size: u64,
+    pub modified: Option<Timestamp>,
 }
 
 impl Wire for Entry {
@@ -115,12 +116,14 @@ impl Wire for Entry {
         self.path.enc(e);
         self.kind.enc(e);
         self.size.enc(e);
+        self.modified.enc(e);
     }
     fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
         Ok(Self {
             path: Wire::dec(d)?,
             kind: Wire::dec(d)?,
             size: Wire::dec(d)?,
+            modified: Wire::dec(d)?,
         })
     }
 }
@@ -780,6 +783,23 @@ pub type TcpListener = Handle;
 
 /// `TcpStream`, a host handle: its handle number.
 pub type TcpStream = Handle;
+
+/// `Timestamp` of `lib/std/time.hd`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Timestamp {
+    pub millis: i64,
+}
+
+impl Wire for Timestamp {
+    fn enc(&self, e: &mut Enc) {
+        self.millis.enc(e);
+    }
+    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
+        Ok(Self {
+            millis: Wire::dec(d)?,
+        })
+    }
+}
 
 /// `UdpSocket`, a host handle: its handle number.
 pub type UdpSocket = Handle;

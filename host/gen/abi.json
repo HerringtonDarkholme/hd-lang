@@ -105,7 +105,7 @@
     ] },
     "Datagram": { "kind": "data", "module": "lib/std/net.hd", "generics": [], "fields": [{ "name": "bytes", "type": "List[u8]" }, { "name": "host", "type": "string" }, { "name": "port", "type": "u16" }] },
     "Duration": { "kind": "data", "module": "lib/std/time.hd", "generics": [], "fields": [{ "name": "millis", "type": "i64" }] },
-    "Entry": { "kind": "data", "module": "lib/std/fs.hd", "generics": [], "fields": [{ "name": "path", "type": "Path" }, { "name": "kind", "type": "EntryKind" }, { "name": "size", "type": "u64" }] },
+    "Entry": { "kind": "data", "module": "lib/std/fs.hd", "generics": [], "fields": [{ "name": "path", "type": "Path" }, { "name": "kind", "type": "EntryKind" }, { "name": "size", "type": "u64" }, { "name": "modified", "type": "Timestamp?" }] },
     "EntryKind": { "kind": "enum", "module": "lib/std/fs.hd", "generics": [], "variants": [
       { "name": "File", "fields": [] },
       { "name": "Directory", "fields": [] },
@@ -184,6 +184,7 @@
     "Response": { "kind": "data", "module": "lib/std/http.hd", "generics": [], "fields": [{ "name": "status", "type": "u16" }, { "name": "headers", "type": "List[(string, string)]" }, { "name": "body", "type": "List[u8]" }, { "name": "url", "type": "string" }] },
     "TcpListener": { "kind": "handle" },
     "TcpStream": { "kind": "handle" },
+    "Timestamp": { "kind": "data", "module": "lib/std/time.hd", "generics": [], "fields": [{ "name": "millis", "type": "i64" }] },
     "UdpSocket": { "kind": "handle" }
   }
 }

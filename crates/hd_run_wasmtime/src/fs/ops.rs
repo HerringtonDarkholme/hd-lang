@@ -358,10 +358,13 @@ mod tests {
             assert_eq!(d.str().unwrap(), format!("{path}/{name}"));
             assert_eq!(d.leb().unwrap(), kind);
             assert_eq!(d.leb().unwrap(), size);
+            assert_eq!(d.leb().unwrap(), 1);
+            let _: i64 = crate::codec::Wire::dec(&mut d).unwrap();
         }
         let link = dir.path("link");
         let mut expected = Enc::default();
         expected.leb(0).leb(1).str(&link).leb(2).leb(2);
+        super::super::test_support::modified(&mut expected, &link);
         assert_eq!(invoke("stat", &link, None).done(), expected.done());
         assert_eq!(invoke("remove", &link, None).done(), &[0]);
         assert!(fs::metadata(dir.path("é")).is_ok());

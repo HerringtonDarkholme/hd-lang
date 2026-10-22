@@ -62,13 +62,21 @@ fn fs_read_all_methods_binary_text_entries_and_errors() {
             .str(path(&file))
             .leb(0)
             .leb(11)
+            .modified(&file)
             .0,
     );
     p.call(
         "hd:FsRead",
         "stat",
         one(&sub),
-        Enc::default().leb(0).leb(1).str(path(&sub)).leb(1).leb(0).0,
+        Enc::default()
+            .leb(0)
+            .leb(1)
+            .str(path(&sub))
+            .leb(1)
+            .leb(0)
+            .modified(&sub)
+            .0,
     );
     p.call("hd:FsRead", "stat", one(&missing), vec![0, 0]);
     p.call("hd:FsRead", "stat", one(&notdir), vec![0, 0]);
@@ -82,9 +90,11 @@ fn fs_read_all_methods_binary_text_entries_and_errors() {
             .str(&listed_path(&dir, "a"))
             .leb(0)
             .leb(11)
+            .modified(&file)
             .str(&listed_path(&dir, "z"))
             .leb(1)
             .leb(0)
+            .modified(&sub)
             .0,
     );
     p.call(
@@ -334,6 +344,7 @@ fn filesystem_grants_resolve_symlinks_and_report_symlink_entries() {
             .str(path(&good))
             .leb(2)
             .leb(path(&file).len() as u64)
+            .modified(&good)
             .0,
     );
     p.call(
@@ -346,12 +357,15 @@ fn filesystem_grants_resolve_symlinks_and_report_symlink_entries() {
             .str(&listed_path(&allowed, "bad"))
             .leb(2)
             .leb(path(&outside).len() as u64)
+            .modified(&bad)
             .str(&listed_path(&allowed, "file"))
             .leb(0)
             .leb(5)
+            .modified(&file)
             .str(&listed_path(&allowed, "good"))
             .leb(2)
             .leb(path(&file).len() as u64)
+            .modified(&good)
             .0,
     );
     p.call(
@@ -1294,7 +1308,11 @@ fn filesystem_listing_uses_utf8_byte_order_and_preserves_trailing_slash() {
     }
     let mut expected = Enc::default().leb(0).leb(3);
     for name in ["A", "z", "ä"] {
-        expected = expected.str(&listed_path(&dir, name)).leb(0).leb(1);
+        expected = expected
+            .str(&listed_path(&dir, name))
+            .leb(0)
+            .leb(1)
+            .modified(&dir.join(name));
     }
     let mut p = Program::new();
     p.call(

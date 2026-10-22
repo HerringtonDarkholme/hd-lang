@@ -369,8 +369,9 @@ mod tests {
                 path: Path("p".into()),
                 kind: EntryKind::Symlink,
                 size: 300,
+                modified: None,
             },
-            &[1, b'p', 2, 0xac, 0x02],
+            &[1, b'p', 2, 0xac, 0x02, 0],
         );
         round_trip(
             &FsError::InvalidUtf8 {
@@ -383,6 +384,15 @@ mod tests {
                 message: "m".into(),
             },
             &[7, 1, b'm'],
+        );
+        round_trip(
+            &Entry {
+                path: Path("t".into()),
+                kind: EntryKind::File,
+                size: 3,
+                modified: Some(crate::abi::Timestamp { millis: -1 }),
+            },
+            &[1, b't', 0, 3, 1, 1],
         );
         round_trip(&NetError::Closed, &[5]);
         let err = EntryKind::dec(&mut Dec::new(&[3])).expect_err("no fourth kind");

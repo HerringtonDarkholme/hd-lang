@@ -346,6 +346,7 @@ pub(crate) fn entry(path: &str, st: &Stat) -> Entry {
             EntryKind::File
         },
         size: if st.dir { 0 } else { st.len },
+        modified: st.modified.map(|millis| abi::Timestamp { millis }),
     }
 }
 

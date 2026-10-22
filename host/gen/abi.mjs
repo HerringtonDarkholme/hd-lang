@@ -45,10 +45,14 @@ export const EntryKind = variants({
   Directory: {},
   Symlink: {},
 });
+export const Timestamp = data({
+  millis: signed64,
+});
 export const Entry = data({
   path: Path,
   kind: EntryKind,
   size: unsigned64,
+  modified: option(Timestamp),
 });
 export const FsError = variants({
   NotFound: { path: Path },

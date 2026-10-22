@@ -22,6 +22,7 @@ use std::ffi::OsStr;
 use std::io::{self, ErrorKind};
 use std::path::{Component, Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt};
 use cap_std::ambient_authority;
@@ -63,6 +64,7 @@ pub(crate) struct Stat {
     pub(crate) dir: bool,
     pub(crate) link: bool,
     pub(crate) len: u64,
+    pub(crate) modified: Option<i64>,
     /// A FIFO, a device or a socket: opening it can wait on another
     /// process. Never set on Windows, where a named pipe goes by its name
     /// (`Place::is_special`).
@@ -76,6 +78,7 @@ impl From<std::fs::Metadata> for Stat {
             dir: st.is_dir(),
             link,
             len: st.len(),
+            modified: modified_millis(st.modified()),
             special: cfg!(unix) && !st.is_file() && !st.is_dir() && !link,
         }
     }
@@ -88,9 +91,21 @@ impl From<cap_std::fs::Metadata> for Stat {
             dir: st.is_dir(),
             link,
             len: st.len(),
+            modified: modified_millis(st.modified().map(cap_std::time::SystemTime::into_std)),
             special: cfg!(unix) && !st.is_file() && !st.is_dir() && !link,
         }
     }
+}
+
+// Truncate sub-millisecond precision toward the epoch, like signed
+// integer division of Node's nanoseconds. Unknown or unrepresentable
+// metadata is absent rather than a filesystem error.
+fn modified_millis(time: io::Result<SystemTime>) -> Option<i64> {
+    let millis = match time.ok()?.duration_since(UNIX_EPOCH) {
+        Ok(duration) => i128::try_from(duration.as_millis()).ok()?,
+        Err(error) => -i128::try_from(error.duration().as_millis()).ok()?,
+    };
+    i64::try_from(millis).ok()
 }
 
 /// Whether `error` reports a path that would leave the sandbox.
@@ -547,3 +562,42 @@ pub(crate) fn below_a_file(_: &Place, error: io::Error) -> io::Error {
 
 /// A directory's entry names as they are read.
 pub(crate) type Names = Box<dyn Iterator<Item = io::Result<std::ffi::OsString>>>;
+
+#[cfg(test)]
+mod timestamp_tests {
+    use super::{UNIX_EPOCH, modified_millis};
+    use std::{io, time::Duration};
+
+    #[test]
+    fn modification_times_are_signed_whole_milliseconds_or_absent() {
+        assert_eq!(modified_millis(Ok(UNIX_EPOCH)), Some(0));
+        assert_eq!(
+            modified_millis(Ok(UNIX_EPOCH + Duration::from_millis(123))),
+            Some(123)
+        );
+        assert_eq!(
+            modified_millis(Ok(UNIX_EPOCH - Duration::from_millis(123))),
+            Some(-123)
+        );
+        assert_eq!(
+            modified_millis(Ok(UNIX_EPOCH - Duration::from_nanos(1))),
+            Some(0)
+        );
+        assert_eq!(
+            modified_millis(Err(io::ErrorKind::Unsupported.into())),
+            None
+        );
+        if let Some(time) =
+            UNIX_EPOCH.checked_add(Duration::from_millis(i64::MAX.cast_unsigned() + 1))
+        {
+            assert_eq!(modified_millis(Ok(time)), None);
+        }
+        let edge = Duration::from_millis(i64::MAX.cast_unsigned() + 1);
+        if let Some(time) = UNIX_EPOCH.checked_sub(edge) {
+            assert_eq!(modified_millis(Ok(time)), Some(i64::MIN));
+        }
+        if let Some(time) = UNIX_EPOCH.checked_sub(edge + Duration::from_millis(1)) {
+            assert_eq!(modified_millis(Ok(time)), None);
+        }
+    }
+}

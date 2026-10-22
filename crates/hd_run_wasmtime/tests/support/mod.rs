@@ -77,6 +77,20 @@ impl Enc {
         }
     }
 
+    /// A real entry's optional Unix-millisecond timestamp, appended to
+    /// the path/kind/size fields in an expected ABI reply.
+    pub fn modified(self, path: &Path) -> Self {
+        let time = fs::symlink_metadata(path).unwrap().modified().unwrap();
+        let millis = i64::try_from(
+            time.duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis(),
+        )
+        .unwrap();
+        self.leb(1)
+            .leb(((millis << 1) ^ (millis >> 63)).cast_unsigned())
+    }
+
     pub fn bytes(mut self, value: &[u8]) -> Self {
         self = self.leb(value.len() as u64);
         self.0.extend_from_slice(value);

@@ -1,6 +1,6 @@
 # test: read_text! and write_text! are bang helpers over the covering FsRead and FsWrite providers
 # Spec std/fs File Helpers: std-fs.helper.read-text and std-fs.helper.write-text (batch 64, STD-2 and STD-3).
-# Also covers std-fs.error.decl-struct, std-fs.error.one-enum,
+# Also covers std-fs.types.entry-metadata, std-fs.error.one-enum,
 # std-fs.error.other, std-fs.error.traits, std-fs.read.decl,
 # std-fs.read.bytes, std-fs.read.text, std-fs.read.list-dir,
 # std-fs.read.stat, std-fs.write.decl, std-fs.write.replace,

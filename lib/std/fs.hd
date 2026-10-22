@@ -3,9 +3,10 @@
 # default profile binds the host's file system
 # (src/commands/default-profile.ts).
 use std.path.Path
+use std.time.Timestamp
 
 ## Every file system operation reports one of these errors: `NotFound`, `PermissionDenied`, `AlreadyExists`, `NotADirectory`, `IsADirectory`, `InvalidUtf8`, or `Other`.
-## See [std-fs.error.decl-struct](../../spec/std/fs.md#r-std-fs.error.decl-struct).
+## See [std-fs.types.entry-metadata](../../spec/std/fs.md#r-std-fs.types.entry-metadata).
 @error
 @derive(Debug, Eq)
 pub enum FsError:
@@ -27,7 +28,7 @@ pub enum FsError:
     Other(message: string)
 
 ## Whether a file system entry is a file, a directory, or a symlink.
-## See [std-fs.error.decl-struct](../../spec/std/fs.md#r-std-fs.error.decl-struct).
+## See [std-fs.types.entry-metadata](../../spec/std/fs.md#r-std-fs.types.entry-metadata).
 @derive(Debug, Eq)
 pub enum EntryKind:
     File
@@ -35,18 +36,21 @@ pub enum EntryKind:
     Symlink
 
 ## The value that describes one file system entry.
-## See [std-fs.error.decl-struct](../../spec/std/fs.md#r-std-fs.error.decl-struct).
+## See [std-fs.types.entry-metadata](../../spec/std/fs.md#r-std-fs.types.entry-metadata).
 @derive(Debug, Eq)
 pub struct Entry:
     ## The entry's path.
-    ## See [std-fs.error.decl-struct](../../spec/std/fs.md#r-std-fs.error.decl-struct).
+    ## See [std-fs.types.entry-metadata](../../spec/std/fs.md#r-std-fs.types.entry-metadata).
     pub path: Path
     ## The entry's kind.
-    ## See [std-fs.error.decl-struct](../../spec/std/fs.md#r-std-fs.error.decl-struct).
+    ## See [std-fs.types.entry-metadata](../../spec/std/fs.md#r-std-fs.types.entry-metadata).
     pub kind: EntryKind
     ## The file's length in bytes.
     ## See [std-fs.entry.size](../../spec/std/fs.md#r-std-fs.entry.size).
     pub size: u64
+    ## The modification time, when the provider can report it.
+    ## See [std-fs.entry.modified](../../spec/std/fs.md#r-std-fs.entry.modified).
+    pub modified: Timestamp? = .None
 
 ## The host capability to read from the file system: `read_bytes!`, `read_text!`, `list_dir!`, and `stat!`.
 ## See [std-fs.read.decl](../../spec/std/fs.md#r-std-fs.read.decl).
@@ -328,6 +332,7 @@ fn glob_component_matches(pieces: List[GlobPiece], name: string) -> bool:
 @derive(Debug)
 pub struct MemoryFs:
     files: Map[string, List[u8]]
+    modified: Map[string, Timestamp]
     dirs: List[string]
 
 # Lexical keys only: no host access, symlinks or parent-component resolution.
@@ -348,7 +353,35 @@ impl MemoryFs:
     ## Returns an empty in-memory file system, as a new object behind `&mut`.
     ## See [std-fs.memory.new-ref](../../spec/std/fs.md#r-std-fs.memory.new-ref).
     pub fn new() -> &mut MemoryFs:
-        &mut MemoryFs { files: {}, dirs: [] }
+        &mut MemoryFs { files: {}, dirs: [], modified: {} }
+
+    ## Scripts an existing entry's modification time without a clock.
+    ## See [std-fs.memory.set-modified](../../spec/std/fs.md#r-std-fs.memory.set-modified).
+    pub fn set_modified(&mut self, path: Path, time: Timestamp) -> Result[void, FsError]:
+        key := memory_key(path)
+        if self.file_at(key).is_none() && !self.dir_at(key):
+            return .Err(FsError.NotFound(path=path))
+        self.modified[key] = time
+        .Ok(())
+
+    # Implicit directories disappear with their last child. Forget their
+    # script too, so a later recreated directory cannot inherit it.
+    fn forget_missing_parents(&mut self, key: string) -> void:
+        parts := key.split("/")
+        let parent = ""
+        let index = 0
+        while index + 1 < parts.len():
+            parent = if index == 0: parts[0] else: "${parent}/${parts[index]}"
+            if parent != "" && !self.dir_at(parent):
+                _ := self.modified.remove(parent)
+            index += 1
+
+    fn move_modified(&mut self, source: string, target: string) -> void:
+        time := self.modified.remove(source)
+        _ := self.modified.remove(target)
+        match time:
+            .Some(found) => self.modified[target] = found
+            .None => pass
 
     fn file_at(&self, key: string) -> List[u8]?:
         self.files.get(key)
@@ -438,15 +471,17 @@ impl FsRead for MemoryFs:
     fn stat!(self, path: Path) -> Result[Entry?, FsError]:
         key := memory_key(path)
         match self.file_at(key):
-            .Some(bytes) => .Ok(.Some(Entry { path: path, kind: EntryKind.File, size: u64(bytes.len()) }))
-            .None => if self.dir_at(key): .Ok(.Some(Entry { path: path, kind: EntryKind.Directory, size: 0 })) else: .Ok(.None)
+            .Some(bytes) => .Ok(.Some(Entry { path: path, kind: EntryKind.File, size: u64(bytes.len()), modified: self.modified.get(key) }))
+            .None => if self.dir_at(key): .Ok(.Some(Entry { path: path, kind: EntryKind.Directory, size: 0, modified: self.modified.get(key) })) else: .Ok(.None)
 
 impl FsWrite for MemoryFs:
     fn write_bytes!(&mut self, path: Path, bytes: List[u8]) -> Result[void, FsError]:
         match self.write_error(path):
             .Some(error) => return .Err(error)
             .None => pass
-        self.files[memory_key(path)] = bytes
+        key := memory_key(path)
+        self.files[key] = bytes
+        _ := self.modified.remove(key)
         .Ok(())
 
     fn write_text!(&mut self, path: Path, text: string) -> Result[void, FsError]:
@@ -466,6 +501,7 @@ impl FsWrite for MemoryFs:
         for byte in text.to_utf8():
             joined.push(byte)
         self.files[key] = joined
+        _ := self.modified.remove(key)
         .Ok(())
 
     fn create_dir_all!(&mut self, path: Path) -> Result[void, FsError]:
@@ -496,6 +532,8 @@ impl FsWrite for MemoryFs:
         match self.file_at(key):
             .Some(_) =>
                 _ := self.files.remove(key)
+                _ := self.modified.remove(key)
+                self.forget_missing_parents(key)
                 return .Ok(())
             .None => pass
         if !self.dir_at(key):
@@ -507,6 +545,8 @@ impl FsWrite for MemoryFs:
             if made != key:
                 kept.push(made)
         self.dirs = kept
+        _ := self.modified.remove(key)
+        self.forget_missing_parents(key)
         .Ok(())
 
     # Moves the file or directory at `from`, with every key under it
@@ -522,6 +562,8 @@ impl FsWrite for MemoryFs:
                         .None => pass
                     _ := self.files.remove(source)
                     self.files[target] = bytes
+                    self.move_modified(source, target)
+                    self.forget_missing_parents(source)
                     return .Ok(())
                 .None => return .Err(FsError.NotFound(path=from))
         match self.file_at(target):
@@ -530,18 +572,32 @@ impl FsWrite for MemoryFs:
         if self.file_above(target):
             return .Err(FsError.NotADirectory(path=to))
         under := "${source}/"
+        let mut times: List[(string, Timestamp)] = []
+        for (stored, time) in self.modified:
+            if stored == source || stored.starts_with(under):
+                times.push((stored, time))
+        for (stored, _) in times:
+            _ := self.modified.remove(stored)
+        _ := self.modified.remove(target)
         let mut moved: List[(string, List[u8])] = []
         for (stored, bytes) in self.files:
             if stored.starts_with(under):
                 moved.push((stored, bytes))
         for (stored, bytes) in moved:
             _ := self.files.remove(stored)
-            self.files["${target}${stored.slice(source.len(), stored.len())}"] = bytes
+            destination := "${target}${stored.slice(source.len(), stored.len())}"
+            self.files[destination] = bytes
+            _ := self.modified.remove(destination)
         let mut renamed: List[string] = []
         for made in self.dirs:
             if made == source || made.starts_with(under):
-                renamed.push("${target}${made.slice(source.len(), made.len())}")
+                destination := "${target}${made.slice(source.len(), made.len())}"
+                renamed.push(destination)
+                _ := self.modified.remove(destination)
             else:
                 renamed.push(made)
         self.dirs = renamed
+        for (stored, time) in times:
+            self.modified["${target}${stored.slice(source.len(), stored.len())}"] = time
+        self.forget_missing_parents(source)
         .Ok(())

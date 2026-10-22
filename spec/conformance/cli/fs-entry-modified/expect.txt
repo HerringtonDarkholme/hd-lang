@@ -1,0 +1,2 @@
+run: hd main.hd
+stdout: modified

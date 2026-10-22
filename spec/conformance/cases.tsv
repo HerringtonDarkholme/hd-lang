@@ -3015,6 +3015,7 @@ runtime/valid/map-args-env.hd	runtime	accept	std/host.md#map-providers
 runtime/valid/memory-fs.hd	runtime	accept	std/fs.md#memory-file-system
 runtime/valid/memory-fs-handle-shared.hd	runtime	accept	std/fs.md#r-std-fs.memory.new-ref
 runtime/valid/memory-fs-directories.hd	runtime	accept	std/fs.md#r-std-fs.memory.dirs
+runtime/valid/memory-fs-modified.hd	runtime	accept	std/fs.md#r-std-fs.memory.set-modified
 runtime/valid/error-chain.hd	runtime	accept	std/error.md#r-std-error.chain.method-order
 runtime/valid/error-report.hd	runtime	accept	std/error.md#r-std-error.report.of.reference-values
 runtime/valid/duration-arithmetic.hd	runtime	accept	std/time.md#duration-arithmetic
