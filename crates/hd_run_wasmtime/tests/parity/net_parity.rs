@@ -1233,3 +1233,108 @@ fn zero_bound_accept_returns_peer_connection_queued_before_the_probe() {
         peer.join().unwrap();
     }
 }
+
+/// A composed deadline must be able to poll while connect is still waiting
+/// in the host; the existing saturated listener supplies genuinely pending I/O.
+#[cfg(unix)]
+#[test]
+fn a_manual_clock_deadline_cancels_a_pending_loopback_connect() {
+    use hd_driver::{Executor, Goal, Host, NoClock};
+    use hd_project::MemorySources;
+    use hd_sched::SerialOrder;
+
+    let scratch = Scratch::new();
+    let full = FullListener::new();
+    let source = format!(
+        r#"use std.net.{{Net, NetError, TcpStream, connect}}
+use std.task.with_timeout
+use std.time.{{Clock, ManualClock, Timestamp}}
+
+pub fn main!() -> void $ Console + Net:
+    clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+    $.with(Clock=clock):
+        let result: Result[&mut dyn TcpStream, NetError] = with_timeout!(0ms):
+            connect!("127.0.0.1", {})
+        match result:
+            .Err(.Timeout) => println("timed out")
+            .Ok(stream) =>
+                _ := stream.close()
+                println("connected")
+            .Err(error) => println(error)
+"#,
+        full.address.port()
+    );
+    let mut sources = MemorySources::default();
+    sources.insert("main.hd", &source);
+    let store = hd_cache::MemoryStore::default();
+    let host = Host {
+        render_tir: &[],
+        sources: &sources,
+        store: &store,
+        clock: &NoClock,
+        executor: Executor::Serial(SerialOrder::Priority),
+    };
+    let built = hd_driver::build(
+        &host,
+        "pending-connect",
+        &Goal::Program {
+            entry: "main".into(),
+        },
+    );
+    assert!(built.diags.is_empty(), "{}", built.render());
+    let wasm = built.wasm.expect("the composed connect builds");
+    let ran = parity(&scratch, &wasm, vec![], || {});
+    assert_eq!(ran.status, 0);
+    assert_eq!(ran.stdout, b"timed out\n");
+    assert!(ran.stderr.is_empty(), "{:?}", ran.stderr);
+}
+
+/// Aborting pending connects repeatedly leaves no delivered stream; a later
+/// ready connection still gets the first handle on both engines.
+#[cfg(unix)]
+#[test]
+fn aborted_pending_connects_release_their_operations_before_a_ready_connect() {
+    let scratch = Scratch::new();
+    let full = FullListener::new();
+    let ready = TcpFixture::new(|mut peer| {
+        let mut bytes = Vec::new();
+        peer.read_to_end(&mut bytes).unwrap();
+        assert!(bytes.is_empty());
+    });
+    let mut p = Program::new();
+    let start = p.import(
+        "hd:Net",
+        "connect.start",
+        &[ValType::I32, ValType::I32],
+        &[ValType::I32, ValType::I32],
+    );
+    let abort = p.import("hd:rt", "abort", &[ValType::I32], &[]);
+    let name = Enc::default().str("127.0.0.1").0;
+    for _ in 0..8 {
+        p.load_args(&name);
+        p.instructions(&[
+            I::I32Const(i32::from(full.address.port())),
+            I::I32Const(i32::try_from(name.len()).unwrap()),
+            I::Call(start),
+            I::LocalSet(0),
+            I::LocalSet(1),
+            // This fixture never answers a connect; it must be pending.
+            I::LocalGet(1),
+            I::I32Eqz,
+            I::If(wasm_encoder::BlockType::Empty),
+            I::Unreachable,
+            I::End,
+            I::LocalGet(0),
+            I::Call(abort),
+        ]);
+    }
+    open(
+        &mut p,
+        "connect",
+        "127.0.0.1",
+        ready.address.port(),
+        vec![0, 1],
+    );
+    handle(&mut p, "TcpStream.close", &[1], None, vec![0]);
+    assert_program(&scratch, p, vec![], || {});
+}

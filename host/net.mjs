@@ -4,7 +4,8 @@
 // `port` and waits on `flag`; this thread does it, posts the outcome back,
 // and wakes it. So each operation finishes inside its `.start` call, as a
 // `Process.run!` does: `read!`, `accept!` and `receive!` hold the program
-// until a byte, a connection or a datagram arrives.
+// until a byte, a connection or a datagram arrives. `connect!` instead
+// starts a cancellable operation: control messages never wait for its I/O.
 //
 // A handle's timeout (std-net.timeout.set) bounds its `read!`, `accept!`
 // and `receive!` with a timer, cleared when the wait completes: a wait it
@@ -115,6 +116,45 @@ const stream = (socket) => {
   return open({ kind: "stream", socket, inbox, closed: false, rest: null, timeout: null });
 };
 
+// A connect belongs to its operation until the program takes its outcome.
+// Aborting also releases a completed stream that was never delivered.
+const connects = new Map();
+let nextConnect = 1;
+const beginConnect = ({ host, port, address, timeout = null }, done) => {
+  let result = null;
+  let stopped = false;
+  let socket = null;
+  let timer = null;
+  const finish = (outcome) => {
+    if (stopped || result !== null) return;
+    result = outcome;
+    clearTimeout(timer);
+    done(outcome);
+  };
+  if (timeout !== null && timeout <= 0) finish(timedOut());
+  else {
+    socket = net.connect({ host, port });
+    if (timeout !== null) {
+      timer = setTimeout(() => {
+        socket.destroy();
+        finish(timedOut());
+      }, timeout);
+    }
+    socket.once("error", (e) => finish(failure(e, address, host)));
+    socket.once("connect", () => {
+      if (stopped || result !== null) return socket.destroy();
+      socket.removeAllListeners("error");
+      finish({ ok: stream(socket) });
+    });
+  }
+  return () => {
+    stopped = true;
+    clearTimeout(timer);
+    socket?.destroy();
+    if (result?.ok !== undefined) handles.delete(result.ok);
+  };
+};
+
 const ops = {
   lookup: async ({ host }) => {
     try {
@@ -124,31 +164,34 @@ const ops = {
       return failure(e, host, host);
     }
   },
-  // std-net.connect-timeout: `timeout` (milliseconds, or `null` for
-  // `connect!`) bounds the whole connect; past it, the socket closes.
-  connect: ({ host, port, address, timeout = null }) =>
-    new Promise((done) => {
-      if (timeout !== null && timeout <= 0) return done(timedOut());
-      const socket = net.connect({ host, port });
-      const timer =
-        timeout === null
-          ? null
-          : setTimeout(() => {
-              socket.removeAllListeners();
-              socket.on("error", () => {});
-              socket.destroy();
-              done(timedOut());
-            }, timeout);
-      socket.once("error", (e) => {
-        clearTimeout(timer);
-        done(failure(e, address, host));
+  // The legacy explicitly bounded connect keeps its synchronous caller.
+  connect: (r) => new Promise((done) => beginConnect(r, done)),
+  connect_start: (r) => {
+    const id = nextConnect++;
+    const operation = { result: null, abort: null };
+    connects.set(id, operation);
+    try {
+      operation.abort = beginConnect(r, (result) => {
+        operation.result = result;
       });
-      socket.once("connect", () => {
-        clearTimeout(timer);
-        socket.removeAllListeners("error");
-        done({ ok: stream(socket) });
-      });
-    }),
+      return { ok: id };
+    } catch (error) {
+      connects.delete(id);
+      throw error;
+    }
+  },
+  connect_poll: ({ operation }) => {
+    const state = connects.get(operation);
+    if (state === undefined) throw new Error("unknown connect operation");
+    if (state.result === null) return { pending: true };
+    connects.delete(operation);
+    return state.result;
+  },
+  connect_abort: ({ operation }) => {
+    connects.get(operation)?.abort();
+    connects.delete(operation);
+    return { ok: null };
+  },
   listen: ({ host, port, address }) =>
     new Promise((done) => {
       const server = net.createServer({ pauseOnConnect: false });

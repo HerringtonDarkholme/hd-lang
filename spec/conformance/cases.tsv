@@ -29,6 +29,7 @@ runtime/valid/cli-documentation-help.hd	runtime	accept	std/cli.md#r-std-cli.type
 runtime/valid/cli-enum-values.hd	runtime	accept	std/cli.md#enum-value-sets
 runtime/valid/cli-positional-fact.hd	runtime	accept	std/cli.md#positional-field-facts
 runtime/valid/cli-short-fact.hd	runtime	accept	std/cli.md#short-field-facts
+runtime/valid/net-connect-timeout-ready-tie.hd	runtime	accept	std/task.md#result-timeouts
 runtime/valid/net-free-helpers.hd	runtime	accept	std/net.md#free-helpers
 runtime/valid/recursive-closure-pending-self-environment.hd	runtime	accept	lang/07-functions.md#recursion
 runtime/valid/recursive-closure-self-environment.hd	runtime	accept	lang/07-functions.md#recursion

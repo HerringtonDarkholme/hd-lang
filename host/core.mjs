@@ -17,8 +17,9 @@
 //   Status 1: pending, `value` is its handle. `hd:Console` `write`
 //   and `write_error` complete at once (the text is written at
 //   completion); `hd:Clock`
-//   `sleep` completes when its duration has passed. Every other method
-//   runs synchronously and finishes at once.
+//   `sleep` completes when its duration has passed. External I/O can stay
+//   pending through generic readiness and cancellation hooks; other methods
+//   run synchronously and finish at once.
 // - `hd:rt` `block()` waits synchronously for at least one completion,
 //   writes the completed handles to the exchange buffer and returns their
 //   count; `stderr(len)` writes the buffer's first `len` bytes to standard
@@ -303,9 +304,7 @@ function rtImports({ sink, flush, view, st, complete, nextDeadline, deadlock, un
     stdout: (len) => {
       st.out.push(decodeUtf8(view(len)));
     },
-    abort: (h) => {
-      st.ops.delete(h);
-    },
+    abort: (h) => abortOperation(st, h),
     // The run's map hash key: 64 random bits. The instance asks once and
     // keeps it in a runtime global; a session's journal records the call,
     // so a rebuild hashes with the same key.
@@ -341,12 +340,30 @@ function primImports({ put, text, env }) {
 // pending: it completes at `at`, on `performance.now()`'s clock, and
 // `done()`, when given, does it then and returns its result.
 class Later {
-  constructor(at, done) {
+  constructor(at, done, poll = null, abort = null) {
     this.at = at;
     this.done = done;
+    this.poll = poll;
+    this.abort = abort;
   }
 }
 const later = (at, done = null) => new Later(at, done);
+
+// External I/O supplies a nonblocking readiness probe and a cancellation
+// hook, including when complete() ran but the guest never took .finish.
+// Timed operations keep their existing path. A pending probe is retried
+// after a short wait, from either the async driver or synchronous rt.block.
+export const pendingOperation = (poll, done, abort) =>
+  new Later(performance.now(), done, poll, abort);
+
+function abortOperation(st, h) {
+  const operation = st.ops.get(h);
+  st.ops.delete(h);
+  operation?.abort?.();
+}
+function clearOperations(st) {
+  for (const h of st.ops.keys()) abortOperation(st, h);
+}
 
 // A method's provider arguments from its import's (§17.4): its scalar
 // arguments are the import's parameters, in order, and its structured ones
@@ -392,7 +409,7 @@ function traitImports(module, provider, { view, text, put, pending, finished }) 
     }
     out[`${name}.start`] = (...raw) => {
       const v = f(...decode(raw));
-      return v instanceof Later ? pending(v.at, v.done, key) : [0, written(v)];
+      return v instanceof Later ? pending(v.at, v.done, key, v.poll, v.abort) : [0, written(v)];
     };
     out[`${name}.finish`] = (h) => written(finished(h, key));
   }
@@ -602,9 +619,9 @@ export function createCoreHost(sink, env = {}, layer = null) {
   // Pending operations by handle: `at` is when it completes, `done()` what
   // it does then, its result kept as `value`, and `method` the import
   // module and method that started it, whose `.finish` alone takes it.
-  const pending = (at, done, method = null) => {
+  const pending = (at, done, method = null, poll = null, abort = null) => {
     const h = st.nextHandle++;
-    st.ops.set(h, { at, done, method, completed: false, value: undefined });
+    st.ops.set(h, { at, done, method, poll, abort, completed: false, value: undefined });
     return [1, h];
   };
   const nextDeadline = () => {
@@ -618,8 +635,13 @@ export function createCoreHost(sink, env = {}, layer = null) {
   const complete = () => {
     const now = performance.now();
     const due = [...st.ops]
-      .filter(([, o]) => !o.completed && o.at <= now)
-      .sort((a, b) => a[1].at - b[1].at || a[0] - b[0]);
+      .filter(([, o]) => !o.completed && (o.poll || o.at <= now))
+      .sort((a, b) => a[1].at - b[1].at || a[0] - b[0])
+      .filter(([, o]) => {
+        if (!o.poll || o.poll()) return true;
+        o.at = performance.now() + 1;
+        return false;
+      });
     if (due.length * 4 > st.memory.buffer.byteLength) {
       st.memory.grow(Math.ceil((due.length * 4) / 65536));
     }
@@ -843,7 +865,13 @@ export function createCoreHost(sink, env = {}, layer = null) {
 
   // Releases what the platform layer holds (its client threads, its
   // scratch directory).
-  const close = () => platform?.close?.();
+  const close = () => {
+    try {
+      clearOperations(st);
+    } finally {
+      platform?.close?.();
+    }
+  };
 
   // The host handles the program left open, as `[kind, count]` pairs with
   // a nonzero count, for the leak report of `hd test` (cli.test.leak).
@@ -1109,7 +1137,7 @@ export function createSession(sink, env = {}, layer = null, options = {}) {
   // operations it left pending, then clears the runtime state a trap
   // leaves set.
   const reset = (instance) => {
-    st.ops.clear();
+    clearOperations(st);
     instance.exports["hd.reset"]?.();
   };
 
@@ -1164,7 +1192,7 @@ export function createSession(sink, env = {}, layer = null, options = {}) {
   // over the same host.
   const restart = (journal) => {
     flush();
-    st.ops.clear();
+    clearOperations(st);
     st.reported = false;
     st.panic = null;
     st.memory = null;

@@ -51,6 +51,7 @@ import {
   HostContract,
   httpProvider,
   panicOfReport,
+  pendingOperation,
   PROGRAM_TIME_LIMIT,
   reportIn,
   TimeLimit,
@@ -527,7 +528,31 @@ function netProvider({ grant, netClient }) {
             ? netClient.call({ op: "lookup", host })
             : { error: ["NotGranted", host] },
       ),
-    connect: opened("connect"),
+    connect: (host, port) => {
+      const started = netAt("connect_start", host, port);
+      if (started.error) return netResult(started);
+      const operation = started.ok;
+      let result = null;
+      const poll = () => {
+        const outcome = netClient.call({ op: "connect_poll", operation });
+        if (outcome.pending) return false;
+        result = outcome;
+        return true;
+      };
+      // An already ready connect wins its first-poll tie. Otherwise the
+      // guest can poll its clock while the worker owns the pending socket.
+      if (poll()) return netResult(result);
+      return pendingOperation(
+        poll,
+        () => netResult(result),
+        () => {
+          if (result === null) netClient.cancel({ op: "connect_abort", operation });
+          // complete() can run before the guest consumes .finish: the
+          // cancelled outcome still owns an undelivered stream in that gap.
+          else if (result.ok !== undefined) netClient.cancel({ op: "dispose", handle: result.ok });
+        },
+      );
+    },
     // std-net.connect-timeout: the `Duration` crosses as milliseconds.
     connect_timeout: (host, port, timeout) =>
       netResult(netAt("connect", host, port, { timeout: Number(timeout) })),
@@ -856,7 +881,12 @@ const nodeLayer = {
       flush();
       return left();
     };
-    const netClient = { call: (request) => net.call(request, waiting) };
+    const netClient = {
+      call: (request) => net.call(request, waiting),
+      // Cancellation owns no I/O wait. It still releases a socket after
+      // the program deadline expired, and never starts a replacement worker.
+      cancel: (request) => (net.started() ? net.call(request, () => EXIT_GRACE_MS) : { ok: null }),
+    };
     const grants = env.grants ?? {};
     const testRunner = testRunnerProvider({ env, st });
     return {
