@@ -1173,6 +1173,31 @@ audit on the commits that touch the emitter).
    `value.rs`'s instruction walk; struct field writes on local, global
    and data roots are one `Store`; `CopyData` remains only for
    copy-update literals; `unlist` goes.
+   As built: `place_of` is the builder `&` already used (`operand`),
+   with a `PlaceUse`: `Ref` for `&`, `&mut` and automatic addresses,
+   `Write` for a write's target. Its roots are `Ref`'s and `Store`'s:
+   a local and a top-level binding are not read; a reference and a data
+   value are value roots, `[*%r .x]` and `[*%o .k .x]`, so `hold`'s
+   hidden local goes for them in `&` and receivers too, and `Ref`s of
+   such places lose a `LocalSet` and its count. `Write` differs only
+   where a write's place is no reference's: a list element is named
+   where it is (`Root::Slot`, no pin), a map value is a read that a
+   field write reports (`types.coll.map-value`), and any other field
+   or index on a value reads as an expression does
+   (`field_of_value`, `index_of_value`, split out of `field_expr` and
+   `index_expr`). A local root is read for its flags and checks
+   (`note_read`), as the base's read was. The emitter stores a struct
+   field of a local in its Wasm locals or its cell, of a top-level
+   binding in its static slot or Wasm globals, and of a data object's
+   field at its offset, each counting only that field (and copying a
+   collection a place holds, as `CopyData`'s slot did); a cell an
+   erased body converts is refused. `live.rs` gains `local_part_store`
+   (a `LocalSet`, or a `Store` into a local or a field of it), which
+   span loans, `loans`, field spans, `written` parameters, list aliases
+   and the buffer-sharing proof read where they read `LocalSet`, and
+   `parameter_loans` borrows a `Ref [*%r ..]` whose `%r` reads a
+   reference parameter, as it borrowed one rooted at the hidden local.
+   An element field write stays `ListFieldSet` until commit 8.
 8. **Element writes.** `xs[i] = v` and `xs[i].p.x = v` are `Store`s with
    an element projection; `ListSet` and `ListFieldSet` have no producer.
 9. **Plain stores.** `LocalSet`, `GlobalSet` and `FieldSet` become

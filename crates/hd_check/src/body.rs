@@ -3756,8 +3756,27 @@ impl Ck<'_, '_> {
                 let Some(base) = lhs.children().next() else {
                     return unsupported("a field without a base");
                 };
-                let (br, bt) = self.expr(base, None)?;
                 let fname = self.cx.src.text(self.cx.src.last(*lhs)).to_owned();
+                // The place the base names, which nothing reads yet
+                // (`docs/compiler/tir-v2.md`, "Field writes").
+                let Some(op) = self.place_of(base, None, crate::refs::PlaceUse::Write)? else {
+                    return Ok(());
+                };
+                let (br, bt) = match op {
+                    // A struct field changes in a writable place only
+                    // (`types.value.writable-forms`).
+                    crate::refs::Operand::Place(p) if self.is_struct_ty(p.ty) => {
+                        let p = self.promote_place(p, &fname);
+                        return self.struct_field_assign(
+                            p,
+                            (base, *lhs, *rhs, s),
+                            &fname,
+                            compound,
+                        );
+                    }
+                    crate::refs::Operand::Place(p) => self.read_place(&p, base),
+                    crate::refs::Operand::Value(r, t) => (r, t),
+                };
                 // A field of a referenced value: through `&mut` only
                 // (`ref.write.field`).
                 let (br, bt) = match self.ref_of(bt) {
@@ -3769,21 +3788,36 @@ impl Ck<'_, '_> {
                         self.err(Code::NotWritable, *lhs, &msg);
                         return Ok(());
                     }
+                    Some((inner, true)) if self.is_struct_ty(self.deref_ty(inner, true)) => {
+                        let place = crate::refs::Place {
+                            root: crate::refs::Root::Deref(br, bt),
+                            path: vec![],
+                            ty: self.deref_ty(inner, true),
+                        };
+                        let p = self.promote_place(place, &fname);
+                        return self.struct_field_assign(
+                            p,
+                            (base, *lhs, *rhs, s),
+                            &fname,
+                            compound,
+                        );
+                    }
                     Some((_, true)) => self.emit_deref(br, bt, base.index()),
                     None => (br, bt),
                 };
-                // A struct field changes in a writable place only
-                // (`types.value.writable-forms`).
+                // A struct value that is no place: its fields cannot change
+                // (`types.value.write.other-value`).
                 if self.is_struct_ty(bt) {
-                    // A promoted field is its explicit path through the
-                    // embedded structs (`names.promoted.path`).
-                    let (br, bt) = self.promote_base(br, bt, &fname, *lhs);
-                    return self.struct_field_assign(
-                        (br, bt),
-                        (base, *lhs, *rhs, s),
-                        &fname,
-                        compound,
-                    );
+                    let (_, bt) = self.promote_base(br, bt, &fname, *lhs);
+                    if self.field_of(bt, &fname).is_none() {
+                        let msg = format!("no field `{fname}` on {}", self.show(bt));
+                        self.err(Code::UnknownField, *lhs, &msg);
+                        return Ok(());
+                    }
+                    self.check_field_visible(bt, &fname, *lhs);
+                    let msg = "this struct value is not a variable or a field of one, so its fields cannot change; copy it into a `let mut` first";
+                    self.err(Code::NotWritable, *lhs, msg);
+                    return Ok(());
                 }
                 let (pr, pt) = self.promote_base(br, bt, &fname, *lhs);
                 let Some((idx, ft)) = self.field_of(pt, &fname) else {

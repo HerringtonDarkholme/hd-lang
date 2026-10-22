@@ -1703,28 +1703,6 @@ impl Ck<'_, '_> {
         self.b.refs_record(&[])
     }
 
-    /// The type of field `idx` of the struct or data type `t` under its
-    /// arguments; poison for a field `t` does not have.
-    pub(crate) fn field_ty_at(&self, t: Ty, idx: u32) -> Ty {
-        let pool = self.pool();
-        let t = self.strip_mut(self.infer.resolve(pool, t));
-        let TyData::Adt { def, args } = pool.get(t) else {
-            return Ty::POISON;
-        };
-        let Some(ItemData::Data(fields)) = self.cx.lookup.item(def).map(|i| &i.data) else {
-            return Ty::POISON;
-        };
-        let Some(f) = fields.get(idx as usize) else {
-            return Ty::POISON;
-        };
-        let argv = pool.list_items(args);
-        pool.subst(f.ty, &|p: ParamRef| {
-            (p.owner == def)
-                .then(|| argv.get(p.index as usize).copied())
-                .flatten()
-        })
-    }
-
     /// A data field by name: its index and type under the value's
     /// arguments.
     pub(crate) fn field_of(&self, t: Ty, name: &str) -> Option<(u32, Ty)> {
@@ -1776,7 +1754,6 @@ impl Ck<'_, '_> {
         kids: &[NodeRef<'_>],
         want: Option<Ty>,
     ) -> StageResult<(Ref, Ty)> {
-        let pool = self.pool();
         let Some(base) = kids.first() else {
             return unsupported("a field without a base");
         };
@@ -1788,7 +1765,20 @@ impl Ck<'_, '_> {
         {
             return Ok(v);
         }
-        let (r, bt) = self.expr(*base, None)?;
+        let based = self.expr(*base, None)?;
+        self.field_of_value(based, &name, (*base, n))
+    }
+
+    /// The field `name` of the value `r` of type `bt`, which `base`
+    /// evaluated, as the field expression `n` reads it.
+    pub(crate) fn field_of_value(
+        &mut self,
+        (r, bt): (Ref, Ty),
+        name: &str,
+        (base, n): (NodeRef<'_>, NodeRef<'_>),
+    ) -> StageResult<(Ref, Ty)> {
+        let pool = self.pool();
+        let name = name.to_owned();
         let mut bt = self.infer.resolve(pool, bt);
         if matches!(pool.get(bt), TyData::Infer(_)) && self.learn_waiting(bt)? {
             bt = self.infer.resolve(pool, bt);
@@ -1915,6 +1905,20 @@ impl Ck<'_, '_> {
         let (br, bt) = self.deref_index_base(br, bt, base.index());
         let builtin = self.index_kind(bt);
         let (kr, kt) = self.index_key_value(*key, builtin)?;
+        self.index_of_value((br, bt), builtin, (kr, kt), (*key, n))
+    }
+
+    /// The index expression `n` on the evaluated base `br` of type `bt`,
+    /// whose built-in index operations are `builtin`, at the evaluated key
+    /// `kr` of type `kt` that `key` wrote.
+    pub(crate) fn index_of_value(
+        &mut self,
+        (br, bt): (Ref, Ty),
+        builtin: Option<(IntrinsicOp, IntrinsicOp, Ty, Ty)>,
+        (kr, kt): (Ref, Ty),
+        (key, n): (NodeRef<'_>, NodeRef<'_>),
+    ) -> StageResult<(Ref, Ty)> {
+        let key = &key;
         // `expr.index.slice.call`: a list or string indexed by a range
         // type is the call of `Index`; every other built-in index reads
         // by its key type.

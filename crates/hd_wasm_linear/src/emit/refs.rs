@@ -21,7 +21,7 @@ use wasm_encoder::Instruction as I;
 
 use super::Em;
 use super::value::Src;
-use crate::layout::{Kind, Part, mem as mem_of, payload_mem, struct_mem};
+use crate::layout::{Kind, Leaf, Part, mem as mem_of, payload_mem, struct_mem};
 use crate::module::{EMPTY, HEAP, Sym, Val, mem};
 use crate::rt::{self, Helper, LIST_ELEMS, LIST_LEN, RefLayout};
 use crate::unsupported;
@@ -682,10 +682,9 @@ impl Em<'_, '_, '_> {
     /// `Store` or `RefWrite` `i`: replaces the value at a place, which
     /// takes a count of the new value before the old one's is released.
     /// Stage 1 lowers a store through a dereference, into a data
-    /// object's field, and into a whole local or top-level binding; a
-    /// struct field of a local or top-level binding and a list element
-    /// come with their producers (`docs/compiler/tir-v2.md`, commits 7
-    /// and 8).
+    /// object's field or a struct field in it, and into a local or
+    /// top-level binding, whole or a struct field of it; a list element
+    /// comes with its producer (`docs/compiler/tir-v2.md`, commit 8).
     pub(super) fn place_store(&mut self, i: u32) -> StageResult<()> {
         let s = self.spot(i)?;
         let [a, w] = self.b.data[i as usize];
@@ -697,12 +696,152 @@ impl Em<'_, '_, '_> {
             (_, Head::Deref, true) => self.deref_write(s.start, v),
             (_, Head::Deref, false) => self.deref_field_write(s.start, &s.path, v),
             (_, Head::Data(k), true) => self.field_set(s.start, k, v),
+            (_, Head::Data(k), false) => self.data_field_store(s.start, k, &s.path, v),
             (Start::Local(l), Head::Direct, true) => self.local_set(i, l, v),
+            (Start::Local(l), Head::Direct, false) => self.local_field_store(l, &s.path, v),
             (Start::Global(def, _), Head::Direct, true) => self.global_set(def, v),
+            (Start::Global(def, t), Head::Direct, false) => {
+                self.global_field_store(def, t, &s.path, v)
+            }
             _ => unsupported(
-                "a store into a struct field of a local, a top-level binding or a data field, or into a list element, which stage 1 lowers in a later commit",
+                "a store into a list element or a value's own place, which stage 1 lowers in a later commit",
             ),
         }
+    }
+
+    /// A write of `v` into the struct field `path` reaches in TIR local
+    /// `l`: only that field's values change, in the local's Wasm locals or
+    /// in its cell.
+    fn local_field_store(&mut self, l: u32, path: &[u32], v: u32) -> StageResult<()> {
+        if v != NONE && self.diverges(v) {
+            self.f.op(I::Unreachable);
+            return Ok(());
+        }
+        let t = self.start_ty(Start::Local(l));
+        let (ft, part) = self.fold_path(t, path)?;
+        if self.is_cell(l as usize) {
+            if self.cell_converts(l as usize) {
+                return unsupported(
+                    "a field store into a local an erased body converts in its cell",
+                );
+            }
+            let m = mem_of(self.pool(), self.env(), t)?;
+            let c = self.cell_of(l as usize)?;
+            let leaves = m.leaves[part.first..part.first + part.count].to_vec();
+            return self.store_leaves(c, &leaves, ft, v);
+        }
+        let dst = self.local(l)?[part.first..part.first + part.count].to_vec();
+        let s = self.slot_src(v, ft, false)?;
+        if self.counted(ft).is_some() {
+            self.retain_src(&s, ft)?;
+            self.release_locals(&dst, ft)?;
+        }
+        for k in 0..dst.len() {
+            self.src(&s, k)?;
+        }
+        for x in dst.iter().rev() {
+            self.f.set(*x);
+        }
+        Ok(())
+    }
+
+    /// A write of `v` into the struct field `path` reaches in top-level
+    /// binding `def` of type `t`: in its static slot when some reference
+    /// refers to it, else in its Wasm globals.
+    fn global_field_store(&mut self, def: DefId, t: Ty, path: &[u32], v: u32) -> StageResult<()> {
+        if v != NONE && self.diverges(v) {
+            self.f.op(I::Unreachable);
+            return Ok(());
+        }
+        let t = self.sub(t);
+        let (ft, part) = self.fold_path(t, path)?;
+        let h = self.def_hash(def);
+        let m = mem_of(self.pool(), self.env(), t)?;
+        let leaves = m.leaves[part.first..part.first + part.count].to_vec();
+        if let Some(at) = self.def_slot(def) {
+            self.note_stored(h, t, Some((at, m.leaves.clone())))?;
+            let a = self.f.local(Val::I32);
+            self.f.static_addr(at);
+            self.f.set(a);
+            return self.store_leaves(a, &leaves, ft, v);
+        }
+        self.note_stored(h, t, None)?;
+        let vs = self.vals(t)?;
+        let global =
+            |k: usize| crate::module::Global::Storage(h, u32::try_from(k).expect("k"), vs[k]);
+        let s = self.slot_src(v, ft, false)?;
+        if self.counted(ft).is_some() {
+            self.retain_src(&s, ft)?;
+            let old: Vec<u32> = (part.first..part.first + part.count)
+                .map(|k| {
+                    let o = self.f.local(vs[k]);
+                    self.f.global_get(global(k));
+                    self.f.set(o);
+                    o
+                })
+                .collect();
+            self.release_locals(&old, ft)?;
+        }
+        for k in 0..part.count {
+            self.src(&s, k)?;
+        }
+        for k in (part.first..part.first + part.count).rev() {
+            self.f.global_set(global(k));
+        }
+        Ok(())
+    }
+
+    /// A write of `v` into the struct field `path` reaches in field `k` of
+    /// the data object at `obj`.
+    fn data_field_store(&mut self, obj: Start, k: u32, path: &[u32], v: u32) -> StageResult<()> {
+        if v != NONE && self.diverges(v) {
+            self.f.op(I::Unreachable);
+            return Ok(());
+        }
+        let Kind::Data(tys) = self.kind(self.start_ty(obj)) else {
+            return unsupported("a data field of a value that is no data value");
+        };
+        let (m, parts) = payload_mem(self.pool(), self.env(), &tys)?;
+        let (Some(pk), Some(&fk)) = (parts.get(k as usize).copied(), tys.get(k as usize)) else {
+            return unsupported("a data field the data type does not have");
+        };
+        let (ft, part) = self.fold_path(fk, path)?;
+        let first = pk.first + part.first;
+        let leaves = m.leaves[first..first + part.count].to_vec();
+        let at = self.f.local(Val::I32);
+        self.push_start(obj, Some(0))?;
+        self.f.set(at);
+        self.store_leaves(at, &leaves, ft, v)
+    }
+
+    /// Stores `v`, of type `ft`, as the leaves `leaves` of the memory at
+    /// the address in local `at`: the place takes a count of the new value
+    /// (a copy of each collection a place holds, `types.coll.value`)
+    /// before the old one's is released.
+    fn store_leaves(&mut self, at: u32, leaves: &[Leaf], ft: Ty, v: u32) -> StageResult<()> {
+        let s = self.slot_src(v, ft, false)?;
+        if self.counted(ft).is_some() {
+            self.retain_src(&s, ft)?;
+            let old: Vec<u32> = leaves.iter().map(|l| self.f.local(l.val)).collect();
+            for (l, o) in leaves.iter().zip(&old) {
+                self.f.get(at);
+                self.f.op(l.load(0));
+                self.f.set(*o);
+            }
+            self.release_locals(&old, ft)?;
+        }
+        for (k, l) in leaves.iter().enumerate() {
+            self.store_leaf(
+                &|em: &mut Self| {
+                    em.f.get(at);
+                    Ok(())
+                },
+                0,
+                *l,
+                &mut |em: &mut Self| em.src(&s, k),
+            )?;
+        }
+        Ok(())
     }
 
     /// A write of `v` through the reference at `r`: the place takes a

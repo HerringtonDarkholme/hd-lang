@@ -172,7 +172,7 @@ impl Ck<'_, '_> {
         // A list element pins its list for the call
         // (`fn.method.auto-address.element`).
         self.pin_for_call = true;
-        let op = self.operand(base, None);
+        let op = self.place_of(base, None, crate::refs::PlaceUse::Ref);
         self.pin_for_call = false;
         let Some(op) = op? else {
             return Ok(self.poisoned(base));
@@ -423,7 +423,7 @@ impl Ck<'_, '_> {
                     false
                 }
             }
-            Root::Deref(_, _, rt) => {
+            Root::Deref(_, rt) => {
                 if self.ref_of(rt).is_some_and(|(_, m)| m) {
                     true
                 } else {
@@ -435,8 +435,11 @@ impl Ck<'_, '_> {
                     false
                 }
             }
-            Root::Elem(list, _, _, _, _, lt) => self.coll_change(list, lt, "this call", at),
-            Root::DataField(_, _, _, _, dt) => {
+            Root::Elem(list, _, _, _, _, lt) | Root::Slot(list, _, lt, _) => {
+                self.coll_change(list, lt, "this call", at)
+            }
+            Root::MapValue(..) => false,
+            Root::DataField(_, _, _, dt) => {
                 if self.has_mut_access(dt) {
                     true
                 } else {

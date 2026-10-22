@@ -37,6 +37,8 @@
         local.get $t5
         i64.store $heap
       end
+      i32.const 0
+      local.set $t0
     end
   )
 )

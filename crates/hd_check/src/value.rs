@@ -1,251 +1,132 @@
 //! Struct values (spec 08 "Struct Declarations", spec 04 "Value Types").
 //! A struct value has no identity, so a field write changes only the
 //! writable place it names: a `let mut` local or top-level binding, a
-//! field of a data value with mutable access, or a struct field of one of
-//! these (`types.value.writable-forms`).
+//! field of a data value with mutable access, what a `&mut` refers to, a
+//! list element, or a struct field of one of these
+//! (`types.value.writable-forms`).
 //!
-//! The checker represents a struct field write as a value rebuild
-//! (`crates/hd_wasm_linear/DESIGN.md` §23.20). So `a.b.x = v` is lowered as `a = A { ...a, b: B { ...a.b,
-//! x: v } }`: each struct on the path is rebuilt with `CopyData`, and the
-//! place's root is stored. A field reached through a reference instead
-//! is one `Store [*%r .f ..] v` of that field, so neighboring fields
-//! keep RHS alias writes. Collection element stores
-//! use their in-place operation. The RC backend stores struct fields inline.
+//! The written place comes from the syntax ([`Ck::place_of`]), not from
+//! the instructions a read of it emitted: `a.b.x = v` is one
+//! `Store [$a .b .x] v` (`docs/compiler/tir-v2.md`, "Field writes"), so
+//! the other fields keep their values and no struct on the path is
+//! rebuilt. A field through a reference is `Store [*%r .b .x] v`, a field
+//! of a data value `Store [*%o .b .x] v`, a top-level binding's
+//! `Store [@g .b .x] v`. A list element's field is stored in place.
 
 use hd_base::{DefId, LocalId, StageResult};
 use hd_diag::Code;
 use hd_syntax::{NodeRef, SyntaxKind, TokenKind};
-use hd_tir::ir::{NONE, Ref, Tag, TirSink, local_flags};
+use hd_tir::ir::{Place as TirPlace, PlaceRoot, Proj, Ref, Tag, TirSink, local_flags};
 use hd_types::{ParamRef, Ty, TyData};
 
 use crate::body::{Ck, ExpectPosition};
-
-/// Where a writable struct place starts.
-#[derive(Clone, Copy)]
-enum Root {
-    /// A `let mut` local, with its scope depth.
-    Local(LocalId, usize),
-    /// A `let mut` top-level binding, with its type.
-    Global(DefId, Ty),
-    /// Field `idx` of the data value `base`, with the field's type.
-    Field(Ref, u32, Ty),
-    /// The value the reference `r`, a `&mut`, refers to, with `r`'s type
-    /// (`ref.write.field`).
-    Deref(Ref, Ty),
-    /// Element `index` of the writable list `list`, with the element type
-    /// (`types.coll.element-place`).
-    Elem(Ref, Ref, Ty),
-}
-
-/// A writable struct place: its root, then the struct fields read from it
-/// in order, each with the type it reads.
-struct Place {
-    root: Root,
-    path: Vec<(u32, Ty)>,
-}
+use crate::refs::{Place, Root};
 
 impl Ck<'_, '_> {
-    /// `base.name = rhs` or `base.name op= rhs`
-    /// where `base`, already checked as `(br, bt)`, has a struct type
-    /// (`types.value.writable-forms`, `types.value.field-write`).
+    /// `base.name = rhs` or `base.name op= rhs` where `base` names the
+    /// struct place `place` (`types.value.writable-forms`,
+    /// `types.value.field-write`).
     pub(crate) fn struct_field_assign(
         &mut self,
-        (br, bt): (Ref, Ty),
+        mut place: Place,
         (base, lhs, rhs, s): (NodeRef<'_>, NodeRef<'_>, NodeRef<'_>, NodeRef<'_>),
         name: &str,
         compound: Option<TokenKind>,
     ) -> StageResult<()> {
+        let bt = place.ty;
         let Some((idx, ft)) = self.field_of(bt, name) else {
             let msg = format!("no field `{name}` on {}", self.show(bt));
             self.err(Code::UnknownField, lhs, &msg);
             return Ok(());
         };
         self.check_field_visible(bt, name, lhs);
-        let Some(place) = self.value_place(br, base, (lhs, s)) else {
+        if !self.place_writable_for_field(&place, (base, lhs, s)) {
             return Ok(());
-        };
+        }
+        place.path.push((idx, ft));
+        place.ty = ft;
         let v = match compound {
             None => {
                 let (r, t) = self.expr(rhs, Some(ft))?;
                 self.coerce(r, t, ft, rhs, "assignment", ExpectPosition::General)
             }
             Some(k) => {
-                let cur = self.field_read(br, idx, ft, lhs.index());
+                let (cur, _) = self.read_place(&place, lhs);
                 self.compound(k, cur, ft, rhs, s)?
             }
         };
-        // An in-place store needs no initial read of its parent: its
-        // reference/element source has already evaluated, and the fields
-        // on its path are dead unless `op=` read the field.
-        let in_place = matches!(place.root, Root::Elem(..) | Root::Deref(..));
-        self.store_field(&place, idx, ft, v, (base, s));
-        if in_place && compound.is_none() {
-            let mut cur = br;
-            for _ in 0..=place.path.len() {
-                let Some(i) = cur.as_inst() else { break };
-                let (tag, data) = {
-                    let body = self.b.body_mut();
-                    (body.tags[i.0 as usize], body.data[i.0 as usize])
-                };
-                self.b.unlist(cur);
-                if tag != Tag::Field {
-                    break;
-                }
-                cur = Ref(data[0]);
-            }
-        }
+        self.store_field(&place, v, s);
         Ok(())
     }
 
-    /// The writable place that `br`, a struct value read by `base`,
-    /// reads; reports why it is not writable otherwise.
-    fn value_place(
+    /// Whether a struct field of the place `p`, which `base` names, may be
+    /// written by the statement `stmt` whose target is `at`; reports why
+    /// not otherwise. A local root is read here, as a read of `base`
+    /// would.
+    fn place_writable_for_field(
         &mut self,
-        br: Ref,
-        base: NodeRef<'_>,
-        (at, stmt): (NodeRef<'_>, NodeRef<'_>),
-    ) -> Option<Place> {
-        let mut path = Vec::new();
-        let mut cur = br;
-        let mut node = base;
-        while let Some(i) = cur.as_inst() {
-            let (tag, data) = {
-                let body = self.b.body_mut();
-                (body.tags[i.0 as usize], body.data[i.0 as usize])
-            };
-            let inner_node = if node.kind() == SyntaxKind::FieldExpr {
-                node.children().next().unwrap_or(node)
-            } else {
-                node
-            };
-            match tag {
-                Tag::Field => {
-                    let inner = Ref(data[0]);
-                    let it = self.b.ty_of(inner);
-                    if self.is_struct_ty(it) {
-                        path.push((data[1], self.b.ty_of(cur)));
-                        cur = inner;
-                        node = inner_node;
-                        continue;
-                    }
-                    // A field of a value that is not a struct: the store
-                    // needs mutable access to that value
-                    // (`types.path.store.not-writable`).
-                    if !self.has_mut_access(it) {
-                        self.check_store_target((inner, it), at);
-                        return None;
-                    }
-                    path.reverse();
-                    let root = Root::Field(inner, data[1], self.b.ty_of(cur));
-                    return Some(Place { root, path });
-                }
-                // A list element is a place of a writable list; a map value
-                // is no place (`types.coll.element-place`,
-                // `types.coll.map-value`).
-                Tag::Intrinsic
-                    if matches!(
-                        hd_tir::ir::IntrinsicOp::from_u32(data[0]),
-                        Some(
-                            hd_tir::ir::IntrinsicOp::ListIndex
-                                | hd_tir::ir::IntrinsicOp::ListIndexMut
-                                | hd_tir::ir::IntrinsicOp::MapIndex
-                                | hd_tir::ir::IntrinsicOp::MapIndexMut
-                        )
-                    ) =>
+        p: &Place,
+        (base, at, stmt): (NodeRef<'_>, NodeRef<'_>, NodeRef<'_>),
+    ) -> bool {
+        match p.root {
+            Root::Local(l, d) => {
+                let mut name = base;
+                while matches!(name.kind(), SyntaxKind::FieldExpr | SyntaxKind::ParenExpr)
+                    && let Some(inner) = name.children().next()
                 {
-                    let args = self.b.body_mut().record(data[1]).to_vec();
-                    let (list, index) = (Ref(args[0]), Ref(args[1]));
-                    if matches!(
-                        hd_tir::ir::IntrinsicOp::from_u32(data[0]),
-                        Some(
-                            hd_tir::ir::IntrinsicOp::MapIndex
-                                | hd_tir::ir::IntrinsicOp::MapIndexMut
-                        )
-                    ) {
-                        self.map_value_write(at, stmt, node);
-                        return None;
-                    }
-                    let lt = self.b.ty_of(list);
-                    let list_node = node.children().next().unwrap_or(node);
-                    if !self.coll_change(list, lt, "this field write", list_node) {
-                        return None;
-                    }
-                    path.reverse();
-                    return Some(Place {
-                        root: Root::Elem(list, index, self.b.ty_of(cur)),
-                        path,
-                    });
+                    name = inner;
                 }
-                // A read through a reference (`refs.rs`): the place is the
-                // referenced value, or the struct fields the read follows
-                // in it, writable through `&mut` only.
-                Tag::Read if let Some((r, m, fields)) = self.read_through(cur) => {
-                    let rt = self.b.ty_of(r);
-                    if !m {
-                        let msg = format!(
-                            "this writes through a read-only reference {}; take the reference with `&mut` to write through it",
-                            self.show(rt)
-                        );
-                        self.err(Code::NotWritable, at, &msg);
-                        return None;
-                    }
-                    path.reverse();
-                    let (mut t, _) = self.ref_of(rt)?;
-                    let mut steps = Vec::with_capacity(fields.len() + path.len());
-                    for k in fields {
-                        t = self.field_ty_at(t, k);
-                        steps.push((k, t));
-                    }
-                    steps.extend(path);
-                    return Some(Place {
-                        root: Root::Deref(r, rt),
-                        path: steps,
-                    });
+                self.note_read(l, d, name);
+                self.local_writable(l, at)
+            }
+            Root::Global(s, ..) => {
+                let Some(g) = self.global_binding(s) else {
+                    return true;
+                };
+                if g.mutable {
+                    return true;
                 }
-                Tag::LocalGet => {
-                    let l = LocalId::from_raw(data[0]);
-                    if !self.local_writable(l, at) {
-                        return None;
-                    }
-                    let depth = self
-                        .scopes
-                        .iter()
-                        .rposition(|m| m.values().any(|x| *x == l))
-                        .unwrap_or(0);
-                    path.reverse();
-                    return Some(Place {
-                        root: Root::Local(l, depth),
-                        path,
-                    });
+                let text = self.cx.names.text(s).to_owned();
+                self.not_writable(&text, g.short, false, at);
+                false
+            }
+            // `ref.write.field`: through `&mut` only.
+            Root::Deref(_, rt) => {
+                if self.ref_of(rt).is_some_and(|(_, m)| m) {
+                    return true;
                 }
-                Tag::GlobalGet if node.kind() == SyntaxKind::NameExpr => {
-                    let name = self.sym_of(node);
-                    let global = {
-                        let init = self.cx.init.borrow();
-                        init.globals
-                            .get(&name)
-                            .map(crate::init::Global::binding)
-                            .or_else(|| init.earlier.get(&name).copied())
-                    };
-                    let Some(g) = global else { break };
-                    if !g.mutable {
-                        let text = self.cx.names.text(name).to_owned();
-                        self.not_writable(&text, g.short, false, at);
-                        return None;
-                    }
-                    path.reverse();
-                    return Some(Place {
-                        root: Root::Global(g.def, g.ty),
-                        path,
-                    });
+                let msg = format!(
+                    "this writes through a read-only reference {}; take the reference with `&mut` to write through it",
+                    self.show(rt)
+                );
+                self.err(Code::NotWritable, at, &msg);
+                false
+            }
+            // A field of a data value: the store needs mutable access to
+            // that value (`types.path.store.not-writable`).
+            Root::DataField(o, _, _, dt) => {
+                if self.has_mut_access(dt) {
+                    return true;
                 }
-                _ => break,
+                self.check_store_target((o, dt), at);
+                false
+            }
+            // A list element is a place of a writable list
+            // (`types.coll.element-place`).
+            Root::Slot(list, _, lt, e) => {
+                let index = self.cx.src.parse.tree.node(e);
+                let list_node = index.children().next().unwrap_or(index);
+                self.coll_change(list, lt, "this field write", list_node)
+            }
+            // A write names no pinned element (`PlaceUse::Write`).
+            Root::Elem(..) => true,
+            // A map value is no place (`types.coll.map-value`).
+            Root::MapValue(_, e) => {
+                let value = self.cx.src.parse.tree.node(e);
+                self.map_value_write(at, stmt, value);
+                false
             }
         }
-        // `types.value.write.other-value`
-        let msg = "this struct value is not a variable or a field of one, so its fields cannot change; copy it into a `let mut` first";
-        self.err(Code::NotWritable, at, msg);
-        None
     }
 
     /// Whether the local `l` is writable: bound with `let mut`. Reports
@@ -295,94 +176,51 @@ impl Ck<'_, '_> {
         }
     }
 
-    /// Stores `v` into field `idx` of the struct at `place`. References
-    /// and collection elements name their field; other roots rebuild the
-    /// structs on their path and replace the root.
-    fn store_field(
-        &mut self,
-        place: &Place,
-        idx: u32,
-        ft: Ty,
-        v: Ref,
-        (node, s): (NodeRef<'_>, NodeRef<'_>),
-    ) {
+    /// Stores `v` into the struct field that ends the path of `place`:
+    /// one `Store` of the place. A list element's field is stored in
+    /// place too (#655).
+    fn store_field(&mut self, place: &Place, v: Ref, s: NodeRef<'_>) {
         let at = s.index();
-        if let Root::Deref(r, _) = place.root {
-            let mut path = place.path.clone();
-            path.push((idx, ft));
-            // The field takes a value copy, just as CopyData's replacement
-            // slot did; a named collection must not share its header.
-            let v = self.coll_copy(v, ft, s.index());
-            self.store_ref_field(r, &path, v, s);
-            return;
-        }
-        // A list element's field is stored in place: the element is not
-        // read, rebuilt and written back (#655).
-        if let Root::Elem(list, index, _) = place.root {
-            let mut rec = vec![list, index, v];
-            for i in place.path.iter().map(|&(i, _)| i).chain([idx]) {
-                rec.push(self.b.const_value(Ty::I32, u64::from(i)));
+        let fields = place.path.iter().map(|&(k, _)| Proj::Field(k));
+        let (root, proj): (PlaceRoot, Vec<Proj>) = match place.root {
+            Root::Deref(r, _) => {
+                let ft = place.ty;
+                // The field takes a value copy; a named collection must not
+                // share its header.
+                let v = self.coll_copy(v, ft, at);
+                self.store_ref_field(r, &place.path, v, s);
+                return;
             }
-            let rec = self.b.refs_record(&rec);
-            let op = hd_tir::ir::IntrinsicOp::ListFieldSet as u32;
-            self.b.emit(Tag::Intrinsic, op, rec, Ty::VOID, at);
-            return;
-        }
-        let root = match place.root {
-            Root::Local(l, d) => self.read_local(l, d, node).0,
-            Root::Global(def, ty) => {
-                let a = self.b.refs_record(&[Ref(def.raw())]);
-                self.b.emit(Tag::GlobalGet, a, NONE, ty, at)
+            Root::Slot(list, index, ..) => {
+                let mut rec = vec![list, index, v];
+                for &(i, _) in &place.path {
+                    rec.push(self.b.const_value(Ty::I32, u64::from(i)));
+                }
+                let rec = self.b.refs_record(&rec);
+                let op = hd_tir::ir::IntrinsicOp::ListFieldSet as u32;
+                self.b.emit(Tag::Intrinsic, op, rec, Ty::VOID, at);
+                return;
             }
-            Root::Field(base, i, ty) => self.b.emit(Tag::Field, base.0, i, ty, at),
-            Root::Deref(r, rt) => self.emit_deref(r, rt, at).0,
-            // The element is read after its list's buffer is made unique,
-            // so the rebuilt element shares nothing with another list's
-            // (`types.coll.nested`).
-            Root::Elem(list, index, ty) => {
-                let rec = self.b.refs_record(&[list, index]);
-                let op = hd_tir::ir::IntrinsicOp::ListIndexMut as u32;
-                self.b.emit(Tag::Intrinsic, op, rec, ty, at)
-            }
-        };
-        let mut vals = vec![root];
-        for &(i, ty) in &place.path {
-            let prev = vals[vals.len() - 1];
-            vals.push(self.b.emit(Tag::Field, prev.0, i, ty, at));
-        }
-        let mut new = v;
-        let mut field = idx;
-        for (k, val) in vals.iter().enumerate().rev() {
-            let ty = self.b.ty_of(*val);
-            let rec = self.b.refs_record(&[Ref(field), new]);
-            new = self.b.emit(Tag::CopyData, val.0, rec, ty, at);
-            if k > 0 {
-                field = place.path[k - 1].0;
-            }
-        }
-        match place.root {
             Root::Local(l, d) => {
                 self.note_write(l, d);
                 if self.mut_params.contains(&l) {
                     self.param_writes.push((l, at));
                 }
-                self.set_local(l, new, at);
+                (PlaceRoot::Local(l), fields.collect())
             }
-            Root::Global(def, _) => {
-                let a = self.b.refs_record(&[Ref(def.raw())]);
-                self.b.emit(Tag::GlobalSet, a, new.0, Ty::VOID, at);
-            }
-            Root::Field(base, i, _) => {
-                let rec = self.b.refs_record(&[Ref(i), new]);
-                self.b.emit(Tag::FieldSet, base.0, rec, Ty::VOID, at);
-            }
-            Root::Deref(r, rt) => self.emit_ref_store(r, rt, new, at),
-            Root::Elem(list, index, _) => {
-                let rec = self.b.refs_record(&[list, index, new]);
-                let op = hd_tir::ir::IntrinsicOp::ListSet as u32;
-                self.b.emit(Tag::Intrinsic, op, rec, Ty::VOID, at);
-            }
-        }
+            Root::Global(_, def, ty) => (PlaceRoot::Global(def, ty), fields.collect()),
+            Root::DataField(o, k, ..) => (
+                PlaceRoot::Value(o),
+                [Proj::Deref, Proj::Field(k)]
+                    .into_iter()
+                    .chain(fields)
+                    .collect(),
+            ),
+            // Reported by `place_writable_for_field`.
+            Root::MapValue(..) | Root::Elem(..) => return,
+        };
+        let word = self.b.place(&TirPlace { root, proj });
+        self.b.emit(Tag::Store, word, v.0, Ty::VOID, at);
     }
 
     /// `types.coll.map-value`: a write into a map value's field. A map

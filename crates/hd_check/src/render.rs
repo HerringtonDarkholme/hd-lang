@@ -229,7 +229,7 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
         );
     }
     // An instruction that no block lists and no instruction reads is not
-    // computed (`TirBuilder::unlist`): it is not shown.
+    // computed: it is not shown.
     let mut read = vec![false; b.len()];
     for &r in &b.sub_root {
         if let Some(x) = read.get_mut(r as usize) {

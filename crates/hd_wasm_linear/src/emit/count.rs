@@ -113,6 +113,9 @@ impl Em<'_, '_, '_> {
         for i in 0..self.b.len() {
             if let Some((l, v)) = super::live::local_store(self.b, i) {
                 sets.entry(l).or_default().push(v);
+            } else if let Some((l, _)) = super::live::local_part_store(self.b, i) {
+                // A field store binds no source of its own.
+                sets.entry(l).or_default().push(NONE);
             }
         }
         loop {

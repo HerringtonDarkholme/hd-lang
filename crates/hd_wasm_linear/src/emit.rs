@@ -860,9 +860,10 @@ pub(crate) fn callee_params(
         .collect()
 }
 
-/// Whether some `LocalSet` of body `b` writes local `l`.
+/// Whether some `LocalSet` of body `b`, or `Store` into it or a field of
+/// it, writes local `l`.
 fn written(b: &Body, l: usize) -> bool {
-    (0..b.len()).any(|i| live::local_store(b, i).is_some_and(|(x, _)| x == l))
+    (0..b.len()).any(|i| live::local_part_store(b, i).is_some_and(|(x, _)| x == l))
 }
 
 /// The parameter locals of the body's own function, in order: those

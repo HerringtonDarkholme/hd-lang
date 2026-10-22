@@ -9,11 +9,13 @@
 //! (`crates/hd_wasm_linear/DESIGN.md` §23.20); a read through one is a
 //! `Read` of a place through it, `[*%r]` or with the struct fields it
 //! follows, `[*%r .x]`, a write a `Store` into such a place, and its
-//! identity `RefIdentity`. `&x` on a
-//! local is `Ref [$x]`, so the backend keeps `x` in a cell; `&e` on any
-//! other value binds it to a fresh local, which is the new object. A
-//! field write through a reference is one `Store [*%r .x] v`
-//! (`value.rs`). The checker lowers `&T` and
+//! identity `RefIdentity`. One builder, [`Ck::place_of`], gives the
+//! place of `&`, `&mut`, an automatic address and a write: `&x` on a
+//! local is `Ref [$x]`, so the backend keeps `x` in a cell; a place
+//! through a reference or in a data value starts at that value, as
+//! `[*%r .x]` or `[*%o .k .x]`; `&e` on any other value binds it to a
+//! fresh local, which is the new object. A field write is one `Store` of
+//! its place (`value.rs`). The checker lowers `&T` and
 //! `&mut T` to one type, `Ref[T]`, when it finishes a body
 //! (`Types::lower_refs`), so the layout pass recognizes the reference
 //! carrier and `&mut T` to `&T` costs nothing.
@@ -33,25 +35,41 @@ use hd_types::{Ty, TyData};
 
 use crate::body::{Ck, ExpectPosition, LetMutKind, unsupported};
 
-/// Where a referenced place starts.
+/// Where a place starts (`docs/compiler/tir-v2.md`, "Places").
 #[derive(Clone, Copy)]
 pub(crate) enum Root {
     /// A local, with its scope depth.
     Local(LocalId, usize),
     /// A top-level binding: its name, id and type.
     Global(Symbol, DefId, Ty),
-    /// The place a reference refers to. The reference, evaluated once, is
-    /// held by a local made for it (with its depth); its type follows.
-    Deref(LocalId, usize, Ty),
-    /// A field of a data value, evaluated once and held by a local made
-    /// for it (with its depth): the field's index, the field's type, and
-    /// the data value's type.
-    DataField(LocalId, usize, u32, Ty, Ty),
+    /// The place the reference value `r` refers to, `[*%r]`, with `r`'s
+    /// type.
+    Deref(Ref, Ty),
+    /// A field of the data value `o`, `[*%o .k]`: the field's index, the
+    /// field's type, and the data value's type.
+    DataField(Ref, u32, Ty, Ty),
     /// A slot of a list's buffer (`ref.elem.place`): the list as the
     /// source read it (for the writable check), the local holding the
     /// pinned list and its depth, the local holding the index and its
     /// depth, and the list's value type.
     Elem(Ref, LocalId, usize, LocalId, usize, Ty),
+    /// A list element that a write names, `xs[i]`, which no reference
+    /// pins: the list value, the index value, the list's type, and the
+    /// index expression.
+    Slot(Ref, Ref, Ty, NodeIdx),
+    /// A value of a map, which is no place (`types.coll.map-value`): the
+    /// value read, and the index expression. Only a read reaches it; a
+    /// write through it is reported.
+    MapValue(Ref, NodeIdx),
+}
+
+/// What a place is built for ([`Ck::place_of`]): a reference to it (`&`,
+/// `&mut`, an automatic address), which pins a list element, or a write
+/// into it, which names the element where it is.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PlaceUse {
+    Ref,
+    Write,
 }
 
 /// A place a reference refers to (`ref.place.forms`): its root, the
@@ -393,7 +411,7 @@ impl Ck<'_, '_> {
             self.pin_owner = None;
         }
         let saved = std::mem::replace(&mut self.pin_next_owner, owner);
-        let op = self.operand(e, want_inner);
+        let op = self.place_of(e, want_inner, PlaceUse::Ref);
         self.pin_next_owner = saved;
         let Some(op) = op? else {
             return Ok(self.ref_poison(n));
@@ -498,17 +516,21 @@ impl Ck<'_, '_> {
         (l, self.scopes.len() - 1)
     }
 
-    /// The operand of `&` or `&mut`: a place (`ref.place.forms`), or any
-    /// other expression, evaluated. `None` after an error.
-    pub(crate) fn operand(
+    /// The place `e` names (`ref.place.forms`), as `use_` needs it: the
+    /// operand of `&` or `&mut`, or the target of a write; any other
+    /// expression, evaluated. A place's root is evaluated once: a local or
+    /// a top-level binding is not read, and a reference, a data value, a
+    /// list or an index is a value. `None` after an error.
+    pub(crate) fn place_of(
         &mut self,
         e: NodeRef<'_>,
         want: Option<Ty>,
+        use_: PlaceUse,
     ) -> StageResult<Option<Operand>> {
         let kids: Vec<NodeRef<'_>> = e.children().collect();
         match e.kind() {
             SyntaxKind::ParenExpr => match kids.as_slice() {
-                [inner] => self.operand(*inner, want),
+                [inner] => self.place_of(*inner, want, use_),
                 _ => unsupported("a parenthesized expression shape"),
             },
             SyntaxKind::NameExpr => {
@@ -525,8 +547,14 @@ impl Ck<'_, '_> {
                 if self.find_local(s).is_none()
                     && let Some(g) = self.global_binding(s)
                 {
-                    // Reports what a read reports (initialization order).
-                    if let Some((r, _)) = self.global_get(s, e)
+                    // Reports what a read reports (initialization order); a
+                    // write reads no value.
+                    if use_ == PlaceUse::Write {
+                        if matches!(self.global_read(s, e), crate::init::GlobalRead::Error) {
+                            let v = self.poison_value(e);
+                            return Ok(Some(Operand::Value(v.0, v.1)));
+                        }
+                    } else if let Some((r, _)) = self.global_get(s, e)
                         && self.b.ty_of(r) == Ty::POISON
                     {
                         return Ok(None);
@@ -556,10 +584,10 @@ impl Ck<'_, '_> {
                 {
                     return Ok(Some(Operand::Value(v.0, v.1)));
                 }
-                let Some(b) = self.operand(base, None)? else {
+                let Some(b) = self.place_of(base, None, use_)? else {
                     return Ok(None);
                 };
-                self.field_step(b, &name, e)
+                self.field_step(b, &name, (base, e), use_)
             }
             SyntaxKind::DerefExpr => {
                 let Some(inner) = kids.first().copied() else {
@@ -570,15 +598,15 @@ impl Ck<'_, '_> {
                     self.not_a_reference(t, inner);
                     return Ok(None);
                 };
-                let (l, d) = self.hold(r, t, inner);
                 Ok(Some(Operand::Place(Place {
-                    root: Root::Deref(l, d, t),
+                    root: Root::Deref(r, t),
                     path: vec![],
                     ty: self.deref_ty(it, m),
                 })))
             }
-            // A list element names a slot of the list's buffer, which the
+            // A list element names a slot of the list's buffer, which a
             // reference pins (`ref.elem.place`).
+            SyntaxKind::IndexExpr if use_ == PlaceUse::Write => self.slot_operand(e),
             SyntaxKind::IndexExpr => {
                 let owner = self.pin_next_owner.take();
                 self.elem_operand(e, owner)
@@ -618,23 +646,49 @@ impl Ck<'_, '_> {
                 p.ty = ty;
                 Operand::Place(p)
             }
-            Operand::Value(r, t) if self.ref_of(t).is_some() => {
-                let (l, d) = self.hold(r, t, e);
-                Operand::Place(Place {
-                    root: Root::Deref(l, d, t),
-                    path: part,
-                    ty,
-                })
-            }
+            Operand::Value(r, t) if self.ref_of(t).is_some() => Operand::Place(Place {
+                root: Root::Deref(r, t),
+                path: part,
+                ty,
+            }),
             op => op,
         }
+    }
+
+    /// The place `p` of a struct, extended to the embedded part that
+    /// promotes the field `name` when the struct has no field `name`
+    /// itself (`names.promoted.path`). A part reached through a value that
+    /// is no struct is not followed.
+    pub(crate) fn promote_place(&mut self, mut p: Place, name: &str) -> Place {
+        if self.field_of(p.ty, name).is_some() {
+            return p;
+        }
+        let Some(path) = self.promoted_field_path(p.ty, name) else {
+            return p;
+        };
+        let saved = (p.path.len(), p.ty);
+        for step in &path {
+            let Some((idx, ft)) = self.field_of(p.ty, step) else {
+                break;
+            };
+            if !self.is_struct_ty(p.ty) {
+                p.path.truncate(saved.0);
+                p.ty = saved.1;
+                return p;
+            }
+            let ft = self.field_access(p.ty, step, ft);
+            p.path.push((idx, ft));
+            p.ty = ft;
+        }
+        p
     }
 
     fn field_step(
         &mut self,
         b: Operand,
         name: &str,
-        e: NodeRef<'_>,
+        (base, e): (NodeRef<'_>, NodeRef<'_>),
+        use_: PlaceUse,
     ) -> StageResult<Option<Operand>> {
         let b = match b {
             Operand::Place(p) if !self.is_struct_ty(p.ty) => {
@@ -672,17 +726,26 @@ impl Ck<'_, '_> {
                     return Ok(None);
                 }
                 if let Some((inner, m)) = self.ref_of(t) {
-                    let (l, d) = self.hold(r, t, e);
                     let p = Place {
-                        root: Root::Deref(l, d, t),
+                        root: Root::Deref(r, t),
                         path: vec![],
                         ty: self.deref_ty(inner, m),
                     };
-                    return self.field_step(Operand::Place(p), name, e);
+                    return self.field_step(Operand::Place(p), name, (base, e), use_);
                 }
                 let pool = self.pool();
-                if let TyData::Tuple { .. } = pool.get(self.strip_mut(self.infer.resolve(pool, t)))
+                let inner = self.strip_mut(self.infer.resolve(pool, t));
+                // A write reads any other field as an expression does; only
+                // a data value's field is a place it names.
+                if use_ == PlaceUse::Write
+                    && !(matches!(pool.get(inner), TyData::Adt { .. })
+                        && !self.is_struct_ty(t)
+                        && self.field_of(t, name).is_some())
                 {
+                    let (v, vt) = self.field_of_value((r, t), name, (base, e))?;
+                    return Ok(Some(Operand::Value(v, vt)));
+                }
+                if let TyData::Tuple { .. } = pool.get(inner) {
                     // `ref.check.not-yet-non-list-elements`
                     self.err(
                         Code::ReferencesNotYetChecked,
@@ -709,12 +772,51 @@ impl Ck<'_, '_> {
                     return Ok(Some(Operand::Value(v, ft)));
                 }
                 let ft = self.field_access(t, name, ft);
-                let (l, d) = self.hold(r, t, e);
                 Ok(Some(Operand::Place(Place {
-                    root: Root::DataField(l, d, idx, ft, t),
+                    root: Root::DataField(r, idx, ft, t),
                     path: vec![],
                     ty: ft,
                 })))
+            }
+        }
+    }
+
+    /// The element `e`, `xs[k]`, that a write names: a slot of the list
+    /// `xs` evaluates to, at the evaluated key; a value of a map, which is
+    /// no place; else the value of the index expression.
+    fn slot_operand(&mut self, e: NodeRef<'_>) -> StageResult<Option<Operand>> {
+        let kids: Vec<NodeRef<'_>> = e.children().collect();
+        let [base, key] = kids.as_slice() else {
+            return unsupported("an index shape");
+        };
+        let (br, bt) = self.expr(*base, None)?;
+        if br.0 == NONE && matches!(bt, Ty::NEVER | Ty::POISON) {
+            return Ok(Some(Operand::Value(br, bt)));
+        }
+        let (br, bt) = self.deref_index_base(br, bt, base.index());
+        let builtin = self.index_kind(bt);
+        let (kr, kt) = self.index_key_value(*key, builtin)?;
+        match builtin {
+            Some((get @ (IntrinsicOp::ListIndex | IntrinsicOp::MapIndex), _, bkt, vt))
+                if get == IntrinsicOp::MapIndex || !self.is_range_ty(kt) =>
+            {
+                let kr = self.index_key((kr, kt), *key, bkt);
+                let root = if get == IntrinsicOp::MapIndex {
+                    let rec = self.b.refs_record(&[br, kr]);
+                    let v = self.b.emit(Tag::Intrinsic, get as u32, rec, vt, e.index());
+                    Root::MapValue(v, e.index())
+                } else {
+                    Root::Slot(br, kr, bt, e.index())
+                };
+                Ok(Some(Operand::Place(Place {
+                    root,
+                    path: vec![],
+                    ty: vt,
+                })))
+            }
+            _ => {
+                let (v, vt) = self.index_of_value((br, bt), builtin, (kr, kt), (*key, e))?;
+                Ok(Some(Operand::Value(v, vt)))
             }
         }
     }
@@ -764,7 +866,7 @@ impl Ck<'_, '_> {
                     false
                 }
             }
-            Root::Deref(_, _, rt) => {
+            Root::Deref(_, rt) => {
                 if self.ref_of(rt).is_some_and(|(_, m)| m) {
                     true
                 } else {
@@ -777,10 +879,12 @@ impl Ck<'_, '_> {
                 }
             }
             // `ref.elem.writable`: as an element store needs.
-            Root::Elem(list, _, _, _, _, lt) => {
+            Root::Elem(list, _, _, _, _, lt) | Root::Slot(list, _, lt, _) => {
                 self.coll_change(list, lt, "a `&mut` element reference", at)
             }
-            Root::DataField(_, _, _, _, dt) => {
+            // A reference names no map value (`elem_operand`).
+            Root::MapValue(..) => false,
+            Root::DataField(_, _, _, dt) => {
                 if self.has_mut_access(dt) {
                     true
                 } else {
@@ -922,14 +1026,17 @@ impl Ck<'_, '_> {
                 let a = self.b.refs_record(&[Ref(def.raw())]);
                 (self.b.emit(Tag::GlobalGet, a, NONE, ty, n.index()), ty)
             }),
-            Root::Deref(l, d, rt) => {
-                let (r, _) = self.read_local(l, d, n);
-                self.emit_deref(r, rt, n.index())
-            }
-            Root::DataField(l, d, idx, ft, _) => {
-                let (o, _) = self.read_local(l, d, n);
+            Root::Deref(r, rt) => self.emit_deref(r, rt, n.index()),
+            Root::DataField(o, idx, ft, _) => {
                 (self.b.emit(Tag::Field, o.0, idx, ft, n.index()), ft)
             }
+            Root::Slot(list, index, lt, _) => {
+                let et = self.elem_ty(lt);
+                let rec = self.b.refs_record(&[list, index]);
+                let op = IntrinsicOp::ListIndex as u32;
+                (self.b.emit(Tag::Intrinsic, op, rec, et, n.index()), et)
+            }
+            Root::MapValue(v, _) => (v, self.b.ty_of(v)),
             Root::Elem(_, buf, bd, idx, id, lt) => {
                 let et = self.elem_ty(lt);
                 let (l, _) = self.read_local(buf, bd, n);
@@ -956,14 +1063,20 @@ impl Ck<'_, '_> {
         let root = match p.root {
             Root::Local(l, _) => PlaceRoot::Local(l),
             Root::Global(_, def, ty) => PlaceRoot::Global(def, ty),
-            Root::Deref(l, _, _) => {
+            Root::Deref(r, _) => {
                 proj.push(Proj::Deref);
-                PlaceRoot::Local(l)
+                PlaceRoot::Value(r)
             }
-            Root::DataField(l, _, idx, _, _) => {
+            Root::DataField(o, idx, _, _) => {
                 proj.extend([Proj::Deref, Proj::Field(idx)]);
-                PlaceRoot::Local(l)
+                PlaceRoot::Value(o)
             }
+            // A write's places; no reference takes them.
+            Root::Slot(list, index, ..) => {
+                proj.push(Proj::Elem(index));
+                PlaceRoot::Value(list)
+            }
+            Root::MapValue(v, _) => PlaceRoot::Value(v),
             Root::Elem(_, buf, _, idx, id, _) => {
                 let (i, _) = self.read_local(idx, id, n);
                 self.add_flags(idx, local_flags::CAPTURED);
@@ -1006,7 +1119,8 @@ impl Ck<'_, '_> {
             Root::Global(s, _, _) => {
                 let _ = self.global_read(s, n);
             }
-            Root::Deref(l, d, _) | Root::DataField(l, d, ..) => read(self, l, d),
+            // A value root was read when it was evaluated.
+            Root::Deref(..) | Root::DataField(..) | Root::Slot(..) | Root::MapValue(..) => {}
             Root::Elem(_, buf, bd, ..) => read(self, buf, bd),
         }
     }

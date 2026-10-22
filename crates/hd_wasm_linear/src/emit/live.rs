@@ -191,6 +191,25 @@ pub(super) fn local_store(b: &Body, i: usize) -> Option<(usize, u32)> {
     }
 }
 
+/// `LocalSet` `i`, or a `Store` into a local or a struct field of it
+/// (`[$l]`, `[$l .x .y]`): the local and the value stored. A field store
+/// replaces part of the local, as a `LocalSet` replaces all of it.
+pub(super) fn local_part_store(b: &Body, i: usize) -> Option<(usize, u32)> {
+    if let Some(whole) = local_store(b, i) {
+        return Some(whole);
+    }
+    if b.tags[i] != Tag::Store {
+        return None;
+    }
+    let p = b.decode_place(b.data[i][0])?;
+    match p.root {
+        PlaceRoot::Local(l) if p.proj.iter().all(|s| matches!(s, Proj::Field(_))) => {
+            Some((l.idx(), b.data[i][1]))
+        }
+        _ => None,
+    }
+}
+
 /// The local at the root of the place of `Ref`, `Read` or `Store` `i`:
 /// an access of that local, as a `LocalGet` or `LocalSet` is.
 pub(super) fn place_local(b: &Body, i: usize) -> Option<usize> {
@@ -690,7 +709,7 @@ fn span_loans(
             _ => {}
         }
         if of == sub
-            && let Some((l, _)) = local_store(b, i)
+            && let Some((l, _)) = local_part_store(b, i)
         {
             sets.entry(l).or_default().push(x);
         }
@@ -845,6 +864,13 @@ fn loans(
         if let Some((l, v)) = local_store(b, i) {
             accesses.entry(l).or_default().push(x);
             sets.entry(l).or_default().push(v);
+            continue;
+        }
+        // A store into a field of the local changes it too; it binds no
+        // value of its own (the store is no read of a loop's element).
+        if let Some((l, _)) = local_part_store(b, i) {
+            accesses.entry(l).or_default().push(x);
+            sets.entry(l).or_default().push(x);
             continue;
         }
         match b.tags[i] {
@@ -1058,10 +1084,10 @@ pub(super) fn field_spans(b: &Body, fields: &[u32], roots: &HashSet<usize>) -> V
                 | Tag::Hook => false,
                 t if super::susp::is_point(t) => false,
                 Tag::LocalSet => !roots.contains(&(b.data[i][0] as usize)),
-                // A store into a whole local is a `LocalSet`; any other
-                // store, through a reference among them, may replace the
-                // field, as `RefWrite` does.
-                Tag::Store => local_store(b, i).is_some_and(|(l, _)| !roots.contains(&l)),
+                // A store into a local, whole or a field of it, is a
+                // `LocalSet`; any other store, through a reference among
+                // them, may replace the field, as `RefWrite` does.
+                Tag::Store => local_part_store(b, i).is_some_and(|(l, _)| !roots.contains(&l)),
                 Tag::Intrinsic => matches!(
                     IntrinsicOp::from_u32(b.data[i][0]),
                     Some(IntrinsicOp::ValueCopy | IntrinsicOp::ListLen | IntrinsicOp::ListIndex)
@@ -1112,9 +1138,18 @@ pub(super) fn parameter_loans(
             Tag::RefPlace => b.place(x as usize).is_some_and(|p| {
                 p.kind == hd_tir::ir::place_root::DEREF && parameters.contains(&(p.x as usize))
             }),
+            // A place through such a reference, held by a local or read
+            // from one (`[*%r ..]` where `%r` reads it).
             Tag::Ref => b.decode_place(b.data[x as usize][0]).is_some_and(|p| {
                 p.proj.first() == Some(&Proj::Deref)
-                    && matches!(p.root, PlaceRoot::Local(l) if refs.contains(&l.idx()))
+                    && match p.root {
+                        PlaceRoot::Local(l) => refs.contains(&l.idx()),
+                        PlaceRoot::Value(r) => r.as_inst().is_some_and(|r| {
+                            b.tags[r.0 as usize] == Tag::LocalGet
+                                && refs.contains(&(b.data[r.0 as usize][0] as usize))
+                        }),
+                        _ => false,
+                    }
             }),
             _ => false,
         }

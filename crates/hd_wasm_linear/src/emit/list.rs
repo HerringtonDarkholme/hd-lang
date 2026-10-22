@@ -88,7 +88,7 @@ impl Em<'_, '_, '_> {
                 let aliases = super::live::uses(self.b, i)
                     .iter()
                     .any(|r| values[*r as usize]);
-                if let Some((l, v)) = super::live::local_store(self.b, i)
+                if let Some((l, v)) = super::live::local_part_store(self.b, i)
                     && values.get(v as usize) == Some(&true)
                     && !locals[l]
                 {
@@ -1061,8 +1061,17 @@ impl Em<'_, '_, '_> {
                 | Tag::Scope
                 | Tag::Defer
                 | Tag::Closure => return false,
-                // Any store but one into a whole local, as `LocalSet`.
-                Tag::Store if super::live::local_store(self.b, i).is_none() => return false,
+                // Any store but one into a local, as `LocalSet`; a field
+                // store into a local of a counted type as the copy-update
+                // it replaces.
+                Tag::Store
+                    if super::live::local_store(self.b, i).is_none()
+                        && super::live::local_part_store(self.b, i).is_none_or(|(l, _)| {
+                            self.counted(self.sub(self.b.local_ty[l])).is_some()
+                        }) =>
+                {
+                    return false;
+                }
                 Tag::Call if !self.calls.contains_key(&x) => return false,
                 Tag::NewData
                 | Tag::CopyData
