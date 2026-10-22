@@ -1,7 +1,7 @@
-# test: get_or returns the entry's value, or the fallback when there is none
-# Spec std/collections Map Methods: std-collections.map.get-or.
+# test: get followed by unwrap_or returns a map entry or an explicit fallback
+# Spec 05 Map Indexing: expr.index.map.get; std/option Methods: std-option.unwrap-or.
 fn stock_of(stock: Map[string, i32], item: string) -> i32:
-    stock.get_or(item, 0)
+    stock.get(item).unwrap_or(0)
 
 tests:
     use std.testing.assert_equal

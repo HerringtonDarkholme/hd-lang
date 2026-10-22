@@ -3161,7 +3161,7 @@ runtime/panic/list-windows-size.hd	runtime	panic:explicit-panic	std/collections.
 runtime/valid/list-min-max.hd	runtime	accept	std/collections.md#r-std-collections.helper.min-max.first
 typing/invalid/list-helper-callback-row.hd	type	reject:type-mismatch	std/collections.md#r-std-collections.helper.callback-row
 runtime/valid/list-counts.hd	runtime	accept	std/collections.md#r-std-collections.counts.decl
-runtime/valid/map-get-or.hd	runtime	accept	std/collections.md#r-std-collections.map.get-or
+runtime/valid/map-get-unwrap-or.hd	runtime	accept	std/option.md#r-std-option.unwrap-or
 runtime/valid/set-basics.hd	runtime	accept	std/collections.md#set
 runtime/valid/iterator-skip-take-while.hd	runtime	accept	std/iter.md#r-std-iter.adapter.take-while.stop
 runtime/valid/iterator-zip-iterable.hd	runtime	accept	std/iter.md#r-std-iter.adapter.zip-iterable.order
@@ -4019,6 +4019,7 @@ typing/invalid/lct-none-first-list.hd	type	reject:missing-contextual-enum-type	l
 typing/invalid/lct-none-branch-before-widening.hd	type	reject:missing-contextual-enum-type	lang/04-type-system.md#r-types.lct.contextual
 typing/invalid/template-helper-empty-row.hd	type	reject:missing-requirement	lang/10-modules.md#r-module.package.template-private.row
 runtime/valid/index-receiver-then-index.hd	runtime	accept	lang/05-expressions.md#r-expr.index.order
+typing/invalid/map-get-or-removed.hd	type	reject:unknown-method	lang/03-names-and-scopes.md#r-names.method-lookup.unknown
 typing/invalid/map-index-wrong-key-type.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.index.map.type
 runtime/valid/map-index-assign-inserts-or-replaces.hd	runtime	accept	lang/05-expressions.md#r-expr.index.map.assign
 runtime/valid/map-remove-is-a-method.hd	runtime	accept	lang/05-expressions.md#r-expr.index.map.library
@@ -4779,7 +4780,7 @@ runtime/valid/local-items-two-functions-declare-local-data-of-one-name.hd	runtim
 runtime/valid/local-items-a-local-type-implements-display-locally.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.local-type.name
 runtime/valid/local-items-a-local-function-captures-a-local-and-recurses.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.local-fn.visible
 runtime/valid/local-items-a-local-enum-is-matched.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.local-type.name
-runtime/valid/map-every-map-method-takes-its-declared-parameter-names.hd	runtime	accept	std/collections.md#r-std-collections.map.get-or
+runtime/valid/map-every-map-method-takes-its-declared-parameter-names.hd	runtime	accept	std/collections.md#r-std-collections.map.contains-key
 typing/invalid/map-a-misnamed-map-argument-is-rejected.hd	type	reject:unknown-named-argument	lang/07-functions.md#r-fn.arg.unknown-name
 runtime/valid/match-decision-tree-a-staircase-match-picks-the-first-matching-arm.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.subject
 runtime/valid/match-decision-tree-guards-run-in-arm-order-only-after-their-pattern-matches.hd	runtime	accept	lang/06-control-flow.md#r-flow.match.guard.eval

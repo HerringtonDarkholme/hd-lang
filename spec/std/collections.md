@@ -257,7 +257,7 @@ fn tally(words: List[string]) -> Map[string, usize]:
 
 | Receiver | Methods |
 | --- | --- |
-| `Map[K, V]` | `contains_key(self, key: K) -> bool`; `keys(self) -> List[K]`; `values(self) -> List[V]`; `get_or(self, key: K, fallback: V) -> V`; `is_empty(self) -> bool`; `entries(self) -> List[(K, V)]` |
+| `Map[K, V]` | `contains_key(self, key: K) -> bool`; `keys(self) -> List[K]`; `values(self) -> List[V]`; `is_empty(self) -> bool`; `entries(self) -> List[(K, V)]` |
 | `Map[K, usize]` | `most_common(self, n: usize) -> List[(K, usize)]` |
 
 ```text
@@ -277,11 +277,10 @@ fn pairs(stock: Map[string, i32]) -> List[(string, i32)]:
 2. r[std-collections.map.keys.order] `keys` returns the map's keys in its [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic).
 3. r[std-collections.map.values] `values` returns the map's values in the same order.
 4. r[std-collections.map.snapshot] Each returned list is a snapshot: a later change to the map does not change it.
-5. r[std-collections.map.get-or] `get_or(key, fallback)` returns the value of the entry whose key equals `key`, or `fallback` when there is none.
-6. r[std-collections.map.is-empty] `is_empty` is true exactly when `len()` is 0.
-7. r[std-collections.map.entries] `entries` returns the map's `(key, value)` pairs in its [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic), which is the order of `keys` and `values`, as a snapshot like theirs.
-8. r[std-collections.map.most-common] `most_common(n)` returns the `n` pairs of the map with the largest values, largest first, or every pair when `n` is at least `len()`. An `n` of 0 gives `[]`.
-9. r[std-collections.map.most-common.ties] Pairs with equal values keep the map's iteration order, so on a `counts` result the element that occurred first comes first, as in Python's `Counter.most_common`.
+5. r[std-collections.map.is-empty] `is_empty` is true exactly when `len()` is 0.
+6. r[std-collections.map.entries] `entries` returns the map's `(key, value)` pairs in its [iteration order](../lang/04-type-system.md#r-types.map.order.deterministic), which is the order of `keys` and `values`, as a snapshot like theirs.
+7. r[std-collections.map.most-common] `most_common(n)` returns the `n` pairs of the map with the largest values, largest first, or every pair when `n` is at least `len()`. An `n` of 0 gives `[]`.
+8. r[std-collections.map.most-common.ties] Pairs with equal values keep the map's iteration order, so on a `counts` result the element that occurred first comes first, as in Python's `Counter.most_common`.
 
 > **Why.** `entries` is a list snapshot like `keys` and `values`, since a
 > loop that sorts or indexes the pairs needs a list. `most_common` is

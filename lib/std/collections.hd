@@ -487,13 +487,6 @@ impl[K < Eq & Hash, V] Map[K, V]:
             found.push(value)
         found
 
-    ## The value of `key`, or `fallback` when the map has no entry for it.
-    ## See [std-collections.map.get-or](../../spec/std/collections.md#r-std-collections.map.get-or).
-    pub fn get_or(self, key: K, fallback: V) -> V:
-        match self.get(key):
-            .Some(value) => value
-            .None => fallback
-
     ## True exactly when the map has no entries.
     ## See [std-collections.map.is-empty](../../spec/std/collections.md#r-std-collections.map.is-empty).
     pub fn is_empty(self) -> bool:
