@@ -39,3 +39,36 @@ tests:
         assert_equal(heap.to_sorted_list(), ["apple", "fig", "pear"], reason="ascending")
         assert_equal(heap.len(), 3, reason="the heap is unchanged")
         assert_equal(heap.pop(), .Some("pear"), reason="still a max-heap")
+
+    it("empty and singleton heaps can be refilled repeatedly"):
+        let mut heap: Heap[i32] = Heap::new()
+        for value in [+4, -2, 4, 0]:
+            assert_equal(heap.pop(), .None, reason="empty before refill")
+            heap.push(value)
+            assert_equal(heap.peek(), .Some(value), reason="singleton peek")
+            assert_equal(heap.pop(), .Some(value), reason="singleton pop")
+            assert(heap.is_empty(), reason="empty after singleton pop")
+
+    it("sifting handles either child and duplicate parents at every size"):
+        for size in 0..40:
+            let mut heap: Heap[i32] = Heap::new()
+            let mut source: List[i32] = []
+            for index in 0..size:
+                value := i32((index * 17 + 3) % 11) - 5
+                source.push(value)
+                heap.push(value)
+            assert_equal(heap.to_sorted_list(), source.sorted(), reason="all values retained")
+            assert_equal(drained(&mut heap), source.sorted().reversed(), reason="descending through odd and even sizes")
+
+    it("copies and sorted lists stay independent during later sifts"):
+        let mut original = [+3, 9, 2, 9, -1].iter().collect::[Heap[i32]]()
+        let mut copy = original
+        let mut sorted = original.to_sorted_list()
+        assert_equal(original.pop(), .Some(9), reason="remove from original")
+        original.push(12)
+        copy.push(7)
+        assert_equal(copy.pop(), .Some(9), reason="copy retained both maxima")
+        sorted[0] = -99
+        assert_equal(drained(&mut original), [+12, 9, 3, 2, -1], reason="original has only its own writes")
+        assert_equal(drained(&mut copy), [+9, 7, 3, 2, -1], reason="copy has only its own writes")
+        assert_equal(sorted, [-99i32, 2, 3, 9, 9], reason="sorted list has only its own writes")
