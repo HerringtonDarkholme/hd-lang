@@ -44,6 +44,27 @@ pub fn shared_reference_layout(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) 
     )
 }
 
+/// Whether a value of `ty` holds a counted leaf on this backend (§23.16):
+/// the ownership passes' `OwnCx::counted` for a type with no parameter.
+#[must_use]
+pub fn counted_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
+    layout::walk(pool, env, ty).is_some()
+}
+
+/// Whether `ty` is a reference (`&T`, `&mut T`, a trait value
+/// reference), which a parameter borrows (`layout::Pass::Borrowed`).
+#[must_use]
+pub fn reference_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> bool {
+    matches!(layout::kind(pool, env, ty), layout::Kind::Ref { .. })
+}
+
+/// `ty` with newtypes erased and `mut` dropped, as the layouts read it
+/// (`layout::strip`).
+#[must_use]
+pub fn strip_type(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> Ty {
+    layout::strip(pool, env, ty)
+}
+
 /// The entry behavior of the program a module runs
 /// (`crates/hd_wasm_linear/DESIGN.md` §15.4, "Init order").
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -172,6 +193,16 @@ pub struct Input<'a> {
     /// inline (`opt::inline_counts`): the wasmtime pipeline's choice.
     pub inline_counts: bool,
     pub host_refs: &'a [(Ty, Hash128)],
+    /// Whether every body went through the ownership passes
+    /// (`hd_tir::own`), so emission lowers their read modes, `Drop`s and
+    /// exit sets and decides no count itself
+    /// (`docs/compiler/tir-v2.md`, "Stage 2"). Off: the backend's own
+    /// decisions (§23.16, §23.20, §23.25, §23.31, §23.36).
+    pub owned: bool,
+    /// With [`Input::owned`], the facts the ownership passes read
+    /// (`hd_tir::own::OwnCx`), from which emission learns which use
+    /// consumes each value (`hd_tir::own::consumers`).
+    pub own_cx: Option<&'a dyn hd_tir::own::OwnCx>,
 }
 
 /// The std module whose functions emitted code calls by key, and their

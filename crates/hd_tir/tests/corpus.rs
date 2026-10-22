@@ -29,6 +29,26 @@ impl VerifyCx for CorpusFacts {
     }
 }
 
+/// The passes' facts the owned cases assume: no type holds a counted
+/// leaf, so the one-consumer clause has nothing to balance there; the
+/// unit tests of `hd_tir::own` and `verify_owned` exercise it.
+struct NoCounts;
+
+impl hd_tir::own::OwnCx for NoCounts {
+    fn counted(&self, _: Ty) -> hd_tir::own::Tri {
+        hd_tir::own::Tri::No
+    }
+    fn pass(&self, _: &Callee, _: usize, _: usize) -> hd_tir::own::Pass {
+        hd_tir::own::Pass::Lent
+    }
+    fn pass_value(&self, _: Ty, _: usize, _: usize) -> hd_tir::own::Pass {
+        hd_tir::own::Pass::Lent
+    }
+    fn may_write(&self, _: &Callee) -> bool {
+        true
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Expect {
     Ok,
@@ -93,7 +113,7 @@ fn text_corpus_round_trips_and_verifies() {
                 valid_tags.extend(body.tags.iter().copied());
             }
             Expect::Owned => {
-                let errors = verify_owned(&body);
+                let errors = verify_owned(&body, &NoCounts);
                 assert!(errors.is_empty(), "{}: {errors:?}", path.display());
                 valid_tags.extend(body.tags.iter().copied());
             }
@@ -101,7 +121,7 @@ fn text_corpus_round_trips_and_verifies() {
                 // A rejection case may need the checker's facts; invariant
                 // 23 holds after the ownership passes.
                 let errors = if invariant == 23 {
-                    verify_owned(&body)
+                    verify_owned(&body, &NoCounts)
                 } else {
                     verify_in(&body, &CorpusFacts)
                 };

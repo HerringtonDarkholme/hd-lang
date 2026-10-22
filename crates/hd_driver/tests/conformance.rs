@@ -37,6 +37,9 @@
 //! instead (§23.24), under the same rule: a
 //! leak, a double free or a count change on a freed block panics
 //! `count-audit`, so the case fails.
+//! `HD_CONFORMANCE_OWN=1` builds every case through the ownership passes
+//! of TIR v2's stage 2 (`Packages::own_passes`), whose decisions the
+//! backend then emits instead of its own, under the same rule.
 
 //! `HD_TEST_TIMINGS=1` logs per-case or per-command wall times for profiling.
 
@@ -390,6 +393,7 @@ fn build_for(
         target,
         level: level(),
         checked: fixture.checked,
+        own_passes: own_passes(),
         ..Packages::default()
     };
     build_packages(&host, fixture.package, &packages, goal)
@@ -1770,6 +1774,12 @@ fn run_case(case: &Case, store: &MemoryStore, serial: usize) -> Verdict {
 /// when `HD_CONFORMANCE_CHECKED=1`.
 fn checked_runtime() -> bool {
     selection_env("HD_CONFORMANCE_CHECKED").is_some_and(|value| value == "1")
+}
+
+/// Whether every case builds through the ownership passes, emitting from
+/// what they decide (`Packages::own_passes`), when `HD_CONFORMANCE_OWN=1`.
+fn own_passes() -> bool {
+    selection_env("HD_CONFORMANCE_OWN").is_some_and(|value| value == "1")
 }
 
 /// The std package's own hd tests of its runtime modules: only std may use

@@ -4,6 +4,7 @@
 //! entry-local tables and the TIR hash (`wire`).
 
 pub mod ir;
+pub mod own;
 pub mod wire;
 
 pub use ir::{Body, BodyKind, Callee, ChoiceKind, PrimOp, Ref, Tag, TirBuilder, TirSink};

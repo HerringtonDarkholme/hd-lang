@@ -538,6 +538,26 @@ String operations are emitted by `emit/text.rs` and runtime helpers
 - **Bounded memory.** `crates/hd_driver/tests/std_rt/count_tests.hd`
   repeatedly builds strings, chains of nodes and enum payloads, checking
   that the heap stays bounded.
+- **Owned bodies** (docs/compiler/tir-v2.md, "Stage 2"; `Input::owned`,
+  `Em::owned`, `count.rs`). With the driver's switch on, every body is
+  the ownership passes' output and emission decides no count: a `Read`
+  copies, moves or borrows as its mode says, a `Drop` releases a value
+  or a local and zeroes it, a value moves into the one use that consumes
+  it (`hd_tir::own::consumers`, read through `Input::own_cx`), and the
+  exit releases the sub-body's exit set. None of `live.rs`'s plan, the
+  loans, the moves, the in-loop release of a store's previous value or
+  a jump's releases runs. The glue is the old glue. What emission still
+  adds is glue for what the generic body cannot see: a consumer whose
+  lowering cannot move a count in takes one and the value is released
+  after it (`release_untaken`); a lent argument a callee instance owns
+  takes a count (`push_args`, as before); a parameter its caller lends
+  takes one on entry, since the body owns its parameters; and a
+  cancelled suspension point, an edge the TIR does not have, releases
+  what the body holds there (`release_unwound`). `IsUnique` and `Pin` of
+  a local or a value lower to `rt:list_unique` or `rt:map_unique` and to
+  `ListPin`'s owner word without its count; a `move` or `borrow` read
+  lowers for a plain local read only, and a `Drop` of a projection not
+  at all, until the passes that write them.
 
 ### 23.17 List Operations
 

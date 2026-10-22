@@ -12,6 +12,20 @@
 //! ([`Em::take`], [`Em::take_local`], [`Em::take_tail`]). A moved place is
 //! zeroed, so the exit, which still releases every place, releases it as
 //! nothing.
+//!
+//! An owned body (`docs/compiler/tir-v2.md`, "Stage 2"; [`Em::owned`])
+//! went through the ownership passes, which decided every count: its
+//! `Read`s copy, move or borrow as their mode says, its `Drop`s release
+//! (and zero) a value or a local, a value moves into the one use that
+//! consumes it ([`Em::take_from`]), and its exit releases its exit set.
+//! The glue stays the same; only where it comes from changes. What the
+//! backend still adds is glue for a lowering or an instance the generic
+//! body cannot see: a consumer that cannot move a count in takes one of its
+//! own and the value is released after it ([`Em::release_untaken`]), an
+//! argument a callee instance owns but the passes lent takes a count
+//! (`push_args`), a parameter the caller lends takes one on entry, since
+//! the body owns its parameters, and a cancelled suspension point
+//! releases what the body holds there ([`Em::release_unwound`]).
 
 use hd_base::StageResult;
 use hd_tir::ir::{IntrinsicOp, NONE, Ref, Tag};
@@ -462,7 +476,9 @@ impl Em<'_, '_, '_> {
             }
             return Ok(());
         }
-        let old: Vec<u32> = if self.loops > 0 {
+        // An owned body's value is consumed or dropped, and zeroed, before
+        // its instruction runs again.
+        let old: Vec<u32> = if self.loops > 0 && !self.owned {
             let vs = self.vals(t)?;
             let old: Vec<u32> = vs.iter().map(|v| self.f.local(*v)).collect();
             for (l, o) in ls.iter().zip(&old) {
@@ -496,6 +512,12 @@ impl Em<'_, '_, '_> {
     /// release planned after that statement goes, and `r`'s locals are
     /// zeroed once the instruction has read them ([`Em::settle`]).
     pub(super) fn take(&mut self, r: u32) -> bool {
+        if self.owned {
+            let Some(&u) = self.emitting.last() else {
+                return false;
+            };
+            return self.take_from(r, u);
+        }
         if !self.counting
             || r == NONE
             || Ref(r).as_inst().is_none()
@@ -523,7 +545,8 @@ impl Em<'_, '_, '_> {
     /// after that statement goes, and the caller zeroes its locals. A
     /// borrowed parameter has no count to give, and a cell is shared.
     pub(super) fn take_local(&mut self, i: u32, l: usize) -> bool {
-        if !self.counting
+        if self.owned
+            || !self.counting
             || self.borrowed.contains(&l)
             || self.is_cell(l)
             || self.moves.loans.contains(&i)
@@ -566,7 +589,8 @@ impl Em<'_, '_, '_> {
     /// - a parameter the caller lends, and a reference that borrows
     ///   (`Moves::loans`), which hold no count to move.
     pub(super) fn take_cell(&mut self, i: u32, l: usize) -> bool {
-        if !self.counting
+        if self.owned
+            || !self.counting
             || self.susp.is_some()
             || !self.is_cell(l)
             || self.borrowed.contains(&l)
@@ -605,7 +629,8 @@ impl Em<'_, '_, '_> {
     /// (`live::Moves::tails`), moves its count into that value; the
     /// caller zeroes it once read ([`Em::settle_value`]).
     pub(super) fn take_tail(&self, r: u32) -> bool {
-        self.counting
+        !self.owned
+            && self.counting
             && !self.moves.loans.contains(&r)
             && self.moves.tails.contains(&r)
             && self.vals.contains_key(&r)
@@ -639,7 +664,7 @@ impl Em<'_, '_, '_> {
     /// ([`super::live::plan`]), and zeroes its places, which the exit
     /// then releases as nothing.
     pub(super) fn drop_dead(&mut self, blk: u32, p: usize) -> StageResult<()> {
-        if !self.counting {
+        if !self.counting || self.owned {
             return Ok(());
         }
         let Some(mut ds) = self.drops.get(&(blk, p)).cloned() else {
@@ -706,7 +731,8 @@ impl Em<'_, '_, '_> {
     /// values and the locals that live in them are dead. A place already
     /// released holds zeros, which release as nothing.
     pub(super) fn drop_exited(&mut self, floor: usize) -> StageResult<()> {
-        if !self.counting {
+        // An owned body's jumps have their `Drop`s before them.
+        if !self.counting || self.owned {
             return Ok(());
         }
         let exited: Vec<u32> = self
@@ -796,6 +822,23 @@ impl Em<'_, '_, '_> {
 
     fn release_all_inner(&mut self) -> StageResult<()> {
         let root = self.f.origin_root;
+        if self.owned {
+            // The exit set: the locals that may still hold a value here.
+            let b = self.b;
+            for &(s, l) in &b.exit_drops {
+                if s.raw() != u32::from(self.sub_id) {
+                    continue;
+                }
+                if let Some(ls) = self.locals.get(&l.idx()).cloned() {
+                    self.count_local(l.idx(), &ls, false)?;
+                }
+            }
+            for tmp in self.temps.clone() {
+                self.f.get(tmp);
+                self.f.helper(Helper::ReleaseRef);
+            }
+            return Ok(());
+        }
         let mut vals: Vec<(u32, Vec<u32>)> =
             self.vals.iter().map(|(k, v)| (*k, v.clone())).collect();
         vals.sort_unstable();
@@ -821,6 +864,212 @@ impl Em<'_, '_, '_> {
         for tmp in self.temps.clone() {
             self.f.get(tmp);
             self.f.helper(Helper::ReleaseRef);
+        }
+        Ok(())
+    }
+}
+
+impl Em<'_, '_, '_> {
+    /// The consumer of each value of an owned body, by the passes' rule
+    /// (`hd_tir::own::consumers`).
+    pub(super) fn own_consumers(&mut self) -> StageResult<()> {
+        let Some(cx) = self.input.own_cx else {
+            return crate::unsupported("an owned body without the passes' facts");
+        };
+        let mut out = std::mem::take(&mut self.consumer);
+        hd_tir::own::consumers(self.b, cx, &mut out);
+        self.consumer = out;
+        Ok(())
+    }
+
+    /// In an owned body: whether value `r`, which `user` consumes, moves
+    /// its count into the instruction or block being emitted. It is
+    /// zeroed once `user` has read it ([`Em::settle`]).
+    pub(super) fn take_from(&mut self, r: u32, user: u32) -> bool {
+        if !self.counting
+            || r == NONE
+            || Ref(r).as_inst().is_none()
+            || self.consumer.get(r as usize) != Some(&user)
+            || !self.vals.contains_key(&r)
+            || self.counted(self.ty_of(r)).is_none()
+            || self.moving.contains(&(user, r))
+        {
+            return false;
+        }
+        self.moving.push((user, r));
+        true
+    }
+
+    /// After owned instruction `i`: each value it consumes whose count its
+    /// lowering did not move in (it took a count of its own, or lent the
+    /// value to a callee that borrows it) is released and zeroed.
+    pub(super) fn release_untaken(&mut self, i: u32) -> StageResult<()> {
+        let mut ops = std::mem::take(&mut self.own_ops);
+        hd_tir::own::operands(self.b, i as usize, &mut ops);
+        let mut result = Ok(());
+        for op in &ops {
+            if matches!(
+                op.role,
+                hd_tir::own::Role::Dropped | hd_tir::own::Role::Tail
+            ) {
+                continue;
+            }
+            let v = op.value;
+            if self.consumer.get(v as usize) == Some(&i) && !self.moving.contains(&(i, v)) {
+                result = self.release_value(v);
+                if result.is_err() {
+                    break;
+                }
+            }
+        }
+        self.own_ops = ops;
+        result
+    }
+
+    /// Releases value `r`'s count, and zeroes it.
+    pub(super) fn release_value(&mut self, r: u32) -> StageResult<()> {
+        self.release_drops(&[super::live::Drop::Val(r)])
+    }
+
+    /// `Drop [$l]` or `Drop [%v]` `i`: releases the place's value and
+    /// zeroes it, so a later drop of it releases nothing.
+    pub(super) fn own_drop(&mut self, i: u32) -> StageResult<()> {
+        let word = self.b.data[i as usize][0];
+        if word & hd_tir::ir::place::BARE_LOCAL != 0 {
+            let l = (word & !hd_tir::ir::place::BARE_LOCAL) as usize;
+            return self.release_drops(&[super::live::Drop::Local(l)]);
+        }
+        match self.b.decode_place(word) {
+            Some(hd_tir::ir::Place {
+                root: hd_tir::ir::PlaceRoot::Value(r),
+                proj,
+            }) if proj.is_empty() && r.as_inst().is_some() => {
+                self.release_drops(&[super::live::Drop::Val(r.0)])
+            }
+            // The move pass writes the drops of a value's other fields
+            // (`docs/compiler/tir-v2.md`, "Move" rule 3), and lowers them.
+            _ => crate::unsupported("a `Drop` of a projection"),
+        }
+    }
+
+    /// The collection header at the place of `IsUnique` or `Pin` `i`, in
+    /// a local, and the collection's type: a local's or a value's. The
+    /// uniqueness and pin rules of insertion write these with their first
+    /// producer, the next commit, which lowers the places it writes.
+    fn own_header(&mut self, i: u32) -> StageResult<(u32, Ty)> {
+        let word = self.b.data[i as usize][0];
+        if word & hd_tir::ir::place::BARE_LOCAL != 0 {
+            let l = word & !hd_tir::ir::place::BARE_LOCAL;
+            let t = self.sub(self.b.local_ty[l as usize]);
+            let h = self.local_value(l)?[0];
+            return Ok((h, t));
+        }
+        match self.b.decode_place(word) {
+            Some(hd_tir::ir::Place {
+                root: hd_tir::ir::PlaceRoot::Value(r),
+                proj,
+            }) if proj.is_empty() && r.as_inst().is_some() => {
+                let h = self.f.local(crate::module::Val::I32);
+                self.comp(r.0, 0)?;
+                self.f.set(h);
+                Ok((h, self.ty_of(r.0)))
+            }
+            _ => crate::unsupported("an `IsUnique` or `Pin` of a place through a projection"),
+        }
+    }
+
+    /// `IsUnique` `i`: the list's or map's buffer made the place's own
+    /// (`rt:list_unique`, `rt:map_unique`).
+    pub(super) fn own_unique(&mut self, i: u32) -> StageResult<()> {
+        let (h, t) = self.own_header(i)?;
+        if self.input.runtime.is_none() {
+            return Ok(());
+        }
+        if let Ok((_, e)) = self.elem(t) {
+            self.f.get(h);
+            self.f.helper(Helper::ListUnique {
+                elem: e,
+                push: false,
+            });
+            return Ok(());
+        }
+        let (_, _, e) = self.entry(t)?;
+        self.f.get(h);
+        self.f.helper(Helper::MapUnique { entry: e });
+        Ok(())
+    }
+
+    /// `Pin` `i`: the list's header becomes its buffer's one owner while
+    /// element references hold counts of the buffer: `ListPin` without
+    /// the count of its own, which the reference holds (§23.20).
+    pub(super) fn own_pin(&mut self, i: u32) -> StageResult<()> {
+        let (h, t) = self.own_header(i)?;
+        if self.input.runtime.is_none() {
+            return Ok(());
+        }
+        self.pin_owner(h, t)
+    }
+
+    /// `Read [$l]` `i` of an owned body, as its mode says: a copy takes a
+    /// count of its own; a move takes the local's and empties it; a
+    /// borrow takes none and is no place's to release.
+    pub(super) fn own_local_read(&mut self, i: u32, l: usize) -> StageResult<()> {
+        use hd_tir::ir::ReadMode;
+        let mode = ReadMode::from_u32(self.b.data[i as usize][1]);
+        if self.is_cell(l) {
+            return match mode {
+                Some(ReadMode::Copy) => self.cell_get(i, l),
+                Some(ReadMode::Borrow) => {
+                    self.moves.loans.insert(i);
+                    self.cell_get(i, l)
+                }
+                // The move pass moves a celled local's count by its
+                // reference (`docs/compiler/tir-v2.md`, "Move" rule 4).
+                _ => crate::unsupported("a `move` read of a local in a cell"),
+            };
+        }
+        let ls = self.local(u32::try_from(l).expect("locals"))?;
+        for x in &ls {
+            self.f.get(*x);
+        }
+        match mode {
+            Some(ReadMode::Copy) => self.store(i),
+            Some(ReadMode::Move) => {
+                self.store_owned(i)?;
+                for x in ls {
+                    self.f.zero(x);
+                }
+                Ok(())
+            }
+            Some(ReadMode::Borrow) => {
+                self.moves.loans.insert(i);
+                self.store(i)
+            }
+            _ => crate::unsupported("a read the ownership passes left undecided"),
+        }
+    }
+
+    /// The release on a cancelled suspension point's way out of an owned
+    /// body: the cancel edge is no TIR jump, so the values and locals the
+    /// body holds there are released (and zeroed) here, before its exit
+    /// releases its exit set (as nothing).
+    pub(super) fn release_unwound(&mut self) -> StageResult<()> {
+        let mut vals: Vec<(u32, Vec<u32>)> =
+            self.vals.iter().map(|(k, v)| (*k, v.clone())).collect();
+        vals.sort_unstable();
+        for (i, ls) in vals {
+            if !self.moves.loans.contains(&i) && self.counted(self.ty(i)).is_some() {
+                self.release_locals(&ls, self.ty(i))?;
+                for l in ls {
+                    self.f.zero(l);
+                }
+            }
+        }
+        let mut locals: Vec<(usize, Vec<u32>)> =
+            self.locals.iter().map(|(k, v)| (*k, v.clone())).collect();
+        locals.sort_unstable();
+        for (l, _) in locals {
+            self.release_drops(&[super::live::Drop::Local(l)])?;
         }
         Ok(())
     }

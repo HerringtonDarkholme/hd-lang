@@ -68,6 +68,7 @@ pub fn instance(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Fu
         key: t.key[id.idx()],
         erased,
         cold: None,
+        owned: input.owned,
     };
     body_func(input, m, &own, sub, &input.collected.calls[id.idx()], b)
 }
@@ -75,7 +76,9 @@ pub fn instance(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Fu
 /// What [`body_func`] emits: item `item`'s instance at `args`, its sub-body
 /// `sub` and key, and for an erased body its family. `cold` is the result
 /// type of a plain function of a suspending item, which only makes the
-/// item's cold call ([`call_func`]); it never suspends.
+/// item's cold call ([`call_func`]); it never suspends. `owned`: the body
+/// is the ownership passes' output, whose counts emission follows
+/// ([`Input::owned`]); a body the backend builds itself is not.
 struct Own {
     item: DefId,
     args: TyList,
@@ -83,6 +86,7 @@ struct Own {
     key: Hash128,
     erased: Option<Hash128>,
     cold: Option<Ty>,
+    owned: bool,
 }
 
 /// The function of body `b`'s sub-body `sub`, the instance `own`, whose
@@ -110,6 +114,18 @@ fn body_func<'a>(
     let cells = closure::cell_locals(b, &ref_roots(input, b, item, args, suspending));
     let mut em = Em::new(input, m, b, (item, args), targets, cells);
     em.origin_root = b.sub_root[sub as usize];
+    if own.owned {
+        if b.tags
+            .iter()
+            .zip(&b.data)
+            .any(|(t, d)| *t == Tag::Read && d[1] == hd_tir::ir::ReadMode::Use as u32)
+        {
+            return unsupported("a body the ownership passes did not run on");
+        }
+        em.owned = true;
+        em.sub_id = sub;
+        em.own_consumers()?;
+    }
     let mut params = Vec::new();
     // A suspending body takes its frame first (`susp::FRAME`).
     if suspending {
@@ -155,8 +171,12 @@ fn body_func<'a>(
         entry.extend(closure::captures(b, ci).into_iter().map(|(l, _)| l));
         entry.extend(closure::self_local(b, ci));
     }
-    (em.drops, em.moves) = live::plan(b, u32::from(sub), &entry, &em.projs);
-    em.prepare_loans();
+    // The ownership passes decided every count of an owned body; the
+    // backend's own plan is for the others (§23.20, §23.25).
+    if !em.owned {
+        (em.drops, em.moves) = live::plan(b, u32::from(sub), &entry, &em.projs);
+        em.prepare_loans();
+    }
     // A plain function takes its parameters by the conventions of
     // `layout::Pass` (§23.25); a suspending one's cold constructor counts
     // each argument into its frame, so the callee takes a count of each.
@@ -333,8 +353,9 @@ fn body_func<'a>(
                         // Its count arrives with it.
                         Pass::Uncounted | Pass::Owned(_) => continue,
                         // A borrowed read the body never writes and no
-                        // cell holds is never counted.
-                        Pass::Borrowed if !em.is_cell(*l) && !written(b, *l) => {
+                        // cell holds is never counted. An owned body owns
+                        // every parameter: the passes drop each one.
+                        Pass::Borrowed if !em.owned && !em.is_cell(*l) && !written(b, *l) => {
                             em.borrowed.insert(*l);
                             continue;
                         }
@@ -374,7 +395,9 @@ fn body_func<'a>(
     if em.counting {
         em.open(Ctl::Exit);
     }
-    em.prepare_parameter_loans();
+    if !em.owned {
+        em.prepare_parameter_loans();
+    }
     let root = b.sub_root[sub as usize];
     em.block_into(root, None)?;
     let tail = b.data[root as usize][1];
@@ -382,7 +405,11 @@ fn body_func<'a>(
         if tail == NONE || em.diverges(tail) {
             em.f.op(Instruction::Unreachable);
         } else if em.counting {
-            let moved = em.take_tail(tail);
+            let moved = if em.owned {
+                em.take_from(tail, root)
+            } else {
+                em.take_tail(tail)
+            };
             if !moved {
                 em.retain_ref(tail)?;
             }
@@ -750,6 +777,7 @@ fn call_func(
     let calls = HashMap::from_iter([(call.0, target)]);
     let mut k = hd_base::StableHasher::new("linear-adapter-call");
     k.hash(key);
+    // The adapter's call is the backend's own body, which no pass saw.
     let own = Own {
         item,
         args,
@@ -757,6 +785,7 @@ fn call_func(
         key: k.finish(),
         erased: None,
         cold,
+        owned: false,
     };
     // The input again, at the lifetime of this body, which only it holds.
     let body = |i: InstId| (input.body)(i);
@@ -772,6 +801,8 @@ fn call_func(
         runtime: input.runtime,
         inline_counts: input.inline_counts,
         host_refs: input.host_refs,
+        owned: input.owned,
+        own_cx: input.own_cx,
     };
     let f = body_func(&here, m, &own, 0, &calls, &b)?;
     let sym = Sym::Inst(own.key);
@@ -996,6 +1027,18 @@ struct Em<'i, 'a, 'm> {
     /// In an erased body, the local holding the address of its thunks'
     /// table, read from the witness (`erased.rs`).
     ops: Option<u32>,
+    /// Whether the body is the ownership passes' output ([`Own::owned`]):
+    /// emission then lowers their read modes, `Drop`s and exit set, and
+    /// decides no count of its own. The sub-body it emits, whose exit set
+    /// its exit drops.
+    owned: bool,
+    sub_id: u16,
+    /// In an owned body, the instruction or block that consumes each
+    /// value, or `NONE`, by the passes' rule (`hd_tir::own::consumers`).
+    /// A consumer that cannot move the count in takes a count of its own,
+    /// and the value is released after it ([`Em::release_untaken`]).
+    consumer: Vec<u32>,
+    own_ops: Vec<hd_tir::own::Operand>,
 }
 
 impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
@@ -1074,6 +1117,10 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             entry_cells: hd_base::HashSet::default(),
             tree: None,
             ops: None,
+            owned: false,
+            sub_id: 0,
+            consumer: Vec::new(),
+            own_ops: Vec::new(),
         };
         em.projs = (0..b.len()).map(|i| em.projected(i)).collect();
         em
@@ -1366,26 +1413,43 @@ impl Em<'_, '_, '_> {
         if tail != NONE
             && let Some(d) = dest
         {
-            self.tail_into(tail, d)?;
+            self.tail_into(tail, d, blk)?;
+        } else if tail != NONE
+            && self.owned
+            && self.consumer.get(tail as usize) == Some(&blk)
+            && !self.b.sub_root.contains(&blk)
+        {
+            // A tail the passes gave to a block whose value no one reads;
+            // a sub-body's root's is its result, which `body_func` takes.
+            self.release_value(tail)?;
         }
         if labelled {
             self.close();
             if let Some(d) = dest {
                 // A break out of the block stored its value in the
-                // block's own locals.
+                // block's own locals; in an owned body its count moves on.
                 if d != blk && self.vals.contains_key(&blk) {
-                    for l in self.slot(blk)? {
-                        self.f.get(l);
+                    let ls = self.slot(blk)?;
+                    for l in &ls {
+                        self.f.get(*l);
                     }
-                    self.store(d)?;
+                    if self.owned {
+                        self.store_owned(d)?;
+                        for l in ls {
+                            self.f.zero(l);
+                        }
+                    } else {
+                        self.store(d)?;
+                    }
                 }
             }
         }
         Ok(())
     }
 
-    /// Stores value `r` as `dest`'s, or ends the path when `r` diverges.
-    fn tail_into(&mut self, r: u32, dest: u32) -> StageResult<()> {
+    /// Stores value `r`, which instruction or block `user` reads, as
+    /// `dest`'s, or ends the path when `r` diverges.
+    fn tail_into(&mut self, r: u32, dest: u32, user: u32) -> StageResult<()> {
         if self.vals(self.ty(dest))?.is_empty() {
             return Ok(());
         }
@@ -1394,8 +1458,13 @@ impl Em<'_, '_, '_> {
             return Ok(());
         }
         // A break's value moves at its only use; a block's tail, used
-        // only as the block's value, moves into it.
-        let moved = self.take(r) || self.take_tail(r);
+        // only as the block's value, moves into it. In an owned body, the
+        // passes said which.
+        let moved = if self.owned {
+            self.take_from(r, user)
+        } else {
+            self.take(r) || self.take_tail(r)
+        };
         self.push(r)?;
         if moved {
             self.store_owned(dest)?;
@@ -1419,9 +1488,12 @@ impl Em<'_, '_, '_> {
             self.f.origin_at = Some(i);
         }
         self.emitting.push(i);
-        let r = self.inst_body(i);
+        let mut r = self.inst_body(i);
         self.emitting.pop();
         self.f.at = outer;
+        if r.is_ok() && self.owned {
+            r = self.release_untaken(i);
+        }
         self.settle(i);
         self.f.origin_at = origin_outer;
         r
@@ -1449,6 +1521,13 @@ impl Em<'_, '_, '_> {
             Tag::Read if let Some(l) = self.b.local_read(i as usize) => {
                 self.local_read(i, l.idx())?;
             }
+            // Only plain local reads move or borrow so far: the move pass
+            // and the borrow pass, which write the others, lower them with
+            // their first writer (`docs/compiler/tir-v2.md`, stage 2's
+            // commits 7 and 8).
+            Tag::Read if self.owned && bw != hd_tir::ir::ReadMode::Copy as u32 => {
+                return unsupported("a `move` or `borrow` read of a place that is no local");
+            }
             // A plain read of a top-level binding, `Read [@g]`.
             Tag::Read if let Some(def) = self.b.global_read(i as usize) => {
                 self.global_read(i, def)?;
@@ -1458,15 +1537,25 @@ impl Em<'_, '_, '_> {
             Tag::Read if let Some((base, p)) = self.projection(i as usize) => {
                 self.projection_read(i, base, p)?;
             }
+            // A copy of a whole value, `Read copy [%v]`, which the
+            // ownership passes write for a consumer of a value used more
+            // than once: one count more.
+            Tag::Read if let Some(r) = self.b.value_read(i as usize) => {
+                self.push(r)?;
+                self.store(i)?;
+            }
             // An element read, `Read [%xs [%i]]` (`emit/list.rs`).
             Tag::Read if let Some((list, index)) = self.b.element_read(i as usize) => {
                 self.list_index(i, &[list, index], false)?;
             }
-            // The ownership passes' statements: the checker's TIR, which
-            // this emitter lowers, has none (invariant 22).
+            // The ownership passes' statements, in an owned body
+            // (`count.rs`); the checker's TIR has none (invariant 22).
+            Tag::Drop if self.owned => self.own_drop(i)?,
+            Tag::IsUnique if self.owned => self.own_unique(i)?,
+            Tag::Pin if self.owned => self.own_pin(i)?,
             Tag::Drop | Tag::IsUnique | Tag::Pin | Tag::FlagSet | Tag::FlagClear => {
                 return unsupported(format!(
-                    "an ownership statement `{}` in the checker's TIR",
+                    "an ownership statement `{}` the backend does not lower here",
                     self.b.tags[i as usize].name()
                 ));
             }
@@ -1590,7 +1679,7 @@ impl Em<'_, '_, '_> {
                 };
                 if self.b.tags[i as usize] == Tag::Break {
                     if bw != NONE {
-                        self.tail_into(bw, target)?;
+                        self.tail_into(bw, target, i)?;
                     }
                     self.settle(i);
                     self.exit(scope::Exit::Brk(target))?;
@@ -1874,6 +1963,9 @@ impl Em<'_, '_, '_> {
     /// locals. At the local's last read its count moves to the value; a
     /// read whose sole use is one field of it loads only that field.
     fn local_read(&mut self, i: u32, l: usize) -> StageResult<()> {
+        if self.owned {
+            return self.own_local_read(i, l);
+        }
         if self.is_cell(l) {
             return self.cell_get(i, l);
         }

@@ -164,10 +164,16 @@ impl Em<'_, '_, '_> {
             ));
         }
         let (_, parts) = struct_mem(self.pool(), self.env(), t)?;
-        let (Some(part), Some(&ft)) = (
-            parts.get(f as usize).copied(),
-            self.struct_fields(t).get(f as usize),
-        ) else {
+        let fields = if self.tuple(t) {
+            crate::layout::tuple_members(
+                self.pool(),
+                crate::layout::strip(self.pool(), self.env(), t),
+            )
+        } else {
+            self.struct_fields(t)
+        };
+        let (Some(part), Some(&ft)) = (parts.get(f as usize).copied(), fields.get(f as usize))
+        else {
             return unsupported("a reference to a field the struct does not have");
         };
         Ok((ft, part))
@@ -495,6 +501,18 @@ impl Em<'_, '_, '_> {
     /// path after it reads only that field.
     pub(super) fn place_read(&mut self, i: u32) -> StageResult<()> {
         let s = self.spot(i)?;
+        // A field of a local (`[$l .x .y]`), which the ownership passes
+        // root at the local: that part of its values, a copy with a count
+        // of its own.
+        if let (Start::Local(l), Head::Direct, false) = (s.start, s.head, s.path.is_empty()) {
+            let t = self.start_ty(s.start);
+            let (_, part) = self.fold_path(t, &s.path)?;
+            let ls = self.local_value(l)?;
+            for x in &ls[part.first..part.first + part.count] {
+                self.f.get(*x);
+            }
+            return self.store(i);
+        }
         if s.head != Head::Deref {
             return unsupported(
                 "a read of a place with no dereference that is no plain or projection read",

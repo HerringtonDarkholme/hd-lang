@@ -1,0 +1,13 @@
+# @dump: own
+# Insertion's drops at a jump: a `break` drops each value and local of
+# the blocks it leaves that may still hold a count, here the element the
+# loop read and the local `line` bound to it, whose drops after their last
+# uses that path never reaches.
+fn first_long(lines: List[string]) -> i32:
+    let found = +0
+    for line in lines:
+        # subject
+        if line.len() > 3:
+            break
+        found = found + 1
+    found

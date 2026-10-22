@@ -1543,6 +1543,87 @@ is worth deciding only if they are hot.
    hd_mono's erased-body outlining. No emitted module changes.
 5. `hd_tir::own` skeleton, `OwnCx` in the driver, and the switch; the
    new path emits from insertion's output (copies and drops).
+   As built: `hd_tir::own` runs, per body, place folding then
+   insertion, and splices every new instruction in at once
+   (`own/splice.rs`): each before the first instruction of the
+   statement it precedes, the whole body renumbered by the operand
+   schema. `OwnCx` has `counted` (no, yes, or maybe for a type naming a
+   parameter or an associated type), `pass` and `pass_value` (`Owned`
+   only for a parameter declared a value type with a counted leaf;
+   `Lent` for a reference, a type parameter, an associated type, a
+   newtype over a parameter, and every argument of a suspending
+   callee), and `may_write`. The driver's `Env` implements it from
+   signatures and layouts, remembered per run, never reading another
+   body; the declared types are not substituted, since that would read
+   a default body's generics. The switch is `Packages::own_passes`
+   (`HD_CONFORMANCE_OWN=1`; the `own` view sets it). With it on,
+   `Run::body_of` returns a decoded body after the passes (a second
+   cell beside the checker's, its TIR hash salted), supplied and `dbg`
+   bodies go through them too, checked and debug builds run
+   `verify_owned`, and the backend emits from them (`Input::owned`).
+   Off, the default, every conformance module is byte-identical to the
+   previous commit's, dev and optimized pipelines.
+   **Insertion as built.** Every `use` read copies. A value whose type
+   may hold a counted leaf is consumed by its one use when that use
+   consumes it as a statement of the value's own block, or as that
+   block's tail which the block's owner takes; any other consumer gets
+   a `Read copy [%v]` just before it, and the value a `Drop` after the
+   last-use statement of its home block (its own block, or a `Match`'s
+   block for a value a decision makes and an arm reads). An owned local
+   (a counted type, or one a reference or a shared capture reaches, so
+   a cell may hold it) gets a `Drop` after its last access in the
+   innermost block holding all its accesses, the root's for a parameter
+   or a capture, and a row in its sub-body's exit set. A `Break`,
+   `Continue` or `ToArm` drops what it leaves that may still hold a
+   count; a `Return` the values, the exit set the locals; a place a
+   crossed cleanup scope's suite reads is left for the suite. The uses
+   that consume (`own::operands`, `own::consumes`): a stored value, a
+   construction's part, a `Return` or `Break` value, a call argument
+   whose parameter is owned (not one a default argument's body reads
+   too, invariant 15), and a block tail that an `If`, a `Match` arm, a
+   switch with a value, a `With`, a cleanup scope's body, a `RefDyn`
+   or a sub-body's root takes. `verify_owned` gains invariant 4's first
+   clause (`Balance`), and three corrections found on real bodies: a
+   `Drop` of a whole local empties only the local (a reference keeps its
+   cell), a value computed again refills its places, and a cleanup
+   scope's suites run from the states at the body's exits.
+   **Place folding** is not in the plan above: `%v = Read [$l]`
+   followed at once by its one use `Read [%v .k]` becomes
+   `Read [$l .k]`. Without it insertion copies a whole local for each
+   field read: in `wide-value-field-reads` (a 1,650-value struct) one
+   function passed V8's 7.6 MB limit. It folds struct, tuple and
+   newtype fields of a local whose type names no parameter; elements,
+   payloads and dereferences stay as the checker writes them until
+   commit 12 roots every place in the checker, which leaves this step
+   nothing to fold, so it goes.
+   **The new path** (`hd_wasm_linear/DESIGN.md` §23.16, "Owned
+   bodies") lowers the modes, the `Drop`s and the exit set, and moves a
+   value into the consumer `own::consumers` names; it runs none of
+   `live.rs`, the loans or the moves. Its own glue covers what a generic
+   body cannot see: a consumer whose lowering cannot move a count in
+   takes one and the value is released after it, a lent argument a
+   callee instance owns takes one, a parameter its caller lends takes
+   one on entry, and a cancelled suspension point releases what the
+   body holds there. In an erased body a `Drop` and a value copy stay
+   in the body (hd_mono): an open value's view is one counted address.
+   On the new path, all 4,836 driver conformance cases pass, checked
+   and not, dev and optimized pipelines, and so do the std runtime's hd
+   tests but one count bound: in checked builds `count_tests.hd`'s
+   "immutable loop elements add no per-element counts" counts 20,000
+   retains over its 1,000 rounds, against at most 2,000, since that bound
+   is the old path's loop-element loans (§23.25), which the borrow pass
+   (commit 8) replaces. Counts are higher than the old path's, as
+   insertion alone is: over the 629 conformance programs with a `main`,
+   51,245 retain and 79,135 release sites against 25,573 and 50,018
+   (module bytes +8%); over the bench/study programs 2,380 and 3,079
+   against 760 and 1,261.
+   **Left for later commits**, each removed by its own writer: a `move`
+   or `borrow` read lowers only for a plain local read (commits 7 and
+   8); a `Drop` of a projection does not lower (commit 7's partial
+   moves); `IsUnique` and `Pin` lower only for a local or a value
+   (commit 6, which writes them); the intrinsics still check uniqueness
+   and the checker still copies collections (`ValueCopy`) and pins
+   (commits 6 and 12).
 6. Insertion's uniqueness and pins; the intrinsics stop checking for
    themselves on the new path.
 7. Move.

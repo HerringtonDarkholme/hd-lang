@@ -1383,6 +1383,20 @@ impl Em<'_, '_, '_> {
             self.index(b, ix)?;
         }
         self.unique(h, &e, false);
+        self.pin_owner(h, self.ty_of(args[0]))?;
+        let b = self.buffer(h);
+        self.f.get(b);
+        self.f
+            .call(Sym::Inst(self.input.runtime.expect("checked above").retain));
+        self.f.get(h);
+        self.store(i)
+    }
+
+    /// Gives the list header in local `h`, of type `t`, its owner word: the
+    /// function-table slot of the list's clone glue plus one, with bit 31
+    /// when its elements hold collections (§23.20).
+    pub(super) fn pin_owner(&mut self, h: u32, t: Ty) -> StageResult<()> {
+        let (_, e) = self.elem(t)?;
         let exposed = !e.colls.is_empty();
         self.f.get(h);
         self.f
@@ -1394,12 +1408,7 @@ impl Em<'_, '_, '_> {
             self.f.op(I::I32Or);
         }
         self.f.op(I::I32Store(mem(HEAP, LIST_OWN, 2)));
-        let b = self.buffer(h);
-        self.f.get(b);
-        self.f
-            .call(Sym::Inst(self.input.runtime.expect("checked above").retain));
-        self.f.get(h);
-        self.store(i)
+        Ok(())
     }
 
     /// `ListUnpin`: gives back the count of the buffer that `ListPin` took.

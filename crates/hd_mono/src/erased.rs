@@ -303,6 +303,12 @@ pub fn open_insts(
             // instructions are outlined one by one, as they were before
             // the instruction wrapped them.
             Tag::RefDyn | Tag::RefIdentity => continue,
+            // A `Drop` stays: an open value's view is one counted address,
+            // which the backend releases as it is.
+            Tag::Drop => continue,
+            // A copy of a value (`Read [%v]`, an ownership pass's) stays:
+            // an open value's copy counts its view once more.
+            Tag::Read if b.value_read(i).is_some() => continue,
             // A `Ref` stays; a `Read` or `Store` of a bare local stays,
             // and one of the whole place a reference refers to (`[*r]`)
             // too: the backend reads and writes it through an erased

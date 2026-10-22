@@ -1067,6 +1067,22 @@ impl Body {
         }
     }
 
+    /// The value a copy of a whole value reads: a `Read` of a value root
+    /// with no projection, `[%v]`, which the ownership passes write for a
+    /// consumer of a value used more than once. `None` for any other
+    /// instruction or place.
+    #[must_use]
+    pub fn value_read(&self, i: usize) -> Option<u32> {
+        let word = self.data[i][0];
+        if self.tags[i] != Tag::Read || word & place::BARE_LOCAL != 0 {
+            return None;
+        }
+        match *self.extra.get(word as usize..word as usize + 3)? {
+            [2, place::ROOT_VALUE, v] => Some(v),
+            _ => None,
+        }
+    }
+
     /// The top-level binding a plain global read `i` reads: a `Read` of
     /// a global root with no projection, `[@g]`. `None` for any other
     /// instruction.
@@ -3302,6 +3318,29 @@ mod tests {
         errs.iter().map(|e| (e.invariant, e.inst)).collect()
     }
 
+    /// The passes' facts for the tests: `string` is counted, nothing else
+    /// is, and every parameter is a value parameter.
+    pub(crate) struct Counts;
+
+    impl crate::own::OwnCx for Counts {
+        fn counted(&self, ty: Ty) -> crate::own::Tri {
+            if ty == Ty::STRING {
+                crate::own::Tri::Yes
+            } else {
+                crate::own::Tri::No
+            }
+        }
+        fn pass(&self, _: &Callee, _: usize, _: usize) -> crate::own::Pass {
+            crate::own::Pass::Owned
+        }
+        fn pass_value(&self, _: Ty, _: usize, _: usize) -> crate::own::Pass {
+            crate::own::Pass::Owned
+        }
+        fn may_write(&self, _: &Callee) -> bool {
+            true
+        }
+    }
+
     /// Invariant 22: the checker's TIR has no ownership: no decided read
     /// mode, no ownership statement, no exit set or region row.
     #[test]
@@ -3346,7 +3385,7 @@ mod tests {
             read(b, "[$0]", ReadMode::Move, n);
             read(b, "[$0]", ReadMode::Copy, n);
         });
-        assert_eq!(findings(&verify_owned(&moved)), [(23, 1)]);
+        assert_eq!(findings(&verify_owned(&moved, &Counts)), [(23, 1)]);
         let refilled = owned_body(|b, n| {
             let v = read(b, "[$0]", ReadMode::Move, n);
             let at = b.place(&"[$0]".parse().expect("place"));
@@ -3355,7 +3394,7 @@ mod tests {
             statement(b, Tag::Drop, "[$0]", n);
             statement(b, Tag::Drop, "[$0]", n);
         });
-        assert!(verify_owned(&refilled).is_empty());
+        assert!(verify_owned(&refilled, &Counts).is_empty());
         let in_a_loop = owned_body(|b, n| {
             let lp = b.open_loop();
             let body = b.open_block();
@@ -3373,7 +3412,10 @@ mod tests {
             b.close_loop(lp, body, Ty::VOID, n);
         });
         // The next round copies, then moves again, what this one moved.
-        assert_eq!(findings(&verify_owned(&in_a_loop)), [(23, 0), (23, 1)]);
+        assert_eq!(
+            findings(&verify_owned(&in_a_loop, &Counts)),
+            [(23, 0), (23, 1)]
+        );
     }
 
     /// Invariant 23: a borrow lives across no write to an overlapping place
@@ -3390,15 +3432,15 @@ mod tests {
                 b.prim(PrimOp::Add as u32, &[v, one], Ty::I32, n);
             })
         };
-        assert_eq!(findings(&verify_owned(&across("[$0]"))), [(23, 0)]);
-        assert!(verify_owned(&across("[$1]")).is_empty());
+        assert_eq!(findings(&verify_owned(&across("[$0]"), &Counts)), [(23, 0)]);
+        assert!(verify_owned(&across("[$1]"), &Counts).is_empty());
         let after = owned_body(|b, n| {
             let v = read(b, "[$0]", ReadMode::Borrow, n);
             let one = b.const_value(Ty::I32, 1);
             b.prim(PrimOp::Add as u32, &[v, one], Ty::I32, n);
             statement(b, Tag::Drop, "[$0]", n);
         });
-        assert!(verify_owned(&after).is_empty());
+        assert!(verify_owned(&after, &Counts).is_empty());
     }
 
     /// Invariant 23: nothing tier 2 reserves, a decided mode for every
@@ -3416,7 +3458,7 @@ mod tests {
             (SubId::from_raw(0), LocalId::from_raw(0)),
         ];
         assert_eq!(
-            findings(&verify_owned(&body)),
+            findings(&verify_owned(&body, &Counts)),
             [(23, 0), (23, 1), (23, NONE), (23, NONE)]
         );
     }

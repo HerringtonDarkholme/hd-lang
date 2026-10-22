@@ -53,6 +53,7 @@ pub use hd_wasm_linear::{FunctionOrigins, InstructionOrigin, StaticData};
 pub mod bench;
 mod dbg;
 pub mod diagnostics;
+mod own;
 mod pipeline;
 mod positions;
 mod report;
@@ -738,14 +739,19 @@ struct Bodies {
     /// Set when a body's bytes did not decode: `Collect` then fails as a
     /// module whose entry did not decode.
     bad: std::sync::atomic::AtomicBool,
+    /// Set when the ownership passes refused a body, or their output
+    /// failed its verification: `Collect` then fails with it.
+    own_error: Mutex<Option<String>>,
 }
 
-/// One body: where its wire bytes are, and the body once decoded.
+/// One body: where its wire bytes are, the body once decoded, and with
+/// the ownership passes on, the body after them.
 struct LazyBody {
     /// The module, its `check` entry, and the body's bytes in it; `None`
     /// for a body built in this run (a module cycle's init run).
     wire: Option<(usize, Arc<[u8]>, std::ops::Range<usize>)>,
     body: OnceLock<Option<(Body, Hash128)>>,
+    owned: OnceLock<Option<(Body, Hash128)>>,
 }
 
 impl LazyBody {
@@ -753,6 +759,7 @@ impl LazyBody {
         LazyBody {
             wire: None,
             body: OnceLock::from(Some((body, tir))),
+            owned: OnceLock::new(),
         }
     }
 }
@@ -1160,6 +1167,16 @@ struct Run<'a> {
     build_profile: BuildProfile,
     /// Whether allocation/count auditing is enabled.
     checked: bool,
+    /// Whether the ownership passes run and the backend emits from them
+    /// ([`Packages::own_passes`]).
+    own_passes: bool,
+    /// The layout facts the ownership passes ask of a type, computed once
+    /// per run (`own.rs`): whether it holds a counted leaf, and whether it
+    /// is a reference.
+    own_types: Mutex<HashMap<Ty, (bool, bool)>>,
+    /// How each parameter of a callee passes its argument, by the
+    /// callee's item, the parameter and the argument count (`own.rs`).
+    own_params: Mutex<HashMap<(DefId, u32, u32), hd_tir::own::Pass>>,
     /// The root package's per-body fuel, when a test sets it
     /// ([`Packages::body_fuel`]).
     body_fuel: Option<u64>,
@@ -1344,6 +1361,13 @@ pub struct Packages<'a> {
     pub body_fuel: Option<u64>,
     /// Enable allocation/count auditing for compiler conformance checks.
     pub checked: bool,
+    /// Stage 2 of TIR v2's switch (`docs/compiler/tir-v2.md`, "Stage 2"):
+    /// run the ownership passes (`hd_tir::own`) on every body the program
+    /// reaches, and emit counts from what they decide instead of the
+    /// linear backend's own decisions. Off by default until the counts
+    /// reach parity; the `own` fixture view and
+    /// `HD_CONFORMANCE_OWN=1` turn it on.
+    pub own_passes: bool,
 }
 
 /// What the modules a session built so far hold, for the build of its next
@@ -1557,6 +1581,9 @@ pub fn build_packages(
         },
         body_fuel: packages.body_fuel,
         checked: packages.checked,
+        own_passes: packages.own_passes,
+        own_types: Mutex::new(HashMap::default()),
+        own_params: Mutex::new(HashMap::default()),
         fetched: std::iter::once(false)
             .chain(packages.deps.iter().map(|d| d.fetched))
             .chain(std::iter::once(false))
@@ -7058,6 +7085,7 @@ impl Run<'_> {
                 let lazy = LazyBody {
                     wire: Some((m, c.entry.clone(), at)),
                     body: OnceLock::new(),
+                    owned: OnceLock::new(),
                 };
                 if kept {
                     bodies.entry(item).or_insert(lazy);
@@ -7141,6 +7169,7 @@ impl Run<'_> {
             bodies: Bodies {
                 all: bodies,
                 bad: std::sync::atomic::AtomicBool::new(false),
+                own_error: Mutex::new(None),
             },
             impl_rows,
             universe,
@@ -7158,11 +7187,22 @@ impl Run<'_> {
             .bodies
             .all
             .get(&self.paths.hash(hd_base::PathId::from_raw(def.raw())))?;
-        let out = self.decode(b);
+        let mut out = self.decode(b);
         if out.is_none() {
             p.bodies
                 .bad
                 .store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+        // With the switch on, every body the program reaches is the
+        // ownership passes' output (`docs/compiler/tir-v2.md`, "Where and
+        // when the passes run"): once per body, after decoding.
+        if self.own_passes
+            && let Some((raw, hash)) = out
+        {
+            out = b
+                .owned
+                .get_or_init(|| self.own_body(p, raw.clone(), *hash))
+                .as_ref();
         }
         if !self.host.render_tir.is_empty()
             && let Some((body, _)) = out
@@ -7371,6 +7411,12 @@ impl Run<'_> {
             _ => entry_key.clone(),
         };
         let keyed_entry = format!("linear:checked={}:{}", self.checked(), keyed_entry);
+        // The ownership passes change the code every body emits.
+        let keyed_entry = if self.own_passes {
+            format!("own-passes:{keyed_entry}")
+        } else {
+            keyed_entry
+        };
         let pkey = prog_key(
             self.toolchain,
             self.pipeline,
@@ -7422,6 +7468,14 @@ impl Run<'_> {
             Goal::Tests { .. } | Goal::Fixture { .. } | Goal::Analyze | Goal::CheckTests => false,
         };
         let root = if script { init_of(&entry_key) } else { main };
+        // A body the ownership passes refused reads as missing: say why.
+        if let Some(what) = lock(&p.bodies.own_error).clone() {
+            self.stage::<()>(
+                Stage::Collect,
+                Err(NotImplemented::bug(Stage::Collect, what)),
+            );
+            return;
+        }
         if self.body_of(p, root).is_none() {
             let span = Span {
                 file: FileId::from_raw(u32::MAX),
@@ -7599,6 +7653,8 @@ impl Run<'_> {
                 Stage::Collect,
                 "a module's check entry did not decode",
             ))
+        } else if let Some(what) = lock(&p.bodies.own_error).clone() {
+            Err(NotImplemented::bug(Stage::Collect, what))
         } else {
             collected
         };
@@ -7811,6 +7867,8 @@ impl Run<'_> {
                 Stage::Collect,
                 "a module's check entry did not decode",
             ))
+        } else if let Some(what) = lock(&p.bodies.own_error).clone() {
+            Err(NotImplemented::bug(Stage::Collect, what))
         } else {
             result
         };
@@ -8422,6 +8480,8 @@ impl Run<'_> {
             runtime,
             inline_counts: self.inline_counts,
             host_refs: &c.host_refs,
+            owned: self.own_passes,
+            own_cx: if self.own_passes { Some(&env) } else { None },
         };
         let built = if self.map_instructions {
             hd_wasm_linear::build_with_origins(&input).map(|mapped| {
@@ -9831,7 +9891,10 @@ impl ProgramEnv for Env<'_> {
             items: self.p,
             stage: Stage::Collect,
         };
-        hd_structure::supplied(&cx, &target, method)
+        match hd_structure::supplied(&cx, &target, method)? {
+            Some(body) => self.owned_generated(body).map(Some),
+            None => Ok(None),
+        }
     }
     fn map_key_items(&self) -> Option<(DefId, DefId, DefId)> {
         // `Eq`'s method names `Self` in its parameter, so it has no vtable
@@ -9862,10 +9925,11 @@ impl ProgramEnv for Env<'_> {
             items: self.p,
             stage: Stage::Collect,
         };
-        match key {
+        let body = match key {
             "dbg_show" => hd_structure::dbg_show_body(&cx, item, ty, debug),
             _ => hd_structure::dbg_values_body(&cx, item, ty),
-        }
+        }?;
+        self.owned_generated(body)
     }
     fn debug_trait(&self) -> DefId {
         self.run.known.debug

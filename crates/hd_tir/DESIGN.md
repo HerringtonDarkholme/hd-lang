@@ -1077,9 +1077,20 @@ body built elsewhere, such as a generated structure method, gets
     that holds a use but not the read. Places overlap as
     docs/compiler/tir-v2.md's "Places" says, with no types: two roots
     overlap only when one goes behind a reference or into a buffer and
-    the other is where a reference can reach. Not checked: that every
-    owned value has one consumer or one `Drop`, since which uses consume
-    depends on `OwnCx`'s parameter modes and counted types.
+    the other is where a reference can reach; a `Drop` of a whole local
+    empties only the local itself (a reference reaches its cell, which
+    the reference keeps); a value's new round refills its places; a
+    cleanup scope's suites run from the states at the body's exits. The
+    one-consumer clause is a forward walk with three bit sets (owned
+    values that may hold a count, values that may have met their
+    consumer or `Drop`, owned locals that may hold a value), joined by
+    union: a use or a `Drop` after a value's consumer or drop on some
+    path, a value still owned where its sub-body ends or where a loop
+    that computes it goes round, and a local that may hold a value at
+    the exit outside the exit set are errors. Which uses consume is
+    `own::operands` and `own::consumes`, with `OwnCx`'s parameter modes
+    and counted types; `verify_owned` takes the same `OwnCx` as the
+    passes.
 - **8.** Every call writes `Providers::None` today, and codegen reads
   providers from the callee's signature. So the check rejects a
   `Pending` form after `finish`, and pairs whose count is not the
@@ -1120,6 +1131,18 @@ body built elsewhere, such as a generated structure method, gets
   each body's item path hash and TIR hash with the init summary's hash;
   `prog_key` reads it.
 - Types stay generic (`Param`). D2 never materializes an instance as TIR.
+- **The ownership passes** (`src/own.rs`, docs/compiler/tir-v2.md "The
+  ownership passes") run on a decoded body when the driver's switch is
+  on (`Packages::own_passes`), once per body, before collection reads
+  it; their output never reaches the entry. Built so far: field reads
+  of a whole local's read folded into reads of the local's field place
+  (`own/fold.rs`), then insertion (`own/insert.rs`), spliced into the
+  body in one renumbering rebuild (`own/splice.rs`). They read the body
+  and `OwnCx` (counted types, parameter modes, `may_write`) only.
+  `own::operands` names each value operand of an instruction with its
+  role (lent, consumed, a call argument, a block tail, a drop), and
+  `own::consumers` each value's consumer by insertion's rule; the
+  verifier and the backend read the same two.
 
 Planned, not built: per item, an **inline summary** (whether the item
 passes the trivial inlining test, crates/hd_mono/DESIGN.md §13.8) and a
