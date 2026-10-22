@@ -1,0 +1,2 @@
+run: hd test --format json
+stdout-json: [{"kind":"test","name":"runs a built program with command environment directory and stdin","outcome":"passed"},{"kind":"summary","errors":0,"passed":1,"failed":0,"status":0}]

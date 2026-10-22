@@ -425,6 +425,7 @@ pub fn render(name: string, total: i32, at: Timestamp) -> string:
 ```
 
 ```text
+use std.process.Command
 use std.testing.{assert_equal, hd_run, snapshot_file, temp_dir}
 use std.time.Timestamp
 use pkg.report.render
@@ -433,7 +434,7 @@ it("renders the quarterly report"):
     snapshot_file(render("q4", 4500, Timestamp::from_unix_milliseconds(0)))
 
 it("runs the built program in its own directory"):
-    let out = hd_run!("shop")
+    let out = hd_run!(*Command::new("shop"))
     assert_equal(out.status, 0, reason="a clean exit")
     dir := temp_dir()
     assert_equal("$dir".len() > 0, true, reason="each case gets its own directory")

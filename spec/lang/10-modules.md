@@ -487,7 +487,7 @@ pub fn make_slug(title: string) -> Slug:
 > It checks output with `snapshot`, as in
 > `snapshot(slugify("Ship It"), expect="Ship-It")`.
 
-> **Note.** `hd_run!` runs only in an integration test module
+> **Note.** `hd_run!(command)` takes a `std.process.Command` and runs only in an integration test module
 > ([`std-testing.hd-run.integration-only`](../std/testing.md#r-std-testing.hd-run.integration-only)),
 > so a doc test that calls it is a `test-only-use` error.
 

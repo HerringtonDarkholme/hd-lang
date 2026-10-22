@@ -117,7 +117,7 @@ fn files(kind: Kind, name: &str, pages: bool) -> Vec<(String, String)> {
             out.push((
                 format!("tests/{ident}.hd"),
                 format!(
-                    "use std.testing.{{assert_equal, hd_run}}\n\nit(\"prints a greeting\"):\n    let out = hd_run!(\"{name}\")\n    assert_equal(out.stdout, \"hello, world\\n\", reason=\"the greeting\")\n    assert_equal(out.status, 0, reason=\"a clean exit\")\n"
+                    "use std.process.Command\nuse std.testing.{{assert_equal, hd_run}}\n\nit(\"prints a greeting\"):\n    let out = hd_run!(*Command::new(\"{name}\"))\n    assert_equal(out.stdout, \"hello, world\\n\", reason=\"the greeting\")\n    assert_equal(out.status, 0, reason=\"a clean exit\")\n"
                 ),
             ));
         }

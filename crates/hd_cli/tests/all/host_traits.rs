@@ -306,11 +306,11 @@ fn the_test_runner_runs_a_task_by_name() {
     );
     write(
         &dir.join("tests/run.hd"),
-        "use std.testing.{assert_equal, hd_run}\n\nit(\"runs the seed task\"):\n    \
-         out := hd_run!(\"seed\", [\"x\"], \"rows\\n\")\n    \
+        "use std.process.Command\nuse std.testing.{assert_equal, hd_run}\n\nit(\"runs the seed task\"):\n    \
+         out := hd_run!(*Command::new(\"seed\").arg(\"x\").stdin(\"rows\\n\"))\n    \
          assert_equal(out.stdout, \"seeded 1 rows\\nfrom the package\\n\", reason=\"the task's report\")\n    \
          assert_equal(out.status, 0, reason=\"a clean exit\")\n\n\
-         it(\"names no program\"):\n    _ := hd_run!(\"nothing\")\n",
+         it(\"names no program\"):\n    _ := hd_run!(*Command::new(\"nothing\"))\n",
     );
     let out = run(&dir, &["test", "--format", "json"]);
     let stdout = text(&out.stdout);

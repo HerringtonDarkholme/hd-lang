@@ -1,0 +1,14 @@
+use std.console.{ConsoleInput, read_line}
+use std.fs.{FsRead, read_text}
+use std.host.{Args, Env, args, env}
+use std.path.Path
+
+pub fn main!() -> void $ Console + ConsoleInput + FsRead + Args + Env:
+    println(args()[0])
+    println(env("HD_RUN_TAG").unwrap_or("missing tag"))
+    match read_line!():
+        .Ok(.Some(line)) => println(line)
+        _ => panic("missing input")
+    match read_text!(Path("data.txt")):
+        .Ok(text) => println(text)
+        .Err(_) => panic("missing working-directory file")

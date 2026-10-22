@@ -147,9 +147,9 @@ fn a_test_run_and_its_executables_build_for_its_engine() {
             ("tasks/seed.hd", BROKEN),
             (
                 "tests/seed.hd",
-                "use std.testing.{assert_equal, hd_run}\n\n\
+                "use std.process.Command\nuse std.testing.{assert_equal, hd_run}\n\n\
                  it(\"runs the seed task\"):\n    \
-                 out := hd_run!(\"seed\")\n    \
+                 out := hd_run!(*Command::new(\"seed\"))\n    \
                  assert_equal(out.status, 0, reason=\"a clean exit\")\n",
             ),
         ],

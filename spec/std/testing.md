@@ -442,46 +442,44 @@ See also: [Debug Trait](../lang/09-traits.md#debug-trait).
 
 ## Running Executables
 
-`std.testing` declares a function that runs one of the package's
-executables or tasks from an integration test, and the struct value of its result.
+`hd_run!` runs a `Command` naming one of the package's executables or
+tasks from an integration test, and returns its `ProcessOutput`.
 It is plain hd over the host trait
 [`Process`](../lang/10-modules.md#processes):
 
 ```text
-use std.process.{Command, Process}
+use std.process.{Command, Process, ProcessOutput}
 
-pub struct RunOutput:
-    pub stdout: string
-    pub stderr: string
-    pub status: i32
-
-pub fn hd_run!(name: string, args: List[string] = [], stdin: string = "") -> RunOutput $ Process:
-    match Command::new(name).args(args).stdin(stdin).run!():
-        .Ok(output) => RunOutput { stdout: output.stdout, stderr: output.stderr, status: output.status }
-        .Err(.NotFound) => panic("hd_run!: the package has no executable or task named '${name}'")
-        .Err(error) => panic("hd_run!: '${name}' did not start: ${error}")
+pub fn hd_run!(command: Command) -> ProcessOutput $ Process:
+    match $.use(Process).run!(command):
+        .Ok(output) => output
+        .Err(.NotFound(_)) => panic("hd_run!: the package has no executable or task named '${command.program}'")
+        .Err(error) => panic("hd_run!: '${command.program}' did not start: ${error}")
 ```
 
-1. r[std-testing.hd-run.import] Neither `hd_run` nor `RunOutput` is a prelude name; code imports them from `std.testing`.
-2. r[std-testing.hd-run.runs] `hd_run!(name, args, stdin)` runs the executable of the package under test whose name is `name`, as [`cli.exe.table`](../cli/command-line.md#r-cli.exe.table) names it. It passes `args` as the program's arguments and `stdin` as its standard input.
+1. r[std-testing.hd-run.command-import] Code imports `hd_run` from `std.testing`, and `Command` and `ProcessOutput` from `std.process`.
+2. r[std-testing.hd-run.command-runs] `hd_run!(command: Command) -> ProcessOutput $ Process` runs the executable named by `command.program`, by [`cli.exe.table`](../cli/command-line.md#r-cli.exe.table).
 3. r[std-testing.hd-run.default-name] The default executable is named after the package, by [`cli.exe.default-name`](../cli/command-line.md#r-cli.exe.default-name).
-4. r[std-testing.hd-run.task] `name` may also name a [task](../cli/command-line.md#tasks) of the package, which runs as `hd run NAME` runs it. No name names both, by [`cli.task.name-clash`](../cli/command-line.md#r-cli.task.name-clash).
+4. r[std-testing.hd-run.command-task] `command.program` may also name a [task](../cli/command-line.md#tasks) of the package, which runs as `hd run NAME` runs it. No name names both, by [`cli.task.name-clash`](../cli/command-line.md#r-cli.task.name-clash).
 5. r[std-testing.hd-run.waits] The call completes when the program exits.
-6. r[std-testing.hd-run.output] Its result holds the text the program wrote to standard output and to standard error, and the exit status it exited with.
+6. r[std-testing.hd-run.process-output] Its result is the `ProcessOutput` returned by the covering `Process` provider, with stdout, stderr, and any exit status unchanged.
 7. r[std-testing.hd-run.row] `hd_run!` has the requirement row `$ Process`, the host capability to start a process. It calls `run!` on the `Process` provider that covers the call.
 8. r[std-testing.hd-run.binding] In an integration test, the test runner binds `Process` to the package's executables and tasks, by [`cli.test.process`](../cli/command-line.md#r-cli.test.process). A test body's row takes `Process` from the call, so a test case writes no row for it.
-9. r[std-testing.hd-run.unknown-name] When `name` names neither an executable nor a task of the package, `hd_run!` panics at run time, whether or not `name` is a literal. Its category is that of a `panic` call. Panic: `explicit-panic`.
+9. r[std-testing.hd-run.unknown-command] When `command.program` names neither an executable nor a task of the package, `hd_run!` panics at run time, whether or not `command.program` is a literal. Its category is that of a `panic` call. Panic: `explicit-panic`.
 9. r[std-testing.hd-run.start-failure] When the program exists but does not start, so `run!` returns `PermissionDenied`, `NotGranted`, or `Other`, `hd_run!` panics too, with the error's text in its message. Panic: `explicit-panic`.
 10. r[std-testing.hd-run.integration-only] A call of `hd_run!` outside an [integration test module](../lang/10-modules.md#r-module.test.integration) is an error. Error: `test-only-use`.
+
+11. r[std-testing.hd-run.command-fields] `hd_run!` passes the command unchanged, including its arguments, environment, current directory, and standard input.
 
 The integration test that `hd new --app` writes for a package `hello`:
 
 ```text
 # tests/hello.hd
+use std.process.Command
 use std.testing.{assert_equal, hd_run}
 
 it("prints a greeting"):
-    let out = hd_run!("hello")
+    let out = hd_run!(*Command::new("hello"))
     assert_equal(out.stdout, "hello, world\n", reason="the greeting")
     assert_equal(out.status, 0, reason="a clean exit")
 ```
@@ -489,10 +487,11 @@ it("prints a greeting"):
 ```text
 # src/greeting.hd
 tests:
+    use std.process.Command
     use std.testing.hd_run
 
     it("runs the binary"):
-        _ := hd_run!("hello")  # error: test-only-use
+        _ := hd_run!(*Command::new("hello"))  # error: test-only-use
 ```
 
 > **Note.** `hd test` builds the package's executables before it runs any

@@ -2797,7 +2797,7 @@ typing/valid/least-common-type-trait-values-have-no-common-type-without-an-expec
 typing/valid/infer-never-from-never-argument.hd	type	accept	lang/04-type-system.md#r-types.lct.never.infer
 typing/valid/any-void-never.hd	type	accept	lang/04-type-system.md#r-types.any.never
 typing/invalid/readonly-edge-mut-self-call.hd	type	reject:not-writable	lang/04-type-system.md#r-types.path.store.not-writable
-typing/valid/hd-run-integration.hd	type	accept	std/testing.md#r-std-testing.hd-run.runs
+typing/valid/hd-run-integration.hd	type	accept	std/testing.md#r-std-testing.hd-run.command-runs
 typing/invalid/hd-run-outside-integration.hd	type	reject:test-only-use	std/testing.md#r-std-testing.hd-run.integration-only
 typing/valid/void-unit-alias.hd	type	accept	lang/04-type-system.md#r-types.void
 typing/invalid/result-ok-without-unit.hd	type	reject:argument-count	lang/04-type-system.md#r-types.result.no-ok-omit
@@ -4785,3 +4785,4 @@ runtime/valid/nested-optional-an-optional-and-a-nested-optional-join-to-the-nest
 typing/invalid/nested-optional-layers-never-drop-or-double-drop.hd	type	reject:type-mismatch	lang/04-type-system.md#optional-types
 typing/invalid/nested-optional-layers-never-drop-or-double-double.hd	type	reject:type-mismatch	lang/04-type-system.md#optional-types
 typing/invalid/nested-optional-a-plain-value-and-a-nested-optional-have-no-common-type.hd	type	reject:no-common-type	lang/04-type-system.md#r-types.lct.optional.one-layer
+runtime/valid/hd-run-command-forwarding.hd	runtime	accept	std/testing.md#running-executables

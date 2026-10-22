@@ -6,7 +6,6 @@ use std.net.NetError
 use std.num.ParseNumberError
 use std.process.{ExitCode, ProcessOutput}
 use std.random.SeededRandom
-use std.testing.RunOutput
 use std.text.{EscapeError, StringBuilder, Utf8Error}
 use std.time.{Clock, Duration, Instant, ManualClock, Timestamp, s}
 
@@ -25,5 +24,5 @@ fn error_texts(report: ErrorReport, parse: ParseNumberError, escape: EscapeError
 fn value_texts(order: Ordering, reverse: Reverse[i32], builder: StringBuilder, random: SeededRandom) -> List[string]:
     [shown(order), shown(reverse), shown(builder), shown(random)]
 
-fn process_texts(code: ExitCode, output: ProcessOutput, run: RunOutput, failure: NetError) -> List[string]:
-    [shown(code), shown(output), shown(run), shown(failure)]
+fn process_texts(code: ExitCode, output: ProcessOutput, failure: NetError) -> List[string]:
+    [shown(code), shown(output), shown(failure)]

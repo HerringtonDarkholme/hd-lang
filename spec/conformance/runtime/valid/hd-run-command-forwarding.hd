@@ -1,0 +1,17 @@
+# fixture-test-layout: integration
+# test: hd_run! forwards every Command field and returns ProcessOutput unchanged
+# expect: test
+use std.path.Path
+use std.process.{Command, Process, ProcessOutput, ScriptedProcess}
+use std.testing.{assert_equal, hd_run, snapshot}
+
+it("forwards command data and preserves a nonzero exit status"):
+    process := ScriptedProcess::new()
+    process.reply("child", .Ok(ProcessOutput { stdout: "argument tag input work\n", stderr: "child stderr", status: 7 }))
+    command := Command::new("child").arg("argument").env("TAG", "tag").current_dir(Path("work")).stdin("input\n")
+    $.with(Process=process):
+        let output: ProcessOutput = hd_run!(*command)
+        snapshot(output.stdout, expect="argument tag input work\n")
+        assert_equal(output.stderr, "child stderr", reason="stderr unchanged")
+        assert_equal(output.status, 7, reason="a nonzero status is data")
+    assert_equal(process.received(), [*command], reason="the entire Command is forwarded")
