@@ -44,11 +44,11 @@
     { "key": "Process", "std": "std.process.Process", "methods": [
       { "name": "run", "wait": "may", "resource": "program", "params": ["Command"], "result": "Result[ProcessOutput, ProcessError]" }
     ]},
-    { "key": "Sys", "std": "std.sys.Sys", "methods": [
-      { "name": "os", "wait": "never", "resource": "sys-name", "params": [], "result": "Result[string, SysError]" },
-      { "name": "arch", "wait": "never", "resource": "sys-name", "params": [], "result": "Result[string, SysError]" },
-      { "name": "hostname", "wait": "never", "resource": "sys-name", "params": [], "result": "Result[string, SysError]" },
-      { "name": "cpu_count", "wait": "never", "resource": "sys-name", "params": [], "result": "Result[u32, SysError]" }
+    { "key": "Sys", "std": "std.host.Sys", "methods": [
+      { "name": "os", "wait": "never", "resource": "sys-name", "params": [], "result": "Result[string, HostError]" },
+      { "name": "arch", "wait": "never", "resource": "sys-name", "params": [], "result": "Result[string, HostError]" },
+      { "name": "hostname", "wait": "never", "resource": "sys-name", "params": [], "result": "Result[string, HostError]" },
+      { "name": "cpu_count", "wait": "never", "resource": "sys-name", "params": [], "result": "Result[u32, HostError]" }
     ]},
     { "key": "Env", "std": "std.host.Env", "methods": [
       { "name": "get", "wait": "never", "resource": "env-name", "params": ["string"], "result": "string?" },
@@ -121,6 +121,12 @@
       { "name": "InvalidUtf8", "fields": [{ "name": "path", "type": "Path" }] },
       { "name": "Other", "fields": [{ "name": "message", "type": "string" }] }
     ] },
+    "HostError": { "kind": "enum", "module": "lib/std/host.hd", "generics": [], "variants": [
+      { "name": "NotGranted", "fields": [{ "name": "subject", "type": "string" }] },
+      { "name": "Unsupported", "fields": [{ "name": "name", "type": "string" }] },
+      { "name": "Other", "fields": [{ "name": "message", "type": "string" }] },
+      { "name": "InvalidValue", "fields": [{ "name": "name", "type": "string" }, { "name": "reason", "type": "string" }] }
+    ] },
     "HttpError": { "kind": "enum", "module": "lib/std/http.hd", "generics": [], "variants": [
       { "name": "NotGranted", "fields": [{ "name": "host", "type": "string" }] },
       { "name": "InvalidUrl", "fields": [{ "name": "url", "type": "string" }] },
@@ -130,7 +136,7 @@
       { "name": "Timeout", "fields": [] },
       { "name": "TooManyRedirects", "fields": [{ "name": "url", "type": "string" }] },
       { "name": "Other", "fields": [{ "name": "message", "type": "string" }] },
-      { "name": "Status", "fields": [{ "name": "status", "type": "u16" }, { "name": "url", "type": "string" }] },
+      { "name": "Status", "fields": [{ "name": "response", "type": "Response" }] },
       { "name": "Json", "fields": [{ "name": "error", "type": "JsonError" }] }
     ] },
     "JsonError": { "kind": "enum", "module": "lib/std/json.hd", "generics": [], "variants": [
@@ -176,10 +182,6 @@
     "PropertyCase": { "kind": "data", "module": "lib/std/testing.hd", "generics": [], "fields": [{ "name": "example", "type": "usize?" }, { "name": "seed", "type": "i64" }, { "name": "size", "type": "i32" }, { "name": "replay", "type": "List[i64]" }] },
     "Request": { "kind": "data", "module": "lib/std/http.hd", "generics": [], "fields": [{ "name": "method", "type": "Method" }, { "name": "url", "type": "string" }, { "name": "query", "type": "List[(string, string)]" }, { "name": "headers", "type": "List[(string, string)]" }, { "name": "body", "type": "List[u8]" }, { "name": "redirects", "type": "usize" }] },
     "Response": { "kind": "data", "module": "lib/std/http.hd", "generics": [], "fields": [{ "name": "status", "type": "u16" }, { "name": "headers", "type": "List[(string, string)]" }, { "name": "body", "type": "List[u8]" }, { "name": "url", "type": "string" }] },
-    "SysError": { "kind": "enum", "module": "lib/std/sys.hd", "generics": [], "variants": [
-      { "name": "NotGranted", "fields": [{ "name": "name", "type": "string" }] },
-      { "name": "Unsupported", "fields": [{ "name": "name", "type": "string" }] }
-    ] },
     "TcpListener": { "kind": "handle" },
     "TcpStream": { "kind": "handle" },
     "UdpSocket": { "kind": "handle" }

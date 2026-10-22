@@ -560,7 +560,7 @@ test binds with `$.with` instead:
 | `Process` | `ScriptedProcess` | [Scripted Process](process.md#scripted-process) |
 | `Http` | `ScriptedHttp` | [Scripted Http](http.md#scripted-http) |
 | `Net` | `ScriptedNet` | [Scripted Net](net.md#scripted-net) |
-| `Sys` | `ScriptedSys` | [Map Sys](sys.md#map-sys) |
+| `Sys` | `ScriptedSys` | [Map Sys](host.md#map-sys) |
 
 ```text
 use std.time.{Clock, ManualClock, Timestamp, now}

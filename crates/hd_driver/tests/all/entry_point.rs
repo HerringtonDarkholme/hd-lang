@@ -60,7 +60,7 @@ fn accepts(text: &str) {
 }
 
 /// The host capability traits that the prelude leaves out.
-const HOST_USES: &str = "use std.console.ConsoleInput\nuse std.time.Clock\nuse std.fs.{FsRead, FsWrite}\nuse std.random.Random\nuse std.http.Http\nuse std.net.Net\nuse std.process.Process\nuse std.sys.Sys\nuse std.host.{Env, Args}\n\n";
+const HOST_USES: &str = "use std.console.ConsoleInput\nuse std.time.Clock\nuse std.fs.{FsRead, FsWrite}\nuse std.random.Random\nuse std.http.Http\nuse std.net.Net\nuse std.process.Process\nuse std.host.Sys\nuse std.host.{Env, Args}\n\n";
 
 const DATABASE: &str = "pub trait Database:\n    fn query(self) -> i32\n\n";
 const HIDDEN: &str = "pub struct HiddenError: pass\n\n";

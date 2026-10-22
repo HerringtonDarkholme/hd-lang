@@ -60,6 +60,18 @@ export const FsError = variants({
   InvalidUtf8: { path: Path },
   Other: { message: str },
 });
+export const HostError = variants({
+  NotGranted: { subject: str },
+  Unsupported: { name: str },
+  Other: { message: str },
+  InvalidValue: { name: str, reason: str },
+});
+export const Response = data({
+  status: unsigned,
+  headers: list(tuple(str, str)),
+  body: bytes,
+  url: str,
+});
 export const JsonError = variants({
   UnexpectedEnd: { position: unsigned },
   UnexpectedCharacter: { position: unsigned },
@@ -81,7 +93,7 @@ export const HttpError = variants({
   Timeout: {},
   TooManyRedirects: { url: str },
   Other: { message: str },
-  Status: { status: unsigned, url: str },
+  Status: { response: Response },
   Json: { error: JsonError },
 });
 export const Method = variants({
@@ -128,16 +140,6 @@ export const Request = data({
   headers: list(tuple(str, str)),
   body: bytes,
   redirects: unsigned,
-});
-export const Response = data({
-  status: unsigned,
-  headers: list(tuple(str, str)),
-  body: bytes,
-  url: str,
-});
-export const SysError = variants({
-  NotGranted: { name: str },
-  Unsupported: { name: str },
 });
 export const TcpListener = handle;
 export const TcpStream = handle;
@@ -436,25 +438,25 @@ export const METHODS = {
       wait: "never",
       resource: "sys-name",
       params: [],
-      result: result(str, SysError),
+      result: result(str, HostError),
     },
     arch: {
       wait: "never",
       resource: "sys-name",
       params: [],
-      result: result(str, SysError),
+      result: result(str, HostError),
     },
     hostname: {
       wait: "never",
       resource: "sys-name",
       params: [],
-      result: result(str, SysError),
+      result: result(str, HostError),
     },
     cpu_count: {
       wait: "never",
       resource: "sys-name",
       params: [],
-      result: result(unsigned, SysError),
+      result: result(unsigned, HostError),
     },
   },
   "hd:Env": {

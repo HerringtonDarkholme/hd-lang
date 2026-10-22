@@ -303,7 +303,7 @@ profile**, which binds these traits:
 | `Process` | `std.process` | starts a host program, which the operating system finds by its name, in the program's working directory |
 | `Http` | `std.http` | sends each request from the host |
 | `Net` | `std.net` | the host's DNS resolver, and its TCP and UDP sockets |
-| `Sys` | `std.sys` | the host's operating system, architecture, host name, and processor count |
+| `Sys` | `std.host` | the host's operating system, architecture, host name, and processor count |
 
 2. r[cli.host.default-profile] `hd FILE`, `hd run`, and a task run their program under the default profile, which binds the host capability traits in the table above.
 3. r[cli.host.script-binding] When `hd` runs a script, it binds every trait of the default profile, as the [REPL](#repl) does, so the script's top level may use each of them. The script's [capability grant](#capability-grants) still limits the resources they touch.
@@ -367,7 +367,7 @@ hd run --cap Http=localhost:8080  # this run calls localhost:8080 instead
 | `Net` | `std.net.Net` | `host:port` addresses, or hosts for every port |
 | `Env` | `std.host.Env` | variable names, or a prefix followed by `*` |
 | `Process` | `std.process.Process` | program names |
-| `Sys` | `std.sys.Sys` | method names of `Sys` |
+| `Sys` | `std.host.Sys` | method names of `Sys` |
 | `Console`, `ConsoleInput`, `Clock`, `Random`, `Args` | `std.console.Console`, `std.console.ConsoleInput`, `std.time.Clock`, `std.random.Random`, `std.host.Args` | none: only `true` or `false` |
 
 1. r[cli.cap.table] The `[capabilities]` table of `hd.toml` sets the grant of each host capability trait that it names.
@@ -509,7 +509,7 @@ pub fn main!() -> void $ Console + FsRead:
 | `Http` | `.Err(HttpError.NotGranted(host))` |
 | `Net` | `.Err(NetError.NotGranted(address))` |
 | `Process` | `.Err(ProcessError.NotGranted)` |
-| `Sys` | `.Err(SysError.NotGranted(name))` |
+| `Sys` | `.Err(HostError.NotGranted(name))` |
 | `Env` | `.None` from `get`, by [Environment Grant](#environment-grant) |
 
 1. r[cli.cap.partial.refuse] A call whose resource lies outside its trait's grant returns the value of the table above, and never panics.

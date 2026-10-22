@@ -155,8 +155,8 @@ const FS_CODES = {
   ENOTDIR: "NotADirectory",
   EISDIR: "IsADirectory",
 };
-// The names `std.sys` gives Node's platforms and architectures
-// (std-sys.os, std-sys.arch); any other is Node's own name.
+// The names `std.host` gives Node's platforms and architectures
+// (std-host.sys.os, std-host.sys.arch); any other is Node's own name.
 const OS_NAMES = { darwin: "macos", win32: "windows" };
 const ARCH_NAMES = { x64: "x86_64", arm64: "aarch64", ia32: "x86" };
 
@@ -398,7 +398,7 @@ const quotaText = (path) => {
   }
 };
 
-// std-sys.cpu-count: every ancestor constrains the offered processors.
+// std-host.sys.cpu-count: every ancestor constrains the offered processors.
 // Keep the walk rooted at its mount, including when tested on macOS.
 // Like Rust's available_parallelism, round quotas down, with at least one.
 export function cgroupCpuCount(root, group, offered) {
@@ -448,15 +448,15 @@ function cpuCount() {
   return offered;
 }
 
-// The host system's four reads (std-sys.*). The grant covers each by
+// The host system's four reads (std-host.sys.*). The grant covers each by
 // its method's name (cli.cap.scope.sys); a refused or unanswerable
-// read is `.Err` with that name (std-sys.not-granted, .unsupported).
+// read is `.Err` with that name (std-host.sys.not-granted, .unsupported).
 function sysProvider({ grant }) {
-  // `Result[T, SysError]` of the read `name`: `.Ok` of what `value`
+  // `Result[T, HostError]` of the read `name`: `.Ok` of what `value`
   // returns, `.Err(.NotGranted(name))` outside the grant, or
   // `.Err(.Unsupported(name))` when the host cannot answer it.
   const sysRead = (name, value) => {
-    if (!grant.coversName("Sys", name)) return Err({ tag: "NotGranted", name });
+    if (!grant.coversName("Sys", name)) return Err({ tag: "NotGranted", subject: name });
     try {
       return Ok(value());
     } catch {
@@ -943,7 +943,11 @@ export async function driveNodeSession() {
               ran.dropped.join(","),
               JSON.stringify(ran.reason),
               live === null ? "-" : String(live.status),
-              live === null ? "-" : live.end.kind === "exit" ? `exit${live.end.status}` : live.end.kind,
+              live === null
+                ? "-"
+                : live.end.kind === "exit"
+                  ? `exit${live.end.status}`
+                  : live.end.kind,
               JSON.stringify(live?.error ?? null),
               Number(recording),
               Number(notice),

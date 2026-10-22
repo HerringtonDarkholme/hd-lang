@@ -445,9 +445,9 @@ fn random_draws_from_the_host_source() {
     assert_eq!(denied.status.code(), Some(101));
 }
 
-const SYS_PROGRAM: &str = "use std.sys.{Sys, SysError}
+const SYS_PROGRAM: &str = "use std.host.{Sys, HostError}
 
-fn show(r: Result[string, SysError]) -> string:
+fn show(r: Result[string, HostError]) -> string:
     match r:
         .Ok(text) => text
         .Err(e) => \"${e}\"
@@ -465,7 +465,7 @@ pub fn main() -> void $ Console + Sys:
         _ => println(\"read\")
 ";
 
-/// `Sys` (`std-sys.*`, `cli.cap.scope.sys`): the host's operating system
+/// `Sys` (`std-host.sys.*`, `cli.cap.scope.sys`): the host's operating system
 /// and architecture by std's names, its host name and processor count;
 /// a grant names the methods it covers, and another method returns
 /// `NotGranted` with its name.

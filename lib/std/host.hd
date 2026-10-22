@@ -1,6 +1,7 @@
-# std.host: the host capability traits `Args` and `Env`, their helpers, and
-# the deterministic providers `ScriptedArgs` and `ScriptedEnv` (spec/std/host.md).
-# The default profile binds a host `Args` and `Env`
+# std.host: the host capability traits `Args`, `Env`, and `Sys`, their helpers, and
+# the deterministic providers `ScriptedArgs`, `ScriptedEnv`, and `ScriptedSys`
+# (spec/std/host.md).
+# The default profile binds host `Args`, `Env`, and `Sys`
 # (src/commands/default-profile.ts).
 use std.error.Error
 use std.text.Parse
@@ -27,24 +28,30 @@ pub fn args() -> List[string] $ Args:
 pub fn env(name: string) -> string? $ Env:
     $.use(Env).get(name)
 
-# `env` read as a `T` (r-std-host.env-as.decl): an unset variable is
-# `.Ok(.None)`, and one that `T::parse` refuses is an `EnvError` that names
+# `env` read as a `T` (r-std-host.env-as.shared-error-signature): an unset variable is
+# `.Ok(.None)`, and one that `T::parse` refuses is a `HostError` that names
 # it and carries the parse error's `Display` text.
 ## The value of the environment variable `name` read as a `T`: `.None` when unset, an error naming the variable when unreadable.
-## See [std-host.env-as.decl](../../spec/std/host.md#r-std-host.env-as.decl).
-pub fn env_as[T < Parse[Error = E], E < Display](name: string) -> Result[T?, EnvError] $ Env:
+## See [std-host.env-as.shared-error-signature](../../spec/std/host.md#r-std-host.env-as.shared-error-signature).
+pub fn env_as[T < Parse[Error = E], E < Display](name: string) -> Result[T?, HostError] $ Env:
     text := match $.use(Env).get(name):
         .Some(found) => found
         .None => return .Ok(.None)
     match T::parse(text):
         .Ok(value) => .Ok(.Some(value))
-        .Err(error) => .Err(EnvError.InvalidValue(name, error.to_string()))
+        .Err(error) => .Err(HostError.InvalidValue(name, error.to_string()))
 
-## Why `env_as` failed: the variable's text could not be read as the requested type.
-## See [std-host.env-as.error](../../spec/std/host.md#r-std-host.env-as.error).
+## Why a host read failed, including a variable that could not be parsed.
+## See [std-host.error.decl](../../spec/std/host.md#r-std-host.error.decl).
 @error
 @derive(Debug, Eq)
-pub enum EnvError:
+pub enum HostError:
+    @error("sys access to ${subject} is not granted")
+    NotGranted(subject: string)
+    @error("sys access to ${name} is not supported")
+    Unsupported(name: string)
+    @error("$message")
+    Other(message: string)
     @error("invalid value for ${name}: ${reason}")
     InvalidValue(name: string, reason: string)
 
@@ -93,3 +100,45 @@ impl Env for ScriptedEnv:
         for (key, _) in self.values:
             found.push(key)
         found
+
+## The host capability to read four facts about the host system.
+## See [std-host.sys.decl](../../spec/std/host.md#r-std-host.sys.decl).
+pub trait Sys:
+    fn os(self) -> Result[string, HostError]
+    fn arch(self) -> Result[string, HostError]
+    fn hostname(self) -> Result[string, HostError]
+    fn cpu_count(self) -> Result[u32, HostError]
+
+## The deterministic Sys provider: every read answers from a map.
+## See [std-host.sys.map.decl](../../spec/std/host.md#r-std-host.sys.map.decl).
+pub struct ScriptedSys:
+    values: Map[string, string]
+
+impl ScriptedSys:
+    ## Returns the provider whose methods read the value of the key that is the method's name.
+    ## See [std-host.sys.map.new](../../spec/std/host.md#r-std-host.sys.map.new).
+    pub fn new(values: Map[string, string]) -> ScriptedSys:
+        ScriptedSys { values: values }
+
+impl Sys for ScriptedSys:
+    fn os(self) -> Result[string, HostError]:
+        match self.values.get("os"):
+            .Some(text) => .Ok(text)
+            .None => .Err(HostError.Unsupported("os"))
+
+    fn arch(self) -> Result[string, HostError]:
+        match self.values.get("arch"):
+            .Some(text) => .Ok(text)
+            .None => .Err(HostError.Unsupported("arch"))
+
+    fn hostname(self) -> Result[string, HostError]:
+        match self.values.get("hostname"):
+            .Some(text) => .Ok(text)
+            .None => .Err(HostError.Unsupported("hostname"))
+
+    fn cpu_count(self) -> Result[u32, HostError]:
+        match self.values.get("cpu_count"):
+            .Some(text) => match text.parse::[u32]():
+                .Ok(count) => .Ok(count)
+                .Err(_) => .Err(HostError.Unsupported("cpu_count"))
+            .None => .Err(HostError.Unsupported("cpu_count"))

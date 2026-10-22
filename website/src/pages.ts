@@ -67,7 +67,6 @@ const STD_CHAPTERS: readonly [module: string, title: string][] = [
   ["regex", "Regex"],
   ["result", "Result"],
   ["serde", "Serde"],
-  ["sys", "Sys"],
   ["task", "Task"],
   ["testing", "Testing"],
   ["text", "Text"],

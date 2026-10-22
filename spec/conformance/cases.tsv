@@ -3821,7 +3821,7 @@ runtime/valid/http-handles-and-values.hd	runtime	accept	std/http.md#r-std-http.s
 runtime/valid/http-scripted-unknown-url.hd	runtime	accept	std/http.md#r-std-http.scripted.missing-reply
 runtime/valid/http-status-as-error.hd	runtime	accept	std/http.md#r-std-http.response.ok.retained-error
 runtime/valid/http-json.hd	runtime	accept	std/http.md#r-std-http.response.json
-runtime/valid/map-sys.hd	runtime	accept	std/sys.md#map-sys
+runtime/valid/map-sys.hd	runtime	accept	std/host.md#map-sys
 runtime/valid/net-own-provider.hd	runtime	accept	std/net.md#net-providers
 runtime/valid/net-scripted-stream.hd	runtime	accept	std/net.md#scripted-net
 runtime/valid/net-using-dispose.hd	runtime	accept	std/net.md#socket-handles
@@ -4218,7 +4218,7 @@ runtime/valid/text-parse-trait.hd	runtime	accept	std/text.md#r-std-text.parse.tr
 runtime/valid/num-parse-trait.hd	runtime	accept	std/num.md#r-std-num.parse.trait-impls
 runtime/valid/cli-value-as.hd	runtime	accept	std/cli.md#r-std-cli.parsed.value-as
 runtime/valid/cli-parsed-value-copy.hd	runtime	accept	std/cli.md#r-std-cli.parsed.private
-runtime/valid/host-env-as.hd	runtime	accept	std/host.md#r-std-host.env-as.decl
+runtime/valid/host-env-as.hd	runtime	accept	std/host.md#r-std-host.env-as.shared-error-signature
 runtime/valid/num-abs.hd	runtime	accept	std/num.md#r-std-num.abs.value
 runtime/panic/num-abs-min-i8.hd	runtime	panic:integer-overflow	std/num.md#r-std-num.abs.min
 runtime/panic/num-abs-min-i16.hd	runtime	panic:integer-overflow	std/num.md#r-std-num.abs.min
@@ -4807,3 +4807,4 @@ runtime/valid/iterator-flat-map-iterable.hd	runtime	accept	std/iter.md#r-std-ite
 runtime/valid/task-retry-policy.hd	runtime	accept	std/task.md#retry-with-backoff
 typing/invalid/task-retry-zero-delay-needs-clock.hd	type	reject:missing-requirement	std/task.md#r-std-task.retry.policy.clock
 runtime/valid/list-flat-map-iterable.hd	runtime	accept	std/collections.md#r-std-collections.helper.flat-map.iterable-owned
+runtime/valid/host-shared-error.hd	runtime	accept	std/host.md#r-std-host.error.decl

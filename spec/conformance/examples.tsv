@@ -867,8 +867,8 @@ std/net.md	6	accept	runtime/valid/net-local-address.hd
 std/net.md	7	accept	runtime/valid/net-own-provider.hd
 std/net.md	8	accept	runtime/valid/net-scripted-stream.hd
 std/net.md	9	accept	runtime/valid/net-scripted-servers.hd
-std/sys.md	1	type-fragment	-
-std/sys.md	2	accept	runtime/valid/map-sys.hd
+std/host.md	7	type-fragment	-
+std/host.md	8	accept	runtime/valid/map-sys.hd
 std/random.md	1	type-fragment	-
 std/random.md	2	accept	typing/valid/random-trait.hd
 std/random.md	3	accept	runtime/valid/seeded-random.hd

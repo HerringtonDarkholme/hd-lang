@@ -286,33 +286,33 @@ pub static TABLE: &[HostTrait] = &[
     },
     HostTrait {
         key: "Sys",
-        std_path: "std.sys.Sys",
+        std_path: "std.host.Sys",
         methods: &[
             m(
                 "os",
                 &[],
-                B("Result[string, SysError]"),
+                B("Result[string, HostError]"),
                 Wait::Never,
                 Some(ResourceArg::SysName),
             ),
             m(
                 "arch",
                 &[],
-                B("Result[string, SysError]"),
+                B("Result[string, HostError]"),
                 Wait::Never,
                 Some(ResourceArg::SysName),
             ),
             m(
                 "hostname",
                 &[],
-                B("Result[string, SysError]"),
+                B("Result[string, HostError]"),
                 Wait::Never,
                 Some(ResourceArg::SysName),
             ),
             m(
                 "cpu_count",
                 &[],
-                B("Result[u32, SysError]"),
+                B("Result[u32, HostError]"),
                 Wait::Never,
                 Some(ResourceArg::SysName),
             ),

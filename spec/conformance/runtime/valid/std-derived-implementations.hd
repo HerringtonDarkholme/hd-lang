@@ -6,7 +6,7 @@ use std.cmp.Reverse
 use std.encoding.{Base64, DecodeError}
 use std.error.{Error, ErrorReport}
 use std.fs.{Entry, EntryKind}
-use std.host.{EnvError, ScriptedArgs}
+use std.host.{HostError, ScriptedArgs}
 use std.http.{Method, Request, Response}
 use std.json.{Json, Number}
 use std.net.{Datagram, NetError}
@@ -46,7 +46,7 @@ tests:
 
     it("error derivations preserve messages and absent causes"):
         assert_equal(DecodeError.InvalidPadding(2).to_string(), "invalid padding at position 2", reason="position template")
-        assert_equal(EnvError.InvalidValue("PORT", "bad").to_string(), "invalid value for PORT: bad", reason="two interpolations")
+        assert_equal(HostError.InvalidValue("PORT", "bad").to_string(), "invalid value for PORT: bad", reason="two interpolations")
         assert_equal(NetError.Other("raw").to_string(), "raw", reason="forwarded text")
         assert_equal(ProcessError.Exited(+2, "bad").to_string(), "program exited with status 2: bad", reason="signed status")
         assert_equal(ParseTimeError.Inexact(4).to_string(), "not a whole number of milliseconds at position 4", reason="time error")

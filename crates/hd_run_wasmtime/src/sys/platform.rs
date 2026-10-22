@@ -3,7 +3,7 @@
 
 use hd_run::Grants;
 
-use crate::abi::SysError;
+use crate::abi::HostError;
 use crate::codec::{Enc, Wire, encode};
 
 /// `Sys.<name>`'s result: the value, `.NotGranted` outside the grant, or
@@ -61,12 +61,12 @@ pub(super) fn sys_read<T: Wire>(
     read: impl FnOnce() -> Option<T>,
 ) -> Enc {
     let result = if grants.covers_name("Sys", name) {
-        read().ok_or_else(|| SysError::Unsupported {
+        read().ok_or_else(|| HostError::Unsupported {
             name: name.to_owned(),
         })
     } else {
-        Err(SysError::NotGranted {
-            name: name.to_owned(),
+        Err(HostError::NotGranted {
+            subject: name.to_owned(),
         })
     };
     encode(&result)

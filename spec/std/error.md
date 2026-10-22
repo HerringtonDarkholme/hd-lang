@@ -245,7 +245,7 @@ fn width(text: string) -> Result[i32, &dyn Error]:
 | `JsonError` | `std.json` |
 | `ParseTimeError` | `std.time` |
 | `CliError` | `std.cli` |
-| `EnvError` | `std.host` |
+| `HostError` | `std.host` |
 | `RegexError` | `std.regex` |
 | `NetError` | `std.net` |
 

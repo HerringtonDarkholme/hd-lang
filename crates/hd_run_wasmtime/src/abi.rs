@@ -236,6 +236,56 @@ impl Wire for FsError {
     }
 }
 
+/// `HostError` of `lib/std/host.hd`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum HostError {
+    NotGranted { subject: String },
+    Unsupported { name: String },
+    Other { message: String },
+    InvalidValue { name: String, reason: String },
+}
+
+impl Wire for HostError {
+    fn enc(&self, e: &mut Enc) {
+        match self {
+            Self::NotGranted { subject } => {
+                e.leb(0);
+                subject.enc(e);
+            }
+            Self::Unsupported { name } => {
+                e.leb(1);
+                name.enc(e);
+            }
+            Self::Other { message } => {
+                e.leb(2);
+                message.enc(e);
+            }
+            Self::InvalidValue { name, reason } => {
+                e.leb(3);
+                name.enc(e);
+                reason.enc(e);
+            }
+        }
+    }
+    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
+        Ok(match d.tag(4)? {
+            0 => Self::NotGranted {
+                subject: Wire::dec(d)?,
+            },
+            1 => Self::Unsupported {
+                name: Wire::dec(d)?,
+            },
+            2 => Self::Other {
+                message: Wire::dec(d)?,
+            },
+            _ => Self::InvalidValue {
+                name: Wire::dec(d)?,
+                reason: Wire::dec(d)?,
+            },
+        })
+    }
+}
+
 /// `HttpError` of `lib/std/http.hd`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum HttpError {
@@ -247,7 +297,7 @@ pub enum HttpError {
     Timeout,
     TooManyRedirects { url: String },
     Other { message: String },
-    Status { status: u16, url: String },
+    Status { response: Response },
     Json { error: JsonError },
 }
 
@@ -285,10 +335,9 @@ impl Wire for HttpError {
                 e.leb(7);
                 message.enc(e);
             }
-            Self::Status { status, url } => {
+            Self::Status { response } => {
                 e.leb(8);
-                status.enc(e);
-                url.enc(e);
+                response.enc(e);
             }
             Self::Json { error } => {
                 e.leb(9);
@@ -317,8 +366,7 @@ impl Wire for HttpError {
                 message: Wire::dec(d)?,
             },
             8 => Self::Status {
-                status: Wire::dec(d)?,
-                url: Wire::dec(d)?,
+                response: Wire::dec(d)?,
             },
             _ => Self::Json {
                 error: Wire::dec(d)?,
@@ -727,38 +775,6 @@ impl Wire for Response {
     }
 }
 
-/// `SysError` of `lib/std/sys.hd`.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum SysError {
-    NotGranted { name: String },
-    Unsupported { name: String },
-}
-
-impl Wire for SysError {
-    fn enc(&self, e: &mut Enc) {
-        match self {
-            Self::NotGranted { name } => {
-                e.leb(0);
-                name.enc(e);
-            }
-            Self::Unsupported { name } => {
-                e.leb(1);
-                name.enc(e);
-            }
-        }
-    }
-    fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
-        Ok(match d.tag(2)? {
-            0 => Self::NotGranted {
-                name: Wire::dec(d)?,
-            },
-            _ => Self::Unsupported {
-                name: Wire::dec(d)?,
-            },
-        })
-    }
-}
-
 /// `TcpListener`, a host handle: its handle number.
 pub type TcpListener = Handle;
 
@@ -1095,7 +1111,7 @@ pub static METHODS: &[HostMethod] = &[
         wait: Wait::Never,
         resource: Some(ResourceArg::SysName),
         params: &[],
-        result: Codec::Buffer("Result[string, SysError]"),
+        result: Codec::Buffer("Result[string, HostError]"),
     },
     HostMethod {
         id: Id::SysArch,
@@ -1104,7 +1120,7 @@ pub static METHODS: &[HostMethod] = &[
         wait: Wait::Never,
         resource: Some(ResourceArg::SysName),
         params: &[],
-        result: Codec::Buffer("Result[string, SysError]"),
+        result: Codec::Buffer("Result[string, HostError]"),
     },
     HostMethod {
         id: Id::SysHostname,
@@ -1113,7 +1129,7 @@ pub static METHODS: &[HostMethod] = &[
         wait: Wait::Never,
         resource: Some(ResourceArg::SysName),
         params: &[],
-        result: Codec::Buffer("Result[string, SysError]"),
+        result: Codec::Buffer("Result[string, HostError]"),
     },
     HostMethod {
         id: Id::SysCpuCount,
@@ -1122,7 +1138,7 @@ pub static METHODS: &[HostMethod] = &[
         wait: Wait::Never,
         resource: Some(ResourceArg::SysName),
         params: &[],
-        result: Codec::Buffer("Result[u32, SysError]"),
+        result: Codec::Buffer("Result[u32, HostError]"),
     },
     HostMethod {
         id: Id::EnvGet,
