@@ -112,12 +112,13 @@ test result: FAILED. 2 passed; 2 failed; 0 ignored
 #[test]
 fn an_explicit_body_keeps_its_own_result() {
     let lib = "\
+use std.error.{Error, message}
 use std.process.ExitCode
 use std.testing.TestRunner
 use std.time.s
 
-fn check_port(port: i32) -> Result[void, string]:
-    if port > 0: .Ok(()) else: .Err(\"bad port: ${port}\")
+fn check_port(port: i32) -> Result[void, &dyn Error]:
+    if port > 0: .Ok(()) else: .Err(message(\"bad port: ${port}\"))
 
 fn exit_zero() -> ExitCode:
     ExitCode(0)
@@ -132,9 +133,9 @@ tests:
 
     it(\"fails with code three\", body=fn!() -> ExitCode: ExitCode(3))
 
-    it(\"passes an ok port\", fn!() -> Result[void, string]: check_port(80))
+    it(\"passes an ok port\", fn!() -> Result[void, &dyn Error]: check_port(80))
 
-    it(\"fails a bad port\", body=fn!() -> Result[void, string]: check_port(0))
+    it(\"fails a bad port\", body=fn!() -> Result[void, &dyn Error]: check_port(0))
 
     it(\"takes a function\", body=exit_zero)
 
@@ -149,10 +150,10 @@ tests:
     assert_eq!(
         text(&out.stdout),
         "\
-FAIL src/lib.hd:19: fails with code three
+FAIL src/lib.hd:20: fails with code three
     `report()` returned `ExitCode(3)`
     repro: hd test src/lib.hd --filter \"fails with code three\"
-FAIL src/lib.hd:23: fails a bad port
+FAIL src/lib.hd:24: fails a bad port
     bad port: 0
     repro: hd test src/lib.hd --filter \"fails a bad port\"
 test result: FAILED. 6 passed; 2 failed; 0 ignored

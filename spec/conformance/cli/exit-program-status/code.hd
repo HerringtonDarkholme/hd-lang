@@ -1,4 +1,6 @@
+use std.error.Error
+
 use std.process.ExitCode
 
-pub fn main!() -> Result[ExitCode, string]:
+pub fn main!() -> Result[ExitCode, &dyn Error]:
     .Ok(ExitCode(3))

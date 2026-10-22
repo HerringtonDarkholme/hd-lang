@@ -5,6 +5,10 @@
 # when it is an explicit closure (Spec 05: expr.try.test.explicit-closure); a
 # trailing block's result type is void (expr.try.test.fixed-result).
 use std.process.{ExitCode, Termination}
+
+@error
+enum Failure:
+    Expected
 fn code_of[T < Termination](value: T) -> u8:
     u8(value.report())
 
@@ -15,11 +19,11 @@ tests:
         assert_equal(code_of(ExitCode(3)), 3, reason="ExitCode reports its own code")
 
     it("an Ok result reports its value's code"):
-        let result: Result[ExitCode, string] = .Ok(ExitCode(4))
+        let result: Result[ExitCode, Failure] = .Ok(ExitCode(4))
         assert_equal(code_of(result), 4, reason=".Ok reports the value's code")
 
     it("an Err result reports 1"):
-        let result: Result[void, string] = .Err("expected failure")
+        let result: Result[void, Failure] = .Err(.Expected)
         assert_equal(code_of(result), 1, reason=".Err reports 1")
 
     it("a test body may return ExitCode(0)", body=fn!() -> ExitCode: ExitCode(0))

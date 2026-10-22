@@ -128,8 +128,6 @@ pub fn message(text: string) -> &dyn Error:
 
 # Builtin errors have no declaration on which to place @error.
 impl Error for never
-# Keep handwritten Error: string is a builtin and has no declaration to decorate.
-impl Error for string
 
 # Wraps an `.Err(e)` in a `ContextError`; `.Ok` passes through
 # (r-std-error.context.ok, r-std-error.context.erased-wrapper).

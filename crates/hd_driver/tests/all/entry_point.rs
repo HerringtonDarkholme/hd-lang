@@ -201,12 +201,14 @@ fn a_result_whose_error_is_not_error_is_an_error() {
 #[test]
 fn a_result_whose_value_is_not_termination_is_an_error() {
     assert_eq!(
-        single("pub fn main() -> Result[string, string]:\n    .Ok(\"x\")\n"),
-        [(Code::UnsatisfiedTraitBound, 1, 18)]
+        single(
+            "use std.error.Error\npub fn main() -> Result[string, &dyn Error]:\n    .Ok(\"x\")\n"
+        ),
+        [(Code::UnsatisfiedTraitBound, 2, 18)]
     );
     assert_eq!(
-        single("pub fn main!() -> Result[i32, string]:\n    .Ok(1)\n"),
-        [(Code::UnsatisfiedTraitBound, 1, 19)]
+        single("use std.error.Error\npub fn main!() -> Result[i32, &dyn Error]:\n    .Ok(1)\n"),
+        [(Code::UnsatisfiedTraitBound, 2, 19)]
     );
 }
 
@@ -242,17 +244,29 @@ fn exit_code_is_an_entry_result() {
 }
 
 #[test]
-fn a_result_with_a_string_error_is_an_entry_result() {
-    accepts("pub fn main() -> Result[void, string]:\n    .Err(\"oops\")\n");
+fn a_result_with_an_explicit_message_error_is_an_entry_result() {
     accepts(
-        "use std.process.ExitCode\n\npub fn main() -> Result[ExitCode, string]:\n    .Ok(ExitCode(3))\n",
+        "use std.error.{Error, message}\n\npub fn main() -> Result[void, &dyn Error]:\n    .Err(message(\"oops\"))\n",
     );
-    accepts("pub fn main!() -> Result[void, string]:\n    .Ok(())\n");
+    accepts(
+        "use std.error.Error\nuse std.process.ExitCode\n\npub fn main() -> Result[ExitCode, &dyn Error]:\n    .Ok(ExitCode(3))\n",
+    );
+    accepts("use std.error.Error\n\npub fn main!() -> Result[void, &dyn Error]:\n    .Ok(())\n");
+}
+
+#[test]
+fn a_string_error_is_not_an_entry_result() {
+    assert_eq!(
+        single("pub fn main() -> Result[void, string]:\n    .Err(\"oops\")\n"),
+        [(Code::UnsatisfiedTraitBound, 1, 18)]
+    );
 }
 
 #[test]
 fn a_result_of_a_result_is_an_entry_result() {
-    accepts("pub fn main() -> Result[Result[void, string], string]:\n    .Ok(.Ok(()))\n");
+    accepts(
+        "use std.error.Error\n\npub fn main() -> Result[Result[void, &dyn Error], &dyn Error]:\n    .Ok(.Ok(()))\n",
+    );
 }
 
 #[test]

@@ -3,6 +3,10 @@
 # expect-stdout: done
 use std.process.{ExitCode, Termination}
 
+@error
+enum ReportFailure:
+    Failed
+
 enum CliError:
     Usage(string)
     Failed(string)
@@ -33,5 +37,5 @@ tests:
         assert_equal(u8(exit_for(run(["fail"]))), 1, reason="main picks the failure code")
 
     it("an Err result reports 1"):
-        let result: Result[void, string] = .Err("failed")
+        let result: Result[void, ReportFailure] = .Err(.Failed)
         assert_equal(u8(result.report()), 1, reason="Termination reports 1 for .Err")

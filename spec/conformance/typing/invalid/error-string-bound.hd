@@ -1,0 +1,9 @@
+# test: string does not satisfy an Error bound
+# Spec std/error: std-error.std-types.string-no-impl.
+use std.error.Error
+
+fn accept[E < Error](error: E) -> void:
+    pass
+
+pub fn main() -> void:
+    accept("disk full")  # diagnostic: unsatisfied-trait-bound

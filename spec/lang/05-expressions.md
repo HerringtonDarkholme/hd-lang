@@ -1353,7 +1353,8 @@ tests:
 4. r[expr.try.test.converts.reference-values] An error implementing `Error` propagates into the test block's `&dyn Error`, sharing an existing reference or copying a value into a new object. An error that does not implement `Error` is rejected. Error: `invalid-result-propagation`.
 5. r[expr.try.test.final-value] The block's final value must be assignable to its result type, as for a function body. So a block that uses `?` usually ends in `.Ok(())`.
 6. r[expr.try.test.explicit-closure] A body passed as an explicit closure keeps its written or inferred result type. That type must implement `std.process.Termination`, the bound on `it`. Error: `unsatisfied-trait-bound`.
-7. r[expr.try.test.closure] Inside a closure nested in a test body, that closure is the nearest function, and these rules do not apply to it.
+7. r[expr.try.test.explicit-result-error] An explicit test body returning `Result[T, E]` requires `T < Termination` and `E < Error`. Error: `unsatisfied-trait-bound`.
+8. r[expr.try.test.closure] Inside a closure nested in a test body, that closure is the nearest function, and these rules do not apply to it.
 
 ```text
 struct Hidden: pass

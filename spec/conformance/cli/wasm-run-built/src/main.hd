@@ -1,7 +1,9 @@
+use std.error.Error
+
 use std.host.{args, Args}
 use std.process.ExitCode
 
-pub fn main!() -> Result[ExitCode, string] $ Console + Args:
+pub fn main!() -> Result[ExitCode, &dyn Error] $ Console + Args:
     println("hello")
     words := args()
     for word in words:

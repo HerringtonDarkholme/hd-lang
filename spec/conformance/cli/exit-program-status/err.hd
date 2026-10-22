@@ -1,2 +1,4 @@
-pub fn main!() -> Result[void, string]:
-    .Err("boom")
+use std.error.{Error, message}
+
+pub fn main!() -> Result[void, &dyn Error]:
+    .Err(message("boom"))

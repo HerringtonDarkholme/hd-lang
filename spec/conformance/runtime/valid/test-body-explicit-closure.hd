@@ -1,8 +1,12 @@
 # test: an explicit closure body keeps its own Termination result
-# Spec 05 Propagation In Test Blocks: expr.try.test.explicit-closure. Result[void, string]
+# Spec 05 Propagation In Test Blocks: expr.try.test.explicit-closure. Result[void, PortError]
 # implements Termination, and .Ok(()) reports ExitCode(0).
-fn check_port(port: i32) -> Result[void, string]:
-    if port > 0: .Ok(()) else: .Err("bad port")
+@error
+enum PortError:
+    Bad
+
+fn check_port(port: i32) -> Result[void, PortError]:
+    if port > 0: .Ok(()) else: .Err(.Bad)
 
 tests:
-    it("a string error result", body=fn!() -> Result[void, string]: check_port(8080))
+    it("a typed error result", body=fn!() -> Result[void, PortError]: check_port(8080))

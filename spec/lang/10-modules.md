@@ -2039,7 +2039,7 @@ See also: [Mutable Providers](11-requirements-and-suspension.md#mutable-provider
 
 1. r[module.entry.exit-report] When an entry point returns, the process exits with the `u8` held by the `ExitCode` that `report()` returns for its result, as [Exit Status](#exit-status) describes.
 2. r[module.entry.err-host-prints] When the result holds an `.Err`, the host prints that error by the rules below before it exits.
-3. r[module.entry.err-dynamic.reference-values] The erased `std.error.Error` satisfies the `E < Error` bound, so `Result[T, &dyn Error]` is a valid entry result.
+3. r[module.entry.err-dynamic.termination] `Result[T, &dyn Error]` is a valid entry result when `T < Termination`, since erased `Error` satisfies `E < Error`.
 4. r[module.entry.err-render-chain] The host prints the error's `Display` text. Then it prints each cause that the standard-library `chain` yields after it.
 5. r[module.entry.err-render-chain.line] Each cause is printed on its own line as `caused by: ` followed by the cause's `Display` text.
 6. r[module.entry.err-to-stderr] When an entry point returns `.Err(e)`, the host writes the text and `caused by: ` lines of `e` to standard error. Then it exits with the status that `report()` returns, as [Exit Status](#exit-status) describes.
@@ -2081,11 +2081,12 @@ A program that picks its own code returns an `ExitCode`:
 
 ```text
 use std.process.ExitCode
+use std.error.Error
 
-fn count_changes() -> Result[i32, string]:
+fn count_changes() -> Result[i32, &dyn Error]:
     .Ok(3)
 
-pub fn main() -> Result[ExitCode, string]:
+pub fn main() -> Result[ExitCode, &dyn Error]:
     changes := count_changes()?
     if changes > 0: .Ok(ExitCode(1)) else: .Ok(ExitCode(0))
 ```

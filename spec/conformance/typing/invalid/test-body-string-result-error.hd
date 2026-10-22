@@ -1,0 +1,4 @@
+# test: an explicit Result test body needs Error even when string has Display
+# Spec 05: expr.try.test.explicit-result-error.
+tests:
+    it("string is not an Error", body=fn!() -> Result[void, string]: .Ok(()))  # diagnostic: unsatisfied-trait-bound

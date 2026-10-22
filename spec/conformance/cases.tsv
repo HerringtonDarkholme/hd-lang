@@ -2463,6 +2463,8 @@ typing/invalid/error-from-beside-other-member.hd	type	reject:decorator-target-ki
 typing/invalid/error-second-cause.hd	type	reject:invalid-error-marker	lang/14-annotations.md#r-annot.error.cause.one
 typing/invalid/error-from-type-parameter.hd	type	reject:invalid-error-marker	lang/14-annotations.md#r-annot.error.from.type-parameter
 typing/invalid/error-cause-not-error.hd	type	reject:unsatisfied-trait-bound	lang/14-annotations.md#r-annot.error.cause.type
+typing/invalid/error-string-bound.hd	type	reject:unsatisfied-trait-bound	std/error.md#r-std-error.std-types.string-no-impl
+typing/invalid/error-string-erasure.hd	type	reject:type-mismatch	std/error.md#r-std-error.std-types.string-no-impl
 typing/invalid/error-transparent-not-error.hd	type	reject:unsatisfied-trait-bound	lang/14-annotations.md#r-annot.error.transparent.type
 typing/invalid/error-message-self.hd	type	reject:unknown-name	lang/14-annotations.md#r-annot.error.message.no-self
 typing/invalid/error-message-shared-unnamed.hd	type	reject:unknown-name	lang/14-annotations.md#r-annot.error.message.shared-unnamed
@@ -2929,6 +2931,7 @@ typing/invalid/power-float-widths.hd	type	reject:type-mismatch	lang/05-expressio
 typing/valid/numeric-literal-adopts-width.hd	type	accept	lang/04-type-system.md#r-types.num.literal-kind
 runtime/valid/numeric-explicit-widening.hd	runtime	accept	lang/04-type-system.md#r-types.num.no-implicit
 typing/valid/test-runner-capabilities.hd	type	accept	std/testing.md#r-std-testing.runner.declares-ref.reference-values
+typing/invalid/test-body-string-result-error.hd	type	reject:unsatisfied-trait-bound	lang/05-expressions.md#r-expr.try.test.explicit-result-error
 typing/invalid/test-body-uses-property-runner.hd	type	reject:missing-requirement	std/testing.md#r-std-testing.runner.body-property
 typing/invalid/it-outside-test-code.hd	type	reject:unknown-name	lang/10-modules.md#r-module.prelude.test-only.outside
 typing/invalid/shift-count-signed.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.shift.count-invalid
@@ -3035,6 +3038,7 @@ runtime/valid/memory-fs-handle-shared.hd	runtime	accept	std/fs.md#r-std-fs.memor
 runtime/valid/memory-fs-directories.hd	runtime	accept	std/fs.md#r-std-fs.memory.dirs
 runtime/valid/memory-fs-modified.hd	runtime	accept	std/fs.md#r-std-fs.memory.set-modified
 runtime/valid/error-chain.hd	runtime	accept	std/error.md#r-std-error.chain.method-order
+runtime/valid/error-message-values.hd	runtime	accept	std/error.md#r-std-error.std-types.string-message
 runtime/valid/error-report.hd	runtime	accept	std/error.md#r-std-error.report.of.reference-values
 runtime/valid/duration-arithmetic.hd	runtime	accept	std/time.md#duration-arithmetic
 runtime/panic/duration-add-overflow.hd	runtime	panic:integer-overflow	std/time.md#r-std-time.duration.add-overflow
@@ -3827,6 +3831,7 @@ typing/invalid/shared-enum-payload-field-access.hd	type	reject:unknown-field	lan
 typing/invalid/data-literal-private-field-other-module.hd	type	reject:private-member	lang/08-data-and-enums.md#r-data.vis.literal
 typing/invalid/copy-update-private-field-other-module.hd	type	reject:private-member	lang/08-data-and-enums.md#r-data.vis.private-fields
 typing/invalid/entry-point-parameters.hd	type	reject:entry-point-parameters	lang/10-modules.md#r-module.entry.parameters
+typing/invalid/entry-string-error.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.entry.result-termination
 typing/invalid/generic-entry-point.hd	type	reject:entry-point-parameters	lang/10-modules.md#r-module.entry.parameters
 typing/invalid/unary-minus-string.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.op.no-impl
 typing/invalid/continue-outside-loop.hd	type	reject:break-outside-loop	lang/06-control-flow.md#r-flow.break.outside-loop
@@ -4288,7 +4293,6 @@ typing/invalid/polymorphic-recursion-list.hd	type	reject:instantiation-too-deep	
 typing/invalid/polymorphic-recursion-mutual.hd	type	reject:instantiation-too-deep	lang/04-type-system.md#r-types.generic.call-cycle
 typing/invalid/polymorphic-recursion-tuple.hd	type	reject:instantiation-too-deep	lang/04-type-system.md#r-types.generic.call-cycle.grows
 typing/valid/polymorphic-recursion-non-growing.hd	type	accept	lang/04-type-system.md#r-types.generic.call-cycle.step
-runtime/valid/error-for-string.hd	runtime	accept	std/error.md#r-std-error.std-types.string.reference-values
 typing/invalid/display-only-entry-error.hd	type	reject:unsatisfied-trait-bound	lang/10-modules.md#r-module.entry.termination.result
 runtime/valid/entry-exit-code-map.hd	runtime	accept	lang/10-modules.md#r-module.entry.termination.err-one
 typing/valid/entry-exit-code-map.hd	type	accept	lang/10-modules.md#exit-status

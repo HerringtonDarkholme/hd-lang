@@ -553,7 +553,7 @@ See also: [Sealed Traits](#sealed-traits),
 1. r[trait.error.erased.reference-values] The dynamic trait value `&dyn Error` is the erased application error.
 2. r[trait.error.result.reference-values] A `Result[T, &dyn Error]` holds any error that implements `Error`. `?` reaches it by reference erasure, sharing a reference or copying a value into a new object.
 3. r[trait.error.convert.reference-values] A concrete error reference converts implicitly to `&dyn Error`; an ordinary value requires a written `&`, as [Trait Value References](#trait-value-references) specifies.
-4. r[trait.error.entry-point.reference-values] A dynamic trait value satisfies bounds on its own trait and its supertraits. `&dyn Error` therefore satisfies an entry point's `E < Display` requirement, so `pub fn main() -> Result[void, &dyn Error]` is a valid entry point.
+4. r[trait.error.entry-point.error-bound] An erased `&dyn Error` satisfies `Error` and its supertraits, so `Result[T, &dyn Error]` implements `Termination` when `T < Termination`.
 5. r[trait.error.boundary.reference-values] Like every dynamic trait value, an erased `&dyn Error` is not boundary-safe and never crosses a registered boundary.
 6. r[trait.error.convert-first.reference-values] Code converts an erased `&dyn Error` explicitly to a boundary-safe error type first.
 7. r[trait.error.reference-recovery] Because `Error` extends `Inspectable`, a reference to an erased error recovers its concrete struct or enum through its inherent recovery methods.

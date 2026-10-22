@@ -252,8 +252,9 @@ fn width(text: string) -> Result[i32, &dyn Error]:
 1. r[std-error.std-types.impl.reference-values] Each type in the table above implements `Error`. So `?` converts it into a `Result[T, &dyn Error]`, by [`trait.error.result.reference-values`](../lang/09-traits.md#r-trait.error.result.reference-values), and `context` accepts it.
 2. r[std-error.std-types.cause] Their `cause` is the default `.None`.
 3. r[std-error.std-types.display] Each keeps the `Display` text its chapter defines.
-4. r[std-error.std-types.string.reference-values] The language type `string` implements `Error`. Its `Display` text is the string itself, and its `cause` is the default `.None`. So `.Err("disk full")` is a valid `Result[T, string]` for a bound `E < Error`, and `?` can propagate it into `Result[T, &dyn Error]`.
-5. r[std-error.std-types.new] A std error type added later implements `Error` too, and joins this table.
+4. r[std-error.std-types.string-no-impl] The language type `string` does not implement `Error`.
+5. r[std-error.std-types.string-message] A text error is constructed explicitly with `message(text)`.
+6. r[std-error.std-types.new] A std error type added later implements `Error` too, and joins this table.
 
 > **Why.** An application error type is the erased `&dyn Error` in most
 > scripts. A std error that cannot reach it forces a wrapper type at
