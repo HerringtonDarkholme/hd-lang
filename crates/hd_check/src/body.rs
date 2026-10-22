@@ -66,6 +66,11 @@ pub struct BodyCx<'a> {
     /// The fuel of each body this context checks: `Fuel::BODY_DEFAULT`,
     /// or a smaller budget a test sets to reach `item-too-complex` fast.
     pub fuel: u64,
+    /// Which backend path the bodies' TIR feeds (`docs/compiler/tir-v2.md`,
+    /// "Stage 2"): the driver's `Packages::own_passes`, the one switch.
+    /// Every cached artifact keys on it through the driver's toolchain
+    /// key, so a body checked for one path never serves the other.
+    pub own_passes: bool,
 }
 
 /// A module's `tests:` block, when its items are checked: its extent (a

@@ -1651,10 +1651,14 @@ pub fn build_packages(
         Arc::clone(found)
     };
     let std_hash = embedded.map_or_else(|| sources_hash(std), |e| e.hash);
+    // The ownership passes' switch changes the checker's TIR
+    // (`hd_check::BodyCx::own_passes`) and every body's code, so every
+    // cached artifact keys on it; the old path keeps its key.
+    let own = if packages.own_passes { ";own" } else { "" };
     let toolchain = toolchain_key(
         COMPILER,
         TARGET,
-        &format!("a1=bounded;std={:032x}", std_hash.0),
+        &format!("a1=bounded;std={:032x}{own}", std_hash.0),
     );
     // Std's skims come from the toolchain's entry, unless std is the root
     // package, whose files are the user's.
@@ -5267,6 +5271,7 @@ impl Run<'_> {
             file_name: &self.table.files[m],
             session: &session,
             fuel: self.fuel_of(m),
+            own_passes: self.own_passes,
         };
         let mut diags = DiagBuf::default();
         hd_check::init::earlier_binding_clashes(&cx, &heads, &mut diags);
@@ -6658,6 +6663,7 @@ impl Run<'_> {
             file_name: &self.table.files[tm],
             session: &session,
             fuel: self.fuel_of(tm),
+            own_passes: self.own_passes,
         };
         Some(f(&tcx, &theads))
     }
@@ -6732,6 +6738,7 @@ impl Run<'_> {
             file_name: &self.table.files[tm],
             session: &[],
             fuel: self.fuel_of(tm),
+            own_passes: self.own_passes,
         };
         let ItemData::Impl { methods, .. } = &lookup.item(template)?.data else {
             return None;
@@ -7660,12 +7667,6 @@ impl Run<'_> {
             _ => entry_key.clone(),
         };
         let keyed_entry = format!("linear:checked={}:{}", self.checked(), keyed_entry);
-        // The ownership passes change the code every body emits.
-        let keyed_entry = if self.own_passes {
-            format!("own-passes:{keyed_entry}")
-        } else {
-            keyed_entry
-        };
         let pkey = prog_key(
             self.toolchain,
             self.pipeline,

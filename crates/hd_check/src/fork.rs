@@ -37,6 +37,7 @@ pub struct BodyFork<'a> {
     tests: Option<TestsView<'a>>,
     session: &'a [hd_base::PathId],
     fuel: u64,
+    own_passes: bool,
 }
 
 // Every thread reads the one copy; `BodyLeft` comes back from them.
@@ -81,6 +82,7 @@ impl<'a> BodyCx<'a> {
             tests: self.tests,
             session: self.session,
             fuel: self.fuel,
+            own_passes: self.own_passes,
         }
     }
 
@@ -134,6 +136,7 @@ impl<'a> BodyFork<'a> {
             tests: self.tests,
             session: self.session,
             fuel: self.fuel,
+            own_passes: self.own_passes,
         }
     }
 }
