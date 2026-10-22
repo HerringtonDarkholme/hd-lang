@@ -3752,6 +3752,7 @@ typing/invalid/use-module-and-root-declaration.hd	type	reject:ambiguous-import	l
 runtime/valid/use-module-member-beside-root-declaration.hd	runtime	accept	lang/10-modules.md#r-module.use.grouped
 runtime/valid/pub-use-same-declaration.hd	runtime	accept	lang/10-modules.md#r-module.pub-use.identity
 typing/invalid/pub-use-private-declaration.hd	type	reject:private-import	lang/10-modules.md#r-module.pub-use.public-source
+runtime/valid/sibling-method-generic-scopes.hd	runtime	accept	lang/03-names-and-scopes.md#r-names.generic.params.visible
 runtime/valid/sibling-module-enum-and-trait.hd	runtime	accept	lang/10-modules.md#r-module.vis.variants
 runtime/valid/init-ready-groups-by-identity.hd	runtime	accept	lang/10-modules.md#r-module.init.cycle.ready-order
 runtime/valid/initialization-implicit-a-derived-impl-reaches-its-fields-impls-02.hd	runtime	accept	lang/10-modules.md#r-module.init.definite.implicit
@@ -3824,6 +3825,7 @@ typing/invalid/extra-trait-member.hd	type	reject:extra-trait-member	lang/09-trai
 typing/invalid/extra-associated-type.hd	type	reject:extra-trait-member	lang/09-traits.md#r-trait.impl.extra-methods
 typing/invalid/missing-associated-type-binding.hd	type	reject:missing-trait-method	lang/09-traits.md#r-trait.impl.required
 typing/invalid/duplicate-impl-member.hd	type	reject:duplicate-trait-member	lang/09-traits.md#r-trait.decl.unique
+typing/invalid/duplicate-method-generic-sibling.hd	type	reject:duplicate-binding	lang/03-names-and-scopes.md#r-names.type-param.no-redeclare
 typing/invalid/duplicate-supertrait.hd	type	reject:duplicate-supertrait	lang/09-traits.md#r-trait.super.unique
 typing/invalid/default-body-self-field.hd	type	reject:unknown-method	lang/09-traits.md#r-trait.default.no-self-members
 typing/invalid/trait-generic-instantiations-unrelated.hd	type	reject:type-mismatch	lang/09-traits.md#r-trait.decl.generic.invariant

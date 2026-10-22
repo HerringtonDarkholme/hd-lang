@@ -1538,6 +1538,30 @@ struct Gen {
     pending: Vec<Ty>,
 }
 
+impl Gen {
+    /// Adds one header's bindings while retaining the enclosing scope's
+    /// vectors and bounds. Signature lowering appends entries; only the
+    /// bounds of newly appended type parameters are filled in place.
+    fn with_scope<R>(&mut self, lower: impl FnOnce(&mut Self) -> R) -> R {
+        let lengths = (
+            self.tys.len(),
+            self.rows.len(),
+            self.decls.len(),
+            self.bounded.len(),
+            self.pending.len(),
+        );
+        let context = (self.type_kinded, self.self_ty, self.self_trait);
+        let value = lower(self);
+        self.tys.truncate(lengths.0);
+        self.rows.truncate(lengths.1);
+        self.decls.truncate(lengths.2);
+        self.bounded.truncate(lengths.3);
+        self.pending.truncate(lengths.4);
+        (self.type_kinded, self.self_ty, self.self_trait) = context;
+        value
+    }
+}
+
 struct Lower<'a, 'r, 'x> {
     r: &'a Resolver<'r, 'x>,
     names: Names<'r>,
@@ -2736,13 +2760,16 @@ impl Lower<'_, '_, '_> {
     }
 
     /// A function header: generics, parameters, result, row, `!`.
-    fn sig(&mut self, f: NodeRef<'_>, owner: DefId, gn: &Gen) -> FnSig {
-        let mut gn = gn.clone();
+    fn sig(&mut self, f: NodeRef<'_>, owner: DefId, gn: &mut Gen) -> FnSig {
+        gn.with_scope(|gn| self.sig_in_scope(f, owner, gn))
+    }
+
+    fn sig_in_scope(&mut self, f: NodeRef<'_>, owner: DefId, gn: &mut Gen) -> FnSig {
         let generics = self.generics(
             Src::child(f, SyntaxKind::GenericParameterList),
             owner,
             0,
-            &mut gn,
+            gn,
         );
         let mut params = Vec::new();
         let mut defaults = Vec::new();
@@ -2804,7 +2831,7 @@ impl Lower<'_, '_, '_> {
                             .error(Code::DuplicateBinding, self.src.span(p), &msg);
                     }
                 }
-                let ty = self.ty(Src::type_child(p), &gn);
+                let ty = self.ty(Src::type_child(p), gn);
                 // `fn.vararg.type.kinds`: a vararg's type is a `List`, a
                 // tuple type, or a type parameter bounded by `Tuple`,
                 // under `mut` as elsewhere.
@@ -2815,7 +2842,7 @@ impl Lower<'_, '_, '_> {
                     };
                     let list = self.names.known.list;
                     let is_list = matches!(self.names.pool.get(inner), TyData::Adt { def, .. } if def == list);
-                    if !is_list && inner != Ty::POISON && !self.inputs_tuple(inner, &gn) {
+                    if !is_list && inner != Ty::POISON && !self.inputs_tuple(inner, gn) {
                         self.diags.error(
                             Code::TypeMismatch,
                             self.src.span(p),
@@ -2827,8 +2854,8 @@ impl Lower<'_, '_, '_> {
                 defaults.push(Src::child(p, SyntaxKind::DefaultValue).is_some());
             }
         }
-        let ret = self.ty(Src::type_child(f), &gn);
-        let row = self.row(Src::child(f, SyntaxKind::RequirementRow), &gn);
+        let ret = self.ty(Src::type_child(f), gn);
+        let row = self.row(Src::child(f, SyntaxKind::RequirementRow), gn);
         let suspends = f
             .direct_token(&self.src.parse.tokens, TokenKind::Bang)
             .is_some();
@@ -3110,7 +3137,7 @@ impl Lower<'_, '_, '_> {
         &mut self,
         def: DefId,
         generics: &[Generic],
-        (self_ty, gn): (Ty, &Gen),
+        (self_ty, gn): (Ty, &mut Gen),
         block: NodeRef<'_>,
     ) {
         let pool = self.names.pool;
@@ -3201,7 +3228,7 @@ impl Lower<'_, '_, '_> {
         owner: DefId,
         public: bool,
         result_required: bool,
-        gn: &Gen,
+        gn: &mut Gen,
         out: &mut Vec<Item>,
     ) -> (Vec<(Symbol, DefId)>, Vec<AssocDecl>) {
         let mut methods = Vec::new();
@@ -3569,14 +3596,14 @@ impl Lower<'_, '_, '_> {
             h.def,
             trait_ != DefId::NONE,
             trait_ != DefId::NONE,
-            &gn,
+            &mut gn,
             out,
         );
         if trait_ == DefId::NONE
             && self.r.frozen.is_none()
             && let Some(b) = block
         {
-            self.impl_variance(h.def, &generics, (self_ty, &gn), b);
+            self.impl_variance(h.def, &generics, (self_ty, &mut gn), b);
         }
         let mut assoc: Vec<(DefId, Ty)> = header_bindings;
         for (name, _, ty, _) in assoc_decls {
@@ -4089,7 +4116,7 @@ impl Lower<'_, '_, '_> {
         match h.kind {
             HeadKind::Fn => {
                 self.result_required(n, h.public);
-                let sig = self.sig(n, h.def, &Gen::default());
+                let sig = self.sig(n, h.def, &mut Gen::default());
                 let mut it = Item::new(h.def, h.name, h.public, ItemData::Fn(sig));
                 it.intrinsic = self.intrinsic(n);
                 it.literal_fn = self.literal_fn(n);
@@ -4170,7 +4197,7 @@ impl Lower<'_, '_, '_> {
                 out.push(it);
             }
             HeadKind::Trait => {
-                let (self_ty, gn, generics) = self.trait_generics(h);
+                let (self_ty, mut gn, generics) = self.trait_generics(h);
                 // A trait's parameters are invariant (types.variance.trait-params).
                 if self.r.frozen.is_none()
                     && let Some(gl) = gl
@@ -4191,7 +4218,8 @@ impl Lower<'_, '_, '_> {
                 }
                 let supers = self.supers(n, &gn, self_ty);
                 self.duplicate_members(block);
-                let (methods, assoc_decls) = self.members(block, h.def, h.public, true, &gn, out);
+                let (methods, assoc_decls) =
+                    self.members(block, h.def, h.public, true, &mut gn, out);
                 let mut assoc = Vec::new();
                 for (name, def, ty, bounds) in assoc_decls {
                     out.push(Item::new(

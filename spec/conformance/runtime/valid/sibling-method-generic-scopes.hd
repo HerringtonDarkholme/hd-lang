@@ -1,0 +1,52 @@
+# test: sibling method generic type and row scopes reuse names without losing outer Tuple bounds
+# expect: test
+# Spec 03 Function And Closure Scopes: names.generic.params.visible.
+# Spec 07 Varargs: fn.vararg.type.kinds.
+# Spec 11 Row Parameters: req.row.param.marked.owners.
+use std.function.{Fn, Tuple}
+
+trait Label:
+    fn text(self) -> string
+
+struct FixedLabel:
+    value: string
+
+impl Label for FixedLabel:
+    fn text(self) -> string: self.value
+
+struct Scope[+T]:
+    value: T
+
+impl[T < Tuple] Scope[T]:
+    fn tuple_call[U < Tuple, O, $R](self, job: Fn[U, O, $ R], values...: U) -> O $ R:
+        job(values...)
+
+    fn value_call[U, $R](self, job: fn(U) -> U $ R, value: U) -> U $ R:
+        job(value)
+
+    fn tuple_again[U < Tuple, O, $R](self, job: Fn[U, O, $ R], values...: U) -> O $ R:
+        job(values...)
+
+    fn value_again[U, $R](self, job: fn(U) -> U $ R, value: U) -> U $ R:
+        job(value)
+
+    fn outer[U, $R](self, job: Fn[T, U, $ R]) -> U $ R:
+        job(self.value...)
+
+fn add(a: i32, b: i32) -> i32: a + b
+fn negate(value: i32) -> i32: 0 - value
+fn labeled(value: string) -> string $ Label: $.use(Label).text() + value
+fn invert(value: bool) -> bool: !value
+fn outer_text(first: i32, second: string) -> string: second
+
+tests:
+    use std.testing.assert_equal
+
+    it("sibling methods own their type and row parameters"):
+        scope := Scope { value: (+9, "outer") }
+        assert_equal(scope.tuple_call(add, 2, 3), 5, reason="first U is a two-element tuple")
+        $.with(Label=FixedLabel { value: "prefix:" }):
+            assert_equal(scope.value_call(labeled, "text"), "prefix:text", reason="second U is string and its R is Label")
+        assert_equal(scope.tuple_again(negate, 7), -7, reason="third U is a one-element tuple")
+        assert_equal(scope.value_again(invert, true), false, reason="fourth U is bool and its R is empty")
+        assert_equal(scope.outer(outer_text), "outer", reason="outer T retains its Tuple bound after every sibling")

@@ -1,0 +1,6 @@
+# test: a malformed method generic list does not leak names into the next sibling
+# Spec 03 Type Parameters: names.type-param.no-redeclare.
+trait Scope[T]:
+    fn broken[U, U](self, value: U) -> U  # diagnostic: duplicate-binding
+    fn clean[U](self, value: U) -> U
+    fn outer(self, value: T) -> T
