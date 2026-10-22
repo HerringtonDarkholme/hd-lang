@@ -1,0 +1,10 @@
+# test: a skip fact does not exempt its field type from a Deserialize derive bound
+# Spec std/serde Skipped Members: std-serde.skip.bounds.
+use std.serde.{Deserialize, skip}
+
+struct Secret: pass
+
+@derive(Deserialize)  # diagnostic: member-not-derivable
+struct Record:
+    @skip()
+    secret: Secret = Secret {}

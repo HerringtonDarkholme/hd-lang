@@ -100,8 +100,8 @@ writer or reader with a value's members. For the `Session` of
 1. r[std-serde.derive.serialize.template] `std.serde` declares the template of `Serialize`, which `@derive(Serialize)` instantiates.
 2. r[std-serde.derive.serialize.included-order] Derived `serialize` calls `begin_variant`, then `member(m)` and `serialize` for each included walked member in declaration order, then `end_variant()`.
 3. r[std-serde.derive.deserialize.template] `std.serde` declares the template of `Deserialize`, which `@derive(Deserialize)` instantiates.
-4. r[std-serde.derive.deserialize.order] Derived `deserialize` calls `begin_variant` with every variant first. Then, for each built member in declaration order, it calls `member(m)` and the member type's `deserialize`. Last, it calls `end_variant()`.
-5. r[std-serde.derive.deserialize.default] For a member that declares a default, derived `deserialize` asks `is_absent()` after `member(m)`. When it is `true`, the member gets its declared default, and its type's `deserialize` is not called.
+4. r[std-serde.derive.deserialize.unskipped-order] Derived `deserialize` offers every variant to `begin_variant`, then calls `member(m)` and `deserialize` for each unskipped built member in declaration order, then `end_variant()`.
+5. r[std-serde.derive.deserialize.unskipped-default] After `member(m)`, derived deserialization asks `is_absent()` for an unskipped defaulted member, using its declared default instead of `deserialize` when absent.
 6. r[std-serde.derive.omitted] A member omitted with `= pass` is not written. Reading fills it with its declared default, as [`annot.omit.default`](../lang/14-annotations.md#r-annot.omit.default) states.
 7. r[std-serde.derive.shared] Shared constructor data is not a member, so it is neither written nor read.
 
@@ -158,6 +158,21 @@ For example, `@skip_none()` on `note: string?` omits the key for `.None`.
 > **Why.** The fact's optional predicate runs before the format sees the
 > member, so every serializer receives the same view without confusing a
 > present value that serializes as null with an absent optional.
+
+### Skipped Members
+
+The `Skip` field fact omits a member from its serde view.
+For example, `@skip()` on `cached: usize = 0` leaves the cache out of documents.
+
+1. r[std-serde.skip.fact] `std.serde` exports the field fact `Skip` with no fields.
+2. r[std-serde.skip.constructor] `skip() -> Skip` constructs the fact.
+3. r[std-serde.skip.write] Derived serialization omits a member with `Skip` without calling its serializer or the format's `member` method for it.
+4. r[std-serde.skip.read] Derived deserialization fills a skipped member from its declared default without positioning or decoding its input, even when a key is present.
+5. r[std-serde.skip.bounds] A skipped field's type must still implement `Serialize` or `Deserialize` for the corresponding derivation.
+6. r[std-serde.skip.default-required] A skipped field without a declared default returns a deserializer error naming the field and saying it needs a declared default.
+
+> **Why.** Skipping changes the serde view in ordinary library code;
+> the derive's member bounds remain in force.
 
 ## Standard Implementations
 

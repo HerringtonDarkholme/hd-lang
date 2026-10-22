@@ -1,0 +1,124 @@
+# test: skip retains serde bounds but omits serialization and restores defaults without decoding the field
+# Spec std/serde Skipped Members: std-serde.skip.fact, std-serde.skip.constructor, std-serde.skip.write, std-serde.skip.read, std-serde.skip.bounds, std-serde.skip.default-required.
+use std.json.{decode, encode, from_json, parse, to_json}
+use std.serde.{Serialize, Deserialize, Serializer, Deserializer, skip, rename, skip_none}
+use std.http.Request
+use std.regex.Regex
+
+struct NeverRead: pass
+
+impl Serialize for NeverRead:
+    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
+        panic("skipped serialize must not be called")
+
+impl Deserialize for NeverRead:
+    fn deserialize[R < Deserializer](input: &mut R) -> Result[NeverRead, R::Error]:
+        panic("skipped deserialize must not be called")
+
+@derive(Serialize, Deserialize)
+struct Value:
+    kept: i32
+    @skip()
+    hidden: NeverRead = NeverRead {}
+    @skip()
+    number: u8 = 9
+
+@derive(Deserialize)
+struct MissingDefault:
+    kept: i32
+    @skip()
+    hidden: i32
+
+@derive(Deserialize)
+struct Capture:
+    value: u8
+    @skip()
+    hidden: u8 = 7
+
+struct PerView:
+    kept: i32
+    hidden: i32 = 8
+
+use std.structure.Structure
+
+impl Serialize for PerView by Structure:
+    hidden = [skip()]
+
+impl Deserialize for PerView by Structure:
+    hidden = [skip()]
+
+@derive(Serialize, Deserialize)
+struct RenamedSkip:
+    @rename("wireName")
+    kept: i32
+    @rename("ignoredWire")
+    @skip()
+    hidden: i32 = 7
+
+@derive(Serialize, Deserialize)
+struct CombinedFacts:
+    @rename("wireName")
+    kept: i32
+    @skip()
+    @skip_none()
+    hidden: i32? = .Some(8)
+    @skip_none()
+    conditional: i32?
+
+tests:
+    use std.testing.{assert, assert_equal}
+
+    it("writers omit skipped fields without calling their serializers"):
+        value := Value { kept: 3 }
+        assert_equal(encode(value), "{\"kept\":3}", reason="text writer")
+        assert_equal(to_json(value), parse("{\"kept\":3}").expect("JSON"), reason="tree writer")
+        assert_equal(Request::post("https://example.test/").form(value).body, "kept=3".to_utf8(), reason="form serializer also omits skipped fields")
+
+    it("readers use defaults even when skipped keys are present"):
+        text := "{\"kept\":4,\"hidden\":false,\"number\":\"ignored\"}"
+        direct := decode::[Value](text).expect("direct read")
+        tree := from_json::[Value](parse(text).expect("JSON")).expect("tree read")
+        assert_equal(direct.number, 9, reason="direct uses declared default")
+        assert_equal(tree.number, 9, reason="tree uses declared default")
+        assert_equal(encode(direct), "{\"kept\":4}", reason="only kept field survives")
+        assert_equal(decode::[Value]("{\"kept\":5}").expect("absent").number, 9, reason="absent skipped field also defaults")
+
+    it("a skipped field without a default returns a named deserializer error"):
+        match decode::[MissingDefault]("{\"kept\":1,\"hidden\":2}"):
+            .Err(error) => assert(error.to_string().contains("skipped field `hidden` needs a declared default"), reason="error identifies the missing declared default")
+            .Ok(_) => panic("expected a missing-default error")
+        match from_json::[MissingDefault](parse("{\"kept\":1}").expect("JSON")):
+            .Err(error) => assert(error.to_string().contains("skipped field `hidden` needs a declared default"), reason="tree error identifies the field")
+            .Ok(_) => panic("expected a missing-default error")
+
+    it("regex skipped fields do not require capture groups"):
+        pattern := Regex::new("^(?P<value>.*)$").expect("regex")
+        result := pattern.decode::[Capture]("6").expect("capture")
+        assert_equal(result.value, 6, reason="ordinary capture decoded")
+        assert_equal(result.hidden, 7, reason="skipped member defaulted without a group lookup")
+
+    it("per-derivation skip facts configure both directions"):
+        assert_equal(encode(PerView { kept: 1, hidden: 3 }), "{\"kept\":1}", reason="Serialize view")
+        assert_equal(decode::[PerView]("{\"kept\":1,\"hidden\":99}").expect("Deserialize view").hidden, +8, reason="Deserialize view defaults")
+
+    it("rename and skip compose without losing wire names"):
+        value := RenamedSkip { kept: 3, hidden: 99 }
+        assert_equal(encode(value), "{\"wireName\":3}", reason="only the unskipped wire name is written")
+        text := "{\"wireName\":4,\"ignoredWire\":\"not an integer\"}"
+        direct := decode::[RenamedSkip](text).expect("renamed direct read")
+        tree := from_json::[RenamedSkip](parse(text).expect("JSON")).expect("renamed tree read")
+        assert_equal(direct.kept, +4, reason="direct reader still uses the wire key")
+        assert_equal(tree.kept, +4, reason="tree reader still uses the wire key")
+        assert_equal(direct.hidden, +7, reason="direct reader skips the renamed value")
+        assert_equal(tree.hidden, +7, reason="tree reader skips the renamed value")
+
+    it("skip dominates skip_none and leaves ordinary conditional fields intact"):
+        value := CombinedFacts { kept: 3, hidden: .Some(99), conditional: .Some(5) }
+        assert_equal(encode(value), "{\"wireName\":3,\"conditional\":5}", reason="the always-skipped field stays out even when Some")
+        text := "{\"wireName\":4,\"hidden\":\"ignored\"}"
+        direct := decode::[CombinedFacts](text).expect("combined direct read")
+        tree := from_json::[CombinedFacts](parse(text).expect("JSON")).expect("combined tree read")
+        assert_equal(direct.hidden, .Some(8), reason="skip restores the default")
+        assert_equal(tree.hidden, .Some(8), reason="tree read restores the default")
+        assert_equal(direct.conditional, .None, reason="skip_none leaves normal optional decoding unchanged")
+        assert_equal(encode(direct), "{\"wireName\":4}", reason="all three facts compose")

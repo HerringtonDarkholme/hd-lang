@@ -33,6 +33,16 @@ pub struct SkipNone[F]:
 pub fn skip_none[T]() -> SkipNone[T?]:
     SkipNone::[T?] { absent: fn(value: T?) -> bool: value.is_none() }
 
+## Omits a member from serialization and restores its declared default.
+## See [std-serde.skip.fact](../../spec/std/serde.md#r-std-serde.skip.fact).
+@annotate(.Field)
+pub struct Skip: pass
+
+## Marks a member as skipped in this serde derivation.
+## See [std-serde.skip.constructor](../../spec/std/serde.md#r-std-serde.skip.constructor).
+pub fn skip() -> Skip:
+    Skip {}
+
 # A value that opts in to be written by every format
 # (r-annot.serde.definition).
 ## A type that can write itself to a `Serializer`; the compiler knows it for the boundary rule.
@@ -137,6 +147,8 @@ impl[S, W < Serializer] Walker[S] for SerializeWalker[S, W]:
         self.member(h, items)
 
     fn member[F < Serialize](&mut self, h: Field[S, F], value: F) -> Result[void, W::Error]:
+        if h.fact::[Skip]().is_some():
+            return .Ok(())
         match h.fact::[SkipNone[F]]():
             .Some(fact) =>
                 if (fact.absent)(value):
@@ -148,7 +160,7 @@ impl[S, W < Serializer] Walker[S] for SerializeWalker[S, W]:
 # Derived `Deserialize`: `begin_variant` picks the variant, then each member
 # in declaration order is positioned with `member` and read with its own
 # `deserialize`, or given its declared default when absent, then
-# `end_variant` (r-std-serde.derive.deserialize.order).
+# `end_variant` (r-std-serde.derive.deserialize.unskipped-order).
 impl[T] Deserialize for T by Structure:
     fn deserialize[R < Deserializer](input: &mut R) -> Result[T, R::Error]:
         let mut source = DeserializeSource::[T, R] { input: input, facts: T::facts(), at: 0 }
@@ -173,16 +185,17 @@ impl[S, R < Deserializer] Source[S] for DeserializeSource[S, R]:
         index := self.input.begin_variant(self.facts, infos)?
         .Ok(choices[index])
 
-    # Every member, in declaration order.
+    # Every unskipped member, in declaration order.
     fn next(&mut self, members: Members[S]) -> Result[Key[S]?, R::Error]:
-        if self.at >= members.infos.len():
-            return .Ok(.None)
-        info := members.infos[self.at]
-        self.at = self.at + 1
-        .Ok(members.at(info.position))
+        while self.at < members.infos.len():
+            info := members.infos[self.at]
+            self.at += 1
+            if info.facts.find::[Skip]().is_none():
+                return .Ok(members.at(info.position))
+        .Ok(.None)
 
     # An absent member that declares a default takes it, and is not read
-    # (r-std-serde.derive.deserialize.default).
+    # (r-std-serde.derive.deserialize.unskipped-default).
     fn member[F < Deserialize](&mut self, h: Field[S, F], previous: F?) -> Result[F, R::Error]:
         self.input.member(h.info)?
         if h.has_default() && self.input.is_absent():
@@ -192,7 +205,11 @@ impl[S, R < Deserializer] Source[S] for DeserializeSource[S, R]:
         F::deserialize(self.input)
 
     fn missing[F](&mut self, h: Field[S, F]) -> Result[F, R::Error]:
-        panic("std.serde: the source names every member")
+        if h.fact::[Skip]().is_none():
+            panic("std.serde: the source names every unskipped member")
+        match h.default():
+            .Some(value) => .Ok(value)
+            .None => .Err(self.input.invalid("skipped field `${h.info.name}` needs a declared default"))
 
 # ---------------------------------------------------------------------------
 # The standard implementations (spec/std/serde.md#standard-implementations).

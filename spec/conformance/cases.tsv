@@ -3637,10 +3637,13 @@ typing/invalid/match-arm-misses-expected-type.hd	type	reject:type-mismatch	lang/
 typing/invalid/if-branch-misses-expected-type.hd	type	reject:type-mismatch	lang/06-control-flow.md#r-flow.if.value.least-common
 runtime/valid/serde-skip-none.hd	runtime	accept	std/serde.md#absent-optional-members
 typing/invalid/serde-skip-none-non-optional.hd	type	reject:type-mismatch	std/serde.md#r-std-serde.skip-none.constructor
+runtime/valid/serde-skip.hd	runtime	accept	std/serde.md#skipped-members
+typing/invalid/serde-skip-retains-bound.hd	type	reject:member-not-derivable	std/serde.md#r-std-serde.skip.bounds
+typing/invalid/serde-skip-retains-deserialize-bound.hd	type	reject:member-not-derivable	std/serde.md#r-std-serde.skip.bounds
 runtime/valid/serde-std-writes.hd	runtime	accept	std/serde.md#r-std-serde.model.one-value
 runtime/valid/serde-std-reads.hd	runtime	accept	std/serde.md#r-std-serde.read.scalar
 runtime/valid/serde-set-tuple.hd	runtime	accept	std/serde.md#r-std-serde.std.tuple
-runtime/valid/serde-derive-read-order.hd	runtime	accept	std/serde.md#r-std-serde.derive.deserialize.order
+runtime/valid/serde-derive-read-order.hd	runtime	accept	std/serde.md#r-std-serde.derive.deserialize.unskipped-order
 runtime/valid/serde-variant-member-facts.hd	runtime	accept	std/serde.md#r-std-serde.model.variant-args
 runtime/valid/serde-writer-first-error.hd	runtime	accept	std/serde.md#r-std-serde.model.errors
 runtime/valid/serde-struct-ref-receivers.hd	runtime	accept	std/serde.md#r-std-serde.model.ref-receivers
@@ -3650,7 +3653,7 @@ runtime/valid/json-typed-missing-key-uses-default.hd	runtime	accept	std/json.md#
 runtime/valid/json-pointer.hd	runtime	accept	std/json.md#r-std-json.pointer
 runtime/valid/json-number-accessors.hd	runtime	accept	std/json.md#r-std-json.value.accessors.i64
 runtime/valid/json-encode-pretty.hd	runtime	accept	std/json.md#r-std-json.encode-pretty
-runtime/valid/serde-derive-read-default.hd	runtime	accept	std/serde.md#r-std-serde.derive.deserialize.default
+runtime/valid/serde-derive-read-default.hd	runtime	accept	std/serde.md#r-std-serde.derive.deserialize.unskipped-default
 runtime/valid/json-encode-text-writer-matches-tree.hd	runtime	accept	std/json.md#r-std-json.encode
 runtime/valid/json-decode-streaming.hd	runtime	accept	std/json.md#r-std-json.decode.no-tree
 runtime/valid/json-decode-bytes-matches-old.hd	runtime	accept	std/json.md#r-std-json.parse
