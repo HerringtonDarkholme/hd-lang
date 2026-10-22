@@ -1,0 +1,82 @@
+# test: typed JSON and flat form bodies encode once and preserve explicit content types
+# Spec std/http Request Builder: std-http.request.json-serialize, std-http.request.form-serialize.
+use std.http.{Request, Response}
+use std.json.encode
+use std.serde.{Serialize, Serializer}
+use std.testing.assert_equal
+
+@derive(Serialize)
+struct Payload:
+    count: u32
+    label: string
+    note: string?
+    tags: List[string]
+
+@derive(Serialize)
+enum Sort:
+    Asc
+    Desc
+
+@derive(Serialize)
+struct Form:
+    count: u32
+    label: string
+    absent: string?
+    note: string?
+    tags: List[string]
+    empty: List[string]
+    sort: Sort
+    active: bool
+    signed: i64
+    ratio: f64
+
+@derive(Serialize)
+struct Empty: pass
+
+struct Once:
+    calls: &mut List[usize]
+
+impl Serialize for Once:
+    fn serialize[W < Serializer](self, out: &mut W) -> Result[void, W::Error]:
+        self.calls.push(1)
+        out.text("once")
+
+tests:
+    it("json replaces the body, encodes once, and shares the builder"):
+        let mut calls: List[usize] = []
+        request := Request::post("https://example.test/").body([0, 1])
+        alias := request.json(Once { calls: &mut calls })
+        assert_equal(alias is request, true, reason="the setter returns the same builder")
+        assert_equal(calls.len(), 1, reason="one Serialize walk")
+        assert_equal(request.body, "\"once\"".to_utf8(), reason="JSON replaces the old bytes")
+        assert_equal(request.headers, [("Content-Type", "application/json")], reason="a missing content type is supplied")
+        value := Payload { count: 42, label: "é\"\n", note: .None, tags: ["a", "b"] }
+        request.json(value)
+        assert_equal(request.body, encode(value).to_utf8(), reason="the ordinary JSON encoder defines the bytes")
+        assert_equal(request.headers.len(), 1, reason="a second setter adds no duplicate header")
+
+    it("explicit content types win, ignoring ASCII case"):
+        request := Request::post("/").header("content-TYPE", "custom/type").header("Content-Type", "second/type")
+        request.json(+7)
+        assert_equal(request.body, "7".to_utf8(), reason="the chosen header does not suppress encoding")
+        request.form({"key": "value"})
+        assert_equal(request.headers, [("content-TYPE", "custom/type"), ("Content-Type", "second/type")], reason="all explicit headers remain unchanged")
+        assert_equal(request.body, "key=value".to_utf8(), reason="form replaces the earlier JSON")
+
+    it("forms omit None, repeat list fields, and encode UTF-8 and reserved bytes"):
+        request := Request::post("/")
+        alias := request.form(Form { count: 42, label: "é +/%~*", absent: .None, note: .Some(""), tags: ["a b", "+"], empty: [], sort: .Asc, active: true, signed: -2, ratio: 1.5 })
+        assert_equal(alias is request, true, reason="form returns the same builder")
+        expected := "count=42&label=%C3%A9+%2B%2F%25%7E*&note=&tags=a+b&tags=%2B&sort=Asc&active=true&signed=-2&ratio=1.5"
+        assert_equal(request.body, expected.to_utf8(), reason="one flat ordered field stream")
+        assert_equal(request.headers, [("Content-Type", "application/x-www-form-urlencoded")], reason="form content type")
+
+    it("a string map supplies encoded field names and values"):
+        request := Request::post("/").form({"x y": "+&=", "é": ""})
+        text := Response { status: 200, body: request.body }.text()
+        assert_equal(text.split("&").sorted(), ["x+y=%2B%26%3D", "%C3%A9="].sorted(), reason="map order is irrelevant")
+        request.form(Empty {})
+        assert_equal(request.body, [], reason="an empty record writes no pairs")
+        let empty: Map[string, string] = {}
+        request.form(empty)
+        assert_equal(request.body, [], reason="an empty map writes no pairs")

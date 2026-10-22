@@ -82,6 +82,28 @@ For example, `Request::get(url).query("page", 2).header("Accept", "text/plain").
 13. r[std-http.request.send-copy] Sending leaves the builder unchanged, so sending it again encodes its query once again from the original fields.
 14. r[std-http.send.zero-redirects-supported] With `redirects` zero, Node and Wasmtime providers return the first response without following or validating its `Location`.
 
+
+15. r[std-http.request.json-serialize] `json[T < Serialize](&mut self, value: T) -> &mut Request` replaces the body with the UTF-8 bytes of `std.json.encode(value)`.
+16. r[std-http.request.json-once] `json` encodes its value once.
+17. r[std-http.request.json-content-type] `json` appends `Content-Type: application/json` only when no existing header names `Content-Type`, ignoring ASCII case.
+18. r[std-http.request.form-serialize] `form[T < Serialize](&mut self, value: T) -> &mut Request` replaces the body with a flat form encoding of the serialized value.
+19. r[std-http.request.form-root] The form root is a record or a `Map[string, string]`.
+20. r[std-http.request.form-scalars] A record member may serialize as a boolean, number, string, or payload-free enum variant.
+21. r[std-http.request.form-enum] A payload-free enum member encodes as its variant name.
+22. r[std-http.request.form-optional] An optional member encodes its present value or contributes no field when absent.
+23. r[std-http.request.form-list] A list of scalar values repeats its member name once per item, in list order.
+24. r[std-http.request.form-escaping] Form names and values encode UTF-8 bytes, keeping only ASCII letters, digits, `*`, `-`, `.`, and `_` unchanged.
+25. r[std-http.request.form-space] Form encoding writes a space as `+` and each remaining escaped byte as `%` followed by two uppercase hexadecimal digits.
+26. r[std-http.request.form-pairs] Form encoding joins each name and value with `=` and each pair with `&`.
+27. r[std-http.request.form-content-type] `form` appends `Content-Type: application/x-www-form-urlencoded` only when no existing header names `Content-Type`, ignoring ASCII case.
+28. r[std-http.request.typed-body-builder] Both typed body setters return the same builder.
+29. r[std-http.request.form-unsupported] A root scalar, list, or enum, or a nested record, map, list, or payload-bearing enum panics. Panic: `explicit-panic`.
+30. r[std-http.request.form-member-message] The unsupported-form panic message names the offending member, or `$` for the root.
+
+> **Why.** Typed values share their serialization implementation across
+> JSON and forms. Flat form fields match ordinary HTML submissions; nested
+> shapes need an application-specific encoding instead of an implicit convention.
+
 The provider's default timeout still applies; `std.task.timeout!` can impose a shorter bound around a send.
 
 ## Client
@@ -203,8 +225,7 @@ fn latest_release!(repo: string) -> Result[string, HttpError] $ Http:
 error; the free `get!` calls it automatically:
 
 ```text
-use std.http.{Http, HttpError, Method, Request, get}
-use std.json.encode
+use std.http.{Http, HttpError, Request, get}
 use std.serde.{Deserialize, Serialize}
 
 @derive(Serialize)
@@ -219,8 +240,7 @@ fn notes!() -> Result[string, HttpError] $ Http:
     .Ok(get!("https://example.com/notes.txt")?.text())   # a 404 is .Err(HttpError.Status(response))
 
 fn create!(name: string) -> Result[Created, HttpError] $ Http:
-    body := encode(NewUser { name: name }).to_utf8()
-    request := Request { method: Method.Post, url: "https://example.com/users", headers: [("Content-Type", "application/json")], body: body }
+    request := Request::post("https://example.com/users").json(NewUser { name: name })
     request.send!()?.ok()?.json::[Created]()                    # a bad body is .Err(HttpError.Json(error))
 ```
 

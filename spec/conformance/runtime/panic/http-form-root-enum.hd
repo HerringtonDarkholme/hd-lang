@@ -1,0 +1,10 @@
+# Spec std/http Request Builder: std-http.request.form-unsupported.
+use std.http.Request
+use std.serde.Serialize
+
+@derive(Serialize)
+enum Sort:
+    Asc
+
+pub fn main() -> void:
+    _ := Request::post("/").form(Sort.Asc)  # panic: explicit-panic

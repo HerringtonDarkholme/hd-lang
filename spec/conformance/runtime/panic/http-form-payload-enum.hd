@@ -1,0 +1,14 @@
+# Spec std/http Request Builder: std-http.request.form-unsupported.
+use std.http.Request
+use std.serde.Serialize
+
+@derive(Serialize)
+enum Choice:
+    Named(string)
+
+@derive(Serialize)
+struct Input:
+    choice: Choice
+
+pub fn main() -> void:
+    _ := Request::post("/").form(Input { choice: .Named("x") })  # panic: explicit-panic

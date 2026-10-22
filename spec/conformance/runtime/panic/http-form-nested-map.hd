@@ -1,0 +1,10 @@
+# Spec std/http Request Builder: std-http.request.form-unsupported.
+use std.http.Request
+use std.serde.Serialize
+
+@derive(Serialize)
+struct Input:
+    fields: Map[string, string]
+
+pub fn main() -> void:
+    _ := Request::post("/").form(Input { fields: {"key": "value"} })  # panic: explicit-panic

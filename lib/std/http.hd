@@ -4,8 +4,9 @@
 # profile binds a host `Http` that checks the command's `--cap Http=` grant
 # (src/commands/http-host.ts).
 use std.text.StringBuilder
-use std.json.{JsonError, decode}
-use std.serde.Deserialize
+use std.json.{JsonError, decode, encode}
+use std.serde.{Deserialize, Serialize, Serializer}
+use std.structure.{Facts, VariantInfo, Member}
 
 ## An HTTP method: a standard one, or `Other(name)`.
 ## See [std-http.types.builder-response-defaults](../../spec/std/http.md#r-std-http.types.builder-response-defaults).
@@ -79,6 +80,27 @@ impl Request:
         self.body = bytes
         self
 
+    ## Encodes the typed value as JSON and returns this builder.
+    ## See [std-http.request.json-serialize](../../spec/std/http.md#r-std-http.request.json-serialize).
+    pub fn json[T < Serialize](&mut self, value: T) -> &mut Request:
+        self.body = encode(value).to_utf8()
+        self.content_type("application/json")
+
+    ## Encodes a flat typed record or string map as form fields.
+    ## See [std-http.request.form-serialize](../../spec/std/http.md#r-std-http.request.form-serialize).
+    pub fn form[T < Serialize](&mut self, value: T) -> &mut Request:
+        writer := FormWriter::new()
+        _ := value.serialize(writer)
+        self.body = writer.finish().to_utf8()
+        self.content_type("application/x-www-form-urlencoded")
+
+    fn content_type(&mut self, value: string) -> &mut Request:
+        for (name, _) in self.headers:
+            if ascii_case_equal(name, "Content-Type"):
+                return self
+        self.headers.push(("Content-Type", value))
+        self
+
     ## Sets the redirect limit and returns this builder.
     ## See [std-http.request.redirects](../../spec/std/http.md#r-std-http.request.redirects).
     pub fn redirects(&mut self, count: usize) -> &mut Request:
@@ -101,20 +123,22 @@ fn query_url(url: string, pairs: List[(string, string)]) -> string:
     let separator = if !base.contains("?"): "?" else if base.ends_with("?") || base.ends_with("&"): "" else: "&"
     for (name, value) in pairs:
         out.push(separator)
-        encode_query(out, name)
+        encode_component(out, name, false)
         out.push("=")
-        encode_query(out, value)
+        encode_component(out, value, false)
         separator = "&"
     if url.contains("#"):
         out.push("#")
         out.push(fragment)
     out.build()
 
-fn encode_query(out: &mut StringBuilder, text: string) -> void:
+fn encode_component(out: &mut StringBuilder, text: string, form: bool) -> void:
     digits := "0123456789ABCDEF"
     let index = 0
     for byte in text.to_utf8():
-        if (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || (byte >= 48 && byte <= 57) || byte == 45 || byte == 46 || byte == 95 || byte == 126:
+        if form && byte == 32:
+            out.push("+")
+        else if (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || (byte >= 48 && byte <= 57) || byte == 45 || byte == 46 || byte == 95 || (if form: byte == 42 else: byte == 126):
             out.push(text.slice(index, index + 1))
         else:
             out.push("%")
@@ -123,6 +147,131 @@ fn encode_query(out: &mut StringBuilder, text: string) -> void:
             out.push(digits.slice(high, high + 1))
             out.push(digits.slice(low, low + 1))
         index += 1
+
+# A flat Serializer: the root record/map supplies names, and only scalar
+# values (or one list of them) write pairs. Buffer a variant's name until
+# its end, so a payload member can reject it before it writes a value.
+struct FormWriter:
+    pub out: &mut StringBuilder
+    pub started: bool
+    pub finished: bool
+    pub map: bool
+    pub keyed: bool
+    pub name: string
+    pub repeated: bool
+    pub tagged: bool
+    pub tag: string
+    pub written: bool
+
+impl FormWriter:
+    fn new() -> &mut FormWriter:
+        &mut FormWriter { out: StringBuilder::new(), started: false, finished: false, map: false, keyed: false, name: "\$", repeated: false, tagged: false, tag: "", written: false }
+
+    fn unsupported(&self) -> never:
+        panic("std.http.form: unsupported value for member `${self.name}`")
+
+    fn finish(&self) -> string:
+        if !self.finished || self.repeated || self.tagged:
+            self.unsupported()
+        self.out.build()
+
+    fn scalar(&mut self, value: string, text: bool) -> Result[void, never]:
+        if !self.started || self.finished || !self.keyed || self.tagged || (self.map && !text):
+            self.unsupported()
+        if self.written:
+            self.out.push("&")
+        self.written = true
+        encode_component(self.out, self.name, true)
+        self.out.push("=")
+        encode_component(self.out, value, true)
+        if !self.repeated:
+            self.keyed = false
+        .Ok(())
+
+impl Serializer for FormWriter:
+    type Error = never
+
+    fn null(&mut self) -> Result[void, never]:
+        if !self.started || self.finished || !self.keyed || self.map || self.repeated || self.tagged:
+            self.unsupported()
+        self.keyed = false
+        .Ok(())
+
+    fn bool(&mut self, value: bool) -> Result[void, never]:
+        self.scalar(if value: "true" else: "false", false)
+
+    fn int(&mut self, value: i64) -> Result[void, never]:
+        self.scalar("$value", false)
+
+    fn uint(&mut self, value: u64) -> Result[void, never]:
+        self.scalar("$value", false)
+
+    fn float(&mut self, value: f64) -> Result[void, never]:
+        self.scalar("$value", false)
+
+    fn text(&mut self, value: string) -> Result[void, never]:
+        self.scalar(value, true)
+
+    fn begin_list(&mut self, len: usize) -> Result[void, never]:
+        if !self.started || self.finished || !self.keyed || self.map || self.repeated || self.tagged:
+            self.unsupported()
+        self.repeated = true
+        .Ok(())
+
+    fn end_list(&mut self) -> Result[void, never]:
+        if !self.repeated || self.tagged:
+            self.unsupported()
+        self.repeated = false
+        self.keyed = false
+        .Ok(())
+
+    fn begin_map(&mut self, len: usize) -> Result[void, never]:
+        if self.started:
+            self.unsupported()
+        self.started = true
+        self.map = true
+        .Ok(())
+
+    fn key(&mut self, key: string) -> Result[void, never]:
+        if !self.map || self.finished || self.keyed:
+            self.unsupported()
+        self.name = key
+        self.keyed = true
+        .Ok(())
+
+    fn end_map(&mut self) -> Result[void, never]:
+        if !self.map || self.keyed:
+            self.unsupported()
+        self.finished = true
+        .Ok(())
+
+    fn begin_variant(&mut self, facts: Facts, v: VariantInfo) -> Result[void, never]:
+        if !self.started:
+            if !v.of_data:
+                self.unsupported()
+            self.started = true
+        else:
+            if v.of_data || self.map || self.finished || !self.keyed || self.tagged:
+                self.unsupported()
+            self.tagged = true
+            self.tag = v.name
+        .Ok(())
+
+    fn member(&mut self, m: Member) -> Result[void, never]:
+        if self.tagged || self.repeated || self.keyed || self.finished:
+            self.unsupported()
+        self.name = m.name
+        self.keyed = true
+        .Ok(())
+
+    fn end_variant(&mut self) -> Result[void, never]:
+        if self.tagged:
+            self.tagged = false
+            return self.scalar(self.tag, false)
+        if !self.started || self.map || self.keyed || self.repeated || self.finished:
+            self.unsupported()
+        self.finished = true
+        .Ok(())
 
 ## Shared base URL and default headers for HTTP requests.
 ## See [std-http.client.http-only](../../spec/std/http.md#r-std-http.client.http-only).
