@@ -33,6 +33,16 @@
 //!   suspension point and a value;
 //! - no `Ref` takes its local's count of a cell in a sub-body that holds
 //!   a suspension point ([`takes_outside_suspension`]);
+//! - an `IsUnique` is plain, `HOISTED` or `COVERED`; a hoisted one stands
+//!   right before a loop (among other hoisted ones), names a local's place
+//!   with one leading dereference at most and fields, whose local no `Ref`
+//!   roots at; in that loop nothing copies it (a read of it or of a place
+//!   holding it whose value a use keeps), takes a `Ref` that overlaps it,
+//!   writes a place holding it, pins or suspends, and no call may write
+//!   unless it is a whole local no closure captures; a covered one names
+//!   the place a hoisted one before an enclosing loop does; each
+//!   stable-list row names a loop and a place of that form, in order
+//!   ([`hoisted`]);
 //! - nothing tier 2 reserves: no `FlagSet`, `FlagClear` or `regions` row.
 //!
 //! The walks follow the body's layout: dense tables indexed by instruction,
@@ -84,6 +94,7 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     };
     decided(b, &mut errs);
     takes_outside_suspension(b, &mut errs);
+    hoisted(b, own, &mut errs);
     Empties::new(&cx).walk(&mut errs);
     borrow_spans(&cx, &mut errs);
     binding_locals(&cx, own, &mut errs);
@@ -126,6 +137,193 @@ fn takes_outside_suspension(b: &Body, errs: &mut Vec<VerifyError>) {
                 errs,
                 u32_of(i),
                 "a `Ref` takes a cell's count in a sub-body with a suspension point".into(),
+            );
+        }
+    }
+}
+
+/// Hoisting's `IsUnique`s and stable lists (`docs/compiler/tir-v2.md`,
+/// "Hoisting"): what the pass relies on, checked again.
+fn hoisted(b: &Body, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
+    use super::unique_word::{COVERED, HOISTED};
+    use crate::own::hoist;
+    let n = b.len();
+    let any = (0..n).any(|i| b.tags[i] == Tag::IsUnique && b.data[i][1] != 0);
+    if !any && b.stable_lists.is_empty() {
+        return;
+    }
+    // Each statement's block and position; each instruction's first.
+    let mut blk = vec![NONE; n];
+    let mut pos = vec![0u32; n];
+    let mut first: Vec<u32> = (0..n).map(u32_of).collect();
+    for i in 0..n {
+        if b.tags[i] == Tag::Block {
+            for (p, &m) in b.record(b.data[i][0]).iter().enumerate() {
+                if (m as usize) < n {
+                    blk[m as usize] = u32_of(i);
+                    pos[m as usize] = u32_of(p);
+                    if (m as usize) < i {
+                        first[i] = first[i].min(first[m as usize]);
+                    }
+                }
+            }
+        }
+        let mut f = first[i];
+        crate::own::splice_for_blocks(b, i, |x| {
+            if (x as usize) < i {
+                f = f.min(first[x as usize]);
+            }
+        });
+        first[i] = f;
+    }
+    let mut addressed = vec![false; b.local_ty.len()];
+    let mut captured = vec![false; b.local_ty.len()];
+    for i in 0..n {
+        if b.tags[i] == Tag::Ref
+            && let Some(Place {
+                root: PlaceRoot::Local(l),
+                ..
+            }) = b.decode_place(b.data[i][0])
+        {
+            addressed[l.idx()] = true;
+        }
+    }
+    for l in &b.cap_local {
+        captured[l.idx()] = true;
+    }
+    for (l, f) in b.local_flags.iter().enumerate() {
+        if f & (super::local_flags::CAPTURED | super::local_flags::CAPTURED_ASSIGNED) != 0 {
+            captured[l] = true;
+        }
+    }
+    let mut kept = vec![false; n];
+    let mut ops = Vec::new();
+    for i in 0..n {
+        operands(b, i, &mut ops);
+        for op in &ops {
+            if hoist::keeps(b, u32_of(i), op.role) {
+                kept[op.value as usize] = true;
+            }
+        }
+    }
+    let (mut steps, mut raw, mut other) = (Vec::new(), Vec::new(), Vec::new());
+    // The hoisted ones: (loop, local, steps).
+    let mut hoists: Vec<(u32, u32, Vec<u32>)> = Vec::new();
+    for i in 0..n {
+        if b.tags[i] != Tag::IsUnique {
+            continue;
+        }
+        let w = b.data[i][1];
+        if w != 0 && w != HOISTED && w != COVERED {
+            err(
+                errs,
+                u32_of(i),
+                format!("an `IsUnique` of unknown kind {w}"),
+            );
+            continue;
+        }
+        if w != HOISTED {
+            continue;
+        }
+        let at = blk[i];
+        let next = (at != NONE)
+            .then(|| {
+                b.record(b.data[at as usize][0])[pos[i] as usize + 1..]
+                    .iter()
+                    .copied()
+                    .find(|&x| {
+                        let tag = b.tags[x as usize];
+                        // A block in the list is one a statement runs.
+                        tag != Tag::Block
+                            && !(tag == Tag::IsUnique && b.data[x as usize][1] == HOISTED)
+                    })
+            })
+            .flatten();
+        let Some(l) = next.filter(|&x| b.tags[x as usize] == Tag::Loop) else {
+            err(
+                errs,
+                u32_of(i),
+                "a hoisted `IsUnique` that no loop follows".into(),
+            );
+            continue;
+        };
+        let (local, _) = hoist::resolve(b, b.data[i][0], &mut steps, &mut raw);
+        if local == NONE || !hoist::hoistable(&steps) || addressed[local as usize] {
+            err(
+                errs,
+                u32_of(i),
+                "a hoisted `IsUnique` of a place that is no unaddressed local's own".into(),
+            );
+            continue;
+        }
+        let whole = steps.is_empty() && !captured[local as usize];
+        for x in first[l as usize]..l {
+            let xi = x as usize;
+            let tag = b.tags[xi];
+            let [a, xw] = b.data[xi];
+            let what = if is_suspension(tag)
+                || tag == Tag::Pin
+                || (tag == Tag::Intrinsic
+                    && matches!(
+                        super::IntrinsicOp::from_u32(a),
+                        Some(super::IntrinsicOp::ListPin | super::IntrinsicOp::ListUnpin)
+                    )) {
+                Some("pins or suspends")
+            } else if !whole && hoist::writes(b, cx, xi) {
+                Some("calls what may write")
+            } else if matches!(tag, Tag::Read | Tag::Store | Tag::Drop | Tag::Ref) {
+                let (ol, temp) = hoist::resolve(b, a, &mut other, &mut raw);
+                let mine = ol == local;
+                let covers = mine && hoist::prefix(&other, &steps);
+                let below = mine && other.len() > steps.len() && hoist::prefix(&steps, &other);
+                match tag {
+                    Tag::Read if xw == ReadMode::Move as u32 && covers && !temp => Some("moves it"),
+                    Tag::Read if covers && kept[xi] => Some("copies it"),
+                    Tag::Store | Tag::Drop if covers && !temp => Some("writes it"),
+                    Tag::Ref if (covers || below) && !temp => Some("takes a reference to it"),
+                    _ => None,
+                }
+            } else {
+                None
+            };
+            if let Some(what) = what {
+                err(
+                    errs,
+                    u32_of(i),
+                    format!("a hoisted `IsUnique`'s loop %{l} {what} at %{x}"),
+                );
+                break;
+            }
+        }
+        hoists.push((l, local, steps.clone()));
+    }
+    for i in 0..n {
+        if b.tags[i] != Tag::IsUnique || b.data[i][1] != COVERED {
+            continue;
+        }
+        let (local, _) = hoist::resolve(b, b.data[i][0], &mut steps, &mut raw);
+        let covered = hoists.iter().any(|(l, hl, hs)| {
+            *hl == local && *hs == steps && (first[*l as usize]..*l).contains(&u32_of(i))
+        });
+        if !covered {
+            err(
+                errs,
+                u32_of(i),
+                "a covered `IsUnique` that no hoisted one before an enclosing loop covers".into(),
+            );
+        }
+    }
+    for (k, &(l, word)) in b.stable_lists.iter().enumerate() {
+        let (local, _) = hoist::resolve(b, word, &mut steps, &mut raw);
+        if b.tags.get(l as usize) != Some(&Tag::Loop)
+            || local == NONE
+            || !hoist::hoistable(&steps)
+            || (k > 0 && b.stable_lists[k - 1] >= (l, word))
+        {
+            err(
+                errs,
+                l,
+                format!("stable list row {k} names no loop, no local's place, or is out of order"),
             );
         }
     }

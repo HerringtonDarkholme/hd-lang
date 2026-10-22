@@ -521,6 +521,7 @@ pub struct Body {
     pub fallback: Vec<[u32; 2]>,        // overflow checks on a literal's usize default; outside the hash
     pub exit_drops: Vec<(SubId, LocalId)>, // the ownership passes' exit set; never on the wire
     pub unwind_drops: Vec<(u32, u32)>,  // the ownership passes' unwind set: (suspension point, value); never on the wire
+    pub stable_lists: Vec<(u32, u32)>,  // hoisting's stable list places: (loop, place word); never on the wire
     pub regions: Vec<(u32, u32)>,       // tier 2's lifetime regions (reserved): empty
 }
 pub struct Inst(pub u32);
@@ -780,7 +781,11 @@ global root is no value.
 **Ownership** ([docs/compiler/tir-v2.md](../../docs/compiler/tir-v2.md#ownership-statements)).
 The ownership passes write these after decoding; the checker never does
 (invariant 22), and the wire refuses them. Each has a place in a and
-nothing in b, and its type is `void`.
+nothing in b but `IsUnique`, whose b is 0, `unique_word::HOISTED` (it
+stands before the loop that follows it, which runs it once under its
+entry test) or `unique_word::COVERED` (a hoisted one before an
+enclosing loop makes it unneeded where no reference view is
+reachable); the type is `void`.
 
 | Tag | Meaning |
 | --- | --- |
@@ -795,8 +800,11 @@ write. A suspension point's cancellation, a way out no TIR jump spells,
 releases the values of its unwind set, `unwind_drops`: rows of a
 suspension point and a value, sorted, which the known-null pass
 writes; it then leaves through the exit, so the exit set holds every
-local that may hold a value at a suspension point. `regions` is tier
-2's (reserved) and stays empty.
+local that may hold a value at a suspension point. `stable_lists`, which
+the hoisting pass writes, holds rows of a loop and a place of a list
+whose header and buffer nothing in the loop replaces, sorted; the
+backend keeps the buffer's address and length in locals for that loop.
+`regions` is tier 2's (reserved) and stays empty.
 
 **Providers**
 
@@ -1043,8 +1051,8 @@ The verifier checks each of these:
     root is never written in place.
 22. **The checker's TIR has no ownership**: every `Read` has mode `use`,
     no `Ref` takes a count, and there is no `Drop`, `IsUnique`, `Pin`,
-    `FlagSet` or `FlagClear`, no `exit_drops`, `unwind_drops` or
-    `regions` row.
+    `FlagSet` or `FlagClear`, no `exit_drops`, `unwind_drops`,
+    `stable_lists` or `regions` row.
 23. **After the ownership passes, ownership balances**: every owned
     value has exactly one consumer or one `Drop` on each path; no `Read`
     of a place follows its `move` on any path without a `Store` in
@@ -1118,7 +1126,15 @@ body built elsewhere, such as a generated structure method, gets
     empties the local, as a `move` read of it does. Which uses consume is
     `own::operands` and `own::consumes`, with `OwnCx`'s parameter modes
     and counted types; `verify_owned` takes the same `OwnCx` as the
-    passes.
+    passes. No `Ref` takes its local's count in a sub-body with a
+    suspension point. A hoisted `IsUnique` stands before a loop (among
+    other hoisted ones), names a place of an unaddressed local with one
+    leading dereference at most and fields, and in that loop nothing
+    copies it (a read of it, or of a place holding it, whose value a use
+    keeps), references, writes, pins or suspends over it, and no call
+    may write unless it is a whole local no closure captures; a covered
+    one names a hoisted one's place inside that one's loop; the stable
+    list rows name loops and such places, in order.
 - **8.** Every call writes `Providers::None` today, and codegen reads
   providers from the callee's signature. So the check rejects a
   `Pending` form after `finish`, and pairs whose count is not the
@@ -1185,7 +1201,14 @@ body built elsewhere, such as a generated structure method, gets
   values may hold a count deletes the `Drop`s no path reaches with one,
   removes the exit rows of locals empty at every way out (a `Return`,
   the root's end, a suspension point; never a parameter's or a
-  capture's), and writes each suspension point's unwind set. Insertion
+  capture's), and writes each suspension point's unwind set; then
+  hoisting (`own/hoist.rs`): an `IsUnique` in a loop's iteration block,
+  behind an entry test whose prefix is pure, moves before the loop
+  (marked hoisted) when nothing in the loop copies, references,
+  replaces, pins or suspends over its place and no call may write unless
+  the place is a private local, every other `IsUnique` of the place in
+  the loop goes (or stays covered behind a dereference), and the loops'
+  stable list places are listed in `stable_lists`. Insertion
   rebuilds the body once, and the other passes record their edits for
   one more rebuild at the end, renumbering it (`own/splice.rs`). They
   read the body and `OwnCx` (counted types, parameter modes, how a body
@@ -1218,7 +1241,7 @@ with its per-item interface hash), for code keys.
   into another run's IDs.
 - **Checker output only.** The ownership passes run after decoding, so
   the wire refuses their output: an ownership statement, and an
-  `exit_drops`, `unwind_drops` or `regions` row, are structured errors. A taking `Ref`
+  `exit_drops`, `unwind_drops`, `stable_lists` or `regions` row, are structured errors. A taking `Ref`
   comes only with its local's exit row.
 - **The TIR hash** (`tir_hash`) is the hash of the hashed prefix. Because
   tables are per body, it is a function of that body alone, the same on

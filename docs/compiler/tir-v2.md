@@ -2043,6 +2043,124 @@ is worth deciding only if they are hot.
    such a sub-body (its exit row's) is no move candidate
    (`moves::suspending_subs`). `verify_owned` refuses a taking `Ref` in a
    sub-body with a suspension point. No other pass read `Body::susp`.
+   **Hoisting as built** (`own/hoist.rs`), last in the pipeline, its
+   edits joining the others' for the second and last rebuild
+   (`splice::Pending`, as known-null reads it).
+   - **Rule 1** is a statement of the loop's **entry test**'s iteration
+     block: the loop body's first `If`, one arm of which only breaks out
+     of the loop (`own::entry_test`; a `while` and a `for` over a range
+     lower to it). The statements before the test must be pure (copies of
+     values with no counted leaf, borrows and their kept drops,
+     primitives, lengths, `and` and `or` of these), since the guard runs
+     them once more before the loop.
+   - **The place** is the one the `IsUnique`'s header read reads,
+     resolved through value roots (`IsUnique [%h]` with
+     `%h = Read [*%r]`, `%r = Read [$0]` is one of `[*$0]`): a local's,
+     with one leading dereference at most and fields, whose type names no
+     type parameter. Its local is never addressed or captured; no read of
+     its header anywhere in the body has a use that keeps that very header
+     (a store, an owned argument, a block's value, a coercion, a pin); and
+     no `borrow` of it lives across the loop's entry, where the hoisted
+     check will stand (`verify_owned`'s borrow clause).
+   - **Rule 2** over the loop's instructions and the edits pending in
+     its blocks (the range from the loop's first instruction to itself):
+     no suspension point, `Pin` or `ListPin`; no `Ref` overlapping the
+     place; no `Store`, `Drop` or `move` of the place or of one holding it
+     (a write below it, into its buffer, is the point); no read of it whose
+     value a use keeps or copies (`ValueCopy`, `SnapBegin`).
+   - **Rule 3**: the private case is a whole local, not a parameter,
+     whose every stored value is fresh (borrow's rule); for any other
+     place no call may write (`OwnCx::may_write`), and nothing may write
+     through another dereference or into another list's buffer, or
+     change, copy or pin another collection, since a reference can reach
+     the same list by another name (#710's rule).
+   - **What moves.** Loops are taken outermost first. A place that passes
+     gets one `IsUnique` before the loop (`unique_word::HOISTED` in its b
+     word), and every `IsUnique` of it in the loop, at any depth, goes:
+     the whole loop was checked, so an inner loop's or a branch's change
+     needs no check of its own. One behind a dereference stays, marked
+     `unique_word::COVERED`: in a module where a reference view is
+     reachable a view's getter may make the header fresh on each read,
+     and the backend runs it there; where no view is reachable it is
+     skipped in the shape the link folds away.
+   - **The stable-list table**, `Body::stable_lists`: rows of a loop and a
+     place of the same form, read by an element read or store or a
+     `ListLen` in the loop, that pass rules 2 and 3 with no `IsUnique` of
+     them left in the loop and no push (a push may move the buffer). The
+     `own` view prints them as `loop %n keeps [*$0]`.
+   - **`verify_owned`** (`hoisted`): an `IsUnique` is plain, hoisted or
+     covered; a hoisted one stands right before a loop (among other
+     hoisted ones), names such a place of an unaddressed local, and in
+     that loop nothing copies (a read whose value a use keeps), moves,
+     writes or references it, pins or suspends, and no call may write
+     unless it is a whole local no closure captures; a covered one names
+     the place a hoisted one before an enclosing loop names; the stable
+     rows name loops and such places, in order.
+   - **The backend** (`hd_wasm_linear/DESIGN.md` §23.16): a hoisted
+     `IsUnique` waits for its loop (`Em::hoisted`) and runs there under
+     the entry test, the pure prefix emitted once more; unguarded in a
+     suspending body or where a default argument's specialization folded
+     the test away. One behind a dereference reads the reference as the
+     referent's address, only where no view is reachable. The new path's
+     loop caches are the table's rows (`Em::own_list_caches`), with no
+     check before the loop and none of #710's analysis; the range proofs
+     of element indices stay as they are on both paths.
+   - **A fix to commit 8**: `OwnCx::may_write` never answered false for
+     `f64.sqrt`, a body-less method of a float's inherent impl whose
+     `@intrinsic` has no key; it now does, by the body table (never by
+     decoding the body, which would run the passes on another body and
+     deadlock on its cell). It changes no count over the conformance or
+     bench/study programs; it lets nbody's `advance` hoist.
+   Data layout: dense tables per instruction and local reused across
+   bodies, every value's uses in compressed rows, the loops sorted
+   outermost first, and per loop one scan for candidates and one to check
+   them over the loop's instruction range (so an instruction is scanned
+   once per loop around it). Hoisting costs 0.03 to 0.05 us per
+   instruction over the bench/study programs (130 allocations over their
+   1,263 bodies, tables growing), against insertion's 0.21 to 0.28 in the
+   same runs on a loaded machine; the rebuilds stay at two.
+   Old path: every conformance module byte-identical to main, dev and
+   optimized pipelines. New path: all conformance cases pass, dev and
+   optimized pipelines, checked and not.
+   Static Wasm call sites over the bench/study programs, whole modules
+   (std included), dev and optimized pipelines alike, old path, new path
+   before this commit, after: `rt:list_unique` 171, 180, 170 (in `app`
+   functions 25, 34, 25: nbody 5, 12, 5, fannkuch 8, 10, 8); `rt:map_unique`
+   6, 6, 6; `rt:list_grow` 0, 134, 134 (the old path's push calls
+   `rt:list_unique` itself, the new path's checks once and grows at the
+   push). No program is above the old path's `rt:list_unique` count
+   (json 134 against 135); over `bench/runtime/progs` and `bench/micro`
+   17 and 16 (list-sort 3 and 2). A hoisted check is still one call site:
+   what changes is how often it runs. (Commit 6's 19 against 45 counted
+   on another basis that this commit could not reproduce.) Static count
+   sites and module bytes, which hoisting does not change but for the
+   guards and the caches: over the 771 runtime conformance programs with
+   a `main` 27,450 retains and 53,460 releases before and after (module
+   bytes 20,136,109 and 20,142,691), against the old path's 27,914 and
+   57,467 (20,193,740); over the bench/study programs 831 and 1,620
+   before and after (311,497 and 312,113 bytes), against 935 and 1,599
+   (313,616). Against commit 10's note the new path has 62 more retains
+   and releases over conformance: the references of the first fix, which
+   count again in suspending bodies; the `sqrt` fix changes no count.
+   Run time, V8, optimized pipeline, release profile, the median of nine
+   alternating runs with process start (ms), old path, new path before,
+   after: list-sort 794, 1,495, 764; micro sort 56, 56, 54; sieve 239,
+   307, 233; fannkuch 95, 114, 92; nbody 118, 351, 235; spectral-norm
+   181, 182, 186.
+   **Left for later commits.**
+   - **Generic places**: a place whose type names a type parameter does
+     not hoist. An erased instance holds such a value as one counted
+     view, and a local-rooted `IsUnique` would stay in the erased body,
+     where the element layout is unknown; hoisting one needs hd_mono to
+     outline it into a thunk as it outlines a value-rooted one. Commit 13
+     counts what generic std loops lose and adds the outlining if parity
+     needs it.
+   - **Whole-element copies**: on the new path `bodies[i].x` reads the
+     whole element (`Read copy [%h [%i]]`, then its field), where the old
+     path loads one field (§23.31, "Read the selected field"); that, not
+     hoisting, keeps nbody's `advance` slower on the new path. Commit 12
+     roots element places at the local (`Read [*$0 [%i] .x]`), which reads
+     one field.
 12. The checker stops inserting copies and pin bookkeeping.
 13. Parity: every counts baseline at or below today, conformance and
     the checked-mode audit green on the new path; the switch flips.

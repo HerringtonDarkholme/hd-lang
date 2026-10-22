@@ -572,11 +572,26 @@ String operations are emitted by `emit/text.rs` and runtime helpers
   change of a collection place, an owned body's intrinsics and its thunks'
   (`Em::unique_explicit`) check no uniqueness themselves: an element
   store, `MapSet`, `MapRemove`, `MapIndexMut` and `ListPin` skip it, and
-  `ListPush` only moves a full buffer (`rt:list_grow`). Two checks stay:
+  `ListPush` only moves a full buffer (`rt:list_grow`). One check stays:
   std's `list_truncate` (`pop`, `insert`, ...) changes the list behind
-  its reference, where no pass sees the change; and a loop cache's check
-  before the loop (§23.31, #710), whose buffer address the loop keeps,
-  until hoisting's table replaces the caches. The checker's `ListPin`
+  its reference, where no pass sees the change. A hoisted `IsUnique`
+  (`docs/compiler/tir-v2.md`, "Hoisting") waits for the loop that
+  follows it (`Em::hoisted`) and runs once before it under the loop's
+  entry test: the statements before the test, which the pass found pure,
+  run once more, then the test (`Em::hoisted_uniques`); in a suspending
+  body, or where a default argument's specialization folded the test
+  away, it runs unguarded, which costs only a copy an empty loop did not
+  need. One behind a dereference reads the reference as its referent's
+  address (`Em::deref_physical`, `place_header`) and runs only where no
+  reference view is reachable (`RefViewsAbsent`); there the `COVERED`
+  ones in the loop are skipped, in the shape the link folds away, and
+  elsewhere they run. The loop caches on this path (`Em::own_list_caches`)
+  are the hoisting pass's stable list places (`Body::stable_lists`): a
+  local's list or the list a reference local refers to, with no counted
+  leaf in its elements, keeps its header, buffer and length in locals for
+  the loop where no view is reachable, with no check of its own and none
+  of #710's analysis (`list_loop_safe`, candidates, definite writes). The
+  checker's `ListPin`
   keeps its owner word and its count, the pin of a `for` over element
   references, until the checker stops pinning. A `move` read takes the
   place's count and zeroes what it read: a local's or a whole value's
@@ -1794,6 +1809,10 @@ header, so they do not invalidate a borrowed header read.
   The existing no-view link fact enables these projections without a
   runtime change flag. View modules retain their ordinary reads and writes,
   and bounds checks still use the cached length. No callee summary is used.
+  On the ownership passes' path (§23.16, "Owned bodies") the hoisting
+  pass proves what these projections need and lists the places in
+  `Body::stable_lists`; the backend's own proof and its uniqueness check
+  before the loop run on the old path only.
 - **Conservative boundaries.** Deferred scopes, mutable reference bindings,
   shared cells and effectful read intervals keep their ownership. Copies
   that escape a loan still take their own counts. The fixtures cover

@@ -136,7 +136,7 @@ tags! {
     // ownership passes write these after decoding, never the checker; a
     // is a place word. `FlagSet` and `FlagClear` are reserved for tier 2.
     Drop: Place, None;
-    IsUnique: Place, None;
+    IsUnique: Place, Meta;
     Pin: Place, None;
     FlagSet: Place, None;
     FlagClear: Place, None;
@@ -709,6 +709,19 @@ pub mod ref_word {
     pub const TAKES: u32 = 2;
 }
 
+/// An `IsUnique`'s data word b (`docs/compiler/tir-v2.md`, "Hoisting"): 0
+/// for one that stands at its change, as insertion writes it.
+pub mod unique_word {
+    /// Hoisted out of the loop that follows it in its block: it runs only
+    /// when that loop's entry test lets the loop in, once before it.
+    pub const HOISTED: u32 = 1;
+    /// Inside a loop that a `HOISTED` `IsUnique` of the same place
+    /// precedes, which makes it unneeded where no dereference on its place
+    /// makes a fresh value (no reference view is reachable); kept for the
+    /// instances where one may.
+    pub const COVERED: u32 = 2;
+}
+
 /// How a `Read` reads its place (its `Meta` word b;
 /// `docs/compiler/tir-v2.md`, "Read modes"). The checker writes `Use`;
 /// the ownership passes (stage 2) replace it.
@@ -826,6 +839,14 @@ pub struct Body {
     /// row once. A pass output: empty in the checker's TIR (invariant 22),
     /// never written to the wire.
     pub unwind_drops: Vec<(u32, u32)>,
+    /// The hoisting pass's stable list places (`docs/compiler/tir-v2.md`,
+    /// "Hoisting"): per row, a `Loop` and a place word of a list whose
+    /// header and buffer nothing in the loop replaces, so the backend may
+    /// keep the buffer's address and length in locals for the loop. The
+    /// place is rooted at a local, with fields and dereferences only.
+    /// Sorted, each row once. A pass output: empty in the checker's TIR
+    /// (invariant 22), never written to the wire.
+    pub stable_lists: Vec<(u32, u32)>,
     /// Lifetime regions of borrows, per row an instruction and its region,
     /// sorted (`docs/compiler/tir-v2.md`, "Encoding, wire format and
     /// caching"): reserved for tier 2, so empty in tier 1 (invariants 22
@@ -862,6 +883,7 @@ impl Body {
             fallback: vec![],
             exit_drops: vec![],
             unwind_drops: vec![],
+            stable_lists: vec![],
             regions: vec![],
         }
     }
@@ -1984,14 +2006,19 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
             what,
         });
     }
-    if !b.exit_drops.is_empty() || !b.unwind_drops.is_empty() || !b.regions.is_empty() {
+    if !b.exit_drops.is_empty()
+        || !b.unwind_drops.is_empty()
+        || !b.stable_lists.is_empty()
+        || !b.regions.is_empty()
+    {
         errs.push(VerifyError {
             invariant: 22,
             inst: NONE,
             what: format!(
-                "{} exit drop, {} unwind drop and {} region rows before the ownership passes",
+                "{} exit drop, {} unwind drop, {} stable list and {} region rows before the ownership passes",
                 b.exit_drops.len(),
                 b.unwind_drops.len(),
+                b.stable_lists.len(),
                 b.regions.len()
             ),
         });
@@ -2462,6 +2489,9 @@ pub fn print(b: &Body) -> String {
     for (inst, value) in &b.unwind_drops {
         let _ = writeln!(o, "unwinddrop {inst} {value}");
     }
+    for (inst, word) in &b.stable_lists {
+        let _ = writeln!(o, "stablelist {inst} {word}");
+    }
     for (inst, region) in &b.regions {
         let _ = writeln!(o, "region {inst} {region}");
     }
@@ -2618,6 +2648,13 @@ pub fn parse(text: &str) -> Result<Body, ParseError> {
                     return Err(e("unwinddrop needs 2 fields".into()));
                 }
                 b.unwind_drops.push((v[0], v[1]));
+            }
+            "stablelist" => {
+                let v = nums(1)?;
+                if v.len() != 2 {
+                    return Err(e("stablelist needs 2 fields".into()));
+                }
+                b.stable_lists.push((v[0], v[1]));
             }
             "region" => {
                 let v = nums(1)?;
@@ -3346,7 +3383,8 @@ mod tests {
 
     fn statement(b: &mut TirBuilder, tag: Tag, place: &str, n: NodeIdx) {
         let word = b.place(&place.parse().expect("place"));
-        b.emit(tag, word, NONE, Ty::VOID, n);
+        let w = if tag == Tag::IsUnique { 0 } else { NONE };
+        b.emit(tag, word, w, Ty::VOID, n);
     }
 
     fn findings(errs: &[super::VerifyError]) -> Vec<(u8, u32)> {

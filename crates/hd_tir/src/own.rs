@@ -21,11 +21,14 @@
 //! `move`, and deletes or splits that drop; then **known-null** (`known`),
 //! which deletes the `Drop`s no path reaches with a count, drops the exit
 //! rows of locals empty at every way out, and writes each suspension
-//! point's unwind set. Hoisting is a later commit of stage 2; each pass
-//! only weakens or deletes what insertion writes, so the pipeline is
-//! correct after any prefix. Insertion rebuilds the body once
-//! ([`splice`]); borrow, move, pair cancellation and known-null record
-//! their edits for one more rebuild at the end.
+//! point's unwind set; then **hoisting** (`hoist`), which moves an
+//! `IsUnique` out of a loop that cannot make a second owner of its place,
+//! to run once before it under the loop's entry test, and lists the
+//! loops' stable list places. Each pass only weakens, deletes or moves
+//! what insertion writes, so the pipeline is correct after any prefix.
+//! Insertion rebuilds the body once ([`splice`]); borrow, move, pair
+//! cancellation, known-null and hoisting record their edits for one more
+//! rebuild at the end.
 //!
 //! The passes read the body and [`OwnCx`], signature and layout facts the
 //! driver gives; never another body. They follow "Data layout of the
@@ -37,8 +40,12 @@ use hd_types::Ty;
 
 use crate::ir::{Body, Callee, IntrinsicOp, NONE, Op, Ref, Tag, place};
 
+pub use hoist::{EntryTest, entry_test};
+pub(crate) use splice::for_blocks as splice_for_blocks;
+
 mod borrow;
 mod fold;
+pub(crate) mod hoist;
 mod insert;
 mod known;
 mod moves;
@@ -85,7 +92,7 @@ pub trait OwnCx {
     fn pass_value(&self, fn_ty: Ty, k: usize, n: usize) -> Pass;
     /// Whether a call of `callee` may reach memory outside its arguments:
     /// false only for the few std functions known pure. The borrow pass
-    /// reads it; hoisting will.
+    /// and hoisting read it.
     fn may_write(&self, callee: &Callee) -> bool;
     /// The parts of a value of `ty` that is laid out in place in every
     /// instance, into `out`: the field types of a struct, a tuple or a
@@ -509,6 +516,7 @@ pub fn consumers(b: &Body, cx: &dyn OwnCx, out: &mut Vec<u32>) {
 pub struct OwnScratch {
     pub(crate) borrow: borrow::Tables,
     pub(crate) fold: fold::Tables,
+    pub(crate) hoist: hoist::Tables,
     pub(crate) insert: insert::Tables,
     pub(crate) known: known::Tables,
     pub(crate) moves: moves::Tables,
@@ -517,9 +525,9 @@ pub struct OwnScratch {
 }
 
 /// Runs the ownership passes over every sub-body of `b`, in order: place
-/// folding ([`fold`]), insertion, borrow, move, pair cancellation, then
-/// known-null. The last four record their deletions and insertions in one
-/// set of edits, applied once at the end. A body the passes cannot handle
+/// folding ([`fold`]), insertion, borrow, move, pair cancellation,
+/// known-null, then hoisting. The last five record their deletions and
+/// insertions in one set of edits, applied once at the end. A body the passes cannot handle
 /// is refused, with what stopped them.
 pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(), String> {
     fold::run(b, cx, &mut scratch.fold);
@@ -534,6 +542,7 @@ pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(),
         &mut scratch.splice,
     );
     known::run(b, cx, &mut scratch.known, &mut scratch.splice);
+    hoist::run(b, cx, &mut scratch.hoist, &mut scratch.splice);
     splice::apply(b, &mut scratch.splice)
 }
 
@@ -620,6 +629,12 @@ mod tests {
                 if tag == Tag::Ref && b.data[i][1] & crate::ir::ref_word::TAKES != 0 {
                     line.push_str(" take");
                 }
+                if tag == Tag::IsUnique && b.data[i][1] == crate::ir::unique_word::HOISTED {
+                    line.push_str(" hoisted");
+                }
+                if tag == Tag::IsUnique && b.data[i][1] == crate::ir::unique_word::COVERED {
+                    line.push_str(" covered");
+                }
                 let _ = write!(line, " {p}");
                 if tag == Tag::Store {
                     let _ = write!(line, " %{}", b.data[i][1]);
@@ -648,6 +663,11 @@ mod tests {
         }
         for (at, v) in &b.unwind_drops {
             let _ = writeln!(out, "unwind %{at} %{v}");
+        }
+        for (at, word) in &b.stable_lists {
+            if let Some(p) = b.decode_place(*word) {
+                let _ = writeln!(out, "stable %{at} {p}");
+            }
         }
         out
     }
@@ -1218,6 +1238,149 @@ mod tests {
         assert!(
             errs.iter().any(|e| e.what.contains("takes a cell's count")),
             "{errs:?}"
+        );
+    }
+
+    /// A loop whose iteration block changes a list (`ListPush` over a
+    /// string-typed stand-in), behind an entry test of a constant:
+    /// `header` builds the header value the change reads, `extra` adds
+    /// statements after it, `pure_prefix` says whether the entry test's
+    /// prefix is pure.
+    fn loop_body(
+        b: &mut TirBuilder,
+        header: &dyn Fn(&mut TirBuilder) -> crate::ir::Ref,
+        extra: &dyn Fn(&mut TirBuilder),
+        pure_prefix: bool,
+    ) {
+        use crate::ir::IntrinsicOp;
+        let n = NodeIdx::from_raw(1);
+        let us = Ty::prim(hd_types::Prim::Usize);
+        let lp = b.open_loop();
+        let body = b.open_block();
+        if !pure_prefix {
+            call(b, 6, &[], us);
+        }
+        let yes = b.const_value(Ty::BOOL, 1);
+        let eb = b.open_block();
+        let h = header(b);
+        let k = b.const_value(us, 1);
+        let rec = b.refs_record(&[h, k]);
+        b.emit(
+            Tag::Intrinsic,
+            IntrinsicOp::ListPush as u32,
+            rec,
+            Ty::VOID,
+            n,
+        );
+        extra(b);
+        let els = b.close_block(eb, None, Ty::VOID, n);
+        let tb = b.open_block();
+        b.emit(Tag::Break, lp.0.raw(), NONE, Ty::NEVER, n);
+        let then = b.close_block(tb, None, Ty::VOID, n);
+        let arms = b.refs_record(&[then, els]);
+        b.emit(Tag::If, yes.0, arms, Ty::VOID, n);
+        let body = b.close_block(body, None, Ty::VOID, n);
+        b.close_loop(lp, body, Ty::VOID, n);
+    }
+
+    /// Hoisting: the `IsUnique` a push in the iteration block needs moves
+    /// before the loop, marked hoisted, for a fresh local list, even with a
+    /// call in the loop (rule 3's private local). Not when the entry test's
+    /// prefix calls something, and not for a parameter's list with a call
+    /// in the loop.
+    #[test]
+    fn a_change_in_a_loop_makes_its_list_unique_before_the_loop() {
+        let n = NodeIdx::from_raw(1);
+        let run_with = |param: bool, pure_prefix: bool, calls: bool| {
+            passes(
+                move |b| {
+                    let xs = local(b, if param { local_flags::PARAM } else { 0 });
+                    if !param {
+                        let s = call(b, 7, &[], Ty::STRING);
+                        b.set(xs, s, n);
+                    }
+                    loop_body(
+                        b,
+                        &|b| b.get(xs, Ty::STRING, n),
+                        &|b| {
+                            if calls {
+                                call(b, 6, &[], Ty::prim(hd_types::Prim::Usize));
+                            }
+                        },
+                        pure_prefix,
+                    );
+                    None
+                },
+                Ty::VOID,
+            )
+        };
+        let local_list = run_with(false, true, true);
+        assert!(local_list.contains("IsUnique hoisted [$0]"), "{local_list}");
+        assert_eq!(local_list.matches("IsUnique").count(), 1, "{local_list}");
+        let hoisted = local_list
+            .lines()
+            .position(|l| l.contains("IsUnique hoisted"))
+            .expect("hoisted");
+        let lp = local_list
+            .lines()
+            .position(|l| l.contains(" Loop"))
+            .expect("loop");
+        assert!(hoisted < lp, "{local_list}");
+        let impure = run_with(false, false, false);
+        assert!(!impure.contains("hoisted"), "{impure}");
+        let param_call = run_with(true, true, true);
+        assert!(!param_call.contains("hoisted"), "{param_call}");
+        let param = run_with(true, true, false);
+        assert!(param.contains("IsUnique hoisted [$0]"), "{param}");
+    }
+
+    /// A change through a reference parameter's list hoists as the
+    /// referent's place, and the `IsUnique` in the loop stays, covered, for
+    /// the instances where a view's getter makes the header fresh. A loop
+    /// that only reads elements keeps its list stable.
+    #[test]
+    fn a_list_behind_a_reference_hoists_covered_and_a_read_loop_keeps_its_list() {
+        let n = NodeIdx::from_raw(1);
+        let us = Ty::prim(hd_types::Prim::Usize);
+        let text = passes(
+            |b| {
+                let r = b.local(us, Symbol::from_raw(0), local_flags::PARAM, n);
+                loop_body(
+                    b,
+                    &|b| {
+                        let rv = b.get(r, us, n);
+                        let word = b.place(&format!("[*%{}]", rv.0).parse().expect("place"));
+                        b.emit(Tag::Read, word, ReadMode::Use as u32, Ty::STRING, n)
+                    },
+                    &|_| {},
+                    true,
+                );
+                None
+            },
+            Ty::VOID,
+        );
+        assert!(text.contains("IsUnique hoisted [*$0]"), "{text}");
+        assert!(text.contains("IsUnique covered"), "{text}");
+        let text = passes(
+            |b| {
+                let xs = local(b, 0);
+                let s = call(b, 7, &[], Ty::STRING);
+                b.set(xs, s, n);
+                let lp = b.open_loop();
+                let body = b.open_block();
+                let h = b.get(xs, Ty::STRING, n);
+                let i = call(b, 6, &[], us);
+                let word = b.place(&format!("[%{} [%{}]]", h.0, i.0).parse().expect("place"));
+                b.emit(Tag::Read, word, ReadMode::Use as u32, us, n);
+                let body = b.close_block(body, None, Ty::VOID, n);
+                b.close_loop(lp, body, Ty::VOID, n);
+                None
+            },
+            Ty::VOID,
+        );
+        assert!(
+            text.contains("stable %") && text.contains(" [$0]"),
+            "{text}"
         );
     }
 }

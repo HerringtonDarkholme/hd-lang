@@ -808,7 +808,7 @@ fn uniqueness(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables) {
                 path_lists(b, t, a);
                 for k in 0..t.elems.len() {
                     let word = prefix(b, a, t.elems[k]);
-                    edits.insert(blk, pos, Tag::IsUnique, [word, NONE], Ty::VOID, syn);
+                    edits.insert(blk, pos, Tag::IsUnique, [word, 0], Ty::VOID, syn);
                     if pin {
                         edits.insert(blk, pos, Tag::Pin, [word, NONE], Ty::VOID, syn);
                     }
@@ -818,7 +818,7 @@ fn uniqueness(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables) {
                 path_lists(b, t, a);
                 if let Some(&last) = t.elems.last() {
                     let word = prefix(b, a, last);
-                    edits.insert(blk, pos, Tag::IsUnique, [word, NONE], Ty::VOID, syn);
+                    edits.insert(blk, pos, Tag::IsUnique, [word, 0], Ty::VOID, syn);
                 }
             }
             Tag::Intrinsic
@@ -840,7 +840,7 @@ fn uniqueness(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables) {
                     continue;
                 }
                 let word = value_place(b, coll);
-                edits.insert(blk, pos, Tag::IsUnique, [word, NONE], Ty::VOID, syn);
+                edits.insert(blk, pos, Tag::IsUnique, [word, 0], Ty::VOID, syn);
             }
             _ => {}
         }

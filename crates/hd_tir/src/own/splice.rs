@@ -477,6 +477,10 @@ fn renumber(b: &mut Body, t: &mut Tables) -> Result<(), String> {
     for row in &mut b.unwind_drops {
         *row = (map(t, row.0), map(t, row.1));
     }
+    // A loop is never deleted; the place is rooted at a local.
+    for row in &mut b.stable_lists {
+        row.0 = map(t, row.0);
+    }
     Ok(())
 }
 

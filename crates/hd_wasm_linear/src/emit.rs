@@ -1071,6 +1071,13 @@ struct Em<'i, 'a, 'm> {
     /// one): then the intrinsics and the element store check no
     /// uniqueness of their own.
     unique_explicit: bool,
+    /// The hoisted `IsUnique`s met before the loop that follows them
+    /// (`docs/compiler/tir-v2.md`, "Hoisting"), which run at that loop
+    /// under its entry test ([`Em::hoisted_uniques`]).
+    hoisted: Vec<u32>,
+    /// While a hoisted `IsUnique` runs: a dereference on its place reads
+    /// the reference's address, in a module no reference view reaches.
+    deref_physical: bool,
 }
 
 impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
@@ -1156,6 +1163,8 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             consumer: Vec::new(),
             own_ops: Vec::new(),
             unique_explicit: false,
+            hoisted: Vec::new(),
+            deref_physical: false,
         };
         em.projs = (0..b.len()).map(|i| em.projected(i)).collect();
         em
@@ -1444,6 +1453,9 @@ impl Em<'_, '_, '_> {
                 self.drop_dead(blk, p)?;
             }
         }
+        if !self.hoisted.is_empty() {
+            self.hoisted_uniques(None)?;
+        }
         self.blocks.pop();
         if tail != NONE
             && let Some(d) = dest
@@ -1513,6 +1525,13 @@ impl Em<'_, '_, '_> {
     /// Emits instruction `i`; the operands whose counts it took are zeroed
     /// once it has read them ([`Em::take`]).
     fn inst(&mut self, i: u32) -> StageResult<()> {
+        // A hoisted `IsUnique` waits for its loop; anything else first
+        // runs any that wait, unguarded (a body a default argument's
+        // specialization folded may have lost the loop's test).
+        if !self.hoisted.is_empty() && !matches!(self.b.tags[i as usize], Tag::Loop | Tag::IsUnique)
+        {
+            self.hoisted_uniques(None)?;
+        }
         // An instruction with a source position anchors the calls it
         // writes, for a panic's frames (`crates/hd_wasm_linear/DESIGN.md` §15.9);
         // the enclosing anchor holds again after it.

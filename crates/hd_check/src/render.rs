@@ -315,10 +315,16 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
                 })
                 .collect();
             ops.push(format!("[{}]", pairs.join(", ")));
-        } else if matches!(tag, Tag::Read | Tag::Ref) {
+        } else if matches!(tag, Tag::Read | Tag::Ref | Tag::IsUnique) {
             // `Ref mut [$0]`, `Read [*$0 .x]`; a read mode other than the
-            // checker's `use` before the place, as `Read copy [$1]`.
+            // checker's `use` before the place, as `Read copy [$1]`; a
+            // hoisted or covered `IsUnique`, as `IsUnique hoisted [$1]`.
             let mode = match tag {
+                Tag::IsUnique => match w {
+                    hd_tir::ir::unique_word::HOISTED => Some("hoisted".to_owned()),
+                    hd_tir::ir::unique_word::COVERED => Some("covered".to_owned()),
+                    _ => None,
+                },
                 Tag::Ref => match (
                     w & hd_tir::ir::ref_word::TAKES != 0,
                     w & hd_tir::ir::ref_word::MUT != 0,
@@ -429,6 +435,17 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
             rows.next();
         }
         let _ = writeln!(o, "  unwind %{at} drops [{}]", values.join(" "));
+    }
+    // The hoisting pass's stable list places, per loop
+    // (`Body::stable_lists`).
+    let mut rows = b.stable_lists.iter().peekable();
+    while let Some(&(at, word)) = rows.next() {
+        let mut places = vec![place(names, b, word, fields)];
+        while let Some(&&(_, word)) = rows.peek().filter(|r| r.0 == at) {
+            places.push(place(names, b, word, fields));
+            rows.next();
+        }
+        let _ = writeln!(o, "  loop %{at} keeps {}", places.join(" "));
     }
     o
 }

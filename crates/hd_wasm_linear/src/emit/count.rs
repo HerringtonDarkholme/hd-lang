@@ -1042,6 +1042,33 @@ impl Em<'_, '_, '_> {
     /// `IsUnique` `i`: the list's or map's buffer made the place's own
     /// (`rt:list_unique`, `rt:map_unique`).
     pub(super) fn own_unique(&mut self, i: u32) -> StageResult<()> {
+        use hd_tir::ir::unique_word::{COVERED, HOISTED};
+        match self.b.data[i as usize][1] {
+            // It runs at the loop that follows (`Em::hoisted_uniques`).
+            HOISTED => {
+                self.hoisted.push(i);
+                return Ok(());
+            }
+            // The hoisted one before the loop covers it unless a reference
+            // view's getter may make its header fresh.
+            COVERED => {
+                // The shape the link folds where no view is reachable.
+                self.f.helper(Helper::RefViewsAbsent);
+                self.f.op(wasm_encoder::Instruction::If(
+                    wasm_encoder::BlockType::Empty,
+                ));
+                self.f.op(wasm_encoder::Instruction::Else);
+                self.unique_at(i)?;
+                self.f.op(wasm_encoder::Instruction::End);
+                return Ok(());
+            }
+            _ => {}
+        }
+        self.unique_at(i)
+    }
+
+    /// The uniqueness check of `IsUnique` `i`'s place.
+    pub(super) fn unique_at(&mut self, i: u32) -> StageResult<()> {
         let (h, t) = self.place_header(self.b.data[i as usize][0])?;
         if self.input.runtime.is_none() {
             return Ok(());

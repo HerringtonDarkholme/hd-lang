@@ -461,6 +461,28 @@ impl Em<'_, '_, '_> {
                     here = Here::Mem(at, LIST_ELEMS);
                     ty = et;
                 }
+                // A hoisted `IsUnique`'s, in a module no reference view
+                // reaches: a thin reference is its referent's address.
+                Proj::Deref
+                    if self.deref_physical
+                        && let Some((target, false)) = self.ref_target(ty) =>
+                {
+                    let r = match here {
+                        Here::Vals(ls) if ls.len() == 1 => ls[0],
+                        Here::Mem(at, off) => {
+                            let r = self.f.local(Val::I32);
+                            self.f.get(at);
+                            self.f.op(I::I32Load(mem(HEAP, u64::from(off), 2)));
+                            self.f.set(r);
+                            r
+                        }
+                        Here::Vals(_) => {
+                            return unsupported("a dereference of a reference of several values");
+                        }
+                    };
+                    here = Here::Mem(r, 0);
+                    ty = target;
+                }
                 Proj::Deref | Proj::Variant(_) => {
                     return unsupported(
                         "an `IsUnique` or `Pin` of a place through a dereference or a variant",

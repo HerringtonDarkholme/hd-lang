@@ -75,7 +75,26 @@ impl OwnCx for Env<'_> {
         // The compiler's scalar square root reaches nothing but its
         // argument (`list.rs`'s loop proofs allow it the same way).
         match callee {
-            Callee::Item { def, .. } => self.intrinsic(*def).as_deref() != Some("sqrt"),
+            // `@intrinsic("sqrt")`, or `f64.sqrt` and `f32.sqrt`, body-less
+            // methods of a float's inherent impl (`trait.impl.intrinsic`).
+            Callee::Item { def, .. } => {
+                // Whether it has a body, from the body table: decoding
+                // one would read another body.
+                let bodyless = !self
+                    .p
+                    .bodies
+                    .all
+                    .contains_key(&self.run.paths.hash(hd_base::PathId::from_raw(def.raw())));
+                let method = bodyless
+                    && self.run.names().path(*def).rsplit(['.', '/']).next() == Some("sqrt")
+                    && self
+                        .parent(*def)
+                        .and_then(|(owner, _)| self.impl_head(owner))
+                        .is_some_and(|(head, _, _)| {
+                            matches!(self.run.pool.get(head), TyData::Prim(p) if p.is_float())
+                        });
+                !method && self.intrinsic(*def).as_deref() != Some("sqrt")
+            }
             Callee::TraitMethod {
                 method,
                 self_ty,

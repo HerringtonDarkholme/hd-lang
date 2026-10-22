@@ -59,3 +59,4 @@ app/main/count
   %52 = Drop [%49] : ()
   %53 = Drop [%50] : ()
   exit sub 0 drops [$0]
+  loop %48 keeps [$3]

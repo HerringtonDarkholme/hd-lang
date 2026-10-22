@@ -38,6 +38,14 @@ pub(super) struct ListCache {
 }
 
 impl Em<'_, '_, '_> {
+    /// `Some` when `t` is a `List`.
+    fn list_root_ty(&self, t: Ty) -> Option<()> {
+        let TyData::Adt { def, .. } = self.pool().get(strip(self.pool(), self.env(), t)) else {
+            return None;
+        };
+        (self.env().std_kind(def) == hd_mono::layout::StdKind::List).then_some(())
+    }
+
     fn list_root(&self, r: u32) -> Option<ListRoot> {
         let i = Ref(r).as_inst()?.0 as usize;
         let TyData::Adt { def, .. } =
@@ -532,11 +540,150 @@ impl Em<'_, '_, '_> {
         true
     }
 
+    /// The hoisted `IsUnique`s waiting for loop `l` (`hoisted`), run once
+    /// before it under its entry test, so an empty loop copies nothing
+    /// (`docs/compiler/tir-v2.md`, "Hoisting"): the statements before the
+    /// test, which the pass found pure, run once more, then the test. With
+    /// no loop (`None`), no test, or in a suspending body, they run
+    /// unguarded, which costs only a copy an empty loop did not need. One
+    /// behind a dereference runs only where no reference view is reachable;
+    /// elsewhere the covered ones in the loop run instead.
+    pub(super) fn hoisted_uniques(&mut self, l: Option<u32>) -> StageResult<()> {
+        let uniques = std::mem::take(&mut self.hoisted);
+        if uniques.is_empty() {
+            return Ok(());
+        }
+        let test = l
+            .filter(|_| self.susp.is_none())
+            .and_then(|l| hd_tir::own::entry_test(self.b, l).map(|e| (l, e)));
+        if let Some((l, e)) = test {
+            let body = self.b.data[l as usize][0];
+            let prefix: Vec<u32> = self
+                .rec(self.b.data[body as usize][0])
+                .into_iter()
+                .filter(|x| self.b.tags[*x as usize] != Tag::Block)
+                .take(e.prefix)
+                .collect();
+            for x in prefix {
+                self.inst(x)?;
+            }
+            self.push(self.b.data[e.test as usize][0])?;
+            if e.leaves_on_true {
+                self.f.op(I::I32Eqz);
+            }
+            self.f.op(I::If(BlockType::Empty));
+        }
+        for i in uniques {
+            let deref = self
+                .b
+                .decode_place(self.b.data[i as usize][0])
+                .is_some_and(|p| p.proj.contains(&hd_tir::ir::Proj::Deref));
+            if deref {
+                self.f.helper(Helper::RefViewsAbsent);
+                self.f.op(I::If(BlockType::Empty));
+                self.deref_physical = true;
+                let r = self.unique_at(i);
+                self.deref_physical = false;
+                r?;
+                self.f.op(I::End);
+            } else {
+                self.unique_at(i)?;
+            }
+        }
+        if test.is_some() {
+            self.f.op(I::End);
+        }
+        Ok(())
+    }
+
+    /// The new path's loop caches: the stable list places the hoisting pass
+    /// lists for loop `l` (`Body::stable_lists`), a local's list or the
+    /// list a reference local refers to, with no counted leaf in its
+    /// elements, keep their header, buffer and length in locals for the
+    /// loop, where no reference view is reachable. Their uniqueness, if the
+    /// loop changes them, was a hoisted `IsUnique`'s.
+    fn own_list_caches(&mut self, l: u32) -> StageResult<Vec<ListRoot>> {
+        let rows = &self.b.stable_lists;
+        let from = rows.partition_point(|r| r.0 < l);
+        let words: Vec<u32> = rows[from..]
+            .iter()
+            .take_while(|r| r.0 == l)
+            .map(|r| r.1)
+            .collect();
+        let mut roots = Vec::new();
+        for word in words {
+            let Some(p) = self.b.decode_place(word) else {
+                continue;
+            };
+            let hd_tir::ir::PlaceRoot::Local(local) = p.root else {
+                continue;
+            };
+            let indirect = match p.proj.as_slice() {
+                [] => false,
+                [hd_tir::ir::Proj::Deref] => true,
+                _ => continue,
+            };
+            let mut ty = self.start_ty(super::refs::Start::Local(local.raw()));
+            if indirect {
+                match self.ref_target(ty) {
+                    Some((target, false)) => ty = target,
+                    _ => continue,
+                }
+            }
+            if self.is_cell(local.idx()) || self.list_root_ty(ty).is_none() {
+                continue;
+            }
+            let (_, elem) = self.elem(ty)?;
+            if elem.walk.is_some() {
+                continue;
+            }
+            let root = ListRoot {
+                local: local.raw(),
+                indirect,
+            };
+            if !self.list_caches.iter().any(|(key, _)| *key == root) && !roots.contains(&root) {
+                roots.push(root);
+            }
+        }
+        if roots.is_empty() {
+            return Ok(roots);
+        }
+        self.f.helper(Helper::RefViewsAbsent);
+        self.f.op(I::If(BlockType::Empty));
+        for &root in &roots {
+            let local = self.local_value(root.local)?[0];
+            self.f.get(local);
+            if root.indirect {
+                self.f.op(I::I32Load(mem(HEAP, 0, 2)));
+            }
+            let header = self.f.local(Val::I32);
+            self.f.set(header);
+            let buffer = self.buffer(header);
+            let len = self.f.local(Val::I32);
+            self.f.get(buffer);
+            self.f.op(I::I32Load(mem(HEAP, LIST_LEN, 2)));
+            self.f.set(len);
+            self.list_caches.push((
+                root,
+                ListCache {
+                    header,
+                    buffer,
+                    len,
+                },
+            ));
+        }
+        self.f.op(I::End);
+        Ok(roots)
+    }
+
     pub(super) fn begin_list_loop(
         &mut self,
         loop_inst: u32,
         block: u32,
     ) -> StageResult<Vec<ListRoot>> {
+        if self.unique_explicit {
+            self.hoisted_uniques(Some(loop_inst))?;
+        }
         if self.susp.is_some() {
             return Ok(Vec::new());
         }
@@ -549,6 +696,9 @@ impl Em<'_, '_, '_> {
         if let Some((_, test, false)) = &guard {
             let proven = self.range_indices(loop_inst, *test, &tree, &body);
             self.proven_list_indices.extend(proven);
+        }
+        if self.unique_explicit {
+            return self.own_list_caches(loop_inst);
         }
         let mut candidates: Vec<(ListRoot, Elem, bool, bool)> = Vec::new();
         for &x in &body {

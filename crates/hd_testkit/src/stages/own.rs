@@ -8,8 +8,9 @@ use hd_sched::SerialOrder;
 /// (`docs/compiler/tir-v2.md`, "Where and when the passes run"): the
 /// instructions whose source lies inside the subject, by each
 /// instruction's own syntax node, the locals they name, the body's exit
-/// set and the unwind sets of the suspension points shown, after the
-/// body's path; then the build's diagnostics.
+/// set, the unwind sets of the suspension points shown and the stable
+/// list places of the loops shown, after the body's path; then the
+/// build's diagnostics.
 pub(super) fn view(p: &super::Program, at: super::Build) -> String {
     let built = build(p, at);
     let mut pool = hd_driver::PositionPool::default();
@@ -70,6 +71,18 @@ pub(super) fn view(p: &super::Program, at: super::Build) -> String {
             };
             if shown.iter().any(|&l| l.split(' ').next() == Some(point)) {
                 let _ = writeln!(out, "  {unwind}");
+            }
+        }
+        // The stable list places of the loops shown.
+        for keeps in own.text.lines().map(str::trim) {
+            let Some(lp) = keeps
+                .strip_prefix("loop ")
+                .and_then(|r| r.split(' ').next())
+            else {
+                continue;
+            };
+            if shown.iter().any(|&l| l.split(' ').next() == Some(lp)) {
+                let _ = writeln!(out, "  {keeps}");
             }
         }
     }

@@ -1,0 +1,12 @@
+# expect: reject 23
+body 1 Fn
+local 4 0 - 32
+sub 2 0 1 - 0
+labels
+caps
+modes
+extra 2 0 1
+exitdrop 0 0
+%0 = Read 2147483648 1 : 4 @-
+%1 = IsUnique 2147483648 1 : 4 @-
+%2 = Block 0 - : 4 @-
