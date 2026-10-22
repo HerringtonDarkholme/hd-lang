@@ -357,6 +357,31 @@ fn report() -> Report:
 > **Why.** The value set uses the builder's existing choice validation and
 > help layout, while `Source` returns the actual enum variant.
 
+### Short Field Facts
+
+A `Short` field fact adds one short spelling to a typed CLI argument.
+
+```text
+use std.cli.{Cli, short}
+
+@derive(Cli)
+struct Pack:
+    @short('v')
+    verbose: bool
+
+fn verbose() -> bool:
+    Pack::parse(["-v"]).expect("valid flag").verbose
+```
+
+1. r[std-cli.short.fact] `Short[F < Cli]` is a typed field fact with the public field `letter: char`.
+2. r[std-cli.short.constructor] `short[F < Cli](letter: char) -> Short[F]` constructs that fact.
+3. r[std-cli.short.spelling] A derived field's `Short` fact supplies `Arg.short`, while its long kebab-case name remains unchanged.
+4. r[std-cli.short.bound] A `Short` fact requires its field type to implement `Cli`.
+5. r[std-cli.short.duplicates] Short spellings retain the builder's duplicate-name checks. Panic: `explicit-panic`.
+
+> **Why.** The fact configures the existing builder argument, so both
+> spellings share its typed value, presence, repetition policy, and errors.
+
 ## Usage Text
 
 `usage` returns the help text. For the `ArgParser` above, with one more flag

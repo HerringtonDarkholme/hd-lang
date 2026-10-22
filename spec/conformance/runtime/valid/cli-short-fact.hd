@@ -1,0 +1,54 @@
+# test: Short adds an alias without changing a typed CLI field's long name
+# Spec std/cli: std-cli.short.fact, std-cli.short.constructor, std-cli.short.spelling.
+use std.cli.{Cli, CliError, Short, short}
+
+@derive(Cli, Eq, Debug)
+struct Pack:
+    @short('v')
+    verbose: bool
+    @short('l')
+    level: u8 = 6
+    @short('x')
+    exclude: List[string]
+    @short('n')
+    item_count: u32?
+
+@derive(Cli, Eq, Debug)
+enum Mode:
+    DryRun
+    Write
+
+@derive(Cli, Eq, Debug)
+struct Modes:
+    @short('m')
+    mode: Mode?
+
+tests:
+    use std.testing.assert_equal
+
+    it("short and long spellings read the same typed values"):
+        via_short := Pack::parse(["-v", "-l", "9", "-x", "one", "-n", "42"]).expect("short options")
+        via_long := Pack::parse(["--verbose", "--level", "9", "--exclude", "one", "--item-count", "42"]).expect("long options")
+        assert_equal(via_short, via_long, reason="aliases")
+        assert_equal(via_short, Pack { verbose: true, level: 9, exclude: ["one"], item_count: .Some(42) }, reason="typed values")
+
+    it("short and long occurrences share repetition and errors"):
+        parsed := Pack::parse(["-x", "first", "--exclude", "last"]).expect("both aliases")
+        assert_equal(parsed.exclude, ["first", "last"], reason="one repeated argument")
+        assert_equal(Pack::parse(["-l", "bad"]), .Err(CliError.InvalidValue("level", "invalid digit at position 0")), reason="long lookup name in error")
+        assert_equal(Pack::parse(["-l", "1", "--level", "2"]), .Err(CliError.InvalidValue("level", "argument cannot be repeated")), reason="one scalar argument")
+
+    it("generated usage exposes both spellings"):
+        usage := Pack::parser().usage()
+        assert_equal(usage.contains("-v, --verbose"), true, reason="flag")
+        assert_equal(usage.contains("-l, --level <value>"), true, reason="value option")
+        assert_equal(usage.contains("-n, --item-count <value>"), true, reason="long kebab name")
+
+    it("the constructor returns the typed Short fact"):
+        let fact: Short[bool] = short::[bool]('q')
+        assert_equal(fact.letter, 'q', reason="public payload")
+
+    it("short aliases compose with enum choices from the current main"):
+        assert_equal(Modes::parse(["-m", "dry-run"]), .Ok(Modes { mode: .Some(.DryRun) }), reason="short enum option")
+        assert_equal(Modes::parse(["--mode", "write"]), .Ok(Modes { mode: .Some(.Write) }), reason="long enum option")
+        assert_equal(Modes::parse(["-m", "bad"]), .Err(CliError.InvalidValue("mode", "expected dry-run or write, got bad")), reason="named choice error")

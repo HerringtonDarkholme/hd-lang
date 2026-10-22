@@ -9,6 +9,7 @@ use std.console.eprintln
 use std.structure.{Structure, Describer, Source, Variant, Field, Members, Key}
 use std.path.Path
 use std.time.Duration
+use std.annotation.annotate
 
 @derive(Eq)
 pub enum ArgKind:
@@ -387,6 +388,17 @@ pub trait Cli:
         parser.program = host.program()
         Self::read(parser.parse(host.list())?, Arg { name: "", required: true })
 
+## A field's short option spelling; its long name stays unchanged.
+## See [std-cli.short.fact](../../spec/std/cli.md#r-std-cli.short.fact).
+@annotate::[F](.Field)
+pub struct Short[F < Cli]:
+    pub letter: char
+
+## Declares a short option for a CLI-readable field.
+## See [std-cli.short.constructor](../../spec/std/cli.md#r-std-cli.short.constructor).
+pub fn short[F < Cli](letter: char) -> Short[F]:
+    Short::[F] { letter: letter }
+
 impl[T] Cli for T by Structure:
     fn declare(parser: &mut ArgParser, arg: Arg) -> void:
         if arg.name.is_empty():
@@ -469,8 +481,8 @@ impl[S] Source[S] for CliSource[S]:
     fn missing[F](&mut self, field: Field[S, F]) -> Result[F, CliError]:
         panic("std.cli: the source names every member")
 
-fn cli_arg[S, F](field: Field[S, F]) -> Arg:
-    Arg { name: cli_name(field.info.name), required: !field.has_default() }
+fn cli_arg[S, F < Cli](field: Field[S, F]) -> Arg:
+    Arg { name: cli_name(field.info.name), required: !field.has_default(), short: field.fact::[Short[F]]().map(fn(fact): fact.letter) }
 
 fn cli_name(name: string) -> string:
     out := StringBuilder::new()

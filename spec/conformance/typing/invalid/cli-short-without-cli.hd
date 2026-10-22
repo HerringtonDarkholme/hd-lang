@@ -1,0 +1,8 @@
+# test: a Short fact requires a CLI-readable field even without a derive
+# Spec std/cli: std-cli.short.bound.
+use std.cli.short
+struct Opaque:
+    value: u8
+struct Config:
+    @short('v') # diagnostic: unsatisfied-trait-bound
+    opaque: Opaque

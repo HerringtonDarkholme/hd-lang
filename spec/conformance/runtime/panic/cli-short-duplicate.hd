@@ -1,0 +1,11 @@
+# test: typed short aliases preserve duplicate declaration checks
+# Spec std/cli: std-cli.short.duplicates.
+use std.cli.{Cli, short}
+@derive(Cli)
+struct Config:
+    @short('v')
+    verbose: bool
+    @short('v')
+    verify: bool
+pub fn main() -> void:
+    _ := Config::parser() # panic: explicit-panic
