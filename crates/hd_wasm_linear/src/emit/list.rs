@@ -29,10 +29,17 @@ pub(super) struct ListRoot {
     indirect: bool,
 }
 
+impl ListRoot {
+    /// The list in local `local`, or behind the reference it holds.
+    pub(super) fn new(local: u32, indirect: bool) -> ListRoot {
+        ListRoot { local, indirect }
+    }
+}
+
 /// Borrowed physical projections for one proven loop interval.
 #[derive(Clone, Copy)]
 pub(super) struct ListCache {
-    header: u32,
+    pub(super) header: u32,
     buffer: u32,
     len: u32,
 }
@@ -82,7 +89,9 @@ impl Em<'_, '_, '_> {
     }
 
     /// Reaching aliases, including provider operands. Scalar observations
-    /// of the list are not aliases of its header.
+    /// of the list are not aliases of its header. One flag per value, then
+    /// one per local: a local that holds the list too, whose places rooted
+    /// at it reach the list ([`Em::rooted_elem`]).
     fn list_aliases(&self, root: ListRoot) -> Vec<bool> {
         let mut locals = vec![false; self.b.local_ty.len()];
         locals[root.local as usize] = true;
@@ -135,7 +144,29 @@ impl Em<'_, '_, '_> {
                 break;
             }
         }
+        values.extend(locals);
         values
+    }
+
+    /// The list and index of `Read` or `Store` `i` whose place is rooted at
+    /// a local and starts with an element of the local's list or of the
+    /// list the reference it holds refers to (`[$l [%i] ..]`,
+    /// `[*$l [%i] ..]`), as the checker roots places on the ownership
+    /// passes' path (`hd_tir::ir::root_places`).
+    pub(super) fn rooted_elem(&self, i: usize) -> Option<(ListRoot, u32)> {
+        if !matches!(self.b.tags[i], Tag::Read | Tag::Store) {
+            return None;
+        }
+        let p = self.b.decode_place(self.b.data[i][0])?;
+        let hd_tir::ir::PlaceRoot::Local(l) = p.root else {
+            return None;
+        };
+        let (indirect, ix) = match p.proj.as_slice() {
+            [hd_tir::ir::Proj::Elem(ix), ..] => (false, *ix),
+            [hd_tir::ir::Proj::Deref, hd_tir::ir::Proj::Elem(ix), ..] => (true, *ix),
+            _ => return None,
+        };
+        Some((ListRoot::new(l.raw(), indirect), ix.0))
     }
 
     fn scalar_loop_test(&self, i: u32, budget: &mut usize) -> bool {
@@ -387,12 +418,16 @@ impl Em<'_, '_, '_> {
         body.iter()
             .copied()
             .filter(|&x| {
-                let Some((list, index)) = self.b.element_read(x as usize) else {
-                    return false;
+                let (list, index) = match self.b.element_read(x as usize) {
+                    Some((list, index)) => (self.list_root(list), index),
+                    None => match self.rooted_elem(x as usize) {
+                        Some((list, index)) if self.b.tags[x as usize] == Tag::Read => {
+                            (Some(list), index)
+                        }
+                        _ => return false,
+                    },
                 };
-                if self.list_root(list) != Some(root)
-                    || self.ty_of(index) != Ty::prim(hd_types::Prim::Usize)
-                {
+                if list != Some(root) || self.ty_of(index) != Ty::prim(hd_types::Prim::Usize) {
                     return false;
                 }
                 let index = self.range_source(index, &sets, tree);
@@ -420,12 +455,17 @@ impl Em<'_, '_, '_> {
                         Tag::Ref | Tag::Call | Tag::CallValue | Tag::CallDyn
                     )
             });
+        let n = self.b.len();
         for &x in body {
             let i = x as usize;
             let [a, _] = self.b.data[i];
+            // A place rooted at a local that holds the list reaches it as
+            // a read of that local would.
+            let rooted = self.rooted_elem(i);
             let reaches = super::live::uses(self.b, i)
                 .iter()
-                .any(|r| aliases[*r as usize]);
+                .any(|r| aliases[*r as usize])
+                || rooted.is_some_and(|(list, _)| aliases[n + list.local as usize]);
             if self.calls.contains_key(&x)
                 || matches!(
                     self.b.tags[i],
@@ -474,7 +514,9 @@ impl Em<'_, '_, '_> {
                 Tag::Read if external && self.b.global_read(i).is_some() => return false,
                 // An element store writes through its list, as the
                 // intrinsics that change one in place do.
-                Tag::Store if super::live::elem_store_list(self.b, i).is_some() => {
+                Tag::Store
+                    if super::live::elem_store_list(self.b, i).is_some() || rooted.is_some() =>
+                {
                     if external && !reaches {
                         return false;
                     }
@@ -505,7 +547,7 @@ impl Em<'_, '_, '_> {
                 Tag::Read
                     if external
                         && !reaches
-                        && self.b.element_read(i).is_some()
+                        && (self.b.element_read(i).is_some() || rooted.is_some())
                         && self.counted(self.ty(x)).is_some() =>
                 {
                     return false;
@@ -852,7 +894,7 @@ impl Em<'_, '_, '_> {
     }
 
     /// A local holding the buffer of the list header in local `h`.
-    fn buffer(&mut self, h: u32) -> u32 {
+    pub(super) fn buffer(&mut self, h: u32) -> u32 {
         let b = self.f.local(Val::I32);
         if let Some(cache) = self
             .cached_headers
@@ -899,7 +941,7 @@ impl Em<'_, '_, '_> {
     /// A local holding index `r`, checked against the length of the
     /// buffer in local `b`: an index past it is `index-out-of-bounds`, a
     /// 64-bit one before it is narrowed (`expr.index.list.range`).
-    fn index(&mut self, b: u32, r: u32) -> StageResult<u32> {
+    pub(super) fn index(&mut self, b: u32, r: u32) -> StageResult<u32> {
         let ix = self.f.local(Val::I32);
         let wide = self.vals(self.ty_of(r))? == [Val::I64];
         let w = self.f.local(if wide { Val::I64 } else { Val::I32 });
@@ -928,7 +970,7 @@ impl Em<'_, '_, '_> {
 
     /// A local holding the address of element `ix` (a local) of the buffer
     /// in local `b`, `LIST_ELEMS` before the element.
-    fn slot_at(&mut self, b: u32, ix: u32, size: u32) -> u32 {
+    pub(super) fn slot_at(&mut self, b: u32, ix: u32, size: u32) -> u32 {
         let at = self.f.local(Val::I32);
         self.f.get(b);
         self.f.get(ix);

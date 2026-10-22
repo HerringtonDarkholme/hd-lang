@@ -567,8 +567,9 @@ String operations are emitted by `emit/text.rs` and runtime helpers
   that may hold a value at a suspension point (`release_unwound`). `IsUnique` lowers to
   `rt:list_unique` or `rt:map_unique`, and `Pin` to `ListPin`'s owner
   word without its count, of the header at their place: a local's or a
-  value's, then struct fields and elements, bounds-checked
-  (`Em::place_header`). Since the passes put an `IsUnique` before every
+  value's, then struct fields, elements, bounds-checked, and
+  dereferences, a view's included (`Em::place_header`, which walks the
+  place as a rooted one, below). Since the passes put an `IsUnique` before every
   change of a collection place, an owned body's intrinsics and its thunks'
   (`Em::unique_explicit`) check no uniqueness themselves: an element
   store, `MapSet`, `MapRemove`, `MapIndexMut` and `ListPin` skip it, and
@@ -613,6 +614,39 @@ String operations are emitted by `emit/text.rs` and runtime helpers
   makes and that the read's kept `Drop` tests. A local a borrow is
   stored into (a binding local) holds no count (`Moves::loan_locals`):
   its stores count and release nothing.
+- **Places rooted at the local** (docs/compiler/tir-v2.md, stage 2 commit
+  12a). On this path the checker names a place from its local through
+  every step (`Read [*$0 [%5] .x]`, `Store [$0 [%1]] v`,
+  `Read [*$0 .grid [%1] [%2]]`), where the old path reads each base into
+  a value first. A place rooted at a local with an element or a variant
+  among its steps, or a dereference after its first step
+  (`Em::rooted_at`), goes through one walk (`Em::walk_place`,
+  `emit/refs.rs`) from the local's value: a field picks its part (in
+  locals, or an offset in memory), a variant its payload field (in a
+  boxed enum's cell when the enum is boxed), a dereference of a data
+  value the object's field, an element its slot in the buffer,
+  bounds-checked. The first element of a local's list, or of the list
+  the reference it holds refers to, takes the loop's cached header where
+  the list is one of `Body::stable_lists` and its index unchecked where
+  the loop's range proof covers the read (`list_loop_safe` and
+  `range_indices` read such places as `Em::rooted_elem`). A dereference
+  of a thin reference goes to its referent's address; where a view may be
+  reached, a view's getter makes the referent fresh instead, the walk
+  reads on in that value to the value the next element or dereference
+  needs (which the view's source holds too), and the fresh value is
+  released, under a flag, once the instruction is done
+  (`Em::release_fresh`). A `Read` then loads only the leaves the place
+  names (copy or borrow as its mode says; a `move` reaches the walk only
+  for a part at no place of its root's locals, read as a copy); a
+  `Store` stores them, counting the new value before releasing the old;
+  a `Ref` is the address of the last element's slot or the last
+  dereference's referent, then the fields after it, as a `Ref` of that
+  head lowers (`Em::ref_from`); an `IsUnique` or a `Pin` takes the
+  header the place names (`Em::place_header`). A place that ends with a
+  dereference of a reference followed by fields only reads, writes or
+  addresses the referent as `[*%r .x]` does (`Em::read_part`,
+  `deref_field_write_at`), views included. So `bodies[i].x` loads one
+  field (§23.31's "Read the selected field" is the meaning of the place).
 
 ### 23.17 List Operations
 

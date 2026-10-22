@@ -768,6 +768,30 @@ of the list. A `Store` writes a whole local
 data object's field (`[*%o .k]`), a place through a reference
 (`[*%r .x]`) or a list element (`[%xs [%i] .x]`).
 
+**Places rooted at the local** (docs/compiler/tir-v2.md, stage 2 commit
+12a). The checker builds a place one step at a time, a read of the base
+and a projection rooted at that read's value, since its own walkers (the
+copies, the pins, `mark_write_path`) step back through those values. On
+the ownership passes' path (`BodyCx::own_passes`) it then roots every
+such chain at its local when it finishes a body (`ir::root_places`,
+`src/ir/root.rs`): `bodies[i].x` through `&mut List[Body]` is one
+`Read [*$0 [%5] .x]`, `xs[i] = v` is `Store [$0 [%1]] v`, `self.x` is
+`Read [*$0 .x]`. A base read `%v = Read P` of a local's place folds into
+its uses when every use is the root of a `Read`, `Store` or `Ref` place
+(a `Store` or `Ref` one going into memory: a dereference or an element),
+the uses are statements of `%v`'s block with only inert statements
+between (reads, primitives, constructions, coercions, lengths; with an
+element step in `P`, only reads that check nothing), and the local's
+type names no type parameter or associated type (an erased instance
+outlines an open read by its values). The folded read goes, and the body
+is rebuilt once (`own::splice`). A base used as a value too (a match's
+scrutinee, an intrinsic's operand) keeps its read. A place rooted at a
+local lies in the local itself only when every step is a field or a
+variant (`Body::local_in_place`); a `Store` or `Ref` through a
+dereference or an element writes or addresses a referent or a buffer,
+not the local, and the passes and the verifier read it so. The old
+path's TIR keeps the base reads.
+
 | Tag | Operands | Type rule |
 | --- | --- | --- |
 | `Read` | a: place, b: `ReadMode` (`Use` from the checker; `Copy`, `Move` or `Borrow` after the ownership passes) | the place's type; the value at the place |
@@ -1178,9 +1202,9 @@ body built elsewhere, such as a generated structure method, gets
 - **The ownership passes** (`src/own.rs`, docs/compiler/tir-v2.md "The
   ownership passes") run on a decoded body when the driver's switch is
   on (`Packages::own_passes`), once per body, before collection reads
-  it; their output never reaches the entry. Built so far: field reads
-  of a whole local's read folded into reads of the local's field place
-  (`own/fold.rs`), then insertion (`own/insert.rs`): copies, drops and
+  it; their output never reaches the entry. They read places the
+  checker roots at their local on this path (above). Built so far:
+  insertion (`own/insert.rs`): copies, drops and
   the exit set, an `IsUnique` before each change of a collection place
   (with `ListIndexMut` read back as an element `Read`), and an
   `IsUnique` and a `Pin` of each list on an element reference's path;

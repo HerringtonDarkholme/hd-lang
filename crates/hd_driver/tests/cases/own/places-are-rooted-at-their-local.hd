@@ -1,0 +1,26 @@
+# @dump: own
+# On the ownership passes' path the checker roots every place at its
+# local (stage 2 commit 12a): an element's field through a reference is
+# one read of that field, `[*$0 .bodies [%1] .x]`, and its store writes
+# that field in place after an `IsUnique` of the list; a nested element
+# is one place; a struct parameter's field is a part of the local. The
+# scrutinee of a match stays a value, which its arms' payload reads read.
+struct Body:
+    x: f64
+    vx: f64
+
+struct World:
+    bodies: List[Body]
+    grid: List[List[i32]]
+
+fn step(w: &mut World, i: usize, j: usize, dt: f64) -> i32:
+    w.bodies[i].x = w.bodies[i].x + dt * w.bodies[i].vx
+    w.grid[i][j] + w.grid[j][i]
+
+fn first(xs: List[Option[Body]]) -> f64:
+    match xs[0]:
+        .Some(b) => b.x
+        .None => 0.0
+
+fn sum(p: Body) -> f64:
+    p.x + p.vx

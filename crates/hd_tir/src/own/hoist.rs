@@ -569,8 +569,8 @@ fn facts(b: &Body, t: &mut Tables) {
         let [a, w] = b.data[i];
         match b.tags[i] {
             Tag::Ref => {
-                if let (Some((true, l)), _, _) = root(b, a) {
-                    t.addressed[l as usize] = true;
+                if let Some(l) = b.local_in_place(a) {
+                    t.addressed[l.idx()] = true;
                 }
             }
             Tag::Store => {
@@ -672,6 +672,44 @@ fn header_place(b: &Body, cx: &dyn OwnCx, t: &mut Tables, header: u32) -> Option
     Some(l)
 }
 
+/// The list place a place rooted at a local names, as [`header_place`]
+/// checks a header read's (the places the checker roots at their local,
+/// `crate::ir::root_places`): with `elem`, the list whose element the
+/// place's first element step reads (`[*$0 [%i] .x]` reads one of
+/// `[*$0]`); without, all of the place (an `IsUnique`'s). Into `t.steps`;
+/// its local.
+fn rooted_place(b: &Body, t: &mut Tables, word: u32, elem: bool) -> Option<u32> {
+    let (Some((true, l)), from, to) = root(b, word) else {
+        return None;
+    };
+    let end = if elem {
+        let mut x = from;
+        loop {
+            if x >= to {
+                return None;
+            }
+            match b.extra[x as usize] & place::PROJ_KIND {
+                place::PROJ_ELEM => break x,
+                _ => x += 1,
+            }
+        }
+    } else {
+        to
+    };
+    t.steps.clear();
+    if push_steps(b, from, end, &mut t.steps) && t.steps.contains(&ELEM) {
+        return None;
+    }
+    if !hoistable(&t.steps) {
+        return None;
+    }
+    let li = l as usize;
+    if t.addressed[li] || t.captured[li] || t.escapes[li] {
+        return None;
+    }
+    Some(l)
+}
+
 /// The header value an `IsUnique` at `word` reads: a bare local's place
 /// is its own header (none here: the forms come from reads), a value's is
 /// the value.
@@ -707,9 +745,12 @@ fn hoist_loop(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::
                 {
                     continue;
                 }
-                if let Some(h) = unique_header(b, b.data[x as usize][0])
-                    && let Some(local) = header_place(b, cx, t, h)
-                {
+                let word = b.data[x as usize][0];
+                let local = match unique_header(b, word) {
+                    Some(h) => header_place(b, cx, t, h),
+                    None => rooted_place(b, t, word, false),
+                };
+                if let Some(local) = local {
                     candidate(t, local, true);
                 }
             }
@@ -729,6 +770,13 @@ fn hoist_loop(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::
                         && b.extra[from as usize] & place::PROJ_KIND == place::PROJ_ELEM =>
                 {
                     Some(v)
+                }
+                // An element of a list a place rooted at a local names.
+                (Some((true, _)), _, _) => {
+                    if let Some(local) = rooted_place(b, t, b.data[i][0], true) {
+                        candidate(t, local, false);
+                    }
+                    None
                 }
                 _ => None,
             },

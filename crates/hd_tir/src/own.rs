@@ -6,11 +6,10 @@
 //! decided, the `Drop`s each owned value and local needs, and the exit
 //! set (invariant 23, [`crate::ir::verify_owned`]).
 //!
-//! Built so far: **insertion** (`insert`), after the field reads of a
-//! whole local's read are folded into reads of the local's field places
-//! (`fold`), the naive, correct ownership
-//! of `crates/hd_wasm_linear/DESIGN.md` §23.16 with releases at last use
-//! (§23.20), made explicit, with an `IsUnique` before each change of a
+//! Built so far: **insertion** (`insert`), over places the checker roots
+//! at their local on this path (`crate::ir::root_places`), the naive,
+//! correct ownership of `crates/hd_wasm_linear/DESIGN.md` §23.16 with
+//! releases at last use (§23.20), made explicit, with an `IsUnique` before each change of a
 //! collection place and the pins of element references; then **borrow**
 //! (`borrow`), which turns a `copy` whose value can live on its place's
 //! count into a `borrow` and deletes its `Drop`s; then **move** (`moves`),
@@ -44,13 +43,12 @@ pub use hoist::{EntryTest, entry_test};
 pub(crate) use splice::for_blocks as splice_for_blocks;
 
 mod borrow;
-mod fold;
 pub(crate) mod hoist;
 mod insert;
 mod known;
 mod moves;
 mod pairs;
-mod splice;
+pub(crate) mod splice;
 
 /// Whether a type holds a counted leaf.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -515,7 +513,6 @@ pub fn consumers(b: &Body, cx: &dyn OwnCx, out: &mut Vec<u32>) {
 #[derive(Default)]
 pub struct OwnScratch {
     pub(crate) borrow: borrow::Tables,
-    pub(crate) fold: fold::Tables,
     pub(crate) hoist: hoist::Tables,
     pub(crate) insert: insert::Tables,
     pub(crate) known: known::Tables,
@@ -524,13 +521,12 @@ pub struct OwnScratch {
     pub(crate) splice: splice::Tables,
 }
 
-/// Runs the ownership passes over every sub-body of `b`, in order: place
-/// folding ([`fold`]), insertion, borrow, move, pair cancellation,
-/// known-null, then hoisting. The last five record their deletions and
-/// insertions in one set of edits, applied once at the end. A body the passes cannot handle
-/// is refused, with what stopped them.
+/// Runs the ownership passes over every sub-body of `b`, in order:
+/// insertion, borrow, move, pair cancellation, known-null, then hoisting.
+/// The last five record their deletions and insertions in one set of
+/// edits, applied once at the end. A body the passes cannot handle is
+/// refused, with what stopped them.
 pub fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Result<(), String> {
-    fold::run(b, cx, &mut scratch.fold);
     insert::run(b, cx, scratch)?;
     borrow::run(b, cx, &mut scratch.borrow, &mut scratch.splice);
     moves::run(b, cx, &mut scratch.moves, &mut scratch.splice);
@@ -821,7 +817,9 @@ mod tests {
     /// of it (a push, an element store, each list on the path outermost
     /// first), the checker's `ListIndexMut` read as its element place after
     /// an `IsUnique` of the list, and an `IsUnique` and a `Pin` of the list
-    /// before an element reference.
+    /// before an element reference. The element reference addresses the
+    /// buffer, not the local, so the local (of a type with no counted
+    /// leaf here) takes no cell and no drop.
     #[test]
     fn changes_make_their_collection_unique_and_element_references_pin_it() {
         use crate::ir::IntrinsicOp;
@@ -863,7 +861,7 @@ mod tests {
             "%0 Call\n%1 Call\n%2 IsUnique [%0]\n%3 Read copy [%0 [%1]]\n%4 IsUnique [%3]\n\
              %5 Intrinsic %3 %1\n%6 IsUnique [%0]\n%7 IsUnique [%0 [%1] .0]\n\
              %8 Store [%0 [%1] .0 [%1]] %1\n%9 IsUnique [$0]\n%10 Pin [$0]\n%11 Ref [$0 [%1]]\n\
-             %12 Drop [$0]\n%13 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8 %9 %10 %11 %12]\nexit 0 $0\n"
+             %12 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8 %9 %10 %11]\n"
         );
     }
 

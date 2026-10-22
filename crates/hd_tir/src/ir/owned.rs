@@ -70,10 +70,8 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     let mut addressed = vec![false; b.local_ty.len()];
     for (i, p) in places.iter().enumerate() {
         if b.tags[i] == Tag::Ref
-            && let Some(Place {
-                root: PlaceRoot::Local(l),
-                ..
-            }) = p
+            && p.is_some()
+            && let Some(l) = b.local_in_place(b.data[i][0])
             && let Some(a) = addressed.get_mut(l.idx())
         {
             *a = true;
@@ -180,10 +178,7 @@ fn hoisted(b: &Body, cx: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
     let mut captured = vec![false; b.local_ty.len()];
     for i in 0..n {
         if b.tags[i] == Tag::Ref
-            && let Some(Place {
-                root: PlaceRoot::Local(l),
-                ..
-            }) = b.decode_place(b.data[i][0])
+            && let Some(l) = b.local_in_place(b.data[i][0])
         {
             addressed[l.idx()] = true;
         }
@@ -886,13 +881,15 @@ fn binding_locals(cx: &Cx<'_>, own: &dyn OwnCx, errs: &mut Vec<VerifyError>) {
         return;
     }
     for i in 0..b.len() {
-        let Some(Place {
-            root: PlaceRoot::Local(l),
-            ..
-        }) = &cx.places[i]
+        // The local's own storage: a place through it, into what it refers
+        // to, leaves it as it is.
+        let Some(l) = cx.places[i]
+            .as_ref()
+            .and_then(|_| b.local_in_place(b.data[i][0]))
         else {
             continue;
         };
+        let l = &l;
         if !binding[l.idx()] && !lent[l.idx()] {
             continue;
         }
@@ -1378,18 +1375,11 @@ impl<'a> Balance<'a> {
             .collect();
         for i in 0..n {
             let a = b.data[i][0];
-            if b.tags[i] == Tag::Ref {
-                let l = if a & place::BARE_LOCAL != 0 {
-                    Some(a & !place::BARE_LOCAL)
-                } else {
-                    match b.extra.get(a as usize + 1..a as usize + 3) {
-                        Some([place::ROOT_LOCAL, l]) => Some(*l),
-                        _ => None,
-                    }
-                };
-                if let Some(x) = l.and_then(|l| held.get_mut(l as usize)) {
-                    *x = true;
-                }
+            // A reference to the local's own storage puts it in a cell.
+            if b.tags[i] == Tag::Ref
+                && let Some(x) = b.local_in_place(a).and_then(|l| held.get_mut(l.idx()))
+            {
+                *x = true;
             }
         }
         for (l, m) in b.cap_local.iter().zip(&b.cap_mode) {
@@ -1578,7 +1568,9 @@ impl<'a> Balance<'a> {
             // A local a borrow is stored into holds no count. A store
             // refills what parts were taken.
             Tag::Store if !is_borrow(b, w) => {
-                if let Some(l) = local(a) {
+                // Into the local itself: one through it, into what it
+                // refers to, leaves it as it was.
+                if let Some(l) = b.local_in_place(a).map(hd_base::LocalId::idx) {
                     self.set_full(st, l, true);
                     let key = b.len() + l;
                     for s in self.slot_start[key]..self.slot_start[key + 1] {

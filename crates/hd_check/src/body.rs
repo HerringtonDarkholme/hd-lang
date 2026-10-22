@@ -67,9 +67,11 @@ pub struct BodyCx<'a> {
     /// or a smaller budget a test sets to reach `item-too-complex` fast.
     pub fuel: u64,
     /// Which backend path the bodies' TIR feeds (`docs/compiler/tir-v2.md`,
-    /// "Stage 2"): the driver's `Packages::own_passes`, the one switch.
-    /// Every cached artifact keys on it through the driver's toolchain
-    /// key, so a body checked for one path never serves the other.
+    /// "Stage 2"): the driver's `Packages::own_passes`, the one switch. On
+    /// the ownership passes' path every place is rooted at its local
+    /// when a body is finished (`hd_tir::ir::root_places`); off, the TIR is
+    /// the old path's, unchanged. Every cached artifact keys on it through
+    /// the driver's toolchain key.
     pub own_passes: bool,
 }
 
@@ -4641,6 +4643,19 @@ impl Ck<'_, '_> {
         // The backend sees `&T` and `&mut T` as the one data type `Ref[T]`
         // (`refs.rs`).
         self.lower_body_refs();
+        // On the ownership passes' path, every place starts at its local
+        // (`docs/compiler/tir-v2.md`, stage 2 commit 12a). The walkers
+        // above read the base reads, so the places are rooted only now.
+        // The rebuild renumbers the body, its root block included.
+        let mut root = root;
+        if self.cx.own_passes {
+            let pool = self.pool();
+            let open = |t: Ty| pool.has_param(t) || pool.has_assoc(t);
+            let body = self.b.body_mut();
+            body.sub_root[0] = root.0;
+            ROOTS.with(|r| hd_tir::ir::root_places(body, &open, &mut r.borrow_mut()));
+            root = Ref(body.sub_root[0]);
+        }
         let known = VerifyFacts { cx: self.cx };
         let body = self
             .b
@@ -4648,6 +4663,12 @@ impl Ck<'_, '_> {
             .map_err(|e| VerifyError::bug(Stage::Body, "TIR verifier", &e))?;
         Ok((body, ret, facts))
     }
+}
+
+thread_local! {
+    /// The rooting step's tables, reused across the bodies a thread checks.
+    static ROOTS: std::cell::RefCell<hd_tir::ir::RootTables> =
+        std::cell::RefCell::new(hd_tir::ir::RootTables::default());
 }
 
 /// What the TIR verifier reads from the checker (`hd_tir::ir::VerifyCx`):

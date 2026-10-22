@@ -2161,7 +2161,115 @@ is worth deciding only if they are hot.
      hoisting, keeps nbody's `advance` slower on the new path. Commit 12
      roots element places at the local (`Read [*$0 [%i] .x]`), which reads
      one field.
-12. The checker stops inserting copies and pin bookkeeping.
+12. The checker stops inserting copies and pin bookkeeping. Split in
+    two: 12a gives the checker the switch and roots every place at its
+    local; 12b removes the copies, the pins and `mark_write_path`.
+    **12a as built.** The checker's TIR feeds both paths until commit 14,
+    and the old path must stay byte-identical, so the checker takes the
+    switch as one option, `BodyCx::own_passes`, which the driver fills
+    from `Packages::own_passes` (the only reader of `HD_CONFORMANCE_OWN`
+    stays the conformance test; the `own` view sets it, `hd` never). The
+    driver's toolchain key names it (`a1=bounded;std=..;own`), so every
+    cached artifact, the `check` entries holding the checker's TIR
+    included, keys on it; the link key's own prefix went, the toolchain
+    key covering it.
+    - **Rooting** (`hd_tir::ir::root_places`, `src/ir/root.rs`). The
+      checker still builds a place a step at a time, a read of the base
+      and a projection rooted at its value, since its walkers read those
+      values while it checks (`coll.rs`'s copies, `pins.rs`,
+      `mark_write_path`, `Ck::element_of`). With the switch on,
+      `finish_with` roots every such chain at its local before the
+      verifier runs; off, nothing changes. A base read `%v = Read P`, `P`
+      rooted at a local, folds into its uses when each is the root of a
+      `Read`, `Store` or `Ref` place (a `Store` or a `Ref` going into
+      memory, through a dereference or an element), the uses are
+      statements of `%v`'s block, every statement between is inert (a
+      read, a primitive, a construction, a coercion, a length; when `P`
+      has an element step, which checks its index, only reads that check
+      nothing, so no check moves before another), and the local's type
+      names no type parameter or associated type. The chains fold from
+      their root in one pass in instruction order, and the folded reads go
+      in one rebuild (`own::splice`). So `bodies[i].x` is
+      `Read [*$0 [%5] .x]`, `bodies[i].x = v` is `Store [*$0 [%5] .x] v`
+      after an `IsUnique [*$0]`, `self.x` is `Read [*$0 .x]`, `grid[i][j]`
+      is `Read [$0 [%1] [%2]]`. Bodies collection generates (supplied
+      methods, `dbg` bodies) are rooted the same way before their passes
+      (`Env::owned_generated`).
+    - **Place folding** (commit 5's `own/fold.rs`) is gone: rooting folds
+      every read it folded (a field of a whole local's read, the very next
+      statement, a type naming no parameter) and more.
+    - **What a place through the local touches.** A place rooted at a
+      local lies in the local itself only when its steps are fields and
+      variants (`Body::local_in_place`); a `Store` or a `Ref` through a
+      dereference or an element writes or addresses a referent or a
+      buffer. The passes and the verifier took a store or a reference
+      rooted at a local as one into the local, which only such places had
+      been: insertion's cells, borrow's stores, references and fresh
+      values, move's addressed locals, known-null's refill, hoisting's
+      addressed locals, and the verifier's addressed locals, cells,
+      refills and unowned-local clause now ask `local_in_place`. Without
+      it a lent `&mut` parameter written through (`bodies[i].x = v`)
+      became owned again, one release more at the exit.
+    - **Hoisting** takes an `IsUnique` of a place rooted at a local, and
+      an element access's list from the place's steps before its first
+      element (`hoist::rooted_place`), as it took them from the header
+      read a value root named.
+    - **The backend** (`hd_wasm_linear/DESIGN.md` §23.16, "Places rooted
+      at the local"): one walk (`Em::walk_place`) resolves a place from
+      its local's value step by step, a view's getter included, and a
+      read loads only the leaves the place names; a store stores them; a
+      reference is the address after the last element or dereference; an
+      `IsUnique` or `Pin` takes the header the place names, through a
+      dereference too. The loop cache and the range proof take the first
+      element of a local's list or of the list its reference refers to
+      (`Em::rooted_elem`), so the proven index of `bodies[i]` stays
+      unchecked.
+    - **The `own` view** lists a local a place reaches behind a
+      dereference; `own/places-are-rooted-at-their-local.hd` shows the
+      forms.
+    Old path: every conformance module byte-identical to main, dev and
+    optimized pipelines. New path: all conformance cases pass, dev and
+    optimized pipelines, checked and not. Static count sites and module
+    bytes, old path, new path before this commit, after: over the 771
+    runtime conformance programs with a `main`, retains 27,913, 27,449,
+    27,446, releases 57,465, 53,458, 53,201, bytes 20,193,656,
+    20,142,627, 20,105,610; over the bench/study programs retains 935,
+    831, 823, releases 1,599, 1,620, 1,601, bytes 313,616, 312,113,
+    308,939: the base reads that went (a reference read before its
+    dereference, a header before its element) took their own copies or
+    kept drops. Run time, V8, optimized pipeline, release profile, median
+    of nine alternating runs (ms; a loaded machine, two series): list-sort 782 and 766, 765 and
+    746, 625 and 626; micro sort 77 and 57, 76 and 54, 74 and 55; sieve
+    277 and 242, 293 and 238, 241 and 233; fannkuch 97 and 98, 94 and
+    97, 95 and 97; nbody 120 and 122, 237 and 246, 98 and 101;
+    spectral-norm 186 and 206, 188 and 191, 187 and 215. nbody's
+    `advance` now loads one field per access (commit 11's "whole-element
+    copies" leftover is gone) and beats the old path. The checker's cost:
+    rooting takes 0.068 us per TIR instruction (2 us per body) over the
+    bench/study builds, cold, std included (22,316 bodies), about 4.7% of
+    the checker's `Body` stage there (1.46 us per instruction); the old
+    mode runs none of it.
+    **Left for later commits.**
+    - **A base used as a value keeps its read**: a match's scrutinee,
+      which its tag test reads, so its arms' payload reads stay
+      `[%v as .V .k]` (a match on `xs[i]` reads the whole element); an
+      intrinsic's collection operand (`ListLen`, `ListPush`, `MapSet`,
+      `MapIndexMut`, `ListPin`), and the checker's `ListIndexMut`, so
+      `xs[i].push(v)` reads the header before the element. The reads
+      borrow, so they cost no count. `ListIndexMut` and `ListPin` go in
+      12b; the intrinsics take values until stage 3 moves lists and maps
+      to std.
+    - **Generic locals**: a local whose type names a type parameter is not
+      rooted, since an erased instance outlines an open read by its values
+      (`hd_mono` would have to outline a place rooted at a local); commit
+      13 counts what that costs the generic std loops, as it does for
+      hoisting's generic places.
+    - **A call between a base read and its use** (`xs[f(i)].x`) keeps the
+      base read, and so a read rooted at its value: the element is read
+      whole. Rooting a value-rooted chain needs the walk for value roots;
+      commit 13 measures whether parity needs it.
+    - The checker's copies (`ValueCopy`), `ListPin`/`ListUnpin` and
+      `mark_write_path` stay in both modes (12b).
 13. Parity: every counts baseline at or below today, conformance and
     the checked-mode audit green on the new path; the switch flips.
 14. Delete the old path: `live.rs`, `count.rs`'s decisions, the

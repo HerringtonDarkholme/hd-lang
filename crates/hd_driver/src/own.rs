@@ -22,6 +22,8 @@ use super::{Env, ProgramTables, Run, lock};
 thread_local! {
     /// The passes' tables, reused across every body a thread runs them on.
     static SCRATCH: RefCell<OwnScratch> = RefCell::new(OwnScratch::default());
+    /// The rooting step's tables, for the bodies collection generates.
+    static ROOTS: RefCell<hd_tir::ir::RootTables> = RefCell::new(hd_tir::ir::RootTables::default());
 }
 
 impl OwnCx for Env<'_> {
@@ -229,13 +231,17 @@ impl Env<'_> {
     }
 
     /// A body collection generates (a supplied method's, a `dbg` body),
-    /// after the ownership passes when they are on.
-    pub(super) fn owned_generated(&self, body: Body) -> StageResult<Body> {
-        if self.run.own_passes {
-            self.own_passes(body)
-        } else {
-            Ok(body)
+    /// after the ownership passes when they are on. Its places are rooted
+    /// at their locals first, as the checker roots its bodies' on this
+    /// path (`hd_tir::ir::root_places`).
+    pub(super) fn owned_generated(&self, mut body: Body) -> StageResult<Body> {
+        if !self.run.own_passes {
+            return Ok(body);
         }
+        let pool = &self.run.pool;
+        let open = |t: Ty| pool.types().has_param(t) || pool.types().has_assoc(t);
+        ROOTS.with(|r| hd_tir::ir::root_places(&mut body, &open, &mut r.borrow_mut()));
+        self.own_passes(body)
     }
 }
 

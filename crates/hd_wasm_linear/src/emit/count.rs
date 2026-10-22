@@ -334,6 +334,18 @@ impl Em<'_, '_, '_> {
                     if a & place::BARE_LOCAL != 0 {
                         continue;
                     }
+                    // A place rooted at a local that reads its referent
+                    // through a reference after other steps
+                    // (`[$l .r *]`, `Em::rooted_read`).
+                    if let Some(p) = self.b.decode_place(a)
+                        && Self::rooted(&p)
+                    {
+                        if let Ok(Some((_, Some((_, false))))) = self.last_through(&p) {
+                            let flag = self.f.local(crate::module::Val::I32);
+                            self.view_loans.insert(x, flag);
+                        }
+                        continue;
+                    }
                     // `[*%r ...]` through a reference that may be a view.
                     let start = match self.b.extra.get(a as usize + 1..a as usize + 4) {
                         Some(&[place::ROOT_VALUE, r, step])

@@ -13,26 +13,21 @@ fn bump!(c: &mut Counter) -> void:
     c.hits = c.hits + 1
 > app/main/bump
 >   local $0 c: Ref[mut Counter] [param read]
->   %0 = Read copy [$0] : Ref[mut Counter]
->   %1 = Read move [$0] : Ref[mut Counter]
->   %2 = Read copy [*%1 .hits] : i32
->   %3 = Drop [%1] : ()
->   %4 = Prim Add [%2 1:i32] : i32
->   %5 = Store [*%0 .hits] %4 : ()
->   %6 = Drop [%0] : ()
->   %7 = Block - : ()
+>   %0 = Read copy [*$0 .hits] : i32
+>   %1 = Prim Add [%0 1:i32] : i32
+>   %2 = Store [*$0 .hits] %1 : ()
+>   %3 = Drop [$0] : ()
+>   %4 = Block - : ()
 >   exit sub 0 drops [$0]
 
 fn tick(c: &mut Counter) -> void:
     c.hits = c.hits + 1
 > app/main/tick
 >   local $0 c: Ref[mut Counter] [param read]
->   %0 = Read borrow [$0] : Ref[mut Counter]
->   %1 = Read borrow [$0] : Ref[mut Counter]
->   %2 = Read copy [*%1 .hits] : i32
->   %3 = Prim Add [%2 1:i32] : i32
->   %4 = Store [*%0 .hits] %3 : ()
->   %5 = Block - : ()
+>   %0 = Read copy [*$0 .hits] : i32
+>   %1 = Prim Add [%0 1:i32] : i32
+>   %2 = Store [*$0 .hits] %1 : ()
+>   %3 = Block - : ()
 
 fn run!() -> void:
     let mut c = Counter { hits: +0, name: "a" }

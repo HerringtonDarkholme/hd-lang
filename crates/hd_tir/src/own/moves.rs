@@ -378,8 +378,8 @@ fn candidates(b: &Body, cx: &dyn OwnCx, t: &mut Tables) -> bool {
         let [a, w] = b.data[i];
         match b.tags[i] {
             Tag::Ref => {
-                if let (Root::Local(l), _, _) = root_of(b, a) {
-                    t.addr[l as usize] = true;
+                if let Some(l) = b.local_in_place(a) {
+                    t.addr[l.idx()] = true;
                 }
             }
             // A binding local holds a borrowed value: it owns no count.

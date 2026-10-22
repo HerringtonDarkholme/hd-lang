@@ -981,7 +981,9 @@ impl Tables {
             let local = matches!(root_of(b, a).0, Root::Local(_));
             match tag {
                 Tag::Read if !whole && w == ReadMode::Move as u32 => self.take(b, cx, i, bit, st),
-                Tag::Store if local => self.refill(bit, st),
+                // A store through the local, into what it refers to, leaves
+                // the local as it was.
+                Tag::Store if local && b.local_in_place(a).is_some() => self.refill(bit, st),
                 Tag::Read if local && whole && w == ReadMode::Move as u32 => self.clear(st, bit),
                 Tag::Ref if local && whole && w & ref_word::TAKES != 0 => self.clear(st, bit),
                 _ => {}

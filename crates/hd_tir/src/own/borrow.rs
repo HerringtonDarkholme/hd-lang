@@ -542,9 +542,10 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 (Root::Local(l), from, to) if from == to => t.last_ldrop[l as usize] = u32_of(i),
                 _ => {}
             },
+            // A store into the local itself, not into what it refers to.
             Tag::Store => {
-                if let (Root::Local(l), _, _) = root_of(b, a) {
-                    let li = l as usize;
+                if let Some(l) = b.local_in_place(a) {
+                    let li = l.idx();
                     t.stores[li] += 1;
                     // A fresh value shares its header with no place.
                     let fresh = Ref(w).as_inst().is_none_or(|_| {
@@ -568,8 +569,8 @@ fn scan(b: &Body, cx: &dyn OwnCx, t: &mut Tables) {
                 }
             }
             Tag::Ref => {
-                if let (Root::Local(l), _, _) = root_of(b, a) {
-                    t.reached[l as usize] = true;
+                if let Some(l) = b.local_in_place(a) {
+                    t.reached[l.idx()] = true;
                 }
             }
             Tag::Read => {

@@ -46,7 +46,7 @@ pub(super) fn view(p: &super::Program, at: super::Build) -> String {
             let id = local.split(' ').next().unwrap_or_default();
             if lines
                 .iter()
-                .any(|(_, l)| l.split([' ', ']', '[']).any(|w| w == id))
+                .any(|(_, l)| l.split([' ', ']', '[', '*']).any(|w| w == id))
             {
                 let _ = writeln!(out, "  local {local}");
             }

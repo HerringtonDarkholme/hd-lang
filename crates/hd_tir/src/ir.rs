@@ -14,7 +14,9 @@ use hd_base::{
 use hd_types::{Ty, TyList};
 
 mod owned;
+mod root;
 pub use owned::verify_owned;
+pub use root::{RootTables, root_places};
 
 pub const NONE: u32 = u32::MAX;
 
@@ -1055,6 +1057,35 @@ impl Body {
             }
             _ => None,
         }
+    }
+
+    /// The local whose own storage the place at `word` lies in: a place
+    /// rooted at a local whose steps are all fields and variants (`[$l]`,
+    /// `[$l .x as .1 .0]`). A place through a dereference or an element
+    /// lies in a referent or a list's buffer, which the local only names
+    /// (`[*$l .x]`, `[$l [%i]]`): a `Store` there does not change the
+    /// local, and a `Ref` there does not address it. `None` for any other
+    /// place.
+    #[must_use]
+    pub fn local_in_place(&self, word: u32) -> Option<LocalId> {
+        if word & place::BARE_LOCAL != 0 {
+            return Some(LocalId::from_raw(word & !place::BARE_LOCAL));
+        }
+        let at = word as usize;
+        let n = *self.extra.get(at)? as usize;
+        let rec = self.extra.get(at + 1..at + 1 + n)?;
+        let [place::ROOT_LOCAL, l, steps @ ..] = rec else {
+            return None;
+        };
+        steps
+            .iter()
+            .all(|w| {
+                matches!(
+                    w & place::PROJ_KIND,
+                    place::PROJ_FIELD | place::PROJ_VARIANT
+                )
+            })
+            .then(|| LocalId::from_raw(*l))
     }
 
     /// The local a plain local read `i` reads: a `Read` of a bare local,

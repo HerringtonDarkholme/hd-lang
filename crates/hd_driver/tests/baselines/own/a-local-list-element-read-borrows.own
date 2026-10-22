@@ -4,10 +4,9 @@ app/main/total
   local $6 sum: usize [read assigned mutated]
   local $10 i: usize [read assigned]
   %44 = Read copy [$6] : usize
-  %45 = Read borrow [$1] : List[string]
-  %46 = Read copy [$10] : usize
-  %47 = Read copy [%45 [%46]] : string
-  %48 = Call std/text/impl string.len[] (%47) : usize
-  %49 = Prim Add [%44 %48] : usize
-  %50 = Store [$6] %49 : ()
+  %45 = Read copy [$10] : usize
+  %46 = Read copy [$1 [%45]] : string
+  %47 = Call std/text/impl string.len[] (%46) : usize
+  %48 = Prim Add [%44 %47] : usize
+  %49 = Store [$6] %48 : ()
 warning: main.hd:227..228: unused-local-binding: `i` is never read; name it `_i` to keep it

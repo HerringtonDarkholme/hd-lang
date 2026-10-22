@@ -60,11 +60,29 @@ pub(super) struct Spot {
     pub path: Vec<u32>,
 }
 
-/// Where [`Em::place_header`]'s current step's value is: in Wasm locals,
-/// or in memory at a local's address plus an offset.
-enum Here {
+/// Where a step of a place lies while [`Em::walk_place`] resolves it: in
+/// Wasm locals; in memory at the address in a local plus an offset, laid
+/// out as the step's type is; or as single leaves at their offsets from
+/// the address in a local (an enum payload's fields, which the enum's
+/// layout scatters).
+pub(super) enum At {
     Vals(Vec<u32>),
     Mem(u32, u32),
+    Leaves(u32, Vec<Leaf>),
+}
+
+/// The type a reference refers to, and whether the reference is fat (a
+/// trait value's).
+type Referent = (Ty, bool);
+
+/// A view's fresh value a walk read through ([`Em::walk_place`]): the
+/// getter's value, with counts of its own, in `vals` when `flag` is set.
+/// What the walk found lives in memory the view's source holds too, so
+/// the instruction releases this ([`Em::release_fresh`]) once it is done.
+pub(super) struct Fresh {
+    flag: u32,
+    vals: Vec<u32>,
+    ty: Ty,
 }
 
 impl Em<'_, '_, '_> {
@@ -408,89 +426,19 @@ impl Em<'_, '_, '_> {
     }
 
     /// The list or map header at the place `word` of an `IsUnique` or a
-    /// `Pin`, in a local, with the collection's type: the root's value
-    /// (a local's, loaded from its cell when it has one, or an
-    /// instruction's), then each struct field and element on the path, an
-    /// element bounds-checked. Nothing takes a count. Insertion names no
-    /// place through a dereference or a variant, nor a top-level binding's:
-    /// a change through a reference reads the collection first until the
-    /// checker roots places (`docs/compiler/tir-v2.md`, stage 2 commit 12).
+    /// `Pin`, in a local, with the collection's type: the place resolved
+    /// from its root's value ([`Em::walk_place`]), each element
+    /// bounds-checked. Nothing takes a count: the header is the one the
+    /// place holds, which a view's fresh value only shares.
     pub(super) fn place_header(&mut self, word: u32) -> StageResult<(u32, Ty)> {
         let Some(p) = self.b.decode_place(word) else {
             return unsupported("a malformed place");
         };
-        let (mut here, mut ty) = match p.root {
-            PlaceRoot::Local(l) => (
-                Here::Vals(self.local_value(l.raw())?),
-                self.start_ty(Start::Local(l.raw())),
-            ),
-            PlaceRoot::Value(r) if r.as_inst().is_some() => {
-                (Here::Vals(self.local_value_of(r.0)?), self.ty_of(r.0))
-            }
-            _ => {
-                return unsupported(
-                    "an `IsUnique` or `Pin` of a top-level binding's place or a constant",
-                );
-            }
-        };
-        let header = |em: &mut Self, here: Here| match here {
-            Here::Vals(ls) => ls[0],
-            Here::Mem(at, off) => {
-                let h = em.f.local(Val::I32);
-                em.f.get(at);
-                em.f.op(I::I32Load(mem(HEAP, u64::from(off), 2)));
-                em.f.set(h);
-                h
-            }
-        };
-        for step in &p.proj {
-            match *step {
-                Proj::Field(k) => {
-                    let (ft, part) = self.path_step(ty, k)?;
-                    here = match here {
-                        Here::Vals(ls) => {
-                            Here::Vals(ls[part.first..part.first + part.count].to_vec())
-                        }
-                        Here::Mem(at, off) => Here::Mem(at, off + part.offset),
-                    };
-                    ty = ft;
-                }
-                Proj::Elem(ix) => {
-                    let h = header(self, here);
-                    let (et, at) = self.elem_slot(h, ty, ix.0)?;
-                    here = Here::Mem(at, LIST_ELEMS);
-                    ty = et;
-                }
-                // A hoisted `IsUnique`'s, in a module no reference view
-                // reaches: a thin reference is its referent's address.
-                Proj::Deref
-                    if self.deref_physical
-                        && let Some((target, false)) = self.ref_target(ty) =>
-                {
-                    let r = match here {
-                        Here::Vals(ls) if ls.len() == 1 => ls[0],
-                        Here::Mem(at, off) => {
-                            let r = self.f.local(Val::I32);
-                            self.f.get(at);
-                            self.f.op(I::I32Load(mem(HEAP, u64::from(off), 2)));
-                            self.f.set(r);
-                            r
-                        }
-                        Here::Vals(_) => {
-                            return unsupported("a dereference of a reference of several values");
-                        }
-                    };
-                    here = Here::Mem(r, 0);
-                    ty = target;
-                }
-                Proj::Deref | Proj::Variant(_) => {
-                    return unsupported(
-                        "an `IsUnique` or `Pin` of a place through a dereference or a variant",
-                    );
-                }
-            }
-        }
-        Ok((header(self, here), ty))
+        let mut fresh = Vec::new();
+        let (at, ty) = self.walk_place(NONE, &p, p.proj.len(), &mut fresh)?;
+        let h = self.at_i32(&at)?;
+        self.release_fresh(&fresh)?;
+        Ok((h, ty))
     }
 
     /// `Ref` `i`: the place's address, or the trait value
@@ -527,13 +475,16 @@ impl Em<'_, '_, '_> {
 
     /// `Ref` `i`: the address of its place, with a count of its own.
     fn counted_ref(&mut self, i: u32) -> StageResult<()> {
+        if self.rooted_at(i) {
+            return self.rooted_ref(i);
+        }
         let s = self.spot(i)?;
         let Some((_, fat)) = self.ref_target(self.ty(i)) else {
             return unsupported("a reference whose type is no reference");
         };
         let path = s.path.clone();
         let mut owned_base = None;
-        let (base, mut ty) = match (s.start, s.head) {
+        let (base, ty) = match (s.start, s.head) {
             (Start::Local(x), Head::Direct) => {
                 let t = self.start_ty(s.start);
                 if self.is_cell(x as usize)
@@ -602,10 +553,33 @@ impl Em<'_, '_, '_> {
                 (Base::At(at), et)
             }
         };
+        let whole = match (s.start, s.head) {
+            (Start::Local(x), Head::Direct) => Some(x),
+            _ => None,
+        };
+        self.ref_from(i, base, ty, &path, owned_base, fat, whole)
+    }
+
+    /// The rest of `Ref` `i` from where its place's head lies (`base`, of
+    /// type `ty`): the address of the struct field `path` reaches there,
+    /// with a count of its own. `owned_base` is a view the head made,
+    /// released after; `whole` is the local a `Ref` of all of a local
+    /// names.
+    #[allow(clippy::too_many_arguments)]
+    fn ref_from(
+        &mut self,
+        i: u32,
+        base: Base,
+        mut ty: Ty,
+        path: &[u32],
+        owned_base: Option<u32>,
+        fat: bool,
+        whole: Option<u32>,
+    ) -> StageResult<()> {
         let parent_ty = ty;
         let has_path = !path.is_empty();
         let (mut off, mut first) = (0, 0);
-        for f in path {
+        for &f in path {
             let (ft, part) = self.path_step(ty, f)?;
             off += part.offset;
             first += part.first;
@@ -718,7 +692,7 @@ impl Em<'_, '_, '_> {
         }
         // `&x` at the last access of cell local `x` takes the local's count
         // of its cell ([`Em::take_cell`]).
-        if let (Start::Local(x), Head::Direct) = (s.start, s.head)
+        if let Some(x) = whole
             && !has_path
             && self.take_cell(i, x as usize)
         {
@@ -735,6 +709,9 @@ impl Em<'_, '_, '_> {
     /// value. Stage 1 reads a place only through a dereference; a field
     /// path after it reads only that field.
     pub(super) fn place_read(&mut self, i: u32) -> StageResult<()> {
+        if self.rooted_at(i) {
+            return self.rooted_read(i);
+        }
         let s = self.spot(i)?;
         // A field of a local (`[$l .x .y]`), which the ownership passes
         // root at the local: that part of its values, a copy with a count
@@ -885,6 +862,9 @@ impl Em<'_, '_, '_> {
     /// binding, whole or a struct field of it, and into a list value's
     /// element or a struct field of it ([`Em::elem_store`]).
     pub(super) fn place_store(&mut self, i: u32) -> StageResult<()> {
+        if self.rooted_at(i) {
+            return self.rooted_store(i);
+        }
         let s = self.spot(i)?;
         let v = self.b.data[i as usize][1];
         match (s.start, s.head, s.path.is_empty()) {
@@ -1085,10 +1065,15 @@ impl Em<'_, '_, '_> {
         let Some((target, false)) = self.ref_target(self.start_ty(r)) else {
             return unsupported("a write of a whole value through a trait value reference");
         };
-        let value = self.ref_layout(target)?;
         let at = self.f.local(Val::I32);
         self.push_start(r, Some(0))?;
         self.f.set(at);
+        self.deref_write_at(at, target, v)
+    }
+
+    /// A write of `v` through the reference in local `at` to a `target`.
+    fn deref_write_at(&mut self, at: u32, target: Ty, v: u32) -> StageResult<()> {
+        let value = self.ref_layout(target)?;
         let ls: Vec<u32> = value.leaves.iter().map(|l| self.f.local(l.val)).collect();
         self.push(v)?;
         for l in ls.iter().rev() {
@@ -1110,12 +1095,24 @@ impl Em<'_, '_, '_> {
         let Some((target, false)) = self.ref_target(self.start_ty(r)) else {
             return unsupported("a field write through a trait value reference");
         };
-        let (ft, part) = self.fold_path(target, path)?;
-        let parent = self.ref_layout(target)?;
-        let field = self.ref_layout(ft)?;
         let at = self.f.local(Val::I32);
         self.push_start(r, Some(0))?;
         self.f.set(at);
+        self.deref_field_write_at(at, target, path, v)
+    }
+
+    /// A write of `v` into the struct field `path` reaches in the `target`
+    /// the reference in local `at` refers to ([`Em::deref_field_write`]).
+    fn deref_field_write_at(
+        &mut self,
+        at: u32,
+        target: Ty,
+        path: &[u32],
+        v: u32,
+    ) -> StageResult<()> {
+        let (ft, part) = self.fold_path(target, path)?;
+        let parent = self.ref_layout(target)?;
+        let field = self.ref_layout(ft)?;
         let ls: Vec<u32> = field.leaves.iter().map(|l| self.f.local(l.val)).collect();
         self.push(v)?;
         for l in ls.iter().rev() {
@@ -1227,5 +1224,616 @@ impl Em<'_, '_, '_> {
             self.release_locals(&old, t)?;
         }
         Ok(())
+    }
+}
+
+/// Places rooted at a local (`docs/compiler/tir-v2.md`, stage 2 commit
+/// 12a): on the ownership passes' path the checker names a place from
+/// its local through every step, `[*$0 [%5] .x]`, where the old path read
+/// each base into a value first. One walk resolves such a place step by
+/// step from the root's value, and each instruction reads, stores or
+/// addresses what it finds: only the leaves the place names are loaded.
+impl Em<'_, '_, '_> {
+    /// Whether the place of instruction `i` of an owned body takes the
+    /// walk: rooted at a local, with an element or a variant among its
+    /// steps, or a dereference after its first step. The old lowering keeps
+    /// a local's fields and one leading dereference with fields after it
+    /// (`Em::spot_of`).
+    pub(super) fn rooted_at(&self, i: u32) -> bool {
+        self.owned
+            && self
+                .b
+                .decode_place(self.b.data[i as usize][0])
+                .is_some_and(|p| Self::rooted(&p))
+    }
+
+    /// Whether place `p` takes the walk ([`Em::rooted_at`]).
+    pub(super) fn rooted(p: &Place) -> bool {
+        matches!(p.root, PlaceRoot::Local(_))
+            && p.proj.iter().enumerate().any(|(k, s)| match s {
+                Proj::Elem(_) | Proj::Variant(_) => true,
+                Proj::Deref => k > 0,
+                Proj::Field(_) => false,
+            })
+    }
+
+    /// The value at a place's root, where the walk starts: a local's (read
+    /// from its cell when it has one) or an instruction's.
+    fn at_root(&mut self, root: PlaceRoot) -> StageResult<(At, Ty)> {
+        match root {
+            PlaceRoot::Local(l) => Ok((
+                At::Vals(self.local_value(l.raw())?),
+                self.start_ty(Start::Local(l.raw())),
+            )),
+            PlaceRoot::Value(r) if r.as_inst().is_some() => {
+                Ok((At::Vals(self.local_value_of(r.0)?), self.ty_of(r.0)))
+            }
+            _ => unsupported("a place rooted at a top-level binding or a constant"),
+        }
+    }
+
+    /// A local holding the one 32-bit value at `at`: a list header, a
+    /// reference, a data object's or a boxed enum's address.
+    pub(super) fn at_i32(&mut self, at: &At) -> StageResult<u32> {
+        let (base, leaf) = match at {
+            At::Vals(ls) if ls.len() == 1 => return Ok(ls[0]),
+            At::Mem(a, off) => (
+                *a,
+                Leaf {
+                    offset: *off,
+                    val: Val::I32,
+                    bytes: 4,
+                    signed: false,
+                },
+            ),
+            At::Leaves(a, lv) if lv.len() == 1 && lv[0].val == Val::I32 => (*a, lv[0]),
+            _ => return unsupported("an address step from a value of several parts"),
+        };
+        let x = self.f.local(Val::I32);
+        self.f.get(base);
+        self.f.op(leaf.load(0));
+        self.f.set(x);
+        Ok(x)
+    }
+
+    /// The leaves of a value of type `ty` at `at` in memory, at their
+    /// offsets from its address local; `None` for a value in locals.
+    fn at_leaves(&self, at: &At, ty: Ty) -> StageResult<Option<(u32, Vec<Leaf>)>> {
+        Ok(match at {
+            At::Vals(_) => None,
+            At::Mem(a, off) => {
+                let mut lv = mem_of(self.pool(), self.env(), ty)?.leaves;
+                for l in &mut lv {
+                    l.offset += off;
+                }
+                Some((*a, lv))
+            }
+            At::Leaves(a, lv) => Some((*a, lv.clone())),
+        })
+    }
+
+    /// Pushes the value of type `ty` at `at`, with no count.
+    fn push_at(&mut self, at: &At, ty: Ty) -> StageResult<()> {
+        match self.at_leaves(at, ty)? {
+            None => {
+                let At::Vals(ls) = at else {
+                    return unsupported("a value in no locals");
+                };
+                for l in ls {
+                    self.f.get(*l);
+                }
+            }
+            Some((a, lv)) => {
+                for l in lv {
+                    self.f.get(a);
+                    self.f.op(l.load(0));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Field `f` of the struct, tuple or newtype at `at`.
+    fn at_field(&mut self, at: At, ty: Ty, f: u32) -> StageResult<(At, Ty)> {
+        let (ft, part) = self.path_step(ty, f)?;
+        let at = match at {
+            At::Vals(ls) => At::Vals(ls[part.first..part.first + part.count].to_vec()),
+            At::Mem(a, off) => At::Mem(a, off + part.offset),
+            At::Leaves(a, lv) => At::Leaves(a, lv[part.first..part.first + part.count].to_vec()),
+        };
+        Ok((at, ft))
+    }
+
+    /// Field `f` of variant `v`'s payload of the enum at `at`: its values
+    /// among the enum's, in the boxed enum's cell when it has one.
+    fn at_variant(&mut self, at: At, ty: Ty, v: u32, f: u32) -> StageResult<(At, Ty)> {
+        let (m, positions) = self.flat(ty)?;
+        let tys = crate::layout::variants(self.pool(), self.env(), ty).unwrap_or_default();
+        let (Some(sel), Some(&ft)) = (
+            positions.get(v as usize).and_then(|fs| fs.get(f as usize)),
+            tys.get(v as usize).and_then(|fs| fs.get(f as usize)),
+        ) else {
+            return unsupported("a payload field the enum does not have");
+        };
+        let at = if matches!(self.kind(ty), Kind::Boxed) {
+            let cell = self.at_i32(&at)?;
+            At::Leaves(cell, sel.iter().map(|&p| m.leaves[p]).collect())
+        } else {
+            match at {
+                At::Vals(ls) => At::Vals(sel.iter().map(|&p| ls[p]).collect()),
+                At::Mem(a, off) => At::Leaves(
+                    a,
+                    sel.iter()
+                        .map(|&p| Leaf {
+                            offset: m.leaves[p].offset + off,
+                            ..m.leaves[p]
+                        })
+                        .collect(),
+                ),
+                At::Leaves(a, lv) => At::Leaves(a, sel.iter().map(|&p| lv[p]).collect()),
+            }
+        };
+        Ok((at, ft))
+    }
+
+    /// Walks the steps of `p` up to step `upto` from its root's value
+    /// (`docs/compiler/tir-v2.md`, "Places"): a field picks its part, a
+    /// variant its payload field, a dereference of a data value the
+    /// object's field, an element its slot in the buffer, bounds-checked
+    /// (unchecked where the loop's range proof covers read `i`, and from the
+    /// loop's cached header where the list is a stable list of a local).
+    /// A dereference of a reference goes to its referent's address; where
+    /// a reference view may be reached, a view's getter makes the referent
+    /// fresh instead, the walk reads on in that value to the next step's
+    /// address (which the view's source holds too), and the fresh value
+    /// joins `fresh`. So every dereference before `upto` is followed, by
+    /// `upto`, by another element or dereference, or by fields and
+    /// variants down to one 32-bit value.
+    pub(super) fn walk_place(
+        &mut self,
+        i: u32,
+        p: &Place,
+        upto: usize,
+        fresh: &mut Vec<Fresh>,
+    ) -> StageResult<(At, Ty)> {
+        let steps = &p.proj[..upto];
+        let local = match p.root {
+            PlaceRoot::Local(l) => Some(l.raw()),
+            _ => None,
+        };
+        // A stable list's header from the loop's cache: an element of the
+        // local's list, or of the list the reference it holds refers to.
+        let cached = |em: &Self, indirect: bool| {
+            let root = super::list::ListRoot::new(local?, indirect);
+            em.list_caches
+                .iter()
+                .find(|(key, _)| *key == root)
+                .map(|(_, cache)| *cache)
+        };
+        let mut k = 0;
+        let mut at;
+        let mut ty;
+        // The first element step of a local's list, or of the list the
+        // reference it holds refers to: a loop's range proof and its cache
+        // name these.
+        let lead = match (local, steps) {
+            (Some(_), [Proj::Elem(_), ..]) => Some(0),
+            (Some(_), [Proj::Deref, Proj::Elem(_), ..]) => Some(1),
+            _ => None,
+        };
+        let lead_cache = lead.and_then(|e| cached(self, e == 1).map(|c| (c, e)));
+        if let Some((cache, elem)) = lead_cache {
+            // The cached header, where no view is reachable; else the walk.
+            let h = self.f.local(Val::I32);
+            self.f.helper(Helper::RefViewsAbsent);
+            self.f
+                .op(I::If(wasm_encoder::BlockType::Result(Val::I32.wasm())));
+            self.f.get(cache.header);
+            self.f.op(I::Else);
+            let (a, t) = self.at_root(p.root)?;
+            let (a, _) = self.walk_steps(a, t, &steps[..elem], fresh)?;
+            let x = self.at_i32(&a)?;
+            self.f.get(x);
+            self.f.op(I::End);
+            self.f.set(h);
+            self.cached_headers.push((h, cache));
+            let (_, root_ty) = self.at_root_ty(p.root);
+            ty = self.walk_ty(root_ty, &steps[..elem])?;
+            at = At::Vals(vec![h]);
+            k = elem;
+        } else {
+            (at, ty) = self.at_root(p.root)?;
+        }
+        while k < steps.len() {
+            let Proj::Elem(ix) = steps[k] else {
+                let next = steps[k + 1..]
+                    .iter()
+                    .position(|s| matches!(s, Proj::Elem(_)))
+                    .map_or(steps.len(), |x| k + 1 + x);
+                (at, ty) = self.walk_steps(at, ty, &steps[k..next], fresh)?;
+                k = next;
+                continue;
+            };
+            let (et, e) = self.elem(ty)?;
+            let h = self.at_i32(&at)?;
+            let b = self.buffer(h);
+            // The first element of a local's list, which a loop's range
+            // proof may cover.
+            let proven = lead == Some(k) && self.proven_list_indices.contains(&i);
+            let ix = if proven {
+                let x = self.f.local(Val::I32);
+                self.f.helper(Helper::RefViewsAbsent);
+                self.f
+                    .op(I::If(wasm_encoder::BlockType::Result(Val::I32.wasm())));
+                self.comp(ix.0, 0)?;
+                self.f.op(I::Else);
+                let checked = self.index(b, ix.0)?;
+                self.f.get(checked);
+                self.f.op(I::End);
+                self.f.set(x);
+                x
+            } else {
+                self.index(b, ix.0)?
+            };
+            let slot = self.slot_at(b, ix, e.size);
+            at = At::Mem(slot, LIST_ELEMS);
+            ty = et;
+            k += 1;
+        }
+        Ok((at, ty))
+    }
+
+    /// The type of a place's root.
+    fn at_root_ty(&self, root: PlaceRoot) -> (bool, Ty) {
+        match root {
+            PlaceRoot::Local(l) => (true, self.start_ty(Start::Local(l.raw()))),
+            PlaceRoot::Value(r) => (false, self.ty_of(r.0)),
+            PlaceRoot::Global(_, t) => (false, self.sub(t)),
+            PlaceRoot::Frame(_) => (false, Ty::VOID),
+        }
+    }
+
+    /// The type steps `steps` reach from type `ty`.
+    fn walk_ty(&self, mut ty: Ty, steps: &[Proj]) -> StageResult<Ty> {
+        let mut k = 0;
+        while k < steps.len() {
+            match steps[k] {
+                Proj::Field(f) => ty = self.path_step(ty, f)?.0,
+                Proj::Elem(_) => ty = self.elem(ty)?.0,
+                Proj::Deref => match self.kind(ty) {
+                    Kind::Ref { target, .. } => ty = target,
+                    Kind::Data(tys) => {
+                        let Some(&Proj::Field(f)) = steps.get(k + 1) else {
+                            return unsupported("a data value's dereference without its field");
+                        };
+                        ty = tys.get(f as usize).copied().unwrap_or(Ty::VOID);
+                        k += 1;
+                    }
+                    _ => return unsupported("a dereference of a value that is no reference"),
+                },
+                Proj::Variant(v) => {
+                    let Some(&Proj::Field(f)) = steps.get(k + 1) else {
+                        return unsupported("a variant without its payload field");
+                    };
+                    let tys =
+                        crate::layout::variants(self.pool(), self.env(), ty).unwrap_or_default();
+                    ty = tys
+                        .get(v as usize)
+                        .and_then(|fs| fs.get(f as usize))
+                        .copied()
+                        .unwrap_or(Ty::VOID);
+                    k += 1;
+                }
+            }
+            k += 1;
+        }
+        Ok(ty)
+    }
+
+    /// Walks `steps`, which hold no element, from `at` of type `ty`
+    /// ([`Em::walk_place`]).
+    fn walk_steps(
+        &mut self,
+        mut at: At,
+        mut ty: Ty,
+        steps: &[Proj],
+        fresh: &mut Vec<Fresh>,
+    ) -> StageResult<(At, Ty)> {
+        let mut k = 0;
+        while k < steps.len() {
+            match steps[k] {
+                Proj::Field(f) => {
+                    (at, ty) = self.at_field(at, ty, f)?;
+                    k += 1;
+                }
+                Proj::Variant(v) => {
+                    let Some(&Proj::Field(f)) = steps.get(k + 1) else {
+                        return unsupported("a variant without its payload field");
+                    };
+                    (at, ty) = self.at_variant(at, ty, v, f)?;
+                    k += 2;
+                }
+                Proj::Elem(_) => return unsupported("an element among a walk's plain steps"),
+                Proj::Deref => match self.kind(ty) {
+                    Kind::Data(tys) => {
+                        let Some(&Proj::Field(f)) = steps.get(k + 1) else {
+                            return unsupported("a data value's dereference without its field");
+                        };
+                        let (_, parts) = payload_mem(self.pool(), self.env(), &tys)?;
+                        let (Some(part), Some(&ft)) = (parts.get(f as usize), tys.get(f as usize))
+                        else {
+                            return unsupported("a data field the data type does not have");
+                        };
+                        let obj = self.at_i32(&at)?;
+                        at = At::Mem(obj, part.offset);
+                        ty = ft;
+                        k += 2;
+                    }
+                    Kind::Ref { target, fat: false } => {
+                        let r = self.at_i32(&at)?;
+                        // The steps to the next dereference, or to the end.
+                        let next = steps[k + 1..]
+                            .iter()
+                            .position(|s| *s == Proj::Deref)
+                            .map_or(steps.len(), |x| k + 1 + x);
+                        if self.deref_physical {
+                            at = At::Mem(r, 0);
+                            ty = target;
+                            k += 1;
+                            continue;
+                        }
+                        // The value the steps to the next dereference reach,
+                        // in locals both ways: from a view's fresh value, or
+                        // loaded from the referent's address.
+                        let t = self.walk_ty(target, &steps[k + 1..next])?;
+                        let xs: Vec<u32> =
+                            self.vals(t)?.into_iter().map(|v| self.f.local(v)).collect();
+                        let value = self.ref_layout(target)?;
+                        let flag = self.f.local(Val::I32);
+                        self.f.zero(flag);
+                        self.f.get(r);
+                        self.f.helper(Helper::RefIsView);
+                        self.f.op(I::If(wasm_encoder::BlockType::Empty));
+                        let vals = rt::ref_load(&mut self.f, r, &value);
+                        self.f.i32(1);
+                        self.f.set(flag);
+                        let (a, _) = self.walk_steps(
+                            At::Vals(vals.clone()),
+                            target,
+                            &steps[k + 1..next],
+                            fresh,
+                        )?;
+                        self.push_at(&a, t)?;
+                        for x in xs.iter().rev() {
+                            self.f.set(*x);
+                        }
+                        self.f.op(I::Else);
+                        let (a, _) =
+                            self.walk_steps(At::Mem(r, 0), target, &steps[k + 1..next], fresh)?;
+                        self.push_at(&a, t)?;
+                        for x in xs.iter().rev() {
+                            self.f.set(*x);
+                        }
+                        self.f.op(I::End);
+                        fresh.push(Fresh {
+                            flag,
+                            vals,
+                            ty: target,
+                        });
+                        at = At::Vals(xs);
+                        ty = t;
+                        k = next;
+                    }
+                    _ => {
+                        return unsupported(
+                            "a step through a trait value reference or a value that is no reference",
+                        );
+                    }
+                },
+            }
+        }
+        Ok((at, ty))
+    }
+
+    /// Releases the views' fresh values a walk read through, each where it
+    /// was made, and clears their flags.
+    pub(super) fn release_fresh(&mut self, fresh: &[Fresh]) -> StageResult<()> {
+        for x in fresh {
+            self.f.get(x.flag);
+            self.f.op(I::If(wasm_encoder::BlockType::Empty));
+            self.release_locals(&x.vals, x.ty)?;
+            self.f.zero(x.flag);
+            self.f.op(I::End);
+        }
+        Ok(())
+    }
+
+    /// The index of the last step of `p` that goes into memory (an element
+    /// or a dereference), with whether it is a dereference of a reference
+    /// that only fields and variants follow: its referent is then read,
+    /// written or addressed through the reference, which may be a view.
+    pub(super) fn last_through(&self, p: &Place) -> StageResult<Option<(usize, Option<Referent>)>> {
+        let Some(d) = p
+            .proj
+            .iter()
+            .rposition(|s| matches!(s, Proj::Elem(_) | Proj::Deref))
+        else {
+            return Ok(None);
+        };
+        if p.proj[d] != Proj::Deref {
+            return Ok(Some((d, None)));
+        }
+        let (_, root_ty) = self.at_root_ty(p.root);
+        let ty = self.walk_ty(root_ty, &p.proj[..d])?;
+        Ok(Some((d, self.ref_target(ty))))
+    }
+
+    /// `Read` `i` of a place the walk takes ([`Em::rooted`]): only the
+    /// leaves the place names, a copy with a count of its own or a borrow
+    /// with none. A read through a reference that only fields follow reads
+    /// that part of its referent as `Read [*%r .x]` does
+    /// ([`Em::read_part`]). A `move` reaches here only for a part at no
+    /// place of the root's locals, which is read as a copy: the root's
+    /// `Drop`, which the move pass keeps for such a root, releases it.
+    pub(super) fn rooted_read(&mut self, i: u32) -> StageResult<()> {
+        let Some(p) = self.b.decode_place(self.b.data[i as usize][0]) else {
+            return unsupported("a malformed place");
+        };
+        let mut fresh = Vec::new();
+        if let Some((d, Some((target, fat)))) = self.last_through(&p)? {
+            let (at, ref_ty) = self.walk_place(i, &p, d, &mut fresh)?;
+            let tail = &p.proj[d + 1..];
+            let fields: Option<Vec<u32>> = tail
+                .iter()
+                .map(|s| match s {
+                    Proj::Field(f) => Some(*f),
+                    _ => None,
+                })
+                .collect();
+            let Some(fields) = fields else {
+                return unsupported("a payload read through a reference");
+            };
+            // A reference to a trait value is that trait value.
+            if fat {
+                if !fields.is_empty() {
+                    return unsupported("a field read through a trait value reference");
+                }
+                self.push_at(&at, ref_ty)?;
+                self.store(i)?;
+                return self.release_fresh(&fresh);
+            }
+            let r = self.at_i32(&at)?;
+            let value = self.ref_layout(target)?;
+            if fields.is_empty() {
+                if let Some(flag) = self.begin_view_loan(i)? {
+                    for l in rt::ref_load_borrowed(&mut self.f, r, &value, flag) {
+                        self.f.get(l);
+                    }
+                } else {
+                    self.load_through(r, &value);
+                }
+                self.store_owned(i)?;
+            } else {
+                let (_, part) = self.fold_path(target, &fields)?;
+                self.read_part(i, r, &value, target, part)?;
+            }
+            return self.release_fresh(&fresh);
+        }
+        let (at, ty) = self.walk_place(i, &p, p.proj.len(), &mut fresh)?;
+        self.push_at(&at, ty)?;
+        self.store(i)?;
+        self.release_fresh(&fresh)
+    }
+
+    /// `Store` `i` into a place the walk takes ([`Em::rooted`]): into the
+    /// leaves in memory the place names, which take a count of the new
+    /// value before the old one's is released; or through a reference that
+    /// only fields follow, as `Store [*%r .x]` writes ([`Em::deref_field_write`]).
+    /// The passes' `IsUnique` came before it.
+    pub(super) fn rooted_store(&mut self, i: u32) -> StageResult<()> {
+        let v = self.b.data[i as usize][1];
+        if v != NONE && self.diverges(v) {
+            self.f.op(I::Unreachable);
+            return Ok(());
+        }
+        let Some(p) = self.b.decode_place(self.b.data[i as usize][0]) else {
+            return unsupported("a malformed place");
+        };
+        let mut fresh = Vec::new();
+        match self.last_through(&p)? {
+            None => return unsupported("a store into a place in no memory"),
+            Some((d, Some((target, fat)))) => {
+                if fat {
+                    return unsupported("a write through a trait value reference");
+                }
+                let (at, _) = self.walk_place(i, &p, d, &mut fresh)?;
+                let r = self.at_i32(&at)?;
+                let fields: Option<Vec<u32>> = p.proj[d + 1..]
+                    .iter()
+                    .map(|s| match s {
+                        Proj::Field(f) => Some(*f),
+                        _ => None,
+                    })
+                    .collect();
+                match fields {
+                    Some(fs) if fs.is_empty() => self.deref_write_at(r, target, v)?,
+                    Some(fs) => self.deref_field_write_at(r, target, &fs, v)?,
+                    None => return unsupported("a payload write through a reference"),
+                }
+            }
+            Some(_) => {
+                let (at, ty) = self.walk_place(i, &p, p.proj.len(), &mut fresh)?;
+                let Some((a, lv)) = self.at_leaves(&at, ty)? else {
+                    return unsupported("a store into a place in no memory");
+                };
+                self.store_leaves(a, &lv, ty, v)?;
+            }
+        }
+        self.release_fresh(&fresh)
+    }
+
+    /// `Ref` `i` of a place the walk takes ([`Em::rooted`]): the address
+    /// of the place the last element or dereference reaches, then of the
+    /// struct field the fields after it name, as a `Ref` of that head
+    /// lowers ([`Em::ref_from`]); an element is bounds-checked.
+    pub(super) fn rooted_ref(&mut self, i: u32) -> StageResult<()> {
+        let Some(p) = self.b.decode_place(self.b.data[i as usize][0]) else {
+            return unsupported("a malformed place");
+        };
+        let Some((_, fat)) = self.ref_target(self.ty(i)) else {
+            return unsupported("a reference whose type is no reference");
+        };
+        let Some((d, through)) = self.last_through(&p)? else {
+            return unsupported("a reference to a place in no memory");
+        };
+        let mut fresh = Vec::new();
+        let (at, ty) = self.walk_place(i, &p, d, &mut fresh)?;
+        let mut rest = &p.proj[d + 1..];
+        let (base, head_ty) = match (p.proj[d], through) {
+            (Proj::Elem(ix), _) => {
+                let h = self.at_i32(&at)?;
+                let (et, slot) = self.elem_slot(h, ty, ix.0)?;
+                (Base::At(self.offset_local(slot, LIST_ELEMS)), et)
+            }
+            (Proj::Deref, Some((target, f))) => {
+                let r = self.at_i32(&at)?;
+                if f {
+                    let At::Vals(ls) = &at else {
+                        return unsupported("a trait value reference in memory");
+                    };
+                    (Base::Vals(ls.clone()), target)
+                } else {
+                    (Base::At(r), target)
+                }
+            }
+            (Proj::Deref, None) => {
+                let Kind::Data(tys) = self.kind(ty) else {
+                    return unsupported("a dereference of a value that is no reference");
+                };
+                let Some((&Proj::Field(k), more)) = rest.split_first() else {
+                    return unsupported("a data value's dereference without its field");
+                };
+                rest = more;
+                let (_, parts) = payload_mem(self.pool(), self.env(), &tys)?;
+                let (Some(part), Some(&ft)) = (parts.get(k as usize), tys.get(k as usize)) else {
+                    return unsupported("a data field the data type does not have");
+                };
+                let o = self.at_i32(&at)?;
+                (Base::At(self.offset_local(o, part.offset)), ft)
+            }
+            _ => return unsupported("a reference to a place in no memory"),
+        };
+        let path: Option<Vec<u32>> = rest
+            .iter()
+            .map(|s| match s {
+                Proj::Field(f) => Some(*f),
+                _ => None,
+            })
+            .collect();
+        let Some(path) = path else {
+            return unsupported("a reference to a payload field");
+        };
+        self.ref_from(i, base, head_ty, &path, None, fat, None)?;
+        self.release_fresh(&fresh)
     }
 }

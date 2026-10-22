@@ -507,7 +507,10 @@ fn locals(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables) 
             Tag::Read | Tag::Store | Tag::Ref => {
                 if let Some(l) = root_local(b, a) {
                     t.acc.push((t.sub[i], l, u32_of(i)));
-                    if b.tags[i] == Tag::Ref {
+                    // A reference to the local's own storage puts it in a
+                    // cell; one through it, to a referent or an element,
+                    // does not.
+                    if b.tags[i] == Tag::Ref && b.local_in_place(a).is_some() {
                         t.celled[l as usize] = true;
                     }
                 }
