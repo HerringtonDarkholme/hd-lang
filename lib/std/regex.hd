@@ -7,6 +7,8 @@
 # lets a search start threads only where a match could start and jump over
 # the text between.
 use std.format.DebugWriter
+use std.serde.{Deserialize, Deserializer, ValueKind}
+use std.structure.{Facts, Member, VariantInfo}
 
 # A compiled pattern (r-std-regex.regex.decl-struct). `names[i]` is the name of
 # group i, or "" for an unnamed group and for group 0.
@@ -44,11 +46,10 @@ pub struct Captures:
     slots: List[usize?]
     names: List[string]
 
-# Why a pattern does not compile (r-std-regex.error.variants): one variant
-# per rule, each with the byte offset in the pattern where the rule puts the
-# error (r-std-regex.error.position).
-## Why a pattern failed to compile: eleven variants, each at a byte position in the pattern.
-## See [std-regex.error.variants](../../spec/std/regex.md#r-std-regex.error.variants).
+# Pattern errors carry their byte position; decode errors name the match
+# or group that could not be decoded (r-std-regex.error.variants-with-decode).
+## Why a pattern failed to compile, a match was absent, or a group could not be decoded.
+## See [std-regex.error.variants-with-decode](../../spec/std/regex.md#r-std-regex.error.variants-with-decode).
 @error
 @derive(Debug, Eq)
 pub enum RegexError:
@@ -74,6 +75,12 @@ pub enum RegexError:
     DuplicateGroupName(position: usize)
     @error("expression too large at byte $position")
     TooLarge(position: usize)
+    @error("the regex did not match")
+    NoMatch
+    @error("missing regex group $name")
+    MissingGroup(name: string)
+    @error("cannot decode regex group $group as $expected")
+    WrongType(group: string, expected: string)
 
 impl Regex:
     ## Compiles `pattern`, or returns the first error it holds.
@@ -129,6 +136,13 @@ impl Regex:
     pub fn captures(self, text: string) -> Captures?:
         vm := new_vm(self, text, self.slot_count())
         if run(vm, 0, false): .Some(vm.groups(self.names)) else: .None
+
+    ## Decodes the first match as a record through its Deserialize implementation.
+    ## See [std-regex.decode.regex](../../spec/std/regex.md#r-std-regex.decode.regex).
+    pub fn decode[T < Deserialize](self, text: string) -> Result[T, RegexError]:
+        match self.captures(text):
+            .Some(captures) => captures.decode::[T]()
+            .None => .Err(.NoMatch)
 
     # The groups of each match that `find_all` returns
     # (r-std-regex.captures-all).
@@ -222,6 +236,113 @@ impl Captures:
                 return self.get(index)
             index = index + 1
         .None
+
+    ## Decodes this capture set as a record through its Deserialize implementation.
+    ## See [std-regex.decode.captures](../../spec/std/regex.md#r-std-regex.decode.captures).
+    pub fn decode[T < Deserialize](self) -> Result[T, RegexError]:
+        let mut reader = CaptureReader { captures: self }
+        T::deserialize(&mut reader)
+
+# The format adapter for one capture set. The root is a record; each
+# member positions the scalar reader at the named group's text.
+struct CaptureReader:
+    captures: Captures
+    group: string = "0"
+    current: Match? = .None
+    record: bool = false
+    variant: bool = false
+
+impl CaptureReader:
+    fn group_text(&mut self, expected: string) -> Result[string, RegexError]:
+        if !self.record || self.group == "0":
+            return .Err(self.invalid(expected))
+        match self.current:
+            .Some(found) => .Ok(found.text)
+            .None => .Err(.MissingGroup(self.group))
+
+impl Deserializer for CaptureReader:
+    type Error = RegexError
+
+    fn peek(&mut self) -> Result[ValueKind, RegexError]:
+        if !self.record || self.group == "0":
+            return .Err(self.invalid("record"))
+        .Ok(if self.current.is_some(): .Text else: .Null)
+
+    fn is_null(&mut self) -> Result[bool, RegexError]:
+        if !self.record || self.group == "0":
+            return .Err(self.invalid("record"))
+        .Ok(self.current.is_none())
+
+    fn bool(&mut self, expected: string) -> Result[bool, RegexError]:
+        match self.group_text(expected)?.parse::[bool]():
+            .Ok(value) => .Ok(value)
+            .Err(_) => .Err(self.invalid(expected))
+
+    fn int(&mut self, expected: string) -> Result[i64, RegexError]:
+        match self.group_text(expected)?.parse::[i64]():
+            .Ok(value) => .Ok(value)
+            .Err(_) => .Err(self.invalid(expected))
+
+    fn uint(&mut self, expected: string) -> Result[u64, RegexError]:
+        match self.group_text(expected)?.parse::[u64]():
+            .Ok(value) => .Ok(value)
+            .Err(_) => .Err(self.invalid(expected))
+
+    fn float(&mut self, expected: string) -> Result[f64, RegexError]:
+        match self.group_text(expected)?.parse::[f64]():
+            .Ok(value) => .Ok(value)
+            .Err(_) => .Err(self.invalid(expected))
+
+    fn text(&mut self, expected: string) -> Result[string, RegexError]:
+        self.group_text(expected)
+
+    fn begin_list(&mut self) -> Result[void, RegexError]:
+        .Err(self.invalid("list"))
+
+    fn next_item(&mut self) -> Result[bool, RegexError]:
+        .Err(self.invalid("list"))
+
+    fn begin_map(&mut self) -> Result[void, RegexError]:
+        .Err(self.invalid("map"))
+
+    fn next_key(&mut self) -> Result[string?, RegexError]:
+        .Err(self.invalid("map"))
+
+    fn begin_variant(&mut self, facts: Facts, choices: List[VariantInfo]) -> Result[usize, RegexError]:
+        if !self.record:
+            if choices.len() == 1 && choices[0].of_data:
+                self.record = true
+                return .Ok(0)
+            return .Err(self.invalid("record"))
+        if choices.len() == 1 && choices[0].of_data:
+            return .Err(self.invalid("record"))
+        name := self.group_text("variant")?
+        let index = 0
+        while index < choices.len():
+            if choices[index].name == name:
+                self.variant = true
+                return .Ok(index)
+            index += 1
+        .Err(self.invalid("variant"))
+
+    fn member(&mut self, m: Member) -> Result[void, RegexError]:
+        if self.variant:
+            return .Err(self.invalid("payload-free variant"))
+        self.group = m.name
+        let index = 1
+        while index < self.captures.names.len():
+            if self.captures.names[index] == m.name:
+                self.current = self.captures.get(index)
+                return .Ok(())
+            index += 1
+        .Err(.MissingGroup(m.name))
+
+    fn end_variant(&mut self) -> Result[void, RegexError]:
+        self.variant = false
+        .Ok(())
+
+    fn invalid(&mut self, expected: string) -> RegexError:
+        .WrongType(self.group, expected)
 
 # The most instructions a compiled pattern may have
 # (r-std-regex.error.too-large).

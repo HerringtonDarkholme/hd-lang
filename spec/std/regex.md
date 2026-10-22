@@ -341,6 +341,37 @@ fn year_and_month(line: string) -> (string, string)?:
 > accept them. `(?P<name>)` is Python's spelling, and `(?<name>)` is
 > JavaScript's, Java's, and .NET's.
 
+## Typed Decoding
+
+Typed decoding builds a record from the named groups of one match through
+its `Deserialize` implementation. `pattern.decode::[Hit](line)` combines
+`captures` with `Captures.decode::[Hit]()`.
+
+1. r[std-regex.decode.regex] `Regex` declares `pub fn decode[T < Deserialize](self, text: string) -> Result[T, RegexError]`.
+2. r[std-regex.decode.captures] `Captures` declares `pub fn decode[T < Deserialize](self) -> Result[T, RegexError]`.
+3. r[std-regex.decode.search] `Regex.decode` runs `captures` once, then decodes that capture set.
+4. r[std-regex.decode.no-match] When no match exists, `Regex.decode` returns `.Err(RegexError.NoMatch)`.
+5. r[std-regex.decode.reuse] `Captures.decode` decodes its existing groups without another search.
+6. r[std-regex.decode.root] The decoded root must be a record; other roots return `WrongType` with group `"0"`.
+7. r[std-regex.decode.members] Each record member reads the capture group with the same name.
+8. r[std-regex.decode.missing-name] A member without a named group returns `.Err(RegexError.MissingGroup(name))`.
+9. r[std-regex.decode.optional] A `T?` member is `.None` when its named group took no part in the match.
+10. r[std-regex.decode.required] A required member whose named group took no part returns `.Err(RegexError.MissingGroup(name))`.
+11. r[std-regex.decode.string] A `string` member is a slice of its group's matched text.
+12. r[std-regex.decode.scalars] Integer, float, `bool`, and `char` members parse the group text, then apply the type's `Deserialize` checks.
+13. r[std-regex.decode.f32] An `f32` member must be finite and within the `f32` range, as its `Deserialize` implementation requires.
+14. r[std-regex.decode.variant] A group naming a payload-free variant decodes that variant, including a unit variant of a mixed enum.
+15. r[std-regex.decode.payload] A selected variant with payload members returns `WrongType` for that group.
+16. r[std-regex.decode.other] A list, map, or nested record member returns `WrongType` for that group.
+17. r[std-regex.decode.wrong-type] A refused conversion returns `.Err(RegexError.WrongType(group, expected))`, with the group name and the expected form.
+18. r[std-regex.decode.no-match.text] The `Display` text of `NoMatch` is `the regex did not match`.
+19. r[std-regex.decode.missing-group.text] The `Display` text of `MissingGroup(name)` is `missing regex group NAME`, with `name` for `NAME`.
+20. r[std-regex.decode.wrong-type.text] The `Display` text of `WrongType(group, expected)` is `cannot decode regex group GROUP as EXPECTED`, substituting the two payloads.
+
+> **Why.** A type opts into `Deserialize` once; a format supplies its
+> reader. A caller can skip `NoMatch` lines while keeping malformed
+> captured values visible as errors.
+
 ## Replacing And Splitting
 
 | Rule | Method | Result |
@@ -411,6 +442,9 @@ pub enum RegexError:
     BadGroupName(position: usize)
     DuplicateGroupName(position: usize)
     TooLarge(position: usize)
+    NoMatch
+    MissingGroup(name: string)
+    WrongType(group: string, expected: string)
 ```
 
 | Rule | Variant | When | `Display` text |
@@ -427,12 +461,13 @@ pub enum RegexError:
 | r[std-regex.error.kind.duplicate-group-name] Duplicate group name | `DuplicateGroupName` | [`std-regex.syntax.group.duplicate-name`](#r-std-regex.syntax.group.duplicate-name) | `duplicate capture group name` |
 | r[std-regex.error.kind.too-large] Too large | `TooLarge` | [`std-regex.error.too-large`](#r-std-regex.error.too-large) | `expression too large` |
 
-1. r[std-regex.error.variants] `std.regex` declares the enum `RegexError` with the eleven variants above, each holding one `position: usize`.
+1. r[std-regex.error.variants-with-decode] `std.regex` declares the enum `RegexError` with the variants shown above.
 2. r[std-regex.error.position] `position` is the byte offset in the pattern where the rule for the variant puts the error.
 3. r[std-regex.error.first] `new` reads the pattern from left to right and returns the first error it meets. A group or class is checked for its closing character after its contents.
 4. r[std-regex.error.size-last] `TooLarge` is checked only once the whole pattern has no other error.
-5. r[std-regex.error.impls] `RegexError` implements `Eq`, `Debug`, and `Display`. Two errors are equal when they are the same variant at the same `position`.
-6. r[std-regex.error.text] A `RegexError`'s `Display` text is the variant's text in the table, then ` at byte `, then `position`, as in `invalid escape at byte 3`.
+5. r[std-regex.error.compile-decode-traits] `RegexError` implements `Eq`, `Debug`, `Display`, and `std.error.Error`.
+6. r[std-regex.error.equality] Two `RegexError` values are equal when their variants and corresponding payloads are equal.
+7. r[std-regex.error.pattern-text] A pattern error's `Display` text is its table text, then ` at byte `, then `position`.
 
 ```text
 use std.regex.{Regex, RegexError}

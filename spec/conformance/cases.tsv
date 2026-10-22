@@ -4789,3 +4789,5 @@ runtime/valid/hd-run-command-forwarding.hd	runtime	accept	std/testing.md#running
 runtime/valid/http-request-builder.hd	runtime	accept	std/http.md#request-builder
 typing/invalid/http-request-timeout-removed.hd	type	reject:unknown-field	std/http.md#r-std-http.types.request-builder
 typing/invalid/http-request-send-missing-provider.hd	type	reject:missing-requirement	std/http.md#r-std-http.request.send
+runtime/valid/regex-decode.hd	runtime	accept	std/regex.md#typed-decoding
+typing/invalid/regex-decode-requires-deserialize.hd	type	reject:unsatisfied-trait-bound	std/regex.md#r-std-regex.decode.regex

@@ -1,0 +1,8 @@
+# test: a regex decode target must implement Deserialize
+use std.regex.{Regex, RegexError}
+
+struct Record:
+    value: string
+
+fn read(pattern: Regex) -> Result[Record, RegexError]:
+    pattern.decode::[Record]("value")  # diagnostic: unsatisfied-trait-bound
