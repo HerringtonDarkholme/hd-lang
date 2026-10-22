@@ -1,7 +1,7 @@
-//! `Console` and `ConsoleInput`. `write_line` is pending at once and
-//! writes its line into the held standard output when it completes;
-//! `write_error_line` likewise writes its line to standard error, after
-//! the held output (`module.console.write-error-line`);
+//! `Console` and `ConsoleInput`. `write` is pending at once and
+//! writes its text into the held standard output when it completes;
+//! `write_error` likewise writes its text to standard error, after
+//! the held output (`module.console.write-error.raw`);
 //! `read_line` and `read_all` are pending until the reactor's reader thread
 //! has read the next line, or the rest, of standard input, so a program's
 //! other operations go on while it waits for input.
@@ -12,7 +12,7 @@ use crate::abi::{ConsoleError, HostMethod, Id};
 use crate::host::{Host, Ret, Stop, bytes, handle, int_arg};
 use crate::runtime::reactor::{Stream, Work};
 
-/// A `Console.write_line`, `Console.write_error_line` or
+/// A `Console.write`, `Console.write_error` or
 /// `ConsoleInput.read_line` `.start`, or its
 /// `.finish` when `finish`.
 pub(crate) fn call(
@@ -22,21 +22,33 @@ pub(crate) fn call(
     params: &[Val],
 ) -> wasmtime::Result<Ret> {
     Ok(match method.id {
-        Id::ConsoleWriteLine | Id::ConsoleWriteErrorLine if finish => {
+        Id::ConsoleWrite | Id::ConsoleWriteError if finish => {
             let h = int_arg(params, 0)?;
             caller.data_mut().reactor.remove(handle(h));
             Ret::value(&Ok::<(), ConsoleError>(()))
         }
-        Id::ConsoleWriteLine | Id::ConsoleWriteErrorLine => {
+        Id::ConsoleWrite | Id::ConsoleWriteError => {
             let line = bytes(caller, int_arg(params, 0)?)?;
+            if !caller.data().grants.allows("Console") {
+                let subject = if method.id == Id::ConsoleWrite {
+                    "stdout"
+                } else {
+                    "stderr"
+                };
+                return Ret::ready(crate::codec::encode(&Err::<(), _>(
+                    ConsoleError::NotGranted {
+                        subject: subject.into(),
+                    },
+                )));
+            }
             // Normalize invalid UTF-8 through the text boundary.
             let line = String::from_utf8_lossy(&line).into_owned().into_bytes();
-            let to = if method.id == Id::ConsoleWriteLine {
+            let to = if method.id == Id::ConsoleWrite {
                 Stream::Out
             } else {
                 Stream::Err
             };
-            Ret::pair(1, caller.data_mut().reactor.write_line(to, line))
+            Ret::pair(1, caller.data_mut().reactor.write(to, line))
         }
         // `Result[string?, ConsoleError]`: the line, `.None` at the end of
         // input, `.Err(.Closed)` when it cannot be read.

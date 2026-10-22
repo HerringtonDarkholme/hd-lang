@@ -4,7 +4,7 @@ use std.testing.assert_equal
 
 fn step!(value: i32) -> i32 $ Console:
     let mut console = $.use(Console)
-    _ := console.write_line!("step ${value}")
+    _ := console.write!("step ${value}\n")
     value
 
 pub fn main!() -> void $ Console:

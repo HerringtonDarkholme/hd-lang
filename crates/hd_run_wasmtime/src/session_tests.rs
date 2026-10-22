@@ -714,7 +714,7 @@ fn a_session_journal_records_each_input_s_host_calls_in_order() {
                 "finish",
                 "end Exit(0)",
                 "input 4",
-                "call hd:Console write_line.start",
+                "call hd:Console write.start",
                 "block",
                 "finish",
                 "end Exit(0)",
@@ -761,11 +761,11 @@ fn a_session_journal_records_each_input_s_host_calls_in_order() {
         let handle = u32::try_from(*handle).expect("a handle");
         assert!(matches!(&events[8], Event::Wake { handles, .. } if handles == &[handle]));
         assert!(matches!(&events[9], Event::Finish { handle: h, .. } if *h == handle));
-        // `println("hi")` writes `hi`: its length then its bytes, 3 bytes.
+        // `println("hi")` writes `hi\n`: its length then its bytes.
         let Event::Call { request, .. } = &events[12] else {
             panic!("{:?}", events[12]);
         };
-        assert_eq!(request, &Request::Args(vec![2, b'h', b'i']));
+        assert_eq!(request, &Request::Args(vec![3, b'h', b'i', b'\n']));
         // The panic stub starts its report, then writes it.
         assert!(matches!(
             &events[17],

@@ -3,7 +3,7 @@
   (import "fixture" "println[string]" (func $"println[string]" (param i32 i32 i32 i32)))
   (func $hello (param $provider0 i32) (param $provider0.vtable i32)
     ;; 7 |     println("hello")
-    i32.const 113 ;; &"hello"
+    i32.const 109 ;; &"hello"
     i32.const 5
     local.get $provider0
     local.get $provider0.vtable

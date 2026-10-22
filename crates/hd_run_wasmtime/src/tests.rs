@@ -94,13 +94,13 @@ fn malformed_reply_shapes_fail_before_output_or_filesystem_effects() {
     for (module, name, payload, results) in [
         (
             "hd:Console",
-            "write_line.start",
+            "write.start",
             marker.as_slice(),
             vec![ValType::I32],
         ),
         (
             "hd:Console",
-            "write_line.start",
+            "write.start",
             marker.as_slice(),
             vec![ValType::I32, ValType::F64],
         ),

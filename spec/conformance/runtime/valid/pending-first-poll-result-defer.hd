@@ -10,7 +10,7 @@ struct Failure:
 
 fn child!(ok: bool) -> Result[i32, Failure] $ Console:
     let mut console = $.use(Console)
-    _ := console.write_line!("child")
+    _ := console.write!("child\n")
     if ok: .Ok(40) else: .Err(Failure { code: 7 })
 
 fn run!(state: &mut State, ok: bool) -> Result[i32, Failure] $ Console:

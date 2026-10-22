@@ -1,5 +1,5 @@
 //! Held Console output reaches the stream before the program waits on the
-//! host (`std-console.host.visible`), and once it grows past a bound.
+//! host (`std-console.host.visible-text`), and once it grows past a bound.
 mod support;
 
 use std::io::Write;
@@ -31,17 +31,23 @@ impl Write for Recording {
     }
 }
 
-fn write_line(p: &mut Program, line: &[u8]) {
+fn write(p: &mut Program, line: &[u8]) {
+    let mut text = line.to_vec();
+    text.push(b'\n');
+    write_raw(p, &text);
+}
+
+fn write_raw(p: &mut Program, line: &[u8]) {
     let start = p.import(
         "hd:Console",
-        "write_line.start",
+        "write.start",
         &[ValType::I32],
         &[ValType::I32, ValType::I32],
     );
     let block = p.import("hd:rt", "block", &[], &[ValType::I32]);
     let finish = p.import(
         "hd:Console",
-        "write_line.finish",
+        "write.finish",
         &[ValType::I32],
         &[ValType::I32],
     );
@@ -112,9 +118,9 @@ fn position(writes: &Writes, text: &str) -> usize {
 fn printed_line_reaches_the_stream_before_a_sleep() {
     const SLEEP_MS: i64 = 300;
     let mut p = Program::new();
-    write_line(&mut p, b"before");
+    write(&mut p, b"before");
     sleep(&mut p, SLEEP_MS);
-    write_line(&mut p, b"after");
+    write(&mut p, b"after");
     let writes = run(p);
     let before = position(&writes, "before");
     let after = position(&writes, "after");
@@ -134,7 +140,7 @@ fn output_past_the_bound_is_written_before_the_program_ends() {
     let line = [b'x'; 1000];
     // 80 lines of 1001 bytes pass the 64 KiB bound without any wait.
     for _ in 0..80 {
-        write_line(&mut p, &line);
+        write(&mut p, &line);
     }
     let writes = run(p);
     let total: usize = writes.iter().map(|(_, bytes)| bytes.len()).sum();
@@ -144,4 +150,15 @@ fn output_past_the_bound_is_written_before_the_program_ends() {
         writes[0].1.len() <= 70_000,
         "the first write is the bounded part"
     );
+}
+
+#[test]
+fn raw_writes_preserve_chunks_without_adding_line_endings() {
+    let mut p = Program::new();
+    write_raw(&mut p, b"a");
+    write_raw(&mut p, b"b\r\nc\n");
+    write_raw(&mut p, b"");
+    write_raw(&mut p, b"tail");
+    let bytes: Vec<u8> = run(p).into_iter().flat_map(|(_, bytes)| bytes).collect();
+    assert_eq!(bytes, b"core-parity\nab\r\nc\ntail");
 }

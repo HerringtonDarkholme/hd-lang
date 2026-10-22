@@ -1,16 +1,16 @@
-# test: prelude / Console / a provider records lines because write_line! takes &mut self
-# Spec 10 Console: write_line! takes &mut self, so Console is a mutable requirement trait
+# test: prelude / Console / a provider records lines because write! takes &mut self
+# Spec 10 Console: write! takes &mut self, so Console is a mutable requirement trait
 # and printing code still writes $ Console.
 
 struct MemoryConsole:
     lines: List[string]
 
 impl Console for MemoryConsole:
-    fn write_line!(&mut self, text: string) -> Result[void, ConsoleError]:
+    fn write!(&mut self, text: string) -> Result[void, ConsoleError]:
         self.lines.push(text)
         .Ok(())
 
-    fn write_error_line!(&mut self, text: string) -> Result[void, ConsoleError]:
+    fn write_error!(&mut self, text: string) -> Result[void, ConsoleError]:
         self.lines.push(text)
         .Ok(())
 

@@ -1,22 +1,22 @@
-# test: a Console provider that does not override write_error_line! records error lines with write_line!
-# Spec 10 Console: module.console.write-error-line.default (batch 64, STD-4).
+# test: a Console provider that does not override write_error! records error lines with write!
+# Spec 10 Console: module.console.write-error.forwarding (batch 64, STD-4).
 struct MemoryConsole:
     lines: List[string]
 
 impl Console for MemoryConsole:
-    fn write_line!(&mut self, text: string) -> Result[void, ConsoleError]:
+    fn write!(&mut self, text: string) -> Result[void, ConsoleError]:
         self.lines.push(text)
         .Ok(())
 
 fn warn!() -> Result[void, ConsoleError] $ Console:
     console := $.use(Console)
-    console.write_line!("out")?
-    console.write_error_line!("err")
+    console.write!("out")?
+    console.write_error!("err")
 
 tests:
     use std.testing.{assert, assert_equal}
 
-    it("the default body calls write_line!"):
+    it("the default body calls write!"):
         let mut console = MemoryConsole { lines: [] }
         $.with(Console=&mut console):
             match warn!():

@@ -293,7 +293,7 @@ profile**, which binds these traits:
 
 | Trait | Module | What `hd` binds |
 | --- | --- | --- |
-| `Console` | `std.console` | `write_line!` writes to standard output, and `write_error_line!` to standard error |
+| `Console` | `std.console` | `write!` writes to standard output, and `write_error!` to standard error |
 | `ConsoleInput` | `std.console` | reads standard input |
 | `Args` | `std.host` | the FILE or NAME the command ran, and the [program arguments](#program-arguments) |
 | `Env` | `std.host` | the environment of the `hd` process |
@@ -309,7 +309,7 @@ profile**, which binds these traits:
 3. r[cli.host.script-binding] When `hd` runs a script, it binds every trait of the default profile, as the [REPL](#repl) does, so the script's top level may use each of them. The script's [capability grant](#capability-grants) still limits the resources they touch.
 4. r[cli.host.default-profile.main-row] The row of `main` or `main!` still limits what the program gets: `hd` binds only the traits of the default profile that the row names, by [`cli.host.entry-binding`](#r-cli.host.entry-binding).
 5. r[cli.host.default-profile.other] A row key outside the default profile is an error, as [`module.entry.row.host`](../lang/10-modules.md#r-module.entry.row.host) states. Error: `nonhost-entry-requirement`.
-6. r[cli.host.default-profile.console-closed] Under the default profile, `write_line!` and `write_error_line!` return `.Err(ConsoleError.Closed)` when the host cannot write the line. One such case is a pipe whose reader has closed it.
+6. r[cli.host.default-profile.console-write-closed] Under the default profile, `write!` and `write_error!` return `.Err(ConsoleError.Closed)` when the host cannot write the text. One such case is a pipe whose reader has closed it.
 7. r[cli.host.default-profile.input-closed] `read_line!` returns `.Err(ConsoleError.Closed)` when standard input is not attached or a read fails. The end of input is `.Ok(.None)`, and every later call returns `.Ok(.None)` again.
 8. r[cli.host.default-profile.granted] Each provider of the default profile touches only the resources that its program's [capability grant](#capability-grants) covers.
 9. r[cli.host.process.env] A program that the default profile's `Process` provider starts inherits the whole environment of the `hd` process, whatever the `Env` grant covers.
@@ -323,7 +323,7 @@ hd run        # the default profile binds Console: prints hello
 ```
 
 > **Why.** A closed pipe makes `println` panic, by
-> [`module.console.println-error`](../lang/10-modules.md#r-module.console.println-error),
+> [`module.console.println-write-error`](../lang/10-modules.md#r-module.console.println-write-error),
 > as Rust's `println!` does; `hd FILE | head -1` stops the program
 > instead of writing into nothing.
 

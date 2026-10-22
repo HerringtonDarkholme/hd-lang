@@ -1967,12 +1967,12 @@ runtime/valid/derivation-block-lines-local.hd	runtime	accept	lang/14-annotations
 runtime/valid/derivation-block-generic-header.hd	runtime	accept	lang/14-annotations.md#r-annot.block.header
 runtime/valid/newtype-derives-through-base.hd	runtime	accept	lang/14-annotations.md#r-annot.block.newtype
 typing/valid/generic-missing-call.hd	type	accept	lang/14-annotations.md#r-annot.walker.generic-missing
-typing/valid/console-recording-provider.hd	type	accept	lang/10-modules.md#r-module.console.write-line-ref.reference-values
-typing/valid/console-host-provider-mutable.hd	type	accept	lang/10-modules.md#r-module.console.write-line-ref.reference-values
-typing/invalid/console-write-line-value-receiver.hd	type	reject:trait-method-signature	lang/10-modules.md#r-module.console.write-line-ref.reference-values
+typing/valid/console-recording-provider.hd	type	accept	lang/10-modules.md#r-module.console.write-ref.mutable
+typing/valid/console-host-provider-mutable.hd	type	accept	lang/10-modules.md#r-module.console.write-ref.mutable
+typing/invalid/console-write-line-value-receiver.hd	type	reject:trait-method-signature	lang/10-modules.md#r-module.console.write-ref.mutable
 runtime/valid/console-struct-fake-ref.hd	runtime	accept	std/console.md#r-std-console.buffer.install-ref
-runtime/valid/println-recording-provider.hd	runtime	accept	lang/10-modules.md#r-module.console.println-write
-runtime/valid/println-provider-suspending-body.hd	runtime	accept	lang/10-modules.md#r-module.console.println-drive.block-on
+runtime/valid/println-recording-provider.hd	runtime	accept	lang/10-modules.md#r-module.console.println-one-write
+runtime/valid/println-provider-suspending-body.hd	runtime	accept	lang/10-modules.md#r-module.console.println-drive.raw-write
 typing/invalid/root-orphan-impl.hd	type	reject:orphan-impl	lang/09-traits.md#r-trait.own.no-orphan-exception
 typing/valid/inherited-mut-method-requirement.hd	type	accept	lang/11-requirements-and-suspension.md#r-req.mut.trait-changing
 typing/invalid/readonly-requirement-trait-mut-use.hd	type	reject:mutable-upgrade	lang/11-requirements-and-suspension.md#r-req.mut.use-readonly.reference-values
@@ -2854,7 +2854,7 @@ typing/invalid/option-invariant.hd	type	reject:type-mismatch	lang/04-type-system
 typing/invalid/result-invariant.hd	type	reject:type-mismatch	lang/04-type-system.md#r-types.option.invariant.result
 typing/invalid/covariant-optional-field.hd	type	reject:invalid-variance	lang/04-type-system.md#r-types.option.invariant
 typing/invalid/covariant-result-field.hd	type	reject:invalid-variance	lang/04-type-system.md#r-types.option.invariant.result
-runtime/valid/console-error-line-default.hd	runtime	accept	lang/10-modules.md#r-module.console.write-error-line.default
+runtime/valid/console-error-line-default.hd	runtime	accept	lang/10-modules.md#r-module.console.write-error.forwarding
 runtime/valid/default-hasher.hd	runtime	accept	std/hash.md#default-hasher
 runtime/valid/hash-bytes-scalars.hd	runtime	accept	std/hash.md#r-std-hash.bytes.integer
 runtime/valid/hash-bytes-sequences.hd	runtime	accept	std/hash.md#r-std-hash.bytes.string
@@ -2887,8 +2887,8 @@ runtime/valid/cmp-ordering-eq.hd	runtime	accept	std/cmp.md#r-std-cmp.ordering.eq
 runtime/valid/std-errors-erased.hd	runtime	accept	std/error.md#r-std-error.std-types.impl.reference-values
 runtime/valid/std-errors-erased-codecs.hd	runtime	accept	std/error.md#r-std-error.std-types.impl.reference-values
 runtime/valid/console-error-traits.hd	runtime	accept	std/console.md#r-std-console.error.traits
-runtime/valid/buffer-console.hd	runtime	accept	std/console.md#r-std-console.buffer.output
-runtime/valid/buffer-console-error-lines.hd	runtime	accept	std/console.md#r-std-console.buffer.error-output
+runtime/valid/buffer-console.hd	runtime	accept	std/console.md#r-std-console.buffer.output-text
+runtime/valid/buffer-console-error-lines.hd	runtime	accept	std/console.md#r-std-console.buffer.error-text
 runtime/valid/scripted-input.hd	runtime	accept	std/console.md#r-std-console.scripted.read
 runtime/valid/process-error-display.hd	runtime	accept	std/process.md#r-std-process.error.display.other
 runtime/valid/process-exit-data-eq.hd	runtime	accept	std/process.md#r-std-process.output.eq-program
@@ -3006,7 +3006,7 @@ runtime/valid/num-is-finite.hd	runtime	accept	std/num.md#r-std-num.is-finite
 runtime/valid/num-float-bits.hd	runtime	accept	std/num.md#r-std-num.float-bits.to
 runtime/valid/num-float-total-cmp.hd	runtime	accept	std/num.md#r-std-num.float-total-cmp.order
 runtime/valid/num-f32-classify.hd	runtime	accept	std/num.md#r-std-num.is-finite
-runtime/valid/println-pending-write.hd	runtime	accept	lang/10-modules.md#r-module.console.println-drive.pending
+runtime/valid/println-pending-write.hd	runtime	accept	lang/10-modules.md#r-module.console.println-drive.pending-write
 runtime/valid/block-on-pending-write.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.drive.block-on.signature
 typing/invalid/num-bit-count-u32.hd	type	reject:mixed-signedness	std/num.md#r-std-num.bits.count-ones-u32
 runtime/valid/seeded-random.hd	runtime	accept	std/random.md#seeded-random
@@ -3148,7 +3148,7 @@ typing/invalid/iterator-chain-iterator-arg.hd	type	reject:unsatisfied-trait-boun
 runtime/valid/iterator-flat-map.hd	runtime	accept	std/iter.md#r-std-iter.adapter.flat-map.owned-iterable
 runtime/valid/iterator-search-count.hd	runtime	accept	std/iter.md#r-std-iter.adapter.stop-early.owned
 typing/invalid/iterator-any-callback-row.hd	type	reject:type-mismatch	std/iter.md#r-std-iter.adapter.callback-row.more
-runtime/panic/println-console-closed.hd	runtime	panic:explicit-panic	lang/10-modules.md#r-module.console.println-error
+runtime/panic/println-console-closed.hd	runtime	panic:explicit-panic	lang/10-modules.md#r-module.console.println-write-error
 runtime/panic/list-index-underflow.hd	runtime	panic:integer-overflow	lang/05-expressions.md#r-expr.index.list.unsigned
 typing/invalid/list-index-negative-literal.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.index.negative-literal
 typing/invalid/list-index-signed.hd	type	reject:type-mismatch	lang/05-expressions.md#r-expr.index.list.unsigned
@@ -3541,7 +3541,7 @@ runtime/valid/lazy-result-candidate.hd	runtime	accept	lang/09-traits.md#r-trait.
 runtime/valid/ord-supertrait-dispatch.hd	runtime	accept	lang/09-traits.md#comparison-traits
 runtime/valid/generic-inherent-box.hd	runtime	accept	lang/09-traits.md#trait-implementations
 runtime/valid/i64-widening-checked.hd	runtime	accept	lang/04-type-system.md#numeric-conversions
-runtime/valid/buffered-println-program-console.hd	runtime	accept	lang/10-modules.md#r-module.console.println-write
+runtime/valid/buffered-println-program-console.hd	runtime	accept	lang/10-modules.md#r-module.console.println-one-write
 runtime/valid/debug-derive-data.hd	runtime	accept	lang/09-traits.md#r-trait.debug.derive
 runtime/valid/debug-derive-variants.hd	runtime	accept	std/format.md#r-std-format.debug.derive-builders.source
 runtime/valid/u8-checked-add.hd	runtime	accept	lang/04-type-system.md#numeric-conversions
@@ -3775,7 +3775,7 @@ typing/invalid/private-type-leak-assoc-binding-nested.hd	type	reject:private-typ
 typing/valid/private-type-in-public-body.hd	type	accept	lang/10-modules.md#r-module.vis.body
 typing/valid/public-assoc-binding.hd	type	accept	lang/10-modules.md#r-module.vis.signature.coverage
 typing/valid/private-target-assoc-binding.hd	type	accept	lang/10-modules.md#r-module.vis.signature.coverage
-runtime/valid/console-error-line-override.hd	runtime	accept	lang/10-modules.md#r-module.console.write-error-line
+runtime/valid/console-error-line-override.hd	runtime	accept	lang/10-modules.md#r-module.console.write-error.raw
 runtime/valid/entry-suspending-main.hd	runtime	accept	lang/10-modules.md#r-module.entry.suspending
 parse/valid/use-group-trailing-comma.hd	parse	accept	lang/10-modules.md#r-module.use.trailing-comma
 runtime/valid/termination-void-reports-zero.hd	runtime	accept	lang/10-modules.md#r-module.entry.termination.void
@@ -4299,7 +4299,7 @@ runtime/valid/block-on-completed.hd	runtime	accept	lang/11-requirements-and-susp
 runtime/valid/block-on-abandoned.hd	runtime	accept	std/task.md#r-std-task.block-on.abandoned
 runtime/valid/block-on-abandon-wakes-waiter.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.drive.block-on.deadlock
 runtime/valid/await-abandoned-job-carries.hd	runtime	accept	lang/11-requirements-and-suspension.md#r-req.abandon.carry
-runtime/valid/println-provider-cancels-write.hd	runtime	accept	lang/10-modules.md#r-module.console.println-cancelled
+runtime/valid/println-provider-cancels-write.hd	runtime	accept	lang/10-modules.md#r-module.console.println-write-cancelled
 runtime/valid/task-block-on.hd	runtime	accept	std/task.md#r-std-task.block-on.decl
 typing/valid/struct-declarations.hd	type	accept	lang/08-data-and-enums.md#r-data.struct.decl
 typing/invalid/struct-embedded-field.hd	type	reject:embedded-non-data	lang/08-data-and-enums.md#r-data.struct.embed.struct-only
@@ -4836,3 +4836,6 @@ typing/invalid/test-prelude-shadow-assert-equal.hd	type	reject:prelude-name-shad
 runtime/valid/task-with-timeout.hd	runtime	accept	std/task.md#r-std-task.with-timeout.decl
 runtime/valid/with-timeout-cleanup-zero.hd	runtime	accept	std/task.md#r-std-task.with-timeout.cleanup
 typing/invalid/with-timeout-missing-conversion.hd	type	reject:unsatisfied-trait-bound	std/task.md#r-std-task.with-timeout.bound
+runtime/valid/console-raw-writes.hd	runtime	accept	std/console.md#printing-without-a-newline
+runtime/valid/print-provider-cancels-write.hd	runtime	accept	std/console.md#r-std-console.print.cancelled
+runtime/panic/print-console-other-error.hd	runtime	panic:explicit-panic	std/console.md#r-std-console.print.error

@@ -150,7 +150,7 @@ fn a_handle_trait_edit_relinks() {
 }
 
 /// A host trait of the ABI table links only the methods the program
-/// calls: `println` alone imports no `write_error_line`.
+/// calls: `println` alone imports no `write_error`.
 #[test]
 fn an_uncalled_host_method_is_not_imported() {
     let out = build(
@@ -162,10 +162,7 @@ fn an_uncalled_host_method_is_not_imported() {
     };
     assert_eq!(
         profile_imports(wasm),
-        [
-            "hd:Console write_line.finish",
-            "hd:Console write_line.start"
-        ]
+        ["hd:Console write.finish", "hd:Console write.start"]
     );
     let out = build(
         "use std.console.eprintln\n\npub fn main() -> void $ Console:\n    eprintln(\"oops\")\n",
@@ -177,8 +174,8 @@ fn an_uncalled_host_method_is_not_imported() {
     assert_eq!(
         profile_imports(wasm),
         [
-            "hd:Console write_error_line.finish",
-            "hd:Console write_error_line.start"
+            "hd:Console write_error.finish",
+            "hd:Console write_error.start"
         ]
     );
 }

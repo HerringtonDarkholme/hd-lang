@@ -46,6 +46,8 @@ impl Wire for Command {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ConsoleError {
     Closed,
+    NotGranted { subject: String },
+    Other { message: String },
 }
 
 impl Wire for ConsoleError {
@@ -54,11 +56,26 @@ impl Wire for ConsoleError {
             Self::Closed => {
                 e.leb(0);
             }
+            Self::NotGranted { subject } => {
+                e.leb(1);
+                subject.enc(e);
+            }
+            Self::Other { message } => {
+                e.leb(2);
+                message.enc(e);
+            }
         }
     }
     fn dec(d: &mut Dec<'_>) -> wasmtime::Result<Self> {
-        d.tag(1)?;
-        Ok(Self::Closed)
+        Ok(match d.tag(3)? {
+            0 => Self::Closed,
+            1 => Self::NotGranted {
+                subject: Wire::dec(d)?,
+            },
+            _ => Self::Other {
+                message: Wire::dec(d)?,
+            },
+        })
     }
 }
 
@@ -808,8 +825,8 @@ pub type UdpSocket = Handle;
 /// A host method of the ABI model, by its trait key and name.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Id {
-    ConsoleWriteLine,
-    ConsoleWriteErrorLine,
+    ConsoleWrite,
+    ConsoleWriteError,
     ConsoleInputReadLine,
     ConsoleInputReadAll,
     ClockNow,
@@ -889,18 +906,18 @@ pub struct HostMethod {
 /// Each host method by import module and name.
 pub static METHODS: &[HostMethod] = &[
     HostMethod {
-        id: Id::ConsoleWriteLine,
+        id: Id::ConsoleWrite,
         module: "hd:Console",
-        name: "write_line",
+        name: "write",
         wait: Wait::May,
         resource: None,
         params: &[Codec::Buffer("string")],
         result: Codec::Buffer("Result[void, ConsoleError]"),
     },
     HostMethod {
-        id: Id::ConsoleWriteErrorLine,
+        id: Id::ConsoleWriteError,
         module: "hd:Console",
-        name: "write_error_line",
+        name: "write_error",
         wait: Wait::May,
         resource: None,
         params: &[Codec::Buffer("string")],

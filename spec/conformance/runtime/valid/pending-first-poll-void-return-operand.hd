@@ -7,7 +7,7 @@ struct State:
 
 fn child!() -> i32 $ Console:
     let mut console = $.use(Console)
-    _ := console.write_line!("child")
+    _ := console.write!("child\n")
     1
 
 fn tick(state: &mut State):

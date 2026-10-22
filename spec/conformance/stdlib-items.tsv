@@ -87,3 +87,4 @@ std.iter.ByRef	std/iter.md#borrowed-cursors
 std.iter.DynIterator	std/iter.md#iterator-adapters
 std.iter.Sum	std/iter.md#numeric-aggregation
 std.iter.Product	std/iter.md#numeric-aggregation
+std.console.print	std/console.md#printing-without-a-newline

@@ -27,14 +27,14 @@ fn nested!(ring: &mut Ring) -> string $ Console:
 fn resumed!(ring: &mut Ring) -> string $ Console:
     let text = "old ${ring.name}"
     console := $.use(Console)
-    _ := console.write_line!("pause $text")
+    _ := console.write!("pause $text\n")
     assert_equal(text, "old ${ring.name}", reason="the first resume kept the saved local")
     text = "new ${ring.name}"
     let n = +0
     while n < 20000:
         _ := cold_ring(n)
         n += 1
-    _ := console.write_line!("resume $text")
+    _ := console.write!("resume $text\n")
     text
 
 

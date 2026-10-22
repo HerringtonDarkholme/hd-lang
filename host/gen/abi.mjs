@@ -31,6 +31,8 @@ export const Command = data({
 });
 export const ConsoleError = variants({
   Closed: {},
+  NotGranted: { subject: str },
+  Other: { message: str },
 });
 export const Datagram = data({
   bytes: bytes,
@@ -157,13 +159,13 @@ export const UdpSocket = handle;
 // exchange buffer.
 export const METHODS = {
   "hd:Console": {
-    write_line: {
+    write: {
       wait: "may",
       resource: null,
       params: [str],
       result: result(unit, ConsoleError),
     },
-    write_error_line: {
+    write_error: {
       wait: "may",
       resource: null,
       params: [str],

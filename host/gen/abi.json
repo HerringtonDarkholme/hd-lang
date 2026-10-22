@@ -1,8 +1,8 @@
 {
   "traits": [
     { "key": "Console", "std": "std.console.Console", "methods": [
-      { "name": "write_line", "wait": "may", "resource": null, "params": ["string"], "result": "Result[void, ConsoleError]" },
-      { "name": "write_error_line", "wait": "may", "resource": null, "params": ["string"], "result": "Result[void, ConsoleError]" }
+      { "name": "write", "wait": "may", "resource": null, "params": ["string"], "result": "Result[void, ConsoleError]" },
+      { "name": "write_error", "wait": "may", "resource": null, "params": ["string"], "result": "Result[void, ConsoleError]" }
     ]},
     { "key": "ConsoleInput", "std": "std.console.ConsoleInput", "methods": [
       { "name": "read_line", "wait": "may", "resource": null, "params": [], "result": "Result[string?, ConsoleError]" },
@@ -102,7 +102,9 @@
   "types": {
     "Command": { "kind": "data", "module": "lib/std/process.hd", "generics": [], "fields": [{ "name": "program", "type": "string" }, { "name": "args", "type": "List[string]" }, { "name": "env", "type": "List[(string, string)]" }, { "name": "current_dir", "type": "Path?" }, { "name": "stdin", "type": "string" }] },
     "ConsoleError": { "kind": "enum", "module": "lib/std/console.hd", "generics": [], "variants": [
-      { "name": "Closed", "fields": [] }
+      { "name": "Closed", "fields": [] },
+      { "name": "NotGranted", "fields": [{ "name": "subject", "type": "string" }] },
+      { "name": "Other", "fields": [{ "name": "message", "type": "string" }] }
     ] },
     "Datagram": { "kind": "data", "module": "lib/std/net.hd", "generics": [], "fields": [{ "name": "bytes", "type": "List[u8]" }, { "name": "host", "type": "string" }, { "name": "port", "type": "u16" }] },
     "Duration": { "kind": "data", "module": "lib/std/time.hd", "generics": [], "fields": [{ "name": "millis", "type": "i64" }] },

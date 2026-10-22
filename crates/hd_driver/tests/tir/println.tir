@@ -9,13 +9,13 @@ std/console/println (Fn)
   %4 = Read [*%3] : mut Console
   %5 = Read [$0] : T
   %6 = Call std/format/Display.to_string for T [] via Bound (%5) : string
-  %7 = Interp [%6] : string
-  %8 = Call std/console/Console.write_line for Console [] via TraitValue (%4, %7) : mut Suspend[Result[(), ConsoleError]]
+  %7 = Interp [%6 "\n"] : string
+  %8 = Call std/console/Console.write for Console [] via TraitValue (%4, %7) : mut Suspend[Result[(), ConsoleError]]
   %9 = Store [$2] %8 : ()
   %10 = Read [$2] : mut Suspend[Result[(), ConsoleError]]
   %11 = Call std/task/block_on[Result[(), ConsoleError]] (%10) : BlockOn[Result[(), ConsoleError]]
   %12 = Block - : ()
-  %13 = Call std/core/panic[] ("println: write_line! returned .Err(ConsoleError)") : never
+  %13 = Call std/core/panic[] ("println: write! returned .Err(ConsoleError)") : never
   %14 = Block - : never
   %15 = Block - : ()
   %16 = Block - : ()

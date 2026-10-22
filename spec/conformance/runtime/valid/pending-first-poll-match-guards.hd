@@ -8,12 +8,12 @@ enum Number:
 
 fn number!(value: Number) -> Number $ Console:
     let mut console = $.use(Console)
-    _ := console.write_line!("number")
+    _ := console.write!("number\n")
     value
 
 fn probe!(value: i32) -> i32 $ Console:
     let mut console = $.use(Console)
-    _ := console.write_line!("probe ${value}")
+    _ := console.write!("probe ${value}\n")
     value
 
 fn classify!(input: Number) -> i32 $ Console:

@@ -80,7 +80,7 @@ export function providers(name, io) {
         },
       };
     }
-    // `pending-write` is the host's own `Console`, whose `write_line!` is
+    // `pending-write` is the host's own `Console`, whose `write!` is
     // pending on its first poll and writes the line on its second.
     case "pending-write":
       return {};

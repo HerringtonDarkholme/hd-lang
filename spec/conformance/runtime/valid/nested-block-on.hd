@@ -12,4 +12,4 @@ fn nested() -> i32:
 
 pub fn main!() -> Result[void, ConsoleError] $ Console:
     let mut console = $.use(Console)
-    console.write_line!("${nested()}")
+    console.write!("${nested()}\n")

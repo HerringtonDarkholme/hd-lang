@@ -234,3 +234,4 @@ trait-reference-messages	cli.json.commands,cli.json.lines.build,cli.json.diagnos
 process-output-ok	cli.test.process,cli.host.default-profile.granted
 test-hd-run-command	cli.test.builds-executables,cli.test.process,cli.test.process.tasks
 http-timeout-composition	cli.host.default-profile.granted
+console-raw-writes	cli.file.run,cli.exit.success

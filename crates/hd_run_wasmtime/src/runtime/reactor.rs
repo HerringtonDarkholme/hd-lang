@@ -1,7 +1,7 @@
 //! The host's pending operations (`crates/hd_run_wasmtime/DESIGN.md` §17.2): each
 //! `.start` that cannot finish at once
 //! gets a handle and completes later, when its time comes (`Clock.sleep`,
-//! `Console.write_line` and `write_error_line`) or when another thread delivers its result into
+//! `Console.write` and `write_error`) or when another thread delivers its result into
 //! the inbox: a chunk of standard input (`ConsoleInput.read_line` and
 //! `read_all`, read by a thread of its own), or the `Done` of an operation offloaded to the
 //! `hd-io` runtime (`io.rs`). So the program never blocks inside a
@@ -55,15 +55,15 @@ pub enum Done {
 /// The standard stream a `Console` line goes to.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Stream {
-    /// `write_line`'s standard output.
+    /// `write`'s standard output.
     Out,
-    /// `write_error_line`'s standard error (`module.console.write-error-line`).
+    /// `write_error`'s standard error (`module.console.write-error.raw`).
     Err,
 }
 
 /// What an operation does when it completes.
 pub enum Work {
-    /// `Console.write_line` or `write_error_line`: the line, written to
+    /// `Console.write` or `write_error`: the line, written to
     /// its stream then.
     Write(Stream, Vec<u8>),
     /// `Clock.sleep`.
@@ -246,9 +246,9 @@ impl Reactor {
         h
     }
 
-    /// A `write_line` or `write_error_line` of `line` to `to`, which
+    /// A `write` or `write_error` of `line` to `to`, which
     /// completes at once.
-    pub fn write_line(&mut self, to: Stream, line: Vec<u8>) -> i32 {
+    pub fn write(&mut self, to: Stream, line: Vec<u8>) -> i32 {
         self.start(Some(now_ns()), Work::Write(to, line))
     }
 
@@ -469,9 +469,7 @@ impl Reactor {
                 op.completed = true;
                 self.open -= 1;
                 if let Work::Write(to, line) = &mut op.work {
-                    let mut line = std::mem::take(line);
-                    line.push(b'\n');
-                    lines.push((*to, line));
+                    lines.push((*to, std::mem::take(line)));
                 }
             }
         }

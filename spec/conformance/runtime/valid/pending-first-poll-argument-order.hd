@@ -6,7 +6,7 @@ let order = +0
 
 fn mark!(id: i32) -> i32 $ Console:
     let mut console = $.use(Console)
-    _ := console.write_line!("mark ${id}")
+    _ := console.write!("mark ${id}\n")
     order = order * 10 + id
     id
 

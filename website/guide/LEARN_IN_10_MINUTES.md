@@ -45,7 +45,7 @@ pub fn main!() -> Result[void, ConsoleError] $ Console + ConsoleInput:
             .Some(text) => text
             .None => break
         words = words + line.split_whitespace().len()
-    $.use(Console).write_line!("words: $words")
+    $.use(Console).write!("words: $words\n")
 ```
 
 ## Bindings, Numbers, and Strings
@@ -259,7 +259,7 @@ use pkg.user.types.{User, UserId}
 
 pub fn main!() -> Result[void, ConsoleError] $ Console:
     let mut console = $.use(Console)
-    console.write_line!("starting")?
+    console.write!("starting\n")?
     .Ok(())
 
 tests:

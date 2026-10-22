@@ -1,0 +1,12 @@
+use std.console.{eprintln, print}
+
+pub fn main!() -> Result[void, ConsoleError] $ Console:
+    console := $.use(Console)
+    console.write!("raw")?
+    print("a")
+    print(12)
+    println("line")
+    console.write_error!("err")?
+    eprintln("or")
+    print("tail")
+    .Ok(())

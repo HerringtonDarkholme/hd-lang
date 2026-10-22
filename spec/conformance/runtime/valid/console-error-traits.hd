@@ -1,5 +1,5 @@
 # test: ConsoleError implements Eq, Debug, and Display
-# Spec std/console Console Errors: std-console.error.traits, std-console.error.debug-text (spec pass 89, audit item 4).
+# Spec std/console Console Errors: std-console.error.traits, std-console.error.debug-payloads (spec pass 89, audit item 4).
 fn closed(error: ConsoleError) -> bool:
     error == ConsoleError.Closed
 
@@ -11,3 +11,15 @@ tests:
         assert_equal(ConsoleError.Closed, ConsoleError.Closed, reason="assert_equal needs Eq and Debug")
         assert_equal(debug(ConsoleError.Closed), "ConsoleError.Closed", reason="the qualified case name")
         assert_equal("${ConsoleError.Closed}", "console closed", reason="the Display text")
+
+    it("compares and renders error payloads"):
+        denied := ConsoleError.NotGranted("stdout")
+        other := ConsoleError.Other("sink failed")
+        assert_equal(denied, ConsoleError.NotGranted("stdout"), reason="equal payload")
+        assert(denied != ConsoleError.NotGranted("stderr"), reason="different subjects")
+        assert(other != ConsoleError.Other("other failure"), reason="different messages")
+        assert(denied != other, reason="different variants")
+        assert_equal("$denied", "console access to stdout is not granted", reason="denial display")
+        assert_equal("$other", "sink failed", reason="other display")
+        assert_equal(debug(denied), "ConsoleError.NotGranted(subject=\"stdout\")", reason="named subject")
+        assert_equal(debug(other), "ConsoleError.Other(message=\"sink failed\")", reason="named message")

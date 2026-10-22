@@ -1607,7 +1607,7 @@ fn runtime_case(case: &Case, fixture: &Fixture, store: &MemoryStore, serial: usi
     if verdict == Verdict::Pass && pending_first_poll(&fixture.text) {
         // README "Runtime Scenarios", `pending-first-poll`: after the
         // ordinary run, the entry again under the `console` profile with
-        // every `write_line!` pending on its first poll, which is the
+        // every `write!` pending on its first poll, which is the
         // `pending-write` profile; both runs must succeed.
         return entry_verdict(case, fixture, modules, serial, Some("pending-write"));
     }
@@ -1881,7 +1881,7 @@ let calls = +0
 
 fn note!(text: string) -> void $ Console:
     let mut console = $.use(Console)
-    _ := console.write_line!(\"${text} ${calls}\")
+    _ := console.write!(\"${text} ${calls}\\n\")
     calls = calls + 1
 
 pub fn main!() -> void $ Console:

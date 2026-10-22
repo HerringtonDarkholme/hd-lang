@@ -17,7 +17,7 @@ fn message(seed: string) -> Message:
     .Word(seed + "!")
 
 fn reject!(text: string) -> bool $ Console:
-    _ := $.use(Console).write_line!(text)
+    _ := $.use(Console).write!("${text}\n")
     false
 
 fn once(calls: &mut usize, text: string) -> string:
@@ -25,7 +25,7 @@ fn once(calls: &mut usize, text: string) -> string:
     text + " guard ${*calls}"
 
 fn decide!(text: string, yes: bool) -> bool $ Console:
-    _ := $.use(Console).write_line!(text)
+    _ := $.use(Console).write!("${text}\n")
     yes
 
 fn choose!(calls: &mut usize, yes: bool) -> string $ Console:

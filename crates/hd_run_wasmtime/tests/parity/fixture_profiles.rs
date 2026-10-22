@@ -269,7 +269,7 @@ fn pending_write_uses_the_standard_pending_console_provider() {
     let mut program = Program::new();
     let start = program.import(
         "hd:Console",
-        "write_line.start",
+        "write.start",
         &[ValType::I32],
         &[ValType::I32, ValType::I32],
     );

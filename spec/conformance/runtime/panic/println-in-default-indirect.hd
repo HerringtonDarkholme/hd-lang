@@ -4,11 +4,11 @@
 struct QuietConsole: pass
 
 impl Console for QuietConsole:
-    fn write_line!(&mut self, text: string) -> Result[void, ConsoleError]:
+    fn write!(&mut self, text: string) -> Result[void, ConsoleError]:
         .Ok(())
 
-    fn write_error_line!(&mut self, text: string) -> Result[void, ConsoleError]:
-        self.write_line!(text)
+    fn write_error!(&mut self, text: string) -> Result[void, ConsoleError]:
+        self.write!(text)
 
 fn announce() -> i32:
     let mut console: QuietConsole = QuietConsole {}

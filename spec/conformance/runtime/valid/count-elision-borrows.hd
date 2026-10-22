@@ -63,7 +63,7 @@ fn deferred_fields(n: i32, log: &mut List[string]) -> void:
 fn saved_fields!(p: Pair) -> void $ Console:
     before := p.left
     console := $.use(Console)
-    _ := console.write_line!("pause")
+    _ := console.write!("pause\n")
     assert_equal(before, "left 9", reason="a saved borrowed field remains owned by the frame's source")
     assert_equal(p.right, "right 9", reason="the source survives the suspension")
 

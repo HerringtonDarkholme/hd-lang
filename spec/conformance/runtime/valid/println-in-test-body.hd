@@ -4,12 +4,12 @@ struct MemoryConsole:
     lines: List[string]
 
 impl Console for MemoryConsole:
-    fn write_line!(&mut self, text: string) -> Result[void, ConsoleError]:
+    fn write!(&mut self, text: string) -> Result[void, ConsoleError]:
         self.lines.push(text)
         .Ok(())
 
-    fn write_error_line!(&mut self, text: string) -> Result[void, ConsoleError]:
-        self.write_line!(text)
+    fn write_error!(&mut self, text: string) -> Result[void, ConsoleError]:
+        self.write!(text)
 
 fn greet(name: string) -> void $ Console:
     println("hello, ${name}")
@@ -22,4 +22,4 @@ tests:
         $.with(Console=&mut console):
             greet("Ada")
         assert_equal(console.lines.len(), 1, reason="one line written")
-        assert_equal(console.lines[0], "hello, Ada", reason="the provider received it")
+        assert_equal(console.lines[0], "hello, Ada\n", reason="the provider received it")

@@ -11,7 +11,7 @@
 pub fn main!() -> void $ Console:
     seed := +7
     sum := fn!(n: i32) -> i32 $ Console:
-        _ := $.use(Console).write_line!("step $n")
+        _ := $.use(Console).write!("step $n\n")
         if n == 0: seed
         else: n + sum!(n - 1)
     println(sum!(+3))

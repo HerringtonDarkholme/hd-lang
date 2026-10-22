@@ -1,8 +1,9 @@
 # expect-stdout: recorded 3
 # expect-stdout: [1] a
-# test: prelude / Console / println drives a provider's write_line! through its own bang calls
+# expect-stdout:
+# test: prelude / Console / println drives a provider's write! through its own bang calls
 # Spec 10 Console: module.console.println-non-suspending.
-# Spec 10 Console: println drives write_line! with block_on and stays
+# Spec 10 Console: println drives write! with block_on and stays
 # non-suspending, so a non-suspending caller keeps its signature, as the
 # non-suspending main shows.
 
@@ -14,13 +15,13 @@ impl NumberedConsole:
         self.lines.len() + 1
 
 impl Console for NumberedConsole:
-    fn write_line!(&mut self, text: string) -> Result[void, ConsoleError]:
+    fn write!(&mut self, text: string) -> Result[void, ConsoleError]:
         number := self.next_number!()
         self.lines.push("[${number}] ${text}")
         .Ok(())
 
-    fn write_error_line!(&mut self, text: string) -> Result[void, ConsoleError]:
-        self.write_line!(text)
+    fn write_error!(&mut self, text: string) -> Result[void, ConsoleError]:
+        self.write!(text)
 
 fn report(values: List[string]) -> void $ Console:
     for value in values:

@@ -5,13 +5,13 @@
 # req.host-wait.source, req.poll-context.construction,
 # req.poll-context.waker, req.waker.arrange.
 # Spec 11 Suspension: req.drive.block-on.signature (batch 68, PENDING-WRITE-PROFILE; task #219).
-# The stored write_line! call is pending on its first poll and completes on the next.
+# The stored write! call is pending on its first poll and completes on the next.
 use std.task.block_on
 use std.testing.assert
 
 fn write!(text: string) -> Result[void, ConsoleError] $ Console:
     let mut console = $.use(Console)
-    console.write_line!(text)
+    console.write!("${text}\n")
 
 fn written(text: string) -> bool $ Console:
     let pending: mut Suspend[Result[void, ConsoleError]] = write(text)

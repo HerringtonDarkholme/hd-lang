@@ -298,7 +298,7 @@ the codecs generated from the ABI model (`host/gen/abi.mjs`), built on
   their total length. Scalar arguments stay Wasm parameters, before it.
   A method whose only argument is a `string` passes the string's bytes
   alone, with no length prefix: the parameter is the length
-  (`Console.write_line`, `Env.get`, `TestRunner.snapshot_check`).
+  (`Console.write`, `Env.get`, `TestRunner.snapshot_check`).
 - **Results.** A waiting method's result is always in the buffer. A
   method that never waits returns a scalar as its Wasm result, a struct
   value of one `i64` field (`Timestamp`, `Instant`) as that `i64`, and a
@@ -385,7 +385,7 @@ the variant index and the path.
   offloaded operation (`runtime/io.rs`). A `.start` that cannot finish at
   once spawns a task there and returns its handle; the task delivers its
   result into its instance's reactor inbox (`runtime/reactor.rs`). Timers,
-  `Console.write_line`, `Console.write_error_line` and standard-input
+  `Console.write`, `Console.write_error` and standard-input
   lines complete through the same inbox. One runtime per process, not one
   per worker thread, is better: a program that never offloads starts no
   thread, and workers share one I/O driver.
@@ -433,7 +433,7 @@ the variant index and the path.
 Implementation differs: `host/web.mjs` runs the program in a dedicated
 worker and answers every host call synchronously: `Http.send` is a
 synchronous `XMLHttpRequest` that finishes inside `.start`, and only
-`Clock.sleep` and `Console.write_line` complete later. Not judged: it
+`Clock.sleep` and `Console.write` complete later. Not judged: it
 is far simpler and needs no JSPI, but an HTTP request cannot be
 cancelled and holds the worker until it ends.
 

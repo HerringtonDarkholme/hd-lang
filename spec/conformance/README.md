@@ -332,8 +332,8 @@ behind a trait value reference
 - `console` is the profile a fixture gets when it names no profile. The
   runner selects no runtime profile for it. It implements the prelude
   `Console` ([Prelude](../lang/10-modules.md#prelude)): each
-  `write_line!(text)` completes on its first poll, writes the UTF-8 encoding
-  of `text` followed by one U+000A to standard output, and returns `.Ok(())`.
+  `write!(text)` completes on its first poll, writes the UTF-8 encoding
+  of `text` unchanged to standard output, and returns `.Ok(())`.
 - `serde-vault` implements the fixture's
   `trait Vault: fn keep(self, token: Token) -> Token`, where `Token` is the
   fixture's own data type. `keep` returns its argument's boundary value
@@ -362,8 +362,8 @@ behind a trait value reference
 - `pending-gate` implements the fixture's
   `trait Gate: fn wait!(self) -> void`. Every poll of `wait!` stays pending.
 - `pending-write` implements the prelude `Console`, as `console` does,
-  except that each `write_line!(text)` call is pending on its first poll.
-  Its second poll writes the line as `console` does, and completes with
+  except that each `write!(text)` call is pending on its first poll.
+  Its second poll writes the text as `console` does, and completes with
   `.Ok(())`.
 - `misbehaving-host` implements the fixture's
   `trait Gauge: fn level(self) -> u8` with a host that breaks its contract.
@@ -434,9 +434,9 @@ its own `PollContext`.
 
 - `pending-first-poll`:
   1. Run steps 1 and 2 of [Runtime Execution](#runtime-execution), the entry
-     and then the test cases, in one run under the `console` profile, except that every `write_line!` call is pending on
+     and then the test cases, in one run under the `console` profile, except that every `write!` call is pending on
      its first poll, as under `pending-write`. The call's second poll writes
-     the line and completes with `.Ok(())`.
+     the text and completes with `.Ok(())`.
   2. The case passes when that run exits 0, as the ordinary `test FILE` run
      of the same fixture does. The runner runs the ordinary `test FILE`
      first, so the case passes only when both runs succeed.

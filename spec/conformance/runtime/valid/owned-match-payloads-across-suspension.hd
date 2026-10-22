@@ -13,7 +13,7 @@ fn message(seed: string) -> Message:
     .Word(seed + "!")
 
 fn keep!(text: string) -> string $ Console:
-    _ := $.use(Console).write_line!(text)
+    _ := $.use(Console).write!("${text}\n")
     text
 
 pub fn main!() -> void $ Console:

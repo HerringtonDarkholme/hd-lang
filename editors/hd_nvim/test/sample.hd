@@ -22,4 +22,4 @@ pub fn main!() -> void $ Console:
     greeting := "Hello, $name: ${adjust(Counter { value: 2 }, true)}\n"
     story := """first
 second"""
-    $.use(Console).write_line!(greeting)  # say hello
+    $.use(Console).write!("$greeting\n")  # say hello

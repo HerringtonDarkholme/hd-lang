@@ -14,4 +14,4 @@ fn compute!() -> i32:
 
 pub fn main!() -> Result[void, ConsoleError] $ Console:
     x := compute!()
-    $.use(Console).write_line!("${x}")
+    $.use(Console).write!("${x}\n")

@@ -238,7 +238,7 @@ leftovers of the stdlib audit (task #239).
 
 | Pass | Call | Why | Status |
 | --- | --- | --- | --- |
-| orchestrator | Under the default profile, `write_line!` and `write_error_line!` return `.Err(ConsoleError.Closed)` when the host cannot write (a closed pipe); `read_line!` returns it when stdin is not attached or a read fails. End of input is `.Ok(.None)`, repeated on later reads (`cli.host.default-profile.console-closed`, `.input-closed`). | `println` already panics on `.Err`, as Rust's `println!` does on a closed pipe; Rust's `read_line` returns `Ok(0)` at end of input on every call. | own |
+| orchestrator | Under the default profile, `write!` and `write_error!` return `.Err(ConsoleError.Closed)` when the host cannot write (a closed pipe); `read_line!` returns it when stdin is not attached or a read fails. End of input is `.Ok(.None)`, repeated on later reads (`cli.host.default-profile.console-write-closed`, `.input-closed`). | `println` already panics on `.Err`, as Rust's `println!` does on a closed pipe; Rust's `read_line` returns `Ok(0)` at end of input on every call. | own |
 
 ## Std Batch (#281)
 

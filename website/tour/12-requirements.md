@@ -25,7 +25,7 @@ tests:
         console := MemoryConsole::new()
         $.with(Console=console):  # ← a recording console, for this block only
             remind_unpaid(sample())
-        assert_equal(console.output(), ["Reminder: invoice INV-7 is due"], reason="one reminder")
+        assert_equal(console.output(), ["Reminder: invoice INV-7 is due\n"], reason="one reminder")
 
 # Press Test to run the test. Then delete ` $ Console` from the
 # first line and Run. A public function can't hide what it touches:

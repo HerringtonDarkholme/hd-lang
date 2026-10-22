@@ -1,0 +1,3 @@
+run: hd main.hd
+transcript: stdout.txt
+stderr: error

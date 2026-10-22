@@ -27,16 +27,17 @@ const int = (v: bigint | number): Value => ({ tag: 1, v: BigInt(v) });
 
 // journal_tests.rs `SHARED_JOURNAL`.
 const SHARED_JOURNAL = [
-  "000011010700000000000000000000000000000042427bb4010121016ff49b92",
-  "aa48a5e2dd754a768d92cd38655451d8e889b2b73d5204d3aa0ec02d870f2d11",
-  "020216000868643a436c6f636b036e6f77000180d095ffbc31ea9a847a020329",
-  "010a68643a436f6e736f6c651077726974655f6c696e652e73746172741ff980",
-  "8ebc2a9dd86d0301095567bdba02040d000001ffffffffffffffffff01ffa078",
-  "210505020109d4d55f5a040606020209808040a50630f8030705090501010082",
-  "bed05c0608010420244a1407090102478c5744080a0103de127569010b2102db",
-  "1edfbd0872f61b8e9b61920d252825655451d8e889b2b73d5204d3aa0ec02dd6",
-  "a29313020c2a020768643a7072696d0a666f726d61745f663634080000000000",
-  "00044006000000000000e03f03302e35e9c75caf080d0200006fb0bc07",
+  "000011010700000000000000000000000000000042427bb4010121016ff4",
+  "9b92aa48a5e2dd754a768d92cd38655451d8e889b2b73d5204d3aa0ec02d",
+  "870f2d11020216000868643a436c6f636b036e6f77000180d095ffbc31ea",
+  "9a847a020324010a68643a436f6e736f6c650b77726974652e7374617274",
+  "1ff9808ebc2a9dd86d0301096ed099da02040d000001ffffffffffffffff",
+  "ff01ffa078210505020109d4d55f5a040606020209808040a50630f80307",
+  "05090501010082bed05c0608010420244a1407090102478c5744080a0103",
+  "de127569010b2102db1edfbd0872f61b8e9b61920d252825655451d8e889",
+  "b2b73d5204d3aa0ec02dd6a29313020c2a020768643a7072696d0a666f72",
+  "6d61745f66363408000000000000044006000000000000e03f03302e35e9",
+  "c75caf080d0200006fb0bc07",
 ].join("");
 
 // journal_tests.rs `SHARED_XXH3`: a prefix of each length class.
@@ -81,7 +82,7 @@ function everyRowKind(): Recorder {
   r.input(1, "now()\n", text("\0asm"));
   r.call("hd:Clock", "now", new Uint8Array(), int(1_700_000_000_000n), null);
   const line = callArgs([5], ["i32"], text("a line longer than eight bytes"));
-  r.call("hd:Console", "write_line.start", line, { tag: 3, v: 1, w: 9 }, null);
+  r.call("hd:Console", "write.start", line, { tag: 3, v: 1, w: 9 }, null);
   r.call("hd:Clock", "now", new Uint8Array(), int(-1), null);
   r.block([9]);
   r.poll();
@@ -119,7 +120,7 @@ test("the recorder writes the bytes hd_run's recorder writes", () => {
   assert.deepEqual(events[3], {
     kind: "call",
     module: "hd:Console",
-    name: "write_line.start",
+    name: "write.start",
     request: { len: 31, digest: requestDigest(Uint8Array.of(5, ...long)) },
     value: { tag: 3, v: 1, w: 9 },
     result: null,
@@ -157,13 +158,7 @@ function replayed() {
   const r = new Recorder(1 << 20, seven());
   r.input(1, "a := now()\n", text("\0asm1"));
   r.call("hd:Clock", "now", new Uint8Array(), int(1_700), null);
-  r.call(
-    "hd:Console",
-    "write_line.start",
-    Uint8Array.of(2, 0x68, 0x69),
-    { tag: 3, v: 1, w: 4 },
-    null,
-  );
+  r.call("hd:Console", "write.start", Uint8Array.of(2, 0x68, 0x69), { tag: 3, v: 1, w: 4 }, null);
   r.poll();
   r.wake([4]);
   r.finish(4, int(1), Uint8Array.of(0));
@@ -184,7 +179,7 @@ test("a replay serves the recorded replies in order", () => {
   );
   const replay = new Replay(record.inputs[0]!);
   assert.deepEqual(replay.call("hd:Clock", "now", new Uint8Array()).value, int(1_700));
-  const line = replay.call("hd:Console", "write_line.start", Uint8Array.of(2, 0x68, 0x69));
+  const line = replay.call("hd:Console", "write.start", Uint8Array.of(2, 0x68, 0x69));
   assert.deepEqual(line.value, { tag: 3, v: 1, w: 4 });
   replay.poll();
   assert.ok(replay.wakeNext());
@@ -211,11 +206,11 @@ test("a request that does not match diverges with replay.rs's message", () => {
   );
   diverges((r) => {
     r.call("hd:Clock", "now", new Uint8Array());
-    r.call("hd:Console", "write_line.start", Uint8Array.of(2, 0x68, 0x6f));
-  }, "input 1 called hd:Console write_line.start with other arguments than before");
+    r.call("hd:Console", "write.start", Uint8Array.of(2, 0x68, 0x6f));
+  }, "input 1 called hd:Console write.start with other arguments than before");
   diverges((r) => {
     r.call("hd:Clock", "now", new Uint8Array());
-    r.call("hd:Console", "write_line.start", Uint8Array.of(2, 0x68, 0x69));
+    r.call("hd:Console", "write.start", Uint8Array.of(2, 0x68, 0x69));
     r.wake();
   }, "input 1 waited on the host after 0 polls, but the record has a wake after 1 polls");
   diverges(
@@ -224,7 +219,7 @@ test("a request that does not match diverges with replay.rs's message", () => {
   );
   diverges((r) => {
     r.call("hd:Clock", "now", new Uint8Array());
-    r.call("hd:Console", "write_line.start", Uint8Array.of(2, 0x68, 0x69));
+    r.call("hd:Console", "write.start", Uint8Array.of(2, 0x68, 0x69));
     r.poll();
     r.wake();
     r.finish(4);

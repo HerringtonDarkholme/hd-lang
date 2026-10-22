@@ -6,7 +6,7 @@ let calls = +0
 
 fn value!(input: i32) -> i32 $ Console:
     let mut console = $.use(Console)
-    _ := console.write_line!("value ${input}")
+    _ := console.write!("value ${input}\n")
     calls = calls + 1
     input
 

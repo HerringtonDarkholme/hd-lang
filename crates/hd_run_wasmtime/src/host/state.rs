@@ -353,7 +353,7 @@ impl Host {
 
     /// Waits for the next completion; `false` when nothing is pending.
     ///
-    /// Held output reaches its stream first (`std-console.host.visible`),
+    /// Held output reaches its stream first (`std-console.host.visible-text`),
     /// so every park of the host, here, shows what the program printed.
     pub fn wait(&mut self) -> wasmtime::Result<bool> {
         self.wait_bounded(None)

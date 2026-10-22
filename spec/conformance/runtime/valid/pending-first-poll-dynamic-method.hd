@@ -11,7 +11,7 @@ struct FixedReader:
 impl Reader for FixedReader:
     fn read!(self, value: i32) -> i32 $ Console:
         let mut console = $.use(Console)
-        _ := console.write_line!("read ${value}")
+        _ := console.write!("read ${value}\n")
         self.offset + value
 
 fn combine!(reader: &dyn Reader) -> i32 $ Console:

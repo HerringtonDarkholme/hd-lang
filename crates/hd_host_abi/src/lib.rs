@@ -87,14 +87,14 @@ pub static TABLE: &[HostTrait] = &[
         std_path: "std.console.Console",
         methods: &[
             m(
-                "write_line",
+                "write",
                 &[B("string")],
                 B("Result[void, ConsoleError]"),
                 Wait::May,
                 None,
             ),
             m(
-                "write_error_line",
+                "write_error",
                 &[B("string")],
                 B("Result[void, ConsoleError]"),
                 Wait::May,

@@ -1,17 +1,17 @@
-# test: println panics with explicit-panic when the covering provider's write_line! returns .Err(ConsoleError.Closed)
-# Spec 10 Console: module.console.println-error.category, module.console.error.closed, module.console.println-std, module.console.println-panics.
-# Spec 10 Console: module.console.println-error, .println-error.category, and .error.closed.
+# test: println panics with explicit-panic when the covering provider's write! returns .Err(ConsoleError.Closed)
+# Spec 10 Console: module.console.println-error.category, module.console.error.variants, module.console.println-std, module.console.println-panics.
+# Spec 10 Console: module.console.println-write-error, .println-error.category, and .error.closed.
 
 struct ClosedConsole:
     attempts: List[string]
 
 impl Console for ClosedConsole:
-    fn write_line!(&mut self, text: string) -> Result[void, ConsoleError]:
+    fn write!(&mut self, text: string) -> Result[void, ConsoleError]:
         self.attempts.push(text)
         .Err(ConsoleError.Closed)
 
-    fn write_error_line!(&mut self, text: string) -> Result[void, ConsoleError]:
-        self.write_line!(text)
+    fn write_error!(&mut self, text: string) -> Result[void, ConsoleError]:
+        self.write!(text)
 
 fn greet(name: string) -> void $ Console:
     println("hello, ${name}")  # panic: explicit-panic

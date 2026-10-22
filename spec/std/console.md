@@ -5,6 +5,7 @@ Status: standard library specification draft.
 This chapter defines the part of `std.console` that `lib/std` writes in
 ordinary hd over the language tier:
 
+- `print`, which writes text without adding a newline;
 - `eprintln`, which writes a line to standard error;
 - when the host's console output becomes visible;
 - the host capability trait `ConsoleInput`, and the helpers `read_line!` and `read_all!`;
@@ -19,6 +20,25 @@ The language tier keeps what the prelude and the conformance harness name
 | `Console`, `ConsoleError` | prelude names, and `Console` is in every default profile ([`module.profile.default`](../lang/10-modules.md#r-module.profile.default)) |
 | `println` | a prelude function that the conformance harness uses |
 
+## Printing Without A Newline
+
+`print` writes Display text without adding a newline:
+
+```text
+use std.console.print
+
+pub fn main() -> void $ Console:
+    print("ready: ")
+    println(1)
+```
+
+1. r[std-console.print.decl] `std.console` declares `pub fn print[T < Display](value: T) -> void $ Console`.
+2. r[std-console.print.one-write] `print(value)` calls the covering provider's `write!` once with `value.to_string()`, adding nothing.
+3. r[std-console.print.drive] `print` drives its write with `block_on`, following its forbidden contexts and active-driver behavior.
+4. r[std-console.print.error] If the write returns `.Err`, `print` panics. Panic: `explicit-panic`.
+5. r[std-console.print.cancelled] If `block_on` returns `.Cancelled` or `.Abandoned`, `print` returns without a panic.
+6. r[std-console.print.row] Each call requires a `Console` requirement row or a lexical provider scope. Error: `missing-requirement`.
+
 ## Standard Error
 
 `eprintln` writes a line to standard error, as `println` writes one to
@@ -32,8 +52,8 @@ fn warn(message: string) -> void $ Console:
 ```
 
 1. r[std-console.eprintln.decl] `std.console` declares `pub fn eprintln[T < Display](value: T) -> void $ Console`. Code imports it, as in `use std.console.eprintln`.
-2. r[std-console.eprintln.write] A call `eprintln(value)` calls `write_error_line!(value.to_string())` on the `Console` provider that covers the call.
-3. r[std-console.eprintln.like-println] `eprintln` drives that call as `println` drives `write_line!`, with the same rules: [`block_on`](../lang/11-requirements-and-suspension.md#r-req.drive.block-on.signature) driving, its forbidden contexts, and an `explicit-panic` on `.Err`.
+2. r[std-console.eprintln.one-write] `eprintln(value)` calls the covering provider's `write_error!` once with `value.to_string()` followed by `"\n"`.
+3. r[std-console.eprintln.drive-write] `eprintln` drives that call as `println` drives `write!`, with the same rules: [`block_on`](../lang/11-requirements-and-suspension.md#r-req.drive.block-on.signature) driving, its forbidden contexts, and an `explicit-panic` on `.Err`.
 4. r[std-console.eprintln.row] Each `eprintln` call must be covered by a `Console` requirement row or a lexical provider scope. Error: `missing-requirement`.
 
 ```text
@@ -62,8 +82,8 @@ fn main!() -> void $ Console + Clock:
     eprintln("done")     # after "working", on standard error
 ```
 
-1. r[std-console.host.visible] Each completed `write_line!` or `write_error_line!` of the host's `Console` provider reaches its host stream before the program next waits on the host or ends.
-2. r[std-console.host.order] The host's `Console` provider keeps standard output and standard error in their relative order: their lines reach the host in call order.
+1. r[std-console.host.visible-text] Each completed `write!` or `write_error!` of the host's `Console` provider reaches its host stream before the program next waits on the host or ends.
+2. r[std-console.host.chunk-order] The host's `Console` provider keeps standard output and standard error in their relative order: their chunks reach the host in call order.
 
 > **Note.** So a `println` or `eprintln` line is visible before the next
 > host wait, such as a `sleep!` or a `send!`.
@@ -117,7 +137,7 @@ fn whole_input!() -> string $ ConsoleInput:
 
 ## Console Errors
 
-`ConsoleError` is a prelude enum with the one case `Closed`:
+`ConsoleError` is a prelude enum with closed, denied, and other failures:
 
 ```text
 fn closed(error: ConsoleError) -> bool:
@@ -125,8 +145,10 @@ fn closed(error: ConsoleError) -> bool:
 ```
 
 1. r[std-console.error.traits] `ConsoleError` implements `Eq`, `Debug`, and `Display`. Its `Display` text for `Closed` is `console closed`.
-2. r[std-console.error.debug-text] Its `Debug` writes the qualified case name, `ConsoleError.Closed`.
-3. r[std-console.error.error] `ConsoleError` implements `std.error.Error`, as [Standard Error Types](error.md#standard-error-types) requires.
+2. r[std-console.error.debug-payloads] Its `Debug` writes the qualified variant name and named payloads, including `ConsoleError.NotGranted(subject="stdout")`.
+3. r[std-console.error.payload-display] `NotGranted(subject)` displays `console access to SUBJECT is not granted`; `Other(message)` displays its message.
+4. r[std-console.error.payload-equality] Equality compares the variant and its payload.
+5. r[std-console.error.error] `ConsoleError` implements `std.error.Error`, as [Standard Error Types](error.md#standard-error-types) requires.
 
 ## Buffer Console
 
@@ -144,13 +166,13 @@ tests:
         console := MemoryConsole::new()
         $.with(Console=console):
             greet("Ada")
-        assert_equal(console.output(), ["hello, Ada"], reason="one line")
+        assert_equal(console.output(), ["hello, Ada\n"], reason="one line")
 ```
 
 1. r[std-console.buffer.decl] `std.console` declares `MemoryConsole`, which implements `Console` and `Debug`, with private fields. Code imports it, as in `use std.console.MemoryConsole`.
 2. r[std-console.buffer.install-ref] `MemoryConsole::new() -> &mut MemoryConsole` returns a new object holding a console that has recorded nothing. `MemoryConsole` is a struct used behind that reference, and it implements `Console`'s `&mut self` methods. So installing it as `Console=console` shares the object, by [`req.ref.install-ref`](../lang/11-requirements-and-suspension.md#r-req.ref.install-ref), and the code that installed it reads what was written.
-3. r[std-console.buffer.output] `c.output() -> List[string]` returns the text of each `write_line!` call, in call order.
-4. r[std-console.buffer.error-output] `c.error_output() -> List[string]` returns the text of each `write_error_line!` call, in call order. `MemoryConsole` overrides `write_error_line!`, so error lines are not in `output()`.
+3. r[std-console.buffer.output-text] `c.output() -> List[string]` returns each `write!` text unchanged, in call order, including any newline supplied by the caller.
+4. r[std-console.buffer.error-text] `c.error_output() -> List[string]` returns each `write_error!` text unchanged, in call order, including any newline supplied by the caller. `MemoryConsole` overrides `write_error!`, so error lines are not in `output()`.
 5. r[std-console.buffer.never-fails] Every write returns `.Ok(())`.
 
 > **Why.** A test checks what a program printed and what it reported

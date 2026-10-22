@@ -589,7 +589,7 @@ function fsProviders({ grant, flush }) {
   // The methods `ops` of `module`, each `run` once the grant covers every
   // path it names, its `Path` arguments (its resource, gen/abi.mjs). A
   // method can block, as a read of a FIFO with no writer does, so the
-  // output is flushed first (std-console.host.visible). A method that
+  // output is flushed first (std-console.host.visible-text). A method that
   // creates its directories keeps the OS's own rule for a `..` after a
   // missing name, as the Rust host's `create` does.
   const fsOps = (module, ops) =>
@@ -850,7 +850,7 @@ const nodeLayer = {
     // this instance's own, which holds its sockets; `close` stops it.
     const net = syncClient("net.mjs");
     // The program's output reaches its stream before it waits on the host
-    // (std-console.host.visible): a run stopped in a wait loses none. Each
+    // (std-console.host.visible-text): a run stopped in a wait loses none. Each
     // client call and child process asks `waiting()` first.
     const waiting = () => {
       flush();

@@ -17,17 +17,20 @@ const CHILD_PROGRAM: &str = "HD_M20_CONSOLE_CHILD_PROGRAM";
 const TEST_NAME: &str = "console_input_flushes_each_prompt_before_waiting_for_input";
 const DEADLINE: Duration = Duration::from_secs(10);
 
-fn write_line(p: &mut Program, line: &[u8]) {
+fn write(p: &mut Program, line: &[u8]) {
+    let mut text = line.to_vec();
+    text.push(b'\n');
+    let line = text.as_slice();
     let start = p.import(
         "hd:Console",
-        "write_line.start",
+        "write.start",
         &[ValType::I32],
         &[ValType::I32, ValType::I32],
     );
     let block = p.import("hd:rt", "block", &[], &[ValType::I32]);
     let finish = p.import(
         "hd:Console",
-        "write_line.finish",
+        "write.finish",
         &[ValType::I32],
         &[ValType::I32],
     );
@@ -95,11 +98,11 @@ fn read_line(p: &mut Program) {
 
 fn program() -> Vec<u8> {
     let mut p = Program::new();
-    write_line(&mut p, b"first-prompt");
+    write(&mut p, b"first-prompt");
     read_line(&mut p);
-    write_line(&mut p, b"second-prompt");
+    write(&mut p, b"second-prompt");
     read_line(&mut p);
-    write_line(&mut p, b"done");
+    write(&mut p, b"done");
     p.finish(7).0
 }
 

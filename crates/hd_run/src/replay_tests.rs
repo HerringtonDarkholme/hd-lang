@@ -13,7 +13,7 @@ fn journal() -> Vec<u8> {
     r.call(
         1,
         "hd:Console",
-        "write_line.start",
+        "write.start",
         &line,
         Value::Pair(1, 4),
         None,
@@ -58,7 +58,7 @@ fn a_replay_serves_the_recorded_replies() {
     put_int_arg(&mut line, 2);
     line.extend_from_slice(b"hi");
     assert_eq!(
-        replay.call("hd:Console", "write_line.start", &line),
+        replay.call("hd:Console", "write.start", &line),
         Ok((Value::Pair(1, 4), None))
     );
     replay.poll();
@@ -92,15 +92,15 @@ fn a_request_that_does_not_match_diverges() {
     put_int_arg(&mut other, 2);
     other.extend_from_slice(b"ho");
     assert_eq!(
-        replay.call("hd:Console", "write_line.start", &other),
-        Err("input 1 called hd:Console write_line.start with other arguments than before".into())
+        replay.call("hd:Console", "write.start", &other),
+        Err("input 1 called hd:Console write.start with other arguments than before".into())
     );
 
     let mut replay = Replay::new(input);
     assert!(replay.call("hd:Clock", "now", &[]).is_ok());
     assert_eq!(
         replay.end(End::Exit(0), input.end),
-        Err("input 1 ended early, but the record has a call of hd:Console write_line.start".into())
+        Err("input 1 ended early, but the record has a call of hd:Console write.start".into())
     );
 
     let mut replay = Replay::new(&rec.inputs[1]);
