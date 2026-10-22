@@ -116,9 +116,7 @@ impl Client {
         // Every argument decodes before any check, as on Node.
         let mut bound = None;
         let (host, payload) = match method {
-            "connect" | "connect_timeout" | "listen" | "bind_udp" => {
-                (String::dec(&mut d)?, Vec::new())
-            }
+            "connect" | "listen" | "bind_udp" => (String::dec(&mut d)?, Vec::new()),
             "TcpStream.write" => (String::new(), Vec::<u8>::dec(&mut d)?),
             "UdpSocket.send_to" => (String::dec(&mut d)?, Vec::<u8>::dec(&mut d)?),
             "TcpStream.set_timeout"
@@ -173,27 +171,13 @@ impl Client {
                 }
                 Job::Lookup(host)
             }
-            ("connect" | "connect_timeout" | "listen" | "bind_udp", _) => {
+            ("connect" | "listen" | "bind_udp", _) => {
                 let port = port(scalar(0)?)?;
-                let timeout = if method == "connect_timeout" {
-                    Some(millis(scalar(1)?))
-                } else {
-                    None
-                };
                 if let Some(error) = at(grants, &host, port) {
                     return refused(error);
                 }
-                // A zero bound ends the connect before it starts
-                // (`std-net.timeout.zero`).
-                if timeout.is_some_and(|t| t.is_zero()) {
-                    return refused(NetError::Timeout);
-                }
-                if method.starts_with("connect") {
-                    Job::Connect {
-                        host,
-                        port,
-                        timeout,
-                    }
+                if method == "connect" {
+                    Job::Connect { host, port }
                 } else {
                     Job::Bind {
                         udp: method == "bind_udp",

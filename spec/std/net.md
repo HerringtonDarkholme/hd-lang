@@ -55,27 +55,25 @@ pub enum NetError:
 call returns behind a trait value reference:
 
 ```text
-use std.time.Duration
-
 pub trait Net:
     fn lookup!(&mut self, host: string) -> Result[List[string], NetError]
     fn connect!(&mut self, host: string, port: u16) -> Result[&mut dyn TcpStream, NetError]
-    fn connect_timeout!(&mut self, host: string, port: u16, timeout: Duration) -> Result[&mut dyn TcpStream, NetError]
     fn listen!(&mut self, host: string, port: u16) -> Result[&mut dyn TcpListener, NetError]
     fn bind_udp!(&mut self, host: string, port: u16) -> Result[&mut dyn UdpSocket, NetError]
 ```
 
-1. r[std-net.trait.decl-ref] `std.net` declares the host capability trait `Net` with the methods above. Code imports it, as in `use std.net.Net`.
+1. r[std-net.trait.decl-composed] `std.net` declares the host capability trait `Net` with the methods above.
 2. r[std-net.lookup] `lookup!(host)` returns the IP addresses of `host`, as text, in the resolver's order.
 3. r[std-net.connect] `connect!(host, port)` opens a TCP connection to `host` and `port`, and returns its stream.
-4. r[std-net.connect-timeout] `connect_timeout!(host, port, timeout)` is `connect!` bounded by `timeout`, over every address it tries. When the bound ends first, it returns `.Err(NetError.Timeout)` and leaves no socket open.
-5. r[std-net.listen] `listen!(host, port)` listens for TCP connections on the local address `host` and `port`, and returns its listener.
-6. r[std-net.listen.reuse] On Unix, `listen!` may bind an address whose old connections are in `TIME_WAIT`. Two live listeners never share an address: the second `listen!` returns `.Err(NetError.Refused(address))`.
-7. r[std-net.bind-udp] `bind_udp!(host, port)` binds a UDP socket to the local address `host` and `port`, and returns it.
-8. r[std-net.mut-ref.reference-values] Each method takes `&mut self`, so `Net` is a mutable requirement trait, `$.use(Net)` is a `&mut dyn Net` by [`req.ref.use.reference-values`](../lang/11-requirements-and-suspension.md#r-req.ref.use.reference-values), and a provider may record what it opens.
+4. r[std-net.connect.deadline] A connect bounded by `std.task.with_timeout!(d):` returns `.Err(NetError.Timeout)` when the deadline wins.
+5. r[std-net.connect.cancel] Cancelling a pending `connect!` leaves no socket open.
+6. r[std-net.listen] `listen!(host, port)` listens for TCP connections on the local address `host` and `port`, and returns its listener.
+7. r[std-net.listen.reuse] On Unix, `listen!` may bind an address whose old connections are in `TIME_WAIT`. Two live listeners never share an address: the second `listen!` returns `.Err(NetError.Refused(address))`.
+8. r[std-net.bind-udp] `bind_udp!(host, port)` binds a UDP socket to the local address `host` and `port`, and returns it.
+9. r[std-net.mut-ref.reference-values] Each method takes `&mut self`, so `Net` is a mutable requirement trait, `$.use(Net)` is a `&mut dyn Net` by [`req.ref.use.reference-values`](../lang/11-requirements-and-suspension.md#r-req.ref.use.reference-values), and a provider may record what it opens.
 
-> **Why.** A connect has no handle yet, so its bound cannot be a handle
-> setting, and a second method leaves every `connect!` caller unchanged.
+> **Why.** A connect has no handle yet, so its deadline composes through
+> `with_timeout!` rather than a handle setting or another trait method.
 > A restarted server rebinds its address at once on every host, without
 > an option that would let a second socket take the port on Windows.
 
@@ -155,15 +153,18 @@ pub trait UdpSocket < Disposable:
 ## Timeouts
 
 A timeout bounds each wait for the peer. `set_timeout` sets it on a
-handle, and `connect_timeout!` bounds a connect:
+handle, and `with_timeout!` bounds a connect:
 
 ```text
 use std.net.{Net, NetError}
-use std.time.s
+use std.task.with_timeout
+use std.time.{Clock, s}
 
-fn banner!(host: string, port: u16) -> Result[string, NetError] $ Net:
+fn banner!(host: string, port: u16) -> Result[string, NetError] $ Net + Clock:
     net := $.use(Net)
-    stream := net.connect_timeout!(host, port, 3s)?
+    connected := with_timeout!(3s):
+        net.connect!(host, port)
+    stream := connected?
     match stream.set_timeout(.Some(5s)):
         .Ok(_) => pass
         .Err(_) => return .Err(.Other("set timeout failed"))
@@ -253,15 +254,12 @@ as `NoNetwork` does:
 
 ```text
 use std.net.{Net, NetError, TcpListener, TcpStream, UdpSocket}
-use std.time.Duration
 struct NoNetwork: pass
 
 impl Net for NoNetwork:
     fn lookup!(&mut self, host: string) -> Result[List[string], NetError]:
         .Err(.Dns(host))
     fn connect!(&mut self, host: string, port: u16) -> Result[&mut dyn TcpStream, NetError]:
-        .Err(.Refused("${host}:${port}"))
-    fn connect_timeout!(&mut self, host: string, port: u16, timeout: Duration) -> Result[&mut dyn TcpStream, NetError]:
         .Err(.Refused("${host}:${port}"))
     fn listen!(&mut self, host: string, port: u16) -> Result[&mut dyn TcpListener, NetError]:
         .Err(.Refused("${host}:${port}"))
@@ -355,7 +353,7 @@ tests:
 4. r[std-net.scripted.queue] The connections and failures added for one address are one queue, and each `connect!` of the address takes the next entry. Each `listen!` or `bind_udp!` likewise takes the next handle added for its address.
 5. r[std-net.scripted.lookup-unknown] `lookup!` of a host that no `add_host` names returns `.Err(NetError.Dns(host))`.
 6. r[std-net.scripted.refused] `connect!`, `listen!`, or `bind_udp!` of an address with no entry, or with an emptied queue, returns `.Err(NetError.Refused(address))`.
-7. r[std-net.scripted.received] `received(&self) -> List[string]` returns the address of every `lookup!`, `connect!`, `connect_timeout!`, `listen!`, and `bind_udp!` call, in order, the failed ones included. A lookup records the host alone.
+7. r[std-net.scripted.received-connect] `received(&self) -> List[string]` returns every call's address in order, failed calls included, by [`std-net.error.address`](#r-std-net.error.address).
 8. r[std-net.scripted.read] A `ScriptedStream` returns the chunks of `reads` in order, one per `read!`.
 9. r[std-net.scripted.read-max] A `read!(max)` returns at most `max` bytes of the front chunk, and keeps the rest at the front for the next `read!`.
 10. r[std-net.scripted.eof] An empty chunk is the peer's close: that `read!` and every later one return an empty list.
@@ -367,11 +365,10 @@ tests:
 16. r[std-net.scripted.closed-error] After `close` or a dispose, every operation of a scripted handle returns `.Err(NetError.Closed)`, so `close` returns `.Ok(())` only once. `is_closed(&self) -> bool` on each scripted handle tells whether it is closed.
 17. r[std-net.scripted.dispose] A scripted handle's `dispose!` marks it closed, as `close` does, and returns nothing.
 18. r[std-net.scripted.timeout] `set_timeout` on a scripted handle stores its argument and returns `.Ok(())`. `timeout(&self) -> Duration?` returns the stored value, and `.None` before any call.
-19. r[std-net.scripted.connect-timeout] `connect_timeout!` on a `ScriptedNet` takes the next entry of the queue that `connect!` serves. `connect_timeouts(&self) -> List[Duration]` returns the timeout of each call, in order.
-20. r[std-net.scripted.options] `set_nodelay` and `set_keepalive` on a `ScriptedStream` store their argument and return `.Ok(())`. `nodelay(&self) -> bool` and `keepalive(&self) -> Duration?` return them, and `false` and `.None` before any call.
-21. r[std-net.scripted.local-address] `set_local_address(&mut self, host: string, port: u16) -> void` on a `ScriptedListener` or `ScriptedUdp` makes `local_address()` return `.Ok((host, port))`.
-22. r[std-net.scripted.local-address.unset] Without it, `local_address()` returns `.Err(NetError.Other(message))`. The `message` is `ScriptedListener has no local address` or `ScriptedUdp has no local address`.
-23. r[std-net.scripted.no-host] A scripted provider opens no socket and consults no grant, so `NotGranted` appears only where a test scripts it.
+19. r[std-net.scripted.options] `set_nodelay` and `set_keepalive` on a `ScriptedStream` store their argument and return `.Ok(())`. `nodelay(&self) -> bool` and `keepalive(&self) -> Duration?` return them, and `false` and `.None` before any call.
+20. r[std-net.scripted.local-address] `set_local_address(&mut self, host: string, port: u16) -> void` on a `ScriptedListener` or `ScriptedUdp` makes `local_address()` return `.Ok((host, port))`.
+21. r[std-net.scripted.local-address.unset] Without it, `local_address()` returns `.Err(NetError.Other(message))`. The `message` is `ScriptedListener has no local address` or `ScriptedUdp has no local address`.
+22. r[std-net.scripted.no-host] A scripted provider opens no socket and consults no grant, so `NotGranted` appears only where a test scripts it.
 
 A server accepts a scripted peer, and a client retries a refused
 connection and pings over UDP:

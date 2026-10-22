@@ -38,7 +38,6 @@
     { "key": "Net", "std": "std.net.Net", "methods": [
       { "name": "lookup", "wait": "may", "resource": "host", "params": ["string"], "result": "Result[List[string], NetError]" },
       { "name": "connect", "wait": "may", "resource": "addr", "params": ["string", "i32"], "result": "Result[TcpStream, NetError]" },
-      { "name": "connect_timeout", "wait": "may", "resource": "addr", "params": ["string", "i32", "i64"], "result": "Result[TcpStream, NetError]" },
       { "name": "listen", "wait": "may", "resource": "addr", "params": ["string", "i32"], "result": "Result[TcpListener, NetError]" },
       { "name": "bind_udp", "wait": "may", "resource": "addr", "params": ["string", "i32"], "result": "Result[UdpSocket, NetError]" }
     ]},

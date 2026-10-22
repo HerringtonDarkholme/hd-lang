@@ -38,11 +38,10 @@ impl From[TimedOut] for NetError:
         .Timeout
 
 ## The host capability trait: DNS lookup, TCP, and UDP.
-## See [std-net.trait.decl-ref](../../spec/std/net.md#r-std-net.trait.decl-ref).
+## See [std-net.trait.decl-composed](../../spec/std/net.md#r-std-net.trait.decl-composed).
 pub trait Net:
     fn lookup!(&mut self, host: string) -> Result[List[string], NetError]
     fn connect!(&mut self, host: string, port: u16) -> Result[&mut dyn TcpStream, NetError]
-    fn connect_timeout!(&mut self, host: string, port: u16, timeout: Duration) -> Result[&mut dyn TcpStream, NetError]
     fn listen!(&mut self, host: string, port: u16) -> Result[&mut dyn TcpListener, NetError]
     fn bind_udp!(&mut self, host: string, port: u16) -> Result[&mut dyn UdpSocket, NetError]
 
@@ -400,13 +399,12 @@ pub struct ScriptedNet:
     listeners: Map[string, List[&mut ScriptedListener]]
     sockets: Map[string, List[&mut ScriptedUdp]]
     calls: List[string]
-    timeouts: List[Duration]
 
 impl ScriptedNet:
     ## Returns a provider with nothing scripted.
     ## See [std-net.scripted.new-ref](../../spec/std/net.md#r-std-net.scripted.new-ref).
     pub fn new() -> &mut ScriptedNet:
-        &mut ScriptedNet { hosts: {}, connections: {}, listeners: {}, sockets: {}, calls: [], timeouts: [] }
+        &mut ScriptedNet { hosts: {}, connections: {}, listeners: {}, sockets: {}, calls: [] }
 
     ## Answers each `lookup!(host)` with `addresses`.
     ## See [std-net.scripted.setup-ref](../../spec/std/net.md#r-std-net.scripted.setup-ref).
@@ -438,14 +436,9 @@ impl ScriptedNet:
             .None => self.sockets[address] = [socket]
 
     ## The address of every call, in order, the failed ones included; a lookup records the host alone.
-    ## See [std-net.scripted.received](../../spec/std/net.md#r-std-net.scripted.received).
+    ## See [std-net.scripted.received-connect](../../spec/std/net.md#r-std-net.scripted.received-connect).
     pub fn received(&self) -> List[string]:
         self.calls
-
-    ## The timeout of each `connect_timeout!` call, in order.
-    ## See [std-net.scripted.connect-timeout](../../spec/std/net.md#r-std-net.scripted.connect-timeout).
-    pub fn connect_timeouts(&self) -> List[Duration]:
-        self.timeouts
 
     # One connect of `host:port`: it records the address and takes the next
     # entry of the address's queue (r-std-net.scripted.queue).
@@ -472,10 +465,6 @@ impl Net for ScriptedNet:
             .None => .Err(.Dns(host))
 
     fn connect!(&mut self, host: string, port: u16) -> Result[&mut dyn TcpStream, NetError]:
-        self.take_connection(host, port)
-
-    fn connect_timeout!(&mut self, host: string, port: u16, timeout: Duration) -> Result[&mut dyn TcpStream, NetError]:
-        self.timeouts.push(timeout)
         self.take_connection(host, port)
 
     fn listen!(&mut self, host: string, port: u16) -> Result[&mut dyn TcpListener, NetError]:

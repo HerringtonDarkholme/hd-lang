@@ -80,16 +80,6 @@ fn set_timeout(p: &mut Program, kind: &str, h: i32, millis: Option<i64>) {
         vec![0],
     );
 }
-fn connect_timeout(p: &mut Program, host: &str, port: u16, millis: i64, result: Vec<u8>) {
-    p.abi_call_with(
-        "hd:Net",
-        "connect_timeout",
-        &[Scalar::I32(i32::from(port)), Scalar::I64(millis)],
-        Some(&Enc::default().str(host).0),
-        true,
-        result,
-    );
-}
 
 #[test]
 fn net_numeric_lookup_and_scope_host_match_ignores_port() {
@@ -397,7 +387,7 @@ fn tcp_nodelay_and_keepalive_set_and_a_closed_stream_is_disposed() {
 }
 
 #[test]
-fn connect_timeout_checks_the_grant_first_and_ends_a_zero_bound_at_once() {
+fn connect_checks_the_grant_before_opening_a_socket() {
     let scratch = Scratch::new();
     let server = TcpFixture::new(|mut peer| {
         let mut rest = Vec::new();
@@ -405,23 +395,21 @@ fn connect_timeout_checks_the_grant_first_and_ends_a_zero_bound_at_once() {
     });
     let port = server.address.port();
     let mut p = Program::new();
-    connect_timeout(
+    open(
         &mut p,
+        "connect",
         "bad host",
         port,
-        1000,
         net_error(1, &format!("bad host:{port}")),
     );
-    connect_timeout(
+    open(
         &mut p,
+        "connect",
         "127.0.0.2",
         port,
-        0,
         net_error(0, &format!("127.0.0.2:{port}")),
     );
-    connect_timeout(&mut p, "127.0.0.1", port, 0, net_error_unit(TIMEOUT));
-    connect_timeout(&mut p, "127.0.0.1", port, -1, net_error_unit(TIMEOUT));
-    connect_timeout(&mut p, "127.0.0.1", port, 10_000, vec![0, 1]);
+    open(&mut p, "connect", "127.0.0.1", port, vec![0, 1]);
     handle(&mut p, "TcpStream.close", &[1], None, vec![0]);
     assert_program(
         &scratch,
@@ -429,10 +417,6 @@ fn connect_timeout_checks_the_grant_first_and_ends_a_zero_bound_at_once() {
         vec![("Net", Limit::Entries(vec![format!("127.0.0.1:{port}")]))],
         || {},
     );
-}
-
-fn net_error_unit(variant: u64) -> Vec<u8> {
-    Enc::default().leb(1).leb(variant).0
 }
 
 /// A loopback listener whose accept queue is full, so a new connect waits
@@ -472,22 +456,6 @@ impl FullListener {
             _queued: queued,
         }
     }
-}
-
-#[cfg(unix)]
-#[test]
-fn connect_timeout_ends_a_connect_that_gets_no_answer() {
-    let scratch = Scratch::new();
-    let full = FullListener::new();
-    let port = full.address.port();
-    let mut p = Program::new();
-    connect_timeout(&mut p, "127.0.0.1", port, 100, net_error_unit(TIMEOUT));
-    assert_program(
-        &scratch,
-        p,
-        vec![("Net", Limit::Entries(vec![format!("127.0.0.1:{port}")]))],
-        || {},
-    );
 }
 
 #[test]
@@ -1267,14 +1235,16 @@ use std.time.{{Clock, ManualClock, Timestamp}}
 pub fn main!() -> void $ Console + Net:
     clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
     $.with(Clock=clock):
-        let result: Result[&mut dyn TcpStream, NetError] = with_timeout!(0ms):
-            connect!("127.0.0.1", {})
-        match result:
-            .Err(.Timeout) => println("timed out")
-            .Ok(stream) =>
-                _ := stream.close()
-                println("connected")
-            .Err(error) => println(error)
+        for limit in [0ms, 100ms]:
+            let result: Result[&mut dyn TcpStream, NetError] = with_timeout!(limit):
+                connect!("127.0.0.1", {})
+            match result:
+                .Err(.Timeout) => println("timed out")
+                .Ok(stream) =>
+                    _ := stream.close()
+                    println("connected")
+                .Err(error) => println(error)
+
 "#,
         full.address.port()
     );
@@ -1299,7 +1269,7 @@ pub fn main!() -> void $ Console + Net:
     let wasm = built.wasm.expect("the composed connect builds");
     let ran = parity(&scratch, &wasm, vec![], || {});
     assert_eq!(ran.status, 0);
-    assert_eq!(ran.stdout, b"timed out\n");
+    assert_eq!(ran.stdout, b"timed out\ntimed out\n");
     assert!(ran.stderr.is_empty(), "{:?}", ran.stderr);
 }
 

@@ -1,0 +1,62 @@
+# expect-stdout: connect deadlines
+# test: a ready scripted connect wins and a never-completing connect times out under ManualClock
+# Spec std/net Net Trait: std-net.trait.decl-composed, std-net.connect.deadline, std-net.connect.cancel.
+# Also covers std-task.with-timeout.completed, std-task.with-timeout.expired.
+use std.net.{Net, NetError, ScriptedNet, ScriptedStream, TcpListener, TcpStream, UdpSocket, connect}
+use std.task.with_timeout
+use std.testing.assert_equal
+use std.time.{Clock, ManualClock, Timestamp, sleep}
+
+# Capture the real clock before installing the manual deadline clock.
+# This suspension never returns; cancellation must unwind its caller.
+fn wait_forever!() -> void $ Clock:
+    while true:
+        sleep!(60s)
+
+struct PendingNet:
+    wait: mut Suspend[void]
+    log: &mut List[string]
+
+impl Net for PendingNet:
+    fn lookup!(&mut self, host: string) -> Result[List[string], NetError]:
+        .Err(.Dns(host))
+
+    fn connect!(&mut self, host: string, port: u16) -> Result[&mut dyn TcpStream, NetError]:
+        defer: self.log.push("cancelled")
+        self.log.push("started")
+        let mut pending = self.wait
+        pending!()
+        .Err(.Other("the never-completing connect returned"))
+
+    fn listen!(&mut self, host: string, port: u16) -> Result[&mut dyn TcpListener, NetError]:
+        .Err(.Refused("${host}:${port}"))
+
+    fn bind_udp!(&mut self, host: string, port: u16) -> Result[&mut dyn UdpSocket, NetError]:
+        .Err(.Refused("${host}:${port}"))
+
+pub fn main!() -> void $ Console + Clock:
+    let waiting: mut Suspend[void] = wait_forever()
+    clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+    net := ScriptedNet::new()
+    stream := ScriptedStream::new([])
+    net.add_connection("ready.local:25", stream)
+    $.with(Net=net, Clock=clock):
+        let ready: Result[&mut dyn TcpStream, NetError] = with_timeout!(3s):
+            connect!("ready.local", 25)
+        assert_equal(ready.is_ok(), true, reason="the ready connect wins")
+        _ := ready.expect("the scripted stream").close()
+    assert_equal(clock.now().unix_milliseconds(), 0i64, reason="ready work leaves manual time unchanged")
+    assert_equal(net.received(), ["ready.local:25"], reason="the connect is recorded once")
+
+    let mut log: List[string] = []
+    pending := &mut PendingNet { wait: waiting, log: &mut log }
+    $.with(Net=pending, Clock=clock):
+        let expired: Result[&mut dyn TcpStream, NetError] = with_timeout!(3s):
+            connect!("pending.local", 25)
+        assert_equal(expired.is_err(), true, reason="the pending connect times out")
+        match expired:
+            .Err(error) => assert_equal(error, NetError.Timeout, reason="the deadline maps to NetError")
+            .Ok(_) => panic("the pending connect completed")
+    assert_equal(clock.now().unix_milliseconds(), 3000i64, reason="the manual deadline elapsed")
+    assert_equal(log, ["started", "cancelled"], reason="the cancelled connect unwinds once")
+    println("connect deadlines")

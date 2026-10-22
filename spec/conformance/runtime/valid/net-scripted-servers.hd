@@ -1,7 +1,7 @@
 # test: ScriptedNet answers listen! and bind_udp! with scripted handles that accept, receive, and record in order
 # Spec std/net Scripted Net: std-net.scripted.accept, std-net.scripted.udp, std-net.scripted.queue, std-net.scripted.refused, std-net.scripted.closed-error.
 # Also covers std-net.scripted.decl, std-net.scripted.new-ref,
-# std-net.scripted.setup-ref, std-net.scripted.received,
+# std-net.scripted.setup-ref, std-net.scripted.received-connect,
 # std-net.scripted.read, std-net.scripted.eof, std-net.scripted.write,
 # std-net.datagram.traits, and std-net.handles.closed.
 # expect: test

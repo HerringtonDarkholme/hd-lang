@@ -1,20 +1,17 @@
 # test: a unit test binds its own Net provider, and NetError names a refused address
-# Spec std/net Net Providers: std-net.trait.decl-ref, std-net.lookup, std-net.error.not-granted.plain.
+# Spec std/net Net Providers: std-net.trait.decl-composed, std-net.lookup, std-net.error.not-granted.plain.
 # Also covers std-net.error.decl, std-net.error.traits,
 # std-net.error.address, std-net.error.not-granted, std-net.error.dns,
 # std-net.error.refused, std-net.connect, std-net.listen,
 # std-net.bind-udp, std-net.mut-ref.reference-values, and std-net.handles.decl-ref.
 # expect: test
 use std.net.{Net, NetError, TcpListener, TcpStream, UdpSocket}
-use std.time.Duration
 struct NoNetwork: pass
 
 impl Net for NoNetwork:
     fn lookup!(&mut self, host: string) -> Result[List[string], NetError]:
         .Err(.Dns(host))
     fn connect!(&mut self, host: string, port: u16) -> Result[&mut dyn TcpStream, NetError]:
-        .Err(.Refused("${host}:${port}"))
-    fn connect_timeout!(&mut self, host: string, port: u16, timeout: Duration) -> Result[&mut dyn TcpStream, NetError]:
         .Err(.Refused("${host}:${port}"))
     fn listen!(&mut self, host: string, port: u16) -> Result[&mut dyn TcpListener, NetError]:
         .Err(.Refused("${host}:${port}"))

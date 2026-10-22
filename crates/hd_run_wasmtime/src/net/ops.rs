@@ -32,8 +32,6 @@ pub(crate) enum Job {
     Connect {
         host: String,
         port: u16,
-        /// `connect_timeout!`'s bound, over every address it tries.
-        timeout: Option<Duration>,
     },
     Bind {
         udp: bool,
@@ -156,18 +154,8 @@ impl Job {
         let resource = self.resource();
         let result = match self {
             Job::Lookup(host) => lookup(&host).await,
-            // Past its bound, the connect is dropped with the socket it
-            // was opening, which closes it (`std-net.connect-timeout`).
-            Job::Connect {
-                host,
-                port,
-                timeout,
-            } => match timeout {
-                None => connect(&host, port).await,
-                Some(timeout) => tokio::time::timeout(timeout, connect(&host, port))
-                    .await
-                    .unwrap_or(Err(NetError::Timeout)),
-            },
+            // Cancelling the suspension drops the connect and its socket.
+            Job::Connect { host, port } => connect(&host, port).await,
             Job::Bind { udp, host, port } => open(udp, &host, port).await,
             Job::Read {
                 stream,

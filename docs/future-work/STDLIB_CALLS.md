@@ -517,28 +517,18 @@ tests:
             assert_equal(banner!("mail.local", 25), .Err(.Timeout), reason="connect timeout")
 ```
 
-**Spec edit applied** (2026-10-16) as
-[Timeouts](../../spec/std/net.md#timeouts) (`std-net.timeout.*`),
-[`std-net.error.timeout`](../../spec/std/net.md#r-std-net.error.timeout),
-[`std-net.error.timeout.text`](../../spec/std/net.md#r-std-net.error.timeout.text),
-[`std-net.connect-timeout`](../../spec/std/net.md#r-std-net.connect-timeout),
-[`std-net.scripted.timeout`](../../spec/std/net.md#r-std-net.scripted.timeout),
-and [`std-net.scripted.connect-timeout`](../../spec/std/net.md#r-std-net.scripted.connect-timeout);
-fixture `net-timeouts.hd`. The edit as recorded: in `spec/std/net.md`, add
-`Timeout` to the `NetError` enum and a row `r[std-net.error.timeout]`
-(`Timeout` means a bounded wait ended before the peer answered); add
-`connect_timeout!` to the `Net` declaration and a rule
-`r[std-net.connect-timeout]` (whole-connect bound, `.Err(.Timeout)`);
-add `set_timeout` to the three handle declarations and the rules
-`r[std-net.timeout.set]` (`.None` default; applies to `read!`, `accept!`,
-`receive!` only), `r[std-net.timeout.error]` (`.Err(.Operation(.Timeout))`,
-handle stays open, unread bytes kept), `r[std-net.timeout.cancel]`
-(cancellation never reports `Timeout`), `r[std-net.timeout.host-time]`
-(not the `Clock` provider), and `r[std-net.timeout.zero]` (a zero or
-negative `Duration` times out at once; the implementation issue confirms
-this against both hosts); the `Display` text rule for `Timeout`; the
-`NoNetwork` example gains `connect_timeout!`; the Scripted Net rules gain
-`set_timeout`, `timeout()`, `connect_timeout!`, and `connect_timeouts()`.
+**Spec edit applied** (2026-10-16): [Timeouts](../../spec/std/net.md#timeouts)
+specifies handle bounds, their error, and scripted handle recording.
+The later owner decision in #446 supersedes the connect-specific part:
+`with_timeout!` around `connect!` replaces `connect_timeout!`, by
+[`std-net.connect.deadline`](../../spec/std/net.md#r-std-net.connect.deadline)
+and [`std-net.connect.cancel`](../../spec/std/net.md#r-std-net.connect.cancel).
+`Net` has the four methods in
+[`std-net.trait.decl-composed`](../../spec/std/net.md#r-std-net.trait.decl-composed);
+`ScriptedNet` records their addresses by
+[`std-net.scripted.received-connect`](../../spec/std/net.md#r-std-net.scripted.received-connect),
+and has no connect-duration recorder. Fixtures `net-timeouts.hd` and
+`net-connect-deadline.hd` cover the composed deadline and handle bounds.
 
 **Host and ABI work** (implementation issue). `lib/std/net.hd`: the
 variant with its `Eq`, `Debug`, `Display` arms, the new trait methods. In

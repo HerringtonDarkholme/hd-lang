@@ -2,7 +2,7 @@
 # Spec std/net Scripted Net: std-net.scripted.new-ref, std-net.scripted.setup-ref, std-net.scripted.read, std-net.scripted.read-max, std-net.scripted.eof, std-net.scripted.exhausted, std-net.scripted.write, std-net.scripted.failing.
 # Also covers std-net.scripted.decl, std-net.scripted.queue,
 # std-net.scripted.lookup-unknown, std-net.scripted.refused,
-# std-net.scripted.received, std-net.scripted.closed-error,
+# std-net.scripted.received-connect, std-net.scripted.closed-error,
 # std-net.scripted.no-host, std-net.provider.scripted, and
 # std-net.handles.closed.
 # expect: test

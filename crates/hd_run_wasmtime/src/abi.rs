@@ -856,7 +856,6 @@ pub enum Id {
     HttpSend,
     NetLookup,
     NetConnect,
-    NetConnectTimeout,
     NetListen,
     NetBindUdp,
     ProcessRun,
@@ -1118,19 +1117,6 @@ pub static METHODS: &[HostMethod] = &[
         wait: Wait::May,
         resource: Some(ResourceArg::Addr),
         params: &[Codec::Buffer("string"), Codec::Scalar(Scalar::I32)],
-        result: Codec::Buffer("Result[TcpStream, NetError]"),
-    },
-    HostMethod {
-        id: Id::NetConnectTimeout,
-        module: "hd:Net",
-        name: "connect_timeout",
-        wait: Wait::May,
-        resource: Some(ResourceArg::Addr),
-        params: &[
-            Codec::Buffer("string"),
-            Codec::Scalar(Scalar::I32),
-            Codec::Scalar(Scalar::I64),
-        ],
         result: Codec::Buffer("Result[TcpStream, NetError]"),
     },
     HostMethod {

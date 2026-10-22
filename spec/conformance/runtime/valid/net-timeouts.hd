@@ -1,15 +1,18 @@
-# test: connect_timeout! and set_timeout bound the waits for the peer, a timed-out read is Timeout, and ScriptedNet records both timeouts
-# Spec std/net Timeouts: std-net.connect-timeout, std-net.timeout.set, std-net.timeout.error, std-net.error.timeout, std-net.error.timeout.text, std-net.scripted.timeout, std-net.scripted.connect-timeout.
-# Also covers std-net.timeout.host-time, std-net.scripted.received,
+# test: composed connect deadlines and handle timeouts preserve results and scripted call recording
+# Spec std/net Timeouts: std-net.connect.deadline, std-net.timeout.set, std-net.timeout.error, std-net.error.timeout, std-net.error.timeout.text, std-net.scripted.timeout.
+# Also covers std-net.timeout.host-time, std-net.scripted.received-connect,
 # std-net.scripted.failing, std-net.scripted.queue, and
 # std-net.scripted.closed-error.
 # expect: test
 use std.net.{Net, NetError, ScriptedListener, ScriptedNet, ScriptedStream, ScriptedUdp, TcpListener, UdpSocket}
-use std.time.s
+use std.task.with_timeout
+use std.time.{Clock, ManualClock, Timestamp, s}
 
-fn banner!(host: string, port: u16) -> Result[string, NetError] $ Net:
+fn banner!(host: string, port: u16) -> Result[string, NetError] $ Net + Clock:
     net := $.use(Net)
-    stream := net.connect_timeout!(host, port, 3s)?
+    connected := with_timeout!(3s):
+        net.connect!(host, port)
+    stream := connected?
     match stream.set_timeout(.Some(5s)):
         .Ok(_) => pass
         .Err(_) => return .Err(.Other("set timeout failed"))
@@ -23,13 +26,14 @@ fn banner!(host: string, port: u16) -> Result[string, NetError] $ Net:
 tests:
     use std.testing.assert_equal
 
-    it("sets both timeouts and reads the banner"):
+    it("composes a connect deadline and sets the read timeout"):
         stream := ScriptedStream::new(["220 ready\n".to_utf8()])
         net := ScriptedNet::new()
         net.add_connection("mail.local:25", stream)
-        $.with(Net=net):
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        $.with(Net=net, Clock=clock):
             assert_equal(banner!("mail.local", 25), .Ok("220 ready\n"), reason="banner")
-        assert_equal(net.connect_timeouts(), [3s], reason="connect timeout")
+        assert_equal(clock.now().unix_milliseconds(), 0i64, reason="a ready connect leaves the deadline clock unchanged")
         assert_equal(net.received(), ["mail.local:25"], reason="the connect is recorded")
         assert_equal(stream.timeout(), .Some(5s), reason="read timeout")
 
@@ -37,13 +41,15 @@ tests:
         stream := ScriptedStream::failing([], NetError.Timeout)
         net := ScriptedNet::new()
         net.add_connection("mail.local:25", stream)
-        $.with(Net=net):
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        $.with(Net=net, Clock=clock):
             assert_equal(banner!("mail.local", 25), .Err(.Timeout), reason="timeout")
 
     it("reports a connect that times out"):
         net := ScriptedNet::new()
         net.fail_connection("mail.local:25", NetError.Timeout)
-        $.with(Net=net):
+        clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+        $.with(Net=net, Clock=clock):
             assert_equal(banner!("mail.local", 25), .Err(.Timeout), reason="connect timeout")
 
     it("a scripted handle starts with no timeout and records the last one set"):

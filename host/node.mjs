@@ -553,9 +553,6 @@ function netProvider({ grant, netClient }) {
         },
       );
     },
-    // std-net.connect-timeout: the `Duration` crosses as milliseconds.
-    connect_timeout: (host, port, timeout) =>
-      netResult(netAt("connect", host, port, { timeout: Number(timeout) })),
     listen: opened("listen"),
     bind_udp: opened("bind_udp"),
     "TcpStream.read": (h, max) => handleOp("read")(h, { max }),

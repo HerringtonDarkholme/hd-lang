@@ -258,13 +258,6 @@ pub static TABLE: &[HostTrait] = &[
                 Some(ResourceArg::Addr),
             ),
             m(
-                "connect_timeout",
-                &[B("string"), S(Scalar::I32), S(Scalar::I64)],
-                B("Result[TcpStream, NetError]"),
-                Wait::May,
-                Some(ResourceArg::Addr),
-            ),
-            m(
                 "listen",
                 &[B("string"), S(Scalar::I32)],
                 B("Result[TcpListener, NetError]"),

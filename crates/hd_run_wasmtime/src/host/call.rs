@@ -69,7 +69,6 @@ fn host(
         Id::HttpSend => http::call(method, finish, caller, params),
         Id::NetLookup
         | Id::NetConnect
-        | Id::NetConnectTimeout
         | Id::NetListen
         | Id::NetBindUdp
         | Id::NetTcpStreamRead

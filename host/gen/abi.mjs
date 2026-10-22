@@ -312,12 +312,6 @@ export const METHODS = {
       params: [str, "i32"],
       result: result(TcpStream, NetError),
     },
-    connect_timeout: {
-      wait: "may",
-      resource: "addr",
-      params: [str, "i32", "i64"],
-      result: result(TcpStream, NetError),
-    },
     listen: {
       wait: "may",
       resource: "addr",

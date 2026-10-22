@@ -13,7 +13,7 @@
 // call (std-net.timeout.error). A zero or negative timeout returns what
 // already arrived after a non-waiting I/O poll, and otherwise ends at
 // once (std-net.timeout.zero).
-// `connect_timeout!` bounds a connect the same way.
+// A composed deadline cancels an unfinished connect through its abort hook.
 //
 // An outcome is `{ ok }`, `{ error: [variant, text] }` for a `NetError`,
 // or `{ disposed: true }` for an operation on a closed handle, which the
@@ -130,36 +130,24 @@ const stream = (socket) => {
 // Aborting also releases a completed stream that was never delivered.
 const connects = new Map();
 let nextConnect = 1;
-const beginConnect = ({ host, port, address, timeout = null }, done) => {
+const beginConnect = ({ host, port, address }, done) => {
   let result = null;
   let stopped = false;
   let socket = null;
-  let timer = null;
   const finish = (outcome) => {
     if (stopped || result !== null) return;
     result = outcome;
-    clearTimeout(timer);
     done(outcome);
   };
-  if (timeout !== null && timeout <= 0) finish(timedOut());
-  else {
-    socket = net.connect({ host, port });
-    if (timeout !== null) {
-      timer = setTimeout(() => {
-        socket.destroy();
-        finish(timedOut());
-      }, timeout);
-    }
-    socket.once("error", (e) => finish(failure(e, address, host)));
-    socket.once("connect", () => {
-      if (stopped || result !== null) return socket.destroy();
-      socket.removeAllListeners("error");
-      finish({ ok: stream(socket) });
-    });
-  }
+  socket = net.connect({ host, port });
+  socket.once("error", (e) => finish(failure(e, address, host)));
+  socket.once("connect", () => {
+    if (stopped || result !== null) return socket.destroy();
+    socket.removeAllListeners("error");
+    finish({ ok: stream(socket) });
+  });
   return () => {
     stopped = true;
-    clearTimeout(timer);
     socket?.destroy();
     if (result?.ok !== undefined) handles.delete(result.ok);
   };
@@ -174,8 +162,6 @@ const ops = {
       return failure(e, host, host);
     }
   },
-  // The legacy explicitly bounded connect keeps its synchronous caller.
-  connect: (r) => new Promise((done) => beginConnect(r, done)),
   connect_start: (r) => {
     const id = nextConnect++;
     const operation = { result: null, abort: null };
