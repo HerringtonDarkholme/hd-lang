@@ -54,8 +54,8 @@ fn hd(cwd: &Path, cache: &Path, cap: Option<&str>, args: &[&str]) -> Ran {
 }
 
 /// One logical compiled entry. Its identity survives pack compaction.
-struct Entry {
-    kind: EntryKind,
+pub(super) struct Entry {
+    pub(super) kind: EntryKind,
     key: Hash128,
     pack: PathBuf,
     bytes: u64,
@@ -103,7 +103,7 @@ fn read_index(obj: &Path) -> Option<Vec<u8>> {
 
 /// Read the logical directory and verify every indexed range exists in a
 /// physical pack. Merely enumerating loose files would silently test none.
-fn entries(obj: &Path) -> Vec<Entry> {
+pub(super) fn entries(obj: &Path) -> Vec<Entry> {
     let Some(index) = read_index(obj) else {
         return Vec::new();
     };

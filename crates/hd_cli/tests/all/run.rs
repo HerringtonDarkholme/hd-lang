@@ -129,7 +129,9 @@ fn run_samples_on_v8_cold_then_warm() {
         }
     }
     assert!(
-        dir.join("obj").join("link").is_dir(),
+        super::cache_gc::entries(&dir.join("obj"))
+            .iter()
+            .any(|entry| entry.kind == hd_cache::EntryKind::Link),
         "the disk cache holds linked programs"
     );
 }

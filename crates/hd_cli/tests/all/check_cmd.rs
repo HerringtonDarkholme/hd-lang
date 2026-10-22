@@ -1003,21 +1003,10 @@ fn check_file_checks_only_the_modules_it_reaches() {
     assert_eq!(modules_checked(&r.out), 1, "{}", r.out);
 }
 
-/// The entry files under a cache's `obj` tree, without the size ledger.
+/// Logical entry count: physical packs, index and lock files do not each
+/// represent an entry. Reuse the validated index/range reader from GC tests.
 fn entries(cache: &Path) -> usize {
-    fn walk(dir: &Path, n: &mut usize) {
-        for e in std::fs::read_dir(dir).into_iter().flatten().flatten() {
-            let path = e.path();
-            if path.is_dir() {
-                walk(&path, n);
-            } else if path.file_name().is_some_and(|f| f != "stats") {
-                *n += 1;
-            }
-        }
-    }
-    let mut n = 0;
-    walk(&cache.join("obj"), &mut n);
-    n
+    super::cache_gc::entries(&cache.join("obj")).len()
 }
 
 /// Print, then publish (`crates/hd_cache/DESIGN.md` §5.4, #250): after a
