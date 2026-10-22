@@ -108,21 +108,46 @@ The provider's default timeout still applies; `std.task.timeout!` can impose a s
 
 ## Client
 
-A client shares a base URL and default headers across requests. A caller
+A client shares a base URL, default headers and host-only cookies across requests. A caller
 adds a deadline by composing `std.task.timeout!` around `client.send!`.
 
 1. r[std-http.client.http-only] `std.http` exports the struct `Client` with private fields.
-2. r[std-http.client.new-empty] `Client::new() -> &mut Client` returns a new client without a base URL or default headers.
+2. r[std-http.client.new-empty-jar] `Client::new() -> &mut Client` returns a new client without a base URL, default headers or cookies.
 3. r[std-http.client.base-url] `base_url(&mut self, url: string) -> &mut Client` replaces the base URL and returns the same client.
 4. r[std-http.client.default-header] `header(&mut self, name: string, value: string) -> &mut Client` appends a default header pair and returns the same client.
 5. r[std-http.client.send-http-only] `send!(&mut self, request: Request) -> Result[Response, HttpError] $ Http` sends through the covering `Http` provider.
 6. r[std-http.client.resolve-root-url] A request URL starting with `/` resolves against the configured base URL.
 7. r[std-http.client.absolute-url] An absolute request URL is used unchanged.
 8. r[std-http.client.merge-defaults] Sending adds every default header whose name the request does not name, ignoring ASCII case.
-9. r[std-http.client.default-hosts] Default headers apply to every host the client calls.
+9. r[std-http.client.default-initial-hosts] Default headers apply to the initial host of every client send.
 10. r[std-http.client.request-unchanged] Sending leaves the supplied request unchanged.
-11. r[std-http.client.raw-response] Sending returns the provider's response or error without checking the response status.
+11. r[std-http.client.unchecked-final-response] Sending returns the final response without checking its status, or propagates a provider error unchanged.
 12. r[std-http.client.external-timeout] `Client` has no timeout setter; a deadline uses `std.task.timeout!` around the send.
+
+13. r[std-http.client.cookie] `cookie(self, url: string, name: string) -> string?` returns the stored cookie eligible for that URL, resolved against `base_url`.
+14. r[std-http.client.cookies] Each response updates the jar from its `Set-Cookie` header pairs before the client follows another redirect.
+15. r[std-http.client.cookies.replace] A cookie replaces the previous value with the same host and name.
+16. r[std-http.client.cookies.host-only] Cookies belong only to the response request's hostname, ignoring ASCII case and ports; a `Domain` attribute does not widen their scope.
+17. r[std-http.client.cookies.secure] A cookie with the `Secure` attribute is eligible only for an `https` URL.
+18. r[std-http.client.cookies.delete] A `Max-Age=0` attribute removes the cookie with that host and name.
+19. r[std-http.client.cookies.attribute-case] Cookie attribute names and the `Set-Cookie` header name compare without ASCII case.
+20. r[std-http.client.cookies.send] Without an explicit `Cookie` header, each request sends its eligible stored cookies as `name=value` pairs joined by `; `.
+21. r[std-http.client.cookies.explicit] An explicit `Cookie` header takes precedence over the jar for that request without replacing stored cookies.
+22. r[std-http.client.redirects.manual] The client sends each provider request with `redirects: 0` and follows redirects itself.
+23. r[std-http.client.redirects.status] Responses with status 301, 302, 303, 307 or 308 and a `Location` header are redirects.
+24. r[std-http.client.redirects.zero] A zero request redirect limit returns the first response without following its `Location`.
+25. r[std-http.client.redirects.method] A 303 changes the method to `Get`; a 301 or 302 changes `Post` to `Get` and preserves other methods.
+26. r[std-http.client.redirects.body] Changing a method to `Get` removes its body and its `Content-Type`, `Content-Length` and `Transfer-Encoding` headers.
+27. r[std-http.client.redirects.resolve] A redirect's `Location` resolves against the current request URL as an RFC 3986 reference.
+28. r[std-http.client.redirects.cross-host] A redirect to another hostname removes the previous request's `Authorization` and `Cookie` headers before applying the target host's jar.
+29. r[std-http.client.redirects.limit] Exceeding a positive request redirect limit returns `HttpError.TooManyRedirects(url)`, naming the next target without sending to it.
+30. r[std-http.client.redirects.no-location] A response without `Location` is returned without following another request.
+31. r[std-http.client.redirects.response-url] The returned response's `url` is the final request URL.
+
+> **Why.** Reading every response lets the client retain cookies set during
+> redirects; delegating redirects to the provider would hide those responses.
+> Host-only storage avoids relying on a public-suffix list.
+
 
 ## URLs
 

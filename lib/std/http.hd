@@ -275,17 +275,23 @@ impl Serializer for FormWriter:
         self.finished = true
         .Ok(())
 
-## Shared base URL and default headers for HTTP requests.
+## Shared base URL, default headers and host-only cookies for HTTP requests.
 ## See [std-http.client.http-only](../../spec/std/http.md#r-std-http.client.http-only).
 pub struct Client:
     base: string
     headers: List[(string, string)]
+    cookies: Map[string, List[ClientCookie]]
+
+struct ClientCookie:
+    name: string
+    value: string
+    secure: bool
 
 impl Client:
-    ## Returns a client without a base URL or default headers.
-    ## See [std-http.client.new-empty](../../spec/std/http.md#r-std-http.client.new-empty).
+    ## Returns a client without a base URL, default headers or cookies.
+    ## See [std-http.client.new-empty-jar](../../spec/std/http.md#r-std-http.client.new-empty-jar).
     pub fn new() -> &mut Client:
-        &mut Client { base: "", headers: [] }
+        &mut Client { base: "", headers: [], cookies: {} }
 
     ## Sets the base URL and returns this client.
     ## See [std-http.client.base-url](../../spec/std/http.md#r-std-http.client.base-url).
@@ -299,7 +305,16 @@ impl Client:
         self.headers.push((name, value))
         self
 
-    ## Sends with the base URL and defaults, requiring only Http.
+    ## Reads a stored cookie that this client would send to the resolved URL.
+    ## See [std-http.client.cookie](../../spec/std/http.md#r-std-http.client.cookie).
+    pub fn cookie(self, url: string, name: string) -> string?:
+        let (host, secure) = cookie_host(client_url(self.base, url))?
+        for item in self.cookies.get(host).unwrap_or([]):
+            if item.name == name && (!item.secure || secure):
+                return .Some(item.value)
+        .None
+
+    ## Sends with shared defaults and cookies, following redirects itself.
     ## See [std-http.client.send-http-only](../../spec/std/http.md#r-std-http.client.send-http-only).
     pub fn send!(&mut self, request: Request) -> Result[Response, HttpError] $ Http:
         let mut headers = request.headers
@@ -311,7 +326,87 @@ impl Client:
                     break
             if !present:
                 headers.push((name, value))
-        Request { ...request, url: client_url(self.base, request.url), headers: headers }.send!()
+        let mut current = Request { ...request, url: query_url(client_url(self.base, request.url), request.query), query: [], headers: headers, redirects: 0 }
+        let followed: usize = 0
+        while true:
+            let mut sent = current
+            let explicit_cookie = false
+            for (name, _) in current.headers:
+                if ascii_case_equal(name, "Cookie"):
+                    explicit_cookie = true
+            if !explicit_cookie:
+                match cookie_host(current.url):
+                    .Some((host, secure)) =>
+                        let mut pairs: List[string] = []
+                        for item in self.cookies.get(host).unwrap_or([]):
+                            if !item.secure || secure:
+                                pairs.push("${item.name}=${item.value}")
+                        if !pairs.is_empty():
+                            sent.headers.push(("Cookie", pairs.join("; ")))
+                    .None => pass
+            response := $.use(Http).send!(sent)?
+            self.remember(current.url, response.headers)
+            location := response.header("Location")
+            redirect := response.status == 301 || response.status == 302 || response.status == 303 || response.status == 307 || response.status == 308
+            if !redirect || location.is_none() || request.redirects == 0:
+                return .Ok(Response { ...response, url: current.url })
+            target := redirect_url(current.url, location.unwrap_or(""))
+            if followed == request.redirects:
+                return .Err(.TooManyRedirects(target))
+            if cookie_host(current.url).map(fn(pair): pair._0) != cookie_host(target).map(fn(pair): pair._0):
+                current.headers = current.headers.filter(fn(pair): !ascii_case_equal(pair._0, "Authorization") && !ascii_case_equal(pair._0, "Cookie"))
+            if response.status == 303 || ((response.status == 301 || response.status == 302) && current.method == Method.Post):
+                current.method = .Get
+                current.body = []
+                current.headers = current.headers.filter(fn(pair): !ascii_case_equal(pair._0, "Content-Type") && !ascii_case_equal(pair._0, "Content-Length") && !ascii_case_equal(pair._0, "Transfer-Encoding"))
+            current.url = target
+            followed += 1
+
+    fn remember(&mut self, url: string, headers: List[(string, string)]) -> void:
+        host := match cookie_host(url):
+            .Some((host, _)) => host
+            .None => return
+        for (header, text) in headers:
+            if !ascii_case_equal(header, "Set-Cookie"):
+                continue
+            parts := text.split(";")
+            let (name, value) = match parts[0].split_once("="):
+                .Some((name, value)) => (name.trim(), value.trim())
+                .None => continue
+            if name.is_empty():
+                continue
+            let secure = false
+            let remove = false
+            for attribute in parts.iter().skip(1):
+                let (key, setting) = attribute.trim().split_once("=").unwrap_or((attribute.trim(), ""))
+                if ascii_case_equal(key.trim(), "Secure"):
+                    secure = true
+                if ascii_case_equal(key.trim(), "Max-Age") && setting.trim() == "0":
+                    remove = true
+            let mut cookies = self.cookies.get(host).unwrap_or([]).filter(fn(item): item.name != name)
+            if !remove:
+                cookies.push(ClientCookie { name: name, value: value, secure: secure })
+            self.cookies[host] = cookies
+
+# Only the hostname keys the jar: ports do not widen it, Domain is never
+# consulted, and Secure is checked against the request's scheme.
+fn cookie_host(url: string) -> (string, bool)?:
+    let (scheme, rest) = url.split_once("://")?
+    if !ascii_case_equal(scheme, "http") && !ascii_case_equal(scheme, "https"):
+        return .None
+    let authority = rest.split_once("/").map(fn(pair): pair._0).unwrap_or(rest)
+    authority = authority.split_once("?").map(fn(pair): pair._0).unwrap_or(authority)
+    authority = authority.split_once("#").map(fn(pair): pair._0).unwrap_or(authority)
+    match authority.rfind("@"):
+        .Some(at) => authority = authority.slice(at + 1, authority.len())
+        .None => pass
+    host := if authority.starts_with("["):
+        authority.split_once("]").map(fn(pair): pair._0 + "]").unwrap_or("")
+    else:
+        authority.split_once(":").map(fn(pair): pair._0).unwrap_or(authority)
+    if host.is_empty():
+        return .None
+    .Some((host.lower(), ascii_case_equal(scheme, "https")))
 
 fn client_url(base: string, url: string) -> string:
     if base.is_empty() || !url.starts_with("/"):
@@ -325,6 +420,113 @@ fn client_url(base: string, url: string) -> string:
             host := without_query.split_once("#").map(fn(pair): pair._0).unwrap_or(without_query)
             "$scheme://$host$url"
         .None => "$base$url"
+
+# RFC 3986 components keep an absent query distinct from an empty one.
+struct ClientUrl:
+    scheme: string?
+    authority: string?
+    path: string
+    query: string?
+    fragment: string?
+
+fn client_url_parts(url: string) -> ClientUrl:
+    let rest = url
+    let fragment: string? = .None
+    match rest.split_once("#"):
+        .Some((before, value)) =>
+            rest = before
+            fragment = .Some(value)
+        .None => pass
+    let query: string? = .None
+    match rest.split_once("?"):
+        .Some((before, value)) =>
+            rest = before
+            query = .Some(value)
+        .None => pass
+    let scheme: string? = .None
+    match rest.split_once(":"):
+        .Some((name, after)) =>
+            let valid = !name.is_empty()
+            for (at, byte) in name.to_utf8().iter().enumerate():
+                letter := (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122)
+                if !letter && (at == 0 || !((byte >= 48 && byte <= 57) || byte == 43 || byte == 45 || byte == 46)):
+                    valid = false
+            if valid:
+                scheme = .Some(name)
+                rest = after
+        .None => pass
+    let authority: string? = .None
+    if rest.starts_with("//"):
+        tail := rest.slice(2, rest.len())
+        end := tail.find("/").unwrap_or(tail.len())
+        authority = .Some(tail.slice(0, end))
+        rest = tail.slice(end, tail.len())
+    ClientUrl { scheme: scheme, authority: authority, path: rest, query: query, fragment: fragment }
+
+fn redirect_url(base: string, location: string) -> string:
+    origin := client_url_parts(base)
+    reference := client_url_parts(location)
+    let mut target = reference
+    if reference.scheme.is_some():
+        target.path = client_url_path(reference.path)
+    else:
+        target.scheme = origin.scheme
+        if reference.authority.is_some():
+            target.path = client_url_path(reference.path)
+        else:
+            target.authority = origin.authority
+            if reference.path.is_empty():
+                target.path = origin.path
+                if reference.query.is_none():
+                    target.query = origin.query
+            else if reference.path.starts_with("/"):
+                target.path = client_url_path(reference.path)
+            else:
+                directory := if origin.authority.is_some() && origin.path.is_empty():
+                    "/"
+                else:
+                    origin.path.rfind("/").map(fn(at): origin.path.slice(0, at + 1)).unwrap_or("")
+                target.path = client_url_path(directory + reference.path)
+    out := StringBuilder::new()
+    match target.scheme:
+        .Some(scheme) => out.push(scheme + ":")
+        .None => pass
+    match target.authority:
+        .Some(authority) => out.push("//" + authority)
+        .None => pass
+    out.push(target.path)
+    match target.query:
+        .Some(query) => out.push("?" + query)
+        .None => pass
+    match target.fragment:
+        .Some(fragment) => out.push("#" + fragment)
+        .None => pass
+    out.build()
+
+# RFC 3986 section 5.2.4; percent-encoded dots remain encoded.
+fn client_url_path(path: string) -> string:
+    let input = path
+    let output = ""
+    while !input.is_empty():
+        if input.starts_with("../"):
+            input = input.slice(3, input.len())
+        else if input.starts_with("./"):
+            input = input.slice(2, input.len())
+        else if input.starts_with("/./"):
+            input = input.slice(2, input.len())
+        else if input == "/.":
+            input = "/"
+        else if input.starts_with("/../") || input == "/..":
+            input = if input == "/..": "/" else: input.slice(3, input.len())
+            output = output.slice(0, output.rfind("/").unwrap_or(0))
+        else if input == "." || input == "..":
+            input = ""
+        else:
+            start := if input.starts_with("/"): 1 else: 0
+            end := input.slice(start, input.len()).find("/").map(fn(at): at + start).unwrap_or(input.len())
+            output += input.slice(0, end)
+            input = input.slice(end, input.len())
+    output
 
 ## A whole HTTP response.
 ## See [std-http.types.builder-response-defaults](../../spec/std/http.md#r-std-http.types.builder-response-defaults).

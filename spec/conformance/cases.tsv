@@ -4805,6 +4805,8 @@ typing/invalid/http-free-send-removed.hd	type	reject:unknown-import	std/http.md#
 runtime/valid/deque-heap-collect.hd	runtime	accept	std/collections.md#r-std-collections.heap.collect.linear
 runtime/valid/http-scripted-replies.hd	runtime	accept	std/http.md#r-std-http.scripted.queue-order
 typing/invalid/http-scripted-sent-removed.hd	type	reject:unknown-method	std/http.md#r-std-http.scripted.received-ref
+runtime/valid/http-client-cookies.hd	runtime	accept	std/http.md#client
+runtime/valid/http-client-redirects.hd	runtime	accept	std/http.md#client
 runtime/valid/http-client.hd	runtime	accept	std/http.md#client
 typing/invalid/http-client-timeout-removed.hd	type	reject:unknown-method	std/http.md#r-std-http.client.external-timeout
 typing/invalid/http-client-send-missing-provider.hd	type	reject:missing-requirement	std/http.md#r-std-http.client.send-http-only

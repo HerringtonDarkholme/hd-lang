@@ -1,0 +1,131 @@
+# test: Client follows redirects, rewrites methods, strips cross-host credentials, and enforces limits
+# Spec std/http Client: std-http.client.redirects.manual, std-http.client.redirects.method, std-http.client.redirects.cross-host, std-http.client.redirects.limit.
+use std.http.{Client, Http, Method, Request, Response, ScriptedHttp}
+
+fn header(request: Request, name: string) -> string?:
+    Response { status: 200, headers: request.headers }.header(name)
+
+tests:
+    use std.testing.assert_equal
+
+    it("cross-host redirects drop Authorization and explicit Cookie"):
+        http := ScriptedHttp::new()
+        http.reply("https://one.example/start?q=a", .Ok(Response { status: 302, headers: [("Set-Cookie", "source=one"), ("Location", "https://two.example/end")] }))
+        http.reply("https://two.example/end", .Ok(Response { status: 200 }))
+        client := Client::new().header("Authorization", "Bearer secret").header("Cookie", "manual=yes").header("X-Keep", "ok")
+        request := Request { url: "https://one.example/start", query: [("q", "a")] }
+        $.with(Http=http):
+            _ := client.send!(request).expect("redirect")
+        received := http.received()
+        assert_equal(header(received[0], "Authorization"), .Some("Bearer secret"), reason="initial request gets defaults")
+        assert_equal(header(received[1], "Authorization"), .None, reason="credential removed")
+        assert_equal(header(received[1], "Cookie"), .None, reason="explicit and source-host cookies removed")
+        assert_equal(header(received[1], "X-Keep"), .Some("ok"), reason="unrelated header kept")
+        assert_equal(received[1].url, "https://two.example/end", reason="original query is not appended again")
+        assert_equal(request.url, "https://one.example/start", reason="request remains a value")
+
+    it("301 and 302 rewrite only Post while 303 rewrites every method"):
+        for (status, method, expected) in [(301u16, Method.Post, Method.Get), (302u16, Method.Post, Method.Get), (301u16, Method.Put, Method.Put), (303u16, Method.Put, Method.Get), (307u16, Method.Post, Method.Post), (308u16, Method.Post, Method.Post)]:
+            http := ScriptedHttp::new()
+            http.reply("https://api.example/start", .Ok(Response { status: status, headers: [("Location", "/end")] }))
+            http.reply("https://api.example/end", .Ok(Response { status: 200 }))
+            client := Client::new().header("Authorization", "same-host")
+            $.with(Http=http):
+                _ := client.send!(Request { method: method, url: "https://api.example/start", headers: [("Content-Type", "text/plain"), ("Content-Length", "2")], body: [1, 2] }).expect("redirect")
+            next := http.received()[1]
+            assert_equal(next.method, expected, reason="status-specific method")
+            assert_equal(header(next, "Authorization"), .Some("same-host"), reason="same host retains credentials")
+            if expected == Method.Get:
+                assert_equal(next.body, [], reason="rewritten GET has no body")
+                assert_equal(header(next, "Content-Length"), .None, reason="body framing removed")
+                assert_equal(header(next, "Content-Type"), .None, reason="body content type removed")
+            else:
+                assert_equal(next.body, [1, 2], reason="preserved method keeps body")
+
+    it("relative redirects resolve paths, dot segments and query references"):
+        http := ScriptedHttp::new()
+        http.reply("https://api.example/a/b/start", .Ok(Response { status: 302, headers: [("Location", "../next?x=1")] }))
+        http.reply("https://api.example/a/next?x=1", .Ok(Response { status: 302, headers: [("Location", "?x=2")] }))
+        http.reply("https://api.example/a/next?x=2", .Ok(Response { status: 302, headers: [("Location", "//other.example/end")] }))
+        http.reply("https://other.example/end", .Ok(Response { status: 204 }))
+        client := Client::new()
+        $.with(Http=http):
+            response := client.send!(Request { url: "https://api.example/a/b/start" }).expect("redirects")
+            assert_equal(response.status, 204, reason="last response")
+            assert_equal(response.url, "https://other.example/end", reason="last URL")
+        assert_equal(http.received().len(), 4, reason="each hop sent once")
+
+    it("zero follows none, a positive limit errors at the next target"):
+        http := ScriptedHttp::new()
+        http.reply("https://api.example/start", .Ok(Response { status: 302, headers: [("Location", "https://api.example/end")] }))
+        http.reply("https://api.example/end", .Ok(Response { status: 302, headers: [("Location", "/again")] }))
+        client := Client::new()
+        $.with(Http=http):
+            assert_equal(client.send!(Request { url: "https://api.example/start", redirects: 0 }).expect("zero").status, 302, reason="first redirect returned")
+            match client.send!(Request { url: "https://api.example/start", redirects: 1 }):
+                .Err(.TooManyRedirects(url)) => assert_equal(url, "https://api.example/again", reason="next target named")
+                _ => panic("expected redirect limit")
+        assert_equal(http.received().len(), 3, reason="no request beyond the limit")
+
+    it("redirect status without Location is returned unchanged"):
+        http := ScriptedHttp::new()
+        http.reply("https://api.example/", .Ok(Response { status: 302, body: [9] }))
+        client := Client::new()
+        $.with(Http=http):
+            assert_equal(client.send!(Request { url: "https://api.example/" }).expect("response").body, [9], reason="no target to follow")
+
+    it("resolves the HTTP RFC 3986 normal and abnormal references"):
+        for (reference, expected) in [
+            ("g", "http://a/b/c/g"),
+            ("./g", "http://a/b/c/g"),
+            ("g/", "http://a/b/c/g/"),
+            ("/g", "http://a/g"),
+            ("//g", "http://g"),
+            ("?y", "http://a/b/c/d;p?y"),
+            ("g?y", "http://a/b/c/g?y"),
+            ("#s", "http://a/b/c/d;p?q#s"),
+            ("g#s", "http://a/b/c/g#s"),
+            ("g?y#s", "http://a/b/c/g?y#s"),
+            (";x", "http://a/b/c/;x"),
+            ("g;x", "http://a/b/c/g;x"),
+            ("g;x?y#s", "http://a/b/c/g;x?y#s"),
+            ("", "http://a/b/c/d;p?q"),
+            (".", "http://a/b/c/"),
+            ("./", "http://a/b/c/"),
+            ("..", "http://a/b/"),
+            ("../", "http://a/b/"),
+            ("../g", "http://a/b/g"),
+            ("../..", "http://a/"),
+            ("../../", "http://a/"),
+            ("../../g", "http://a/g"),
+            ("../../../g", "http://a/g"),
+            ("../../../../g", "http://a/g"),
+            ("/./g", "http://a/g"),
+            ("/../g", "http://a/g"),
+            ("g.", "http://a/b/c/g."),
+            (".g", "http://a/b/c/.g"),
+            ("g..", "http://a/b/c/g.."),
+            ("..g", "http://a/b/c/..g"),
+            ("./../g", "http://a/b/g"),
+            ("./g/.", "http://a/b/c/g/"),
+            ("g/./h", "http://a/b/c/g/h"),
+            ("g/../h", "http://a/b/c/h"),
+            ("g;x=1/./y", "http://a/b/c/g;x=1/y"),
+            ("g;x=1/../y", "http://a/b/c/y"),
+            ("g?y/./x", "http://a/b/c/g?y/./x"),
+            ("g?y/../x", "http://a/b/c/g?y/../x"),
+            ("g#s/./x", "http://a/b/c/g#s/./x"),
+            ("g#s/../x", "http://a/b/c/g#s/../x"),
+            ("http://other/a/../b", "http://other/b"),
+            ("//other/a/./b", "http://other/a/b"),
+            ("g?", "http://a/b/c/g?"),
+            ("g#", "http://a/b/c/g#"),
+        ]:
+            http := ScriptedHttp::new()
+            http.reply("http://a/b/c/d;p?q", .Ok(Response { status: 302, headers: [("Location", reference)] }))
+            http.reply(expected, .Ok(Response { status: 200 }))
+            client := Client::new()
+            $.with(Http=http):
+                response := client.send!(Request { url: "http://a/b/c/d;p?q", redirects: 1 }).expect("reference")
+                assert_equal(response.url, expected, reason="RFC reference resolution")
+            assert_equal(http.received()[1].url, expected, reason="target sent to the provider")
