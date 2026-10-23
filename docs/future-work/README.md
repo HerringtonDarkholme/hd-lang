@@ -42,6 +42,7 @@ action at a distance.
 - [Native Backend](NATIVE_BACKEND.md): native executables, a collector
   and threads without a Wasm engine, priced against wasmtime AOT (#188).
 
+- [Program Database](PROGRAM_DATABASE.md): proposed versioned source-fact snapshots, native SQLite queries and cache reuse without an editor protocol (#181).
 
 The compiler's design is in
 [docs/compiler/ARCHITECTURE.md](../compiler/ARCHITECTURE.md).
