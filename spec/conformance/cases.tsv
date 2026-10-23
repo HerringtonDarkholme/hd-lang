@@ -3143,8 +3143,8 @@ runtime/valid/list-invalidation-a-loop-that-never-changes-the-list-finishes.hd	r
 runtime/valid/list-invalidation-removing-during-a-list-loop-leaves-the-loop-on-its-snapshot.hd	runtime	accept	lang/06-control-flow.md#r-flow.for.snapshot
 runtime/panic/list-insert-out-of-range.hd	runtime	panic:index-out-of-bounds	lang/10-modules.md#r-module.method.list-insert.range
 runtime/panic/list-remove-at-out-of-range.hd	runtime	panic:index-out-of-bounds	lang/10-modules.md#r-module.method.list-remove-at.range
-runtime/valid/task-all-list-order.hd	runtime	accept	std/task.md#r-std-task.all-list.order
-runtime/valid/task-all-list-empty.hd	runtime	accept	std/task.md#r-std-task.all-list.empty
+runtime/valid/task-all-list-order.hd	runtime	accept	std/task.md#r-std-task.map-all.order
+runtime/valid/task-all-list-empty.hd	runtime	accept	std/task.md#r-std-task.map-all.empty
 runtime/valid/char-ascii-classes.hd	runtime	accept	std/text.md#character-classification
 runtime/valid/char-unicode-letters.hd	runtime	accept	std/text.md#r-std-text.char.alphabetic
 runtime/valid/char-unicode-digits.hd	runtime	accept	std/text.md#r-std-text.char.alphanumeric
@@ -4931,3 +4931,5 @@ runtime/panic/print-console-other-error.hd	runtime	panic:explicit-panic	std/cons
 runtime/valid/debug-string-runs.hd	runtime	accept	std/format.md#r-std-format.debug.source
 typing/invalid/function-value-named-argument.hd	type	reject:unknown-named-argument	lang/07-functions.md#r-fn.type.positional.named
 typing/invalid/derivation-block-hash.hd	type	reject:underivable-trait	lang/14-annotations.md#r-annot.block.template
+typing/invalid/task-all-list-private.hd	type	reject:private-import	std/task.md#r-std-task.map-all.private-engine
+runtime/valid/task-map-all-2000.hd	runtime	accept	std/task.md#r-std-task.map-all.like-all

@@ -2516,6 +2516,7 @@ impl Em<'_, '_, '_> {
                 });
                 self.store_owned(i)
             }
+            "task_all_frame" => self.all_frame(i, args),
             // `Suspend[T].abandon`: the task's own cancel with the
             // `abandon()` depth raised (§14.6, "Abandoning"). An abandon
             // that did something may have ended a cleanup that parties

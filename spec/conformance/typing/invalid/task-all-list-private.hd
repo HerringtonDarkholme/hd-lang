@@ -1,0 +1,2 @@
+# test: all_list is a private engine, not a public std.task combinator
+use std.task.all_list  # diagnostic: private-import

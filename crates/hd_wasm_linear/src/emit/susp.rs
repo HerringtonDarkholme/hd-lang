@@ -137,6 +137,18 @@ pub(super) struct AllPoint {
 pub(super) const FRAME: u32 = 0;
 
 impl Em<'_, '_, '_> {
+    /// The homogeneous list frame, unlike the fixed-arity tuple point.
+    pub(super) fn all_frame(&mut self, i: u32, args: &[u32]) -> StageResult<()> {
+        let Some(&tasks) = args.first() else {
+            return unsupported("the intrinsic `task_all_frame` without its task list");
+        };
+        let inner = self.susp_inner(self.ty_of(i))?;
+        let (_, elem) = self.elem(inner)?;
+        self.comp(tasks, 0)?;
+        self.f.helper(Helper::All { part: 0, elem });
+        self.store_owned(i)
+    }
+
     pub(super) fn range(&self, x: u32) -> Option<(u32, u32)> {
         self.susp.as_ref().and_then(|s| s.ranges.get(&x).copied())
     }

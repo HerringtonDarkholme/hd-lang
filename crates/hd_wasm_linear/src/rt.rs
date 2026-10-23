@@ -567,6 +567,12 @@ pub enum Helper {
         results: Vec<Val>,
         walk: Option<Walk>,
     },
+    /// A flat homogeneous all frame: constructor, poll, cancel, release
+    /// glue, ready-tree traversal, and first-poll tree initialization.
+    All {
+        part: u8,
+        elem: Elem,
+    },
     /// A kept suspension of a generic method called through a trait
     /// value, over the erased frame whose poll answers an open value
     /// (`emit/erased.rs`): part 0 `(child) -> frame`, 1 its poll, which
@@ -1234,6 +1240,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         | Helper::PendingCancel
         | Helper::Race { .. }
         | Helper::RaceDrop { .. }
+        | Helper::All { .. }
         | Helper::OpenFrame { .. } => crate::task::helper(h, m),
         Helper::HandleSlot {
             inner,
