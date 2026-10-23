@@ -33,11 +33,11 @@ The following workflows are proposals, not commands available today.
 
 | User and goal | Commands and report | Decision and completion |
 | --- | --- | --- |
-| Author adds a standalone helper | `hd release --api-diff` reports `minor`, with the added public path | Review behavior, then `hd release 1.5.0` checks and creates a local tag. |
-| Author adds a requirement to an existing function | `hd release --api-diff` shows the old/new rows and `major` | Update clients, then `hd release 2.0.0` checks and tags it. |
-| CI reviews a proposed release | `hd release 1.5.0 --dry-run --format json` returns findings and version adequacy | Reject an insufficient bump; `--api-diff` alone remains informational. |
-| Workspace author releases one member | `hd release -p lint --api-diff --since 1.4.0`, then `hd release -p lint 1.5.0` | Inspect only that package's comparison and create `lint/v1.5.0`. |
-| Author makes the first release | `hd release --api-diff` reports `first-release`, with no compatibility verdict | Run `hd release 0.1.0` (or another exact version). The report shows no minimum bump. |
+| Author adds a standalone helper | bare `hd release` reports `minor`, with the added public path | Review behavior, then `hd release 1.5.0` checks and creates a local tag. |
+| Author adds a requirement to an existing function | bare `hd release` shows the old/new rows and `major` | Update clients, then `hd release 2.0.0` checks and tags it. |
+| CI reviews a proposed release | `hd release 1.5.0 --dry-run --format json` returns findings and version adequacy | Reject an insufficient bump; a bare `hd release` alone remains informational. |
+| Workspace author releases one member | `hd release -p lint --since 1.4.0`, then `hd release -p lint 1.5.0` | Inspect only that package's comparison and create `lint/v1.5.0`. |
+| Author makes the first release | bare `hd release` reports `first-release`, with no compatibility verdict | Run `hd release 0.1.0` (or another exact version). The report shows no minimum bump. |
 
 Today, versions are [Git tags](../../spec/lang/10-modules.md#r-module.version.tag),
 with [directory prefixes](../../spec/lang/10-modules.md#r-module.version.tag-prefix).
@@ -780,16 +780,15 @@ Incremental stress tests must compare cold and warm report bytes.
 One command, `hd release`, does both the reading and the writing (owner, 2026-10-23):
 
 ```sh
-hd release --api-diff      # print what changed in the public API, and the smallest bump it needs
+hd release                 # read only: print what changed in the public API, and the smallest version it needs
 hd release 2.0.0 --dry-run # run every check for 2.0.0, create nothing
 hd release 2.0.0           # tag this exact version, after checking it is a large enough bump
-hd release -p lint --api-diff --since 1.4.0 --format json
+hd release -p lint --since 1.4.0 --format json
 ```
 
-Creating a tag always needs the exact version: a bare `hd release` is a usage error that names the smallest version the API change allows, as [Bump arithmetic](#bump-arithmetic) computes it.
-A tag is too easy to create by mistake when the tool picks the number.
+A bare `hd release` only reads: it prints the API report and the smallest version the change allows, as [Bump arithmetic](#bump-arithmetic) computes it, exits 0, may run in a dirty checkout, and creates nothing.
+Creating a tag always needs the exact version, because a tag is too easy to create by mistake when the tool picks the number.
 `--dry-run` runs the same checks as the versioned call, and writes nothing.
-`--api-diff` only reads: it prints the report, may run in a dirty checkout, and creates nothing.
 An explicit version that is too small for the change fails, and names the smallest one that would pass.
 The tag is local, annotated and unsigned; `hd release` never pushes or publishes.
 
@@ -808,7 +807,7 @@ Never use lexical tag order or another package's prefix.
 No release-specific `hd.toml` keys are introduced.
 Existing package/workspace/dependency and toolchain configuration still applies to each committed tree.
 CLI selection, baseline, `--format text|json`, and `--jobs N` control only this invocation; invalid combinations are usage errors.
-The version is positional; only `--api-diff` runs without one.
+The version is positional; without it the command only reports.
 
 Both commands analyze committed HEAD, never unstaged or staged changes.
 The reader may run in a dirty checkout and labels that fact; the writer and its dry-run require a clean repository.
@@ -1018,7 +1017,7 @@ Tests here are the future implementation checks, not authorization to run full s
 | 4 | Data and visibility comparison | Struct literals, subset patterns, variants, and promoted paths. |
 | 5 | Traits, generics, derived impls and templates | Bound-inference ambiguity and downstream implementations. |
 | 6 | Committed-object source and baseline selector | Numeric/prefixed tags and missing-object failures in disposable repos. |
-| 7 | `hd release --api-diff` text/JSON and version validation | Exact output, statuses, first release, and cold/warm equality. |
+| 7 | bare `hd release` text/JSON and version validation | Exact output, statuses, first release, and cold/warm equality. |
 | 8 | `hd release VERSION` guarded transaction | Dry-run creates nothing; valid release creates one annotated ref; races create none. |
 | 9 | Footprint and large-package validation | Native tool cost, unchanged program Wasm, web gzip, bounded worst bucket. |
 
@@ -1028,7 +1027,7 @@ The implementation issue must name exact files and conformance fixtures before w
 
 ## Recommendation
 
-Recommend **checked interface comparison**, with one **`hd release`** command: `--api-diff` reports, `--dry-run` checks, and `hd release VERSION` creates one checked local tag.
+Recommend **checked interface comparison**, with one **`hd release`** command: a bare call reports, `--dry-run` checks, and `hd release VERSION` creates one checked local tag.
 It gives up automatic behavioral certification, publishing, and permissive guesses about unresolved impl relationships.
 The next-best mechanism is the smallest checked tag writer with author-selected compatibility.
 A rendered-documentation diff should not gate a release.
