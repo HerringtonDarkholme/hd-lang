@@ -1,0 +1,13 @@
+# Shape 2's missing feature, reduced. Under the proposed rule, the plain
+# call `hello()` builds re-runnable work `fn!() -> void $ Console`, so this
+# prints `hello` twice. Today a plain call builds a one-shot cold
+# `mut Suspend[void]` (spec/lang/11, req.suspend.type.plain-call), and
+# `hd check` reports `type-mismatch` at `hello()`.
+fn twice![T, $R](work: fn!() -> T $ R) -> T $ R:
+    work!()
+    work!()
+
+fn hello!() -> void $ Console: println("hello")
+
+pub fn main!() -> void $ Console:
+    twice!(hello())

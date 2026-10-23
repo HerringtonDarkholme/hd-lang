@@ -1,33 +1,23 @@
-# Expected checker rejection; see POLICY_COMPOSITION.md, not a runnable positive.
-use std.time.Clock
-use std.http.Http
+# The shape-1 compiler gap, reduced. `hd check` passes; `hd FILE` traps
+# `internal error: unreachable` at the call `f()`. The row parameter `S`
+# is fixed only through the binding `Out = fn() -> void $ S`. Writing the
+# row at the call, `call::[$ Console, Hello](Hello {})`, makes it print
+# `hello`, and so does an empty row (`fn() -> void`) or a type parameter
+# fixed the same way (`Out = fn() -> T`).
+trait Make:
+    type Out
+    fn make(self) -> Self::Out
 
-trait Layer[W]:
-    type Output
-    fn wrap(self, work: W) -> Self::Output
+struct Hello: pass
 
-struct AddClock: pass
-impl[T, $R] Layer[fn!() -> T $ R] for AddClock:
-    type Output = fn!() -> T $ R + Clock
-    fn wrap(self, work: fn!() -> T $ R) -> (fn!() -> T $ R + Clock):
-        fn!() -> T $ R + Clock: work!()
+impl Make for Hello:
+    type Out = fn() -> void $ Console
+    fn make(self) -> (fn() -> void $ Console):
+        fn() -> void $ Console: println("hello")
 
-struct Keep: pass
-impl[T, $R] Layer[fn!() -> T $ R] for Keep:
-    type Output = fn!() -> T $ R
-    fn wrap(self, work: fn!() -> T $ R) -> (fn!() -> T $ R): work
+fn call[$S, P < Make[Out = fn() -> void $ S]](maker: P) -> void $ S:
+    f := maker.make()
+    f()
 
-struct Stack[I, O]:
-    inner: I
-    outer: O
-
-impl[W, I < Layer[W], O < Layer[I::Output]] Layer[W] for Stack[I, O]:
-    type Output = O::Output
-    fn wrap(self, work: W) -> O::Output:
-        self.outer.wrap(self.inner.wrap(work))
-
-pub fn main!() -> void $ Console + Clock + Http:
-    stack := Stack { inner: AddClock {}, outer: Keep {} }
-    work := fn!() -> usize $ Http: 7
-    wrapped := stack.wrap(work)
-    println(wrapped!())
+pub fn main() -> void $ Console:
+    call(Hello {})

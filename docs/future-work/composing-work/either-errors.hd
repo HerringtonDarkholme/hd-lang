@@ -1,4 +1,10 @@
-use std.task.{TimedOut, timeout}
+# The Either alternative to `E < From[TimedOut]`: a policy that adds an
+# error returns `Result[T, Either[E, Added]]`. No conversion impl is
+# needed, but every added error nests one level, and work of two
+# different error types needs a lift before a fallback joins them.
+# `Either` is local here; std has none. Runs today.
+use std.http.{Http, HttpError, Response, ScriptedHttp, get}
+use std.task.{Backoff, TimedOut, retry, timeout}
 use std.time.{Clock, Duration, ms, sleep}
 
 @derive(Debug)
@@ -7,47 +13,71 @@ enum Either[A, B]:
     Right(B)
 
 @derive(Debug)
-enum FetchError:
-    Offline
-
-@derive(Debug)
 struct CircuitOpen: pass
 
-# No From[TimedOut] bound or implementation for FetchError.
-fn within_either![T, E, $R](limit: Duration, work: fn!() -> Result[T, E] $ R) -> Result[T, Either[E, TimedOut]] $ R + Clock:
+# No From bound: the timeout is the Right case.
+fn within![T, E, $R](limit: Duration, work: fn!() -> Result[T, E] $ R) -> Result[T, Either[E, TimedOut]] $ R + Clock:
     match timeout!(limit, work=work):
         .Ok(.Ok(value)) => .Ok(value)
         .Ok(.Err(error)) => .Err(.Left(error))
         .Err(expired) => .Err(.Right(expired))
 
-# This policy adds one distinct error without adding Clock.
-fn guarded_either![T, E, $R](open: bool, work: fn!() -> Result[T, E] $ R) -> Result[T, Either[E, CircuitOpen]] $ R:
+# Adds a distinct error without adding Clock.
+fn guarded![T, E, $R](open: bool, work: fn!() -> Result[T, E] $ R) -> Result[T, Either[E, CircuitOpen]] $ R:
     if open:
-        .Err(.Right(CircuitOpen {}))
-    else:
-        match work!():
-            .Ok(value) => .Ok(value)
-            .Err(error) => .Err(.Left(error))
+        return .Err(.Right(CircuitOpen {}))
+    match work!():
+        .Ok(value) => .Ok(value)
+        .Err(error) => .Err(.Left(error))
 
-fn offline!() -> Result[usize, FetchError]: .Err(.Offline)
+fn fallback![T, E, $R, $S](other: fn!() -> Result[T, E] $ S, work: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R + S:
+    match work!():
+        .Ok(value) => .Ok(value)
+        .Err(_) => other!()
 
-fn slow!() -> Result[usize, FetchError] $ Clock:
+# Retrying now classifies the nested error, not the domain error.
+fn transient(error: Either[HttpError, TimedOut]) -> bool:
+    match error:
+        .Left(inner) => inner.is_transient()
+        .Right(_) => true
+
+fn fetch!(url: string) -> Result[string, HttpError] $ Http:
+    response := get!(url)?
+    .Ok("${response.status}")
+
+# The backup has no deadline, so its error must be lifted to join.
+fn backup!() -> Result[string, Either[HttpError, TimedOut]] $ Http:
+    match fetch!("http://backup/item"):
+        .Ok(value) => .Ok(value)
+        .Err(error) => .Err(.Left(error))
+
+fn slow!() -> Result[usize, HttpError] $ Clock:
     sleep!(ms(500))
     .Ok(7)
 
-fn pure_port!() -> Result[usize, Either[FetchError, CircuitOpen]]:
-    guarded_either!(true, work=offline)
+fn refused!() -> Result[usize, HttpError]: .Err(.Connect("refused"))
 
 pub fn main!() -> void $ Console + Clock:
-    first := within_either!(ms(50), work=offline)
-    match first:
-        .Err(.Left(.Offline)) => println("base error: Left(Offline)")
-        _ => panic("expected the original error")
-    nested := guarded_either!(false):
-        within_either!(ms(10), work=slow)
+    http := ScriptedHttp::new()
+    http.reply("http://primary/item", .Err(.Connect("first")))
+    http.reply("http://primary/item", .Err(.Connect("second")))
+    http.reply("http://backup/item", .Ok(Response { status: 200 }))
+    $.with(Http=http):
+        response := fallback!(backup):
+            retry!(Backoff { attempts: 2, initial: ms(1) }, when=transient):
+                within!(ms(50)):
+                    fetch!("http://primary/item")
+        println("http ${debug(response)} requests=${http.received().len()}")
+
+    nested := guarded!(false):
+        within!(ms(10)):
+            slow!()
     match nested:
         .Err(.Left(.Right(_))) => println("timeout: Left(Right(TimedOut))")
         _ => panic("expected the nested timeout")
-    match pure_port!():
-        .Err(.Right(_)) => println("circuit: Right(CircuitOpen), no Clock")
-        _ => panic("expected the circuit error")
+    first := guarded!(false):
+        within!(ms(50)):
+            refused!()
+    match first:
+        .Err(.Left(.Left(.Connect(_)))) => println("domain error: Left(Left(Connect))")
+        _ => panic("expected the domain error")

@@ -1,0 +1,387 @@
+# The cost probe behind POLICY_COMPOSITION.md, "Cost". measure.mjs builds
+# this file, counts Wasm function entries and heap allocations, and runs
+# `VARIANT PATH N` for several N; the per-run cost is the slope.
+# PATH `fail`: two refused attempts 1 ms apart, then the fallback (three
+# requests). PATH `ok`: the first attempt succeeds (one request).
+# Shape 1 runs as the control of shape1-controls.hd (wrap, then call),
+# because `apply!` hits the compiler gap; shape 2's combinator form runs
+# as the closures the proposed plain-call rule builds.
+use std.convert.From
+use std.host.{Args, args}
+use std.http.{Http, HttpError, Request, Response, get}
+use std.task.{Backoff, TimedOut, race, retry, with_timeout}
+use std.time.{Clock, Duration, ms, sleep}
+
+# ---- shape 1 ----
+
+trait Policy:
+    fn then[O](self, outer: O) -> Stack[Self, O]:
+        Stack { inner: self, outer: outer }
+
+trait Layer[W] < Policy:
+    type Wrapped
+    fn wrap(self, work: W) -> Self::Wrapped
+
+struct Stack[I, O]:
+    inner: I
+    outer: O
+
+impl[I, O] Policy for Stack[I, O]
+
+impl[W, I < Layer[W], O < Layer[I::Wrapped]] Layer[W] for Stack[I, O]:
+    type Wrapped = O::Wrapped
+    fn wrap(self, work: W) -> O::Wrapped:
+        self.outer.wrap(self.inner.wrap(work))
+
+struct TimeLimit:
+    limit: Duration
+    cleanup: Duration? = .None
+
+impl Policy for TimeLimit
+
+impl[T, E < From[TimedOut], $R] Layer[fn!() -> Result[T, E] $ R] for TimeLimit:
+    type Wrapped = fn!() -> Result[T, E] $ R + Clock
+    fn wrap(self, work: fn!() -> Result[T, E] $ R) -> (fn!() -> Result[T, E] $ R + Clock):
+        fn!() -> Result[T, E] $ R + Clock:
+            with_timeout!(self.limit, cleanup=self.cleanup, work=work)
+
+struct Retry[E]:
+    backoff: Backoff
+    when: fn(E) -> bool
+
+impl[E] Policy for Retry[E]
+
+impl[T, E, $R] Layer[fn!() -> Result[T, E] $ R] for Retry[E]:
+    type Wrapped = fn!() -> Result[T, E] $ R + Clock
+    fn wrap(self, work: fn!() -> Result[T, E] $ R) -> (fn!() -> Result[T, E] $ R + Clock):
+        fn!() -> Result[T, E] $ R + Clock:
+            retry!(self.backoff, when=self.when, attempt=work)
+
+struct Fallback[F]:
+    other: F
+
+impl[F] Policy for Fallback[F]
+
+impl[T, E, $R, $S] Layer[fn!() -> Result[T, E] $ R] for Fallback[fn!() -> Result[T, E] $ S]:
+    type Wrapped = fn!() -> Result[T, E] $ R + S
+    fn wrap(self, work: fn!() -> Result[T, E] $ R) -> (fn!() -> Result[T, E] $ R + S):
+        fn!() -> Result[T, E] $ R + S:
+            match work!():
+                .Ok(value) => .Ok(value)
+                .Err(_) => (self.other)!()
+
+struct CircuitOpen: pass
+
+struct Breaker:
+    failures: usize
+    limit: usize
+    calls: usize
+
+struct Guard:
+    state: &mut Breaker
+
+impl Policy for Guard
+
+impl[T, E < From[CircuitOpen], $R] Layer[fn!() -> Result[T, E] $ R] for Guard:
+    type Wrapped = fn!() -> Result[T, E] $ R
+    fn wrap(self, work: fn!() -> Result[T, E] $ R) -> (fn!() -> Result[T, E] $ R):
+        fn!() -> Result[T, E] $ R:
+            if self.state.failures >= self.state.limit:
+                return .Err(E::from(CircuitOpen {}))
+            self.state.calls += 1
+            result := work!()
+            self.state.failures = if result.is_ok(): 0 else: self.state.failures + 1
+            result
+
+struct Hedge:
+    delay: Duration
+
+impl Policy for Hedge
+
+impl[T, E, $R] Layer[fn!() -> Result[T, E] $ R] for Hedge:
+    type Wrapped = fn!() -> Result[T, E] $ R + Clock
+    fn wrap(self, work: fn!() -> Result[T, E] $ R) -> (fn!() -> Result[T, E] $ R + Clock):
+        fn!() -> Result[T, E] $ R + Clock:
+            race!(work(), late_copy(work, self.delay))
+
+fn late_copy![T, E, $R](work: fn!() -> Result[T, E] $ R, delay: Duration) -> Result[T, E] $ R + Clock:
+    sleep!(delay)
+    work!()
+
+# ---- shape 2 ----
+
+fn fallback![T, E, $R, $S](other: fn!() -> Result[T, E] $ S, work: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R + S:
+    match work!():
+        .Ok(value) => .Ok(value)
+        .Err(_) => other!()
+
+fn guarded![T, E < From[CircuitOpen], $R](breaker: &mut Breaker, work: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R:
+    if breaker.failures >= breaker.limit:
+        return .Err(E::from(CircuitOpen {}))
+    breaker.calls += 1
+    result := work!()
+    breaker.failures = if result.is_ok(): 0 else: breaker.failures + 1
+    result
+
+fn hedged![T, E, $R](delay: Duration, work: fn!() -> Result[T, E] $ R) -> Result[T, E] $ R + Clock:
+    race!(work(), late_copy(work, delay))
+
+# ---- shape 3 ----
+
+struct TimedHttp:
+    inner: &mut dyn Http
+    clock: &mut dyn Clock
+    limit: Duration
+
+impl Http for TimedHttp:
+    fn send!(&mut self, request: Request) -> Result[Response, HttpError]:
+        inner := self.inner
+        limit := self.limit
+        $.with(Clock=self.clock):
+            with_timeout!(limit):
+                inner.send!(request)
+
+struct RetriedHttp:
+    inner: &mut dyn Http
+    clock: &mut dyn Clock
+    backoff: Backoff
+
+fn http_transient(error: HttpError) -> bool: error.is_transient()
+
+impl Http for RetriedHttp:
+    fn send!(&mut self, request: Request) -> Result[Response, HttpError]:
+        inner := self.inner
+        backoff := self.backoff
+        $.with(Clock=self.clock):
+            retry!(backoff, when=http_transient):
+                inner.send!(request)
+
+struct FallbackHttp:
+    inner: &mut dyn Http
+    from: string
+    to: string
+
+impl Http for FallbackHttp:
+    fn send!(&mut self, request: Request) -> Result[Response, HttpError]:
+        match self.inner.send!(request):
+            .Ok(response) => .Ok(response)
+            .Err(error) =>
+                if !request.url.starts_with(self.from):
+                    return .Err(error)
+                rest := request.url.strip_prefix(self.from).unwrap_or("")
+                self.inner.send!(Request { ...request, url: self.to + rest })
+
+struct BreakerHttp:
+    inner: &mut dyn Http
+    state: &mut Breaker
+
+impl Http for BreakerHttp:
+    fn send!(&mut self, request: Request) -> Result[Response, HttpError]:
+        if self.state.failures >= self.state.limit:
+            return .Err(.Other("circuit open"))
+        self.state.calls += 1
+        result := self.inner.send!(request)
+        self.state.failures = if result.is_ok(): 0 else: self.state.failures + 1
+        result
+
+struct HedgedHttp:
+    inner: &mut dyn Http
+    clock: &mut dyn Clock
+    delay: Duration
+
+impl Http for HedgedHttp:
+    fn send!(&mut self, request: Request) -> Result[Response, HttpError]:
+        inner := self.inner
+        delay := self.delay
+        $.with(Clock=self.clock):
+            race!(inner.send(request), late_send(inner, request, delay))
+
+fn late_send!(inner: &mut dyn Http, request: Request, delay: Duration) -> Result[Response, HttpError] $ Clock:
+    sleep!(delay)
+    inner.send!(request)
+
+# ---- the work ----
+
+@derive(Debug)
+enum Failure:
+    Http(HttpError)
+    Timeout
+    Open
+
+impl From[HttpError] for Failure:
+    fn from(error: HttpError) -> Failure: .Http(error)
+
+impl From[TimedOut] for Failure:
+    fn from(error: TimedOut) -> Failure: .Timeout
+
+impl From[CircuitOpen] for Failure:
+    fn from(error: CircuitOpen) -> Failure: .Open
+
+fn transient(error: Failure) -> bool:
+    match error:
+        .Http(inner) => inner.is_transient()
+        .Timeout => true
+        .Open => false
+
+# Refuses every primary request at once and answers every other one.
+struct Fake:
+    sent: usize
+
+impl Http for Fake:
+    fn send!(&mut self, request: Request) -> Result[Response, HttpError]:
+        self.sent += 1
+        if request.url.starts_with("http://primary/"):
+            .Err(.Connect("refused"))
+        else:
+            .Ok(Response { status: 200, url: request.url })
+
+fn fetch!(url: string) -> Result[string, Failure] $ Http:
+    response := get!(url)?
+    .Ok("${response.status}")
+
+fn fetch_http!(url: string) -> Result[string, HttpError] $ Http:
+    response := get!(url)?
+    .Ok("${response.status}")
+
+BACKOFF := Backoff { attempts: 2, initial: ms(1) }
+
+# ---- one run of each variant ----
+
+# The work alone, with the same requests and wait as the fail path.
+fn http_work!(url: string) -> Result[string, Failure] $ Http + Clock:
+    let result = fetch!(url)
+    if result.is_err():
+        sleep!(ms(1))
+        result = fetch!(url)
+    if result.is_err():
+        result = fetch!("http://backup/item")
+    result
+
+fn http_s1!(url: string) -> Result[string, Failure] $ Http + Clock:
+    backup := fn!() -> Result[string, Failure] $ Http: fetch!("http://backup/item")
+    policy := TimeLimit { limit: ms(50) }
+        .then(Retry { backoff: BACKOFF, when: transient })
+        .then(Fallback { other: backup })
+    work := fn!() -> Result[string, Failure] $ Http: fetch!(url)
+    wrapped := policy.wrap(work)
+    wrapped!()
+
+fn http_s2_block!(url: string) -> Result[string, Failure] $ Http + Clock:
+    backup := fn!() -> Result[string, Failure] $ Http: fetch!("http://backup/item")
+    fallback!(backup):
+        retry!(BACKOFF, when=transient):
+            with_timeout!(ms(50)):
+                fetch!(url)
+
+# What `fetch(url) |> with_timeout(ms(50), work=_) |> retry(BACKOFF,
+# when=transient, attempt=_) |> fallback(fetch(backup), work=_)` builds.
+fn http_s2_pipe(url: string) -> (fn!() -> Result[string, Failure] $ Http + Clock):
+    primary := fn!() -> Result[string, Failure] $ Http: fetch!(url)
+    timed := fn!() -> Result[string, Failure] $ Http + Clock: with_timeout!(ms(50), work=primary)
+    retried := fn!() -> Result[string, Failure] $ Http + Clock: retry!(BACKOFF, when=transient, attempt=timed)
+    backup := fn!() -> Result[string, Failure] $ Http: fetch!("http://backup/item")
+    fn!() -> Result[string, Failure] $ Http + Clock: fallback!(backup, work=retried)
+
+fn ok_count[T, E](result: Result[T, E]) -> usize:
+    if result.is_ok(): 1 else: 0
+
+fn run!(variant: string, url: string, n: usize) -> usize $ Http + Clock:
+    let ok: usize = 0
+    if variant == "http-work":
+        for _ in 0..n:
+            ok += ok_count(http_work!(url))
+    else if variant == "http-s1":
+        for _ in 0..n:
+            ok += ok_count(http_s1!(url))
+    else if variant == "http-s1-once":
+        backup := fn!() -> Result[string, Failure] $ Http: fetch!("http://backup/item")
+        policy := TimeLimit { limit: ms(50) }
+            .then(Retry { backoff: BACKOFF, when: transient })
+            .then(Fallback { other: backup })
+        work := fn!() -> Result[string, Failure] $ Http: fetch!(url)
+        wrapped := policy.wrap(work)
+        for _ in 0..n:
+            ok += ok_count(wrapped!())
+    else if variant == "http-s2-block":
+        for _ in 0..n:
+            ok += ok_count(http_s2_block!(url))
+    else if variant == "http-s2-pipe":
+        for _ in 0..n:
+            call := http_s2_pipe(url)
+            ok += ok_count(call!())
+    else if variant == "http-s2-pipe-once":
+        call := http_s2_pipe(url)
+        for _ in 0..n:
+            ok += ok_count(call!())
+    else if variant == "guard-work":
+        for _ in 0..n:
+            ok += ok_count(fetch!(url))
+    else if variant == "guard-s1":
+        let mut breaker = Breaker { failures: 0, limit: 1000000, calls: 0 }
+        guard := Guard { state: &mut breaker }
+        for _ in 0..n:
+            work := fn!() -> Result[string, Failure] $ Http: fetch!(url)
+            wrapped := guard.wrap(work)
+            ok += ok_count(wrapped!())
+    else if variant == "guard-s2-block":
+        let mut breaker = Breaker { failures: 0, limit: 1000000, calls: 0 }
+        for _ in 0..n:
+            result := guarded!(&mut breaker):
+                fetch!(url)
+            ok += ok_count(result)
+    else if variant == "guard-s2-pipe-once":
+        let mut breaker = Breaker { failures: 0, limit: 1000000, calls: 0 }
+        primary := fn!() -> Result[string, Failure] $ Http: fetch!(url)
+        call := fn!() -> Result[string, Failure] $ Http: guarded!(&mut breaker, work=primary)
+        for _ in 0..n:
+            ok += ok_count(call!())
+    else if variant == "hedge-s1":
+        for _ in 0..n:
+            work := fn!() -> Result[string, Failure] $ Http: fetch!(url)
+            wrapped := Hedge { delay: ms(10) }.wrap(work)
+            ok += ok_count(wrapped!())
+    else if variant == "hedge-s2-block":
+        for _ in 0..n:
+            result := hedged!(ms(10)):
+                fetch!(url)
+            ok += ok_count(result)
+    else:
+        panic("unknown variant $variant")
+    ok
+
+# Shape 3 installs its stack once, around the whole loop.
+fn run_s3!(variant: string, url: string, n: usize, fake: &mut Fake) -> usize $ Clock:
+    let ok: usize = 0
+    clock := $.use(Clock)
+    if variant == "http-s3":
+        timed := &mut TimedHttp { inner: fake, clock: clock, limit: ms(50) }
+        retried := &mut RetriedHttp { inner: timed, clock: clock, backoff: BACKOFF }
+        stack := &mut FallbackHttp { inner: retried, from: "http://primary/", to: "http://backup/" }
+        $.with(Http=stack):
+            for _ in 0..n:
+                ok += ok_count(fetch_http!(url))
+    else if variant == "guard-s3":
+        let mut breaker = Breaker { failures: 0, limit: 1000000, calls: 0 }
+        $.with(Http=&mut BreakerHttp { inner: fake, state: &mut breaker }):
+            for _ in 0..n:
+                ok += ok_count(fetch_http!(url))
+    else if variant == "hedge-s3":
+        $.with(Http=&mut HedgedHttp { inner: fake, clock: clock, delay: ms(10) }):
+            for _ in 0..n:
+                ok += ok_count(fetch_http!(url))
+    else:
+        panic("unknown variant $variant")
+    ok
+
+pub fn main!() -> void $ Console + Clock + Args:
+    arguments := args()
+    variant := arguments[0]
+    url := if arguments[1] == "ok": "http://ok/item" else: "http://primary/item"
+    n := arguments[2].parse::[usize]().expect("run count")
+    let mut fake = Fake { sent: 0 }
+    ok := if variant.ends_with("-s3"):
+        run_s3!(variant, url, n, &mut fake)
+    else:
+        $.with(Http=&mut fake):
+            run!(variant, url, n)
+    println("ok=$ok sent=${fake.sent}")
