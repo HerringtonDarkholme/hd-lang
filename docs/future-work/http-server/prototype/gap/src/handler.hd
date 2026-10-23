@@ -1,0 +1,4 @@
+use std.http.{Request, Response}
+
+pub fn handle!(request: Request) -> Response:
+    Response { status: 200, body: request.url.to_utf8() }

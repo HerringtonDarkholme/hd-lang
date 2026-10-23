@@ -14,6 +14,8 @@ action at a distance.
 
 ## What Remains
 
+- [HTTP Server Handlers](HTTP_SERVER.md): proposed core-Wasm handler entry, fresh request instances, Cloudflare/Vercel adapters, portable async controls, and explicit deployment gaps (#266).
+
 - [TLS Streams](TLS_STREAMS.md): client TLS boundary options, host-stream transfer, aliases and buffered bytes, trust roots, and Net grants (#265).
 - [Policy Composition](POLICY_COMPOSITION.md): two complete proposed shapes, runnable block/combinator ports, static error alternatives, and the policy-value row-inference gap (#783); supersedes Composing Work.
 - [Policy Composition](POLICY_COMPOSITION.md): three shapes for composing timeout, retry, fallback, breaker and hedging, each on the same three programs with measured cost; recommends one bang function per policy plus a plain call that builds re-runnable work (#783).

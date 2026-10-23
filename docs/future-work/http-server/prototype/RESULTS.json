@@ -1,0 +1,61 @@
+{
+  "base": "adaeaea81b15d6ec6c94ba436cab33f913b4a122",
+  "compiler_base": "2e89fcb0bab43c22c009bd92871b35d1562b70fa",
+  "source_delta_bytes": 0,
+  "measurements": {
+    "sample": "100 sequential fresh instances; same compiled module; measurement-only heap export",
+    "node": "v24.19.0",
+    "wasmBytes": 317485,
+    "wasmGzip": 113289,
+    "definedFunctions": 704,
+    "codeSectionBytes": 270004,
+    "declaredMemories": [
+      {
+        "index": 0,
+        "minimumBytes": 65536,
+        "maximum": null
+      },
+      {
+        "index": 1,
+        "minimumBytes": 65536,
+        "maximum": null
+      }
+    ],
+    "heapAfterSmallRequest": 65536,
+    "exchangeAfterSmallRequest": 65536,
+    "instantiateMedianMs": 0.04625000000000057,
+    "instantiateP95Ms": 0.07004200000000083,
+    "jsBytes": 116692,
+    "concatBytes": 434177,
+    "concatGzipProxy": 149310
+  },
+  "workerd_version": "1.20261023.1",
+  "workerd_features": {
+    "Suspending": "function",
+    "promising": "function",
+    "SharedArrayBuffer": "function",
+    "result": 7
+  },
+  "edge_vm": "5.0.0",
+  "edge_primitives": "6.0.0",
+  "edge_features": {
+    "Suspending": "undefined",
+    "promising": "undefined"
+  },
+  "hosted_deployment_tested": false,
+  "native_cli_runs": 8,
+  "sources": {
+    "docs/future-work/http-server/prototype/prepare-workerd.py": "e58240a267052ccc728da8744ab5df30d6f5218e8644950a53f821b408e8199c",
+    "docs/future-work/http-server/prototype/fetch-control.mjs": "4c6965383e0578215c6cf181fdaab4076fe46343275cca80f2d115a029ad113f",
+    "docs/future-work/http-server/prototype/measure.mjs": "4e378d3f6c28a8cb0eba90c005038a1fd5580eb01c5f938bea34695c4a68ac75",
+    "docs/future-work/http-server/prototype/test-workerd.mjs": "acd7eb2a32535ff188d953af1d45139e02c053f40623bba60f237bf4f74375c6",
+    "docs/future-work/http-server/prototype/test-control.mjs": "e0da632c57428c0b5963f1975f861fafd4a53a211ed54d6fdb7c842084304cdd",
+    "docs/future-work/http-server/prototype/README.md": "f0bc33fbd84d130511a70ac77687d8c398bfdd9c6b16ca0684eba477bd886fa9",
+    "docs/future-work/http-server/prototype/test-edge.mjs": "5677d2dd1d37c2145ce158b191bbe2ef500600e885c9cc2f453d11c83772d349",
+    "docs/future-work/http-server/prototype/workerd-features.js": "57f7ff831f8cca49f739b38edf5c1ff14ab29f81e1bc37d4cccd7dce9f3dceb3",
+    "docs/future-work/http-server/prototype/app/hd.toml": "50e6a9da75197599ac114c6cf74b2dbc8499db498dedd4712eedbb2e85bac33a",
+    "docs/future-work/http-server/prototype/gap/hd.toml": "7f58d83c899c2190dd0dc901466919211a1b91b26f2b18b104e7793f9c50dad1",
+    "docs/future-work/http-server/prototype/gap/src/handler.hd": "a1e3e0cb4b4aafb58e341360207aa4e9029b5341a2aca570205026d27c2bb52d",
+    "docs/future-work/http-server/prototype/app/src/main.hd": "a55acb5a752e060febdd8c95bbb398a832bba9b2e6c6f628b7e775ce02e76393"
+  }
+}
