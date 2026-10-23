@@ -126,9 +126,6 @@ pub(super) fn thunk(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResul
         .map(|c| (c.0 as usize, u32::MAX))
         .collect();
     let mut em = Em::new(input, m, b, (item, args), calls, shared_cells);
-    // A thunk of an owned body runs one of its instructions, whose
-    // uniqueness the passes made explicit too.
-    em.unique_explicit = true;
     // Each shared capture arrives as its cell's address.
     em.entry_cells = em.cells.keys().copied().collect();
     em.origin_root = at;

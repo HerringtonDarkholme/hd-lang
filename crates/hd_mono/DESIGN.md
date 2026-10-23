@@ -1498,7 +1498,12 @@ arguments. The adapter's TIR is synthetic (no source body): parameters
 `(env, args…, ctx)`, one `Call` of the item instance, return its
 result. Rows are not type arguments (§13.9), so one adapter serves
 every caller row; the context passes through untouched (`RowSubsume`).
-An adapter adds 1 to the instantiation chain (§13.4).
+An adapter adds 1 to the instantiation chain (§13.4). A target emission
+lowers at each call (an intrinsic, a built-in family's method, a trait
+method at a trait-value `Self`) is called from a body collection builds
+(`adapter_call_body`): the item's parameters as the operands of one
+`Call`, returning its result. The driver runs the ownership passes over
+it (`ProgramEnv::own_generated`), and it is the adapter's instance body.
 
 Wasm shape: the reference value is a `Closure` struct whose code field
 is the adapter and whose env holds the bound receiver, if any. Every

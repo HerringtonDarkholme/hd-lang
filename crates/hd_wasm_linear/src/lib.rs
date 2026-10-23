@@ -263,9 +263,7 @@ pub struct Input<'a> {
     /// body went through the passes (`hd_tir::own`), so emission lowers
     /// their read modes, `Drop`s and exit sets and decides no count itself
     /// (`docs/compiler/tir-v2.md`, "Stage 2"); from these facts it learns
-    /// which use consumes each value (`hd_tir::own::consumers`), and it
-    /// runs the passes over the one body it builds itself (a function
-    /// reference's call).
+    /// which use consumes each value (`hd_tir::own::consumers`).
     pub own_cx: &'a dyn hd_tir::own::OwnCx,
 }
 

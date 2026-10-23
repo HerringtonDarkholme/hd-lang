@@ -259,22 +259,12 @@ impl Em<'_, '_, '_> {
     }
 
     /// `m[k]`, `m.get(k)`, `m[k] = v` and `m.remove(k)`: the key is
-    /// hashed, then its entry probed for. A change makes the table the
-    /// map's own first.
+    /// hashed, then its entry probed for. The passes' `IsUnique` made the
+    /// table the map's own before a change.
     pub(super) fn map_op(&mut self, i: u32, op: IntrinsicOp, args: &[u32]) -> StageResult<()> {
         let (kt, vt, e) = self.entry(self.ty_of(args[0]))?;
         let ops = self.key_ops(i, kt, &e.key_vals())?;
         let m = self.header(args[0])?;
-        // An owned body's `IsUnique` came before the change.
-        if !self.unique_explicit
-            && matches!(
-                op,
-                IntrinsicOp::MapSet | IntrinsicOp::MapRemove | IntrinsicOp::MapIndexMut
-            )
-        {
-            self.f.get(m);
-            self.f.helper(Helper::MapUnique { entry: e.clone() });
-        }
         let (kl, h) = self.map_key(args[1], &e, &ops)?;
         if op == IntrinsicOp::MapSet {
             return self.map_put(m, (kt, vt), (&e, &ops), (&kl, h), args[2]);

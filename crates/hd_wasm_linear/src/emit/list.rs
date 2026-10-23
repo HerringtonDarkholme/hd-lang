@@ -2,11 +2,13 @@
 //! is the address of a counted header that holds its buffer's address and
 //! its owner word (§23.20); the buffer is a counted object holding the
 //! capacity, the length and the elements inline. A header never moves, so
-//! a change through it reaches every place that holds the same list; a copy (`ValueCopy`) is a new header
-//! over the same buffer, whose count is its number of owners. A change
-//! makes the buffer the list's own first (`rt:list_unique`): a shared one
-//! is copied, and the copied elements' collections are copied in turn, so
-//! a nested write never reaches another list.
+//! a change through it reaches every place that holds the same list; a
+//! copy (`ValueCopy`) is a new header over the same buffer, whose count is
+//! its number of owners. The ownership passes' `IsUnique` makes the buffer
+//! the list's own before a change (`rt:list_unique`): a shared one is
+//! copied, and the copied elements' collections are copied in turn, so a
+//! nested write never reaches another list. A loop's stable lists keep
+//! their header, buffer and length in locals (`Em::own_list_caches`).
 
 use hd_base::StageResult;
 use hd_tir::ir::{Coercion, IntrinsicOp, NONE, PrimOp, Ref, Step, Tag};
@@ -199,9 +201,10 @@ impl Em<'_, '_, '_> {
         }
     }
 
-    /// A canonical loop test, before its body. Duplicating this scalar
-    /// prefix lets an empty loop avoid the hoisted COW allocation.
-    fn list_loop_guard(&self, loop_inst: u32, body: u32) -> Option<(Vec<u32>, u32, bool)> {
+    /// A canonical loop test, before its body: the `If` after a scalar
+    /// prefix one of whose branches only breaks out of the loop, and
+    /// whether that branch is the first.
+    fn list_loop_guard(&self, loop_inst: u32, body: u32) -> Option<(u32, bool)> {
         let is_break = |blk: u32| {
             if blk == hd_tir::ir::NONE || self.b.tags[blk as usize] != Tag::Block {
                 return false;
@@ -223,7 +226,6 @@ impl Em<'_, '_, '_> {
                     .get(self.b.data[item as usize][0] as usize)
                     == Some(&loop_inst)
         };
-        let mut prefix = Vec::new();
         let mut budget = self.b.len();
         for x in self.rec(self.b.data[body as usize][0]) {
             if self.b.tags[x as usize] == Tag::Block {
@@ -233,12 +235,11 @@ impl Em<'_, '_, '_> {
                 let branches = self.rec(self.b.data[x as usize][1]);
                 let first = is_break(branches[0]);
                 let second = branches.get(1).is_some_and(|b| is_break(*b));
-                return (first != second).then_some((prefix, x, first));
+                return (first != second).then_some((x, first));
             }
             if !self.scalar_loop_test(x, &mut budget) {
                 return None;
             }
-            prefix.push(x);
         }
         None
     }
@@ -561,7 +562,7 @@ impl Em<'_, '_, '_> {
                     _ => return false,
                 },
                 Tag::Intrinsic if reaches => match IntrinsicOp::from_u32(a) {
-                    Some(IntrinsicOp::ListLen | IntrinsicOp::ListIndexMut) => {}
+                    Some(IntrinsicOp::ListLen) => {}
                     _ => return false,
                 },
                 // A tuple element or a payload is checked as any other
@@ -718,14 +719,17 @@ impl Em<'_, '_, '_> {
         Ok(roots)
     }
 
+    /// Loop `loop_inst`, whose body is block `block`, is about to start:
+    /// the hoisted `IsUnique`s waiting for it run, its exact range indices
+    /// are proven (§23.37), and its stable lists keep their header, buffer
+    /// and length in locals ([`Em::own_list_caches`]). The cached lists,
+    /// which the loop's exit drops from the cache.
     pub(super) fn begin_list_loop(
         &mut self,
         loop_inst: u32,
         block: u32,
     ) -> StageResult<Vec<ListRoot>> {
-        if self.unique_explicit {
-            self.hoisted_uniques(Some(loop_inst))?;
-        }
+        self.hoisted_uniques(Some(loop_inst))?;
         if self.susp.is_some() {
             return Ok(Vec::new());
         }
@@ -734,109 +738,11 @@ impl Em<'_, '_, '_> {
             .map(|i| u32::try_from(i).expect("insts"))
             .filter(|x| tree.in_loop(self.b, *x, loop_inst))
             .collect();
-        let guard = self.list_loop_guard(loop_inst, block);
-        if let Some((_, test, false)) = &guard {
-            let proven = self.range_indices(loop_inst, *test, &tree, &body);
+        if let Some((test, false)) = self.list_loop_guard(loop_inst, block) {
+            let proven = self.range_indices(loop_inst, test, &tree, &body);
             self.proven_list_indices.extend(proven);
         }
-        if self.unique_explicit {
-            return self.own_list_caches(loop_inst);
-        }
-        let mut candidates: Vec<(ListRoot, Elem, bool, bool)> = Vec::new();
-        for &x in &body {
-            // An element store writes the list its place starts from.
-            let (list, write) =
-                if let Some(list) = super::shape::elem_store_list(self.b, x as usize) {
-                    (list, true)
-                } else if let Some((list, _)) = self.b.element_read(x as usize) {
-                    (list, false)
-                } else {
-                    if self.b.tags[x as usize] != Tag::Intrinsic {
-                        continue;
-                    }
-                    let [op, record] = self.b.data[x as usize];
-                    let write = match IntrinsicOp::from_u32(op) {
-                        Some(IntrinsicOp::ListLen) => false,
-                        Some(IntrinsicOp::ListIndexMut) => true,
-                        _ => continue,
-                    };
-                    let Some(list) = self.b.record(record).first().copied() else {
-                        continue;
-                    };
-                    (list, write)
-                };
-            let Some(root) = self.list_root(list) else {
-                continue;
-            };
-            if self.list_caches.iter().any(|(key, _)| *key == root) {
-                continue;
-            }
-            let (_, elem) = self.elem(self.ty_of(list))?;
-            if elem.walk.is_some() {
-                continue;
-            }
-            let definite = guard
-                .as_ref()
-                .is_some_and(|(_, g, _)| tree.iteration_write(self.b, x, loop_inst, *g));
-            if let Some((_, _, writes, guaranteed)) =
-                candidates.iter_mut().find(|(r, ..)| *r == root)
-            {
-                *writes |= write;
-                *guaranteed |= write && definite;
-            } else {
-                candidates.push((root, elem, write, write && definite));
-            }
-        }
-        candidates.retain(|(root, _, write, definite)| {
-            (!write || *definite) && self.list_loop_safe(*root, &body, &self.list_aliases(*root))
-        });
-        if candidates.is_empty() {
-            return Ok(Vec::new());
-        }
-        self.f.helper(Helper::RefViewsAbsent);
-        self.f.op(I::If(BlockType::Empty));
-        if let Some((prefix, test, invert)) = &guard {
-            for &x in prefix {
-                self.inst(x)?;
-            }
-            self.push(self.b.data[*test as usize][0])?;
-            if *invert {
-                self.f.op(I::I32Eqz);
-            }
-            self.f.op(I::If(BlockType::Empty));
-        }
-        let mut roots = Vec::new();
-        for (root, elem, write, _) in candidates {
-            let local = self.local_value(root.local)?[0];
-            self.f.get(local);
-            if root.indirect {
-                self.f.op(I::I32Load(mem(HEAP, 0, 2)));
-            }
-            let header = self.f.local(Val::I32);
-            self.f.set(header);
-            if write {
-                self.unique(header, &elem, false);
-            }
-            let buffer = self.buffer(header);
-            let len = self.f.local(Val::I32);
-            self.f.get(buffer);
-            self.f.op(I::I32Load(mem(HEAP, LIST_LEN, 2)));
-            self.f.set(len);
-            self.list_caches.push((
-                root,
-                ListCache {
-                    header,
-                    buffer,
-                    len,
-                },
-            ));
-            roots.push(root);
-        }
-        if guard.is_some() {
-            self.f.op(I::End);
-        }
-        self.f.op(I::End);
-        Ok(roots)
+        self.own_list_caches(loop_inst)
     }
 
     /// The element type of list type `t` and its layout for the glue.
@@ -1187,33 +1093,27 @@ impl Em<'_, '_, '_> {
         self.store(i)
     }
 
-    /// An element read, `Read [%xs [%i]]`, and `ListIndexMut`, which
-    /// first makes the buffer the list's own so that a write through the
-    /// element reaches only it. `args` are the list and the index.
-    pub(super) fn list_index(&mut self, i: u32, args: &[u32], write: bool) -> StageResult<()> {
-        let (_, e) = self.elem(self.ty_of(args[0]))?;
-        let h = self.header(args[0])?;
-        let mut b = self.buffer(h);
-        let ix = if !write && self.proven_list_indices.contains(&i) {
+    /// An element read, `Read [%xs [%i]]`, of the list `list` at `index`.
+    pub(super) fn list_index(&mut self, i: u32, list: u32, index: u32) -> StageResult<()> {
+        let (_, e) = self.elem(self.ty_of(list))?;
+        let h = self.header(list)?;
+        let b = self.buffer(h);
+        let ix = if self.proven_list_indices.contains(&i) {
             // Typed views keep the ordinary checked path. The linker
             // folds this guard away in programs without any views.
             let ix = self.f.local(Val::I32);
             self.f.helper(Helper::RefViewsAbsent);
             self.f.op(I::If(BlockType::Result(Val::I32.wasm())));
-            self.comp(args[1], 0)?;
+            self.comp(index, 0)?;
             self.f.op(I::Else);
-            let checked = self.index(b, args[1])?;
+            let checked = self.index(b, index)?;
             self.f.get(checked);
             self.f.op(I::End);
             self.f.set(ix);
             ix
         } else {
-            self.index(b, args[1])?
+            self.index(b, index)?
         };
-        if write {
-            self.invariant_unique(args[0], h, &e);
-            b = self.buffer(h);
-        }
         let at = self.slot_at(b, ix, e.size);
         for l in &e.leaves {
             self.f.get(at);
@@ -1232,192 +1132,12 @@ impl Em<'_, '_, '_> {
         Ok((et, self.slot_at(b, ix, e.size)))
     }
 
-    /// Makes the buffer of the list header in local `h` its own.
-    fn unique(&mut self, h: u32, e: &Elem, push: bool) {
-        self.f.get(h);
-        self.f.helper(Helper::ListUnique {
-            elem: e.clone(),
-            push,
-        });
-    }
-
-    /// No call or operation here can share a buffer after its first write.
-    /// The one allowed call is the compiler's scalar square-root operation.
-    fn cannot_share_buffers(&self) -> bool {
-        for i in 0..self.b.len() {
-            let tag = self.b.tags[i];
-            let x = u32::try_from(i).expect("insts");
-            if let Some(target) = self.calls.get(&x) {
-                let hd_mono::Target::Call(call) = target else {
-                    return false;
-                };
-                let sqrt = match &call.kind {
-                    hd_mono::TargetKind::Intrinsic(key) => key == "sqrt",
-                    hd_mono::TargetKind::Builtin { self_ty, .. } => {
-                        matches!(self.pool().get(*self_ty), TyData::Prim(p) if p.is_float())
-                            && (self.input.path)(call.item).rsplit(['.', '/']).next()
-                                == Some("sqrt")
-                    }
-                    hd_mono::TargetKind::Instance => false,
-                };
-                if !sqrt
-                    || self.counted(self.ty(x)).is_some()
-                    || self
-                        .b
-                        .value_operands(i)
-                        .unwrap_or_default()
-                        .iter()
-                        .any(|r| self.counted(self.ty_of(*r)).is_some())
-                {
-                    return false;
-                }
-            }
-            match tag {
-                Tag::Read if self.b.global_read(i).is_some() => return false,
-                Tag::CallValue
-                | Tag::CallDyn
-                | Tag::CallHost
-                | Tag::DefaultCall
-                | Tag::Await
-                | Tag::AwaitValue
-                | Tag::AwaitAll
-                | Tag::AwaitRace
-                | Tag::Hook
-                | Tag::Scope
-                | Tag::Defer
-                | Tag::Closure => return false,
-                Tag::Store if let Some(list) = super::shape::elem_store_list(self.b, i) => {
-                    if !self
-                        .elem(self.ty_of(list))
-                        .is_ok_and(|(_, e)| e.walk.is_none())
-                    {
-                        return false;
-                    }
-                }
-                // Any store but one into a whole local; a field store into
-                // a local of a counted type too.
-                Tag::Store
-                    if super::shape::local_store(self.b, i).is_none()
-                        && super::shape::local_part_store(self.b, i).is_none_or(|(l, _)| {
-                            self.counted(self.sub(self.b.local_ty[l])).is_some()
-                        }) =>
-                {
-                    return false;
-                }
-                Tag::Call if !self.calls.contains_key(&x) => return false,
-                Tag::NewStruct
-                | Tag::CopyStruct
-                | Tag::NewTuple
-                | Tag::NewVariant
-                | Tag::NewList
-                | Tag::NewMap
-                | Tag::Interp => {
-                    if self.counted(self.ty(x)).is_some() {
-                        return false;
-                    }
-                }
-                Tag::Intrinsic => {
-                    let [op, record] = self.b.data[i];
-                    match IntrinsicOp::from_u32(op) {
-                        Some(IntrinsicOp::ListLen) => {}
-                        Some(IntrinsicOp::ListIndexMut) => {
-                            let Some(&list) = self.b.record(record).first() else {
-                                return false;
-                            };
-                            if !self
-                                .elem(self.ty_of(list))
-                                .is_ok_and(|(_, e)| e.walk.is_none())
-                            {
-                                return false;
-                            }
-                        }
-                        Some(IntrinsicOp::ValueCopy)
-                            if coll_leaves(self.pool(), self.env(), self.ty(x)).is_empty() => {}
-                        _ => return false,
-                    }
-                }
-                _ => {}
-            }
-        }
-        true
-    }
-
-    fn invariant_unique(&mut self, list: u32, h: u32, e: &Elem) {
-        if self
-            .list_root(list)
-            .and_then(|root| {
-                self.list_caches
-                    .iter()
-                    .find(|(key, _)| *key == root)
-                    .map(|(_, cache)| cache)
-            })
-            .is_some()
-        {
-            // The plan includes every write in this interval, so any
-            // cached root used here already ran its uniqueness check.
-            self.f.helper(Helper::RefViewsAbsent);
-            self.f.op(I::If(BlockType::Empty));
-            self.f.op(I::Else);
-            self.unique(h, e, false);
-            self.f.op(I::End);
-            return;
-        }
-
-        let safe = if self.loops > 0 && e.walk.is_none() {
-            self.unique_body.unwrap_or_else(|| {
-                let safe = self.cannot_share_buffers();
-                self.unique_body = Some(safe);
-                safe
-            })
-        } else {
-            false
-        };
-        let root = safe
-            .then(|| {
-                if !matches!(self.b.tags.get(list as usize), Some(Tag::Read)) {
-                    return None;
-                }
-                let mut l = match self.read_through(list as usize)? {
-                    (Through::Value(r), true) => super::shape::read_local(self.b, r)?,
-                    (Through::Local(l), true) => l,
-                    _ => return None,
-                };
-                for _ in 0..self.b.local_ty.len() {
-                    if self.borrowed.contains(&l) {
-                        return Some(l);
-                    }
-                    let &source = self.loan_locals.get(&l)?;
-                    l = super::shape::read_local(self.b, source)?;
-                }
-                None
-            })
-            .flatten();
-        let Some(root) = root else {
-            self.unique(h, e, false);
-            return;
-        };
-        let flag = *self
-            .unique_once
-            .entry(root)
-            .or_insert_with(|| self.f.local(Val::I32));
-        // A view's getter can make another buffer owner implicitly. The
-        // link enables this cache only when no view constructor is reachable.
-        self.f.helper(Helper::RefViewsAbsent);
-        self.f.get(flag);
-        self.f.op(I::I32And);
-        self.f.op(I::I32Eqz);
-        self.f.op(I::If(BlockType::Empty));
-        self.unique(h, e, false);
-        self.f.i32(1);
-        self.f.set(flag);
-        self.f.op(I::End);
-    }
-
     /// A `Store` into element `ix` of the list value `list`, or into the
-    /// struct field `path` reaches in it (`[%xs [%i] .p .x]`): after the
-    /// bounds check and the uniqueness check, the place's old value is
-    /// released after the new one is counted, and no other field is read
-    /// or written (#655). A pin does not stop it: the length stays.
+    /// struct field `path` reaches in it (`[%xs [%i] .p .x]`), whose
+    /// buffer the passes' `IsUnique` made the list's own: after the bounds
+    /// check, the place's old value is released after the new one is
+    /// counted, and no other field is read or written (#655). A pin does
+    /// not stop it: the length stays.
     pub(super) fn elem_store(
         &mut self,
         list: u32,
@@ -1438,13 +1158,8 @@ impl Em<'_, '_, '_> {
             ft = self.struct_fields(ft)[k as usize];
         }
         let h = self.header(list)?;
-        let mut b = self.buffer(h);
+        let b = self.buffer(h);
         let ix = self.index(b, ix)?;
-        // An owned body's `IsUnique` came before the store.
-        if !self.unique_explicit {
-            self.invariant_unique(list, h, &e);
-            b = self.buffer(h);
-        }
         let at = self.slot_at(b, ix, e.size);
         let s = self.slot_src(v, ft, false)?;
         self.retain_src(&s, ft)?;
@@ -1478,8 +1193,8 @@ impl Em<'_, '_, '_> {
     }
 
     /// `ListPush`: a pinned list panics (`ref.elem.pinned`); otherwise the
-    /// value is stored at the length, after the buffer is made the list's
-    /// own with room for it.
+    /// value is stored at the length, after the buffer, which the passes'
+    /// `IsUnique` made the list's own, has room for it.
     pub(super) fn list_push(&mut self, args: &[u32]) -> StageResult<()> {
         let (et, e) = self.elem(self.ty_of(args[0]))?;
         let h = self.header(args[0])?;
@@ -1490,14 +1205,9 @@ impl Em<'_, '_, '_> {
             "collection-pinned: list length changed while pinned".into(),
         ));
         self.f.op(I::End);
-        if self.unique_explicit {
-            // The passes' `IsUnique` made the buffer the list's own; only
-            // a full one moves (`rt:list_grow`).
-            self.f.get(h);
-            self.f.helper(Helper::ListGrow { elem: e.clone() });
-        } else {
-            self.unique(h, &e, true);
-        }
+        // Only a full buffer moves (`rt:list_grow`).
+        self.f.get(h);
+        self.f.helper(Helper::ListGrow { elem: e.clone() });
         let b = self.buffer(h);
         let n = self.f.local(Val::I32);
         self.f.get(b);
@@ -1567,36 +1277,6 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
-    /// `ListPin`: the list an element reference points into, its index
-    /// (when given) checked and its buffer made its own (`ref.elem.pin`,
-    /// §23.20). The header takes its owner word, so the buffer stays its
-    /// own: a copy of the list copies the buffer while it is pinned. The
-    /// pin is one count of the buffer, which `ListUnpin` gives back; each
-    /// element reference into the buffer holds a count of its own, so the
-    /// list stays pinned until the last copy of the last reference dies
-    /// (`ref.elem.release.copies`). The value is the list.
-    pub(super) fn list_pin(&mut self, i: u32, args: &[u32]) -> StageResult<()> {
-        if self.input.runtime.is_none() {
-            return unsupported("element references without std's allocator");
-        }
-        let (_, e) = self.elem(self.ty_of(args[0]))?;
-        let h = self.header(args[0])?;
-        if let Some(&ix) = args.get(1) {
-            let b = self.buffer(h);
-            self.index(b, ix)?;
-        }
-        // Only the old path pins this way: an owned body's element
-        // references are pinned by the passes' `IsUnique` and `Pin`.
-        self.unique(h, &e, false);
-        self.pin_owner(h, self.ty_of(args[0]))?;
-        let b = self.buffer(h);
-        self.f.get(b);
-        self.f
-            .call(Sym::Inst(self.input.runtime.expect("checked above").retain));
-        self.f.get(h);
-        self.store(i)
-    }
-
     /// Gives the list header in local `h`, of type `t`, its owner word: the
     /// function-table slot of the list's clone glue plus one, with bit 31
     /// when its elements hold collections (§23.20).
@@ -1613,18 +1293,6 @@ impl Em<'_, '_, '_> {
             self.f.op(I::I32Or);
         }
         self.f.op(I::I32Store(mem(HEAP, LIST_OWN, 2)));
-        Ok(())
-    }
-
-    /// `ListUnpin`: gives back the count of the buffer that `ListPin` took.
-    pub(super) fn list_unpin(&mut self, list: u32) -> StageResult<()> {
-        if self.input.runtime.is_none() {
-            return Ok(());
-        }
-        let h = self.header(list)?;
-        let b = self.buffer(h);
-        self.f.get(b);
-        self.f.helper(Helper::ReleaseRef);
         Ok(())
     }
 }

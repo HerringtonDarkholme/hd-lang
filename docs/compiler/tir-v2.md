@@ -2736,6 +2736,21 @@ is worth deciding only if they are hot.
       `Packages::old_ownership` (`HD_CONFORMANCE_OLD=1`) no longer builds
       a runnable program; #801 deletes it with the checker's old mode.
 
+    **14 as built, second part: the loan and cache code (#800).** The
+    emitter's own uniqueness decisions are gone: `Em::unique_explicit`
+    (always on), the invariant-buffer check of a parameter's list
+    (`invariant_unique`, `unique_once`, `cannot_share_buffers`), the
+    backend's own loop projections and their uniqueness check before the
+    loop (`begin_list_loop`'s candidates), `rt:list_unique`'s `push`
+    mode, and the lowering of `ListIndexMut`, `ListPin` and `ListUnpin`,
+    which insertion refuses. `Em::list_caches` holds only hoisting's
+    stable lists (`Em::own_list_caches`); the range-index proof
+    (`hd_wasm_linear/DESIGN.md` §23.37) stays. A function reference's
+    call body is built by collection (`hd_mono::adapter_call_body`),
+    which hands it to the driver for the passes
+    (`ProgramEnv::own_generated`) and stores it as the adapter's instance
+    body; the backend runs no pass.
+
 ## The inliner
 
 Stage 3 moves lists, maps and strings into std and lowers every `for`

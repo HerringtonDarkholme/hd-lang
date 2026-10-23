@@ -152,6 +152,10 @@ pub trait ProgramEnv: LayoutEnv {
     /// concrete argument (`dbg_show[ty]`, `dbg[args]`; spec/lang/10-modules.md
     /// "Debug Printing"). `debug`: `ty` implements `Debug`.
     fn dbg_body(&self, item: DefId, key: &str, ty: Ty, debug: bool) -> StageResult<Body>;
+    /// `body`, which collection built (a function reference's call body,
+    /// [`adapter_call_body`]), after the ownership passes, as the driver
+    /// runs them over every body it supplies.
+    fn own_generated(&self, body: Body) -> StageResult<Body>;
     /// `std.format.Debug`, which `dbg_show` prints through where it holds.
     fn debug_trait(&self) -> DefId;
     /// The items a map key's hashing and equality call (`crates/hd_mono/DESIGN.md`
@@ -1177,6 +1181,75 @@ fn value_ty(body: &Body, word: u32) -> Ty {
         body.consts.get((word & !c) as usize).map(|k| k.0)
     };
     t.unwrap_or(Ty::POISON)
+}
+
+/// The body of one call of `item` at `args` through `target`, a call
+/// emission lowers in place (an intrinsic, a built-in family's method, a
+/// trait method at a trait-value `Self`): its parameters are `item`'s, at
+/// `args`, and its one `Call` takes them as its operands and returns the
+/// result, so a function reference to such a target lowers as a direct
+/// call at the same types does (§13.11). A suspending item's call is its
+/// cold constructor, whose frame the body returns (`fn.ref.suspending`).
+pub fn adapter_call_body(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    item: DefId,
+    args: TyList,
+    target: &Target,
+) -> StageResult<Body> {
+    use hd_tir::ir::{BodyKind, Providers, TirBuilder, TirSink, local_flags};
+    let s = |t: Ty| subst(pool, env, item, args, t);
+    let callee = match target {
+        Target::Dyn => {
+            let Some((trait_, _)) = env.parent(item) else {
+                return err("a dynamic function reference to a method outside a trait");
+            };
+            let all = pool.list_items(args);
+            let Some((&self_ty, targs)) = all.split_first() else {
+                return err("a trait member reference without `Self`");
+            };
+            Callee::TraitMethod {
+                trait_,
+                method: item,
+                self_ty,
+                targs: pool.list(targs),
+                choice: (ChoiceKind::TraitValue, 0),
+            }
+        }
+        _ => Callee::Item {
+            def: item,
+            targs: args,
+        },
+    };
+    let ret = s(env.ret(item).unwrap_or(Ty::VOID));
+    let call_ty = if env.suspends(item) {
+        pool.intern_ty(&TyData::Adt {
+            def: env.suspend_def(),
+            args: pool.list(&[ret]),
+        })
+    } else {
+        ret
+    };
+    let none = NodeIdx::NONE;
+    let mut tb = TirBuilder::new(item, BodyKind::Fn);
+    let params: Vec<_> = env
+        .params(item)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|p| {
+            let t = s(p);
+            (
+                tb.local(t, hd_base::Symbol::from_raw(0), local_flags::PARAM, none),
+                t,
+            )
+        })
+        .collect();
+    let blk = tb.open_block();
+    let operands: Vec<_> = params.iter().map(|&(l, t)| tb.get(l, t, none)).collect();
+    let call = tb.call(&callee, &operands, Providers::None, call_ty, none);
+    let root = tb.close_block(blk, Some(call), call_ty, none);
+    tb.finish(root, &[])
+        .map_err(|_| NotImplemented::bug(Stage::Collect, "a function reference's call body"))
 }
 
 fn err<T>(what: &str) -> StageResult<T> {
@@ -2514,6 +2587,14 @@ impl Cx<'_> {
         };
         if let Target::Call(c) = &t {
             self.hash_target(c, &mut reps);
+        }
+        // A target emission lowers at each call is called from a body of
+        // one `Call` (§13.11), which goes through the ownership passes as
+        // every other body does.
+        if !matches!(&t, Target::Call(c) if c.kind == TargetKind::Instance) {
+            let body = adapter_call_body(pool, env, item, args, &t)?;
+            let body = env.own_generated(body)?;
+            self.out.instance_bodies.insert(id, Arc::new(body));
         }
         Sub::Adapter.hash_into(&mut reps);
         if self.out.calls.len() <= id.idx() {

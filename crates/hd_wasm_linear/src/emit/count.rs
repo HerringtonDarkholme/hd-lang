@@ -735,16 +735,13 @@ impl Em<'_, '_, '_> {
         }
         let (_, e) = self.elem(t)?;
         self.f.get(h);
-        self.f.helper(Helper::ListUnique {
-            elem: e,
-            push: false,
-        });
+        self.f.helper(Helper::ListUnique { elem: e });
         Ok(())
     }
 
     /// `Pin` `i`: the list's header becomes its buffer's one owner while
-    /// element references hold counts of the buffer: `ListPin` without
-    /// the count of its own, which the reference holds (§23.20).
+    /// element references hold counts of the buffer, each its own
+    /// (§23.20).
     pub(super) fn own_pin(&mut self, i: u32) -> StageResult<()> {
         let (h, t) = self.place_header(self.b.data[i as usize][0])?;
         if self.input.runtime.is_none() {

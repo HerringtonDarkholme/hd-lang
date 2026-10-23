@@ -120,7 +120,6 @@ fn body_func<'a>(
         return unsupported("a body the ownership passes did not run on");
     }
     em.owned = true;
-    em.unique_explicit = true;
     em.sub_id = sub;
     em.own_consumers();
     let mut params = Vec::new();
@@ -697,52 +696,30 @@ fn adapter(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Func> {
             forward(input, item, (ct.item, ct.args), ct.ret, Sym::Inst(ct.key))
         }
         Some(target @ (Target::Call(_) | Target::Dyn)) => {
+            let (sym, ret) = call_func(input, m, id, target)?;
             let args = input.collected.table.args[id.idx()];
-            let key = input.collected.table.key[id.idx()];
-            let (sym, ret) = call_func(input, m, (item, args), key, target)?;
             forward(input, item, (item, args), ret, sym)
         }
         _ => unsupported("a function reference that collection did not resolve"),
     }
 }
 
-/// The function of one call of `item` at `args` through `target`, whose
-/// operands are its parameters: `(parameters, providers) -> results`, as
-/// a plain instance of `item` at `args` takes them. It is defined under a
-/// key derived from the adapter's `key`; with its result type.
+/// The function of adapter `id`'s call body, one call of its item through
+/// `target` whose operands are its parameters, which collection built
+/// and the ownership passes ran over (`hd_mono::adapter_call_body`):
+/// `(parameters, providers) -> results`, as a plain instance of the item
+/// takes them. It is defined under a key derived from the adapter's;
+/// with its result type.
 fn call_func(
     input: &Input<'_>,
     m: &mut Module,
-    (item, args): (DefId, TyList),
-    key: Hash128,
+    id: InstId,
     target: Target,
 ) -> StageResult<(Sym, Ty)> {
-    use hd_tir::ir::{Callee, ChoiceKind, Providers, TirBuilder, TirSink};
+    let t = &input.collected.table;
+    let (item, args, key) = (t.item[id.idx()], t.args[id.idx()], t.key[id.idx()]);
     let (pool, env) = (input.pool, input.env);
-    let s = |t: Ty| subst(pool, env, item, args, t);
-    let callee = match target {
-        Target::Dyn => {
-            let Some((trait_, _)) = env.parent(item) else {
-                return unsupported("a dynamic function reference to a method outside a trait");
-            };
-            let all = pool.list_items(args);
-            let Some((&self_ty, targs)) = all.split_first() else {
-                return unsupported("a trait member reference without `Self`");
-            };
-            Callee::TraitMethod {
-                trait_,
-                method: item,
-                self_ty,
-                targs: pool.list(targs),
-                choice: (ChoiceKind::TraitValue, 0),
-            }
-        }
-        _ => Callee::Item {
-            def: item,
-            targs: args,
-        },
-    };
-    let ret = s(env.ret(item).unwrap_or(Ty::VOID));
+    let ret = subst(pool, env, item, args, env.ret(item).unwrap_or(Ty::VOID));
     // A suspending item's call is its cold constructor, whose frame the
     // function returns (`fn.ref.suspending`).
     let cold = env.suspends(item).then(|| {
@@ -751,45 +728,9 @@ fn call_func(
             args: pool.list(&[ret]),
         })
     });
-    let call_ty = cold.unwrap_or(ret);
-    let none = hd_base::NodeIdx::NONE;
-    let mut tb = TirBuilder::new(item, BodyKind::Fn);
-    let params: Vec<_> = env
-        .params(item)
-        .unwrap_or_default()
-        .into_iter()
-        .map(|p| {
-            let t = s(p);
-            (
-                tb.local(t, hd_base::Symbol::from_raw(0), local_flags::PARAM, none),
-                t,
-            )
-        })
-        .collect();
-    let blk = tb.open_block();
-    let operands: Vec<_> = params.iter().map(|&(l, t)| tb.get(l, t, none)).collect();
-    let call = tb.call(&callee, &operands, Providers::None, call_ty, none);
-    let root = tb.close_block(blk, Some(call), call_ty, none);
-    let mut b = tb.finish(root, &[]).map_err(|_| {
-        hd_base::NotImplemented::bug(hd_base::Stage::Link, "a function reference's call body")
-    })?;
-    // The backend builds this body, so it runs the ownership passes over
-    // it, as the driver does over the bodies collection generates; they
-    // renumber it, and its one `Call` is the target's.
-    let open = |t: Ty| pool.types().has_param(t) || pool.types().has_assoc(t);
-    hd_tir::ir::root_places(&mut b, &open, &mut hd_tir::ir::RootTables::default());
-    b.anchors = (0..u32::try_from(b.len()).expect("insts")).collect();
-    hd_tir::own::run(
-        &mut b,
-        input.own_cx,
-        &mut hd_tir::own::OwnScratch::default(),
-    )
-    .map_err(|what| {
-        hd_base::NotImplemented::bug(
-            hd_base::Stage::Link,
-            format!("the ownership passes refused a function reference's call body: {what}"),
-        )
-    })?;
+    let Some(b) = (input.body)(id) else {
+        return unsupported("a function reference without its call body");
+    };
     let Some(call) = b.tags.iter().position(|&t| t == Tag::Call) else {
         return unsupported("a function reference's call body without its call");
     };
@@ -804,23 +745,7 @@ fn call_func(
         erased: None,
         cold,
     };
-    // The input again, at the lifetime of this body, which only it holds.
-    let body = |i: InstId| (input.body)(i);
-    let here = Input {
-        pool: input.pool,
-        env: input.env,
-        path: input.path,
-        collected: input.collected,
-        order: input.order,
-        body: &body,
-        entry: input.entry.clone(),
-        release: input.release,
-        runtime: input.runtime,
-        inline_counts: input.inline_counts,
-        host_refs: input.host_refs,
-        own_cx: input.own_cx,
-    };
-    let f = body_func(&here, m, &own, 0, &calls, &b)?;
+    let f = body_func(input, m, &own, 0, &calls, b)?;
     let sym = Sym::Inst(own.key);
     m.define(sym.clone(), f);
     Ok((sym, ret))
@@ -993,11 +918,8 @@ struct Em<'i, 'a, 'm> {
     /// In an owned body: the lent parameters the passes left unowned that
     /// this instance takes owned (`count.rs`): its exit releases them.
     unowned_params: Vec<usize>,
-    /// Lazy uniqueness checks for invariant parameter headers in a body
-    /// that cannot create another buffer owner.
-    unique_once: HashMap<usize, u32>,
-    unique_body: Option<bool>,
-    /// Loop-local physical list projections, invalidated at the loop's exit.
+    /// The stable lists' loop caches ([`Em::own_list_caches`]), dropped at
+    /// the loop's exit.
     list_caches: Vec<(list::ListRoot, list::ListCache)>,
     cached_headers: Vec<(u32, list::ListCache)>,
     cached_buffers: Vec<(u32, u32)>,
@@ -1049,11 +971,6 @@ struct Em<'i, 'a, 'm> {
     /// `NONE` (`Em::own_drop_rest`).
     own_at: Vec<(u32, u32)>,
     own_ops: Vec<hd_tir::own::Operand>,
-    /// Whether the body holds the ownership passes' `IsUnique`s, before
-    /// every change of a collection place (an owned body, or a thunk of
-    /// one): then the intrinsics and the element store check no
-    /// uniqueness of their own.
-    unique_explicit: bool,
     /// The hoisted `IsUnique`s met before the loop that follows them
     /// (`docs/compiler/tir-v2.md`, "Hoisting"), which run at that loop
     /// under its entry test ([`Em::hoisted_uniques`]).
@@ -1121,8 +1038,6 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             projs: Vec::new(),
             view_loans: HashMap::default(),
             unowned_params: Vec::new(),
-            unique_once: HashMap::default(),
-            unique_body: None,
             list_caches: Vec::new(),
             cached_headers: Vec::new(),
             cached_buffers: Vec::new(),
@@ -1142,7 +1057,6 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             consumer: Vec::new(),
             own_at: Vec::new(),
             own_ops: Vec::new(),
-            unique_explicit: false,
             hoisted: Vec::new(),
             deref_physical: false,
         };
@@ -1592,14 +1506,14 @@ impl Em<'_, '_, '_> {
             }
             // An element read, `Read [%xs [%i]]` (`emit/list.rs`).
             Tag::Read if let Some((list, index)) = self.b.element_read(i as usize) => {
-                self.list_index(i, &[list, index], false)?;
+                self.list_index(i, list, index)?;
             }
             // The ownership passes' statements, in an owned body
             // (`count.rs`); the checker's TIR has none (invariant 22).
             Tag::Drop if self.owned => self.own_drop(i)?,
-            Tag::IsUnique if self.unique_explicit => self.own_unique(i)?,
-            Tag::Pin if self.unique_explicit => self.own_pin(i)?,
-            Tag::Drop | Tag::IsUnique | Tag::Pin | Tag::FlagSet | Tag::FlagClear => {
+            Tag::IsUnique => self.own_unique(i)?,
+            Tag::Pin => self.own_pin(i)?,
+            Tag::Drop | Tag::FlagSet | Tag::FlagClear => {
                 return unsupported(format!(
                     "an ownership statement `{}` the backend does not lower here",
                     self.b.tags[i as usize].name()
@@ -1823,16 +1737,10 @@ impl Em<'_, '_, '_> {
                 let args = self.rec(bw);
                 match op {
                     Some(IntrinsicOp::ListLen) => self.list_len(i, args[0])?,
-                    Some(IntrinsicOp::ListIndexMut) => self.list_index(i, &args, true)?,
                     Some(IntrinsicOp::ListPush) => self.list_push(&args)?,
                     Some(IntrinsicOp::ValueCopy) => self.value_copy(i, args[0])?,
                     Some(IntrinsicOp::SnapBegin) => self.snap_begin(i, args[0])?,
                     Some(IntrinsicOp::SnapEnd) => self.snap_end(args[1])?,
-                    Some(IntrinsicOp::ListPin) => self.list_pin(i, &args)?,
-                    // The checker ends a binding's pin after its last
-                    // statement; each copy of the reference holds a pin of
-                    // its own until its last use (`list.rs`, §23.20).
-                    Some(IntrinsicOp::ListUnpin) => self.list_unpin(args[0])?,
                     Some(hd_tir::ir::IntrinsicOp::StrConcat) => self.concat(i, &args)?,
                     Some(hd_tir::ir::IntrinsicOp::StrIndex) => self.str_at(i, args[0], args[1])?,
                     Some(hd_tir::ir::IntrinsicOp::StrEq) => {

@@ -99,23 +99,6 @@ impl Tree {
                 .any(|(blk, _)| self.owner[*blk as usize] == loop_inst)
         })
     }
-
-    /// A write guaranteed on an entered iteration: no intervening
-    /// conditional or inner loop may skip it. `guard` is the loop test.
-    pub(super) fn iteration_write(&self, b: &Body, i: u32, loop_inst: u32, guard: u32) -> bool {
-        self.path(b, i).is_some_and(|path| {
-            for (blk, _) in path {
-                let owner = self.owner[blk as usize];
-                if owner == loop_inst {
-                    return true;
-                }
-                if owner != NONE && owner != guard && b.tags[owner as usize] != Tag::Scope {
-                    return false;
-                }
-            }
-            false
-        })
-    }
 }
 
 /// The local that value `r` reads when it is a plain local read,

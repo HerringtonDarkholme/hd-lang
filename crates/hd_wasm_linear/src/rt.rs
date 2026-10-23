@@ -308,11 +308,9 @@ pub enum Helper {
         elem: Elem,
     },
     /// `(list)`: makes the list's buffer its own before a change: a
-    /// buffer it shares is copied, and with `push` a full one is moved to
-    /// a larger one.
+    /// buffer it shares is copied.
     ListUnique {
         elem: Elem,
-        push: bool,
     },
     /// `(list)`: moves the list's full buffer, its own already (an owned
     /// body's `IsUnique` made it so), to one with room for a `push`.
@@ -1496,7 +1494,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::CtxFind => ctx_find(),
         Helper::CtxNew => ctx_new(),
         Helper::CopyElems { elem } => copy_elems(elem, m),
-        Helper::ListUnique { elem, push } => list_unique(elem, *push, m),
+        Helper::ListUnique { elem } => list_unique(elem, m),
         Helper::ListGrow { elem } => list_grow(elem, m),
         Helper::MapTable { entry } => map::table(entry),
         Helper::DropEntries { entry } => map::drop_entries(entry),
@@ -2784,10 +2782,7 @@ fn list_truncate(elem: &Elem) -> Func {
     ));
     f.op(Instruction::End);
     f.get(0);
-    f.helper(Helper::ListUnique {
-        elem: elem.clone(),
-        push: false,
-    });
+    f.helper(Helper::ListUnique { elem: elem.clone() });
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
     f.set(b);
@@ -2879,12 +2874,9 @@ fn copy_elems(elem: &Elem, m: &Module) -> Func {
     f
 }
 
-/// [`Helper::ListUnique`]: a shared buffer is copied at its length, or
-/// at twice it plus 4 for a `push`; its elements take their own counts and
-/// the old buffer one owner less. A full buffer of the list's own moves
-/// to the larger one, and its old block is freed with no release, since
-/// its elements moved.
-fn list_unique(elem: &Elem, push: bool, m: &Module) -> Func {
+/// [`Helper::ListUnique`]: a shared buffer is copied at its length; its
+/// elements take their own counts and the old buffer one owner less.
+fn list_unique(elem: &Elem, m: &Module) -> Func {
     let mut f = Func::new("rt:list_unique", vec![Val::I32], vec![]);
     let (b, n, shared, nb) = (
         f.local(Val::I32),
@@ -2912,21 +2904,8 @@ fn list_unique(elem: &Elem, push: bool, m: &Module) -> Func {
     f.op(Instruction::I32And);
     f.set(shared);
     f.get(shared);
-    if push {
-        f.get(n);
-        f.get(b);
-        f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
-        f.op(Instruction::I32Eq);
-        f.op(Instruction::I32Or);
-    }
     f.op(Instruction::If(BlockType::Empty));
     f.get(n);
-    if push {
-        f.i32(2);
-        f.op(Instruction::I32Mul);
-        f.i32(4);
-        f.op(Instruction::I32Add);
-    }
     f.helper(Helper::ListBuf { elem: elem.clone() });
     f.set(nb);
     f.get(nb);

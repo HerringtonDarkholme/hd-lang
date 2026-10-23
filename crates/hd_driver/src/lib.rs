@@ -10314,6 +10314,9 @@ impl ProgramEnv for Env<'_> {
         }?;
         self.owned_generated(body)
     }
+    fn own_generated(&self, body: Body) -> StageResult<Body> {
+        self.owned_generated(body)
+    }
     fn debug_trait(&self) -> DefId {
         self.run.known.debug
     }
