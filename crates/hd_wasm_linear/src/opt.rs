@@ -307,8 +307,25 @@ fn pushes_zero(ins: &Ins, known: &[u64]) -> bool {
     }
 }
 
+/// Updates local facts after one original instruction. A store's source
+/// is its physical predecessor, including at a control-flow target.
+fn zero_after(body: &[Ins], at: usize, known: &mut [u64]) {
+    match &body[at] {
+        Ins::Op(I::LocalSet(l) | I::LocalTee(l)) => {
+            let zero = at.checked_sub(1).is_some_and(|p| {
+                pushes_zero(&body[p], known)
+                    || matches!(body[p], Ins::Op(I::LocalTee(t)) if zero_local(known, t))
+            });
+            set_zero(known, *l, zero);
+        }
+        Ins::LoadAll => known.fill(0), // A suspended frame may contain any values.
+        _ => {}
+    }
+}
+
 /// Deletes only release arguments/calls and stores proved redundant on
-/// every incoming path. Local facts use packed bits to bound per-body memory.
+/// every incoming path. Packed facts are stored only at basic-block entries;
+/// one working set carries facts through each block.
 fn zero_releases(f: &mut Func) -> bool {
     let symbols = f.symbols.clone();
     let release_width = |ins: &Ins| {
@@ -327,87 +344,119 @@ fn zero_releases(f: &mut Func) -> bool {
     let Some(edges) = zero_edges(&f.body, &f.labels) else {
         return false;
     };
-    let n = f.params.len() + f.locals.len();
-    let mut entry = vec![0u64; n.div_ceil(64)];
-    for l in f.params.len()..n {
-        set_zero(&mut entry, u32::try_from(l).expect("locals"), true);
-    }
-    let mut facts: Vec<Option<Vec<u64>>> = vec![None; f.body.len()];
-    let Some(first) = facts.first_mut() else {
+    let mut point_at = vec![usize::MAX; f.body.len()];
+    let Some(first) = point_at.first_mut() else {
         return false;
     };
-    *first = Some(entry);
-    let mut pending = std::collections::VecDeque::from([0]);
-    let mut queued = vec![false; f.body.len()];
-    queued[0] = true;
-    while let Some(at) = pending.pop_front() {
-        queued[at] = false;
-        let mut after = facts[at].as_ref().expect("reachable").clone();
-        match &f.body[at] {
-            Ins::Op(I::LocalSet(l) | I::LocalTee(l)) => {
-                let zero = at.checked_sub(1).is_some_and(|p| {
-                    pushes_zero(&f.body[p], &after)
-                        || matches!(f.body[p], Ins::Op(I::LocalTee(t)) if zero_local(&after, t))
-                });
-                set_zero(&mut after, *l, zero);
+    *first = 0;
+    for (at, edge) in edges.iter().enumerate() {
+        if !matches!(edge, ZeroEdges::Next) {
+            // A terminator ends its block, even when what follows is
+            // unreachable. All non-fallthrough destinations begin blocks.
+            if let Some(next) = point_at.get_mut(at + 1) {
+                *next = 0;
             }
-            Ins::LoadAll => after.fill(0), // A suspended frame may contain any values.
-            _ => {}
+            edge.each(at + 1, |to| {
+                if let Some(target) = point_at.get_mut(to) {
+                    *target = 0;
+                }
+            });
         }
-        edges[at].each(at + 1, |to| {
-            if to >= facts.len() {
+    }
+    let mut starts = Vec::new();
+    for (at, point) in point_at.iter_mut().enumerate() {
+        if *point == 0 {
+            *point = starts.len();
+            starts.push(at);
+        }
+    }
+    let n = f.params.len() + f.locals.len();
+    let words = n.div_ceil(64);
+    let mut known = vec![0u64; words];
+    for l in f.params.len()..n {
+        set_zero(&mut known, u32::try_from(l).expect("locals"), true);
+    }
+    let mut facts = vec![0u64; starts.len() * words];
+    facts[..words].copy_from_slice(&known);
+    // Reachability cannot be encoded by the row: a function without
+    // locals has zero words but can still have removable releases.
+    let mut reachable = vec![false; starts.len()];
+    reachable[0] = true;
+    let mut pending = std::collections::VecDeque::from([0]);
+    let mut queued = vec![false; starts.len()];
+    queued[0] = true;
+    while let Some(point) = pending.pop_front() {
+        queued[point] = false;
+        known.copy_from_slice(&facts[point * words..(point + 1) * words]);
+        let end = starts.get(point + 1).copied().unwrap_or(f.body.len());
+        for at in starts[point]..end {
+            zero_after(&f.body, at, &mut known);
+        }
+        edges[end - 1].each(end, |to| {
+            let Some(&next) = point_at.get(to) else {
                 return;
-            }
-            let changed = if let Some(before) = &mut facts[to] {
+            };
+            debug_assert_ne!(next, usize::MAX, "a block successor begins a block");
+            let before = &mut facts[next * words..(next + 1) * words];
+            let changed = if reachable[next] {
                 let mut changed = false;
-                for (a, b) in before.iter_mut().zip(&after) {
+                for (a, b) in before.iter_mut().zip(&known) {
                     let meet = *a & *b;
                     changed |= meet != *a;
                     *a = meet;
                 }
                 changed
             } else {
-                facts[to] = Some(after.clone());
+                reachable[next] = true;
+                before.copy_from_slice(&known);
                 true
             };
-            if changed && !queued[to] {
-                pending.push_back(to);
-                queued[to] = true;
+            if changed && !queued[next] {
+                pending.push_back(next);
+                queued[next] = true;
             }
         });
     }
     let mut gone = vec![false; f.body.len()];
-    for (at, ins) in f.body.iter().enumerate() {
-        let Some(known) = &facts[at] else {
+    for (point, &start) in starts.iter().enumerate() {
+        if !reachable[point] {
             continue;
-        };
-        if let Some(n) = release_width(ins) {
-            let mut args = Vec::new();
-            for p in (0..at).rev() {
-                if matches!(f.body[p], Ins::Anchor(_)) {
-                    continue;
+        }
+        known.copy_from_slice(&facts[point * words..(point + 1) * words]);
+        let end = starts.get(point + 1).copied().unwrap_or(f.body.len());
+        for at in start..end {
+            let ins = &f.body[at];
+            if let Some(n) = release_width(ins) {
+                let mut args = Vec::new();
+                for p in (0..at).rev() {
+                    if matches!(f.body[p], Ins::Anchor(_)) {
+                        continue;
+                    }
+                    if args.len() == n || !pushes_zero(&f.body[p], &known) {
+                        break;
+                    }
+                    args.push(p);
                 }
-                if args.len() == n || !pushes_zero(&f.body[p], known) {
-                    break;
+                if args.len() == n {
+                    gone[at] = true;
+                    for p in args {
+                        gone[p] = true;
+                    }
                 }
-                args.push(p);
-            }
-            if args.len() == n {
+            } else if let Ins::Op(I::LocalSet(l) | I::LocalTee(l)) = ins
+                && zero_local(&known, *l)
+                && at
+                    .checked_sub(1)
+                    .is_some_and(|p| pushes_zero(&f.body[p], &known))
+            {
                 gone[at] = true;
-                for p in args {
-                    gone[p] = true;
+                if matches!(ins, Ins::Op(I::LocalSet(_))) {
+                    gone[at - 1] = true;
                 }
             }
-        } else if let Ins::Op(I::LocalSet(l) | I::LocalTee(l)) = ins
-            && zero_local(known, *l)
-            && at
-                .checked_sub(1)
-                .is_some_and(|p| pushes_zero(&f.body[p], known))
-        {
-            gone[at] = true;
-            if matches!(ins, Ins::Op(I::LocalSet(_))) {
-                gone[at - 1] = true;
-            }
+            // Replay original transfers after deciding from the incoming
+            // facts; pending removals must not affect later decisions.
+            zero_after(&f.body, at, &mut known);
         }
     }
     if !gone.iter().any(|g| *g) {
@@ -2096,6 +2145,69 @@ mod origin_tests {
                 zero_releases(f);
             })),
             1
+        );
+    }
+
+    #[test]
+    fn zero_facts_without_locals_distinguish_reachable_and_unreachable_releases() {
+        let symbols = Symbols::default();
+        let f = run(
+            tracked(
+                &symbols,
+                0,
+                0,
+                vec![
+                    Ins::Op(I::I32Const(0)),
+                    call(&symbols, Sym::Helper(Helper::ReleaseRef)),
+                    Ins::Op(I::Return),
+                    Ins::Op(I::I32Const(0)),
+                    call(&symbols, Sym::Helper(Helper::ReleaseRef)),
+                ],
+            ),
+            |f| {
+                assert!(zero_releases(f));
+            },
+        );
+        assert!(matches!(
+            f.body.as_slice(),
+            [Ins::Op(I::Return), Ins::Op(I::I32Const(0)), Ins::Call(_)]
+        ));
+        assert_eq!(releases(&f), 1);
+    }
+
+    #[test]
+    fn zero_facts_meet_multiple_words_without_losing_other_high_locals() {
+        let symbols = Symbols::default();
+        let f = run(
+            tracked(
+                &symbols,
+                1,
+                129,
+                vec![
+                    Ins::Op(I::LocalGet(0)),
+                    Ins::Op(I::If(BlockType::Empty)),
+                    Ins::Op(I::LocalGet(0)),
+                    Ins::Op(I::LocalSet(65)),
+                    Ins::Op(I::Else),
+                    Ins::Op(I::I32Const(0)),
+                    Ins::Op(I::LocalSet(65)),
+                    Ins::Op(I::End),
+                    Ins::Op(I::LocalGet(65)),
+                    call(&symbols, Sym::Helper(Helper::ReleaseRef)),
+                    Ins::Op(I::LocalGet(129)),
+                    call(&symbols, Sym::Helper(Helper::ReleaseRef)),
+                ],
+            ),
+            |f| {
+                assert!(zero_releases(f));
+            },
+        );
+        assert_eq!(releases(&f), 1);
+        assert!(f.body.iter().any(|i| matches!(i, Ins::Op(I::LocalGet(65)))));
+        assert!(
+            !f.body
+                .iter()
+                .any(|i| matches!(i, Ins::Op(I::LocalGet(129))))
         );
     }
 
