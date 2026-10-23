@@ -1,6 +1,6 @@
-# test: all_list! returns its tasks' results in input order
-# Spec std/task All List: std-task.all-list and std-task.all-list.order (owner decision ALL-LIST, batch 71, 2026-10-03).
-use std.task.all_list
+# test: map_all! with a full-width limit returns results in input order
+# Spec std/task Map All: std-task.map-all.order and std-task.map-all.start-order.
+use std.task.map_all
 struct Log:
     started: &mut List[i32]
 
@@ -9,11 +9,7 @@ fn square!(log: &mut Log, value: i32) -> i32:
     value * value
 
 fn squares!(log: &mut Log) -> List[i32]:
-    all_list!([
-        fn!() -> i32: square!(log, 3),
-        fn!() -> i32: square!(log, 1),
-        fn!() -> i32: square!(log, 2),
-    ])
+    map_all!([3, 1, 2], 3, fn!(value: i32) -> i32: square!(log, value))
 
 tests:
     use std.testing.assert_equal

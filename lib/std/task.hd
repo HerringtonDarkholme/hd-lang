@@ -90,37 +90,21 @@ fn abandon_task[T](task: mut Suspend[T]) -> void:
 fn race_frame[T](tasks: List[mut Suspend[T]]) -> mut Suspend[T]:
     panic("intrinsic")
 
-# The polling frame of `all!`, which the checker builds for each call
-# (src/checker/expression-suspensions.ts) and types as
-# `mut Suspend[(X_1, ..., X_n)]`; `T` and the written result are never
-# used. Each poll polls, in order, the tasks that have not completed and
-# keeps each result; the frame completes with the results as a tuple once
-# every task has (r-req.schedule.all-unfinished, .all-completed).
-# Cancelling the frame cancels every unfinished task
-# (r-req.combinator.cancel-children).
+# The homogeneous list frame. It keeps each result at its child's index
+# and visits the waker tree's ready set, without a nested all! per child.
+# The fixed-arity all! expression has a separate tuple lowering.
 @intrinsic("task_all_frame")
 fn all_frame[T](tasks: List[mut Suspend[T]]) -> mut Suspend[List[T]]:
     panic("intrinsic")
 
-# Runs every task as one `all!` and returns the results in input order
-# (spec/std/task.md#all-list).
-## Drives the tasks together and returns their values in list order, as `all!` does for a fixed list.
-## See [std-task.all-list](../../spec/std/task.md#r-std-task.all-list).
-pub fn all_list![T, $R](tasks: List[fn!() -> T $ R]) -> List[T] $ R:
-    let mut results: List[T] = []
-    all_list_from!(tasks, 0, &mut results)
-    results.reversed()
-
-# The tasks from `start` on, as `all!` of the task at `start` and a cold
-# call for the rest, which pushes the results last task first. Nested this
-# way, the `all!` frames poll the unfinished tasks in input order and
-# cancel them together, as one `all!` of every task would.
-fn all_list_from![T, $R](tasks: List[fn!() -> T $ R], start: usize, results: &mut List[T]) -> void $ R:
-    if start >= tasks.len():
-        return
-    task := tasks[start]
-    let (value, _) = all!(task(), all_list_from(tasks, start + 1, results))
-    results.push(value)
+# The private flat engine of map_all!. Calling a worker without ! keeps
+# it cold until the frame polls it, in list order.
+fn all_list![T, $R](tasks: List[fn!() -> T $ R]) -> List[T] $ R:
+    let mut pending: List[mut Suspend[T]] = []
+    for task in tasks:
+        pending.push(task())
+    let frame: mut Suspend[List[T]] = all_frame(pending)
+    frame!()
 
 # Whether `result` is an `.Err` that `when` accepts.
 fn should_retry[T, E](result: Result[T, E], when: fn(E) -> bool) -> bool:

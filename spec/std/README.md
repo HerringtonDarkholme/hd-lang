@@ -85,7 +85,7 @@ raises with a category other than `explicit-panic`.
 | Primitive | Why it is a primitive |
 | --- | --- |
 | `facts_of` | the compiler builds each call's facts value ([Function Facts](../lang/14-annotations.md#function-facts)) |
-| `task_race_frame`, `task_all_frame` | the polling frames of `race!` and `all!`, which are compiler intrinsics ([`req.combinator.intrinsic`](../lang/11-requirements-and-suspension.md#r-req.combinator.intrinsic)) |
+| `task_race_frame`, `task_all_frame` | the polling frames of `race!` and homogeneous task-list driving, which are compiler intrinsics ([`req.combinator.intrinsic`](../lang/11-requirements-and-suspension.md#r-req.combinator.intrinsic)) |
 
 **Runtime.** The memory intrinsics of `std.rt.memory` and its typed
 memory are language tier, because the compiler knows them by name, so
@@ -189,7 +189,7 @@ file of its own.
 | [`text.md`](text.md) | `std.text` | `std-text` | string methods above the intrinsics, including `lines` and `repeat`; `split_once`, `split_whitespace`, padding, and `count`; the `r` prefix |
 | [`format.md`](format.md) | `std.format` | `std-format` | the text `debug` returns, `Debug` builders and layout, derived builder calls, `Debug` for the public std types |
 | [`time.md`](time.md) | `std.time` | `std-time` | `Duration`, its suffixes, its arithmetic, and its `Display` text; `Timestamp + Duration`; the host trait `Clock`, `Timestamp`, `Instant`, `now`, and `sleep!`; the provider `ManualClock`; the UTC `Date`, RFC 3339 text, and `ParseTimeError`; the serialization opt-in of the time types |
-| [`task.md`](task.md) | `std.task` | `std-task` | the `retry!(Backoff)` combinator; `all_list!`; `timeout!` and `TimedOut`; `map_all!` |
+| [`task.md`](task.md) | `std.task` | `std-task` | the `retry!(Backoff)` combinator; `timeout!` and `TimedOut`; `map_all!` |
 | [`ops.md`](ops.md) | `std.ops` | `std-ops` | the `Default` trait and its standard implementations |
 | [`cmp.md`](cmp.md) | `std.cmp` | `std-cmp` | what derived `Eq`, `PartialOrd`, and `Ord` compare; tuple comparison; `clamp`; `Reverse` |
 | [`hash.md`](hash.md) | `std.hash` | `std-hash` | what derived `Hash` hashes; tuple hashing; `DefaultHasher` and `hash_of` |

@@ -1,9 +1,9 @@
-# test: all_list! of an empty list returns an empty list
-# Spec std/task All List: std-task.all-list.empty (owner decision ALL-LIST, batch 71, 2026-10-03).
-use std.task.all_list
+# test: map_all! of an empty list returns an empty list
+# Spec std/task Map All: std-task.map-all.empty.
+use std.task.map_all
 fn none!() -> List[string]:
-    let tasks: List[fn!() -> string] = []
-    all_list!(tasks)
+    let tasks: List[string] = []
+    map_all!(tasks, tasks.len(), fn!(value: string) -> string: value)
 
 tests:
     use std.testing.assert_equal

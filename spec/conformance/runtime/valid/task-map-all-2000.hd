@@ -1,0 +1,40 @@
+# expect-stdout: 2000 results; 2000 started and cleaned
+# test: map_all handles 2000 workers and cancels every pending worker
+# Spec std/task Map All: std-task.map-all.order, .empty, and .like-all.
+use std.task.{map_all, timeout}
+use std.testing.assert_equal
+use std.time.{Clock, ManualClock, Timestamp, sleep}
+
+struct Gauge:
+    started: usize
+    cleaned: usize
+
+fn work!(gauge: &mut Gauge, item: usize) -> usize $ Clock:
+    gauge.started += 1
+    defer: gauge.cleaned += 1
+    sleep!(60s)
+    item
+
+fn batch!(gauge: &mut Gauge, items: List[usize]) -> List[usize] $ Clock:
+    map_all!(items, items.len(), fn!(item: usize) -> usize $ Clock: work!(gauge, item))
+
+pub fn main!() -> void $ Console + Clock:
+    let mut items: List[usize] = []
+    for item in 0..2000:
+        items.push(item)
+    values := map_all!(items, items.len(), fn!(item: usize) -> usize: item + 1)
+    assert_equal(values.len(), 2000, reason="one value per item")
+    for item in 0..2000:
+        assert_equal(values[item], item + 1, reason="results keep input order")
+    gauge := &mut Gauge { started: 0, cleaned: 0 }
+    let pending: mut Suspend[List[usize]] = batch(gauge, items)
+    clock := ManualClock::new(Timestamp::from_unix_milliseconds(0))
+    $.with(Clock=clock):
+        result := timeout!(1ms):
+            pending!()
+        match result:
+            .Err(_) => pass
+            .Ok(_) => panic("expected the scripted deadline")
+    assert_equal(gauge.started, 2000, reason="every worker entered before the deadline")
+    assert_equal(gauge.cleaned, 2000, reason="every pending worker was cancelled")
+    println("2000 results; ${gauge.started} started and cleaned")

@@ -293,6 +293,14 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             _ => race_cancel(m),
         },
         Helper::RaceDrop { results, walk } => race_drop(m, results, walk.as_ref()),
+        Helper::All { part, elem } => match part {
+            0 => all_cold(m, elem),
+            1 => all_poll(m, elem),
+            2 => all_cancel(m, elem),
+            3 => all_drop(m, elem),
+            4 => all_node_poll(m, elem),
+            _ => all_init(m),
+        },
         Helper::OpenFrame {
             part: 0,
             reference,
@@ -318,6 +326,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             | Helper::PendingPoll { .. }
             | Helper::PendingCancel
             | Helper::Race { part: 1 | 2, .. }
+            | Helper::All { part: 1 | 2, .. }
             | Helper::OpenFrame { part: 1, .. }
     ) {
         guard_frame(&mut f);
@@ -328,6 +337,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::Frame(_)
         | Helper::HostCold { .. }
         | Helper::CleanupCold
+        | Helper::All { part: 0, .. }
         | Helper::PendingCold { .. }
         | Helper::OpenFrame { part: 0, .. } => crate::rt::checked_kind(&mut f, m, 3),
         _ => {}
@@ -1584,6 +1594,799 @@ fn pending_poll(m: &Module, results: &[Val]) -> Func {
     f
 }
 
+// A homogeneous all frame owns its task list, a result buffer whose
+// published length stays zero until complete, per-child initialized bits,
+// and a compact 31-way waker tree. Internal nodes summarize ready branches;
+// draining set bits visits no unwoken sibling. Wasm32 bounds depth to seven.
+const ALL_TASKS: u64 = 24;
+const ALL_RESULTS: u64 = 28;
+const ALL_LEFT: u64 = 32;
+const ALL_LEN: u64 = 36;
+const ALL_COUNT: u64 = 40;
+const ALL_NODES: u64 = 44;
+const ALL_CELLS: u32 = 48;
+const ALL_NODE_SIZE: u32 = 16;
+const ALL_LEAF: i32 = i32::MIN;
+
+fn all_field(f: &mut Func, frame: u32, offset: u64) {
+    f.get(frame);
+    f.op(Instruction::I32Load(mem(HEAP, offset, 2)));
+}
+
+fn all_cell(f: &mut Func, frame: u32, index: u32) {
+    f.get(frame);
+    f.u32(ALL_CELLS);
+    f.op(Instruction::I32Add);
+    f.get(index);
+    f.i32(4);
+    f.op(Instruction::I32Mul);
+    f.op(Instruction::I32Add);
+}
+
+fn all_node(f: &mut Func, frame: u32, index: u32) {
+    all_field(f, frame, ALL_NODES);
+    f.get(index);
+    f.u32(ALL_NODE_SIZE);
+    f.op(Instruction::I32Mul);
+    f.op(Instruction::I32Add);
+}
+
+fn all_child(f: &mut Func, frame: u32, index: u32) {
+    all_field(f, frame, ALL_TASKS);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.get(index);
+    f.i32(4);
+    f.op(Instruction::I32Mul);
+    f.op(Instruction::I32Add);
+    f.op(Instruction::I32Load(mem(
+        HEAP,
+        u64::from(crate::rt::LIST_ELEMS),
+        2,
+    )));
+}
+
+fn all_for(f: &mut Func, end: u32, mut body: impl FnMut(&mut Func, u32)) {
+    let index = f.local(Val::I32);
+    f.i32(0);
+    f.set(index);
+    f.op(Instruction::Block(BlockType::Empty));
+    f.op(Instruction::Loop(BlockType::Empty));
+    f.get(index);
+    f.get(end);
+    f.op(Instruction::I32GeU);
+    f.op(Instruction::BrIf(1));
+    body(f, index);
+    f.get(index);
+    f.i32(1);
+    f.op(Instruction::I32Add);
+    f.set(index);
+    f.op(Instruction::Br(0));
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+}
+
+fn all_done(f: &mut Func, index: u32, state: i32) {
+    all_cell(f, 0, index);
+    f.i32(state);
+    f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    f.get(0);
+    all_field(f, 0, ALL_LEFT);
+    f.i32(1);
+    f.op(Instruction::I32Sub);
+    f.op(Instruction::I32Store(mem(HEAP, ALL_LEFT, 2)));
+}
+
+fn all_cold(m: &Module, elem: &Elem) -> Func {
+    let mut f = m.func("rt:all_cold", vec![Val::I32], vec![Val::I32]);
+    let (n, count, width, previous, offset, row, base, children, at) = (
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+    );
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.op(Instruction::I32Load(mem(HEAP, crate::rt::LIST_LEN, 2)));
+    f.set(n);
+    // No overflowing n+30: quotient plus a nonzero remainder.
+    f.get(n);
+    f.i32(31);
+    f.op(Instruction::I32DivU);
+    f.get(n);
+    f.i32(31);
+    f.op(Instruction::I32RemU);
+    f.i32(0);
+    f.op(Instruction::I32Ne);
+    f.op(Instruction::I32Add);
+    f.set(width);
+    f.op(Instruction::Block(BlockType::Empty));
+    f.op(Instruction::Loop(BlockType::Empty));
+    f.get(width);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::BrIf(1));
+    f.get(count);
+    f.get(width);
+    f.op(Instruction::I32Add);
+    f.set(count);
+    f.get(width);
+    f.i32(1);
+    f.op(Instruction::I32Eq);
+    f.op(Instruction::BrIf(1));
+    f.get(width);
+    f.i32(30);
+    f.op(Instruction::I32Add);
+    f.i32(31);
+    f.op(Instruction::I32DivU);
+    f.set(width);
+    f.op(Instruction::Br(0));
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+    let bytes = f.local(Val::I64);
+    f.get(n);
+    f.op(Instruction::I64ExtendI32U);
+    f.op(Instruction::I64Const(4));
+    f.op(Instruction::I64Mul);
+    f.get(count);
+    f.op(Instruction::I64ExtendI32U);
+    f.op(Instruction::I64Const(i64::from(ALL_NODE_SIZE)));
+    f.op(Instruction::I64Mul);
+    f.op(Instruction::I64Add);
+    f.op(Instruction::I64Const(i64::from(ALL_CELLS)));
+    f.op(Instruction::I64Add);
+    f.set(bytes);
+    f.get(bytes);
+    f.op(Instruction::I64Const(i64::from(
+        u32::MAX - crate::module::HEADER - crate::module::CYCLE_WORD,
+    )));
+    f.op(Instruction::I64GtU);
+    f.op(Instruction::If(BlockType::Empty));
+    panic(&mut f, "heap-exhausted: an all frame does not fit the heap");
+    f.op(Instruction::End);
+    f.get(bytes);
+    f.op(Instruction::I32WrapI64);
+    crate::rt::push_desc(
+        &mut f,
+        Some(Sym::Helper(Helper::All {
+            part: 3,
+            elem: elem.clone(),
+        })),
+        true,
+    );
+    f.helper(Helper::New);
+    f.set(at);
+    f.get(at);
+    f.helper(Helper::Opaque);
+    f.get(at);
+    f.i32(0);
+    f.get(bytes);
+    f.op(Instruction::I32WrapI64);
+    f.op(Instruction::MemoryFill(HEAP));
+    f.get(at);
+    f.table_slot(Sym::Helper(Helper::All {
+        part: 1,
+        elem: elem.clone(),
+    }));
+    f.op(Instruction::I32Store(mem(HEAP, F_POLL, 2)));
+    cancel_slot(
+        &mut f,
+        m,
+        at,
+        Sym::Helper(Helper::All {
+            part: 2,
+            elem: elem.clone(),
+        }),
+    );
+    for field in [ALL_LEN, ALL_LEFT] {
+        f.get(at);
+        f.get(n);
+        f.op(Instruction::I32Store(mem(HEAP, field, 2)));
+    }
+    f.get(at);
+    f.get(count);
+    f.op(Instruction::I32Store(mem(HEAP, ALL_COUNT, 2)));
+    f.get(at);
+    f.get(at);
+    f.get(n);
+    f.i32(4);
+    f.op(Instruction::I32Mul);
+    f.u32(ALL_CELLS);
+    f.op(Instruction::I32Add);
+    f.op(Instruction::I32Add);
+    f.op(Instruction::I32Store(mem(HEAP, ALL_NODES, 2)));
+    f.get(at);
+    f.get(0);
+    f.op(Instruction::I32Store(mem(HEAP, ALL_TASKS, 2)));
+    f.get(0);
+    f.helper(Helper::RetainAny);
+    f.get(at);
+    f.get(n);
+    f.helper(Helper::ListBuf { elem: elem.clone() });
+    f.op(Instruction::I32Store(mem(HEAP, ALL_RESULTS, 2)));
+    // Build leaf metadata, then successive parent levels. Children at each
+    // level are contiguous, so ctz traversal preserves input order.
+    f.get(n);
+    f.set(children);
+    f.op(Instruction::Block(BlockType::Empty));
+    f.op(Instruction::Loop(BlockType::Empty));
+    f.get(children);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::BrIf(1));
+    f.get(children);
+    f.i32(30);
+    f.op(Instruction::I32Add);
+    f.i32(31);
+    f.op(Instruction::I32DivU);
+    f.set(width);
+    all_for(&mut f, width, |f, j| {
+        f.get(j);
+        f.i32(31);
+        f.op(Instruction::I32Mul);
+        f.set(base);
+        f.get(offset);
+        f.get(j);
+        f.op(Instruction::I32Add);
+        f.set(row);
+        all_node(f, at, row);
+        let node = f.local(Val::I32);
+        f.set(node);
+        f.get(node);
+        f.get(previous);
+        f.get(base);
+        f.op(Instruction::I32Add);
+        f.op(Instruction::I32Store(mem(HEAP, 4, 2)));
+        f.get(node);
+        f.i32(1);
+        f.get(children);
+        f.get(base);
+        f.op(Instruction::I32Sub);
+        f.i32(31);
+        f.op(Instruction::I32LtU);
+        f.op(Instruction::If(BlockType::Result(
+            wasm_encoder::ValType::I32,
+        )));
+        f.get(children);
+        f.get(base);
+        f.op(Instruction::I32Sub);
+        f.op(Instruction::Else);
+        f.i32(31);
+        f.op(Instruction::End);
+        f.op(Instruction::I32Shl);
+        f.i32(1);
+        f.op(Instruction::I32Sub);
+        f.op(Instruction::I32Store(mem(HEAP, 8, 2)));
+        f.get(offset);
+        f.op(Instruction::I32Eqz);
+        f.op(Instruction::If(BlockType::Empty));
+        f.get(node);
+        f.i32(ALL_LEAF);
+        f.op(Instruction::I32Store(mem(HEAP, 12, 2)));
+        f.op(Instruction::Else);
+        let end = f.local(Val::I32);
+        f.get(node);
+        f.op(Instruction::I32Load(mem(HEAP, 8, 2)));
+        f.op(Instruction::I32Popcnt);
+        f.set(end);
+        all_for(f, end, |f, k| {
+            f.get(previous);
+            f.get(base);
+            f.op(Instruction::I32Add);
+            f.get(k);
+            f.op(Instruction::I32Add);
+            let child = f.local(Val::I32);
+            f.set(child);
+            all_node(f, at, child);
+            let child_at = f.local(Val::I32);
+            f.set(child_at);
+            f.get(child_at);
+            f.get(child_at);
+            f.op(Instruction::I32Load(mem(HEAP, 12, 2)));
+            f.i32(ALL_LEAF);
+            f.op(Instruction::I32And);
+            f.get(row);
+            f.op(Instruction::I32Or);
+            f.op(Instruction::I32Store(mem(HEAP, 12, 2)));
+        });
+        f.op(Instruction::End);
+    });
+    f.get(width);
+    f.i32(1);
+    f.op(Instruction::I32Eq);
+    f.op(Instruction::BrIf(1));
+    f.get(offset);
+    f.set(previous);
+    f.get(offset);
+    f.get(width);
+    f.op(Instruction::I32Add);
+    f.set(offset);
+    f.get(width);
+    f.set(children);
+    f.op(Instruction::Br(0));
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+    f.get(at);
+    f
+}
+
+fn all_init(m: &Module) -> Func {
+    let mut f = m.func("rt:all_init", vec![Val::I32], vec![]);
+    let (count, parent, parent_bit, node, index) = (
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+    );
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, F_STATE, 2)));
+    f.op(Instruction::If(BlockType::Empty));
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
+    f.global_get(Global::Waker);
+    f.set(parent);
+    f.global_get(Global::WakeBit);
+    f.set(parent_bit);
+    all_field(&mut f, 0, ALL_COUNT);
+    f.set(count);
+    all_for(&mut f, count, |f, j| {
+        f.get(count);
+        f.i32(1);
+        f.op(Instruction::I32Sub);
+        f.get(j);
+        f.op(Instruction::I32Sub);
+        f.set(index);
+        all_node(f, 0, index);
+        f.set(node);
+        f.get(j);
+        f.op(Instruction::I32Eqz);
+        f.op(Instruction::If(BlockType::Empty));
+        f.get(parent);
+        f.global_set(Global::Waker);
+        f.get(parent_bit);
+        f.global_set(Global::WakeBit);
+        f.op(Instruction::Else);
+        f.get(node);
+        f.op(Instruction::I32Load(mem(HEAP, 12, 2)));
+        f.i32(i32::MAX);
+        f.op(Instruction::I32And);
+        let parent_index = f.local(Val::I32);
+        f.set(parent_index);
+        all_node(f, 0, parent_index);
+        let parent_at = f.local(Val::I32);
+        f.set(parent_at);
+        f.get(parent_at);
+        f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+        f.global_set(Global::Waker);
+        f.i32(1);
+        f.get(index);
+        f.get(parent_at);
+        f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+        f.op(Instruction::I32Sub);
+        f.op(Instruction::I32Shl);
+        f.global_set(Global::WakeBit);
+        f.op(Instruction::End);
+        f.get(node);
+        f.get(node);
+        f.op(Instruction::I32Load(mem(HEAP, 8, 2)));
+        f.helper(Helper::WakerNew);
+        f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
+    });
+    f.get(parent);
+    f.global_set(Global::Waker);
+    f.get(parent_bit);
+    f.global_set(Global::WakeBit);
+    f.get(0);
+    f.i32(1);
+    f.op(Instruction::I32Store(mem(HEAP, F_STATE, 2)));
+    f
+}
+
+fn all_cancel_child(f: &mut Func, index: u32) {
+    let child = f.local(Val::I32);
+    all_child(f, 0, index);
+    f.set(child);
+    call_cancel(f, child);
+    f.global_get(Global::AbSeen);
+    flags_any(f, child, ABANDONED);
+    f.op(Instruction::I32Or);
+    f.global_set(Global::AbSeen);
+    flags_any(f, child, UNWINDING);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::If(BlockType::Empty));
+    all_done(f, index, 2);
+    f.op(Instruction::End);
+}
+
+fn all_node_poll(m: &Module, elem: &Elem) -> Func {
+    let mut f = m.func("rt:all_node", vec![Val::I32, Val::I32], vec![]);
+    let (node, waker, bits, bit, index, child, ready, result) = (
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+    );
+    let tmp: Vec<_> = elem.leaves.iter().map(|l| f.local(l.val)).collect();
+    all_node(&mut f, 0, 1);
+    f.set(node);
+    f.get(node);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.set(waker);
+    f.get(waker);
+    f.op(Instruction::I32Load(mem(HEAP, W_READY, 2)));
+    f.set(bits);
+    f.get(waker);
+    f.i32(0);
+    f.op(Instruction::I32Store(mem(HEAP, W_READY, 2)));
+    f.op(Instruction::Block(BlockType::Empty));
+    f.op(Instruction::Loop(BlockType::Empty));
+    f.get(bits);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::BrIf(1));
+    f.get(bits);
+    f.op(Instruction::I32Ctz);
+    f.set(bit);
+    f.get(bits);
+    f.get(bits);
+    f.i32(1);
+    f.op(Instruction::I32Sub);
+    f.op(Instruction::I32And);
+    f.set(bits);
+    f.get(node);
+    f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
+    f.get(bit);
+    f.op(Instruction::I32Add);
+    f.set(index);
+    f.get(node);
+    f.op(Instruction::I32Load(mem(HEAP, 12, 2)));
+    f.i32(0);
+    f.op(Instruction::I32LtS);
+    f.op(Instruction::If(BlockType::Empty));
+    all_cell(&mut f, 0, index);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(waker);
+    f.global_set(Global::Waker);
+    f.i32(1);
+    f.get(bit);
+    f.op(Instruction::I32Shl);
+    f.global_set(Global::WakeBit);
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, F_STATE, 2)));
+    f.i32(2);
+    f.op(Instruction::I32Eq);
+    f.op(Instruction::If(BlockType::Empty));
+    all_cancel_child(&mut f, index);
+    f.op(Instruction::Else);
+    all_child(&mut f, 0, index);
+    f.set(child);
+    if !m.release {
+        f.global_get(Global::AllPolls);
+        f.i32(1);
+        f.op(Instruction::I32Add);
+        f.global_set(Global::AllPolls);
+    }
+    f.get(child);
+    f.get(child);
+    f.op(Instruction::I32Load(mem(HEAP, F_POLL, 2)));
+    f.call_indirect(
+        vec![Val::I32],
+        [vec![Val::I32], elem.leaves.iter().map(|l| l.val).collect()].concat(),
+    );
+    for local in tmp.iter().rev() {
+        f.set(*local);
+    }
+    f.set(ready);
+    f.get(ready);
+    f.op(Instruction::If(BlockType::Empty));
+    all_field(&mut f, 0, ALL_RESULTS);
+    f.get(index);
+    f.u32(elem.size);
+    f.op(Instruction::I32Mul);
+    f.op(Instruction::I32Add);
+    f.u32(crate::rt::LIST_ELEMS);
+    f.op(Instruction::I32Add);
+    f.set(result);
+    for (leaf, local) in elem.leaves.iter().zip(&tmp) {
+        f.get(result);
+        f.get(*local);
+        f.op(leaf.store(0));
+    }
+    all_done(&mut f, index, 1);
+    f.op(Instruction::Else);
+    flags_any(&mut f, child, CANCELLED);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(0);
+    f.i32(3);
+    f.op(Instruction::I32Store(mem(HEAP, F_STATE, 2)));
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+    f.op(Instruction::Else);
+    f.get(0);
+    f.get(index);
+    f.helper(Helper::All {
+        part: 4,
+        elem: elem.clone(),
+    });
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, F_STATE, 2)));
+    f.i32(3);
+    f.op(Instruction::I32Eq);
+    f.op(Instruction::If(BlockType::Empty));
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+    f.op(Instruction::Br(0));
+    f.op(Instruction::End);
+    f.op(Instruction::End);
+    f
+}
+
+fn all_root(f: &mut Func, elem: &Elem) {
+    let count = f.local(Val::I32);
+    all_field(f, 0, ALL_COUNT);
+    f.set(count);
+    f.get(count);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(count);
+    f.i32(1);
+    f.op(Instruction::I32Sub);
+    let root = f.local(Val::I32);
+    f.set(root);
+    all_node(f, 0, root);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.helper(Helper::WakerParent);
+    f.get(0);
+    f.get(root);
+    f.helper(Helper::All {
+        part: 4,
+        elem: elem.clone(),
+    });
+    f.op(Instruction::End);
+}
+
+fn all_poll(m: &Module, elem: &Elem) -> Func {
+    let mut f = m.func("rt:all_poll", vec![Val::I32], vec![Val::I32, Val::I32]);
+    let (parent, parent_bit, buffer) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
+    f.get(0);
+    f.helper(Helper::PollCheck);
+    f.op(Instruction::If(BlockType::Empty));
+    f.i32(0);
+    f.i32(0);
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
+    f.global_get(Global::Waker);
+    f.set(parent);
+    f.global_get(Global::WakeBit);
+    f.set(parent_bit);
+    flags_or(&mut f, 0, ACTIVE);
+    f.get(0);
+    f.helper(Helper::All {
+        part: 5,
+        elem: elem.clone(),
+    });
+    all_root(&mut f, elem);
+    f.get(parent);
+    f.global_set(Global::Waker);
+    f.get(parent_bit);
+    f.global_set(Global::WakeBit);
+    f.get(0);
+    all_field(&mut f, 0, F_FLAGS);
+    f.i32(!ACTIVE);
+    f.op(Instruction::I32And);
+    f.op(Instruction::I32Store(mem(HEAP, F_FLAGS, 2)));
+    f.get(0);
+    f.op(Instruction::I32Load(mem(HEAP, F_STATE, 2)));
+    f.i32(3);
+    f.op(Instruction::I32Eq);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(0);
+    f.helper(Helper::All {
+        part: 2,
+        elem: elem.clone(),
+    });
+    f.i32(0);
+    f.i32(0);
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
+    all_field(&mut f, 0, ALL_LEFT);
+    f.op(Instruction::If(BlockType::Empty));
+    f.i32(0);
+    f.i32(0);
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
+    flags_or(&mut f, 0, DONE);
+    all_field(&mut f, 0, ALL_RESULTS);
+    f.set(buffer);
+    f.get(buffer);
+    all_field(&mut f, 0, ALL_LEN);
+    f.op(Instruction::I32Store(mem(HEAP, crate::rt::LIST_LEN, 2)));
+    f.get(0);
+    f.i32(0);
+    f.op(Instruction::I32Store(mem(HEAP, ALL_RESULTS, 2)));
+    f.i32(1);
+    f.get(buffer);
+    f.helper(Helper::ListHeader {
+        cyclic: elem.cyclic,
+    });
+    f
+}
+
+fn all_cancel(m: &Module, elem: &Elem) -> Func {
+    let mut f = m.func("rt:all_cancel", vec![Val::I32], vec![]);
+    let (parent, parent_bit, n, initial, wait, seen) = (
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+    );
+    f.get(0);
+    f.helper(Helper::CancelCheck);
+    f.op(Instruction::I32Eqz);
+    f.op(Instruction::If(BlockType::Empty));
+    f.op(Instruction::Return);
+    f.op(Instruction::End);
+    f.helper(Helper::CancelEnter);
+    f.set(seen);
+    f.global_get(Global::Waker);
+    f.set(parent);
+    f.global_get(Global::WakeBit);
+    f.set(parent_bit);
+    flags_or(&mut f, 0, ACTIVE);
+    f.get(0);
+    f.helper(Helper::All {
+        part: 5,
+        elem: elem.clone(),
+    });
+    all_field(&mut f, 0, ALL_COUNT);
+    let count = f.local(Val::I32);
+    f.set(count);
+    f.get(count);
+    f.op(Instruction::If(BlockType::Empty));
+    f.get(count);
+    f.i32(1);
+    f.op(Instruction::I32Sub);
+    let root = f.local(Val::I32);
+    f.set(root);
+    all_node(&mut f, 0, root);
+    f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+    f.helper(Helper::WakerParent);
+    f.op(Instruction::End);
+    all_field(&mut f, 0, F_STATE);
+    f.i32(2);
+    f.op(Instruction::I32Ne);
+    f.global_get(Global::Aband);
+    f.i32(0);
+    f.op(Instruction::I32Ne);
+    f.op(Instruction::I32Or);
+    f.set(initial);
+    f.get(0);
+    f.i32(2);
+    f.op(Instruction::I32Store(mem(HEAP, F_STATE, 2)));
+    f.get(initial);
+    f.op(Instruction::If(BlockType::Empty));
+    all_field(&mut f, 0, ALL_LEN);
+    f.set(n);
+    all_for(&mut f, n, |f, index| {
+        all_cell(f, 0, index);
+        f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+        f.op(Instruction::I32Eqz);
+        f.op(Instruction::If(BlockType::Empty));
+        // Leaf groups are the first ceil(n/31) metadata records.
+        f.get(index);
+        f.i32(31);
+        f.op(Instruction::I32DivU);
+        let leaf = f.local(Val::I32);
+        f.set(leaf);
+        all_node(f, 0, leaf);
+        f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+        f.global_set(Global::Waker);
+        f.i32(1);
+        f.get(index);
+        f.i32(31);
+        f.op(Instruction::I32RemU);
+        f.op(Instruction::I32Shl);
+        f.global_set(Global::WakeBit);
+        all_cancel_child(f, index);
+        f.op(Instruction::End);
+    });
+    f.op(Instruction::Else);
+    all_root(&mut f, elem);
+    f.op(Instruction::End);
+    f.get(parent);
+    f.global_set(Global::Waker);
+    f.get(parent_bit);
+    f.global_set(Global::WakeBit);
+    f.get(0);
+    all_field(&mut f, 0, F_FLAGS);
+    f.i32(!ACTIVE);
+    f.op(Instruction::I32And);
+    f.op(Instruction::I32Store(mem(HEAP, F_FLAGS, 2)));
+    all_field(&mut f, 0, ALL_LEFT);
+    f.i32(0);
+    f.op(Instruction::I32Ne);
+    f.set(wait);
+    mark_cancelled(&mut f, wait);
+    f.get(0);
+    f.get(seen);
+    f.helper(Helper::CancelLeave);
+    f
+}
+
+fn all_drop(m: &Module, elem: &Elem) -> Func {
+    let mut f = m.func("rt:all_drop", vec![Val::I32], vec![]);
+    let (n, count, buffer, address) = (
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+        f.local(Val::I32),
+    );
+    all_field(&mut f, 0, ALL_LEN);
+    f.set(n);
+    all_field(&mut f, 0, ALL_RESULTS);
+    f.set(buffer);
+    if let Some(walk) = &elem.walk {
+        f.get(buffer);
+        f.op(Instruction::If(BlockType::Empty));
+        all_for(&mut f, n, |f, index| {
+            all_cell(f, 0, index);
+            f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+            f.i32(1);
+            f.op(Instruction::I32Eq);
+            f.op(Instruction::If(BlockType::Empty));
+            f.get(buffer);
+            f.get(index);
+            f.u32(elem.size);
+            f.op(Instruction::I32Mul);
+            f.op(Instruction::I32Add);
+            f.u32(crate::rt::LIST_ELEMS);
+            f.op(Instruction::I32Add);
+            f.set(address);
+            let values: Vec<_> = elem
+                .leaves
+                .iter()
+                .map(|l| {
+                    let value = f.local(l.val);
+                    f.get(address);
+                    f.op(l.load(0));
+                    f.set(value);
+                    value
+                })
+                .collect();
+            crate::rt::walk_code(f, walk, &|f, k| f.get(values[k as usize]), &|f| {
+                f.helper(Helper::ReleaseRef);
+            });
+            f.op(Instruction::End);
+        });
+        f.op(Instruction::End);
+    }
+    f.get(buffer);
+    f.helper(Helper::ReleaseRef);
+    all_field(&mut f, 0, ALL_TASKS);
+    f.helper(Helper::ReleaseRef);
+    all_field(&mut f, 0, ALL_COUNT);
+    f.set(count);
+    all_for(&mut f, count, |f, index| {
+        all_node(f, 0, index);
+        f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
+        f.helper(Helper::ReleaseRef);
+    });
+    f
+}
+
 /// The list a race frame holds: its header's address at its first field.
 const RACE_LIST: u32 = F_SAVED;
 /// Where a race frame keeps its winner's value while losers settle.
@@ -1998,6 +2801,179 @@ mod tests {
 
     use super::{Helper, Instruction as I, W_READY, W_SLOT};
     use crate::module::{HEAP, Module, Sym, Val, mem};
+
+    #[test]
+    fn flat_all_drains_woken_children_in_order_without_rescanning() {
+        use crate::layout::{Leaf, Walk};
+        use crate::module::{Global, Import};
+        use crate::rt::Elem;
+
+        let mut m = Module::default();
+        let word = Leaf {
+            offset: 0,
+            val: Val::I32,
+            bytes: 4,
+            signed: false,
+        };
+        let elem = Elem {
+            size: 4,
+            leaves: vec![word],
+            walk: None,
+            colls: vec![],
+            cyclic: false,
+        };
+        for (name, part) in [("all", 0), ("poll", 1), ("cancel", 2)] {
+            m.export(
+                name,
+                Sym::Helper(Helper::All {
+                    part,
+                    elem: elem.clone(),
+                }),
+            );
+        }
+        m.export("wake", Sym::Helper(Helper::WakeSignal));
+        let poll = Sym::Inst(hd_base::Hash128(48_901));
+        let cancel = Sym::Inst(hd_base::Hash128(48_902));
+        let mut f = m.func("test:child_poll", vec![Val::I32], vec![Val::I32; 2]);
+        let (ready, value) = (f.local(Val::I32), f.local(Val::I32));
+        super::all_field(&mut f, 0, u64::from(super::F_SAVED));
+        f.global_get(Global::Waker);
+        f.global_get(Global::WakeBit);
+        f.call(Sym::Import(Import::new(
+            "test",
+            "poll",
+            &[Val::I32; 3],
+            &[Val::I32; 2],
+        )));
+        f.set(value);
+        f.set(ready);
+        f.get(ready);
+        f.op(I::If(wasm_encoder::BlockType::Empty));
+        super::flags_or(&mut f, 0, super::DONE);
+        f.op(I::End);
+        f.get(ready);
+        f.get(value);
+        m.define(poll.clone(), f);
+        let mut f = m.func("test:child_cancel", vec![Val::I32], vec![]);
+        super::all_field(&mut f, 0, u64::from(super::F_SAVED));
+        f.call(Sym::Import(Import::new("test", "cancel", &[Val::I32], &[])));
+        super::flags_or(&mut f, 0, super::CANCELLED);
+        m.define(cancel.clone(), f);
+        let mut f = m.func("test:tasks", vec![Val::I32], vec![Val::I32]);
+        let buffer = f.local(Val::I32);
+        f.get(0);
+        f.helper(Helper::ListBuf {
+            elem: Elem {
+                walk: Some(Walk::Ref(0)),
+                cyclic: true,
+                ..elem.clone()
+            },
+        });
+        f.set(buffer);
+        f.get(buffer);
+        f.get(0);
+        f.op(I::I32Store(mem(HEAP, crate::rt::LIST_LEN, 2)));
+        super::all_for(&mut f, 0, |f, index| {
+            let child = super::new_zeroed(f, super::F_SAVED + 4, None, false);
+            for (offset, target) in [
+                (super::F_POLL, poll.clone()),
+                (super::F_CANCEL, cancel.clone()),
+            ] {
+                f.get(child);
+                f.table_slot(target);
+                f.op(I::I32Store(mem(HEAP, offset, 2)));
+            }
+            f.get(child);
+            f.get(index);
+            f.op(I::I32Store(mem(HEAP, u64::from(super::F_SAVED), 2)));
+            f.get(buffer);
+            f.get(index);
+            f.i32(4);
+            f.op(I::I32Mul);
+            f.op(I::I32Add);
+            f.get(child);
+            f.op(I::I32Store(mem(HEAP, u64::from(crate::rt::LIST_ELEMS), 2)));
+        });
+        f.get(buffer);
+        f.helper(Helper::ListHeader { cyclic: true });
+        let tasks = Sym::Inst(hd_base::Hash128(48_903));
+        m.define(tasks.clone(), f);
+        m.export("tasks", tasks);
+        let mut f = m.func("test:peek", vec![Val::I32; 2], vec![Val::I32]);
+        f.get(0);
+        f.op(I::I32Load(mem(HEAP, 0, 2)));
+        f.get(1);
+        f.i32(4);
+        f.op(I::I32Mul);
+        f.op(I::I32Add);
+        f.op(I::I32Load(mem(HEAP, u64::from(crate::rt::LIST_ELEMS), 2)));
+        let peek = Sym::Inst(hd_base::Hash128(48_904));
+        m.define(peek.clone(), f);
+        m.export("peek", peek);
+        let wasm = m.finish().expect("flat all module");
+        let script = r"
+const fs = require('node:fs'), assert = require('node:assert/strict');
+const module_ = new WebAssembly.Module(fs.readFileSync(0));
+for (const n of [0, 1, 31, 32, 961, 962, 2000]) {
+  const calls = [], regs = new Map(), ready = new Set(), done = new Set(), cancelled = [];
+  const imports = {test: {
+    poll: (id, node, bit) => {
+      assert(!done.has(id), 'completed child polled again');
+      calls.push(id); regs.set(id, [node, bit]);
+      if (!ready.delete(id)) return [0, 0];
+      done.add(id); return [1, id * 3];
+    }, cancel: id => { cancelled.push(id); },
+  }};
+  for (const im of WebAssembly.Module.imports(module_)) {
+    (imports[im.module] ??= {})[im.name] ??= () => { throw Error(im.module + ':' + im.name); };
+  }
+  const w = new WebAssembly.Instance(module_, imports).exports;
+  const frame = w.all(w.tasks(n));
+  let [complete, values] = w.poll(frame);
+  assert.deepEqual(calls, Array.from({length: n}, (_, i) => i));
+  if (!n) { assert.equal(complete, 1); continue; }
+  assert.equal(complete, 0);
+  calls.length = 0; w.poll(frame); assert.deepEqual(calls, [], 'no wake means no child poll');
+  const batch = [...new Set([n - 1, 0, Math.floor(n / 2), 30, 31, 961].filter(i => i < n))];
+  for (const id of batch) { ready.add(id); w.wake(...regs.get(id)); w.wake(...regs.get(id)); }
+  [complete, values] = w.poll(frame);
+  assert.deepEqual(calls, [...batch].sort((a, b) => a - b), 'wakes coalesce and poll in input order');
+  for (let id = 0; id < n; id++) {
+    if (done.has(id)) continue;
+    calls.length = 0; ready.add(id); w.wake(...regs.get(id));
+    [complete, values] = w.poll(frame);
+    assert.deepEqual(calls, [id], 'one wake visits exactly one child');
+  }
+  assert.equal(complete, 1);
+  for (let id = 0; id < n; id++) assert.equal(w.peek(values, id), id * 3);
+  assert.equal(Number(w['hd.all_polls'].value), n * 2);
+  w.cancel(frame); assert.deepEqual(cancelled, [], 'completed children are not cancelled');
+  const other = w.all(w.tasks(n)); calls.length = 0; regs.clear(); done.clear();
+  w.poll(other); w.cancel(other);
+  assert.deepEqual(cancelled, Array.from({length: n}, (_, i) => i));
+  calls.length = 0; w.poll(other); assert.deepEqual(calls, [], 'cancelled all never polls children');
+}
+";
+        let mut child = Command::new("node")
+            .args(["-e", script])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("node");
+        child
+            .stdin
+            .take()
+            .expect("stdin")
+            .write_all(&wasm)
+            .expect("module");
+        let result = child.wait_with_output().expect("flat all result");
+        assert!(
+            result.status.success(),
+            "{}",
+            String::from_utf8_lossy(&result.stderr)
+        );
+    }
 
     #[test]
     fn weak_waiters_ignore_reused_and_exhausted_generations() {

@@ -6,7 +6,6 @@ This chapter defines the part of `std.task` that `lib/std` writes in
 ordinary hd over the language tier:
 
 - the `retry!` combinator and its `Backoff` policy;
-- the `all_list!` combinator;
 - the `timeout!` and `with_timeout!` combinators and their `TimedOut` error;
 - the `map_all!` combinator;
 - the `CleanupEnd` enum, which `cancel!()` returns;
@@ -136,38 +135,30 @@ See also: [Retry](#retry), [Clock](time.md#clock).
 
 ## All List
 
-`all_list!` awaits a list of suspending tasks together and returns their
-results in a list:
+`all_list!` is the private engine of `map_all!`.
+Public callers use `map_all!` with the input length as the concurrency limit:
 
 ```text
-pub fn all_list![T, $R](tasks: List[fn!() -> T $ R]) -> List[T] $ R
-```
-
-1. r[std-task.all-list] `std.task` declares `all_list!` with the signature above, as an ordinary `fn!` function, not an intrinsic. Code imports it with `use std.task.all_list`.
-2. r[std-task.all-list.children] `all_list!` calls each task once, without `!`, in input order, and awaits the cold suspensions as `all!` awaits its children.
-3. r[std-task.all-list.order] The result holds each task's value at the task's index in `tasks`, whatever order the tasks complete in.
-4. r[std-task.all-list.empty] An empty `tasks` gives an empty list.
-5. r[std-task.all-list.like-all] Scheduling, cancellation, failure, and panics follow the rules of `all!`: [`req.schedule.all-unfinished`](../lang/11-requirements-and-suspension.md#r-req.schedule.all-unfinished), [`req.schedule.all-completed`](../lang/11-requirements-and-suspension.md#r-req.schedule.all-completed), and [`req.combinator.cancel-children`](../lang/11-requirements-and-suspension.md#r-req.combinator.cancel-children).
-
-```text
-use std.task.all_list
+use std.task.map_all
 
 fn square!(value: i32) -> i32:
     value * value
 
 fn squares!() -> List[i32]:
-    all_list!([fn!() -> i32: square!(3), fn!() -> i32: square!(1), fn!() -> i32: square!(2)])
+    map_all!([3, 1, 2], 3, square)
 ```
 
-`squares!` returns `[9, 1, 4]`: the results are in input order.
+1. r[std-task.map-all.private-engine] `std.task.all_list` is private and cannot be imported by a caller. Error: `private-import`.
 
-> **Why.** `all!` takes a fixed number of children of any types and gives
-> a tuple. A list of tasks of one type, whose length is known only at run
-> time, needs a list result. `lib/std` writes `all_list!` as nested `all!`
-> calls, so it needs no new intrinsic, and `all!` stays fixed-arity.
+`squares!` returns `[9, 1, 4]`, in input order.
 
-See also: [Standard Combinators](../lang/11-requirements-and-suspension.md#standard-combinators),
-[Cooperative Scheduling](../lang/11-requirements-and-suspension.md#cooperative-scheduling).
+> **Why.** `map_all!` accepts items directly, so callers need not construct
+> a list of closures. Its private engine drives one flat list of cold
+> workers and retains results until every worker finishes. Waker readiness
+> routes later polls to unfinished workers without scanning unwoken ones.
+
+See also: [Map All](#map-all),
+[Standard Combinators](../lang/11-requirements-and-suspension.md#standard-combinators).
 
 ## Timeout
 
@@ -324,10 +315,11 @@ it runs two calls at a time, so it takes about 300 milliseconds; the third call
 starts as soon as the first completes.
 
 > **Why.** Effect's `forEach` with `concurrency` and Go's `errgroup.SetLimit`
-> bound fan-out the same way. `all_list!` starts every task at once, which a
-> list of a thousand requests cannot afford. `lib/std` writes `map_all!` as
-> `limit` worker closures run by one `all_list!`, each taking the next unstarted
-> index. Bang calls are the only yield points, so the shared index needs no
+> bound fan-out the same way. Setting `limit` to `items.len()` starts every
+> item together. Smaller limits use a sliding window of worker closures
+> driven by a private flat engine, each taking the next unstarted index.
+>
+> Bang calls are the only yield points, so the shared index needs no
 > lock. A `limit` of 0 counts as 1, not as a panic, as for `retry!`.
 
 See also: [All List](#all-list), [Cooperative Scheduling](../lang/11-requirements-and-suspension.md#cooperative-scheduling).
