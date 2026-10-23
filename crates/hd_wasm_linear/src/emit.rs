@@ -869,6 +869,8 @@ struct Em<'i, 'a, 'm> {
     input: &'i Input<'a>,
     m: &'m mut Module,
     b: &'a Body,
+    /// This final body's instruction types at the instance's arguments.
+    inst_ty: Vec<Ty>,
     item: DefId,
     origin_root: u32,
     args: TyList,
@@ -1015,6 +1017,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             input,
             m,
             b,
+            inst_ty: hd_mono::instruction_types(input.pool, input.env, item, args, b),
             item,
             origin_root: b.sub_root[0],
             args,
@@ -1140,16 +1143,15 @@ impl Em<'_, '_, '_> {
         if r == NONE {
             return Ty::VOID;
         }
-        let t = match Ref(r).as_inst() {
-            Some(i) => self.b.ty[i.0 as usize],
-            None => self.b.consts[(r & !Ref::CONST_BIT) as usize].0,
-        };
-        self.sub(t)
+        match Ref(r).as_inst() {
+            Some(i) => self.inst_ty[i.0 as usize],
+            None => self.sub(self.b.consts[(r & !Ref::CONST_BIT) as usize].0),
+        }
     }
 
     /// The type of instruction `i`, substituted.
     fn ty(&self, i: u32) -> Ty {
-        self.sub(self.b.ty[i as usize])
+        self.inst_ty[i as usize]
     }
 
     /// Whether value `r` never produces a value: its type is `never`.
