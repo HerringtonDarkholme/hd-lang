@@ -258,7 +258,7 @@ pub(crate) fn count_subject(pool: &InternPool, env: &dyn ProgramEnv, ty: Ty) -> 
 #[cfg(test)]
 mod tests {
     use super::CountAction;
-    use crate::module::{Func, Module, Sym, Val};
+    use crate::module::{Module, Sym, Val};
     use hd_base::Hash128;
 
     /// The runtime module is intentionally std-only in hd source. Exercise a
@@ -272,9 +272,9 @@ mod tests {
         let mut module = Module::default();
         module.runtime = Some(runtime);
         module.track_origins = true;
-        let free = Func::new("free", vec![Val::I32], vec![]);
+        let free = module.func("free", vec![Val::I32], vec![]);
         module.define(Sym::Inst(runtime.free), free);
-        let mut caller = Func::new("app/free_block", vec![Val::I32], vec![]);
+        let mut caller = module.func("app/free_block", vec![Val::I32], vec![]);
         caller.origins = Some(Vec::new());
         caller.origin_at = Some(0);
         caller.origin_root = Some(0);

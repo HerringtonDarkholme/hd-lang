@@ -5,12 +5,13 @@
 //! hash and compare through the operations collection chose
 //! (`crates/hd_mono/DESIGN.md` §13.12).
 
+use crate::op::Op as I;
 use hd_base::StageResult;
 use hd_mono::layout::{inline_map_key, strip_newtype};
 use hd_mono::{CallTarget, Target, TargetKind, subst};
 use hd_tir::ir::IntrinsicOp;
 use hd_types::{Ty, TyData};
-use wasm_encoder::{BlockType, Instruction as I};
+use wasm_encoder::BlockType;
 
 use super::value::Src;
 use super::{Ctl, Em};

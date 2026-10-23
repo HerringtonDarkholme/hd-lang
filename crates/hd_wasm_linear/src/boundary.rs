@@ -16,10 +16,11 @@
 //! with a count of its own, and the end. A malformed or out-of-range
 //! result is the `host-contract` panic.
 
+use crate::op::Op as I;
 use hd_base::{DefId, Hash128, StageResult};
 use hd_mono::{BoundaryMap, ProgramEnv, subst};
 use hd_types::{InternPool, Prim, Ty, TyData, TyList};
-use wasm_encoder::{BlockType, Instruction as I};
+use wasm_encoder::BlockType;
 
 use crate::layout::{self, Leaf, Walk};
 use crate::module::{BUF, EMPTY, Func, HEAP, Import, Ins, Module, Sym, Val, mem};
@@ -781,10 +782,16 @@ pub fn push_args(f: &mut Func, args: &[HostArg], get: &dyn Fn(&mut Func, u32)) -
 
 /// [`Helper::HostCall`]: `(data, arguments) -> results`, one import call
 /// of a host method that never waits.
-pub fn host_call(module: &str, method: &str, args: &[HostArg], result: &CallRes) -> Func {
+pub fn host_call(
+    m: &Module,
+    module: &str,
+    method: &str,
+    args: &[HostArg],
+    result: &CallRes,
+) -> Func {
     let mut params = vec![Val::I32];
     params.extend(args.iter().flat_map(HostArg::vals));
-    let mut f = Func::new(format!("rt:{module}/{method}"), params, result.vals());
+    let mut f = m.func(format!("rt:{module}/{method}"), params, result.vals());
     let imp = push_args(&mut f, args, &|f, k| f.get(k + 1));
     f.call(Sym::Import(Import::new(
         module,
@@ -804,10 +811,10 @@ pub fn host_call(module: &str, method: &str, args: &[HostArg], result: &CallRes)
 /// [`Helper::HandleSlot`]: `(data, params) -> results`, a host handle's
 /// vtable slot: the handle number from the box at `data`, then the inner
 /// host call with it first.
-pub fn handle_slot(inner: &Helper, params: &[Val], results: &[Val]) -> Func {
+pub fn handle_slot(m: &Module, inner: &Helper, params: &[Val], results: &[Val]) -> Func {
     let mut all = vec![Val::I32];
     all.extend(params.iter().copied());
-    let mut f = Func::new("rt:handle_slot", all, results.to_vec());
+    let mut f = m.func("rt:handle_slot", all, results.to_vec());
     f.get(0);
     f.get(0);
     f.op(I::I32Load(mem(HEAP, 0, 2)));
@@ -847,8 +854,8 @@ fn check_room(f: &mut Func, off: u32, n: u32) {
 
 /// [`Helper::Fit`]: `(end)`, grows the exchange buffer to at least `end`
 /// bytes (§17.3); a refused growth is `heap-exhausted`.
-pub fn fit() -> Func {
-    let mut f = Func::new("rt:fit", vec![Val::I32], vec![]);
+pub fn fit(m: &Module) -> Func {
+    let mut f = m.func("rt:fit", vec![Val::I32], vec![]);
     f.get(0);
     buffer_size(&mut f);
     f.op(I::I32GtU);
@@ -873,8 +880,8 @@ pub fn fit() -> Func {
 }
 
 /// [`Helper::LebPut`]: `(off, v: i64) -> off'`, `v` as unsigned LEB128.
-pub fn leb_put() -> Func {
-    let mut f = Func::new("rt:leb_put", vec![Val::I32, Val::I64], vec![Val::I32]);
+pub fn leb_put(m: &Module) -> Func {
+    let mut f = m.func("rt:leb_put", vec![Val::I32, Val::I64], vec![Val::I32]);
     let b = f.local(Val::I32);
     f.get(0);
     f.i32(10);
@@ -917,8 +924,8 @@ pub fn leb_put() -> Func {
 
 /// [`Helper::LebGet`]: `(off) -> (v: i64, off')`, an unsigned LEB128
 /// number; a byte past the buffer is `host-contract`.
-pub fn leb_get() -> Func {
-    let mut f = Func::new("rt:leb_get", vec![Val::I32], vec![Val::I64, Val::I32]);
+pub fn leb_get(m: &Module) -> Func {
+    let mut f = m.func("rt:leb_get", vec![Val::I32], vec![Val::I64, Val::I32]);
     let (r, sh, b) = (f.local(Val::I64), f.local(Val::I64), f.local(Val::I32));
     f.op(I::Loop(BlockType::Empty));
     f.get(0);
@@ -1046,7 +1053,7 @@ fn release(f: &mut Func, m: &Module, ls: &[u32], vals: Vec<Val>, walk: Option<Wa
 pub fn enc(b: &LTy, m: &Module) -> Func {
     let mut params = vec![Val::I32];
     params.extend(b.vals());
-    let mut f = Func::new("rt:enc", params, vec![Val::I32]);
+    let mut f = m.func("rt:enc", params, vec![Val::I32]);
     match b {
         LTy::Void => {}
         LTy::Int { bits, signed } => {
@@ -1238,7 +1245,7 @@ pub fn enc(b: &LTy, m: &Module) -> Func {
 pub fn dec(b: &LTy, m: &mut Module) -> Func {
     let mut results = b.vals();
     results.push(Val::I32);
-    let mut f = Func::new("rt:dec", vec![Val::I32], results);
+    let mut f = m.func("rt:dec", vec![Val::I32], results);
     match b {
         LTy::Void => {}
         LTy::Int { bits, signed } => {

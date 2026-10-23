@@ -12,10 +12,10 @@
 //! emitter after each stage"): the places of `Ref`, `Read` and `Store`
 //! (`hd_tir::ir::Place`). Each is read as a [`Spot`].
 
+use crate::op::Op as I;
 use hd_base::{DefId, StageResult};
 use hd_tir::ir::{NONE, Place, PlaceRoot, Proj, Tag};
 use hd_types::{Ty, TyData};
-use wasm_encoder::Instruction as I;
 
 use super::Em;
 use super::value::Src;

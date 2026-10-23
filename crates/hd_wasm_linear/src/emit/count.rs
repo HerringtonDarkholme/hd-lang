@@ -136,11 +136,9 @@ impl Em<'_, '_, '_> {
     fn release_view_loan(&mut self, i: u32, ls: &[u32]) -> StageResult<()> {
         let flag = self.view_loans[&i];
         self.f.get(flag);
-        self.f.op(wasm_encoder::Instruction::If(
-            wasm_encoder::BlockType::Empty,
-        ));
+        self.f.op(crate::op::Op::If(wasm_encoder::BlockType::Empty));
         self.release_locals(ls, self.ty(i))?;
-        self.f.op(wasm_encoder::Instruction::End);
+        self.f.op(crate::op::Op::End);
         self.f.zero(flag);
         Ok(())
     }
@@ -255,7 +253,7 @@ impl Em<'_, '_, '_> {
         match (retain, self.input.runtime) {
             (true, Some(r)) => self.f.call(crate::module::Sym::Inst(r.retain)),
             (false, Some(_)) => self.f.helper(Helper::ReleaseRef),
-            (_, None) => self.f.op(wasm_encoder::Instruction::Drop),
+            (_, None) => self.f.op(crate::op::Op::Drop),
         }
     }
 
@@ -708,12 +706,10 @@ impl Em<'_, '_, '_> {
             COVERED => {
                 // The shape the link folds where no view is reachable.
                 self.f.helper(Helper::RefViewsAbsent);
-                self.f.op(wasm_encoder::Instruction::If(
-                    wasm_encoder::BlockType::Empty,
-                ));
-                self.f.op(wasm_encoder::Instruction::Else);
+                self.f.op(crate::op::Op::If(wasm_encoder::BlockType::Empty));
+                self.f.op(crate::op::Op::Else);
                 self.unique_at(i)?;
-                self.f.op(wasm_encoder::Instruction::End);
+                self.f.op(crate::op::Op::End);
                 return Ok(());
             }
             _ => {}

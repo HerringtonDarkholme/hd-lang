@@ -5,14 +5,14 @@
 //! counts and returns the first live entry at or after the given number
 //! (`rt:map_step`, `map.rs`). List cursors are ordinary std code.
 
+use crate::op::Op as I;
 use hd_base::StageResult;
 use hd_types::{Prim, TyData};
-use wasm_encoder::Instruction as I;
 
 use super::Em;
 use crate::layout::{Mem, Part, fields_walk, payload_mem};
 use crate::map::{GROWN, LIVE, USED};
-use crate::module::{HEAP, Ins, Sym, mem};
+use crate::module::{HEAP, Sym, mem};
 use crate::rt::{Helper, OptVal};
 use crate::unsupported;
 
@@ -83,7 +83,7 @@ impl Em<'_, '_, '_> {
             store(self, &m, *p, &|em| v(em, h))?;
         }
         self.retain_fields(env, &m, walk.as_ref());
-        self.f.push(Ins::TableSlot(Sym::Helper(code)));
+        self.f.table_slot(Sym::Helper(code));
         self.f.get(env);
         // The new environment arrives with its count.
         self.store_owned(i)

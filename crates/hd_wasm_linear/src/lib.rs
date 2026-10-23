@@ -16,6 +16,7 @@ mod emit;
 mod layout;
 mod map;
 mod module;
+mod op;
 mod opt;
 mod origins;
 mod pow;

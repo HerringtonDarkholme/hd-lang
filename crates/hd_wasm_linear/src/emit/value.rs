@@ -6,10 +6,10 @@
 //! at their offsets: construction allocates it and stores them, a field
 //! read loads them, a field write stores them.
 
+use crate::op::Op as I;
 use hd_base::StageResult;
 use hd_tir::ir::NONE;
 use hd_types::{Ty, TyData};
-use wasm_encoder::Instruction as I;
 
 use super::Em;
 use super::refs::Start;

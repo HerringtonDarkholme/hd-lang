@@ -10,17 +10,18 @@
 //! nested write never reaches another list. A loop's stable lists keep
 //! their header, buffer and length in locals (`Em::own_list_caches`).
 
+use crate::op::Op as I;
 use hd_base::StageResult;
 use hd_tir::ir::{Coercion, IntrinsicOp, NONE, PrimOp, Ref, Step, Tag};
 use hd_types::{Ty, TyData};
-use wasm_encoder::{BlockType, Instruction as I};
+use wasm_encoder::BlockType;
 
 use super::Em;
 use super::refs::{Head, Start};
 use super::shape::Through;
 use super::value::Src;
 use crate::layout::{coll_leaves, mem as mem_of, strip};
-use crate::module::{HEAP, Ins, Sym, Val, mem};
+use crate::module::{HEAP, Sym, Val, mem};
 use crate::rt::{Elem, Helper, LIST_ELEMS, LIST_EXPOSED, LIST_LEN, LIST_OWN, empty_buffer};
 use crate::unsupported;
 
@@ -1285,7 +1286,7 @@ impl Em<'_, '_, '_> {
         let exposed = !e.colls.is_empty();
         self.f.get(h);
         self.f
-            .push(Ins::TableSlot(Sym::Helper(Helper::ListClone { elem: e })));
+            .table_slot(Sym::Helper(Helper::ListClone { elem: e }));
         self.f.i32(1);
         self.f.op(I::I32Add);
         if exposed {

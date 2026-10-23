@@ -23,8 +23,8 @@ use hd_mono::{ProgramEnv, subst};
 use hd_types::{InternPool, Prim, Ty, TyData};
 
 use crate::module::{HEAP, Val, mem as memarg};
+use crate::op::Op as I;
 use crate::unsupported;
-use wasm_encoder::Instruction as I;
 
 /// One Wasm value of a type, where it lies in memory: its offset in the
 /// value, its width in bytes and whether a narrow load sign-extends it.
@@ -40,7 +40,7 @@ impl Leaf {
     /// The load of this leaf from the heap at an address on the stack,
     /// `base` bytes before the value.
     #[must_use]
-    pub fn load(self, base: u32) -> I<'static> {
+    pub fn load(self, base: u32) -> I {
         let m = memarg(
             HEAP,
             u64::from(base + self.offset),
@@ -63,7 +63,7 @@ impl Leaf {
     /// The store of this leaf to the heap at an address, then the value,
     /// on the stack, `base` bytes before the value.
     #[must_use]
-    pub fn store(self, base: u32) -> I<'static> {
+    pub fn store(self, base: u32) -> I {
         let m = memarg(
             HEAP,
             u64::from(base + self.offset),

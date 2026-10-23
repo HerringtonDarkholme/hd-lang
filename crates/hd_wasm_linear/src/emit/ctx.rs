@@ -9,10 +9,10 @@
 //! the first entry wins, so a context built in front of an open one shadows
 //! it. A `$.Context` value is one such buffer, its entries in key order.
 
+use crate::op::Op as I;
 use hd_base::StageResult;
 use hd_mono::layout::{CanonMemo, canon};
 use hd_types::{Ty, TyData};
-use wasm_encoder::Instruction as I;
 
 use super::Em;
 use crate::layout::strip;

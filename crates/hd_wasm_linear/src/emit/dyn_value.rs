@@ -7,10 +7,10 @@
 //! function-table slot per method, then the addresses of its direct
 //! supertraits' vtables.
 
+use crate::op::Op as I;
 use hd_base::StageResult;
 use hd_mono::{SlotRecv, Target, TargetKind, VTable, subst};
 use hd_types::{Ty, TyData};
-use wasm_encoder::Instruction as I;
 
 use super::Em;
 use super::value::Src;

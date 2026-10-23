@@ -4,10 +4,11 @@
 //! empty string is the one static empty value ([`EMPTY`]). A slice is a
 //! new view of the same bytes; nothing is copied.
 
+use crate::op::Op as I;
 use hd_base::StageResult;
 use hd_tir::ir::Ref;
 use hd_types::{Ty, TyData};
-use wasm_encoder::{BlockType, Instruction as I};
+use wasm_encoder::BlockType;
 
 use super::Em;
 use crate::module::{EMPTY, HEAP, Val, mem};

@@ -25,10 +25,11 @@
 
 use std::collections::BTreeMap;
 
+use crate::op::Op as I;
 use hd_base::{NotImplemented, Stage, StageResult};
-use wasm_encoder::{BlockType, Instruction as I};
+use wasm_encoder::BlockType;
 
-use crate::module::{Func, Global, Ins, STACK, Sym, Val, mem};
+use crate::module::{Func, Global, Ins, STACK, Sym, SymId, Symbols, Val, mem};
 
 /// The most parameters, and the most results, that a signature passes as
 /// Wasm values. V8 and wasmparser (wasmtime) both refuse a function type
@@ -78,24 +79,35 @@ fn frame(params: &[Val], results: &[Val]) -> i32 {
 /// Lowers every wide signature and every call of one. Whether any was
 /// wide: the module then needs the stack memory. Fails on a wide import
 /// or export, which the host calls by its Wasm signature.
-pub fn lower(funcs: &mut BTreeMap<Sym, Func>, exports: &[(String, Sym)]) -> StageResult<bool> {
-    let sig: BTreeMap<Sym, (Vec<Val>, Vec<Val>)> = funcs
+pub fn lower(
+    funcs: &mut [Option<Func>],
+    exports: &[(String, SymId)],
+    symbols: &Symbols,
+) -> StageResult<bool> {
+    let sig: Vec<Option<(Vec<Val>, Vec<Val>)>> = funcs
         .iter()
-        .filter(|(_, f)| wide(&f.params, &f.results))
-        .map(|(s, f)| (s.clone(), (f.params.clone(), f.results.clone())))
+        .map(|f| {
+            f.as_ref()
+                .filter(|f| wide(&f.params, &f.results))
+                .map(|f| (f.params.clone(), f.results.clone()))
+        })
         .collect();
-    for (_, s) in exports {
-        if sig.contains_key(s) {
-            return Err(bug(&format!("an export of a wide signature {s:?}")));
+    for (_, id) in exports {
+        if sig.get(id.idx()).is_some_and(Option::is_some) {
+            return Err(bug(&format!(
+                "an export of a wide signature {:?}",
+                *symbols.get(*id)
+            )));
         }
     }
-    let mut any = !sig.is_empty();
-    for f in funcs.values_mut() {
+    let mut any = sig.iter().any(Option::is_some);
+    for f in funcs.iter_mut().flatten() {
         if wide(&f.params, &f.results) {
             callee(f)?;
         }
         any |= calls(f, &sig)?;
         any |= storage(f)?;
+        f.rebuild_callees();
     }
     Ok(any)
 }
@@ -122,12 +134,13 @@ fn storage(f: &mut Func) -> StageResult<bool> {
         temps.entry(v).or_insert_with(|| f.local(v));
     }
     let selector = f.local(Val::I32);
+    let stack = f.intern_global(Global::Stack);
     let mut out = vec![
-        Ins::GlobalGet(Global::Stack),
+        Ins::GlobalGet(stack),
         Ins::Op(I::I32Const(size)),
         Ins::Op(I::I32Sub),
         Ins::Op(I::LocalTee(base)),
-        Ins::GlobalSet(Global::Stack),
+        Ins::GlobalSet(stack),
         Ins::Op(I::LocalGet(base)),
         Ins::Op(I::I32Const(0)),
         Ins::Op(I::I32Const(size)),
@@ -138,7 +151,7 @@ fn storage(f: &mut Func) -> StageResult<bool> {
             Ins::Op(I::LocalGet(base)),
             Ins::Op(I::I32Const(size)),
             Ins::Op(I::I32Add),
-            Ins::GlobalSet(Global::Stack),
+            Ins::GlobalSet(stack),
         ]);
     };
     let mut origins = crate::origins::Remap::new(f.origins.as_deref());
@@ -182,9 +195,10 @@ fn storage(f: &mut Func) -> StageResult<bool> {
                 out.push(Ins::Op(I::LocalGet(selector)));
                 out.push(ins);
             }
-            Ins::Op(I::BrTable(ref labels, default))
-                if default == depth || labels.contains(&depth) =>
+            Ins::Op(I::BrTable(id, default))
+                if default == depth || f.label_list(id).contains(&depth) =>
             {
+                let labels = f.label_list(id);
                 out.push(Ins::Op(I::LocalSet(selector)));
                 out.push(Ins::Op(I::I32Const(0)));
                 for (k, &label) in labels.iter().enumerate() {
@@ -234,7 +248,7 @@ fn bug(what: &str) -> NotImplemented {
     NotImplemented::bug(Stage::Link, format!("the linear backend has {what}"))
 }
 
-const fn load(v: Val, at: u64) -> I<'static> {
+const fn load(v: Val, at: u64) -> I {
     match v {
         Val::I32 => I::I32Load(mem(STACK, at, 2)),
         Val::I64 => I::I64Load(mem(STACK, at, 3)),
@@ -243,7 +257,7 @@ const fn load(v: Val, at: u64) -> I<'static> {
     }
 }
 
-const fn store(v: Val, at: u64) -> I<'static> {
+const fn store(v: Val, at: u64) -> I {
     match v {
         Val::I32 => I::I32Store(mem(STACK, at, 2)),
         Val::I64 => I::I64Store(mem(STACK, at, 3)),
@@ -304,7 +318,7 @@ fn callee(f: &mut Func) -> StageResult<()> {
     let (params, results) = (f.params.clone(), f.results.clone());
     let wp = params.len() > WIDTH;
     let wr = results.len() > WIDTH;
-    if wr && branches_out(&f.body) {
+    if wr && branches_out(f) {
         return Err(bug(&format!(
             "a branch out of {} with wide results",
             f.name
@@ -368,14 +382,16 @@ fn callee(f: &mut Func) -> StageResult<()> {
 
 /// Whether a body branches to its function's own label, which would
 /// return its results without a [`I::Return`].
-fn branches_out(body: &[Ins]) -> bool {
+fn branches_out(f: &Func) -> bool {
     let mut d = 0u32;
-    for i in body {
+    for i in &f.body {
         match i {
             Ins::Op(I::Block(_) | I::Loop(_) | I::If(_)) => d += 1,
             Ins::Op(I::End) => d = d.saturating_sub(1),
             Ins::Op(I::Br(l) | I::BrIf(l)) if *l == d => return true,
-            Ins::Op(I::BrTable(ls, def)) if *def == d || ls.contains(&d) => return true,
+            Ins::Op(I::BrTable(ls, def)) if *def == d || f.label_list(*ls).contains(&d) => {
+                return true;
+            }
             _ => {}
         }
     }
@@ -386,17 +402,21 @@ fn branches_out(body: &[Ins]) -> bool {
 /// frame below the stack pointer, stores the arguments there and passes
 /// its address, loads the results after the call and frees the frame.
 /// Whether `f` made such a call.
-fn calls(f: &mut Func, sig: &BTreeMap<Sym, (Vec<Val>, Vec<Val>)>) -> StageResult<bool> {
+fn calls(f: &mut Func, sig: &[Option<(Vec<Val>, Vec<Val>)>]) -> StageResult<bool> {
     for i in &f.body {
-        if let Ins::Call(Sym::Import(im)) = i
+        if let Ins::Call(id) = i
+            && let Sym::Import(im) = &*f.symbol(*id)
             && wide(&im.params, &im.results)
         {
             return Err(bug(&format!("a wide import {}/{}", im.module, im.name)));
         }
     }
     let needs = f.body.iter().any(|i| match i {
-        Ins::Call(s) => sig.contains_key(s),
-        Ins::CallIndirect(p, r) => wide(p, r),
+        Ins::Call(id) => sig.get(id.idx()).is_some_and(Option::is_some),
+        Ins::CallIndirect(id) => {
+            let signature = f.signature(*id);
+            wide(&signature.0, &signature.1)
+        }
         _ => false,
     });
     if !needs {
@@ -406,16 +426,21 @@ fn calls(f: &mut Func, sig: &BTreeMap<Sym, (Vec<Val>, Vec<Val>)>) -> StageResult
     let body = std::mem::take(&mut f.body);
     let mut out = Vec::with_capacity(body.len());
     let mut scratch = Scratch::default();
+    let stack = f.intern_global(Global::Stack);
     for (position, i) in body.into_iter().enumerate() {
         let output_start = out.len();
-        let (params, results) = match &i {
-            Ins::Call(s) if sig.contains_key(s) => sig[s].clone(),
-            Ins::CallIndirect(p, r) if wide(p, r) => (p.clone(), r.clone()),
-            _ => {
-                out.push(i);
-                origins.copy(position..position + 1);
-                continue;
+        let signature = match i {
+            Ins::Call(id) => sig.get(id.idx()).and_then(Option::as_ref).cloned(),
+            Ins::CallIndirect(id) => {
+                let signature = f.signature(id);
+                wide(&signature.0, &signature.1).then(|| signature.clone())
             }
+            _ => None,
+        };
+        let Some((params, results)) = signature else {
+            out.push(i);
+            origins.copy(position..position + 1);
+            continue;
         };
         scratch.reset();
         // A `call_indirect`'s table slot is over its arguments.
@@ -426,11 +451,11 @@ fn calls(f: &mut Func, sig: &BTreeMap<Sym, (Vec<Val>, Vec<Val>)>) -> StageResult
         });
         let size = frame(&params, &results);
         let base = scratch.take(f, Val::I32);
-        out.push(Ins::GlobalGet(Global::Stack));
+        out.push(Ins::GlobalGet(stack));
         out.push(Ins::Op(I::I32Const(size)));
         out.push(Ins::Op(I::I32Sub));
         out.push(Ins::Op(I::LocalTee(base)));
-        out.push(Ins::GlobalSet(Global::Stack));
+        out.push(Ins::GlobalSet(stack));
         if params.len() > WIDTH {
             spill(f, &mut scratch, &params, base, &mut out);
         }
@@ -439,7 +464,7 @@ fn calls(f: &mut Func, sig: &BTreeMap<Sym, (Vec<Val>, Vec<Val>)>) -> StageResult
             Some(t) => {
                 out.push(Ins::Op(I::LocalGet(t)));
                 let (p, r) = lowered(&params, &results);
-                out.push(Ins::CallIndirect(p, r));
+                out.push(Ins::CallIndirect(f.symbols.intern_signature(p, r)));
             }
             None => out.push(i),
         }
@@ -452,7 +477,7 @@ fn calls(f: &mut Func, sig: &BTreeMap<Sym, (Vec<Val>, Vec<Val>)>) -> StageResult
         out.push(Ins::Op(I::LocalGet(base)));
         out.push(Ins::Op(I::I32Const(size)));
         out.push(Ins::Op(I::I32Add));
-        out.push(Ins::GlobalSet(Global::Stack));
+        out.push(Ins::GlobalSet(stack));
         origins.merged(position..position + 1, out.len() - output_start);
     }
     f.body = out;
@@ -467,7 +492,8 @@ mod tests {
 
     #[test]
     fn wide_expansions_preserve_origins_without_changing_instructions() {
-        let mut f = Func::new("storage", vec![], vec![Val::I32]);
+        let m = Module::default();
+        let mut f = m.func("storage", vec![], vec![Val::I32]);
         f.locals = vec![Val::I32; WIDTH + 1];
         f.stack_values = true;
         f.origin_root = Some(99);
@@ -493,7 +519,7 @@ mod tests {
         assert_eq!(f.origins.as_ref().unwrap(), &expected);
         assert_eq!(f.body.len(), expected.len());
 
-        let mut f = Func::new("callee", vec![Val::I32; WIDTH + 1], vec![]);
+        let mut f = m.func("callee", vec![Val::I32; WIDTH + 1], vec![]);
         f.origin_root = Some(99);
         f.body = vec![
             Ins::Op(I::LocalGet(u32::try_from(WIDTH).unwrap())),
@@ -507,10 +533,12 @@ mod tests {
         assert_eq!(&spans[3 * (WIDTH + 1)..], [Some(10), Some(11)]);
 
         let target = Sym::Inst(hd_base::Hash128(7));
-        let mut f = Func::new("caller", vec![], vec![]);
-        f.body = vec![Ins::Call(target.clone())];
+        let mut f = m.func("caller", vec![], vec![]);
+        let target = f.intern(target);
+        f.body = vec![Ins::Call(target)];
         f.origins = Some(vec![Some(17)]);
-        let sig = BTreeMap::from([(target, (vec![Val::I32; WIDTH + 1], vec![]))]);
+        let mut sig = vec![None; target.idx() + 1];
+        sig[target.idx()] = Some((vec![Val::I32; WIDTH + 1], vec![]));
         calls(&mut f, &sig).unwrap();
         assert_eq!(f.origins.as_ref().unwrap().len(), f.body.len());
         assert!(f.origins.unwrap().iter().all(|s| *s == Some(17)));
@@ -522,7 +550,7 @@ mod tests {
     #[test]
     fn shadow_storage_zeroes_each_entry_and_restores_every_exit() {
         let mut m = Module::default();
-        let mut branched = Func::new("branched", vec![Val::I32], vec![Val::I32]);
+        let mut branched = m.func("branched", vec![Val::I32], vec![Val::I32]);
         branched.stack_values = true;
         let value = branched.local(Val::I32);
         // A local is zero at each entry, including after a previous entry
@@ -538,17 +566,17 @@ mod tests {
         branched.get(0);
         branched.i32(1);
         branched.op(I::I32Sub);
-        branched.op(I::BrTable(vec![0].into(), 1));
+        branched.br_table(vec![0], 1);
         branched.op(I::End);
         branched.op(I::I32Add);
         branched.op(I::Return);
         m.define(Sym::Inst(Hash128(6401)), branched);
         m.export("branched", Sym::Inst(Hash128(6401)));
-        let mut top = Func::new("top", vec![], vec![Val::I32]);
+        let mut top = m.func("top", vec![], vec![Val::I32]);
         top.global_get(Global::Stack);
         m.define(Sym::Inst(Hash128(6402)), top);
         m.export("top", Sym::Inst(Hash128(6402)));
-        let mut numeric = Func::new(
+        let mut numeric = m.func(
             "numeric",
             vec![],
             vec![Val::I64, Val::F64, Val::F32, Val::I32],

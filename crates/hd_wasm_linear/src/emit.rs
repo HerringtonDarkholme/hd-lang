@@ -12,13 +12,15 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::op::Op as Instruction;
+use crate::op::Op as I;
 use hd_base::{DefId, Hash128, HashMap, InstId, StageResult};
 use hd_mono::{ProgramEnv, Sub, Target, TargetKind, subst};
 use hd_tir::ir::{
     Body, BodyKind, Callee, Coercion, IntrinsicOp, NONE, PrimOp, Ref, Tag, local_flags,
 };
 use hd_types::{InternPool, Ty, TyData, TyList};
-use wasm_encoder::{BlockType, Instruction, Instruction as I};
+use wasm_encoder::BlockType;
 
 use crate::layout::{Pass, num, vals};
 use crate::module::{Func, Global, HEAP, Import, Ins, Module, Stored, Sym, Val, mem};
@@ -212,7 +214,7 @@ fn body_func<'a>(
     if suspending {
         fres.push(Val::I32);
     }
-    em.f = Func::new(
+    em.f = em.m.func(
         format!("{}#{}", (input.path)(item), own.sub),
         params.clone(),
         fres,
@@ -545,7 +547,7 @@ impl OnceCell<'_> {
             em.f.u32(u32::try_from(label.len()).expect("fact label"));
             em.f.helper(Helper::ToBuf);
             em.f.call(Self::fact_import());
-            em.f.global_get(flag.clone());
+            em.f.global_get(flag);
             em.f.op(I::If(BlockType::Empty));
             em.panic("reentrant-evaluation: the fact reads itself");
             em.f.op(I::End);
@@ -586,21 +588,21 @@ fn handle_once_cell_runs_its_body_once() {
         fact: None,
     };
     let counter = Global::Storage(Hash128(617), 0, Val::I32);
-    let mut handle = Func::new("handle", vec![], vec![Val::I32]);
+    let mut m = Module::default();
+    let mut handle = m.func("handle", vec![], vec![Val::I32]);
     let cached = cell.load_cached(&mut handle);
     OnceCell::return_cached(&mut handle, &cached);
-    handle.global_get(counter.clone());
+    handle.global_get(counter);
     handle.i32(1);
     handle.op(I::I32Add);
     let result = handle.local(Val::I32);
     handle.set(result);
     handle.get(result);
-    handle.global_set(counter.clone());
+    handle.global_set(counter);
     cell.publish(&mut handle, &[result]);
     handle.get(result);
-    let mut runs = Func::new("runs", vec![], vec![Val::I32]);
+    let mut runs = m.func("runs", vec![], vec![Val::I32]);
     runs.global_get(counter);
-    let mut m = Module::default();
     m.define(Sym::Inst(Hash128(616)), handle);
     m.export("handle", Sym::Inst(Hash128(616)));
     m.define(Sym::Inst(Hash128(617)), runs);
@@ -692,13 +694,18 @@ fn sub_param_locals(b: &Body, sub: u16) -> Vec<usize> {
 fn adapter(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResult<Func> {
     let item = input.collected.table.item[id.idx()];
     match input.collected.calls[id.idx()].get(&0).cloned() {
-        Some(Target::Call(ct)) if ct.kind == TargetKind::Instance => {
-            forward(input, item, (ct.item, ct.args), ct.ret, Sym::Inst(ct.key))
-        }
+        Some(Target::Call(ct)) if ct.kind == TargetKind::Instance => forward(
+            input,
+            m,
+            item,
+            (ct.item, ct.args),
+            ct.ret,
+            Sym::Inst(ct.key),
+        ),
         Some(target @ (Target::Call(_) | Target::Dyn)) => {
             let (sym, ret) = call_func(input, m, id, target)?;
             let args = input.collected.table.args[id.idx()];
-            forward(input, item, (item, args), ret, sym)
+            forward(input, m, item, (item, args), ret, sym)
         }
         _ => unsupported("a function reference that collection did not resolve"),
     }
@@ -757,6 +764,7 @@ fn call_func(
 /// result type `ret`.
 fn forward(
     input: &Input<'_>,
+    m: &Module,
     item: DefId,
     (callee, cargs): (DefId, TyList),
     ret: Ty,
@@ -777,7 +785,7 @@ fn forward(
     } else {
         vals(pool, env, ret)?
     };
-    let mut f = Func::new(
+    let mut f = m.func(
         format!("{}#adapter", (input.path)(item)),
         params.clone(),
         results,
@@ -1011,6 +1019,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
         calls: &'i HashMap<u32, Target>,
         shared: HashMap<usize, u32>,
     ) -> Self {
+        let f = m.func("", vec![], vec![]);
         let mut em = Em {
             input,
             m,
@@ -1019,7 +1028,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             origin_root: b.sub_root[0],
             args,
             calls,
-            f: Func::default(),
+            f,
             vals: HashMap::default(),
             locals: HashMap::default(),
             providers: Vec::new(),
@@ -1228,7 +1237,7 @@ impl Em<'_, '_, '_> {
     /// Constant `r`'s values, each as the instructions that push it: a
     /// string's bytes are static data, and the string is their address
     /// and length.
-    fn konst_ops(&mut self, r: u32) -> StageResult<Vec<Vec<Instruction<'static>>>> {
+    fn konst_ops(&mut self, r: u32) -> StageResult<Vec<Vec<Instruction>>> {
         let (ty, bits) = self.b.consts[(r & !Ref::CONST_BIT) as usize];
         let ty = self.sub(ty);
         let stripped = hd_mono::layout::strip_newtype(self.pool(), self.env(), ty);
@@ -1800,7 +1809,7 @@ impl Em<'_, '_, '_> {
                 let Some(Target::Closure(key)) = self.calls.get(&i).cloned() else {
                     return unsupported("a function reference without its adapter");
                 };
-                self.f.push(Ins::TableSlot(Sym::Inst(key)));
+                self.f.table_slot(Sym::Inst(key));
                 self.f.i32(0);
                 self.store_owned(i)?;
             }

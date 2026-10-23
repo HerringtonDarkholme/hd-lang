@@ -44,10 +44,10 @@
 
 use std::collections::BTreeMap;
 
+use crate::op::{LabelListId, Op as I};
 use hd_base::Hash128;
-use wasm_encoder::Instruction as I;
 
-use crate::module::{Func, Global, Ins, Sym};
+use crate::module::{Func, Global, Ins, Sym, SymId, Symbols};
 use crate::origins::Remap;
 use crate::rt::Helper;
 
@@ -55,26 +55,33 @@ use crate::rt::Helper;
 /// stored by an init, as that constant, and drops the store. An init runs
 /// before any code that reads its bindings (`module.init.order`), so every
 /// read sees the constant.
-pub fn constants(funcs: &mut BTreeMap<Sym, Func>) {
+pub fn constants(funcs: &mut [Option<Func>], symbols: &Symbols) {
     let mut inits: Vec<Hash128> = Vec::new();
-    for s in funcs.keys() {
-        match s {
+    for (id, _) in funcs.iter().enumerate().filter(|(_, f)| f.is_some()) {
+        match &*symbols.get(SymId(u32::try_from(id).expect("symbols"))) {
             Sym::Helper(Helper::EntryInit { inits: ks }) => inits.extend(ks.iter().map(|k| k.0)),
             Sym::Helper(Helper::EntryPoll { then, .. }) => inits.extend(then.iter().map(|k| k.0)),
             _ => {}
         }
     }
     let mut sets: BTreeMap<Global, (u32, Option<Write>)> = BTreeMap::new();
-    for (s, f) in funcs.iter() {
+    for (id, f) in funcs
+        .iter()
+        .enumerate()
+        .filter_map(|(i, f)| Some((i, f.as_ref()?)))
+    {
+        let id = SymId(u32::try_from(id).expect("symbols"));
+        let init = matches!(&*symbols.get(id), Sym::Inst(key) if inits.contains(key));
         for (k, i) in f.body.iter().enumerate() {
-            if let Ins::GlobalSet(g @ Global::Storage(..)) = i {
-                let e = sets.entry(g.clone()).or_insert((0, None));
+            if let Ins::GlobalSet(g) = i {
+                let global = symbols.global(*g);
+                if !matches!(global, Global::Storage(..)) {
+                    continue;
+                }
+                let e = sets.entry(global).or_insert((0, None));
                 e.0 += 1;
-                let init = matches!(s, Sym::Inst(key) if inits.contains(key));
                 e.1 = match (init, k.checked_sub(1).map(|p| &f.body[p])) {
-                    (true, Some(c @ Ins::Op(I::I32Const(_) | I::I64Const(_)))) => {
-                        Some((s.clone(), k, c.clone()))
-                    }
+                    (true, Some(c @ Ins::Op(I::I32Const(_) | I::I64Const(_)))) => Some((id, k, *c)),
                     _ => None,
                 };
             }
@@ -87,23 +94,23 @@ pub fn constants(funcs: &mut BTreeMap<Sym, Func>) {
     if known.is_empty() {
         return;
     }
-    for f in funcs.values_mut() {
+    for f in funcs.iter_mut().flatten() {
         for i in &mut f.body {
             if let Ins::GlobalGet(g) = i
-                && let Some((_, _, c)) = known.get(g)
+                && let Some((_, _, c)) = known.get(&symbols.global(*g))
             {
-                *i = c.clone();
+                *i = *c;
             }
         }
     }
-    let mut drops: BTreeMap<Sym, Vec<usize>> = BTreeMap::new();
-    for (s, k, _) in known.into_values() {
-        drops.entry(s).or_default().push(k);
+    let mut drops = vec![Vec::new(); funcs.len()];
+    for (id, k, _) in known.into_values() {
+        drops[id.idx()].push(k);
     }
-    for (s, mut ks) in drops {
+    for (id, ks) in drops.iter_mut().enumerate() {
         ks.sort_unstable();
-        if let Some(f) = funcs.get_mut(&s) {
-            for k in ks.into_iter().rev() {
+        if let Some(f) = &mut funcs[id] {
+            for &k in ks.iter().rev() {
                 f.drain(k - 1..k + 1);
             }
         }
@@ -112,13 +119,13 @@ pub fn constants(funcs: &mut BTreeMap<Sym, Func>) {
 
 /// A binding's one write when an init stores a constant: the function,
 /// the store's index and the constant.
-type Write = (Sym, usize, Ins);
+type Write = (SymId, usize, Ins);
 
 /// The instructions a rewrite removes, and an instruction it changes.
 type Edit = (Vec<usize>, Option<(usize, Ins)>);
 
 /// The parameter and result counts of each function a call can name.
-pub type Arity = BTreeMap<Sym, (usize, usize)>;
+pub type Arity = Vec<Option<(usize, usize)>>;
 
 /// Cleans up `f`'s locals by the rules of the module documentation.
 pub fn locals(f: &mut Func, arity: &Arity) {
@@ -166,7 +173,7 @@ pub fn locals(f: &mut Func, arity: &Arity) {
                     k += 1;
                 }
                 (other, _) => {
-                    out.push(other.clone());
+                    out.push(*other);
                     origins.copy(k..k + 1);
                     k += 1;
                 }
@@ -210,9 +217,9 @@ impl ZeroEdges {
     }
 }
 
-/// The CFG of the control instructions the linear backend emits. Unknown
-/// exception/reference branches conservatively leave a function unchanged.
-fn zero_edges(body: &[Ins]) -> Option<Vec<ZeroEdges>> {
+/// The CFG of the closed set of control instructions the backend emits.
+/// Its compact IR has no exception, reference-branch or tail-call opcodes.
+fn zero_edges(body: &[Ins], label_lists: &[Vec<u32>]) -> Option<Vec<ZeroEdges>> {
     let mut ends = vec![body.len(); body.len()];
     let mut other = vec![None; body.len()];
     let mut labels = Vec::new();
@@ -225,22 +232,6 @@ fn zero_edges(body: &[Ins]) -> Option<Vec<ZeroEdges>> {
                     ends[open] = at;
                 }
             }
-            Ins::Op(
-                I::TryTable(..)
-                | I::Try(_)
-                | I::Catch(_)
-                | I::CatchAll
-                | I::Delegate(_)
-                | I::Rethrow(_)
-                | I::Throw(_)
-                | I::ThrowRef
-                | I::BrOnNull(_)
-                | I::BrOnNonNull(_)
-                | I::BrOnCast { .. }
-                | I::BrOnCastFail { .. }
-                | I::BrOnCastDescEq { .. }
-                | I::BrOnCastDescEqFail { .. },
-            ) => return None,
             _ => {}
         }
     }
@@ -277,19 +268,13 @@ fn zero_edges(body: &[Ins]) -> Option<Vec<ZeroEdges>> {
             Ins::Op(I::Br(depth)) => ZeroEdges::Jump(target(*depth, &labels)),
             Ins::Op(I::BrIf(depth)) => ZeroEdges::Either(at + 1, target(*depth, &labels)),
             Ins::Op(I::BrTable(table, default)) => ZeroEdges::Table(
-                table
+                label_lists[table.0 as usize]
                     .iter()
                     .chain([default])
                     .map(|d| target(*d, &labels))
                     .collect(),
             ),
-            Ins::Op(
-                I::Return
-                | I::Unreachable
-                | I::ReturnCall(_)
-                | I::ReturnCallRef(_)
-                | I::ReturnCallIndirect { .. },
-            ) => ZeroEdges::Exit,
+            Ins::Op(I::Return | I::Unreachable) => ZeroEdges::Exit,
             _ => ZeroEdges::Next,
         };
         edges.push(edge);
@@ -325,15 +310,21 @@ fn pushes_zero(ins: &Ins, known: &[u64]) -> bool {
 /// Deletes only release arguments/calls and stores proved redundant on
 /// every incoming path. Local facts use packed bits to bound per-body memory.
 fn zero_releases(f: &mut Func) -> bool {
-    let release_width = |ins: &Ins| match ins {
-        Ins::Call(Sym::Helper(Helper::ReleaseRef | Helper::ReleaseKnown)) => Some(1),
-        Ins::Call(Sym::Helper(Helper::Release { vals, .. })) => Some(vals.len()),
-        _ => None,
+    let symbols = f.symbols.clone();
+    let release_width = |ins: &Ins| {
+        let Ins::Call(id) = ins else {
+            return None;
+        };
+        match &*symbols.get(*id) {
+            Sym::Helper(Helper::ReleaseRef | Helper::ReleaseKnown) => Some(1),
+            Sym::Helper(Helper::Release { vals, .. }) => Some(vals.len()),
+            _ => None,
+        }
     };
     if !f.body.iter().any(|i| release_width(i).is_some()) {
         return false;
     }
-    let Some(edges) = zero_edges(&f.body) else {
+    let Some(edges) = zero_edges(&f.body, &f.labels) else {
         return false;
     };
     let n = f.params.len() + f.locals.len();
@@ -449,7 +440,7 @@ fn forward(f: &mut Func, np: u32) -> bool {
             k += 1;
             continue;
         };
-        let p = f.body[k].clone();
+        let p = f.body[k];
         let pure = matches!(
             p,
             Ins::Op(
@@ -560,7 +551,7 @@ fn fold(f: &mut Func) -> bool {
                 changed = true;
             }
             (Some(Ins::Op(I::I32Const(0))), v, Some(Ins::Op(I::I32Add)), _) if push(v) => {
-                out.push(v.expect("a push").clone());
+                out.push(*v.expect("a push"));
                 k += 3;
                 changed = true;
             }
@@ -623,7 +614,7 @@ fn fold(f: &mut Func) -> bool {
             (Some(Ins::Op(I::I32Const(c))), Some(Ins::Op(I::I32Add)), v, Some(Ins::Op(store)))
                 if *c >= 0 && push(v) && with_offset(store, 0).is_some() && !is_load(store) =>
             {
-                out.push(v.expect("a push").clone());
+                out.push(*v.expect("a push"));
                 out.push(Ins::Op(
                     with_offset(store, c.cast_unsigned()).expect("a store"),
                 ));
@@ -631,7 +622,7 @@ fn fold(f: &mut Func) -> bool {
                 changed = true;
             }
             _ => {
-                out.push(b[k].clone());
+                out.push(b[k]);
                 k += 1;
             }
         }
@@ -656,7 +647,7 @@ fn schedule(f: &mut Func, np: u32, arity: &Arity) -> bool {
             if let (Some(Ins::Op(I::I32Const(c))), Some(Ins::Op(I::I32Add))) =
                 (b.get(q), b.get(q + 1))
                 && *c >= 0
-                && let Some(t) = store_after(b, q + 2, arity)
+                && let Some(t) = store_after(b, q + 2, arity, &f.symbols)
                 && let Ins::Op(st) = &b[t]
                 && !is_load(st)
                 && let Some(moved) = with_offset(st, c.cast_unsigned())
@@ -673,11 +664,13 @@ fn schedule(f: &mut Func, np: u32, arity: &Arity) -> bool {
                     p,
                     Ins::Op(I::LocalGet(_) | I::I32Const(_) | I::I64Const(_)) | Ins::GlobalGet(_)
                 )
-                && let Some(s) = (0..q).rev().find(|&s| net(b, s, q, arity) == Some(1))
+                && let Some(s) = (0..q)
+                    .rev()
+                    .find(|&s| net(b, s, q, arity, &f.symbols) == Some(1))
                 && !b[s..q].iter().any(|x| clobbers(p, x))
             {
                 let mut body = b[..s].to_vec();
-                body.push(p.clone());
+                body.push(*p);
                 body.extend_from_slice(&b[s..q]);
                 body.extend_from_slice(&b[q + 3..]);
                 let mut origins = Remap::new(f.origins.as_deref());
@@ -708,7 +701,7 @@ fn schedule(f: &mut Func, np: u32, arity: &Arity) -> bool {
             else {
                 continue;
             };
-            if net(b, p + 1, q, arity) == Some(1) {
+            if net(b, p + 1, q, arity, &f.symbols) == Some(1) {
                 edit = Some((vec![p, q, q + 1, q + 2], None));
                 break;
             }
@@ -734,10 +727,10 @@ fn schedule(f: &mut Func, np: u32, arity: &Arity) -> bool {
 
 /// The depth over its start that straight-line run `b[from..to]` ends at,
 /// when no instruction of it reaches below that start.
-fn net(b: &[Ins], from: usize, to: usize, arity: &Arity) -> Option<usize> {
+fn net(b: &[Ins], from: usize, to: usize, arity: &Arity, symbols: &Symbols) -> Option<usize> {
     let mut depth = 0usize;
     for i in &b[from..to] {
-        let (pops, pushes) = effect(i, arity)?;
+        let (pops, pushes) = effect(i, arity, symbols)?;
         depth = depth.checked_sub(pops)? + pushes;
     }
     Some(depth)
@@ -747,10 +740,10 @@ fn net(b: &[Ins], from: usize, to: usize, arity: &Arity) -> Option<usize> {
 /// `at` and the one value the run pushes over it: the first instruction
 /// of the run that reaches below its start, when that is a store at depth
 /// one.
-fn store_after(b: &[Ins], at: usize, arity: &Arity) -> Option<usize> {
+fn store_after(b: &[Ins], at: usize, arity: &Arity, symbols: &Symbols) -> Option<usize> {
     let mut depth = 0usize;
     for (k, i) in b.iter().enumerate().skip(at) {
-        let (pops, pushes) = effect(i, arity)?;
+        let (pops, pushes) = effect(i, arity, symbols)?;
         if pops > depth {
             let store = matches!(i, Ins::Op(op) if !is_load(op) && with_offset(op, 0).is_some());
             return (store && depth == 1).then_some(k);
@@ -762,18 +755,21 @@ fn store_after(b: &[Ins], at: usize, arity: &Arity) -> Option<usize> {
 
 /// What straight-line instruction `i` pops and pushes; `None` for control
 /// and for anything this table does not know.
-fn effect(i: &Ins, arity: &Arity) -> Option<(usize, usize)> {
+fn effect(i: &Ins, arity: &Arity, symbols: &Symbols) -> Option<(usize, usize)> {
     Some(match i {
         Ins::GlobalGet(_) | Ins::TableSlot(_) | Ins::VTable(_) => (0, 1),
         #[cfg(feature = "checked-report")]
         Ins::Descriptor(..) => (0, 1),
         Ins::Anchor(_) => (0, 0),
         Ins::GlobalSet(_) => (1, 0),
-        Ins::Call(s) => match s {
+        Ins::Call(id) => match &*symbols.get(*id) {
             Sym::Import(im) => (im.params.len(), im.results.len()),
-            other => *arity.get(other)?,
+            _ => (*arity.get(id.idx())?)?,
         },
-        Ins::CallIndirect(p, r) => (p.len() + 1, r.len()),
+        Ins::CallIndirect(id) => {
+            let signature = symbols.signature(*id);
+            (signature.0.len() + 1, signature.1.len())
+        }
         Ins::Op(op) => match op {
             I::LocalGet(_) | I::I32Const(_) | I::I64Const(_) | I::F32Const(_) | I::F64Const(_) => {
                 (0, 1)
@@ -857,7 +853,7 @@ fn block_end(b: &[Ins], at: usize) -> Option<usize> {
 }
 
 /// Whether memory instruction `i` loads.
-fn is_load(i: &I<'static>) -> bool {
+fn is_load(i: &I) -> bool {
     matches!(
         i,
         I::I32Load(_)
@@ -876,7 +872,7 @@ fn is_load(i: &I<'static>) -> bool {
 
 /// Load or store `i` with `by` more on its offset; `None` for any other
 /// instruction, or an offset past 32 bits.
-fn with_offset(i: &I<'static>, by: u32) -> Option<I<'static>> {
+fn with_offset(i: &I, by: u32) -> Option<I> {
     let bump = |m: &wasm_encoder::MemArg| {
         let offset = m
             .offset
@@ -921,7 +917,7 @@ fn shapes(f: &mut Func, np: u32) -> bool {
 }
 
 /// The body after the first rewrite by rule 5 or 6, if there is one.
-fn shape_once(f: &Func, np: u32) -> Option<(Vec<Ins>, Remap)> {
+fn shape_once(f: &mut Func, np: u32) -> Option<(Vec<Ins>, Remap)> {
     let (reads, writes) = counts(f);
     let b = &f.body;
     for (s, e, n) in ifs(b) {
@@ -941,7 +937,7 @@ fn shape_once(f: &Func, np: u32) -> Option<(Vec<Ins>, Remap)> {
             (then.clone(), other.clone(), false),
         ] {
             if let Some(d) = lone_br(exit.clone())
-                && !targets_self(&b[keep.clone()])
+                && !targets_self(&b[keep.clone()], &f.labels)
             {
                 let mut out = b[..s].to_vec();
                 if negate {
@@ -954,7 +950,7 @@ fn shape_once(f: &Func, np: u32) -> Option<(Vec<Ins>, Remap)> {
                 origins.repeat(origin, usize::from(negate) + 1);
                 origins.copy(keep.clone());
                 origins.copy(n + 1..b.len());
-                out.extend(lowered(&b[keep]));
+                out.extend(lowered(&b[keep], &mut f.labels));
                 out.extend_from_slice(&b[n + 1..]);
                 return Some((out, origins));
             }
@@ -970,8 +966,8 @@ fn shape_once(f: &Func, np: u32) -> Option<(Vec<Ins>, Remap)> {
             && *x >= np
             && reads[*x as usize] == 1
             && writes[*x as usize] == 2
-            && !targets_self(&b[then.clone()])
-            && !targets_self(&b[other.clone()])
+            && !targets_self(&b[then.clone()], &f.labels)
+            && !targets_self(&b[other.clone()], &f.labels)
         {
             let t = f.locals[(*x - np) as usize].wasm();
             let mut out = b[..s].to_vec();
@@ -1026,14 +1022,16 @@ fn ifs(b: &[Ins]) -> Vec<(usize, Option<usize>, usize)> {
 }
 
 /// Whether instructions `r`, an arm of an `if`, branch to that `if`.
-fn targets_self(r: &[Ins]) -> bool {
+fn targets_self(r: &[Ins], labels: &[Vec<u32>]) -> bool {
     let mut d = 0u32;
     for i in r {
         match i {
             Ins::Op(I::Block(_) | I::Loop(_) | I::If(_)) => d += 1,
             Ins::Op(I::End) => d = d.saturating_sub(1),
             Ins::Op(I::Br(l) | I::BrIf(l)) if *l == d => return true,
-            Ins::Op(I::BrTable(ls, def)) if *def == d || ls.contains(&d) => return true,
+            Ins::Op(I::BrTable(ls, def)) if *def == d || labels[ls.0 as usize].contains(&d) => {
+                return true;
+            }
             _ => {}
         }
     }
@@ -1042,7 +1040,7 @@ fn targets_self(r: &[Ins]) -> bool {
 
 /// An arm of an `if` moved out of it: each branch past the `if` names one
 /// label fewer.
-fn lowered(r: &[Ins]) -> Vec<Ins> {
+fn lowered(r: &[Ins], labels: &mut Vec<Vec<u32>>) -> Vec<Ins> {
     let mut d = 0u32;
     let mut out = Vec::with_capacity(r.len());
     for i in r {
@@ -1050,19 +1048,21 @@ fn lowered(r: &[Ins]) -> Vec<Ins> {
         out.push(match i {
             Ins::Op(I::Block(_) | I::Loop(_) | I::If(_)) => {
                 d += 1;
-                i.clone()
+                *i
             }
             Ins::Op(I::End) => {
                 d = d.saturating_sub(1);
-                i.clone()
+                *i
             }
             Ins::Op(I::Br(l)) => Ins::Op(I::Br(down(*l))),
             Ins::Op(I::BrIf(l)) => Ins::Op(I::BrIf(down(*l))),
-            Ins::Op(I::BrTable(ls, def)) => Ins::Op(I::BrTable(
-                ls.iter().map(|l| down(*l)).collect::<Vec<_>>().into(),
-                down(*def),
-            )),
-            other => other.clone(),
+            Ins::Op(I::BrTable(ls, def)) => {
+                let lowered = labels[ls.0 as usize].iter().map(|l| down(*l)).collect();
+                let id = LabelListId(u32::try_from(labels.len()).expect("branch tables"));
+                labels.push(lowered);
+                Ins::Op(I::BrTable(id, down(*def)))
+            }
+            other => *other,
         });
     }
     out
@@ -1160,25 +1160,48 @@ pub(crate) fn renumber(f: &mut Func) {
 /// line. Calls other than retains, stores to an operand local, and control
 /// flow end the proof: any of them may invalidate the original owner.
 pub fn count_pairs(f: &mut Func, retain: Hash128) -> bool {
-    #[derive(PartialEq, Eq)]
+    #[derive(Clone, Copy, PartialEq, Eq)]
     enum Count {
         Ref,
         KnownRef,
-        Value(Vec<crate::module::Val>, crate::layout::Walk),
+        Value(SymId),
     }
-    fn count(ins: &Ins, retain: Hash128) -> Option<(bool, Count, usize)> {
-        match ins {
-            Ins::Call(Sym::Inst(k)) if *k == retain => Some((true, Count::Ref, 1)),
-            Ins::Call(Sym::Helper(Helper::ReleaseRef)) => Some((false, Count::Ref, 1)),
-            Ins::Call(Sym::Helper(Helper::RetainKnown)) => Some((true, Count::KnownRef, 1)),
-            Ins::Call(Sym::Helper(Helper::ReleaseKnown)) => Some((false, Count::KnownRef, 1)),
-            Ins::Call(Sym::Helper(Helper::Retain { vals, walk })) => {
-                Some((true, Count::Value(vals.clone(), walk.clone()), vals.len()))
-            }
-            Ins::Call(Sym::Helper(Helper::Release { vals, walk })) => {
-                Some((false, Count::Value(vals.clone(), walk.clone()), vals.len()))
+    fn count(ins: &Ins, retain: Hash128, symbols: &Symbols) -> Option<(bool, Count, usize)> {
+        let Ins::Call(id) = ins else {
+            return None;
+        };
+        match &*symbols.get(*id) {
+            Sym::Inst(k) if *k == retain => Some((true, Count::Ref, 1)),
+            Sym::Helper(Helper::ReleaseRef) => Some((false, Count::Ref, 1)),
+            Sym::Helper(Helper::RetainKnown) => Some((true, Count::KnownRef, 1)),
+            Sym::Helper(Helper::ReleaseKnown) => Some((false, Count::KnownRef, 1)),
+            Sym::Helper(Helper::Retain { vals, .. }) => Some((true, Count::Value(*id), vals.len())),
+            Sym::Helper(Helper::Release { vals, .. }) => {
+                Some((false, Count::Value(*id), vals.len()))
             }
             _ => None,
+        }
+    }
+    fn same_count(a: Count, b: Count, symbols: &Symbols) -> bool {
+        match (a, b) {
+            (Count::Value(a), Count::Value(b)) => {
+                let a = symbols.get(a);
+                let b = symbols.get(b);
+                match (&*a, &*b) {
+                    (
+                        Sym::Helper(
+                            Helper::Retain { vals: av, walk: aw }
+                            | Helper::Release { vals: av, walk: aw },
+                        ),
+                        Sym::Helper(
+                            Helper::Retain { vals: bv, walk: bw }
+                            | Helper::Release { vals: bv, walk: bw },
+                        ),
+                    ) => av == bv && aw == bw,
+                    _ => false,
+                }
+            }
+            _ => a == b,
         }
     }
     struct Arguments {
@@ -1240,7 +1263,7 @@ pub fn count_pairs(f: &mut Func, retain: Hash128) -> bool {
         if gone.contains(&i) {
             continue;
         }
-        let Some((true, key, n)) = count(ins, retain) else {
+        let Some((true, key, n)) = count(ins, retain, &f.symbols) else {
             continue;
         };
         let Some(args) = arguments(&f.body, i, n) else {
@@ -1250,11 +1273,11 @@ pub fn count_pairs(f: &mut Func, retain: Hash128) -> bool {
             if gone.contains(&j) {
                 continue;
             }
-            if let Some((adding, other, width)) = count(next, retain) {
+            if let Some((adding, other, width)) = count(next, retain, &f.symbols) {
                 if adding {
                     continue;
                 }
-                if other == key
+                if same_count(other, key, &f.symbols)
                     && width == n
                     && let Some(end) = arguments(&f.body, j, n)
                     && args
@@ -1441,10 +1464,7 @@ pub fn inline_counts(f: &mut Func, acyclic: bool) -> bool {
     use crate::module::{HEAP, Val, mem};
     use wasm_encoder::BlockType;
     if !f.body.iter().any(|i| {
-        matches!(
-            i,
-            Ins::Call(Sym::Helper(Helper::RetainKnown | Helper::ReleaseKnown))
-        )
+        matches!(i, Ins::Call(id) if matches!(&*f.symbol(*id), Sym::Helper(Helper::RetainKnown | Helper::ReleaseKnown)))
     }) {
         return false;
     }
@@ -1469,8 +1489,16 @@ pub fn inline_counts(f: &mut Func, acyclic: bool) -> bool {
     };
     for (position, ins) in body.into_iter().enumerate() {
         f.origin_at = origins.as_ref().and_then(|o| o[position]);
-        match ins {
-            Ins::Call(Sym::Helper(Helper::RetainKnown)) => {
+        let known = match ins {
+            Ins::Call(id) => match &*f.symbol(id) {
+                Sym::Helper(Helper::RetainKnown) => Some(true),
+                Sym::Helper(Helper::ReleaseKnown) => Some(false),
+                _ => None,
+            },
+            _ => None,
+        };
+        match known {
+            Some(true) => {
                 header(f);
                 f.op(I::I32Eqz);
                 f.op(I::BrIf(0));
@@ -1481,12 +1509,12 @@ pub fn inline_counts(f: &mut Func, acyclic: bool) -> bool {
                 f.op(I::I32Store(mem(HEAP, 0, 2)));
                 f.op(I::End);
             }
-            Ins::Call(Sym::Helper(Helper::ReleaseKnown)) => {
+            Some(false) => {
                 header(f);
                 f.i32(1);
                 f.op(I::I32GtU);
                 if !acyclic {
-                    f.push(Ins::GlobalGet(Global::Tracing));
+                    f.global_get(Global::Tracing);
                     f.op(I::I32Eqz);
                     f.op(I::I32And);
                     f.get(b);
@@ -1507,17 +1535,17 @@ pub fn inline_counts(f: &mut Func, acyclic: bool) -> bool {
                 // 0, and `visit` must still see the reference.
                 f.get(c);
                 if !acyclic {
-                    f.push(Ins::GlobalGet(Global::Tracing));
+                    f.global_get(Global::Tracing);
                     f.op(I::I32Or);
                 }
                 f.op(I::If(BlockType::Empty));
                 f.get(t);
-                f.push(Ins::Call(Sym::Helper(Helper::ReleaseKnown)));
+                f.call(Sym::Helper(Helper::ReleaseKnown));
                 f.op(I::End);
                 f.op(I::End);
                 f.op(I::End);
             }
-            other => f.push(other),
+            None => f.push(ins),
         }
     }
     f.origin_at = outer;
@@ -1530,8 +1558,14 @@ mod origin_tests {
     use crate::module::{HEAP, Val, mem};
     use wasm_encoder::BlockType;
 
-    fn tracked(params: usize, locals: usize, body: Vec<Ins>) -> Func {
-        let mut f = Func::new("origins", vec![Val::I32; params], vec![]);
+    fn call(symbols: &Symbols, symbol: Sym) -> Ins {
+        Ins::Call(symbols.intern(symbol))
+    }
+
+    fn tracked(symbols: &Symbols, params: usize, locals: usize, body: Vec<Ins>) -> Func {
+        let mut f =
+            crate::module::Module::default().func("origins", vec![Val::I32; params], vec![]);
+        f.symbols = symbols.clone();
         f.locals = vec![Val::I32; locals];
         f.origins = Some(
             (0..body.len())
@@ -1563,9 +1597,11 @@ mod origin_tests {
 
     #[test]
     fn origins_follow_local_cleanup_forwarding_and_scheduling() {
+        let symbols = Symbols::default();
         let op = Ins::Op;
         let f = run(
             tracked(
+                &symbols,
                 1,
                 1,
                 vec![op(I::LocalGet(0)), op(I::LocalSet(1)), op(I::LocalGet(1))],
@@ -1574,17 +1610,18 @@ mod origin_tests {
         );
         assert_eq!(spans(&f), [10]);
         let f = run(
-            tracked(0, 1, vec![op(I::I32Const(7)), op(I::LocalSet(0))]),
+            tracked(&symbols, 0, 1, vec![op(I::I32Const(7)), op(I::LocalSet(0))]),
             |f| locals(f, &Arity::new()),
         );
         assert!(spans(&f).is_empty());
         let f = run(
-            tracked(0, 1, vec![op(I::I32Const(7)), op(I::LocalTee(0))]),
+            tracked(&symbols, 0, 1, vec![op(I::I32Const(7)), op(I::LocalTee(0))]),
             |f| locals(f, &Arity::new()),
         );
         assert_eq!(spans(&f), [10]);
         let f = run(
             tracked(
+                &symbols,
                 0,
                 1,
                 vec![
@@ -1607,6 +1644,7 @@ mod origin_tests {
         );
         let f = run(
             tracked(
+                &symbols,
                 1,
                 1,
                 vec![
@@ -1624,6 +1662,7 @@ mod origin_tests {
         assert_eq!(spans(&f), [12, 13, 10]);
         let f = run(
             tracked(
+                &symbols,
                 1,
                 0,
                 vec![
@@ -1641,6 +1680,7 @@ mod origin_tests {
         assert_eq!(spans(&f), [10, 13, 11]);
         let f = run(
             tracked(
+                &symbols,
                 0,
                 2,
                 vec![
@@ -1661,6 +1701,7 @@ mod origin_tests {
         assert_eq!(spans(&f), [10, 11, 14, 12, 16]);
         let f = run(
             tracked(
+                &symbols,
                 0,
                 1,
                 vec![
@@ -1680,8 +1721,10 @@ mod origin_tests {
 
     #[test]
     fn origins_follow_folds_and_both_control_shapes() {
+        let symbols = Symbols::default();
         let op = Ins::Op;
         let mut f = tracked(
+            &symbols,
             1,
             0,
             vec![op(I::LocalGet(0)), op(I::I32Const(0)), op(I::I32Eq)],
@@ -1693,6 +1736,7 @@ mod origin_tests {
         assert_eq!(spans(&f), [10, 12]);
         let f = run(
             tracked(
+                &symbols,
                 1,
                 0,
                 vec![
@@ -1712,6 +1756,7 @@ mod origin_tests {
         assert_eq!(spans(&f), [10, 11, 11, 12, 13]);
         let f = run(
             tracked(
+                &symbols,
                 1,
                 1,
                 vec![
@@ -1733,6 +1778,7 @@ mod origin_tests {
         assert_eq!(spans(&f), [10, 11, 12, 14, 15, 17]);
         let f = run(
             tracked(
+                &symbols,
                 0,
                 0,
                 vec![
@@ -1753,6 +1799,7 @@ mod origin_tests {
         assert_eq!(spans(&f), [10, 15, 16, 17]);
         let f = run(
             tracked(
+                &symbols,
                 0,
                 1,
                 vec![op(I::I32Const(0)), op(I::LocalSet(0)), op(I::LocalGet(0))],
@@ -1766,16 +1813,18 @@ mod origin_tests {
 
     #[test]
     fn origins_follow_count_deletion_and_fast_path_expansion() {
+        let symbols = Symbols::default();
         let retain = Hash128(7);
         let f = run(
             tracked(
+                &symbols,
                 1,
                 0,
                 vec![
                     Ins::Op(I::LocalGet(0)),
-                    Ins::Call(Sym::Inst(retain)),
+                    call(&symbols, Sym::Inst(retain)),
                     Ins::Op(I::LocalGet(0)),
-                    Ins::Call(Sym::Helper(Helper::ReleaseRef)),
+                    call(&symbols, Sym::Helper(Helper::ReleaseRef)),
                 ],
             ),
             |f| {
@@ -1786,13 +1835,14 @@ mod origin_tests {
         for acyclic in [false, true] {
             let f = run(
                 tracked(
+                    &symbols,
                     1,
                     0,
                     vec![
                         Ins::Op(I::LocalGet(0)),
-                        Ins::Call(Sym::Helper(Helper::RetainKnown)),
+                        call(&symbols, Sym::Helper(Helper::RetainKnown)),
                         Ins::Op(I::LocalGet(0)),
-                        Ins::Call(Sym::Helper(Helper::ReleaseKnown)),
+                        call(&symbols, Sym::Helper(Helper::ReleaseKnown)),
                     ],
                 ),
                 |f| {
@@ -1806,23 +1856,28 @@ mod origin_tests {
     }
     #[test]
     fn count_pairs_keep_tee_assignments_and_their_origins() {
+        let symbols = Symbols::default();
         let retain = Hash128(7);
         // The producer's call and both alias definitions must survive.
         // Cancellation may use either alias, or the source of a tee.
-        for source in [Ins::Call(Sym::Inst(Hash128(8))), Ins::Op(I::LocalGet(0))] {
+        for source in [
+            call(&symbols, Sym::Inst(Hash128(8))),
+            Ins::Op(I::LocalGet(0)),
+        ] {
             for released in 1..=2 {
                 let f = run(
                     tracked(
+                        &symbols,
                         1,
                         2,
                         vec![
-                            source.clone(),
+                            source,
                             Ins::Op(I::LocalTee(1)),
                             Ins::Anchor(0),
                             Ins::Op(I::LocalTee(2)),
-                            Ins::Call(Sym::Inst(retain)),
+                            call(&symbols, Sym::Inst(retain)),
                             Ins::Op(I::LocalGet(released)),
-                            Ins::Call(Sym::Helper(Helper::ReleaseRef)),
+                            call(&symbols, Sym::Helper(Helper::ReleaseRef)),
                             Ins::Op(I::LocalGet(1)),
                             Ins::Op(I::LocalGet(2)),
                         ],
@@ -1840,14 +1895,15 @@ mod origin_tests {
         // A release may also define an alias; keep that assignment.
         let f = run(
             tracked(
+                &symbols,
                 1,
                 1,
                 vec![
                     Ins::Op(I::LocalGet(0)),
-                    Ins::Call(Sym::Helper(Helper::RetainKnown)),
+                    call(&symbols, Sym::Helper(Helper::RetainKnown)),
                     Ins::Op(I::LocalGet(0)),
                     Ins::Op(I::LocalTee(1)),
-                    Ins::Call(Sym::Helper(Helper::ReleaseKnown)),
+                    call(&symbols, Sym::Helper(Helper::ReleaseKnown)),
                     Ins::Op(I::LocalGet(1)),
                 ],
             ),
@@ -1861,6 +1917,7 @@ mod origin_tests {
 
     #[test]
     fn tee_count_pairs_stop_at_overwrites_calls_and_control_flow() {
+        let symbols = Symbols::default();
         let retain = Hash128(7);
         for barrier in [
             vec![Ins::Op(I::I32Const(0)), Ins::Op(I::LocalSet(1))],
@@ -1869,21 +1926,21 @@ mod origin_tests {
                 Ins::Op(I::LocalTee(2)),
                 Ins::Op(I::Drop),
             ],
-            vec![Ins::Call(Sym::Inst(Hash128(8)))],
+            vec![call(&symbols, Sym::Inst(Hash128(8)))],
             vec![Ins::Op(I::Block(BlockType::Empty)), Ins::Op(I::End)],
         ] {
             let mut body = vec![
                 Ins::Op(I::LocalGet(0)),
                 Ins::Op(I::LocalTee(1)),
                 Ins::Op(I::LocalTee(2)),
-                Ins::Call(Sym::Inst(retain)),
+                call(&symbols, Sym::Inst(retain)),
             ];
             body.extend(barrier);
             body.extend([
                 Ins::Op(I::LocalGet(1)),
-                Ins::Call(Sym::Helper(Helper::ReleaseRef)),
+                call(&symbols, Sym::Helper(Helper::ReleaseRef)),
             ]);
-            run(tracked(1, 2, body), |f| {
+            run(tracked(&symbols, 1, 2, body), |f| {
                 assert!(!count_pairs(f, retain));
             });
         }
@@ -1893,36 +1950,34 @@ mod origin_tests {
         f.body
             .iter()
             .filter(|i| {
-                matches!(
-                    i,
-                    Ins::Call(Sym::Helper(
-                        Helper::ReleaseRef | Helper::ReleaseKnown | Helper::Release { .. }
-                    ))
-                )
+                matches!(i, Ins::Call(id) if matches!(&*f.symbol(*id),
+            Sym::Helper(Helper::ReleaseRef | Helper::ReleaseKnown | Helper::Release { .. })))
             })
             .count()
     }
 
     #[test]
     fn zero_facts_remove_initial_and_moved_slots_but_keep_live_values() {
+        let symbols = Symbols::default();
         let f = tracked(
+            &symbols,
             1,
             2,
             vec![
                 Ins::Op(I::LocalGet(1)),
-                Ins::Call(Sym::Helper(Helper::ReleaseRef)),
+                call(&symbols, Sym::Helper(Helper::ReleaseRef)),
                 Ins::Op(I::I32Const(0)),
-                Ins::Call(Sym::Helper(Helper::ReleaseKnown)),
+                call(&symbols, Sym::Helper(Helper::ReleaseKnown)),
                 Ins::Op(I::LocalGet(0)),
-                Ins::Call(Sym::Helper(Helper::ReleaseRef)),
+                call(&symbols, Sym::Helper(Helper::ReleaseRef)),
                 Ins::Op(I::I32Const(7)),
                 Ins::Op(I::LocalSet(2)),
                 Ins::Op(I::LocalGet(2)),
-                Ins::Call(Sym::Helper(Helper::ReleaseRef)),
+                call(&symbols, Sym::Helper(Helper::ReleaseRef)),
                 Ins::Op(I::I32Const(0)),
                 Ins::Op(I::LocalSet(2)),
                 Ins::Op(I::LocalGet(2)),
-                Ins::Call(Sym::Helper(Helper::ReleaseRef)),
+                call(&symbols, Sym::Helper(Helper::ReleaseRef)),
                 Ins::Op(I::I32Const(0)),
                 Ins::Op(I::LocalSet(2)),
             ],
@@ -1942,8 +1997,10 @@ mod origin_tests {
 
     #[test]
     fn zero_facts_meet_both_if_arms_and_exclude_returned_paths() {
+        let symbols = Symbols::default();
         let branch = |live: bool| {
             tracked(
+                &symbols,
                 2,
                 1,
                 vec![
@@ -1956,7 +2013,7 @@ mod origin_tests {
                     Ins::Op(I::LocalSet(2)),
                     Ins::Op(I::End),
                     Ins::Op(I::LocalGet(2)),
-                    Ins::Call(Sym::Helper(Helper::ReleaseRef)),
+                    call(&symbols, Sym::Helper(Helper::ReleaseRef)),
                 ],
             )
         };
@@ -1985,11 +2042,12 @@ mod origin_tests {
 
     #[test]
     fn zero_facts_include_loop_backedges_and_branch_table_exits() {
+        let symbols = Symbols::default();
         let loop_body = |reset: bool| {
             let mut body = vec![
                 Ins::Op(I::Loop(BlockType::Empty)),
                 Ins::Op(I::LocalGet(1)),
-                Ins::Call(Sym::Helper(Helper::ReleaseRef)),
+                call(&symbols, Sym::Helper(Helper::ReleaseRef)),
                 Ins::Op(I::LocalGet(0)),
                 Ins::Op(I::LocalSet(1)),
             ];
@@ -2001,7 +2059,7 @@ mod origin_tests {
                 Ins::Op(I::BrIf(0)),
                 Ins::Op(I::End),
             ]);
-            tracked(1, 1, body)
+            tracked(&symbols, 1, 1, body)
         };
         assert_eq!(
             releases(&run(loop_body(false), |f| {
@@ -2015,22 +2073,24 @@ mod origin_tests {
             })),
             0
         );
-        let table = tracked(
+        let mut table = tracked(
+            &symbols,
             1,
             1,
             vec![
                 Ins::Op(I::Block(BlockType::Empty)),
                 Ins::Op(I::Block(BlockType::Empty)),
                 Ins::Op(I::LocalGet(0)),
-                Ins::Op(I::BrTable(vec![0].into(), 1)),
+                Ins::Op(I::BrTable(LabelListId(0), 1)),
                 Ins::Op(I::End),
                 Ins::Op(I::I32Const(7)),
                 Ins::Op(I::LocalSet(1)),
                 Ins::Op(I::End),
                 Ins::Op(I::LocalGet(1)),
-                Ins::Call(Sym::Helper(Helper::ReleaseRef)),
+                call(&symbols, Sym::Helper(Helper::ReleaseRef)),
             ],
         );
+        table.labels.push(vec![0]);
         assert_eq!(
             releases(&run(table, |f| {
                 zero_releases(f);
@@ -2041,13 +2101,15 @@ mod origin_tests {
 
     #[test]
     fn zero_facts_respect_frame_loads_and_preserve_source_origins() {
+        let symbols = Symbols::default();
         let loaded = tracked(
+            &symbols,
             0,
             1,
             vec![
                 Ins::LoadAll,
                 Ins::Op(I::LocalGet(0)),
-                Ins::Call(Sym::Helper(Helper::ReleaseRef)),
+                call(&symbols, Sym::Helper(Helper::ReleaseRef)),
             ],
         );
         assert_eq!(
@@ -2057,14 +2119,15 @@ mod origin_tests {
             1
         );
         let f = tracked(
+            &symbols,
             1,
             0,
             vec![
                 Ins::Op(I::I32Const(0)),
                 Ins::Anchor(99),
-                Ins::Call(Sym::Helper(Helper::ReleaseRef)),
+                call(&symbols, Sym::Helper(Helper::ReleaseRef)),
                 Ins::Op(I::LocalGet(0)),
-                Ins::Call(Sym::Helper(Helper::ReleaseRef)),
+                call(&symbols, Sym::Helper(Helper::ReleaseRef)),
             ],
         );
         let f = run(f, |f| {
@@ -2072,18 +2135,22 @@ mod origin_tests {
         });
         assert_eq!(spans(&f), [11, 13, 14]);
         let value = tracked(
+            &symbols,
             0,
             2,
             vec![
                 Ins::Op(I::LocalGet(0)),
                 Ins::Op(I::LocalGet(1)),
-                Ins::Call(Sym::Helper(Helper::Release {
-                    vals: vec![Val::I32, Val::I32],
-                    walk: crate::layout::Walk::Switch(
-                        0,
-                        vec![None, Some(crate::layout::Walk::Ref(1))],
-                    ),
-                })),
+                call(
+                    &symbols,
+                    Sym::Helper(Helper::Release {
+                        vals: vec![Val::I32, Val::I32],
+                        walk: crate::layout::Walk::Switch(
+                            0,
+                            vec![None, Some(crate::layout::Walk::Ref(1))],
+                        ),
+                    }),
+                ),
             ],
         );
         assert_eq!(

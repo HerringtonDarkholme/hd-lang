@@ -7,16 +7,17 @@
 //! that is assigned after it is captured) lives in a cell, a counted
 //! object holding its value, and every holder keeps the cell's address.
 
+use crate::op::Op as I;
 use hd_base::{Hash128, HashMap, NodeIdx, StageResult};
 use hd_mono::Target;
 use hd_tir::ir::{Body, CaptureMode, NONE, Tag, local_flags, sub_flags};
 use hd_types::{Ty, TyData};
-use wasm_encoder::{BlockType, Instruction as I};
+use wasm_encoder::BlockType;
 
 use super::Em;
 use super::value::Src;
 use crate::layout::{Mem, Part, Walk, env_mem, mem as mem_of, strip};
-use crate::module::{Ins, Sym, Val};
+use crate::module::{Sym, Val};
 use crate::unsupported;
 
 /// Each local a closure shares, or that a reference refers to (`roots`,
@@ -374,7 +375,7 @@ impl Em<'_, '_, '_> {
             return unsupported("a closure without its code instance");
         };
         let caps = captures(self.b, i as usize);
-        self.f.push(Ins::TableSlot(Sym::Inst(key)));
+        self.f.table_slot(Sym::Inst(key));
         if caps.is_empty() {
             self.f.i32(0);
             return self.store_owned(i);
@@ -417,7 +418,7 @@ impl Em<'_, '_, '_> {
     pub(super) fn load_captures(&mut self, ci: usize, env: u32, key: Hash128) -> StageResult<()> {
         if let Some(l) = self_local(self.b, ci) {
             let ls = self.local(u32::try_from(l).expect("locals"))?;
-            self.f.push(Ins::TableSlot(Sym::Inst(key)));
+            self.f.table_slot(Sym::Inst(key));
             self.f.set(ls[0]);
             self.f.get(env);
             self.f.set(ls[1]);

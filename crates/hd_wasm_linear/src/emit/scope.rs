@@ -8,9 +8,10 @@
 //! `dispose!`) is a rung a resume can enter, and its points are shielded
 //! from cancellation (`susp.rs`).
 
+use crate::op::Op as I;
 use hd_base::StageResult;
 use hd_tir::ir::NONE;
-use wasm_encoder::{BlockType, Instruction as I};
+use wasm_encoder::BlockType;
 
 use super::{Ctl, Em};
 use crate::module::Val;

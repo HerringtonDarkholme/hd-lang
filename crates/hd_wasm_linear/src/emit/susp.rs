@@ -8,10 +8,11 @@
 //! `br_table` on `pc`, and a branch that holds the resumed state is taken
 //! whatever its condition was.
 
+use crate::op::Op as I;
 use hd_base::{Hash128, HashMap, StageResult};
 use hd_mono::{Target, TargetKind};
 use hd_tir::ir::{Body, NONE, Tag};
-use wasm_encoder::{BlockType, Instruction as I};
+use wasm_encoder::BlockType;
 
 use super::scope::Exit;
 use super::{Ctl, Em};
@@ -276,7 +277,7 @@ impl Em<'_, '_, '_> {
         self.f.get(pc);
         self.f.u32(lo);
         self.f.op(I::I32Sub);
-        self.f.op(I::BrTable(targets.into(), 0));
+        self.f.br_table(targets, 0);
         self.close();
         run(self, &items[..first])?;
         for (k, &p) in points.iter().enumerate() {
@@ -996,7 +997,7 @@ pub(super) fn store_local(f: &mut crate::module::Func, l: u32, at: u32, v: Val) 
 }
 
 /// The store instruction of a `v` at `at` in a heap object.
-pub(super) fn store_op(v: Val, at: u32) -> I<'static> {
+pub(super) fn store_op(v: Val, at: u32) -> I {
     let at = u64::from(at);
     match v {
         Val::I32 => I::I32Store(mem(HEAP, at, 2)),
@@ -1007,7 +1008,7 @@ pub(super) fn store_op(v: Val, at: u32) -> I<'static> {
 }
 
 /// The load instruction of a `v` at `at` in a heap object.
-pub(super) fn load_op(v: Val, at: u32) -> I<'static> {
+pub(super) fn load_op(v: Val, at: u32) -> I {
     let at = u64::from(at);
     match v {
         Val::I32 => I::I32Load(mem(HEAP, at, 2)),
@@ -1142,7 +1143,7 @@ pub(super) fn finish(
 
     // The release glue: the places the body owns while it waits, unless
     // it has left, then the child.
-    em.f = crate::module::Func::new(format!("{name}.drop"), vec![Val::I32], vec![]);
+    em.f = em.m.func(format!("{name}.drop"), vec![Val::I32], vec![]);
     em.inherit_origin_source();
     em.counting = em.input.runtime.is_some();
     if em.counting {
@@ -1261,7 +1262,7 @@ pub(super) fn finish(
     // The cold constructor: a frame in state 0 holding the arguments and
     // the providers, with a count of each counted argument.
     let cold_params: Vec<Val> = params[1..].to_vec();
-    em.f = crate::module::Func::new(name.clone(), cold_params.clone(), vec![Val::I32]);
+    em.f = em.m.func(name.clone(), cold_params.clone(), vec![Val::I32]);
     em.inherit_origin_source();
     let fr = em.f.local(Val::I32);
     em.f.helper(Helper::Frame(key));
@@ -1301,7 +1302,7 @@ pub(super) fn finish(
                 if let Some((at, v)) = at_of(*x) {
                     em.f.get(fr);
                     if j == 0 {
-                        em.f.push(Ins::TableSlot(Sym::Inst(key)));
+                        em.f.table_slot(Sym::Inst(key));
                     } else {
                         em.f.get(0);
                     }
@@ -1344,7 +1345,7 @@ pub(super) fn finish(
     // The poll: the runtime checks, then the body over the frame.
     let mut pres = vec![Val::I32];
     pres.extend(results.iter().copied());
-    let mut f = crate::module::Func::new(format!("{name}.poll"), vec![Val::I32], pres);
+    let mut f = em.m.func(format!("{name}.poll"), vec![Val::I32], pres);
     em.annotate_func(&mut f);
     let tmp: Vec<u32> = results.iter().map(|v| f.local(*v)).collect();
     let nf = f.local(Val::I32);
@@ -1386,7 +1387,7 @@ pub(super) fn finish(
 
     // The cancel (§14.6): a frame that never started is only marked; a
     // started one unwinds until its body leaves by its cancellation.
-    em.f = crate::module::Func::new(format!("{name}.cancel"), vec![Val::I32], vec![]);
+    em.f = em.m.func(format!("{name}.cancel"), vec![Val::I32], vec![]);
     em.inherit_origin_source();
     let seen = em.f.local(Val::I32);
     let tmp: Vec<u32> = results.iter().map(|v| em.f.local(*v)).collect();
@@ -1435,7 +1436,7 @@ pub(super) fn finish(
     let (body, poll) = match held {
         None => (body, poll),
         Some(active) => {
-            let mut p = crate::module::Func::new(format!("{name}.poll"), vec![Val::I32], {
+            let mut p = em.m.func(format!("{name}.poll"), vec![Val::I32], {
                 let mut r = vec![Val::I32];
                 r.extend(results.iter().copied());
                 r
@@ -1449,7 +1450,7 @@ pub(super) fn finish(
             }
             let mut bres = results.clone();
             bres.push(Val::I32);
-            let mut b = crate::module::Func::new(name.clone(), params.to_vec(), bres);
+            let mut b = em.m.func(name.clone(), params.to_vec(), bres);
             let fr = b.local(Val::I32);
             b.get(FRAME);
             b.op(I::I32Eqz);
@@ -1497,7 +1498,8 @@ mod origin_tests {
     use super::*;
     #[test]
     fn frame_expansion_keeps_each_save_and_load_origin() {
-        let mut f = crate::module::Func::new("frame", vec![Val::I32], vec![]);
+        let m = crate::module::Module::default();
+        let mut f = m.func("frame", vec![Val::I32], vec![]);
         f.locals.push(Val::I32);
         f.body = vec![Ins::SaveAll, Ins::LoadAll];
         f.origins = Some(vec![Some(10), Some(20)]);

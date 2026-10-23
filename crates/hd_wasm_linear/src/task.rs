@@ -4,8 +4,9 @@
 //! entry's driver of a suspending root. These implement the task
 //! protocol of §14 over linear memory.
 
+use crate::op::Op as Instruction;
 use hd_base::Hash128;
-use wasm_encoder::{BlockType, Instruction};
+use wasm_encoder::BlockType;
 
 use crate::boundary::LTy;
 use crate::layout::{Leaf, Walk};
@@ -108,7 +109,7 @@ fn size_of(v: Val) -> u32 {
     }
 }
 
-fn store(v: Val, at: u32) -> Instruction<'static> {
+fn store(v: Val, at: u32) -> Instruction {
     let at = u64::from(at);
     match v {
         Val::I32 => Instruction::I32Store(mem(HEAP, at, 2)),
@@ -118,7 +119,7 @@ fn store(v: Val, at: u32) -> Instruction<'static> {
     }
 }
 
-fn load(v: Val, at: u32) -> Instruction<'static> {
+fn load(v: Val, at: u32) -> Instruction {
     let at = u64::from(at);
     match v {
         Val::I32 => Instruction::I32Load(mem(HEAP, at, 2)),
@@ -191,56 +192,56 @@ const INVALID: &str = "suspension-invalid-state: a completed suspension was poll
 pub fn helper(h: &Helper, m: &mut Module) -> Func {
     let mut f = match h {
         Helper::Frame(key) => frame(*key, m),
-        Helper::PollCheck => poll_check(),
-        Helper::CancelCheck => cancel_check(),
+        Helper::PollCheck => poll_check(m),
+        Helper::CancelCheck => cancel_check(m),
         Helper::CancelEnter => {
-            let mut f = Func::new("rt:cancel_enter", vec![], vec![Val::I32]);
+            let mut f = m.func("rt:cancel_enter", vec![], vec![Val::I32]);
             f.global_get(Global::AbSeen);
             f.i32(0);
             f.global_set(Global::AbSeen);
             f
         }
-        Helper::CancelLeave => cancel_leave(),
-        Helper::WakeMark => wake_mark(),
-        Helper::WakeTake => wake_take(),
+        Helper::CancelLeave => cancel_leave(m),
+        Helper::WakeMark => wake_mark(m),
+        Helper::WakeTake => wake_take(m),
         Helper::WakeSlot => wake_slot(m),
-        Helper::WakeRegister => wake_register(),
-        Helper::WakeRemove => wake_remove(),
-        Helper::WakeSignal => wake_signal(),
-        Helper::WakerNew => waker_new(),
-        Helper::WakerParent => waker_parent(),
+        Helper::WakeRegister => wake_register(m),
+        Helper::WakeRemove => wake_remove(m),
+        Helper::WakeSignal => wake_signal(m),
+        Helper::WakerNew => waker_new(m),
+        Helper::WakerParent => waker_parent(m),
         Helper::WakerSlot => waker_slot(m),
-        Helper::WakerLive => waker_live(),
-        Helper::WakerDrop => waker_drop(),
+        Helper::WakerLive => waker_live(m),
+        Helper::WakerDrop => waker_drop(m),
         // No node can be registered without a reachable WakerNew. Keep
         // host-only suspensions from linking the weak registry machinery.
-        Helper::WakeLink if !m.wakers => Func::new("rt:wake_link", vec![Val::I32; 3], vec![]),
-        Helper::WakeNotify if !m.wakers => Func::new("rt:wake_notify", vec![Val::I32], vec![]),
+        Helper::WakeLink if !m.wakers => m.func("rt:wake_link", vec![Val::I32; 3], vec![]),
+        Helper::WakeNotify if !m.wakers => m.func("rt:wake_notify", vec![Val::I32], vec![]),
         Helper::WakeLink => wake_link(m),
-        Helper::WakeNotify => wake_notify(),
+        Helper::WakeNotify => wake_notify(m),
         Helper::HostCold {
             module,
             method,
             args,
             area,
             res,
-        } => host_cold(module, method, args, area, res),
+        } => host_cold(m, module, method, args, area, res),
         Helper::HostPoll {
             module,
             method,
             args,
             area,
             res,
-        } => host_poll(module, method, args, area, res),
-        Helper::HostCancel => host_cancel(),
+        } => host_poll(m, module, method, args, area, res),
+        Helper::HostCancel => host_cancel(m),
         Helper::HostCall {
             module,
             method,
             args,
             result,
-        } => crate::boundary::host_call(module, method, args, result),
+        } => crate::boundary::host_call(m, module, method, args, result),
         Helper::EntryCancel { abandon } => {
-            let mut f = Func::new("rt:entry_cancel", vec![], vec![]);
+            let mut f = m.func("rt:entry_cancel", vec![], vec![]);
             let root = f.local(Val::I32);
             f.global_get(Global::Root);
             f.set(root);
@@ -259,14 +260,14 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f.op(Instruction::End);
             f
         }
-        Helper::ChildDrop => child_drop(),
-        Helper::CleanupCold => cleanup_cold(),
-        Helper::CleanupPoll => cleanup_poll(),
-        Helper::CleanupCancel => cleanup_cancel(),
-        Helper::PendingCold { results } => pending_cold(results),
-        Helper::PendingPoll { results } => pending_poll(results),
+        Helper::ChildDrop => child_drop(m),
+        Helper::CleanupCold => cleanup_cold(m),
+        Helper::CleanupPoll => cleanup_poll(m),
+        Helper::CleanupCancel => cleanup_cancel(m),
+        Helper::PendingCold { results } => pending_cold(m, results),
+        Helper::PendingPoll { results } => pending_poll(m, results),
         Helper::PendingCancel => {
-            let mut f = Func::new("rt:pending_cancel", vec![Val::I32], vec![]);
+            let mut f = m.func("rt:pending_cancel", vec![Val::I32], vec![]);
             f.get(0);
             f.helper(Helper::CancelCheck);
             f.op(Instruction::Drop);
@@ -277,25 +278,25 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             results,
             walk,
         } => match part {
-            0 => race_cold(results, walk.as_ref()),
-            1 => race_poll(results),
-            _ => race_cancel(),
+            0 => race_cold(m, results, walk.as_ref()),
+            1 => race_poll(m, results),
+            _ => race_cancel(m),
         },
-        Helper::RaceDrop { results, walk } => race_drop(results, walk.as_ref()),
+        Helper::RaceDrop { results, walk } => race_drop(m, results, walk.as_ref()),
         Helper::OpenFrame {
             part: 0,
             reference,
             leaves,
             walk,
             counts,
-        } => open_cold(leaves, walk.as_ref(), *counts, reference.as_ref()),
+        } => open_cold(m, leaves, walk.as_ref(), *counts, reference.as_ref()),
         Helper::OpenFrame {
             reference,
             leaves,
             walk,
             counts,
             ..
-        } => open_poll(leaves, walk.as_ref(), *counts, reference.as_ref()),
+        } => open_poll(m, leaves, walk.as_ref(), *counts, reference.as_ref()),
         other => unreachable!("not a task helper: {other:?}"),
     };
     if matches!(
@@ -380,15 +381,15 @@ pub fn abandon_by(f: &mut Func, by: i32) {
 /// with its poll and cancel.
 fn frame(key: Hash128, m: &Module) -> Func {
     let size = m.frames.get(&key).copied().unwrap_or(F_SAVED);
-    let mut f = Func::new("rt:frame", vec![], vec![Val::I32]);
+    let mut f = m.func("rt:frame", vec![], vec![Val::I32]);
     // What a suspending body's frame saves is not known here, so it takes
     // part in cycle collection (§23.28).
     let at = new_zeroed(&mut f, size, Some(Sym::Part(key, Part::Drop)), true);
     f.get(at);
-    f.push(Ins::TableSlot(Sym::Part(key, Part::Poll)));
+    f.table_slot(Sym::Part(key, Part::Poll));
     f.op(Instruction::I32Store(mem(HEAP, F_POLL, 2)));
     f.get(at);
-    f.push(Ins::TableSlot(Sym::Part(key, Part::Cancel)));
+    f.table_slot(Sym::Part(key, Part::Cancel));
     f.op(Instruction::I32Store(mem(HEAP, F_CANCEL, 2)));
     f.get(at);
     f
@@ -399,8 +400,8 @@ fn frame(key: Hash128, m: &Module) -> Func {
 /// re-entrant poll and a completed one an invalid state, both panics; a
 /// cancelled one answers Pending, and a poll of one that still unwinds
 /// continues its cleanup.
-fn poll_check() -> Func {
-    let mut f = Func::new("rt:poll_check", vec![Val::I32], vec![Val::I32]);
+fn poll_check(m: &Module) -> Func {
+    let mut f = m.func("rt:poll_check", vec![Val::I32], vec![Val::I32]);
     flags_any(&mut f, 0, ACTIVE);
     f.op(Instruction::If(BlockType::Empty));
     panic(&mut f, REENTRANT);
@@ -430,8 +431,8 @@ fn poll_check() -> Func {
 /// the cancel goes on. An active frame panics; a done one, or a cancelled
 /// one that no longer unwinds, is left as it is; any other is marked
 /// cancelled, and abandoned under `abandon()`.
-fn cancel_check() -> Func {
-    let mut f = Func::new("rt:cancel_check", vec![Val::I32], vec![Val::I32]);
+fn cancel_check(m: &Module) -> Func {
+    let mut f = m.func("rt:cancel_check", vec![Val::I32], vec![Val::I32]);
     let flags = f.local(Val::I32);
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, F_FLAGS, 2)));
@@ -474,8 +475,8 @@ fn cancel_check() -> Func {
 /// [`Helper::CancelLeave`]: the `ABANDONED` bits that the frame's cancels
 /// saw mark it (`req.abandon.carry`); then `abseen` holds the bits seen
 /// before with the frame's own.
-fn cancel_leave() -> Func {
-    let mut f = Func::new("rt:cancel_leave", vec![Val::I32, Val::I32], vec![]);
+fn cancel_leave(m: &Module) -> Func {
+    let mut f = m.func("rt:cancel_leave", vec![Val::I32, Val::I32], vec![]);
     f.get(0);
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, F_FLAGS, 2)));
@@ -522,7 +523,7 @@ fn node_address(f: &mut Func, id: u32) {
 /// Grow only for a fresh slot; existing weak handles use `waker_live` and
 /// never allocate or read freed node memory.
 fn waker_slot(m: &Module) -> Func {
-    let mut f = Func::new("rt:waker_slot", vec![Val::I32], vec![Val::I32]);
+    let mut f = m.func("rt:waker_slot", vec![Val::I32], vec![Val::I32]);
     let (cap, fresh) = (f.local(Val::I32), f.local(Val::I32));
     f.get(0);
     f.global_get(Global::NodeCap);
@@ -575,8 +576,8 @@ fn waker_slot(m: &Module) -> Func {
 
 /// Resolve a weak handle before touching the target, including in checked
 /// quarantine. The registry itself outlives all its registered objects.
-fn waker_live() -> Func {
-    let mut f = Func::new("rt:waker_live", vec![Val::I32; 2], vec![Val::I32]);
+fn waker_live(m: &Module) -> Func {
+    let mut f = m.func("rt:waker_live", vec![Val::I32; 2], vec![Val::I32]);
     let at = f.local(Val::I32);
     f.get(0);
     f.op(Instruction::I32Eqz);
@@ -607,8 +608,8 @@ fn waker_live() -> Func {
 
 /// Invalidate before dropping edge storage. A generation never wraps:
 /// the exhausted slot is retired, so no stale handle can become live.
-fn waker_drop() -> Func {
-    let mut f = Func::new("rt:waker_drop", vec![Val::I32], vec![]);
+fn waker_drop(m: &Module) -> Func {
+    let mut f = m.func("rt:waker_drop", vec![Val::I32], vec![]);
     let (id, at, generation) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, W_SLOT, 2)));
@@ -645,7 +646,7 @@ fn waker_drop() -> Func {
 /// [`Helper::WakeSlot`]: grows the registration table before either a
 /// registration or a wake. Allocating once per capacity keeps lookup O(1).
 fn wake_slot(m: &Module) -> Func {
-    let mut f = Func::new("rt:wake_slot", vec![Val::I32], vec![Val::I32]);
+    let mut f = m.func("rt:wake_slot", vec![Val::I32], vec![Val::I32]);
     let (cap, fresh) = (f.local(Val::I32), f.local(Val::I32));
     slot(&mut f, 0);
     f.global_get(Global::WakeCap);
@@ -707,8 +708,8 @@ fn wake_address(f: &mut Func, h: u32) {
 
 /// [`Helper::WakeSignal`]: a wake follows only its enclosing waiters,
 /// marking their child bits, never polling a sibling.
-fn wake_signal() -> Func {
-    let mut f = Func::new("rt:wake_signal", vec![Val::I32, Val::I32], vec![]);
+fn wake_signal(m: &Module) -> Func {
+    let mut f = m.func("rt:wake_signal", vec![Val::I32, Val::I32], vec![]);
     f.get(0);
     f.op(Instruction::I32Eqz);
     f.op(Instruction::If(BlockType::Empty));
@@ -731,7 +732,7 @@ fn wake_signal() -> Func {
 fn wake_link(m: &Module) -> Func {
     #[cfg(not(feature = "checked-report"))]
     let _ = m;
-    let mut f = Func::new("rt:wake_link", vec![Val::I32; 3], vec![]);
+    let mut f = m.func("rt:wake_link", vec![Val::I32; 3], vec![]);
     let (edge, id, generation, at, stale) = (
         f.local(Val::I32),
         f.local(Val::I32),
@@ -805,7 +806,7 @@ fn wake_link(m: &Module) -> Func {
     f.op(Instruction::Return);
     f.op(Instruction::End);
     f.i32(16);
-    f.push(Ins::TableSlot(Sym::Helper(Helper::DropFields {
+    f.table_slot(Sym::Helper(Helper::DropFields {
         leaves: vec![Leaf {
             offset: 8,
             val: Val::I32,
@@ -813,7 +814,7 @@ fn wake_link(m: &Module) -> Func {
             signed: false,
         }],
         walk: Walk::Ref(0),
-    })));
+    }));
     f.i32(1);
     f.op(Instruction::I32Add);
     f.helper(Helper::New);
@@ -840,8 +841,8 @@ fn store_waiter(f: &mut Func, edge: u32, id: u32, generation: u32) {
     }
 }
 
-fn wake_notify() -> Func {
-    let mut f = Func::new("rt:wake_notify", vec![Val::I32], vec![]);
+fn wake_notify(m: &Module) -> Func {
+    let mut f = m.func("rt:wake_notify", vec![Val::I32], vec![]);
     let node = f.local(Val::I32);
     f.op(Instruction::Block(BlockType::Empty));
     f.op(Instruction::Loop(BlockType::Empty));
@@ -870,8 +871,8 @@ fn wake_notify() -> Func {
     f
 }
 
-fn waker_parent() -> Func {
-    let mut f = Func::new("rt:waker_parent", vec![Val::I32], vec![]);
+fn waker_parent(m: &Module) -> Func {
+    let mut f = m.func("rt:waker_parent", vec![Val::I32], vec![]);
     f.get(0);
     f.global_get(Global::Waker);
     f.global_get(Global::WakeBit);
@@ -879,8 +880,8 @@ fn waker_parent() -> Func {
     f
 }
 
-fn waker_new() -> Func {
-    let mut f = Func::new("rt:waker_new", vec![Val::I32], vec![Val::I32]);
+fn waker_new(m: &Module) -> Func {
+    let mut f = m.func("rt:waker_new", vec![Val::I32], vec![Val::I32]);
     let node = new_zeroed(&mut f, 12, Some(Sym::Helper(Helper::WakerDrop)), false);
     let (id, at) = (f.local(Val::I32), f.local(Val::I32));
     f.global_get(Global::NodeFree);
@@ -922,8 +923,8 @@ fn waker_new() -> Func {
     f
 }
 
-fn wake_register() -> Func {
-    let mut f = Func::new("rt:wake_register", vec![Val::I32], vec![]);
+fn wake_register(m: &Module) -> Func {
+    let mut f = m.func("rt:wake_register", vec![Val::I32], vec![]);
     let at = f.local(Val::I32);
     f.get(0);
     f.helper(Helper::WakeSlot);
@@ -954,8 +955,8 @@ fn wake_register() -> Func {
 
 /// Remove only the registered generation. A late wake cannot touch a
 /// released node or an unrelated new occupant of the same host slot.
-fn wake_remove() -> Func {
-    let mut f = Func::new("rt:wake_remove", vec![Val::I32], vec![]);
+fn wake_remove(m: &Module) -> Func {
+    let mut f = m.func("rt:wake_remove", vec![Val::I32], vec![]);
     let at = f.local(Val::I32);
     slot(&mut f, 0);
     f.global_get(Global::WakeCap);
@@ -984,8 +985,8 @@ fn wake_remove() -> Func {
 
 /// [`Helper::WakeMark`] (`hd.wake(n)`): record completions, and mark the
 /// child named by each live registration plus its enclosing parents.
-fn wake_mark() -> Func {
-    let mut f = Func::new("rt:wake_mark", vec![Val::I32], vec![]);
+fn wake_mark(m: &Module) -> Func {
+    let mut f = m.func("rt:wake_mark", vec![Val::I32], vec![]);
     let (i, h, at) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
     f.op(Instruction::Block(BlockType::Empty));
     f.op(Instruction::Loop(BlockType::Empty));
@@ -1026,8 +1027,8 @@ fn wake_mark() -> Func {
 
 /// [`Helper::WakeTake`]: consume the matching completion and release its
 /// registration's ownership. Stale generations leave the current one alone.
-fn wake_take() -> Func {
-    let mut f = Func::new("rt:wake_take", vec![Val::I32], vec![Val::I32]);
+fn wake_take(m: &Module) -> Func {
+    let mut f = m.func("rt:wake_take", vec![Val::I32], vec![Val::I32]);
     let at = f.local(Val::I32);
     slot(&mut f, 0);
     f.global_get(Global::WakeCap);
@@ -1096,10 +1097,17 @@ fn walk_indices(w: &Walk, out: &mut Vec<u32>) {
 /// that may wait, called cold: a leaf frame holding the arguments, laid
 /// out as `area`, each with a count of its own (a collection as its
 /// copy), and no handle yet (-1).
-fn host_cold(module: &str, method: &str, args: &[HostArg], area: &Elem, res: &HostRes) -> Func {
+fn host_cold(
+    m: &Module,
+    module: &str,
+    method: &str,
+    args: &[HostArg],
+    area: &Elem,
+    res: &HostRes,
+) -> Func {
     let mut params = vec![Val::I32];
     params.extend(args.iter().flat_map(HostArg::vals));
-    let mut f = Func::new(format!("rt:{module}/{method}"), params, vec![Val::I32]);
+    let mut f = m.func(format!("rt:{module}/{method}"), params, vec![Val::I32]);
     // A leaf frame takes part as its arguments' types say.
     let fr = new_zeroed(&mut f, LEAF_ARGS + area.size, leaf_drop(area), area.cyclic);
     let poll = Sym::Helper(Helper::HostPoll {
@@ -1110,10 +1118,10 @@ fn host_cold(module: &str, method: &str, args: &[HostArg], area: &Elem, res: &Ho
         res: res.clone(),
     });
     f.get(fr);
-    f.push(Ins::TableSlot(poll));
+    f.table_slot(poll);
     f.op(Instruction::I32Store(mem(HEAP, F_POLL, 2)));
     f.get(fr);
-    f.push(Ins::TableSlot(Sym::Helper(Helper::HostCancel)));
+    f.table_slot(Sym::Helper(Helper::HostCancel));
     f.op(Instruction::I32Store(mem(HEAP, F_CANCEL, 2)));
     f.get(fr);
     f.i32(-1);
@@ -1133,7 +1141,7 @@ fn host_cold(module: &str, method: &str, args: &[HostArg], area: &Elem, res: &Ho
         f.helper(Helper::CopyElems { elem: area.clone() });
     } else if let Some(w) = &area.walk {
         crate::rt::walk_code(&mut f, w, &|f, k| f.get(k + 1), &|f| {
-            f.push(Ins::Call(Sym::Helper(Helper::RetainAny)));
+            f.call(Sym::Helper(Helper::RetainAny));
         });
     }
     f.get(fr);
@@ -1144,11 +1152,18 @@ fn host_cold(module: &str, method: &str, args: &[HostArg], area: &Elem, res: &Ho
 /// calls `.start` with the arguments; a call that finished at once is
 /// Ready, else its handle waits in the frame. A later poll is Pending
 /// until the wake table holds the handle, then calls `.finish`.
-fn host_poll(module: &str, method: &str, args: &[HostArg], area: &Elem, res: &HostRes) -> Func {
+fn host_poll(
+    m: &Module,
+    module: &str,
+    method: &str,
+    args: &[HostArg],
+    area: &Elem,
+    res: &HostRes,
+) -> Func {
     let rvals = res.vals();
     let mut results = vec![Val::I32];
     results.extend(rvals.iter().copied());
-    let mut f = Func::new(
+    let mut f = m.func(
         format!("rt:{module}/{method}.poll"),
         vec![Val::I32],
         results,
@@ -1247,8 +1262,8 @@ fn host_poll(module: &str, method: &str, args: &[HostArg], area: &Elem, res: &Ho
 /// left; any other is marked cancelled, and a call waiting on the host is
 /// aborted. No completion will wake its awaiter, so the entry polls its
 /// root again.
-fn host_cancel() -> Func {
-    let mut f = Func::new("rt:host_cancel", vec![Val::I32], vec![]);
+fn host_cancel(m: &Module) -> Func {
+    let mut f = m.func("rt:host_cancel", vec![Val::I32], vec![]);
     flags_any(&mut f, 0, DONE | CANCELLED);
     f.op(Instruction::If(BlockType::Empty));
     f.op(Instruction::Return);
@@ -1288,12 +1303,13 @@ fn host_cancel() -> Func {
 /// answers -2, or -3 when its cleanup was cut short.
 #[must_use]
 pub fn root_poll(
+    m: &Module,
     main: Hash128,
     providers: &[(usize, Option<Hash128>)],
     rvals: &[Val],
     report: Option<Hash128>,
 ) -> Func {
-    let mut f = Func::new("rt:entry_poll", vec![Val::I32], vec![Val::I32]);
+    let mut f = m.func("rt:entry_poll", vec![Val::I32], vec![Val::I32]);
     let (root, ready) = (f.local(Val::I32), f.local(Val::I32));
     let got: Vec<u32> = rvals.iter().map(|v| f.local(*v)).collect();
     let release = |f: &mut Func| {
@@ -1402,8 +1418,8 @@ pub fn root_poll(
 
 /// The glue of a frame whose child is its only counted field: one count
 /// less on the child.
-fn child_drop() -> Func {
-    let mut f = Func::new("rt:drop_child", vec![Val::I32], vec![]);
+fn child_drop(m: &Module) -> Func {
+    let mut f = m.func("rt:drop_child", vec![Val::I32], vec![]);
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, F_CHILD, 2)));
     f.op(Instruction::If(BlockType::Empty));
@@ -1424,14 +1440,14 @@ fn call_cancel(f: &mut Func, c: u32) {
 
 /// [`Helper::CleanupCold`]: `(task) -> frame`, `cancel!`'s cleanup frame
 /// over `task`, which it holds as its child with a count of its own.
-fn cleanup_cold() -> Func {
-    let mut f = Func::new("rt:cleanup_cold", vec![Val::I32], vec![Val::I32]);
+fn cleanup_cold(m: &Module) -> Func {
+    let mut f = m.func("rt:cleanup_cold", vec![Val::I32], vec![Val::I32]);
     let fr = new_zeroed(&mut f, F_SAVED, Some(Sym::Helper(Helper::ChildDrop)), true);
     f.get(fr);
-    f.push(Ins::TableSlot(Sym::Helper(Helper::CleanupPoll)));
+    f.table_slot(Sym::Helper(Helper::CleanupPoll));
     f.op(Instruction::I32Store(mem(HEAP, F_POLL, 2)));
     f.get(fr);
-    f.push(Ins::TableSlot(Sym::Helper(Helper::CleanupCancel)));
+    f.table_slot(Sym::Helper(Helper::CleanupCancel));
     f.op(Instruction::I32Store(mem(HEAP, F_CANCEL, 2)));
     f.get(fr);
     f.get(0);
@@ -1460,8 +1476,8 @@ fn continue_cleanup(f: &mut Func, wait: u32) {
 /// own cancel starts its cleanup, or continues it while it unwinds, and
 /// does nothing once it ended: Pending while the task unwinds, then Ready
 /// with whether the cleanup was cut short.
-fn cleanup_poll() -> Func {
-    let mut f = Func::new("rt:cleanup_poll", vec![Val::I32], vec![Val::I32, Val::I32]);
+fn cleanup_poll(m: &Module) -> Func {
+    let mut f = m.func("rt:cleanup_poll", vec![Val::I32], vec![Val::I32, Val::I32]);
     let wait = f.local(Val::I32);
     f.get(0);
     f.helper(Helper::PollCheck);
@@ -1521,8 +1537,8 @@ fn mark_cancelled(f: &mut Func, wait: u32) {
 
 /// [`Helper::CleanupCancel`]: continues the cleanup too, and leaves the
 /// frame unwinding while the task unwinds (`req.cancel.nested`).
-fn cleanup_cancel() -> Func {
-    let mut f = Func::new("rt:cleanup_cancel", vec![Val::I32], vec![]);
+fn cleanup_cancel(m: &Module) -> Func {
+    let mut f = m.func("rt:cleanup_cancel", vec![Val::I32], vec![]);
     let wait = f.local(Val::I32);
     cancel_guard(&mut f);
     continue_cleanup(&mut f, wait);
@@ -1532,16 +1548,16 @@ fn cleanup_cancel() -> Func {
 
 /// [`Helper::PendingCold`]: `() -> frame`, a frame that never completes,
 /// for std's `timeout!`.
-fn pending_cold(results: &[Val]) -> Func {
-    let mut f = Func::new("rt:pending_cold", vec![], vec![Val::I32]);
+fn pending_cold(m: &Module, results: &[Val]) -> Func {
+    let mut f = m.func("rt:pending_cold", vec![], vec![Val::I32]);
     let fr = new_zeroed(&mut f, F_SAVED, None, false);
     f.get(fr);
-    f.push(Ins::TableSlot(Sym::Helper(Helper::PendingPoll {
+    f.table_slot(Sym::Helper(Helper::PendingPoll {
         results: results.to_vec(),
-    })));
+    }));
     f.op(Instruction::I32Store(mem(HEAP, F_POLL, 2)));
     f.get(fr);
-    f.push(Ins::TableSlot(Sym::Helper(Helper::PendingCancel)));
+    f.table_slot(Sym::Helper(Helper::PendingCancel));
     f.op(Instruction::I32Store(mem(HEAP, F_CANCEL, 2)));
     f.get(fr);
     f
@@ -1549,10 +1565,10 @@ fn pending_cold(results: &[Val]) -> Func {
 
 /// [`Helper::PendingPoll`]: Pending whether or not it was cancelled; it
 /// registers no wake, since nothing will wake it.
-fn pending_poll(results: &[Val]) -> Func {
+fn pending_poll(m: &Module, results: &[Val]) -> Func {
     let mut res = vec![Val::I32];
     res.extend(results.iter().copied());
-    let mut f = Func::new("rt:pending_poll", vec![Val::I32], res.clone());
+    let mut f = m.func("rt:pending_poll", vec![Val::I32], res.clone());
     f.get(0);
     f.helper(Helper::PollCheck);
     f.op(Instruction::Drop);
@@ -1583,9 +1599,9 @@ fn race_area(results: &[Val]) -> (Vec<(u32, Val)>, u32) {
 
 /// [`Helper::RaceCold`]: `(list) -> frame`, `race!`'s frame over its
 /// list of tasks, which it holds with a count of its own.
-fn race_cold(results: &[Val], walk: Option<&Walk>) -> Func {
+fn race_cold(m: &Module, results: &[Val], walk: Option<&Walk>) -> Func {
     let (_, size) = race_area(results);
-    let mut f = Func::new("rt:race_cold", vec![Val::I32], vec![Val::I32]);
+    let mut f = m.func("rt:race_cold", vec![Val::I32], vec![Val::I32]);
     let drop = Sym::Helper(Helper::RaceDrop {
         results: results.to_vec(),
         walk: walk.cloned(),
@@ -1597,10 +1613,10 @@ fn race_cold(results: &[Val], walk: Option<&Walk>) -> Func {
         walk: walk.cloned(),
     };
     f.get(fr);
-    f.push(Ins::TableSlot(Sym::Helper(h(1))));
+    f.table_slot(Sym::Helper(h(1)));
     f.op(Instruction::I32Store(mem(HEAP, F_POLL, 2)));
     f.get(fr);
-    f.push(Ins::TableSlot(Sym::Helper(h(2))));
+    f.table_slot(Sym::Helper(h(2)));
     f.op(Instruction::I32Store(mem(HEAP, F_CANCEL, 2)));
     f.get(fr);
     f.get(0);
@@ -1680,11 +1696,11 @@ fn cancel_tasks(f: &mut Func, skip: Option<u32>, wait: u32) {
 /// task is cancelled in list order before it returns, the winner's value
 /// waiting in the frame while a loser unwinds. A task that another task
 /// cancelled cancels the race. An empty list panics.
-fn race_poll(results: &[Val]) -> Func {
+fn race_poll(m: &Module, results: &[Val]) -> Func {
     let (area, _) = race_area(results);
     let mut res = vec![Val::I32];
     res.extend(results.iter().copied());
-    let mut f = Func::new("rt:race_poll", vec![Val::I32], res);
+    let mut f = m.func("rt:race_poll", vec![Val::I32], res);
     let (i, c, ready, wait) = (
         f.local(Val::I32),
         f.local(Val::I32),
@@ -1779,8 +1795,8 @@ fn race_poll(results: &[Val]) -> Func {
 
 /// [`Helper::Race`] part 2, the cancel: every task, in list order; a
 /// loser left unwinding keeps the race unwinding.
-fn race_cancel() -> Func {
-    let mut f = Func::new("rt:race_cancel", vec![Val::I32], vec![]);
+fn race_cancel(m: &Module) -> Func {
+    let mut f = m.func("rt:race_cancel", vec![Val::I32], vec![]);
     let wait = f.local(Val::I32);
     cancel_guard(&mut f);
     cancel_tasks(&mut f, None, wait);
@@ -1790,9 +1806,9 @@ fn race_cancel() -> Func {
 
 /// [`Helper::RaceDrop`]: one count less on the list, and on a winner's
 /// value that no poll handed out.
-fn race_drop(results: &[Val], walk: Option<&Walk>) -> Func {
+fn race_drop(m: &Module, results: &[Val], walk: Option<&Walk>) -> Func {
     let (area, _) = race_area(results);
-    let mut f = Func::new("rt:race_drop", vec![Val::I32], vec![]);
+    let mut f = m.func("rt:race_drop", vec![Val::I32], vec![]);
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, u64::from(RACE_LIST), 2)));
     f.helper(Helper::ReleaseRef);
@@ -1822,24 +1838,25 @@ fn race_drop(results: &[Val], walk: Option<&Walk>) -> Func {
 /// frame but for its poll: its cancel cancels the child and unwinds while
 /// the child does, and its glue releases the child.
 fn open_cold(
+    m: &Module,
     leaves: &[Leaf],
     walk: Option<&Walk>,
     counts: bool,
     reference: Option<&crate::rt::RefLayout>,
 ) -> Func {
-    let mut f = Func::new("rt:open_cold", vec![Val::I32], vec![Val::I32]);
+    let mut f = m.func("rt:open_cold", vec![Val::I32], vec![Val::I32]);
     let fr = new_zeroed(&mut f, F_SAVED, Some(Sym::Helper(Helper::ChildDrop)), true);
     f.get(fr);
-    f.push(Ins::TableSlot(Sym::Helper(Helper::OpenFrame {
+    f.table_slot(Sym::Helper(Helper::OpenFrame {
         part: 1,
         reference: reference.cloned(),
         leaves: leaves.to_vec(),
         walk: walk.cloned(),
         counts,
-    })));
+    }));
     f.op(Instruction::I32Store(mem(HEAP, F_POLL, 2)));
     f.get(fr);
-    f.push(Ins::TableSlot(Sym::Helper(Helper::CleanupCancel)));
+    f.table_slot(Sym::Helper(Helper::CleanupCancel));
     f.op(Instruction::I32Store(mem(HEAP, F_CANCEL, 2)));
     f.get(fr);
     f.get(0);
@@ -1852,6 +1869,7 @@ fn open_cold(
 /// is Ready answers the value its open result holds, with counts of its
 /// own, and releases the open result.
 fn open_poll(
+    m: &Module,
     leaves: &[Leaf],
     walk: Option<&Walk>,
     counts: bool,
@@ -1860,7 +1878,7 @@ fn open_poll(
     let vals: Vec<Val> = leaves.iter().map(|l| l.val).collect();
     let mut res = vec![Val::I32];
     res.extend(vals.iter().copied());
-    let mut f = Func::new("rt:open_poll", vec![Val::I32], res);
+    let mut f = m.func("rt:open_poll", vec![Val::I32], res);
     let (c, ready, o) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
     let xs: Vec<u32> = vals.iter().map(|v| f.local(*v)).collect();
     let pending = |f: &mut Func| {
@@ -1928,7 +1946,8 @@ mod origin_tests {
     use super::*;
     #[test]
     fn frame_guard_uses_scope_for_setup_and_return_for_early_exit() {
-        let mut f = Func::new("guarded", vec![Val::I32], vec![]);
+        let m = Module::default();
+        let mut f = m.func("guarded", vec![Val::I32], vec![]);
         f.body = vec![Ins::Op(Instruction::Return)];
         f.origins = Some(vec![Some(10)]);
         f.origin_root = Some(99);
@@ -1957,7 +1976,7 @@ mod tests {
     use std::process::{Command, Stdio};
 
     use super::{Helper, Instruction as I, W_READY, W_SLOT};
-    use crate::module::{Func, HEAP, Module, Sym, Val, mem};
+    use crate::module::{HEAP, Module, Sym, Val, mem};
 
     #[test]
     fn weak_waiters_ignore_reused_and_exhausted_generations() {
@@ -1974,21 +1993,21 @@ mod tests {
             .into_iter()
             .enumerate()
         {
-            let mut f = Func::new(name, vec![Val::I32], vec![Val::I32]);
+            let mut f = m.func(name, vec![Val::I32], vec![Val::I32]);
             f.get(0);
             f.op(I::I32Load(mem(HEAP, offset, 2)));
             let key = Sym::Inst(hd_base::Hash128(index as u128 + 1));
             m.define(key.clone(), f);
             m.export(name, key);
         }
-        let mut f = Func::new("notify", vec![Val::I32], vec![]);
+        let mut f = m.func("notify", vec![Val::I32], vec![]);
         f.get(0);
         f.op(I::I32Load(mem(HEAP, 0, 2)));
         f.helper(Helper::WakeNotify);
         let key = Sym::Inst(hd_base::Hash128(3));
         m.define(key.clone(), f);
         m.export("notify", key);
-        let mut f = Func::new("generation", vec![Val::I32; 2], vec![]);
+        let mut f = m.func("generation", vec![Val::I32; 2], vec![]);
         f.get(0);
         f.helper(Helper::WakerSlot);
         f.get(1);
@@ -1996,7 +2015,7 @@ mod tests {
         let key = Sym::Inst(hd_base::Hash128(4));
         m.define(key.clone(), f);
         m.export("generation", key);
-        let mut f = Func::new("peek", vec![Val::I32; 2], vec![Val::I32]);
+        let mut f = m.func("peek", vec![Val::I32; 2], vec![Val::I32]);
         f.get(0);
         f.get(1);
         f.op(I::I32Add);

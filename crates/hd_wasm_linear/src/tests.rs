@@ -3,7 +3,7 @@
 use hd_base::Hash128;
 
 use crate::boundary::{LEnum, LList, LTy};
-use crate::module::{Func, Module, Sym, Val};
+use crate::module::{Module, Sym, Val};
 use crate::rt::{Elem, Helper};
 
 fn validate(wasm: &[u8]) {
@@ -18,7 +18,8 @@ fn validate(wasm: &[u8]) {
 fn an_empty_entry_links_two_memories_and_the_entry_exports() {
     let mut m = Module::default();
     let main = Hash128(7);
-    m.define(Sym::Inst(main), Func::new("main", vec![], vec![]));
+    let main_func = m.func("main", vec![], vec![]);
+    m.define(Sym::Inst(main), main_func);
     m.export("hd.init", Sym::Helper(Helper::EntryInit { inits: vec![] }));
     m.export(
         "hd.poll",
@@ -56,12 +57,13 @@ fn an_empty_entry_links_two_memories_and_the_entry_exports() {
 /// than the bound, and the stack is a third memory.
 #[test]
 fn wide_signatures_pass_through_the_shadow_stack() {
-    use wasm_encoder::Instruction as I;
+    use crate::op::Op as I;
     let n = u32::try_from(crate::wide::WIDTH).expect("width") + 36;
     let vals = vec![Val::I32; n as usize];
     let wide = Sym::Inst(Hash128(9));
     // Returns its arguments reversed, early when the first is zero.
-    let mut w = Func::new("wide", vals.clone(), vals.clone());
+    let mut m = Module::default();
+    let mut w = m.func("wide", vals.clone(), vals.clone());
     w.get(0);
     w.op(I::I32Eqz);
     w.op(I::If(wasm_encoder::BlockType::Empty));
@@ -73,16 +75,15 @@ fn wide_signatures_pass_through_the_shadow_stack() {
     for k in (0..n).rev() {
         w.get(k);
     }
-    let mut m = Module::default();
     m.define(wide.clone(), w);
     let main = Hash128(7);
-    let mut f = Func::new("main", vec![], vec![]);
+    let mut f = m.func("main", vec![], vec![]);
     for indirect in [false, true] {
         for k in 0..n {
             f.i32(i32::try_from(k).expect("k"));
         }
         if indirect {
-            f.push(crate::module::Ins::TableSlot(wide.clone()));
+            f.table_slot(wide.clone());
             f.call_indirect(vals.clone(), vals.clone());
         } else {
             f.call(wide.clone());
@@ -144,7 +145,7 @@ fn static_bytes_and_vtables_are_shared_by_content() {
 fn every_runtime_helper_validates() {
     let mut m = Module::default();
     let main = Hash128(9);
-    let mut f = Func::new("main", vec![Val::I32; 4], vec![]);
+    let mut f = m.func("main", vec![Val::I32; 4], vec![]);
     for h in [
         Helper::Panic("explicit-panic: x".into()),
         Helper::ForbidCheck,
@@ -161,21 +162,21 @@ fn every_runtime_helper_validates() {
     f.i32(0);
     f.i32(0);
     f.helper(Helper::ToBuf);
-    f.op(wasm_encoder::Instruction::Drop);
+    f.op(crate::op::Op::Drop);
     f.i32(8);
     f.helper(Helper::Alloc);
-    f.op(wasm_encoder::Instruction::Drop);
+    f.op(crate::op::Op::Drop);
     for signed in [false, true] {
-        f.op(wasm_encoder::Instruction::I64Const(-5));
+        f.op(crate::op::Op::I64Const(-5));
         f.helper(Helper::FmtInt { signed });
-        f.op(wasm_encoder::Instruction::Drop);
-        f.op(wasm_encoder::Instruction::Drop);
+        f.op(crate::op::Op::Drop);
+        f.op(crate::op::Op::Drop);
     }
     for _ in 0..4 {
         f.i32(0);
     }
     f.helper(Helper::StrEq);
-    f.op(wasm_encoder::Instruction::Drop);
+    f.op(crate::op::Op::Drop);
     m.define(Sym::Inst(main), f);
     let console = m.vtable(vec![Sym::Helper(Helper::HostCold {
         module: "hd:Console".into(),
@@ -308,12 +309,11 @@ fn every_boundary_type() -> LTy {
 
 #[test]
 fn instruction_origins_do_not_change_bytes_and_offsets_match_operators() {
-    use crate::module::Ins;
     for helper in [Helper::RefIsView, Helper::RefViewsAbsent] {
         let make = |tracked: bool| {
             let mut m = Module::default();
             m.track_origins = tracked;
-            let mut f = Func::new("mapped", vec![Val::I32], vec![Val::I32]);
+            let mut f = m.func("mapped", vec![Val::I32], vec![Val::I32]);
             if tracked {
                 f.origins = Some(Vec::new());
                 f.origin_item = Some("app/main/mapped".into());
@@ -324,7 +324,7 @@ fn instruction_origins_do_not_change_bytes_and_offsets_match_operators() {
                 f.get(0);
             }
             f.origin_at = Some(11);
-            f.push(Ins::Call(Sym::Helper(helper.clone())));
+            f.call(Sym::Helper(helper.clone()));
             m.define(Sym::Inst(Hash128(7)), f);
             m.export("mapped", Sym::Inst(Hash128(7)));
             m

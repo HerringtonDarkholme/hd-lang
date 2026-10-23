@@ -32,6 +32,7 @@
 //!   `T` crosses boxed is wrapped in a frame whose poll unboxes the
 //!   result (`Helper::OpenFrame`).
 
+use crate::op::Op as I;
 use hd_base::{DefId, Hash128, InstId, StageResult};
 use hd_mono::layout::CanonMemo;
 use hd_mono::{
@@ -41,7 +42,6 @@ use hd_mono::{
 };
 use hd_tir::ir::{Callee, NONE, Ref, Tag};
 use hd_types::{Ty, TyList};
-use wasm_encoder::Instruction as I;
 
 use super::value::Src;
 use super::{Ctl, Em};
@@ -169,7 +169,7 @@ pub(super) fn thunk(input: &Input<'_>, m: &mut Module, id: InstId) -> StageResul
         em.vals(rty)?
     };
     em.results.clone_from(&results);
-    em.f = Func::new(
+    em.f = em.m.func(
         format!("{}#thunk{at}", (input.path)(item)),
         params,
         results.clone(),

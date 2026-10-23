@@ -4,9 +4,10 @@
 //! and the host provider stubs. Each is a [`Helper`], built once on its
 //! first request.
 
+use crate::op::Op as Instruction;
 use hd_base::{DefId, Hash128, StageResult};
 use hd_types::{Ty, TyData, TyList};
-use wasm_encoder::{BlockType, Instruction};
+use wasm_encoder::BlockType;
 
 use crate::layout::{Leaf, Walk};
 use crate::map::{self, KeyOps};
@@ -863,7 +864,7 @@ fn collecting(m: &Module, poll: Sym) -> Sym {
 
 /// [`Helper::CheckedPoll`].
 fn checked_poll(poll: &Helper, reinit: &[Hash128], m: &Module) -> Func {
-    let mut f = Func::new("rt:checked_poll", vec![Val::I32], vec![Val::I32]);
+    let mut f = m.func("rt:checked_poll", vec![Val::I32], vec![Val::I32]);
     let Some((r, c)) = m.runtime.and_then(|r| Some((r, r.checked?))) else {
         return f;
     };
@@ -929,7 +930,7 @@ fn checked_poll(poll: &Helper, reinit: &[Hash128], m: &Module) -> Func {
 /// [`Helper::Teardown`]: each binding [`Module::stored`] names releases
 /// its values, from its globals or its static slot, and is zeroed.
 fn teardown(m: &Module) -> Func {
-    let mut f = Func::new("rt:teardown", vec![], vec![]);
+    let mut f = m.func("rt:teardown", vec![], vec![]);
     for (h, s) in &m.stored {
         let ls: Vec<u32> = s.vals.iter().map(|v| f.local(*v)).collect();
         for (k, (v, l)) in s.vals.iter().zip(&ls).enumerate() {
@@ -1116,7 +1117,7 @@ fn dyn_read(
 ) -> Func {
     let mut all = vec![Val::I32];
     all.extend(params.iter().copied());
-    let mut f = Func::new("rt:dyn_read", all, results.to_vec());
+    let mut f = m.func("rt:dyn_read", all, results.to_vec());
     let held = ref_load(&mut f, 0, &read.value);
     let rvals: Vec<Val> = ref_vals(&read.value);
     let recv = |f: &mut Func| {
@@ -1161,7 +1162,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
     #[cfg_attr(not(feature = "checked-report"), allow(unused_mut))]
     let mut f = match h {
         Helper::RefViewsAbsent => {
-            let mut f = Func::new("rt:ref_views_absent", vec![], vec![Val::I32]);
+            let mut f = m.func("rt:ref_views_absent", vec![], vec![Val::I32]);
             f.i32(0);
             f
         }
@@ -1180,7 +1181,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             } else {
                 ("rt:rem_f64", crate::rem::rem_f64_code())
             };
-            let mut f = Func::new(name, vec![Val::F64, Val::F64], vec![Val::F64]);
+            let mut f = m.func(name, vec![Val::F64, Val::F64], vec![Val::F64]);
             f.raw = Some(code);
             f
         }
@@ -1221,19 +1222,19 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             inner,
             params,
             results,
-        } => crate::boundary::handle_slot(inner, params, results),
-        Helper::Fit => crate::boundary::fit(),
-        Helper::LebPut => crate::boundary::leb_put(),
-        Helper::LebGet => crate::boundary::leb_get(),
+        } => crate::boundary::handle_slot(m, inner, params, results),
+        Helper::Fit => crate::boundary::fit(m),
+        Helper::LebPut => crate::boundary::leb_put(m),
+        Helper::LebGet => crate::boundary::leb_get(m),
         Helper::Enc(b) => crate::boundary::enc(b, m),
         Helper::Dec(b) => crate::boundary::dec(b, m),
         Helper::EntryCall { func } => {
-            let mut f = Func::new("rt:entry_call", vec![], vec![Val::I32]);
+            let mut f = m.func("rt:entry_call", vec![], vec![Val::I32]);
             f.call(Sym::Inst(*func));
             f
         }
         Helper::EntryReset => {
-            let mut f = Func::new("rt:entry_reset", vec![], vec![]);
+            let mut f = m.func("rt:entry_reset", vec![], vec![]);
             for g in [
                 Global::Forbid,
                 Global::Aband,
@@ -1254,7 +1255,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f
         }
         Helper::EntryInit { inits } => {
-            let mut f = Func::new("rt:entry_init", vec![], vec![]);
+            let mut f = m.func("rt:entry_init", vec![], vec![]);
             for (k, forbid) in inits {
                 // A program that links no collector needs no collector state.
                 if !(m.acyclic && m.cycle_insts.contains(k)) {
@@ -1270,7 +1271,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             report,
             then: _,
             bang: Some(rvals),
-        } => crate::task::root_poll(*main, providers, rvals, *report),
+        } => crate::task::root_poll(m, *main, providers, rvals, *report),
         Helper::EntryPoll {
             main,
             providers,
@@ -1281,7 +1282,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         } => {
             // Parameter 0 is the driver's `PollContext`; a plain entry
             // ignores it.
-            let mut f = Func::new("rt:entry_poll", vec![Val::I32], vec![Val::I32]);
+            let mut f = m.func("rt:entry_poll", vec![Val::I32], vec![Val::I32]);
             host_providers(&mut f, providers);
             f.call(Sym::Inst(*main));
             if let Some(k) = report {
@@ -1310,7 +1311,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         }
         Helper::CheckedPoll { poll, reinit } => checked_poll(poll, reinit, m),
         Helper::CollectPoll { poll } => {
-            let mut f = Func::new("rt:collect_poll", vec![Val::I32], vec![Val::I32]);
+            let mut f = m.func("rt:collect_poll", vec![Val::I32], vec![Val::I32]);
             f.get(0);
             f.helper((**poll).clone());
             if !m.acyclic {
@@ -1323,7 +1324,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::CycleTrace => {
             // The glue's releases go to the collector's `visit` while
             // `Tracing` is set (`release_ref`).
-            let mut f = Func::new("rt:cycle_trace", vec![Val::I32; 3], vec![]);
+            let mut f = m.func("rt:cycle_trace", vec![Val::I32; 3], vec![]);
             let desc = f.local(Val::I32);
             f.get(1);
             f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
@@ -1346,13 +1347,13 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f
         }
         Helper::CycleRelease => {
-            let mut f = Func::new("rt:cycle_release", vec![Val::I32; 3], vec![]);
+            let mut f = m.func("rt:cycle_release", vec![Val::I32; 3], vec![]);
             f.get(1);
             f.helper(Helper::ReleaseRef);
             f
         }
         Helper::Opaque => {
-            let mut f = Func::new("rt:opaque", vec![Val::I32], vec![]);
+            let mut f = m.func("rt:opaque", vec![Val::I32], vec![]);
             if let Some(r) = m.runtime {
                 f.get(0);
                 f.call(Sym::Inst(r.cycle.opaque));
@@ -1360,7 +1361,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f
         }
         Helper::CycleFree => {
-            let mut f = Func::new("rt:cycle_free", vec![Val::I32; 3], vec![]);
+            let mut f = m.func("rt:cycle_free", vec![Val::I32; 3], vec![]);
             #[cfg(feature = "checked-report")]
             if let Some(c) = m.runtime.and_then(|r| r.checked) {
                 f.get(1);
@@ -1370,14 +1371,14 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f
         }
         Helper::Panic(msg) => {
-            let mut f = Func::new("rt:panic", vec![], vec![]);
+            let mut f = m.func("rt:panic", vec![], vec![]);
             f.call(rt_import("panic", &[], &[]));
             write_lit(&mut f, m, &format!("{msg}\n"));
             f.op(Instruction::Unreachable);
             f
         }
         Helper::PanicStr => {
-            let mut f = Func::new("rt:panic_str", vec![Val::I32, Val::I32], vec![]);
+            let mut f = m.func("rt:panic_str", vec![Val::I32, Val::I32], vec![]);
             f.call(rt_import("panic", &[], &[]));
             write_lit(&mut f, m, "explicit-panic: ");
             write_str(&mut f, 0);
@@ -1386,7 +1387,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f
         }
         Helper::PanicWith => {
-            let mut f = Func::new("rt:panic_with", vec![Val::I32; 4], vec![]);
+            let mut f = m.func("rt:panic_with", vec![Val::I32; 4], vec![]);
             f.call(rt_import("panic", &[], &[]));
             write_str(&mut f, 0);
             f.get(3);
@@ -1399,7 +1400,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f
         }
         Helper::ToBuf => {
-            let mut f = Func::new("rt:to_buf", vec![Val::I32, Val::I32], vec![Val::I32]);
+            let mut f = m.func("rt:to_buf", vec![Val::I32, Val::I32], vec![Val::I32]);
             // Grow the buffer by the pages the text needs beyond its size.
             f.get(1);
             f.op(Instruction::MemorySize(BUF));
@@ -1435,27 +1436,27 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f.get(1);
             f
         }
-        Helper::Alloc => alloc(),
-        Helper::StrEq => str_eq(),
+        Helper::Alloc => alloc(m),
+        Helper::StrEq => str_eq(m),
         Helper::New => new_object(m, None),
         Helper::NewFixed { size, cyclic } => new_object(m, Some((*size, *cyclic))),
         Helper::AllocClass { class, bytes } => alloc_class(m, *class, *bytes),
         Helper::FreeClass => free_class(m),
         Helper::Str => {
-            let mut f = Func::new("rt:str", vec![Val::I32], vec![Val::I32]);
+            let mut f = m.func("rt:str", vec![Val::I32], vec![Val::I32]);
             f.get(0);
             f.i32(0);
             f.helper(Helper::New);
             f
         }
         Helper::Retain { vals, walk } => {
-            let mut f = Func::new("rt:retain", vals.clone(), vec![]);
+            let mut f = m.func("rt:retain", vals.clone(), vec![]);
             let on = retain_call(m);
             walk_code(&mut f, walk, &|f, k| f.get(k), &on);
             f
         }
         Helper::Release { vals, walk } => {
-            let mut f = Func::new("rt:release", vals.clone(), vec![]);
+            let mut f = m.func("rt:release", vals.clone(), vec![]);
             walk_code(&mut f, walk, &|f, k| f.get(k), &|f| {
                 f.helper(Helper::ReleaseRef);
             });
@@ -1464,46 +1465,46 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         Helper::ReleaseRef => release_ref(m, false),
         Helper::ReleaseKnown => release_ref(m, true),
         Helper::RetainKnown => {
-            let mut f = Func::new("rt:retain_known", vec![Val::I32], vec![]);
+            let mut f = m.func("rt:retain_known", vec![Val::I32], vec![]);
             if let Some(r) = m.runtime {
                 f.get(0);
                 f.call(Sym::Inst(r.retain_known));
             }
             f
         }
-        Helper::DropFields { leaves, walk } => fields_glue("rt:drop", leaves, walk, &|f| {
+        Helper::DropFields { leaves, walk } => fields_glue(m, "rt:drop", leaves, walk, &|f| {
             f.helper(Helper::ReleaseRef);
         }),
         Helper::RetainFields { leaves, walk } => {
-            fields_glue("rt:retain_fields", leaves, walk, &retain_call(m))
+            fields_glue(m, "rt:retain_fields", leaves, walk, &retain_call(m))
         }
-        Helper::ListHeader { cyclic } => list_header(*cyclic),
-        Helper::ListHeaderAs => list_header_as(),
+        Helper::ListHeader { cyclic } => list_header(m, *cyclic),
+        Helper::ListHeaderAs => list_header_as(m),
         Helper::ListHeaderDrop => {
-            let mut f = Func::new("rt:list_header_drop", vec![Val::I32], vec![]);
+            let mut f = m.func("rt:list_header_drop", vec![Val::I32], vec![]);
             f.get(0);
             f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
             f.helper(Helper::ReleaseKnown);
             f
         }
-        Helper::ListPinned => list_pinned(),
-        Helper::ListClone { elem } => list_clone(elem),
-        Helper::ListBuf { elem } => list_buf(elem),
-        Helper::DropElems { elem } => drop_elems(elem),
-        Helper::ListCopy => list_copy(),
-        Helper::CtxFind => ctx_find(),
-        Helper::CtxNew => ctx_new(),
+        Helper::ListPinned => list_pinned(m),
+        Helper::ListClone { elem } => list_clone(m, elem),
+        Helper::ListBuf { elem } => list_buf(m, elem),
+        Helper::DropElems { elem } => drop_elems(m, elem),
+        Helper::ListCopy => list_copy(m),
+        Helper::CtxFind => ctx_find(m),
+        Helper::CtxNew => ctx_new(m),
         Helper::CopyElems { elem } => copy_elems(elem, m),
         Helper::ListUnique { elem } => list_unique(elem, m),
         Helper::ListGrow { elem } => list_grow(elem, m),
-        Helper::MapTable { entry } => map::table(entry),
-        Helper::DropEntries { entry } => map::drop_entries(entry),
-        Helper::MapHash { key, ops } => map::hash(key, ops),
-        Helper::MapFind { entry, ops } => map::find(entry, ops),
-        Helper::MapPut { entry, ops } => map::put(entry, ops),
+        Helper::MapTable { entry } => map::table(m, entry),
+        Helper::DropEntries { entry } => map::drop_entries(m, entry),
+        Helper::MapHash { key, ops } => map::hash(m, key, ops),
+        Helper::MapFind { entry, ops } => map::find(m, entry, ops),
+        Helper::MapPut { entry, ops } => map::put(m, entry, ops),
         Helper::MapGrow { entry } => map::grow(entry, m),
         Helper::MapUnique { entry } => map::unique(entry, m),
-        Helper::MapSlotNext => map::slot_next(),
+        Helper::MapSlotNext => map::slot_next(m),
         Helper::DynSlot {
             target,
             leaves,
@@ -1514,7 +1515,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
         } => {
             let mut all = vec![Val::I32];
             all.extend(params.iter().copied());
-            let mut f = Func::new("rt:dyn_slot", all, results.clone());
+            let mut f = m.func("rt:dyn_slot", all, results.clone());
             let recv = |f: &mut Func| match leaves {
                 Some(ls) => {
                     for l in ls {
@@ -1545,26 +1546,26 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             own,
             ctx,
         } => dyn_read(*target, read, params, results, own, ctx.as_ref(), m),
-        Helper::ListTruncate { elem } => list_truncate(elem),
+        Helper::ListTruncate { elem } => list_truncate(m, elem),
         Helper::TypeIdOf(parts) => type_id(parts, vec![], m),
         Helper::RuntimeType(parts) => type_id(parts, vec![Val::I32], m),
         Helper::MapStep {
             entry,
             opt,
             results,
-        } => map::step(entry, opt, results),
+        } => map::step(m, entry, opt, results),
         Helper::DynTrap { params, results } => {
-            let mut f = Func::new("rt:dyn_trap", params.clone(), results.clone());
+            let mut f = m.func("rt:dyn_trap", params.clone(), results.clone());
             f.op(Instruction::Unreachable);
             f
         }
-        Helper::StrFromBytes => str_from_bytes(),
-        Helper::ConcatAll => concat_all(),
-        Helper::StrCmp => str_cmp(),
-        Helper::HostPrim { name, args, result } => host_prim(name, args, *result),
-        Helper::FmtInt { signed } => fmt_int(*signed),
+        Helper::StrFromBytes => str_from_bytes(m),
+        Helper::ConcatAll => concat_all(m),
+        Helper::StrCmp => str_cmp(m),
+        Helper::HostPrim { name, args, result } => host_prim(m, name, args, *result),
+        Helper::FmtInt { signed } => fmt_int(m, *signed),
         Helper::ForbidCheck => {
-            let mut f = Func::new("rt:forbid_check", vec![], vec![]);
+            let mut f = m.func("rt:forbid_check", vec![], vec![]);
             f.global_get(Global::Forbid);
             f.op(Instruction::If(BlockType::Empty));
             f.helper(Helper::Panic(
@@ -1574,7 +1575,7 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f
         }
         Helper::RetainAny => {
-            let mut f = Func::new("rt:retain_any", vec![Val::I32], vec![]);
+            let mut f = m.func("rt:retain_any", vec![Val::I32], vec![]);
             if let Some(r) = m.runtime {
                 f.get(0);
                 f.call(Sym::Inst(r.retain));
@@ -1596,8 +1597,8 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
 /// grows for itself, so it never reaches a page that `std.rt.memory.grow`
 /// gave std (`module.rt.memory.grow.owner`); the rest of its old pages is
 /// left unused.
-fn alloc() -> Func {
-    let mut f = Func::new("rt:alloc", vec![Val::I32], vec![Val::I32]);
+fn alloc(m: &Module) -> Func {
+    let mut f = m.func("rt:alloc", vec![Val::I32], vec![Val::I32]);
     let (at, n, pages) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
     let exhausted = |f: &mut Func| {
         f.op(Instruction::If(BlockType::Empty));
@@ -1665,8 +1666,8 @@ fn alloc() -> Func {
 
 /// [`Helper::FmtInt`]: the digits go backward into a 20-byte buffer,
 /// the most a `u64` or a signed `i64` needs; the string is its tail.
-fn fmt_int(signed: bool) -> Func {
-    let mut f = Func::new(
+fn fmt_int(m: &Module, signed: bool) -> Func {
+    let mut f = m.func(
         if signed { "rt:fmt_i64" } else { "rt:fmt_u64" },
         vec![Val::I64],
         vec![Val::I32, Val::I32],
@@ -1745,8 +1746,8 @@ fn fmt_int(signed: bool) -> Func {
 }
 
 /// [`Helper::StrEq`]: equal lengths, then each byte.
-fn str_eq() -> Func {
-    let mut f = Func::new("rt:str_eq", vec![Val::I32; 4], vec![Val::I32]);
+fn str_eq(m: &Module) -> Func {
+    let mut f = m.func("rt:str_eq", vec![Val::I32; 4], vec![Val::I32]);
     let k = f.local(Val::I32);
     f.get(1);
     f.get(3);
@@ -1787,8 +1788,8 @@ fn str_eq() -> Func {
 
 /// [`Helper::StrCmp`]: the first differing byte decides; when the shorter
 /// is a prefix of the longer, the lengths do.
-fn str_cmp() -> Func {
-    let mut f = Func::new("rt:str_cmp", vec![Val::I32; 4], vec![Val::I32]);
+fn str_cmp(m: &Module) -> Func {
+    let mut f = m.func("rt:str_cmp", vec![Val::I32; 4], vec![Val::I32]);
     let (k, n, x, y) = (
         f.local(Val::I32),
         f.local(Val::I32),
@@ -1850,7 +1851,7 @@ fn str_cmp() -> Func {
 /// length and then its bytes, and answers the encoding's length, so the
 /// bytes are what follows the prefix: the bytes up to the first without
 /// its high bit.
-fn host_prim(name: &str, args: &[PrimArg], result: Option<Val>) -> Func {
+fn host_prim(m: &Module, name: &str, args: &[PrimArg], result: Option<Val>) -> Func {
     let mut params = Vec::new();
     let mut imports = Vec::new();
     for a in args {
@@ -1869,7 +1870,7 @@ fn host_prim(name: &str, args: &[PrimArg], result: Option<Val>) -> Func {
         Some(v) => vec![v],
         None => vec![Val::I32, Val::I32],
     };
-    let mut f = Func::new(format!("rt:prim/{name}"), params, results);
+    let mut f = m.func(format!("rt:prim/{name}"), params, results);
     let mut p = 0;
     for a in args {
         f.get(p);
@@ -2024,8 +2025,14 @@ pub(crate) fn walk_code(
 
 /// A `(payload)` glue function: loads every leaf of the payload, then
 /// walks them.
-fn fields_glue(name: &str, leaves: &[Leaf], walk: &Walk, on: &dyn Fn(&mut Func)) -> Func {
-    let mut f = Func::new(name, vec![Val::I32], vec![]);
+fn fields_glue(
+    m: &Module,
+    name: &str,
+    leaves: &[Leaf],
+    walk: &Walk,
+    on: &dyn Fn(&mut Func),
+) -> Func {
+    let mut f = m.func(name, vec![Val::I32], vec![]);
     let ls: Vec<u32> = leaves.iter().map(|l| f.local(l.val)).collect();
     for (l, at) in leaves.iter().zip(&ls) {
         f.get(0);
@@ -2042,7 +2049,7 @@ fn fields_glue(name: &str, leaves: &[Leaf], walk: &Walk, on: &dyn Fn(&mut Func))
 pub(crate) fn push_desc(f: &mut Func, glue: Option<Sym>, cyclic: bool) {
     match glue {
         Some(g) => {
-            f.push(Ins::TableSlot(g));
+            f.table_slot(g);
             f.u32(if cyclic { CYCLIC + 1 } else { 1 });
             f.op(Instruction::I32Add);
         }
@@ -2104,7 +2111,7 @@ fn allocated_slot(f: &mut Func, page: u32, slot: u32) {
 /// The last available slot, a missing page/table, and page-list maintenance
 /// stay in std. There is no call between reading metadata and updating it.
 fn alloc_class(m: &Module, class: u32, bytes: u32) -> Func {
-    let mut f = Func::new(
+    let mut f = m.func(
         format!("rt:alloc_class/{class}"),
         vec![Val::I32],
         vec![Val::I32],
@@ -2192,7 +2199,7 @@ fn alloc_class(m: &Module, class: u32, bytes: u32) -> Func {
 /// live decrement. Empty head pages remain cached. Other pages use std's
 /// known-class slow path; buffered candidates keep the collector's free.
 fn free_class(m: &Module) -> Func {
-    let mut f = Func::new("rt:free_class", vec![Val::I32], vec![]);
+    let mut f = m.func("rt:free_class", vec![Val::I32], vec![]);
     let Some(r) = m.runtime else {
         return f;
     };
@@ -2300,7 +2307,7 @@ fn new_object(m: &Module, fixed: Option<(u32, bool)>) -> Func {
         || "rt:new".into(),
         |(class, _)| format!("rt:new/class-{class}"),
     );
-    let mut f = Func::new(name, vec![Val::I32, Val::I32], vec![Val::I32]);
+    let mut f = m.func(name, vec![Val::I32, Val::I32], vec![Val::I32]);
     let block = f.local(Val::I32);
     let cycles = m.runtime.filter(|_| !m.acyclic);
     if let Some(r) = cycles {
@@ -2358,12 +2365,12 @@ fn new_object(m: &Module, fixed: Option<(u32, bool)>) -> Func {
 
 /// [`Helper::Collect`].
 fn collect(m: &Module) -> Func {
-    let mut f = Func::new("rt:collect", vec![], vec![]);
+    let mut f = m.func("rt:collect", vec![], vec![]);
     let Some(r) = m.runtime.filter(|_| !m.acyclic) else {
         return f;
     };
     for h in [Helper::CycleTrace, Helper::CycleRelease, Helper::CycleFree] {
-        f.push(Ins::TableSlot(Sym::Helper(h)));
+        f.table_slot(Sym::Helper(h));
         f.i32(0);
     }
     f.call(Sym::Inst(r.cycle.collect));
@@ -2378,7 +2385,7 @@ fn collect(m: &Module) -> Func {
 /// reference goes to its `visit` instead, checked here so that `visit` is
 /// called only during a collection (§23.28).
 fn release_ref(m: &Module, known: bool) -> Func {
-    let mut f = Func::new("rt:release_ref", vec![Val::I32], vec![]);
+    let mut f = m.func("rt:release_ref", vec![Val::I32], vec![]);
     let Some(r) = m.runtime else {
         return f;
     };
@@ -2455,8 +2462,8 @@ fn release_ref(m: &Module, known: bool) -> Func {
 /// still has an owner word gives the word up, as its buffer is shared now.
 /// Exposed ancestors stay unshared even without a direct pin: their
 /// recursively copied elements may contain a still-pinned descendant.
-fn list_copy() -> Func {
-    let mut f = Func::new("rt:list_copy", vec![Val::I32], vec![Val::I32]);
+fn list_copy(m: &Module) -> Func {
+    let mut f = m.func("rt:list_copy", vec![Val::I32], vec![Val::I32]);
     let (b, own) = (f.local(Val::I32), f.local(Val::I32));
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
@@ -2506,8 +2513,8 @@ fn list_copy() -> Func {
 }
 
 /// [`Helper::ListPinned`].
-fn list_pinned() -> Func {
-    let mut f = Func::new("rt:list_pinned", vec![Val::I32], vec![Val::I32]);
+fn list_pinned(m: &Module) -> Func {
+    let mut f = m.func("rt:list_pinned", vec![Val::I32], vec![Val::I32]);
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, LIST_OWN, 2)));
     f.i32(0);
@@ -2524,8 +2531,8 @@ fn list_pinned() -> Func {
 }
 
 /// [`Helper::ListClone`].
-fn list_clone(elem: &Elem) -> Func {
-    let mut f = Func::new("rt:list_clone", vec![Val::I32], vec![Val::I32]);
+fn list_clone(m: &Module, elem: &Elem) -> Func {
+    let mut f = m.func("rt:list_clone", vec![Val::I32], vec![Val::I32]);
     let (b, n, nb) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
@@ -2567,8 +2574,8 @@ fn list_clone(elem: &Elem) -> Func {
 }
 
 /// [`Helper::ListHeaderAs`].
-fn list_header_as() -> Func {
-    let mut f = Func::new("rt:list_header_as", vec![Val::I32; 2], vec![Val::I32]);
+fn list_header_as(m: &Module) -> Func {
+    let mut f = m.func("rt:list_header_as", vec![Val::I32; 2], vec![Val::I32]);
     let h = f.local(Val::I32);
     f.i32(8);
     push_desc(&mut f, Some(Sym::Helper(Helper::ListHeaderDrop)), false);
@@ -2586,8 +2593,8 @@ fn list_header_as() -> Func {
     f
 }
 
-fn list_header(cyclic: bool) -> Func {
-    let mut f = Func::new("rt:list_header", vec![Val::I32], vec![Val::I32]);
+fn list_header(m: &Module, cyclic: bool) -> Func {
+    let mut f = m.func("rt:list_header", vec![Val::I32], vec![Val::I32]);
     let h = f.local(Val::I32);
     f.i32(8);
     push_desc(&mut f, Some(Sym::Helper(Helper::ListHeaderDrop)), cyclic);
@@ -2605,8 +2612,8 @@ fn list_header(cyclic: bool) -> Func {
 
 /// [`Helper::ListBuf`]: a capacity whose bytes pass 4 GiB is
 /// `heap-exhausted`.
-fn list_buf(elem: &Elem) -> Func {
-    let mut f = Func::new("rt:list_buf", vec![Val::I32], vec![Val::I32]);
+fn list_buf(m: &Module, elem: &Elem) -> Func {
+    let mut f = m.func("rt:list_buf", vec![Val::I32], vec![Val::I32]);
     let b = f.local(Val::I32);
     if let Some(most) =
         (u32::MAX - LIST_ELEMS - HEADER - crate::module::CYCLE_WORD).checked_div(elem.size)
@@ -2643,8 +2650,8 @@ fn list_buf(elem: &Elem) -> Func {
 }
 
 /// [`Helper::CtxFind`].
-fn ctx_find() -> Func {
-    let mut f = Func::new("rt:ctx_find", vec![Val::I32, Val::I64], vec![Val::I32]);
+fn ctx_find(m: &Module) -> Func {
+    let mut f = m.func("rt:ctx_find", vec![Val::I32, Val::I64], vec![Val::I32]);
     let end = f.local(Val::I32);
     f.get(0);
     f.op(Instruction::I32Eqz);
@@ -2683,8 +2690,8 @@ fn ctx_find() -> Func {
 }
 
 /// [`Helper::CtxNew`].
-fn ctx_new() -> Func {
-    let mut f = Func::new("rt:ctx_new", vec![Val::I32, Val::I32], vec![Val::I32]);
+fn ctx_new(m: &Module) -> Func {
+    let mut f = m.func("rt:ctx_new", vec![Val::I32, Val::I32], vec![Val::I32]);
     let (len, c, at) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
     f.get(1);
     f.op(Instruction::If(BlockType::Empty));
@@ -2756,7 +2763,7 @@ fn each_elem(f: &mut Func, at: u32, n: u32, size: u32, body: &dyn Fn(&mut Func))
 /// A function of `params`, which it ignores, that returns a `TypeId`: its
 /// key and its name, two views of static data.
 fn type_id(parts: &TypeIdParts, params: Vec<Val>, m: &mut Module) -> Func {
-    let mut f = Func::new("rt:type_id", params, vec![Val::I32; 4]);
+    let mut f = m.func("rt:type_id", params, vec![Val::I32; 4]);
     for text in [&parts.name, &parts.shown] {
         f.u32(m.static_bytes(text.as_bytes(), 1));
         f.u32(u32::try_from(text.len()).expect("type name"));
@@ -2765,8 +2772,8 @@ fn type_id(parts: &TypeIdParts, params: Vec<Val>, m: &mut Module) -> Func {
 }
 
 /// [`Helper::ListTruncate`].
-fn list_truncate(elem: &Elem) -> Func {
-    let mut f = Func::new("rt:list_truncate", vec![Val::I32, Val::I32], vec![]);
+fn list_truncate(m: &Module, elem: &Elem) -> Func {
+    let mut f = m.func("rt:list_truncate", vec![Val::I32, Val::I32], vec![]);
     let (b, at, n) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
     f.get(0);
     f.helper(Helper::ListPinned);
@@ -2815,8 +2822,8 @@ fn list_truncate(elem: &Elem) -> Func {
 }
 
 /// [`Helper::DropElems`].
-fn drop_elems(elem: &Elem) -> Func {
-    let mut f = Func::new("rt:drop_elems", vec![Val::I32], vec![]);
+fn drop_elems(m: &Module, elem: &Elem) -> Func {
+    let mut f = m.func("rt:drop_elems", vec![Val::I32], vec![]);
     let (at, n) = (f.local(Val::I32), f.local(Val::I32));
     let Some(walk) = &elem.walk else {
         return f;
@@ -2854,7 +2861,7 @@ fn fill_elem(f: &mut Func, at: u32, leaves: &[Leaf], ls: &[u32]) {
 
 /// [`Helper::CopyElems`].
 fn copy_elems(elem: &Elem, m: &Module) -> Func {
-    let mut f = Func::new("rt:copy_elems", vec![Val::I32, Val::I32], vec![]);
+    let mut f = m.func("rt:copy_elems", vec![Val::I32, Val::I32], vec![]);
     let ls = load_elem_locals(&mut f, &elem.leaves);
     let walk = elem.walk.as_ref().and_then(|w| w.without(&elem.colls));
     let retain = retain_call(m);
@@ -2877,7 +2884,7 @@ fn copy_elems(elem: &Elem, m: &Module) -> Func {
 /// [`Helper::ListUnique`]: a shared buffer is copied at its length; its
 /// elements take their own counts and the old buffer one owner less.
 fn list_unique(elem: &Elem, m: &Module) -> Func {
-    let mut f = Func::new("rt:list_unique", vec![Val::I32], vec![]);
+    let mut f = m.func("rt:list_unique", vec![Val::I32], vec![]);
     let (b, n, shared, nb) = (
         f.local(Val::I32),
         f.local(Val::I32),
@@ -2954,7 +2961,7 @@ fn list_unique(elem: &Elem, m: &Module) -> Func {
 /// plus 4, and its old block is freed with no release, since its elements
 /// moved. The list owns the buffer: no other holder shares it.
 fn list_grow(elem: &Elem, m: &Module) -> Func {
-    let mut f = Func::new("rt:list_grow", vec![Val::I32], vec![]);
+    let mut f = m.func("rt:list_grow", vec![Val::I32], vec![]);
     let (b, n, nb) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
@@ -3004,8 +3011,8 @@ fn list_grow(elem: &Elem, m: &Module) -> Func {
 }
 
 /// [`Helper::StrFromBytes`]: no bytes is the static empty string.
-fn str_from_bytes() -> Func {
-    let mut f = Func::new("rt:str_from_bytes", vec![Val::I32], vec![Val::I32; 2]);
+fn str_from_bytes(m: &Module) -> Func {
+    let mut f = m.func("rt:str_from_bytes", vec![Val::I32], vec![Val::I32; 2]);
     let (b, n, s) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
     f.get(0);
     f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
@@ -3037,8 +3044,8 @@ fn str_from_bytes() -> Func {
 
 /// [`Helper::ConcatAll`]: one pass sums the lengths, a second copies;
 /// no bytes is the static empty string.
-fn concat_all() -> Func {
-    let mut f = Func::new("rt:concat_all", vec![Val::I32], vec![Val::I32; 2]);
+fn concat_all(m: &Module) -> Func {
+    let mut f = m.func("rt:concat_all", vec![Val::I32], vec![Val::I32; 2]);
     let (at, n, total, s, to) = (
         f.local(Val::I32),
         f.local(Val::I32),
@@ -3222,7 +3229,7 @@ fn ref_load_inner(f: &mut Func, at: u32, value: &RefLayout, owned: Option<u32>) 
     f.get(at);
     f.get(at);
     f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
-    f.push(Ins::CallIndirect(vec![Val::I32], vec![Val::I32]));
+    f.call_indirect(vec![Val::I32], vec![Val::I32]);
     f.set(boxed);
     ref_unbox_into(f, boxed, value, &ls);
     f.op(Instruction::Else);
@@ -3257,7 +3264,7 @@ pub(crate) fn ref_store(f: &mut Func, at: u32, ls: &[u32], value: &RefLayout) {
     f.get(boxed);
     f.get(at);
     f.op(Instruction::I32Load(mem(HEAP, 8, 2)));
-    f.push(Ins::CallIndirect(vec![Val::I32; 2], vec![]));
+    f.call_indirect(vec![Val::I32; 2], vec![]);
     f.op(Instruction::Else);
     let old: Vec<u32> = value.leaves.iter().map(|l| f.local(l.val)).collect();
     for (leaf, o) in value.leaves.iter().zip(&old) {
@@ -3287,7 +3294,7 @@ fn view_source(f: &mut Func) -> u32 {
 fn ref_helper(h: &Helper, m: &Module) -> Func {
     match h {
         Helper::RefIsView => {
-            let mut f = Func::new("rt:ref_is_view", vec![Val::I32], vec![Val::I32]);
+            let mut f = m.func("rt:ref_is_view", vec![Val::I32], vec![Val::I32]);
             let Some(r) = m.runtime else {
                 f.i32(0);
                 return f;
@@ -3314,14 +3321,14 @@ fn ref_helper(h: &Helper, m: &Module) -> Func {
             f.get(block);
             f.op(Instruction::I32Load(mem(HEAP, 4, 2)));
             glue_of(&mut f);
-            f.push(Ins::TableSlot(Sym::Helper(Helper::RefViewDrop)));
+            f.table_slot(Sym::Helper(Helper::RefViewDrop));
             f.i32(1);
             f.op(Instruction::I32Add);
             f.op(Instruction::I32Eq);
             f
         }
         Helper::RefViewDrop => {
-            let mut f = Func::new("rt:ref_view_drop", vec![Val::I32], vec![]);
+            let mut f = m.func("rt:ref_view_drop", vec![Val::I32], vec![]);
             f.get(0);
             f.op(Instruction::I32Load(mem(HEAP, 0, 2)));
             f.helper(Helper::ReleaseRef);
@@ -3331,7 +3338,7 @@ fn ref_helper(h: &Helper, m: &Module) -> Func {
             // Physical places use their address. Fields of an erased
             // word use (word, field offset), since adding the concrete
             // offset to that one word could alias an unrelated object.
-            let mut f = Func::new("rt:ref_serial", vec![Val::I32], vec![Val::I64]);
+            let mut f = m.func("rt:ref_serial", vec![Val::I32], vec![Val::I64]);
             let offset = f.local(Val::I32);
             f.op(Instruction::Block(BlockType::Empty));
             f.op(Instruction::Loop(BlockType::Empty));
@@ -3370,7 +3377,7 @@ fn ref_helper(h: &Helper, m: &Module) -> Func {
             f
         }
         Helper::RefView { source } => {
-            let mut f = Func::new("rt:ref_view", vec![Val::I32], vec![Val::I32]);
+            let mut f = m.func("rt:ref_view", vec![Val::I32], vec![Val::I32]);
             // A view already carries both representations and can cross back.
             f.get(0);
             f.helper(Helper::RefIsView);
@@ -3397,14 +3404,14 @@ fn ref_helper(h: &Helper, m: &Module) -> Func {
             f.get(0);
             f.op(Instruction::I32Store(mem(HEAP, 0, 2)));
             f.get(at);
-            f.push(Ins::TableSlot(Sym::Helper(Helper::RefGet {
+            f.table_slot(Sym::Helper(Helper::RefGet {
                 source: source.clone(),
-            })));
+            }));
             f.op(Instruction::I32Store(mem(HEAP, 4, 2)));
             f.get(at);
-            f.push(Ins::TableSlot(Sym::Helper(Helper::RefSet {
+            f.table_slot(Sym::Helper(Helper::RefSet {
                 source: source.clone(),
-            })));
+            }));
             f.op(Instruction::I32Store(mem(HEAP, 8, 2)));
             f.get(at);
             f.i32(0);
@@ -3416,14 +3423,14 @@ fn ref_helper(h: &Helper, m: &Module) -> Func {
             f
         }
         Helper::RefGet { source } => {
-            let mut f = Func::new("rt:ref_get", vec![Val::I32], vec![Val::I32]);
+            let mut f = m.func("rt:ref_get", vec![Val::I32], vec![Val::I32]);
             let src = view_source(&mut f);
             let ls = ref_load(&mut f, src, source);
             ref_box(&mut f, &ls, source);
             f
         }
         Helper::RefSet { source } => {
-            let mut f = Func::new("rt:ref_set", vec![Val::I32; 2], vec![]);
+            let mut f = m.func("rt:ref_set", vec![Val::I32; 2], vec![]);
             let ls = ref_unbox(&mut f, 1, source);
             let src = view_source(&mut f);
             ref_store(&mut f, src, &ls, source);
@@ -3459,7 +3466,7 @@ fn ref_field_helper(h: &Helper, m: &Module) -> Func {
     };
     match h {
         Helper::RefProject { .. } => {
-            let mut f = Func::new("rt:ref_project", vec![Val::I32], vec![Val::I32]);
+            let mut f = m.func("rt:ref_project", vec![Val::I32], vec![Val::I32]);
             f.get(0);
             f.helper(Helper::RefIsView);
             f.op(Instruction::I32Eqz);
@@ -3512,7 +3519,7 @@ fn ref_field_helper(h: &Helper, m: &Module) -> Func {
                 ),
             ] {
                 f.get(at);
-                f.push(Ins::TableSlot(Sym::Helper(helper)));
+                f.table_slot(Sym::Helper(helper));
                 f.op(Instruction::I32Store(mem(HEAP, slot, 2)));
             }
             f.get(at);
@@ -3525,7 +3532,7 @@ fn ref_field_helper(h: &Helper, m: &Module) -> Func {
             f
         }
         Helper::RefFieldGet { .. } => {
-            let mut f = Func::new("rt:ref_field_get", vec![Val::I32], vec![Val::I32]);
+            let mut f = m.func("rt:ref_field_get", vec![Val::I32], vec![Val::I32]);
             let src = view_source(&mut f);
             let ls = ref_load(&mut f, src, parent);
             let child = &ls[first as usize..first as usize + field.leaves.len()];
@@ -3535,7 +3542,7 @@ fn ref_field_helper(h: &Helper, m: &Module) -> Func {
             f
         }
         Helper::RefFieldSet { .. } => {
-            let mut f = Func::new("rt:ref_field_set", vec![Val::I32; 2], vec![]);
+            let mut f = m.func("rt:ref_field_set", vec![Val::I32; 2], vec![]);
             let child = ref_unbox(&mut f, 1, field);
             let src = view_source(&mut f);
             let ls = ref_load(&mut f, src, parent);
@@ -3561,6 +3568,6 @@ pub(crate) fn checked_kind(f: &mut Func, m: &Module, kind: u8) {
         return;
     }
     if let Some(i) = f.body.windows(3).rposition(|w| matches!(w, [Ins::TableSlot(_), Ins::Op(Instruction::I32Const(c)), Ins::Op(Instruction::I32Add)] if c.cast_unsigned() == 1 || c.cast_unsigned() == CYCLIC + 1)) && let Ins::TableSlot(s) = &f.body[i] {
-        f.body[i] = Ins::Descriptor(s.clone(), kind);
+        f.body[i] = Ins::Descriptor(*s, kind);
     }
 }

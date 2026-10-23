@@ -5,8 +5,9 @@
 //! entry capacity, so a probe always meets an empty slot. It is the Wasm
 //! GC backend's map (`crates/hd_wasm/src/map.rs`) in one block of memory.
 
+use crate::op::Op as I;
 use hd_base::Hash128;
-use wasm_encoder::{BlockType, Instruction as I};
+use wasm_encoder::BlockType;
 
 use crate::layout::{Leaf, Walk};
 use crate::module::{Func, HEADER, HEAP, Module, Sym, Val, mem};
@@ -138,7 +139,7 @@ fn store_u32(f: &mut Func, t: u32, offset: u64, value: &dyn Fn(&mut Func)) {
     f.op(I::I32Store(mem(HEAP, offset, 2)));
 }
 
-fn store_op(l: Leaf, offset: u64) -> I<'static> {
+fn store_op(l: Leaf, offset: u64) -> I {
     let m = mem(
         HEAP,
         offset + u64::from(l.offset),
@@ -219,8 +220,8 @@ fn load_entry(f: &mut Func, entry: &Entry, from: usize, to: usize) -> Vec<u32> {
 }
 
 /// [`Helper::MapTable`]: `(cap) -> table`, empty, its index cleared.
-pub fn table(entry: &Entry) -> Func {
-    let mut f = Func::new("rt:map_table", vec![Val::I32], vec![Val::I32]);
+pub fn table(m: &Module, entry: &Entry) -> Func {
+    let mut f = m.func("rt:map_table", vec![Val::I32], vec![Val::I32]);
     let t = f.local(Val::I32);
     if let Some(most) =
         (u32::MAX - INDEX - HEADER - crate::module::CYCLE_WORD).checked_div(12 + entry.size)
@@ -256,8 +257,8 @@ pub fn table(entry: &Entry) -> Func {
 
 /// [`Helper::DropEntries`]: one count less on each live entry's counted
 /// references.
-pub fn drop_entries(entry: &Entry) -> Func {
-    let mut f = Func::new("rt:drop_entries", vec![Val::I32], vec![]);
+pub fn drop_entries(m: &Module, entry: &Entry) -> Func {
+    let mut f = m.func("rt:drop_entries", vec![Val::I32], vec![]);
     let (cap, e) = (f.local(Val::I32), f.local(Val::I32));
     let Some(walk) = entry.walk() else {
         return f;
@@ -277,8 +278,8 @@ pub fn drop_entries(entry: &Entry) -> Func {
 
 /// [`Helper::MapHash`]: `(key...) -> i32`, the keyed bucket hash, made
 /// non-negative.
-pub fn hash(key: &[Val], ops: &KeyOps) -> Func {
-    let mut f = Func::new("rt:map_hash", key.to_vec(), vec![Val::I32]);
+pub fn hash(m: &Module, key: &[Val], ops: &KeyOps) -> Func {
+    let mut f = m.func("rt:map_hash", key.to_vec(), vec![Val::I32]);
     match ops {
         KeyOps::I32(h) => {
             f.get(0);
@@ -314,9 +315,9 @@ pub fn hash(key: &[Val], ops: &KeyOps) -> Func {
 
 /// [`Helper::MapFind`]: `(table, hash, key...) -> entry or -1`. A removed
 /// entry holds hash -1, which no key's hash matches, so a probe passes it.
-pub fn find(entry: &Entry, ops: &KeyOps) -> Func {
+pub fn find(m: &Module, entry: &Entry, ops: &KeyOps) -> Func {
     let params = [vec![Val::I32, Val::I32], entry.key_vals()].concat();
-    let mut f = Func::new("rt:map_find", params, vec![Val::I32]);
+    let mut f = m.func("rt:map_find", params, vec![Val::I32]);
     let (cap, mask, p, slot, e) = (
         f.local(Val::I32),
         f.local(Val::I32),
@@ -474,11 +475,11 @@ fn index_insert(f: &mut Func, t: u32, cap: u32, h: u32, slot: u32) {
 /// `expr.map.duplicate.last`), and the key given is released; a new key
 /// appends an entry, after growth when the entries are full. The map's
 /// table is its own already.
-pub fn put(entry: &Entry, ops: &KeyOps) -> Func {
+pub fn put(m: &Module, entry: &Entry, ops: &KeyOps) -> Func {
     let nk = entry.keys;
     let n = entry.leaves.len();
     let params = [vec![Val::I32, Val::I32], entry.key_vals(), entry.val_vals()].concat();
-    let mut f = Func::new("rt:map_put", params, vec![]);
+    let mut f = m.func("rt:map_put", params, vec![]);
     let (t, cap, e, at) = (
         f.local(Val::I32),
         f.local(Val::I32),
@@ -575,7 +576,7 @@ pub fn put(entry: &Entry, ops: &KeyOps) -> Func {
 /// hashes, the rebuild is counted, and the old block is freed with no
 /// release, since its entries moved.
 pub fn grow(entry: &Entry, m: &Module) -> Func {
-    let mut f = Func::new("rt:map_grow", vec![Val::I32], vec![]);
+    let mut f = m.func("rt:map_grow", vec![Val::I32], vec![]);
     let (t, cap, ncap, nt, e, j, h, slot) = (
         f.local(Val::I32),
         f.local(Val::I32),
@@ -659,7 +660,7 @@ pub fn grow(entry: &Entry, m: &Module) -> Func {
 /// live entries take their own counts, the collections among their values
 /// become copies, and the old table loses one owner.
 pub fn unique(entry: &Entry, m: &Module) -> Func {
-    let mut f = Func::new("rt:map_unique", vec![Val::I32], vec![]);
+    let mut f = m.func("rt:map_unique", vec![Val::I32], vec![]);
     let (t, cap, nt, e, at) = (
         f.local(Val::I32),
         f.local(Val::I32),
@@ -719,8 +720,8 @@ pub fn unique(entry: &Entry, m: &Module) -> Func {
 
 /// [`Helper::MapSlotNext`]: `(map, pos, end) -> slot`: the first live
 /// entry in `pos..end` among those written, or `end`.
-pub fn slot_next() -> Func {
-    let mut f = Func::new("rt:map_slot_next", vec![Val::I32; 3], vec![Val::I32]);
+pub fn slot_next(m: &Module) -> Func {
+    let mut f = m.func("rt:map_slot_next", vec![Val::I32; 3], vec![Val::I32]);
     let (t, cap, lim) = (f.local(Val::I32), f.local(Val::I32), f.local(Val::I32));
     load_u32(&mut f, 0, 0);
     f.set(t);
@@ -766,10 +767,10 @@ pub fn slot_next() -> Func {
 /// before the written count at creation are where they were. The entry
 /// leaves with its own counts. In `opt`, the item's leaf 0 is the entry
 /// number and leaf `k` the entry's leaf `k - 1`.
-pub fn step(entry: &Entry, opt: &[OptVal], results: &[Val]) -> Func {
+pub fn step(m: &Module, entry: &Entry, opt: &[OptVal], results: &[Val]) -> Func {
     // A closure's code: the environment, the first entry to look at, then
     // the context it ignores.
-    let mut f = Func::new(
+    let mut f = m.func(
         "rt:map_step",
         vec![Val::I32, Val::I32, Val::I32],
         results.to_vec(),
