@@ -1286,6 +1286,8 @@ struct Run<'a> {
     graph: OnceLock<GraphOut>,
     iface: Vec<OnceLock<Option<Arc<FolderIface>>>>,
     iface_index: IfaceIndex,
+    /// Method maps shared only by exactly the same ordered visible interfaces.
+    method_indexes: Mutex<HashMap<Vec<FolderId>, Arc<hd_check::MethodIndex>>>,
     prep: Vec<OnceLock<Option<PrepOut>>>,
     /// Per module that declares a derivation template: its items and scope,
     /// lowered once per run for the opt-ins that instantiate it.
@@ -1748,6 +1750,7 @@ pub fn build_packages(
         graph: OnceLock::new(),
         iface: (0..nf).map(|_| OnceLock::new()).collect(),
         iface_index: IfaceIndex::default(),
+        method_indexes: Mutex::default(),
         prep: (0..n).map(|_| OnceLock::new()).collect(),
         template_mods: (0..n).map(|_| OnceLock::new()).collect(),
         folder_templates: (0..nf).map(|_| OnceLock::new()).collect(),
@@ -5201,6 +5204,19 @@ impl Run<'_> {
             .any(|(s, at)| *s == Severity::Error && at.file == file)
     }
 
+    /// Each lookup keeps its own items ahead of its shared interface closure.
+    fn method_index(
+        &self,
+        lookup: &Lookup<'_>,
+        folders: &[FolderId],
+    ) -> Arc<hd_check::MethodIndex> {
+        let shared = lock(&self.method_indexes)
+            .entry(folders.to_vec())
+            .or_insert_with(|| Arc::new(hd_check::MethodIndex::interfaces(lookup)))
+            .clone();
+        Arc::new(hd_check::MethodIndex::with_own(lookup, shared))
+    }
+
     /// `Body(m)`: every body of the module, in source order.
     fn body(&self, m: usize) {
         let Some(Some(prep)) = self.prep[m].get() else {
@@ -5232,7 +5248,8 @@ impl Run<'_> {
         let lookup = Lookup::new(
             &own,
             iface_folders
-                .into_iter()
+                .iter()
+                .copied()
                 .zip(ifaces.iter().map(AsRef::as_ref)),
             &self.iface_index,
         );
@@ -5306,7 +5323,7 @@ impl Run<'_> {
             impls: &impls,
             global: &self.memo,
             solver: &solver,
-            methods: std::cell::OnceCell::new(),
+            methods: std::cell::OnceCell::from(self.method_index(&lookup, &iface_folders)),
             init: std::cell::RefCell::new(hd_check::init::ModuleInit::after(
                 self.earlier_bindings(m),
                 self.declared_by(m),
@@ -6692,7 +6709,8 @@ impl Run<'_> {
         let lookup = Lookup::new(
             &items,
             iface_folders
-                .into_iter()
+                .iter()
+                .copied()
                 .zip(ifaces.iter().map(AsRef::as_ref)),
             &self.iface_index,
         );
@@ -6721,7 +6739,7 @@ impl Run<'_> {
             impls: &view,
             global: &self.memo,
             solver: &TableSolver,
-            methods: std::cell::OnceCell::new(),
+            methods: std::cell::OnceCell::from(self.method_index(&lookup, &iface_folders)),
             init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
             results: std::cell::RefCell::default(),
             dbg_refs: std::cell::RefCell::default(),
@@ -6760,7 +6778,8 @@ impl Run<'_> {
         let lookup = Lookup::new(
             &tmod.items,
             iface_folders
-                .into_iter()
+                .iter()
+                .copied()
                 .zip(ifaces.iter().map(AsRef::as_ref)),
             &self.iface_index,
         );
@@ -6795,7 +6814,7 @@ impl Run<'_> {
             impls: &view,
             global: &memo,
             solver: &TableSolver,
-            methods: std::cell::OnceCell::new(),
+            methods: std::cell::OnceCell::from(self.method_index(&lookup, &iface_folders)),
             init: std::cell::RefCell::new(hd_check::init::ModuleInit::default()),
             results: std::cell::RefCell::default(),
             dbg_refs: std::cell::RefCell::default(),
