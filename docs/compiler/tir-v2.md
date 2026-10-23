@@ -2870,14 +2870,14 @@ index loop.
 
 **What it costs.**
 
-- **Code.** About 1,000 lines in `hd_tir` (substitution, renumbering,
-  the size test) and 50 in the driver.
+- **Code.** About 1,300 lines of Rust code and 400 of tests, counted
+  piece by piece in [the stage 3 size budget](#size-budget).
 - **Compile time.** Only reached calls of small std bodies inline.
-  Intrinsics are 2.3% of all checked instructions; at that rate json's
-  reached bodies make about 300 `List`, `Map` and `string` operations.
-  At about 15 copied instructions each, that adds 4,500 instructions to
-  the 13,305 json emits today, about +35% to resolve and emit, partly
-  offset by deleting the intrinsics' emitter arms.
+  Counted on json's 279 reached bodies (10,663 instructions after the
+  passes), stage 3 adds about 4,900 instructions, +46%: about 2.4 ms of
+  passes and 10 ms of emission. nbody adds about 290 (+11%); hello adds
+  none while the inliner leaves `std.rt` alone
+  ([compile time and code size](#compile-time-and-code-size)).
 - **Caching.** The inlined body is part of the caller's code, so a
   caller's emitted function depends on its callees' TIR hashes. That is
   the "dependency list" the TIR entry already plans (hd_tir/DESIGN.md
@@ -2893,17 +2893,17 @@ index loop.
 Stage 3 shrinks the intrinsics to memory primitives. It starts only
 after the inliner lands. The owner approved the inliner on 2026-10-23,
 after stage 2 measured the passes at 0.48 to 0.50 µs per instruction
-over the 12 bench/study programs (#802): json's estimated 4,500 inlined
-instructions add about 2 ms of passes. With the inliner, `List`, its
+over the 12 bench/study programs (#802): json's counted 4,900 inlined
+instructions add about 2.4 ms of passes. With the inliner, `List`, its
 cursor, `Map` and the string operations are all hd in std; the compiler
 keeps the typed memory primitives and the inliner.
 
 **Size budget first.** Stage 2's size table was a top-down guess: it
 planned a net deletion of about 730 lines and landed about +12,600
-(#49). Before the first stage 3 commit, the table below is redone
-bottom-up per component, checked against the code each part replaces
-and against one reference implementation, and every stage 3 commit
-reports its lines against its share.
+(#49). Stage 3's [size budget](#size-budget) is bottom-up per
+component, measured against the code each part replaces and against
+reference implementations, and every stage 3 commit reports its lines
+against its share.
 
 - **Typed memory primitives** in a privileged std module: a pointer type
   over `T` with `size_of[T]`, `read`, `write` and `offset`, counted like
@@ -2933,17 +2933,203 @@ reports its lines against its share.
   go, with the checker's `collection_loop`, `range_loop` and most of
   `ref_loop`.
 
-| Crate | Removed | Added |
-| --- | --- | --- |
-| `hd_wasm_linear` | 3,300: `emit/list.rs`, `emit/map.rs`, `map.rs`, `emit/iter.rs`, the list and map glue of `rt.rs` | 300: memory primitives |
-| `hd_check` | 500: three loop lowerings, intrinsic plumbing | 50 |
-| `hd_tir` | 50 | 1,050: the inliner |
-| `lib/std` (hd) | 200 | 1,800: `List`, `Map`, string operations |
+### Size budget
 
-Commit plan, at plan level: the inliner (four commits), the typed
-primitives (two), `List` with the buffer-address value (four, each
-benchmarked), the `for` lowering (two), `Map` (three), strings (two),
-deleting the intrinsics (one).
+Measured at 328bfa853. A "code" line is a Rust line that is not blank,
+not a `//` comment and not inside a `#[cfg(test)]` module; an hd line is
+one that is not blank and not a `#` comment, which is what the browser
+build embeds. Tests are counted apart and never reach the web compiler.
+
+| Component | Replaced (Rust code) | Added: Rust code / tests | Added: std hd | Reference point | Confidence |
+| --- | ---: | --- | ---: | --- | --- |
+| Inliner | 0 | 1,300 / 400 | 0 | Cranelift `inline.rs` 1,117; Go `inl.go` 848 + `interleaved.go` 291 + the inline-call part of `noder/reader.go` 157 | medium |
+| Typed memory primitives | 0 | 510 / 200 | 70 | hd's own untyped `std.rt.memory` (19060a9b3): +250 / −58 Rust, 78 hd, 170 test lines | low |
+| `List` as a buffer address | 1,760 | 220 / 100 | 110 | Go `runtime/slice.go` 232; Rust `vec/mod.rs` 1,330 + `raw_vec/mod.rs` 505 | medium (adds), low (the 894 of `copies.rs`) |
+| One `for` lowering | 890 | 180 / 120 | 20 | Go `walk/range.go` 346 | low |
+| `Map` in std | 1,340 | 70 / 60 | 170 | Go `internal/runtime/maps` 1,374; hashbrown `raw/mod.rs` 1,726 | medium |
+| Strings in std | 320 | 30 / 40 | 80 | Go `runtime/string.go` 455 | medium |
+| Deleting the intrinsics | 250 | 0 / 0 | −30 | none needed: pure deletion | high |
+| **Total** | **4,560** | **2,310 / 920** | **420** | | |
+
+Net: about −2,250 lines of Rust code and +420 of std hd. The reference
+sizes are code lines measured the same way, from Go 1.24.1, Rust 1.97
+`library/alloc`, cranelift-codegen 0.136.2 and hashbrown 0.15.5.
+
+**What each row replaces, and what stays.**
+
+- **Inliner.** Replaces nothing. Its pieces: call-site selection and the
+  size test (80); refusal rules for suspension, `defer`, closures and
+  providers (50); body copy with local renumbering, constants and
+  strings appended (150); label and sub-body offsets (90); a bulk splice
+  of the copied instructions with every instruction operand renumbered
+  (150); parameter binding by pass mode (60); `Return` to `Break` into
+  a result `Block` (70); type substitution through the wire's id-word
+  schema and `InternPool::subst` (120); re-choosing a substituted
+  `Bound` call as an `Impl` (60); source positions for panics inside a
+  copy (40); verifier invariants (40); driver hookup (70); the cache
+  dependency list (40). That is 1,020; the 1,300 budget adds the
+  stage 2 lesson below. It reuses `own::operands`, `splice`'s
+  renumbering and `wire.rs`'s id words, so no per-tag remapper is
+  written twice.
+- **Typed memory primitives.** Replaces nothing; `std.rt.memory` stays.
+  A `Ptr[T]`, `size_of`, `read`, `write`, `offset`, a counted buffer
+  with capacity and length words, and two string views (its bytes, a new
+  string of `n` bytes) as hd declarations (70 hd). Rust: `Ptr` as a
+  known type and the std-only check in `hd_check` (60); a place rooted
+  at a pointer's target, with its operand words and verifier rule, in
+  `hd_tir` (120); reads and writes through a pointer in the ownership
+  passes (120); lowering in `hd_wasm_linear` over the existing element
+  slot code (150), and the buffer object kind with its element glue
+  (60).
+- **`List` as a buffer address.** Replaces the header and push code of
+  `emit/list.rs` (350 of its 1,155), the list kernels of `rt.rs`
+  (`list_copy` to `list_buf`, `list_truncate` to `list_grow`: 333 of
+  413) and its header constants (15), the whole header-copy rule
+  `own/copies.rs` (894, since a copy of a list is now a retain), the
+  stable-list part of hoisting (about 100) and the checker's built-in
+  `len` and `push` (about 70). Stays: element places with their bounds
+  check, insertion's `IsUnique` and `Pin` rules 5 and 6, `NewList`,
+  the buffer's drop and cycle glue, and context buffers. Adds in hd: the
+  type over its buffer (15), `len` and `capacity` (6), `push` (15),
+  `reserve` and growth (20), the copy that makes a shared buffer unique
+  (15), `truncate` (12), a literal's construction (10), `ListIter` over
+  the buffer (15). Adds in Rust: element places over the buffer (60),
+  `NewList` as a buffer allocation (40), and the header's removal from
+  `boundary.rs`, `dyn_value.rs` and `erased.rs` (120). The other forty
+  `List` methods are hd in `collections.hd` already and do not change.
+- **One `for` lowering.** Replaces the checker's `collection_loop`
+  (122), `range_loop` (92), their dispatch (17) and most of `ref_loop`
+  (about 100 of 129), and the loop half of `emit/list.rs`
+  (`begin_list_loop` to `own_list_caches`, 517) with `snap_begin` and
+  `snap_end` (40). Stays: `iterate`'s general `Iterable` path, which is
+  the one lowering, and the element-reference conflict checks. Adds
+  `for p in &mut xs` as a call (30), a `ListIterMut` (20 hd), and a fold
+  of a `Match` on a variant the inlined `next` just built, so a range
+  loop does not build an option per step (150).
+- **`Map` in std.** Replaces `map.rs` (798), `emit/map.rs` (360),
+  `emit/iter.rs` (101), the map dispatch in `rt.rs` (15) and the
+  checker's map built-ins and indexing (about 70). Stays: map value
+  places, now an entry number from std, and the entries' drop glue. Adds
+  in hd the table over two buffers, entries in insertion order and a
+  `u32` index (15); hashing with the seed (8); probing (25); insert
+  (30); growth (25); remove (15); `get`, `set`, `len`, `contains` and
+  indexing (20); a value place's entry number (10); `MapEntries` (15);
+  copy on write through the buffers (5). Rust: `NewMap` and map value
+  places as calls (70). hd's table is a dense insertion-ordered one like
+  today's, so it is much smaller than Go's Swiss table (groups, control
+  words, a directory that splits) or hashbrown.
+- **Strings in std.** Replaces `str_eq`, `str_cmp`, `str_from_bytes`
+  and `concat_all` in `rt.rs` (186), `str_at`, `str_slice`,
+  `char_from_scalar` and `str_ordering` in `emit/text.rs` (90 of 226),
+  their arms in `emit.rs` (16) and the checker's `+`, `==` and indexing
+  on strings (25). Stays: string literals, host primitives, `format_int`,
+  and the `Interp` kernel `concat` with its fixed-length fast path, so
+  interpolation and `println` pull in no std `List` code. Adds 80 hd and
+  30 Rust.
+- **Deleting the intrinsics.** `IntrinsicOp` and its table in `ir.rs`
+  (45), its uses in `ir/root.rs` and `own.rs` (20), the keys in
+  `hd_host_abi` (8), the `Intrinsic` dispatch and the `list_truncate`
+  and `map_steps` arms in `emit.rs` (53), the list, map and string
+  `Helper` variants and dispatch in `rt.rs` (85), and the checker's
+  `Hit::Builtin` plumbing (40). The std stubs that name the deleted keys
+  go too (30 hd).
+
+**Calibration.** Stage 2's six passes average 860 code lines each
+(`own/borrow.rs` 861, `insert.rs` 889, `moves.rs` 1,020, `pairs.rs` 394,
+`known.rs` 1,057, `hoist.rs` 776, with `copies.rs` 894 and `splice.rs`
+450 beside them), and its plan gave each about 200. The inliner's
+bottom-up 1,020 is about one and a quarter passes; its closest pieces
+here, `splice.rs` and the column handling of `wire.rs`, are about 850
+together before selection, binding and substitution, so the budget is
+1,300. For std hd, the one Rust-to-hd pair in the tree is the
+allocator: `rt.rs`'s `alloc_class` and `free_class` (157 code lines
+that write Wasm) do what 52 lines of `std.rt.alloc` do, about 3 to 1.
+The `rt.rs` list kernels (413) divided by 3 give the `List` row's 110
+hd lines; `map.rs` (798) by 3 is about 270, and the hd row is lower
+because the key operations `emit/map.rs` generates per key type come
+from `Hash` and `Eq` in hd.
+
+**Stop rule.** Each component's added code is its share, split evenly
+over its commits: the inliner 1,300 over four, the primitives 510 over
+two, `List` 220 Rust and 110 hd over four, the `for` lowering 180 over
+two, `Map` 70 and 170 hd over three, strings 30 and 80 hd over two. A
+commit that adds more than 1.5 times its share stops for review before
+it lands, and so does a component's last commit when the lines it has
+deleted are under two thirds of its replaced column.
+
+**Biggest risk to the numbers.** A third of the deletion, `copies.rs`'s
+894 lines, rests on one claim: once a list is its buffer's address, a
+copy is a retain and no holder ever needs a header of its own. That
+holds for a change through a local. A change through a reference may
+replace the buffer (growth, or the copy `IsUnique` makes), and the new
+address must reach the place the reference names; if that write-back
+needs a pass rule instead of being an ordinary `Store` in std's `push`,
+part of `copies.rs` stays and the net drops from about −2,250 to about
+−1,500. The second risk is in the `for` row: the 150-line fold is the
+only thing between `RangeIter.next` and an option built per step in
+nbody's six inner range loops, and `for p in &mut xs` as an iterator
+of element references needs references returned from `next`, which the
+element access model (#494) does not allow, so more of `ref_loop` may
+stay.
+
+Commit plan: the inliner (four commits), the typed primitives (two),
+`List` with the buffer-address value (four, each benchmarked), the `for`
+lowering (two), `Map` (three), strings (two), deleting the intrinsics
+(one).
+
+### Compile time and code size
+
+Counted with the `own` view (`Host::render_tir` with the `*` prefix) of
+every body the program reaches, after the ownership passes. A call
+inlines in the count when its callee is a std body of at most 40
+instructions that is no intrinsic and holds no suspension, closure or
+provider read; trait calls through a bound or a trait value stay calls.
+
+| | json | nbody | hello (`println("hello")`) |
+| --- | ---: | ---: | ---: |
+| reached bodies / instructions today | 279 / 10,663 | 76 / 2,724 | 70 / 2,246 |
+| intrinsics today | 229: `ListPush` 112, `ListLen` 42, `ValueCopy` 22, `StrIndex` 17, `SnapBegin` and `SnapEnd` 8 each, `StrEq` 6, map 11, `StrConcat` 3 | 6 | 1 |
+| small std calls outside `std.rt` today, copied | 202 sites, 2,546 | 2, 6 | 0 |
+| intrinsics as inlined std code, net | +3,540 | +290 (six range loops) | 0 |
+| callee bodies no longer emitted | −1,140 | 0 | 0 |
+| net instructions | +4,900 (+46%) | +290 (+11%) | 0 |
+| passes, at 0.49 µs per instruction | +2.4 ms | +0.14 ms | 0 |
+| emission, at 2.1 µs per instruction | +10 ms | +0.6 ms | 0 |
+
+The intrinsics' std sizes come from bodies of the same shape in today's
+TIR: `ListIter.next` is 40 instructions, `List.pop` 27 and
+`string.len` 3, so `push` is taken as 27, `len` 4, a string index 10, a
+`for` over a list or a range 37 (`iter` 7 and a `next` of 30), a map
+operation's wrapper 10, and `StrEq` and `StrConcat` stay calls. The
+emission rate is the 28 ms json spent on 13,305 instructions in
+[measured today](#measured-today). Checking about 420 more lines of std
+hd adds about 3 ms to a cold build (6 µs per line, from 80 ms of Body
+over std's 12,936 lines).
+
+`std.rt` is the exception. The allocator and the collector make 103
+small calls in every program, which would copy 1,214 instructions and
+drop 399, +815 net: +36% on hello's 2,246, about 2.5 KB on its 6,880 B
+of Wasm. The budget assumes the first version leaves `std.rt` callees
+alone; the emitter's count glue already inlines the counts' fast paths
+(`inline_counts`).
+
+**hello.** `println` reaches `to_string`, which inlines (it is the
+string itself), the `Interp` kernel, which stays in the emitter, and
+`Console.write` through a trait value, which stays a call. So hello's
+Wasm does not change. Were `Interp` lowered to std's two-part concat it
+would gain one function, about 100 B; through a list and `concat_all`
+it would pull in `push`, growth and the buffer's drop, about 600 B.
+
+**Web compiler.** Two windows of #49's gzip measurements, with every
+Rust code line of the web compiler's 18 crates counted at each end,
+give the cost of a line: 1e30a80b5^ to 2bdc507c3 added 13,136 Rust code
+lines and 1,024 std hd lines for +166,409 B, and 2bdc507c3 to
+62b833aa5 removed 2,446 Rust lines for −33,265 B. The embedded std text
+compresses to 8.2 B per hd line (its gzip grew 8,377 B in the first
+window), which leaves 12.0 and 13.6 B per Rust code line; the whole
+stage 2 window gives 10.9. At 11 to 14 B, stage 3's −2,250 Rust lines
+are −25 to −32 KB of gzip and its +420 hd lines +3.4 KB: about −24 KB
+in all, from 1,884,286 B to about 1,860,000 B.
 
 ## Cost
 
@@ -3013,11 +3199,11 @@ What the numbers say:
 
 | | Stage 1 | Stage 2 | Stage 3 |
 | --- | --- | --- | --- |
-| TIR instructions | -15% to -18%: closure forms, hidden `$ref`/`$serial` locals and their stores, rebuild chains | another -8% to -12%: `LocalGet` + `Field` chains become one `Read`; `extra` grows about 5% for place records | +20% to +40% in reached bodies after inlining; checked bodies about the same |
+| TIR instructions | -15% to -18%: closure forms, hidden `$ref`/`$serial` locals and their stores, rebuild chains | another -8% to -12%: `LocalGet` + `Field` chains become one `Read`; `extra` grows about 5% for place records | counted: json +46%, nbody +11%, hello 0 in reached bodies after inlining; checked bodies about the same |
 | TIR wire bytes | -15% (fewer instructions and fewer closure types in the per-body tables) | -5% | std grows by its new hd code |
-| check (Body) | -1 to -3 ms of 80: building closure forms is a small part of checking | -1 ms (no copy insertion, no pin bookkeeping) | +5 to +10 ms cold: about 1,800 more lines of std to check |
+| check (Body) | -1 to -3 ms of 80: building closure forms is a small part of checking | -1 ms (no copy insertion, no pin bookkeeping) | about +3 ms cold: about 420 more lines of std to check |
 | ModuleFinish | -3 ms (wire writing) | -1 ms | +2 ms |
-| emission | unchanged | about unchanged: `live::plan` and the loans (4.5 ms on json) go, the passes (estimated 4 to 6 ms on 231 bodies) run at decode instead | +10% to +20%: more instances and inlined code |
+| emission | unchanged | about unchanged: `live::plan` and the loans (4.5 ms on json) go, the passes (estimated 4 to 6 ms on 231 bodies) run at decode instead | json about +10 ms, nbody +0.6 ms: inlined code |
 | module finish (Wasm) | unchanged | unchanged | +5% to +10%, following code size |
 | peak memory | -0.4 MB | about unchanged | +1 to +3 MB |
 
@@ -3033,19 +3219,22 @@ and load per list, and loops whose base a pass can hoist.
 
 | Crate | Stage 1 | Stage 2 | Stage 3 |
 | --- | --- | --- | --- |
-| `hd_tir` | +100 | +1,550 | +1,000 |
-| `hd_check` | -650 | -550 | -450 |
-| `hd_wasm_linear` | -200 | -1,850 | -3,000 |
-| `hd_mono`, `hd_driver`, `hd_structure` | -20 | +120 | 0 |
-| Rust, net | -770 | -730 | -2,450 |
-| `lib/std` (hd), net | 0 | 0 | +1,600 |
+| `hd_tir` | +100 | +1,550 | +560: the inliner, pointer places and the fold, less `copies.rs` |
+| `hd_check` | -650 | -550 | -280 |
+| `hd_wasm_linear` | -200 | -1,850 | -2,590 |
+| `hd_mono`, `hd_driver`, `hd_structure`, `hd_host_abi` | -20 | +120 | +60 |
+| Rust, net | -770 | -730 | -2,250 code lines, plus 920 of tests |
+| `lib/std` (hd), net | 0 | 0 | +420 |
 
 The web compiler is 5.21 MB raw against its 5.25 MB gate. Its crates
 hold about 135,000 lines of Rust, and it embeds std's 700 KB of hd
 source, so a Rust line costs about 33 bytes and an hd line about 40.
-That gives about -25 KB after stage 1, -24 KB after stage 2, and -81 KB
-of Rust plus 64 KB of std text after stage 3: about -66 KB in all, to
-about 5.14 MB.
+That gives about -25 KB after stage 1 and -24 KB after stage 2; stage
+2 in fact added about 137 KB of gzip (#49). The stage 3 column is the
+[size budget](#size-budget)'s, by crate, and its gzip cost uses the
+measured 11 to 14 B per Rust code line and 8.2 B per std hd line of
+[compile time and code size](#compile-time-and-code-size): about −24 KB
+of gzip.
 
 ### Cognitive load
 
@@ -3152,8 +3341,9 @@ reasons or their scope, not their direction:
   library collections across functions; Go lowers slices in its
   compiler and calls its runtime for maps. Owner, 2026-10-23: the
   inliner is approved, so hd follows Rust and Swift. Alternative: keep the
-  list and string intrinsics, and stop after stage 2. Cost: stage 3's
-  3,300 emitter lines and the list header stay, and so does the
+  list and string intrinsics, and stop after stage 2. Cost: the
+  4,560 lines stage 3 deletes (2,960 of them in the emitter) and the
+  list header stay, and so does the
   separate `for` lowering for lists.
 - **Ownership passes once per generic body.** The measured programs have
   0.8 to 1.07 instances per decoded body, so this saves little compile
