@@ -19,7 +19,9 @@
 //!    innermost block holding all its accesses that holds the last one
 //!    (the emitter's old rule, §23.20). Parameters and captures live in their
 //!    sub-body's root block. Every owned local is in its sub-body's exit
-//!    set.
+//!    set. A `mut self` receiver whose final value the body copies out
+//!    (`OwnCx::received`'s `InPlace`) is not owned: no `Drop` empties it
+//!    before the backend reads it at the exit.
 //! 4. **Jumps.** A `Break`, `Continue` or `ToArm` gets a `Drop` before it
 //!    of each value and local whose home it leaves while it may still hold
 //!    a count; a `Return` of each such value (the exit set drops the
@@ -657,6 +659,7 @@ fn locals(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables) 
             in_sub[l as usize] = u32_of(s);
         }
     }
+    let first = t.entries.len();
     for (l, (&flags, sub)) in b.local_flags.iter().zip(in_sub.iter_mut()).enumerate() {
         if flags & local_flags::PARAM != 0 && *sub == NONE {
             t.entries.push((0, u32_of(l)));
@@ -664,6 +667,11 @@ fn locals(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables) 
         *sub = NONE;
     }
     t.placed = in_sub;
+    // A receiver whose final value the body copies out
+    // (`OwnCx::received`) is the caller's: never dropped, in no exit set.
+    let params = t.entries.len() - first;
+    let kept =
+        (params > 0 && cx.received(b.item, 0, params) == Pass::InPlace).then(|| t.entries[first].1);
     for i in 0..n {
         let [a, w] = b.data[i];
         match b.tags[i] {
@@ -699,7 +707,7 @@ fn locals(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables) 
     t.entries.sort_unstable();
     t.entries.dedup();
     let owned = |b: &Body, t: &Tables, l: u32| {
-        t.celled[l as usize] || cx.counted(b.local_ty[l as usize]) != Tri::No
+        kept != Some(l) && (t.celled[l as usize] || cx.counted(b.local_ty[l as usize]) != Tri::No)
     };
     let (mut k, mut e) = (0, 0);
     for s in 0..u32_of(b.sub_root.len()) {

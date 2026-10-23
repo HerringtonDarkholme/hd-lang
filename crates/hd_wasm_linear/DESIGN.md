@@ -1370,6 +1370,15 @@ reads, and the counts of the code it generates.
   `host_provider` count a copy of each argument the target owns
   (`rt::own_arg`). So a dynamic call lends its arguments, as host stubs
   expect.
+- **Copy-out** (docs/compiler/tir-v2.md, 3b). A function that does not
+  suspend and whose `mut self` receiver is a list or a map at this
+  instance (`emit::copies_out`, reading `OwnCx::received`) returns the
+  receiver's final value after its results, with a count of its own; the
+  passes never drop that receiver. A direct or default argument's call
+  stores it into the place of a local or a top-level binding the
+  argument read, as a `Store` lowers, then releases it (`Em::copy_back`);
+  `DynRead` stores it back through the reference; `DynSlot` and a
+  function reference's adapter have no place and release it.
 - **Moves.** The move pass moves a value's count into its one consumer
   and a local's into its last read (docs/compiler/tir-v2.md, "Move",
   rules 1 to 4). The emitter zeroes a moved place once its consumer has

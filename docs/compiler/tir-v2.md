@@ -3717,6 +3717,65 @@ builds with the dev-profile compiler: json 0.35 s to 0.35 s, nbody
 change is through a local whose header a callee stored into a binding,
 which 3f fixes.
 
+3b copies out a `mut self` receiver of a list or a map, the only
+in-place parameter: a `mut xs: List[T]` parameter is the callee's own
+copy (`fn.param.mut.copy`), and a `mut List[T]` type cannot be written.
+One predicate decides for the callee and every caller
+(`emit::copies_out`): the function does not suspend, `OwnCx::received`
+answers `InPlace` for its receiver, and the receiver's type at this
+instance is the `mut` view of a list or a map. `received` answers
+`InPlace` for a receiver declared `mut List`, `mut Map` or `mut Self`,
+since a default method's instance may make `Self` a list; insertion then
+leaves that receiver unowned, with no `Drop` and no exit row, so no move
+or drop empties it before the exit (a returned `self` is read as a copy,
+not moved; `own/a-copied-out-receiver-is-never-dropped`). The callee
+returns the receiver's value after its results, from its one exit or
+each direct return, with a count of its own (one retain), so the value
+outlives the callee's release of its parameter, as 3f's replaced buffer
+must. A direct or default argument's call stores it into the place the
+argument read when that place is rooted at a local or a top-level
+binding, by the same lowering as a `Store` of it (`Em::store_into`,
+which `place_store` now calls), and releases its count: net, the place
+holds the same count of the same header. `DynRead` stores it back
+through the reference (`ref_store`, so a view's setter takes it);
+`DynSlot`, whose payload is the value itself, and a function value's
+adapter have no place and release it. The plan's "no count change" was
+written for 3g's convention, where the place's count moves into the
+call; with today's retain at the call, a value without a count of its
+own would be freed by the callee's exit once 3f replaces the buffer.
+A store into memory (an element, a map value, a field in a box) takes
+the header copy every such store takes under headers, so
+`rows[i].grow(1)` costs one `ListCopy` until 3g
+(`calls/a-mut-self-call-copies-the-receiver-out`). No pass needed a
+rule for the call as a write: an in-place argument's place has an
+`IsUnique` just before the call, which borrow already refuses a borrow
+across, and hoisting already counts an argument as a use that keeps the
+header, so it neither hoists nor marks that place stable.
+
+Left open, for the owner or later commits: a suspending callee copies
+nothing out, since a kept suspension (`let mut s = xs.grow(1)`, then
+`race!`) completes away from the call's place; a trait value's payload
+(`DynSlot`) and a function value have no place to store into; and in a
+default method's body the receiver's calls are `Bound`, so they are not
+in-place to the passes (no `IsUnique`, the argument a plain copy) though
+the instance copies out. 3d's verifier, which wants every change's
+operand to be a read of its place right after its `IsUnique`s, has to
+take those calls into account.
+
+3b adds 139 Rust code lines and deletes 19 against 135, under the stop
+line of 205 (`emit.rs` +88/−2, `rt.rs` +19/−3, `emit/refs.rs` +14/−12,
+`hd_driver` `own.rs` +8/−1, `own/insert.rs` +5/−1, `emit/dyn_value.rs`
++3, `emit/scope.rs` +2). No baseline changes. The 13 release `.wasm`
+files are byte-identical to 3a's: nothing in std or the 12 programs has
+a `mut self` receiver of a collection. The runtime case
+`a-mut-self-change-of-a-list-reaches-the-callers-place` passes before
+and after on V8 and after on wasmtime, through a local, an element, a
+field, a top-level binding, a reference, a trait value, a default
+method, a returned receiver, an early return, a map value and a map. The
+web compiler's gzip grows 1,973 B (1,904,772 to 1,906,745, both built
+here), against the planned 1.7 KB: 14.2 B a line where the plan used
+12.5.
+
 No commit carries two copy paths: through 3e both kinds copy by
 `ListCopy` (a new header over the same buffer), 3f moves both to the
 buffer copy glue at once, and 3g removes the header copies of both.

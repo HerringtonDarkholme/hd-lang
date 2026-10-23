@@ -1,0 +1,24 @@
+# @dump: own
+# A `mut self` receiver of a list, and a default method's `mut self`, which
+# an instance may make a list's, are the caller's: the body copies their
+# final value out at its exit, so no `Drop` or exit row empties them and a
+# returned receiver is read as a copy, not moved.
+trait Grow:
+    fn grow(mut self, n: i64) -> usize
+
+    fn grow_twice(mut self, n: i64) -> usize:
+        self.grow(n)
+        self.grow(n + 1)
+
+impl Grow for List[i64]:
+    fn grow(mut self, n: i64) -> usize:
+        self.push(n)
+        self.len()
+
+trait Keep:
+    fn kept(mut self, n: i64) -> List[i64]
+
+impl Keep for List[i64]:
+    fn kept(mut self, n: i64) -> List[i64]:
+        self.push(n)
+        self

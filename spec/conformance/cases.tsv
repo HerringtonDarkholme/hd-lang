@@ -1489,6 +1489,7 @@ runtime/valid/a-list-a-callee-stores-at-top-level-is-a-copy.hd	runtime	accept	la
 runtime/valid/a-list-default-is-fresh-on-every-call.hd	runtime	accept	lang/07-functions.md#default-values
 runtime/valid/a-literal-list-beside-collect-takes-the-default-list.hd	runtime	accept	std/iter.md#r-std-iter.collect.default
 runtime/valid/a-method-default-reads-the-receiver-and-earlier-parameters.hd	runtime	accept	lang/07-functions.md#default-values
+runtime/valid/a-mut-self-change-of-a-list-reaches-the-callers-place.hd	runtime	accept	lang/04-type-system.md#r-types.coll.writable
 runtime/valid/a-parenthesized-chain-is-a-value.hd	runtime	accept	lang/02-grammar.md#r-grammar.stmt.chain
 runtime/valid/a-spread-through-a-value-passes-each-element.hd	runtime	accept	lang/07-functions.md#function-types-and-values
 runtime/valid/a-three-link-chain-binds-every-name.hd	runtime	accept	lang/02-grammar.md#r-grammar.stmt.chain
