@@ -2,10 +2,10 @@
 app/main/impl Log.add
   local $0 self: Ref[mut Log] [param read]
   local $1 line: string [param read]
-  %0 = Read borrow [*$0 .lines] : List[string]
-  %1 = Read move [$1] : string
-  %2 = IsUnique [%0] : ()
-  %3 = Intrinsic ListPush [%0 %1] : ()
-  %4 = Drop [%0] : ()
+  %0 = IsUnique [*$0 .lines] : ()
+  %1 = Read borrow [*$0 .lines] : List[string]
+  %2 = Read move [$1] : string
+  %3 = Intrinsic ListPush [%1 %2] : ()
+  %4 = Drop [%1] : ()
   %5 = Block - : ()
   exit sub 0 drops [$1]

@@ -4,10 +4,10 @@ app/main/grow
   local $1 i: usize [param read]
   %3 = Read copy [$1] : usize
   %4 = IsUnique [$0] : ()
-  %5 = Read copy [$0 [%3]] : List[i64]
-  %6 = Drop [$0] : ()
-  %7 = IsUnique [%5] : ()
-  %8 = Call app/main/Bump.bump for List[i64] [] via Impl (%5) : usize
-  %9 = Drop [%5] : ()
-  %10 = Block %8 : usize
+  %5 = IsUnique [$0 [%3]] : ()
+  %6 = Read copy [$0 [%3]] : List[i64]
+  %7 = Call app/main/Bump.bump for List[i64] [] via Impl (%6) : usize
+  %8 = Drop [%6] : ()
+  %9 = Drop [$0] : ()
+  %10 = Block %7 : usize
   exit sub 0 drops [$0]

@@ -38,8 +38,11 @@
 //!    `Read [$xs [%i]]` read): each list on such a read's path gets an
 //!    `IsUnique` before that read, outermost first, so the read sees the
 //!    buffer the change will reach; the walk stops at a read through a
-//!    dereference, whose change reaches the referent. The backend's
-//!    intrinsics then check nothing themselves.
+//!    dereference, whose change reaches the referent. A push's list or an
+//!    in-place argument read from a place rooted at a local names that
+//!    place instead: the `IsUnique` is of the place, and the change reads
+//!    the place after it, again where an argument may write ([`changes`]).
+//!    The backend's intrinsics then check nothing themselves.
 //! 6. **Pins.** A `Ref` of an element place gets an `IsUnique` and a `Pin`
 //!    of each list on its path, and of each list on the path of a read its
 //!    root was made from, outermost first. The reference holds a count of
@@ -135,6 +138,8 @@ pub(crate) struct Tables {
     /// on its path have their `IsUnique` before it (bit 1) and their `Pin`
     /// (bit 2), so a read two changes go through gets them once.
     walked: Vec<u8>,
+    /// The list changes' operands ([`changes`]).
+    changes: Vec<Change>,
     /// The element projections of one place: the `extra` position of each
     /// element word.
     elems: Vec<u32>,
@@ -182,6 +187,7 @@ impl Tables {
         fill(&mut self.value_stamp, n, NONE);
         fill(&mut self.walked, n, 0);
         self.elems.clear();
+        self.changes.clear();
         self.after.clear();
         self.uses.clear();
         self.hcopy.clear();
@@ -329,12 +335,15 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Res
         t.tracked[i] = tracked(b, cx, i);
     }
     collect_uses(b, t);
+    for i in 0..n {
+        changes(b, cx, t, i);
+    }
     super::copies::decide(b, cx, t, &mut scratch.copies, edits);
     values(b, cx, t, edits)?;
     locals(b, cx, t, edits);
     after_drops(t, edits);
     jumps(b, t, edits);
-    uniqueness(b, cx, t, edits);
+    uniqueness(b, t, edits);
     for i in 0..n {
         if b.tags[i] == Tag::Read && b.data[i][1] == ReadMode::Use as u32 {
             // A read through a pointer moves the value out
@@ -931,7 +940,7 @@ fn mark_suites(b: &Body, t: &mut Tables, scope: u32, stamp: u32) {
 /// map place, and a `Pin` after it before each element reference; and the
 /// same for the lists on the path of each read the change goes through,
 /// before that read.
-fn uniqueness(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables) {
+fn uniqueness(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables) {
     for i in 0..b.len() {
         if t.blk[i] == NONE {
             continue;
@@ -958,12 +967,7 @@ fn uniqueness(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::
             Tag::Intrinsic
                 if matches!(
                     IntrinsicOp::from_u32(a),
-                    Some(
-                        IntrinsicOp::ListPush
-                            | IntrinsicOp::MapSet
-                            | IntrinsicOp::MapRemove
-                            | IntrinsicOp::MapIndexMut
-                    )
+                    Some(IntrinsicOp::MapSet | IntrinsicOp::MapRemove | IntrinsicOp::MapIndexMut)
                 ) =>
             {
                 let Some(&coll) = b.record(w).first() else {
@@ -976,24 +980,102 @@ fn uniqueness(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::
                 let word = value_place(b, coll);
                 edits.insert(blk, pos, Tag::IsUnique, [word, 0], Ty::VOID, syn);
             }
-            Tag::Call | Tag::Await => {
-                let Some(callee) = crate::ir::Callee::from_words(b.record(a)) else {
-                    continue;
-                };
-                let n = b.record(w).len().saturating_sub(3);
-                for k in 0..n {
-                    let arg = b.record(w)[k];
-                    if Ref(arg).as_inst().is_none() || cx.pass(&callee, k, n) != Pass::InPlace {
-                        continue;
-                    }
-                    through(b, t, edits, arg, false);
-                    let word = value_place(b, arg);
-                    edits.insert(blk, pos, Tag::IsUnique, [word, 0], Ty::VOID, syn);
-                }
-            }
             _ => {}
         }
     }
+    for k in 0..t.changes.len() {
+        own_place(b, t, edits, t.changes[k]);
+    }
+}
+
+type Change = (u32, u32, u32, Option<bool>);
+
+/// The list changes of instruction `i` into `t.changes`, as (change,
+/// `extra` word, operand, quiet): a push's list and each in-place argument
+/// ([`Pass::InPlace`]). Quiet is `None` for an operand that reads no place
+/// rooted at a local, and else whether nothing between that read and the
+/// change may write. A change whose operand reads a place is an access of
+/// the local the place is rooted at, and an operand read again at the
+/// change owns nothing.
+fn changes(b: &Body, cx: &dyn OwnCx, t: &mut Tables, i: usize) {
+    let [a, w] = b.data[i];
+    let push =
+        b.tags[i] == Tag::Intrinsic && IntrinsicOp::from_u32(a) == Some(IntrinsicOp::ListPush);
+    let call = matches!(b.tags[i], Tag::Call | Tag::Await);
+    let callee = call
+        .then(|| crate::ir::Callee::from_words(b.record(a)))
+        .flatten();
+    if t.blk[i] == NONE || !push && callee.is_none() {
+        return;
+    }
+    let n = b.record(w).len().saturating_sub(if push { 0 } else { 3 });
+    for k in 0..n {
+        let v = b.record(w)[k];
+        let change = callee
+            .as_ref()
+            .map_or(push && k == 0, |c| cx.pass(c, k, n) == Pass::InPlace);
+        let Some(r) = Ref(v).as_inst().map(|r| r.0 as usize).filter(|_| change) else {
+            continue;
+        };
+        let root = (b.tags[r] == Tag::Read && t.blk[r] != NONE)
+            .then(|| root_local(b, b.data[r][0]))
+            .flatten();
+        let rooted = root.is_some() && t.start[r + 1] - t.start[r] == 1;
+        let still = t.blk[r] == t.blk[i] && (r + 1..i).all(|x| quiet(b, x));
+        t.tracked[r] &= still || !rooted;
+        let kind = rooted.then_some(still);
+        t.changes.push((u32_of(i), w + 1 + u32_of(k), v, kind));
+        if let Some(l) = root.filter(|_| rooted) {
+            t.acc.push((t.sub[i], l, u32_of(i)));
+        }
+    }
+}
+
+/// Rule 5 for a list change ([`changes`]). An operand read from a place is
+/// not made unique itself: the `IsUnique` names the place, and the change
+/// reads the place after it, so a buffer the check or the change replaces
+/// can be stored back there (`docs/compiler/tir-v2.md`, "Settling the
+/// biggest risk"). A quiet operand is that read, after the `IsUnique`s;
+/// any other only evaluates the receiver, first, and the change takes a
+/// new `borrow` read, after `IsUnique`s that stand right before it.
+fn own_place(b: &mut Body, t: &mut Tables, edits: &mut splice::Tables, c: Change) {
+    let (i, r, quiet) = (c.0 as usize, c.2 as usize, c.3);
+    let s = if quiet == Some(true) { r } else { i };
+    let (blk, pos, syn, word) = (t.blk[s], t.pos[s], b.syn[s], b.data[r][0]);
+    if quiet.is_none() {
+        through(b, t, edits, c.2, false);
+        let word = value_place(b, c.2);
+        edits.insert(blk, pos, Tag::IsUnique, [word, 0], Ty::VOID, syn);
+        return;
+    }
+    let whole = |b: &mut Body| match word & place::BARE_LOCAL {
+        0 => prefix(b, word, word + 1 + b.extra[word as usize]),
+        _ => word,
+    };
+    path_lists(b, t, word);
+    for k in 0..t.elems.len() {
+        let p = prefix(b, word, t.elems[k]);
+        edits.insert(blk, pos, Tag::IsUnique, [p, 0], Ty::VOID, syn);
+    }
+    let p = whole(b);
+    edits.insert(blk, pos, Tag::IsUnique, [p, 0], Ty::VOID, syn);
+    if quiet == Some(false) {
+        let mode = ReadMode::Borrow as u32;
+        b.data[r][1] = mode;
+        let p = whole(b);
+        let e = edits.insert(blk, pos, Tag::Read, [p, mode], b.ty[r], syn);
+        edits.rewrite(c.0, super::Loc::Extra(c.1), e);
+    }
+}
+
+/// Whether instruction `x` can neither write a place nor call: a read, an
+/// arithmetic step, a coercion or a construction.
+fn quiet(b: &Body, x: usize) -> bool {
+    use Tag::{Coerce, NewStruct, NewTuple, NewVariant, Prim, Read};
+    matches!(
+        b.tags[x],
+        Read | Prim | Coerce | NewTuple | NewStruct | NewVariant
+    )
 }
 
 /// The value a place word is rooted at, if it is rooted at one.

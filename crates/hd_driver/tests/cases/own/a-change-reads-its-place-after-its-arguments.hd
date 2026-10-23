@@ -1,0 +1,17 @@
+# @dump: own
+# Insertion's rule 5 names the place a list change writes: the `IsUnique`
+# is of the place, and the change reads the place after it. Where an
+# argument may write (a call), the receiver's own read only evaluates the
+# receiver, first, with its index check, and the push takes a new `borrow`
+# read standing right after the `IsUnique`s, after the arguments. Where
+# nothing between may write, the receiver's read is the push's operand.
+struct Bag:
+    items: List[i64]
+
+fn twice(n: i64) -> i64:
+    n * 2
+
+fn add(mut bags: List[Bag], i: usize, n: i64) -> List[Bag]:
+    bags[i].items.push(twice(n))
+    bags[i].items.push(n)
+    bags
