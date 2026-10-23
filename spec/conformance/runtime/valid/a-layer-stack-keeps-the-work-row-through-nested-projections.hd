@@ -1,0 +1,48 @@
+# test: a layer stack keeps the work's row through nested projections
+# Spec 09 Traits: trait.target.row-argument; trait.assoc.projection.
+# expect-stdout: 7
+# expect-stdout: 8
+# expect-stdout: 9
+trait Layer[W]:
+    type Output
+    fn wrap(self, work: W) -> Self::Output
+
+struct AddConsole: pass
+
+impl[T, $R] Layer[fn() -> T $ R] for AddConsole:
+    type Output = fn() -> T $ R + Console
+    fn wrap(self, work: fn() -> T $ R) -> (fn() -> T $ R + Console):
+        fn() -> T $ R + Console: work()
+
+struct Keep: pass
+
+impl[T, $R] Layer[fn() -> T $ R] for Keep:
+    type Output = fn() -> T $ R
+    fn wrap(self, work: fn() -> T $ R) -> (fn() -> T $ R): work
+
+struct Stack[I, O]:
+    inner: I
+    outer: O
+
+impl[W, I < Layer[W], O < Layer[I::Output]] Layer[W] for Stack[I, O]:
+    type Output = O::Output
+    fn wrap(self, work: W) -> O::Output:
+        self.outer.wrap(self.inner.wrap(work))
+
+trait Clock
+
+struct FixedClock: pass
+
+impl Clock for FixedClock
+
+fn timed() -> usize $ Clock: 9
+
+pub fn main() -> void $ Console:
+    stack := Stack { inner: AddConsole {}, outer: Keep {} }
+    empty := fn() -> usize: 7
+    println(stack.wrap(empty)())
+    direct := Keep {}.wrap(AddConsole {}.wrap(fn() -> usize $ Clock: 8))
+    wrapped := stack.wrap(timed)
+    $.with(Clock=FixedClock {}):
+        println(direct())
+        println(wrapped())

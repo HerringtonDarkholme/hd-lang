@@ -1570,6 +1570,7 @@ runtime/valid/default-method-conflict-inherent-resolves.hd	runtime	accept	lang/0
 typing/invalid/any-exposes-no-methods.hd	type	reject:unknown-method	lang/09-traits.md#any
 runtime/valid/an-expected-mut-list-wins-over-the-default.hd	runtime	accept	std/iter.md#r-std-iter.collect.default
 runtime/valid/an-impl-head-binds-its-function-row-parameter.hd	runtime	accept	lang/07-functions.md#function-types-and-values
+runtime/valid/a-layer-stack-keeps-the-work-row-through-nested-projections.hd	runtime	accept	lang/09-traits.md#r-trait.target.row-argument
 runtime/valid/any-accepts-non-optional-values.hd	runtime	accept	lang/09-traits.md#any
 typing/invalid/public-function-missing-result-type.hd	type	reject:missing-result-type	lang/07-functions.md#declarations
 typing/invalid/trait-impl-method-missing-result-type.hd	type	reject:missing-result-type	lang/07-functions.md#declarations

@@ -612,8 +612,9 @@ pub struct MemoKey {
 impl MemoKey {
     /// The universe part of a goal's key (§2.2, §3.2): every
     /// `Instantiations` and `Methods` goal, and every goal with an open
-    /// trait argument, may read the candidate directory, so its answer
-    /// depends on the asking context's universe. Other goals key without it.
+    /// trait argument or a projection to normalize, may read the candidate
+    /// directory, so its answer depends on the asking context's universe.
+    /// Other goals key without it.
     #[must_use]
     pub fn universe_for(
         pool: Types<'_>,
@@ -623,9 +624,10 @@ impl MemoKey {
     ) -> Option<ImplUniverseId> {
         let reads = match kind {
             GoalKind::Instantiations | GoalKind::Methods => true,
-            GoalKind::Implements | GoalKind::Project => {
-                pool.list_items(args).iter().any(|a| open_arg(pool, *a))
-            }
+            GoalKind::Implements | GoalKind::Project => pool
+                .list_items(args)
+                .iter()
+                .any(|a| open_arg(pool, *a) || pool.has_assoc(*a)),
         };
         reads.then_some(universe)
     }
@@ -1226,8 +1228,11 @@ fn canon_answer(pool: Types<'_>, a: &Answer, vars: &CanonVars) -> Option<CanonAn
 /// A stored answer in the asking goal's variables.
 fn decanon_answer(pool: Types<'_>, a: &CanonAnswer, vars: &CanonVars) -> Answer {
     let var = |i: u8| vars.map[usize::from(i)];
+    // A placeholder the goal did not number (`hd_mono`'s open row) stays.
     let mut back = |t: Ty| match pool.get(t) {
-        TyData::Canon(i) => Some(pool.intern_ty(&TyData::Infer(var(i)))),
+        TyData::Canon(i) if usize::from(i) < vars.map.len() => {
+            Some(pool.intern_ty(&TyData::Infer(var(i))))
+        }
         _ => Some(t),
     };
     let list = |l: TyList, f: &mut dyn FnMut(Ty) -> Option<Ty>| {
@@ -1376,14 +1381,14 @@ fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Optio
                 result: r1,
                 suspends: s1,
                 inputs: i1,
-                ..
+                row: w1,
             },
             TyData::Fn {
                 params: p2,
                 result: r2,
                 suspends: s2,
                 inputs: i2,
-                ..
+                row: w2,
             },
         ) if s1 == s2 && (i1 == i2 || i1 == Inputs::Tuple || i2 == Inputs::Tuple) => {
             let inputs = if i1 == i2 {
@@ -1394,7 +1399,23 @@ fn match_ty(pool: Types<'_>, owner: DefId, pat: Ty, t: Ty, binds: &mut Vec<Optio
                 let (t1, t2) = (pool.inputs_tuple(p1, i1), pool.inputs_tuple(p2, i2));
                 match_ty(pool, owner, t1, t2, binds)
             };
-            both(inputs, match_ty(pool, owner, r1, r2, binds))
+            // A head's row parameter takes the goal's whole row, as the
+            // `TyData::Row` that `Types::subst_row` reads
+            // (`trait.target.row-argument`).
+            let row = pool.intern_ty(&TyData::Row(w2));
+            let rows = pool
+                .row_data(w1)
+                .params
+                .into_iter()
+                .filter(|p| p.owner == owner)
+                .fold(M::Yes, |acc, p| {
+                    let param = pool.intern_ty(&TyData::Param(ParamRef {
+                        owner,
+                        index: p.index,
+                    }));
+                    both(acc, match_ty(pool, owner, param, row, binds))
+                });
+            both(both(inputs, match_ty(pool, owner, r1, r2, binds)), rows)
         }
         (
             TyData::TraitValue {
@@ -1976,10 +1997,16 @@ impl<'s, 'a> Search<'s, 'a> {
         if let TyData::Infer(v) = pool.get(self_ty) {
             return Ok(self.leaf(key, root, Answer::Stalled { on: vec![v] }));
         }
-        let goal_args = pool.list_items(tref.args);
-        let open = goal_args.iter().any(|a| open_arg(pool, *a));
         // The frame's probes and its "read the directory" bit (§3.2).
         let mut reads = Reads::default();
+        // A projection on a concrete base among the arguments, as a bound
+        // plan's `O < Layer[I::Output]` gives, matches as its normal form.
+        let tref = TraitRef {
+            args: norm_list(pool, impls, tref.args, 0, &mut reads),
+            ..tref
+        };
+        let goal_args = pool.list_items(tref.args);
+        let open = goal_args.iter().any(|a| open_arg(pool, *a));
         let mut yes = Vec::new();
         let mut maybes = 0usize;
         let cands = reads.candidates(impls, pool, tref.trait_, self_ty, goal_args, open);
@@ -2019,6 +2046,16 @@ impl<'s, 'a> Search<'s, 'a> {
                     let mut fixed: Vec<Option<Ty>> =
                         (0..n).map(|i| binds.get(i).copied().flatten()).collect();
                     apply_binds_in(pool, impls, t, r, &mut fixed, &mut reads);
+                    // A bare variable learns the head's argument only once
+                    // the match fixed every parameter it reads; until then
+                    // the goal waits for the variable, as on a `Maybe`.
+                    if hs.iter().zip(goal_args).any(|(h, g)| {
+                        matches!(pool.get(*g), TyData::Infer(_))
+                            && reads_fresh(pool, owner, *h, &fixed)
+                    }) {
+                        maybes += 1;
+                        continue;
+                    }
                     let args: Vec<Ty> =
                         fixed.into_iter().map(|a| a.unwrap_or(Ty::POISON)).collect();
                     yes.push((at, args, t));

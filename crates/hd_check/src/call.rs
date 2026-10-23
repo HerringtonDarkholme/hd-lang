@@ -4711,13 +4711,25 @@ impl Ck<'_, '_> {
                     mut_: false,
                 })?
             && let [c] = &cands[..]
-            && c.n_fresh == 0
             && let Some(table) = self.cx.impl_table(c.row.module)
         {
             let r = c.row.row as usize;
             let impl_def = table.def[r];
-            if let Some((_, b)) = table.assoc[r].iter().find(|(d, _)| *d == assoc) {
-                let ia = pool.list_items(c.impl_args);
+            let ia = pool.list_items(c.impl_args);
+            // A binding that reads no parameter the self type left open,
+            // as `never` under `impl[S] Walker[S] for Encoder`.
+            let open = |i: usize| {
+                let index = u16::try_from(i).unwrap_or(u16::MAX);
+                ia[i]
+                    == pool.intern_ty(&TyData::Param(ParamRef {
+                        owner: impl_def,
+                        index,
+                    }))
+            };
+            if let Some((_, b)) = table.assoc[r].iter().find(|(d, _)| *d == assoc)
+                && (0..ia.len())
+                    .all(|i| !open(i) || !crate::trial::names_param(pool, *b, impl_def, i))
+            {
                 let x = subst_owner(pool, impl_def, ia, *b);
                 return self.normalized(x);
             }

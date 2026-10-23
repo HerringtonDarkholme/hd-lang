@@ -1990,7 +1990,8 @@ rigid, except placeholders and variables, which the solver may not bind.
 
 - **Rows.** A row argument in a head is a row parameter or a concrete row
   ([`trait.target.row-argument`](../../spec/lang/09-traits.md#r-trait.target.row-argument)),
-  so matching never needs row unification with a tail.
+  so matching never needs row unification with a tail: a row parameter
+  binds the goal's whole row, as a `TyData::Row`.
 - **Tuples.** A tuple head matches a tuple of the same arity and rest
   shape. A tuple template's head matches every tuple, and its `T` is the
   tuple.
@@ -1999,7 +2000,11 @@ rigid, except placeholders and variables, which the solver may not bind.
   (`family_excludes`): `impl[N < Num] Add for N` does not match `string`.
 - **A bare variable among the goal's trait arguments is skipped** in
   matching; if the head commits, the variable learns the head's argument
-  (section 3.8).
+  (section 3.8). A head argument that reads an impl parameter the match
+  left unfixed, as `List[T]` against `?0`, makes the head `Maybe`.
+- **A projection on a concrete base** among the goal's arguments, as a
+  bound plan's `O < Layer[I::Output]` gives, is normalized before
+  matching, so such a goal keys with its universe.
 - **Cost.** Linear in the head's size.
 
 ### 3.5 Committing
