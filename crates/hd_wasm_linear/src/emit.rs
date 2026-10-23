@@ -880,6 +880,13 @@ pub(crate) fn copies_out(input: &Input<'_>, item: DefId, params: &[Ty]) -> bool 
         && input.own_cx.received(item, 0, params.len()) == hd_tir::own::Pass::InPlace
 }
 
+/// Whether `t` is a list or a map, under any `mut`.
+pub(crate) fn collection(input: &Input<'_>, t: Ty) -> bool {
+    use hd_mono::layout::StdKind;
+    matches!(input.pool.get(crate::layout::strip(input.pool, input.env, t)),
+        TyData::Adt { def, .. } if matches!(input.env.std_kind(def), StdKind::List | StdKind::Map))
+}
+
 /// The parameter locals of the body's own function, in order: those
 /// flagged as parameters that belong to no closure.
 fn param_locals(b: &Body) -> Vec<usize> {
@@ -1031,6 +1038,9 @@ struct Em<'i, 'a, 'm> {
     /// The receiver local whose final value the function returns after its
     /// results ([`copies_out`]).
     copy_out: Option<usize>,
+    /// While [`Em::mark`] stores the marker, which no place holds, so no
+    /// store copies it.
+    marking: bool,
 }
 
 impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
@@ -1115,6 +1125,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             hoisted: Vec::new(),
             deref_physical: false,
             copy_out: None,
+            marking: false,
         };
         em.projs = (0..b.len()).map(|i| em.projected(i)).collect();
         em
@@ -2043,7 +2054,7 @@ impl Em<'_, '_, '_> {
             self.f
                 .global_get(Global::Storage(h, u32::try_from(k).expect("k"), v));
         }
-        self.store(i)
+        self.tested(true, i, false)
     }
 
     /// The storage hash of top-level binding `def`, named for development
@@ -2189,6 +2200,34 @@ impl Em<'_, '_, '_> {
         Some((x, ps[0]))
     }
 
+    /// Before a call of `item` that copies out its receiver: when the
+    /// argument's place is one another path may reach (a top-level
+    /// binding, a cell, a dereference), it holds the marker 0 for the call
+    /// (`docs/compiler/tir-v2.md`, commit 3c), which a read on such a path
+    /// tests ([`Em::test_local`]). The marker's store releases the place's
+    /// count, while the call's own count of the argument keeps the value;
+    /// the copied-out value's store over the marker takes a count of its
+    /// own ([`Em::copy_back`]).
+    fn mark(&mut self, i: u32, args: &[u32], item: DefId, ps: Option<&[Ty]>) -> StageResult<()> {
+        let (Some(&r), Some(ps)) = (args.first(), ps) else {
+            return Ok(());
+        };
+        let read = Ref(r).as_inst().is_some() && self.b.tags[r as usize] == Tag::Read;
+        let p = read
+            .then_some(r)
+            .and_then(|r| self.b.decode_place(self.b.data[r as usize][0]));
+        if !copies_out(self.input, item, ps) || !p.is_some_and(|p| self.reached(p.root, &p.proj)) {
+            return Ok(());
+        }
+        self.f.helper(Helper::Marker);
+        // A local no code writes holds 0.
+        let z = self.f.local(Val::I32);
+        self.marking = true;
+        let stored = self.copy_back(i, args, Some((z, self.ty_of(r))));
+        self.marking = false;
+        stored
+    }
+
     /// Stores `out`, the final value a callee copied out of its receiver
     /// `args[0]`, into the place of a local or a top-level binding that the
     /// argument read, as a `Store` of it stores (taking a count of its
@@ -2253,6 +2292,7 @@ impl Em<'_, '_, '_> {
                     let params = self.param_tys(ct.key, ct.item, ct.args);
                     self.push_args(&args, params.as_deref())?;
                     let c = self.push_call_providers(ct.item, ct.args)?;
+                    self.mark(i, &args, ct.item, params.as_deref())?;
                     self.f.call(Sym::Inst(ct.key));
                     let out = self.take_copy_out(ct.item, params.as_deref());
                     // A suspending callee called cold returns its frame.
@@ -2456,6 +2496,7 @@ impl Em<'_, '_, '_> {
                 let params = self.param_tys(call.key, call.item, call.args);
                 self.push_args(&args, params.as_deref())?;
                 let c = self.push_call_providers(call.item, call.args)?;
+                self.mark(i, &args, call.item, params.as_deref())?;
                 if bracket {
                     self.forbid_by(1);
                 }

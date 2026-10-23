@@ -1,0 +1,21 @@
+# @dump: wat
+# A `mut self` call on a list in a top-level binding stores the marker 0
+# into the binding for the call, releasing the binding's count while the
+# call's own count keeps the list, then stores the copied-out value over
+# it. Each read of the binding, the receiver's and the one after the
+# call, tests for the marker (`rt:marker_test`), which panics
+# `conflicting-access`. In a program that stores no marker the link
+# erases every test.
+trait Grow:
+    fn grow(mut self, n: i64) -> usize
+
+impl Grow for List[i64]:
+    fn grow(mut self, n: i64) -> usize:
+        self.push(n)
+        self.len()
+
+let mut shared: List[i64] = [1]
+
+fn grow_shared() -> usize:
+    shared.grow(1) + shared.len()
+    #^^^^^^^^^^^^^^^^^^^^^^^^^^^^

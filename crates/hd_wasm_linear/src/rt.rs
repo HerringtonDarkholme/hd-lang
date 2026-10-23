@@ -267,6 +267,13 @@ pub enum Helper {
     /// `(list) -> bool`: whether an element reference pins the list: its
     /// header has an owner word and its buffer a count over 1 (§23.20).
     ListPinned,
+    /// Marks a store of the marker 0 into a place a call copies out of
+    /// (`docs/compiler/tir-v2.md`, commit 3c); erased before
+    /// optimization. Each [`Helper::MarkerTest`] stays only where some
+    /// code calls it.
+    Marker,
+    /// `(list)`: panics `conflicting-access` on the marker.
+    MarkerTest,
     /// `(list) -> list`: a new list over a copy of the list's buffer,
     /// whose elements take their own counts: how [`Helper::ListCopy`]
     /// copies a pinned list, through the owner word's slot.
@@ -1518,6 +1525,18 @@ pub fn helper(h: &Helper, m: &mut Module) -> Func {
             f
         }
         Helper::ListPinned => list_pinned(m),
+        Helper::Marker => m.func("rt:marker", vec![], vec![]),
+        Helper::MarkerTest => {
+            let mut f = m.func("rt:marker_test", vec![Val::I32], vec![]);
+            f.get(0);
+            f.op(Instruction::I32Eqz);
+            f.op(Instruction::If(BlockType::Empty));
+            f.helper(Helper::Panic(
+                "conflicting-access: read during an in-place change".into(),
+            ));
+            f.op(Instruction::End);
+            f
+        }
         Helper::ListClone { elem } => list_clone(m, elem),
         Helper::ListBuf { elem } => list_buf(m, elem),
         Helper::DropElems { elem } => drop_elems(m, elem),

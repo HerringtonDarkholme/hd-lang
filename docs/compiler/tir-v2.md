@@ -3776,6 +3776,85 @@ web compiler's gzip grows 1,973 B (1,904,772 to 1,906,745, both built
 here), against the planned 1.7 KB: 14.2 B a line where the plan used
 12.5.
 
+3c stores the marker and tests for it. Before a call that copies out,
+at both of 3b's call sites, the caller decides whether the argument's
+place is one another path may reach (`Em::reached`): rooted at a
+top-level binding or a cell, or past a dereference. If so, it stores
+the marker 0 into the place by the `Store` lowering (`Em::mark`), which
+releases the place's count while the call's own count of the argument
+keeps the value; 3b's copy-back then stores the copied-out value over
+the marker, taking a count of its own, and the marker's release is
+nothing. Checked-mode conformance caught a first version that retained
+the value for the marker's store: one count leaked per call. The marker's store takes no header copy (`Em::marking` in
+`fresh`), since `ListCopy` of 0 would read address 0. A read of a list
+or a map through such a place tests it (`Em::test_local`, and
+`Em::tested` after a read's store): a binding read whole (`global_read`,
+`slot_get`), a cell read whole or by a field (`cell_get`, `place_read`),
+a read through a dereference (`place_read`, `read_part`, `rooted_read`),
+the header before each element step of the walk (`walk_place`), and the
+header an `IsUnique` or a `Pin` names (`place_header`), so a push through
+the binding panics too. The test is `local.get x`, `call rt:marker_test`
+(`Func::marker_test`), which panics `conflicting-access` on 0; it leaves
+the anchor state as it was, so the code after it is what it would be
+without it. Each marker store also calls `Helper::Marker`, a no-op the
+link erases as it erases `CancellationRoot`. Where no function calls it,
+the link erases every test with the anchor it wrote, before it builds
+any helper (`Module::erase_marker_tests`), so `rt:marker_test` and its
+panic text never exist in such a program. That is one scan of the
+bodies; the fold the plan named, at `RefViewsAbsent`'s, would come after
+the helpers are built, and the panic text's static data would stay.
+`hd_check`'s `PANIC_CATEGORIES` gains `conflicting-access`, as
+`flow.panic.known-categories` now lists it.
+
+The spec rules are `ref.elem.self-call`, `.store`, `.conflict`, `.paths`
+and `.release`, in a new subsection of chapter 13 after Call-Scoped
+Access; `types.coll.nested` now says that only a `mut self` method's
+call stores a changed copy back, when it returns. The cases are
+`runtime/panic/a-read-of-a-binding-during-its-mut-self-call-panics` and
+`runtime/valid/a-mut-self-call-on-a-binding-completes-when-nothing-reads-it`,
+both passing on V8 and wasmtime, in dev and release; the wat fixture
+`calls/a-mut-self-call-on-a-top-level-binding-stores-the-marker` shows
+the marker's store, the copy-back over it and the tests. Probes also panic for an
+element read, a push and a loop through the binding, a read through a
+reference the call was made on, a map's read, and a cell a closure
+reads, whole or by a field.
+
+Left open, besides 3b's three: a call through a trait value (`DynRead`)
+stores no marker, since the slot helper is built at link time, after
+the scan, and its few lines would pass the stop line; a read during it
+sees the place's value, as before 3c. A `let mut` list that a closure
+captures and nothing reassigns has no cell: the closure holds the same
+header, so a read through it sees the change in progress and does not
+panic; under 3f the closure's copy would keep the old buffer address,
+which 3f has to settle. Only a list or a map read tests: a read of a
+struct or a tuple that holds the marked collection copies the marker,
+and a later use of that copy reads address 0. A store of the whole
+place during the call reads nothing and is not tested, and the
+copy-back then overwrites it, so that write is lost; an element store
+walks the header and panics.
+
+3c adds 95 Rust code lines and deletes 15 against 68, under the stop
+line of 102 (`emit.rs` +28/−1, `emit/refs.rs` +27/−10, `module.rs`
++22/−1, `rt.rs` +14, `hd_check` `tests.rs` +2/−1, `emit/closure.rs` and
+`emit/list.rs` +1/−1 each): 1.4 times the share, as threaded emitter
+code ran before, the reads alone being ten sites. No baseline changes.
+The 13 release `.wasm` files are byte-identical to 3b's: no program
+stores a marker, so the link erases every test, and json and
+string_build pay nothing as shipped. With the erasure off (a local
+patch, not committed), the tests cost: json 169,956 to 172,004 B
+(+1.2%), string_build 11,739 to 11,910 B (+1.5%), closures +117 B,
+map_count +168 B, nbody +228 B, spectral_norm +187 B, the other seven
+unchanged. Study times on V8, `--quick`, medians of three interleaved
+rounds of 7 runs, twice: json 121.4 to 123.4 ms and 131.8 to 122.2 ms
+(both within the ±2.5% noise, minimums 120.9 to 121.8), string_build
+215.8 to 225.2 ms and 216.1 to 229.1 ms (+4.4% and +6.0%): each
+`StringBuilder::push` changes `self.parts` through `&mut self`, so the
+`IsUnique` and the read of that place test its header, 1.5 million
+times each. The build
+with the erasure on measured 122.2 and 122.7 ms for json and 215.4 and
+220.1 ms for string_build, the same bytes as 3b. The web compiler's
+gzip grows 1,075 B (1,906,745 to 1,907,820, both built here).
+
 No commit carries two copy paths: through 3e both kinds copy by
 `ListCopy` (a new header over the same buffer), 3f moves both to the
 buffer copy glue at once, and 3g removes the header copies of both.

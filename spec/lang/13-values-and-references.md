@@ -500,6 +500,41 @@ following to the collection, or to a place that holds it:
 > Writes to other elements cannot move the referenced slot, so they stay
 > legal.
 
+### Mut Self Calls On Collections
+
+A `mut self` method called on a list or a map changes its own copy of the
+collection, which replaces the receiver's value when the call returns:
+
+```hd
+trait Visit:
+    fn visit(mut self, f: fn() -> usize) -> usize
+
+impl Visit for List[i64]:
+    fn visit(mut self, f: fn() -> usize) -> usize:
+        self.push(1)
+        f()
+
+let mut seen: List[i64] = [1]
+
+fn count() -> usize:
+    seen.len()
+
+fn demo() -> usize:
+    seen.visit(fn() -> usize: 0)  # seen is [1, 1] after the call
+    seen.visit(count)             # panics with conflicting-access: count reads seen
+```
+
+1. r[ref.elem.self-call] A call of a `mut self` method on a list or a map changes the method's own copy of the collection.
+2. r[ref.elem.self-call.store] When the call returns, the method's final `self` replaces the collection in the receiver's place.
+3. r[ref.elem.self-call.conflict] While the call runs, a read of the collection through another path to that place is a checked runtime panic. Panic: `conflicting-access`.
+4. r[ref.elem.self-call.paths] Another path is a top-level binding, a variable that a closure shares, or a reference.
+5. r[ref.elem.self-call.release] The check runs in every build, release included.
+
+> **Why.** The call may move the collection's elements, as growth does,
+> so a read through another path could see a moved or half-changed
+> collection. It panics instead, as Swift's dynamic exclusivity checks do
+> for globals and escaping closures.
+
 See also: [Element Reference Loops](06-control-flow.md#element-reference-loops),
 [Collection Values](04-type-system.md#collection-values),
 [Map Values](04-type-system.md#map-values).
