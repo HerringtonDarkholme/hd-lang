@@ -465,6 +465,11 @@ pub struct Item {
     /// (`annot.impl-fact.fills-defaults`): as a derivation's source, its
     /// `build` fills each member that declares a default from it.
     pub fills_defaults: bool,
+    /// The fact types an implementation names with `std.structure`'s
+    /// `skips::[F]()` (`annot.impl-fact.skips`): as a derivation's walker,
+    /// describer or source, it omits each member whose known facts hold a
+    /// value of one of them.
+    pub skips: Vec<Ty>,
     /// A `struct` declaration: `ItemData::Data` fields, a value type
     /// without identity (`data.struct.value`).
     pub is_struct: bool,
@@ -493,6 +498,7 @@ impl Item {
             has_facts: false,
             fact_pattern: None,
             fills_defaults: false,
+            skips: Vec::new(),
             is_struct: false,
             docs: Vec::new(),
             data,
@@ -1166,6 +1172,7 @@ fn put_item(w: &mut Writer, t: &mut TableWriter<'_>, it: &Item) -> StageResult<(
     w.u8(u8::from(it.has_facts));
     w.u32(opt_ty(t, it.fact_pattern)?);
     w.u8(u8::from(it.fills_defaults));
+    put_tys(w, t, &it.skips)?;
     w.u8(u8::from(it.is_struct));
     match &it.data {
         ItemData::Fn(s) => {
@@ -1265,6 +1272,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
     let has_facts = r.u8() != 0;
     let fact_pattern = get_opt_ty(r, t).ok()?;
     let fills_defaults = r.u8() != 0;
+    let skips = get_tys(r, t)?;
     let is_struct = r.u8() != 0;
     let data = match r.u8() {
         0 => ItemData::Fn(get_sig(r, t)?),
@@ -1349,6 +1357,7 @@ fn get_item(r: &mut Reader<'_>, t: &Tables) -> Option<Item> {
         has_facts,
         fact_pattern,
         fills_defaults,
+        skips,
         is_struct,
         docs: Vec::new(),
         data,

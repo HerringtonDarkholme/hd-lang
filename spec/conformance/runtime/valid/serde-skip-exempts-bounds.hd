@@ -1,0 +1,23 @@
+# test: a skipped member's type needs neither Serialize nor Deserialize, and the value round-trips through JSON
+# Spec std/serde Skipped Members: std-serde.skip.no-bound, std-serde.skip.read.
+use std.json.{decode, encode}
+use std.serde.{Serialize, Deserialize, skip}
+
+struct Cached:
+    hits: i32
+
+@derive(Serialize, Deserialize)
+struct Record:
+    name: string
+    @skip()
+    cached: Cached = Cached { hits: 0 }
+
+tests:
+    use std.testing.assert_equal
+
+    it("the skipped member is not written and reads back as its default"):
+        text := encode(Record { name: "a", cached: Cached { hits: 5 } })
+        assert_equal(text, "{\"name\":\"a\"}", reason="only the kept member is written")
+        back := decode::[Record](text).expect("read")
+        assert_equal(back.name, "a", reason="kept member read")
+        assert_equal(back.cached.hits, +0, reason="skipped member takes its declared default")

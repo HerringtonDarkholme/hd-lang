@@ -235,3 +235,18 @@ pub struct FillsDefaults: pass
 ## See [annot.impl-fact.fills-defaults.decl](../../spec/lang/14-annotations.md#r-annot.impl-fact.fills-defaults.decl).
 pub fn fills_defaults() -> FillsDefaults:
     FillsDefaults {}
+
+# A fact on a walker, describer or source implementation: in a derivation
+# whose template passes it, a member whose known facts hold a value of
+# type `F` is omitted, as `= pass` omits it, so its type owes that
+# derivation's bounds nothing (r-annot.impl-fact.skips). The compiler
+# recognizes `skips` by its qualified name and reads its type argument.
+## A walker's, describer's, or source's fact: a member that carries a fact of type `F` is omitted.
+## See [annot.impl-fact.skips](../../spec/lang/14-annotations.md#r-annot.impl-fact.skips).
+@annotate(.Impl)
+pub struct Skips[F]: pass
+
+## Marks a walker, describer, or source implementation that omits each member carrying a fact of type `F`.
+## See [annot.impl-fact.skips.decl](../../spec/lang/14-annotations.md#r-annot.impl-fact.skips.decl).
+pub fn skips[F]() -> Skips[F]:
+    Skips::[F] {}

@@ -2464,6 +2464,9 @@ struct OptInFinding {
     /// Whether the opt-in derives `Eq`, `PartialOrd`, `Ord` or `Hash`, whose
     /// failing member is `derive-field-missing-trait`.
     compare: bool,
+    /// A member that a skip fact omits but that declares no default for
+    /// `build` (`annot.impl-fact.skips.no-default`).
+    no_default: bool,
     message: String,
 }
 
@@ -6189,6 +6192,7 @@ impl Run<'_> {
             std::collections::BTreeMap::new();
         // Per data type or enum, its declaration facts bodies, built once.
         let mut decl: HashMap<DefId, Option<FactBodies>> = HashMap::default();
+        let mut decl_types: HashMap<DefId, Option<hd_check::SlotTypes>> = HashMap::default();
         let mut derived = Derived::default();
         for (i, it) in cx.lookup.own.iter().enumerate() {
             let ItemData::Impl { trait_, kind, .. } = &it.data else {
@@ -6281,6 +6285,12 @@ impl Run<'_> {
                 // was built. A later input's traitless block must not reuse
                 // an earlier derivation's declaration Structure owner.
                 opt.lines = !lines.is_empty() || self.repl_number(m).is_some();
+                if heads.iter().any(|h| h.def == opt.data)
+                    && let Some(types) =
+                        derivation_fact_types(cx, heads, (&opt, &lines), &mut decl_types)
+                {
+                    opt.set_fact_types(&types);
+                }
                 let facts = if heads.iter().any(|h| h.def == opt.data) {
                     derivation_facts(cx, heads, (&opt, &lines), &mut decl, &mut derived)
                 } else {
@@ -6342,7 +6352,12 @@ impl Run<'_> {
                 );
             } else {
                 let def = cx.lookup.own[f.item].def;
-                diags.error(Code::MemberNotDerivable, self.item_span(def, 0), &f.message);
+                let code = if f.no_default {
+                    Code::OmittedMemberWithoutDefault
+                } else {
+                    Code::MemberNotDerivable
+                };
+                diags.error(code, self.item_span(def, 0), &f.message);
             }
         }
         derived
@@ -6880,11 +6895,14 @@ impl Run<'_> {
                     checked
                         .failures
                         .into_iter()
-                        .map(|(member, message)| OptInFinding {
+                        .map(|(member, message)| (member, message, false))
+                        .chain(checked.no_default.into_iter().map(|(m, s)| (m, s, true)))
+                        .map(|(member, message, no_default)| OptInFinding {
                             item: *i,
                             data: opt.data,
                             slot: opt.members[member].slot,
-                            compare,
+                            compare: compare && !no_default,
+                            no_default,
                             message,
                         }),
                 );
@@ -10408,6 +10426,36 @@ fn derivation_facts<'t>(
     .ok()?;
     derived.bodies.extend(bodies);
     Some(own)
+}
+
+/// The known fact types of each slot that the derivation `opt` sees
+/// (`annot.impl-fact.skips.known`): its target's declaration facts, edited
+/// by its member `lines`, typed in module `cx`, which declares the target.
+/// A derivation without lines sees the declaration's, typed once per type
+/// into `cache`.
+fn derivation_fact_types<'t>(
+    cx: &BodyCx<'t>,
+    heads: &[hd_resolve::Head<'t>],
+    (opt, lines): (
+        &hd_check::derive::OptIn,
+        &[hd_check::derive::MemberLine<'t>],
+    ),
+    cache: &mut HashMap<DefId, Option<hd_check::SlotTypes>>,
+) -> Option<hd_check::SlotTypes> {
+    let data = opt.data;
+    let typed = || {
+        let item = cx.lookup.item(data)?;
+        let node = heads.iter().find(|h| h.def == data)?.node;
+        let mut view =
+            hd_check::structure::declaration_facts(cx, item, node, traitless(cx, heads, data));
+        hd_check::structure::edit_facts(cx, item, &mut view, lines);
+        Some(hd_check::declaration_types(cx, data, &view))
+    };
+    if lines.is_empty() {
+        cache.entry(data).or_insert_with(typed).clone()
+    } else {
+        typed()
+    }
 }
 
 /// The node of the derivation block with no trait for `data` among the

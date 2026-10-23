@@ -191,11 +191,14 @@ For example, `@skip()` on `cached: usize = 0` leaves the cache out of documents.
 2. r[std-serde.skip.constructor] `skip() -> Skip` constructs the fact.
 3. r[std-serde.skip.write] Derived serialization omits a member with `Skip` without calling its serializer or the format's `member` method for it.
 4. r[std-serde.skip.read] Derived deserialization fills a skipped member from its declared default without positioning or decoding its input, even when a key is present.
-5. r[std-serde.skip.bounds] A skipped field's type must still implement `Serialize` or `Deserialize` for the corresponding derivation.
-6. r[std-serde.skip.default-required] A skipped field without a declared default returns a deserializer error naming the field and saying it needs a declared default.
+5. r[std-serde.skip.impl-fact] The walker of derived serialization and the source of derived deserialization carry `skips::[Skip]()`. So [`annot.impl-fact.skips`](../lang/14-annotations.md#r-annot.impl-fact.skips) omits a member whose known facts hold `Skip`.
+6. r[std-serde.skip.no-bound] A skipped field's type need not implement `Serialize` or `Deserialize`.
+7. r[std-serde.skip.no-default] Under a derived `Deserialize`, a skipped field without a declared default is an error at the opt-in. Error: `omitted-member-without-default`.
+8. r[std-serde.skip.unknown-fact] A `Skip` that only a named list or a spread attaches is read when the program runs. The field keeps both bounds, and reading it without a declared default returns a deserializer error naming the field.
 
-> **Why.** Skipping changes the serde view in ordinary library code;
-> the derive's member bounds remain in force.
+> **Why.** A skipped member is never written or read, so its type owes
+> serde nothing. Saying so on the walker and source keeps the rule in
+> library code.
 
 ## Standard Implementations
 

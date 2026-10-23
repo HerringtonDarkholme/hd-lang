@@ -1,0 +1,12 @@
+# test: under a derived Deserialize, a skipped member without a declared default is an error at the opt-in
+# Spec std/serde Skipped Members: std-serde.skip.no-default.
+use std.serde.{Deserialize, skip}
+
+struct Cached:
+    hits: i32
+
+@derive(Deserialize)  # diagnostic: omitted-member-without-default
+struct Record:
+    name: string
+    @skip()
+    cached: Cached

@@ -10,7 +10,7 @@ use std.text.StringBuilder
 use std.collections.Set
 use std.function.Tuple
 use std.hash.Hash
-use std.structure.{Structure, Walker, Describer, Source, Variant, VariantInfo, Field, Member, Members, Key, Facts}
+use std.structure.{Structure, Walker, Describer, Source, Variant, VariantInfo, Field, Member, Members, Key, Facts, skips}
 
 ## A named member's document name, independent of its hd field name.
 ## See [std-serde.rename.fact](../../spec/std/serde.md#r-std-serde.rename.fact).
@@ -209,6 +209,11 @@ struct SerializeWalker[S, W < Serializer]:
     pub out: &mut W
     pub facts: Facts
 
+# `skips::[Skip]()` omits a member whose known facts hold `Skip`, so its
+# type needs no `Serialize` (r-std-serde.skip.no-bound). The `Skip` test
+# in `member` covers a `Skip` that only a named list or a spread attaches
+# (r-std-serde.skip.unknown-fact).
+@skips::[Skip]()
 impl[S, W < Serializer] Walker[S] for SerializeWalker[S, W]:
     type Error = W::Error
 
@@ -249,6 +254,12 @@ struct DeserializeSource[S, R < Deserializer]:
     pub facts: Facts
     pub at: usize
 
+# `skips::[Skip]()` omits a member whose known facts hold `Skip`: `build`
+# fills it from its declared default, and its type needs no `Deserialize`
+# (r-std-serde.skip.no-bound, r-std-serde.skip.no-default). The `Skip`
+# tests in `next` and `missing` cover a `Skip` that only a named list or a
+# spread attaches (r-std-serde.skip.unknown-fact).
+@skips::[Skip]()
 impl[S, R < Deserializer] Source[S] for DeserializeSource[S, R]:
     type Error = R::Error
 

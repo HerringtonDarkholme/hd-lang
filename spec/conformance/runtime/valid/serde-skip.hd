@@ -1,8 +1,9 @@
-# test: skip retains serde bounds but omits serialization and restores defaults without decoding the field
-# Spec std/serde Skipped Members: std-serde.skip.fact, std-serde.skip.constructor, std-serde.skip.write, std-serde.skip.read, std-serde.skip.bounds, std-serde.skip.default-required.
+# test: skip omits serialization and restores defaults without decoding the field
+# Spec std/serde Skipped Members: std-serde.skip.fact, std-serde.skip.constructor, std-serde.skip.write, std-serde.skip.read, std-serde.skip.unknown-fact.
 use std.json.{decode, encode, from_json, parse, to_json}
 use std.serde.{Serialize, Deserialize, Serializer, Deserializer, skip, rename, skip_none}
 use std.http.Request
+use std.inspect.Inspectable
 use std.regex.Regex
 
 struct NeverRead: pass
@@ -23,11 +24,15 @@ struct Value:
     @skip()
     number: u8 = 9
 
-@derive(Deserialize)
 struct MissingDefault:
     kept: i32
-    @skip()
     hidden: i32
+
+fn skip_facts() -> List[&dyn Inspectable]:
+    [&skip()]
+
+impl Deserialize for MissingDefault by Structure:
+    hidden = skip_facts()
 
 @derive(Deserialize)
 struct Capture:
@@ -83,7 +88,7 @@ tests:
         assert_equal(encode(direct), "{\"kept\":4}", reason="only kept field survives")
         assert_equal(decode::[Value]("{\"kept\":5}").expect("absent").number, 9, reason="absent skipped field also defaults")
 
-    it("a skipped field without a default returns a named deserializer error"):
+    it("a Skip from a named list on a field without a default returns a named deserializer error"):
         match decode::[MissingDefault]("{\"kept\":1,\"hidden\":2}"):
             .Err(error) => assert(error.to_string().contains("skipped field `hidden` needs a declared default"), reason="error identifies the missing declared default")
             .Ok(_) => panic("expected a missing-default error")

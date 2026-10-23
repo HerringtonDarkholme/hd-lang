@@ -1,0 +1,83 @@
+# test: a walker that carries skips::[F]() omits each member carrying an F fact, whose type then owes the walker nothing
+# Spec 14 Implementation Facts: annot.impl-fact.skips, annot.impl-fact.skips.exempt, annot.impl-fact.skips.scope.
+use std.annotation.annotate
+use std.structure.{Structure, Walker, Variant, Field, skips}
+
+@annotate(.Field)
+struct Skip: pass
+
+fn skip() -> Skip:
+    Skip {}
+
+trait Write:
+    fn write(self) -> string
+
+impl Write for i32:
+    fn write(self) -> string: "${self}"
+
+struct Writing:
+    pub out: string
+
+@skips::[Skip]()
+impl[S] Walker[S] for Writing:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F < Write](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.out = self.out + h.info.name + "=" + value.write() + ";"
+        .Ok(())
+
+impl[T] Write for T by Structure:
+    fn write(self) -> string:
+        let mut walker = Writing { out: "" }
+        _ := Structure::walk(self, &mut walker)
+        walker.out
+
+trait Names:
+    fn names(self) -> string
+
+struct Namer:
+    pub out: string
+
+impl[S] Walker[S] for Namer:
+    type Error = never
+
+    fn variant(&mut self, v: Variant[S]) -> Result[void, never]:
+        .Ok(())
+
+    fn member[F](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.out = self.out + h.info.name + ";"
+        .Ok(())
+
+impl[T] Names for T by Structure:
+    fn names(self) -> string:
+        let mut w = Namer { out: "" }
+        _ := Structure::walk(self, &mut w)
+        w.out
+
+struct Cached: pass
+
+@derive(Write, Names)
+struct Record:
+    count: i32
+    @skip()
+    cached: Cached
+
+enum Event:
+    Hit(count: i32, @skip() cached: Cached)
+
+impl Write for Event by Structure
+
+tests:
+    use std.testing.assert_equal
+
+    it("the walker never sees the skipped member"):
+        assert_equal(Record { count: 2, cached: Cached {} }.write(), "count=2;", reason="cached is omitted")
+
+    it("another derivation still walks the skipped member"):
+        assert_equal(Record { count: 2, cached: Cached {} }.names(), "count;cached;", reason="Names walks both")
+
+    it("a payload member is omitted the same way"):
+        assert_equal(Event.Hit(3, Cached {}).write(), "count=3;", reason="the payload member is omitted")

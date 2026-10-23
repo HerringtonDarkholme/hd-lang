@@ -1,0 +1,54 @@
+# test: a member that a source's skips::[F]() omits must declare a default for build
+# Spec 14 Implementation Facts: annot.impl-fact.skips.no-default.
+use std.annotation.annotate
+use std.structure.{Structure, Source, Variant, Field, Members, Key, skips}
+
+@annotate(.Field)
+struct Skip: pass
+
+fn skip() -> Skip:
+    Skip {}
+
+trait Zero:
+    fn zero() -> Self
+
+impl Zero for i32:
+    fn zero() -> i32: 0
+
+impl[T] Zero for T by Structure:
+    fn zero() -> T:
+        let mut s = Zeroes::[T] { at: 0 }
+        match T::build(&mut s):
+            .Ok(value) => value
+            .Err(_) => panic("zeroes never fail")
+
+struct Zeroes[S]:
+    pub at: usize
+
+@skips::[Skip]()
+impl[S] Source[S] for Zeroes[S]:
+    type Error = never
+
+    fn variant(&mut self, choices: List[Variant[S]]) -> Result[Variant[S], never]:
+        .Ok(choices[0])
+
+    fn next(&mut self, members: Members[S]) -> Result[Key[S]?, never]:
+        if self.at >= members.infos.len():
+            return .Ok(.None)
+        info := members.infos[self.at]
+        self.at = self.at + 1
+        .Ok(members.at(info.position))
+
+    fn member[F < Zero](&mut self, h: Field[S, F], previous: F?) -> Result[F, never]:
+        .Ok(F::zero())
+
+    fn missing[F](&mut self, h: Field[S, F]) -> Result[F, never]:
+        panic("zeroes name every member")
+
+struct Cached: pass
+
+@derive(Zero)  # diagnostic: omitted-member-without-default
+struct Record:
+    count: i32
+    @skip()
+    cached: Cached

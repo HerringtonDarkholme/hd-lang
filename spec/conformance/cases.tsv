@@ -3676,8 +3676,9 @@ typing/invalid/if-branch-misses-expected-type.hd	type	reject:type-mismatch	lang/
 runtime/valid/serde-skip-none.hd	runtime	accept	std/serde.md#absent-optional-members
 typing/invalid/serde-skip-none-non-optional.hd	type	reject:type-mismatch	std/serde.md#r-std-serde.skip-none.constructor
 runtime/valid/serde-skip.hd	runtime	accept	std/serde.md#skipped-members
-typing/invalid/serde-skip-retains-bound.hd	type	reject:member-not-derivable	std/serde.md#r-std-serde.skip.bounds
-typing/invalid/serde-skip-retains-deserialize-bound.hd	type	reject:member-not-derivable	std/serde.md#r-std-serde.skip.bounds
+runtime/valid/serde-skip-exempts-bounds.hd	runtime	accept	std/serde.md#r-std-serde.skip.no-bound
+runtime/valid/serde-skip-serialize-only-no-default.hd	runtime	accept	std/serde.md#r-std-serde.skip.no-bound
+typing/invalid/serde-skip-without-default.hd	type	reject:omitted-member-without-default	std/serde.md#r-std-serde.skip.no-default
 runtime/valid/serde-derive-keeps-declared-parameter-bounds.hd	runtime	accept	std/serde.md#derived-implementations
 runtime/valid/serde-std-writes.hd	runtime	accept	std/serde.md#r-std-serde.model.one-value
 runtime/valid/serde-std-reads.hd	runtime	accept	std/serde.md#r-std-serde.read.scalar
@@ -4698,6 +4699,8 @@ runtime/valid/a-generic-type-derives-under-its-parameter-bound.hd	runtime	accept
 runtime/valid/derive-keeps-declared-parameter-bounds.hd	runtime	accept	lang/14-annotations.md#r-annot.bound.declared
 runtime/valid/source-fills-defaults.hd	runtime	accept	lang/14-annotations.md#r-annot.impl-fact.fills-defaults
 typing/invalid/source-without-fills-defaults-bounds-defaulted-member.hd	type	reject:member-not-derivable	lang/14-annotations.md#r-annot.impl-fact.fills-defaults.exempt
+runtime/valid/walker-skips-fact.hd	runtime	accept	lang/14-annotations.md#r-annot.impl-fact.skips
+typing/invalid/source-skips-member-without-default.hd	type	reject:omitted-member-without-default	lang/14-annotations.md#r-annot.impl-fact.skips.no-default
 runtime/valid/build-reads-each-member-from-a-source.hd	runtime	accept	lang/14-annotations.md#typed-derivation
 runtime/valid/downcast-ref-unboxes-a-scalar.hd	runtime	accept	lang/09-traits.md#runtime-type-identity
 runtime/valid/downcast-mut-and-bound-receivers.hd	runtime	accept	lang/09-traits.md#runtime-type-identity

@@ -83,6 +83,7 @@ fn every_known_item_is_declared() {
         ("describer", known.describer),
         ("source", known.source),
         ("fills_defaults", known.fills_defaults),
+        ("skips", known.skips),
         ("inspectable", known.inspectable),
         ("num", known.num),
         ("integer", known.integer),

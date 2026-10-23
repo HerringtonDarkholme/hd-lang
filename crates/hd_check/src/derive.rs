@@ -47,6 +47,13 @@ pub struct OptInMember {
     /// Its written type position in the data type or enum (`anchor`
     /// slots), where a diagnostic about it points.
     pub slot: u32,
+    /// Its variant (0 in a data type) and its position among that
+    /// variant's members.
+    pub place: (usize, usize),
+    /// The concrete types of the facts this derivation sees on it that
+    /// are known before the program runs (`annot.impl-fact.skips.known`),
+    /// which [`OptIn::set_fact_types`] fills.
+    pub facts: Vec<Ty>,
 }
 
 /// One derivation opt-in: a derived implementation or a derivation block,
@@ -75,6 +82,13 @@ pub struct OptIn {
     /// Whether its block carries a member line, which gives it a
     /// `Structure` of its own (`annot.structure.per-derivation`).
     pub lines: bool,
+    /// The members, by index, that a walker, describer or source of its
+    /// template omits through `skips::[F]()` (`annot.impl-fact.skips`).
+    /// The instance check fills it.
+    skipped: RefCell<Vec<usize>>,
+    /// Whether its template calls `build`, so a member it omits needs a
+    /// declared default (`annot.impl-fact.skips.no-default`).
+    builds: Cell<bool>,
     /// Failing members found so far: member index and the bound it misses.
     failed: RefCell<Vec<(usize, Ty)>>,
 }
@@ -82,13 +96,14 @@ pub struct OptIn {
 impl OptIn {
     /// The owner of the `Structure` this derivation sees
     /// (`annot.structure.per-derivation`): the derivation itself when its
-    /// member lines edit it or its source fills declared defaults
-    /// (`annot.impl-fact.fills-defaults.scope`), else the data type or
+    /// member lines edit it, its source fills declared defaults
+    /// (`annot.impl-fact.fills-defaults.scope`) or its template omits a
+    /// member (`annot.impl-fact.skips.scope`), else the data type or
     /// enum, whose declaration `Structure` every such derivation shares.
     /// Known once the instance is checked.
     #[must_use]
     pub fn structure_owner(&self) -> DefId {
-        if self.lines || self.fills_declared() {
+        if self.lines || self.fills_declared() || !self.skipped.borrow().is_empty() {
             self.impl_
         } else {
             self.data
@@ -101,6 +116,32 @@ impl OptIn {
     #[must_use]
     pub fn fills_declared(&self) -> bool {
         self.fills_declared.get() && self.members.iter().any(|m| m.has_default)
+    }
+
+    /// Whether a walker, describer or source of its template omits the
+    /// member at position `position` of variant `variant`
+    /// (`annot.impl-fact.skips`). Known once the instance is checked.
+    #[must_use]
+    pub fn skipped_at(&self, variant: usize, position: usize) -> bool {
+        self.skipped
+            .borrow()
+            .iter()
+            .any(|&i| self.members[i].place == (variant, position))
+    }
+
+    /// Records the known fact types of each member, per slot, as
+    /// `hd_check::declaration_types` gives them for the facts this
+    /// derivation sees.
+    pub fn set_fact_types(&mut self, types: &[(crate::structure::Slot, Vec<Ty>)]) {
+        for m in &mut self.members {
+            let (v, i) = m.place;
+            if let Some((_, ts)) = types
+                .iter()
+                .find(|(s, _)| *s == crate::structure::Slot::Member(v, i))
+            {
+                m.facts.clone_from(ts);
+            }
+        }
     }
 
     /// The opt-in of `it`, a derived implementation or a derivation block,
@@ -157,6 +198,8 @@ impl OptIn {
                         ty: ty(f.ty),
                         has_default: f.has_default,
                         slot: slot_of(i),
+                        place: (0, i),
+                        facts: Vec::new(),
                     });
                 }
             }
@@ -165,13 +208,15 @@ impl OptIn {
             ItemData::Enum { shared, variants } => {
                 // The shared fields' positions come first.
                 let mut at = shared.len();
-                for v in variants {
-                    for f in &v.fields {
+                for (k, v) in variants.iter().enumerate() {
+                    for (j, f) in v.fields.iter().enumerate() {
                         members.push(OptInMember {
                             label: format!("{}.{}", names.text(v.name), label(f)),
                             ty: ty(f.ty),
                             has_default: f.has_default,
                             slot: slot_of(at),
+                            place: (k, j),
+                            facts: Vec::new(),
                         });
                         at += 1;
                     }
@@ -189,6 +234,8 @@ impl OptIn {
             omitted: omitted.to_vec(),
             fills_declared: Cell::new(false),
             lines: false,
+            skipped: RefCell::new(Vec::new()),
+            builds: Cell::new(false),
             failed: RefCell::new(Vec::new()),
         })
     }
@@ -304,10 +351,13 @@ pub fn member_lines<'t>(src: &hd_resolve::Src<'t>, block: NodeRef<'t>) -> Vec<Me
 }
 
 /// What one checked opt-in yields: one message per failing member, with
-/// the member's index in `opt.members`, in member order; and when it
-/// checks clean, the checked template bodies by template method.
+/// the member's index in `opt.members`, in member order; one per member
+/// that a skip fact omits but that declares no default for `build`
+/// (`annot.impl-fact.skips.no-default`); and when it checks clean, the
+/// checked template bodies by template method.
 pub struct OptInCheck {
     pub failures: Vec<(usize, String)>,
+    pub no_default: Vec<(usize, String)>,
     pub bodies: Vec<(DefId, hd_tir::Body)>,
 }
 
@@ -349,10 +399,28 @@ pub fn check_opt_in(
             (i, msg)
         })
         .collect();
-    if !failures.is_empty() {
+    let mut skipped = opt.skipped.borrow().clone();
+    skipped.sort_unstable();
+    let no_default: Vec<(usize, String)> = skipped
+        .into_iter()
+        .filter(|&i| opt.builds.get() && !opt.members[i].has_default)
+        .map(|i| {
+            let msg = format!(
+                "the member `{}` is skipped but declares no default for `build` to use, so {target} cannot derive {}",
+                opt.members[i].label,
+                names.display_name(opt.trait_)
+            );
+            (i, msg)
+        })
+        .collect();
+    if !failures.is_empty() || !no_default.is_empty() {
         bodies.clear();
     }
-    Ok(OptInCheck { failures, bodies })
+    Ok(OptInCheck {
+        failures,
+        no_default,
+        bodies,
+    })
 }
 
 /// The derive instance of one template method (`crates/hd_tir/DESIGN.md`
@@ -476,6 +544,11 @@ struct WalkerBounds {
     member: Vec<(DefId, Ty)>,
     rest: Option<Vec<(DefId, Ty)>>,
     fills_defaults: bool,
+    /// The call is `build`.
+    source: bool,
+    /// The fact types its implementation names with `skips::[F]()`
+    /// (`annot.impl-fact.skips`).
+    skips: Vec<Ty>,
 }
 
 impl<'c> Ck<'_, 'c> {
@@ -588,12 +661,15 @@ impl<'c> Ck<'_, 'c> {
         } else {
             None
         };
-        let fills_defaults =
-            protocol == k.source && self.cx.lookup.item(def).is_some_and(|it| it.fills_defaults);
+        let item = self.cx.lookup.item(def);
+        let fills_defaults = protocol == k.source && item.is_some_and(|it| it.fills_defaults);
+        let skips = item.map(|it| it.skips.clone()).unwrap_or_default();
         Ok(Some(WalkerBounds {
             member,
             rest,
             fills_defaults,
+            source: protocol == k.source,
+            skips,
         }))
     }
 
@@ -610,15 +686,35 @@ impl<'c> Ck<'_, 'c> {
         };
         let calls = std::mem::take(&mut self.structure_calls);
         let pool = self.pool();
+        let mut found = Vec::new();
         for call in calls {
-            let Some(wb) = self.walker_bounds(opt.template, call)? else {
-                continue;
-            };
+            if let Some(wb) = self.walker_bounds(opt.template, call)? {
+                found.push(wb);
+            }
+        }
+        // A member whose known facts hold a type that one of the calls
+        // skips is omitted from the whole derivation, so it owes none of
+        // the calls anything (`annot.impl-fact.skips.exempt`).
+        {
+            let mut skipped = opt.skipped.borrow_mut();
+            for wb in &found {
+                if wb.source {
+                    opt.builds.set(true);
+                }
+                for (i, mem) in opt.members.iter().enumerate() {
+                    if !skipped.contains(&i) && mem.facts.iter().any(|t| wb.skips.contains(t)) {
+                        skipped.push(i);
+                    }
+                }
+            }
+        }
+        let skipped = opt.skipped.borrow().clone();
+        for wb in found {
             if wb.fills_defaults {
                 opt.fills_declared.set(true);
             }
             for (i, mem) in opt.members.iter().enumerate() {
-                if wb.fills_defaults && mem.has_default {
+                if skipped.contains(&i) || (wb.fills_defaults && mem.has_default) {
                     continue;
                 }
                 for &(m, b) in &wb.member {

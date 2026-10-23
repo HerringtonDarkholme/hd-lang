@@ -1674,6 +1674,38 @@ not implement `Zero`.
 4. r[annot.impl-fact.fills-defaults.scope] The fact changes only that derivation. Every other derivation of the type still walks, describes, and builds the member.
 5. r[annot.impl-fact.fills-defaults.other] On any other implementation, `fills_defaults()` changes nothing.
 
+A walker, describer, or source may also name a field fact whose members it
+never receives:
+
+```hd
+use std.annotation.annotate
+use std.structure.{Walker, Variant, Field, skips}
+
+@annotate(.Field)
+struct Skip: pass
+
+fn skip() -> Skip:
+    Skip {}
+
+@skips::[Skip]()
+impl[S] Walker[S] for Writing:  # variant elided
+    type Error = never
+
+    fn member[F < Write](&mut self, h: Field[S, F], value: F) -> Result[void, never]:
+        self.out = self.out + value.write()
+        .Ok(())
+```
+
+A template that passes `Writing` never sees a member marked `@skip()`, so
+that member's type need not implement `Write`.
+
+6. r[annot.impl-fact.skips.decl] `std.structure` declares the fact type `Skips[F]`, limited to implementations by `@annotate(.Impl)`, and `skips[F]() -> Skips[F]`. The compiler recognizes `std.structure.skips` by its qualified name and reads its type argument.
+7. r[annot.impl-fact.skips] When a template passes a walker, describer, or source whose implementation carries `skips::[F]()`, a member whose known facts hold a value of type `F` is omitted. It is omitted as `= pass` omits it, by [`annot.omit.skip`](#r-annot.omit.skip) and [`annot.omit.default`](#r-annot.omit.default).
+8. r[annot.impl-fact.skips.known] A member's **known facts** are its decorators' values and the elements of the list literals its member lines write. A fact that a named list or a spread brings is not known, as [`annot.line.duplicate`](#r-annot.line.duplicate) states.
+9. r[annot.impl-fact.skips.exempt] An omitted member's type need not satisfy any bound of that derivation's walkers, describers, or sources.
+10. r[annot.impl-fact.skips.scope] The omission changes only that derivation. Every other derivation of the type still walks, describes, and builds the member.
+11. r[annot.impl-fact.skips.no-default] In a derivation whose template calls `build`, an omitted member that declares no default is an error, reported at the opt-in and naming the member. Error: `omitted-member-without-default`.
+
 > **Why.** The source knows that it would answer a defaulted member with
 > its default anyway. Saying so on the source keeps that knowledge in the
 > library, instead of a compiler rule about one trait.

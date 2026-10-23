@@ -34,6 +34,10 @@ pub struct KnownItems {
     /// `fills_defaults`, whose fact on a source implementation fills
     /// declared member defaults (`annot.impl-fact.fills-defaults.decl`).
     pub fills_defaults: DefId,
+    /// `skips`, whose fact on a walker, describer or source
+    /// implementation omits the members that carry a fact type
+    /// (`annot.impl-fact.skips.decl`).
+    pub skips: DefId,
     // std.inspect
     pub inspectable: DefId,
     // std.num
@@ -184,6 +188,7 @@ impl KnownItems {
             describer: item("std.structure", "Describer"),
             source: item("std.structure", "Source"),
             fills_defaults: item("std.structure", "fills_defaults"),
+            skips: item("std.structure", "skips"),
             inspectable,
             num,
             integer,

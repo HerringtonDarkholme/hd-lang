@@ -3681,6 +3681,7 @@ impl Lower<'_, '_, '_> {
         );
         it.generics = generics;
         it.fills_defaults = self.fills_defaults(h.node);
+        it.skips = self.skips(h.node, &gn);
         out.push(it);
     }
 

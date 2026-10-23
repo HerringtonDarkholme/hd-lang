@@ -1,0 +1,19 @@
+# test: under Serialize alone, a skipped member needs no declared default and no Serialize
+# Spec std/serde Skipped Members: std-serde.skip.no-bound, std-serde.skip.write.
+use std.json.encode
+use std.serde.{Serialize, skip}
+
+struct Cached:
+    hits: i32
+
+@derive(Serialize)
+struct Record:
+    name: string
+    @skip()
+    cached: Cached
+
+tests:
+    use std.testing.assert_equal
+
+    it("the skipped member is not written"):
+        assert_equal(encode(Record { name: "a", cached: Cached { hits: 5 } }), "{\"name\":\"a\"}", reason="only the kept member is written")

@@ -154,6 +154,28 @@ impl Lower<'_, '_, '_> {
             .any(|d| self.decorator_def(d) == Some(self.names.known.fills_defaults))
     }
 
+    /// The fact types that the implementation `n` names with
+    /// `std.structure`'s `skips::[F]()` (`annot.impl-fact.skips.decl`),
+    /// lowered among its parameters `gn`; std's own function only.
+    pub(super) fn skips(&mut self, n: NodeRef<'_>, gn: &super::Gen) -> Vec<Ty> {
+        let known = self.names.known.skips;
+        let nodes: Vec<NodeRef<'_>> = n
+            .children()
+            .filter(|c| c.kind() == SyntaxKind::Decorator)
+            .filter(|d| self.decorator_def(*d) == Some(known))
+            .filter_map(|d| {
+                let e = d.children().next()?;
+                let callee = match e.kind() {
+                    SyntaxKind::CallExpr => e.children().next()?,
+                    _ => e,
+                };
+                let list = Src::child(callee, SyntaxKind::TypeArgumentList)?;
+                list.children().find(|c| c.kind().is_type())
+            })
+            .collect();
+        nodes.into_iter().map(|t| self.ty(Some(t), gn)).collect()
+    }
+
     /// The pattern of the `@annotate::[pattern](...)` line that makes the
     /// declaration `n` a typed fact type, lowered among its parameters
     /// `gn` (`annot.typed-fact.declare`, `annot.typed-fact.pattern.scope`).
