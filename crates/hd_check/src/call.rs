@@ -653,8 +653,23 @@ impl Ck<'_, '_> {
         self.call_args(call, callee, &args, want)
     }
 
-    /// A call of `callee` with `args`; `n` is the call node.
+    /// A call of `callee` with `args`; `n` is the call node. The call is
+    /// one exclusivity frame: the accesses of its element reference
+    /// arguments and receiver end with it (`ref.elem.access`).
     pub(crate) fn call_args(
+        &mut self,
+        n: NodeRef<'_>,
+        callee: NodeRef<'_>,
+        args: &Args<'_>,
+        want: Option<Ty>,
+    ) -> StageResult<(Ref, Ty)> {
+        self.open_access_frame();
+        let r = self.call_args_in_frame(n, callee, args, want);
+        self.close_access_frame();
+        r
+    }
+
+    fn call_args_in_frame(
         &mut self,
         n: NodeRef<'_>,
         callee: NodeRef<'_>,
@@ -3944,6 +3959,9 @@ impl Ck<'_, '_> {
                     ref_params: &[],
                 };
                 refs.extend(self.check_args(&formals, 1, args, n, name)?);
+                if matches!(op, IntrinsicOp::ListPush | IntrinsicOp::MapRemove) {
+                    self.length_changed(recv, n.index());
+                }
                 Ok(self.emit_builtin(op, &refs, ret, n))
             }
             Some(Hit::Trait {
