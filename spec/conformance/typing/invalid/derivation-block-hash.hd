@@ -1,0 +1,11 @@
+# test: a derivation block for Hash is an error, even one with member lines, since only @derive instantiates the Hash template
+# Spec 14 Derivation Blocks: annot.block.template; trait.derive.cmp-every-member.
+use std.structure.Structure
+use std.hash.Hash
+
+struct Point:
+    x: i64
+    y: i64 = 0
+
+impl Hash for Point by Structure:  # diagnostic: underivable-trait
+    y = pass

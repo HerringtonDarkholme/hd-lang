@@ -6210,11 +6210,17 @@ impl Run<'_> {
                 continue;
             }
             let template = hd_resolve::lower::template_of(&names, cx.session, cx.lookup, *trait_);
-            // A derivation block needs a template, and a comparison trait is
-            // derived only with `@derive` (`annot.block.template`). An
-            // unimported `Structure` is already `unknown-trait`.
-            let comparison =
-                [names.known.eq, names.known.partial_ord, names.known.ord].contains(trait_);
+            // A derivation block needs a template, and a comparison trait or
+            // `Hash` is derived only with `@derive` (`annot.block.template`,
+            // `trait.derive.cmp-every-member`). An unimported `Structure` is
+            // already `unknown-trait`.
+            let comparison = [
+                names.known.eq,
+                names.known.partial_ord,
+                names.known.ord,
+                names.known.hash,
+            ]
+            .contains(trait_);
             if *kind == hd_resolve::ImplKind::Derivation && (template.is_none() || comparison) {
                 if hd_resolve::lower::names_std_structure(&names, cx.scope)
                     && let Some(h) = heads.iter().find(|h| h.def == it.def)

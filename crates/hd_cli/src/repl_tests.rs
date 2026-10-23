@@ -351,30 +351,23 @@ fn a_second_impl_is_an_error() {
 }
 
 /// A session is one module for derivation blocks too
-/// (`annot.block.module`): a later input derives `Hash` for an earlier
-/// input's type, and the input after compares and hashes values. `Eq` is
-/// derived with `@derive`, since a comparison trait has no derivation block.
+/// (`annot.block.module`): a later input derives `Debug` for an earlier
+/// input's type, and the input after shows a value through it. `Eq` and
+/// `Hash` are derived only with `@derive` (`annot.block.template`).
 #[test]
 fn a_later_input_derives_for_an_earlier_type() {
     let t = session(&[
-        "@derive(Eq)",
         "struct Point:",
         "    pub x: i32",
         "    pub y: i32",
         "",
         "use std.structure.Structure",
-        "use std.collections.Set",
         "",
-        "impl Hash for Point by Structure",
+        "impl Debug for Point by Structure",
         "",
-        "a := Point { x: +1, y: +2 }",
-        "a == Point { x: +1, y: +2 }",
-        "a == Point { x: +1, y: +3 }",
-        "let mut seen: Set[Point] = Set::new()",
-        "_ := seen.insert(a)",
-        "seen.insert(Point { x: +1, y: +2 })",
+        "debug(Point { x: +1, y: +2 })",
     ]);
-    assert_eq!(t.out, "true : bool\nfalse : bool\nfalse : bool\n");
+    assert_eq!(t.out, "\"Point { x: 1, y: 2 }\" : string\n");
 }
 
 /// `src/lib.hd` for the member-line tests: a `Column` fact and a

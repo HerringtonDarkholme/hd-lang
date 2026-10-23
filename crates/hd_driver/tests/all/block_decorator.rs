@@ -150,7 +150,7 @@ struct Loud:
     id: i64
 
 @style(prefix=\"x\")
-impl Hash for Loud by Structure:
+impl Debug for Loud by Structure:
     pass
 "
     );

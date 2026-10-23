@@ -971,7 +971,7 @@ impl Encode for Order by Structure:
 ```
 
 1. r[annot.block.form] `impl Trait for X by Structure:` is a **derivation block**: it applies the template of `Trait` to `X`.
-2. r[annot.block.template] `Trait` must have a template. A block for a trait without one is an error, and so is a block for `Eq`, `PartialOrd`, or `Ord`, whose templates only `@derive` instantiates. Error: `underivable-trait`.
+2. r[annot.block.template] `Trait` must have a template. A block for a trait without one is an error, and so is a block for `Eq`, `PartialOrd`, `Ord`, or `Hash`, whose templates only `@derive` instantiates. Error: `underivable-trait`.
 3. r[annot.block.module] A derivation block must be declared in the module that declares `X`. One declared elsewhere is an error. Error: `misplaced-derivation`.
 4. r[annot.block.structure-use] In an implementation header, `Structure` after `by` must name `std.structure.Structure`, imported with `use std.structure.Structure` like any other name. Without that import, `Structure` is unknown. Error: `unknown-trait`.
 5. r[annot.block.not-delegation] `by Structure` is never a delegation, as [`trait.by.structure`](09-traits.md#r-trait.by.structure) also states.
