@@ -14,6 +14,7 @@ action at a distance.
 
 ## What Remains
 
+- [Releasing a package](RELEASE.md): proposed API comparison, SemVer advice and explicit local tagging without automatic pushes (#28).
 - [Open Issues](OPEN_ISSUES.md): the open language and library design
   questions. It holds only open questions.
 - [Serializable Closure Design](SERIALIZABLE_CLOSURE_DESIGN.md): the design
