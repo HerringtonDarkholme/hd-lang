@@ -3080,6 +3080,38 @@ code lines against 325, the emitted sizes and the build time:
 3. **Binding by pass mode**: a `mut` parameter, and an in-place collection receiver, write back through the argument's place, so those callees inline too, and a panic inside a copy names the callee's position.
 4. **One splice per body**: all of a body's copies land in one rebuild, the verifier checks a copy's invariants, the cache dependency list records the callees, and the size limit is tuned again.
 
+**As built.** Commit 1 copies item calls as planned; its empty `Scope`
+is a plain block to the emitter, and the list-loop proof of an index in
+bounds now accepts one too, so an inlined `len` in a loop body keeps the
+loop's element reads unchecked. Commit 2 resolves a trait call whose
+choice is an impl the way collection does: the impl's head is matched
+against the receiver and the trait's arguments (`hd_mono::unify`), the
+call runs the impl's method at those arguments and the method's own, or
+the trait's default body at the receiver when the impl has no such
+method. A trait value receiver and a derived newtype impl stay calls,
+as collection dispatches them elsewhere. In each copy,
+`inline::rechoose` turns a `Bound` call whose receiver and trait
+arguments substitution made concrete into an `Impl` call of the impl
+the solver selects; a compiler-supplied implementation leaves it a
+`Bound`, which collection resolves the same way. A copy with a
+parameter that may hold a list or a map waits for commit 3: a call
+lends such an argument, but a `Store` copies its header, so an iterator
+or a reference made in the copy would name the copy (`List.iter`'s
+cursor would miss a later change to the list).
+
+Commit 2 also brings forward commit 3's panic positions. A copy's own
+instructions keep the callee's instruction as their anchor, with the
+`INLINED` bit, and `Body::inlined` gives each copy's callee and the
+call's anchor. The emitter numbers the inlined frames a function's
+calls reach and writes them to an `hd.inlined` section (the callees'
+paths, then per function each frame's path, instruction and parent
+anchor), so the line table expands a row in a copy into the callee's
+frame and then the call's, as if the call had not been inlined. `hd
+build` resolves those frames into `hd.positions` and drops
+`hd.inlined`. At limit 12, json inlines 113 call sites (21 of them
+`Display.to_string`), nbody 2, and dyn_iter also the default bodies of
+`Iterator.map`, `filter` and `sum`.
+
 **Emitted size budget.** hello's Wasm does not change, and each
 bench/study program's release `.wasm` stays within +5% of its size
 before the inliner; a commit over that stops for review, like a commit

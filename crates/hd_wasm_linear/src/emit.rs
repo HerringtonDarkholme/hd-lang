@@ -1442,8 +1442,9 @@ impl Em<'_, '_, '_> {
             // anchor is resolved against numbers (`Body::anchors`).
             let at = self.b.anchor(i);
             if at != NONE {
-                self.f.at = Some(at);
-                self.f.origin_at = Some(at);
+                let (frame, outer) = self.frame_anchor(at);
+                self.f.at = Some(frame);
+                self.f.origin_at = Some(outer);
             }
         }
         self.emitting.push(i);
@@ -1456,6 +1457,26 @@ impl Em<'_, '_, '_> {
         self.settle(i);
         self.f.origin_at = origin_outer;
         r
+    }
+
+    /// The anchor a call at body anchor `at` writes, and the body's own
+    /// anchor it stands in: an inlined copy's instruction is an entry of
+    /// the function's [`Func::inlined`] frames, whose parent is the call's.
+    fn frame_anchor(&mut self, at: u32) -> (u32, u32) {
+        let Some((callee, inst, call)) = self.b.inlined_frame(at) else {
+            return (at, at);
+        };
+        let (parent, outer) = self.frame_anchor(call);
+        let frame = ((self.input.path)(callee), inst, parent);
+        let t = &mut self.f.inlined;
+        let k = t.iter().position(|e| *e == frame).unwrap_or_else(|| {
+            t.push(frame);
+            t.len() - 1
+        });
+        (
+            hd_tir::ir::INLINED | u32::try_from(k).expect("frames"),
+            outer,
+        )
     }
 
     /// Whether instruction `i` has a source position, so it anchors calls.

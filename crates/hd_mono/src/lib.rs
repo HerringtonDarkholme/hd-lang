@@ -185,7 +185,7 @@ pub fn is_class_ref(pool: &InternPool, t: Ty) -> bool {
 }
 
 /// Whether `t` is a trait value, readonly or `mut`.
-fn is_trait_value(pool: &InternPool, t: Ty) -> bool {
+pub fn is_trait_value(pool: &InternPool, t: Ty) -> bool {
     let t = match pool.get(t) {
         TyData::Mut(x) => x,
         _ => t,
@@ -784,7 +784,7 @@ fn key_args(pool: &InternPool, args: TyList) -> Vec<KeyArg> {
 
 /// Matches an impl head's `pattern` (over the parameters of `owner`)
 /// against a concrete type, filling `out`.
-fn unify(pool: &InternPool, owner: DefId, pattern: Ty, t: Ty, out: &mut Vec<Option<Ty>>) {
+pub fn unify(pool: &InternPool, owner: DefId, pattern: Ty, t: Ty, out: &mut Vec<Option<Ty>>) {
     let strip = |x: Ty| match pool.get(x) {
         TyData::Mut(i) => i,
         _ => x,

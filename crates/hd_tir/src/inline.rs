@@ -8,28 +8,51 @@
 //! ([`crate::ir::map_body_types`]); choosing what to inline is the
 //! driver's.
 
-use hd_base::DefId;
+use hd_base::{DefId, NodeIdx};
 use hd_types::{Ty, TyList};
 
-use crate::ir::{Body, BodyKind, Callee, NONE, Op, Tag, local_flags, place};
+use crate::ir::{Body, BodyKind, Callee, ChoiceKind, INLINED, NONE, Op, Tag, local_flags, place};
 use crate::own::splice::{permute_columns, renumber_through};
 
-/// The item and type arguments of call `i` when it may inline: a `Call`
-/// of an item with no providers and no omitted argument.
+/// The callee of call `i` when it may inline: a `Call` with no providers
+/// and no omitted argument.
 #[must_use]
-pub fn item_call(b: &Body, i: usize) -> Option<(DefId, TyList)> {
+pub fn plain_call(b: &Body, i: usize) -> Option<Callee> {
     if b.tags[i] != Tag::Call {
         return None;
     }
-    let Callee::Item { def, targs } = Callee::from_words(b.record(b.data[i][0]))? else {
-        return None;
-    };
     let r = b.record(b.data[i][1]);
     let (args, prov) = r.split_at(r.len().checked_sub(3)?);
     let default = args
         .iter()
         .any(|&a| b.tags.get(a as usize) == Some(&Tag::DefaultCall));
-    (prov[0] == 0 && !default).then_some((def, targs))
+    if prov[0] != 0 || default {
+        return None;
+    }
+    Callee::from_words(b.record(b.data[i][0]))
+}
+
+/// Chooses each `Bound` trait call of `k` again as an `Impl` call of the
+/// impl `pick` names for its trait, receiver type and type arguments, as
+/// substitution may have made them concrete.
+pub fn rechoose(k: &mut Body, pick: &dyn Fn(DefId, Ty, TyList) -> Option<DefId>) {
+    for i in 0..k.len() {
+        let at = k.data[i][0] as usize;
+        if k.tags[i] == Tag::Call
+            && let Some(Callee::TraitMethod {
+                trait_,
+                self_ty,
+                targs,
+                choice: (ChoiceKind::Bound, _),
+                ..
+            }) = Callee::from_words(k.record(k.data[i][0]))
+            && let Some(d) = pick(trait_, self_ty, targs)
+        {
+            // `[len, 1, trait, method, self_ty, targs, kind, value]`.
+            k.extra[at + 6] = ChoiceKind::Impl as u32;
+            k.extra[at + 7] = d.raw();
+        }
+    }
 }
 
 /// Whether `c` may be copied: a function of one sub-body, its root block
@@ -164,24 +187,39 @@ pub fn inline_call(b: &mut Body, c: usize, mut k: Body) -> Result<(), String> {
     if out.anchors.is_empty() {
         out.anchors = (0..u32_of(out.len())).collect();
     }
+    // The copy's own instructions name the callee's as their anchors
+    // ([`Body::inlined`]), so a panic in the copy reports the callee's
+    // frame, then the call's; one without a position keeps none, as in
+    // the callee, and so reports its enclosing one.
     let (n0, anchor) = (out.len(), out.anchors[c]);
-    let mut put = |tag: Tag, data: [u32; 2], ty: Ty| {
+    let first = out.inlined.last().map_or(0, |e| e[0] + e[1]);
+    out.inlined.push([first, u32_of(m), k.item.raw(), anchor]);
+    let mut put = |tag: Tag, data: [u32; 2], ty: Ty, at: Option<usize>| {
         out.tags.push(tag);
         out.data.push(data);
         out.ty.push(ty);
-        out.syn.push(syn);
-        out.anchors.push(anchor);
+        let own = at.map(|j| (k.syn[j], INLINED | (first + u32_of(j))));
+        out.syn.push(match own {
+            Some((NodeIdx::NONE, _)) => NodeIdx::NONE,
+            _ => syn,
+        });
+        out.anchors.push(own.map_or(anchor, |o| o.1));
     };
     for (&p, &a) in params.iter().zip(&args) {
-        put(Tag::Store, [(p + lbase) | place::BARE_LOCAL, a], Ty::VOID);
+        put(
+            Tag::Store,
+            [(p + lbase) | place::BARE_LOCAL, a],
+            Ty::VOID,
+            None,
+        );
     }
     for j in 0..m - 1 {
-        put(k.tags[j], k.data[j], k.ty[j]);
+        put(k.tags[j], k.data[j], k.ty[j], Some(j));
     }
-    put(Tag::Break, [label, tail], Ty::NEVER);
+    put(Tag::Break, [label, tail], Ty::NEVER, None);
     // The root takes the call's type, which its `Break`s carry.
-    put(Tag::Block, [rec, NONE], ty);
-    put(Tag::Scope, [root_at, empty], ty);
+    put(Tag::Block, [rec, NONE], ty, Some(m - 1));
+    put(Tag::Scope, [root_at, empty], ty, None);
     let mut order = Vec::with_capacity(out.len());
     for i in (0..c).chain(n0..out.len()).chain(c + 1..n0) {
         order.push(u32_of(i));
@@ -259,9 +297,9 @@ mod tests {
     use hd_base::{DefId, NodeIdx, Symbol};
     use hd_types::{Ty, TyList};
 
-    use super::{inlinable, inline_call, item_call, u32_of};
+    use super::{inlinable, inline_call, plain_call, rechoose, u32_of};
     use crate::ir::{
-        Body, BodyKind, Callee, Providers, Ref, Tag, TirBuilder, TirSink, local_flags,
+        Body, BodyKind, Callee, ChoiceKind, Providers, Ref, Tag, TirBuilder, TirSink, local_flags,
         map_body_types, verify, verify_owned,
     };
     use crate::own::tests::{Cx, show};
@@ -325,13 +363,41 @@ mod tests {
         let mut b = caller();
         let c = callee();
         assert!(inlinable(&c, 9) && !inlinable(&c, 8));
-        assert_eq!(item_call(&b, 1).map(|x| x.0), Some(DefId::from_raw(3)));
+        let item = Callee::Item {
+            def: DefId::from_raw(3),
+            targs: TyList::EMPTY,
+        };
+        assert_eq!(plain_call(&b, 1), Some(item));
         inline_call(&mut b, 1, c).expect("inlines");
         // Anchors are the driver's, which the checker's TIR has none of.
         let mut v = b.clone();
         v.anchors.clear();
         assert_eq!(verify(&v), []);
-        assert_eq!(b.anchors, [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 3]);
+        // The binding, the `Break` and the `Scope` stand for the call; the
+        // callee's instructions for themselves, called at anchor 1.
+        let i = |j| crate::ir::INLINED | j;
+        assert_eq!(
+            b.anchors,
+            [
+                0,
+                1,
+                i(0),
+                i(1),
+                i(2),
+                i(3),
+                i(4),
+                i(5),
+                i(6),
+                i(7),
+                1,
+                i(8),
+                1,
+                2,
+                3
+            ]
+        );
+        assert_eq!(b.inlined_frame(i(4)), Some((DefId::from_raw(3), 4, 1)));
+        assert_eq!(b.inlined_frame(1), None);
         let k = b.consts.len() - 1;
         let s = b.consts[k];
         assert_eq!((s.0, s.1, &*b.strings[1]), (Ty::STRING, 1, "s"));
@@ -353,5 +419,35 @@ mod tests {
              %11 Block [%8 %9 %10]\n%12 Scope\n%13 Drop [$0]\n%14 Call %12\n\
              %15 Block [%0 %1 %11 %12 %13 %14]\n"
         );
+    }
+
+    /// A `Bound` call at a receiver substitution made concrete is chosen
+    /// again as the impl `pick` names; one `pick` refuses stays a `Bound`.
+    #[test]
+    fn a_concrete_bound_call_is_chosen_again_as_an_impl() {
+        let mut b = TirBuilder::new(DefId::from_raw(4), BodyKind::Fn);
+        let blk = b.open_block();
+        let at = |self_ty| Callee::TraitMethod {
+            trait_: DefId::from_raw(5),
+            method: DefId::from_raw(6),
+            self_ty,
+            targs: TyList::EMPTY,
+            choice: (ChoiceKind::Bound, 0),
+        };
+        let s = b.const_str("s");
+        b.call(&at(Ty::STRING), &[s], Providers::None, Ty::VOID, N);
+        b.call(&at(T), &[s], Providers::None, Ty::VOID, N);
+        let root = b.close_block(blk, None, Ty::VOID, N);
+        let mut b = b.finish(root, &[]).expect("verifies");
+        rechoose(&mut b, &|_, t, _| {
+            (t == Ty::STRING).then(|| DefId::from_raw(7))
+        });
+        let choice = |i| match plain_call(&b, i) {
+            Some(Callee::TraitMethod { choice, .. }) => choice,
+            c => panic!("{c:?}"),
+        };
+        assert_eq!(choice(0), (ChoiceKind::Impl, 7));
+        assert_eq!(choice(1), (ChoiceKind::Bound, 0));
+        assert_eq!(verify(&b), []);
     }
 }

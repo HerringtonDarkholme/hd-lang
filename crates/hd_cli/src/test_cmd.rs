@@ -406,20 +406,27 @@ impl Frames {
         let Ok(table) = hd_run::frames::LineTable::parse(wasm) else {
             return Vec::new();
         };
-        let funcs: Vec<_> = table
-            .functions()
-            .into_iter()
-            .filter_map(|(f, item, insts)| {
-                let at: Vec<Option<(&str, u32)>> = insts
-                    .iter()
-                    .map(|&inst| self.positions.line(&item, inst))
-                    .collect();
-                let file = src.display(at.iter().flatten().next()?.0);
-                let lines = at.iter().map(|x| x.map_or(0, |(_, l)| l)).collect();
-                Some((f, file, self.positions.name(&item), lines))
-            })
-            .collect();
-        hd_run::frames::positions_section(&funcs)
+        let (mut funcs, mut inlined) = (Vec::new(), Vec::new());
+        for (f, item, rows) in table.functions() {
+            // A row's own frame is its last; an inlined copy's come first.
+            let at: Vec<Option<(&str, u32)>> = rows
+                .iter()
+                .map(|r| r.last().and_then(|a| self.positions.line(&item, a.inst)))
+                .collect();
+            let Some(&(file, _)) = at.iter().flatten().next() else {
+                continue;
+            };
+            for (k, row) in rows.iter().enumerate().filter(|(_, r)| r.len() > 1) {
+                let frames = row[..row.len() - 1].iter().map(|a| {
+                    let (file, line) = self.positions.line(&a.item, a.inst).unwrap_or(("", 0));
+                    (src.display(file), self.positions.name(&a.item), line)
+                });
+                inlined.push(((f, u32::try_from(k).unwrap_or(u32::MAX)), frames.collect()));
+            }
+            let lines = at.iter().map(|x| x.map_or(0, |(_, l)| l)).collect();
+            funcs.push((f, src.display(file), self.positions.name(&item), lines));
+        }
+        hd_run::frames::positions_section(&funcs, &inlined)
     }
 }
 

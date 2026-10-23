@@ -536,11 +536,12 @@ impl Em<'_, '_, '_> {
                 {
                     return false;
                 }
+                // A `Scope` with no suites, an inlined call's, is a block.
+                Tag::Scope if !self.rec(self.b.data[i][1]).is_empty() => return false,
                 Tag::Await
                 | Tag::AwaitValue
                 | Tag::AwaitAll
                 | Tag::AwaitRace
-                | Tag::Scope
                 | Tag::Defer
                 | Tag::Hook
                 | Tag::Closure => return false,
