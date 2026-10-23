@@ -1,6 +1,11 @@
 # Object Model, Tier 1: Design Study
 
-Status: proposal (#426). The spec and the compiler are unchanged.
+Status: historical proposal (#426), updated for the owner's decided
+collection-access model E (#494). The element-access discussion follows
+[Element References](../../spec/lang/13-values-and-references.md#element-references)
+and [Element Reference Loops](../../spec/lang/06-control-flow.md#element-reference-loops);
+the rest remains the original design study. This update changes no spec or
+compiler behavior.
 
 hd is leaving Wasm GC. Objects will live in Wasm linear memory, managed
 by reference counting plus a cycle collector, a runtime that
@@ -10,8 +15,9 @@ comes only from references. There is no `data` any more. A record is a
 `struct`, its fields change in place as in Go, and a program shares one
 by taking a reference to it, read-only `&T` or writable `&mut T`.
 
-The model has two tiers. **Tier 1**, this study, is Go: every reference
-is global, counted, free to escape and free to alias. **Tier 2**, a
+The model has two tiers. **Tier 1**, this study, uses counted references
+that may escape and alias, except for call-scoped collection element
+references ([`ref.elem.call`](../../spec/lang/13-values-and-references.md#r-ref.elem.call)). **Tier 2**, a
 separate study, layers opt-in lifetimes on top: a reference may name
 what it depends on, `&{a, self.x} T`, and is then uncounted, and a
 scoped `&{l} mut T` is exclusive. An unannotated reference is always
@@ -77,10 +83,14 @@ fn demo() -> f64:
    elements, `&mut self` calls, `&mut x`. A plain `let` may only be
    reassigned as a whole; `:=` and parameters never change.
 3. `&place` refers to a place and `&T { ... }` allocates an object. A
-   reference keeps its whole object alive and may go anywhere.
-4. `&T` reads; `&mut T` also writes, and is not exclusive.
-5. An element reference pins its list: while it lives, the length is
-   fixed.
+   reference keeps its whole object alive; element references have the
+   call-scoped restriction in rule 5.
+4. `&T` reads; `&mut T` also writes, and general object references may alias.
+5. An element reference is an argument or receiver of one call
+   ([`ref.elem.call`](../../spec/lang/13-values-and-references.md#r-ref.elem.call)).
+   Binding, storing or returning one is `element-reference-outlives-call`
+   ([`ref.elem.kept`](../../spec/lang/13-values-and-references.md#r-ref.elem.kept));
+   runtime pins guard length changes that static checks cannot reject.
 6. Closures share the variables they name, with one call kind.
 7. No null: `Option[&T]`. No weak references: the collector takes cycles.
 
@@ -137,7 +147,9 @@ r4 := &make_point()                   # not a place: a new object holding the re
 ```
 
 1. `&e` and `&mut e` on a place refer to it: a variable, a field of a
-   place, a list element, or a place reached through a reference.
+   place, a list or map element, or a place reached through a reference.
+   An element reference is allowed only as a call argument or receiver
+   ([`ref.elem.call`](../../spec/lang/13-values-and-references.md#r-ref.elem.call)).
 2. On any other expression they allocate a new counted object holding
    the value, as Go's `&T{...}` does for a composite literal.
 3. `&mut` needs a writable place (section 5). A new object is writable.
@@ -223,19 +235,24 @@ the borrow reads. A counted reference cannot dangle. Swift draws the
 same line: it enforces exclusivity for values in variables, but "we
 never try to enforce exclusivity of access on the whole object" for a
 class instance, because "references can be copied pretty arbitrarily
-throughout a program" (SE-0176). What aliasing could still break is
-closed by rules that need no exclusivity:
+throughout a program" (SE-0176). Collection element access adds a narrower
+length restriction, while ordinary object references still alias freely:
 
 | Hazard | Rule that closes it |
 | --- | --- |
 | A write changes an enum's variant under a reference into the old payload | payloads are not places; nothing points into one |
-| A list grows or is copied under an element reference | the reference pins the list (section 6.3) |
+| A collection changes length during element access | same-call conflicts on an unaliased collection are errors; a pin catches other length changes (section 6.3) |
+| A list is copied during element access | the copy has independent elements (`ref.elem.copy`) |
 | A field holding a reference is overwritten while a callee reads the old target | the callee's reference counts the old target, which stays alive |
 | A value argument changes during the call through an alias | the caller passes a pointer only when no alias can exist, and copies otherwise |
 | `*p = *q` where both refer to one object | assignment increments the new contents before releasing the old |
 
-Exclusivity is the price of not counting, so it belongs to tier 2, whose
-scoped `&{l} mut T` holds no count and is checked to be exclusive.
+Tier 1 rejects provable length conflicts in other arguments or the receiver
+of the same call
+([`ref.elem.conflict`](../../spec/lang/13-values-and-references.md#r-ref.elem.conflict)).
+Its runtime pin catches length changes through aliases
+([`ref.elem.access.pin`](../../spec/lang/13-values-and-references.md#r-ref.elem.access.pin)).
+Tier 2's scoped `&{l} mut T` adds exclusivity for an uncounted reference.
 
 ## 6. Interior References And Collections
 
@@ -288,9 +305,10 @@ makes each buffer on the path unique, at most once, and changes the
 inner value where it is stored. It never reads the inner value out,
 changes a copy and writes it back. That read-copy-write would make
 building a map of lists quadratic, the cliff Swift removed with its
-modify accessors. No reference escapes such a statement, so it needs no
-pin, and map values, which are not addressable, are still written in
-place this way.
+modify accessors. A map value in a writable map is a writable place
+([`types.coll.map-value.place`](../../spec/lang/04-type-system.md#r-types.coll.map-value.place)).
+A changing method on an element has the call-scoped access of section 6.3;
+a simple field or element store holds no reference afterwards.
 
 `string` is immutable UTF-8. Every empty string, and every empty view,
 is one shared static value that is never counted. A string slice is a
@@ -305,40 +323,67 @@ changes.
 `xs[i].x = 1.0` and `xs[i] = v` write in place: they make the buffer
 unique if it is shared, store, and hold nothing afterwards.
 
-`&xs[i]` and `&mut xs[i]` point into a buffer that moves when the list
-grows. Go keeps the old array alive, so writes through an old pointer
-silently stop reaching the slice once `append` reallocates, and whether
-it reallocates depends on capacity. Tier 1 forbids the move instead:
+`&xs[i]`, `&mut xs[i]`, `&m[k]` and `&mut m[k]` are element
+references, permitted only as arguments or receivers of one call
+([`ref.elem.call`](../../spec/lang/13-values-and-references.md#r-ref.elem.call)).
+Go keeps the old array alive when a slice grows, so an old pointer can
+silently stop reaching the slice. E instead holds the collection's length
+still during the call's access.
 
-1. Taking an element reference makes the buffer unique, then **pins**
-   it: the reference's count on the buffer is a pin.
-2. While a buffer is pinned, an operation that changes the list's
-   length or moves its elements (push, insert, remove, clear, truncate,
-   reserve) panics with `collection-pinned`. Replacing an element,
-   sorting and swapping are allowed; a reference sees whatever is in its
-   slot. An element reference names a slot, exactly as Go's `&s[i]`
-   does, never an entity: after `sort`, it sees whoever moved into its
-   slot. A handle to one entity that must survive sorting and growth is
-   a reference stored in the list, `List[&mut Person]` (Go's
-   `[]*Person`), or an ID.
-3. Copying a list whose buffer is pinned copies the buffer at once, so a
-   pinned buffer is never shared, and a reference into one list never
-   sees another list's writes.
-4. Replacing the whole list, `xs = []`, is allowed: the old buffer lives
-   on for its references, which no longer refer to `xs`.
-5. A reference is released after its last use, not at the end of its
-   block, so the source decides how long a pin lasts, never the
-   optimizer.
+1. An access begins when the element reference is taken and ends when
+   the call returns
+   ([`ref.elem.access`](../../spec/lang/13-values-and-references.md#r-ref.elem.access)).
+   Binding, assigning, storing or returning an element reference is
+   `element-reference-outlives-call`; the fix-it keeps the index instead
+   ([`ref.elem.kept`](../../spec/lang/13-values-and-references.md#r-ref.elem.kept),
+   [`ref.elem.kept.fix`](../../spec/lang/13-values-and-references.md#r-ref.elem.kept.fix)).
+2. On an unaliased collection, another argument or the receiver of the
+   same call that may change its length is `conflicting-access`
+   ([`ref.elem.unaliased`](../../spec/lang/13-values-and-references.md#r-ref.elem.unaliased),
+   [`ref.elem.conflict`](../../spec/lang/13-values-and-references.md#r-ref.elem.conflict)).
+   Reads and writes to elements remain valid: exclusivity is narrowed to
+   length, not all mutation
+   ([`ref.elem.access.length`](../../spec/lang/13-values-and-references.md#r-ref.elem.access.length)).
+3. Every access pins its collection as the runtime fallback. A length
+   change that static checks do not reject panics `collection-pinned`
+   ([`ref.elem.access.pin`](../../spec/lang/13-values-and-references.md#r-ref.elem.access.pin)).
+   For lists this includes `push`, `insert`, `remove_at`, and a `pop` or
+   `clear` that removes an element
+   ([`ref.elem.pinned`](../../spec/lang/13-values-and-references.md#r-ref.elem.pinned)).
+   For maps it includes adding a missing key or removing a present one
+   ([`ref.elem.pinned.map`](../../spec/lang/13-values-and-references.md#r-ref.elem.pinned.map)).
+4. Replacing an element, sorting and swapping with element stores keep
+   the length and are allowed
+   ([`ref.elem.pinned.allowed`](../../spec/lang/13-values-and-references.md#r-ref.elem.pinned.allowed)).
+   A reference names a slot, not an entity: after sorting, it sees whoever
+   moved into its slot
+   ([`ref.elem.slot`](../../spec/lang/13-values-and-references.md#r-ref.elem.slot)).
+   A handle that survives sorting and growth is a reference stored in the
+   list, `List[&mut Person]`, or an ID.
+5. Copying a pinned list gives independent elements, and replacing the
+   whole list leaves references pointing into its old elements
+   ([`ref.elem.copy`](../../spec/lang/13-values-and-references.md#r-ref.elem.copy),
+   [`ref.elem.replace`](../../spec/lang/13-values-and-references.md#r-ref.elem.replace)).
+6. A callee may keep a copy of its reference parameter. If it keeps an
+   element reference, that copy pins the collection while it lives
+   ([`ref.elem.callee-copy`](../../spec/lang/13-values-and-references.md#r-ref.elem.callee-copy)).
+   Multiple accesses keep the collection pinned until all have ended
+   ([`ref.elem.pinned.end`](../../spec/lang/13-values-and-references.md#r-ref.elem.pinned.end)).
 
-It is the iterator-invalidation check of Java's collections, extended
-to every element reference, and it is the dynamic twin of tier 2, where a scoped element reference freezes the list
-statically and holds no count. A buffer's header keeps two counts:
-owners (list values sharing it, for copy-on-write) and references
-(pins); it is freed when both are zero.
+A pin may be omitted only where the compiler proves that no reference
+reaches the collection and no callee keeps the element reference, as the
+note under [`ref.elem.access.pin`](../../spec/lang/13-values-and-references.md#r-ref.elem.access.pin)
+explains. Tier 2 can add scoped element references that freeze the collection
+statically and need no count.
 
-Maps rehash, so map values are not addressable, as in Go: `m[k] = v`
-and `m[k] += 1` work; `m[k].x = v` and `&m[k]` are errors whose fix is
-to read, change and store, or to keep `&mut V` values in the map.
+Map values are places too: `m[k].x = v`, `m[k] += 1` and `m[k].push(x)`
+change them in place
+([`types.coll.map-value.place`](../../spec/lang/04-type-system.md#r-types.coll.map-value.place)).
+`&m[k]` and `&mut m[k]` use the same call-scoped rules
+([`types.coll.map-value.reference`](../../spec/lang/04-type-system.md#r-types.coll.map-value.reference)).
+A field write or changing method through a missing key panics
+`index-out-of-bounds`
+([`types.coll.map-value.missing`](../../spec/lang/04-type-system.md#r-types.coll.map-value.missing)).
 
 ### 6.4 Iteration
 
@@ -346,9 +391,20 @@ to read, change and store, or to keep `&mut V` values in the map.
 holds a count on the buffer, so a shared buffer never changes under it,
 and `p`, an immutable binding, can alias the element without a copy. A
 body that changes `xs` copies it once and the loop goes on over the old
-buffer. `for p in &mut xs` binds a writable element reference per step
-and pins `xs` for the loop, so a push in its body panics; `for p in &xs`
-is the read-only form, for code that keeps the references.
+buffer.
+
+`for p in &mut xs` binds a writable element reference per step;
+`for p in &xs` is the read-only form. The loop is one access
+([`flow.for.ref.access`](../../spec/lang/06-control-flow.md#r-flow.for.ref.access)).
+For an unaliased collection, its body may name the collection or a place
+holding it only through `p`; another name is `conflicting-access`
+([`flow.for.ref.conflict`](../../spec/lang/06-control-flow.md#r-flow.for.ref.conflict)).
+The pin catches length changes through aliases with `collection-pinned`
+([`flow.for.ref.pinned`](../../spec/lang/06-control-flow.md#r-flow.for.ref.pinned)).
+The per-step binding may be read, written or passed as an argument, but
+binding it elsewhere, storing it, capturing it or returning it is
+`element-reference-outlives-call`
+([`flow.for.ref.binding`](../../spec/lang/06-control-flow.md#r-flow.for.ref.binding)).
 
 ## 7. Methods
 
@@ -370,7 +426,10 @@ impl Vec2:
    changes.
 3. Calling a `&mut self` method on what is not a writable place, such as
    a `:=` binding or a call result, is an error.
-4. `bodies[i].translate(d)` pins the list for the call.
+4. `bodies[i].translate(d)` starts one call-scoped element access
+   ([`ref.elem.call`](../../spec/lang/13-values-and-references.md#r-ref.elem.call)).
+   A runtime pin guards length changes unless the compiler proves it can
+   omit the pin, as section 6.3 describes.
 
 A trait value is a reference, `&dyn Shape` or `&mut dyn Shape`.
 Converting a struct value to one copies it into a new object, as Go
@@ -506,14 +565,17 @@ also runs at orderly shutdown, before the final leak report.
 | A value receiver that writes `self` | compiles; the write is lost | error, with the fix `&mut self` |
 | A pointer method on a non-addressable value | error | error, with the reason |
 | An accidental large copy | silent | parameters pass by pointer when safe |
-| A pointer into a slice that `append` reallocates | later writes are lost, depending on capacity | the reference pins the list; the push panics with `collection-pinned` |
+| A pointer into a slice that `append` reallocates | later writes are lost, depending on capacity | element references are call-scoped; static conflicts are errors and runtime pins catch other length changes |
 | `append` aliasing two slices | depends on capacity | lists are values; no aliasing without `&mut` |
 | Nil pointer dereference | panic | no null; `Option[&T]` |
-| Map element not addressable | error | the same error, with the read-change-store fix |
+| Map element not addressable | error | map values are places; field writes and call-scoped element references are allowed |
 
-The compiler also warns when a local element reference is still live at
-a push to the same list in one body, the one case of the pin panic
-visible within a single function.
+Binding, storing or returning an element reference is
+`element-reference-outlives-call`
+([`ref.elem.kept`](../../spec/lang/13-values-and-references.md#r-ref.elem.kept)).
+A same-call length conflict on an unaliased collection is an error,
+`conflicting-access`, not a warning
+([`ref.elem.conflict`](../../spec/lang/13-values-and-references.md#r-ref.elem.conflict)).
 
 ## 11. Tour
 
@@ -535,17 +597,20 @@ struct Body:
     vel: Vec2
 
 fn step(bodies: &mut List[Body], dt: f64) -> void:
-    for b in &mut bodies:              # pins `bodies` for the loop
+    for b in &mut bodies:              # one loop access; the pin guards aliases
         b.pos.translate(b.vel.scale(dt))
 ```
 
 `List[Body]` is one buffer of 32-byte elements, a layout Wasm GC could
 only emulate with one array per field.
-Nothing here is counted except the list's buffer, since `Body` holds no
-reference. `b.pos.translate(...)` takes an interior reference that the
-loop's pin already covers. The small methods are inlined, so no count
-changes per element, the `Vec2` arguments travel in registers, and
-nothing is allocated.
+`Body` holds no reference. The `bodies` parameter is itself a tier 1
+reference, so the loop's pin guards length changes through aliases
+([`flow.for.ref.pinned`](../../spec/lang/06-control-flow.md#r-flow.for.ref.pinned)).
+`b.pos.translate(...)` takes an interior reference during that access;
+`b` cannot be stored or returned
+([`flow.for.ref.binding`](../../spec/lang/06-control-flow.md#r-flow.for.ref.binding)).
+The small methods can be inlined, with `Vec2` arguments travelling in
+registers and no allocation per element.
 
 ### 11.2 A tree with parent links
 
@@ -699,13 +764,13 @@ measures them:
 | Copy a struct | its bytes, plus an increment per counted field | an increment is a non-atomic load, add and store; a pair costs 2.1 ns |
 | Pass a `&T` | nothing, at +0 | |
 | Pass a value | a move at the caller's last use, otherwise one increment per counted field | |
-| Store or return a reference | an increment; later a decrement and a zero test | |
+| Store or return an ordinary object reference | an increment; later a decrement and a zero test | directly formed element references cannot be stored or returned (`ref.elem.kept`) |
 | `&mut T { ... }` | an allocation and an object header | an 8-byte header (count and descriptor), plus a collector word for cyclic types |
 | `&mut local` passed to a call in another module, not inlined | the local moves to a heap cell | |
 | Interior reference | a page-table lookup per count operation | measured no slower than a base pointer |
 | Change a list or map | a uniqueness test; a full copy if the buffer is shared | |
-| Element reference | the buffer made unique, a pin increment, later a decrement | a second 4-byte count per buffer header |
-| Push, insert, remove | a pin test: a load and a branch | |
+| Call-scoped element access | uniqueness work and a runtime pin where it cannot be omitted | the pin guards length changes; a callee-kept copy extends it (`ref.elem.callee-copy`) |
+| A length-changing list or map operation | a pin test: a load and a branch | provable same-call conflicts are compile errors (`ref.elem.conflict`) |
 | A closure literal with captures, a captured `let` that is written | an environment object, a cell | none, when the closure is inlined |
 | An object of a possibly cyclic type | a candidate entry on a decrement that does not reach zero | collector pauses priced in REFCOUNT_RUNTIME.md |
 
@@ -727,9 +792,9 @@ tier 1's meaning:
 
 | Tier 1 | What tier 2 adds |
 | --- | --- |
-| every reference is counted | `&{l} T` is uncounted and cannot outlive `l` |
+| ordinary references may escape and are counted | `&{l} T` is uncounted and cannot outlive `l` |
 | `&mut T` aliases freely | `&{l} mut T` is exclusive, checked statically |
-| an element reference pins at run time | a scoped element reference freezes the list statically, with no count |
+| element access is call-scoped, with static length checks and runtime pins (`ref.elem.call`, `ref.elem.access.pin`) | scoped element references freeze the collection statically, with no count |
 | a header says nothing about escape, so `&mut local` may go to the heap | a header taking `&{} mut T` promises not to keep it, so the local stays on the stack |
 | one closure kind, `fn` | capture sets on closure types; `FnMut` and `FnOnce` for scoped or non-copyable captures |
 | a string view is counted | `&{src} string` is a borrowed view |
@@ -753,7 +818,7 @@ tier 1 callers unchanged.
 | a field `f: mut U` of a data type `U` | `f: &mut U` |
 | a field `f: U`, a readonly edge | `f: U` inline, or `f: &U` to share |
 | `List` and `Map` are shared objects; `mut List[T]` | values with copy-on-write; `&mut List[T]` to share |
-| a length change panics an iterator | `for x in xs` iterates a snapshot; element references and `for x in &mut xs` pin |
+| a length change panics an iterator | `for x in xs` iterates a snapshot; call-scoped element access and reference loops reject static conflicts and pin against others |
 | tuples have no places | tuples are anonymous structs; a `let` tuple's elements are places |
 | enums are immutable values; self-recursive payloads boxed | enums are immutable values; recursion is written with `&` |
 | `is` on `AnyRef` values | `is` on references only; `AnyRef` means reference types |
@@ -830,11 +895,11 @@ them. A std migration chunk that runs long splits into further jobs.
 | 5 | Methods: `self`, `&self`, `&mut self`, auto-address, non-writable receivers, method sets in trait implementations | receiver rules; a fixture per error |
 | 6 | Trait values as `&dyn` and `&mut dyn`, boxing a value into an object, `AnyVal` and `AnyRef` redefined | trait value rules; fixtures |
 | 7 | Recursive types: the cycle error for structs and enums that contain themselves through values, recursion through `&`, payloads not places | recursion rules; an invalid fixture per error |
-| 8 | Lists and maps as copy-on-write values: element places, map values not addressable, snapshot `for` | std collection rules and `for` rules; run fixtures |
-| 9 | Element references and pins: `&xs[i]`, `for p in &mut xs`, `collection-pinned`, eager copy of a pinned list, release at last use | pin rules; a run fixture for each operation that panics and each that does not |
+| 8 | Lists and maps as copy-on-write values: list and map element places, snapshot `for` | `types.coll.map-value.place`; collection and `for` fixtures |
+| 9 | Call-scoped element references and reference loops; static length conflicts, runtime pins, independent copies and callee-kept references | `ref.elem.call`, `ref.elem.kept`, `ref.elem.conflict`, `ref.elem.access.pin`, `ref.elem.copy`, `ref.elem.callee-copy`, `flow.for.ref.binding`; diagnostic and runtime fixtures |
 | 10 | Closures: capture rules restated for values and cells, per-iteration loop variables | capture rules; run fixtures |
 | 11 | Bridge on Wasm GC, part 1: struct values as exclusively owned GC objects copied on copy; `&` and `&mut` to struct-typed places | the run fixtures of jobs 2 to 7 pass |
-| 12 | Bridge, part 2: element references with a pin count; references to scalar fields as boxed cells | the run fixtures of jobs 8 to 10 pass, or `KNOWN_FAILURES.tsv` rows with an issue each |
+| 12 | Bridge, part 2: call-scoped list and map element access with runtime pin fallback; references to scalar fields as boxed cells | the run fixtures of jobs 8 to 10 pass, or `KNOWN_FAILURES.tsv` rows with an issue each |
 | 13 | `hd fix --object-model`, the conservative rewrite | before-and-after fixture pairs; rewritten examples run unchanged |
 | 14 | std migration 1: collections, iterators, `Option` and `Result` helpers | std rules that name `data` or `mut` views; fixtures |
 | 15 | std migration 2: text, formatting, encoding, hashing, time; small records become values (`Date`, the `Range` types, `regex.Match`, `Reverse`, `Datagram`, `Backoff`, `TimedOut`) | std rules; fixtures |
@@ -855,8 +920,6 @@ moves, so the suite stays green on the Wasm GC backend; 13 to 18 migrate; 19 fol
   measuring how much tier 2 headers on std already remove.
 - **Whole-value access**: `*r` as in Go and Rust, or `r.*` as in Zig,
   since `*` also multiplies.
-- **Map value references** that pin a map against rehashing, as element
-  references pin a list.
 - **`Weak[T]`** for caches, once a program needs one.
 
 ## Sources
