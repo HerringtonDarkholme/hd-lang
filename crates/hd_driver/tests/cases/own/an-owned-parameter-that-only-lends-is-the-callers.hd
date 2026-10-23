@@ -1,0 +1,15 @@
+# @dump: own
+# Borrow, lent parameters: `shape` is a value parameter, but no read of it
+# keeps its value (the match reads it, the arms only lend its payloads), so
+# the body owns none of it. It leaves the exit set and has no `Drop`; the
+# instance releases the count it receives once, at its exit. Its read
+# borrows, and so do the bindings of its payloads.
+enum Shape:
+    Circle(r: string)
+    Square(n: string, k: string)
+
+fn label(shape: Shape) -> string:
+    # subject
+    match shape:
+        .Square(n, k) => "${n} by ${k}"
+        .Circle(r) => "radius ${r}"

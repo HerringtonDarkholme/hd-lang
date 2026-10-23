@@ -25,8 +25,8 @@ app/main/kept
   %26 = SwitchTag %4 [#1 %19 %25] : never
   %27 = Block - : never
   %28 = Match %4 [%27 %13 %14] : usize
-  %29 = Drop [%4] : ()
-  %30 = Drop [$0] : ()
-  %31 = Drop [$1] : ()
+  %29 = Drop [$1] : ()
+  %30 = Drop [%4] : ()
+  %31 = Drop [$0] : ()
   %32 = Block %28 : usize
   exit sub 0 drops [$0]

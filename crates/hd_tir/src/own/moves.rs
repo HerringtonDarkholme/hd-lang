@@ -13,11 +13,15 @@
 //!    copy is the temporary's count, and the drop goes.
 //! 3. **Partial moves.** A `copy` of a field or payload field of a
 //!    temporary or a local (`[%v as .Ok .0]`, `[$l .a]`) at the last use
-//!    of the base moves. When the base's `Drop` follows it in its block,
-//!    that drop becomes drops of the base's other counted fields, or
+//!    of the base moves, when the part holds a counted leaf (a scalar part
+//!    copies for free). When the base's `Drop` follows it in its block,
+//!    that drop becomes the drop of the base's one other counted field, or
 //!    nothing, provided the base is laid out in place in every instance
-//!    ([`OwnCx::parts`]); otherwise the drop stays, and releases what the
-//!    move left, the moved part being zero. A temporary whose last uses
+//!    ([`OwnCx::parts`]); otherwise, or when more than one counted field
+//!    stays beside the path, the drop stays whole and releases what the
+//!    move left, the moved part being zero: one call of the base's glue,
+//!    where a drop per field would be a release site each. A temporary
+//!    whose last uses
 //!    are in the `If`, switch or match right before its `Drop` has that
 //!    drop sunk into the statement's paths ([`sink`]): each path drops
 //!    what its last move left, and a whole copy at a path's end moves.
@@ -907,6 +911,11 @@ fn apply(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Table
             }
             continue;
         }
+        // A part with no counted leaf copies for free: moving it would only
+        // split the base's drop into one drop per other counted part.
+        if cx.counted(b.ty[i]) == Tri::No {
+            continue;
+        }
         b.data[i][1] = ReadMode::Move as u32;
         let Some(d) = drop else {
             continue;
@@ -1219,6 +1228,14 @@ pub(super) fn rest(
         }
         ty = next;
         x = step_end;
+    }
+    // More than one part beside the path: one drop of the whole base
+    // releases them in one call of its glue, the moved part being zero,
+    // where a drop per part is a release site each.
+    if t.drops.len() > 1 {
+        b.extra.truncate(t.drops[0] as usize);
+        t.drops.clear();
+        return false;
     }
     true
 }

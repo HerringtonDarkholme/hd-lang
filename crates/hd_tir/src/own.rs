@@ -66,13 +66,15 @@ pub enum Tri {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Pass {
     /// A value parameter: the callee owns the argument's count, so the
-    /// call consumes it.
+    /// call consumes it. A type parameter's (or an associated type's)
+    /// value parameter is one too: an instance that makes it a value owns
+    /// the argument, and one that makes it a reference borrows it, after
+    /// which the backend releases what the call consumed.
     Owned,
     /// A reference parameter, a suspending callee's argument (its cold
-    /// constructor counts what it keeps), an `@intrinsic` callee's
+    /// constructor counts what it keeps), or an `@intrinsic` callee's
     /// argument (the backend lowers the call in place and counts what it
-    /// keeps), or a parameter whose mode depends on the instance: the
-    /// caller keeps its value.
+    /// keeps): the caller keeps its value.
     Lent,
     /// A parameter that changes its argument's collection in place: a
     /// `mut self` receiver of a list or a map, whose declared type is the
@@ -90,9 +92,10 @@ pub trait OwnCx {
     /// Whether a value of `ty` holds a counted leaf.
     fn counted(&self, ty: Ty) -> Tri;
     /// How argument `k` of `n` of a `Call` or `Await` of `callee` is
-    /// passed. `Lent` whenever it is not certainly `Owned` or `InPlace`:
-    /// a lent or in-place argument the callee's instance owns takes a count
-    /// at the call (`layout::Pass` in the backend).
+    /// passed. `Lent` whenever it is not `Owned` or `InPlace`: a lent or
+    /// in-place argument the callee's instance owns takes a count at the
+    /// call, and an owned one an instance borrows is released after it
+    /// (`layout::Pass` in the backend).
     fn pass(&self, callee: &Callee, k: usize, n: usize) -> Pass;
     /// [`OwnCx::pass`] for a `CallValue` of a value of function type
     /// `fn_ty`.
@@ -113,11 +116,20 @@ pub trait OwnCx {
     /// How the body of `item` receives its own parameter `k` of `n`:
     /// `Lent` when its caller keeps the argument alive for the call, so the
     /// body need not own it ([`OwnCx::pass`]'s `Lent`, for a function that
-    /// does not suspend); `Owned` for a value parameter, for every
-    /// parameter of a suspending function, whose frame holds a count of
-    /// each, and for a body that is no function's. The borrow pass leaves
-    /// a lent parameter the body never stores unowned.
+    /// does not suspend); `Owned` for a value parameter (a type
+    /// parameter's too), for every parameter of a suspending function,
+    /// whose frame holds a count of each, and for a body that is no
+    /// function's. The borrow pass leaves a lent parameter the body never
+    /// stores unowned, and an owned one too when no read of it keeps its
+    /// value and the body does not suspend ([`OwnCx::suspending`]).
     fn received(&self, item: hd_base::DefId, k: usize, n: usize) -> Pass;
+    /// Whether the body of `item` suspends, so that its frame holds a
+    /// count of every parameter. The default answers yes, which leaves
+    /// every owned parameter owned.
+    fn suspending(&self, item: hd_base::DefId) -> bool {
+        let _ = item;
+        true
+    }
     /// Whether a value of `ty` may hold a list or a map header that a copy
     /// of the value must make its own (`types.coll.value`): a list, a map,
     /// a struct holding one in a field at any depth, or a type naming a
@@ -751,8 +763,9 @@ mod tests {
     /// after its last access, the second read; move turns that read into a
     /// move and deletes the drop. The parameter likewise. The local, empty
     /// at the exit, leaves the exit set (known-null); the parameter stays,
-    /// since the backend reads a parameter outside it as unowned. (A block
-    /// lists the blocks its statements run; they are not statements.)
+    /// since the backend reads a parameter outside it as unowned. The two
+    /// values the call lends are dropped after it, the younger first. (A
+    /// block lists the blocks its statements run; they are not statements.)
     #[test]
     fn a_local_read_at_its_last_access_moves_and_its_drop_goes() {
         let text = passes(
@@ -773,7 +786,7 @@ mod tests {
         assert_eq!(
             text,
             "%0 Call\n%1 Store [$1] %0\n%2 Read copy [$1]\n%3 Call %2\n%4 Read move [$1]\n\
-             %5 Read move [$0]\n%6 Call %4 %5\n%7 Drop [%4]\n%8 Drop [%5]\n\
+             %5 Read move [$0]\n%6 Call %4 %5\n%7 Drop [%5]\n%8 Drop [%4]\n\
              %9 Block [%0 %1 %2 %3 %4 %5 %6 %7 %8]\nexit 0 $0\n"
         );
     }

@@ -2563,8 +2563,124 @@ is worth deciding only if they are hot.
     | Left | Why | Removed by |
     | --- | --- | --- |
     | The emitter's `slot_src` copies: a value stored into an element, a field, a payload or a construction's member (§23.17) | Both paths share the emitter's store glue; moving it changes the old path's modules | Commit 14, with the old path |
-    | The match-binding conformance case (a match binding of a map's list sees a later `m["a"].push(3)`) | The old path fails it; until the switch, only the new path's `own/` fixture and `tests/all/header_copies_run.rs` hold it | Commit 13b, with the switch |
-    | Whole-body aliasing: a local a `&mut` reference or a capturing closure reaches anywhere is aliased at every argument read | The checker's `copy_locals` is whole-body too; a flow-sensitive fact saves copies only before or after the reference lives | Commit 13b, if parity needs it |
+    | The match-binding conformance case (a match binding of a map's list sees a later `m["a"].push(3)`) | The old path fails it; until the switch, only the new path's `own/` fixture and `tests/all/header_copies_run.rs` hold it | Commit 13c, with the switch |
+    | Whole-body aliasing: a local a `&mut` reference or a capturing closure reaches anywhere is aliased at every argument read | The checker's `copy_locals` is whole-body too; a flow-sensitive fact saves copies only before or after the reference lives | Kept: parity does not need it (13b) |
+    **13b as built: parity.** Measured first on main (13a), new path
+    against old: of the 49 counts baselines one stood above
+    (`counts/match-field-through-reference`, a retain of the `Some`
+    binding's reference); over the 773 runtime conformance programs with a
+    `main`, 318 programs had more retain or release sites than the old
+    path (1,249 retains and 1,475 releases above it, though the totals
+    were below); over bench/study 4 of 12, over `bench/runtime/progs` and
+    `bench/micro` 1 of 11. Each cause, and its fix:
+    - **A type parameter's argument was lent** (`OwnCx::pass`): the
+      passes could not move into `println[T](value: T)`, so an instance
+      whose `T` is a value took a retain at the call and released the
+      value after it (all 11 retains of `f32-arithmetic`'s `main`).
+      A type parameter's value parameter is now `Pass::Owned`, as
+      `OwnCx::received` already answered for the callee's side: an
+      instance that makes it a value moves the argument in, and one that
+      makes it a reference borrows it, after which the backend releases
+      what the call consumed (`release_untaken`). That backend half was
+      there; only the passes' answer changed. Where the instance borrows,
+      `Em::instance_loans` takes back the retain and release of a
+      parameter the body only lends or forwards to a direct callee that
+      borrows it there too (`hash_of(a)` for `a: &string`).
+    - **An owned parameter that only lends kept its own drop** (derived
+      `Structure` walks and builds, `DebugShape.variant`): its `Drop`
+      after its last read stood in every borrow's span from that read, so
+      the match scrutinee read of it moved, and its value was then dropped
+      before every `?` return. Borrow now leaves such a parameter unowned,
+      as a lent one, when no read of it keeps its value and its body does
+      not suspend (`OwnCx::suspending`, new): the instance releases its
+      count once at the exit (§23.31's parameter loans), every read of it
+      borrows, and the drops before the returns go with the scrutinee's
+      copy (`own/an-owned-parameter-that-only-lends-is-the-callers.hd`).
+      This, not sharing the drops at the exit, closed the early-return
+      gap.
+    - **Whole drops of generic bases after part moves**
+      (`Result[_, P::Error]` after `?` in derived builds): in a concrete
+      instance the whole release ran on a value whose one counted payload
+      had moved. The backend's `Em::own_drop_rest` lowers such a drop, in
+      an instance that lays the value out in its locals, as the release of
+      the one counted field the moves before it in the block left, or
+      nothing; an open value's parts were copies, so it releases whole
+      there.
+    - **Drops split per field.** Move's rule 3 split a base's drop into
+      one drop per other counted field, a release site each where the old
+      path's whole release is one call of the glue
+      (`std/cli/Parsed.structure handle`: 7 sites for 2). The split is now
+      made only when one counted field stays beside the path; otherwise
+      the drop stays whole and releases what the move left
+      (`own/a-moved-part-leaves-the-rest-to-one-drop.hd`). A part with no
+      counted leaf no longer moves at all: moving a `bool` out of a
+      `VariantInfo` split the drop into five for nothing.
+    - **Drops after a statement ran oldest first**, so a match binding of
+      a payload (younger than the scrutinee) had the scrutinee's drop in
+      its span and could not borrow (`counts/match-field-through-reference`).
+      Insertion now places the drops after one statement youngest first
+      (`insert::after_drops`), and borrow's binding rule takes no binding
+      that a read consumes, where the copy would only move to that read
+      (`counts/match-owned-temporary` keeps its payload moves).
+    - **References into a lent parameter's referent counted**
+      (`self.source.next()` in `MapIter`, `Filter`, `Skip`, `Enumerate`:
+      a retain and a release per call, dyn_iter's and closures' whole
+      excess). Borrow marks such a `Ref` `lent` (`ref_word::LENT`, a new
+      bit invariant 22 refuses before the passes and `verify_owned`
+      checks): a field of what a parameter the body owns none of refers
+      to, whose uses lend. The backend lowers it as §23.31's projection
+      loan, uncounted where the referent is physical, its kept `Drop`
+      releasing only what a view made
+      (`own/a-reference-into-a-lent-parameter-takes-no-count.hd`).
+    The parity causes the earlier notes expected but measurement did not
+    confirm: **drops before early returns**, which the lent parameters
+    removed, so no exit sharing of value drops was built; **whole-body
+    aliasing** in rule 7 (the five extra `Index` argument copies), which
+    puts no program above the old path; **generic places not hoisted or
+    rooted** and **`xs[f(i)].x`**, which put no bench/study program above
+    it in counts (`rt:list_unique` call sites 170 against 171, 25 in `app`
+    functions on both paths; over `bench/runtime/progs` and `bench/micro`
+    16 against 17) or in run time (below).
+    **The two rebuilds stay.** Insertion rebuilds the body, and the five
+    later passes record their edits for one more (`splice::Pending`, which
+    pair cancellation, known-null and hoisting read). Folding insertion's
+    rebuild into the last one would have borrow and move read insertion's
+    new statements from side tables; both work on instruction ranges in
+    column order (borrow's spans are `lo..=end` ranges searched by
+    bisection, move's liveness walks blocks by their member lists), where
+    a pending statement has no index. Giving them one is the rebuild. The
+    rebuild costs about 0.015 µs per instruction, against the pipeline's
+    0.5.
+    Retain and release sites above the old path over conformance (summed
+    over the programs above it), as the fixes landed: 1,249 and 1,475 on
+    main; 66 and 600 with the type parameter's argument and the drop
+    order; 65 and 46 with the lent parameters and the scalar part rule; 65
+    and 16 with `own_drop_rest`; 49 and 8 with `instance_loans`; 49 and 1
+    with the split rule; 44 and 1 with lent references; 45 and 1 with the
+    binding rule, which keeps `counts/match-owned-temporary` at zero.
+    Old path: every conformance module byte-identical to main, dev and
+    optimized pipelines. New path: all conformance cases pass, dev and
+    optimized pipelines, checked and not. Static count sites and module
+    bytes, old path, new path before this commit (main), after:
+
+    | Programs | Retains | Releases | Module bytes | Programs above the old path |
+    | --- | --- | --- | --- | --- |
+    | 773 runtime conformance programs | 28,805, 28,207, 25,764 | 59,935, 55,158, 50,277 | 20,499,058, 20,400,441, 20,265,273 | 318, 24 |
+    | 12 bench/study programs | 935, 822, 761 | 1,599, 1,595, 1,372 | 313,616, 308,572, 302,814 | 4, 0 |
+    | 11 `bench/runtime/progs` and `bench/micro` programs | 89, 97, 87 | 237, 225, 214 | 85,778, 85,012, 84,728 | 1, 0 |
+
+    Over the 49 counts baselines, new path against old: 1 above, 31
+    equal, 17 below on main; 0 above, 31 equal, 18 below after.
+    **Left for later commits (13b).** 24 conformance programs keep 1 to 6
+    retain sites above the old path (45 in all; one release), every one a
+    case an instance decides that the passes cannot see:
+
+    | Left | Why | Removed by |
+    | --- | --- | --- |
+    | A trait-value instance of a type parameter at a dynamic call (`notify[C](c: C)` at `C = &Channel`, `via`, `escalate`, `label`, `first_key`, `greet`, `disk_of`): the parameter, owned by the passes, takes a count on entry that its forward to the call releases | `Em::instance_loans` covers direct calls; a call through a vtable passes an open argument boxed, which a loan would have to keep uncounted inside the box | Not planned by any stage 2 or 3 commit; an issue after 13c |
+    | Erased bodies and their thunks (`#erased`): an open value's `ValueCopy` or kept drop, +1 retain and release per body (`echo[T](x: T) -> T: x`) | An open value is one counted view; the old path moved it into the copy, which the passes' rule 7 copy, consuming nothing, cannot | Stage 3, where a list's value is its buffer and the header copy goes |
+    | Payload copies of an unowned parameter or a borrowed scrutinee that a use consumes (`Option.map`'s `self`, `eval`'s `match e` through `&Expr`, `Expr.structure handle`) | A lent parameter's parts copy where an owned one's would move; a scrutinee read through a reference keeps its drop before each arm's jump, so its bindings cannot borrow from it | Not planned; the same issue (a binding that borrows across the arm needs the scrutinee's drop after the match) |
+
 14. Delete the old path: `live.rs`, `count.rs`'s decisions, the
     loan and cache code, the checker's copies (`coll.rs`'s `coll_copy`,
     `return_copy`, `copy_into_local`, `mut_param_copies`, `value_arg`,

@@ -368,6 +368,20 @@ impl Em<'_, '_, '_> {
                         self.view_loans.insert(x, flag);
                     }
                 }
+                // A reference into what a lent parameter refers to
+                // (`ref_word::LENT`) takes no count where the referent is
+                // physical; a view's projection makes one, which the flag
+                // marks for the reference's `Drop`, as for a read.
+                Tag::Ref
+                    if w & hd_tir::ir::ref_word::LENT != 0
+                        && !hd_mono::is_open(self.pool(), self.ty(x))
+                        && !matches!(self.calls.get(&x), Some(hd_mono::Target::Open(_)))
+                        && self.ref_target(self.ty(x)).is_some_and(|(_, fat)| !fat) =>
+                {
+                    self.moves.loans.insert(x);
+                    let flag = self.f.local(crate::module::Val::I32);
+                    self.view_loans.insert(x, flag);
+                }
                 Tag::Store if borrow(w) => {
                     let l = if a & place::BARE_LOCAL != 0 {
                         Some(a & !place::BARE_LOCAL)
@@ -913,7 +927,7 @@ impl Em<'_, '_, '_> {
             // The exit set: the locals that may still hold a value here.
             let b = self.b;
             for &(s, l) in &b.exit_drops {
-                if s.raw() != u32::from(self.sub_id) {
+                if s.raw() != u32::from(self.sub_id) || self.borrowed.contains(&l.idx()) {
                     continue;
                 }
                 if let Some(ls) = self.locals.get(&l.idx()).cloned() {
@@ -971,7 +985,115 @@ impl Em<'_, '_, '_> {
         let mut out = std::mem::take(&mut self.consumer);
         hd_tir::own::consumers(self.b, cx, &mut out);
         self.consumer = out;
+        let mut at = std::mem::take(&mut self.own_at);
+        at.clear();
+        at.resize(self.b.len(), (NONE, 0));
+        for (k, &tag) in self.b.tags.iter().enumerate() {
+            if tag != Tag::Block {
+                continue;
+            }
+            let blk = u32::try_from(k).expect("insts");
+            for (p, &m) in self.b.record(self.b.data[k][0]).iter().enumerate() {
+                if let Some(x) = at.get_mut(m as usize) {
+                    *x = (blk, u32::try_from(p).expect("statements"));
+                }
+            }
+        }
+        self.own_at = at;
         Ok(())
+    }
+
+    /// In an owned body, at an instance that receives some of the
+    /// function's parameters `plocals` borrowed (a type parameter's made a
+    /// reference, or a reference the passes own): the parameters that take
+    /// no count here, and the reads of them that take none. Such a
+    /// parameter is the caller's for the whole call, and the body never
+    /// stores, addresses or captures it, so a read of all of it needs no
+    /// count of its own where nothing keeps its value: a read the passes
+    /// let every use lend, or one that a call's argument consumes which
+    /// the callee borrows at this instance too (`hash_of(a)` for `a: &T`).
+    /// A parameter the passes own (its sub-body's exit set lists it) takes
+    /// none only when every read of it is such a read; one they leave
+    /// unowned is borrowed here already, and its other reads copy as they
+    /// say. The reads join [`Moves::loans`](super::live::Moves).
+    pub(super) fn instance_loans(&mut self, plocals: &[usize]) -> hd_base::HashSet<usize> {
+        use hd_tir::ir::place;
+        let b = self.b;
+        let mut out = hd_base::HashSet::default();
+        for &l in plocals {
+            let t = self.sub(b.local_ty[l]);
+            if !matches!(self.pass(t), crate::layout::Pass::Borrowed)
+                || self.is_cell(l)
+                || b.cap_local.iter().any(|c| c.idx() == l)
+            {
+                continue;
+            }
+            let owned = b
+                .exit_drops
+                .iter()
+                .any(|&(s, x)| s.raw() == u32::from(self.sub_id) && x.idx() == l);
+            let mut fits = true;
+            let mut loans = Vec::new();
+            for i in 0..b.len() {
+                let tag = b.tags[i];
+                if !matches!(tag, Tag::Read | Tag::Store | Tag::Ref) {
+                    continue;
+                }
+                let w = b.data[i][0];
+                if w & place::BARE_LOCAL == 0 {
+                    if tag != Tag::Read && b.local_in_place(w).is_some_and(|x| x.idx() == l) {
+                        fits = false;
+                    }
+                    continue;
+                }
+                if (w & !place::BARE_LOCAL) as usize != l {
+                    continue;
+                }
+                if tag != Tag::Read {
+                    fits = false;
+                    continue;
+                }
+                let x = u32::try_from(i).expect("insts");
+                let user = self.consumer.get(i).copied().unwrap_or(NONE);
+                if user == NONE || self.borrowed_arg(user, x) {
+                    loans.push(x);
+                } else {
+                    fits = false;
+                }
+            }
+            if owned && !fits {
+                continue;
+            }
+            if owned {
+                out.insert(l);
+            }
+            self.moves.loans.extend(loans);
+        }
+        out
+    }
+
+    /// Whether call `c` passes value `r` as an argument its callee borrows
+    /// at this instance (`layout::Pass::Borrowed`).
+    fn borrowed_arg(&self, c: u32, r: u32) -> bool {
+        if self.b.tags.get(c as usize) != Some(&Tag::Call) {
+            return false;
+        }
+        let Some(hd_mono::Target::Call(ct)) = self.calls.get(&c) else {
+            return false;
+        };
+        if !matches!(ct.kind, hd_mono::TargetKind::Instance) {
+            return false;
+        }
+        let mut args = self.rec(self.b.data[c as usize][1]);
+        args.truncate(args.len().saturating_sub(3));
+        let Some(params) = self.param_tys(ct.key, ct.item, ct.args) else {
+            return false;
+        };
+        if params.len() != args.len() || args.iter().filter(|&&a| a == r).count() != 1 {
+            return false;
+        }
+        let k = args.iter().position(|&a| a == r).expect("argument");
+        matches!(self.pass(params[k]), crate::layout::Pass::Borrowed)
     }
 
     /// In an owned body: whether value `r`, which `user` consumes, moves
@@ -1042,6 +1164,9 @@ impl Em<'_, '_, '_> {
                 root: hd_tir::ir::PlaceRoot::Value(r),
                 proj,
             }) if proj.is_empty() && r.as_inst().is_some() => {
+                if self.counting && self.own_drop_rest(i, r.0)? {
+                    return Ok(());
+                }
                 self.release_drops(&[super::live::Drop::Val(r.0)])
             }
             // The rest of a base the move pass moved a part out of

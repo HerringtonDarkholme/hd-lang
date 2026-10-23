@@ -1,0 +1,12 @@
+# @dump: own
+# A type parameter's value parameter is owned: an instance that makes it a
+# value receives the argument's count, so `value` moves into `to_string`'s
+# receiver at its last use and the caller moves `text + text` in. An
+# instance that makes it a reference borrows it, and the backend releases
+# what the call consumed after the call.
+fn show[T < Display](value: T) -> string:
+    # subject
+    value.to_string()
+
+fn twice(text: string) -> string:
+    show(text + text)

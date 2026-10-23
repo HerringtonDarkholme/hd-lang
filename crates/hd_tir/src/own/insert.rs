@@ -9,7 +9,9 @@
 //!    other consumer gets a `Read copy` of the value just before it, which
 //!    it consumes instead, so a consumed value always has exactly one use;
 //!    the value then gets a `Drop` after the statement of its **home**
-//!    block that holds its last use. The home is the innermost block
+//!    block that holds its last use. The drops after one statement run
+//!    youngest first, so a binding made from a value (a payload's) is
+//!    dropped before that value. The home is the innermost block
 //!    around the value that holds every use: its own block, or for a value
 //!    a match decision makes and an arm reads, the block of the `Match`.
 //! 3. **Locals.** An owned local gets a `Drop` after the statement of the
@@ -135,6 +137,24 @@ pub(crate) struct Tables {
     /// The element projections of one place: the `extra` position of each
     /// element word.
     elems: Vec<u32>,
+    /// The drops after last uses (rules 2 and 3), placed once every value
+    /// and local is placed, so that the drops after one statement run
+    /// youngest first ([`after_drops`]).
+    after: Vec<After>,
+}
+
+/// A `Drop` after a last use: its block and position, its place's age (the
+/// instruction that defines the value, or a local's first access; 0 for
+/// an entry local), its place word and syntax node, and whether it stands
+/// after a header copy at that position.
+#[derive(Clone, Copy)]
+struct After {
+    blk: u32,
+    pos: u32,
+    age: u32,
+    word: u32,
+    syn: NodeIdx,
+    late: bool,
 }
 
 fn fill<T: Clone>(v: &mut Vec<T>, n: usize, x: T) {
@@ -161,6 +181,7 @@ impl Tables {
         fill(&mut self.value_stamp, n, NONE);
         fill(&mut self.walked, n, 0);
         self.elems.clear();
+        self.after.clear();
         self.uses.clear();
         self.hcopy.clear();
         self.ops.clear();
@@ -320,6 +341,7 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, scratch: &mut OwnScratch) -> Res
     super::copies::decide(b, cx, t, &mut scratch.copies, edits);
     values(b, cx, t, edits)?;
     locals(b, cx, t, edits);
+    after_drops(t, edits);
     jumps(b, t, edits);
     uniqueness(b, cx, t, edits);
     for i in 0..n {
@@ -566,11 +588,14 @@ fn values(
         let at = (last + 1).min(block_len(b, h));
         // After a header copy of the value that stands there too (a
         // block's tail).
-        if late_copy == Some((h, at)) {
-            edits.insert_late(h, at, Tag::Drop, [word, NONE], Ty::VOID, syn);
-        } else {
-            edits.insert(h, at, Tag::Drop, [word, NONE], Ty::VOID, syn);
-        }
+        t.after.push(After {
+            blk: h,
+            pos: at,
+            age: u32_of(v),
+            word,
+            syn,
+            late: late_copy == Some((h, at)),
+        });
         t.items.push(Item {
             blk: h,
             what: u32_of(v),
@@ -579,6 +604,23 @@ fn values(
         });
     }
     Ok(())
+}
+
+/// The drops after last uses, youngest first where several follow one
+/// statement: a binding that borrows from a value made before it (a match
+/// arm's payload binding, from the scrutinee) is dropped before that value,
+/// so the borrow's span ends before the value's drop.
+fn after_drops(t: &mut Tables, edits: &mut splice::Tables) {
+    t.after
+        .sort_by_key(|a| (a.blk, a.pos, std::cmp::Reverse(a.age)));
+    for a in &t.after {
+        let data = [a.word, NONE];
+        if a.late {
+            edits.insert_late(a.blk, a.pos, Tag::Drop, data, Ty::VOID, a.syn);
+        } else {
+            edits.insert(a.blk, a.pos, Tag::Drop, data, Ty::VOID, a.syn);
+        }
+    }
 }
 
 /// Whether use `k` of value `v` takes a header copy right after the value
@@ -664,7 +706,7 @@ fn locals(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables) 
             t.placed[l as usize] = s;
             if owned(b, t, l) {
                 let entry = t.entry[l as usize] == s;
-                place_local(b, t, edits, s, l, k..end, entry);
+                place_local(b, t, s, l, k..end, entry);
             }
             k = end;
         }
@@ -695,7 +737,6 @@ fn locals(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables) 
 fn place_local(
     b: &Body,
     t: &mut Tables,
-    edits: &mut splice::Tables,
     s: u32,
     l: u32,
     range: std::ops::Range<usize>,
@@ -729,14 +770,14 @@ fn place_local(
         .map(|(_, p)| *p)
         .fold(at, u32::max);
     t.unmark_chain();
-    edits.insert(
-        d,
-        (last + 1).min(block_len(b, d)),
-        Tag::Drop,
-        [l | place::BARE_LOCAL, NONE],
-        Ty::VOID,
-        statement_syn(b, d, last),
-    );
+    t.after.push(After {
+        blk: d,
+        pos: (last + 1).min(block_len(b, d)),
+        age: if entry { 0 } else { u32_of(first) },
+        word: l | place::BARE_LOCAL,
+        syn: statement_syn(b, d, last),
+        late: false,
+    });
     t.exits.push((SubId::from_raw(s), LocalId::from_raw(l)));
     if !entry {
         t.items.push(Item {

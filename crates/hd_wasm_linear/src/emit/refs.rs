@@ -425,6 +425,98 @@ impl Em<'_, '_, '_> {
         Ok(())
     }
 
+    /// `Drop [%r]` `i` of a whole value after moves or drops of its parts
+    /// in the same block (the move pass keeps a whole drop of a base whose
+    /// type names a type parameter, which it cannot split): where this
+    /// instance lays the value out in its locals, it releases only the
+    /// field those took nothing of, of the variant the parts name, or
+    /// nothing when none is left, since the parts taken are zero and the
+    /// tag is that variant's. True when it emitted that; false, emitting
+    /// nothing, where the whole value's release runs: an open value's parts
+    /// (read as copies), or more than one field left, which the whole
+    /// value's glue releases in one call.
+    pub(super) fn own_drop_rest(&mut self, i: u32, r: u32) -> StageResult<bool> {
+        let Some(&(blk, pos)) = self.own_at.get(i as usize) else {
+            return Ok(false);
+        };
+        if blk == NONE {
+            return Ok(false);
+        }
+        // The fields taken: one level below the value, of one variant.
+        let mut variant = None;
+        let mut taken = Vec::new();
+        let members = self.rec(self.b.data[blk as usize][0]);
+        for &m in &members[..pos as usize] {
+            let mi = m as usize;
+            let mode = self.b.data[mi][1];
+            let part = match self.b.tags[mi] {
+                Tag::Read if mode == hd_tir::ir::ReadMode::Move as u32 => true,
+                Tag::Drop => true,
+                _ => false,
+            };
+            if !part {
+                continue;
+            }
+            let Some(p) = self.b.decode_place(self.b.data[mi][0]) else {
+                continue;
+            };
+            if p.root != PlaceRoot::Value(hd_tir::ir::Ref(r)) || p.proj.is_empty() {
+                continue;
+            }
+            let (v, f) = match p.proj.as_slice() {
+                [Proj::Variant(v), Proj::Field(f)] => (Some(*v), *f),
+                [Proj::Field(f)] => (None, *f),
+                _ => return Ok(false),
+            };
+            if taken.is_empty() {
+                variant = v;
+            } else if variant != v {
+                return Ok(false);
+            }
+            taken.push(f);
+        }
+        if taken.is_empty() {
+            return Ok(false);
+        }
+        let t = self.ty_of(r);
+        let Some(ls) = self.vals.get(&r).cloned() else {
+            return Ok(false);
+        };
+        let mut fields = Vec::new();
+        if !crate::in_place_parts(self.pool(), self.env(), t, variant, &mut fields) {
+            return Ok(false);
+        }
+        let step = |f: u32| match variant {
+            Some(v) => vec![Proj::Variant(v), Proj::Field(f)],
+            None => vec![Proj::Field(f)],
+        };
+        // Every part taken must be in the locals at this instance: one that
+        // is not was read as a copy, and the whole release frees it.
+        let mut rest = Vec::new();
+        for (f, _) in fields.iter().enumerate() {
+            let f = u32::try_from(f).expect("fields");
+            let Some((ft, slots)) = self.part_slots(t, &step(f))? else {
+                return Ok(false);
+            };
+            if !taken.contains(&f) && self.counted(ft).is_some() {
+                rest.push((ft, slots));
+            }
+        }
+        // More than one part left: the whole value's glue releases them in
+        // one call, the parts taken being zero.
+        if rest.len() > 1 {
+            return Ok(false);
+        }
+        for (ft, slots) in rest {
+            let part: Vec<u32> = slots.iter().map(|&k| ls[k]).collect();
+            self.release_locals(&part, ft)?;
+            for l in part {
+                self.f.zero(l);
+            }
+        }
+        Ok(true)
+    }
+
     /// The list or map header at the place `word` of an `IsUnique` or a
     /// `Pin`, in a local, with the collection's type: the place resolved
     /// from its root's value ([`Em::walk_place`]), each element

@@ -47,24 +47,22 @@ fn first(xs: List[Option[Body]]) -> f64:
 >   local $0 xs: List[Body?] [param read]
 >   local $1 b: Body [read assigned]
 >   %0 = Read copy [$0 [0:usize]] : Body?
->   %1 = Drop [$0] : ()
->   %16 = Block - : never
->   %17 = Match %0 [%16 %3 %4] : f64
->   %18 = Block %17 : f64
+>   %15 = Block - : never
+>   %16 = Match %0 [%15 %2 %3] : f64
+>   %17 = Block %16 : f64
         .Some(b) => b.x
->   %2 = Read copy [$1 .x] : f64
->   %3 = Block %2 : f64
->   %5 = Read copy [%0 as #1 .0] : Body
->   %6 = Store [$1] %5 : ()
->   %8 = Block - : never
->   %14 = Block - : never
->   %15 = SwitchTag %0 [#1 %8 %14] : never
+>   %1 = Read copy [$1 .x] : f64
+>   %2 = Block %1 : f64
+>   %4 = Read copy [%0 as #1 .0] : Body
+>   %5 = Store [$1] %4 : ()
+>   %7 = Block - : never
+>   %13 = Block - : never
+>   %14 = SwitchTag %0 [#1 %7 %13] : never
         .None => 0.0
->   %4 = Block 0.0:f64 : f64
->   %10 = Block - : never
->   %12 = Block - : never
->   %13 = SwitchTag %0 [#0 %10 %12] : never
->   exit sub 0 drops [$0]
+>   %3 = Block 0.0:f64 : f64
+>   %9 = Block - : never
+>   %11 = Block - : never
+>   %12 = SwitchTag %0 [#0 %9 %11] : never
 
 fn sum(p: Body) -> f64:
     p.x + p.vx

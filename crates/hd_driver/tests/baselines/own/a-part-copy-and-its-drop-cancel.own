@@ -6,9 +6,9 @@ app/main/describe
   local $3 r: string [read assigned]
   %0 = Read copy [$0] : i32
   %1 = Call app/main/make[] (%0) : Shape
-  %2 = Read borrow [$1] : string
-  %3 = Read borrow [$2] : string
-  %4 = Intrinsic StrConcat [%2 %3] : string
+  %2 = Read move [$1] : string
+  %3 = Read move [$2] : string
+  %4 = Call app/main/join[] (%2, %3) : string
   %5 = Block %4 : string
   %6 = Read move [$3] : string
   %7 = Block %6 : string
@@ -26,6 +26,4 @@ app/main/describe
   %22 = SwitchTag %1 [#1 %13 %21] : never
   %23 = Block - : never
   %24 = Match %1 [%23 %5 %7] : string
-  %25 = Drop [$1] : ()
-  %26 = Drop [$2] : ()
-  %27 = Block %24 : string
+  %25 = Block %24 : string

@@ -1,0 +1,18 @@
+# @dump: own counts
+# Borrow, lent references: `&mut h.c` refers into what the lent parameter
+# `h` refers to, which its caller keeps alive for the whole call, so the
+# reference is `lent`: it takes no count where the referent is physical.
+# Its `Drop` stays for an instance whose reference view makes the referent
+# fresh (the `counts` view builds the old path, which loans it too).
+struct Counter:
+    n: i64
+
+struct Holder:
+    c: Counter
+
+fn bump(c: &mut Counter) -> void:
+    c.n = c.n + 1
+
+fn bump_inner(h: &mut Holder) -> void:
+    # subject
+    bump(&mut h.c)

@@ -709,6 +709,13 @@ pub mod ref_word {
     /// its last access takes the local's count of its cell, and leaves the
     /// local empty. The checker never sets it (invariant 22).
     pub const TAKES: u32 = 2;
+    /// Set by the borrow pass: a `Ref` of a field of what a lent parameter
+    /// refers to (`[*$p .f]`, or through a borrowed read of all of `$p`),
+    /// whose referent the caller keeps alive for the whole call. It takes
+    /// no count of its own; its `Drop`s stay for an instance whose
+    /// reference view makes the referent fresh, and release only that.
+    /// The checker never sets it (invariant 22).
+    pub const LENT: u32 = 4;
 }
 
 /// An `IsUnique`'s data word b (`docs/compiler/tir-v2.md`, "Hoisting"): 0
@@ -2029,6 +2036,7 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
             Tag::Ref if w & ref_word::TAKES != 0 => {
                 "a `Ref` that takes its local's count before the passes".to_owned()
             }
+            Tag::Ref if w & ref_word::LENT != 0 => "a lent `Ref` before the passes".to_owned(),
             _ => continue,
         };
         errs.push(VerifyError {

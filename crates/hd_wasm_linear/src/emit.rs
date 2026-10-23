@@ -343,6 +343,14 @@ fn body_func<'a>(
         em.f.set(em.susp.as_ref().map_or(0, |s| s.pc));
         em.f.op(Instruction::Else);
     }
+    // The parameters this instance receives borrowed whose value the body
+    // only lends or passes on to callees that borrow it here too
+    // (`Em::instance_loans`).
+    let lent_here = if em.owned && em.counting && by_type && sub == 0 {
+        em.instance_loans(&plocals)
+    } else {
+        hd_base::HashSet::default()
+    };
     if em.counting {
         for (l, ls) in &held {
             // A parameter still holds its value until it moves into its
@@ -364,7 +372,7 @@ fn body_func<'a>(
                             em.unowned_params.push(*l);
                             continue;
                         }
-                        Pass::Borrowed if unowned => {
+                        Pass::Borrowed if unowned || lent_here.contains(l) => {
                             em.borrowed.insert(*l);
                             continue;
                         }
@@ -1065,6 +1073,9 @@ struct Em<'i, 'a, 'm> {
     /// A consumer that cannot move the count in takes a count of its own,
     /// and the value is released after it ([`Em::release_untaken`]).
     consumer: Vec<u32>,
+    /// In an owned body, each instruction's block and position in it, or
+    /// `NONE` (`Em::own_drop_rest`).
+    own_at: Vec<(u32, u32)>,
     own_ops: Vec<hd_tir::own::Operand>,
     /// Whether the body holds the ownership passes' `IsUnique`s, before
     /// every change of a collection place (an owned body, or a thunk of
@@ -1161,6 +1172,7 @@ impl<'i, 'a, 'm> Em<'i, 'a, 'm> {
             owned: false,
             sub_id: 0,
             consumer: Vec::new(),
+            own_at: Vec::new(),
             own_ops: Vec::new(),
             unique_explicit: false,
             hoisted: Vec::new(),

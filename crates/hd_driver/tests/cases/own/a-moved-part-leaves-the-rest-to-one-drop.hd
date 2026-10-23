@@ -1,0 +1,13 @@
+# @dump: own
+# Move, partial moves: `e.key` moves out of the parameter at its last
+# read. Two counted fields stay beside it, so the parameter keeps one whole
+# `Drop`, which releases them in one call of the struct's glue (the moved
+# field is zero); a drop per field would be a release site each.
+struct Entry:
+    key: string
+    value: string
+    note: string
+
+fn key_of(e: Entry) -> string:
+    # subject
+    e.key

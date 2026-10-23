@@ -92,6 +92,7 @@ pub fn verify_owned(b: &Body, cx: &dyn OwnCx) -> Vec<VerifyError> {
     };
     decided(b, &mut errs);
     takes_outside_suspension(b, &mut errs);
+    lent_refs(b, &mut errs);
     hoisted(b, own, &mut errs);
     Empties::new(&cx).walk(&mut errs);
     borrow_spans(&cx, &mut errs);
@@ -262,6 +263,62 @@ fn takes_outside_suspension(b: &Body, errs: &mut Vec<VerifyError>) {
                 errs,
                 u32_of(i),
                 "a `Ref` takes a cell's count in a sub-body with a suspension point".into(),
+            );
+        }
+    }
+}
+
+/// A lent `Ref` (`ref_word::LENT`) points into what a parameter the body
+/// owns none of refers to: its place is a dereference of such a parameter
+/// (`[*$p ...]`, or of a borrowed read of all of `$p`) followed by fields
+/// only, and the body never stores into `$p` itself. The caller keeps that
+/// referent's block alive for the whole call, so the reference needs no
+/// count of its own.
+fn lent_refs(b: &Body, errs: &mut Vec<VerifyError>) {
+    let lent = |i: usize| b.tags[i] == Tag::Ref && b.data[i][1] & super::ref_word::LENT != 0;
+    if !(0..b.len()).any(lent) {
+        return;
+    }
+    let mut stored = vec![false; b.local_ty.len()];
+    for i in 0..b.len() {
+        if matches!(b.tags[i], Tag::Store | Tag::Ref)
+            && let Some(l) = b.local_in_place(b.data[i][0])
+            && let Some(x) = stored.get_mut(l.idx())
+        {
+            *x = true;
+        }
+    }
+    let unowned = |l: usize| {
+        l < b.local_ty.len()
+            && b.local_flags[l] & super::local_flags::PARAM != 0
+            && !stored[l]
+            && !b.exit_drops.iter().any(|&(_, x)| x.idx() == l)
+    };
+    for i in (0..b.len()).filter(|&i| lent(i)) {
+        let ok = b.decode_place(b.data[i][0]).is_some_and(|p| {
+            let fields = match p.proj.split_first() {
+                Some((Proj::Deref, rest)) => rest.iter().all(|s| matches!(s, Proj::Field(_))),
+                _ => false,
+            };
+            let param = match p.root {
+                PlaceRoot::Local(l) => unowned(l.idx()),
+                PlaceRoot::Value(v) => v.as_inst().is_some_and(|v| {
+                    let v = v.0 as usize;
+                    v < b.len()
+                        && b.tags[v] == Tag::Read
+                        && b.data[v][1] == ReadMode::Borrow as u32
+                        && b.data[v][0] & place::BARE_LOCAL != 0
+                        && unowned((b.data[v][0] & !place::BARE_LOCAL) as usize)
+                }),
+                _ => false,
+            };
+            fields && param
+        });
+        if !ok {
+            err(
+                errs,
+                u32_of(i),
+                "a lent `Ref` that is no field of what a lent parameter refers to".into(),
             );
         }
     }

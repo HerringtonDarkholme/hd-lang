@@ -7,8 +7,8 @@ app/main/run
   %9 = Read move [$0] : string
   %10 = Read move [$1] : string
   %11 = Intrinsic StrConcat [%9 %10] : string
-  %12 = Drop [%9] : ()
-  %13 = Drop [%10] : ()
+  %12 = Drop [%10] : ()
+  %13 = Drop [%9] : ()
   %14 = Store [$5] %11 : ()
   %15 = Ref [$5] : Ref[string]
   %16 = Drop [$5] : ()

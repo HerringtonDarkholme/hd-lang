@@ -45,8 +45,10 @@
 //!
 //! A **binding local** is a local whose one `Store` is of a read that
 //! borrows: a loop's element binding (`for word in words`), a `:=` of a
-//! field. It is not a parameter, never addressed or captured, and every
-//! read of it lies in the span, which ends at its last `Drop`. It holds a
+//! field. It is not a parameter, never addressed or captured, no read of
+//! it is consumed (that read would copy, where the binding could take the
+//! value), and every read of it lies in the span, which ends at its last
+//! `Drop`. It holds a
 //! borrowed value, so it owns nothing: its `Drop`s go, it leaves the exit
 //! set, and its reads resolve through it to the read it holds. The backend
 //! stores into it with no count (`Moves::loan_locals`).
@@ -55,7 +57,18 @@
 //! addresses or captures is the caller's for the whole call: the body owns
 //! none of it. Its `Drop`s go, it leaves the exit set, and a read of it is
 //! limited by nothing in the body. The backend takes no count of it on
-//! entry, and releases at the exit one an instance receives owned.
+//! entry, and releases at the exit one an instance receives owned. An
+//! owned parameter of a body that does not suspend is left so too when no
+//! read of it keeps its value (every use lends and no store takes it): its
+//! count is then released once at the exit (§23.31's parameter loans), not
+//! after its last read, and a read of it is not cut short by its own drop.
+//!
+//! A **lent reference** (`ref_word::LENT`) is a `Ref` of a field of what
+//! such a parameter refers to (`[*$p .f]`, or through a borrowed read of
+//! all of `$p`) whose every use lends: it points into the block the
+//! caller's reference keeps alive for the call, so it takes no count; its
+//! `Drop`s stay for an instance whose reference view makes the referent
+//! fresh.
 //!
 //! A read whose value an instance may have to make (one through a
 //! dereference, which a view's getter makes fresh; one that names a type
@@ -173,6 +186,9 @@ pub(crate) struct Tables {
     last_ldrop: Vec<u32>,
     holds: Vec<u32>,
     unowned: Vec<bool>,
+    /// Per local: a read of it of a counted type whose value a use keeps or
+    /// a store takes.
+    kept_read: Vec<bool>,
     /// Per local: a closure's parameter.
     inner: Vec<bool>,
     /// Writes by root (locals, then values), in compressed rows in
@@ -495,11 +511,23 @@ pub(crate) fn run(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut spli
     let locals = b.local_ty.len();
     t.reset(n, locals);
     scan(b, cx, t);
+    // Per local: a read of it whose value a use keeps or a store takes.
+    fill(&mut t.kept_read, locals, false);
+    for i in 0..n {
+        if b.tags[i] == Tag::Read
+            && let (Root::Local(l), _, _) = root_of(b, b.data[i][0])
+            && (t.keeps[i] || t.stored[i] != NONE)
+            && cx.counted(b.ty[i]) != Tri::No
+        {
+            t.kept_read[l as usize] = true;
+        }
+    }
     index_writes(b, cx, t);
     lent_params(b, cx, t, edits);
     for r in 0..n {
         decide(b, cx, t, edits, r);
     }
+    lent_refs(b, t);
     if t.unowned.iter().any(|&u| u) {
         let unowned = &t.unowned;
         b.exit_drops.retain(|(_, l)| !unowned[l.idx()]);
@@ -790,7 +818,9 @@ fn decide(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tabl
         return;
     };
     let keep = keeps_drops(b, cx, r);
-    if bind != NONE && keep {
+    // A binding read for a consumer would copy there: the read copies (or
+    // moves) into the binding instead.
+    if bind != NONE && (keep || t.kept_read[bind as usize]) {
         return;
     }
     // The span is the statements of the end's block from the one that
@@ -850,8 +880,16 @@ fn decide(b: &mut Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tabl
 /// set; every read of one may borrow, and no read moves out of it. The
 /// backend takes no count of such a parameter on entry, and releases at
 /// the exit one that an instance passes owned.
+///
+/// An owned parameter of a body that does not suspend is left unowned the
+/// same way when no read of it keeps its value (every use lends, and no
+/// store takes it): the instance releases the count it receives at its
+/// exit, once, as for a lent one an instance owns (§23.31's parameter
+/// loans), instead of after its last read and before every early return
+/// of a value read from it, and its reads borrow over spans its own drop
+/// no longer ends.
 fn lent_params(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tables) {
-    if b.kind != BodyKind::Fn {
+    if b.kind != BodyKind::Fn && b.kind != BodyKind::DeriveInstance {
         return;
     }
     // A closure's parameters are its own sub-body's.
@@ -864,6 +902,10 @@ fn lent_params(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tab
     }
     let param = |t: &Tables, l: usize| b.local_flags[l] & local_flags::PARAM != 0 && !t.inner[l];
     let n = (0..b.local_ty.len()).filter(|&l| param(t, l)).count();
+    if n == 0 {
+        return;
+    }
+    let suspends = cx.suspending(b.item);
     let mut k = 0;
     for l in 0..b.local_ty.len() {
         if !param(t, l) {
@@ -871,12 +913,16 @@ fn lent_params(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tab
         }
         let at = k;
         k += 1;
-        if t.stores[l] != 0
-            || t.captured[l]
-            || t.reached[l]
-            || cx.counted(b.local_ty[l]) == Tri::No
-            || cx.received(b.item, at, n) != Pass::Lent
+        if t.stores[l] != 0 || t.captured[l] || t.reached[l] || cx.counted(b.local_ty[l]) == Tri::No
         {
+            continue;
+        }
+        let lent = match cx.received(b.item, at, n) {
+            Pass::Lent => true,
+            Pass::Owned => !suspends && !t.kept_read[l],
+            Pass::InPlace => false,
+        };
+        if !lent {
             continue;
         }
         t.unowned[l] = true;
@@ -886,6 +932,53 @@ fn lent_params(b: &Body, cx: &dyn OwnCx, t: &mut Tables, edits: &mut splice::Tab
                 t.gone[d as usize] = true;
                 edits.remove(t.blk[d as usize], d);
             }
+        }
+    }
+}
+
+/// The `Ref`s of a field of what a lent parameter refers to, which take no
+/// count (`ref_word::LENT`): `[*$p .f ...]`, or `[*%v .f ...]` with `%v`
+/// a borrowed read of all of `$p`, where `$p` is a parameter the body owns
+/// none of ([`lent_params`]) and never stores, with only field steps after
+/// the dereference, so the reference points into the block the caller's
+/// reference keeps alive for the whole call; and every use of the
+/// reference lends. Its `Drop`s stay: where an instance's reference view
+/// makes the referent fresh, the reference holds that value's count, and
+/// the drop releases it (the backend's flag, `Em::view_loans`).
+fn lent_refs(b: &mut Body, t: &Tables) {
+    for r in 0..b.len() {
+        let [a, w] = b.data[r];
+        if b.tags[r] != Tag::Ref
+            || w & crate::ir::ref_word::TAKES != 0
+            || t.keeps[r]
+            || t.stored[r] != NONE
+        {
+            continue;
+        }
+        let (root, from, to) = root_of(b, a);
+        if from >= to || b.extra[from as usize] & place::PROJ_KIND != place::PROJ_DEREF {
+            continue;
+        }
+        let fields =
+            (from + 1..to).all(|x| b.extra[x as usize] & place::PROJ_KIND == place::PROJ_FIELD);
+        let param = match root {
+            Root::Local(l) => Some(l),
+            Root::Value(v)
+                if b.tags[v as usize] == Tag::Read
+                    && b.data[v as usize][1] == ReadMode::Borrow as u32
+                    && b.data[v as usize][0] & place::BARE_LOCAL != 0 =>
+            {
+                Some(b.data[v as usize][0] & !place::BARE_LOCAL)
+            }
+            _ => None,
+        };
+        if fields
+            && let Some(p) = param
+            && t.unowned[p as usize]
+            && t.stores[p as usize] == 0
+            && b.local_flags[p as usize] & local_flags::PARAM != 0
+        {
+            b.data[r][1] |= crate::ir::ref_word::LENT;
         }
     }
 }

@@ -618,6 +618,33 @@ String operations are emitted by `emit/text.rs` and runtime helpers
   makes and that the read's kept `Drop` tests. A local a borrow is
   stored into (a binding local) holds no count (`Moves::loan_locals`):
   its stores count and release nothing.
+- **What an owned body's instance decides** (docs/compiler/tir-v2.md,
+  stage 2 commit 13b). The passes decide per generic body; three choices
+  are left to the instance, where the layout is known.
+  - *A type parameter's value parameter* is owned by the passes
+    (`OwnCx::pass`): an instance that makes it a value moves the argument
+    in at its last use; one that makes it a reference borrows it, and the
+    value the call consumed is released after it (`release_untaken`).
+    `Em::instance_loans` takes back what that costs where it can: a
+    function parameter an instance receives borrowed, which the body never
+    stores, addresses or captures, and whose every read of all of it lends
+    or is an argument a direct callee borrows at this instance too, takes
+    no count on entry and none at those reads (`hash_of(a)` for `a: &T`,
+    or `notify(c)` forwarding `c: C` at `C = &Channel`); the reads join
+    `Moves::loans` and the exit set skips the parameter.
+  - *A whole `Drop` after part moves* (`Em::own_drop_rest`): the move pass
+    keeps a base's drop whole when its type names a type parameter, or
+    when more than one counted field stays beside the moved part. Where
+    the instance lays the value out in its locals and the moves or part
+    drops before it in the same block took fields of one variant, the drop
+    releases the one counted field they left, or nothing; with more left,
+    it is one call of the whole value's glue, the taken parts being zero.
+    An open value's parts were read as copies, so its whole release runs.
+  - *A lent reference* (`ref_word::LENT`, `[*$p .f]` into what a lent
+    parameter refers to) joins `Moves::loans` with a view flag
+    (`Em::view_loans`), as §23.31's projection loans: it takes no count
+    where the referent is physical, and a view's projection makes one that
+    its kept `Drop` releases under the flag.
 - **Places rooted at the local** (docs/compiler/tir-v2.md, stage 2 commit
   12a). On this path the checker names a place from its local through
   every step (`Read [*$0 [%5] .x]`, `Store [$0 [%1]] v`,

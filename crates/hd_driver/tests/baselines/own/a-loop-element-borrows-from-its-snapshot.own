@@ -55,7 +55,7 @@ app/main/count
   %48 = Read move [$2] : List[string]
   %49 = Read move [$3] : List[string]
   %50 = Intrinsic SnapEnd [%48 %49] : ()
-  %51 = Drop [%48] : ()
-  %52 = Drop [%49] : ()
+  %51 = Drop [%49] : ()
+  %52 = Drop [%48] : ()
   exit sub 0 drops [$0]
   loop %47 keeps [$3]

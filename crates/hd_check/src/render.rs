@@ -325,15 +325,19 @@ pub fn render(names: &Names<'_>, b: &Body, fields: &FieldNames<'_>) -> String {
                     hd_tir::ir::unique_word::COVERED => Some("covered".to_owned()),
                     _ => None,
                 },
-                Tag::Ref => match (
-                    w & hd_tir::ir::ref_word::TAKES != 0,
-                    w & hd_tir::ir::ref_word::MUT != 0,
-                ) {
-                    (true, true) => Some("take mut".to_owned()),
-                    (true, false) => Some("take".to_owned()),
-                    (false, true) => Some("mut".to_owned()),
-                    (false, false) => None,
-                },
+                Tag::Ref => {
+                    let words = [
+                        (hd_tir::ir::ref_word::TAKES, "take"),
+                        (hd_tir::ir::ref_word::LENT, "lent"),
+                        (hd_tir::ir::ref_word::MUT, "mut"),
+                    ];
+                    let mode: Vec<&str> = words
+                        .iter()
+                        .filter(|(bit, _)| w & bit != 0)
+                        .map(|(_, name)| *name)
+                        .collect();
+                    (!mode.is_empty()).then(|| mode.join(" "))
+                }
                 Tag::Read => hd_tir::ir::ReadMode::from_u32(w)
                     .filter(|m| *m != hd_tir::ir::ReadMode::Use)
                     .map(|m| format!("{m:?}").to_lowercase()),

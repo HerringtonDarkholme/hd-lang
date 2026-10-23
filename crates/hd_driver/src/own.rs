@@ -129,6 +129,10 @@ impl OwnCx for Env<'_> {
         self.value_parameter(self.low(sig.params[k].1))
     }
 
+    fn suspending(&self, item: DefId) -> bool {
+        ProgramEnv::suspends(self, item)
+    }
+
     fn parts(&self, ty: Ty, variant: Option<u32>, out: &mut Vec<Ty>) -> bool {
         let types = self.run.pool.types();
         if types.has_param(ty) || types.has_assoc(ty) {
@@ -261,11 +265,12 @@ impl Env<'_> {
     }
 
     /// How a parameter of declared type `t` takes its argument: owned when
-    /// it is a value in every instance, lent when it is a reference or may
-    /// be one (a type parameter, an associated type, a newtype over a type
-    /// parameter), or holds nothing counted. The backend counts a lent
-    /// argument that an instance owns, and emits nothing for an owned one
-    /// that holds nothing counted there.
+    /// it is a value, or may be one in an instance (a type parameter, an
+    /// associated type, a newtype over a type parameter); lent when it is
+    /// a reference or holds nothing counted. An instance that makes an owned
+    /// parameter a reference borrows the argument, and the backend releases
+    /// the value the call consumed after it (`Em::release_untaken`); one
+    /// that makes it hold nothing counted counts nothing.
     fn value_parameter(&self, t: Ty) -> Pass {
         let pool = &self.run.pool;
         let mut t = t;
@@ -275,12 +280,8 @@ impl Env<'_> {
         let types = pool.types();
         let open = types.has_param(t) || types.has_assoc(t);
         match pool.get(t) {
-            TyData::Param(_) | TyData::Assoc { .. } | TyData::Ref { .. } => Pass::Lent,
-            TyData::Adt { def, .. }
-                if def == self.run.known.ref_cell || (open && self.newtype_base(def).is_some()) =>
-            {
-                Pass::Lent
-            }
+            TyData::Ref { .. } => Pass::Lent,
+            TyData::Adt { def, .. } if def == self.run.known.ref_cell => Pass::Lent,
             _ if open => Pass::Owned,
             _ => match self.layout_facts(t) {
                 (true, false) => Pass::Owned,

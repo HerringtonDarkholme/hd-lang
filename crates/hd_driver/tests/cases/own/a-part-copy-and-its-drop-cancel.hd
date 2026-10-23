@@ -5,7 +5,8 @@
 # moves and the drop goes. In `.Square(n, k)` the decision tree reads `n`
 # before `k`; the move of `k` leaves a drop of `n`, which goes with the
 # copy of `n`: no count operation on either field (the `counts` view
-# builds the old path).
+# builds the old path). `join` takes both by value, so the bindings own
+# what they bind and do not borrow it from the matched value.
 enum Shape:
     Circle(r: string)
     Square(n: string, k: string)
@@ -16,8 +17,11 @@ fn make(i: i32) -> Shape:
     else:
         .Circle("c")
 
+fn join(a: string, b: string) -> string:
+    a + b
+
 fn describe(i: i32) -> string:
     # subject
     match make(i):
-        .Square(n, k) => n + k
+        .Square(n, k) => join(n, k)
         .Circle(r) => r
