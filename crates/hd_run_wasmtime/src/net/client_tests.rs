@@ -773,6 +773,66 @@ fn expired_udp_receive_rearms_the_next_datagram() {
 }
 
 #[test]
+fn expired_udp_receive_takes_a_datagram_queued_before_the_next_receive() {
+    let peer = UdpSocket::bind("127.0.0.1:0").unwrap();
+    let peer_address = peer.local_addr().unwrap();
+    let mut net = Net::new();
+    let handle = net.opened("bind_udp", 0);
+    let address = match net.client.handles.get(&handle) {
+        Some(Entry::Udp(socket)) => socket.socket.local_addr().unwrap(),
+        _ => panic!("a udp handle"),
+    };
+    for byte in 0..50 {
+        timeout(&mut net, "UdpSocket", handle, 50);
+        // Nothing sends until the positive bound has actually expired.
+        assert_eq!(
+            net.call("UdpSocket.receive", &[handle, 8], &[], &Grants::default())
+                .unwrap()
+                .done(),
+            &[1, 4],
+        );
+        // Unlike expired_udp_receive_rearms_the_next_datagram, send before
+        // starting the next receive. Do not drive readiness between them.
+        assert_eq!(peer.send_to(&[byte], address).unwrap(), 1);
+        // Establish kernel queue presence without consuming the datagram
+        // or polling Tokio readiness. This raw peek is diagnostic only:
+        // WouldBlock probes bypass Mio's Windows re-arm bookkeeping.
+        let until = Instant::now() + Duration::from_secs(10);
+        let mut queue_probe = [std::mem::MaybeUninit::<u8>::uninit(); 1];
+        loop {
+            let Some(Entry::Udp(socket)) = net.client.handles.get(&handle) else {
+                panic!("a udp handle");
+            };
+            match socket2::SockRef::from(&socket.socket).peek_from(&mut queue_probe) {
+                Ok((n, from)) => {
+                    assert_eq!(n, 1);
+                    assert_eq!(from.as_socket(), Some(peer_address));
+                    break;
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::Interrupted => {}
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                    assert!(
+                        Instant::now() < until,
+                        "the datagram reaches the receive queue"
+                    );
+                    thread::yield_now();
+                }
+                Err(error) => panic!("peeking at the queued datagram: {error}"),
+            }
+        }
+        timeout(&mut net, "UdpSocket", handle, 10_000);
+        let result = net
+            .call("UdpSocket.receive", &[handle, 8], &[], &Grants::default())
+            .unwrap();
+        let mut decoded = Dec::new(result.done());
+        assert_eq!(decoded.leb().unwrap(), 0);
+        assert_eq!(decoded.bytes().unwrap(), &[byte]);
+        assert_eq!(decoded.str().unwrap(), "127.0.0.1");
+        assert_eq!(decoded.leb().unwrap(), u64::from(peer_address.port()));
+    }
+}
+
+#[test]
 fn expired_tcp_read_rearms_the_next_bytes() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let mut net = Net::new();
