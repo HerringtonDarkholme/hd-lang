@@ -711,3 +711,73 @@ tests:
 > rules every case already has. The runner needs no method that does
 > not return. Each draw was recorded before the panic, so the runner
 > still holds the stream.
+
+## Stateful Command Histories
+
+`commands` draws a bounded history of commands by advancing a pure model during generation.
+
+| Function | Signature |
+| --- | --- |
+| `std.testing.commands` | `fn commands[M, C](c: &mut Choices, max: usize, initial: M, next: fn(&mut Choices, &M) -> C?, advance: fn(&M, &C) -> M) -> List[C]` |
+
+```text
+use std.testing.{Choices, commands, it_prop_with}
+
+fn next_count(_c: &mut Choices, model: &usize) -> usize?:
+    if *model == 4: .None else: .Some(*model + 1)
+
+fn advance_count(_model: &usize, command: &usize) -> usize:
+    *command
+
+fn counts(c: &mut Choices) -> List[usize]:
+    commands(c, max=8, initial=0usize, next=next_count, advance=advance_count)
+
+tests:
+    it_prop_with("counter follows its model", gen=counts, prop=fn!(history: List[usize]):
+        let system: usize = 0
+        for expected in history:
+            system += 1
+            assert_equal(system, expected, reason="the command's expected count")
+    )
+```
+
+1. r[std-testing.commands.declare] `std.testing` declares `commands` with the signature above.
+2. r[std-testing.commands.length] `commands` draws its target length with `c.int(0..=max)`.
+3. r[std-testing.commands.initial] Each invocation starts its model at `initial` and its history empty.
+4. r[std-testing.commands.next] Until the target length is reached, `next(c, &model)` chooses a command valid for the current model or returns `.None`.
+5. r[std-testing.commands.stop] A `.None` from `next` ends generation and returns the history drawn so far.
+6. r[std-testing.commands.append] Each `.Some(command)` appends `command` to the history.
+7. r[std-testing.commands.advance] After appending a command, `advance(&model, &command)` supplies the model for the next call to `next`.
+8. r[std-testing.commands.deterministic] `next` and `advance` must depend only on the supplied choices, model, and command.
+9. r[std-testing.commands.replay] Replay regenerates the history from `initial` through `next` and `advance`, including when the property runner shrinks the choices.
+10. r[std-testing.commands.execute] A stateful property's body must execute the generated history without filtering commands whose preconditions no longer hold.
+11. r[std-testing.commands.fresh-system] A stateful property's body must construct fresh model and system state for each invocation.
+
+The same recipe can be written directly over `Choices` and `it_prop_with`:
+
+```text
+use std.testing.{Choices, it_prop_with}
+
+fn increments(c: &mut Choices) -> List[usize]:
+    let mut history: List[usize] = []
+    let model: usize = 0
+    count := c.int(0..=8usize)
+    for _ in 0..count:
+        model += 1
+        history.push(model)
+    history
+
+tests:
+    it_prop_with("counter follows the direct recipe", gen=increments, prop=fn!(history: List[usize]):
+        let system: usize = 0
+        for expected in history:
+            system += 1
+            assert_equal(system, expected, reason="the command's expected count")
+    )
+```
+
+> **Why.** Regenerating from a pure model keeps a shrunk history valid.
+> Local fakes can be constructed inside the property body, so existing
+> shrinking and saved choice streams need no execution journal.
+
+See also: [Property Tests](#property-tests), [Unit Test Providers](#unit-test-providers).

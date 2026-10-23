@@ -1,0 +1,14 @@
+run: hd test --format json src/lib.hd --seed 5
+exit: 1
+stdout-json: [{"kind":"test","name":"command fault","outcome":"failed","message":null},{"kind":"summary","errors":0,"warnings":0,"passed":0,"failed":1,"ignored":0,"status":1}]
+file: __regressions__/pkg/command-fault
+same-text: __regressions__/pkg/command-fault want/stream
+
+# Switch the same test to cases=0 and shrink=0, so only the saved history
+# can make the next invocation fail; another seed supplies no fresh case.
+run: hd prepare.hd
+
+run: hd test --format json src/lib.hd --seed 9999
+exit: 1
+stdout-json: [{"kind":"test","name":"command fault","outcome":"failed","message":null},{"kind":"summary","errors":0,"warnings":0,"passed":0,"failed":1,"ignored":0,"status":1}]
+same-text: __regressions__/pkg/command-fault want/stream

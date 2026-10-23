@@ -2036,6 +2036,7 @@ typing/invalid/it-each-name-clash.hd	type	reject:duplicate-test-name	lang/10-mod
 typing/invalid/it-each-non-literal-name.hd	type	reject:non-literal-test-argument	lang/10-modules.md#r-module.testing.reg.name
 runtime/valid/it-each-options.hd	runtime	accept	lang/10-modules.md#r-module.testing.reg.options
 runtime/valid/test-timeout-options.hd	runtime	accept	std/testing.md#r-std-testing.option.timeout-any-duration
+runtime/valid/testing-commands.hd	runtime	accept	std/testing.md#r-std-testing.commands.declare
 runtime/valid/it-each-propagation.hd	runtime	accept	lang/10-modules.md#r-module.testing.reg.body-closure-result.reference-values
 typing/valid/snapshot-inline.hd	type	accept	lang/10-modules.md#snapshots
 typing/invalid/snapshot-non-literal-expect.hd	type	reject:non-literal-test-argument	lang/10-modules.md#r-module.testing.snapshot.literal

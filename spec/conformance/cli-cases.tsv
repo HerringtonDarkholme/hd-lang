@@ -209,6 +209,7 @@ exit-entry-cancelled	cli.cancel.flag,cli.limit.forms,cli.cancel.end,cli.cancel.s
 test-leak-after-abandon	cli.test.leak.abandoned,cli.test.leak,cli.test.env.integration
 dbg-fetched-dependency	cli.dbg.dependency
 cap-resolved-refusal	cli.cap.partial.path.resolved,cli.cap.partial.path.written
+commands-shrink-replay	cli.test.runner,cli.test.seed.report,cli.exit.test-failure
 property-stateful-replay	cli.test.runner,cli.test.report.heading,cli.test.report.failure,cli.test.seed.report,cli.exit.test-failure
 qualified-type-names	cli.json.lines.build,cli.json.kind,cli.json.diagnostic,cli.json.diagnostic.fields,cli.json.diagnostic.file,cli.json.summary.result,cli.json.summary.result.fields,cli.exit.hd-failure
 fix-derivation-fact	cli.json.diagnostic.fixes,cli.json.fix.object,cli.json.fix.edit,cli.json.fix.offsets,cli.json.fix.disjoint,cli.fix.command,cli.fix.safe,cli.fix.status,cli.exit.success

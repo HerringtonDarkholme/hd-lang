@@ -1,0 +1,6 @@
+use std.fs.{FsRead, FsWrite, FsError, read_text, write_text}
+use std.path.Path
+
+pub fn main!() -> Result[void, FsError] $ FsRead + FsWrite:
+    replay := read_text!(Path("want/replay.hd"))?
+    write_text!(Path("src/lib.hd"), replay)

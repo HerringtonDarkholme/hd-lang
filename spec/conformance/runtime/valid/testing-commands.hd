@@ -1,0 +1,130 @@
+# test: command histories advance a pure model and run with fresh local systems
+# Spec std/testing: std-testing.commands.declare, std-testing.commands.length,
+# std-testing.commands.initial, std-testing.commands.next, std-testing.commands.stop,
+# std-testing.commands.append, std-testing.commands.advance, std-testing.commands.deterministic,
+# std-testing.commands.replay, std-testing.commands.execute, std-testing.commands.fresh-system.
+use std.testing.{Choices, commands, it_prop_with}
+use std.fs.{FsRead, FsWrite, MemoryFs, read_text, write_text}
+use std.path.Path
+
+@derive(Debug)
+enum Change:
+    Increase
+    Decrease
+
+fn next_change(c: &mut Choices, model: &usize) -> Change?:
+    if *model == 0 || c.bool(): .Some(.Increase) else: .Some(.Decrease)
+
+fn advance_change(model: &usize, command: &Change) -> usize:
+    match *command:
+        .Increase => *model + 1
+        .Decrease => *model - 1
+
+fn changes(c: &mut Choices) -> List[Change]:
+    commands(c, max=20, initial=0usize, next=next_change, advance=advance_change)
+
+fn next_count(_c: &mut Choices, model: &usize) -> usize?:
+    if *model == 4: .None else: .Some(*model + 1)
+
+fn advance_count(_model: &usize, command: &usize) -> usize:
+    *command
+
+fn counts(c: &mut Choices) -> List[usize]:
+    commands(c, max=8, initial=0usize, next=next_count, advance=advance_count)
+
+fn increments(c: &mut Choices) -> List[usize]:
+    let mut history: List[usize] = []
+    let model: usize = 0
+    count := c.int(0..=8usize)
+    for _ in 0..count:
+        model += 1
+        history.push(model)
+    history
+
+fn unexpected_next(_c: &mut Choices, _model: &usize) -> usize?:
+    panic("next must not run")
+
+fn unexpected_advance(_model: &usize, _command: &usize) -> usize:
+    panic("advance must not run")
+
+fn empty(c: &mut Choices) -> List[usize]:
+    commands(c, max=0, initial=0usize, next=unexpected_next, advance=unexpected_advance)
+
+fn stop(_c: &mut Choices, _model: &usize) -> usize?:
+    .None
+
+fn stopped(c: &mut Choices) -> List[usize]:
+    commands(c, max=8, initial=0usize, next=stop, advance=unexpected_advance)
+
+fn spent(c: &mut Choices) -> List[usize]:
+    for _ in 0..256:
+        _ := c.bool()
+    commands(c, max=8, initial=0usize, next=unexpected_next, advance=unexpected_advance)
+
+struct Model:
+    count: usize
+
+fn next_structured(_c: &mut Choices, model: &Model) -> usize?:
+    if model.count == 8: .None else: .Some(model.count + 1)
+
+fn advance_structured(_model: &Model, command: &usize) -> Model:
+    Model { count: *command }
+
+fn structured(c: &mut Choices) -> List[usize]:
+    commands(c, max=8, initial=Model { count: 5 }, next=next_structured, advance=advance_structured)
+
+tests:
+    it_prop_with("counter follows its model", gen=counts, prop=fn!(history: List[usize]):
+        assert(history.len() <= 4, reason="None stops the history")
+        let system: usize = 0
+        for expected in history:
+            system += 1
+            assert_equal(system, expected, reason="the command's expected count")
+    )
+
+    it_prop_with("counter follows the direct recipe", gen=increments, prop=fn!(history: List[usize]):
+        let system: usize = 0
+        for expected in history:
+            system += 1
+            assert_equal(system, expected, reason="the command's expected count")
+    )
+
+    it_prop_with("every command remains valid", gen=changes, prop=fn!(history: List[Change]):
+        assert(history.len() <= 20, reason="the requested bound")
+        let model: usize = 0
+        for command in history:
+            match command:
+                .Increase => model += 1
+                .Decrease =>
+                    assert(model > 0, reason="no decrease of an empty counter")
+                    model -= 1
+    )
+
+    it_prop_with("a zero maximum calls neither callback", gen=empty, cases=4, prop=fn!(history: List[usize]):
+        assert(history.is_empty(), reason="no commands requested")
+    )
+
+    it_prop_with("None does not advance the model", gen=stopped, cases=4, prop=fn!(history: List[usize]):
+        assert(history.is_empty(), reason="next stopped immediately")
+    )
+
+    it_prop_with("a spent draw budget returns an empty history", gen=spent, cases=4, prop=fn!(history: List[usize]):
+        assert(history.is_empty(), reason="the simplest target length is zero")
+    )
+
+    it_prop_with("model and command types are independent", gen=structured, prop=fn!(history: List[usize]):
+        assert(history.len() <= 3, reason="the initial model starts at five")
+        let expected: usize = 5
+        for value in history:
+            expected += 1
+            assert_equal(value, expected, reason="the preceding transition supplied the next model")
+    )
+
+    it_prop_with("each case creates a fresh MemoryFs", gen=counts, cases=12, prop=fn!(history: List[usize]):
+        files := MemoryFs::new()
+        $.with(FsRead=files, FsWrite=files):
+            assert(read_text!(Path("count")).is_err(), reason="no preceding case's file survives")
+            for expected in history:
+                write_text!(Path("count"), "$expected").expect("write the command's result")
+                assert_equal(read_text!(Path("count")).expect("read the command's result"), "$expected", reason="the scripted command's result")
+    )

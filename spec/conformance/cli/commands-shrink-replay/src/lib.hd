@@ -1,0 +1,36 @@
+use std.testing.{Choices, assert, assert_equal, commands, it_prop_with}
+
+@derive(Debug)
+enum Change:
+    Increase
+    Decrease
+
+fn next(c: &mut Choices, model: &usize) -> Change?:
+    if *model == 0 || c.bool(): .Some(.Increase) else: .Some(.Decrease)
+
+fn advance(model: &usize, command: &Change) -> usize:
+    match *command:
+        .Increase => *model + 1
+        .Decrease => *model - 1
+
+fn history(c: &mut Choices) -> List[Change]:
+    commands(c, max=7, initial=0usize, next=next, advance=advance)
+
+fn faulty(history: List[Change]) -> void:
+    let model: usize = 0
+    let system: usize = 0
+    for command in history:
+        match command:
+            .Increase =>
+                model += 1
+                system += if system == 2: 2 else: 1
+            .Decrease =>
+                assert(model > 0, reason="regeneration keeps the decrease valid")
+                model -= 1
+                system -= 1
+        assert_equal(system, model, reason="deliberate counter fault")
+
+tests:
+    it_prop_with("command fault", gen=history, cases=4, shrink=200, prop=fn!(commands: List[Change]):
+        faulty(commands)
+    )

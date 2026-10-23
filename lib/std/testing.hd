@@ -691,3 +691,41 @@ pub fn hd_run!(command: Command) -> ProcessOutput $ Process:
 ## See [std-testing.temp-dir.decl](../../spec/std/testing.md#r-std-testing.temp-dir.decl).
 pub fn temp_dir() -> Path $ TestRunner:
     Path($.use(TestRunner).temp_dir())
+
+## Draws a bounded command history while advancing a pure model.
+## `next` chooses a command valid for its model, or returns `.None` to stop.
+## Replay regenerates the model and commands from the same choices.
+## See [std-testing.commands.declare](../../spec/std/testing.md#r-std-testing.commands.declare).
+##
+## The same recipe can be written directly with `Choices` and `it_prop_with`:
+## ```hd
+## use std.testing.{Choices, it_prop_with}
+##
+## fn increments(c: &mut Choices) -> List[usize]:
+##     let mut history: List[usize] = []
+##     let model: usize = 0
+##     count := c.int(0..=8usize)
+##     for _ in 0..count:
+##         model += 1
+##         history.push(model)
+##     history
+##
+## tests:
+##     it_prop_with("counter follows its model", gen=increments, prop=fn!(history: List[usize]):
+##         let system: usize = 0
+##         for expected in history:
+##             system += 1
+##             assert_equal(system, expected, reason="the command's expected count")
+##     )
+## ```
+pub fn commands[M, C](c: &mut Choices, max: usize, initial: M, next: fn(&mut Choices, &M) -> C?, advance: fn(&M, &C) -> M) -> List[C]:
+    let mut history: List[C] = []
+    let model = initial
+    count := c.int(0..=max)
+    for _ in 0..count:
+        command := match next(c, &model):
+            .Some(command) => command
+            .None => return history
+        history.push(command)
+        model = advance(&model, &command)
+    history

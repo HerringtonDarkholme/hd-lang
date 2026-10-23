@@ -873,3 +873,15 @@ Questions the stdlib audit (#350) raised that were the owner's to answer.
   non-negative, as Rust's (#507). A literal suffix, `500ms` and `30s`,
   becomes the preferred spelling of a literal duration (#508); the
   functions and constructors stay.
+
+## Stateful Property Testing (#185)
+
+Owner decision, 2026-10-22:
+
+| Pass | Call | Why | Status |
+| --- | --- | --- | --- |
+| #185 | `commands` is ordinary `std.testing` code over `Choices`, used through `it_prop_with`; its doc shows the direct recipe too. | Reuse the existing runner and saved choice streams without a new registration or intrinsic. | confirmed |
+| #185 | Generation reruns a pure model from the initial state for every replay, including shrinking; execution never filters invalid commands. | Shrunk histories must remain valid without hiding a failed precondition. | confirmed |
+| #185 | Each property body creates fresh local model/system state, including deterministic fakes; no execution journal is required. | Successful cases may share an instance, while each history must start from its own initial state. | confirmed |
+
+Applied in [Stateful Command Histories](../../spec/std/testing.md#stateful-command-histories).

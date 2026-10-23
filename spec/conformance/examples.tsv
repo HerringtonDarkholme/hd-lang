@@ -741,6 +741,8 @@ std/testing.md	19	mixed	runtime/valid/unit-test-manual-clock.hd|typing/invalid/u
 std/testing.md	20	type-fragment	-
 std/testing.md	21	mixed	typing/valid/test-runner-capabilities.hd|typing/valid/test-body-uses-test-runner.hd|typing/invalid/test-body-uses-property-runner.hd
 std/testing.md	22	accept	runtime/valid/property-assume-discards.hd
+std/testing.md	23	accept	runtime/valid/testing-commands.hd
+std/testing.md	24	accept	runtime/valid/testing-commands.hd
 std/text.md	1	accept	runtime/valid/string-lines.hd|runtime/valid/string-repeat.hd
 std/text.md	2	accept	runtime/valid/string-split-once.hd|runtime/valid/string-pad-default-fill.hd|runtime/valid/string-split-whitespace.hd|runtime/valid/string-rfind-splitn.hd
 std/text.md	3	accept	runtime/valid/char-ascii-classes.hd|runtime/valid/char-to-digit.hd

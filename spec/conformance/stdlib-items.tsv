@@ -1,6 +1,7 @@
 item	specification
 std.testing.Arbitrary	std/testing.md#property-tests
 std.testing.Choices	std/testing.md#property-tests
+std.testing.commands	std/testing.md#stateful-command-histories
 std.testing.snapshot_file	std/testing.md#snapshot-files
 std.testing.hd_run	std/testing.md#running-executables
 std.process.ScriptedProcess	std/process.md#scripted-process
