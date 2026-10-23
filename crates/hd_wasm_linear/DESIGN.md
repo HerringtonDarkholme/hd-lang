@@ -669,7 +669,11 @@ count glue, with release glue in `rt.rs`, and decides none itself.
   an element or a variant
   among its steps, or a dereference after its first step
   (`Em::rooted_at`), goes through one walk (`Em::walk_place`,
-  `emit/refs.rs`) from the local's value: a field picks its part (in
+  `emit/refs.rs`) from the local's value. A place rooted at a top-level
+  binding takes it too when it has a step other than a field, or is read
+  through fields, starting at the binding's static slot or at its Wasm
+  globals read into locals; a store into or a reference to a binding's
+  fields keeps the old lowering. A field picks its part (in
   locals, or an offset in memory), a variant its payload field (in a
   boxed enum's cell when the enum is boxed), a dereference of a data
   value the object's field, an element its slot in the buffer,

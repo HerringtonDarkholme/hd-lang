@@ -288,6 +288,12 @@ fn root_local(b: &Body, word: u32) -> Option<u32> {
     }
 }
 
+/// `Some(NONE)` for a place word rooted at a top-level binding.
+fn global_root(b: &Body, word: u32) -> Option<u32> {
+    (word & place::BARE_LOCAL == 0 && b.extra.get(word as usize + 1) == Some(&place::ROOT_GLOBAL))
+        .then_some(NONE)
+}
+
 /// The syntax node of statement `pos` of block `blk`, for a statement the
 /// pass places after it, so the dumps show it beside that statement.
 fn statement_syn(b: &Body, blk: u32, pos: u32) -> NodeIdx {
@@ -993,10 +999,10 @@ type Change = (u32, u32, u32, Option<bool>);
 /// The list changes of instruction `i` into `t.changes`, as (change,
 /// `extra` word, operand, quiet): a push's list and each in-place argument
 /// ([`Pass::InPlace`]). Quiet is `None` for an operand that reads no place
-/// rooted at a local, and else whether nothing between that read and the
-/// change may write. A change whose operand reads a place is an access of
-/// the local the place is rooted at, and an operand read again at the
-/// change owns nothing.
+/// rooted at a local or a top-level binding, and else whether nothing
+/// between that read and the change may write. A change whose operand
+/// reads a place is an access of the local the place is rooted at, if
+/// any, and an operand read again at the change owns nothing.
 fn changes(b: &Body, cx: &dyn OwnCx, t: &mut Tables, i: usize) {
     let [a, w] = b.data[i];
     let push =
@@ -1017,8 +1023,10 @@ fn changes(b: &Body, cx: &dyn OwnCx, t: &mut Tables, i: usize) {
         let Some(r) = Ref(v).as_inst().map(|r| r.0 as usize).filter(|_| change) else {
             continue;
         };
+        // `NONE` for a place rooted at a top-level binding, which has no
+        // local access to record.
         let root = (b.tags[r] == Tag::Read && t.blk[r] != NONE)
-            .then(|| root_local(b, b.data[r][0]))
+            .then(|| root_local(b, b.data[r][0]).or(global_root(b, b.data[r][0])))
             .flatten();
         let still = t.blk[r] == t.blk[i] && (r + 1..i).all(|x| quiet(b, x));
         // A write between may renumber a map's entries.
@@ -1028,7 +1036,7 @@ fn changes(b: &Body, cx: &dyn OwnCx, t: &mut Tables, i: usize) {
         t.tracked[r] &= still || !rooted;
         let kind = rooted.then_some(still);
         t.changes.push((u32_of(i), w + 1 + u32_of(k), v, kind));
-        if let Some(l) = root.filter(|_| rooted) {
+        if let Some(l) = root.filter(|&l| rooted && l != NONE) {
             t.acc.push((t.sub[i], l, u32_of(i)));
         }
     }

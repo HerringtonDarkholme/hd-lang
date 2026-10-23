@@ -777,14 +777,16 @@ writable check, `mark_write_path`) step back through those values. It
 then roots every such chain at its local when it finishes a body
 (`ir::root_places`, `src/ir/root.rs`): `bodies[i].x` through `&mut List[Body]` is one
 `Read [*$0 [%5] .x]`, `xs[i] = v` is `Store [$0 [%1]] v`, `self.x` is
-`Read [*$0 .x]`. A base read `%v = Read P` of a local's place folds into
+`Read [*$0 .x]`, and a top-level binding's chain is rooted at the
+binding, `bags[i].items` as `[@bags [%i] .items]`. A base read
+`%v = Read P` of a local's or a top-level binding's place folds into
 its uses when every use is the root of a `Read`, `Store` or `Ref` place
 (a `Store` or `Ref` one going into memory: a dereference or an element),
 the uses are statements of `%v`'s block with only inert statements
 between (reads, primitives, constructions, coercions, lengths; with an
 element step in `P`, only reads that check nothing), and the local's
 type names no type parameter or associated type (an erased instance
-outlines an open read by its values). The folded read goes, and the body
+outlines an open read by its values; a binding's type never does). The folded read goes, and the body
 is rebuilt once (`own::splice`). A base used as a value too (a match's
 scrutinee, an intrinsic's operand) keeps its read. A place rooted at a
 local lies in the local itself only when every step is a field or a

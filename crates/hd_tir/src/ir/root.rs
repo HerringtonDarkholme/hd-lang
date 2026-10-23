@@ -9,8 +9,8 @@
 //! it checks. [`root_places`] then folds every such chain into one place
 //! when the body is finished.
 //!
-//! A base read `%v = Read P`, with `P` rooted at a local, folds into its
-//! uses when all of these hold:
+//! A base read `%v = Read P`, with `P` rooted at a local or a top-level
+//! binding, folds into its uses when all of these hold:
 //!
 //! 1. every use of `%v` is the root of a place of a `Read`, `Store` or
 //!    `Ref` (`[%v .x]`, `[*%v]`, `[%v [%i]]`), so nothing but those places
@@ -62,18 +62,23 @@ fn u32_of(i: usize) -> u32 {
     u32::try_from(i).expect("insts")
 }
 
-/// The root local of place word `word` and the `extra` range of its
+/// The root words of place word `word`, a local's or a top-level
+/// binding's, with how many there are, and the `extra` range of its
 /// projection words; `None` for a place rooted elsewhere.
-fn local_root(b: &Body, word: u32) -> Option<(u32, u32, u32)> {
+fn local_root(b: &Body, word: u32) -> Option<([u32; 3], usize, u32, u32)> {
     if word & place::BARE_LOCAL != 0 {
-        return Some((word & !place::BARE_LOCAL, 0, 0));
+        return Some(([place::ROOT_LOCAL, word & !place::BARE_LOCAL, 0], 2, 0, 0));
     }
     let at = word as usize;
     let n = *b.extra.get(at)?;
-    match b.extra.get(at + 1..at + 3)? {
-        [place::ROOT_LOCAL, l] => Some((*l, word + 3, word + 1 + n)),
-        _ => None,
-    }
+    let k = match *b.extra.get(at + 1)? {
+        place::ROOT_LOCAL => 2,
+        place::ROOT_GLOBAL => 3,
+        _ => return None,
+    };
+    let mut root = [0; 3];
+    root[..k].copy_from_slice(b.extra.get(at + 1..at + 1 + k)?);
+    Some((root, k, word + 1 + u32_of(k), word + 1 + n))
 }
 
 /// Whether the projection words `from..to` hold a step of one of the
@@ -211,11 +216,12 @@ pub fn root_places(b: &mut Body, open: &dyn Fn(Ty) -> bool, t: &mut RootTables) 
         {
             continue;
         }
-        let Some((l, from, to)) = local_root(b, b.data[v][0]) else {
+        let Some((root, roots, from, to)) = local_root(b, b.data[v][0]) else {
             continue;
         };
         let (lo, hi) = (t.start[v] as usize, t.start[v + 1] as usize);
-        if lo == hi || open(b.local_ty[l as usize]) {
+        // A top-level binding's type is never open.
+        if lo == hi || roots == 2 && open(b.local_ty[root[1] as usize]) {
             continue;
         }
         let blk = t.blk[v];
@@ -269,7 +275,7 @@ pub fn root_places(b: &mut Body, open: &dyn Fn(Ty) -> bool, t: &mut RootTables) 
             let word = b.data[u][0];
             let len = b.extra[word as usize];
             t.words.clear();
-            t.words.extend([place::ROOT_LOCAL, l]);
+            t.words.extend_from_slice(&root[..roots]);
             t.words
                 .extend_from_slice(&b.extra[from as usize..to as usize]);
             t.words

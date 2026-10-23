@@ -1273,39 +1273,65 @@ impl Em<'_, '_, '_> {
 impl Em<'_, '_, '_> {
     /// Whether the place of instruction `i` of an owned body takes the
     /// walk: rooted at a local, with an element or a variant among its
-    /// steps, or a dereference after its first step. The old lowering keeps
-    /// a local's fields and one leading dereference with fields after it
-    /// (`Em::spot_of`).
+    /// steps, or a dereference after its first step; or rooted at a
+    /// top-level binding, read through any step or reached through one
+    /// that is no field. The old lowering keeps a local's fields and one
+    /// leading dereference with fields after it, and a store into or a
+    /// reference to a top-level binding's fields (`Em::spot_of`).
     pub(super) fn rooted_at(&self, i: u32) -> bool {
+        let read = self.b.tags[i as usize] == Tag::Read;
         self.owned
             && self
                 .b
                 .decode_place(self.b.data[i as usize][0])
-                .is_some_and(|p| Self::rooted(&p))
+                .is_some_and(|p| {
+                    Self::rooted(&p)
+                        || read && matches!(p.root, PlaceRoot::Global(..)) && !p.proj.is_empty()
+                })
     }
 
     /// Whether place `p` takes the walk ([`Em::rooted_at`]).
     pub(super) fn rooted(p: &Place) -> bool {
-        matches!(p.root, PlaceRoot::Local(_))
+        let global = matches!(p.root, PlaceRoot::Global(..));
+        matches!(p.root, PlaceRoot::Local(_) | PlaceRoot::Global(..))
             && p.proj.iter().enumerate().any(|(k, s)| match s {
                 Proj::Elem(_) | Proj::Variant(_) => true,
-                Proj::Deref => k > 0,
+                Proj::Deref => k > 0 || global,
                 Proj::Field(_) => false,
             })
     }
 
     /// The value at a place's root, where the walk starts: a local's (read
-    /// from its cell when it has one) or an instruction's.
+    /// from its cell when it has one), a top-level binding's (its static
+    /// slot, or its Wasm globals read into locals) or an instruction's.
     fn at_root(&mut self, root: PlaceRoot) -> StageResult<(At, Ty)> {
         match root {
             PlaceRoot::Local(l) => Ok((
                 At::Vals(self.local_value(l.raw())?),
                 self.start_ty(Start::Local(l.raw())),
             )),
+            PlaceRoot::Global(def, t) => {
+                let t = self.sub(t);
+                if let Some(slot) = self.def_slot(def) {
+                    let a = self.f.local(Val::I32);
+                    self.f.static_addr(slot);
+                    self.f.set(a);
+                    return Ok((At::Mem(a, 0), t));
+                }
+                let h = self.def_hash(def);
+                let mut ls = Vec::new();
+                for (k, v) in self.vals(t)?.into_iter().enumerate() {
+                    let k = u32::try_from(k).expect("k");
+                    ls.push(self.f.local(v));
+                    self.f.global_get(crate::module::Global::Storage(h, k, v));
+                    self.f.set(ls[ls.len() - 1]);
+                }
+                Ok((At::Vals(ls), t))
+            }
             PlaceRoot::Value(r) if r.as_inst().is_some() => {
                 Ok((At::Vals(self.local_value_of(r.0)?), self.ty_of(r.0)))
             }
-            _ => unsupported("a place rooted at a top-level binding or a constant"),
+            _ => unsupported("a place rooted at a constant"),
         }
     }
 
