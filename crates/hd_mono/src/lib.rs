@@ -519,6 +519,23 @@ pub fn subst(pool: &InternPool, env: &dyn ProgramEnv, item: DefId, args: TyList,
     }
 }
 
+/// The instruction types of this instance's final body, substituted once
+/// for emission. Use the supplied body after specialization and ownership
+/// lowering, including for backend-generated bodies.
+#[must_use]
+pub fn instruction_types(
+    pool: &InternPool,
+    env: &dyn ProgramEnv,
+    item: DefId,
+    args: TyList,
+    body: &Body,
+) -> Vec<Ty> {
+    body.ty
+        .iter()
+        .map(|&t| subst(pool, env, item, args, t))
+        .collect()
+}
+
 /// Whether copying a value of type `t` copies collections
 /// (`crates/hd_wasm_linear/DESIGN.md` §15.2, "Collection values"): a `List` or a
 /// `Map` value, or a struct holding one in its fields, at any depth of
