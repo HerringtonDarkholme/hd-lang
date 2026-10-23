@@ -48,29 +48,27 @@ impl IdWord {
 /// The ID words of one instruction's records, as `extra` positions: those
 /// of its place operands, then its tag's.
 pub(crate) fn id_words(b: &Body, i: usize) -> StageResult<Vec<IdWord>> {
-    let mut out = place_id_words(b, i);
-    out.extend(tag_id_words(b, i)?);
+    let mut out = Vec::new();
+    append_place_id_words(b, i, &mut out);
+    append_tag_id_words(b, i, &mut out)?;
     Ok(out)
 }
 
-/// The ID words of instruction `i`'s place operands ([`Op::Place`]): a
+/// Appends the IDs of instruction `i`'s place operands ([`Op::Place`]): a
 /// global root's `DefId` and `Ty`, `[len, 1, def, ty, ...]`.
-fn place_id_words(b: &Body, i: usize) -> Vec<IdWord> {
+fn append_place_id_words(b: &Body, i: usize, out: &mut Vec<IdWord>) {
     let (oa, ob) = b.tags[i].operands();
-    [(b.data[i][0], oa), (b.data[i][1], ob)]
-        .into_iter()
-        .filter(|&(word, op)| {
-            op == Op::Place
-                && word & place::BARE_LOCAL == 0
-                && b.extra.get(word as usize + 1) == Some(&place::ROOT_GLOBAL)
-        })
-        .flat_map(|(word, _)| {
-            [
+    for (word, op) in [(b.data[i][0], oa), (b.data[i][1], ob)] {
+        if op == Op::Place
+            && word & place::BARE_LOCAL == 0
+            && b.extra.get(word as usize + 1) == Some(&place::ROOT_GLOBAL)
+        {
+            out.extend([
                 IdWord::Def(word as usize + 2),
                 IdWord::Ty(word as usize + 3),
-            ]
-        })
-        .collect()
+            ]);
+        }
+    }
 }
 
 /// Every ID word of a body, in instruction order, each position once:
@@ -79,47 +77,57 @@ fn body_id_words(b: &Body) -> StageResult<Vec<IdWord>> {
     let mut seen = vec![false; b.extra.len()];
     let mut out = Vec::new();
     for i in 0..b.len() {
-        for w in id_words(b, i)? {
-            match seen.get_mut(w.at()) {
-                Some(s) if *s => {}
+        let start = out.len();
+        append_place_id_words(b, i, &mut out);
+        append_tag_id_words(b, i, &mut out)?;
+        // Compact just the appended words, retaining their first-seen
+        // order without allocating a temporary vector for the instruction.
+        let mut write = start;
+        for read in start..out.len() {
+            let word = out[read];
+            let keep = match seen.get_mut(word.at()) {
+                Some(s) if *s => false,
                 Some(s) => {
                     *s = true;
-                    out.push(w);
+                    true
                 }
                 // Out of range: the caller's lookup refuses it.
-                None => out.push(w),
+                None => true,
+            };
+            if keep {
+                out[write] = word;
+                write += 1;
             }
         }
+        out.truncate(write);
     }
     Ok(out)
 }
 
-/// The ID words of one instruction's tag-specific records.
-fn tag_id_words(b: &Body, i: usize) -> StageResult<Vec<IdWord>> {
+/// Appends the ID words of one instruction's tag-specific records.
+fn append_tag_id_words(b: &Body, i: usize, out: &mut Vec<IdWord>) -> StageResult<()> {
     let [a, _] = b.data[i];
-    Ok(match b.tags[i] {
-        Tag::Call => return id_words_call(b, a as usize + 1),
-        Tag::Await => return id_words_call(b, a as usize + 1),
+    match b.tags[i] {
+        Tag::Call => return append_id_words_call(b, a as usize + 1, out),
+        Tag::Await => return append_id_words_call(b, a as usize + 1, out),
         // `ProviderGet` and `ItemRef` keep their IDs in one-word records.
-        Tag::ProviderGet => vec![IdWord::Ty(a as usize + 1)],
+        Tag::ProviderGet => out.push(IdWord::Ty(a as usize + 1)),
         // `With` and `ContextNew`: (key type, provider) pairs.
         Tag::With | Tag::ContextNew => {
             let n = b.extra.get(a as usize).copied().unwrap_or(0) as usize;
-            (0..n / 2)
-                .map(|k| IdWord::Ty(a as usize + 1 + 2 * k))
-                .collect()
+            out.extend((0..n / 2).map(|k| IdWord::Ty(a as usize + 1 + 2 * k)));
         }
-        Tag::DefaultCall => vec![IdWord::Def(a as usize + 1), IdWord::List(a as usize + 2)],
+        Tag::DefaultCall => out.extend([IdWord::Def(a as usize + 1), IdWord::List(a as usize + 2)]),
         // A generic local function's instantiation: its type arguments
         // are the record's fourth word (`sub_flags::GENERIC`).
-        Tag::Closure if b.is_instantiation(i) => vec![IdWord::List(b.data[i][1] as usize + 4)],
-        Tag::ItemRef => vec![
+        Tag::Closure if b.is_instantiation(i) => out.push(IdWord::List(b.data[i][1] as usize + 4)),
+        Tag::ItemRef => out.extend([
             IdWord::Def(a as usize + 1),
             IdWord::List(b.data[i][1] as usize + 1),
-        ],
-        Tag::RefDyn | Tag::RefIdentity => vec![],
-        // A global root's IDs are the place's ([`place_id_words`]).
-        Tag::Read | Tag::Store | Tag::Ref => vec![],
+        ]),
+        Tag::RefDyn | Tag::RefIdentity => {}
+        // A global root's IDs are the place's ([`append_place_id_words`]).
+        Tag::Read | Tag::Store | Tag::Ref => {}
         // The ownership passes run after decoding, so their statements
         // never reach the wire (`docs/compiler/tir-v2.md`, "Encoding, wire
         // format and caching").
@@ -164,35 +172,35 @@ fn tag_id_words(b: &Body, i: usize) -> StageResult<Vec<IdWord>> {
         | Tag::Guard
         | Tag::ToArm
         | Tag::Unreachable
-        | Tag::Poison => vec![],
+        | Tag::Poison => {}
         other => {
             return Err(NotImplemented::new(
                 Stage::ModuleFinish,
                 format!("wire form of TIR tag {}", other.name()),
             ));
         }
-    })
+    }
+    Ok(())
 }
 
-/// The ID words of a callee record starting at `at`.
-fn id_words_call(b: &Body, at: usize) -> StageResult<Vec<IdWord>> {
-    Ok(match b.extra.get(at) {
-        Some(0) => vec![IdWord::Def(at + 1), IdWord::List(at + 2)],
+/// Appends the ID words of a callee record starting at `at`.
+fn append_id_words_call(b: &Body, at: usize, out: &mut Vec<IdWord>) -> StageResult<()> {
+    match b.extra.get(at) {
+        Some(0) => out.extend([IdWord::Def(at + 1), IdWord::List(at + 2)]),
         Some(1) => {
-            let mut v = vec![
+            out.extend([
                 IdWord::Def(at + 1),
                 IdWord::Def(at + 2),
                 IdWord::Ty(at + 3),
                 IdWord::List(at + 4),
-            ];
+            ]);
             // An impl choice and a trait-value choice carry the item's ID.
             if matches!(
                 b.extra.get(at + 5),
                 Some(&k) if k == ChoiceKind::Impl as u32 || k == ChoiceKind::TraitValue as u32
             ) {
-                v.push(IdWord::Def(at + 6));
+                out.push(IdWord::Def(at + 6));
             }
-            v
         }
         _ => {
             return Err(NotImplemented::bug(
@@ -200,7 +208,8 @@ fn id_words_call(b: &Body, at: usize) -> StageResult<Vec<IdWord>> {
                 "wire form of a malformed callee record",
             ));
         }
-    })
+    }
+    Ok(())
 }
 
 fn u32s(w: &mut Writer, v: impl ExactSizeIterator<Item = u32>) {
