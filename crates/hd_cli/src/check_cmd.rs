@@ -343,7 +343,7 @@ pub(crate) fn command(args: &[OsString]) -> ExitCode {
 /// (`cli.check.tests`); `--all` adds the tasks too (`cli.check.all`). A
 /// FILE of test code or a task brings in its kind. A single-file program is
 /// its one file. The layout errors of the files left out, such as
-/// `cli.task.beside-dir`, hold whatever the scope, so they are returned.
+/// `cli.task.beside-directory`, hold whatever the scope, so they are returned.
 fn scope(t: &mut Target, o: &Options) -> (bool, Vec<Diag>) {
     let only = t.only.as_deref().map(role_of);
     let tests = o.tests || o.all || only == Some(Role::Test);

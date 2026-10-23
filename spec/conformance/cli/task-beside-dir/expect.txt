@@ -1,5 +1,5 @@
 # tasks/shared.hd lies beside tasks/shared/, so both claim the module shared.
-# Spec cli: cli.task.beside-dir (error-code proposal F5).
+# Spec cli: cli.task.beside-directory; the message names tasks/shared/mod.hd.
 run: hd check --format json
 exit: 101
 stdout-json: [{"kind":"diagnostic","code":"duplicate-module-name","severity":"error","message":null},{"kind":"summary","errors":1,"status":101}]

@@ -1113,7 +1113,7 @@ impl ModuleTable {
                         ),
                     ));
                 } else if beside {
-                    // `module.test.integration.beside-dir`, `cli.task.beside-dir`.
+                    // `module.test.integration.beside-directory`, `cli.task.beside-directory`.
                     t.problems.push((
                         file,
                         Code::DuplicateModuleName,
@@ -1982,7 +1982,7 @@ mod tests {
     }
 
     /// `tasks/shared.hd` beside `tasks/shared/` is one error on the file
-    /// (`cli.task.beside-dir`); `src/x.hd` beside `src/x/` is the parent
+    /// (`cli.task.beside-directory`); `src/x.hd` beside `src/x/` is the parent
     /// file of folder `x` and no error (`module.folder.parent-file`).
     #[test]
     fn a_task_file_beside_its_directory_is_a_duplicate_module() {

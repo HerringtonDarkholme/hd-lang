@@ -374,7 +374,7 @@ tests/common/mod.hd    # a shared test module, reached as self.common
 6. r[module.test.integration.view] An integration test module sees the package as a dependent package does: its public declarations, built without its test code.
 7. r[module.test.integration.program] Each file directly under the test root, such as `tests/checkout.hd`, is an **integration test program**: its own program, compiled separately from the others.
 8. r[module.test.integration.shared] A module in a subdirectory of the test root, such as `tests/common/mod.hd`, is a **shared test module**. Every integration test program of the package may use it.
-9. r[module.test.integration.beside-dir] A file directly under the test root beside a directory of the same name, such as `tests/common.hd` beside `tests/common/`, is an error. Its fix-it moves the file to `tests/common/mod.hd`. Error: `duplicate-module-name`.
+9. r[module.test.integration.beside-directory] A file directly under the test root beside a directory of the same name, such as `tests/common.hd` beside `tests/common/`, is an error. It has no fix-it, and its message names the file's target, `tests/common/mod.hd`. Error: `duplicate-module-name`.
 10. r[module.test.integration.program-use] A use of an integration test program from another module is an error. Error: `unknown-module`.
 11. r[module.test.integration.shared-copy] Each integration test program gets its own copy of the shared test modules it uses, so their top-level statements run once per program.
 12. r[module.test.integration.shared-unused] A warning that a declaration of a shared test module is unused is given only when no integration test program uses that declaration.
