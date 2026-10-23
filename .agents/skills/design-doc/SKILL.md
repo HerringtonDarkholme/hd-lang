@@ -21,10 +21,20 @@ line and a config block is not a design: it is the first section of one.
 A design doc is not done until it has each of these. Leave a part out only
 when it truly has nothing to say, and then say why in one line.
 
-1. **Problem and users.** Who uses it, the three to six concrete programs it
-   must serve (kept fixed for every option), and what hd does today, with
-   spec links and a probe on the current build.
-2. **Semantics it touches.** Go below the surface. For every hd concept the
+1. **Problem, users and use cases.** Who uses it, and three to six concrete
+   use cases, each followed end to end (for a tool: the user's goal, the
+   commands, the output they read, the decision they make from it). Keep
+   them fixed for every option. Then what hd does today, with spec links
+   and a probe on the current build.
+2. **State of the art, in depth.** Before designing, list what the leading
+   tools in the domain handle and why, not only their surface syntax. For
+   example, a benchmark harness must answer warm-up, iteration
+   calibration, statistics (confidence or credible intervals, outliers),
+   noise control, baselines and comparison of an old and a new
+   implementation. Every item on that list is either covered by the design
+   or excluded with a reason. A table of tools with one line each is not
+   enough.
+3. **Semantics it touches.** Go below the surface. For every hd concept the
    feature reads or changes, state the exact rule it relies on, with a spec
    link:
    - types (generics, associated types, trait values, references, rows);
@@ -36,7 +46,7 @@ when it truly has nothing to say, and then say why in one line.
 
    For each, say how the feature handles it, and give a counterexample
    program where a naive version is wrong.
-3. **Architecture.** Where it lives (crate, module, pipeline stage), which
+4. **Architecture.** Where it lives (crate, module, pipeline stage), which
    existing facts it reuses (TIR, checker facts, caches) and which new ones
    it needs. Include:
    - the data structures, with field lists;
@@ -45,29 +55,29 @@ when it truly has nothing to say, and then say why in one line.
      hd-like form;
    - caching and incremental behaviour;
    - how it is tested.
-4. **Extension points.** How users extend it (custom lints, user policies,
+5. **Extension points.** How users extend it (custom lints, user policies,
    user derives, plugins), or why they cannot yet and what would allow it
    later. State the security and stability cost of each extension
    mechanism.
-5. **Options.** At least two genuinely different mechanisms, plus the
+6. **Options.** At least two genuinely different mechanisms, plus the
    smallest design that could work. Compare them on the fixed programs. A
    comparison table summarizes the prose; it never replaces the argument.
-6. **Cost, bottom-up.** One row per component: the code it replaces (exact
+7. **Cost, bottom-up.** One row per component: the code it replaces (exact
    `wc -l` code lines), the code it adds, piece by piece, and a reference
    implementation's measured size. Then compile time, runtime, emitted Wasm
    size, and the web compiler's gzip size (the 2 MB cap is hard). Add a
    stop rule: a commit that runs past 1.5 times its share stops for review.
    A top-down guess is not a budget.
-7. **Stress test.** Run the `stress-test` skill's method on the design
+8. **Stress test.** Run the `stress-test` skill's method on the design
    itself: real code from known libraries and tools, adversarial inputs,
-   and the edge cases from step 2. Record what breaks and how the design
+   and the edge cases from step 3. Record what breaks and how the design
    answers it.
-8. **Prototypes.** Every example parses with today's compiler, and every
+9. **Prototypes.** Every example parses with today's compiler, and every
    runnable prototype runs (`hd FILE`). Where a needed feature is missing,
    give the exact gap with a minimal repro and the diagnostic, not prose.
-9. **Phasing.** Implementation steps, each independently green and about
+10. **Phasing.** Implementation steps, each independently green and about
    one hour of agent work, with the test that proves each one.
-10. **Recommendation.** One option, what it gives up, and the next best.
+11. **Recommendation.** One option, what it gives up, and the next best.
     Then name exactly what needs the owner's approval.
 
 ## Style
@@ -87,16 +97,17 @@ File: `docs/future-work/<TOPIC>.md`, linked from
 
 1. Title and a status line: "design proposal, YYYY-MM-DD; not accepted".
 2. Contents.
-3. Problem, users and today.
-4. Semantics.
-5. Options, then the recommended design's architecture (data structures,
+3. Problem, users, use cases and today.
+4. State of the art.
+5. Semantics.
+6. Options, then the recommended design's architecture (data structures,
    data flow, pseudo-code, caching, testing).
-6. Extension points.
-7. Cost.
-8. Stress test.
-9. Phasing.
-10. Recommendation and approvals.
-11. Sources and a parse log.
+7. Extension points.
+8. Cost.
+9. Stress test.
+10. Phasing.
+11. Recommendation and approvals.
+12. Sources and a parse log.
 
 ## Review Before Handing In
 
@@ -105,3 +116,6 @@ File: `docs/future-work/<TOPIC>.md`, linked from
 - Is every number measured or derived bottom-up, with its method stated?
 - Did the stress test find something? If not, it was not adversarial
   enough.
+- Is every item of the state-of-the-art list covered or excluded with a
+  reason?
+- Does each use case work end to end in the recommended design?
