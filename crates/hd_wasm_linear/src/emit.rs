@@ -1387,7 +1387,10 @@ impl Em<'_, '_, '_> {
     /// Stores value `r`, which instruction or block `user` reads, as
     /// `dest`'s, or ends the path when `r` diverges.
     fn tail_into(&mut self, r: u32, dest: u32, user: u32) -> StageResult<()> {
+        // A value with no parts, such as a field-less struct, is computed
+        // with no locals; a later read of `dest` pushes nothing.
         if self.vals(self.ty(dest))?.is_empty() {
+            self.slot(dest)?;
             return Ok(());
         }
         if self.diverges(r) {

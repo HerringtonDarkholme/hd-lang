@@ -1,0 +1,13 @@
+# test: a derived Deserialize builds a struct with no fields from an empty JSON object
+# Spec std/serde Derived Implementations: std-serde.derive.deserialize.template, std-serde.derive.deserialize.unskipped-order.
+# Spec 14 Walk, Describe, And Build: annot.build.construct.
+use std.json.decode
+use std.serde.Deserialize
+
+# A marker message: its type is all it carries.
+@derive(Deserialize)
+struct Heartbeat: pass
+
+tests:
+    it("an empty object decodes into a field-less record"):
+        assert(decode::[Heartbeat]("{}").is_ok(), reason="empty record")
