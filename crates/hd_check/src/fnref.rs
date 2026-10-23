@@ -194,11 +194,51 @@ impl Ck<'_, '_> {
             self.release_call_pins(pins, n);
             return bound;
         }
+        // On the ownership passes' path, a bound `push` or `remove` of a
+        // `let mut` collection takes the local's address, as a `&mut self`
+        // method's does (`fn.ref.bound.address`), so calling it changes
+        // that collection in place. The old path's TIR shares the
+        // receiver's list header instead, which the passes' header copies
+        // would give the bound reference a list of its own.
+        if let Some((recv, rt)) = self.in_place_bound_receiver(base, &name)? {
+            return self.bound_ref(recv, rt, &name, method_targs, want, n);
+        }
         let (recv, rt) = self.expr(base, None)?;
         if let Some((recv, rt)) = self.pass_reference_receiver(recv, rt, &name, base)? {
             return self.bound_ref(recv, rt, &name, method_targs, want, n);
         }
         self.bound_ref(recv, rt, &name, method_targs, want, n)
+    }
+
+    /// The address of `base` for a bound reference to a collection method
+    /// that changes its receiver in place (`push`, a map's `remove`), on
+    /// the ownership passes' path, when `base` names a `let mut` local
+    /// holding a list or a map: `&mut base`, and the collection's type.
+    fn in_place_bound_receiver(
+        &mut self,
+        base: NodeRef<'_>,
+        name: &str,
+    ) -> StageResult<Option<(Ref, Ty)>> {
+        if !self.cx.own_passes || base.kind() != SyntaxKind::NameExpr {
+            return Ok(None);
+        }
+        let Some((l, _)) = self.find_local(self.sym_of(base)) else {
+            return Ok(None);
+        };
+        let t = self.infer.resolve(self.pool(), self.b.local_ty(l));
+        let known = self.cx.names.known;
+        let changes = match self.pool().get(self.strip_mut(t)) {
+            TyData::Adt { def, .. } if def == known.list => name == "push",
+            TyData::Adt { def, .. } if def == known.map => name == "remove",
+            _ => false,
+        };
+        if !changes || !self.mut_locals.contains(&l) || self.local_generics.contains_key(&l) {
+            return Ok(None);
+        }
+        let pins = self.call_pins.len();
+        let addressed = self.address_of_place(base, name, true, Vec::new())?;
+        self.release_call_pins(pins, base);
+        Ok(Some(addressed))
     }
 
     /// A function item as a value (`fn.type.generic.*`).
@@ -828,12 +868,19 @@ impl Ck<'_, '_> {
         let mut ptys = Vec::new();
         let mut captured = None;
         if let Some((recv, rt)) = bound {
+            // A receiver whose address the reference took
+            // (`Ck::in_place_bound_receiver`) is captured as the reference,
+            // and read through for the call.
+            let by_ref = self.ref_of(rt).is_none() && self.ref_of(self.b.ty_of(recv)).is_some();
             // `fn.ref.bound.address.writable`.
-            self.check_receiver(recv_ty, recv, rt, n);
+            if !by_ref {
+                self.check_receiver(recv_ty, recv, rt, n);
+            }
+            let lt = if by_ref { self.b.ty_of(recv) } else { rt };
             let receiver = self.cx.names.syms.intern("$receiver");
-            let rl = self.b.local(rt, receiver, local_flags::ASSIGNED, syn);
+            let rl = self.b.local(lt, receiver, local_flags::ASSIGNED, syn);
             self.set_local(rl, recv, syn);
-            captured = Some((rl, rt));
+            captured = Some((rl, lt, by_ref));
         } else {
             ptys.push(first_ty);
             if let TyData::Adt { args, .. } = pool.get(self_ty) {
@@ -861,14 +908,19 @@ impl Ck<'_, '_> {
             })
             .collect();
         let mark = self.b.open_sub(&locals);
-        if let Some((rl, _)) = captured {
+        if let Some((rl, _, _)) = captured {
             self.b.capture(mark, rl);
             self.add_flags(rl, local_flags::READ | local_flags::CAPTURED);
         }
         let blk = self.b.open_block();
         let mut refs = Vec::new();
-        if let Some((rl, rt)) = captured {
-            refs.push(self.b.get(rl, rt, syn));
+        if let Some((rl, lt, by_ref)) = captured {
+            let v = self.b.get(rl, lt, syn);
+            refs.push(if by_ref {
+                self.emit_deref(v, lt, syn).0
+            } else {
+                v
+            });
         }
         for (i, (l, t)) in locals.iter().zip(&ptys).enumerate() {
             let v = self.b.get(*l, *t, syn);

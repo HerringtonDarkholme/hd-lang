@@ -67,7 +67,8 @@ pub struct BodyCx<'a> {
     /// or a smaller budget a test sets to reach `item-too-complex` fast.
     pub fuel: u64,
     /// Which backend path the bodies' TIR feeds (`docs/compiler/tir-v2.md`,
-    /// "Stage 2"): the driver's `Packages::own_passes`, the one switch. On
+    /// "Stage 2"): on unless the driver's `Packages::old_ownership`, the one
+    /// switch, selects the old path. On
     /// the ownership passes' path every place is rooted at its local
     /// when a body is finished (`hd_tir::ir::root_places`); off, the TIR is
     /// the old path's, unchanged. Every cached artifact keys on it through

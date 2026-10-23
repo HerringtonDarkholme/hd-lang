@@ -2,5 +2,3 @@
 app/main/lent
   retain List[usize]
   retain &mut List[usize]
-  release &mut List[usize]
-  release List[usize]

@@ -98,7 +98,7 @@ pub(super) fn view(p: &super::Program, at: super::Build) -> String {
 }
 
 /// The case module's functions, built as a fixture through the ownership
-/// passes (`Packages::own_passes`), with their bodies rendered after them.
+/// passes (the default path), with their bodies rendered after them.
 fn build(p: &super::Program, at: super::Build) -> Output {
     let sources = p.sources();
     let store = hd_cache::MemoryStore::default();
@@ -124,7 +124,6 @@ fn build(p: &super::Program, at: super::Build) -> Output {
             } else {
                 hd_driver::BuildProfile::Checked
             },
-            own_passes: true,
             ..Packages::default()
         },
         &Goal::Fixture {

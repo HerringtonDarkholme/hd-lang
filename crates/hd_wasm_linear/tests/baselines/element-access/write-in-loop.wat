@@ -3,28 +3,27 @@
   (import "fixture" "rt:list_unique" (func $rt:list_unique (param i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
-  (func $ramp (param $n i32) (result i32) (local $xs i32) (local $t6 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $i i32) (local $t7 i32) (local $t8 i32) (local $t10 i32) (local $t9 i32)
+  (func $ramp (param $n i32) (result i32) (local $xs i32) (local $t6 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $i i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $t10 i32)
     block
       ;; ...
     ;; 12 |     for i in 0..n:
       local.get $n
-      local.set $t0
+      local.tee $t0
+      local.set $t1
+      local.get $t2
+      local.get $t1
+      i32.lt_u
+      if
+        local.get $xs
+        call $rt:list_unique
+      end
       block
-        local.get $t0
-        local.set $t1
-        local.get $t2
-        local.get $t1
-        i32.lt_u
-        if
-          local.get $xs
-          local.tee $t3
-          call $rt:list_unique
-          local.get $t3
-          i32.load $heap
-          local.tee $t4
-          i32.load $heap offset=4
-          local.set $t5
-        end
+        local.get $xs
+        local.tee $t3
+        i32.load $heap
+        local.tee $t4
+        i32.load $heap offset=4
+        local.set $t5
       end
       block
         loop
@@ -55,9 +54,9 @@
           block (result i32)
             local.get $t4
           end
-          drop
+          local.set $t9
           local.get $t7
-          local.tee $t9
+          local.tee $t10
           block (result i32)
             local.get $t5
           end
@@ -67,10 +66,6 @@
             unreachable
           end
           local.get $t9
-          local.set $t10
-          block (result i32)
-            local.get $t4
-          end
           local.get $t10
           i32.const 4
           i32.mul

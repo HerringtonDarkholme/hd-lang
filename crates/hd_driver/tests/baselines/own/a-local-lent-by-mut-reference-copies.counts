@@ -2,6 +2,4 @@
 app/main/lent
   retain List[string]
   retain &mut List[string]
-  release &mut List[string]
   retain string
-  release List[string]

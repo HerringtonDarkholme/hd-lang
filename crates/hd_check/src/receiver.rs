@@ -162,7 +162,7 @@ impl Ck<'_, '_> {
     /// (`mutable`) `&mut self`, takes to the place-shaped receiver `base`
     /// that holds its value (`fn.method.auto-address`), with the type of
     /// that value. An error leaves a poisoned receiver.
-    fn address_of_place(
+    pub(crate) fn address_of_place(
         &mut self,
         base: NodeRef<'_>,
         name: &str,

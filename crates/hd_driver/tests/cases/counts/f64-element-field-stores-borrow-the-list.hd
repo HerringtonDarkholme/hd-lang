@@ -1,0 +1,15 @@
+# @dump: counts
+# @build: v8 release
+# Storing f64 fields of list elements through `&mut List` borrows the
+# list for every store, in a loop too: no header count per store (#722;
+# nbody's `advance`).
+struct Body:
+    x: f64
+    vx: f64
+
+fn advance(bodies: &mut List[Body], dt: f64) -> void:
+    let n = bodies.len()
+    # subject
+    for i in 0..n:
+        bodies[i].x = bodies[i].x + dt * bodies[i].vx
+        bodies[i].vx = bodies[i].vx * 0.5

@@ -1550,8 +1550,13 @@ impl Em<'_, '_, '_> {
         let outer = self.f.at;
         let origin_outer = self.f.origin_at;
         if self.anchored(i) {
-            self.f.at = Some(i);
-            self.f.origin_at = Some(i);
+            // The checker's instruction, which the `check` entry the
+            // anchor is resolved against numbers (`Body::anchors`).
+            let at = self.b.anchor(i);
+            if at != NONE {
+                self.f.at = Some(at);
+                self.f.origin_at = Some(at);
+            }
         }
         self.emitting.push(i);
         let mut r = self.inst_body(i);

@@ -1210,8 +1210,8 @@ body built elsewhere, such as a generated structure method, gets
   `prog_key` reads it.
 - Types stay generic (`Param`). D2 never materializes an instance as TIR.
 - **The ownership passes** (`src/own.rs`, docs/compiler/tir-v2.md "The
-  ownership passes") run on a decoded body when the driver's switch is
-  on (`Packages::own_passes`), once per body, before collection reads
+  ownership passes") run on a decoded body unless the driver takes the
+  old path (`Packages::old_ownership`), once per body, before collection reads
   it; their output never reaches the entry. They read places the
   checker roots at their local on this path (above). Built so far:
   insertion (`own/insert.rs`): copies, drops and

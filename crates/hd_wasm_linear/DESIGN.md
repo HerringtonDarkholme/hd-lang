@@ -540,7 +540,10 @@ String operations are emitted by `emit/text.rs` and runtime helpers
   repeatedly builds strings, chains of nodes and enum payloads, checking
   that the heap stays bounded.
 - **Owned bodies** (docs/compiler/tir-v2.md, "Stage 2"; `Input::owned`,
-  `Em::owned`, `count.rs`). With the driver's switch on, every body is
+  `Em::owned`, `count.rs`). This is the default path (stage 2 commit
+  13c); the old one, whose decisions the bullets above and §23.20,
+  §23.25 and §23.31 describe, stays selectable by the driver's
+  `Packages::old_ownership` until commit 14 deletes it. Every body is
   the ownership passes' output and emission decides no count: a `Read`
   copies, moves or borrows as its mode says, a `Drop` releases a value
   or a local and zeroes it, a value moves into the one use that consumes

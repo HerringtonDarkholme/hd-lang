@@ -2,32 +2,31 @@
 (module
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
-  (func $first (param $xs i32) (result i32) (local $t3 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32)
+  (func $first (param $xs i32) (result i32) (local $t2 i32) (local $t0 i32) (local $t1 i32)
     ;; 7 |     xs[0]
     block
       local.get $xs
-      local.tee $t0
       drop
       block
-        local.get $t0
+        local.get $xs
         i32.load $heap
-        local.set $t1
+        local.set $t0
       end
-      local.get $t1
+      local.get $t0
       i32.load $heap
-      local.set $t2
+      local.set $t1
       i32.const 0
-      local.get $t2
+      local.get $t1
       i32.load $heap offset=4
       i32.ge_u
       if
         call $rt:panic
         unreachable
       end
-      local.get $t2
+      local.get $t1
       i32.load $heap offset=8
-      local.set $t3
+      local.set $t2
     end
-    local.get $t3
+    local.get $t2
   )
 )

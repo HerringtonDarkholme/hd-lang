@@ -77,7 +77,7 @@ module through it:
 | `init`, `results` | module initialization facts; M1's registry of omitted results and rows |
 | `tests`, `session` | the `tests:` block scope; REPL session nodes |
 | `fuel` | each body's fuel budget |
-| `own_passes` | which backend path the TIR feeds: the driver's `Packages::own_passes`, its one switch; on the ownership passes' path a finished body's places are rooted at their locals, and element references take no pins and element reads no write marks (section 1.3) |
+| `own_passes` | which backend path the TIR feeds: on unless the driver's `Packages::old_ownership`, its one switch, selects the old path; on the ownership passes' path a finished body's places are rooted at their locals, and element references take no pins and element reads no write marks (section 1.3) |
 
 **Header projection completion.** Header lowering leaves the trait
 arguments empty on projections written `Self::Out` and on projections

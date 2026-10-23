@@ -263,10 +263,11 @@ pub fn write_body(
         || !b.unwind_drops.is_empty()
         || !b.stable_lists.is_empty()
         || !b.regions.is_empty()
+        || !b.anchors.is_empty()
     {
         return Err(NotImplemented::bug(
             Stage::ModuleFinish,
-            "wire form of exit drops, unwind drops, stable lists or lifetime regions",
+            "wire form of exit drops, unwind drops, stable lists, lifetime regions or anchors",
         ));
     }
     let mut w = Writer::default();

@@ -1266,8 +1266,8 @@ struct Run<'a> {
     build_profile: BuildProfile,
     /// Whether allocation/count auditing is enabled.
     checked: bool,
-    /// Whether the ownership passes run and the backend emits from them
-    /// ([`Packages::own_passes`]).
+    /// Whether the ownership passes run and the backend emits from them:
+    /// unless the build takes the old path ([`Packages::old_ownership`]).
     own_passes: bool,
     /// The layout facts the ownership passes ask of a type, computed once
     /// per run (`own.rs`): whether it holds a counted leaf, and whether it
@@ -1461,13 +1461,14 @@ pub struct Packages<'a> {
     pub body_fuel: Option<u64>,
     /// Enable allocation/count auditing for compiler conformance checks.
     pub checked: bool,
-    /// Stage 2 of TIR v2's switch (`docs/compiler/tir-v2.md`, "Stage 2"):
-    /// run the ownership passes (`hd_tir::own`) on every body the program
-    /// reaches, and emit counts from what they decide instead of the
-    /// linear backend's own decisions. Off by default until the counts
-    /// reach parity; the `own` fixture view and
-    /// `HD_CONFORMANCE_OWN=1` turn it on.
-    pub own_passes: bool,
+    /// Stage 2 of TIR v2's switch (`docs/compiler/tir-v2.md`, "Stage 2"),
+    /// as an opt-out: by default every body the program reaches goes
+    /// through the ownership passes (`hd_tir::own`) and the linear backend
+    /// emits counts from what they decide. On, the build takes the old
+    /// path instead, where the checker copies collections and pins and the
+    /// backend decides every count itself (`live.rs`), for comparing the
+    /// two until commit 14 deletes it; `HD_CONFORMANCE_OLD=1` turns it on.
+    pub old_ownership: bool,
 }
 
 /// What the modules a session built so far hold, for the build of its next
@@ -1648,8 +1649,8 @@ pub fn build_packages(
     let std_hash = embedded.map_or_else(|| sources_hash(std), |e| e.hash);
     // The ownership passes' switch changes the checker's TIR
     // (`hd_check::BodyCx::own_passes`) and every body's code, so every
-    // cached artifact keys on it; the old path keeps its key.
-    let own = if packages.own_passes { ";own" } else { "" };
+    // cached artifact keys on it.
+    let own = if packages.old_ownership { ";old" } else { "" };
     let toolchain = toolchain_key(
         COMPILER,
         TARGET,
@@ -1747,7 +1748,7 @@ pub fn build_packages(
         },
         body_fuel: packages.body_fuel,
         checked: packages.checked,
-        own_passes: packages.own_passes,
+        own_passes: !packages.old_ownership,
         own_types: Mutex::new(HashMap::default()),
         own_params: Mutex::new(HashMap::default()),
         fetched: std::iter::once(false)

@@ -87,13 +87,13 @@
         i32.wrap_i64
         local.set $t6
       end
+    ;; 6 |     sum := fn(n: i32) -> i32:
       local.get $sum.1
       call $rt:release_ref
       i32.const 0
       local.set $sum.0
       i32.const 0
       local.set $sum.1
-    ;; 6 |     sum := fn(n: i32) -> i32:
       local.get $t6
       local.set $t7
     end

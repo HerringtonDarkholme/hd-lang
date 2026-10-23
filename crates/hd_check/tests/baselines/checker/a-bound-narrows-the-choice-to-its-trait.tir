@@ -14,18 +14,16 @@ impl Left for User:
     fn label(self) -> i32: self.value
 > app/main/impl Left for User.label
 >   local $0 self: User [param read]
->   %0 = Read [$0] : User
->   %1 = Read [%0 .value] : i32
->   %2 = Block %1 : i32
+>   %0 = Read [$0 .value] : i32
+>   %1 = Block %0 : i32
 
 impl Right for User:
     fn label(self) -> i32: self.value + 100
 > app/main/impl Right for User.label
 >   local $0 self: User [param read]
->   %0 = Read [$0] : User
->   %1 = Read [%0 .value] : i32
->   %2 = Prim Add [%1 100:i32] : i32
->   %3 = Block %2 : i32
+>   %0 = Read [$0 .value] : i32
+>   %1 = Prim Add [%0 100:i32] : i32
+>   %2 = Block %1 : i32
 
 fn pick[T < Left](x: T) -> i32:
     x.label()

@@ -9,8 +9,7 @@ impl[T] Box[T]:
 > app/main/impl [ T ] Box [ T ].pick
 >   local $0 value: V [param read]
 >   %0 = Read [$0] : V
->   %1 = Intrinsic ValueCopy [%0] : V
->   %2 = Block %1 : V
+>   %1 = Block %0 : V
 
 fn run() -> i32:
     Box::[string]::pick::[i32](3)

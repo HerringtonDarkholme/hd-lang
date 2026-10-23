@@ -3,9 +3,9 @@
   (import "fixture" "impl [ T ] List [ T ].pop[i32]" (func $"impl [ T ] List [ T ].pop[i32]" (param i32) (result i32 i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
-  (func $total (param $xs i32) (result i32) (local $t15 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $sum i32) (local $t3 i32) (local $t4 i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32) (local $i i32) (local $t10 i32) (local $t11 i32) (local $t12 i32) (local $t13 i32) (local $t14 i32)
-    ;; 5 |     n := xs.len()
+  (func $total (param $xs i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $sum i32) (local $t3 i32) (local $t4 i32) (local $i i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32)
     block
+    ;; 5 |     n := xs.len()
       local.get $xs
       local.tee $t0
       drop
@@ -34,31 +34,9 @@
     ;; 8 |     for i in 0..n:
       local.set $t4
       block
-        local.get $t3
-        local.set $t5
-        local.get $t4
-        local.set $t6
-        local.get $t5
-        local.get $t6
-        i32.lt_u
-        if
-          local.get $xs
-          i32.load $heap
-          local.tee $t7
-          i32.load $heap
-          local.tee $t8
-          i32.load $heap offset=4
-          local.set $t9
-        end
-      end
-      block
         loop
           local.get $t3
-          local.set $t5
           local.get $t4
-          local.set $t6
-          local.get $t5
-          local.get $t6
           i32.lt_u
           i32.eqz
           br_if 1
@@ -70,38 +48,31 @@
           local.set $t3
     ;; 9 |         sum += xs[i]
           local.get $sum
-          local.set $t10
+          local.set $t5
+          local.get $i
+          local.set $t6
           local.get $xs
-          local.tee $t11
           drop
           block
-            local.get $t11
+            local.get $xs
             i32.load $heap
-            drop
+            local.set $t7
           end
-          local.get $i
-          local.set $t12
-          block (result i32)
-            local.get $t7
-          end
-          drop
-          block (result i32)
-            local.get $t8
-          end
-          local.set $t13
-          local.get $t12
-          local.tee $t14
-          block (result i32)
-            local.get $t9
-          end
+          local.get $t7
+          i32.load $heap
+          local.set $t8
+          local.get $t6
+          local.tee $t9
+          local.get $t8
+          i32.load $heap offset=4
           i32.ge_u
           if
             call $rt:panic
             unreachable
           end
-          local.get $t10
-          local.get $t13
-          local.get $t14
+          local.get $t5
+          local.get $t8
+          local.get $t9
           i32.const 4
           i32.mul
           i32.add
@@ -114,9 +85,8 @@
       end
     ;; 10 |     sum
       local.get $sum
-    ;; 5 |     n := xs.len()
-      local.set $t15
+      ;; ...
     end
-    local.get $t15
+    ;; ...
   )
 )

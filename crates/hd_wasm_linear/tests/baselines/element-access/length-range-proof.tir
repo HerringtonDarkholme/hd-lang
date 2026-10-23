@@ -6,50 +6,46 @@
 fn total(xs: &List[i32]) -> i32:
     n := xs.len()
 > app/main/total
->   local $0 xs: Ref[List[i32]] [param read]
 >   local $1 n: usize [:= read assigned]
 >   local $2 sum: i32 [read assigned mutated]
 >   local $3 $cur: usize [assigned]
 >   local $4 $end: usize [assigned]
 >   local $5 $incl: bool [assigned]
 >   local $6 i: usize [read assigned]
->   %0 = Read [$0] : Ref[List[i32]]
->   %1 = Read [*%0] : List[i32]
->   %2 = Intrinsic ListLen [%1] : usize
->   %3 = Store [$1] %2 : ()
->   %35 = Block %34 : i32
+>   %0 = Read [*$0] : List[i32]
+>   %1 = Intrinsic ListLen [%0] : usize
+>   %2 = Store [$1] %1 : ()
+>   %32 = Block %31 : i32
     let sum = +0
->   %4 = Store [$2] 0:i32 : ()
+>   %3 = Store [$2] 0:i32 : ()
     for i in 0..n:
->   %5 = Read [$1] : usize
->   %6 = NewStruct [0:usize %5 0:bool] : Range[usize]
->   %7 = Read [%6 .start] : usize
->   %8 = Store [$3] %7 : ()
->   %9 = Read [%6 .end] : usize
->   %10 = Store [$4] %9 : ()
->   %11 = Read [%6 .inclusive] : bool
->   %12 = Store [$5] %11 : ()
->   %13 = Read [$3] : usize
->   %14 = Read [$4] : usize
->   %15 = Prim Lt [%13 %14] : bool
->   %16 = Read [$3] : usize
->   %17 = Store [$6] %16 : ()
->   %18 = Read [$3] : usize
->   %19 = Prim Add [%18 1:usize] : usize
->   %20 = Store [$3] %19 : ()
->   %28 = Block - : ()
->   %29 = Break L0 - : never
->   %30 = Block - : ()
->   %31 = If %15 [%28 %30] : ()
->   %32 = Block - : ()
->   %33 = Loop %32 - : ()
+>   %4 = Read [$1] : usize
+>   %5 = NewStruct [0:usize %4 0:bool] : Range[usize]
+>   %6 = Read [%5 .start] : usize
+>   %7 = Store [$3] %6 : ()
+>   %8 = Read [%5 .end] : usize
+>   %9 = Store [$4] %8 : ()
+>   %10 = Read [%5 .inclusive] : bool
+>   %11 = Store [$5] %10 : ()
+>   %12 = Read [$3] : usize
+>   %13 = Read [$4] : usize
+>   %14 = Prim Lt [%12 %13] : bool
+>   %15 = Read [$3] : usize
+>   %16 = Store [$6] %15 : ()
+>   %17 = Read [$3] : usize
+>   %18 = Prim Add [%17 1:usize] : usize
+>   %19 = Store [$3] %18 : ()
+>   %25 = Block - : ()
+>   %26 = Break L0 - : never
+>   %27 = Block - : ()
+>   %28 = If %14 [%25 %27] : ()
+>   %29 = Block - : ()
+>   %30 = Loop %29 - : ()
         sum += xs[i]
->   %21 = Read [$2] : i32
->   %22 = Read [$0] : Ref[List[i32]]
->   %23 = Read [*%22] : List[i32]
->   %24 = Read [$6] : usize
->   %25 = Read [%23 [%24]] : i32
->   %26 = Prim Add [%21 %25] : i32
->   %27 = Store [$2] %26 : ()
+>   %20 = Read [$2] : i32
+>   %21 = Read [$6] : usize
+>   %22 = Read [*$0 [%21]] : i32
+>   %23 = Prim Add [%20 %22] : i32
+>   %24 = Store [$2] %23 : ()
     sum
->   %34 = Read [$2] : i32
+>   %31 = Read [$2] : i32

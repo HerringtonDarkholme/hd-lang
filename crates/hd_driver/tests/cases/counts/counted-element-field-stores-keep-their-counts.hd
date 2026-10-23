@@ -1,0 +1,15 @@
+# @dump: counts
+# @build: v8 release
+# Twin of f64-element-field-stores-borrow-the-list: a store of a counted
+# field replaces a string, so each store releases the one it replaces
+# (#722).
+struct Named:
+    name: string
+    x: f64
+
+fn rename(items: &mut List[Named], name: string) -> void:
+    let n = items.len()
+    # subject
+    for i in 0..n:
+        items[i].name = name
+        items[i].x = 0.0

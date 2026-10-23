@@ -7,11 +7,11 @@ fn sum_to(limit: i32, seed: i32) -> i32:
     sum := fn(n: i32) -> i32:
 > app/main/sum_to
 >   retain fn(i32) -> i32
+>   release fn(i32) -> i32
         if n == 0: seed
 >   release fn(i32) -> i32
         else: n + sum(n - 1)
 >   retain fn(i32) -> i32
->   release fn(i32) -> i32
     sum(limit)
 > app/main/sum_to
->   release fn(i32) -> i32
+>   retain fn(i32) -> i32

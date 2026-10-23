@@ -39,33 +39,35 @@
         local.get $t2
         call_indirect $table0 (param i32 i32 i32) (result i32)
         local.set $t3
+    ;; 7 |         if n == 0: seed
         local.get $t1
         call $rt:release_ref
         i32.const 0
         local.set $t2
         i32.const 0
         local.set $t1
+    ;; 8 |         else: n + sum(n - 1)
         local.get $n
         local.get $t3
         i32.add
     ;; 7 |         if n == 0: seed
         local.set $t0
       end
+    ;; 6 |     sum := fn(n: i32) -> i32:
       local.get $sum.1
       call $rt:release_ref
       i32.const 0
       local.set $sum.0
       i32.const 0
       local.set $sum.1
-    ;; 6 |     sum := fn(n: i32) -> i32:
       local.get $t0
       local.set $t4
     end
     local.get $t4
   )
-  (func $sum_to (param $limit i32) (param $seed i32) (result i32) (local $t6 i32) (local $sum.0 i32) (local $sum.1 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t4 i32) (local $t3 i32) (local $t5 i32)
-    ;; 6 |     sum := fn(n: i32) -> i32:
+  (func $sum_to (param $limit i32) (param $seed i32) (result i32) (local $sum.0 i32) (local $sum.1 i32) (local $t0 i32) (local $t2 i32) (local $t1 i32) (local $t4 i32) (local $t3 i32) (local $t5 i32)
     block
+    ;; 6 |     sum := fn(n: i32) -> i32:
       i32.const 0
       i32.const 4
       i32.const 0
@@ -89,26 +91,17 @@
       local.get $sum.1
       local.set $t3
       local.set $t4
-      i32.const 0
-      local.set $sum.0
-      i32.const 0
-      local.set $sum.1
+      local.get $t3
+      call $rt:retain_known
+      ;; ...
       local.get $t3
       local.get $limit
       i32.const 0
       local.get $t4
       call_indirect $table0 (param i32 i32 i32) (result i32)
       local.set $t5
-      local.get $t3
-      call $rt:release_ref
-      i32.const 0
-      local.set $t4
-      i32.const 0
-      local.set $t3
-    ;; 6 |     sum := fn(n: i32) -> i32:
-      local.get $t5
-      local.set $t6
+      ;; ...
     end
-    local.get $t6
+    ;; ...
   )
 )

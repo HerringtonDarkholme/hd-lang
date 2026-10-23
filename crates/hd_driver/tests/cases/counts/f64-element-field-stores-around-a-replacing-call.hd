@@ -1,0 +1,19 @@
+# @dump: own counts
+# @build: v8 release
+# Twin of f64-element-field-stores-borrow-the-list: a call between the
+# stores may replace the list, so each store reads the list's place again
+# and checks it is unique after the call, still with no header count
+# (#722).
+struct Body:
+    x: f64
+    vx: f64
+
+fn reset(bodies: &mut List[Body]) -> void:
+    *bodies = [Body { x: 0.0, vx: 0.0 }]
+
+fn advance(bodies: &mut List[Body], dt: f64) -> void:
+    # subject
+    for i in 0..1:
+        bodies[i].x = bodies[i].x + dt
+        reset(bodies)
+        bodies[i].vx = dt

@@ -1,0 +1,15 @@
+# test: a match binding of a list a map holds keeps its value when the map's list changes in place afterwards
+# Spec 04 Collection Values: types.coll.value.
+# expect-stdout: 3
+# expect-stdout: 2
+fn kept(mut m: Map[string, List[i64]]) -> usize:
+    match m.get("a"):
+        .Some(xs) =>
+            m["a"].push(3)
+            println(m["a"].len())
+            xs.len()
+        .None => 0
+
+pub fn main() -> void $ Console:
+    let m: Map[string, List[i64]] = {"a": [1, 2]}
+    println(kept(m))

@@ -5,18 +5,19 @@
   (func $x_of (param $bodies i32) (param $i i32) (result f64) (local $t4 f64) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $t3 i32)
     ;; 7 |     bodies[i].x
     block
+      local.get $i
+      local.set $t0
       local.get $bodies
-      local.tee $t0
       drop
       block
-        local.get $t0
+        local.get $bodies
         i32.load $heap
         local.set $t1
       end
       local.get $t1
       i32.load $heap
       local.set $t2
-      local.get $i
+      local.get $t0
       local.tee $t3
       local.get $t2
       i32.load $heap offset=4

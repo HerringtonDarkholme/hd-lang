@@ -27,7 +27,6 @@ fn run_owned(name: &str, main: &str) -> String {
         executor: Executor::Serial(SerialOrder::Priority),
     };
     let packages = Packages {
-        own_passes: true,
         build_profile: BuildProfile::Checked,
         ..Packages::default()
     };

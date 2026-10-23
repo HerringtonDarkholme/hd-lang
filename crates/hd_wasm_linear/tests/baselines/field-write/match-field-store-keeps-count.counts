@@ -10,9 +10,8 @@ fn value(node: &Node, other: &mut Node) -> i64:
     match node.left:
 > app/main/value
 >   retain &app.main.Node?
->   release &app.main.Node?
->   release &app.main.Node
         .None => 0
+>   release &app.main.Node?
         .Some(left) =>
             other.left = .None
 >   retain counted reference

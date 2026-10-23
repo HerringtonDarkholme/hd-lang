@@ -4,8 +4,8 @@
 # afterwards. With nothing in between that touches the part, the copy
 # moves and the drop goes. In `.Square(n, k)` the decision tree reads `n`
 # before `k`; the move of `k` leaves a drop of `n`, which goes with the
-# copy of `n`: no count operation on either field (the `counts` view
-# builds the old path). `join` takes both by value, so the bindings own
+# copy of `n`: no count operation on either field, as the `counts` view
+# shows. `join` takes both by value, so the bindings own
 # what they bind and do not borrow it from the matched value.
 enum Shape:
     Circle(r: string)

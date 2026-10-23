@@ -2681,6 +2681,28 @@ is worth deciding only if they are hot.
     | Erased bodies and their thunks (`#erased`): an open value's `ValueCopy` or kept drop, +1 retain and release per body (`echo[T](x: T) -> T: x`) | An open value is one counted view; the old path moved it into the copy, which the passes' rule 7 copy, consuming nothing, cannot | Stage 3, where a list's value is its buffer and the header copy goes |
     | Payload copies of an unowned parameter or a borrowed scrutinee that a use consumes (`Option.map`'s `self`, `eval`'s `match e` through `&Expr`, `Expr.structure handle`) | A lent parameter's parts copy where an owned one's would move; a scrutinee read through a reference keeps its drop before each arm's jump, so its bindings cannot borrow from it | Not planned; the same issue (a binding that borrows across the arm needs the scrutinee's drop after the match) |
 
+    **13c as built: the switch (#798).** The new path is the default.
+    `Packages::old_ownership` replaces `Packages::own_passes` as the one
+    opt-out (`HD_CONFORMANCE_OLD=1`), and the cache key carries `;old`
+    for it. The conformance case
+    `a-match-binding-of-a-map-list-keeps-its-value.hd` joins the suite,
+    and `element-reference-copy-independent.hd` and its nested twin (#494)
+    leave KNOWN_FAILURES.tsv; an old-path run lists the three as known.
+    Three changes came with the switch:
+    - A bound reference to a collection's `push` or a map's `remove` on a
+      `let mut` local takes the local's address
+      (`Ck::in_place_bound_receiver`). A shared header would get a list
+      of its own from the passes' header copies, and the call would miss
+      the local.
+    - The passes renumber a body, but the line table resolves a call's
+      anchor against the `check` entry's body. `Body::anchors` maps each
+      instruction back to the checker's, so a panic trace keeps the
+      frame of a call the passes moved (`std.testing.prop_with_case` in
+      `cli/property-stateful-replay`).
+    - The counts fixtures `f64-element-field-stores-*` and
+      `counted-element-field-stores-keep-their-counts` hold #722 on the
+      default path.
+
 14. Delete the old path: `live.rs`, `count.rs`'s decisions, the
     loan and cache code, the checker's copies (`coll.rs`'s `coll_copy`,
     `return_copy`, `copy_into_local`, `mut_param_copies`, `value_arg`,

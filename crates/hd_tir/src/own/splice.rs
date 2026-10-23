@@ -266,6 +266,9 @@ pub(crate) fn apply(b: &mut Body, t: &mut Tables) -> Result<(), String> {
         b.data.push(ed.data);
         b.ty.push(ed.ty);
         b.syn.push(ed.syn);
+        if !b.anchors.is_empty() {
+            b.anchors.push(NONE);
+        }
     }
     // The blocks that gain or lose members get new records.
     t.per_block.clear();
@@ -346,6 +349,9 @@ pub(crate) fn apply(b: &mut Body, t: &mut Tables) -> Result<(), String> {
     permute(&mut b.data, &t.order);
     permute(&mut b.ty, &t.order);
     permute(&mut b.syn, &t.order);
+    if !b.anchors.is_empty() {
+        permute(&mut b.anchors, &t.order);
+    }
     renumber(b, t)
 }
 

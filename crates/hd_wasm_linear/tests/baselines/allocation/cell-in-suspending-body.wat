@@ -3,7 +3,6 @@
   (import "fixture" "rt:new/class-1" (func $rt:new/class-1 (param i32 i32) (result i32)))
   (import "fixture" "retain" (func $retain (param i32)))
   (import "fixture" "bump" (func $bump (param i32)))
-  (import "fixture" "rt:release_ref" (func $rt:release_ref (param i32)))
   (import "fixture" "heap" (memory $heap 1))
   (func $waits (param $frame i32) (param $provider0 i32) (param $provider0.vtable i32) (result i64 i32) (local $tally i32) (local $t1 i64) (local $t0 i32) (local $t2 i32)
     ;; ...
@@ -27,14 +26,8 @@
       call $retain
       local.get $t2
       call $bump
-      local.get $t2
-      call $rt:release_ref
-      i32.const 0
-      local.set $t2
       ;; ...
     end
-    local.get $t2
-    call $rt:release_ref
     ;; ...
   )
 )

@@ -3,5 +3,4 @@ app/main/copy
   local $0 value: Record [param read]
   local $1 copied: Record [read assigned]
   %0 = Read [$0] : Record
-  %1 = Intrinsic ValueCopy [%0] : Record
-  %2 = Store [$1] %1 : ()
+  %1 = Store [$1] %0 : ()

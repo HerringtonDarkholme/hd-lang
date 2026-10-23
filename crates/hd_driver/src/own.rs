@@ -1,6 +1,7 @@
 //! The ownership passes' place in the driver (`docs/compiler/tir-v2.md`,
 //! "Where and when the passes run", "What the passes read"): with
-//! [`Packages::own_passes`](crate::Packages::own_passes) on, every body
+//! [`Packages::old_ownership`](crate::Packages::old_ownership) off (the
+//! default), every body
 //! the program reaches goes through `hd_tir::own` once, after decoding
 //! (`Run::body_of`) or after collection generates it (a supplied or a
 //! `dbg` body), and checked and debug builds verify the result
@@ -312,6 +313,9 @@ impl Env<'_> {
         // A body's passes never run another's; the tables are taken out
         // anyway, so a nested run would only start from empty ones.
         let mut scratch = SCRATCH.with(RefCell::take);
+        // Each instruction names itself until the passes renumber the
+        // body: the line table's anchors stay the `check` entry's.
+        body.anchors = (0..u32::try_from(body.len()).expect("insts")).collect();
         let refused = hd_tir::own::run(&mut body, self, &mut scratch);
         SCRATCH.with(|s| *s.borrow_mut() = scratch);
         let path = || self.run.names().path(body.item);

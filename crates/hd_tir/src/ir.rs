@@ -861,6 +861,15 @@ pub struct Body {
     /// caching"): reserved for tier 2, so empty in tier 1 (invariants 22
     /// and 23).
     pub regions: Vec<(u32, u32)>,
+    /// Per instruction of a body the ownership passes made, the checker's
+    /// instruction it came from, which a call it writes names as its
+    /// anchor in the line table (`crates/hd_wasm_linear/DESIGN.md` §15.9),
+    /// since the anchor is resolved against the `check` entry's body; `NONE`
+    /// for an instruction the passes added. Empty in the checker's TIR,
+    /// where each instruction is its own ([`Body::anchor`]). The driver
+    /// fills it before the passes and every rebuild carries it; never
+    /// written to the wire.
+    pub anchors: Vec<u32>,
 }
 
 impl Body {
@@ -894,6 +903,18 @@ impl Body {
             unwind_drops: vec![],
             stable_lists: vec![],
             regions: vec![],
+            anchors: vec![],
+        }
+    }
+
+    /// The instruction of the checker's body that instruction `i` came
+    /// from, which the line table names ([`Body::anchors`]), or `NONE`.
+    #[must_use]
+    pub fn anchor(&self, i: u32) -> u32 {
+        if self.anchors.is_empty() {
+            i
+        } else {
+            self.anchors.get(i as usize).copied().unwrap_or(NONE)
         }
     }
 
@@ -2049,16 +2070,18 @@ fn no_ownership(b: &Body, errs: &mut Vec<VerifyError>) {
         || !b.unwind_drops.is_empty()
         || !b.stable_lists.is_empty()
         || !b.regions.is_empty()
+        || !b.anchors.is_empty()
     {
         errs.push(VerifyError {
             invariant: 22,
             inst: NONE,
             what: format!(
-                "{} exit drop, {} unwind drop, {} stable list and {} region rows before the ownership passes",
+                "{} exit drop, {} unwind drop, {} stable list, {} region and {} anchor rows before the ownership passes",
                 b.exit_drops.len(),
                 b.unwind_drops.len(),
                 b.stable_lists.len(),
-                b.regions.len()
+                b.regions.len(),
+                b.anchors.len()
             ),
         });
     }

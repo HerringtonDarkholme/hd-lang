@@ -12,7 +12,6 @@ fn value(node: &Node) -> i64:
     match node.left:
 > app/main/value
 >   retain &app.main.Node?
->   release &app.main.Node?
->   release &app.main.Node
         .None => 0
+>   release &app.main.Node?
         .Some(left) => read(left)

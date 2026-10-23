@@ -9,8 +9,7 @@ impl Maker for string:
 > app/main/impl Maker for string.made
 >   local $0 value: V [param read]
 >   %0 = Read [$0] : V
->   %1 = Intrinsic ValueCopy [%0] : V
->   %2 = Block %1 : V
+>   %1 = Block %0 : V
 
 fn run() -> string:
     string::made::[string]("x")

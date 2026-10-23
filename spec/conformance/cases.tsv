@@ -4529,6 +4529,7 @@ runtime/valid/match-reference-declared-payload.hd	runtime	accept	lang/13-values-
 typing/invalid/match-reference-nonexhaustive.hd	type	reject:nonexhaustive-match	lang/06-control-flow.md#r-flow.match.cover.reference
 runtime/valid/serde-reference-round-trip.hd	runtime	accept	std/serde.md#r-std-serde.std.reference
 runtime/valid/list-copy-independent.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
+runtime/valid/a-match-binding-of-a-map-list-keeps-its-value.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/list-value-parameter-copy.hd	runtime	accept	lang/04-type-system.md#r-types.coll.value
 runtime/valid/list-shared-reference-parameter.hd	runtime	accept	lang/04-type-system.md#r-types.coll.shared
 runtime/valid/list-element-places.hd	runtime	accept	lang/04-type-system.md#r-types.coll.element-place

@@ -3,9 +3,9 @@
   (import "fixture" "impl [ T ] List [ T ].pop[i32]" (func $"impl [ T ] List [ T ].pop[i32]" (param i32) (result i32 i32)))
   (import "fixture" "rt:panic" (func $rt:panic))
   (import "fixture" "heap" (memory $heap 1))
-  (func $total (param $xs i32) (param $other i32) (result i32) (local $t10 i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $sum i32) (local $t3 i32) (local $t4 i32) (local $i i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32)
-    ;; 5 |     n := xs.len()
+  (func $total (param $xs i32) (param $other i32) (result i32) (local $t0 i32) (local $t1 i32) (local $t2 i32) (local $sum i32) (local $t3 i32) (local $t4 i32) (local $i i32) (local $t5 i32) (local $t6 i32) (local $t7 i32) (local $t8 i32) (local $t9 i32)
     block
+    ;; 5 |     n := xs.len()
       local.get $xs
       local.tee $t0
       drop
@@ -49,18 +49,19 @@
     ;; 9 |         sum += xs[i]
           local.get $sum
           local.set $t5
+          local.get $i
+          local.set $t6
           local.get $xs
-          local.tee $t6
           drop
           block
-            local.get $t6
+            local.get $xs
             i32.load $heap
             local.set $t7
           end
           local.get $t7
           i32.load $heap
           local.set $t8
-          local.get $i
+          local.get $t6
           local.tee $t9
           local.get $t8
           i32.load $heap offset=4
@@ -84,9 +85,8 @@
       end
     ;; 10 |     sum
       local.get $sum
-    ;; 5 |     n := xs.len()
-      local.set $t10
+      ;; ...
     end
-    local.get $t10
+    ;; ...
   )
 )

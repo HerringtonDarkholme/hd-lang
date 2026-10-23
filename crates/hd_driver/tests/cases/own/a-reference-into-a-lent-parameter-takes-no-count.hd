@@ -3,7 +3,7 @@
 # `h` refers to, which its caller keeps alive for the whole call, so the
 # reference is `lent`: it takes no count where the referent is physical.
 # Its `Drop` stays for an instance whose reference view makes the referent
-# fresh (the `counts` view builds the old path, which loans it too).
+# fresh; the `counts` view shows no count operation.
 struct Counter:
     n: i64
 

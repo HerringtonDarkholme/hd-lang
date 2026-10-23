@@ -2,4 +2,3 @@
 app/main/repeat
   retain &mut app.main.Tally
   release &mut app.main.Tally
-  release counted reference

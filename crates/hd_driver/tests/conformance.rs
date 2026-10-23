@@ -37,9 +37,11 @@
 //! instead (§23.24), under the same rule: a
 //! leak, a double free or a count change on a freed block panics
 //! `count-audit`, so the case fails.
-//! `HD_CONFORMANCE_OWN=1` builds every case through the ownership passes
-//! of TIR v2's stage 2 (`Packages::own_passes`), whose decisions the
-//! backend then emits instead of its own, under the same rule.
+//! Every case builds through the ownership passes of TIR v2's stage 2,
+//! whose decisions the backend emits. `HD_CONFORMANCE_OLD=1` builds every
+//! case on the old path instead (`Packages::old_ownership`), where the
+//! backend decides the counts itself, under the same rule, with the
+//! cases only the new path passes known (`old_path_known`).
 
 //! `HD_TEST_TIMINGS=1` logs per-case or per-command wall times for profiling.
 
@@ -393,7 +395,7 @@ fn build_for(
         target,
         level: level(),
         checked: fixture.checked,
-        own_passes: own_passes(),
+        old_ownership: old_ownership(),
         ..Packages::default()
     };
     build_packages(&host, fixture.package, &packages, goal)
@@ -1776,10 +1778,41 @@ fn checked_runtime() -> bool {
     selection_env("HD_CONFORMANCE_CHECKED").is_some_and(|value| value == "1")
 }
 
-/// Whether every case builds through the ownership passes, emitting from
-/// what they decide (`Packages::own_passes`), when `HD_CONFORMANCE_OWN=1`.
-fn own_passes() -> bool {
-    selection_env("HD_CONFORMANCE_OWN").is_some_and(|value| value == "1")
+/// The cases only the ownership passes' path passes, known failures of a
+/// run on the old path (`HD_CONFORMANCE_OLD=1`): its defects, which commit
+/// 14 deletes with it (`docs/compiler/tir-v2.md`, stage 2 commit 13c).
+fn old_path_known() -> Vec<known_failures::KnownFailure> {
+    [
+        (
+            "runtime/valid/a-match-binding-of-a-map-list-keeps-its-value.hd",
+            "#728",
+            "the old path's checker copies a list into `let` bindings only, so a match binding sees a later push to the map's list",
+        ),
+        (
+            "runtime/valid/element-reference-copy-independent.hd",
+            "#494",
+            "a list copied as an argument beside an element reference into it shares the referenced elements",
+        ),
+        (
+            "runtime/valid/element-reference-nested-copy-independent.hd",
+            "#494",
+            "a list copied as an argument beside an element reference into it shares the referenced elements",
+        ),
+    ]
+    .into_iter()
+    .map(|(path, issue, reason)| known_failures::KnownFailure {
+        path: path.to_owned(),
+        issue: issue.to_owned(),
+        engine: None,
+        reason: reason.to_owned(),
+    })
+    .collect()
+}
+
+/// Whether every case builds on the old path, whose backend decides every
+/// count itself (`Packages::old_ownership`), when `HD_CONFORMANCE_OLD=1`.
+fn old_ownership() -> bool {
+    selection_env("HD_CONFORMANCE_OLD").is_some_and(|value| value == "1")
 }
 
 /// The std package's own hd tests of its runtime modules: only std may use
@@ -2258,7 +2291,10 @@ fn specification_conformance_passes_except_known_failures() {
             },
         })
         .collect();
-    let known = known_failures::load(&root());
+    let mut known = known_failures::load(&root());
+    if old_ownership() {
+        known.extend(old_path_known());
+    }
     let (summary, errors) = known_failures::judge(
         "driver",
         engine,
