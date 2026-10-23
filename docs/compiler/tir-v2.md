@@ -3072,6 +3072,28 @@ of element references needs references returned from `next`, which the
 element access model (#494) does not allow, so more of `ref_loop` may
 stay.
 
+**The inliner's four commits**, each green on its own and reporting its
+code lines against 325, the emitted sizes and the build time:
+
+1. **Body copy**: `hd_tir::inline` copies a callee (locals, labels, constants, strings and records moved past the caller's; `splice`'s renumbering; `Store`s binding the parameters in the call's block; each `Return` a `Break` to the copy's root block, which an empty `Scope` owns; types by `map_body_types` and `hd_mono::subst`), and the driver copies item calls of small std functions outside `std.rt`, with unit tests.
+2. **Trait calls**: a `ChoiceKind::Impl` call inlines with its impl's arguments matched from the receiver, and a `Bound` call in a copy that substitution makes concrete is chosen again as an `Impl`.
+3. **Binding by pass mode**: a `mut` parameter, and an in-place collection receiver, write back through the argument's place, so those callees inline too, and a panic inside a copy names the callee's position.
+4. **One splice per body**: all of a body's copies land in one rebuild, the verifier checks a copy's invariants, the cache dependency list records the callees, and the size limit is tuned again.
+
+**Emitted size budget.** hello's Wasm does not change, and each
+bench/study program's release `.wasm` stays within +5% of its size
+before the inliner; a commit over that stops for review, like a commit
+over its line share. Size is bounded by construction: the limit counts
+a callee's instructions after substitution, only small callees inline
+(12 instructions in commit 1, well under the estimate's 40, tuned by
+measuring), and nothing inlines into a copy within the same body. So
+std's collection methods must keep their slow paths (growth, rehashing,
+panic text) in separate functions too large to inline, and only the
+fast path is copied. Commit 1 measured limits 8 to 40 on the 12
+programs: at 12, json's Wasm is 1.8% smaller and nothing grows over 1%
+(map_count +0.8%, string_build +0.9%); at 16 json grows 3.8%, at 40
+5.8%.
+
 Commit plan: the inliner (four commits), the typed primitives (two),
 `List` with the buffer-address value (four, each benchmarked), the `for`
 lowering (two), `Map` (three), strings (two), deleting the intrinsics
