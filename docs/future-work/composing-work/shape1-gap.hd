@@ -1,0 +1,33 @@
+# Expected checker rejection; see POLICY_COMPOSITION.md, not a runnable positive.
+use std.time.Clock
+use std.http.Http
+
+trait Layer[W]:
+    type Output
+    fn wrap(self, work: W) -> Self::Output
+
+struct AddClock: pass
+impl[T, $R] Layer[fn!() -> T $ R] for AddClock:
+    type Output = fn!() -> T $ R + Clock
+    fn wrap(self, work: fn!() -> T $ R) -> (fn!() -> T $ R + Clock):
+        fn!() -> T $ R + Clock: work!()
+
+struct Keep: pass
+impl[T, $R] Layer[fn!() -> T $ R] for Keep:
+    type Output = fn!() -> T $ R
+    fn wrap(self, work: fn!() -> T $ R) -> (fn!() -> T $ R): work
+
+struct Stack[I, O]:
+    inner: I
+    outer: O
+
+impl[W, I < Layer[W], O < Layer[I::Output]] Layer[W] for Stack[I, O]:
+    type Output = O::Output
+    fn wrap(self, work: W) -> O::Output:
+        self.outer.wrap(self.inner.wrap(work))
+
+pub fn main!() -> void $ Console + Clock + Http:
+    stack := Stack { inner: AddClock {}, outer: Keep {} }
+    work := fn!() -> usize $ Http: 7
+    wrapped := stack.wrap(work)
+    println(wrapped!())
